@@ -20,10 +20,10 @@ using SizeResolverDelegate = System.Func<string, int?>;
 /// - Builds the tree blob from the topology-core thunk, wraps it in an
 ///   <c>Interpreter&lt;BrainBlackboard, BTreeContext&gt;</c> and calls
 ///   <c>beh.Register(id, name, BehaviorDefinition)</c>.
-/// - Registers each BTree action thunk via
-///   <c>beh.RegisterAction(id, name, BlueprintBTreeActionDelegate)</c>.
-/// - Registers each BTree condition thunk via
-///   <c>beh.RegisterCondition(id, name, BlueprintBTreeConditionDelegate)</c>.
+/// - Registers each BTree action/condition thunk (managed assets) into the FastBTree
+///   <c>actionRegistry</c> at its baked <c>{MethodFqn}@{offset}[@{slotKey}]</c> key; the
+///   Interpreter binds against that registry. (Non-managed assets bind through the
+///   assembly's <c>[FbtRegistrar]</c> node logic and emit no per-asset thunks.)
 /// - Registers <c>[BTreeDeactivator]</c> hooks via
 ///   <c>actionRegistry.RegisterDeactivator(key, delegate)</c> so that JSON-authored trees
 ///   fire cleanup callbacks on branch abort, matching the hardcoded-tree path.
@@ -387,36 +387,12 @@ public static class BTreeBridgeEmitCore
         }
         else
         {
-            // Legacy stub thunks — byte-identical to pre-BATCH-02 output.
-            var actions = CollectActions(dto);
-            if (actions.Count > 0)
-            {
-                sb.AppendLine();
-                sb.AppendLine($"{pad2}// BTree action thunks — coordinator-injectable via BehaviorRegistry.RegisterAction.");
-                int i = 0;
-                foreach (var fqn in actions)
-                {
-                    sb.AppendLine($"{pad2}beh.RegisterAction({behaviorId + i + 1}, \"{fqn}\",");
-                    sb.AppendLine($"{pad2}{Indent}(ref {bbShort} bb, ref Fbt.BehaviorTreeState st, ref {ctxShort} ctx, int pi) =>");
-                    sb.AppendLine($"{pad2}{Indent}{Indent}Fbt.NodeStatus.Success);");
-                    i++;
-                }
-            }
-
-            var conditions = CollectConditions(dto);
-            if (conditions.Count > 0)
-            {
-                sb.AppendLine();
-                sb.AppendLine($"{pad2}// BTree condition thunks — coordinator-injectable via BehaviorRegistry.RegisterCondition.");
-                int i = 0;
-                foreach (var fqn in conditions)
-                {
-                    sb.AppendLine($"{pad2}beh.RegisterCondition({behaviorId + actions.Count + i + 1}, \"{fqn}\",");
-                    sb.AppendLine($"{pad2}{Indent}(ref {bbShort} bb, ref Fbt.BehaviorTreeState st, ref {ctxShort} ctx, int pi) =>");
-                    sb.AppendLine($"{pad2}{Indent}{Indent}true);");
-                    i++;
-                }
-            }
+            // Non-managed (hand-written-struct) trees bind their action/condition delegates
+            // through the FastBTree ActionRegistry (populated from the assembly's [FbtRegistrar]
+            // node logic and injected into the Interpreter below), keyed by the method names
+            // baked into the blob. No per-asset registration is emitted here: the former
+            // BehaviorRegistry.RegisterAction/RegisterCondition stubs (always Success/true) were
+            // never read by any binding path and have been removed.
         }
 
         // HAJSON-B: Register deactivator hooks for every action/condition key that has a
@@ -1356,28 +1332,6 @@ public static class BTreeBridgeEmitCore
             // Convert to non-negative int (preserve bit pattern, clear sign bit)
             return (int)(hash & 0x7FFFFFFFu);
         }
-    }
-
-    private static List<string> CollectActions(BehaviorTreeAssetDto dto)
-    {
-        var set = new SortedSet<string>(StringComparer.Ordinal);
-        foreach (var node in dto.Nodes)
-        {
-            if (node is BTreeActionNodeDto act && act.Action?.MethodFqn != null)
-                set.Add(act.Action.MethodFqn);
-        }
-        return new List<string>(set);
-    }
-
-    private static List<string> CollectConditions(BehaviorTreeAssetDto dto)
-    {
-        var set = new SortedSet<string>(StringComparer.Ordinal);
-        foreach (var node in dto.Nodes)
-        {
-            if (node is BTreeConditionNodeDto cond && cond.Condition?.MethodFqn != null)
-                set.Add(cond.Condition.MethodFqn);
-        }
-        return new List<string>(set);
     }
 
     private static void AddNamespaceFromTypeName(HashSet<string> set, string typeName)
