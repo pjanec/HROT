@@ -107,13 +107,10 @@ public sealed class MoveToAndFire_BTreeTick_Tests : IDisposable
         Assert.Equal(NodeStatus.Running, status);
     }
 
-    // STILL FAILING (confirmed 2026-07-13): after the channel completes, Tick 2 returns Failure
-    // instead of Success — the channel-complete branch mis-routes (consistent with the old
-    // NodeStatus enum-mismatch / Return-path bug, which — unlike the other 6 in the removed 7-bug
-    // list — is NOT yet fixed). Kept skipped until the WaitForChannel→Return success path is
-    // corrected. Tracked alongside I1 (see MoveToAndFire-Bug-Triage-2026-07-13.md).
-    [Fact(Skip = "Channel-complete path returns Failure instead of Success on Tick 2 — real bug, " +
-                 "not yet fixed (verified 2026-07-13). See MoveToAndFire-Bug-Triage report.")]
+    // Channel-complete path: after the channel reports Success, Tick 2 must return Success.
+    // (This exercises the generated TickCore directly via reflection, not a real interpreter
+    // binding — that end-to-end path is the still-open I1 registration wire, DEBT-AIB-025.)
+    [Fact]
     public void BTreeTick_AfterChannelComplete_ReturnsSuccess()
     {
         // Arrange: compile → load → register → Tick 1
@@ -124,10 +121,13 @@ public sealed class MoveToAndFire_BTreeTick_Tests : IDisposable
         var tick1 = _fixture.InvokeBTreeAction(_asset, entity);
         Assert.Equal(NodeStatus.Running, tick1);  // sanity
 
-        // Simulate movement completion — set channel Status to Success
-        // LocomotionChannel.Status is Fbt.NodeStatus; explicit cast since both enums share the same integer values.
+        // Simulate movement completion — set the channel to success.
+        // LocomotionChannel.Status is Fbt.NodeStatus. Assign the runtime value DIRECTLY:
+        // the asset-side NodeStatus (Hrot.Blueprints.Core.Assets, Success=0) and Fbt.NodeStatus
+        // (Success=1) have DIFFERENT ordinals, so an (Fbt.NodeStatus)(int)NodeStatus.Success cast
+        // would produce Fbt.Failure. These two enums must only be converted by name, never by ordinal.
         ref var chan = ref _fixture.World.GetComponentRW<LocomotionChannel>(entity);
-        chan.Status = (Fbt.NodeStatus)(int)NodeStatus.Success;
+        chan.Status = Fbt.NodeStatus.Success;
 
         // Act: Tick 2 — WaitForChannel sees Success, continues to Return
         var tick2 = _fixture.InvokeBTreeAction(_asset, entity);
