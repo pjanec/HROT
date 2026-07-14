@@ -102,6 +102,19 @@ internal static class AiPrimitiveEmitter
 
     private static void EmitTickCore(CSharpEmitter e, IrAsset asset)
     {
+        // I4: mark TickCore so the editor's reflection-based ActionSchemaExporter discovers this
+        // blueprint AiPrimitive as a placeable AI action (DtoType is read from the first ref param,
+        // `ref Params`). Flags mirror the compiler's hosting set so the exporter maps them to the
+        // correct host graphs and marks conditions. Distinct from [BTreeAction]/[SharedAiAction] so
+        // the FastBTree/Shared-AI generators never re-process this already-registered thunk.
+        string B(bool v) => v ? "true" : "false";
+        e.WriteLine(
+            "[global::Fbt.Kernel.GeneratedAiPrimitiveAction("
+            + $"bTreeAction: {B(asset.Hostings.Contains(AiPrimitiveHosting.BTreeAction))}, "
+            + $"bTreeCondition: {B(asset.Hostings.Contains(AiPrimitiveHosting.BTreeCondition))}, "
+            + $"hsmAction: {B(asset.Hostings.Contains(AiPrimitiveHosting.HsmAction))}, "
+            + $"hsmGuard: {B(asset.Hostings.Contains(AiPrimitiveHosting.HsmGuard))}, "
+            + $"blueprintCall: {B(asset.Hostings.Contains(AiPrimitiveHosting.BlueprintCall))})]");
         e.WriteLine("public static global::Fbt.NodeStatus TickCore(");
         e.Indent();
         e.WriteLine("ref Params p,");

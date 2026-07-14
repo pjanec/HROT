@@ -98,6 +98,22 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
         var hosting = ActionHosting.None;
         Type? heavyDtoType = null;
         bool isCondition = false;
+        bool isAiPrimitive = false;
+
+        // I4: Blueprint-compiled AiPrimitive — a distinct discovery attribute on the generated
+        // TickCore. Maps its hosting flags to ActionHosting exactly as the compiler emitted them,
+        // and tags the entry so catalogs/UI can present it as blueprint-authored (not hardcoded).
+        // DtoType is taken from the first ref param (ref Params) below, like the other attributes.
+        var aiPrimitive = method.GetCustomAttribute<GeneratedAiPrimitiveActionAttribute>(inherit: false);
+        if (aiPrimitive != null)
+        {
+            isAiPrimitive = true;
+            if (aiPrimitive.BTreeAction)    hosting |= ActionHosting.BTree;
+            if (aiPrimitive.BTreeCondition) { hosting |= ActionHosting.BTree; isCondition = true; }
+            if (aiPrimitive.HsmAction)      hosting |= ActionHosting.Hsm;
+            if (aiPrimitive.HsmGuard)       hosting |= ActionHosting.Hsm;
+            if (aiPrimitive.BlueprintCall)  hosting |= ActionHosting.Shared;
+        }
 
         // BTree attributes
         if (method.IsDefined(typeof(BTreeActionAttribute), inherit: false))
@@ -179,7 +195,8 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
         var dtoFields = ReflectDtoFields(dtoType);
 
         // Last-write wins for duplicate FQNs (can happen with AllowMultiple across overloads).
-        collected[fqn] = new ActionSchemaEntry(fqn, dtoType, hosting, access, heavyDtoType, isCondition, dtoFields);
+        collected[fqn] = new ActionSchemaEntry(
+            fqn, dtoType, hosting, access, heavyDtoType, isCondition, dtoFields, isAiPrimitive);
     }
 
     /// <summary>

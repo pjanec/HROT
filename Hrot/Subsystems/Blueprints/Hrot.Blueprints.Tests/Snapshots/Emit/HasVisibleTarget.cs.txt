@@ -34,6 +34,7 @@ public static class HasVisibleTarget_96FB0E6E_Bp
         *dst = default;
     }
     
+    [global::Fbt.Kernel.GeneratedAiPrimitiveAction(bTreeAction: false, bTreeCondition: true, hsmAction: false, hsmGuard: false, blueprintCall: false)]
     public static global::Fbt.NodeStatus TickCore(
         ref Params p,
         ref WorkingState ws,

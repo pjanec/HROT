@@ -28,6 +28,9 @@ public sealed class BTreeNodeCatalog : INodeCatalog
     private const string CatComposite = "Composite";
     private const string CatLeaf      = "Leaf";
     private const string CatDecorator = "Decorator";
+    // I4: blueprint-compiled AiPrimitive actions get their own palette group so they read as
+    // distinct from hand-written leaves.
+    private const string CatBlueprintAction = "Blueprint";
     private static readonly string CatReactiveGuard = ReactiveGuardVocabulary.CategoryName;
 
     // ---- Entries ----
@@ -87,9 +90,13 @@ public sealed class BTreeNodeCatalog : INodeCatalog
             if (!entry.Hosting.HasFlag(ActionHosting.BTree))
                 continue;
 
-            // When a blackboard type name is known, filter to actions/conditions
-            // whose DtoType matches the asset's blackboard so the codegen can bind.
-            if (!string.IsNullOrEmpty(_blackboardTypeName)
+            // When a blackboard type name is known, filter hand-written actions/conditions to those
+            // whose DtoType matches the asset's blackboard so the codegen can bind. Blueprint
+            // AiPrimitives (I4) are exempt: their DtoType is the generated Params struct, which is
+            // bin-packed into the asset blackboard at a baked offset (they compose as host-BTree
+            // nodes), so a blackboard-type match does not apply.
+            if (!entry.IsAiPrimitive
+                && !string.IsNullOrEmpty(_blackboardTypeName)
                 && entry.DtoType?.FullName != _blackboardTypeName)
                 continue;
 
@@ -98,13 +105,26 @@ public sealed class BTreeNodeCatalog : INodeCatalog
                 ? BTreeKinds.ConditionPrefix + kv.Key
                 : BTreeKinds.ActionPrefix + kv.Key;
 
+            // I4: present blueprint AiPrimitives under their own category with a blueprint icon and
+            // a descriptive tooltip/keyword, so they are visually distinct from curated leaves.
+            var category = entry.IsAiPrimitive ? CatBlueprintAction : CatLeaf;
+            var iconKey  = entry.IsAiPrimitive
+                ? (entry.IsCondition ? "bt/blueprint_condition" : "bt/blueprint_action")
+                : (entry.IsCondition ? "bt/condition" : "bt/action");
+            var description = entry.IsAiPrimitive
+                ? "Blueprint-authored AiPrimitive composed as a BTree node."
+                : (string?)null;
+            var keywords = entry.IsAiPrimitive
+                ? new[] { kv.Key, shortName, "blueprint", "aiprimitive" }
+                : new[] { kv.Key, shortName };
+
             entries.Add(new NodeCatalogEntry(
                 new NodeKindKey(kindId),
                 shortName,
-                null,
-                CatLeaf,
-                new[] { kv.Key, shortName },
-                entry.IsCondition ? "bt/condition" : "bt/action",
+                description,
+                category,
+                keywords,
+                iconKey,
                 entry.IsCondition,
                 false,
                 false,
@@ -207,6 +227,7 @@ public sealed class BTreeNodeCatalog : INodeCatalog
     {
         new NodeCategoryDescriptor(CatComposite, "Composites", "bt/composite"),
         new NodeCategoryDescriptor(CatLeaf,      "Leaves",     "bt/leaf"),
+        new NodeCategoryDescriptor(CatBlueprintAction, "Blueprint Actions", "bt/blueprint"),
         new NodeCategoryDescriptor(CatDecorator, "Decorators", "bt/decorator"),
         new NodeCategoryDescriptor(CatReactiveGuard, ReactiveGuardVocabulary.CategoryName, null),
     };

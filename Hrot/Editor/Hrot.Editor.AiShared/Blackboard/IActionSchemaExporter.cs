@@ -59,6 +59,12 @@ public enum BlackboardAccess
 /// Public instance fields of <see cref="DtoType"/>, enumerated in declaration order.
 /// Used by the Variables panel to show hardcoded DTO fields as read-only rows.
 /// </param>
+/// <param name="IsAiPrimitive">
+/// True when this entry was discovered from a Blueprint-compiled AiPrimitive's generated
+/// <c>TickCore</c> (via <c>[Fbt.Kernel.GeneratedAiPrimitiveAction]</c>) rather than a hand-written
+/// <c>[BTreeAction]</c>/<c>[SharedAiAction]</c> method. Lets downstream catalogs/UI present
+/// blueprint-authored actions distinctly. Defaults to false for backward compatibility.
+/// </param>
 public record ActionSchemaEntry(
     string Fqn,
     Type DtoType,
@@ -66,7 +72,8 @@ public record ActionSchemaEntry(
     BlackboardAccess Access,
     Type? HeavyDtoType,
     bool IsCondition = false,
-    IReadOnlyList<DtoFieldDescriptor>? DtoFields = null
+    IReadOnlyList<DtoFieldDescriptor>? DtoFields = null,
+    bool IsAiPrimitive = false
 );
 
 /// <summary>

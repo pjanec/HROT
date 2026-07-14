@@ -22,6 +22,11 @@ public struct TestHeavyContainer { public byte[] Data; }
 /// <summary>A DTO with two known public fields, used for S1-1 DtoFields tests.</summary>
 public struct FooDto { public int Health; public float Speed; }
 
+/// <summary>Stands in for a Blueprint-compiled AiPrimitive's generated Params struct (I4).</summary>
+public struct AiPrimParamsDto { public int RunsNeeded; }
+/// <summary>Stands in for a Blueprint-compiled AiPrimitive's generated WorkingState struct (I4).</summary>
+public struct AiPrimWorkingDto { public int Ticks; }
+
 /// <summary>
 /// Static fixture class whose methods are decorated with the various AI action/condition
 /// attributes so the schema exporter can reflect over them.
@@ -75,6 +80,18 @@ public static class ActionFixtures
 
     [HsmGuard(DtoType = typeof(TestHsmDto))]
     public static unsafe bool HsmVoidPtrGuard_WithDtoType(void* instance, void* context, ushort eventId) { return false; }
+
+    // I4: mirror a Blueprint-compiled AiPrimitive's generated TickCore — the first ref param is the
+    // generated Params struct, and the [GeneratedAiPrimitiveAction] flags mirror the compiler output.
+    [GeneratedAiPrimitiveAction(bTreeAction: true, blueprintCall: true)]
+    public static NodeStatus AiPrimitiveActionTickCore(
+        ref AiPrimParamsDto p, ref AiPrimWorkingDto ws,
+        Fdp.Core.Entity self, Fdp.Core.EntityRepository world, float time) => NodeStatus.Success;
+
+    [GeneratedAiPrimitiveAction(bTreeCondition: true)]
+    public static NodeStatus AiPrimitiveConditionTickCore(
+        ref AiPrimParamsDto p, ref AiPrimWorkingDto ws,
+        Fdp.Core.Entity self, Fdp.Core.EntityRepository world, float time) => NodeStatus.Success;
 }
 
 // ---------------------------------------------------------------------------
@@ -526,5 +543,66 @@ public sealed class ActionSchemaExporterTests
 
         var entry = exporter.All[Fqn(nameof(ActionFixtures.BTreeConditionMethod))];
         Assert.True(entry.IsCondition);
+    }
+
+    // -------------------------------------------------------------------------
+    // I4 — Blueprint AiPrimitive discovery via [GeneratedAiPrimitiveAction]
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Rebuild_GeneratedAiPrimitiveAction_IsAiPrimitiveTrue()
+    {
+        var exporter = new ActionSchemaExporter();
+        exporter.Rebuild();
+
+        var entry = exporter.All[Fqn(nameof(ActionFixtures.AiPrimitiveActionTickCore))];
+        Assert.True(entry.IsAiPrimitive);
+    }
+
+    [Fact]
+    public void Rebuild_GeneratedAiPrimitiveAction_MapsHostingFlags()
+    {
+        var exporter = new ActionSchemaExporter();
+        exporter.Rebuild();
+
+        var entry = exporter.All[Fqn(nameof(ActionFixtures.AiPrimitiveActionTickCore))];
+        // bTreeAction: true → BTree; blueprintCall: true → Shared.
+        Assert.True(entry.Hosting.HasFlag(ActionHosting.BTree));
+        Assert.True(entry.Hosting.HasFlag(ActionHosting.Shared));
+        Assert.False(entry.IsCondition);
+    }
+
+    [Fact]
+    public void Rebuild_GeneratedAiPrimitiveAction_DtoTypeIsParamsStruct()
+    {
+        var exporter = new ActionSchemaExporter();
+        exporter.Rebuild();
+
+        var entry = exporter.All[Fqn(nameof(ActionFixtures.AiPrimitiveActionTickCore))];
+        // DtoType is read from the first ref param (the generated Params), not the WorkingState.
+        Assert.Equal(typeof(AiPrimParamsDto), entry.DtoType);
+    }
+
+    [Fact]
+    public void Rebuild_GeneratedAiPrimitiveCondition_IsConditionTrue_BTreeHosted()
+    {
+        var exporter = new ActionSchemaExporter();
+        exporter.Rebuild();
+
+        var entry = exporter.All[Fqn(nameof(ActionFixtures.AiPrimitiveConditionTickCore))];
+        Assert.True(entry.IsAiPrimitive);
+        Assert.True(entry.IsCondition);
+        Assert.True(entry.Hosting.HasFlag(ActionHosting.BTree));
+    }
+
+    [Fact]
+    public void Rebuild_HardcodedBTreeAction_IsAiPrimitiveFalse()
+    {
+        var exporter = new ActionSchemaExporter();
+        exporter.Rebuild();
+
+        // Regression: hand-written attributed methods must keep IsAiPrimitive == false.
+        var entry = exporter.All[Fqn(nameof(ActionFixtures.BTreeActionMethod))];
+        Assert.False(entry.IsAiPrimitive);
     }
 }

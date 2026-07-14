@@ -18,9 +18,12 @@ namespace Hrot.Blueprints.Editor.ActionCatalog;
 ///   </item>
 ///   <item>
 ///     <see cref="IActionSchemaExporter"/> — contributes
-///     <see cref="BehaviorActionSource.Hardcoded"/> entries (includes post-reload
-///     blueprint-authored AiPrimitive actions that appear in the same exporter after
-///     compilation) with hosting derived from <see cref="ActionHosting"/> flags.
+///     <see cref="BehaviorActionSource.Hardcoded"/> entries for hand-written
+///     <c>[BTreeAction]</c>/<c>[SharedAiAction]</c> methods, and
+///     <see cref="BehaviorActionSource.AiPrimitive"/> entries for blueprint-compiled
+///     AiPrimitives (tagged via <c>ActionSchemaEntry.IsAiPrimitive</c>, appearing in the
+///     same exporter after compilation/hot-reload), with hosting derived from
+///     <see cref="ActionHosting"/> flags.
 ///   </item>
 /// </list>
 ///
@@ -165,7 +168,12 @@ public sealed class BehaviorActionCatalog : IBehaviorActionCatalog, IDisposable
                 ActionId:       0,
                 ParamsTypeFqn:  paramsFqn,
                 ValidHosts:     hosts,
-                Source:         BehaviorActionSource.Hardcoded
+                // I4: a blueprint-compiled AiPrimitive (discovered via [GeneratedAiPrimitiveAction])
+                // is tagged AiPrimitive so pickers/palette can present it distinctly from a
+                // hand-written [BTreeAction]/[SharedAiAction] entry.
+                Source:         schema.IsAiPrimitive
+                                    ? BehaviorActionSource.AiPrimitive
+                                    : BehaviorActionSource.Hardcoded
             ));
         }
 

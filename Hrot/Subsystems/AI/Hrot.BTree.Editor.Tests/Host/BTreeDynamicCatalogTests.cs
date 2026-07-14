@@ -359,6 +359,53 @@ public sealed class BTreeDynamicCatalogTests
         catalog.All.Should().Contain(e => e.Kind.Id == "bt.leaf.action::Ns.Combat.DoOther");
     }
 
+    // ---- I4 — blueprint AiPrimitive actions in the palette ----
+
+    [Fact]
+    public void Catalog_AiPrimitiveEntry_AppearsDespiteBlackboardFilter()
+    {
+        var fake = new FakeActionSchemaExporter();
+        // An AiPrimitive's DtoType is its generated Params struct (SomeOtherDto here), NOT the asset
+        // blackboard type. It must still be offered because AiPrimitives compose as host-BTree nodes
+        // (their Params are bin-packed into the blackboard at a baked offset).
+        fake.Seed("Ns.Bp.MoveToAndFire", new ActionSchemaEntry(
+            "Ns.Bp.MoveToAndFire", typeof(SomeOtherDto), ActionHosting.BTree,
+            BlackboardAccess.Unknown, null, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
+
+        var catalog = new BTreeNodeCatalog(fake, typeof(BrainBlackboardStub).FullName);
+
+        catalog.All.Should().Contain(e => e.Kind.Id == "bt.leaf.action::Ns.Bp.MoveToAndFire");
+    }
+
+    [Fact]
+    public void Catalog_AiPrimitiveEntry_CategorizedAsBlueprint()
+    {
+        var fake = new FakeActionSchemaExporter();
+        fake.Seed("Ns.Bp.MoveToAndFire", new ActionSchemaEntry(
+            "Ns.Bp.MoveToAndFire", typeof(SomeOtherDto), ActionHosting.BTree,
+            BlackboardAccess.Unknown, null, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
+
+        var catalog = new BTreeNodeCatalog(fake, typeof(BrainBlackboardStub).FullName);
+
+        var entry = catalog.All.Single(e => e.Kind.Id == "bt.leaf.action::Ns.Bp.MoveToAndFire");
+        entry.CategoryPath.Should().Be("Blueprint");
+    }
+
+    [Fact]
+    public void Catalog_MismatchedHardcodedEntry_StillFilteredOut()
+    {
+        // Regression: a mismatched-DtoType HARD-CODED action (IsAiPrimitive == false) must remain
+        // filtered by the blackboard-type gate — the exemption applies only to AiPrimitives.
+        var fake = new FakeActionSchemaExporter();
+        fake.Seed("Ns.Combat.DoOther", new ActionSchemaEntry(
+            "Ns.Combat.DoOther", typeof(SomeOtherDto), ActionHosting.BTree,
+            BlackboardAccess.Unknown, null, IsCondition: false));
+
+        var catalog = new BTreeNodeCatalog(fake, typeof(BrainBlackboardStub).FullName);
+
+        catalog.All.Should().NotContain(e => e.Kind.Id == "bt.leaf.action::Ns.Combat.DoOther");
+    }
+
     [Fact]
     public void Catalog_StaticEntries_AlwaysPresent()
     {

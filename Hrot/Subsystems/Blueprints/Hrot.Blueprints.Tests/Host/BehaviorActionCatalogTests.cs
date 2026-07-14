@@ -83,6 +83,12 @@ public sealed class BehaviorActionCatalogTests
             ActionHosting.BTree | ActionHosting.Hsm | ActionHosting.Shared,
             BlackboardAccess.Unknown, null);
 
+    // I4: a blueprint-compiled AiPrimitive — BTree + Shared hosting, IsAiPrimitive flag set.
+    private static ActionSchemaEntry MakeAiPrimitiveEntry(string fqn) =>
+        new(fqn, typeof(FakeBTreeDto),
+            ActionHosting.BTree | ActionHosting.Shared,
+            BlackboardAccess.Unknown, null, IsCondition: false, DtoFields: null, IsAiPrimitive: true);
+
     // ── 1. Channel-command entries ───────────────────────────────────────────
 
     [Fact]
@@ -325,6 +331,36 @@ public sealed class BehaviorActionCatalogTests
         var entry = catalog.GetActions().Single(e => e.Id == "Foo.Bar.BTreeAction1");
 
         Assert.Null(entry.ChannelTypeFqn);
+    }
+
+    // ── 2b. I4 — AiPrimitive source tagging ──────────────────────────────────
+
+    [Fact]
+    public void GetActions_AiPrimitiveEntry_SourceIsAiPrimitive()
+    {
+        const string fqn = "Hrot.AI.Behaviors.Generated.MoveToAndFire_Bp.TickCore";
+        var cc  = new FakeChannelCommandCatalog();
+        var ase = new FakeActionSchemaExporter();
+        ase.SetEntries(MakeAiPrimitiveEntry(fqn));
+
+        using var catalog = new BehaviorActionCatalog(cc, ase);
+        var entry = catalog.GetActions().Single(e => e.Id == fqn);
+
+        Assert.Equal(BehaviorActionSource.AiPrimitive, entry.Source);
+    }
+
+    [Fact]
+    public void GetActions_HardcodedEntry_SourceIsNotAiPrimitive()
+    {
+        // Regression: a hand-written (non-AiPrimitive) schema entry stays Hardcoded.
+        var cc  = new FakeChannelCommandCatalog();
+        var ase = new FakeActionSchemaExporter();
+        ase.SetEntries(MakeBTreeEntry("Foo.Bar.BTreeAction1"));
+
+        using var catalog = new BehaviorActionCatalog(cc, ase);
+        var entry = catalog.GetActions().Single(e => e.Id == "Foo.Bar.BTreeAction1");
+
+        Assert.Equal(BehaviorActionSource.Hardcoded, entry.Source);
     }
 
     // ── 3. Composite: both sources together ─────────────────────────────────

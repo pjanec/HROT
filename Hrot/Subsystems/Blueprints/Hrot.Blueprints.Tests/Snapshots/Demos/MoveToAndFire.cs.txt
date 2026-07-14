@@ -37,6 +37,7 @@ public static class MoveToAndFire_649F8F53_Bp
         *dst = default;
     }
     
+    [global::Fbt.Kernel.GeneratedAiPrimitiveAction(bTreeAction: true, bTreeCondition: false, hsmAction: false, hsmGuard: false, blueprintCall: false)]
     public static global::Fbt.NodeStatus TickCore(
         ref Params p,
         ref WorkingState ws,
