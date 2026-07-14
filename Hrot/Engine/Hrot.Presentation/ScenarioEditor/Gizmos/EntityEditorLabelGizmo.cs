@@ -31,9 +31,6 @@ namespace Hrot.ScenarioEditor.Gizmos
 
         private readonly BehaviorRegistry _behaviorRegistry;
 
-        // DIAGNOSTIC (temporary): dedup set so the "?" miss log fires once per distinct hash.
-        private static readonly System.Collections.Generic.HashSet<int> _loggedMissingHashes = new();
-
         public EntityEditorLabelGizmo(BehaviorRegistry behaviorRegistry)
         {
             _behaviorRegistry = behaviorRegistry ?? throw new ArgumentNullException(nameof(behaviorRegistry));
@@ -63,32 +60,27 @@ namespace Hrot.ScenarioEditor.Gizmos
             if (view.HasComponent<BehaviorState>(entity))
             {
                 ref readonly var bs = ref view.GetComponentRO<BehaviorState>(entity);
-                if (_behaviorRegistry.TryGetName(bs.ActiveBehaviorHash, out string? behaviorName)
-                    && behaviorName != null)
-                {
-                    string truncated = behaviorName.Length > 20
-                        ? behaviorName.Substring(0, 20)
-                        : behaviorName;
-                    draw.DrawTextLong(baseX, baseY, truncated, BehaviorColor,
-                        fontSizePx: 13f, lineOffsetPx: -30f);
-                }
-                else
-                {
-                    // DIAGNOSTIC (temporary): the label could not resolve this entity's
-                    // ActiveBehaviorHash to a name — this is the "?" regression. Log the failing
-                    // hash, the exact registry instance this gizmo reads, and its full contents,
-                    // ONCE per distinct hash so it cannot flood. Compare the instance id here
-                    // against the one the ingress/coordinator logs to tell "missing entry" apart
-                    // from "wrong registry instance"; the name=id list reveals id/hash mismatch.
-                    if (_loggedMissingHashes.Add(bs.ActiveBehaviorHash))
-                    {
-                        Console.WriteLine(
-                            $"[LabelGizmo] '?' — no name for ActiveBehaviorHash={bs.ActiveBehaviorHash} " +
-                            $"(NetId={netId.Value}). Reading {_behaviorRegistry.DebugDump()}");
-                    }
 
-                    draw.DrawText(baseX, baseY, new FixedString32("?"), BehaviorColor,
-                        fontSizePx: 13f, lineOffsetPx: -30f);
+                // ActiveBehaviorHash == 0 is the sentinel for "no active behavior" (e.g. before the
+                // first assignment, or after a one-shot tree returns Success and deactivates). That is
+                // a normal, empty state — render nothing. A non-zero hash that does NOT resolve to a
+                // registered name is a genuine error (unregistered/skipped behavior) and stays "?".
+                if (bs.ActiveBehaviorHash != 0)
+                {
+                    if (_behaviorRegistry.TryGetName(bs.ActiveBehaviorHash, out string? behaviorName)
+                        && behaviorName != null)
+                    {
+                        string truncated = behaviorName.Length > 20
+                            ? behaviorName.Substring(0, 20)
+                            : behaviorName;
+                        draw.DrawTextLong(baseX, baseY, truncated, BehaviorColor,
+                            fontSizePx: 13f, lineOffsetPx: -30f);
+                    }
+                    else
+                    {
+                        draw.DrawText(baseX, baseY, new FixedString32("?"), BehaviorColor,
+                            fontSizePx: 13f, lineOffsetPx: -30f);
+                    }
                 }
             }
 

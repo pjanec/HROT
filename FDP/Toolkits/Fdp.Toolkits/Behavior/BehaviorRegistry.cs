@@ -322,22 +322,6 @@ namespace Fdp.Toolkit.Behavior
             => _nameToId.Keys.ToList();
 
         /// <summary>
-        /// DIAGNOSTIC (temporary): one-line dump of this registry's instance identity and
-        /// registered (name=id) pairs. Used to trace the "?" label regression — lets us
-        /// compare the registry instance the label gizmo reads against the one the ingress
-        /// system wrote, and see exactly which names are (or are not) present. Safe/read-only.
-        /// </summary>
-        public string DebugDump()
-        {
-            int rhc = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(this);
-            var pairs = _nameToId
-                .OrderBy(kv => kv.Key, StringComparer.Ordinal)
-                .Select(kv => $"{kv.Key}={kv.Value}");
-            return $"BehaviorRegistry#{rhc} count={_nameToId.Count} defs={_definitions.Count} "
-                 + $"resolvers={_resolversByName.Count} names=[{string.Join(", ", pairs)}]";
-        }
-
-        /// <summary>
         /// Removes all registered behaviors. Called by AiHotReloadCoordinator.Dispose()
         /// to release managed delegate references into collectible assemblies so they
         /// can be GC-reclaimed.

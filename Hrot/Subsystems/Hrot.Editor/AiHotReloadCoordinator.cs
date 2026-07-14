@@ -274,11 +274,10 @@ namespace Hrot.Editor
                         // Unwrap reflection's TargetInvocationException for a useful message.
                         var inner = (regEx as TargetInvocationException)?.InnerException ?? regEx;
                         var assetName = registrar.RegisterMethod.DeclaringType?.FullName ?? "<unknown>";
-                        // DIAGNOSTIC (temporary): a skipped registrar means its behavior name never
-                        // enters the live registry, so any entity assigned that behavior renders "?"
-                        // in the editor. Log the FULL exception (type + stack + inner) so we can see
-                        // exactly which registrar throws and why — the ".Message"-only form hid the
-                        // root cause of the "?" regression.
+                        // A skipped registrar means its behavior name never enters the live registry,
+                        // so any entity assigned that behavior renders "?" in the editor. Log the FULL
+                        // exception (type + stack + inner), not just .Message, so the root cause of a
+                        // skipped registration is never hidden.
                         Console.WriteLine(
                             $"[AiHotReload] WARNING: registrar '{assetName}' failed to register and was skipped:\n{inner}");
                         OnReloadFailed?.Invoke(pending.DllPath, inner);
@@ -296,11 +295,6 @@ namespace Hrot.Editor
                 // caught by Register during the staging scan (Step 2) above. MergeFrom updates the
                 // live definitions/thunks/resolvers in place, matching the Fdp.Toolkit coordinator.
                 _liveRegistry.MergeFrom(behaviorStaging);
-
-                // DIAGNOSTIC (temporary): dump what the file-watcher reload produced (staging) and
-                // what the live registry the gizmo reads now contains, so a missing name is obvious.
-                Console.WriteLine($"[AiHotReload] file-watch MergeFrom done. staging {behaviorStaging.DebugDump()}");
-                Console.WriteLine($"[AiHotReload] file-watch MergeFrom done. live    {_liveRegistry.DebugDump()}");
 
                 // Step 5: hot-reload live HSM instances per-chunk.
                 foreach (var name in behaviorStaging.GetRegisteredNames())
@@ -374,10 +368,6 @@ namespace Hrot.Editor
                 // a Register loop would trip the Phase-1e duplicate-name hard error. Genuine collisions
                 // are caught by Register during QuickReloadService's staging scan.
                 _liveRegistry.MergeFrom(behaviorStaging);
-
-                // DIAGNOSTIC (temporary): see Step 4 of DrainPendingCallbacks.
-                Console.WriteLine($"[AiHotReload] quick-reload MergeFrom done. staging {behaviorStaging.DebugDump()}");
-                Console.WriteLine($"[AiHotReload] quick-reload MergeFrom done. live    {_liveRegistry.DebugDump()}");
 
                 // Step 3: hot-reload live HSM instances per-chunk (same as file-watcher path).
                 foreach (var name in behaviorStaging.GetRegisteredNames())

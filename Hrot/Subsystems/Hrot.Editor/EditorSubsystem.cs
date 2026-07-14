@@ -624,13 +624,6 @@ namespace Hrot.Editor
             // from Hrot.AI.Behaviors.dll via TriggerInitialLoad() below.
             UrbanCombatNewScenario.RegisterUrbanCombatBehaviors(behaviorRegistry);
 
-            // DIAGNOSTIC (temporary): the editor's single live registry, right after the synchronous
-            // UrbanCombat registration and BEFORE the async Hrot.AI.Behaviors.dll scan below. The
-            // instance id printed here must match the one the LabelGizmo prints on a "?" miss and the
-            // one [AiHotReload] prints after MergeFrom — a mismatch means the gizmo reads a different
-            // registry than the one being populated.
-            Console.WriteLine($"[EditorSubsystem] post-RegisterUrbanCombat {behaviorRegistry.DebugDump()}");
-
             // Expose the registry to the diagnostic renderers so the entity inspector
             // can project BrainBlackboard memory and visualize the BTree execution state.
             Hrot.Presentation.Renderers.BrainBlackboardRenderer.BehaviorRegistryAccessor = behaviorRegistry;
