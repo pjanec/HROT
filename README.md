@@ -8,13 +8,17 @@ deliver a full multi-node simulation cluster with visual AI authoring, a Bluepri
 scripting language, a binary flight recorder, and a real-time 2D tactical image
 generator -- all over a CycloneDDS pub/sub backbone.
 
-> **📖 This README highlights _what the platform does_.** For the rules you must respect
-> when writing or modifying engine code -- the architectural invariants, the hard numeric
-> limits, and the traps that bite people -- see the
-> **[HROT Programmer's Guide](docs/HROT-PROGRAMMERS-GUIDE.md)** (rules, limits & don'ts).
-> For the deep narrative on *how* each subsystem works, see
-> [docs/HROT architecture.md](docs/HROT%20architecture.md). This document deliberately does
-> not restate those details -- it points to them.
+> **📖 This README is the concrete feature map of the platform** -- the subsystems,
+> component names, and hard numbers at a glance. It deliberately does not restate what the
+> companion docs cover in depth; it points to them:
+>
+> - **[HROT Engine Guide](docs/HROT-Engine-Guide/HROT-Engine-Guide.md)** -- the *illustrated,
+>   chapter-by-chapter walkthrough* of every feature (diagrams, data flow, rationale -- plus
+>   Utility AI and the MCP AI-assistance server, which this README only touches on). Start
+>   here for the "how it works" tour. Each section below links to its matching chapter.
+> - **[HROT Programmer's Guide](docs/HROT-PROGRAMMERS-GUIDE.md)** -- the rules, hard numeric
+>   limits, invariants, and traps you must respect when writing or modifying engine code.
+> - **[HROT architecture.md](docs/HROT%20architecture.md)** -- the deep technical narrative.
 
 ---
 
@@ -39,6 +43,8 @@ generator -- all over a CycloneDDS pub/sub backbone.
 ---
 
 ## 1. Architecture Overview
+
+> 📘 Full walkthrough: Engine Guide [Ch. 1 -- What HROT Is](docs/HROT-Engine-Guide/HROT-Engine-Guide.md#1-what-hrot-is) · [Ch. 3 -- Architecture & Topology](docs/HROT-Engine-Guide/HROT-Engine-Guide.md#3-architecture--topology).
 
 The solution is organized in two layers:
 
@@ -80,6 +86,8 @@ reconfiguration on other nodes.
 ---
 
 ## 2. Core ECS Framework (FDP)
+
+> 📘 Full walkthrough: Engine Guide [Ch. 10 -- Foundation (FDP)](docs/HROT-Engine-Guide/HROT-Engine-Guide.md#10-foundation-fdp).
 
 ### 2.1 Entity Model
 
@@ -182,6 +190,8 @@ enabled produces **zero Generation 0 GC collections on the hot path**.
 
 ## 3. Distributed Cluster & Brain-Muscle Split
 
+> 📘 Full walkthrough: Engine Guide [Ch. 13 -- Brain-Side Actuation](docs/HROT-Engine-Guide/HROT-Engine-Guide.md#13-brain-side-actuation) · [Ch. 14 -- Distributed Simulation Mechanics](docs/HROT-Engine-Guide/HROT-Engine-Guide.md#14-distributed-simulation-mechanics).
+
 ### 3.1 Node Roles
 
 | Role | Owns | Runs |
@@ -266,6 +276,8 @@ behavior.
 
 ## 4. AI Behavior System
 
+> 📘 Full walkthrough: Engine Guide [Ch. 7 -- AI & Behavior](docs/HROT-Engine-Guide/HROT-Engine-Guide.md#7-ai--behavior) · [Ch. 8 -- Utility AI](docs/HROT-Engine-Guide/HROT-Engine-Guide.md#8-utility-ai) (scored decision-making -- a fourth paradigm covered in depth there).
+
 ### 4.1 Three Authoring Paradigms
 
 | Tier | Technology | Best For |
@@ -331,6 +343,8 @@ tight-coupling event sources to AI internals.
 
 ## 5. Blueprint Visual Scripting
 
+> 📘 Full walkthrough: Engine Guide [Ch. 9 -- Blueprints](docs/HROT-Engine-Guide/HROT-Engine-Guide.md#9-blueprints).
+
 ### 5.1 Overview
 
 Blueprints are `.bp.json` graph assets providing Unreal-Blueprint-like visual
@@ -384,6 +398,8 @@ the same entity are supported with isolated blackboard partition slots.
 
 ## 6. Network Replication
 
+> 📘 Full walkthrough: Engine Guide [Ch. 14 -- Distributed Simulation Mechanics](docs/HROT-Engine-Guide/HROT-Engine-Guide.md#14-distributed-simulation-mechanics).
+
 ### 6.1 CycloneDDS Backbone
 
 - **Peer-to-peer discovery** -- no broker; adding or removing a node requires zero
@@ -434,6 +450,8 @@ never operate on partially hydrated replicas.
 ---
 
 ## 7. Environment Queries & Perception
+
+> 📘 Full walkthrough: Engine Guide [Ch. 12 -- EQS & Perception](docs/HROT-Engine-Guide/HROT-Engine-Guide.md#12-eqs--perception).
 
 ### 7.1 Spatial Hash Grid
 
@@ -486,6 +504,8 @@ bus) to prevent write-back into the global frame state.
 
 ## 8. Flight Recorder & Replay
 
+> 📘 Full walkthrough: Engine Guide [Ch. 5 -- Diagnostics, AAR & Replay](docs/HROT-Engine-Guide/HROT-Engine-Guide.md#5-diagnostics-aar--replay).
+
 ### 8.1 Zero-Allocation Hot Path
 
 - **Memory-level serialization** -- the recorder copies entire 64 KB `NativeChunkTable`
@@ -537,6 +557,8 @@ drift is detected between recording and the live binary.
 
 ## 9. Cluster Orchestration (2PC)
 
+> 📘 Full walkthrough: Engine Guide [Ch. 15 -- Cluster Orchestration](docs/HROT-Engine-Guide/HROT-Engine-Guide.md#15-cluster-orchestration).
+
 ### 9.1 Purpose
 
 Transitioning the cluster between major lifecycle states (load scenario, go live,
@@ -572,6 +594,8 @@ Orchestrator              All Slave Nodes
 ---
 
 ## 10. Time Management & Synchronization
+
+> 📘 Full walkthrough: Engine Guide [Ch. 14.4 -- Deterministic vs continuous time](docs/HROT-Engine-Guide/HROT-Engine-Guide.md#14-distributed-simulation-mechanics).
 
 ### 10.1 GlobalTime Singleton
 
@@ -618,6 +642,8 @@ nodes simultaneously snap to the master's `SimTimeSnapshot` and halt execution.
 ---
 
 ## 11. Development Tools & Editors
+
+> 📘 Full walkthrough: Engine Guide [Ch. 4 -- Authoring & Tooling](docs/HROT-Engine-Guide/HROT-Engine-Guide.md#4-authoring--tooling) · [Ch. 5 -- Diagnostics, AAR & Replay](docs/HROT-Engine-Guide/HROT-Engine-Guide.md#5-diagnostics-aar--replay).
 
 The diagnostic and authoring toolset is one of the most practically useful parts of
 the platform. Every tool described below is available inside a single running
@@ -792,6 +818,8 @@ post-mortem analysis and CI regression comparisons.
 
 ## 12. Predicate & Breakpoint Infrastructure
 
+> 📘 Full walkthrough: Engine Guide [Ch. 5.5 -- One predicate language](docs/HROT-Engine-Guide/HROT-Engine-Guide.md#5-diagnostics-aar--replay) (search *and* breakpoints).
+
 A reusable, four-layer infrastructure used by the Replay Browser search panel and the
 Universal Breakpoint subsystem -- and consumable by any future feature:
 
@@ -840,6 +868,8 @@ business logic.
 ---
 
 ## 13. Technology Stack
+
+> 📘 Full walkthrough: Engine Guide [Ch. 2 -- Tech Stack & Engineering Posture](docs/HROT-Engine-Guide/HROT-Engine-Guide.md#2-tech-stack--engineering-posture).
 
 | Category | Technology |
 |----------|-----------|
@@ -1028,6 +1058,7 @@ This README is the feature/architecture map. For everything it deliberately leav
 
 | Document | What it covers |
 |----------|----------------|
+| [docs/HROT-Engine-Guide/HROT-Engine-Guide.md](docs/HROT-Engine-Guide/HROT-Engine-Guide.md) | **Illustrated feature walkthrough** -- a chapter-by-chapter tour of every subsystem with diagrams and data-flow narrative, including Utility AI and the MCP AI-assistance server. The "how it works" companion to this README. |
 | [docs/HROT-PROGRAMMERS-GUIDE.md](docs/HROT-PROGRAMMERS-GUIDE.md) | **Rules, limits & don'ts** -- the architectural invariants, the hard numeric limits (Part 2), and the traps that bite people. Read this before writing or modifying engine code. |
 | [docs/HROT architecture.md](docs/HROT%20architecture.md) | The deep narrative on *how* each subsystem works (ECS, event bus, Brain-Muscle, replication, perception, channels, time sync, recorder, TKB, 2PC). |
 | [docs/00-SOLUTION-OVERVIEW.md](docs/00-SOLUTION-OVERVIEW.md) | Project index, node topology, and the key architecture decisions. |
