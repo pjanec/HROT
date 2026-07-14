@@ -345,13 +345,16 @@ internal static class StatementEmitter
             // Debug probes (Debug/Trace modes only)
             // ------------------------------------------------------------------
 
+            // Entity-scoped debug probes reference `self`, which only exists in
+            // AiPrimitive/Instance methods — never in stateless Library functions
+            // (emitting it there produces uncompilable C#, CS0103). Suppress in Library scope.
             case IrOp_DebugProbe_NodeEnter op:
-                if (e.Ctx.Mode != Hrot.Blueprints.Core.Compiler.CompilerMode.Release)
+                if (e.Ctx.Mode != Hrot.Blueprints.Core.Compiler.CompilerMode.Release && e.Ctx.HasSelfInScope)
                     e.WriteLine($"global::Hrot.Blueprints.Core.Debug.DebugProbe.NodeEnter(self, \"{op.NodeId:D}\");");
                 break;
 
             case IrOp_DebugProbe_PinValue op:
-                if (e.Ctx.Mode != Hrot.Blueprints.Core.Compiler.CompilerMode.Release)
+                if (e.Ctx.Mode != Hrot.Blueprints.Core.Compiler.CompilerMode.Release && e.Ctx.HasSelfInScope)
                     e.WriteLine($"global::Hrot.Blueprints.Core.Debug.DebugProbe.PinValueChanged(self, \"{op.PinId:N}\", __t{op.Value.Index});");
                 break;
 

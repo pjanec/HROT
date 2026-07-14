@@ -76,4 +76,13 @@ internal sealed class EmissionContext
     /// <summary>State struct local variable name based on dispatch kind.</summary>
     public string StateVar =>
         Asset.Dispatch == AssetDispatch.AiPrimitive ? "ws" : "s";
+
+    /// <summary>
+    /// True when the emitted method has an <c>Entity self</c> parameter in scope.
+    /// AiPrimitive (TickCore / thunks) and Instance (Tick/Event) methods carry <c>self</c>;
+    /// Library-dispatch function graphs are stateless static methods with no entity context,
+    /// so entity-scoped debug probes (NodeEnter / PinValueChanged) must not reference <c>self</c>
+    /// there — doing so emits uncompilable C# (CS0103). See StatementEmitter debug-probe cases.
+    /// </summary>
+    public bool HasSelfInScope => Asset.Dispatch != AssetDispatch.Library;
 }
