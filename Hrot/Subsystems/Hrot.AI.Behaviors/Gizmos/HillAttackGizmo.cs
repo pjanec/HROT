@@ -8,6 +8,7 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Hrot.AI.Behaviors.Brains;
+using Hrot.Map.Definitions.Behavior;
 // Disambiguate from GizmoMap.Contracts.Fdp.Toolkit.Diagnostics.Gizmos.FixedString32.
 using FixedString32 = Fdp.Core.FixedString32;
 
@@ -17,7 +18,7 @@ namespace Hrot.AI.Behaviors.Gizmos
     public sealed class HillAttackGizmo : IStatelessGizmo
     {
         // Hash value of PlatoonHillAttack_BT from BehaviorIds (= 3014).
-        private static readonly int PlatoonHillAttack_BT = BehaviorHash.FromName("PlatoonHillAttack");
+        private static readonly int PlatoonHillAttack_BT = BehaviorHash.FromName(BehaviorNames.PlatoonHillAttack);
 
         private readonly GizmoSettingsRegistry _settings;
 

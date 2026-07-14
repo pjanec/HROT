@@ -11,6 +11,7 @@ using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Hrot.AI.Behaviors.Brains;
 using Hrot.AI.Behaviors.Gizmos;
 using Hrot.IG.Gizmos;
+using Hrot.Map.Definitions.Behavior;
 using Xunit;
 
 namespace Hrot.IG.Tests.Gizmos
@@ -170,7 +171,7 @@ namespace Hrot.IG.Tests.Gizmos
 
             repo.AddComponent(entity, new BehaviorState
             {
-                ActiveBehaviorHash = BehaviorHash.FromName("PlatoonHillAttack"),  // PlatoonHillAttack_BT
+                ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.PlatoonHillAttack),  // PlatoonHillAttack_BT
                 InstanceId         = 1,
                 BrainTier          = 0
             });

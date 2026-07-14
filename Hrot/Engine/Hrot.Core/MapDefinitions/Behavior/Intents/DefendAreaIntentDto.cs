@@ -14,7 +14,7 @@ namespace Hrot.Map.Definitions.Behavior.Intents
     [BehaviorContract(BehaviorId, BehaviorCategory.AllMilitary)]
     public sealed class DefendAreaIntentDto
     {
-        public const string BehaviorId = "DefendArea";
+        public const string BehaviorId = BehaviorNames.DefendArea;
 
         /// <summary>Latitude of the area center.</summary>
         public double CenterLat { get; set; }

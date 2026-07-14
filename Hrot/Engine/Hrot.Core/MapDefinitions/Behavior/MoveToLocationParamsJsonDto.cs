@@ -10,7 +10,7 @@ namespace Hrot.Map.Definitions.Behavior
     [BehaviorContract(BehaviorId, BehaviorCategory.AllMilitary | BehaviorCategory.Civilian)]
     public sealed class MoveToLocationParamsJsonDto
     {
-        public const string BehaviorId = "MoveToLocation";
+        public const string BehaviorId = BehaviorNames.MoveToLocation;
 
         /// <summary>Target latitude in degrees (flat JSON wire format).</summary>
         [JsonPropertyName("targetLat")]

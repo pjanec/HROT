@@ -7,6 +7,6 @@ namespace Hrot.Map.Definitions.Behavior
     [BehaviorContract(BehaviorId, BehaviorCategory.Infantry)]
     public sealed class JoinFormationParamsJsonDto
     {
-        public const string BehaviorId = "JoinFormation";
+        public const string BehaviorId = BehaviorNames.JoinFormation;
     }
 }

@@ -17,6 +17,7 @@ using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Spatial.Eqs;
 using Hrot.AI.Behaviors.Logging;
+using Hrot.Map.Definitions.Behavior;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -35,7 +36,7 @@ namespace Hrot.AI.Behaviors.Brains
     {
         // Integer ID of the HullDownAttackRun subordinate behavior.
         // Compared against BehaviorState.ActiveBehaviorHash to detect run start / end.
-        private static readonly int HullDownAttackRunBehaviorId = BehaviorHash.FromName("HullDownAttackRun");
+        private static readonly int HullDownAttackRunBehaviorId = BehaviorHash.FromName(BehaviorNames.HullDownAttackRun);
 
         // ── Phase 4.1: Setup nodes ────────────────────────────────────────────────
 

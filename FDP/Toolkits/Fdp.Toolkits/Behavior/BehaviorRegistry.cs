@@ -171,10 +171,18 @@ namespace Fdp.Toolkit.Behavior
         private readonly Dictionary<int, (string Name, BlueprintBTreeConditionDelegate Thunk)> _bTreeConditions = new();
 
         /// <summary>
-        /// Register a behavior with a stable assigned <paramref name="id"/>.
-        /// The <paramref name="id"/> must be a unique compile-time constant
-        /// (see <see cref="BehaviorIds"/>).  It becomes the value stored in
-        /// <see cref="Components.BehaviorState.ActiveBehaviorHash"/>.
+        /// Register a behavior <b>by name</b> — the preferred, name-as-identity entry point.
+        /// The integer id is derived from the name via <see cref="BehaviorHash.FromName"/>, so
+        /// callers reference a behavior by its name exactly once and never hand-pick an id.
+        /// </summary>
+        public void Register(string name, BehaviorDefinition definition)
+            => Register(BehaviorHash.FromName(name), name, definition);
+
+        /// <summary>
+        /// Register a behavior under an explicit integer <paramref name="id"/>.
+        /// The id becomes the value stored in <see cref="Components.BehaviorState.ActiveBehaviorHash"/>.
+        /// Prefer the <see cref="Register(string, BehaviorDefinition)"/> overload; this one exists for
+        /// callers that already hold the derived id (e.g. generated registrars).
         /// </summary>
         public void Register(int id, string name, BehaviorDefinition definition)
         {

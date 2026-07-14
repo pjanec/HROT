@@ -9,7 +9,7 @@ namespace Hrot.Map.Definitions.Behavior
     [BehaviorContract(BehaviorId, BehaviorCategory.AllMilitary)]
     public sealed class FollowRouteParamsJsonDto
     {
-        public const string BehaviorId = "FollowRoute";
+        public const string BehaviorId = BehaviorNames.FollowRoute;
 
         /// <summary>
         /// Network ID of the route entity to follow.

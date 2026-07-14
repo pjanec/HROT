@@ -9,7 +9,7 @@ namespace Hrot.Map.Definitions.Behavior
     [BehaviorContract(BehaviorId, BehaviorCategory.AllMilitary)]
     public sealed class FireAtTargetParamsJsonDto
     {
-        public const string BehaviorId = "FireAtTarget";
+        public const string BehaviorId = BehaviorNames.FireAtTarget;
 
         /// <summary>Network ID of the target entity. Remapped during scenario load.</summary>
         [JsonPropertyName("targetNetworkId")]

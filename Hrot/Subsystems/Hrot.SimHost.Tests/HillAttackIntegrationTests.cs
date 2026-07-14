@@ -28,6 +28,7 @@ using Hrot.AI.Behaviors.Mappers;
 using Hrot.CGF.Systems;
 using Hrot.IG.Components;
 using Hrot.Map.Common;
+using Hrot.Map.Definitions.Behavior;
 using Hrot.SimHost;
 using Hrot.SimHost.Systems;
 using Xunit;
@@ -57,10 +58,10 @@ namespace Hrot.SimHost.Tests
         private SpatialHashGrid _grid;
 
         // PlatoonHillAttack behavior integer ID (stable; must not change).
-        private static readonly int PlatoonHillAttack_BT = BehaviorHash.FromName("PlatoonHillAttack");
+        private static readonly int PlatoonHillAttack_BT = BehaviorHash.FromName(BehaviorNames.PlatoonHillAttack);
 
         // HullDownAttackRun behavior integer ID (stable; must not change).
-        private static readonly int HullDownAttackRun_BT = BehaviorHash.FromName("HullDownAttackRun");
+        private static readonly int HullDownAttackRun_BT = BehaviorHash.FromName(BehaviorNames.HullDownAttackRun);
 
         public HillAttackIntegrationTests()
         {
@@ -359,7 +360,7 @@ namespace Hrot.SimHost.Tests
             _repo.Bus.PublishManaged(new AssignBehaviorEvent
             {
                 Entity       = commander,
-                BehaviorName = "PlatoonHillAttack",
+                BehaviorName = BehaviorNames.PlatoonHillAttack,
                 JsonParams   = json,
             });
 
@@ -433,7 +434,7 @@ namespace Hrot.SimHost.Tests
             _repo.Bus.PublishManaged(new AssignBehaviorEvent
             {
                 Entity       = commander,
-                BehaviorName = "PlatoonHillAttack",
+                BehaviorName = BehaviorNames.PlatoonHillAttack,
                 JsonParams   = json,
             });
 
@@ -529,7 +530,7 @@ namespace Hrot.SimHost.Tests
             _repo.Bus.PublishManaged(new AssignBehaviorEvent
             {
                 Entity       = commander,
-                BehaviorName = "PlatoonHillAttack",
+                BehaviorName = BehaviorNames.PlatoonHillAttack,
                 JsonParams   = json,
             });
 
@@ -623,7 +624,7 @@ namespace Hrot.SimHost.Tests
             _repo.Bus.PublishManaged(new AssignBehaviorEvent
             {
                 Entity       = commander,
-                BehaviorName = "PlatoonHillAttack",
+                BehaviorName = BehaviorNames.PlatoonHillAttack,
                 JsonParams   = json,
             });
 
@@ -737,7 +738,7 @@ namespace Hrot.SimHost.Tests
             _repo.Bus.PublishManaged(new AssignBehaviorEvent
             {
                 Entity       = commander,
-                BehaviorName = "PlatoonHillAttack",
+                BehaviorName = BehaviorNames.PlatoonHillAttack,
                 JsonParams   = json,
             });
 

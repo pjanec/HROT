@@ -289,5 +289,30 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.True(r2.TryGetDefinition(Id, out var d2));
             Assert.NotNull(d2!.ParseParams);
         }
+
+        // ── Test 11 — name-based Register overload derives id from name ─────
+        /// <summary>
+        /// The name-based <see cref="BehaviorRegistry.Register(string, BehaviorDefinition)"/>
+        /// overload must derive the id via <see cref="BehaviorHash.FromName"/> internally,
+        /// with no id argument required from the caller.
+        /// </summary>
+        [Fact]
+        public void Register_ByName_DerivesIdFromName()
+        {
+            var registry = new BehaviorRegistry();
+            var def = new BehaviorDefinition
+            {
+                Name      = "Foo",
+                BrainTier = BehaviorConstants.BrainTierBTree,
+            };
+
+            registry.Register("Foo", def);
+
+            Assert.True(registry.TryGetId("Foo", out var id));
+            Assert.Equal(BehaviorHash.FromName("Foo"), id);
+
+            Assert.True(registry.TryGetDefinition(id, out var result));
+            Assert.Same(def, result);
+        }
     }
 }

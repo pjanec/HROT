@@ -14,7 +14,7 @@ namespace Hrot.Map.Definitions.Behavior
     [BehaviorContract(BehaviorId, BehaviorCategory.Commander)]
     public sealed class PlatoonHillAttackParamsJsonDto
     {
-        public const string BehaviorId = "PlatoonHillAttack";
+        public const string BehaviorId = BehaviorNames.PlatoonHillAttack;
 
         /// <summary>Start of the firing-line segment.</summary>
         [JsonPropertyName("firingLineStart")]

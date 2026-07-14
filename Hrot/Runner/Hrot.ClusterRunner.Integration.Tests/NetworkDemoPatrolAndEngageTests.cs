@@ -16,6 +16,7 @@ using Fdp.Toolkit.Replication.Components;
 using Hrot.CGF;
 using Hrot.AI.Behaviors.Brains;
 using Hrot.Map.Common;
+using Hrot.Map.Definitions.Behavior;
 using Hrot.SimHost;
 using Xunit;
 
@@ -243,7 +244,7 @@ public sealed class NetworkDemoPatrolAndEngageTests
         // NavigationIntentIngressTranslator -> NavigationIntentBridgeSystem ->
         // NavState -> CarKinematicsSystem pipeline.
         var behavior = harness.Cgf.World!.GetComponent<BehaviorState>(cgfEntity);
-        behavior.ActiveBehaviorHash = Fdp.Toolkit.Behavior.BehaviorHash.FromName("WanderMilitary");
+        behavior.ActiveBehaviorHash = Fdp.Toolkit.Behavior.BehaviorHash.FromName(BehaviorNames.WanderMilitary);
         harness.Cgf.World.SetComponent(cgfEntity, behavior);
 
         // Wait for SimTransform.Position to move; threshold > 0.1 m confirms

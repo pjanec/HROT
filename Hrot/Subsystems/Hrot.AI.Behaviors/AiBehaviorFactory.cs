@@ -12,6 +12,7 @@ using Fhsm.Kernel.Data;
 using Hrot.AI.Behaviors.Brains;
 using Hrot.AI.Behaviors.Generated;
 using Hrot.AI.Behaviors.Trees;
+using Hrot.Map.Definitions.Behavior;
 
 namespace Hrot.AI.Behaviors
 {
@@ -30,17 +31,6 @@ namespace Hrot.AI.Behaviors
     [BlueprintRegistrar]
     public static class AiBehaviorFactory
     {
-        // Behavior integer IDs.  Mirror of CgfBehaviorIds in Hrot.CGF.
-        // Values are stable and must never change once published.
-        private static readonly int MoveTo_BT         = BehaviorHash.FromName("MoveToLocation");
-        private static readonly int FollowRoute_BT    = BehaviorHash.FromName("FollowRoute");
-        private static readonly int JoinFormation_BT  = BehaviorHash.FromName("JoinFormation");
-        private static readonly int Idle_HSM          = BehaviorHash.FromName("Idle");
-        private static readonly int WanderMilitary_BT = BehaviorHash.FromName("WanderMilitary");
-        private static readonly int FireAtTarget_BT       = BehaviorHash.FromName("FireAtTarget");
-        private static readonly int HullDownAttackRun_BT   = BehaviorHash.FromName("HullDownAttackRun");
-        private static readonly int PlatoonHillAttack_BT   = BehaviorHash.FromName("PlatoonHillAttack");
-
         /// <summary>
         /// Entry point used by <c>AiHotReloadCoordinator</c> attribute-driven discovery.
         /// Compiles all BTree/HSM interpreters and registers the resulting
@@ -115,10 +105,10 @@ namespace Hrot.AI.Behaviors
             return (BehaviorRegistry registry) =>
             {
                 // unsafe lambdas assigned to ParseParamsDelegate require this block
-                registry.Register(MoveTo_BT, "MoveToLocation",
+                registry.Register(BehaviorNames.MoveToLocation,
                     new BehaviorDefinition
                     {
-                        Name             = "MoveToLocation",
+                        Name             = BehaviorNames.MoveToLocation,
                         BrainTier        = BehaviorConstants.BrainTierBTree,
                         ParseParams      = (json, ptr) => CgfNodes.ParseMoveToParams(json, ptr, geoTransform!),
                         ParamsDtoType    = typeof(CgfNodes.MoveToLocationParams),
@@ -126,10 +116,10 @@ namespace Hrot.AI.Behaviors
                             moveToBlob, actionRegistry),
                     });
 
-                registry.Register(FollowRoute_BT, "FollowRoute",
+                registry.Register(BehaviorNames.FollowRoute,
                     new BehaviorDefinition
                     {
-                        Name             = "FollowRoute",
+                        Name             = BehaviorNames.FollowRoute,
                         BrainTier        = BehaviorConstants.BrainTierBTree,
                         ParseParams      = (json, ptr) => CgfNodes.ParseFollowRouteParams(json, ptr),
                         ParamsDtoType    = typeof(CgfNodes.FollowRouteParams),
@@ -137,38 +127,38 @@ namespace Hrot.AI.Behaviors
                             followRouteBlob, actionRegistry),
                     });
 
-                registry.Register(JoinFormation_BT, "JoinFormation",
+                registry.Register(BehaviorNames.JoinFormation,
                     new BehaviorDefinition
                     {
-                        Name             = "JoinFormation",
+                        Name             = BehaviorNames.JoinFormation,
                         BrainTier        = BehaviorConstants.BrainTierBTree,
                         ParamsDtoType    = typeof(CgfNodes.JoinFormationParams),
                         BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
                             joinFormationBlob, actionRegistry),
                     });
 
-                registry.Register(Idle_HSM, "Idle",
+                registry.Register(BehaviorNames.Idle,
                     new BehaviorDefinition
                     {
-                        Name          = "Idle",
+                        Name          = BehaviorNames.Idle,
                         BrainTier     = BehaviorConstants.BrainTierHsm,
                         HsmDefinition = idleHsmBlob,
                         HsmMetadata   = idleHsmMetadata,
                     });
 
-                registry.Register(WanderMilitary_BT, "WanderMilitary",
+                registry.Register(BehaviorNames.WanderMilitary,
                     new BehaviorDefinition
                     {
-                        Name             = "WanderMilitary",
+                        Name             = BehaviorNames.WanderMilitary,
                         BrainTier        = BehaviorConstants.BrainTierBTree,
                         BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
                             wanderBlob, actionRegistry),
                     });
 
-                registry.Register(FireAtTarget_BT, "FireAtTarget",
+                registry.Register(BehaviorNames.FireAtTarget,
                     new BehaviorDefinition
                     {
-                        Name             = "FireAtTarget",
+                        Name             = BehaviorNames.FireAtTarget,
                         BrainTier        = BehaviorConstants.BrainTierBTree,
                         ParseParams      = (json, ptr) => CgfNodes.ParseFireAtTargetParams(json, ptr, entityMap),
                         ParamsDtoType    = typeof(CgfNodes.FireAtTargetParams),
@@ -176,10 +166,10 @@ namespace Hrot.AI.Behaviors
                             fireAtTargetBlob, actionRegistry),
                     });
 
-                registry.Register(HullDownAttackRun_BT, "HullDownAttackRun",
+                registry.Register(BehaviorNames.HullDownAttackRun,
                     new BehaviorDefinition
                     {
-                        Name             = "HullDownAttackRun",
+                        Name             = BehaviorNames.HullDownAttackRun,
                         BrainTier        = BehaviorConstants.BrainTierBTree,
                         ParseParams      = (json, ptr) => HillAttackTankNodes.ParseHullDownAttackParams(json, ptr),
                         ParamsDtoType    = typeof(HullDownAttackParams),
@@ -197,10 +187,10 @@ namespace Hrot.AI.Behaviors
                 var platoonHillStaging = new BehaviorRegistry();
                 PlatoonHillAttackRegistrar.Register(
                     platoonHillStaging, new BlueprintRegistry().BeginStaging(), actionRegistry);
-                if (platoonHillStaging.TryGetId("PlatoonHillAttack", out int genPlatoonHillId) &&
+                if (platoonHillStaging.TryGetId(BehaviorNames.PlatoonHillAttack, out int genPlatoonHillId) &&
                     platoonHillStaging.TryGetDefinition(genPlatoonHillId, out var genPlatoonHillDef))
                 {
-                    registry.Register(PlatoonHillAttack_BT, "PlatoonHillAttack", new BehaviorDefinition
+                    registry.Register(BehaviorNames.PlatoonHillAttack, new BehaviorDefinition
                     {
                         Name                       = genPlatoonHillDef.Name,
                         BrainTier                  = genPlatoonHillDef.BrainTier,
