@@ -44,74 +44,58 @@ public static class MoveToAndFire_649F8F53_Bp
         global::Fdp.Core.EntityRepository world,
         float time)
     {
-        {
-            byte __t1 = ws.__phase;
-            var __t2 = 0;
-            var __t3 = (__t1 == __t2);
-            if (__t3)
-                goto __block_entry;
-            else
-                goto __block_phase1_channel_check;
-        }
+        byte __t1 = ws.__phase;
+        var __t2 = 0;
+        var __t3 = (__t1 == __t2);
+        if (__t3)
+            goto __block_entry;
+        else
+            goto __block_phase1_channel_check;
         
         __block_entry:
+        global::Hrot.Blueprints.Core.Debug.DebugProbe.NodeEnter(self, "20000005-0000-0000-0000-000000000002");
+        if (world.HasComponent<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(self))
         {
-            global::Hrot.Blueprints.Core.Debug.DebugProbe.NodeEnter(self, "20000005-0000-0000-0000-000000000002");
-            if (world.HasComponent<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(self))
-            {
-                ref var __ch_0 = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(self);
-                __ch_0.ActiveAction = (ushort)1 /* MoveTo */;
-                __ch_0.ActionInstanceId++;
-            }
-            ws.__phase = 1;
-            return global::Fbt.NodeStatus.Running;
+            ref var __ch_0 = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(self);
+            __ch_0.ActiveAction = (ushort)1 /* MoveTo */;
+            __ch_0.ActionInstanceId++;
         }
+        global::Hrot.Blueprints.Core.Debug.DebugProbe.NodeEnter(self, "20000005-0000-0000-0000-000000000003");
+        ws.__phase = 1;
+        return global::Fbt.NodeStatus.Running;
         
         __block_wait_resume_0:
-        {
-            return global::Fbt.NodeStatus.Success;
-        }
+        return global::Fbt.NodeStatus.Success;
         
         __block_phase1_channel_check:
-        {
-            var __t4 = self;
-            ref readonly var __t5 = ref world.GetComponentRO<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(__t4);
-            var __t6 = __t5.Status;
-            var __t7 = global::Fbt.NodeStatus.Running;
-            var __t8 = ((int)__t6 == (int)__t7);
-            if (__t8)
-                goto __block_phase1_ret_running;
-            else
-                goto __block_phase1_not_running;
-        }
+        var __t4 = self;
+        ref readonly var __t5 = ref world.GetComponentRO<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(__t4);
+        var __t6 = __t5.Status;
+        var __t7 = global::Fbt.NodeStatus.Running;
+        var __t8 = ((int)__t6 == (int)__t7);
+        if (__t8)
+            goto __block_phase1_ret_running;
+        else
+            goto __block_phase1_not_running;
         
         __block_phase1_ret_running:
-        {
-            return global::Fbt.NodeStatus.Running;
-        }
+        return global::Fbt.NodeStatus.Running;
         
         __block_phase1_not_running:
-        {
-            var __t9 = self;
-            ref readonly var __t10 = ref world.GetComponentRO<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(__t9);
-            var __t11 = __t10.Status;
-            var __t12 = global::Fbt.NodeStatus.Failure;
-            var __t13 = ((int)__t11 == (int)__t12);
-            if (__t13)
-                goto __block_phase1_failure;
-            else
-                goto __block_wait_resume_0;
-        }
+        var __t9 = self;
+        ref readonly var __t10 = ref world.GetComponentRO<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(__t9);
+        var __t11 = __t10.Status;
+        var __t12 = global::Fbt.NodeStatus.Failure;
+        var __t13 = ((int)__t11 == (int)__t12);
+        if (__t13)
+            goto __block_phase1_failure;
+        else
+            goto __block_wait_resume_0;
         
         __block_phase1_failure:
-        {
-            ws.__phase = 0;
-            return global::Fbt.NodeStatus.Failure;
-        }
-        
-        #pragma warning disable CS0162 // Unreachable code (fallback)
+        ws.__phase = 0;
         return global::Fbt.NodeStatus.Failure;
-        #pragma warning restore CS0162
+        
     }
     
     public static unsafe global::Fbt.NodeStatus BTreeTick(
