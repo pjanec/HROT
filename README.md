@@ -8,6 +8,14 @@ deliver a full multi-node simulation cluster with visual AI authoring, a Bluepri
 scripting language, a binary flight recorder, and a real-time 2D tactical image
 generator -- all over a CycloneDDS pub/sub backbone.
 
+> **📖 This README highlights _what the platform does_.** For the rules you must respect
+> when writing or modifying engine code -- the architectural invariants, the hard numeric
+> limits, and the traps that bite people -- see the
+> **[HROT Programmer's Guide](docs/HROT-PROGRAMMERS-GUIDE.md)** (rules, limits & don'ts).
+> For the deep narrative on *how* each subsystem works, see
+> [docs/HROT architecture.md](docs/HROT%20architecture.md). This document deliberately does
+> not restate those details -- it points to them.
+
 ---
 
 ## Table of Contents
@@ -157,42 +165,18 @@ raises a runtime exception in debug builds.
 
 ### 2.10 Zero-Allocation Design Philosophy
 
-Avoiding GC pressure is a first-class, non-negotiable requirement that cuts across
-every subsystem. The engine is explicitly designed to run continuous simulations at
-scale with no GC hiccups:
+Avoiding GC pressure is a first-class, non-negotiable requirement that cuts across every
+subsystem. Component storage, the query engine, the Entity Command Buffer, the event bus,
+the flight recorder, FastHSM/FastBTree execution, the AI actuation channels, raycasts/EQS,
+the GizmoMap debug API, and network egress are all built on unmanaged buffers with
+`ref`/`Span<T>` access -- no boxing, no closures, no per-frame heap traffic. The result: a
+60 Hz simulation loop with thousands of active AI entities and full debug instrumentation
+enabled produces **zero Generation 0 GC collections on the hot path**.
 
-- **Component storage** -- all Tier 1 components are unmanaged structs stored in
-  `NativeChunkTable<T>` (64 KB pages of unmanaged memory). The GC never touches
-  simulation hot data.
-- **Query engine** -- `ForEachParallel()` allocates nothing; iteration uses
-  `ref`-returning enumerators over native chunk pointers.
-- **Entity Command Buffer** -- structural mutations are recorded as a typed byte stream
-  in a pre-allocated native buffer; no boxing, no `List<object>`.
-- **Event bus** -- Tier 1 native events are written via `Interlocked` into a
-  pre-allocated ring buffer and read as `ReadOnlySpan<T>`; zero heap interaction on
-  either side.
-- **Flight recorder** -- the 32 MB double-buffered pipeline copies raw unmanaged chunk
-  bytes directly to a background LZ4 compressor; no serialization objects created.
-- **FastHSM** -- state machine execution is a tight dispatch loop over packed unmanaged
-  structs (`BrainHsm64` / `BrainHsm128`) using C# function pointers; no delegates
-  allocated per transition.
-- **FastBTree** -- the behavior tree interpreter walks a `BehaviorTreeBlob` (blittable
-  byte array) and dispatches via a source-generated integer table; no virtual dispatch
-  or closure allocations.
-- **AI actuation channels** -- all five channels (`LocomotionChannel`,
-  `AnimationChannel`, `LookAtChannel`, `WeaponChannel`, `InteractionChannel`) are
-  fixed-size unmanaged structs updated in-place; no per-command heap allocation.
-- **Raycasts / EQS** -- results land in a pre-allocated `RaycastBatchData` ring buffer;
-  BTree nodes poll by ID with no allocation.
-- **GizmoMap debug API** -- `IDebugDrawBuilder` emits `DebugPrimitive` values
-  (unmanaged) into a DDS wire channel; zero heap allocation on the hot path even when
-  drawing hundreds of overlays per frame.
-- **Network egress** -- `SmartEgress` dirty-flag checks and `Shadow State` unmanaged
-  memory comparisons produce no objects on the no-change path.
-
-The result: a 60 Hz simulation loop with thousands of active AI entities and full
-debug instrumentation enabled produces zero Generation 0 GC collections on the hot
-path.
+> The zero-allocation *rule* itself (no `new`, no LINQ in `OnUpdate`/`Tick`/draw loops) and
+> the fixed-buffer capacities that enforce it are the domain of the Programmer's Guide -- see
+> **Part 0 (global invariants)** and **Part 2 (hard numeric limits)** in
+> [docs/HROT-PROGRAMMERS-GUIDE.md](docs/HROT-PROGRAMMERS-GUIDE.md).
 
 ---
 
@@ -274,6 +258,10 @@ detected (via `BehaviorState.InstanceId` mismatch), it zeroes stale channels so 
 outgoing executor's `OnExit` fires cleanly and no stale command bleeds into the new
 behavior.
 
+> **Rules & limits:** single-writer authority, the channel `Params`/`State` byte budgets,
+> the CQRS one-frame latencies, and DDS loopback guards for `--mode all` are specified in
+> the Programmer's Guide (Part 0, Part 4.2-4.3, Part 6.1).
+
 ---
 
 ## 4. AI Behavior System
@@ -333,6 +321,11 @@ under the hood.
 A `DecoupledInterruptSystem` lets external events (sensor contact, damage threshold,
 operator command) inject interrupt signals into a running BTree or HSM without
 tight-coupling event sources to AI internals.
+
+> **Rules & limits:** stable `BehaviorId` ranges, the sole-writer systems, behavior
+> transition latency, blackboard/parameter byte caps (100 B), and the compile-time
+> analyzer rules (FDP_001, `[UtilityInput]`) are covered in the Programmer's Guide
+> (Part 6) and [docs/AI_DEV_GUIDE.md](docs/AI_DEV_GUIDE.md).
 
 ---
 
@@ -434,6 +427,10 @@ never operate on partially hydrated replicas.
 | **SmartEgress** | `MarkDirty()` flag on `EgressPublicationState`; publish only on change | Low-frequency complex data: `EntityMission`, `WeaponState` |
 | **Shadow State** | Direct unmanaged memory comparison against `NetworkTransform`; publish on delta threshold or heartbeat | High-frequency kinematics: `SimTransform` (60 Hz) |
 
+> **Rules & limits:** `TypeId` non-determinism, DDS write-before-match ordering, ghost
+> promotion/timeout rules, the NED/BDC factory boundaries, and why `SmartEgress` is banned
+> for high-frequency physics are documented in the Programmer's Guide (Part 4).
+
 ---
 
 ## 7. Environment Queries & Perception
@@ -480,6 +477,11 @@ bus) to prevent write-back into the global frame state.
 - Sensor state changes cross the CQRS boundary via `SensorTrackStateEvent`; the
   Brain's `ActiveSensorTracksUpdateSystem` updates the cognitive buffer.
 
+> **Rules & limits:** perception runs at 10 Hz on a background snapshot (scoped-bus only,
+> ECB writes only), `FieldOfViewCos` semantics, 2D-only LOS, and the grid/broadphase/track
+> caps (256 candidates, 16 tracks, 1000 m grid, EQS pools) are in the Programmer's Guide
+> (Part 5.3, Part 2).
+
 ---
 
 ## 8. Flight Recorder & Replay
@@ -525,6 +527,11 @@ drift is detected between recording and the live binary.
 
 - Offline recording inspection, search, and JSON export.
 - Predicate-based search pass over every recorded frame (see Predicate Infrastructure below).
+
+> **Rules & limits:** the 32 MB per-frame buffer cap, schema-manifest validation (legacy
+> recordings without `.meta.json` skip it and corrupt silently), monotonic
+> `WallClockTicks`, and main-thread-only replay/seek rules are in the Programmer's Guide
+> (Part 7.1).
 
 ---
 
@@ -603,6 +610,10 @@ a target time 200 ms into the future and broadcasts a `SwitchTimeModeEvent` cont
 `BarrierWallTicks`. Because all slaves maintain NTP-synchronized clocks, they wait until
 their local `SyncedWallTicks` crosses the exact barrier value -- at which microsecond all
 nodes simultaneously snap to the master's `SimTimeSnapshot` and halt execution.
+
+> **Rules & limits:** main-thread-only `ClusterSlave.Tick()`, the boot construction order,
+> state-machine dead-ends, ExCon's exclusion from lockstep, and the NTP steering/clamp
+> thresholds are specified in the Programmer's Guide (Part 4.3).
 
 ---
 
@@ -1011,5 +1022,15 @@ path configured in `config.json`, then click **Load**. The Orchestrator executes
 
 ---
 
-*For detailed per-project documentation see the [`docs/`](docs/) folder and the
-per-project markdown files under [`docs/projects/`](docs/projects/).*
+### Further Documentation
+
+This README is the feature/architecture map. For everything it deliberately leaves out:
+
+| Document | What it covers |
+|----------|----------------|
+| [docs/HROT-PROGRAMMERS-GUIDE.md](docs/HROT-PROGRAMMERS-GUIDE.md) | **Rules, limits & don'ts** -- the architectural invariants, the hard numeric limits (Part 2), and the traps that bite people. Read this before writing or modifying engine code. |
+| [docs/HROT architecture.md](docs/HROT%20architecture.md) | The deep narrative on *how* each subsystem works (ECS, event bus, Brain-Muscle, replication, perception, channels, time sync, recorder, TKB, 2PC). |
+| [docs/00-SOLUTION-OVERVIEW.md](docs/00-SOLUTION-OVERVIEW.md) | Project index, node topology, and the key architecture decisions. |
+| [docs/AI_DEV_GUIDE.md](docs/AI_DEV_GUIDE.md) | AI behavior authoring. |
+| [docs/Predicate-Infrastructure-Capabilities.md](docs/Predicate-Infrastructure-Capabilities.md) | Predicate & breakpoint infrastructure in depth. |
+| [`docs/`](docs/) and [`docs/projects/`](docs/projects/) | Per-project markdown and additional design docs. |
