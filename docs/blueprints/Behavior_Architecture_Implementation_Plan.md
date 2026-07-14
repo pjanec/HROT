@@ -1,5 +1,19 @@
 # Behavior Architecture — Sequenced Implementation Plan
 
+> **Progress (2026-07-14):** **Phase 1 (name-as-identity) — DONE. Phase 2 (resolver + retire
+> `AiBehaviorFactory`) — DONE (2a, 2b, 2c). Phase 1e (duplicate-name hard error) — DONE.**
+> The factory is deleted; every behavior self-registers under its unique name via `[BlueprintRegistrar]`
+> discovery (`CgfCuratedBehaviorRegistrar` for the FbtTreeCatalog/HSM topologies; generated registrars
+> for JSON assets). Curated resolvers are bound by name through `BehaviorRegistry.RegisterResolver`
+> (name-keyed overlay), which let the generated `HullDownAttackRun`/`PlatoonHillAttack` registrars own
+> their topology outright — eliminating the curated↔generated double-registration, so `Register` now
+> **hard-errors** on a duplicate name. Resolvers reach geo/entity context through world singletons
+> (`IGeographicTransform` gained `[ComponentId]` = 75) rather than a registration-time closure.
+> Gates green: HillAttack 58/58 + scanner 4/4, Generators 103/103 (byte-identity), Fdp.Toolkits
+> Behavior 169/169, full solution 0 errors. **Remaining: Phase 3 (blueprint actions/conditions
+> runnable, Library resolver) and Phase 4 (editor authoring, Windows-verified).** Not headlessly
+> verified: editor hot-reload threading and the live game/cluster startup path.
+>
 > **Status:** approved to execute (2026-07-14). Sequenced, dependency-ordered plan for the
 > name-identity / resolver / blueprint-action architecture. Design is finalized in the docs below;
 > this is the *how and in what order*.
