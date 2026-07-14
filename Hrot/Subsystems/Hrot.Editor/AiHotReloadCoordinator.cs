@@ -284,15 +284,13 @@ namespace Hrot.Editor
                 // Step 3: atomic commit of BlueprintRegistry.
                 _blueprintRegistry.CommitStaging(blueprintStaging);
 
-                // Step 4: apply staging behavior registry -> live registry.
-                foreach (var name in behaviorStaging.GetRegisteredNames())
-                {
-                    if (behaviorStaging.TryGetId(name, out int id) &&
-                        behaviorStaging.TryGetDefinition(id, out var def))
-                    {
-                        _liveRegistry.Register(id, name, def);
-                    }
-                }
+                // Step 4: apply staging behavior registry -> live registry via MergeFrom (overwrite).
+                // A reload legitimately re-registers already-present behavior names with fresh-ALC
+                // definitions; a Register loop would hit the Phase-1e duplicate-name hard error and
+                // abort the reload. Genuine name collisions between distinct registrars are still
+                // caught by Register during the staging scan (Step 2) above. MergeFrom updates the
+                // live definitions/thunks/resolvers in place, matching the Fdp.Toolkit coordinator.
+                _liveRegistry.MergeFrom(behaviorStaging);
 
                 // Step 5: hot-reload live HSM instances per-chunk.
                 foreach (var name in behaviorStaging.GetRegisteredNames())
@@ -361,15 +359,11 @@ namespace Hrot.Editor
                 // Step 1: atomic commit of BlueprintRegistry.
                 _blueprintRegistry.CommitStaging(blueprintStaging);
 
-                // Step 2: apply staging behavior registry into the live BehaviorRegistry.
-                foreach (var name in behaviorStaging.GetRegisteredNames())
-                {
-                    if (behaviorStaging.TryGetId(name, out int id) &&
-                        behaviorStaging.TryGetDefinition(id, out var def))
-                    {
-                        _liveRegistry.Register(id, name, def);
-                    }
-                }
+                // Step 2: apply staging behavior registry into the live BehaviorRegistry via MergeFrom
+                // (overwrite). A Quick Reload re-registers already-present names with fresh definitions;
+                // a Register loop would trip the Phase-1e duplicate-name hard error. Genuine collisions
+                // are caught by Register during QuickReloadService's staging scan.
+                _liveRegistry.MergeFrom(behaviorStaging);
 
                 // Step 3: hot-reload live HSM instances per-chunk (same as file-watcher path).
                 foreach (var name in behaviorStaging.GetRegisteredNames())

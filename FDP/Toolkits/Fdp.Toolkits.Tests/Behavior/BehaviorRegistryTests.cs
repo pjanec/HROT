@@ -201,6 +201,40 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(2, bravoId);
         }
 
+        // ── Reload update path — MergeFrom overwrites an existing name (no 1e throw) ──
+        /// <summary>
+        /// The hot-reload path applies a fresh staging registry to the live one via
+        /// <see cref="BehaviorRegistry.MergeFrom"/> — which must <b>overwrite</b> an already-present
+        /// name with the reloaded definition (a new instance from a fresh assembly), NOT go through
+        /// <see cref="BehaviorRegistry.Register"/> (whose Phase-1e duplicate-name hard error would abort
+        /// the reload). This guards the editor coordinators against reverting to a Register loop.
+        /// </summary>
+        [Fact]
+        public void MergeFrom_ReRegistersExistingName_Overwrites_NoThrow()
+        {
+            var live = new BehaviorRegistry();
+            var original = new BehaviorDefinition { Name = "Reloadable", BrainTier = BehaviorConstants.BrainTierBTree };
+            live.Register(BehaviorHash.FromName("Reloadable"), "Reloadable", original);
+
+            // Simulate a reload: a fresh staging registry with the SAME name but a NEW definition.
+            var staging = new BehaviorRegistry();
+            var updated = new BehaviorDefinition
+            {
+                Name        = "Reloadable",
+                BrainTier   = BehaviorConstants.BrainTierBTree,
+                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self) => { },
+            };
+            staging.Register(BehaviorHash.FromName("Reloadable"), "Reloadable", updated);
+
+            // MergeFrom must overwrite in place without throwing (unlike a Register loop under 1e).
+            live.MergeFrom(staging);
+
+            Assert.True(live.TryGetId("Reloadable", out var id));
+            Assert.True(live.TryGetDefinition(id, out var def));
+            Assert.Same(updated, def);
+            Assert.NotNull(def!.ParseParams);
+        }
+
         // ── Test 9 — idempotent same-instance re-registration ────────────────
         /// <summary>
         /// Registering the <b>exact same</b> definition instance again under the same name is a no-op
@@ -220,6 +254,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             registry.Register(7, "Reloadable", def);
             registry.Register(7, "Reloadable", def); // same instance → no-op, no throw
+            // (see also MergeFrom_ReRegistersExistingName_Overwrites for the reload update path)
 
             Assert.True(registry.TryGetId("Reloadable", out var id));
             Assert.Equal(7, id);
