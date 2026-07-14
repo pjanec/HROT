@@ -18,6 +18,7 @@ using Fdp.Toolkit.Spatial.Eqs;
 using Hrot.AI.Behaviors;
 using Hrot.AI.Behaviors.Generated;
 using Hrot.AI.Behaviors.Brains;
+using Hrot.CGF.Configuration;
 using Hrot.AI.Behaviors.Mappers;
 using Hrot.Map.Common;
 using Hrot.Map.Definitions.Behavior;
@@ -1361,7 +1362,7 @@ namespace Hrot.SimHost.Tests
         public void SC_HA013_2_PlatoonHillAttack_BehaviorDefinition_HasCorrectProperties()
         {
             var registry = new BehaviorRegistry();
-            AiBehaviorFactory.BuildRegistrationAction(null, new NetworkEntityMap())(registry);
+            CgfBehaviorSetup.LoadFromAiAssembly(registry);
 
             Assert.True(registry.TryGetDefinition(BehaviorHash.FromName(BehaviorNames.PlatoonHillAttack), out var def),
                 "PlatoonHillAttack (id 3014) should be registered");
@@ -1384,7 +1385,7 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var registry = new BehaviorRegistry();
-            AiBehaviorFactory.BuildRegistrationAction(null, new NetworkEntityMap())(registry);
+            CgfBehaviorSetup.LoadFromAiAssembly(registry);
 
             var ingress = new BehaviorIngressSystem(registry);
 
@@ -1413,7 +1414,7 @@ namespace Hrot.SimHost.Tests
         public void SC_HA013_4_DeactivatorNodes_AreResourceOwning_InFactoryBlobs()
         {
             var registry = new BehaviorRegistry();
-            AiBehaviorFactory.BuildRegistrationAction(null, new NetworkEntityMap())(registry);
+            CgfBehaviorSetup.LoadFromAiAssembly(registry);
 
             // Commander (stateful, Behavior-scoped): RequestAreaQuery ↔ Deactivate_RequestAreaQuery.
             Assert.True(registry.TryGetDefinition(BehaviorHash.FromName(BehaviorNames.PlatoonHillAttack), out var commanderDef));
@@ -1577,7 +1578,7 @@ namespace Hrot.SimHost.Tests
         public void SC_HA016_6_AiBehaviorFactory_PlatoonHillAttack_HasNonNullParseParams()
         {
             var registry = new BehaviorRegistry();
-            AiBehaviorFactory.BuildRegistrationAction(null, new NetworkEntityMap())(registry);
+            CgfBehaviorSetup.LoadFromAiAssembly(registry);
 
             Assert.True(registry.TryGetDefinition(BehaviorHash.FromName(BehaviorNames.PlatoonHillAttack), out var def));
             Assert.NotNull(def.ParseParams);

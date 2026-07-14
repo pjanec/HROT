@@ -1,79 +1,57 @@
 using System;
-using System.IO;
-using System.Reflection;
-using System.Runtime.Loader;
-using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Behavior;
-using Fdp.Toolkit.Replication.Services;
-using Hrot.Map.Definitions.Behavior;
+using Fdp.Toolkit.Blueprints;
 using Hrot.Presentation.Behavior;
 
 namespace Hrot.CGF.Configuration
 {
     /// <summary>
-    /// Bridge that loads CGF behavior definitions dynamically from the isolated
-    /// <c>Hrot.AI.Behaviors</c> assembly at startup.
+    /// Bridge that populates the CGF behavior definitions from the <c>Hrot.AI.Behaviors</c>
+    /// assembly at startup by running the attribute-driven <see cref="BlueprintRegistrarScanner"/>.
     ///
     /// <para>
-    /// <c>Hrot.CGF</c> carries <b>no compile-time dependency</b> on
-    /// <c>Hrot.AI.Behaviors</c>.  All BTree node logic, action delegates, and
-    /// interpreter construction are owned exclusively by the AI assembly so that
-    /// the editor's <c>FbtAssemblyHotReloader</c> can reload them independently.
+    /// Registration is entirely self-registration: every behavior — curated
+    /// (<c>CgfCuratedBehaviorRegistrar</c>) and JSON-authored (generated per-asset registrars) —
+    /// is discovered through its <c>[BlueprintRegistrar]</c> attribute and registers under its own
+    /// name. There is no reflection entry point and no closure over geographic/entity context;
+    /// behaviors reach that context at activation time through world singletons via their named
+    /// resolvers. The editor exercises the same registrars through its
+    /// <c>FbtAssemblyHotReloader</c>/<see cref="Fdp.Toolkit.Behavior.AiHotReloadCoordinator"/> path.
     /// </para>
     /// </summary>
     public static class CgfBehaviorSetup
     {
         /// <summary>
-        /// Dynamically loads <c>Hrot.AI.Behaviors.dll</c> from the deployment directory
-        /// into a dedicated <see cref="AssemblyLoadContext"/> and invokes
-        /// <c>AiBehaviorFactory.BuildRegistrationAction</c> via reflection to populate
-        /// <paramref name="registry"/> with all CGF Brain-tier behavior definitions.
+        /// Discovers and invokes every <c>[BlueprintRegistrar]</c> in the AI behaviors assembly,
+        /// populating <paramref name="behaviorRegistry"/> with all CGF Brain-tier behavior
+        /// definitions (and, when supplied, committing blueprint definitions into
+        /// <paramref name="blueprintRegistry"/>).
         ///
         /// <para>
-        /// This path is used by <see cref="Hrot.CGF.CgfSubsystem"/> at startup.
-        /// The editor uses <c>FbtAssemblyHotReloader.TriggerInitialLoad()</c> instead
-        /// so that the same code path is exercised on every hot-reload.
+        /// This is the single startup registration entry point used by
+        /// <see cref="Hrot.CGF.CgfSubsystem"/> and <c>ReplayBrowserSubsystem</c>. The scanner injects
+        /// an <c>ActionRegistry</c> populated from the assembly's <c>[FbtRegistrar]</c> node logic so
+        /// every tree's bound actions/conditions resolve to real logic at runtime.
         /// </para>
         /// </summary>
-        /// <param name="geoTransform">
-        /// Geographic coordinate transform used by MoveToLocation.  May be <c>null</c>
-        /// in contexts that use only Cartesian coordinates.
+        /// <param name="behaviorRegistry">Receives all behavior definitions. Must not be null.</param>
+        /// <param name="blueprintRegistry">
+        /// Optional. When supplied, receives the committed blueprint definitions. Pass <c>null</c>
+        /// in contexts that only need the behavior registry (e.g. the replay browser).
         /// </param>
         public static void LoadFromAiAssembly(
-            BehaviorRegistry registry,
-            IGeographicTransform? geoTransform,
-            NetworkEntityMap entityMap)
+            BehaviorRegistry behaviorRegistry,
+            BlueprintRegistry? blueprintRegistry = null)
         {
-            if (registry  == null) throw new ArgumentNullException(nameof(registry));
-            if (entityMap == null) throw new ArgumentNullException(nameof(entityMap));
+            if (behaviorRegistry == null) throw new ArgumentNullException(nameof(behaviorRegistry));
 
-            string dllPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Hrot.AI.Behaviors.dll");
-            if (!File.Exists(dllPath))
-                throw new FileNotFoundException(
-                    $"Hrot.AI.Behaviors.dll not found at '{dllPath}'.  " +
-                    "Build the Hrot.AI.Behaviors project before starting the cluster node.", dllPath);
+            // The AI behaviors assembly is compile-time referenced; scan that single instance so
+            // behavior and blueprint definitions share one type identity across the process.
+            var aiAssembly = typeof(Hrot.AI.Behaviors.CgfCuratedBehaviorRegistrar).Assembly;
 
-            // Load into a non-collectible ALC so the Default ALC cannot lock the file,
-            // and so the interpreter delegates remain valid for the process lifetime.
-            var alc = new AssemblyLoadContext("AiBehaviors.Startup", isCollectible: false);
-            Assembly aiAssembly;
-            using (var fs = File.OpenRead(dllPath))
-                aiAssembly = alc.LoadFromStream(fs);
-
-            var factoryType = aiAssembly.GetType("Hrot.AI.Behaviors.AiBehaviorFactory");
-            var buildMethod = factoryType?.GetMethod(
-                "BuildRegistrationAction",
-                BindingFlags.Public | BindingFlags.Static);
-
-            if (buildMethod == null)
-                throw new InvalidOperationException(
-                    "AiBehaviorFactory.BuildRegistrationAction not found in Hrot.AI.Behaviors.dll. " +
-                    "Rebuild the assembly and retry.");
-
-            var applyAction = (Action<BehaviorRegistry>?)buildMethod.Invoke(
-                null, new object?[] { geoTransform, entityMap });
-
-            applyAction?.Invoke(registry);
+            var bpStaging = new BlueprintRegistryStaging();
+            BlueprintRegistrarScanner.Scan(aiAssembly, bpStaging, behaviorRegistry);
+            (blueprintRegistry ?? new BlueprintRegistry()).CommitStaging(bpStaging);
         }
 
         /// <summary>

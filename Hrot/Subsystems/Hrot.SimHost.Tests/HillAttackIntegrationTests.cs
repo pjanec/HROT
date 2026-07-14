@@ -25,6 +25,7 @@ using Fdp.Toolkit.Spatial.Eqs;
 using Hrot.AI.Behaviors;
 using Hrot.AI.Behaviors.Brains;
 using Hrot.AI.Behaviors.Mappers;
+using Hrot.CGF.Configuration;
 using Hrot.CGF.Systems;
 using Hrot.IG.Components;
 using Hrot.Map.Common;
@@ -174,8 +175,7 @@ namespace Hrot.SimHost.Tests
         private static BehaviorRegistry BuildRegistry(NetworkEntityMap entityMap)
         {
             var registry  = new BehaviorRegistry();
-            var regAction = AiBehaviorFactory.BuildRegistrationAction(null, entityMap);
-            regAction(registry);
+            CgfBehaviorSetup.LoadFromAiAssembly(registry);
             return registry;
         }
 

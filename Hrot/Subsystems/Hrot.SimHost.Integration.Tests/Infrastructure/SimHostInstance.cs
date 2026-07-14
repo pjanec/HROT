@@ -849,7 +849,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             NetworkEntityMap entityMap)
         {
             var reg = new BehaviorRegistry();
-            AiBehaviorFactory.BuildRegistrationAction(wgs84, entityMap)(reg);
+            Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(reg);
             return reg;
         }
     }

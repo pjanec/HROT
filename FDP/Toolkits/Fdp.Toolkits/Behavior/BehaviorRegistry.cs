@@ -120,16 +120,29 @@ namespace Fdp.Toolkit.Behavior
         /// Cold-path delegate that parses the behavior's JSON parameter payload into
         /// <see cref="BrainBlackboard.BehaviorParameters"/>.  May be <c>null</c> if the behavior
         /// carries no configurable parameters.
+        /// <para>
+        /// Settable (not <c>init</c>-only) so the registry can bind a <b>named resolver</b> to a
+        /// behavior whose topology was self-registered without one — e.g. a generated
+        /// <c>[BlueprintRegistrar]</c> registers the interpreter/slots, and a curated
+        /// <see cref="BehaviorRegistry.RegisterResolver"/> supplies the geo/entity-aware resolver
+        /// by name.  Bound exactly once at startup; treated as read-only after the world starts.
+        /// </para>
         /// </summary>
-        public ParseParamsDelegate? ParseParams { get; init; }
+        public ParseParamsDelegate? ParseParams { get; set; }
 
         /// <summary>
         /// Optional type of the params DTO struct stored at the start of
         /// <see cref="BrainBlackboard.BehaviorParameters"/> for this behavior.
         /// When non-null, enables typed rendering in <c>BrainBlackboardRenderer</c>.
         /// The type must be unmanaged (enforced by convention, not the compiler).
+        /// <para>
+        /// Settable (not <c>init</c>-only) for the same reason as <see cref="ParseParams"/>: a curated
+        /// registrar can bind the params DTO type by name (via <see cref="BehaviorRegistry.RegisterResolver"/>)
+        /// to a behavior whose topology was self-registered by a generated registrar that expresses the
+        /// DTO only through <see cref="ManagedBlackboardVariables"/>.
+        /// </para>
         /// </summary>
-        public Type? ParamsDtoType { get; init; }
+        public Type? ParamsDtoType { get; set; }
 
         /// <summary>
         /// Optional DTO type stored in a generic heavy blackboard component (e.g., <c>Blackboard1024</c>)
@@ -176,6 +189,13 @@ namespace Fdp.Toolkit.Behavior
         private readonly Dictionary<string, int> _nameToId = new(StringComparer.Ordinal);
         private readonly Dictionary<int, (string Name, BlueprintBTreeActionDelegate Thunk)>    _bTreeActions    = new();
         private readonly Dictionary<int, (string Name, BlueprintBTreeConditionDelegate Thunk)> _bTreeConditions = new();
+        // Named resolver overlays keyed by behavior name. Lets a curated registrar supply the
+        // geo/entity-aware ParseParams resolver (and the params DTO type for diagnostics/inspector)
+        // for a behavior whose topology was self-registered (by a generated [BlueprintRegistrar])
+        // without them. Binding is order-independent: whichever of {topology, overlay} arrives second
+        // reconciles against the first.
+        private readonly Dictionary<string, (ParseParamsDelegate Resolver, Type? ParamsDtoType)> _resolversByName
+            = new(StringComparer.Ordinal);
 
         /// <summary>
         /// Register a behavior <b>by name</b> — the preferred, name-as-identity entry point.
@@ -233,6 +253,51 @@ namespace Fdp.Toolkit.Behavior
 
             _definitions[id] = definition;
             _nameToId[name] = id;
+
+            // Bind a previously-registered named resolver overlay to this topology. Order-independent
+            // with RegisterResolver: whichever arrives second applies the overlay.
+            if (_resolversByName.TryGetValue(name, out var overlay))
+                ApplyResolverOverlay(definition, overlay);
+        }
+
+        /// <summary>
+        /// Registers a named resolver overlay for a behavior, keyed by its <paramref name="name"/>.
+        /// Used by curated <c>[BlueprintRegistrar]</c> classes to supply the geo/entity-aware parameter
+        /// resolver (and, optionally, the params DTO type for diagnostics/inspector rendering) for
+        /// behaviors whose topology (interpreter, slots) is self-registered by a generated registrar
+        /// that cannot express the resolver.
+        /// <para>
+        /// Binding is order-independent: if the behavior's <see cref="BehaviorDefinition"/> is already
+        /// registered, the overlay is applied immediately; otherwise it is stored and applied when the
+        /// topology registers. A property already set on the definition is never overwritten.
+        /// </para>
+        /// </summary>
+        public void RegisterResolver(string name, ParseParamsDelegate resolver, Type? paramsDtoType = null)
+        {
+            if (name     == null) throw new ArgumentNullException(nameof(name));
+            if (resolver == null) throw new ArgumentNullException(nameof(resolver));
+
+            var overlay = (resolver, paramsDtoType);
+            _resolversByName[name] = overlay;
+
+            if (_nameToId.TryGetValue(name, out var id)
+                && _definitions.TryGetValue(id, out var def))
+            {
+                ApplyResolverOverlay(def, overlay);
+            }
+        }
+
+        /// <summary>
+        /// Applies a named resolver overlay to a definition without clobbering properties the
+        /// definition already carries (a topology def that set its own ParseParams wins).
+        /// </summary>
+        private static void ApplyResolverOverlay(
+            BehaviorDefinition def, (ParseParamsDelegate Resolver, Type? ParamsDtoType) overlay)
+        {
+            if (def.ParseParams == null)
+                def.ParseParams = overlay.Resolver;
+            if (def.ParamsDtoType == null && overlay.ParamsDtoType != null)
+                def.ParamsDtoType = overlay.ParamsDtoType;
         }
 
         /// <summary>
@@ -272,6 +337,7 @@ namespace Fdp.Toolkit.Behavior
             _nameToId.Clear();
             _bTreeActions.Clear();
             _bTreeConditions.Clear();
+            _resolversByName.Clear();
         }
 
         /// <summary>
@@ -282,11 +348,20 @@ namespace Fdp.Toolkit.Behavior
         /// </summary>
         public void MergeFrom(BehaviorRegistry source)
         {
+            // Carry named resolver overlays across the staging→live merge first, so that any definition
+            // copied below that still lacks a resolver/DTO gets it bound during the copy.
+            foreach (var (name, overlay) in source._resolversByName)
+                _resolversByName[name] = overlay;
+
             foreach (var (name, id) in source._nameToId)
             {
                 _nameToId[name] = id;
                 if (source._definitions.TryGetValue(id, out var def))
+                {
+                    if (_resolversByName.TryGetValue(name, out var overlay))
+                        ApplyResolverOverlay(def, overlay);
                     _definitions[id] = def;
+                }
             }
             foreach (var (id, entry) in source._bTreeActions)
                 _bTreeActions[id] = entry;

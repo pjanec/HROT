@@ -254,8 +254,17 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // ── Create replication module via factory (Brain role) ─────────────────
         // Replaces: EntityStatesIngressPack + ActuatorIntentsEgressPack + GhostCleanupModule
         var behaviorRegistry = new BehaviorRegistry();
-        CgfBehaviorSetup.LoadFromAiAssembly(behaviorRegistry, _context.GeoTransform, _entityMap);
         _behaviorRegistry = behaviorRegistry;
+        // Blueprint registry (shared by materialization system and serializers). Created here so the
+        // single attribute-driven registration pass below can populate both registries at once.
+        _blueprintRegistry = new BlueprintRegistry();
+
+        // Single self-registration pass: discovers every [BlueprintRegistrar] in the AI behaviors
+        // assembly (curated CgfCuratedBehaviorRegistrar + generated per-asset registrars) and
+        // registers each behavior under its own name, binding named resolvers by name. The scanner
+        // injects an ActionRegistry populated from the assembly's [FbtRegistrar] so those trees'
+        // bound actions/conditions execute real logic at runtime.
+        CgfBehaviorSetup.LoadFromAiAssembly(behaviorRegistry, _blueprintRegistry);
 
         // Expose the registry to the diagnostic renderers so the entity inspector
         // can project BrainBlackboard memory and visualize the BTree execution state.
@@ -295,28 +304,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // via CgfLogicPack.ScenarioSource.
         _scenarioSource = new ScenarioEntityCreationRequestSource();
 
-        // ── Blueprint registry (shared by materialization system and serializers) ──
-        _blueprintRegistry = new BlueprintRegistry();
-
-        // Populate the registry from the generated blueprint registrars in the AI assembly.
-        // skipOnUnknownParam=true: silently skips AiBehaviorFactory.RegisterAll (which expects
-        // IGeographicTransform / NetworkEntityMap); those behaviors are already wired by
-        // CgfBehaviorSetup.LoadFromAiAssembly with proper geo/entity context above.
-        //
-        // Pass the LIVE behaviorRegistry (not a throwaway) so the JSON-defined BTree/HSM
-        // bridges register their BehaviorDefinitions into the running registry — giving the
-        // game the same set of JSON-authored behaviors the editor sees. The scanner injects
-        // an ActionRegistry populated from the assembly's [FbtRegistrar], so those trees'
-        // bound actions/conditions execute real logic at runtime.
-        {
-            var bpStaging = new BlueprintRegistryStaging();
-            BlueprintRegistrarScanner.Scan(
-                typeof(Hrot.AI.Behaviors.AiBehaviorFactory).Assembly,
-                bpStaging,
-                behaviorRegistry,
-                skipOnUnknownParam: true);
-            _blueprintRegistry.CommitStaging(bpStaging);
-        }
 
         // Expose the blueprint registry to the Entity Inspector renderers so
         // BlueprintBlackboard* components can show per-tier slot summaries.

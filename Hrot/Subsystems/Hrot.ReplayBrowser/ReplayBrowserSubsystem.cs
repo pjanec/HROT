@@ -135,10 +135,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
             var behaviorRegistry = new BehaviorRegistry();
             _behaviorRegistry = behaviorRegistry;
-            CgfBehaviorSetup.LoadFromAiAssembly(
-                behaviorRegistry,
-                geoTransform: null,
-                entityMap: new NetworkEntityMap());
+            CgfBehaviorSetup.LoadFromAiAssembly(behaviorRegistry);
             _scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(behaviorRegistry);
             Hrot.Presentation.Renderers.BrainBlackboardRenderer.BehaviorRegistryAccessor = behaviorRegistry;
             Hrot.Presentation.Renderers.Blackboard1024Renderer.BehaviorRegistryAccessor = behaviorRegistry;
