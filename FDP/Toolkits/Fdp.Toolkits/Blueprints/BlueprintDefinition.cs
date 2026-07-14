@@ -19,6 +19,11 @@ public sealed record BlueprintDefinition
     public IReadOnlyDictionary<string, EventHandlerDelegate> EventHandlers { get; init; }
         = new Dictionary<string, EventHandlerDelegate>(StringComparer.Ordinal);
 
+    // For Library dispatch (G2) -- callable functions keyed by graph name. Empty for other kinds.
+    // Populated by the generated [BlueprintRegistrar]; the runtime resolver seam invokes these.
+    public IReadOnlyDictionary<string, LibraryFunctionDelegate> Functions { get; init; }
+        = new Dictionary<string, LibraryFunctionDelegate>(StringComparer.Ordinal);
+
     // For inspector / debugger
     public Type? StateClrType { get; init; }
     public IReadOnlyDictionary<string, BlueprintFieldDescriptor> StateFields { get; init; }

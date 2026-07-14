@@ -207,8 +207,69 @@ internal sealed class CSharpEmitter
         WriteLine("Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.Library,");
         WriteLine($"StructureHash = {asset.StructureHash}UL,");
         WriteLine("StateSize = 0,");
+
+        // G2/R2: expose each Function graph as a runtime-invocable LibraryFunctionDelegate keyed by
+        // name, so a blueprint-authored resolver can be dispatched by name at the ingress seam. The
+        // adapter blittably marshals inputs (declaration order) into the emitted static method and
+        // writes its return value back out. Inputs/outputs are the StaticTypeRegistry scalar/vector/
+        // Entity types (blittable), so MemoryMarshal.Read/Write is layout-safe.
+        var functionGraphs = asset.Graphs.Where(g => g.Kind == IrGraphKind.Function).ToList();
+        if (functionGraphs.Count > 0)
+        {
+            WriteLine("Functions = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.LibraryFunctionDelegate>(global::System.StringComparer.Ordinal)");
+            WriteLine("{");
+            Indent();
+            foreach (var g in functionGraphs)
+                EmitLibraryFunctionAdapter(className, g);
+            Outdent();
+            WriteLine("},");
+        }
+
         Outdent();
         WriteLine("});");
+    }
+
+    /// <summary>
+    /// G2/R2: emits one <c>["Name"] = static (inputs, outputs, view, self, time) => {...}</c> entry
+    /// that unpacks the function's blittable inputs from <c>inputs</c>, calls the emitted static
+    /// method, and writes any return value to <c>outputs</c>.
+    /// </summary>
+    private void EmitLibraryFunctionAdapter(string className, IrGraph graph)
+    {
+        bool hasStatusReturn = graph.Blocks.Any(b => b.Terminator is IrTerm_ReturnStatus);
+        string returnType = graph.Outputs.Count > 0
+            ? LibraryEmitter.CSharpType(graph.Outputs[0].Type)
+            : hasStatusReturn ? "global::Fbt.NodeStatus"
+            : "void";
+
+        WriteLine($"[\"{graph.Name}\"] = static (inputs, outputs, view, self, time) =>");
+        WriteLine("{");
+        Indent();
+
+        var argNames = new System.Collections.Generic.List<string>();
+        if (graph.Inputs.Count > 0)
+            WriteLine("int __off = 0;");
+        for (int i = 0; i < graph.Inputs.Count; i++)
+        {
+            string t = LibraryEmitter.CSharpType(graph.Inputs[i].Type);
+            WriteLine($"{t} __in{i} = global::System.Runtime.InteropServices.MemoryMarshal.Read<{t}>(inputs.Slice(__off));");
+            WriteLine($"__off += global::System.Runtime.CompilerServices.Unsafe.SizeOf<{t}>();");
+            argNames.Add($"__in{i}");
+        }
+
+        string call = $"{className}.{graph.Name}({string.Join(", ", argNames)})";
+        if (returnType == "void")
+        {
+            WriteLine($"{call};");
+        }
+        else
+        {
+            WriteLine($"{returnType} __r = {call};");
+            WriteLine("global::System.Runtime.InteropServices.MemoryMarshal.Write(outputs, ref __r);");
+        }
+
+        Outdent();
+        WriteLine("},");
     }
 
     private void EmitAiPrimitiveRegistration(string className, IrAsset asset)

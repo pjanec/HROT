@@ -35,6 +35,13 @@ public static class BlueprintRegistrar_LibraryMath_360D9857_Bp
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.Library,
             StructureHash = 17965484573716468977UL,
             StateSize = 0,
+            Functions = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.LibraryFunctionDelegate>(global::System.StringComparer.Ordinal)
+            {
+                ["Add"] = static (inputs, outputs, view, self, time) =>
+                {
+                    LibraryMath_360D9857_Bp.Add();
+                },
+            },
         });
     }
 }
