@@ -140,6 +140,16 @@ public enum BTreeDelegateShapeDto
     /// keyed by FNV-1a-32(assetGuid, nodeVisualId).
     /// </summary>
     ThreeParamReusableStateful = 2,
+
+    /// <summary>
+    /// I2/I3: a blueprint-authored AiPrimitive action composed as a host-BTree node. The host owns
+    /// the params layout (Params projected at the baked offset) and a partition slot for the
+    /// blueprint's WorkingState; the node dispatches to the blueprint's generated
+    /// <c>TickCore(ref Params, ref WorkingState, Entity self, EntityRepository world, float time)</c>.
+    /// <see cref="BTreeActionPayloadDto.MethodFqn"/> is the generated <c>TickCore</c> FQN and
+    /// <see cref="BTreeActionPayloadDto.WorkingStateTypeId"/> is the generated <c>WorkingState</c> FQN.
+    /// </summary>
+    AiPrimitiveTickCore = 3,
 }
 
 public sealed class BTreeActionPayloadDto

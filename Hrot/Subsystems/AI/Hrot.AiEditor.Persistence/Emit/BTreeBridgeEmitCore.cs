@@ -383,6 +383,7 @@ public static class BTreeBridgeEmitCore
             EmitManagedActionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields);
             EmitManagedConditionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields);
             EmitStatefulActionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields);
+            EmitBlueprintActionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields);
         }
         else
         {
@@ -644,63 +645,139 @@ public static class BTreeBridgeEmitCore
             string dtoTypeFqn = DtoTypeToGlobal(dtoTypeId);
             string wsTypeFqn  = DtoTypeToGlobal(wsTypeId);
             string methodRef  = GlobalMethodRef(methodFqn);
-            sb.AppendLine($"{pad2}actionRegistry.Register(\"{key}\",");
-            sb.AppendLine($"{pad2}{Indent}static (ref {bbShort} bb, ref Fbt.BehaviorTreeState st, ref {ctxShort} ctx, int pi) =>");
-            sb.AppendLine($"{pad2}{Indent}{{");
-            sb.AppendLine($"{pad2}{Indent}{Indent}unsafe");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{{");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}// Project Params from BrainBlackboard (Slice-1 pattern).");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}ref var dto = ref Unsafe.As<byte, {dtoTypeFqn}>(");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint){offset}));");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}// Dispatch across tiers (16384 → 4096 → 1024) to locate the entity's active partition.");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}const int __slotKey = {slotKey};");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self))");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{{");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self);");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}fixed (byte* mem = tier.Memory)");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{{");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{{");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}global::System.Diagnostics.Debug.Assert(false, \"S2-1: stateful slot {slotKey} missing from BlueprintBlackboard16384\");");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}return Fbt.NodeStatus.Failure;");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}}}");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}ref var ws = ref Unsafe.AsRef<{wsTypeFqn}>(mem + wsOff);");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}return {methodRef}(ref dto, ref ws, ref st, ref ctx);");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}}}");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}}}");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self))");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{{");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self);");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}fixed (byte* mem = tier.Memory)");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{{");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{{");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}global::System.Diagnostics.Debug.Assert(false, \"S2-1: stateful slot {slotKey} missing from BlueprintBlackboard4096\");");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}return Fbt.NodeStatus.Failure;");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}}}");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}ref var ws = ref Unsafe.AsRef<{wsTypeFqn}>(mem + wsOff);");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}return {methodRef}(ref dto, ref ws, ref st, ref ctx);");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}}}");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}}}");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self))");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{{");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self);");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}fixed (byte* mem = tier.Memory)");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{{");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{{");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}global::System.Diagnostics.Debug.Assert(false, \"S2-1: stateful slot {slotKey} missing from BlueprintBlackboard1024\");");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}return Fbt.NodeStatus.Failure;");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}}}");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}ref var ws = ref Unsafe.AsRef<{wsTypeFqn}>(mem + wsOff);");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}return {methodRef}(ref dto, ref ws, ref st, ref ctx);");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}}}");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}}}");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}// No tier component found — fail loud.");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}global::System.Diagnostics.Debug.Assert(false, \"S2-1: entity has no BlueprintBlackboard* tier component for stateful slot {slotKey}\");");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}return Fbt.NodeStatus.Failure;");
-            sb.AppendLine($"{pad2}{Indent}{Indent}}}");
-            sb.AppendLine($"{pad2}{Indent}}});");
+            AppendReusableStatefulThunk(sb, pad2, bbShort, ctxShort, key, dtoTypeFqn, offset, slotKey, wsTypeFqn,
+                $"{methodRef}(ref dto, ref ws, ref st, ref ctx)");
+        }
+    }
+
+    /// <summary>
+    /// Emits one <c>actionRegistry.Register("{key}", static (...) =&gt; {...})</c> reusable-stateful
+    /// thunk: projects Params at the baked <paramref name="offset"/> from <c>bb.BehaviorParameters</c>,
+    /// locates the entity's WorkingState partition slot across the 16384→4096→1024 tiers, and returns
+    /// <paramref name="callExpr"/> (the node call, with <c>dto</c>/<c>ws</c>/<c>st</c>/<c>ctx</c> in scope).
+    /// Shared by the S2-1 stateful path and the I2/I3 blueprint-AiPrimitive path — the only difference
+    /// between them is <paramref name="callExpr"/>.
+    /// </summary>
+    private static void AppendReusableStatefulThunk(
+        StringBuilder sb, string pad2, string bbShort, string ctxShort,
+        string key, string dtoTypeFqn, int offset, int slotKey, string wsTypeFqn, string callExpr)
+    {
+        sb.AppendLine($"{pad2}actionRegistry.Register(\"{key}\",");
+        sb.AppendLine($"{pad2}{Indent}static (ref {bbShort} bb, ref Fbt.BehaviorTreeState st, ref {ctxShort} ctx, int pi) =>");
+        sb.AppendLine($"{pad2}{Indent}{{");
+        sb.AppendLine($"{pad2}{Indent}{Indent}unsafe");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{{");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}// Project Params from BrainBlackboard (Slice-1 pattern).");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}ref var dto = ref Unsafe.As<byte, {dtoTypeFqn}>(");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint){offset}));");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}// Dispatch across tiers (16384 → 4096 → 1024) to locate the entity's active partition.");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}const int __slotKey = {slotKey};");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self))");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{{");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self);");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}fixed (byte* mem = tier.Memory)");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{{");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{{");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}global::System.Diagnostics.Debug.Assert(false, \"S2-1: stateful slot {slotKey} missing from BlueprintBlackboard16384\");");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}return Fbt.NodeStatus.Failure;");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}}}");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}ref var ws = ref Unsafe.AsRef<{wsTypeFqn}>(mem + wsOff);");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}return {callExpr};");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}}}");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}}}");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self))");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{{");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self);");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}fixed (byte* mem = tier.Memory)");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{{");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{{");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}global::System.Diagnostics.Debug.Assert(false, \"S2-1: stateful slot {slotKey} missing from BlueprintBlackboard4096\");");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}return Fbt.NodeStatus.Failure;");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}}}");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}ref var ws = ref Unsafe.AsRef<{wsTypeFqn}>(mem + wsOff);");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}return {callExpr};");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}}}");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}}}");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self))");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{{");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self);");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}fixed (byte* mem = tier.Memory)");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{{");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{{");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}global::System.Diagnostics.Debug.Assert(false, \"S2-1: stateful slot {slotKey} missing from BlueprintBlackboard1024\");");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}return Fbt.NodeStatus.Failure;");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}}}");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}ref var ws = ref Unsafe.AsRef<{wsTypeFqn}>(mem + wsOff);");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}return {callExpr};");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}}}");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}}}");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}// No tier component found — fail loud.");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}global::System.Diagnostics.Debug.Assert(false, \"S2-1: entity has no BlueprintBlackboard* tier component for stateful slot {slotKey}\");");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}return Fbt.NodeStatus.Failure;");
+        sb.AppendLine($"{pad2}{Indent}{Indent}}}");
+        sb.AppendLine($"{pad2}{Indent}}});");
+    }
+
+    /// <summary>
+    /// I2/I3: emits reusable-stateful thunks for host-BTree nodes that compose a blueprint-authored
+    /// AiPrimitive action (<see cref="BTreeDelegateShapeDto.AiPrimitiveTickCore"/>). Identical
+    /// projection/slot scaffold as <see cref="EmitStatefulActionThunks"/>, but the final call
+    /// dispatches to the blueprint's generated <c>TickCore(ref Params, ref WorkingState, Entity self,
+    /// EntityRepository world, float time)</c>. The blueprint owns Params/WorkingState; the host BTree
+    /// owns the param offset + partition slot. Only emitted for AiPrimitiveTickCore nodes, so assets
+    /// without them stay byte-identical.
+    /// </summary>
+    private static void EmitBlueprintActionThunks(
+        StringBuilder sb, BehaviorTreeAssetDto dto,
+        string pad2, string bbShort, string ctxShort,
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields)
+    {
+        if (packedFields == null) return;
+
+        var offsetMap = new Dictionary<string, BTreeBlackboardPackHelper.PackedField>(StringComparer.Ordinal);
+        foreach (var f in packedFields)
+            offsetMap[f.Name] = f;
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var entries = new List<(string Key, string MethodFqn, string DtoTypeId, int Offset, int SlotKey, string WsTypeId)>();
+
+        foreach (var node in dto.Nodes)
+        {
+            if (node is not BTreeActionNodeDto actNode) continue;
+            var p = actNode.Action;
+            if (p == null || string.IsNullOrEmpty(p.MethodFqn)) continue;
+            if (p.DelegateShape != BTreeDelegateShapeDto.AiPrimitiveTickCore) continue;
+            string? targetField = p.ExpressionTargetField;
+            if (string.IsNullOrEmpty(targetField)) continue;
+            if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
+
+            int slotKey = ResolveStatefulSlotKey(dto, StatefulScopeVariable(p), actNode.VisualId);
+            // WorkingState type is the blueprint's generated WorkingState struct FQN (authored on the node).
+            string wsTypeId = string.IsNullOrEmpty(p.WorkingStateTypeId)
+                ? DeriveWorkingStateTypeFromMethod(p.MethodFqn)
+                : p.WorkingStateTypeId!;
+
+            string key = $"{p.MethodFqn}@{field.ByteOffset}@{slotKey}";
+            if (!seen.Add(key)) continue;
+
+            entries.Add((key, p.MethodFqn, field.TypeId, field.ByteOffset, slotKey, wsTypeId));
+        }
+
+        if (entries.Count == 0) return;
+
+        sb.AppendLine();
+        sb.AppendLine($"{pad2}// I2/I3: blueprint AiPrimitive action thunks — Params at baked offset + WorkingState from");
+        sb.AppendLine($"{pad2}// partition slot, dispatched to the blueprint's generated TickCore. Key = {{MethodFqn}}@{{offset}}@{{slotKey}}.");
+        foreach (var (key, methodFqn, dtoTypeId, offset, slotKey, wsTypeId) in entries)
+        {
+            string dtoTypeFqn = DtoTypeToGlobal(dtoTypeId);
+            string wsTypeFqn  = DtoTypeToGlobal(wsTypeId);
+            string methodRef  = GlobalMethodRef(methodFqn);
+            AppendReusableStatefulThunk(sb, pad2, bbShort, ctxShort, key, dtoTypeFqn, offset, slotKey, wsTypeFqn,
+                $"{methodRef}(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime)");
         }
     }
 
@@ -722,7 +799,10 @@ public static class BTreeBridgeEmitCore
             if (node is not BTreeActionNodeDto actNode) continue;
             var p = actNode.Action;
             if (p == null || string.IsNullOrEmpty(p.MethodFqn)) continue;
-            if (p.DelegateShape != BTreeDelegateShapeDto.ThreeParamReusableStateful) continue;
+            // Both reusable-stateful shapes and composed blueprint AiPrimitive actions ride the
+            // partition-slot rail, so both contribute a StatefulWorkingSlots manifest entry (I2/I3).
+            if (p.DelegateShape != BTreeDelegateShapeDto.ThreeParamReusableStateful &&
+                p.DelegateShape != BTreeDelegateShapeDto.AiPrimitiveTickCore) continue;
 
             // S3-4: scope-aware key so co-bound Behavior-scoped nodes dedup onto one shared slot.
             // S3-G: scope governed by the working-state variable when distinct from params.

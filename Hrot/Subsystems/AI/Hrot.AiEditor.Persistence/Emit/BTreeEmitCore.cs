@@ -678,7 +678,8 @@ public static class BTreeEmitCore
                 sb.AppendLine($"{pad}{Indent}{visualId}){term}");
             }
         }
-        else if (p.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusableStateful &&
+        else if ((p.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusableStateful ||
+                  p.DelegateShape == BTreeDelegateShapeDto.AiPrimitiveTickCore) &&
                  !string.IsNullOrEmpty(actionTargetField) &&
                  variableOffsets != null && variableOffsets.Count > 0 &&
                  variableOffsets.TryGetValue(actionTargetField!, out int statefulParamOffset))
