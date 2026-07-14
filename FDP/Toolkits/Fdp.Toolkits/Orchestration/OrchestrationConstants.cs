@@ -15,7 +15,7 @@ namespace Fdp.Toolkit.Orchestration
         /// </summary>
         public static string ResolveStagingRoot() =>
             Environment.GetEnvironmentVariable("FDP_STAGING_ROOT")
-            ?? System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FDP_Temp");
+            ?? "C:\\FDP_Temp";
         public const string ScenariosDirectoryName = "scenarios";
         public const string ExercisesDirectoryName = "exercises";
         public const string EpisodesDirectoryName = "episodes";
