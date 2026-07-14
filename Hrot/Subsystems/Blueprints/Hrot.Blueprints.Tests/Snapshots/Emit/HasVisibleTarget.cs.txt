@@ -41,12 +41,10 @@ public static class HasVisibleTarget_96FB0E6E_Bp
         global::Fdp.Core.EntityRepository world,
         float time)
     {
-        {
-        }
+        global::Hrot.Blueprints.Core.Debug.DebugProbe.NodeEnter(self, "20000004-0000-0000-0000-000000000001");
+        global::Hrot.Blueprints.Core.Debug.DebugProbe.NodeEnter(self, "20000004-0000-0000-0000-000000000002");
+        return global::Fbt.NodeStatus.Success;
         
-        #pragma warning disable CS0162 // Unreachable code (fallback)
-        return global::Fbt.NodeStatus.Failure;
-        #pragma warning restore CS0162
     }
     
     public static unsafe bool BTreeEvaluate(

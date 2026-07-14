@@ -54,6 +54,10 @@ public sealed class AiPrimitiveEmitGoldenTests
         var opts   = DefaultOptions();
         var sink   = new DiagnosticSink();
         var ctx    = new ValidationContext(sink, opts);
+        // Stage 0 -- rehydrate pin-less nodes (projection-only assets have Pins:[]).
+        // Must run before Stage2, exactly as BlueprintCompiler.Compile does; skipping it
+        // made this harness emit a degenerate (empty-body) TickCore that returned Failure.
+        Stage0_Rehydrate.Run(asset, opts);
         Stage2_Validate.Run(asset, ctx);
         var norm   = Stage3_Normalize.Run(asset, ctx);
         var typed  = Stage4_TypeResolve.Run(norm, ctx);
