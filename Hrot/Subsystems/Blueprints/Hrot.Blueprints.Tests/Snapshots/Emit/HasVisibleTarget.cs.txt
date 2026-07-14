@@ -78,7 +78,7 @@ public static class HasVisibleTarget_96FB0E6E_Bp
 [global::Fdp.Toolkit.Blueprints.Attributes.BlueprintRegistrar]
 public static class BlueprintRegistrar_HasVisibleTarget_96FB0E6E_Bp
 {
-    public static unsafe void Register(global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging, global::Fdp.Toolkit.Behavior.BehaviorRegistry behReg)
+    public static unsafe void Register(global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging, global::Fbt.Runtime.ActionRegistry<global::Fdp.Toolkit.Behavior.Components.BrainBlackboard, global::Fdp.Toolkit.Behavior.BTreeContext> actionRegistry)
     {
         staging.Add(HasVisibleTarget_96FB0E6E_Bp.BlueprintId, new global::Fdp.Toolkit.Blueprints.BlueprintDefinition
         {
@@ -87,6 +87,6 @@ public static class BlueprintRegistrar_HasVisibleTarget_96FB0E6E_Bp
             StructureHash = HasVisibleTarget_96FB0E6E_Bp.StructureHash,
             StateSize = 0,
         });
-        behReg.RegisterCondition(HasVisibleTarget_96FB0E6E_Bp.BlueprintId, "HasVisibleTarget", HasVisibleTarget_96FB0E6E_Bp.BTreeEvaluate);
+        actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Generated.HasVisibleTarget_96FB0E6E_Bp.BTreeEvaluate@0", static (ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb, ref global::Fbt.BehaviorTreeState st, ref global::Fdp.Toolkit.Behavior.BTreeContext ctx, int pi) => HasVisibleTarget_96FB0E6E_Bp.BTreeEvaluate(ref bb, ref st, ref ctx, pi) ? global::Fbt.NodeStatus.Success : global::Fbt.NodeStatus.Failure);
     }
 }

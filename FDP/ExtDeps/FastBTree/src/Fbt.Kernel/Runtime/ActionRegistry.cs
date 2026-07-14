@@ -18,6 +18,16 @@ namespace Fbt.Runtime
             = new Dictionary<string, NodeDeactivatorDelegate<TBlackboard, TContext>>();
 
         /// <summary>
+        /// Removes all registered actions and deactivators. Used to release delegate references
+        /// into collectible assemblies (hot-reload / test ALC teardown) so they can be GC-reclaimed.
+        /// </summary>
+        public void Clear()
+        {
+            _actions.Clear();
+            _deactivators.Clear();
+        }
+
+        /// <summary>
         /// Register an action delegate with a name.
         /// </summary>
         public void Register(string methodName, NodeLogicDelegate<TBlackboard, TContext> action)

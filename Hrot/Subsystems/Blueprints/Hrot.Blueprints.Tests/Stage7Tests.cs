@@ -108,14 +108,16 @@ public sealed class Stage7Tests
         // HSM thunk (HsmAction hosting)
         Assert.Contains("HsmActivity", src);
 
-        // Registrar has BehaviorRegistry (has BTreeAction hosting)
-        Assert.Contains("BehaviorRegistry behReg", src);
+        // Registrar takes the FastBTree ActionRegistry (has BTreeAction hosting) — I1.
+        Assert.Contains("ActionRegistry<global::Fdp.Toolkit.Behavior.Components.BrainBlackboard, global::Fdp.Toolkit.Behavior.BTreeContext> actionRegistry", src);
 
         // No HsmActionDispatcher parameter in Register() -- it is a static class (Patch C1).
         Assert.DoesNotContain("HsmActionDispatcher hsmDispatcher", src);
 
-        // BTree registration is emitted for BTreeAction hosting (Patch C1 / TASK-CP-004)
-        Assert.Contains("behReg.RegisterAction(", src);
+        // BTree registration goes into the string-keyed ActionRegistry the interpreter binds from (I1).
+        Assert.Contains("actionRegistry.Register(\"Hrot.AI.Behaviors.Generated.", src);
+        Assert.Contains(".BTreeTick@0\"", src);
+        Assert.DoesNotContain("behReg.RegisterAction(", src);
 
         // HSM static registration is emitted for HsmAction hosting (Patch C1)
         Assert.Contains("HsmActionDispatcher.RegisterAction(", src);
@@ -143,8 +145,11 @@ public sealed class Stage7Tests
         var src = result.GeneratedSource!;
 
         Assert.Contains("BTreeEvaluate", src);
-        Assert.Contains("behReg.RegisterCondition(", src);
-        Assert.DoesNotContain("behReg.RegisterAction(", src);
+        // Condition registers into the ActionRegistry via RegisterCondition, wrapped bool→NodeStatus (I1).
+        Assert.Contains("actionRegistry.RegisterCondition(\"Hrot.AI.Behaviors.Generated.", src);
+        Assert.Contains(".BTreeEvaluate@0\"", src);
+        Assert.DoesNotContain("actionRegistry.Register(\"", src);   // no action variant for a condition-only host
+        Assert.DoesNotContain("behReg.RegisterCondition(", src);
     }
 
     // ------------------------------------------------------------------

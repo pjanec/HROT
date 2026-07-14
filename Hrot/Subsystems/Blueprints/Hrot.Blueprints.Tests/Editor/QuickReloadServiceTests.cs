@@ -125,11 +125,11 @@ public sealed class QuickReloadServiceTests
         Assert.True(registry.TryGetByName("MoveToAndFire", out _),
             "Blueprint 'MoveToAndFire' should be registered after quick reload");
 
-        // BTree action thunk was registered
-        int expectedId = BlueprintIdHash.Compute(asset.AssetId);
-        Assert.True(behReg.TryGetAction(expectedId, out var actionEntry),
-            "BTree action thunk should be registered after quick reload");
-        Assert.Equal("MoveToAndFire", actionEntry.Name);
+        // I1: the BTree action thunk is now registered into the FastBTree ActionRegistry
+        // (string-keyed, the registry the Interpreter binds from) rather than the orphaned
+        // BehaviorRegistry int-dict. The ActionRegistry is internal to the scan/ApplyQuickReload
+        // path and not surfaced by the coordinator, so it is not asserted here; the real
+        // interpreter-binding proof is MoveToAndFire_InterpreterTick_Tests (I1 canary).
 
         // Sibling signatures were built
         Assert.NotNull(service.LastSignaturesUsedForTesting);

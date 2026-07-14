@@ -8,6 +8,7 @@ using System.Text;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
+using Fbt.Runtime;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Systems;
@@ -49,6 +50,13 @@ public sealed class BlueprintTestFixture : IDisposable
     public BlueprintMaintenanceSystem MaintenanceSystem { get; }
     public BlueprintCompiler Compiler { get; }
     public CapturingDebugSession DebugSession { get; }
+
+    /// <summary>
+    /// I1: the FastBTree action registry that BTree-hosted AiPrimitive registrars (and the JSON
+    /// bridge registrars) populate. Exposed so a test can build an <see cref="Interpreter{TBlackboard,TContext}"/>
+    /// that binds a blueprint-authored action by its registered key and tick it for real.
+    /// </summary>
+    public ActionRegistry<BrainBlackboard, BTreeContext> ActionRegistry { get; } = new();
 
     /// <summary>
     /// When set, passed to generated registrars that declare an IPredicateCompiler parameter.
@@ -467,6 +475,9 @@ public static class ThrowingRegistrar
                         args[i] = blueprintStaging;
                     else if (paramInfos[i].ParameterType == typeof(BehaviorRegistry))
                         args[i] = behaviorStaging;
+                    // I1: BTree-hosted AiPrimitive registrars register their thunks here.
+                    else if (paramInfos[i].ParameterType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>))
+                        args[i] = ActionRegistry;
                     // Patch 4: BlueprintRegistry is forbidden — violates the RCU contract.
                     else if (paramInfos[i].ParameterType == typeof(BlueprintRegistry))
                         throw new HotReloadRegistrarException(
@@ -928,6 +939,7 @@ public static class ThrowingRegistrar
         HsmActionDispatcher.ClearAll();  // clear stale function pointers before ALC unload
         _coordinator.Dispose();          // unloads coordinator's current ALC + clears BehaviorRegistry
         _persistedWorkingState.Clear();  // release boxed working-state objects from collectible assemblies
+        ActionRegistry.Clear();          // release AiPrimitive/bridge BTree thunk delegates (I1) from collectible assemblies
         Registry.CommitStaging(Registry.BeginStaging()); // release Tick/InitDefault delegates from collectible assemblies
         UnloadAndClearAlcs();
         // ALCs are unloaded and _activeAlcs is cleared; the foreach variable inside

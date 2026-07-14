@@ -141,7 +141,11 @@ internal sealed class CSharpEmitter
         var className = $"{asset.SanitizedName}_{asset.BlueprintId:X8}_Bp";
         var registrarName = $"BlueprintRegistrar_{asset.SanitizedName}_{asset.BlueprintId:X8}_Bp";
 
-        bool needsBehReg = asset.Hostings.Any(h =>
+        // I1: BTree-hosted AiPrimitive thunks must register into the FastBTree ActionRegistry
+        // (string-keyed, the registry the Interpreter actually binds from), not the orphaned
+        // int-keyed BehaviorRegistry side-table. The scanner injects this ActionRegistry the same
+        // way it does for the JSON BTree bridge registrars.
+        bool needsActionRegistry = asset.Hostings.Any(h =>
             h == AiPrimitiveHosting.BTreeAction || h == AiPrimitiveHosting.BTreeCondition);
 
         bool hasConditionMet = asset.Dispatch == AssetDispatch.Instance &&
@@ -157,8 +161,11 @@ internal sealed class CSharpEmitter
 
         var paramParts = new System.Collections.Generic.List<string>
             { "global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging" };
-        if (needsBehReg)
-            paramParts.Add("global::Fdp.Toolkit.Behavior.BehaviorRegistry behReg");
+        if (needsActionRegistry)
+            paramParts.Add(
+                "global::Fbt.Runtime.ActionRegistry<" +
+                "global::Fdp.Toolkit.Behavior.Components.BrainBlackboard, " +
+                "global::Fdp.Toolkit.Behavior.BTreeContext> actionRegistry");
         if (hasConditionMet)
         {
             paramParts.Add("global::Fdp.Toolkit.ReplayBrowser.Search.IPredicateCompiler predicateCompiler");
@@ -176,7 +183,7 @@ internal sealed class CSharpEmitter
                 EmitLibraryRegistration(className, asset);
                 break;
             case AssetDispatch.AiPrimitive:
-                EmitAiPrimitiveRegistration(className, asset, needsBehReg);
+                EmitAiPrimitiveRegistration(className, asset);
                 break;
             case AssetDispatch.Instance:
                 if (hasConditionMet)
@@ -204,7 +211,7 @@ internal sealed class CSharpEmitter
         WriteLine("});");
     }
 
-    private void EmitAiPrimitiveRegistration(string className, IrAsset asset, bool needsBehReg)
+    private void EmitAiPrimitiveRegistration(string className, IrAsset asset)
     {
         WriteLine($"staging.Add({className}.BlueprintId, new global::Fdp.Toolkit.Blueprints.BlueprintDefinition");
         WriteLine("{");
@@ -216,11 +223,23 @@ internal sealed class CSharpEmitter
         Outdent();
         WriteLine("});");
 
-        // Register BTree thunks with BehaviorRegistry (Patch C1 / TASK-CP-004)
+        // I1: register BTree thunks into the FastBTree ActionRegistry under the interpreter's
+        // string-key scheme ({MethodFqn}@{offset}), so Interpreter.BindActions resolves them.
+        // The action thunk (BTreeTick) is already NodeLogicDelegate-shaped (returns NodeStatus).
+        // The condition thunk (BTreeEvaluate) returns bool, so wrap it into a NodeStatus-returning
+        // adapter (Success/Failure) — the shape ActionRegistry stores conditions as.
+        // offset 0: a standalone AiPrimitive owns its whole params region; when composed into a host
+        // BTree the host assigns the param offset (I2) and bakes the matching key into the blob.
+        const string fqnNs = "Hrot.AI.Behaviors.Generated";
         if (asset.Hostings.Contains(AiPrimitiveHosting.BTreeAction))
-            WriteLine($"behReg.RegisterAction({className}.BlueprintId, \"{asset.Name}\", {className}.BTreeTick);");
+            WriteLine($"actionRegistry.Register(\"{fqnNs}.{className}.BTreeTick@0\", {className}.BTreeTick);");
         if (asset.Hostings.Contains(AiPrimitiveHosting.BTreeCondition))
-            WriteLine($"behReg.RegisterCondition({className}.BlueprintId, \"{asset.Name}\", {className}.BTreeEvaluate);");
+            WriteLine(
+                $"actionRegistry.RegisterCondition(\"{fqnNs}.{className}.BTreeEvaluate@0\", " +
+                "static (ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb, " +
+                "ref global::Fbt.BehaviorTreeState st, ref global::Fdp.Toolkit.Behavior.BTreeContext ctx, int pi) => " +
+                $"{className}.BTreeEvaluate(ref bb, ref st, ref ctx, pi) " +
+                "? global::Fbt.NodeStatus.Success : global::Fbt.NodeStatus.Failure);");
 
         // Register HSM thunks via static calls (HsmActionDispatcher is a static unsafe class,
         // not injectable; Patch C1). The unmanaged function pointers are cast to IntPtr.

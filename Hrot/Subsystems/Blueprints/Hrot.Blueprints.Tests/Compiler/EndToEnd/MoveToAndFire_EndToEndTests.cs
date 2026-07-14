@@ -1,3 +1,6 @@
+using Fbt.Compiler;
+using Fbt.Runtime;
+using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Blueprints;
 using Hrot.Blueprints.Core.Assets;
@@ -133,5 +136,66 @@ public sealed class MoveToAndFire_BTreeTick_Tests : IDisposable
         var tick2 = _fixture.InvokeBTreeAction(_asset, entity);
 
         Assert.Equal(NodeStatus.Success, tick2);
+    }
+}
+
+/// <summary>
+/// I1 canary: proves a blueprint-authored AiPrimitive action executes through a <b>real FastBTree
+/// <see cref="Interpreter{TBlackboard,TContext}"/> binding</b> — not the reflection <c>TickCore</c>
+/// bypass used by <see cref="MoveToAndFire_BTreeTick_Tests"/>.
+/// <para>
+/// The AiPrimitive registrar now registers <c>BTreeTick</c> into the string-keyed
+/// <see cref="ActionRegistry{TBlackboard,TContext}"/> under <c>{ClassFqn}.BTreeTick@0</c> (I1),
+/// which is the registry the interpreter binds from. A one-node blob whose action MethodName is
+/// that key binds and ticks it for real. Before I1 the thunk was registered into the orphaned
+/// int-keyed <c>BehaviorRegistry</c> side-table, so this binding resolved to the interpreter's
+/// silent Failure fallback and no blueprint action ever ran through a tick.
+/// </para>
+/// </summary>
+public sealed class MoveToAndFire_InterpreterTick_Tests : IDisposable
+{
+    private readonly BlueprintTestFixture _fixture = new();
+    private readonly BlueprintAsset _asset = TestData.LoadAsset(TestData.SampleAssets.MoveToAndFire);
+
+    public void Dispose() => _fixture.Dispose();
+
+    // The interpreter binds by the same key the AiPrimitive registrar registers under.
+    private string ActionKey()
+        => $"Hrot.AI.Behaviors.Generated.MoveToAndFire_{BlueprintIdHash.Compute(_asset.AssetId):X8}_Bp.BTreeTick@0";
+
+    [Fact]
+    public unsafe void InterpreterBinding_TicksBlueprintAction_RunningThenSuccess()
+    {
+        // Arrange: compile + load → registrar populates the fixture's ActionRegistry (I1).
+        _fixture.CompileAndLoad(_asset);
+
+        var entity = _fixture.CreateEntity();
+        _fixture.World.AddComponent(entity, default(LocomotionChannel));
+        _fixture.World.AddComponent(entity, default(Blackboard1024)); // AiPrimitive working-state rail
+
+        // The action must resolve in the ActionRegistry — otherwise the interpreter would silently
+        // bind the Failure fallback (the pre-I1 behavior).
+        Assert.True(_fixture.ActionRegistry.TryGetAction(ActionKey(), out _),
+            $"AiPrimitive action '{ActionKey()}' must be registered into the FastBTree ActionRegistry (I1).");
+
+        // A minimal one-node tree whose single action references the blueprint action by key.
+        var builder = new BTreeBuilder<BrainBlackboard, BTreeContext>();
+        builder.Action(ActionKey());
+        var blob = builder.Compile("I1_MoveToAndFire_Smoke");
+        var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, _fixture.ActionRegistry);
+
+        var bb    = default(BrainBlackboard);
+        var state = default(Fbt.BehaviorTreeState);
+        var ctx   = new BTreeContext { Self = entity, World = _fixture.World };
+
+        // Tick 1: channel idle → WaitForChannel suspends → Running.
+        var tick1 = interpreter.Tick(ref bb, ref state, ref ctx);
+        Assert.Equal(Fbt.NodeStatus.Running, tick1);
+
+        // Complete the channel; Tick 2 → the blueprint action returns Success through the interpreter.
+        ref var chan = ref _fixture.World.GetComponentRW<LocomotionChannel>(entity);
+        chan.Status = Fbt.NodeStatus.Success;
+        var tick2 = interpreter.Tick(ref bb, ref state, ref ctx);
+        Assert.Equal(Fbt.NodeStatus.Success, tick2);
     }
 }
