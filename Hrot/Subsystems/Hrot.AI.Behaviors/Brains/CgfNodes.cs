@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using CarKinem.Core;
+using Fdp.Core;
 using Fbt;
 using Fbt.Compiler;
 using Fbt.Runtime;
@@ -152,6 +153,30 @@ namespace Hrot.AI.Behaviors.Brains
         private const float DefaultMoveToSpeed = 15f;
 
         // -- Parse methods (cold path, unsafe byte* accepted from engine delegate) --
+
+        /// <summary>
+        /// Resolver (ParseParamsDelegate shape): fetches the geographic transform from the world
+        /// singleton and delegates to <see cref="ParseMoveToParams"/>. Null geo → Cartesian fallback.
+        /// </summary>
+        public static unsafe void ResolveMoveToParams(string json, byte* ptr, EntityRepository world, Entity self)
+        {
+            var geo = world.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
+                ? world.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
+                : null;
+            ParseMoveToParams(json, ptr, geo!);
+        }
+
+        /// <summary>
+        /// Resolver (ParseParamsDelegate shape): fetches the NetworkEntityMap from the world
+        /// singleton and delegates to <see cref="ParseFireAtTargetParams"/>.
+        /// </summary>
+        public static unsafe void ResolveFireAtTargetParams(string json, byte* ptr, EntityRepository world, Entity self)
+        {
+            var map = (world.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()
+                ? world.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()
+                : null) ?? new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+            ParseFireAtTargetParams(json, ptr, map);
+        }
 
         public static unsafe void ParseMoveToParams(string json, byte* ptr, Fdp.Modules.Geographic.IGeographicTransform geoTransform)
         {

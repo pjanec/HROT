@@ -137,7 +137,7 @@ public sealed class ParseParamsEmissionTests
         var bridge = BTreeBridgeEmitCore.EmitBridge(dto);
 
         // The unsafe block that captures the lambda must be present.
-        bridge.Should().Contain("__parseParams = static (string json, byte* memory) =>",
+        bridge.Should().Contain("__parseParams = static (string json, byte* memory, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) =>",
             "bridge must emit an unsafe lambda assigned to __parseParams");
 
         // The BehaviorDefinition initializer must reference the local.
@@ -230,7 +230,7 @@ public sealed class ParseParamsEmissionTests
         var dto    = MakeTwoVarDto(alphaDefault: "{\"Value\":7}", betaDefault: null);
         var bridge = BTreeBridgeEmitCore.EmitBridge(dto);
 
-        bridge.Should().Contain("__parseParams = static (string json, byte* memory) =>",
+        bridge.Should().Contain("__parseParams = static (string json, byte* memory, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) =>",
             "ParseParams unsafe lambda must be emitted when at least one variable has DefaultValueJson");
 
         bridge.Should().Contain("memory + 0",

@@ -93,7 +93,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     {
                         try
                         {
-                            def.ParseParams(evt.JsonParams, dst);
+                            def.ParseParams(evt.JsonParams, dst, repo, evt.Entity);
                             parseOk = true;
                         }
                         catch (Exception ex)

@@ -43,7 +43,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             {
                 Name      = behaviorName,
                 BrainTier = BehaviorConstants.BrainTierBTree,
-                ParseParams = static (string json, byte* mem) =>
+                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self) =>
                 {
                     *(float*)mem = float.Parse(json,
                         System.Globalization.CultureInfo.InvariantCulture);
@@ -217,7 +217,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 Name      = behaviorName,
                 BrainTier = BehaviorConstants.BrainTierBTree,
                 // ParseParams delegate that always throws.
-                ParseParams = static (string json, byte* mem) =>
+                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self) =>
                     throw new InvalidOperationException("Simulated parse failure"),
             });
 
@@ -272,7 +272,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 Name      = newBehaviorName,
                 BrainTier = BehaviorConstants.BrainTierBTree,
                 // ParseParams delegate that always throws.
-                ParseParams = static (string json, byte* mem) =>
+                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self) =>
                     throw new InvalidOperationException("Test-induced parse failure"),
             });
 

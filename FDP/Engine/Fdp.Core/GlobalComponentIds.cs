@@ -243,6 +243,9 @@
         /// Projected into behavior-specific DTOs via <c>Unsafe.As</c> inside generated action thunks.</summary>
         public const int Blackboard1024          = 74;
 
+        /// <summary><c>IGeographicTransform</c> â€” geographic⇄Cartesian coordinate transform service singleton (FDP.Toolkit).</summary>
+        public const int IGeographicTransform    = 75;
+
         /// <summary><c>PathfindingBatchData</c> â€” zero-allocation singleton for batched pathfinding requests/results (FDP.Toolkit.Navigation).</summary>
         public const int PathfindingBatchData    = 76;
 

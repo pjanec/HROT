@@ -110,7 +110,7 @@ namespace Hrot.AI.Behaviors
                     {
                         Name             = BehaviorNames.MoveToLocation,
                         BrainTier        = BehaviorConstants.BrainTierBTree,
-                        ParseParams      = (json, ptr) => CgfNodes.ParseMoveToParams(json, ptr, geoTransform!),
+                        ParseParams      = CgfNodes.ResolveMoveToParams,
                         ParamsDtoType    = typeof(CgfNodes.MoveToLocationParams),
                         BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
                             moveToBlob, actionRegistry),
@@ -121,7 +121,7 @@ namespace Hrot.AI.Behaviors
                     {
                         Name             = BehaviorNames.FollowRoute,
                         BrainTier        = BehaviorConstants.BrainTierBTree,
-                        ParseParams      = (json, ptr) => CgfNodes.ParseFollowRouteParams(json, ptr),
+                        ParseParams      = (json, ptr, world, self) => CgfNodes.ParseFollowRouteParams(json, ptr),
                         ParamsDtoType    = typeof(CgfNodes.FollowRouteParams),
                         BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
                             followRouteBlob, actionRegistry),
@@ -160,7 +160,7 @@ namespace Hrot.AI.Behaviors
                     {
                         Name             = BehaviorNames.FireAtTarget,
                         BrainTier        = BehaviorConstants.BrainTierBTree,
-                        ParseParams      = (json, ptr) => CgfNodes.ParseFireAtTargetParams(json, ptr, entityMap),
+                        ParseParams      = CgfNodes.ResolveFireAtTargetParams,
                         ParamsDtoType    = typeof(CgfNodes.FireAtTargetParams),
                         BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
                             fireAtTargetBlob, actionRegistry),
@@ -171,7 +171,7 @@ namespace Hrot.AI.Behaviors
                     {
                         Name             = BehaviorNames.HullDownAttackRun,
                         BrainTier        = BehaviorConstants.BrainTierBTree,
-                        ParseParams      = (json, ptr) => HillAttackTankNodes.ParseHullDownAttackParams(json, ptr),
+                        ParseParams      = (json, ptr, world, self) => HillAttackTankNodes.ParseHullDownAttackParams(json, ptr),
                         ParamsDtoType    = typeof(HullDownAttackParams),
                         BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
                             hullDownBlob, actionRegistry),
@@ -198,8 +198,7 @@ namespace Hrot.AI.Behaviors
                         ManagedBlackboardVariables = genPlatoonHillDef.ManagedBlackboardVariables,
                         StatefulWorkingSlots       = genPlatoonHillDef.StatefulWorkingSlots,
                         ParamsDtoType              = typeof(PlatoonHillAttackParams),
-                        ParseParams                = (json, ptr) => HillAttackCommanderNodes.ParsePlatoonHillAttackParams(
-                            json, ptr, geoTransform, entityMap),
+                        ParseParams                = HillAttackCommanderNodes.ResolvePlatoonHillAttackParams,
                     });
                 }
             };

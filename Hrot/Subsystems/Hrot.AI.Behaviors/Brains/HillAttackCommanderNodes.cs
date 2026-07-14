@@ -649,6 +649,24 @@ namespace Hrot.AI.Behaviors.Brains
         /// The attack direction is computed as the left-hand perpendicular of the
         /// normalised firing-line vector — it is not authored directly.
         /// </summary>
+        /// <summary>
+        /// Resolver (ParseParamsDelegate shape): fetches the geographic transform and
+        /// NetworkEntityMap from world singletons and delegates to
+        /// <see cref="ParsePlatoonHillAttackParams"/>. This is what the behavior registers as its
+        /// resolver — no registration-time closure over geo/entity-map is needed.
+        /// </summary>
+        public static unsafe void ResolvePlatoonHillAttackParams(
+            string json, byte* ptr, Fdp.Core.EntityRepository world, Entity self)
+        {
+            var geo = world.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
+                ? world.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
+                : null;
+            var map = (world.HasSingletonManaged<NetworkEntityMap>()
+                ? world.GetSingletonManaged<NetworkEntityMap>()
+                : null) ?? new NetworkEntityMap();
+            ParsePlatoonHillAttackParams(json, ptr, geo, map);
+        }
+
         public static unsafe void ParsePlatoonHillAttackParams(
             string json,
             byte* ptr,

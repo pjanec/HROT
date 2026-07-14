@@ -1,3 +1,4 @@
+using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Xunit;
 
@@ -138,7 +139,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             {
                 Name        = "X",
                 BrainTier   = BehaviorConstants.BrainTierBTree,
-                ParseParams = static (string json, byte* mem) => { },
+                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self) => { },
             };
             var withoutParseParams = new BehaviorDefinition
             {
@@ -178,7 +179,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             {
                 Name        = "X",
                 BrainTier   = BehaviorConstants.BrainTierBTree,
-                ParseParams = static (string json, byte* mem) => { },
+                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self) => { },
             };
 
             registry.Register(200, "X", withoutParseParams);
@@ -203,7 +204,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             {
                 Name        = "Alpha",
                 BrainTier   = BehaviorConstants.BrainTierBTree,
-                ParseParams = static (string json, byte* mem) => { },
+                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self) => { },
             });
             registry.Register(2, "Bravo", new BehaviorDefinition
             {
@@ -238,7 +239,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             {
                 Name        = "Reloadable",
                 BrainTier   = BehaviorConstants.BrainTierBTree,
-                ParseParams = static (string json, byte* mem) => { },
+                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self) => { },
             };
 
             registry.Register(7, "Reloadable", original);
@@ -268,7 +269,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             var withParse = new BehaviorDefinition
             {
                 Name = "Y", BrainTier = BehaviorConstants.BrainTierBTree,
-                ParseParams = static (string json, byte* mem) => { },
+                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self) => { },
             };
             var withoutParse = new BehaviorDefinition
             {

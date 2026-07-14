@@ -1,7 +1,9 @@
 using System.Numerics;
+using Fdp.Core;
 
 namespace Fdp.Modules.Geographic
 {
+    [ComponentId(GlobalComponentIds.IGeographicTransform)]
     public interface IGeographicTransform
     {
         void SetOrigin(double latDeg, double lonDeg, double altMeters);

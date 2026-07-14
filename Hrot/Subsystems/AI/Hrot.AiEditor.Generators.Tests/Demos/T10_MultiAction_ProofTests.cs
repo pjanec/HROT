@@ -555,7 +555,7 @@ public sealed class T10_MultiAction_ProofTests : IDisposable
         for (int i = 0; i < BufferSize; i++) buf[i] = 0;
 
         // Invoke ParseParams with empty json (baked defaults are written regardless of arg).
-        def.ParseParams!("", buf);
+        def.ParseParams!("", buf, null!, default);
 
         // ── counter (DemoCounterParams, offset 0) ─────────────────────────────────
         // Layout: {int Counter, int Threshold} → Counter at +0, Threshold at +4 within the DTO.
