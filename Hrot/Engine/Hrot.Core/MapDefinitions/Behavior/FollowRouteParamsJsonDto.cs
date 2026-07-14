@@ -6,7 +6,7 @@ namespace Hrot.Map.Definitions.Behavior
     /// <summary>
     /// JSON serialization DTO for the <c>FollowRoute</c> behavior parameter block.
     /// </summary>
-    [BehaviorContract(BehaviorIds.FollowRoute_BT, BehaviorId, BehaviorCategory.AllMilitary)]
+    [BehaviorContract(BehaviorId, BehaviorCategory.AllMilitary)]
     public sealed class FollowRouteParamsJsonDto
     {
         public const string BehaviorId = "FollowRoute";

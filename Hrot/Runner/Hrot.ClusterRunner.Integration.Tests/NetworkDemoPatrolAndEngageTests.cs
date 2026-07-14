@@ -15,7 +15,6 @@ using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.CGF;
 using Hrot.AI.Behaviors.Brains;
-using Hrot.CGF.Configuration;
 using Hrot.Map.Common;
 using Hrot.SimHost;
 using Xunit;
@@ -51,8 +50,8 @@ public sealed class NetworkDemoPatrolAndEngageTests
     private const int BTreeNavigationTimeoutMs     = 12_000;
     private const int PumpSleepMs                  = 5;
 
-    // PatrolAndEngage behavior ID used in Phase 3 test (outside the CgfBehaviorIds range).
-    private const int PatrolAndEngage_BT = 3099;
+    // PatrolAndEngage behavior ID used in Phase 3 test (name-derived hash, not a table entry).
+    private static readonly int PatrolAndEngage_BT = Fdp.Toolkit.Behavior.BehaviorHash.FromName("PatrolAndEngage");
 
     // ── NDEMO-IT-1 ────────────────────────────────────────────────────────────
 
@@ -244,7 +243,7 @@ public sealed class NetworkDemoPatrolAndEngageTests
         // NavigationIntentIngressTranslator -> NavigationIntentBridgeSystem ->
         // NavState -> CarKinematicsSystem pipeline.
         var behavior = harness.Cgf.World!.GetComponent<BehaviorState>(cgfEntity);
-        behavior.ActiveBehaviorHash = CgfBehaviorIds.WanderMilitary_BT;
+        behavior.ActiveBehaviorHash = Fdp.Toolkit.Behavior.BehaviorHash.FromName("WanderMilitary");
         harness.Cgf.World.SetComponent(cgfEntity, behavior);
 
         // Wait for SimTransform.Position to move; threshold > 0.1 m confirms

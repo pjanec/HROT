@@ -11,7 +11,7 @@ namespace Hrot.Map.Definitions.Behavior.Intents
     /// <c>TargetIntentId</c> of the <c>DefendAreaMapper</c> (TASK-TI011).
     /// </para>
     /// </summary>
-    [BehaviorContract(BehaviorIds.DefendArea_Intent, BehaviorId, BehaviorCategory.AllMilitary)]
+    [BehaviorContract(BehaviorId, BehaviorCategory.AllMilitary)]
     public sealed class DefendAreaIntentDto
     {
         public const string BehaviorId = "DefendArea";

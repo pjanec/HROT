@@ -6,7 +6,7 @@ namespace Hrot.Map.Definitions.Behavior
     /// <summary>
     /// JSON serialization DTO for the <c>FireAtTarget</c> behavior parameter block.
     /// </summary>
-    [BehaviorContract(BehaviorIds.FireAtTarget_BT, BehaviorId, BehaviorCategory.AllMilitary)]
+    [BehaviorContract(BehaviorId, BehaviorCategory.AllMilitary)]
     public sealed class FireAtTargetParamsJsonDto
     {
         public const string BehaviorId = "FireAtTarget";

@@ -7,7 +7,7 @@ namespace Hrot.Map.Definitions.Behavior
     /// <summary>
     /// JSON serialization DTO for the <c>MoveToLocation</c> behavior parameter block.
     /// </summary>
-    [BehaviorContract(BehaviorIds.MoveTo_BT, BehaviorId, BehaviorCategory.AllMilitary | BehaviorCategory.Civilian)]
+    [BehaviorContract(BehaviorId, BehaviorCategory.AllMilitary | BehaviorCategory.Civilian)]
     public sealed class MoveToLocationParamsJsonDto
     {
         public const string BehaviorId = "MoveToLocation";

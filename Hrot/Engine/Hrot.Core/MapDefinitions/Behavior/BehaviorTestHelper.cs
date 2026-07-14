@@ -11,7 +11,7 @@ namespace Hrot.Map.Definitions.Behavior
     public static class BehaviorTestHelper
     {
         /// <summary>
-        /// Returns the <see cref="BehaviorContractAttribute.BehaviorId"/> declared on
+        /// Returns the <see cref="BehaviorContractAttribute.BehaviorName"/> declared on
         /// <typeparamref name="TDto"/>.
         /// </summary>
         /// <typeparam name="TDto">A DTO type decorated with <see cref="BehaviorContractAttribute"/>.</typeparam>
