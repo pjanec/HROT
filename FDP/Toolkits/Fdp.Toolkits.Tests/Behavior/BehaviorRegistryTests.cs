@@ -252,5 +252,42 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.True(defFound);
             Assert.Same(updated, def);
         }
+
+        // ── Test 10 — same-id completeness (post name-identity convergence) ──
+        /// <summary>
+        /// After Phase 1b both producers mint id = BehaviorHash.FromName(name), so the curated
+        /// (ParseParams-bearing) and generated (ParseParams-less) registrations of the same behavior
+        /// collide under the SAME id. The ParseParams-bearing definition must survive regardless of
+        /// which registers last.
+        /// </summary>
+        [Fact]
+        public void Register_SameId_ParseParamsBearingDefinitionSurvives_RegardlessOfOrder()
+        {
+            const int Id = 500;
+
+            var withParse = new BehaviorDefinition
+            {
+                Name = "Y", BrainTier = BehaviorConstants.BrainTierBTree,
+                ParseParams = static (string json, byte* mem) => { },
+            };
+            var withoutParse = new BehaviorDefinition
+            {
+                Name = "Y", BrainTier = BehaviorConstants.BrainTierBTree,
+            };
+
+            // complete first, then incomplete
+            var r1 = new BehaviorRegistry();
+            r1.Register(Id, "Y", withParse);
+            r1.Register(Id, "Y", withoutParse);
+            Assert.True(r1.TryGetDefinition(Id, out var d1));
+            Assert.NotNull(d1!.ParseParams);
+
+            // incomplete first, then complete
+            var r2 = new BehaviorRegistry();
+            r2.Register(Id, "Y", withoutParse);
+            r2.Register(Id, "Y", withParse);
+            Assert.True(r2.TryGetDefinition(Id, out var d2));
+            Assert.NotNull(d2!.ParseParams);
+        }
     }
 }

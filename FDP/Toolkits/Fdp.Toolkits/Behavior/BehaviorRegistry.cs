@@ -192,39 +192,31 @@ namespace Fdp.Toolkit.Behavior
                         "This would corrupt the SoftAdvice and Interrupt registers in BrainBlackboard.");
             }
 
-            // Always store the definition under its own id — harmless even when the name
-            // below ends up mapped to a different id (e.g. two ids sharing one behavior name).
-            _definitions[id] = definition;
-
-            // Order-independent anti-shadow rule (double-registration bug, HillAttack):
-            // AiHotReloadCoordinator.ScanForRegistrars runs every [BlueprintRegistrar] in
-            // type-name sort order. For "PlatoonHillAttack" this means AiBehaviorFactory
-            // (id 3014, WITH ParseParams) and the generated PlatoonHillAttackRegistrar
-            // (a GUID-derived id, WITHOUT ParseParams) both register the same name. Whichever
-            // runs second used to win unconditionally, so an alphabetically-later generated
-            // registrar could silently overwrite the name -> id mapping with a ParseParams-less
-            // definition, breaking runtime param parsing regardless of registration order.
-            // Fix: when the name is already bound to a *different* id, only remap it if the
-            // incoming definition is at least as "complete" (carries ParseParams) as the
-            // existing one — i.e. a ParseParams-bearing definition can never be shadowed by
-            // one that lacks ParseParams, no matter which one registers first or second.
-            if (_nameToId.TryGetValue(name, out var existingId) && existingId != id)
+            // Order-independent, completeness-preserving double-registration guard.
+            // AiHotReloadCoordinator.ScanForRegistrars runs every [BlueprintRegistrar]; the curated
+            // AiBehaviorFactory (WITH ParseParams) and the generated per-asset registrar (WITHOUT
+            // ParseParams) can both register the same behavior. A ParseParams-bearing definition must
+            // never be replaced by one lacking ParseParams, regardless of registration order — and this
+            // must hold whether the two collide under the SAME id (Phase 1b: both mint
+            // BehaviorHash.FromName(name)) or under DIFFERENT ids (pre-1b: name shared across two ids).
+            bool incomingHasParseParams = definition.ParseParams != null;
+            if (_nameToId.TryGetValue(name, out var existingId)
+                && _definitions.TryGetValue(existingId, out var existingDef)
+                && existingDef.ParseParams != null
+                && !incomingHasParseParams)
             {
                 System.Diagnostics.Debug.WriteLine(
-                    $"[BehaviorRegistry] Duplicate behavior name '{name}' registered under ids {existingId} and {id}; " +
-                    "keeping the definition that carries ParseParams.");
+                    $"[BehaviorRegistry] '{name}': kept the ParseParams-bearing definition (id {existingId}); " +
+                    $"ignored a later ParseParams-less registration (id {id}).");
 
-                bool existingHasParseParams = _definitions.TryGetValue(existingId, out var existingDef)
-                    && existingDef.ParseParams != null;
-                bool incomingHasParseParams = definition.ParseParams != null;
-
-                if (existingHasParseParams && !incomingHasParseParams)
-                {
-                    // Preserve the more complete existing mapping; do not shadow it.
-                    return;
-                }
+                // Record the incoming def under its own id only if that id differs (harmless); never
+                // repoint the name and never overwrite the more-complete existing definition.
+                if (id != existingId)
+                    _definitions[id] = definition;
+                return;
             }
 
+            _definitions[id] = definition;
             _nameToId[name] = id;
         }
 
