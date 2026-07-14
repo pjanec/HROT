@@ -241,6 +241,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         _entityMap = _context.EntityMap;
         _context.World.SetSingletonManaged<NetworkEntityMap>(_entityMap!);
+        // Behavior resolvers (Phase 2b) reach the geographic transform through this world singleton
+        // rather than a registration-time closure, so the CGF node — where the PlatoonHillAttack
+        // commander and its vehicles activate — must publish it here (mirrors SimHostApp). Without it
+        // geo-aware params (hill/baseline positions) resolve to 0,0,0.
+        if (_context.GeoTransform != null)
+            _context.World.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(_context.GeoTransform);
         CgfComponentRegistry.RegisterAll(_context.World);
 
         // ── Register base infrastructure modules ───────────────────────────────

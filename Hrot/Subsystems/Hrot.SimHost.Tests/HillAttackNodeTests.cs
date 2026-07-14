@@ -13,6 +13,7 @@ using Fdp.Toolkit.Combat.Executors;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Replication.Components;
+using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Spatial.Eqs;
 using Hrot.AI.Behaviors;
@@ -1582,6 +1583,78 @@ namespace Hrot.SimHost.Tests
 
             Assert.True(registry.TryGetDefinition(BehaviorHash.FromName(BehaviorNames.PlatoonHillAttack), out var def));
             Assert.NotNull(def.ParseParams);
+        }
+
+        /// <summary>
+        /// SC-HA016-7 (regression, Phase 2b/2c): the bound PlatoonHillAttack resolver must read the
+        /// geographic transform from the <b>world singleton</b> at activation. When the world publishes
+        /// an <see cref="IGeographicTransform"/>, the parsed firing-line/baseline positions must be the
+        /// geo-converted coordinates — NOT the Cartesian raw-lon/lat fallback used when geo is null.
+        /// <para>
+        /// This guards the regression where the CGF node stopped moving vehicles to real positions
+        /// (they converged near origin) because the node published NetworkEntityMap but not the geo
+        /// transform singleton, so the resolver fell back to raw lon/lat. See CgfSubsystem /
+        /// EditorSubsystem geo-singleton publication.
+        /// </para>
+        /// </summary>
+        [Fact]
+        public unsafe void SC_HA016_7_PlatoonHillAttack_Resolver_UsesWorldSingletonGeoTransform()
+        {
+            using var repo = CreateWorld();
+
+            // Distinctive geo transform: X = lon*1000, Y = lat*1000. Any use of the null Cartesian
+            // fallback (X = lon, Y = lat) would produce values 1000x smaller.
+            var geo = new ScaleGeoTransform(1000.0);
+            repo.SetSingletonManaged<IGeographicTransform>(geo);
+            repo.SetSingletonManaged<NetworkEntityMap>(new NetworkEntityMap());
+
+            var registry = new BehaviorRegistry();
+            CgfBehaviorSetup.LoadFromAiAssembly(registry);
+            var ingress = new BehaviorIngressSystem(registry);
+
+            var commander = repo.CreateEntity();
+            repo.AddComponent(commander, new BehaviorState());
+            repo.AddComponent(commander, new BrainBlackboard());
+
+            // PickableGeoPoint uses [latitude, longitude]. FiringLineStart = lat 2, lon 7.
+            const string json =
+                @"{""firingLineStart"":[2,7]," +
+                @"""firingLineEnd"":[2,8]," +
+                @"""baselineStart"":[3,7]," +
+                @"""baselineEnd"":[3,8]," +
+                @"""tankSpacing"":30}";
+
+            repo.Bus.PublishManaged(new AssignBehaviorEvent
+            {
+                Entity       = commander,
+                BehaviorName = BehaviorNames.PlatoonHillAttack,
+                JsonParams   = json,
+            });
+            repo.Bus.SwapBuffers();
+            ingress.Execute(repo, 0.016f);
+
+            ref readonly var bb = ref repo.GetComponentRO<BrainBlackboard>(commander);
+            PlatoonHillAttackParams parms;
+            fixed (BrainBlackboard* bp = &bb)
+                parms = *(PlatoonHillAttackParams*)bp;
+
+            // FiringLineStart lon=7 -> X = 7*1000 = 7000 (geo used), NOT 7 (null fallback).
+            Assert.Equal(7000f, parms.StartX, 0.5f);
+            Assert.Equal(2000f, parms.StartY, 0.5f);
+            Assert.Equal(8000f, parms.EndX, 0.5f);
+        }
+
+        /// <summary>Test geo transform that scales lon/lat by a fixed factor into Cartesian X/Y,
+        /// so a test can distinguish "resolver used the world-singleton geo" from the null fallback.</summary>
+        private sealed class ScaleGeoTransform : IGeographicTransform
+        {
+            private readonly double _scale;
+            public ScaleGeoTransform(double scale) => _scale = scale;
+            public void SetOrigin(double latDeg, double lonDeg, double altMeters) { }
+            public System.Numerics.Vector3 ToCartesian(double latDeg, double lonDeg, double altMeters)
+                => new System.Numerics.Vector3((float)(lonDeg * _scale), (float)(latDeg * _scale), (float)altMeters);
+            public (double lat, double lon, double alt) ToGeodetic(System.Numerics.Vector3 localPos)
+                => (localPos.Y / _scale, localPos.X / _scale, localPos.Z);
         }
 
         // ── Private helper: parse TargetNetworkId from dispatch event JSON ────────

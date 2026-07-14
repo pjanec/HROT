@@ -613,6 +613,9 @@ namespace Hrot.Editor
             var entityMap        = new NetworkEntityMap();
             _entityMap = entityMap;
             _world.SetSingletonManaged<NetworkEntityMap>(entityMap);
+            // Behavior resolvers (Phase 2b) read the geographic transform from this world singleton;
+            // publish it so the editor's behavior preview/activation resolves geo-aware params correctly.
+            _world.SetSingletonManaged<IGeographicTransform>(geoTransform);
             var behaviorRegistry = new BehaviorRegistry();
             _behaviorRegistry = behaviorRegistry;
             // Register Urban Combat behaviors so MissionAdapterSystem can resolve Ambush
