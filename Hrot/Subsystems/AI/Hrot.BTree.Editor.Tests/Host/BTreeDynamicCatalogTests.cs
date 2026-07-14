@@ -392,6 +392,22 @@ public sealed class BTreeDynamicCatalogTests
     }
 
     [Fact]
+    public void Catalog_AiPrimitiveEntry_DisplayNameIsBlueprintName_NotTickCore()
+    {
+        // Generated TickCore FQN pattern: {ns}.{Blueprint}_{id:X8}_Bp.TickCore.
+        const string fqn = "Hrot.AI.Behaviors.Generated.LocomotionMoveToDemo_1A2B3C4D_Bp.TickCore";
+        var fake = new FakeActionSchemaExporter();
+        fake.Seed(fqn, new ActionSchemaEntry(
+            fqn, typeof(SomeOtherDto), ActionHosting.BTree,
+            BlackboardAccess.Unknown, null, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
+
+        var catalog = new BTreeNodeCatalog(fake, typeof(BrainBlackboardStub).FullName);
+
+        var entry = catalog.All.Single(e => e.Kind.Id == "bt.leaf.action::" + fqn);
+        entry.DisplayName.Should().Be("LocomotionMoveToDemo");
+    }
+
+    [Fact]
     public void Catalog_MismatchedHardcodedEntry_StillFilteredOut()
     {
         // Regression: a mismatched-DtoType HARD-CODED action (IsAiPrimitive == false) must remain
