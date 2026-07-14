@@ -164,9 +164,13 @@ public sealed unsafe class BehaviorIngressGhostSlotTests
             new StatefulSlotInfo(keyB, 4,  hashB),
         };
 
-        // Re-register the same behavior ID with updated manifest (simulates the registry
-        // being updated by ApplyReload after hot-reload — Task 2 will fire the event).
-        registry.Register(BehaviorId, BehaviorName, MakeStatefulDefinition(BehaviorName, BehaviorId, slotsV2));
+        // Simulate the registry being updated by ApplyReload after hot-reload the way production
+        // does it: scan the reloaded definition into a FRESH staging registry, then MergeFrom into
+        // the live registry (MergeFrom overwrites the id's definition). A direct re-Register of the
+        // same name is now a hard error (Phase 1e), since production never re-registers in place.
+        var reloadStaging = new BehaviorRegistry();
+        reloadStaging.Register(BehaviorId, BehaviorName, MakeStatefulDefinition(BehaviorName, BehaviorId, slotsV2));
+        registry.MergeFrom(reloadStaging);
 
         // Re-assign the same behavior (same entity, same behavior name) — this is exactly
         // what Task 2 (coordinator re-publish) will trigger.

@@ -122,72 +122,54 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Empty(names);
         }
 
-        // ── Test 6 — double-registration anti-shadow rule ───────────────────
+        // ── Test 6 — duplicate-name hard error (Phase 1e) ────────────────────
         /// <summary>
-        /// Reproduces the HillAttack double-registration bug (AiBehaviorFactory id 3014
-        /// with ParseParams vs. a generated PlatoonHillAttackRegistrar id without ParseParams,
-        /// both registering the name "PlatoonHillAttack"). A ParseParams-bearing definition
-        /// registered first must not be shadowed by a later registration of the same name
-        /// under a different id that lacks ParseParams.
+        /// After Phase 2c factory retirement, each behavior self-registers exactly once under a
+        /// unique name. Registering a second, different definition under an already-registered name
+        /// is a genuine collision and must throw rather than silently shadow one definition.
+        /// (This is the inverse of the interim anti-shadow rule it replaces.)
         /// </summary>
         [Fact]
-        public void Register_DuplicateName_ParseParamsBearingDefinitionWins_RegardlessOfOrder()
+        public void Register_DuplicateName_DifferentDefinition_Throws()
         {
             var registry = new BehaviorRegistry();
 
-            var withParseParams = new BehaviorDefinition
-            {
-                Name        = "X",
-                BrainTier   = BehaviorConstants.BrainTierBTree,
-                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self) => { },
-            };
-            var withoutParseParams = new BehaviorDefinition
+            registry.Register(100, "X", new BehaviorDefinition
             {
                 Name      = "X",
                 BrainTier = BehaviorConstants.BrainTierBTree,
-            };
+            });
 
-            registry.Register(100, "X", withParseParams);
-            registry.Register(200, "X", withoutParseParams);
-
-            bool found = registry.TryGetId("X", out var id);
-            Assert.True(found);
-            Assert.Equal(100, id);
-
-            bool defFound = registry.TryGetDefinition(id, out var def);
-            Assert.True(defFound);
-            Assert.NotNull(def!.ParseParams);
+            Assert.Throws<InvalidOperationException>(() =>
+                registry.Register(200, "X", new BehaviorDefinition
+                {
+                    Name      = "X",
+                    BrainTier = BehaviorConstants.BrainTierBTree,
+                }));
         }
 
-        // ── Test 7 — double-registration anti-shadow rule, reverse order ────
+        // ── Test 7 — duplicate-name hard error is order/id independent ───────
         /// <summary>
-        /// Same scenario as above but with the ParseParams-less definition registered
-        /// FIRST and the ParseParams-bearing one SECOND. The rule must be order-independent:
-        /// the ParseParams-bearing definition still wins the name mapping.
+        /// The collision is on the <b>name</b>: a second registration of the same name throws even
+        /// when it targets the same derived id (name-as-identity always maps a name to one id).
         /// </summary>
         [Fact]
-        public void Register_DuplicateName_ParseParamsBearingDefinitionWins_ReverseOrder()
+        public void Register_DuplicateName_Throws_EvenUnderSameDerivedId()
         {
             var registry = new BehaviorRegistry();
 
-            var withoutParseParams = new BehaviorDefinition
+            registry.Register("X", new BehaviorDefinition
             {
                 Name      = "X",
                 BrainTier = BehaviorConstants.BrainTierBTree,
-            };
-            var withParseParams = new BehaviorDefinition
-            {
-                Name        = "X",
-                BrainTier   = BehaviorConstants.BrainTierBTree,
-                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self) => { },
-            };
+            });
 
-            registry.Register(200, "X", withoutParseParams);
-            registry.Register(100, "X", withParseParams);
-
-            bool found = registry.TryGetId("X", out var id);
-            Assert.True(found);
-            Assert.Equal(100, id);
+            Assert.Throws<InvalidOperationException>(() =>
+                registry.Register("X", new BehaviorDefinition
+                {
+                    Name      = "X",
+                    BrainTier = BehaviorConstants.BrainTierBTree,
+                }));
         }
 
         // ── Test 8 — distinct names register independently ──────────────────
@@ -219,76 +201,64 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(2, bravoId);
         }
 
-        // ── Test 9 — same-id re-registration is unaffected ───────────────────
+        // ── Test 9 — idempotent same-instance re-registration ────────────────
         /// <summary>
-        /// Re-registering the same name under the SAME id (the normal hot-reload case)
-        /// must update the stored definition and behave exactly as before the fix —
-        /// no anti-shadow logic should kick in since <c>existingId == id</c>.
+        /// Registering the <b>exact same</b> definition instance again under the same name is a no-op
+        /// (tolerated so an idempotent re-scan into the same registry does not throw). Only a second,
+        /// <i>different</i> definition for the name is a collision.
         /// </summary>
         [Fact]
-        public void Register_SameIdReRegistration_UpdatesDefinitionWithoutRegression()
+        public void Register_SameInstanceReRegistration_IsIdempotent()
         {
             var registry = new BehaviorRegistry();
 
-            var original = new BehaviorDefinition
+            var def = new BehaviorDefinition
             {
                 Name      = "Reloadable",
                 BrainTier = BehaviorConstants.BrainTierBTree,
             };
-            var updated = new BehaviorDefinition
-            {
-                Name        = "Reloadable",
-                BrainTier   = BehaviorConstants.BrainTierBTree,
-                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self) => { },
-            };
 
-            registry.Register(7, "Reloadable", original);
-            registry.Register(7, "Reloadable", updated);
+            registry.Register(7, "Reloadable", def);
+            registry.Register(7, "Reloadable", def); // same instance → no-op, no throw
 
-            bool found = registry.TryGetId("Reloadable", out var id);
-            Assert.True(found);
+            Assert.True(registry.TryGetId("Reloadable", out var id));
             Assert.Equal(7, id);
-
-            bool defFound = registry.TryGetDefinition(7, out var def);
-            Assert.True(defFound);
-            Assert.Same(updated, def);
+            Assert.True(registry.TryGetDefinition(7, out var stored));
+            Assert.Same(def, stored);
         }
 
-        // ── Test 10 — same-id completeness (post name-identity convergence) ──
+        // ── Test 10 — named resolver overlay binds by name (Phase 2c) ────────
         /// <summary>
-        /// After Phase 1b both producers mint id = BehaviorHash.FromName(name), so the curated
-        /// (ParseParams-bearing) and generated (ParseParams-less) registrations of the same behavior
-        /// collide under the SAME id. The ParseParams-bearing definition must survive regardless of
-        /// which registers last.
+        /// A curated <see cref="BehaviorRegistry.RegisterResolver"/> binds a resolver (and params DTO
+        /// type) to a topology definition self-registered without one, by name — order-independent.
+        /// This replaces the curated↔generated double registration the anti-shadow rule once absorbed.
         /// </summary>
         [Fact]
-        public void Register_SameId_ParseParamsBearingDefinitionSurvives_RegardlessOfOrder()
+        public void RegisterResolver_BindsResolverToTopology_RegardlessOfOrder()
         {
-            const int Id = 500;
-
-            var withParse = new BehaviorDefinition
+            static BehaviorDefinition TopologyOnly() => new()
             {
-                Name = "Y", BrainTier = BehaviorConstants.BrainTierBTree,
-                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self) => { },
-            };
-            var withoutParse = new BehaviorDefinition
-            {
-                Name = "Y", BrainTier = BehaviorConstants.BrainTierBTree,
+                Name      = "Y",
+                BrainTier = BehaviorConstants.BrainTierBTree,
             };
 
-            // complete first, then incomplete
+            // resolver registered BEFORE the topology
             var r1 = new BehaviorRegistry();
-            r1.Register(Id, "Y", withParse);
-            r1.Register(Id, "Y", withoutParse);
-            Assert.True(r1.TryGetDefinition(Id, out var d1));
+            r1.RegisterResolver("Y", static (string json, byte* mem, EntityRepository world, Entity self) => { },
+                typeof(int));
+            r1.Register("Y", TopologyOnly());
+            Assert.True(r1.TryGetDefinition(BehaviorHash.FromName("Y"), out var d1));
             Assert.NotNull(d1!.ParseParams);
+            Assert.Equal(typeof(int), d1.ParamsDtoType);
 
-            // incomplete first, then complete
+            // resolver registered AFTER the topology
             var r2 = new BehaviorRegistry();
-            r2.Register(Id, "Y", withoutParse);
-            r2.Register(Id, "Y", withParse);
-            Assert.True(r2.TryGetDefinition(Id, out var d2));
+            r2.Register("Y", TopologyOnly());
+            r2.RegisterResolver("Y", static (string json, byte* mem, EntityRepository world, Entity self) => { },
+                typeof(int));
+            Assert.True(r2.TryGetDefinition(BehaviorHash.FromName("Y"), out var d2));
             Assert.NotNull(d2!.ParseParams);
+            Assert.Equal(typeof(int), d2.ParamsDtoType);
         }
 
         // ── Test 11 — name-based Register overload derives id from name ─────

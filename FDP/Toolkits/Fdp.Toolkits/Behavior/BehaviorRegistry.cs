@@ -227,28 +227,23 @@ namespace Fdp.Toolkit.Behavior
                         "This would corrupt the SoftAdvice and Interrupt registers in BrainBlackboard.");
             }
 
-            // Order-independent, completeness-preserving double-registration guard.
-            // AiHotReloadCoordinator.ScanForRegistrars runs every [BlueprintRegistrar]; the curated
-            // AiBehaviorFactory (WITH ParseParams) and the generated per-asset registrar (WITHOUT
-            // ParseParams) can both register the same behavior. A ParseParams-bearing definition must
-            // never be replaced by one lacking ParseParams, regardless of registration order — and this
-            // must hold whether the two collide under the SAME id (Phase 1b: both mint
-            // BehaviorHash.FromName(name)) or under DIFFERENT ids (pre-1b: name shared across two ids).
-            bool incomingHasParseParams = definition.ParseParams != null;
-            if (_nameToId.TryGetValue(name, out var existingId)
-                && _definitions.TryGetValue(existingId, out var existingDef)
-                && existingDef.ParseParams != null
-                && !incomingHasParseParams)
+            // Duplicate-name hard error (Phase 1e, unblocked by Phase 2c factory retirement).
+            // Each behavior now self-registers exactly once under a unique name via its own
+            // [BlueprintRegistrar]; the curated↔generated double-registration that the interim
+            // anti-shadow warn absorbed no longer occurs. A second registration of the same name is
+            // therefore a genuine authoring/collision error and must fail loudly rather than silently
+            // shadow one definition with another. (Re-registering the exact same definition instance is
+            // tolerated so an idempotent re-scan into the same registry is a no-op.)
+            if (_nameToId.TryGetValue(name, out var existingId))
             {
-                System.Diagnostics.Debug.WriteLine(
-                    $"[BehaviorRegistry] '{name}': kept the ParseParams-bearing definition (id {existingId}); " +
-                    $"ignored a later ParseParams-less registration (id {id}).");
+                if (_definitions.TryGetValue(existingId, out var existingDef)
+                    && ReferenceEquals(existingDef, definition))
+                    return;
 
-                // Record the incoming def under its own id only if that id differs (harmless); never
-                // repoint the name and never overwrite the more-complete existing definition.
-                if (id != existingId)
-                    _definitions[id] = definition;
-                return;
+                throw new InvalidOperationException(
+                    $"Behavior name '{name}' is already registered (id {existingId}). Each behavior must "
+                    + "self-register exactly once under a unique name. A second registration indicates a "
+                    + "name collision between two [BlueprintRegistrar]s or a stale duplicate registrar.");
             }
 
             _definitions[id] = definition;
