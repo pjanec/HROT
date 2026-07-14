@@ -20,6 +20,37 @@ public static class AiEmitCoreBase
     public const string EditorGeneratedMarker =
         "// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.";
 
+    /// <summary>
+    /// Standard Brain-tier blackboard type used when an asset has no
+    /// <c>BlackboardTypeName</c> set (e.g. a freshly-created empty asset).
+    /// Matches the type every real hand-authored tree and the golden test corpus use.
+    /// </summary>
+    public const string DefaultBlackboardTypeName = "Fdp.Toolkit.Behavior.Components.BrainBlackboard";
+
+    /// <summary>
+    /// Standard Brain-tier context type used when an asset has no
+    /// <c>ContextTypeName</c> set (e.g. a freshly-created empty asset).
+    /// Matches the type every real hand-authored tree and the golden test corpus use.
+    /// </summary>
+    public const string DefaultContextTypeName = "Fdp.Toolkit.Behavior.BTreeContext";
+
+    /// <summary>
+    /// Resolves the effective blackboard type name to emit: <paramref name="typeName"/> when
+    /// non-empty/non-whitespace, otherwise <see cref="DefaultBlackboardTypeName"/>.
+    /// Single source of truth so every emit read-site (generic args, using collectors,
+    /// bridge registrar) defaults consistently — see BTreeEmitCore / BTreeBridgeEmitCore.
+    /// </summary>
+    public static string EffectiveBlackboardTypeName(string typeName) =>
+        string.IsNullOrWhiteSpace(typeName) ? DefaultBlackboardTypeName : typeName;
+
+    /// <summary>
+    /// Resolves the effective context type name to emit: <paramref name="typeName"/> when
+    /// non-empty/non-whitespace, otherwise <see cref="DefaultContextTypeName"/>.
+    /// Single source of truth — see <see cref="EffectiveBlackboardTypeName"/>.
+    /// </summary>
+    public static string EffectiveContextTypeName(string typeName) =>
+        string.IsNullOrWhiteSpace(typeName) ? DefaultContextTypeName : typeName;
+
     /// <summary>Builds the marker header lines for a generated file.</summary>
     public static string BuildHeader(Guid assetId)
     {

@@ -273,8 +273,8 @@ public static class BTreeEmitCore
         };
 
         // Add namespaces from blackboard / context type names.
-        AddNamespaceFromTypeName(set, dto.BlackboardTypeName);
-        AddNamespaceFromTypeName(set, dto.ContextTypeName);
+        AddNamespaceFromTypeName(set, AiEmitCoreBase.EffectiveBlackboardTypeName(dto.BlackboardTypeName));
+        AddNamespaceFromTypeName(set, AiEmitCoreBase.EffectiveContextTypeName(dto.ContextTypeName));
 
         // Scan nodes for action/condition FQNs.
         foreach (var node in dto.Nodes)
@@ -305,8 +305,8 @@ public static class BTreeEmitCore
         };
 
         // Add namespaces from blackboard / context type names.
-        AddNamespaceFromTypeName(set, dto.BlackboardTypeName);
-        AddNamespaceFromTypeName(set, dto.ContextTypeName);
+        AddNamespaceFromTypeName(set, AiEmitCoreBase.EffectiveBlackboardTypeName(dto.BlackboardTypeName));
+        AddNamespaceFromTypeName(set, AiEmitCoreBase.EffectiveContextTypeName(dto.ContextTypeName));
 
         // Scan nodes for action/condition FQNs.
         foreach (var node in dto.Nodes)
@@ -374,8 +374,8 @@ public static class BTreeEmitCore
         StringBuilder sb, BehaviorTreeAssetDto dto,
         IReadOnlyDictionary<string, int> variableOffsets)
     {
-        var bbShort  = ShortTypeName(dto.BlackboardTypeName);
-        var ctxShort = ShortTypeName(dto.ContextTypeName);
+        var bbShort  = ShortTypeName(AiEmitCoreBase.EffectiveBlackboardTypeName(dto.BlackboardTypeName));
+        var ctxShort = ShortTypeName(AiEmitCoreBase.EffectiveContextTypeName(dto.ContextTypeName));
 
         sb.AppendLine($"{Indent}public static BTreeBuilder<{bbShort}, {ctxShort}> CreateBuilder() =>");
         sb.AppendLine($"{Indent}{Indent}new BTreeBuilder<{bbShort}, {ctxShort}>()");

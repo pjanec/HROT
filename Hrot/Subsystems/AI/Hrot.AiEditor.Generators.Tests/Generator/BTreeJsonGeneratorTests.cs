@@ -235,6 +235,43 @@ public sealed class BTreeJsonGeneratorTests
     }
 
     [Fact]
+    public void EmitTopologyCore_EmptyTypeNames_DefaultsToBrainBlackboardAndBTreeContext()
+    {
+        // Regression: a freshly-created (empty) BTree asset is saved with blank
+        // BlackboardTypeName/ContextTypeName and no nodes. Before the fix, EmitCreateBuilder
+        // substituted the (empty) short type names straight into the generic argument list,
+        // producing "BTreeBuilder<, >" — CS7003 (unbound generic name), and the using
+        // collectors added no namespace for an empty type name, so even a manual fix-up of the
+        // generic args wouldn't resolve. The generator must instead default both type names to
+        // the standard Brain-tier BTree types and add their namespaces to the usings.
+        var dto = new BehaviorTreeAssetDto
+        {
+            AssetId = new Guid("AB000000-0000-0000-0000-000000000001"),
+            Name = "EmptyAsset",
+            TargetNamespace = "Test.Ns",
+            BlackboardTypeName = "",
+            ContextTypeName = "",
+            Nodes = new List<BTreeNodeDto>(),
+            Pills = new List<BTreePillDto>(),
+            Canvas = new CanvasDto(),
+            SubtreeSyncBindings = new Dictionary<string, List<SubtreeSyncBindingDto>>(),
+            Suppressions = new SuppressionsDto(),
+        };
+
+        string core = BTreeEmitCore.EmitTopologyCore(dto);
+
+        core.Should().Contain("BTreeBuilder<BrainBlackboard, BTreeContext>",
+            "empty BlackboardTypeName/ContextTypeName must default to the standard Brain-tier types, " +
+            "not be emitted as an unbound generic name");
+        core.Should().NotContain("<, >",
+            "an empty type name must never produce an unbound generic argument list (CS7003)");
+        core.Should().Contain("using Fdp.Toolkit.Behavior.Components;",
+            "the defaulted BrainBlackboard namespace must be in the usings so the short type name resolves");
+        core.Should().Contain("using Fdp.Toolkit.Behavior;",
+            "the defaulted BTreeContext namespace must be in the usings so the short type name resolves");
+    }
+
+    [Fact]
     public void EmitTopologyCore_IsDeterministic()
     {
         var model = LoadSampleScout();

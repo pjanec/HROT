@@ -117,8 +117,8 @@ public sealed class BTreeNewAssetService : INewAssetService
             AssetId            = Guid.NewGuid(),
             Name               = "Empty",
             TargetNamespace    = "",
-            BlackboardTypeName = "",
-            ContextTypeName    = "",
+            BlackboardTypeName = Hrot.AiEditor.Persistence.Emit.AiEmitCoreBase.DefaultBlackboardTypeName,
+            ContextTypeName    = Hrot.AiEditor.Persistence.Emit.AiEmitCoreBase.DefaultContextTypeName,
             Canvas             = new CanvasDto { Zoom = 1.0f },
             Nodes              = new List<BTreeNodeDto>(),
             Pills              = new List<BTreePillDto>(),
@@ -144,8 +144,8 @@ public sealed class BTreeNewAssetService : INewAssetService
             AssetId            = Guid.NewGuid(),
             Name               = "Starter",
             TargetNamespace    = "",
-            BlackboardTypeName = "",
-            ContextTypeName    = "",
+            BlackboardTypeName = Hrot.AiEditor.Persistence.Emit.AiEmitCoreBase.DefaultBlackboardTypeName,
+            ContextTypeName    = Hrot.AiEditor.Persistence.Emit.AiEmitCoreBase.DefaultContextTypeName,
             Canvas             = new CanvasDto { Zoom = 1.0f },
             Nodes = new List<BTreeNodeDto>
             {

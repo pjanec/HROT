@@ -331,8 +331,8 @@ public static class BTreeBridgeEmitCore
         // Deterministic behavior ID from the asset GUID (not string.GetHashCode()).
         int behaviorId = DeterministicIdFromGuid(dto.AssetId);
         string name    = dto.Name.Replace("\"", "\\\"");
-        var bbShort    = ShortTypeName(dto.BlackboardTypeName);
-        var ctxShort   = ShortTypeName(dto.ContextTypeName);
+        var bbShort    = ShortTypeName(AiEmitCoreBase.EffectiveBlackboardTypeName(dto.BlackboardTypeName));
+        var ctxShort   = ShortTypeName(AiEmitCoreBase.EffectiveContextTypeName(dto.ContextTypeName));
 
         sb.AppendLine($"{pad}/// <summary>");
         sb.AppendLine($"{pad}/// Coordinator-injectable registrar (§3 D14, PU-203).");
@@ -1052,8 +1052,8 @@ public static class BTreeBridgeEmitCore
         };
 
         // Namespaces from blackboard / context type names
-        AddNamespaceFromTypeName(set, dto.BlackboardTypeName);
-        AddNamespaceFromTypeName(set, dto.ContextTypeName);
+        AddNamespaceFromTypeName(set, AiEmitCoreBase.EffectiveBlackboardTypeName(dto.BlackboardTypeName));
+        AddNamespaceFromTypeName(set, AiEmitCoreBase.EffectiveContextTypeName(dto.ContextTypeName));
 
         // S1-3: managed assets need Unsafe for baked-offset thunks.
         if (dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0)
