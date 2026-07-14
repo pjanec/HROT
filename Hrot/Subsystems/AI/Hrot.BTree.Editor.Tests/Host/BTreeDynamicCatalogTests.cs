@@ -56,6 +56,17 @@ public sealed class FakeActionSchemaExporter : IActionSchemaExporter
 public sealed class BrainBlackboardStub { }
 public sealed class SomeOtherDto { }
 
+/// <summary>
+/// Stand-in for a Blueprint-compiler-generated AiPrimitive class (see AiPrimitiveEmitter.cs):
+/// nests a Params struct (the schema entry's DtoType) and a sibling WorkingState struct, exactly
+/// like the real generated "{Blueprint}_{Id:X8}_Bp" class.
+/// </summary>
+public static class FakeGeneratedAiPrimitive_Bp
+{
+    public struct Params { public int RunsNeeded; }
+    public struct WorkingState { public int Ticks; }
+}
+
 public sealed class BTreeDynamicCatalogTests
 {
     private static BehaviorTreeBlob EmptyBlob() =>
@@ -295,6 +306,105 @@ public sealed class BTreeDynamicCatalogTests
         node!.KernelType.Should().Be(NodeType.Action);
         // Generic action must NOT bake a MethodFqn.
         node.Action.Should().BeNull();
+    }
+
+    // ---- E2 — placing an AiPrimitive palette node composes the T31 shape ----
+
+    [Fact]
+    public void CommandSink_AddNode_AiPrimitiveAction_ComposesT31Shape()
+    {
+        const string fqn = "Hrot.AI.Behaviors.Generated.Demo_1A2B3C4D_Bp.TickCore";
+        var fake = new FakeActionSchemaExporter();
+        fake.Seed(fqn, new ActionSchemaEntry(
+            fqn, typeof(FakeGeneratedAiPrimitive_Bp.Params), ActionHosting.BTree,
+            BlackboardAccess.Unknown, null, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
+
+        var asset  = MakeAsset();
+        var graph  = new StubGraphModel();
+        var sink   = new BTreeCommandSink(asset, graph, fake);
+        var nodeId = NodeId.NewId();
+
+        sink.Apply(new GraphCommand.AddNode(
+            nodeId,
+            new NodeKindKey("bt.leaf.action::" + fqn),
+            Vector2.Zero,
+            null));
+
+        var node = asset.FindNode(nodeId.Value);
+        node.Should().NotBeNull();
+        node!.KernelType.Should().Be(NodeType.Action);
+        node.Action.Should().NotBeNull();
+        node.Action!.MethodFqn.Should().Be(fqn);
+        node.Action.DelegateShape.Should().Be(BTreeActionDelegateShape.AiPrimitiveTickCore,
+            "T31's Action node uses DelegateShape=AiPrimitiveTickCore");
+        node.Action.WorkingStateTypeId.Should().Be(
+            typeof(FakeGeneratedAiPrimitive_Bp.WorkingState).FullName,
+            "WorkingStateTypeId is derived from the Params type's declaring (generated) class");
+        node.Action.ExpressionTargetField.Should().NotBeNullOrEmpty(
+            "T31 binds the node to a blackboard variable holding its Params");
+
+        var varEntry = asset.BlackboardVariables.Should().ContainSingle().Which;
+        varEntry.Name.Should().Be(node.Action.ExpressionTargetField);
+        varEntry.FieldType.Should().Be(typeof(FakeGeneratedAiPrimitive_Bp.Params));
+        varEntry.IsAutoManaged.Should().BeTrue(
+            "the auto-created Params variable follows the existing 'Promote to new variable' lifecycle convention");
+    }
+
+    [Fact]
+    public void CommandSink_AddNode_AiPrimitiveAction_UniqueVariableName_WhenBpParamsTaken()
+    {
+        const string fqn = "Hrot.AI.Behaviors.Generated.Second_2B3C4D5E_Bp.TickCore";
+        var fake = new FakeActionSchemaExporter();
+        fake.Seed(fqn, new ActionSchemaEntry(
+            fqn, typeof(FakeGeneratedAiPrimitive_Bp.Params), ActionHosting.BTree,
+            BlackboardAccess.Unknown, null, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
+
+        var asset = MakeAsset();
+        asset.AddVariable(new BlackboardVariableEntry("bpParams", typeof(int), null));
+        var graph  = new StubGraphModel();
+        var sink   = new BTreeCommandSink(asset, graph, fake);
+        var nodeId = NodeId.NewId();
+
+        sink.Apply(new GraphCommand.AddNode(
+            nodeId,
+            new NodeKindKey("bt.leaf.action::" + fqn),
+            Vector2.Zero,
+            null));
+
+        var node = asset.FindNode(nodeId.Value);
+        node!.Action!.ExpressionTargetField.Should().Be("bpParams_2",
+            "the default name is taken by an unrelated variable, so placement must mint a unique one");
+        asset.BlackboardVariables.Should().Contain(v => v.Name == "bpParams_2");
+    }
+
+    [Fact]
+    public void CommandSink_AddNode_NonAiPrimitiveAction_Unchanged_EvenWithExporterPresent()
+    {
+        // Regression: a hardcoded (non-Blueprint) action must NOT be composed into the
+        // AiPrimitive shape just because an IActionSchemaExporter happens to be wired in.
+        const string fqn = "Ns.Combat.DoThing";
+        var fake = new FakeActionSchemaExporter();
+        fake.Seed(fqn, new ActionSchemaEntry(
+            fqn, typeof(object), ActionHosting.BTree, BlackboardAccess.Unknown, null, IsCondition: false));
+
+        var asset  = MakeAsset();
+        var graph  = new StubGraphModel();
+        var sink   = new BTreeCommandSink(asset, graph, fake);
+        var nodeId = NodeId.NewId();
+
+        sink.Apply(new GraphCommand.AddNode(
+            nodeId,
+            new NodeKindKey("bt.leaf.action::" + fqn),
+            Vector2.Zero,
+            null));
+
+        var node = asset.FindNode(nodeId.Value);
+        node!.Action!.MethodFqn.Should().Be(fqn);
+        node.Action.DelegateShape.Should().Be(BTreeActionDelegateShape.ThreeParamReusable,
+            "default enum value; non-AiPrimitive placement must stay unaffected by E2");
+        node.Action.WorkingStateTypeId.Should().BeNull();
+        node.Action.ExpressionTargetField.Should().BeNull();
+        asset.BlackboardVariables.Should().BeEmpty();
     }
 
     // ---- BATCH-13 — blackboard-type filtering ----

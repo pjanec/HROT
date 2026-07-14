@@ -4,6 +4,7 @@ using System.Linq;
 using System.Numerics;
 using Fbt;
 using Hrot.BTree.Editor.Model;
+using Hrot.Editor.AiShared.Blackboard;
 using NodeEditor.Core.Commands;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Primitives;
@@ -16,16 +17,23 @@ namespace Hrot.BTree.Editor.Host;
 /// </summary>
 internal sealed class BTreeCommandSink : IGraphCommandSink
 {
-    private readonly BehaviorTreeAsset _asset;
-    private readonly IGraphModel       _graph;
+    private readonly BehaviorTreeAsset     _asset;
+    private readonly IGraphModel           _graph;
+    private readonly IActionSchemaExporter? _actionSchema;
 
     // Maps link Guid -> (childVisualId, parentVisualId) for RemoveLinks lookup.
     private readonly Dictionary<Guid, (Guid child, Guid parent)> _links = new();
 
-    internal BTreeCommandSink(BehaviorTreeAsset asset, IGraphModel graph)
+    /// <param name="actionSchema">
+    /// E2: optional schema exporter used to detect Blueprint-compiled AiPrimitive actions when
+    /// placing a node from the palette (<see cref="ApplyAddNode"/>). Null in call sites/tests that
+    /// don't care about AiPrimitive composition — the non-AiPrimitive placement path is unaffected.
+    /// </param>
+    internal BTreeCommandSink(BehaviorTreeAsset asset, IGraphModel graph, IActionSchemaExporter? actionSchema = null)
     {
-        _asset = asset;
-        _graph = graph;
+        _asset        = asset;
+        _graph        = graph;
+        _actionSchema = actionSchema;
     }
 
     // ---- IGraphCommandSink --------------------------------------------------
@@ -134,9 +142,24 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
             node.KernelType = isCond ? NodeType.Condition : NodeType.Action;
             node.DisplayLabel = fqn.Substring(fqn.LastIndexOf('.') + 1);
             if (isCond)
+            {
                 node.Condition = new BTreeConditionPayload { MethodFqn = fqn };
+            }
             else
-                node.Action = new BTreeActionPayload { MethodFqn = fqn };
+            {
+                var action = new BTreeActionPayload { MethodFqn = fqn };
+                node.Action = action;
+
+                // E2: a Blueprint-compiled AiPrimitive action must be placed as a fully composed
+                // host-BTree node (T31 shape) — not the bare MethodFqn-only payload above. Detect
+                // via the schema entry (not a new kind prefix): schema entries with IsAiPrimitive
+                // are discovered from [Fbt.Kernel.GeneratedAiPrimitiveAction] on the generated
+                // TickCore (see ActionSchemaExporter). Non-AiPrimitive actions fall through
+                // unchanged (byte-identical to the pre-E2 behavior).
+                var entry = _actionSchema?.Lookup(fqn);
+                if (entry is { IsAiPrimitive: true })
+                    ComposeAiPrimitiveAction(action, entry);
+            }
         }
         else
         {
@@ -163,6 +186,46 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
 
         _asset.AddNode(node);
         _asset.MarkDirty();
+    }
+
+    /// <summary>
+    /// E2: composes a placed Action node onto a Blueprint-compiled AiPrimitive (T31 shape).
+    /// Sets <see cref="BTreeActionDelegateShape.AiPrimitiveTickCore"/>, derives the generated
+    /// WorkingState type FQN from the schema entry's Params type, and auto-creates a blackboard
+    /// variable (mirroring the "Promote to new variable" IsAutoManaged convention — see
+    /// <see cref="ApplyRemoveNodes"/>) to hold the Params, wiring it up via ExpressionTargetField.
+    /// </summary>
+    private void ComposeAiPrimitiveAction(BTreeActionPayload action, ActionSchemaEntry entry)
+    {
+        action.DelegateShape = BTreeActionDelegateShape.AiPrimitiveTickCore;
+
+        // The generated class nests both Params (entry.DtoType) and WorkingState as sibling
+        // struct types; derive the WorkingState FQN from Params' declaring type. Left null (node
+        // still placed) if the generated shape doesn't match — never throws.
+        action.WorkingStateTypeId = entry.DtoType.DeclaringType?.GetNestedType("WorkingState")?.FullName;
+
+        string varName = GenerateUniqueVariableName("bpParams");
+        _asset.AddVariable(new BlackboardVariableEntry(
+            varName, entry.DtoType, Comment: null, IsAutoManaged: true));
+
+        action.ExpressionTargetField = varName;
+    }
+
+    /// <summary>Returns baseName if unused, else baseName_2, baseName_3, … — first unused wins.</summary>
+    private string GenerateUniqueVariableName(string baseName)
+    {
+        if (_asset.BlackboardVariables.All(v => v.Name != baseName))
+            return baseName;
+
+        int suffix = 2;
+        string candidate;
+        do
+        {
+            candidate = $"{baseName}_{suffix}";
+            suffix++;
+        } while (_asset.BlackboardVariables.Any(v => v.Name == candidate));
+
+        return candidate;
     }
 
     /// <summary>Human-readable default title for a freshly-created node of the given kind.</summary>

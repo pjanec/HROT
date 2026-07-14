@@ -17,6 +17,20 @@ public enum BTreeActionDelegateShape
     ThreeParamReusable,
     /// <summary>Four-parameter delegate with full blackboard access.</summary>
     FourParamFull,
+
+    // NOTE: value 2 (ThreeParamReusableStateful in BTreeDelegateShapeDto, the persisted DTO enum)
+    // has no named member here yet; the numeric value still round-trips correctly through the
+    // (BTreeActionDelegateShape)/(BTreeDelegateShapeDto) casts in BehaviorTreeAssetMapper.
+
+    /// <summary>
+    /// I2/I3/E2: a blueprint-authored AiPrimitive action composed as a host-BTree node. The host
+    /// owns the Params layout (bin-packed into the blackboard at a baked offset, like
+    /// ThreeParamReusable) plus a partition slot for the blueprint's WorkingState; the node
+    /// dispatches to the blueprint's generated
+    /// <c>TickCore(ref Params, ref WorkingState, Entity self, EntityRepository world, float time)</c>.
+    /// Explicit value 3 to match BTreeDelegateShapeDto.AiPrimitiveTickCore (the persisted DTO enum).
+    /// </summary>
+    AiPrimitiveTickCore = 3,
 }
 
 /// <summary>Payload for Action leaf nodes.</summary>
@@ -27,6 +41,12 @@ public sealed class BTreeActionPayload
     /// <summary>Blackboard field referenced by the expression target (null when not using ThreeParamReusable).</summary>
     public string? ExpressionTargetField;
     public BTreeActionDelegateShape DelegateShape;
+    /// <summary>
+    /// E2: for <see cref="BTreeActionDelegateShape.AiPrimitiveTickCore"/> bindings, the CLR FQN of
+    /// the blueprint's generated WorkingState struct (second ref param after Params), e.g.
+    /// "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+WorkingState". Null for other shapes.
+    /// </summary>
+    public string? WorkingStateTypeId;
 }
 
 /// <summary>Payload for Condition leaf nodes.</summary>

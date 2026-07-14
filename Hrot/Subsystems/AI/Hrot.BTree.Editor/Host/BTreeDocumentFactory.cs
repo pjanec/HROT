@@ -106,7 +106,7 @@ public static class BTreeDocumentFactory
         var nodeCatalog  = new BTreeNodeCatalog(actionSchema, btAsset.BlackboardTypeName);
         var typeSystem   = new BTreeTypeSystem();
         var validator    = new BTreeLinkValidator(graphModel);
-        var commandSink  = new BTreeCommandSink(btAsset, graphModel);
+        var commandSink  = new BTreeCommandSink(btAsset, graphModel, actionSchema);
 
         // ── 3. Custom renderers (built-in BTree set + caller extras) ──────────
         var store = selectionStore ?? new EditorSelectionStore();
