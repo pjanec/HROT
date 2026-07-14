@@ -407,9 +407,16 @@ public sealed class WhenNodePerfTests
     /// after JIT warm-up. Uses per-thread byte accounting to isolate the blueprint
     /// execution from any background-thread activity in the test harness.
     /// </summary>
-    [Fact]
+    [SkippableFact]
     public void WhenNode_ZeroAllocOnHotPath()
     {
+        // Hot-path allocation threshold is calibrated for the Windows runtime; JIT tiering and
+        // BCL internals allocate differently on Linux/macOS, so this benchmark is Windows-only
+        // (matches the platform where it was calibrated and is run for real).
+        Skip.IfNot(System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+            System.Runtime.InteropServices.OSPlatform.Windows),
+            "Allocation threshold is calibrated for the Windows runtime; runtime allocation differs on other platforms.");
+
         using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
         var asset = BuildValueChangedAsset();
         fixture.CompileAndLoad(asset, DefaultOptions());
