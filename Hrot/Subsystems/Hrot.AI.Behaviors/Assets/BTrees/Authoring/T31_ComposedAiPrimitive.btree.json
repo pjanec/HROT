@@ -1,0 +1,62 @@
+{
+  "$meta": {
+    "docType": "Hrot.BTree",
+    "schemaVersion": 1
+  },
+  "AssetId": "bb000031-0000-0000-0000-000000000000",
+  "Name": "T31_ComposedAiPrimitive",
+  "TargetNamespace": "Hrot.AI.Behaviors.Trees",
+  "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+  "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+  "Nodes": [
+    {
+      "kind": "Root",
+      "VisualId": "bb310000-0000-0000-0000-000000000001",
+      "ChildVisualIds": [
+        "bb310000-0000-0000-0000-000000000002"
+      ],
+      "DisplayLabel": "Root",
+      "EditorMetadata": { "X": 300, "Y": 0, "Comment": null, "Collapsed": false, "Color": null }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore",
+        "ExpressionTargetField": "bpParams",
+        "DelegateShape": "AiPrimitiveTickCore",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+WorkingState"
+      },
+      "VisualId": "bb310000-0000-0000-0000-000000000002",
+      "ChildVisualIds": [],
+      "DisplayLabel": "ComposedAiPrimitive",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 160,
+        "Comment": "I2/I3: a blueprint AiPrimitive action composed as a host-BTree node. Params (RunsNeeded) are bin-packed into BrainBlackboard at the baked offset; WorkingState (Ticks) lives in a BlueprintBlackboard* partition slot keyed by FNV-1a(assetId, nodeVisualId) and is provisioned by BehaviorIngressSystem. Dispatches to DemoAiPrimitiveNodes.TickCore each tick: Running for the first (RunsNeeded-1) ticks, then Success.",
+        "Collapsed": false,
+        "Color": null
+      }
+    }
+  ],
+  "Pills": [],
+  "Canvas": { "PanX": 0, "PanY": 0, "Zoom": 1 },
+  "SubtreeSyncBindings": {},
+  "Suppressions": { "Conflict": [], "Unused": [] },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+    "HeavyDtoType": null,
+    "Variables": [
+      {
+        "Name": "bpParams",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+Params",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"RunsNeeded\":3}",
+        "Comment": "Authored params for the composed blueprint action. RunsNeeded=3 → the node returns Running on ticks 1-2 and Success on tick 3."
+      }
+    ]
+  }
+}

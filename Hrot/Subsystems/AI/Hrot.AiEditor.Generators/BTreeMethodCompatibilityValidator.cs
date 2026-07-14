@@ -177,6 +177,17 @@ internal static class BTreeMethodCompatibilityValidator
                 ctxTypeName);
         }
 
+        // I2/I3: AiPrimitiveTickCore composes a blueprint AiPrimitive as a host node. The bound method
+        // is the blueprint's generated TickCore with the signature
+        //   (ref Params, ref WorkingState, Fdp.Core.Entity self, Fdp.Core.EntityRepository world, float time)
+        // — 5 params, distinct from every other shape. Validate it via a dedicated check.
+        if (delegateShape == BTreeDelegateShapeDto.AiPrimitiveTickCore)
+        {
+            return CheckAiPrimitiveTickCore(
+                methodFqn, expressionTargetField, blackboard,
+                compilation, nodeStatusSymbol);
+        }
+
         // Resolve the method symbol.
         IMethodSymbol? method = ResolveMethod(compilation, methodFqn);
         if (method == null)
@@ -428,6 +439,89 @@ internal static class BTreeMethodCompatibilityValidator
         if (ctxSymbol != null &&
             !SymbolEqualityComparer.Default.Equals(param3.Type, ctxSymbol))
             return $"method '{methodFqn}' param 3 type '{param3.Type.ToDisplayString()}' does not match context type '{ctxTypeName}'";
+
+        return null; // valid
+    }
+
+    /// <summary>
+    /// I2/I3: validates a blueprint-AiPrimitive composition binding (<see cref="BTreeDelegateShapeDto.AiPrimitiveTickCore"/>).
+    /// The bound method is the blueprint's generated <c>TickCore</c>:
+    ///   <c>(ref Params, ref WorkingState, Fdp.Core.Entity self, Fdp.Core.EntityRepository world, float time)</c>.
+    /// Param 0 (Params) must match the target variable's TypeId (bin-packed into BrainBlackboard);
+    /// param 1 (WorkingState) is a ref struct projected from the partition slot; params 2-4 are the
+    /// world-context args passed by the bridge thunk. Returns null when valid, else a BTREE0002 reason.
+    /// </summary>
+    private static string? CheckAiPrimitiveTickCore(
+        string methodFqn,
+        string? expressionTargetField,
+        BlackboardBlockDto blackboard,
+        Compilation compilation,
+        INamedTypeSymbol? nodeStatusSymbol)
+    {
+        if (string.IsNullOrEmpty(expressionTargetField))
+            return "AiPrimitiveTickCore binding has no ExpressionTargetField — set the target variable in the editor";
+        if (!blackboard.Managed)
+            return "AiPrimitiveTickCore binding requires a managed blackboard (Managed=true); got Managed=false";
+
+        BlackboardVariableDto? targetVar = null;
+        foreach (var v in blackboard.Variables)
+        {
+            if (string.Equals(v.Name, expressionTargetField, StringComparison.Ordinal))
+            {
+                targetVar = v;
+                break;
+            }
+        }
+        if (targetVar == null)
+            return $"AiPrimitiveTickCore: variable '{expressionTargetField}' not found in the managed blackboard block";
+
+        IMethodSymbol? method = ResolveMethod(compilation, methodFqn);
+        if (method == null)
+            return $"method '{methodFqn}' could not be resolved in the compilation; ensure the declaring assembly is referenced";
+        if (!method.IsStatic)
+            return $"method '{methodFqn}' is not static";
+        if (method.DeclaredAccessibility != Accessibility.Public)
+            return $"method '{methodFqn}' is not public";
+        if (nodeStatusSymbol == null)
+            return "Fbt.NodeStatus could not be resolved; ensure Fbt.Kernel is referenced";
+        if (!SymbolEqualityComparer.Default.Equals(method.ReturnType, nodeStatusSymbol))
+            return $"method '{methodFqn}' returns '{method.ReturnType.ToDisplayString()}' but AiPrimitiveTickCore requires Fbt.NodeStatus";
+
+        if (method.Parameters.Length != 5)
+            return $"method '{methodFqn}' has {method.Parameters.Length} parameter(s) but AiPrimitiveTickCore requires exactly 5 (ref Params, ref WorkingState, Fdp.Core.Entity, Fdp.Core.EntityRepository, float)";
+
+        var fmt = new SymbolDisplayFormat(
+            globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted,
+            typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces);
+
+        // Param 0: ref Params — must match the target variable's TypeId.
+        var p0 = method.Parameters[0];
+        if (p0.RefKind != RefKind.Ref)
+            return $"method '{methodFqn}' param 0 (Params) must be 'ref'; got '{p0.RefKind}'";
+        string p0Type  = p0.Type.ToDisplayString(fmt).Replace('+', '.');
+        string varType = (targetVar.Type?.TypeId ?? string.Empty).Replace('+', '.');
+        if (!string.Equals(p0Type, varType, StringComparison.Ordinal))
+            return $"method '{methodFqn}' param 0 type '{p0.Type.ToDisplayString()}' does not match variable '{expressionTargetField}' type '{targetVar.Type?.TypeId}'";
+
+        // Param 1: ref WorkingState — projected from the partition slot (type not matched here).
+        var p1 = method.Parameters[1];
+        if (p1.RefKind != RefKind.Ref)
+            return $"method '{methodFqn}' param 1 (WorkingState) must be 'ref'; got '{p1.RefKind}'";
+
+        // Param 2: Fdp.Core.Entity self (by value).
+        var p2 = method.Parameters[2];
+        if (p2.RefKind != RefKind.None || p2.Type.ToDisplayString(fmt) != "Fdp.Core.Entity")
+            return $"method '{methodFqn}' param 2 must be 'Fdp.Core.Entity self' (by value); got '{p2.RefKind} {p2.Type.ToDisplayString()}'";
+
+        // Param 3: Fdp.Core.EntityRepository world (by value).
+        var p3 = method.Parameters[3];
+        if (p3.RefKind != RefKind.None || p3.Type.ToDisplayString(fmt) != "Fdp.Core.EntityRepository")
+            return $"method '{methodFqn}' param 3 must be 'Fdp.Core.EntityRepository world' (by value); got '{p3.RefKind} {p3.Type.ToDisplayString()}'";
+
+        // Param 4: float time (by value).
+        var p4 = method.Parameters[4];
+        if (p4.RefKind != RefKind.None || p4.Type.SpecialType != SpecialType.System_Single)
+            return $"method '{methodFqn}' param 4 must be 'float time'; got '{p4.RefKind} {p4.Type.ToDisplayString()}'";
 
         return null; // valid
     }
