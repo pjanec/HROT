@@ -87,8 +87,11 @@ public sealed class BTreeNewAssetTests : IDisposable
     [Fact]
     public void Create_FromRecipe_ClonesContent_NewIdentity()
     {
-        // Create a recipe DTO with some content.
+        // Create a recipe DTO with exactly one node of known content. MakeEmptyDto now seeds a Root
+        // node (new trees always start with a root), so clear it first to build a self-contained
+        // single-node recipe — this test asserts clone-copies-content, not MakeEmptyDto's seeding.
         var recipeDto = BTreeNewAssetService.MakeEmptyDto();
+        recipeDto.Nodes.Clear();
         recipeDto.AssetId = Guid.NewGuid();
         recipeDto.Name = "MyRecipe";
         recipeDto.TargetNamespace = "MyNS";
