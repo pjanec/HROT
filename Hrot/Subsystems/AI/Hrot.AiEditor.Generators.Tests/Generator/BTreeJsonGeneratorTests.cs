@@ -334,6 +334,24 @@ public sealed class BTreeJsonGeneratorTests
     }
 
     [Fact]
+    public void ComposedBlueprintParams_PredictedSize_MatchesReflectedCompiledLayout()
+    {
+        // AAR-integrity invariant (architect safeguard): the size the BTree generator PREDICTS for a
+        // composed blueprint's Params via Sequential math (Option A — derived from ParamDemo.bp.json:
+        // int Threshold + bool FlagA + bool FlagB) must equal the REFLECTED size of the real compiled
+        // Params struct. The bools carry [MarshalAs(I1)] (task #3), so the compiled struct is 8 bytes
+        // (int@0, bool@4, bool@5, pad→8); WITHOUT that attribute the runtime marshaller would see two
+        // 4-byte BOOLs (→12) and every bin-packed offset after it would drift, corrupting AAR/replay.
+        int predicted = StructSizeResolver.ComputeSequentialSize(new[] { 4, 1, 1 });
+        int reflected = Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.Params>();
+
+        predicted.Should().Be(8);
+        reflected.Should().Be(predicted,
+            "the generator's Sequential size prediction for a composed blueprint's Params must match " +
+            "the reflected compiled layout, or bin-packed offsets drift and corrupt AAR/replay schemas");
+    }
+
+    [Fact]
     public void EmitTopologyCore_IsDeterministic()
     {
         var model = LoadSampleScout();
