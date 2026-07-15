@@ -54,8 +54,21 @@ public static unsafe class BlueprintBlackboardPartitions
     /// <summary>
     /// Hot-path linear scan: finds the slot occupied by <paramref name="blueprintId"/>
     /// and returns its payload offset. Iterates only allocated slots (0..SlotCount).
+    /// Delegates to the 4-arg overload; kept for byte-compat with existing call sites
+    /// that don't need the slot's <see cref="BlueprintSlotEntry.StructureHash"/>.
     /// </summary>
     public static bool TryGetSlotOffset(byte* memory, int blueprintId, out int payloadOffset)
+        => TryGetSlotOffset(memory, blueprintId, out payloadOffset, out _);
+
+    /// <summary>
+    /// Hot-path linear scan: finds the slot occupied by <paramref name="blueprintId"/>
+    /// and returns both its payload offset and its stored <see cref="BlueprintSlotEntry.StructureHash"/>
+    /// (lower 32 bits of the Blueprint's structure hash, set at <see cref="TryAttach"/> time). Iterates
+    /// only allocated slots (0..SlotCount). Callers that need to guard against reader/owner layout drift
+    /// (e.g. <c>BlueprintSharedState.TryGetShared</c>) compare <paramref name="structureHash"/> against
+    /// their own expected hash before trusting <paramref name="payloadOffset"/>.
+    /// </summary>
+    public static bool TryGetSlotOffset(byte* memory, int blueprintId, out int payloadOffset, out uint structureHash)
     {
         ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(memory);
         int slotCount = header.SlotCount;
@@ -67,11 +80,13 @@ public static unsafe class BlueprintBlackboardPartitions
             if (slot.BlueprintId == blueprintId)
             {
                 payloadOffset = slot.PayloadOffset;
+                structureHash = slot.StructureHash;
                 return true;
             }
         }
 
         payloadOffset = 0;
+        structureHash = 0;
         return false;
     }
 
