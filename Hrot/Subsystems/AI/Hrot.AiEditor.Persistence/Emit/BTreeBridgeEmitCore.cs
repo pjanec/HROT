@@ -718,7 +718,7 @@ public static class BTreeBridgeEmitCore
             offsetMap[f.Name] = f;
 
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        var entries = new List<(string Key, string MethodFqn, string DtoTypeId, int Offset, int SlotKey, string WsTypeId)>();
+        var entries = new List<(string Key, string MethodFqn, string DtoTypeId, int Offset, int SlotKey, string WsTypeId, int PredictedSize)>();
 
         foreach (var node in dto.Nodes)
         {
@@ -739,7 +739,7 @@ public static class BTreeBridgeEmitCore
             string key = $"{p.MethodFqn}@{field.ByteOffset}@{slotKey}";
             if (!seen.Add(key)) continue;
 
-            entries.Add((key, p.MethodFqn, field.TypeId, field.ByteOffset, slotKey, wsTypeId));
+            entries.Add((key, p.MethodFqn, field.TypeId, field.ByteOffset, slotKey, wsTypeId, field.ByteSize));
         }
 
         if (entries.Count == 0) return;
@@ -747,11 +747,32 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine();
         sb.AppendLine($"{pad2}// I2/I3: blueprint AiPrimitive action thunks — Params at baked offset + WorkingState from");
         sb.AppendLine($"{pad2}// partition slot, dispatched to the blueprint's generated TickCore. Key = {{MethodFqn}}@{{offset}}@{{slotKey}}.");
-        foreach (var (key, methodFqn, dtoTypeId, offset, slotKey, wsTypeId) in entries)
+        foreach (var (key, methodFqn, dtoTypeId, offset, slotKey, wsTypeId, predictedSize) in entries)
         {
             string dtoTypeFqn = DtoTypeToGlobal(dtoTypeId);
             string wsTypeFqn  = DtoTypeToGlobal(wsTypeId);
             string methodRef  = GlobalMethodRef(methodFqn);
+
+            // AAR integrity (architect-mandated, fail-loud): the composed blueprint Params struct is
+            // produced by the *blueprint* incremental generator, which the BTree generator cannot see at
+            // emit time — so the baked param offset ({offset}) and field size are computed from the
+            // .bp.json schema (an *advisory* prediction). The compiled struct layout is authoritative.
+            // Validate predicted == reflected once at registration; a mismatch means the two generators
+            // disagree on layout and every projection at this offset would corrupt the AAR schema, so we
+            // fail startup loudly rather than read/write past the baked slot.
+            //
+            // Exception: a zero-param blueprint predicts 0 bytes, but the CLR reflects a fieldless struct
+            // as 1 byte (its minimum). Such a Params has no fields whose offsets could drift, so there is
+            // nothing to corrupt — skip the guard rather than emit a check that always throws.
+            if (predictedSize > 0)
+            {
+                sb.AppendLine($"{pad2}if (global::System.Runtime.InteropServices.Marshal.SizeOf<{dtoTypeFqn}>() != {predictedSize})");
+                sb.AppendLine($"{pad2}{Indent}throw new global::System.InvalidOperationException(");
+                sb.AppendLine($"{pad2}{Indent}{Indent}\"Composed blueprint Params layout drift: {dtoTypeFqn} compiled size (\" +");
+                sb.AppendLine($"{pad2}{Indent}{Indent}global::System.Runtime.InteropServices.Marshal.SizeOf<{dtoTypeFqn}>() +");
+                sb.AppendLine($"{pad2}{Indent}{Indent}\") != predicted {predictedSize} bytes baked at offset {offset}. \" +");
+                sb.AppendLine($"{pad2}{Indent}{Indent}\"Rebuild the behavior blackboard layout so predicted and reflected sizes agree.\");");
+            }
             AppendReusableStatefulThunk(sb, pad2, bbShort, ctxShort, key, dtoTypeFqn, offset, slotKey, wsTypeFqn,
                 $"{methodRef}(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime)");
         }
