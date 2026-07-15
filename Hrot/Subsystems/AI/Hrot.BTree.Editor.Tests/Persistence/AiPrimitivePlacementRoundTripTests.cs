@@ -3,6 +3,7 @@ using System.Linq;
 using System.Numerics;
 using FluentAssertions;
 using Fbt;
+using Hrot.AiEditor.Persistence;
 using Hrot.AiEditor.Persistence.BTree;
 using Hrot.BTree.Editor.Host;
 using Hrot.BTree.Editor.Model;
@@ -24,6 +25,10 @@ namespace Hrot.BTree.Editor.Tests.Persistence;
 /// Assets/BTrees/Authoring/T31_ComposedAiPrimitive.btree.json: DelegateShape=AiPrimitiveTickCore,
 /// WorkingStateTypeId set to the generated WorkingState FQN, ExpressionTargetField set, and a
 /// matching Params-typed blackboard variable present in the DTO's Blackboard block.
+/// Slice 1 (shared working-state): also proves the sink now auto-creates a SECOND blackboard
+/// variable (Role=State, Scope=Node by default) distinct from the Params variable, and binds it via
+/// Action.WorkingStateTargetField — the authorable slot that a designer can flip to Scope=Behavior
+/// to share the WorkingState with another composed node.
 /// </summary>
 public sealed class AiPrimitivePlacementRoundTripTests
 {
@@ -92,9 +97,31 @@ public sealed class AiPrimitivePlacementRoundTripTests
         actionNodeDto.Action.ExpressionTargetField.Should().NotBeNullOrEmpty(
             "matches T31's persisted Action.ExpressionTargetField (bound to the Params variable)");
 
-        var varDto = dto.Blackboard.Variables.Should().ContainSingle().Which;
-        varDto.Name.Should().Be(actionNodeDto.Action.ExpressionTargetField);
-        varDto.Type.TypeId.Should().Be(typeof(FakeBpGenerated.Params).FullName,
+        // Slice 1: a SECOND variable (WorkingState, Role=State) must now be auto-created and bound
+        // via WorkingStateTargetField, distinct from the Params (Input) variable above.
+        actionNodeDto.Action.WorkingStateTargetField.Should().NotBeNullOrEmpty(
+            "Slice 1: the sink must auto-create and bind a WorkingState host variable");
+        actionNodeDto.Action.WorkingStateTargetField.Should().NotBe(
+            actionNodeDto.Action.ExpressionTargetField,
+            "the WorkingState variable must be distinct from the Params variable so its Scope is independently authorable");
+
+        dto.Blackboard.Variables.Should().HaveCount(2,
+            "Slice 1: placing a composed AiPrimitive action now creates both the bpParams (Input) and bpWorkingState (State) variables");
+
+        var paramsVarDto = dto.Blackboard.Variables.Should().ContainSingle(
+            v => v.Name == actionNodeDto.Action.ExpressionTargetField).Which;
+        paramsVarDto.Type.TypeId.Should().Be(typeof(FakeBpGenerated.Params).FullName,
             "matches T31's Blackboard.Variables[0].Type.TypeId (the generated Params FQN)");
+        paramsVarDto.Role.Should().Be(BlackboardVariableRole.Input,
+            "the Params variable stays Input role (unchanged from pre-Slice-1 behavior)");
+
+        var wsVarDto = dto.Blackboard.Variables.Should().ContainSingle(
+            v => v.Name == actionNodeDto.Action.WorkingStateTargetField).Which;
+        wsVarDto.Type.TypeId.Should().Be(typeof(FakeBpGenerated.WorkingState).FullName,
+            "the WorkingState variable is typed as the blueprint's generated WorkingState struct");
+        wsVarDto.Role.Should().Be(BlackboardVariableRole.State,
+            "the WorkingState variable must be Role=State so its Scope is authorable in the Role/Scope panel");
+        wsVarDto.Scope.Should().Be(WorkingStateScope.Node,
+            "default scope is Node (private) — matching pre-Slice-1 semantics until a designer opts into Behavior scope");
     }
 }

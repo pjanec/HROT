@@ -47,6 +47,14 @@ public sealed class BTreeActionPayload
     /// "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+WorkingState". Null for other shapes.
     /// </summary>
     public string? WorkingStateTypeId;
+    /// <summary>
+    /// Slice 1 (shared working-state): for <see cref="BTreeActionDelegateShape.AiPrimitiveTickCore"/>
+    /// bindings, the Name of the authored working-state blackboard variable (Role=State), distinct
+    /// from <see cref="ExpressionTargetField"/> (the Params variable). Its declared Scope governs the
+    /// partition slot key — Behavior-scoped nodes bound to the same variable share one slot. Null
+    /// falls back to <see cref="ExpressionTargetField"/> for scope resolution (back-compat).
+    /// </summary>
+    public string? WorkingStateTargetField;
 }
 
 /// <summary>Payload for Condition leaf nodes.</summary>
@@ -61,6 +69,14 @@ public sealed class BTreeConditionPayload
     /// "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+WorkingState". Null for other shapes.
     /// </summary>
     public string? WorkingStateTypeId;
+    /// <summary>
+    /// Slice 1 (shared working-state): for <see cref="BTreeActionDelegateShape.AiPrimitiveTickCore"/>
+    /// bindings, the Name of the authored working-state blackboard variable (Role=State), distinct
+    /// from <see cref="ExpressionTargetField"/> (the Params variable). Its declared Scope governs the
+    /// partition slot key — Behavior-scoped nodes bound to the same variable share one slot. Null
+    /// falls back to <see cref="ExpressionTargetField"/> for scope resolution (back-compat).
+    /// </summary>
+    public string? WorkingStateTargetField;
 }
 
 /// <summary>Payload for Wait leaf nodes.</summary>

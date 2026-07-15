@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Fbt;
+using Hrot.AiEditor.Persistence;
 using Hrot.BTree.Editor.Model;
 using Hrot.Editor.AiShared.Blackboard;
 using NodeEditor.Core.Commands;
@@ -213,6 +214,10 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
     /// WorkingState type FQN from the schema entry's Params type, and auto-creates a blackboard
     /// variable (mirroring the "Promote to new variable" IsAutoManaged convention — see
     /// <see cref="ApplyRemoveNodes"/>) to hold the Params, wiring it up via ExpressionTargetField.
+    /// Slice 1 (shared working-state): also auto-creates a SEPARATE Role=State WorkingState host
+    /// variable (Node scope by default) and binds it via WorkingStateTargetField, so the designer can
+    /// flip that variable's Scope to Behavior in the blackboard Role/Scope panel — two composed nodes
+    /// bound to the same Behavior-scoped variable then resolve to the same partition slot.
     /// </summary>
     private void ComposeAiPrimitiveAction(BTreeActionPayload action, ActionSchemaEntry entry)
     {
@@ -228,13 +233,26 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
         // The generated class nests both Params (entry.DtoType) and WorkingState as sibling
         // struct types; derive the WorkingState FQN from Params' declaring type. Left null (node
         // still placed) if the generated shape doesn't match — never throws.
-        action.WorkingStateTypeId = entry.DtoType.DeclaringType?.GetNestedType("WorkingState")?.FullName;
+        var wsType = entry.DtoType.DeclaringType?.GetNestedType("WorkingState");
+        action.WorkingStateTypeId = wsType?.FullName;
 
         string varName = GenerateUniqueVariableName("bpParams");
         _asset.AddVariable(new BlackboardVariableEntry(
             varName, entry.DtoType, Comment: null, IsAutoManaged: true));
 
         action.ExpressionTargetField = varName;
+
+        // Slice 1: a SEPARATE WorkingState host variable (Role=State), distinct from the Params
+        // (Input) variable above, so its Scope is independently authorable. Only created when the
+        // generated shape has a WorkingState type (mirrors the WorkingStateTypeId null-guard).
+        if (wsType != null)
+        {
+            string wsVarName = GenerateUniqueVariableName("bpWorkingState");
+            _asset.AddVariable(new BlackboardVariableEntry(
+                wsVarName, wsType, Comment: null, IsAutoManaged: true,
+                Role: BlackboardVariableRole.State, Scope: WorkingStateScope.Node));
+            action.WorkingStateTargetField = wsVarName;
+        }
     }
 
     /// <summary>
@@ -245,6 +263,9 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
     /// variable to hold the Params, wiring it up via ExpressionTargetField. A composed condition
     /// MUST get a partition-slot WorkingState exactly like an action (edge-detection/hysteresis
     /// need cross-tick memory) — never a transient/zeroed state.
+    /// Slice 1 (shared working-state): also auto-creates a SEPARATE Role=State WorkingState host
+    /// variable (Node scope by default) and binds it via WorkingStateTargetField, mirroring the
+    /// action path — see <see cref="ComposeAiPrimitiveAction"/>.
     /// </summary>
     private void ComposeAiPrimitiveCondition(BTreeConditionPayload condition, ActionSchemaEntry entry)
     {
@@ -257,13 +278,26 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
         // The generated class nests both Params (entry.DtoType) and WorkingState as sibling
         // struct types; derive the WorkingState FQN from Params' declaring type. Left null (node
         // still placed) if the generated shape doesn't match — never throws.
-        condition.WorkingStateTypeId = entry.DtoType.DeclaringType?.GetNestedType("WorkingState")?.FullName;
+        var wsType = entry.DtoType.DeclaringType?.GetNestedType("WorkingState");
+        condition.WorkingStateTypeId = wsType?.FullName;
 
         string varName = GenerateUniqueVariableName("bpParams");
         _asset.AddVariable(new BlackboardVariableEntry(
             varName, entry.DtoType, Comment: null, IsAutoManaged: true));
 
         condition.ExpressionTargetField = varName;
+
+        // Slice 1: a SEPARATE WorkingState host variable (Role=State), distinct from the Params
+        // (Input) variable above, so its Scope is independently authorable. Only created when the
+        // generated shape has a WorkingState type (mirrors the WorkingStateTypeId null-guard).
+        if (wsType != null)
+        {
+            string wsVarName = GenerateUniqueVariableName("bpWorkingState");
+            _asset.AddVariable(new BlackboardVariableEntry(
+                wsVarName, wsType, Comment: null, IsAutoManaged: true,
+                Role: BlackboardVariableRole.State, Scope: WorkingStateScope.Node));
+            condition.WorkingStateTargetField = wsVarName;
+        }
     }
 
     /// <summary>Returns baseName if unused, else baseName_2, baseName_3, … — first unused wins.</summary>
@@ -326,28 +360,46 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
 
     private void ApplyRemoveNodes(IReadOnlyList<NodeId> nodeIds)
     {
+        // B-4 lifecycle: collect the auto-managed variables the removed nodes reference — both the
+        // Params variable (ExpressionTargetField) and, since Slice 1, the WorkingState variable
+        // (WorkingStateTargetField, which may be Behavior-scoped and shared with another composed
+        // node). Gather candidates first, remove the nodes, then delete each candidate only if it is
+        // still auto-managed AND no SURVIVING node references it (via either field) — so a shared
+        // WorkingState variable is preserved while another referencer lives, and hand-authored
+        // (non-auto-managed) variables are never touched.
+        var candidateVars = new HashSet<string>(StringComparer.Ordinal);
         foreach (var id in nodeIds)
         {
-            // B-4 lifecycle: if the node owns an auto-managed variable (via ExpressionTargetField),
-            // remove that variable before removing the node.
-            // Only deletes a variable that is BOTH IsAutoManaged AND named by THIS node's field —
-            // never touches a shared/hand-authored variable.
             var node = _asset.FindNode(id.Value);
-            if (node is not null)
-            {
-                string? etf = node.Action?.ExpressionTargetField
-                           ?? node.Condition?.ExpressionTargetField;
-                if (!string.IsNullOrEmpty(etf))
-                {
-                    var varEntry = _asset.BlackboardVariables
-                        .FirstOrDefault(v => v.Name == etf);
-                    if (varEntry is { IsAutoManaged: true })
-                        _asset.RemoveVariable(etf);
-                }
-            }
+            if (node is null) continue;
+            CollectAutoVarCandidate(candidateVars, node.Action?.ExpressionTargetField);
+            CollectAutoVarCandidate(candidateVars, node.Action?.WorkingStateTargetField);
+            CollectAutoVarCandidate(candidateVars, node.Condition?.ExpressionTargetField);
+            CollectAutoVarCandidate(candidateVars, node.Condition?.WorkingStateTargetField);
+        }
+
+        foreach (var id in nodeIds)
             _asset.RemoveNode(id.Value);
+
+        foreach (var varName in candidateVars)
+        {
+            var varEntry = _asset.BlackboardVariables.FirstOrDefault(v => v.Name == varName);
+            if (varEntry is not { IsAutoManaged: true })
+                continue;
+            bool stillReferenced = _asset.Nodes.Any(n =>
+                n.Action?.ExpressionTargetField     == varName ||
+                n.Action?.WorkingStateTargetField   == varName ||
+                n.Condition?.ExpressionTargetField  == varName ||
+                n.Condition?.WorkingStateTargetField == varName);
+            if (!stillReferenced)
+                _asset.RemoveVariable(varName);
         }
         _asset.MarkDirty();
+    }
+
+    private static void CollectAutoVarCandidate(HashSet<string> set, string? name)
+    {
+        if (!string.IsNullOrEmpty(name)) set.Add(name!);
     }
 
     private void ApplyAddLink(LinkId linkId, PinId from, PinId to)

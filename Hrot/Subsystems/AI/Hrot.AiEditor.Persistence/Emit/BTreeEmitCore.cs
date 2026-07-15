@@ -784,12 +784,12 @@ public static class BTreeEmitCore
             // E2: composed blueprint AiPrimitive condition — mirrors EmitAction's stateful/
             // AiPrimitiveTickCore branch. Blob key "{MethodFqn}@{paramOffset}@{slotKey}" must match
             // the bridge thunk's baked const (BTreeBridgeEmitCore.EmitBlueprintConditionThunks) —
-            // both go through ResolveStatefulSlotKey, single source. BTreeConditionPayloadDto has no
-            // WorkingStateTargetField (params/working-state are never split for a composed condition),
-            // so the scope-governing variable is always ExpressionTargetField (no
-            // StatefulScopeVariable(p) overload needed here).
+            // both go through ResolveStatefulSlotKey, single source. Slice 1: scope is governed by
+            // the working-state variable when distinct from params (StatefulScopeVariable(p) prefers
+            // WorkingStateTargetField, falling back to ExpressionTargetField/condTargetField so
+            // pre-Slice-1 condition assets stay byte-identical).
             int slotKey = dto != null
-                ? BTreeBridgeEmitCore.ResolveStatefulSlotKey(dto, condTargetField, node.VisualId)
+                ? BTreeBridgeEmitCore.ResolveStatefulSlotKey(dto, BTreeBridgeEmitCore.StatefulScopeVariable(p), node.VisualId)
                 : BTreeBridgeEmitCore.ComputeStatefulSlotKey(default, node.VisualId);
             string blobKey = $"{p.MethodFqn}@{statefulParamOffset}@{slotKey}";
             sb.AppendLine($"{pad}{methodPrefix}Condition(\"{blobKey}\",");

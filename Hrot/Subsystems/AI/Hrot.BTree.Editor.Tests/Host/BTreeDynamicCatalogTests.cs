@@ -369,11 +369,26 @@ public sealed class BTreeDynamicCatalogTests
         node.Action.ExpressionTargetField.Should().NotBeNullOrEmpty(
             "T31 binds the node to a blackboard variable holding its Params");
 
-        var varEntry = asset.BlackboardVariables.Should().ContainSingle().Which;
-        varEntry.Name.Should().Be(node.Action.ExpressionTargetField);
+        // Slice 1: placing a composed AiPrimitive action now creates TWO variables — the Params
+        // (Input) variable and a distinct WorkingState (State) variable bound via
+        // WorkingStateTargetField.
+        node.Action.WorkingStateTargetField.Should().NotBeNullOrEmpty(
+            "Slice 1: the sink must auto-create and bind a WorkingState host variable");
+
+        asset.BlackboardVariables.Should().HaveCount(2,
+            "Slice 1: bpParams (Input) and bpWorkingState (State) are both auto-created");
+
+        var varEntry = asset.BlackboardVariables.Should()
+            .ContainSingle(v => v.Name == node.Action.ExpressionTargetField).Which;
         varEntry.FieldType.Should().Be(typeof(FakeGeneratedAiPrimitive_Bp.Params));
         varEntry.IsAutoManaged.Should().BeTrue(
             "the auto-created Params variable follows the existing 'Promote to new variable' lifecycle convention");
+
+        var wsEntry = asset.BlackboardVariables.Should()
+            .ContainSingle(v => v.Name == node.Action.WorkingStateTargetField).Which;
+        wsEntry.FieldType.Should().Be(typeof(FakeGeneratedAiPrimitive_Bp.WorkingState));
+        wsEntry.Role.Should().Be(Hrot.AiEditor.Persistence.BlackboardVariableRole.State);
+        wsEntry.Scope.Should().Be(Hrot.AiEditor.Persistence.WorkingStateScope.Node);
     }
 
     [Fact]

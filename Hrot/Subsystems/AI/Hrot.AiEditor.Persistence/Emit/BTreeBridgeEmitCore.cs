@@ -277,6 +277,17 @@ public static class BTreeBridgeEmitCore
     internal static string? StatefulScopeVariable(BTreeActionPayloadDto p)
         => string.IsNullOrEmpty(p.WorkingStateTargetField) ? p.ExpressionTargetField : p.WorkingStateTargetField;
 
+    /// <summary>
+    /// Slice 1 (shared working-state): condition-side mirror of
+    /// <see cref="StatefulScopeVariable(BTreeActionPayloadDto)"/>. Prefers the explicit
+    /// working-state variable (<see cref="BTreeConditionPayloadDto.WorkingStateTargetField"/>) when
+    /// the composed condition separates params from working state; falls back to
+    /// <see cref="BTreeConditionPayloadDto.ExpressionTargetField"/> so pre-Slice-1 condition assets
+    /// (no WorkingStateTargetField authored) stay byte-identical.
+    /// </summary>
+    internal static string? StatefulScopeVariable(BTreeConditionPayloadDto p)
+        => string.IsNullOrEmpty(p.WorkingStateTargetField) ? p.ExpressionTargetField : p.WorkingStateTargetField;
+
     internal static int ResolveStatefulSlotKey(BehaviorTreeAssetDto dto, string? targetField, Guid nodeVisualId)
     {
         var scope = WorkingStateScope.Node;
@@ -891,10 +902,11 @@ public static class BTreeBridgeEmitCore
             if (string.IsNullOrEmpty(targetField)) continue;
             if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
 
-            // BTreeConditionPayloadDto has no WorkingStateTargetField (params/working-state are
-            // never split for a composed condition), so the scope-governing variable is always
-            // ExpressionTargetField — no StatefulScopeVariable(p) overload needed here.
-            int slotKey = ResolveStatefulSlotKey(dto, targetField, condNode.VisualId);
+            // Slice 1: scope is governed by the working-state variable when distinct from params
+            // (mirrors the action path via the BTreeConditionPayloadDto StatefulScopeVariable
+            // overload). Falls back to ExpressionTargetField when WorkingStateTargetField is
+            // unauthored, so pre-Slice-1 condition assets stay byte-identical.
+            int slotKey = ResolveStatefulSlotKey(dto, StatefulScopeVariable(p), condNode.VisualId);
             // WorkingState type is the blueprint's generated WorkingState struct FQN (authored on the node).
             string wsTypeId = string.IsNullOrEmpty(p.WorkingStateTypeId)
                 ? DeriveWorkingStateTypeFromMethod(p.MethodFqn)
@@ -974,16 +986,17 @@ public static class BTreeBridgeEmitCore
             }
             else if (node is BTreeConditionNodeDto condNode && condNode.Condition != null)
             {
-                // BTreeConditionPayloadDto has no WorkingStateTargetField (params/working-state are
-                // never split for a composed condition); workingStateTargetField stays null so the
-                // scope-governing variable below is always ExpressionTargetField.
+                // Slice 1: mirrors the action branch above — workingStateTargetField carries the
+                // condition's authored working-state variable (when distinct from params) so the
+                // scope-governing variable below matches the blob/thunk slot key.
                 var p = condNode.Condition;
-                methodFqn    = p.MethodFqn;
-                delegateShape = p.DelegateShape;
-                targetField  = p.ExpressionTargetField;
-                wsTypeIdRaw  = p.WorkingStateTypeId;
-                visualId     = condNode.VisualId;
-                displayLabel = condNode.DisplayLabel;
+                methodFqn               = p.MethodFqn;
+                delegateShape           = p.DelegateShape;
+                targetField             = p.ExpressionTargetField;
+                wsTypeIdRaw             = p.WorkingStateTypeId;
+                workingStateTargetField = p.WorkingStateTargetField;
+                visualId                = condNode.VisualId;
+                displayLabel            = condNode.DisplayLabel;
             }
             else
             {

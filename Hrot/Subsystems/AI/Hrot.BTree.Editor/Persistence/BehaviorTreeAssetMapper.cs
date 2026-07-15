@@ -238,6 +238,7 @@ public static class BehaviorTreeAssetMapper
                 ExpressionTargetField = node.Action.ExpressionTargetField,
                 DelegateShape       = (BTreeDelegateShapeDto)node.Action.DelegateShape,
                 WorkingStateTypeId  = node.Action.WorkingStateTypeId,
+                WorkingStateTargetField = node.Action.WorkingStateTargetField,
             };
         }
         if (dto is BTreeConditionNodeDto condDto && node.Condition != null)
@@ -248,6 +249,7 @@ public static class BehaviorTreeAssetMapper
                 ExpressionTargetField = node.Condition.ExpressionTargetField,
                 DelegateShape       = (BTreeDelegateShapeDto)node.Condition.DelegateShape,
                 WorkingStateTypeId  = node.Condition.WorkingStateTypeId,
+                WorkingStateTargetField = node.Condition.WorkingStateTargetField,
             };
         }
         if (dto is BTreeWaitNodeDto waitDto && node.Wait != null)
@@ -295,6 +297,7 @@ public static class BehaviorTreeAssetMapper
                 ExpressionTargetField = actDto.Action.ExpressionTargetField,
                 DelegateShape       = (BTreeActionDelegateShape)actDto.Action.DelegateShape,
                 WorkingStateTypeId  = actDto.Action.WorkingStateTypeId,
+                WorkingStateTargetField = actDto.Action.WorkingStateTargetField,
             };
         }
         if (dto is BTreeConditionNodeDto condDto && condDto.Condition != null)
@@ -305,6 +308,7 @@ public static class BehaviorTreeAssetMapper
                 ExpressionTargetField = condDto.Condition.ExpressionTargetField,
                 DelegateShape       = (BTreeActionDelegateShape)condDto.Condition.DelegateShape,
                 WorkingStateTypeId  = condDto.Condition.WorkingStateTypeId,
+                WorkingStateTargetField = condDto.Condition.WorkingStateTargetField,
             };
         }
         if (dto is BTreeWaitNodeDto waitDto && waitDto.Wait != null)

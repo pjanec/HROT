@@ -1,0 +1,151 @@
+{
+  "$meta": {
+    "docType": "Hrot.BTree",
+    "schemaVersion": 1
+  },
+  "AssetId": "bb000035-0000-0000-0000-000000000000",
+  "Name": "T35_SharedWorkingState",
+  "TargetNamespace": "Hrot.AI.Behaviors.Trees",
+  "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+  "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+  "Nodes": [
+    {
+      "kind": "Root",
+      "VisualId": "bb350000-0000-0000-0000-000000000001",
+      "ChildVisualIds": [
+        "bb350000-0000-0000-0000-000000000002"
+      ],
+      "DisplayLabel": "Root",
+      "EditorMetadata": { "X": 300, "Y": 0, "Comment": null, "Collapsed": false, "Color": null }
+    },
+    {
+      "kind": "Parallel",
+      "VisualId": "bb350000-0000-0000-0000-000000000002",
+      "ChildVisualIds": [
+        "bb350000-0000-0000-0000-000000000003",
+        "bb350000-0000-0000-0000-000000000004",
+        "bb350000-0000-0000-0000-000000000005"
+      ],
+      "DisplayLabel": "Parallel",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 130,
+        "Comment": "Slice 1 proof: RequireAll parallel re-executes every child every tick as long as none has reached Success (RunsNeeded=100 keeps all three Running for the duration of the test), so SharedA/SharedB/Control all run in the same tick, deterministically in child order.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore",
+        "ExpressionTargetField": "bpParamsSharedA",
+        "DelegateShape": "AiPrimitiveTickCore",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+WorkingState",
+        "WorkingStateTargetField": "bpSharedWorkingState"
+      },
+      "VisualId": "bb350000-0000-0000-0000-000000000003",
+      "ChildVisualIds": [],
+      "DisplayLabel": "ComposedAiPrimitive_SharedA",
+      "EditorMetadata": {
+        "X": 0,
+        "Y": 260,
+        "Comment": "Slice 1: this node's WorkingState is bound (via WorkingStateTargetField) to 'bpSharedWorkingState', a Role=State/Scope=Behavior blackboard variable. Its OWN Params variable (bpParamsSharedA) stays private/Input, but the WorkingState slot key is now derived from the SHARED variable's name (FNV-1a(assetId, 'bpSharedWorkingState')), not this node's VisualId — so it resolves to the SAME partition slot as SharedB below.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore",
+        "ExpressionTargetField": "bpParamsSharedB",
+        "DelegateShape": "AiPrimitiveTickCore",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+WorkingState",
+        "WorkingStateTargetField": "bpSharedWorkingState"
+      },
+      "VisualId": "bb350000-0000-0000-0000-000000000004",
+      "ChildVisualIds": [],
+      "DisplayLabel": "ComposedAiPrimitive_SharedB",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 260,
+        "Comment": "Slice 1: a SECOND composed node, distinct VisualId and distinct Params variable (bpParamsSharedB), but its WorkingStateTargetField binds to the SAME 'bpSharedWorkingState' Behavior-scoped variable as SharedA. Both resolve to one shared partition slot -- each tick both nodes increment the SAME WorkingState.Ticks counter (race-free: one entity, sequential ticks within one Parallel evaluation).",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore",
+        "ExpressionTargetField": "bpParamsControl",
+        "DelegateShape": "AiPrimitiveTickCore",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+WorkingState"
+      },
+      "VisualId": "bb350000-0000-0000-0000-000000000005",
+      "ChildVisualIds": [],
+      "DisplayLabel": "ComposedAiPrimitive_Control",
+      "EditorMetadata": {
+        "X": 600,
+        "Y": 260,
+        "Comment": "Node-scoped control: no WorkingStateTargetField authored, so scope resolution falls back to ExpressionTargetField (Input role) -> Node scope, exactly like T31/T33/T34 pre-Slice-1 behavior. Its slot key is derived from THIS node's own VisualId (FNV-1a(assetId, nodeVisualId)), so it stays isolated from the shared slot even though it runs in the same Parallel and uses the same TickCore method.",
+        "Collapsed": false,
+        "Color": null
+      }
+    }
+  ],
+  "Pills": [],
+  "Canvas": { "PanX": 0, "PanY": 0, "Zoom": 1 },
+  "SubtreeSyncBindings": {},
+  "Suppressions": { "Conflict": [], "Unused": [] },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+    "HeavyDtoType": null,
+    "Variables": [
+      {
+        "Name": "bpParamsSharedA",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+Params",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"RunsNeeded\":100}",
+        "Comment": "Private Params for SharedA. RunsNeeded=100 keeps this node Running for the whole test (never reaches Success), so the Parallel keeps re-executing it every tick."
+      },
+      {
+        "Name": "bpParamsSharedB",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+Params",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"RunsNeeded\":100}",
+        "Comment": "Private Params for SharedB. RunsNeeded=100 keeps this node Running for the whole test."
+      },
+      {
+        "Name": "bpParamsControl",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+Params",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"RunsNeeded\":100}",
+        "Comment": "Private Params for the Node-scoped control. RunsNeeded=100 keeps this node Running for the whole test."
+      },
+      {
+        "Name": "bpSharedWorkingState",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+WorkingState",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "Comment": "Slice 1: Role=State/Scope=Behavior WorkingState host variable. SharedA and SharedB both bind WorkingStateTargetField to this variable's Name, so ResolveStatefulSlotKey computes the SAME FNV-1a(assetId, 'bpSharedWorkingState') slot key for both -- one shared partition slot, accumulated by both nodes each tick.",
+        "IsAutoManaged": false,
+        "Role": "State",
+        "Scope": "Behavior"
+      }
+    ]
+  }
+}
