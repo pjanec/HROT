@@ -504,17 +504,23 @@ internal static class NodePinSchema
         };
 
     /// <summary>
-    /// GetSharedNode (Slice 2a-2): pure-data node. Data-out "Value" typed DIRECTLY from
-    /// <see cref="GetSharedNode.SharedTypeId"/> (NOT <see cref="ResolveVariableTypeId"/> --
+    /// GetSharedNode (Slice 2a-2 + Slice 2b): pure-data node. Data-out "Value" typed DIRECTLY
+    /// from <see cref="GetSharedNode.SharedTypeId"/> (NOT <see cref="ResolveVariableTypeId"/> --
     /// the shared struct is foreign to this asset's variable list) + data-out "Found"
-    /// (<c>System.Boolean</c>). Kept in parity with the compiler's
-    /// <c>Stage0_Rehydrate.EnrichGetSharedPins</c>.
+    /// (<c>System.Boolean</c>). Slice 2b adds an OPTIONAL data-in "Target" pin typed
+    /// <c>Fdp.Core.Entity</c> (same TypeId string the compiler's <c>StaticTypeRegistry</c> and
+    /// <c>IrOp_GetComponent</c>'s Entity argument resolve to) -- when left unwired, the node reads
+    /// off <c>self</c> exactly as Slice 2a-2 (byte-identical); when wired, the graph author
+    /// supplies a target Entity (e.g. read off <c>UnitSubordinate</c>'s commander ref via an
+    /// impure ECS-read node -- authoring guidance, not built here) for a cross-entity read. Kept
+    /// in parity with the compiler's <c>Stage0_Rehydrate.EnrichGetSharedPins</c>.
     /// </summary>
     private static IReadOnlyList<Pin> GetSharedPins(GetSharedNode gsn)
         => new[]
         {
-            MakeData("Value", "Out", SharedTypePinTypeId(gsn.SharedTypeId)),
-            MakeData("Found", "Out", "System.Boolean"),
+            MakeData("Target", "In",  "Fdp.Core.Entity"),
+            MakeData("Value",  "Out", SharedTypePinTypeId(gsn.SharedTypeId)),
+            MakeData("Found",  "Out", "System.Boolean"),
         };
 
     /// <summary>

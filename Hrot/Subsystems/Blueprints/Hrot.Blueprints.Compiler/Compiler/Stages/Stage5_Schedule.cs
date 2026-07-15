@@ -1380,6 +1380,24 @@ internal sealed class GraphScheduler
                     !p.IsExec && p.Direction == "Out"
                     && string.Equals(p.Name, "Found", StringComparison.OrdinalIgnoreCase));
 
+                // Slice 2b: OPTIONAL "Target" data-in pin (cross-entity read). Resolve it the same
+                // way SpawnEqsSensorNode resolves its optional parameter pins -- look up the pin,
+                // then look up its link directly (NOT via ResolveDataPin, which emits BP4001 for an
+                // unconnected pin); no pin or no link => null => Stage 7 emits `self`, byte-identical
+                // to the pre-Slice-2b unwired path. Mirrors how IrOp_GetComponent carries its
+                // resolved Entity argument as an IrValue.
+                var targetPin = gsn.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "Target", StringComparison.OrdinalIgnoreCase));
+                IrValue? targetEntity = null;
+                if (targetPin is not null)
+                {
+                    var targetLink = _graph.Links.FirstOrDefault(
+                        l => l.ToNodeId == gsn.Id && l.ToPinId == targetPin.Id);
+                    if (targetLink is not null)
+                        targetEntity = ResolveNodeOutput(targetLink.FromNodeId, targetLink.FromPinId, stmts);
+                }
+
                 // Prefer the resolved pin type (from Stage4) when available; otherwise fall back
                 // to a locally-built IrTypeRef from the SharedTypeFqn (mirrors ReadEqsResult /
                 // ReadRankedResult building their own result-struct IrTypeRef rather than relying
@@ -1395,7 +1413,7 @@ internal sealed class GraphScheduler
                 stmts.Add(new IrStatement
                 {
                     ResultValue = valueResult,
-                    Operation   = new IrOp_ReadShared(gsn.VariableId, sharedTypeFqn, foundResult),
+                    Operation   = new IrOp_ReadShared(gsn.VariableId, sharedTypeFqn, foundResult, targetEntity),
                     Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gsn.Id, PinId = sourcePinId },
                 });
 

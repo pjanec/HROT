@@ -229,18 +229,22 @@ internal static class Stage0_Rehydrate
     }
 
     /// <summary>
-    /// GetSharedNode (Slice 2a-2): pure-data node. Static skeleton is empty (registry mirrors
-    /// GetVariableNode). Build data-Out "Value" typed DIRECTLY from <see cref="GetSharedNode.SharedTypeId"/>
-    /// (NOT <c>ResolveVariableTypeId</c> over <c>asset.Variables</c> -- the shared struct is foreign
-    /// to this asset's variable list) + data-Out "Found" (<c>System.Boolean</c>).
+    /// GetSharedNode (Slice 2a-2 + Slice 2b): pure-data node. Static skeleton is empty (registry
+    /// mirrors GetVariableNode). Build data-In "Target" (OPTIONAL, <c>Fdp.Core.Entity</c> -- Slice
+    /// 2b cross-entity read; unwired = self, mirrors how <c>IrOp_GetComponent</c>'s Entity argument
+    /// is carried/typed) + data-Out "Value" typed DIRECTLY from
+    /// <see cref="GetSharedNode.SharedTypeId"/> (NOT <c>ResolveVariableTypeId</c> over
+    /// <c>asset.Variables</c> -- the shared struct is foreign to this asset's variable list) +
+    /// data-Out "Found" (<c>System.Boolean</c>).
     /// </summary>
     private static void EnrichGetSharedPins(
         List<Pin> pins, GetSharedNode gsn, IReadOnlyList<PinSchema> staticShapes)
     {
         var typeId = SharedTypePinTypeId(gsn.SharedTypeId);
         pins.Clear();
-        pins.Add(MakePin("Value", "Out", isExec: false, typeId: typeId));
-        pins.Add(MakePin("Found", "Out", isExec: false, typeId: "System.Boolean"));
+        pins.Add(MakePin("Target", "In",  isExec: false, typeId: "Fdp.Core.Entity"));
+        pins.Add(MakePin("Value",  "Out", isExec: false, typeId: typeId));
+        pins.Add(MakePin("Found",  "Out", isExec: false, typeId: "System.Boolean"));
     }
 
     /// <summary>

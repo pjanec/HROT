@@ -49,7 +49,7 @@ internal static class StatementEmitter
                 break;
 
             // ------------------------------------------------------------------
-            // GetShared / SetShared (Slice 2a-2): entity-scoped shared working-state,
+            // GetShared / SetShared (Slice 2a-2 + Slice 2b): entity-scoped shared working-state,
             // compiled to calls into the Slice 2a-1 accessor.
             // ------------------------------------------------------------------
 
@@ -59,9 +59,15 @@ internal static class StatementEmitter
                 if (idx >= 0)
                     e.WriteLine($"var __t{idx} = default(global::{sharedTypeFqn});");
                 string valueRef = idx >= 0 ? $"__t{idx}" : "_";
+                // Slice 2b: an explicit "Target" pin resolves to the accessor's entity arg (cross-
+                // entity read); referenced directly by index exactly as IrOp_GetComponent references
+                // its resolved Entity IrValue (no cast -- the producing statement's C# local is
+                // already typed global::Fdp.Core.Entity). Unwired (TargetEntity == null) emits
+                // `self` EXACTLY as Slice 2a-2 -- byte-identical unwired-path codegen.
+                string entityArg = op.TargetEntity is { } targetEntity ? $"__t{targetEntity.Index}" : "self";
                 e.WriteLine(
                     $"bool __t{op.FoundValue.Index} = global::Fdp.Toolkit.Blueprints.Partitioning." +
-                    $"BlueprintSharedState.TryGetShared<global::{sharedTypeFqn}>({wv}, self, \"{op.VariableId}\", out {valueRef});");
+                    $"BlueprintSharedState.TryGetShared<global::{sharedTypeFqn}>({wv}, {entityArg}, \"{op.VariableId}\", out {valueRef});");
                 break;
             }
 

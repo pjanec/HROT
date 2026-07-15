@@ -331,10 +331,18 @@ public sealed record IrOp_ReadRankedResult(
 /// <param name="FoundValue">
 /// The "Found" (<c>System.Boolean</c>) output slot, declared by this statement's emission.
 /// </param>
+/// <param name="TargetEntity">
+/// Slice 2b -- cross-entity read. The resolved "Target" data-in pin, when the <c>GetSharedNode</c>
+/// has it wired (any Entity-valued pin the graph author supplies -- mirrors how
+/// <see cref="IrOp_GetComponent"/> carries its <c>Entity</c> argument as a resolved
+/// <see cref="IrValue"/>). <c>null</c> when the pin is unwired -- Stage 7 then emits <c>self</c>
+/// EXACTLY as Slice 2a-2 (byte-identical unwired path).
+/// </param>
 public sealed record IrOp_ReadShared(
     string VariableId,
     string SharedTypeFqn,
-    IrValue FoundValue
+    IrValue FoundValue,
+    IrValue? TargetEntity = null
 ) : IrOperation;
 
 /// <summary>

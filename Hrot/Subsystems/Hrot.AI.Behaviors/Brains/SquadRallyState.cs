@@ -31,5 +31,14 @@ namespace Hrot.AI.Behaviors.Brains
             state.RallyCount += 1;
             return state;
         }
+
+        /// <summary>
+        /// Slice 2b demo helper used by SharedStateCrossEntityDemo.bp.json (Assets/Blueprints/) to
+        /// extract <see cref="SquadRallyState.RallyCount"/> from a cross-entity <c>GetShared</c>
+        /// node's "Value" pin via a <c>FunctionCall</c> node, mirroring
+        /// <see cref="IncrementRallyCount"/> above -- there is no dedicated "get struct field" node
+        /// for an arbitrary foreign struct.
+        /// </summary>
+        public static int ReadRallyCount(SquadRallyState state) => state.RallyCount;
     }
 }

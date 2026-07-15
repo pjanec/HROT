@@ -38,8 +38,10 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
 
         // GetShared/SetShared (Slice 2a-2): mirrors Get/SetVariable -- static skeleton only;
         // Stage0_Rehydrate enriches data pins directly from SharedTypeId (NOT asset.Variables --
-        // the shared type is foreign to this asset).
-        GetSharedNode   => Array.Empty<PinSchema>(),   // pure data-Out, type from SharedTypeId
+        // the shared type is foreign to this asset). Slice 2b: GetShared's enricher additionally
+        // adds an OPTIONAL data-in "Target" Entity pin (cross-entity read) -- still no static
+        // shape here, since the enricher fully rebuilds this node's pins regardless.
+        GetSharedNode   => Array.Empty<PinSchema>(),   // pure data-(In Target?)/Out, type from SharedTypeId
         SetSharedNode   => new[] { ExecIn(), ExecOut() },
 
         // FunctionCall: static exec skeleton; Stage0_Rehydrate fills data pins.

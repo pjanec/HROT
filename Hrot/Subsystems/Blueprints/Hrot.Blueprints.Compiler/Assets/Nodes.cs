@@ -344,12 +344,22 @@ public sealed class AcquireSlotNode : Node
 // Compile to calls into Fdp.Toolkit.Blueprints.Partitioning.BlueprintSharedState
 // (Slice 2a-1). Same-entity (self) only -- no target-Entity pin, no cross-entity
 // (that is Slice 2b). No Scope field -- Entity scope is implied for 2a.
+//
+// Slice 2b adds an OPTIONAL "Target" data-in Entity pin to GetShared ONLY (see
+// NodePinSchema.GetSharedPins / Stage0_Rehydrate.EnrichGetSharedPins). When wired, the graph
+// author supplies a target Entity (any Entity-valued pin) instead of self, so a member entity
+// can read a coordinator entity's Entity-scoped shared slot directly (≤1-frame staleness,
+// TryGetShared -> false when the target hasn't provisioned yet -- never throws). SetShared
+// remains self-only by construction -- cross-entity WRITE is a separate future slice (a
+// deferred-event bus), not built here.
 // ──────────────────────────────────────────────────────────────────────────
 
 /// <summary>
 /// Reads the ENTITY-scoped shared working-state slot named <see cref="VariableId"/> off
-/// <c>self</c>, via <c>BlueprintSharedState.TryGetShared&lt;SharedTypeId&gt;</c>. Pure-data node
-/// (no exec pins): data-out "Value" (typed by <see cref="SharedTypeId"/>) + data-out "Found"
+/// <c>self</c> (or off an explicit target Entity -- Slice 2b, see "Target" pin), via
+/// <c>BlueprintSharedState.TryGetShared&lt;SharedTypeId&gt;</c>. Pure-data node (no exec pins):
+/// OPTIONAL data-in "Target" (<c>Fdp.Core.Entity</c> -- unwired = self, byte-identical to Slice
+/// 2a-2), data-out "Value" (typed by <see cref="SharedTypeId"/>) + data-out "Found"
 /// (<c>System.Boolean</c>).
 /// </summary>
 public sealed class GetSharedNode : Node
