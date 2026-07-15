@@ -241,6 +241,92 @@ public sealed class ParseParamsEmissionTests
     }
 
     /// <summary>
+    /// E1/E3 regression: authoring a default value on a <b>composed blueprint AiPrimitive</b> node
+    /// (the Static Parameters panel writes the JSON onto the auto-created Params variable) must bake
+    /// that value into ParseParams exactly like any other managed variable. This is the composed
+    /// analogue of <see cref="ManagedAsset_BothVarsHaveDefault_EmitsParseParamsWithBothOffsets"/> —
+    /// the generic default-value baking is proven for scalar KnownSizes types, but never for a
+    /// composed Params struct (offset 0, size from the schema resolver), which is exactly where the
+    /// cross-generator offset/size subtleties live.
+    ///
+    /// Proves that for such a node the bridge simultaneously emits:
+    /// 1. the layout-drift guard (predicted size 8 vs reflected),
+    /// 2. the AiPrimitive TickCore thunk, and
+    /// 3. a ParseParams write of the authored default into the composed Params at offset 0.
+    /// </summary>
+    [Fact]
+    public void ComposedAiPrimitiveNode_WithAuthoredDefault_BakesParamsIntoParseParams()
+    {
+        const string paramsTypeId = "Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp+Params";
+        const string wsTypeId     = "Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp+WorkingState";
+        const string tickCoreFqn  = "Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.TickCore";
+        const string defaultJson  = "{\"Threshold\":5,\"FlagA\":false,\"FlagB\":true}";
+
+        var dto = new BehaviorTreeAssetDto
+        {
+            AssetId            = Guid.Parse("eeeeeeee-0000-0000-0000-000000000001"),
+            Name               = "TestComposedDefault",
+            TargetNamespace    = "Test.Ns",
+            BlackboardTypeName = "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+            ContextTypeName    = "Fdp.Toolkit.Behavior.BTreeContext",
+            Blackboard         = new BlackboardBlockDto
+            {
+                Managed   = true,
+                TypeName  = "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+                Variables = new List<BlackboardVariableDto>
+                {
+                    new BlackboardVariableDto
+                    {
+                        Name             = "bpParams",
+                        Type             = new BlackboardTypeRefDto { TypeId = paramsTypeId },
+                        DefaultValueJson = defaultJson,
+                        IsAutoManaged    = true,
+                    },
+                },
+            },
+            Nodes = new List<BTreeNodeDto>
+            {
+                new BTreeActionNodeDto
+                {
+                    VisualId = Guid.Parse("eeeeeeee-0000-0000-0000-0000000000aa"),
+                    Action = new BTreeActionPayloadDto
+                    {
+                        MethodFqn             = tickCoreFqn,
+                        ExpressionTargetField = "bpParams",
+                        DelegateShape         = BTreeDelegateShapeDto.AiPrimitiveTickCore,
+                        WorkingStateTypeId    = wsTypeId,
+                    },
+                },
+            },
+        };
+
+        // The composed Params struct is not a KnownSize; supply the schema-derived size (8 bytes).
+        var bridge = BTreeBridgeEmitCore.EmitBridge(dto, typeId => typeId.Contains("Params") ? 8 : (int?)null);
+
+        // (1) Layout-drift guard for the composed Params (predicted 8).
+        bridge.Should().Contain(
+            "global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.Params>() != 8",
+            "the composed node must still emit its predicted-vs-reflected layout-drift guard");
+
+        // (2) AiPrimitive thunk dispatching to the blueprint's TickCore.
+        bridge.Should().Contain($"actionRegistry.Register(\"{tickCoreFqn}@0@",
+            "the composed AiPrimitive action must register its baked-offset thunk");
+
+        // (3) ParseParams bakes the authored default into the composed Params at offset 0.
+        bridge.Should().Contain("__parseParams = static (string json, byte* memory, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) =>",
+            "an authored default on the composed Params variable must emit a ParseParams lambda");
+        bridge.Should().Contain(
+            "global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.Params>(",
+            "the authored default must deserialize into the composed Params struct type");
+        bridge.Should().Contain("global::System.Runtime.CompilerServices.Unsafe.Write(memory + 0",
+            "the composed Params default must be written at its baked offset 0");
+        bridge.Should().Contain("{\\\"Threshold\\\":5,\\\"FlagA\\\":false,\\\"FlagB\\\":true}",
+            "the authored JSON literal (escaped) must be baked into the ParseParams lambda");
+        bridge.Should().Contain("ParseParams  = __parseParams,",
+            "the BehaviorDefinition initializer must reference the __parseParams local");
+    }
+
+    /// <summary>
     /// The emitted ParseParams lambda must use System.Text.Json.JsonSerializer.Deserialize
     /// and System.Runtime.CompilerServices.Unsafe.Write (fully qualified, global::).
     /// It must also be wrapped in an unsafe block for the byte* parameter to be legal.
