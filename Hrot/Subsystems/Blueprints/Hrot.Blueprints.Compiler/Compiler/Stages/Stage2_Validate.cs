@@ -39,6 +39,7 @@ internal static class Stage2_Validate
         new V_WhenNodeRules(),
         new V_ReadEqsResultNodeRules(),
         new V_SpawnEqsSensorNodeRules(),
+        new V_SharedStateRules(),
         new V_FunctionGraphCallRules(),
         new V_ExecOutFanOut(),
     };
@@ -1073,6 +1074,80 @@ internal sealed class V_SpawnEqsSensorNodeRules : IValidator
                         $"SpawnEqsSensorNode has InstanceId collision (hash {collision.Key}) with another SpawnEqsSensorNode in this asset. Use distinct node IDs.",
                         asset.AssetId, graph.Id, collider.Id));
                 }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// V_SharedStateRules (BP2040-BP2042 -- Slice 2a-2 GetShared/SetShared)
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// Validates <see cref="GetSharedNode"/>/<see cref="SetSharedNode"/> nodes.
+/// <list type="bullet">
+///   <item>BP2040 -- <c>SharedTypeId</c> is empty.</item>
+///   <item>BP2041 -- <c>SharedTypeId</c> does not look like a well-formed dotted CLR type FQN
+///     (e.g. contains whitespace, is a bare/malformed identifier, or has an empty segment).
+///     <para>
+///     NOTE: this is a syntactic check, not full type resolution. The compiler's
+///     <see cref="ITypeRegistry"/> accepts ANY "global::"-prefixed TypeId unconditionally (the AN2
+///     "trust the FQN, let the downstream C# compiler catch a bad reference" strategy -- see
+///     <see cref="StaticTypeRegistry.TryResolve"/>), and reflection-based resolution is unreliable in
+///     the analyzer/generator host (the shared struct commonly lives in the very assembly being
+///     compiled, per the same reasoning documented on <c>FunctionCallNode</c>'s CLR-reflection
+///     fallback in <c>Stage0_Rehydrate</c>). A deterministic, host-independent syntax check is the
+///     only meaningful signal available at this stage; genuine "type does not exist" errors surface
+///     later as ordinary C# compiler errors on the emitted <c>global::{SharedTypeFqn}</c> reference.
+///     </para>
+///   </item>
+///   <item>BP2042 -- node appears in a Library-dispatch asset, which has no <c>self</c> Entity in
+///     scope (the generated call is <c>BlueprintSharedState.TryGetShared/TrySetShared(world, self,
+///     ...)</c> -- <c>self</c> does not exist in a stateless Library function).</item>
+/// </list>
+/// Cross-entity checks are moot for 2a-2 -- there is no target-Entity pin (Slice 2b).
+/// </summary>
+internal sealed class V_SharedStateRules : IValidator
+{
+    // One-or-more dot/plus-separated C# identifier segments, optional "global::" prefix.
+    // Rejects whitespace, empty segments, punctuation other than '.'/'+', etc.
+    private static readonly System.Text.RegularExpressions.Regex FqnPattern = new(
+        @"^(global::)?[A-Za-z_][A-Za-z0-9_]*([.+][A-Za-z_][A-Za-z0-9_]*)*$",
+        System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        foreach (var graph in asset.Graphs)
+        {
+            foreach (var node in graph.Nodes)
+            {
+                string? sharedTypeId = node switch
+                {
+                    GetSharedNode gsn => gsn.SharedTypeId,
+                    SetSharedNode ssn => ssn.SharedTypeId,
+                    _                 => null,
+                };
+                if (sharedTypeId is null) continue;
+
+                if (asset.Dispatch == BlueprintDispatchKind.Library)
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2042,
+                        $"{node.GetType().Name} is not permitted in a Library-dispatch asset -- " +
+                        "there is no `self` Entity in scope for the shared-state accessor call.",
+                        asset.AssetId, graph.Id, node.Id));
+
+                if (string.IsNullOrEmpty(sharedTypeId))
+                {
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2040,
+                        $"{node.GetType().Name}: SharedTypeId must not be empty.",
+                        asset.AssetId, graph.Id, node.Id));
+                    continue;
+                }
+
+                if (!FqnPattern.IsMatch(sharedTypeId))
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2041,
+                        $"{node.GetType().Name}: SharedTypeId '{sharedTypeId}' does not resolve to a " +
+                        "known unmanaged/blittable struct type (not a well-formed type name).",
+                        asset.AssetId, graph.Id, node.Id));
             }
         }
     }

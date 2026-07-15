@@ -50,6 +50,8 @@ internal static class IrPrinter
         IrOp_WaitForEvent w   => $"wait_for_event {w.EventTypeFqn}",
         IrOp_ChannelCommand c    => $"channel_cmd {c.ChannelComponentTypeFqn}.{c.ActionIdConstantName}",
         IrOp_InlineActionCall a  => $"inline_action_call {a.ActionFqn}",
+        IrOp_ReadShared r        => $"read_shared[{r.VariableId}:{r.SharedTypeFqn}] (found=t{r.FoundValue.Index})",
+        IrOp_WriteShared w       => $"write_shared[{w.VariableId}:{w.SharedTypeFqn}] <- t{w.Value.Index}",
         _                        => op.GetType().Name,
     };
 

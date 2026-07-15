@@ -36,6 +36,12 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         GetVariableNode => Array.Empty<PinSchema>(),   // pure data-Out, type from variable
         SetVariableNode => new[] { ExecIn(), ExecOut() },
 
+        // GetShared/SetShared (Slice 2a-2): mirrors Get/SetVariable -- static skeleton only;
+        // Stage0_Rehydrate enriches data pins directly from SharedTypeId (NOT asset.Variables --
+        // the shared type is foreign to this asset).
+        GetSharedNode   => Array.Empty<PinSchema>(),   // pure data-Out, type from SharedTypeId
+        SetSharedNode   => new[] { ExecIn(), ExecOut() },
+
         // FunctionCall: static exec skeleton; Stage0_Rehydrate fills data pins.
         FunctionCallNode fc when !fc.IsPure => new[] { ExecIn(), ExecOut() },
         FunctionCallNode   => Array.Empty<PinSchema>(), // pure

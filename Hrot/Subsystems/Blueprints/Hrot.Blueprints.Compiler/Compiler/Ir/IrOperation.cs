@@ -309,3 +309,49 @@ public sealed record IrOp_ReadRankedResult(
     /// <summary>Name of the generated result struct type.</summary>
     string ResultStructTypeName
 ) : IrOperation;
+
+// ── GetShared / SetShared (Slice 2a-2) ────────────────────────────────────
+
+/// <summary>
+/// Emitted by Stage 5 for a <c>GetSharedNode</c>. Reads the ENTITY-scoped shared working-state
+/// slot named <paramref name="VariableId"/> via
+/// <c>Fdp.Toolkit.Blueprints.Partitioning.BlueprintSharedState.TryGetShared&lt;T&gt;</c> (Slice
+/// 2a-1 accessor). The statement's own <c>ResultValue</c> holds the "Value" output;
+/// <paramref name="FoundValue"/> is a second, already-allocated <see cref="IrValue"/> that this
+/// op DECLARES (not references) -- Stage 7 emits both locals from this single statement, mirroring
+/// how <c>IrOp_ReadEqsResult</c>/<c>IrOp_ReadRankedResult</c> feed a multi-field result to
+/// downstream consumers, but without an intermediate helper struct (the two outputs are declared
+/// inline).
+/// </summary>
+/// <param name="VariableId">Entity-scoped slot name (name-keyed, not a variable index).</param>
+/// <param name="SharedTypeFqn">
+/// FQN (unprefixed, dots for nested types) of the Category-1 shared struct -- the generic type
+/// argument for <c>TryGetShared&lt;T&gt;</c>.
+/// </param>
+/// <param name="FoundValue">
+/// The "Found" (<c>System.Boolean</c>) output slot, declared by this statement's emission.
+/// </param>
+public sealed record IrOp_ReadShared(
+    string VariableId,
+    string SharedTypeFqn,
+    IrValue FoundValue
+) : IrOperation;
+
+/// <summary>
+/// Emitted by Stage 5 for a <c>SetSharedNode</c>. Writes <paramref name="Value"/> into the
+/// ENTITY-scoped shared working-state slot named <paramref name="VariableId"/> via
+/// <c>Fdp.Toolkit.Blueprints.Partitioning.BlueprintSharedState.TrySetShared&lt;T&gt;</c> (Slice
+/// 2a-1 accessor). When the node's optional "Written" data-out pin is wired, the statement's
+/// <c>ResultValue</c> captures the returned <c>bool</c>; otherwise the call's result is discarded.
+/// </summary>
+/// <param name="VariableId">Entity-scoped slot name (name-keyed, not a variable index).</param>
+/// <param name="SharedTypeFqn">
+/// FQN (unprefixed, dots for nested types) of the Category-1 shared struct -- the generic type
+/// argument for <c>TrySetShared&lt;T&gt;</c>.
+/// </param>
+/// <param name="Value">The resolved "Value" data-in.</param>
+public sealed record IrOp_WriteShared(
+    string VariableId,
+    string SharedTypeFqn,
+    IrValue Value
+) : IrOperation;

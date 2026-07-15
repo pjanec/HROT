@@ -24,6 +24,13 @@ internal static class Stage5_Schedule
         SizeBytes = 4,
     };
 
+    internal static readonly IrTypeRef BoolType = new IrTypeRef
+    {
+        FullName = "System.Boolean",
+        IsUnmanaged = true,
+        SizeBytes = 1,
+    };
+
     public static IrAsset Run(TypedAsset typedAsset, ValidationContext ctx)
     {
         var irGraphs = new List<IrGraph>();
@@ -949,6 +956,36 @@ internal sealed class GraphScheduler
                 break;
             }
 
+            case SetSharedNode ssn:
+            {
+                // Name-keyed slot -- NOT FindVariableIndex (there is no variable/struct-field index;
+                // the accessor resolves the slot by string variableId at runtime).
+                string sharedTypeFqn = NormalizeSharedTypeFqn(ssn.SharedTypeId);
+                var dataPin = node.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "Value", StringComparison.OrdinalIgnoreCase));
+                if (dataPin is null) break;
+                var val = ResolveDataPin(node.Id, dataPin.Id, stmts);
+
+                var writtenPin = node.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, "Written", StringComparison.OrdinalIgnoreCase));
+                IrValue? writtenResult = writtenPin is not null
+                    ? AllocValue(Stage5_Schedule.BoolType)
+                    : null;
+
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = writtenResult,
+                    Operation   = new IrOp_WriteShared(ssn.VariableId, sharedTypeFqn, val),
+                    Debug       = DebugOf(node),
+                });
+
+                if (writtenPin is not null && writtenResult.HasValue)
+                    _pinValueCache[writtenPin.Id] = writtenResult.Value;
+                break;
+            }
+
             case FunctionCallNode fc when !fc.IsPure && !string.IsNullOrEmpty(fc.TargetGraphId):
             {
                 // Impure in-blueprint function-graph call (BATCH-03A).
@@ -1330,6 +1367,47 @@ internal sealed class GraphScheduler
                 });
                 break;
 
+            case GetSharedNode gsn:
+            {
+                // Name-keyed slot -- NOT FindVariableIndex (the shared struct is foreign to this
+                // asset's variable list; the accessor resolves the slot by string variableId).
+                string sharedTypeFqn = NormalizeSharedTypeFqn(gsn.SharedTypeId);
+
+                var valuePin = gsn.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, "Value", StringComparison.OrdinalIgnoreCase));
+                var foundPin = gsn.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, "Found", StringComparison.OrdinalIgnoreCase));
+
+                // Prefer the resolved pin type (from Stage4) when available; otherwise fall back
+                // to a locally-built IrTypeRef from the SharedTypeFqn (mirrors ReadEqsResult /
+                // ReadRankedResult building their own result-struct IrTypeRef rather than relying
+                // on PinTypes).
+                IrTypeRef valueType = valuePin is not null
+                    && _typed.PinTypes.TryGetValue(valuePin.Id, out var vt)
+                        ? vt
+                        : new IrTypeRef { FullName = sharedTypeFqn, IsUnmanaged = true, SizeBytes = 0 };
+
+                var valueResult = AllocValue(valueType);
+                var foundResult = AllocValue(Stage5_Schedule.BoolType);
+
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = valueResult,
+                    Operation   = new IrOp_ReadShared(gsn.VariableId, sharedTypeFqn, foundResult),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gsn.Id, PinId = sourcePinId },
+                });
+
+                if (valuePin is not null) _pinValueCache[valuePin.Id] = valueResult;
+                if (foundPin is not null) _pinValueCache[foundPin.Id] = foundResult;
+
+                // Return the value for the specifically requested pin (mirrors ReadEqsResult /
+                // ReadRankedResult's multi-output cache-then-select pattern).
+                result = _pinValueCache.TryGetValue(sourcePinId, out var pinRes) ? pinRes : valueResult;
+                break;
+            }
+
             case FunctionCallNode fc when fc.IsPure && !string.IsNullOrEmpty(fc.TargetGraphId):
             {
                 // Pure in-blueprint function-graph call (BATCH-03A).
@@ -1650,6 +1728,23 @@ internal sealed class GraphScheduler
     // -----------------------------------------------------------------------
     // Variable index helpers
     // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Normalizes a GetShared/SetShared node's <c>SharedTypeId</c> (as authored on the node, e.g.
+    /// possibly carrying the AN2 "global::" pin-type sentinel) down to a plain FQN suitable for the
+    /// IR op's <c>SharedTypeFqn</c> field and for the codegen's own single "global::" stamp
+    /// (Stage 7 emits <c>global::{SharedTypeFqn}</c> -- stamping twice would emit
+    /// <c>global::global::...</c>, CS0234). Also converts reflection's nested-type '+' separator to
+    /// '.' (Category-1 shared structs are expected to be top-level, but this is defensive).
+    /// </summary>
+    private static string NormalizeSharedTypeFqn(string sharedTypeId)
+    {
+        if (string.IsNullOrEmpty(sharedTypeId)) return sharedTypeId ?? "";
+        var fqn = sharedTypeId.StartsWith("global::", StringComparison.Ordinal)
+            ? sharedTypeId.Substring("global::".Length)
+            : sharedTypeId;
+        return fqn.Replace('+', '.');
+    }
 
     private int FindVariableIndex(string variableId)
     {

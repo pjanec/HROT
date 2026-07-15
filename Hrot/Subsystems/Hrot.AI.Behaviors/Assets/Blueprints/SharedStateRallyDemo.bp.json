@@ -1,0 +1,107 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
+  "AssetId": "5ba00002-0000-0000-0000-0000000000e1",
+  "Name": "SharedStateRallyDemo",
+  "Dispatch": 1,
+  "TierHint": 0,
+  "Primitive": {
+    "Intent": 0,
+    "Hostings": [0]
+  },
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "5ba00003-0000-0000-0000-000000000001",
+      "Name": "Main",
+      "Kind": 0,
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "5ba00004-0000-0000-0000-000000000001",
+          "EventTypeId": "",
+          "Pins": [],
+          "EditorMetadata": { "X": 80.0, "Y": 220.0 }
+        },
+        {
+          "kind": "GetShared",
+          "Id": "5ba00004-0000-0000-0000-000000000002",
+          "VariableId": "rally",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.SquadRallyState",
+          "Pins": [],
+          "EditorMetadata": { "X": 80.0, "Y": 60.0 }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "5ba00004-0000-0000-0000-000000000003",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.SquadRallyStateOps",
+          "MethodName": "IncrementRallyCount",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "Pins": [],
+          "EditorMetadata": { "X": 340.0, "Y": 60.0 }
+        },
+        {
+          "kind": "SetShared",
+          "Id": "5ba00004-0000-0000-0000-000000000004",
+          "VariableId": "rally",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.SquadRallyState",
+          "Pins": [],
+          "EditorMetadata": { "X": 420.0, "Y": 220.0 }
+        },
+        {
+          "kind": "Return",
+          "Id": "5ba00004-0000-0000-0000-000000000005",
+          "Status": 0,
+          "Pins": [],
+          "EditorMetadata": { "X": 700.0, "Y": 220.0 }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "5ba00004-0000-0000-0000-000000000001",
+          "FromPinId": "5ba00005-0000-0000-0000-000000000001",
+          "ToNodeId": "5ba00004-0000-0000-0000-000000000004",
+          "ToPinId": "5ba00005-0000-0000-0000-000000000002"
+        },
+        {
+          "FromNodeId": "5ba00004-0000-0000-0000-000000000002",
+          "FromPinId": "5ba00005-0000-0000-0000-000000000003",
+          "ToNodeId": "5ba00004-0000-0000-0000-000000000003",
+          "ToPinId": "5ba00005-0000-0000-0000-000000000004"
+        },
+        {
+          "FromNodeId": "5ba00004-0000-0000-0000-000000000003",
+          "FromPinId": "5ba00005-0000-0000-0000-000000000005",
+          "ToNodeId": "5ba00004-0000-0000-0000-000000000004",
+          "ToPinId": "5ba00005-0000-0000-0000-000000000006"
+        },
+        {
+          "FromNodeId": "5ba00004-0000-0000-0000-000000000004",
+          "FromPinId": "5ba00005-0000-0000-0000-000000000007",
+          "ToNodeId": "5ba00004-0000-0000-0000-000000000005",
+          "ToPinId": "5ba00005-0000-0000-0000-000000000008"
+        }
+      ],
+      "EditorMetadata": { "ViewportX": 0, "ViewportY": 0, "ViewportZoom": 0 }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "Slice 2a-2 real-interpreter proof demo: on tick, GetShared<SquadRallyState>(\"rally\") reads the entity-scoped shared slot, a pure FunctionCall increments RallyCount, SetShared<SquadRallyState>(\"rally\", ...) writes it back, then Return(Success). Proves GetShared/SetShared compile to calls into Fdp.Toolkit.Blueprints.Partitioning.BlueprintSharedState (Slice 2a-1) and that repeated ticks accumulate RallyCount through the accessor + StructureHash guard.",
+    "Category": null,
+    "Recipe": null
+  }
+}

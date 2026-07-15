@@ -8,13 +8,14 @@ namespace Hrot.Blueprints.Tests;
 public sealed class SchemaReflectionTests
 {
     [Fact]
-    public void ConcreteNodeSubtypeCount_Is28()
+    public void ConcreteNodeSubtypeCount_Is30()
     {
+        // Slice 2a-2 added GetSharedNode + SetSharedNode (28 -> 30).
         var count = typeof(Node).Assembly
             .GetTypes()
             .Count(t => !t.IsAbstract && t.IsSubclassOf(typeof(Node)));
 
-        Assert.Equal(28, count);
+        Assert.Equal(30, count);
     }
 
     [Theory]

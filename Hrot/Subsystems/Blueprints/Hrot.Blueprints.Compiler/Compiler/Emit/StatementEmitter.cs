@@ -48,6 +48,36 @@ internal static class StatementEmitter
                 e.WriteLine($"{sv}.{ctx.VarFieldName(op.VariableIndex)} = __t{op.Value.Index};");
                 break;
 
+            // ------------------------------------------------------------------
+            // GetShared / SetShared (Slice 2a-2): entity-scoped shared working-state,
+            // compiled to calls into the Slice 2a-1 accessor.
+            // ------------------------------------------------------------------
+
+            case IrOp_ReadShared op:
+            {
+                string sharedTypeFqn = op.SharedTypeFqn;
+                if (idx >= 0)
+                    e.WriteLine($"var __t{idx} = default(global::{sharedTypeFqn});");
+                string valueRef = idx >= 0 ? $"__t{idx}" : "_";
+                e.WriteLine(
+                    $"bool __t{op.FoundValue.Index} = global::Fdp.Toolkit.Blueprints.Partitioning." +
+                    $"BlueprintSharedState.TryGetShared<global::{sharedTypeFqn}>({wv}, self, \"{op.VariableId}\", out {valueRef});");
+                break;
+            }
+
+            case IrOp_WriteShared op:
+            {
+                string sharedTypeFqn = op.SharedTypeFqn;
+                string call =
+                    $"global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintSharedState." +
+                    $"TrySetShared<global::{sharedTypeFqn}>({wv}, self, \"{op.VariableId}\", in __t{op.Value.Index})";
+                if (idx >= 0)
+                    e.WriteLine($"bool __t{idx} = {call};");
+                else
+                    e.WriteLine($"{call};");
+                break;
+            }
+
             case IrOp_ReadInputArg op:
             {
                 var argName = ctx.CurrentGraph?.Inputs is { } inputs && op.ArgIndex < inputs.Count

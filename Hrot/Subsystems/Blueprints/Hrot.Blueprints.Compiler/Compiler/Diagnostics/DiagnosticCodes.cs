@@ -95,6 +95,11 @@ public static class DiagnosticCodes
     public const string BP2031 = "BP2031";  // SpawnEqsSensorNode template not found
     public const string BP2032 = "BP2032";  // SpawnEqsSensorNode InstanceId collision
 
+    // Stage 2 -- Validate (GetShared/SetShared rules -- Slice 2a-2)
+    public const string BP2040 = "BP2040";  // SharedTypeId empty
+    public const string BP2041 = "BP2041";  // SharedTypeId does not resolve to a known unmanaged/blittable struct type
+    public const string BP2042 = "BP2042";  // GetShared/SetShared in unsupported (Library) dispatch -- no `self` in scope
+
     // Stage 3 -- Normalize
     public const string BP3010 = "BP3010";
     public const string BP3011 = "BP3011";

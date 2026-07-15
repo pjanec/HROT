@@ -127,6 +127,8 @@ internal static class NodePinSchema
             FunctionCallNode fc => FunctionCallPinsDispatch(fc, asset, containingGraph),
             GetVariableNode gv  => GetVariablePins(gv, ResolveVariableTypeId(gv.VariableId, asset)),
             SetVariableNode sv  => SetVariablePins(sv, ResolveVariableTypeId(sv.VariableId, asset)),
+            GetSharedNode gsn   => GetSharedPins(gsn),
+            SetSharedNode ssn   => SetSharedPins(ssn),
             ChannelCommandNode cc => ChannelCommandPins(cc, channelCommands, behaviorActions),
             CallCustomEventNode cce => CallCustomEventPins(cce, asset),
             CallPeerBlueprintNode cpb => CallPeerBlueprintPins(cpb, peerSignatureLookup),
@@ -500,6 +502,48 @@ internal static class NodePinSchema
             MakeData("Value", "In",  typeId),
             MakeData("Value", "Out", typeId),
         };
+
+    /// <summary>
+    /// GetSharedNode (Slice 2a-2): pure-data node. Data-out "Value" typed DIRECTLY from
+    /// <see cref="GetSharedNode.SharedTypeId"/> (NOT <see cref="ResolveVariableTypeId"/> --
+    /// the shared struct is foreign to this asset's variable list) + data-out "Found"
+    /// (<c>System.Boolean</c>). Kept in parity with the compiler's
+    /// <c>Stage0_Rehydrate.EnrichGetSharedPins</c>.
+    /// </summary>
+    private static IReadOnlyList<Pin> GetSharedPins(GetSharedNode gsn)
+        => new[]
+        {
+            MakeData("Value", "Out", SharedTypePinTypeId(gsn.SharedTypeId)),
+            MakeData("Found", "Out", "System.Boolean"),
+        };
+
+    /// <summary>
+    /// SetSharedNode (Slice 2a-2): exec node. Data-in "Value" typed DIRECTLY from
+    /// <see cref="SetSharedNode.SharedTypeId"/> + data-out "Written" (<c>System.Boolean</c>).
+    /// Kept in parity with the compiler's <c>Stage0_Rehydrate.EnrichSetSharedPins</c>.
+    /// </summary>
+    private static IReadOnlyList<Pin> SetSharedPins(SetSharedNode ssn)
+        => new[]
+        {
+            MakeExec("In",      "In"),
+            MakeExec("Out",     "Out"),
+            MakeData("Value",   "In",  SharedTypePinTypeId(ssn.SharedTypeId)),
+            MakeData("Written", "Out", "System.Boolean"),
+        };
+
+    /// <summary>
+    /// Resolves the pin <c>TypeId</c> for a GetShared/SetShared "Value" pin directly from the
+    /// node's <c>SharedTypeId</c> (a foreign Category-1 struct FQN). Stamped with the
+    /// <c>"global::"</c> AN2 sentinel (mirrors <see cref="EnumStampedTypeFqn"/>) so the compiler's
+    /// <c>StaticTypeRegistry</c> accepts it as a project/unmanaged type.
+    /// </summary>
+    private static string SharedTypePinTypeId(string sharedTypeId)
+    {
+        if (string.IsNullOrEmpty(sharedTypeId)) return "System.Object";
+        return sharedTypeId.StartsWith("global::", StringComparison.Ordinal)
+            ? sharedTypeId
+            : "global::" + sharedTypeId;
+    }
 
     // ── ChannelCommand / non-channel action parameter resolution (DYNAMIC) ────
 

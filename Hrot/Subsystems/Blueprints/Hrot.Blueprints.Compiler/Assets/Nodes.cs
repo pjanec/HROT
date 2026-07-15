@@ -32,6 +32,8 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(AssignRolesNode),        "AssignRoles")]
 [JsonDerivedType(typeof(AdvancePhaseNode),       "AdvancePhase")]
 [JsonDerivedType(typeof(AcquireSlotNode),        "AcquireSlot")]
+[JsonDerivedType(typeof(GetSharedNode),          "GetShared")]
+[JsonDerivedType(typeof(SetSharedNode),          "SetShared")]
 public abstract class Node
 {
     public Guid Id { get; set; }
@@ -335,4 +337,49 @@ public sealed class AcquireSlotNode : Node
 {
     /// <summary>Total number of slots in the ring.</summary>
     public int TotalSlots { get; set; } = 1;
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// GetShared / SetShared (Slice 2a-2 -- entity-scoped Blueprint shared state)
+// Compile to calls into Fdp.Toolkit.Blueprints.Partitioning.BlueprintSharedState
+// (Slice 2a-1). Same-entity (self) only -- no target-Entity pin, no cross-entity
+// (that is Slice 2b). No Scope field -- Entity scope is implied for 2a.
+// ──────────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// Reads the ENTITY-scoped shared working-state slot named <see cref="VariableId"/> off
+/// <c>self</c>, via <c>BlueprintSharedState.TryGetShared&lt;SharedTypeId&gt;</c>. Pure-data node
+/// (no exec pins): data-out "Value" (typed by <see cref="SharedTypeId"/>) + data-out "Found"
+/// (<c>System.Boolean</c>).
+/// </summary>
+public sealed class GetSharedNode : Node
+{
+    /// <summary>Entity-scoped slot name (matches the manifest-provisioned variable name).</summary>
+    public string VariableId { get; set; } = "";
+
+    /// <summary>
+    /// FQN of the standalone Category-1 shared struct (a hand-written blittable struct, NOT a
+    /// generated <c>_Bp+WorkingState</c>). Used to type the "Value" pin directly and as the
+    /// generic argument of <c>BlueprintSharedState.TryGetShared&lt;T&gt;</c>.
+    /// </summary>
+    public string SharedTypeId { get; set; } = "";
+}
+
+/// <summary>
+/// Writes <c>Value</c> into the ENTITY-scoped shared working-state slot named
+/// <see cref="VariableId"/> on <c>self</c>, via <c>BlueprintSharedState.TrySetShared&lt;SharedTypeId&gt;</c>.
+/// Exec node: exec-In + exec-Out, data-in "Value" (typed by <see cref="SharedTypeId"/>), plus an
+/// optional data-out "Written" (<c>System.Boolean</c>).
+/// </summary>
+public sealed class SetSharedNode : Node
+{
+    /// <summary>Entity-scoped slot name (matches the manifest-provisioned variable name).</summary>
+    public string VariableId { get; set; } = "";
+
+    /// <summary>
+    /// FQN of the standalone Category-1 shared struct (a hand-written blittable struct, NOT a
+    /// generated <c>_Bp+WorkingState</c>). Used to type the "Value" pin directly and as the
+    /// generic argument of <c>BlueprintSharedState.TrySetShared&lt;T&gt;</c>.
+    /// </summary>
+    public string SharedTypeId { get; set; } = "";
 }

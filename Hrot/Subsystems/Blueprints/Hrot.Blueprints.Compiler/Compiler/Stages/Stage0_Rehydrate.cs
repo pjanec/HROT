@@ -131,6 +131,14 @@ internal static class Stage0_Rehydrate
                 EnrichSetVariablePins(pins, sv, asset, staticShapes);
                 break;
 
+            case GetSharedNode gsn:
+                EnrichGetSharedPins(pins, gsn, staticShapes);
+                break;
+
+            case SetSharedNode ssn:
+                EnrichSetSharedPins(pins, ssn, staticShapes);
+                break;
+
             case FunctionCallNode fc:
                 EnrichFunctionCallPins(pins, fc, asset, graph, options, staticShapes, outL, inL);
                 break;
@@ -218,6 +226,53 @@ internal static class Stage0_Rehydrate
         pins.Add(MakePin("Out",   "Out", isExec: true,  typeId: ""));
         pins.Add(MakePin("Value", "In",  isExec: false, typeId: typeId));
         pins.Add(MakePin("Value", "Out", isExec: false, typeId: typeId));
+    }
+
+    /// <summary>
+    /// GetSharedNode (Slice 2a-2): pure-data node. Static skeleton is empty (registry mirrors
+    /// GetVariableNode). Build data-Out "Value" typed DIRECTLY from <see cref="GetSharedNode.SharedTypeId"/>
+    /// (NOT <c>ResolveVariableTypeId</c> over <c>asset.Variables</c> -- the shared struct is foreign
+    /// to this asset's variable list) + data-Out "Found" (<c>System.Boolean</c>).
+    /// </summary>
+    private static void EnrichGetSharedPins(
+        List<Pin> pins, GetSharedNode gsn, IReadOnlyList<PinSchema> staticShapes)
+    {
+        var typeId = SharedTypePinTypeId(gsn.SharedTypeId);
+        pins.Clear();
+        pins.Add(MakePin("Value", "Out", isExec: false, typeId: typeId));
+        pins.Add(MakePin("Found", "Out", isExec: false, typeId: "System.Boolean"));
+    }
+
+    /// <summary>
+    /// SetSharedNode (Slice 2a-2): exec node. Static skeleton is exec In/Out (registry mirrors
+    /// SetVariableNode). Enrich: add data-In "Value" typed DIRECTLY from
+    /// <see cref="SetSharedNode.SharedTypeId"/> + data-Out "Written" (<c>System.Boolean</c>).
+    /// </summary>
+    private static void EnrichSetSharedPins(
+        List<Pin> pins, SetSharedNode ssn, IReadOnlyList<PinSchema> staticShapes)
+    {
+        var typeId = SharedTypePinTypeId(ssn.SharedTypeId);
+        pins.Clear();
+        pins.Add(MakePin("In",      "In",  isExec: true,  typeId: ""));
+        pins.Add(MakePin("Out",     "Out", isExec: true,  typeId: ""));
+        pins.Add(MakePin("Value",   "In",  isExec: false, typeId: typeId));
+        pins.Add(MakePin("Written", "Out", isExec: false, typeId: "System.Boolean"));
+    }
+
+    /// <summary>
+    /// Resolves the pin <c>TypeId</c> for a GetShared/SetShared "Value" pin directly from the
+    /// node's <c>SharedTypeId</c> (a foreign Category-1 struct FQN, not a declared asset variable).
+    /// Stamped with the <c>"global::"</c> AN2 sentinel (mirrors <c>EnumStampedTypeFqn</c> in the
+    /// editor's <c>NodePinSchema</c>) so <see cref="Catalogs.StaticTypeRegistry"/> accepts it as a
+    /// project/unmanaged type without requiring reflection over an assembly that, in the analyzer
+    /// host, is the very assembly currently being compiled.
+    /// </summary>
+    private static string SharedTypePinTypeId(string sharedTypeId)
+    {
+        if (string.IsNullOrEmpty(sharedTypeId)) return "System.Object";
+        return sharedTypeId.StartsWith("global::", StringComparison.Ordinal)
+            ? sharedTypeId
+            : "global::" + sharedTypeId;
     }
 
     private static void EnrichFunctionCallPins(
@@ -514,6 +569,7 @@ internal static class Stage0_Rehydrate
     {
         FunctionCallNode fc   => !fc.IsPure,
         GetVariableNode       => false,
+        GetSharedNode         => false,
         LiteralNode           => false,
         ReadRankedResultNode  => false,
         ReadEqsResultNode     => false,
