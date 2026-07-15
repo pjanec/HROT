@@ -1,0 +1,74 @@
+{
+  "$meta": {
+    "docType": "Hrot.BTree",
+    "schemaVersion": 1
+  },
+  "AssetId": "bb000037-0000-0000-0000-000000000000",
+  "Name": "T37_SharedStateManifestProvisioning",
+  "TargetNamespace": "Hrot.AI.Behaviors.Trees",
+  "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+  "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+  "Nodes": [
+    {
+      "kind": "Root",
+      "VisualId": "bb370000-0000-0000-0000-000000000001",
+      "ChildVisualIds": [
+        "bb370000-0000-0000-0000-000000000002"
+      ],
+      "DisplayLabel": "Root",
+      "EditorMetadata": { "X": 300, "Y": 0, "Comment": null, "Collapsed": false, "Color": null }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Generated.SharedStateRallyDemo_3CBD7255_Bp.TickCore",
+        "ExpressionTargetField": "bpParams",
+        "DelegateShape": "AiPrimitiveTickCore",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Generated.SharedStateRallyDemo_3CBD7255_Bp+WorkingState"
+      },
+      "VisualId": "bb370000-0000-0000-0000-000000000002",
+      "ChildVisualIds": [],
+      "DisplayLabel": "ComposedSharedStateRallyDemo",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 160,
+        "Comment": "Slice 2a-3 proof: composes the REAL editor-authored/generated SharedStateRallyDemo blueprint (Assets/Blueprints/SharedStateRallyDemo.bp.json, BlueprintId 0x3CBD7255) as a host-BTree node -- mirrors T32's composed-generated-blueprint pattern. This node's OWN Params/WorkingState are both empty structs (Node-scoped, private to this node); the interesting slot is the STANDALONE 'rally' Role=State/Scope=Entity blackboard variable declared below, which this node's generated TickCore body reads/writes via BlueprintSharedState.TryGetShared/TrySetShared('rally') -- NOT via WorkingStateTargetField binding. 'rally' has no node binding at all, so it only gets a manifest entry through EmitStatefulWorkingSlotsArray's standalone-variable pass (Slice 2a-3), not the node-driven loop.",
+        "Collapsed": false,
+        "Color": null
+      }
+    }
+  ],
+  "Pills": [],
+  "Canvas": { "PanX": 0, "PanY": 0, "Zoom": 1 },
+  "SubtreeSyncBindings": {},
+  "Suppressions": { "Conflict": [], "Unused": [] },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+    "HeavyDtoType": null,
+    "Variables": [
+      {
+        "Name": "bpParams",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Generated.SharedStateRallyDemo_3CBD7255_Bp+Params",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{}",
+        "Comment": "Authored params for the composed SharedStateRallyDemo blueprint. Its Parameters array is empty, so this Params struct has no fields (size resolved from SharedStateRallyDemo.bp.json's empty Parameters array, mirroring T32)."
+      },
+      {
+        "Name": "rally",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.SquadRallyState",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "Comment": "Slice 2a-3: standalone Entity-scoped shared working state. NOT bound to any node's WorkingStateTargetField -- the composed SharedStateRallyDemo node above reads/writes it purely through the Slice 2a-2 GetShared/SetShared blueprint-graph nodes inside its own TickCore body (BlueprintSharedState.TryGetShared<SquadRallyState>(world, self, \"rally\")). EmitStatefulWorkingSlotsArray's standalone-variable pass provisions its manifest entry (FNV-1a-32(\"rally\") only, Entity scope excludes assetId) so BehaviorIngressSystem.ProvisionStatefulSlots attaches the slot on AssignBehaviorEvent -- no direct TryAttach call needed.",
+        "IsAutoManaged": false,
+        "Role": "State",
+        "Scope": "Entity"
+      }
+    ]
+  }
+}

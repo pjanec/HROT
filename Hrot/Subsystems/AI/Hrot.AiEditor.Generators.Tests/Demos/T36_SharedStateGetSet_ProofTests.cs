@@ -51,6 +51,16 @@ namespace Hrot.AiEditor.Generators.Tests.Demos;
 /// the partition memory to. Direct provisioning is the correct, explicitly-sanctioned fallback for
 /// this case; the real interpreter under test is still the actual Roslyn-generated <c>TickCore</c>.
 /// </para>
+///
+/// <para>
+/// <b>Slice 2a-3 update:</b> <see cref="T37_SharedStateManifestProvisioning_ProofTests"/> now covers
+/// the manifest-provisioning path this test intentionally does not — a host BTree declares "rally" as
+/// a standalone Entity-scoped Role=State blackboard variable (not bound to any node's WorkingState),
+/// composes this SAME <c>SharedStateRallyDemo</c> blueprint, and lets
+/// <c>BehaviorIngressSystem.ProvisionStatefulSlots</c> attach the slot from the generated
+/// <c>StatefulWorkingSlots</c> manifest on <c>AssignBehaviorEvent</c> — no direct <c>TryAttach</c>.
+/// This test remains as the isolated accessor-only proof described above.
+/// </para>
 /// </summary>
 public sealed class T36_SharedStateGetSet_ProofTests
 {

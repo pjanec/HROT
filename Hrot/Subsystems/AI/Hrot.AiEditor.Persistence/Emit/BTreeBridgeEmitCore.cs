@@ -1031,6 +1031,38 @@ public static class BTreeBridgeEmitCore
             slotsBySeen[slotKey] = (slotKey, wsTypeId, nodeLabel, role, scope);
         }
 
+        // Slice 2a-3 (ADDITIVE): a standalone Role=State blackboard variable that is NOT bound to
+        // any node's WorkingState (no composed node's WorkingStateTargetField/ExpressionTargetField
+        // names it) still needs its partition slot provisioned so the Slice-2 GetShared/SetShared
+        // blueprint accessor (BlueprintSharedState) can find it — the node-driven loop above only
+        // sees variables reachable through a node binding. This pass mirrors ResolveStatefulSlotKey's
+        // scope derivation, but reads the variable directly since there is no node to inspect.
+        //
+        // Dedup via the SAME slotsBySeen dictionary: a variable that IS node-bound (e.g. T35's
+        // "bpSharedWorkingState") was already inserted above under the identical scope-derived key,
+        // so it is skipped here — no duplicate entry, existing composed-node assets stay byte-identical.
+        //
+        // Node scope is intentionally NOT handled here: WorkingStateScope.Node's key formula collapses
+        // to FNV(assetId ++ nodeVisualId) and ignores the variable name entirely (see the 4-arg
+        // ComputeStatefulSlotKey's Node case), so a "standalone" Node-scoped variable has no node
+        // identity to key off — that configuration is not a meaningful standalone slot and is skipped.
+        if (dto.Blackboard?.Variables != null)
+        {
+            foreach (var v in dto.Blackboard.Variables)
+            {
+                if (v.Role != BlackboardVariableRole.State) continue;
+                if (v.Scope != WorkingStateScope.Behavior && v.Scope != WorkingStateScope.Entity) continue;
+
+                int standaloneSlotKey = ComputeStatefulSlotKey(dto.AssetId, v.Scope, Guid.Empty, v.Name);
+                if (slotsBySeen.ContainsKey(standaloneSlotKey)) continue; // node-bound (e.g. T35) — already seen above.
+
+                string standaloneWsTypeId = v.Type?.TypeId ?? string.Empty;
+                if (string.IsNullOrEmpty(standaloneWsTypeId)) continue;
+
+                slotsBySeen[standaloneSlotKey] = (standaloneSlotKey, standaloneWsTypeId, v.Name, (int)v.Role, (int)v.Scope);
+            }
+        }
+
         if (slotsBySeen.Count == 0) return;
 
         sb.AppendLine($"{pad}StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]");
