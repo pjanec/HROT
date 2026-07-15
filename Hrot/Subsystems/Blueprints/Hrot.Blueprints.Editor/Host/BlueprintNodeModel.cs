@@ -80,6 +80,10 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.FunctionCallNode fc   => string.IsNullOrEmpty(fc.MethodName) ? "Function Call" : fc.MethodName,
         Hrot.Blueprints.Core.Assets.GetVariableNode gv    => $"Get {ResolveVariableName(gv.VariableId, asset)}",
         Hrot.Blueprints.Core.Assets.SetVariableNode sv    => $"Set {ResolveVariableName(sv.VariableId, asset)}",
+        // Slice 2a-3: GetShared/SetShared — VariableId is a raw manifest-provisioned slot name
+        // (not a blueprint VariableDecl GUID), so no ResolveVariableName lookup is needed.
+        Hrot.Blueprints.Core.Assets.GetSharedNode gsn      => $"Get Shared: {(string.IsNullOrEmpty(gsn.VariableId) ? "(unset)" : gsn.VariableId)}",
+        Hrot.Blueprints.Core.Assets.SetSharedNode ssn      => $"Set Shared: {(string.IsNullOrEmpty(ssn.VariableId) ? "(unset)" : ssn.VariableId)}",
         Hrot.Blueprints.Core.Assets.LiteralNode lt        => $"Literal ({lt.TypeId})",
         Hrot.Blueprints.Core.Assets.EventEntryNode ee     => $"Event: {ee.EventTypeId}",
         Hrot.Blueprints.Core.Assets.CallPeerBlueprintNode cp => $"Call Peer: {cp.FunctionRef}",
@@ -105,6 +109,8 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.EventEntryNode           => NodeCategory.Event,
         Hrot.Blueprints.Core.Assets.GetVariableNode          => NodeCategory.VariableGet,
         Hrot.Blueprints.Core.Assets.SetVariableNode          => NodeCategory.VariableSet,
+        Hrot.Blueprints.Core.Assets.GetSharedNode            => NodeCategory.VariableGet,
+        Hrot.Blueprints.Core.Assets.SetSharedNode            => NodeCategory.VariableSet,
         Hrot.Blueprints.Core.Assets.LiteralNode              => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.FunctionCallNode fc when fc.IsPure => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.BranchNode               => NodeCategory.FlowControl,

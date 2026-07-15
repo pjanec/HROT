@@ -37,6 +37,14 @@ public static class BlueprintNodePaletteEntries
     {
         public const string FlowControl = "Flow Control";
         public const string Variables   = "Variables";
+        /// <summary>
+        /// Slice 2a-3 — entity-scoped Blueprint shared state (<c>GetSharedNode</c>/
+        /// <c>SetSharedNode</c>). Kept distinct from <see cref="Variables"/> because a shared
+        /// slot is a foreign Category-1 struct keyed by a manifest-provisioned name, not a
+        /// blueprint-local <c>VariableDecl</c> — grouping them together would blur that
+        /// distinction in the picker.
+        /// </summary>
+        public const string SharedState = "Shared State";
         public const string Function    = "Function";
         public const string Event       = "Events";
         public const string Array       = "Array";
@@ -97,6 +105,19 @@ public static class BlueprintNodePaletteEntries
         yield return Make<SetVariableNode>(
             "SetVariable", "Set Variable", Categories.Variables,
             "Write a blueprint variable's value.");
+
+        // ── Shared State (Slice 2a-3) ──────────────────────────────────────
+        // GetSharedNode/SetSharedNode default-construct with empty VariableId/SharedTypeId;
+        // both are editable post-placement via GetSharedNodeDrawer/SetSharedNodeDrawer
+        // (Hrot.Blueprints.Editor.NodeDrawers.SharedNodeDrawers), the same
+        // IBlueprintNodeDrawer/INodeEditSession Details-panel mechanism used by
+        // FunctionCallNode/LiteralNode — see BlueprintEditorBootstrap.CreateNodeDrawerRegistry.
+        yield return Make<GetSharedNode>(
+            "GetShared", "Get Shared", Categories.SharedState,
+            "Read an entity-scoped shared struct slot (pure).");
+        yield return Make<SetSharedNode>(
+            "SetShared", "Set Shared", Categories.SharedState,
+            "Write an entity-scoped shared struct slot.");
 
         // ── Function / data ────────────────────────────────────────────────
         yield return Make<FunctionCallNode>(

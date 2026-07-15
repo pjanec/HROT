@@ -49,6 +49,11 @@ public static class BlueprintEditorBootstrap
         // labels (action is baked at creation via the per-action palette; no mutation path).
         registry.Register(typeof(ChannelCommandNode), new ChannelCommandNodeDrawer(channelCatalog));
 
+        // Slice 2a-3: GetSharedNode/SetSharedNode — VariableId + SharedTypeId editable
+        // post-placement (free-text; see SharedNodeDrawers.cs for the picker-deferral rationale).
+        registry.Register(typeof(GetSharedNode), new GetSharedNodeDrawer(editService));
+        registry.Register(typeof(SetSharedNode), new SetSharedNodeDrawer(editService));
+
         // ANC-P5-08a: Register PlayMontageChainNode drawer (if animation queries available)
         if (animationQueries != null && currentClassProvider != null)
         {
