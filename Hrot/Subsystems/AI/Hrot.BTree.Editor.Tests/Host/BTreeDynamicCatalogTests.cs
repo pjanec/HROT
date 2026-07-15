@@ -308,6 +308,32 @@ public sealed class BTreeDynamicCatalogTests
         node.Action.Should().BeNull();
     }
 
+    // ---- E2 — a placed composed blueprint action is labelled by blueprint name ----
+
+    [Fact]
+    public void CommandSink_AddNode_AiPrimitive_LabelsNodeWithBlueprintName_NotTickCore()
+    {
+        var fake = new FakeActionSchemaExporter();
+        // {ns}.{Blueprint}_{id:X8}_Bp.TickCore — the generated composed-action FQN shape.
+        const string fqn = "Ns.Gen.FakeBlueprint_1A2B3C4D_Bp.TickCore";
+        fake.Seed(fqn, new ActionSchemaEntry(
+            fqn, typeof(FakeGeneratedAiPrimitive_Bp.Params), ActionHosting.BTree,
+            BlackboardAccess.Unknown, null, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
+
+        var asset = MakeAsset();
+        var graph = new StubGraphModel();
+        var sink  = new BTreeCommandSink(asset, graph, fake);
+        var nodeId = NodeId.NewId();
+
+        sink.Apply(new GraphCommand.AddNode(
+            nodeId, new NodeKindKey("bt.leaf.action::" + fqn), Vector2.Zero, null));
+
+        var node = asset.FindNode(nodeId.Value);
+        node.Should().NotBeNull();
+        node!.DisplayLabel.Should().Be("FakeBlueprint",
+            "a placed composed blueprint node is labelled by blueprint name, not the bare TickCore method");
+    }
+
     // ---- E2 — placing an AiPrimitive palette node composes the T31 shape ----
 
     [Fact]

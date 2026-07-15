@@ -158,7 +158,13 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
                 // unchanged (byte-identical to the pre-E2 behavior).
                 var entry = _actionSchema?.Lookup(fqn);
                 if (entry is { IsAiPrimitive: true })
+                {
                     ComposeAiPrimitiveAction(action, entry);
+                    // A composed blueprint's method is always "{Blueprint}_{id:X8}_Bp.TickCore", so the
+                    // bare method name ("TickCore") is a useless node label. Show the blueprint name,
+                    // matching how the palette entry is labelled.
+                    node.DisplayLabel = BTreeNodeCatalog.AiPrimitiveDisplayName(fqn);
+                }
             }
         }
         else

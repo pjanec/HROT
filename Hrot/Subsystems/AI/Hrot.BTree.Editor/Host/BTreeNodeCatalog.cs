@@ -145,7 +145,7 @@ public sealed class BTreeNodeCatalog : INodeCatalog
     /// name, then drop the trailing <c>_{8 hex}_Bp</c> to recover the authored blueprint name.
     /// Falls back to the declaring type's short name if the pattern does not match.
     /// </summary>
-    private static string AiPrimitiveDisplayName(string tickCoreFqn)
+    internal static string AiPrimitiveDisplayName(string tickCoreFqn)
     {
         int lastDot = tickCoreFqn.LastIndexOf('.');
         string declFqn = lastDot > 0 ? tickCoreFqn.Substring(0, lastDot) : tickCoreFqn;
