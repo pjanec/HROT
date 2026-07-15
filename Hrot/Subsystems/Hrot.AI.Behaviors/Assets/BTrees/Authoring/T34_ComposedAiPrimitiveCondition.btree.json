@@ -1,0 +1,62 @@
+{
+  "$meta": {
+    "docType": "Hrot.BTree",
+    "schemaVersion": 1
+  },
+  "AssetId": "bb000034-0000-0000-0000-000000000000",
+  "Name": "T34_ComposedAiPrimitiveCondition",
+  "TargetNamespace": "Hrot.AI.Behaviors.Trees",
+  "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+  "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+  "Nodes": [
+    {
+      "kind": "Root",
+      "VisualId": "bb340000-0000-0000-0000-000000000001",
+      "ChildVisualIds": [
+        "bb340000-0000-0000-0000-000000000002"
+      ],
+      "DisplayLabel": "Root",
+      "EditorMetadata": { "X": 300, "Y": 0, "Comment": null, "Collapsed": false, "Color": null }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore",
+        "ExpressionTargetField": "bpParams",
+        "DelegateShape": "AiPrimitiveTickCore",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+WorkingState"
+      },
+      "VisualId": "bb340000-0000-0000-0000-000000000002",
+      "ChildVisualIds": [],
+      "DisplayLabel": "ComposedAiPrimitiveCondition",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 160,
+        "Comment": "E2: a blueprint AiPrimitive CONDITION composed as a host-BTree node — the condition-side mirror of T31_ComposedAiPrimitive. Params (RunsNeeded) are bin-packed into BrainBlackboard at the baked offset; WorkingState (Ticks) lives in a BlueprintBlackboard* partition slot keyed by FNV-1a(assetId, nodeVisualId) and is provisioned by BehaviorIngressSystem — the SAME partition-slot rail as the composed action, because edge-detection/hysteresis conditions need cross-tick memory too. Dispatches to DemoAiPrimitiveNodes.TickCore each tick, comparing the result against NodeStatus.Success: Failure for the first (RunsNeeded-1) ticks, then Success from tick RunsNeeded onward (WorkingState.Ticks keeps incrementing even while the condition reports Failure, proving the slot persists rather than being re-zeroed).",
+        "Collapsed": false,
+        "Color": null
+      }
+    }
+  ],
+  "Pills": [],
+  "Canvas": { "PanX": 0, "PanY": 0, "Zoom": 1 },
+  "SubtreeSyncBindings": {},
+  "Suppressions": { "Conflict": [], "Unused": [] },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+    "HeavyDtoType": null,
+    "Variables": [
+      {
+        "Name": "bpParams",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+Params",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"RunsNeeded\":3}",
+        "Comment": "Authored params for the composed blueprint condition. RunsNeeded=3 -> the node reports Failure on ticks 1-2 and Success from tick 3 onward."
+      }
+    ]
+  }
+}

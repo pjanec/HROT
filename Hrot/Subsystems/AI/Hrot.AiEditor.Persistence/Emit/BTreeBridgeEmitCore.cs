@@ -384,6 +384,7 @@ public static class BTreeBridgeEmitCore
             EmitManagedConditionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields);
             EmitStatefulActionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields);
             EmitBlueprintActionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields);
+            EmitBlueprintConditionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields);
         }
         else
         {
@@ -698,6 +699,82 @@ public static class BTreeBridgeEmitCore
     }
 
     /// <summary>
+    /// Condition-side sibling of <see cref="AppendReusableStatefulThunk"/>: emits one
+    /// <c>actionRegistry.RegisterCondition("{key}", static (...) =&gt; {...})</c> reusable-stateful
+    /// thunk with the identical Params/WorkingState projection + tier-dispatch scaffold. The
+    /// registered delegate is still a <c>NodeLogicDelegate&lt;TBlackboard,TContext&gt;</c> returning
+    /// <see cref="Fbt.NodeStatus"/> — <c>ActionRegistry.RegisterCondition</c> is internally identical
+    /// to <c>Register</c> (see Fbt.Runtime.ActionRegistry) — but <paramref name="callExpr"/> evaluates
+    /// to <c>bool</c> (e.g. <c>TickCore(...) == Fbt.NodeStatus.Success</c>, collapsing a Running result
+    /// to false same as Failure) and this helper converts it back to NodeStatus.Success/Failure,
+    /// mirroring the bool→NodeStatus wrapping <c>Hrot.Blueprints.Compiler</c> already emits for plain
+    /// (non-composed) blueprint BTreeCondition hosting. Kept as a dedicated sibling — rather than a
+    /// bool/branch parameter on the action helper — so the validated action path stays byte-identical.
+    /// </summary>
+    private static void AppendReusableStatefulConditionThunk(
+        StringBuilder sb, string pad2, string bbShort, string ctxShort,
+        string key, string dtoTypeFqn, int offset, int slotKey, string wsTypeFqn, string callExpr)
+    {
+        sb.AppendLine($"{pad2}actionRegistry.RegisterCondition(\"{key}\",");
+        sb.AppendLine($"{pad2}{Indent}static (ref {bbShort} bb, ref Fbt.BehaviorTreeState st, ref {ctxShort} ctx, int pi) =>");
+        sb.AppendLine($"{pad2}{Indent}{{");
+        sb.AppendLine($"{pad2}{Indent}{Indent}unsafe");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{{");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}// Project Params from BrainBlackboard (Slice-1 pattern).");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}ref var dto = ref Unsafe.As<byte, {dtoTypeFqn}>(");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint){offset}));");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}// Dispatch across tiers (16384 → 4096 → 1024) to locate the entity's active partition.");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}const int __slotKey = {slotKey};");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self))");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{{");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self);");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}fixed (byte* mem = tier.Memory)");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{{");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{{");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}global::System.Diagnostics.Debug.Assert(false, \"E2: stateful condition slot {slotKey} missing from BlueprintBlackboard16384\");");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}return Fbt.NodeStatus.Failure;");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}}}");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}ref var ws = ref Unsafe.AsRef<{wsTypeFqn}>(mem + wsOff);");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}return {callExpr} ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}}}");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}}}");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self))");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{{");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self);");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}fixed (byte* mem = tier.Memory)");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{{");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{{");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}global::System.Diagnostics.Debug.Assert(false, \"E2: stateful condition slot {slotKey} missing from BlueprintBlackboard4096\");");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}return Fbt.NodeStatus.Failure;");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}}}");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}ref var ws = ref Unsafe.AsRef<{wsTypeFqn}>(mem + wsOff);");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}return {callExpr} ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}}}");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}}}");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self))");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{{");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self);");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}fixed (byte* mem = tier.Memory)");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{{");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{{");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}global::System.Diagnostics.Debug.Assert(false, \"E2: stateful condition slot {slotKey} missing from BlueprintBlackboard1024\");");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}return Fbt.NodeStatus.Failure;");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}}}");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}ref var ws = ref Unsafe.AsRef<{wsTypeFqn}>(mem + wsOff);");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}return {callExpr} ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}}}");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}}}");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}// No tier component found — fail loud.");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}global::System.Diagnostics.Debug.Assert(false, \"E2: entity has no BlueprintBlackboard* tier component for stateful condition slot {slotKey}\");");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}return Fbt.NodeStatus.Failure;");
+        sb.AppendLine($"{pad2}{Indent}{Indent}}}");
+        sb.AppendLine($"{pad2}{Indent}}});");
+    }
+
+    /// <summary>
     /// I2/I3: emits reusable-stateful thunks for host-BTree nodes that compose a blueprint-authored
     /// AiPrimitive action (<see cref="BTreeDelegateShapeDto.AiPrimitiveTickCore"/>). Identical
     /// projection/slot scaffold as <see cref="EmitStatefulActionThunks"/>, but the final call
@@ -779,10 +856,93 @@ public static class BTreeBridgeEmitCore
     }
 
     /// <summary>
+    /// E2: emits reusable-stateful thunks for host-BTree CONDITION nodes that compose a
+    /// blueprint-authored AiPrimitive (<see cref="BTreeDelegateShapeDto.AiPrimitiveTickCore"/>).
+    /// Mirrors <see cref="EmitBlueprintActionThunks"/> exactly — same Params/WorkingState
+    /// projection + partition-slot scaffold (a composed condition needs the SAME cross-tick
+    /// WorkingState memory as an action; edge-detection/hysteresis require it, so this is never a
+    /// transient/zeroed state) — but scans <see cref="BTreeConditionNodeDto"/> nodes, registers via
+    /// <c>actionRegistry.RegisterCondition</c>, and the dispatched call compares the blueprint's
+    /// <c>TickCore</c> result against <see cref="Fbt.NodeStatus.Success"/> to produce the bool the
+    /// condition delegate shape requires. Only emitted for AiPrimitiveTickCore condition nodes, so
+    /// assets without them stay byte-identical.
+    /// </summary>
+    private static void EmitBlueprintConditionThunks(
+        StringBuilder sb, BehaviorTreeAssetDto dto,
+        string pad2, string bbShort, string ctxShort,
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields)
+    {
+        if (packedFields == null) return;
+
+        var offsetMap = new Dictionary<string, BTreeBlackboardPackHelper.PackedField>(StringComparer.Ordinal);
+        foreach (var f in packedFields)
+            offsetMap[f.Name] = f;
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var entries = new List<(string Key, string MethodFqn, string DtoTypeId, int Offset, int SlotKey, string WsTypeId, int PredictedSize)>();
+
+        foreach (var node in dto.Nodes)
+        {
+            if (node is not BTreeConditionNodeDto condNode) continue;
+            var p = condNode.Condition;
+            if (p == null || string.IsNullOrEmpty(p.MethodFqn)) continue;
+            if (p.DelegateShape != BTreeDelegateShapeDto.AiPrimitiveTickCore) continue;
+            string? targetField = p.ExpressionTargetField;
+            if (string.IsNullOrEmpty(targetField)) continue;
+            if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
+
+            // BTreeConditionPayloadDto has no WorkingStateTargetField (params/working-state are
+            // never split for a composed condition), so the scope-governing variable is always
+            // ExpressionTargetField — no StatefulScopeVariable(p) overload needed here.
+            int slotKey = ResolveStatefulSlotKey(dto, targetField, condNode.VisualId);
+            // WorkingState type is the blueprint's generated WorkingState struct FQN (authored on the node).
+            string wsTypeId = string.IsNullOrEmpty(p.WorkingStateTypeId)
+                ? DeriveWorkingStateTypeFromMethod(p.MethodFqn)
+                : p.WorkingStateTypeId!;
+
+            string key = $"{p.MethodFqn}@{field.ByteOffset}@{slotKey}";
+            if (!seen.Add(key)) continue;
+
+            entries.Add((key, p.MethodFqn, field.TypeId, field.ByteOffset, slotKey, wsTypeId, field.ByteSize));
+        }
+
+        if (entries.Count == 0) return;
+
+        sb.AppendLine();
+        sb.AppendLine($"{pad2}// E2: blueprint AiPrimitive condition thunks — Params at baked offset + WorkingState from");
+        sb.AppendLine($"{pad2}// partition slot, dispatched to the blueprint's generated TickCore. Key = {{MethodFqn}}@{{offset}}@{{slotKey}}.");
+        foreach (var (key, methodFqn, dtoTypeId, offset, slotKey, wsTypeId, predictedSize) in entries)
+        {
+            string dtoTypeFqn = DtoTypeToGlobal(dtoTypeId);
+            string wsTypeFqn  = DtoTypeToGlobal(wsTypeId);
+            string methodRef  = GlobalMethodRef(methodFqn);
+
+            // Same AAR integrity guard as the action path (see EmitBlueprintActionThunks) — the
+            // composed blueprint Params struct's compiled layout must match the .bp.json-predicted
+            // layout baked into the offset, or every projection at this offset corrupts the AAR schema.
+            if (predictedSize > 0)
+            {
+                sb.AppendLine($"{pad2}if (global::System.Runtime.InteropServices.Marshal.SizeOf<{dtoTypeFqn}>() != {predictedSize})");
+                sb.AppendLine($"{pad2}{Indent}throw new global::System.InvalidOperationException(");
+                sb.AppendLine($"{pad2}{Indent}{Indent}\"Composed blueprint Params layout drift: {dtoTypeFqn} compiled size (\" +");
+                sb.AppendLine($"{pad2}{Indent}{Indent}global::System.Runtime.InteropServices.Marshal.SizeOf<{dtoTypeFqn}>() +");
+                sb.AppendLine($"{pad2}{Indent}{Indent}\") != predicted {predictedSize} bytes baked at offset {offset}. \" +");
+                sb.AppendLine($"{pad2}{Indent}{Indent}\"Rebuild the behavior blackboard layout so predicted and reflected sizes agree.\");");
+            }
+            AppendReusableStatefulConditionThunk(sb, pad2, bbShort, ctxShort, key, dtoTypeFqn, offset, slotKey, wsTypeFqn,
+                $"{methodRef}(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime) == Fbt.NodeStatus.Success");
+        }
+    }
+
+    /// <summary>
     /// S2-1: emits the <c>StatefulWorkingSlots</c> array initializer inside the
     /// <c>BehaviorDefinition</c> object initializer.
     /// Only emitted when the asset has at least one stateful node; otherwise emits nothing
     /// (non-managed or no-stateful assets stay byte-identical).
+    /// E2: also scans <see cref="BTreeConditionNodeDto"/> nodes whose DelegateShape is
+    /// AiPrimitiveTickCore — a composed blueprint condition rides the same partition-slot rail as
+    /// a composed action and must get its WorkingState slot provisioned identically (mirrors the
+    /// action loop below; action behavior/output is unchanged).
     /// </summary>
     private static void EmitStatefulWorkingSlotsArray(
         StringBuilder sb, BehaviorTreeAssetDto dto, string pad)
@@ -793,28 +953,64 @@ public static class BTreeBridgeEmitCore
         // Need packed fields for size lookup — we rebuild the offset map using variable names.
         foreach (var node in dto.Nodes)
         {
-            if (node is not BTreeActionNodeDto actNode) continue;
-            var p = actNode.Action;
-            if (p == null || string.IsNullOrEmpty(p.MethodFqn)) continue;
-            // Both reusable-stateful shapes and composed blueprint AiPrimitive actions ride the
-            // partition-slot rail, so both contribute a StatefulWorkingSlots manifest entry (I2/I3).
-            if (p.DelegateShape != BTreeDelegateShapeDto.ThreeParamReusableStateful &&
-                p.DelegateShape != BTreeDelegateShapeDto.AiPrimitiveTickCore) continue;
+            string methodFqn;
+            BTreeDelegateShapeDto delegateShape;
+            string? targetField;
+            string? wsTypeIdRaw;
+            string? workingStateTargetField = null;
+            Guid visualId;
+            string displayLabel;
+
+            if (node is BTreeActionNodeDto actNode && actNode.Action != null)
+            {
+                var p = actNode.Action;
+                methodFqn               = p.MethodFqn;
+                delegateShape           = p.DelegateShape;
+                targetField             = p.ExpressionTargetField;
+                wsTypeIdRaw             = p.WorkingStateTypeId;
+                workingStateTargetField = p.WorkingStateTargetField;
+                visualId                = actNode.VisualId;
+                displayLabel            = actNode.DisplayLabel;
+            }
+            else if (node is BTreeConditionNodeDto condNode && condNode.Condition != null)
+            {
+                // BTreeConditionPayloadDto has no WorkingStateTargetField (params/working-state are
+                // never split for a composed condition); workingStateTargetField stays null so the
+                // scope-governing variable below is always ExpressionTargetField.
+                var p = condNode.Condition;
+                methodFqn    = p.MethodFqn;
+                delegateShape = p.DelegateShape;
+                targetField  = p.ExpressionTargetField;
+                wsTypeIdRaw  = p.WorkingStateTypeId;
+                visualId     = condNode.VisualId;
+                displayLabel = condNode.DisplayLabel;
+            }
+            else
+            {
+                continue;
+            }
+
+            if (string.IsNullOrEmpty(methodFqn)) continue;
+            // Both reusable-stateful shapes and composed blueprint AiPrimitive actions/conditions
+            // ride the partition-slot rail, so both contribute a StatefulWorkingSlots manifest
+            // entry (I2/I3/E2).
+            if (delegateShape != BTreeDelegateShapeDto.ThreeParamReusableStateful &&
+                delegateShape != BTreeDelegateShapeDto.AiPrimitiveTickCore) continue;
 
             // S3-4: scope-aware key so co-bound Behavior-scoped nodes dedup onto one shared slot.
             // S3-G: scope governed by the working-state variable when distinct from params.
-            string? scopeVar = StatefulScopeVariable(p);
-            int slotKey = ResolveStatefulSlotKey(dto, scopeVar, actNode.VisualId);
+            string? scopeVar = string.IsNullOrEmpty(workingStateTargetField) ? targetField : workingStateTargetField;
+            int slotKey = ResolveStatefulSlotKey(dto, scopeVar, visualId);
             if (slotsBySeen.ContainsKey(slotKey)) continue;
 
-            string wsTypeId = string.IsNullOrEmpty(p.WorkingStateTypeId)
-                ? DeriveWorkingStateTypeFromMethod(p.MethodFqn)
-                : p.WorkingStateTypeId!;
+            string wsTypeId = string.IsNullOrEmpty(wsTypeIdRaw)
+                ? DeriveWorkingStateTypeFromMethod(methodFqn)
+                : wsTypeIdRaw!;
 
             // NodeLabel: prefer DisplayLabel, fall back to VisualId string.
-            string nodeLabel = !string.IsNullOrEmpty(actNode.DisplayLabel)
-                ? actNode.DisplayLabel
-                : actNode.VisualId.ToString();
+            string nodeLabel = !string.IsNullOrEmpty(displayLabel)
+                ? displayLabel
+                : visualId.ToString();
 
             // S3-7: carry the authored role/scope so the live inspector can group/label by scope.
             var (role, scope) = ResolveVariableRoleScope(dto, scopeVar);

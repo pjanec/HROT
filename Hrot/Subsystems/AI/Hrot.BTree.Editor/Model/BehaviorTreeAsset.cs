@@ -55,6 +55,12 @@ public sealed class BTreeConditionPayload
     public string MethodFqn = string.Empty;
     public string? ExpressionTargetField;
     public BTreeActionDelegateShape DelegateShape;
+    /// <summary>
+    /// E2: for <see cref="BTreeActionDelegateShape.AiPrimitiveTickCore"/> bindings, the CLR FQN
+    /// of the blueprint's generated WorkingState struct (second ref param after Params), e.g.
+    /// "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+WorkingState". Null for other shapes.
+    /// </summary>
+    public string? WorkingStateTypeId;
 }
 
 /// <summary>Payload for Wait leaf nodes.</summary>

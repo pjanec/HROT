@@ -143,7 +143,20 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
             node.DisplayLabel = fqn.Substring(fqn.LastIndexOf('.') + 1);
             if (isCond)
             {
-                node.Condition = new BTreeConditionPayload { MethodFqn = fqn };
+                var condition = new BTreeConditionPayload { MethodFqn = fqn };
+                node.Condition = condition;
+
+                // E2: mirror the action-side AiPrimitive composition (see below) for conditions.
+                // A blueprint-authored AiPrimitive hosted as a BTree CONDITION still needs its own
+                // partition-slot WorkingState (edge-detection/hysteresis require cross-tick memory),
+                // so it is composed identically to the action path — just registered as a condition
+                // and its TickCore result compared against Fbt.NodeStatus.Success.
+                var condEntry = _actionSchema?.Lookup(fqn);
+                if (condEntry is { IsAiPrimitive: true })
+                {
+                    ComposeAiPrimitiveCondition(condition, condEntry);
+                    node.DisplayLabel = BTreeNodeCatalog.AiPrimitiveDisplayName(fqn);
+                }
             }
             else
             {
@@ -222,6 +235,35 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
             varName, entry.DtoType, Comment: null, IsAutoManaged: true));
 
         action.ExpressionTargetField = varName;
+    }
+
+    /// <summary>
+    /// E2: composes a placed Condition node onto a Blueprint-compiled AiPrimitive (T31 shape),
+    /// mirroring <see cref="ComposeAiPrimitiveAction"/>. Sets
+    /// <see cref="BTreeActionDelegateShape.AiPrimitiveTickCore"/>, derives the generated
+    /// WorkingState type FQN from the schema entry's Params type, and auto-creates a blackboard
+    /// variable to hold the Params, wiring it up via ExpressionTargetField. A composed condition
+    /// MUST get a partition-slot WorkingState exactly like an action (edge-detection/hysteresis
+    /// need cross-tick memory) — never a transient/zeroed state.
+    /// </summary>
+    private void ComposeAiPrimitiveCondition(BTreeConditionPayload condition, ActionSchemaEntry entry)
+    {
+        condition.DelegateShape = BTreeActionDelegateShape.AiPrimitiveTickCore;
+
+        // Same hard requirement as the action path: an AiPrimitive binding bin-packs its Params
+        // inline into the managed BrainBlackboard, so it hard-requires an editor-managed blackboard.
+        _asset.IsBlackboardEditorManaged = true;
+
+        // The generated class nests both Params (entry.DtoType) and WorkingState as sibling
+        // struct types; derive the WorkingState FQN from Params' declaring type. Left null (node
+        // still placed) if the generated shape doesn't match — never throws.
+        condition.WorkingStateTypeId = entry.DtoType.DeclaringType?.GetNestedType("WorkingState")?.FullName;
+
+        string varName = GenerateUniqueVariableName("bpParams");
+        _asset.AddVariable(new BlackboardVariableEntry(
+            varName, entry.DtoType, Comment: null, IsAutoManaged: true));
+
+        condition.ExpressionTargetField = varName;
     }
 
     /// <summary>Returns baseName if unused, else baseName_2, baseName_3, … — first unused wins.</summary>

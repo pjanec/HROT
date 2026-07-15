@@ -629,7 +629,7 @@ public static class BTreeEmitCore
                 EmitAction(sb, actNode, pad, innerIsLast, leafMethodPrefix, variableOffsets, dto);
                 break;
             case BTreeConditionNodeDto condNode:
-                EmitCondition(sb, condNode, pad, innerIsLast, leafMethodPrefix, variableOffsets);
+                EmitCondition(sb, condNode, pad, innerIsLast, leafMethodPrefix, variableOffsets, dto);
                 break;
             case BTreeWaitNodeDto waitNode:
                 EmitWait(sb, waitNode, pad, innerIsLast, leafMethodPrefix);
@@ -743,7 +743,8 @@ public static class BTreeEmitCore
     private static void EmitCondition(
         StringBuilder sb, BTreeConditionNodeDto node, string pad, bool isLast,
         string methodPrefix = ".",
-        IReadOnlyDictionary<string, int>? variableOffsets = null)
+        IReadOnlyDictionary<string, int>? variableOffsets = null,
+        BehaviorTreeAssetDto? dto = null)
     {
         var p = node.Condition;
         var visualId = $"visualId: new Guid(\"{node.VisualId:D}\")";
@@ -774,6 +775,39 @@ public static class BTreeEmitCore
                 sb.AppendLine($"{pad}{methodPrefix}Condition(dto => dto.{condTargetField}, {methodRef},");
                 sb.AppendLine($"{pad}{Indent}{visualId}){term}");
             }
+        }
+        else if (p.DelegateShape == BTreeDelegateShapeDto.AiPrimitiveTickCore &&
+                 !string.IsNullOrEmpty(condTargetField) &&
+                 variableOffsets != null && variableOffsets.Count > 0 &&
+                 variableOffsets.TryGetValue(condTargetField!, out int statefulParamOffset))
+        {
+            // E2: composed blueprint AiPrimitive condition — mirrors EmitAction's stateful/
+            // AiPrimitiveTickCore branch. Blob key "{MethodFqn}@{paramOffset}@{slotKey}" must match
+            // the bridge thunk's baked const (BTreeBridgeEmitCore.EmitBlueprintConditionThunks) —
+            // both go through ResolveStatefulSlotKey, single source. BTreeConditionPayloadDto has no
+            // WorkingStateTargetField (params/working-state are never split for a composed condition),
+            // so the scope-governing variable is always ExpressionTargetField (no
+            // StatefulScopeVariable(p) overload needed here).
+            int slotKey = dto != null
+                ? BTreeBridgeEmitCore.ResolveStatefulSlotKey(dto, condTargetField, node.VisualId)
+                : BTreeBridgeEmitCore.ComputeStatefulSlotKey(default, node.VisualId);
+            string blobKey = $"{p.MethodFqn}@{statefulParamOffset}@{slotKey}";
+            sb.AppendLine($"{pad}{methodPrefix}Condition(\"{blobKey}\",");
+            sb.AppendLine($"{pad}{Indent}{visualId}){term}");
+        }
+        else if (p.DelegateShape == BTreeDelegateShapeDto.AiPrimitiveTickCore)
+        {
+            // Defense-in-depth: mirrors EmitAction's AiPrimitiveTickCore guard. An AiPrimitiveTickCore
+            // condition node must ALWAYS resolve to the offset-keyed string-blob form above — its bound
+            // method is a blueprint's generated TickCore (ref Params, ref WorkingState, Entity,
+            // EntityRepository, float) returning Fbt.NodeStatus, which is NOT a NodeLogicDelegate<TBB,TCtx>
+            // method group. Fail loud instead of emitting an uncompilable `.Condition(TickCore, ...)` bind.
+            throw new InvalidOperationException(
+                $"Condition node {node.VisualId:D} binds '{p.MethodFqn}' with DelegateShape=AiPrimitiveTickCore " +
+                "but its offset could not be resolved (missing ExpressionTargetField, non-managed blackboard, " +
+                "or the target variable isn't packed) — refusing to emit an uncompilable method-group " +
+                "`.Condition(TickCore, ...)` bind. Fix the asset in the editor (bind ExpressionTargetField to a " +
+                "managed blackboard variable typed as the blueprint's generated Params struct).");
         }
         else
         {

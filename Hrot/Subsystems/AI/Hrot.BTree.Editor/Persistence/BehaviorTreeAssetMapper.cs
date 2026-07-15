@@ -247,6 +247,7 @@ public static class BehaviorTreeAssetMapper
                 MethodFqn           = node.Condition.MethodFqn,
                 ExpressionTargetField = node.Condition.ExpressionTargetField,
                 DelegateShape       = (BTreeDelegateShapeDto)node.Condition.DelegateShape,
+                WorkingStateTypeId  = node.Condition.WorkingStateTypeId,
             };
         }
         if (dto is BTreeWaitNodeDto waitDto && node.Wait != null)
@@ -303,6 +304,7 @@ public static class BehaviorTreeAssetMapper
                 MethodFqn           = condDto.Condition.MethodFqn,
                 ExpressionTargetField = condDto.Condition.ExpressionTargetField,
                 DelegateShape       = (BTreeActionDelegateShape)condDto.Condition.DelegateShape,
+                WorkingStateTypeId  = condDto.Condition.WorkingStateTypeId,
             };
         }
         if (dto is BTreeWaitNodeDto waitDto && waitDto.Wait != null)

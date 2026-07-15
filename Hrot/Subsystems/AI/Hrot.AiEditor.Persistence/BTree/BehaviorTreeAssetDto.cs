@@ -184,6 +184,12 @@ public sealed class BTreeConditionPayloadDto
     public string MethodFqn { get; set; } = string.Empty;
     public string? ExpressionTargetField { get; set; }
     public BTreeDelegateShapeDto DelegateShape { get; set; }
+    /// <summary>
+    /// E2: for <see cref="BTreeDelegateShapeDto.AiPrimitiveTickCore"/> bindings, the CLR FQN
+    /// of the WorkingState struct (second ref param after TParams). Null/omitted for other shapes.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? WorkingStateTypeId { get; set; }
 }
 
 public sealed class BTreeWaitPayloadDto
