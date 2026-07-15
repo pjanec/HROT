@@ -108,7 +108,10 @@ public sealed class BTreeNewAssetService : INewAssetService
 
     /// <summary>
     /// Synthesizes a minimal valid <see cref="BehaviorTreeAssetDto"/> in code —
-    /// no disk read, no file I/O.
+    /// no disk read, no file I/O. Seeded with a single Root node (no children) so a new tree
+    /// always starts from a root anchor rather than a rootless blank asset — a rootless/empty
+    /// tree is not a valid behavior. (The generator still emits a no-op for a childless root,
+    /// so the asset builds while authoring is in progress.)
     /// </summary>
     internal static BehaviorTreeAssetDto MakeEmptyDto()
     {
@@ -120,7 +123,16 @@ public sealed class BTreeNewAssetService : INewAssetService
             BlackboardTypeName = Hrot.AiEditor.Persistence.Emit.AiEmitCoreBase.DefaultBlackboardTypeName,
             ContextTypeName    = Hrot.AiEditor.Persistence.Emit.AiEmitCoreBase.DefaultContextTypeName,
             Canvas             = new CanvasDto { Zoom = 1.0f },
-            Nodes              = new List<BTreeNodeDto>(),
+            Nodes              = new List<BTreeNodeDto>
+            {
+                new BTreeRootNodeDto
+                {
+                    VisualId = Guid.NewGuid(),
+                    ChildVisualIds = new List<Guid>(),
+                    DisplayLabel = "Root",
+                    EditorMetadata = new NodeEditorMetadataDto { X = 400, Y = 0 },
+                },
+            },
             Pills              = new List<BTreePillDto>(),
             SubtreeSyncBindings = new Dictionary<string, List<SubtreeSyncBindingDto>>(),
             Suppressions       = new SuppressionsDto(),

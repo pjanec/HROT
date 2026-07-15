@@ -272,6 +272,67 @@ public sealed class BTreeJsonGeneratorTests
     }
 
     [Fact]
+    public void EmitCreateBuilder_EmptyTree_EmitsNoOpRootSequence()
+    {
+        // Regression: an empty tree (no nodes) used to emit `new BTreeBuilder<..>()` followed by a
+        // bare `;` — an empty builder whose Compile() throws "The builder has no root node",
+        // crashing editor build / behavior registration. It must instead emit a harmless no-op
+        // root Sequence so an incomplete/empty tree still compiles.
+        var dto = new BehaviorTreeAssetDto
+        {
+            AssetId = new Guid("AB000000-0000-0000-0000-000000000002"),
+            Name = "EmptyTree",
+            TargetNamespace = "Test.Ns",
+            BlackboardTypeName = "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+            ContextTypeName = "Fdp.Toolkit.Behavior.BTreeContext",
+            Nodes = new List<BTreeNodeDto>(),
+            Pills = new List<BTreePillDto>(),
+            Canvas = new CanvasDto(),
+            SubtreeSyncBindings = new Dictionary<string, List<SubtreeSyncBindingDto>>(),
+            Suppressions = new SuppressionsDto(),
+        };
+
+        string core = BTreeEmitCore.EmitTopologyCore(dto);
+
+        core.Should().Contain(".Sequence(_ => { });",
+            "an empty tree must emit a no-op root Sequence so the builder has an entry and Compile() does not throw");
+    }
+
+    [Fact]
+    public void EmitCreateBuilder_ChildlessRoot_EmitsNoOpRootSequence()
+    {
+        // Regression: a Root node with no children yet (a normal mid-authoring state) used to emit
+        // a bare `;` and crash Compile() on every rebuild. It must emit the no-op root Sequence too.
+        var dto = new BehaviorTreeAssetDto
+        {
+            AssetId = new Guid("AB000000-0000-0000-0000-000000000003"),
+            Name = "ChildlessRootTree",
+            TargetNamespace = "Test.Ns",
+            BlackboardTypeName = "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+            ContextTypeName = "Fdp.Toolkit.Behavior.BTreeContext",
+            Nodes = new List<BTreeNodeDto>
+            {
+                new BTreeRootNodeDto
+                {
+                    VisualId = new Guid("BB000000-0000-0000-0000-000000000001"),
+                    ChildVisualIds = new List<Guid>(),
+                    DisplayLabel = "Root",
+                    EditorMetadata = new NodeEditorMetadataDto { X = 0, Y = 0 },
+                },
+            },
+            Pills = new List<BTreePillDto>(),
+            Canvas = new CanvasDto(),
+            SubtreeSyncBindings = new Dictionary<string, List<SubtreeSyncBindingDto>>(),
+            Suppressions = new SuppressionsDto(),
+        };
+
+        string core = BTreeEmitCore.EmitTopologyCore(dto);
+
+        core.Should().Contain(".Sequence(_ => { });",
+            "a root with no children must emit a no-op root Sequence so the tree builds while authoring");
+    }
+
+    [Fact]
     public void EmitTopologyCore_IsDeterministic()
     {
         var model = LoadSampleScout();

@@ -397,7 +397,10 @@ public static class BTreeEmitCore
                 EmitNode(sb, dto, nodeById, entryChild, depth: 3, isLast: true, variableOffsets);
             }
             else
-                sb.AppendLine($"{Indent}{Indent};");
+                // Root present but no children yet (a normal mid-authoring state): emit an empty
+                // root Sequence so the builder has an entry and Compile() does not throw
+                // "The builder has no root node".
+                EmitEmptyRootSequence(sb);
         }
         else if (dto.Nodes.Count > 0)
         {
@@ -408,9 +411,22 @@ public static class BTreeEmitCore
         }
         else
         {
-            sb.AppendLine($"{Indent}{Indent};");
+            // Empty tree (no nodes at all): emit an empty root Sequence so the generated builder is
+            // a valid no-op instead of an empty builder that crashes Compile(). Keeps an incomplete
+            // tree from breaking the whole editor build / behavior registration.
+            EmitEmptyRootSequence(sb);
         }
     }
+
+    /// <summary>
+    /// Emits an empty root <c>Sequence</c> for a degenerate tree (no nodes, or a root with no
+    /// children). A behavior tree must have at least one node or <c>BTreeBuilder.Compile</c> throws
+    /// "The builder has no root node"; an empty Sequence is a valid harmless no-op
+    /// (<c>AddComposite</c> always adds a builder entry). Chains onto the emitted
+    /// <c>new BTreeBuilder&lt;...&gt;()</c> line.
+    /// </summary>
+    private static void EmitEmptyRootSequence(StringBuilder sb) =>
+        sb.AppendLine($"{Indent}{Indent}.Sequence(_ => {{ }});");
 
     private static void EmitNode(
         StringBuilder sb, BehaviorTreeAssetDto dto,
