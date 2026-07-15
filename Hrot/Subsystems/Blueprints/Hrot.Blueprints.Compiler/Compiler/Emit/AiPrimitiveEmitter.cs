@@ -47,7 +47,7 @@ internal static class AiPrimitiveEmitter
         foreach (var f in asset.Parameters)
         {
             EmitComment(e, f.Comment);
-            e.WriteLine($"public {CSharpType(f.Type)} {f.Name};");
+            EmitStructField(e, CSharpType(f.Type), f.Name);
         }
         e.Outdent();
         e.WriteLine("}");
@@ -59,14 +59,29 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("public struct WorkingState");
         e.WriteLine("{");
         e.Indent();
-        
+
         foreach (var f in asset.WorkingState)
         {
             EmitComment(e, f.Comment);
-            e.WriteLine($"public {CSharpType(f.Type)} {f.Name};");
+            EmitStructField(e, CSharpType(f.Type), f.Name);
         }
         e.Outdent();
         e.WriteLine("}");
+    }
+
+    /// <summary>
+    /// Emits one Sequential-layout struct field. Bool fields get <c>[MarshalAs(UnmanagedType.I1)]</c>:
+    /// <c>Marshal.SizeOf</c>/<c>OffsetOf</c> default a bool to a 4-byte WIN32 BOOL, whereas the runtime
+    /// <c>Unsafe.As</c> projection (and the host bin-packer's size math) treat it as 1 byte. Without I1
+    /// the two models disagree, silently drifting offsets and corrupting AAR replay / partition-slot
+    /// layout. Applies to both Params (inline, bin-packed at a baked offset) and WorkingState (partition
+    /// slot sized at runtime via <c>Marshal.SizeOf&lt;WorkingState&gt;()</c>).
+    /// </summary>
+    private static void EmitStructField(CSharpEmitter e, string csType, string name)
+    {
+        if (csType == "bool")
+            e.WriteLine("[global::System.Runtime.InteropServices.MarshalAs(global::System.Runtime.InteropServices.UnmanagedType.I1)]");
+        e.WriteLine($"public {csType} {name};");
     }
 
     private static void EmitComment(CSharpEmitter e, string? comment)
