@@ -1,0 +1,62 @@
+{
+  "$meta": {
+    "docType": "Hrot.BTree",
+    "schemaVersion": 1
+  },
+  "AssetId": "bb330000-0000-0000-0000-000000000001",
+  "Name": "T33_ComposedParamBlueprint",
+  "TargetNamespace": "Hrot.AI.Behaviors.Trees",
+  "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+  "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+  "Nodes": [
+    {
+      "kind": "Root",
+      "VisualId": "bb330000-0000-0000-0000-000000000010",
+      "ChildVisualIds": [
+        "bb330000-0000-0000-0000-000000000011"
+      ],
+      "DisplayLabel": "Root",
+      "EditorMetadata": { "X": 300, "Y": 0, "Comment": null, "Collapsed": false, "Color": null }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.TickCore",
+        "ExpressionTargetField": "bpParams",
+        "DelegateShape": "AiPrimitiveTickCore",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp+WorkingState"
+      },
+      "VisualId": "bb330000-0000-0000-0000-000000000011",
+      "ChildVisualIds": [],
+      "DisplayLabel": "ParamDemo",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 160,
+        "Comment": "Regression gate: a params-carrying blueprint AiPrimitive composed as a host-BTree node. Its generated Params (int Threshold; bool FlagA; bool FlagB) must be sized by the BTree generator from ParamDemo.bp.json (cross-generator, Option A) and bin-packed inline; bools carry [MarshalAs(I1)] so predicted size (8) matches the reflected compiled layout.",
+        "Collapsed": false,
+        "Color": null
+      }
+    }
+  ],
+  "Pills": [],
+  "Canvas": { "PanX": 0, "PanY": 0, "Zoom": 1 },
+  "SubtreeSyncBindings": {},
+  "Suppressions": { "Conflict": [], "Unused": [] },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+    "HeavyDtoType": null,
+    "Variables": [
+      {
+        "Name": "bpParams",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp+Params",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "Comment": null,
+        "IsAutoManaged": true
+      }
+    ]
+  }
+}

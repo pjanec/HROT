@@ -1,0 +1,93 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
+  "AssetId": "00000000-aaaa-0002-0000-0000000000d0",
+  "Name": "ParamDemo",
+  "Dispatch": 1,
+  "TierHint": 0,
+  "Primitive": {
+    "Intent": 0,
+    "Hostings": [0]
+  },
+  "Parameters": [
+    {
+      "Id": "d0000001-0001-0001-0001-000000000001",
+      "Name": "Threshold",
+      "Type": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] }
+    },
+    {
+      "Id": "d0000002-0002-0002-0002-000000000002",
+      "Name": "FlagA",
+      "Type": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] }
+    },
+    {
+      "Id": "d0000003-0003-0003-0003-000000000003",
+      "Name": "FlagB",
+      "Type": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] }
+    }
+  ],
+  "WorkingState": [],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "e500d001-0001-0001-0001-000000000001",
+      "Name": "Main",
+      "Kind": 0,
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "f500d001-0001-0001-0001-000000000001",
+          "EventTypeId": "",
+          "Pins": [],
+          "EditorMetadata": { "X": 80.0, "Y": 220.0 }
+        },
+        {
+          "kind": "ChannelCommand",
+          "Id": "f500d001-0002-0002-0002-000000000001",
+          "ChannelType": "LocomotionChannel",
+          "ActionId": "DemoEnumAction",
+          "Pins": [],
+          "EditorMetadata": { "X": 420.0, "Y": 220.0 }
+        },
+        {
+          "kind": "Return",
+          "Id": "f500d001-0003-0003-0003-000000000001",
+          "Status": 0,
+          "Pins": [],
+          "EditorMetadata": { "X": 760.0, "Y": 220.0 }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "f500d001-0001-0001-0001-000000000001",
+          "FromPinId": "e5dddd01-0001-a001-0001-000000000001",
+          "ToNodeId": "f500d001-0002-0002-0002-000000000001",
+          "ToPinId": "e5dddd01-0002-b001-0001-000000000001"
+        },
+        {
+          "FromNodeId": "f500d001-0002-0002-0002-000000000001",
+          "FromPinId": "e5dddd01-0002-a001-0001-000000000001",
+          "ToNodeId": "f500d001-0003-0003-0003-000000000001",
+          "ToPinId": "e5dddd01-0003-b001-0001-000000000001"
+        }
+      ],
+      "EditorMetadata": {}
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "Params-carrying AiPrimitive (int + 2 bool) used to gate composed-blueprint Params sizing + bool [MarshalAs(I1)] layout end-to-end. EventEntry -> DemoEnumAction (no-op) -> Return.",
+    "Category": null,
+    "Recipe": null
+  }
+}
