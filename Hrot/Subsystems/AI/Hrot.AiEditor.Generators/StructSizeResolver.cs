@@ -104,6 +104,32 @@ internal static class StructSizeResolver
         return typeId => Resolve(typeId, compilation);
     }
 
+    /// <summary>
+    /// Resolves the managed byte size for an arbitrary FIELD type — a known primitive/vector,
+    /// a project enum (sized by its underlying integral type), or a nested struct-DTO.  Unlike
+    /// <see cref="Resolve"/> (which requires the resolved symbol to itself be a struct — the shape
+    /// of a managed blackboard variable's own type), this accepts any blittable field type, since a
+    /// blueprint AiPrimitive Parameter may be an authored enum.  Used by
+    /// <see cref="GeneratedBlueprintSchemaCatalog"/> to size the individual fields of a blueprint's
+    /// <c>Params</c> struct from its <c>.bp.json</c> parameter schema (Option A — the struct itself
+    /// isn't built yet, so it can't be resolved by name, but its field TYPES already exist).
+    /// </summary>
+    internal static int? ResolveFieldSize(string typeId, Compilation compilation)
+    {
+        if (string.IsNullOrEmpty(typeId))
+            return null;
+
+        if (KnownSizes.TryGetValue(typeId, out int knownSize))
+            return knownSize;
+
+        INamedTypeSymbol? symbol = compilation.GetTypeByMetadataName(typeId);
+        if (symbol == null)
+            return null;
+
+        int size = GetTypeSize(symbol);
+        return size >= 0 ? size : (int?)null;
+    }
+
     // ── Struct layout computation ─────────────────────────────────────────────
     // Mirrors Fdp.Toolkits.Analyzers.BehaviorParameterSizeAnalyzer.ComputeStructSize — keep in sync.
 
@@ -137,18 +163,36 @@ internal static class StructSizeResolver
         }
         else
         {
-            int offset = 0, maxAlign = 1;
+            var fieldSizes = new List<int>(fields.Count);
             foreach (var field in fields)
             {
-                int size  = GetTypeSize(field.Type);
-                int align = GetTypeAlign(field.Type);
+                int size = GetTypeSize(field.Type);
                 if (size < 0) return -1;
-                if (align > maxAlign) maxAlign = align;
-                if (size > 0) offset = AlignUp(offset, align);
-                offset += size;
+                fieldSizes.Add(size);
             }
-            return AlignUp(offset, maxAlign);
+            return ComputeSequentialSize(fieldSizes);
         }
+    }
+
+    /// <summary>
+    /// Computes the total managed size of a <c>[StructLayout(Sequential)]</c> struct given its
+    /// fields' sizes in declaration order — natural alignment (each field aligned to
+    /// <c>min(fieldSize, AlignmentCap)</c>), trailing pad to the struct's own max-field alignment.
+    /// Shared by the Roslyn-symbol path (<see cref="ComputeStructSize"/>) and
+    /// <see cref="GeneratedBlueprintSchemaCatalog"/>'s <c>.bp.json</c>-schema-driven Params sizing,
+    /// so both paths use the exact same alignment math (Option A: never hand-roll a second copy).
+    /// </summary>
+    internal static int ComputeSequentialSize(IReadOnlyList<int> fieldSizesInOrder)
+    {
+        int offset = 0, maxAlign = 1;
+        foreach (int size in fieldSizesInOrder)
+        {
+            int align = size <= 0 ? 1 : (size <= AlignmentCap ? size : AlignmentCap);
+            if (align > maxAlign) maxAlign = align;
+            if (size > 0) offset = AlignUp(offset, align);
+            offset += size;
+        }
+        return AlignUp(offset, maxAlign);
     }
 
     private static int GetTypeSize(ITypeSymbol type)
@@ -187,12 +231,6 @@ internal static class StructSizeResolver
                 }
                 return -1;
         }
-    }
-
-    private static int GetTypeAlign(ITypeSymbol type)
-    {
-        int size = GetTypeSize(type);
-        return size <= 0 ? 1 : (size <= AlignmentCap ? size : AlignmentCap);
     }
 
     private static int AlignUp(int v, int a) => a <= 1 ? v : (v + a - 1) & ~(a - 1);

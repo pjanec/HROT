@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Hrot.AiEditor.Persistence.BTree;
@@ -37,27 +38,56 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
                     return (at.Path, text);
                 });
 
+        // Provider: raw file text from *.bp.json AdditionalTexts (Blueprint assets).
+        //
+        // Option A (I2/I3 gap fix): the Blueprint source generator and this generator are sibling
+        // IIncrementalGenerators that cannot see each other's generated output within one generation
+        // pass — a blueprint's generated `{Name}_{Id:X8}_Bp` class (Params/WorkingState/TickCore) is
+        // never resolvable via Compilation.GetTypeByMetadataName from here. Collecting the SAME
+        // *.bp.json AdditionalTexts the Blueprint generator itself parses lets this generator derive
+        // just enough of that generated shape (class identity + Params field schema) from the JSON
+        // source of truth instead — see GeneratedBlueprintSchemaCatalog.
+        IncrementalValuesProvider<(string Path, string Text)> bpJsonFiles =
+            context.AdditionalTextsProvider
+                .Where(static at => at.Path.EndsWith(".bp.json",
+                    System.StringComparison.OrdinalIgnoreCase))
+                .Select(static (at, ct) =>
+                {
+                    string text = at.GetText(ct)?.ToString() ?? string.Empty;
+                    return (at.Path, text);
+                });
+
+        IncrementalValueProvider<ImmutableArray<(string Path, string Text)>> bpJsonCollected =
+            bpJsonFiles.Collect();
+
         // Combine with the full compilation so the method-compatibility validator can
-        // resolve type/method symbols.
+        // resolve type/method symbols, plus the collected *.bp.json schemas (Option A fallback).
         //
         // Incrementality note: combining with the full CompilationProvider means
         // GenerateOneAsset re-runs on ANY compilation change (not only asset changes).
         // This is acceptable for the small *.btree.json asset set.  A fancier
         // incremental symbol extraction is deferred (VE-DEBT-003).
-        IncrementalValuesProvider<(string Path, string Text, Compilation Compilation)> combined =
+        IncrementalValuesProvider<(string Path, string Text, Compilation Compilation, ImmutableArray<(string Path, string Text)> BpJsonFiles)> combined =
             rawFiles.Combine(context.CompilationProvider)
-                    .Select(static (pair, _) => (pair.Left.Path, pair.Left.Text, pair.Right));
+                    .Combine(bpJsonCollected)
+                    .Select(static (pair, _) =>
+                        (pair.Left.Left.Path, pair.Left.Left.Text, pair.Left.Right, pair.Right));
 
         // Per-asset: deserialize → validate bound methods → emit topology core → register source output
         context.RegisterSourceOutput(combined, static (spc, item) =>
         {
-            GenerateOneAsset(spc, item.Path, item.Text, item.Compilation);
+            GenerateOneAsset(spc, item.Path, item.Text, item.Compilation, item.BpJsonFiles);
         });
     }
 
     private static void GenerateOneAsset(SourceProductionContext spc, string path, string text,
-        Compilation compilation)
+        Compilation compilation, ImmutableArray<(string Path, string Text)> bpJsonFiles)
     {
+        // Option A: parse the blueprint schemas once, up front — used both by the method-compatibility
+        // validator (AiPrimitiveTickCore method-resolution fallback) and the struct-size resolver
+        // (AiPrimitiveTickCore Params-size fallback) below.
+        System.Collections.Generic.IReadOnlyList<GeneratedBlueprintSchema> blueprintSchemas =
+            GeneratedBlueprintSchemaCatalog.Parse(bpJsonFiles);
         // Deserialize — failure becomes a diagnostic, never throws, never fails siblings.
         BehaviorTreeAssetDto? dto;
         try
@@ -85,7 +115,7 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         string? compatError;
         try
         {
-            compatError = BTreeMethodCompatibilityValidator.Validate(dto, compilation);
+            compatError = BTreeMethodCompatibilityValidator.Validate(dto, compilation, blueprintSchemas);
         }
         catch (Exception ex)
         {
@@ -106,7 +136,16 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         System.Func<string, int?>? structSizeResolver = null;
         if (dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0)
         {
-            structSizeResolver = StructSizeResolver.MakeDelegate(compilation);
+            System.Func<string, int?> roslynResolver = StructSizeResolver.MakeDelegate(compilation);
+
+            // Option A: when the Roslyn resolver can't see a type (e.g. a blueprint's generated
+            // `{Name}_{Id:X8}_Bp+Params` — never visible to this sibling generator, see
+            // GeneratedBlueprintSchemaCatalog), fall back to computing its size from the matching
+            // .bp.json's parameter schema using the SAME Sequential-alignment math
+            // (StructSizeResolver.ComputeSequentialSize) the Roslyn path itself uses.
+            structSizeResolver = typeId =>
+                roslynResolver(typeId)
+                ?? GeneratedBlueprintSchemaCatalog.TryResolveParamsSize(typeId, blueprintSchemas, compilation);
 
             // Check for any unresolvable managed variable BEFORE emitting anything.
             // An unresolvable type means we cannot guarantee the struct layout, so skip

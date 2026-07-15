@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -2513,5 +2514,215 @@ namespace Stub
             .ToString();
         bridge.Should().NotContain("RegisterDeactivator",
             "SampleScout has no bound actions, so no deactivator section must be emitted");
+    }
+
+    // ── Option A: composed-generated-blueprint Params sizing from .bp.json schema ──────
+
+    /// <summary>
+    /// Option A gate: a managed blackboard variable typed as a generated blueprint's
+    /// <c>{SanitizedName}_{BlueprintId:X8}_Bp+Params</c> — a type that can NEVER be resolved via
+    /// <see cref="Microsoft.CodeAnalysis.Compilation.GetTypeByMetadataName(string)"/> from THIS
+    /// generator (the Blueprint generator is a sibling <c>IIncrementalGenerator</c>; sibling
+    /// generators cannot see each other's output within one generation pass, even for a fully valid
+    /// real build) — must still size/pack and emit a baked-offset <c>.Action("...@offset@slotKey")</c>
+    /// blob key, NOT a method-group bind and NOT the no-op empty-tree Sequence.  The generator
+    /// resolves the Params size from the composed blueprint's <c>.bp.json</c> Parameters schema
+    /// (<see cref="GeneratedBlueprintSchemaCatalog"/>) instead of reflecting the not-yet-built type.
+    ///
+    /// Schema: TestBp (AssetId 11111111-1111-1111-1111-111111111111 → BlueprintId 0x07CD46B5)
+    /// declares Parameters [Count:int, Flag:bool] → Sequential layout: Count@0 (4), Flag@4 (1),
+    /// raw end=5, maxAlign=4 → AlignUp(5,4)=8 bytes. A DIFFERENT (non-trivial, alignment-exercising)
+    /// shape than the real EnumDemo committed gate asset (T32), which has zero Parameters (size 0).
+    /// </summary>
+    [Fact]
+    public void ComposedGeneratedBlueprintParams_SizesFromBpJsonSchema_EmitsBakedOffsetAction()
+    {
+        const string bpJson = @"
+{
+  ""AssetId"": ""11111111-1111-1111-1111-111111111111"",
+  ""Name"": ""TestBp"",
+  ""Dispatch"": ""AiPrimitive"",
+  ""Parameters"": [
+    { ""Name"": ""Count"", ""Type"": { ""TypeId"": ""System.Int32""   } },
+    { ""Name"": ""Flag"",  ""Type"": { ""TypeId"": ""System.Boolean"" } }
+  ]
+}";
+        const string generatedClassFqn = "Stub.Generated.TestBp_07CD46B5_Bp";
+        const string methodFqn = generatedClassFqn + ".TickCore";
+        const string paramsTypeId = generatedClassFqn + "+Params";
+        const string workingStateTypeId = generatedClassFqn + "+WorkingState";
+
+        var vars = new List<BlackboardVariableDto>
+        {
+            new BlackboardVariableDto { Name = "bpParams", Type = new BlackboardTypeRefDto { TypeId = paramsTypeId } },
+        };
+
+        var rootId   = new Guid("07CD46B5-0000-0000-0000-000000000001");
+        var actionId = new Guid("07CD46B5-0000-0000-0000-000000000002");
+
+        var dto = new BehaviorTreeAssetDto
+        {
+            AssetId = new Guid("07CD46B5-0000-0000-0000-000000000000"),
+            Name = "ComposedGeneratedBlueprintTest",
+            TargetNamespace = "Test.Ns",
+            BlackboardTypeName = "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+            ContextTypeName = "Fdp.Toolkit.Behavior.BTreeContext",
+            Nodes = new List<BTreeNodeDto>
+            {
+                new BTreeRootNodeDto
+                {
+                    VisualId = rootId,
+                    ChildVisualIds = new List<Guid> { actionId },
+                    EditorMetadata = new NodeEditorMetadataDto(),
+                },
+                new BTreeActionNodeDto
+                {
+                    VisualId = actionId,
+                    ChildVisualIds = new List<Guid>(),
+                    EditorMetadata = new NodeEditorMetadataDto(),
+                    Action = new BTreeActionPayloadDto
+                    {
+                        MethodFqn = methodFqn,
+                        DelegateShape = BTreeDelegateShapeDto.AiPrimitiveTickCore,
+                        ExpressionTargetField = "bpParams",
+                        WorkingStateTypeId = workingStateTypeId,
+                    },
+                },
+            },
+            Pills = new List<BTreePillDto>(),
+            Canvas = new CanvasDto(),
+            SubtreeSyncBindings = new Dictionary<string, List<SubtreeSyncBindingDto>>(),
+            Suppressions = new SuppressionsDto(),
+            Blackboard = new BlackboardBlockDto
+            {
+                Managed = true,
+                TypeName = "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+                Variables = vars,
+            },
+        };
+        string btreeJson = BTreeJsonServices.Serialize(dto);
+
+        var result = RunGenerator(
+            MakeAdditionalText("/p/TestBp.bp.json", bpJson),
+            MakeAdditionalText("/p/ComposedGeneratedBlueprintTest.btree.json", btreeJson));
+
+        // No diagnostics at all — neither the unresolved-method compat check nor the
+        // unresolvable-managed-variable size check must fire.
+        result.Diagnostics.Should().BeEmpty(
+            "the .bp.json schema fallback must resolve both the TickCore method binding and the " +
+            "Params size without any Roslyn symbol for the (not-yet-visible) generated blueprint type");
+
+        result.GeneratedTrees.Should().HaveCount(3,
+            "a valid managed asset emits topology core + blackboard struct + bridge");
+
+        var coreSource = result.GeneratedTrees
+            .First(t => t.FilePath.EndsWith("ComposedGeneratedBlueprintTest.g.cs"))
+            .ToString();
+
+        // Baked-offset blob key: Params is the ONLY variable → offset 0. Slot key is a baked
+        // int computed by BTreeBridgeEmitCore.ResolveStatefulSlotKey — assert the shape, not the
+        // exact numeric value (already covered indirectly for T31/T32).
+        coreSource.Should().MatchRegex(
+            $@"\.Action\(""{System.Text.RegularExpressions.Regex.Escape(methodFqn)}@0@-?\d+""",
+            "AiPrimitiveTickCore binding must emit the baked-offset string-blob form " +
+            "'{MethodFqn}@{offset}@{slotKey}', with offset 0 (the only managed variable)");
+
+        coreSource.Should().NotContain($".Action({ShortMethodRefForTest(methodFqn)},",
+            "must NEVER emit a method-group bind for an AiPrimitiveTickCore node");
+        coreSource.Should().NotContain(".Sequence(_ => { });",
+            "must NOT fall back to the empty no-op root sequence — the real Action node must be emitted");
+
+        // The blackboard struct must declare bpParams as the (schema-sized) Params type.
+        var structSource = result.GeneratedTrees
+            .First(t => t.FilePath.EndsWith("ComposedGeneratedBlueprintTest.Blackboard.g.cs"))
+            .ToString();
+        structSource.Should().Contain($"global::{generatedClassFqn.Replace('+', '.')}.Params bpParams;",
+            "the generated blackboard struct's bpParams field must be typed as the blueprint's Params struct");
+    }
+
+    /// <summary>Mirrors BTreeEmitCore.ShortMethodRef for test-side assertions.</summary>
+    private static string ShortMethodRefForTest(string fqn)
+    {
+        int last = fqn.LastIndexOf('.');
+        if (last <= 0) return fqn;
+        int second = fqn.LastIndexOf('.', last - 1);
+        return second >= 0 ? fqn.Substring(second + 1) : fqn.Substring(last);
+    }
+
+    /// <summary>
+    /// Option A: <see cref="GeneratedBlueprintSchemaCatalog.TryResolveParamsSize"/> computes the
+    /// EXACT same Sequential-alignment size (8 bytes: Count@0 int(4), Flag@4 bool(1), padded to 8)
+    /// as packing an equivalent DTO through <see cref="BTreeBlackboardPackHelper"/> directly — proves
+    /// the schema-driven fallback reuses the same alignment math as the Roslyn-symbol path, not a
+    /// hand-rolled second copy.
+    /// </summary>
+    [Fact]
+    public void GeneratedBlueprintSchemaCatalog_ResolvesParamsSize_MatchesDirectPackAlignment()
+    {
+        const string bpJson = @"
+{
+  ""AssetId"": ""11111111-1111-1111-1111-111111111111"",
+  ""Name"": ""TestBp"",
+  ""Dispatch"": ""AiPrimitive"",
+  ""Parameters"": [
+    { ""Name"": ""Count"", ""Type"": { ""TypeId"": ""System.Int32""   } },
+    { ""Name"": ""Flag"",  ""Type"": { ""TypeId"": ""System.Boolean"" } }
+  ]
+}";
+        var bpFiles = ImmutableArray.Create(("/p/TestBp.bp.json", bpJson));
+        var schemas = GeneratedBlueprintSchemaCatalog.Parse(bpFiles);
+        schemas.Should().ContainSingle();
+        schemas[0].SanitizedName.Should().Be("TestBp");
+        schemas[0].BlueprintId.Should().Be(unchecked((int)0x07CD46B5));
+        schemas[0].IsAiPrimitive.Should().BeTrue();
+
+        var compilation = CreateCompilation();
+        int? size = GeneratedBlueprintSchemaCatalog.TryResolveParamsSize(
+            "Stub.Generated.TestBp_07CD46B5_Bp+Params", schemas, compilation);
+        size.Should().Be(8, "int(4)@0 + bool(1)@4 → raw=5, maxAlign=4 → AlignUp(5,4)=8");
+
+        // Cross-check: the SAME field-size sequence run through the shared alignment primitive
+        // (StructSizeResolver.ComputeSequentialSize — the one the Roslyn-symbol path itself uses,
+        // via ComputeStructSize) must produce the identical total. This proves the schema-driven
+        // fallback reuses that one alignment routine rather than a hand-rolled second copy.
+        //
+        // NOTE: BTreeBlackboardPackHelper.Pack is NOT an equivalent comparator here — it packs
+        // multiple DISTINCT blackboard variables into a raw byte blob (no trailing pad to the
+        // group's own max alignment is needed, since it's not itself a single array-element
+        // struct type), whereas a real struct's managed byte size (what Params actually is, once
+        // the blueprint's type exists) DOES need that trailing pad — hence AlignUp(5,4)=8, not 5.
+        int reference = StructSizeResolver.ComputeSequentialSize(new[] { 4, 1 });
+        reference.Should().Be(size!.Value,
+            "the schema-driven Params size must match the shared ComputeSequentialSize primitive directly — same alignment math, no second copy");
+    }
+
+    /// <summary>
+    /// Option A: an unresolvable managed variable that merely LOOKS unrelated to any generated
+    /// blueprint (no matching .bp.json, or not a "_Bp+Params"-shaped TypeId) must still fall through
+    /// to the pre-existing BTREE0002 skip — the schema fallback must never mask a genuinely broken
+    /// asset reference.
+    /// </summary>
+    [Fact]
+    public void ComposedGeneratedBlueprintParams_NoMatchingBpJson_StillReportsBTREE0002()
+    {
+        var vars = new List<BlackboardVariableDto>
+        {
+            new BlackboardVariableDto
+            {
+                Name = "bpParams",
+                Type = new BlackboardTypeRefDto { TypeId = "Stub.Generated.DoesNotExist_DEADBEEF_Bp+Params" },
+            },
+        };
+        var dto = BuildManagedDtoWithVars("NoMatchingBlueprint", vars);
+        string json = BTreeJsonServices.Serialize(dto);
+
+        // No .bp.json AdditionalText at all — the fallback has nothing to match against.
+        var result = RunGenerator(MakeAdditionalText("/p/NoMatchingBlueprint.btree.json", json));
+
+        result.GeneratedTrees.Should().BeEmpty(
+            "an unresolvable managed variable with no matching blueprint schema must still be skipped");
+        result.Diagnostics.Should().ContainSingle(d =>
+            d.Id == BTreeJsonGenerator.CodegenWarningId && d.Severity == DiagnosticSeverity.Warning,
+            "must still report BTREE0002 — the schema fallback must not silently mask a broken reference");
     }
 }

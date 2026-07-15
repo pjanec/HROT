@@ -30,7 +30,16 @@ internal static class BTreeMethodCompatibilityValidator
     /// Returns <c>null</c> if all bindings are valid; otherwise returns a human-readable
     /// reason string to embed in a BTREE0002 diagnostic.
     /// </summary>
-    internal static string? Validate(BehaviorTreeAssetDto dto, Compilation compilation)
+    /// <param name="blueprintSchemas">
+    /// Optional <c>.bp.json</c>-derived schemas (see <see cref="GeneratedBlueprintSchemaCatalog"/>),
+    /// used ONLY as a fallback for <see cref="BTreeDelegateShapeDto.AiPrimitiveTickCore"/> bindings
+    /// whose method can't be resolved via Roslyn — the Blueprint generator is a sibling
+    /// IIncrementalGenerator and its generated <c>{Name}_{Id:X8}_Bp</c> class is never visible to
+    /// this compilation snapshot, even for a fully valid real blueprint composition (Option A).
+    /// </param>
+    internal static string? Validate(
+        BehaviorTreeAssetDto dto, Compilation compilation,
+        IReadOnlyList<GeneratedBlueprintSchema>? blueprintSchemas = null)
     {
         // Build the expected type symbols from the asset's declared BB/Ctx names.
         string bbTypeName  = dto.BlackboardTypeName;
@@ -104,7 +113,7 @@ internal static class BTreeMethodCompatibilityValidator
                         p.ExpressionTargetField, dto.Blackboard,
                         compilation, bbSymbol, ctxSymbol,
                         behaviorTreeStateSymbol, nodeStatusSymbol,
-                        bbTypeName, ctxTypeName);
+                        bbTypeName, ctxTypeName, blueprintSchemas);
                     if (reason != null)
                         return $"Action leaf {node.VisualId:D} binds '{p.MethodFqn}': {reason}";
                 }
@@ -119,7 +128,7 @@ internal static class BTreeMethodCompatibilityValidator
                         p.ExpressionTargetField, dto.Blackboard,
                         compilation, bbSymbol, ctxSymbol,
                         behaviorTreeStateSymbol, nodeStatusSymbol,
-                        bbTypeName, ctxTypeName);
+                        bbTypeName, ctxTypeName, blueprintSchemas);
                     if (reason != null)
                         return $"Condition leaf {node.VisualId:D} binds '{p.MethodFqn}': {reason}";
                 }
@@ -147,7 +156,8 @@ internal static class BTreeMethodCompatibilityValidator
         INamedTypeSymbol? behaviorTreeStateSymbol,
         INamedTypeSymbol? nodeStatusSymbol,
         string bbTypeName,
-        string ctxTypeName)
+        string ctxTypeName,
+        IReadOnlyList<GeneratedBlueprintSchema>? blueprintSchemas)
     {
         // S1-4: ThreeParamReusable is now validated via the 3-param shape check.
         // A ThreeParamReusable binding is valid when:
@@ -185,7 +195,7 @@ internal static class BTreeMethodCompatibilityValidator
         {
             return CheckAiPrimitiveTickCore(
                 methodFqn, expressionTargetField, blackboard,
-                compilation, nodeStatusSymbol);
+                compilation, nodeStatusSymbol, blueprintSchemas);
         }
 
         // Resolve the method symbol.
@@ -456,7 +466,8 @@ internal static class BTreeMethodCompatibilityValidator
         string? expressionTargetField,
         BlackboardBlockDto blackboard,
         Compilation compilation,
-        INamedTypeSymbol? nodeStatusSymbol)
+        INamedTypeSymbol? nodeStatusSymbol,
+        IReadOnlyList<GeneratedBlueprintSchema>? blueprintSchemas)
     {
         if (string.IsNullOrEmpty(expressionTargetField))
             return "AiPrimitiveTickCore binding has no ExpressionTargetField — set the target variable in the editor";
@@ -477,7 +488,19 @@ internal static class BTreeMethodCompatibilityValidator
 
         IMethodSymbol? method = ResolveMethod(compilation, methodFqn);
         if (method == null)
+        {
+            // Option A fallback: methodFqn may point at a REAL blueprint's generated TickCore whose
+            // declaring class ({SanitizedName}_{BlueprintId:X8}_Bp) is produced by the sibling
+            // Blueprint source generator in the SAME compilation — Roslyn generators cannot see each
+            // other's generated output, so ResolveMethod will ALWAYS fail here for a genuine
+            // composed-blueprint asset (T31's hand-written DemoAiPrimitiveNodes is unaffected — it's
+            // real pre-existing source, so ResolveMethod above already succeeded for it).
+            // Validate against the .bp.json schema instead of the (not-yet-visible) compiled symbol.
+            if (TryValidateAsGeneratedBlueprintTickCore(methodFqn, targetVar, blueprintSchemas, out string? schemaReason))
+                return schemaReason;
+
             return $"method '{methodFqn}' could not be resolved in the compilation; ensure the declaring assembly is referenced";
+        }
         if (!method.IsStatic)
             return $"method '{methodFqn}' is not static";
         if (method.DeclaredAccessibility != Accessibility.Public)
@@ -524,6 +547,73 @@ internal static class BTreeMethodCompatibilityValidator
             return $"method '{methodFqn}' param 4 must be 'float time'; got '{p4.RefKind} {p4.Type.ToDisplayString()}'";
 
         return null; // valid
+    }
+
+    /// <summary>
+    /// Option A fallback for <see cref="CheckAiPrimitiveTickCore"/>: when the bound method can't be
+    /// resolved via Roslyn, checks whether it LOOKS like a generated blueprint's TickCore (naming
+    /// convention <c>"{Ns}.{SanitizedName}_{BlueprintId:X8}_Bp.TickCore"</c> — see
+    /// <c>AiPrimitiveEmitter.EmitClass</c>/<c>EmitTickCore</c>) and, if so, validates it against the
+    /// matching <c>.bp.json</c> schema instead of a compiled symbol.
+    /// </summary>
+    /// <returns>
+    /// <c>false</c> when <paramref name="methodFqn"/> doesn't match the generated-blueprint naming
+    /// convention at all — the caller should fall back to the generic "method unresolved" error.
+    /// <c>true</c> when it DOES match — the binding is now considered "handled": <paramref name="reason"/>
+    /// is <c>null</c> for a valid composition, or a specific BTREE0002 reason otherwise. A recognized
+    /// blueprint-shaped binding never silently falls back to the generic Roslyn message, so a
+    /// genuinely broken reference (wrong hex id, missing asset, non-AiPrimitive blueprint) is reported
+    /// precisely rather than as an opaque "could not be resolved".
+    /// </returns>
+    private static bool TryValidateAsGeneratedBlueprintTickCore(
+        string methodFqn,
+        BlackboardVariableDto targetVar,
+        IReadOnlyList<GeneratedBlueprintSchema>? blueprintSchemas,
+        out string? reason)
+    {
+        reason = null;
+
+        const string tickCoreSuffix = ".TickCore";
+        if (!methodFqn.EndsWith(tickCoreSuffix, StringComparison.Ordinal))
+            return false;
+        string classFqn = methodFqn.Substring(0, methodFqn.Length - tickCoreSuffix.Length);
+
+        if (!GeneratedBlueprintSchemaCatalog.TryParseGeneratedClassRef(classFqn, out string sanitizedName, out int blueprintId))
+            return false; // not shaped like a generated blueprint class — let the generic message stand
+
+        if (blueprintSchemas == null || blueprintSchemas.Count == 0)
+        {
+            reason = $"method '{methodFqn}' matches the generated-blueprint TickCore naming convention " +
+                      "but no *.bp.json AdditionalTexts were available to validate it against";
+            return true;
+        }
+
+        var schema = GeneratedBlueprintSchemaCatalog.Find(blueprintSchemas, sanitizedName, blueprintId);
+        if (schema == null)
+        {
+            reason = $"method '{methodFqn}' looks like a generated blueprint TickCore (class " +
+                      $"'{sanitizedName}_{blueprintId:X8}_Bp') but no .bp.json asset with that sanitized " +
+                      "name + BlueprintId was found — ensure the blueprint asset is included in the build";
+            return true;
+        }
+
+        if (!schema.IsAiPrimitive)
+        {
+            reason = $"blueprint '{sanitizedName}' (BlueprintId 0x{blueprintId:X8}) is not an AiPrimitive " +
+                      "(Dispatch != AiPrimitive) — AiPrimitiveTickCore composition requires an AiPrimitive blueprint";
+            return true;
+        }
+
+        string expectedParamsTypeId = classFqn + "+Params";
+        string varTypeId = targetVar.Type?.TypeId ?? string.Empty;
+        if (!string.Equals(expectedParamsTypeId.Replace('+', '.'), varTypeId.Replace('+', '.'), StringComparison.Ordinal))
+        {
+            reason = $"variable's type '{varTypeId}' does not match the blueprint's generated Params type '{expectedParamsTypeId}'";
+            return true;
+        }
+
+        reason = null; // valid — recognized generated-blueprint TickCore binding
+        return true;
     }
 
     private static string? CheckRefParam(

@@ -713,6 +713,26 @@ public static class BTreeEmitCore
             sb.AppendLine($"{pad}{methodPrefix}Action(\"{blobKey}\",");
             sb.AppendLine($"{pad}{Indent}{visualId}){term}");
         }
+        else if (p.DelegateShape == BTreeDelegateShapeDto.AiPrimitiveTickCore)
+        {
+            // Defense-in-depth: an AiPrimitiveTickCore node must ALWAYS resolve to the offset-keyed
+            // string-blob form above — its bound method is a blueprint's generated TickCore
+            // (ref Params, ref WorkingState, Entity, EntityRepository, float), which is NOT a
+            // NodeLogicDelegate<TBB,TCtx> method group. If we reach here the offset couldn't be
+            // resolved (no ExpressionTargetField, no managed blackboard, or the variable wasn't
+            // packed) — falling through to the method-group `.Action({methodRef}, ...)` form below
+            // would silently emit `.Action(TickCore, ...)`, a guaranteed CS1503 (5-param method bound
+            // where a 4-param NodeLogicDelegate is expected). Fail loud instead of emitting garbage;
+            // the upstream size-resolver / compatibility-validator gaps this guards against are fixed
+            // at generation time (see GeneratedBlueprintSchemaCatalog), so a real build should never
+            // reach this branch — if it does, the asset itself is malformed.
+            throw new InvalidOperationException(
+                $"Action node {node.VisualId:D} binds '{p.MethodFqn}' with DelegateShape=AiPrimitiveTickCore " +
+                "but its offset could not be resolved (missing ExpressionTargetField, non-managed blackboard, " +
+                "or the target variable isn't packed) — refusing to emit an uncompilable method-group " +
+                "`.Action(TickCore, ...)` bind. Fix the asset in the editor (bind ExpressionTargetField to a " +
+                "managed blackboard variable typed as the blueprint's generated Params struct).");
+        }
         else
         {
             sb.AppendLine($"{pad}{methodPrefix}Action({methodRef},");

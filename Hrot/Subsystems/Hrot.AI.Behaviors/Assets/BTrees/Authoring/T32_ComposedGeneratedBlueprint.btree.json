@@ -1,0 +1,62 @@
+{
+  "$meta": {
+    "docType": "Hrot.BTree",
+    "schemaVersion": 1
+  },
+  "AssetId": "bb000032-0000-0000-0000-000000000000",
+  "Name": "T32_ComposedGeneratedBlueprint",
+  "TargetNamespace": "Hrot.AI.Behaviors.Trees",
+  "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+  "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+  "Nodes": [
+    {
+      "kind": "Root",
+      "VisualId": "bb320000-0000-0000-0000-000000000001",
+      "ChildVisualIds": [
+        "bb320000-0000-0000-0000-000000000002"
+      ],
+      "DisplayLabel": "Root",
+      "EditorMetadata": { "X": 300, "Y": 0, "Comment": null, "Collapsed": false, "Color": null }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Generated.EnumDemo_235986DF_Bp.TickCore",
+        "ExpressionTargetField": "bpParams",
+        "DelegateShape": "AiPrimitiveTickCore",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Generated.EnumDemo_235986DF_Bp+WorkingState"
+      },
+      "VisualId": "bb320000-0000-0000-0000-000000000002",
+      "ChildVisualIds": [],
+      "DisplayLabel": "ComposedGeneratedBlueprint",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 160,
+        "Comment": "Regression gate for the AiPrimitive-Params sizing bug: composes a REAL editor-authored/generated blueprint (EnumDemo, BlueprintId 0x235986DF, produced by the Blueprints source generator in the SAME compilation as this BTree asset) as a host-BTree node, instead of the hand-written DemoAiPrimitiveNodes stand-in used by T31. Before the fix, the BTree generator's Roslyn-only StructSizeResolver could never see EnumDemo_235986DF_Bp+Params (sibling generators are blind to each other's output), so the asset was skipped with BTREE0002 and the editor's in-memory path fell back to an uncompilable method-group .Action(TickCore, ...) bind. The fix resolves Params' size from EnumDemo.bp.json's parameter schema at generation time instead of reflecting the not-yet-built type.",
+        "Collapsed": false,
+        "Color": null
+      }
+    }
+  ],
+  "Pills": [],
+  "Canvas": { "PanX": 0, "PanY": 0, "Zoom": 1 },
+  "SubtreeSyncBindings": {},
+  "Suppressions": { "Conflict": [], "Unused": [] },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+    "HeavyDtoType": null,
+    "Variables": [
+      {
+        "Name": "bpParams",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Generated.EnumDemo_235986DF_Bp+Params",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{}",
+        "Comment": "Authored params for the composed EnumDemo blueprint. EnumDemo currently declares zero AiPrimitive Parameters, so this Params struct has no fields (size resolved from EnumDemo.bp.json's empty Parameters array)."
+      }
+    ]
+  }
+}
