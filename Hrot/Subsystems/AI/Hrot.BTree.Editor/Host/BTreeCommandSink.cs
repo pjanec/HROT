@@ -205,6 +205,13 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
     {
         action.DelegateShape = BTreeActionDelegateShape.AiPrimitiveTickCore;
 
+        // An AiPrimitive binding bin-packs its Params inline into the managed BrainBlackboard, so it
+        // hard-requires an editor-managed blackboard (codegen otherwise fails with BTREE0002). Placing
+        // the node is exactly the moment that requirement becomes true, so enable managed mode here
+        // rather than making the first Full Rebuild fail and forcing a manual "use editor managed
+        // blackboard" step. There is no valid state with a composed AiPrimitive node and Managed=false.
+        _asset.IsBlackboardEditorManaged = true;
+
         // The generated class nests both Params (entry.DtoType) and WorkingState as sibling
         // struct types; derive the WorkingState FQN from Params' declaring type. Left null (node
         // still placed) if the generated shape doesn't match — never throws.

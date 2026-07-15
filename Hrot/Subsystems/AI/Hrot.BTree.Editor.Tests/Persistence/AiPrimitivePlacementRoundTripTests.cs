@@ -61,14 +61,25 @@ public sealed class AiPrimitivePlacementRoundTripTests
         var sink   = new BTreeCommandSink(asset, graph, fake);
         var nodeId = NodeId.NewId();
 
+        asset.IsBlackboardEditorManaged.Should().BeFalse(
+            "a freshly-created tree starts with an unmanaged blackboard");
+
         sink.Apply(new GraphCommand.AddNode(
             nodeId,
             new NodeKindKey("bt.leaf.action::" + fqn),
             Vector2.Zero,
             null));
 
+        // Placing a composed AiPrimitive node hard-requires a managed blackboard (BTREE0002 otherwise),
+        // so the sink must enable managed mode itself rather than leaving the first Full Rebuild to fail.
+        asset.IsBlackboardEditorManaged.Should().BeTrue(
+            "placing a composed AiPrimitive node must auto-enable the editor-managed blackboard");
+
         // Round-trip through the model → DTO mapper (the save path).
         var dto = BehaviorTreeAssetMapper.ToDto(asset);
+
+        dto.Blackboard.Managed.Should().BeTrue(
+            "the persisted DTO must carry Managed=true so codegen binds the AiPrimitive action (no BTREE0002)");
 
         var actionNodeDto = dto.Nodes.OfType<BTreeActionNodeDto>().Should().ContainSingle().Which;
         actionNodeDto.Action.Should().NotBeNull();
