@@ -1,11 +1,24 @@
 # Blueprint AiPrimitive Shared Working-State — Design (`GetShared`)
 
-> **Status:** DESIGN-ONLY (2026-07-15). No code written. Architect-reviewed (Q1–Q5 below).
+> **Status:** IMPLEMENTED through cross-entity read (2026-07-15). Architect-reviewed (Q1–Q5 + 2b-Q1–Q4). Slice 1, Slice 2a (accessor + nodes + provisioning + editor palette), and Slice 2b (cross-entity read) are shipped; cross-entity *write* (deferred-event bus) remains a future slice. See the Implementation Status note below.
 > **Scope:** how a blueprint-authored AiPrimitive (BTree/HSM host node) accesses working state **beyond its single projected `WorkingState` struct** — both (a) sharing state between nodes, and (b) a single node reaching a *second* shared slot / another entity's slot.
 > **Audience:** engineers implementing the shared-state slices; reviewers.
 > **Related:** `BTree_AiActionParameterBinding_Detailed_Design.md` §4.4 (scoped working state — the canonical source), `BTree_AiActionParameterBinding_Detailed_Design_Status.md`, `Blackboard_Authoring_Addendum_v3_ActionParamAuthoring.md` (Mode-1 vs Mode-2), `Blueprint_Subsystem_Slice2_Candidates.md`.
 
 ---
+
+## 0. Implementation status (2026-07-15)
+
+Shipped on `main` (branch `claude/hill-attack-json-slice-3-stages-0nsrpp`):
+
+- **Slice 1 — Behavior-scoped shared WorkingState** (`113e265`): composed AiPrimitive nodes get an authorable-scope WorkingState (auto-created Role=State var + `WorkingStateTargetField`); co-binding a Behavior-scoped var shares the slot. Proof `T35`.
+- **Slice 2a-1 — runtime accessor** (`bc045eb`): `BlueprintSharedState.TryGetShared<T>/TrySetShared<T>` (Entity-scoped, by-value, StructureHash drift-guard reusing the provisioner's `ComputeTypeNameHash`).
+- **Slice 2a-2 — graph nodes + codegen** (`4ce2ef1`): `GetShared`/`SetShared` blueprint nodes compile to accessor calls; validator `BP2040-2042`; proof `T36`.
+- **Slice 2a-provisioning** (`a0afd0d`): host-BTree manifest provisions standalone Entity-scoped Role=State shared slots (additive, byte-compat); proof `T37`.
+- **Slice 2a-3 — editor authoring** (`927868d`): "Shared State" palette category + `GetShared`/`SetShared` node config (VariableId/SharedTypeId). ImGui rendering Windows-verifiable.
+- **Slice 2b — cross-entity read** (`6ddb423`): optional target-`Entity` pin on `GetShared` → reads another entity's slot; `SetShared` stays same-entity (cross-entity write prevented by construction). Proof `T38`. Canonical target source = the `UnitSubordinate` component (commander ref) via an ECS-read node.
+
+**Deferred (future slice):** cross-entity **write** via the deferred-event bus (`UpdateSharedSlotCommand` → an Input-phase `SharedStateIngressSystem`, mirroring `AssignBehaviorEvent`→`BehaviorIngressSystem`), and its writer safeguards — the same-entity static double-write guard (extending the Fix-3 / `HsmValidator.CheckConcurrentSharedScopeKeys` lineage, currently unwired) and the runtime "second distinct writer this tick" debug assert. Neither has a call path to guard until cross-entity write is expressible, so no scaffolding was added.
 
 ## 1. Problem
 
