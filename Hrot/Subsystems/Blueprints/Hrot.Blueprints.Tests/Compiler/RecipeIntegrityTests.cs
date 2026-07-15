@@ -98,6 +98,7 @@ public sealed class RecipeIntegrityTests
     [InlineData("SquadState")]
     [InlineData("LocomotionMoveToDemo")]
     [InlineData("EditorTypesDemo")]
+    [InlineData("GateConditionDemo")]
     public void AllRecipes_Parse(string name)
     {
         var asset = LoadRecipe(name);
@@ -115,6 +116,7 @@ public sealed class RecipeIntegrityTests
     [InlineData("SquadState")]
     [InlineData("LocomotionMoveToDemo")]
     [InlineData("EditorTypesDemo")]
+    [InlineData("GateConditionDemo")]
     public void AllRecipes_HaveDescriptionsAndConcepts(string name)
     {
         var asset = LoadRecipe(name);
@@ -132,6 +134,7 @@ public sealed class RecipeIntegrityTests
     [InlineData("MoveAndFireCombo")]
     [InlineData("SquadState")]
     [InlineData("EditorTypesDemo")]
+    [InlineData("GateConditionDemo")]
     public void AllRecipes_ValidateOnly_NoErrors(string name)
     {
         var asset  = LoadRecipe(name);
@@ -139,6 +142,32 @@ public sealed class RecipeIntegrityTests
         var result = new BlueprintCompiler().Compile(asset, opts);
         var errors = result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
         Assert.Empty(errors);
+    }
+
+    // ---- GateConditionDemo_IsAiPrimitiveCondition_WithBTreeConditionHosting ----
+
+    /// <summary>
+    /// GateConditionDemo is the only recipe that authors an AiPrimitive
+    /// CONDITION (Dispatch=AiPrimitive, Primitive.Intent=Condition,
+    /// Hostings=[BTreeCondition]) up front, at creation time -- Dispatch/Intent
+    /// are immutable post-creation, so this is the supported "New from recipe"
+    /// path for BTree-hostable conditions.
+    /// </summary>
+    [Fact]
+    public void GateConditionDemo_IsAiPrimitiveCondition_WithBTreeConditionHosting()
+    {
+        var asset = LoadRecipe("GateConditionDemo");
+
+        Assert.Equal(BlueprintDispatchKind.AiPrimitive, asset.Dispatch);
+        Assert.NotNull(asset.Primitive);
+        Assert.Equal(AiPrimitiveIntent.Condition, asset.Primitive!.Intent);
+        Assert.Contains(AiPrimitiveHosting.BTreeCondition, asset.Primitive.Hostings);
+
+        // Condition graphs must be synchronous: no Return Running, no latent nodes.
+        var allNodes = asset.Graphs.SelectMany(g => g.Nodes).ToList();
+        Assert.DoesNotContain(allNodes, n => n is ReturnNode rn && rn.Status == NodeStatus.Running);
+        Assert.DoesNotContain(allNodes, n =>
+            n is LatentDelayNode or WaitForChannelNode or WaitForEventNode);
     }
 
     [Fact]
@@ -186,6 +215,7 @@ public sealed class RecipeIntegrityTests
     [InlineData("SquadState",              "00000000-aaaa-0001-0000-000000000005")]
     [InlineData("LocomotionMoveToDemo",    "00000000-aaaa-0001-0000-000000000006")]
     [InlineData("EditorTypesDemo",         "00000000-aaaa-0001-0000-000000000007")]
+    [InlineData("GateConditionDemo",       "00000000-aaaa-0001-0000-00000000c001")]
     public void AllRecipes_HaveStableAssetIds(string name, string expectedId)
     {
         var asset1 = LoadRecipe(name);
