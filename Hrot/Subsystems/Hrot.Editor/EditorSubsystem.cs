@@ -1910,6 +1910,7 @@ namespace Hrot.Editor
             var referenceContributors = new IReferenceCatalogContributor[]
             {
                 new BTreeBlackboardVariableContributor(),
+                new Hrot.BTree.Editor.Catalog.BTreeComposedBlueprintReferenceContributor(),
                 new HsmReferenceContributor(),
                 new BlueprintReferenceContributor(),
             };
@@ -2832,7 +2833,12 @@ namespace Hrot.Editor
                             doc.Asset, adapterBundle, _btreeSelectionStore,
                             btreeDebugSession:   _btreeDebugSession,
                             breakpointManager:   _bpManager,
-                            actionSchema:        sharedSchemaExporter);
+                            actionSchema:        sharedSchemaExporter,
+                            // Phase D (AIE-053): "Open Blueprint" context-menu item on composed
+                            // AiPrimitive nodes — resolve via the shared asset catalog, open via
+                            // the shared AiDocumentManager (which also switches perspective).
+                            assetCatalog:        _aiCatalogBuilder?.Catalog,
+                            openBlueprint:       a => _aiDocumentManager?.Open(a));
                         break;
                     case Hrot.Editor.AiShared.AssetKind.Hsm:
                         // AIE-033: inject HSM debug session + breakpoint manager.

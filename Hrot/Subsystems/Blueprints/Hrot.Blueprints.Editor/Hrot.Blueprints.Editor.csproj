@@ -14,6 +14,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- AIE-053/Phase C: lets Hrot.Editor.AiShared.Tests construct BlueprintFileAsset directly to
+         test the real BlueprintReferenceContributor + RefactorService delete-block wiring
+         end-to-end (that test project already references this one). -->
+    <InternalsVisibleTo Include="Hrot.Editor.AiShared.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Hrot.Blueprints.Core\Hrot.Blueprints.Core.csproj" />
     <ProjectReference Include="..\..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <ProjectReference Include="..\..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />

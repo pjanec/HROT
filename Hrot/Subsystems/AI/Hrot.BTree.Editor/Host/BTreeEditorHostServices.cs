@@ -5,8 +5,11 @@ using NodeEditor.Core.Interfaces;
 using NodeEditor.Core.View;
 using NodeEditor.Primitives;
 using Hrot.BTree.Editor.Debug;
+using Hrot.BTree.Editor.Model;
 using Hrot.BTree.Editor.Renderers;
 using Hrot.Diagnostics.Breakpoints;
+using Hrot.Editor.AiShared;
+using Hrot.Editor.AiShared.Catalog;
 
 namespace Hrot.BTree.Editor.Host;
 
@@ -99,9 +102,23 @@ internal sealed class BTreeEditorHostServices : IEditorHostServices
     /// Wires the node context menu provider. Must be called after construction
     /// when the graph model is available (mirrors SetBreakpointManager pattern).
     /// </summary>
-    public void SetNodeContextMenuProvider(IGraphCommandSink sink, IGraphModel model)
+    /// <param name="sink">Command sink used to apply "Add Decorator" commands.</param>
+    /// <param name="model">Graph model used to inspect existing pill attachments.</param>
+    /// <param name="asset">
+    ///   Optional owning <see cref="BehaviorTreeAsset"/>. Combined with <paramref name="assetCatalog"/>
+    ///   and <paramref name="openAsset"/>, enables the Phase D (AIE-053) "Open Blueprint" context-menu
+    ///   item on composed AiPrimitive nodes. Omit to keep the historical "Add Decorator"-only menu.
+    /// </param>
+    /// <param name="assetCatalog">Optional catalog used to resolve a composed node's MethodFqn.</param>
+    /// <param name="openAsset">Optional callback invoked with the resolved Blueprint asset (e.g. <c>AiDocumentManager.Open</c>).</param>
+    public void SetNodeContextMenuProvider(
+        IGraphCommandSink sink,
+        IGraphModel model,
+        BehaviorTreeAsset? asset = null,
+        IAssetCatalog? assetCatalog = null,
+        Action<IEditableAsset>? openAsset = null)
     {
-        _nodeContextMenuProvider = new BTreeNodeContextMenuProvider(sink, model);
+        _nodeContextMenuProvider = new BTreeNodeContextMenuProvider(sink, model, asset, assetCatalog, openAsset);
     }
 
     /// <summary>

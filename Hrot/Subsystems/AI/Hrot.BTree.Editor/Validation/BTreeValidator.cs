@@ -3,20 +3,31 @@ using System.Collections.Generic;
 using System.Linq;
 using Fbt;
 using Hrot.BTree.Editor.Model;
+using Hrot.Editor.AiShared.Catalog;
+using Hrot.Editor.AiShared.References;
 
 namespace Hrot.BTree.Editor.Validation;
 
 /// <summary>
 /// Validates a BehaviorTreeAsset and returns a list of diagnostics.
 /// Implements the rules from BTH §11.1.
-/// Rules that require external context (BlackboardFieldMissing, MethodSignatureMismatch,
-/// DanglingReferenceAfterReload) are deferred to Slice 2 and emit no diagnostics here.
+/// Rules that require external context (BlackboardFieldMissing, MethodSignatureMismatch) are
+/// deferred to Slice 2 and emit no diagnostics here.
+/// <see cref="BTreeDiagnosticCode.DanglingReferenceAfterReload"/> (Phase C / AIE-053) is now
+/// implemented for composed AiPrimitive nodes: see <see cref="CheckDanglingBlueprintReferences"/>.
+/// It requires an <see cref="IAssetCatalog"/> — when <see cref="Validate"/> is called without one
+/// (the historical single-arg overload), this rule is skipped exactly as before.
 /// </summary>
 public sealed class BTreeValidator
 {
     private const int MaxAllowedDepth = 8;
 
-    public IReadOnlyList<BTreeDiagnostic> Validate(BehaviorTreeAsset asset)
+    /// <summary>
+    /// Validates <paramref name="asset"/>. When <paramref name="catalog"/> is supplied, also runs
+    /// the dangling composed-Blueprint-reference check (requires resolving other assets, so it is
+    /// opt-in via this parameter rather than always-on).
+    /// </summary>
+    public IReadOnlyList<BTreeDiagnostic> Validate(BehaviorTreeAsset asset, IAssetCatalog? catalog = null)
     {
         var diagnostics = new List<BTreeDiagnostic>();
 
@@ -27,6 +38,8 @@ public sealed class BTreeValidator
         CheckCycles(asset, diagnostics);
         CheckOrphanedNodes(asset, diagnostics);
         CheckNestedDecorators(asset, diagnostics);
+        if (catalog != null)
+            CheckDanglingBlueprintReferences(asset, catalog, diagnostics);
 
         return diagnostics;
     }
@@ -106,6 +119,42 @@ public sealed class BTreeValidator
                     }
                     break;
             }
+        }
+    }
+
+    // Phase C (AIE-053): a composed AiPrimitive node (Action or Condition with
+    // DelegateShape == AiPrimitiveTickCore) whose MethodFqn no longer resolves to any Blueprint
+    // asset in the catalog — the blueprint was renamed or deleted after the node was composed.
+    // Identity is by FQN (see ComposedBlueprintResolver), never by a persisted AssetId.
+    private static void CheckDanglingBlueprintReferences(
+        BehaviorTreeAsset asset, IAssetCatalog catalog, List<BTreeDiagnostic> out_)
+    {
+        foreach (var node in asset.Nodes)
+        {
+            string? methodFqn = node.KernelType switch
+            {
+                NodeType.Action when node.Action?.DelegateShape == BTreeActionDelegateShape.AiPrimitiveTickCore
+                    => node.Action.MethodFqn,
+                NodeType.Condition when node.Condition?.DelegateShape == BTreeActionDelegateShape.AiPrimitiveTickCore
+                    => node.Condition.MethodFqn,
+                _ => null,
+            };
+            if (methodFqn is null)
+                continue;
+
+            // Not a composed-AiPrimitive-shaped FQN at all (shouldn't happen given the DelegateShape
+            // guard above, but Resolve/TryParse already handles it defensively) — nothing to flag.
+            if (!ComposedBlueprintResolver.TryParse(methodFqn, out _, out _))
+                continue;
+
+            if (ComposedBlueprintResolver.Resolve(methodFqn, catalog) != null)
+                continue; // resolves cleanly — no diagnostic.
+
+            out_.Add(new BTreeDiagnostic(
+                node.VisualId,
+                BTreeDiagnosticSeverity.Error,
+                BTreeDiagnosticCode.DanglingReferenceAfterReload,
+                $"Node '{node.DisplayLabel}' references blueprint '{methodFqn}' which no longer exists — reselect or remove."));
         }
     }
 

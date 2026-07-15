@@ -1,6 +1,9 @@
 using System.Text.Json;
+using Hrot.Blueprints.Core.Compiler;
+using Hrot.Blueprints.Core.Compiler.Emit;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Catalog;
+using Hrot.Editor.AiShared.References;
 
 namespace Hrot.Blueprints.Editor.Catalog;
 
@@ -95,7 +98,7 @@ public sealed class BlueprintAssetContributor : IAssetCatalogContributor
 /// Only the header is read on construction; the full <see cref="Hrot.Blueprints.Core.Assets.BlueprintAsset"/>
 /// is loaded on demand by the editor host when the document is opened.
 /// </summary>
-internal sealed class BlueprintFileAsset : IEditableAsset
+internal sealed class BlueprintFileAsset : IEditableAsset, IComposedBlueprintIdentity
 {
     private bool _isDirty;
 
@@ -104,12 +107,22 @@ internal sealed class BlueprintFileAsset : IEditableAsset
         AssetId = assetId;
         Name = name;
         SourceFilePath = sourceFilePath;
+
+        // Phase C (AIE-053): precompute the generated AiPrimitive class name HERE, on the
+        // blueprint-editor side which legitimately references the compiler. The shared
+        // ComposedBlueprintResolver then matches composed BTree node FQNs against this string
+        // WITHOUT any hash recomputation — keeping the foundational shared layer Roslyn-free.
+        // Mirrors AiPrimitiveEmitter's class name: "{SanitizedName}_{BlueprintId:X8}_Bp".
+        GeneratedClassName = $"{Sanitizer.SanitizeName(name)}_{BlueprintIdHash.Compute(assetId):X8}_Bp";
     }
 
     public Guid AssetId { get; }
     public string Name { get; }
     public AssetKind Kind => AssetKind.Blueprint;
     public string SourceFilePath { get; }
+
+    /// <inheritdoc/>
+    public string GeneratedClassName { get; }
 
     public bool IsDirty => _isDirty;
     public bool IsEditorOwned => false;

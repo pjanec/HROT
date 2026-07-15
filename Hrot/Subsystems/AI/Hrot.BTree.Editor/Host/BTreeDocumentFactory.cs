@@ -7,6 +7,7 @@ using Hrot.Diagnostics.Breakpoints;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Adapters;
 using Hrot.Editor.AiShared.Blackboard;
+using Hrot.Editor.AiShared.Catalog;
 using Hrot.Editor.AiShared.Documents;
 using Hrot.Editor.AiShared.Selection;
 using Hrot.Editor.AiShared.Windows;
@@ -76,6 +77,14 @@ public static class BTreeDocumentFactory
     ///   Optional <see cref="IActionSchemaExporter"/> for populating the node catalog with
     ///   dynamic action/condition entries. When null, the catalog contains only static entries.
     /// </param>
+    /// <param name="assetCatalog">
+    ///   Optional asset catalog. Combined with <paramref name="openBlueprint"/>, enables the
+    ///   Phase D (AIE-053) "Open Blueprint" context-menu item on composed AiPrimitive nodes.
+    /// </param>
+    /// <param name="openBlueprint">
+    ///   Optional callback invoked with the resolved Blueprint asset when the user picks "Open
+    ///   Blueprint" (e.g. <c>asset => aiDocumentManager.Open(asset)</c>).
+    /// </param>
     /// <returns>A populated <see cref="AiCanvasContext"/> whose <see cref="AiCanvasContext.View"/>
     ///   is ready to render on the BTree canvas.</returns>
     /// <exception cref="ArgumentException">
@@ -89,7 +98,9 @@ public static class BTreeDocumentFactory
         IBTreeDebugSession?     btreeDebugSession   = null,
         IDataBreakpointManager? breakpointManager   = null,
         IReadOnlyList<ICustomCanvasRenderer>? extraRenderers = null,
-        IActionSchemaExporter?  actionSchema        = null)
+        IActionSchemaExporter?  actionSchema        = null,
+        IAssetCatalog?          assetCatalog        = null,
+        Action<IEditableAsset>? openBlueprint       = null)
     {
         if (asset is null)   throw new ArgumentNullException(nameof(asset));
         if (bundle is null)  throw new ArgumentNullException(nameof(bundle));
@@ -132,8 +143,9 @@ public static class BTreeDocumentFactory
         if (breakpointManager != null)
             hostServices.SetBreakpointManager(breakpointManager);
 
-        // Wire node context menu provider (DEC-03b: "Add Decorator →" submenu).
-        hostServices.SetNodeContextMenuProvider(commandSink, graphModel);
+        // Wire node context menu provider (DEC-03b: "Add Decorator →" submenu; Phase D/AIE-053:
+        // "Open Blueprint" on composed AiPrimitive nodes when a catalog + open callback are supplied).
+        hostServices.SetNodeContextMenuProvider(commandSink, graphModel, btAsset, assetCatalog, openBlueprint);
 
         // ── 5. GraphView ──────────────────────────────────────────────────────
         var view = new GraphView(
