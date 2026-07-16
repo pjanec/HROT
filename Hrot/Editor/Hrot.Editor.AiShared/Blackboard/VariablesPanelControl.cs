@@ -190,17 +190,20 @@ public sealed class VariablesPanelControl
             DrawTable(section, mainVars, rowDecoration, liveValues);
         }
 
-        // Node-Owned Allocations sub-group (dimmed, read-only).
+        // Node-Owned Allocations sub-group. Rendered at normal opacity: these rows are
+        // auto-managed (created/removed by the owning node, so Name/Type/Role/delete are
+        // read-only) but the Scope cell is now authorable (Slice-1 shared working-state), so
+        // the section must be legible and interactive. The "Node-Owned Allocations" header plus
+        // the per-row "Auto-allocated by node…" tooltip carry the "these are special" signal
+        // that the old blanket 50% dim used to — without making the live Scope combo hard to use.
         if (nodeOwnedVars.Count > 0)
         {
             ImGui.Spacing();
-            ImGui.PushStyleVar(ImGuiStyleVar.Alpha, 0.5f);
             if (ImGui.CollapsingHeader($"Node-Owned Allocations ({nodeOwnedVars.Count})##no_{section.TableId}",
                 ImGuiTreeNodeFlags.DefaultOpen))
             {
                 DrawNodeOwnedTable(section, nodeOwnedVars);
             }
-            ImGui.PopStyleVar();
         }
 
         if (section.AliasingEnabled && section.Schema.UnboundRequirements.Count > 0)
