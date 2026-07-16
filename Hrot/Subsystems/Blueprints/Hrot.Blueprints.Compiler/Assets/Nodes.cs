@@ -34,6 +34,7 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(AcquireSlotNode),        "AcquireSlot")]
 [JsonDerivedType(typeof(GetSharedNode),          "GetShared")]
 [JsonDerivedType(typeof(SetSharedNode),          "SetShared")]
+[JsonDerivedType(typeof(GetComponentNode),       "GetComponent")]
 public abstract class Node
 {
     public Guid Id { get; set; }
@@ -421,4 +422,36 @@ public sealed class SetSharedNode : Node
     /// generic argument of <c>BlueprintSharedState.TrySetShared&lt;T&gt;</c>.
     /// </summary>
     public string SharedTypeId { get; set; } = "";
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// GetComponent (Hill-attack -> Blueprints migration P2 -- reads an ECS component field)
+//
+// Reflection-free by construction: ComponentTypeFqn/FieldName/FieldTypeFqn are baked strings
+// authored at edit time (mirrors GetShared/SetShared's SharedTypeId and the P7.1
+// FunctionCallNode.TrailingContext bake -- see that type's doc comment for why the Roslyn
+// incremental generator, running as a netstandard2.0 analyzer, can never load game assemblies
+// to inspect a real CLR type). Lowers in Stage5_Schedule to the SAME three existing IR ops
+// WaitLowering_AiPrimitive's channel-check block already chains (IrOp_Self ->
+// IrOp_GetComponentRO -> IrOp_FieldRead): no new IR op, no new StatementEmitter case.
+// ──────────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// Reads a field off an ECS component on <c>self</c> (or an explicit target Entity -- OPTIONAL
+/// "Target" data-in pin, cross-entity read, mirrors <see cref="GetSharedNode"/>'s Slice 2b
+/// "Target" pin; unwired = self). Pure-data node (no exec pins): OPTIONAL data-in "Target"
+/// (<c>Fdp.Core.Entity</c>), data-out "Value" (typed by <see cref="FieldTypeFqn"/> when set,
+/// else the Stage4-resolved pin type). Compiles to
+/// <c>{world}.GetComponentRO&lt;global::ComponentTypeFqn&gt;(entity).FieldName</c> -- see
+/// <c>Stage5_Schedule</c>'s <c>GetComponentNode</c> case and <c>StatementEmitter</c>'s existing
+/// <c>IrOp_GetComponentRO</c>/<c>IrOp_FieldRead</c> cases (both pre-existing, unmodified).
+/// </summary>
+public sealed class GetComponentNode : Node
+{
+    /// <summary>FQN of the ECS component struct to read (e.g. "Fdp.Toolkit.Navigation.NavigationStatus"). Emitted as GetComponentRO&lt;global::FQN&gt;. Baked string -- no reflection.</summary>
+    public string ComponentTypeFqn { get; set; } = "";
+    /// <summary>Name of the field/property to read off the component (e.g. "Result"). Emitted textually as .FieldName.</summary>
+    public string FieldName { get; set; } = "";
+    /// <summary>FQN of the read field's type (e.g. "Fdp.Toolkit.Navigation.NavigationResult"). Used only to build the result IrTypeRef locally; optional (falls back to the resolved out-pin type / UnknownType).</summary>
+    public string FieldTypeFqn { get; set; } = "";
 }

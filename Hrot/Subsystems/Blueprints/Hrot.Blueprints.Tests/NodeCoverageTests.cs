@@ -393,6 +393,7 @@ public sealed class NodeCoverageTests
         yield return ("Inline/ScoreDecision", new[] { BuildScoreDecisionMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/ReadRankedResult", new[] { BuildReadRankedResultMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetSharedSetShared", new[] { BuildGetSetSharedMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
+        yield return ("Inline/GetComponent", new[] { BuildGetComponentMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
     }
 
     // ---- recipe loading (mirrors RecipeIntegrityTests.LoadRecipe) -----------
@@ -868,6 +869,75 @@ public sealed class NodeCoverageTests
             Name     = "GetSetSharedCoverage",
             Dispatch = BlueprintDispatchKind.Instance,
             Graphs   = { graph },
+        };
+    }
+
+    /// <summary>
+    /// EventEntry -&gt; SetVariable(FloatOut) -&gt; Return, fed by a data-only GetComponent node
+    /// (P2 -- Hill-attack -&gt; Blueprints migration). Mirrors <see cref="BuildGetSetSharedMinimalAsset"/>'s
+    /// shape/evidence bar. Uses <c>System.Numerics.Vector3</c> (public field "X") as the "component"
+    /// type -- a real, already-resolvable, zero-Hrot.AI.Behaviors-dependency blittable struct --
+    /// rather than a real ECS-registered component: <c>GetComponentRO&lt;T&gt;</c> only requires
+    /// <c>T : unmanaged</c> at compile time (no registration check), so this exercises the SAME
+    /// Stage5_Schedule GetComponentNode lowering (IrOp_Self -&gt; IrOp_GetComponentRO -&gt;
+    /// IrOp_FieldRead) real components use, without pulling in Hrot.AI.Behaviors/Fdp.Toolkits. No
+    /// "Target" pin is authored -- self-default path (unwired Target -&gt; IrOp_Self).
+    /// </summary>
+    private static BlueprintAsset BuildGetComponentMinimalAsset()
+    {
+        var getValuePin = DataPin("Value", "Out", "System.Single");
+        var getNode = new GetComponentNode
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = "System.Numerics.Vector3",
+            FieldName        = "X",
+            FieldTypeFqn     = "System.Single",
+        };
+        getNode.Pins.Add(getValuePin);
+
+        var floatVarId = Guid.NewGuid();
+        var floatVar = new VariableDecl
+        {
+            Id   = floatVarId,
+            Name = "FloatOut",
+            Type = new BlueprintTypeRef { TypeId = "System.Single" },
+        };
+
+        var setExecIn   = ExecPin("ExecIn",  "In");
+        var setExecOut  = ExecPin("ExecOut", "Out");
+        var setValuePin = DataPin("Value",   "In", "System.Single");
+        var setNode = new SetVariableNode { Id = Guid.NewGuid(), VariableId = floatVarId.ToString() };
+        setNode.Pins.AddRange(new[] { setExecIn, setExecOut, setValuePin });
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecPin("ExecIn", "In");
+        ret.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, getNode, setNode, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,   FromPinId = entryOut.Id,    ToNodeId = setNode.Id, ToPinId = setExecIn.Id },
+                new Link { FromNodeId = setNode.Id, FromPinId = setExecOut.Id,  ToNodeId = ret.Id,     ToPinId = retIn.Id },
+                new Link { FromNodeId = getNode.Id, FromPinId = getValuePin.Id, ToNodeId = setNode.Id, ToPinId = setValuePin.Id },
+            },
+        };
+
+        return new BlueprintAsset
+        {
+            AssetId   = Guid.NewGuid(),
+            Name      = "GetComponentCoverage",
+            Dispatch  = BlueprintDispatchKind.Instance,
+            Variables = { floatVar },
+            Graphs    = { graph },
         };
     }
 }

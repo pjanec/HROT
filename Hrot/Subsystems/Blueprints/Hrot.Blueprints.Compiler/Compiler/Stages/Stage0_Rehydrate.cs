@@ -654,6 +654,7 @@ internal static class Stage0_Rehydrate
         FunctionCallNode fc   => !fc.IsPure,
         GetVariableNode       => false,
         GetSharedNode         => false,
+        GetComponentNode      => false,
         LiteralNode           => false,
         ReadRankedResultNode  => false,
         ReadEqsResultNode     => false,

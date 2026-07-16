@@ -31,6 +31,16 @@ internal static class Stage5_Schedule
         SizeBytes = 1,
     };
 
+    // FDP entity handle -- mirrors StaticTypeRegistry's "Fdp.Core.Entity" table entry. Used by
+    // GetComponentNode's self-default lowering (IrOp_Self's result value type).
+    internal static readonly IrTypeRef EntityType = new IrTypeRef
+    {
+        FullName = "Fdp.Core.Entity",
+        IsUnmanaged = true,
+        SizeBytes = 8,
+        IsEntityHandle = true,
+    };
+
     public static IrAsset Run(TypedAsset typedAsset, ValidationContext ctx)
     {
         var irGraphs = new List<IrGraph>();
@@ -1425,6 +1435,103 @@ internal sealed class GraphScheduler
                 // Return the value for the specifically requested pin (mirrors ReadEqsResult /
                 // ReadRankedResult's multi-output cache-then-select pattern).
                 result = _pinValueCache.TryGetValue(sourcePinId, out var pinRes) ? pinRes : valueResult;
+                break;
+            }
+
+            case GetComponentNode gcn:
+            {
+                // P2 (Hill-attack -> Blueprints migration) -- reflection-free ECS component field
+                // read. Chains three EXISTING IR ops -- no new IrOperation, no new
+                // StatementEmitter case. The exact same three-op sequence already appears inline
+                // in WaitLowering_AiPrimitive's channel-check block (IrOp_Self ->
+                // IrOp_GetComponentRO -> IrOp_FieldRead), so this is not a novel lowering shape,
+                // just the first place a NODE (rather than a synthesized wait-check) drives it.
+                //
+                // Reflection-free rationale: ComponentTypeFqn/FieldName/FieldTypeFqn are baked
+                // strings authored at edit time (mirrors GetSharedNode.SharedTypeId and the P7.1
+                // FunctionCallNode.TrailingContext bake) -- Stage5 never inspects a real CLR Type
+                // to build them, so this survives running inside the Roslyn incremental
+                // generator's netstandard2.0 analyzer host, which cannot load game assemblies
+                // (Hrot.AI.Behaviors.dll etc.) to reflect over.
+
+                // OPTIONAL "Target" data-in pin (cross-entity read) -- resolved EXACTLY like
+                // GetSharedNode's Slice-2b "Target" pin above: look up the pin, then its link
+                // directly (NOT ResolveDataPin, which would emit a spurious BP4001 for an
+                // intentionally-unwired optional pin). No pin or no link => self-default: emit
+                // IrOp_Self into a fresh Entity-typed IrValue and read off that.
+                var targetPin = gcn.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "Target", StringComparison.OrdinalIgnoreCase));
+
+                IrValue? wiredTarget = null;
+                if (targetPin is not null)
+                {
+                    var targetLink = _graph.Links.FirstOrDefault(
+                        l => l.ToNodeId == gcn.Id && l.ToPinId == targetPin.Id);
+                    if (targetLink is not null)
+                        wiredTarget = ResolveNodeOutput(targetLink.FromNodeId, targetLink.FromPinId, stmts);
+                }
+
+                IrValue entityValue;
+                if (wiredTarget is { } wt)
+                {
+                    entityValue = wt;
+                }
+                else
+                {
+                    entityValue = AllocValue(Stage5_Schedule.EntityType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = entityValue,
+                        Operation   = new IrOp_Self(),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gcn.Id, PinId = sourcePinId },
+                    });
+                }
+
+                // Component IrTypeRef -- built locally from the baked FQN (AN2-style "trust the
+                // string" -- no StaticTypeRegistry lookup needed; the FQN is emitted verbatim as
+                // `global::{FQN}` and validated by the downstream Roslyn compile, exactly like
+                // GetSharedNode's SharedTypeFqn / IrOp_GetComponentRO's other call sites).
+                var componentTypeRef = new IrTypeRef
+                {
+                    FullName    = gcn.ComponentTypeFqn,
+                    IsUnmanaged = true,
+                    SizeBytes   = 0,
+                };
+                var compVal = AllocValue(componentTypeRef);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = compVal,
+                    Operation   = new IrOp_GetComponentRO(gcn.ComponentTypeFqn, entityValue, componentTypeRef),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gcn.Id, PinId = sourcePinId },
+                });
+
+                var valuePin = gcn.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, "Value", StringComparison.OrdinalIgnoreCase));
+
+                // Field result type: prefer the Stage4-resolved out-pin type when available
+                // (mirrors GetSharedNode's valuePin.Id -> PinTypes lookup); else fall back to a
+                // locally-built IrTypeRef from FieldTypeFqn when authored; else the generic
+                // pinType already resolved for sourcePinId (UnknownType in the worst case).
+                IrTypeRef fieldTypeRef = valuePin is not null
+                    && _typed.PinTypes.TryGetValue(valuePin.Id, out var fvt)
+                        ? fvt
+                        : !string.IsNullOrEmpty(gcn.FieldTypeFqn)
+                            ? new IrTypeRef { FullName = gcn.FieldTypeFqn, IsUnmanaged = true, SizeBytes = 4 }
+                            : pinType;
+
+                var fieldVal = AllocValue(fieldTypeRef);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = fieldVal,
+                    Operation   = new IrOp_FieldRead(compVal, gcn.FieldName, fieldTypeRef),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gcn.Id, PinId = sourcePinId },
+                });
+
+                if (valuePin is not null) _pinValueCache[valuePin.Id] = fieldVal;
+
+                result = fieldVal;
                 break;
             }
 

@@ -44,6 +44,12 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         GetSharedNode   => Array.Empty<PinSchema>(),   // pure data-(In Target?)/Out, type from SharedTypeId
         SetSharedNode   => new[] { ExecIn(), ExecOut() },
 
+        // GetComponent (P2 -- Hill-attack -> Blueprints migration): pure data-(In Target?)/Out
+        // node, mirrors GetSharedNode -- no static shape here; the asset supplies fully-authored
+        // Pins (Value out + optional Target in) directly, so Stage0_Rehydrate never rebuilds them
+        // (see Stage0_Rehydrate.Run's "node.Pins.Count > 0 => skip" guard). No enricher needed.
+        GetComponentNode => Array.Empty<PinSchema>(),   // pure data-(In Target?)/Out; pins come from the asset JSON
+
         // FunctionCall: static exec skeleton; Stage0_Rehydrate fills data pins.
         FunctionCallNode fc when !fc.IsPure => new[] { ExecIn(), ExecOut() },
         FunctionCallNode   => Array.Empty<PinSchema>(), // pure
