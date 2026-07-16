@@ -47,9 +47,35 @@ EventEntry ─► ForEach([roster]) └► PublishEvent "Assign Tactical Intent"
 frame; if `Target` is another entity, the node emits the deferred `BlueprintDeferredEvent` (≤1-frame,
 per the ECS write rule). The designer just wires `Target` — no manual choice.
 
-> The **respond** side (`WhenNode` / `WaitForEvent`) uses the *same* catalog — you pick the event to
-> react to, and `FilterableFields` become optional filter pins. (`WaitForEvent` has a known FQN bug to
-> fix first — logged.)
+---
+
+## 1b. Responding to an event — an **Event node** per event (the intuitive model)
+
+To *react* to an event you don't wire a "wait" mid-flow — you drop a dedicated **Event node** (an
+`EventEntry` with a specific `EventTypeId`), just like Unreal's red event nodes. It's a **handler
+entry point**: when that event fires, its exec chain runs. Drop **several**, one per event.
+
+- Same `EngineEventCatalog` dropdown as `PublishEvent`, but mirrored: the event's fields come out as
+  **output pins** (the payload you're handling) — `Stage0.EnrichEventEntryPins` reifies them.
+- Empty `EventTypeId` = the "on tick" entry (slice 0). A catalog event = "on ⟨event⟩".
+- Validated already: an unknown event on an `EventEntry` is a compile error (`Stage2_Validate`).
+
+```
+Event "Move Completed" (─out Reason, RouteHandle) ─► Branch(Reason == Arrived) ─► …
+Event "Hit"            (─out Instigator, Damage)  ─► …                                // a 2nd handler, same graph
+```
+
+**Don't confuse three distinct tools:**
+| Construct | Means | Use |
+|---|---|---|
+| **Event node** (`EventEntry`+`EventTypeId`) | "**when** X fires, run this chain" (multiple handlers per graph) | **respond to an event** |
+| **`When`** | reactive edge/threshold (value-changed, condition-met, rising/falling) | "when health *crosses* 10" |
+| **`WaitForEvent`** | inline latent "**pause here** until X, then continue" | rare mid-sequence waits |
+
+> Caveat: per-event validation + pin reification exist; the full **multi-handler scheduling** (several
+> named `EventEntry` nodes each → its own dispatched handler) is to be verified/completed as part of
+> the event work. `WaitForEvent` also has a known FQN bug (logged) — but the Event node avoids it for
+> the common "respond" case.
 
 ---
 

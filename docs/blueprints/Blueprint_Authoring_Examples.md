@@ -72,14 +72,19 @@ public static NodeStatus DispatchOrder(Entity target, /*…scalars…*/ Entity s
 **Verdict:** publishing one event is a clean visual action. **Blueprint value: medium-high.** Needs
 GAP-3 (a catalog-gated `[SharedAiAction]` publish node + the deferred-event plumbing).
 
-## 4. Respond to an event (reactive) — `When` / `WaitForEvent`
+## 4. Respond to an event — an **Event node** per event (handler entry, Unreal-style)
 
 ```
-EventEntry ─► WaitForEvent("DamageAssessed") ─► FunctionCall(react…) ─► Return
+Event "Move Completed" (─out Reason) ─► Branch(Reason == Arrived) ─► …
+Event "Hit"            (─out Damage)  ─► …                                // a 2nd handler in the same graph
 ```
-**Verdict:** intended shape is fine, BUT `WaitForEventNode` is currently **broken** (its `EventTypeId`
-can't satisfy both validation and Roslyn — logged). So "respond to an event" needs that bug fixed
-first. **Blueprint value: high once fixed.**
+An `EventEntry` with a specific `EventTypeId` = "when this event fires, run this chain." Same
+`EngineEventCatalog` dropdown as `PublishEvent`, mirrored: the event's fields are **output** pins (the
+payload). Drop several — multiple handlers per graph. `When` (edge/threshold) and `WaitForEvent`
+(inline mid-sequence pause) are *different, narrower* tools — see the New-Node Authoring Guide §1b.
+**Verdict:** the intuitive, correct shape for reacting to events. **Blueprint value: high.**
+*(Caveat: multi-handler scheduling to be verified/completed; `WaitForEvent`'s FQN bug is only relevant
+to that niche pause tool, not this handler path.)*
 
 ## 5. Loop over a roster/array — `Action_DispatchAllToBaseline`  ← the contentious one
 
@@ -118,7 +123,7 @@ Now the *iterate + per-member dispatch* is visible; only the small compute/publi
 | Movement / channel command (ex. 2) | **High** — fully visual today | — |
 | Publish one event (ex. 3) | **Medium-high** | GAP-3 |
 | Read-based condition (ex. 1) | **Medium** — decision visible, scan in C# | GAP-7 |
-| Respond to event (ex. 4) | **High once fixed** | fix WaitForEvent |
+| Respond to event (ex. 4) | **High** — Event-node handler (not WaitForEvent) | verify multi-handler scheduling |
 | Loop + per-item work (ex. 5) | **None (helper) / Medium (ForEach)** | GAP-1 (contested) |
 
 **Takeaway:** blueprints add the most for **command/event/decision orchestration**; they add the
