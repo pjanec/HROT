@@ -1379,6 +1379,22 @@ internal sealed class GraphScheduler
                 });
                 break;
 
+            // GetParameter (GAP-11): reads a declared AiPrimitive/Instance Parameter -- mirrors
+            // GetVariableNode exactly except it resolves against a PARAMS-ONLY index (never a
+            // combined Variables/WorkingState/Parameters index -- see FindParameterIndex) and
+            // lowers to the pre-existing IrOp_ReadParam (StatementEmitter already emits
+            // `p.{ParamFieldName}` for it; no new IR op, no new StatementEmitter case).
+            case GetParameterNode gp:
+                int paramIdx = FindParameterIndex(gp.ParameterId);
+                result = AllocValue(pinType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = result,
+                    Operation   = new IrOp_ReadParam(paramIdx),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gp.Id, PinId = sourcePinId },
+                });
+                break;
+
             case GetSharedNode gsn:
             {
                 // Name-keyed slot -- NOT FindVariableIndex (the shared struct is foreign to this
@@ -2056,6 +2072,38 @@ internal sealed class GraphScheduler
         // Name fallback
         for (int i = 0; i < variables.Count;  i++) if (variables[i].Name  == idStr) return i;
         for (int i = 0; i < workState.Count;  i++) if (workState[i].Name  == idStr) return i;
+        for (int i = 0; i < parameters.Count; i++) if (parameters[i].Name == idStr) return i;
+        return -1;
+    }
+
+    /// <summary>
+    /// Params-ONLY index lookup for <see cref="GetParameterNode"/> (GAP-11). Unlike
+    /// <see cref="FindVariableIndex"/> -- which searches Variables, then WorkingState, then
+    /// Parameters and returns a COMBINED index (correct for GetVariable/SetVariable, which only
+    /// ever emit <c>IrOp_ReadVariable</c>/<c>IrOp_WriteVariable</c> against that same combined
+    /// space) -- this searches ONLY <c>_typed.Asset.Parameters</c>, since <c>IrOp_ReadParam</c>'s
+    /// index is looked up via <c>EmissionContext.ParamFieldName</c> against
+    /// <c>Asset.Parameters</c> alone. Using the combined index here would silently emit the wrong
+    /// field (or an out-of-range <c>__p_{idx}</c> placeholder) whenever Variables/WorkingState are
+    /// non-empty.
+    /// </summary>
+    private int FindParameterIndex(string parameterId)
+    {
+        var parameters = _typed.Asset.Parameters;
+
+        // ParameterId may be in the form "var:<Guid>" or "param:<Guid>" -- strip the prefix before
+        // parsing. Mirrors FindVariableIndex's "var:" handling.
+        var idStr = parameterId.StartsWith("var:", StringComparison.OrdinalIgnoreCase)
+            ? parameterId.Substring(4)
+            : parameterId.StartsWith("param:", StringComparison.OrdinalIgnoreCase)
+                ? parameterId.Substring(6)
+                : parameterId;
+
+        if (Guid.TryParse(idStr, out var guid))
+        {
+            for (int i = 0; i < parameters.Count; i++) if (parameters[i].Id == guid) return i;
+        }
+        // Name fallback
         for (int i = 0; i < parameters.Count; i++) if (parameters[i].Name == idStr) return i;
         return -1;
     }

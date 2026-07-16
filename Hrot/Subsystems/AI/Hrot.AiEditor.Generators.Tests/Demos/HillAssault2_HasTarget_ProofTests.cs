@@ -104,13 +104,16 @@ public sealed class HillAssault2_HasTarget_ProofTests
         var paramsType = bpType.GetNestedType("Params")!;
         var wsType     = bpType.GetNestedType("WorkingState")!;
 
-        var ws = Activator.CreateInstance(wsType)!;
-        wsType.GetField("TargetNetworkId")!.SetValue(ws, targetNetworkId);
+        // GAP-11: TargetNetworkId is now a declared Parameter (read via the new GetParameter node
+        // -> IrOp_ReadParam -> `p.TargetNetworkId`), not a WorkingState field -- set it on Params;
+        // WorkingState is now empty and stays default-initialized.
+        var pars = Activator.CreateInstance(paramsType)!;
+        paramsType.GetField("TargetNetworkId")!.SetValue(pars, targetNetworkId);
 
         object?[] args =
         {
-            Activator.CreateInstance(paramsType),
-            ws,
+            pars,
+            Activator.CreateInstance(wsType),
             entity,
             world,
             0f,
@@ -141,6 +144,29 @@ public sealed class HillAssault2_HasTarget_ProofTests
             "HillAssault2TankOps.HasTarget(__t0, self, world)",
             "P7.1 must auto-append self/view to the FunctionCall via the baked TrailingContext flag " +
             "-- see generated TickCore below:\n" + generatedSource);
+    }
+
+    /// <summary>
+    /// GAP-11 proof: TargetNetworkId is now a declared Parameter, read via the new GetParameter
+    /// node -&gt; IrOp_ReadParam lowering (StatementEmitter emits <c>p.{ParamFieldName}</c>). The
+    /// generated TickCore must read it off <c>p.TargetNetworkId</c> (the Params struct), and must
+    /// NOT read it off WorkingState (`ws.TargetNetworkId`) any more -- that was the pre-GAP-11
+    /// mis-stash this fix closes (see DEVIATION 1 in the asset's EditorMetadata.Description).
+    /// </summary>
+    [Fact]
+    public void GeneratedTickCore_ReadsTargetNetworkId_FromParamsNotWorkingState()
+    {
+        FindGeneratedBlueprintType();
+
+        var generatedSource = File.ReadAllText(ResolveGeneratedSourcePath());
+        generatedSource.Should().Contain(
+            "p.TargetNetworkId",
+            "GAP-11: TargetNetworkId must be read from the Params struct via the new GetParameter " +
+            "node's IrOp_ReadParam lowering -- see generated TickCore below:\n" + generatedSource);
+        generatedSource.Should().NotContain(
+            "ws.TargetNetworkId",
+            "GAP-11: TargetNetworkId is no longer declared under WorkingState, so it must not be " +
+            "read off `ws` any more -- see generated TickCore below:\n" + generatedSource);
     }
 
     [Fact]

@@ -8,6 +8,7 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(BranchNode),              "Branch")]
 [JsonDerivedType(typeof(SequenceNode),            "Sequence")]
 [JsonDerivedType(typeof(GetVariableNode),         "GetVariable")]
+[JsonDerivedType(typeof(GetParameterNode),        "GetParameter")]
 [JsonDerivedType(typeof(SetVariableNode),         "SetVariable")]
 [JsonDerivedType(typeof(LiteralNode),             "Literal")]
 [JsonDerivedType(typeof(EventEntryNode),          "EventEntry")]
@@ -103,6 +104,19 @@ public sealed class GetVariableNode : Node
 public sealed class SetVariableNode : Node
 {
     public string VariableId { get; set; } = "";
+}
+
+/// <summary>
+/// Reads a declared AiPrimitive/Instance <b>Parameter</b> (the host-BTree/HSM data-IN contract)
+/// into the graph. Pure-data node (data-out "Value", type from the referenced Parameter). Lowers
+/// in Stage5 to the pre-existing <c>IrOp_ReadParam</c> (emits <c>p.{ParamName}</c>). Closes GAP-11:
+/// before this node, graphs could only read Variables/WorkingState, forcing read-only inputs to be
+/// mis-stashed in WorkingState.
+/// </summary>
+public sealed class GetParameterNode : Node
+{
+    /// <summary>Guid (string) of the Parameter to read, resolved against the asset's Parameters list.</summary>
+    public string ParameterId { get; set; } = "";
 }
 
 public sealed class LiteralNode : Node

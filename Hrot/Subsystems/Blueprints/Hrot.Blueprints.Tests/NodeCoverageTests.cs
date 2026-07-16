@@ -394,6 +394,7 @@ public sealed class NodeCoverageTests
         yield return ("Inline/ReadRankedResult", new[] { BuildReadRankedResultMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetSharedSetShared", new[] { BuildGetSetSharedMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetComponent", new[] { BuildGetComponentMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
+        yield return ("Inline/GetParameter", new[] { BuildGetParameterMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
     }
 
     // ---- recipe loading (mirrors RecipeIntegrityTests.LoadRecipe) -----------
@@ -938,6 +939,85 @@ public sealed class NodeCoverageTests
             Dispatch  = BlueprintDispatchKind.Instance,
             Variables = { floatVar },
             Graphs    = { graph },
+        };
+    }
+
+    /// <summary>
+    /// EventEntry -&gt; SetVariable(FloatOut) -&gt; Return, fed by a data-only GetParameter node
+    /// (GAP-11). Mirrors <see cref="BuildGetComponentMinimalAsset"/>'s shape/evidence bar. Unlike
+    /// that fixture, GetParameter's <c>Parameters</c> declaration is only legal under AiPrimitive
+    /// dispatch (Stage2_Validate's BP1031 rejects a non-empty Parameters/WorkingState list on an
+    /// Instance asset) -- so this fixture uses <c>Dispatch = AiPrimitive</c> with a minimal
+    /// Primitive block, and stashes the SetVariable target under WorkingState (AiPrimitive
+    /// forbids Variables -- BP1024) rather than Variables. The GetParameter node's "Value" out-pin
+    /// is authored explicitly (mirrors GetComponentNode -- Stage0_Rehydrate's "node.Pins.Count > 0
+    /// =&gt; skip" guard leaves fully-authored pin-less-node exceptions alone, so no enricher is
+    /// needed), exercising the real Stage5_Schedule GetParameterNode lowering
+    /// (FindParameterIndex -&gt; IrOp_ReadParam -&gt; `p.PIn`) through the full Roslyn+ALC pipeline.
+    /// </summary>
+    private static BlueprintAsset BuildGetParameterMinimalAsset()
+    {
+        var paramId = Guid.NewGuid();
+        var param = new ParameterDecl
+        {
+            Id   = paramId,
+            Name = "PIn",
+            Type = new BlueprintTypeRef { TypeId = "System.Single" },
+        };
+
+        var getValuePin = DataPin("Value", "Out", "System.Single");
+        var getNode = new GetParameterNode { Id = Guid.NewGuid(), ParameterId = paramId.ToString() };
+        getNode.Pins.Add(getValuePin);
+
+        var floatVarId = Guid.NewGuid();
+        var floatVar = new VariableDecl
+        {
+            Id   = floatVarId,
+            Name = "FloatOut",
+            Type = new BlueprintTypeRef { TypeId = "System.Single" },
+        };
+
+        var setExecIn   = ExecPin("ExecIn",  "In");
+        var setExecOut  = ExecPin("ExecOut", "Out");
+        var setValuePin = DataPin("Value",   "In", "System.Single");
+        var setNode = new SetVariableNode { Id = Guid.NewGuid(), VariableId = floatVarId.ToString() };
+        setNode.Pins.AddRange(new[] { setExecIn, setExecOut, setValuePin });
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecPin("ExecIn", "In");
+        ret.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, getNode, setNode, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,   FromPinId = entryOut.Id,    ToNodeId = setNode.Id, ToPinId = setExecIn.Id },
+                new Link { FromNodeId = setNode.Id, FromPinId = setExecOut.Id,  ToNodeId = ret.Id,     ToPinId = retIn.Id },
+                new Link { FromNodeId = getNode.Id, FromPinId = getValuePin.Id, ToNodeId = setNode.Id, ToPinId = setValuePin.Id },
+            },
+        };
+
+        return new BlueprintAsset
+        {
+            AssetId      = Guid.NewGuid(),
+            Name         = "GetParameterCoverage",
+            Dispatch     = BlueprintDispatchKind.AiPrimitive,
+            Primitive    = new AiPrimitiveDecl
+            {
+                Intent   = AiPrimitiveIntent.Action,
+                Hostings = { AiPrimitiveHosting.BTreeAction },
+            },
+            Parameters   = { param },
+            WorkingState = { floatVar },
+            Graphs       = { graph },
         };
     }
 }

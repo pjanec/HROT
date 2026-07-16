@@ -36,6 +36,11 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         GetVariableNode => Array.Empty<PinSchema>(),   // pure data-Out, type from variable
         SetVariableNode => new[] { ExecIn(), ExecOut() },
 
+        // GetParameter (GAP-11): pure data-Out node, fully-authored pins (mirrors GetComponentNode --
+        // the asset supplies the "Value" out-pin directly, typed from the referenced Parameter, so
+        // Stage0_Rehydrate's "node.Pins.Count > 0 => skip" guard leaves it alone; no enricher needed).
+        GetParameterNode  => Array.Empty<PinSchema>(),   // pure data-Out, type from the referenced Parameter (authored pin)
+
         // GetShared/SetShared (Slice 2a-2): mirrors Get/SetVariable -- static skeleton only;
         // Stage0_Rehydrate enriches data pins directly from SharedTypeId (NOT asset.Variables --
         // the shared type is foreign to this asset). Slice 2b: GetShared's enricher additionally
