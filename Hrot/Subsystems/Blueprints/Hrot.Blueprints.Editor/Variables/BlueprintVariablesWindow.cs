@@ -228,7 +228,10 @@ public sealed class BlueprintVariablesWindow : BlueprintEditorWindowBase
 
         if (_variablesControl == null || _lastAsset?.AssetId != asset.AssetId)
         {
-            _variablesControl = new VariablesPanelControl(_refactorService, adapter, BlackboardTypeHelper.DefaultKnownTypeNames);
+            // No IActionSchemaExporter is in scope here -- the Blueprint Variables window is
+            // constructed without one, so the choice list is primitives + [BlackboardDtoStruct]
+            // types only (no action-schema DTO types). See BlackboardTypeChoiceBuilder.
+            _variablesControl = new VariablesPanelControl(_refactorService, adapter, BlackboardTypeChoiceBuilder.BuildDefault());
             _lastAsset = adapter;
         }
 

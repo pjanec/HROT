@@ -81,7 +81,7 @@ public sealed class VariablesPanelControl
 {
     private readonly IRefactorService _refactorService;
     private readonly IEditableAsset _assetBase;
-    private readonly IReadOnlyList<string> _knownTypeNames;
+    private readonly IReadOnlyList<VariableTypeChoice> _typeChoices;
 
     private string? _renameActiveVarName;
     private readonly byte[] _renameBuf = new byte[256];
@@ -100,11 +100,11 @@ public sealed class VariablesPanelControl
     private bool _openRemoveUnusedPopup;
     private IVariablesSchemaSource? _removeUnusedPopupSchema;
 
-    public VariablesPanelControl(IRefactorService refactorService, IEditableAsset assetBase, IReadOnlyList<string> knownTypeNames)
+    public VariablesPanelControl(IRefactorService refactorService, IEditableAsset assetBase, IReadOnlyList<VariableTypeChoice> typeChoices)
     {
         _refactorService = refactorService;
         _assetBase = assetBase;
-        _knownTypeNames = knownTypeNames;
+        _typeChoices = typeChoices;
     }
 
     public void DrawSingle(VariablesPanelSection section,
@@ -550,7 +550,7 @@ public sealed class VariablesPanelControl
         {
             ImGui.Text("Name:"); ImGui.SameLine(); ImGui.InputText("##add_name", _addNameBuf, (uint)_addNameBuf.Length);
             ImGui.Text("Type:"); ImGui.SameLine();
-            string comboStr = string.Join('\0', _knownTypeNames) + "\0\0";
+            string comboStr = string.Join('\0', _typeChoices.Select(c => c.Display)) + "\0\0";
             ImGui.Combo("##add_type", ref _addTypeIndex, comboStr);
             ImGui.Text("Comment:"); ImGui.SameLine(); ImGui.InputText("##add_comment", _addCommentBuf, (uint)_addCommentBuf.Length);
 
@@ -564,8 +564,12 @@ public sealed class VariablesPanelControl
                  _addValidationError = BlackboardNameValidator.Validate(name, existing);
                  if (_addValidationError == null)
                  {
-                     string typeName = (_addTypeIndex >= 0 && _addTypeIndex < _knownTypeNames.Count) ? _knownTypeNames[_addTypeIndex] : "int";
-                     Type? fieldType = BlackboardTypeHelper.GetPrimitiveType(typeName) ?? typeof(int);
+                     // Collision-safe resolution: index into the SAME ordered choice list that
+                     // built the combo, never a reverse name lookup -- two structs from different
+                     // namespaces can share a short display name (e.g. two distinct "Foo" DTOs).
+                     Type fieldType = (_addTypeIndex >= 0 && _addTypeIndex < _typeChoices.Count)
+                         ? _typeChoices[_addTypeIndex].Type
+                         : typeof(int);
                      _addPopupSchema.AddVariable(new BlackboardVariableEntry(name, fieldType, string.IsNullOrEmpty(comment) ? null : comment));
                      ImGui.CloseCurrentPopup();
                      _addPopupSchema = null;

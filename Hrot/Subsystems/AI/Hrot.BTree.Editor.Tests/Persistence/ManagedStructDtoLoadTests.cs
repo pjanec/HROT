@@ -1,6 +1,7 @@
 using System.Linq;
 using System.Runtime.InteropServices;
 using FluentAssertions;
+using Hrot.AiEditor.Persistence;
 using Hrot.AiEditor.Persistence.BTree;
 using Hrot.BTree.Editor.Persistence;
 using Hrot.Editor.AiShared.Windows;
@@ -71,5 +72,31 @@ public sealed class ManagedStructDtoLoadTests
 
         vm.Should().NotBeNull();
         vm.Variables.Should().ContainSingle(r => r.Name == "counter");
+    }
+
+    /// <summary>
+    /// A struct-typed blackboard variable added by a designer via the Add-Variable dropdown
+    /// must round-trip through the mapper's ToDto -> FromDto cycle (i.e. save then re-open the
+    /// asset) without losing the struct's identity. Exercises BOTH Input and State roles, since
+    /// a user-authored struct variable must be usable as either.
+    /// </summary>
+    [Theory]
+    [InlineData(BlackboardVariableRole.Input)]
+    [InlineData(BlackboardVariableRole.State)]
+    public void ToDtoThenFromDto_StructTypedVariable_PreservesType_ForBothRoles(BlackboardVariableRole role)
+    {
+        // Start from a loaded asset with a struct-typed variable (as if freshly added via the panel).
+        var loaded = BehaviorTreeAssetMapper.FromDto(MakeManagedDto(typeof(ProbeDto).FullName!));
+        loaded.UpdateVariableRole("counter", role);
+
+        // Round-trip: model -> DTO -> model, exactly what Save then re-Open does.
+        var dto = BehaviorTreeAssetMapper.ToDto(loaded);
+        var reloaded = BehaviorTreeAssetMapper.FromDto(dto);
+
+        var roundTripped = reloaded.BlackboardVariables.Single(v => v.Name == "counter");
+        roundTripped.FieldType.Should().Be(typeof(ProbeDto),
+            "the struct type must survive a save/reload round-trip, not fall back to object");
+        roundTripped.FieldType.Should().NotBe(typeof(object));
+        roundTripped.Role.Should().Be(role, "role (Input/State) must also survive the round-trip");
     }
 }

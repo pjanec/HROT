@@ -262,12 +262,16 @@ public sealed class BlackboardAddRemoveTests
     [Fact]
     public void BuildViewModel_with_explicit_knownTypeNames_populates_field()
     {
-        var typeNames = new[] { "int", "float" };
+        var typeChoices = new[]
+        {
+            new VariableTypeChoice("int", typeof(int)),
+            new VariableTypeChoice("float", typeof(float)),
+        };
         var asset = new MutableBbAsset { IsBlackboardEditorManaged = true };
 
-        var vm = BlackboardAuthoringWindow.BuildViewModel(asset, typeNames);
+        var vm = BlackboardAuthoringWindow.BuildViewModel(asset, typeChoices);
 
-        Assert.Equal(typeNames, vm.KnownTypeNames);
+        Assert.Equal(typeChoices, vm.KnownTypeNames);
     }
 
     [Fact]
@@ -277,8 +281,8 @@ public sealed class BlackboardAddRemoveTests
 
         var vm = BlackboardAuthoringWindow.BuildViewModel(asset);
 
-        Assert.Contains("float", vm.KnownTypeNames);
-        Assert.Contains("int",   vm.KnownTypeNames);
-        Assert.Contains("Vector3", vm.KnownTypeNames);
+        Assert.Contains(vm.KnownTypeNames, c => c.Display == "float"   && c.Type == typeof(float));
+        Assert.Contains(vm.KnownTypeNames, c => c.Display == "int"     && c.Type == typeof(int));
+        Assert.Contains(vm.KnownTypeNames, c => c.Display == "Vector3" && c.Type == typeof(System.Numerics.Vector3));
     }
 }

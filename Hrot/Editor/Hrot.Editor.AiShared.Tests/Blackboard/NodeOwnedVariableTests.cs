@@ -38,7 +38,7 @@ public sealed class NodeOwnedVariableTests
             RequiresHeavyComponent:    false,
             Warning:                   PackWarning.None,
             Variables:                 rows,
-            KnownTypeNames:            Array.Empty<string>(),
+            KnownTypeNames:            Array.Empty<VariableTypeChoice>(),
             UnboundRequirements:       Array.Empty<UnboundRequirementViewModel>());
 
     // ── VariableViewModel carries IsAutoManaged ──────────────────────────────

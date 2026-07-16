@@ -59,7 +59,7 @@ public sealed record BlackboardWindowViewModel(
     bool RequiresHeavyComponent,
     PackWarning Warning,
     IReadOnlyList<VariableViewModel> Variables,
-    IReadOnlyList<string> KnownTypeNames,
+    IReadOnlyList<VariableTypeChoice> KnownTypeNames,
     IReadOnlyList<UnboundRequirementViewModel> UnboundRequirements,
     IReadOnlyList<VariableViewModel> HardcodedDtoFields = null!);
 
@@ -156,11 +156,17 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
     /// Pure; no ImGui calls; safe to invoke from unit tests.
     /// </summary>
     /// <param name="activeAsset">The currently selected asset, or null when nothing is selected.</param>
-    /// <param name="knownTypeNames">Optional override for the type-name completion list.</param>
+    /// <param name="knownTypeNames">
+    /// Optional override for the Add-Variable type choice list. When null, the default list is
+    /// built via <see cref="BlackboardTypeChoiceBuilder.BuildDefault"/>, unioning primitives,
+    /// <c>[BlackboardDtoStruct]</c> types, and (when <paramref name="actionSchemaExporter"/> is
+    /// supplied) action-schema DTO types.
+    /// </param>
     /// <param name="aggregationResult">Optional sub-tree aggregation result (AIE-052).</param>
     /// <param name="actionSchemaExporter">
-    /// Optional schema exporter used to resolve hardcoded DTO fields from bound action FQNs.
-    /// When null, <see cref="BlackboardWindowViewModel.HardcodedDtoFields"/> is empty.
+    /// Optional schema exporter used to resolve hardcoded DTO fields from bound action FQNs, and
+    /// (when <paramref name="knownTypeNames"/> is null) to widen the default type choice list with
+    /// discovered action DTO struct types.
     /// </param>
     /// <param name="boundActionFqns">
     /// FQNs of hardcoded actions bound to nodes in the active asset.
@@ -168,12 +174,12 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
     /// </param>
     public static BlackboardWindowViewModel BuildViewModel(
         IEditableAsset? activeAsset,
-        IReadOnlyList<string>? knownTypeNames = null,
+        IReadOnlyList<VariableTypeChoice>? knownTypeNames = null,
         AggregationResult? aggregationResult = null,
         IActionSchemaExporter? actionSchemaExporter = null,
         IReadOnlyList<string>? boundActionFqns = null)
     {
-        var typeNames = knownTypeNames ?? BlackboardTypeHelper.DefaultKnownTypeNames;
+        var typeNames = knownTypeNames ?? BlackboardTypeChoiceBuilder.BuildDefault(actionSchemaExporter);
 
         // Compute hardcoded DTO fields from bound action FQNs (S1-1).
         var hardcodedDtoFields = BuildHardcodedDtoFields(actionSchemaExporter, boundActionFqns);
