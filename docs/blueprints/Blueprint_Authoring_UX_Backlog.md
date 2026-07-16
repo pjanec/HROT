@@ -81,3 +81,10 @@ Discovered by rebuilding real behavior as blueprints. Full detail + slice mappin
   only their own blackboard + implicit-self accessor nodes; can't read a component/singleton or hand
   `self`/`world` to a `FunctionCall`. Blocks the entire Hill-attack condition family. Highest-leverage
   capability to add. Options in `HillAssault_Blueprint_Migration.md` (GAP-7); tracked as task #26.
+- **GAP-8 — authoring UI (inspector node forms) is broadly stubbed** — the data model + compiler +
+  engine primitives are mature, but the designer-facing editor is thin. E.g. `WhenNodeDrawer`'s four
+  mode forms are all `TextDisabled` placeholders (can't specify the condition/event/value/EQS). Since
+  non-programmer authoring is the whole point, this editor layer is the real critical path. Mostly
+  *wiring existing UIs* — the predicate builder (`PredicateBuilderState` / `DataBreakpointManagerPanel`,
+  used by Universal Breakpoints + Replay search) into the When ConditionMet form, catalog pickers into
+  the others — not inventing. Windows-verifiable (ImGui). Tracked as task #27.
