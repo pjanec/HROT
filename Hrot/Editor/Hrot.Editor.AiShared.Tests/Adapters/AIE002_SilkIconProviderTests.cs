@@ -123,6 +123,11 @@ public sealed class AIE002_SilkIconProviderTests
         "bt/subtree",
         "bt/leaf",
         "bt/decorator",
+        // I4: Blueprint category (composed AiPrimitive actions/conditions) — see
+        // BTreeNodeCatalog.BuildDynamicEntries / Categories.
+        "bt/blueprint",
+        "bt/blueprint_action",
+        "bt/blueprint_condition",
     };
 
     // All static icon keys used by HsmNodeCatalog.

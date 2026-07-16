@@ -543,6 +543,48 @@ public sealed class BTreeDynamicCatalogTests
     }
 
     [Fact]
+    public void Catalog_AiPrimitiveActionEntry_HasBlueprintActionIconKey()
+    {
+        // Regression: Blueprint palette entries must carry a non-null icon key so the
+        // palette can render an icon instead of a blank cell (see SilkIconProvider's
+        // "bt/blueprint_action" mapping).
+        var fake = new FakeActionSchemaExporter();
+        fake.Seed("Ns.Bp.MoveToAndFire", new ActionSchemaEntry(
+            "Ns.Bp.MoveToAndFire", typeof(SomeOtherDto), ActionHosting.BTree,
+            BlackboardAccess.Unknown, null, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
+
+        var catalog = new BTreeNodeCatalog(fake, typeof(BrainBlackboardStub).FullName);
+
+        var entry = catalog.All.Single(e => e.Kind.Id == "bt.leaf.action::Ns.Bp.MoveToAndFire");
+        entry.IconKey.Should().Be("bt/blueprint_action");
+    }
+
+    [Fact]
+    public void Catalog_AiPrimitiveConditionEntry_HasBlueprintConditionIconKey()
+    {
+        var fake = new FakeActionSchemaExporter();
+        fake.Seed("Ns.Bp.IsReady", new ActionSchemaEntry(
+            "Ns.Bp.IsReady", typeof(SomeOtherDto), ActionHosting.BTree,
+            BlackboardAccess.Unknown, null, IsCondition: true, DtoFields: null, IsAiPrimitive: true));
+
+        var catalog = new BTreeNodeCatalog(fake, typeof(BrainBlackboardStub).FullName);
+
+        var entry = catalog.All.Single(e => e.Kind.Id == "bt.leaf.condition::Ns.Bp.IsReady");
+        entry.IconKey.Should().Be("bt/blueprint_condition");
+    }
+
+    [Fact]
+    public void Categories_BlueprintCategory_HasNonNullIconKey()
+    {
+        // Regression: the Blueprint category header must also carry an icon key
+        // (see SilkIconProvider's "bt/blueprint" mapping).
+        var catalog = new BTreeNodeCatalog();
+
+        var blueprintCategory = catalog.Categories.Single(c => c.Path == "Blueprint");
+        blueprintCategory.IconKey.Should().Be("bt/blueprint");
+    }
+
+    [Fact]
     public void Catalog_AiPrimitiveEntry_DisplayNameIsBlueprintName_NotTickCore()
     {
         // Generated TickCore FQN pattern: {ns}.{Blueprint}_{id:X8}_Bp.TickCore.

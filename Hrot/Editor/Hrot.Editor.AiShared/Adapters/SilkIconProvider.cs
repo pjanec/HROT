@@ -55,6 +55,15 @@ public sealed class SilkIconProvider : IIconProvider
             ["bt/subtree"]            = "o6",   // page-code → subtree reference
             ["bt/leaf"]               = "ab1",   // bullet → leaf category
 
+            // ── BTree Blueprint category (I4: composed AiPrimitive actions/conditions) ──
+            // Reuses the existing node-graph glyph for the category header (same icon as
+            // asset/blueprint) and the existing leaf action/condition glyphs for entries, so
+            // Blueprint palette entries are no longer blank while staying action/condition
+            // distinguishable.
+            ["bt/blueprint"]          = "n15",   // node-graph → blueprint category (same as asset/blueprint)
+            ["bt/blueprint_action"]   = "w13",   // lightning-bolt → composed blueprint action (same as bt/action)
+            ["bt/blueprint_condition"]= "a2",    // tick circle → composed blueprint condition (same as bt/condition)
+
             // ── BTree decorator pills ────────────────────────────────────────────
             ["bt/decorator"]          = "ad6",   // tag → decorator category
             ["bt/inverter"]           = "g8",   // exclamation → invert
