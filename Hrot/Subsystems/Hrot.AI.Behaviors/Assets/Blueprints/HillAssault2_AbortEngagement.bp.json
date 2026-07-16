@@ -1,0 +1,63 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
+  "AssetId": "a3f83b53-1baa-4912-b2f0-7ac57f95ba94",
+  "Name": "HillAssault2_AbortEngagement",
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "Primitive": {
+    "Intent": "Action",
+    "Hostings": ["BTreeAction"]
+  },
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "0daa5430-4b40-46f3-b87e-cb33b02a9645",
+      "Name": "Main",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "5f7f157f-e3c1-47a4-90ef-55f689e17c8f",
+          "EventTypeId": "",
+          "Pins": [],
+          "EditorMetadata": { "X": 80.0, "Y": 220.0 }
+        },
+        {
+          "kind": "Return",
+          "Id": "7f6a40e8-ad97-4d91-8a94-31f16eeb2dce",
+          "Status": "Success",
+          "Pins": [],
+          "EditorMetadata": { "X": 400.0, "Y": 220.0 }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "5f7f157f-e3c1-47a4-90ef-55f689e17c8f",
+          "FromPinId": "06204d0c-594c-405e-a84b-6fa3cf94186d",
+          "ToNodeId": "7f6a40e8-ad97-4d91-8a94-31f16eeb2dce",
+          "ToPinId": "ea914d2d-4f48-4cb4-86fa-610f3f48f701"
+        }
+      ],
+      "EditorMetadata": { "ViewportX": 0, "ViewportY": 0, "ViewportZoom": 0 }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "Slice 0 (warm-up) proof: blueprint-authored rebuild of the C# oracle Action_AbortEngagement (HillAttackTankNodes.cs ~line 517) — an AiPrimitive BTreeAction that unconditionally returns Success. Graph is the trivial always-Success shape: EventEntry (empty EventTypeId, per-tick entry) -> Return(Success). No Parameters/WorkingState/Variables/GetShared — deliberately the smallest possible real node, using only lowered node kinds (EventEntry, Return) to dodge known unimplemented-node bugs (see docs/blueprints/HillAssault_Blueprint_Migration.md, GAP table). New asset under the HillAssault2 working name; does not modify or replace the C# oracle.",
+    "Category": null,
+    "Recipe": null
+  }
+}
