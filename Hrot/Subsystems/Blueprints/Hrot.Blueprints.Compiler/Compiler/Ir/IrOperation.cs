@@ -16,17 +16,36 @@ public sealed record IrOp_DeltaTime : IrOperation;
 public sealed record IrOp_ReadInstanceVersion : IrOperation;
 
 // Pure-function calls (math, logical, type coercion)
+/// <param name="AppendSelfArg">
+/// P7 -- true when the target CLR method's parameter list ends with a recognized trailing
+/// `Entity self` context parameter that was OMITTED from the node's data-IN pins (and therefore
+/// from <paramref name="Args"/>). Stage 7 (<see cref="Emit.StatementEmitter"/>) appends the
+/// in-scope `self` identifier to the emitted call. Always false for calls that don't match the
+/// P7 trailing-context convention -- existing calls are byte-identical.
+/// </param>
+/// <param name="AppendViewArg">
+/// P7 -- true when the target CLR method's parameter list ends with a recognized trailing
+/// read-only <c>ISimulationView</c> context parameter (see <paramref name="AppendSelfArg"/> for
+/// the OMIT/append split). Stage 7 appends the in-scope read-only view expression (never
+/// <c>EntityRepository</c> write access) to the emitted call.
+/// </param>
 public sealed record IrOp_PureCall(
     string MethodFqn,
     IReadOnlyList<IrValue> Args,
-    IrTypeRef ReturnType) : IrOperation;
+    IrTypeRef ReturnType,
+    bool AppendSelfArg = false,
+    bool AppendViewArg = false) : IrOperation;
 
 // Impure calls into Blueprint code
+/// <param name="AppendSelfArg">P7 -- see <see cref="IrOp_PureCall.AppendSelfArg"/>.</param>
+/// <param name="AppendViewArg">P7 -- see <see cref="IrOp_PureCall.AppendViewArg"/>.</param>
 public sealed record IrOp_LibraryCall(
     int LibraryBlueprintId,
     string MethodName,
     IReadOnlyList<IrValue> Args,
-    IrTypeRef ReturnType) : IrOperation;
+    IrTypeRef ReturnType,
+    bool AppendSelfArg = false,
+    bool AppendViewArg = false) : IrOperation;
 
 public sealed record IrOp_PeerCall(
     int PeerBlueprintId,

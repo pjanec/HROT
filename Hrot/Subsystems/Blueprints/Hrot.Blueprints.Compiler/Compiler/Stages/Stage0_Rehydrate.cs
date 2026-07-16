@@ -302,8 +302,11 @@ internal static class Stage0_Rehydrate
             }
         }
 
-        // CLR-reflection path.
-        EnrichClrFunctionCallPins(pins, fc, outL, inL);
+        // CLR-reflection path. `asset` is non-nullable at this method's own signature (the
+        // preceding `asset != null` check above is defensive/pre-existing and only guards the
+        // graph-call branch); the null-forgiving operator documents that for the nullable-flow
+        // analysis, which otherwise cannot see past the compound condition above.
+        EnrichClrFunctionCallPins(pins, fc, asset!, outL, inL);
     }
 
     private static void EnrichFunctionGraphCallPins(
@@ -329,7 +332,7 @@ internal static class Stage0_Rehydrate
     }
 
     private static void EnrichClrFunctionCallPins(List<Pin> pins, FunctionCallNode fc,
-        List<Link>? outL, List<Link>? inL)
+        BlueprintAsset asset, List<Link>? outL, List<Link>? inL)
     {
         // Attempt CLR reflection.  Fails gracefully in the netstandard2.0 MSBuild host
         // where the game assembly is not loaded; tracked for a later registry-driven FunctionCall.
@@ -393,8 +396,28 @@ internal static class Stage0_Rehydrate
         }
         try
         {
-            foreach (var param in method.GetParameters())
+            var allParams = method.GetParameters();
+
+            // P7 -- trailing engine-context recognition (Entity self / ISimulationView view).
+            // Recognized ONLY when the containing asset's dispatch has self/view in scope
+            // (Instance/AiPrimitive -- mirrors EmissionContext.HasSelfInScope). A Library-dispatch
+            // asset has neither in scope (LibraryEmitter.EmitFunctionGraph emits a stateless static
+            // method with only the declared graph inputs as parameters), so trailing Entity/
+            // ISimulationView-typed parameters there are left as ordinary data pins -- unchanged,
+            // pre-P7 behavior. Authoring such a call in a Library graph will surface as an ordinary
+            // "unresolvable data pin" / downstream Roslyn compile error, same as any other invalid
+            // reference in a stateless function body (no new diagnostic added for this edge case;
+            // see P7 report for the recorded gap).
+            int contextCount = 0;
+            if (asset.Dispatch != BlueprintDispatchKind.Library)
             {
+                (contextCount, _, _) = ResolveTrailingContext(allParams);
+            }
+            var dataParamCount = allParams.Length - contextCount;
+
+            for (int i = 0; i < dataParamCount; i++)
+            {
+                var param = allParams[i];
                 var pt = param.ParameterType;
                 if (pt.IsByRef) pt = pt.GetElementType() ?? pt;
                 pins.Add(MakePin(param.Name ?? "arg", "In", isExec: false,
@@ -412,6 +435,63 @@ internal static class Stage0_Rehydrate
                 $"keeping exec-only fallback.");
             // Leave whatever exec pins exist.
         }
+    }
+
+    // ── P7: trailing engine-context recognition (FunctionCall context-aware pins) ──────────────
+
+    /// <summary>
+    /// P7 -- recognizes the trailing engine-context parameter convention on a FunctionCall's
+    /// resolved CLR method. The parameter list MAY end with <c>Entity self</c>, or an
+    /// <c>ISimulationView</c>-typed parameter (any name), or both in that exact order
+    /// (<c>..., Entity self, ISimulationView &lt;name&gt;</c> -- mirrors the parameter order the
+    /// compiler itself uses for generated methods, e.g. <c>TickCore(..., self, world, time)</c>).
+    /// <para>
+    /// Recognition is by TYPE (exact <c>Type.FullName</c> match against
+    /// <c>Fdp.Core.Entity</c> / <c>Fdp.ModuleHost.Abstractions.ISimulationView</c>, after stripping
+    /// a by-ref wrapper). The <c>Entity</c> case ALSO requires the parameter be named exactly
+    /// <c>"self"</c> (ordinal) -- <c>Entity</c> is a legitimate ordinary data-pin type elsewhere
+    /// (e.g. <see cref="GetSharedNode"/>'s "Target" pin), so the name disambiguates a genuine
+    /// trailing self-context parameter from an author-supplied <c>Entity</c> data argument.
+    /// <c>ISimulationView</c> has no legitimate ordinary blueprint-data use, so type alone suffices.
+    /// </para>
+    /// Kept in parity with <c>NodePinSchema.ResolveTrailingContext</c> (editor projection) and
+    /// <c>Stage5_Schedule.ResolveTrailingContext</c> (IR-lowering arg-append) — all three must
+    /// agree on which trailing parameters are "context" so the omitted pin count and the appended
+    /// call-argument count always match.
+    /// </summary>
+    /// <returns>
+    /// <c>ContextCount</c> -- 0, 1, or 2 trailing parameters consumed as engine context.
+    /// <c>AppendSelf</c>/<c>AppendView</c> -- which kind(s) were recognized (informational here;
+    /// Stage0 only needs <c>ContextCount</c> to slice the pin list -- appending the actual call
+    /// arguments happens later, in Stage5_Schedule).
+    /// </returns>
+    private static (int ContextCount, bool AppendSelf, bool AppendView) ResolveTrailingContext(
+        ParameterInfo[] parameters)
+    {
+        const string EntityFqn = "Fdp.Core.Entity";
+        const string ViewFqn   = "Fdp.ModuleHost.Abstractions.ISimulationView";
+
+        int n = parameters.Length;
+        if (n == 0) return (0, false, false);
+
+        static Type StripByRef(Type t) => t.IsByRef ? (t.GetElementType() ?? t) : t;
+        bool IsSelfParam(ParameterInfo p) =>
+            StripByRef(p.ParameterType).FullName == EntityFqn
+            && string.Equals(p.Name, "self", StringComparison.Ordinal);
+        bool IsViewParam(ParameterInfo p) =>
+            StripByRef(p.ParameterType).FullName == ViewFqn;
+
+        if (IsViewParam(parameters[n - 1]))
+        {
+            if (n >= 2 && IsSelfParam(parameters[n - 2]))
+                return (2, true, true);
+            return (1, false, true);
+        }
+
+        if (IsSelfParam(parameters[n - 1]))
+            return (1, true, false);
+
+        return (0, false, false);
     }
 
     private static void EnrichCallCustomEventPins(

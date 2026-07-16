@@ -115,7 +115,9 @@ internal static class StatementEmitter
 
             case IrOp_PureCall op:
             {
-                var argList = string.Join(", ", op.Args.Select(a => $"__t{a.Index}"));
+                var argList = AppendContextArgs(
+                    string.Join(", ", op.Args.Select(a => $"__t{a.Index}")),
+                    ctx, op.AppendSelfArg, op.AppendViewArg);
                 string call;
                 // Intercept synthesized comparison/arithmetic operators produced by WaitLowering_*.
                 // These use the naming convention op_<Operation>_<Type> and must be emitted as
@@ -138,7 +140,9 @@ internal static class StatementEmitter
             case IrOp_LibraryCall op:
             {
                 var libClass = ctx.ResolveLibraryClass(op.LibraryBlueprintId);
-                var argList = string.Join(", ", op.Args.Select(a => $"__t{a.Index}"));
+                var argList = AppendContextArgs(
+                    string.Join(", ", op.Args.Select(a => $"__t{a.Index}")),
+                    ctx, op.AppendSelfArg, op.AppendViewArg);
                 var call = $"{libClass}.{op.MethodName}({argList})";
                 if (idx >= 0)
                     e.WriteLine($"var __t{idx} = {call};");
@@ -801,6 +805,30 @@ internal static class StatementEmitter
             return synthFieldName.Substring(prefix.Length,
                 synthFieldName.Length - prefix.Length - suffix.Length);
         return synthFieldName;
+    }
+
+    /// <summary>
+    /// P7 -- appends the in-scope `self`/read-only-view identifiers (in that order) to an
+    /// already-built call argument list, per <see cref="IrOp_PureCall.AppendSelfArg"/> /
+    /// <see cref="IrOp_LibraryCall.AppendSelfArg"/>. No-op (returns <paramref name="argList"/>
+    /// unchanged) when neither flag is set -- existing FunctionCall emission stays byte-identical.
+    /// `self` is always the bare identifier; the view expression is <see cref="EmissionContext.ViewVar"/>
+    /// (read-only; never the write-capable <c>EntityRepository</c> cast used by
+    /// <see cref="EmissionContext.WorldVar"/>). Safe to call unconditionally: Stage 5 never sets
+    /// either flag for a Library-dispatch asset (no self/view in scope there), so this never emits
+    /// an undefined identifier.
+    /// </summary>
+    private static string AppendContextArgs(string argList, EmissionContext ctx, bool appendSelf, bool appendView)
+    {
+        if (!appendSelf && !appendView)
+            return argList;
+
+        var extra = new List<string>(2);
+        if (appendSelf) extra.Add("self");
+        if (appendView) extra.Add(ctx.ViewVar);
+        var extraStr = string.Join(", ", extra);
+
+        return argList.Length == 0 ? extraStr : $"{argList}, {extraStr}";
     }
 
     /// <summary>

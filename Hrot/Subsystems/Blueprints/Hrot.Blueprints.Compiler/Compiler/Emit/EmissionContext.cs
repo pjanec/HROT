@@ -78,6 +78,26 @@ internal sealed class EmissionContext
         Asset.Dispatch == AssetDispatch.AiPrimitive ? "ws" : "s";
 
     /// <summary>
+    /// P7 -- read-only <c>ISimulationView</c> expression for the in-scope view, used when
+    /// appending the trailing engine-context argument to a FunctionCall (see
+    /// <c>IrOp_PureCall.AppendViewArg</c> / <c>IrOp_LibraryCall.AppendViewArg</c>).
+    /// <para>
+    /// AiPrimitive: <c>world</c> -- typed <c>Fdp.Core.EntityRepository</c>, which implements
+    /// <c>ISimulationView</c>, so passing it to a parameter typed <c>ISimulationView</c> is an
+    /// ordinary (read-only-surfaced) implicit reference conversion; no cast is emitted.
+    /// Instance: <c>view</c> -- already typed <c>ISimulationView</c> directly.
+    /// </para>
+    /// Deliberately DIFFERENT from <see cref="WorldVar"/>, which casts to the mutable
+    /// <c>EntityRepository</c> for write access (GetShared/SetShared) -- P7's FunctionCall
+    /// context argument must stay read-only per the architect-blessed design.
+    /// Never read for a Library-dispatch asset: <c>HasSelfInScope</c> is false there, and
+    /// Stage 5 never sets AppendSelfArg/AppendViewArg true for Library dispatch (see
+    /// Stage5_Schedule.ResolveFunctionCallTrailingContext), so this value is unused in that case.
+    /// </summary>
+    public string ViewVar =>
+        Asset.Dispatch == AssetDispatch.AiPrimitive ? "world" : "view";
+
+    /// <summary>
     /// True when the emitted method has an <c>Entity self</c> parameter in scope.
     /// AiPrimitive (TickCore / thunks) and Instance (Tick/Event) methods carry <c>self</c>;
     /// Library-dispatch function graphs are stateless static methods with no entity context,

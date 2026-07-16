@@ -7,6 +7,9 @@ using Hrot.Blueprints.Editor.ActionCatalog;
 using Hrot.Blueprints.Editor.Host;
 using Hrot.Blueprints.Editor.Reload;
 using Xunit;
+// P7 -- top-level (non-nested) probe helpers shared with P7_FunctionCallContextTests; must be
+// top-level so Type.FullName is dotted (nested types use "+", invalid as emitted C# source).
+using P7ProbeHelpers = Hrot.Blueprints.Tests.Compiler.P7ProbeHelpers;
 
 namespace Hrot.Blueprints.Tests.Host;
 
@@ -40,6 +43,14 @@ public sealed class NodePinSchemaEnrichmentTests
         /// <summary>A static void method to verify Return pin is omitted for void methods.</summary>
         public static void DoNothing(int value) { _ = value; }
     }
+
+    // P7's trailing-context probe helpers (Probe/ProbeSelfOnly/ProbeViewOnly/ProbeEntityNotNamedSelf)
+    // live on the TOP-LEVEL Hrot.Blueprints.Tests.Compiler.P7ProbeHelpers, not on the nested
+    // ReflectionTargets above -- a nested type's Type.FullName uses "+" for the nested separator,
+    // which is not valid emitted C# syntax for a `global::...` static-method-call reference (this
+    // matters for P7_FunctionCallContextTests' full-Roslyn-compile E2E test; the pin-projection
+    // tests below only need reflection, but share the same top-level class for a single source of
+    // truth). See Hrot.Blueprints.Tests.Compiler.P7ProbeHelpers.
 
     /// <summary>Channel-command catalog stub that maps one action to <see cref="FakeFireParams"/>.</summary>
     private sealed class StubChannelCommandCatalog : IChannelCommandCatalog
@@ -205,6 +216,161 @@ public sealed class NodePinSchemaEnrichmentTests
         Assert.Empty(Data(pins, "Out"));
         Assert.True(HasExec(pins, "In", "In"));
         Assert.True(HasExec(pins, "Out", "Out"));
+    }
+
+    // ── P7: FunctionCall trailing engine-context recognition ────────────────────
+
+    /// <summary>
+    /// P7 -- a helper ending with `Entity self, ISimulationView view` projects ONLY the leading
+    /// `x` data-IN pin; both trailing context params are omitted from the visual pins (auto-
+    /// appended by the compiler at emit time instead). Default dispatch context (asset: null)
+    /// assumes the common Instance/AiPrimitive case.
+    /// </summary>
+    [Fact]
+    public void FunctionCall_TrailingSelfAndView_OmitsBothFromDataPins()
+    {
+        var node = new FunctionCallNode
+        {
+            TargetTypeId = typeof(P7ProbeHelpers).FullName!,
+            MethodName   = nameof(P7ProbeHelpers.Probe),
+            IsPure       = true,
+        };
+
+        var pins = NodePinSchema.GetCanonicalPins(node);
+
+        var dataIn = Data(pins, "In");
+        var single = Assert.Single(dataIn);
+        Assert.Equal("x", single.Name);
+        Assert.Equal("System.Int32", single.TypeId);
+
+        var ret = Assert.Single(Data(pins, "Out"));
+        Assert.Equal("Return", ret.Name);
+        Assert.Equal("System.Int32", ret.TypeId);
+    }
+
+    /// <summary>P7 -- trailing `Entity self` only: omitted, leaving just `x`.</summary>
+    [Fact]
+    public void FunctionCall_TrailingSelfOnly_OmitsFromDataPins()
+    {
+        var node = new FunctionCallNode
+        {
+            TargetTypeId = typeof(P7ProbeHelpers).FullName!,
+            MethodName   = nameof(P7ProbeHelpers.ProbeSelfOnly),
+            IsPure       = true,
+        };
+
+        var pins = NodePinSchema.GetCanonicalPins(node);
+
+        var single = Assert.Single(Data(pins, "In"));
+        Assert.Equal("x", single.Name);
+    }
+
+    /// <summary>P7 -- trailing `ISimulationView` only (any param name): omitted, leaving just `x`.</summary>
+    [Fact]
+    public void FunctionCall_TrailingViewOnly_OmitsFromDataPins()
+    {
+        var node = new FunctionCallNode
+        {
+            TargetTypeId = typeof(P7ProbeHelpers).FullName!,
+            MethodName   = nameof(P7ProbeHelpers.ProbeViewOnly),
+            IsPure       = true,
+        };
+
+        var pins = NodePinSchema.GetCanonicalPins(node);
+
+        var single = Assert.Single(Data(pins, "In"));
+        Assert.Equal("x", single.Name);
+    }
+
+    /// <summary>
+    /// P7 regression guard: a trailing <c>Entity</c> param NOT named "self" is NOT recognized as
+    /// context -- both `x` and `target` remain ordinary wireable data-IN pins (no change from
+    /// pre-P7 behavior for this shape).
+    /// </summary>
+    [Fact]
+    public void FunctionCall_TrailingEntityNotNamedSelf_NotRecognized_BothPinsProjected()
+    {
+        var node = new FunctionCallNode
+        {
+            TargetTypeId = typeof(P7ProbeHelpers).FullName!,
+            MethodName   = nameof(P7ProbeHelpers.ProbeEntityNotNamedSelf),
+            IsPure       = true,
+        };
+
+        var pins = NodePinSchema.GetCanonicalPins(node);
+
+        var dataIn = Data(pins, "In");
+        Assert.Equal(2, dataIn.Length);
+        Assert.Equal("x",      dataIn[0].Name);
+        Assert.Equal("target", dataIn[1].Name);
+        Assert.Equal("Fdp.Core.Entity", dataIn[1].TypeId);
+    }
+
+    /// <summary>
+    /// P7 regression guard: a helper with NO trailing context params (existing
+    /// <see cref="ReflectionTargets.AddOffset"/>) still projects both params -- unchanged from the
+    /// pre-P7 assertions in <see cref="FunctionCall_Pure_KnownMethod_NoExecPins_ButParamsAndReturn"/>.
+    /// Re-asserted here under the P7 section for visibility.
+    /// </summary>
+    [Fact]
+    public void FunctionCall_NoTrailingContext_AllParamsStillProjected_NoRegression()
+    {
+        var node = new FunctionCallNode
+        {
+            TargetTypeId = typeof(ReflectionTargets).FullName!,
+            MethodName   = nameof(ReflectionTargets.AddOffset),
+            IsPure       = true,
+        };
+
+        var pins = NodePinSchema.GetCanonicalPins(node);
+
+        Assert.Equal(2, Data(pins, "In").Length);
+        Assert.Single(Data(pins, "Out"));
+    }
+
+    /// <summary>
+    /// P7 -- Library-dispatch gating: when the asset's dispatch is <c>Library</c> (no self/view in
+    /// scope in the generated stateless static method), trailing-context recognition is suppressed
+    /// and both params are projected as ordinary data-IN pins (pre-P7 behavior, unchanged).
+    /// </summary>
+    [Fact]
+    public void FunctionCall_TrailingSelfAndView_LibraryDispatch_RecognitionSuppressed()
+    {
+        var asset = new BlueprintAsset { Dispatch = BlueprintDispatchKind.Library };
+        var node = new FunctionCallNode
+        {
+            TargetTypeId = typeof(P7ProbeHelpers).FullName!,
+            MethodName   = nameof(P7ProbeHelpers.Probe),
+            IsPure       = true,
+        };
+
+        var pins = NodePinSchema.GetCanonicalPins(node, asset: asset);
+
+        // All 3 params projected: x, self, view -- context recognition suppressed for Library.
+        var dataIn = Data(pins, "In");
+        Assert.Equal(3, dataIn.Length);
+        Assert.Equal("x", dataIn[0].Name);
+    }
+
+    /// <summary>
+    /// P7 -- Instance-dispatch (explicit asset) recognizes trailing context exactly like the
+    /// asset:null default, confirming the dispatch check reads <c>asset.Dispatch</c> correctly.
+    /// </summary>
+    [Fact]
+    public void FunctionCall_TrailingSelfAndView_InstanceDispatch_Recognized()
+    {
+        var asset = new BlueprintAsset { Dispatch = BlueprintDispatchKind.Instance };
+        var node = new FunctionCallNode
+        {
+            TargetTypeId = typeof(P7ProbeHelpers).FullName!,
+            MethodName   = nameof(P7ProbeHelpers.Probe),
+            IsPure       = true,
+        };
+
+        var pins = NodePinSchema.GetCanonicalPins(node, asset: asset);
+
+        var single = Assert.Single(Data(pins, "In"));
+        Assert.Equal("x", single.Name);
     }
 
     // ── Task 3: static data pins ────────────────────────────────────────────────

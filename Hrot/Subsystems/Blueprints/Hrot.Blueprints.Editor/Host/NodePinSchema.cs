@@ -303,7 +303,7 @@ internal static class NodePinSchema
         }
 
         // CLR-reflection path (unchanged existing behavior).
-        return FunctionCallPins(fc);
+        return FunctionCallPins(fc, asset);
     }
 
     /// <summary>
@@ -460,8 +460,20 @@ internal static class NodePinSchema
     /// method has a non-void return type.  The target <see cref="Type"/> is resolved by FQN
     /// across loaded assemblies; when the type/method cannot be found the node degrades
     /// gracefully to exec-only (pure → empty), matching the prior behavior.
+    /// <para>
+    /// P7 -- when the resolved method's trailing parameters match the engine-context convention
+    /// (<see cref="ResolveTrailingContext"/>), those trailing parameters are OMITTED from the
+    /// projected data-IN pins: the compiler auto-appends the in-scope <c>self</c> Entity and/or
+    /// read-only <c>ISimulationView</c> at emit time (Stage5_Schedule/StatementEmitter), so they
+    /// are never wireable on the canvas. Recognition is suppressed when <paramref name="asset"/>
+    /// is non-null and its dispatch is <see cref="BlueprintDispatchKind.Library"/> (no self/view in
+    /// scope there -- mirrors <c>Stage0_Rehydrate.EnrichClrFunctionCallPins</c>); when
+    /// <paramref name="asset"/> is null (no dispatch context available, e.g. palette previews) the
+    /// more common Instance/AiPrimitive case is assumed, matching this file's existing
+    /// graceful-fallback philosophy.
+    /// </para>
     /// </summary>
-    private static IReadOnlyList<Pin> FunctionCallPins(FunctionCallNode fc)
+    private static IReadOnlyList<Pin> FunctionCallPins(FunctionCallNode fc, BlueprintAsset? asset)
     {
         var pins = new List<Pin>();
         if (!fc.IsPure)
@@ -474,8 +486,19 @@ internal static class NodePinSchema
         if (method == null)
             return pins; // graceful fallback: exec-only (or empty for pure).
 
-        foreach (var param in method.GetParameters())
+        var allParams = method.GetParameters();
+
+        // P7 -- trailing engine-context recognition (see ResolveTrailingContext doc comment).
+        int contextCount = 0;
+        if (asset == null || asset.Dispatch != BlueprintDispatchKind.Library)
         {
+            (contextCount, _, _) = ResolveTrailingContext(allParams);
+        }
+        var dataParamCount = allParams.Length - contextCount;
+
+        for (int i = 0; i < dataParamCount; i++)
+        {
+            var param = allParams[i];
             var pt = param.ParameterType;
             if (pt.IsByRef) pt = pt.GetElementType() ?? pt;
             pins.Add(MakeData(param.Name ?? "arg", "In", pt.FullName ?? pt.Name));
@@ -486,6 +509,57 @@ internal static class NodePinSchema
                 method.ReturnType.FullName ?? method.ReturnType.Name));
 
         return pins;
+    }
+
+    // ── P7: trailing engine-context recognition (FunctionCall context-aware pins) ──────────────
+
+    /// <summary>
+    /// P7 -- recognizes the trailing engine-context parameter convention on a FunctionCall's
+    /// resolved CLR method. The parameter list MAY end with <c>Entity self</c>, or an
+    /// <c>ISimulationView</c>-typed parameter (any name), or both in that exact order
+    /// (<c>..., Entity self, ISimulationView &lt;name&gt;</c> -- mirrors the parameter order the
+    /// compiler itself uses for generated methods, e.g. <c>TickCore(..., self, world, time)</c>).
+    /// <para>
+    /// Recognition is by TYPE (exact <c>Type.FullName</c> match against
+    /// <c>Fdp.Core.Entity</c> / <c>Fdp.ModuleHost.Abstractions.ISimulationView</c>, after stripping
+    /// a by-ref wrapper). The <c>Entity</c> case ALSO requires the parameter be named exactly
+    /// <c>"self"</c> (ordinal) -- <c>Entity</c> is a legitimate ordinary data-pin type elsewhere
+    /// (e.g. <see cref="GetSharedNode"/>'s "Target" pin), so the name disambiguates a genuine
+    /// trailing self-context parameter from an author-supplied <c>Entity</c> data argument.
+    /// <c>ISimulationView</c> has no legitimate ordinary blueprint-data use, so type alone suffices.
+    /// </para>
+    /// Kept in parity with <c>Stage0_Rehydrate.ResolveTrailingContext</c> (compiler pin rehydration)
+    /// and <c>Stage5_Schedule.ResolveTrailingContext</c> (IR-lowering arg-append) -- all three must
+    /// agree on which trailing parameters are "context" so the editor's projected pins always match
+    /// what the compiler actually consumes/appends.
+    /// </summary>
+    private static (int ContextCount, bool AppendSelf, bool AppendView) ResolveTrailingContext(
+        ParameterInfo[] parameters)
+    {
+        const string EntityFqn = "Fdp.Core.Entity";
+        const string ViewFqn   = "Fdp.ModuleHost.Abstractions.ISimulationView";
+
+        int n = parameters.Length;
+        if (n == 0) return (0, false, false);
+
+        static Type StripByRef(Type t) => t.IsByRef ? (t.GetElementType() ?? t) : t;
+        bool IsSelfParam(ParameterInfo p) =>
+            StripByRef(p.ParameterType).FullName == EntityFqn
+            && string.Equals(p.Name, "self", StringComparison.Ordinal);
+        bool IsViewParam(ParameterInfo p) =>
+            StripByRef(p.ParameterType).FullName == ViewFqn;
+
+        if (IsViewParam(parameters[n - 1]))
+        {
+            if (n >= 2 && IsSelfParam(parameters[n - 2]))
+                return (2, true, true);
+            return (1, false, true);
+        }
+
+        if (IsSelfParam(parameters[n - 1]))
+            return (1, true, false);
+
+        return (0, false, false);
     }
 
     private static IReadOnlyList<Pin> GetVariablePins(GetVariableNode gv, string typeId)

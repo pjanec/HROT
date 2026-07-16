@@ -1035,11 +1035,13 @@ internal sealed class GraphScheduler
                     ? t
                     : Stage5_Schedule.UnknownType;
                 var result = AllocValue(retType);
+                var (appendSelf, appendView) =
+                    ResolveFunctionCallTrailingContext(fc.TargetTypeId, fc.MethodName);
                 stmts.Add(new IrStatement
                 {
                     ResultValue = result,
                     Operation   = new IrOp_LibraryCall(0, $"{fc.TargetTypeId}.{fc.MethodName}",
-                                                       inputVals, retType),
+                                                       inputVals, retType, appendSelf, appendView),
                     Debug = DebugOf(node),
                 });
                 if (outPin is not null)
@@ -1471,11 +1473,14 @@ internal sealed class GraphScheduler
             case FunctionCallNode fc when fc.IsPure:
                 var inputArgs = ResolveAllDataInputs(sourceNode, stmts);
                 result = AllocValue(pinType);
+                var (pureAppendSelf, pureAppendView) =
+                    ResolveFunctionCallTrailingContext(fc.TargetTypeId, fc.MethodName);
                 stmts.Add(new IrStatement
                 {
                     ResultValue = result,
                     Operation   = new IrOp_PureCall(
-                        $"{fc.TargetTypeId}.{fc.MethodName}", inputArgs, pinType),
+                        $"{fc.TargetTypeId}.{fc.MethodName}", inputArgs, pinType,
+                        pureAppendSelf, pureAppendView),
                     Debug = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = fc.Id, PinId = sourcePinId },
                 });
                 break;
@@ -1678,6 +1683,140 @@ internal sealed class GraphScheduler
             .Where(p => !p.IsExec && p.Direction == "In")
             .Select(p => ResolveDataPin(node.Id, p.Id, stmts))
             .ToList();
+    }
+
+    // -----------------------------------------------------------------------
+    // P7: trailing engine-context recognition (FunctionCall context-aware args)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// P7 -- resolves whether a FunctionCall's target CLR method (by <paramref name="targetTypeId"/>
+    /// + <paramref name="methodName"/>) ends with the recognized trailing engine-context
+    /// parameters (<c>Entity self</c> / <c>ISimulationView view</c>; see
+    /// <see cref="ResolveTrailingContext"/>) that <see cref="StatementEmitter"/> must append to the
+    /// emitted call. The node's data-IN pins already OMIT these trailing parameters (Stage0's
+    /// <c>EnrichClrFunctionCallPins</c>/the editor's <c>NodePinSchema.FunctionCallPins</c> --
+    /// kept in parity), so <see cref="ResolveAllDataInputs"/>'s result never includes them; this
+    /// method decides only whether to append <c>self</c>/the read-only view as EXTRA trailing
+    /// arguments at emit time.
+    /// <para>
+    /// Gated off for a Library-dispatch asset -- <see cref="EmissionContext.HasSelfInScope"/>
+    /// is false there (no <c>self</c>/<c>view</c> local in the generated stateless static method),
+    /// so appending either would emit an undefined-identifier reference. In that case this method
+    /// always returns <c>(false, false)</c>; a trailing Entity/ISimulationView-typed parameter is
+    /// therefore left as an ordinary (already-resolved) positional data argument, matching pre-P7
+    /// behavior byte-for-byte (see the recorded gap in the P7 report for why no diagnostic is
+    /// raised for this edge case).
+    /// </para>
+    /// Returns <c>(false, false)</c> when the method cannot be resolved via reflection (graceful --
+    /// matches the existing CLR-reflection NO-SWALLOW fallback elsewhere; no context can be
+    /// inferred without the method's actual signature).
+    /// </summary>
+    private (bool AppendSelf, bool AppendView) ResolveFunctionCallTrailingContext(
+        string targetTypeId, string methodName)
+    {
+        if (_typed.Asset.Dispatch == AssetDispatchKind.Library)
+            return (false, false);
+
+        var method = ResolveClrMethodForContext(targetTypeId, methodName);
+        if (method is null)
+            return (false, false);
+
+        var (_, appendSelf, appendView) = ResolveTrailingContext(method.GetParameters());
+        return (appendSelf, appendView);
+    }
+
+    /// <summary>
+    /// P7 -- resolves a CLR method by declaring-type FQN + method name across loaded assemblies,
+    /// for trailing-context recognition only. Mirrors the reflection idiom already used by
+    /// <c>Stage0_Rehydrate.ResolveMethod</c>/<c>NodePinSchema.ResolveMethod</c> (kept in parity;
+    /// not shared directly -- Stage5_Schedule has no reference to either of those internal
+    /// helpers' owning types). Returns null (graceful) when the type/method cannot be resolved.
+    /// </summary>
+    private static System.Reflection.MethodInfo? ResolveClrMethodForContext(
+        string targetTypeId, string methodName)
+    {
+        if (string.IsNullOrEmpty(targetTypeId) || string.IsNullOrEmpty(methodName))
+            return null;
+
+        System.Type? type = System.Type.GetType(targetTypeId, throwOnError: false);
+        if (type is null)
+        {
+            foreach (var asm in System.AppDomain.CurrentDomain.GetAssemblies())
+            {
+                try
+                {
+                    type = asm.GetType(targetTypeId, throwOnError: false);
+                    if (type is not null) break;
+                }
+                catch
+                {
+                    // Ignore assemblies that fail type resolution.
+                }
+            }
+        }
+        if (type is null) return null;
+
+        try
+        {
+            return type.GetMethods(
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic |
+                    System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Instance)
+                .FirstOrDefault(m => m.Name == methodName);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// P7 -- recognizes the trailing engine-context parameter convention on a FunctionCall's
+    /// resolved CLR method. The parameter list MAY end with <c>Entity self</c>, or an
+    /// <c>ISimulationView</c>-typed parameter (any name), or both in that exact order
+    /// (<c>..., Entity self, ISimulationView &lt;name&gt;</c> -- mirrors the parameter order the
+    /// compiler itself uses for generated methods, e.g. <c>TickCore(..., self, world, time)</c>).
+    /// <para>
+    /// Recognition is by TYPE (exact <c>Type.FullName</c> match against
+    /// <c>Fdp.Core.Entity</c> / <c>Fdp.ModuleHost.Abstractions.ISimulationView</c>, after stripping
+    /// a by-ref wrapper). The <c>Entity</c> case ALSO requires the parameter be named exactly
+    /// <c>"self"</c> (ordinal) -- <c>Entity</c> is a legitimate ordinary data-pin type elsewhere
+    /// (e.g. <see cref="GetSharedNode"/>'s "Target" pin), so the name disambiguates a genuine
+    /// trailing self-context parameter from an author-supplied <c>Entity</c> data argument.
+    /// <c>ISimulationView</c> has no legitimate ordinary blueprint-data use, so type alone suffices.
+    /// </para>
+    /// Kept in parity with <c>Stage0_Rehydrate.ResolveTrailingContext</c> (compiler pin rehydration)
+    /// and <c>NodePinSchema.ResolveTrailingContext</c> (editor pin projection) -- all three must
+    /// agree on which trailing parameters are "context" so the omitted pin count always matches
+    /// the appended call-argument count.
+    /// </summary>
+    private static (int ContextCount, bool AppendSelf, bool AppendView) ResolveTrailingContext(
+        System.Reflection.ParameterInfo[] parameters)
+    {
+        const string EntityFqn = "Fdp.Core.Entity";
+        const string ViewFqn   = "Fdp.ModuleHost.Abstractions.ISimulationView";
+
+        int n = parameters.Length;
+        if (n == 0) return (0, false, false);
+
+        static System.Type StripByRef(System.Type t) => t.IsByRef ? (t.GetElementType() ?? t) : t;
+        bool IsSelfParam(System.Reflection.ParameterInfo p) =>
+            StripByRef(p.ParameterType).FullName == EntityFqn
+            && string.Equals(p.Name, "self", StringComparison.Ordinal);
+        bool IsViewParam(System.Reflection.ParameterInfo p) =>
+            StripByRef(p.ParameterType).FullName == ViewFqn;
+
+        if (IsViewParam(parameters[n - 1]))
+        {
+            if (n >= 2 && IsSelfParam(parameters[n - 2]))
+                return (2, true, true);
+            return (1, false, true);
+        }
+
+        if (IsSelfParam(parameters[n - 1]))
+            return (1, true, false);
+
+        return (0, false, false);
     }
 
     // -----------------------------------------------------------------------
