@@ -57,20 +57,41 @@ The lean Hill-attack rebuild = **two small generic primitives + generic nodes**:
    (no `PhaseSequencer` needed).
 4. compose with **`ForEach`** (P1), **component reads** (P2), **`PublishEvent`** (P4).
 
-### `MemberSlotList` — strawman API (the one new construct)
+### `MemberSlotList` — API (ARCHITECT-BLESSED, question #3)
+No existing runner-list construct exists (closest are the bespoke `HillAttackMutableState` SoA and the
+`UnitRoster` component) — so `MemberSlotList` is genuinely new. Blessed shape:
 ```csharp
 [BlackboardDtoStruct]                          // blittable, engine public API, opaque to designer
-public struct MemberSlotList { /* fixed cap (16); Entity + up to K scalar columns per row; Count */ }
+public struct MemberSlotList
+{
+    // FIXED NAMED columns (SoA), NOT generic scalar columns — the compiler's struct-reflection
+    // needs concrete typed fields. Capacity 16 (matches UnitRoster.Capacity — commander ceiling).
+    // EntityId[16] (long), FiringSlot[16] (byte), BaselineSlot[16] (byte), HasStarted[16] (byte), Count.
+}
 
-// generic verbs (Blueprint nodes over a MemberSlotList WorkingState var):
-Add(list, entity, col0, col1, …)   // append a runner + its firingSlot/baselineSlot/started
-SwapRemoveAt(list, index)          // O(1) compaction (matches Hill-attack's SwapRemove)
+// verbs (Blueprint nodes over a MemberSlotList WorkingState var):
+Add(list, entity, firingSlot, baselineSlot)   // append a runner (HasStarted=0)
+SwapRemoveAt(list, index)                       // O(1) compaction (matches Hill-attack SwapRemove)
 Count(list) → int
-Get(list, index) → (entity, col0, col1, …)     // or exposed as a ForEach source
-Set(list, index, colN, value)                   // e.g. latch HasStartedRun=1
+Get(list, index) → (entity, firingSlot, baselineSlot, hasStarted)   // or a ForEach source
+SetHasStarted(list, index, value)               // latch the run-start flag
 ```
-Generic (any entity-keyed record list), reusable, and it hides the compaction/SoA — the same
-encapsulation principle as `SlotRotation`.
+**⚠ Implementation hazard (architect):** if the columns use C# 12 `[InlineArray]`, direct index
+assignment inside an unmanaged component triggers the **defensive-copy `ldobj` bug — writes are
+silently lost.** Must expose a `GetSpanRW()` (or equivalent) and mutate through the span. This is the
+kind of bug that would waste a day; bake it into the primitive from the start + a test that writes,
+reloads, and asserts the value stuck.
+
+Same encapsulation principle as `SlotRotation`: hides the SoA + compaction behind verbs.
+
+## Q5 reuse (architect) — more "we already have X"
+- **EQS target pool:** use `AreaQueryBatchHelper.GetTargetFromPool(repo, targetGroupHandle, index)` —
+  safely unpacks an entity from the `EqsTargetPool` native-array singleton. No new node needed beyond
+  wrapping it.
+- **Round-robin targets:** no helper — it's just `activeTankIndexInWave % targetCount`. Wrap in a small
+  Blueprint helper function (pure `FunctionCall`).
+- **Baseline reservation:** NOT a new construct — just a **second `SlotRotation`** instance (firing +
+  baseline are two `SlotRotationState` vars). Confirmed.
 
 ## Lean coverage of the hard Hill-attack nodes
 
@@ -83,7 +104,7 @@ encapsulation principle as `SlotRotation`.
 
 Everything maps to generic, reusable pieces — no Hill-attack-specific C#, no forced doctrine model.
 
-## Open point for review
-`MemberSlotList` capacity + column count/typing (Hill-attack needs Entity + firingSlot + baselineSlot
-+ startedFlag = 1 entity + 3 bytes; a generic cap of 16 rows × N scalar columns). Worth confirming the
-column model (fixed named columns vs N generic scalar slots) before building.
+## Status: design complete, architect-blessed (question #3)
+Column model (fixed named SoA), capacity (16), the `SlotRotation`-×2 baseline decision, and the Q5
+reuse are all settled above. The one build-time risk to carry forward is the `[InlineArray]`
+`GetSpanRW()` hazard. Ready to build when green-lit — no open design points remain for the lean path.

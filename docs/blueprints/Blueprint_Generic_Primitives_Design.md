@@ -77,10 +77,14 @@ authoring"). Specifics:
    kind with `Loop Body` + `Completed` exec-out pins and `Item` + `Index` data-out pins. Compiler
    emits a synchronous C# `foreach` around the `Loop Body` sub-DAG; validator forbids latent nodes in
    the body. Preserves DAG topology; no cross-frame state machine.
-3. **A3 — squad slot/role/phase: SANCTIONED.** `PartitionElements`/`AssignRoles`/`AdvancePhase`/
-   `AcquireSlot` are already in the AST under `SquadPrimitiveNodeCatalog` (TASK-SQD-P6-02). Implement
-   them by **wrapping existing FDP engine primitives** `RoleSlotAssignmentPrimitive` and
-   `PhaseSequencer` — the bitmask/SoA bookkeeping stays encapsulated in that C#.
+3. **A3 — squad slot/role/phase: SANCTIONED, but SUPERSEDED for Hill-attack (question #3).** The
+   `SquadCognitiveState` doctrine model (elements/roles/phases) does **not** fit Hill-attack's
+   wave/runner/dual-slot shape, and the whole squad layer is deliberately dormant (designed-ahead,
+   wire-later — TASK-SQD-P6-02). So **P5 for Hill-attack = the LEAN path**: reuse the existing
+   `SlotRotation` primitive (two instances: firing + baseline) + a new `MemberSlotList`
+   `[BlackboardDtoStruct]` for the active-runner list + a plain `int` wave counter. The squad nodes
+   (`PartitionElements`/`AssignRoles`/`AdvancePhase`/`AcquireSlot`) stay reserved for a genuine
+   bounding-overwatch behavior. Full design: `Squad_State_Fit_And_Lean_Slot_Design.md`.
 4. **A4 — foreign-entity read: SAFE & SYNCHRONOUS, no deferral.** Only cross-entity *writes* defer.
    Reads project memory synchronously, accepting ≤1-frame staleness by fixed tick order — the same
    contract as Slice-2b `GetSharedNode` cross-entity reads.
