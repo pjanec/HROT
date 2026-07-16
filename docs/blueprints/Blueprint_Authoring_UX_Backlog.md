@@ -64,3 +64,16 @@ State survives. Answers "why did my value reset / not reset?"
 
 > **Diagram medium:** SVG for DOC-2/3/4 (richer pictures; Mermaid clips labels and lays out
 > awkwardly). Mermaid only for simple flowcharts like D4.
+
+## Capability gaps (from the Hill-attack migration)
+
+Discovered by rebuilding real behavior as blueprints. Full detail + slice mapping in
+`HillAssault_Blueprint_Migration.md`. Candidates until a slice confirms each:
+
+- **GAP-1 — no loop / iteration node** (ForEach / While / counted Repeater). Biggest gap.
+- **GAP-2 — read a foreign entity's ECS component** (not just a shared slot).
+- **GAP-3 — publish arbitrary engine events** (beyond the 3 CQRS channels).
+- **GAP-4 — roster fan-out** (iterate `UnitRoster`, publish N per-subordinate orders) — squad
+  primitives may cover; verify.
+- **GAP-5 — bitmask / SoA-array working state** + array-set / bit-op vocabulary.
+- **GAP-6 — in-place param mutation** → migrate to working-state var (refactor, not a true gap).
