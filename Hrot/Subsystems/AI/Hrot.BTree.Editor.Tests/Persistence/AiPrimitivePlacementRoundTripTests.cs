@@ -124,4 +124,68 @@ public sealed class AiPrimitivePlacementRoundTripTests
         wsVarDto.Scope.Should().Be(WorkingStateScope.Node,
             "default scope is Node (private) — matching pre-Slice-1 semantics until a designer opts into Behavior scope");
     }
+
+    /// <summary>
+    /// Slice-1 authorability gap fix: the Blackboard Variables panel's Node-Owned Allocations
+    /// table now exposes an editable Scope dropdown for auto-managed State rows (see
+    /// VariablesPanelControl.DrawNodeOwnedTable), wired to the same
+    /// <see cref="IBlackboardManagedAsset.UpdateVariableScope"/> model call as the main table.
+    /// This proves the model-level half of that fix: flipping the auto-created bpWorkingState
+    /// variable's Scope from Node to Behavior via <see cref="BehaviorTreeAsset.UpdateVariableScope"/>
+    /// (exactly what the panel's new Scope combo invokes) persists through the same
+    /// model → DTO save path proven above, with the variable remaining IsAutoManaged/Role=State.
+    /// The codegen consequence of a Behavior-scoped shared slot (two composed nodes bound to the
+    /// same variable sharing one slot) is already proven end-to-end by
+    /// Hrot.AiEditor.Generators.Tests.Demos.T35_SharedWorkingState_ProofTests.
+    /// </summary>
+    [Fact]
+    public void PlacedAiPrimitiveNode_WorkingStateScope_FlipToBehavior_PersistsThroughRoundTrip()
+    {
+        const string fqn = "Hrot.AI.Behaviors.Generated.Demo_1A2B3C4D_Bp.TickCore";
+        var fake = new FakeActionSchemaExporter();
+        fake.Seed(fqn, new ActionSchemaEntry(
+            fqn, typeof(FakeBpGenerated.Params), ActionHosting.BTree,
+            BlackboardAccess.Unknown, null, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
+
+        var asset = new BehaviorTreeAsset(
+            Guid.NewGuid(), "PlacedAiPrimitiveTree", "/t.cs", true,
+            "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+            "Fdp.Toolkit.Behavior.BTreeContext",
+            EmptyBlob());
+
+        var graph  = new StubGraphModel();
+        var sink   = new BTreeCommandSink(asset, graph, fake);
+        var nodeId = NodeId.NewId();
+
+        sink.Apply(new GraphCommand.AddNode(
+            nodeId,
+            new NodeKindKey("bt.leaf.action::" + fqn),
+            Vector2.Zero,
+            null));
+
+        var dtoBefore = BehaviorTreeAssetMapper.ToDto(asset);
+        var actionBefore = dtoBefore.Nodes.OfType<BTreeActionNodeDto>().Should().ContainSingle().Which;
+        string wsVarName = actionBefore.Action!.WorkingStateTargetField!;
+
+        var wsVarBefore = dtoBefore.Blackboard.Variables.Should().ContainSingle(v => v.Name == wsVarName).Which;
+        wsVarBefore.Scope.Should().Be(WorkingStateScope.Node, "starts at the pre-Slice-1 default scope");
+
+        // This is exactly the model call the panel's new node-owned Scope dropdown issues
+        // (VariablesPanelControl.DrawNodeOwnedTable -> IVariablesSchemaSource.UpdateVariableScope
+        // -> BehaviorTreeAsset.UpdateVariableScope). No IsAutoManaged gate blocks it.
+        asset.UpdateVariableScope(wsVarName, WorkingStateScope.Behavior);
+
+        var dtoAfter = BehaviorTreeAssetMapper.ToDto(asset);
+        var wsVarAfter = dtoAfter.Blackboard.Variables.Should().ContainSingle(v => v.Name == wsVarName).Which;
+
+        wsVarAfter.Scope.Should().Be(WorkingStateScope.Behavior,
+            "Slice 1: the Scope flip must survive the model → DTO round-trip, enabling shared " +
+            "working-state between composed nodes bound to the same variable");
+        wsVarAfter.Role.Should().Be(BlackboardVariableRole.State,
+            "Role must remain State -- this fix authors Scope only, never Role, for node-owned rows");
+
+        var actionAfter = dtoAfter.Nodes.OfType<BTreeActionNodeDto>().Should().ContainSingle().Which;
+        actionAfter.Action!.WorkingStateTargetField.Should().Be(wsVarName,
+            "the node's binding to the WorkingState variable is unaffected by the scope change");
+    }
 }

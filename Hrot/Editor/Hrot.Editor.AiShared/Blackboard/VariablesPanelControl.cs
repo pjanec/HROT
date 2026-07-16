@@ -471,18 +471,25 @@ public sealed class VariablesPanelControl
     }
 
     /// <summary>
-    /// Renders the read-only "Node-Owned Allocations" table for auto-managed variables (B-4 §3.6).
-    /// This table is always dimmed (caller wraps in PushStyleVar Alpha) and has no
-    /// edit controls — auto-managed vars are removed by the command sink when the owning node is deleted.
+    /// Renders the "Node-Owned Allocations" table for auto-managed variables (B-4 §3.6).
+    /// This table is always dimmed (caller wraps in PushStyleVar Alpha). Name, Type and Role
+    /// stay read-only here — auto-managed vars are removed by the command sink when the owning
+    /// node is deleted, and Role must remain State for a composed node's WorkingState slot.
+    /// Scope IS editable for State-role rows (Slice-1 authorability): flipping an auto-managed
+    /// WorkingState variable from Node to Behavior/Entity scope is how a designer opts a
+    /// composed node into shared working-state, and <see cref="IVariablesSchemaSource.UpdateVariableScope"/>
+    /// applies cleanly regardless of IsAutoManaged (it is a plain name-keyed field update on the asset).
     /// </summary>
     private void DrawNodeOwnedTable(VariablesPanelSection section, List<VariableViewModel> rows)
     {
+        var schema = section.Schema;
         string tableId = $"##no_tbl_{section.TableId}";
-        if (ImGui.BeginTable(tableId, 3, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
+        if (ImGui.BeginTable(tableId, 4, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
         {
             ImGui.TableSetupColumn("Name",  ImGuiTableColumnFlags.WidthStretch);
             ImGui.TableSetupColumn("Type",  ImGuiTableColumnFlags.WidthFixed, 90f);
             ImGui.TableSetupColumn("Bytes", ImGuiTableColumnFlags.WidthFixed, 50f);
+            ImGui.TableSetupColumn("Scope", ImGuiTableColumnFlags.WidthFixed, 72f);
             ImGui.TableHeadersRow();
 
             for (int rowIdx = 0; rowIdx < rows.Count; rowIdx++)
@@ -496,6 +503,33 @@ public sealed class VariablesPanelControl
                     ImGui.SetTooltip("Auto-allocated by node. Removed when the owning node is deleted.");
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(row.TypeName);
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(row.ByteSize.ToString());
+
+                // Scope column: editable ONLY for State-role rows (Input-role node-owned vars,
+                // e.g. bpParams, have no meaningful scope and stay blank). Name/Type/Role remain
+                // read-only above — this is the one authorable cell in the node-owned table.
+                ImGui.TableNextColumn();
+                if (row.ShowScopeSelector)
+                {
+                    if (!schema.IsReadOnly)
+                    {
+                        ImGui.SetNextItemWidth(-1f);
+                        int scopeIdx = (int)row.Scope;
+                        if (ImGui.Combo($"##no_scope_{rowIdx}", ref scopeIdx, "Node\0Behavior\0Entity\0\0"))
+                        {
+                            var newScope = (WorkingStateScope)scopeIdx;
+                            schema.UpdateVariableScope(row.Name, newScope);
+                        }
+                    }
+                    else
+                    {
+                        ImGui.TextUnformatted(row.Scope.ToString());
+                    }
+                }
+                else
+                {
+                    ImGui.TextDisabled("—");
+                }
+
                 ImGui.PopID();
             }
             ImGui.EndTable();
