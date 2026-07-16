@@ -131,3 +131,32 @@ capability for the whole migration.
 
 Until decided, the migration proceeds only on **output-shaped** slices (command actions via
 `ChannelCommand`) — the condition family is parked behind this capability.
+
+## P2 scoping (2026-07-16) — GAP-7 resolves cheaply for component reads; GAP-12 surfaced
+
+Deep scan before building P2 (`GetComponent`) found the **input** side is far less bare than GAP-7
+implied — most of the machinery already exists, just with no user-facing node driving it:
+
+- **The whole read chain is already built at IR + emit level.** `IrOp_Self` (`var __t = self;`),
+  `IrOp_GetComponentRO(fqn, entity, type)` (`ref readonly var __t = ref world.GetComponentRO<global::FQN>(…)`),
+  and `IrOp_FieldRead(src, field, type)` (`var __t = __src.Field;`) all exist and are emitted today
+  (used internally by `WaitForChannel` lowering). `IrTypeRef` is a pure **string** record — no
+  `System.Type` — so it's buildable from baked FQNs.
+- **Type resolution is already reflection-free.** `StaticTypeRegistry.TryResolve` accepts any
+  `global::`-prefixed TypeId as an unmanaged value type (AN2 "trust the FQN"). So a component's FQN
+  and its field's enum type both resolve at generation time **without loading game assemblies** —
+  no repeat of GAP-9.
+
+⇒ **P2 (`GetComponent`) is a small, safe addition**: one new node kind + one Stage5 pure-node case
+that chains the three existing IR ops (mirrors the `GetSharedNode` case, incl. the optional cross-entity
+`Target` pin → subsumes **GAP-2**). This is the first **fully-native** (no C# helper for the *read*)
+resolution of GAP-7 for self/foreign component reads. Proof: `HillAssault2_IsSelfArrived`
+(self `NavigationStatus.Result == Arrived`), single-entity precursor to slice 4's roster loop.
+
+- **GAP-12 (new) — no comparison / boolean / arithmetic pure node.** There is no standalone
+  compare/`BinaryOp` node or IR op; `ComparisonOperator` (Equal/LessThan/…) lives **only** inside
+  `WhenNode`'s payload check. So `Result == Arrived` still needs a tiny pure C# comparator helper
+  (`HillAssault2NavOps.IsArrived`, called via a *contextless* `FunctionCall` — a new P7.1 path vs
+  slice 1's `SelfAndView`). Native `Compare` node is task #32; when it lands, this condition becomes
+  helper-free (the full non-programmer-authorable endpoint). The read itself (the hard, reusable part)
+  is proven natively now.
