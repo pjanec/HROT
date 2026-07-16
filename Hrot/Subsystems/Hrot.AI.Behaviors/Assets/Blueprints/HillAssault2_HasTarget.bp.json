@@ -57,7 +57,25 @@
           "MethodName": "HasTarget",
           "IsPure": true,
           "TargetGraphId": "",
-          "Pins": [],
+          "TrailingContext": "SelfAndView",
+          "Pins": [
+            {
+              "Id": "d00b419b-0737-42e3-b679-62f1268bfef4",
+              "Name": "targetNetworkId",
+              "Direction": "In",
+              "TypeRef": { "TypeId": "System.UInt32", "IsArray": false, "GenericArgs": [] },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "a4a8dec9-ac6b-4ceb-85f5-81ffac26ad58",
+              "Name": "Return",
+              "Direction": "Out",
+              "TypeRef": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
           "EditorMetadata": { "X": 340.0, "Y": 60.0 }
         },
         {
@@ -117,7 +135,7 @@
     }
   ],
   "EditorMetadata": {
-    "Description": "Slice 1 proof: blueprint-authored rebuild of the C# oracle Condition_HasTarget (HillAttackTankNodes.cs ~line 113) -- an AiPrimitive BTreeCondition. Graph: EventEntry -> GetVariable(TargetNetworkId) -> FunctionCall HillAssault2TankOps.HasTarget(targetNetworkId, self, view) [P7: self/view auto-appended, hidden from pins] -> Branch -> Return(Success)/Return(Failure). DEVIATION 1 (loud, see migration report FRICTION): TargetNetworkId is declared under WorkingState, NOT Parameters, even though the task's design calls for a Param. Confirmed root cause: GetVariable-node pin/IR resolution (Stage0_Rehydrate.ResolveVariableTypeId, Stage5_Schedule.FindVariableIndex/EmissionContext.VarFieldName) only ever consults asset.Variables/asset.WorkingState, never asset.Parameters -- IrOp_ReadParam exists in the IR model and is handled by StatementEmitter but is never PRODUCED by Stage5, i.e. there is currently no node/wiring path that reads an AiPrimitive Parameter into a graph. Verified empirically: pointing GetVariable.VariableId at a Parameter's Guid types its Value pin System.Object (wrong) and would emit 'ws.__var_0' (does not compile) when Variables/WorkingState are otherwise empty. WorkingState is read/write-correct for this exact pattern and is used here only to keep the slice's P7 proof unblocked -- Parameters remains deliberately empty. DEVIATION 2 (loud, HEADLINE FRICTION): this file is committed under Recipes/Blueprints/ (NOT Assets/Blueprints/) -- i.e. deliberately NOT wired into Hrot.AI.Behaviors's live AdditionalFiles/Roslyn-incremental-generator build. Placing it under Assets/Blueprints/ reproduces, on every clean build (confirmed across a build-server-shutdown + fresh-csc-process retry, so it is not a stale-cache artifact): 'error CS7036: There is no argument given that corresponds to the required parameter self of HillAssault2TankOps.HasTarget(uint, Entity, ISimulationView)'. Root cause: Stage0_Rehydrate.ResolveMethod / Stage5_Schedule.ResolveClrMethodForContext resolve the FunctionCall's target method via runtime System.Reflection (Type.GetType + AppDomain.CurrentDomain.GetAssemblies() scan) INSIDE the Roslyn incremental-generator's own process -- which never has Fdp.Core.dll, Hrot.Core.dll, or Hrot.AI.Behaviors.dll loaded, for a same-project OR an already-prebuilt cross-project reference alike (verified with a throwaway probe method in the already-built Hrot.Core project -- identical CS7036). So CLR-reflection-based FunctionCall resolution (pin typing AND P7 self/view append) is effectively non-functional through the real MSBuild/dotnet-build generator path for ANY FunctionCall target; it only works when the compiler pipeline (BlueprintCompiler.Compile / Stage0-5) is driven in-process from code that already has the target type loaded (unit tests, BlueprintTestFixture's dynamic Roslyn compile-and-load) -- exactly how HillAssault2_HasTarget_ProofTests.cs proves this blueprint below. Does not modify the C# oracle.",
+    "Description": "Slice 1 proof: blueprint-authored rebuild of the C# oracle Condition_HasTarget (HillAttackTankNodes.cs ~line 113) -- an AiPrimitive BTreeCondition. Graph: EventEntry -> GetVariable(TargetNetworkId) -> FunctionCall HillAssault2TankOps.HasTarget(targetNetworkId, self, view) [P7: self/view auto-appended, hidden from pins] -> Branch -> Return(Success)/Return(Failure). DEVIATION 1 (loud, see migration report FRICTION): TargetNetworkId is declared under WorkingState, NOT Parameters, even though the task's design calls for a Param. Confirmed root cause: GetVariable-node pin/IR resolution (Stage0_Rehydrate.ResolveVariableTypeId, Stage5_Schedule.FindVariableIndex/EmissionContext.VarFieldName) only ever consults asset.Variables/asset.WorkingState, never asset.Parameters -- IrOp_ReadParam exists in the IR model and is handled by StatementEmitter but is never PRODUCED by Stage5, i.e. there is currently no node/wiring path that reads an AiPrimitive Parameter into a graph. Verified empirically: pointing GetVariable.VariableId at a Parameter's Guid types its Value pin System.Object (wrong) and would emit 'ws.__var_0' (does not compile) when Variables/WorkingState are otherwise empty. WorkingState is read/write-correct for this exact pattern and is used here only to keep the slice's P7 proof unblocked -- Parameters remains deliberately empty. FORMER DEVIATION 2 (P7.1 FIX, see GAP-9): this asset previously had to live under Recipes/Blueprints/ (not wired into the real Hrot.AI.Behaviors AdditionalFiles/Roslyn-incremental-generator build) because Stage0_Rehydrate.ResolveMethod / Stage5_Schedule.ResolveClrMethodForContext resolve a FunctionCall's target method via runtime System.Reflection INSIDE the Roslyn incremental-generator's own netstandard2.0 analyzer process, which never has Hrot.AI.Behaviors.dll (or any other game assembly) loaded -- silently dropping self/view and producing CS7036. P7.1 fixes this by baking the trailing-context decision into this node's JSON at author time (see the FunctionCall node's \"TrailingContext\": \"SelfAndView\" field and its populated \"Pins\" array, which already excludes self/view) so Stage5_Schedule honors the baked flag directly with NO reflection at generation time. This asset now lives under Assets/Blueprints/ and compiles through the REAL MSBuild/dotnet-build generator path -- see HillAssault2_HasTarget_ProofTests.cs, which now reflects the real generated Hrot.AI.Behaviors.Generated.HillAssault2HasTarget_*_Bp type out of the built Hrot.AI.Behaviors.dll (mirroring HillAssault2_AbortEngagement_ProofTests) instead of the in-process BlueprintCompiler.Compile workaround. Does not modify the C# oracle.",
     "Category": null,
     "Recipe": null
   }

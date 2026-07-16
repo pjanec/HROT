@@ -2,20 +2,12 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.Loader;
 using Fdp.Core;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Replication.Services;
 using FluentAssertions;
 using Hrot.AI.Behaviors.Brains;
-using Hrot.Blueprints.Core;
-using Hrot.Blueprints.Core.Compiler;
-using Hrot.Blueprints.Core.Compiler.Catalogs;
-using Hrot.Blueprints.Core.Compiler.Diagnostics;
-using InMemoryRoslynCompiler = Hrot.Blueprints.Core.Compiler.Roslyn.InMemoryRoslynCompiler;
-using MetadataReferenceResolver = Hrot.Blueprints.Core.Compiler.Roslyn.MetadataReferenceResolver;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace Hrot.AiEditor.Generators.Tests.Demos;
 
@@ -23,118 +15,84 @@ namespace Hrot.AiEditor.Generators.Tests.Demos;
 /// Slice 1 proof for the Hill-attack -> Blueprints migration
 /// (<c>docs/blueprints/HillAssault_Blueprint_Migration.md</c>): a from-scratch, blueprint-authored
 /// rebuild of the C# oracle <c>HillAttackTankNodes.Condition_HasTarget</c> (HillAttackTankNodes.cs
-/// ~line 113), proving the P7 context-aware <c>FunctionCall</c> (self/view auto-append) end-to-end
-/// against real Hill-attack logic (<c>NetworkEntityMap</c> singleton resolution + a
-/// <c>TargetMemory</c> threat-score scan).
+/// ~line 113), proving the P7.1 context-aware <c>FunctionCall</c> (self/view auto-append, baked at
+/// author time -- no CLR reflection at generation time) end-to-end against real Hill-attack logic
+/// (<c>NetworkEntityMap</c> singleton resolution + a <c>TargetMemory</c> threat-score scan).
 ///
 /// <para>
-/// <b>Why this test does NOT use the normal "reflect the real generated type out of
-/// Hrot.AI.Behaviors.dll" pattern</b> (contrast <see cref="HillAssault2_AbortEngagement_ProofTests"/>):
-/// the committed asset lives at <c>Recipes/Blueprints/HillAssault2_HasTarget.bp.json</c>, NOT
-/// <c>Assets/Blueprints/</c>, because putting it there breaks Hrot.AI.Behaviors's real build. This is
-/// a confirmed, reproducible compiler gap (see the asset's own <c>EditorMetadata.Description</c> and
-/// the migration report's FRICTION section): <c>Stage0_Rehydrate.ResolveMethod</c> /
-/// <c>Stage5_Schedule.ResolveClrMethodForContext</c> resolve a FunctionCall's target method via
-/// runtime <c>System.Reflection</c> (<c>Type.GetType</c> + an AppDomain scan) INSIDE the Roslyn
-/// incremental-generator's own process, which never has <c>Hrot.AI.Behaviors.dll</c> (or any other
-/// game/engine assembly, same-project or prebuilt-cross-project alike) loaded -- so the emitted call
-/// silently drops the self/view context args, producing uncompilable C# (CS7036: missing required
-/// parameter 'self'). This is NOT a first-build/stale-cache artifact -- reproduced across a
-/// build-server-shutdown + fresh-csc-process retry.
+/// <b>P7.1 update:</b> the committed asset now lives at the normal
+/// <c>Assets/Blueprints/HillAssault2_HasTarget.bp.json</c> location (previously it had to live under
+/// <c>Recipes/Blueprints/</c>, deliberately NOT wired into Hrot.AI.Behaviors's real
+/// AdditionalFiles/Roslyn-incremental-generator build -- see GAP-9). The root cause was that
+/// <c>Stage0_Rehydrate.ResolveMethod</c> / <c>Stage5_Schedule.ResolveClrMethodForContext</c> resolved
+/// a FunctionCall's target method via runtime <c>System.Reflection</c> (<c>Type.GetType</c> + an
+/// <c>AppDomain</c> scan) INSIDE the Roslyn incremental-generator's own netstandard2.0 analyzer
+/// process, which never has <c>Hrot.AI.Behaviors.dll</c> (or any other game assembly) loaded -- so
+/// the emitted call silently dropped the self/view context args, producing uncompilable C#
+/// (CS7036: missing required parameter 'self'). P7.1 fixes this by baking the trailing-context
+/// decision directly into the FunctionCall node's JSON at author time (<c>"TrailingContext":
+/// "SelfAndView"</c>, with a <c>Pins</c> array that already excludes self/view) so
+/// <c>Stage5_Schedule</c> honors the baked flag with NO reflection at generation time.
 /// </para>
+///
 /// <para>
-/// This test instead drives the SAME real compiler pipeline (<see cref="BlueprintCompiler.Compile"/> --
-/// the exact class/method the MSBuild generator itself calls) in-process, where
-/// <see cref="HillAssault2TankOps"/> IS already loaded (this test project references
-/// <c>Hrot.AI.Behaviors</c>), then Roslyn-compiles the resulting C# and loads it into a collectible
-/// <see cref="AssemblyLoadContext"/> via <see cref="InMemoryRoslynCompiler"/> -- the identical
-/// mechanism <c>BlueprintTestFixture.CompileAndLoad</c> uses for its own E2E tests. This is a fully
-/// real compile-and-run proof (real Roslyn, real generated TickCore, real FastBTree
-/// <see cref="Fbt.NodeStatus"/>); it just does not depend on the MSBuild AdditionalFiles pipeline that
-/// is currently broken for this exact scenario.
+/// This test now mirrors <see cref="HillAssault2_AbortEngagement_ProofTests"/>: it reflects the REAL
+/// generated <c>Hrot.AI.Behaviors.Generated.HillAssault2HasTarget_*_Bp</c> class out of the built
+/// <c>Hrot.AI.Behaviors.dll</c> (this test project references that project -- see its .csproj) rather
+/// than driving <c>BlueprintCompiler.Compile</c> in-process. <c>dotnet build
+/// Hrot.AI.Behaviors/Hrot.AI.Behaviors.csproj</c> is the actual proof that P7.1 fixed the real-build
+/// gap: it must now emit a compiling <c>HillAssault2HasTarget_*_Bp</c> whose <c>TickCore</c> calls
+/// <c>HillAssault2TankOps.HasTarget(__t0, self, world)</c>.
 /// </para>
 /// </summary>
 public sealed class HillAssault2_HasTarget_ProofTests
 {
-    private readonly ITestOutputHelper _output;
-    public HillAssault2_HasTarget_ProofTests(ITestOutputHelper output) => _output = output;
-
-    private const string BpJsonPath =
-        "Hrot.AI.Behaviors/Recipes/Blueprints/HillAssault2_HasTarget.bp.json";
-
-    private static string ResolveBpJsonPath()
+    /// <summary>
+    /// Locates the real generated blueprint class (<c>Hrot.AI.Behaviors.Generated.HillAssault2HasTarget_*_Bp</c>)
+    /// by name pattern rather than hardcoding the BlueprintId hash baked into the class name. Finding
+    /// this type at all is itself strong evidence the real MSBuild generator compiled successfully --
+    /// prior to P7.1, placing this asset under Assets/Blueprints/ made Hrot.AI.Behaviors fail to
+    /// build entirely (CS7036), so this type (and this whole test project, which references it)
+    /// would not have been buildable.
+    /// </summary>
+    private static Type FindGeneratedBlueprintType()
     {
-        // Walk up from the test's runtime directory to find the repo-relative asset -- mirrors how
-        // other Demos tests locate committed assets without hardcoding an absolute machine path.
+        var type = typeof(DemoAiPrimitiveNodes).Assembly.GetTypes()
+            .SingleOrDefault(t =>
+                t.Namespace == "Hrot.AI.Behaviors.Generated"
+                && t.Name.StartsWith("HillAssault2HasTarget_", StringComparison.Ordinal)
+                && t.Name.EndsWith("_Bp", StringComparison.Ordinal));
+        type.Should().NotBeNull(
+            "HillAssault2_HasTarget.bp.json must compile via the real Roslyn source generator into a " +
+            "Hrot.AI.Behaviors.Generated.HillAssault2HasTarget_*_Bp class");
+        return type!;
+    }
+
+    /// <summary>
+    /// Walks up from the test's runtime directory to find the actual generated source file under
+    /// Hrot.AI.Behaviors's own <c>obj/GeneratedFiles</c> (wired via
+    /// <c>EmitCompilerGeneratedFiles</c>/<c>CompilerGeneratedFilesOutputPath</c> in its .csproj) --
+    /// mirrors <c>HillAssault2_HasTarget_ProofTests</c>'s prior <c>ResolveBpJsonPath</c> convention.
+    /// Reading the actual emitted C# is the most direct proof of the P7.1 self/view append.
+    /// </summary>
+    private static string ResolveGeneratedSourcePath()
+    {
         var dir = AppContext.BaseDirectory;
         for (int i = 0; i < 12 && dir != null; i++)
         {
-            var candidate = Path.Combine(dir, "Hrot", "Subsystems", BpJsonPath);
-            if (File.Exists(candidate)) return candidate;
+            var candidateRoot = Path.Combine(dir, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "obj", "GeneratedFiles");
+            if (Directory.Exists(candidateRoot))
+            {
+                var matches = Directory.GetFiles(candidateRoot, "HillAssault2HasTarget_*_Bp.g.cs",
+                    SearchOption.AllDirectories);
+                if (matches.Length > 0)
+                    return matches.OrderByDescending(File.GetLastWriteTimeUtc).First();
+            }
             dir = Directory.GetParent(dir)?.FullName;
         }
         throw new FileNotFoundException(
-            $"Could not locate {BpJsonPath} by walking up from {AppContext.BaseDirectory}");
-    }
-
-    private static CompileOptions DefaultOptions() =>
-        new CompileOptions(
-            Mode:              CompilerMode.Release,
-            NodeRegistry:      BuiltInNodeRegistry.Instance,
-            TypeRegistry:      StaticTypeRegistry.Instance,
-            EngineEvents:      BuiltInEngineEventCatalog.Instance,
-            ChannelCommands:   BuiltInChannelCommandCatalog.Instance,
-            WaitPrimitives:    BuiltInWaitPrimitiveCatalog.Instance,
-            SiblingSignatures: Array.Empty<BlueprintSignature>());
-
-    /// <summary>
-    /// Compiles the committed HillAssault2_HasTarget asset through the REAL
-    /// <see cref="BlueprintCompiler"/> (the same class/method
-    /// <c>BlueprintIncrementalGenerator.CompileOneAsset</c> calls), then Roslyn-compiles the
-    /// resulting C# and loads it into a fresh collectible ALC. Returns the generated blueprint Type
-    /// (nested Params/WorkingState + static TickCore) and the raw generated source (for asserting
-    /// on the self/view-appended call site).
-    /// </summary>
-    private (Type BpType, string GeneratedSource, AssemblyLoadContext Alc) CompileAndLoad()
-    {
-        // Force Hrot.AI.Behaviors.dll to actually be loaded into this process before scanning
-        // AppDomain.CurrentDomain.GetAssemblies() below -- .NET loads referenced assemblies lazily
-        // on first use, and nothing else in this test touches the Brains namespace directly.
-        // Without this, MetadataReferenceResolver.ForRuntimeAssemblies would miss it and the dynamic
-        // Roslyn compile would fail with CS0234 ("Brains does not exist in the namespace").
-        // Force Hrot.AI.Behaviors.dll to actually LOAD into this process (not just resolve at
-        // compile time) before scanning AppDomain.CurrentDomain.GetAssemblies() below. A bare
-        // discarded `typeof(HillAssault2TankOps)` is NOT enough -- empirically confirmed the JIT
-        // treats an unused typeof() as dead code and skips loading the assembly (the AppDomain scan
-        // came back with zero Hrot.AI.Behaviors entries); routing the result through actual output
-        // forces the load.
-        _output.WriteLine($"[Setup] Forcing load of {typeof(HillAssault2TankOps).AssemblyQualifiedName}");
-
-        var json = File.ReadAllText(ResolveBpJsonPath());
-        var asset = BlueprintJsonServices.Deserialize(json);
-        asset.Should().NotBeNull("HillAssault2_HasTarget.bp.json must deserialize");
-
-        var compiler = new BlueprintCompiler();
-        var result = compiler.Compile(asset!, DefaultOptions());
-        result.Diagnostics.Should().NotContain(
-            d => d.Severity == DiagnosticSeverity.Error,
-            "compiling the committed asset through the real BlueprintCompiler must not produce errors: "
-            + string.Join(", ", result.Diagnostics.Select(d => $"{d.Code}: {d.Message}")));
-        result.Succeeded.Should().BeTrue();
-        result.GeneratedSource.Should().NotBeNullOrEmpty();
-
-        var resolver = MetadataReferenceResolver.ForRuntimeAssemblies(AppDomain.CurrentDomain.GetAssemblies());
-        var roslynCompiler = new InMemoryRoslynCompiler(resolver);
-        var sink = new DiagnosticSink();
-        var (assembly, alc) = roslynCompiler.CompileAndLoad(
-            result.GeneratedSource!, "HillAssault2_HasTarget.g.cs", "HillAssault2_HasTarget_Dynamic", sink);
-
-        var bpType = assembly.GetTypes().Single(t =>
-            t.Namespace == "Hrot.AI.Behaviors.Generated"
-            && t.Name.StartsWith("HillAssault2HasTarget_", StringComparison.Ordinal)
-            && t.Name.EndsWith("_Bp", StringComparison.Ordinal));
-
-        return (bpType, result.GeneratedSource!, alc);
+            "Could not locate the generated HillAssault2HasTarget_*_Bp.g.cs under " +
+            "Hrot.AI.Behaviors/obj/GeneratedFiles by walking up from " + AppContext.BaseDirectory);
     }
 
     /// <summary>Invokes the generated <c>TickCore</c> once via reflection.</summary>
@@ -171,110 +129,89 @@ public sealed class HillAssault2_HasTarget_ProofTests
     [Fact]
     public void GeneratedTickCore_AppendsSelfAndView_NotAsVisiblePins()
     {
-        var (_, generatedSource, alc) = CompileAndLoad();
-        try
-        {
-            // P7 proof: the emitted call passes self/world (the AiPrimitive read-only-surfaced
-            // ISimulationView) as EXTRA trailing arguments -- not as ordinary wired data pins.
-            // Only "targetNetworkId" (read from WorkingState) is an author-visible pin.
-            generatedSource.Should().Contain(
-                "HillAssault2TankOps.HasTarget(__t0, self, world)",
-                "P7 must auto-append self/view to the FunctionCall -- see generated TickCore below:\n"
-                + generatedSource);
-        }
-        finally
-        {
-            alc.Unload();
-        }
+        // Ensure the type actually built via the real generator before inspecting its source.
+        FindGeneratedBlueprintType();
+
+        // P7.1 proof: the emitted call passes self/world (the AiPrimitive read-only-surfaced
+        // ISimulationView) as EXTRA trailing arguments -- baked via the FunctionCall node's
+        // "TrailingContext": "SelfAndView" field, with NO reflection at generation time. Only
+        // "targetNetworkId" (read from WorkingState) is an author-visible pin.
+        var generatedSource = File.ReadAllText(ResolveGeneratedSourcePath());
+        generatedSource.Should().Contain(
+            "HillAssault2TankOps.HasTarget(__t0, self, world)",
+            "P7.1 must auto-append self/view to the FunctionCall via the baked TrailingContext flag " +
+            "-- see generated TickCore below:\n" + generatedSource);
     }
 
     [Fact]
     public void GeneratedTickCore_TargetPresentWithPositiveThreat_ReturnsSuccess()
     {
-        var (bpType, _, alc) = CompileAndLoad();
-        try
-        {
-            var world  = CreateWorld();
-            var self   = world.CreateEntity();
-            var target = world.CreateEntity();
+        var bpType = FindGeneratedBlueprintType();
 
-            var map = new NetworkEntityMap();
-            map.Register(netId: 42, entity: target);
-            world.SetSingletonManaged(map);
+        var world  = CreateWorld();
+        var self   = world.CreateEntity();
+        var target = world.CreateEntity();
 
-            world.AddComponent(self, default(TargetMemory));
-            ref var mem = ref world.GetComponentRW<TargetMemory>(self);
-            TargetMemory.AddOrUpdateTarget(
-                ref mem, entityId: (long)target.PackedValue,
-                posX: 0f, posY: 0f, scoreBoost: 1.0f, tick: 1);
+        var map = new NetworkEntityMap();
+        map.Register(netId: 42, entity: target);
+        world.SetSingletonManaged(map);
 
-            TickOnce(bpType, targetNetworkId: 42, self, world).Should().Be(Fbt.NodeStatus.Success,
-                "target is resolvable via NetworkEntityMap and tracked in TargetMemory with positive threat, "
-                + "matching the C# oracle Condition_HasTarget");
+        world.AddComponent(self, default(TargetMemory));
+        ref var mem = ref world.GetComponentRW<TargetMemory>(self);
+        TargetMemory.AddOrUpdateTarget(
+            ref mem, entityId: (long)target.PackedValue,
+            posX: 0f, posY: 0f, scoreBoost: 1.0f, tick: 1);
 
-            world.Dispose();
-        }
-        finally
-        {
-            alc.Unload();
-        }
+        TickOnce(bpType, targetNetworkId: 42, self, world).Should().Be(Fbt.NodeStatus.Success,
+            "target is resolvable via NetworkEntityMap and tracked in TargetMemory with positive threat, "
+            + "matching the C# oracle Condition_HasTarget");
+
+        world.Dispose();
     }
 
     [Fact]
     public void GeneratedTickCore_TargetNotInNetworkMap_ReturnsFailure()
     {
-        var (bpType, _, alc) = CompileAndLoad();
-        try
-        {
-            var world = CreateWorld();
-            var self  = world.CreateEntity();
+        var bpType = FindGeneratedBlueprintType();
 
-            // NetworkEntityMap singleton present but empty -- TargetNetworkId=42 cannot resolve.
-            world.SetSingletonManaged(new NetworkEntityMap());
-            world.AddComponent(self, default(TargetMemory));
+        var world = CreateWorld();
+        var self  = world.CreateEntity();
 
-            TickOnce(bpType, targetNetworkId: 42, self, world).Should().Be(Fbt.NodeStatus.Failure,
-                "TargetNetworkId cannot be resolved via NetworkEntityMap, matching the C# oracle's "
-                + "graceful Failure when the target has not replicated yet");
+        // NetworkEntityMap singleton present but empty -- TargetNetworkId=42 cannot resolve.
+        world.SetSingletonManaged(new NetworkEntityMap());
+        world.AddComponent(self, default(TargetMemory));
 
-            world.Dispose();
-        }
-        finally
-        {
-            alc.Unload();
-        }
+        TickOnce(bpType, targetNetworkId: 42, self, world).Should().Be(Fbt.NodeStatus.Failure,
+            "TargetNetworkId cannot be resolved via NetworkEntityMap, matching the C# oracle's "
+            + "graceful Failure when the target has not replicated yet");
+
+        world.Dispose();
     }
 
     [Fact]
     public void GeneratedTickCore_TargetResolvedButZeroThreat_ReturnsFailure()
     {
-        var (bpType, _, alc) = CompileAndLoad();
-        try
-        {
-            var world  = CreateWorld();
-            var self   = world.CreateEntity();
-            var target = world.CreateEntity();
+        var bpType = FindGeneratedBlueprintType();
 
-            var map = new NetworkEntityMap();
-            map.Register(netId: 42, entity: target);
-            world.SetSingletonManaged(map);
+        var world  = CreateWorld();
+        var self   = world.CreateEntity();
+        var target = world.CreateEntity();
 
-            // Tracked, but with a ZERO threat score -- oracle requires a STRICTLY positive score.
-            world.AddComponent(self, default(TargetMemory));
-            ref var mem = ref world.GetComponentRW<TargetMemory>(self);
-            TargetMemory.AddOrUpdateTarget(
-                ref mem, entityId: (long)target.PackedValue,
-                posX: 0f, posY: 0f, scoreBoost: 0f, tick: 1);
+        var map = new NetworkEntityMap();
+        map.Register(netId: 42, entity: target);
+        world.SetSingletonManaged(map);
 
-            TickOnce(bpType, targetNetworkId: 42, self, world).Should().Be(Fbt.NodeStatus.Failure,
-                "a tracked target with ThreatScore == 0 must NOT count as a live target, matching the "
-                + "C# oracle's `> 0f` (strictly positive) threat check");
+        // Tracked, but with a ZERO threat score -- oracle requires a STRICTLY positive score.
+        world.AddComponent(self, default(TargetMemory));
+        ref var mem = ref world.GetComponentRW<TargetMemory>(self);
+        TargetMemory.AddOrUpdateTarget(
+            ref mem, entityId: (long)target.PackedValue,
+            posX: 0f, posY: 0f, scoreBoost: 0f, tick: 1);
 
-            world.Dispose();
-        }
-        finally
-        {
-            alc.Unload();
-        }
+        TickOnce(bpType, targetNetworkId: 42, self, world).Should().Be(Fbt.NodeStatus.Failure,
+            "a tracked target with ThreatScore == 0 must NOT count as a live target, matching the "
+            + "C# oracle's `> 0f` (strictly positive) threat check");
+
+        world.Dispose();
     }
 }

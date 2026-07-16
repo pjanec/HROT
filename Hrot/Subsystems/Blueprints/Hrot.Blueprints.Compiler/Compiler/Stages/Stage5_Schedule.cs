@@ -1036,7 +1036,7 @@ internal sealed class GraphScheduler
                     : Stage5_Schedule.UnknownType;
                 var result = AllocValue(retType);
                 var (appendSelf, appendView) =
-                    ResolveFunctionCallTrailingContext(fc.TargetTypeId, fc.MethodName);
+                    ResolveFunctionCallTrailingContext(fc);
                 stmts.Add(new IrStatement
                 {
                     ResultValue = result,
@@ -1474,7 +1474,7 @@ internal sealed class GraphScheduler
                 var inputArgs = ResolveAllDataInputs(sourceNode, stmts);
                 result = AllocValue(pinType);
                 var (pureAppendSelf, pureAppendView) =
-                    ResolveFunctionCallTrailingContext(fc.TargetTypeId, fc.MethodName);
+                    ResolveFunctionCallTrailingContext(fc);
                 stmts.Add(new IrStatement
                 {
                     ResultValue = result,
@@ -1690,9 +1690,8 @@ internal sealed class GraphScheduler
     // -----------------------------------------------------------------------
 
     /// <summary>
-    /// P7 -- resolves whether a FunctionCall's target CLR method (by <paramref name="targetTypeId"/>
-    /// + <paramref name="methodName"/>) ends with the recognized trailing engine-context
-    /// parameters (<c>Entity self</c> / <c>ISimulationView view</c>; see
+    /// P7 -- resolves whether a FunctionCall's target CLR method ends with the recognized
+    /// trailing engine-context parameters (<c>Entity self</c> / <c>ISimulationView view</c>; see
     /// <see cref="ResolveTrailingContext"/>) that <see cref="StatementEmitter"/> must append to the
     /// emitted call. The node's data-IN pins already OMIT these trailing parameters (Stage0's
     /// <c>EnrichClrFunctionCallPins</c>/the editor's <c>NodePinSchema.FunctionCallPins</c> --
@@ -1700,25 +1699,50 @@ internal sealed class GraphScheduler
     /// method decides only whether to append <c>self</c>/the read-only view as EXTRA trailing
     /// arguments at emit time.
     /// <para>
+    /// P7.1 -- <see cref="FunctionCallNode.TrailingContext"/> is checked FIRST: when the author (or
+    /// editor bake step) has recorded an explicit non-<see cref="FunctionCallContextKind.Unspecified"/>
+    /// value, it is honored directly with NO reflection, mapping straight to (AppendSelf,
+    /// AppendView). This is what lets a hand-authored/baked FunctionCall survive the real MSBuild
+    /// build: the Roslyn source generator runs as a netstandard2.0 analyzer that cannot load
+    /// arbitrary game assemblies (e.g. <c>Hrot.AI.Behaviors.dll</c>), so the CLR-reflection fallback
+    /// below always resolves null there, silently dropping self/view and producing uncompilable C#
+    /// (CS7036: missing required parameter 'self'). Only when <c>TrailingContext</c> is
+    /// <see cref="FunctionCallContextKind.Unspecified"/> (legacy/in-process-authored nodes --
+    /// including every existing P7 test's programmatically-built <see cref="FunctionCallNode"/>) does
+    /// this method fall back to the original reflection-based resolution, unchanged.
+    /// </para>
+    /// <para>
     /// Gated off for a Library-dispatch asset -- <see cref="EmissionContext.HasSelfInScope"/>
     /// is false there (no <c>self</c>/<c>view</c> local in the generated stateless static method),
     /// so appending either would emit an undefined-identifier reference. In that case this method
-    /// always returns <c>(false, false)</c>; a trailing Entity/ISimulationView-typed parameter is
-    /// therefore left as an ordinary (already-resolved) positional data argument, matching pre-P7
-    /// behavior byte-for-byte (see the recorded gap in the P7 report for why no diagnostic is
-    /// raised for this edge case).
+    /// always returns <c>(false, false)</c> regardless of a baked <c>TrailingContext</c>; a trailing
+    /// Entity/ISimulationView-typed parameter is therefore left as an ordinary (already-resolved)
+    /// positional data argument, matching pre-P7 behavior byte-for-byte (see the recorded gap in the
+    /// P7 report for why no diagnostic is raised for this edge case).
     /// </para>
-    /// Returns <c>(false, false)</c> when the method cannot be resolved via reflection (graceful --
-    /// matches the existing CLR-reflection NO-SWALLOW fallback elsewhere; no context can be
-    /// inferred without the method's actual signature).
+    /// Returns <c>(false, false)</c> when <c>TrailingContext</c> is Unspecified and the method
+    /// cannot be resolved via reflection (graceful -- matches the existing CLR-reflection
+    /// NO-SWALLOW fallback elsewhere; no context can be inferred without the method's actual
+    /// signature).
     /// </summary>
-    private (bool AppendSelf, bool AppendView) ResolveFunctionCallTrailingContext(
-        string targetTypeId, string methodName)
+    private (bool AppendSelf, bool AppendView) ResolveFunctionCallTrailingContext(FunctionCallNode fc)
     {
         if (_typed.Asset.Dispatch == AssetDispatchKind.Library)
             return (false, false);
 
-        var method = ResolveClrMethodForContext(targetTypeId, methodName);
+        // P7.1 -- baked decision wins over reflection; no reflection attempted at all.
+        switch (fc.TrailingContext)
+        {
+            case FunctionCallContextKind.None:        return (false, false);
+            case FunctionCallContextKind.Self:         return (true, false);
+            case FunctionCallContextKind.View:         return (false, true);
+            case FunctionCallContextKind.SelfAndView:  return (true, true);
+            case FunctionCallContextKind.Unspecified:
+            default:
+                break; // fall through to the legacy reflection path below.
+        }
+
+        var method = ResolveClrMethodForContext(fc.TargetTypeId, fc.MethodName);
         if (method is null)
             return (false, false);
 

@@ -59,7 +59,36 @@ public sealed class FunctionCallNode : Node
     /// Empty (default) = existing CLR library call (unchanged behaviour).
     /// </summary>
     public string TargetGraphId { get; set; } = "";
+
+    /// <summary>
+    /// P7.1 -- baked trailing engine-context decision (see <see cref="FunctionCallContextKind"/>).
+    /// When non-<see cref="FunctionCallContextKind.Unspecified"/>, <c>Stage5_Schedule</c> honors
+    /// this value DIRECTLY (no CLR reflection) to decide whether to append <c>self</c>/<c>view</c>
+    /// as extra trailing arguments at the FunctionCall's emitted call site. This is what makes a
+    /// hand-authored/editor-baked FunctionCall survive the real MSBuild build: the Roslyn source
+    /// generator runs as a netstandard2.0 analyzer that cannot load arbitrary game assemblies
+    /// (e.g. <c>Hrot.AI.Behaviors.dll</c>), so the original P7 reflection-based resolution
+    /// (<c>Stage5_Schedule.ResolveClrMethodForContext</c>) always returns null there, silently
+    /// dropping self/view and producing uncompilable C# (CS7036).
+    /// <para>
+    /// Left <see cref="FunctionCallContextKind.Unspecified"/> by default so existing/legacy nodes
+    /// (including all in-process-authored P7 test fixtures, which build <c>FunctionCallNode</c>
+    /// programmatically with empty <c>Pins</c>) fall back unchanged to the original
+    /// CLR-reflection resolution path -- which works fine when the target type IS already loaded
+    /// in-process (unit tests, <c>BlueprintTestFixture</c>'s dynamic Roslyn compile-and-load).
+    /// </para>
+    /// </summary>
+    public FunctionCallContextKind TrailingContext { get; set; } = FunctionCallContextKind.Unspecified;
 }
+
+/// <summary>
+/// P7.1 -- the baked trailing-context decision for a <see cref="FunctionCallNode"/>, recorded at
+/// author time (editor bake / hand-authored asset) so <c>Stage5_Schedule</c> can honor it directly
+/// at generation time without CLR reflection. <see cref="Unspecified"/> is an explicit "not baked"
+/// sentinel, distinct from <see cref="None"/> (baked: no trailing context) -- it tells the compiler
+/// to fall back to the legacy reflection-based resolution instead of trusting an absence of context.
+/// </summary>
+public enum FunctionCallContextKind { Unspecified = 0, None, Self, View, SelfAndView }
 
 public sealed class BranchNode : Node { }
 
