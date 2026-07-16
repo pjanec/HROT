@@ -97,6 +97,26 @@ Compiler DD §3 references a `GraphKind.Construction` deferred to Slice 2. Conce
 
 Authoring tools that perform structural transformations across multiple assets. No compiler impact; pure editor concern. Architecture v1.2 §14 listed.
 
+### A11. Visual conceptual documentation for the shared-state / working-state model **[HIGH | S]**
+
+> **Raised by the user (2026-07-16) from hands-on Windows testing of the composed-blueprint + GetShared/SetShared authoring path.** Verbatim concern: *"all the variable and scope and default values and GetShared/SetShared and params vs working state, this is a lot to digest for a user … beyond the capability of an ordinary user (needs a programmer mindset). Without [visual documentation] the system is incomprehensible."*
+
+The Slice-1/Slice-2 authoring surface exposes several concepts that are individually reasonable but collectively opaque to a non-programmer author:
+
+- **Params vs WorkingState** — sync-in inputs (baked into `BehaviorParameters`, `Role=Input`) versus per-tick mutable state (`Role=State`), and why a composed node auto-creates *two* blackboard variables.
+- **`WorkingStateScope` = Node / Behavior / Entity** — private-per-node vs shared-across-co-bound-nodes vs shared-across-behavior-switches/entities, and the slot-key math each implies (`FNV(assetId++nodeVisualId)` / `FNV(assetId++variableId)` / `FNV(variableId)`).
+- **`GetShared`/`SetShared`** — the second-slot accessor, its named-`variableId` keying, the `[BlackboardDtoStruct]` Category-1 shared struct contract, cross-entity read (target-`Entity` pin), and the owner-provisions / members-read / not-ready→`false` protocol.
+- **Default values** — where blueprint Param defaults come from vs host-BTree variable defaults.
+
+**Deliverable:** author-facing conceptual documentation that leans on **visuals (SVG and/or Mermaid diagrams, schemas, memory-layout illustrations)** rather than prose. Candidate diagrams:
+1. A memory-layout schematic: entity → `BrainBlackboard.BehaviorParameters` (Params, Input) vs `BlueprintBlackboard{1024,4096,16384}` partition slots (WorkingState, State), keyed by scope.
+2. A scope decision tree / matrix: "I want state that is private to this node / shared between these nodes / shared with another entity → pick this Scope."
+3. A `GetShared`/`SetShared` data-flow diagram across two entities (commander provisions, member reads, ≤1-frame latency).
+4. A "Params vs WorkingState" side-by-side (sync-in vs per-tick-mutable, who writes, when it resets).
+5. The end-to-end authoring flow: author blueprint → host in BTree as action/condition → bind + scope the WorkingState variable → optional GetShared/SetShared.
+
+This is **HIGH** because the feature is now shipped and Windows-verified but effectively unusable by the target (non-programmer) author without it — comprehensibility, not capability, is the current blocker. Sized **[S]**: documentation + diagrams, no code. Diagrams should live under `docs/blueprints/` and be embeddable in the editor's help surface later. *(Chat pending: agree on diagram set + tooling — Mermaid inline in Markdown vs hand-authored SVG — during a long-running background task.)*
+
 ---
 
 ## 3. Theme B — Capability surface
