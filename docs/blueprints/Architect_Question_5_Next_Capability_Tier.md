@@ -73,3 +73,34 @@ non-issue.
 **Our lean defaults if you're happy with them:** A-1 (`world.Bus.Publish`), B-agree (ChannelCommand-only,
 no generic write), C-inline-`for` + curated roster source + latent-free body, D — expose `GetParameter`
 (close GAP-11) so authors aren't forced to misuse WorkingState. We'll proceed on these unless you redirect.
+
+---
+
+## ARCHITECT ANSWERS (2026-07-16) — all four leans CONFIRMED
+
+- **A — `world.Bus.Publish(...)`** is canonical for AiPrimitives. Rationale: publishing to the world
+  event bus during the Sim tick is NOT a structural mutation, so it does not require the ECB (the ECB is
+  reserved for add/remove-component and destroy-entity). Threading `ecb` into the AiPrimitive `TickCore`
+  ABI (option 2) is a *severe regression* — it would hand arbitrary structural-mutation power to a tier
+  that must not have it. A `[SharedAiAction]` wrapper (option 3) is needless boilerplate; the Engine Event
+  Catalog is already the curated safety boundary. **→ Build `IrOp_PublishBusEvent` lowering to
+  `world.Bus.Publish(new T{…})`, driven by a `PublishEvent` node gated by the EngineEventCatalog.**
+- **B — ChannelCommand-only, NO generic write node.** Preserves the CQRS Brain↔Muscle boundary (Brains
+  write only the 3 channels: Locomotion/Weapon/Interaction). The oracle's direct
+  `BehaviorState.InstanceId` write is a **legacy dual-write anti-pattern** the architecture is eliminating:
+  `BehaviorIngressSystem` is the *sole owner* of `BehaviorState` writes. State resets / instance-id bumps
+  / behavior assignment must go through **events** (`AssignBehaviorHashEvent`, `ClearBehaviorEvent`) on the
+  bus (→ solved by A), which `BehaviorIngressSystem` consumes and applies. **→ Rebuild all channel writes
+  as `ChannelCommand`; route lifecycle/state changes through PublishEvent, never a raw component write.**
+- **C — inline latent-free `for`.** (1) Curated **`GetUnitRoster`** source node yields the `UnitRoster`
+  component's entity array as a cap-bounded iterable (keeps raw array manip out of the graph). (2) Lower to
+  an inline C# `for (0..Count)` with body statements nested — do NOT reuse the BFS block-scheduler
+  back-edges (avoids topological-sort cycles). **Validator must strictly reject latent nodes
+  (`Wait`/`WaitForChannel`) inside the loop body.**
+- **D — close GAP-11, wire `GetParameter` → `IrOp_ReadParam`.** The `Parameters` block IS the data-IN
+  contract from the host BTree/HSM; a graph being blind to its own parameters "makes no architectural
+  sense." Stop forcing read-only inputs into WorkingState. *(In progress — see task #30.)*
+
+**Build order now unblocked:** GAP-11 `GetParameter` (in flight) → P4 `PublishEvent` (`IrOp_PublishBusEvent`)
+→ P1 `FlowForEach` (+ `GetUnitRoster`). Then slices 2 (`ReverseToBaseline`, needs PublishEvent) and 4
+(`AreAllAtBaseline`, needs FlowForEach + P2).
