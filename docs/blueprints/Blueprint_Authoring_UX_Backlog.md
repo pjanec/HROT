@@ -77,3 +77,7 @@ Discovered by rebuilding real behavior as blueprints. Full detail + slice mappin
   primitives may cover; verify.
 - **GAP-5 — bitmask / SoA-array working state** + array-set / bit-op vocabulary.
 - **GAP-6 — in-place param mutation** → migrate to working-state var (refactor, not a true gap).
+- **GAP-7 — no ECS-read in graphs (self/world/component/singleton)** — **foundational.** Graphs read
+  only their own blackboard + implicit-self accessor nodes; can't read a component/singleton or hand
+  `self`/`world` to a `FunctionCall`. Blocks the entire Hill-attack condition family. Highest-leverage
+  capability to add. Options in `HillAssault_Blueprint_Migration.md` (GAP-7); tracked as task #26.

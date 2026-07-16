@@ -73,3 +73,40 @@ lowering and fall through to a `default:` branch. Verified directly in
 first bite at slice 4+ (roster/loop) and slice 6+ (fan-out, events). We decide *per slice* when we
 reach them: implement the node's lowering, or route around it with a `FunctionCall` helper (the
 `SquadRallyStateOps` escape hatch). Tracked as task #25.
+
+## Slice-1 finding (2026-07-16) — GAP-7: no ECS-read / no `self`/`world` in graphs **[foundational, blocks all conditions]**
+
+Confirmed while scoping `Condition_HasTarget`. Blueprint graphs can read only their **own blackboard**
+(Params / WorkingState / Variables via `GetVariable`) plus **implicit-`self` accessor nodes**
+(`ChannelCommand`, `GetShared`/`SetShared` — these have `self`/`world` wired in by the emitter). There
+is **no** way to:
+- read an arbitrary **component** on `self` (e.g. `TargetMemory`, `NavigationStatus`, `BehaviorState`),
+- read a **world singleton** (e.g. `NetworkEntityMap`),
+- obtain **`self`** or **`world`** as a data value to pass into a `FunctionCall` helper.
+
+Evidence: `SharedStateCrossEntityDemo` gets its target `Entity` from a host-pre-populated
+`WorkingState.Commander` variable via `GetVariable` — NOT from any ECS read. `Nodes.cs` has no
+`Self`/`World`/`GetComponent`/`GetSingleton` node. `FunctionCall` args resolve only from blackboard /
+literals / other pure-node outputs.
+
+**Consequence:** the Hill-attack **condition family is unexpressible today** — `Condition_HasTarget`,
+`Condition_AreAllAtBaseline`, `Condition_IsWaveCompleted`, `Condition_IsAreaQueryResolved` all read
+ECS state. Even the `SquadRallyStateOps`-style `FunctionCall` escape hatch fails, because the helper
+can't be handed `self`/`world`.
+
+**The blueprint vocabulary is rich for OUTPUT (channel commands, shared-state writes, variable sets)
+but poor for INPUT (reading arbitrary ECS state).** Filling this is the single highest-leverage
+capability for the whole migration.
+
+**Options (needs a decision — task #26):**
+1. A **context-aware `FunctionCall`** — a flag/variant whose callee implicitly receives the ambient
+   `self`/`world` (lowers to `Helper(args…, self, world)`). Smallest change; reuses the escape hatch;
+   keeps ECS logic in reviewable C#. **Recommended first step.**
+2. Dedicated **`GetComponent<T>(self)`** / **`GetSingleton<T>()`** source nodes (+ the foreign-entity
+   form → subsumes GAP-2). More "visually native" but a bigger build (new node kinds, pin typing,
+   validation, editor).
+3. `Self` / `World` source nodes feeding existing `FunctionCall` pins — minimal vocabulary, but exposes
+   raw `EntityRepository` in graphs (leakier).
+
+Until decided, the migration proceeds only on **output-shaped** slices (command actions via
+`ChannelCommand`) — the condition family is parked behind this capability.
