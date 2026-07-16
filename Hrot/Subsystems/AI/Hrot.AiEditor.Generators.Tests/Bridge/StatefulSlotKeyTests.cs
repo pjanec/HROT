@@ -334,8 +334,10 @@ public sealed class StatefulSlotKeyTests
         Func<string, int?> sizeResolver = t => t == ParamsTypeId ? 4 : (int?)null;
         string bridgeSrc = BTreeBridgeEmitCore.EmitBridge(dto, sizeResolver);
 
-        // Role=State(1), Scope=Behavior(1) appended after the NodeLabel string.
-        bridgeSrc.Should().Contain("\"AdvanceShared\", 1, 1)",
-            "the StatefulSlotInfo for a Behavior-scoped State variable must carry Role=State(1), Scope=Behavior(1)");
+        // Role=State(1), Scope=Behavior(1) appended after the NodeLabel string, as named enum casts
+        // (clarity-only change — same bytes, self-documenting source text) rather than raw ints.
+        bridgeSrc.Should().Contain(
+            "\"AdvanceShared\", (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior)",
+            "the StatefulSlotInfo for a Behavior-scoped State variable must carry Role=State, Scope=Behavior as named enum casts");
     }
 }

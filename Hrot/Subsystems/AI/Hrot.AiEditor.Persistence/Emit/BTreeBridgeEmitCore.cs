@@ -1086,7 +1086,16 @@ public static class BTreeBridgeEmitCore
             string escapedLabel = nodeLabel.Replace("\\", "\\\\").Replace("\"", "\\\"");
             // S3-7: Role/Scope (inspector metadata). Only appended when non-default (State/Behavior/
             // Entity) so the existing Node-scoped corpus (e.g. T20) emits the byte-identical 5-arg form.
-            string roleScopeArgs = (role != 0 || scope != 0) ? $", {role}, {scope}" : string.Empty;
+            // Clarity-only: emit named enum casts instead of raw ints. The (int)role/(int)scope values
+            // come from the editor's BlackboardVariableRole/WorkingStateScope enums, but their member
+            // names (Input/State, Node/Behavior/Entity) line up 1:1 with the runtime-side twins
+            // StatefulSlotRole/StatefulSlotScope (Fdp.Toolkit.Blueprints.Partitioning), so mapping the
+            // int to a member NAME via the editor enum and re-casting through the runtime enum produces
+            // the exact same byte StatefulSlotInfo.Role/.Scope would have held as a raw literal — this
+            // changes only the emitted source text, not the compiled/runtime bytes.
+            string roleScopeArgs = (role != 0 || scope != 0)
+                ? $", (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.{(BlackboardVariableRole)role}, (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.{(WorkingStateScope)scope}"
+                : string.Empty;
             sb.AppendLine($"{pad}{Indent}new global::Fdp.Toolkit.Behavior.StatefulSlotInfo({slotKey}, global::System.Runtime.InteropServices.Marshal.SizeOf<{wsTypeFqn}>(), unchecked({typeNameHash}u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<{wsTypeFqn}>()), typeof({wsTypeFqn}), \"{escapedLabel}\"{roleScopeArgs}),");
         }
         sb.AppendLine($"{pad}}},");
