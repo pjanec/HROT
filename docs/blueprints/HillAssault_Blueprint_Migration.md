@@ -53,3 +53,23 @@ then decide workaround vs build-the-node.
 | **GAP-6** | **In-place "param" mutation** (`RoundsFired`, `LastObservedAmmo`) — blueprints split Input vs State | low | slice 3 | migrate to working-state var (`SetVariable`) — a refactor, not a gap |
 
 Confirmed gaps graduate to tasks + entries in `Blueprint_Authoring_UX_Backlog.md`.
+
+## Safety-net findings (2026-07-16) — several candidates now CONFIRMED
+
+The day-1 node safety net (`NodeCoverageTests` / `SchemaReflectionTests`) immediately proved that
+some nodes we hoped to lean on are **unimplemented no-ops** — they have no `Stage5_Schedule`
+lowering and fall through to a `default:` branch. Verified directly in
+`Hrot.Blueprints.Compiler/Compiler/Stages/Stage5_Schedule.cs`.
+
+| Node(s) | Symptom | Reshapes |
+|---------|---------|----------|
+| `PartitionElements`, `AssignRoles`, `AdvancePhase`, `AcquireSlot` (squad primitives) | `default:` → **BP4004 warning, node dropped**, no IR | **GAP-4** — the hoped "squad primitives cover roster fan-out" workaround is **dead**; either implement their lowering or use `FunctionCall` helpers |
+| `CallEventDispatcher`, `BindEventDispatcher` | `default:` → BP4004 warning, dropped | **GAP-3** — event-publish via dispatchers is a no-op today |
+| `ArrayMake`, `ArrayGet` | pure `default:` → **silent `default` value, NO diagnostic** (worst kind) | **GAP-5** — array working state silently broken |
+| `WaitForEventNode` | short `EventTypeId` passes BP1402 validation but fails Roslyn (`CS0400`); FQN fails validation — **no value satisfies both** | latent event-wait unusable until FQN resolution added (mirror `WaitForChannelNode.ResolveChannelTypeFqn`) |
+
+**Plan impact:** slices **0–3 are unaffected** (they use only lowered nodes: `EventEntry`,
+`ChannelCommand`, `WaitForChannel`, `Return`, `FunctionCall`, `Branch`). The unimplemented nodes
+first bite at slice 4+ (roster/loop) and slice 6+ (fan-out, events). We decide *per slice* when we
+reach them: implement the node's lowering, or route around it with a `FunctionCall` helper (the
+`SquadRallyStateOps` escape hatch). Tracked as task #25.
