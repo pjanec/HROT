@@ -160,3 +160,23 @@ resolution of GAP-7 for self/foreign component reads. Proof: `HillAssault2_IsSel
   slice 1's `SelfAndView`). Native `Compare` node is task #32; when it lands, this condition becomes
   helper-free (the full non-programmer-authorable endpoint). The read itself (the hard, reusable part)
   is proven natively now.
+
+## Inflection point (2026-07-16) — cheap wins done; remaining slices need the next capability tier
+
+P2 was the last slice buildable from existing lowered nodes. A recon of every remaining oracle node
+confirms each now needs a **new generic capability**, and four hinge on a design decision → **architect
+question #5** (`Architect_Question_5_Next_Capability_Tier.md`), we are NOT building ahead of it:
+
+| Remaining slice | Blocked on |
+|---|---|
+| `ReverseToBaseline` | **GAP-3** event publish (oracle uses `world.Bus.Publish(ClearBehaviorEvent)`; the IR's only publish op emits `ecb.PublishEvent`, and `ecb` is **not** in the AiPrimitive `TickCore` signature — only Instance) |
+| `AimAndFireSpecific` | Weapon `ChannelCommand` (✓ lowered) + ammo read (✓ P2) + **round-count param mutation (GAP-11)** + target-resolve helper |
+| `AreAllAtBaseline` | **GAP-1 loop** (`FlowForEach`) + per-subordinate read (✓ P2) |
+| `DispatchAllToBaseline` / wave core | GAP-1 + GAP-3 (+ GAP-5 SoA) |
+
+**Architect question #5 asks four things** (with our lean defaults): (A) AiPrimitive event-publish path
+— `world.Bus.Publish` vs threading `ecb` vs a `[SharedAiAction]` helper; (B) component writes —
+ChannelCommand-only (CQRS) vs a generic write node; (C) `FlowForEach` shape — inline C# `for` +
+curated roster source + latent-free body; (D) Params — migrate-to-WorkingState (current workaround)
+vs close GAP-11 with a `GetParameter` path. Lean defaults: A=`world.Bus.Publish`, B=ChannelCommand-only,
+C=inline-`for`, D=close GAP-11.
