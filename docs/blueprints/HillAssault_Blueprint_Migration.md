@@ -54,6 +54,27 @@ then decide workaround vs build-the-node.
 
 Confirmed gaps graduate to tasks + entries in `Blueprint_Authoring_UX_Backlog.md`.
 
+## Slice-1 findings (2026-07-16) — Condition_HasTarget built; two real gaps
+
+Slice 1 (`Condition_HasTarget`) is logic-proven **in-process** (helper `HillAssault2TankOps.HasTarget`
++ `Recipes/Blueprints/HillAssault2_HasTarget.bp.json` + a 4-fact proof driving `BlueprintCompiler.Compile`
+in-process + real Roslyn). It is **not** in `Assets/` because of gap GAP-9 below.
+
+- **GAP-9 (blocking) — P7 trailing-context can't survive the real build.** P7 detects trailing
+  `self`/`view` by reflecting the target method at *generation* time (`Type.GetType` + AppDomain scan
+  in `Stage5_Schedule.ResolveClrMethodForContext`). The MSBuild generator is a **netstandard2.0
+  analyzer** that can't load game assemblies → reflection returns null → self/view not appended →
+  `CS7036` on a real build. Same constraint as "size Params from the .bp.json schema" (Option A).
+  **Fix (task #29):** bake the trailing-context decision into the FunctionCall node's JSON at author
+  time (editor reflects on create/edit; generator reads a baked `AppendSelf`/`AppendView` flag). For
+  the headless migration: hand-author the flag in the `.bp.json` + have Stage5 read it, then move the
+  asset to `Assets/` and prove through the real generator. Editor auto-bake = Windows track.
+- **GAP-10 — `ISimulationView` has no singleton read.** No `Get/HasSingletonManaged`; only per-entity
+  component reads + queries. HasTarget's helper downcasts `view`→`EntityRepository` to reach
+  `NetworkEntityMap` (fine for AiPrimitive dispatch where the view IS the repo, per
+  `EmissionContext.ViewVar`). Bears on **P3 `GetSingleton`** — the generic singleton read must decide:
+  extend `ISimulationView` with a read-only singleton accessor, or key off `EntityRepository`.
+
 ## Safety-net findings (2026-07-16) — several candidates now CONFIRMED
 
 The day-1 node safety net (`NodeCoverageTests` / `SchemaReflectionTests`) immediately proved that
