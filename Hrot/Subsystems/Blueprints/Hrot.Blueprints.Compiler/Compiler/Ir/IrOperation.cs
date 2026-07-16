@@ -94,6 +94,19 @@ public sealed record IrOp_PublishEvent(
     IReadOnlyList<(string FieldName, IrValue Value)> Fields) : IrOperation;
 
 /// <summary>
+/// P4 (GAP-3) -- publish an engine event on the world event bus from an AiPrimitive/Instance.
+/// Emits `world.Bus.Publish(new global::{EventTypeFqn}{ Field = value, ... })` (or PublishManaged
+/// when Managed==true). Distinct from IrOp_PublishEvent (ECB path) because the AiPrimitive TickCore
+/// ABI deliberately has no IEntityCommandBuffer -- bus publish is a non-structural mutation and the
+/// architect-sanctioned path (Q#5-A). Fields are the event struct's field assignments (target field
+/// defaults to `self`).
+/// </summary>
+public sealed record IrOp_PublishBusEvent(
+    string EventTypeFqn,
+    IReadOnlyList<(string FieldName, IrValue Value)> Fields,
+    bool Managed = false) : IrOperation;
+
+/// <summary>
 /// AN8 — Inline-latent non-channel behavior-action invocation.
 /// Emitted by Stage 5 for a <c>ChannelCommandNode</c> whose <c>ActionFqn</c> is non-null.
 /// The action is called synchronously; on <c>NodeStatus.Running</c> the graph suspends inline

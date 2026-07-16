@@ -1116,6 +1116,77 @@ internal sealed class GraphScheduler
                 break;
             }
 
+            case PublishEventNode pen:
+            {
+                // P4 (GAP-3) -- catalog-driven exec node, mirrors ChannelCommandNode's shape
+                // above, but publishes via world.Bus.Publish (architect ruling Q#5-A) instead of
+                // the ECB -- `ecb` is deliberately absent from the AiPrimitive TickCore ABI.
+                var catalogEntry = _ctx.EngineEvents.GetEntries()
+                    .FirstOrDefault(e => string.Equals(e.Name, pen.EventId,
+                        StringComparison.OrdinalIgnoreCase));
+
+                if (catalogEntry is null)
+                {
+                    // Unknown EventId -- no safe partial-emit shape exists for a publish call
+                    // (unlike ChannelCommand, there is no FQN to construct `new global::{}`
+                    // against), so emit no IR rather than producing uncompilable C#.
+                    break;
+                }
+
+                // Target -- OPTIONAL "Target" data-in pin, resolved EXACTLY like
+                // GetSharedNode/GetComponentNode's Slice-2b "Target" pin: look up the pin, then
+                // its link directly (NOT ResolveDataPin, which would emit a spurious BP4001 for
+                // an intentionally-unwired optional pin). No pin or no link => self-default: emit
+                // IrOp_Self into a fresh Entity-typed IrValue.
+                var targetPin = pen.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "Target", StringComparison.OrdinalIgnoreCase));
+
+                IrValue? wiredTarget = null;
+                if (targetPin is not null)
+                {
+                    var targetLink = _graph.Links.FirstOrDefault(
+                        l => l.ToNodeId == pen.Id && l.ToPinId == targetPin.Id);
+                    if (targetLink is not null)
+                        wiredTarget = ResolveNodeOutput(targetLink.FromNodeId, targetLink.FromPinId, stmts);
+                }
+
+                IrValue targetEntity;
+                if (wiredTarget is { } wt)
+                {
+                    targetEntity = wt;
+                }
+                else
+                {
+                    targetEntity = AllocValue(Stage5_Schedule.EntityType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = targetEntity,
+                        Operation   = new IrOp_Self(),
+                        Debug       = DebugOf(node),
+                    });
+                }
+
+                var fields = new List<(string FieldName, IrValue Value)>();
+                if (!string.IsNullOrEmpty(catalogEntry.TargetFieldName))
+                    fields.Add((catalogEntry.TargetFieldName, targetEntity));
+
+                // Other payload data-in pins (excluding "Target"), reified exactly like
+                // ChannelCommand's paramFields above.
+                fields.AddRange(pen.Pins
+                    .Where(p => !p.IsExec && p.Direction == "In"
+                        && !string.Equals(p.Name, "Target", StringComparison.OrdinalIgnoreCase))
+                    .Select(p => (p.Name, ResolveDataPin(pen.Id, p.Id, stmts))));
+
+                stmts.Add(new IrStatement
+                {
+                    Operation = new IrOp_PublishBusEvent(
+                        catalogEntry.EventTypeFqn, fields, catalogEntry.Managed),
+                    Debug = DebugOf(node),
+                });
+                break;
+            }
+
             case CallCustomEventNode cce:
             {
                 int idx = FindCustomEventIndex(cce.EventId);

@@ -659,6 +659,8 @@ internal static class Stage0_Rehydrate
         LiteralNode           => false,
         ReadRankedResultNode  => false,
         ReadEqsResultNode     => false,
+        // PublishEvent (P4 -- GAP-3) IS an exec node -- unlike the pure GetX nodes above.
+        PublishEventNode      => true,
         _                     => true,
     };
 

@@ -15,6 +15,14 @@ file static class NavFqn
     public static string Of(string typeName) => $"{Ns}.{typeName}";
 }
 
+// Behavior lifecycle event type FQN prefix (Fdp.Toolkit.Behavior.Events namespace).
+// P4 (GAP-3) -- events used by PublishEventNode / world.Bus.Publish.
+file static class BehaviorFqn
+{
+    private const string Ns = "Fdp.Toolkit.Behavior.Events";
+    public static string Of(string typeName) => $"{Ns}.{typeName}";
+}
+
 public sealed class BuiltInEngineEventCatalog : IEngineEventCatalog
 {
     public static readonly BuiltInEngineEventCatalog Instance = new();
@@ -185,5 +193,39 @@ public sealed class BuiltInEngineEventCatalog : IEngineEventCatalog
                 FilterableFields:    new[] { "RouteHandle", "IsAutoRefresh" },
                 QoS:                 EventQoS.Reliable,
                 PropagatesAcrossNodes: true),
+
+            // ---- Behavior lifecycle events (P4 -- GAP-3 -- world.Bus.Publish via PublishEventNode) --
+            // Pre-existing in FDP/Toolkits/Fdp.Toolkits/Behavior/Events/ but not previously catalogued.
+
+            new(Name:                "ClearBehaviorEvent",
+                EventTypeFqn:        BehaviorFqn.Of("ClearBehaviorEvent"),
+                DisplayName:         "Clear Behavior",
+                Category:            "Behavior/Lifecycle",
+                TargetFieldName:     "Entity",
+                FilterableFields:    Array.Empty<string>(),
+                QoS:                 EventQoS.Reliable,
+                PropagatesAcrossNodes: true),
+
+            new(Name:                "AssignBehaviorHashEvent",
+                EventTypeFqn:        BehaviorFqn.Of("AssignBehaviorHashEvent"),
+                DisplayName:         "Assign Behavior Hash",
+                Category:            "Behavior/Lifecycle",
+                TargetFieldName:     "Entity",
+                FilterableFields:    new[] { "BehaviorHash" },
+                QoS:                 EventQoS.Reliable,
+                PropagatesAcrossNodes: true),
+
+            // AssignTacticalIntentEvent is `public sealed class` (managed -- carries string
+            // fields IntentId/JsonParams) -- see AssignTacticalIntentEvent.cs. Must publish via
+            // IEventBus.PublishManaged<T>, hence Managed: true (the only Managed entry today).
+            new(Name:                "AssignTacticalIntentEvent",
+                EventTypeFqn:        BehaviorFqn.Of("AssignTacticalIntentEvent"),
+                DisplayName:         "Assign Tactical Intent",
+                Category:            "Behavior/Lifecycle",
+                TargetFieldName:     "Entity",
+                FilterableFields:    new[] { "IntentId", "JsonParams" },
+                QoS:                 EventQoS.Reliable,
+                PropagatesAcrossNodes: true,
+                Managed:             true),
         };
 }

@@ -46,7 +46,15 @@ public sealed record EngineEventCatalogEntry(
     string TargetFieldName = "",
     IReadOnlyList<string>? FilterableFields = null,
     EventQoS QoS = EventQoS.Reliable,
-    bool PropagatesAcrossNodes = true);
+    bool PropagatesAcrossNodes = true,
+    /// <summary>
+    /// P4 (GAP-3) -- true when the event type is a managed class (must be published via
+    /// <c>IEventBus.PublishManaged&lt;T&gt;</c>, not <c>Publish&lt;T&gt;</c>). Baked here (not
+    /// discovered via reflection) for the same reason FunctionCallNode.TrailingContext is baked:
+    /// the Roslyn incremental generator runs as a netstandard2.0 analyzer that cannot load game
+    /// assemblies to inspect a real CLR type. Defaults to false (unmanaged struct, the common case).
+    /// </summary>
+    bool Managed = false);
 
 public sealed record ChannelCommandCatalogEntry(
     string Name, string ChannelTypeFqn, ushort ActionId, string ParamsTypeFqn);

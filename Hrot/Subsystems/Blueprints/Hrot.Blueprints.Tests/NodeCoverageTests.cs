@@ -395,6 +395,15 @@ public sealed class NodeCoverageTests
         yield return ("Inline/GetSharedSetShared", new[] { BuildGetSetSharedMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetComponent", new[] { BuildGetComponentMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetParameter", new[] { BuildGetParameterMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
+        // PublishEvent (P4 -- GAP-3): ValidateOnlyStage1To7 (not FullRoslynPipeline) because the
+        // generated C# references Fdp.Toolkit.Behavior.Events.ClearBehaviorEvent AND
+        // EntityRepository.Bus, neither of which the deliberately dependency-light coverage-Roslyn
+        // compilation references (see BuildGetComponentMinimalAsset, which used System.Numerics.Vector3
+        // precisely to avoid game-assembly deps). Stage1-7 fully exercises the PublishEventNode ->
+        // IrOp_PublishBusEvent lowering (catalog lookup + self-default Target); the REAL Roslyn
+        // compile of a PublishEvent graph is proven separately by HillAssault2_ClearBehavior_ProofTests
+        // through the actual Hrot.AI.Behaviors build. Same evidence bar + reason as CallPeerBlueprint.
+        yield return ("Inline/PublishEvent", new[] { BuildPublishEventMinimalAsset() }, null, CoverageMode.ValidateOnlyStage1To7);
     }
 
     // ---- recipe loading (mirrors RecipeIntegrityTests.LoadRecipe) -----------
@@ -1018,6 +1027,56 @@ public sealed class NodeCoverageTests
             Parameters   = { param },
             WorkingState = { floatVar },
             Graphs       = { graph },
+        };
+    }
+
+    /// <summary>
+    /// EventEntry -&gt; PublishEvent("ClearBehaviorEvent") -&gt; Return (P4 -- GAP-3). Exercises the
+    /// PublishEventNode Stage5 lowering (EngineEventCatalog lookup -&gt; IrOp_PublishBusEvent with the
+    /// entry's TargetFieldName self-defaulted). AiPrimitive/Action dispatch (world.Bus is the AiPrimitive
+    /// publish surface). No data pins: ClearBehaviorEvent's only field is the target Entity, which
+    /// self-defaults from the unwired "Target" pin. Registered ValidateOnlyStage1To7 (see the
+    /// yield-return comment) so it does not require the coverage-Roslyn compile to reference Fdp.Toolkits.
+    /// </summary>
+    private static BlueprintAsset BuildPublishEventMinimalAsset()
+    {
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var pubExecIn  = ExecPin("ExecIn",  "In");
+        var pubExecOut = ExecPin("ExecOut", "Out");
+        var pubNode = new PublishEventNode { Id = Guid.NewGuid(), EventId = "ClearBehaviorEvent" };
+        pubNode.Pins.AddRange(new[] { pubExecIn, pubExecOut });
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecPin("ExecIn", "In");
+        ret.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, pubNode, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,   FromPinId = entryOut.Id,   ToNodeId = pubNode.Id, ToPinId = pubExecIn.Id },
+                new Link { FromNodeId = pubNode.Id, FromPinId = pubExecOut.Id, ToNodeId = ret.Id,     ToPinId = retIn.Id },
+            },
+        };
+
+        return new BlueprintAsset
+        {
+            AssetId   = Guid.NewGuid(),
+            Name      = "PublishEventCoverage",
+            Dispatch  = BlueprintDispatchKind.AiPrimitive,
+            Primitive = new AiPrimitiveDecl
+            {
+                Intent   = AiPrimitiveIntent.Action,
+                Hostings = { AiPrimitiveHosting.BTreeAction },
+            },
+            Graphs    = { graph },
         };
     }
 }

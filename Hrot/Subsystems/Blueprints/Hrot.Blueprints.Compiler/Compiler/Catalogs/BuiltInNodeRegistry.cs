@@ -71,6 +71,9 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         WaitForChannelNode        => new[] { ExecIn(), ExecOut() },
         WaitForEventNode          => new[] { ExecIn(), ExecOut() },
 
+        // PublishEvent (P4 -- GAP-3): catalog-driven exec node, mirrors ChannelCommandNode.
+        PublishEventNode          => new[] { ExecIn(), ExecOut() },
+
         ArrayMakeNode am          => ArrayMakePins(am),
         ArrayGetNode              => ArrayGetPins(),
 

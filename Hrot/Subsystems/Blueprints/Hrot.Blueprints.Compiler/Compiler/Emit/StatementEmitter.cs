@@ -289,6 +289,23 @@ internal static class StatementEmitter
                 break;
             }
 
+            case IrOp_PublishBusEvent op:
+            {
+                string publishMethod = op.Managed ? "PublishManaged" : "Publish";
+                e.WriteLine($"{wv}.Bus.{publishMethod}(new global::{op.EventTypeFqn}");
+                e.WriteLine("{");
+                e.Indent();
+                for (int i = 0; i < op.Fields.Count; i++)
+                {
+                    var f = op.Fields[i];
+                    var sep = i == op.Fields.Count - 1 ? "" : ",";
+                    e.WriteLine($"{f.FieldName} = __t{f.Value.Index}{sep}");
+                }
+                e.Outdent();
+                e.WriteLine("});");
+                break;
+            }
+
             // ------------------------------------------------------------------
             // Channel command
             // ------------------------------------------------------------------

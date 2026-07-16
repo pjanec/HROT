@@ -36,6 +36,7 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(GetSharedNode),          "GetShared")]
 [JsonDerivedType(typeof(SetSharedNode),          "SetShared")]
 [JsonDerivedType(typeof(GetComponentNode),       "GetComponent")]
+[JsonDerivedType(typeof(PublishEventNode),       "PublishEvent")]
 public abstract class Node
 {
     public Guid Id { get; set; }
@@ -468,4 +469,26 @@ public sealed class GetComponentNode : Node
     public string FieldName { get; set; } = "";
     /// <summary>FQN of the read field's type (e.g. "Fdp.Toolkit.Navigation.NavigationResult"). Used only to build the result IrTypeRef locally; optional (falls back to the resolved out-pin type / UnknownType).</summary>
     public string FieldTypeFqn { get; set; } = "";
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// PublishEvent (P4 -- GAP-3 -- publish an engine event on the world bus)
+//
+// Architect ruling (Q#5-A): publish via world.Bus.Publish(...), NOT the ECB -- ecb is
+// deliberately absent from the AiPrimitive TickCore ABI, and bus publish is not a structural
+// mutation, so it is the sanctioned path. Mirrors ChannelCommandNode: a catalog-driven exec node
+// whose data-in pins are reified into a (FieldName, IrValue) list and looked up against
+// BuiltInEngineEventCatalog by name. Lowers to IrOp_PublishBusEvent (Stage5_Schedule).
+// ──────────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// P4 (GAP-3) -- publishes an engine event on the world bus (world.Bus.Publish). Exec node
+/// (ExecIn/ExecOut). EventId picks a curated EngineEventCatalog entry; the entry's TargetFieldName
+/// receives the target Entity (OPTIONAL "Target" data-in pin, self-default -- mirrors GetShared);
+/// other event fields are reified as data-in pins. Lowers to IrOp_PublishBusEvent.
+/// </summary>
+public sealed class PublishEventNode : Node
+{
+    /// <summary>Name of the EngineEventCatalog entry to publish (e.g. "ClearBehaviorEvent").</summary>
+    public string EventId { get; set; } = "";
 }
