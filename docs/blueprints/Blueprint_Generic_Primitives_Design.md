@@ -38,7 +38,7 @@ Each primitive is hardcoded C# (node + lowering + helpers + public structs), aut
 | # | Primitive | What a designer drops | Closes | Notes |
 |---|-----------|-----------------------|--------|-------|
 | **P1** | **`ForEach`** (structured, bounded, latent-free body → synchronous C# `for`) | iterate a collection pin, wire a body | GAP-1 | body is a sub-DAG; validator forbids latent nodes inside |
-| **P2** | **`GetComponent<T>`** (read-only, on any Entity pin), restricted to `[BlueprintReadable]` components | "read TargetMemory / NavigationStatus of \<entity>" | GAP-7 (self) + GAP-2 (foreign) | curated set; exposes the component's scalar/vector/entity fields + array fields as `ForEach` sources |
+| **P2** | **Per-component read-node catalog** (`[BlueprintReadable]`, read-only) — concrete field pins, NOT a generic `<T>` pin (see §4a) | "read TargetMemory / NavigationStatus of \<entity>" | GAP-7 (self) + GAP-2 (foreign) | catalog like EngineEventCatalog; simple fields → out pins; array fields → `ForEach` source or curated query |
 | **P3** | **`GetSingleton<T>`** (read-only), restricted to `[BlueprintReadable]` singletons | "read NetworkEntityMap" | GAP-7 | curated set |
 | **P4** | **`PublishEvent`** (catalog-gated), same-entity direct / cross-entity deferred | pick an event, fill scalar/entity payload pins | GAP-3 | `[SharedAiAction]`-backed; cross-entity → `BlueprintDeferredEvent`, 1-frame latency |
 | **P5** | **Squad slot/role/phase** (`PartitionElements`/`AssignRoles`/`AcquireSlot`/`AdvancePhase`) | assign firing/baseline slots, waves, roles | GAP-4 + GAP-5 | implement the already-designed-but-unlowered nodes; the bitmask/SoA bookkeeping hides *inside* the primitive's public struct |
@@ -65,20 +65,41 @@ Each primitive is hardcoded C# (node + lowering + helpers + public structs), aut
 foreign+self component read)** and **P5 (squad slot/role/phase)** — these are where the real design
 depth is, and where we most extend past the architect's strict answers.
 
-## 4. Points that need architect sign-off (we extend past the strict answers)
+## 4. Architect approvals (question #2, 2026-07-16) — ALL FOUR APPROVED
 
-1. **P2 curated `GetComponent<T>`** — the architect rejected a *general* `GetComponent`. We propose an
-   **attribute-gated (`[BlueprintReadable]`), read-only, typed** component read — curated, not general.
-   This is the crux negotiation: without it, non-programmers can't read ECS state, and the whole goal
-   fails. Frame it as the EQS/event-catalog philosophy applied to reads.
-2. **P1 structured `ForEach`** — architect deferred loops citing topological-sort/latent breakage;
-   that reasoning only applies to *unstructured back-edge* loops. A structured, bounded, latent-free
-   `ForEach` (body sub-DAG → synchronous `for`) is compiler-safe. Ask to approve it as the sanctioned
-   iteration primitive.
-3. **P5 squad primitives** — approve implementing the already-designed nodes as the generic slot/wave
-   mechanism (so the bitmask/SoA bookkeeping lives inside an engine primitive, not designer-authored).
-4. **Foreign-entity read** (P2 on another entity) — read-only cross-entity component access; confirm
-   this is safe within a tick (reads only) vs must-be-deferred.
+The curated-generic principle was accepted ("exactly right … the intended way to scale Blueprint
+authoring"). Specifics:
+
+1. **A1 — curated read-only component read: APPROVED.** Attribute-gated (`[BlueprintReadable]`),
+   typed, read-only, built as a **curated catalog** exactly like `EngineEventCatalog` /
+   `ChannelCommandCatalog`. (Pin shape refined below — §4a — per the "no generic `<T>` pin" point.)
+2. **A2 — structured `ForEach`: SANCTIONED.** The editor **already scaffolds** a `FlowForEach` node
+   kind with `Loop Body` + `Completed` exec-out pins and `Item` + `Index` data-out pins. Compiler
+   emits a synchronous C# `foreach` around the `Loop Body` sub-DAG; validator forbids latent nodes in
+   the body. Preserves DAG topology; no cross-frame state machine.
+3. **A3 — squad slot/role/phase: SANCTIONED.** `PartitionElements`/`AssignRoles`/`AdvancePhase`/
+   `AcquireSlot` are already in the AST under `SquadPrimitiveNodeCatalog` (TASK-SQD-P6-02). Implement
+   them by **wrapping existing FDP engine primitives** `RoleSlotAssignmentPrimitive` and
+   `PhaseSequencer` — the bitmask/SoA bookkeeping stays encapsulated in that C#.
+4. **A4 — foreign-entity read: SAFE & SYNCHRONOUS, no deferral.** Only cross-entity *writes* defer.
+   Reads project memory synchronously, accepting ≤1-frame staleness by fixed tick order — the same
+   contract as Slice-2b `GetSharedNode` cross-entity reads.
+
+### 4a. P2 pin shape — a per-component read-node catalog, NOT a generic `<T>` pin
+
+Blueprint pins are restricted to scalars/vectors/entities, so a component can't be a single pin.
+Instead the `[BlueprintReadable]` catalog produces, **per exposed component, a concrete read node**:
+- data-**in**: `Entity` (defaults to `self`; any entity ⇒ foreign read, A4).
+- data-**out**: one pin **per exposed simple field** (scalar/vector/entity), named + typed — e.g.
+  `NavigationStatus → Result`, `SimTransform → Position`, `BehaviorState → ActiveBehaviorHash`.
+- **array/complex fields** are NOT single pins: expose them either as a **`ForEach` source** (iterate
+  entries, `Item` = the exposed per-element shape) or via a **curated query** on the component
+  (`TargetMemory.Contains(entity) → bool`, `TryGetThreat(entity) → (bool,float)`) surfaced as its own
+  read node. For `Condition_HasTarget`, the query form is cleanest.
+- lowering: `view.GetComponentRO<T>(entity).Field` (read-only) using the ambient `view`.
+
+The `<T>` is only how the catalog is parameterized internally; the designer always sees concrete,
+named field pins.
 
 ## 5. Open questions / to design next
 
