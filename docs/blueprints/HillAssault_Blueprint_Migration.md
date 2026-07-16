@@ -24,6 +24,26 @@ compiles and runs it, asserting behavior against the C# oracle — mirroring `Sh
 - `Assets/BTrees/PlatoonHillAttack.btree.json`, `.../HullDownAttackRun*.btree.json` (topology)
 - Node vocabulary: `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Assets/Nodes.cs`
 
+## Capability status (2026-07-16) — generic nodes shipped
+
+The migration is driven by building **generic hardcoded blueprint nodes** (architect-endorsed), each
+proven through the REAL MSBuild/Roslyn generator against the C# oracle, reviewed on its actual diff,
+and committed to branch + `main`:
+
+| Capability | Node(s) | Gap closed | State |
+|---|---|---|---|
+| Context-aware FunctionCall | (baked `TrailingContext`) | — | ✅ P7 / P7.1 |
+| ECS component read | `GetComponent` (self + cross-entity Target) | GAP-7 (reads), GAP-2 | ✅ P2 |
+| Read declared Parameters | `GetParameter` | GAP-11 | ✅ (slice-1 DEVIATION 1 closed) |
+| Publish engine events | `PublishEvent` → `world.Bus.Publish` | GAP-3 | ✅ P4 |
+| **Loop** | `FlowForEach` + `GetUnitRoster` | **GAP-1** | 🔨 P1a in progress (design doc) |
+| Comparison node | `Compare` (removes helper) | GAP-12 | ⏳ backlog (task #32) |
+| Singleton read | `GetSingleton` | GAP-7 (singleton) | ⏳ narrow-value (needs method-call too) |
+
+Architect Q#5 answered all four next-tier design questions (events→bus, ChannelCommand-only writes,
+inline-`for` loop, close GAP-11). Remaining oracle slices are unblocked once P1 (loop) lands; each still
+uses the **GAP-12 comparator helper** until a native `Compare` node exists.
+
 ## Slice order (simplest → hardest)
 
 | # | Slice | Node kinds needed | Notes |
