@@ -1,0 +1,159 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1060 660" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#7b8494"/>
+    </marker>
+    <style>
+      .ttl   { font-size:22px; font-weight:700; fill:#1f2733; }
+      .sub   { font-size:13px; fill:#616b7a; }
+      .hdr   { font-size:14px; font-weight:700; fill:#ffffff; letter-spacing:.4px; }
+      .hsub  { font-size:11px; fill:#ffffff; opacity:.85; }
+      .node  { font-size:13px; fill:#1f2733; }
+      .nodeb { font-size:13px; font-weight:700; fill:#1f2733; }
+      .small { font-size:11.5px; fill:#41495a; }
+      .cap   { font-size:12px; fill:#616b7a; }
+      .flow  { font-size:12px; font-weight:700; fill:#5a6472; letter-spacing:.3px; }
+      .badge { font-size:10px; font-weight:700; fill:#ffffff; }
+      .lkey  { font-size:12px; fill:#41495a; }
+      .lkeyb { font-size:12px; font-weight:700; fill:#1f2733; }
+    </style>
+  </defs>
+
+  <!-- background -->
+  <rect x="0" y="0" width="1060" height="660" fill="#f6f8fa"/>
+
+  <!-- title -->
+  <text x="530" y="40" text-anchor="middle" class="ttl">Blueprints, Behavior Trees, Actions &amp; Conditions</text>
+  <text x="530" y="64" text-anchor="middle" class="sub">You draw a Blueprint once → it becomes a node → the Behavior Tree decides when to run it.</text>
+
+  <!-- ============ PANEL 1 : BLUEPRINT ============ -->
+  <g>
+    <rect x="30" y="92" width="288" height="404" rx="12" fill="#ffffff" stroke="#e1e5ea"/>
+    <path d="M30,104 a12,12 0 0 1 12,-12 h264 a12,12 0 0 1 12,12 v22 h-288 z" fill="#7c5cff"/>
+    <text x="48" y="115" class="hdr">BLUEPRINT</text>
+    <text x="48" y="135" class="hsub" transform="translate(120,-20)">authored visually</text>
+
+    <!-- mini node graph -->
+    <rect x="70" y="160" width="150" height="30" rx="8" fill="#efeaff" stroke="#7c5cff"/>
+    <text x="145" y="180" text-anchor="middle" class="node">▶  On tick</text>
+
+    <path d="M145,190 V208" stroke="#aab3c0" stroke-width="1.6" fill="none" marker-end="url(#arrow)"/>
+
+    <rect x="70" y="212" width="150" height="34" rx="8" fill="#efeaff" stroke="#7c5cff"/>
+    <text x="145" y="230" text-anchor="middle" class="nodeb">check / act</text>
+    <text x="145" y="242" text-anchor="middle" class="small">your logic</text>
+
+    <path d="M145,246 V264" stroke="#aab3c0" stroke-width="1.6" fill="none" marker-end="url(#arrow)"/>
+
+    <rect x="70" y="268" width="150" height="30" rx="8" fill="#efeaff" stroke="#7c5cff"/>
+    <text x="145" y="288" text-anchor="middle" class="node">Return  ✓ / ✗</text>
+
+    <text x="174" y="345" text-anchor="middle" class="cap">A reusable piece of logic.</text>
+    <text x="174" y="363" text-anchor="middle" class="cap">Draw it once, use it anywhere</text>
+    <text x="174" y="381" text-anchor="middle" class="cap">— in many trees, on many units.</text>
+
+    <text x="174" y="430" text-anchor="middle" class="small">(the same graph can also be a</text>
+    <text x="174" y="447" text-anchor="middle" class="small">whole standalone behavior)</text>
+  </g>
+
+  <!-- flow arrow 1 -->
+  <text x="352" y="286" text-anchor="middle" class="flow">compiles</text>
+  <text x="352" y="300" text-anchor="middle" class="flow">into</text>
+  <path d="M322,312 H382" stroke="#7b8494" stroke-width="2.2" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- ============ PANEL 2 : NODE ============ -->
+  <g>
+    <rect x="386" y="92" width="288" height="404" rx="12" fill="#ffffff" stroke="#e1e5ea"/>
+    <path d="M386,104 a12,12 0 0 1 12,-12 h264 a12,12 0 0 1 12,12 v22 h-288 z" fill="#1a9c53"/>
+    <text x="404" y="115" class="hdr">BECOMES A NODE</text>
+
+    <text x="530" y="152" text-anchor="middle" class="small">…either an Action or a Condition:</text>
+
+    <!-- action chip -->
+    <rect x="406" y="162" width="248" height="46" rx="9" fill="#e6f6ec" stroke="#1a9c53"/>
+    <text x="420" y="182" class="nodeb">ACTION</text>
+    <text x="420" y="199" class="small">does work → Success · Running · Failure</text>
+
+    <!-- condition chip -->
+    <rect x="406" y="216" width="248" height="46" rx="9" fill="#fdf3e2" stroke="#c98a1b"/>
+    <text x="420" y="236" class="nodeb">CONDITION</text>
+    <text x="420" y="253" class="small">a yes/no test → Pass · Fail</text>
+
+    <!-- node memory -->
+    <rect x="406" y="288" width="248" height="140" rx="9" fill="#f7f8fb" stroke="#d3d9e0"/>
+    <text x="420" y="310" class="nodeb">Each node has memory:</text>
+
+    <rect x="420" y="322" width="30" height="18" rx="4" fill="#1f6feb"/>
+    <text x="435" y="335" text-anchor="middle" class="badge">IN</text>
+    <text x="458" y="329" class="node">Parameters</text>
+    <text x="458" y="345" class="small">set once, read-only while running</text>
+
+    <rect x="420" y="372" width="30" height="18" rx="4" fill="#7c5cff"/>
+    <text x="435" y="385" text-anchor="middle" class="badge">↻</text>
+    <text x="458" y="379" class="node">Working State</text>
+    <text x="458" y="395" class="small">private memory, changes each tick</text>
+
+    <text x="530" y="462" text-anchor="middle" class="cap">Same idea whether hosted in a</text>
+    <text x="530" y="479" text-anchor="middle" class="cap">Behavior Tree or an HSM.</text>
+  </g>
+
+  <!-- flow arrow 2 -->
+  <text x="708" y="286" text-anchor="middle" class="flow">placed</text>
+  <text x="708" y="300" text-anchor="middle" class="flow">in</text>
+  <path d="M678,312 H738" stroke="#7b8494" stroke-width="2.2" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- ============ PANEL 3 : BTREE ============ -->
+  <g>
+    <rect x="742" y="92" width="288" height="404" rx="12" fill="#ffffff" stroke="#e1e5ea"/>
+    <path d="M742,104 a12,12 0 0 1 12,-12 h264 a12,12 0 0 1 12,12 v22 h-288 z" fill="#1f6feb"/>
+    <text x="760" y="115" class="hdr">BEHAVIOR TREE</text>
+    <text x="760" y="135" class="hsub" transform="translate(150,-20)">the plan</text>
+
+    <!-- root -->
+    <rect x="826" y="158" width="120" height="30" rx="8" fill="#e7f0ff" stroke="#1f6feb"/>
+    <text x="886" y="178" text-anchor="middle" class="nodeb">→  Sequence</text>
+
+    <!-- connectors -->
+    <path d="M886,188 V210 H800 V236" stroke="#aab3c0" stroke-width="1.6" fill="none"/>
+    <path d="M886,188 V210 H886 V236" stroke="#aab3c0" stroke-width="1.6" fill="none"/>
+    <path d="M886,188 V210 H972 V236" stroke="#aab3c0" stroke-width="1.6" fill="none"/>
+
+    <!-- leaves -->
+    <rect x="762" y="238" width="76" height="40" rx="8" fill="#fdf3e2" stroke="#c98a1b"/>
+    <text x="800" y="256" text-anchor="middle" class="small">Condition</text>
+    <text x="800" y="270" text-anchor="middle" class="small">enemy near?</text>
+
+    <rect x="848" y="238" width="76" height="40" rx="8" fill="#e6f6ec" stroke="#1a9c53" stroke-width="2.4"/>
+    <text x="886" y="256" text-anchor="middle" class="small">Action</text>
+    <text x="886" y="270" text-anchor="middle" class="small">advance</text>
+
+    <rect x="934" y="238" width="76" height="40" rx="8" fill="#e6f6ec" stroke="#1a9c53"/>
+    <text x="972" y="256" text-anchor="middle" class="small">Action</text>
+    <text x="972" y="270" text-anchor="middle" class="small">fire</text>
+
+    <!-- callout to highlighted leaf -->
+    <path d="M886,300 V284" stroke="#1a9c53" stroke-width="1.6" fill="none" marker-end="url(#arrow)"/>
+    <rect x="812" y="302" width="148" height="30" rx="8" fill="#1a9c53"/>
+    <text x="886" y="321" text-anchor="middle" class="badge" font-size="12">= your Blueprint</text>
+
+    <text x="886" y="392" text-anchor="middle" class="cap">Ticked top-down every frame.</text>
+    <text x="886" y="410" text-anchor="middle" class="cap">Sequence runs its children in</text>
+    <text x="886" y="428" text-anchor="middle" class="cap">order until one isn't done.</text>
+  </g>
+
+  <!-- ============ LEGEND ============ -->
+  <rect x="30" y="520" width="1000" height="112" rx="12" fill="#ffffff" stroke="#e1e5ea"/>
+  <text x="50" y="546" class="lkeyb">Quick glossary</text>
+
+  <circle cx="58" cy="572" r="5" fill="#1a9c53"/>
+  <text x="72" y="576" class="lkey"><tspan class="lkeyb">Action</tspan> — does work over time. Returns <tspan class="lkeyb">Success</tspan>, <tspan class="lkeyb">Failure</tspan>, or <tspan class="lkeyb">Running</tspan> (“still working, ask me next tick”).</text>
+
+  <circle cx="58" cy="596" r="5" fill="#c98a1b"/>
+  <text x="72" y="600" class="lkey"><tspan class="lkeyb">Condition</tspan> — a yes/no test. Returns <tspan class="lkeyb">Pass</tspan> or <tspan class="lkeyb">Fail</tspan>; the tree uses it to choose a branch.</text>
+
+  <rect x="540" y="566" width="24" height="14" rx="3" fill="#1f6feb"/>
+  <text x="572" y="577" class="lkey"><tspan class="lkeyb">Parameters</tspan> — inputs you set once (a threshold, a speed). Read-only while the behavior runs.</text>
+
+  <rect x="540" y="590" width="24" height="14" rx="3" fill="#7c5cff"/>
+  <text x="572" y="601" class="lkey"><tspan class="lkeyb">Working State</tspan> — the node’s memory that changes each tick (a timer, a counter, a plan).</text>
+</svg>
