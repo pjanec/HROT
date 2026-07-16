@@ -197,6 +197,17 @@ public sealed class BlueprintTestFixture : IDisposable
         CompilerMode mode = CompilerMode.Debug)
         => CompileAndLoadCore(assets, MakeDefaultOptions(mode));
 
+    /// <summary>
+    /// Compiles multiple Blueprint assets with custom CompileOptions (e.g. cross-asset
+    /// CallPeerBlueprint siblings that must be resolvable within the SAME merged compilation)
+    /// and loads them into a new collectible ALC.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public Assembly CompileAndLoadMany(
+        IReadOnlyList<BlueprintAsset> assets,
+        CompileOptions options)
+        => CompileAndLoadCore(assets, options);
+
     private static CompileOptions MakeDefaultOptions(CompilerMode mode) => new CompileOptions(
         Mode:              mode,
         NodeRegistry:      BuiltInNodeRegistry.Instance,
