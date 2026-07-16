@@ -243,7 +243,7 @@ public sealed class SharedNodeCommandSinkAndPersistenceTests
         graph.Nodes.Add(node);
 
         var dirtyLog = new List<BlueprintAsset>();
-        var drawer   = new GetSharedNodeDrawer(new RecordingEditService(dirtyLog));
+        var drawer   = new GetSharedNodeDrawer(new RecordingEditService(dirtyLog), new ReflectionSharedStructTypeProvider());
         var session  = (GetSharedNodeSession)drawer.CreateSession(node, asset);
 
         session.SetVariableIdForTest("RallyPoint");
