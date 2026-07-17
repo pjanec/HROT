@@ -277,7 +277,9 @@ internal sealed class NodeRenderer
         // zoom so the frame height tracks the row slot. Both are reset before PopFont below.
         float faceSize = ImGui.GetFontSize();
         if (faceSize > 0f) ImGui.SetWindowFontScale(targetFontSize / faceSize);
-        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(4f * zoom, 3f * zoom));
+        // Vertical padding 2 (not 3) keeps the frame height ~18*zoom inside the 24*zoom row slot
+        // with a clear ~3px gap each side, so adjacent editors never touch.
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(4f * zoom, 2f * zoom));
         ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 2f * zoom);
 
         float pinCenterX = nodeRect.Min.X + CanvasLayoutBuilder.NodeHorizPadGu * zoom;
