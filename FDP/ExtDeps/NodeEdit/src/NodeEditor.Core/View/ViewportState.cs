@@ -24,7 +24,10 @@ public sealed class ViewportState
 
     public const float MinZoom = 0.25f;
     public const float MaxZoom = 3.0f;
-    public const float LowZoomThreshold = 0.5f;
+    // Below this zoom, node titles/pins are skipped to avoid sub-pixel glyph spam. Lowered from
+    // 0.5 → 0.3 now that the host bakes a crisp multi-size font ladder, so labels stay legible
+    // across several more zoom-out steps before they are culled.
+    public const float LowZoomThreshold = 0.3f;
 
     /// <summary>True when zoom is below the simplified-rendering threshold.</summary>
     public bool IsLowZoom => Zoom < LowZoomThreshold;

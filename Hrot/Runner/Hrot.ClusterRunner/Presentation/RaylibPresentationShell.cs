@@ -15,10 +15,13 @@ internal sealed class RaylibPresentationShell : IPresentationShell
 
     public void InitWindow(int width, int height, string title, int targetFps)
     {
-        // HighDpiWindow lets Raylib report the true monitor content scale via
-        // GetWindowScaleDPI(), which drives the editor's DPI-aware font baking.
-        Raylib_cs.Raylib.SetConfigFlags(
-            Raylib_cs.ConfigFlags.ResizableWindow | Raylib_cs.ConfigFlags.HighDpiWindow);
+        // NOTE: intentionally NOT setting ConfigFlags.HighDpiWindow. With it, Raylib creates a
+        // GL framebuffer at the physical (DPI-scaled) resolution while the ImGui integration
+        // (rlImGui_cs) still lays out at the logical window size, so on a hi-DPI monitor the UI
+        // renders clipped into a sub-rect with the rest blank. We keep a 1:1 framebuffer and get
+        // readability from larger baked fonts + the UI-scale slider instead. Revisit if/when the
+        // ImGui backend gains proper framebuffer-scale handling.
+        Raylib_cs.Raylib.SetConfigFlags(Raylib_cs.ConfigFlags.ResizableWindow);
         Raylib_cs.Raylib.InitWindow(width, height, title);
         Raylib_cs.Raylib.SetExitKey(Raylib_cs.KeyboardKey.Null);
         Raylib_cs.Raylib.SetTargetFPS(targetFps);

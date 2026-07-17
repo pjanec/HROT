@@ -844,8 +844,9 @@ public class WindowManager
         Gui.Separator();
 
         float dpi = FontService?.DpiScale ?? 1f;
-        Gui.TextDisabled($"Detected monitor DPI scale: {dpi * 100f:F0}%");
-        Gui.TextDisabled("Final size = DPI × UI scale. Fonts (Roboto + FontAwesome) rebake on change.");
+        if (dpi > 1.001f)
+            Gui.TextDisabled($"Auto monitor DPI: {dpi * 100f:F0}% (multiplied by the scale below)");
+        Gui.TextDisabled("Scales all editor fonts and widget spacing. Fonts re-bake crisply on change.");
         Gui.Spacing();
 
         // Initialise the draft from the committed value when the modal (re)opens.
@@ -882,6 +883,10 @@ public class WindowManager
             _uiScalePercentDraft = -1f; // reset draft so it re-syncs next open
             Gui.CloseCurrentPopup();
         }
+
+        // REQUIRED: BeginPopupModal returned true, so the popup must be closed with EndPopup
+        // (mirrors RenderAboutModalContent). Omitting it corrupts ImGui's stack → native crash.
+        Gui.EndPopup();
     }
 
     /// <summary>Commit a new UI-scale multiplier: persists it and drives the live font rebake.</summary>

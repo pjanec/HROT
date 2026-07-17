@@ -52,7 +52,7 @@ flowchart TD
 | `Fdp.Presentation/ImGui/Fonts/EditorFontRegistry.cs` | new — ambient default-font + canvas ladder |
 | `Fdp.Presentation/ImGui/Fonts/IconsFontAwesome6.cs` | new — FA glyph constants |
 | `Fdp.Presentation/ImGui/Fonts/EmbeddedFontResources.cs` | + `GetFontAwesomeSolidTtfBytes()` |
-| `Hrot.ClusterRunner/Presentation/RaylibPresentationShell.cs` | HighDPI flag, bake fonts, **bilinear** icon atlas |
+| `Hrot.ClusterRunner/Presentation/RaylibPresentationShell.cs` | bake fonts, **bilinear** icon atlas (no HighDPI flag — see limitations) |
 | `Hrot.ClusterRunner/Presentation/{IPresentationShell,LocalWindowController}.cs` · `Program.cs` | expose service, apply persisted scale, drain rebuilds |
 | `Hrot.Editor.AiShared/Adapters/EngineEditorTheme.cs` | resolve canvas font from the registry |
 
@@ -98,6 +98,14 @@ Check:
   or a raw atlas coordinate (`"v11"`). The resolver + gutter do the rest.
 
 ## Known limitations / follow-ups
+
+- **True per-monitor DPI is not enabled.** `ConfigFlags.HighDpiWindow` made the GL
+  framebuffer physical-resolution while `rlImGui_cs` still laid out at logical size → clipped /
+  half-blank UI on real hi-DPI Windows. It is intentionally **off**; the window is DPI-unaware
+  (the OS may bitmap-upscale it slightly on scaled displays) and readability comes from larger
+  baked fonts + the UI-scale slider. Proper DPI awareness needs framebuffer-scale handling in
+  the ImGui backend — a separate effort.
+
 
 - **Gizmo combat-verb menus** (Move/Engage/Stop/Rotate…) resolve icons but have **no keys
   assigned** — needs a few new `SilkIconProvider` entries (no icon-cell manifest exists, so
