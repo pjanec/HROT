@@ -35,10 +35,15 @@
     </EmbeddedResource>
   </ItemGroup>
 
-  <!-- Embedded UI font (gizmo / debug-text rendering) -->
+  <!-- Embedded UI font (gizmo / debug-text rendering + editor chrome / canvas) -->
   <ItemGroup>
     <EmbeddedResource Include="..\..\Data\Fonts\Roboto-Regular.ttf">
       <LogicalName>FDP.Toolkit_ImGui.Fonts.Roboto-Regular.ttf</LogicalName>
+    </EmbeddedResource>
+    <!-- Font Awesome 6 Free (Solid) — icon glyphs merged onto the UI face.
+         Fonts are licensed under SIL OFL 1.1; see fa-solid-900.LICENSE.txt. -->
+    <EmbeddedResource Include="..\..\Data\Fonts\fa-solid-900.ttf">
+      <LogicalName>FDP.Toolkit_ImGui.Fonts.fa-solid-900.ttf</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
 </Project>

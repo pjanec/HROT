@@ -1,4 +1,5 @@
 using System;
+using System.Numerics;
 using System.Text.Json;
 using ImGuiNET;
 
@@ -27,6 +28,12 @@ namespace GizmoMap.Presentation
         private bool   _requestOpen;
         private long   _pendingAnchorId;
         private string? _pendingMenuJson;
+
+        /// <summary>
+        /// Optional resolver that maps a menu item's <c>"icon"</c> key to a colored atlas sprite,
+        /// drawn in an aligned left gutter. Null (default) renders text-only.
+        /// </summary>
+        public MenuIconResolver? IconResolver { get; set; }
 
         /// <summary>
         /// Records a right-click event on the entity with the given anchor ID.
@@ -70,7 +77,7 @@ namespace GizmoMap.Presentation
 
         // ---- Private rendering helpers --------------------------------------
 
-        private static void DrawMenuItems(string json, long anchorId, Action<long, int>? onAction)
+        private void DrawMenuItems(string json, long anchorId, Action<long, int>? onAction)
         {
             JsonDocument doc;
             try { doc = JsonDocument.Parse(json); }
@@ -78,12 +85,25 @@ namespace GizmoMap.Presentation
 
             using (doc)
             {
+                bool reserve = IconResolver != null && LevelHasIcon(doc.RootElement);
                 foreach (var item in doc.RootElement.EnumerateArray())
-                    DrawItem(item, anchorId, onAction);
+                    DrawItem(item, anchorId, onAction, reserve);
             }
         }
 
-        private static void DrawItem(JsonElement item, long anchorId, Action<long, int>? onAction)
+        // True when any sibling at this array level carries a non-empty "icon" property.
+        private static bool LevelHasIcon(JsonElement array)
+        {
+            if (array.ValueKind != JsonValueKind.Array) return false;
+            foreach (var el in array.EnumerateArray())
+                if (el.TryGetProperty("icon", out var ic)
+                    && ic.ValueKind == JsonValueKind.String
+                    && !string.IsNullOrEmpty(ic.GetString()))
+                    return true;
+            return false;
+        }
+
+        private void DrawItem(JsonElement item, long anchorId, Action<long, int>? onAction, bool reserve)
         {
             // Separator
             if (item.TryGetProperty("separator", out var sep) && sep.ValueKind == JsonValueKind.True)
@@ -92,18 +112,28 @@ namespace GizmoMap.Presentation
                 return;
             }
 
-            string label   = item.TryGetProperty("label",   out var lbl) ? lbl.GetString() ?? "" : "?";
+            string rawLabel = item.TryGetProperty("label",   out var lbl) ? lbl.GetString() ?? "" : "?";
             string shortcut = item.TryGetProperty("shortcut", out var sc) ? sc.GetString() ?? "" : "";
             bool enabled   = !item.TryGetProperty("enabled", out var en) || en.GetBoolean();
+            string? iconKey = item.TryGetProperty("icon", out var ik) && ik.ValueKind == JsonValueKind.String
+                ? ik.GetString() : null;
+
+            // Reserve the aligned gutter (pad the label) so icon and non-icon rows line up.
+            var p0 = ImGui.GetCursorScreenPos();
+            float gutter = 0f;
+            string label = reserve ? MenuIconRenderer.Pad(rawLabel, out gutter) : rawLabel;
 
             // Submenu
             if (item.TryGetProperty("children", out var children)
                 && children.ValueKind == JsonValueKind.Array)
             {
-                if (ImGui.BeginMenu(label, enabled))
+                bool open = ImGui.BeginMenu(label, enabled);
+                MenuIconRenderer.DrawIcon(IconResolver, iconKey, p0, gutter);
+                if (open)
                 {
+                    bool childReserve = IconResolver != null && LevelHasIcon(children);
                     foreach (var child in children.EnumerateArray())
-                        DrawItem(child, anchorId, onAction);
+                        DrawItem(child, anchorId, onAction, childReserve);
                     ImGui.EndMenu();
                 }
                 return;
@@ -113,6 +143,7 @@ namespace GizmoMap.Presentation
             if (!enabled) ImGui.BeginDisabled();
 
             bool clicked = ImGui.MenuItem(label, shortcut);
+            MenuIconRenderer.DrawIcon(IconResolver, iconKey, p0, gutter);
 
             if (!enabled) ImGui.EndDisabled();
 

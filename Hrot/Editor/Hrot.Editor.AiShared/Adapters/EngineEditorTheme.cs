@@ -85,49 +85,16 @@ public sealed class EngineEditorTheme : IEditorTheme
 
     /// <inheritdoc/>
     /// <remarks>
-    /// Searches the ImGui font atlas for the closest font to
-    /// <paramref name="targetPixelSize"/> by comparing each font's pixel size.
-    /// Returns <see cref="IntPtr.Zero"/> when no ImGui context is active or
-    /// no fonts are loaded, so callers fall back to the ImGui default font.
-    /// Never throws.
+    /// Resolves against the canvas font ladder baked by
+    /// <see cref="Fdp.Presentation.Fonts.EditorFontService"/> and published to
+    /// <see cref="Fdp.Presentation.Fonts.EditorFontRegistry"/>, using the
+    /// "smallest baked size &gt;= target, else largest" policy (avoids upscaling blur).
+    /// Returns <see cref="IntPtr.Zero"/> when no ladder has been baked (e.g. headless
+    /// tests, or before the shell sets up fonts) so callers fall back to the ImGui
+    /// default font. Does not touch the live ImGui context and never throws.
     /// </remarks>
-    public unsafe nint GetFontForSize(float targetPixelSize)
-    {
-        // Guard against missing context BEFORE any ImGui dereference.
-        // AccessViolationException is a corrupted-state exception that managed
-        // try/catch cannot handle, so we must prevent the native call entirely.
-        if (ImGui.GetCurrentContext() == IntPtr.Zero)
-            return IntPtr.Zero;
-
-        try
-        {
-            var io = ImGui.GetIO();
-            if (io.Fonts.Fonts.Size == 0)
-                return IntPtr.Zero;
-
-            ImFontPtr best     = io.Fonts.Fonts[0];
-            float     bestDiff = Math.Abs(best.FontSize - targetPixelSize);
-
-            for (int i = 1; i < io.Fonts.Fonts.Size; i++)
-            {
-                var   font = io.Fonts.Fonts[i];
-                float diff = Math.Abs(font.FontSize - targetPixelSize);
-                if (diff < bestDiff)
-                {
-                    best     = font;
-                    bestDiff = diff;
-                }
-            }
-
-            // Return the native pointer; zero means "use default".
-            nint ptr = best.NativePtr == null ? IntPtr.Zero : (nint)best.NativePtr;
-            return ptr;
-        }
-        catch
-        {
-            return IntPtr.Zero;
-        }
-    }
+    public nint GetFontForSize(float targetPixelSize)
+        => Fdp.Presentation.Fonts.EditorFontRegistry.ResolveCanvasFont(targetPixelSize);
 
     // ── Attachment pill colors — use IEditorTheme interface defaults ──────────
     // These match DefaultTheme; no override needed. IEditorTheme provides

@@ -22,6 +22,7 @@ public class WindowManager
     private readonly Dictionary<string, string> _perspectiveLabels = new();
     private readonly IconAtlas _atlas;
     private const int ActionAbout = -1;
+    private const int ActionSettings = -2;
 
     /// <summary>
     /// BATCH-26: Target height (px) of the main menu bar so the inline toolbar
@@ -32,7 +33,27 @@ public class WindowManager
     private const float MainMenuBarTargetHeight = 32f;
     private readonly List<string> _windowToggleMap = new();
     private bool _openAboutModal;
+    private bool _openSettingsModal;
     private IFileDialogService? _fileDialogService;
+
+    /// <summary>
+    /// Editor font pipeline, injected by the presentation shell. When set, the Settings
+    /// window's UI-scale slider drives live rescaling; null in headless / test hosts.
+    /// </summary>
+    public Fdp.Presentation.Fonts.EditorFontService? FontService { get; set; }
+
+    /// <summary>
+    /// Persisted user UI-scale multiplier (1.0 = 100%). Applied on top of the autodetected
+    /// monitor DPI. Round-tripped through <see cref="SaveSettings"/> / <see cref="LoadSettings"/>.
+    /// </summary>
+    public float UiScale { get; set; } = 1f;
+
+    /// <summary>
+    /// Optional resolver mapping a menu item's semantic icon key to a colored atlas sprite,
+    /// injected by the editor composition (which owns the icon vocabulary). When set, main-menu
+    /// and gizmo-menu items with an <c>Icon</c> render a colored icon in an aligned gutter.
+    /// </summary>
+    public GizmoMap.Presentation.MenuIconResolver? MenuIcons { get; set; }
 
     // �� Construction �����������������������������������������������������������
 
@@ -349,6 +370,7 @@ public class WindowManager
         filePath ??= DefaultSettingsPath;
         var state = new WindowManagerSettings(
             CurrentPerspective,
+            UiScale,
             new Dictionary<string, WindowState>(
                 _windows
                     .Where(kv => !kv.Value.IsVolatile)
@@ -384,6 +406,8 @@ public class WindowManager
                         win.IsPinned = ws.IsPinned;
                     }
                 }
+                if (settings.UiScale > 0f)
+                    UiScale = System.Math.Clamp(settings.UiScale, 0.5f, 3.0f);
                 return string.IsNullOrEmpty(settings.ActivePerspective) ? null : settings.ActivePerspective;
             }
         }
@@ -414,7 +438,7 @@ public class WindowManager
         Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "fdp_windows.json");
 
     private record WindowState(bool IsOpen, bool IsPinned);
-    private record WindowManagerSettings(string ActivePerspective, Dictionary<string, WindowState> Windows);
+    private record WindowManagerSettings(string ActivePerspective, float UiScale, Dictionary<string, WindowState> Windows);
 
     // �� Render �����������������������������������������������������������������
 
@@ -458,10 +482,10 @@ public class WindowManager
             RenderGlobalMenu(GlobalMenu.Root);
             RenderPerspectiveMenu();
             var hostMenus = BuildHostMenuDtos();
-            GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(hostMenus, HandleHostMenuAction);
+            GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(hostMenus, HandleHostMenuAction, MenuIcons);
 
             if (gizmoMenuItems != null && gizmoMenuItems.Count > 0)
-                GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(gizmoMenuItems, onGizmoMenuAction);
+                GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(gizmoMenuItems, onGizmoMenuAction, MenuIcons);
 
             // BATCH-25: Render the main toolbar inline inside the menu bar,
             // to the right of the menus. Graphical separators are drawn by
@@ -490,6 +514,21 @@ public class WindowManager
             if (Gui.IsKeyPressed(ImGuiNET.ImGuiKey.Escape)) Gui.CloseCurrentPopup();
             RenderAboutModalContent();
             if (!modalOpen)
+                Gui.CloseCurrentPopup();
+        }
+
+        if (_openSettingsModal)
+        {
+            Gui.OpenPopup("Settings##Modal");
+            _openSettingsModal = false;
+        }
+
+        bool settingsOpen = true;
+        if (Gui.BeginPopupModal("Settings##Modal", ref settingsOpen, ImGuiNET.ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            if (Gui.IsKeyPressed(ImGuiNET.ImGuiKey.Escape)) Gui.CloseCurrentPopup();
+            RenderSettingsModalContent();
+            if (!settingsOpen)
                 Gui.CloseCurrentPopup();
         }
 
@@ -529,6 +568,15 @@ public class WindowManager
     /// </summary>
     private void RenderGlobalMenu(MenuItemNode node)
     {
+        // Reserve an aligned icon gutter for this whole level if any sibling carries an icon.
+        bool reserve = MenuIcons != null;
+        if (reserve)
+        {
+            reserve = false;
+            foreach (var c in node.Children.Values)
+                if (!string.IsNullOrEmpty(c.Icon)) { reserve = true; break; }
+        }
+
         foreach (var child in node.Children.Values)
         {
             if (child.IsSeparator)
@@ -537,9 +585,17 @@ public class WindowManager
                 continue;
             }
 
+            var p0 = Gui.GetCursorScreenPos();
+            float gutter = 0f;
+
             if (child.Children.Count > 0)
             {
-                if (Gui.BeginMenu(child.Name))
+                string subLabel = reserve
+                    ? GizmoMap.Presentation.MenuIconRenderer.Pad(child.Name, out gutter)
+                    : child.Name;
+                bool open = Gui.BeginMenu(subLabel);
+                GizmoMap.Presentation.MenuIconRenderer.DrawIcon(MenuIcons, child.Icon, p0, gutter);
+                if (open)
                 {
                     RenderGlobalMenu(child);
                     Gui.EndMenu();
@@ -547,12 +603,18 @@ public class WindowManager
                 continue;
             }
 
+            string label = reserve
+                ? GizmoMap.Presentation.MenuIconRenderer.Pad(child.ResolveLabel(), out gutter)
+                : child.ResolveLabel();
+
             // Leaf: checkable item.
             if (child.GetCheckedState != null && child.OnCheckedChanged != null)
             {
                 bool checkedState = child.GetCheckedState();
                 bool enabled = child.GetEnabled?.Invoke() ?? true;
-                if (Gui.MenuItem(child.ResolveLabel(), child.Shortcut ?? "", ref checkedState, enabled))
+                bool clicked = Gui.MenuItem(label, child.Shortcut ?? "", ref checkedState, enabled);
+                GizmoMap.Presentation.MenuIconRenderer.DrawIcon(MenuIcons, child.Icon, p0, gutter);
+                if (clicked)
                 {
                     child.OnCheckedChanged(checkedState);
                 }
@@ -563,7 +625,9 @@ public class WindowManager
             if (child.OnClick != null)
             {
                 bool enabled = child.GetEnabled?.Invoke() ?? true;
-                if (Gui.MenuItem(child.ResolveLabel(), child.Shortcut ?? "", false, enabled))
+                bool clicked = Gui.MenuItem(label, child.Shortcut ?? "", false, enabled);
+                GizmoMap.Presentation.MenuIconRenderer.DrawIcon(MenuIcons, child.Icon, p0, gutter);
+                if (clicked)
                 {
                     child.OnClick();
                 }
@@ -589,6 +653,11 @@ public class WindowManager
         if (actionId == ActionAbout)
         {
             _openAboutModal = true;
+            return;
+        }
+        if (actionId == ActionSettings)
+        {
+            _openSettingsModal = true;
             return;
         }
         if (actionId <= -100)
@@ -636,12 +705,25 @@ public class WindowManager
         {
             Label = "Windows",
             Priority = 90,
+            Icon = "folder",
             Children = winChildren.ToArray()
+        });
+        menus.Add(new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
+        {
+            Label = "Settings",
+            Priority = 95,
+            Icon = "asset/utility",
+            Children = new[]
+            {
+                new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
+                { Id = ActionSettings, Label = "UI Scale & Fonts…", Icon = "asset/utility" }
+            }
         });
         menus.Add(new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
         {
             Label = "Help",
             Priority = 100,
+            Icon = "status/info",
             Children = new[]
             {
                 new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
@@ -653,7 +735,7 @@ public class WindowManager
                             Id = GetWindowActionId(w.Id), Label = w.Title, IsChecked = w.IsOpen
                         }).ToArray()
                 },
-                new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = ActionAbout, Label = "About" }
+                new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = ActionAbout, Label = "About", Icon = "status/info" }
             }
         });
         return menus;
@@ -668,10 +750,25 @@ public class WindowManager
     {
         if (Gui.BeginMenu("Perspective"))
         {
-            foreach (var (perspective, isChecked) in BuildPerspectiveMenuModel())
+            var model = BuildPerspectiveMenuModel();
+            // Reserve the icon gutter if any perspective has a registered icon key.
+            bool reserve = false;
+            if (MenuIcons != null)
+                foreach (var (p, _) in model)
+                    if (!string.IsNullOrEmpty(GetPerspectiveIconKey(p))) { reserve = true; break; }
+
+            foreach (var (perspective, isChecked) in model)
             {
                 bool isCheckedCopy = isChecked;
-                if (Gui.MenuItem(GetPerspectiveLabel(perspective), "", ref isCheckedCopy))
+                var p0 = Gui.GetCursorScreenPos();
+                float gutter = 0f;
+                string label = reserve
+                    ? GizmoMap.Presentation.MenuIconRenderer.Pad(GetPerspectiveLabel(perspective), out gutter)
+                    : GetPerspectiveLabel(perspective);
+
+                bool clicked = Gui.MenuItem(label, "", ref isCheckedCopy);
+                GizmoMap.Presentation.MenuIconRenderer.DrawIcon(MenuIcons, GetPerspectiveIconKey(perspective), p0, gutter);
+                if (clicked)
                 {
                     SelectPerspective(perspective);
                 }
@@ -735,6 +832,70 @@ public class WindowManager
             Gui.CloseCurrentPopup();
 
         Gui.EndPopup();
+    }
+
+    // Working buffer for the UI-scale slider (percent). Applied on release, not per-frame,
+    // so dragging does not rebake the font atlas on every frame.
+    private float _uiScalePercentDraft = -1f;
+
+    private void RenderSettingsModalContent()
+    {
+        Gui.Text("Editor UI Scale");
+        Gui.Separator();
+
+        float dpi = FontService?.DpiScale ?? 1f;
+        if (dpi > 1.001f)
+            Gui.TextDisabled($"Auto monitor DPI: {dpi * 100f:F0}% (multiplied by the scale below)");
+        Gui.TextDisabled("Scales all editor fonts and widget spacing. Fonts re-bake crisply on change.");
+        Gui.Spacing();
+
+        // Initialise the draft from the committed value when the modal (re)opens.
+        if (_uiScalePercentDraft < 0f)
+            _uiScalePercentDraft = UiScale * 100f;
+
+        // Preset buttons apply immediately.
+        int[] presets = { 100, 125, 150, 175, 200 };
+        for (int i = 0; i < presets.Length; i++)
+        {
+            if (i > 0) Gui.SameLine();
+            bool active = System.Math.Abs(UiScale * 100f - presets[i]) < 0.5f;
+            if (active) Gui.PushStyleColor(ImGuiNET.ImGuiCol.Button, new System.Numerics.Vector4(0.26f, 0.59f, 0.98f, 1f));
+            if (Gui.Button($"{presets[i]}%##uiscale"))
+                ApplyUiScale(presets[i] / 100f);
+            if (active) Gui.PopStyleColor();
+        }
+
+        Gui.Spacing();
+
+        // Fine slider — apply only on release to avoid per-frame atlas rebakes.
+        Gui.SetNextItemWidth(260f);
+        Gui.SliderFloat("##uiscale_slider", ref _uiScalePercentDraft, 75f, 200f, "%.0f%%");
+        if (Gui.IsItemDeactivatedAfterEdit())
+            ApplyUiScale(_uiScalePercentDraft / 100f);
+
+        Gui.Spacing();
+        Gui.Separator();
+        if (Gui.Button("Reset to 100%", new System.Numerics.Vector2(140, 0)))
+            ApplyUiScale(1f);
+        Gui.SameLine();
+        if (Gui.Button("Close", new System.Numerics.Vector2(120, 0)))
+        {
+            _uiScalePercentDraft = -1f; // reset draft so it re-syncs next open
+            Gui.CloseCurrentPopup();
+        }
+
+        // REQUIRED: BeginPopupModal returned true, so the popup must be closed with EndPopup
+        // (mirrors RenderAboutModalContent). Omitting it corrupts ImGui's stack → native crash.
+        Gui.EndPopup();
+    }
+
+    /// <summary>Commit a new UI-scale multiplier: persists it and drives the live font rebake.</summary>
+    private void ApplyUiScale(float multiplier)
+    {
+        multiplier = System.Math.Clamp(multiplier, 0.5f, 3.0f);
+        UiScale = multiplier;
+        _uiScalePercentDraft = multiplier * 100f;
+        FontService?.SetUserScale(multiplier);
     }
 }
 

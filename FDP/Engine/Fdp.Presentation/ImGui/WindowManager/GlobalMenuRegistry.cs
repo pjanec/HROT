@@ -48,6 +48,14 @@ public class MenuItemNode
     /// </summary>
     public string ResolveLabel() => DynamicLabel?.Invoke() ?? Name;
 
+    /// <summary>
+    /// Optional semantic icon key (e.g. <c>"save"</c>, <c>"open"</c>) resolved by the
+    /// <c>WindowManager.MenuIcons</c> resolver to a colored atlas sprite rendered in an aligned
+    /// gutter. When <c>null</c>, no icon is shown (the gutter is still reserved if any sibling
+    /// has one, so labels stay aligned). Backward-compatible addition.
+    /// </summary>
+    public string? Icon { get; set; }
+
     /// <summary>Child nodes keyed by path segment name.</summary>
     public Dictionary<string, MenuItemNode> Children { get; } = new();
 }

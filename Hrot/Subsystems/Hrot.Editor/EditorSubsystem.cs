@@ -1892,6 +1892,13 @@ namespace Hrot.Editor
         {
             _wm = windowManager;
 
+            // Colored menu icons: resolve semantic keys (e.g. "shell/save", "asset/btree") to
+            // silk-atlas sprites, drawn in an aligned gutter by the shared menu renderers. Bound
+            // to the WindowManager's own atlas so the texture matches what it renders with.
+            windowManager.MenuIcons = Hrot.Editor.AiShared.Adapters.SilkMenuIconResolver.Create(windowManager.Atlas);
+            if (_gizmoLayer != null)
+                _gizmoLayer.ContextMenuIconResolver = windowManager.MenuIcons; // gizmo right-click menus
+
             // Wire the ImGui file dialog fallback so it renders on non-Windows hosts.
             // Harmless no-op for the Win32 backend: WindowManager only draws the service
             // when it is an ImGuiFileDialogService.

@@ -285,6 +285,10 @@ class Program
 
                     orchestrator.Update(dt);
 
+                    // Apply any queued font/DPI rebake at the frame boundary (atlas rebuild
+                    // must happen outside rlImGui.Begin/End).
+                    shell.FontService.ApplyPendingRebuild();
+
                     Raylib_cs.Raylib.BeginDrawing();
                     // Restore the black background
                     Raylib_cs.Raylib.ClearBackground(Raylib_cs.Color.Black);
