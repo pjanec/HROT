@@ -23,8 +23,13 @@ public sealed class EditorFontService
 {
     // ── Tunables ──────────────────────────────────────────────────────────────
 
-    /// <summary>Base pixel size of the UI chrome face at scale 1.0.</summary>
-    public const float BaseUiPx = 16f;
+    /// <summary>
+    /// Base pixel size of the UI chrome face at scale 1.0. Kept close to ImGui's built-in
+    /// 13 px default so the font fits the default control padding / frame heights comfortably
+    /// (16 px was ~23% too tall for edit boxes and tab headers). At this size 100% UI-scale
+    /// reads as "normal", and the slider scales up from there for hi-DPI.
+    /// </summary>
+    public const float BaseUiPx = 14f;
 
     /// <summary>Canvas ladder base sizes (pre-scale). Chosen to cover the ~0.3×–3× zoom
     /// range crisply once multiplied by the effective scale.</summary>

@@ -55,7 +55,16 @@ namespace GizmoMap.Presentation
                 return;
 
             float sz = ImGui.GetTextLineHeight();
-            var min = new Vector2(rowStart.X + (gutterPx - sz) * 0.5f, rowStart.Y);
+
+            // Vertically center in the ACTUAL item rect (valid immediately after the item was
+            // drawn). The main menu bar is intentionally taller than a text line with the label
+            // centered, so pinning to rowStart.Y would float the icon above it; dropdown items
+            // reduce to the normal item height and still center correctly.
+            var rmin = ImGui.GetItemRectMin();
+            var rmax = ImGui.GetItemRectMax();
+            float cy = (rmin.Y + rmax.Y) * 0.5f - sz * 0.5f;
+
+            var min = new Vector2(rowStart.X + (gutterPx - sz) * 0.5f, cy);
             ImGui.GetWindowDrawList().AddImage(tex, min, min + new Vector2(sz, sz), uv0, uv1);
         }
 
