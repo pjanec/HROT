@@ -22,6 +22,7 @@ public class WindowManager
     private readonly Dictionary<string, string> _perspectiveLabels = new();
     private readonly IconAtlas _atlas;
     private const int ActionAbout = -1;
+    private const int ActionSettings = -2;
 
     /// <summary>
     /// BATCH-26: Target height (px) of the main menu bar so the inline toolbar
@@ -32,7 +33,20 @@ public class WindowManager
     private const float MainMenuBarTargetHeight = 32f;
     private readonly List<string> _windowToggleMap = new();
     private bool _openAboutModal;
+    private bool _openSettingsModal;
     private IFileDialogService? _fileDialogService;
+
+    /// <summary>
+    /// Editor font pipeline, injected by the presentation shell. When set, the Settings
+    /// window's UI-scale slider drives live rescaling; null in headless / test hosts.
+    /// </summary>
+    public Fdp.Presentation.Fonts.EditorFontService? FontService { get; set; }
+
+    /// <summary>
+    /// Persisted user UI-scale multiplier (1.0 = 100%). Applied on top of the autodetected
+    /// monitor DPI. Round-tripped through <see cref="SaveSettings"/> / <see cref="LoadSettings"/>.
+    /// </summary>
+    public float UiScale { get; set; } = 1f;
 
     // �� Construction �����������������������������������������������������������
 
@@ -349,6 +363,7 @@ public class WindowManager
         filePath ??= DefaultSettingsPath;
         var state = new WindowManagerSettings(
             CurrentPerspective,
+            UiScale,
             new Dictionary<string, WindowState>(
                 _windows
                     .Where(kv => !kv.Value.IsVolatile)
@@ -384,6 +399,8 @@ public class WindowManager
                         win.IsPinned = ws.IsPinned;
                     }
                 }
+                if (settings.UiScale > 0f)
+                    UiScale = System.Math.Clamp(settings.UiScale, 0.5f, 3.0f);
                 return string.IsNullOrEmpty(settings.ActivePerspective) ? null : settings.ActivePerspective;
             }
         }
@@ -414,7 +431,7 @@ public class WindowManager
         Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "fdp_windows.json");
 
     private record WindowState(bool IsOpen, bool IsPinned);
-    private record WindowManagerSettings(string ActivePerspective, Dictionary<string, WindowState> Windows);
+    private record WindowManagerSettings(string ActivePerspective, float UiScale, Dictionary<string, WindowState> Windows);
 
     // �� Render �����������������������������������������������������������������
 
@@ -490,6 +507,21 @@ public class WindowManager
             if (Gui.IsKeyPressed(ImGuiNET.ImGuiKey.Escape)) Gui.CloseCurrentPopup();
             RenderAboutModalContent();
             if (!modalOpen)
+                Gui.CloseCurrentPopup();
+        }
+
+        if (_openSettingsModal)
+        {
+            Gui.OpenPopup("Settings##Modal");
+            _openSettingsModal = false;
+        }
+
+        bool settingsOpen = true;
+        if (Gui.BeginPopupModal("Settings##Modal", ref settingsOpen, ImGuiNET.ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            if (Gui.IsKeyPressed(ImGuiNET.ImGuiKey.Escape)) Gui.CloseCurrentPopup();
+            RenderSettingsModalContent();
+            if (!settingsOpen)
                 Gui.CloseCurrentPopup();
         }
 
@@ -591,6 +623,11 @@ public class WindowManager
             _openAboutModal = true;
             return;
         }
+        if (actionId == ActionSettings)
+        {
+            _openSettingsModal = true;
+            return;
+        }
         if (actionId <= -100)
         {
             int idx = -(actionId + 100);
@@ -637,6 +674,16 @@ public class WindowManager
             Label = "Windows",
             Priority = 90,
             Children = winChildren.ToArray()
+        });
+        menus.Add(new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
+        {
+            Label = "Settings",
+            Priority = 95,
+            Children = new[]
+            {
+                new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
+                { Id = ActionSettings, Label = "UI Scale & Fonts…" }
+            }
         });
         menus.Add(new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
         {
@@ -735,6 +782,65 @@ public class WindowManager
             Gui.CloseCurrentPopup();
 
         Gui.EndPopup();
+    }
+
+    // Working buffer for the UI-scale slider (percent). Applied on release, not per-frame,
+    // so dragging does not rebake the font atlas on every frame.
+    private float _uiScalePercentDraft = -1f;
+
+    private void RenderSettingsModalContent()
+    {
+        Gui.Text("Editor UI Scale");
+        Gui.Separator();
+
+        float dpi = FontService?.DpiScale ?? 1f;
+        Gui.TextDisabled($"Detected monitor DPI scale: {dpi * 100f:F0}%");
+        Gui.TextDisabled("Final size = DPI × UI scale. Fonts (Roboto + FontAwesome) rebake on change.");
+        Gui.Spacing();
+
+        // Initialise the draft from the committed value when the modal (re)opens.
+        if (_uiScalePercentDraft < 0f)
+            _uiScalePercentDraft = UiScale * 100f;
+
+        // Preset buttons apply immediately.
+        int[] presets = { 100, 125, 150, 175, 200 };
+        for (int i = 0; i < presets.Length; i++)
+        {
+            if (i > 0) Gui.SameLine();
+            bool active = System.Math.Abs(UiScale * 100f - presets[i]) < 0.5f;
+            if (active) Gui.PushStyleColor(ImGuiNET.ImGuiCol.Button, new System.Numerics.Vector4(0.26f, 0.59f, 0.98f, 1f));
+            if (Gui.Button($"{presets[i]}%##uiscale"))
+                ApplyUiScale(presets[i] / 100f);
+            if (active) Gui.PopStyleColor();
+        }
+
+        Gui.Spacing();
+
+        // Fine slider — apply only on release to avoid per-frame atlas rebakes.
+        Gui.SetNextItemWidth(260f);
+        Gui.SliderFloat("##uiscale_slider", ref _uiScalePercentDraft, 75f, 200f, "%.0f%%");
+        if (Gui.IsItemDeactivatedAfterEdit())
+            ApplyUiScale(_uiScalePercentDraft / 100f);
+
+        Gui.Spacing();
+        Gui.Separator();
+        if (Gui.Button("Reset to 100%", new System.Numerics.Vector2(140, 0)))
+            ApplyUiScale(1f);
+        Gui.SameLine();
+        if (Gui.Button("Close", new System.Numerics.Vector2(120, 0)))
+        {
+            _uiScalePercentDraft = -1f; // reset draft so it re-syncs next open
+            Gui.CloseCurrentPopup();
+        }
+    }
+
+    /// <summary>Commit a new UI-scale multiplier: persists it and drives the live font rebake.</summary>
+    private void ApplyUiScale(float multiplier)
+    {
+        multiplier = System.Math.Clamp(multiplier, 0.5f, 3.0f);
+        UiScale = multiplier;
+        _uiScalePercentDraft = multiplier * 100f;
+        FontService?.SetUserScale(multiplier);
     }
 }
 

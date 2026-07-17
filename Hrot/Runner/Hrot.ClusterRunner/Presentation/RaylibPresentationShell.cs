@@ -10,9 +10,15 @@ internal sealed class RaylibPresentationShell : IPresentationShell
     private Raylib_cs.Font _gizmoFont;
     private IntPtr _iniFilenamePtr;
 
+    /// <inheritdoc/>
+    public Fdp.Presentation.Fonts.EditorFontService FontService { get; } = new();
+
     public void InitWindow(int width, int height, string title, int targetFps)
     {
-        Raylib_cs.Raylib.SetConfigFlags(Raylib_cs.ConfigFlags.ResizableWindow);
+        // HighDpiWindow lets Raylib report the true monitor content scale via
+        // GetWindowScaleDPI(), which drives the editor's DPI-aware font baking.
+        Raylib_cs.Raylib.SetConfigFlags(
+            Raylib_cs.ConfigFlags.ResizableWindow | Raylib_cs.ConfigFlags.HighDpiWindow);
         Raylib_cs.Raylib.InitWindow(width, height, title);
         Raylib_cs.Raylib.SetExitKey(Raylib_cs.KeyboardKey.Null);
         Raylib_cs.Raylib.SetTargetFPS(targetFps);
@@ -33,6 +39,13 @@ internal sealed class RaylibPresentationShell : IPresentationShell
         {
             io.NativePtr->IniFilename = (byte*)_iniFilenamePtr;
         }
+
+        // Bake the editor fonts (Roboto UI face + FontAwesome + canvas ladder) at the
+        // autodetected monitor DPI. The persisted user UI-scale multiplier is applied
+        // later (LocalWindowController) once window settings have loaded — that queues a
+        // one-off rebuild on the first frame if it differs from 1.0.
+        float dpi = Raylib_cs.Raylib.GetWindowScaleDPI().X;
+        FontService.Initialize(dpiScale: dpi, userScale: 1f);
     }
 
     public void ShutdownImGui()
