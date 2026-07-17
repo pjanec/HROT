@@ -75,6 +75,9 @@ public sealed class StaticTypeRegistry : ITypeRegistry
             // WaveState bundles MemberSlotList (96) + 2x ushort (4) -> 8-aligned (contains long) = 104.
             // Same cosmetic-size caveat as MemberSlotList (AiPrimitive WorkingState sized at runtime).
             ["Hrot.AI.Behaviors.Brains.WaveState"] = Unmanaged("Hrot.AI.Behaviors.Brains.WaveState", 104),
+            // HillAttackSharedState (tree-integration shared commander struct, architect Q9): int + 3x
+            // ushort + MemberSlotList (96, 8-aligned) + long + int + float + byte -> 8-aligned = 136.
+            ["Hrot.AI.Behaviors.Brains.HillAttackSharedState"] = Unmanaged("Hrot.AI.Behaviors.Brains.HillAttackSharedState", 136),
 
             // Common aliases used in test assets
             ["bool"]   = Unmanaged("System.Boolean", 1),
