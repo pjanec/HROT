@@ -119,10 +119,20 @@ internal static class StatementEmitter
                     string.Join(", ", op.Args.Select(a => $"__t{a.Index}")),
                     ctx, op.AppendSelfArg, op.AppendViewArg);
                 string call;
+                // Intercept synthesized coercion casts produced by Stage3_Normalize.InsertImplicitCasts
+                // (CastNode -> IrOp_PureCall "Cast.<TargetType>"). These must emit a native C# cast, NOT a
+                // call to a nonexistent global::Cast.<Type> method (CS0400). Stage3 only inserts a cast
+                // when ITypeRegistry.TryGetCoercion succeeds, so <TargetType> is always a scalar numeric/
+                // enum FQN and the single arg is the value to convert (no context args).
+                if (op.MethodFqn.StartsWith("Cast.", StringComparison.Ordinal) && op.Args.Count == 1)
+                {
+                    var targetType = op.MethodFqn.Substring("Cast.".Length);
+                    call = $"(global::{targetType})__t{op.Args[0].Index}";
+                }
                 // Intercept synthesized comparison/arithmetic operators produced by WaitLowering_*.
                 // These use the naming convention op_<Operation>_<Type> and must be emitted as
                 // native C# infix expressions rather than global:: method calls (which would be invalid).
-                if (TryGetSynthesizedOpInfix(op.MethodFqn, op.Args, out var infixExpr))
+                else if (TryGetSynthesizedOpInfix(op.MethodFqn, op.Args, out var infixExpr))
                 {
                     call = infixExpr!;
                 }

@@ -1,0 +1,431 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
+  "AssetId": "1f8c294f-768b-4348-9916-3bb110c92bb9",
+  "Name": "HillAssault2_IsWaveCompleted",
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "Primitive": {
+    "Intent": "Action",
+    "Hostings": [
+      "BTreeAction"
+    ]
+  },
+  "Parameters": [],
+  "WorkingState": [
+    {
+      "Id": "aa3c68bb-e1cc-4a82-9896-08aa86175adb",
+      "Name": "Wave",
+      "Type": {
+        "TypeId": "Hrot.AI.Behaviors.Brains.WaveState",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    }
+  ],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "be68fd31-4502-4fad-959b-ec21b6f912b9",
+      "Name": "Main",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "dc9591a1-6e7d-4430-ac82-bfd6a412be0a",
+          "EventTypeId": "",
+          "Pins": [
+            {
+              "Id": "64aaea64-4d36-45e9-b1d0-81e4edb97bf8",
+              "Name": "Out",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            }
+          ],
+          "EditorMetadata": {
+            "X": 40,
+            "Y": 400
+          }
+        },
+        {
+          "kind": "GetVariable",
+          "Id": "edd0529e-89c1-4035-a7ae-d81822c2b55c",
+          "VariableId": "aa3c68bb-e1cc-4a82-9896-08aa86175adb",
+          "Pins": [
+            {
+              "Id": "1047b553-fa99-4778-a108-642c3d8ae01c",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.WaveState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 40,
+            "Y": 40
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "7cbd7741-1417-4300-94c4-8e025c601817",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.WaveMonitorOps",
+          "MethodName": "Update",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "View",
+          "Pins": [
+            {
+              "Id": "1c45289b-834b-47dc-ba83-d80d8538c9bc",
+              "Name": "s",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.WaveState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "4f4462a1-04ee-40b4-917a-27e7125aad2b",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.WaveState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 300,
+            "Y": 100
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "Id": "972bddda-d705-497b-b853-3723c4e663da",
+          "VariableId": "aa3c68bb-e1cc-4a82-9896-08aa86175adb",
+          "Pins": [
+            {
+              "Id": "63a50471-806e-4bbe-b5a8-0676d9a9134f",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "a7f2937d-e2e9-41a7-98a3-03aaddeefaa1",
+              "Name": "Out",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "670498d6-75f4-45cb-86de-e0d4214d7587",
+              "Name": "Value",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.WaveState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "e67fd164-7d66-46c6-bee4-0ebb0bdac1df",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.WaveState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 620,
+            "Y": 400
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "26c5efde-2133-469f-93fb-02cde3e0b2cd",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.WaveMonitorOps",
+          "MethodName": "ActiveCount",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "0bac0468-e146-4b7c-9cc0-661c0e71eae4",
+              "Name": "s",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.WaveState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "73582ade-1361-44bd-869a-e6de45866432",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 900,
+            "Y": 160
+          }
+        },
+        {
+          "kind": "Literal",
+          "Id": "49e91568-4dca-4ec0-a65f-103be0749fed",
+          "TypeId": "System.Int32",
+          "ValueJson": "0",
+          "Pins": [
+            {
+              "Id": "17b473cc-e49f-4ba3-962c-d98874df6d2f",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 900,
+            "Y": 260
+          }
+        },
+        {
+          "kind": "Compare",
+          "Id": "fc380da4-ba91-4c4b-b679-34dde54459c6",
+          "Operator": "Equal",
+          "Pins": [
+            {
+              "Id": "1aa898f8-a915-40c3-8d98-da48261f0472",
+              "Name": "A",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "c4d6d140-775b-4e0a-a302-9faa750f86e3",
+              "Name": "B",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "7c87656c-38ff-4382-b0e0-95bd53a4a4b3",
+              "Name": "Result",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1140,
+            "Y": 200
+          }
+        },
+        {
+          "kind": "Branch",
+          "Id": "4345c543-5c6d-4ae8-af3a-b7b795ad448f",
+          "Pins": [
+            {
+              "Id": "c60f1dfe-2f84-429d-b2d7-cd2bb5b0584d",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "8f69fda6-edfc-4b4a-9848-155b5dd348d7",
+              "Name": "True",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "16a5aba6-f5d4-45a3-a76f-a6cdd95f2782",
+              "Name": "False",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "a93070bf-94a1-449c-8a60-6671920b96c0",
+              "Name": "Condition",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1380,
+            "Y": 400
+          }
+        },
+        {
+          "kind": "Return",
+          "Id": "780aa350-c4db-4fb6-8db3-ff580e484402",
+          "Status": "Success",
+          "Pins": [
+            {
+              "Id": "06507e47-f605-449a-9c79-a2e8783fafed",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1620,
+            "Y": 320
+          }
+        },
+        {
+          "kind": "Return",
+          "Id": "30ea6196-e92f-4162-a124-c66511b2f0c1",
+          "Status": "Running",
+          "Pins": [
+            {
+              "Id": "19ef6159-198a-4bb6-a9a6-64c49d3af0a1",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1620,
+            "Y": 480
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "dc9591a1-6e7d-4430-ac82-bfd6a412be0a",
+          "FromPinId": "64aaea64-4d36-45e9-b1d0-81e4edb97bf8",
+          "ToNodeId": "972bddda-d705-497b-b853-3723c4e663da",
+          "ToPinId": "63a50471-806e-4bbe-b5a8-0676d9a9134f"
+        },
+        {
+          "FromNodeId": "972bddda-d705-497b-b853-3723c4e663da",
+          "FromPinId": "a7f2937d-e2e9-41a7-98a3-03aaddeefaa1",
+          "ToNodeId": "4345c543-5c6d-4ae8-af3a-b7b795ad448f",
+          "ToPinId": "c60f1dfe-2f84-429d-b2d7-cd2bb5b0584d"
+        },
+        {
+          "FromNodeId": "4345c543-5c6d-4ae8-af3a-b7b795ad448f",
+          "FromPinId": "8f69fda6-edfc-4b4a-9848-155b5dd348d7",
+          "ToNodeId": "780aa350-c4db-4fb6-8db3-ff580e484402",
+          "ToPinId": "06507e47-f605-449a-9c79-a2e8783fafed"
+        },
+        {
+          "FromNodeId": "4345c543-5c6d-4ae8-af3a-b7b795ad448f",
+          "FromPinId": "16a5aba6-f5d4-45a3-a76f-a6cdd95f2782",
+          "ToNodeId": "30ea6196-e92f-4162-a124-c66511b2f0c1",
+          "ToPinId": "19ef6159-198a-4bb6-a9a6-64c49d3af0a1"
+        },
+        {
+          "FromNodeId": "edd0529e-89c1-4035-a7ae-d81822c2b55c",
+          "FromPinId": "1047b553-fa99-4778-a108-642c3d8ae01c",
+          "ToNodeId": "7cbd7741-1417-4300-94c4-8e025c601817",
+          "ToPinId": "1c45289b-834b-47dc-ba83-d80d8538c9bc"
+        },
+        {
+          "FromNodeId": "7cbd7741-1417-4300-94c4-8e025c601817",
+          "FromPinId": "4f4462a1-04ee-40b4-917a-27e7125aad2b",
+          "ToNodeId": "972bddda-d705-497b-b853-3723c4e663da",
+          "ToPinId": "670498d6-75f4-45cb-86de-e0d4214d7587"
+        },
+        {
+          "FromNodeId": "7cbd7741-1417-4300-94c4-8e025c601817",
+          "FromPinId": "4f4462a1-04ee-40b4-917a-27e7125aad2b",
+          "ToNodeId": "26c5efde-2133-469f-93fb-02cde3e0b2cd",
+          "ToPinId": "0bac0468-e146-4b7c-9cc0-661c0e71eae4"
+        },
+        {
+          "FromNodeId": "26c5efde-2133-469f-93fb-02cde3e0b2cd",
+          "FromPinId": "73582ade-1361-44bd-869a-e6de45866432",
+          "ToNodeId": "fc380da4-ba91-4c4b-b679-34dde54459c6",
+          "ToPinId": "1aa898f8-a915-40c3-8d98-da48261f0472"
+        },
+        {
+          "FromNodeId": "49e91568-4dca-4ec0-a65f-103be0749fed",
+          "FromPinId": "17b473cc-e49f-4ba3-962c-d98874df6d2f",
+          "ToNodeId": "fc380da4-ba91-4c4b-b679-34dde54459c6",
+          "ToPinId": "c4d6d140-775b-4e0a-a302-9faa750f86e3"
+        },
+        {
+          "FromNodeId": "fc380da4-ba91-4c4b-b679-34dde54459c6",
+          "FromPinId": "7c87656c-38ff-4382-b0e0-95bd53a4a4b3",
+          "ToNodeId": "4345c543-5c6d-4ae8-af3a-b7b795ad448f",
+          "ToPinId": "a93070bf-94a1-449c-8a60-6671920b96c0"
+        }
+      ],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "P1b (Hill-attack -> Blueprints migration, wave-core slice, architect Architect_Question_8_Wave_Core.md): Condition_IsWaveCompleted rebuilt as a visually-authored AiPrimitive BTreeAction (Intent=Action, not Condition -- both wave-core graphs return the full tri-state NodeStatus and a Condition's bool wrapper would collapse Running). WorkingState holds ONE bundled var, Wave:Hrot.AI.Behaviors.Brains.WaveState (Runners:MemberSlotList + BurnedSlotsMask/BaselineReservedMask:UInt16), because the oracle's reverse-walk-with-swap-remove mutator has no visual-node form (architect Q#8-A). Graph: EventEntry -> SetVariable(Wave) [Value <- FunctionCall WaveMonitorOps.Update(s <- GetVariable(Wave)) [IsPure, TrailingContext=View]] -> Branch(Condition <- Compare(FunctionCall WaveMonitorOps.ActiveCount(s <- the SAME Update.Return), Literal Int32 0, Equal)) -> True: Return(Success) (wave complete); False: Return(Running) (still polling). The single Update.Return output pin fans out to BOTH the SetVariable writeback AND the ActiveCount read (pure data nodes fan out freely, proven by HillAssault2_RequestAreaQuery), avoiding any re-read-before-write ordering hazard. New curated helper: Hrot.AI.Behaviors.Brains.WaveMonitorOps (Update/ActiveCount) -- the swap-remove reverse walk, BehaviorState-hash latch, and slot-mask release stay in a reviewable curated kernel; the visual graph is the thin Running/Success routing around it (architect Q#8-A/B). Does not modify the C# oracle (HillAttackCommanderNodes.Condition_IsWaveCompleted, line 447-503) or the compiler.",
+    "Category": null,
+    "Recipe": null
+  }
+}
