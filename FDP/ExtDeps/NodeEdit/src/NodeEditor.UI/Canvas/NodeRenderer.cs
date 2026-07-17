@@ -109,11 +109,10 @@ internal sealed class NodeRenderer
         // Selection / hover outline
         DrawOutlines(dl, view, node, pMin, pMax, corner, border, theme);
 
-        // Title text
-        if (!view.Viewport.IsLowZoom)
-        {
-            DrawTitle(dl, node, pMin, pMax, headerH, theme, zoom);
-        }
+        // Title text — always drawn (down to the zoom limit) so nodes stay identifiable when
+        // surveying a large graph zoomed out. It is draw-list text, cheap, and stays legible
+        // thanks to the multi-size ladder + bilinear font atlas.
+        DrawTitle(dl, node, pMin, pMax, headerH, theme, zoom);
 
         // Pins - skip entirely in low-zoom mode (no sub-pixel glyphs submitted to ImGui).
         if (!view.Viewport.IsLowZoom)

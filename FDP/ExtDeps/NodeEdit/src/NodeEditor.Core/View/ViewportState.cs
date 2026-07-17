@@ -22,11 +22,12 @@ public sealed class ViewportState
     /// <summary>Size of the canvas region in screen pixels (set by the renderer each frame).</summary>
     public Vector2 CanvasScreenSize { get; set; } = Vector2.Zero;
 
-    public const float MinZoom = 0.25f;
+    // Lowered from 0.25 → 0.125 (twice the zoom-out) so very large graphs can be surveyed whole.
+    public const float MinZoom = 0.125f;
     public const float MaxZoom = 3.0f;
-    // Below this zoom, node titles/pins are skipped to avoid sub-pixel glyph spam. Lowered from
-    // 0.5 → 0.3 now that the host bakes a crisp multi-size font ladder, so labels stay legible
-    // across several more zoom-out steps before they are culled.
+    // Below this zoom the heavier per-node content (pins + interactive inline editors) is skipped.
+    // Node title text is NOT gated by this — it stays drawn down to the zoom limit (crisp ladder +
+    // bilinear atlas keep it legible), so nodes remain identifiable when surveying a big graph.
     public const float LowZoomThreshold = 0.3f;
 
     /// <summary>True when zoom is below the simplified-rendering threshold.</summary>
