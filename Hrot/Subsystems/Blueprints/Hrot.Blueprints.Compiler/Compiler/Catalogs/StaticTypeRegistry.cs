@@ -72,6 +72,9 @@ public sealed class StaticTypeRegistry : ITypeRegistry
             // debug-map bookkeeping that does read it. (A general curated-struct registration mechanism --
             // vs. hardcoding each here -- is future work if the curated-struct set grows.)
             ["Hrot.AI.Behaviors.Brains.MemberSlotList"] = Unmanaged("Hrot.AI.Behaviors.Brains.MemberSlotList", 96),
+            // WaveState bundles MemberSlotList (96) + 2x ushort (4) -> 8-aligned (contains long) = 104.
+            // Same cosmetic-size caveat as MemberSlotList (AiPrimitive WorkingState sized at runtime).
+            ["Hrot.AI.Behaviors.Brains.WaveState"] = Unmanaged("Hrot.AI.Behaviors.Brains.WaveState", 104),
 
             // Common aliases used in test assets
             ["bool"]   = Unmanaged("System.Boolean", 1),
