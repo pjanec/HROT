@@ -101,6 +101,23 @@ We proceed on these unless you redirect.
 
 ---
 
-## ARCHITECT ANSWERS (pending)
+## ARCHITECT ANSWERS (2026-07-17) — all five leans APPROVED
 
-_(to be filled in once relayed)_
+- **A — curated `MemberSlotListOps` + visual orchestration (APPROVED; revises Q#3).** Cleared to revise
+  Q#3. Grow node vocabulary demand-driven, not speculatively — the wave core is the ONLY `MemberSlotList`
+  consumer, so a generic node family (nodes + IR + Stage5 emit) is unjustified. Curated `MemberSlotListOps`
+  over a struct WorkingState var + visual outer loop matches the shipped Slice 2-7 pattern. Defer the
+  generic node vocabulary until a *second* squad behavior needs it.
+- **B — curated `SlotOps.PickRandomFreeSlot` (APPROVED).** Keep the inner scan+pick curated; do NOT build
+  nested `FlowForEach` for one consumer.
+- **C — deterministic sim-seeded RNG (APPROVED & MANDATED).** MUST use a deterministic sim-derived seed
+  (e.g. `hash(self.Index ^ CurrentWave ^ (int)SimulationTime)`). `Random.Shared` is **rejected** — the
+  engine requires deterministic RNG for replay/rollback/headless-proof discipline. **Proofs assert exact
+  slots**, not set-membership.
+- **D — SoA tracker as a by-ref curated-struct WorkingState var, capacity 8 (APPROVED).** Right data shape.
+  If the compiler cannot yet emit a `ref` pass of a struct WorkingState var into a curated helper, **build
+  that specific compiler capability** — a much smaller, more valuable add than a bespoke node family.
+- **E — curated closest-baseline / target-resolve / Hull-down JSON helpers (APPROVED).** Mirrors EQS + the
+  earlier slices.
+
+**Cleared to proceed on all five leans.**
