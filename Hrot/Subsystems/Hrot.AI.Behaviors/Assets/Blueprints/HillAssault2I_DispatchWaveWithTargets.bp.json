@@ -1,0 +1,3653 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
+  "AssetId": "8f1a2c93-4d5e-4a1b-9c3d-1e2f3a4b5c65",
+  "Name": "HillAssault2I_DispatchWaveWithTargets",
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "Primitive": {
+    "Intent": "Action",
+    "Hostings": [
+      "BTreeAction"
+    ]
+  },
+  "Parameters": [
+    {
+      "Id": "4fc24425-b17e-44b5-a632-9565209e5256",
+      "Name": "StartX",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0"
+    },
+    {
+      "Id": "d66fa53e-23e8-4be2-92f3-1a9e71e89980",
+      "Name": "StartY",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0"
+    },
+    {
+      "Id": "2d64f749-9590-435e-8276-0a21dbccc682",
+      "Name": "EndX",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0"
+    },
+    {
+      "Id": "d9b2b6da-100f-43f5-9890-6fe345afa7e5",
+      "Name": "EndY",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0"
+    },
+    {
+      "Id": "1425efdb-2729-4c2a-a18d-f4515926183d",
+      "Name": "BaselineStartX",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0"
+    },
+    {
+      "Id": "f1696682-e63d-4648-b655-ca7627a94dc5",
+      "Name": "BaselineStartY",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0"
+    },
+    {
+      "Id": "89b97e14-a487-45d4-b9cb-24aab291bf4e",
+      "Name": "BaselineEndX",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0"
+    },
+    {
+      "Id": "19cedfd4-94e0-4f9e-9622-870d444f9f2a",
+      "Name": "BaselineEndY",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0"
+    },
+    {
+      "Id": "a051c08d-06ca-4862-a147-f56f26336cb1",
+      "Name": "AttackDirX",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0"
+    },
+    {
+      "Id": "fb0753c0-d9b5-4409-94a5-07e93fd31eac",
+      "Name": "AttackDirY",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0"
+    }
+  ],
+  "WorkingState": [],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "463063e7-4f86-4a9d-9f74-9936ead00444",
+      "Name": "Main",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "d160c5a3-33c0-457b-9b35-4424ca124950",
+          "EventTypeId": "",
+          "Pins": [
+            {
+              "Id": "15f0a228-6fa3-459a-a1c4-16c53c8a7fb5",
+              "Name": "Out",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            }
+          ],
+          "EditorMetadata": {
+            "X": 40,
+            "Y": 600
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "3f2688af-edb4-4d19-8d1f-2f9ac7a8130e",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.MemberSlotListOps",
+          "MethodName": "Empty",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "13dc550c-b9e6-444f-8b07-16e153de4827",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.MemberSlotList",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 40,
+            "Y": 40
+          }
+        },
+        {
+          "kind": "GetShared",
+          "Id": "a2c7a82d-6274-4e6b-8f27-9a3c05e2a1f3",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 300,
+            "Y": 600
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "97bb5e8c-9b16-453b-a7b3-9b687c8d15df",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
+          "MethodName": "WithActiveRunners",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "1414e3f6-8262-4d90-95eb-31942de85409",
+              "Name": "s",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "72487654-e3e3-47c0-a0fa-5e0079e2a7b2",
+              "Name": "v",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.MemberSlotList",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "6d622e8c-c72d-405e-b3af-62b4ecac44f6",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 300,
+            "Y": 600
+          }
+        },
+        {
+          "kind": "SetShared",
+          "Id": "4586bf4d-ba79-4426-ba45-515acd790c7b",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 300,
+            "Y": 600
+          }
+        },
+        {
+          "kind": "Literal",
+          "Id": "b55606a8-2b9a-46da-8091-e3ebeacd4062",
+          "TypeId": "System.UInt16",
+          "ValueJson": "(ushort)0",
+          "Pins": [
+            {
+              "Id": "8fef252f-a53d-4edb-8d09-4df971f45156",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.UInt16",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 300,
+            "Y": 60
+          }
+        },
+        {
+          "kind": "GetShared",
+          "Id": "b22b83ea-b2e1-4040-b14e-1354530fe99b",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 560,
+            "Y": 600
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "c460aaf9-d52b-41de-8e25-ff21d834bd8a",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
+          "MethodName": "WithWaveUsedSlotsMask",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "6a224255-bfff-49a5-8658-5b45f7c32d69",
+              "Name": "s",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "c57d1b87-2f1c-479c-b06f-d5dcb01118ed",
+              "Name": "v",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.UInt16",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "d087ba49-7466-4247-8d91-82d4ca3f2eb1",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 560,
+            "Y": 600
+          }
+        },
+        {
+          "kind": "SetShared",
+          "Id": "2d2b275c-8a4f-4b7f-a945-14f7fad95d67",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 560,
+            "Y": 600
+          }
+        },
+        {
+          "kind": "FlowForEach",
+          "Id": "d3eb4d60-700a-44f9-93b6-e95557252029",
+          "SourceComponentFqn": "Fdp.Core.CommandHierarchy.UnitRoster",
+          "CountAccessorFqn": "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count",
+          "ItemAccessorFqn": "Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate",
+          "Pins": [
+            {
+              "Id": "78a030be-a291-481d-8aa2-f5ee3776a4dd",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "b496466c-684d-4529-a2fb-90eb4c69b629",
+              "Name": "Body",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "a0e4eafc-44cf-4f29-94ab-1aeac95e2061",
+              "Name": "Completed",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "7d6546d2-e624-4a28-900e-da509d61c239",
+              "Name": "CurrentItem",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Fdp.Core.Entity",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "20bc4cc0-7ac9-483e-b49e-723af862c9b7",
+              "Name": "CurrentIndex",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "7e70f152-07c6-405a-a24c-b7601572ecce",
+              "Name": "Count",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 820,
+            "Y": 600
+          }
+        },
+        {
+          "kind": "GetShared",
+          "Id": "86012610-b7a3-494e-8ba3-9e62a6ff3ca8",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 40
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "6b003a1b-e88e-44fd-a0c6-73f0f9eb9f6e",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
+          "MethodName": "GetActiveRunners",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "73421f8f-b44a-4394-9b00-c7890531f791",
+              "Name": "s",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "c263f86b-91ee-47f4-b8a5-e0e9f68ca52b",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.MemberSlotList",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 40
+          }
+        },
+        {
+          "kind": "GetShared",
+          "Id": "92c7251c-1fa7-45d1-9c1f-4f683f5d4091",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 100
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "32882022-e202-4a87-97bb-4bfc30c50e7e",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
+          "MethodName": "GetCurrentWave",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "37641c89-d5ac-4b74-8747-1f509244ec68",
+              "Name": "s",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "5426c1d8-2be1-4473-8ce5-2953ef15bb57",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 100
+          }
+        },
+        {
+          "kind": "GetShared",
+          "Id": "5b5fceff-1f49-4738-bcf3-eddefba2149e",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 160
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "73fa85cd-6d87-4962-891a-f3faa4cbfc21",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
+          "MethodName": "GetBurnedSlotsMask",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "5ff76e6d-b473-447a-9c3d-fb8560ebe628",
+              "Name": "s",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "5a7b714f-30d9-4d82-ab7c-f6bba0b6113c",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.UInt16",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 160
+          }
+        },
+        {
+          "kind": "GetShared",
+          "Id": "7a2a98a6-4b92-4d77-824f-50768d554bcb",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 220
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "7b6c6321-ba7a-4020-b7b4-e580b98b91c3",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
+          "MethodName": "GetWaveUsedSlotsMask",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "c5423fe9-7299-4999-a1fd-40ba2673703d",
+              "Name": "s",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "d70363ab-c35f-4d2b-8d57-6c92f653f32a",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.UInt16",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 220
+          }
+        },
+        {
+          "kind": "GetShared",
+          "Id": "91c435f2-ee6c-4a01-a9be-b420c731630a",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 280
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "1c3ac880-df8c-4680-85a5-e8417a196968",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
+          "MethodName": "GetTotalSlots",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "4ef3cecd-5400-4886-8530-2accf19837cc",
+              "Name": "s",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "00b7a7cf-507c-451f-b2c0-999445c4cf58",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 280
+          }
+        },
+        {
+          "kind": "GetShared",
+          "Id": "115f365d-6e8d-4d85-bec9-77b0440c9a0e",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 340
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "c97d0687-ac15-44d9-b217-7e1665f48faa",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
+          "MethodName": "GetBaselineReservedMask",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "448ef2d4-1c67-45a3-bc2b-517f5c280eae",
+              "Name": "s",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "5273dc77-2eb0-478b-befe-bde97821e926",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.UInt16",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 340
+          }
+        },
+        {
+          "kind": "GetShared",
+          "Id": "7938c9c8-dcc9-4890-bcb8-a8ff858460fd",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 400
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "fbbaac16-1377-4637-9b56-74989ffd8f5c",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
+          "MethodName": "GetCachedEqsRequestId",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "23f7aa1e-dec6-4c2d-8677-6a87335685fb",
+              "Name": "s",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "fba797d5-b12a-4715-bdb6-1ea90d0eda00",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int64",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 400
+          }
+        },
+        {
+          "kind": "GetShared",
+          "Id": "5fd81125-96ae-4499-b831-5e09e81cbfd6",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 460
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "d1527e5f-12f4-4936-a449-52232ee59267",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
+          "MethodName": "GetCachedTargetGroupHandle",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "e142e1b3-82ee-4369-a158-6d64bff5ddbd",
+              "Name": "s",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "a8aec9f0-23f8-4839-b4d7-72738726ced1",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 460
+          }
+        },
+        {
+          "kind": "GetParameter",
+          "Id": "df357992-8ba1-4507-8483-fb21d6aedcea",
+          "ParameterId": "4fc24425-b17e-44b5-a632-9565209e5256",
+          "Pins": [
+            {
+              "Id": "9b6aaa35-1d56-4069-b5b8-e5ead446ccd1",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 520
+          }
+        },
+        {
+          "kind": "GetParameter",
+          "Id": "43ec7dcf-9c57-4580-a498-0469ef1233d2",
+          "ParameterId": "d66fa53e-23e8-4be2-92f3-1a9e71e89980",
+          "Pins": [
+            {
+              "Id": "07c419e4-b6cc-40b6-bb63-a75c8ed2f28d",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 580
+          }
+        },
+        {
+          "kind": "GetParameter",
+          "Id": "2e08869e-f230-47ef-bcbb-0e335287094e",
+          "ParameterId": "2d64f749-9590-435e-8276-0a21dbccc682",
+          "Pins": [
+            {
+              "Id": "559def63-c40e-4766-903e-5cb7584e4a75",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 640
+          }
+        },
+        {
+          "kind": "GetParameter",
+          "Id": "99696071-640f-44a2-bb69-97f20b5fa71c",
+          "ParameterId": "d9b2b6da-100f-43f5-9890-6fe345afa7e5",
+          "Pins": [
+            {
+              "Id": "a6a48e46-821d-4630-ab1b-f2ff4cdb8bc6",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 700
+          }
+        },
+        {
+          "kind": "GetParameter",
+          "Id": "74c8b141-2fc7-471b-afaa-14577cec1449",
+          "ParameterId": "1425efdb-2729-4c2a-a18d-f4515926183d",
+          "Pins": [
+            {
+              "Id": "97487121-e03d-444e-bb8d-754e61a36e39",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 760
+          }
+        },
+        {
+          "kind": "GetParameter",
+          "Id": "d123d6be-e703-45bd-afe2-a145aee5d429",
+          "ParameterId": "f1696682-e63d-4648-b655-ca7627a94dc5",
+          "Pins": [
+            {
+              "Id": "e037bf2f-d739-47bf-b415-4167dcb66a3b",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 820
+          }
+        },
+        {
+          "kind": "GetParameter",
+          "Id": "177a2b31-8a4d-450d-ab03-e62d0cbd0c6d",
+          "ParameterId": "89b97e14-a487-45d4-b9cb-24aab291bf4e",
+          "Pins": [
+            {
+              "Id": "8b51e29e-5805-436b-b128-7cf3422abbb5",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 880
+          }
+        },
+        {
+          "kind": "GetParameter",
+          "Id": "b2336565-cd85-4104-b9cb-bf9f778d377f",
+          "ParameterId": "19cedfd4-94e0-4f9e-9622-870d444f9f2a",
+          "Pins": [
+            {
+              "Id": "fe6b5434-5004-4d68-a8e2-43a484ec99d0",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 940
+          }
+        },
+        {
+          "kind": "GetParameter",
+          "Id": "259239e5-a16c-4744-8c3d-463574d5b885",
+          "ParameterId": "a051c08d-06ca-4862-a147-f56f26336cb1",
+          "Pins": [
+            {
+              "Id": "df687ff1-8bda-4458-9e80-a86664e238bb",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 1000
+          }
+        },
+        {
+          "kind": "GetParameter",
+          "Id": "1d1a08d8-d877-4636-b94f-599f4b8c6503",
+          "ParameterId": "fb0753c0-d9b5-4409-94a5-07e93fd31eac",
+          "Pins": [
+            {
+              "Id": "02d8071c-5f52-4903-a5d2-c1c9df0778af",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 1060
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "ce2b4ea7-d526-49ba-beee-8f18192a0731",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.MemberSlotListOps",
+          "MethodName": "Count",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "33db1434-27a2-4617-9964-fd0bb877dc1e",
+              "Name": "list",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.MemberSlotList",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "66d07b5d-81ca-4b33-97f2-e004ad02059e",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1340,
+            "Y": 40
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "58820468-924e-4bb5-8303-ae30b66cdf20",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.WaveDispatchOps",
+          "MethodName": "ShouldConsider",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "View",
+          "Pins": [
+            {
+              "Id": "ea55d235-d114-4114-bb7a-0cada1809820",
+              "Name": "sub",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Fdp.Core.Entity",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "c4875a3b-8565-4b21-8344-d5151c1c351c",
+              "Name": "trackerCount",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "aab0eabd-6748-438e-b989-374955673f06",
+              "Name": "rosterCount",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "e22977b9-f807-4ab0-90f7-82124ab1892d",
+              "Name": "currentWave",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "1fe2a086-9edb-4fda-9daf-b85da805873b",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1340,
+            "Y": 160
+          }
+        },
+        {
+          "kind": "Branch",
+          "Id": "42ad6818-1dbe-4748-b8b1-dc84984e2a2f",
+          "Pins": [
+            {
+              "Id": "71aee23c-079f-4e42-bd7e-ff2030ddc41b",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "d1677425-26ec-4a5d-96d6-4bc26d48b632",
+              "Name": "True",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "1a4664e5-442d-43f6-b63a-95e46808620c",
+              "Name": "False",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "246abb9d-2a63-44c1-9535-7aabb7b9b9ee",
+              "Name": "Condition",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1600,
+            "Y": 600
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "34707670-3ce9-4c0e-a381-99cbdc5181ae",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.SlotOps",
+          "MethodName": "PickRandomFreeSlot",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "SelfAndView",
+          "Pins": [
+            {
+              "Id": "dc5f14de-84df-4179-a161-d5ca87794231",
+              "Name": "burnedMask",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.UInt16",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "11cca9e1-03b2-46b5-88eb-6b0124c72c66",
+              "Name": "waveUsedMask",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.UInt16",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "629f33e7-de9c-46ce-96b7-58ec95a82a3a",
+              "Name": "totalSlots",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "98985584-9259-4598-9d56-fe5a088dc93a",
+              "Name": "currentWave",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "4d10075e-1fc3-432e-814a-f51f57279fc2",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1860,
+            "Y": 160
+          }
+        },
+        {
+          "kind": "Literal",
+          "Id": "f71bb5e6-ee95-4b7c-a68e-d042e7155f05",
+          "TypeId": "System.Int32",
+          "ValueJson": "-1",
+          "Pins": [
+            {
+              "Id": "6e6ccf25-002c-4d49-98e9-298a12e36359",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1860,
+            "Y": 260
+          }
+        },
+        {
+          "kind": "Compare",
+          "Id": "4fff6335-ea05-4428-871a-bc2520e37ef9",
+          "Operator": "NotEqual",
+          "Pins": [
+            {
+              "Id": "939404f7-c0ad-4513-bb71-354c53200dca",
+              "Name": "A",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "21bda6d5-6d0b-41f3-9183-9be7795e6f43",
+              "Name": "B",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "778622e1-9e96-44a5-9420-e4921e62c718",
+              "Name": "Result",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1860,
+            "Y": 340
+          }
+        },
+        {
+          "kind": "Branch",
+          "Id": "02fcf98e-37f2-40af-8975-27fe07305efe",
+          "Pins": [
+            {
+              "Id": "c848c559-b2be-4710-8a21-aeda0ccca1b7",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "36f59bf7-4bde-459e-95f9-eab8fe994e85",
+              "Name": "True",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "2644242d-b850-4ced-b3e0-c9082fc27ed9",
+              "Name": "False",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "d0989432-4fc3-4f76-96e2-3ffe00ae9a41",
+              "Name": "Condition",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 2120,
+            "Y": 600
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "6684977b-c095-408e-bb36-6019dd87b1e0",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.SegmentMath",
+          "MethodName": "LerpParam",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "5d3f1e9b-583c-4d9f-8c00-7394dc4e51df",
+              "Name": "index",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "9db48d57-309e-4893-9077-9f1dd01ad909",
+              "Name": "count",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "16fdd285-5a4c-4cce-a763-af0c236adcae",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 2380,
+            "Y": 40
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "d54309f8-3588-4907-b9b5-f5edbeeb18f1",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.SegmentMath",
+          "MethodName": "Lerp",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "4dc18e45-24c1-4773-8ec5-54958149b95e",
+              "Name": "a",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "b1a28203-4e7c-4d1f-a21e-de7f257cfff8",
+              "Name": "b",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "17fc0f93-0dcb-4af2-94d6-6906c783caee",
+              "Name": "t",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "44659434-55f1-413a-9d2c-3d80bed6d4dd",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 2640,
+            "Y": 40
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "f33ca1d0-1dd1-49c0-a3f7-3a45397898d1",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.SegmentMath",
+          "MethodName": "Lerp",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "59d16f5a-8328-4545-8c29-d14ecc75dc55",
+              "Name": "a",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "110e58fa-826c-4cc5-a5f2-f84703b9f19f",
+              "Name": "b",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "265e27e4-ec2a-4254-a888-a8978750d9b4",
+              "Name": "t",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "e5b65335-8123-4134-b78e-8e5a4061f1b3",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 2640,
+            "Y": 120
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "3e09375b-6ccc-4cd3-a33f-7af9bf755e77",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.SlotOps",
+          "MethodName": "PickClosestBaselineSlot",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "c1ec4a83-01d9-49ac-8b40-b51a054780a4",
+              "Name": "baselineStartX",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "a7f60e94-48bc-48d8-a3ee-d53f2e8dbd01",
+              "Name": "baselineStartY",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "0d3c7df4-2a04-4ca2-95df-4fc550720f12",
+              "Name": "baselineEndX",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "3c963f82-dab8-4c92-b19d-e1ff533b2387",
+              "Name": "baselineEndY",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "117aebb6-66f9-44bf-892f-29dc9b648585",
+              "Name": "reservedMask",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.UInt16",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "cb86bdc1-e73d-4c4e-accc-e3f14f426270",
+              "Name": "slotX",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "b0d3fae0-3d03-4598-9822-ff2e94f58ea6",
+              "Name": "slotY",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "c7b96422-e8e9-4430-ab50-d3378380334e",
+              "Name": "totalSlots",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "154be2a5-394f-47e3-8040-24820f575e97",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 2900,
+            "Y": 160
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "964470c1-3872-4e02-b21a-5809e9d4cde0",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.SegmentMath",
+          "MethodName": "LerpParam",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "a15ec936-2bdd-44b0-bf0c-7e24727879aa",
+              "Name": "index",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "439e8633-7b9b-4c10-8d45-2a6680b3a136",
+              "Name": "count",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "547f8f44-ed68-47d9-b251-341d26332706",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 3160,
+            "Y": 200
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "a1b963f7-ec73-4ea7-b042-498ab9d74258",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.SegmentMath",
+          "MethodName": "Lerp",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "e75562d7-de33-4f23-9621-0a39d6e47494",
+              "Name": "a",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "062d54ac-ab79-4c53-90d5-f9cf14512381",
+              "Name": "b",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "653ccc27-bf7f-4ae5-bdca-9026d6fb6e32",
+              "Name": "t",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "43e22e7f-ed0f-4b51-8df9-4c61530eb025",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 3420,
+            "Y": 200
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "dad51250-9624-49be-8582-23aabe1370c4",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.SegmentMath",
+          "MethodName": "Lerp",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "68ddcb5d-e64b-4f84-8d1a-1f3ae0a62588",
+              "Name": "a",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "4901a691-a708-4f46-9745-f6d16d4ab1ef",
+              "Name": "b",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "406395e4-7c44-4f1b-82d2-5841a1ffc50e",
+              "Name": "t",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "beb1e177-337b-4a3e-8cca-56cf91d0f6f0",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 3420,
+            "Y": 280
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "135a1767-0f38-4a0b-9f60-44434ad543c5",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.MemberSlotListOps",
+          "MethodName": "Count",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "3947d008-78a5-4577-a860-dd0d7d95704b",
+              "Name": "list",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.MemberSlotList",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "08731483-ae91-4821-a730-5af0aad01ebe",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 2380,
+            "Y": 340
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "c1bfb7f8-8cdd-4cd0-a3da-a2da7f44e68d",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.TargetPoolOps",
+          "MethodName": "ResolveNetId",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "View",
+          "Pins": [
+            {
+              "Id": "34e4b44b-847d-4661-8ae3-a672ae64e13a",
+              "Name": "cachedEqsRequestId",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int64",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "f85e13ab-9557-4559-a07a-5f8cf16287d2",
+              "Name": "targetGroupHandle",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "224b8190-afe3-4a15-add5-4cade4d47847",
+              "Name": "roundRobinIndex",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "66d1608d-8757-4c29-9e5e-19ed4e9c3d7b",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int64",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 2640,
+            "Y": 340
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "f84d29b5-6530-45d9-9707-63dddf6be501",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.HullDownIntentJson",
+          "MethodName": "Build",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "5c79c0ce-dda4-4fb2-a795-b71ceaaff166",
+              "Name": "slotX",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "cc59c51e-cf2c-4989-b4f1-6333e543a738",
+              "Name": "slotY",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "b81c3424-5ef7-464e-8f8b-00e2d4ace597",
+              "Name": "baselineX",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "99548916-b4e4-420d-82ba-6520566aa078",
+              "Name": "baselineY",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "bc42ebc8-f3f5-4874-9f41-40bb6bd58dff",
+              "Name": "attackDirX",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "ea0831e2-840b-4dd2-9154-962e41b57927",
+              "Name": "attackDirY",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "472ee93c-a68f-4084-8c3b-a8b74bd62f08",
+              "Name": "targetNetworkId",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int64",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "a344825b-855f-480a-a0b5-3563975bd20d",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.String",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 3680,
+            "Y": 340
+          }
+        },
+        {
+          "kind": "Literal",
+          "Id": "6eacf272-d049-4040-85d7-25da44de263e",
+          "TypeId": "System.String",
+          "ValueJson": "\"HullDownAttack\"",
+          "Pins": [
+            {
+              "Id": "f526d0b3-2433-436c-92a8-85e9a79e211d",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.String",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 3680,
+            "Y": 440
+          }
+        },
+        {
+          "kind": "PublishEvent",
+          "Id": "30aa7708-8b89-4af5-b555-8ecb114794d4",
+          "EventId": "AssignTacticalIntentEvent",
+          "Pins": [
+            {
+              "Id": "ceb8000d-42be-4bfd-b202-282dd8491dad",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "7b452d4b-e941-423c-bfb2-12a4a1651067",
+              "Name": "Out",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "d49289fd-b001-4aa5-bc62-ac44eae25444",
+              "Name": "Target",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Fdp.Core.Entity",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "a5adff70-defd-481c-9b02-29156cc3460f",
+              "Name": "IntentId",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.String",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "b4778e17-81df-4b0a-b932-dde6709e9b6e",
+              "Name": "JsonParams",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.String",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 3940,
+            "Y": 600
+          }
+        },
+        {
+          "kind": "GetShared",
+          "Id": "d95a24c0-293c-47ff-ada3-fa94b77bfb1d",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 4200,
+            "Y": 600
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "c11951dc-7ac1-49ae-954b-edd3db91cdc3",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
+          "MethodName": "WithActiveRunners",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "0d7db516-1418-4e1a-ad39-2df87d82468a",
+              "Name": "s",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "a24d5707-f3d1-4be9-a685-27724abd2408",
+              "Name": "v",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.MemberSlotList",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "8b0e720e-b25d-454a-8dc1-4b3d34badae2",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 4200,
+            "Y": 600
+          }
+        },
+        {
+          "kind": "SetShared",
+          "Id": "6247c002-45ea-4d0a-bc4f-feec51bb1e29",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 4200,
+            "Y": 600
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "57d50a58-6ca0-40e2-b1f3-d30e1e2f280c",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.MemberSlotListOps",
+          "MethodName": "AddRunner",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "259c8b6d-6ff8-483c-965a-e90238dba17b",
+              "Name": "list",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.MemberSlotList",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "5ee19bd7-a817-42c7-b171-2eb089c5dfa5",
+              "Name": "entity",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Fdp.Core.Entity",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "ab581d8c-2a56-44d7-8d83-134b23549ae7",
+              "Name": "firingSlot",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "437ff762-6212-4d9d-8125-c28aba06ea07",
+              "Name": "baselineSlot",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "f548c1e5-f793-4359-8580-56d0dd5cdacd",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.MemberSlotList",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 3940,
+            "Y": 760
+          }
+        },
+        {
+          "kind": "GetShared",
+          "Id": "2ec36b50-1dd3-4762-8f14-6ea5e2cff74c",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 4460,
+            "Y": 600
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "acaaf2d3-7602-4ccd-adbd-1fa3eacf1c1c",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
+          "MethodName": "WithWaveUsedSlotsMask",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "fdab6d47-4de7-42db-b2d8-4db0de0ff81c",
+              "Name": "s",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "82f5cde8-dcc5-4dcc-80fc-1e4e50af42bb",
+              "Name": "v",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.UInt16",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "57347080-8740-4c49-94fd-57ae0a433815",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 4460,
+            "Y": 600
+          }
+        },
+        {
+          "kind": "SetShared",
+          "Id": "4ee5dbb1-f0ea-458c-a0b3-4aab86fc5c8f",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 4460,
+            "Y": 600
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "83ebe745-51c7-43e7-bb3f-b3a91a8edbb8",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.MaskOps",
+          "MethodName": "WithBitSet",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "6204362d-7598-42d4-9e60-e0b0bb9f1f4a",
+              "Name": "mask",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.UInt16",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "4d148886-4e4e-4873-a249-d62299988659",
+              "Name": "index",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "09eff663-1c71-4c03-844d-68438089ca4a",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.UInt16",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 4200,
+            "Y": 860
+          }
+        },
+        {
+          "kind": "GetShared",
+          "Id": "020c1181-a36a-430a-86d4-872a2839af66",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 4720,
+            "Y": 600
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "02de38e0-3148-4219-bcec-7e1adb6dd76a",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
+          "MethodName": "WithBaselineReservedMask",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "85d890d8-19f4-4c02-ab6b-848d6cf6d931",
+              "Name": "s",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "fcad272f-82d4-47c9-9dca-74a5ceecedf2",
+              "Name": "v",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.UInt16",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "4530b91a-d672-4ad6-a6b2-29be321e4648",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 4720,
+            "Y": 600
+          }
+        },
+        {
+          "kind": "SetShared",
+          "Id": "d8ae1f50-24e5-42a7-a701-d1423996ff86",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 4720,
+            "Y": 600
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "07a530a3-cbf4-4118-864b-57d3e55d8863",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.MaskOps",
+          "MethodName": "WithBitSet",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "c51b25e3-7814-400d-aa61-d43a998ab18a",
+              "Name": "mask",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.UInt16",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "aee1a28b-eee2-4d73-9421-8b3c37a4e4c3",
+              "Name": "index",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "eb701454-28d9-4a4e-8fff-d0b495935fdb",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.UInt16",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 4460,
+            "Y": 940
+          }
+        },
+        {
+          "kind": "GetShared",
+          "Id": "4b18c9a5-1330-4ad4-a18d-84ab8b5686fb",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 1200
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "705e01f9-b9d4-4eec-8f3d-2eb8ac19a1f3",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
+          "MethodName": "WithCachedTargetGroupHandle",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "1e09331c-f90b-4e62-b9d8-2bf3ef0a20e5",
+              "Name": "s",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "c14a694e-a470-4e6e-ba5e-2605b1305aaa",
+              "Name": "v",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "35b61ee7-f2a0-44d2-9630-a847b8bb5d73",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 1200
+          }
+        },
+        {
+          "kind": "SetShared",
+          "Id": "4ffc2611-1129-4d9c-bb4d-d3fa438cc213",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 1200
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "da739a29-92e7-4b48-b649-fefd30535adc",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.AreaQueryBatchOps",
+          "MethodName": "Free",
+          "IsPure": false,
+          "TargetGraphId": "",
+          "TrailingContext": "View",
+          "Pins": [
+            {
+              "Id": "3534f130-9ed7-45a2-8354-2196cc55d919",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "3ac85b8b-bd97-4b34-95ee-21960de9dfad",
+              "Name": "Out",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "d09daa84-67eb-49b1-b773-db8ca72c956b",
+              "Name": "requestId",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int64",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1340,
+            "Y": 1200
+          }
+        },
+        {
+          "kind": "GetShared",
+          "Id": "f8b9fa97-1567-4bad-bb31-8faeec95b730",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1340,
+            "Y": 1280
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "f8966db8-a318-4309-a1d0-85308c5bc930",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
+          "MethodName": "GetCachedEqsRequestId",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "34a361fa-4ecd-4d60-b6ef-a2c4cae63046",
+              "Name": "s",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "c2d9ac7a-68e3-4f9a-b00d-e81c18e0b7e5",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int64",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1340,
+            "Y": 1280
+          }
+        },
+        {
+          "kind": "GetShared",
+          "Id": "ac6d0cc7-ac9f-4482-abf3-4e1a8d16392f",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1600,
+            "Y": 1200
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "8f118a39-277e-4712-b4e6-e725f24a4188",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
+          "MethodName": "WithCachedEqsRequestId",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "64bdc57b-e8ec-4c31-9768-f5b03de2b614",
+              "Name": "s",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "00a74d07-fda9-4f33-b703-52219801494e",
+              "Name": "v",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int64",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "88467727-270b-4028-b2ff-2455e64d9502",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1600,
+            "Y": 1200
+          }
+        },
+        {
+          "kind": "SetShared",
+          "Id": "9811f8f5-9eec-41b0-9edb-006091c2f25e",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1600,
+            "Y": 1200
+          }
+        },
+        {
+          "kind": "Literal",
+          "Id": "7b5b6ccd-d178-4137-a21c-c8484c41de6e",
+          "TypeId": "System.Int64",
+          "ValueJson": "-1L",
+          "Pins": [
+            {
+              "Id": "cec0df0f-0307-4be2-81f7-4b4a508791a5",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int64",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1600,
+            "Y": 1280
+          }
+        },
+        {
+          "kind": "GetShared",
+          "Id": "63bc5f00-582e-4211-913a-305307227040",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1860,
+            "Y": 1200
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "759b239d-93c2-4559-8ea3-934e9f769eb5",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
+          "MethodName": "WithEqsRequestTime",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "680fcb32-f5d7-4a39-93b4-89280554ecf0",
+              "Name": "s",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "ee573468-ad6e-4e0d-8faf-e45e9f844554",
+              "Name": "v",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "3e10d5e4-ecd6-44ff-8520-f2ee3fe08766",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1860,
+            "Y": 1200
+          }
+        },
+        {
+          "kind": "SetShared",
+          "Id": "4c7688c1-2b0b-4490-a91c-0c748e52c462",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1860,
+            "Y": 1200
+          }
+        },
+        {
+          "kind": "Literal",
+          "Id": "61d4ae12-bd22-4a23-b35f-6d71450bc404",
+          "TypeId": "System.Single",
+          "ValueJson": "0f",
+          "Pins": [
+            {
+              "Id": "e992eee8-7617-4113-b1fd-d83e5d3b13f1",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1860,
+            "Y": 1280
+          }
+        },
+        {
+          "kind": "GetShared",
+          "Id": "5e30e76e-e5bf-46a7-91df-8eb156be2dd8",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 2120,
+            "Y": 1200
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "c3d1d2ba-8d00-49c1-bccb-a6c5d7b347b9",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
+          "MethodName": "WithCurrentWave",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "bed61b59-cc95-4620-9529-d0227cf1949c",
+              "Name": "s",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "884f262d-cfb8-449e-ba68-ffb475a78ada",
+              "Name": "v",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "7715bdd4-ca82-4009-b300-96ab719309c7",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 2120,
+            "Y": 1200
+          }
+        },
+        {
+          "kind": "SetShared",
+          "Id": "5648860a-edaa-495b-876c-871cdcaec2f7",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 2120,
+            "Y": 1200
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "a2df0cbf-7b0a-4f6f-b066-92bbec67e876",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.WaveParityOps",
+          "MethodName": "NextWave",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "6794fedd-8bf3-441c-ba61-36eefc19ed17",
+              "Name": "currentWave",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "c7135b58-f187-4d66-91d0-7471e4e8c217",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Byte",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 2120,
+            "Y": 1280
+          }
+        },
+        {
+          "kind": "GetShared",
+          "Id": "f874af7e-c5bc-49f7-b436-980e894fd6bf",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 2120,
+            "Y": 1360
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "a8b419b2-6b18-42cf-a75c-7682b7967a32",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
+          "MethodName": "GetCurrentWave",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "01fa8b62-7740-4e56-9bb9-4a64eb8d81d8",
+              "Name": "s",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "b63ef09f-f608-4d2f-a2b1-c4f6e0718e4a",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 2120,
+            "Y": 1360
+          }
+        },
+        {
+          "kind": "Return",
+          "Id": "b70cd628-bb06-4602-a9e4-ae7c31b6af11",
+          "Status": "Success",
+          "Pins": [
+            {
+              "Id": "6b4c13e6-b703-4763-98c1-8e4b996a1a6b",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            }
+          ],
+          "EditorMetadata": {
+            "X": 2380,
+            "Y": 1200
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "d160c5a3-33c0-457b-9b35-4424ca124950",
+          "FromPinId": "15f0a228-6fa3-459a-a1c4-16c53c8a7fb5",
+          "ToNodeId": "4586bf4d-ba79-4426-ba45-515acd790c7b",
+          "ToPinId": "57c7140a-b08e-4dde-86cf-421f4b969c68"
+        },
+        {
+          "FromNodeId": "3f2688af-edb4-4d19-8d1f-2f9ac7a8130e",
+          "FromPinId": "13dc550c-b9e6-444f-8b07-16e153de4827",
+          "ToNodeId": "97bb5e8c-9b16-453b-a7b3-9b687c8d15df",
+          "ToPinId": "72487654-e3e3-47c0-a0fa-5e0079e2a7b2"
+        },
+        {
+          "FromNodeId": "4586bf4d-ba79-4426-ba45-515acd790c7b",
+          "FromPinId": "83631c35-ba7d-4b48-8512-199eaba1d172",
+          "ToNodeId": "2d2b275c-8a4f-4b7f-a945-14f7fad95d67",
+          "ToPinId": "687cf032-0917-4a86-943d-a65525b62719"
+        },
+        {
+          "FromNodeId": "b55606a8-2b9a-46da-8091-e3ebeacd4062",
+          "FromPinId": "8fef252f-a53d-4edb-8d09-4df971f45156",
+          "ToNodeId": "c460aaf9-d52b-41de-8e25-ff21d834bd8a",
+          "ToPinId": "c57d1b87-2f1c-479c-b06f-d5dcb01118ed"
+        },
+        {
+          "FromNodeId": "2d2b275c-8a4f-4b7f-a945-14f7fad95d67",
+          "FromPinId": "e225920a-06ea-45b6-ac72-70e8d6330996",
+          "ToNodeId": "d3eb4d60-700a-44f9-93b6-e95557252029",
+          "ToPinId": "78a030be-a291-481d-8aa2-f5ee3776a4dd"
+        },
+        {
+          "FromNodeId": "d3eb4d60-700a-44f9-93b6-e95557252029",
+          "FromPinId": "b496466c-684d-4529-a2fb-90eb4c69b629",
+          "ToNodeId": "42ad6818-1dbe-4748-b8b1-dc84984e2a2f",
+          "ToPinId": "71aee23c-079f-4e42-bd7e-ff2030ddc41b"
+        },
+        {
+          "FromNodeId": "d3eb4d60-700a-44f9-93b6-e95557252029",
+          "FromPinId": "7d6546d2-e624-4a28-900e-da509d61c239",
+          "ToNodeId": "58820468-924e-4bb5-8303-ae30b66cdf20",
+          "ToPinId": "ea55d235-d114-4114-bb7a-0cada1809820"
+        },
+        {
+          "FromNodeId": "6b003a1b-e88e-44fd-a0c6-73f0f9eb9f6e",
+          "FromPinId": "c263f86b-91ee-47f4-b8a5-e0e9f68ca52b",
+          "ToNodeId": "ce2b4ea7-d526-49ba-beee-8f18192a0731",
+          "ToPinId": "33db1434-27a2-4617-9964-fd0bb877dc1e"
+        },
+        {
+          "FromNodeId": "ce2b4ea7-d526-49ba-beee-8f18192a0731",
+          "FromPinId": "66d07b5d-81ca-4b33-97f2-e004ad02059e",
+          "ToNodeId": "58820468-924e-4bb5-8303-ae30b66cdf20",
+          "ToPinId": "c4875a3b-8565-4b21-8344-d5151c1c351c"
+        },
+        {
+          "FromNodeId": "d3eb4d60-700a-44f9-93b6-e95557252029",
+          "FromPinId": "7e70f152-07c6-405a-a24c-b7601572ecce",
+          "ToNodeId": "58820468-924e-4bb5-8303-ae30b66cdf20",
+          "ToPinId": "aab0eabd-6748-438e-b989-374955673f06"
+        },
+        {
+          "FromNodeId": "32882022-e202-4a87-97bb-4bfc30c50e7e",
+          "FromPinId": "5426c1d8-2be1-4473-8ce5-2953ef15bb57",
+          "ToNodeId": "58820468-924e-4bb5-8303-ae30b66cdf20",
+          "ToPinId": "e22977b9-f807-4ab0-90f7-82124ab1892d"
+        },
+        {
+          "FromNodeId": "58820468-924e-4bb5-8303-ae30b66cdf20",
+          "FromPinId": "1fe2a086-9edb-4fda-9daf-b85da805873b",
+          "ToNodeId": "42ad6818-1dbe-4748-b8b1-dc84984e2a2f",
+          "ToPinId": "246abb9d-2a63-44c1-9535-7aabb7b9b9ee"
+        },
+        {
+          "FromNodeId": "42ad6818-1dbe-4748-b8b1-dc84984e2a2f",
+          "FromPinId": "d1677425-26ec-4a5d-96d6-4bc26d48b632",
+          "ToNodeId": "02fcf98e-37f2-40af-8975-27fe07305efe",
+          "ToPinId": "c848c559-b2be-4710-8a21-aeda0ccca1b7"
+        },
+        {
+          "FromNodeId": "73fa85cd-6d87-4962-891a-f3faa4cbfc21",
+          "FromPinId": "5a7b714f-30d9-4d82-ab7c-f6bba0b6113c",
+          "ToNodeId": "34707670-3ce9-4c0e-a381-99cbdc5181ae",
+          "ToPinId": "dc5f14de-84df-4179-a161-d5ca87794231"
+        },
+        {
+          "FromNodeId": "7b6c6321-ba7a-4020-b7b4-e580b98b91c3",
+          "FromPinId": "d70363ab-c35f-4d2b-8d57-6c92f653f32a",
+          "ToNodeId": "34707670-3ce9-4c0e-a381-99cbdc5181ae",
+          "ToPinId": "11cca9e1-03b2-46b5-88eb-6b0124c72c66"
+        },
+        {
+          "FromNodeId": "1c3ac880-df8c-4680-85a5-e8417a196968",
+          "FromPinId": "00b7a7cf-507c-451f-b2c0-999445c4cf58",
+          "ToNodeId": "34707670-3ce9-4c0e-a381-99cbdc5181ae",
+          "ToPinId": "629f33e7-de9c-46ce-96b7-58ec95a82a3a"
+        },
+        {
+          "FromNodeId": "32882022-e202-4a87-97bb-4bfc30c50e7e",
+          "FromPinId": "5426c1d8-2be1-4473-8ce5-2953ef15bb57",
+          "ToNodeId": "34707670-3ce9-4c0e-a381-99cbdc5181ae",
+          "ToPinId": "98985584-9259-4598-9d56-fe5a088dc93a"
+        },
+        {
+          "FromNodeId": "34707670-3ce9-4c0e-a381-99cbdc5181ae",
+          "FromPinId": "4d10075e-1fc3-432e-814a-f51f57279fc2",
+          "ToNodeId": "4fff6335-ea05-4428-871a-bc2520e37ef9",
+          "ToPinId": "939404f7-c0ad-4513-bb71-354c53200dca"
+        },
+        {
+          "FromNodeId": "f71bb5e6-ee95-4b7c-a68e-d042e7155f05",
+          "FromPinId": "6e6ccf25-002c-4d49-98e9-298a12e36359",
+          "ToNodeId": "4fff6335-ea05-4428-871a-bc2520e37ef9",
+          "ToPinId": "21bda6d5-6d0b-41f3-9183-9be7795e6f43"
+        },
+        {
+          "FromNodeId": "4fff6335-ea05-4428-871a-bc2520e37ef9",
+          "FromPinId": "778622e1-9e96-44a5-9420-e4921e62c718",
+          "ToNodeId": "02fcf98e-37f2-40af-8975-27fe07305efe",
+          "ToPinId": "d0989432-4fc3-4f76-96e2-3ffe00ae9a41"
+        },
+        {
+          "FromNodeId": "02fcf98e-37f2-40af-8975-27fe07305efe",
+          "FromPinId": "36f59bf7-4bde-459e-95f9-eab8fe994e85",
+          "ToNodeId": "30aa7708-8b89-4af5-b555-8ecb114794d4",
+          "ToPinId": "ceb8000d-42be-4bfd-b202-282dd8491dad"
+        },
+        {
+          "FromNodeId": "30aa7708-8b89-4af5-b555-8ecb114794d4",
+          "FromPinId": "7b452d4b-e941-423c-bfb2-12a4a1651067",
+          "ToNodeId": "6247c002-45ea-4d0a-bc4f-feec51bb1e29",
+          "ToPinId": "0f04f5e2-343e-486d-a528-31d77fec4882"
+        },
+        {
+          "FromNodeId": "6247c002-45ea-4d0a-bc4f-feec51bb1e29",
+          "FromPinId": "bd302756-abee-4eb8-b174-b0409fbf52f6",
+          "ToNodeId": "4ee5dbb1-f0ea-458c-a0b3-4aab86fc5c8f",
+          "ToPinId": "f5a7472e-bb2c-449c-b10c-ba42df0ceec2"
+        },
+        {
+          "FromNodeId": "4ee5dbb1-f0ea-458c-a0b3-4aab86fc5c8f",
+          "FromPinId": "b03a4618-522d-4435-8393-f9adaf6592b9",
+          "ToNodeId": "d8ae1f50-24e5-42a7-a701-d1423996ff86",
+          "ToPinId": "e8454b13-5bf1-40e8-8c94-c287bf923b2a"
+        },
+        {
+          "FromNodeId": "34707670-3ce9-4c0e-a381-99cbdc5181ae",
+          "FromPinId": "4d10075e-1fc3-432e-814a-f51f57279fc2",
+          "ToNodeId": "6684977b-c095-408e-bb36-6019dd87b1e0",
+          "ToPinId": "5d3f1e9b-583c-4d9f-8c00-7394dc4e51df"
+        },
+        {
+          "FromNodeId": "1c3ac880-df8c-4680-85a5-e8417a196968",
+          "FromPinId": "00b7a7cf-507c-451f-b2c0-999445c4cf58",
+          "ToNodeId": "6684977b-c095-408e-bb36-6019dd87b1e0",
+          "ToPinId": "9db48d57-309e-4893-9077-9f1dd01ad909"
+        },
+        {
+          "FromNodeId": "df357992-8ba1-4507-8483-fb21d6aedcea",
+          "FromPinId": "9b6aaa35-1d56-4069-b5b8-e5ead446ccd1",
+          "ToNodeId": "d54309f8-3588-4907-b9b5-f5edbeeb18f1",
+          "ToPinId": "4dc18e45-24c1-4773-8ec5-54958149b95e"
+        },
+        {
+          "FromNodeId": "2e08869e-f230-47ef-bcbb-0e335287094e",
+          "FromPinId": "559def63-c40e-4766-903e-5cb7584e4a75",
+          "ToNodeId": "d54309f8-3588-4907-b9b5-f5edbeeb18f1",
+          "ToPinId": "b1a28203-4e7c-4d1f-a21e-de7f257cfff8"
+        },
+        {
+          "FromNodeId": "6684977b-c095-408e-bb36-6019dd87b1e0",
+          "FromPinId": "16fdd285-5a4c-4cce-a763-af0c236adcae",
+          "ToNodeId": "d54309f8-3588-4907-b9b5-f5edbeeb18f1",
+          "ToPinId": "17fc0f93-0dcb-4af2-94d6-6906c783caee"
+        },
+        {
+          "FromNodeId": "43ec7dcf-9c57-4580-a498-0469ef1233d2",
+          "FromPinId": "07c419e4-b6cc-40b6-bb63-a75c8ed2f28d",
+          "ToNodeId": "f33ca1d0-1dd1-49c0-a3f7-3a45397898d1",
+          "ToPinId": "59d16f5a-8328-4545-8c29-d14ecc75dc55"
+        },
+        {
+          "FromNodeId": "99696071-640f-44a2-bb69-97f20b5fa71c",
+          "FromPinId": "a6a48e46-821d-4630-ab1b-f2ff4cdb8bc6",
+          "ToNodeId": "f33ca1d0-1dd1-49c0-a3f7-3a45397898d1",
+          "ToPinId": "110e58fa-826c-4cc5-a5f2-f84703b9f19f"
+        },
+        {
+          "FromNodeId": "6684977b-c095-408e-bb36-6019dd87b1e0",
+          "FromPinId": "16fdd285-5a4c-4cce-a763-af0c236adcae",
+          "ToNodeId": "f33ca1d0-1dd1-49c0-a3f7-3a45397898d1",
+          "ToPinId": "265e27e4-ec2a-4254-a888-a8978750d9b4"
+        },
+        {
+          "FromNodeId": "74c8b141-2fc7-471b-afaa-14577cec1449",
+          "FromPinId": "97487121-e03d-444e-bb8d-754e61a36e39",
+          "ToNodeId": "3e09375b-6ccc-4cd3-a33f-7af9bf755e77",
+          "ToPinId": "c1ec4a83-01d9-49ac-8b40-b51a054780a4"
+        },
+        {
+          "FromNodeId": "d123d6be-e703-45bd-afe2-a145aee5d429",
+          "FromPinId": "e037bf2f-d739-47bf-b415-4167dcb66a3b",
+          "ToNodeId": "3e09375b-6ccc-4cd3-a33f-7af9bf755e77",
+          "ToPinId": "a7f60e94-48bc-48d8-a3ee-d53f2e8dbd01"
+        },
+        {
+          "FromNodeId": "177a2b31-8a4d-450d-ab03-e62d0cbd0c6d",
+          "FromPinId": "8b51e29e-5805-436b-b128-7cf3422abbb5",
+          "ToNodeId": "3e09375b-6ccc-4cd3-a33f-7af9bf755e77",
+          "ToPinId": "0d3c7df4-2a04-4ca2-95df-4fc550720f12"
+        },
+        {
+          "FromNodeId": "b2336565-cd85-4104-b9cb-bf9f778d377f",
+          "FromPinId": "fe6b5434-5004-4d68-a8e2-43a484ec99d0",
+          "ToNodeId": "3e09375b-6ccc-4cd3-a33f-7af9bf755e77",
+          "ToPinId": "3c963f82-dab8-4c92-b19d-e1ff533b2387"
+        },
+        {
+          "FromNodeId": "c97d0687-ac15-44d9-b217-7e1665f48faa",
+          "FromPinId": "5273dc77-2eb0-478b-befe-bde97821e926",
+          "ToNodeId": "3e09375b-6ccc-4cd3-a33f-7af9bf755e77",
+          "ToPinId": "117aebb6-66f9-44bf-892f-29dc9b648585"
+        },
+        {
+          "FromNodeId": "d54309f8-3588-4907-b9b5-f5edbeeb18f1",
+          "FromPinId": "44659434-55f1-413a-9d2c-3d80bed6d4dd",
+          "ToNodeId": "3e09375b-6ccc-4cd3-a33f-7af9bf755e77",
+          "ToPinId": "cb86bdc1-e73d-4c4e-accc-e3f14f426270"
+        },
+        {
+          "FromNodeId": "f33ca1d0-1dd1-49c0-a3f7-3a45397898d1",
+          "FromPinId": "e5b65335-8123-4134-b78e-8e5a4061f1b3",
+          "ToNodeId": "3e09375b-6ccc-4cd3-a33f-7af9bf755e77",
+          "ToPinId": "b0d3fae0-3d03-4598-9822-ff2e94f58ea6"
+        },
+        {
+          "FromNodeId": "1c3ac880-df8c-4680-85a5-e8417a196968",
+          "FromPinId": "00b7a7cf-507c-451f-b2c0-999445c4cf58",
+          "ToNodeId": "3e09375b-6ccc-4cd3-a33f-7af9bf755e77",
+          "ToPinId": "c7b96422-e8e9-4430-ab50-d3378380334e"
+        },
+        {
+          "FromNodeId": "3e09375b-6ccc-4cd3-a33f-7af9bf755e77",
+          "FromPinId": "154be2a5-394f-47e3-8040-24820f575e97",
+          "ToNodeId": "964470c1-3872-4e02-b21a-5809e9d4cde0",
+          "ToPinId": "a15ec936-2bdd-44b0-bf0c-7e24727879aa"
+        },
+        {
+          "FromNodeId": "1c3ac880-df8c-4680-85a5-e8417a196968",
+          "FromPinId": "00b7a7cf-507c-451f-b2c0-999445c4cf58",
+          "ToNodeId": "964470c1-3872-4e02-b21a-5809e9d4cde0",
+          "ToPinId": "439e8633-7b9b-4c10-8d45-2a6680b3a136"
+        },
+        {
+          "FromNodeId": "74c8b141-2fc7-471b-afaa-14577cec1449",
+          "FromPinId": "97487121-e03d-444e-bb8d-754e61a36e39",
+          "ToNodeId": "a1b963f7-ec73-4ea7-b042-498ab9d74258",
+          "ToPinId": "e75562d7-de33-4f23-9621-0a39d6e47494"
+        },
+        {
+          "FromNodeId": "177a2b31-8a4d-450d-ab03-e62d0cbd0c6d",
+          "FromPinId": "8b51e29e-5805-436b-b128-7cf3422abbb5",
+          "ToNodeId": "a1b963f7-ec73-4ea7-b042-498ab9d74258",
+          "ToPinId": "062d54ac-ab79-4c53-90d5-f9cf14512381"
+        },
+        {
+          "FromNodeId": "964470c1-3872-4e02-b21a-5809e9d4cde0",
+          "FromPinId": "547f8f44-ed68-47d9-b251-341d26332706",
+          "ToNodeId": "a1b963f7-ec73-4ea7-b042-498ab9d74258",
+          "ToPinId": "653ccc27-bf7f-4ae5-bdca-9026d6fb6e32"
+        },
+        {
+          "FromNodeId": "d123d6be-e703-45bd-afe2-a145aee5d429",
+          "FromPinId": "e037bf2f-d739-47bf-b415-4167dcb66a3b",
+          "ToNodeId": "dad51250-9624-49be-8582-23aabe1370c4",
+          "ToPinId": "68ddcb5d-e64b-4f84-8d1a-1f3ae0a62588"
+        },
+        {
+          "FromNodeId": "b2336565-cd85-4104-b9cb-bf9f778d377f",
+          "FromPinId": "fe6b5434-5004-4d68-a8e2-43a484ec99d0",
+          "ToNodeId": "dad51250-9624-49be-8582-23aabe1370c4",
+          "ToPinId": "4901a691-a708-4f46-9745-f6d16d4ab1ef"
+        },
+        {
+          "FromNodeId": "964470c1-3872-4e02-b21a-5809e9d4cde0",
+          "FromPinId": "547f8f44-ed68-47d9-b251-341d26332706",
+          "ToNodeId": "dad51250-9624-49be-8582-23aabe1370c4",
+          "ToPinId": "406395e4-7c44-4f1b-82d2-5841a1ffc50e"
+        },
+        {
+          "FromNodeId": "6b003a1b-e88e-44fd-a0c6-73f0f9eb9f6e",
+          "FromPinId": "c263f86b-91ee-47f4-b8a5-e0e9f68ca52b",
+          "ToNodeId": "135a1767-0f38-4a0b-9f60-44434ad543c5",
+          "ToPinId": "3947d008-78a5-4577-a860-dd0d7d95704b"
+        },
+        {
+          "FromNodeId": "fbbaac16-1377-4637-9b56-74989ffd8f5c",
+          "FromPinId": "fba797d5-b12a-4715-bdb6-1ea90d0eda00",
+          "ToNodeId": "c1bfb7f8-8cdd-4cd0-a3da-a2da7f44e68d",
+          "ToPinId": "34e4b44b-847d-4661-8ae3-a672ae64e13a"
+        },
+        {
+          "FromNodeId": "d1527e5f-12f4-4936-a449-52232ee59267",
+          "FromPinId": "a8aec9f0-23f8-4839-b4d7-72738726ced1",
+          "ToNodeId": "c1bfb7f8-8cdd-4cd0-a3da-a2da7f44e68d",
+          "ToPinId": "f85e13ab-9557-4559-a07a-5f8cf16287d2"
+        },
+        {
+          "FromNodeId": "135a1767-0f38-4a0b-9f60-44434ad543c5",
+          "FromPinId": "08731483-ae91-4821-a730-5af0aad01ebe",
+          "ToNodeId": "c1bfb7f8-8cdd-4cd0-a3da-a2da7f44e68d",
+          "ToPinId": "224b8190-afe3-4a15-add5-4cade4d47847"
+        },
+        {
+          "FromNodeId": "d54309f8-3588-4907-b9b5-f5edbeeb18f1",
+          "FromPinId": "44659434-55f1-413a-9d2c-3d80bed6d4dd",
+          "ToNodeId": "f84d29b5-6530-45d9-9707-63dddf6be501",
+          "ToPinId": "5c79c0ce-dda4-4fb2-a795-b71ceaaff166"
+        },
+        {
+          "FromNodeId": "f33ca1d0-1dd1-49c0-a3f7-3a45397898d1",
+          "FromPinId": "e5b65335-8123-4134-b78e-8e5a4061f1b3",
+          "ToNodeId": "f84d29b5-6530-45d9-9707-63dddf6be501",
+          "ToPinId": "cc59c51e-cf2c-4989-b4f1-6333e543a738"
+        },
+        {
+          "FromNodeId": "a1b963f7-ec73-4ea7-b042-498ab9d74258",
+          "FromPinId": "43e22e7f-ed0f-4b51-8df9-4c61530eb025",
+          "ToNodeId": "f84d29b5-6530-45d9-9707-63dddf6be501",
+          "ToPinId": "b81c3424-5ef7-464e-8f8b-00e2d4ace597"
+        },
+        {
+          "FromNodeId": "dad51250-9624-49be-8582-23aabe1370c4",
+          "FromPinId": "beb1e177-337b-4a3e-8cca-56cf91d0f6f0",
+          "ToNodeId": "f84d29b5-6530-45d9-9707-63dddf6be501",
+          "ToPinId": "99548916-b4e4-420d-82ba-6520566aa078"
+        },
+        {
+          "FromNodeId": "259239e5-a16c-4744-8c3d-463574d5b885",
+          "FromPinId": "df687ff1-8bda-4458-9e80-a86664e238bb",
+          "ToNodeId": "f84d29b5-6530-45d9-9707-63dddf6be501",
+          "ToPinId": "bc42ebc8-f3f5-4874-9f41-40bb6bd58dff"
+        },
+        {
+          "FromNodeId": "1d1a08d8-d877-4636-b94f-599f4b8c6503",
+          "FromPinId": "02d8071c-5f52-4903-a5d2-c1c9df0778af",
+          "ToNodeId": "f84d29b5-6530-45d9-9707-63dddf6be501",
+          "ToPinId": "ea0831e2-840b-4dd2-9154-962e41b57927"
+        },
+        {
+          "FromNodeId": "c1bfb7f8-8cdd-4cd0-a3da-a2da7f44e68d",
+          "FromPinId": "66d1608d-8757-4c29-9e5e-19ed4e9c3d7b",
+          "ToNodeId": "f84d29b5-6530-45d9-9707-63dddf6be501",
+          "ToPinId": "472ee93c-a68f-4084-8c3b-a8b74bd62f08"
+        },
+        {
+          "FromNodeId": "d3eb4d60-700a-44f9-93b6-e95557252029",
+          "FromPinId": "7d6546d2-e624-4a28-900e-da509d61c239",
+          "ToNodeId": "30aa7708-8b89-4af5-b555-8ecb114794d4",
+          "ToPinId": "d49289fd-b001-4aa5-bc62-ac44eae25444"
+        },
+        {
+          "FromNodeId": "6eacf272-d049-4040-85d7-25da44de263e",
+          "FromPinId": "f526d0b3-2433-436c-92a8-85e9a79e211d",
+          "ToNodeId": "30aa7708-8b89-4af5-b555-8ecb114794d4",
+          "ToPinId": "a5adff70-defd-481c-9b02-29156cc3460f"
+        },
+        {
+          "FromNodeId": "f84d29b5-6530-45d9-9707-63dddf6be501",
+          "FromPinId": "a344825b-855f-480a-a0b5-3563975bd20d",
+          "ToNodeId": "30aa7708-8b89-4af5-b555-8ecb114794d4",
+          "ToPinId": "b4778e17-81df-4b0a-b932-dde6709e9b6e"
+        },
+        {
+          "FromNodeId": "6b003a1b-e88e-44fd-a0c6-73f0f9eb9f6e",
+          "FromPinId": "c263f86b-91ee-47f4-b8a5-e0e9f68ca52b",
+          "ToNodeId": "57d50a58-6ca0-40e2-b1f3-d30e1e2f280c",
+          "ToPinId": "259c8b6d-6ff8-483c-965a-e90238dba17b"
+        },
+        {
+          "FromNodeId": "d3eb4d60-700a-44f9-93b6-e95557252029",
+          "FromPinId": "7d6546d2-e624-4a28-900e-da509d61c239",
+          "ToNodeId": "57d50a58-6ca0-40e2-b1f3-d30e1e2f280c",
+          "ToPinId": "5ee19bd7-a817-42c7-b171-2eb089c5dfa5"
+        },
+        {
+          "FromNodeId": "34707670-3ce9-4c0e-a381-99cbdc5181ae",
+          "FromPinId": "4d10075e-1fc3-432e-814a-f51f57279fc2",
+          "ToNodeId": "57d50a58-6ca0-40e2-b1f3-d30e1e2f280c",
+          "ToPinId": "ab581d8c-2a56-44d7-8d83-134b23549ae7"
+        },
+        {
+          "FromNodeId": "3e09375b-6ccc-4cd3-a33f-7af9bf755e77",
+          "FromPinId": "154be2a5-394f-47e3-8040-24820f575e97",
+          "ToNodeId": "57d50a58-6ca0-40e2-b1f3-d30e1e2f280c",
+          "ToPinId": "437ff762-6212-4d9d-8125-c28aba06ea07"
+        },
+        {
+          "FromNodeId": "57d50a58-6ca0-40e2-b1f3-d30e1e2f280c",
+          "FromPinId": "f548c1e5-f793-4359-8580-56d0dd5cdacd",
+          "ToNodeId": "c11951dc-7ac1-49ae-954b-edd3db91cdc3",
+          "ToPinId": "a24d5707-f3d1-4be9-a685-27724abd2408"
+        },
+        {
+          "FromNodeId": "7b6c6321-ba7a-4020-b7b4-e580b98b91c3",
+          "FromPinId": "d70363ab-c35f-4d2b-8d57-6c92f653f32a",
+          "ToNodeId": "83ebe745-51c7-43e7-bb3f-b3a91a8edbb8",
+          "ToPinId": "6204362d-7598-42d4-9e60-e0b0bb9f1f4a"
+        },
+        {
+          "FromNodeId": "34707670-3ce9-4c0e-a381-99cbdc5181ae",
+          "FromPinId": "4d10075e-1fc3-432e-814a-f51f57279fc2",
+          "ToNodeId": "83ebe745-51c7-43e7-bb3f-b3a91a8edbb8",
+          "ToPinId": "4d148886-4e4e-4873-a249-d62299988659"
+        },
+        {
+          "FromNodeId": "83ebe745-51c7-43e7-bb3f-b3a91a8edbb8",
+          "FromPinId": "09eff663-1c71-4c03-844d-68438089ca4a",
+          "ToNodeId": "acaaf2d3-7602-4ccd-adbd-1fa3eacf1c1c",
+          "ToPinId": "82f5cde8-dcc5-4dcc-80fc-1e4e50af42bb"
+        },
+        {
+          "FromNodeId": "c97d0687-ac15-44d9-b217-7e1665f48faa",
+          "FromPinId": "5273dc77-2eb0-478b-befe-bde97821e926",
+          "ToNodeId": "07a530a3-cbf4-4118-864b-57d3e55d8863",
+          "ToPinId": "c51b25e3-7814-400d-aa61-d43a998ab18a"
+        },
+        {
+          "FromNodeId": "3e09375b-6ccc-4cd3-a33f-7af9bf755e77",
+          "FromPinId": "154be2a5-394f-47e3-8040-24820f575e97",
+          "ToNodeId": "07a530a3-cbf4-4118-864b-57d3e55d8863",
+          "ToPinId": "aee1a28b-eee2-4d73-9421-8b3c37a4e4c3"
+        },
+        {
+          "FromNodeId": "07a530a3-cbf4-4118-864b-57d3e55d8863",
+          "FromPinId": "eb701454-28d9-4a4e-8fff-d0b495935fdb",
+          "ToNodeId": "02de38e0-3148-4219-bcec-7e1adb6dd76a",
+          "ToPinId": "fcad272f-82d4-47c9-9dca-74a5ceecedf2"
+        },
+        {
+          "FromNodeId": "d3eb4d60-700a-44f9-93b6-e95557252029",
+          "FromPinId": "a0e4eafc-44cf-4f29-94ab-1aeac95e2061",
+          "ToNodeId": "4ffc2611-1129-4d9c-bb4d-d3fa438cc213",
+          "ToPinId": "f4115fd2-f5db-44df-8f82-a51bb6404cb2"
+        },
+        {
+          "FromNodeId": "f71bb5e6-ee95-4b7c-a68e-d042e7155f05",
+          "FromPinId": "6e6ccf25-002c-4d49-98e9-298a12e36359",
+          "ToNodeId": "705e01f9-b9d4-4eec-8f3d-2eb8ac19a1f3",
+          "ToPinId": "c14a694e-a470-4e6e-ba5e-2605b1305aaa"
+        },
+        {
+          "FromNodeId": "4ffc2611-1129-4d9c-bb4d-d3fa438cc213",
+          "FromPinId": "cb6d7811-d2d7-4033-bfe7-7bf0795da7ae",
+          "ToNodeId": "da739a29-92e7-4b48-b649-fefd30535adc",
+          "ToPinId": "3534f130-9ed7-45a2-8354-2196cc55d919"
+        },
+        {
+          "FromNodeId": "f8966db8-a318-4309-a1d0-85308c5bc930",
+          "FromPinId": "c2d9ac7a-68e3-4f9a-b00d-e81c18e0b7e5",
+          "ToNodeId": "da739a29-92e7-4b48-b649-fefd30535adc",
+          "ToPinId": "d09daa84-67eb-49b1-b773-db8ca72c956b"
+        },
+        {
+          "FromNodeId": "da739a29-92e7-4b48-b649-fefd30535adc",
+          "FromPinId": "3ac85b8b-bd97-4b34-95ee-21960de9dfad",
+          "ToNodeId": "9811f8f5-9eec-41b0-9edb-006091c2f25e",
+          "ToPinId": "f7d48d0e-9ef1-4de3-b7b9-052517f6b76a"
+        },
+        {
+          "FromNodeId": "7b5b6ccd-d178-4137-a21c-c8484c41de6e",
+          "FromPinId": "cec0df0f-0307-4be2-81f7-4b4a508791a5",
+          "ToNodeId": "8f118a39-277e-4712-b4e6-e725f24a4188",
+          "ToPinId": "00a74d07-fda9-4f33-b703-52219801494e"
+        },
+        {
+          "FromNodeId": "9811f8f5-9eec-41b0-9edb-006091c2f25e",
+          "FromPinId": "2e134afc-bfa0-4f0f-b278-2052ac81c62d",
+          "ToNodeId": "4c7688c1-2b0b-4490-a91c-0c748e52c462",
+          "ToPinId": "492971aa-8c36-4d1a-b33d-1ec4084e2c61"
+        },
+        {
+          "FromNodeId": "61d4ae12-bd22-4a23-b35f-6d71450bc404",
+          "FromPinId": "e992eee8-7617-4113-b1fd-d83e5d3b13f1",
+          "ToNodeId": "759b239d-93c2-4559-8ea3-934e9f769eb5",
+          "ToPinId": "ee573468-ad6e-4e0d-8faf-e45e9f844554"
+        },
+        {
+          "FromNodeId": "4c7688c1-2b0b-4490-a91c-0c748e52c462",
+          "FromPinId": "985a8b5a-71b1-47cb-9fe5-dff2c53921ab",
+          "ToNodeId": "5648860a-edaa-495b-876c-871cdcaec2f7",
+          "ToPinId": "5e1744c4-3451-45bd-8d44-6ea8a21e9c6e"
+        },
+        {
+          "FromNodeId": "a8b419b2-6b18-42cf-a75c-7682b7967a32",
+          "FromPinId": "b63ef09f-f608-4d2f-a2b1-c4f6e0718e4a",
+          "ToNodeId": "a2df0cbf-7b0a-4f6f-b066-92bbec67e876",
+          "ToPinId": "6794fedd-8bf3-441c-ba61-36eefc19ed17"
+        },
+        {
+          "FromNodeId": "a2df0cbf-7b0a-4f6f-b066-92bbec67e876",
+          "FromPinId": "c7135b58-f187-4d66-91d0-7471e4e8c217",
+          "ToNodeId": "c3d1d2ba-8d00-49c1-bccb-a6c5d7b347b9",
+          "ToPinId": "884f262d-cfb8-449e-ba68-ffb475a78ada"
+        },
+        {
+          "FromNodeId": "5648860a-edaa-495b-876c-871cdcaec2f7",
+          "FromPinId": "213f4462-2172-4b67-bb24-d22d481ad11c",
+          "ToNodeId": "b70cd628-bb06-4602-a9e4-ae7c31b6af11",
+          "ToPinId": "6b4c13e6-b703-4763-98c1-8e4b996a1a6b"
+        },
+        {
+          "FromNodeId": "a2c7a82d-6274-4e6b-8f27-9a3c05e2a1f3",
+          "FromPinId": "e56aef9a-899c-47f2-9b7f-7422f735080b",
+          "ToNodeId": "97bb5e8c-9b16-453b-a7b3-9b687c8d15df",
+          "ToPinId": "1414e3f6-8262-4d90-95eb-31942de85409"
+        },
+        {
+          "FromNodeId": "97bb5e8c-9b16-453b-a7b3-9b687c8d15df",
+          "FromPinId": "6d622e8c-c72d-405e-b3af-62b4ecac44f6",
+          "ToNodeId": "4586bf4d-ba79-4426-ba45-515acd790c7b",
+          "ToPinId": "90ccfc81-128e-411a-acc3-db095683da98"
+        },
+        {
+          "FromNodeId": "b22b83ea-b2e1-4040-b14e-1354530fe99b",
+          "FromPinId": "dd12f42f-ca0e-4357-835b-ea4455743416",
+          "ToNodeId": "c460aaf9-d52b-41de-8e25-ff21d834bd8a",
+          "ToPinId": "6a224255-bfff-49a5-8658-5b45f7c32d69"
+        },
+        {
+          "FromNodeId": "c460aaf9-d52b-41de-8e25-ff21d834bd8a",
+          "FromPinId": "d087ba49-7466-4247-8d91-82d4ca3f2eb1",
+          "ToNodeId": "2d2b275c-8a4f-4b7f-a945-14f7fad95d67",
+          "ToPinId": "97e3a739-a482-4492-8791-2e91e3816cf9"
+        },
+        {
+          "FromNodeId": "86012610-b7a3-494e-8ba3-9e62a6ff3ca8",
+          "FromPinId": "5ae1dd28-ae05-48af-bfca-b8af2bc4e5e6",
+          "ToNodeId": "6b003a1b-e88e-44fd-a0c6-73f0f9eb9f6e",
+          "ToPinId": "73421f8f-b44a-4394-9b00-c7890531f791"
+        },
+        {
+          "FromNodeId": "92c7251c-1fa7-45d1-9c1f-4f683f5d4091",
+          "FromPinId": "fb228cb4-f787-4612-849d-59758b387110",
+          "ToNodeId": "32882022-e202-4a87-97bb-4bfc30c50e7e",
+          "ToPinId": "37641c89-d5ac-4b74-8747-1f509244ec68"
+        },
+        {
+          "FromNodeId": "5b5fceff-1f49-4738-bcf3-eddefba2149e",
+          "FromPinId": "5ac396b4-a6fd-4b66-8f6f-1558c758ed6b",
+          "ToNodeId": "73fa85cd-6d87-4962-891a-f3faa4cbfc21",
+          "ToPinId": "5ff76e6d-b473-447a-9c3d-fb8560ebe628"
+        },
+        {
+          "FromNodeId": "7a2a98a6-4b92-4d77-824f-50768d554bcb",
+          "FromPinId": "10ac5abf-61ca-4a57-a8b6-149740c90be1",
+          "ToNodeId": "7b6c6321-ba7a-4020-b7b4-e580b98b91c3",
+          "ToPinId": "c5423fe9-7299-4999-a1fd-40ba2673703d"
+        },
+        {
+          "FromNodeId": "91c435f2-ee6c-4a01-a9be-b420c731630a",
+          "FromPinId": "45d85d31-63d7-41f9-8c22-e2916874005f",
+          "ToNodeId": "1c3ac880-df8c-4680-85a5-e8417a196968",
+          "ToPinId": "4ef3cecd-5400-4886-8530-2accf19837cc"
+        },
+        {
+          "FromNodeId": "115f365d-6e8d-4d85-bec9-77b0440c9a0e",
+          "FromPinId": "034f729d-f0f2-465b-90c4-a7c461aa0a45",
+          "ToNodeId": "c97d0687-ac15-44d9-b217-7e1665f48faa",
+          "ToPinId": "448ef2d4-1c67-45a3-bc2b-517f5c280eae"
+        },
+        {
+          "FromNodeId": "7938c9c8-dcc9-4890-bcb8-a8ff858460fd",
+          "FromPinId": "0c7846c1-98ed-44df-993d-73a37b6d3c96",
+          "ToNodeId": "fbbaac16-1377-4637-9b56-74989ffd8f5c",
+          "ToPinId": "23f7aa1e-dec6-4c2d-8677-6a87335685fb"
+        },
+        {
+          "FromNodeId": "5fd81125-96ae-4499-b831-5e09e81cbfd6",
+          "FromPinId": "889f1a93-335a-470a-b476-166cca9b871b",
+          "ToNodeId": "d1527e5f-12f4-4936-a449-52232ee59267",
+          "ToPinId": "e142e1b3-82ee-4369-a158-6d64bff5ddbd"
+        },
+        {
+          "FromNodeId": "d95a24c0-293c-47ff-ada3-fa94b77bfb1d",
+          "FromPinId": "9957face-71cf-48b8-ac8d-aca27d441a10",
+          "ToNodeId": "c11951dc-7ac1-49ae-954b-edd3db91cdc3",
+          "ToPinId": "0d7db516-1418-4e1a-ad39-2df87d82468a"
+        },
+        {
+          "FromNodeId": "c11951dc-7ac1-49ae-954b-edd3db91cdc3",
+          "FromPinId": "8b0e720e-b25d-454a-8dc1-4b3d34badae2",
+          "ToNodeId": "6247c002-45ea-4d0a-bc4f-feec51bb1e29",
+          "ToPinId": "55900e1f-9995-473f-87c0-9892f5874279"
+        },
+        {
+          "FromNodeId": "2ec36b50-1dd3-4762-8f14-6ea5e2cff74c",
+          "FromPinId": "59f77d21-cff0-4075-ac96-c1738ba95671",
+          "ToNodeId": "acaaf2d3-7602-4ccd-adbd-1fa3eacf1c1c",
+          "ToPinId": "fdab6d47-4de7-42db-b2d8-4db0de0ff81c"
+        },
+        {
+          "FromNodeId": "acaaf2d3-7602-4ccd-adbd-1fa3eacf1c1c",
+          "FromPinId": "57347080-8740-4c49-94fd-57ae0a433815",
+          "ToNodeId": "4ee5dbb1-f0ea-458c-a0b3-4aab86fc5c8f",
+          "ToPinId": "fb1f0243-402a-4c94-94e7-854b88e931b0"
+        },
+        {
+          "FromNodeId": "020c1181-a36a-430a-86d4-872a2839af66",
+          "FromPinId": "c57376dc-88d4-455c-b181-c738b91859c2",
+          "ToNodeId": "02de38e0-3148-4219-bcec-7e1adb6dd76a",
+          "ToPinId": "85d890d8-19f4-4c02-ab6b-848d6cf6d931"
+        },
+        {
+          "FromNodeId": "02de38e0-3148-4219-bcec-7e1adb6dd76a",
+          "FromPinId": "4530b91a-d672-4ad6-a6b2-29be321e4648",
+          "ToNodeId": "d8ae1f50-24e5-42a7-a701-d1423996ff86",
+          "ToPinId": "f44a9d1f-5f94-47ec-8e53-e464d72b4db5"
+        },
+        {
+          "FromNodeId": "4b18c9a5-1330-4ad4-a18d-84ab8b5686fb",
+          "FromPinId": "d645f6b5-c873-4b3f-8624-3ee97ac06b36",
+          "ToNodeId": "705e01f9-b9d4-4eec-8f3d-2eb8ac19a1f3",
+          "ToPinId": "1e09331c-f90b-4e62-b9d8-2bf3ef0a20e5"
+        },
+        {
+          "FromNodeId": "705e01f9-b9d4-4eec-8f3d-2eb8ac19a1f3",
+          "FromPinId": "35b61ee7-f2a0-44d2-9630-a847b8bb5d73",
+          "ToNodeId": "4ffc2611-1129-4d9c-bb4d-d3fa438cc213",
+          "ToPinId": "53c3f1b2-2a28-4a8c-8a3a-7888d7303f84"
+        },
+        {
+          "FromNodeId": "f8b9fa97-1567-4bad-bb31-8faeec95b730",
+          "FromPinId": "f2e42e03-7c67-4106-8756-461feab46d4a",
+          "ToNodeId": "f8966db8-a318-4309-a1d0-85308c5bc930",
+          "ToPinId": "34a361fa-4ecd-4d60-b6ef-a2c4cae63046"
+        },
+        {
+          "FromNodeId": "ac6d0cc7-ac9f-4482-abf3-4e1a8d16392f",
+          "FromPinId": "71b98cc9-cce3-46be-8236-28d5f1c84209",
+          "ToNodeId": "8f118a39-277e-4712-b4e6-e725f24a4188",
+          "ToPinId": "64bdc57b-e8ec-4c31-9768-f5b03de2b614"
+        },
+        {
+          "FromNodeId": "8f118a39-277e-4712-b4e6-e725f24a4188",
+          "FromPinId": "88467727-270b-4028-b2ff-2455e64d9502",
+          "ToNodeId": "9811f8f5-9eec-41b0-9edb-006091c2f25e",
+          "ToPinId": "ac5d9b9d-300d-4607-8251-8c1ad6e004ee"
+        },
+        {
+          "FromNodeId": "63bc5f00-582e-4211-913a-305307227040",
+          "FromPinId": "f6f2dc7a-e64f-4afd-9160-6017ccf0de2a",
+          "ToNodeId": "759b239d-93c2-4559-8ea3-934e9f769eb5",
+          "ToPinId": "680fcb32-f5d7-4a39-93b4-89280554ecf0"
+        },
+        {
+          "FromNodeId": "759b239d-93c2-4559-8ea3-934e9f769eb5",
+          "FromPinId": "3e10d5e4-ecd6-44ff-8520-f2ee3fe08766",
+          "ToNodeId": "4c7688c1-2b0b-4490-a91c-0c748e52c462",
+          "ToPinId": "973ddeff-d312-4b3d-b111-6e4062355710"
+        },
+        {
+          "FromNodeId": "5e30e76e-e5bf-46a7-91df-8eb156be2dd8",
+          "FromPinId": "329bed2b-8ee2-4d08-ab22-54a4a8c465fe",
+          "ToNodeId": "c3d1d2ba-8d00-49c1-bccb-a6c5d7b347b9",
+          "ToPinId": "bed61b59-cc95-4620-9529-d0227cf1949c"
+        },
+        {
+          "FromNodeId": "c3d1d2ba-8d00-49c1-bccb-a6c5d7b347b9",
+          "FromPinId": "7715bdd4-ca82-4009-b300-96ab719309c7",
+          "ToNodeId": "5648860a-edaa-495b-876c-871cdcaec2f7",
+          "ToPinId": "7cd2e07b-68f9-4394-914f-8993ada0b0de"
+        },
+        {
+          "FromNodeId": "f874af7e-c5bc-49f7-b436-980e894fd6bf",
+          "FromPinId": "1ee015a1-c038-41cf-9b24-05c681049387",
+          "ToNodeId": "a8b419b2-6b18-42cf-a75c-7682b7967a32",
+          "ToPinId": "01fa8b62-7740-4e56-9bb9-4a64eb8d81d8"
+        }
+      ],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "P1b (Hill-attack -> Blueprints migration), tree-INTEGRATION track (architect Q#9-A): the integrated twin of HillAssault2_DispatchWaveWithTargets.bp.json -- SAME logic/kernels as the isolated twin, but leaves its native WorkingState EMPTY and converses over the standalone entity-scoped HillAttackSharedState struct via GetShared/SetShared(VariableId=\"state\"). Mechanically generated by scripts/hill_attack_integration transform (see PR description): every twin GetVariable(F) node was replaced 1:1 with a [GetShared(\"state\") -> HillAttackSharedStateOps.Get<F>(s)] pair (same fan-out topology preserved); every twin SetVariable(F) node was replaced 1:1 with a [GetShared(\"state\") -> HillAttackSharedStateOps.With<F>(s, v) -> SetShared(\"state\")] triple (fresh full-struct read immediately before each write, so sibling fields are never clobbered; correct inside FlowForEach bodies too, since GetShared/SetShared are ordinary ordered per-occurrence backing-storage accesses and FlowForEach lowers to a real inline-body loop -- confirmed via Hrot.Blueprints.Compiler Stage5 StatementEmitter.cs IrOp_ReadVariable/IrOp_WriteVariable and the GetShared/SetShared TryGetShared/TrySetShared emission). All other nodes (FlowForEach, Branch, Compare, FunctionCall kernels, PublishEvent, Literal, GetParameter) are byte-for-byte identical to the isolated twin. Does not modify the C# oracle, the isolated twin (HillAssault2_DispatchWaveWithTargets.bp.json), any *Ops/*Json/struct .cs file, or the compiler.",
+    "Category": null,
+    "Recipe": null
+  }
+}
