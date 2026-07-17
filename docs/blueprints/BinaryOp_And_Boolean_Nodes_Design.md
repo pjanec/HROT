@@ -6,7 +6,7 @@
 > round-count math, `CalculateSegments`); boolean `And`/`Or`/`Not` = **pending** (architect Q6-A explicitly
 > said keep boolean composition as `Branch`/helper — needs a user/architect nod before building).
 
-## Arithmetic `BinaryOp` (building now)
+## Arithmetic `BinaryOp` (✅ DONE — `5481e7d`)
 
 Pure-data node, byte-for-byte the `Compare` shape except the result type = the operand type (not bool)
 and the operator enum is arithmetic.

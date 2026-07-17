@@ -38,7 +38,8 @@ and committed to branch + `main`:
 | Publish engine events | `PublishEvent` → `world.Bus.Publish` | GAP-3 | ✅ P4 |
 | **Loop (inline `for`)** | `FlowForEach` + `UnitRosterOps` | **GAP-1** | ✅ P1a |
 | **Loop body in-body `if`** | scheduler inline-if (`IrOp_If`) | GAP-1 | ✅ P1b (slice 4) |
-| Comparison node | `Compare` (`IrOp_Compare`) | GAP-12 | ✅ (helper retired) |
+| Comparison node | `Compare` (`IrOp_Compare`) | GAP-12 | ✅ (helper retired; full 6-op set) |
+| Arithmetic node | `BinaryOp` (`IrOp_BinaryOp`) | round-out | ✅ (`+ - * / %`; ahead of demand) |
 | Singleton read | `GetSingleton` | GAP-7 (singleton) | ⏳ narrow-value (needs method-call too) |
 
 Architect Q#5 answered all four next-tier design questions (events→bus, ChannelCommand-only writes,
