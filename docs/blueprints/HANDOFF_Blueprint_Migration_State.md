@@ -97,7 +97,7 @@ All under `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/`. Node kinds:
 | **Bounded loop (inline `for`)** | `FlowForEach` + `UnitRosterOps` | **GAP-1** | ✅ **P1a** | `9e785eb` |
 | **Loop body with in-body `if`** | scheduler inline-if (`IrOp_If`) | **P1b** | ✅ **P1b** | `50ff6e4` |
 | **Roster AND-reduce condition** | `Condition_AreAllAtBaseline` (slice 4) | GAP-1+2 | ✅ **slice 4** | `50ff6e4` |
-| Comparison / bool / arithmetic node | `Compare` (native) | **GAP-12** | ⏳ TODO (next) | — |
+| **Native comparison node** | `Compare` (`IrOp_Compare`) | **GAP-12** | ✅ **GAP-12** | `d763dab` |
 | Singleton read | `GetSingleton` | GAP-7 singleton | ⏳ low-value | — |
 | Editor node drawers | (When/WaitForChannel/etc.) | GAP-8 | ⏳ Windows track | — |
 
@@ -122,10 +122,16 @@ All under `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/`. Node kinds:
    `HillAssault2_AreAllAtBaseline.bp.json` + proof (source-inspection + behavioral TickCore) vs oracle.
    Emits `for {…; if(IsArrived){}else{ws.AllAtBaseline=false;}}` then post-loop Branch→Return. Confirmed
    WorkingState fields ARE emitted (`[MarshalAs(I1)] bool`); first asset to use a named WorkingState var.
-3. **GAP-12 — native `Compare` node (NEXT).** Reuse the `ComparisonOperator` enum; lower to a boolean IR
-   expr. Then retrofit `HillAssault2_IsSelfArrived` and slice 4 to be helper-free (drop
-   `HillAssault2NavOps.IsArrived`) — the true non-programmer endpoint.
-4. **Remaining action slices** (each needs PublishEvent/loop now available):
+3. ~~**GAP-12 — native `Compare` node.**~~ ✅ **Done** (`d763dab`). `CompareNode` + `IrOp_Compare`
+   (mirror-pattern; design in `GAP12_Compare_Node_Design.md`). `IsSelfArrived` + slice 4 retrofitted
+   helper-free; `HillAssault2NavOps.cs` deleted. Both conditions are now the true non-programmer endpoint.
+4. **Remaining action slices.** **Gating:** the design-readiness sweep found 4 of these hinge on decisions
+   captured in **`Architect_Question_6_Access_Shapes_And_Vocabulary.md`** (A Compare/BinaryOp scope, B
+   `GetSingleton`/target-resolve, C `JsonParams` payload, D EQS path) — **await architect answers before
+   building the gated ones.** Build-ready NOW (no gate): **`Action_ReverseToBaseline`** (ChannelCommand +
+   P2 + `PublishEvent(ClearBehaviorEvent)`, all shipped). Order after Q#6 answers: `GetSingleton`/target-
+   resolve → `AimAndFireSpecific` → `DispatchAllToBaseline`/`CalculateSegments` → EQS slice → **wave core
+   last** (`MemberSlotList`, L; design blessed in Q#3 / `Squad_State_Fit_And_Lean_Slot_Design.md`). Detail:
    - `Action_ReverseToBaseline` — MoveTo `ChannelCommand` + terminal `ClearBehaviorEvent` (P4).
    - `Action_AimAndFireSpecific` — Weapon `ChannelCommand` + ammo read (P2) + round-count in WorkingState + target-resolve helper.
    - `Action_DispatchAllToBaseline` / `CalculateSegments` — roster fan-out (P1) + N event publishes (P4).
@@ -169,7 +175,7 @@ dotnet test Hrot/Subsystems/AI/Hrot.AiEditor.Generators.Tests/ --filter "FullyQu
 # Safety net (per-node coverage + schema round-trip + validator rules):
 dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/ --filter "FullyQualifiedName~NodeCoverage|FullyQualifiedName~SchemaReflection|FullyQualifiedName~Validator"
 ```
-Inspect generated C# under `Hrot/Subsystems/Hrot.AI.Behaviors/obj/GeneratedFiles/Hrot.Blueprints.Generators/.../HillAssault2*_Bp.g.cs` to confirm the emit. Current green baseline at `50ff6e4` (P1b + slice 4): real build 0 err; `HillAssault2_*` **18/18**; safety-net subset (NodeCoverage|SchemaReflection|Validator) **149 pass / 1 pre-existing skip** (`WaitForEventNode_...BUG`). Full suites also green: Blueprints.Tests 2033 pass / 10 skip; generator tests 143 pass. (Env note: `dotnet` isn't preinstalled — `sudo apt-get install -y dotnet-sdk-8.0` after `apt-get update`.)
+Inspect generated C# under `Hrot/Subsystems/Hrot.AI.Behaviors/obj/GeneratedFiles/Hrot.Blueprints.Generators/.../HillAssault2*_Bp.g.cs` to confirm the emit. Current green baseline at `d763dab` (P1b + slice 4 + GAP-12 `Compare`): real build 0 err / 0 warn; `HillAssault2_*` **18/18**; safety-net subset (NodeCoverage|SchemaReflection|Validator) **151 pass / 1 pre-existing skip** (`WaitForEventNode_...BUG`). Full suites also green: Blueprints.Tests 2035 pass / 10 skip; generator tests 143 pass. (Env note: `dotnet` isn't preinstalled — `sudo apt-get install -y dotnet-sdk-8.0` after `apt-get update`.)
 
 ---
 

@@ -38,7 +38,7 @@ and committed to branch + `main`:
 | Publish engine events | `PublishEvent` → `world.Bus.Publish` | GAP-3 | ✅ P4 |
 | **Loop (inline `for`)** | `FlowForEach` + `UnitRosterOps` | **GAP-1** | ✅ P1a |
 | **Loop body in-body `if`** | scheduler inline-if (`IrOp_If`) | GAP-1 | ✅ P1b (slice 4) |
-| Comparison node | `Compare` (removes helper) | GAP-12 | ⏳ backlog — **next** |
+| Comparison node | `Compare` (`IrOp_Compare`) | GAP-12 | ✅ (helper retired) |
 | Singleton read | `GetSingleton` | GAP-7 (singleton) | ⏳ narrow-value (needs method-call too) |
 
 Architect Q#5 answered all four next-tier design questions (events→bus, ChannelCommand-only writes,
@@ -66,6 +66,25 @@ Composes P2 (foreign read) + P1a + P1b. **Finding:** WorkingState fields ARE emi
 var and use `Get/SetVariable` against it in AiPrimitive dispatch (resolves to `ws.{Name}`); it works.
 The condition re-inits `AllAtBaseline=true` at graph entry each tick (WorkingState persists in the
 blackboard, so a reset is required — not a default-init). Oracle untouched.
+
+## GAP-12 (2026-07-17) — native `Compare` node; conditions now fully visual
+
+Native pure `Compare` node (two operands + `ComparisonOperator` → `bool`, `IrOp_Compare` emitting a
+plain infix `==`/`<`/… ), a mirror-pattern build (design: `GAP12_Compare_Node_Design.md`). Reuses the
+existing `ComparisonOperator` enum and the operator→C# infix map already used by the `op_<Op>_<Type>`
+synthesized-operator lowering — no Stage4/type-registry change. Both migration conditions
+(`IsSelfArrived`, slice-4 `AreAllAtBaseline`) retrofitted to `GetComponent.Result` →
+`Compare(== Literal(NavigationResult.Arrived))` → Branch, and the `HillAssault2NavOps.IsArrived` stopgap
+helper is **deleted** — the enum-equality check is now visually authored, the true non-programmer
+endpoint. (An arithmetic `BinaryOp` / boolean family is deferred to demand + architect Q#6-A.)
+
+## GAP status snapshot (2026-07-17)
+
+GAP-1 (loop + in-body branch), GAP-2 (foreign read), GAP-3 (event publish), GAP-11 (params), GAP-12
+(compare) are **closed**. Remaining: GAP-5 (SoA/bitmask wave state — the wave core), GAP-10
+(`GetSingleton`/`ISimulationView` — architect Q#6-B). Next capability decisions are batched in
+`Architect_Question_6_Access_Shapes_And_Vocabulary.md` (A compare/binop scope, B singleton/target-resolve,
+C `JsonParams` payload, D EQS path). Build-ready without a gate: `Action_ReverseToBaseline`.
 
 ## Slice order (simplest → hardest)
 
