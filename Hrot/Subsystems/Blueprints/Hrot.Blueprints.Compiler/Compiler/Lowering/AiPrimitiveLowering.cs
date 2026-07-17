@@ -51,9 +51,18 @@ internal static class AiPrimitiveLowering
             DefaultValueCSharp = "0",
         };
 
+        // APPEND (not prepend) __phase. Stage5 already baked IrOp_ReadVariable/WriteVariable indices
+        // positionally against the pre-lowering WorkingState list; prepending __phase at index 0 would
+        // shift every real field by +1, so Stage7's index->name resolution (EmissionContext.VarFieldName)
+        // would emit the WRONG field for every WorkingState access (off-by-one) whenever a graph has BOTH
+        // a non-empty WorkingState AND a latent op (WaitForChannel/Delay/... -- the only case that reaches
+        // here). Appending keeps real fields at their original indices; __phase is only ever accessed by
+        // NAME (`ws.__phase` in StatementEmitter / dispatch), so its position within the struct is
+        // immaterial. (Latent-with-empty-WorkingState assets, e.g. ReverseToBaseline, are unaffected --
+        // append == prepend when __phase is the only field.)
         return asset with
         {
-            WorkingState = new[] { phaseField }.Concat(asset.WorkingState).ToList(),
+            WorkingState = asset.WorkingState.Concat(new[] { phaseField }).ToList(),
         };
     }
 
