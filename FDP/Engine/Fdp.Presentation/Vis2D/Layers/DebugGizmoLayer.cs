@@ -115,6 +115,16 @@ namespace Fdp.Toolkit.Vis2D.Layers
 
         public Entity? PickEntity(Vector2 worldPos) => null;
 
+        /// <summary>
+        /// Resolver used to render colored icons for right-click context-menu items that carry an
+        /// <c>"icon"</c> key. Forwarded to the inner terminal layer. Injected by the host.
+        /// </summary>
+        public GizmoMap.Presentation.MenuIconResolver? ContextMenuIconResolver
+        {
+            get => _innerTerminal.ContextMenuIconResolver;
+            set => _innerTerminal.ContextMenuIconResolver = value;
+        }
+
         public void DrawContextMenu()
         {
             _innerTerminal.DrawContextMenu((token, actionId) =>

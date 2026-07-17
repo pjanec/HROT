@@ -705,22 +705,25 @@ public class WindowManager
         {
             Label = "Windows",
             Priority = 90,
+            Icon = "folder",
             Children = winChildren.ToArray()
         });
         menus.Add(new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
         {
             Label = "Settings",
             Priority = 95,
+            Icon = "asset/utility",
             Children = new[]
             {
                 new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
-                { Id = ActionSettings, Label = "UI Scale & Fonts…" }
+                { Id = ActionSettings, Label = "UI Scale & Fonts…", Icon = "asset/utility" }
             }
         });
         menus.Add(new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
         {
             Label = "Help",
             Priority = 100,
+            Icon = "status/info",
             Children = new[]
             {
                 new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
@@ -732,7 +735,7 @@ public class WindowManager
                             Id = GetWindowActionId(w.Id), Label = w.Title, IsChecked = w.IsOpen
                         }).ToArray()
                 },
-                new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = ActionAbout, Label = "About" }
+                new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = ActionAbout, Label = "About", Icon = "status/info" }
             }
         });
         return menus;
@@ -747,10 +750,25 @@ public class WindowManager
     {
         if (Gui.BeginMenu("Perspective"))
         {
-            foreach (var (perspective, isChecked) in BuildPerspectiveMenuModel())
+            var model = BuildPerspectiveMenuModel();
+            // Reserve the icon gutter if any perspective has a registered icon key.
+            bool reserve = false;
+            if (MenuIcons != null)
+                foreach (var (p, _) in model)
+                    if (!string.IsNullOrEmpty(GetPerspectiveIconKey(p))) { reserve = true; break; }
+
+            foreach (var (perspective, isChecked) in model)
             {
                 bool isCheckedCopy = isChecked;
-                if (Gui.MenuItem(GetPerspectiveLabel(perspective), "", ref isCheckedCopy))
+                var p0 = Gui.GetCursorScreenPos();
+                float gutter = 0f;
+                string label = reserve
+                    ? GizmoMap.Presentation.MenuIconRenderer.Pad(GetPerspectiveLabel(perspective), out gutter)
+                    : GetPerspectiveLabel(perspective);
+
+                bool clicked = Gui.MenuItem(label, "", ref isCheckedCopy);
+                GizmoMap.Presentation.MenuIconRenderer.DrawIcon(MenuIcons, GetPerspectiveIconKey(perspective), p0, gutter);
+                if (clicked)
                 {
                     SelectPerspective(perspective);
                 }
