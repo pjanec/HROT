@@ -81,6 +81,11 @@ internal sealed class RaylibPresentationShell : IPresentationShell
         byte[] pngBytes = Fdp.Presentation.Icons.EmbeddedAtlasResources.GetSilkAtlasPngBytes();
         var img = Raylib_cs.Raylib.LoadImageFromMemory(".png", pngBytes);
         _atlasTexture = Raylib_cs.Raylib.LoadTextureFromImage(img);
+        // Bilinear filtering so 16x16 silk cells resample smoothly when drawn larger than
+        // native (DPI-scaled menu gutters, the blueprint node picker, etc.) instead of the
+        // default nearest/point sampling that shows blocky pixels on upscale. At 1:1 (16px)
+        // it is identical to point sampling, so no downside for native-size icons.
+        Raylib_cs.Raylib.SetTextureFilter(_atlasTexture, Raylib_cs.TextureFilter.Bilinear);
         Raylib_cs.Raylib.UnloadImage(img);
         return new Fdp.Presentation.Icons.IconAtlas(
             (nint)_atlasTexture.Id, _atlasTexture.Width, _atlasTexture.Height, 16f);

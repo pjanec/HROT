@@ -48,6 +48,13 @@ public class WindowManager
     /// </summary>
     public float UiScale { get; set; } = 1f;
 
+    /// <summary>
+    /// Optional resolver mapping a menu item's semantic icon key to a colored atlas sprite,
+    /// injected by the editor composition (which owns the icon vocabulary). When set, main-menu
+    /// and gizmo-menu items with an <c>Icon</c> render a colored icon in an aligned gutter.
+    /// </summary>
+    public GizmoMap.Presentation.MenuIconResolver? MenuIcons { get; set; }
+
     // �� Construction �����������������������������������������������������������
 
     /// <summary>Initialises a new <see cref="WindowManager"/>.</summary>
@@ -475,10 +482,10 @@ public class WindowManager
             RenderGlobalMenu(GlobalMenu.Root);
             RenderPerspectiveMenu();
             var hostMenus = BuildHostMenuDtos();
-            GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(hostMenus, HandleHostMenuAction);
+            GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(hostMenus, HandleHostMenuAction, MenuIcons);
 
             if (gizmoMenuItems != null && gizmoMenuItems.Count > 0)
-                GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(gizmoMenuItems, onGizmoMenuAction);
+                GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(gizmoMenuItems, onGizmoMenuAction, MenuIcons);
 
             // BATCH-25: Render the main toolbar inline inside the menu bar,
             // to the right of the menus. Graphical separators are drawn by
@@ -561,6 +568,15 @@ public class WindowManager
     /// </summary>
     private void RenderGlobalMenu(MenuItemNode node)
     {
+        // Reserve an aligned icon gutter for this whole level if any sibling carries an icon.
+        bool reserve = MenuIcons != null;
+        if (reserve)
+        {
+            reserve = false;
+            foreach (var c in node.Children.Values)
+                if (!string.IsNullOrEmpty(c.Icon)) { reserve = true; break; }
+        }
+
         foreach (var child in node.Children.Values)
         {
             if (child.IsSeparator)
@@ -569,9 +585,17 @@ public class WindowManager
                 continue;
             }
 
+            var p0 = Gui.GetCursorScreenPos();
+            float gutter = 0f;
+
             if (child.Children.Count > 0)
             {
-                if (Gui.BeginMenu(child.Name))
+                string subLabel = reserve
+                    ? GizmoMap.Presentation.MenuIconRenderer.Pad(child.Name, out gutter)
+                    : child.Name;
+                bool open = Gui.BeginMenu(subLabel);
+                GizmoMap.Presentation.MenuIconRenderer.DrawIcon(MenuIcons, child.Icon, p0, gutter);
+                if (open)
                 {
                     RenderGlobalMenu(child);
                     Gui.EndMenu();
@@ -579,12 +603,18 @@ public class WindowManager
                 continue;
             }
 
+            string label = reserve
+                ? GizmoMap.Presentation.MenuIconRenderer.Pad(child.ResolveLabel(), out gutter)
+                : child.ResolveLabel();
+
             // Leaf: checkable item.
             if (child.GetCheckedState != null && child.OnCheckedChanged != null)
             {
                 bool checkedState = child.GetCheckedState();
                 bool enabled = child.GetEnabled?.Invoke() ?? true;
-                if (Gui.MenuItem(child.ResolveLabel(), child.Shortcut ?? "", ref checkedState, enabled))
+                bool clicked = Gui.MenuItem(label, child.Shortcut ?? "", ref checkedState, enabled);
+                GizmoMap.Presentation.MenuIconRenderer.DrawIcon(MenuIcons, child.Icon, p0, gutter);
+                if (clicked)
                 {
                     child.OnCheckedChanged(checkedState);
                 }
@@ -595,7 +625,9 @@ public class WindowManager
             if (child.OnClick != null)
             {
                 bool enabled = child.GetEnabled?.Invoke() ?? true;
-                if (Gui.MenuItem(child.ResolveLabel(), child.Shortcut ?? "", false, enabled))
+                bool clicked = Gui.MenuItem(label, child.Shortcut ?? "", false, enabled);
+                GizmoMap.Presentation.MenuIconRenderer.DrawIcon(MenuIcons, child.Icon, p0, gutter);
+                if (clicked)
                 {
                     child.OnClick();
                 }
