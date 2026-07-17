@@ -73,5 +73,34 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Number of runners still active after <see cref="Update"/> — the graph compares this
         /// against 0 to return Success (wave complete) vs Running.</summary>
         public static int ActiveCount(WaveState s) => s.Runners.Count;
+
+        // ── tree-integration overloads (architect Q#9) ──────────────────────────
+        // The integrated IsWaveCompleted blueprint shares state via HillAttackSharedState (GetShared/
+        // SetShared), not a private WaveState WorkingState var. These thin adapters project the three
+        // wave fields into a WaveState, reuse the proven WaveState monitor above, and write them back --
+        // so the integrated node stays a thin GetShared -> Update -> SetShared wrapper with zero logic
+        // duplication.
+
+        /// <summary>Runs the wave-completion monitor over the shared commander struct (projects the
+        /// <c>ActiveRunners</c>/<c>BurnedSlotsMask</c>/<c>BaselineReservedMask</c> fields into a
+        /// <see cref="WaveState"/>, calls <see cref="Update(WaveState, ISimulationView)"/>, writes them
+        /// back), returning the mutated <see cref="HillAttackSharedState"/>.</summary>
+        public static HillAttackSharedState Update(HillAttackSharedState s, ISimulationView view)
+        {
+            var wave = new WaveState
+            {
+                Runners              = s.ActiveRunners,
+                BurnedSlotsMask      = s.BurnedSlotsMask,
+                BaselineReservedMask = s.BaselineReservedMask,
+            };
+            wave = Update(wave, view);
+            s.ActiveRunners        = wave.Runners;
+            s.BurnedSlotsMask      = wave.BurnedSlotsMask;
+            s.BaselineReservedMask = wave.BaselineReservedMask;
+            return s;
+        }
+
+        /// <summary>Active-runner count off the shared struct (== <c>ActiveRunners.Count</c>).</summary>
+        public static int ActiveCount(HillAttackSharedState s) => s.ActiveRunners.Count;
     }
 }
