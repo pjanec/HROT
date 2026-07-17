@@ -6,5 +6,6 @@
       "mcp__codebase-memory-mcp__search_graph"
     ]
   },
-  "defaultMode": "dangerously-skip-permissions"
+  "defaultMode": "dangerously-skip-permissions",
+  "enabledMcpjsonServers": ["codebase-memory-mcp"]
 }

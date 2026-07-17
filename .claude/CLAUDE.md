@@ -4,6 +4,15 @@
 
 This rule applies to every request involving this codebase.
 
+> **Cloud / Claude Code on the web:** if the `mcp__codebase-memory-mcp__*` tools are
+> not connected or `dotnet` is missing, this is a fresh cloud VM — run the
+> `/cloud-bootstrap` skill (or `bash scripts/cloud-bootstrap.sh`) to install the
+> .NET 8 SDK and the codebase-memory-mcp server. Note: if the binary is installed
+> mid-session, the graph tools connect on the **next** session (MCP servers spawn
+> at session start). For session-#1 tools, run the bootstrap from the environment's
+> Setup script. Details: `docs/cloud-codebase-memory-mcp.md`. (Local Windows/VS Code
+> sessions already have the tools — skip this.)
+
 Always call `list_projects` first when you do not already know the project name, then use the `display_name` or exact `name` returned by that tool.
 
 ```json
