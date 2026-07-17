@@ -64,6 +64,27 @@ proceed only if you want the full assembled behavior rebuilt (vs. closing at the
 
 ---
 
-## ARCHITECT ANSWERS (pending)
+## ARCHITECT ANSWERS (2026-07-17) — both leans APPROVED (with precise substrate)
 
-_(to be filled in once relayed)_
+- **A — `GetShared`/`SetShared` over a standalone Category-1 struct (APPROVED).** Proceed with option (1),
+  but the substrate is the **Entity-scoped shared partition slot** (Slice 2a-2/2a-3), NOT a raw ECS
+  component. Migrate `HillAttackMutableState` to a **Category-1 struct** and have every blueprint leave its
+  native `WorkingState` **empty**, conversing over the shared struct via `GetShared`/`SetShared`
+  (`Role=State`, `Scope=Entity`). **Why not option (2):** the behavior-scoped shared `WorkingState` slot
+  DOES exist (`T35_SharedWorkingState.btree.json`) but requires every node to project the *same* generated
+  `WorkingState` struct type — each visually-authored blueprint generates its OWN distinct
+  `_Bp+WorkingState`, so a single shared slot type-collides. `GetShared`/`SetShared` over a standalone
+  struct is exactly the sanctioned blueprint-to-blueprint pattern and keeps every blueprint independently
+  compilable. **Existing proof to mirror:** `T37_SharedStateManifestProvisioning.btree.json` /
+  `SharedStateRallyDemo` (empty WorkingState, reads+writes a `Role=State/Scope=Entity` var via
+  `BlueprintSharedState.TryGetShared/TrySetShared`).
+- **B — separate `.btree.json` track, gated on A (APPROVED).** Close the current phase at the proven
+  per-node twins (52/52 is the milestone). When assembling: author a NEW `.btree.json` structurally like
+  `PlatoonHillAttack.btree.json`, but bind the **generated blueprint AiPrimitive thunks** via
+  `DelegateShape: AiPrimitiveTickCore` (do NOT build a higher-level "composite" blueprint — orchestration
+  belongs to FastBTree). **Existing proof to mirror:** `T32_ComposedGeneratedBlueprint.btree.json`
+  (a generated `EnumDemo_*_Bp.TickCore` placed as a host-BTree node). **Cleared to park full-tree
+  integration as future work.**
+
+**Cleared to finalize the per-node twins now; proceed with the `GetShared`/`SetShared` state model when
+assembling.** See `docs/blueprints/TreeIntegration_Build_Plan.md` for the turnkey recipe.
