@@ -197,6 +197,17 @@ public sealed class EditorFontService
         io.Fonts.Build();
         rlImGui.ReloadFonts();
 
+        // Bilinear-filter the ImGui font atlas. Canvas node text is drawn with
+        // dl.AddText(font, size, …) at arbitrary zoom-derived sizes (not the baked size); with
+        // the default point sampling those downscaled glyphs alias into unreadable mush at small
+        // zoom. Bilinear resamples them smoothly. At the baked size it is a no-op (1:1).
+        nint fontTexId = io.Fonts.TexID;
+        if (fontTexId != IntPtr.Zero)
+        {
+            var fontTex = new Raylib_cs.Texture2D { Id = (uint)fontTexId };
+            Raylib_cs.Raylib.SetTextureFilter(fontTex, Raylib_cs.TextureFilter.Bilinear);
+        }
+
         // 5) Scale widget metrics (padding/rounding/etc.) by the delta from the last bake.
         //    ScaleAllSizes multiplies current values, so apply the ratio, not the absolute.
         float ratio = scale / _appliedStyleScale;

@@ -270,6 +270,16 @@ internal sealed class NodeRenderer
             if (useFont) ImGui.PushFont(new ImFontPtr((ImFont*)(void*)fontPtr));
         }
 
+        // The resolved ladder face is baked at a fixed size (e.g. 16px), so ImGui widgets would
+        // render at that size — bigger than targetFontSize and, with unscaled FramePadding, taller
+        // than the layout's PinRowHeightGu*zoom slot (→ vertical overlap when zoomed out). Scale
+        // the window font so widgets render at exactly targetFontSize, and scale FramePadding by
+        // zoom so the frame height tracks the row slot. Both are reset before PopFont below.
+        float faceSize = ImGui.GetFontSize();
+        if (faceSize > 0f) ImGui.SetWindowFontScale(targetFontSize / faceSize);
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(4f * zoom, 3f * zoom));
+        ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 2f * zoom);
+
         float pinCenterX = nodeRect.Min.X + CanvasLayoutBuilder.NodeHorizPadGu * zoom;
         float maxLabelWidthPx = 0f;
         float maxOutputWidthPx = 0f;
@@ -308,7 +318,8 @@ internal sealed class NodeRenderer
             var editor = view.TypeSystem.GetDefaultEditor(pin.Type!.Value);
             if (editor == null) continue;
 
-            var editorPos = new Vector2(editorX, pinScreenPos.Y - ImGui.GetFontSize() * 0.5f);
+            // Center the widget on the pin using its actual frame height (font + scaled padding).
+            var editorPos = new Vector2(editorX, pinScreenPos.Y - ImGui.GetFrameHeight() * 0.5f);
 
             using var scope = new ImGuiPushIdScope(pin.Id.Value.ToString());
             ImGui.SetCursorScreenPos(editorPos);
@@ -348,6 +359,9 @@ internal sealed class NodeRenderer
                 view.Interaction.PinDragOverrides.Remove(pin.Id);
             }
         }
+
+        ImGui.PopStyleVar(2);          // FrameRounding, FramePadding
+        ImGui.SetWindowFontScale(1f);  // restore the window's font scale
 
         if (useFont)
             ImGui.PopFont();
