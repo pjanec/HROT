@@ -3,7 +3,8 @@
     "allow": [
       "Bash(*)",
       "PowerShell(*)",
-      "mcp__codebase-memory-mcp__search_graph"
+      "mcp__codebase-memory-mcp",
+      "mcp__codebase-memory-mcp__*"
     ]
   },
   "defaultMode": "dangerously-skip-permissions",
