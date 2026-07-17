@@ -9,7 +9,9 @@ namespace Hrot.Blueprints.Tests.Compiler;
 
 /// <summary>
 /// P1 (GAP-1) -- validator coverage for <c>V_FlowForEachRules</c> (BP2050): a
-/// <see cref="FlowForEachNode"/>'s "Body" exec-chain must be latent-free and (P1a) branch-free.
+/// <see cref="FlowForEachNode"/>'s "Body" exec-chain must be latent-free. P1b lifted the P1a
+/// branch-free restriction (an in-body Branch now lowers to a nested inline if/else), so a body
+/// Branch no longer trips BP2050; only latent nodes do.
 /// </summary>
 public sealed class V_FlowForEachValidatorTests
 {
@@ -97,11 +99,10 @@ public sealed class V_FlowForEachValidatorTests
         };
     }
 
-    // ---- BP2050: Branch reachable from Body (P1a is branch-free) -----------
+    // ---- P1b: Branch reachable from Body is now ALLOWED (inline if/else) ----
 
     [Fact]
-    [CoversDiagnosticCode("BP2050")]
-    public void Validate_BranchInBody_BP2050()
+    public void Validate_BranchInBody_NoBP2050_P1b()
     {
         var branchIn    = ExecPin("In", "In");
         var branchTrue  = ExecPin("True", "Out");
@@ -112,7 +113,7 @@ public sealed class V_FlowForEachValidatorTests
         var asset = BuildFlowForEachAsset(branch, Array.Empty<Node>(), Array.Empty<Link>());
 
         var diags = Validate(asset);
-        Assert.Contains(diags, d => d.Code == DiagnosticCodes.BP2050);
+        Assert.DoesNotContain(diags, d => d.Code == DiagnosticCodes.BP2050);
     }
 
     // ---- BP2050: latent node reachable from Body ---------------------------

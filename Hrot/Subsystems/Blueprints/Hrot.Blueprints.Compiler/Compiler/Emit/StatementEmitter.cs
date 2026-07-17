@@ -308,6 +308,32 @@ internal static class StatementEmitter
                 break;
             }
 
+            case IrOp_If op:
+            {
+                // P1b (GAP-1) -- inline structured if/else nested inside an IrOp_ForEach body. The
+                // Then/Else statement lists were scheduled inline by Stage5 (each up to the branch
+                // join); emit them nested. The `else` block is omitted when Else is empty (the common
+                // "conditional side-effect" shape, e.g. slice-4's `if (!arrived) AllAtBaseline=false;`).
+                e.WriteLine($"if (__t{op.Condition.Index})");
+                e.WriteLine("{");
+                e.Indent();
+                foreach (var thenStmt in op.Then)
+                    Emit(e, thenStmt);
+                e.Outdent();
+                e.WriteLine("}");
+                if (op.Else.Count > 0)
+                {
+                    e.WriteLine("else");
+                    e.WriteLine("{");
+                    e.Indent();
+                    foreach (var elseStmt in op.Else)
+                        Emit(e, elseStmt);
+                    e.Outdent();
+                    e.WriteLine("}");
+                }
+                break;
+            }
+
             case IrOp_PublishBusEvent op:
             {
                 string publishMethod = op.Managed ? "PublishManaged" : "Publish";

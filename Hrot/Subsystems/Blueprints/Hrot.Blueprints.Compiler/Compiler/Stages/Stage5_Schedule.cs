@@ -2167,12 +2167,10 @@ internal sealed class GraphScheduler
         if (currentItemPin is not null)
             _pinValueCache[currentItemPin.Id] = itemVar;
 
-        for (var bodyNode = GetExecSuccessorByPinName(fe, "Body"); bodyNode is not null;
-             bodyNode = GetSingleExecSuccessor(bodyNode))
-        {
-            _execNodeToBlockId[bodyNode.Id] = bb.Id.Value;
-            EmitNodeStatements(bodyNode, bodyStmts);
-        }
+        // P1b (GAP-1): schedule the Body exec-chain inline; an in-body Branch lowers to a nested
+        // IrOp_If (see ScheduleInlineBodyChain), NOT a BFS block split -- an inline for-body cannot
+        // span blocks. Latent nodes remain forbidden in the body (Stage2 BP2050).
+        ScheduleInlineBodyChain(GetExecSuccessorByPinName(fe, "Body"), null, bodyStmts, bb.Id.Value);
 
         foreach (var k in _pinValueCache.Keys.Where(k => !savedKeys.Contains(k)).ToList())
             _pinValueCache.Remove(k);
@@ -2183,6 +2181,151 @@ internal sealed class GraphScheduler
                 fe.CountAccessorFqn, fe.ItemAccessorFqn, rosterVal, itemVar, bodyStmts),
             Debug = DebugOf(fe),
         });
+    }
+
+    /// <summary>
+    /// P1b (GAP-1): schedules an inline exec-chain -- a <see cref="FlowForEachNode"/> body, or a
+    /// <see cref="BranchNode"/> arm within one -- into <paramref name="stmts"/> as NESTED statements,
+    /// walking exec successors until it reaches <paramref name="stopAtNodeId"/> (the branch join) or
+    /// the chain ends. A <see cref="BranchNode"/> lowers to a nested <see cref="IrOp_If"/> (NOT a BFS
+    /// block split -- an inline for-body cannot span blocks): the condition is resolved into the
+    /// CURRENT scope (before the if), each arm is scheduled inline up to the branch's immediate join,
+    /// and the outer chain resumes ONCE at that join. All visited nodes are mapped to
+    /// <paramref name="blockId"/> (the loop's owning block) for debug attribution -- mirroring P1a's
+    /// body walk, which likewise emits no per-node probe anchors inside the loop body.
+    /// </summary>
+    private void ScheduleInlineBodyChain(
+        Node? node, Guid? stopAtNodeId, List<IrStatement> stmts, int blockId)
+    {
+        while (node is not null && node.Id != stopAtNodeId)
+        {
+            if (node is BranchNode bn)
+            {
+                _execNodeToBlockId[bn.Id] = blockId;
+
+                // Resolve the Branch condition into the CURRENT (enclosing) scope, before the if.
+                var condPin = bn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "In");
+                IrValue condValue;
+                if (condPin is not null)
+                    condValue = ResolveDataPin(bn.Id, condPin.Id, stmts);
+                else
+                {
+                    condValue = AllocValue(Stage5_Schedule.BoolType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = condValue,
+                        Operation   = new IrOp_Const("false", Stage5_Schedule.BoolType),
+                        Debug       = DebugOf(bn),
+                    });
+                }
+
+                var (trueSucc, falseSucc) = GetBranchSuccessors(bn);
+                var joinId = FindInlineBranchJoin(trueSucc, falseSucc);
+
+                var thenStmts = ScheduleInlineArm(trueSucc,  joinId, blockId);
+                var elseStmts = ScheduleInlineArm(falseSucc, joinId, blockId);
+
+                stmts.Add(new IrStatement
+                {
+                    Operation = new IrOp_If(condValue, thenStmts, elseStmts),
+                    Debug     = DebugOf(bn),
+                });
+
+                node = joinId is Guid jid && _nodeById.TryGetValue(jid, out var joinNode)
+                    ? joinNode : null;
+                continue;
+            }
+
+            _execNodeToBlockId[node.Id] = blockId;
+            EmitNodeStatements(node, stmts);
+            node = GetSingleExecSuccessor(node);
+        }
+    }
+
+    /// <summary>
+    /// P1b: schedules one Branch arm inline into a fresh nested statement list, with pin-value-cache
+    /// isolation -- arm-scoped values (defined only on that path) must not leak to the sibling arm or
+    /// to the post-join outer scope. Snapshots the cache keys, schedules the arm up to
+    /// <paramref name="joinId"/>, then removes every entry the arm added.
+    /// </summary>
+    private List<IrStatement> ScheduleInlineArm(Node? armStart, Guid? joinId, int blockId)
+    {
+        var armStmts  = new List<IrStatement>();
+        var savedKeys = new HashSet<Guid>(_pinValueCache.Keys);
+        ScheduleInlineBodyChain(armStart, joinId, armStmts, blockId);
+        foreach (var k in _pinValueCache.Keys.Where(k => !savedKeys.Contains(k)).ToList())
+            _pinValueCache.Remove(k);
+        return armStmts;
+    }
+
+    /// <summary>
+    /// P1b: finds the inline join (immediate common successor) of a Branch's two arms within a
+    /// FlowForEach body, so <see cref="IrOp_If"/> emits each arm only up to the reconvergence point
+    /// and the outer chain resumes there ONCE. Returns null when EITHER arm ends (no successor) --
+    /// then each arm is self-contained (e.g. slice-4's `if (!arrived) set=false;`, whose True arm
+    /// ends). Otherwise the join is the successor reachable from BOTH arms nearest along the true arm
+    /// (nested intra-arm merges stay inside their arm -- they are not reachable from the sibling).
+    /// </summary>
+    private Guid? FindInlineBranchJoin(Node? trueSucc, Node? falseSucc)
+    {
+        if (trueSucc is null || falseSucc is null) return null;
+
+        // All nodes reachable from the false arm (outer control flow only).
+        var fromFalse = new HashSet<Guid>();
+        var qf = new Queue<Node>();
+        qf.Enqueue(falseSucc);
+        while (qf.Count > 0)
+        {
+            var n = qf.Dequeue();
+            if (!fromFalse.Add(n.Id)) continue;
+            foreach (var s in GetOuterExecSuccessors(n)) qf.Enqueue(s);
+        }
+
+        // BFS the true arm in distance order; the first node also reachable from the false arm is
+        // the immediate join (nearest common successor).
+        var visited = new HashSet<Guid>();
+        var qt = new Queue<Node>();
+        qt.Enqueue(trueSucc);
+        while (qt.Count > 0)
+        {
+            var n = qt.Dequeue();
+            if (!visited.Add(n.Id)) continue;
+            if (fromFalse.Contains(n.Id)) return n.Id;
+            foreach (var s in GetOuterExecSuccessors(n)) qt.Enqueue(s);
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Outer control-flow exec successors of a body node used for inline-join reconvergence detection:
+    /// a <see cref="BranchNode"/> yields both arms; a <see cref="FlowForEachNode"/> yields its
+    /// "Completed" successor (its "Body" is nested, not outer flow); any other node yields its single
+    /// exec successor (0 or 1).
+    /// </summary>
+    private IEnumerable<Node> GetOuterExecSuccessors(Node node)
+    {
+        switch (node)
+        {
+            case BranchNode bn:
+            {
+                var (t, f) = GetBranchSuccessors(bn);
+                if (t is not null) yield return t;
+                if (f is not null) yield return f;
+                break;
+            }
+            case FlowForEachNode fe:
+            {
+                var comp = GetExecSuccessorByPinName(fe, "Completed");
+                if (comp is not null) yield return comp;
+                break;
+            }
+            default:
+            {
+                var s = GetSingleExecSuccessor(node);
+                if (s is not null) yield return s;
+                break;
+            }
+        }
     }
 
     /// <summary>Resolves the exec successor reached via a specific named exec-out pin (e.g. "Body"/"Completed").</summary>

@@ -1438,9 +1438,11 @@ internal sealed class V_ExecOutFanOut : IValidator
 
 /// <summary>
 /// P1 (GAP-1): a <see cref="FlowForEachNode"/>'s "Body" exec-subgraph must be a synchronous,
-/// latent-free sub-DAG -- and (P1a) branch-free. The body lowers to an inline C# <c>for</c> whose
-/// statements are scheduled inline (not BFS blocks), so a latent node (which needs a suspend/resume
-/// block split) or a Branch (which needs a block split, deferred to P1b) cannot appear inside it.
+/// latent-free sub-DAG. The body lowers to an inline C# <c>for</c> whose statements are scheduled
+/// inline (not BFS blocks), so a latent node -- which needs a suspend/resume block split -- cannot
+/// appear inside it. P1b lifted the P1a branch-free restriction: a <see cref="BranchNode"/> in the
+/// body now lowers to a nested inline <c>if</c>/<c>else</c> (IrOp_If), so branches ARE allowed;
+/// only latent nodes remain forbidden.
 /// </summary>
 internal sealed class V_FlowForEachRules : IValidator
 {
@@ -1465,11 +1467,10 @@ internal sealed class V_FlowForEachRules : IValidator
                     var n = queue.Dequeue();
                     if (!visited.Add(n.Id)) continue;
 
-                    if (n is BranchNode)
-                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2050,
-                            "FlowForEach body must be branch-free (P1a): a Branch node is reachable from the loop 'Body'.",
-                            asset.AssetId, graph.Id, n.Id));
-                    else if (n is LatentDelayNode or WaitForChannelNode or WaitForEventNode or WhenNode)
+                    // P1b: BranchNode is now allowed in the body (lowers to a nested inline if/else).
+                    // Latent nodes remain forbidden -- they need a suspend/resume block split the
+                    // inline for-body cannot span.
+                    if (n is LatentDelayNode or WaitForChannelNode or WaitForEventNode or WhenNode)
                         ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2050,
                             $"FlowForEach body must be latent-free: a latent '{n.GetType().Name}' is reachable from the loop 'Body'.",
                             asset.AssetId, graph.Id, n.Id));

@@ -1,0 +1,253 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
+  "AssetId": "c4f1a2b6-9d3e-4a70-8f21-6b5e0a7c2d94",
+  "Name": "HillAssault2_AreAllAtBaseline",
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "Primitive": {
+    "Intent": "Condition",
+    "Hostings": ["BTreeCondition"]
+  },
+  "Parameters": [],
+  "WorkingState": [
+    {
+      "Id": "a1100000-0000-0000-0000-000000000001",
+      "Name": "AllAtBaseline",
+      "Type": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] },
+      "DefaultValueJson": "false",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    }
+  ],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "a0000000-0000-0000-0000-0000000000f4",
+      "Name": "Main",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "e0000000-0000-0000-0000-000000000001",
+          "EventTypeId": "",
+          "Pins": [],
+          "EditorMetadata": { "X": 60.0, "Y": 260.0 }
+        },
+        {
+          "kind": "Literal",
+          "Id": "11110000-0000-0000-0000-000000000001",
+          "TypeId": "System.Boolean",
+          "ValueJson": "true",
+          "Pins": [],
+          "EditorMetadata": { "X": 60.0, "Y": 120.0 }
+        },
+        {
+          "kind": "SetVariable",
+          "Id": "50000000-0000-0000-0000-000000000001",
+          "VariableId": "a1100000-0000-0000-0000-000000000001",
+          "Pins": [],
+          "EditorMetadata": { "X": 280.0, "Y": 260.0 }
+        },
+        {
+          "kind": "FlowForEach",
+          "Id": "fe000000-0000-0000-0000-000000000001",
+          "SourceComponentFqn": "Fdp.Core.CommandHierarchy.UnitRoster",
+          "CountAccessorFqn": "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count",
+          "ItemAccessorFqn": "Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate",
+          "Pins": [
+            { "Id": "fe000000-0000-0000-0000-0000000000a1", "Name": "In",          "Direction": "In",  "IsExec": true,  "TypeRef": {} },
+            { "Id": "fe000000-0000-0000-0000-0000000000a2", "Name": "Body",        "Direction": "Out", "IsExec": true,  "TypeRef": {} },
+            { "Id": "fe000000-0000-0000-0000-0000000000a3", "Name": "Completed",   "Direction": "Out", "IsExec": true,  "TypeRef": {} },
+            { "Id": "fe000000-0000-0000-0000-0000000000a4", "Name": "CurrentItem", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "Fdp.Core.Entity" } }
+          ],
+          "EditorMetadata": { "X": 520.0, "Y": 260.0 }
+        },
+        {
+          "kind": "GetComponent",
+          "Id": "9c000000-0000-0000-0000-000000000001",
+          "ComponentTypeFqn": "Fdp.Toolkit.Navigation.NavigationStatus",
+          "FieldName": "Result",
+          "FieldTypeFqn": "Fdp.Toolkit.Navigation.NavigationResult",
+          "Pins": [
+            { "Id": "9c000000-0000-0000-0000-0000000000a1", "Name": "Target", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "Fdp.Core.Entity" } },
+            { "Id": "9c000000-0000-0000-0000-0000000000a2", "Name": "Value",  "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult", "IsArray": false, "GenericArgs": [] } }
+          ],
+          "EditorMetadata": { "X": 560.0, "Y": 80.0 }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "fc000000-0000-0000-0000-000000000001",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAssault2NavOps",
+          "MethodName": "IsArrived",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            { "Id": "fc000000-0000-0000-0000-0000000000a1", "Name": "result", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "fc000000-0000-0000-0000-0000000000a2", "Name": "Return", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] } }
+          ],
+          "EditorMetadata": { "X": 800.0, "Y": 80.0 }
+        },
+        {
+          "kind": "Branch",
+          "Id": "b1000000-0000-0000-0000-000000000001",
+          "Pins": [
+            { "Id": "b1000000-0000-0000-0000-0000000000a1", "Name": "In",        "Direction": "In",  "IsExec": true,  "TypeRef": {} },
+            { "Id": "b1000000-0000-0000-0000-0000000000a2", "Name": "True",      "Direction": "Out", "IsExec": true,  "TypeRef": {} },
+            { "Id": "b1000000-0000-0000-0000-0000000000a3", "Name": "False",     "Direction": "Out", "IsExec": true,  "TypeRef": {} },
+            { "Id": "b1000000-0000-0000-0000-0000000000a4", "Name": "Condition", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Boolean" } }
+          ],
+          "EditorMetadata": { "X": 1040.0, "Y": 260.0 }
+        },
+        {
+          "kind": "Literal",
+          "Id": "11110000-0000-0000-0000-000000000002",
+          "TypeId": "System.Boolean",
+          "ValueJson": "false",
+          "Pins": [],
+          "EditorMetadata": { "X": 1040.0, "Y": 440.0 }
+        },
+        {
+          "kind": "SetVariable",
+          "Id": "50000000-0000-0000-0000-000000000002",
+          "VariableId": "a1100000-0000-0000-0000-000000000001",
+          "Pins": [],
+          "EditorMetadata": { "X": 1280.0, "Y": 380.0 }
+        },
+        {
+          "kind": "GetVariable",
+          "Id": "67000000-0000-0000-0000-000000000001",
+          "VariableId": "a1100000-0000-0000-0000-000000000001",
+          "Pins": [],
+          "EditorMetadata": { "X": 1040.0, "Y": 620.0 }
+        },
+        {
+          "kind": "Branch",
+          "Id": "b2000000-0000-0000-0000-000000000001",
+          "Pins": [
+            { "Id": "b2000000-0000-0000-0000-0000000000a1", "Name": "In",        "Direction": "In",  "IsExec": true,  "TypeRef": {} },
+            { "Id": "b2000000-0000-0000-0000-0000000000a2", "Name": "True",      "Direction": "Out", "IsExec": true,  "TypeRef": {} },
+            { "Id": "b2000000-0000-0000-0000-0000000000a3", "Name": "False",     "Direction": "Out", "IsExec": true,  "TypeRef": {} },
+            { "Id": "b2000000-0000-0000-0000-0000000000a4", "Name": "Condition", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Boolean" } }
+          ],
+          "EditorMetadata": { "X": 1320.0, "Y": 620.0 }
+        },
+        {
+          "kind": "Return",
+          "Id": "8e000000-0000-0000-0000-000000000001",
+          "Status": "Success",
+          "Pins": [],
+          "EditorMetadata": { "X": 1600.0, "Y": 540.0 }
+        },
+        {
+          "kind": "Return",
+          "Id": "8e000000-0000-0000-0000-000000000002",
+          "Status": "Failure",
+          "Pins": [],
+          "EditorMetadata": { "X": 1600.0, "Y": 700.0 }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "e0000000-0000-0000-0000-000000000001",
+          "FromPinId":  "ea000000-0000-0000-0000-0000000000e1",
+          "ToNodeId":   "50000000-0000-0000-0000-000000000001",
+          "ToPinId":    "5a000000-0000-0000-0000-0000000000c1"
+        },
+        {
+          "FromNodeId": "11110000-0000-0000-0000-000000000001",
+          "FromPinId":  "1a000000-0000-0000-0000-0000000000d1",
+          "ToNodeId":   "50000000-0000-0000-0000-000000000001",
+          "ToPinId":    "5a000000-0000-0000-0000-0000000000c2"
+        },
+        {
+          "FromNodeId": "50000000-0000-0000-0000-000000000001",
+          "FromPinId":  "5a000000-0000-0000-0000-0000000000c3",
+          "ToNodeId":   "fe000000-0000-0000-0000-000000000001",
+          "ToPinId":    "fe000000-0000-0000-0000-0000000000a1"
+        },
+        {
+          "FromNodeId": "fe000000-0000-0000-0000-000000000001",
+          "FromPinId":  "fe000000-0000-0000-0000-0000000000a2",
+          "ToNodeId":   "b1000000-0000-0000-0000-000000000001",
+          "ToPinId":    "b1000000-0000-0000-0000-0000000000a1"
+        },
+        {
+          "FromNodeId": "fe000000-0000-0000-0000-000000000001",
+          "FromPinId":  "fe000000-0000-0000-0000-0000000000a4",
+          "ToNodeId":   "9c000000-0000-0000-0000-000000000001",
+          "ToPinId":    "9c000000-0000-0000-0000-0000000000a1"
+        },
+        {
+          "FromNodeId": "9c000000-0000-0000-0000-000000000001",
+          "FromPinId":  "9c000000-0000-0000-0000-0000000000a2",
+          "ToNodeId":   "fc000000-0000-0000-0000-000000000001",
+          "ToPinId":    "fc000000-0000-0000-0000-0000000000a1"
+        },
+        {
+          "FromNodeId": "fc000000-0000-0000-0000-000000000001",
+          "FromPinId":  "fc000000-0000-0000-0000-0000000000a2",
+          "ToNodeId":   "b1000000-0000-0000-0000-000000000001",
+          "ToPinId":    "b1000000-0000-0000-0000-0000000000a4"
+        },
+        {
+          "FromNodeId": "b1000000-0000-0000-0000-000000000001",
+          "FromPinId":  "b1000000-0000-0000-0000-0000000000a3",
+          "ToNodeId":   "50000000-0000-0000-0000-000000000002",
+          "ToPinId":    "5b000000-0000-0000-0000-0000000000c1"
+        },
+        {
+          "FromNodeId": "11110000-0000-0000-0000-000000000002",
+          "FromPinId":  "1b000000-0000-0000-0000-0000000000d1",
+          "ToNodeId":   "50000000-0000-0000-0000-000000000002",
+          "ToPinId":    "5b000000-0000-0000-0000-0000000000c2"
+        },
+        {
+          "FromNodeId": "fe000000-0000-0000-0000-000000000001",
+          "FromPinId":  "fe000000-0000-0000-0000-0000000000a3",
+          "ToNodeId":   "b2000000-0000-0000-0000-000000000001",
+          "ToPinId":    "b2000000-0000-0000-0000-0000000000a1"
+        },
+        {
+          "FromNodeId": "67000000-0000-0000-0000-000000000001",
+          "FromPinId":  "6a000000-0000-0000-0000-0000000000f1",
+          "ToNodeId":   "b2000000-0000-0000-0000-000000000001",
+          "ToPinId":    "b2000000-0000-0000-0000-0000000000a4"
+        },
+        {
+          "FromNodeId": "b2000000-0000-0000-0000-000000000001",
+          "FromPinId":  "b2000000-0000-0000-0000-0000000000a2",
+          "ToNodeId":   "8e000000-0000-0000-0000-000000000001",
+          "ToPinId":    "8a000000-0000-0000-0000-0000000000b1"
+        },
+        {
+          "FromNodeId": "b2000000-0000-0000-0000-000000000001",
+          "FromPinId":  "b2000000-0000-0000-0000-0000000000a3",
+          "ToNodeId":   "8e000000-0000-0000-0000-000000000002",
+          "ToPinId":    "8b000000-0000-0000-0000-0000000000b1"
+        }
+      ],
+      "EditorMetadata": { "ViewportX": 0, "ViewportY": 0, "ViewportZoom": 0 }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "P1b proof (GAP-1, Hill-attack -> Blueprints slice 4): Condition_AreAllAtBaseline rebuilt as a visually-authored AiPrimitive BTreeCondition, exercising the NEW in-body Branch -> inline if/else scheduler path together with P2 (foreign-entity component read) and P1a (FlowForEach loop). Graph: init WorkingState bool AllAtBaseline=true (Literal->SetVariable), then FlowForEach over the commander's UnitRoster (curated UnitRosterOps.Count/Subordinate) whose body reads each subordinate's NavigationStatus.Result via GetComponent(Target=CurrentItem) and, through the GAP-12 stopgap helper HillAssault2NavOps.IsArrived, BRANCHES: on 'not arrived' (Branch.False) it sets AllAtBaseline=false; on 'arrived' (Branch.True, unwired) nothing -- i.e. the AND-reduce `if (!IsArrived(nav.Result)) AllAtBaseline=false;` emitted as a nested inline if/else INSIDE the for-loop (P1b), not a BFS block split. After the loop, GetVariable(AllAtBaseline)->Branch returns Success/Failure. Proves in-body branch lowering (IrOp_If) end-to-end through the real netstandard2.0 generator. GAP-12: the enum-equality check still lives in the tiny pure IsArrived helper until a native Compare node lands, at which point this becomes fully visual. Does not modify the C# oracle (HillAttackCommanderNodes.Condition_AreAllAtBaseline).",
+    "Category": null,
+    "Recipe": null
+  }
+}

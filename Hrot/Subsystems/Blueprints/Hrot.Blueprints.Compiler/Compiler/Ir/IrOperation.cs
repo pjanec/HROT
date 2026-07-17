@@ -128,6 +128,30 @@ public sealed record IrOp_ForEach(
     IReadOnlyList<IrStatement> Body) : IrOperation;
 
 /// <summary>
+/// P1b (GAP-1) -- structured, inline <c>if</c>/<c>else</c>. Emitted ONLY by Stage5 for a
+/// <see cref="Assets.BranchNode"/> reached from a <see cref="IrOp_ForEach"/> "Body" exec-chain,
+/// so the branch lowers to nested statements INSIDE the inline <c>for</c> (not a BFS block split,
+/// which an inline loop body cannot span). Emits:
+///   if (__t{Condition.Index})
+///   {
+///       {Then statements, emitted inline...}
+///   }
+///   else                       // omitted when Else is empty
+///   {
+///       {Else statements, emitted inline...}
+///   }
+/// <para><see cref="Condition"/> is the boolean produced by the Branch's "Condition" data-in
+/// (resolved into the enclosing scope, before this op). <see cref="Then"/>/<see cref="Else"/> are
+/// NESTED statement lists scheduled inline by Stage5 from the Branch's True/False exec-outs, each up
+/// to the branch's inline join (immediate common successor) -- so the outer chain resumes ONCE after
+/// the <c>if</c> at that join. Both arms are latent-free (Stage2 BP2050).</para>
+/// </summary>
+public sealed record IrOp_If(
+    IrValue Condition,
+    IReadOnlyList<IrStatement> Then,
+    IReadOnlyList<IrStatement> Else) : IrOperation;
+
+/// <summary>
 /// AN8 — Inline-latent non-channel behavior-action invocation.
 /// Emitted by Stage 5 for a <c>ChannelCommandNode</c> whose <c>ActionFqn</c> is non-null.
 /// The action is called synchronously; on <c>NodeStatus.Running</c> the graph suspends inline
