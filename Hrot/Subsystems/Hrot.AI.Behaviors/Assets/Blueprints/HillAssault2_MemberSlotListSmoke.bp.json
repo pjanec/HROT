@@ -1,0 +1,201 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
+  "AssetId": "e782b7df-f157-4fd6-8cb5-ae6853f9d5bd",
+  "Name": "HillAssault2_MemberSlotListSmoke",
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "Primitive": {
+    "Intent": "Action",
+    "Hostings": ["BTreeAction"]
+  },
+  "Parameters": [],
+  "WorkingState": [
+    {
+      "Id": "c3000000-0000-0000-0000-000000000001",
+      "Name": "Tracker",
+      "Type": { "TypeId": "Hrot.AI.Behaviors.Brains.MemberSlotList", "IsArray": false, "GenericArgs": [] },
+      "DefaultValueJson": null,
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    }
+  ],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "d0000000-0000-0000-0000-0000000000f4",
+      "Name": "Main",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "e0000000-0000-0000-0000-000000000001",
+          "EventTypeId": "",
+          "Pins": [],
+          "EditorMetadata": { "X": 40.0, "Y": 260.0 }
+        },
+        {
+          "kind": "GetVariable",
+          "Id": "67000000-0000-0000-0000-000000000001",
+          "VariableId": "c3000000-0000-0000-0000-000000000001",
+          "Pins": [],
+          "EditorMetadata": { "X": 40.0, "Y": 40.0 }
+        },
+        {
+          "kind": "Literal",
+          "Id": "11000000-0000-0000-0000-000000000001",
+          "TypeId": "System.Int64",
+          "ValueJson": "777L",
+          "Pins": [],
+          "EditorMetadata": { "X": 40.0, "Y": 120.0 }
+        },
+        {
+          "kind": "Literal",
+          "Id": "11000000-0000-0000-0000-000000000002",
+          "TypeId": "System.Int32",
+          "ValueJson": "3",
+          "Pins": [],
+          "EditorMetadata": { "X": 40.0, "Y": 180.0 }
+        },
+        {
+          "kind": "Literal",
+          "Id": "11000000-0000-0000-0000-000000000003",
+          "TypeId": "System.Int32",
+          "ValueJson": "5",
+          "Pins": [],
+          "EditorMetadata": { "X": 40.0, "Y": 240.0 }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "bf000000-0000-0000-0000-000000000001",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.MemberSlotListOps",
+          "MethodName": "Add",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "bfa00000-0000-0000-0000-000000000001",
+              "Name": "list",
+              "Direction": "In",
+              "TypeRef": { "TypeId": "Hrot.AI.Behaviors.Brains.MemberSlotList", "IsArray": false, "GenericArgs": [] },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "bfa00000-0000-0000-0000-000000000002",
+              "Name": "entityPacked",
+              "Direction": "In",
+              "TypeRef": { "TypeId": "System.Int64", "IsArray": false, "GenericArgs": [] },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "bfa00000-0000-0000-0000-000000000003",
+              "Name": "firingSlot",
+              "Direction": "In",
+              "TypeRef": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "bfa00000-0000-0000-0000-000000000004",
+              "Name": "baselineSlot",
+              "Direction": "In",
+              "TypeRef": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "bfa00000-0000-0000-0000-000000000005",
+              "Name": "Return",
+              "Direction": "Out",
+              "TypeRef": { "TypeId": "Hrot.AI.Behaviors.Brains.MemberSlotList", "IsArray": false, "GenericArgs": [] },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": { "X": 340.0, "Y": 160.0 }
+        },
+        {
+          "kind": "SetVariable",
+          "Id": "50000000-0000-0000-0000-000000000001",
+          "VariableId": "c3000000-0000-0000-0000-000000000001",
+          "Pins": [],
+          "EditorMetadata": { "X": 620.0, "Y": 260.0 }
+        },
+        {
+          "kind": "Return",
+          "Id": "8e000000-0000-0000-0000-000000000001",
+          "Status": "Success",
+          "Pins": [],
+          "EditorMetadata": { "X": 860.0, "Y": 260.0 }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "e0000000-0000-0000-0000-000000000001",
+          "FromPinId": "e0a00000-0000-0000-0000-000000000001",
+          "ToNodeId": "50000000-0000-0000-0000-000000000001",
+          "ToPinId": "50a00000-0000-0000-0000-000000000001"
+        },
+        {
+          "FromNodeId": "67000000-0000-0000-0000-000000000001",
+          "FromPinId": "6a000000-0000-0000-0000-0000000000f1",
+          "ToNodeId": "bf000000-0000-0000-0000-000000000001",
+          "ToPinId": "bfa00000-0000-0000-0000-000000000001"
+        },
+        {
+          "FromNodeId": "11000000-0000-0000-0000-000000000001",
+          "FromPinId": "11a00000-0000-0000-0000-000000000001",
+          "ToNodeId": "bf000000-0000-0000-0000-000000000001",
+          "ToPinId": "bfa00000-0000-0000-0000-000000000002"
+        },
+        {
+          "FromNodeId": "11000000-0000-0000-0000-000000000002",
+          "FromPinId": "11a00000-0000-0000-0000-000000000002",
+          "ToNodeId": "bf000000-0000-0000-0000-000000000001",
+          "ToPinId": "bfa00000-0000-0000-0000-000000000003"
+        },
+        {
+          "FromNodeId": "11000000-0000-0000-0000-000000000003",
+          "FromPinId": "11a00000-0000-0000-0000-000000000003",
+          "ToNodeId": "bf000000-0000-0000-0000-000000000001",
+          "ToPinId": "bfa00000-0000-0000-0000-000000000004"
+        },
+        {
+          "FromNodeId": "bf000000-0000-0000-0000-000000000001",
+          "FromPinId": "bfa00000-0000-0000-0000-000000000005",
+          "ToNodeId": "50000000-0000-0000-0000-000000000001",
+          "ToPinId": "50b00000-0000-0000-0000-000000000001"
+        },
+        {
+          "FromNodeId": "50000000-0000-0000-0000-000000000001",
+          "FromPinId": "50c00000-0000-0000-0000-000000000001",
+          "ToNodeId": "8e000000-0000-0000-0000-000000000001",
+          "ToPinId": "8ea00000-0000-0000-0000-000000000001"
+        }
+      ],
+      "EditorMetadata": { "ViewportX": 0, "ViewportY": 0, "ViewportZoom": 0 }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "P1b validation probe (architect Q#8-A/D): proves the load-bearing assumption for the whole wave-core slice -- that a curated struct (Hrot.AI.Behaviors.Brains.MemberSlotList) held as ONE Blueprint WorkingState var round-trips through a curated pure FunctionCall, in real generated code via the REAL Roslyn source generator. Graph: EventEntry -> SetVariable(Tracker) [Value wired from pure FunctionCall MemberSlotListOps.Add(list, entityPacked, firingSlot, baselineSlot), whose 'list' In pin is fed by GetVariable(Tracker) (the default/zeroed struct) and entityPacked/firingSlot/baselineSlot are fed by Literal(777L)/Literal(3)/Literal(5)] -> Return(Success). Does not modify the C# oracle; does not modify the compiler. Minimal smoke test only -- not part of the wave-core feature slice itself.",
+    "Category": null,
+    "Recipe": null
+  }
+}

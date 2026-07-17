@@ -62,6 +62,17 @@ public sealed class StaticTypeRegistry : ITypeRegistry
             ["Fdp.Core.FixedString32"] = Unmanaged("Fdp.Core.FixedString32", 32),
             ["Fdp.Core.FixedString64"] = Unmanaged("Fdp.Core.FixedString64", 64),
 
+            // Curated blittable structs used as Blueprint WorkingState vars (reflection-free compiler ->
+            // FQN + size declared here, exactly like Entity/EqsSensorHandle/FixedString above; the
+            // `global::` acceptance path below deliberately does NOT cover these because it can only guess
+            // a 4-byte enum-int32 size). MemberSlotList (Hill-attack wave core, architect Q#8) is the SoA
+            // runner tracker: int Count (4) + 4 pad + long[8] (64) + byte[8]x3 (24) = 96 (Marshal.SizeOf).
+            // NOTE: for an AiPrimitive WorkingState var the slot is sized at RUNTIME (Marshal.SizeOf<WorkingState>()),
+            // so SizeBytes here is cosmetic for that path; it is declared correctly anyway for the offset/
+            // debug-map bookkeeping that does read it. (A general curated-struct registration mechanism --
+            // vs. hardcoding each here -- is future work if the curated-struct set grows.)
+            ["Hrot.AI.Behaviors.Brains.MemberSlotList"] = Unmanaged("Hrot.AI.Behaviors.Brains.MemberSlotList", 96),
+
             // Common aliases used in test assets
             ["bool"]   = Unmanaged("System.Boolean", 1),
             ["byte"]   = Unmanaged("System.Byte",    1),
