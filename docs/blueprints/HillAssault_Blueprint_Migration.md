@@ -36,13 +36,36 @@ and committed to branch + `main`:
 | ECS component read | `GetComponent` (self + cross-entity Target) | GAP-7 (reads), GAP-2 | ✅ P2 |
 | Read declared Parameters | `GetParameter` | GAP-11 | ✅ (slice-1 DEVIATION 1 closed) |
 | Publish engine events | `PublishEvent` → `world.Bus.Publish` | GAP-3 | ✅ P4 |
-| **Loop** | `FlowForEach` + `GetUnitRoster` | **GAP-1** | 🔨 P1a in progress (design doc) |
-| Comparison node | `Compare` (removes helper) | GAP-12 | ⏳ backlog (task #32) |
+| **Loop (inline `for`)** | `FlowForEach` + `UnitRosterOps` | **GAP-1** | ✅ P1a |
+| **Loop body in-body `if`** | scheduler inline-if (`IrOp_If`) | GAP-1 | ✅ P1b (slice 4) |
+| Comparison node | `Compare` (removes helper) | GAP-12 | ⏳ backlog — **next** |
 | Singleton read | `GetSingleton` | GAP-7 (singleton) | ⏳ narrow-value (needs method-call too) |
 
 Architect Q#5 answered all four next-tier design questions (events→bus, ChannelCommand-only writes,
 inline-`for` loop, close GAP-11). Remaining oracle slices are unblocked once P1 (loop) lands; each still
 uses the **GAP-12 comparator helper** until a native `Compare` node exists.
+
+## P1b + slice 4 (2026-07-17) — in-body branch → inline `if/else`; `AreAllAtBaseline` shipped
+
+P1b closes the last piece of GAP-1: a `Branch` inside a `FlowForEach` body now lowers to a **nested
+inline `if`/`else`** (`IrOp_If`) emitted INSIDE the `for`, not a BFS block split (an inline loop body
+can't span blocks). Scheduler: `Stage5.ScheduleInlineBodyChain` walks the body as nested statements;
+on a `BranchNode` it resolves the condition into the enclosing scope, schedules each arm inline up to
+the branch's **immediate join** (`FindInlineBranchJoin` = nearest common successor; null when an arm
+ends → self-contained arms), emits `IrOp_If`, and resumes the outer chain once at the join. Per-arm
+pin-value-cache isolation prevents arm-scoped values leaking across arms/post-join. `V_FlowForEachRules`
+(BP2050) relaxed to allow Branch; latent still rejected. The **post-loop** branch stays a normal block
+split — only in-body branches go inline.
+
+Slice 4 `Condition_AreAllAtBaseline` is the end-to-end proof (`HillAssault2_AreAllAtBaseline.bp.json`
++ proof test): `FlowForEach` over `UnitRoster` → per-subordinate `GetComponent(Target=CurrentItem,
+NavigationStatus).Result` → `IsArrived` (GAP-12 stopgap) → in-body Branch AND-reduce into WorkingState
+`bool AllAtBaseline` (`if(arrived){}else{AllAtBaseline=false;}`) → post-loop `Return(Success/Failure)`.
+Composes P2 (foreign read) + P1a + P1b. **Finding:** WorkingState fields ARE emitted by the generator
+(`[MarshalAs(I1)] bool AllAtBaseline`) — slice 4 is the first asset to declare a *named* WorkingState
+var and use `Get/SetVariable` against it in AiPrimitive dispatch (resolves to `ws.{Name}`); it works.
+The condition re-inits `AllAtBaseline=true` at graph entry each tick (WorkingState persists in the
+blackboard, so a reset is required — not a default-init). Oracle untouched.
 
 ## Slice order (simplest → hardest)
 

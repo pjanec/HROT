@@ -5,8 +5,10 @@
 > task plan, and the exact build/verify commands. Task-tool state does NOT carry across sessions — the
 > task plan below IS the persisted backlog.
 
-**Repo:** `/home/user/IOS-IG-SimHost-FDP` · **Branch:** `claude/hill-attack-json-slice-3-stages-0nsrpp`
-· **HEAD == main ==** `9e785eb` (keep them in lockstep; fast-forward `main` after each commit).
+**Repo:** `/home/user/IOS-IG-SimHost-FDP` · **Branch:** `claude/hill-attack-blueprints-p1b-uj8cbb`
+· **HEAD == main ==** `50ff6e4` + this doc commit (keep them in lockstep; fast-forward `main` after each commit).
+> Note: an earlier session used branch `claude/hill-attack-json-slice-3-stages-0nsrpp`; the active branch
+> is now `claude/hill-attack-blueprints-p1b-uj8cbb` (same lockstep-with-`main` discipline).
 
 ---
 
@@ -28,7 +30,7 @@ by hand-porting one-off logic. Working name: `HillAssault2` (tank) / `HillAssaul
 
 | Rule | Detail |
 |---|---|
-| **Branch** | Develop/commit/push ONLY to `claude/hill-attack-json-slice-3-stages-0nsrpp`. After each commit: `git checkout main && git merge --ff-only <branch> && git push origin main && git checkout <branch>`. |
+| **Branch** | Develop/commit/push ONLY to `claude/hill-attack-blueprints-p1b-uj8cbb`. After each commit: `git checkout main && git merge --ff-only <branch> && git push origin main && git checkout <branch>`. |
 | **No PR** | Never open a pull request unless explicitly asked. |
 | **Commit trailers** | End every commit body with:<br>`Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`<br>`Claude-Session: https://claude.ai/code/session_015yR8zetnZ4ryyZPBN1oaVE` |
 | **No model id in artifacts** | Never put the model identifier in commits, code, PRs, or pushed files. Chat only. |
@@ -93,14 +95,18 @@ All under `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/`. Node kinds:
 | Read declared Parameters | `GetParameter` → `IrOp_ReadParam` | GAP-11 | ✅ | `96e1a90` |
 | Publish engine events | `PublishEvent` → `world.Bus.Publish` | GAP-3 | ✅ | `a4bd09f` |
 | **Bounded loop (inline `for`)** | `FlowForEach` + `UnitRosterOps` | **GAP-1** | ✅ **P1a** | `9e785eb` |
-| Comparison / bool / arithmetic node | `Compare` (native) | **GAP-12** | ⏳ TODO | — |
-| Loop body with in-body `if` | scheduler inline-if | (P1b) | ⏳ TODO | — |
+| **Loop body with in-body `if`** | scheduler inline-if (`IrOp_If`) | **P1b** | ✅ **P1b** | `50ff6e4` |
+| **Roster AND-reduce condition** | `Condition_AreAllAtBaseline` (slice 4) | GAP-1+2 | ✅ **slice 4** | `50ff6e4` |
+| Comparison / bool / arithmetic node | `Compare` (native) | **GAP-12** | ⏳ TODO (next) | — |
 | Singleton read | `GetSingleton` | GAP-7 singleton | ⏳ low-value | — |
 | Editor node drawers | (When/WaitForChannel/etc.) | GAP-8 | ⏳ Windows track | — |
 
 **Gaps still open:**
-- **GAP-1 (P1b):** in-body `Branch` must emit as inline `if/else` (scheduler models Branch as a BFS block split; the loop body is a single inline statement, so it needs a nested-if variant). Needed for the AND-reduce in slice 4.
-- **GAP-12:** no comparison/bool/arithmetic pure node exists (`ComparisonOperator` lives only inside `WhenNode`). Until built, conditions use a tiny pure C# comparator helper (`HillAssault2NavOps.IsArrived`). Build a native `Compare`/`BinaryOp` node, then retire the helpers.
+- ~~**GAP-1 (P1b):** in-body `Branch` → inline `if/else`.~~ ✅ **Done** (`50ff6e4`): `IrOp_If` +
+  `Stage5.ScheduleInlineBodyChain`/`FindInlineBranchJoin`; BP2050 relaxed to allow Branch (latent still
+  rejected). Slice 4 `Condition_AreAllAtBaseline` shipped on it. Join detection = nearest common
+  successor of the two arms (null when an arm ends → self-contained arms, the slice-4 shape).
+- **GAP-12 (next):** no comparison/bool/arithmetic pure node exists (`ComparisonOperator` lives only inside `WhenNode`). Until built, conditions use a tiny pure C# comparator helper (`HillAssault2NavOps.IsArrived`). Build a native `Compare`/`BinaryOp` node, then retire the helpers.
 - **GAP-10:** `ISimulationView` has no singleton read; AiPrimitive helpers downcast `world` to `EntityRepository`.
 - **Unlowered/broken nodes** (safety net confirmed): squad primitives (`PartitionElements`/`AssignRoles`/`AdvancePhase`/`AcquireSlot`), `CallEventDispatcher`/`BindEventDispatcher`, `ArrayMake`/`ArrayGet` (silent-default bug), `WaitForEvent` (CS0400 vs BP1402 — no valid EventTypeId). Decide per-slice: implement lowering or route around.
 
@@ -109,9 +115,16 @@ All under `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/`. Node kinds:
 ## 6. Remaining task plan (the persisted backlog — do in order)
 
 **Immediate migration path:**
-1. **P1b — inline-`if` loop body.** Extend Stage5 so a `Branch` reachable from a `FlowForEach` "Body" emits as inline `if/else` (nested statements), not a BFS block split. Relax `V_FlowForEachRules` (BP2050) to allow Branch (keep rejecting latent). **Novel scheduler work → hands-on.**
-2. **Slice 4 — `Condition_AreAllAtBaseline`** end-to-end vs oracle: `FlowForEach` over `UnitRoster` → per-subordinate `GetComponent(subordinate, NavigationStatus).Result` → `IsArrived` (GAP-12 helper) → AND-reduce (WorkingState `bool AllAtBaseline`, `if(!arrived) AllAtBaseline=false`) → `Return(AllAtBaseline ? Success : Failure)`. This exercises P2(foreign read)+P1a+P1b+GAP-12 together.
-3. **GAP-12 — native `Compare` node.** Reuse the `ComparisonOperator` enum; lower to a boolean IR expr. Then retrofit `HillAssault2_IsSelfArrived` and slice-4 to be helper-free (the true non-programmer endpoint).
+1. ~~**P1b — inline-`if` loop body.**~~ ✅ **Done** (`50ff6e4`). `IrOp_If` + `ScheduleInlineBodyChain`
+   /`FindInlineBranchJoin` in Stage5; BP2050 relaxed. Reusable for any in-body branch, incl. joins
+   (`if(x){A}else{B}C`) via nearest-common-successor detection.
+2. ~~**Slice 4 — `Condition_AreAllAtBaseline`.**~~ ✅ **Done** (`50ff6e4`).
+   `HillAssault2_AreAllAtBaseline.bp.json` + proof (source-inspection + behavioral TickCore) vs oracle.
+   Emits `for {…; if(IsArrived){}else{ws.AllAtBaseline=false;}}` then post-loop Branch→Return. Confirmed
+   WorkingState fields ARE emitted (`[MarshalAs(I1)] bool`); first asset to use a named WorkingState var.
+3. **GAP-12 — native `Compare` node (NEXT).** Reuse the `ComparisonOperator` enum; lower to a boolean IR
+   expr. Then retrofit `HillAssault2_IsSelfArrived` and slice 4 to be helper-free (drop
+   `HillAssault2NavOps.IsArrived`) — the true non-programmer endpoint.
 4. **Remaining action slices** (each needs PublishEvent/loop now available):
    - `Action_ReverseToBaseline` — MoveTo `ChannelCommand` + terminal `ClearBehaviorEvent` (P4).
    - `Action_AimAndFireSpecific` — Weapon `ChannelCommand` + ammo read (P2) + round-count in WorkingState + target-resolve helper.
@@ -156,7 +169,7 @@ dotnet test Hrot/Subsystems/AI/Hrot.AiEditor.Generators.Tests/ --filter "FullyQu
 # Safety net (per-node coverage + schema round-trip + validator rules):
 dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/ --filter "FullyQualifiedName~NodeCoverage|FullyQualifiedName~SchemaReflection|FullyQualifiedName~Validator"
 ```
-Inspect generated C# under `Hrot/Subsystems/Hrot.AI.Behaviors/obj/GeneratedFiles/Hrot.Blueprints.Generators/.../HillAssault2*_Bp.g.cs` to confirm the emit. Current green baseline at `9e785eb`: real build 0 err; `HillAssault2_*` 13/13; safety net 87 pass / 1 pre-existing skip (`WaitForEventNode_...BUG`).
+Inspect generated C# under `Hrot/Subsystems/Hrot.AI.Behaviors/obj/GeneratedFiles/Hrot.Blueprints.Generators/.../HillAssault2*_Bp.g.cs` to confirm the emit. Current green baseline at `50ff6e4` (P1b + slice 4): real build 0 err; `HillAssault2_*` **18/18**; safety-net subset (NodeCoverage|SchemaReflection|Validator) **149 pass / 1 pre-existing skip** (`WaitForEventNode_...BUG`). Full suites also green: Blueprints.Tests 2033 pass / 10 skip; generator tests 143 pass. (Env note: `dotnet` isn't preinstalled — `sudo apt-get install -y dotnet-sdk-8.0` after `apt-get update`.)
 
 ---
 

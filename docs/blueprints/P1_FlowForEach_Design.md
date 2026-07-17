@@ -59,9 +59,17 @@ Two paths:
 1. **P1a** — `GetUnitRoster` + `UnitRosterOps` + `FlowForEach` + `IrOp_ForEach`, **branch-free body**
    (path A). Proof: `HillAssault2_ForEachSubordinate_PublishClear` (per-subordinate `ClearBehaviorEvent`,
    reusing P4) — proves iteration + curated source + inline-`for` emit + latent-free validation.
-2. **P1b** — inline-`if` body (path B) in the scheduler. Proof: **slice 4 `AreAllAtBaseline`** end-to-end
-   vs the C# oracle (foreach → P2 read → GAP-12 check → AND-reduce → Return).
+2. **P1b** ✅ **DONE** (`50ff6e4`) — inline-`if` body (path B) in the scheduler. `IrOp_If` +
+   `Stage5.ScheduleInlineBodyChain`/`FindInlineBranchJoin`; BP2050 relaxed to allow Branch. Proof:
+   **slice 4 `AreAllAtBaseline`** end-to-end vs the C# oracle (foreach → P2 read → GAP-12 check →
+   AND-reduce → post-loop Return), through the real generator.
 
 Each is a separate reviewed+gated+committed step. P1a de-risks the loop substrate before P1b's
-scheduler surgery. Open question to confirm during P1a: whether `IrOp_ForEach`'s nested-body model
-composes with the existing `_pinValueCache`/CSE (per-block cache must not leak across the loop boundary).
+scheduler surgery.
+
+**Resolved (P1a/P1b):** `IrOp_ForEach`'s nested-body model composes fine with `_pinValueCache`/CSE —
+the loop body snapshots+removes body-added cache keys at the loop boundary, and P1b adds the same
+snapshot/remove **per branch arm**, so arm-scoped values never leak to the sibling arm or the
+post-join scope. Join detection (`FindInlineBranchJoin`) = the nearest common successor of the two
+arms (null when either arm ends → each arm self-contained, e.g. slice 4's unwired-True arm); it also
+handles the reconverging `if(x){A}else{B}C` shape (C emitted once after the `if`).
