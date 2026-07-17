@@ -181,6 +181,19 @@ internal sealed class GraphScheduler
     // Tracks which block each exec node's statements landed in (nodeId → blockId).
     private readonly Dictionary<Guid, int> _execNodeToBlockId = new();
 
+    // Convergent control flow (merge points). A node reached by >= 2 incoming exec edges is a
+    // "merge point": every predecessor path must JUMP to one shared block for it, rather than
+    // re-inlining its downstream chain into each predecessor's block (which would duplicate the
+    // node's code and, for a Branch, produce duplicate goto labels -> CS0140). _mergePoints is
+    // precomputed from exec in-degree; _mergeBlockForNode lazily allocates the one shared block.
+    // Scope: applied at the Branch-arm, linear-chain, FlowForEach-"Completed", and latent-resume
+    // successor sites -- the ways a diamond/join is formed in a valid graph. (A Sequence-branch or
+    // When-arm root cannot also be a merge target in a well-structured graph: its fall-through
+    // continuation is position-dependent, which a shared block cannot express, so those sites keep
+    // their 1-edge behavior.)
+    private readonly HashSet<Guid> _mergePoints = new();
+    private readonly Dictionary<Guid, int> _mergeBlockForNode = new();
+
     // Fall-through redirect: when a branch's chain ends in block X,
     // control continues to _fallThroughTarget[X] instead of falling through.
     private readonly Dictionary<int, IrBlockId> _fallThroughTarget = new();
@@ -210,6 +223,8 @@ internal sealed class GraphScheduler
                 Entry = new IrBlockId(0),
             };
         }
+
+        ComputeMergePoints();
 
         var entryBlockId = AllocBlock("entry");
         _blockBuilders[entryBlockId.Value].SourceNodeId = entryNode.Id;
@@ -376,6 +391,11 @@ internal sealed class GraphScheduler
                         SealFallThrough(blockId, bb, DebugOf(fe));
                         return;
                     }
+                    if (IsMergePoint(feCompleted.Id))
+                    {
+                        bb.Terminator = new IrTerm_Goto(GetOrAllocMergeBlock(feCompleted)) { Debug = DebugOf(fe) };
+                        return;
+                    }
                     node = feCompleted;
                     continue;
 
@@ -418,6 +438,13 @@ internal sealed class GraphScheduler
                     {
                         ReportDroppedExecSuccessors(node);
                         SealFallThrough(blockId, bb, DebugOf(node));
+                        return;
+                    }
+                    if (IsMergePoint(succ.Id))
+                    {
+                        // Convergent successor: jump to its shared block instead of re-inlining its
+                        // chain here (another predecessor also reaches it).
+                        bb.Terminator = new IrTerm_Goto(GetOrAllocMergeBlock(succ)) { Debug = DebugOf(node) };
                         return;
                     }
                     node = succ;
@@ -479,7 +506,15 @@ internal sealed class GraphScheduler
 
         // Enqueue continuation in resume block.
         var continuation = GetSingleExecSuccessor(node);
-        if (continuation is not null)
+        if (continuation is not null && IsMergePoint(continuation.Id))
+        {
+            // Convergent continuation: the resume block jumps to the shared merge block rather than
+            // re-inlining the join here (another path also reaches it).
+            _blockBuilders[resumeBlockId.Value].Terminator =
+                new IrTerm_Goto(GetOrAllocMergeBlock(continuation)) { Debug = DebugOf(node) };
+            _scheduledBlocks.Add(resumeBlockId.Value);
+        }
+        else if (continuation is not null)
             _bfsQueue.Enqueue((resumeBlockId.Value, continuation));
         else
         {
@@ -563,27 +598,44 @@ internal sealed class GraphScheduler
         TagFirstNewStatement(bb.Statements, branchStmtsBefore, bn.Id);
 
         var idShort = bn.Id.ToString("N").Substring(0, 8);
-        var trueBlock  = AllocBlock($"branch_{idShort}_true");
-        var falseBlock = AllocBlock($"branch_{idShort}_false");
+        var (trueSucc, falseSucc) = GetBranchSuccessors(bn);
 
-        // Propagate fall-through target to both branch exit blocks
-        // (so a Branch inside a Sequence branch continues to the next branch).
-        if (_fallThroughTarget.TryGetValue(bb.Id.Value, out var branchFt))
-        {
-            _fallThroughTarget[trueBlock.Value] = branchFt;
-            _fallThroughTarget[falseBlock.Value] = branchFt;
-        }
+        // Fall-through target inherited by FRESH arm blocks (Branch inside a Sequence branch -> the
+        // arm continues to the next sequence branch). A shared merge block does NOT inherit it.
+        IrBlockId? branchFt = _fallThroughTarget.TryGetValue(bb.Id.Value, out var ft) ? ft : (IrBlockId?)null;
+
+        var trueBlock  = ResolveArmBlock(trueSucc,  $"branch_{idShort}_true",  branchFt);
+        var falseBlock = ResolveArmBlock(falseSucc, $"branch_{idShort}_false", branchFt);
 
         bb.Terminator = new IrTerm_Branch(condValue, trueBlock, falseBlock)
         {
             Debug = DebugOf(bn),
         };
+    }
 
-        var (trueSucc, falseSucc) = GetBranchSuccessors(bn);
-        if (trueSucc  is not null) _bfsQueue.Enqueue((trueBlock.Value,  trueSucc));
-        else SealFallThrough(trueBlock.Value, _blockBuilders[trueBlock.Value]);
-        if (falseSucc is not null) _bfsQueue.Enqueue((falseBlock.Value, falseSucc));
-        else SealFallThrough(falseBlock.Value, _blockBuilders[falseBlock.Value]);
+    /// <summary>
+    /// Resolves the target block for one <see cref="BranchNode"/> arm (also usable by any 2-way
+    /// terminator). A merge-point successor shares its single <see cref="GetOrAllocMergeBlock"/> block
+    /// (all predecessors jump to it, scheduled once); a normal successor gets a fresh block enqueued
+    /// for scheduling; a null successor gets a fresh, sealed fall-through block. <paramref name="fallThrough"/>
+    /// is applied only to FRESH/sealed blocks -- a shared merge block's continuation is a property of the
+    /// join node itself, set once when it is scheduled, not of the arm that reached it.
+    /// </summary>
+    private IrBlockId ResolveArmBlock(Node? succ, string label, IrBlockId? fallThrough)
+    {
+        if (succ is null)
+        {
+            var b = AllocBlock(label);
+            if (fallThrough.HasValue) _fallThroughTarget[b.Value] = fallThrough.Value;
+            SealFallThrough(b.Value, _blockBuilders[b.Value]);
+            return b;
+        }
+        if (IsMergePoint(succ.Id))
+            return GetOrAllocMergeBlock(succ);   // shared block; enqueued on first allocation
+        var fresh = AllocBlock(label);
+        if (fallThrough.HasValue) _fallThroughTarget[fresh.Value] = fallThrough.Value;
+        _bfsQueue.Enqueue((fresh.Value, succ));
+        return fresh;
     }
 
     // -----------------------------------------------------------------------
@@ -2640,6 +2692,45 @@ internal sealed class GraphScheduler
         var id = new IrBlockId(_nextBlockId++);
         _blockBuilders.Add(new BlockBuilder(id, label));
         return id;
+    }
+
+    /// <summary>
+    /// Precomputes <see cref="_mergePoints"/>: every node reached by 2+ incoming EXEC edges. Such a
+    /// node is a control-flow join and must be scheduled into ONE shared block that all predecessors
+    /// jump to. Counts only exec-out → (exec-in) links; data links are ignored.
+    /// </summary>
+    private void ComputeMergePoints()
+    {
+        var inDegree = new Dictionary<Guid, int>();
+        foreach (var link in _graph.Links)
+        {
+            if (!_nodeById.TryGetValue(link.FromNodeId, out var fromNode)) continue;
+            var fromPin = fromNode.Pins.FirstOrDefault(p => p.Id == link.FromPinId);
+            if (fromPin is null || !fromPin.IsExec || fromPin.Direction != "Out") continue;
+            inDegree.TryGetValue(link.ToNodeId, out var c);
+            inDegree[link.ToNodeId] = c + 1;
+        }
+        foreach (var kv in inDegree)
+            if (kv.Value >= 2) _mergePoints.Add(kv.Key);
+    }
+
+    /// <summary>True when <paramref name="nodeId"/> is a convergent control-flow join (exec in-degree ≥ 2).</summary>
+    private bool IsMergePoint(Guid nodeId) => _mergePoints.Contains(nodeId);
+
+    /// <summary>
+    /// The single shared block for a merge-point node, allocated on first request. Every predecessor
+    /// path terminates with a <c>Goto</c> to this block; it is walked exactly once (the BFS dedups on
+    /// block id via <see cref="_scheduledBlocks"/>, and per-block <see cref="_pinValueCache"/> reset
+    /// makes the join re-resolve its own pure-data inputs independently of which arm reached it).
+    /// </summary>
+    private IrBlockId GetOrAllocMergeBlock(Node n)
+    {
+        if (_mergeBlockForNode.TryGetValue(n.Id, out var existing))
+            return new IrBlockId(existing);
+        var b = AllocBlock($"merge_{n.Id.ToString("N").Substring(0, 8)}");
+        _mergeBlockForNode[n.Id] = b.Value;
+        _bfsQueue.Enqueue((b.Value, n));
+        return b;
     }
 
     private IrValue AllocValue(IrTypeRef type)

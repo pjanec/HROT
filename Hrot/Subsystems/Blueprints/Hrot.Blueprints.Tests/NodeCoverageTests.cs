@@ -394,6 +394,7 @@ public sealed class NodeCoverageTests
         yield return ("Inline/ReadRankedResult", new[] { BuildReadRankedResultMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetSharedSetShared", new[] { BuildGetSetSharedMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetComponent", new[] { BuildGetComponentMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
+        yield return ("Inline/DiamondMerge", new[] { BuildDiamondMergeMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetParameter", new[] { BuildGetParameterMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/Compare", new[] { BuildCompareMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/BinaryOp", new[] { BuildBinaryOpMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
@@ -970,6 +971,77 @@ public sealed class NodeCoverageTests
     /// needed), exercising the real Stage5_Schedule CompareNode lowering (ResolveDataPin(A/B) -&gt;
     /// IrOp_Compare -&gt; infix "==") through the full Roslyn+ALC pipeline.
     /// </summary>
+    /// <summary>
+    /// Convergent control flow (merge point) regression: a diamond where a SECOND Branch is reached
+    /// from BOTH arms of the first (Branch1.True → Branch2, Branch1.False → Branch2). Before the
+    /// merge-point scheduler fix, Branch2 was scheduled once per predecessor edge, emitting duplicate
+    /// C# goto labels (CS0140) — real Roslyn compilation (FullRoslynPipeline) rejected it. With the
+    /// fix, Branch2 (exec in-degree 2) gets a single shared block both arms jump to, so it compiles.
+    /// </summary>
+    private static BlueprintAsset BuildDiamondMergeMinimalAsset()
+    {
+        var litA = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Boolean", ValueJson = "true" };
+        var litAOut = DataPin("Value", "Out", "System.Boolean");
+        litA.Pins.Add(litAOut);
+
+        var litB = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Boolean", ValueJson = "true" };
+        var litBOut = DataPin("Value", "Out", "System.Boolean");
+        litB.Pins.Add(litBOut);
+
+        var b1In    = ExecPin("In",    "In");
+        var b1True  = ExecPin("True",  "Out");
+        var b1False = ExecPin("False", "Out");
+        var b1Cond  = DataPin("Condition", "In", "System.Boolean");
+        var branch1 = new BranchNode { Id = Guid.NewGuid() };
+        branch1.Pins.AddRange(new[] { b1In, b1True, b1False, b1Cond });
+
+        var b2In    = ExecPin("In",    "In");
+        var b2True  = ExecPin("True",  "Out");
+        var b2False = ExecPin("False", "Out");
+        var b2Cond  = DataPin("Condition", "In", "System.Boolean");
+        var branch2 = new BranchNode { Id = Guid.NewGuid() };   // MERGE POINT (in-degree 2)
+        branch2.Pins.AddRange(new[] { b2In, b2True, b2False, b2Cond });
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var retS   = new ReturnNode { Id = Guid.NewGuid() };
+        var retSIn = ExecPin("ExecIn", "In");
+        retS.Pins.Add(retSIn);
+
+        var retF   = new ReturnNode { Id = Guid.NewGuid() };
+        var retFIn = ExecPin("ExecIn", "In");
+        retF.Pins.Add(retFIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, litA, litB, branch1, branch2, retS, retF },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,   FromPinId = entryOut.Id, ToNodeId = branch1.Id, ToPinId = b1In.Id },
+                new Link { FromNodeId = litA.Id,    FromPinId = litAOut.Id,  ToNodeId = branch1.Id, ToPinId = b1Cond.Id },
+                new Link { FromNodeId = litB.Id,    FromPinId = litBOut.Id,  ToNodeId = branch2.Id, ToPinId = b2Cond.Id },
+                // Both arms of Branch1 converge on Branch2 (the merge point).
+                new Link { FromNodeId = branch1.Id, FromPinId = b1True.Id,   ToNodeId = branch2.Id, ToPinId = b2In.Id },
+                new Link { FromNodeId = branch1.Id, FromPinId = b1False.Id,  ToNodeId = branch2.Id, ToPinId = b2In.Id },
+                new Link { FromNodeId = branch2.Id, FromPinId = b2True.Id,   ToNodeId = retS.Id,    ToPinId = retSIn.Id },
+                new Link { FromNodeId = branch2.Id, FromPinId = b2False.Id,  ToNodeId = retF.Id,    ToPinId = retFIn.Id },
+            },
+        };
+
+        return new BlueprintAsset
+        {
+            AssetId  = Guid.NewGuid(),
+            Name     = "DiamondMergeCoverage",
+            Dispatch = BlueprintDispatchKind.Instance,
+            Graphs   = { graph },
+        };
+    }
+
     private static BlueprintAsset BuildCompareMinimalAsset()
     {
         var litAValuePin = DataPin("Value", "Out", "System.Single");
