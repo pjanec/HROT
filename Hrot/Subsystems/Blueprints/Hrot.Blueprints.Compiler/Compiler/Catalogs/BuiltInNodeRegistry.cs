@@ -92,13 +92,18 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         PublishEventNode          => new[] { ExecIn(), ExecOut() },
 
         // FlowForEach (P1 -- GAP-1): exec-in + "Body"/"Completed" named exec-outs (load-bearing for
-        // Stage5) + a "CurrentItem" Entity data-out. Assets/fixtures author these pins explicitly.
+        // Stage5) + a "CurrentItem" Entity data-out, plus optional loop-introspection data-outs
+        // "CurrentIndex" (0-based iteration index, body-scoped) and "Count" (element count,
+        // loop-invariant). Assets/fixtures author the pins they wire explicitly; unwired outs cost
+        // nothing (Stage5 only binds a pin when the asset actually authors + wires it).
         FlowForEachNode           => new[]
         {
             ExecIn(),
             new("Body",      "Out", true,  ""),
             new("Completed", "Out", true,  ""),
-            Data("CurrentItem", "Out", "Fdp.Core.Entity"),
+            Data("CurrentItem",  "Out", "Fdp.Core.Entity"),
+            Data("CurrentIndex", "Out", "System.Int32"),
+            Data("Count",        "Out", "System.Int32"),
         },
 
         ArrayMakeNode am          => ArrayMakePins(am),

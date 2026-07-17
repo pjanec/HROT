@@ -2363,18 +2363,42 @@ internal sealed class GraphScheduler
         // statement of its own here).
         var itemVar = AllocValue(Stage5_Schedule.EntityType);
 
-        // Bind "CurrentItem" out-pin -> itemVar, then schedule the Body exec-chain INLINE into a
-        // nested statement list. Cache isolation: snapshot the pin-value cache keys, and after the
-        // body remove every entry added during body scheduling (incl. CurrentItem) so body-scoped
-        // values -- which depend on the changing loop var -- never leak to the outer scope.
+        // Optional "Count" out-pin -> loop-invariant element count, hoisted to an OUTER-scope local by
+        // IrOp_ForEach's emit. Bound BEFORE the body-cache snapshot so it survives body-scope cleanup
+        // (the count is valid inside the body AND in the "Completed" chain after the loop).
+        var countPin = fe.Pins.FirstOrDefault(p =>
+            !p.IsExec && p.Direction == "Out"
+            && string.Equals(p.Name, "Count", StringComparison.OrdinalIgnoreCase));
+        IrValue? countVar = null;
+        if (countPin is not null)
+        {
+            var cv = AllocValue(Stage5_Schedule.Int32Type);
+            countVar = cv;
+            _pinValueCache[countPin.Id] = cv;
+        }
+
+        // Bind "CurrentItem" + optional "CurrentIndex" out-pins, then schedule the Body exec-chain
+        // INLINE into a nested statement list. Cache isolation: snapshot the pin-value cache keys, and
+        // after the body remove every entry added during body scheduling (incl. CurrentItem/Index) so
+        // body-scoped values -- which depend on the changing loop var -- never leak to the outer scope.
         var currentItemPin = fe.Pins.FirstOrDefault(p =>
             !p.IsExec && p.Direction == "Out"
             && string.Equals(p.Name, "CurrentItem", StringComparison.OrdinalIgnoreCase));
+        var currentIndexPin = fe.Pins.FirstOrDefault(p =>
+            !p.IsExec && p.Direction == "Out"
+            && string.Equals(p.Name, "CurrentIndex", StringComparison.OrdinalIgnoreCase));
 
         var bodyStmts = new List<IrStatement>();
         var savedKeys = new HashSet<Guid>(_pinValueCache.Keys);
         if (currentItemPin is not null)
             _pinValueCache[currentItemPin.Id] = itemVar;
+        IrValue? indexVar = null;
+        if (currentIndexPin is not null)
+        {
+            var iv = AllocValue(Stage5_Schedule.Int32Type);
+            indexVar = iv;
+            _pinValueCache[currentIndexPin.Id] = iv;
+        }
 
         // P1b (GAP-1): schedule the Body exec-chain inline; an in-body Branch lowers to a nested
         // IrOp_If (see ScheduleInlineBodyChain), NOT a BFS block split -- an inline for-body cannot
@@ -2387,7 +2411,7 @@ internal sealed class GraphScheduler
         bb.Statements.Add(new IrStatement
         {
             Operation = new IrOp_ForEach(
-                fe.CountAccessorFqn, fe.ItemAccessorFqn, rosterVal, itemVar, bodyStmts),
+                fe.CountAccessorFqn, fe.ItemAccessorFqn, rosterVal, itemVar, bodyStmts, countVar, indexVar),
             Debug = DebugOf(fe),
         });
     }

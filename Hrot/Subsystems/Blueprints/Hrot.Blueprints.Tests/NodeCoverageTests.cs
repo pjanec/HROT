@@ -295,6 +295,46 @@ public sealed class NodeCoverageTests
             ". Add a compiling fixture, or a documented exception with a real reason.");
     }
 
+    // ========================================================================
+    // FlowForEach loop-introspection outs (CurrentIndex + Count) -- emitted-C# proof
+    // ========================================================================
+
+    /// <summary>
+    /// Headless proof for the FlowForEach <c>CurrentIndex</c> + <c>Count</c> data-out pins: compiles
+    /// <see cref="BuildFlowForEachIndexCountMinimalAsset"/> through the real Stage1-7 pipeline and
+    /// asserts the generated C# has (a) the element count HOISTED into an outer-scope local
+    /// (<c>var __t.. = global::…UnitRosterOps.Count(__t..);</c>) rather than re-evaluated in the loop
+    /// bound, (b) the loop counter COPIED into a body-scope local
+    /// (<c>var __t.. = __fe..;</c>), and (c) both consumed by the body's arithmetic BinaryOp
+    /// (<c>__t.. - __t..</c>). This locks the emission contract without needing the game assemblies a
+    /// full Roslyn compile would (see the fixture's ValidateOnlyStage1To7 registration).
+    /// </summary>
+    [Fact]
+    public void FlowForEach_IndexAndCount_EmitsHoistedCountAndBodyIndexCopy()
+    {
+        var result = new BlueprintCompiler()
+            .Compile(BuildFlowForEachIndexCountMinimalAsset(), DefaultCompileOptions());
+
+        Assert.True(result.Succeeded,
+            "Compile failed: " + string.Join(", ", result.Diagnostics.Select(d => $"{d.Code}:{d.Message}")));
+        var src = result.GeneratedSource!;
+        Assert.NotNull(src);
+
+        // (a) Count hoisted to an OUTER-scope local: the accessor appears as an assignment RHS
+        // (`= global::…Count(`), which the non-hoisted path never emits (there it is only ever a loop
+        // bound `< global::…Count(`).
+        Assert.Contains("= global::Hrot.AI.Behaviors.Brains.UnitRosterOps.Count(", src);
+        // ...and the for-loop bound is that hoisted local, not a fresh Count() re-eval each pass.
+        Assert.Matches(@"for \(int __fe\d+ = 0; __fe\d+ < __t\d+;", src);
+        Assert.DoesNotMatch(@"< global::Hrot\.AI\.Behaviors\.Brains\.UnitRosterOps\.Count\(", src);
+
+        // (b) Loop counter copied into a body-scope local for CurrentIndex.
+        Assert.Matches(@"var __t\d+ = __fe\d+;", src);
+
+        // (c) Both loop outs consumed by the body's arithmetic BinaryOp (Subtract -> infix ` - `).
+        Assert.Matches(@"__t\d+ - __t\d+", src);
+    }
+
     private enum CoverageMode { FullRoslynPipeline, ValidateOnlyStage1To7 }
 
     // ── coverage asset providers ───────────────────────────────────────────
@@ -414,6 +454,12 @@ public sealed class NodeCoverageTests
         // the REAL Roslyn compile of a FlowForEach graph is proven by
         // HillAssault2_ForEachSubordinate_ProofTests through the actual Hrot.AI.Behaviors build.
         yield return ("Inline/FlowForEach", new[] { BuildFlowForEachMinimalAsset() }, null, CoverageMode.ValidateOnlyStage1To7);
+        // FlowForEach loop-introspection outs (CurrentIndex + Count): same game-assembly reason as
+        // above -> ValidateOnlyStage1To7. The GENERATED C# (count-hoist local + body index-copy +
+        // BinaryOp consuming both) is asserted verbatim by
+        // FlowForEach_IndexAndCount_EmitsHoistedCountAndBodyIndexCopy below; a real Roslyn build lands
+        // with the DispatchAllToBaseline slice which uses these outs.
+        yield return ("Inline/FlowForEachIndexCount", new[] { BuildFlowForEachIndexCountMinimalAsset() }, null, CoverageMode.ValidateOnlyStage1To7);
     }
 
     // ---- recipe loading (mirrors RecipeIntegrityTests.LoadRecipe) -----------
@@ -1506,6 +1552,87 @@ public sealed class NodeCoverageTests
         {
             AssetId   = Guid.NewGuid(),
             Name      = "FlowForEachCoverage",
+            Dispatch  = BlueprintDispatchKind.AiPrimitive,
+            Primitive = new AiPrimitiveDecl
+            {
+                Intent   = AiPrimitiveIntent.Action,
+                Hostings = { AiPrimitiveHosting.BTreeAction },
+            },
+            Graphs    = { graph },
+        };
+    }
+
+    /// <summary>
+    /// EventEntry -&gt; FlowForEach(Body -&gt; SetShared(int "scratch" &lt;- BinaryOp(CurrentIndex -
+    /// Count))) [Completed] -&gt; Return. Exercises the FlowForEach loop-introspection out-pins
+    /// (<c>CurrentIndex</c>, <c>Count</c>): the Count out wires into the arithmetic BinaryOp's B
+    /// operand (proving the loop-invariant count is available in the body scope) and CurrentIndex into
+    /// its A operand (proving the 0-based iteration index is available), so the emitted body reads both
+    /// the outer-scope count local and the body-scope index local. Mirrors
+    /// <see cref="BuildFlowForEachMinimalAsset"/>'s AiPrimitive shape; ValidateOnlyStage1To7 for the
+    /// same game-assembly reason (UnitRosterOps/UnitRoster refs in the generated for-loop).
+    /// </summary>
+    private static BlueprintAsset BuildFlowForEachIndexCountMinimalAsset()
+    {
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var feIn        = ExecPin("In", "In");
+        var feBody      = ExecPin("Body", "Out");
+        var feCompleted = ExecPin("Completed", "Out");
+        var feItem      = DataPin("CurrentItem",  "Out", "Fdp.Core.Entity");
+        var feIndex     = DataPin("CurrentIndex", "Out", "System.Int32");
+        var feCount     = DataPin("Count",        "Out", "System.Int32");
+        var fe = new FlowForEachNode
+        {
+            Id                 = Guid.NewGuid(),
+            SourceComponentFqn = "Fdp.Core.CommandHierarchy.UnitRoster",
+            CountAccessorFqn   = "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count",
+            ItemAccessorFqn    = "Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate",
+        };
+        fe.Pins.AddRange(new[] { feIn, feBody, feCompleted, feItem, feIndex, feCount });
+
+        // index - count (arithmetic BinaryOp): A <- CurrentIndex, B <- Count.
+        var binAPin      = DataPin("A",      "In",  "System.Int32");
+        var binBPin      = DataPin("B",      "In",  "System.Int32");
+        var binResultPin = DataPin("Result", "Out", "System.Int32");
+        var binNode = new BinaryOpNode { Id = Guid.NewGuid(), Operator = ArithmeticOperator.Subtract };
+        binNode.Pins.AddRange(new[] { binAPin, binBPin, binResultPin });
+
+        // SetShared(int) inside the body consumes the BinaryOp result (keeps both loop outs live).
+        var setExecIn   = ExecPin("ExecIn",  "In");
+        var setExecOut  = ExecPin("ExecOut", "Out");
+        var setValuePin = DataPin("Value",   "In",  "System.Int32");
+        var setWritten  = DataPin("Written", "Out", "System.Boolean");
+        var setNode = new SetSharedNode { Id = Guid.NewGuid(), VariableId = "scratch", SharedTypeId = "System.Int32" };
+        setNode.Pins.AddRange(new[] { setExecIn, setExecOut, setValuePin, setWritten });
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecPin("In", "In");
+        ret.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, fe, binNode, setNode, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,   FromPinId = entryOut.Id,     ToNodeId = fe.Id,      ToPinId = feIn.Id },
+                new Link { FromNodeId = fe.Id,      FromPinId = feBody.Id,       ToNodeId = setNode.Id, ToPinId = setExecIn.Id },
+                new Link { FromNodeId = fe.Id,      FromPinId = feIndex.Id,      ToNodeId = binNode.Id, ToPinId = binAPin.Id },
+                new Link { FromNodeId = fe.Id,      FromPinId = feCount.Id,      ToNodeId = binNode.Id, ToPinId = binBPin.Id },
+                new Link { FromNodeId = binNode.Id, FromPinId = binResultPin.Id, ToNodeId = setNode.Id, ToPinId = setValuePin.Id },
+                new Link { FromNodeId = fe.Id,      FromPinId = feCompleted.Id,  ToNodeId = ret.Id,     ToPinId = retIn.Id },
+            },
+        };
+
+        return new BlueprintAsset
+        {
+            AssetId   = Guid.NewGuid(),
+            Name      = "FlowForEachIndexCountCoverage",
             Dispatch  = BlueprintDispatchKind.AiPrimitive,
             Primitive = new AiPrimitiveDecl
             {

@@ -297,10 +297,27 @@ internal static class StatementEmitter
                 // no defining statement of its own). Body statements were scheduled inline by Stage5.
                 string roster  = $"__t{op.RosterValue.Index}";
                 string loopVar = $"__fe{op.ItemVar.Index}";
-                e.WriteLine($"for (int {loopVar} = 0; {loopVar} < global::{op.CountAccessorFqn}({roster}); {loopVar}++)");
+                // "Count" out-pin (op.CountVar): hoist the element count into an OUTER-scope local and
+                // reuse it as the loop bound (evaluated once). Otherwise re-evaluate inline each pass
+                // (the original P1a shape -- keeps existing goldens byte-identical).
+                string bound;
+                if (op.CountVar is not null)
+                {
+                    e.WriteLine($"var __t{op.CountVar.Value.Index} = global::{op.CountAccessorFqn}({roster});");
+                    bound = $"__t{op.CountVar.Value.Index}";
+                }
+                else
+                {
+                    bound = $"global::{op.CountAccessorFqn}({roster})";
+                }
+                e.WriteLine($"for (int {loopVar} = 0; {loopVar} < {bound}; {loopVar}++)");
                 e.WriteLine("{");
                 e.Indent();
                 e.WriteLine($"var __t{op.ItemVar.Index} = global::{op.ItemAccessorFqn}({roster}, {loopVar});");
+                // "CurrentIndex" out-pin (op.IndexVar): copy the loop counter into a body-scoped local so
+                // body statements reference the 0-based index by the normal __t convention.
+                if (op.IndexVar is not null)
+                    e.WriteLine($"var __t{op.IndexVar.Value.Index} = {loopVar};");
                 foreach (var bodyStmt in op.Body)
                     Emit(e, bodyStmt);
                 e.Outdent();

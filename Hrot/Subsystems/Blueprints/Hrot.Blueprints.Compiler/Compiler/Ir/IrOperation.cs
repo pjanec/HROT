@@ -119,13 +119,26 @@ public sealed record IrOp_PublishBusEvent(
 /// (it has no defining statement of its own). <see cref="Body"/> is a NESTED statement list scheduled
 /// inline by Stage5 -- NOT a BFS block -- so there is no per-iteration block / topological cycle.
 /// P1a bodies are latent-free AND branch-free (Stage2 BP2050 enforces).</para>
+/// <para>Optional loop-introspection outs (bound by Stage5 only when the corresponding FlowForEach
+/// data-out pin is wired):
+/// <list type="bullet">
+/// <item><see cref="CountVar"/> -- when set, the element count is hoisted into an OUTER-scope local
+///   (<c>var __t{CountVar.Index} = global::{CountAccessorFqn}({RosterValue});</c>) emitted just before
+///   the <c>for</c>, and that local is reused as the loop bound (count evaluated once). The value is
+///   loop-invariant and in scope both inside the body and in the "Completed" chain.</item>
+/// <item><see cref="IndexVar"/> -- when set, the loop counter is copied into a BODY-scoped local
+///   (<c>var __t{IndexVar.Index} = __fe{ItemVar.Index};</c>) at the top of the body, so body statements
+///   reference the current 0-based index by the normal <c>__t</c> convention.</item>
+/// </list></para>
 /// </summary>
 public sealed record IrOp_ForEach(
     string CountAccessorFqn,
     string ItemAccessorFqn,
     IrValue RosterValue,
     IrValue ItemVar,
-    IReadOnlyList<IrStatement> Body) : IrOperation;
+    IReadOnlyList<IrStatement> Body,
+    IrValue? CountVar = null,
+    IrValue? IndexVar = null) : IrOperation;
 
 /// <summary>
 /// P1b (GAP-1) -- structured, inline <c>if</c>/<c>else</c>. Emitted ONLY by Stage5 for a
