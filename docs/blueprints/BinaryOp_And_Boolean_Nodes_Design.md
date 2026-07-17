@@ -23,10 +23,32 @@ and the operator enum is arithmetic.
 
 Gates: real build 0 err; full Blueprints.Tests + generator suites green.
 
-## Boolean `And`/`Or`/`Not` (PENDING — do not build without a nod)
+## Boolean `And`/`Or`/`Not` (✅ DONE — `7c84b01`)
 
-Same machinery: `And`/`Or` = binary (`&&`/`||`) → bool; `Not` = unary (`!`) → bool. **Architect Q6-A
-explicitly said keep boolean composition as `Branch` nodes / C# helpers, not speculative native nodes** —
-so these are held pending a user/architect go-ahead (the user's "build wider" steer greenlights it, but it
-contradicts a fresh explicit ruling, so we flag rather than silently build). If approved: mirror the
-`BinaryOp` recipe with a `BooleanOperator` enum + a unary `Not` node (single operand pin).
+**Decision record:** architect Q6-A leaned "keep boolean composition as `Branch`/helper". After a full
+control-flow-vs-data-flow tradeoff walkthrough (see chat), the **user explicitly chose to add all three**
+for authoring ergonomics (flat compound conditions, reusable/nameable bools, explicit negation). **Known
+caveat, accepted:** these are DATA-flow nodes, so **no short-circuit** — an `And`/`Or` node resolves BOTH
+operands as values before combining (unlike nested `Branch`es, which short-circuit). Harmless here because
+condition inputs are pure, side-effect-free reads (`Compare`/`GetComponent`/`HasComponent`) — at worst a
+wasted read, never a wrong result or an unwanted side effect. `Branch` remains the execution-routing node;
+these compose the *condition value* that feeds it.
+
+Two nodes, same pure-data + infix machinery as `Compare`:
+
+**`BooleanOpNode` (And/Or — binary):**
+- `enum BooleanOperator { And, Or }`; `[JsonDerivedType(typeof(BooleanOpNode),"BooleanOp")]`; `BooleanOpNode : Node { BooleanOperator Operator }`.
+- Pins (asset-authored, mirror `CompareNode`): `A` in (bool), `B` in (bool), `Result` out (bool).
+- Registry `Array.Empty`; Stage0 `NodeRequiresExecFallback => false`.
+- Stage5 `case BooleanOpNode` — mirror `CompareNode` exactly (result typed `BoolType`), emit `IrOp_BooleanOp(a, b, op)`.
+- `IrOp_BooleanOp(IrValue Left, IrValue Right, BooleanOperator Op)`; emit `var __t{idx} = __t{L} {infix} __t{R};` with `And => "&&", Or => "||"`.
+
+**`NotNode` (unary):**
+- `[JsonDerivedType(typeof(NotNode),"Not")]`; `NotNode : Node` (no operator prop).
+- Pins: `A` in (bool), `Result` out (bool) — single operand.
+- Registry `Array.Empty`; Stage0 `NodeRequiresExecFallback => false`.
+- Stage5 `case NotNode` — resolve the single `A` in-pin, emit `IrOp_Not(a)` into a `BoolType` value, cache `Result`.
+- `IrOp_Not(IrValue Operand)`; emit `var __t{idx} = !__t{Operand.Index};`.
+
+Coverage: `BuildBooleanOpMinimalAsset` (`true && false`) + `BuildNotMinimalAsset` (`!true`), full Roslyn
+pipeline. Gates: real build 0 err; full Blueprints.Tests + generator suites green.

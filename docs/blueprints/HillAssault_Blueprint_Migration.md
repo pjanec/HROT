@@ -40,6 +40,7 @@ and committed to branch + `main`:
 | **Loop body in-body `if`** | scheduler inline-if (`IrOp_If`) | GAP-1 | ✅ P1b (slice 4) |
 | Comparison node | `Compare` (`IrOp_Compare`) | GAP-12 | ✅ (helper retired; full 6-op set) |
 | Arithmetic node | `BinaryOp` (`IrOp_BinaryOp`) | round-out | ✅ (`+ - * / %`; ahead of demand) |
+| Boolean-logic nodes | `BooleanOp` (And/Or) + `Not` | round-out | ✅ (data-flow condition composition; user-approved) |
 | Singleton read | `GetSingleton` | GAP-7 (singleton) | ⏳ narrow-value (needs method-call too) |
 
 Architect Q#5 answered all four next-tier design questions (events→bus, ChannelCommand-only writes,

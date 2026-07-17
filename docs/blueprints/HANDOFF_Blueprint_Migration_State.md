@@ -99,6 +99,7 @@ All under `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/`. Node kinds:
 | **Roster AND-reduce condition** | `Condition_AreAllAtBaseline` (slice 4) | GAP-1+2 | ✅ **slice 4** | `50ff6e4` |
 | **Native comparison node** | `Compare` (`IrOp_Compare`, full 6-op set) | **GAP-12** | ✅ **GAP-12** | `d763dab` |
 | **Native arithmetic node** | `BinaryOp` (`IrOp_BinaryOp`, `+ - * / %`) | round-out | ✅ | `5481e7d` |
+| **Native boolean-logic nodes** | `BooleanOp` (And/Or) + `Not` | round-out | ✅ | `7c84b01` |
 | Singleton read | `GetSingleton` | GAP-7 singleton | ⏳ low-value | — |
 | Editor node drawers | (When/WaitForChannel/etc.) | GAP-8 | ⏳ Windows track | — |
 
@@ -177,7 +178,7 @@ dotnet test Hrot/Subsystems/AI/Hrot.AiEditor.Generators.Tests/ --filter "FullyQu
 # Safety net (per-node coverage + schema round-trip + validator rules):
 dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/ --filter "FullyQualifiedName~NodeCoverage|FullyQualifiedName~SchemaReflection|FullyQualifiedName~Validator"
 ```
-Inspect generated C# under `Hrot/Subsystems/Hrot.AI.Behaviors/obj/GeneratedFiles/Hrot.Blueprints.Generators/.../HillAssault2*_Bp.g.cs` to confirm the emit. Current green baseline at `5481e7d` (P1b + slice 4 + GAP-12 `Compare` + `BinaryOp`): real build 0 err / 0 warn; `HillAssault2_*` **18/18**; safety-net subset (NodeCoverage|SchemaReflection|Validator) **153 pass / 1 pre-existing skip** (`WaitForEventNode_...BUG`). Full suites also green: Blueprints.Tests 2037 pass / 10 skip; generator tests 143 pass. (Env note: `dotnet` isn't preinstalled — `sudo apt-get install -y dotnet-sdk-8.0` after `apt-get update`.)
+Inspect generated C# under `Hrot/Subsystems/Hrot.AI.Behaviors/obj/GeneratedFiles/Hrot.Blueprints.Generators/.../HillAssault2*_Bp.g.cs` to confirm the emit. Current green baseline at `7c84b01` (P1b + slice 4 + `Compare`/`BinaryOp`/`BooleanOp`/`Not`): real build 0 err / 0 warn; `HillAssault2_*` **18/18**; safety-net subset (NodeCoverage|SchemaReflection|Validator) **157 pass / 1 pre-existing skip** (`WaitForEventNode_...BUG`). Full suites also green (re-run after each change). Native operator vocabulary now complete: `Compare` (6 comparisons) + `BinaryOp` (`+ - * / %`) + `BooleanOp` (And/Or) + `Not`. **In flight:** `Action_ReverseToBaseline` (design: `ReverseToBaseline_Slice_Design.md`; adds a curated `VectorOps.Vec3` helper; DEVIATION = `ClearBehaviorEvent` on success only). (Env note: `dotnet` isn't preinstalled — `sudo apt-get install -y dotnet-sdk-8.0` after `apt-get update`.)
 
 ---
 
