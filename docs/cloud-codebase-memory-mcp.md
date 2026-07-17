@@ -20,19 +20,28 @@ VS Code on Windows, plus the **.NET 8 SDK** to build/test the solution.
 MCP servers in `.mcp.json` are spawned **when the session starts**, before any
 hook or agent action. So the binary must already be on disk at session start.
 
-- **Recommended - environment Setup script.** In the web environment settings,
-  put this in the **Setup script** field:
-  ```bash
-  bash scripts/cloud-bootstrap.sh
-  ```
-  It runs before the session (and the result is cached), so `codebase-memory-mcp`
-  connects on **session #1**.
+- **Recommended - environment Setup script.** A setup script runs as root
+  **before Claude Code launches**, but it is attached to the *environment*, not
+  the repo - **your repository is not checked out at a known path yet**, so a
+  command like `bash scripts/cloud-bootstrap.sh` fails with `No such file or
+  directory` (exit 127). The setup script must be **self-contained**. Paste the
+  **contents of** [`scripts/cloud-setup.sh`](../scripts/cloud-setup.sh) into the
+  **Setup script** field (Environment settings -> Setup script). It installs
+  .NET 8 + the MCP binary to fixed absolute paths, so `codebase-memory-mcp`
+  connects on **session #1**. (Result is cached for later sessions.)
 
 - **Zero-config fallback - in-session.** Do nothing in the environment. At the
-  start of a session say `/cloud-bootstrap` (or let `.claude/CLAUDE.md` prompt it).
-  The binary installs and is cached, but the MCP tools only light up on the
-  **next** session. Fine for `dotnet` (usable immediately); a one-session lag for
-  the graph tools.
+  start of a session say `/cloud-bootstrap` (runs `scripts/cloud-bootstrap.sh`,
+  which *can* use repo files because the repo is checked out in-session). The
+  binary installs and is cached, but the MCP tools only light up on the **next**
+  session (MCP servers spawn at session start, before the agent can install
+  anything). Fine for `dotnet` (usable immediately); a one-session lag for the
+  graph tools.
+
+> Why two scripts? `cloud-setup.sh` is self-contained for the pre-session Setup
+> field (no repo access); `cloud-bootstrap.sh` additionally indexes the repo and
+> is meant to run in-session where `$CLAUDE_PROJECT_DIR` exists. Both install the
+> same .NET 8 SDK and the same MCP binary from the same official sources.
 
 ## Network policy
 
