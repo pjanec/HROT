@@ -37,6 +37,7 @@ internal static class Stage2_Validate
         new V_TypeReferences(),
         new V_DeterminismOrdering(),
         new V_WhenNodeRules(),
+        new V_FlowForEachRules(),
         new V_ReadEqsResultNodeRules(),
         new V_SpawnEqsSensorNodeRules(),
         new V_SharedStateRules(),
@@ -1428,5 +1429,65 @@ internal sealed class V_ExecOutFanOut : IValidator
                 }
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// V_FlowForEachRules (P1 -- GAP-1, BP2050)
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// P1 (GAP-1): a <see cref="FlowForEachNode"/>'s "Body" exec-subgraph must be a synchronous,
+/// latent-free sub-DAG -- and (P1a) branch-free. The body lowers to an inline C# <c>for</c> whose
+/// statements are scheduled inline (not BFS blocks), so a latent node (which needs a suspend/resume
+/// block split) or a Branch (which needs a block split, deferred to P1b) cannot appear inside it.
+/// </summary>
+internal sealed class V_FlowForEachRules : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        foreach (var graph in asset.Graphs)
+        {
+            var nodeById = graph.Nodes.ToDictionary(n => n.Id);
+            foreach (var fe in graph.Nodes.OfType<FlowForEachNode>())
+            {
+                var bodyPin = fe.Pins.FirstOrDefault(p => p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, "Body", StringComparison.OrdinalIgnoreCase));
+                if (bodyPin is null) continue;
+
+                var visited = new HashSet<Guid>();
+                var queue = new Queue<Node>();
+                foreach (var start in ExecTargets(graph, fe.Id, bodyPin.Id, nodeById))
+                    queue.Enqueue(start);
+
+                while (queue.Count > 0)
+                {
+                    var n = queue.Dequeue();
+                    if (!visited.Add(n.Id)) continue;
+
+                    if (n is BranchNode)
+                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2050,
+                            "FlowForEach body must be branch-free (P1a): a Branch node is reachable from the loop 'Body'.",
+                            asset.AssetId, graph.Id, n.Id));
+                    else if (n is LatentDelayNode or WaitForChannelNode or WaitForEventNode or WhenNode)
+                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2050,
+                            $"FlowForEach body must be latent-free: a latent '{n.GetType().Name}' is reachable from the loop 'Body'.",
+                            asset.AssetId, graph.Id, n.Id));
+
+                    foreach (var outPin in n.Pins.Where(p => p.IsExec && p.Direction == "Out"))
+                        foreach (var succ in ExecTargets(graph, n.Id, outPin.Id, nodeById))
+                            queue.Enqueue(succ);
+                }
+            }
+        }
+    }
+
+    private static IEnumerable<Node> ExecTargets(
+        Graph graph, Guid fromNode, Guid fromPin, Dictionary<Guid, Node> nodeById)
+    {
+        foreach (var link in graph.Links)
+            if (link.FromNodeId == fromNode && link.FromPinId == fromPin
+                && nodeById.TryGetValue(link.ToNodeId, out var target))
+                yield return target;
     }
 }

@@ -361,6 +361,24 @@ internal sealed class GraphScheduler
                     ScheduleInlineActionNode(cc, bb);
                     return;
 
+                case FlowForEachNode fe:
+                    // P1 (GAP-1) -- inline bounded loop. Emits the self/roster read + IrOp_ForEach
+                    // (with the Body scheduled INLINE as a nested statement list) into THIS block,
+                    // then continues the OUTER exec chain at "Completed" in the SAME block (the loop
+                    // is a single statement, not a per-iteration block split).
+                    _execNodeToBlockId[fe.Id] = blockId;
+                    bb.SourceNodeId ??= fe.Id;
+                    ScheduleFlowForEachNode(fe, bb);
+                    var feCompleted = GetExecSuccessorByPinName(fe, "Completed");
+                    if (feCompleted is null)
+                    {
+                        ReportDroppedExecSuccessors(fe);
+                        SealFallThrough(blockId, bb, DebugOf(fe));
+                        return;
+                    }
+                    node = feCompleted;
+                    continue;
+
                 case SequenceNode seq:
                     ScheduleSequenceNode(seq, bb);
                     return;
@@ -2098,6 +2116,85 @@ internal sealed class GraphScheduler
                 falseSucc = target;
         }
         return (trueSucc, falseSucc);
+    }
+
+    // -----------------------------------------------------------------------
+    // FlowForEach (P1 -- GAP-1) inline loop scheduling
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// P1a: schedules a <see cref="FlowForEachNode"/> as an inline bounded loop. Emits (into the
+    /// CURRENT block) the reflection-free self/roster read (<see cref="IrOp_Self"/> +
+    /// <see cref="IrOp_GetComponentRO"/> on the baked <c>SourceComponentFqn</c> -- reusing P2's exact
+    /// pattern), then schedules the "Body" exec-chain INLINE into a nested statement list (NOT the BFS
+    /// block queue) with the "CurrentItem" out-pin bound to the per-iteration item value, then emits
+    /// <see cref="IrOp_ForEach"/>. The caller (<c>ScheduleBlock</c>) continues the outer chain at
+    /// "Completed" in the same block. The body must be branch-free + latent-free (Stage2 BP2050).
+    /// </summary>
+    private void ScheduleFlowForEachNode(FlowForEachNode fe, BlockBuilder bb)
+    {
+        // self + roster component read (reuse P2 machinery), into the OUTER block, before the loop.
+        var selfVal = AllocValue(Stage5_Schedule.EntityType);
+        bb.Statements.Add(new IrStatement
+        {
+            ResultValue = selfVal,
+            Operation   = new IrOp_Self(),
+            Debug       = DebugOf(fe),
+        });
+        var rosterTypeRef = new IrTypeRef { FullName = fe.SourceComponentFqn, IsUnmanaged = true, SizeBytes = 0 };
+        var rosterVal = AllocValue(rosterTypeRef);
+        bb.Statements.Add(new IrStatement
+        {
+            ResultValue = rosterVal,
+            Operation   = new IrOp_GetComponentRO(fe.SourceComponentFqn, selfVal, rosterTypeRef),
+            Debug       = DebugOf(fe),
+        });
+
+        // Per-iteration item value -- declared INSIDE the emitted for by IrOp_ForEach (no defining
+        // statement of its own here).
+        var itemVar = AllocValue(Stage5_Schedule.EntityType);
+
+        // Bind "CurrentItem" out-pin -> itemVar, then schedule the Body exec-chain INLINE into a
+        // nested statement list. Cache isolation: snapshot the pin-value cache keys, and after the
+        // body remove every entry added during body scheduling (incl. CurrentItem) so body-scoped
+        // values -- which depend on the changing loop var -- never leak to the outer scope.
+        var currentItemPin = fe.Pins.FirstOrDefault(p =>
+            !p.IsExec && p.Direction == "Out"
+            && string.Equals(p.Name, "CurrentItem", StringComparison.OrdinalIgnoreCase));
+
+        var bodyStmts = new List<IrStatement>();
+        var savedKeys = new HashSet<Guid>(_pinValueCache.Keys);
+        if (currentItemPin is not null)
+            _pinValueCache[currentItemPin.Id] = itemVar;
+
+        for (var bodyNode = GetExecSuccessorByPinName(fe, "Body"); bodyNode is not null;
+             bodyNode = GetSingleExecSuccessor(bodyNode))
+        {
+            _execNodeToBlockId[bodyNode.Id] = bb.Id.Value;
+            EmitNodeStatements(bodyNode, bodyStmts);
+        }
+
+        foreach (var k in _pinValueCache.Keys.Where(k => !savedKeys.Contains(k)).ToList())
+            _pinValueCache.Remove(k);
+
+        bb.Statements.Add(new IrStatement
+        {
+            Operation = new IrOp_ForEach(
+                fe.CountAccessorFqn, fe.ItemAccessorFqn, rosterVal, itemVar, bodyStmts),
+            Debug = DebugOf(fe),
+        });
+    }
+
+    /// <summary>Resolves the exec successor reached via a specific named exec-out pin (e.g. "Body"/"Completed").</summary>
+    private Node? GetExecSuccessorByPinName(Node node, string pinName)
+    {
+        var pin = node.Pins.FirstOrDefault(p =>
+            p.IsExec && p.Direction == "Out"
+            && string.Equals(p.Name, pinName, StringComparison.OrdinalIgnoreCase));
+        if (pin is null) return null;
+        var link = _graph.Links.FirstOrDefault(l => l.FromNodeId == node.Id && l.FromPinId == pin.Id);
+        if (link is null) return null;
+        return _nodeById.TryGetValue(link.ToNodeId, out var target) ? target : null;
     }
 
     // -----------------------------------------------------------------------

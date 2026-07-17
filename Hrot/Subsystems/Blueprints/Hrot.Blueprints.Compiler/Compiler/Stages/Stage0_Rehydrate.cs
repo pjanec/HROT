@@ -661,6 +661,8 @@ internal static class Stage0_Rehydrate
         ReadEqsResultNode     => false,
         // PublishEvent (P4 -- GAP-3) IS an exec node -- unlike the pure GetX nodes above.
         PublishEventNode      => true,
+        // FlowForEach (P1 -- GAP-1) IS an exec node (In + Body/Completed exec-outs).
+        FlowForEachNode       => true,
         _                     => true,
     };
 

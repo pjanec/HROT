@@ -100,6 +100,8 @@ public static class DiagnosticCodes
     public const string BP2041 = "BP2041";  // SharedTypeId does not resolve to a known unmanaged/blittable struct type
     public const string BP2042 = "BP2042";  // GetShared/SetShared in unsupported (Library) dispatch -- no `self` in scope
 
+    public const string BP2050 = "BP2050";  // FlowForEach body contains a latent or (P1a) Branch node -- body must be a synchronous, latent-free (and branch-free) sub-DAG
+
     // Stage 3 -- Normalize
     public const string BP3010 = "BP3010";
     public const string BP3011 = "BP3011";

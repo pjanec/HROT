@@ -404,6 +404,11 @@ public sealed class NodeCoverageTests
         // compile of a PublishEvent graph is proven separately by HillAssault2_ClearBehavior_ProofTests
         // through the actual Hrot.AI.Behaviors build. Same evidence bar + reason as CallPeerBlueprint.
         yield return ("Inline/PublishEvent", new[] { BuildPublishEventMinimalAsset() }, null, CoverageMode.ValidateOnlyStage1To7);
+        // FlowForEach (P1 -- GAP-1): ValidateOnlyStage1To7 -- the generated for-loop references
+        // UnitRosterOps/UnitRoster (game assemblies the coverage-Roslyn compile does not reference);
+        // the REAL Roslyn compile of a FlowForEach graph is proven by
+        // HillAssault2_ForEachSubordinate_ProofTests through the actual Hrot.AI.Behaviors build.
+        yield return ("Inline/FlowForEach", new[] { BuildFlowForEachMinimalAsset() }, null, CoverageMode.ValidateOnlyStage1To7);
     }
 
     // ---- recipe loading (mirrors RecipeIntegrityTests.LoadRecipe) -----------
@@ -1070,6 +1075,71 @@ public sealed class NodeCoverageTests
         {
             AssetId   = Guid.NewGuid(),
             Name      = "PublishEventCoverage",
+            Dispatch  = BlueprintDispatchKind.AiPrimitive,
+            Primitive = new AiPrimitiveDecl
+            {
+                Intent   = AiPrimitiveIntent.Action,
+                Hostings = { AiPrimitiveHosting.BTreeAction },
+            },
+            Graphs    = { graph },
+        };
+    }
+
+    /// <summary>
+    /// EventEntry -&gt; FlowForEach(Body -&gt; PublishEvent(Target &lt;- CurrentItem)) [Completed] -&gt; Return
+    /// (P1 -- GAP-1). Exercises the FlowForEachNode Stage5 lowering (self/roster GetComponentRO + inline
+    /// body scheduling + IrOp_ForEach) and the branch-free/latent-free body. AiPrimitive/Action dispatch.
+    /// Registered ValidateOnlyStage1To7 (see the yield-return comment) so it does not need the
+    /// coverage-Roslyn compile to reference UnitRosterOps/UnitRoster.
+    /// </summary>
+    private static BlueprintAsset BuildFlowForEachMinimalAsset()
+    {
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var feIn        = ExecPin("In", "In");
+        var feBody      = ExecPin("Body", "Out");
+        var feCompleted = ExecPin("Completed", "Out");
+        var feItem      = DataPin("CurrentItem", "Out", "Fdp.Core.Entity");
+        var fe = new FlowForEachNode
+        {
+            Id                 = Guid.NewGuid(),
+            SourceComponentFqn = "Fdp.Core.CommandHierarchy.UnitRoster",
+            CountAccessorFqn   = "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count",
+            ItemAccessorFqn    = "Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate",
+        };
+        fe.Pins.AddRange(new[] { feIn, feBody, feCompleted, feItem });
+
+        var pubIn     = ExecPin("In", "In");
+        var pubOut    = ExecPin("Out", "Out");
+        var pubTarget = DataPin("Target", "In", "Fdp.Core.Entity");
+        var pub = new PublishEventNode { Id = Guid.NewGuid(), EventId = "ClearBehaviorEvent" };
+        pub.Pins.AddRange(new[] { pubIn, pubOut, pubTarget });
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecPin("In", "In");
+        ret.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, fe, pub, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id, FromPinId = entryOut.Id,    ToNodeId = fe.Id,  ToPinId = feIn.Id },
+                new Link { FromNodeId = fe.Id,    FromPinId = feBody.Id,      ToNodeId = pub.Id, ToPinId = pubIn.Id },
+                new Link { FromNodeId = fe.Id,    FromPinId = feItem.Id,      ToNodeId = pub.Id, ToPinId = pubTarget.Id },
+                new Link { FromNodeId = fe.Id,    FromPinId = feCompleted.Id, ToNodeId = ret.Id, ToPinId = retIn.Id },
+            },
+        };
+
+        return new BlueprintAsset
+        {
+            AssetId   = Guid.NewGuid(),
+            Name      = "FlowForEachCoverage",
             Dispatch  = BlueprintDispatchKind.AiPrimitive,
             Primitive = new AiPrimitiveDecl
             {

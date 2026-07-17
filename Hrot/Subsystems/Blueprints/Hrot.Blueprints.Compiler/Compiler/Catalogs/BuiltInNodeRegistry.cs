@@ -74,6 +74,16 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         // PublishEvent (P4 -- GAP-3): catalog-driven exec node, mirrors ChannelCommandNode.
         PublishEventNode          => new[] { ExecIn(), ExecOut() },
 
+        // FlowForEach (P1 -- GAP-1): exec-in + "Body"/"Completed" named exec-outs (load-bearing for
+        // Stage5) + a "CurrentItem" Entity data-out. Assets/fixtures author these pins explicitly.
+        FlowForEachNode           => new[]
+        {
+            ExecIn(),
+            new("Body",      "Out", true,  ""),
+            new("Completed", "Out", true,  ""),
+            Data("CurrentItem", "Out", "Fdp.Core.Entity"),
+        },
+
         ArrayMakeNode am          => ArrayMakePins(am),
         ArrayGetNode              => ArrayGetPins(),
 

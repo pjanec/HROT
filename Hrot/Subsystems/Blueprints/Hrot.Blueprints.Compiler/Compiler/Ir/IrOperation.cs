@@ -107,6 +107,27 @@ public sealed record IrOp_PublishBusEvent(
     bool Managed = false) : IrOperation;
 
 /// <summary>
+/// P1 (GAP-1) -- structured, bounded, latent-free inline foreach. Emits:
+///   for (int __feN = 0; __feN &lt; global::{CountAccessorFqn}({RosterValue}); __feN++)
+///   {
+///       var __t{ItemVar.Index} = global::{ItemAccessorFqn}({RosterValue}, __feN);
+///       {Body statements, emitted inline...}
+///   }
+/// <para><see cref="RosterValue"/> is the <c>ref readonly</c> local produced by an
+/// <see cref="IrOp_GetComponentRO"/> on <c>self</c> (Stage5 emits that read just before this op).
+/// <see cref="ItemVar"/> is the per-iteration item local, DECLARED by this op's emit inside the loop
+/// (it has no defining statement of its own). <see cref="Body"/> is a NESTED statement list scheduled
+/// inline by Stage5 -- NOT a BFS block -- so there is no per-iteration block / topological cycle.
+/// P1a bodies are latent-free AND branch-free (Stage2 BP2050 enforces).</para>
+/// </summary>
+public sealed record IrOp_ForEach(
+    string CountAccessorFqn,
+    string ItemAccessorFqn,
+    IrValue RosterValue,
+    IrValue ItemVar,
+    IReadOnlyList<IrStatement> Body) : IrOperation;
+
+/// <summary>
 /// AN8 — Inline-latent non-channel behavior-action invocation.
 /// Emitted by Stage 5 for a <c>ChannelCommandNode</c> whose <c>ActionFqn</c> is non-null.
 /// The action is called synchronously; on <c>NodeStatus.Running</c> the graph suspends inline

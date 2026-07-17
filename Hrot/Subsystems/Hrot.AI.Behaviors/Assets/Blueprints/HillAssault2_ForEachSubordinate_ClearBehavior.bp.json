@@ -1,0 +1,110 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
+  "AssetId": "ead05968-d6d7-4e2f-8133-6782fd733bb4",
+  "Name": "HillAssault2_ForEachSubordinate_ClearBehavior",
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "Primitive": {
+    "Intent": "Action",
+    "Hostings": ["BTreeAction"]
+  },
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "07dc18fd-18ef-432a-b2bd-b592d0a4f279",
+      "Name": "Main",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "3b484333-073e-4aab-ace0-8c15e657bb7b",
+          "EventTypeId": "",
+          "Pins": [
+            { "Id": "a2c15581-fe01-4c82-a6b4-15a5a9a86e62", "Name": "Out", "Direction": "Out", "IsExec": true, "TypeRef": {} }
+          ],
+          "EditorMetadata": { "X": 80.0, "Y": 220.0 }
+        },
+        {
+          "kind": "FlowForEach",
+          "Id": "b62472a2-d3f3-43d9-ba9e-fbdb511029aa",
+          "SourceComponentFqn": "Fdp.Core.CommandHierarchy.UnitRoster",
+          "CountAccessorFqn": "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count",
+          "ItemAccessorFqn": "Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate",
+          "Pins": [
+            { "Id": "648076b5-7a28-41ec-91af-abc806f15e49", "Name": "In",          "Direction": "In",  "IsExec": true,  "TypeRef": {} },
+            { "Id": "d326de17-14e7-4363-8c96-5730c4d56ae2", "Name": "Body",        "Direction": "Out", "IsExec": true,  "TypeRef": {} },
+            { "Id": "1fcf464a-8de8-4d11-acfc-c77cf74c18a6", "Name": "Completed",   "Direction": "Out", "IsExec": true,  "TypeRef": {} },
+            { "Id": "97b0f003-c9d2-413c-bb85-909ec952aeed", "Name": "CurrentItem", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "Fdp.Core.Entity" } }
+          ],
+          "EditorMetadata": { "X": 360.0, "Y": 220.0 }
+        },
+        {
+          "kind": "PublishEvent",
+          "Id": "f0a952d4-7937-4c89-999f-77775ff6770a",
+          "EventId": "ClearBehaviorEvent",
+          "Pins": [
+            { "Id": "6dae73b2-71c6-49d8-aa91-89e76dbcff84", "Name": "In",     "Direction": "In",  "IsExec": true,  "TypeRef": {} },
+            { "Id": "daa16a10-5e3b-4728-845f-427b1721fc93", "Name": "Out",    "Direction": "Out", "IsExec": true,  "TypeRef": {} },
+            { "Id": "f3e0fd8c-5328-4445-be17-e1da846ba76e", "Name": "Target", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "Fdp.Core.Entity" } }
+          ],
+          "EditorMetadata": { "X": 680.0, "Y": 160.0 }
+        },
+        {
+          "kind": "Return",
+          "Id": "a80e08af-1ff8-4e47-8f83-67ce49834770",
+          "Status": "Success",
+          "Pins": [
+            { "Id": "87125c12-e1c7-4e15-a6d1-eb0455704196", "Name": "In", "Direction": "In", "IsExec": true, "TypeRef": {} }
+          ],
+          "EditorMetadata": { "X": 1000.0, "Y": 220.0 }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "3b484333-073e-4aab-ace0-8c15e657bb7b",
+          "FromPinId": "a2c15581-fe01-4c82-a6b4-15a5a9a86e62",
+          "ToNodeId": "b62472a2-d3f3-43d9-ba9e-fbdb511029aa",
+          "ToPinId": "648076b5-7a28-41ec-91af-abc806f15e49"
+        },
+        {
+          "FromNodeId": "b62472a2-d3f3-43d9-ba9e-fbdb511029aa",
+          "FromPinId": "d326de17-14e7-4363-8c96-5730c4d56ae2",
+          "ToNodeId": "f0a952d4-7937-4c89-999f-77775ff6770a",
+          "ToPinId": "6dae73b2-71c6-49d8-aa91-89e76dbcff84"
+        },
+        {
+          "FromNodeId": "b62472a2-d3f3-43d9-ba9e-fbdb511029aa",
+          "FromPinId": "97b0f003-c9d2-413c-bb85-909ec952aeed",
+          "ToNodeId": "f0a952d4-7937-4c89-999f-77775ff6770a",
+          "ToPinId": "f3e0fd8c-5328-4445-be17-e1da846ba76e"
+        },
+        {
+          "FromNodeId": "b62472a2-d3f3-43d9-ba9e-fbdb511029aa",
+          "FromPinId": "1fcf464a-8de8-4d11-acfc-c77cf74c18a6",
+          "ToNodeId": "a80e08af-1ff8-4e47-8f83-67ce49834770",
+          "ToPinId": "87125c12-e1c7-4e15-a6d1-eb0455704196"
+        }
+      ],
+      "EditorMetadata": { "ViewportX": 0, "ViewportY": 0, "ViewportZoom": 0 }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "P1a proof (GAP-1): per-subordinate ClearBehaviorEvent via FlowForEach over the commander's UnitRoster -- branch-free, latent-free body; iterates UnitRoster subordinates (curated UnitRosterOps.Count/Subordinate accessors, no raw fixed-array access in the graph) and publishes ClearBehaviorEvent{Entity=subordinate} once per subordinate (reuses P4 PublishEvent, wired from FlowForEach's CurrentItem out-pin -- NOT self). Proves the inline-for loop substrate + curated source + latent-free validation; GAP-1 substrate for P1b's AreAllAtBaseline.",
+    "Category": null,
+    "Recipe": null
+  }
+}

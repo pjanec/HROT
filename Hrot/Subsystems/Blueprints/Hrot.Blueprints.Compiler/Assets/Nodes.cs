@@ -37,6 +37,7 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(SetSharedNode),          "SetShared")]
 [JsonDerivedType(typeof(GetComponentNode),       "GetComponent")]
 [JsonDerivedType(typeof(PublishEventNode),       "PublishEvent")]
+[JsonDerivedType(typeof(FlowForEachNode),        "FlowForEach")]
 public abstract class Node
 {
     public Guid Id { get; set; }
@@ -491,4 +492,36 @@ public sealed class PublishEventNode : Node
 {
     /// <summary>Name of the EngineEventCatalog entry to publish (e.g. "ClearBehaviorEvent").</summary>
     public string EventId { get; set; } = "";
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// FlowForEach (P1 -- GAP-1 -- structured bounded latent-free loop)
+//
+// Architect ruling (Q#5-C): inline C# `for` over [0,Count); the body is a synchronous,
+// latent-free sub-DAG (P1a: also branch-free); the collection is a curated source (raw
+// fixed-array access stays out of the graph, in a hand-written accessor). Reflection-free by
+// construction: SourceComponentFqn/CountAccessorFqn/ItemAccessorFqn are baked strings (mirrors
+// P2/P4 baking). Lowers to IrOp_ForEach -- the body is scheduled INLINE into a nested statement
+// list (NOT the BFS block scheduler), so no per-iteration block / topological-sort cycle.
+// ──────────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// P1 (GAP-1) -- iterates a curated, cap-bounded collection, running a latent-free (P1a: branch-free)
+/// body once per element. Exec node: exec-in "In", "Body" exec-out (loop body root), "Completed"
+/// exec-out (after the loop), and a "CurrentItem" data-out (<c>Fdp.Core.Entity</c>) the body reads.
+/// The source contract is baked (reflection-free): the component is read off <c>self</c> via
+/// <c>GetComponentRO&lt;SourceComponentFqn&gt;</c>, then the loop bounds/items come from the static
+/// <c>CountAccessorFqn</c> (<c>int Count(in T)</c>) / <c>ItemAccessorFqn</c> (<c>Entity Item(in T,int)</c>)
+/// helpers. Lowers to <c>IrOp_ForEach</c> (see <c>Stage5_Schedule</c>'s FlowForEach case; the body is
+/// scheduled inline as a nested statement list). Stage2's <c>V_FlowForEachRules</c> (BP2050) rejects
+/// latent/Branch nodes in the body.
+/// </summary>
+public sealed class FlowForEachNode : Node
+{
+    /// <summary>FQN of the ECS component read off self that holds the collection (e.g. "Fdp.Core.CommandHierarchy.UnitRoster").</summary>
+    public string SourceComponentFqn { get; set; } = "";
+    /// <summary>FQN of a static <c>int Count(in T)</c> helper giving the element count (e.g. "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count").</summary>
+    public string CountAccessorFqn { get; set; } = "";
+    /// <summary>FQN of a static <c>Entity Item(in T, int i)</c> helper giving the i-th element (e.g. "Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate").</summary>
+    public string ItemAccessorFqn { get; set; } = "";
 }

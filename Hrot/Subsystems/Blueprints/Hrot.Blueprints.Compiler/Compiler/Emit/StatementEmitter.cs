@@ -289,6 +289,25 @@ internal static class StatementEmitter
                 break;
             }
 
+            case IrOp_ForEach op:
+            {
+                // P1 (GAP-1) -- inline bounded foreach. RosterValue is a `ref readonly` local from a
+                // preceding IrOp_GetComponentRO; the curated Count/Item accessors take `in T` (the
+                // readonly local binds implicitly). ItemVar is declared HERE inside the loop (it has
+                // no defining statement of its own). Body statements were scheduled inline by Stage5.
+                string roster  = $"__t{op.RosterValue.Index}";
+                string loopVar = $"__fe{op.ItemVar.Index}";
+                e.WriteLine($"for (int {loopVar} = 0; {loopVar} < global::{op.CountAccessorFqn}({roster}); {loopVar}++)");
+                e.WriteLine("{");
+                e.Indent();
+                e.WriteLine($"var __t{op.ItemVar.Index} = global::{op.ItemAccessorFqn}({roster}, {loopVar});");
+                foreach (var bodyStmt in op.Body)
+                    Emit(e, bodyStmt);
+                e.Outdent();
+                e.WriteLine("}");
+                break;
+            }
+
             case IrOp_PublishBusEvent op:
             {
                 string publishMethod = op.Managed ? "PublishManaged" : "Publish";
