@@ -23,6 +23,18 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Live entry count (oracle <c>ActiveAttackerCount</c>).</summary>
         public static int Count(MemberSlotList list) => list.Count;
 
+        /// <summary>An empty (zeroed) list — the wave-start reset (oracle <c>s.ActiveAttackerCount = 0</c>
+        /// logically clears the SoA). <c>SetVariable(Runners ← Empty())</c> at <c>DispatchWave</c> start.</summary>
+        public static MemberSlotList Empty() => default;
+
+        /// <summary>
+        /// Appends a runner given its <see cref="Entity"/> (packs internally), returning the grown list —
+        /// the graph-friendly form of <see cref="Add"/> (the visual graph carries the subordinate as an
+        /// <c>Entity</c> from <c>FlowForEach.CurrentItem</c>, not a packed <c>long</c>).
+        /// </summary>
+        public static MemberSlotList AddRunner(MemberSlotList list, Entity entity, int firingSlot, int baselineSlot)
+            => Add(list, (long)entity.PackedValue, firingSlot, baselineSlot);
+
         /// <summary>
         /// Appends a runner (packed entity + firing slot + reserved baseline slot, run-started = 0) and
         /// returns the grown list. No-op (returns the input unchanged) when already at capacity 8 —

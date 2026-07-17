@@ -18,5 +18,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// </summary>
         public static bool ShouldParticipate(Entity sub, int rosterCount, int currentWave)
             => rosterCount <= 3 || ((int)sub.Index % 2) == currentWave;
+
+        /// <summary>The next wave parity — the oracle's <c>s.CurrentWave = (byte)(1 - s.CurrentWave)</c>
+        /// flip at the end of a dispatch (0↔1).</summary>
+        public static byte NextWave(int currentWave) => (byte)(1 - currentWave);
     }
 }

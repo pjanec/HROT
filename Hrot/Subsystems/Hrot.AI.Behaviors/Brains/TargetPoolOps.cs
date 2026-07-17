@@ -46,14 +46,17 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Round-robin target NetworkId for the <paramref name="roundRobinIndex"/>-th dispatched tank —
         /// the oracle's <c>targetIdx = index % targetCount; GetTargetFromPool → alive → NetworkIdentity.Value</c>.
-        /// Returns <c>0</c> when the pool slot is empty/dead or the target has no
-        /// <see cref="NetworkIdentity"/> (matching the oracle's <c>targetNetId = 0</c> default).
+        /// The target count is resolved internally (<see cref="ResolveTargetCount"/>) so the visual graph
+        /// passes only the cached EQS handles + the round-robin index. Returns <c>0</c> when the pool slot
+        /// is empty/dead or the target has no <see cref="NetworkIdentity"/> (the oracle's
+        /// <c>targetNetId = 0</c> default).
         /// </summary>
-        public static long ResolveNetId(int targetGroupHandle, int roundRobinIndex, int targetCount, ISimulationView view)
+        public static long ResolveNetId(
+            long cachedEqsRequestId, int targetGroupHandle, int roundRobinIndex, ISimulationView view)
         {
             if (view is not EntityRepository world) return 0L;
-            if (targetCount <= 0) targetCount = 1;
 
+            int targetCount = ResolveTargetCount(cachedEqsRequestId, targetGroupHandle, view);
             int targetIdx = roundRobinIndex % targetCount;
             long targetPacked = AreaQueryBatchHelper.GetTargetFromPool(world, targetGroupHandle, targetIdx);
             if (targetPacked == 0L) return 0L;
