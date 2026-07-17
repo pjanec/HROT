@@ -175,6 +175,21 @@ internal sealed class GraphScheduler
     // Per-block CSE cache (cleared when starting each new block)
     private readonly Dictionary<Guid, IrValue> _pinValueCache = new();
 
+    // Cross-block cache for values produced by IMPURE exec statements (e.g. a non-pure
+    // FunctionCall's Return pin, a CallPeerBlueprint's Return pin). Unlike _pinValueCache
+    // (cleared per block -- correct for pure/recomputable reads whose upstream may have been
+    // mutated by an intervening write), a statement-produced value is materialized exactly
+    // once as a real C# local (__tN) at the point the statement is scheduled; the emitted
+    // TickCore body is flat (goto-based, no nested scopes), so that local remains in scope and
+    // definitely-assigned for any later block reachable only through the block that declared
+    // it. Consuming such a pin from a later block must reuse the already-materialized value,
+    // NOT fall through ResolveNodeOutput's switch to the "default" fallback (which would both
+    // produce a bogus value AND, if it matched a re-invocable case, incorrectly re-run the side
+    // effect). Never cleared -- populated at the same sites that write _pinValueCache for
+    // statement-scheduled (non-pure) node outputs, checked first in ResolveDataPin /
+    // ResolveNodeOutput.
+    private readonly Dictionary<Guid, IrValue> _statementPinCache = new();
+
     // Tracks whether a block has been fully scheduled
     private readonly HashSet<int> _scheduledBlocks = new();
 
@@ -1108,24 +1123,52 @@ internal sealed class GraphScheduler
 
             case FunctionCallNode fc when !fc.IsPure:
             {
-                // Impure library call -- resolve inputs, emit call, cache output.
+                // Impure CLR method call (curated helper, e.g. AreaQueryBatchOps.Request/Free) --
+                // resolve inputs, emit call, cache output. This is NOT a call into another
+                // Library-dispatch blueprint (that is IrOp_LibraryCall's actual purpose, keyed by
+                // a real LibraryBlueprintId resolved elsewhere); fc.TargetTypeId here is an
+                // ordinary CLR type FQN, so this must lower exactly like the pure-FunctionCall
+                // case below (IrOp_PureCall -> `global::{TargetTypeId}.{MethodName}(...)`), just
+                // scheduled eagerly as an exec statement instead of resolved lazily on demand.
+                // Using IrOp_LibraryCall(0, ...) here was a bug: LibraryBlueprintId 0 resolves to
+                // a nonexistent `__LibBp_00000000_Bp` class (CS0103).
                 var inputVals = ResolveAllDataInputs(node, stmts);
                 var outPin = node.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out");
-                IrTypeRef retType = outPin is not null && _typed.PinTypes.TryGetValue(outPin.Id, out var t)
-                    ? t
-                    : Stage5_Schedule.UnknownType;
-                var result = AllocValue(retType);
                 var (appendSelf, appendView) =
                     ResolveFunctionCallTrailingContext(fc);
-                stmts.Add(new IrStatement
-                {
-                    ResultValue = result,
-                    Operation   = new IrOp_LibraryCall(0, $"{fc.TargetTypeId}.{fc.MethodName}",
-                                                       inputVals, retType, appendSelf, appendView),
-                    Debug = DebugOf(node),
-                });
                 if (outPin is not null)
+                {
+                    IrTypeRef retType = _typed.PinTypes.TryGetValue(outPin.Id, out var t)
+                        ? t : Stage5_Schedule.UnknownType;
+                    var result = AllocValue(retType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = result,
+                        Operation   = new IrOp_PureCall($"{fc.TargetTypeId}.{fc.MethodName}",
+                                                         inputVals, retType, appendSelf, appendView),
+                        Debug = DebugOf(node),
+                    });
+                    // Cross-block persistent: this value was materialized as a real statement
+                    // (not recomputable on demand -- re-invoking would re-run the side effect),
+                    // so later blocks reached only through this one must reuse it, not
+                    // recompute/default it. See _statementPinCache.
                     _pinValueCache[outPin.Id] = result;
+                    _statementPinCache[outPin.Id] = result;
+                }
+                else
+                {
+                    // Void return -- bare statement call, no ResultValue (idx stays -1 so the
+                    // emitter writes `{call};` rather than the uncompilable `var __tN = {call};`
+                    // that a void C# method invocation would produce).
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = null,
+                        Operation   = new IrOp_PureCall($"{fc.TargetTypeId}.{fc.MethodName}",
+                                                         inputVals, Stage5_Schedule.UnknownType,
+                                                         appendSelf, appendView),
+                        Debug = DebugOf(node),
+                    });
+                }
                 break;
             }
 
@@ -1145,7 +1188,12 @@ internal sealed class GraphScheduler
                     Debug       = DebugOf(node),
                 });
                 if (outPin is not null)
+                {
+                    // Cross-block persistent: same reasoning as the impure-FunctionCall case
+                    // above -- a statement-produced value, not recomputable on demand.
                     _pinValueCache[outPin.Id] = result;
+                    _statementPinCache[outPin.Id] = result;
+                }
                 break;
             }
 
@@ -1458,6 +1506,7 @@ internal sealed class GraphScheduler
     private IrValue ResolveDataPin(Guid consumerNodeId, Guid pinId,
                                     List<IrStatement> stmts)
     {
+        if (_statementPinCache.TryGetValue(pinId, out var stmtCached)) return stmtCached;
         if (_pinValueCache.TryGetValue(pinId, out var cached)) return cached;
 
         // Find link providing data to this pin.
@@ -1484,6 +1533,7 @@ internal sealed class GraphScheduler
     private IrValue ResolveNodeOutput(Guid sourceNodeId, Guid sourcePinId,
                                        List<IrStatement> stmts)
     {
+        if (_statementPinCache.TryGetValue(sourcePinId, out var stmtCached)) return stmtCached;
         if (_pinValueCache.TryGetValue(sourcePinId, out var cached)) return cached;
 
         if (!_nodeById.TryGetValue(sourceNodeId, out var sourceNode))
