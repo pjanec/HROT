@@ -103,6 +103,29 @@ oracle publishes `ClearBehaviorEvent` on both terminals; `WaitForChannel`'s lowe
 without running the post-wait chain, so the blueprint publishes it on Success only. Proven with a two-tick
 behavioral test driving a real `LocomotionChannel` idle→Success (one `ClearBehaviorEvent{Entity=self}`).
 
+## Slice 3 (2026-07-17) — `Action_AimAndFireSpecific` + TWO compiler bugs found & fixed
+
+Rebuilt as `HillAssault2_AimAndFireSpecific.bp.json` (28 nodes). First slice to combine **target-resolve**
+(curated `NetworkEntityMapOps.ResolveTarget` — context-aware `FunctionCall`, `EntityRepository` downcast
+per Q6-B), **persistent-state ammo round-counting** (WorkingState `RoundsFired`/`LastObservedAmmo`, the
+latter one-time init `-1`; `RoundsFired += LastObservedAmmo - Ammo` via `BinaryOp`, round cap
+`(MaxRounds>0) && (RoundsFired>=MaxRounds)` via `Compare`+`BooleanOp`), and the **weapon channel**
+(`ChannelCommand(AimAndFire)` → `WaitForChannel`). New curated helpers `NetworkEntityMapOps` + `WorldOps`
+(`IsAlive`/`IsNull`). Deviations: drop Locomotion-clear; round-cap = plain `Return(Success)`.
+
+**This slice surfaced two latent compiler bugs — both fixed (full solutions, no hacks):**
+1. **WorkingState field-index shift** (`fix 7c06315`): `EnsurePhaseByteInWorkingState` *prepended* the
+   synthesized `__phase` byte, shifting real WorkingState field indices +1 vs. the indices Stage5 baked →
+   every WS access emitted the wrong field, whenever a graph had **WorkingState + a latent op** (this
+   slice: ammo counters + `WaitForChannel`). Fixed by **appending** `__phase` (name-accessed, position
+   irrelevant); real fields keep their indices.
+2. **Convergent control flow / merge points** (`fix c4541305`): the BFS scheduler re-inlined a node's
+   chain into *each* predecessor that reached it, so a node with exec in-degree ≥ 2 (a join) duplicated
+   its code and — for a `Branch` join — emitted duplicate `goto` labels (CS0140). Fixed by giving every
+   merge point **one shared block** all predecessors jump to (`GetOrAllocMergeBlock`/`ResolveArmBlock`).
+   This slice has 3 real merge points (incl. an in-degree-3 `Return(Success)`); all lower to single shared
+   blocks, generated code free of duplicate labels. Regression test: `Inline/DiamondMerge` (full Roslyn).
+
 ## Slice order (simplest → hardest)
 
 | # | Slice | Node kinds needed | Notes |
