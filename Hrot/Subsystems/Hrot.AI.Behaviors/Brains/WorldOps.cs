@@ -40,5 +40,26 @@ namespace Hrot.AI.Behaviors.Brains
         /// (<c>TrailingContext: "None"</c>) -- pure value comparison, no world access needed.
         /// </summary>
         public static bool IsNull(Entity e) => e == Entity.Null;
+
+        /// <summary>
+        /// Blueprint-callable current simulation time (seconds), mirroring the oracle's
+        /// <c>ctx.World.SimulationTime</c> read used by the EQS 5 s timeout
+        /// (<c>HillAttackCommanderNodes.Condition_IsAreaQueryResolved</c>). The graph subtracts a cached
+        /// timestamp from this and compares against the timeout via visual <c>BinaryOp</c>/<c>Compare</c>
+        /// (architect Q#7-C: no native <c>GetTime</c> node until sim-time proves broadly needed).
+        /// <para>
+        /// <b>P7 trailing-context:</b> the sole parameter is the auto-appended <c>ISimulationView view</c>
+        /// (baked <c>TrailingContext:"View"</c>) — the node has NO visible data-in pin. <b>GAP-10:</b>
+        /// <c>SimulationTime</c> lives on the concrete <see cref="EntityRepository"/> (not
+        /// <see cref="ISimulationView"/>), so downcast; returns <c>0</c> for a non-repository view.
+        /// </para>
+        /// </summary>
+        public static float SimTime(ISimulationView view)
+        {
+            if (view is not EntityRepository world)
+                return 0f;
+
+            return world.SimulationTime;
+        }
     }
 }

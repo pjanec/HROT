@@ -98,6 +98,26 @@ new `GetTime` node yet). D — curated `Free` + **visual** `SetVariable` clears;
 
 ---
 
-## ARCHITECT ANSWERS (pending)
+## ARCHITECT ANSWERS (2026-07-17) — all four leans APPROVED
 
-_(to be filled in once relayed)_
+All four leans confirmed; continue the "orchestration-first" + "curated-generic" principles applied to
+the new `AreaQueryBatchHelper` surface.
+
+- **A — `Return(Running)` polling (APPROVED).** Plain, stateless `Return(Running)` is the sanctioned
+  pattern. The BTree host naturally re-ticks `AiPrimitive` actions from the top every frame while they
+  return `Running`; because the poll state (`CachedEqsRequestId`) lives entirely in `WorkingState`, there
+  is **zero need** for a latent `Wait` primitive or the `__phase` state machine. This slice is the proof
+  that stateless `Running` re-entry works for polling.
+- **B — `IsAreaQueryResolved` scalar accessors + visual branching (APPROVED).** Go with Option (1). Keep
+  the timeout logic, target-count check, and routing **on the visual graph** — burying them inside a
+  single curated status-verb (Option 2) would defeat Blueprint orchestration by pushing behavioral logic
+  back into C#.
+- **C — `WorldOps.SimTime` accessor (APPROVED).** Curated `WorldOps.SimTime(ISimulationView) → float` +
+  visual `BinaryOp`/`Compare` for the 5 s timeout. Correct demand-driven choice; do **not** speculatively
+  build a native `GetTime` node / new IR before sim-time proves broadly needed.
+- **D — curated `Free` + visual `SetVariable` clears (APPROVED).** `AreaQueryBatchOps.Free(id, view)` does
+  the batch-system touch; the `WorkingState` resets (`CachedEqsRequestId=-1`, etc.) are **visual**
+  `SetVariable`s. Success arm intentionally leaves `CachedEqsRequestId` set — correctly implements
+  SC-HA011-5.
+
+**Cleared to proceed on all four leans.**
