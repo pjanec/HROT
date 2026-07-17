@@ -1,6 +1,6 @@
 # Tree-integration build plan (turnkey) — assembling the Hill-attack blueprint twins
 
-> **Status: future track, architect-approved (Q9).** The per-node twins are complete + proven in isolation
+> **Status: ✅ DONE (2026-07-17).** Built per this plan — `PlatoonHillAttack2.btree.json` + 6 `HillAssault2I_*` integrated blueprints + `PlatoonHillAttack2_Integration_ProofTests` (3/3). Kept below as the record of the approach. Originally: future track, architect-approved (Q9). The per-node twins are complete + proven in isolation
 > (`HillAssault2_*` 52/52). This is the step-by-step recipe to assemble them into the running commander
 > behavior, using ONLY the architect-sanctioned pattern (Q9-A/B). It is deliberately mechanical — every
 > step mirrors an existing, shipped proof. No new compiler capability is expected.
