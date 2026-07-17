@@ -14,7 +14,7 @@
       "VisualId": "1a200000-0000-0000-0000-000000000001",
       "ChildVisualIds": ["1a200000-0000-0000-0000-000000000002"],
       "DisplayLabel": "Root",
-      "EditorMetadata": { "X": 400, "Y": 0, "Comment": "P1b tree-INTEGRATION (architect Q#9-A): PlatoonHillAttack2 -- same STRUCTURE as PlatoonHillAttack.btree.json (Sequence(CalculateSegments, DispatchAllToBaseline, AreAllAtBaseline, Repeater(Sequence(RequestAreaQuery, IsAreaQueryResolved, DispatchWaveWithTargets, IsWaveCompleted)))), but every node except AreAllAtBaseline is bound to the INTEGRATED HillAssault2I_* blueprint thunks (DelegateShape:AiPrimitiveTickCore, mirroring HillAssault2I_Smoke.btree.json), which converse over the single standalone 'state' HillAttackSharedState slot (Role=State/Scope=Entity) instead of each owning a private WorkingState. IsWaveCompleted is OMITTED (see PR report: its WaveState bundle -- Runners+BurnedSlotsMask+BaselineReservedMask -- has no clean in-graph construction path from HillAttackSharedState without a new curated Ops overload, which this task is not authorized to add); the wave loop here is Sequence(RequestAreaQuery, IsAreaQueryResolved, DispatchWaveWithTargets) only. AreAllAtBaseline is the UNCHANGED isolated twin (HillAssault2_AreAllAtBaseline, node-local WorkingState only, no shared-state reads/writes) composed the same AiPrimitiveTickCore way, per the task's explicit allowance.", "Collapsed": false, "Color": null }
+      "EditorMetadata": { "X": 400, "Y": 0, "Comment": "P1b tree-INTEGRATION (architect Q#9-A): PlatoonHillAttack2 -- same STRUCTURE as PlatoonHillAttack.btree.json (Sequence(CalculateSegments, DispatchAllToBaseline, AreAllAtBaseline, Repeater(Sequence(RequestAreaQuery, IsAreaQueryResolved, DispatchWaveWithTargets, IsWaveCompleted)))), and every node except AreAllAtBaseline is bound to the INTEGRATED HillAssault2I_* blueprint thunks (DelegateShape:AiPrimitiveTickCore, mirroring HillAssault2I_Smoke.btree.json), which converse over the single standalone 'state' HillAttackSharedState slot (Role=State/Scope=Entity) instead of each owning a private WorkingState. IsWaveCompleted is now INCLUDED as the wave loop's 4th child (HillAssault2I_IsWaveCompleted.bp.json, this PR): its curated WaveMonitorOps.Update/ActiveCount(HillAttackSharedState,...) tree-integration overloads project ActiveRunners/BurnedSlotsMask/BaselineReservedMask into a WaveState, reuse the proven swap-remove kernel, and write the fields back -- so the wave loop is Sequence(RequestAreaQuery, IsAreaQueryResolved, DispatchWaveWithTargets, IsWaveCompleted), matching PlatoonHillAttack.btree.json's structure exactly. AreAllAtBaseline is the UNCHANGED isolated twin (HillAssault2_AreAllAtBaseline, node-local WorkingState only, no shared-state reads/writes) composed the same AiPrimitiveTickCore way, per the task's explicit allowance.", "Collapsed": false, "Color": null }
     },
     {
       "kind": "Sequence",
@@ -73,10 +73,11 @@
       "ChildVisualIds": [
         "1a200000-0000-0000-0000-0000000000b1",
         "1a200000-0000-0000-0000-0000000000b2",
-        "1a200000-0000-0000-0000-0000000000b3"
+        "1a200000-0000-0000-0000-0000000000b3",
+        "1a200000-0000-0000-0000-0000000000b4"
       ],
       "DisplayLabel": "WaveLoop",
-      "EditorMetadata": { "X": 650, "Y": 230, "Comment": "One wave: EQS scan -> resolve -> dispatch. IsWaveCompleted OMITTED (see Root comment / PR report) -- the loop here does not yet wait for a dispatched wave to return before re-polling. Repeater(-1) repeats until IsAreaQueryResolved returns Failure (area clear).", "Collapsed": false, "Color": null }
+      "EditorMetadata": { "X": 650, "Y": 230, "Comment": "One wave: EQS scan -> resolve -> dispatch -> wait for the dispatched wave's runners to finish/die before re-polling. Repeater(-1) repeats until IsAreaQueryResolved returns Failure (area clear).", "Collapsed": false, "Color": null }
     },
     {
       "kind": "Action",
@@ -116,6 +117,19 @@
       "ChildVisualIds": [],
       "DisplayLabel": "DispatchWaveWithTargets (integrated)",
       "EditorMetadata": { "X": 750, "Y": 370, "Comment": "Composes HillAssault2I_DispatchWaveWithTargets.bp.json (this PR, the largest transform). Reads TotalSlots/BurnedSlotsMask/WaveUsedSlotsMask/BaselineReservedMask/CachedEqsRequestId/CachedTargetGroupHandle/CurrentWave and writes ActiveRunners/WaveUsedSlotsMask/BaselineReservedMask/CachedTargetGroupHandle/CachedEqsRequestId/EqsRequestTime/CurrentWave, all through the SAME shared 'state' slot.", "Collapsed": false, "Color": null }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_CDAC491D_Bp.TickCore",
+        "ExpressionTargetField": "bpParamsIsWaveCompleted",
+        "DelegateShape": "AiPrimitiveTickCore",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_CDAC491D_Bp+WorkingState"
+      },
+      "VisualId": "1a200000-0000-0000-0000-0000000000b4",
+      "ChildVisualIds": [],
+      "DisplayLabel": "IsWaveCompleted (integrated)",
+      "EditorMetadata": { "X": 850, "Y": 370, "Comment": "Composes HillAssault2I_IsWaveCompleted.bp.json (this PR) -- the 4th and final wave-loop node, previously omitted. Reads+writes ActiveRunners/BurnedSlotsMask/BaselineReservedMask through the SAME shared 'state' slot via the curated WaveMonitorOps.Update(HillAttackSharedState,ISimulationView)/ActiveCount(HillAttackSharedState) tree-integration overloads (thin adapters over the proven WaveState swap-remove kernel). Returns Success once ActiveRunners is empty (wave complete), Running otherwise.", "Collapsed": false, "Color": null }
     }
   ],
   "Pills": [
@@ -201,6 +215,17 @@
         },
         "DefaultValueJson": "{\"StartX\":0,\"StartY\":0,\"EndX\":100,\"EndY\":0,\"BaselineStartX\":0,\"BaselineStartY\":-20,\"BaselineEndX\":100,\"BaselineEndY\":-20,\"AttackDirX\":0,\"AttackDirY\":1}",
         "Comment": "Same firing-line/baseline scenario as CalculateSegments/DispatchAllToBaseline; attack direction +Y.",
+        "IsAutoManaged": true
+      },
+      {
+        "Name": "bpParamsIsWaveCompleted",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_CDAC491D_Bp+Params",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{}",
+        "Comment": "Empty Params struct (the integrated node takes none, same as its isolated twin).",
         "IsAutoManaged": true
       },
       {

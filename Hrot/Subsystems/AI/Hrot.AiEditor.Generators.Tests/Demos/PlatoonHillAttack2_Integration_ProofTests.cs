@@ -1,4 +1,6 @@
 using System;
+using System.Linq;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Fbt;
@@ -236,6 +238,106 @@ public sealed class PlatoonHillAttack2_Integration_ProofTests : IDisposable
         moveEvents.Count.Should().Be(3, "DispatchAllToBaseline must publish one MoveToLocation intent per alive subordinate");
         foreach (var e in moveEvents)
             e.IntentId.Should().Be("MoveToLocation");
+
+        DisposeWorld(world);
+    }
+
+    /// <summary>
+    /// The 4th and final wave-loop node (<c>HillAssault2I_IsWaveCompleted.bp.json</c>, this PR):
+    /// proves it runs the REAL generated <c>TickCore</c> -- bound into
+    /// <c>PlatoonHillAttack2.btree.json</c>'s wave-loop <c>Sequence(RequestAreaQuery,
+    /// IsAreaQueryResolved, DispatchWaveWithTargets, IsWaveCompleted)</c> exactly as
+    /// <c>Assets/BTrees/Authoring/PlatoonHillAttack2.btree.json</c>'s 4th child -- over the SAME
+    /// shared "state" slot the composed tree provisions, and that with an empty
+    /// <c>ActiveRunners</c> tracker (the slot's fresh, never-yet-dispatched-a-wave default) it
+    /// returns <see cref="NodeStatus.Success"/> (wave complete), round-tripping the shared struct
+    /// through <c>GetShared</c>/<c>WaveMonitorOps.Update</c>/<c>SetShared</c> without corrupting it.
+    /// <para>
+    /// Driving the full <c>Repeater</c> all the way to a real dispatched-then-exhausted wave would
+    /// additionally require a live EQS solver system (<c>AreaQueryResultMaterializationSystem</c>)
+    /// resolving <c>RequestAreaQuery</c>'s async batch request -- out of scope for this proof (see
+    /// task spec's explicit fallback) -- so this test invokes the composed node's generated
+    /// <c>TickCore</c> directly via reflection (mirrors <c>HillAssault2_IsWaveCompleted_ProofTests</c>
+    /// / <c>HillAssault2_CalculateSegments_ProofTests</c>'s direct-invocation style), after
+    /// provisioning the entity through the SAME <see cref="BehaviorIngressSystem"/> +
+    /// <see cref="AssignBehaviorEvent"/> path the composed-tree test above uses -- NOT a hand-rolled
+    /// shortcut.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void IsWaveCompleted_IntegratedNode_TickedDirectly_ReturnsSuccess_WhenActiveRunnersEmpty_AndRoundTripsSharedState()
+    {
+        var def = RegisterAndGetDefinition();
+        var interpreter = def.BTreeInterpreter!;
+        interpreter.Should().NotBeNull("PlatoonHillAttack2 is a BTree behavior");
+
+        var world     = CreateWorld();
+        var commander = world.CreateEntity();
+        world.AddComponent(commander, new BehaviorState());
+        world.AddComponent(commander, new BrainBlackboard());
+        world.AddComponent(commander, new BrainBTreeState());
+
+        // Same provisioning path as ComposedTree_TicksThroughSetupSequence_SharedState_ShowsCrossNodeWriteFlow:
+        // BehaviorIngressSystem provisions BOTH every composed node's own (Node-scoped) WorkingState
+        // slot AND the standalone Entity-scoped "state" slot from PlatoonHillAttack2's manifest --
+        // which now includes HillAssault2I_IsWaveCompleted's slot since it is bound into the tree.
+        var ingress = new BehaviorIngressSystem(_registry);
+        world.Bus.PublishManaged(new AssignBehaviorEvent
+        {
+            Entity       = commander,
+            BehaviorName = "PlatoonHillAttack2",
+            JsonParams   = string.Empty,
+        });
+        world.Bus.SwapBuffers();
+        ingress.Execute(world, 0.016f);
+
+        StateSlotIsAttached(world, commander).Should().BeTrue(
+            "ProvisionStatefulSlots must have attached the 'state' Entity-scoped slot FROM THE " +
+            "MANIFEST before IsWaveCompleted's TickCore can GetShared/SetShared it");
+
+        // Fresh provisioning zero-inits the slot -- ActiveRunners (a MemberSlotList) defaults to
+        // Count == 0, i.e. exactly the "empty ActiveRunners tracker" scenario the task spec asks for
+        // (no wave has been dispatched into this shared struct yet).
+        var before = ReadSharedState(world, commander);
+        before.ActiveRunners.Count.Should().Be(0,
+            "a freshly-provisioned 'state' slot's ActiveRunners must be empty before any wave dispatch");
+
+        var bpType = typeof(DemoAiPrimitiveNodes).Assembly.GetTypes()
+            .SingleOrDefault(t =>
+                t.Namespace == "Hrot.AI.Behaviors.Generated"
+                && t.Name.StartsWith("HillAssault2IIsWaveCompleted_", StringComparison.Ordinal)
+                && t.Name.EndsWith("_Bp", StringComparison.Ordinal));
+        bpType.Should().NotBeNull(
+            "HillAssault2I_IsWaveCompleted.bp.json must compile via the real Roslyn source generator " +
+            "into a Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_*_Bp class");
+
+        var tickCore = bpType!.GetMethod("TickCore", BindingFlags.Public | BindingFlags.Static);
+        tickCore.Should().NotBeNull("the generated blueprint class must expose a static TickCore method");
+
+        var paramsType = bpType.GetNestedType("Params")!;
+        var wsType     = bpType.GetNestedType("WorkingState")!;
+        object p  = Activator.CreateInstance(paramsType)!;
+        object ws = Activator.CreateInstance(wsType)!;   // empty native WorkingState (architect Q#9-A).
+
+        object?[] args = { p, ws, commander, world, 0f };
+        var status = (NodeStatus)tickCore!.Invoke(null, args)!;
+
+        status.Should().Be(NodeStatus.Success,
+            "WaveMonitorOps.ActiveCount(s) == 0 (Runners.Count == 0) must route the Branch to " +
+            "Return(Success), matching the isolated twin's GeneratedTickCore_EmptyWave_ReturnsSuccess " +
+            "and the oracle's s.ActiveAttackerCount == 0 fast path");
+
+        // Round-trip: GetShared -> WaveMonitorOps.Update (no-op for an empty wave) -> SetShared must
+        // hand the SAME (still-empty) struct back through the shared slot, not corrupt/zero a
+        // different field.
+        var after = ReadSharedState(world, commander);
+        after.ActiveRunners.Count.Should().Be(0, "an empty wave must round-trip through Update as still empty");
+        after.BurnedSlotsMask.Should().Be(before.BurnedSlotsMask,
+            "WaveMonitorOps.Update is a no-op loop over zero runners -- BurnedSlotsMask must be untouched");
+        after.BaselineReservedMask.Should().Be(before.BaselineReservedMask,
+            "WaveMonitorOps.Update is a no-op loop over zero runners -- BaselineReservedMask must be untouched");
+        after.TotalSlots.Should().Be(before.TotalSlots,
+            "IsWaveCompleted must not touch fields outside ActiveRunners/BurnedSlotsMask/BaselineReservedMask");
 
         DisposeWorld(world);
     }
