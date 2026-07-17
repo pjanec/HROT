@@ -40,6 +40,8 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(FlowForEachNode),        "FlowForEach")]
 [JsonDerivedType(typeof(CompareNode),            "Compare")]
 [JsonDerivedType(typeof(BinaryOpNode),           "BinaryOp")]
+[JsonDerivedType(typeof(BooleanOpNode),          "BooleanOp")]
+[JsonDerivedType(typeof(NotNode),                "Not")]
 public abstract class Node
 {
     public Guid Id { get; set; }
@@ -283,6 +285,13 @@ public enum ArithmeticOperator
     Multiply,
     Divide,
     Modulo,
+}
+
+/// <summary>Boolean logic operator for the native <see cref="BooleanOpNode"/>.</summary>
+public enum BooleanOperator
+{
+    And,
+    Or,
 }
 
 public sealed class ConditionMetPayload
@@ -532,6 +541,47 @@ public sealed class BinaryOpNode : Node
 {
     /// <summary>Which arithmetic operation to perform (Add/Subtract/Multiply/Divide/Modulo).</summary>
     public ArithmeticOperator Operator { get; set; }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// BooleanOp / Not (native boolean logic nodes -- Compare's boolean siblings)
+//
+// Pure data nodes (no exec pins), asset-authored pins (mirror CompareNode/BinaryOpNode --
+// registry returns Array.Empty, Stage0's Pins.Count > 0 guard leaves the authored pins alone; no
+// enricher). New BooleanOperator enum (And/Or) for the binary node; the unary Not node carries no
+// operator property. Both lower to NEW IR ops (IrOp_BooleanOp / IrOp_Not) that reuse the existing
+// operator -> C# infix mapping shape already used by StatementEmitter's op_<Op>_<Type>-style
+// synthesized-op lowering. Like CompareNode (and unlike BinaryOpNode), the result type is
+// System.Boolean -- see Stage5_Schedule's BooleanOpNode/NotNode cases and StatementEmitter's
+// IrOp_BooleanOp/IrOp_Not cases. These are DATA-flow nodes (no short-circuit): both operands of
+// BooleanOp are resolved as values before combining. Approved by user 2026-07-17 (see
+// docs/blueprints/BinaryOp_And_Boolean_Nodes_Design.md, "Boolean And/Or/Not" section) for
+// authoring ergonomics (flat compound conditions, reusable/nameable bools, explicit negation);
+// Branch remains the execution-routing node -- these compose the condition value that feeds it.
+// ──────────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// Combines two boolean operands ("A"/"B" data-in pins, asset-authored, both <c>System.Boolean</c>)
+/// using <see cref="Operator"/>, producing a <c>System.Boolean</c> "Result" data-out pin.
+/// Pure-data node (no exec pins). Compiles to a single infix C# expression (<c>IrOp_BooleanOp</c>
+/// -- see <c>StatementEmitter</c>'s case, which maps the two <see cref="BooleanOperator"/> values
+/// to C# infix operators <c>&amp;&amp;</c>/<c>||</c>). No short-circuit: both operands are resolved
+/// as values before combining (unlike nested <c>Branch</c>es).
+/// </summary>
+public sealed class BooleanOpNode : Node
+{
+    /// <summary>Which boolean operation to perform (And/Or).</summary>
+    public BooleanOperator Operator { get; set; }
+}
+
+/// <summary>
+/// Logically negates a single boolean operand ("A" data-in pin, asset-authored,
+/// <c>System.Boolean</c>), producing a <c>System.Boolean</c> "Result" data-out pin. Pure-data node
+/// (no exec pins, no operator property -- unary). Compiles to a single prefix C# expression
+/// (<c>IrOp_Not</c> -- see <c>StatementEmitter</c>'s case, which emits <c>!__t{Operand.Index}</c>).
+/// </summary>
+public sealed class NotNode : Node
+{
 }
 
 // ──────────────────────────────────────────────────────────────────────────

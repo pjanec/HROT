@@ -397,6 +397,8 @@ public sealed class NodeCoverageTests
         yield return ("Inline/GetParameter", new[] { BuildGetParameterMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/Compare", new[] { BuildCompareMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/BinaryOp", new[] { BuildBinaryOpMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
+        yield return ("Inline/BooleanOp", new[] { BuildBooleanOpMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
+        yield return ("Inline/Not", new[] { BuildNotMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         // PublishEvent (P4 -- GAP-3): ValidateOnlyStage1To7 (not FullRoslynPipeline) because the
         // generated C# references Fdp.Toolkit.Behavior.Events.ClearBehaviorEvent AND
         // EntityRepository.Bus, neither of which the deliberately dependency-light coverage-Roslyn
@@ -1102,6 +1104,148 @@ public sealed class NodeCoverageTests
             Name      = "BinaryOpCoverage",
             Dispatch  = BlueprintDispatchKind.Instance,
             Variables = { intVar },
+            Graphs    = { graph },
+        };
+    }
+
+    /// <summary>
+    /// EventEntry -&gt; SetVariable(BoolOut) -&gt; Return, fed by a data-only BooleanOp node (Compare's
+    /// boolean sibling). Mirrors <see cref="BuildBinaryOpMinimalAsset"/>'s shape/evidence bar: A/B
+    /// are two Literal <c>System.Boolean</c> operands (<c>true &amp;&amp; false</c>), the BooleanOp
+    /// node's "A"/"B"/"Result" pins are authored explicitly (mirrors CompareNode/BinaryOpNode --
+    /// Stage0_Rehydrate's "node.Pins.Count > 0 =&gt; skip" guard leaves fully-authored pin-less-node
+    /// exceptions alone, so no enricher is needed), exercising the real Stage5_Schedule
+    /// BooleanOpNode lowering (ResolveDataPin(A/B) -&gt; IrOp_BooleanOp -&gt; infix "&amp;&amp;",
+    /// result typed BoolType) through the full Roslyn+ALC pipeline.
+    /// </summary>
+    private static BlueprintAsset BuildBooleanOpMinimalAsset()
+    {
+        var litAValuePin = DataPin("Value", "Out", "System.Boolean");
+        var litA = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Boolean", ValueJson = "true" };
+        litA.Pins.Add(litAValuePin);
+
+        var litBValuePin = DataPin("Value", "Out", "System.Boolean");
+        var litB = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Boolean", ValueJson = "false" };
+        litB.Pins.Add(litBValuePin);
+
+        var boolOpAPin      = DataPin("A",      "In",  "System.Boolean");
+        var boolOpBPin      = DataPin("B",      "In",  "System.Boolean");
+        var boolOpResultPin = DataPin("Result", "Out", "System.Boolean");
+        var boolOpNode = new BooleanOpNode { Id = Guid.NewGuid(), Operator = BooleanOperator.And };
+        boolOpNode.Pins.AddRange(new[] { boolOpAPin, boolOpBPin, boolOpResultPin });
+
+        var boolVarId = Guid.NewGuid();
+        var boolVar = new VariableDecl
+        {
+            Id   = boolVarId,
+            Name = "BoolOut",
+            Type = new BlueprintTypeRef { TypeId = "System.Boolean" },
+        };
+
+        var setExecIn   = ExecPin("ExecIn",  "In");
+        var setExecOut  = ExecPin("ExecOut", "Out");
+        var setValuePin = DataPin("Value",   "In", "System.Boolean");
+        var setNode = new SetVariableNode { Id = Guid.NewGuid(), VariableId = boolVarId.ToString() };
+        setNode.Pins.AddRange(new[] { setExecIn, setExecOut, setValuePin });
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecPin("ExecIn", "In");
+        ret.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, litA, litB, boolOpNode, setNode, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,      FromPinId = entryOut.Id,        ToNodeId = setNode.Id,    ToPinId = setExecIn.Id },
+                new Link { FromNodeId = setNode.Id,    FromPinId = setExecOut.Id,      ToNodeId = ret.Id,        ToPinId = retIn.Id },
+                new Link { FromNodeId = litA.Id,       FromPinId = litAValuePin.Id,    ToNodeId = boolOpNode.Id, ToPinId = boolOpAPin.Id },
+                new Link { FromNodeId = litB.Id,       FromPinId = litBValuePin.Id,    ToNodeId = boolOpNode.Id, ToPinId = boolOpBPin.Id },
+                new Link { FromNodeId = boolOpNode.Id, FromPinId = boolOpResultPin.Id, ToNodeId = setNode.Id,    ToPinId = setValuePin.Id },
+            },
+        };
+
+        return new BlueprintAsset
+        {
+            AssetId   = Guid.NewGuid(),
+            Name      = "BooleanOpCoverage",
+            Dispatch  = BlueprintDispatchKind.Instance,
+            Variables = { boolVar },
+            Graphs    = { graph },
+        };
+    }
+
+    /// <summary>
+    /// EventEntry -&gt; SetVariable(BoolOut) -&gt; Return, fed by a data-only Not node (Compare's
+    /// unary boolean sibling). Mirrors <see cref="BuildBooleanOpMinimalAsset"/>'s shape/evidence
+    /// bar but with a SINGLE Literal <c>System.Boolean</c> operand (<c>!true</c>). The Not node's
+    /// "A"/"Result" pins are authored explicitly (mirrors CompareNode/BinaryOpNode/BooleanOpNode --
+    /// Stage0_Rehydrate's "node.Pins.Count > 0 =&gt; skip" guard leaves fully-authored pin-less-node
+    /// exceptions alone, so no enricher is needed), exercising the real Stage5_Schedule NotNode
+    /// lowering (ResolveDataPin(A) -&gt; IrOp_Not -&gt; prefix "!", result typed BoolType) through
+    /// the full Roslyn+ALC pipeline.
+    /// </summary>
+    private static BlueprintAsset BuildNotMinimalAsset()
+    {
+        var litAValuePin = DataPin("Value", "Out", "System.Boolean");
+        var litA = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Boolean", ValueJson = "true" };
+        litA.Pins.Add(litAValuePin);
+
+        var notAPin      = DataPin("A",      "In",  "System.Boolean");
+        var notResultPin = DataPin("Result", "Out", "System.Boolean");
+        var notNode = new NotNode { Id = Guid.NewGuid() };
+        notNode.Pins.AddRange(new[] { notAPin, notResultPin });
+
+        var boolVarId = Guid.NewGuid();
+        var boolVar = new VariableDecl
+        {
+            Id   = boolVarId,
+            Name = "BoolOut",
+            Type = new BlueprintTypeRef { TypeId = "System.Boolean" },
+        };
+
+        var setExecIn   = ExecPin("ExecIn",  "In");
+        var setExecOut  = ExecPin("ExecOut", "Out");
+        var setValuePin = DataPin("Value",   "In", "System.Boolean");
+        var setNode = new SetVariableNode { Id = Guid.NewGuid(), VariableId = boolVarId.ToString() };
+        setNode.Pins.AddRange(new[] { setExecIn, setExecOut, setValuePin });
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecPin("ExecIn", "In");
+        ret.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, litA, notNode, setNode, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,   FromPinId = entryOut.Id,     ToNodeId = setNode.Id, ToPinId = setExecIn.Id },
+                new Link { FromNodeId = setNode.Id, FromPinId = setExecOut.Id,   ToNodeId = ret.Id,     ToPinId = retIn.Id },
+                new Link { FromNodeId = litA.Id,    FromPinId = litAValuePin.Id, ToNodeId = notNode.Id, ToPinId = notAPin.Id },
+                new Link { FromNodeId = notNode.Id, FromPinId = notResultPin.Id, ToNodeId = setNode.Id, ToPinId = setValuePin.Id },
+            },
+        };
+
+        return new BlueprintAsset
+        {
+            AssetId   = Guid.NewGuid(),
+            Name      = "NotCoverage",
+            Dispatch  = BlueprintDispatchKind.Instance,
+            Variables = { boolVar },
             Graphs    = { graph },
         };
     }

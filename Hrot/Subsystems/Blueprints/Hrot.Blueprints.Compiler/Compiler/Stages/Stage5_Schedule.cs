@@ -1722,6 +1722,81 @@ internal sealed class GraphScheduler
                 break;
             }
 
+            case BooleanOpNode boolOp:
+            {
+                // Native boolean logic node (Compare's boolean sibling). Pure data, mirrors the
+                // CompareNode case above exactly: find the "A"/"B" data-in pins and the "Result"
+                // data-out pin by NAME off the asset-authored Pins (registry returns Array.Empty --
+                // Stage0 leaves the authored pins alone), resolve the two operands via
+                // ResolveDataPin, then lower to the NEW IrOp_BooleanOp into a fresh BoolType value
+                // (like CompareNode, NOT the operand type -- though the operand type is already
+                // bool here). No StaticTypeRegistry involvement -- A/B's types flow from their
+                // wired sources (reflection-free by construction). No short-circuit: both operands
+                // are resolved as values before the And/Or combines them.
+                var aPin = boolOp.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "A", StringComparison.OrdinalIgnoreCase));
+                var bPin = boolOp.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "B", StringComparison.OrdinalIgnoreCase));
+                var resultPin = boolOp.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, "Result", StringComparison.OrdinalIgnoreCase));
+
+                IrValue aVal = aPin is not null
+                    ? ResolveDataPin(boolOp.Id, aPin.Id, stmts)
+                    : AllocValue(Stage5_Schedule.UnknownType);
+                IrValue bVal = bPin is not null
+                    ? ResolveDataPin(boolOp.Id, bPin.Id, stmts)
+                    : AllocValue(Stage5_Schedule.UnknownType);
+
+                var boolOpResult = AllocValue(Stage5_Schedule.BoolType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = boolOpResult,
+                    Operation   = new IrOp_BooleanOp(aVal, bVal, boolOp.Operator),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = boolOp.Id, PinId = sourcePinId },
+                });
+
+                if (resultPin is not null) _pinValueCache[resultPin.Id] = boolOpResult;
+
+                result = boolOpResult;
+                break;
+            }
+
+            case NotNode notNode:
+            {
+                // Native unary boolean negation node (Compare's boolean sibling). Pure data,
+                // mirrors the CompareNode/BooleanOpNode cases above but with a SINGLE operand: find
+                // the "A" data-in pin and the "Result" data-out pin by NAME off the asset-authored
+                // Pins (registry returns Array.Empty -- Stage0 leaves the authored pins alone),
+                // resolve the operand via ResolveDataPin, then lower to the NEW IrOp_Not into a
+                // fresh BoolType value. No operator enum -- unary negation only.
+                var aPin = notNode.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "A", StringComparison.OrdinalIgnoreCase));
+                var resultPin = notNode.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, "Result", StringComparison.OrdinalIgnoreCase));
+
+                IrValue aVal = aPin is not null
+                    ? ResolveDataPin(notNode.Id, aPin.Id, stmts)
+                    : AllocValue(Stage5_Schedule.UnknownType);
+
+                var notResult = AllocValue(Stage5_Schedule.BoolType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = notResult,
+                    Operation   = new IrOp_Not(aVal),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = notNode.Id, PinId = sourcePinId },
+                });
+
+                if (resultPin is not null) _pinValueCache[resultPin.Id] = notResult;
+
+                result = notResult;
+                break;
+            }
+
             case FunctionCallNode fc when fc.IsPure && !string.IsNullOrEmpty(fc.TargetGraphId):
             {
                 // Pure in-blueprint function-graph call (BATCH-03A).

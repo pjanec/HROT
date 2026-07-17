@@ -468,6 +468,23 @@ internal static class StatementEmitter
                 break;
 
             // ------------------------------------------------------------------
+            // BooleanOp / Not -- native boolean logic node lowering (Compare's boolean siblings)
+            // ------------------------------------------------------------------
+
+            case IrOp_BooleanOp op:
+                if (idx >= 0)
+                {
+                    string infix = BooleanOperatorInfix(op.Op);
+                    e.WriteLine($"var __t{idx} = __t{op.Left.Index} {infix} __t{op.Right.Index};");
+                }
+                break;
+
+            case IrOp_Not op:
+                if (idx >= 0)
+                    e.WriteLine($"var __t{idx} = !__t{op.Operand.Index};");
+                break;
+
+            // ------------------------------------------------------------------
             // Debug probes (Debug/Trace modes only)
             // ------------------------------------------------------------------
 
@@ -926,6 +943,19 @@ internal static class StatementEmitter
         ArithmeticOperator.Divide   => "/",
         ArithmeticOperator.Modulo   => "%",
         _ => "+",
+    };
+
+    /// <summary>
+    /// <see cref="BooleanOperator"/> -> C# infix operator text for <c>IrOp_BooleanOp</c>
+    /// (Compare's boolean sibling). Mirrors <see cref="ArithmeticOperatorInfix"/>'s shape as a
+    /// direct enum switch since <c>BooleanOpNode</c> carries a real <see cref="BooleanOperator"/>
+    /// value rather than a synthesized method-name string.
+    /// </summary>
+    private static string BooleanOperatorInfix(BooleanOperator op) => op switch
+    {
+        BooleanOperator.And => "&&",
+        BooleanOperator.Or  => "||",
+        _ => "&&",
     };
 
     /// <summary>

@@ -65,6 +65,13 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         // Stage0_Rehydrate never rebuilds them (node.Pins.Count > 0 guard). No enricher needed.
         BinaryOpNode     => Array.Empty<PinSchema>(),   // pure data-(A,B In)/(Result Out); pins come from the asset JSON
 
+        // BooleanOp / Not (native boolean logic nodes): pure data nodes, mirror CompareNode/
+        // BinaryOpNode -- no static shape here; the asset supplies fully-authored Pins (A/B in,
+        // Result out for BooleanOp; A in, Result out for Not) directly, so Stage0_Rehydrate never
+        // rebuilds them (node.Pins.Count > 0 guard). No enricher needed.
+        BooleanOpNode    => Array.Empty<PinSchema>(),   // pure data-(A,B In)/(Result Out); pins come from the asset JSON
+        NotNode          => Array.Empty<PinSchema>(),   // pure data-(A In)/(Result Out); pins come from the asset JSON
+
         // FunctionCall: static exec skeleton; Stage0_Rehydrate fills data pins.
         FunctionCallNode fc when !fc.IsPure => new[] { ExecIn(), ExecOut() },
         FunctionCallNode   => Array.Empty<PinSchema>(), // pure

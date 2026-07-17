@@ -249,6 +249,29 @@ public sealed record IrOp_BinaryOp(
     IrValue Right,
     Hrot.Blueprints.Core.Assets.ArithmeticOperator Op) : IrOperation;
 
+/// <summary>
+/// Native <c>BooleanOpNode</c> lowering (Compare's boolean sibling). Emits a single infix C#
+/// boolean expression: <c>var __t{idx} = __t{Left.Index} {infix} __t{Right.Index};</c>, where
+/// <c>{infix}</c> comes from a <see cref="Hrot.Blueprints.Core.Assets.BooleanOperator"/> ->
+/// C#-infix switch in <see cref="Emit.StatementEmitter"/> (<c>&amp;&amp;</c>/<c>||</c>). Both
+/// operands must already be <c>System.Boolean</c> -- no coercion is performed here. Like
+/// <see cref="IrOp_Compare"/> (and unlike <see cref="IrOp_BinaryOp"/>), the result IrValue is
+/// typed <c>BoolType</c> (see Stage5_Schedule's BooleanOpNode case). No short-circuit: both
+/// operands are resolved as values (via ResolveDataPin) before this op combines them.
+/// </summary>
+public sealed record IrOp_BooleanOp(
+    IrValue Left,
+    IrValue Right,
+    Hrot.Blueprints.Core.Assets.BooleanOperator Op) : IrOperation;
+
+/// <summary>
+/// Native <c>NotNode</c> lowering (unary boolean negation). Emits a single prefix C# expression:
+/// <c>var __t{idx} = !__t{Operand.Index};</c>. The operand must already be <c>System.Boolean</c> --
+/// no coercion is performed here. The result IrValue is typed <c>BoolType</c> (see
+/// Stage5_Schedule's NotNode case).
+/// </summary>
+public sealed record IrOp_Not(IrValue Operand) : IrOperation;
+
 // Debug probes (Debug/Trace modes)
 public sealed record IrOp_DebugProbe_NodeEnter(Guid NodeId, string NodeKind) : IrOperation;
 public sealed record IrOp_DebugProbe_PinValue(Guid PinId, IrValue Value, string PinName) : IrOperation;
