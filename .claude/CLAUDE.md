@@ -25,6 +25,11 @@ mcp_codebase-memo_get_architecture({ "project": "<display_name>" })
 
 ### Workflow
 
+0. **If `list_projects` returns an empty list** (a fresh cloud VM re-indexes each
+   session — the graph is not persisted): **immediately** call
+   `index_repository(repo_path="<repo root>")` for this repo, **without asking**,
+   then continue. Indexing ~5k C# files takes only tens of seconds. On Linux the
+   repo root is the current working directory (e.g. `/home/user/IOS-IG-SimHost-FDP`).
 1. Call `list_projects` to discover the correct project name.
 2. Call `get_architecture(project)` to understand the codebase structure.
 3. Use `search_graph` to find relevant symbols, `trace_call_path` for call chains.

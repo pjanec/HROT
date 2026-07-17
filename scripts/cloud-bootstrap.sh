@@ -114,7 +114,9 @@ install_cbm() {
 index_repo() {
     [ -x "$CBM_BIN" ] || return 0
     log "Indexing repository ($PROJECT_DIR) into the knowledge graph (best effort) ..."
-    if "$CBM_BIN" index_repository "$PROJECT_DIR" >/dev/null 2>&1; then
+    # CLI form: `codebase-memory-mcp cli index_repository '{"repo_path":"..."}'`
+    local json; json=$(printf '{"repo_path": "%s"}' "$PROJECT_DIR")
+    if "$CBM_BIN" cli index_repository "$json" >/dev/null 2>&1; then
         log "Indexed. Use list_projects to see the project name."
     else
         log "Automatic indexing skipped (the agent can call index_repository via MCP)."

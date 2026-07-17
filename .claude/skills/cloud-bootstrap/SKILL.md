@@ -40,7 +40,12 @@ See `docs/cloud-codebase-memory-mcp.md`.
   github.com releases. Switch the policy to **Full** and re-run.
 - To force a re-download of a newer MCP release: `CBM_FORCE=1 bash scripts/cloud-bootstrap.sh`.
 
-## After the server is connected
-Follow the normal graph-first workflow in `.claude/CLAUDE.md`:
+## After the server is connected - index the repo
+The graph DB is not carried across cloud sessions, so a fresh session starts
+empty. Call `list_projects`; **if it returns an empty list, immediately call
+`index_repository(repo_path="<repo root>")` without asking** (tens of seconds for
+this repo), then proceed with the graph-first workflow in `.claude/CLAUDE.md`:
 `list_projects` -> `get_architecture` -> `search_graph` / `trace_call_path` -> `get_code_snippet`.
-If the graph is empty, index this repo once via the `index_repository` MCP tool.
+
+(From a shell you can also index with:
+`/opt/codebase-memory-mcp/codebase-memory-mcp cli index_repository '{"repo_path":"'"$PWD"'"}'`.)

@@ -69,6 +69,32 @@ setx CODEBASE_MEMORY_MCP_BIN "C:\Users\<you>\.vscode\extensions\tunakite03.codeb
 Then restart VS Code. (This also fixes the old hard-coded path, which only matched
 one of your machines.) Cursor keeps using its own `.cursor/mcp.json` - unchanged.
 
+## Indexing - the graph starts empty each session
+
+The setup script installs the server but runs **before the repo exists**, so it
+cannot index. The graph DB (`~/.cache/codebase-memory-mcp/`) is also **not** part
+of the environment-cache snapshot, so every fresh cloud session starts with an
+empty graph and must index in-session (idempotent, ~tens of seconds for ~5k C#
+files here).
+
+**Default (no hook):** `.claude/CLAUDE.md` tells the agent to auto-run
+`index_repository(repo_path="<repo root>")` the moment `list_projects` comes back
+empty - no manual step, no prompt.
+
+**Optional zero-touch:** if you want the graph populated before you even type,
+add a cloud-only SessionStart hook to `.claude/settings.json` (costs ~tens of
+seconds at each session start):
+```json
+"hooks": {
+  "SessionStart": [
+    { "matcher": "startup|resume",
+      "hooks": [ { "type": "command",
+        "command": "[ \"$CLAUDE_CODE_REMOTE\" = true ] && bash \"$CLAUDE_PROJECT_DIR/scripts/cloud-bootstrap.sh\" || true" } ] }
+  ]
+}
+```
+`cloud-bootstrap.sh` skips the already-installed .NET/MCP and just indexes.
+
 ## Verify in a cloud session
 
 ```bash
