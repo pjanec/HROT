@@ -395,6 +395,7 @@ public sealed class NodeCoverageTests
         yield return ("Inline/GetSharedSetShared", new[] { BuildGetSetSharedMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetComponent", new[] { BuildGetComponentMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetParameter", new[] { BuildGetParameterMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
+        yield return ("Inline/Compare", new[] { BuildCompareMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         // PublishEvent (P4 -- GAP-3): ValidateOnlyStage1To7 (not FullRoslynPipeline) because the
         // generated C# references Fdp.Toolkit.Behavior.Events.ClearBehaviorEvent AND
         // EntityRepository.Bus, neither of which the deliberately dependency-light coverage-Roslyn
@@ -952,6 +953,80 @@ public sealed class NodeCoverageTests
             Name      = "GetComponentCoverage",
             Dispatch  = BlueprintDispatchKind.Instance,
             Variables = { floatVar },
+            Graphs    = { graph },
+        };
+    }
+
+    /// <summary>
+    /// EventEntry -&gt; SetVariable(BoolOut) -&gt; Return, fed by a data-only Compare node (GAP-12 --
+    /// native comparison node, retires the HillAssault2NavOps.IsArrived stopgap). Mirrors
+    /// <see cref="BuildGetComponentMinimalAsset"/>'s shape/evidence bar: A/B are two Literal
+    /// <c>System.Single</c> operands (5f == 5f), the Compare node's "A"/"B"/"Result" pins are
+    /// authored explicitly (mirrors GetComponentNode -- Stage0_Rehydrate's "node.Pins.Count > 0
+    /// =&gt; skip" guard leaves fully-authored pin-less-node exceptions alone, so no enricher is
+    /// needed), exercising the real Stage5_Schedule CompareNode lowering (ResolveDataPin(A/B) -&gt;
+    /// IrOp_Compare -&gt; infix "==") through the full Roslyn+ALC pipeline.
+    /// </summary>
+    private static BlueprintAsset BuildCompareMinimalAsset()
+    {
+        var litAValuePin = DataPin("Value", "Out", "System.Single");
+        var litA = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Single", ValueJson = "5f" };
+        litA.Pins.Add(litAValuePin);
+
+        var litBValuePin = DataPin("Value", "Out", "System.Single");
+        var litB = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Single", ValueJson = "5f" };
+        litB.Pins.Add(litBValuePin);
+
+        var cmpAPin      = DataPin("A",      "In",  "System.Single");
+        var cmpBPin      = DataPin("B",      "In",  "System.Single");
+        var cmpResultPin = DataPin("Result", "Out", "System.Boolean");
+        var cmpNode = new CompareNode { Id = Guid.NewGuid(), Operator = ComparisonOperator.Equal };
+        cmpNode.Pins.AddRange(new[] { cmpAPin, cmpBPin, cmpResultPin });
+
+        var boolVarId = Guid.NewGuid();
+        var boolVar = new VariableDecl
+        {
+            Id   = boolVarId,
+            Name = "BoolOut",
+            Type = new BlueprintTypeRef { TypeId = "System.Boolean" },
+        };
+
+        var setExecIn   = ExecPin("ExecIn",  "In");
+        var setExecOut  = ExecPin("ExecOut", "Out");
+        var setValuePin = DataPin("Value",   "In", "System.Boolean");
+        var setNode = new SetVariableNode { Id = Guid.NewGuid(), VariableId = boolVarId.ToString() };
+        setNode.Pins.AddRange(new[] { setExecIn, setExecOut, setValuePin });
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecPin("ExecIn", "In");
+        ret.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, litA, litB, cmpNode, setNode, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,   FromPinId = entryOut.Id,     ToNodeId = setNode.Id, ToPinId = setExecIn.Id },
+                new Link { FromNodeId = setNode.Id, FromPinId = setExecOut.Id,   ToNodeId = ret.Id,     ToPinId = retIn.Id },
+                new Link { FromNodeId = litA.Id,    FromPinId = litAValuePin.Id, ToNodeId = cmpNode.Id, ToPinId = cmpAPin.Id },
+                new Link { FromNodeId = litB.Id,    FromPinId = litBValuePin.Id, ToNodeId = cmpNode.Id, ToPinId = cmpBPin.Id },
+                new Link { FromNodeId = cmpNode.Id, FromPinId = cmpResultPin.Id, ToNodeId = setNode.Id, ToPinId = setValuePin.Id },
+            },
+        };
+
+        return new BlueprintAsset
+        {
+            AssetId   = Guid.NewGuid(),
+            Name      = "CompareCoverage",
+            Dispatch  = BlueprintDispatchKind.Instance,
+            Variables = { boolVar },
             Graphs    = { graph },
         };
     }

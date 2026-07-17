@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Navigation;
@@ -25,20 +26,21 @@ namespace Hrot.AiEditor.Generators.Tests.Demos;
 /// Graph: init WorkingState <c>bool AllAtBaseline = true</c> (Literal -&gt; SetVariable), then
 /// <c>FlowForEach</c> over the commander's <c>UnitRoster</c> (curated
 /// <c>UnitRosterOps.Count</c>/<c>Subordinate</c>) whose Body reads each subordinate's
-/// <c>NavigationStatus.Result</c> via <c>GetComponent</c>(Target=CurrentItem) and, through the
-/// GAP-12 stopgap comparator <c>HillAssault2NavOps.IsArrived</c>, BRANCHES: <c>Branch.True</c>
-/// (arrived) is unwired (do nothing); <c>Branch.False</c> (not arrived) sets
-/// <c>AllAtBaseline = false</c> -- i.e. the AND-reduce
-/// <c>if (!IsArrived(nav.Result)) AllAtBaseline = false;</c> emitted as a NESTED inline
-/// <c>if</c>/<c>else</c> INSIDE the <c>for</c> loop (<c>IrOp_If</c>), NOT a BFS block split. After the
-/// loop, <c>GetVariable(AllAtBaseline)</c> -&gt; <c>Branch</c> returns Success/Failure.
+/// <c>NavigationStatus.Result</c> via <c>GetComponent</c>(Target=CurrentItem), compares it against
+/// <c>Literal(NavigationResult.Arrived)</c> via the native GAP-12 <c>Compare</c> node
+/// (<c>Operator: "Equal"</c>), and BRANCHES on <c>Compare.Result</c>: <c>Branch.True</c> (arrived)
+/// is unwired (do nothing); <c>Branch.False</c> (not arrived) sets <c>AllAtBaseline = false</c> --
+/// i.e. the AND-reduce <c>if (!(nav.Result == NavigationResult.Arrived)) AllAtBaseline = false;</c>
+/// emitted as a NESTED inline <c>if</c>/<c>else</c> INSIDE the <c>for</c> loop (<c>IrOp_If</c>), NOT a
+/// BFS block split. After the loop, <c>GetVariable(AllAtBaseline)</c> -&gt; <c>Branch</c> returns
+/// Success/Failure.
 /// </para>
 ///
 /// <para>
 /// Compiled by the REAL Roslyn source generator as part of <c>Hrot.AI.Behaviors</c>'s own build. Does
-/// not modify the C# oracle. GAP-12: the enum-equality check lives in the tiny pure <c>IsArrived</c>
-/// helper until a native Compare node lands; the loop + in-body branch (the reusable capability) are
-/// proven natively now.
+/// not modify the C# oracle. GAP-12: the enum-equality check is now fully visual (native
+/// <c>Compare</c> node, <c>IrOp_Compare</c> emits a plain infix "==" expression) -- the former
+/// <c>HillAssault2NavOps.IsArrived</c> stopgap helper has been retired (deleted).
 /// </para>
 /// </summary>
 public sealed class HillAssault2_AreAllAtBaseline_ProofTests
@@ -129,8 +131,25 @@ public sealed class HillAssault2_AreAllAtBaseline_ProofTests
             "GetComponentRO<global::Fdp.Toolkit.Navigation.NavigationStatus>",
             "each subordinate's NavigationStatus must be read via a reflection-free, Target-pinned " +
             "GetComponentRO<global::FQN> (P2 foreign-entity read) -- see below:\n" + source);
-        source.Should().Contain("HillAssault2NavOps.IsArrived(",
-            "the GAP-12 stopgap comparator must turn the field read into the branch condition -- see below:\n" + source);
+
+        // GAP-12 proof: the in-loop Compare node's Literal(B) operand bakes the fully-qualified enum
+        // member verbatim (IrOp_Const), and the Compare itself lowers to a plain infix "__tX == __tY"
+        // temp-to-temp comparison (IrOp_Compare / StatementEmitter) that feeds the in-body Branch's
+        // condition -- NOT a method call, so temp indices are asserted structurally via regex.
+        source.Should().Contain(
+            "global::Fdp.Toolkit.Navigation.NavigationResult.Arrived",
+            "the in-loop Compare node's B operand (a Literal) must bake the fully-qualified enum " +
+            "member -- see below:\n" + source);
+        Regex.IsMatch(source, @"var __t\d+ = __t\d+ == __t\d+;").Should().BeTrue(
+            "the in-loop Compare node (Operator=Equal) must lower to a plain infix C# '==' " +
+            "expression (IrOp_Compare) that turns the field read into the branch condition -- see " +
+            "below:\n" + source);
+
+        // The former GAP-12 stopgap comparator helper is retired -- the condition is now fully
+        // visual (native Compare node), no CLR helper call left in the generated TickCore.
+        source.Should().NotContain("HillAssault2NavOps.IsArrived(",
+            "the GAP-12 stopgap comparator helper has been retired in favor of the native Compare " +
+            "node -- see below:\n" + source);
 
         // P1b core evidence: the in-body Branch emits as a nested inline `if`/`else` (IrOp_If), NOT a
         // BFS block split -- and it mutates the WorkingState AND-reduce accumulator on the False arm.

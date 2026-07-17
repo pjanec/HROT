@@ -38,6 +38,7 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(GetComponentNode),       "GetComponent")]
 [JsonDerivedType(typeof(PublishEventNode),       "PublishEvent")]
 [JsonDerivedType(typeof(FlowForEachNode),        "FlowForEach")]
+[JsonDerivedType(typeof(CompareNode),            "Compare")]
 public abstract class Node
 {
     public Guid Id { get; set; }
@@ -470,6 +471,32 @@ public sealed class GetComponentNode : Node
     public string FieldName { get; set; } = "";
     /// <summary>FQN of the read field's type (e.g. "Fdp.Toolkit.Navigation.NavigationResult"). Used only to build the result IrTypeRef locally; optional (falls back to the resolved out-pin type / UnknownType).</summary>
     public string FieldTypeFqn { get; set; } = "";
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Compare (GAP-12 -- native comparison node, retires HillAssault2NavOps.IsArrived)
+//
+// Pure data node (no exec pins), asset-authored pins (mirrors GetComponentNode -- registry
+// returns Array.Empty, Stage0's Pins.Count > 0 guard leaves the authored pins alone; no
+// enricher). Reuses the pre-existing ComparisonOperator enum (Nodes.cs, today only used inside
+// WhenNode's PayloadCondition) and lowers to a NEW IR op (IrOp_Compare) that reuses the existing
+// operator -> C# infix mapping shape already used by StatementEmitter's op_Eq_Byte-style
+// synthesized-op lowering (StatementEmitter.cs ~936-949). See Stage5_Schedule's CompareNode case
+// and StatementEmitter's IrOp_Compare case.
+// ──────────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// Compares two operands ("A"/"B" data-in pins, asset-authored, any operand type as long as both
+/// sides agree -- C# <c>==</c>/<c>&lt;</c> etc. require it) using <see cref="Operator"/>, producing
+/// a <c>System.Boolean</c> "Result" data-out pin. Pure-data node (no exec pins). Compiles to a
+/// single infix C# expression (<c>IrOp_Compare</c> -- see <c>StatementEmitter</c>'s case, which
+/// reuses the same six <see cref="ComparisonOperator"/> -> C# infix mappings as the existing
+/// op_&lt;Op&gt;_&lt;Type&gt; synthesized-operator lowering).
+/// </summary>
+public sealed class CompareNode : Node
+{
+    /// <summary>Which comparison to perform (Equal/NotEqual/LessThan/LessThanOrEqual/GreaterThan/GreaterThanOrEqual).</summary>
+    public ComparisonOperator Operator { get; set; }
 }
 
 // ──────────────────────────────────────────────────────────────────────────

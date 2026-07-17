@@ -90,16 +90,23 @@
           "EditorMetadata": { "X": 560.0, "Y": 80.0 }
         },
         {
-          "kind": "FunctionCall",
-          "Id": "fc000000-0000-0000-0000-000000000001",
-          "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAssault2NavOps",
-          "MethodName": "IsArrived",
-          "IsPure": true,
-          "TargetGraphId": "",
-          "TrailingContext": "None",
+          "kind": "Literal",
+          "Id": "11110000-0000-0000-0000-000000000003",
+          "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult",
+          "ValueJson": "global::Fdp.Toolkit.Navigation.NavigationResult.Arrived",
           "Pins": [
-            { "Id": "fc000000-0000-0000-0000-0000000000a1", "Name": "result", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "fc000000-0000-0000-0000-0000000000a2", "Name": "Return", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] } }
+            { "Id": "11110000-0000-0000-0000-0000000000a1", "Name": "Value", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult", "IsArray": false, "GenericArgs": [] } }
+          ],
+          "EditorMetadata": { "X": 560.0, "Y": 200.0 }
+        },
+        {
+          "kind": "Compare",
+          "Id": "ca000000-0000-0000-0000-000000000001",
+          "Operator": "Equal",
+          "Pins": [
+            { "Id": "ca000000-0000-0000-0000-0000000000a1", "Name": "A",      "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "ca000000-0000-0000-0000-0000000000a2", "Name": "B",      "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "ca000000-0000-0000-0000-0000000000a3", "Name": "Result", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] } }
           ],
           "EditorMetadata": { "X": 800.0, "Y": 80.0 }
         },
@@ -196,12 +203,18 @@
         {
           "FromNodeId": "9c000000-0000-0000-0000-000000000001",
           "FromPinId":  "9c000000-0000-0000-0000-0000000000a2",
-          "ToNodeId":   "fc000000-0000-0000-0000-000000000001",
-          "ToPinId":    "fc000000-0000-0000-0000-0000000000a1"
+          "ToNodeId":   "ca000000-0000-0000-0000-000000000001",
+          "ToPinId":    "ca000000-0000-0000-0000-0000000000a1"
         },
         {
-          "FromNodeId": "fc000000-0000-0000-0000-000000000001",
-          "FromPinId":  "fc000000-0000-0000-0000-0000000000a2",
+          "FromNodeId": "11110000-0000-0000-0000-000000000003",
+          "FromPinId":  "11110000-0000-0000-0000-0000000000a1",
+          "ToNodeId":   "ca000000-0000-0000-0000-000000000001",
+          "ToPinId":    "ca000000-0000-0000-0000-0000000000a2"
+        },
+        {
+          "FromNodeId": "ca000000-0000-0000-0000-000000000001",
+          "FromPinId":  "ca000000-0000-0000-0000-0000000000a3",
           "ToNodeId":   "b1000000-0000-0000-0000-000000000001",
           "ToPinId":    "b1000000-0000-0000-0000-0000000000a4"
         },
@@ -246,7 +259,7 @@
     }
   ],
   "EditorMetadata": {
-    "Description": "P1b proof (GAP-1, Hill-attack -> Blueprints slice 4): Condition_AreAllAtBaseline rebuilt as a visually-authored AiPrimitive BTreeCondition, exercising the NEW in-body Branch -> inline if/else scheduler path together with P2 (foreign-entity component read) and P1a (FlowForEach loop). Graph: init WorkingState bool AllAtBaseline=true (Literal->SetVariable), then FlowForEach over the commander's UnitRoster (curated UnitRosterOps.Count/Subordinate) whose body reads each subordinate's NavigationStatus.Result via GetComponent(Target=CurrentItem) and, through the GAP-12 stopgap helper HillAssault2NavOps.IsArrived, BRANCHES: on 'not arrived' (Branch.False) it sets AllAtBaseline=false; on 'arrived' (Branch.True, unwired) nothing -- i.e. the AND-reduce `if (!IsArrived(nav.Result)) AllAtBaseline=false;` emitted as a nested inline if/else INSIDE the for-loop (P1b), not a BFS block split. After the loop, GetVariable(AllAtBaseline)->Branch returns Success/Failure. Proves in-body branch lowering (IrOp_If) end-to-end through the real netstandard2.0 generator. GAP-12: the enum-equality check still lives in the tiny pure IsArrived helper until a native Compare node lands, at which point this becomes fully visual. Does not modify the C# oracle (HillAttackCommanderNodes.Condition_AreAllAtBaseline).",
+    "Description": "P1b/GAP-12 proof (GAP-1, Hill-attack -> Blueprints slice 4): Condition_AreAllAtBaseline rebuilt as a visually-authored AiPrimitive BTreeCondition, exercising the in-body Branch -> inline if/else scheduler path together with P2 (foreign-entity component read), P1a (FlowForEach loop), and the native Compare node (GAP-12). Graph: init WorkingState bool AllAtBaseline=true (Literal->SetVariable), then FlowForEach over the commander's UnitRoster (curated UnitRosterOps.Count/Subordinate) whose body reads each subordinate's NavigationStatus.Result via GetComponent(Target=CurrentItem), compares it against Literal(NavigationResult.Arrived) via the native Compare node (Operator=Equal, IrOp_Compare emits the infix '==' inline), and BRANCHES on the Compare.Result: on 'not arrived' (Branch.False) it sets AllAtBaseline=false; on 'arrived' (Branch.True, unwired) nothing -- i.e. the AND-reduce `if (!(nav.Result == NavigationResult.Arrived)) AllAtBaseline=false;` emitted as a nested inline if/else INSIDE the for-loop (P1b), not a BFS block split. After the loop, GetVariable(AllAtBaseline)->Branch returns Success/Failure. Proves in-body branch lowering (IrOp_If) AND the native Compare node end-to-end through the real netstandard2.0 generator. GAP-12: the enum-equality check is now fully visual (native Compare node) -- the former HillAssault2NavOps.IsArrived stopgap helper has been retired (deleted). Does not modify the C# oracle (HillAttackCommanderNodes.Condition_AreAllAtBaseline).",
     "Category": null,
     "Recipe": null
   }

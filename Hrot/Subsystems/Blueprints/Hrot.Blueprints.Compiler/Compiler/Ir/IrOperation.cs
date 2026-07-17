@@ -221,6 +221,20 @@ public sealed record IrOp_ReadCursorWaitUntilTime : IrOperation;
 // Field read from a component ref (Stage 6 lowering)
 public sealed record IrOp_FieldRead(IrValue Source, string FieldName, IrTypeRef ResultType) : IrOperation;
 
+/// <summary>
+/// GAP-12 -- native <c>CompareNode</c> lowering. Emits a single infix C# comparison expression:
+/// <c>var __t{idx} = __t{Left.Index} {infix} __t{Right.Index};</c>, where <c>{infix}</c> comes from
+/// a <see cref="Hrot.Blueprints.Core.Assets.ComparisonOperator"/> -> C#-infix switch in
+/// <see cref="Emit.StatementEmitter"/> (mirrors the existing op_&lt;Op&gt;_&lt;Type&gt;
+/// synthesized-operator infix map at StatementEmitter.cs ~936-949). Both operands must already
+/// agree in type (the graph author wires same-typed A/B, e.g. an enum field read against an enum
+/// Literal) -- no coercion is performed here.
+/// </summary>
+public sealed record IrOp_Compare(
+    IrValue Left,
+    IrValue Right,
+    Hrot.Blueprints.Core.Assets.ComparisonOperator Op) : IrOperation;
+
 // Debug probes (Debug/Trace modes)
 public sealed record IrOp_DebugProbe_NodeEnter(Guid NodeId, string NodeKind) : IrOperation;
 public sealed record IrOp_DebugProbe_PinValue(Guid PinId, IrValue Value, string PinName) : IrOperation;

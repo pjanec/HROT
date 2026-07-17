@@ -444,6 +444,18 @@ internal static class StatementEmitter
                 break;
 
             // ------------------------------------------------------------------
+            // Compare (GAP-12) -- native comparison node lowering
+            // ------------------------------------------------------------------
+
+            case IrOp_Compare op:
+                if (idx >= 0)
+                {
+                    string infix = ComparisonOperatorInfix(op.Op);
+                    e.WriteLine($"var __t{idx} = __t{op.Left.Index} {infix} __t{op.Right.Index};");
+                }
+                break;
+
+            // ------------------------------------------------------------------
             // Debug probes (Debug/Trace modes only)
             // ------------------------------------------------------------------
 
@@ -868,6 +880,25 @@ internal static class StatementEmitter
                 synthFieldName.Length - prefix.Length - suffix.Length);
         return synthFieldName;
     }
+
+    /// <summary>
+    /// GAP-12 -- <see cref="ComparisonOperator"/> -> C# infix operator text for <c>IrOp_Compare</c>.
+    /// Shares the same six mappings as the existing op_&lt;Op&gt;_&lt;Type&gt; synthesized-operator
+    /// infix map used by <see cref="TryGetSynthesizedOpInfix"/> above (Eq/NotEq/LessThan/
+    /// LessThanOrEqual/GreaterThan/GreaterThanOrEqual -> ==/!=/&lt;/&lt;=/&gt;/&gt;=), extracted
+    /// here as a direct enum switch since <c>CompareNode</c> carries a real
+    /// <see cref="ComparisonOperator"/> value rather than a synthesized method-name string.
+    /// </summary>
+    private static string ComparisonOperatorInfix(ComparisonOperator op) => op switch
+    {
+        ComparisonOperator.Equal              => "==",
+        ComparisonOperator.NotEqual           => "!=",
+        ComparisonOperator.LessThan           => "<",
+        ComparisonOperator.LessThanOrEqual    => "<=",
+        ComparisonOperator.GreaterThan        => ">",
+        ComparisonOperator.GreaterThanOrEqual => ">=",
+        _ => "==",
+    };
 
     /// <summary>
     /// P7 -- appends the in-scope `self`/read-only-view identifiers (in that order) to an

@@ -55,25 +55,46 @@
           "EditorMetadata": { "X": 80.0, "Y": 60.0 }
         },
         {
-          "kind": "FunctionCall",
-          "Id": "d91f2f13-66dc-4194-a449-fb39f4f3564a",
-          "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAssault2NavOps",
-          "MethodName": "IsArrived",
-          "IsPure": true,
-          "TargetGraphId": "",
-          "TrailingContext": "None",
+          "kind": "Literal",
+          "Id": "ff600c08-3d7d-4889-a1c5-3f957f4fb44e",
+          "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult",
+          "ValueJson": "global::Fdp.Toolkit.Navigation.NavigationResult.Arrived",
           "Pins": [
             {
-              "Id": "56539336-bc95-4977-8f5a-f2ab34c703cf",
-              "Name": "result",
+              "Id": "b917af9e-db29-4421-8a5f-15c09a593c0d",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": { "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult", "IsArray": false, "GenericArgs": [] },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": { "X": 80.0, "Y": 140.0 }
+        },
+        {
+          "kind": "Compare",
+          "Id": "44f9506b-a51e-4cc9-8431-5138bcc72f45",
+          "Operator": "Equal",
+          "Pins": [
+            {
+              "Id": "7b693723-a48a-409a-b93e-41593b0b3d1d",
+              "Name": "A",
               "Direction": "In",
               "TypeRef": { "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult", "IsArray": false, "GenericArgs": [] },
               "IsExec": false,
               "LinkedToIds": []
             },
             {
-              "Id": "4b5afa2c-11f5-4202-873f-3b8ecd3a53ac",
-              "Name": "Return",
+              "Id": "7f439fad-3b7e-4dd6-8d42-fb88db500926",
+              "Name": "B",
+              "Direction": "In",
+              "TypeRef": { "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult", "IsArray": false, "GenericArgs": [] },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "3ceab38c-97cc-48df-b62d-fcae68e3294a",
+              "Name": "Result",
               "Direction": "Out",
               "TypeRef": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] },
               "IsExec": false,
@@ -113,12 +134,18 @@
         {
           "FromNodeId": "01cc27bd-fc0e-4938-914a-8b24629f813a",
           "FromPinId": "cdc47ca0-bd42-438c-ab67-f9ec857af4d2",
-          "ToNodeId": "d91f2f13-66dc-4194-a449-fb39f4f3564a",
-          "ToPinId": "56539336-bc95-4977-8f5a-f2ab34c703cf"
+          "ToNodeId": "44f9506b-a51e-4cc9-8431-5138bcc72f45",
+          "ToPinId": "7b693723-a48a-409a-b93e-41593b0b3d1d"
         },
         {
-          "FromNodeId": "d91f2f13-66dc-4194-a449-fb39f4f3564a",
-          "FromPinId": "4b5afa2c-11f5-4202-873f-3b8ecd3a53ac",
+          "FromNodeId": "ff600c08-3d7d-4889-a1c5-3f957f4fb44e",
+          "FromPinId": "b917af9e-db29-4421-8a5f-15c09a593c0d",
+          "ToNodeId": "44f9506b-a51e-4cc9-8431-5138bcc72f45",
+          "ToPinId": "7f439fad-3b7e-4dd6-8d42-fb88db500926"
+        },
+        {
+          "FromNodeId": "44f9506b-a51e-4cc9-8431-5138bcc72f45",
+          "FromPinId": "3ceab38c-97cc-48df-b62d-fcae68e3294a",
           "ToNodeId": "af6fe19d-8fe8-4be9-aa39-9a02a9d8115a",
           "ToPinId": "550c0811-2bf5-4956-bb26-94cdae6230e2"
         },
@@ -139,7 +166,7 @@
     }
   ],
   "EditorMetadata": {
-    "Description": "P2 proof (Hill-attack -> Blueprints migration): a from-scratch, blueprint-authored AiPrimitive BTreeCondition proving the NEW visually-native GetComponent node end-to-end -- an ECS component field read with NO CLR reflection at generation time. Graph: EventEntry -> Branch, fed by GetComponent(self, Fdp.Toolkit.Navigation.NavigationStatus.Result) [no 'Target' pin wired -- self-default, emits IrOp_Self] -> FunctionCall HillAssault2NavOps.IsArrived(result) [IsPure, TrailingContext: None -- a contextless helper, proving the baked-context path also handles the 'no self/view' case] -> Branch.Condition -> Return(Success)/Return(Failure). GAP-12: blueprints have no native comparison/equality node yet, so the enum-equality check (NavigationResult == NavigationResult.Arrived) that turns the GetComponent field read into a bool condition lives in the tiny pure HillAssault2NavOps.IsArrived helper (Hrot.AI.Behaviors/Brains/HillAssault2NavOps.cs) -- a stopgap deleted once a native Compare node lands, at which point this condition becomes fully visual. Does not modify the C# oracle. See HillAssault2_IsSelfArrived_ProofTests.cs, which reflects the real generated Hrot.AI.Behaviors.Generated.HillAssault2IsSelfArrived_*_Bp type out of the built Hrot.AI.Behaviors.dll and asserts the generated TickCore body contains 'GetComponentRO<global::Fdp.Toolkit.Navigation.NavigationStatus>', '.Result', and 'HillAssault2NavOps.IsArrived('.",
+    "Description": "P2/GAP-12 proof (Hill-attack -> Blueprints migration): a from-scratch, blueprint-authored AiPrimitive BTreeCondition proving the NEW visually-native GetComponent + Compare nodes end-to-end -- an ECS component field read plus a native comparison, with NO CLR reflection at generation time. Graph: EventEntry -> Branch, fed by GetComponent(self, Fdp.Toolkit.Navigation.NavigationStatus.Result) [no 'Target' pin wired -- self-default, emits IrOp_Self] -> Compare.A, Literal(NavigationResult.Arrived) -> Compare.B, Operator=Equal -> Compare.Result -> Branch.Condition -> Return(Success)/Return(Failure). GAP-12: the enum-equality check (NavigationResult == NavigationResult.Arrived) that turns the GetComponent field read into a bool condition is now fully visual (native Compare node, IrOp_Compare emits the infix '==' inline) -- retiring the former HillAssault2NavOps.IsArrived stopgap helper (deleted). Does not modify the C# oracle. See HillAssault2_IsSelfArrived_ProofTests.cs, which reflects the real generated Hrot.AI.Behaviors.Generated.HillAssault2IsSelfArrived_*_Bp type out of the built Hrot.AI.Behaviors.dll and asserts the generated TickCore body contains 'GetComponentRO<global::Fdp.Toolkit.Navigation.NavigationStatus>', '.Result', and the inline compare '== global::Fdp.Toolkit.Navigation.NavigationResult.Arrived', and that it no longer contains 'HillAssault2NavOps.IsArrived('.",
     "Category": null,
     "Recipe": null
   }

@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using Fdp.Core;
 using Fdp.Toolkit.Navigation;
 using FluentAssertions;
@@ -28,12 +29,12 @@ namespace Hrot.AiEditor.Generators.Tests.Demos;
 /// </para>
 ///
 /// <para>
-/// <b>GAP-12 stopgap:</b> blueprints have no native comparison/equality node yet, so the
-/// enum-equality check that turns the GetComponent field read into a bool condition lives in the
-/// tiny pure <see cref="HillAssault2NavOps.IsArrived"/> helper, called via a <c>FunctionCall</c> node
-/// with <c>"TrailingContext": "None"</c> -- a CONTEXTLESS helper (no self/view trailing args at
-/// all), proving the P7.1 baked-context path also handles the "no context" case with zero
-/// reflection.
+/// <b>GAP-12 -- native Compare node:</b> the enum-equality check that turns the GetComponent field
+/// read into a bool condition is now fully visual: a <c>Compare</c> node (<c>Operator: "Equal"</c>)
+/// wired to <c>A = GetComponent.Value</c> and <c>B = Literal(NavigationResult.Arrived)</c>. Lowers to
+/// a single new IR op, <c>IrOp_Compare</c>, which <c>StatementEmitter</c> emits as a plain infix C#
+/// expression (<c>__t2 == __t3</c>) -- retiring the former <c>HillAssault2NavOps.IsArrived</c>
+/// stopgap pure-CLR comparator helper (deleted).
 /// </para>
 ///
 /// <para>
@@ -132,7 +133,7 @@ public sealed class HillAssault2_IsSelfArrived_ProofTests
 
         // P2 proof: the emitted call reads the NavigationStatus component off `self` via
         // GetComponentRO<global::...> (baked FQN -- no CLR reflection at generation time), then
-        // textually accesses `.Result`, then feeds it into the GAP-12 stopgap comparator.
+        // textually accesses `.Result`, then feeds it into the GAP-12 native Compare node.
         var generatedSource = File.ReadAllText(ResolveGeneratedSourcePath());
         generatedSource.Should().Contain(
             "GetComponentRO<global::Fdp.Toolkit.Navigation.NavigationStatus>",
@@ -142,10 +143,25 @@ public sealed class HillAssault2_IsSelfArrived_ProofTests
             ".Result",
             "GetComponentNode's FieldRead must textually access the authored FieldName -- see " +
             "generated TickCore below:\n" + generatedSource);
+
+        // GAP-12 proof: the Compare node's Literal(B) operand bakes the fully-qualified enum member
+        // verbatim (IrOp_Const emits ValueJson as-is), and the Compare itself lowers to a plain infix
+        // "__tX == __tY" temp-to-temp comparison (IrOp_Compare / StatementEmitter) -- NOT a method
+        // call, so temp indices are asserted structurally via regex rather than hardcoded.
         generatedSource.Should().Contain(
+            "global::Fdp.Toolkit.Navigation.NavigationResult.Arrived",
+            "the Compare node's B operand (a Literal) must bake the fully-qualified enum member -- " +
+            "see generated TickCore below:\n" + generatedSource);
+        Regex.IsMatch(generatedSource, @"var __t\d+ = __t\d+ == __t\d+;").Should().BeTrue(
+            "the Compare node (Operator=Equal) must lower to a plain infix C# '==' expression " +
+            "(IrOp_Compare) -- see generated TickCore below:\n" + generatedSource);
+
+        // The former GAP-12 stopgap comparator helper is retired -- the condition is now fully
+        // visual (native Compare node), no CLR helper call left in the generated TickCore.
+        generatedSource.Should().NotContain(
             "HillAssault2NavOps.IsArrived(",
-            "the GAP-12 stopgap comparator must be called with the field-read value -- see " +
-            "generated TickCore below:\n" + generatedSource);
+            "the GAP-12 stopgap comparator helper has been retired in favor of the native Compare " +
+            "node -- see generated TickCore below:\n" + generatedSource);
     }
 
     [Fact]
@@ -158,8 +174,8 @@ public sealed class HillAssault2_IsSelfArrived_ProofTests
         world.AddComponent(self, new NavigationStatus { Result = NavigationResult.Arrived });
 
         TickOnce(bpType, self, world).Should().Be(Fbt.NodeStatus.Success,
-            "NavigationStatus.Result == Arrived must satisfy HillAssault2NavOps.IsArrived, matching " +
-            "the GAP-12 stopgap comparator's semantics");
+            "NavigationStatus.Result == Arrived must satisfy the Compare(Operator=Equal) node's " +
+            "A == B check against Literal(NavigationResult.Arrived)");
 
         world.Dispose();
     }
@@ -174,7 +190,8 @@ public sealed class HillAssault2_IsSelfArrived_ProofTests
         world.AddComponent(self, new NavigationStatus { Result = NavigationResult.InProgress });
 
         TickOnce(bpType, self, world).Should().Be(Fbt.NodeStatus.Failure,
-            "NavigationStatus.Result == InProgress must NOT satisfy HillAssault2NavOps.IsArrived");
+            "NavigationStatus.Result == InProgress must NOT satisfy the Compare(Operator=Equal) " +
+            "node's A == B check against Literal(NavigationResult.Arrived)");
 
         world.Dispose();
     }

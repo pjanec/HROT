@@ -1640,6 +1640,47 @@ internal sealed class GraphScheduler
                 break;
             }
 
+            case CompareNode cn:
+            {
+                // GAP-12 -- native comparison node. Pure data, mirrors GetComponentNode/LiteralNode
+                // above: find the "A"/"B" data-in pins and the "Result" data-out pin by NAME off the
+                // asset-authored Pins (registry returns Array.Empty -- Stage0 leaves the authored
+                // pins alone), resolve the two operands via ResolveDataPin (same as BranchNode's
+                // condPin resolution), then lower to the NEW IrOp_Compare into a fresh BoolType
+                // value. No StaticTypeRegistry involvement -- A/B's types flow from their wired
+                // sources (reflection-free by construction, per the operand contract in the design
+                // doc).
+                var aPin = cn.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "A", StringComparison.OrdinalIgnoreCase));
+                var bPin = cn.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "B", StringComparison.OrdinalIgnoreCase));
+                var resultPin = cn.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, "Result", StringComparison.OrdinalIgnoreCase));
+
+                IrValue aVal = aPin is not null
+                    ? ResolveDataPin(cn.Id, aPin.Id, stmts)
+                    : AllocValue(Stage5_Schedule.UnknownType);
+                IrValue bVal = bPin is not null
+                    ? ResolveDataPin(cn.Id, bPin.Id, stmts)
+                    : AllocValue(Stage5_Schedule.UnknownType);
+
+                var cmpResult = AllocValue(Stage5_Schedule.BoolType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = cmpResult,
+                    Operation   = new IrOp_Compare(aVal, bVal, cn.Operator),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = cn.Id, PinId = sourcePinId },
+                });
+
+                if (resultPin is not null) _pinValueCache[resultPin.Id] = cmpResult;
+
+                result = cmpResult;
+                break;
+            }
+
             case FunctionCallNode fc when fc.IsPure && !string.IsNullOrEmpty(fc.TargetGraphId):
             {
                 // Pure in-blueprint function-graph call (BATCH-03A).

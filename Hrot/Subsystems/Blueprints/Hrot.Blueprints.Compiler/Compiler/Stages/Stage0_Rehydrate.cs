@@ -656,6 +656,7 @@ internal static class Stage0_Rehydrate
         GetParameterNode      => false,
         GetSharedNode         => false,
         GetComponentNode      => false,
+        CompareNode           => false,
         LiteralNode           => false,
         ReadRankedResultNode  => false,
         ReadEqsResultNode     => false,
