@@ -104,9 +104,29 @@ the template `SpawnEqsSensor`. We'll proceed on these unless you redirect.
 
 ---
 
-## ARCHITECT ANSWERS (pending — paste here)
+## ARCHITECT ANSWERS (2026-07-17) — all four leans APPROVED
 
-- **A —**
-- **B —**
-- **C —**
-- **D —**
+All four leans confirmed; aligned with the "orchestration-first" + "curated-generic" principles.
+
+- **A — Compare/BinaryOp vocabulary (APPROVED).** Ship `Compare→bool` now (done). Add arithmetic
+  `BinaryOp` **strictly demand-driven**, when a slice requires it. Keep boolean composition as `Branch`
+  nodes / C# helpers. Speculatively building a fully-general visual math/logic vocabulary is exactly the
+  trap to avoid.
+- **B — `GetSingleton` shape + ABI (APPROVED).** Node shape: a **curated context-aware `FunctionCall`**
+  (`NetworkEntityMapOps.TryGetEntity`) — the real use case is a method call with an `out`, so a generic
+  `GetSingleton` field-read node is the WRONG abstraction (do NOT build it). ABI: **keep the
+  `EntityRepository` downcast** for AiPrimitives — zero ABI churn, matches how `GetShared`/`ChannelCommand`
+  already reach the world. Do NOT alter `ISimulationView` until Instance dispatch genuinely proves it
+  needs singleton access.
+- **C — `AssignTacticalIntentEvent.JsonParams` (APPROVED).** A **curated `FunctionCall` JSON-builder
+  helper feeding `PublishEvent`'s existing string field** is the sanctioned pattern. Keeps serialization/
+  reflection in reviewable C#; zero new IR/emission. This is exactly how non-programmers author complex
+  payloads without exposing string-manipulation / JSON nodes to the graph.
+- **D — EQS request/poll (CONFIRMED: different surfaces).** `SpawnEqsSensorNode` spawns/manages a
+  **persistent child-entity sensor** (`EqsSensor` components + `EqsCognitiveBuffer`). The oracle's
+  `AreaQueryBatchHelper` is a **fire-and-forget batch** system: publishes `AreaQueryRequestEvent` to the
+  bus, polls a ring-buffer (`AreaQueryBatchData`). Do NOT force the batch query into the `SpawnEqsSensor`
+  template path. **Scope a NEW curated helper trio: `RequestAreaQuery` / `IsAreaQueryResolved` /
+  `FreeAreaQuerySlot`.**
+
+**Cleared to proceed on all four leans.**

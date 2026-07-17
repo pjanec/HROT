@@ -125,13 +125,14 @@ All under `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/`. Node kinds:
 3. ~~**GAP-12 — native `Compare` node.**~~ ✅ **Done** (`d763dab`). `CompareNode` + `IrOp_Compare`
    (mirror-pattern; design in `GAP12_Compare_Node_Design.md`). `IsSelfArrived` + slice 4 retrofitted
    helper-free; `HillAssault2NavOps.cs` deleted. Both conditions are now the true non-programmer endpoint.
-4. **Remaining action slices.** **Gating:** the design-readiness sweep found 4 of these hinge on decisions
-   captured in **`Architect_Question_6_Access_Shapes_And_Vocabulary.md`** (A Compare/BinaryOp scope, B
-   `GetSingleton`/target-resolve, C `JsonParams` payload, D EQS path) — **await architect answers before
-   building the gated ones.** Build-ready NOW (no gate): **`Action_ReverseToBaseline`** (ChannelCommand +
-   P2 + `PublishEvent(ClearBehaviorEvent)`, all shipped). Order after Q#6 answers: `GetSingleton`/target-
-   resolve → `AimAndFireSpecific` → `DispatchAllToBaseline`/`CalculateSegments` → EQS slice → **wave core
-   last** (`MemberSlotList`, L; design blessed in Q#3 / `Squad_State_Fit_And_Lean_Slot_Design.md`). Detail:
+4. **Remaining action slices.** **Architect Q#6 answered (2026-07-17) — all four leans APPROVED**
+   (`Architect_Question_6_Access_Shapes_And_Vocabulary.md`). Decided shapes, now build-ready in order:
+   - **`Action_ReverseToBaseline`** (no new capability — ChannelCommand + P2 + `PublishEvent(ClearBehaviorEvent)`, all shipped). **Do first.**
+   - **Target-resolve = curated context-aware `FunctionCall`** to `NetworkEntityMapOps.TryGetEntity` (Q6-B) — **NO generic `GetSingleton` node** (wrong abstraction; the need is a method call w/ `out`), keep the `EntityRepository` downcast, do NOT touch `ISimulationView`. Unblocks **`AimAndFireSpecific`** (Weapon ChannelCommand + P2 ammo + GetParameter round-count + this helper).
+   - **`AssignTacticalIntentEvent.JsonParams` = curated `FunctionCall` JSON-builder helper feeding `PublishEvent`'s string field** (Q6-C; no new IR). Unblocks **`DispatchAllToBaseline`/`CalculateSegments`** (roster fan-out + N publishes) and is reused by the wave core.
+   - **EQS = a NEW curated helper trio `RequestAreaQuery`/`IsAreaQueryResolved`/`FreeAreaQuerySlot`** over `AreaQueryBatchHelper` — Q6-D confirmed it is a DIFFERENT surface from `SpawnEqsSensor` (fire-and-forget batch: publishes `AreaQueryRequestEvent`, polls `AreaQueryBatchData` ring-buffer). Do NOT use the `SpawnEqsSensor` template path.
+   - **Wave core last** (`DispatchWaveWithTargets` + `IsWaveCompleted`, L): new `MemberSlotList` SoA + verb nodes; design blessed in Q#3 / `Squad_State_Fit_And_Lean_Slot_Design.md`; watch the `[InlineArray]` `ldobj` defensive-copy hazard (`GetSpanRW()`).
+   - **Q6-A:** arithmetic `BinaryOp` is **demand-driven** — build it only when a slice needs math (e.g. `AimAndFire` round-count / `CalculateSegments`); boolean composition stays `Branch`/helper. Detail below:
    - `Action_ReverseToBaseline` — MoveTo `ChannelCommand` + terminal `ClearBehaviorEvent` (P4).
    - `Action_AimAndFireSpecific` — Weapon `ChannelCommand` + ammo read (P2) + round-count in WorkingState + target-resolve helper.
    - `Action_DispatchAllToBaseline` / `CalculateSegments` — roster fan-out (P1) + N event publishes (P4).
