@@ -456,6 +456,18 @@ internal static class StatementEmitter
                 break;
 
             // ------------------------------------------------------------------
+            // BinaryOp -- native arithmetic node lowering (Compare's arithmetic sibling)
+            // ------------------------------------------------------------------
+
+            case IrOp_BinaryOp op:
+                if (idx >= 0)
+                {
+                    string infix = ArithmeticOperatorInfix(op.Op);
+                    e.WriteLine($"var __t{idx} = __t{op.Left.Index} {infix} __t{op.Right.Index};");
+                }
+                break;
+
+            // ------------------------------------------------------------------
             // Debug probes (Debug/Trace modes only)
             // ------------------------------------------------------------------
 
@@ -898,6 +910,22 @@ internal static class StatementEmitter
         ComparisonOperator.GreaterThan        => ">",
         ComparisonOperator.GreaterThanOrEqual => ">=",
         _ => "==",
+    };
+
+    /// <summary>
+    /// <see cref="ArithmeticOperator"/> -> C# infix operator text for <c>IrOp_BinaryOp</c>
+    /// (Compare's arithmetic sibling). Mirrors <see cref="ComparisonOperatorInfix"/>'s shape as a
+    /// direct enum switch since <c>BinaryOpNode</c> carries a real <see cref="ArithmeticOperator"/>
+    /// value rather than a synthesized method-name string.
+    /// </summary>
+    private static string ArithmeticOperatorInfix(ArithmeticOperator op) => op switch
+    {
+        ArithmeticOperator.Add      => "+",
+        ArithmeticOperator.Subtract => "-",
+        ArithmeticOperator.Multiply => "*",
+        ArithmeticOperator.Divide   => "/",
+        ArithmeticOperator.Modulo   => "%",
+        _ => "+",
     };
 
     /// <summary>

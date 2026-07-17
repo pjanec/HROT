@@ -396,6 +396,7 @@ public sealed class NodeCoverageTests
         yield return ("Inline/GetComponent", new[] { BuildGetComponentMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetParameter", new[] { BuildGetParameterMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/Compare", new[] { BuildCompareMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
+        yield return ("Inline/BinaryOp", new[] { BuildBinaryOpMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         // PublishEvent (P4 -- GAP-3): ValidateOnlyStage1To7 (not FullRoslynPipeline) because the
         // generated C# references Fdp.Toolkit.Behavior.Events.ClearBehaviorEvent AND
         // EntityRepository.Bus, neither of which the deliberately dependency-light coverage-Roslyn
@@ -1027,6 +1028,80 @@ public sealed class NodeCoverageTests
             Name      = "CompareCoverage",
             Dispatch  = BlueprintDispatchKind.Instance,
             Variables = { boolVar },
+            Graphs    = { graph },
+        };
+    }
+
+    /// <summary>
+    /// EventEntry -&gt; SetVariable(IntOut) -&gt; Return, fed by a data-only BinaryOp node (arithmetic
+    /// `Compare` sibling). Mirrors <see cref="BuildCompareMinimalAsset"/>'s shape/evidence bar: A/B
+    /// are two Literal <c>System.Int32</c> operands (2 + 3), the BinaryOp node's "A"/"B"/"Result"
+    /// pins are authored explicitly (mirrors CompareNode/GetComponentNode -- Stage0_Rehydrate's
+    /// "node.Pins.Count > 0 =&gt; skip" guard leaves fully-authored pin-less-node exceptions alone,
+    /// so no enricher is needed), exercising the real Stage5_Schedule BinaryOpNode lowering
+    /// (ResolveDataPin(A/B) -&gt; IrOp_BinaryOp -&gt; infix "+", result typed = A's Int32 type)
+    /// through the full Roslyn+ALC pipeline.
+    /// </summary>
+    private static BlueprintAsset BuildBinaryOpMinimalAsset()
+    {
+        var litAValuePin = DataPin("Value", "Out", "System.Int32");
+        var litA = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Int32", ValueJson = "2" };
+        litA.Pins.Add(litAValuePin);
+
+        var litBValuePin = DataPin("Value", "Out", "System.Int32");
+        var litB = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Int32", ValueJson = "3" };
+        litB.Pins.Add(litBValuePin);
+
+        var binAPin      = DataPin("A",      "In",  "System.Int32");
+        var binBPin      = DataPin("B",      "In",  "System.Int32");
+        var binResultPin = DataPin("Result", "Out", "System.Int32");
+        var binNode = new BinaryOpNode { Id = Guid.NewGuid(), Operator = ArithmeticOperator.Add };
+        binNode.Pins.AddRange(new[] { binAPin, binBPin, binResultPin });
+
+        var intVarId = Guid.NewGuid();
+        var intVar = new VariableDecl
+        {
+            Id   = intVarId,
+            Name = "IntOut",
+            Type = new BlueprintTypeRef { TypeId = "System.Int32" },
+        };
+
+        var setExecIn   = ExecPin("ExecIn",  "In");
+        var setExecOut  = ExecPin("ExecOut", "Out");
+        var setValuePin = DataPin("Value",   "In", "System.Int32");
+        var setNode = new SetVariableNode { Id = Guid.NewGuid(), VariableId = intVarId.ToString() };
+        setNode.Pins.AddRange(new[] { setExecIn, setExecOut, setValuePin });
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecPin("ExecIn", "In");
+        ret.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, litA, litB, binNode, setNode, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,   FromPinId = entryOut.Id,     ToNodeId = setNode.Id, ToPinId = setExecIn.Id },
+                new Link { FromNodeId = setNode.Id, FromPinId = setExecOut.Id,   ToNodeId = ret.Id,     ToPinId = retIn.Id },
+                new Link { FromNodeId = litA.Id,    FromPinId = litAValuePin.Id, ToNodeId = binNode.Id, ToPinId = binAPin.Id },
+                new Link { FromNodeId = litB.Id,    FromPinId = litBValuePin.Id, ToNodeId = binNode.Id, ToPinId = binBPin.Id },
+                new Link { FromNodeId = binNode.Id, FromPinId = binResultPin.Id, ToNodeId = setNode.Id, ToPinId = setValuePin.Id },
+            },
+        };
+
+        return new BlueprintAsset
+        {
+            AssetId   = Guid.NewGuid(),
+            Name      = "BinaryOpCoverage",
+            Dispatch  = BlueprintDispatchKind.Instance,
+            Variables = { intVar },
             Graphs    = { graph },
         };
     }

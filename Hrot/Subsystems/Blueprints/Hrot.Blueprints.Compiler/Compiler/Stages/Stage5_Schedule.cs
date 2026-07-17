@@ -1681,6 +1681,47 @@ internal sealed class GraphScheduler
                 break;
             }
 
+            case BinaryOpNode bo:
+            {
+                // Native arithmetic node (Compare's arithmetic sibling). Pure data, mirrors the
+                // CompareNode case above exactly: find the "A"/"B" data-in pins and the "Result"
+                // data-out pin by NAME off the asset-authored Pins (registry returns Array.Empty --
+                // Stage0 leaves the authored pins alone), resolve the two operands via
+                // ResolveDataPin, then lower to the NEW IrOp_BinaryOp. Unlike CompareNode, the
+                // result value is typed = A's operand type (NOT BoolType) -- `a + b` on type T
+                // yields T. No StaticTypeRegistry involvement -- A/B's types flow from their wired
+                // sources (reflection-free by construction).
+                var aPin = bo.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "A", StringComparison.OrdinalIgnoreCase));
+                var bPin = bo.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "B", StringComparison.OrdinalIgnoreCase));
+                var resultPin = bo.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, "Result", StringComparison.OrdinalIgnoreCase));
+
+                IrValue aVal = aPin is not null
+                    ? ResolveDataPin(bo.Id, aPin.Id, stmts)
+                    : AllocValue(Stage5_Schedule.UnknownType);
+                IrValue bVal = bPin is not null
+                    ? ResolveDataPin(bo.Id, bPin.Id, stmts)
+                    : AllocValue(Stage5_Schedule.UnknownType);
+
+                var binOpResult = AllocValue(aVal.Type);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = binOpResult,
+                    Operation   = new IrOp_BinaryOp(aVal, bVal, bo.Operator),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = bo.Id, PinId = sourcePinId },
+                });
+
+                if (resultPin is not null) _pinValueCache[resultPin.Id] = binOpResult;
+
+                result = binOpResult;
+                break;
+            }
+
             case FunctionCallNode fc when fc.IsPure && !string.IsNullOrEmpty(fc.TargetGraphId):
             {
                 // Pure in-blueprint function-graph call (BATCH-03A).

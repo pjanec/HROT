@@ -39,6 +39,7 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(PublishEventNode),       "PublishEvent")]
 [JsonDerivedType(typeof(FlowForEachNode),        "FlowForEach")]
 [JsonDerivedType(typeof(CompareNode),            "Compare")]
+[JsonDerivedType(typeof(BinaryOpNode),           "BinaryOp")]
 public abstract class Node
 {
     public Guid Id { get; set; }
@@ -274,6 +275,16 @@ public enum ComparisonOperator
     GreaterThanOrEqual,
 }
 
+/// <summary>Arithmetic operator for the native <see cref="BinaryOpNode"/>.</summary>
+public enum ArithmeticOperator
+{
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Modulo,
+}
+
 public sealed class ConditionMetPayload
 {
     /// <summary>
@@ -497,6 +508,30 @@ public sealed class CompareNode : Node
 {
     /// <summary>Which comparison to perform (Equal/NotEqual/LessThan/LessThanOrEqual/GreaterThan/GreaterThanOrEqual).</summary>
     public ComparisonOperator Operator { get; set; }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// BinaryOp (native arithmetic node -- Compare's arithmetic sibling)
+//
+// Pure data node (no exec pins), asset-authored pins (mirrors CompareNode/GetComponentNode --
+// registry returns Array.Empty, Stage0's Pins.Count > 0 guard leaves the authored pins alone; no
+// enricher). New ArithmeticOperator enum and lowers to a NEW IR op (IrOp_BinaryOp) that reuses the
+// existing operator -> C# infix mapping shape already used by StatementEmitter's op_<Op>_<Type>-
+// style synthesized-op lowering. Unlike CompareNode, the result type is the OPERAND type (not
+// bool) -- see Stage5_Schedule's BinaryOpNode case and StatementEmitter's IrOp_BinaryOp case.
+// ──────────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// Applies an arithmetic operator to two operands ("A"/"B" data-in pins, asset-authored, same
+/// operand type) using <see cref="Operator"/>, producing a "Result" data-out pin typed the same as
+/// the operands (<c>A + B</c> on type <c>T</c> yields <c>T</c>). Pure-data node (no exec pins).
+/// Compiles to a single infix C# expression (<c>IrOp_BinaryOp</c> -- see <c>StatementEmitter</c>'s
+/// case, which maps the five <see cref="ArithmeticOperator"/> values to C# infix operators).
+/// </summary>
+public sealed class BinaryOpNode : Node
+{
+    /// <summary>Which arithmetic operation to perform (Add/Subtract/Multiply/Divide/Modulo).</summary>
+    public ArithmeticOperator Operator { get; set; }
 }
 
 // ──────────────────────────────────────────────────────────────────────────

@@ -235,6 +235,20 @@ public sealed record IrOp_Compare(
     IrValue Right,
     Hrot.Blueprints.Core.Assets.ComparisonOperator Op) : IrOperation;
 
+/// <summary>
+/// Native <c>BinaryOpNode</c> lowering (Compare's arithmetic sibling). Emits a single infix C#
+/// arithmetic expression: <c>var __t{idx} = __t{Left.Index} {infix} __t{Right.Index};</c>, where
+/// <c>{infix}</c> comes from a <see cref="Hrot.Blueprints.Core.Assets.ArithmeticOperator"/> ->
+/// C#-infix switch in <see cref="Emit.StatementEmitter"/>. Both operands must already agree in
+/// type (the graph author wires same-typed A/B) -- no coercion is performed here. Unlike
+/// <see cref="IrOp_Compare"/>, the result IrValue is typed as the OPERAND type, not bool (see
+/// Stage5_Schedule's BinaryOpNode case: result value = <c>AllocValue(aVal.Type)</c>).
+/// </summary>
+public sealed record IrOp_BinaryOp(
+    IrValue Left,
+    IrValue Right,
+    Hrot.Blueprints.Core.Assets.ArithmeticOperator Op) : IrOperation;
+
 // Debug probes (Debug/Trace modes)
 public sealed record IrOp_DebugProbe_NodeEnter(Guid NodeId, string NodeKind) : IrOperation;
 public sealed record IrOp_DebugProbe_PinValue(Guid PinId, IrValue Value, string PinName) : IrOperation;
