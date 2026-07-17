@@ -27,5 +27,26 @@ namespace Hrot.AI.Behaviors.Brains
             if (totalSlots > 16) totalSlots = 16;
             return totalSlots;
         }
+
+        /// <summary>
+        /// 0..1 interpolation parameter for the <paramref name="index"/>-th of <paramref name="count"/>
+        /// evenly-spaced tanks along the baseline. Reproduces the C# oracle
+        /// <c>HillAttackCommanderNodes.Action_DispatchAllToBaseline</c>'s
+        /// <c>t = count &gt; 1 ? (float)i / (count - 1) : 0.5f</c> — a single tank sits at the midpoint
+        /// (0.5), otherwise the tanks span <c>[0, 1]</c> endpoint-inclusive. The conditional (guarding the
+        /// <c>count - 1</c> divisor) has no visual-node form, so it stays in this curated helper (architect
+        /// Q#6-A).
+        /// </summary>
+        public static float LerpParam(int index, int count)
+            => count > 1 ? (float)index / (count - 1) : 0.5f;
+
+        /// <summary>
+        /// Linear interpolation <c>a + (b - a) * t</c> — the per-axis baseline position from the two
+        /// endpoints and the <see cref="LerpParam"/> parameter. Plain arithmetic a visual <c>BinaryOp</c>
+        /// chain could express (Subtract→Multiply→Add), bundled here with its <see cref="LerpParam"/>
+        /// sibling as one reviewable "baseline interpolation" helper to keep the dispatch graph tractable
+        /// (the <c>BinaryOp</c> node is separately proven by its coverage fixture).
+        /// </summary>
+        public static float Lerp(float a, float b, float t) => a + (b - a) * t;
     }
 }
