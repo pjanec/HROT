@@ -88,6 +88,21 @@ GAP-1 (loop + in-body branch), GAP-2 (foreign read), GAP-3 (event publish), GAP-
 `Architect_Question_6_Access_Shapes_And_Vocabulary.md` (A compare/binop scope, B singleton/target-resolve,
 C `JsonParams` payload, D EQS path). Build-ready without a gate: `Action_ReverseToBaseline`.
 
+## Slice 2 (2026-07-17) — `Action_ReverseToBaseline` shipped (first wired `ChannelCommand`)
+
+Rebuilt as `HillAssault2_ReverseToBaseline.bp.json`: `EventEntry → ChannelCommand(Locomotion/MoveTo) →
+WaitForChannel → PublishEvent(ClearBehaviorEvent) → Return(Success)`. **First slice to WIRE a value into a
+`ChannelCommand` param** — `Destination = VectorOps.Vec3(GetParameter(BaselineX), GetParameter(BaselineY),
+0)`; `Speed`/`ArrivalRadius`/`ReverseAllowed` baked via `PinDefaults`. **Mechanism finding:** a
+`ChannelCommand` needs **explicit** data-in pins named as `MoveToParams` fields (empty-Pins+`PinDefaults`
+is an editor-only projection); `Stage3_Normalize` materializes each unconnected pin's default into a
+synthetic `Literal`, while wired pins resolve through their link. New curated helper `VectorOps.Vec3/Vec2`
+(reflection-free vector construction — general blueprint API). Per architect Q5-B, the oracle's raw
+`BehaviorState.InstanceId` write is dropped (the `ChannelCommand` node owns arbitration). **DEVIATION:**
+oracle publishes `ClearBehaviorEvent` on both terminals; `WaitForChannel`'s lowering auto-returns Failure
+without running the post-wait chain, so the blueprint publishes it on Success only. Proven with a two-tick
+behavioral test driving a real `LocomotionChannel` idle→Success (one `ClearBehaviorEvent{Entity=self}`).
+
 ## Slice order (simplest → hardest)
 
 | # | Slice | Node kinds needed | Notes |
