@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="440" viewBox="0 0 940 440" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <rect x="0" y="0" width="940" height="440" fill="#ffffff"/>
+  <text x="20" y="34" font-size="20" font-weight="700" fill="#111827">codebase-memory-mcp on the web: where you run the bootstrap decides when the graph tools connect</text>
+
+  <!-- Legend -->
+  <rect x="20" y="52" width="14" height="14" rx="3" fill="#16a34a"/>
+  <text x="40" y="64" font-size="13" fill="#374151">MCP connected</text>
+  <rect x="170" y="52" width="14" height="14" rx="3" fill="#dc2626"/>
+  <text x="190" y="64" font-size="13" fill="#374151">MCP failed to connect (binary not there yet)</text>
+
+  <!-- ===================== Lane A: Setup script ===================== -->
+  <text x="20" y="108" font-size="15" font-weight="700" fill="#1d4ed8">RECOMMENDED  -  environment Setup script (runs before the session)</text>
+  <line x1="20" y1="150" x2="920" y2="150" stroke="#cbd5e1" stroke-width="2"/>
+
+  <!-- step boxes A -->
+  <rect x="24" y="122" width="196" height="56" rx="8" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="122" y="146" font-size="13" font-weight="600" fill="#1e3a8a" text-anchor="middle">Container build</text>
+  <text x="122" y="164" font-size="12" fill="#475569" text-anchor="middle">clone repo</text>
+
+  <rect x="236" y="122" width="238" height="56" rx="8" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="355" y="146" font-size="13" font-weight="600" fill="#1e3a8a" text-anchor="middle">Setup script</text>
+  <text x="355" y="164" font-size="12" fill="#475569" text-anchor="middle">install .NET 8 + memory MCP binary</text>
+
+  <rect x="490" y="122" width="238" height="56" rx="8" fill="#ecfdf5" stroke="#6ee7b7"/>
+  <text x="609" y="142" font-size="13" font-weight="600" fill="#065f46" text-anchor="middle">SESSION START</text>
+  <text x="609" y="160" font-size="12" fill="#475569" text-anchor="middle">MCP spawns, finds binary</text>
+  <circle cx="609" y="170" r="0" />
+  <text x="609" y="172" font-size="12" font-weight="700" fill="#16a34a" text-anchor="middle">&#10003; CONNECTED</text>
+
+  <rect x="744" y="122" width="176" height="56" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="832" y="146" font-size="13" font-weight="600" fill="#111827" text-anchor="middle">Agent works</text>
+  <text x="832" y="164" font-size="12" fill="#475569" text-anchor="middle">graph tools ready</text>
+
+  <!-- arrows A -->
+  <g stroke="#94a3b8" stroke-width="2" fill="none" marker-end="url(#arr)">
+    <line x1="220" y1="150" x2="234" y2="150"/>
+    <line x1="474" y1="150" x2="488" y2="150"/>
+    <line x1="728" y1="150" x2="742" y2="150"/>
+  </g>
+
+  <!-- ===================== Lane B: In-session ===================== -->
+  <text x="20" y="252" font-size="15" font-weight="700" fill="#b45309">ZERO-CONFIG  -  agent runs it in-session (/cloud-bootstrap skill or CLAUDE.md)</text>
+  <line x1="20" y1="300" x2="920" y2="300" stroke="#cbd5e1" stroke-width="2"/>
+
+  <rect x="24" y="272" width="200" height="56" rx="8" fill="#fff7ed" stroke="#fdba74"/>
+  <text x="124" y="292" font-size="13" font-weight="600" fill="#9a3412" text-anchor="middle">SESSION START</text>
+  <text x="124" y="310" font-size="12" fill="#475569" text-anchor="middle">MCP spawns, no binary</text>
+  <text x="124" y="322" font-size="12" font-weight="700" fill="#dc2626" text-anchor="middle">&#10007; failed</text>
+
+  <rect x="244" y="272" width="230" height="56" rx="8" fill="#fff7ed" stroke="#fdba74"/>
+  <text x="359" y="296" font-size="13" font-weight="600" fill="#9a3412" text-anchor="middle">Agent runs bootstrap</text>
+  <text x="359" y="314" font-size="12" fill="#475569" text-anchor="middle">install .NET 8 + MCP (cached)</text>
+
+  <rect x="494" y="272" width="196" height="56" rx="8" fill="#ecfdf5" stroke="#6ee7b7"/>
+  <text x="592" y="292" font-size="13" font-weight="600" fill="#065f46" text-anchor="middle">NEXT SESSION START</text>
+  <text x="592" y="310" font-size="12" fill="#475569" text-anchor="middle">binary already there</text>
+  <text x="592" y="322" font-size="12" font-weight="700" fill="#16a34a" text-anchor="middle">&#10003; CONNECTED</text>
+
+  <rect x="710" y="272" width="210" height="56" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="815" y="296" font-size="13" font-weight="600" fill="#111827" text-anchor="middle">Graph tools ready</text>
+  <text x="815" y="314" font-size="12" fill="#475569" text-anchor="middle">(one session later)</text>
+
+  <g stroke="#94a3b8" stroke-width="2" fill="none" marker-end="url(#arr)">
+    <line x1="224" y1="300" x2="242" y2="300"/>
+    <line x1="474" y1="300" x2="492" y2="300"/>
+    <line x1="690" y1="300" x2="708" y2="300"/>
+  </g>
+
+  <!-- footnote -->
+  <text x="20" y="392" font-size="13" fill="#374151">In both lanes .mcp.json points at</text>
+  <text x="235" y="392" font-size="13" font-family="Consolas, monospace" fill="#111827">${CODEBASE_MEMORY_MCP_BIN:-/opt/codebase-memory-mcp/codebase-memory-mcp}</text>
+  <text x="20" y="414" font-size="13" fill="#374151">and .claude/settings.json auto-approves it via</text>
+  <text x="285" y="414" font-size="13" font-family="Consolas, monospace" fill="#111827">enabledMcpjsonServers: ["codebase-memory-mcp"]</text>
+
+  <defs>
+    <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 Z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+</svg>
