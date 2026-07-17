@@ -1,0 +1,1340 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
+  "AssetId": "484e3dff-c548-422e-a1e2-13dd0a607343",
+  "Name": "HillAssault2_AimAndFireSpecific",
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "Primitive": {
+    "Intent": "Action",
+    "Hostings": [
+      "BTreeAction"
+    ]
+  },
+  "Parameters": [
+    {
+      "Id": "a27fabf3-32cb-425a-a626-32c2a3e201b1",
+      "Name": "TargetNetworkId",
+      "Type": {
+        "TypeId": "System.Int64",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0"
+    },
+    {
+      "Id": "ea91ccf4-a56c-4737-8a5a-2be4ebdfaa3b",
+      "Name": "MaxRounds",
+      "Type": {
+        "TypeId": "System.Int32",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0"
+    }
+  ],
+  "WorkingState": [
+    {
+      "Id": "dee92abe-a3f1-4cea-b16a-5e069166bb03",
+      "Name": "RoundsFired",
+      "Type": {
+        "TypeId": "System.Int32",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    },
+    {
+      "Id": "57d91566-da07-4058-b997-1c16aef8aa3d",
+      "Name": "LastObservedAmmo",
+      "Type": {
+        "TypeId": "System.Int32",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "-1",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    }
+  ],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "6cd1cbd2-8e5e-4f62-9c24-e32d1461fc53",
+      "Name": "Main",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "06f69163-6200-4d62-bc2d-3b5a16eab0dc",
+          "EventTypeId": "",
+          "Pins": [
+            {
+              "Id": "af1f7bd6-610c-4193-b413-4bcd8a5472ea",
+              "Name": "Out",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            }
+          ],
+          "EditorMetadata": {
+            "X": 40.0,
+            "Y": 400.0
+          }
+        },
+        {
+          "kind": "GetParameter",
+          "Id": "06ee81b2-12e0-4b0e-92f1-aea16b67dbe1",
+          "ParameterId": "a27fabf3-32cb-425a-a626-32c2a3e201b1",
+          "Pins": [
+            {
+              "Id": "0b8a9599-36a6-423d-8b3e-01d35c462237",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int64",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 40.0,
+            "Y": 40.0
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "dcf5b58a-ca68-4b0b-b9cf-bc06e8f2aee9",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.NetworkEntityMapOps",
+          "MethodName": "ResolveTarget",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "View",
+          "Pins": [
+            {
+              "Id": "d1259f6c-5b7b-4758-9490-1625978eba27",
+              "Name": "targetNetworkId",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int64",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "c09714ed-68ca-4e6e-bbdb-0318f6032485",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Fdp.Core.Entity",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 300.0,
+            "Y": 40.0
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "1ed3179f-077c-4029-aa8f-5244b9ab0c92",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.WorldOps",
+          "MethodName": "IsNull",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "ae2b3884-27ef-494e-a8cf-a448bc82a247",
+              "Name": "e",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Fdp.Core.Entity",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "c88b0911-9f6d-45a8-b28a-25ac47ec619d",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 560.0,
+            "Y": 20.0
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "d5fdeede-3b39-4619-bd0b-ef184cec651b",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.WorldOps",
+          "MethodName": "IsAlive",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "View",
+          "Pins": [
+            {
+              "Id": "abcabdf1-4662-4786-a0ac-eb68c0855ce8",
+              "Name": "e",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Fdp.Core.Entity",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "5aad421b-2790-405b-b868-b8a728b01f71",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 560.0,
+            "Y": 140.0
+          }
+        },
+        {
+          "kind": "Branch",
+          "Id": "e96fa029-4e96-4110-a3bd-80997baf2744",
+          "Pins": [
+            {
+              "Id": "bd6ddb11-7c0f-4968-84d3-7d0a6c8b0db1",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "bba6da2c-3d96-4dc9-8ec7-9d2c74446254",
+              "Name": "True",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "99740c74-504f-4d1e-a3ce-aae8457516d0",
+              "Name": "False",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "cf643b25-9f6f-4fb7-9e38-ffafa5178db9",
+              "Name": "Condition",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 820.0,
+            "Y": 400.0
+          }
+        },
+        {
+          "kind": "Return",
+          "Id": "5ef585ab-76e6-4dbf-9bb1-a232b8f41abc",
+          "Status": "Failure",
+          "Pins": [
+            {
+              "Id": "de530068-43d9-4c06-be74-85886e6bd9a0",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080.0,
+            "Y": 520.0
+          }
+        },
+        {
+          "kind": "Return",
+          "Id": "d04dff5d-8c8d-48c4-9ff3-40fb71259297",
+          "Status": "Success",
+          "Pins": [
+            {
+              "Id": "75553bdd-d9de-4c34-887b-8799a10a334f",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            }
+          ],
+          "EditorMetadata": {
+            "X": 2600.0,
+            "Y": 700.0
+          }
+        },
+        {
+          "kind": "Branch",
+          "Id": "652d3b95-cf56-4fdd-82cc-d292d129c4fd",
+          "Pins": [
+            {
+              "Id": "471548a6-ec9e-454f-b1a8-ec73e61d65da",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "af1eba45-e00a-4023-83f1-1b56e78dfd1c",
+              "Name": "True",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "81ad31fb-7ceb-4f0b-b64c-07d91f20dc6a",
+              "Name": "False",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "4e41dd71-07d5-47bf-bd1a-9124e9bcaf3f",
+              "Name": "Condition",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080.0,
+            "Y": 300.0
+          }
+        },
+        {
+          "kind": "GetComponent",
+          "Id": "02decc4a-6b42-445c-a0a1-c93cc708665f",
+          "ComponentTypeFqn": "Fdp.Toolkit.Combat.Components.WeaponState",
+          "FieldName": "Ammo",
+          "FieldTypeFqn": "System.Int32",
+          "Pins": [
+            {
+              "Id": "df86339f-0d14-4151-8383-efaeeb40a58d",
+              "Name": "Target",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Fdp.Core.Entity",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "03e2e6a4-2692-48ce-9315-11cb749b216c",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080.0,
+            "Y": 40.0
+          }
+        },
+        {
+          "kind": "GetVariable",
+          "Id": "a6574447-8280-40e3-9c5d-5ec656804fa3",
+          "VariableId": "57d91566-da07-4058-b997-1c16aef8aa3d",
+          "Pins": [
+            {
+              "Id": "fb4d688f-c865-4abe-adce-7aa840096813",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080.0,
+            "Y": 140.0
+          }
+        },
+        {
+          "kind": "GetVariable",
+          "Id": "d080ab72-b5cb-49e5-8559-06dfd2a3315b",
+          "VariableId": "dee92abe-a3f1-4cea-b16a-5e069166bb03",
+          "Pins": [
+            {
+              "Id": "77082ee0-35f8-48f9-b2c6-f14e557152c4",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080.0,
+            "Y": 220.0
+          }
+        },
+        {
+          "kind": "GetParameter",
+          "Id": "d4f0f1c0-4e91-419a-9d81-a2dfdfd95fc6",
+          "ParameterId": "ea91ccf4-a56c-4737-8a5a-2be4ebdfaa3b",
+          "Pins": [
+            {
+              "Id": "5ec4bc5d-f40e-4a56-841c-f1fe02be8fcc",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080.0,
+            "Y": 620.0
+          }
+        },
+        {
+          "kind": "Literal",
+          "Id": "7d5b1d26-71c0-4927-a34b-0f170353fc8d",
+          "TypeId": "System.Int32",
+          "ValueJson": "0",
+          "Pins": [
+            {
+              "Id": "376787cd-f87d-4074-8c5a-474cd0b5df66",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080.0,
+            "Y": 700.0
+          }
+        },
+        {
+          "kind": "Compare",
+          "Id": "0a148426-eae3-42f8-9003-afed746ca7fd",
+          "Operator": "LessThan",
+          "Pins": [
+            {
+              "Id": "88e867b3-3254-46a8-a0ad-c557fd4b4c4e",
+              "Name": "A",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "5ec2efe0-baaa-4699-9952-0b9261c764ec",
+              "Name": "B",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "432e2539-7464-4ff5-a29c-0cd0eebea224",
+              "Name": "Result",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1360.0,
+            "Y": 140.0
+          }
+        },
+        {
+          "kind": "Compare",
+          "Id": "4af1a61a-7877-49be-9463-54d22c000c39",
+          "Operator": "LessThan",
+          "Pins": [
+            {
+              "Id": "4462aa42-8903-4242-ad4e-0d35b6da1c66",
+              "Name": "A",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "244fba94-6a4f-4d1b-8dbd-391dacd6b807",
+              "Name": "B",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "c2363647-a5cd-473e-8a67-04dffe45d72e",
+              "Name": "Result",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1360.0,
+            "Y": 40.0
+          }
+        },
+        {
+          "kind": "BinaryOp",
+          "Id": "5f0d55f6-5e47-461f-9539-69565a3ab4ef",
+          "Operator": "Subtract",
+          "Pins": [
+            {
+              "Id": "3b31a8e4-b654-4df3-afba-06f587f56d59",
+              "Name": "A",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "320ed503-402c-4e22-be43-5deebd9eddea",
+              "Name": "B",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "6934e2f2-33ad-44c8-9d12-52e517fbe672",
+              "Name": "Result",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1360.0,
+            "Y": 260.0
+          }
+        },
+        {
+          "kind": "BinaryOp",
+          "Id": "d75d0119-bd1c-4aae-a058-b5931fb2c4ac",
+          "Operator": "Add",
+          "Pins": [
+            {
+              "Id": "5434eba4-5757-45f4-9df0-69c75e25d993",
+              "Name": "A",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "ad02bc6b-8c3d-4d29-9bf8-fa5b6ff4912b",
+              "Name": "B",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "e7757847-ab91-4fa0-9bdb-2126ee7d5bc2",
+              "Name": "Result",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1620.0,
+            "Y": 260.0
+          }
+        },
+        {
+          "kind": "Compare",
+          "Id": "eee1a115-29fa-474a-b701-5da75cf957a3",
+          "Operator": "GreaterThan",
+          "Pins": [
+            {
+              "Id": "b3e197ae-64c1-4330-80da-5f14513472eb",
+              "Name": "A",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "da176699-2afb-4fdb-ba2b-949ed3b25cd9",
+              "Name": "B",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "27b0db1e-c37d-418b-a3fa-9d22d1f5e980",
+              "Name": "Result",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1360.0,
+            "Y": 620.0
+          }
+        },
+        {
+          "kind": "Compare",
+          "Id": "195fec72-3895-4ce7-86e1-444e9263e930",
+          "Operator": "GreaterThanOrEqual",
+          "Pins": [
+            {
+              "Id": "e1391291-f432-4819-bffb-5e7b6ea1dfef",
+              "Name": "A",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "9dc6cf6e-e744-494c-a2ca-d726ffe9d17b",
+              "Name": "B",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "22e0cab7-5b65-4c84-852d-6c4fe891222a",
+              "Name": "Result",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1360.0,
+            "Y": 700.0
+          }
+        },
+        {
+          "kind": "BooleanOp",
+          "Id": "54bf10d7-b39e-4cc3-81a1-f301c5f3a429",
+          "Operator": "And",
+          "Pins": [
+            {
+              "Id": "513e7173-ed5f-479b-9616-9076d6459e0e",
+              "Name": "A",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "2c04ddf6-f629-44fc-86c2-eeef20bca43c",
+              "Name": "B",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "76038b28-9207-4ee1-9517-21574c49d24b",
+              "Name": "Result",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1620.0,
+            "Y": 660.0
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "Id": "097d1567-f341-4bd3-910e-0c1d46bce97c",
+          "VariableId": "57d91566-da07-4058-b997-1c16aef8aa3d",
+          "Pins": [
+            {
+              "Id": "a24011d6-53d6-4383-a6b8-212f263c1f77",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "673f9d74-287c-41a3-97d2-f7501360246d",
+              "Name": "Out",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "94804454-ddbb-4a7b-8cd2-4eb6c0264548",
+              "Name": "Value",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "3436d52a-022e-47ef-a91f-378f4648124b",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1880.0,
+            "Y": 140.0
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "Id": "9fe8ac4f-c5dd-4138-a2fd-98f908e7fd7d",
+          "VariableId": "dee92abe-a3f1-4cea-b16a-5e069166bb03",
+          "Pins": [
+            {
+              "Id": "aaff729d-e7d9-44b3-beb8-789db420d276",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "f3aee396-12f9-4e93-8de8-82418510d84d",
+              "Name": "Out",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "f9e5e808-7b53-43e2-820a-e6a7cc17eeeb",
+              "Name": "Value",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "9a4798b2-c971-4a4e-9d99-0e7e7ec29437",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1880.0,
+            "Y": 340.0
+          }
+        },
+        {
+          "kind": "Branch",
+          "Id": "a8c1e97a-d802-4267-adff-1672d5e0f450",
+          "Pins": [
+            {
+              "Id": "8dce5f39-9300-4137-a79e-f461b930e0dd",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "3dd5a2bc-480f-4518-9995-f670568d34f3",
+              "Name": "True",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "a95c51dc-7ca2-421c-97c9-175617c042df",
+              "Name": "False",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "c09fb9d4-6e61-44b6-bb37-a1934cf60e04",
+              "Name": "Condition",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1620.0,
+            "Y": 140.0
+          }
+        },
+        {
+          "kind": "Branch",
+          "Id": "1f7f4854-a12f-4ee9-a825-fb2a52d4c1be",
+          "Pins": [
+            {
+              "Id": "00636d86-fbc7-4f95-9f03-37bc50b8cff0",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "d1eb1ab6-bb92-4f31-94f7-53b91406a479",
+              "Name": "True",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "00fec8a5-b821-431a-9a17-9661e006ffde",
+              "Name": "False",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "865199a8-9f41-44a4-9883-861b9297001e",
+              "Name": "Condition",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1880.0,
+            "Y": 40.0
+          }
+        },
+        {
+          "kind": "Branch",
+          "Id": "9e856086-22da-42e1-9771-960cea38b79b",
+          "Pins": [
+            {
+              "Id": "41e69739-5ccc-4817-94a9-a4edccd70d67",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "6ec731a1-1601-4d18-980f-43c8421259f1",
+              "Name": "True",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "66f81912-bb5f-4332-88b5-8e35a3b9e03f",
+              "Name": "False",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "59265c5c-3366-4e6c-86e7-441a6631d61e",
+              "Name": "Condition",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 2140.0,
+            "Y": 400.0
+          }
+        },
+        {
+          "kind": "ChannelCommand",
+          "Id": "52a87522-c5e8-44af-82fb-ff3eec22f76d",
+          "ChannelType": "WeaponChannel",
+          "ActionId": "AimAndFire",
+          "PinDefaults": {
+            "CooldownSeconds": "10"
+          },
+          "Pins": [
+            {
+              "Id": "ea9370eb-1f2b-4eb6-94fb-aa8e203a7f63",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "967f8e9d-1ddc-4db3-9ebb-15b8723f81d4",
+              "Name": "Out",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "4341e7d7-f6d3-4d5d-8c3f-1468a97541cc",
+              "Name": "Target",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Fdp.Core.Entity",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "ab5cdd16-2fbf-4335-9b53-ce22d69af9ab",
+              "Name": "CooldownSeconds",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 2400.0,
+            "Y": 500.0
+          }
+        },
+        {
+          "kind": "WaitForChannel",
+          "Id": "5fd92970-8f0c-4b01-b0e9-cfae6b1537ed",
+          "ChannelType": "WeaponChannel",
+          "Pins": [
+            {
+              "Id": "923785da-b24a-40bb-b5dd-9923e0a10a88",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "4e6337e5-3d5b-4a2c-8df6-2ed92df30e56",
+              "Name": "Out",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            }
+          ],
+          "EditorMetadata": {
+            "X": 2660.0,
+            "Y": 500.0
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "06ee81b2-12e0-4b0e-92f1-aea16b67dbe1",
+          "FromPinId": "0b8a9599-36a6-423d-8b3e-01d35c462237",
+          "ToNodeId": "dcf5b58a-ca68-4b0b-b9cf-bc06e8f2aee9",
+          "ToPinId": "d1259f6c-5b7b-4758-9490-1625978eba27"
+        },
+        {
+          "FromNodeId": "dcf5b58a-ca68-4b0b-b9cf-bc06e8f2aee9",
+          "FromPinId": "c09714ed-68ca-4e6e-bbdb-0318f6032485",
+          "ToNodeId": "1ed3179f-077c-4029-aa8f-5244b9ab0c92",
+          "ToPinId": "ae2b3884-27ef-494e-a8cf-a448bc82a247"
+        },
+        {
+          "FromNodeId": "dcf5b58a-ca68-4b0b-b9cf-bc06e8f2aee9",
+          "FromPinId": "c09714ed-68ca-4e6e-bbdb-0318f6032485",
+          "ToNodeId": "d5fdeede-3b39-4619-bd0b-ef184cec651b",
+          "ToPinId": "abcabdf1-4662-4786-a0ac-eb68c0855ce8"
+        },
+        {
+          "FromNodeId": "06f69163-6200-4d62-bc2d-3b5a16eab0dc",
+          "FromPinId": "af1f7bd6-610c-4193-b413-4bcd8a5472ea",
+          "ToNodeId": "e96fa029-4e96-4110-a3bd-80997baf2744",
+          "ToPinId": "bd6ddb11-7c0f-4968-84d3-7d0a6c8b0db1"
+        },
+        {
+          "FromNodeId": "1ed3179f-077c-4029-aa8f-5244b9ab0c92",
+          "FromPinId": "c88b0911-9f6d-45a8-b28a-25ac47ec619d",
+          "ToNodeId": "e96fa029-4e96-4110-a3bd-80997baf2744",
+          "ToPinId": "cf643b25-9f6f-4fb7-9e38-ffafa5178db9"
+        },
+        {
+          "FromNodeId": "e96fa029-4e96-4110-a3bd-80997baf2744",
+          "FromPinId": "bba6da2c-3d96-4dc9-8ec7-9d2c74446254",
+          "ToNodeId": "5ef585ab-76e6-4dbf-9bb1-a232b8f41abc",
+          "ToPinId": "de530068-43d9-4c06-be74-85886e6bd9a0"
+        },
+        {
+          "FromNodeId": "e96fa029-4e96-4110-a3bd-80997baf2744",
+          "FromPinId": "99740c74-504f-4d1e-a3ce-aae8457516d0",
+          "ToNodeId": "652d3b95-cf56-4fdd-82cc-d292d129c4fd",
+          "ToPinId": "471548a6-ec9e-454f-b1a8-ec73e61d65da"
+        },
+        {
+          "FromNodeId": "d5fdeede-3b39-4619-bd0b-ef184cec651b",
+          "FromPinId": "5aad421b-2790-405b-b868-b8a728b01f71",
+          "ToNodeId": "652d3b95-cf56-4fdd-82cc-d292d129c4fd",
+          "ToPinId": "4e41dd71-07d5-47bf-bd1a-9124e9bcaf3f"
+        },
+        {
+          "FromNodeId": "652d3b95-cf56-4fdd-82cc-d292d129c4fd",
+          "FromPinId": "81ad31fb-7ceb-4f0b-b64c-07d91f20dc6a",
+          "ToNodeId": "d04dff5d-8c8d-48c4-9ff3-40fb71259297",
+          "ToPinId": "75553bdd-d9de-4c34-887b-8799a10a334f"
+        },
+        {
+          "FromNodeId": "a6574447-8280-40e3-9c5d-5ec656804fa3",
+          "FromPinId": "fb4d688f-c865-4abe-adce-7aa840096813",
+          "ToNodeId": "0a148426-eae3-42f8-9003-afed746ca7fd",
+          "ToPinId": "88e867b3-3254-46a8-a0ad-c557fd4b4c4e"
+        },
+        {
+          "FromNodeId": "7d5b1d26-71c0-4927-a34b-0f170353fc8d",
+          "FromPinId": "376787cd-f87d-4074-8c5a-474cd0b5df66",
+          "ToNodeId": "0a148426-eae3-42f8-9003-afed746ca7fd",
+          "ToPinId": "5ec2efe0-baaa-4699-9952-0b9261c764ec"
+        },
+        {
+          "FromNodeId": "02decc4a-6b42-445c-a0a1-c93cc708665f",
+          "FromPinId": "03e2e6a4-2692-48ce-9315-11cb749b216c",
+          "ToNodeId": "4af1a61a-7877-49be-9463-54d22c000c39",
+          "ToPinId": "4462aa42-8903-4242-ad4e-0d35b6da1c66"
+        },
+        {
+          "FromNodeId": "a6574447-8280-40e3-9c5d-5ec656804fa3",
+          "FromPinId": "fb4d688f-c865-4abe-adce-7aa840096813",
+          "ToNodeId": "4af1a61a-7877-49be-9463-54d22c000c39",
+          "ToPinId": "244fba94-6a4f-4d1b-8dbd-391dacd6b807"
+        },
+        {
+          "FromNodeId": "a6574447-8280-40e3-9c5d-5ec656804fa3",
+          "FromPinId": "fb4d688f-c865-4abe-adce-7aa840096813",
+          "ToNodeId": "5f0d55f6-5e47-461f-9539-69565a3ab4ef",
+          "ToPinId": "3b31a8e4-b654-4df3-afba-06f587f56d59"
+        },
+        {
+          "FromNodeId": "02decc4a-6b42-445c-a0a1-c93cc708665f",
+          "FromPinId": "03e2e6a4-2692-48ce-9315-11cb749b216c",
+          "ToNodeId": "5f0d55f6-5e47-461f-9539-69565a3ab4ef",
+          "ToPinId": "320ed503-402c-4e22-be43-5deebd9eddea"
+        },
+        {
+          "FromNodeId": "d080ab72-b5cb-49e5-8559-06dfd2a3315b",
+          "FromPinId": "77082ee0-35f8-48f9-b2c6-f14e557152c4",
+          "ToNodeId": "d75d0119-bd1c-4aae-a058-b5931fb2c4ac",
+          "ToPinId": "5434eba4-5757-45f4-9df0-69c75e25d993"
+        },
+        {
+          "FromNodeId": "5f0d55f6-5e47-461f-9539-69565a3ab4ef",
+          "FromPinId": "6934e2f2-33ad-44c8-9d12-52e517fbe672",
+          "ToNodeId": "d75d0119-bd1c-4aae-a058-b5931fb2c4ac",
+          "ToPinId": "ad02bc6b-8c3d-4d29-9bf8-fa5b6ff4912b"
+        },
+        {
+          "FromNodeId": "d4f0f1c0-4e91-419a-9d81-a2dfdfd95fc6",
+          "FromPinId": "5ec4bc5d-f40e-4a56-841c-f1fe02be8fcc",
+          "ToNodeId": "eee1a115-29fa-474a-b701-5da75cf957a3",
+          "ToPinId": "b3e197ae-64c1-4330-80da-5f14513472eb"
+        },
+        {
+          "FromNodeId": "7d5b1d26-71c0-4927-a34b-0f170353fc8d",
+          "FromPinId": "376787cd-f87d-4074-8c5a-474cd0b5df66",
+          "ToNodeId": "eee1a115-29fa-474a-b701-5da75cf957a3",
+          "ToPinId": "da176699-2afb-4fdb-ba2b-949ed3b25cd9"
+        },
+        {
+          "FromNodeId": "d080ab72-b5cb-49e5-8559-06dfd2a3315b",
+          "FromPinId": "77082ee0-35f8-48f9-b2c6-f14e557152c4",
+          "ToNodeId": "195fec72-3895-4ce7-86e1-444e9263e930",
+          "ToPinId": "e1391291-f432-4819-bffb-5e7b6ea1dfef"
+        },
+        {
+          "FromNodeId": "d4f0f1c0-4e91-419a-9d81-a2dfdfd95fc6",
+          "FromPinId": "5ec4bc5d-f40e-4a56-841c-f1fe02be8fcc",
+          "ToNodeId": "195fec72-3895-4ce7-86e1-444e9263e930",
+          "ToPinId": "9dc6cf6e-e744-494c-a2ca-d726ffe9d17b"
+        },
+        {
+          "FromNodeId": "eee1a115-29fa-474a-b701-5da75cf957a3",
+          "FromPinId": "27b0db1e-c37d-418b-a3fa-9d22d1f5e980",
+          "ToNodeId": "54bf10d7-b39e-4cc3-81a1-f301c5f3a429",
+          "ToPinId": "513e7173-ed5f-479b-9616-9076d6459e0e"
+        },
+        {
+          "FromNodeId": "195fec72-3895-4ce7-86e1-444e9263e930",
+          "FromPinId": "22e0cab7-5b65-4c84-852d-6c4fe891222a",
+          "ToNodeId": "54bf10d7-b39e-4cc3-81a1-f301c5f3a429",
+          "ToPinId": "2c04ddf6-f629-44fc-86c2-eeef20bca43c"
+        },
+        {
+          "FromNodeId": "02decc4a-6b42-445c-a0a1-c93cc708665f",
+          "FromPinId": "03e2e6a4-2692-48ce-9315-11cb749b216c",
+          "ToNodeId": "097d1567-f341-4bd3-910e-0c1d46bce97c",
+          "ToPinId": "94804454-ddbb-4a7b-8cd2-4eb6c0264548"
+        },
+        {
+          "FromNodeId": "d75d0119-bd1c-4aae-a058-b5931fb2c4ac",
+          "FromPinId": "e7757847-ab91-4fa0-9bdb-2126ee7d5bc2",
+          "ToNodeId": "9fe8ac4f-c5dd-4138-a2fd-98f908e7fd7d",
+          "ToPinId": "f9e5e808-7b53-43e2-820a-e6a7cc17eeeb"
+        },
+        {
+          "FromNodeId": "9fe8ac4f-c5dd-4138-a2fd-98f908e7fd7d",
+          "FromPinId": "f3aee396-12f9-4e93-8de8-82418510d84d",
+          "ToNodeId": "097d1567-f341-4bd3-910e-0c1d46bce97c",
+          "ToPinId": "a24011d6-53d6-4383-a6b8-212f263c1f77"
+        },
+        {
+          "FromNodeId": "652d3b95-cf56-4fdd-82cc-d292d129c4fd",
+          "FromPinId": "af1eba45-e00a-4023-83f1-1b56e78dfd1c",
+          "ToNodeId": "a8c1e97a-d802-4267-adff-1672d5e0f450",
+          "ToPinId": "8dce5f39-9300-4137-a79e-f461b930e0dd"
+        },
+        {
+          "FromNodeId": "0a148426-eae3-42f8-9003-afed746ca7fd",
+          "FromPinId": "432e2539-7464-4ff5-a29c-0cd0eebea224",
+          "ToNodeId": "a8c1e97a-d802-4267-adff-1672d5e0f450",
+          "ToPinId": "c09fb9d4-6e61-44b6-bb37-a1934cf60e04"
+        },
+        {
+          "FromNodeId": "a8c1e97a-d802-4267-adff-1672d5e0f450",
+          "FromPinId": "3dd5a2bc-480f-4518-9995-f670568d34f3",
+          "ToNodeId": "097d1567-f341-4bd3-910e-0c1d46bce97c",
+          "ToPinId": "a24011d6-53d6-4383-a6b8-212f263c1f77"
+        },
+        {
+          "FromNodeId": "a8c1e97a-d802-4267-adff-1672d5e0f450",
+          "FromPinId": "a95c51dc-7ca2-421c-97c9-175617c042df",
+          "ToNodeId": "1f7f4854-a12f-4ee9-a825-fb2a52d4c1be",
+          "ToPinId": "00636d86-fbc7-4f95-9f03-37bc50b8cff0"
+        },
+        {
+          "FromNodeId": "4af1a61a-7877-49be-9463-54d22c000c39",
+          "FromPinId": "c2363647-a5cd-473e-8a67-04dffe45d72e",
+          "ToNodeId": "1f7f4854-a12f-4ee9-a825-fb2a52d4c1be",
+          "ToPinId": "865199a8-9f41-44a4-9883-861b9297001e"
+        },
+        {
+          "FromNodeId": "1f7f4854-a12f-4ee9-a825-fb2a52d4c1be",
+          "FromPinId": "d1eb1ab6-bb92-4f31-94f7-53b91406a479",
+          "ToNodeId": "9fe8ac4f-c5dd-4138-a2fd-98f908e7fd7d",
+          "ToPinId": "aaff729d-e7d9-44b3-beb8-789db420d276"
+        },
+        {
+          "FromNodeId": "097d1567-f341-4bd3-910e-0c1d46bce97c",
+          "FromPinId": "673f9d74-287c-41a3-97d2-f7501360246d",
+          "ToNodeId": "9e856086-22da-42e1-9771-960cea38b79b",
+          "ToPinId": "41e69739-5ccc-4817-94a9-a4edccd70d67"
+        },
+        {
+          "FromNodeId": "1f7f4854-a12f-4ee9-a825-fb2a52d4c1be",
+          "FromPinId": "00fec8a5-b821-431a-9a17-9661e006ffde",
+          "ToNodeId": "9e856086-22da-42e1-9771-960cea38b79b",
+          "ToPinId": "41e69739-5ccc-4817-94a9-a4edccd70d67"
+        },
+        {
+          "FromNodeId": "54bf10d7-b39e-4cc3-81a1-f301c5f3a429",
+          "FromPinId": "76038b28-9207-4ee1-9517-21574c49d24b",
+          "ToNodeId": "9e856086-22da-42e1-9771-960cea38b79b",
+          "ToPinId": "59265c5c-3366-4e6c-86e7-441a6631d61e"
+        },
+        {
+          "FromNodeId": "9e856086-22da-42e1-9771-960cea38b79b",
+          "FromPinId": "6ec731a1-1601-4d18-980f-43c8421259f1",
+          "ToNodeId": "d04dff5d-8c8d-48c4-9ff3-40fb71259297",
+          "ToPinId": "75553bdd-d9de-4c34-887b-8799a10a334f"
+        },
+        {
+          "FromNodeId": "9e856086-22da-42e1-9771-960cea38b79b",
+          "FromPinId": "66f81912-bb5f-4332-88b5-8e35a3b9e03f",
+          "ToNodeId": "52a87522-c5e8-44af-82fb-ff3eec22f76d",
+          "ToPinId": "ea9370eb-1f2b-4eb6-94fb-aa8e203a7f63"
+        },
+        {
+          "FromNodeId": "dcf5b58a-ca68-4b0b-b9cf-bc06e8f2aee9",
+          "FromPinId": "c09714ed-68ca-4e6e-bbdb-0318f6032485",
+          "ToNodeId": "52a87522-c5e8-44af-82fb-ff3eec22f76d",
+          "ToPinId": "4341e7d7-f6d3-4d5d-8c3f-1468a97541cc"
+        },
+        {
+          "FromNodeId": "52a87522-c5e8-44af-82fb-ff3eec22f76d",
+          "FromPinId": "967f8e9d-1ddc-4db3-9ebb-15b8723f81d4",
+          "ToNodeId": "5fd92970-8f0c-4b01-b0e9-cfae6b1537ed",
+          "ToPinId": "923785da-b24a-40bb-b5dd-9923e0a10a88"
+        },
+        {
+          "FromNodeId": "5fd92970-8f0c-4b01-b0e9-cfae6b1537ed",
+          "FromPinId": "4e6337e5-3d5b-4a2c-8df6-2ed92df30e56",
+          "ToNodeId": "d04dff5d-8c8d-48c4-9ff3-40fb71259297",
+          "ToPinId": "75553bdd-d9de-4c34-887b-8799a10a334f"
+        }
+      ],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "Migration slice 3 (docs/blueprints/AimAndFireSpecific_Slice_Design.md): blueprint-authored rebuild of the C# oracle HillAttackTankNodes.Action_AimAndFireSpecific (~line 334-438) -- an AiPrimitive BTreeAction. Graph: EventEntry -> GetParameter(TargetNetworkId) -> FunctionCall NetworkEntityMapOps.ResolveTarget(targetNetworkId) [ctx: view, TrailingContext=View, IsPure] -> target Entity, fanned out to WorldOps.IsNull(target) [TrailingContext=None, IsPure] and WorldOps.IsAlive(target) [ctx: view, TrailingContext=View, IsPure] -> BranchNull.True -> Return(Failure); BranchNull.False -> BranchAlive.False -> Return(Success) (target destroyed); BranchAlive.True -> ammo round-count sub-graph: GetComponent(self, WeaponState).Ammo (Target pin unwired => self) + GetVariable(LastObservedAmmo)/GetVariable(RoundsFired)/GetParameter(MaxRounds) feed native Compare (LessThan x2, GreaterThan, GreaterThanOrEqual) + BinaryOp (Subtract, Add) + BooleanOp (And) nodes: BranchA(LastObservedAmmo<0) True -> SetVariable(LastObservedAmmo=ammo) (first-tick init, SHARED merge-point node also reached from the decrement path); False -> BranchB(ammo<LastObservedAmmo) True -> SetVariable(RoundsFired += LastObservedAmmo-ammo) -> the shared SetVariable(LastObservedAmmo=ammo); False -> falls straight through. Both paths converge on BranchCap( (MaxRounds>0) && (RoundsFired>=MaxRounds) ) -- a genuine 2-in-degree merge point, scheduled as a single shared block by the merge-point scheduler fix (no node triplication). BranchCap.True -> Return(Success) (round cap reached, SHARED with the target-destroyed and fire-tail-success returns -- Return is a pure terminal sink, so all three narrative 'Return (Success)' moments in the design doc are the SAME node instance, a 3-in-degree merge point). BranchCap.False -> ChannelCommand(WeaponChannel/AimAndFire) [Target <- resolved target entity, CooldownSeconds <- PinDefault \"10\"] -> WaitForChannel(WeaponChannel) -> the shared Return(Success). DEVIATION 1 (design doc, documented): the oracle's Locomotion-channel clear (stop-to-fire) is DROPPED -- no cross-channel write from this weapon action (architect Q5-B: a brain writes only its own channel via ChannelCommand); the tank is already stationary at its hull-down slot in the real Hill-attack scenario. DEVIATION 2 (design doc, documented): ClearWeaponActionIfActive on the MaxRounds-Success path is SIMPLIFIED to a plain Return(Success) -- the BTree selector/arbitration reclaims the channel (same class as ReverseToBaseline's Clear-on-failure gap). Everything else is faithful to the oracle. New curated helpers: Hrot.AI.Behaviors.Brains.NetworkEntityMapOps.ResolveTarget (P7 context-aware FunctionCall, architect Q6-B target-resolve pattern) and Hrot.AI.Behaviors.Brains.WorldOps.IsAlive/IsNull (general-purpose, broadly reusable). Params vs WorkingState split per Q5-D: MaxRounds/TargetNetworkId = Parameters; RoundsFired/LastObservedAmmo = WorkingState (LastObservedAmmo default -1 sentinel for first-tick init). Does not modify the C# oracle.",
+    "Category": null,
+    "Recipe": null
+  }
+}
