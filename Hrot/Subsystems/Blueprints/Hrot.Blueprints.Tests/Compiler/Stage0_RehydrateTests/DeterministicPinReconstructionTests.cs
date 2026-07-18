@@ -169,4 +169,44 @@ public sealed class DeterministicPinReconstructionTests
         Assert.Contains(("IntentId", "In", false, "System.String"), shape);
         Assert.Contains(("JsonParams", "In", false, "System.String"), shape);
     }
+
+    // ── Compare/BinaryOp/BooleanOp/Not static shape (Blocker-1 tail: pin-less pure nodes) ──────────
+    // These pure nodes used to return no static pins (on the assumption assets always author them). A
+    // migrated pin-less asset then produced EMPTY pins, so Stage5 (which reads "A"/"B" by name) dropped
+    // the Compare's operand producers and emitted an undefined SSA temp (CS0103). They now carry a static
+    // A/B/Result shape.
+    [Theory]
+    [InlineData(typeof(CompareNode))]
+    [InlineData(typeof(BinaryOpNode))]
+    [InlineData(typeof(BooleanOpNode))]
+    public void PureOperatorNode_Pinless_RehydratesABResult(Type nodeType)
+    {
+        var node = (Node)Activator.CreateInstance(nodeType)!;
+        node.Id = Guid.NewGuid();
+        node.Pins = new List<Pin>();
+        var graph = new Graph { Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Event,
+            Nodes = new List<Node> { node }, Links = new(), Inputs = new(), Outputs = new() };
+        var asset = new BlueprintAsset { AssetId = Guid.NewGuid(), Name = "T",
+            Dispatch = BlueprintDispatchKind.Instance, Graphs = new List<Graph> { graph },
+            Variables = new(), CustomEvents = new() };
+        Stage0_Rehydrate.Run(asset, Options());
+
+        Assert.Equal(new[] { ("A", "In"), ("B", "In"), ("Result", "Out") },
+            node.Pins.Select(p => (p.Name, p.Direction)).ToArray());
+    }
+
+    [Fact]
+    public void NotNode_Pinless_RehydratesAResult()
+    {
+        var node = new NotNode { Id = Guid.NewGuid(), Pins = new List<Pin>() };
+        var graph = new Graph { Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Event,
+            Nodes = new List<Node> { node }, Links = new(), Inputs = new(), Outputs = new() };
+        var asset = new BlueprintAsset { AssetId = Guid.NewGuid(), Name = "T",
+            Dispatch = BlueprintDispatchKind.Instance, Graphs = new List<Graph> { graph },
+            Variables = new(), CustomEvents = new() };
+        Stage0_Rehydrate.Run(asset, Options());
+
+        Assert.Equal(new[] { ("A", "In"), ("Result", "Out") },
+            node.Pins.Select(p => (p.Name, p.Direction)).ToArray());
+    }
 }
