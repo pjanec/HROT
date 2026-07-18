@@ -306,7 +306,7 @@ internal static class Stage0_Rehydrate
         // preceding `asset != null` check above is defensive/pre-existing and only guards the
         // graph-call branch); the null-forgiving operator documents that for the nullable-flow
         // analysis, which otherwise cannot see past the compound condition above.
-        EnrichClrFunctionCallPins(pins, fc, asset!, outL, inL);
+        EnrichClrFunctionCallPins(pins, fc, asset!, options, outL, inL);
     }
 
     private static void EnrichFunctionGraphCallPins(
@@ -332,19 +332,25 @@ internal static class Stage0_Rehydrate
     }
 
     private static void EnrichClrFunctionCallPins(List<Pin> pins, FunctionCallNode fc,
-        BlueprintAsset asset, List<Link>? outL, List<Link>? inL)
+        BlueprintAsset asset, CompileOptions options, List<Link>? outL, List<Link>? inL)
     {
-        // Attempt CLR reflection.  Fails gracefully in the netstandard2.0 MSBuild host
-        // where the game assembly is not loaded; tracked for a later registry-driven FunctionCall.
-        var method = ResolveMethod(fc.TargetTypeId, fc.MethodName);
-        if (method == null)
+        // Resolve the target signature. Two sources, in precedence order:
+        //   1. options.ClrSignatureResolver -- the Roslyn semantic model (supplied by the incremental
+        //      generator, which CANNOT reflect over the assembly it is currently compiling). This is
+        //      what lets same-assembly curated-helper calls rehydrate typed pins at generate time, so
+        //      the blueprints need NO explicit persisted pins and the editor save round-trip is safe.
+        //   2. CLR reflection over loaded assemblies -- the in-process path (compiler unit tests, the
+        //      editor host), where the game assembly IS loaded. Byte-for-byte the pre-existing behavior.
+        // Either yields a reflection-free ClrMethodSig; a single builder below turns it into pins.
+        var sig = TryResolveSignature(fc, options);
+        if (sig == null)
         {
             // NO-SWALLOW: emit to debug output naming node + reason.
             if (!string.IsNullOrEmpty(fc.TargetTypeId) || !string.IsNullOrEmpty(fc.MethodName))
             {
                 System.Diagnostics.Debug.WriteLine(
                     $"[BP-Stage0] WARN: FunctionCallNode {fc.Id} cannot resolve " +
-                    $"'{fc.TargetTypeId}.{fc.MethodName}' via CLR reflection — " +
+                    $"'{fc.TargetTypeId}.{fc.MethodName}' via semantic model or CLR reflection — " +
                     $"using link-adjacency placeholder pins (MSBuild host or missing assembly).");
             }
 
@@ -387,7 +393,7 @@ internal static class Stage0_Rehydrate
             return;
         }
 
-        // Have reflection — rebuild with typed data pins.
+        // Have a resolved signature — rebuild with typed data pins.
         pins.Clear();
         if (!fc.IsPure)
         {
@@ -396,62 +402,160 @@ internal static class Stage0_Rehydrate
         }
         try
         {
-            var allParams = method.GetParameters();
+            var allParams = sig.Parameters;
 
-            // P7 -- trailing engine-context recognition (Entity self / ISimulationView view).
-            // Recognized ONLY when the containing asset's dispatch has self/view in scope
-            // (Instance/AiPrimitive -- mirrors EmissionContext.HasSelfInScope). A Library-dispatch
-            // asset has neither in scope (LibraryEmitter.EmitFunctionGraph emits a stateless static
-            // method with only the declared graph inputs as parameters), so trailing Entity/
-            // ISimulationView-typed parameters there are left as ordinary data pins -- unchanged,
-            // pre-P7 behavior. Authoring such a call in a Library graph will surface as an ordinary
-            // "unresolvable data pin" / downstream Roslyn compile error, same as any other invalid
-            // reference in a stateless function body (no new diagnostic added for this edge case;
-            // see P7 report for the recorded gap).
-            int contextCount = 0;
-            if (asset.Dispatch != BlueprintDispatchKind.Library)
-            {
-                (contextCount, _, _) = ResolveTrailingContext(allParams);
-            }
-            var dataParamCount = allParams.Length - contextCount;
+            // Trailing engine-context recognition (Entity self / ISimulationView view). The trailing
+            // context params are OMITTED from the data pins (Stage5 appends them as call arguments; the
+            // omitted-pin count and the appended-arg count must always agree — see the parity note on
+            // Stage5_Schedule.ResolveFunctionCallTrailingContext). Precedence mirrors Stage5:
+            //   * Library dispatch has neither self nor view in scope → 0 context params.
+            //   * an explicit fc.TrailingContext (the editor bake / hand-authored value) wins with NO
+            //     type inspection — this is what makes the pin shape reproducible without reflection.
+            //   * Unspecified → fall back to type-based recognition over the resolved parameter list
+            //     (identical detection to the former reflection path; all pre-existing P7 tests hit this).
+            int contextCount = ResolveContextParamCount(allParams, fc.TrailingContext, asset);
+            var dataParamCount = allParams.Count - contextCount;
 
             for (int i = 0; i < dataParamCount; i++)
             {
                 var param = allParams[i];
-                var pt = param.ParameterType;
-                if (pt.IsByRef) pt = pt.GetElementType() ?? pt;
-                pins.Add(MakePin(param.Name ?? "arg", "In", isExec: false,
-                    typeId: pt.FullName ?? pt.Name));
+                pins.Add(MakePin(string.IsNullOrEmpty(param.Name) ? "arg" : param.Name, "In",
+                    isExec: false, typeId: PinTypeIdForResolvedType(param.TypeFullName, options)));
             }
-            if (method.ReturnType != typeof(void))
+            if (sig.ReturnTypeFullName != null)
                 pins.Add(MakePin("Return", "Out", isExec: false,
-                    typeId: method.ReturnType.FullName ?? method.ReturnType.Name));
+                    typeId: PinTypeIdForResolvedType(sig.ReturnTypeFullName, options)));
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine(
-                $"[BP-Stage0] WARN: FunctionCallNode {fc.Id} reflection on " +
+                $"[BP-Stage0] WARN: FunctionCallNode {fc.Id} signature build on " +
                 $"'{fc.TargetTypeId}.{fc.MethodName}' threw: {ex.Message} — " +
                 $"keeping exec-only fallback.");
             // Leave whatever exec pins exist.
         }
     }
 
-    // ── P7: trailing engine-context recognition (FunctionCall context-aware pins) ──────────────
+    // ── FunctionCall signature resolution (semantic model → reflection) ─────────────────────────
 
     /// <summary>
-    /// P7 -- recognizes the trailing engine-context parameter convention on a FunctionCall's
-    /// resolved CLR method. The parameter list MAY end with <c>Entity self</c>, or an
-    /// <c>ISimulationView</c>-typed parameter (any name), or both in that exact order
-    /// (<c>..., Entity self, ISimulationView &lt;name&gt;</c> -- mirrors the parameter order the
-    /// compiler itself uses for generated methods, e.g. <c>TickCore(..., self, world, time)</c>).
+    /// Resolves a FunctionCall target's signature to a reflection-free <see cref="ClrMethodSig"/>,
+    /// trying the generator-supplied semantic-model resolver first (which sees the assembly currently
+    /// being compiled) and CLR reflection second (in-process hosts where the assembly is loaded).
+    /// Returns <c>null</c> when neither can resolve it — the caller then uses placeholder pins.
+    /// </summary>
+    private static ClrMethodSig? TryResolveSignature(FunctionCallNode fc, CompileOptions options)
+    {
+        if (options.ClrSignatureResolver != null)
+        {
+            try
+            {
+                if (options.ClrSignatureResolver.TryResolve(fc.TargetTypeId, fc.MethodName, out var resolved)
+                    && resolved != null)
+                    return resolved;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"[BP-Stage0] WARN: ClrSignatureResolver threw for " +
+                    $"'{fc.TargetTypeId}.{fc.MethodName}': {ex.Message} — falling back to reflection.");
+            }
+        }
+
+        var method = ResolveMethod(fc.TargetTypeId, fc.MethodName);
+        return method == null ? null : ReflectToSig(method);
+    }
+
+    /// <summary>Converts a resolved CLR <see cref="MethodInfo"/> to a <see cref="ClrMethodSig"/>,
+    /// unwrapping by-ref parameters and mapping <c>void</c> returns to <c>null</c> — so the reflection
+    /// path and the semantic-model path feed the SAME pin builder.</summary>
+    private static ClrMethodSig ReflectToSig(MethodInfo method)
+    {
+        var ps = method.GetParameters();
+        var list = new List<ClrParamInfo>(ps.Length);
+        foreach (var p in ps)
+        {
+            var pt = p.ParameterType;
+            if (pt.IsByRef) pt = pt.GetElementType() ?? pt;
+            list.Add(new ClrParamInfo(p.Name ?? "arg", pt.FullName ?? pt.Name));
+        }
+        string? ret = method.ReturnType == typeof(void)
+            ? null
+            : (method.ReturnType.FullName ?? method.ReturnType.Name);
+        return new ClrMethodSig(list, ret);
+    }
+
+    /// <summary>
+    /// Maps a resolved parameter/return type FQN to the pin <c>TypeId</c>. Types the registry already
+    /// knows (C# primitives, <c>Fdp.Core.Entity</c> and its <c>IsEntityHandle</c> flag, the curated
+    /// structs declared in <see cref="Catalogs.StaticTypeRegistry"/>) pass through UNPREFIXED so they
+    /// resolve via the type table. A curated blittable struct the table does NOT know (e.g. a demo's
+    /// own shared struct) is stamped with the <c>"global::"</c> AN2 sentinel — exactly like
+    /// <see cref="SharedTypePinTypeId"/> does for GetShared/SetShared — so it flows through the
+    /// registry's project-type acceptance path instead of failing BP1500.
     /// <para>
-    /// Recognition is by TYPE (exact <c>Type.FullName</c> match against
-    /// <c>Fdp.Core.Entity</c> / <c>Fdp.ModuleHost.Abstractions.ISimulationView</c>, after stripping
-    /// a by-ref wrapper). The <c>Entity</c> case ALSO requires the parameter be named exactly
-    /// <c>"self"</c> (ordinal) -- <c>Entity</c> is a legitimate ordinary data-pin type elsewhere
-    /// (e.g. <see cref="GetSharedNode"/>'s "Target" pin), so the name disambiguates a genuine
-    /// trailing self-context parameter from an author-supplied <c>Entity</c> data argument.
+    /// This is what makes the semantic-model FunctionCall rehydration (Blocker-1) general: the
+    /// reflection path historically NEVER resolved same-assembly curated structs (it fell back to
+    /// <c>System.Object</c> placeholder pins), so this case never arose; now that the resolver DOES
+    /// surface them, an unregistered curated struct must still resolve without hand-registering each
+    /// one. Trust-the-FQN + emit-a-cast is validated downstream by the C# compiler, same contract as
+    /// every other <c>global::</c> type.
+    /// </para>
+    /// </summary>
+    private static string PinTypeIdForResolvedType(string typeFullName, CompileOptions options)
+    {
+        if (string.IsNullOrEmpty(typeFullName))
+            return "System.Object";
+
+        // Already a project sentinel, or the registry resolves it directly → leave as-is.
+        if (typeFullName.StartsWith("global::", StringComparison.Ordinal))
+            return typeFullName;
+        if (options.TypeRegistry.TryResolve(new BlueprintTypeRef { TypeId = typeFullName }, out _))
+            return typeFullName;
+
+        // Unknown to the registry — treat as a curated project value type and stamp the sentinel so
+        // the registry's global:: acceptance path resolves it (an actually-invalid type surfaces as a
+        // downstream Roslyn compile error, same as any other global:: type).
+        return "global::" + typeFullName;
+    }
+
+    /// <summary>
+    /// Number of trailing parameters consumed as engine context (and therefore OMITTED from the data
+    /// pins). Precedence mirrors <c>Stage5_Schedule.ResolveFunctionCallTrailingContext</c>: Library
+    /// dispatch → 0; an explicit <see cref="FunctionCallContextKind"/> wins with no type inspection;
+    /// <see cref="FunctionCallContextKind.Unspecified"/> → type-based recognition over the resolved
+    /// parameter list.
+    /// </summary>
+    private static int ResolveContextParamCount(
+        IReadOnlyList<ClrParamInfo> parameters, FunctionCallContextKind trailingContext,
+        BlueprintAsset asset)
+    {
+        if (asset.Dispatch == BlueprintDispatchKind.Library)
+            return 0;
+
+        switch (trailingContext)
+        {
+            case FunctionCallContextKind.None:        return 0;
+            case FunctionCallContextKind.Self:        return 1;
+            case FunctionCallContextKind.View:        return 1;
+            case FunctionCallContextKind.SelfAndView: return 2;
+            default: // Unspecified → infer from parameter types (pre-P7-bake behavior).
+                var (count, _, _) = ResolveTrailingContext(parameters);
+                return count;
+        }
+    }
+
+    /// <summary>
+    /// Recognizes the trailing engine-context parameter convention on a resolved parameter list. The
+    /// list MAY end with <c>Entity self</c>, or an <c>ISimulationView</c>-typed parameter (any name),
+    /// or both in that exact order (<c>..., Entity self, ISimulationView &lt;name&gt;</c> -- mirrors the
+    /// parameter order the compiler uses for generated methods, e.g. <c>TickCore(..., self, world, time)</c>).
+    /// <para>
+    /// Recognition is by TYPE (exact FQN match against <c>Fdp.Core.Entity</c> /
+    /// <c>Fdp.ModuleHost.Abstractions.ISimulationView</c>). The <c>Entity</c> case ALSO requires the
+    /// parameter be named exactly <c>"self"</c> (ordinal) -- <c>Entity</c> is a legitimate ordinary
+    /// data-pin type elsewhere (e.g. <see cref="GetSharedNode"/>'s "Target" pin), so the name
+    /// disambiguates a genuine trailing self-context parameter from an author-supplied data argument.
     /// <c>ISimulationView</c> has no legitimate ordinary blueprint-data use, so type alone suffices.
     /// </para>
     /// Kept in parity with <c>NodePinSchema.ResolveTrailingContext</c> (editor projection) and
@@ -459,27 +563,19 @@ internal static class Stage0_Rehydrate
     /// agree on which trailing parameters are "context" so the omitted pin count and the appended
     /// call-argument count always match.
     /// </summary>
-    /// <returns>
-    /// <c>ContextCount</c> -- 0, 1, or 2 trailing parameters consumed as engine context.
-    /// <c>AppendSelf</c>/<c>AppendView</c> -- which kind(s) were recognized (informational here;
-    /// Stage0 only needs <c>ContextCount</c> to slice the pin list -- appending the actual call
-    /// arguments happens later, in Stage5_Schedule).
-    /// </returns>
     private static (int ContextCount, bool AppendSelf, bool AppendView) ResolveTrailingContext(
-        ParameterInfo[] parameters)
+        IReadOnlyList<ClrParamInfo> parameters)
     {
         const string EntityFqn = "Fdp.Core.Entity";
         const string ViewFqn   = "Fdp.ModuleHost.Abstractions.ISimulationView";
 
-        int n = parameters.Length;
+        int n = parameters.Count;
         if (n == 0) return (0, false, false);
 
-        static Type StripByRef(Type t) => t.IsByRef ? (t.GetElementType() ?? t) : t;
-        bool IsSelfParam(ParameterInfo p) =>
-            StripByRef(p.ParameterType).FullName == EntityFqn
-            && string.Equals(p.Name, "self", StringComparison.Ordinal);
-        bool IsViewParam(ParameterInfo p) =>
-            StripByRef(p.ParameterType).FullName == ViewFqn;
+        bool IsSelfParam(ClrParamInfo p) =>
+            p.TypeFullName == EntityFqn && string.Equals(p.Name, "self", StringComparison.Ordinal);
+        bool IsViewParam(ClrParamInfo p) =>
+            p.TypeFullName == ViewFqn;
 
         if (IsViewParam(parameters[n - 1]))
         {
