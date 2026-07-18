@@ -10,8 +10,17 @@ internal sealed class RaylibPresentationShell : IPresentationShell
     private Raylib_cs.Font _gizmoFont;
     private IntPtr _iniFilenamePtr;
 
+    /// <inheritdoc/>
+    public Fdp.Presentation.Fonts.EditorFontService FontService { get; } = new();
+
     public void InitWindow(int width, int height, string title, int targetFps)
     {
+        // NOTE: intentionally NOT setting ConfigFlags.HighDpiWindow. With it, Raylib creates a
+        // GL framebuffer at the physical (DPI-scaled) resolution while the ImGui integration
+        // (rlImGui_cs) still lays out at the logical window size, so on a hi-DPI monitor the UI
+        // renders clipped into a sub-rect with the rest blank. We keep a 1:1 framebuffer and get
+        // readability from larger baked fonts + the UI-scale slider instead. Revisit if/when the
+        // ImGui backend gains proper framebuffer-scale handling.
         Raylib_cs.Raylib.SetConfigFlags(Raylib_cs.ConfigFlags.ResizableWindow);
         Raylib_cs.Raylib.InitWindow(width, height, title);
         Raylib_cs.Raylib.SetExitKey(Raylib_cs.KeyboardKey.Null);
@@ -33,6 +42,13 @@ internal sealed class RaylibPresentationShell : IPresentationShell
         {
             io.NativePtr->IniFilename = (byte*)_iniFilenamePtr;
         }
+
+        // Bake the editor fonts (Roboto UI face + FontAwesome + canvas ladder) at the
+        // autodetected monitor DPI. The persisted user UI-scale multiplier is applied
+        // later (LocalWindowController) once window settings have loaded — that queues a
+        // one-off rebuild on the first frame if it differs from 1.0.
+        float dpi = Raylib_cs.Raylib.GetWindowScaleDPI().X;
+        FontService.Initialize(dpiScale: dpi, userScale: 1f);
     }
 
     public void ShutdownImGui()
@@ -68,6 +84,11 @@ internal sealed class RaylibPresentationShell : IPresentationShell
         byte[] pngBytes = Fdp.Presentation.Icons.EmbeddedAtlasResources.GetSilkAtlasPngBytes();
         var img = Raylib_cs.Raylib.LoadImageFromMemory(".png", pngBytes);
         _atlasTexture = Raylib_cs.Raylib.LoadTextureFromImage(img);
+        // Bilinear filtering so 16x16 silk cells resample smoothly when drawn larger than
+        // native (DPI-scaled menu gutters, the blueprint node picker, etc.) instead of the
+        // default nearest/point sampling that shows blocky pixels on upscale. At 1:1 (16px)
+        // it is identical to point sampling, so no downside for native-size icons.
+        Raylib_cs.Raylib.SetTextureFilter(_atlasTexture, Raylib_cs.TextureFilter.Bilinear);
         Raylib_cs.Raylib.UnloadImage(img);
         return new Fdp.Presentation.Icons.IconAtlas(
             (nint)_atlasTexture.Id, _atlasTexture.Width, _atlasTexture.Height, 16f);

@@ -22,6 +22,10 @@ public class GZH012_Tests
         public int LoadAtlasCallCount     { get; private set; }
         public int LoadGizmoFontCallCount { get; private set; }
 
+        // A bare service is sufficient for controller tests: SetUserScale/ApplyPendingRebuild
+        // only touch managed state (no ImGui/GPU context needed) unless a bake runs.
+        public Fdp.Presentation.Fonts.EditorFontService FontService { get; } = new();
+
         public void InitWindow(int w, int h, string t, int fps) => InitWindowCallCount++;
         public void SetupImGui()      => SetupImGuiCallCount++;
         public void ShutdownImGui()   => ShutdownImGuiCallCount++;

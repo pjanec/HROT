@@ -66,7 +66,10 @@ internal sealed class WireRenderer
                                    && (hp.Pin == link.FromPin || hp.Pin == link.ToPin);
             bool pendingDelete = alt && (hovered || hoveredPinAttached);
 
+            // Scale wire thickness with zoom so wires get thin (not chunky) when zoomed out and
+            // match node scale when zoomed in. Clamp to a visible minimum so they never vanish.
             float thickness = isExec ? theme.WireThicknessExec : theme.WireThicknessData;
+            thickness = MathF.Max(0.75f, thickness * view.Viewport.Zoom);
             if (selected || hovered) thickness *= 1.6f;
 
             uint color = ImGui.GetColorU32(wireColor);
@@ -92,10 +95,11 @@ internal sealed class WireRenderer
         uint color, float thickness, bool isExec, PinOrientation orientation)
     {
         var waypoints = link.Waypoints;
+        float zoom = view.Viewport.Zoom;
 
         if (waypoints.Count == 0)
         {
-            DrawBezierSegment(dl, a, b, color, thickness, isExec, BezierSegments, orientation);
+            DrawBezierSegment(dl, a, b, color, thickness, isExec, BezierSegments, orientation, zoom);
             return;
         }
 
@@ -105,19 +109,19 @@ internal sealed class WireRenderer
             var rr = new RerouteRef(link.Id, i);
             var wpGraph = view.Interaction.RerouteDragOverridePositions.TryGetValue(rr, out var ovr) ? ovr : waypoints[i];
             var wp = view.Viewport.GraphToScreen(wpGraph);
-            DrawBezierSegment(dl, prev, wp, color, thickness, false, BezierSegments, orientation);
+            DrawBezierSegment(dl, prev, wp, color, thickness, false, BezierSegments, orientation, zoom);
             prev = wp;
         }
-        DrawBezierSegment(dl, prev, b, color, thickness, false, BezierSegments, orientation);
+        DrawBezierSegment(dl, prev, b, color, thickness, false, BezierSegments, orientation, zoom);
     }
 
     private static void DrawBezierSegment(
         ImDrawListPtr dl,
         Vector2 a, Vector2 b,
         uint color, float thickness, bool withArrow, int segments,
-        PinOrientation orientation = PinOrientation.Horizontal)
+        PinOrientation orientation = PinOrientation.Horizontal, float zoom = 1f)
     {
-        var (c1, c2) = HitTester.WireTangents(a, b, orientation);
+        var (c1, c2) = HitTester.WireTangents(a, b, orientation, zoom);
 
         if (withArrow)
             dl.AddBezierWithArrow(a, c1, c2, b, color, thickness, thickness * 2.5f, segments);

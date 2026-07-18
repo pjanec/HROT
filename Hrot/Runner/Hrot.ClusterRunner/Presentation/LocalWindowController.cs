@@ -73,6 +73,11 @@ internal sealed class LocalWindowController
         wm.StatusBar.RegisterSection("msg_log_notify", sortOrder: 90, msgLogSection.Render);
 
         string? persisted = wm.LoadSettings();
+
+        // Wire the font pipeline: let the Settings UI drive live rescaling, and apply the
+        // persisted UI-scale multiplier (queues a one-off rebake on the first frame if != 1).
+        wm.FontService = _shell.FontService;
+        _shell.FontService.SetUserScale(wm.UiScale);
         var first = _subsystems.Skip(1).FirstOrDefault();
         string defaultPersp = first?.Name ?? "Default";
         bool valid = !string.IsNullOrEmpty(persisted) && _subsystems.Any(s => s.Name == persisted);

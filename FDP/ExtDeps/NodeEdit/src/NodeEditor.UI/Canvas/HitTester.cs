@@ -275,22 +275,22 @@ internal sealed class HitTester
         var waypoints = link.Waypoints;
         if (waypoints.Count == 0)
         {
-            return BezierHit(mouse, a, b, orientation);
+            return BezierHit(mouse, a, b, orientation, viewport.Zoom);
         }
 
         var prev = a;
         for (int i = 0; i < waypoints.Count; i++)
         {
             var wpt = viewport.GraphToScreen(waypoints[i]);
-            if (BezierHit(mouse, prev, wpt, orientation)) return true;
+            if (BezierHit(mouse, prev, wpt, orientation, viewport.Zoom)) return true;
             prev = wpt;
         }
-        return BezierHit(mouse, prev, b, orientation);
+        return BezierHit(mouse, prev, b, orientation, viewport.Zoom);
     }
 
-    private static bool BezierHit(Vector2 mouse, Vector2 a, Vector2 b, PinOrientation orientation = PinOrientation.Horizontal)
+    private static bool BezierHit(Vector2 mouse, Vector2 a, Vector2 b, PinOrientation orientation = PinOrientation.Horizontal, float zoom = 1f)
     {
-        var (c1, c2) = WireTangents(a, b, orientation);
+        var (c1, c2) = WireTangents(a, b, orientation, zoom);
         for (int s = 0; s <= WireSampleCount; s++)
         {
             float t = s / (float)WireSampleCount;
@@ -301,8 +301,13 @@ internal sealed class HitTester
         return false;
     }
 
-    internal static (Vector2 c1, Vector2 c2) WireTangents(Vector2 a, Vector2 b, PinOrientation orientation = PinOrientation.Horizontal)
+    internal static (Vector2 c1, Vector2 c2) WireTangents(Vector2 a, Vector2 b, PinOrientation orientation = PinOrientation.Horizontal, float zoom = 1f)
     {
+        // The minimum-tangent floor is expressed in GRAPH units and multiplied by zoom, so the
+        // curve keeps its shape as you zoom (a & b are already screen positions). A fixed screen
+        // floor would make short/zoomed-out wires bulge disproportionately (shape change).
+        float floor = 50f * zoom;
+
         if (orientation == PinOrientation.Vertical)
         {
             // Pins face along Y: the From/output pin (a) is on the node's top edge
@@ -310,12 +315,12 @@ internal sealed class HitTester
             // down. Tangents leave/enter vertically so the spline doesn't sprout
             // sideways like a horizontal (Blueprint) wire.
             float dy = MathF.Abs(b.Y - a.Y);
-            float tangentV = MathF.Max(50f, dy * 0.5f);
+            float tangentV = MathF.Max(floor, dy * 0.5f);
             return (a - new Vector2(0f, tangentV), b + new Vector2(0f, tangentV));
         }
 
         float dx = MathF.Abs(b.X - a.X);
-        float tangent = MathF.Max(50f, dx * 0.5f);
+        float tangent = MathF.Max(floor, dx * 0.5f);
         return (a + new Vector2(tangent, 0f), b - new Vector2(tangent, 0f));
     }
 

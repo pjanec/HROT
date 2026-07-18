@@ -41,6 +41,17 @@ namespace GizmoMap.Presentation
             _renderer = renderer;
         }
 
+        /// <summary>
+        /// Optional resolver that renders a colored icon for right-click context-menu items
+        /// carrying an <c>"icon"</c> key. Injected by the host (which owns the icon vocabulary);
+        /// null (default) renders text-only.
+        /// </summary>
+        public MenuIconResolver? ContextMenuIconResolver
+        {
+            get => _contextMenuAdapter.IconResolver;
+            set => _contextMenuAdapter.IconResolver = value;
+        }
+
         public void Render(ReadOnlySpan<DebugPrimitive> primitives, Camera2D camera, float zoom)
         {
             _renderer.Render(primitives, camera, zoom);

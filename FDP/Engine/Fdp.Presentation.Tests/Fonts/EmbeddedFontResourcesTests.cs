@@ -19,6 +19,32 @@ public class EmbeddedFontResourcesTests
     }
 
     [Fact]
+    public void GetFontAwesomeSolidTtfBytes_ReturnsNonEmptyBytes()
+    {
+        byte[] ttf = EmbeddedFontResources.GetFontAwesomeSolidTtfBytes();
+
+        Assert.NotNull(ttf);
+        Assert.True(ttf.Length > 0, "FontAwesome TTF byte array must not be empty.");
+    }
+
+    [Fact]
+    public void GetFontAwesomeSolidTtfBytes_HasValidTtfSignature()
+    {
+        byte[] ttf = EmbeddedFontResources.GetFontAwesomeSolidTtfBytes();
+
+        Assert.True(ttf.Length >= 4, "File is too short to contain a TTF signature.");
+
+        bool isTrueType    = ttf[0] == 0x00 && ttf[1] == 0x01 && ttf[2] == 0x00 && ttf[3] == 0x00;
+        bool isOpenTypeCff = ttf[0] == 0x4F && ttf[1] == 0x54 && ttf[2] == 0x54 && ttf[3] == 0x4F;
+        bool isMacTrue     = ttf[0] == 0x74 && ttf[1] == 0x72 && ttf[2] == 0x75 && ttf[3] == 0x65;
+        bool isTtcf        = ttf[0] == 0x74 && ttf[1] == 0x74 && ttf[2] == 0x63 && ttf[3] == 0x66;
+
+        Assert.True(
+            isTrueType || isOpenTypeCff || isMacTrue || isTtcf,
+            $"Unexpected TTF signature: {ttf[0]:X2} {ttf[1]:X2} {ttf[2]:X2} {ttf[3]:X2}.");
+    }
+
+    [Fact]
     public void GetRobotoRegularTtfBytes_HasValidTtfSignature()
     {
         byte[] ttf = EmbeddedFontResources.GetRobotoRegularTtfBytes();
