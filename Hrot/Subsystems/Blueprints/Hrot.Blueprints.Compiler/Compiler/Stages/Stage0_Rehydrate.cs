@@ -143,6 +143,10 @@ internal static class Stage0_Rehydrate
                 EnrichFunctionCallPins(pins, fc, asset, graph, options, staticShapes, outL, inL);
                 break;
 
+            case PublishEventNode pen:
+                EnrichPublishEventPins(pins, pen, options);
+                break;
+
             case CallCustomEventNode cce:
                 EnrichCallCustomEventPins(pins, cce, asset, staticShapes);
                 break;
@@ -277,6 +281,30 @@ internal static class Stage0_Rehydrate
         return sharedTypeId.StartsWith("global::", StringComparison.Ordinal)
             ? sharedTypeId
             : "global::" + sharedTypeId;
+    }
+
+    /// <summary>
+    /// PublishEvent (P4/GAP-3): exec node whose data-IN pins are catalog-driven (baked, reflection-free).
+    /// The static registry provides exec In/Out; this adds the optional <c>Target</c> pin (when the event
+    /// has a target field) plus one pin per baked <see cref="EngineEventCatalogEntry.PayloadFields"/>
+    /// entry — exactly the pins <c>Stage5_Schedule</c> reads by name when lowering the publish. Lets a
+    /// pin-less PublishEvent node round-trip without hand-authored pins. Unknown event id → exec-only
+    /// (Stage5 emits nothing; surfaced by validation), same graceful shape as the FunctionCall fallback.
+    /// </summary>
+    private static void EnrichPublishEventPins(List<Pin> pins, PublishEventNode pen, CompileOptions options)
+    {
+        var entry = options.EngineEvents.GetEntries()
+            .FirstOrDefault(e => string.Equals(e.Name, pen.EventId, StringComparison.OrdinalIgnoreCase));
+        if (entry is null) return;
+
+        // Optional target: pin is always named "Target" (Stage5 matches that name), mapped to the event's
+        // TargetFieldName at lowering. Present only when the event declares a target field.
+        if (!string.IsNullOrEmpty(entry.TargetFieldName))
+            pins.Add(MakePin("Target", "In", isExec: false, typeId: "Fdp.Core.Entity"));
+
+        if (entry.PayloadFields != null)
+            foreach (var f in entry.PayloadFields)
+                pins.Add(MakePin(f.Name, "In", isExec: false, typeId: f.TypeId));
     }
 
     private static void EnrichFunctionCallPins(
@@ -651,45 +679,74 @@ internal static class Stage0_Rehydrate
     /// then assigns the i-th distinct link GUID to the i-th pin in that bucket.
     /// Pins with no link GUID get a deterministic synthetic GUID.
     /// </summary>
+    /// <summary>
+    /// Assigns pin GUIDs with a per-pin blend of the deterministic content-derived scheme (architect
+    /// Q#10-A/C) and the legacy positional scheme, so migrated, legacy, AND mixed assets all reconstruct
+    /// with every link resolving. Kept in strict parity with <c>BlueprintGraphModel.Rebuild</c>.
+    /// <para>
+    /// Per direction bucket: a link whose pin-GUID equals a pin's deterministic GUID
+    /// (<see cref="DeterministicIds.PinId"/>) binds THAT pin by name (order-independent — the exec/data
+    /// swap the old positional scheme suffered is impossible). Remaining links (legacy/arbitrary GUIDs)
+    /// bind positionally to the still-unassigned pins, exactly as before; leftover unconnected pins get
+    /// the legacy synthetic GUID. A wholly-migrated node resolves entirely by name; a wholly-legacy node
+    /// is byte-for-byte the old positional binding; a mixed node (a link drawn to a pin that had been
+    /// saved unconnected, so it already carries its deterministic GUID) resolves both parts.
+    /// </para>
+    /// </summary>
     private static void AssignLinkGuids(
         List<Pin> pins, Guid nodeId,
         List<Link>? outLinks, List<Link>? inLinks)
     {
-        var outPins = pins.Where(p => p.Direction == "Out").ToList();
-        var inPins  = pins.Where(p => p.Direction == "In" ).ToList();
+        AssignDirection(pins.Where(p => p.Direction == "Out").ToList(), nodeId, "Out",
+            DistinctLinkGuids(outLinks, static l => l.FromPinId));
+        AssignDirection(pins.Where(p => p.Direction == "In").ToList(), nodeId, "In",
+            DistinctLinkGuids(inLinks, static l => l.ToPinId));
+    }
 
-        // Collect distinct FromPinId GUIDs from outgoing links in order of first occurrence.
-        var distinctOutGuids = new List<Guid>();
-        var seenOut = new HashSet<Guid>();
-        if (outLinks != null)
-            foreach (var link in outLinks)
-                if (seenOut.Add(link.FromPinId))
-                    distinctOutGuids.Add(link.FromPinId);
-
-        // Collect distinct ToPinId GUIDs from incoming links.
-        var distinctInGuids = new List<Guid>();
-        var seenIn = new HashSet<Guid>();
-        if (inLinks != null)
-            foreach (var link in inLinks)
-                if (seenIn.Add(link.ToPinId))
-                    distinctInGuids.Add(link.ToPinId);
-
-        // Assign Out pins.
-        for (int i = 0; i < outPins.Count; i++)
+    private static List<Guid> DistinctLinkGuids(List<Link>? links, Func<Link, Guid> select)
+    {
+        var result = new List<Guid>();
+        if (links == null) return result;
+        var seen = new HashSet<Guid>();
+        foreach (var link in links)
         {
-            outPins[i].Id = (i < distinctOutGuids.Count)
-                ? distinctOutGuids[i]
-                : Stage3_Normalize.SynthesizedGuid(
-                    $"pin:{nodeId:N}:{outPins[i].Name}:Out");
+            var g = select(link);
+            if (seen.Add(g)) result.Add(g);
+        }
+        return result;
+    }
+
+    private static void AssignDirection(List<Pin> dirPins, Guid nodeId, string direction, List<Guid> linkGuids)
+    {
+        // Reverse map: deterministic pin-GUID → pin (unique pin name within a direction is assumed).
+        var detToPin = new Dictionary<Guid, Pin>();
+        foreach (var pin in dirPins)
+            detToPin[DeterministicIds.PinId(nodeId, pin.Name, direction)] = pin;
+
+        // Pass 1: links carrying a deterministic GUID bind their exact pin by name.
+        var assigned = new HashSet<Pin>();
+        var legacyGuids = new List<Guid>();
+        foreach (var g in linkGuids)
+        {
+            if (detToPin.TryGetValue(g, out var pin))
+            {
+                if (assigned.Add(pin)) pin.Id = g;
+            }
+            else
+            {
+                legacyGuids.Add(g);
+            }
         }
 
-        // Assign In pins.
-        for (int i = 0; i < inPins.Count; i++)
+        // Pass 2: legacy links bind positionally to the still-unassigned pins (old behavior);
+        // any pin left over (unconnected) gets the legacy synthetic GUID.
+        int li = 0;
+        foreach (var pin in dirPins)
         {
-            inPins[i].Id = (i < distinctInGuids.Count)
-                ? distinctInGuids[i]
-                : Stage3_Normalize.SynthesizedGuid(
-                    $"pin:{nodeId:N}:{inPins[i].Name}:In");
+            if (assigned.Contains(pin)) continue;
+            pin.Id = (li < legacyGuids.Count)
+                ? legacyGuids[li++]
+                : Stage3_Normalize.SynthesizedGuid($"pin:{nodeId:N}:{pin.Name}:{direction}");
         }
     }
 

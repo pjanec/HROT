@@ -54,7 +54,19 @@ public sealed record EngineEventCatalogEntry(
     /// the Roslyn incremental generator runs as a netstandard2.0 analyzer that cannot load game
     /// assemblies to inspect a real CLR type. Defaults to false (unmanaged struct, the common case).
     /// </summary>
-    bool Managed = false);
+    bool Managed = false,
+    /// <summary>
+    /// Baked payload data-in fields for this event (excluding the optional <see cref="TargetFieldName"/>
+    /// target, which is projected as the "Target" pin). Each becomes a data-IN pin named by
+    /// <see cref="EventPayloadField.Name"/> and typed by <see cref="EventPayloadField.TypeId"/>. Baked
+    /// (not reflected) so Stage0/the editor can rehydrate a pin-less PublishEvent node without loading the
+    /// game assembly — the same reason <see cref="TargetFieldName"/>/<see cref="Managed"/> are baked.
+    /// Null = no payload pins (target-only / marker events).
+    /// </summary>
+    IReadOnlyList<EventPayloadField>? PayloadFields = null);
+
+/// <summary>One baked PublishEvent payload data-in pin: field name + pin TypeId.</summary>
+public sealed record EventPayloadField(string Name, string TypeId);
 
 public sealed record ChannelCommandCatalogEntry(
     string Name, string ChannelTypeFqn, ushort ActionId, string ParamsTypeFqn);

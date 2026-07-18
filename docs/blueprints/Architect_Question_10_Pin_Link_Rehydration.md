@@ -137,5 +137,22 @@ Q-A framing. We reverted the (correct but non-landable) mechanism to keep the tr
   (each migrated kind simply stops needing the fallback). If you hold firm on "no positional at all," we go
   to (2) as its own multi-slice track. Which do you want?
 
-*Status: Q-C DRAFT — awaiting architect. Part 1 shipped + green; Q-A mechanism built + parity-proven but
-reverted pending the Q-C scope decision.*
+*Status: Q-C ANSWERED — option 1 (backward-compatible), then fix fully. IMPLEMENTED (general mechanism):*
+
+- **Per-pin reconstruction** (a refinement of option 1) in both `Stage0_Rehydrate.AssignLinkGuids` and the
+  editor `BlueprintGraphModel.Rebuild`, in strict parity via `DeterministicIds.PinId` (≡ the editor's
+  `IdGenerator.Deterministic`). A link whose GUID is a pin's deterministic GUID binds that pin **by name**
+  (order-independent — the exec/data swap is gone); remaining legacy links bind positionally to the still-
+  unassigned pins. This handles migrated, legacy, AND **mixed** nodes — the naive "any incident link is
+  deterministic ⇒ whole node deterministic" attempt broke assets where a link had been drawn to a pin that
+  was saved unconnected (so it already carried its deterministic GUID) while sibling links stayed legacy.
+- **PublishEvent enricher**: `Stage0` now rehydrates a pin-less PublishEvent node's data pins (`Target` +
+  baked `EngineEventCatalogEntry.PayloadFields`) — a second catalog-driven gap (like ChannelCommand) that
+  had forced explicit pins. Baked fields, reflection-free.
+- Guards: 7 game-free reconstruction/parity/enricher tests; Blueprints.Tests green (mod. 2 pre-existing
+  timing flakes); 60 hill-attack proofs green; behaviors build clean.
+
+**Remaining tail (not yet landed):** migrating the 6 integrated `HillAssault2I_*` blueprints to pin-less
+surfaced a *scheduler* codegen bug (`__t` producers for a Compare's operands dropped) that is independent of
+the reconstruction fix — parked for a focused pass. Other node kinds (ChannelCommand, …) still need the same
+PublishEvent-style enricher for a full repo-wide strip (mechanical, mirror the enricher per kind).

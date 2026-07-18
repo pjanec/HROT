@@ -208,53 +208,19 @@ public sealed class BlueprintGraphModel : IGraphModel
             else
             {
                 // SLOW PATH: JSON-loaded assets (Pins: []).
-                // LINK-GUID-DRIVEN: driven by the distinct link pin GUIDs, not by pin index.
-                //
-                // 1. Collect the distinct FromPinId GUIDs from all outgoing links and
-                //    the distinct ToPinId GUIDs from all incoming links.  (Fan-out shares
-                //    one FromPinId so deduplication is critical.)
-                // 2. Assign each distinct outgoing GUID to the next available output pin
-                //    (in pin declaration order).  Same for incoming GUIDs → input pins.
-                // 3. Any pin with no link GUID assigned gets a deterministic synthetic GUID.
-                //
-                // Invariant: every link endpoint GUID is assigned to exactly one pin of the
-                // matching direction, so FindPin succeeds for every link in the graph.
-
-                var outPins = canonicalPins.Where(p => p.Direction == "Out").ToList();
-                var inPins  = canonicalPins.Where(p => p.Direction == "In").ToList();
-
-                // Collect distinct link-endpoint GUIDs in order of first occurrence.
-                var distinctOutGuids = new List<Guid>();
-                var seenOut = new HashSet<Guid>();
-                foreach (var link in outLinks)
-                    if (seenOut.Add(link.FromPinId))
-                        distinctOutGuids.Add(link.FromPinId);
-
-                var distinctInGuids = new List<Guid>();
-                var seenIn = new HashSet<Guid>();
-                foreach (var link in inLinks)
-                    if (seenIn.Add(link.ToPinId))
-                        distinctInGuids.Add(link.ToPinId);
-
-                // Assign output pins: first N pins get the N distinct link GUIDs; rest get deterministic.
-                for (int i = 0; i < outPins.Count; i++)
-                {
-                    var pin  = outPins[i];
-                    var guid = (i < distinctOutGuids.Count)
-                        ? distinctOutGuids[i]
-                        : IdGenerator.Deterministic($"pin:{assetNode.Id:N}:{pin.Name}:Out");
-                    pinGuidMap[pin] = guid;
-                }
-
-                // Assign input pins: first N pins get the N distinct link GUIDs; rest get deterministic.
-                for (int i = 0; i < inPins.Count; i++)
-                {
-                    var pin  = inPins[i];
-                    var guid = (i < distinctInGuids.Count)
-                        ? distinctInGuids[i]
-                        : IdGenerator.Deterministic($"pin:{assetNode.Id:N}:{pin.Name}:In");
-                    pinGuidMap[pin] = guid;
-                }
+                // Per-pin blend of the deterministic content-derived scheme (architect Q#10-A/C) and the
+                // legacy positional scheme, in strict parity with the compiler's
+                // Stage0_Rehydrate.AssignLinkGuids/AssignDirection:
+                //   * A link whose pin-GUID equals a pin's deterministic GUID binds THAT pin by name
+                //     (order-independent — the exec/data swap the old positional scheme suffered is gone).
+                //   * Remaining links (legacy GUIDs) bind positionally to the still-unassigned pins;
+                //     leftover unconnected pins get the deterministic synthetic GUID.
+                // Handles migrated, legacy, and mixed nodes (a link drawn to a pin that had been saved
+                // unconnected already carries that pin's deterministic GUID) so every link resolves.
+                AssignDirectionEditor(canonicalPins.Where(p => p.Direction == "Out").ToList(),
+                    assetNode.Id, "Out", DistinctPinGuids(outLinks, l => l.FromPinId), pinGuidMap);
+                AssignDirectionEditor(canonicalPins.Where(p => p.Direction == "In").ToList(),
+                    assetNode.Id, "In", DistinctPinGuids(inLinks, l => l.ToPinId), pinGuidMap);
             }
 
             // Build the resolved IPinModel list.
@@ -333,6 +299,54 @@ public sealed class BlueprintGraphModel : IGraphModel
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
+
+    /// <summary>Distinct incident-link pin GUIDs in first-occurrence order (fan-out shares one GUID).</summary>
+    private static List<Guid> DistinctPinGuids(IEnumerable<Link> links, Func<Link, Guid> select)
+    {
+        var result = new List<Guid>();
+        var seen = new HashSet<Guid>();
+        foreach (var link in links)
+        {
+            var g = select(link);
+            if (seen.Add(g)) result.Add(g);
+        }
+        return result;
+    }
+
+    /// <summary>Per-direction pin-GUID binding shared by the slow path (parity with the compiler's
+    /// <c>Stage0_Rehydrate.AssignDirection</c>): deterministic-GUID links bind their pin by name, remaining
+    /// legacy links bind positionally to the unassigned pins, leftover pins get a deterministic GUID.</summary>
+    private static void AssignDirectionEditor(
+        List<Pin> dirPins, Guid nodeId, string direction, List<Guid> linkGuids,
+        Dictionary<Pin, Guid> pinGuidMap)
+    {
+        var detToPin = new Dictionary<Guid, Pin>();
+        foreach (var pin in dirPins)
+            detToPin[IdGenerator.Deterministic($"pin:{nodeId:N}:{pin.Name}:{direction}")] = pin;
+
+        var assigned = new HashSet<Pin>(ReferenceEqualityComparer.Instance);
+        var legacyGuids = new List<Guid>();
+        foreach (var g in linkGuids)
+        {
+            if (detToPin.TryGetValue(g, out var pin))
+            {
+                if (assigned.Add(pin)) pinGuidMap[pin] = g;
+            }
+            else
+            {
+                legacyGuids.Add(g);
+            }
+        }
+
+        int li = 0;
+        foreach (var pin in dirPins)
+        {
+            if (assigned.Contains(pin)) continue;
+            pinGuidMap[pin] = (li < legacyGuids.Count)
+                ? legacyGuids[li++]
+                : IdGenerator.Deterministic($"pin:{nodeId:N}:{pin.Name}:{direction}");
+        }
+    }
 
     /// <summary>
     /// Derives a deterministic <see cref="LinkId"/> from the two pin guids.
