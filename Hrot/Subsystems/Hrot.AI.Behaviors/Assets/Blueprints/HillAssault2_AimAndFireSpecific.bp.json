@@ -87,15 +87,7 @@
           "kind": "EventEntry",
           "Id": "06f69163-6200-4d62-bc2d-3b5a16eab0dc",
           "EventTypeId": "",
-          "Pins": [
-            {
-              "Id": "af1f7bd6-610c-4193-b413-4bcd8a5472ea",
-              "Name": "Out",
-              "Direction": "Out",
-              "IsExec": true,
-              "TypeRef": {}
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 40.0,
             "Y": 400.0
@@ -105,19 +97,7 @@
           "kind": "GetParameter",
           "Id": "06ee81b2-12e0-4b0e-92f1-aea16b67dbe1",
           "ParameterId": "a27fabf3-32cb-425a-a626-32c2a3e201b1",
-          "Pins": [
-            {
-              "Id": "0b8a9599-36a6-423d-8b3e-01d35c462237",
-              "Name": "Value",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Int64",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 40.0,
             "Y": 40.0
@@ -131,30 +111,7 @@
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "View",
-          "Pins": [
-            {
-              "Id": "d1259f6c-5b7b-4758-9490-1625978eba27",
-              "Name": "targetNetworkId",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Int64",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            },
-            {
-              "Id": "c09714ed-68ca-4e6e-bbdb-0318f6032485",
-              "Name": "Return",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "Fdp.Core.Entity",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 300.0,
             "Y": 40.0
@@ -168,30 +125,7 @@
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
-          "Pins": [
-            {
-              "Id": "ae2b3884-27ef-494e-a8cf-a448bc82a247",
-              "Name": "e",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "Fdp.Core.Entity",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            },
-            {
-              "Id": "c88b0911-9f6d-45a8-b28a-25ac47ec619d",
-              "Name": "Return",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Boolean",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 560.0,
             "Y": 20.0
@@ -205,30 +139,7 @@
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "View",
-          "Pins": [
-            {
-              "Id": "abcabdf1-4662-4786-a0ac-eb68c0855ce8",
-              "Name": "e",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "Fdp.Core.Entity",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            },
-            {
-              "Id": "5aad421b-2790-405b-b868-b8a728b01f71",
-              "Name": "Return",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Boolean",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 560.0,
             "Y": 140.0
@@ -237,40 +148,7 @@
         {
           "kind": "Branch",
           "Id": "e96fa029-4e96-4110-a3bd-80997baf2744",
-          "Pins": [
-            {
-              "Id": "bd6ddb11-7c0f-4968-84d3-7d0a6c8b0db1",
-              "Name": "In",
-              "Direction": "In",
-              "IsExec": true,
-              "TypeRef": {}
-            },
-            {
-              "Id": "bba6da2c-3d96-4dc9-8ec7-9d2c74446254",
-              "Name": "True",
-              "Direction": "Out",
-              "IsExec": true,
-              "TypeRef": {}
-            },
-            {
-              "Id": "99740c74-504f-4d1e-a3ce-aae8457516d0",
-              "Name": "False",
-              "Direction": "Out",
-              "IsExec": true,
-              "TypeRef": {}
-            },
-            {
-              "Id": "cf643b25-9f6f-4fb7-9e38-ffafa5178db9",
-              "Name": "Condition",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Boolean",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 820.0,
             "Y": 400.0
@@ -280,15 +158,7 @@
           "kind": "Return",
           "Id": "5ef585ab-76e6-4dbf-9bb1-a232b8f41abc",
           "Status": "Failure",
-          "Pins": [
-            {
-              "Id": "de530068-43d9-4c06-be74-85886e6bd9a0",
-              "Name": "In",
-              "Direction": "In",
-              "IsExec": true,
-              "TypeRef": {}
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 1080.0,
             "Y": 520.0
@@ -298,15 +168,7 @@
           "kind": "Return",
           "Id": "d04dff5d-8c8d-48c4-9ff3-40fb71259297",
           "Status": "Success",
-          "Pins": [
-            {
-              "Id": "75553bdd-d9de-4c34-887b-8799a10a334f",
-              "Name": "In",
-              "Direction": "In",
-              "IsExec": true,
-              "TypeRef": {}
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 2600.0,
             "Y": 700.0
@@ -315,40 +177,7 @@
         {
           "kind": "Branch",
           "Id": "652d3b95-cf56-4fdd-82cc-d292d129c4fd",
-          "Pins": [
-            {
-              "Id": "471548a6-ec9e-454f-b1a8-ec73e61d65da",
-              "Name": "In",
-              "Direction": "In",
-              "IsExec": true,
-              "TypeRef": {}
-            },
-            {
-              "Id": "af1eba45-e00a-4023-83f1-1b56e78dfd1c",
-              "Name": "True",
-              "Direction": "Out",
-              "IsExec": true,
-              "TypeRef": {}
-            },
-            {
-              "Id": "81ad31fb-7ceb-4f0b-b64c-07d91f20dc6a",
-              "Name": "False",
-              "Direction": "Out",
-              "IsExec": true,
-              "TypeRef": {}
-            },
-            {
-              "Id": "4e41dd71-07d5-47bf-bd1a-9124e9bcaf3f",
-              "Name": "Condition",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Boolean",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 1080.0,
             "Y": 300.0
@@ -360,30 +189,7 @@
           "ComponentTypeFqn": "Fdp.Toolkit.Combat.Components.WeaponState",
           "FieldName": "Ammo",
           "FieldTypeFqn": "System.Int32",
-          "Pins": [
-            {
-              "Id": "df86339f-0d14-4151-8383-efaeeb40a58d",
-              "Name": "Target",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "Fdp.Core.Entity",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            },
-            {
-              "Id": "03e2e6a4-2692-48ce-9315-11cb749b216c",
-              "Name": "Value",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Int32",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 1080.0,
             "Y": 40.0
@@ -393,19 +199,7 @@
           "kind": "GetVariable",
           "Id": "a6574447-8280-40e3-9c5d-5ec656804fa3",
           "VariableId": "57d91566-da07-4058-b997-1c16aef8aa3d",
-          "Pins": [
-            {
-              "Id": "fb4d688f-c865-4abe-adce-7aa840096813",
-              "Name": "Value",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Int32",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 1080.0,
             "Y": 140.0
@@ -415,19 +209,7 @@
           "kind": "GetVariable",
           "Id": "d080ab72-b5cb-49e5-8559-06dfd2a3315b",
           "VariableId": "dee92abe-a3f1-4cea-b16a-5e069166bb03",
-          "Pins": [
-            {
-              "Id": "77082ee0-35f8-48f9-b2c6-f14e557152c4",
-              "Name": "Value",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Int32",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 1080.0,
             "Y": 220.0
@@ -437,19 +219,7 @@
           "kind": "GetParameter",
           "Id": "d4f0f1c0-4e91-419a-9d81-a2dfdfd95fc6",
           "ParameterId": "ea91ccf4-a56c-4737-8a5a-2be4ebdfaa3b",
-          "Pins": [
-            {
-              "Id": "5ec4bc5d-f40e-4a56-841c-f1fe02be8fcc",
-              "Name": "Value",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Int32",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 1080.0,
             "Y": 620.0
@@ -460,19 +230,7 @@
           "Id": "7d5b1d26-71c0-4927-a34b-0f170353fc8d",
           "TypeId": "System.Int32",
           "ValueJson": "0",
-          "Pins": [
-            {
-              "Id": "376787cd-f87d-4074-8c5a-474cd0b5df66",
-              "Name": "Value",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Int32",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 1080.0,
             "Y": 700.0
@@ -482,41 +240,7 @@
           "kind": "Compare",
           "Id": "0a148426-eae3-42f8-9003-afed746ca7fd",
           "Operator": "LessThan",
-          "Pins": [
-            {
-              "Id": "88e867b3-3254-46a8-a0ad-c557fd4b4c4e",
-              "Name": "A",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Int32",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            },
-            {
-              "Id": "5ec2efe0-baaa-4699-9952-0b9261c764ec",
-              "Name": "B",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Int32",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            },
-            {
-              "Id": "432e2539-7464-4ff5-a29c-0cd0eebea224",
-              "Name": "Result",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Boolean",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 1360.0,
             "Y": 140.0
@@ -526,41 +250,7 @@
           "kind": "Compare",
           "Id": "4af1a61a-7877-49be-9463-54d22c000c39",
           "Operator": "LessThan",
-          "Pins": [
-            {
-              "Id": "4462aa42-8903-4242-ad4e-0d35b6da1c66",
-              "Name": "A",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Int32",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            },
-            {
-              "Id": "244fba94-6a4f-4d1b-8dbd-391dacd6b807",
-              "Name": "B",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Int32",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            },
-            {
-              "Id": "c2363647-a5cd-473e-8a67-04dffe45d72e",
-              "Name": "Result",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Boolean",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 1360.0,
             "Y": 40.0
@@ -570,41 +260,7 @@
           "kind": "BinaryOp",
           "Id": "5f0d55f6-5e47-461f-9539-69565a3ab4ef",
           "Operator": "Subtract",
-          "Pins": [
-            {
-              "Id": "3b31a8e4-b654-4df3-afba-06f587f56d59",
-              "Name": "A",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Int32",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            },
-            {
-              "Id": "320ed503-402c-4e22-be43-5deebd9eddea",
-              "Name": "B",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Int32",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            },
-            {
-              "Id": "6934e2f2-33ad-44c8-9d12-52e517fbe672",
-              "Name": "Result",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Int32",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 1360.0,
             "Y": 260.0
@@ -614,41 +270,7 @@
           "kind": "BinaryOp",
           "Id": "d75d0119-bd1c-4aae-a058-b5931fb2c4ac",
           "Operator": "Add",
-          "Pins": [
-            {
-              "Id": "5434eba4-5757-45f4-9df0-69c75e25d993",
-              "Name": "A",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Int32",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            },
-            {
-              "Id": "ad02bc6b-8c3d-4d29-9bf8-fa5b6ff4912b",
-              "Name": "B",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Int32",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            },
-            {
-              "Id": "e7757847-ab91-4fa0-9bdb-2126ee7d5bc2",
-              "Name": "Result",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Int32",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 1620.0,
             "Y": 260.0
@@ -658,41 +280,7 @@
           "kind": "Compare",
           "Id": "eee1a115-29fa-474a-b701-5da75cf957a3",
           "Operator": "GreaterThan",
-          "Pins": [
-            {
-              "Id": "b3e197ae-64c1-4330-80da-5f14513472eb",
-              "Name": "A",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Int32",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            },
-            {
-              "Id": "da176699-2afb-4fdb-ba2b-949ed3b25cd9",
-              "Name": "B",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Int32",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            },
-            {
-              "Id": "27b0db1e-c37d-418b-a3fa-9d22d1f5e980",
-              "Name": "Result",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Boolean",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 1360.0,
             "Y": 620.0
@@ -702,41 +290,7 @@
           "kind": "Compare",
           "Id": "195fec72-3895-4ce7-86e1-444e9263e930",
           "Operator": "GreaterThanOrEqual",
-          "Pins": [
-            {
-              "Id": "e1391291-f432-4819-bffb-5e7b6ea1dfef",
-              "Name": "A",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Int32",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            },
-            {
-              "Id": "9dc6cf6e-e744-494c-a2ca-d726ffe9d17b",
-              "Name": "B",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Int32",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            },
-            {
-              "Id": "22e0cab7-5b65-4c84-852d-6c4fe891222a",
-              "Name": "Result",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Boolean",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 1360.0,
             "Y": 700.0
@@ -746,41 +300,7 @@
           "kind": "BooleanOp",
           "Id": "54bf10d7-b39e-4cc3-81a1-f301c5f3a429",
           "Operator": "And",
-          "Pins": [
-            {
-              "Id": "513e7173-ed5f-479b-9616-9076d6459e0e",
-              "Name": "A",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Boolean",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            },
-            {
-              "Id": "2c04ddf6-f629-44fc-86c2-eeef20bca43c",
-              "Name": "B",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Boolean",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            },
-            {
-              "Id": "76038b28-9207-4ee1-9517-21574c49d24b",
-              "Name": "Result",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Boolean",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 1620.0,
             "Y": 660.0
@@ -790,44 +310,7 @@
           "kind": "SetVariable",
           "Id": "097d1567-f341-4bd3-910e-0c1d46bce97c",
           "VariableId": "57d91566-da07-4058-b997-1c16aef8aa3d",
-          "Pins": [
-            {
-              "Id": "a24011d6-53d6-4383-a6b8-212f263c1f77",
-              "Name": "In",
-              "Direction": "In",
-              "IsExec": true,
-              "TypeRef": {}
-            },
-            {
-              "Id": "673f9d74-287c-41a3-97d2-f7501360246d",
-              "Name": "Out",
-              "Direction": "Out",
-              "IsExec": true,
-              "TypeRef": {}
-            },
-            {
-              "Id": "94804454-ddbb-4a7b-8cd2-4eb6c0264548",
-              "Name": "Value",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Int32",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            },
-            {
-              "Id": "3436d52a-022e-47ef-a91f-378f4648124b",
-              "Name": "Value",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Int32",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 1880.0,
             "Y": 140.0
@@ -837,44 +320,7 @@
           "kind": "SetVariable",
           "Id": "9fe8ac4f-c5dd-4138-a2fd-98f908e7fd7d",
           "VariableId": "dee92abe-a3f1-4cea-b16a-5e069166bb03",
-          "Pins": [
-            {
-              "Id": "aaff729d-e7d9-44b3-beb8-789db420d276",
-              "Name": "In",
-              "Direction": "In",
-              "IsExec": true,
-              "TypeRef": {}
-            },
-            {
-              "Id": "f3aee396-12f9-4e93-8de8-82418510d84d",
-              "Name": "Out",
-              "Direction": "Out",
-              "IsExec": true,
-              "TypeRef": {}
-            },
-            {
-              "Id": "f9e5e808-7b53-43e2-820a-e6a7cc17eeeb",
-              "Name": "Value",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Int32",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            },
-            {
-              "Id": "9a4798b2-c971-4a4e-9d99-0e7e7ec29437",
-              "Name": "Value",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Int32",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 1880.0,
             "Y": 340.0
@@ -883,40 +329,7 @@
         {
           "kind": "Branch",
           "Id": "a8c1e97a-d802-4267-adff-1672d5e0f450",
-          "Pins": [
-            {
-              "Id": "8dce5f39-9300-4137-a79e-f461b930e0dd",
-              "Name": "In",
-              "Direction": "In",
-              "IsExec": true,
-              "TypeRef": {}
-            },
-            {
-              "Id": "3dd5a2bc-480f-4518-9995-f670568d34f3",
-              "Name": "True",
-              "Direction": "Out",
-              "IsExec": true,
-              "TypeRef": {}
-            },
-            {
-              "Id": "a95c51dc-7ca2-421c-97c9-175617c042df",
-              "Name": "False",
-              "Direction": "Out",
-              "IsExec": true,
-              "TypeRef": {}
-            },
-            {
-              "Id": "c09fb9d4-6e61-44b6-bb37-a1934cf60e04",
-              "Name": "Condition",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Boolean",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 1620.0,
             "Y": 140.0
@@ -925,40 +338,7 @@
         {
           "kind": "Branch",
           "Id": "1f7f4854-a12f-4ee9-a825-fb2a52d4c1be",
-          "Pins": [
-            {
-              "Id": "00636d86-fbc7-4f95-9f03-37bc50b8cff0",
-              "Name": "In",
-              "Direction": "In",
-              "IsExec": true,
-              "TypeRef": {}
-            },
-            {
-              "Id": "d1eb1ab6-bb92-4f31-94f7-53b91406a479",
-              "Name": "True",
-              "Direction": "Out",
-              "IsExec": true,
-              "TypeRef": {}
-            },
-            {
-              "Id": "00fec8a5-b821-431a-9a17-9661e006ffde",
-              "Name": "False",
-              "Direction": "Out",
-              "IsExec": true,
-              "TypeRef": {}
-            },
-            {
-              "Id": "865199a8-9f41-44a4-9883-861b9297001e",
-              "Name": "Condition",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Boolean",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 1880.0,
             "Y": 40.0
@@ -967,40 +347,7 @@
         {
           "kind": "Branch",
           "Id": "9e856086-22da-42e1-9771-960cea38b79b",
-          "Pins": [
-            {
-              "Id": "41e69739-5ccc-4817-94a9-a4edccd70d67",
-              "Name": "In",
-              "Direction": "In",
-              "IsExec": true,
-              "TypeRef": {}
-            },
-            {
-              "Id": "6ec731a1-1601-4d18-980f-43c8421259f1",
-              "Name": "True",
-              "Direction": "Out",
-              "IsExec": true,
-              "TypeRef": {}
-            },
-            {
-              "Id": "66f81912-bb5f-4332-88b5-8e35a3b9e03f",
-              "Name": "False",
-              "Direction": "Out",
-              "IsExec": true,
-              "TypeRef": {}
-            },
-            {
-              "Id": "59265c5c-3366-4e6c-86e7-441a6631d61e",
-              "Name": "Condition",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Boolean",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 2140.0,
             "Y": 400.0
@@ -1014,44 +361,7 @@
           "PinDefaults": {
             "CooldownSeconds": "10"
           },
-          "Pins": [
-            {
-              "Id": "ea9370eb-1f2b-4eb6-94fb-aa8e203a7f63",
-              "Name": "In",
-              "Direction": "In",
-              "IsExec": true,
-              "TypeRef": {}
-            },
-            {
-              "Id": "967f8e9d-1ddc-4db3-9ebb-15b8723f81d4",
-              "Name": "Out",
-              "Direction": "Out",
-              "IsExec": true,
-              "TypeRef": {}
-            },
-            {
-              "Id": "4341e7d7-f6d3-4d5d-8c3f-1468a97541cc",
-              "Name": "Target",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "Fdp.Core.Entity",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            },
-            {
-              "Id": "ab5cdd16-2fbf-4335-9b53-ce22d69af9ab",
-              "Name": "CooldownSeconds",
-              "Direction": "In",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Single",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 2400.0,
             "Y": 500.0
@@ -1061,22 +371,7 @@
           "kind": "WaitForChannel",
           "Id": "5fd92970-8f0c-4b01-b0e9-cfae6b1537ed",
           "ChannelType": "WeaponChannel",
-          "Pins": [
-            {
-              "Id": "923785da-b24a-40bb-b5dd-9923e0a10a88",
-              "Name": "In",
-              "Direction": "In",
-              "IsExec": true,
-              "TypeRef": {}
-            },
-            {
-              "Id": "4e6337e5-3d5b-4a2c-8df6-2ed92df30e56",
-              "Name": "Out",
-              "Direction": "Out",
-              "IsExec": true,
-              "TypeRef": {}
-            }
-          ],
+          "Pins": [],
           "EditorMetadata": {
             "X": 2660.0,
             "Y": 500.0
@@ -1086,243 +381,243 @@
       "Links": [
         {
           "FromNodeId": "06ee81b2-12e0-4b0e-92f1-aea16b67dbe1",
-          "FromPinId": "0b8a9599-36a6-423d-8b3e-01d35c462237",
+          "FromPinId": "ad49f6d0-8faf-7a50-990c-136d0f4076ce",
           "ToNodeId": "dcf5b58a-ca68-4b0b-b9cf-bc06e8f2aee9",
-          "ToPinId": "d1259f6c-5b7b-4758-9490-1625978eba27"
+          "ToPinId": "616277e1-5a1c-135a-8421-2b5a6c8ac26e"
         },
         {
           "FromNodeId": "dcf5b58a-ca68-4b0b-b9cf-bc06e8f2aee9",
-          "FromPinId": "c09714ed-68ca-4e6e-bbdb-0318f6032485",
+          "FromPinId": "819ee946-d9b7-0857-b9e1-893089b59fb6",
           "ToNodeId": "1ed3179f-077c-4029-aa8f-5244b9ab0c92",
-          "ToPinId": "ae2b3884-27ef-494e-a8cf-a448bc82a247"
+          "ToPinId": "3e449816-7d30-325b-b7d6-5c40d3298468"
         },
         {
           "FromNodeId": "dcf5b58a-ca68-4b0b-b9cf-bc06e8f2aee9",
-          "FromPinId": "c09714ed-68ca-4e6e-bbdb-0318f6032485",
+          "FromPinId": "819ee946-d9b7-0857-b9e1-893089b59fb6",
           "ToNodeId": "d5fdeede-3b39-4619-bd0b-ef184cec651b",
-          "ToPinId": "abcabdf1-4662-4786-a0ac-eb68c0855ce8"
+          "ToPinId": "27c61eab-d30d-5a52-ac53-97468151f23d"
         },
         {
           "FromNodeId": "06f69163-6200-4d62-bc2d-3b5a16eab0dc",
-          "FromPinId": "af1f7bd6-610c-4193-b413-4bcd8a5472ea",
+          "FromPinId": "1e62e227-4e0c-d050-84c4-856dde9a3f88",
           "ToNodeId": "e96fa029-4e96-4110-a3bd-80997baf2744",
-          "ToPinId": "bd6ddb11-7c0f-4968-84d3-7d0a6c8b0db1"
+          "ToPinId": "07fde891-e547-d55a-bddd-2ce8ec24a14a"
         },
         {
           "FromNodeId": "1ed3179f-077c-4029-aa8f-5244b9ab0c92",
-          "FromPinId": "c88b0911-9f6d-45a8-b28a-25ac47ec619d",
+          "FromPinId": "a2dd49ac-7700-7a5d-abf2-cf854451a644",
           "ToNodeId": "e96fa029-4e96-4110-a3bd-80997baf2744",
-          "ToPinId": "cf643b25-9f6f-4fb7-9e38-ffafa5178db9"
+          "ToPinId": "1c80120d-c087-0a5b-9cda-d4096edcd6b8"
         },
         {
           "FromNodeId": "e96fa029-4e96-4110-a3bd-80997baf2744",
-          "FromPinId": "bba6da2c-3d96-4dc9-8ec7-9d2c74446254",
+          "FromPinId": "51d0a392-e00a-ce5d-8243-698cf0e52878",
           "ToNodeId": "5ef585ab-76e6-4dbf-9bb1-a232b8f41abc",
-          "ToPinId": "de530068-43d9-4c06-be74-85886e6bd9a0"
+          "ToPinId": "e022dc42-6ffa-5258-9b67-89418f2f2dfb"
         },
         {
           "FromNodeId": "e96fa029-4e96-4110-a3bd-80997baf2744",
-          "FromPinId": "99740c74-504f-4d1e-a3ce-aae8457516d0",
+          "FromPinId": "ed375b7d-e0e8-6d54-a27d-dfa2af22f12c",
           "ToNodeId": "652d3b95-cf56-4fdd-82cc-d292d129c4fd",
-          "ToPinId": "471548a6-ec9e-454f-b1a8-ec73e61d65da"
+          "ToPinId": "caec1c07-1196-1c50-8ead-5bd850bd3ba2"
         },
         {
           "FromNodeId": "d5fdeede-3b39-4619-bd0b-ef184cec651b",
-          "FromPinId": "5aad421b-2790-405b-b868-b8a728b01f71",
+          "FromPinId": "399e4609-4d42-1851-80a1-ac17b0cd90d1",
           "ToNodeId": "652d3b95-cf56-4fdd-82cc-d292d129c4fd",
-          "ToPinId": "4e41dd71-07d5-47bf-bd1a-9124e9bcaf3f"
+          "ToPinId": "2b136bd6-ea83-1b5b-8183-efd2cf13b336"
         },
         {
           "FromNodeId": "652d3b95-cf56-4fdd-82cc-d292d129c4fd",
-          "FromPinId": "81ad31fb-7ceb-4f0b-b64c-07d91f20dc6a",
+          "FromPinId": "efb5e0b1-da08-0a50-81d7-165333ceab32",
           "ToNodeId": "d04dff5d-8c8d-48c4-9ff3-40fb71259297",
-          "ToPinId": "75553bdd-d9de-4c34-887b-8799a10a334f"
+          "ToPinId": "acfd8775-1a11-bc5d-b4b3-f5380bede39f"
         },
         {
           "FromNodeId": "a6574447-8280-40e3-9c5d-5ec656804fa3",
-          "FromPinId": "fb4d688f-c865-4abe-adce-7aa840096813",
+          "FromPinId": "a0a74139-5ed2-2357-85d6-1ceb6573a889",
           "ToNodeId": "0a148426-eae3-42f8-9003-afed746ca7fd",
-          "ToPinId": "88e867b3-3254-46a8-a0ad-c557fd4b4c4e"
+          "ToPinId": "7d6247fc-25a8-5e52-a779-df228e13f958"
         },
         {
           "FromNodeId": "7d5b1d26-71c0-4927-a34b-0f170353fc8d",
-          "FromPinId": "376787cd-f87d-4074-8c5a-474cd0b5df66",
+          "FromPinId": "ea69275e-a2b1-da50-bef3-66a7cdb8ec10",
           "ToNodeId": "0a148426-eae3-42f8-9003-afed746ca7fd",
-          "ToPinId": "5ec2efe0-baaa-4699-9952-0b9261c764ec"
+          "ToPinId": "3ae09005-fbd2-8353-9f10-6c946ddf48eb"
         },
         {
           "FromNodeId": "02decc4a-6b42-445c-a0a1-c93cc708665f",
-          "FromPinId": "03e2e6a4-2692-48ce-9315-11cb749b216c",
+          "FromPinId": "c4a8728a-05f1-f055-835d-2d6f969f7a6d",
           "ToNodeId": "4af1a61a-7877-49be-9463-54d22c000c39",
-          "ToPinId": "4462aa42-8903-4242-ad4e-0d35b6da1c66"
+          "ToPinId": "2ad146d8-ab7c-3c5c-99d6-f0666ec1de4b"
         },
         {
           "FromNodeId": "a6574447-8280-40e3-9c5d-5ec656804fa3",
-          "FromPinId": "fb4d688f-c865-4abe-adce-7aa840096813",
+          "FromPinId": "a0a74139-5ed2-2357-85d6-1ceb6573a889",
           "ToNodeId": "4af1a61a-7877-49be-9463-54d22c000c39",
-          "ToPinId": "244fba94-6a4f-4d1b-8dbd-391dacd6b807"
+          "ToPinId": "7c22bf13-857e-4954-ad04-9b28fcf7a0e5"
         },
         {
           "FromNodeId": "a6574447-8280-40e3-9c5d-5ec656804fa3",
-          "FromPinId": "fb4d688f-c865-4abe-adce-7aa840096813",
+          "FromPinId": "a0a74139-5ed2-2357-85d6-1ceb6573a889",
           "ToNodeId": "5f0d55f6-5e47-461f-9539-69565a3ab4ef",
-          "ToPinId": "3b31a8e4-b654-4df3-afba-06f587f56d59"
+          "ToPinId": "c5603e81-1770-8a50-8f13-ea1de23b1ec9"
         },
         {
           "FromNodeId": "02decc4a-6b42-445c-a0a1-c93cc708665f",
-          "FromPinId": "03e2e6a4-2692-48ce-9315-11cb749b216c",
+          "FromPinId": "c4a8728a-05f1-f055-835d-2d6f969f7a6d",
           "ToNodeId": "5f0d55f6-5e47-461f-9539-69565a3ab4ef",
-          "ToPinId": "320ed503-402c-4e22-be43-5deebd9eddea"
+          "ToPinId": "a198ff70-aae1-275a-9f11-e540602e7450"
         },
         {
           "FromNodeId": "d080ab72-b5cb-49e5-8559-06dfd2a3315b",
-          "FromPinId": "77082ee0-35f8-48f9-b2c6-f14e557152c4",
+          "FromPinId": "933d6e84-aa15-e15b-b7f0-a75f553c9948",
           "ToNodeId": "d75d0119-bd1c-4aae-a058-b5931fb2c4ac",
-          "ToPinId": "5434eba4-5757-45f4-9df0-69c75e25d993"
+          "ToPinId": "70efdffc-900d-9c56-b386-1c238897dfb8"
         },
         {
           "FromNodeId": "5f0d55f6-5e47-461f-9539-69565a3ab4ef",
-          "FromPinId": "6934e2f2-33ad-44c8-9d12-52e517fbe672",
+          "FromPinId": "15d4031e-aa77-395d-9aeb-dc7937971aae",
           "ToNodeId": "d75d0119-bd1c-4aae-a058-b5931fb2c4ac",
-          "ToPinId": "ad02bc6b-8c3d-4d29-9bf8-fa5b6ff4912b"
+          "ToPinId": "94b3404a-7778-2153-b318-5e9181e061d3"
         },
         {
           "FromNodeId": "d4f0f1c0-4e91-419a-9d81-a2dfdfd95fc6",
-          "FromPinId": "5ec4bc5d-f40e-4a56-841c-f1fe02be8fcc",
+          "FromPinId": "a6c1cff4-9248-1058-9cbe-b71bc22ef077",
           "ToNodeId": "eee1a115-29fa-474a-b701-5da75cf957a3",
-          "ToPinId": "b3e197ae-64c1-4330-80da-5f14513472eb"
+          "ToPinId": "50e103e2-192d-2652-952a-c52df5ef3e70"
         },
         {
           "FromNodeId": "7d5b1d26-71c0-4927-a34b-0f170353fc8d",
-          "FromPinId": "376787cd-f87d-4074-8c5a-474cd0b5df66",
+          "FromPinId": "ea69275e-a2b1-da50-bef3-66a7cdb8ec10",
           "ToNodeId": "eee1a115-29fa-474a-b701-5da75cf957a3",
-          "ToPinId": "da176699-2afb-4fdb-ba2b-949ed3b25cd9"
+          "ToPinId": "b9e551cc-5fb8-b55a-a80f-fb49dbad781a"
         },
         {
           "FromNodeId": "d080ab72-b5cb-49e5-8559-06dfd2a3315b",
-          "FromPinId": "77082ee0-35f8-48f9-b2c6-f14e557152c4",
+          "FromPinId": "933d6e84-aa15-e15b-b7f0-a75f553c9948",
           "ToNodeId": "195fec72-3895-4ce7-86e1-444e9263e930",
-          "ToPinId": "e1391291-f432-4819-bffb-5e7b6ea1dfef"
+          "ToPinId": "a9bcc904-bf59-5f54-872b-5c4dbb0d84bb"
         },
         {
           "FromNodeId": "d4f0f1c0-4e91-419a-9d81-a2dfdfd95fc6",
-          "FromPinId": "5ec4bc5d-f40e-4a56-841c-f1fe02be8fcc",
+          "FromPinId": "a6c1cff4-9248-1058-9cbe-b71bc22ef077",
           "ToNodeId": "195fec72-3895-4ce7-86e1-444e9263e930",
-          "ToPinId": "9dc6cf6e-e744-494c-a2ca-d726ffe9d17b"
+          "ToPinId": "f687f401-f98f-dd58-a12a-f09b81bb847b"
         },
         {
           "FromNodeId": "eee1a115-29fa-474a-b701-5da75cf957a3",
-          "FromPinId": "27b0db1e-c37d-418b-a3fa-9d22d1f5e980",
+          "FromPinId": "d1a9135f-18bb-3059-b432-6002c51cb7fa",
           "ToNodeId": "54bf10d7-b39e-4cc3-81a1-f301c5f3a429",
-          "ToPinId": "513e7173-ed5f-479b-9616-9076d6459e0e"
+          "ToPinId": "b8b84d16-ff77-9a57-ba5c-945c4b447adf"
         },
         {
           "FromNodeId": "195fec72-3895-4ce7-86e1-444e9263e930",
-          "FromPinId": "22e0cab7-5b65-4c84-852d-6c4fe891222a",
+          "FromPinId": "5f884e92-84c3-b45e-9b73-d5c7377a7a58",
           "ToNodeId": "54bf10d7-b39e-4cc3-81a1-f301c5f3a429",
-          "ToPinId": "2c04ddf6-f629-44fc-86c2-eeef20bca43c"
+          "ToPinId": "0aa5b37c-5f43-ca5a-bc1b-f19c63a12287"
         },
         {
           "FromNodeId": "02decc4a-6b42-445c-a0a1-c93cc708665f",
-          "FromPinId": "03e2e6a4-2692-48ce-9315-11cb749b216c",
+          "FromPinId": "c4a8728a-05f1-f055-835d-2d6f969f7a6d",
           "ToNodeId": "097d1567-f341-4bd3-910e-0c1d46bce97c",
-          "ToPinId": "94804454-ddbb-4a7b-8cd2-4eb6c0264548"
+          "ToPinId": "9ac5898e-91e8-d559-8dcc-ed99d5d50330"
         },
         {
           "FromNodeId": "d75d0119-bd1c-4aae-a058-b5931fb2c4ac",
-          "FromPinId": "e7757847-ab91-4fa0-9bdb-2126ee7d5bc2",
+          "FromPinId": "4a04ef24-a945-8d58-a190-342bce887585",
           "ToNodeId": "9fe8ac4f-c5dd-4138-a2fd-98f908e7fd7d",
-          "ToPinId": "f9e5e808-7b53-43e2-820a-e6a7cc17eeeb"
+          "ToPinId": "44b0c3ee-7aa7-f355-abe8-d2a9abb3e883"
         },
         {
           "FromNodeId": "9fe8ac4f-c5dd-4138-a2fd-98f908e7fd7d",
-          "FromPinId": "f3aee396-12f9-4e93-8de8-82418510d84d",
+          "FromPinId": "2f0df4bd-23f7-8a51-ac54-f6395d50368b",
           "ToNodeId": "097d1567-f341-4bd3-910e-0c1d46bce97c",
-          "ToPinId": "a24011d6-53d6-4383-a6b8-212f263c1f77"
+          "ToPinId": "32403ed8-ab58-3852-8bec-9142fee3883f"
         },
         {
           "FromNodeId": "652d3b95-cf56-4fdd-82cc-d292d129c4fd",
-          "FromPinId": "af1eba45-e00a-4023-83f1-1b56e78dfd1c",
+          "FromPinId": "c5724557-f1aa-be5a-adfa-418a07f1d583",
           "ToNodeId": "a8c1e97a-d802-4267-adff-1672d5e0f450",
-          "ToPinId": "8dce5f39-9300-4137-a79e-f461b930e0dd"
+          "ToPinId": "07321468-8e70-205d-9809-9979b1e7b601"
         },
         {
           "FromNodeId": "0a148426-eae3-42f8-9003-afed746ca7fd",
-          "FromPinId": "432e2539-7464-4ff5-a29c-0cd0eebea224",
+          "FromPinId": "e27fcb63-4f3f-f15c-b206-3ceec46e8863",
           "ToNodeId": "a8c1e97a-d802-4267-adff-1672d5e0f450",
-          "ToPinId": "c09fb9d4-6e61-44b6-bb37-a1934cf60e04"
+          "ToPinId": "8e81d3c9-0092-d05a-a93a-d677cd7d9d14"
         },
         {
           "FromNodeId": "a8c1e97a-d802-4267-adff-1672d5e0f450",
-          "FromPinId": "3dd5a2bc-480f-4518-9995-f670568d34f3",
+          "FromPinId": "04982a4c-1fde-ce5b-9897-f417fbc98c00",
           "ToNodeId": "097d1567-f341-4bd3-910e-0c1d46bce97c",
-          "ToPinId": "a24011d6-53d6-4383-a6b8-212f263c1f77"
+          "ToPinId": "32403ed8-ab58-3852-8bec-9142fee3883f"
         },
         {
           "FromNodeId": "a8c1e97a-d802-4267-adff-1672d5e0f450",
-          "FromPinId": "a95c51dc-7ca2-421c-97c9-175617c042df",
+          "FromPinId": "20855daf-ed16-d45a-be35-062e90c63727",
           "ToNodeId": "1f7f4854-a12f-4ee9-a825-fb2a52d4c1be",
-          "ToPinId": "00636d86-fbc7-4f95-9f03-37bc50b8cff0"
+          "ToPinId": "d023b950-7fab-6c5c-99e1-67a1cb7f584a"
         },
         {
           "FromNodeId": "4af1a61a-7877-49be-9463-54d22c000c39",
-          "FromPinId": "c2363647-a5cd-473e-8a67-04dffe45d72e",
+          "FromPinId": "8a04b7a1-84d2-cd58-ae0b-cdebed8ab0b3",
           "ToNodeId": "1f7f4854-a12f-4ee9-a825-fb2a52d4c1be",
-          "ToPinId": "865199a8-9f41-44a4-9883-861b9297001e"
+          "ToPinId": "ff11ad0f-7a85-c657-8371-adc76a7cc4cd"
         },
         {
           "FromNodeId": "1f7f4854-a12f-4ee9-a825-fb2a52d4c1be",
-          "FromPinId": "d1eb1ab6-bb92-4f31-94f7-53b91406a479",
+          "FromPinId": "b381ed1c-6dc3-1255-9ae0-71a1aee334f9",
           "ToNodeId": "9fe8ac4f-c5dd-4138-a2fd-98f908e7fd7d",
-          "ToPinId": "aaff729d-e7d9-44b3-beb8-789db420d276"
+          "ToPinId": "2a1a20d0-0010-b551-84fa-3fcb2adc73d3"
         },
         {
           "FromNodeId": "097d1567-f341-4bd3-910e-0c1d46bce97c",
-          "FromPinId": "673f9d74-287c-41a3-97d2-f7501360246d",
+          "FromPinId": "43fe5ce6-8a0b-2752-a042-5a8ee480402c",
           "ToNodeId": "9e856086-22da-42e1-9771-960cea38b79b",
-          "ToPinId": "41e69739-5ccc-4817-94a9-a4edccd70d67"
+          "ToPinId": "064c11d2-050d-5b5b-9f3f-c000356fa2ee"
         },
         {
           "FromNodeId": "1f7f4854-a12f-4ee9-a825-fb2a52d4c1be",
-          "FromPinId": "00fec8a5-b821-431a-9a17-9661e006ffde",
+          "FromPinId": "570c2c98-f116-3e5e-afa7-2f6dac15228b",
           "ToNodeId": "9e856086-22da-42e1-9771-960cea38b79b",
-          "ToPinId": "41e69739-5ccc-4817-94a9-a4edccd70d67"
+          "ToPinId": "064c11d2-050d-5b5b-9f3f-c000356fa2ee"
         },
         {
           "FromNodeId": "54bf10d7-b39e-4cc3-81a1-f301c5f3a429",
-          "FromPinId": "76038b28-9207-4ee1-9517-21574c49d24b",
+          "FromPinId": "b6058491-1a6b-ab57-b818-c4a09235ab30",
           "ToNodeId": "9e856086-22da-42e1-9771-960cea38b79b",
-          "ToPinId": "59265c5c-3366-4e6c-86e7-441a6631d61e"
+          "ToPinId": "d8122295-c002-bd55-af9c-6b8a7d339c08"
         },
         {
           "FromNodeId": "9e856086-22da-42e1-9771-960cea38b79b",
-          "FromPinId": "6ec731a1-1601-4d18-980f-43c8421259f1",
+          "FromPinId": "ab105b0d-94c2-9b54-b377-b049707f0509",
           "ToNodeId": "d04dff5d-8c8d-48c4-9ff3-40fb71259297",
-          "ToPinId": "75553bdd-d9de-4c34-887b-8799a10a334f"
+          "ToPinId": "acfd8775-1a11-bc5d-b4b3-f5380bede39f"
         },
         {
           "FromNodeId": "9e856086-22da-42e1-9771-960cea38b79b",
-          "FromPinId": "66f81912-bb5f-4332-88b5-8e35a3b9e03f",
+          "FromPinId": "38723329-446a-355f-9284-62dcd2fa3307",
           "ToNodeId": "52a87522-c5e8-44af-82fb-ff3eec22f76d",
-          "ToPinId": "ea9370eb-1f2b-4eb6-94fb-aa8e203a7f63"
+          "ToPinId": "df8115d1-4ce5-4f58-a3cc-c114532ab5ca"
         },
         {
           "FromNodeId": "dcf5b58a-ca68-4b0b-b9cf-bc06e8f2aee9",
-          "FromPinId": "c09714ed-68ca-4e6e-bbdb-0318f6032485",
+          "FromPinId": "819ee946-d9b7-0857-b9e1-893089b59fb6",
           "ToNodeId": "52a87522-c5e8-44af-82fb-ff3eec22f76d",
-          "ToPinId": "4341e7d7-f6d3-4d5d-8c3f-1468a97541cc"
+          "ToPinId": "ee8415e8-aa17-c85b-8cef-896c6e0e7a47"
         },
         {
           "FromNodeId": "52a87522-c5e8-44af-82fb-ff3eec22f76d",
-          "FromPinId": "967f8e9d-1ddc-4db3-9ebb-15b8723f81d4",
+          "FromPinId": "049d87d2-6ab8-f159-b128-428bac28f81b",
           "ToNodeId": "5fd92970-8f0c-4b01-b0e9-cfae6b1537ed",
-          "ToPinId": "923785da-b24a-40bb-b5dd-9923e0a10a88"
+          "ToPinId": "b110060a-eab6-c250-a061-4357a1ae40e7"
         },
         {
           "FromNodeId": "5fd92970-8f0c-4b01-b0e9-cfae6b1537ed",
-          "FromPinId": "4e6337e5-3d5b-4a2c-8df6-2ed92df30e56",
+          "FromPinId": "4caff4cb-47fe-a156-90b8-797f8351ddaf",
           "ToNodeId": "d04dff5d-8c8d-48c4-9ff3-40fb71259297",
-          "ToPinId": "75553bdd-d9de-4c34-887b-8799a10a334f"
+          "ToPinId": "acfd8775-1a11-bc5d-b4b3-f5380bede39f"
         }
       ],
       "EditorMetadata": {

@@ -69,7 +69,22 @@ public sealed record EngineEventCatalogEntry(
 public sealed record EventPayloadField(string Name, string TypeId);
 
 public sealed record ChannelCommandCatalogEntry(
-    string Name, string ChannelTypeFqn, ushort ActionId, string ParamsTypeFqn);
+    string Name, string ChannelTypeFqn, ushort ActionId, string ParamsTypeFqn,
+    /// <summary>
+    /// Baked data-IN fields of <see cref="ParamsTypeFqn"/> (one per decomposable public field/property,
+    /// in declaration order — mirrors the editor's <c>NodePinSchema.ReflectDataMembers</c> reflection
+    /// over the loaded game assembly). Each becomes a data-IN pin named by <see cref="ParamField.Name"/>
+    /// and typed by <see cref="ParamField.TypeId"/>. Baked (not reflected) so Stage0 — a netstandard2.0
+    /// generator host that cannot load game assemblies — can rehydrate a pin-less ChannelCommand node's
+    /// data pins without loading <c>ParamsTypeFqn</c>'s assembly, the same reason
+    /// <see cref="EngineEventCatalogEntry.PayloadFields"/> is baked for PublishEvent. Null/empty = no
+    /// data pins beyond exec In/Out (e.g. a params type with no decomposable members, or an
+    /// unregistered action).
+    /// </summary>
+    IReadOnlyList<ParamField>? ParamFields = null);
+
+/// <summary>One baked ChannelCommand params data-in pin: field name + pin TypeId.</summary>
+public sealed record ParamField(string Name, string TypeId);
 
 public enum WaitKind { Channel, Event, RingBufferResult }
 

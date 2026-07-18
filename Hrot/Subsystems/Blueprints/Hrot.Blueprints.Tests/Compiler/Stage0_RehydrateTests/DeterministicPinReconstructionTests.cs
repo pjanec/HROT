@@ -30,10 +30,11 @@ public sealed class DeterministicPinReconstructionTests
     }
 
     // ── reconstruction harness ──────────────────────────────────────────────────
-    private static CompileOptions Options(IEngineEventCatalog? events = null) =>
+    private static CompileOptions Options(
+        IEngineEventCatalog? events = null, IChannelCommandCatalog? channelCommands = null) =>
         new CompileOptions(
             CompilerMode.Debug, BuiltInNodeRegistry.Instance, StaticTypeRegistry.Instance,
-            events ?? BuiltInEngineEventCatalog.Instance, BuiltInChannelCommandCatalog.Instance,
+            events ?? BuiltInEngineEventCatalog.Instance, channelCommands ?? BuiltInChannelCommandCatalog.Instance,
             BuiltInWaitPrimitiveCatalog.Instance, Array.Empty<BlueprintSignature>());
 
     private static (BlueprintAsset asset, Node node) RunBranch(List<Link> links)
@@ -168,6 +169,68 @@ public sealed class DeterministicPinReconstructionTests
         Assert.Contains(("Target", "In", false, "Fdp.Core.Entity"), shape);
         Assert.Contains(("IntentId", "In", false, "System.String"), shape);
         Assert.Contains(("JsonParams", "In", false, "System.String"), shape);
+    }
+
+    // ── ChannelCommand enricher ──────────────────────────────────────────────────
+    private sealed class StubChannelCommandCatalog : IChannelCommandCatalog
+    {
+        private readonly ChannelCommandCatalogEntry _e;
+        public StubChannelCommandCatalog(ChannelCommandCatalogEntry e) => _e = e;
+        public IReadOnlyList<ChannelCommandCatalogEntry> GetEntries() => new[] { _e };
+    }
+
+    [Fact]
+    public void ChannelCommand_RehydratesParamPins_FromCatalog()
+    {
+        var entry = new ChannelCommandCatalogEntry(
+            Name: "MoveTo", ChannelTypeFqn: "Fdp.Toolkit.Behavior.Components.LocomotionChannel",
+            ActionId: 1, ParamsTypeFqn: "Fdp.Toolkit.Navigation.MoveToParams",
+            ParamFields: new ParamField[]
+            {
+                new("Destination",   "System.Numerics.Vector3"),
+                new("ArrivalRadius", "System.Single"),
+                new("Speed",         "System.Single"),
+            });
+
+        var cc = new ChannelCommandNode
+        {
+            Id = Guid.NewGuid(), ChannelType = "LocomotionChannel", ActionId = "MoveTo",
+            Pins = new List<Pin>(),
+        };
+        var graph = new Graph { Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Event,
+            Nodes = new List<Node> { cc }, Links = new(), Inputs = new(), Outputs = new() };
+        var asset = new BlueprintAsset { AssetId = Guid.NewGuid(), Name = "T",
+            Dispatch = BlueprintDispatchKind.AiPrimitive, Graphs = new List<Graph> { graph },
+            Variables = new(), CustomEvents = new() };
+        Stage0_Rehydrate.Run(asset, Options(channelCommands: new StubChannelCommandCatalog(entry)));
+
+        var shape = cc.Pins.Select(p => (p.Name, p.Direction, p.IsExec, p.TypeRef?.TypeId)).ToList();
+        Assert.Contains(("In", "In", true, ""), shape);
+        Assert.Contains(("Out", "Out", true, ""), shape);
+        Assert.Contains(("Destination", "In", false, "System.Numerics.Vector3"), shape);
+        Assert.Contains(("ArrivalRadius", "In", false, "System.Single"), shape);
+        Assert.Contains(("Speed", "In", false, "System.Single"), shape);
+    }
+
+    [Fact]
+    public void ChannelCommand_UnknownAction_FallsBackToExecOnly()
+    {
+        var cc = new ChannelCommandNode
+        {
+            Id = Guid.NewGuid(), ChannelType = "LocomotionChannel", ActionId = "NoSuchAction",
+            Pins = new List<Pin>(),
+        };
+        var graph = new Graph { Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Event,
+            Nodes = new List<Node> { cc }, Links = new(), Inputs = new(), Outputs = new() };
+        var asset = new BlueprintAsset { AssetId = Guid.NewGuid(), Name = "T",
+            Dispatch = BlueprintDispatchKind.AiPrimitive, Graphs = new List<Graph> { graph },
+            Variables = new(), CustomEvents = new() };
+        Stage0_Rehydrate.Run(asset,
+            Options(channelCommands: new StubChannelCommandCatalog(
+                new ChannelCommandCatalogEntry("Other", "Foo.BarChannel", 1, "Foo.BarParams"))));
+
+        Assert.Equal(new[] { ("In", "In"), ("Out", "Out") },
+            cc.Pins.Select(p => (p.Name, p.Direction)).ToArray());
     }
 
     // ── Compare/BinaryOp/BooleanOp/Not static shape (Blocker-1 tail: pin-less pure nodes) ──────────

@@ -147,6 +147,10 @@ internal static class Stage0_Rehydrate
                 EnrichPublishEventPins(pins, pen, options);
                 break;
 
+            case ChannelCommandNode cc:
+                EnrichChannelCommandPins(pins, cc, options);
+                break;
+
             case CallCustomEventNode cce:
                 EnrichCallCustomEventPins(pins, cce, asset, staticShapes);
                 break;
@@ -305,6 +309,38 @@ internal static class Stage0_Rehydrate
         if (entry.PayloadFields != null)
             foreach (var f in entry.PayloadFields)
                 pins.Add(MakePin(f.Name, "In", isExec: false, typeId: f.TypeId));
+    }
+
+    /// <summary>
+    /// ChannelCommand (Blocker-1, GAP-4): exec node whose data-IN pins are catalog-driven (baked,
+    /// reflection-free) — mirrors <see cref="EnrichPublishEventPins"/>. The static registry provides
+    /// exec In/Out; this adds one data-IN pin per baked
+    /// <see cref="ChannelCommandCatalogEntry.ParamFields"/> entry, matched exactly the way
+    /// <c>Stage2_Validate.V_ChannelCommandReferences</c> / <c>NodePinSchema.ChannelCommandPinsFromCatalog</c>
+    /// match it: <c>LastSegment(ChannelTypeFqn) == node.ChannelType &amp;&amp; entry.Name == node.ActionId</c>.
+    /// These are exactly the pins <c>Stage5_Schedule</c> reads by name (via <c>node.Pins</c>, not-exec
+    /// In pins) when lowering the command. Lets a pin-less ChannelCommand node round-trip without
+    /// hand-authored pins. Unknown action / unbaked entry → exec-only (mirrors the graceful PublishEvent
+    /// and FunctionCall fallback shapes).
+    /// <para>
+    /// AN7 non-channel path (<see cref="ChannelCommandNode.ActionFqn"/> set) is NOT enriched here — that
+    /// path resolves params via <c>IBehaviorActionCatalog</c> reflection (net8 editor host only) and has
+    /// no Stage0 equivalent yet; such nodes fall through to the exec-only fallback below, same as before
+    /// this enricher existed (no regression, no new gap).
+    /// </para>
+    /// </summary>
+    private static void EnrichChannelCommandPins(List<Pin> pins, ChannelCommandNode cc, CompileOptions options)
+    {
+        if (!string.IsNullOrEmpty(cc.ActionFqn))
+            return; // AN7 non-channel path — no baked catalog to enrich from (see doc above).
+
+        var entry = options.ChannelCommands.GetEntries().FirstOrDefault(e =>
+            Stage2Helpers.LastSegment(e.ChannelTypeFqn) == cc.ChannelType
+            && e.Name == cc.ActionId);
+        if (entry?.ParamFields == null) return;
+
+        foreach (var f in entry.ParamFields)
+            pins.Add(MakePin(f.Name, "In", isExec: false, typeId: f.TypeId));
     }
 
     private static void EnrichFunctionCallPins(

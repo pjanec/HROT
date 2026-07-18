@@ -1199,14 +1199,28 @@ internal sealed class GraphScheduler
 
             case ChannelCommandNode cc:
             {
-                var paramFields = node.Pins
-                    .Where(p => !p.IsExec && p.Direction == "In")
-                    .Select(p =>
-                    {
-                        var val = ResolveDataPin(node.Id, p.Id, stmts);
-                        return (p.Name, val);
-                    })
-                    .ToList();
+                // Blocker-1 (ChannelCommand enricher round-out): a baked ParamFields entry now
+                // surfaces EVERY struct field as a data-IN pin, not just the subset a given asset
+                // happens to wire (see BuiltInChannelCommandCatalog). Most fields are legitimately
+                // optional (the struct's own zero-value is a meaningful default -- e.g. RouteHandle
+                // 0 = fire-and-forget, BackendForce 0 = Auto). Only emit a field into the initializer
+                // when it is ACTUALLY connected (an author-drawn link, or a Stage3-materialized
+                // default-literal link) -- resolved the same way PublishEvent's optional "Target" pin
+                // is resolved (direct link lookup, NOT the unconditional ResolveDataPin below, which
+                // would emit a spurious BP4001 AND an IrValue with no backing statement for every
+                // truly-unwired optional field, breaking codegen with an undeclared __tN reference).
+                // An unconnected field is simply omitted from the `new Params { ... }` initializer,
+                // so the struct's own default (0) applies -- exactly the semantics NodePinSchema's
+                // editor projection already implies (a pin with no wire = "use the default").
+                var paramFields = new List<(string FieldName, IrValue Value)>();
+                foreach (var p in node.Pins.Where(p => !p.IsExec && p.Direction == "In"))
+                {
+                    var link = _graph.Links.FirstOrDefault(
+                        l => l.ToNodeId == node.Id && l.ToPinId == p.Id);
+                    if (link is null) continue; // unwired optional field — struct default applies.
+                    var val = ResolveDataPin(node.Id, p.Id, stmts);
+                    paramFields.Add((p.Name, val));
+                }
 
                 // Look up the catalog to get a fully-qualified channel type, ActionId (numeric
                 // ushort literal) and the params struct FQN.  cc.ActionId / cc.ChannelType are
