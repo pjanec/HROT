@@ -93,5 +93,49 @@ canonicalization as an interim, accepting it is not provably general.
 | Q-A robust reconstruction | **(1) deterministic name-based pin GUIDs + migration** | removes the fragility class; reuses existing formula; `Link` unchanged; parity across editor+compiler |
 | Q-B scope | **(a) hold pins until Q-A lands** | part-1 already unblocks shapes; strip repo-wide once, guarded by a round-trip test |
 
-*Status: DRAFT — awaiting architect. Part 1 (FunctionCall semantic-model resolution) is already shipped and
-green; this question governs only the remaining positional pin↔link reconstruction robustness.*
+*Status: Q-A/Q-B ANSWERED (option 1 + hold-then-strip). Implementation surfaced a scope blocker — see Q-C.*
+
+---
+
+## Q-C — the repo-wide strip is blocked by pin-less rehydration gaps in more node kinds (NEW)
+
+**What we built & proved.** Implemented option 1: a canonical `DeterministicIds.PinId(nodeId,name,dir)` in
+the compiler, byte-identical to the editor's `IdGenerator.Deterministic` (parity unit test passing);
+`Stage0.AssignDeterministicPinIds` and the editor `Rebuild` both assign every pin its deterministic GUID.
+Built the migration tooling (emit `oldGuid→newGuid` map via the old positional pass, apply losslessly).
+The mechanism **works** — it fixes the Branch exec/data swap and the pin-less `SharedStateRallyDemo`.
+
+**The blocker.** Making `Stage0` fully deterministic **breaks every existing pin-less asset** (~59 of 82):
+their persisted links use the old positional/arbitrary pin GUIDs, which no longer match the deterministic
+pins → `BP1602`. So the mechanism CANNOT land without migrating **all** assets in the same change. And the
+migration requires every node in every asset to **rehydrate pin-less** — which several node kinds do NOT:
+| Gap kind | Why it can't rehydrate pin-less today |
+|---|---|
+| `ChannelCommand` | data pins come from the catalog's `ParamsTypeFqn` struct fields; the editor's `NodePinSchema` projects them, but `Stage0` has NO enricher (only exec In/Out) |
+| `PublishEvent` | catalog-driven event params; same gap |
+| (others surfaced in demo/test fixtures) | additional dynamic-pin kinds with no `Stage0` enricher |
+
+Each gap is the SAME class as the part-1 FunctionCall fix and needs its own generator-side enricher
+(catalog/semantic-model driven, reflection-free). That is a sizeable multi-kind effort, well beyond the
+Q-A framing. We reverted the (correct but non-landable) mechanism to keep the tree green on part-1.
+
+**Q-C options:**
+1. **Backward-compatible reconstruction (recommended).** Assign deterministic GUIDs first; per node, if no
+   incident link references a deterministic pin GUID, fall back to the existing positional binding.
+   Migrated/editor-saved assets get the robust deterministic path (fragility gone); legacy pin-less assets
+   keep working unchanged. Lands the robustness for the assets that matter NOW (the integrated hill-attack
+   blueprints, and anything re-saved through the editor) with zero repo-wide migration and no new enrichers.
+   Trade-off: positional code stays as a legacy fallback (contra your "remove positional" ruling) until the
+   enrichers land and every asset is migrated — i.e. it's the *transition*, deterministic is the end state.
+2. **Full multi-kind enricher effort.** Build `Stage0` enrichers for ChannelCommand, PublishEvent, and every
+   remaining dynamic-pin kind (each a part-1-style catalog/semantic-model resolver), then migrate all 82
+   assets in one guarded pass. Achieves "all deterministic, no positional" but is a large, multi-slice track.
+3. **Defer Q-A entirely.** Keep part-1 only; blueprints remain editor-fragile for the exec/data-swap case.
+
+- **Our lean: (1)** — it delivers the anti-fragility you approved for the real target (the running behavior)
+  immediately, is strictly safer than today for every asset, and lets (2)'s enrichers land incrementally
+  (each migrated kind simply stops needing the fallback). If you hold firm on "no positional at all," we go
+  to (2) as its own multi-slice track. Which do you want?
+
+*Status: Q-C DRAFT — awaiting architect. Part 1 shipped + green; Q-A mechanism built + parity-proven but
+reverted pending the Q-C scope decision.*
