@@ -84,7 +84,14 @@ internal sealed class BlueprintNodeModel : INodeModel
         // (not a blueprint VariableDecl GUID), so no ResolveVariableName lookup is needed.
         Hrot.Blueprints.Core.Assets.GetSharedNode gsn      => $"Get Shared: {(string.IsNullOrEmpty(gsn.VariableId) ? "(unset)" : gsn.VariableId)}",
         Hrot.Blueprints.Core.Assets.SetSharedNode ssn      => $"Set Shared: {(string.IsNullOrEmpty(ssn.VariableId) ? "(unset)" : ssn.VariableId)}",
-        Hrot.Blueprints.Core.Assets.LiteralNode lt        => $"Literal ({lt.TypeId})",
+        // Punch-list #1/#5/#8: show the node's own DATA in the body instead of the generic "Value"
+        // pin label — the literal's value, the parameter's name, the compare/arith/bool operator.
+        Hrot.Blueprints.Core.Assets.GetParameterNode gp   => $"Get Param: {ResolveParameterName(gp.ParameterId, asset)}",
+        Hrot.Blueprints.Core.Assets.LiteralNode lt        => FormatLiteral(lt),
+        Hrot.Blueprints.Core.Assets.CompareNode cmp       => $"Compare {OperatorSymbol(cmp.Operator)}",
+        Hrot.Blueprints.Core.Assets.BinaryOpNode bin      => $"Math {OperatorSymbol(bin.Operator)}",
+        Hrot.Blueprints.Core.Assets.BooleanOpNode boo     => $"Logic {OperatorSymbol(boo.Operator)}",
+        Hrot.Blueprints.Core.Assets.NotNode               => "Not (!)",
         Hrot.Blueprints.Core.Assets.EventEntryNode ee     => $"Event: {ee.EventTypeId}",
         Hrot.Blueprints.Core.Assets.CallPeerBlueprintNode cp => $"Call Peer: {cp.FunctionRef}",
         Hrot.Blueprints.Core.Assets.CallCustomEventNode ce   => $"Call {ce.EventId}",
@@ -112,6 +119,11 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.GetSharedNode            => NodeCategory.VariableGet,
         Hrot.Blueprints.Core.Assets.SetSharedNode            => NodeCategory.VariableSet,
         Hrot.Blueprints.Core.Assets.LiteralNode              => NodeCategory.Pure,
+        Hrot.Blueprints.Core.Assets.GetParameterNode         => NodeCategory.Pure,
+        Hrot.Blueprints.Core.Assets.CompareNode              => NodeCategory.Pure,
+        Hrot.Blueprints.Core.Assets.BinaryOpNode             => NodeCategory.Pure,
+        Hrot.Blueprints.Core.Assets.BooleanOpNode            => NodeCategory.Pure,
+        Hrot.Blueprints.Core.Assets.NotNode                  => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.FunctionCallNode fc when fc.IsPure => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.BranchNode               => NodeCategory.FlowControl,
         Hrot.Blueprints.Core.Assets.SequenceNode             => NodeCategory.FlowControl,
@@ -144,4 +156,85 @@ internal sealed class BlueprintNodeModel : INodeModel
 
         return variableId;
     }
+
+    /// <summary>
+    /// Resolves the display NAME of a blueprint parameter from the owning asset's parameter list.
+    /// Mirrors <see cref="ResolveVariableName"/> but over <c>asset.Parameters</c> and also accepts the
+    /// <c>param:&lt;guid&gt;</c> item-id form (Stage5 strips both <c>var:</c>/<c>param:</c> prefixes).
+    /// Falls back to the raw id when the asset is null or the parameter is not found.
+    /// </summary>
+    private static string ResolveParameterName(
+        string parameterId,
+        Hrot.Blueprints.Core.Assets.BlueprintAsset? asset)
+    {
+        if (asset == null || string.IsNullOrEmpty(parameterId))
+            return string.IsNullOrEmpty(parameterId) ? "(unset)" : parameterId;
+
+        var idStr = parameterId;
+        if (idStr.StartsWith("param:", StringComparison.OrdinalIgnoreCase)) idStr = idStr[6..];
+        else if (idStr.StartsWith("var:", StringComparison.OrdinalIgnoreCase)) idStr = idStr[4..];
+
+        if (Guid.TryParse(idStr, out var guid))
+        {
+            var decl = asset.Parameters.FirstOrDefault(p => p.Id == guid);
+            if (decl != null && !string.IsNullOrEmpty(decl.Name))
+                return decl.Name;
+        }
+
+        return parameterId;
+    }
+
+    /// <summary>
+    /// Renders a <see cref="Hrot.Blueprints.Core.Assets.LiteralNode"/>'s title as its actual value
+    /// (punch-list #5) — strings shown unquoted, floats without the <c>f</c> suffix. Falls back to
+    /// <c>Literal (Type)</c> when no value has been entered yet.
+    /// </summary>
+    private static string FormatLiteral(Hrot.Blueprints.Core.Assets.LiteralNode lt)
+    {
+        var raw = lt.ValueJson ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(raw))
+            return $"Literal ({ShortTypeName(lt.TypeId)})";
+
+        // Strings persist as C# literals with surrounding quotes; floats carry an 'f' suffix.
+        if (raw.Length >= 2 && raw[0] == '"' && raw[^1] == '"')
+            return raw[1..^1];
+        if ((raw[^1] == 'f' || raw[^1] == 'F') && raw.Length > 1 && (char.IsDigit(raw[0]) || raw[0] == '-' || raw[0] == '.'))
+            return raw[..^1];
+        return raw;
+    }
+
+    private static string ShortTypeName(string typeId)
+    {
+        if (string.IsNullOrEmpty(typeId)) return "?";
+        var dot = typeId.LastIndexOf('.');
+        return dot >= 0 ? typeId[(dot + 1)..] : typeId;
+    }
+
+    private static string OperatorSymbol(Hrot.Blueprints.Core.Assets.ComparisonOperator op) => op switch
+    {
+        Hrot.Blueprints.Core.Assets.ComparisonOperator.Equal              => "==",
+        Hrot.Blueprints.Core.Assets.ComparisonOperator.NotEqual           => "!=",
+        Hrot.Blueprints.Core.Assets.ComparisonOperator.LessThan           => "<",
+        Hrot.Blueprints.Core.Assets.ComparisonOperator.LessThanOrEqual    => "<=",
+        Hrot.Blueprints.Core.Assets.ComparisonOperator.GreaterThan        => ">",
+        Hrot.Blueprints.Core.Assets.ComparisonOperator.GreaterThanOrEqual => ">=",
+        _                                                                 => op.ToString(),
+    };
+
+    private static string OperatorSymbol(Hrot.Blueprints.Core.Assets.ArithmeticOperator op) => op switch
+    {
+        Hrot.Blueprints.Core.Assets.ArithmeticOperator.Add      => "+",
+        Hrot.Blueprints.Core.Assets.ArithmeticOperator.Subtract => "-",
+        Hrot.Blueprints.Core.Assets.ArithmeticOperator.Multiply => "*",
+        Hrot.Blueprints.Core.Assets.ArithmeticOperator.Divide   => "/",
+        Hrot.Blueprints.Core.Assets.ArithmeticOperator.Modulo   => "%",
+        _                                                       => op.ToString(),
+    };
+
+    private static string OperatorSymbol(Hrot.Blueprints.Core.Assets.BooleanOperator op) => op switch
+    {
+        Hrot.Blueprints.Core.Assets.BooleanOperator.And => "&&",
+        Hrot.Blueprints.Core.Assets.BooleanOperator.Or  => "||",
+        _                                               => op.ToString(),
+    };
 }
