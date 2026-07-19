@@ -364,8 +364,11 @@ internal sealed class CSharpEmitter
             WriteLine("EventHandlers = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.EventHandlerDelegate>(global::System.StringComparer.Ordinal)");
             WriteLine("{");
             Indent();
+            // Q#14: key by the event IDENTITY (EventTypeFqn) — the FQN the runtime dispatch resolves to a
+            // type-id — not the graph name (which is only the C# method suffix). Fallback to name for legacy
+            // Event graphs that carry no event identity.
             foreach (var evtGraph in eventHandlers)
-                WriteLine($"[\"{evtGraph.Name}\"] = {className}.Event_{evtGraph.Name}_Thunk,");
+                WriteLine($"[\"{evtGraph.EventTypeFqn ?? evtGraph.Name}\"] = {className}.Event_{evtGraph.Name}_Thunk,");
             Outdent();
             WriteLine("},");
         }

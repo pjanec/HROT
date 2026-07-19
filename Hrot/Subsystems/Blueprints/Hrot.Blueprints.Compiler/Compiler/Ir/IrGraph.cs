@@ -13,6 +13,14 @@ public sealed record IrGraph
     public Guid Id { get; init; }
     public string Name { get; init; } = "";
     public IrGraphKind Kind { get; init; }
+
+    /// <summary>
+    /// Q#14: for an Event graph, the event identity it handles (the <c>EventEntryNode.EventTypeId</c> — a
+    /// typed event's FQN or a custom event's name). The emitter keys <c>BlueprintDefinition.EventHandlers</c>
+    /// by this (NOT the graph name, which is a C# method-name suffix and can't hold an FQN) and reinterprets
+    /// the dispatched payload as <c>global::{EventTypeFqn}</c>. Null for non-Event graphs.
+    /// </summary>
+    public string? EventTypeFqn { get; init; }
     public IReadOnlyList<IrField> Inputs { get; init; } = Array.Empty<IrField>();
     public IReadOnlyList<IrField> Outputs { get; init; } = Array.Empty<IrField>();
     public IReadOnlyList<IrBlock> Blocks { get; init; } = Array.Empty<IrBlock>();

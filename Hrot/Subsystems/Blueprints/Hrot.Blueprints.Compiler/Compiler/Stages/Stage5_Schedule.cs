@@ -293,6 +293,11 @@ internal sealed class GraphScheduler
             Id      = _graph.Id,
             Name    = _graph.Name,
             Kind    = MapGraphKind(_graph.Kind),
+            // Q#14: for an Event graph, carry the event identity from its EventEntry so the emitter can key
+            // EventHandlers by it (the graph name is a method-name suffix and can't be the FQN).
+            EventTypeFqn = _graph.Kind == GraphKind.Event
+                ? (entryNode as EventEntryNode)?.EventTypeId
+                : null,
             Inputs  = irInputs,
             Outputs = irOutputs,
             Blocks  = _blockBuilders.Select(b => b.Build()).ToList().AsReadOnly(),
