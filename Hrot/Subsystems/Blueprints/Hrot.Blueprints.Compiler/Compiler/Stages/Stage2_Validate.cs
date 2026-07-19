@@ -278,12 +278,13 @@ internal sealed class V_GraphStructure : IValidator
             // by Stage5_Schedule.SealFallThrough, so an explicit ReturnNode is
             // optional (still supported for early-exit and non-default status/value).
 
-            // Q#13-B (architect): a WIRED WaitForChannel "OnFailure" chain must terminate in an
-            // explicit Return — no implicit-return fall-off on the failure branch. Any node reachable
-            // from OnFailure that is a dead end (no wired exec-out) and is not a ReturnNode is a
-            // fall-off ⇒ BP1102. (Runs only on pin-ful graphs, like every V_GraphStructure check —
-            // the editor/authoring path, where designers create the wiring.)
-            foreach (var wfc in graph.Nodes.OfType<WaitForChannelNode>())
+            // Q#13-B (architect): a WIRED "OnFailure" chain must terminate in an explicit Return — no
+            // implicit-return fall-off on the failure branch. Any node reachable from OnFailure that is
+            // a dead end (no wired exec-out) and is not a ReturnNode is a fall-off ⇒ BP1102. Applies to
+            // any node exposing an "OnFailure" exec-out (WaitForChannel + WaitForEvent + future nodes).
+            // (Runs only on pin-ful graphs, like every V_GraphStructure check — the editor/authoring
+            // path, where designers create the wiring.)
+            foreach (var wfc in graph.Nodes)
             {
                 var onFailPin = wfc.Pins.FirstOrDefault(
                     p => p.IsExec && p.Direction == "Out"

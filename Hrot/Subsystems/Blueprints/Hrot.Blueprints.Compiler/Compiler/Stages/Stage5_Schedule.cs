@@ -386,7 +386,11 @@ internal sealed class GraphScheduler
                     return;
 
                 case WaitForEventNode wfe:
-                    ScheduleLatentNode(wfe, bb, BuildWaitForEventOp(wfe));
+                    // Q#13-D: same OnFailure split as WaitForChannel — success is the non-"OnFailure"
+                    // exec-out; a wired "OnFailure" routes the failure resume. Unwired ⇒ unchanged.
+                    ScheduleLatentNode(wfe, bb, BuildWaitForEventOp(wfe),
+                        successSuccessor: GetExecSuccessorExcludingPinName(wfe, "OnFailure"),
+                        failureSuccessor: GetExecSuccessorByPinName(wfe, "OnFailure"));
                     return;
 
                 case WhenNode wn:

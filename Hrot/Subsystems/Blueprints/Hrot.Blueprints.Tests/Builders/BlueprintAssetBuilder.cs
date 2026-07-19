@@ -286,6 +286,38 @@ public sealed class GraphBuilder
         return this;
     }
 
+    /// <summary>
+    /// Q#13-D: adds a WaitForEventNode with the "OnFailure" exec-out wired to a sub-chain, plus the
+    /// success exec-out ("ExecOut") the main chain continues from. Mirrors <see cref="WaitForChannelWithFailure"/>.
+    /// </summary>
+    public GraphBuilder WaitForEventWithFailure(string eventTypeId, Action<GraphBuilder> onFailure)
+    {
+        var nodeId = MakeNodeId("WaitForEvent", _nodes.Count);
+        var node = new WaitForEventNode { Id = nodeId, EventTypeId = eventTypeId };
+
+        var execInPinId    = MakePinId(nodeId, "ExecIn");
+        var execOutPinId   = MakePinId(nodeId, "ExecOut");
+        var onFailurePinId = MakePinId(nodeId, "OnFailure");
+
+        node.Pins.Add(new Pin { Id = execInPinId,    Name = "ExecIn",    Direction = "In",  IsExec = true, TypeRef = new() });
+        node.Pins.Add(new Pin { Id = execOutPinId,   Name = "ExecOut",   Direction = "Out", IsExec = true, TypeRef = new() });
+        node.Pins.Add(new Pin { Id = onFailurePinId, Name = "OnFailure", Direction = "Out", IsExec = true, TypeRef = new() });
+
+        LinkExec(_lastNodeId, _lastExecOutPinId, nodeId, execInPinId);
+        _nodes.Add(node);
+
+        var failBuilder = new GraphBuilder(_name + "_OnFailure", _kind, _assetId);
+        failBuilder._lastNodeId = nodeId;
+        failBuilder._lastExecOutPinId = onFailurePinId;
+        onFailure(failBuilder);
+        _nodes.AddRange(failBuilder._nodes);
+        _links.AddRange(failBuilder._links);
+
+        _lastNodeId = nodeId;
+        _lastExecOutPinId = execOutPinId;
+        return this;
+    }
+
     /// <summary>Adds a SetVariableNode.</summary>
     public GraphBuilder SetVariable(string variableName, string valueExpression)
     {

@@ -113,7 +113,10 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
             // component's Status field type (global::Fbt.NodeStatus).
             Data("Status", "Out", "global::Fbt.NodeStatus"),
         },
-        WaitForEventNode          => new[] { ExecIn(), ExecOut() },
+        // WaitForEvent (Q#13-D): same OnFailure exec split as WaitForChannel (shared WaitLowering
+        // failure-block path). No "Status" data-out — the event-wait status model is unvalidated (no
+        // real WaitForEvent asset exists yet); add it demand-driven when a use case appears.
+        WaitForEventNode          => new[] { ExecIn(), ExecOut(), new("OnFailure", "Out", true, "") },
 
         // PublishEvent (P4 -- GAP-3): catalog-driven exec node, mirrors ChannelCommandNode.
         PublishEventNode          => new[] { ExecIn(), ExecOut() },

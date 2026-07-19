@@ -142,6 +142,28 @@ public sealed class Stage6Tests
         Assert.Equal(NodeStatus.Failure, term.Status);
     }
 
+    [Fact]
+    public void Stage6_AiPrimitive_WaitForEvent_WiredOnFailure_RoutesFailureToChain()
+    {
+        // Q#13-D: WaitForEvent gains the same OnFailure split (shared WaitLowering failure-block path).
+        var asset = BlueprintAssetBuilder
+            .AiPrimitive("AiPrimWaitEventFail")
+            .WithHostings(AiPrimitiveHosting.BTreeAction)
+            .WithGraph("Main", g => g.Entry()
+                .WaitForEventWithFailure("SomeEvent", fail => fail.Return(NodeStatus.Failure))
+                .Return(NodeStatus.Success))
+            .Build();
+
+        var sink    = new DiagnosticSink();
+        var lowered = RunStage5Then6(asset, sink);
+        Assert.False(sink.HasErrors,
+            $"Unexpected errors: {string.Join(", ", sink.All.Select(d => d.Code))}");
+
+        var graph = Assert.Single(lowered.Graphs);
+        var failureBlock = graph.Blocks.First(b => b.Label == "phase1_failure");
+        Assert.IsType<IrTerm_Goto>(failureBlock.Terminator);
+    }
+
     // ------------------------------------------------------------------
     // SC2: Instance WaitForChannel -- cursor dispatch structure
     // ------------------------------------------------------------------
