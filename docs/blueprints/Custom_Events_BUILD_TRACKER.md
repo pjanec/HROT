@@ -17,7 +17,7 @@ Legend: ⬜ todo · 🟡 in progress · ✅ done (committed) · ⏸️ deferred.
 - ✅ **2c** PublishEvent editor-addable (palette entry per discovered event)
 
 ## Phase 3 — Dispatch (net-new core)
-- ⬜ **3a** Subscription registry: event **type-id → subscribers**, built at load (extend `[BlueprintRegistrar]` scan)
+- ✅ **3a** Subscription registry: event **type-id → subscribers**, built at load (extend `[BlueprintRegistrar]` scan)
 - ⬜ **3b** Dispatch pump: per-tick system, `HasEvent`-gated, iterates only present event-types
 - ⬜ **3c** Payload marshalling: unstub `EmitEventThunk` (fill from carrier bytes via reinterpret-cast)
 - ⬜ **3d** `Self`/`Any` recipient filter enforced at dispatch
