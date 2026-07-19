@@ -223,6 +223,28 @@ namespace Fdp.Core
         }
 
         /// <summary>
+        /// Q#14 (custom-event dispatch): reads the raw bytes of the native event stream for
+        /// <paramref name="typeId"/> — the previous frame's buffer, exactly like <see cref="Read{T}"/> —
+        /// for callers that only know the event type at runtime (the blueprint custom-event dispatch pump,
+        /// which resolves subscribers by type-id). Purely additive read of data the bus already holds.
+        /// <paramref name="elementSize"/> is the per-event byte size (0 when the stream is absent/empty), so
+        /// callers can slice individual events out of the returned span.
+        /// </summary>
+        public ReadOnlySpan<byte> ReadRawByTypeId(int typeId, out int elementSize)
+        {
+            if (_nativeStreams.TryGetValue(typeId, out var stream))
+            {
+                elementSize = stream.ElementSize;
+                return stream.GetRawBytes();
+            }
+            elementSize = 0;
+            return ReadOnlySpan<byte>.Empty;
+        }
+
+        /// <summary>True when a native event of the given <paramref name="typeId"/> is present this frame.</summary>
+        public bool HasEvent(int typeId) => _activeEventIds.Contains(typeId);
+
+        /// <summary>
         /// Consumes all managed events of type T from the previous frame.
         /// Returns empty list if no events were published.
         /// </summary>
