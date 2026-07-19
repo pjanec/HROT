@@ -5,10 +5,49 @@
 > task plan, and the exact build/verify commands. Task-tool state does NOT carry across sessions — the
 > task plan below IS the persisted backlog.
 
-**Repo:** `/home/user/IOS-IG-SimHost-FDP` · **Branch:** `claude/hill-attack-blueprints-p1b-uj8cbb`
-· **HEAD == main ==** `50ff6e4` + this doc commit (keep them in lockstep; fast-forward `main` after each commit).
-> Note: an earlier session used branch `claude/hill-attack-json-slice-3-stages-0nsrpp`; the active branch
-> is now `claude/hill-attack-blueprints-p1b-uj8cbb` (same lockstep-with-`main` discipline).
+**Repo:** `/home/user/IOS-IG-SimHost-FDP` · **Branch (ONLY):** `claude/hill-attack-blueprints-p1b-uj8cbb` · **HEAD:** `a5c9adcd`
+> ⚠ **`main` is SHARED with parallel sessions.** Commit/push to the feature branch **only**; do NOT ff-merge/push
+> `main` without an explicit request (a parallel session may have advanced it). Reconcile via
+> `git rebase origin/main` on the feature branch when asked. (An earlier lockstep-with-`main` discipline in
+> this doc is superseded.) An earlier session used branch `claude/hill-attack-json-slice-3-stages-0nsrpp`.
+
+---
+
+## 0. LATEST — Blocker-1 (editor pin round-trip) is CLOSED · green (@ `a5c9adcd`)
+
+The editor strips every node's pins on save (`"Pins": []`); Stage0/`BlueprintGraphModel.Rebuild` rebuild them
+on load. Two defects corrupted the round-trip — **fixed & shipped this session:**
+
+- **Part 1 — FunctionCall semantic resolution.** `IClrSignatureResolver` (compiler-core) +
+  `RoslynClrSignatureResolver` (generator, semantic-model, threaded via `context.CompilationProvider`) resolves
+  *same-assembly* curated-helper signatures to real CLR types instead of `System.Object` placeholders.
+- **Part 2 — deterministic per-pin reconstruction.** `DeterministicIds.PinId(nodeId,name,dir)` (SHA-256 →
+  RFC-4122 v5) is **byte-identical** to the editor's `IdGenerator.Deterministic`. In BOTH
+  `Stage0_Rehydrate.AssignLinkGuids` and the editor `BlueprintGraphModel.Rebuild`: a link whose GUID equals a
+  pin's deterministic GUID binds that pin **by name** (order-independent — the exec/data positional swap that
+  corrupted `Branch.Condition` is gone); remaining legacy links bind **positionally** to still-unassigned pins.
+  Handles migrated, legacy, and **mixed** nodes.
+- **Enrichers (baked, reflection-free)** so pin-less rehydration reproduces catalog/operator data pins:
+  `PublishEvent` ← `EngineEventCatalogEntry.PayloadFields`; `ChannelCommand` ← `ChannelCommandCatalogEntry.ParamFields`
+  (all 6 baked); `Compare`/`BinaryOp`/`BooleanOp` (A,B→Result), `Not` (A→Result) static shapes.
+- **Integrated blueprints now stored pin-less:** 6× `HillAssault2I_*`, `HillAssault2_ReverseToBaseline`,
+  `HillAssault2_AimAndFireSpecific`.
+- **Guard 4** (`NodeCoverageTests.AllCoverageNodes_PinlessRehydration_ReproducesAuthoredDataPins`): strips every
+  coverage fixture to pin-less, runs `Stage0_Rehydrate.Run`, asserts author-placed **data** pins are reproduced.
+  A future node kind that forgets its enricher fails CI (documented exceptions in `PinlessRoundTripExceptions`:
+  FunctionCall=signature-derived, GetComponent/GetParameter=baked-field-at-lowering, CallPeerBlueprint=sibling-lookup).
+
+**Cannot silently regress** — three layers: deterministic-by-name binding (order irrelevant) · Guard 3 (every
+kind has a compiling fixture or documented exception) · Guard 4 (pin-less rehydration reproduces authored data
+pins). Worst case for an AI-authored node kind missing an enricher = **red build**, never silent corruption.
+Design record: `Architect_Question_10_Pin_Link_Rehydration.md` (Q-A/Q-B/Q-C, all answered).
+
+**Blocker-1 commit chain:** `133b9401 → e67eedb0 → 97b1d966 → 0c9ededf (merge main) → 682c6384 → ce863d72 →
+a6e1c936 → c07fdb07 → a5c9adcd`. Also landed: editor node-body labels (Literal/GetParameter/Compare/Math/Logic/Not,
+`BlueprintNodeModel.BuildTitle`), wire hit-area 6→9px (`HitTester.cs`), main-merge visuals (DPI fonts, colored
+menu icons, node-label cull fix, wire scaling).
+
+**Remaining after Blocker-1:** the editor-UX punch-list (GAP-8, best on Windows) — see §6 "Editor authoring UI".
 
 ---
 
@@ -145,6 +184,17 @@ All under `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/`. Node kinds:
 **Parallel / deferred tracks:**
 - **P3 `GetSingleton`** — narrow value (Hill-attack singleton `NetworkEntityMap` needs a method call anyway); needs a new `IrOp` + emit off `world`. Only if a slice needs a field-read singleton.
 - **Editor authoring UI (GAP-8, Windows-verifiable)** — wire existing components per `Blueprint_Editor_Components_Reuse.md` (StructEdit-universal; `NodePinSchema`/`ReflectDataMembers` for pin reification). Drawer priority: `When` → `CallCustomEvent`/`CallPeerBlueprint` → `WaitForChannel`/`ReadRankedResult`; then drawers for the new P2/P4/P1 nodes.
+  - **Editor-UX punch-list (best verified visually on Windows; ⟨ARCH⟩ = ask a plain-text architect question first):**
+    | # | Item | Where | Note |
+    |---|---|---|---|
+    | 4 | XML-doc tooltips on function node + pins (**data type mandatory**, esp. struct/class returns) | function node drawer / pin render | doc-source decision |
+    | 6 | "⋯" open-in-VS button on the function inspector | function inspector | `devenv /edit` or `file:` URI; small |
+    | 9 | Asset-type icons (Action/Condition/Function) in Open-Asset picker | picker (`Primitive.Intent`) | icon vocabulary |
+    | 2 | Function-node icon + CLR-vs-BP title coloring | `NodeRenderer.DrawTitle`, `theme.GetCategoryHeaderColor`; `BlueprintNodeModel.BuildCategory` maps FunctionCall→Function/Pure | ⟨ARCH: visual language⟩ |
+    | 3 | Grouped read-only CLR method picker + lock-when-wired + summary tooltips | replaces two free `InputText` in `FunctionCallNodeDrawer.DrawClrMethodForm` (~L190) | ⟨ARCH: grouping + lock rule⟩, large |
+    | 10/11 | Aggregate SetShared / GetParameter node (one pin per field, hideable) | new node kind + compiler lowering | ⟨ARCH⟩ |
+    | 7 | (deferred) rename shared "Value" pin to field name | `NodePinSchema` Get/SetSharedPins | touches pin identity — deferred |
+    - **Already landed:** node-body labels for Literal/GetParameter/Compare/Math/Logic/Not; wire hit-area 6→9px; main-merge visuals.
 - **Visual conceptual docs** (task #17/DOC-2 follow-ups): D2 memory-layout SVG, D3 lifetime timeline for the variable/scope/GetShared/params-vs-workingstate model ("beyond an ordinary user without visuals"). Terminology chosen: Parameter / private scratch / behavior shared / **Squad shared**.
 - **UX-1 / UX-2:** intent-first "what is this memory?" picker; unify the two shared-state doors (Get/SetShared vs entity-scope). Architect nod needed.
 - **P5 lean slot path** — `SlotRotation`/`SlotRotationState` (exists) + new `MemberSlotList` `[BlackboardDtoStruct]` SoA; hazard: C#12 `[InlineArray]` defensive-copy `ldobj` bug → expose `GetSpanRW()`. For the wave core.
