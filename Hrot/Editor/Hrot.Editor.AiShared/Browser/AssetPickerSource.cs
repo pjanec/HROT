@@ -164,7 +164,7 @@ public sealed class AssetPickerSource : IPickerSource<IEditableAsset>
             Keywords: null,
             IconTextureId: null,
             Tag: asset,
-            IconKey: AssetKindIcons.GetIconKey(asset.Kind));
+            IconKey: AssetKindIcons.ResolveIconKey(asset));
     }
 
     /// <summary>

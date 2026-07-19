@@ -347,13 +347,15 @@ public sealed class AssetBrowserPanel
     }
 
     /// <summary>
-    /// Returns the <see cref="IIconProvider"/> key for the given asset's kind icon,
-    /// resolved via <see cref="AssetKindIcons.GetIconKey"/>.
+    /// Returns the <see cref="IIconProvider"/> key for the given asset's row icon.
+    /// Punch-list #9: an asset may override its kind default via <see cref="IAssetIconKeyProvider"/>
+    /// (e.g. a Blueprint distinguishing Action / Condition / Function); otherwise the per-kind icon
+    /// from <see cref="AssetKindIcons.GetIconKey"/> is used.
     /// </summary>
     public string RowIconKey(IEditableAsset asset)
     {
         if (asset == null) throw new ArgumentNullException(nameof(asset));
-        return AssetKindIcons.GetIconKey(asset.Kind);
+        return AssetKindIcons.ResolveIconKey(asset);
     }
 
     /// <summary>
