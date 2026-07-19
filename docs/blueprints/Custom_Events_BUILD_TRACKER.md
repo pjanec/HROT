@@ -18,7 +18,7 @@ Legend: ⬜ todo · 🟡 in progress · ✅ done (committed) · ⏸️ deferred.
 
 ## Phase 3 — Dispatch (net-new core)
 - ✅ **3a** Subscription registry: event **type-id → subscribers**, built at load (extend `[BlueprintRegistrar]` scan)
-- ⬜ **3b** Dispatch pump: per-tick system, `HasEvent`-gated, iterates only present event-types
+- 🟡 **3b** Dispatch pump — CORE DONE (bus ReadRawByTypeId + BlueprintEventDispatch helper + folded into BlueprintTickSystem, validated); remaining: event-identity keying so real events route
 - ⬜ **3c** Payload marshalling: unstub `EmitEventThunk` (fill from carrier bytes via reinterpret-cast)
 - ⬜ **3d** `Self`/`Any` recipient filter enforced at dispatch
 
@@ -88,3 +88,24 @@ seam-level resume notes for each are above.
 ## Gate policy (every slice)
 Build 0 errors; relevant unit tests; for compiler changes: `Hrot.AiEditor.Generators.Tests` clean-rebuilt +
 serial stays green (183/184-class baseline); full ClusterRunner build before finishing.
+
+## Session-2 progress (dispatch runtime)
+Done + committed + validated this session (on top of the author+publish half):
+- **3a** subscription registry (type-id → subscribers), unit-tested.
+- **3b CORE**: `FdpEventBus.ReadRawByTypeId(typeId, out elemSize)` + `HasEvent(int)` (engine core, architect-
+  approved, additive); `BlueprintEventDispatch.DispatchForSlot` (invokes handlers with the raw payload span,
+  HasEvent-gated; resolver FQN→[EventId].Id/hash) — **validated against a real bus** (publish → handler runs
+  with payload=42); folded into `BlueprintTickSystem`'s 3 per-entity tiers (no-op for non-subscribers, 22
+  tick tests green). Full ClusterRunner builds 0 errors.
+
+**The one remaining wiring for real dispatch (next):** the `EventHandlers` dict key must be the event
+**FQN** (my resolver turns FQN→type-id correctly), but today the emitter keys it by the Event graph's **name**
+— which is also used as a C# method-name suffix (`Event_{Name}`) so it can't hold dots/FQN. So the event
+identity must be plumbed: `EventEntryNode.EventTypeId` → a new `IrGraph.EventTypeFqn` (set in Stage5) →
+`CSharpEmitter` keys `EventHandlers` by it + `InstanceEmitter.EmitEventThunk` reinterprets `payload` as
+`global::{EventTypeFqn}`. This is coupled with **4a** (the subscribe node that sets `EventTypeId`) and wants a
+full compile-and-run integration test (Instance bp w/ Event graph → publish → dispatch → assert handler ran).
+Then **3d** Self/Any (needs the target-field offset threaded), **2b** carrier, **1d** UI, **1f** migrate.
+
+**Bottom line:** the dispatch *mechanism* is proven end-to-end at the helper level; the remaining work is the
+compiler event-identity plumbing + the subscribe node + the full-pipeline integration test — a focused coupled slice.
