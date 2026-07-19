@@ -32,17 +32,25 @@ Legend: ⬜ todo · 🟡 in progress · ✅ done (committed) · ⏸️ deferred.
 - Carrier = unmanaged/blittable only; strings via `FixedString32/64` (§7.3).
 - Instance-dispatch blueprints first (§7.4).
 
-## ⏸️ Overnight checkpoint — where I stopped + why
+## ⏸️ Checkpoint — author + publish HALF done; dispatch/subscribe runtime remains
 
-**Done tonight (all green + committed):** 1a, 1b, 1c, 1e — the complete, fully-validated *discovery +
-authoring-data* foundation (attribute, C# reflection discovery, editor-authored def model + JSON round-trip,
-unified picker source). 6 unit tests, no regressions.
+**Done + committed + validated (the entire "author + publish" half):**
+- **1a, 1b, 1c, 1e** — discovery + authoring-data foundation (attribute, C# reflection discovery, editor-def
+  model + JSON, unified picker source).
+- **2a** — `PublishEvent` baked custom-event fields → publishes without a catalog entry; proof suite 184/184
+  byte-identical; compiles to a typed bus publish.
+- **2c** — "Publish: {Event}" palette entries per discovered event (editor-addable).
+- 10 unit tests, no regressions, full ClusterRunner builds 0 errors.
 
-**Stopped before** the publish/dispatch/subscribe slices deliberately: they begin with a delicate
-`PublishEventNode` **schema change** (baked `EventTypeFqn` + fields) that ripples through Stage0/Stage5/
-serialization/pin-validation (WaitForChannel-class delicacy), then the generic-carrier lowering and the
-**net-new dispatch runtime** — which need runtime-scenario validation that's unsafe to rush unattended. The
-foundation is safe to build on; the rest wants careful, gated, ideally-attended work.
+So a designer can now **author** a custom event (C# `[BlueprintEvent]` today; editor-def model ready) and
+**publish** it from a blueprint, compiled. The `.bp.json`/proof gates are all green.
+
+**Remaining = the "dispatch + subscribe" runtime half** (the net-new the architect flagged): **2b** generic
+carrier (for editor-def events with no C# type), **3a–3d** the bus→Event-graph dispatch (registry + per-tick
+pump + payload marshalling + Self/Any), **4a/4b** the `EventEntry` subscribe pins + filter, **1d** authoring UI,
+**1f** system-event migration. These need **iterative runtime-scenario validation** (a live Instance blueprint
+subscribing + receiving) — deliberately left for careful, attended work rather than a blind push. Precise
+seam-level resume notes for each are above.
 
 ### Precise resume notes (per remaining slice)
 - **2a — PublishEvent pin baking.** Add to `PublishEventNode` (Nodes.cs:617): `string EventTypeFqn` +
@@ -59,12 +67,18 @@ foundation is safe to build on; the rest wants careful, gated, ideally-attended 
   bus path (`FdpEventBus.PublishRaw`/`InjectIntoCurrentBySize`, type-id = hash of the event name) packing fields
   into a blittable payload; 2a (real struct) keeps the existing typed `world.Bus.Publish(new T{…})`. New
   `IrOp_PublishCustomEvent` (or a flag on `IrOp_PublishBusEvent`). Novel — hands-on.
-- **3a/3b/3c/3d — dispatch (the core).** Build a **type-id → subscribers** registry (extend the
-  `[BlueprintRegistrar]` scan to advertise each blueprint's Event-graph event-keys); a per-tick pump
-  (`HasEvent`-gated, Input phase after `SwapBuffers`, near `BlueprintTickSystem`) that invokes subscribers'
-  `Event_*_Thunk`; unstub `InstanceEmitter.EmitEventThunk` (currently `default(T)` — fill from carrier bytes via
-  the `State`-struct reinterpret); enforce Self/Any there. **Reconcile the event key: type-id, not graph name
-  (§7.1).** Needs runtime behavioral tests (mirror `WhenNodeRuntimeTests`).
+- **3a/3b/3c/3d — dispatch (the core net-new runtime; deepest slice — do attended + iteratively).** Seam
+  detail (scoped): `BlueprintDefinition.EventHandlers` is `IReadOnlyDictionary<string, EventHandlerDelegate>`
+  keyed by graph **name** → **re-key to event type-id (§7.1)**. `EventHandlerDelegate(Span<byte> stateBytes,
+  ISimulationView view, IEntityCommandBuffer ecb, Entity self, float time, float dt, ReadOnlySpan<byte>
+  payload)`. The pump is **2-dimensional**: (present event-types via `HasEvent`) × (entity-instances whose
+  `def.EventHandlers` handle that type). Steps: (3a) type-id → subscribers registry from the
+  `[BlueprintRegistrar]` scan / def keys; (3b) per-tick system near `BlueprintTickSystem` iterating entity
+  blueprint slots, reading each present event (typed `Read<T>` or the untyped stream by type-id) and invoking
+  the handler with the instance's state bytes + the event payload bytes; (3c) unstub
+  `InstanceEmitter.EmitEventThunk` (currently `default(T)` — reinterpret the `payload` span onto the event/State
+  struct); (3d) enforce Self/Any by comparing the event's Target field to the entity before invoking. Needs
+  runtime behavioral tests (mirror `WhenNodeRuntimeTests`). Instance-dispatch first (§7.4).
 - **4a/4b — subscribe UX.** `EventEntryNode` keyed by type-id + reflected data-out pins (payload) + the
   `Self`/`Any` `TargetFilter` (node UX + JSON per design §4.5).
 - **1d — authoring UI.** ImGui event-definition editor reusing `BlackboardAuthoringWindow`; writes the
