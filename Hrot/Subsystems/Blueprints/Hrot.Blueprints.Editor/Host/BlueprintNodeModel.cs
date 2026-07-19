@@ -102,7 +102,9 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.SetSharedNode ssn      => $"Set Shared: {(string.IsNullOrEmpty(ssn.VariableId) ? "(unset)" : ssn.VariableId)}",
         // Punch-list #1/#5/#8: show the node's own DATA in the body instead of the generic "Value"
         // pin label — the literal's value, the parameter's name, the compare/arith/bool operator.
-        Hrot.Blueprints.Core.Assets.GetParameterNode gp   => $"Get Param: {ResolveParameterName(gp.ParameterId, asset)}",
+        // Punch-list: the parameter NAME is shown on the output pin (render-only display label in
+        // BlueprintGraphModel), so the title stays clean/uncluttered.
+        Hrot.Blueprints.Core.Assets.GetParameterNode      => "Get Parameter",
         Hrot.Blueprints.Core.Assets.LiteralNode lt        => FormatLiteral(lt),
         Hrot.Blueprints.Core.Assets.CompareNode cmp       => $"Compare {OperatorSymbol(cmp.Operator)}",
         Hrot.Blueprints.Core.Assets.BinaryOpNode bin      => $"Math {OperatorSymbol(bin.Operator)}",

@@ -72,11 +72,15 @@ internal sealed class BlueprintPinModel : IPinModel
         Hrot.Blueprints.Core.Assets.Pin pin,
         NodeId ownerNodeId,
         IPinDefaultValueEditorRegistry? editorRegistry,
-        IEnumValueProvider?             enumProvider)
+        IEnumValueProvider?             enumProvider,
+        string?                         displayLabel = null)
     {
         Id          = new PinId(pin.Id);
         OwnerNodeId = ownerNodeId;
-        Label       = pin.Name;
+        // Display label may differ from the pin's identity Name (e.g. GetParameter's "Value" out-pin
+        // shows the parameter's NAME). The identity Name is untouched, so pin GUIDs / link
+        // rehydration are unaffected — this is render-only.
+        Label       = string.IsNullOrEmpty(displayLabel) ? pin.Name : displayLabel;
         Direction   = pin.Direction == "In" ? PinDirection.Input : PinDirection.Output;
         Kind        = pin.IsExec ? PinKind.Exec : PinKind.Data;
         Type        = pin.IsExec ? null : new TypeKey(pin.TypeRef.TypeId);

@@ -243,7 +243,8 @@ public sealed class BlueprintGraphModel : IGraphModel
                     TypeRef      = pin.TypeRef,
                     DefaultValue = defaultVal,
                 };
-                resolvedPins.Add(new BlueprintPinModel(resolvedPin, nodeId, _editorRegistry, _enumProvider));
+                var displayLabel = ResolvePinDisplayLabel(assetNode, resolvedPin);
+                resolvedPins.Add(new BlueprintPinModel(resolvedPin, nodeId, _editorRegistry, _enumProvider, displayLabel));
             }
             resolvedPinLists[assetNode.Id] = resolvedPins;
         }
@@ -271,6 +272,42 @@ public sealed class BlueprintGraphModel : IGraphModel
         _nodes = nodes;
         _pins  = pins;
         _links = links;
+    }
+
+    /// <summary>
+    /// Render-only display label for a projected data pin, when it reads clearer than the pin's
+    /// identity Name. GetParameter's generic "Value" out-pin is relabeled with the referenced
+    /// parameter's NAME (the node title stays clean). The pin's identity Name is untouched, so
+    /// GUIDs / link rehydration are unaffected. Returns null to keep the pin's Name.
+    /// (Get/SetShared + Get/SetVariable can adopt the same treatment here once confirmed.)
+    /// </summary>
+    private string? ResolvePinDisplayLabel(
+        Hrot.Blueprints.Core.Assets.Node node,
+        Hrot.Blueprints.Core.Assets.Pin pin)
+    {
+        if (pin.IsExec || pin.Name != "Value") return null;
+
+        return node switch
+        {
+            Hrot.Blueprints.Core.Assets.GetParameterNode gp => ResolveParameterLabel(gp.ParameterId),
+            _ => null,
+        };
+    }
+
+    private string? ResolveParameterLabel(string parameterId)
+    {
+        if (_asset == null || string.IsNullOrEmpty(parameterId)) return null;
+
+        var id = parameterId;
+        if (id.StartsWith("param:", System.StringComparison.OrdinalIgnoreCase)) id = id[6..];
+        else if (id.StartsWith("var:", System.StringComparison.OrdinalIgnoreCase)) id = id[4..];
+
+        if (System.Guid.TryParse(id, out var guid))
+        {
+            var decl = _asset.Parameters.FirstOrDefault(p => p.Id == guid);
+            if (decl != null && !string.IsNullOrEmpty(decl.Name)) return decl.Name;
+        }
+        return null;
     }
 
     private static readonly List<Link> _emptyLinks = new();

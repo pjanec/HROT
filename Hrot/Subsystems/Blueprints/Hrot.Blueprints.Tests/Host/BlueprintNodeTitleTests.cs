@@ -46,8 +46,10 @@ public sealed class BlueprintNodeTitleTests
         => Assert.Equal(expected, Title(new BooleanOpNode { Operator = op }));
 
     [Fact]
-    public void GetParameter_ShowsParameterName()
+    public void GetParameter_TitleIsClean_NameShownOnPinInstead()
     {
+        // The parameter NAME now labels the output pin (render-only, in BlueprintGraphModel), so the
+        // node title stays generic and uncluttered.
         var pid = System.Guid.NewGuid();
         var asset = new BlueprintAsset
         {
@@ -55,10 +57,6 @@ public sealed class BlueprintNodeTitleTests
             Name = "T",
             Parameters = new() { new ParameterDecl { Id = pid, Name = "FiringLineStart" } },
         };
-        Assert.Equal("Get Param: FiringLineStart",
-            Title(new GetParameterNode { ParameterId = pid.ToString() }, asset));
-        // param:<guid> item-id form resolves too.
-        Assert.Equal("Get Param: FiringLineStart",
-            Title(new GetParameterNode { ParameterId = "param:" + pid }, asset));
+        Assert.Equal("Get Parameter", Title(new GetParameterNode { ParameterId = pid.ToString() }, asset));
     }
 }
