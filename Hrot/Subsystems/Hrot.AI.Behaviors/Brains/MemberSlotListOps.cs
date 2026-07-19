@@ -1,4 +1,5 @@
 using Fdp.Core;
+using Hrot.Editor.AiShared;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -21,10 +22,12 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>Live entry count (oracle <c>ActiveAttackerCount</c>).</summary>
+        [BlueprintCallable("SlotList")]
         public static int Count(MemberSlotList list) => list.Count;
 
         /// <summary>An empty (zeroed) list — the wave-start reset (oracle <c>s.ActiveAttackerCount = 0</c>
         /// logically clears the SoA). <c>SetVariable(Runners ← Empty())</c> at <c>DispatchWave</c> start.</summary>
+        [BlueprintCallable("SlotList")]
         public static MemberSlotList Empty() => default;
 
         /// <summary>
@@ -32,6 +35,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// the graph-friendly form of <see cref="Add"/> (the visual graph carries the subordinate as an
         /// <c>Entity</c> from <c>FlowForEach.CurrentItem</c>, not a packed <c>long</c>).
         /// </summary>
+        [BlueprintCallable("SlotList")]
         public static MemberSlotList AddRunner(MemberSlotList list, Entity entity, int firingSlot, int baselineSlot)
             => Add(list, (long)entity.PackedValue, firingSlot, baselineSlot);
 
@@ -40,6 +44,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// returns the grown list. No-op (returns the input unchanged) when already at capacity 8 —
         /// matches the oracle only reaching here while <c>ActiveAttackerCount &lt; 8</c>.
         /// </summary>
+        [BlueprintCallable("SlotList")]
         public static MemberSlotList Add(MemberSlotList list, long entityPacked, int firingSlot, int baselineSlot)
         {
             if (list.Count >= 8) return list;
@@ -58,6 +63,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <c>SwapRemove</c>. Used by <c>IsWaveCompleted</c>'s reverse walk (removing at <c>i</c> while
         /// iterating downward never reprocesses the swapped-in entry).
         /// </summary>
+        [BlueprintCallable("SlotList")]
         public static MemberSlotList SwapRemoveAt(MemberSlotList list, int index)
         {
             if (list.Count <= 0) return list;
@@ -72,27 +78,33 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>Packed <c>Entity</c> handle of the <paramref name="index"/>-th live runner.</summary>
+        [BlueprintCallable("SlotList")]
         public static long GetEntityPacked(MemberSlotList list, int index)
             => list.EntityPacked[Clamp(index, list.Count)];
 
         /// <summary>The <paramref name="index"/>-th runner as an <see cref="Entity"/> (unpacked).</summary>
+        [BlueprintCallable("SlotList")]
         public static Entity GetEntity(MemberSlotList list, int index)
             => new Entity((ulong)list.EntityPacked[Clamp(index, list.Count)]);
 
         /// <summary>Assigned firing-slot index of the <paramref name="index"/>-th runner.</summary>
+        [BlueprintCallable("SlotList")]
         public static int GetSlotIndex(MemberSlotList list, int index)
             => list.SlotIndex[Clamp(index, list.Count)];
 
         /// <summary>Reserved return-baseline slot index of the <paramref name="index"/>-th runner.</summary>
+        [BlueprintCallable("SlotList")]
         public static int GetBaselineSlotIndex(MemberSlotList list, int index)
             => list.BaselineSlotIndex[Clamp(index, list.Count)];
 
         /// <summary>Run-started latch (0/1) of the <paramref name="index"/>-th runner.</summary>
+        [BlueprintCallable("SlotList")]
         public static int GetStarted(MemberSlotList list, int index)
             => list.Started[Clamp(index, list.Count)];
 
         /// <summary>Sets the run-started latch of the <paramref name="index"/>-th runner, returning the
         /// mutated list (oracle <c>s.HasStartedRun[i] = 1</c>).</summary>
+        [BlueprintCallable("SlotList")]
         public static MemberSlotList SetStarted(MemberSlotList list, int index, int started)
         {
             if (list.Count <= 0) return list;

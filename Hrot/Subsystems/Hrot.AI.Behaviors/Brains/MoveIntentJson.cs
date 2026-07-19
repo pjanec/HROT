@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Hrot.Editor.AiShared;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -17,6 +18,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// Serializes a <see cref="CgfNodes.MoveToLocationParams"/> (from the given target position + move
         /// tuning) to its relaxed-JSON string, byte-for-byte as the oracle does.
         /// </summary>
+        [BlueprintCallable("Intent", DisplayName = "Build MoveToLocation Intent")]
         public static string Build(float x, float y, float speed, float arrivalRadius)
         {
             var dto = new CgfNodes.MoveToLocationParams

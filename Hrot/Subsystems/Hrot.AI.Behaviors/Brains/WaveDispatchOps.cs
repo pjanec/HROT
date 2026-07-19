@@ -1,5 +1,6 @@
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Hrot.Editor.AiShared;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -21,6 +22,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// (<see cref="WaveParityOps.ShouldParticipate"/>). The per-slot availability check
         /// (<see cref="SlotOps.PickRandomFreeSlot"/> returning <c>-1</c>) stays a separate visual branch.
         /// </summary>
+        [BlueprintCallable("Wave")]
         public static bool ShouldConsider(
             Entity sub, int trackerCount, int rosterCount, int currentWave, ISimulationView view)
         {

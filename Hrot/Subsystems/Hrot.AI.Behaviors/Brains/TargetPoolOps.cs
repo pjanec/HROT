@@ -2,6 +2,7 @@ using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Spatial.Eqs;
+using Hrot.Editor.AiShared;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -20,6 +21,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// pool probe, floored at 1 (avoid divide-by-zero in the round-robin). Mirrors
         /// <c>DispatchWaveWithTargets</c> lines ~294-313.
         /// </summary>
+        [BlueprintCallable("Targets")]
         public static int ResolveTargetCount(long cachedEqsRequestId, int targetGroupHandle, ISimulationView view)
         {
             if (view is not EntityRepository world) return 1;
@@ -51,6 +53,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// is empty/dead or the target has no <see cref="NetworkIdentity"/> (the oracle's
         /// <c>targetNetId = 0</c> default).
         /// </summary>
+        [BlueprintCallable("Targets")]
         public static long ResolveNetId(
             long cachedEqsRequestId, int targetGroupHandle, int roundRobinIndex, ISimulationView view)
         {

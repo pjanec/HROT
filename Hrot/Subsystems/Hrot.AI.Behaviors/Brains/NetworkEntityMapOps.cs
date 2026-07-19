@@ -1,6 +1,7 @@
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Services;
+using Hrot.Editor.AiShared;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -35,6 +36,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <see cref="Entity.Null"/> rather than throw.
         /// </para>
         /// </summary>
+        [BlueprintCallable("NetworkMap")]
         public static Entity ResolveTarget(long targetNetworkId, ISimulationView view)
         {
             if (view is not EntityRepository world)

@@ -1,5 +1,6 @@
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Hrot.Editor.AiShared;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -27,6 +28,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// view rather than throw.
         /// </para>
         /// </summary>
+        [BlueprintCallable("World")]
         public static bool IsAlive(Entity e, ISimulationView view)
         {
             if (view is not EntityRepository world)
@@ -39,6 +41,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// Blueprint-callable resolve-failure test (<see cref="Entity.Null"/> equality). Contextless
         /// (<c>TrailingContext: "None"</c>) -- pure value comparison, no world access needed.
         /// </summary>
+        [BlueprintCallable("World")]
         public static bool IsNull(Entity e) => e == Entity.Null;
 
         /// <summary>
@@ -54,6 +57,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <see cref="ISimulationView"/>), so downcast; returns <c>0</c> for a non-repository view.
         /// </para>
         /// </summary>
+        [BlueprintCallable("World")]
         public static float SimTime(ISimulationView view)
         {
             if (view is not EntityRepository world)

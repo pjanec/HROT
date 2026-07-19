@@ -1,6 +1,7 @@
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Spatial.Eqs;
+using Hrot.Editor.AiShared;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -33,6 +34,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// signal. Wraps <see cref="AreaQueryBatchHelper.RequestAreaQuery"/> with
         /// <see cref="ForceId.Hostile"/> baked (the oracle's only caller uses Hostile).
         /// </summary>
+        [BlueprintCallable("EQS")]
         public static long Request(Entity targetArea, Entity self, ISimulationView view)
         {
             if (view is not EntityRepository world)
@@ -46,6 +48,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <c>GetAreaQueryResult(...).IsReady</c> guard). False for an unresolved slot or a non-repository
         /// view.
         /// </summary>
+        [BlueprintCallable("EQS")]
         public static bool IsReady(long requestId, ISimulationView view)
         {
             if (view is not EntityRepository world)
@@ -59,6 +62,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// (<c>GetAreaQueryResult(...).TargetCount</c>). <c>0</c> for a non-repository view — the graph
         /// only reads this on the ready path, where the result is the real solver output.
         /// </summary>
+        [BlueprintCallable("EQS")]
         public static int TargetCount(long requestId, ISimulationView view)
         {
             if (view is not EntityRepository world)
@@ -71,6 +75,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// Target-pool handle to cache for the wave dispatch (<c>GetAreaQueryResult(...).TargetGroupHandle</c>).
         /// <c>-1</c> for a non-repository view (matches the pool-exhausted sentinel).
         /// </summary>
+        [BlueprintCallable("EQS")]
         public static int TargetGroupHandle(long requestId, ISimulationView view)
         {
             if (view is not EntityRepository world)
@@ -85,6 +90,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// eliminated; the accompanying <c>CachedEqsRequestId = -1</c> WorkingState reset stays a visual
         /// <c>SetVariable</c> (architect Q#7-D). No-op for a non-repository view.
         /// </summary>
+        [BlueprintCallable("EQS", IsPure = false)]
         public static void Free(long requestId, ISimulationView view)
         {
             if (view is not EntityRepository world)

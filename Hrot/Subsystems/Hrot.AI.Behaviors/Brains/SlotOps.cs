@@ -1,6 +1,7 @@
 using System;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Hrot.Editor.AiShared;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -24,6 +25,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <c>self.Index ^ currentWave ^ (int)SimulationTime</c> — same inputs → same slot, so a proof
         /// can assert the exact slot.</para>
         /// </summary>
+        [BlueprintCallable("Slots")]
         public static int PickRandomFreeSlot(
             ushort burnedMask, ushort waveUsedMask, int totalSlots, int currentWave, Entity self, ISimulationView view)
         {
@@ -52,6 +54,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <paramref name="reservedMask"/>); if all reserved, second pass: closest regardless. Pure — no
         /// world/context needed (<c>TrailingContext:"None"</c>).
         /// </summary>
+        [BlueprintCallable("Slots")]
         public static int PickClosestBaselineSlot(
             float baselineStartX, float baselineStartY, float baselineEndX, float baselineEndY,
             ushort reservedMask, float slotX, float slotY, int totalSlots)

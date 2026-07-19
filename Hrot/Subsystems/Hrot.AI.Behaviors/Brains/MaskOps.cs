@@ -1,3 +1,5 @@
+using Hrot.Editor.AiShared;
+
 namespace Hrot.AI.Behaviors.Brains
 {
     /// <summary>
@@ -13,6 +15,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <c>HillAttackCommanderNodes.Action_DispatchAllToBaseline</c>'s
         /// <c>if (i &lt; 16) s.BaselineReservedMask |= (ushort)(1 &lt;&lt; i)</c>.
         /// </summary>
+        [BlueprintCallable("Mask")]
         public static ushort WithBitSet(ushort mask, int index)
             => index >= 0 && index < 16 ? (ushort)(mask | (1 << index)) : mask;
 
@@ -22,6 +25,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <c>HillAttackCommanderNodes.Condition_IsWaveCompleted</c>'s slot release
         /// <c>s.BaselineReservedMask &amp;= (ushort)~(1 &lt;&lt; slot)</c> (and the burned-slot equivalent).
         /// </summary>
+        [BlueprintCallable("Mask")]
         public static ushort WithBitCleared(ushort mask, int index)
             => index >= 0 && index < 16 ? (ushort)(mask & ~(1 << index)) : mask;
     }

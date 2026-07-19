@@ -2,6 +2,7 @@ using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
+using Hrot.Editor.AiShared;
 using Hrot.Map.Definitions.Behavior;
 
 namespace Hrot.AI.Behaviors.Brains
@@ -31,6 +32,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <para>P7: trailing <c>ISimulationView view</c> is baked <c>TrailingContext:"View"</c> and
         /// downcast to <see cref="EntityRepository"/> (GAP-10).</para>
         /// </summary>
+        [BlueprintCallable("Wave")]
         public static WaveState Update(WaveState s, ISimulationView view)
         {
             if (view is not EntityRepository world) return s;
@@ -72,6 +74,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>Number of runners still active after <see cref="Update"/> — the graph compares this
         /// against 0 to return Success (wave complete) vs Running.</summary>
+        [BlueprintCallable("Wave")]
         public static int ActiveCount(WaveState s) => s.Runners.Count;
 
         // ── tree-integration adapters (architect Q#9) ───────────────────────────
@@ -92,6 +95,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <c>ActiveRunners</c>/<c>BurnedSlotsMask</c>/<c>BaselineReservedMask</c> fields into a
         /// <see cref="WaveState"/>, calls <see cref="Update(WaveState, ISimulationView)"/>, writes them
         /// back), returning the mutated <see cref="HillAttackSharedState"/>.</summary>
+        [BlueprintCallable("Wave")]
         public static HillAttackSharedState UpdateShared(HillAttackSharedState s, ISimulationView view)
         {
             var wave = new WaveState
@@ -109,6 +113,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>Active-runner count off the shared struct (== <c>ActiveRunners.Count</c>).
         /// Distinctly named from <see cref="ActiveCount(WaveState)"/> — see the note above.</summary>
+        [BlueprintCallable("Wave")]
         public static int ActiveCountShared(HillAttackSharedState s) => s.ActiveRunners.Count;
     }
 }

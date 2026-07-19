@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Hrot.Editor.AiShared;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -18,6 +19,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// (<c>ApproachSpeed=15</c>, <c>CreepSpeed=5</c>, <c>MaxRounds=1</c>, <c>RoundsFired=0</c>,
         /// <c>LastObservedAmmo=-1</c>) are baked here, byte-for-byte as the oracle does.
         /// </summary>
+        [BlueprintCallable("Intent", DisplayName = "Build HullDownAttack Intent")]
         public static string Build(
             float slotX, float slotY, float baselineX, float baselineY,
             float attackDirX, float attackDirY, long targetNetworkId)
