@@ -73,18 +73,21 @@ internal sealed class BlueprintPinModel : IPinModel
         NodeId ownerNodeId,
         IPinDefaultValueEditorRegistry? editorRegistry,
         IEnumValueProvider?             enumProvider,
-        string?                         displayLabel = null)
+        string?                         displayLabel = null,
+        bool                            glyphless    = false)
     {
         Id          = new PinId(pin.Id);
         OwnerNodeId = ownerNodeId;
         // Display label may differ from the pin's identity Name (e.g. GetParameter's "Value" out-pin
         // shows the parameter's NAME). The identity Name is untouched, so pin GUIDs / link
         // rehydration are unaffected — this is render-only.
-        Label       = string.IsNullOrEmpty(displayLabel) ? pin.Name : displayLabel;
+        // glyphless (Literal's inline-editor input pin): no pin glyph, no label — only the value box.
+        Label       = glyphless ? "" : (string.IsNullOrEmpty(displayLabel) ? pin.Name : displayLabel);
         Direction   = pin.Direction == "In" ? PinDirection.Input : PinDirection.Output;
         Kind        = pin.IsExec ? PinKind.Exec : PinKind.Data;
         Type        = pin.IsExec ? null : new TypeKey(pin.TypeRef.TypeId);
-        Shape       = pin.IsExec ? PinShape.Triangle
+        Shape       = glyphless ? PinShape.None
+            : pin.IsExec ? PinShape.Triangle
             : pin.TypeRef.IsArray ? PinShape.Diamond
             : PinShape.Circle;
 

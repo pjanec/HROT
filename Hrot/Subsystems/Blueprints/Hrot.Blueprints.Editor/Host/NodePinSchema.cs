@@ -598,11 +598,14 @@ internal static class NodePinSchema
         var typeId = string.IsNullOrEmpty(lit.TypeId) ? "System.Object" : lit.TypeId;
         var pins = new List<Pin>();
 
-        // Prepend an editor-only "Value" INPUT pin (inline body editor on the left) — but only when
-        // the node doesn't already carry a data-in pin, so we never duplicate.
+        // Prepend an editor-only "Value" INPUT pin (inline body editor) — but only when the node
+        // doesn't already carry a data-in pin, so we never duplicate. Its TypeId is the PROXY editor
+        // type (e.g. the whole integer family edits through the Int32 editor); the real literal type is
+        // used only when formatting ValueJson on commit. Rendered glyph-less (see BlueprintGraphModel).
         bool hasDataIn = lit.Pins.Any(p => !p.IsExec && p.Direction == "In");
-        if (LiteralValueJson.HasInlineEditor(typeId) && !hasDataIn)
-            pins.Add(MakeData("Value", "In", typeId));
+        var editorType = LiteralValueJson.EditorTypeId(typeId);
+        if (editorType != null && !hasDataIn)
+            pins.Add(MakeData("Value", "In", editorType));
 
         // Preserve ALL authored pins (and their GUIDs) when present; otherwise synthesize the output.
         if (lit.Pins.Count > 0)
