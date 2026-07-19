@@ -238,7 +238,11 @@ internal static class WaitLowering_Instance
                     Id         = failureBlockId[k],
                     Label      = $"resume_{k}_failure",
                     Statements = new[] { Stmt(null, new IrOp_WriteCursorResumeAt(0)) },
-                    Terminator = new IrTerm_Return(null) { Debug = Synth() },
+                    // Q#13: route a channel-Failure resume to the wired OnFailure continuation when
+                    // present; null FailureBlock (inline-action / unwired OnFailure) ⇒ plain return.
+                    Terminator = suspend.FailureBlock is { } onFailBlk
+                        ? new IrTerm_Goto(onFailBlk) { Debug = Synth() }
+                        : new IrTerm_Return(null) { Debug = Synth() },
                 });
             }
             else if (waitOp is IrOp_LatentDelay)
@@ -369,7 +373,11 @@ internal static class WaitLowering_Instance
                     Id         = failureBlockId[k],
                     Label      = $"resume_{k}_failure",
                     Statements = new[] { Stmt(null, new IrOp_WriteCursorResumeAt(0)) },
-                    Terminator = new IrTerm_Return(null) { Debug = Synth() },
+                    // Q#13: route a channel-Failure resume to the wired OnFailure continuation when
+                    // present; null FailureBlock (inline-action / unwired OnFailure) ⇒ plain return.
+                    Terminator = suspend.FailureBlock is { } onFailBlk
+                        ? new IrTerm_Goto(onFailBlk) { Debug = Synth() }
+                        : new IrTerm_Return(null) { Debug = Synth() },
                 });
             }
         }

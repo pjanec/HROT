@@ -375,7 +375,14 @@ internal sealed class GraphScheduler
                     return;
 
                 case WaitForChannelNode wfc:
-                    ScheduleLatentNode(wfc, bb, BuildWaitForChannelOp(wfc));
+                    // Q#13: the success continuation is the exec-out that is NOT "OnFailure" (named
+                    // "Out" in real pin-less assets, "ExecOut" via the test builder — resolve by
+                    // exclusion, not a fixed name). The optional "OnFailure" exec-out, when wired,
+                    // becomes the channel-Failure continuation. GetSingleExecSuccessor no longer works
+                    // (two exec-outs). Unwired OnFailure ⇒ null ⇒ auto-Failure (byte-identical).
+                    ScheduleLatentNode(wfc, bb, BuildWaitForChannelOp(wfc),
+                        successSuccessor: GetExecSuccessorExcludingPinName(wfc, "OnFailure"),
+                        failureSuccessor: GetExecSuccessorByPinName(wfc, "OnFailure"));
                     return;
 
                 case WaitForEventNode wfe:
@@ -472,7 +479,8 @@ internal sealed class GraphScheduler
     // Latent node handling (SC5)
     // -----------------------------------------------------------------------
 
-    private void ScheduleLatentNode(Node node, BlockBuilder bb, IrOperation latentOp)
+    private void ScheduleLatentNode(Node node, BlockBuilder bb, IrOperation latentOp,
+        Node? successSuccessor = null, Node? failureSuccessor = null)
     {
         // The pre-suspend block now represents this latent node.
         bb.SourceNodeId = node.Id;
@@ -506,10 +514,30 @@ internal sealed class GraphScheduler
             },
         });
 
+        // Q#13: when a failure continuation is supplied (WaitForChannel with OnFailure wired),
+        // allocate a parallel failure-resume block, enqueue its exec chain, and thread it via
+        // Suspend.FailureBlock so WaitLowering routes a channel-Failure resume here instead of
+        // returning NodeStatus.Failure. Null ⇒ unchanged auto-Failure behavior.
+        IrBlockId? failureResumeBlockId = null;
+        if (failureSuccessor is not null)
+        {
+            var failBlockId = AllocBlock($"wait_fail_{_resumeCounter - 1}");
+            failureResumeBlockId = failBlockId;
+            if (IsMergePoint(failureSuccessor.Id))
+            {
+                _blockBuilders[failBlockId.Value].Terminator =
+                    new IrTerm_Goto(GetOrAllocMergeBlock(failureSuccessor)) { Debug = DebugOf(node) };
+                _scheduledBlocks.Add(failBlockId.Value);
+            }
+            else
+                _bfsQueue.Enqueue((failBlockId.Value, failureSuccessor));
+        }
+
         bb.Terminator = new IrTerm_Suspend(
             ResumePoint  : resumePointValue,
             WaitUntilTime: null,
-            ResumeBlock  : resumeBlockId)
+            ResumeBlock  : resumeBlockId,
+            FailureBlock : failureResumeBlockId)
         {
             Debug = DebugOf(node),
         };
@@ -519,8 +547,9 @@ internal sealed class GraphScheduler
         if (_fallThroughTarget.TryGetValue(bb.Id.Value, out var latentFt))
             _fallThroughTarget[resumeBlockId.Value] = latentFt;
 
-        // Enqueue continuation in resume block.
-        var continuation = GetSingleExecSuccessor(node);
+        // Enqueue continuation in resume block. Q#13: prefer the caller-resolved success successor
+        // (WaitForChannel's "Out") — GetSingleExecSuccessor returns null once the node has >1 exec-out.
+        var continuation = successSuccessor ?? GetSingleExecSuccessor(node);
         if (continuation is not null && IsMergePoint(continuation.Id))
         {
             // Convergent continuation: the resume block jumps to the shared merge block rather than
@@ -1623,6 +1652,42 @@ internal sealed class GraphScheduler
                 break;
             }
 
+            // WaitForChannel "Status" data-out (Q#13): re-read channel.Status at point of use.
+            // The continuation only runs after the channel is non-Running, so this yields Success on
+            // the "Out" path and Failure on the "OnFailure" path. Self + GetComponentRO + FieldRead,
+            // mirroring the check-block reads WaitLowering emits. Only the Status pin is a data-out on
+            // this node, so no per-pin discrimination is needed.
+            case WaitForChannelNode wfcStatus:
+            {
+                string channelFqnS = ResolveChannelTypeFqn(wfcStatus.ChannelType);
+                var chTypeRefS = new IrTypeRef { FullName = channelFqnS, IsUnmanaged = true, SizeBytes = 0 };
+
+                var selfVS = AllocValue(Stage5_Schedule.EntityType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = selfVS,
+                    Operation   = new IrOp_Self(),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = wfcStatus.Id, PinId = sourcePinId },
+                });
+
+                var chVS = AllocValue(chTypeRefS);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = chVS,
+                    Operation   = new IrOp_GetComponentRO(channelFqnS, selfVS, chTypeRefS),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = wfcStatus.Id, PinId = sourcePinId },
+                });
+
+                result = AllocValue(pinType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = result,
+                    Operation   = new IrOp_FieldRead(chVS, "Status", pinType),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = wfcStatus.Id, PinId = sourcePinId },
+                });
+                break;
+            }
+
             case GetSharedNode gsn:
             {
                 // Name-keyed slot -- NOT FindVariableIndex (the shared struct is foreign to this
@@ -2646,6 +2711,23 @@ internal sealed class GraphScheduler
                 break;
             }
         }
+    }
+
+    /// <summary>
+    /// Resolves the exec successor reached via the single exec-out pin whose name is NOT
+    /// <paramref name="excludedName"/> (Q#13: WaitForChannel's success continuation — the one
+    /// exec-out that isn't "OnFailure", robust to "Out" vs the builder's "ExecOut"). Returns null
+    /// unless exactly one such pin exists and it is wired.
+    /// </summary>
+    private Node? GetExecSuccessorExcludingPinName(Node node, string excludedName)
+    {
+        var pins = node.Pins
+            .Where(p => p.IsExec && p.Direction == "Out"
+                     && !string.Equals(p.Name, excludedName, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (pins.Count != 1) return null;
+        var link = _graph.Links.FirstOrDefault(l => l.FromNodeId == node.Id && l.FromPinId == pins[0].Id);
+        return link is not null && _nodeById.TryGetValue(link.ToNodeId, out var t) ? t : null;
     }
 
     /// <summary>Resolves the exec successor reached via a specific named exec-out pin (e.g. "Body"/"Completed").</summary>

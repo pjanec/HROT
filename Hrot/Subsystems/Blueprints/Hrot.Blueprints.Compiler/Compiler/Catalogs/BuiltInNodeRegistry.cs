@@ -98,7 +98,21 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         CallEventDispatcherNode   => new[] { ExecIn(), ExecOut() },
         BindEventDispatcherNode   => new[] { ExecIn(), ExecOut() },
         ChannelCommandNode        => new[] { ExecIn(), ExecOut() },
-        WaitForChannelNode        => new[] { ExecIn(), ExecOut() },
+        // WaitForChannel (Q#13): exec-in "In", success exec-out "Out" (name kept for link compat),
+        // failure exec-out "OnFailure", and a "Status" (NodeStatus) data-out. Names are load-bearing
+        // for Stage5 (success = "Out", failure = "OnFailure"). OnFailure/Status unwired ⇒ behavior
+        // byte-identical to the pre-Q13 single-exec-out node.
+        WaitForChannelNode        => new[]
+        {
+            ExecIn(),
+            ExecOut(),
+            new("OnFailure", "Out", true, ""),
+            // Runtime enum, carried with the AN2 "global::" sentinel so StaticTypeRegistry accepts it
+            // as an unmanaged enum (Int32 backing) — the reflection-less compiler can't verify the FQN,
+            // so it trusts the prefix and emits a cast the C# compiler validates. Matches the channel
+            // component's Status field type (global::Fbt.NodeStatus).
+            Data("Status", "Out", "global::Fbt.NodeStatus"),
+        },
         WaitForEventNode          => new[] { ExecIn(), ExecOut() },
 
         // PublishEvent (P4 -- GAP-3): catalog-driven exec node, mirrors ChannelCommandNode.

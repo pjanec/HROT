@@ -93,6 +93,56 @@ public sealed class Stage6Tests
     }
 
     // ------------------------------------------------------------------
+    // Q#13: WaitForChannel OnFailure exec split
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void Stage6_AiPrimitive_WaitForChannel_WiredOnFailure_RoutesFailureToChain()
+    {
+        var asset = BlueprintAssetBuilder
+            .AiPrimitive("AiPrimWaitFail")
+            .WithHostings(AiPrimitiveHosting.BTreeAction)
+            .WithGraph("Main", g => g.Entry()
+                .WaitForChannelWithFailure("TestChannel", fail => fail.Return(NodeStatus.Failure))
+                .Return(NodeStatus.Success))
+            .Build();
+
+        var sink    = new DiagnosticSink();
+        var lowered = RunStage5Then6(asset, sink);
+        Assert.False(sink.HasErrors,
+            $"Unexpected errors: {string.Join(", ", sink.All.Select(d => d.Code))}");
+
+        var graph = Assert.Single(lowered.Graphs);
+
+        // Q#13: with OnFailure wired, the channel-failure block resets phase then GOTOs the wired
+        // continuation, rather than returning NodeStatus.Failure (the unwired shape — see control below).
+        var failureBlock = graph.Blocks.First(b => b.Label == "phase1_failure");
+        Assert.IsType<IrTerm_Goto>(failureBlock.Terminator);
+        Assert.Contains(failureBlock.Statements,
+            s => s.Operation is IrOp_WriteWorkingStatePhase wsp && wsp.PhaseValue == 0);
+    }
+
+    [Fact]
+    public void Stage6_AiPrimitive_WaitForChannel_UnwiredOnFailure_ReturnsFailure()
+    {
+        // Backward-compat control: no OnFailure wired ⇒ failure block returns NodeStatus.Failure,
+        // byte-identical to the pre-Q13 single-exec-out behavior.
+        var asset = BlueprintAssetBuilder
+            .AiPrimitive("AiPrimWaitNoFail")
+            .WithHostings(AiPrimitiveHosting.BTreeAction)
+            .WithGraph("Main", g => g.Entry().WaitForChannel("TestChannel").Return())
+            .Build();
+
+        var sink    = new DiagnosticSink();
+        var lowered = RunStage5Then6(asset, sink);
+        var graph   = Assert.Single(lowered.Graphs);
+
+        var failureBlock = graph.Blocks.First(b => b.Label == "phase1_failure");
+        var term = Assert.IsType<IrTerm_ReturnStatus>(failureBlock.Terminator);
+        Assert.Equal(NodeStatus.Failure, term.Status);
+    }
+
+    // ------------------------------------------------------------------
     // SC2: Instance WaitForChannel -- cursor dispatch structure
     // ------------------------------------------------------------------
 

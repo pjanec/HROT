@@ -250,6 +250,42 @@ public sealed class GraphBuilder
         return this;
     }
 
+    /// <summary>
+    /// Q#13: adds a WaitForChannelNode with the "OnFailure" exec-out wired to a sub-chain, plus the
+    /// normal success exec-out ("ExecOut") that the MAIN chain continues from. Mirrors <see cref="Branch"/>'s
+    /// named-exec-out sub-builder pattern. The success exec-out is deliberately NOT named "OnFailure"
+    /// so Stage5's exclude-OnFailure resolution treats it as the success path.
+    /// </summary>
+    public GraphBuilder WaitForChannelWithFailure(string channelType, Action<GraphBuilder> onFailure)
+    {
+        var nodeId = MakeNodeId("WaitForChannel", _nodes.Count);
+        var node = new WaitForChannelNode { Id = nodeId, ChannelType = channelType };
+
+        var execInPinId    = MakePinId(nodeId, "ExecIn");
+        var execOutPinId   = MakePinId(nodeId, "ExecOut");    // success continuation
+        var onFailurePinId = MakePinId(nodeId, "OnFailure");  // failure continuation
+
+        node.Pins.Add(new Pin { Id = execInPinId,    Name = "ExecIn",    Direction = "In",  IsExec = true, TypeRef = new() });
+        node.Pins.Add(new Pin { Id = execOutPinId,   Name = "ExecOut",   Direction = "Out", IsExec = true, TypeRef = new() });
+        node.Pins.Add(new Pin { Id = onFailurePinId, Name = "OnFailure", Direction = "Out", IsExec = true, TypeRef = new() });
+
+        LinkExec(_lastNodeId, _lastExecOutPinId, nodeId, execInPinId);
+        _nodes.Add(node);
+
+        // OnFailure sub-chain starts from the OnFailure exec-out.
+        var failBuilder = new GraphBuilder(_name + "_OnFailure", _kind, _assetId);
+        failBuilder._lastNodeId = nodeId;
+        failBuilder._lastExecOutPinId = onFailurePinId;
+        onFailure(failBuilder);
+        _nodes.AddRange(failBuilder._nodes);
+        _links.AddRange(failBuilder._links);
+
+        // Main chain continues from the SUCCESS exec-out.
+        _lastNodeId = nodeId;
+        _lastExecOutPinId = execOutPinId;
+        return this;
+    }
+
     /// <summary>Adds a SetVariableNode.</summary>
     public GraphBuilder SetVariable(string variableName, string valueExpression)
     {

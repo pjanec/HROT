@@ -11,7 +11,10 @@ public sealed record IrTerm_Goto(IrBlockId Target) : IrTerminator;
 public sealed record IrTerm_Branch(IrValue Condition, IrBlockId IfTrue, IrBlockId IfFalse) : IrTerminator;
 public sealed record IrTerm_Return(IrValue? Value) : IrTerminator;
 public sealed record IrTerm_ReturnStatus(NodeStatus Status) : IrTerminator;
-public sealed record IrTerm_Suspend(IrValue ResumePoint, IrValue? WaitUntilTime, IrBlockId ResumeBlock) : IrTerminator;
+// FailureBlock (Q#13): when set, the WaitForChannel latent lowering routes a channel-Failure
+// resume to this block (the wired OnFailure exec chain) instead of returning NodeStatus.Failure.
+// Null for LatentDelay / WaitForEvent / WaitForChannel-with-unwired-OnFailure (unchanged behavior).
+public sealed record IrTerm_Suspend(IrValue ResumePoint, IrValue? WaitUntilTime, IrBlockId ResumeBlock, IrBlockId? FailureBlock = null) : IrTerminator;
 public sealed record IrTerm_FallThrough : IrTerminator;
 
 public sealed record IrBlock
