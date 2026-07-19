@@ -126,6 +126,11 @@ public static class BlueprintEditorBootstrap
         foreach (var descriptor in BlueprintCallablePaletteEntries.Discover())
             registry.Register(descriptor);
 
+        // Q#14: register a "Publish: {Event}" entry per discovered custom event (C# [BlueprintEvent] +
+        // editor-authored defs). Each drops a PublishEvent node baked with the event's FQN + fields.
+        foreach (var descriptor in BlueprintEventPaletteEntries.PublishEntries())
+            registry.Register(descriptor);
+
         return registry;
     }
 

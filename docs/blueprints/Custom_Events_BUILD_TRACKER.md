@@ -14,7 +14,7 @@ Legend: ⬜ todo · 🟡 in progress · ✅ done (committed) · ⏸️ deferred.
 ## Phase 2 — Publish
 - ✅ **2a** PublishEvent data-in pins from discovery (editor bakes `EventTypeFqn` + `(field,type)` onto node)
 - ⬜ **2b** PublishEvent → generic carrier lowering (`PublishRaw`/`InjectIntoCurrentBySize`)
-- ⬜ **2c** PublishEvent editor-addable (palette entry per discovered event)
+- ✅ **2c** PublishEvent editor-addable (palette entry per discovered event)
 
 ## Phase 3 — Dispatch (net-new core)
 - ⬜ **3a** Subscription registry: event **type-id → subscribers**, built at load (extend `[BlueprintRegistrar]` scan)
