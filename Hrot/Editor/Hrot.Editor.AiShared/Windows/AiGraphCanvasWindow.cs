@@ -2,6 +2,7 @@ using System;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Documents;
 using NodeEditor.Core.Action;
+using NodeEditor.Core.Bookmarks;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Core.View;
 using NodeEditor.UI.Find;
@@ -43,6 +44,16 @@ public sealed class AiCanvasContext
     /// <see cref="BuiltinCommandHandlers.RegisterAll"/>.
     /// </summary>
     public IEditorCommands? Commands { get; set; }
+
+    /// <summary>
+    /// Optional per-document bookmark store built by the document factory. When non-null,
+    /// the composition root can draw the off-screen bookmark edge-marker overlay (see
+    /// <c>BlueprintEditorBootstrap.DrawBookmarkEdgeMarkers</c>) and/or a Bookmarks panel
+    /// window for this document. Set/jump commands are registered directly on
+    /// <see cref="Commands"/> by the document factory (Ctrl+1..9 / Ctrl+Shift+1..9), so this
+    /// property only needs to be read by the rendering/overlay path.
+    /// </summary>
+    public BookmarkStore? Bookmarks { get; set; }
 
     /// <summary>
     /// Creates a canvas context.

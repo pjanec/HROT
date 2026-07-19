@@ -2783,9 +2783,21 @@ namespace Hrot.Editor
             // AIE-046: Register Blueprint canvas window into the Blueprint perspective.
             _blueprintRegistrar!.RegisterExtraWindow(windowManager, blueprintCanvasWindow);
             // BF-UX1 FIX C: wire the per-frame selection→Details bridge.
-            blueprintCanvasWindow.AfterDraw =
+            // Bookmarks: also draw the off-screen edge-marker overlay (yellow arrows toward
+            // bookmarked slots 1-9 that are scrolled out of view) every frame the canvas is
+            // drawn — mirrors NodeEditor.Demo.DemoShell's overlay convention exactly (see
+            // BlueprintEditorBootstrap.DrawBookmarkEdgeMarkers for why this isn't wired as an
+            // ICustomCanvasRenderer).
+            var blueprintSelectionAfterDraw =
                 Hrot.Blueprints.Editor.Host.BlueprintSelectionBridgeHelper.BuildAfterDrawAction(
                     _blueprintSelectionStore);
+            blueprintCanvasWindow.AfterDraw = ctx =>
+            {
+                blueprintSelectionAfterDraw(ctx);
+                if (ctx.Bookmarks != null)
+                    Hrot.Blueprints.Editor.BlueprintEditorBootstrap.DrawBookmarkEdgeMarkers(
+                        ctx.View, ctx.Bookmarks, adapterBundle.EditorTheme);
+            };
             // FIX-A: wire per-frame canvas selection→Inspector bridges for BTree and HSM.
             // Each AfterDraw reads ctx.AssetRef (set by the document factory) and maps
             // the single selected node to a BTreeNodeSelection / HsmStateSelection published
@@ -2798,6 +2810,12 @@ namespace Hrot.Editor
             // ── AIE-047: Blueprint "My Blueprint" panel window ────────────────────────────────
             _blueprintMyBlueprintWindow = new Hrot.Blueprints.Editor.Windows.BlueprintMyBlueprintWindow();
             _blueprintRegistrar!.RegisterExtraWindow(windowManager, _blueprintMyBlueprintWindow);
+
+            // ── Bookmarks panel window (set/jump via Ctrl+1..9 / Ctrl+Shift+1..9; this
+            // window is just a read-only list of the active document's bookmarks) ───────────
+            var blueprintBookmarksWindow =
+                new Hrot.Blueprints.Editor.Windows.BlueprintBookmarksWindow(_aiDocumentManager!);
+            _blueprintRegistrar!.RegisterExtraWindow(windowManager, blueprintBookmarksWindow);
 
             // ── AIE-048: Blueprint Details + Variables windows ────────────────────────────────
             _blueprintDetailsWindow = new Hrot.Blueprints.Editor.Windows.BlueprintDetailsWindow(

@@ -7,7 +7,11 @@ using Hrot.Blueprints.Editor.Visuals;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Catalog;
 using Fdp.Toolkit.ReplayBrowser.Search;
+using ImGuiNET;
+using NodeEditor.Core.Bookmarks;
 using NodeEditor.Core.Interfaces;
+using NodeEditor.Core.View;
+using NodeEditor.UI.Bookmarks;
 using System.Reflection;
 
 namespace Hrot.Blueprints.Editor;
@@ -158,6 +162,39 @@ public static class BlueprintEditorBootstrap
 #endif
 
         return renderers;
+    }
+
+    /// <summary>
+    /// Draws bookmark edge-markers (arrows at the canvas edge pointing to off-screen
+    /// bookmarked viewports, slots 1-9) for the given document.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// NOT registered through <see cref="CreateCanvasRenderers"/> /
+    /// <see cref="ICustomCanvasRenderer"/>: <see cref="BookmarkEdgeMarkerRenderer"/> is a
+    /// static helper (not an <see cref="ICustomCanvasRenderer"/> implementation) that needs
+    /// direct <see cref="GraphView"/> access (<c>Interaction.BeginViewportTween</c> for
+    /// click-to-jump) which <see cref="ICanvasRenderContext"/> deliberately does not expose
+    /// (render-only contract). <c>NodeEditor.Demo.DemoShell</c> — the reference usage —
+    /// calls it the same way: directly, in a dedicated input-transparent overlay child
+    /// window drawn immediately after the canvas, not through the custom-renderer pass.
+    /// This method mirrors that exact convention.
+    /// </para>
+    /// <para>
+    /// Call once per frame after the canvas has rendered (e.g. from
+    /// <c>AiGraphCanvasWindow.AfterDraw</c>), only when the document has a
+    /// <see cref="BookmarkStore"/> attached.
+    /// </para>
+    /// </remarks>
+    public static void DrawBookmarkEdgeMarkers(GraphView view, BookmarkStore store, IEditorTheme theme)
+    {
+        ImGui.SetCursorScreenPos(view.Viewport.CanvasScreenOrigin);
+        if (ImGui.BeginChild("##bookmark_edge_markers", view.Viewport.CanvasScreenSize, ImGuiChildFlags.None,
+            ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoInputs))
+        {
+            BookmarkEdgeMarkerRenderer.Render(view, store, theme);
+        }
+        ImGui.EndChild();
     }
 
     /// <summary>
