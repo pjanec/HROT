@@ -33,6 +33,22 @@ expression, evaluated once; field assignment order is irrelevant and there is no
 state. (Today's `PublishEvent` is already exactly this shape.) So the multi-pin publish node is safe to build;
 the ordering concern that gates `SetShared` does not apply.
 
+## Reuse map — custom-event editing ≈ shared-state editing (already shipped)
+
+The user's instinct is correct: editing a custom event in the editor is nearly identical to editing
+`GetShared`/`SetShared`, and the machinery is directly reusable — **including JSON storage**.
+
+| Concern | Shared-state (exists) | Custom-event (reuse) |
+|---|---|---|
+| Type discovery | `ISharedStructTypeProvider` / `ReflectionSharedStructTypeProvider` — scans loaded assemblies for value types marked `[BlackboardDtoStructAttribute]` (attribute + reflection, **no manual registry**) | same provider pattern over `[BlueprintEvent]` structs (or a shared marker) |
+| Field editing | `Get/SetSharedNodeDrawer` reflects the struct's fields → per-field pins; a filtered "Type FQN" picker | same drawer/picker, injected with the event-type provider |
+| JSON storage | the node bakes `SharedTypeId` (FQN) + `VariableId` + wired field pins; the **struct stays in C#** (reflected), only the FQN reference + field wiring live in the `.bp.json`. Round-trip proven by `SharedNodeCommandSinkAndPersistenceTests` | identical: bake `EventTypeFqn` + wired field pins; no struct definition in JSON |
+
+So the discovery-provider + drawer + filtered-picker + baked-FQN JSON model is **proven in the codebase**
+(shared state) and should be lifted, not reinvented. This also reinforces Q14-A: reflection-via-attribute
+discovery already exists in **two** places — `[BlackboardDtoStructAttribute]` (shared structs) and
+`[BlueprintCallable]` (Q#12 CLR helpers).
+
 ## Sub-questions
 
 ### Q14-A — Discovery: reflection-via-attribute (kill the manual registry)
