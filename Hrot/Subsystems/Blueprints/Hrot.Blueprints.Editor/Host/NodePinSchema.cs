@@ -127,6 +127,11 @@ internal static class NodePinSchema
             FunctionCallNode fc => FunctionCallPinsDispatch(fc, asset, containingGraph),
             GetVariableNode gv  => GetVariablePins(gv, ResolveVariableTypeId(gv.VariableId, asset)),
             SetVariableNode sv  => SetVariablePins(sv, ResolveVariableTypeId(sv.VariableId, asset)),
+            // GetParameter: pin-less assets (e.g. the integrated HillAssault2I_* blueprints) carry no
+            // authored pins, and the compiler bakes this node at lowering (no pin needed there). The
+            // EDITOR still needs the "Value" out-pin projected so the node renders connected — reconstruct
+            // it here, typed from the referenced Parameter (mirrors the authored shape in the twins).
+            GetParameterNode gp => GetParameterPins(gp, asset),
             GetSharedNode gsn   => GetSharedPins(gsn),
             SetSharedNode ssn   => SetSharedPins(ssn),
             ChannelCommandNode cc => ChannelCommandPins(cc, channelCommands, behaviorActions),
@@ -567,6 +572,40 @@ internal static class NodePinSchema
         {
             MakeData("Value", "Out", typeId),
         };
+
+    /// <summary>
+    /// GetParameter (editor projection): a single "Value" data-out pin typed from the referenced
+    /// blueprint <see cref="ParameterDecl"/> (fallback <c>System.Object</c>). Matches the authored
+    /// shape the isolated twins persist, so a pin-less integrated blueprint renders its GetParameter
+    /// output connected.
+    /// </summary>
+    private static IReadOnlyList<Pin> GetParameterPins(GetParameterNode gp, BlueprintAsset? asset)
+        => new[]
+        {
+            MakeData("Value", "Out", ResolveParameterTypeId(gp.ParameterId, asset)),
+        };
+
+    /// <summary>
+    /// Looks up a blueprint parameter's <c>TypeId</c> by id (accepts the raw GUID or the
+    /// <c>param:</c>/<c>var:</c> item-id forms). Returns <c>System.Object</c> when not resolvable.
+    /// </summary>
+    private static string ResolveParameterTypeId(string parameterId, BlueprintAsset? asset)
+    {
+        if (asset == null || string.IsNullOrEmpty(parameterId))
+            return "System.Object";
+
+        var idStr = parameterId;
+        if (idStr.StartsWith("param:", StringComparison.OrdinalIgnoreCase)) idStr = idStr[6..];
+        else if (idStr.StartsWith("var:", StringComparison.OrdinalIgnoreCase)) idStr = idStr[4..];
+
+        if (Guid.TryParse(idStr, out var guid))
+        {
+            var decl = asset.Parameters.FirstOrDefault(p => p.Id == guid);
+            if (decl != null && !string.IsNullOrEmpty(decl.Type?.TypeId))
+                return decl.Type.TypeId;
+        }
+        return "System.Object";
+    }
 
     private static IReadOnlyList<Pin> SetVariablePins(SetVariableNode sv, string typeId)
         => new[]
