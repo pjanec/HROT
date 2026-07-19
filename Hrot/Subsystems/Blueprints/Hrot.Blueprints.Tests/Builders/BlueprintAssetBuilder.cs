@@ -101,6 +101,7 @@ public sealed class GraphBuilder
     private readonly Guid _graphId;
     private readonly List<Node> _nodes = new();
     private readonly List<Link> _links = new();
+    private readonly List<ParameterDecl> _inputs = new();
 
     // Tracks the last added node for automatic exec-wire chaining.
     private Guid _lastNodeId = Guid.Empty;
@@ -172,12 +173,20 @@ public sealed class GraphBuilder
 
     // ---- Node-producing methods ----
 
-    /// <summary>Adds an EventEntryNode (graph entry point, exec-out only).</summary>
-    public GraphBuilder Entry()
+    /// <summary>Adds an EventEntryNode (graph entry point, exec-out only). Q#14: optional event identity
+    /// (<paramref name="eventTypeId"/>) marks which event an Event graph subscribes to.</summary>
+    public GraphBuilder Entry(string? eventTypeId = null)
     {
         var nodeId = MakeNodeId("EventEntry", _nodes.Count);
-        var node = new EventEntryNode { Id = nodeId };
+        var node = new EventEntryNode { Id = nodeId, EventTypeId = eventTypeId ?? "" };
         RegisterNode(node, hasExecIn: false, hasExecOut: true);
+        return this;
+    }
+
+    /// <summary>Q#14: declares a graph input (Event-graph payload field). Feeds Graph.Inputs.</summary>
+    public GraphBuilder WithInput(string name, string typeId)
+    {
+        _inputs.Add(new ParameterDecl { Name = name, Type = new BlueprintTypeRef { TypeId = typeId } });
         return this;
     }
 
@@ -447,7 +456,7 @@ public sealed class GraphBuilder
             Kind = _kind,
             Nodes = new List<Node>(_nodes),
             Links = new List<Link>(_links),
-            Inputs = new(),
+            Inputs = new List<ParameterDecl>(_inputs),
             Outputs = new(),
         };
     }

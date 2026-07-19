@@ -564,6 +564,12 @@ internal sealed class V_EventGraphReferences : IValidator
                         || Stage2Helpers.LastSegment(e.EventTypeFqn) == node.EventTypeId))
                     continue;
 
+                // Q#14: a fully-qualified custom-event identity (contains '.') is a baked [BlueprintEvent]
+                // subscription the compiler cannot verify (netstandard2.0 can't reflect game assemblies) —
+                // trust it, mirroring the baked PublishEvent FQN path. Non-FQN unknown names still error
+                // (typo guard for hand-referenced catalog events). (IndexOf: netstandard2.0 has no char Contains.)
+                if (node.EventTypeId.IndexOf('.') >= 0) continue;
+
                 ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1400,
                     $"EventEntryNode references unknown event type '{node.EventTypeId}'.",
                     asset.AssetId, graph.Id, node.Id));
