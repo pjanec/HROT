@@ -87,6 +87,13 @@ internal static class NodePinSchema
         Func<Guid, BlueprintSignature?>? peerSignatureLookup = null,
         IBehaviorActionCatalog?         behaviorActions      = null)
     {
+        // Literal: always project an editor-only "Value" INPUT pin so the inline body editor renders
+        // on the left of the output pin. The "Value" OUTPUT pin (and its authored GUID, when present)
+        // is preserved unchanged, so link binding is unaffected; the input pin is editor-only (stripped
+        // on save, never seen by the compiler — the value round-trips via LiteralNode.ValueJson).
+        if (node is LiteralNode lit)
+            return LiteralInlinePins(lit);
+
         // Pass 0: asset already has pins (builder-created test assets).
         if (node.Pins.Count > 0)
             return node.Pins;
@@ -579,6 +586,33 @@ internal static class NodePinSchema
     /// shape the isolated twins persist, so a pin-less integrated blueprint renders its GetParameter
     /// output connected.
     /// </summary>
+    /// <summary>
+    /// Literal editor projection: an editor-only "Value" data-IN pin (for inline-editable types) so the
+    /// canvas inline editor renders in the body, plus the "Value" data-OUT pin. The authored output pin
+    /// (and its GUID) is reused when present so outgoing links keep binding; otherwise the output is
+    /// synthesized. The input pin is never persisted (pins are stripped on save) and never reaches the
+    /// compiler — its edited value is written back to <c>LiteralNode.ValueJson</c> on commit.
+    /// </summary>
+    private static IReadOnlyList<Pin> LiteralInlinePins(LiteralNode lit)
+    {
+        var typeId = string.IsNullOrEmpty(lit.TypeId) ? "System.Object" : lit.TypeId;
+        var pins = new List<Pin>();
+
+        // Prepend an editor-only "Value" INPUT pin (inline body editor on the left) — but only when
+        // the node doesn't already carry a data-in pin, so we never duplicate.
+        bool hasDataIn = lit.Pins.Any(p => !p.IsExec && p.Direction == "In");
+        if (LiteralValueJson.HasInlineEditor(typeId) && !hasDataIn)
+            pins.Add(MakeData("Value", "In", typeId));
+
+        // Preserve ALL authored pins (and their GUIDs) when present; otherwise synthesize the output.
+        if (lit.Pins.Count > 0)
+            pins.AddRange(lit.Pins);
+        else
+            pins.Add(MakeData("Value", "Out", typeId));
+
+        return pins;
+    }
+
     private static IReadOnlyList<Pin> GetParameterPins(GetParameterNode gp, BlueprintAsset? asset)
         => new[]
         {

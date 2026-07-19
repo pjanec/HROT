@@ -620,6 +620,22 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         string pinName  = pinModel.Label;
         string typeId   = pinModel.Type?.Id ?? "";
 
+        // Literal: the inline body editor commits into LiteralNode.ValueJson (with the correct C#
+        // literal formatting — float 'f' suffix, string quotes) rather than the generic PinDefaults
+        // map, so the designer types a bare value and never sees the C# syntax.
+        if (assetNode is LiteralNode literal)
+        {
+            var newJson = LiteralValueJson.ToValueJson(literal.TypeId, cmd.NewValue);
+            var oldJson = literal.ValueJson;
+            _editService.RecordPropertyEdit(
+                _asset,
+                "Set literal value",
+                apply: () => literal.ValueJson = newJson,
+                undo:  () => literal.ValueJson = oldJson);
+            _model.RebuildAndNotify();
+            return new GraphCommandResult(true, null);
+        }
+
         // For enum pins the editor sets value = (long)selectedEntry.Value.
         // ENUM-NAME: persist as the member name string, not the integer.
         string? newStr;

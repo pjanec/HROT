@@ -233,7 +233,16 @@ public sealed class BlueprintGraphModel : IGraphModel
                 // Carry over DefaultValue from node.PinDefaults (persisted on the asset) so the
                 // canvas inline editor reads the previously-set value after reload.
                 string? defaultVal = null;
-                assetNode.PinDefaults?.TryGetValue(pin.Name, out defaultVal);
+                if (assetNode is Hrot.Blueprints.Core.Assets.LiteralNode litForPin
+                    && pin.Direction == "In" && !pin.IsExec)
+                {
+                    // Literal's editor-only input pin: seed the inline editor from ValueJson (not PinDefaults).
+                    defaultVal = LiteralValueJson.ToEditString(litForPin.TypeId, litForPin.ValueJson);
+                }
+                else
+                {
+                    assetNode.PinDefaults?.TryGetValue(pin.Name, out defaultVal);
+                }
                 var resolvedPin = new Hrot.Blueprints.Core.Assets.Pin
                 {
                     Id           = resolvedGuid,

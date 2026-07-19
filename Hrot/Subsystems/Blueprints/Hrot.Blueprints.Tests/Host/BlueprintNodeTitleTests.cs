@@ -15,12 +15,16 @@ public sealed class BlueprintNodeTitleTests
         => new BlueprintNodeModel(node, System.Array.Empty<IPinModel>(), asset).Title;
 
     [Theory]
-    [InlineData("System.Int32", "5", "5")]
-    [InlineData("System.Boolean", "true", "true")]
-    [InlineData("System.Single", "1.5f", "1.5")]
-    [InlineData("System.String", "\"hello\"", "hello")]
-    public void Literal_ShowsValue(string typeId, string valueJson, string expected)
-        => Assert.Equal(expected, Title(new LiteralNode { TypeId = typeId, ValueJson = valueJson }));
+    [InlineData("System.Int32", "5")]
+    [InlineData("System.Boolean", "true")]
+    [InlineData("System.Single", "1.5f")]
+    [InlineData("System.String", "\"hello\"")]
+    public void Literal_InlineEditableType_TitleIsType(string typeId, string valueJson)
+    {
+        // Inline-editable literals show their value in the body editor, so the title stays the type.
+        var expected = $"Literal ({typeId["System.".Length..]})";
+        Assert.Equal(expected, Title(new LiteralNode { TypeId = typeId, ValueJson = valueJson }));
+    }
 
     [Fact]
     public void Literal_Empty_FallsBackToType()
