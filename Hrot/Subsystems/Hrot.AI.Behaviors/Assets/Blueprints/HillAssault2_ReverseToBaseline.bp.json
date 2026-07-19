@@ -141,6 +141,26 @@
             "X": 80,
             "Y": 40
           }
+        },
+        {
+          "kind": "PublishEvent",
+          "Id": "f09556e3-8807-5058-bedd-2c8e6cc0c551",
+          "EventId": "ClearBehaviorEvent",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1180,
+            "Y": 440
+          }
+        },
+        {
+          "kind": "Return",
+          "Id": "bb95ed57-e0c4-0757-944f-00f4fe92e8e1",
+          "Status": "Failure",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1460,
+            "Y": 440
+          }
         }
       ],
       "Links": [
@@ -191,6 +211,18 @@
           "FromPinId": "fee932c6-e19d-f950-80b3-697a49b80183",
           "ToNodeId": "3d0f7a2b-8e2a-4d3e-9d1a-6b5c7e9f0a11",
           "ToPinId": "7617adf1-55c9-dc59-80a9-847f338da360"
+        },
+        {
+          "FromNodeId": "04000011-50bc-4baa-b091-ff21a4f0101d",
+          "FromPinId": "ebda39b0-1df5-4e5f-a10b-b818c16a687f",
+          "ToNodeId": "f09556e3-8807-5058-bedd-2c8e6cc0c551",
+          "ToPinId": "c072495f-ce7d-0557-8ac3-4539b86dac50"
+        },
+        {
+          "FromNodeId": "f09556e3-8807-5058-bedd-2c8e6cc0c551",
+          "FromPinId": "a9d62cc3-cb80-a45f-b3ae-f4dbe8587ba3",
+          "ToNodeId": "bb95ed57-e0c4-0757-944f-00f4fe92e8e1",
+          "ToPinId": "b2b97b90-407c-c95b-a590-5eff96988046"
         }
       ],
       "EditorMetadata": {
@@ -201,7 +233,7 @@
     }
   ],
   "EditorMetadata": {
-    "Description": "Migration slice 2 (docs/blueprints/ReverseToBaseline_Slice_Design.md): blueprint-authored rebuild of the C# oracle HillAttackTankNodes.Action_ReverseToBaseline (~line 456) -- an AiPrimitive BTreeAction. Graph: EventEntry -> ChannelCommand(LocomotionChannel/MoveTo) [explicit data-in pins Destination/Speed/ArrivalRadius/ReverseAllowed; Destination wired from a pure FunctionCall VectorOps.Vec3(GetParameter(BaselineX), GetParameter(BaselineY), Literal 0f); Speed/ArrivalRadius/ReverseAllowed baked via PinDefaults] -> WaitForChannel(LocomotionChannel) [AiPrimitive latent lowering: issues the command once, suspends: Running while channel Running, auto-Failure on channel Failure, continues to Out on channel Success] -> PublishEvent(ClearBehaviorEvent, Target pin left unwired => self-default, Entity=self) -> Return(Success). DEVIATION (documented, see design doc §2): the oracle publishes ClearBehaviorEvent on BOTH Success and Failure; WaitForChannel's lowering auto-returns Failure on channel failure WITHOUT running the post-wait chain, so this blueprint publishes ClearBehaviorEvent only on the Success path -- accepted simplification (no blueprint primitive injects a publish into the latent auto-failure path). New curated helper: Hrot.AI.Behaviors.Brains.VectorOps.Vec3/Vec2 (reflection-free Vector3 construction; no vector-literal node exists). Does not modify the C# oracle.",
+    "Description": "Migration slice 2 (docs/blueprints/ReverseToBaseline_Slice_Design.md): blueprint-authored rebuild of the C# oracle HillAttackTankNodes.Action_ReverseToBaseline (~line 456) -- an AiPrimitive BTreeAction. Graph: EventEntry -> ChannelCommand(LocomotionChannel/MoveTo) [explicit data-in pins Destination/Speed/ArrivalRadius/ReverseAllowed; Destination wired from a pure FunctionCall VectorOps.Vec3(GetParameter(BaselineX), GetParameter(BaselineY), Literal 0f); Speed/ArrivalRadius/ReverseAllowed baked via PinDefaults] -> WaitForChannel(LocomotionChannel) [AiPrimitive latent lowering: issues the command once, suspends: Running while channel Running, auto-Failure on channel Failure, continues to Out on channel Success] -> PublishEvent(ClearBehaviorEvent, Target pin left unwired => self-default, Entity=self) -> Return(Success). Q#13 UPDATE (deviation removed): WaitForChannel's OnFailure exec-out is now wired to PublishEvent(ClearBehaviorEvent) -> Return(Failure), so the blueprint publishes ClearBehaviorEvent on BOTH the Success and Failure paths, exactly matching the C# oracle. (Previously the failure path auto-returned Failure without publishing -- the accepted simplification once documented in design doc §2, now resolved by the Q#13 failure split.) New curated helper: Hrot.AI.Behaviors.Brains.VectorOps.Vec3/Vec2 (reflection-free Vector3 construction; no vector-literal node exists). Does not modify the C# oracle.",
     "Category": null,
     "Recipe": null
   }

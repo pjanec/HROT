@@ -52,15 +52,13 @@ EventEntry
    (IsPure, TrailingContext=None) wired: `x ← GetParameter(BaselineX)`, `y ← GetParameter(BaselineY)`,
    `z ← Literal(0f)`; `Return` → `ChannelCommand.Destination` pin.
 
-2. **`ClearBehaviorEvent` on the FAILURE terminal (documented deviation).** The oracle publishes
-   `ClearBehaviorEvent` on **both** Success and Failure. `WaitForChannel`'s lowering auto-returns
-   `Failure` on channel failure **without** running the post-wait chain, so the blueprint publishes
-   `ClearBehaviorEvent` **only on Success**. Accepted simplification: on failure the BTree selector moves
-   on regardless, and there is no blueprint primitive to inject a publish into the latent auto-failure
-   path. **Record as DEVIATION in the migration log** (mirrors how slice-1 recorded its deviations). If
-   fidelity is later required, options: a `WaitForChannel` variant exposing an explicit failure exec-out,
-   or poll the channel status manually with `GetComponent(LocomotionChannel).Status` + `Compare` + `Branch`
-   (heavier; deferred).
+2. **`ClearBehaviorEvent` on the FAILURE terminal — ✅ RESOLVED (Q#13).** The oracle publishes
+   `ClearBehaviorEvent` on **both** Success and Failure. This was originally a documented DEVIATION
+   (the blueprint published only on Success) because `WaitForChannel` auto-returned `Failure` without
+   running any post-wait chain. **Q#13 added the exact fix predicted here** — a `WaitForChannel` failure
+   exec-out (`OnFailure`). The blueprint now wires `OnFailure` → `PublishEvent(ClearBehaviorEvent)` →
+   `Return(Failure)`, so it publishes on **both** paths, matching the oracle. The failure-path proof is
+   `GeneratedTickCore_AfterChannelFails_ReturnsFailure_AndPublishesOneClearBehaviorEventTargetingSelf`.
 
 ## Proof
 

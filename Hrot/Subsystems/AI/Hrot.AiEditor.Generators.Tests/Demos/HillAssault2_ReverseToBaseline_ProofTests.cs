@@ -24,16 +24,17 @@ namespace Hrot.AiEditor.Generators.Tests.Demos;
 /// <c>VectorOps.Vec3(GetParameter(BaselineX), GetParameter(BaselineY), Literal 0f)</c>),
 /// Speed/ArrivalRadius/ReverseAllowed baked via PinDefaults ("12"/"5"/"1")] -&gt;
 /// <c>WaitForChannel</c>(LocomotionChannel) [AiPrimitive latent lowering: issues the command once on the
-/// first tick and always returns Running; on later ticks, Running while the channel is Running,
-/// auto-Failure on channel Failure, continues on <c>Out</c> when the channel reports Success] -&gt;
-/// <c>PublishEvent</c>(ClearBehaviorEvent, Target pin left unwired =&gt; self-default, matching the
-/// oracle's <c>ClearBehaviorEvent{Entity=self}</c>) -&gt; <c>Return(Success)</c>.
+/// first tick and always returns Running; on later ticks, Running while the channel is Running; on channel
+/// <b>Success</b> continues on <c>Out</c> -&gt; <c>PublishEvent</c>(ClearBehaviorEvent, Target unwired =&gt;
+/// self-default) -&gt; <c>Return(Success)</c>; on channel <b>Failure</b> takes the wired <c>OnFailure</c>
+/// exec-out -&gt; <c>PublishEvent</c>(ClearBehaviorEvent) -&gt; <c>Return(Failure)</c>].
 /// </para>
 ///
 /// <para>
-/// DEVIATION (documented, design doc §2): the oracle publishes <c>ClearBehaviorEvent</c> on BOTH Success
-/// and Failure; <c>WaitForChannel</c>'s lowering auto-returns Failure on channel failure WITHOUT running
-/// the post-wait chain, so this blueprint publishes <c>ClearBehaviorEvent</c> only on the Success path.
+/// Q#13 UPDATE — deviation REMOVED: <c>WaitForChannel</c>'s <c>OnFailure</c> exec-out is now wired (the
+/// architect-approved Q#13 failure split), so the blueprint publishes <c>ClearBehaviorEvent{Entity=self}</c>
+/// on BOTH the Success and Failure paths, exactly matching the C# oracle. (Previously the failure path
+/// auto-returned Failure without publishing — the accepted simplification documented in design doc §2.)
 /// </para>
 ///
 /// <para>
@@ -203,5 +204,50 @@ public sealed class HillAssault2_ReverseToBaseline_ProofTests
         events[0].Entity.Should().Be(entity,
             "PublishEvent's Target pin is left unwired -- it must self-default to the entity itself, " +
             "matching the oracle's ClearBehaviorEvent{Entity=self}");
+    }
+
+    [Fact]
+    public void GeneratedTickCore_AfterChannelFails_ReturnsFailure_AndPublishesOneClearBehaviorEventTargetingSelf()
+    {
+        // Q#13-D: the WaitForChannel OnFailure exec-out is now wired -> PublishEvent(ClearBehaviorEvent)
+        // -> Return(Failure). On channel Failure the blueprint must publish ClearBehaviorEvent (as the
+        // oracle does on its failure path) and return Failure -- the removed deviation.
+        var bpType = FindGeneratedBlueprintType();
+        var tickCore = bpType.GetMethod("TickCore", BindingFlags.Public | BindingFlags.Static);
+        tickCore.Should().NotBeNull("the generated blueprint class must expose a static TickCore method");
+
+        var paramsType = bpType.GetNestedType("Params")!;
+        var wsType     = bpType.GetNestedType("WorkingState")!;
+
+        using var world = CreateWorld();
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, default(LocomotionChannel));
+
+        var p = Activator.CreateInstance(paramsType)!;
+        paramsType.GetField("BaselineX")!.SetValue(p, 10f);
+        paramsType.GetField("BaselineY")!.SetValue(p, 20f);
+        object ws = Activator.CreateInstance(wsType)!;
+
+        // Tick 1: idle channel -> command issued -> Running (unconditional first-pass suspend).
+        var tick1 = TickOnce(tickCore!, p, ref ws, entity, world);
+        tick1.Should().Be(Fbt.NodeStatus.Running, "sanity: tick 1 must suspend at WaitForChannel");
+
+        // Simulate the muscle tier reporting FAILURE.
+        ref var chan = ref world.GetComponentRW<LocomotionChannel>(entity);
+        chan.Status = Fbt.NodeStatus.Failure;
+
+        // Tick 2: WaitForChannel resumes onto the wired OnFailure chain -> PublishEvent -> Return(Failure).
+        var tick2 = TickOnce(tickCore!, p, ref ws, entity, world);
+        tick2.Should().Be(Fbt.NodeStatus.Failure,
+            "tick 2 must resume onto the OnFailure chain when the channel reports Failure and return Failure");
+
+        world.Bus.SwapBuffers();
+        var events = world.Bus.Read<ClearBehaviorEvent>().ToArray();
+
+        events.Length.Should().Be(1,
+            "the OnFailure path must also publish exactly one ClearBehaviorEvent -- matching the oracle's " +
+            "publish-on-both-paths (Q#13 removed the success-only deviation)");
+        events[0].Entity.Should().Be(entity,
+            "the OnFailure PublishEvent's Target pin is left unwired -- it must self-default to the entity itself");
     }
 }
