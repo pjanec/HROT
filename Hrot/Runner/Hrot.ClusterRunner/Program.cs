@@ -316,7 +316,11 @@ class Program
                         | ImGuiNET.ImGuiWindowFlags.NoTitleBar | ImGuiNET.ImGuiWindowFlags.NoCollapse
                         | ImGuiNET.ImGuiWindowFlags.NoResize | ImGuiNET.ImGuiWindowFlags.NoMove
                         | ImGuiNET.ImGuiWindowFlags.NoBringToFrontOnFocus | ImGuiNET.ImGuiWindowFlags.NoNavFocus
-                        | ImGuiNET.ImGuiWindowFlags.NoBackground;
+                        | ImGuiNET.ImGuiWindowFlags.NoBackground
+                        // Canonical dockspace-host flags: without these the mouse-wheel (used to zoom the
+                        // graph canvas) scrolls this passthrough host by its content overflow (~the main
+                        // menu-bar height), making the whole content area jump on every zoom.
+                        | ImGuiNET.ImGuiWindowFlags.NoScrollbar | ImGuiNET.ImGuiWindowFlags.NoScrollWithMouse;
 
                     ImGuiNET.ImGui.Begin("##DockSpace", dockspaceFlags);
                     ImGuiNET.ImGui.PopStyleColor();
