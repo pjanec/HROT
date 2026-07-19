@@ -98,8 +98,9 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.SetVariableNode sv    => $"Set {ResolveVariableName(sv.VariableId, asset)}",
         // Slice 2a-3: GetShared/SetShared — VariableId is a raw manifest-provisioned slot name
         // (not a blueprint VariableDecl GUID), so no ResolveVariableName lookup is needed.
-        Hrot.Blueprints.Core.Assets.GetSharedNode gsn      => $"Get Shared: {(string.IsNullOrEmpty(gsn.VariableId) ? "(unset)" : gsn.VariableId)}",
-        Hrot.Blueprints.Core.Assets.SetSharedNode ssn      => $"Set Shared: {(string.IsNullOrEmpty(ssn.VariableId) ? "(unset)" : ssn.VariableId)}",
+        // Field name is shown on the "Value" pin (render-only label in BlueprintGraphModel); title stays clean.
+        Hrot.Blueprints.Core.Assets.GetSharedNode          => "Get Shared",
+        Hrot.Blueprints.Core.Assets.SetSharedNode          => "Set Shared",
         // Punch-list #1/#5/#8: show the node's own DATA in the body instead of the generic "Value"
         // pin label — the literal's value, the parameter's name, the compare/arith/bool operator.
         // Punch-list: the parameter NAME is shown on the output pin (render-only display label in

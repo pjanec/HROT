@@ -290,6 +290,9 @@ public sealed class BlueprintGraphModel : IGraphModel
         return node switch
         {
             Hrot.Blueprints.Core.Assets.GetParameterNode gp => ResolveParameterLabel(gp.ParameterId),
+            // Get/SetShared: VariableId is already the shared field's slot name — show it on the pin.
+            Hrot.Blueprints.Core.Assets.GetSharedNode gsn => string.IsNullOrEmpty(gsn.VariableId) ? null : gsn.VariableId,
+            Hrot.Blueprints.Core.Assets.SetSharedNode ssn => string.IsNullOrEmpty(ssn.VariableId) ? null : ssn.VariableId,
             _ => null,
         };
     }
