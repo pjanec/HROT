@@ -10,32 +10,39 @@ namespace Hrot.Blueprints.Editor.Host;
 /// </summary>
 internal static class SourceFileOpener
 {
-    /// <summary>Attempts to open <paramref name="file"/> in VS. Returns true if a launch was started.</summary>
-    public static bool Open(string file)
+    /// <summary>
+    /// Attempts to open <paramref name="file"/> at <paramref name="line"/> (1-based; 0 = no line).
+    /// Returns true once a launch is started. Order:
+    /// <list type="number">
+    ///   <item>VS Code — <c>code -g "file:line"</c> — the only common editor that jumps to a line
+    ///     from the CLI (Visual Studio's devenv cannot; that needs DTE COM automation).</item>
+    ///   <item>Visual Studio — <c>devenv /edit "file"</c> — opens the file in the running instance
+    ///     (no line jump).</item>
+    ///   <item>Default shell handler for the file.</item>
+    /// </list>
+    /// </summary>
+    public static bool Open(string file, int line = 0)
     {
         if (string.IsNullOrEmpty(file)) return false;
 
-        // Preferred: reuse a running devenv (resolved via the App Paths registry entry).
-        try
-        {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName        = "devenv",
-                Arguments       = $"/edit \"{file}\"",
-                UseShellExecute = true,
-            });
-            return true;
-        }
-        catch
-        {
-            // devenv not found / not launchable — fall through to the default handler.
-        }
+        // 1. VS Code: jumps to the exact line.
+        if (line > 0 && TryStart("code", $"-g \"{file}:{line}\"")) return true;
 
+        // 2. Visual Studio: opens the file in the running devenv (App Paths–resolved), no line jump.
+        if (TryStart("devenv", $"/edit \"{file}\"")) return true;
+
+        // 3. Default handler.
+        return TryStart(file, arguments: null);
+    }
+
+    private static bool TryStart(string fileName, string? arguments)
+    {
         try
         {
             Process.Start(new ProcessStartInfo
             {
-                FileName        = file,
+                FileName        = fileName,
+                Arguments       = arguments ?? string.Empty,
                 UseShellExecute = true,
             });
             return true;

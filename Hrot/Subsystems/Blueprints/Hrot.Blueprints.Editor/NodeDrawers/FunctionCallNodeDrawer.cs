@@ -253,7 +253,7 @@ internal sealed class FunctionCallNodeSession : INodeEditSession
         ImGui.BeginDisabled(!canOpen);
         if (ImGui.Button("...")) // the punch-list "⋯" affordance (ASCII for font safety)
         {
-            if (_srcLoc.HasValue) SourceFileOpener.Open(_srcLoc.Value.File);
+            if (_srcLoc.HasValue) SourceFileOpener.Open(_srcLoc.Value.File, _srcLoc.Value.Line);
         }
         ImGui.EndDisabled();
         if (ImGui.IsItemHovered())

@@ -58,6 +58,12 @@ public sealed class CanvasRenderer
     private string _promoteVariableCategoryPath = "";
     private IEditorCommands? _editorCommands;
 
+    // Hover-tooltip delay: only show after the cursor rests on the same target for a moment,
+    // so tooltips don't strobe as the mouse sweeps across the graph.
+    private string? _tooltipKey;
+    private double  _tooltipSince;
+    private const double TooltipDelaySeconds = 0.5;
+
     /// <summary>
     /// Render one frame of the node-editor canvas. Call this inside an ImGui window
     /// (not inside an existing child window). The method opens and closes its own
@@ -482,18 +488,25 @@ public sealed class CanvasRenderer
     /// renderer stays case-agnostic — the host injects the actual text via its model projection.
     /// Suppressed while interacting (wiring, marquee, picker) so it never fights an active gesture.
     /// </summary>
-    private static void DrawHoverTooltip(GraphView view)
+    private void DrawHoverTooltip(GraphView view)
     {
-        if (view.Interaction.Mode != InteractionMode.Idle) return;
+        if (view.Interaction.Mode != InteractionMode.Idle) { _tooltipKey = null; return; }
 
         var hover = view.Interaction.Hover;
-        string? text = hover.Kind switch
+        string? text;
+        string? key;
+        switch (hover.Kind)
         {
-            HoverKind.Pin  => view.Model.FindPin(hover.Pin)?.Tooltip,
-            HoverKind.Node => view.Model.FindNode(hover.Node)?.StatusTooltip,
-            _              => null,
-        };
-        if (string.IsNullOrEmpty(text)) return;
+            case HoverKind.Pin:  text = view.Model.FindPin(hover.Pin)?.Tooltip;      key = "p:" + hover.Pin.Value;  break;
+            case HoverKind.Node: text = view.Model.FindNode(hover.Node)?.StatusTooltip; key = "n:" + hover.Node.Value; break;
+            default:             text = null; key = null; break;
+        }
+        if (string.IsNullOrEmpty(text)) { _tooltipKey = null; return; }
+
+        // Require the cursor to rest on the same target for TooltipDelaySeconds before showing.
+        double now = ImGui.GetTime();
+        if (key != _tooltipKey) { _tooltipKey = key; _tooltipSince = now; return; }
+        if (now - _tooltipSince < TooltipDelaySeconds) return;
 
         ImGui.BeginTooltip();
         ImGui.PushTextWrapPos(ImGui.GetFontSize() * 28f);
