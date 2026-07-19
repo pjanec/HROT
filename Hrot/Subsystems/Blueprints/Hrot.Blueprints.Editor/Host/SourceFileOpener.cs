@@ -11,13 +11,14 @@ namespace Hrot.Blueprints.Editor.Host;
 internal static class SourceFileOpener
 {
     /// <summary>
-    /// Attempts to open <paramref name="file"/> at <paramref name="line"/> (1-based; 0 = no line).
-    /// Returns true once a launch is started. Order:
+    /// Attempts to open <paramref name="file"/> at <paramref name="line"/> (1-based; 0 = no line),
+    /// preferring Visual Studio. Returns true once a launch/command succeeds. Order:
     /// <list type="number">
-    ///   <item>VS Code — <c>code -g "file:line"</c> — the only common editor that jumps to a line
-    ///     from the CLI (Visual Studio's devenv cannot; that needs DTE COM automation).</item>
-    ///   <item>Visual Studio — <c>devenv /edit "file"</c> — opens the file in the running instance
-    ///     (no line jump).</item>
+    ///   <item>Running <b>Visual Studio</b> via DTE/ROT — opens + jumps to the line in the instance
+    ///     that has the file's solution (see <see cref="VisualStudioDteOpener"/>).</item>
+    ///   <item><c>devenv /edit "file" /command "edit.goto N"</c> — launches/attaches VS and jumps
+    ///     (covers the "no VS running yet" case).</item>
+    ///   <item>VS Code fallback — <c>code -g "file:line"</c>.</item>
     ///   <item>Default shell handler for the file.</item>
     /// </list>
     /// </summary>
@@ -25,13 +26,19 @@ internal static class SourceFileOpener
     {
         if (string.IsNullOrEmpty(file)) return false;
 
-        // 1. VS Code: jumps to the exact line.
+        // 1. Running Visual Studio instance (robust: targets the window with our solution).
+        if (VisualStudioDteOpener.TryOpenAtLine(file, line)) return true;
+
+        // 2. Visual Studio via CLI — /edit reuses a running instance; edit.goto jumps to the line.
+        var devenvArgs = line > 0
+            ? $"/edit \"{file}\" /command \"edit.goto {line}\""
+            : $"/edit \"{file}\"";
+        if (TryStart("devenv", devenvArgs)) return true;
+
+        // 3. VS Code fallback (jumps to the line).
         if (line > 0 && TryStart("code", $"-g \"{file}:{line}\"")) return true;
 
-        // 2. Visual Studio: opens the file in the running devenv (App Paths–resolved), no line jump.
-        if (TryStart("devenv", $"/edit \"{file}\"")) return true;
-
-        // 3. Default handler.
+        // 4. Default handler.
         return TryStart(file, arguments: null);
     }
 
