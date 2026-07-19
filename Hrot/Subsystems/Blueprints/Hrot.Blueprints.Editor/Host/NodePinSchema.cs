@@ -863,6 +863,15 @@ internal static class NodePinSchema
     }
 
     /// <summary>
+    /// Editor punch-list #4 — public reuse entry point: resolves the CLR <see cref="MethodInfo"/>
+    /// a <see cref="FunctionCallNode"/> targets (by <c>TargetTypeId</c>/<c>MethodName</c>) so the
+    /// node tooltip can surface its XML-doc <c>&lt;summary&gt;</c>. Returns <c>null</c> for the
+    /// in-blueprint Function-graph call mode or when the type/method cannot be resolved.
+    /// </summary>
+    internal static MethodInfo? ResolveClrMethod(FunctionCallNode fc)
+        => ResolveMethod(fc.TargetTypeId, fc.MethodName);
+
+    /// <summary>
     /// Resolves a method by declaring-type FQN and method name across loaded assemblies.
     /// Returns the first public/non-public, static/instance method matching
     /// <paramref name="methodName"/>; null when the type or method cannot be found.

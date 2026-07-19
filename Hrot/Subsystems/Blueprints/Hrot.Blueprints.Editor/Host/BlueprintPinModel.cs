@@ -84,6 +84,10 @@ internal sealed class BlueprintPinModel : IPinModel
             : pin.TypeRef.IsArray ? PinShape.Diamond
             : PinShape.Circle;
 
+        // Punch-list #4: every data pin surfaces its data type on hover ("data type mandatory").
+        // Exec pins are self-explanatory glyphs → no tooltip.
+        Tooltip     = pin.IsExec ? null : BuildPinTooltip(pin.Name, pin.TypeRef.TypeId, pin.TypeRef.IsArray);
+
         // Expose a default-value container for unconnected input data pins.
         // Conditions: !Exec AND Direction=="In".
         // With registry: always show when the type has a registered editor (even if DefaultValue==null).
@@ -105,6 +109,22 @@ internal sealed class BlueprintPinModel : IPinModel
                     Default = new BlueprintPinDefaultValue(pin.TypeRef.TypeId, rawValue: null, enumProvider);
             }
         }
+    }
+
+    /// <summary>
+    /// Punch-list #4: builds a data-pin hover tooltip. First line is <c>name : ShortType</c>; when the
+    /// short name hides a distinct fully-qualified id, a second dimmer line shows the full type id so the
+    /// author can disambiguate struct/class returns. Array pins are marked <c>[]</c>.
+    /// </summary>
+    private static string BuildPinTooltip(string name, string typeId, bool isArray)
+    {
+        var shortName = TooltipText.ShortTypeName(typeId) + (isArray ? "[]" : "");
+        var display   = string.IsNullOrEmpty(typeId) ? "object" : typeId;
+        if (display.StartsWith("global::", StringComparison.Ordinal)) display = display["global::".Length..];
+        var line1 = $"{name} : {shortName}";
+        return string.Equals(shortName.TrimEnd('[', ']'), display, StringComparison.Ordinal)
+            ? line1
+            : line1 + "\n" + display + (isArray ? "[]" : "");
     }
 }
 

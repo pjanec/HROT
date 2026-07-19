@@ -8,6 +8,19 @@
          for everything else. Mirror for BTREE HSM equivalent if/when added. -->
     <WarningsNotAsErrors>BTREE0002</WarningsNotAsErrors>
     <OutputType>Library</OutputType>
+    <!-- Editor punch-list #4: emit the companion XML doc file next to the DLL so the
+         Blueprint editor can surface curated-helper <summary> prose in function-node
+         tooltips (loaded from disk at runtime; unaffected by in-memory hot reload).
+         CS1591 (missing XML comment on a public member) is suppressed so the existing
+         TreatWarningsAsErrors=true build stays green without back-filling docs everywhere. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Docs are ON but their quality is NOT enforced: suppress the whole doc-comment warning
+         family so TreatWarningsAsErrors stays green without back-filling/repairing comments across
+         the assembly (incl. the untouchable HillAttack* oracle files). Roslyn still emits a
+         well-formed .xml, substituting a placeholder for any malformed/unresolved member.
+         1591 missing · 1570 malformed · 1571 dup-param · 1572 param-no-match · 1573 missing-param
+         · 1574/1584 cref · 1587 misplaced · 1734/1735 paramref/typeparamref. -->
+    <NoWarn>$(NoWarn);1591;1570;1571;1572;1573;1574;1584;1587;1734;1735</NoWarn>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>

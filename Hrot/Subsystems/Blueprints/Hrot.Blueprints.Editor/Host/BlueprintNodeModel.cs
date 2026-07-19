@@ -30,7 +30,12 @@ internal sealed class BlueprintNodeModel : INodeModel
     public Vector2     Position         => new(_node.EditorMetadata.X, _node.EditorMetadata.Y);
     public Vector2?    SizeOverride     => null;
     public NodeState   State            { get; } = NodeState.Normal;
-    public string?     StatusTooltip    => null;
+    /// <summary>
+    /// Punch-list #4: for a <see cref="Hrot.Blueprints.Core.Assets.FunctionCallNode"/> this carries the
+    /// resolved signature + XML-doc summary shown on node hover (see <see cref="FunctionCallTooltip"/>);
+    /// null for every other node kind.
+    /// </summary>
+    public string?     StatusTooltip    { get; }
     public bool        IsCollapsed      => false;
     public bool        ShowAdvancedPins => false;
     public NodeId?     ParentContainerId => null;
@@ -58,6 +63,9 @@ internal sealed class BlueprintNodeModel : INodeModel
         Title     = BuildTitle(node, asset);
         Category  = BuildCategory(node);
         _pins     = new List<IPinModel>(resolvedPins);
+        StatusTooltip = node is Hrot.Blueprints.Core.Assets.FunctionCallNode fc
+            ? FunctionCallTooltip.Build(fc, _pins)
+            : null;
     }
 
     /// <summary>

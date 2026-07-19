@@ -275,6 +275,9 @@ public sealed class CanvasRenderer
             ImGui.SetMouseCursor(ImGuiMouseCursor.NotAllowed);
         }
 
+        // 8c. Hover tooltip: show the model-supplied tooltip for the hovered node/pin.
+        DrawHoverTooltip(view);
+
         // 9. Comment boxes — foreground layer (header text on top of nodes).
         CommentsRenderer.RenderForeground(dl, view, visibleGraphRect);
 
@@ -469,6 +472,34 @@ public sealed class CanvasRenderer
             dl.AddBezierWithArrow(a, c1, c2, b, wireColor, thickness, thickness * 2.5f);
         else
             dl.AddBezierCubic(a, c1, c2, b, wireColor, thickness);
+    }
+
+    // ── Hover tooltip ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Draws the hover tooltip for the node or pin the cursor is over, reading the text from the
+    /// model (<see cref="IPinModel.Tooltip"/> / <see cref="INodeModel.StatusTooltip"/>). The canvas
+    /// renderer stays case-agnostic — the host injects the actual text via its model projection.
+    /// Suppressed while interacting (wiring, marquee, picker) so it never fights an active gesture.
+    /// </summary>
+    private static void DrawHoverTooltip(GraphView view)
+    {
+        if (view.Interaction.Mode != InteractionMode.Idle) return;
+
+        var hover = view.Interaction.Hover;
+        string? text = hover.Kind switch
+        {
+            HoverKind.Pin  => view.Model.FindPin(hover.Pin)?.Tooltip,
+            HoverKind.Node => view.Model.FindNode(hover.Node)?.StatusTooltip,
+            _              => null,
+        };
+        if (string.IsNullOrEmpty(text)) return;
+
+        ImGui.BeginTooltip();
+        ImGui.PushTextWrapPos(ImGui.GetFontSize() * 28f);
+        ImGui.TextUnformatted(text);
+        ImGui.PopTextWrapPos();
+        ImGui.EndTooltip();
     }
 
     // ── Marquee ───────────────────────────────────────────────────────────────
