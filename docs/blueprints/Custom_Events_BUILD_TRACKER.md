@@ -32,6 +32,45 @@ Legend: ⬜ todo · 🟡 in progress · ✅ done (committed) · ⏸️ deferred.
 - Carrier = unmanaged/blittable only; strings via `FixedString32/64` (§7.3).
 - Instance-dispatch blueprints first (§7.4).
 
+## ⏸️ Overnight checkpoint — where I stopped + why
+
+**Done tonight (all green + committed):** 1a, 1b, 1c, 1e — the complete, fully-validated *discovery +
+authoring-data* foundation (attribute, C# reflection discovery, editor-authored def model + JSON round-trip,
+unified picker source). 6 unit tests, no regressions.
+
+**Stopped before** the publish/dispatch/subscribe slices deliberately: they begin with a delicate
+`PublishEventNode` **schema change** (baked `EventTypeFqn` + fields) that ripples through Stage0/Stage5/
+serialization/pin-validation (WaitForChannel-class delicacy), then the generic-carrier lowering and the
+**net-new dispatch runtime** — which need runtime-scenario validation that's unsafe to rush unattended. The
+foundation is safe to build on; the rest wants careful, gated, ideally-attended work.
+
+### Precise resume notes (per remaining slice)
+- **2a — PublishEvent pin baking.** Add to `PublishEventNode` (Nodes.cs:617): `string EventTypeFqn` +
+  `List<EventPayloadField> PayloadFields` (baked by the editor from `DiscoveredBlueprintEvent`). Extend
+  `Stage0_Rehydrate.EnrichPublishEventPins` (Stage0:321) to use the baked fields when `EventTypeFqn` is set
+  (else the existing catalog path). Gate: Stage0 pin test + a compile fixture publishing a `[BlueprintEvent]`
+  struct via `--no-incremental` AI.Behaviors build. **Treat like the WaitForChannel schema change** (deterministic
+  pins, round-trip, proof suite stays green).
+- **2c — palette entries.** Mirror `BlueprintCallablePaletteEntries.Discover` → one `PublishEvent` + one
+  `EventEntry` descriptor per `UnifiedEventDiscovery.All(...)` event, baking `EventTypeFqn`+fields at create.
+  Register in `BlueprintEditorBootstrap.CreatePaletteRegistry`. Editor-only, testable. **Do after 2a** (else the
+  created node has no payload pins for custom events).
+- **2b — generic carrier lowering.** For 2b (no C# struct) events, Stage5 lowers `PublishEvent` to the type-erased
+  bus path (`FdpEventBus.PublishRaw`/`InjectIntoCurrentBySize`, type-id = hash of the event name) packing fields
+  into a blittable payload; 2a (real struct) keeps the existing typed `world.Bus.Publish(new T{…})`. New
+  `IrOp_PublishCustomEvent` (or a flag on `IrOp_PublishBusEvent`). Novel — hands-on.
+- **3a/3b/3c/3d — dispatch (the core).** Build a **type-id → subscribers** registry (extend the
+  `[BlueprintRegistrar]` scan to advertise each blueprint's Event-graph event-keys); a per-tick pump
+  (`HasEvent`-gated, Input phase after `SwapBuffers`, near `BlueprintTickSystem`) that invokes subscribers'
+  `Event_*_Thunk`; unstub `InstanceEmitter.EmitEventThunk` (currently `default(T)` — fill from carrier bytes via
+  the `State`-struct reinterpret); enforce Self/Any there. **Reconcile the event key: type-id, not graph name
+  (§7.1).** Needs runtime behavioral tests (mirror `WhenNodeRuntimeTests`).
+- **4a/4b — subscribe UX.** `EventEntryNode` keyed by type-id + reflected data-out pins (payload) + the
+  `Self`/`Any` `TargetFilter` (node UX + JSON per design §4.5).
+- **1d — authoring UI.** ImGui event-definition editor reusing `BlackboardAuthoringWindow`; writes the
+  `BlueprintEventCatalog` JSON. Hard to unit-test — needs an attended visual pass.
+- **1f — migrate system events** to reflection (retire baked `PayloadFields`) — after the publish path is proven.
+
 ## Gate policy (every slice)
 Build 0 errors; relevant unit tests; for compiler changes: `Hrot.AiEditor.Generators.Tests` clean-rebuilt +
 serial stays green (183/184-class baseline); full ClusterRunner build before finishing.
