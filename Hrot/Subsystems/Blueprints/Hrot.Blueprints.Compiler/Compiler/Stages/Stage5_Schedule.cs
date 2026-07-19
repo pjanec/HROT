@@ -1286,16 +1286,31 @@ internal sealed class GraphScheduler
                 // P4 (GAP-3) -- catalog-driven exec node, mirrors ChannelCommandNode's shape
                 // above, but publishes via world.Bus.Publish (architect ruling Q#5-A) instead of
                 // the ECB -- `ecb` is deliberately absent from the AiPrimitive TickCore ABI.
-                var catalogEntry = _ctx.EngineEvents.GetEntries()
-                    .FirstOrDefault(e => string.Equals(e.Name, pen.EventId,
-                        StringComparison.OrdinalIgnoreCase));
-
-                if (catalogEntry is null)
+                // Q#14: baked custom-event fields (EventTypeFqn set by the editor from discovery) take
+                // precedence; otherwise resolve the shape from the EngineEventCatalog by EventId.
+                string eventTypeFqn;
+                string? targetFieldName;
+                bool managed;
+                if (!string.IsNullOrEmpty(pen.EventTypeFqn))
                 {
-                    // Unknown EventId -- no safe partial-emit shape exists for a publish call
-                    // (unlike ChannelCommand, there is no FQN to construct `new global::{}`
-                    // against), so emit no IR rather than producing uncompilable C#.
-                    break;
+                    eventTypeFqn    = pen.EventTypeFqn!;
+                    targetFieldName = pen.TargetFieldName;
+                    managed         = pen.Managed;
+                }
+                else
+                {
+                    var catalogEntry = _ctx.EngineEvents.GetEntries()
+                        .FirstOrDefault(e => string.Equals(e.Name, pen.EventId,
+                            StringComparison.OrdinalIgnoreCase));
+                    if (catalogEntry is null)
+                    {
+                        // Unknown EventId + no baked FQN -- no safe publish shape to construct
+                        // (`new global::{}`), so emit no IR rather than uncompilable C#.
+                        break;
+                    }
+                    eventTypeFqn    = catalogEntry.EventTypeFqn;
+                    targetFieldName = catalogEntry.TargetFieldName;
+                    managed         = catalogEntry.Managed;
                 }
 
                 // Target -- OPTIONAL "Target" data-in pin, resolved EXACTLY like
@@ -1333,8 +1348,8 @@ internal sealed class GraphScheduler
                 }
 
                 var fields = new List<(string FieldName, IrValue Value)>();
-                if (!string.IsNullOrEmpty(catalogEntry.TargetFieldName))
-                    fields.Add((catalogEntry.TargetFieldName, targetEntity));
+                if (!string.IsNullOrEmpty(targetFieldName))
+                    fields.Add((targetFieldName!, targetEntity));
 
                 // Other payload data-in pins (excluding "Target"), reified exactly like
                 // ChannelCommand's paramFields above.
@@ -1346,7 +1361,7 @@ internal sealed class GraphScheduler
                 stmts.Add(new IrStatement
                 {
                     Operation = new IrOp_PublishBusEvent(
-                        catalogEntry.EventTypeFqn, fields, catalogEntry.Managed),
+                        eventTypeFqn, fields, managed),
                     Debug = DebugOf(node),
                 });
                 break;

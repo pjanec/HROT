@@ -241,6 +241,28 @@ public sealed class GraphBuilder
         return this;
     }
 
+    /// <summary>
+    /// Q#14 (2a): adds a PublishEvent node baked with a custom event's FQN + fields (the editor-discovered
+    /// shape), exercising the baked branch (vs the catalog path). Target self-defaults when unwired.
+    /// </summary>
+    public GraphBuilder PublishCustomEvent(
+        string eventTypeFqn, string? targetFieldName = null,
+        IReadOnlyList<(string Name, string TypeId)>? fields = null)
+    {
+        var nodeId = MakeNodeId("PublishEvent", _nodes.Count);
+        var node = new PublishEventNode
+        {
+            Id              = nodeId,
+            EventId         = eventTypeFqn,
+            EventTypeFqn    = eventTypeFqn,
+            TargetFieldName = targetFieldName,
+            PayloadFields   = (fields ?? new List<(string, string)>())
+                .Select(f => new PublishEventFieldDecl { Name = f.Name, TypeId = f.TypeId }).ToList(),
+        };
+        RegisterNode(node, hasExecIn: true, hasExecOut: true);
+        return this;
+    }
+
     /// <summary>Adds a WaitForChannelNode.</summary>
     public GraphBuilder WaitForChannel(string channelType)
     {

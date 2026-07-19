@@ -618,6 +618,34 @@ public sealed class PublishEventNode : Node
 {
     /// <summary>Name of the EngineEventCatalog entry to publish (e.g. "ClearBehaviorEvent").</summary>
     public string EventId { get; set; } = "";
+
+    // ── Q#14 (custom events, 2a): baked event shape for events NOT in the EngineEventCatalog. The editor
+    // discovers a [BlueprintEvent] struct (or an editor-authored def), bakes its FQN + fields here, and the
+    // compiler uses them instead of a catalog lookup. All null/empty (and omitted from JSON) for the legacy
+    // catalog path — so existing PublishEvent nodes round-trip byte-identically.
+
+    /// <summary>Baked event carrier FQN (the [BlueprintEvent] struct). Empty ⇒ resolve via EventId in the catalog.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? EventTypeFqn { get; set; }
+
+    /// <summary>Baked recipient-entity field name (the [EventTarget] field), or null.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? TargetFieldName { get; set; }
+
+    /// <summary>True when the carrier is a managed class (PublishManaged). Blittable custom events (§7.3) are false.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Managed { get; set; }
+
+    /// <summary>Baked payload fields (name + pin TypeId), or null for the catalog path.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public List<PublishEventFieldDecl>? PayloadFields { get; set; }
+}
+
+/// <summary>One baked <see cref="PublishEventNode.PayloadFields"/> entry: field name + pin TypeId.</summary>
+public sealed class PublishEventFieldDecl
+{
+    public string Name { get; set; } = "";
+    public string TypeId { get; set; } = "";
 }
 
 // ──────────────────────────────────────────────────────────────────────────

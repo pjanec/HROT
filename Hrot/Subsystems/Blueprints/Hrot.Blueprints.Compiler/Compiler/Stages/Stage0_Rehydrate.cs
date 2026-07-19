@@ -320,18 +320,35 @@ internal static class Stage0_Rehydrate
     /// </summary>
     private static void EnrichPublishEventPins(List<Pin> pins, PublishEventNode pen, CompileOptions options)
     {
-        var entry = options.EngineEvents.GetEntries()
-            .FirstOrDefault(e => string.Equals(e.Name, pen.EventId, StringComparison.OrdinalIgnoreCase));
-        if (entry is null) return;
+        // Q#14: baked custom-event path (EventTypeFqn set by the editor from discovery) takes precedence;
+        // otherwise resolve the shape from the EngineEventCatalog by EventId (legacy/system events).
+        string? targetFieldName;
+        IEnumerable<(string Name, string TypeId)> payload;
+
+        if (!string.IsNullOrEmpty(pen.EventTypeFqn))
+        {
+            targetFieldName = pen.TargetFieldName;
+            payload = (pen.PayloadFields ?? new List<PublishEventFieldDecl>())
+                .Select(f => (f.Name, f.TypeId));
+        }
+        else
+        {
+            var entry = options.EngineEvents.GetEntries()
+                .FirstOrDefault(e => string.Equals(e.Name, pen.EventId, StringComparison.OrdinalIgnoreCase));
+            if (entry is null) return;
+            targetFieldName = entry.TargetFieldName;
+            payload = entry.PayloadFields is null
+                ? Enumerable.Empty<(string, string)>()
+                : entry.PayloadFields.Select(f => (f.Name, f.TypeId));
+        }
 
         // Optional target: pin is always named "Target" (Stage5 matches that name), mapped to the event's
         // TargetFieldName at lowering. Present only when the event declares a target field.
-        if (!string.IsNullOrEmpty(entry.TargetFieldName))
+        if (!string.IsNullOrEmpty(targetFieldName))
             pins.Add(MakePin("Target", "In", isExec: false, typeId: "Fdp.Core.Entity"));
 
-        if (entry.PayloadFields != null)
-            foreach (var f in entry.PayloadFields)
-                pins.Add(MakePin(f.Name, "In", isExec: false, typeId: f.TypeId));
+        foreach (var (name, typeId) in payload)
+            pins.Add(MakePin(name, "In", isExec: false, typeId: typeId));
     }
 
     /// <summary>

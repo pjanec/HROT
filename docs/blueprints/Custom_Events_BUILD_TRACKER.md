@@ -12,7 +12,7 @@ Legend: ⬜ todo · 🟡 in progress · ✅ done (committed) · ⏸️ deferred.
 - ⏸️ **1f** Migrate system-predefined events to reflection (retire baked `PayloadFields`) — after publish path proven
 
 ## Phase 2 — Publish
-- ⬜ **2a** PublishEvent data-in pins from discovery (editor bakes `EventTypeFqn` + `(field,type)` onto node)
+- ✅ **2a** PublishEvent data-in pins from discovery (editor bakes `EventTypeFqn` + `(field,type)` onto node)
 - ⬜ **2b** PublishEvent → generic carrier lowering (`PublishRaw`/`InjectIntoCurrentBySize`)
 - ⬜ **2c** PublishEvent editor-addable (palette entry per discovered event)
 
