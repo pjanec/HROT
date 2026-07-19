@@ -1,6 +1,24 @@
 # Architect question #14 — designer-authored custom events + pub/sub (reflection-discovered, no manual registry)
 
-**Status: 🟡 DRAFT — pending architect.**
+**Status: ✅ APPROVED (architect) — Option 2b + full infrastructure.** Recipient-filtering (D2) refined with
+user sign-off to a declarative **Self/Any filter on the entry node** (spec in Q14-D).
+
+- **Q14-E APPROVED — Option 2b** (editor-authored, generic blackboard-style payload, **NO codegen**). Keep 2a
+  (C# hand-authored typed struct) as a demand-driven fallback for advanced users needing a C#-consumable event.
+- **Q14-A APPROVED** — `[BlueprintEvent]` reflection-discovery mirroring Q#12 (editor reflects fields; compiler
+  bakes `EventTypeFqn` + field strings); retires the hand-maintained `PayloadFields` registry. **Q14-A2
+  APPROVED:** migrate the system-predefined events to the same reflection mechanism (one source of truth).
+- **Q14-B APPROVED** — generalize `PublishEvent` to reflection-sourced pins + make it editor-addable; the
+  single-struct-initializer emit confirms **no write-ordering hazard**.
+- **Q14-C CONFIRMED** — subscription primitive = named-event `EventEntryNode` (NOT `WhenNode`); payload
+  projects onto its reflected data-out pins.
+- **Q14-D CONFIRMED (net-new)** — build the bus→Event-graph dispatch: registration-by-event-type at load +
+  a per-tick bus pump routing each event to matching entry graphs. **D2 addressing — refined:** the recipient
+  check is a **declarative `Self`/`Any` filter on the entry node** (reusing `WhenNode`'s `EventTargetFilter{
+  None, Self}`), enforced by the pump — **not** an in-graph branch. Only genuinely complex/multi-field
+  correlation stays deferred (a single-field self-check is not "complex correlation").
+
+Cleared to implement (pending the dispatch/runtime trace). Original proposal follows.
 
 ## The need (two cases)
 
@@ -95,10 +113,33 @@ discovery already exists in **two** places — `[BlackboardDtoStructAttribute]` 
   `GraphKind.Event` exist as primitives, but a search did not surface the routing that actually *fires* an
   Event graph when a bus event arrives — so this is likely the load-bearing **net-new runtime piece**. (The
   editor / JSON / discovery all reuse — see the reuse map.)
-- **Addressing (D2):** cross-entity — "event aimed at entity X" vs broadcast. Is per-event Target/correlation
-  filtering needed on the entry, or is subscribe-by-type + read-the-`Target`-field-in-graph sufficient?
-  **Lean:** subscribe-by-type; the entry reads the event's Target field to self-filter; defer richer
-  correlation unless required.
+- **Addressing (D2) — RESOLVED: declarative `Self`/`Any` filter on the entry node.** There are two orthogonal
+  filter axes; the entry node handles both declaratively so the graph never branches:
+  - **Name/type** — inherent: the entry node is keyed to one event type; it only fires for that event. No
+    in-graph name filtering.
+  - **Recipient** — an optional `Self`/`Any` toggle (reuses `WhenNode`'s `EventTargetFilter{None, Self}`):
+    - `Self` (default) → fires **only when** `event.<TargetField> == this entity`.
+    - `Any` (= `None`) → broadcast; fires regardless of target.
+
+  Node UX:
+  ```
+  ┌─ ◈ On TargetSpotted ───────────┐   ← entry node; event TYPE = the name (auto name-filter)
+  │  Deliver to:  ◉ Self   ○ Any    │   ← shown only if the event declares a Target field
+  │                           exec ▶ │   ← execution enters here on fire
+  │                       SpotterId ● │   ← payload → data-out pins (reflection/def-discovered)
+  │                        Position ● │
+  │                          Target ● │   ← Target field still readable if the graph wants it
+  └─────────────────────────────────┘
+  ```
+  - **Target field** is inferred from the event definition (the field tagged as recipient — the `TargetFieldName`
+    / an `[EventTarget]` marker); the designer only flips `Self`/`Any`, never picks the field.
+  - **JSON:** `{ "kind": "EventEntry", "EventTypeId": "TargetSpotted", "TargetFilter": "Self" }`
+    (`"None"` = Any/broadcast — existing enum value).
+  - **Enforced at dispatch:** the per-tick pump delivers to this entry graph iff `TargetFilter == None` **or**
+    `event.<TargetField> == thisEntity` — no `Branch`/`Compare` in the graph.
+  - **Edge case:** event with no target field → toggle hidden, always delivered (broadcast-only event).
+  - **Deferred:** complex/multi-field correlation (arbitrary field matching) → in-graph branch, only if a
+    future case needs it.
 
 ### Q14-E — Authoring approach [the key decision — recommendation below]
 Precedent correction: **C# reflection-discovery is proven** (`[BlueprintCallable]` Q#12 + shared-state); the
