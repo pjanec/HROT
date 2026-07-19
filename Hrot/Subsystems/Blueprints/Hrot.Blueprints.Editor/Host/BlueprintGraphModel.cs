@@ -46,9 +46,10 @@ public sealed class BlueprintGraphModel : IGraphModel
     private readonly ActionCatalog.IBehaviorActionCatalog? _behaviorActions;
 
     // Projection caches (rebuilt when the asset graph mutates).
-    private Dictionary<NodeId, INodeModel>  _nodes  = new();
-    private Dictionary<LinkId, ILinkModel>  _links  = new();
-    private Dictionary<PinId,  IPinModel>   _pins   = new();
+    private Dictionary<NodeId,    INodeModel>    _nodes    = new();
+    private Dictionary<LinkId,    ILinkModel>    _links    = new();
+    private Dictionary<PinId,     IPinModel>     _pins     = new();
+    private Dictionary<CommentId, ICommentModel> _comments = new();
 
     // ── ctor / init ──────────────────────────────────────────────────────────
 
@@ -120,13 +121,14 @@ public sealed class BlueprintGraphModel : IGraphModel
 
     public IReadOnlyCollection<INodeModel>    Nodes    => _nodes.Values;
     public IReadOnlyCollection<ILinkModel>    Links    => _links.Values;
-    public IReadOnlyCollection<ICommentModel> Comments => Array.Empty<ICommentModel>();
+    public IReadOnlyCollection<ICommentModel> Comments => _comments.Values;
 
     public event Action<GraphChangeNotification>? Changed;
 
-    public INodeModel?  FindNode(NodeId id)  => _nodes.TryGetValue(id,  out var v) ? v : null;
-    public IPinModel?   FindPin(PinId id)    => _pins.TryGetValue(id,   out var v) ? v : null;
-    public ILinkModel?  FindLink(LinkId id)  => _links.TryGetValue(id,  out var v) ? v : null;
+    public INodeModel?    FindNode(NodeId id)       => _nodes.TryGetValue(id,    out var v) ? v : null;
+    public IPinModel?     FindPin(PinId id)         => _pins.TryGetValue(id,     out var v) ? v : null;
+    public ILinkModel?    FindLink(LinkId id)       => _links.TryGetValue(id,    out var v) ? v : null;
+    public ICommentModel? FindComment(CommentId id) => _comments.TryGetValue(id, out var v) ? v : null;
 
     // ── mutation notification ────────────────────────────────────────────────
 
@@ -158,9 +160,10 @@ public sealed class BlueprintGraphModel : IGraphModel
     /// </summary>
     public void Rebuild()
     {
-        var nodes = new Dictionary<NodeId, INodeModel>();
-        var pins  = new Dictionary<PinId,  IPinModel>();
-        var links = new Dictionary<LinkId, ILinkModel>();
+        var nodes    = new Dictionary<NodeId, INodeModel>();
+        var pins     = new Dictionary<PinId,  IPinModel>();
+        var links    = new Dictionary<LinkId, ILinkModel>();
+        var comments = new Dictionary<CommentId, ICommentModel>();
 
         // ── Pass 1: resolve per-node pin GUIDs ──────────────────────────────
 
@@ -280,9 +283,17 @@ public sealed class BlueprintGraphModel : IGraphModel
             links[linkId] = new BlueprintLinkModel(linkId, fromPin, toPin, assetLink.Waypoints);
         }
 
-        _nodes = nodes;
-        _pins  = pins;
-        _links = links;
+        // ── Comments: pure editor annotations, no pin/node resolution needed ──
+        foreach (var assetComment in _graph.Comments)
+        {
+            var commentModel = new BlueprintCommentModel(assetComment);
+            comments[commentModel.Id] = commentModel;
+        }
+
+        _nodes    = nodes;
+        _pins     = pins;
+        _links    = links;
+        _comments = comments;
     }
 
     /// <summary>

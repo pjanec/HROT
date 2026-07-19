@@ -11,6 +11,13 @@ public sealed class Graph
     public List<ParameterDecl> Outputs { get; set; } = new();
     public List<Node> Nodes { get; set; } = new();
     public List<Link> Links { get; set; } = new();
+
+    /// <summary>
+    /// Unreal-style comment boxes ("Add Comment" on the canvas). Pure editor annotation —
+    /// the compiler never reads this list; it exists only so comments round-trip through
+    /// save/reload. See <see cref="GraphComment"/>.
+    /// </summary>
+    public List<GraphComment> Comments { get; set; } = new();
     public GraphMetadata EditorMetadata { get; set; } = new();
 }
 
@@ -59,6 +66,37 @@ public sealed class LinkWaypoint
 {
     public float X { get; set; }
     public float Y { get; set; }
+}
+
+/// <summary>
+/// Asset-level projection of an Unreal-style comment box (NodeEdit's
+/// <c>NodeEditor.Core.Interfaces.ICommentModel</c>). Position/size are stored as flat
+/// float properties (X/Y/W/H) — same shape convention as <see cref="NodeMetadata"/> and
+/// <see cref="LinkWaypoint"/> — rather than a <c>System.Numerics.Vector2</c>, whose X/Y are
+/// FIELDS and would serialize to <c>{}</c> unless <c>IncludeFields</c> were enabled.
+/// Color is stored as four float channels (RGBA, matching <c>System.Numerics.Vector4</c>
+/// component order) for the same reason.
+/// <para>
+/// Pure editor annotation: the compiler stages never read this type. "Move with contents"
+/// is computed geometrically by the NodeEdit canvas at drag-time (nodes whose bounds are
+/// fully contained by the comment rect) — there is no persisted child-node-id list to keep
+/// in sync, so none is stored here.
+/// </para>
+/// </summary>
+public sealed class GraphComment
+{
+    public Guid Id { get; set; }
+    public string Text { get; set; } = "";
+    public float X { get; set; }
+    public float Y { get; set; }
+    public float W { get; set; }
+    public float H { get; set; }
+    public float ColorR { get; set; } = 0.29f;
+    public float ColorG { get; set; } = 0.56f;
+    public float ColorB { get; set; } = 0.88f;
+    public float ColorA { get; set; } = 1f;
+    public int ZOrder { get; set; }
+    public bool MoveWithContents { get; set; } = true;
 }
 
 public sealed class AssetMetadata

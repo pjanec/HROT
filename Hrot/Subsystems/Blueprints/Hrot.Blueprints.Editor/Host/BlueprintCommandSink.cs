@@ -142,6 +142,15 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             case GraphCommand.RemoveReroute removeReroute:
                 return ApplyRemoveReroute(removeReroute);
 
+            case GraphCommand.AddComment addComment:
+                return ApplyAddComment(addComment);
+
+            case GraphCommand.UpdateComment updateComment:
+                return ApplyUpdateComment(updateComment);
+
+            case GraphCommand.RemoveComment removeComment:
+                return ApplyRemoveComment(removeComment);
+
             default:
                 // Unknown commands are silently accepted (forward-compat).
                 return new GraphCommandResult(true, null);
@@ -724,6 +733,104 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         assetLink.Waypoints.RemoveAt(cmd.WaypointIndex);
 
         _markDirty(_asset);
+        _model.RebuildAndNotify();
+        return new GraphCommandResult(true, null);
+    }
+
+    // ── Comments (Unreal-style comment boxes) ─────────────────────────────────
+
+    /// <summary>
+    /// Handles <see cref="GraphCommand.AddComment"/>. Creates a <see cref="GraphComment"/> on the
+    /// asset graph (mirrors how <see cref="ApplyInsertReroute"/> mutates <see cref="Link.Waypoints"/>).
+    /// Routed through <see cref="_editService"/> so Add-Comment participates in undo/redo.
+    /// </summary>
+    private GraphCommandResult ApplyAddComment(GraphCommand.AddComment cmd)
+    {
+        var comment = new GraphComment
+        {
+            Id               = cmd.AssignedId.Value,
+            Text             = cmd.Text,
+            X                = cmd.Position.X,
+            Y                = cmd.Position.Y,
+            W                = cmd.Size.X,
+            H                = cmd.Size.Y,
+            ColorR           = cmd.Color.X,
+            ColorG           = cmd.Color.Y,
+            ColorB           = cmd.Color.Z,
+            ColorA           = cmd.Color.W,
+            MoveWithContents = cmd.MoveWithContents,
+        };
+
+        _editService.RecordPropertyEdit(
+            _asset,
+            "Add Comment",
+            apply: () => _graph.Comments.Add(comment),
+            undo:  () => _graph.Comments.RemoveAll(c => c.Id == comment.Id));
+
+        _model.RebuildAndNotify();
+        return new GraphCommandResult(true, null);
+    }
+
+    /// <summary>
+    /// Handles <see cref="GraphCommand.UpdateComment"/>. Every field is a nullable "only touch
+    /// what's set" patch (rename, drag-move, resize, recolor, z-order restack, move-with-contents
+    /// toggle all funnel through this one command — see <c>CanvasRenderer.DrawContextMenu</c> and
+    /// <c>CommentsRenderer.RenderRenameField</c>). Undo restores exactly the fields that changed.
+    /// </summary>
+    private GraphCommandResult ApplyUpdateComment(GraphCommand.UpdateComment cmd)
+    {
+        var comment = _graph.Comments.FirstOrDefault(c => c.Id == cmd.Id.Value);
+        if (comment == null)
+            return new GraphCommandResult(true, null);   // unknown id — safe no-op
+
+        string?  oldText   = cmd.Text             is not null ? comment.Text             : null;
+        Vector2? oldPos    = cmd.Position          is not null ? new Vector2(comment.X, comment.Y) : null;
+        Vector2? oldSize   = cmd.Size              is not null ? new Vector2(comment.W, comment.H) : null;
+        Vector4? oldColor  = cmd.Color             is not null ? new Vector4(comment.ColorR, comment.ColorG, comment.ColorB, comment.ColorA) : null;
+        int?     oldZOrder = cmd.ZOrder            is not null ? comment.ZOrder            : null;
+        bool?    oldMwc    = cmd.MoveWithContents  is not null ? comment.MoveWithContents  : null;
+
+        _editService.RecordPropertyEdit(
+            _asset,
+            "Update Comment",
+            apply: () => ApplyCommentFields(comment, cmd.Text, cmd.Position, cmd.Size, cmd.Color, cmd.ZOrder, cmd.MoveWithContents),
+            undo:  () => ApplyCommentFields(comment, oldText, oldPos, oldSize, oldColor, oldZOrder, oldMwc));
+
+        _model.RebuildAndNotify();
+        return new GraphCommandResult(true, null);
+    }
+
+    private static void ApplyCommentFields(
+        GraphComment comment, string? text, Vector2? position, Vector2? size, Vector4? color,
+        int? zOrder, bool? moveWithContents)
+    {
+        if (text is not null) comment.Text = text;
+        if (position is not null) { comment.X = position.Value.X; comment.Y = position.Value.Y; }
+        if (size is not null) { comment.W = size.Value.X; comment.H = size.Value.Y; }
+        if (color is not null)
+        {
+            comment.ColorR = color.Value.X;
+            comment.ColorG = color.Value.Y;
+            comment.ColorB = color.Value.Z;
+            comment.ColorA = color.Value.W;
+        }
+        if (zOrder is not null) comment.ZOrder = zOrder.Value;
+        if (moveWithContents is not null) comment.MoveWithContents = moveWithContents.Value;
+    }
+
+    /// <summary>Handles <see cref="GraphCommand.RemoveComment"/>.</summary>
+    private GraphCommandResult ApplyRemoveComment(GraphCommand.RemoveComment cmd)
+    {
+        var comment = _graph.Comments.FirstOrDefault(c => c.Id == cmd.Id.Value);
+        if (comment == null)
+            return new GraphCommandResult(true, null);   // unknown id — safe no-op
+
+        _editService.RecordPropertyEdit(
+            _asset,
+            "Remove Comment",
+            apply: () => _graph.Comments.RemoveAll(c => c.Id == comment.Id),
+            undo:  () => _graph.Comments.Add(comment));
+
         _model.RebuildAndNotify();
         return new GraphCommandResult(true, null);
     }
