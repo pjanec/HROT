@@ -1,5 +1,6 @@
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Editor.Host;
 
 namespace Hrot.Blueprints.Editor.NodeDrawers;
 
@@ -36,6 +37,12 @@ internal sealed class FunctionCallNodeSession : INodeEditSession
     // frames so that selecting "In-Blueprint Function" does not flicker back to "CLR Method"
     // before the user has picked a graph (TargetGraphId is empty until then). 0 = CLR, 1 = graph.
     private int _modeIdx;
+
+    // Punch-list #6: cached source-location resolution for the "open in VS" button. Recomputed
+    // only when (TargetTypeId, MethodName) changes so reflection + PDB reads don't run every frame.
+    private string? _srcKey;
+    private ClrSourceLocator.SourceLocation? _srcLoc;
+    private bool _srcResolvedMethod;
 
     public bool IsDirty { get; private set; }
 
@@ -214,6 +221,60 @@ internal sealed class FunctionCallNodeSession : INodeEditSession
         }
 
         ImGui.TextDisabled("(CLR method browser deferred — enter type/method names directly)");
+
+        DrawOpenSourceButton();
+    }
+
+    /// <summary>
+    /// Punch-list #6: a "⋯" button that opens the targeted CLR method's source in Visual Studio.
+    /// The method + its source file/line are resolved (and cached) from reflection + the portable
+    /// PDB; the button is disabled and the reason shown when the method or its source cannot be
+    /// located (e.g. a dynamic/hot-reloaded assembly, or a Release build with no PDB).
+    /// </summary>
+    private void DrawOpenSourceButton()
+    {
+        var key = (_node.TargetTypeId ?? "") + "|" + (_node.MethodName ?? "");
+        if (key != _srcKey)
+        {
+            _srcKey            = key;
+            _srcLoc            = null;
+            _srcResolvedMethod = false;
+            var method = NodePinSchema.ResolveClrMethod(_node);
+            if (method != null)
+            {
+                _srcResolvedMethod = true;
+                _srcLoc            = ClrSourceLocator.Resolve(method);
+            }
+        }
+
+        ImGui.Separator();
+
+        bool canOpen = _srcLoc.HasValue;
+        ImGui.BeginDisabled(!canOpen);
+        if (ImGui.Button("...")) // the punch-list "⋯" affordance (ASCII for font safety)
+        {
+            if (_srcLoc.HasValue) SourceFileOpener.Open(_srcLoc.Value.File);
+        }
+        ImGui.EndDisabled();
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Open the method's source in Visual Studio");
+
+        ImGui.SameLine();
+        if (_srcLoc.HasValue)
+            ImGui.TextDisabled($"{ShortFile(_srcLoc.Value.File)}:{_srcLoc.Value.Line}");
+        else if (_srcResolvedMethod)
+            ImGui.TextDisabled("(no source — missing PDB / dynamic assembly)");
+        else
+            ImGui.TextDisabled("(method not resolved)");
+    }
+
+    /// <summary>Last two path segments of a source file, for a compact inspector label.</summary>
+    private static string ShortFile(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return path;
+        var norm  = path.Replace('\\', '/');
+        var parts = norm.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length <= 2 ? norm : parts[^2] + "/" + parts[^1];
     }
 
     public void ResetDirty() => IsDirty = false;
