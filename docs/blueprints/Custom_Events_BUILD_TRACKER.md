@@ -6,9 +6,9 @@ Legend: ⬜ todo · 🟡 in progress · ✅ done (committed) · ⏸️ deferred.
 ## Phase 1 — Discovery + authoring (foundation)
 - ✅ **1a** `[BlueprintEvent(Category, DisplayName?)]` attribute (mirror `[BlueprintCallable]`)
 - ✅ **1b** Reflection discovery of `[BlueprintEvent]` C# structs + fields (mirror `ISharedStructTypeProvider`) — the 2a path
-- ⬜ **1c** Editor-authored event-definition model + JSON asset (2b) — data model + round-trip
+- ✅ **1c** Editor-authored event-definition model + JSON asset (2b) — data model + round-trip
 - ⬜ **1d** Event-definition authoring UI (mirror blackboard/variables authoring)
-- ⬜ **1e** Unified discovery (2a reflected + 2b asset) → single picker source
+- ✅ **1e** Unified discovery (2a reflected + 2b asset) → single picker source
 - ⏸️ **1f** Migrate system-predefined events to reflection (retire baked `PayloadFields`) — after publish path proven
 
 ## Phase 2 — Publish
