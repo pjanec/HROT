@@ -39,6 +39,12 @@ internal sealed class BlueprintNodeModel : INodeModel
     public bool        IsCollapsed      => false;
     public bool        ShowAdvancedPins => false;
     public NodeId?     ParentContainerId => null;
+    /// <summary>
+    /// UE-style: function-call nodes are marked with an italic <c>ƒ</c> in the header corner
+    /// (native and Blueprint calls alike — they are told apart by workflow, not paint). Null for
+    /// every other node kind.
+    /// </summary>
+    public string?     HeaderGlyph      { get; }
     public IReadOnlyList<IPinModel> Pins => _pins;
 
     /// <summary>
@@ -66,6 +72,8 @@ internal sealed class BlueprintNodeModel : INodeModel
         StatusTooltip = node is Hrot.Blueprints.Core.Assets.FunctionCallNode fc
             ? FunctionCallTooltip.Build(fc, _pins)
             : null;
+        // "ƒ" (U+0192) reads as UE's italic function mark and is in the canvas font range.
+        HeaderGlyph = node is Hrot.Blueprints.Core.Assets.FunctionCallNode ? "ƒ" : null;
     }
 
     /// <summary>

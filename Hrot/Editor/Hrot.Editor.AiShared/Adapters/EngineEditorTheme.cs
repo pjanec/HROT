@@ -54,6 +54,9 @@ public sealed class EngineEditorTheme : IEditorTheme
     {
         NodeCategory.Event       => new Vector4(0.65f, 0.07f, 0.07f, 1f),
         NodeCategory.Function    => new Vector4(0.07f, 0.30f, 0.60f, 1f),
+        // UE-faithful: pure functions/operators are green (impure functions stay blue). A brighter,
+        // more-saturated green than VariableGet so the two greens stay visually distinct.
+        NodeCategory.Pure        => new Vector4(0.16f, 0.55f, 0.24f, 1f),
         NodeCategory.Macro       => new Vector4(0.25f, 0.15f, 0.50f, 1f),
         NodeCategory.VariableGet => new Vector4(0.07f, 0.40f, 0.20f, 1f),
         NodeCategory.VariableSet => new Vector4(0.05f, 0.35f, 0.15f, 1f),

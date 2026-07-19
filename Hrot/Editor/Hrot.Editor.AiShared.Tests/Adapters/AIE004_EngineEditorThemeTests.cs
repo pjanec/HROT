@@ -214,6 +214,21 @@ public sealed class AIE004_EngineEditorThemeTests
         Assert.Equal(0.20f, color.Z, 4);
     }
 
+    // ── UE-style: Pure is green (impure Function stays blue) ─────────────────
+
+    [Fact]
+    public void EngineEditorTheme_GetCategoryHeaderColor_Pure_IsGreen()
+    {
+        var color = MakeTheme().GetCategoryHeaderColor(NodeCategory.Pure);
+        Assert.Equal(0.16f, color.X, 4);
+        Assert.Equal(0.55f, color.Y, 4);
+        Assert.Equal(0.24f, color.Z, 4);
+        Assert.Equal(1.00f, color.W, 4);
+        // Distinct from the impure Function blue and from VariableGet's darker green.
+        Assert.NotEqual(MakeTheme().GetCategoryHeaderColor(NodeCategory.Function), color);
+        Assert.NotEqual(MakeTheme().GetCategoryHeaderColor(NodeCategory.VariableGet), color);
+    }
+
     // ── AIE-004-05: BATCH-11 — FlowControl is orange, distinct from Comment ───
 
     [Fact]

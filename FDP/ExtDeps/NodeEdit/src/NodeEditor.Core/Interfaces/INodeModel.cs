@@ -51,4 +51,11 @@ public interface INodeModel
     /// Default: null (root level). Override only when the node is a container child.
     /// </summary>
     NodeId? ParentContainerId => null;
+
+    /// <summary>
+    /// Optional short glyph drawn in the header's top-left corner (e.g. the italic <c>ƒ</c> that
+    /// marks a function-call node, Unreal-style). Null (default) draws no glyph. Kept as a plain
+    /// string so the host owns the vocabulary; the renderer just draws it with the node font.
+    /// </summary>
+    string? HeaderGlyph => null;
 }

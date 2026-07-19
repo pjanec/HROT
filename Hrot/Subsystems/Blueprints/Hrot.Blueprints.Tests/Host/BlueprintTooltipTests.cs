@@ -94,6 +94,16 @@ public sealed class BlueprintTooltipTests
     }
 
     [Fact]
+    public void NodeModel_HeaderGlyph_IsFunctionMark_OnlyForFunctionCall()
+    {
+        var fn = new BlueprintNodeModel(new FunctionCallNode { MethodName = "X", IsPure = true }, System.Array.Empty<IPinModel>());
+        Assert.Equal("ƒ", fn.HeaderGlyph);
+
+        var other = new BlueprintNodeModel(new CompareNode { Operator = ComparisonOperator.Equal }, System.Array.Empty<IPinModel>());
+        Assert.Null(other.HeaderGlyph);
+    }
+
+    [Fact]
     public void NodeModel_StatusTooltip_OnlyForFunctionCall()
     {
         var plain = new BlueprintNodeModel(new CompareNode { Operator = ComparisonOperator.Equal }, System.Array.Empty<IPinModel>());
