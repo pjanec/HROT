@@ -77,7 +77,7 @@ public static class BlueprintCallablePaletteEntries
             DisplayName = displayName,
             Category    = attr.Category,
             Tooltip     = tooltip,
-            Icon        = "",
+            Icon        = isPure ? "bp/pure" : "bp/function",
             CreateInstance = () => new FunctionCallNode
             {
                 Id           = Guid.NewGuid(),

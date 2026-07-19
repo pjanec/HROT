@@ -109,37 +109,18 @@ internal sealed class FunctionCallNodeSession : INodeEditSession
         ImGui.Text("Function Call");
         ImGui.Separator();
 
-        // IsPure checkbox — applicable to both modes
+        // Purity is fixed by the chosen function (set once at add-time) — read-only display.
+        ImGui.BeginDisabled();
         bool isPure = _node.IsPure;
-        if (ImGui.Checkbox("Pure (no exec pins)", ref isPure))
-        {
-            _node.IsPure = isPure;
-            MarkChanged();
-        }
+        ImGui.Checkbox("Pure (no exec pins)", ref isPure);
+        ImGui.EndDisabled();
 
         ImGui.Separator();
 
-        // Mode persists across frames (see _modeIdx). Keep it in sync if the node was changed
-        // externally to an in-blueprint target.
+        // Mode is determined by what was picked when the node was added; it is not switchable on a
+        // placed node (add a new node to call something else). Shown read-only.
         if (!string.IsNullOrEmpty(_node.TargetGraphId)) _modeIdx = 1;
-
-        string[] modeLabels = { "CLR Method", "In-Blueprint Function" };
-        if (ImGui.Combo("Mode", ref _modeIdx, modeLabels, modeLabels.Length))
-        {
-            if (_modeIdx == 0 && !string.IsNullOrEmpty(_node.TargetGraphId))
-            {
-                // Switched to CLR mode — clear TargetGraphId
-                _node.TargetGraphId = "";
-                MarkChanged();
-            }
-            else if (_modeIdx == 1 && (!string.IsNullOrEmpty(_node.TargetTypeId) || !string.IsNullOrEmpty(_node.MethodName)))
-            {
-                // Switched to in-blueprint mode — clear CLR fields; TargetGraphId set when the user picks.
-                _node.TargetTypeId = "";
-                _node.MethodName   = "";
-                MarkChanged();
-            }
-        }
+        ImGui.TextUnformatted(_modeIdx == 1 ? "Mode: In-Blueprint Function" : "Mode: CLR Method");
 
         ImGui.Separator();
 
