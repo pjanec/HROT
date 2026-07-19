@@ -50,9 +50,11 @@ public static class IconsFontAwesome6
     public const string Bug                 = "\uf188";
     public const string CircleCheck         = "\uf058"; // success
     public const string CircleXmark         = "\uf057"; // error
+    public const string CircleQuestion      = "\uf059"; // condition / query
     public const string TriangleExclamation = "\uf071"; // warning
     public const string CircleInfo          = "\uf05a";
     public const string Eye                 = "\uf06e";
+    public const string Bolt                = "\uf0e7"; // action / event
 
     // Structure / navigation
     public const string Gear                = "\uf013"; // settings
@@ -61,6 +63,7 @@ public static class IconsFontAwesome6
     public const string CodeBranch          = "\uf126";
     public const string DiagramProject      = "\uf542"; // blueprint graph
     public const string Sitemap             = "\uf0e8"; // behavior tree / hierarchy
+    public const string CircleNodes         = "\ue4e2"; // state machine / graph nodes
     public const string LayerGroup          = "\uf5fd";
     public const string Bars                = "\uf0c9"; // menu
 }
