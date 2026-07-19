@@ -109,3 +109,28 @@ Then **3d** Self/Any (needs the target-field offset threaded), **2b** carrier, *
 
 **Bottom line:** the dispatch *mechanism* is proven end-to-end at the helper level; the remaining work is the
 compiler event-identity plumbing + the subscribe node + the full-pipeline integration test — a focused coupled slice.
+
+## Session-3 progress (dispatch wiring + subscribe-compiler validated)
+Every link of the publish→dispatch→subscribe chain is now validated at the piece level (and they compose by
+construction — the emitter produces the exact thunk the dispatch helper invokes with the payload it reads):
+- **3b-wiring** (committed): event identity plumbed — `IrGraph.EventTypeFqn` ← `EventEntryNode.EventTypeId`
+  (Stage5); `CSharpEmitter` keys `EventHandlers` by the FQN; `InstanceEmitter` thunk reinterprets the payload
+  as `global::{FQN}` + passes fields. **Validated** by `EventGraphEmitTests` (compile → keyed by FQN + thunk
+  marshals `__ev.Value`). Proof suite 184/184 byte-identical.
+- **Stage2 BP1400 relax** (committed): a fully-qualified custom-event identity on an `EventEntry` is accepted
+  (baked, unverifiable — mirrors PublishEvent); non-FQN typos still error.
+- Builder gained `Entry(eventTypeId?)` + `WithInput` (minimal Event-graph test support).
+
+**Remaining:**
+- **Capstone integration test** (ties it together end-to-end): `fixture.CompileAndLoad(eventBp)` →
+  `SpawnAndAttach` → `World.Bus.Publish(new TheEvent{...})` → `harness.Pump(1)` (TickFrame SwapBuffers →
+  BlueprintTickSystem dispatches → handler runs) → `ReadIntField` asserts. Needs the Event-graph body to write
+  observable state — i.e. `SetVariable`-with-a-wired-value (a Literal wired into the SetVariable value pin);
+  the builder's `SetVariable` doesn't wire a value yet, so add that (or a small manual-wire helper).
+- **3d** Self/Any filter at dispatch (needs the target-field byte offset threaded to `DispatchForSlot`).
+- **2b** generic carrier lowering (editor-authored events with no C# struct).
+- **4a/4b** the editor subscribe node UX (`EventEntry` reflected payload pins + Self/Any `TargetFilter`).
+- **1d** authoring UI; **1f** system-event migration.
+
+**Bottom line:** the runtime dispatch + both compiler ends (publish + subscribe) are built and each validated;
+what's left is the capstone integration test, the Self/Any refinement, the 2b carrier, and the editor UX.
