@@ -186,3 +186,49 @@ speculatively.**
    pins; event type = identity.
 4. **Q14-D:** the bus→Event-graph dispatch/routing (the net-new runtime piece) — confirm it doesn't already
    exist and bless the registration+pump sketch; addressing = subscribe-by-type + read the Target field (D2).
+
+---
+
+## Dispatch trace — runtime findings (for implementation)
+
+Read-only trace of `world.Bus` + blueprint event handling (verified). **Confirms Q14-D is net-new** and pins
+down exactly what to reuse.
+
+**Reuse (all proven):**
+- **Bus** = `FdpEventBus` (`FDP/Engine/Fdp.Core/FdpEventBus.cs`) — double-buffered; `Publish<T:unmanaged>` /
+  `PublishManaged<T>` / `Read<T>` / `ReadManaged<T>`; per-frame `SwapBuffers()` at
+  `Fdp.ModuleHost/ModuleHostKernel.cs:535`. Reads see last frame's events (standard input-buffering).
+- **Generic carrier already exists:** `PublishRaw` / `InjectIntoCurrentBySize(typeId, elemSize, bytes)` +
+  `UntypedNativeEventStream` (`FdpEventBus.cs:159-169,393-418`) — used for replay/ECB today, **directly
+  reusable as the 2b generic custom-event envelope** (type-id + byte payload).
+- **"Did event X arrive" pattern** = WhenNode(EventFired) polls inline: `view.ReadEvents<T>()` →
+  `Bus.Read<T>()` (`EntityRepository.View.cs:88`), with inline `Target==self` + single-field payload filter
+  (`StatementEmitter.cs:583-626`). Poll, not push — reuse the codegen pattern.
+- **Byte-addressed per-instance state** = compiler-emitted `[StructLayout(Sequential)] State` reinterpret-cast
+  over the blackboard slot span (`InstanceEmitter.EmitStateStruct`). **Reuse for the event payload struct** —
+  `EventHandlerDelegate` already takes `ReadOnlySpan<byte> payload` (`BlueprintDelegates.cs:44-51`).
+- **Tick systems:** `BlueprintTickSystem` (Instance), `BTreeTickSystem`/`HsmTickSystem`. `BTreeTickSystem`
+  already drains `Bus.Read<…>()` (precedent). Dispatch-pump home: a new Input-phase system after `SwapBuffers`
+  before `BlueprintTickSystem`, or folded into `BlueprintTickSystem`'s per-slot loop (already has
+  `view/ecb/entity/def` per instance).
+- **Registration:** `[BlueprintRegistrar]` → `BlueprintRegistry.TryGetById/ByName` (identity lookup) — reuse to
+  resolve `def` once the subscriber instance is known.
+
+**The orphaned seam (built, unused — the target to wire up):** the compiler already emits `Event_{Name}` +
+`Event_{Name}_Thunk` and populates `BlueprintDefinition.EventHandlers` (`InstanceEmitter.cs:145-277`;
+`CSharpEmitter.cs:330-364`). **`EventHandlers` is written but NEVER read** (verified: only the emitter,
+the declaration, and one test reference it). Today an Event graph runs ONLY via `IrOp_RaiseCustomEvent`
+(a direct same-instance in-process call — the intra-blueprint "Call Custom Event"), never from the bus.
+
+**Net-new (the whole slice):**
+1. **Event-subscription registry** — event-type → interested blueprints/entities (none exists; registry is
+   identity-only).
+2. **The routing** — on a published event, resolve subscribers → invoke their `Event_*_Thunk` /
+   `EventHandlerDelegate`. Enforce the **Self/Any recipient filter** here (D2).
+3. **Real payload marshalling** — `EmitEventThunk` currently stubs `default(T)` for payload fields
+   (`InstanceEmitter.cs:270-274`); fill from the carrier bytes via the reinterpret-cast trick.
+4. **Delivery semantics** — broadcast-poll vs an explicit per-event subscriber list.
+
+**Correction to the trace:** `EventEntryNode` (with `EventTypeId`) **does** exist and is widely used — the
+Instance-emitter keys Event graphs by graph **Name** today, so an implementation detail to reconcile is
+whether the event key is the graph name or the entry node's `EventTypeId`.
