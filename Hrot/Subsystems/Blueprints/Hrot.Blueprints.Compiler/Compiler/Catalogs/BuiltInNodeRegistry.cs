@@ -41,6 +41,11 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         // Stage0_Rehydrate's "node.Pins.Count > 0 => skip" guard leaves it alone; no enricher needed).
         GetParameterNode  => Array.Empty<PinSchema>(),   // pure data-Out, type from the referenced Parameter (authored pin)
 
+        // GetAllParameters: pure data-Out node, ONE out-pin per asset.Parameters entry. Dynamic
+        // (like EventEntryNode) -- Stage0_Rehydrate.EnrichGetAllParametersPins rebuilds the full
+        // pin set from asset.Parameters, so no static shape here.
+        GetAllParametersNode => Array.Empty<PinSchema>(),   // pure data-Out(s), one per asset.Parameters entry
+
         // GetShared/SetShared (Slice 2a-2): mirrors Get/SetVariable -- static skeleton only;
         // Stage0_Rehydrate enriches data pins directly from SharedTypeId (NOT asset.Variables --
         // the shared type is foreign to this asset). Slice 2b: GetShared's enricher additionally

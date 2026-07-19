@@ -139,6 +139,10 @@ internal static class NodePinSchema
             // EDITOR still needs the "Value" out-pin projected so the node renders connected — reconstruct
             // it here, typed from the referenced Parameter (mirrors the authored shape in the twins).
             GetParameterNode gp => GetParameterPins(gp, asset),
+            // GetAllParameters: pin-less assets carry no authored pins either; the editor projects
+            // one "Value"-style data-out pin per asset Parameter directly from asset.Parameters
+            // (mirrors EventEntryNodePins projecting one data-out per Graph.Inputs entry).
+            GetAllParametersNode => GetAllParametersPins(asset),
             GetSharedNode gsn   => GetSharedPins(gsn),
             SetSharedNode ssn   => SetSharedPins(ssn),
             ChannelCommandNode cc => ChannelCommandPins(cc, channelCommands, behaviorActions),
@@ -621,6 +625,27 @@ internal static class NodePinSchema
         {
             MakeData("Value", "Out", ResolveParameterTypeId(gp.ParameterId, asset)),
         };
+
+    /// <summary>
+    /// GetAllParameters (editor projection): one data-out pin per <c>asset.Parameters</c> entry
+    /// (name = <see cref="ParameterDecl.Name"/>, type from <see cref="ParameterDecl.Type"/>;
+    /// fallback <c>System.Object</c>) -- mirrors <see cref="EventEntryNodePins"/>'s one-data-out-
+    /// per-<c>Graph.Inputs</c> projection, retargeted at the asset's Parameters list. Returns an
+    /// empty pin list when the asset is null or has no declared Parameters.
+    /// </summary>
+    private static IReadOnlyList<Pin> GetAllParametersPins(BlueprintAsset? asset)
+    {
+        if (asset is null || asset.Parameters.Count == 0)
+            return Array.Empty<Pin>();
+
+        var pins = new List<Pin>(asset.Parameters.Count);
+        foreach (var p in asset.Parameters)
+        {
+            var typeId = string.IsNullOrEmpty(p.Type?.TypeId) ? "System.Object" : p.Type.TypeId;
+            pins.Add(MakeData(p.Name, "Out", typeId));
+        }
+        return pins;
+    }
 
     /// <summary>
     /// Looks up a blueprint parameter's <c>TypeId</c> by id (accepts the raw GUID or the

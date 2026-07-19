@@ -1600,6 +1600,29 @@ internal sealed class GraphScheduler
                 });
                 break;
 
+            // GetAllParameters: one out-pin per asset.Parameters entry -- mirrors GetParameterNode's
+            // IrOp_ReadParam lowering, but (like EventEntryNode's data-out pins, which are matched
+            // by NAME against Graph.Inputs) resolves the param index by matching the SPECIFIC
+            // requested out-pin's Name against asset.Parameters (FindParameterIndex's non-Guid
+            // fallback already does a plain name match), rather than a single baked ParameterId.
+            case GetAllParametersNode gap:
+            {
+                var dataOutPins = gap.Pins
+                    .Where(p => !p.IsExec && p.Direction == "Out")
+                    .ToList();
+                var sourcePin = dataOutPins.FirstOrDefault(p => p.Id == sourcePinId);
+                int gapIdx = sourcePin is not null ? FindParameterIndex(sourcePin.Name) : -1;
+
+                result = AllocValue(pinType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = result,
+                    Operation   = new IrOp_ReadParam(gapIdx),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gap.Id, PinId = sourcePinId },
+                });
+                break;
+            }
+
             case GetSharedNode gsn:
             {
                 // Name-keyed slot -- NOT FindVariableIndex (the shared struct is foreign to this

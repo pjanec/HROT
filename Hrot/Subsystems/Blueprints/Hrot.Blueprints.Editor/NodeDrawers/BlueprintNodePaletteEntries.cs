@@ -107,6 +107,9 @@ public static class BlueprintNodePaletteEntries
         yield return Make<SetVariableNode>(
             "SetVariable", "Set Variable", Categories.Variables,
             "Write a blueprint variable's value.");
+        yield return Make<GetAllParametersNode>(
+            "GetAllParameters", "Get All Parameters", Categories.Variables,
+            "Read all of this blueprint's declared Parameters at once (pure) -- one output pin per Parameter.");
 
         // ── Shared State (Slice 2a-3) ──────────────────────────────────────
         // GetSharedNode/SetSharedNode default-construct with empty VariableId/SharedTypeId;

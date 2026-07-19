@@ -119,6 +119,10 @@ internal static class Stage0_Rehydrate
                 EnrichEventEntryPins(pins, graph, staticShapes);
                 break;
 
+            case GetAllParametersNode:
+                EnrichGetAllParametersPins(pins, asset, staticShapes);
+                break;
+
             case ReturnNode:
                 EnrichReturnPins(pins, graph, staticShapes);
                 break;
@@ -194,6 +198,25 @@ internal static class Stage0_Rehydrate
         {
             var inpTypeId = GetTypeId(inp.Type);
             pins.Add(MakePin(inp.Name, "Out", isExec: false, typeId: inpTypeId));
+        }
+    }
+
+    /// <summary>
+    /// GetAllParametersNode: pure-data node, static skeleton is empty (registry mirrors
+    /// EventEntryNode's dynamic-kind treatment). Enrich: add ONE data-Out pin per
+    /// <c>asset.Parameters</c> entry (name = <see cref="ParameterDecl.Name"/>, type from
+    /// <see cref="ParameterDecl.Type"/>; fallback <c>System.Object</c>) -- mirrors
+    /// <see cref="EnrichEventEntryPins"/> exactly, retargeted at <c>asset.Parameters</c> instead of
+    /// <c>graph.Inputs</c>. No exec pins (pure node, unlike EventEntryNode's exec-Out).
+    /// </summary>
+    private static void EnrichGetAllParametersPins(
+        List<Pin> pins, BlueprintAsset asset, IReadOnlyList<PinSchema> staticShapes)
+    {
+        pins.Clear();
+        foreach (var p in asset.Parameters)
+        {
+            var typeId = GetTypeId(p.Type);
+            pins.Add(MakePin(p.Name, "Out", isExec: false, typeId: typeId));
         }
     }
 
@@ -843,6 +866,7 @@ internal static class Stage0_Rehydrate
         FunctionCallNode fc   => !fc.IsPure,
         GetVariableNode       => false,
         GetParameterNode      => false,
+        GetAllParametersNode  => false,
         GetSharedNode         => false,
         GetComponentNode      => false,
         CompareNode           => false,

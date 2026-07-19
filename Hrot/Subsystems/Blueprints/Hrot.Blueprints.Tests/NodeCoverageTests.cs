@@ -530,6 +530,7 @@ public sealed class NodeCoverageTests
         yield return ("Inline/GetComponent", new[] { BuildGetComponentMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/DiamondMerge", new[] { BuildDiamondMergeMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetParameter", new[] { BuildGetParameterMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
+        yield return ("Inline/GetAllParameters", new[] { BuildGetAllParametersMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/Compare", new[] { BuildCompareMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/BinaryOp", new[] { BuildBinaryOpMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/BooleanOp", new[] { BuildBooleanOpMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
@@ -1537,6 +1538,107 @@ public sealed class NodeCoverageTests
             },
             Parameters   = { param },
             WorkingState = { floatVar },
+            Graphs       = { graph },
+        };
+    }
+
+    /// <summary>
+    /// GetAllParametersNode -- near-exact mirror of <see cref="BuildGetParameterMinimalAsset"/>
+    /// (same AiPrimitive/WorkingState shape, same evidence bar), but exercises the ONE-node,
+    /// ONE-out-pin-per-Parameter shape: EventEntry -&gt; SetVariable(FloatOut) -&gt;
+    /// SetVariable(IntOut) -&gt; Return, both SetVariable "Value" data-in pins fed by TWO DIFFERENT
+    /// out-pins of a SINGLE GetAllParametersNode. Two Parameters (ParamA:Single, ParamB:Int32) are
+    /// declared; the node's two data-out pins are authored explicitly (mirrors GetParameterNode --
+    /// Stage0_Rehydrate's "node.Pins.Count &gt; 0 =&gt; skip" guard leaves fully-authored pin-less-node
+    /// exceptions alone, so no enricher runs here), exercising the real Stage5_Schedule
+    /// GetAllParametersNode lowering (per-pin FindParameterIndex-by-NAME -&gt; IrOp_ReadParam -&gt;
+    /// `p.ParamA`/`p.ParamB`) through the full Roslyn+ALC pipeline.
+    /// </summary>
+    private static BlueprintAsset BuildGetAllParametersMinimalAsset()
+    {
+        var paramAId = Guid.NewGuid();
+        var paramA = new ParameterDecl
+        {
+            Id   = paramAId,
+            Name = "ParamA",
+            Type = new BlueprintTypeRef { TypeId = "System.Single" },
+        };
+        var paramBId = Guid.NewGuid();
+        var paramB = new ParameterDecl
+        {
+            Id   = paramBId,
+            Name = "ParamB",
+            Type = new BlueprintTypeRef { TypeId = "System.Int32" },
+        };
+
+        var gapPinA = DataPin("ParamA", "Out", "System.Single");
+        var gapPinB = DataPin("ParamB", "Out", "System.Int32");
+        var gapNode = new GetAllParametersNode { Id = Guid.NewGuid() };
+        gapNode.Pins.AddRange(new[] { gapPinA, gapPinB });
+
+        var floatVarId = Guid.NewGuid();
+        var floatVar = new VariableDecl
+        {
+            Id   = floatVarId,
+            Name = "FloatOut",
+            Type = new BlueprintTypeRef { TypeId = "System.Single" },
+        };
+        var intVarId = Guid.NewGuid();
+        var intVar = new VariableDecl
+        {
+            Id   = intVarId,
+            Name = "IntOut",
+            Type = new BlueprintTypeRef { TypeId = "System.Int32" },
+        };
+
+        var setFloatExecIn   = ExecPin("ExecIn",  "In");
+        var setFloatExecOut  = ExecPin("ExecOut", "Out");
+        var setFloatValuePin = DataPin("Value",   "In", "System.Single");
+        var setFloatNode = new SetVariableNode { Id = Guid.NewGuid(), VariableId = floatVarId.ToString() };
+        setFloatNode.Pins.AddRange(new[] { setFloatExecIn, setFloatExecOut, setFloatValuePin });
+
+        var setIntExecIn   = ExecPin("ExecIn",  "In");
+        var setIntExecOut  = ExecPin("ExecOut", "Out");
+        var setIntValuePin = DataPin("Value",   "In", "System.Int32");
+        var setIntNode = new SetVariableNode { Id = Guid.NewGuid(), VariableId = intVarId.ToString() };
+        setIntNode.Pins.AddRange(new[] { setIntExecIn, setIntExecOut, setIntValuePin });
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecPin("ExecIn", "In");
+        ret.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, gapNode, setFloatNode, setIntNode, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,        FromPinId = entryOut.Id,        ToNodeId = setFloatNode.Id, ToPinId = setFloatExecIn.Id },
+                new Link { FromNodeId = setFloatNode.Id,  FromPinId = setFloatExecOut.Id, ToNodeId = setIntNode.Id,   ToPinId = setIntExecIn.Id },
+                new Link { FromNodeId = setIntNode.Id,    FromPinId = setIntExecOut.Id,   ToNodeId = ret.Id,          ToPinId = retIn.Id },
+                new Link { FromNodeId = gapNode.Id,       FromPinId = gapPinA.Id,         ToNodeId = setFloatNode.Id, ToPinId = setFloatValuePin.Id },
+                new Link { FromNodeId = gapNode.Id,       FromPinId = gapPinB.Id,         ToNodeId = setIntNode.Id,   ToPinId = setIntValuePin.Id },
+            },
+        };
+
+        return new BlueprintAsset
+        {
+            AssetId      = Guid.NewGuid(),
+            Name         = "GetAllParametersCoverage",
+            Dispatch     = BlueprintDispatchKind.AiPrimitive,
+            Primitive    = new AiPrimitiveDecl
+            {
+                Intent   = AiPrimitiveIntent.Action,
+                Hostings = { AiPrimitiveHosting.BTreeAction },
+            },
+            Parameters   = { paramA, paramB },
+            WorkingState = { floatVar, intVar },
             Graphs       = { graph },
         };
     }

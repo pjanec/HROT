@@ -9,6 +9,7 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(SequenceNode),            "Sequence")]
 [JsonDerivedType(typeof(GetVariableNode),         "GetVariable")]
 [JsonDerivedType(typeof(GetParameterNode),        "GetParameter")]
+[JsonDerivedType(typeof(GetAllParametersNode),     "GetAllParameters")]
 [JsonDerivedType(typeof(SetVariableNode),         "SetVariable")]
 [JsonDerivedType(typeof(LiteralNode),             "Literal")]
 [JsonDerivedType(typeof(EventEntryNode),          "EventEntry")]
@@ -124,6 +125,19 @@ public sealed class GetParameterNode : Node
     /// <summary>Guid (string) of the Parameter to read, resolved against the asset's Parameters list.</summary>
     public string ParameterId { get; set; } = "";
 }
+
+/// <summary>
+/// Reads ALL of the asset's declared Parameters at once: one data-OUT pin per
+/// <see cref="BlueprintAsset.Parameters"/> entry (name = <see cref="ParameterDecl.Name"/>, type from
+/// <see cref="ParameterDecl.Type"/>), instead of chaining one <see cref="GetParameterNode"/> per
+/// Parameter. Pure-data node (no exec pins, no fields -- it covers the WHOLE Parameters list, so
+/// there is nothing to bake per-instance). Mirrors <see cref="EventEntryNode"/>'s dynamic
+/// one-data-out-per-<c>Graph.Inputs</c> pin projection exactly, retargeted at
+/// <c>asset.Parameters</c>; each pin lowers in Stage5 to the pre-existing <c>IrOp_ReadParam</c>
+/// (resolved by matching the requested out-pin's NAME against <c>asset.Parameters</c>, mirroring
+/// how EventEntryNode's data-out pins are matched by name against <c>Graph.Inputs</c>).
+/// </summary>
+public sealed class GetAllParametersNode : Node { }
 
 public sealed class LiteralNode : Node
 {

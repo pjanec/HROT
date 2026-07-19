@@ -134,6 +134,7 @@ internal sealed class BlueprintNodeModel : INodeModel
         // Punch-list: the parameter NAME is shown on the output pin (render-only display label in
         // BlueprintGraphModel), so the title stays clean/uncluttered.
         Hrot.Blueprints.Core.Assets.GetParameterNode      => "Get Parameter",
+        Hrot.Blueprints.Core.Assets.GetAllParametersNode  => "Get All Parameters",
         // Inline-editable Literals show their value in the body editor, so the title stays the type
         // ("Literal (Int32)"). Rarer types (no inline editor) keep the value in the title.
         Hrot.Blueprints.Core.Assets.LiteralNode lt        => LiteralValueJson.HasInlineEditor(lt.TypeId)
@@ -171,6 +172,7 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.SetSharedNode            => NodeCategory.VariableSet,
         Hrot.Blueprints.Core.Assets.LiteralNode              => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.GetParameterNode         => NodeCategory.Pure,
+        Hrot.Blueprints.Core.Assets.GetAllParametersNode     => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.CompareNode              => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.BinaryOpNode             => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.BooleanOpNode            => NodeCategory.Pure,
