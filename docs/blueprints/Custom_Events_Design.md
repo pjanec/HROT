@@ -1,6 +1,6 @@
 # Blueprint Custom Events + Pub/Sub — Implementation Design
 
-**Status: 📐 DESIGN — for review (user + architect) before build.**
+**Status: ✅ APPROVED (architect + user) — cleared to build.** §7 open details finalized by the architect (below).
 Decisions: **Q#14 APPROVED** (Option 2b + infrastructure); dispatch trace committed. This doc is the *how*.
 
 ## 1. Goal / non-goals
@@ -131,22 +131,26 @@ The compiler **already emits** `Event_{Name}` + `Event_{Name}_Thunk` and fills `
 Backward-compat: system events unchanged behavior after the A2 migration (byte-identical generated code where
 they don't use the new path); existing proof suites green throughout.
 
-## 7. Open implementation details (decide during build)
-- **Event key reconciliation:** the Instance-emitter keys Event graphs by graph **Name**, but `EventEntryNode`
-  carries `EventTypeId`. Pick one identity (lean: the event type, so it matches the carrier's type-id).
-- **Delivery semantics:** broadcast-poll (pump reads each event, iterates all subscribers) vs an explicit
-  per-event subscriber list. Lean: registry-indexed by type (avoids scanning every blueprint per event).
-- **Which blueprint kinds subscribe:** Instance first (the emitter path that has `EventHandlers`); AiPrimitive
-  (BTree/HSM-hosted) as a follow-up if needed.
-- **Managed vs unmanaged carrier:** designer events are unmanaged (blittable fields) → native stream; string
-  fields (if allowed) force the managed stream. Decide the allowed field-type set.
+## 7. Implementation details — FINALIZED (architect)
+1. **Event key → the event TYPE ID.** Key everything (carrier, registry, `EventEntryNode`) by the event
+   type-id so it matches the carrier's native type-id. Reconcile the Instance-emitter's graph-**Name** keying
+   onto the type-id.
+2. **Delivery → registry-indexed by type.** Build a type-id → subscriber index; the pump iterates ONLY
+   subscribers for event-types actually present on the bus this frame (gate with `HasEvent`). **Not**
+   broadcast-poll (never scan every blueprint per event).
+3. **Carrier → UNMANAGED / blittable only.** Designer custom events use the native untyped stream. **No
+   managed string fields** — they force the managed stream and break zero-alloc, AAR (Flight-Recorder) replay,
+   and network-replication invariants. For string payloads use the blittable **`FixedString32` / `FixedString64`**
+   structs (as in the blackboard schema). ⇒ the allowed field-type set is blittable-only.
+4. **Blueprint kinds:** Instance first (the emitter path that has `EventHandlers`); AiPrimitive
+   (BTree/HSM-hosted) as a follow-up if needed.
 
 ## 8. Risks
 | Risk | Mitigation |
 |---|---|
 | Dispatch is genuinely net-new | seam (thunk/`EventHandlers`) + carrier already exist; scope is registry + pump + marshalling |
 | Per-frame pump cost | index subscribers by event-type; only pump event-types actually present (`HasEvent`) |
-| Field-type set / marshalling correctness | restrict to blittable field types first; reinterpret-cast is the proven `State` pattern |
+| Field-type set / marshalling correctness | **blittable-only** (finalized §7.3); strings via `FixedString32/64`; reinterpret-cast is the proven `State` pattern |
 | Stale-generator cache during build | clean-rebuild + `--no-incremental` (see project memory) |
 
 ## 9. Testing
