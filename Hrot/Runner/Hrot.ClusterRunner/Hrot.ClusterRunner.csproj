@@ -16,6 +16,15 @@
     <InternalsVisibleTo Include="Hrot.ClusterRunner.Integration.Tests" />  </ItemGroup>
 
   <ItemGroup>
+    <!-- App/window icon (shown in the title bar + taskbar). Embedded so it ships with the exe
+         and survives publish, mirroring the embedded icon-atlas/font pattern. Loaded by
+         RaylibPresentationShell.InitWindow via Raylib.SetWindowIcon. -->
+    <EmbeddedResource Include="..\..\..\FDP\Data\Icons\HROT-icon-green.png">
+      <LogicalName>Hrot.ClusterRunner.HROT-icon-green.png</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Fdp.Engine provides ISubsystem, SubsystemConfig, IMapCameraProvider,
          SubsystemOrchestrator, HeadlessTestExecutor, and RunnerConfiguration. -->
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />

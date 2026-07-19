@@ -25,6 +25,37 @@ internal sealed class RaylibPresentationShell : IPresentationShell
         Raylib_cs.Raylib.InitWindow(width, height, title);
         Raylib_cs.Raylib.SetExitKey(Raylib_cs.KeyboardKey.Null);
         Raylib_cs.Raylib.SetTargetFPS(targetFps);
+        TrySetWindowIcon();
+    }
+
+    /// <summary>
+    /// Sets the window/taskbar icon from the embedded <c>HROT-icon-green.png</c> (see .csproj).
+    /// Best-effort: any failure (missing resource, decode error) is swallowed so the window still
+    /// opens with the default icon. Must be called after <see cref="Raylib_cs.Raylib.InitWindow"/>.
+    /// </summary>
+    private static void TrySetWindowIcon()
+    {
+        try
+        {
+            using var stream = typeof(RaylibPresentationShell).Assembly
+                .GetManifestResourceStream("Hrot.ClusterRunner.HROT-icon-green.png");
+            if (stream == null) return;
+
+            using var ms = new MemoryStream();
+            stream.CopyTo(ms);
+            var pngBytes = ms.ToArray();
+
+            var image = Raylib_cs.Raylib.LoadImageFromMemory(".png", pngBytes);
+            // GLFW wants RGBA8 pixel data; normalise so any PNG encoding works.
+            Raylib_cs.Raylib.ImageFormat(ref image, Raylib_cs.PixelFormat.UncompressedR8G8B8A8);
+            // SetWindowIcon copies the pixels into GLFW, so the image can be freed immediately.
+            Raylib_cs.Raylib.SetWindowIcon(image);
+            Raylib_cs.Raylib.UnloadImage(image);
+        }
+        catch
+        {
+            // Non-fatal — keep the default icon.
+        }
     }
 
     public void SetupImGui()
