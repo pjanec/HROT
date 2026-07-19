@@ -9,6 +9,10 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RootNamespace>Hrot.ClusterRunner</RootNamespace>
     <AssemblyName>Hrot.ClusterRunner</AssemblyName>
+    <!-- Win32 icon embedded in the .exe PE resource. This is what the Windows taskbar / Explorer
+         use (the runtime Raylib.SetWindowIcon only drives the title-bar icon). Multi-resolution
+         .ico (16..256) generated from FDP\Data\Icons\HROT-icon-green.png. -->
+    <ApplicationIcon>..\..\..\FDP\Data\Icons\HROT-icon-green.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
