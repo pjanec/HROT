@@ -115,6 +115,26 @@ public static bool HasTarget(uint targetNetworkId, Entity self, ISimulationView 
 by their trailing types, **hidden from the pins**, and auto-appended by the compiler. Read-only
 (`ISimulationView`). (RW / mutation → a `[SharedAiAction]` node instead, which gets `self`+`world`.)
 
+### 5a. Exposing a CLR helper in the picker — `[BlueprintCallable]` (architect-approved, Q#12)
+
+Designers must **never type** a type FQN / method name (fragile). CLR helpers callable from a
+`FunctionCall` node are surfaced in a **curated, grouped, read-only picker**; the designer picks, never
+types. A helper is declared discoverable with an **editor-only attribute**:
+```csharp
+[BlueprintCallable(Category = "Vector")]        // Category is MANDATORY (curation knob)
+public static Vector3 Vec3(float x, float y, float z) => new(x, y, z);
+```
+- **Constraints (architect):** `public static` methods only; the trailing-context rule (§5) is unchanged
+  (`Entity self` / `ISimulationView view` recognized + hidden).
+- **Editor-only discovery.** The editor reflection-scans loaded game assemblies for the attribute (a minor
+  extension of the `NodePinSchema.ResolveType` assembly scan it already does) and builds the picker,
+  grouped by `Category`. The designer's pick just bakes `TargetTypeId` + `MethodName` onto the node.
+- **Compiler is untouched.** It never reads the attribute — it resolves the call from the baked
+  `TargetTypeId`/`MethodName` via the Roslyn semantic model, exactly as for the (now dev-only) manual path.
+  This is why the attribute sidesteps the netstandard2.0-analyzer "can't load game assemblies" limit.
+- **Manual FQN/method entry stays as a hidden "advanced / dev-debug" escape hatch** — off the default
+  designer view. See `Architect_Question_12_BlueprintCallable_Discovery.md` for the full rationale.
+
 ## 6. Slots — `AcquireSlot` / `ReleaseSlot` / `BurnSlot` (reuse existing `SlotRotation`)
 **Designer:** declare a `SlotRotationState` **WorkingState variable** (from the struct-type picker) —
 one for firing slots, one for baseline. The nodes operate on it:

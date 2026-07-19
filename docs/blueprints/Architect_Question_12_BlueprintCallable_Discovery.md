@@ -1,7 +1,18 @@
 # Architect question #12 — an editor-only `[BlueprintCallable]` discovery attribute for CLR helpers
 
-**Status: DRAFT — for architect review. This revisits a "no" you already gave; please re-read the framing
-below, because we think the objection is being applied to a use we are *not* proposing.**
+**Status: ✅ APPROVED (architect, 2026-07-19).** All three asks confirmed:
+- **Q-A APPROVED** — the editor-only `[BlueprintCallable(Category)]` attribute is accepted. The reframing
+  holds: the compiler never reads it (resolves from baked `TargetTypeId`/`MethodName` via the Roslyn semantic
+  model), so the netstandard2.0 limit is circumvented; the editor's existing `NodePinSchema.ResolveType`
+  assembly reflection is merely extended; the mandatory `Category` resolves palette pollution.
+- **Q-B APPROVED** — shape `[BlueprintCallable(Category, DisplayName?)]`, with two **constraints**:
+  (1) **`public static` methods only**; (2) the existing `TrailingContext` mechanism is **unchanged** —
+  trailing `Entity self` / `ISimulationView view` args stay recognized and hidden from the node pins.
+- **Q-C APPROVED** — **keep** the manual FQN/method text entry as a hidden **advanced / dev-debug** escape
+  hatch (valuable for developers), but hide it from the default designer view; designers pick from the
+  curated list and never type.
+
+Cleared to implement (editor-only discovery pass). The original proposal + rebuttals follow.
 
 ## The goal (non-negotiable UX)
 
