@@ -277,6 +277,41 @@ internal sealed class V_GraphStructure : IValidator
             // BP1601 relaxed: implicit return is now synthesized at end-of-chain
             // by Stage5_Schedule.SealFallThrough, so an explicit ReturnNode is
             // optional (still supported for early-exit and non-default status/value).
+
+            // Q#13-B (architect): a WIRED WaitForChannel "OnFailure" chain must terminate in an
+            // explicit Return — no implicit-return fall-off on the failure branch. Any node reachable
+            // from OnFailure that is a dead end (no wired exec-out) and is not a ReturnNode is a
+            // fall-off ⇒ BP1102. (Runs only on pin-ful graphs, like every V_GraphStructure check —
+            // the editor/authoring path, where designers create the wiring.)
+            foreach (var wfc in graph.Nodes.OfType<WaitForChannelNode>())
+            {
+                var onFailPin = wfc.Pins.FirstOrDefault(
+                    p => p.IsExec && p.Direction == "Out"
+                      && string.Equals(p.Name, "OnFailure", StringComparison.OrdinalIgnoreCase));
+                if (onFailPin is null) continue;
+
+                var failLink = graph.Links.FirstOrDefault(
+                    l => l.FromNodeId == wfc.Id && l.FromPinId == onFailPin.Id);
+                if (failLink is null) continue; // OnFailure unwired ⇒ auto-Failure, nothing to enforce.
+
+                var failReachable = new HashSet<Guid>();
+                CollectExecReachable(graph, failLink.ToNodeId, failReachable);
+
+                foreach (var reachedId in failReachable)
+                {
+                    var reached = graph.Nodes.FirstOrDefault(n => n.Id == reachedId);
+                    if (reached is null or ReturnNode) continue;
+
+                    bool hasWiredExecOut = reached.Pins.Any(
+                        p => p.IsExec && p.Direction == "Out"
+                          && graph.Links.Any(l => l.FromNodeId == reached.Id && l.FromPinId == p.Id));
+                    if (!hasWiredExecOut)
+                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1102,
+                            $"WaitForChannel 'OnFailure' chain must terminate in an explicit Return node; " +
+                            $"'{reached.GetType().Name}' (id={reached.Id}) is a dead end.",
+                            asset.AssetId, graph.Id, reached.Id));
+                }
+            }
         }
     }
 

@@ -25,6 +25,7 @@ public static class DiagnosticCodes
     // Stage 2 -- Validate (AiPrimitive intent rules)
     public const string BP1100 = "BP1100";
     public const string BP1101 = "BP1101";
+    public const string BP1102 = "BP1102";  // Q#13: WaitForChannel OnFailure chain must terminate in an explicit Return
 
     // Stage 2 -- Validate (variables and state)
     public const string BP1200 = "BP1200";
