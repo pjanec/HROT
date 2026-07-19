@@ -196,31 +196,16 @@ internal sealed class FunctionCallNodeSession : INodeEditSession
 
     private void DrawClrMethodForm()
     {
-        // TargetTypeId text field
+        // Read-only (Q#12): the CLR method is chosen from the curated picker when the node is ADDED and
+        // is immutable afterward — designers never type an FQN. Fields are ReadOnly (still selectable /
+        // copyable). To call a different method, add a new node.
         var typeId = _node.TargetTypeId ?? "";
-        if (ImGui.InputText("Type ID", ref typeId, 256))
-        {
-            if (typeId != _node.TargetTypeId)
-            {
-                _node.TargetTypeId  = typeId;
-                _node.TargetGraphId = "";
-                MarkChanged();
-            }
-        }
+        ImGui.InputText("Type ID", ref typeId, 256, ImGuiInputTextFlags.ReadOnly);
 
-        // MethodName text field
         var methodName = _node.MethodName ?? "";
-        if (ImGui.InputText("Method Name", ref methodName, 256))
-        {
-            if (methodName != _node.MethodName)
-            {
-                _node.MethodName    = methodName;
-                _node.TargetGraphId = "";
-                MarkChanged();
-            }
-        }
+        ImGui.InputText("Method Name", ref methodName, 256, ImGuiInputTextFlags.ReadOnly);
 
-        ImGui.TextDisabled("(CLR method browser deferred — enter type/method names directly)");
+        ImGui.TextDisabled("Read-only — pick from the Add-Node picker; add a new node to change it.");
 
         DrawOpenSourceButton();
     }

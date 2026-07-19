@@ -29,7 +29,12 @@ internal sealed class BlueprintNodeModel : INodeModel
     /// </summary>
     public Vector2     Position         => new(_node.EditorMetadata.X, _node.EditorMetadata.Y);
     public Vector2?    SizeOverride     => null;
-    public NodeState   State            { get; } = NodeState.Normal;
+    /// <summary>
+    /// <see cref="NodeState.Error"/> when this is a CLR <see cref="Hrot.Blueprints.Core.Assets.FunctionCallNode"/>
+    /// whose target method can no longer be resolved (renamed/removed from C#) — the canvas then draws the
+    /// red error outline and the reason shows in <see cref="StatusTooltip"/>.
+    /// </summary>
+    public NodeState   State            { get; }
     /// <summary>
     /// Punch-list #4: for a <see cref="Hrot.Blueprints.Core.Assets.FunctionCallNode"/> this carries the
     /// resolved signature + XML-doc summary shown on node hover (see <see cref="FunctionCallTooltip"/>);
@@ -74,7 +79,30 @@ internal sealed class BlueprintNodeModel : INodeModel
             : null;
         // "ƒ" (U+0192) reads as UE's italic function mark and is in the canvas font range.
         HeaderGlyph = node is Hrot.Blueprints.Core.Assets.FunctionCallNode ? "ƒ" : null;
+
+        // Validation: a CLR FunctionCall whose method no longer resolves (renamed/removed from C#)
+        // is flagged as an error so it's obvious on the canvas, not silently mis-wired.
+        if (node is Hrot.Blueprints.Core.Assets.FunctionCallNode fcErr && IsUnresolvedClrCall(fcErr))
+        {
+            State = NodeState.Error;
+            StatusTooltip = $"⚠ Unresolved CLR method: {fcErr.TargetTypeId}.{fcErr.MethodName}\n"
+                          + "It may have been renamed or removed from C#. Re-pick the function (add a new node).\n\n"
+                          + (StatusTooltip ?? string.Empty);
+        }
+        else
+        {
+            State = NodeState.Normal;
+        }
     }
+
+    /// <summary>
+    /// True when <paramref name="fc"/> targets a CLR method (has a TargetTypeId, not an in-blueprint graph)
+    /// that reflection can no longer resolve — i.e. the C# method was renamed or deleted.
+    /// </summary>
+    private static bool IsUnresolvedClrCall(Hrot.Blueprints.Core.Assets.FunctionCallNode fc)
+        => !string.IsNullOrEmpty(fc.TargetTypeId)
+           && string.IsNullOrEmpty(fc.TargetGraphId)
+           && NodePinSchema.ResolveClrMethod(fc) == null;
 
     /// <summary>
     /// Updates the asset's <see cref="Hrot.Blueprints.Core.Assets.NodeMetadata"/> position in place.

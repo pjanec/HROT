@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using Hrot.Editor.AiShared;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -19,6 +20,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <c>clamp(max(1, (int)(distance(start,end) / spacing)), 1, 16)</c>. A non-positive
         /// <paramref name="rawSpacing"/> falls back to the oracle's 30 m default (never divides by 0).
         /// </summary>
+        [BlueprintCallable("Segment", DisplayName = "Total Slots")]
         public static int TotalSlots(float startX, float startY, float endX, float endY, float rawSpacing)
         {
             float segLen  = Vector2.Distance(new Vector2(startX, startY), new Vector2(endX, endY));
@@ -37,6 +39,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <c>count - 1</c> divisor) has no visual-node form, so it stays in this curated helper (architect
         /// Q#6-A).
         /// </summary>
+        [BlueprintCallable("Segment", DisplayName = "Lerp Param (0..1)")]
         public static float LerpParam(int index, int count)
             => count > 1 ? (float)index / (count - 1) : 0.5f;
 
@@ -47,6 +50,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// sibling as one reviewable "baseline interpolation" helper to keep the dispatch graph tractable
         /// (the <c>BinaryOp</c> node is separately proven by its coverage fixture).
         /// </summary>
+        [BlueprintCallable("Segment", DisplayName = "Lerp")]
         public static float Lerp(float a, float b, float t) => a + (b - a) * t;
     }
 }

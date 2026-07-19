@@ -117,6 +117,11 @@ public static class BlueprintEditorBootstrap
         foreach (var descriptor in BlueprintMathPaletteEntries.All())
             registry.Register(descriptor);
 
+        // Q#12: register discovered [BlueprintCallable] CLR helpers (curated picker; designers never
+        // type an FQN). Attribute-driven analogue of the hand-written entries above.
+        foreach (var descriptor in BlueprintCallablePaletteEntries.Discover())
+            registry.Register(descriptor);
+
         return registry;
     }
 
