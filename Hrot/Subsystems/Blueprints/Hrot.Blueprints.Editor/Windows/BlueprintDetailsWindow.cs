@@ -1,3 +1,4 @@
+using System.Reflection;
 using Fdp.Presentation.WindowManager;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.NodeDrawers;
@@ -117,16 +118,76 @@ public sealed class BlueprintDetailsWindow : ManagedWindow
     protected override void DrawClientArea()
     {
         var session = ResolveSession();
-
-        if (session == null)
+        if (session != null)
         {
-            // ImGui.TextDisabled — acceptable call inside DrawClientArea.
+            // Delegate all rendering to the session (which may call ImGui freely).
+            session.Draw();
+            return;
+        }
+
+        // ResolveSession returns null in two very different cases: nothing is selected, OR a
+        // node IS selected but no drawer handles its type. Distinguish them so a selected but
+        // non-editable node (PublishEvent, WaitForChannel, Return, Branch, …) shows a read-only
+        // summary instead of the misleading "No node selected."
+        var node = TryGetSelectedNode();
+        if (node == null)
+        {
             ImGuiNET.ImGui.TextDisabled("No node selected.");
             return;
         }
 
-        // Delegate all rendering to the session (which may call ImGui freely).
-        session.Draw();
+        DrawReadOnlySummary(node);
+    }
+
+    /// <summary>
+    /// Returns the currently-selected blueprint node whether or not a drawer exists for it,
+    /// or null when the active sub-selection is not a resolvable blueprint node.
+    /// </summary>
+    private Node? TryGetSelectedNode()
+    {
+        if (_asset == null) return null;
+        if (_selectionStore.ActiveSubSelection is not BlueprintNodeSelection sub) return null;
+        var graph = _asset.Graphs.FirstOrDefault(g => g.Id == sub.GraphId);
+        return graph?.Nodes.FirstOrDefault(n => n.Id == sub.NodeId);
+    }
+
+    /// <summary>
+    /// Renders a read-only property summary for a selected node that has no editable drawer.
+    /// Reflects the node's simple scalar properties (string/enum/bool/number), skipping the
+    /// structural members (Id, Pins, EditorMetadata) that are not user-facing configuration.
+    /// </summary>
+    private static void DrawReadOnlySummary(Node node)
+    {
+        var typeName = node.GetType().Name;
+        if (typeName.EndsWith("Node", System.StringComparison.Ordinal))
+            typeName = typeName[..^4];
+        ImGuiNET.ImGui.TextUnformatted(typeName);
+        ImGuiNET.ImGui.Separator();
+
+        foreach (var p in node.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            if (p.GetIndexParameters().Length != 0) continue;
+            if (p.Name is "Id" or "Pins" or "EditorMetadata") continue;
+
+            var t = p.PropertyType;
+            var under = System.Nullable.GetUnderlyingType(t) ?? t;
+            bool simple = under == typeof(string) || under.IsEnum || under == typeof(bool)
+                          || under == typeof(int) || under == typeof(long) || under == typeof(short)
+                          || under == typeof(float) || under == typeof(double) || under == typeof(System.Guid);
+            if (!simple) continue;
+
+            object? val;
+            try { val = p.GetValue(node); } catch { continue; }
+            var text = val?.ToString() ?? "(null)";
+            if (text.Length == 0) text = "(empty)";
+
+            ImGuiNET.ImGui.TextDisabled($"{p.Name}:");
+            ImGuiNET.ImGui.SameLine();
+            ImGuiNET.ImGui.TextUnformatted(text);
+        }
+
+        ImGuiNET.ImGui.Spacing();
+        ImGuiNET.ImGui.TextDisabled("This node type has no editable properties.");
     }
 
     // ── Private ───────────────────────────────────────────────────────────────

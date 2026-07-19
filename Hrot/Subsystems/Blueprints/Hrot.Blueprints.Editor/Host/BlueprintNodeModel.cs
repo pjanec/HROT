@@ -158,6 +158,7 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.ArrayGetNode             => "Get Array",
         Hrot.Blueprints.Core.Assets.WaitForChannelNode wfc   => $"Wait: {wfc.ChannelType}",
         Hrot.Blueprints.Core.Assets.WaitForEventNode wfe     => $"Wait Event: {wfe.EventTypeId}",
+        Hrot.Blueprints.Core.Assets.PublishEventNode pev     => $"Publish: {pev.EventId}",
         Hrot.Blueprints.Core.Assets.ReadEqsResultNode        => "Read EQS Result",
         Hrot.Blueprints.Core.Assets.SpawnEqsSensorNode       => "Spawn EQS Sensor",
         _ => node.GetType().Name,
