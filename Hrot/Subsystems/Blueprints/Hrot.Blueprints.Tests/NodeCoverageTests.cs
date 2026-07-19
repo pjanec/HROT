@@ -4,6 +4,7 @@ using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Core.Compiler.Diagnostics;
+using Hrot.Blueprints.Core.Compiler.Stages;
 
 namespace Hrot.Blueprints.Tests;
 
@@ -333,6 +334,99 @@ public sealed class NodeCoverageTests
 
         // (c) Both loop outs consumed by the body's arithmetic BinaryOp (Subtract -> infix ` - `).
         Assert.Matches(@"__t\d+ - __t\d+", src);
+    }
+
+    // ========================================================================
+    // Guard 4 -- pin-less round-trip: Stage0 must reproduce author-placed DATA pins
+    // ========================================================================
+
+    /// <summary>
+    /// Node kinds whose author-placed data pins are legitimately NOT reproduced by Stage0's pin-less
+    /// rehydration in this harness — each with a documented, reviewed reason. Anything not listed here
+    /// MUST round-trip, so a new kind with a rehydration gap fails <see cref="AllCoverageNodes_PinlessRehydration_ReproducesAuthoredDataPins"/>.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<Type, string> PinlessRoundTripExceptions =
+        new Dictionary<Type, string>
+        {
+            [typeof(CallPeerBlueprintNode)] =
+                "Peer data pins come from a sibling BlueprintSignature resolved via the generator's " +
+                "cross-asset pass; this isolated Stage0 run has no sibling lookup wired, so it yields the " +
+                "exec-only + Return fallback. Real coverage is CoverageAssets' Inline/CallPeerBlueprint " +
+                "(ValidateOnlyStage1To7) which DOES pass the sibling signature.",
+            [typeof(FunctionCallNode)] =
+                "FunctionCall data pins are SIGNATURE-derived (real param names): the editor reflects " +
+                "and the generator uses the Roslyn semantic model (RoslynClrSignatureResolver). These " +
+                "coverage fixtures author placeholder pin names (A/B/Result, Value) that do not match " +
+                "any real method signature, so Stage0's reflection/resolver legitimately produces " +
+                "different names. The real pin-less FunctionCall round-trip (real param names) is proven " +
+                "by FunctionCallSemanticResolveTests + the pin-less HillAssault2I_* proof blueprints.",
+            [typeof(GetComponentNode)] =
+                "GetComponent's 'Value' output is resolved at lowering from the node's BAKED " +
+                "ComponentTypeFqn/FieldName (Stage5_Schedule reads the node fields, not a pin), so it " +
+                "round-trips pin-less without the output pin being reconstructed. Proven by the stripped " +
+                "HillAssault2_AimAndFireSpecific blueprint building green.",
+            [typeof(GetParameterNode)] =
+                "GetParameter's 'Value' output is resolved at lowering from the node's BAKED ParameterId " +
+                "(like GetVariable), not by pin lookup, so it round-trips pin-less without the output pin " +
+                "being reconstructed. Proven by the stripped HillAssault2I_IsWaveCompleted blueprint " +
+                "(which reads a parameter) building green.",
+        };
+
+    /// <summary>
+    /// Guard 4 — pin-less round-trip. Every DATA pin an author/editor places on a node must be
+    /// reproduced by <see cref="Stage0_Rehydrate"/> when the node is stored pin-less (<c>"Pins": []</c>,
+    /// the editor-save form). This is the exact invariant that broke for FunctionCall / PublishEvent /
+    /// ChannelCommand / Compare: a kind whose data pins come from a catalog/signature but whose pin-less
+    /// rehydration produced fewer pins, so a migrated (editor-saved OR AI-authored pin-less) blueprint
+    /// lost wires (BP1602) or dropped producers (CS0103). Reusing every <see cref="CoverageAssets"/>
+    /// fixture makes it self-enforcing: because Guard 3 forces every concrete node kind to have a
+    /// compiling fixture, a newly-added kind with a data-pin rehydration gap fails HERE too.
+    /// <para>Only DATA pins (non-exec) are compared, by (name, direction) — exec pins are always present
+    /// and their names are conventional; the data pins are where the rehydration gap risk lives.</para>
+    /// </summary>
+    [Fact]
+    public void AllCoverageNodes_PinlessRehydration_ReproducesAuthoredDataPins()
+    {
+        var failures = new List<string>();
+
+        foreach (var (description, assets, options, _) in CoverageAssets())
+        {
+            var opts = options ?? DefaultCompileOptions();
+            foreach (var asset in assets)
+            {
+                // Snapshot the author-placed DATA-pin shape per node id (before stripping).
+                var authored = asset.Graphs.SelectMany(g => g.Nodes).ToDictionary(
+                    n => n.Id,
+                    n => n.Pins.Where(p => !p.IsExec).Select(p => (p.Name, p.Direction)).ToHashSet());
+
+                // Editor-save form: same graph, every node pin-less. Deep-clone via JSON so the original
+                // (shared across CoverageAssets iterations) is untouched.
+                var clone = BlueprintJsonServices.Deserialize(BlueprintJsonServices.Serialize(asset))!;
+                foreach (var n in clone.Graphs.SelectMany(g => g.Nodes))
+                    n.Pins = new List<Pin>();
+
+                Stage0_Rehydrate.Run(clone, opts);
+
+                foreach (var n in clone.Graphs.SelectMany(g => g.Nodes))
+                {
+                    if (PinlessRoundTripExceptions.ContainsKey(n.GetType())) continue;
+                    if (!authored.TryGetValue(n.Id, out var want) || want.Count == 0) continue;
+
+                    var got = n.Pins.Where(p => !p.IsExec).Select(p => (p.Name, p.Direction)).ToHashSet();
+                    var missing = want.Except(got).ToList();
+                    if (missing.Count > 0)
+                        failures.Add($"{description} / {n.GetType().Name}: pin-less rehydration is missing " +
+                            "author-placed data pin(s): " +
+                            string.Join(", ", missing.Select(m => $"{m.Name}:{m.Direction}")));
+                }
+            }
+        }
+
+        Assert.True(failures.Count == 0,
+            "Pin-less rehydration dropped author-placed data pins — a round-trip gap. Add a Stage0 " +
+            "enricher (mirror EnrichPublishEventPins/EnrichChannelCommandPins) or complete static " +
+            "registry pins for the kind, or document a PinlessRoundTripExceptions reason:\n" +
+            string.Join("\n", failures));
     }
 
     private enum CoverageMode { FullRoslynPipeline, ValidateOnlyStage1To7 }
