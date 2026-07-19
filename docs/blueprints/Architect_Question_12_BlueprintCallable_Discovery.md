@@ -8,9 +8,12 @@
 - **Q-B APPROVED** — shape `[BlueprintCallable(Category, DisplayName?)]`, with two **constraints**:
   (1) **`public static` methods only**; (2) the existing `TrailingContext` mechanism is **unchanged** —
   trailing `Entity self` / `ISimulationView view` args stay recognized and hidden from the node pins.
-- **Q-C APPROVED** — **keep** the manual FQN/method text entry as a hidden **advanced / dev-debug** escape
-  hatch (valuable for developers), but hide it from the default designer view; designers pick from the
-  curated list and never type.
+- **Q-C APPROVED (but superseded by user)** — the architect approved keeping the manual FQN/method text
+  entry as a hidden advanced/dev-debug escape hatch. **The user then chose to remove it entirely**: since the
+  filterable picker always lists every candidate, free-text is redundant (to expose a helper, tag it). As
+  built: the CLR method is chosen once at add-time via the picker, the inspector is **read-only**, and a
+  method that no longer resolves is flagged as an editor **error** (red outline + tooltip). Recorded here so
+  the record matches the shipped behavior.
 
 Cleared to implement (editor-only discovery pass). The original proposal + rebuttals follow.
 

@@ -132,8 +132,13 @@ public static Vector3 Vec3(float x, float y, float z) => new(x, y, z);
 - **Compiler is untouched.** It never reads the attribute — it resolves the call from the baked
   `TargetTypeId`/`MethodName` via the Roslyn semantic model, exactly as for the (now dev-only) manual path.
   This is why the attribute sidesteps the netstandard2.0-analyzer "can't load game assemblies" limit.
-- **Manual FQN/method entry stays as a hidden "advanced / dev-debug" escape hatch** — off the default
-  designer view. See `Architect_Question_12_BlueprintCallable_Discovery.md` for the full rationale.
+- **No free-text FQN entry.** The user chose to drop the "advanced" manual-entry escape hatch the
+  architect had approved (Q-C): since the filterable picker always lists every candidate, to make a helper
+  callable you simply tag it `[BlueprintCallable]`. The CLR method is chosen **once, when the node is added**,
+  and the FunctionCall inspector shows it **read-only** thereafter (FQN + signature + the "…" open-in-VS).
+- **Validation.** A CLR FunctionCall whose method no longer resolves (renamed/removed from C#) renders with
+  a red **error** outline + an explanatory tooltip on the canvas (the compiler also errors at build). See
+  `Architect_Question_12_BlueprintCallable_Discovery.md`.
 
 ## 6. Slots — `AcquireSlot` / `ReleaseSlot` / `BurnSlot` (reuse existing `SlotRotation`)
 **Designer:** declare a `SlotRotationState` **WorkingState variable** (from the struct-type picker) —
