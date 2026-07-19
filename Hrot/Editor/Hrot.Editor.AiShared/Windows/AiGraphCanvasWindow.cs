@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using Fdp.Presentation.Fonts;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Documents;
@@ -275,6 +276,7 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         {
             DrawTabBar();
             HandleBackNavigationHotkey();
+            DrawCloseConfirmModal();
         }
 
         // Re-resolve: a tab click (or Alt+Left) above may have activated a different
@@ -402,9 +404,10 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
     /// <summary>
     /// Draws the multi-tab bar for this perspective's open documents (skipped entirely when
     /// none are open, so the existing empty state is unaffected). A tab click activates the
-    /// clicked document via <see cref="AiDocumentManager.Activate"/>; the X close button calls
-    /// <see cref="AiDocumentManager.Close"/> after the loop (save-on-close is already wired via
-    /// <c>BeforeDocumentClosed</c> upstream — no save prompt needed here). <c>TabListPopupButton</c>
+    /// clicked document via <see cref="AiDocumentManager.Activate"/>; the X close button routes
+    /// through <see cref="RequestTabClose"/> after the loop (a clean document closes immediately;
+    /// a dirty one raises the unsaved-changes modal instead of being silently saved).
+    /// <c>TabListPopupButton</c>
     /// gives the ▾ dropdown listing every open tab by name, since asset names can be long.
     /// </summary>
     private void DrawTabBar()
@@ -451,9 +454,99 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         _lastSyncedActive = _docManager.Active;
 
         // Close after the loop so we never mutate _docManager.OpenDocuments mid-iteration.
+        // A clean document closes at once; a dirty one is deferred behind the unsaved-changes
+        // prompt (RequestTabClose) so edits are never silently saved OR discarded.
         if (toClose != null)
             foreach (var d in toClose)
-                _docManager.Close(d);
+                RequestTabClose(d);
+    }
+
+    // ── MULTI-TAB: unsaved-changes prompt on tab close ────────────────────────
+    //
+    // Historically a tab's X called AiDocumentManager.Close directly, and the upstream
+    // BeforeDocumentClosed handler silently flushed dirty docs to disk — closing a tab
+    // therefore saved edits with no confirmation (dangerous for exploratory edits). Now
+    // the close routes through RequestTabClose: a clean doc closes immediately; a dirty
+    // one defers and raises a modal. The three outcomes reuse the existing flush:
+    //   Save       → close while still dirty  → BeforeDocumentClosed flushes to disk.
+    //   Don't Save → MarkClean() then close   → BeforeDocumentClosed skips (edits dropped).
+    //   Cancel     → nothing (tab stays open).
+
+    private AiDocument? _pendingCloseDoc;
+    private bool        _openClosePopup;
+
+    /// <summary>Document awaiting a close-confirmation decision, or null. (Headless test seam.)</summary>
+    public AiDocument? PendingCloseDoc => _pendingCloseDoc;
+
+    /// <summary>
+    /// Entry point for a user-initiated tab close. Closes a clean document immediately;
+    /// defers a dirty one behind the unsaved-changes confirmation modal.
+    /// </summary>
+    public void RequestTabClose(AiDocument doc)
+    {
+        if (doc == null) throw new ArgumentNullException(nameof(doc));
+        if (!doc.IsDirty) { _docManager.Close(doc); return; }
+        _pendingCloseDoc = doc;
+        _openClosePopup  = true;
+    }
+
+    /// <summary>Confirm "Save": close while dirty so the upstream flush persists it. (Test seam.)</summary>
+    public void ResolveCloseSave()
+    {
+        var doc = _pendingCloseDoc;
+        _pendingCloseDoc = null;
+        if (doc != null) _docManager.Close(doc);
+    }
+
+    /// <summary>Confirm "Don't Save": discard unsaved edits, then close. (Test seam.)</summary>
+    public void ResolveCloseDiscard()
+    {
+        var doc = _pendingCloseDoc;
+        _pendingCloseDoc = null;
+        if (doc != null) { doc.MarkClean(); _docManager.Close(doc); }
+    }
+
+    /// <summary>Confirm "Cancel": keep the document open. (Test seam.)</summary>
+    public void ResolveCloseCancel() => _pendingCloseDoc = null;
+
+    /// <summary>
+    /// Renders the unsaved-changes confirmation modal while a close is pending. ImGui-only;
+    /// button actions delegate to the headless-testable Resolve* seams above.
+    /// </summary>
+    private void DrawCloseConfirmModal()
+    {
+        if (_pendingCloseDoc == null) return;
+
+        const string popupId = "Unsaved changes###ai_close_confirm";
+        if (_openClosePopup)
+        {
+            ImGuiNET.ImGui.OpenPopup(popupId);
+            _openClosePopup = false;
+        }
+
+        var center = ImGuiNET.ImGui.GetMainViewport().GetCenter();
+        ImGuiNET.ImGui.SetNextWindowPos(center, ImGuiNET.ImGuiCond.Appearing, new Vector2(0.5f, 0.5f));
+
+        bool stayOpen = true;
+        if (ImGuiNET.ImGui.BeginPopupModal(popupId, ref stayOpen,
+                ImGuiNET.ImGuiWindowFlags.AlwaysAutoResize | ImGuiNET.ImGuiWindowFlags.NoSavedSettings))
+        {
+            ImGuiNET.ImGui.TextUnformatted($"Save changes to '{_pendingCloseDoc.Asset.Name}' before closing?");
+            ImGuiNET.ImGui.Spacing();
+
+            if (ImGuiNET.ImGui.Button("Save"))       { ImGuiNET.ImGui.CloseCurrentPopup(); ResolveCloseSave(); }
+            ImGuiNET.ImGui.SameLine();
+            if (ImGuiNET.ImGui.Button("Don't Save")) { ImGuiNET.ImGui.CloseCurrentPopup(); ResolveCloseDiscard(); }
+            ImGuiNET.ImGui.SameLine();
+            if (ImGuiNET.ImGui.Button("Cancel"))     { ImGuiNET.ImGui.CloseCurrentPopup(); ResolveCloseCancel(); }
+
+            ImGuiNET.ImGui.EndPopup();
+        }
+        else if (!stayOpen)
+        {
+            // Dismissed via the window's X / Esc — treat as Cancel (keep the document).
+            ResolveCloseCancel();
+        }
     }
 
     // ── MULTI-TAB: Alt+Left "navigate back" history ──────────────────────────
@@ -592,13 +685,15 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
 
     /// <summary>
     /// Test hook: simulates clicking a tab's X close button for <paramref name="doc"/>
-    /// (mirrors production: calls <see cref="AiDocumentManager.Close"/> directly — no save
-    /// prompt, since <c>BeforeDocumentClosed</c> already flushes dirty documents upstream).
+    /// (mirrors production: routes through <see cref="RequestTabClose"/> — a clean document
+    /// closes immediately; a dirty one is deferred behind the unsaved-changes modal and can be
+    /// resolved headlessly via <see cref="ResolveCloseSave"/> / <see cref="ResolveCloseDiscard"/>
+    /// / <see cref="ResolveCloseCancel"/>).
     /// </summary>
     public void SimulateTabClose(AiDocument doc)
     {
         if (doc == null) throw new ArgumentNullException(nameof(doc));
-        _docManager.Close(doc);
+        RequestTabClose(doc);
     }
 
     /// <summary>

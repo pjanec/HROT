@@ -205,6 +205,88 @@ public sealed class AiGraphCanvasWindowTabBarTests
         Assert.DoesNotContain(a, dm.OpenDocuments);
     }
 
+    // ── Unsaved-changes prompt on tab close ───────────────────────────────────
+
+    [Fact]
+    public void TabClose_CleanDocument_ClosesImmediatelyWithNoPrompt()
+    {
+        var dm  = MakeDocManager();
+        var win = new AiGraphCanvasWindow("BTree", dm, new RecordingRenderSeam());
+        var a   = dm.Open(new FakeAsset(AssetKind.BTree, "A"));
+
+        win.SimulateTabClose(a); // clean
+
+        Assert.DoesNotContain(a, dm.OpenDocuments);
+        Assert.Null(win.PendingCloseDoc);
+    }
+
+    [Fact]
+    public void TabClose_DirtyDocument_DefersCloseAndRaisesPrompt()
+    {
+        var dm  = MakeDocManager();
+        var win = new AiGraphCanvasWindow("BTree", dm, new RecordingRenderSeam());
+        var a   = dm.Open(new FakeAsset(AssetKind.BTree, "A"));
+        a.MarkDirty();
+
+        win.SimulateTabClose(a);
+
+        Assert.Contains(a, dm.OpenDocuments);   // NOT closed yet
+        Assert.Same(a, win.PendingCloseDoc);    // waiting on the modal
+    }
+
+    [Fact]
+    public void ResolveCloseCancel_KeepsDirtyDocumentOpen()
+    {
+        var dm  = MakeDocManager();
+        var win = new AiGraphCanvasWindow("BTree", dm, new RecordingRenderSeam());
+        var a   = dm.Open(new FakeAsset(AssetKind.BTree, "A"));
+        a.MarkDirty();
+        win.SimulateTabClose(a);
+
+        win.ResolveCloseCancel();
+
+        Assert.Contains(a, dm.OpenDocuments);
+        Assert.True(a.IsDirty);                 // neither saved nor discarded
+        Assert.Null(win.PendingCloseDoc);
+    }
+
+    [Fact]
+    public void ResolveCloseDiscard_ClosesWithoutSaving()
+    {
+        var dm  = MakeDocManager();
+        var win = new AiGraphCanvasWindow("BTree", dm, new RecordingRenderSeam());
+        bool flushedDirty = false;
+        dm.BeforeDocumentClosed += d => { if (d.IsDirty) flushedDirty = true; };
+        var a = dm.Open(new FakeAsset(AssetKind.BTree, "A"));
+        a.MarkDirty();
+        win.SimulateTabClose(a);
+
+        win.ResolveCloseDiscard();
+
+        Assert.DoesNotContain(a, dm.OpenDocuments); // closed
+        Assert.False(a.IsDirty);                    // marked clean → upstream flush skips it
+        Assert.False(flushedDirty);                 // not persisted
+        Assert.Null(win.PendingCloseDoc);
+    }
+
+    [Fact]
+    public void ResolveCloseSave_ClosesWhileDirtySoUpstreamFlushPersists()
+    {
+        var dm  = MakeDocManager();
+        var win = new AiGraphCanvasWindow("BTree", dm, new RecordingRenderSeam());
+        bool flushedDirty = false;
+        dm.BeforeDocumentClosed += d => { if (d.IsDirty) flushedDirty = true; };
+        var a = dm.Open(new FakeAsset(AssetKind.BTree, "A"));
+        a.MarkDirty();
+        win.SimulateTabClose(a);
+
+        win.ResolveCloseSave();
+
+        Assert.DoesNotContain(a, dm.OpenDocuments); // closed
+        Assert.True(flushedDirty);                  // upstream flush saw it dirty → saved
+        Assert.Null(win.PendingCloseDoc);
+    }
+
     // ── Alt+Left back-navigation history ──────────────────────────────────────
 
     [Fact]
