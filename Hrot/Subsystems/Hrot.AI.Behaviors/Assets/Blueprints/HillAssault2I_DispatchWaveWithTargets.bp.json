@@ -452,106 +452,6 @@
           }
         },
         {
-          "kind": "GetParameter",
-          "Id": "df357992-8ba1-4507-8483-fb21d6aedcea",
-          "ParameterId": "4fc24425-b17e-44b5-a632-9565209e5256",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 1080,
-            "Y": 520
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "43ec7dcf-9c57-4580-a498-0469ef1233d2",
-          "ParameterId": "d66fa53e-23e8-4be2-92f3-1a9e71e89980",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 1080,
-            "Y": 580
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "2e08869e-f230-47ef-bcbb-0e335287094e",
-          "ParameterId": "2d64f749-9590-435e-8276-0a21dbccc682",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 1080,
-            "Y": 640
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "99696071-640f-44a2-bb69-97f20b5fa71c",
-          "ParameterId": "d9b2b6da-100f-43f5-9890-6fe345afa7e5",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 1080,
-            "Y": 700
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "74c8b141-2fc7-471b-afaa-14577cec1449",
-          "ParameterId": "1425efdb-2729-4c2a-a18d-f4515926183d",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 1080,
-            "Y": 760
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "d123d6be-e703-45bd-afe2-a145aee5d429",
-          "ParameterId": "f1696682-e63d-4648-b655-ca7627a94dc5",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 1080,
-            "Y": 820
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "177a2b31-8a4d-450d-ab03-e62d0cbd0c6d",
-          "ParameterId": "89b97e14-a487-45d4-b9cb-24aab291bf4e",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 1080,
-            "Y": 880
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "b2336565-cd85-4104-b9cb-bf9f778d377f",
-          "ParameterId": "19cedfd4-94e0-4f9e-9622-870d444f9f2a",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 1080,
-            "Y": 940
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "259239e5-a16c-4744-8c3d-463574d5b885",
-          "ParameterId": "a051c08d-06ca-4862-a147-f56f26336cb1",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 1080,
-            "Y": 1000
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "1d1a08d8-d877-4636-b94f-599f4b8c6503",
-          "ParameterId": "fb0753c0-d9b5-4409-94a5-07e93fd31eac",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 1080,
-            "Y": 1060
-          }
-        },
-        {
           "kind": "FunctionCall",
           "Id": "ce2b4ea7-d526-49ba-beee-8f18192a0731",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.MemberSlotListOps",
@@ -1196,6 +1096,15 @@
             "X": 2380,
             "Y": 1200
           }
+        },
+        {
+          "kind": "GetAllParameters",
+          "Id": "21e47038-9431-a457-ac09-8bc1abb5c8e7",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 520
+          }
         }
       ],
       "Links": [
@@ -1356,14 +1265,14 @@
           "ToPinId": "858dc6dc-2823-1b5b-92f5-190a90e6fe3c"
         },
         {
-          "FromNodeId": "df357992-8ba1-4507-8483-fb21d6aedcea",
-          "FromPinId": "84fca90f-2a0a-8655-99ba-e1cbf62abc72",
+          "FromNodeId": "21e47038-9431-a457-ac09-8bc1abb5c8e7",
+          "FromPinId": "793c6b15-a1ee-e35e-88bb-f830fa9c0eb3",
           "ToNodeId": "d54309f8-3588-4907-b9b5-f5edbeeb18f1",
           "ToPinId": "c263e4fd-af8f-3f59-9d7e-8bef5da9aec3"
         },
         {
-          "FromNodeId": "2e08869e-f230-47ef-bcbb-0e335287094e",
-          "FromPinId": "561299e6-226a-5757-89e2-2a76aa3df57e",
+          "FromNodeId": "21e47038-9431-a457-ac09-8bc1abb5c8e7",
+          "FromPinId": "77b60aa9-68e3-685a-93b7-8b482409ba61",
           "ToNodeId": "d54309f8-3588-4907-b9b5-f5edbeeb18f1",
           "ToPinId": "48f4a0a5-4800-f053-a8d7-579aa66d7002"
         },
@@ -1374,14 +1283,14 @@
           "ToPinId": "5ba631f0-1f22-5256-8bfb-bc9ae863c166"
         },
         {
-          "FromNodeId": "43ec7dcf-9c57-4580-a498-0469ef1233d2",
-          "FromPinId": "95e86109-51e7-de57-811c-39c2cd8df7a0",
+          "FromNodeId": "21e47038-9431-a457-ac09-8bc1abb5c8e7",
+          "FromPinId": "599eb24f-7e3a-4155-9b71-a7f5880a002a",
           "ToNodeId": "f33ca1d0-1dd1-49c0-a3f7-3a45397898d1",
           "ToPinId": "553b9cb5-41b2-ca55-a72d-7034cfdd415c"
         },
         {
-          "FromNodeId": "99696071-640f-44a2-bb69-97f20b5fa71c",
-          "FromPinId": "a2ba4525-bafe-c955-88f9-038c1657839a",
+          "FromNodeId": "21e47038-9431-a457-ac09-8bc1abb5c8e7",
+          "FromPinId": "b99d38d6-50eb-805d-8ad4-c0d26c59995d",
           "ToNodeId": "f33ca1d0-1dd1-49c0-a3f7-3a45397898d1",
           "ToPinId": "4c69f0a8-e27c-4b59-8aca-61b76d325772"
         },
@@ -1392,26 +1301,26 @@
           "ToPinId": "25f57edc-e58a-135d-ac65-30385a9add1e"
         },
         {
-          "FromNodeId": "74c8b141-2fc7-471b-afaa-14577cec1449",
-          "FromPinId": "4d5555b4-49c3-2a58-bd56-934f0b36cbef",
+          "FromNodeId": "21e47038-9431-a457-ac09-8bc1abb5c8e7",
+          "FromPinId": "4cd1b8f3-664b-3650-9157-65e1a9d051c6",
           "ToNodeId": "3e09375b-6ccc-4cd3-a33f-7af9bf755e77",
           "ToPinId": "7bf36e46-ed82-5451-aa84-d0699ff00caa"
         },
         {
-          "FromNodeId": "d123d6be-e703-45bd-afe2-a145aee5d429",
-          "FromPinId": "ff48fbc8-3e2c-5858-bbdb-0e373890a532",
+          "FromNodeId": "21e47038-9431-a457-ac09-8bc1abb5c8e7",
+          "FromPinId": "48931ff9-c538-a25c-8942-53f015e7c210",
           "ToNodeId": "3e09375b-6ccc-4cd3-a33f-7af9bf755e77",
           "ToPinId": "798018e7-748b-5a56-af26-a23cdc828f92"
         },
         {
-          "FromNodeId": "177a2b31-8a4d-450d-ab03-e62d0cbd0c6d",
-          "FromPinId": "61cce6c1-d6a3-bc55-9320-1c5f5f282490",
+          "FromNodeId": "21e47038-9431-a457-ac09-8bc1abb5c8e7",
+          "FromPinId": "65922ffd-4267-2a56-a7c8-0c67c3a3e0df",
           "ToNodeId": "3e09375b-6ccc-4cd3-a33f-7af9bf755e77",
           "ToPinId": "be42d875-03bb-dc52-ad0a-dcccc0fe62de"
         },
         {
-          "FromNodeId": "b2336565-cd85-4104-b9cb-bf9f778d377f",
-          "FromPinId": "4d99cc58-2439-d75f-ba7a-e0ddcd538766",
+          "FromNodeId": "21e47038-9431-a457-ac09-8bc1abb5c8e7",
+          "FromPinId": "e2f2d4f3-c677-1257-b309-1d6470df7539",
           "ToNodeId": "3e09375b-6ccc-4cd3-a33f-7af9bf755e77",
           "ToPinId": "0e2ffe60-26ba-985e-b81e-b159eb417779"
         },
@@ -1452,14 +1361,14 @@
           "ToPinId": "9eaa8c86-01d9-a25e-a90b-4b194b33a2db"
         },
         {
-          "FromNodeId": "74c8b141-2fc7-471b-afaa-14577cec1449",
-          "FromPinId": "4d5555b4-49c3-2a58-bd56-934f0b36cbef",
+          "FromNodeId": "21e47038-9431-a457-ac09-8bc1abb5c8e7",
+          "FromPinId": "4cd1b8f3-664b-3650-9157-65e1a9d051c6",
           "ToNodeId": "a1b963f7-ec73-4ea7-b042-498ab9d74258",
           "ToPinId": "8a68154d-ec17-dc5f-b2a0-d2cdd0448a80"
         },
         {
-          "FromNodeId": "177a2b31-8a4d-450d-ab03-e62d0cbd0c6d",
-          "FromPinId": "61cce6c1-d6a3-bc55-9320-1c5f5f282490",
+          "FromNodeId": "21e47038-9431-a457-ac09-8bc1abb5c8e7",
+          "FromPinId": "65922ffd-4267-2a56-a7c8-0c67c3a3e0df",
           "ToNodeId": "a1b963f7-ec73-4ea7-b042-498ab9d74258",
           "ToPinId": "47764e4d-d83d-4253-967a-950ace432451"
         },
@@ -1470,14 +1379,14 @@
           "ToPinId": "f70f9eef-2eae-c552-a03c-edb0697df05e"
         },
         {
-          "FromNodeId": "d123d6be-e703-45bd-afe2-a145aee5d429",
-          "FromPinId": "ff48fbc8-3e2c-5858-bbdb-0e373890a532",
+          "FromNodeId": "21e47038-9431-a457-ac09-8bc1abb5c8e7",
+          "FromPinId": "48931ff9-c538-a25c-8942-53f015e7c210",
           "ToNodeId": "dad51250-9624-49be-8582-23aabe1370c4",
           "ToPinId": "42736e07-75c4-7158-b34b-7305d074646d"
         },
         {
-          "FromNodeId": "b2336565-cd85-4104-b9cb-bf9f778d377f",
-          "FromPinId": "4d99cc58-2439-d75f-ba7a-e0ddcd538766",
+          "FromNodeId": "21e47038-9431-a457-ac09-8bc1abb5c8e7",
+          "FromPinId": "e2f2d4f3-c677-1257-b309-1d6470df7539",
           "ToNodeId": "dad51250-9624-49be-8582-23aabe1370c4",
           "ToPinId": "9489838c-8813-a859-8064-e6321b35b770"
         },
@@ -1536,14 +1445,14 @@
           "ToPinId": "cdbddfa0-3786-795a-8d5f-1718aa4cff90"
         },
         {
-          "FromNodeId": "259239e5-a16c-4744-8c3d-463574d5b885",
-          "FromPinId": "ac67ace6-74c0-6a57-93cb-e45a1e13f3bf",
+          "FromNodeId": "21e47038-9431-a457-ac09-8bc1abb5c8e7",
+          "FromPinId": "8da09dfa-6888-555a-9f26-b076cd21d18b",
           "ToNodeId": "f84d29b5-6530-45d9-9707-63dddf6be501",
           "ToPinId": "d9f40fba-73d8-3158-b32c-277ca7bd85ac"
         },
         {
-          "FromNodeId": "1d1a08d8-d877-4636-b94f-599f4b8c6503",
-          "FromPinId": "2267192c-97ca-9e53-a095-666c25cc22c6",
+          "FromNodeId": "21e47038-9431-a457-ac09-8bc1abb5c8e7",
+          "FromPinId": "969fd125-688a-1554-8939-0eb5d7fd2205",
           "ToNodeId": "f84d29b5-6530-45d9-9707-63dddf6be501",
           "ToPinId": "bfd6c67a-b33f-3c52-b5c4-cd3959fbc614"
         },

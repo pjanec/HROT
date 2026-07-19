@@ -673,226 +673,6 @@
           }
         },
         {
-          "kind": "GetParameter",
-          "Id": "df357992-8ba1-4507-8483-fb21d6aedcea",
-          "ParameterId": "4fc24425-b17e-44b5-a632-9565209e5256",
-          "Pins": [
-            {
-              "Id": "9b6aaa35-1d56-4069-b5b8-e5ead446ccd1",
-              "Name": "Value",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Single",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
-          "EditorMetadata": {
-            "X": 1080,
-            "Y": 520
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "43ec7dcf-9c57-4580-a498-0469ef1233d2",
-          "ParameterId": "d66fa53e-23e8-4be2-92f3-1a9e71e89980",
-          "Pins": [
-            {
-              "Id": "07c419e4-b6cc-40b6-bb63-a75c8ed2f28d",
-              "Name": "Value",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Single",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
-          "EditorMetadata": {
-            "X": 1080,
-            "Y": 580
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "2e08869e-f230-47ef-bcbb-0e335287094e",
-          "ParameterId": "2d64f749-9590-435e-8276-0a21dbccc682",
-          "Pins": [
-            {
-              "Id": "559def63-c40e-4766-903e-5cb7584e4a75",
-              "Name": "Value",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Single",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
-          "EditorMetadata": {
-            "X": 1080,
-            "Y": 640
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "99696071-640f-44a2-bb69-97f20b5fa71c",
-          "ParameterId": "d9b2b6da-100f-43f5-9890-6fe345afa7e5",
-          "Pins": [
-            {
-              "Id": "a6a48e46-821d-4630-ab1b-f2ff4cdb8bc6",
-              "Name": "Value",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Single",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
-          "EditorMetadata": {
-            "X": 1080,
-            "Y": 700
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "74c8b141-2fc7-471b-afaa-14577cec1449",
-          "ParameterId": "1425efdb-2729-4c2a-a18d-f4515926183d",
-          "Pins": [
-            {
-              "Id": "97487121-e03d-444e-bb8d-754e61a36e39",
-              "Name": "Value",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Single",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
-          "EditorMetadata": {
-            "X": 1080,
-            "Y": 760
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "d123d6be-e703-45bd-afe2-a145aee5d429",
-          "ParameterId": "f1696682-e63d-4648-b655-ca7627a94dc5",
-          "Pins": [
-            {
-              "Id": "e037bf2f-d739-47bf-b415-4167dcb66a3b",
-              "Name": "Value",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Single",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
-          "EditorMetadata": {
-            "X": 1080,
-            "Y": 820
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "177a2b31-8a4d-450d-ab03-e62d0cbd0c6d",
-          "ParameterId": "89b97e14-a487-45d4-b9cb-24aab291bf4e",
-          "Pins": [
-            {
-              "Id": "8b51e29e-5805-436b-b128-7cf3422abbb5",
-              "Name": "Value",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Single",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
-          "EditorMetadata": {
-            "X": 1080,
-            "Y": 880
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "b2336565-cd85-4104-b9cb-bf9f778d377f",
-          "ParameterId": "19cedfd4-94e0-4f9e-9622-870d444f9f2a",
-          "Pins": [
-            {
-              "Id": "fe6b5434-5004-4d68-a8e2-43a484ec99d0",
-              "Name": "Value",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Single",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
-          "EditorMetadata": {
-            "X": 1080,
-            "Y": 940
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "259239e5-a16c-4744-8c3d-463574d5b885",
-          "ParameterId": "a051c08d-06ca-4862-a147-f56f26336cb1",
-          "Pins": [
-            {
-              "Id": "df687ff1-8bda-4458-9e80-a86664e238bb",
-              "Name": "Value",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Single",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
-          "EditorMetadata": {
-            "X": 1080,
-            "Y": 1000
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "1d1a08d8-d877-4636-b94f-599f4b8c6503",
-          "ParameterId": "fb0753c0-d9b5-4409-94a5-07e93fd31eac",
-          "Pins": [
-            {
-              "Id": "02d8071c-5f52-4903-a5d2-c1c9df0778af",
-              "Name": "Value",
-              "Direction": "Out",
-              "IsExec": false,
-              "TypeRef": {
-                "TypeId": "System.Single",
-                "IsArray": false,
-                "GenericArgs": []
-              }
-            }
-          ],
-          "EditorMetadata": {
-            "X": 1080,
-            "Y": 1060
-          }
-        },
-        {
           "kind": "FunctionCall",
           "Id": "ce2b4ea7-d526-49ba-beee-8f18192a0731",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.MemberSlotListOps",
@@ -2625,6 +2405,15 @@
             "X": 2380,
             "Y": 1200
           }
+        },
+        {
+          "kind": "GetAllParameters",
+          "Id": "75b18134-6f34-505b-b8c9-e451232f757a",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1080,
+            "Y": 520
+          }
         }
       ],
       "Links": [
@@ -2785,14 +2574,14 @@
           "ToPinId": "9db48d57-309e-4893-9077-9f1dd01ad909"
         },
         {
-          "FromNodeId": "df357992-8ba1-4507-8483-fb21d6aedcea",
-          "FromPinId": "9b6aaa35-1d56-4069-b5b8-e5ead446ccd1",
+          "FromNodeId": "75b18134-6f34-505b-b8c9-e451232f757a",
+          "FromPinId": "2ba6d219-84be-385c-a2d6-412d1b42c4c2",
           "ToNodeId": "d54309f8-3588-4907-b9b5-f5edbeeb18f1",
           "ToPinId": "4dc18e45-24c1-4773-8ec5-54958149b95e"
         },
         {
-          "FromNodeId": "2e08869e-f230-47ef-bcbb-0e335287094e",
-          "FromPinId": "559def63-c40e-4766-903e-5cb7584e4a75",
+          "FromNodeId": "75b18134-6f34-505b-b8c9-e451232f757a",
+          "FromPinId": "458e88d5-19dd-645c-918f-02438a38c074",
           "ToNodeId": "d54309f8-3588-4907-b9b5-f5edbeeb18f1",
           "ToPinId": "b1a28203-4e7c-4d1f-a21e-de7f257cfff8"
         },
@@ -2803,14 +2592,14 @@
           "ToPinId": "17fc0f93-0dcb-4af2-94d6-6906c783caee"
         },
         {
-          "FromNodeId": "43ec7dcf-9c57-4580-a498-0469ef1233d2",
-          "FromPinId": "07c419e4-b6cc-40b6-bb63-a75c8ed2f28d",
+          "FromNodeId": "75b18134-6f34-505b-b8c9-e451232f757a",
+          "FromPinId": "0d4636a1-a6ea-b559-8d78-d1bd151186a0",
           "ToNodeId": "f33ca1d0-1dd1-49c0-a3f7-3a45397898d1",
           "ToPinId": "59d16f5a-8328-4545-8c29-d14ecc75dc55"
         },
         {
-          "FromNodeId": "99696071-640f-44a2-bb69-97f20b5fa71c",
-          "FromPinId": "a6a48e46-821d-4630-ab1b-f2ff4cdb8bc6",
+          "FromNodeId": "75b18134-6f34-505b-b8c9-e451232f757a",
+          "FromPinId": "6d22caac-1924-6f5f-997b-531241fb9cbb",
           "ToNodeId": "f33ca1d0-1dd1-49c0-a3f7-3a45397898d1",
           "ToPinId": "110e58fa-826c-4cc5-a5f2-f84703b9f19f"
         },
@@ -2821,26 +2610,26 @@
           "ToPinId": "265e27e4-ec2a-4254-a888-a8978750d9b4"
         },
         {
-          "FromNodeId": "74c8b141-2fc7-471b-afaa-14577cec1449",
-          "FromPinId": "97487121-e03d-444e-bb8d-754e61a36e39",
+          "FromNodeId": "75b18134-6f34-505b-b8c9-e451232f757a",
+          "FromPinId": "45a26758-5460-0558-9e19-e7945cdd159e",
           "ToNodeId": "3e09375b-6ccc-4cd3-a33f-7af9bf755e77",
           "ToPinId": "c1ec4a83-01d9-49ac-8b40-b51a054780a4"
         },
         {
-          "FromNodeId": "d123d6be-e703-45bd-afe2-a145aee5d429",
-          "FromPinId": "e037bf2f-d739-47bf-b415-4167dcb66a3b",
+          "FromNodeId": "75b18134-6f34-505b-b8c9-e451232f757a",
+          "FromPinId": "b6a42b10-1dd1-725a-b3ad-51a38d75d336",
           "ToNodeId": "3e09375b-6ccc-4cd3-a33f-7af9bf755e77",
           "ToPinId": "a7f60e94-48bc-48d8-a3ee-d53f2e8dbd01"
         },
         {
-          "FromNodeId": "177a2b31-8a4d-450d-ab03-e62d0cbd0c6d",
-          "FromPinId": "8b51e29e-5805-436b-b128-7cf3422abbb5",
+          "FromNodeId": "75b18134-6f34-505b-b8c9-e451232f757a",
+          "FromPinId": "82e22455-44b9-7654-a2b1-3f3097b4578b",
           "ToNodeId": "3e09375b-6ccc-4cd3-a33f-7af9bf755e77",
           "ToPinId": "0d3c7df4-2a04-4ca2-95df-4fc550720f12"
         },
         {
-          "FromNodeId": "b2336565-cd85-4104-b9cb-bf9f778d377f",
-          "FromPinId": "fe6b5434-5004-4d68-a8e2-43a484ec99d0",
+          "FromNodeId": "75b18134-6f34-505b-b8c9-e451232f757a",
+          "FromPinId": "f57ecb57-2a8d-e152-8daa-45e2d1cba459",
           "ToNodeId": "3e09375b-6ccc-4cd3-a33f-7af9bf755e77",
           "ToPinId": "3c963f82-dab8-4c92-b19d-e1ff533b2387"
         },
@@ -2881,14 +2670,14 @@
           "ToPinId": "439e8633-7b9b-4c10-8d45-2a6680b3a136"
         },
         {
-          "FromNodeId": "74c8b141-2fc7-471b-afaa-14577cec1449",
-          "FromPinId": "97487121-e03d-444e-bb8d-754e61a36e39",
+          "FromNodeId": "75b18134-6f34-505b-b8c9-e451232f757a",
+          "FromPinId": "45a26758-5460-0558-9e19-e7945cdd159e",
           "ToNodeId": "a1b963f7-ec73-4ea7-b042-498ab9d74258",
           "ToPinId": "e75562d7-de33-4f23-9621-0a39d6e47494"
         },
         {
-          "FromNodeId": "177a2b31-8a4d-450d-ab03-e62d0cbd0c6d",
-          "FromPinId": "8b51e29e-5805-436b-b128-7cf3422abbb5",
+          "FromNodeId": "75b18134-6f34-505b-b8c9-e451232f757a",
+          "FromPinId": "82e22455-44b9-7654-a2b1-3f3097b4578b",
           "ToNodeId": "a1b963f7-ec73-4ea7-b042-498ab9d74258",
           "ToPinId": "062d54ac-ab79-4c53-90d5-f9cf14512381"
         },
@@ -2899,14 +2688,14 @@
           "ToPinId": "653ccc27-bf7f-4ae5-bdca-9026d6fb6e32"
         },
         {
-          "FromNodeId": "d123d6be-e703-45bd-afe2-a145aee5d429",
-          "FromPinId": "e037bf2f-d739-47bf-b415-4167dcb66a3b",
+          "FromNodeId": "75b18134-6f34-505b-b8c9-e451232f757a",
+          "FromPinId": "b6a42b10-1dd1-725a-b3ad-51a38d75d336",
           "ToNodeId": "dad51250-9624-49be-8582-23aabe1370c4",
           "ToPinId": "68ddcb5d-e64b-4f84-8d1a-1f3ae0a62588"
         },
         {
-          "FromNodeId": "b2336565-cd85-4104-b9cb-bf9f778d377f",
-          "FromPinId": "fe6b5434-5004-4d68-a8e2-43a484ec99d0",
+          "FromNodeId": "75b18134-6f34-505b-b8c9-e451232f757a",
+          "FromPinId": "f57ecb57-2a8d-e152-8daa-45e2d1cba459",
           "ToNodeId": "dad51250-9624-49be-8582-23aabe1370c4",
           "ToPinId": "4901a691-a708-4f46-9745-f6d16d4ab1ef"
         },
@@ -2965,14 +2754,14 @@
           "ToPinId": "99548916-b4e4-420d-82ba-6520566aa078"
         },
         {
-          "FromNodeId": "259239e5-a16c-4744-8c3d-463574d5b885",
-          "FromPinId": "df687ff1-8bda-4458-9e80-a86664e238bb",
+          "FromNodeId": "75b18134-6f34-505b-b8c9-e451232f757a",
+          "FromPinId": "afcaa719-8738-e85a-89eb-f874b5f01294",
           "ToNodeId": "f84d29b5-6530-45d9-9707-63dddf6be501",
           "ToPinId": "bc42ebc8-f3f5-4874-9f41-40bb6bd58dff"
         },
         {
-          "FromNodeId": "1d1a08d8-d877-4636-b94f-599f4b8c6503",
-          "FromPinId": "02d8071c-5f52-4903-a5d2-c1c9df0778af",
+          "FromNodeId": "75b18134-6f34-505b-b8c9-e451232f757a",
+          "FromPinId": "b8dc7035-978b-955a-b630-76e0518af22f",
           "ToNodeId": "f84d29b5-6530-45d9-9707-63dddf6be501",
           "ToPinId": "ea0831e2-840b-4dd2-9154-962e41b57927"
         },

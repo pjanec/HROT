@@ -179,46 +179,6 @@
           }
         },
         {
-          "kind": "GetParameter",
-          "Id": "9b000000-0000-0000-0000-000000000001",
-          "ParameterId": "a2000000-0000-0000-0000-000000000001",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 40.0,
-            "Y": 40.0
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "9b000000-0000-0000-0000-000000000002",
-          "ParameterId": "a2000000-0000-0000-0000-000000000002",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 40.0,
-            "Y": 100.0
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "9b000000-0000-0000-0000-000000000003",
-          "ParameterId": "a2000000-0000-0000-0000-000000000003",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 40.0,
-            "Y": 160.0
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "9b000000-0000-0000-0000-000000000004",
-          "ParameterId": "a2000000-0000-0000-0000-000000000004",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 40.0,
-            "Y": 220.0
-          }
-        },
-        {
           "kind": "FunctionCall",
           "Id": "fc000000-0000-0000-0000-000000000003",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.SegmentMath",
@@ -387,6 +347,15 @@
             "X": 2300.0,
             "Y": 400.0
           }
+        },
+        {
+          "kind": "GetAllParameters",
+          "Id": "ae12cdf8-273a-d85d-8021-05411e916f4b",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 40,
+            "Y": 40
+          }
         }
       ],
       "Links": [
@@ -451,14 +420,14 @@
           "ToPinId": "35bc85cc-5e45-9d55-aa32-bc9a353aabf0"
         },
         {
-          "FromNodeId": "9b000000-0000-0000-0000-000000000001",
-          "FromPinId": "84e6e8f2-8b4f-705e-b365-f5db28e8512f",
+          "FromNodeId": "ae12cdf8-273a-d85d-8021-05411e916f4b",
+          "FromPinId": "057883c5-57af-2d59-ab9d-8c7030f19bd2",
           "ToNodeId": "fc000000-0000-0000-0000-000000000003",
           "ToPinId": "b437d272-f56f-2054-887c-7c51982eafb5"
         },
         {
-          "FromNodeId": "9b000000-0000-0000-0000-000000000003",
-          "FromPinId": "a1e6a815-38b9-6552-ae3b-7916f7309d10",
+          "FromNodeId": "ae12cdf8-273a-d85d-8021-05411e916f4b",
+          "FromPinId": "377dc0d2-51aa-da5f-a198-b9f64c704035",
           "ToNodeId": "fc000000-0000-0000-0000-000000000003",
           "ToPinId": "3c012392-2b6b-8152-a2e5-444efa076c6f"
         },
@@ -469,14 +438,14 @@
           "ToPinId": "7764551f-2553-1c56-9061-89699e345d55"
         },
         {
-          "FromNodeId": "9b000000-0000-0000-0000-000000000002",
-          "FromPinId": "52602aa5-125e-115a-96be-6558af057439",
+          "FromNodeId": "ae12cdf8-273a-d85d-8021-05411e916f4b",
+          "FromPinId": "bb80e99a-71c5-2652-98d4-2e0f2e71fb5f",
           "ToNodeId": "fc000000-0000-0000-0000-000000000004",
           "ToPinId": "d668de8b-7013-d65d-ae03-2837b3987b4a"
         },
         {
-          "FromNodeId": "9b000000-0000-0000-0000-000000000004",
-          "FromPinId": "5daca49f-770d-cc55-bbf2-b80b8de42057",
+          "FromNodeId": "ae12cdf8-273a-d85d-8021-05411e916f4b",
+          "FromPinId": "600c3409-c1a4-6152-88e5-6c02a4fdfa35",
           "ToNodeId": "fc000000-0000-0000-0000-000000000004",
           "ToPinId": "f46c3872-51f8-6556-bbb2-31131fbc403e"
         },

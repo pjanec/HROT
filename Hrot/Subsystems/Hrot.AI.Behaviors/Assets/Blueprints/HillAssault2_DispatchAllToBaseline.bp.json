@@ -13,31 +13,49 @@
   "TierHint": "Auto",
   "Primitive": {
     "Intent": "Action",
-    "Hostings": ["BTreeAction"]
+    "Hostings": [
+      "BTreeAction"
+    ]
   },
   "Parameters": [
     {
       "Id": "a2000000-0000-0000-0000-000000000001",
       "Name": "BaselineStartX",
-      "Type": { "TypeId": "System.Single", "IsArray": false, "GenericArgs": [] },
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
       "DefaultValueJson": "0"
     },
     {
       "Id": "a2000000-0000-0000-0000-000000000002",
       "Name": "BaselineStartY",
-      "Type": { "TypeId": "System.Single", "IsArray": false, "GenericArgs": [] },
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
       "DefaultValueJson": "0"
     },
     {
       "Id": "a2000000-0000-0000-0000-000000000003",
       "Name": "BaselineEndX",
-      "Type": { "TypeId": "System.Single", "IsArray": false, "GenericArgs": [] },
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
       "DefaultValueJson": "0"
     },
     {
       "Id": "a2000000-0000-0000-0000-000000000004",
       "Name": "BaselineEndY",
-      "Type": { "TypeId": "System.Single", "IsArray": false, "GenericArgs": [] },
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
       "DefaultValueJson": "0"
     }
   ],
@@ -45,7 +63,11 @@
     {
       "Id": "b3000000-0000-0000-0000-000000000001",
       "Name": "BaselineReservedMask",
-      "Type": { "TypeId": "System.UInt16", "IsArray": false, "GenericArgs": [] },
+      "Type": {
+        "TypeId": "System.UInt16",
+        "IsArray": false,
+        "GenericArgs": []
+      },
       "DefaultValueJson": "0",
       "IsEditable": false,
       "IsExposedOnSpawn": false,
@@ -71,7 +93,10 @@
           "Id": "e0000000-0000-0000-0000-000000000001",
           "EventTypeId": "",
           "Pins": [],
-          "EditorMetadata": { "X": 40.0, "Y": 400.0 }
+          "EditorMetadata": {
+            "X": 40.0,
+            "Y": 400.0
+          }
         },
         {
           "kind": "Literal",
@@ -79,14 +104,20 @@
           "TypeId": "System.UInt16",
           "ValueJson": "(ushort)0",
           "Pins": [],
-          "EditorMetadata": { "X": 40.0, "Y": 480.0 }
+          "EditorMetadata": {
+            "X": 40.0,
+            "Y": 480.0
+          }
         },
         {
           "kind": "SetVariable",
           "Id": "50000000-0000-0000-0000-000000000001",
           "VariableId": "b3000000-0000-0000-0000-000000000001",
           "Pins": [],
-          "EditorMetadata": { "X": 280.0, "Y": 400.0 }
+          "EditorMetadata": {
+            "X": 280.0,
+            "Y": 400.0
+          }
         },
         {
           "kind": "FlowForEach",
@@ -95,14 +126,65 @@
           "CountAccessorFqn": "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count",
           "ItemAccessorFqn": "Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate",
           "Pins": [
-            { "Id": "fe000000-0000-0000-0000-0000000000a1", "Name": "In",           "Direction": "In",  "IsExec": true,  "TypeRef": {} },
-            { "Id": "fe000000-0000-0000-0000-0000000000a2", "Name": "Body",         "Direction": "Out", "IsExec": true,  "TypeRef": {} },
-            { "Id": "fe000000-0000-0000-0000-0000000000a3", "Name": "Completed",    "Direction": "Out", "IsExec": true,  "TypeRef": {} },
-            { "Id": "fe000000-0000-0000-0000-0000000000a4", "Name": "CurrentItem",  "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "Fdp.Core.Entity", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "fe000000-0000-0000-0000-0000000000a5", "Name": "CurrentIndex", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "fe000000-0000-0000-0000-0000000000a6", "Name": "Count",        "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] } }
+            {
+              "Id": "fe000000-0000-0000-0000-0000000000a1",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "fe000000-0000-0000-0000-0000000000a2",
+              "Name": "Body",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "fe000000-0000-0000-0000-0000000000a3",
+              "Name": "Completed",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "fe000000-0000-0000-0000-0000000000a4",
+              "Name": "CurrentItem",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Fdp.Core.Entity",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "fe000000-0000-0000-0000-0000000000a5",
+              "Name": "CurrentIndex",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "fe000000-0000-0000-0000-0000000000a6",
+              "Name": "Count",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
           ],
-          "EditorMetadata": { "X": 560.0, "Y": 400.0 }
+          "EditorMetadata": {
+            "X": 560.0,
+            "Y": 400.0
+          }
         },
         {
           "kind": "FunctionCall",
@@ -113,21 +195,73 @@
           "TargetGraphId": "",
           "TrailingContext": "View",
           "Pins": [
-            { "Id": "fc000000-0000-0000-0000-0000000000a1", "Name": "e",      "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "Fdp.Core.Entity", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "fc000000-0000-0000-0000-0000000000a2", "Name": "Return", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] } }
+            {
+              "Id": "fc000000-0000-0000-0000-0000000000a1",
+              "Name": "e",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Fdp.Core.Entity",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "fc000000-0000-0000-0000-0000000000a2",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
           ],
-          "EditorMetadata": { "X": 820.0, "Y": 120.0 }
+          "EditorMetadata": {
+            "X": 820.0,
+            "Y": 120.0
+          }
         },
         {
           "kind": "Branch",
           "Id": "b1000000-0000-0000-0000-000000000001",
           "Pins": [
-            { "Id": "b1000000-0000-0000-0000-0000000000a1", "Name": "In",        "Direction": "In",  "IsExec": true,  "TypeRef": {} },
-            { "Id": "b1000000-0000-0000-0000-0000000000a2", "Name": "True",      "Direction": "Out", "IsExec": true,  "TypeRef": {} },
-            { "Id": "b1000000-0000-0000-0000-0000000000a3", "Name": "False",     "Direction": "Out", "IsExec": true,  "TypeRef": {} },
-            { "Id": "b1000000-0000-0000-0000-0000000000a4", "Name": "Condition", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Boolean" } }
+            {
+              "Id": "b1000000-0000-0000-0000-0000000000a1",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "b1000000-0000-0000-0000-0000000000a2",
+              "Name": "True",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "b1000000-0000-0000-0000-0000000000a3",
+              "Name": "False",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "b1000000-0000-0000-0000-0000000000a4",
+              "Name": "Condition",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean"
+              }
+            }
           ],
-          "EditorMetadata": { "X": 1040.0, "Y": 400.0 }
+          "EditorMetadata": {
+            "X": 1040.0,
+            "Y": 400.0
+          }
         },
         {
           "kind": "FunctionCall",
@@ -138,47 +272,44 @@
           "TargetGraphId": "",
           "TrailingContext": "None",
           "Pins": [
-            { "Id": "fc000000-0000-0000-0000-0000000000b1", "Name": "index",  "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "fc000000-0000-0000-0000-0000000000b2", "Name": "count",  "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "fc000000-0000-0000-0000-0000000000b3", "Name": "Return", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Single", "IsArray": false, "GenericArgs": [] } }
+            {
+              "Id": "fc000000-0000-0000-0000-0000000000b1",
+              "Name": "index",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "fc000000-0000-0000-0000-0000000000b2",
+              "Name": "count",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "fc000000-0000-0000-0000-0000000000b3",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
           ],
-          "EditorMetadata": { "X": 820.0, "Y": 260.0 }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "9b000000-0000-0000-0000-000000000001",
-          "ParameterId": "a2000000-0000-0000-0000-000000000001",
-          "Pins": [
-            { "Id": "9ba00000-0000-0000-0000-000000000001", "Name": "Value", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Single", "IsArray": false, "GenericArgs": [] }, "LinkedToIds": [] }
-          ],
-          "EditorMetadata": { "X": 40.0, "Y": 40.0 }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "9b000000-0000-0000-0000-000000000002",
-          "ParameterId": "a2000000-0000-0000-0000-000000000002",
-          "Pins": [
-            { "Id": "9ba00000-0000-0000-0000-000000000002", "Name": "Value", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Single", "IsArray": false, "GenericArgs": [] }, "LinkedToIds": [] }
-          ],
-          "EditorMetadata": { "X": 40.0, "Y": 100.0 }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "9b000000-0000-0000-0000-000000000003",
-          "ParameterId": "a2000000-0000-0000-0000-000000000003",
-          "Pins": [
-            { "Id": "9ba00000-0000-0000-0000-000000000003", "Name": "Value", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Single", "IsArray": false, "GenericArgs": [] }, "LinkedToIds": [] }
-          ],
-          "EditorMetadata": { "X": 40.0, "Y": 160.0 }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "9b000000-0000-0000-0000-000000000004",
-          "ParameterId": "a2000000-0000-0000-0000-000000000004",
-          "Pins": [
-            { "Id": "9ba00000-0000-0000-0000-000000000004", "Name": "Value", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Single", "IsArray": false, "GenericArgs": [] }, "LinkedToIds": [] }
-          ],
-          "EditorMetadata": { "X": 40.0, "Y": 220.0 }
+          "EditorMetadata": {
+            "X": 820.0,
+            "Y": 260.0
+          }
         },
         {
           "kind": "FunctionCall",
@@ -189,12 +320,55 @@
           "TargetGraphId": "",
           "TrailingContext": "None",
           "Pins": [
-            { "Id": "fc000000-0000-0000-0000-0000000000c1", "Name": "a",      "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Single", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "fc000000-0000-0000-0000-0000000000c2", "Name": "b",      "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Single", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "fc000000-0000-0000-0000-0000000000c3", "Name": "t",      "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Single", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "fc000000-0000-0000-0000-0000000000c4", "Name": "Return", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Single", "IsArray": false, "GenericArgs": [] } }
+            {
+              "Id": "fc000000-0000-0000-0000-0000000000c1",
+              "Name": "a",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "fc000000-0000-0000-0000-0000000000c2",
+              "Name": "b",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "fc000000-0000-0000-0000-0000000000c3",
+              "Name": "t",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "fc000000-0000-0000-0000-0000000000c4",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
           ],
-          "EditorMetadata": { "X": 1040.0, "Y": 40.0 }
+          "EditorMetadata": {
+            "X": 1040.0,
+            "Y": 40.0
+          }
         },
         {
           "kind": "FunctionCall",
@@ -205,12 +379,55 @@
           "TargetGraphId": "",
           "TrailingContext": "None",
           "Pins": [
-            { "Id": "fc000000-0000-0000-0000-0000000000d1", "Name": "a",      "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Single", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "fc000000-0000-0000-0000-0000000000d2", "Name": "b",      "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Single", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "fc000000-0000-0000-0000-0000000000d3", "Name": "t",      "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Single", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "fc000000-0000-0000-0000-0000000000d4", "Name": "Return", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Single", "IsArray": false, "GenericArgs": [] } }
+            {
+              "Id": "fc000000-0000-0000-0000-0000000000d1",
+              "Name": "a",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "fc000000-0000-0000-0000-0000000000d2",
+              "Name": "b",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "fc000000-0000-0000-0000-0000000000d3",
+              "Name": "t",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "fc000000-0000-0000-0000-0000000000d4",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
           ],
-          "EditorMetadata": { "X": 1040.0, "Y": 160.0 }
+          "EditorMetadata": {
+            "X": 1040.0,
+            "Y": 160.0
+          }
         },
         {
           "kind": "Literal",
@@ -218,7 +435,10 @@
           "TypeId": "System.Single",
           "ValueJson": "15f",
           "Pins": [],
-          "EditorMetadata": { "X": 1040.0, "Y": 560.0 }
+          "EditorMetadata": {
+            "X": 1040.0,
+            "Y": 560.0
+          }
         },
         {
           "kind": "Literal",
@@ -226,7 +446,10 @@
           "TypeId": "System.Single",
           "ValueJson": "5f",
           "Pins": [],
-          "EditorMetadata": { "X": 1040.0, "Y": 620.0 }
+          "EditorMetadata": {
+            "X": 1040.0,
+            "Y": 620.0
+          }
         },
         {
           "kind": "FunctionCall",
@@ -237,13 +460,66 @@
           "TargetGraphId": "",
           "TrailingContext": "None",
           "Pins": [
-            { "Id": "fc000000-0000-0000-0000-0000000000e1", "Name": "x",             "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Single", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "fc000000-0000-0000-0000-0000000000e2", "Name": "y",             "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Single", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "fc000000-0000-0000-0000-0000000000e3", "Name": "speed",         "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Single", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "fc000000-0000-0000-0000-0000000000e4", "Name": "arrivalRadius", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Single", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "fc000000-0000-0000-0000-0000000000e5", "Name": "Return",        "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.String", "IsArray": false, "GenericArgs": [] } }
+            {
+              "Id": "fc000000-0000-0000-0000-0000000000e1",
+              "Name": "x",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "fc000000-0000-0000-0000-0000000000e2",
+              "Name": "y",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "fc000000-0000-0000-0000-0000000000e3",
+              "Name": "speed",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "fc000000-0000-0000-0000-0000000000e4",
+              "Name": "arrivalRadius",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "fc000000-0000-0000-0000-0000000000e5",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.String",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
           ],
-          "EditorMetadata": { "X": 1280.0, "Y": 200.0 }
+          "EditorMetadata": {
+            "X": 1280.0,
+            "Y": 200.0
+          }
         },
         {
           "kind": "Literal",
@@ -251,27 +527,78 @@
           "TypeId": "System.String",
           "ValueJson": "\"MoveToLocation\"",
           "Pins": [],
-          "EditorMetadata": { "X": 1280.0, "Y": 460.0 }
+          "EditorMetadata": {
+            "X": 1280.0,
+            "Y": 460.0
+          }
         },
         {
           "kind": "PublishEvent",
           "Id": "ae000000-0000-0000-0000-000000000001",
           "EventId": "AssignTacticalIntentEvent",
           "Pins": [
-            { "Id": "ae000000-0000-0000-0000-0000000000a1", "Name": "In",         "Direction": "In",  "IsExec": true,  "TypeRef": {} },
-            { "Id": "ae000000-0000-0000-0000-0000000000a2", "Name": "Out",        "Direction": "Out", "IsExec": true,  "TypeRef": {} },
-            { "Id": "ae000000-0000-0000-0000-0000000000a3", "Name": "Target",     "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "Fdp.Core.Entity", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "ae000000-0000-0000-0000-0000000000a4", "Name": "IntentId",   "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.String", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "ae000000-0000-0000-0000-0000000000a5", "Name": "JsonParams", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.String", "IsArray": false, "GenericArgs": [] } }
+            {
+              "Id": "ae000000-0000-0000-0000-0000000000a1",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "ae000000-0000-0000-0000-0000000000a2",
+              "Name": "Out",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "ae000000-0000-0000-0000-0000000000a3",
+              "Name": "Target",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Fdp.Core.Entity",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "ae000000-0000-0000-0000-0000000000a4",
+              "Name": "IntentId",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.String",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "ae000000-0000-0000-0000-0000000000a5",
+              "Name": "JsonParams",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.String",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
           ],
-          "EditorMetadata": { "X": 1560.0, "Y": 400.0 }
+          "EditorMetadata": {
+            "X": 1560.0,
+            "Y": 400.0
+          }
         },
         {
           "kind": "GetVariable",
           "Id": "67000000-0000-0000-0000-000000000001",
           "VariableId": "b3000000-0000-0000-0000-000000000001",
           "Pins": [],
-          "EditorMetadata": { "X": 1560.0, "Y": 620.0 }
+          "EditorMetadata": {
+            "X": 1560.0,
+            "Y": 620.0
+          }
         },
         {
           "kind": "FunctionCall",
@@ -282,192 +609,244 @@
           "TargetGraphId": "",
           "TrailingContext": "None",
           "Pins": [
-            { "Id": "fc000000-0000-0000-0000-0000000000f1", "Name": "mask",   "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.UInt16", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "fc000000-0000-0000-0000-0000000000f2", "Name": "index",  "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "fc000000-0000-0000-0000-0000000000f3", "Name": "Return", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.UInt16", "IsArray": false, "GenericArgs": [] } }
+            {
+              "Id": "fc000000-0000-0000-0000-0000000000f1",
+              "Name": "mask",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.UInt16",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "fc000000-0000-0000-0000-0000000000f2",
+              "Name": "index",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "fc000000-0000-0000-0000-0000000000f3",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.UInt16",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
           ],
-          "EditorMetadata": { "X": 1800.0, "Y": 520.0 }
+          "EditorMetadata": {
+            "X": 1800.0,
+            "Y": 520.0
+          }
         },
         {
           "kind": "SetVariable",
           "Id": "50000000-0000-0000-0000-000000000002",
           "VariableId": "b3000000-0000-0000-0000-000000000001",
           "Pins": [],
-          "EditorMetadata": { "X": 2040.0, "Y": 400.0 }
+          "EditorMetadata": {
+            "X": 2040.0,
+            "Y": 400.0
+          }
         },
         {
           "kind": "Return",
           "Id": "8e000000-0000-0000-0000-000000000001",
           "Status": "Success",
           "Pins": [],
-          "EditorMetadata": { "X": 2300.0, "Y": 400.0 }
+          "EditorMetadata": {
+            "X": 2300.0,
+            "Y": 400.0
+          }
+        },
+        {
+          "kind": "GetAllParameters",
+          "Id": "1c494dfa-b009-8857-87d6-fcf73c285c9d",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 40,
+            "Y": 40
+          }
         }
       ],
       "Links": [
         {
           "FromNodeId": "e0000000-0000-0000-0000-000000000001",
-          "FromPinId":  "ea000000-0000-0000-0000-000000000001",
-          "ToNodeId":   "50000000-0000-0000-0000-000000000001",
-          "ToPinId":    "5a000000-0000-0000-0000-000000000001"
+          "FromPinId": "ea000000-0000-0000-0000-000000000001",
+          "ToNodeId": "50000000-0000-0000-0000-000000000001",
+          "ToPinId": "5a000000-0000-0000-0000-000000000001"
         },
         {
           "FromNodeId": "11000000-0000-0000-0000-000000000001",
-          "FromPinId":  "1a000000-0000-0000-0000-000000000001",
-          "ToNodeId":   "50000000-0000-0000-0000-000000000001",
-          "ToPinId":    "5b000000-0000-0000-0000-000000000001"
+          "FromPinId": "1a000000-0000-0000-0000-000000000001",
+          "ToNodeId": "50000000-0000-0000-0000-000000000001",
+          "ToPinId": "5b000000-0000-0000-0000-000000000001"
         },
         {
           "FromNodeId": "50000000-0000-0000-0000-000000000001",
-          "FromPinId":  "5c000000-0000-0000-0000-000000000001",
-          "ToNodeId":   "fe000000-0000-0000-0000-000000000001",
-          "ToPinId":    "fe000000-0000-0000-0000-0000000000a1"
+          "FromPinId": "5c000000-0000-0000-0000-000000000001",
+          "ToNodeId": "fe000000-0000-0000-0000-000000000001",
+          "ToPinId": "fe000000-0000-0000-0000-0000000000a1"
         },
         {
           "FromNodeId": "fe000000-0000-0000-0000-000000000001",
-          "FromPinId":  "fe000000-0000-0000-0000-0000000000a2",
-          "ToNodeId":   "b1000000-0000-0000-0000-000000000001",
-          "ToPinId":    "b1000000-0000-0000-0000-0000000000a1"
+          "FromPinId": "fe000000-0000-0000-0000-0000000000a2",
+          "ToNodeId": "b1000000-0000-0000-0000-000000000001",
+          "ToPinId": "b1000000-0000-0000-0000-0000000000a1"
         },
         {
           "FromNodeId": "fe000000-0000-0000-0000-000000000001",
-          "FromPinId":  "fe000000-0000-0000-0000-0000000000a4",
-          "ToNodeId":   "fc000000-0000-0000-0000-000000000001",
-          "ToPinId":    "fc000000-0000-0000-0000-0000000000a1"
+          "FromPinId": "fe000000-0000-0000-0000-0000000000a4",
+          "ToNodeId": "fc000000-0000-0000-0000-000000000001",
+          "ToPinId": "fc000000-0000-0000-0000-0000000000a1"
         },
         {
           "FromNodeId": "fc000000-0000-0000-0000-000000000001",
-          "FromPinId":  "fc000000-0000-0000-0000-0000000000a2",
-          "ToNodeId":   "b1000000-0000-0000-0000-000000000001",
-          "ToPinId":    "b1000000-0000-0000-0000-0000000000a4"
+          "FromPinId": "fc000000-0000-0000-0000-0000000000a2",
+          "ToNodeId": "b1000000-0000-0000-0000-000000000001",
+          "ToPinId": "b1000000-0000-0000-0000-0000000000a4"
         },
         {
           "FromNodeId": "fe000000-0000-0000-0000-000000000001",
-          "FromPinId":  "fe000000-0000-0000-0000-0000000000a5",
-          "ToNodeId":   "fc000000-0000-0000-0000-000000000002",
-          "ToPinId":    "fc000000-0000-0000-0000-0000000000b1"
+          "FromPinId": "fe000000-0000-0000-0000-0000000000a5",
+          "ToNodeId": "fc000000-0000-0000-0000-000000000002",
+          "ToPinId": "fc000000-0000-0000-0000-0000000000b1"
         },
         {
           "FromNodeId": "fe000000-0000-0000-0000-000000000001",
-          "FromPinId":  "fe000000-0000-0000-0000-0000000000a6",
-          "ToNodeId":   "fc000000-0000-0000-0000-000000000002",
-          "ToPinId":    "fc000000-0000-0000-0000-0000000000b2"
+          "FromPinId": "fe000000-0000-0000-0000-0000000000a6",
+          "ToNodeId": "fc000000-0000-0000-0000-000000000002",
+          "ToPinId": "fc000000-0000-0000-0000-0000000000b2"
         },
         {
           "FromNodeId": "fe000000-0000-0000-0000-000000000001",
-          "FromPinId":  "fe000000-0000-0000-0000-0000000000a5",
-          "ToNodeId":   "fc000000-0000-0000-0000-000000000006",
-          "ToPinId":    "fc000000-0000-0000-0000-0000000000f2"
+          "FromPinId": "fe000000-0000-0000-0000-0000000000a5",
+          "ToNodeId": "fc000000-0000-0000-0000-000000000006",
+          "ToPinId": "fc000000-0000-0000-0000-0000000000f2"
         },
         {
           "FromNodeId": "fe000000-0000-0000-0000-000000000001",
-          "FromPinId":  "fe000000-0000-0000-0000-0000000000a4",
-          "ToNodeId":   "ae000000-0000-0000-0000-000000000001",
-          "ToPinId":    "ae000000-0000-0000-0000-0000000000a3"
+          "FromPinId": "fe000000-0000-0000-0000-0000000000a4",
+          "ToNodeId": "ae000000-0000-0000-0000-000000000001",
+          "ToPinId": "ae000000-0000-0000-0000-0000000000a3"
         },
         {
-          "FromNodeId": "9b000000-0000-0000-0000-000000000001",
-          "FromPinId":  "9ba00000-0000-0000-0000-000000000001",
-          "ToNodeId":   "fc000000-0000-0000-0000-000000000003",
-          "ToPinId":    "fc000000-0000-0000-0000-0000000000c1"
+          "FromNodeId": "1c494dfa-b009-8857-87d6-fcf73c285c9d",
+          "FromPinId": "67a105bd-3f87-015e-9273-721bfb5932c7",
+          "ToNodeId": "fc000000-0000-0000-0000-000000000003",
+          "ToPinId": "fc000000-0000-0000-0000-0000000000c1"
         },
         {
-          "FromNodeId": "9b000000-0000-0000-0000-000000000003",
-          "FromPinId":  "9ba00000-0000-0000-0000-000000000003",
-          "ToNodeId":   "fc000000-0000-0000-0000-000000000003",
-          "ToPinId":    "fc000000-0000-0000-0000-0000000000c2"
+          "FromNodeId": "1c494dfa-b009-8857-87d6-fcf73c285c9d",
+          "FromPinId": "d6d17bca-e625-5d58-9c40-b3986643686d",
+          "ToNodeId": "fc000000-0000-0000-0000-000000000003",
+          "ToPinId": "fc000000-0000-0000-0000-0000000000c2"
         },
         {
           "FromNodeId": "fc000000-0000-0000-0000-000000000002",
-          "FromPinId":  "fc000000-0000-0000-0000-0000000000b3",
-          "ToNodeId":   "fc000000-0000-0000-0000-000000000003",
-          "ToPinId":    "fc000000-0000-0000-0000-0000000000c3"
+          "FromPinId": "fc000000-0000-0000-0000-0000000000b3",
+          "ToNodeId": "fc000000-0000-0000-0000-000000000003",
+          "ToPinId": "fc000000-0000-0000-0000-0000000000c3"
         },
         {
-          "FromNodeId": "9b000000-0000-0000-0000-000000000002",
-          "FromPinId":  "9ba00000-0000-0000-0000-000000000002",
-          "ToNodeId":   "fc000000-0000-0000-0000-000000000004",
-          "ToPinId":    "fc000000-0000-0000-0000-0000000000d1"
+          "FromNodeId": "1c494dfa-b009-8857-87d6-fcf73c285c9d",
+          "FromPinId": "fdc5cc92-34f9-065b-8563-9101d956eb36",
+          "ToNodeId": "fc000000-0000-0000-0000-000000000004",
+          "ToPinId": "fc000000-0000-0000-0000-0000000000d1"
         },
         {
-          "FromNodeId": "9b000000-0000-0000-0000-000000000004",
-          "FromPinId":  "9ba00000-0000-0000-0000-000000000004",
-          "ToNodeId":   "fc000000-0000-0000-0000-000000000004",
-          "ToPinId":    "fc000000-0000-0000-0000-0000000000d2"
+          "FromNodeId": "1c494dfa-b009-8857-87d6-fcf73c285c9d",
+          "FromPinId": "52d7734d-476f-b558-b9ae-5f4b2d9ca5c6",
+          "ToNodeId": "fc000000-0000-0000-0000-000000000004",
+          "ToPinId": "fc000000-0000-0000-0000-0000000000d2"
         },
         {
           "FromNodeId": "fc000000-0000-0000-0000-000000000002",
-          "FromPinId":  "fc000000-0000-0000-0000-0000000000b3",
-          "ToNodeId":   "fc000000-0000-0000-0000-000000000004",
-          "ToPinId":    "fc000000-0000-0000-0000-0000000000d3"
+          "FromPinId": "fc000000-0000-0000-0000-0000000000b3",
+          "ToNodeId": "fc000000-0000-0000-0000-000000000004",
+          "ToPinId": "fc000000-0000-0000-0000-0000000000d3"
         },
         {
           "FromNodeId": "fc000000-0000-0000-0000-000000000003",
-          "FromPinId":  "fc000000-0000-0000-0000-0000000000c4",
-          "ToNodeId":   "fc000000-0000-0000-0000-000000000005",
-          "ToPinId":    "fc000000-0000-0000-0000-0000000000e1"
+          "FromPinId": "fc000000-0000-0000-0000-0000000000c4",
+          "ToNodeId": "fc000000-0000-0000-0000-000000000005",
+          "ToPinId": "fc000000-0000-0000-0000-0000000000e1"
         },
         {
           "FromNodeId": "fc000000-0000-0000-0000-000000000004",
-          "FromPinId":  "fc000000-0000-0000-0000-0000000000d4",
-          "ToNodeId":   "fc000000-0000-0000-0000-000000000005",
-          "ToPinId":    "fc000000-0000-0000-0000-0000000000e2"
+          "FromPinId": "fc000000-0000-0000-0000-0000000000d4",
+          "ToNodeId": "fc000000-0000-0000-0000-000000000005",
+          "ToPinId": "fc000000-0000-0000-0000-0000000000e2"
         },
         {
           "FromNodeId": "11000000-0000-0000-0000-000000000002",
-          "FromPinId":  "1a000000-0000-0000-0000-000000000002",
-          "ToNodeId":   "fc000000-0000-0000-0000-000000000005",
-          "ToPinId":    "fc000000-0000-0000-0000-0000000000e3"
+          "FromPinId": "1a000000-0000-0000-0000-000000000002",
+          "ToNodeId": "fc000000-0000-0000-0000-000000000005",
+          "ToPinId": "fc000000-0000-0000-0000-0000000000e3"
         },
         {
           "FromNodeId": "11000000-0000-0000-0000-000000000003",
-          "FromPinId":  "1a000000-0000-0000-0000-000000000003",
-          "ToNodeId":   "fc000000-0000-0000-0000-000000000005",
-          "ToPinId":    "fc000000-0000-0000-0000-0000000000e4"
+          "FromPinId": "1a000000-0000-0000-0000-000000000003",
+          "ToNodeId": "fc000000-0000-0000-0000-000000000005",
+          "ToPinId": "fc000000-0000-0000-0000-0000000000e4"
         },
         {
           "FromNodeId": "fc000000-0000-0000-0000-000000000005",
-          "FromPinId":  "fc000000-0000-0000-0000-0000000000e5",
-          "ToNodeId":   "ae000000-0000-0000-0000-000000000001",
-          "ToPinId":    "ae000000-0000-0000-0000-0000000000a5"
+          "FromPinId": "fc000000-0000-0000-0000-0000000000e5",
+          "ToNodeId": "ae000000-0000-0000-0000-000000000001",
+          "ToPinId": "ae000000-0000-0000-0000-0000000000a5"
         },
         {
           "FromNodeId": "11000000-0000-0000-0000-000000000004",
-          "FromPinId":  "1a000000-0000-0000-0000-000000000004",
-          "ToNodeId":   "ae000000-0000-0000-0000-000000000001",
-          "ToPinId":    "ae000000-0000-0000-0000-0000000000a4"
+          "FromPinId": "1a000000-0000-0000-0000-000000000004",
+          "ToNodeId": "ae000000-0000-0000-0000-000000000001",
+          "ToPinId": "ae000000-0000-0000-0000-0000000000a4"
         },
         {
           "FromNodeId": "b1000000-0000-0000-0000-000000000001",
-          "FromPinId":  "b1000000-0000-0000-0000-0000000000a2",
-          "ToNodeId":   "ae000000-0000-0000-0000-000000000001",
-          "ToPinId":    "ae000000-0000-0000-0000-0000000000a1"
+          "FromPinId": "b1000000-0000-0000-0000-0000000000a2",
+          "ToNodeId": "ae000000-0000-0000-0000-000000000001",
+          "ToPinId": "ae000000-0000-0000-0000-0000000000a1"
         },
         {
           "FromNodeId": "ae000000-0000-0000-0000-000000000001",
-          "FromPinId":  "ae000000-0000-0000-0000-0000000000a2",
-          "ToNodeId":   "50000000-0000-0000-0000-000000000002",
-          "ToPinId":    "5a000000-0000-0000-0000-000000000002"
+          "FromPinId": "ae000000-0000-0000-0000-0000000000a2",
+          "ToNodeId": "50000000-0000-0000-0000-000000000002",
+          "ToPinId": "5a000000-0000-0000-0000-000000000002"
         },
         {
           "FromNodeId": "67000000-0000-0000-0000-000000000001",
-          "FromPinId":  "6a000000-0000-0000-0000-000000000001",
-          "ToNodeId":   "fc000000-0000-0000-0000-000000000006",
-          "ToPinId":    "fc000000-0000-0000-0000-0000000000f1"
+          "FromPinId": "6a000000-0000-0000-0000-000000000001",
+          "ToNodeId": "fc000000-0000-0000-0000-000000000006",
+          "ToPinId": "fc000000-0000-0000-0000-0000000000f1"
         },
         {
           "FromNodeId": "fc000000-0000-0000-0000-000000000006",
-          "FromPinId":  "fc000000-0000-0000-0000-0000000000f3",
-          "ToNodeId":   "50000000-0000-0000-0000-000000000002",
-          "ToPinId":    "5b000000-0000-0000-0000-000000000002"
+          "FromPinId": "fc000000-0000-0000-0000-0000000000f3",
+          "ToNodeId": "50000000-0000-0000-0000-000000000002",
+          "ToPinId": "5b000000-0000-0000-0000-000000000002"
         },
         {
           "FromNodeId": "fe000000-0000-0000-0000-000000000001",
-          "FromPinId":  "fe000000-0000-0000-0000-0000000000a3",
-          "ToNodeId":   "8e000000-0000-0000-0000-000000000001",
-          "ToPinId":    "8a000000-0000-0000-0000-000000000001"
+          "FromPinId": "fe000000-0000-0000-0000-0000000000a3",
+          "ToNodeId": "8e000000-0000-0000-0000-000000000001",
+          "ToPinId": "8a000000-0000-0000-0000-000000000001"
         }
       ],
-      "EditorMetadata": { "ViewportX": 0, "ViewportY": 0, "ViewportZoom": 0 }
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
     }
   ],
   "EditorMetadata": {

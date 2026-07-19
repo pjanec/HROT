@@ -93,56 +93,6 @@
           }
         },
         {
-          "kind": "GetParameter",
-          "Id": "41f451f7-3008-4872-8c62-6a3cb4e3e49d",
-          "ParameterId": "d7e55a84-723f-4037-b132-4f437a1320ff",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 40,
-            "Y": 40
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "cb6302ef-fb17-447e-b2f0-f048a29578f7",
-          "ParameterId": "7281bfdc-f823-41a1-91e1-e617cd0a2e90",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 40,
-            "Y": 100
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "2af5907e-ae38-4d28-9d81-ae5f836cefea",
-          "ParameterId": "2ae1da69-6d27-462a-8c8d-38246945d5a0",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 40,
-            "Y": 160
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "e1d7f44e-a0a2-4112-a053-666c9cde6ddd",
-          "ParameterId": "871a8b73-0f40-4152-9100-32f345f0b1cb",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 40,
-            "Y": 220
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "23b47307-fddc-4598-ae7b-9bd9b4128730",
-          "ParameterId": "ffe5647a-84b7-4529-8820-f70a7d74d979",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 40,
-            "Y": 280
-          }
-        },
-        {
           "kind": "FunctionCall",
           "Id": "4e51681e-e5a9-4a98-adac-e57d1c7839cc",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.SegmentMath",
@@ -376,36 +326,45 @@
             "X": 2780,
             "Y": 700
           }
+        },
+        {
+          "kind": "GetAllParameters",
+          "Id": "784ce394-deb6-fc59-b3b8-7d8e320d6787",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 40,
+            "Y": 40
+          }
         }
       ],
       "Links": [
         {
-          "FromNodeId": "41f451f7-3008-4872-8c62-6a3cb4e3e49d",
-          "FromPinId": "92e6ff91-088b-f957-bd41-95107593c9a6",
+          "FromNodeId": "784ce394-deb6-fc59-b3b8-7d8e320d6787",
+          "FromPinId": "46aa7d89-913e-8e5f-8fa8-8fa41e781a9d",
           "ToNodeId": "4e51681e-e5a9-4a98-adac-e57d1c7839cc",
           "ToPinId": "ae71738c-67c2-535b-bab7-cd02ebdf64ae"
         },
         {
-          "FromNodeId": "cb6302ef-fb17-447e-b2f0-f048a29578f7",
-          "FromPinId": "173caae6-bc00-945a-82d7-7cedbc712caf",
+          "FromNodeId": "784ce394-deb6-fc59-b3b8-7d8e320d6787",
+          "FromPinId": "6c510746-34c0-0252-ac2a-3872397f4c72",
           "ToNodeId": "4e51681e-e5a9-4a98-adac-e57d1c7839cc",
           "ToPinId": "78b8bccb-0ba8-f558-90c5-dab79dbcc7f4"
         },
         {
-          "FromNodeId": "2af5907e-ae38-4d28-9d81-ae5f836cefea",
-          "FromPinId": "2ff1a7ae-f9a4-205a-b333-34a5236c2e46",
+          "FromNodeId": "784ce394-deb6-fc59-b3b8-7d8e320d6787",
+          "FromPinId": "36400c61-d97a-0659-9c22-3061f8e2b8a2",
           "ToNodeId": "4e51681e-e5a9-4a98-adac-e57d1c7839cc",
           "ToPinId": "a39445cd-d982-ef52-909a-586345e05cdc"
         },
         {
-          "FromNodeId": "e1d7f44e-a0a2-4112-a053-666c9cde6ddd",
-          "FromPinId": "1ccc313e-a7eb-e253-8c87-519d0237449a",
+          "FromNodeId": "784ce394-deb6-fc59-b3b8-7d8e320d6787",
+          "FromPinId": "4f03d4e9-2548-ff5d-800f-6c25a9e16c46",
           "ToNodeId": "4e51681e-e5a9-4a98-adac-e57d1c7839cc",
           "ToPinId": "53c931df-7a1c-1f5a-85a7-2c4b7b6a8a26"
         },
         {
-          "FromNodeId": "23b47307-fddc-4598-ae7b-9bd9b4128730",
-          "FromPinId": "297add85-fd27-bd52-a6af-ca8852627bad",
+          "FromNodeId": "784ce394-deb6-fc59-b3b8-7d8e320d6787",
+          "FromPinId": "2a83e5f1-dfa5-8e5f-a35d-f80e165451fd",
           "ToNodeId": "4e51681e-e5a9-4a98-adac-e57d1c7839cc",
           "ToPinId": "134bf180-68b3-a95a-b8df-da8c85fb568c"
         },

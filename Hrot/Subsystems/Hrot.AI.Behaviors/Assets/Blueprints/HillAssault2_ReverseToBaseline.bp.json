@@ -63,26 +63,6 @@
           }
         },
         {
-          "kind": "GetParameter",
-          "Id": "9b1e6b99-be80-4e1b-be18-89624cb11b03",
-          "ParameterId": "93428fb0-b4af-4c79-8270-f3578e925a66",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 80.0,
-            "Y": 40.0
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "588ae877-76f7-4233-84bf-ad4da08bd56f",
-          "ParameterId": "c64e7b26-4b01-426c-9021-df66cedd65cd",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 80.0,
-            "Y": 120.0
-          }
-        },
-        {
           "kind": "Literal",
           "Id": "6747bb64-4bde-4b8e-ba17-9d70e28e47af",
           "TypeId": "System.Single",
@@ -152,6 +132,15 @@
             "X": 1460.0,
             "Y": 260.0
           }
+        },
+        {
+          "kind": "GetAllParameters",
+          "Id": "e1ed381f-4325-9350-b2ab-562b82c60405",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 40
+          }
         }
       ],
       "Links": [
@@ -162,14 +151,14 @@
           "ToPinId": "f606ace1-22d8-215d-a3a8-8dd28976bcc0"
         },
         {
-          "FromNodeId": "9b1e6b99-be80-4e1b-be18-89624cb11b03",
-          "FromPinId": "61e68582-b18c-d954-b5f5-c44b8a554b36",
+          "FromNodeId": "e1ed381f-4325-9350-b2ab-562b82c60405",
+          "FromPinId": "83a6e261-ddd3-0a54-b1e4-dc6d5520c4e6",
           "ToNodeId": "bf60847a-6e01-4d7a-ba3e-2dd9dc8637d8",
           "ToPinId": "0f26f46c-5260-2c53-a8a8-89a43a109305"
         },
         {
-          "FromNodeId": "588ae877-76f7-4233-84bf-ad4da08bd56f",
-          "FromPinId": "c83e32b4-9425-0b51-b9ab-d3c831e6f88d",
+          "FromNodeId": "e1ed381f-4325-9350-b2ab-562b82c60405",
+          "FromPinId": "f1c5d884-10c9-ac5a-9c03-fe80713048a0",
           "ToNodeId": "bf60847a-6e01-4d7a-ba3e-2dd9dc8637d8",
           "ToPinId": "16667cf8-f019-7952-b0a2-e0300b480c9e"
         },
@@ -212,7 +201,7 @@
     }
   ],
   "EditorMetadata": {
-    "Description": "Migration slice 2 (docs/blueprints/ReverseToBaseline_Slice_Design.md): blueprint-authored rebuild of the C# oracle HillAttackTankNodes.Action_ReverseToBaseline (~line 456) -- an AiPrimitive BTreeAction. Graph: EventEntry -> ChannelCommand(LocomotionChannel/MoveTo) [explicit data-in pins Destination/Speed/ArrivalRadius/ReverseAllowed; Destination wired from a pure FunctionCall VectorOps.Vec3(GetParameter(BaselineX), GetParameter(BaselineY), Literal 0f); Speed/ArrivalRadius/ReverseAllowed baked via PinDefaults] -> WaitForChannel(LocomotionChannel) [AiPrimitive latent lowering: issues the command once, suspends: Running while channel Running, auto-Failure on channel Failure, continues to Out on channel Success] -> PublishEvent(ClearBehaviorEvent, Target pin left unwired => self-default, Entity=self) -> Return(Success). DEVIATION (documented, see design doc \u00a72): the oracle publishes ClearBehaviorEvent on BOTH Success and Failure; WaitForChannel's lowering auto-returns Failure on channel failure WITHOUT running the post-wait chain, so this blueprint publishes ClearBehaviorEvent only on the Success path -- accepted simplification (no blueprint primitive injects a publish into the latent auto-failure path). New curated helper: Hrot.AI.Behaviors.Brains.VectorOps.Vec3/Vec2 (reflection-free Vector3 construction; no vector-literal node exists). Does not modify the C# oracle.",
+    "Description": "Migration slice 2 (docs/blueprints/ReverseToBaseline_Slice_Design.md): blueprint-authored rebuild of the C# oracle HillAttackTankNodes.Action_ReverseToBaseline (~line 456) -- an AiPrimitive BTreeAction. Graph: EventEntry -> ChannelCommand(LocomotionChannel/MoveTo) [explicit data-in pins Destination/Speed/ArrivalRadius/ReverseAllowed; Destination wired from a pure FunctionCall VectorOps.Vec3(GetParameter(BaselineX), GetParameter(BaselineY), Literal 0f); Speed/ArrivalRadius/ReverseAllowed baked via PinDefaults] -> WaitForChannel(LocomotionChannel) [AiPrimitive latent lowering: issues the command once, suspends: Running while channel Running, auto-Failure on channel Failure, continues to Out on channel Success] -> PublishEvent(ClearBehaviorEvent, Target pin left unwired => self-default, Entity=self) -> Return(Success). DEVIATION (documented, see design doc §2): the oracle publishes ClearBehaviorEvent on BOTH Success and Failure; WaitForChannel's lowering auto-returns Failure on channel failure WITHOUT running the post-wait chain, so this blueprint publishes ClearBehaviorEvent only on the Success path -- accepted simplification (no blueprint primitive injects a publish into the latent auto-failure path). New curated helper: Hrot.AI.Behaviors.Brains.VectorOps.Vec3/Vec2 (reflection-free Vector3 construction; no vector-literal node exists). Does not modify the C# oracle.",
     "Category": null,
     "Recipe": null
   }

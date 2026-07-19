@@ -94,16 +94,6 @@
           }
         },
         {
-          "kind": "GetParameter",
-          "Id": "06ee81b2-12e0-4b0e-92f1-aea16b67dbe1",
-          "ParameterId": "a27fabf3-32cb-425a-a626-32c2a3e201b1",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 40.0,
-            "Y": 40.0
-          }
-        },
-        {
           "kind": "FunctionCall",
           "Id": "dcf5b58a-ca68-4b0b-b9cf-bc06e8f2aee9",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.NetworkEntityMapOps",
@@ -213,16 +203,6 @@
           "EditorMetadata": {
             "X": 1080.0,
             "Y": 220.0
-          }
-        },
-        {
-          "kind": "GetParameter",
-          "Id": "d4f0f1c0-4e91-419a-9d81-a2dfdfd95fc6",
-          "ParameterId": "ea91ccf4-a56c-4737-8a5a-2be4ebdfaa3b",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 1080.0,
-            "Y": 620.0
           }
         },
         {
@@ -376,12 +356,21 @@
             "X": 2660.0,
             "Y": 500.0
           }
+        },
+        {
+          "kind": "GetAllParameters",
+          "Id": "1b44e6f7-2d28-9f54-b22d-879e0e3fdb2a",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 40,
+            "Y": 40
+          }
         }
       ],
       "Links": [
         {
-          "FromNodeId": "06ee81b2-12e0-4b0e-92f1-aea16b67dbe1",
-          "FromPinId": "ad49f6d0-8faf-7a50-990c-136d0f4076ce",
+          "FromNodeId": "1b44e6f7-2d28-9f54-b22d-879e0e3fdb2a",
+          "FromPinId": "79dd2f32-e825-0759-badd-02335d5b3f2a",
           "ToNodeId": "dcf5b58a-ca68-4b0b-b9cf-bc06e8f2aee9",
           "ToPinId": "616277e1-5a1c-135a-8421-2b5a6c8ac26e"
         },
@@ -482,8 +471,8 @@
           "ToPinId": "94b3404a-7778-2153-b318-5e9181e061d3"
         },
         {
-          "FromNodeId": "d4f0f1c0-4e91-419a-9d81-a2dfdfd95fc6",
-          "FromPinId": "a6c1cff4-9248-1058-9cbe-b71bc22ef077",
+          "FromNodeId": "1b44e6f7-2d28-9f54-b22d-879e0e3fdb2a",
+          "FromPinId": "cd1e44db-d10f-a652-95ed-5324e873caeb",
           "ToNodeId": "eee1a115-29fa-474a-b701-5da75cf957a3",
           "ToPinId": "50e103e2-192d-2652-952a-c52df5ef3e70"
         },
@@ -500,8 +489,8 @@
           "ToPinId": "a9bcc904-bf59-5f54-872b-5c4dbb0d84bb"
         },
         {
-          "FromNodeId": "d4f0f1c0-4e91-419a-9d81-a2dfdfd95fc6",
-          "FromPinId": "a6c1cff4-9248-1058-9cbe-b71bc22ef077",
+          "FromNodeId": "1b44e6f7-2d28-9f54-b22d-879e0e3fdb2a",
+          "FromPinId": "cd1e44db-d10f-a652-95ed-5324e873caeb",
           "ToNodeId": "195fec72-3895-4ce7-86e1-444e9263e930",
           "ToPinId": "f687f401-f98f-dd58-a12a-f09b81bb847b"
         },
