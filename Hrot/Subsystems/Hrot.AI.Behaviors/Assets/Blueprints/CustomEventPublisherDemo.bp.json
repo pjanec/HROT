@@ -1,0 +1,80 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {},
+  "AssetId": "c5100001-0000-0000-0000-000000000001",
+  "Name": "CustomEventPublisherDemo",
+  "Dispatch": "Instance",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": null,
+  "Parameters": [],
+  "ParameterOrder": null,
+  "WorkingState": [],
+  "WorkingStateOrder": null,
+  "Variables": [],
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "c5100001-0000-0000-0000-0000000000b1",
+      "Name": "Tick",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "c5100001-0000-0000-0000-0000000000c1",
+          "Pins": [],
+          "EditorMetadata": { "X": 80, "Y": 220, "Comment": null }
+        },
+        {
+          "kind": "PublishEvent",
+          "EventId": "",
+          "EventTypeFqn": "Hrot.AI.Behaviors.PingEvent",
+          "TargetFieldName": "Target",
+          "PayloadFields": [
+            { "Name": "Value", "TypeId": "System.Int32" }
+          ],
+          "Id": "c5100001-0000-0000-0000-0000000000c2",
+          "Pins": [],
+          "EditorMetadata": { "X": 440, "Y": 220, "Comment": null },
+          "PinDefaults": { "Value": "42" }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "c5100001-0000-0000-0000-0000000000c3",
+          "Pins": [],
+          "EditorMetadata": { "X": 820, "Y": 220, "Comment": null }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "c5100001-0000-0000-0000-0000000000c1",
+          "FromPinId": "c5100001-0000-0000-0000-0000000000d1",
+          "ToNodeId": "c5100001-0000-0000-0000-0000000000c2",
+          "ToPinId": "c5100001-0000-0000-0000-0000000000d2"
+        },
+        {
+          "FromNodeId": "c5100001-0000-0000-0000-0000000000c2",
+          "FromPinId": "c5100001-0000-0000-0000-0000000000d3",
+          "ToNodeId": "c5100001-0000-0000-0000-0000000000c3",
+          "ToPinId": "c5100001-0000-0000-0000-0000000000d4"
+        }
+      ],
+      "EditorMetadata": { "ViewportX": 0, "ViewportY": 0, "ViewportZoom": 0 }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "Q#14 custom-event demo (PUBLISHER). Instance blueprint whose Tick graph publishes the Hrot.AI.Behaviors.PingEvent custom event every frame with Value=42 (baked pin default) and Target self-defaulted. Compiles to world.Bus.Publish(new PingEvent{...}). Pair with CustomEventSubscriberDemo, which subscribes and mirrors Value into its LastValue variable.",
+    "Category": "Demo",
+    "Recipe": null
+  }
+}

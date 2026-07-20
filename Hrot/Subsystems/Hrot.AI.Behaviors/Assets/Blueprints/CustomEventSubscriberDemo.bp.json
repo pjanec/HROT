@@ -1,0 +1,130 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {},
+  "AssetId": "c5100002-0000-0000-0000-000000000001",
+  "Name": "CustomEventSubscriberDemo",
+  "Dispatch": "Instance",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": null,
+  "Parameters": [],
+  "ParameterOrder": null,
+  "WorkingState": [],
+  "WorkingStateOrder": null,
+  "Variables": [
+    {
+      "Id": "c5100002-0000-0000-0000-0000000000a1",
+      "Name": "LastValue",
+      "Type": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] },
+      "DefaultValueJson": "0",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    }
+  ],
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "c5100002-0000-0000-0000-0000000000b1",
+      "Name": "Tick",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "c5100002-0000-0000-0000-0000000000c1",
+          "Pins": [],
+          "EditorMetadata": { "X": 80, "Y": 220, "Comment": null }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "c5100002-0000-0000-0000-0000000000c2",
+          "Pins": [],
+          "EditorMetadata": { "X": 420, "Y": 220, "Comment": null }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "c5100002-0000-0000-0000-0000000000c1",
+          "FromPinId": "c5100002-0000-0000-0000-0000000000d1",
+          "ToNodeId": "c5100002-0000-0000-0000-0000000000c2",
+          "ToPinId": "c5100002-0000-0000-0000-0000000000d2"
+        }
+      ],
+      "EditorMetadata": { "ViewportX": 0, "ViewportY": 0, "ViewportZoom": 0 }
+    },
+    {
+      "Id": "c5100002-0000-0000-0000-0000000000b2",
+      "Name": "OnPing",
+      "Kind": "Event",
+      "Inputs": [
+        {
+          "Id": "c5100002-0000-0000-0000-0000000000a2",
+          "Name": "Value",
+          "Type": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] }
+        }
+      ],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "Hrot.AI.Behaviors.PingEvent",
+          "Id": "c5100002-0000-0000-0000-0000000000e1",
+          "Pins": [],
+          "EditorMetadata": { "X": 80, "Y": 220, "Comment": null }
+        },
+        {
+          "kind": "SetVariable",
+          "VariableId": "c5100002-0000-0000-0000-0000000000a1",
+          "Id": "c5100002-0000-0000-0000-0000000000e2",
+          "Pins": [],
+          "EditorMetadata": { "X": 460, "Y": 220, "Comment": null }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "c5100002-0000-0000-0000-0000000000e3",
+          "Pins": [],
+          "EditorMetadata": { "X": 820, "Y": 220, "Comment": null }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "c5100002-0000-0000-0000-0000000000e1",
+          "FromPinId": "c5100002-0000-0000-0000-0000000000f1",
+          "ToNodeId": "c5100002-0000-0000-0000-0000000000e2",
+          "ToPinId": "c5100002-0000-0000-0000-0000000000f2"
+        },
+        {
+          "FromNodeId": "c5100002-0000-0000-0000-0000000000e1",
+          "FromPinId": "c5100002-0000-0000-0000-0000000000f3",
+          "ToNodeId": "c5100002-0000-0000-0000-0000000000e2",
+          "ToPinId": "c5100002-0000-0000-0000-0000000000f4"
+        },
+        {
+          "FromNodeId": "c5100002-0000-0000-0000-0000000000e2",
+          "FromPinId": "c5100002-0000-0000-0000-0000000000f5",
+          "ToNodeId": "c5100002-0000-0000-0000-0000000000e3",
+          "ToPinId": "c5100002-0000-0000-0000-0000000000f6"
+        }
+      ],
+      "EditorMetadata": { "ViewportX": 0, "ViewportY": 0, "ViewportZoom": 0 }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "Q#14 custom-event demo (SUBSCRIBER). Instance blueprint whose OnPing Event graph subscribes to the Hrot.AI.Behaviors.PingEvent custom event: EventEntry exposes the reflected payload 'Value' (int) as a data-out, wired into SetVariable(LastValue). At runtime BlueprintTickSystem's per-slot dispatch fires OnPing whenever a PingEvent is on the bus this frame, mirroring the published Value into the LastValue variable (watch it in the debugger/inspector). Pair with CustomEventPublisherDemo.",
+    "Category": "Demo",
+    "Recipe": null
+  }
+}
