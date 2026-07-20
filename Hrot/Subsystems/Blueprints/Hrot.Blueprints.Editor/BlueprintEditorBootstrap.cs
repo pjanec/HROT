@@ -131,6 +131,11 @@ public static class BlueprintEditorBootstrap
         foreach (var descriptor in BlueprintEventPaletteEntries.PublishEntries())
             registry.Register(descriptor);
 
+        // Q#14 Option B: register a "Make {Struct}"/"Break {Struct}" pair per discovered
+        // [BlackboardDtoStruct]. Each drops a Make/BreakStruct node baked with the struct FQN + fields.
+        foreach (var descriptor in MakeBreakStructPaletteEntries.Entries(new ReflectionSharedStructTypeProvider()))
+            registry.Register(descriptor);
+
         return registry;
     }
 

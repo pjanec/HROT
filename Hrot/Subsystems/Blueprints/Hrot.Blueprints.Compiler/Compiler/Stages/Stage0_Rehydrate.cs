@@ -143,6 +143,14 @@ internal static class Stage0_Rehydrate
                 EnrichSetSharedPins(pins, ssn, staticShapes);
                 break;
 
+            case MakeStructNode msn:
+                EnrichMakeStructPins(pins, msn);
+                break;
+
+            case BreakStructNode bsn:
+                EnrichBreakStructPins(pins, bsn);
+                break;
+
             case FunctionCallNode fc:
                 EnrichFunctionCallPins(pins, fc, asset, graph, options, staticShapes, outL, inL);
                 break;
@@ -320,6 +328,30 @@ internal static class Stage0_Rehydrate
         var typeId = SharedTypePinTypeId(ssn.SharedTypeId);
         pins.Add(MakePin("Value",   "In",  isExec: false, typeId: typeId));
         pins.Add(MakePin("Written", "Out", isExec: false, typeId: "System.Boolean"));
+    }
+
+    /// <summary>
+    /// MakeStructNode (Q#14 Option B): pure data node. One data-IN pin per baked field (name + TypeId) +
+    /// a struct-typed data-OUT "Value". Mirrors the editor's NodePinSchema.MakeStructPins.
+    /// </summary>
+    private static void EnrichMakeStructPins(List<Pin> pins, MakeStructNode msn)
+    {
+        pins.Clear();
+        foreach (var f in msn.Fields)
+            pins.Add(MakePin(f.Name, "In", isExec: false, typeId: f.TypeId));
+        pins.Add(MakePin("Value", "Out", isExec: false, typeId: SharedTypePinTypeId(msn.StructTypeId)));
+    }
+
+    /// <summary>
+    /// BreakStructNode (Q#14 Option B): pure data node. A struct-typed data-IN "Value" + one data-OUT pin
+    /// per baked field. Mirrors the editor's NodePinSchema.BreakStructPins.
+    /// </summary>
+    private static void EnrichBreakStructPins(List<Pin> pins, BreakStructNode bsn)
+    {
+        pins.Clear();
+        pins.Add(MakePin("Value", "In", isExec: false, typeId: SharedTypePinTypeId(bsn.StructTypeId)));
+        foreach (var f in bsn.Fields)
+            pins.Add(MakePin(f.Name, "Out", isExec: false, typeId: f.TypeId));
     }
 
     /// <summary>
@@ -921,6 +953,9 @@ internal static class Stage0_Rehydrate
         LiteralNode           => false,
         ReadRankedResultNode  => false,
         ReadEqsResultNode     => false,
+        // Q#14 Option B — Make/Break are PURE data nodes (no exec pins).
+        MakeStructNode        => false,
+        BreakStructNode       => false,
         // PublishEvent (P4 -- GAP-3) IS an exec node -- unlike the pure GetX nodes above.
         PublishEventNode      => true,
         // FlowForEach (P1 -- GAP-1) IS an exec node (In + Body/Completed exec-outs).

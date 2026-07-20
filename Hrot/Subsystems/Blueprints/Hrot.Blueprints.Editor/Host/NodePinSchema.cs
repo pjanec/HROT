@@ -145,6 +145,8 @@ internal static class NodePinSchema
             GetAllParametersNode => GetAllParametersPins(asset),
             GetSharedNode gsn   => GetSharedPins(gsn),
             SetSharedNode ssn   => SetSharedPins(ssn),
+            MakeStructNode msn  => MakeStructPins(msn),
+            BreakStructNode bsn => BreakStructPins(bsn),
             ChannelCommandNode cc => ChannelCommandPins(cc, channelCommands, behaviorActions),
             PublishEventNode pev => PublishEventPins(pev),
             CallCustomEventNode cce => CallCustomEventPins(cce, asset),
@@ -749,6 +751,27 @@ internal static class NodePinSchema
     /// <see cref="SetSharedNode.SharedTypeId"/> + data-out "Written" (<c>System.Boolean</c>).
     /// Kept in parity with the compiler's <c>Stage0_Rehydrate.EnrichSetSharedPins</c>.
     /// </summary>
+    /// <summary>Q#14 Option B — MakeStruct: one data-IN per baked field + a struct-typed data-OUT "Value".
+    /// Parity with the compiler's Stage0 EnrichMakeStructPins.</summary>
+    private static IReadOnlyList<Pin> MakeStructPins(MakeStructNode msn)
+    {
+        var pins = new List<Pin>(msn.Fields.Count + 1);
+        foreach (var f in msn.Fields)
+            pins.Add(MakeData(f.Name, "In", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+        pins.Add(MakeData("Value", "Out", SharedTypePinTypeId(msn.StructTypeId)));
+        return pins;
+    }
+
+    /// <summary>Q#14 Option B — BreakStruct: a struct-typed data-IN "Value" + one data-OUT per baked field.
+    /// Parity with the compiler's Stage0 EnrichBreakStructPins.</summary>
+    private static IReadOnlyList<Pin> BreakStructPins(BreakStructNode bsn)
+    {
+        var pins = new List<Pin>(bsn.Fields.Count + 1) { MakeData("Value", "In", SharedTypePinTypeId(bsn.StructTypeId)) };
+        foreach (var f in bsn.Fields)
+            pins.Add(MakeData(f.Name, "Out", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+        return pins;
+    }
+
     private static IReadOnlyList<Pin> SetSharedPins(SetSharedNode ssn)
     {
         // Q#14 multi-pin: baked per-field decls → exec + one data-in per field (unwired fields preserved).
