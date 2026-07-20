@@ -186,8 +186,13 @@ internal static class Stage0_Rehydrate
         List<Pin> pins, Graph graph, IReadOnlyList<PinSchema> staticShapes)
     {
         // Static skeleton: exec-Out "Out" already added from registry.
-        // Enrich: add one data-Out per Graph.Inputs entry for Function graphs.
-        if (graph.Kind != GraphKind.Function || graph.Inputs.Count == 0)
+        // Enrich: add one data-Out per Graph.Inputs entry. Function graphs expose their declared
+        // inputs; Event graphs (Q#14 custom-event subscribers) expose the event PAYLOAD fields the
+        // same way, so downstream nodes can wire the payload (EventEntry data-out → e.g. SetVariable).
+        // Stage5's EventEntryNode resolution (IrOp_ReadInputArg, name-matched against Graph.Inputs)
+        // and the InstanceEmitter thunk (which passes each __ev.{field}) already handle both kinds;
+        // this early-return was the sole gate keeping subscribers from reading their payload.
+        if ((graph.Kind != GraphKind.Function && graph.Kind != GraphKind.Event) || graph.Inputs.Count == 0)
             return;
 
         // Ensure we have the exec-Out from static; then add data-Out pins.
