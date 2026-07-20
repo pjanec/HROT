@@ -40,12 +40,13 @@
           "EventTypeFqn": "Hrot.AI.Behaviors.PingEvent",
           "TargetFieldName": "Target",
           "PayloadFields": [
-            { "Name": "Value", "TypeId": "System.Int32" }
+            { "Name": "Value", "TypeId": "System.Int32" },
+            { "Name": "Strength", "TypeId": "System.Single" }
           ],
           "Id": "c5100001-0000-0000-0000-0000000000c2",
           "Pins": [],
           "EditorMetadata": { "X": 440, "Y": 220, "Comment": null },
-          "PinDefaults": { "Value": "42" }
+          "PinDefaults": { "Value": "42", "Strength": "1.5" }
         },
         {
           "kind": "Return",
@@ -73,7 +74,7 @@
     }
   ],
   "EditorMetadata": {
-    "Description": "Q#14 custom-event demo (PUBLISHER). Instance blueprint whose Tick graph publishes the Hrot.AI.Behaviors.PingEvent custom event every frame with Value=42 (baked pin default) and Target self-defaulted. Compiles to world.Bus.Publish(new PingEvent{...}). Pair with CustomEventSubscriberDemo, which subscribes and mirrors Value into its LastValue variable.",
+    "Description": "Q#14 custom-event demo (PUBLISHER). Instance blueprint whose Tick graph publishes the Hrot.AI.Behaviors.PingEvent custom event every frame, setting BOTH payload fields before sending — Value=42 (int) and Strength=1.5 (float), via the PublishEvent node's per-field data-in pins (baked pin defaults) — with Target self-defaulted. Compiles to world.Bus.Publish(new PingEvent{ Target = self, Value = 42, Strength = 1.5f }). Pair with CustomEventSubscriberDemo, which mirrors both fields into LastValue/LastStrength.",
     "Category": "Demo",
     "Recipe": null
   }

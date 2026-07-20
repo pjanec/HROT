@@ -26,7 +26,10 @@ namespace Hrot.AI.Behaviors
         [EventTarget]
         public Entity Target;
 
-        /// <summary>Arbitrary payload the subscriber mirrors into WorkingState — proves full payload delivery.</summary>
+        /// <summary>First payload field the publisher sets before sending; the subscriber mirrors it into a variable.</summary>
         public int Value;
+
+        /// <summary>Second payload field — proves the multi-pin publish sets more than one field before sending.</summary>
+        public float Strength;
     }
 }

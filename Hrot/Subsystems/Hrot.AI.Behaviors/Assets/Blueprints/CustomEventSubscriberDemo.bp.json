@@ -25,6 +25,17 @@
       "Category": null,
       "Tooltip": null,
       "Comment": null
+    },
+    {
+      "Id": "c5100002-0000-0000-0000-0000000000a3",
+      "Name": "LastStrength",
+      "Type": { "TypeId": "System.Single", "IsArray": false, "GenericArgs": [] },
+      "DefaultValueJson": "0",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
     }
   ],
   "VariableOrder": null,
@@ -73,6 +84,11 @@
           "Id": "c5100002-0000-0000-0000-0000000000a2",
           "Name": "Value",
           "Type": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] }
+        },
+        {
+          "Id": "c5100002-0000-0000-0000-0000000000a4",
+          "Name": "Strength",
+          "Type": { "TypeId": "System.Single", "IsArray": false, "GenericArgs": [] }
         }
       ],
       "Outputs": [],
@@ -82,21 +98,28 @@
           "EventTypeId": "Hrot.AI.Behaviors.PingEvent",
           "Id": "c5100002-0000-0000-0000-0000000000e1",
           "Pins": [],
-          "EditorMetadata": { "X": 80, "Y": 220, "Comment": null }
+          "EditorMetadata": { "X": 60, "Y": 240, "Comment": null }
         },
         {
           "kind": "SetVariable",
           "VariableId": "c5100002-0000-0000-0000-0000000000a1",
           "Id": "c5100002-0000-0000-0000-0000000000e2",
           "Pins": [],
-          "EditorMetadata": { "X": 460, "Y": 220, "Comment": null }
+          "EditorMetadata": { "X": 460, "Y": 180, "Comment": null }
+        },
+        {
+          "kind": "SetVariable",
+          "VariableId": "c5100002-0000-0000-0000-0000000000a3",
+          "Id": "c5100002-0000-0000-0000-0000000000e4",
+          "Pins": [],
+          "EditorMetadata": { "X": 820, "Y": 180, "Comment": null }
         },
         {
           "kind": "Return",
           "Status": "Success",
           "Id": "c5100002-0000-0000-0000-0000000000e3",
           "Pins": [],
-          "EditorMetadata": { "X": 820, "Y": 220, "Comment": null }
+          "EditorMetadata": { "X": 1180, "Y": 240, "Comment": null }
         }
       ],
       "Links": [
@@ -104,26 +127,38 @@
           "FromNodeId": "c5100002-0000-0000-0000-0000000000e1",
           "FromPinId": "c5100002-0000-0000-0000-0000000000f1",
           "ToNodeId": "c5100002-0000-0000-0000-0000000000e2",
-          "ToPinId": "c5100002-0000-0000-0000-0000000000f2"
+          "ToPinId": "c5100002-0000-0000-0000-0000000000f4"
         },
         {
           "FromNodeId": "c5100002-0000-0000-0000-0000000000e1",
-          "FromPinId": "c5100002-0000-0000-0000-0000000000f3",
+          "FromPinId": "c5100002-0000-0000-0000-0000000000f2",
           "ToNodeId": "c5100002-0000-0000-0000-0000000000e2",
-          "ToPinId": "c5100002-0000-0000-0000-0000000000f4"
+          "ToPinId": "c5100002-0000-0000-0000-0000000000f6"
         },
         {
           "FromNodeId": "c5100002-0000-0000-0000-0000000000e2",
           "FromPinId": "c5100002-0000-0000-0000-0000000000f5",
+          "ToNodeId": "c5100002-0000-0000-0000-0000000000e4",
+          "ToPinId": "c5100002-0000-0000-0000-0000000000f7"
+        },
+        {
+          "FromNodeId": "c5100002-0000-0000-0000-0000000000e1",
+          "FromPinId": "c5100002-0000-0000-0000-0000000000f3",
+          "ToNodeId": "c5100002-0000-0000-0000-0000000000e4",
+          "ToPinId": "c5100002-0000-0000-0000-0000000000f9"
+        },
+        {
+          "FromNodeId": "c5100002-0000-0000-0000-0000000000e4",
+          "FromPinId": "c5100002-0000-0000-0000-0000000000f8",
           "ToNodeId": "c5100002-0000-0000-0000-0000000000e3",
-          "ToPinId": "c5100002-0000-0000-0000-0000000000f6"
+          "ToPinId": "c5100002-0000-0000-0000-0000000000fa"
         }
       ],
       "EditorMetadata": { "ViewportX": 0, "ViewportY": 0, "ViewportZoom": 0 }
     }
   ],
   "EditorMetadata": {
-    "Description": "Q#14 custom-event demo (SUBSCRIBER). Instance blueprint whose OnPing Event graph subscribes to the Hrot.AI.Behaviors.PingEvent custom event: EventEntry exposes the reflected payload 'Value' (int) as a data-out, wired into SetVariable(LastValue). At runtime BlueprintTickSystem's per-slot dispatch fires OnPing whenever a PingEvent is on the bus this frame, mirroring the published Value into the LastValue variable (watch it in the debugger/inspector). Pair with CustomEventPublisherDemo.",
+    "Description": "Q#14 custom-event demo (SUBSCRIBER). Instance blueprint whose OnPing Event graph subscribes to Hrot.AI.Behaviors.PingEvent: the EventEntry exposes the reflected payload fields Value (int) and Strength (float) as data-outs, each wired into its own SetVariable (LastValue, LastStrength). At runtime BlueprintTickSystem's per-slot dispatch fires OnPing whenever a PingEvent is on the bus this frame, mirroring both published fields into the two variables (watch them in the debugger/inspector). Pair with CustomEventPublisherDemo.",
     "Category": "Demo",
     "Recipe": null
   }

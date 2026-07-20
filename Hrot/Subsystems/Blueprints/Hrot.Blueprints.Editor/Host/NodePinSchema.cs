@@ -146,6 +146,7 @@ internal static class NodePinSchema
             GetSharedNode gsn   => GetSharedPins(gsn),
             SetSharedNode ssn   => SetSharedPins(ssn),
             ChannelCommandNode cc => ChannelCommandPins(cc, channelCommands, behaviorActions),
+            PublishEventNode pev => PublishEventPins(pev),
             CallCustomEventNode cce => CallCustomEventPins(cce, asset),
             CallPeerBlueprintNode cpb => CallPeerBlueprintPins(cpb, peerSignatureLookup),
 
@@ -265,6 +266,34 @@ internal static class NodePinSchema
             return pins;
         }
         return ExecOnly("Out");
+    }
+
+    /// <summary>
+    /// PublishEventNode: for a Q#14 custom event the editor baked <c>EventTypeFqn</c> + <c>PayloadFields</c>
+    /// (+ optional <c>TargetFieldName</c>) onto the node from discovery, so project the payload data-IN pins
+    /// directly from them — <c>exec-In</c>/<c>exec-Out</c>, then the optional <c>Target</c> (<c>Fdp.Core.Entity</c>),
+    /// then one data-IN per payload field, in that exact order. This keeps strict parity with the compiler's
+    /// <c>Stage0_Rehydrate.EnrichPublishEventPins</c> baked path (and with <c>Stage5</c>, which reads the
+    /// not-exec "In" pins by name to build <c>new {Event}{ … }</c>). Pin names + <c>Direction="In"</c> are
+    /// load-bearing. System/catalog events (EventId only, no baked FQN) have no shape available in the editor
+    /// host, so they fall through to the exec-only registry shape — unchanged (no regression).
+    /// </summary>
+    private static IReadOnlyList<Pin> PublishEventPins(PublishEventNode pev)
+    {
+        if (string.IsNullOrEmpty(pev.EventTypeFqn))
+            return FromRegistry(pev);
+
+        var pins = new List<Pin>(3 + (pev.PayloadFields?.Count ?? 0))
+        {
+            MakeExec("In",  "In"),
+            MakeExec("Out", "Out"),
+        };
+        if (!string.IsNullOrEmpty(pev.TargetFieldName))
+            pins.Add(MakeData("Target", "In", "Fdp.Core.Entity"));
+        if (pev.PayloadFields is not null)
+            foreach (var f in pev.PayloadFields)
+                pins.Add(MakeData(f.Name, "In", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+        return pins;
     }
 
     /// <summary>
