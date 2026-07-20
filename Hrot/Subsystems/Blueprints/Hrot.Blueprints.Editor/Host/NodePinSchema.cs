@@ -248,7 +248,12 @@ internal static class NodePinSchema
         if (containingGraph is null)
             return ExecOnly("Out");
 
-        if (containingGraph?.Kind == GraphKind.Function && containingGraph.Inputs.Count > 0)
+        // Function graphs expose their declared inputs; Event graphs (Q#14 custom-event subscribers)
+        // expose the event PAYLOAD fields the same way — one data-Out per Graph.Inputs entry — so the
+        // designer can wire the payload downstream. Must stay in parity with the compiler's
+        // Stage0_Rehydrate.EnrichEventEntryPins (which enriches both kinds).
+        if ((containingGraph?.Kind == GraphKind.Function || containingGraph?.Kind == GraphKind.Event)
+            && containingGraph.Inputs.Count > 0)
         {
             var pins = new List<Pin>(1 + containingGraph.Inputs.Count);
             pins.Add(MakeExec("Out", "Out"));

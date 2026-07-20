@@ -117,6 +117,20 @@ internal sealed class BlueprintNodeModel : INodeModel
 
     // ── helpers ────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Short display name for an event identity on a node title: the last segment of a fully-qualified
+    /// type name (e.g. <c>Hrot.AI.Behaviors.PingEvent</c> → <c>PingEvent</c>), so a subscriber/publisher
+    /// node stays readable instead of showing the whole namespace. A plain catalog event name (no dots)
+    /// is returned unchanged; the full FQN remains visible in the Details panel. Also trims a nested-type
+    /// <c>+</c> segment defensively.
+    /// </summary>
+    private static string ShortEventName(string? eventId)
+    {
+        if (string.IsNullOrEmpty(eventId)) return "(none)";
+        int cut = eventId!.LastIndexOfAny(new[] { '.', '+' });
+        return cut >= 0 && cut < eventId.Length - 1 ? eventId[(cut + 1)..] : eventId;
+    }
+
     private static string BuildTitle(
         Hrot.Blueprints.Core.Assets.Node node,
         Hrot.Blueprints.Core.Assets.BlueprintAsset? asset) => node switch
@@ -144,7 +158,7 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.BinaryOpNode bin      => $"Math {OperatorSymbol(bin.Operator)}",
         Hrot.Blueprints.Core.Assets.BooleanOpNode boo     => $"Logic {OperatorSymbol(boo.Operator)}",
         Hrot.Blueprints.Core.Assets.NotNode               => "Not (!)",
-        Hrot.Blueprints.Core.Assets.EventEntryNode ee     => $"Event: {ee.EventTypeId}",
+        Hrot.Blueprints.Core.Assets.EventEntryNode ee     => string.IsNullOrEmpty(ee.EventTypeId) ? "Event" : $"Event: {ShortEventName(ee.EventTypeId)}",
         Hrot.Blueprints.Core.Assets.CallPeerBlueprintNode cp => $"Call Peer: {cp.FunctionRef}",
         Hrot.Blueprints.Core.Assets.CallCustomEventNode ce   => $"Call {ce.EventId}",
         Hrot.Blueprints.Core.Assets.ChannelCommandNode cc    => $"Command: {cc.ActionId}",
@@ -157,8 +171,10 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.ArrayMakeNode            => "Make Array",
         Hrot.Blueprints.Core.Assets.ArrayGetNode             => "Get Array",
         Hrot.Blueprints.Core.Assets.WaitForChannelNode wfc   => $"Wait: {wfc.ChannelType}",
-        Hrot.Blueprints.Core.Assets.WaitForEventNode wfe     => $"Wait Event: {wfe.EventTypeId}",
-        Hrot.Blueprints.Core.Assets.PublishEventNode pev     => $"Publish: {pev.EventId}",
+        Hrot.Blueprints.Core.Assets.WaitForEventNode wfe     => $"Wait Event: {ShortEventName(wfe.EventTypeId)}",
+        // Custom events bake the FQN in EventTypeFqn and leave EventId empty; show the short event name
+        // either way so the node never reads "Publish:" with a blank identity.
+        Hrot.Blueprints.Core.Assets.PublishEventNode pev     => $"Publish: {ShortEventName(!string.IsNullOrEmpty(pev.EventTypeFqn) ? pev.EventTypeFqn : pev.EventId)}",
         Hrot.Blueprints.Core.Assets.ReadEqsResultNode        => "Read EQS Result",
         Hrot.Blueprints.Core.Assets.SpawnEqsSensorNode       => "Spawn EQS Sensor",
         _ => node.GetType().Name,
