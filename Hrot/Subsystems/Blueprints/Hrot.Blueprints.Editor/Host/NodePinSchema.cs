@@ -147,6 +147,7 @@ internal static class NodePinSchema
             SetSharedNode ssn   => SetSharedPins(ssn),
             MakeStructNode msn  => MakeStructPins(msn),
             BreakStructNode bsn => BreakStructPins(bsn),
+            SetMembersNode smn  => SetMembersPins(smn),
             ChannelCommandNode cc => ChannelCommandPins(cc, channelCommands, behaviorActions),
             PublishEventNode pev => PublishEventPins(pev),
             CallCustomEventNode cce => CallCustomEventPins(cce, asset),
@@ -769,6 +770,18 @@ internal static class NodePinSchema
         var pins = new List<Pin>(bsn.Fields.Count + 1) { MakeData("Value", "In", SharedTypePinTypeId(bsn.StructTypeId)) };
         foreach (var f in bsn.Fields)
             pins.Add(MakeData(f.Name, "Out", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+        return pins;
+    }
+
+    /// <summary>Q#14 Option B — SetMembers: struct-typed data-IN "Source" + one member data-IN per baked
+    /// field + struct-typed data-OUT "Result". Parity with the compiler's Stage0 EnrichSetMembersPins.</summary>
+    private static IReadOnlyList<Pin> SetMembersPins(SetMembersNode smn)
+    {
+        var structType = SharedTypePinTypeId(smn.StructTypeId);
+        var pins = new List<Pin>(smn.Fields.Count + 2) { MakeData("Source", "In", structType) };
+        foreach (var f in smn.Fields)
+            pins.Add(MakeData(f.Name, "In", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+        pins.Add(MakeData("Result", "Out", structType));
         return pins;
     }
 

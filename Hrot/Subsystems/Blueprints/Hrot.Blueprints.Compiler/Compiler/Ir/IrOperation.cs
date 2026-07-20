@@ -536,3 +536,14 @@ public sealed record IrOp_MakeStruct(
     string StructFqn,
     IReadOnlyList<(string FieldName, IrValue Value)> Fields
 ) : IrOperation;
+
+/// <summary>
+/// Q#14 Option B (<c>SetMembersNode</c>): copy-with-changes — <c>var __t{result} = __t{Input};</c> then
+/// <c>__t{result}.{Field} = __t{value};</c> per wired member. The result is a modified COPY (structs are
+/// value types), so the source value is untouched and unwired members keep the source's value.
+/// </summary>
+public sealed record IrOp_SetMembers(
+    string StructFqn,
+    IrValue Input,
+    IReadOnlyList<(string FieldName, IrValue Value)> Fields
+) : IrOperation;

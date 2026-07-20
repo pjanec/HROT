@@ -45,6 +45,7 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(NotNode),                "Not")]
 [JsonDerivedType(typeof(MakeStructNode),         "MakeStruct")]
 [JsonDerivedType(typeof(BreakStructNode),        "BreakStruct")]
+[JsonDerivedType(typeof(SetMembersNode),         "SetMembers")]
 public abstract class Node
 {
     public Guid Id { get; set; }
@@ -729,6 +730,20 @@ public sealed class BreakStructNode : Node
     /// <summary>FQN of the struct being deconstructed (types the "Value" data-in pin).</summary>
     public string StructTypeId { get; set; } = "";
     /// <summary>Baked fields (name + pin TypeId) → one data-out pin each.</summary>
+    public List<StructFieldDecl> Fields { get; set; } = new();
+}
+
+/// <summary>
+/// Q#14 Option B — copies a struct VALUE (data-in "Source") and overwrites only the WIRED member fields,
+/// producing the modified copy on data-out "Result" (unwired member pins keep the source's value). Pure
+/// data node. Lowers to <c>var c = source; c.A = a; … → c</c> (<c>IrOp_SetMembers</c>). The struct pins are
+/// named "Source"/"Result" (not "Value") so they never collide with a struct field literally named "Value".
+/// </summary>
+public sealed class SetMembersNode : Node
+{
+    /// <summary>FQN of the struct (types the "Source"/"Result" pins; emitted as <c>global::{StructTypeId}</c>).</summary>
+    public string StructTypeId { get; set; } = "";
+    /// <summary>Baked fields (name + pin TypeId) → one member data-in pin each.</summary>
     public List<StructFieldDecl> Fields { get; set; } = new();
 }
 

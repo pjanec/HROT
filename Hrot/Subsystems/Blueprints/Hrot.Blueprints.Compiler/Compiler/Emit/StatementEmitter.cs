@@ -104,6 +104,18 @@ internal static class StatementEmitter
                 break;
             }
 
+            case IrOp_SetMembers op:
+            {
+                // Q#14 Option B: copy the source struct, then overwrite the wired members.
+                if (idx >= 0)
+                {
+                    e.WriteLine($"var __t{idx} = __t{op.Input.Index};");
+                    foreach (var f in op.Fields)
+                        e.WriteLine($"__t{idx}.{f.FieldName} = __t{f.Value.Index};");
+                }
+                break;
+            }
+
             case IrOp_WriteSharedField op:
             {
                 // Q#14 multi-pin: true per-field write — touches only this field's bytes, unwired

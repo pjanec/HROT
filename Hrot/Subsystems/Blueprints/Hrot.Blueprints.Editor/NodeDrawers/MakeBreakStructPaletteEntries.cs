@@ -25,6 +25,7 @@ public static class MakeBreakStructPaletteEntries
             var shortName = ShortName(fqn);
             yield return MakeDescriptor(fqn, shortName, reflected);
             yield return BreakDescriptor(fqn, shortName, reflected);
+            yield return SetMembersDescriptor(fqn, shortName, reflected);
         }
     }
 
@@ -49,6 +50,16 @@ public static class MakeBreakStructPaletteEntries
         Tooltip     = $"Split a {shortName} value into its fields.",
         Icon        = "bp/function",
         CreateInstance = () => new BreakStructNode { Id = Guid.NewGuid(), StructTypeId = fqn, Fields = ToStructFields(reflected) },
+    };
+
+    private static NodeKindDescriptor SetMembersDescriptor(string fqn, string shortName, IReadOnlyList<SharedFieldDecl> reflected) => new()
+    {
+        Kind        = $"Struct.SetMembers.{fqn}",
+        DisplayName = $"Set Members in {shortName}",
+        Category    = "Structs",
+        Tooltip     = $"Copy a {shortName} value and overwrite selected fields.",
+        Icon        = "bp/function",
+        CreateInstance = () => new SetMembersNode { Id = Guid.NewGuid(), StructTypeId = fqn, Fields = ToStructFields(reflected) },
     };
 
     private static string ShortName(string fqn)

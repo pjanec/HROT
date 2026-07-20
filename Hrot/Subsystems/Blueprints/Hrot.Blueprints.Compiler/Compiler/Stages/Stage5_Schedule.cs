@@ -1731,6 +1731,53 @@ internal sealed class GraphScheduler
                 break;
             }
 
+            // Q#14 Option B — SetMembers: copy the "Source" struct, overwrite wired members, output "Result".
+            case SetMembersNode smn:
+            {
+                string structFqn = NormalizeSharedTypeFqn(smn.StructTypeId);
+                var structType = new IrTypeRef { FullName = structFqn, IsUnmanaged = true, SizeBytes = 0 };
+
+                var srcPin = smn.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "Source", StringComparison.OrdinalIgnoreCase));
+                var srcLink = srcPin is null ? null
+                    : _graph.Links.FirstOrDefault(l => l.ToNodeId == smn.Id && l.ToPinId == srcPin.Id);
+                IrValue input;
+                if (srcLink is not null)
+                    input = ResolveNodeOutput(srcLink.FromNodeId, srcLink.FromPinId, stmts);
+                else
+                {
+                    input = AllocValue(structType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = input,
+                        Operation   = new IrOp_Const($"default(global::{structFqn})", structType),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = smn.Id, PinId = sourcePinId },
+                    });
+                }
+
+                var setFields = new List<(string, IrValue)>();
+                foreach (var f in smn.Fields)
+                {
+                    var fp = smn.Pins.FirstOrDefault(p =>
+                        !p.IsExec && p.Direction == "In"
+                        && string.Equals(p.Name, f.Name, StringComparison.OrdinalIgnoreCase));
+                    if (fp is null) continue;
+                    var fl = _graph.Links.FirstOrDefault(l => l.ToNodeId == smn.Id && l.ToPinId == fp.Id);
+                    if (fl is null) continue; // unwired member → keep source's value
+                    setFields.Add((f.Name, ResolveNodeOutput(fl.FromNodeId, fl.FromPinId, stmts)));
+                }
+
+                result = AllocValue(structType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = result,
+                    Operation   = new IrOp_SetMembers(structFqn, input, setFields),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = smn.Id, PinId = sourcePinId },
+                });
+                break;
+            }
+
             case GetVariableNode gv:
                 int varIdx = FindVariableIndex(gv.VariableId);
                 result = AllocValue(pinType);

@@ -151,6 +151,10 @@ internal static class Stage0_Rehydrate
                 EnrichBreakStructPins(pins, bsn);
                 break;
 
+            case SetMembersNode smn:
+                EnrichSetMembersPins(pins, smn);
+                break;
+
             case FunctionCallNode fc:
                 EnrichFunctionCallPins(pins, fc, asset, graph, options, staticShapes, outL, inL);
                 break;
@@ -352,6 +356,20 @@ internal static class Stage0_Rehydrate
         pins.Add(MakePin("Value", "In", isExec: false, typeId: SharedTypePinTypeId(bsn.StructTypeId)));
         foreach (var f in bsn.Fields)
             pins.Add(MakePin(f.Name, "Out", isExec: false, typeId: f.TypeId));
+    }
+
+    /// <summary>
+    /// SetMembersNode (Q#14 Option B): pure data node. Struct-typed data-IN "Source" + one member data-IN
+    /// per baked field + struct-typed data-OUT "Result". Mirrors the editor's NodePinSchema.SetMembersPins.
+    /// </summary>
+    private static void EnrichSetMembersPins(List<Pin> pins, SetMembersNode smn)
+    {
+        var structType = SharedTypePinTypeId(smn.StructTypeId);
+        pins.Clear();
+        pins.Add(MakePin("Source", "In", isExec: false, typeId: structType));
+        foreach (var f in smn.Fields)
+            pins.Add(MakePin(f.Name, "In", isExec: false, typeId: f.TypeId));
+        pins.Add(MakePin("Result", "Out", isExec: false, typeId: structType));
     }
 
     /// <summary>
@@ -953,9 +971,10 @@ internal static class Stage0_Rehydrate
         LiteralNode           => false,
         ReadRankedResultNode  => false,
         ReadEqsResultNode     => false,
-        // Q#14 Option B — Make/Break are PURE data nodes (no exec pins).
+        // Q#14 Option B — Make/Break/SetMembers are PURE data nodes (no exec pins).
         MakeStructNode        => false,
         BreakStructNode       => false,
+        SetMembersNode        => false,
         // PublishEvent (P4 -- GAP-3) IS an exec node -- unlike the pure GetX nodes above.
         PublishEventNode      => true,
         // FlowForEach (P1 -- GAP-1) IS an exec node (In + Body/Completed exec-outs).
