@@ -165,3 +165,26 @@ The full loop now works end-to-end and there is a runnable demo:
 **Still remaining (post-demo):** 3d Self/Any filter at dispatch · 2b generic carrier (editor-authored
 events with no C# struct) · 4a/4b editor subscribe-node UX (palette + reflected pins + filter control) ·
 1d authoring UI · 1f system-event migration.
+
+## Session-5 progress (editor feedback fixes + multi-pin fields, from live demo testing)
+Driven by running the demo in the editor:
+- **Scenario-save crash (critical, shared-engine, committed):** non-finite Vector/Quaternion component →
+  bare `NaN` via WriteRawValue → invalid JSON → editor crash on save. Fixed: converters clamp non-finite
+  to 0 (finite byte-identical); 20/20 converter tests. Pre-existing, unrelated to custom events.
+- **Editor node readability (committed):** Publish/EventEntry/WaitForEvent show the short event name (not
+  empty / full FQN); Event-graph subscriber `EventEntry` now projects payload data-out pins in the editor
+  (NodePinSchema parity with the Stage0 fix) so the payload wire renders.
+- **Multi-pin Publish (committed):** editor `PublishEvent` pin projection (was exec-only) → per-field
+  data-in pins; demo `PingEvent` gained a 2nd field (Strength); publisher sets both before sending.
+- **Multi-pin SetShared/SetShared/GetShared (committed, COMPLETE):** flattened Option-A model — set/read
+  individual shared-struct fields as pins. Per-field write (`TrySetSharedField`, unwired preserved, true
+  per-field not RMW) + per-field read (read-once + `IrOp_FieldRead`). Backward-compatible conditional
+  baked-`Fields` branch (null → legacy whole-struct). Editor: pin projection + opt-in "Expand to field
+  pins" toggle that reflects the struct and bakes `SharedFieldDecl[]` (Name/TypeId/Offset). Validated:
+  runtime (write A/B, preserve C; read A), baking test, editor 0/0, proof 184/184 byte-identical.
+
+**Deferred (agreed sequencing):** Make/Break/SetMembers + first-class struct values (Option B) → then
+Split Struct Pin (per-pin collapse/expand toggle, unifying A+B) — feasible, same reflect+bake+emit
+machinery + struct-typed pins (which already flow, e.g. GetShared.Value→FunctionCall); build against demand.
+Also still open from earlier: 3d Self/Any dispatch filter, 2b editor-authored (no-C#-struct) events, 1d
+event-def authoring UI, 1f system-event migration.
