@@ -188,3 +188,32 @@ Split Struct Pin (per-pin collapse/expand toggle, unifying A+B) — feasible, sa
 machinery + struct-typed pins (which already flow, e.g. GetShared.Value→FunctionCall); build against demand.
 Also still open from earlier: 3d Self/Any dispatch filter, 2b editor-authored (no-C#-struct) events, 1d
 event-def authoring UI, 1f system-event migration.
+
+## Session-6 progress (Option B struct values: Make/Break/SetMembers/struct-vars done; Split designed)
+Autonomous push per user request. All committed + tested; proof suite 184/184 byte-identical throughout.
+- **Make / Break** (compiler+runtime+editor) — construct a struct from fields / deconstruct to fields.
+  Palette entries per [BlackboardDtoStruct], NodePinSchema projection, Stage0 enrichers, round-trip test.
+- **SetMembers** (compiler+runtime+editor) — copy a struct + overwrite wired members (Source/Result pins;
+  unwired members preserved). Palette + projection + test (Make{A=1,B=2}→SetMembers(B=20)→Break→1/20).
+- **Struct-typed Variables** — a Variable can hold a blittable project struct. Stage4 accepts the FQN via
+  the AN2 project-type fallback (flags SizeReliable=false); CSharpEmitter emits StateFields descriptor
+  offsets/sizes from the RUNTIME State layout (Marshal.OffsetOf<{cls}.State> + Unsafe.SizeOf<T>) when any
+  field's size is unreliable — else baked (goldens byte-identical). Test: Make→SetVariable(S)→GetVariable→Break.
+
+### Split Struct Pin — design (the remaining Option-B UX; wants interactive build/validation)
+Goal: on a node with a struct-typed pin, toggle it in-place between ONE struct pin (collapsed) and its
+per-field sub-pins (split) — Unreal's "Split Struct Pin". It UNIFIES the flattened multi-pin (A) and the
+struct-value (B) representations we now both have.
+- **Model:** node metadata `SplitPins: [pinName]` (per-pin split state; one level, no recursion v1).
+- **Projection (NodePinSchema + Stage0, in parity):** for a struct pin in SplitPins, replace it with one
+  sub-pin per field (needs the struct's fields — reflected+baked like Make/Break; for pins whose struct
+  type has no baked fields, split is unavailable). Names e.g. `{Pin}.{Field}`.
+- **Compiler lowering:** a split struct-INPUT constructs the struct from its sub-pins inline (Make-inline,
+  reuse IrOp_MakeStruct); a split struct-OUTPUT projects fields inline (Break-inline, reuse IrOp_FieldRead).
+  So no new lowering ops — it reuses Make/Break's.
+- **Editor (INTERACTIVE — the reason this is a visual-test item):** right-click "Split Struct Pin" /
+  "Recombine" toggling SplitPins; wire cascade on toggle (what happens to an existing wire when you split
+  a connected pin — Unreal drops it or splits the source too). This canvas interaction can't be validated
+  headlessly, so it's the piece to build + verify in the editor.
+Recommendation: build Split Struct Pin as a focused, editor-in-the-loop slice (not headless), after a
+visual pass on the now-authorable Make/Break/SetMembers/struct-var vocabulary confirms the base feels right.
