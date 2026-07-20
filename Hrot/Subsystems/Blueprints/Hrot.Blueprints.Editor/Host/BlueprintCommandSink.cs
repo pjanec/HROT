@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
@@ -372,11 +374,8 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             var assetNode = _graph.Nodes.FirstOrDefault(n => n.Id == nodeId.Value);
             if (assetNode == null) continue;
 
-            // Remove incident links first (not through history to keep things simple).
-            _graph.Links.RemoveAll(l =>
-                l.FromNodeId == assetNode.Id || l.ToNodeId == assetNode.Id);
-
-            // Remove the node through CommandHistory.
+            // Remove the node AND its incident links through CommandHistory as one step
+            // (DeleteNodeCommand captures the incident links so Undo restores node + wires together).
             var delCmd = new DeleteNodeCommand(_graph, assetNode);
             _history.Execute(delCmd);
         }
@@ -393,18 +392,21 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         // Validate through our validator first.
         var validation = _validator.Validate(link.From, link.To);
 
+        // Any existing link this add must replace is collected here and dropped atomically WITH the add
+        // in a single undoable LinkEditCommand (so Undo restores the prior wiring in one step).
+        var toRemove = new List<Link>();
         if (validation.Verdict == LinkValidity.Invalid)
         {
             if (validation.Reason?.Contains("Exec output") == true)
             {
                 // Exec-output replace: remove the existing exec-out link by source pin.
-                RemoveExistingExecOutLink(link.From);
+                toRemove.AddRange(FindLinksByFromPin(link.From));
             }
             else if (validation.Reason?.Contains("replace") == true ||
                      validation.Reason?.Contains("already has") == true)
             {
                 // Data-input replace: remove the existing data link by target pin.
-                RemoveExistingDataLink(link.To);
+                toRemove.AddRange(FindLinksByToPin(link.To));
             }
             else
             {
@@ -430,33 +432,31 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             ToPinId    = toPinGuid,
         };
 
-        _graph.Links.Add(assetLink);
+        // Undoable: drop any replaced link(s) + add the new one as one history step.
+        _history.Execute(new LinkEditCommand(_graph, toRemove, new[] { assetLink }, "Add Link"));
         _markDirty(_asset);
         _model.RebuildAndNotify();
         return new GraphCommandResult(true, null);
     }
 
-    private void RemoveExistingDataLink(PinId toPin)
-    {
-        _graph.Links.RemoveAll(l => l.ToPinId == toPin.Value);
-    }
+    private List<Link> FindLinksByToPin(PinId toPin)
+        => _graph.Links.Where(l => l.ToPinId == toPin.Value).ToList();
 
-    private void RemoveExistingExecOutLink(PinId fromPin)
-    {
-        _graph.Links.RemoveAll(l => l.FromPinId == fromPin.Value);
-    }
+    private List<Link> FindLinksByFromPin(PinId fromPin)
+        => _graph.Links.Where(l => l.FromPinId == fromPin.Value).ToList();
 
     // ── RemoveLinks ──────────────────────────────────────────────────────────
 
     private GraphCommandResult ApplyRemoveLinks(GraphCommand.RemoveLinks removeLinks)
     {
-        foreach (var linkId in removeLinks.Links)
-        {
-            // Reconstruct the (fromPinId, toPinId) pair from our stable LinkId.
-            // Since we can't directly invert the hash, we check each link's derived id.
-            _graph.Links.RemoveAll(l =>
-                BlueprintGraphModel.MakeLinkId(l.FromPinId, l.ToPinId) == linkId);
-        }
+        // Match the exact Link objects whose stable LinkId is in the request, then drop them through
+        // CommandHistory so the delete is undoable (Ctrl-Z restores the wire).
+        var toRemove = _graph.Links
+            .Where(l => removeLinks.Links.Any(id =>
+                BlueprintGraphModel.MakeLinkId(l.FromPinId, l.ToPinId) == id))
+            .ToList();
+        if (toRemove.Count > 0)
+            _history.Execute(new LinkEditCommand(_graph, toRemove, null, "Remove Link(s)"));
 
         _markDirty(_asset);
         _model.RebuildAndNotify();
