@@ -1094,6 +1094,33 @@ internal sealed class GraphScheduler
                 // Name-keyed slot -- NOT FindVariableIndex (there is no variable/struct-field index;
                 // the accessor resolves the slot by string variableId at runtime).
                 string sharedTypeFqn = NormalizeSharedTypeFqn(ssn.SharedTypeId);
+
+                // Q#14 multi-pin: baked per-field decls → one per-field write per WIRED field pin
+                // (unwired = not written = preserved). Sources resolve top-to-bottom into temporaries
+                // (evaluate-then-write); the writes touch distinct offsets, so they are order-independent.
+                if (ssn.Fields is { Count: > 0 })
+                {
+                    foreach (var f in ssn.Fields)
+                    {
+                        var fieldPin = node.Pins.FirstOrDefault(p =>
+                            !p.IsExec && p.Direction == "In"
+                            && string.Equals(p.Name, f.Name, StringComparison.OrdinalIgnoreCase));
+                        if (fieldPin is null) continue;
+                        var link = _graph.Links.FirstOrDefault(
+                            l => l.ToNodeId == node.Id && l.ToPinId == fieldPin.Id);
+                        if (link is null) continue; // unwired field → leave the slot's value untouched
+                        var fieldVal = ResolveNodeOutput(link.FromNodeId, link.FromPinId, stmts);
+                        stmts.Add(new IrStatement
+                        {
+                            Operation = new IrOp_WriteSharedField(
+                                ssn.VariableId, sharedTypeFqn, NormalizeSharedTypeFqn(f.TypeId),
+                                f.Offset, fieldVal),
+                            Debug = DebugOf(node),
+                        });
+                    }
+                    break;
+                }
+
                 var dataPin = node.Pins.FirstOrDefault(p =>
                     !p.IsExec && p.Direction == "In"
                     && string.Equals(p.Name, "Value", StringComparison.OrdinalIgnoreCase));

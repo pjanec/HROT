@@ -291,10 +291,21 @@ internal static class Stage0_Rehydrate
     private static void EnrichSetSharedPins(
         List<Pin> pins, SetSharedNode ssn, IReadOnlyList<PinSchema> staticShapes)
     {
-        var typeId = SharedTypePinTypeId(ssn.SharedTypeId);
         pins.Clear();
-        pins.Add(MakePin("In",      "In",  isExec: true,  typeId: ""));
-        pins.Add(MakePin("Out",     "Out", isExec: true,  typeId: ""));
+        pins.Add(MakePin("In",  "In",  isExec: true, typeId: ""));
+        pins.Add(MakePin("Out", "Out", isExec: true, typeId: ""));
+
+        // Q#14 multi-pin: baked per-field decls → one data-in pin per field (name = field name, matched
+        // by Stage5 lowering) so the designer sets fields directly. Unwired fields are simply not written.
+        if (ssn.Fields is { Count: > 0 })
+        {
+            foreach (var f in ssn.Fields)
+                pins.Add(MakePin(f.Name, "In", isExec: false, typeId: f.TypeId));
+            return;
+        }
+
+        // Legacy whole-struct path: single "Value" data-in + "Written" data-out.
+        var typeId = SharedTypePinTypeId(ssn.SharedTypeId);
         pins.Add(MakePin("Value",   "In",  isExec: false, typeId: typeId));
         pins.Add(MakePin("Written", "Out", isExec: false, typeId: "System.Boolean"));
     }

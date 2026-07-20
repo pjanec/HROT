@@ -127,6 +127,75 @@ public static unsafe class BlueprintSharedState
     }
 
     /// <summary>
+    /// Writes a SINGLE field (<paramref name="value"/>, <typeparamref name="TField"/>) into the
+    /// ENTITY-scoped shared slot named <paramref name="variableId"/> on <paramref name="self"/>, at byte
+    /// <paramref name="fieldOffset"/> within the struct — a true per-field write that touches only that
+    /// field's bytes, leaving every other field untouched (multi-pin SetShared: unwired fields are
+    /// preserved, never reset). <typeparamref name="TStruct"/> is the whole shared struct, used ONLY to
+    /// validate the slot's <c>StructureHash</c> and bound the write — no whole-struct read/write occurs.
+    /// Returns <c>false</c> (never throws, no write) under the same not-ready / drift conditions as
+    /// <see cref="TrySetShared{T}"/>, or if the field would fall outside the struct (defensive bounds).
+    /// Self-only by construction (same as <see cref="TrySetShared{T}"/>; cross-entity write is out of scope).
+    /// </summary>
+    public static bool TrySetSharedField<TStruct, TField>(
+        EntityRepository world, Entity self, string variableId, int fieldOffset, in TField value)
+        where TStruct : unmanaged
+        where TField : unmanaged
+    {
+        if (world == null) throw new ArgumentNullException(nameof(world));
+        if (string.IsNullOrEmpty(variableId)) throw new ArgumentException("variableId is required.", nameof(variableId));
+
+        // Defensive: the field must lie fully within the struct. Guards a stale baked offset (layout
+        // drift with a coincidentally-matching hash) from ever writing past the slot into a neighbour.
+        if (fieldOffset < 0 || fieldOffset + Unsafe.SizeOf<TField>() > Marshal.SizeOf<TStruct>())
+            return false;
+
+        int slotKey = StatefulBTreeActionBinder.ComputeStatefulSlotKey(
+            Guid.Empty, StatefulSlotScope.Entity, Guid.Empty, variableId);
+        uint expectedHash = ExpectedStructureHash<TStruct>();
+
+        if (world.HasComponent<BlueprintBlackboard16384>(self))
+        {
+            ref var tier = ref world.GetComponentRW<BlueprintBlackboard16384>(self);
+            fixed (byte* mem = tier.Memory)
+                return TryWriteFieldToTier(mem, slotKey, expectedHash, fieldOffset, in value);
+        }
+        if (world.HasComponent<BlueprintBlackboard4096>(self))
+        {
+            ref var tier = ref world.GetComponentRW<BlueprintBlackboard4096>(self);
+            fixed (byte* mem = tier.Memory)
+                return TryWriteFieldToTier(mem, slotKey, expectedHash, fieldOffset, in value);
+        }
+        if (world.HasComponent<BlueprintBlackboard1024>(self))
+        {
+            ref var tier = ref world.GetComponentRW<BlueprintBlackboard1024>(self);
+            fixed (byte* mem = tier.Memory)
+                return TryWriteFieldToTier(mem, slotKey, expectedHash, fieldOffset, in value);
+        }
+
+        return false;
+    }
+
+    private static bool TryWriteFieldToTier<TField>(
+        byte* mem, int slotKey, uint expectedHash, int fieldOffset, in TField value)
+        where TField : unmanaged
+    {
+        if (!BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int offset, out uint storedHash))
+            return false;
+        if (storedHash != expectedHash)
+        {
+            System.Diagnostics.Debug.Assert(false,
+                $"BlueprintSharedState.TrySetSharedField: StructureHash mismatch for entity-scoped slot " +
+                $"{slotKey} (stored=0x{storedHash:X8}, expected=0x{expectedHash:X8}). Reader/owner layout " +
+                "drift or a variableId collision.");
+            return false;
+        }
+        // Per-field write: only this field's bytes are touched (offset validated by the caller's bounds check).
+        Unsafe.WriteUnaligned(mem + offset + fieldOffset, value);
+        return true;
+    }
+
+    /// <summary>
     /// Expected <c>StructureHash</c> for <typeparamref name="T"/>, computed IDENTICALLY to
     /// provisioning time: <c>unchecked(ComputeTypeNameHash(typeName) ^ (uint)Marshal.SizeOf&lt;T&gt;())</c>.
     /// Calls <see cref="StatefulBTreeActionBinder.ComputeTypeNameHash"/> directly (the same public

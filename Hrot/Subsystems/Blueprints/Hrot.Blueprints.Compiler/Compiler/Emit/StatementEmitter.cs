@@ -84,6 +84,17 @@ internal static class StatementEmitter
                 break;
             }
 
+            case IrOp_WriteSharedField op:
+            {
+                // Q#14 multi-pin: true per-field write — touches only this field's bytes, unwired
+                // fields preserved. Result discarded (self-only, not-ready => no-op, mirrors WriteShared).
+                e.WriteLine(
+                    $"global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintSharedState." +
+                    $"TrySetSharedField<global::{op.SharedTypeFqn}, global::{op.FieldTypeFqn}>(" +
+                    $"{wv}, self, \"{op.VariableId}\", {op.FieldOffset}, in __t{op.Value.Index});");
+                break;
+            }
+
             case IrOp_ReadInputArg op:
             {
                 var argName = ctx.CurrentGraph?.Inputs is { } inputs && op.ArgIndex < inputs.Count

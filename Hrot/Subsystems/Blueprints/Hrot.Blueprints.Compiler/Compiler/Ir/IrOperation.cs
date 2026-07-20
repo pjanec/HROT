@@ -504,3 +504,24 @@ public sealed record IrOp_WriteShared(
     string SharedTypeFqn,
     IrValue Value
 ) : IrOperation;
+
+/// <summary>
+/// Q#14 multi-pin SetShared: writes ONE field (<paramref name="Value"/>) into the ENTITY-scoped shared
+/// slot <paramref name="VariableId"/> at byte <paramref name="FieldOffset"/> within
+/// <paramref name="SharedTypeFqn"/>, via <c>BlueprintSharedState.TrySetSharedField&lt;TStruct,TField&gt;</c>.
+/// One statement per WIRED field pin (unwired fields never emit → preserved). Sources are resolved
+/// top-to-bottom into temporaries before the writes (evaluate-then-write); the per-field writes touch
+/// distinct byte ranges, so they are order-independent.
+/// </summary>
+/// <param name="VariableId">Entity-scoped slot name (name-keyed).</param>
+/// <param name="SharedTypeFqn">FQN of the shared struct (TStruct — hash validation + bounds).</param>
+/// <param name="FieldTypeFqn">FQN of the field type (TField — the write width).</param>
+/// <param name="FieldOffset">Byte offset of the field within the struct (editor-baked).</param>
+/// <param name="Value">The resolved field data-in.</param>
+public sealed record IrOp_WriteSharedField(
+    string VariableId,
+    string SharedTypeFqn,
+    string FieldTypeFqn,
+    int FieldOffset,
+    IrValue Value
+) : IrOperation;

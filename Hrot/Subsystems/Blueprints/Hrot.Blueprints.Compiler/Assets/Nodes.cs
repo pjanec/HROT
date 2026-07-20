@@ -454,6 +454,25 @@ public sealed class GetSharedNode : Node
     /// generic argument of <c>BlueprintSharedState.TryGetShared&lt;T&gt;</c>.
     /// </summary>
     public string SharedTypeId { get; set; } = "";
+
+    /// <summary>
+    /// Q#14 multi-pin: baked per-field decls the editor reflects from the shared struct. When non-null,
+    /// GetShared projects one data-out pin PER FIELD (read the struct once, expose each field) instead of a
+    /// single whole-struct "Value" pin. Null (and omitted from JSON) = legacy whole-struct path — existing
+    /// assets round-trip byte-identically.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public List<SharedFieldDecl>? Fields { get; set; }
+}
+
+/// <summary>One baked shared-struct field: name + pin TypeId + byte offset within the struct (for the
+/// per-field write). Mirrors <see cref="PublishEventFieldDecl"/> plus <see cref="Offset"/>.</summary>
+public sealed class SharedFieldDecl
+{
+    public string Name { get; set; } = "";
+    public string TypeId { get; set; } = "";
+    /// <summary>Byte offset of the field within the shared struct (editor-computed via Marshal.OffsetOf).</summary>
+    public int Offset { get; set; }
 }
 
 /// <summary>
@@ -473,6 +492,16 @@ public sealed class SetSharedNode : Node
     /// generic argument of <c>BlueprintSharedState.TrySetShared&lt;T&gt;</c>.
     /// </summary>
     public string SharedTypeId { get; set; } = "";
+
+    /// <summary>
+    /// Q#14 multi-pin: baked per-field decls the editor reflects from the shared struct. When non-null,
+    /// SetShared exposes one data-in pin PER FIELD; each WIRED field lowers to a per-field write
+    /// (<c>BlueprintSharedState.TrySetSharedField</c>) at that field's offset — unwired fields are
+    /// preserved. Null (and omitted from JSON) = legacy whole-struct "Value" path — existing assets
+    /// round-trip byte-identically.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public List<SharedFieldDecl>? Fields { get; set; }
 }
 
 // ──────────────────────────────────────────────────────────────────────────
