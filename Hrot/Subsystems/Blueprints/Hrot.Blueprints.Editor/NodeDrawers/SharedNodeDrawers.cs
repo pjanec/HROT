@@ -92,6 +92,51 @@ internal static class SharedTypePickerLogic
 }
 
 /// <summary>
+/// Q#14 multi-pin: reflects a shared-struct FQN into its per-field decls (Name + field-type FQN + byte
+/// offset) so a GetShared/SetShared node can expose one pin per field. Editor-side reflection (net8) —
+/// the netstandard2.0 compiler never reflects; it consumes the baked <see cref="SharedFieldDecl"/> list.
+/// Returns <c>null</c> when the type can't be resolved in a loaded assembly, isn't a value type, or has a
+/// field whose offset can't be computed (non-blittable) — the caller then keeps the legacy whole-struct pin.
+/// </summary>
+internal static class SharedStructFieldReflector
+{
+    internal static List<SharedFieldDecl>? TryReflect(string? fqn)
+    {
+        if (string.IsNullOrEmpty(fqn)) return null;
+        var type = ResolveType(fqn!);
+        if (type is null || !type.IsValueType) return null;
+
+        var decls = new List<SharedFieldDecl>();
+        foreach (var f in type.GetFields(
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+        {
+            int offset;
+            try { offset = (int)System.Runtime.InteropServices.Marshal.OffsetOf(type, f.Name); }
+            catch { return null; } // non-blittable field → per-field offset write impossible; keep whole-struct
+            decls.Add(new SharedFieldDecl
+            {
+                Name   = f.Name,
+                TypeId = f.FieldType.FullName ?? f.FieldType.Name,
+                Offset = offset,
+            });
+        }
+        return decls.Count > 0 ? decls : null;
+    }
+
+    private static Type? ResolveType(string fqn)
+    {
+        var t = Type.GetType(fqn);
+        if (t != null) return t;
+        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            try { t = asm.GetType(fqn); } catch { continue; }
+            if (t != null) return t;
+        }
+        return null;
+    }
+}
+
+/// <summary>
 /// Edit session for <see cref="GetSharedNode"/>.
 /// <para>
 /// Mutation logic lives in <see cref="SetVariableIdForTest"/>/<see cref="SetSharedTypeIdForTest"/>
@@ -135,6 +180,12 @@ internal sealed class GetSharedNodeSession : INodeEditSession
     /// </summary>
     internal void SetSharedTypeIdForTest(string sharedTypeId) => ApplySharedTypeId(sharedTypeId);
 
+    /// <summary>Test hook: toggles multi-pin (field) expansion — bakes/clears the per-field decls.</summary>
+    internal void SetExpandFieldsForTest(bool expand) => ApplyExpandFields(expand);
+
+    /// <summary>Test hook: true when the node is currently in multi-pin (expanded) mode.</summary>
+    internal bool IsExpandedForTest() => _node.Fields is { Count: > 0 };
+
     /// <summary>Test hook: the full, unfiltered set of FQNs the type provider discovered.</summary>
     internal IReadOnlyList<string> GetAvailableSharedTypesForTest() => _typeProvider.GetSharedStructTypeFqns();
 
@@ -164,6 +215,24 @@ internal sealed class GetSharedNodeSession : INodeEditSession
     {
         if (sharedTypeId == _node.SharedTypeId) return;
         _node.SharedTypeId = sharedTypeId;
+        // Q#14: if the node is in multi-pin (expanded) mode, re-bake the field decls for the new type.
+        if (_node.Fields is { Count: > 0 })
+            _node.Fields = SharedStructFieldReflector.TryReflect(sharedTypeId);
+        MarkChanged();
+    }
+
+    /// <summary>
+    /// Q#14 multi-pin toggle: when <paramref name="expand"/> is true, reflect the current shared struct's
+    /// fields and expose one pin per field; when false, collapse back to the single whole-struct pin. The
+    /// designer-facing analog of Unreal's "Split Struct Pin" at node granularity.
+    /// </summary>
+    private void ApplyExpandFields(bool expand)
+    {
+        var newFields = expand ? SharedStructFieldReflector.TryReflect(_node.SharedTypeId) : null;
+        bool wasExpanded = _node.Fields is { Count: > 0 };
+        bool nowExpanded = newFields is { Count: > 0 };
+        if (wasExpanded == nowExpanded && !nowExpanded) return;
+        _node.Fields = newFields;
         MarkChanged();
     }
 
@@ -185,6 +254,7 @@ internal sealed class GetSharedNodeSession : INodeEditSession
             ApplyVariableId(variableId);
 
         DrawSharedTypePicker();
+        DrawExpandFieldsToggle();
 
         ImGui.TextDisabled("(entity-scoped, self only — reads BlueprintSharedState.TryGetShared<T>)");
         if (string.IsNullOrEmpty(_node.VariableId) || string.IsNullOrEmpty(_node.SharedTypeId))
@@ -232,6 +302,17 @@ internal sealed class GetSharedNodeSession : INodeEditSession
                 $"(current value not in the discovered type list — kept as-is: {current})");
     }
 
+    /// <summary>Q#14 multi-pin toggle checkbox (only shown once a shared type is chosen).</summary>
+    private void DrawExpandFieldsToggle()
+    {
+        if (string.IsNullOrEmpty(_node.SharedTypeId)) return;
+        bool expanded = _node.Fields is { Count: > 0 };
+        if (ImGui.Checkbox("Expand to field pins (multi-pin)", ref expanded))
+            ApplyExpandFields(expanded);
+        if (_node.Fields is { Count: > 0 } fields)
+            ImGui.TextDisabled($"({fields.Count} field pin(s) — set/read individual fields; unset preserved)");
+    }
+
     public void ResetDirty() => IsDirty = false;
     public void Dispose() { }
 }
@@ -266,6 +347,12 @@ internal sealed class SetSharedNodeSession : INodeEditSession
 
     internal void SetSharedTypeIdForTest(string sharedTypeId) => ApplySharedTypeId(sharedTypeId);
 
+    /// <summary>Test hook: toggles multi-pin (field) expansion — bakes/clears the per-field decls.</summary>
+    internal void SetExpandFieldsForTest(bool expand) => ApplyExpandFields(expand);
+
+    /// <summary>Test hook: true when the node is currently in multi-pin (expanded) mode.</summary>
+    internal bool IsExpandedForTest() => _node.Fields is { Count: > 0 };
+
     internal IReadOnlyList<string> GetAvailableSharedTypesForTest() => _typeProvider.GetSharedStructTypeFqns();
 
     internal IReadOnlyList<string> GetFilteredSharedTypesForTest(string filterText)
@@ -288,6 +375,24 @@ internal sealed class SetSharedNodeSession : INodeEditSession
     {
         if (sharedTypeId == _node.SharedTypeId) return;
         _node.SharedTypeId = sharedTypeId;
+        // Q#14: if the node is in multi-pin (expanded) mode, re-bake the field decls for the new type.
+        if (_node.Fields is { Count: > 0 })
+            _node.Fields = SharedStructFieldReflector.TryReflect(sharedTypeId);
+        MarkChanged();
+    }
+
+    /// <summary>
+    /// Q#14 multi-pin toggle: when <paramref name="expand"/> is true, reflect the current shared struct's
+    /// fields and expose one pin per field; when false, collapse back to the single whole-struct pin. The
+    /// designer-facing analog of Unreal's "Split Struct Pin" at node granularity.
+    /// </summary>
+    private void ApplyExpandFields(bool expand)
+    {
+        var newFields = expand ? SharedStructFieldReflector.TryReflect(_node.SharedTypeId) : null;
+        bool wasExpanded = _node.Fields is { Count: > 0 };
+        bool nowExpanded = newFields is { Count: > 0 };
+        if (wasExpanded == nowExpanded && !nowExpanded) return;
+        _node.Fields = newFields;
         MarkChanged();
     }
 
@@ -309,6 +414,7 @@ internal sealed class SetSharedNodeSession : INodeEditSession
             ApplyVariableId(variableId);
 
         DrawSharedTypePicker();
+        DrawExpandFieldsToggle();
 
         ImGui.TextDisabled("(entity-scoped, self only — writes BlueprintSharedState.TrySetShared<T>)");
         if (string.IsNullOrEmpty(_node.VariableId) || string.IsNullOrEmpty(_node.SharedTypeId))
@@ -346,6 +452,17 @@ internal sealed class SetSharedNodeSession : INodeEditSession
         if (unlisted)
             ImGui.TextColored(EditorColors.Warning,
                 $"(current value not in the discovered type list — kept as-is: {current})");
+    }
+
+    /// <summary>Q#14 multi-pin toggle checkbox (only shown once a shared type is chosen).</summary>
+    private void DrawExpandFieldsToggle()
+    {
+        if (string.IsNullOrEmpty(_node.SharedTypeId)) return;
+        bool expanded = _node.Fields is { Count: > 0 };
+        if (ImGui.Checkbox("Expand to field pins (multi-pin)", ref expanded))
+            ApplyExpandFields(expanded);
+        if (_node.Fields is { Count: > 0 } fields)
+            ImGui.TextDisabled($"({fields.Count} field pin(s) — set/read individual fields; unset preserved)");
     }
 
     public void ResetDirty() => IsDirty = false;

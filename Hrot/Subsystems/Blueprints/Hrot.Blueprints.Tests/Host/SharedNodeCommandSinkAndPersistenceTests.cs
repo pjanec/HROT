@@ -262,6 +262,34 @@ public sealed class SharedNodeCommandSinkAndPersistenceTests
         Assert.Equal("global::Hrot.AI.Behaviors.SquadRallyState", reloadedNode.SharedTypeId);
     }
 
+    [Fact]
+    public void ExpandFields_BakesPerFieldDecls_FromReflectedStruct_AndCollapseClears()
+    {
+        var (asset, graph) = MakeAssetWithGraph();
+        var node = new SetSharedNode
+        {
+            Id = Guid.NewGuid(),
+            SharedTypeId = typeof(Runtime.MultiPinShared).FullName!,   // resolvable top-level blittable struct
+        };
+        graph.Nodes.Add(node);
+
+        var drawer  = new SetSharedNodeDrawer(new RecordingEditService(new List<BlueprintAsset>()), new ReflectionSharedStructTypeProvider());
+        var session = (SetSharedNodeSession)drawer.CreateSession(node, asset);
+
+        Assert.False(session.IsExpandedForTest());       // default = legacy whole-struct
+
+        session.SetExpandFieldsForTest(true);            // opt-in multi-pin: reflect + bake fields
+        Assert.True(session.IsExpandedForTest());
+        Assert.NotNull(node.Fields);
+        Assert.Equal(new[] { "A", "B", "C" }, node.Fields!.Select(f => f.Name).ToArray());
+        Assert.All(node.Fields, f => Assert.Equal("System.Int32", f.TypeId));
+        Assert.Equal(new[] { 0, 4, 8 }, node.Fields.Select(f => f.Offset).ToArray());
+
+        session.SetExpandFieldsForTest(false);           // collapse → back to whole-struct
+        Assert.False(session.IsExpandedForTest());
+        Assert.Null(node.Fields);
+    }
+
     private sealed class RecordingEditService : IEditService
     {
         private readonly List<BlueprintAsset> _log;
