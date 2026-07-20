@@ -148,6 +148,22 @@ public sealed class LiteralNode : Node
 public sealed class EventEntryNode : Node
 {
     public string EventTypeId { get; set; } = "";
+
+    /// <summary>
+    /// Q#14 (3d) Self/Any recipient filter. When true, a subscriber's handler fires ONLY when the event's
+    /// target field (<see cref="TargetFieldName"/>) equals the subscribing entity (Self); false = Any
+    /// (broadcast — every subscriber receives it). Default false ⇒ omitted from JSON, legacy broadcast.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool TargetFilterSelf { get; set; }
+
+    /// <summary>
+    /// Q#14 (3d) the event's <c>[EventTarget]</c> field name (baked by the editor from discovery). Used by
+    /// the Self filter to compare that field against <c>self</c>. Null/empty ⇒ the event has no target field,
+    /// so a Self filter is inert (broadcast).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? TargetFieldName { get; set; }
 }
 
 public sealed class ReturnNode : Node

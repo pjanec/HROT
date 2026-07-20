@@ -298,6 +298,12 @@ internal sealed class GraphScheduler
             EventTypeFqn = _graph.Kind == GraphKind.Event
                 ? (entryNode as EventEntryNode)?.EventTypeId
                 : null,
+            // Q#14 (3d): Self/Any recipient filter, carried from the EventEntry for the thunk guard.
+            TargetFilterSelf = _graph.Kind == GraphKind.Event
+                && (entryNode as EventEntryNode)?.TargetFilterSelf == true,
+            TargetFieldName = _graph.Kind == GraphKind.Event
+                ? (entryNode as EventEntryNode)?.TargetFieldName
+                : null,
             Inputs  = irInputs,
             Outputs = irOutputs,
             Blocks  = _blockBuilders.Select(b => b.Build()).ToList().AsReadOnly(),

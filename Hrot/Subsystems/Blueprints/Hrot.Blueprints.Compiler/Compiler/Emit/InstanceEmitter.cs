@@ -270,12 +270,23 @@ internal static class InstanceEmitter
         // Q#14: when the Event graph carries an event identity (EventTypeFqn) and has inputs, reinterpret the
         // dispatched payload span as that struct and pass each field to the handler. Otherwise fall back to
         // the legacy default stub (byte-identical for legacy Event graphs with no identity).
+        // Q#14 (3d): the Self filter needs the reinterpreted payload even when the handler takes no inputs,
+        // so reinterpret __ev whenever we have an event identity AND (payload fields OR a Self filter).
+        bool hasFqn      = !string.IsNullOrEmpty(evtGraph.EventTypeFqn);
+        bool selfFilter  = evtGraph.TargetFilterSelf && !string.IsNullOrEmpty(evtGraph.TargetFieldName);
+        bool reinterpret = hasFqn && (evtGraph.Inputs.Count > 0 || selfFilter);
+
         string args;
-        if (evtGraph.Inputs.Count > 0 && !string.IsNullOrEmpty(evtGraph.EventTypeFqn))
+        if (reinterpret)
         {
             e.WriteLine($"ref readonly var __ev = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, global::{evtGraph.EventTypeFqn}>(");
             e.WriteLine("    ref global::System.Runtime.InteropServices.MemoryMarshal.GetReference(payload));");
-            args = ", " + string.Join(", ", evtGraph.Inputs.Select(f => $"__ev.{f.Name}"));
+            // Self/Any: skip this subscriber unless the event's target field names THIS entity.
+            if (selfFilter)
+                e.WriteLine($"if (__ev.{evtGraph.TargetFieldName} != self) return;");
+            args = evtGraph.Inputs.Count > 0
+                ? ", " + string.Join(", ", evtGraph.Inputs.Select(f => $"__ev.{f.Name}"))
+                : "";
         }
         else
         {

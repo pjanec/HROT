@@ -90,18 +90,57 @@ public sealed class CustomEventPubSubCapstoneTests
     }
 
     /// <summary>
+    /// Q#14 (3d) Self filter: a targeted event fires ONLY the subscriber whose entity matches the event's
+    /// [EventTarget] field. Two entities run the same Self-filtered subscriber; publishing PingDemoEvent
+    /// targeted at A updates A's LastValue and leaves B's at its default.
+    /// </summary>
+    [Fact]
+    public void SelfFilteredSubscriber_OnlyTargetedEntityHandlesTheEvent()
+    {
+        using var fixture = new BlueprintTestFixture(
+            new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+
+        string eventFqn = typeof(PingDemoEvent).FullName!;
+        var asset = BlueprintAssetBuilder
+            .Instance("SelfFilteredSubscriber")
+            .WithVariable("LastValue", typeof(int), "0")
+            .WithGraph("Tick", g => g.Entry().Return())
+            .Build();
+        asset.Graphs.Add(BuildOnPingGraph(eventFqn, asset.Variables[0].Id, selfFilter: true));
+
+        fixture.CompileAndLoad(asset);
+        var harness = new BlueprintRunHarness(fixture);
+        Entity a = harness.SpawnAndAttach(asset);
+        Entity b = harness.SpawnAndAttach(asset);
+
+        // Target A only.
+        fixture.World.Bus.Publish(new PingDemoEvent { Target = a, Value = 42 });
+        harness.Pump(1);
+
+        Assert.Equal(42, harness.ReadIntField(a, asset, "LastValue")); // A matched → handled
+        Assert.Equal(0,  harness.ReadIntField(b, asset, "LastValue")); // B not targeted → skipped
+    }
+
+    /// <summary>
     /// Builds the <c>OnPing</c> Event graph with explicit pins/links:
     /// <c>EventEntry.Out(exec) → SetVariable.In</c>, <c>EventEntry.Value(data) → SetVariable.Value(data)</c>,
     /// <c>SetVariable.Out(exec) → Return.In</c>. <c>Graph.Inputs=[Value:int]</c> so Stage5 matches the
     /// <c>EventEntry</c> "Value" data-out to payload arg 0.
     /// </summary>
-    private static Graph BuildOnPingGraph(string eventFqn, Guid lastValueId)
+    private static Graph BuildOnPingGraph(string eventFqn, Guid lastValueId, bool selfFilter = false)
     {
         var intType = new BlueprintTypeRef { TypeId = "System.Int32" };
 
         var entryExecOut = new Pin { Id = Guid.NewGuid(), Name = "Out",   Direction = "Out", IsExec = true,  TypeRef = new BlueprintTypeRef() };
         var entryValOut  = new Pin { Id = Guid.NewGuid(), Name = "Value", Direction = "Out", IsExec = false, TypeRef = intType };
-        var entry = new EventEntryNode { Id = Guid.NewGuid(), EventTypeId = eventFqn };
+        var entry = new EventEntryNode
+        {
+            Id = Guid.NewGuid(),
+            EventTypeId = eventFqn,
+            // Q#14 (3d): Self filter compares the event's [EventTarget] field ("Target") against self.
+            TargetFilterSelf = selfFilter,
+            TargetFieldName  = selfFilter ? "Target" : null,
+        };
         entry.Pins.Add(entryExecOut);
         entry.Pins.Add(entryValOut);
 
