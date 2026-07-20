@@ -1770,6 +1770,49 @@ internal sealed class GraphScheduler
                         targetEntity = ResolveNodeOutput(targetLink.FromNodeId, targetLink.FromPinId, stmts);
                 }
 
+                // Q#14 multi-pin: read the whole struct ONCE, then project each field via IrOp_FieldRead
+                // (the same field-read op GetComponent uses). "Found" is the read's bool. All out-pins are
+                // cached so the single read is shared across every consumed field pin.
+                if (gsn.Fields is { Count: > 0 })
+                {
+                    var structType = new IrTypeRef { FullName = sharedTypeFqn, IsUnmanaged = true, SizeBytes = 0 };
+                    var structVal  = AllocValue(structType);
+                    var foundRes   = AllocValue(Stage5_Schedule.BoolType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = structVal,
+                        Operation   = new IrOp_ReadShared(gsn.VariableId, sharedTypeFqn, foundRes, targetEntity),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gsn.Id, PinId = sourcePinId },
+                    });
+
+                    var foundP = gsn.Pins.FirstOrDefault(p =>
+                        !p.IsExec && p.Direction == "Out"
+                        && string.Equals(p.Name, "Found", StringComparison.OrdinalIgnoreCase));
+                    if (foundP is not null) _pinValueCache[foundP.Id] = foundRes;
+
+                    foreach (var f in gsn.Fields)
+                    {
+                        var fPin = gsn.Pins.FirstOrDefault(p =>
+                            !p.IsExec && p.Direction == "Out"
+                            && string.Equals(p.Name, f.Name, StringComparison.OrdinalIgnoreCase));
+                        if (fPin is null) continue;
+                        IrTypeRef fType = _typed.PinTypes.TryGetValue(fPin.Id, out var fpt)
+                            ? fpt
+                            : new IrTypeRef { FullName = NormalizeSharedTypeFqn(f.TypeId), IsUnmanaged = true, SizeBytes = 0 };
+                        var fRes = AllocValue(fType);
+                        stmts.Add(new IrStatement
+                        {
+                            ResultValue = fRes,
+                            Operation   = new IrOp_FieldRead(structVal, f.Name, fType),
+                            Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gsn.Id, PinId = fPin.Id },
+                        });
+                        _pinValueCache[fPin.Id] = fRes;
+                    }
+
+                    result = _pinValueCache.TryGetValue(sourcePinId, out var mpr) ? mpr : structVal;
+                    break;
+                }
+
                 // Prefer the resolved pin type (from Stage4) when available; otherwise fall back
                 // to a locally-built IrTypeRef from the SharedTypeFqn (mirrors ReadEqsResult /
                 // ReadRankedResult building their own result-struct IrTypeRef rather than relying

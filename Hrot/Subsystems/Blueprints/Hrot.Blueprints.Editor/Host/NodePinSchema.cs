@@ -725,12 +725,24 @@ internal static class NodePinSchema
     /// in parity with the compiler's <c>Stage0_Rehydrate.EnrichGetSharedPins</c>.
     /// </summary>
     private static IReadOnlyList<Pin> GetSharedPins(GetSharedNode gsn)
-        => new[]
+    {
+        // Q#14 multi-pin: baked per-field decls → Target + one data-out per field + Found (read the struct
+        // once, project each field). Parity with the compiler's Stage0 EnrichGetSharedPins.
+        if (gsn.Fields is { Count: > 0 })
+        {
+            var pins = new List<Pin>(2 + gsn.Fields.Count) { MakeData("Target", "In", "Fdp.Core.Entity") };
+            foreach (var f in gsn.Fields)
+                pins.Add(MakeData(f.Name, "Out", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+            pins.Add(MakeData("Found", "Out", "System.Boolean"));
+            return pins;
+        }
+        return new[]
         {
             MakeData("Target", "In",  "Fdp.Core.Entity"),
             MakeData("Value",  "Out", SharedTypePinTypeId(gsn.SharedTypeId)),
             MakeData("Found",  "Out", "System.Boolean"),
         };
+    }
 
     /// <summary>
     /// SetSharedNode (Slice 2a-2): exec node. Data-in "Value" typed DIRECTLY from
@@ -738,13 +750,24 @@ internal static class NodePinSchema
     /// Kept in parity with the compiler's <c>Stage0_Rehydrate.EnrichSetSharedPins</c>.
     /// </summary>
     private static IReadOnlyList<Pin> SetSharedPins(SetSharedNode ssn)
-        => new[]
+    {
+        // Q#14 multi-pin: baked per-field decls → exec + one data-in per field (unwired fields preserved).
+        // Parity with the compiler's Stage0 EnrichSetSharedPins.
+        if (ssn.Fields is { Count: > 0 })
+        {
+            var pins = new List<Pin>(2 + ssn.Fields.Count) { MakeExec("In", "In"), MakeExec("Out", "Out") };
+            foreach (var f in ssn.Fields)
+                pins.Add(MakeData(f.Name, "In", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+            return pins;
+        }
+        return new[]
         {
             MakeExec("In",      "In"),
             MakeExec("Out",     "Out"),
             MakeData("Value",   "In",  SharedTypePinTypeId(ssn.SharedTypeId)),
             MakeData("Written", "Out", "System.Boolean"),
         };
+    }
 
     /// <summary>
     /// Resolves the pin <c>TypeId</c> for a GetShared/SetShared "Value" pin directly from the

@@ -78,6 +78,29 @@ public sealed class MultiPinSetSharedTests
         Assert.Equal(99, result.C);   // unwired field preserved — the whole point
     }
 
+    [Fact]
+    public void MultiPinGetShared_ReadsField_IntoVariable()
+    {
+        using var fixture = new BlueprintTestFixture(
+            new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+
+        string sharedFqn = typeof(MultiPinShared).FullName!;
+        var asset = BuildReadAsset(sharedFqn, out var lastAVarId);
+
+        fixture.CompileAndLoad(asset);
+        var harness = new BlueprintRunHarness(fixture);
+        var entity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, entity);
+        AttachSharedSlot(fixture.World, entity);
+
+        Assert.True(BlueprintSharedState.TrySetShared(
+            fixture.World, entity, SlotName, new MultiPinShared { A = 42, B = 0, C = 0 }));
+
+        fixture.TickFrame(0.016f);   // GetShared multi-pin reads field A → SetVariable(LastA)
+
+        Assert.Equal(42, harness.ReadIntField(entity, asset, "LastA"));   // field A read via the multi-pin GetShared
+    }
+
     /// <summary>
     /// Instance blueprint, Tick graph: EventEntry → SetShared(myshared, fields A/B/C; A←7, B←8, C unwired) → Return.
     /// Explicit pins so wiring is deterministic (no positional rehydration).
@@ -142,6 +165,69 @@ public sealed class MultiPinSetSharedTests
             },
             Inputs = new List<ParameterDecl>(),
             Outputs = new List<ParameterDecl>(),
+        };
+
+        asset.Graphs.Add(graph);
+        return asset;
+    }
+
+    /// <summary>
+    /// Instance blueprint, Tick graph: EventEntry → SetVariable(LastA ← GetShared(myshared).A) → Return.
+    /// GetShared is a multi-pin pure node (fields A/B/C); the A data-out feeds SetVariable's value pin.
+    /// </summary>
+    private static BlueprintAsset BuildReadAsset(string sharedFqn, out Guid lastAVarId)
+    {
+        var asset = BlueprintAssetBuilder.Instance("MultiPinGetSharedBp")
+            .WithVariable("LastA", typeof(int), "0")
+            .Build();
+        lastAVarId = asset.Variables[0].Id;
+
+        var intT = new BlueprintTypeRef { TypeId = "System.Int32" };
+        SharedFieldDecl F(string n) => new SharedFieldDecl
+        {
+            Name = n, TypeId = "System.Int32",
+            Offset = (int)Marshal.OffsetOf<MultiPinShared>(n),
+        };
+
+        var entryExecOut = new Pin { Id = Guid.NewGuid(), Name = "Out", Direction = "Out", IsExec = true, TypeRef = new BlueprintTypeRef() };
+        var entry = new EventEntryNode { Id = Guid.NewGuid(), EventTypeId = "" };
+        entry.Pins.Add(entryExecOut);
+
+        // GetShared: pure node (no exec) — Target(in) + per-field data-outs + Found.
+        var gTarget = new Pin { Id = Guid.NewGuid(), Name = "Target", Direction = "In",  IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "Fdp.Core.Entity" } };
+        var gA = new Pin { Id = Guid.NewGuid(), Name = "A", Direction = "Out", IsExec = false, TypeRef = intT };
+        var gB = new Pin { Id = Guid.NewGuid(), Name = "B", Direction = "Out", IsExec = false, TypeRef = intT };
+        var gC = new Pin { Id = Guid.NewGuid(), Name = "C", Direction = "Out", IsExec = false, TypeRef = intT };
+        var gFound = new Pin { Id = Guid.NewGuid(), Name = "Found", Direction = "Out", IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "System.Boolean" } };
+        var getShared = new GetSharedNode
+        {
+            Id = Guid.NewGuid(), VariableId = SlotName, SharedTypeId = sharedFqn,
+            Fields = new List<SharedFieldDecl> { F("A"), F("B"), F("C") },
+        };
+        getShared.Pins.AddRange(new[] { gTarget, gA, gB, gC, gFound });
+
+        var sExecIn  = new Pin { Id = Guid.NewGuid(), Name = "In",  Direction = "In",  IsExec = true, TypeRef = new BlueprintTypeRef() };
+        var sExecOut = new Pin { Id = Guid.NewGuid(), Name = "Out", Direction = "Out", IsExec = true, TypeRef = new BlueprintTypeRef() };
+        var sValIn   = new Pin { Id = Guid.NewGuid(), Name = "Value", Direction = "In",  IsExec = false, TypeRef = intT };
+        var sValOut  = new Pin { Id = Guid.NewGuid(), Name = "Value", Direction = "Out", IsExec = false, TypeRef = intT };
+        var setVar = new SetVariableNode { Id = Guid.NewGuid(), VariableId = lastAVarId.ToString() };
+        setVar.Pins.AddRange(new[] { sExecIn, sExecOut, sValIn, sValOut });
+
+        var retExecIn = new Pin { Id = Guid.NewGuid(), Name = "In", Direction = "In", IsExec = true, TypeRef = new BlueprintTypeRef() };
+        var ret = new ReturnNode { Id = Guid.NewGuid(), Status = NodeStatus.Success };
+        ret.Pins.Add(retExecIn);
+
+        var graph = new Graph
+        {
+            Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function,
+            Nodes = new List<Node> { entry, getShared, setVar, ret },
+            Links = new List<Link>
+            {
+                new Link { FromNodeId = entry.Id,     FromPinId = entryExecOut.Id, ToNodeId = setVar.Id, ToPinId = sExecIn.Id },
+                new Link { FromNodeId = getShared.Id, FromPinId = gA.Id,           ToNodeId = setVar.Id, ToPinId = sValIn.Id },
+                new Link { FromNodeId = setVar.Id,    FromPinId = sExecOut.Id,     ToNodeId = ret.Id,    ToPinId = retExecIn.Id },
+            },
+            Inputs = new List<ParameterDecl>(), Outputs = new List<ParameterDecl>(),
         };
 
         asset.Graphs.Add(graph);

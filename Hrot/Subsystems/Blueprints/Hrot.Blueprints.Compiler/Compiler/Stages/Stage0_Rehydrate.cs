@@ -276,11 +276,23 @@ internal static class Stage0_Rehydrate
     private static void EnrichGetSharedPins(
         List<Pin> pins, GetSharedNode gsn, IReadOnlyList<PinSchema> staticShapes)
     {
-        var typeId = SharedTypePinTypeId(gsn.SharedTypeId);
         pins.Clear();
-        pins.Add(MakePin("Target", "In",  isExec: false, typeId: "Fdp.Core.Entity"));
-        pins.Add(MakePin("Value",  "Out", isExec: false, typeId: typeId));
-        pins.Add(MakePin("Found",  "Out", isExec: false, typeId: "System.Boolean"));
+        pins.Add(MakePin("Target", "In", isExec: false, typeId: "Fdp.Core.Entity"));
+
+        // Q#14 multi-pin: baked per-field decls → one data-OUT pin per field (read the struct once,
+        // project each field) + "Found". Mirrors EnrichSetSharedPins / the PublishEvent baked path.
+        if (gsn.Fields is { Count: > 0 })
+        {
+            foreach (var f in gsn.Fields)
+                pins.Add(MakePin(f.Name, "Out", isExec: false, typeId: f.TypeId));
+            pins.Add(MakePin("Found", "Out", isExec: false, typeId: "System.Boolean"));
+            return;
+        }
+
+        // Legacy whole-struct path: single "Value" data-out (typed by SharedTypeId) + "Found".
+        var typeId = SharedTypePinTypeId(gsn.SharedTypeId);
+        pins.Add(MakePin("Value", "Out", isExec: false, typeId: typeId));
+        pins.Add(MakePin("Found", "Out", isExec: false, typeId: "System.Boolean"));
     }
 
     /// <summary>
