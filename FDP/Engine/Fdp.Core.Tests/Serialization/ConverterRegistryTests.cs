@@ -111,6 +111,43 @@ namespace Fdp.Tests.Serialization
             Assert.StartsWith("[", json);
             Assert.EndsWith("]", json);
         }
+
+        // ── Non-finite robustness (regression) ────────────────────────────────
+        // A stray NaN/Infinity component used to render as bare `NaN`/`Infinity` inside WriteRawValue,
+        // which is invalid JSON → the writer threw and crashed whole-scenario save. The converters now
+        // clamp non-finite components to 0 so serialization always produces valid, re-readable JSON.
+
+        [Theory]
+        [InlineData(float.NaN)]
+        [InlineData(float.PositiveInfinity)]
+        [InlineData(float.NegativeInfinity)]
+        public void Vector3ArrayConverter_NonFiniteComponent_ProducesValidJson_DoesNotThrow(float bad)
+        {
+            var opts = MakeOpts(new Vector3ArrayConverter());
+
+            string json = JsonSerializer.Serialize(new Vector3(bad, 2f, 3f), opts);
+
+            Assert.DoesNotContain("NaN", json);
+            Assert.DoesNotContain("Infinity", json);
+            // Round-trips as valid JSON: the bad component became 0, the rest survived.
+            var back = JsonSerializer.Deserialize<Vector3>(json, opts);
+            Assert.Equal(new Vector3(0f, 2f, 3f), back);
+        }
+
+        [Fact]
+        public void Vector4AndQuaternionConverters_NonFinite_DoNotThrow()
+        {
+            var v4opts = MakeOpts(new Vector4ArrayConverter());
+            var qopts  = MakeOpts(new QuaternionArrayConverter());
+
+            var v4 = JsonSerializer.Deserialize<Vector4>(
+                JsonSerializer.Serialize(new Vector4(float.NaN, 1f, 2f, 3f), v4opts), v4opts);
+            Assert.Equal(new Vector4(0f, 1f, 2f, 3f), v4);
+
+            var q = JsonSerializer.Deserialize<Quaternion>(
+                JsonSerializer.Serialize(new Quaternion(1f, float.PositiveInfinity, 2f, 3f), qopts), qopts);
+            Assert.Equal(new Quaternion(1f, 0f, 2f, 3f), q);
+        }
     }
 
     // ── DD-P1-T02: FdpJsonOptionsRegistry tests ───────────────────────────────
