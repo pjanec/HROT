@@ -134,3 +134,34 @@ construction — the emitter produces the exact thunk the dispatch helper invoke
 
 **Bottom line:** the runtime dispatch + both compiler ends (publish + subscribe) are built and each validated;
 what's left is the capstone integration test, the Self/Any refinement, the 2b carrier, and the editor UX.
+
+## Session-4 progress (minimal end-to-end DEMO + capstone — publish→subscribe proven live)
+The full loop now works end-to-end and there is a runnable demo:
+- **Loop-closing compiler fix (committed):** `EnrichEventEntryPins` (Stage0) now enriches **Event**
+  graphs too, so a subscriber's `EventEntry` exposes the event payload as data-out pins (Stage5's
+  `IrOp_ReadInputArg` resolution + the thunk's `__ev.{field}` marshalling already handled Event
+  graphs — this early-return was the sole gate). Proof suite **184/184 byte-identical (serial)**.
+- **Demo event (committed):** `[EventId(7401)][BlueprintEvent][EventTarget] PingEvent{ Entity Target; int Value }`
+  in `Hrot.AI.Behaviors`. Typed `[EventId]` ⇒ publisher's `EventType<T>.Id` and the pump's FQN→`[EventId].Id`
+  agree, so it routes.
+- **CAPSTONE (committed, GREEN):** `CustomEventPubSubCapstoneTests` — compiles a real Instance subscriber,
+  publishes a `[EventId]` event on the live bus, pumps one frame through the production
+  `BlueprintTickSystem`, asserts the handler mirrored the payload: **LastValue == 42**. Proves type-id
+  routing + per-slot dispatch + thunk payload marshalling + handler `SetVariable` write, end-to-end.
+- **Editor demo blueprints (committed):** `Assets/Blueprints/CustomEventPublisherDemo.bp.json`
+  (Tick → Publish PingEvent{Value=42}) + `CustomEventSubscriberDemo.bp.json` (OnPing Event graph →
+  SetVariable(LastValue)). `Hrot.AI.Behaviors` builds clean; the real generator emits correctly-wired
+  `_Bp` classes (verified in the .g.cs: `EventHandlers["Hrot.AI.Behaviors.PingEvent"]=Event_OnPing_Thunk`,
+  thunk passes `__ev.Value`, handler writes `s.LastValue`).
+
+### Visual test recipe (in the editor)
+1. Open the editor; open `CustomEventPublisherDemo` and `CustomEventSubscriberDemo` (both under Demo).
+2. In a scenario, attach **CustomEventPublisherDemo** to one entity and **CustomEventSubscriberDemo**
+   to another (existing blueprint-attach flow).
+3. Run. The publisher emits `PingEvent{Value=42}` each frame; `BlueprintTickSystem` dispatches it to the
+   subscriber, whose `LastValue` variable flips 0 → 42 — watch it in the debugger/blackboard inspector.
+   (Broadcast for now — the Self/Any filter, 3d, isn't enforced yet, so any subscriber receives it.)
+
+**Still remaining (post-demo):** 3d Self/Any filter at dispatch · 2b generic carrier (editor-authored
+events with no C# struct) · 4a/4b editor subscribe-node UX (palette + reflected pins + filter control) ·
+1d authoring UI · 1f system-event migration.
