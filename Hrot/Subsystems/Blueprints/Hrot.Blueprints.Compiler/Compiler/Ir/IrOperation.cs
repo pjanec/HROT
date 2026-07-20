@@ -525,3 +525,14 @@ public sealed record IrOp_WriteSharedField(
     int FieldOffset,
     IrValue Value
 ) : IrOperation;
+
+/// <summary>
+/// Q#14 Option B (<c>MakeStructNode</c>): constructs a struct value from per-field values —
+/// <c>var __t{result} = new global::{StructFqn} { A = __t{..}, B = __t{..} };</c>. The result is the
+/// struct-typed value flowed to downstream consumers (mirrors <see cref="IrOp_PublishBusEvent"/>'s
+/// object-initializer construction, but the value flows out instead of being published).
+/// </summary>
+public sealed record IrOp_MakeStruct(
+    string StructFqn,
+    IReadOnlyList<(string FieldName, IrValue Value)> Fields
+) : IrOperation;

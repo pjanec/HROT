@@ -43,6 +43,8 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(BinaryOpNode),           "BinaryOp")]
 [JsonDerivedType(typeof(BooleanOpNode),          "BooleanOp")]
 [JsonDerivedType(typeof(NotNode),                "Not")]
+[JsonDerivedType(typeof(MakeStructNode),         "MakeStruct")]
+[JsonDerivedType(typeof(BreakStructNode),        "BreakStruct")]
 public abstract class Node
 {
     public Guid Id { get; set; }
@@ -691,6 +693,43 @@ public sealed class PublishEventFieldDecl
 {
     public string Name { get; set; } = "";
     public string TypeId { get; set; } = "";
+}
+
+/// <summary>One baked field of a <see cref="MakeStructNode"/>/<see cref="BreakStructNode"/> (Option B):
+/// field name + pin TypeId (the editor reflects these from the struct; the compiler bakes strings).</summary>
+public sealed class StructFieldDecl
+{
+    public string Name { get; set; } = "";
+    public string TypeId { get; set; } = "";
+}
+
+/// <summary>
+/// Q#14 Option B — constructs a struct VALUE from per-field data-in pins (one per <see cref="Fields"/>
+/// entry) and produces the whole struct on a single data-out "Value" pin. Pure data node (no exec).
+/// Lowers to <c>new global::{StructTypeId} { field = ... }</c> via <c>IrOp_MakeStruct</c> — the struct value
+/// then flows to a consumer (SetShared whole-struct pin, a FunctionCall struct arg, Break, …). The dual of
+/// <see cref="BreakStructNode"/>.
+/// </summary>
+public sealed class MakeStructNode : Node
+{
+    /// <summary>FQN of the struct to construct (unprefixed; emitted as <c>global::{StructTypeId}</c>).</summary>
+    public string StructTypeId { get; set; } = "";
+    /// <summary>Baked fields (name + pin TypeId) → one data-in pin each, matched by name to the initializer.</summary>
+    public List<StructFieldDecl> Fields { get; set; } = new();
+}
+
+/// <summary>
+/// Q#14 Option B — deconstructs a struct VALUE (data-in "Value") into per-field data-out pins (one per
+/// <see cref="Fields"/> entry). Pure data node (no exec). Each field lowers to
+/// <c>IrOp_FieldRead(value, fieldName)</c> (read the struct once, project each field — same op multi-pin
+/// GetShared uses). The dual of <see cref="MakeStructNode"/>.
+/// </summary>
+public sealed class BreakStructNode : Node
+{
+    /// <summary>FQN of the struct being deconstructed (types the "Value" data-in pin).</summary>
+    public string StructTypeId { get; set; } = "";
+    /// <summary>Baked fields (name + pin TypeId) → one data-out pin each.</summary>
+    public List<StructFieldDecl> Fields { get; set; } = new();
 }
 
 // ──────────────────────────────────────────────────────────────────────────

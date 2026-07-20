@@ -1659,6 +1659,78 @@ internal sealed class GraphScheduler
                 });
                 break;
 
+            // Q#14 Option B — MakeStruct: build a struct value from its wired field data-ins (unwired
+            // fields keep the struct default). The single "Value" out-pin carries the constructed struct.
+            case MakeStructNode msn:
+            {
+                string structFqn = NormalizeSharedTypeFqn(msn.StructTypeId);
+                var madeFields = new List<(string, IrValue)>();
+                foreach (var f in msn.Fields)
+                {
+                    var pin = msn.Pins.FirstOrDefault(p =>
+                        !p.IsExec && p.Direction == "In"
+                        && string.Equals(p.Name, f.Name, StringComparison.OrdinalIgnoreCase));
+                    if (pin is null) continue;
+                    var link = _graph.Links.FirstOrDefault(l => l.ToNodeId == msn.Id && l.ToPinId == pin.Id);
+                    if (link is null) continue; // unwired field → left at the struct's default
+                    madeFields.Add((f.Name, ResolveNodeOutput(link.FromNodeId, link.FromPinId, stmts)));
+                }
+                var structType = new IrTypeRef { FullName = structFqn, IsUnmanaged = true, SizeBytes = 0 };
+                result = AllocValue(structType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = result,
+                    Operation   = new IrOp_MakeStruct(structFqn, madeFields),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = msn.Id, PinId = sourcePinId },
+                });
+                break;
+            }
+
+            // Q#14 Option B — BreakStruct: read the "Value" struct data-in once, project each field data-out
+            // via IrOp_FieldRead (same read-once-then-project idiom as multi-pin GetShared).
+            case BreakStructNode bsn:
+            {
+                var valuePin = bsn.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "Value", StringComparison.OrdinalIgnoreCase));
+                IrValue structVal;
+                var vLink = valuePin is null ? null
+                    : _graph.Links.FirstOrDefault(l => l.ToNodeId == bsn.Id && l.ToPinId == valuePin.Id);
+                if (vLink is not null)
+                    structVal = ResolveNodeOutput(vLink.FromNodeId, vLink.FromPinId, stmts);
+                else
+                {
+                    // Unwired struct input → default(struct) so field reads are well-defined.
+                    structVal = AllocValue(new IrTypeRef { FullName = NormalizeSharedTypeFqn(bsn.StructTypeId), IsUnmanaged = true, SizeBytes = 0 });
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = structVal,
+                        Operation   = new IrOp_Const($"default(global::{NormalizeSharedTypeFqn(bsn.StructTypeId)})", structVal.Type),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = bsn.Id, PinId = sourcePinId },
+                    });
+                }
+                foreach (var f in bsn.Fields)
+                {
+                    var fPin = bsn.Pins.FirstOrDefault(p =>
+                        !p.IsExec && p.Direction == "Out"
+                        && string.Equals(p.Name, f.Name, StringComparison.OrdinalIgnoreCase));
+                    if (fPin is null) continue;
+                    IrTypeRef fType = _typed.PinTypes.TryGetValue(fPin.Id, out var fpt)
+                        ? fpt
+                        : new IrTypeRef { FullName = NormalizeSharedTypeFqn(f.TypeId), IsUnmanaged = true, SizeBytes = 0 };
+                    var fRes = AllocValue(fType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = fRes,
+                        Operation   = new IrOp_FieldRead(structVal, f.Name, fType),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = bsn.Id, PinId = fPin.Id },
+                    });
+                    _pinValueCache[fPin.Id] = fRes;
+                }
+                result = _pinValueCache.TryGetValue(sourcePinId, out var bpr) ? bpr : structVal;
+                break;
+            }
+
             case GetVariableNode gv:
                 int varIdx = FindVariableIndex(gv.VariableId);
                 result = AllocValue(pinType);

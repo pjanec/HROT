@@ -84,6 +84,26 @@ internal static class StatementEmitter
                 break;
             }
 
+            case IrOp_MakeStruct op:
+            {
+                // Q#14 Option B: build a struct value into __t{idx}; the value flows to consumers.
+                if (idx >= 0)
+                {
+                    e.WriteLine($"var __t{idx} = new global::{op.StructFqn}");
+                    e.WriteLine("{");
+                    e.Indent();
+                    for (int i = 0; i < op.Fields.Count; i++)
+                    {
+                        var f = op.Fields[i];
+                        var sep = i == op.Fields.Count - 1 ? "" : ",";
+                        e.WriteLine($"{f.FieldName} = __t{f.Value.Index}{sep}");
+                    }
+                    e.Outdent();
+                    e.WriteLine("};");
+                }
+                break;
+            }
+
             case IrOp_WriteSharedField op:
             {
                 // Q#14 multi-pin: true per-field write — touches only this field's bytes, unwired
