@@ -5,10 +5,49 @@
 > task plan, and the exact build/verify commands. Task-tool state does NOT carry across sessions — the
 > task plan below IS the persisted backlog.
 
-**Repo:** `/home/user/IOS-IG-SimHost-FDP` · **Branch:** `claude/hill-attack-blueprints-p1b-uj8cbb`
-· **HEAD == main ==** `50ff6e4` + this doc commit (keep them in lockstep; fast-forward `main` after each commit).
-> Note: an earlier session used branch `claude/hill-attack-json-slice-3-stages-0nsrpp`; the active branch
-> is now `claude/hill-attack-blueprints-p1b-uj8cbb` (same lockstep-with-`main` discipline).
+**Repo:** `/home/user/IOS-IG-SimHost-FDP` · **Branch (ONLY):** `claude/hill-attack-blueprints-p1b-uj8cbb` · **HEAD:** `a5c9adcd`
+> ⚠ **`main` is SHARED with parallel sessions.** Commit/push to the feature branch **only**; do NOT ff-merge/push
+> `main` without an explicit request (a parallel session may have advanced it). Reconcile via
+> `git rebase origin/main` on the feature branch when asked. (An earlier lockstep-with-`main` discipline in
+> this doc is superseded.) An earlier session used branch `claude/hill-attack-json-slice-3-stages-0nsrpp`.
+
+---
+
+## 0. LATEST — Blocker-1 (editor pin round-trip) is CLOSED · green (@ `a5c9adcd`)
+
+The editor strips every node's pins on save (`"Pins": []`); Stage0/`BlueprintGraphModel.Rebuild` rebuild them
+on load. Two defects corrupted the round-trip — **fixed & shipped this session:**
+
+- **Part 1 — FunctionCall semantic resolution.** `IClrSignatureResolver` (compiler-core) +
+  `RoslynClrSignatureResolver` (generator, semantic-model, threaded via `context.CompilationProvider`) resolves
+  *same-assembly* curated-helper signatures to real CLR types instead of `System.Object` placeholders.
+- **Part 2 — deterministic per-pin reconstruction.** `DeterministicIds.PinId(nodeId,name,dir)` (SHA-256 →
+  RFC-4122 v5) is **byte-identical** to the editor's `IdGenerator.Deterministic`. In BOTH
+  `Stage0_Rehydrate.AssignLinkGuids` and the editor `BlueprintGraphModel.Rebuild`: a link whose GUID equals a
+  pin's deterministic GUID binds that pin **by name** (order-independent — the exec/data positional swap that
+  corrupted `Branch.Condition` is gone); remaining legacy links bind **positionally** to still-unassigned pins.
+  Handles migrated, legacy, and **mixed** nodes.
+- **Enrichers (baked, reflection-free)** so pin-less rehydration reproduces catalog/operator data pins:
+  `PublishEvent` ← `EngineEventCatalogEntry.PayloadFields`; `ChannelCommand` ← `ChannelCommandCatalogEntry.ParamFields`
+  (all 6 baked); `Compare`/`BinaryOp`/`BooleanOp` (A,B→Result), `Not` (A→Result) static shapes.
+- **Integrated blueprints now stored pin-less:** 6× `HillAssault2I_*`, `HillAssault2_ReverseToBaseline`,
+  `HillAssault2_AimAndFireSpecific`.
+- **Guard 4** (`NodeCoverageTests.AllCoverageNodes_PinlessRehydration_ReproducesAuthoredDataPins`): strips every
+  coverage fixture to pin-less, runs `Stage0_Rehydrate.Run`, asserts author-placed **data** pins are reproduced.
+  A future node kind that forgets its enricher fails CI (documented exceptions in `PinlessRoundTripExceptions`:
+  FunctionCall=signature-derived, GetComponent/GetParameter=baked-field-at-lowering, CallPeerBlueprint=sibling-lookup).
+
+**Cannot silently regress** — three layers: deterministic-by-name binding (order irrelevant) · Guard 3 (every
+kind has a compiling fixture or documented exception) · Guard 4 (pin-less rehydration reproduces authored data
+pins). Worst case for an AI-authored node kind missing an enricher = **red build**, never silent corruption.
+Design record: `Architect_Question_10_Pin_Link_Rehydration.md` (Q-A/Q-B/Q-C, all answered).
+
+**Blocker-1 commit chain:** `133b9401 → e67eedb0 → 97b1d966 → 0c9ededf (merge main) → 682c6384 → ce863d72 →
+a6e1c936 → c07fdb07 → a5c9adcd`. Also landed: editor node-body labels (Literal/GetParameter/Compare/Math/Logic/Not,
+`BlueprintNodeModel.BuildTitle`), wire hit-area 6→9px (`HitTester.cs`), main-merge visuals (DPI fonts, colored
+menu icons, node-label cull fix, wire scaling).
+
+**Remaining after Blocker-1:** the editor-UX punch-list (GAP-8, best on Windows) — see §6 "Editor authoring UI".
 
 ---
 
@@ -30,7 +69,7 @@ by hand-porting one-off logic. Working name: `HillAssault2` (tank) / `HillAssaul
 
 | Rule | Detail |
 |---|---|
-| **Branch** | Develop/commit/push ONLY to `claude/hill-attack-blueprints-p1b-uj8cbb`. After each commit: `git checkout main && git merge --ff-only <branch> && git push origin main && git checkout <branch>`. |
+| **Branch** | Develop/commit/push ONLY to `claude/hill-attack-blueprints-p1b-uj8cbb`. **`main` is SHARED with parallel sessions** — push commits to the feature branch; do **NOT** ff-merge/push `main` unless the user explicitly asks (a parallel session may have advanced it; reconcile by `git rebase origin/main` on the feature branch when asked). |
 | **No PR** | Never open a pull request unless explicitly asked. |
 | **Commit trailers** | End every commit body with:<br>`Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`<br>`Claude-Session: https://claude.ai/code/session_015yR8zetnZ4ryyZPBN1oaVE` |
 | **No model id in artifacts** | Never put the model identifier in commits, code, PRs, or pushed files. Chat only. |
@@ -96,6 +135,7 @@ All under `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/`. Node kinds:
 | Publish engine events | `PublishEvent` → `world.Bus.Publish` | GAP-3 | ✅ | `a4bd09f` |
 | **Bounded loop (inline `for`)** | `FlowForEach` + `UnitRosterOps` | **GAP-1** | ✅ **P1a** | `9e785eb` |
 | **Loop body with in-body `if`** | scheduler inline-if (`IrOp_If`) | **P1b** | ✅ **P1b** | `50ff6e4` |
+| **Loop index + count outs** | `FlowForEach` `CurrentIndex`/`Count` data-outs (`IrOp_ForEach.IndexVar`/`CountVar`) | round-out | ✅ | `de2986cc` |
 | **Roster AND-reduce condition** | `Condition_AreAllAtBaseline` (slice 4) | GAP-1+2 | ✅ **slice 4** | `50ff6e4` |
 | **Native comparison node** | `Compare` (`IrOp_Compare`, full 6-op set) | **GAP-12** | ✅ **GAP-12** | `d763dab` |
 | **Native arithmetic node** | `BinaryOp` (`IrOp_BinaryOp`, `+ - * / %`) | round-out | ✅ | `5481e7d` |
@@ -131,19 +171,30 @@ All under `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/`. Node kinds:
    (`Architect_Question_6_Access_Shapes_And_Vocabulary.md`). Decided shapes, now build-ready in order:
    - ~~**`Action_ReverseToBaseline`**~~ ✅ **Done** (`3d333fa`, slice 2). `ChannelCommand`(Locomotion/MoveTo) + `WaitForChannel` + `PublishEvent(ClearBehaviorEvent)` + new curated `VectorOps.Vec3` helper (Destination from `GetParameter(BaselineX/Y)`). First WIRED-`ChannelCommand`-param slice (explicit `MoveToParams`-named pins; scalars via `PinDefaults`→Stage3 literals). Deviation: Clear published on Success only. Behavioral test drives a real `LocomotionChannel` to Success.
    - **Target-resolve = curated context-aware `FunctionCall`** to `NetworkEntityMapOps.TryGetEntity` (Q6-B) — **NO generic `GetSingleton` node** (wrong abstraction; the need is a method call w/ `out`), keep the `EntityRepository` downcast, do NOT touch `ISimulationView`. Unblocks **`AimAndFireSpecific`** (Weapon ChannelCommand + P2 ammo + GetParameter round-count + this helper).
-   - **`AssignTacticalIntentEvent.JsonParams` = curated `FunctionCall` JSON-builder helper feeding `PublishEvent`'s string field** (Q6-C; no new IR). Unblocks **`DispatchAllToBaseline`/`CalculateSegments`** (roster fan-out + N publishes) and is reused by the wave core.
-   - **EQS = a NEW curated helper trio `RequestAreaQuery`/`IsAreaQueryResolved`/`FreeAreaQuerySlot`** over `AreaQueryBatchHelper` — Q6-D confirmed it is a DIFFERENT surface from `SpawnEqsSensor` (fire-and-forget batch: publishes `AreaQueryRequestEvent`, polls `AreaQueryBatchData` ring-buffer). Do NOT use the `SpawnEqsSensor` template path.
-   - **Wave core last** (`DispatchWaveWithTargets` + `IsWaveCompleted`, L): new `MemberSlotList` SoA + verb nodes; design blessed in Q#3 / `Squad_State_Fit_And_Lean_Slot_Design.md`; watch the `[InlineArray]` `ldobj` defensive-copy hazard (`GetSpanRW()`).
+   - ~~**`AssignTacticalIntentEvent.JsonParams` = curated `FunctionCall` JSON-builder helper feeding `PublishEvent`'s string field**~~ ✅ **Done** (Q6-C; `MoveIntentJson.Build`, no new IR). Consumed by the two slices below. Reused by the wave core later.
+   - ~~**EQS request/poll (`RequestAreaQuery` + `IsAreaQueryResolved`)**~~ ✅ **Done** (`b6f2ed97`; architect Q7 all leans approved, `Architect_Question_7_EQS_Slice.md`). Curated `AreaQueryBatchOps` (Request/IsReady/TargetCount/TargetGroupHandle/Free) + `WorldOps.SimTime` over `AreaQueryBatchHelper`. **First `Return(Running)` stateless poll** (no `__phase`; host re-ticks from top — proven across ticks). Both `Intent=Action` (a Condition's bool wrapper would collapse `Running`). **Surfaced + fixed a compiler bug:** impure/exec `FunctionCall` to a CLR helper mis-lowered to `IrOp_LibraryCall(0)` (→ `__LibBp_00000000`), and the per-block CSE cache dropped statement values across blocks — fixed with `IrOp_PureCall` lowering + a never-cleared `_statementPinCache` + void bare-statement emit.
+   - ~~**Wave core** (`DispatchWaveWithTargets` + `IsWaveCompleted`)~~ ✅ **Done** (`97324744`; architect Q8 all leans approved, `Architect_Question_8_Wave_Core.md`). **Q3's generic `MemberSlotList`/`SlotRotation` NODE vocabulary was REVISED** to curated `MemberSlotListOps`/`WaveMonitorOps`/`SlotOps`/`TargetPoolOps`/`WaveDispatchOps`/`HullDownIntentJson` + a curated-struct `WorkingState` var (`MemberSlotList`/`WaveState`) + visual orchestration — the shipped Slice 2-7 pattern, demand-driven. DispatchWave is maximally visual (FlowForEach + P1b depth-2 branches + atomic kernels + by-value writebacks); IsWaveCompleted's reverse-swap-remove is a curated monitor kernel + thin routing. **Compiler enablers built:** curated-struct `WorkingState` resolution (`StaticTypeRegistry`, `7755066f`) + implicit-cast emit fix (byte→int `CastNode` → native C# cast, `97324744`). Deterministic sim-seeded RNG (Q8-C). **This completes the Hill-attack oracle set.**
    - **Q6-A:** arithmetic `BinaryOp` is **demand-driven** — build it only when a slice needs math (e.g. `AimAndFire` round-count / `CalculateSegments`); boolean composition stays `Branch`/helper. Detail below:
    - `Action_ReverseToBaseline` — MoveTo `ChannelCommand` + terminal `ClearBehaviorEvent` (P4).
-   - `Action_AimAndFireSpecific` — Weapon `ChannelCommand` + ammo read (P2) + round-count in WorkingState + target-resolve helper.
-   - `Action_DispatchAllToBaseline` / `CalculateSegments` — roster fan-out (P1) + N event publishes (P4).
+   - ~~`Action_AimAndFireSpecific`~~ ✅ **Done** (slice 3, branch `c7925177`). Weapon `ChannelCommand` + ammo read (P2) + WorkingState round-count (`Compare`/`BinaryOp`/`BooleanOp`) + curated `NetworkEntityMapOps.ResolveTarget`/`WorldOps` target-resolve. **Surfaced + fixed two compiler bugs** (WS field-shift `7c06315`; convergent-Branch merge blocks `c4541305`).
+   - ~~`Action_CalculateSegments`~~ ✅ **Done** (`171edebf`). Pure setup: `GetParameter`×5 → curated `SegmentMath.TotalSlots` `FunctionCall` → `SetVariable(TotalSlots)` + 8 `Literal`/`SetVariable` zeroing a 9-field commander WorkingState. Surfaced the `Literal.ValueJson` verbatim-splice gotcha (narrow/wide numerics need `"(ushort)0"`/`"(byte)0"`/`"-1L"`).
+   - ~~`Action_DispatchAllToBaseline`~~ ✅ **Done** (`f892926f`). First real consumer of the FlowForEach `CurrentIndex`/`Count` outs: in-body `Branch(WorldOps.IsAlive)` (one branch subsumes both oracle `continue`s), per-tank `SegmentMath.LerpParam`/`Lerp` → `MoveIntentJson.Build` → **managed** `PublishEvent(AssignTacticalIntentEvent)` (`world.Bus.PublishManaged`, `Target`→`Entity` field, string `IntentId`/`JsonParams` pins) → `MaskOps.WithBitSet` mask accum. New curated helpers: `SegmentMath.LerpParam`/`Lerp`, `MoveIntentJson.Build`, `MaskOps.WithBitSet`.
    - `Action_DispatchWaveWithTargets` + `Condition_IsWaveCompleted` — the hard core (slot alloc, wave parity, SoA/bitmask working-state — see `Squad_State_Fit_And_Lean_Slot_Design.md`, GAP-5).
-   - EQS loop slice (`RequestAreaQuery`/`IsAreaQueryResolved`) — `SpawnEqsSensor`/`ReadEqsResult`.
 
 **Parallel / deferred tracks:**
 - **P3 `GetSingleton`** — narrow value (Hill-attack singleton `NetworkEntityMap` needs a method call anyway); needs a new `IrOp` + emit off `world`. Only if a slice needs a field-read singleton.
 - **Editor authoring UI (GAP-8, Windows-verifiable)** — wire existing components per `Blueprint_Editor_Components_Reuse.md` (StructEdit-universal; `NodePinSchema`/`ReflectDataMembers` for pin reification). Drawer priority: `When` → `CallCustomEvent`/`CallPeerBlueprint` → `WaitForChannel`/`ReadRankedResult`; then drawers for the new P2/P4/P1 nodes.
+  - **Editor-UX punch-list (best verified visually on Windows; ⟨ARCH⟩ = ask a plain-text architect question first):**
+    | # | Item | Where | Note |
+    |---|---|---|---|
+    | 4 | XML-doc tooltips on function node + pins (**data type mandatory**, esp. struct/class returns) | function node drawer / pin render | doc-source decision |
+    | 6 | "⋯" open-in-VS button on the function inspector | function inspector | `devenv /edit` or `file:` URI; small |
+    | 9 | Asset-type icons (Action/Condition/Function) in Open-Asset picker | picker (`Primitive.Intent`) | icon vocabulary |
+    | 2 | Function-node icon + CLR-vs-BP title coloring | `NodeRenderer.DrawTitle`, `theme.GetCategoryHeaderColor`; `BlueprintNodeModel.BuildCategory` maps FunctionCall→Function/Pure | ⟨ARCH: visual language⟩ |
+    | 3 | Grouped read-only CLR method picker + lock-when-wired + summary tooltips | replaces two free `InputText` in `FunctionCallNodeDrawer.DrawClrMethodForm` (~L190) | ⟨ARCH: grouping + lock rule⟩, large |
+    | 10/11 | Aggregate SetShared / GetParameter node (one pin per field, hideable) | new node kind + compiler lowering | ⟨ARCH⟩ |
+    | 7 | (deferred) rename shared "Value" pin to field name | `NodePinSchema` Get/SetSharedPins | touches pin identity — deferred |
+    - **Already landed:** node-body labels for Literal/GetParameter/Compare/Math/Logic/Not; wire hit-area 6→9px; main-merge visuals.
 - **Visual conceptual docs** (task #17/DOC-2 follow-ups): D2 memory-layout SVG, D3 lifetime timeline for the variable/scope/GetShared/params-vs-workingstate model ("beyond an ordinary user without visuals"). Terminology chosen: Parameter / private scratch / behavior shared / **Squad shared**.
 - **UX-1 / UX-2:** intent-first "what is this memory?" picker; unify the two shared-state doors (Get/SetShared vs entity-scope). Architect nod needed.
 - **P5 lean slot path** — `SlotRotation`/`SlotRotationState` (exists) + new `MemberSlotList` `[BlackboardDtoStruct]` SoA; hazard: C#12 `[InlineArray]` defensive-copy `ldobj` bug → expose `GetSpanRW()`. For the wave core.
@@ -178,7 +229,7 @@ dotnet test Hrot/Subsystems/AI/Hrot.AiEditor.Generators.Tests/ --filter "FullyQu
 # Safety net (per-node coverage + schema round-trip + validator rules):
 dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/ --filter "FullyQualifiedName~NodeCoverage|FullyQualifiedName~SchemaReflection|FullyQualifiedName~Validator"
 ```
-Inspect generated C# under `Hrot/Subsystems/Hrot.AI.Behaviors/obj/GeneratedFiles/Hrot.Blueprints.Generators/.../HillAssault2*_Bp.g.cs` to confirm the emit. Current green baseline at `3d333fa` (P1b + slice 4 + `Compare`/`BinaryOp`/`BooleanOp`/`Not` + slice 2 `ReverseToBaseline`): real build 0 err / 0 warn; `HillAssault2_*` **21/21**; safety-net subset (NodeCoverage|SchemaReflection|Validator) **157 pass / 1 pre-existing skip** (`WaitForEventNode_...BUG`). Full suites also green (re-run after each change). Native operator vocabulary complete: `Compare` (6 comparisons) + `BinaryOp` (`+ - * / %`) + `BooleanOp` (And/Or) + `Not`. Curated helpers: `UnitRosterOps`, `VectorOps.Vec3/Vec2`. **Slice 2 `Action_ReverseToBaseline` shipped** (first wired-`ChannelCommand`-param slice; DEVIATION = `ClearBehaviorEvent` on success only). **Next:** `AimAndFireSpecific` (needs `NetworkEntityMapOps.TryGetEntity` target-resolve helper — architect Q6-B). (Env note: `dotnet` isn't preinstalled — `sudo apt-get install -y dotnet-sdk-8.0` after `apt-get update`.)
+Inspect generated C# under `Hrot/Subsystems/Hrot.AI.Behaviors/obj/GeneratedFiles/Hrot.Blueprints.Generators/.../HillAssault2*_Bp.g.cs` to confirm the emit. Current green baseline on branch `claude/hill-attack-blueprints-p1b-uj8cbb` @ `97324744` (**FULL Hill-attack oracle set migrated**: P1b + slices 4/2/3 + FlowForEach `CurrentIndex`/`Count` outs + `CalculateSegments` + `DispatchAllToBaseline` + EQS `RequestAreaQuery`/`IsAreaQueryResolved` + **wave core `DispatchWaveWithTargets`/`IsWaveCompleted`** + `Compare`/`BinaryOp`/`BooleanOp`/`Not` + 5 scheduler/lowering/emit fixes): real build 0 err / 0 warn; `HillAssault2_*` **52/52**; full Blueprints.Tests **2042 pass / 10 skip**; safety-net subset (NodeCoverage|SchemaReflection|Validator) **167 pass / 1 pre-existing skip** (`WaitForEventNode_...BUG`). Native operator vocabulary complete: `Compare` (6 comparisons) + `BinaryOp` (`+ - * / %`) + `BooleanOp` (And/Or) + `Not`. Curated helpers: `UnitRosterOps`, `VectorOps`, `NetworkEntityMapOps`, `WorldOps` (`IsAlive`/`IsNull`/`SimTime`), `HillAssault2TankOps`, `SegmentMath` (`TotalSlots`/`LerpParam`/`Lerp`), `MoveIntentJson`, `MaskOps` (`WithBitSet`/`WithBitCleared`), `AreaQueryBatchOps` (`Request`/`IsReady`/`TargetCount`/`TargetGroupHandle`/`Free`), `MemberSlotList`/`MemberSlotListOps`, `WaveState`/`WaveMonitorOps`, `SlotOps`, `TargetPoolOps`, `HullDownIntentJson`, `WaveParityOps`, `WaveDispatchOps`. Curated structs registered in `StaticTypeRegistry`: `MemberSlotList`, `WaveState`. **Compiler fixes:** WorkingState-field-shift (`7c06315`), convergent-control-flow merge blocks (`c4541305`, general — regression test `Inline/DiamondMerge`). **FlowForEach index/count** (`de2986cc`): `CurrentIndex` (body-scoped loop var copy) + `Count` (hoisted outer-scope bound) opt-in data-outs; unwired ⇒ goldens byte-identical; proof `FlowForEach_IndexAndCount_EmitsHoistedCountAndBodyIndexCopy` + `Inline/FlowForEachIndexCount` coverage. **Slices done this session: `CalculateSegments` (`171edebf`), `DispatchAllToBaseline` (`f892926f`), EQS `RequestAreaQuery`+`IsAreaQueryResolved` (`b6f2ed97`), wave core `DispatchWaveWithTargets`+`IsWaveCompleted` (`97324744`).** 🎉 **THE HILL-ATTACK ORACLE SET IS FULLY MIGRATED** — every `HillAttackCommanderNodes`/`HillAttackTankNodes` behavior node now has a visually-authored `.bp.json` twin proven against the (untouched) C# oracle through the real generator. **Compiler fixes this session (5):** WS-field-shift, convergent-merge blocks, impure-FunctionCall lowering + `_statementPinCache`, curated-struct `WorkingState` resolution, implicit-cast emit. **Remaining (non-slice) follow-ups:** (a) a game-free compiler-unit fixture for the impure-FunctionCall lowering + the implicit-cast emit (currently guarded only by integration proofs); (b) ~~the shared-state INTEGRATION~~ ✅ **DONE** (architect-approved Q9): the twins are assembled into `Assets/BTrees/Authoring/PlatoonHillAttack2.btree.json` — the full oracle `Sequence(CalculateSegments, DispatchAllToBaseline, AreAllAtBaseline, Repeater(Sequence(RequestAreaQuery, IsAreaQueryResolved, DispatchWaveWithTargets, IsWaveCompleted)))` — binding each generated blueprint thunk via `DelegateShape:AiPrimitiveTickCore`. The 6 stateful nodes were re-authored as `HillAssault2I_*` integrated blueprints (empty `WorkingState`; `GetShared`/`Get<F>` reads + `With<F>`/`SetShared` writes over a Category-1 `HillAttackSharedState` struct, provisioned once as a `Role=State/Scope=Entity` slot), a mechanical per-occurrence transform of each proven twin; `AreAllAtBaseline` composes as its existing twin (node-local state). Proven end-to-end (`PlatoonHillAttack2_Integration_ProofTests`, 3/3) driving the real Interpreter + asserting cross-node shared-state flow. `IsWaveCompleted` uses a thin `WaveMonitorOps.Update(HillAttackSharedState,…)` adapter over the proven `WaveState` kernel. The isolated `HillAssault2_*` twins stay untouched (52/52) as the per-node oracle-parity proofs. (c) Editor authoring UI (GAP-8, Windows-only) — the one remaining item, platform-blocked here. A general curated-struct registration mechanism (vs. hardcoding each in `StaticTypeRegistry`) is worth considering if the curated-struct set keeps growing. **Known papercut (future):** `Literal.ValueJson` splices verbatim — narrow/wide numeric + string literals need hand-authored casts (`"(ushort)0"`, `"-1L"`, `"\"str\""`); a type-aware `Literal` emit would remove the footgun. ⚠ **Main is shared with parallel sessions — commit/push to the feature branch only; do NOT ff-push `main` without an explicit request.** (Env note: `dotnet` isn't preinstalled — `sudo apt-get install -y dotnet-sdk-8.0` after `apt-get update`.)
 
 ---
 

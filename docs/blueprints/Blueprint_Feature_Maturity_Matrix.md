@@ -1,5 +1,13 @@
 # Blueprint Feature-Maturity Matrix (audit, 2026-07-16)
 
+> ⚠ **Dated snapshot (2026-07-16) — partly superseded.** Several items below have since shipped and
+> should now read ✅: `FlowForEach`, `PublishEvent` (+ custom-event pub/sub via `EventEntry`), the
+> `Compare` / `BinaryOp` / `BooleanOp` / `Not` value ops, and the `MakeStruct` / `BreakStruct` /
+> `SetMembers` struct-value nodes (not in this table at all). The node count is now ~42, not 30. For the
+> current capability list see [Blueprints_Overview.md §3](Blueprints_Overview.md). This audit is kept for
+> its per-axis (compiler / authoring / tests) breakdown and the still-valid "avoid" call-outs
+> (`Cast`, `WaitForEvent`, dispatchers, `ArrayMake`/`ArrayGet`, squad quartet).
+>
 > Full-pipeline readiness of all 30 node kinds, to build the Hill-attack migration with eyes open.
 > Two read-only audits (compiler-side; editor+runtime+tests) merged here. `file:line` evidence lives
 > in the audit transcripts; this is the decision surface.

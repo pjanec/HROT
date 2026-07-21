@@ -101,6 +101,7 @@ public sealed class GraphBuilder
     private readonly Guid _graphId;
     private readonly List<Node> _nodes = new();
     private readonly List<Link> _links = new();
+    private readonly List<ParameterDecl> _inputs = new();
 
     // Tracks the last added node for automatic exec-wire chaining.
     private Guid _lastNodeId = Guid.Empty;
@@ -172,12 +173,20 @@ public sealed class GraphBuilder
 
     // ---- Node-producing methods ----
 
-    /// <summary>Adds an EventEntryNode (graph entry point, exec-out only).</summary>
-    public GraphBuilder Entry()
+    /// <summary>Adds an EventEntryNode (graph entry point, exec-out only). Q#14: optional event identity
+    /// (<paramref name="eventTypeId"/>) marks which event an Event graph subscribes to.</summary>
+    public GraphBuilder Entry(string? eventTypeId = null)
     {
         var nodeId = MakeNodeId("EventEntry", _nodes.Count);
-        var node = new EventEntryNode { Id = nodeId };
+        var node = new EventEntryNode { Id = nodeId, EventTypeId = eventTypeId ?? "" };
         RegisterNode(node, hasExecIn: false, hasExecOut: true);
+        return this;
+    }
+
+    /// <summary>Q#14: declares a graph input (Event-graph payload field). Feeds Graph.Inputs.</summary>
+    public GraphBuilder WithInput(string name, string typeId)
+    {
+        _inputs.Add(new ParameterDecl { Name = name, Type = new BlueprintTypeRef { TypeId = typeId } });
         return this;
     }
 
@@ -241,12 +250,102 @@ public sealed class GraphBuilder
         return this;
     }
 
+    /// <summary>
+    /// Q#14 (2a): adds a PublishEvent node baked with a custom event's FQN + fields (the editor-discovered
+    /// shape), exercising the baked branch (vs the catalog path). Target self-defaults when unwired.
+    /// </summary>
+    public GraphBuilder PublishCustomEvent(
+        string eventTypeFqn, string? targetFieldName = null,
+        IReadOnlyList<(string Name, string TypeId)>? fields = null)
+    {
+        var nodeId = MakeNodeId("PublishEvent", _nodes.Count);
+        var node = new PublishEventNode
+        {
+            Id              = nodeId,
+            EventId         = eventTypeFqn,
+            EventTypeFqn    = eventTypeFqn,
+            TargetFieldName = targetFieldName,
+            PayloadFields   = (fields ?? new List<(string, string)>())
+                .Select(f => new PublishEventFieldDecl { Name = f.Name, TypeId = f.TypeId }).ToList(),
+        };
+        RegisterNode(node, hasExecIn: true, hasExecOut: true);
+        return this;
+    }
+
     /// <summary>Adds a WaitForChannelNode.</summary>
     public GraphBuilder WaitForChannel(string channelType)
     {
         var nodeId = MakeNodeId("WaitForChannel", _nodes.Count);
         var node = new WaitForChannelNode { Id = nodeId, ChannelType = channelType };
         RegisterNode(node, hasExecIn: true, hasExecOut: true);
+        return this;
+    }
+
+    /// <summary>
+    /// Q#13: adds a WaitForChannelNode with the "OnFailure" exec-out wired to a sub-chain, plus the
+    /// normal success exec-out ("ExecOut") that the MAIN chain continues from. Mirrors <see cref="Branch"/>'s
+    /// named-exec-out sub-builder pattern. The success exec-out is deliberately NOT named "OnFailure"
+    /// so Stage5's exclude-OnFailure resolution treats it as the success path.
+    /// </summary>
+    public GraphBuilder WaitForChannelWithFailure(string channelType, Action<GraphBuilder> onFailure)
+    {
+        var nodeId = MakeNodeId("WaitForChannel", _nodes.Count);
+        var node = new WaitForChannelNode { Id = nodeId, ChannelType = channelType };
+
+        var execInPinId    = MakePinId(nodeId, "ExecIn");
+        var execOutPinId   = MakePinId(nodeId, "ExecOut");    // success continuation
+        var onFailurePinId = MakePinId(nodeId, "OnFailure");  // failure continuation
+
+        node.Pins.Add(new Pin { Id = execInPinId,    Name = "ExecIn",    Direction = "In",  IsExec = true, TypeRef = new() });
+        node.Pins.Add(new Pin { Id = execOutPinId,   Name = "ExecOut",   Direction = "Out", IsExec = true, TypeRef = new() });
+        node.Pins.Add(new Pin { Id = onFailurePinId, Name = "OnFailure", Direction = "Out", IsExec = true, TypeRef = new() });
+
+        LinkExec(_lastNodeId, _lastExecOutPinId, nodeId, execInPinId);
+        _nodes.Add(node);
+
+        // OnFailure sub-chain starts from the OnFailure exec-out.
+        var failBuilder = new GraphBuilder(_name + "_OnFailure", _kind, _assetId);
+        failBuilder._lastNodeId = nodeId;
+        failBuilder._lastExecOutPinId = onFailurePinId;
+        onFailure(failBuilder);
+        _nodes.AddRange(failBuilder._nodes);
+        _links.AddRange(failBuilder._links);
+
+        // Main chain continues from the SUCCESS exec-out.
+        _lastNodeId = nodeId;
+        _lastExecOutPinId = execOutPinId;
+        return this;
+    }
+
+    /// <summary>
+    /// Q#13-D: adds a WaitForEventNode with the "OnFailure" exec-out wired to a sub-chain, plus the
+    /// success exec-out ("ExecOut") the main chain continues from. Mirrors <see cref="WaitForChannelWithFailure"/>.
+    /// </summary>
+    public GraphBuilder WaitForEventWithFailure(string eventTypeId, Action<GraphBuilder> onFailure)
+    {
+        var nodeId = MakeNodeId("WaitForEvent", _nodes.Count);
+        var node = new WaitForEventNode { Id = nodeId, EventTypeId = eventTypeId };
+
+        var execInPinId    = MakePinId(nodeId, "ExecIn");
+        var execOutPinId   = MakePinId(nodeId, "ExecOut");
+        var onFailurePinId = MakePinId(nodeId, "OnFailure");
+
+        node.Pins.Add(new Pin { Id = execInPinId,    Name = "ExecIn",    Direction = "In",  IsExec = true, TypeRef = new() });
+        node.Pins.Add(new Pin { Id = execOutPinId,   Name = "ExecOut",   Direction = "Out", IsExec = true, TypeRef = new() });
+        node.Pins.Add(new Pin { Id = onFailurePinId, Name = "OnFailure", Direction = "Out", IsExec = true, TypeRef = new() });
+
+        LinkExec(_lastNodeId, _lastExecOutPinId, nodeId, execInPinId);
+        _nodes.Add(node);
+
+        var failBuilder = new GraphBuilder(_name + "_OnFailure", _kind, _assetId);
+        failBuilder._lastNodeId = nodeId;
+        failBuilder._lastExecOutPinId = onFailurePinId;
+        onFailure(failBuilder);
+        _nodes.AddRange(failBuilder._nodes);
+        _links.AddRange(failBuilder._links);
+
+        _lastNodeId = nodeId;
+        _lastExecOutPinId = execOutPinId;
         return this;
     }
 
@@ -357,7 +456,7 @@ public sealed class GraphBuilder
             Kind = _kind,
             Nodes = new List<Node>(_nodes),
             Links = new List<Link>(_links),
-            Inputs = new(),
+            Inputs = new List<ParameterDecl>(_inputs),
             Outputs = new(),
         };
     }

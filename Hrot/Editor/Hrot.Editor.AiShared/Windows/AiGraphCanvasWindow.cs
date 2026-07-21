@@ -1,9 +1,15 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Numerics;
+using Fdp.Presentation.Fonts;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Documents;
 using NodeEditor.Core.Action;
+using NodeEditor.Core.Bookmarks;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Core.View;
+using NodeEditor.Primitives;
 using NodeEditor.UI.Find;
 
 namespace Hrot.Editor.AiShared.Windows;
@@ -43,6 +49,16 @@ public sealed class AiCanvasContext
     /// <see cref="BuiltinCommandHandlers.RegisterAll"/>.
     /// </summary>
     public IEditorCommands? Commands { get; set; }
+
+    /// <summary>
+    /// Optional per-document bookmark store built by the document factory. When non-null,
+    /// the composition root can draw the off-screen bookmark edge-marker overlay (see
+    /// <c>BlueprintEditorBootstrap.DrawBookmarkEdgeMarkers</c>) and/or a Bookmarks panel
+    /// window for this document. Set/jump commands are registered directly on
+    /// <see cref="Commands"/> by the document factory (Ctrl+1..9 / Ctrl+Shift+1..9), so this
+    /// property only needs to be read by the rendering/overlay path.
+    /// </summary>
+    public BookmarkStore? Bookmarks { get; set; }
 
     /// <summary>
     /// Creates a canvas context.
@@ -112,12 +128,31 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
     // legacy headless tests that do not supply a host input source.
     private readonly EditorHotkeyDispatcher? _hotkeys;
 
+    // MULTI-TAB: raw host input, kept alongside _hotkeys so the Alt+Left back-navigation
+    // check can read modifiers/keys directly (EditorHotkeyDispatcher only dispatches
+    // registered IEditorCommands bindings). Null in legacy headless tests.
+    private readonly IInputSource? _input;
+
     // BCP-BATCH-02-FIX Task 2: stable base title (the "{assetKind} Canvas" empty-state
     // label). The dynamic title is rebuilt from this + the active document name.
     private readonly string _baseTitle;
 
     // Track whether focus was already activated this activation cycle.
     private AiDocument? _lastActivatedDoc;
+
+    // MULTI-TAB: the document the tab bar last synced its ImGui-selected tab to. When
+    // AiDocumentManager.Active changes without going through a tab click in THIS window
+    // (e.g. the asset browser opened/activated a document), the matching tab is given
+    // ImGuiTabItemFlags.SetSelected for one frame so ImGui's own selection follows.
+    private AiDocument? _lastSyncedActive;
+
+    // MULTI-TAB: per-window "navigate back" history (Alt+Left). Push happens when the
+    // active document (of this window's kind) changes to something new; pop happens on
+    // Alt+Left. _suppressHistoryPush guards against the back-navigation activation
+    // itself being pushed back onto the stack.
+    private readonly Stack<AiDocument> _backHistory = new();
+    private AiDocument? _historyTrackedDoc;
+    private bool _suppressHistoryPush;
 
     /// <summary>
     /// Optional per-frame callback invoked at the end of <see cref="DrawClientArea"/> when an
@@ -178,6 +213,7 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         _renderer   = renderer   ?? throw new ArgumentNullException(nameof(renderer));
         _pickers    = pickers;
         _hotkeys    = input != null ? new EditorHotkeyDispatcher(input) : null;
+        _input      = input;
         _baseTitle  = $"{assetKind} Canvas";
 
         IsOpen = true;
@@ -231,6 +267,24 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         // keeping the stable "###id" so docking identity is preserved. Empty-state title
         // when no document is active.
         UpdateTitle(doc);
+
+        // MULTI-TAB: host the tab bar above the canvas (only when ≥1 document of this
+        // perspective's kind is open — otherwise fall through to the existing empty state).
+        // A tab click re-activates the clicked document immediately via AiDocumentManager;
+        // Alt+Left pops the per-window back-navigation history built from activation changes.
+        if (ImGuiAvailable())
+        {
+            DrawTabBar();
+            HandleBackNavigationHotkey();
+            DrawCloseConfirmModal();
+        }
+
+        // Re-resolve: a tab click (or Alt+Left) above may have activated a different
+        // document of this window's kind within this same frame — reflect it immediately
+        // rather than lagging a frame behind.
+        doc = ActiveDocument;
+        UpdateTitle(doc);
+        TrackHistory(doc);
 
         if (doc == null || ActiveContext == null)
         {
@@ -297,6 +351,267 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
             : $"{assetName} - {_assetKind}";
     }
 
+    // ── MULTI-TAB: tab bar ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The open documents belonging to this window's perspective kind, in
+    /// <see cref="AiDocumentManager.OpenDocuments"/> order. Backs the tab bar; exposed
+    /// (read-only) so the projection logic is headlessly testable without ImGui.
+    /// </summary>
+    public IReadOnlyList<AiDocument> TabDocuments =>
+        _docManager.OpenDocuments
+            .Where(d => string.Equals(d.Kind.ToString(), _assetKind, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+    /// <summary>
+    /// Builds the ImGui tab label for <paramref name="doc"/>: a per-kind FontAwesome glyph,
+    /// the asset name, and a stable <c>###AssetId</c> suffix so ImGui keeps the tab's identity
+    /// across reorders/renames. Exposed internally for headless label-format tests.
+    /// </summary>
+    internal static string GetTabLabel(AiDocument doc) =>
+        $"{GetTabGlyph(doc)} {doc.Asset.Name}###{doc.Asset.AssetId}";
+
+    /// <summary>
+    /// Resolves the FontAwesome glyph for a document's tab: prefers a finer-grained
+    /// <see cref="IAssetIconKeyProvider.IconKey"/> when the backing asset supplies one
+    /// (e.g. a Blueprint's Action/Condition/Function intent), otherwise falls back to a
+    /// per-<see cref="AssetKind"/> default. Kept kind-agnostic — no blueprint-specific types.
+    /// </summary>
+    internal static string GetTabGlyph(AiDocument doc)
+    {
+        if (doc.Asset is IAssetIconKeyProvider iconProvider && !string.IsNullOrEmpty(iconProvider.IconKey))
+        {
+            switch (iconProvider.IconKey)
+            {
+                case AssetKindIcons.BlueprintActionIconKey:    return IconsFontAwesome6.Bolt;
+                case AssetKindIcons.BlueprintConditionIconKey: return IconsFontAwesome6.CircleQuestion;
+                case AssetKindIcons.BlueprintFunctionIconKey:  return IconsFontAwesome6.Gear;
+            }
+        }
+
+        return doc.Kind switch
+        {
+            AssetKind.Blueprint  => IconsFontAwesome6.Bolt,
+            AssetKind.BTree      => IconsFontAwesome6.Sitemap,
+            AssetKind.Hsm        => IconsFontAwesome6.CircleNodes,
+            AssetKind.Blackboard => IconsFontAwesome6.LayerGroup,
+            AssetKind.Utility    => IconsFontAwesome6.Gear,
+            AssetKind.Scenario   => IconsFontAwesome6.DiagramProject,
+            _                    => IconsFontAwesome6.File,
+        };
+    }
+
+    /// <summary>
+    /// Draws the multi-tab bar for this perspective's open documents (skipped entirely when
+    /// none are open, so the existing empty state is unaffected). A tab click activates the
+    /// clicked document via <see cref="AiDocumentManager.Activate"/>; the X close button routes
+    /// through <see cref="RequestTabClose"/> after the loop (a clean document closes immediately;
+    /// a dirty one raises the unsaved-changes modal instead of being silently saved).
+    /// <c>TabListPopupButton</c>
+    /// gives the ▾ dropdown listing every open tab by name, since asset names can be long.
+    /// </summary>
+    private void DrawTabBar()
+    {
+        var docs = TabDocuments;
+        if (docs.Count == 0) return;
+
+        var active = _docManager.Active;
+        // Sync the ImGui-selected tab to the manager's Active doc only when Active changed
+        // since the last frame we drew this bar (e.g. the asset browser activated a document) —
+        // otherwise we'd fight the user's own tab clicks every frame.
+        bool syncSelection = !ReferenceEquals(active, _lastSyncedActive);
+
+        if (!ImGuiNET.ImGui.BeginTabBar("##ai_graph_tabs",
+                ImGuiNET.ImGuiTabBarFlags.TabListPopupButton
+              | ImGuiNET.ImGuiTabBarFlags.AutoSelectNewTabs
+              | ImGuiNET.ImGuiTabBarFlags.NoCloseWithMiddleMouseButton))
+        {
+            return;
+        }
+
+        List<AiDocument>? toClose = null;
+
+        foreach (var d in docs)
+        {
+            bool tabOpen = true;
+            var flags = ImGuiNET.ImGuiTabItemFlags.None;
+            if (syncSelection && ReferenceEquals(d, active))
+                flags |= ImGuiNET.ImGuiTabItemFlags.SetSelected;
+
+            if (ImGuiNET.ImGui.BeginTabItem(GetTabLabel(d), ref tabOpen, flags))
+            {
+                if (!ReferenceEquals(d, _docManager.Active))
+                    _docManager.Activate(d);
+                ImGuiNET.ImGui.EndTabItem();
+            }
+
+            if (!tabOpen)
+                (toClose ??= new List<AiDocument>()).Add(d);
+        }
+
+        ImGuiNET.ImGui.EndTabBar();
+
+        _lastSyncedActive = _docManager.Active;
+
+        // Close after the loop so we never mutate _docManager.OpenDocuments mid-iteration.
+        // A clean document closes at once; a dirty one is deferred behind the unsaved-changes
+        // prompt (RequestTabClose) so edits are never silently saved OR discarded.
+        if (toClose != null)
+            foreach (var d in toClose)
+                RequestTabClose(d);
+    }
+
+    // ── MULTI-TAB: unsaved-changes prompt on tab close ────────────────────────
+    //
+    // Historically a tab's X called AiDocumentManager.Close directly, and the upstream
+    // BeforeDocumentClosed handler silently flushed dirty docs to disk — closing a tab
+    // therefore saved edits with no confirmation (dangerous for exploratory edits). Now
+    // the close routes through RequestTabClose: a clean doc closes immediately; a dirty
+    // one defers and raises a modal. The three outcomes reuse the existing flush:
+    //   Save       → close while still dirty  → BeforeDocumentClosed flushes to disk.
+    //   Don't Save → MarkClean() then close   → BeforeDocumentClosed skips (edits dropped).
+    //   Cancel     → nothing (tab stays open).
+
+    private AiDocument? _pendingCloseDoc;
+    private bool        _openClosePopup;
+
+    /// <summary>Document awaiting a close-confirmation decision, or null. (Headless test seam.)</summary>
+    public AiDocument? PendingCloseDoc => _pendingCloseDoc;
+
+    /// <summary>
+    /// Entry point for a user-initiated tab close. Closes a clean document immediately;
+    /// defers a dirty one behind the unsaved-changes confirmation modal.
+    /// </summary>
+    public void RequestTabClose(AiDocument doc)
+    {
+        if (doc == null) throw new ArgumentNullException(nameof(doc));
+        if (!doc.IsDirty) { _docManager.Close(doc); return; }
+        _pendingCloseDoc = doc;
+        _openClosePopup  = true;
+    }
+
+    /// <summary>Confirm "Save": close while dirty so the upstream flush persists it. (Test seam.)</summary>
+    public void ResolveCloseSave()
+    {
+        var doc = _pendingCloseDoc;
+        _pendingCloseDoc = null;
+        if (doc != null) _docManager.Close(doc);
+    }
+
+    /// <summary>Confirm "Don't Save": discard unsaved edits, then close. (Test seam.)</summary>
+    public void ResolveCloseDiscard()
+    {
+        var doc = _pendingCloseDoc;
+        _pendingCloseDoc = null;
+        if (doc != null) { doc.MarkClean(); _docManager.Close(doc); }
+    }
+
+    /// <summary>Confirm "Cancel": keep the document open. (Test seam.)</summary>
+    public void ResolveCloseCancel() => _pendingCloseDoc = null;
+
+    /// <summary>
+    /// Renders the unsaved-changes confirmation modal while a close is pending. ImGui-only;
+    /// button actions delegate to the headless-testable Resolve* seams above.
+    /// </summary>
+    private void DrawCloseConfirmModal()
+    {
+        if (_pendingCloseDoc == null) return;
+
+        const string popupId = "Unsaved changes###ai_close_confirm";
+        if (_openClosePopup)
+        {
+            ImGuiNET.ImGui.OpenPopup(popupId);
+            _openClosePopup = false;
+        }
+
+        var center = ImGuiNET.ImGui.GetMainViewport().GetCenter();
+        ImGuiNET.ImGui.SetNextWindowPos(center, ImGuiNET.ImGuiCond.Appearing, new Vector2(0.5f, 0.5f));
+
+        bool stayOpen = true;
+        if (ImGuiNET.ImGui.BeginPopupModal(popupId, ref stayOpen,
+                ImGuiNET.ImGuiWindowFlags.AlwaysAutoResize | ImGuiNET.ImGuiWindowFlags.NoSavedSettings))
+        {
+            ImGuiNET.ImGui.TextUnformatted($"Save changes to '{_pendingCloseDoc.Asset.Name}' before closing?");
+            ImGuiNET.ImGui.Spacing();
+
+            if (ImGuiNET.ImGui.Button("Save"))       { ImGuiNET.ImGui.CloseCurrentPopup(); ResolveCloseSave(); }
+            ImGuiNET.ImGui.SameLine();
+            if (ImGuiNET.ImGui.Button("Don't Save")) { ImGuiNET.ImGui.CloseCurrentPopup(); ResolveCloseDiscard(); }
+            ImGuiNET.ImGui.SameLine();
+            if (ImGuiNET.ImGui.Button("Cancel"))     { ImGuiNET.ImGui.CloseCurrentPopup(); ResolveCloseCancel(); }
+
+            ImGuiNET.ImGui.EndPopup();
+        }
+        else if (!stayOpen)
+        {
+            // Dismissed via the window's X / Esc — treat as Cancel (keep the document).
+            ResolveCloseCancel();
+        }
+    }
+
+    // ── MULTI-TAB: Alt+Left "navigate back" history ──────────────────────────
+
+    /// <summary>
+    /// Records activation changes for this window's kind into <see cref="_backHistory"/>.
+    /// Skips the push when the change was caused by <see cref="NavigateBack"/> itself
+    /// (<see cref="_suppressHistoryPush"/>), and never pushes a document that has since
+    /// been closed.
+    /// </summary>
+    private void TrackHistory(AiDocument? doc)
+    {
+        if (doc == null)
+        {
+            _historyTrackedDoc = null;
+            return;
+        }
+        if (ReferenceEquals(doc, _historyTrackedDoc)) return;
+
+        if (!_suppressHistoryPush
+            && _historyTrackedDoc != null
+            && _docManager.OpenDocuments.Contains(_historyTrackedDoc))
+        {
+            _backHistory.Push(_historyTrackedDoc);
+        }
+
+        _suppressHistoryPush = false;
+        _historyTrackedDoc = doc;
+    }
+
+    /// <summary>
+    /// Checks for the Alt+Left chord this frame (skipped while the user is typing into a
+    /// text field, mirroring the hotkey-pump gate) and navigates back when pressed.
+    /// No-op when this window was constructed without a host <see cref="IInputSource"/>.
+    /// </summary>
+    private void HandleBackNavigationHotkey()
+    {
+        if (_input == null) return;
+        if (!ImGuiNET.ImGui.IsWindowFocused(ImGuiNET.ImGuiFocusedFlags.ChildWindows)) return;
+        if (ImGuiNET.ImGui.GetIO().WantTextInput) return;
+        if (_input.Modifiers != KeyModifiers.Alt) return;
+        if (!_input.IsKeyPressed(EditorKey.Left, allowRepeat: false)) return;
+
+        NavigateBack();
+    }
+
+    /// <summary>
+    /// Pops the most recent still-open, non-active document off <see cref="_backHistory"/>
+    /// and activates it. Stale entries (documents closed since they were pushed) are
+    /// discarded. No-op when the history is empty or only contains stale/current entries.
+    /// </summary>
+    private void NavigateBack()
+    {
+        while (_backHistory.Count > 0)
+        {
+            var prev = _backHistory.Pop();
+            if (!_docManager.OpenDocuments.Contains(prev)) continue;
+            if (ReferenceEquals(prev, _docManager.Active)) continue;
+
+            _suppressHistoryPush = true;
+            _docManager.Activate(prev);
+            return;
+        }
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private static bool ImGuiAvailable() =>
@@ -347,12 +662,45 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
     {
         var doc = ActiveDocument;
         UpdateTitle(doc);
+        TrackHistory(doc);
 
         var context = ActiveContext;
         if (doc == null || context == null) return;
 
         DrawPickerAndPumpHotkeys(context, suppressHotkeys);
     }
+
+    // ── MULTI-TAB: test seams (mirror production tab-bar / back-nav logic, no ImGui) ──
+
+    /// <summary>
+    /// Test hook: simulates clicking <paramref name="doc"/>'s tab (mirrors the production
+    /// <c>BeginTabItem</c> branch — activates the document unless it is already active).
+    /// </summary>
+    public void SimulateTabClick(AiDocument doc)
+    {
+        if (doc == null) throw new ArgumentNullException(nameof(doc));
+        if (!ReferenceEquals(doc, _docManager.Active))
+            _docManager.Activate(doc);
+    }
+
+    /// <summary>
+    /// Test hook: simulates clicking a tab's X close button for <paramref name="doc"/>
+    /// (mirrors production: routes through <see cref="RequestTabClose"/> — a clean document
+    /// closes immediately; a dirty one is deferred behind the unsaved-changes modal and can be
+    /// resolved headlessly via <see cref="ResolveCloseSave"/> / <see cref="ResolveCloseDiscard"/>
+    /// / <see cref="ResolveCloseCancel"/>).
+    /// </summary>
+    public void SimulateTabClose(AiDocument doc)
+    {
+        if (doc == null) throw new ArgumentNullException(nameof(doc));
+        RequestTabClose(doc);
+    }
+
+    /// <summary>
+    /// Test hook: simulates the Alt+Left back-navigation chord without requiring ImGui or a
+    /// host <see cref="IInputSource"/>. Mirrors <see cref="NavigateBack"/> exactly.
+    /// </summary>
+    public void SimulateBackNavigation() => NavigateBack();
 }
 
 // ── Production seam wrapping CanvasRenderer ───────────────────────────────────

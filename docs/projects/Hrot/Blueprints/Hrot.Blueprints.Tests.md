@@ -1,5 +1,7 @@
 # Hrot.Blueprints.Tests
 
+> Manually maintained; last verified 2026-07-21 against the implemented code.
+
 - **Project file**: `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Hrot.Blueprints.Tests.csproj`
 - **Target framework**: net8.0
 - **Test framework**: xUnit 2.x
@@ -77,14 +79,15 @@ and writes directly to an in-memory `EntityRepository`. Supports the full ECS co
 API used by generated Blueprint code: `GetComponentRO`, `GetComponentRW`, `HasComponent`,
 `TryGetComponent`, and the world query interface.
 
-Registered test component types are defined in `MockTestTypes.cs`:
+Registered test component/event types are defined in `MockTestTypes.cs`:
 
 | Type | Size | Description |
 |------|------|-------------|
-| `TestHealthComponent` | 8 bytes | `float Current, float Max` |
-| `TestPositionComponent` | 8 bytes | `float X, float Y` |
-| `TestFlagComponent` | 4 bytes | `bool Active, int Counter` |
-| `TestTargetComponent` | 4 bytes | `Entity Target` |
+| `TestComponent` | 4 bytes | `int Value` (ComponentId 252) — minimal component for ECB/view tests |
+| `TestEvent` | 4 bytes | `int Value` (EventId 90001) — unmanaged event for bus tests |
+| `LargeTestStruct` | 256 bytes | `fixed byte Data[256]` (ComponentId 253) — AddEmptyComponent zero-init tests |
+| `AnotherTestComponent` | 8 bytes | `float X, float Y` (ComponentId 254) — verifies multiple component types co-exist |
+| `VectorTestComponent` | 28 bytes | `Vector2 Position2D, Vector3 Position3D, double DoubleValue` (ComponentId 255) — vector-epsilon tests |
 
 #### `MockEntityCommandBuffer`
 
@@ -179,11 +182,25 @@ Named assets available via `TestData.SampleAssets`:
 | `MoveToAndFire` | `MoveToAndFire.bp.json` | AiPrimitive |
 | `DoorActor` | `DoorActor.bp.json` | Instance |
 | `DoorSensor` | `DoorSensor.bp.json` | Instance |
+| `CountingDemo` | `CountingDemo.bp.json` | Instance |
+| `Count4` | `Count4.bp.json` | Instance |
 
 Additional anonymous assets in `TestAssets/`:
 `empty-library.bp.json`, `instance-blueprint.bp.json`, `simple-action.bp.json`,
 `simple-condition.bp.json`, `with-branch.bp.json`, `with-callable-peer.bp.json`,
 `with-custom-event.bp.json`, `with-delay.bp.json`, `with-sequence.bp.json`.
+
+`TestAssets/Invalid/` holds deliberately-malformed assets used by negative tests:
+`bad-dispatch.bp.json`, `empty-name.bp.json`, `null-asset-id.bp.json`,
+`primitive-without-dispatch.bp.json`, `AiPrimitiveParamsTooLarge.bp.json`,
+`ConditionWithDelay.bp.json`, `ConditionWithRunning.bp.json`,
+`InstanceStateExceedsLargestTier.bp.json`.
+
+`TestAssets/Recipes/` holds recipe-driven assets used by `NewFromRecipeServiceTests`/
+`RecipeIntegrityTests`: `CoverAwarePatrol.bp.json`, `HealthThresholdReaction.bp.json`,
+`SquadState.bp.json`, `BoundingOverwatchSwap.bp.json`, `EditorTypesDemo.bp.json`,
+`LocomotionMoveToDemo.bp.json`, `MoveAndFireCombo.bp.json`, `SquadAwareEngagement.bp.json`,
+`GateConditionDemo.bp.json`.
 
 #### Snapshot testing
 
@@ -210,9 +227,18 @@ Hrot.Blueprints.Tests/
 |-- GlobalAliases.cs                -- global using aliases
 |-- PlaceholderTests.cs             -- always-passing smoke test
 |-- AlcUnloadTests.cs               -- standalone ALC GC reclaim tests
+|-- AssetJsonRoundTripTests.cs      -- generic JSON round-trip coverage over asset model
+|-- BlueprintMathTests.cs           -- Compare/BinaryOp/BooleanOp/Not node tests
+|-- DebugProbeCollection.cs         -- xUnit collection definition for the "DebugProbe" trait
+|-- ExecOutFanOutTests.cs           -- multi-exec-out node fan-out tests
+|-- NodeCoverageTests.cs            -- ensures every Node kind has drawer/palette/schema coverage
 |-- SampleAssetLoadTests.cs         -- JSON round-trip on all named assets
 |-- SchemaReflectionTests.cs        -- reflection-based schema consistency tests
 |-- MockDispatcherSystemTests.cs    -- contract tests for mock dispatcher
+|-- Stage1To5Tests.cs               -- condensed Stages 1-5 regression tests
+|-- Stage6Tests.cs                  -- Stage 6 lowering regression tests
+|-- Stage7Tests.cs                  -- Stage 7 emit regression tests
+|-- Stage8Tests.cs                  -- Stage 8 Roslyn regression tests
 |
 |-- Builders/
 |   |-- BlueprintAssetBuilder.cs         -- fluent asset builder
@@ -232,17 +258,34 @@ Hrot.Blueprints.Tests/
 |   |-- MockWeaponDispatcher.cs          -- captures AimAndFire
 |   |-- MockInteractionDispatcher.cs     -- captures OpenDoor / EjectPassengers
 |
+|-- Benchmarks/
+|   |-- ProbeOverheadBenchmarks.cs       -- BenchmarkDotNet-style probe overhead microbenchmarks
+|   |-- ProbeOverheadTests.cs            -- xUnit assertions on probe overhead bounds
+|   |-- WhenNodePerfTests.cs             -- WhenNode edge-detection perf bounds
+|
 |-- Compiler/
 |   |-- Stage1_ParseTests.cs             -- Stage 1 JSON parse tests
+|   |-- Stage0_RehydrateTests/           -- reflection-free pin/link reconstruction tests
+|   |   |-- Stage0_RehydrateTests.cs        -- core rehydrate coverage
+|   |   |-- DeterministicPinReconstructionTests.cs -- pin-order determinism
+|   |   |-- FunctionCallSemanticResolveTests.cs    -- FunctionCall semantic-resolve rehydrate tests
 |   |-- Stage2_ValidationTests/          -- per-validator tests
-|   |-- Stage3_NormalizationTests/       -- normalization pass tests
+|   |   |-- V_AiPrimitiveIntentTests.cs      -- V_AiPrimitiveIntent rule tests
+|   |   |-- V_VariablesAndStateTests.cs      -- V_VariablesAndState rule tests
+|   |   |-- V_PeerReferencesTests.cs         -- V_PeerReferences rule tests
+|   |   |-- V_DispatchKindCompatibilityTests.cs -- V_DispatchKindCompatibility rule tests
+|   |   |-- V_AllValidatorsCoverageTests.cs  -- asserts every validator has test coverage
+|   |-- V_FlowForEachValidatorTests.cs   -- FlowForEach latent-node-forbidden-in-body rules (lives directly under Compiler/, not Stage2_ValidationTests/)
+|   |-- V_SharedStateValidatorTests.cs   -- GetShared/SetShared field-reference validation
+|   |-- Stage3_NormalizationTests/       -- normalization pass tests (Stage3_NormalizationTests.cs, MaterializeDefaultPinLiteralsTests.cs)
 |   |-- Stage4_TypeResolveTests.cs       -- type resolution tests
-|   |-- Stage5_ScheduleTests/            -- IR schedule tests
-|   |-- Stage6_LoweringTests/            -- lowering tests (AiPrimitive, Instance, WaitLowering)
-|   |-- Stage7_EmitTests/                -- emit tests with snapshot comparison
-|   |-- Stage8_RoslynTests/              -- Roslyn compilation + ALC load tests
-|   |-- EndToEnd/                        -- full pipeline end-to-end tests
-|   |-- Determinism/                     -- FNV hash and ordering determinism tests
+|   |-- Stage5VarPrefixResolutionTests.cs -- Stage 5 variable-prefix name-resolution tests
+|   |-- Stage5_ScheduleTests/            -- IR schedule tests (DataFlowCseTests, LatentBlockSplitTests, GoldenIrTests, BPF019_ReturnTerminatorTests, BPF039_GetOrderedDeterminismTests, BP1412_DroppedExecSuccessorsTests, BPC_ImplicitReturnTests, SequenceSchedulingTests, GetAllParametersSchedulingTests)
+|   |-- Stage6_LoweringTests/            -- lowering tests (AiPrimitiveLoweringTests, InstanceLoweringTests, LibraryLoweringTests, ChannelCommandLoweringTests, DebugProbeInsertionTests, ReadEqsResultLoweringTests, SpawnEqsSensorLoweringTests, WhenNodeLoweringTests, WhenNodeEqsLoweringTests)
+|   |-- Stage7_EmitTests/                -- emit tests with snapshot comparison (LibraryEmitGoldenTests, InstanceEmitGoldenTests, AiPrimitiveEmitGoldenTests, SanitizerTests, ThunkEmissionTests, BPF014_LatentDelayEmitTests, BPF015_DebugProbeEmitTests, BPF016_EventMethodEmitTests, BPF020_RaiseCustomEventEmitTests, FIX2_002_DebugMapEmitTests)
+|   |-- Stage8_RoslynTests/              -- Roslyn compilation + ALC load tests (PdbEmbeddedSourceTests, MetadataReferenceResolverTests, InMemoryCompileTests)
+|   |-- EndToEnd/                        -- full pipeline end-to-end tests (DoorActor_DoorSensor_EndToEndTests, HasVisibleTarget_EndToEndTests, HealthRegen_EndToEndTests, MathUtilsLib_EndToEndTests, InlineAction_EndToEndTests, LibraryFunction_InvokeTests, MoveToAndFire_EndToEndTests)
+|   |-- Determinism/                     -- FNV hash and ordering determinism tests (BlueprintIdHashTests, StructureHashTests, CompilerDeterminismTests)
 |   |-- CatalogTests.cs                  -- catalog lookup tests
 |   |-- WhenNodeValidatorTests.cs        -- WhenNode-specific validation tests
 |   |-- ReadEqsResultValidatorTests.cs   -- ReadEqsResultNode validation tests
@@ -250,6 +293,16 @@ Hrot.Blueprints.Tests/
 |   |-- RecipeIntegrityTests.cs          -- recipe asset consistency tests
 |   |-- TestDiagnosticInventory.cs       -- ensures all diagnostic codes are tested
 |   |-- CoversDiagnosticCodeAttribute.cs -- custom xUnit attribute for diagnostic coverage
+|   |-- BATCH03A_FunctionGraphCallTests.cs        -- in-blueprint function-graph CALL compiler tests
+|   |-- BATCH03B_FunctionGraphCallValidationTests.cs -- validation tests for function-graph CALL
+|   |-- BlueprintSignatureParserCasingTests.cs    -- signature-parser casing edge cases
+|   |-- EnumSampleTests.cs               -- enum-typed pin/literal sample tests
+|   |-- SequenceEmitIntegrationTests.cs  -- SequenceNode multi-branch emit integration tests
+|   |-- ImpureCallAndImplicitCastEmitTests.cs -- impure FunctionCall + implicit-cast emit tests
+|   |-- P7_FunctionCallContextTests.cs   -- FunctionCall context-resolution tests
+|   |-- Q13OnFailureValidationTests.cs   -- OnFailure exec-pin validation tests
+|   |-- PublishCustomEventTests.cs       -- PublishEvent custom-event compiler tests
+|   |-- EventGraphEmitTests.cs           -- EventEntry graph emit tests
 |
 |-- Runtime/
 |   |-- FakeBlueprints.cs                -- hand-authored fake generated classes for early runtime tests
@@ -262,8 +315,21 @@ Hrot.Blueprints.Tests/
 |   |-- ReadEqsResultNodeRuntimeTests.cs -- ReadEqsResultNode integration tests
 |   |-- SpawnEqsSensorRuntimeTests.cs    -- SpawnEqsSensorNode integration tests
 |   |-- UtilityNodeRuntimeTests.cs       -- ScoreDecisionNode / ReadRankedResultNode tests
+|   |-- MakeBreakStructTests.cs          -- MakeStruct/BreakStruct/SetMembers node tests (moved here from Compiler/)
+|   |-- StructTypedVariableTests.cs      -- struct-typed Instance Variables tests (moved here from Compiler/)
+|   |-- MultiPinSetSharedTests.cs        -- multi-pin per-field SetShared/GetShared/PublishEvent tests (moved here from Compiler/)
+|   |-- CustomEventPubSubCapstoneTests.cs -- end-to-end custom-event publish/subscribe capstone (moved here from Compiler/)
+|   |-- BlueprintEventDispatchTests.cs   -- BlueprintEventDispatch runtime tests
+|   |-- BlueprintEventSubscriptionRegistryTests.cs -- event-subscription registry tests
+|   |-- BlueprintEventIngressSystemTests.cs -- event-ingress ECS system tests
+|   |-- BlueprintLifecycleLibraryTests.cs -- entity attach/detach lifecycle helper tests
+|   |-- BlueprintTierSummaryTests.cs     -- blackboard tier summary/reporting tests
+|   |-- BlueprintHotReloadMveTests.cs    -- minimal viable hot-reload runtime example tests
+|   |-- BlueprintCompileOnDemandMveTests.cs -- on-demand compile runtime example tests
+|   |-- BlueprintRunHarness.cs           -- shared runtime harness for Blueprint*MveTests
+|   |-- BlueprintRunMveTests.cs          -- minimal viable end-to-end run tests
 |   |-- PartitionAllocator/              -- blackboard partition allocator tests
-|   |-- BlueprintTickSystem/             -- tick dispatch and world-singleton tests
+|   |-- BlueprintTickSystem/             -- tick dispatch and world-singleton tests (PhaseOrderingTests, SingleSlotTickTests, WorldSingletonTickTests, ReloadLogSinkTests, ReloadReconciliationTests)
 |   |-- BlueprintMaintenanceSystem/      -- cleanup and PendingDestroy tests
 |
 |-- HotReload/
@@ -273,8 +339,13 @@ Hrot.Blueprints.Tests/
 |   |   |-- AlcLifecycleTests.cs         -- ALC load, unload, reclaim lifecycle
 |   |   |-- FailureRollbackTests.cs      -- coordinator rollback on registrar failure
 |   |   |-- RegistrarInjectionTests.cs   -- registrar parameter injection tests
-|   |-- PdbLoading/                      -- PDB loading and symbol resolution tests
-|   |-- RuntimeIntegration/              -- hot-reload + live-tick interaction tests
+|   |-- PdbLoading/
+|   |   |-- PdbLoadTests.cs              -- PDB loading and symbol resolution tests
+|   |-- RuntimeIntegration/
+|       |-- AiPrimitiveReloadTests.cs    -- AiPrimitive reload + live-tick interaction
+|       |-- HardReloadTests.cs           -- full-rebuild-style hard reload tests
+|       |-- LatentCursorReloadTests.cs   -- latent-cursor continuity across reload
+|       |-- SoftReloadTests.cs           -- quick-reload live-tick interaction
 |
 |-- Debug/
 |   |-- ProbeDispatchTests.cs            -- DebugProbe.Sink dispatch tests
@@ -283,17 +354,36 @@ Hrot.Blueprints.Tests/
 |   |-- WatchTests.cs                    -- watch add/write/query tests
 |   |-- NodeHistoryTests.cs              -- ExecutionHistory ring-buffer tests
 |   |-- DebugMapTests.cs                 -- DebugMap serialization and index tests
+|   |-- DebugMapExtensionTests.cs        -- DebugMap extension-method tests
 |   |-- DebugSessionInterfaceTests.cs    -- full IBlueprintDebugSession contract tests
+|   |-- BlueprintDebugSessionLifecycleTests.cs -- attach/detach lifecycle tests
 |   |-- StateInspectorTests.cs           -- BlueprintStateSnapshot tests
+|   |-- FIX2_009_InstanceStateInspectionTests.cs -- Instance state-inspection fix regression tests
 |   |-- MultiEntityTests.cs              -- entity-filter and per-entity history tests
 |   |-- HotReloadInteractionTests.cs     -- debug session + hot reload interaction
 |   |-- MockTimeController.cs            -- IEngineDebugTimeController mock
+|   |-- AiDebugCommandsTests.cs          -- debug-command surface tests
+|   |-- BlueprintDebugToNodeEditAdapterTests.cs -- debug-session -> NodeEdit adapter tests
+|   |-- InspectorFieldsTests.cs          -- state-inspector field enumeration tests
+|   |-- NodeGranularEditorUITests.cs     -- node-granular stepping editor UI tests
+|   |-- PerNodeProbesTests.cs            -- per-node (not per-tick) probe insertion tests
+|   |-- ProbeIntegrationTests.cs         -- end-to-end probe wiring integration tests
+|   |-- SubTickRecorderIntegrationTests.cs -- sub-tick snapshot recorder integration tests
+|   |-- SubTickRestoreRegistrationTests.cs -- sub-tick restore registration tests
+|   |-- SubTickSnapshotRecorderTests.cs  -- sub-tick snapshot recorder unit tests
+|   |-- TickBridgeTests.cs               -- tick-boundary bridge tests
+|   |-- VirtualPointerTests.cs           -- virtual-pointer node-granular stepping tests
+|   |-- CF2_AuthoredIdProbeTests.cs      -- authored-node-id probe attribution tests
+|   |-- CF6_SteppingTests.cs             -- stepping-mechanism regression tests
+|   |-- CF7rev_EndToEndTests.cs          -- end-to-end debugger capability tests
+|   |-- CF7rev_InstrumentationTests.cs   -- instrumentation regression tests
+|   |-- CF8_SessionPersistenceTests.cs   -- session-persistence-across-reload tests
 |
 |-- Editor/
 |   |-- EditorInfrastructureTests.cs     -- module, window lifecycle, DI wiring tests
 |   |-- EditorWindowTests.cs             -- window activate/deactivate/draw tests
-|   |-- AssetBrowserWindowTests.cs       -- asset browser render and filter tests
 |   |-- CommandHistoryTests.cs           -- undo/redo ring-buffer tests
+|   |-- GraphCommandsUndoTests.cs        -- IGraphCommand Execute/Undo tests
 |   |-- DrawerRegistryTests.cs           -- drawer registration and lookup tests
 |   |-- HotReloadLogModelTests.cs        -- log ring-buffer cap/clear tests
 |   |-- PreferencesTests.cs              -- save/load/defaults round-trip tests
@@ -302,12 +392,40 @@ Hrot.Blueprints.Tests/
 |   |-- ReadEqsResultNodeDrawerTests.cs  -- EQS result drawer variable combo tests
 |   |-- SpawnEqsSensorNodeDrawerTests.cs -- EQS sensor drawer template combo tests
 |   |-- PlayMontageChainNodeDrawerTests.cs -- montage-chain drawer tests
+|   |-- FunctionCallNodeDrawerTests.cs   -- FunctionCall node drawer tests
+|   |-- ChannelCommandNodeDrawerTests.cs -- ChannelCommand node drawer tests
 |   |-- WhenFiringPulseRendererTests.cs  -- pulse renderer active/inactive tests
 |   |-- ConditionSummaryAttachmentTests.cs -- WhenNode attachment pill label tests
 |   |-- EqsVisualAttachmentTests.cs      -- EQS attachment label and state tests
 |   |-- CrossAssetDependencyAttachmentTests.cs -- peer-arrow attachment tests
 |   |-- DebugWindowsTests.cs             -- debug panel / watch / callstack windows
+|   |-- DebugWindowDrawUITests.cs        -- DrawUI smoke tests for debug windows
 |   |-- NewFromRecipeServiceTests.cs     -- recipe-based asset creation tests
+|   |-- DiscoverRecipesTests.cs          -- recipe discovery/enumeration tests
+|   |-- RecipeMetadataAdapterTests.cs    -- recipe metadata adapter tests
+|   |-- NewAssetServiceTests.cs          -- new-asset creation service tests
+|   |-- AssetScanTests.cs                -- asset-catalog filesystem scan tests
+|   |-- FolderLayoutTests.cs             -- asset folder layout convention tests
+|   |-- SaveActiveBlueprintCommandTests.cs -- save-command tests
+|   |-- BlueprintAssetContributorTests.cs -- IAssetCatalogContributor tests
+|   |-- BlueprintAttachServiceTests.cs   -- entity<->Blueprint attach service tests
+|   |-- BlueprintInstanceServiceTests.cs -- Instance Blueprint lifecycle service tests
+|   |-- BlueprintDetailsWindowTests.cs   -- details/inspector window tests
+|   |-- BlueprintMyBlueprintModelTests.cs -- "My Blueprint" edit-model tests
+|   |-- BlueprintWindowRegistrarTests.cs -- window menu registration tests
+|   |-- EditorSubsystemBlueprintWindowsTests.cs -- subsystem-level window wiring tests
+|   |-- EntityBlueprintsEditModelTests.cs -- per-entity Blueprint edit-model tests
+|   |-- EditServiceTests.cs              -- IEditService mutation tests
+|   |-- GraphSignatureEditModelTests.cs  -- graph input/output signature edit-model tests
+|   |-- GraphSignatureWindowTests.cs     -- graph signature window tests
+|   |-- RunBlueprintOnEntityCommandTests.cs -- run-on-entity command tests
+|   |-- SharedNodePaletteEntriesTests.cs -- shared/common palette entry tests
+|   |-- SharedNodeDrawersTests.cs        -- shared/common node drawer tests
+|   |-- BlueprintMathPaletteEntriesTests.cs -- Compare/BinaryOp/BooleanOp/Not palette entry tests
+|   |-- MakeBreakStructPaletteTests.cs   -- MakeStruct/BreakStruct/SetMembers palette entry tests
+|   |-- BlueprintEventDiscoveryTests.cs  -- [BlueprintEvent]/[EventTarget] reflection-discovery tests
+|   |-- BlueprintEventCatalogTests.cs    -- discovered custom-event catalog tests
+|   |-- BlueprintEventPaletteEntriesTests.cs -- PublishEvent/EventEntry palette entry tests
 |   |-- MockDebugSession.cs              -- IBlueprintDebugSession mock for editor tests
 |   |-- MockOutputConsole.cs             -- IOutputConsole mock
 |   |-- MockWindowRegistrar.cs           -- IWindowRegistrar mock
@@ -319,6 +437,9 @@ Hrot.Blueprints.Tests/
 |   |-- DoorActorDoorSensorDemoTests.cs  -- Instance peer calls: DoorActor <-> DoorSensor
 |   |-- HasVisibleTargetDemoTests.cs     -- AiPrimitive multi-hosting: BTree + HSM condition
 |   |-- MoveToAndFireDemoTests.cs        -- AiPrimitive headline action: latent MoveTo + AimAndFire
+|   |-- CountingDemo_ProofTests.cs       -- CountingDemo asset proof-of-behavior tests
+|   |-- CountingDemo_PinsStripped_ProofTests.cs -- CountingDemo with stripped pins proof tests
+|   |-- StateFields_ProofTests.cs        -- state-field layout proof tests
 |
 |-- Integration/
 |   |-- CoverAwarePatrolEndToEndTest.cs  -- cover-aware patrol full stack integration
@@ -328,10 +449,37 @@ Hrot.Blueprints.Tests/
 |-- Squad/
 |   |-- SquadPrimitiveNodeTests.cs       -- squad-level AiPrimitive node tests
 |
-|-- Stage1To5Tests.cs                    -- condensed Stages 1-5 regression tests
-|-- Stage6Tests.cs                       -- Stage 6 lowering regression tests
-|-- Stage7Tests.cs                       -- Stage 7 emit regression tests
-|-- Stage8Tests.cs                       -- Stage 8 Roslyn regression tests
+|-- Host/                                -- NodeEdit Host-layer tests (top-level dir, NOT under Editor/)
+|   |-- BlueprintGraphModelTests.cs      -- BlueprintGraphModel tests (headless)
+|   |-- BlueprintNodeTitleTests.cs       -- node title / BuildTitle tests
+|   |-- NodePinSchemaEnrichmentTests.cs  -- canonical pin projection / pin-enrichment tests
+|   |-- BlueprintCommandSinkTests.cs     -- wire-drop add/remove -> CommandHistory undo tests
+|   |-- SharedNodeCommandSinkAndPersistenceTests.cs -- shared-node command sink + save/persist round-trip tests
+|   |-- BlueprintLinkValidatorTests.cs   -- BlueprintLinkValidator tests (headless)
+|   |-- BlueprintTypeSystemTests.cs      -- BlueprintTypeSystem tests (headless)
+|   |-- BlueprintNodeCatalogTests.cs     -- BlueprintNodeCatalog tests (headless)
+|   |-- BlueprintDocumentFactoryTests.cs -- BlueprintDocumentFactory tests
+|   |-- BlueprintPinHydrationTests.cs    -- pin hydration tests
+|   |-- BlueprintPinDefaultValueTests.cs -- pin default-value tests
+|   |-- BlueprintPinDefaultZeroTests.cs  -- FIX-A (BF-BATCH-0607): unconnected data-in pins expose a type-zero default
+|   |-- BlueprintRerouteTests.cs         -- RR-02: wire reroute Insert/Move/Remove command tests
+|   |-- BlueprintSelectionBridgeHelperTests.cs -- BF-UX1 FIX C: SelectionState -> BlueprintNodeSelection mapping tests
+|   |-- BlueprintCommentTests.cs         -- Unreal-style comment-box support tests
+|   |-- BlueprintCallableDiscoveryTests.cs -- callable-peer/function discovery tests
+|   |-- BlueprintEditorHostServicesTests.cs -- editor host service wiring tests
+|   |-- BlueprintTooltipTests.cs         -- node/pin tooltip content tests
+|   |-- EnumPinTests.cs                  -- enum-typed pin editor tests
+|   |-- FixedStringPinTests.cs           -- fixed-string pin editor tests
+|   |-- ExecOutEditorTests.cs            -- EXEC2 (BF-BATCH-EXECFANOUT): exec-out 1:1 enforcement in the editor
+|   |-- LiteralValueJsonTests.cs         -- literal pin-value JSON (de)serialization tests
+|   |-- BehaviorActionCatalogTests.cs    -- behavior-action catalog lookup tests
+|   |-- ClrSourceLocatorTests.cs         -- CLR source-location resolution tests (source-navigation UX)
+|   |-- AN4_PerActionPaletteTests.cs     -- AN4: per-action node-palette entry generation tests
+|   |-- AN7_LiveWiringTests.cs           -- AN7: live wiring / drag-drop connection tests
+|   |-- AN8b_DemoSharedActionTests.cs    -- AN8b: [SharedAiAction] demo-action direct-invocation editor tests
+|   |-- BcpBatch02BlueprintTests.cs      -- BCP batch 02: blueprint editor host tests
+|   |-- BcpBatch04WireDropTests.cs       -- BCP batch 04: wire-drop node-creation tests
+|   |-- NullPinDefaultValueEditorRegistry.cs -- no-op IPinDefaultValueEditorRegistry for headless tests
 ```
 
 ---

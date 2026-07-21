@@ -46,6 +46,8 @@ public static class BlueprintNodePaletteEntries
         /// </summary>
         public const string SharedState = "Shared State";
         public const string Function    = "Function";
+        /// <summary>Constant/literal value nodes — kept out of Function so designers see them distinctly.</summary>
+        public const string Literal     = "Literal";
         public const string Event       = "Events";
         public const string Array       = "Array";
         public const string Latent      = "Latent";
@@ -105,6 +107,9 @@ public static class BlueprintNodePaletteEntries
         yield return Make<SetVariableNode>(
             "SetVariable", "Set Variable", Categories.Variables,
             "Write a blueprint variable's value.");
+        yield return Make<GetAllParametersNode>(
+            "GetAllParameters", "Get All Parameters", Categories.Variables,
+            "Read all of this blueprint's declared Parameters at once (pure) -- one output pin per Parameter.");
 
         // ── Shared State (Slice 2a-3) ──────────────────────────────────────
         // GetSharedNode/SetSharedNode default-construct with empty VariableId/SharedTypeId;
@@ -131,54 +136,54 @@ public static class BlueprintNodePaletteEntries
         {
             Kind           = "LiteralBool",
             DisplayName    = "Literal (Boolean)",
-            Category       = Categories.Function,
+            Category       = Categories.Literal,
             Tooltip        = "A boolean constant (true/false).",
-            Icon           = "",
+            Icon           = "bp/pure",
             CreateInstance = () => new LiteralNode { Id = Guid.NewGuid(), TypeId = BlueprintTypeSystem.Bool },
         };
         yield return new NodeKindDescriptor
         {
             Kind           = "LiteralInt",
             DisplayName    = "Literal (Integer)",
-            Category       = Categories.Function,
+            Category       = Categories.Literal,
             Tooltip        = "An integer constant.",
-            Icon           = "",
+            Icon           = "bp/pure",
             CreateInstance = () => new LiteralNode { Id = Guid.NewGuid(), TypeId = BlueprintTypeSystem.Int32 },
         };
         yield return new NodeKindDescriptor
         {
             Kind           = "LiteralFloat",
             DisplayName    = "Literal (Float)",
-            Category       = Categories.Function,
+            Category       = Categories.Literal,
             Tooltip        = "A floating-point constant.",
-            Icon           = "",
+            Icon           = "bp/pure",
             CreateInstance = () => new LiteralNode { Id = Guid.NewGuid(), TypeId = BlueprintTypeSystem.Single },
         };
         yield return new NodeKindDescriptor
         {
             Kind           = "LiteralDouble",
             DisplayName    = "Literal (Double)",
-            Category       = Categories.Function,
+            Category       = Categories.Literal,
             Tooltip        = "A double-precision constant.",
-            Icon           = "",
+            Icon           = "bp/pure",
             CreateInstance = () => new LiteralNode { Id = Guid.NewGuid(), TypeId = BlueprintTypeSystem.Float64 },
         };
         yield return new NodeKindDescriptor
         {
             Kind           = "LiteralString",
             DisplayName    = "Literal (String)",
-            Category       = Categories.Function,
+            Category       = Categories.Literal,
             Tooltip        = "A string constant.",
-            Icon           = "",
+            Icon           = "bp/pure",
             CreateInstance = () => new LiteralNode { Id = Guid.NewGuid(), TypeId = BlueprintTypeSystem.String },
         };
         yield return new NodeKindDescriptor
         {
             Kind           = "LiteralByte",
             DisplayName    = "Literal (Byte)",
-            Category       = Categories.Function,
+            Category       = Categories.Literal,
             Tooltip        = "A byte constant.",
-            Icon           = "",
+            Icon           = "bp/pure",
             CreateInstance = () => new LiteralNode { Id = Guid.NewGuid(), TypeId = BlueprintTypeSystem.Byte },
         };
 
@@ -389,9 +394,31 @@ public static class BlueprintNodePaletteEntries
             DisplayName = displayName,
             Category    = category,
             Tooltip     = tooltip,
-            Icon        = "",
+            Icon        = CategoryIcon(category),
             CreateInstance = () => new TNode { Id = Guid.NewGuid() },
         };
+
+    /// <summary>
+    /// Maps a picker category to an icon-atlas key (so the Add-Node picker rows are scannable,
+    /// especially under "All"). Keys resolve via the shared SilkIconProvider.
+    /// </summary>
+    internal static string CategoryIcon(string category) => category switch
+    {
+        Categories.FlowControl => "bp/flow",
+        Categories.Event       => "bp/event",
+        Categories.Variables   => "bp/variable_get",
+        Categories.SharedState => "bp/variable_get",
+        Categories.Function    => "bp/function",
+        Categories.Literal     => "bp/pure",
+        Categories.Array       => "bp/macro",
+        Categories.Latent      => "bt/wait",
+        Categories.Channel     => "bp/function",
+        Categories.Decision    => "bp/function",
+        Categories.Squad       => "bp/function",
+        Categories.Utility     => "bp/function",
+        Categories.Action      => "bt/action",
+        _                      => "bp/function",
+    };
 
     /// <summary>Returns the last dotted segment of a fully-qualified type name.</summary>
     private static string LastSegment(string fqn)

@@ -1,5 +1,7 @@
 # Hrot.Blueprints.Generators
 
+> Manually maintained; last verified 2026-07-21 against the implemented code.
+
 **Path**: `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Generators/`
 **Date**: 2026-05-23
 **Target Framework**: `netstandard2.0`
@@ -75,7 +77,9 @@ and reuse cached `CompileResult` values stored by the Roslyn incremental infrast
 |  Provider 1: rawFiles     |  --> (Path, Text) per *.bp.json
 |  Provider 2: signatures   |  --> BlueprintSignature (lightweight)
 |  Provider 3: siblingCatalog| --> ImmutableArray<BlueprintSignature>
-|  Provider 4: compileResults| --> CompileResult per asset
+|  Provider 4: compileResults| --> CompileResult per asset (also combined
+|                            |     with CompilationProvider for RoslynClrSignatureResolver)
+|    (rawFiles.Combine(siblingCatalog).Combine(CompilationProvider)) |
 +----------+----------------+
            |
            |  RegisterSourceOutput
@@ -111,6 +115,7 @@ rawFiles  (Path, Text)
   |         siblingCatalog  (ImmutableArray<BlueprintSignature>)
   |
   +-- .Combine(siblingCatalog)
+        | .Combine(context.CompilationProvider)
         | .Select(CompileOneAsset)
         v
   compileResults  (CompileResult per file)
@@ -133,7 +138,12 @@ rawFiles  (Path, Text)
         | BlueprintAsset
         v
 +--------------------+
-| Stage 2 Validate   |  17 validators (V_AssetStructure, V_NodeStructure, ..., V_WhenNodeRules, V_ReadEqsResultNodeRules, V_SpawnEqsSensorNodeRules)
+| Stage 0 Rehydrate  |  reflection-free pin/link reconstruction; mirrors editor's NodePinSchema
++--------+-----------+
+        |
+        v
++--------------------+
+| Stage 2 Validate   |  21 validators (V_AssetStructure, V_NodeStructure, ..., V_WhenNodeRules, V_ReadEqsResultNodeRules, V_SpawnEqsSensorNodeRules, V_SharedStateRules, V_FunctionGraphCallRules, V_ExecOutFanOut, V_FlowForEachRules)
 +--------+-----------+
          | validated asset
          v
@@ -207,7 +217,7 @@ rawFiles  (Path, Text)
 
 ## Source Structure
 
-The generator project contains exactly **one source file**.
+The generator project contains **two source files**.
 
 ### `BlueprintIncrementalGenerator.cs`
 
@@ -225,26 +235,47 @@ Sets up the four-provider incremental pipeline:
 | `rawFiles` | `IncrementalValuesProvider<(string Path, string Text)>` | Filter `AdditionalTextsProvider` to `*.bp.json` and read text |
 | `signatures` | `IncrementalValuesProvider<BlueprintSignature>` | Lightweight header parse for cross-reference resolution |
 | `siblingCatalog` | `IncrementalValueProvider<ImmutableArray<BlueprintSignature>>` | Collect all signatures into one array |
-| `compileResults` | `IncrementalValuesProvider<CompileResult>` | Full per-asset compile (Combine rawFile with siblingCatalog) |
+| `compileResults` | `IncrementalValuesProvider<CompileResult>` | Full per-asset compile (Combine rawFile with siblingCatalog, then with `context.CompilationProvider`) |
+
+`compileResults` combines `rawFiles.Combine(siblingCatalog)` with `context.CompilationProvider` before
+calling `CompileOneAsset`. The `Compilation` is threaded through so Stage0 can resolve same-assembly
+`FunctionCall` target signatures via the Roslyn semantic model (`RoslynClrSignatureResolver`) — runtime
+CLR reflection cannot see curated helper types defined in the assembly currently being compiled. This
+combine costs some fine-grained incrementality, but the pipeline already collapses on any sibling
+change via `siblingCatalog.Collect()`, so the tradeoff is consistent with the existing design.
 
 Calls `context.RegisterSourceOutput` on `compileResults`:
-- On success: `spc.AddSource(result.GeneratedFileName, result.GeneratedSource)`.
+- On success: `spc.AddSource(result.GeneratedFileName ?? "Blueprint.g.cs", result.GeneratedSource)`.
 - On failure: iterates `result.Diagnostics` and calls `spc.ReportDiagnostic(...)`.
 
-#### `CompileOneAsset(string path, string text, ImmutableArray<BlueprintSignature> siblings, CancellationToken ct)` (private static)
+#### `CompileOneAsset(string path, string text, ImmutableArray<BlueprintSignature> siblings, Compilation compilation, CancellationToken ct)` (private static)
 
 1. Checks `ct.ThrowIfCancellationRequested()`.
-2. Calls `BlueprintJsonServices.Deserialize(text)` to obtain a `BlueprintAsset`.
-3. Returns `FailedParse(path)` if deserialization fails or returns null.
+2. Calls `BlueprintJsonServices.Deserialize(text)` inside a try/catch to obtain a `BlueprintAsset`;
+   on exception, returns `FailedParse(path, ex.ToString())` with the full exception surfaced (never
+   swallowed) so analyzer-host deserialization failures are visible in the build output.
+3. Returns `FailedParse(path, "...returned null...")` if deserialization returns null without throwing.
 4. Creates a `BpCompiler` (`BlueprintCompiler`) and a `CompileOptions` record wired to
-   the built-in catalogs and the current `siblings` list.
+   the built-in catalogs, the current `siblings` list, and
+   `ClrSignatureResolver: new RoslynClrSignatureResolver(compilation)`.
 5. Calls `compiler.Compile(asset, options)` and returns the `CompileResult`.
 6. Wraps any unexpected exception in a `CompileResult` with `BP0002_JsonParseError`.
 
-#### `FailedParse(string path)` (private static)
+#### `FailedParse(string path, string? detail = null)` (private static)
 
-Returns a failed `CompileResult` carrying one `BP0002_JsonParseError` diagnostic.
-Used as the error path for JSON deserialization failures.
+Returns a failed `CompileResult` carrying one `BP0002_JsonParseError` diagnostic, with the optional
+`detail` string (exception text or null-result note) appended to the message. Used as the error path
+for JSON deserialization failures.
+
+#### `RoslynClrSignatureResolver` (sealed, in `RoslynClrSignatureResolver.cs`)
+
+Implements `IClrSignatureResolver` (defined in `Hrot.Blueprints.Compiler/Compiler/Catalogs/IClrSignatureResolver.cs`)
+by resolving `FunctionCall` node targets through the Roslyn `Compilation`'s semantic model
+(`GetTypeByMetadataName` → first same-named `IMethodSymbol`, no overload disambiguation) instead of CLR
+reflection. This lets Stage0 rehydrate data pins for calls into curated helper types that live in the
+same assembly currently being compiled — an assembly runtime reflection cannot see because it does not
+exist yet inside the analyzer host. Type/parameter FQNs are rendered in `System.Type.FullName` convention
+so pin `TypeId`s match what the reflection path would have produced.
 
 #### `ToRoslynDiagnostic(BpDiagnostic diag)` (private static)
 
@@ -372,6 +403,7 @@ consumers of this generator.
 | `BuiltInChannelCommandCatalog` | `Hrot.Blueprints.Core.Compiler.Catalogs` |
 | `BuiltInWaitPrimitiveCatalog` | `Hrot.Blueprints.Core.Compiler.Catalogs` |
 | `DiagnosticCodes` | `Hrot.Blueprints.Core.Compiler.Diagnostics` |
+| `IClrSignatureResolver`, `ClrMethodSig`, `ClrParamInfo` | `Hrot.Blueprints.Core.Compiler.Catalogs` (implemented locally by `RoslynClrSignatureResolver`) |
 
 ---
 
@@ -638,10 +670,11 @@ compilation stage:
 
 | Range | Stage |
 |---|---|
-| BP0001-BP0011 | Parse / asset identity |
-| BP1010-BP1602 | Stage 2 structural validation |
-| BP2001-BP2xxx | Stage 3 normalization |
-| BP3xxx+       | Stages 4-7 type, schedule, emit |
+| BP0001-BP0011 | Stage 1 parse / asset identity |
+| BP1010-BP1654 | Stage 2 structural & rule validation (incl. function-graph-call rules) |
+| BP2001-BP2050 | Stage 2 validation (WhenNode / EQS / SharedState / FlowForEach rules) |
+| BP3001, BP3010-BP3012 | Stage 3 normalize / Stage 4 type-resolve |
+| BP4001-BP7001 | Stages 5-8 schedule, lower, emit, Roslyn finalize |
 
 ---
 
@@ -774,9 +807,9 @@ requirements. This means:
 
 - `ImplicitUsings` must be **disabled** (`disable`) -- the global usings introduced
   by `ImplicitUsings=enable` are not available under `netstandard2.0`.
-- `LangVersion` is set to `latest` so that C# 12 features (primary constructors,
-  collection expressions, etc.) can be used in the generator code itself even though
-  the output target is `netstandard2.0`.
+- `LangVersion` is pinned to `12.0` (not `latest`) so that C# 12 features (primary
+  constructors, collection expressions, etc.) can be used in the generator code itself
+  even though the output target is `netstandard2.0`.
 - `IsRoslynComponent=true` activates the `Microsoft.CodeAnalysis.Analyzers` rules
   that enforce correct incremental generator patterns (no capturing of
   `GeneratorInitializationContext` references, etc.).

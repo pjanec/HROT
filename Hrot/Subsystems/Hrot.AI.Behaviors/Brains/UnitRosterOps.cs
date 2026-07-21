@@ -1,5 +1,6 @@
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
+using Hrot.Editor.AiShared;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -16,6 +17,7 @@ namespace Hrot.AI.Behaviors.Brains
     public static class UnitRosterOps
     {
         /// <summary>Number of currently registered subordinates in <paramref name="r"/> (0-16).</summary>
+        [BlueprintCallable("Roster")]
         public static int Count(in UnitRoster r) => r.Count;
 
         /// <summary>
@@ -23,6 +25,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// packed <c>long</c> storage via <see cref="Entity(ulong)"/>. Caller (the emitted
         /// <c>IrOp_ForEach</c> loop) guarantees <c>0 &lt;= i &lt; Count(in r)</c>.
         /// </summary>
+        [BlueprintCallable("Roster")]
         public static Entity Subordinate(in UnitRoster r, int i)
         {
             unsafe { return new Entity((ulong)r.SubordinateEntities[i]); }

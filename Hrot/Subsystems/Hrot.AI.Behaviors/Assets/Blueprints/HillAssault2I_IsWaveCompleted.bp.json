@@ -1,0 +1,219 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
+  "AssetId": "a8d44fe3-29fc-490a-9b84-33452321bec3",
+  "Name": "HillAssault2I_IsWaveCompleted",
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "Primitive": {
+    "Intent": "Action",
+    "Hostings": [
+      "BTreeAction"
+    ]
+  },
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "eb99c8e7-c288-45ed-99a1-f3ffa410f7f5",
+      "Name": "Main",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "2863a61c-28a3-4b14-894a-de7e7acf989e",
+          "EventTypeId": "",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 40,
+            "Y": 400
+          }
+        },
+        {
+          "kind": "GetShared",
+          "Id": "b3fd6866-6789-4203-9d53-04a3436e88e5",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 40,
+            "Y": 40
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "be3145a1-e861-4317-a96d-ce6157eb28e1",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.WaveMonitorOps",
+          "MethodName": "UpdateShared",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "View",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 300,
+            "Y": 100
+          }
+        },
+        {
+          "kind": "SetShared",
+          "Id": "4e7e0d25-66ac-400a-9e80-cb03f6c19ced",
+          "VariableId": "state",
+          "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 620,
+            "Y": 400
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "41ba22ac-d753-4921-8a13-c3fc46d6e84b",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.WaveMonitorOps",
+          "MethodName": "ActiveCountShared",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 900,
+            "Y": 160
+          }
+        },
+        {
+          "kind": "Literal",
+          "Id": "214b4779-0425-496d-8377-44b337d87c26",
+          "TypeId": "System.Int32",
+          "ValueJson": "0",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 900,
+            "Y": 260
+          }
+        },
+        {
+          "kind": "Compare",
+          "Id": "633aea53-1010-43b1-b57e-5f2e8d2a842c",
+          "Operator": "Equal",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1140,
+            "Y": 200
+          }
+        },
+        {
+          "kind": "Branch",
+          "Id": "8833a155-2367-4d7b-badb-f9b99488572f",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1380,
+            "Y": 400
+          }
+        },
+        {
+          "kind": "Return",
+          "Id": "c4e45015-25f0-428b-b511-eaa9f0d8b4a2",
+          "Status": "Success",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1620,
+            "Y": 320
+          }
+        },
+        {
+          "kind": "Return",
+          "Id": "0b057c21-8b88-451e-9893-a513f81afc1f",
+          "Status": "Running",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1620,
+            "Y": 480
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "2863a61c-28a3-4b14-894a-de7e7acf989e",
+          "FromPinId": "0c81916d-546a-a951-99cd-dace696d0dfc",
+          "ToNodeId": "4e7e0d25-66ac-400a-9e80-cb03f6c19ced",
+          "ToPinId": "7504dfc5-d096-cf5d-b6f2-1a8d73b4c18c"
+        },
+        {
+          "FromNodeId": "b3fd6866-6789-4203-9d53-04a3436e88e5",
+          "FromPinId": "ab28c3d3-325d-2e51-af9d-28a7ce694146",
+          "ToNodeId": "be3145a1-e861-4317-a96d-ce6157eb28e1",
+          "ToPinId": "f54e6094-99ab-f152-8349-847ac63465ab"
+        },
+        {
+          "FromNodeId": "be3145a1-e861-4317-a96d-ce6157eb28e1",
+          "FromPinId": "f7115929-cb6e-b551-843d-a196d8de4334",
+          "ToNodeId": "4e7e0d25-66ac-400a-9e80-cb03f6c19ced",
+          "ToPinId": "b0f9ab97-7782-445b-9a66-ba9a82b505d7"
+        },
+        {
+          "FromNodeId": "be3145a1-e861-4317-a96d-ce6157eb28e1",
+          "FromPinId": "f7115929-cb6e-b551-843d-a196d8de4334",
+          "ToNodeId": "41ba22ac-d753-4921-8a13-c3fc46d6e84b",
+          "ToPinId": "c6c00502-f79d-f458-9aa5-e2a4fb6402e7"
+        },
+        {
+          "FromNodeId": "41ba22ac-d753-4921-8a13-c3fc46d6e84b",
+          "FromPinId": "23163e45-da19-6c51-a964-d4105060c713",
+          "ToNodeId": "633aea53-1010-43b1-b57e-5f2e8d2a842c",
+          "ToPinId": "275d668a-c5af-a355-b6b6-69f95d757178"
+        },
+        {
+          "FromNodeId": "214b4779-0425-496d-8377-44b337d87c26",
+          "FromPinId": "cb26551a-5be0-0c5b-8bbf-e74493a4ca4f",
+          "ToNodeId": "633aea53-1010-43b1-b57e-5f2e8d2a842c",
+          "ToPinId": "c04305ba-639b-5c56-b473-07301831465f"
+        },
+        {
+          "FromNodeId": "633aea53-1010-43b1-b57e-5f2e8d2a842c",
+          "FromPinId": "ae811958-9a8c-265c-90d1-b24a55849590",
+          "ToNodeId": "8833a155-2367-4d7b-badb-f9b99488572f",
+          "ToPinId": "c769aab4-0fce-6d57-ac84-366219327e13"
+        },
+        {
+          "FromNodeId": "4e7e0d25-66ac-400a-9e80-cb03f6c19ced",
+          "FromPinId": "c855eb0f-9463-165d-822c-cc88e3f87a73",
+          "ToNodeId": "8833a155-2367-4d7b-badb-f9b99488572f",
+          "ToPinId": "be582fa4-adfd-5252-a63d-f1db6cf95273"
+        },
+        {
+          "FromNodeId": "8833a155-2367-4d7b-badb-f9b99488572f",
+          "FromPinId": "2498394c-2257-9a51-9da1-e1bd4667dfc8",
+          "ToNodeId": "c4e45015-25f0-428b-b511-eaa9f0d8b4a2",
+          "ToPinId": "97243740-ddc7-115a-bde9-687aa0e7e8a7"
+        },
+        {
+          "FromNodeId": "8833a155-2367-4d7b-badb-f9b99488572f",
+          "FromPinId": "778a5a99-4edc-c55c-b7ae-32647a254f4e",
+          "ToNodeId": "0b057c21-8b88-451e-9893-a513f81afc1f",
+          "ToPinId": "e2ebd340-875b-6e53-bb7c-82b2b0eb2ebb"
+        }
+      ],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "P1b (Hill-attack -> Blueprints migration), tree-INTEGRATION track (architect Q#9-A): the integrated twin of HillAssault2_IsWaveCompleted -- SAME WaveMonitorOps swap-remove kernel, but leaves its native WorkingState EMPTY and converses over the standalone entity-scoped HillAttackSharedState struct via GetShared/SetShared(VariableId=\"state\") instead of a private Wave:WaveState WorkingState var, so it can be composed alongside its sibling integrated nodes in a real commander .btree.json (mirrors HillAssault2I_CalculateSegments's empty-WorkingState/GetShared-SetShared pattern). This is the 4th and final wave-loop node for PlatoonHillAttack2.btree.json's Repeater(Sequence(RequestAreaQuery, IsAreaQueryResolved, DispatchWaveWithTargets, IsWaveCompleted)) -- previously omitted pending the curated WaveMonitorOps(HillAttackSharedState, ISimulationView) / ActiveCount(HillAttackSharedState) tree-integration overloads (now added). Graph: EventEntry -> SetShared(\"state\") [Value <- FunctionCall WaveMonitorOps.Update(s <- GetShared(\"state\").Value) [IsPure, TrailingContext=View]] -> Branch(Condition <- Compare(FunctionCall WaveMonitorOps.ActiveCount(s <- the SAME Update.Return), Literal Int32 0, Equal)) -> True: Return(Success) (wave complete); False: Return(Running) (still polling). The single Update.Return output pin fans out to BOTH the SetShared writeback and the ActiveCount read (pure data nodes fan out freely, proven by the isolated twin and HillAssault2I_RequestAreaQuery), avoiding any re-read-before-write ordering hazard. Reuses the curated Hrot.AI.Behaviors.Brains.WaveMonitorOps.Update(HillAttackSharedState,ISimulationView)/ActiveCount(HillAttackSharedState) tree-integration overloads (thin adapters that project ActiveRunners/BurnedSlotsMask/BaselineReservedMask into a WaveState, reuse the proven WaveState kernel, and write the fields back) -- zero logic duplication, does not modify the C# oracle, the isolated twin (HillAssault2_IsWaveCompleted.bp.json), the compiler, or WaveMonitorOps' pre-existing WaveState-based members.",
+    "Category": null,
+    "Recipe": null
+  }
+}

@@ -1,5 +1,6 @@
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Editor.Host;
 
 namespace Hrot.Blueprints.Editor.NodeDrawers;
 
@@ -36,6 +37,12 @@ internal sealed class FunctionCallNodeSession : INodeEditSession
     // frames so that selecting "In-Blueprint Function" does not flicker back to "CLR Method"
     // before the user has picked a graph (TargetGraphId is empty until then). 0 = CLR, 1 = graph.
     private int _modeIdx;
+
+    // Punch-list #6: cached source-location resolution for the "open in VS" button. Recomputed
+    // only when (TargetTypeId, MethodName) changes so reflection + PDB reads don't run every frame.
+    private string? _srcKey;
+    private ClrSourceLocator.SourceLocation? _srcLoc;
+    private bool _srcResolvedMethod;
 
     public bool IsDirty { get; private set; }
 
@@ -102,37 +109,18 @@ internal sealed class FunctionCallNodeSession : INodeEditSession
         ImGui.Text("Function Call");
         ImGui.Separator();
 
-        // IsPure checkbox — applicable to both modes
+        // Purity is fixed by the chosen function (set once at add-time) — read-only display.
+        ImGui.BeginDisabled();
         bool isPure = _node.IsPure;
-        if (ImGui.Checkbox("Pure (no exec pins)", ref isPure))
-        {
-            _node.IsPure = isPure;
-            MarkChanged();
-        }
+        ImGui.Checkbox("Pure (no exec pins)", ref isPure);
+        ImGui.EndDisabled();
 
         ImGui.Separator();
 
-        // Mode persists across frames (see _modeIdx). Keep it in sync if the node was changed
-        // externally to an in-blueprint target.
+        // Mode is determined by what was picked when the node was added; it is not switchable on a
+        // placed node (add a new node to call something else). Shown read-only.
         if (!string.IsNullOrEmpty(_node.TargetGraphId)) _modeIdx = 1;
-
-        string[] modeLabels = { "CLR Method", "In-Blueprint Function" };
-        if (ImGui.Combo("Mode", ref _modeIdx, modeLabels, modeLabels.Length))
-        {
-            if (_modeIdx == 0 && !string.IsNullOrEmpty(_node.TargetGraphId))
-            {
-                // Switched to CLR mode — clear TargetGraphId
-                _node.TargetGraphId = "";
-                MarkChanged();
-            }
-            else if (_modeIdx == 1 && (!string.IsNullOrEmpty(_node.TargetTypeId) || !string.IsNullOrEmpty(_node.MethodName)))
-            {
-                // Switched to in-blueprint mode — clear CLR fields; TargetGraphId set when the user picks.
-                _node.TargetTypeId = "";
-                _node.MethodName   = "";
-                MarkChanged();
-            }
-        }
+        ImGui.TextUnformatted(_modeIdx == 1 ? "Mode: In-Blueprint Function" : "Mode: CLR Method");
 
         ImGui.Separator();
 
@@ -189,31 +177,70 @@ internal sealed class FunctionCallNodeSession : INodeEditSession
 
     private void DrawClrMethodForm()
     {
-        // TargetTypeId text field
+        // Read-only (Q#12): the CLR method is chosen from the curated picker when the node is ADDED and
+        // is immutable afterward — designers never type an FQN. Fields are ReadOnly (still selectable /
+        // copyable). To call a different method, add a new node.
         var typeId = _node.TargetTypeId ?? "";
-        if (ImGui.InputText("Type ID", ref typeId, 256))
-        {
-            if (typeId != _node.TargetTypeId)
-            {
-                _node.TargetTypeId  = typeId;
-                _node.TargetGraphId = "";
-                MarkChanged();
-            }
-        }
+        ImGui.InputText("Type ID", ref typeId, 256, ImGuiInputTextFlags.ReadOnly);
 
-        // MethodName text field
         var methodName = _node.MethodName ?? "";
-        if (ImGui.InputText("Method Name", ref methodName, 256))
+        ImGui.InputText("Method Name", ref methodName, 256, ImGuiInputTextFlags.ReadOnly);
+
+        ImGui.TextDisabled("Read-only — pick from the Add-Node picker; add a new node to change it.");
+
+        DrawOpenSourceButton();
+    }
+
+    /// <summary>
+    /// Punch-list #6: a "⋯" button that opens the targeted CLR method's source in Visual Studio.
+    /// The method + its source file/line are resolved (and cached) from reflection + the portable
+    /// PDB; the button is disabled and the reason shown when the method or its source cannot be
+    /// located (e.g. a dynamic/hot-reloaded assembly, or a Release build with no PDB).
+    /// </summary>
+    private void DrawOpenSourceButton()
+    {
+        var key = (_node.TargetTypeId ?? "") + "|" + (_node.MethodName ?? "");
+        if (key != _srcKey)
         {
-            if (methodName != _node.MethodName)
+            _srcKey            = key;
+            _srcLoc            = null;
+            _srcResolvedMethod = false;
+            var method = NodePinSchema.ResolveClrMethod(_node);
+            if (method != null)
             {
-                _node.MethodName    = methodName;
-                _node.TargetGraphId = "";
-                MarkChanged();
+                _srcResolvedMethod = true;
+                _srcLoc            = ClrSourceLocator.Resolve(method);
             }
         }
 
-        ImGui.TextDisabled("(CLR method browser deferred — enter type/method names directly)");
+        ImGui.Separator();
+
+        bool canOpen = _srcLoc.HasValue;
+        ImGui.BeginDisabled(!canOpen);
+        if (ImGui.Button("...")) // the punch-list "⋯" affordance (ASCII for font safety)
+        {
+            if (_srcLoc.HasValue) SourceFileOpener.Open(_srcLoc.Value.File, _srcLoc.Value.Line);
+        }
+        ImGui.EndDisabled();
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Open the method's source in Visual Studio");
+
+        ImGui.SameLine();
+        if (_srcLoc.HasValue)
+            ImGui.TextDisabled($"{ShortFile(_srcLoc.Value.File)}:{_srcLoc.Value.Line}");
+        else if (_srcResolvedMethod)
+            ImGui.TextDisabled("(no source — missing PDB / dynamic assembly)");
+        else
+            ImGui.TextDisabled("(method not resolved)");
+    }
+
+    /// <summary>Last two path segments of a source file, for a compact inspector label.</summary>
+    private static string ShortFile(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return path;
+        var norm  = path.Replace('\\', '/');
+        var parts = norm.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length <= 2 ? norm : parts[^2] + "/" + parts[^1];
     }
 
     public void ResetDirty() => IsDirty = false;

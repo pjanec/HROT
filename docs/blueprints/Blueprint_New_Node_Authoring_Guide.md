@@ -1,8 +1,13 @@
-# How each new blueprint addition is authored (worked, FOR REVIEW — nothing built)
+# How each new blueprint addition is authored — SHIPPED pattern, in use
+
+> See [Blueprints_Overview.md](Blueprints_Overview.md) for the current capabilities + architecture
+> front door.
 
 > Answers "what does the designer actually drop, and how does a specific C# thing (an event struct, a
 > component) get *exposed* as a node with real pins?" Notation: `A ─►B` exec flow; `(pin←src)` a wired
-> data pin; `[var]` a blackboard variable.
+> data pin; `[var]` a blackboard variable. This catalog+picker+reified-pins pattern is shipped and in
+> active use: `PublishEvent`, `FlowForEach`, `[BlueprintCallable]` FunctionCall discovery, and channel
+> commands all ship this way.
 
 ## The one pattern that answers most of it: **catalog + picker + reified pins**
 
@@ -115,6 +120,31 @@ public static bool HasTarget(uint targetNetworkId, Entity self, ISimulationView 
 by their trailing types, **hidden from the pins**, and auto-appended by the compiler. Read-only
 (`ISimulationView`). (RW / mutation → a `[SharedAiAction]` node instead, which gets `self`+`world`.)
 
+### 5a. Exposing a CLR helper in the picker — `[BlueprintCallable]` (architect-approved, Q#12)
+
+Designers must **never type** a type FQN / method name (fragile). CLR helpers callable from a
+`FunctionCall` node are surfaced in a **curated, grouped, read-only picker**; the designer picks, never
+types. A helper is declared discoverable with an **editor-only attribute**:
+```csharp
+[BlueprintCallable(Category = "Vector")]        // Category is MANDATORY (curation knob)
+public static Vector3 Vec3(float x, float y, float z) => new(x, y, z);
+```
+- **Constraints (architect):** `public static` methods only; the trailing-context rule (§5) is unchanged
+  (`Entity self` / `ISimulationView view` recognized + hidden).
+- **Editor-only discovery.** The editor reflection-scans loaded game assemblies for the attribute (a minor
+  extension of the `NodePinSchema.ResolveType` assembly scan it already does) and builds the picker,
+  grouped by `Category`. The designer's pick just bakes `TargetTypeId` + `MethodName` onto the node.
+- **Compiler is untouched.** It never reads the attribute — it resolves the call from the baked
+  `TargetTypeId`/`MethodName` via the Roslyn semantic model, exactly as for the (now dev-only) manual path.
+  This is why the attribute sidesteps the netstandard2.0-analyzer "can't load game assemblies" limit.
+- **No free-text FQN entry.** The user chose to drop the "advanced" manual-entry escape hatch the
+  architect had approved (Q-C): since the filterable picker always lists every candidate, to make a helper
+  callable you simply tag it `[BlueprintCallable]`. The CLR method is chosen **once, when the node is added**,
+  and the FunctionCall inspector shows it **read-only** thereafter (FQN + signature + the "…" open-in-VS).
+- **Validation.** A CLR FunctionCall whose method no longer resolves (renamed/removed from C#) renders with
+  a red **error** outline + an explanatory tooltip on the canvas (the compiler also errors at build). See
+  `Architect_Question_12_BlueprintCallable_Discovery.md`.
+
 ## 6. Slots — `AcquireSlot` / `ReleaseSlot` / `BurnSlot` (reuse existing `SlotRotation`)
 **Designer:** declare a `SlotRotationState` **WorkingState variable** (from the struct-type picker) —
 one for firing slots, one for baseline. The nodes operate on it:
@@ -135,6 +165,28 @@ SwapRemoveAt ([runners], index←i)                                 // O(1) comp
 ```
 Fixed named SoA columns (Entity + 3 bytes), cap 16. The `[InlineArray]`/`GetSpanRW()` write-loss
 hazard is handled inside the primitive — invisible to the designer.
+
+## 8. Struct values — `MakeStruct` / `BreakStruct` / `SetMembers` (shipped)
+
+One triple per `[BlackboardDtoStruct]`-tagged type, generated via `MakeBreakStructPaletteEntries`
+(same catalog+reify pattern as above, keyed off the struct's own fields instead of an event/channel
+catalog entry):
+```
+MakeStruct  <T>  (field pins in)  ─out► value            // construct from scratch
+BreakStruct <T>  (value in)       ─out► field pins        // decompose
+SetMembers  <T>  (value in, wired field pins in) ─out► value  // per-field write; unwired fields preserved
+```
+Enables struct-typed `Variables`, not just `Parameters`/`WorkingState`.
+
+## 9. Value ops — `Compare` / `BinaryOp` / `BooleanOp` / `Not` (shipped)
+
+Generic operator-keyed nodes, one node kind per operator family (round-out, not one node per operator):
+```
+Compare   (A, B, Operator←enum) ─► bool     // full ComparisonOperator enum
+BinaryOp  (A, B, Operator←enum) ─► numeric  // arithmetic ops
+BooleanOp (A, B, Operator←enum) ─► bool     // And/Or (no short-circuit)
+Not       (A) ─► bool
+```
 
 ---
 

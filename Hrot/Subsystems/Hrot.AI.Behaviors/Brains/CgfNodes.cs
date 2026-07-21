@@ -484,8 +484,8 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>
         /// BTree condition node: returns Success when the target entity is alive and
-        /// currently tracked in the entity's TargetMemory (visible + threat score > 0).
-        //  Return Failure when the target is dead.
+        /// currently tracked in the entity's TargetMemory (visible + threat score &gt; 0).
+        /// Return Failure when the target is dead.
         /// Return Running while the target is alive but out of sight.
         /// </summary>
         [BTreeCondition]

@@ -1,7 +1,10 @@
-# Blueprint Authoring — worked examples per use case (FOR REVIEW, nothing built yet)
+# Blueprint Authoring — worked examples per use case
+
+> See [Blueprints_Overview.md](Blueprints_Overview.md) for the current capabilities + architecture
+> front door.
 
 > **Purpose:** make the architect's "orchestration over C# leaf-helpers" model concrete, so we can
-> judge *purity vs practical need* before committing. Each example shows the **C# helper** a
+> judge *purity vs practical need*. Each example shows the **C# helper** a
 > programmer writes and the **blueprint graph** a designer wires, plus an honest **verdict** on how
 > much is actually visual. Graph sketches are `A ─► B` flow; `[param]` = a value from the blackboard.
 
@@ -69,8 +72,8 @@ public static NodeStatus DispatchOrder(Entity target, /*…scalars…*/ Entity s
     return NodeStatus.Success;
 }
 ```
-**Verdict:** publishing one event is a clean visual action. **Blueprint value: medium-high.** Needs
-GAP-3 (a catalog-gated `[SharedAiAction]` publish node + the deferred-event plumbing).
+**Verdict:** publishing one event is a clean visual action. **Blueprint value: medium-high.** Shipped
+as the `PublishEvent` node (catalog-gated, per-field pins, Self/Any target routing).
 
 ## 4. Respond to an event — an **Event node** per event (handler entry, Unreal-style)
 
@@ -78,13 +81,15 @@ GAP-3 (a catalog-gated `[SharedAiAction]` publish node + the deferred-event plum
 Event "Move Completed" (─out Reason) ─► Branch(Reason == Arrived) ─► …
 Event "Hit"            (─out Damage)  ─► …                                // a 2nd handler in the same graph
 ```
-An `EventEntry` with a specific `EventTypeId` = "when this event fires, run this chain." Same
-`EngineEventCatalog` dropdown as `PublishEvent`, mirrored: the event's fields are **output** pins (the
-payload). Drop several — multiple handlers per graph. `When` (edge/threshold) and `WaitForEvent`
-(inline mid-sequence pause) are *different, narrower* tools — see the New-Node Authoring Guide §1b.
-**Verdict:** the intuitive, correct shape for reacting to events. **Blueprint value: high.**
-*(Caveat: multi-handler scheduling to be verified/completed; `WaitForEvent`'s FQN bug is only relevant
-to that niche pause tool, not this handler path.)*
+An `EventEntry` with a specific `EventTypeId`, placed in an **Event graph**, = "when this event fires,
+run this chain." Custom events are published via `PublishEvent` and subscribed to via this
+`EventEntry`, with a **Self/Any** recipient filter; both are discovered via
+`[BlueprintEvent]`/`[EventTarget]` and dispatched by `BlueprintEventDispatch` from
+`BlueprintTickSystem`. Same `EngineEventCatalog` dropdown as `PublishEvent`, mirrored: the event's
+fields are **output** pins (the payload). Drop several — multiple handlers per graph. `When`
+(edge/threshold) and `WaitForEvent` (inline mid-sequence pause) are *different, narrower* tools — see
+the New-Node Authoring Guide §1b.
+**Verdict:** the intuitive, correct shape for reacting to events. **Blueprint value: high.** Shipped.
 
 ## 5. Loop over a roster/array — `Action_DispatchAllToBaseline`  ← the contentious one
 
@@ -105,26 +110,27 @@ EventEntry ─► Action "DispatchAllToBaseline" ─► Return(Success)
 "complexity just moved to a different part" case. For *this* node it's arguably fine (the loop body is
 genuinely complex domain math). But note the blueprint is a fig leaf here.
 
-**If we had a bounded `ForEach`** (see discussion — feasible, deferred by choice):
+**With the shipped `FlowForEach`:**
 ```
-EventEntry ─► ForEach(over [UnitRoster])
-                 └body► FunctionCall(ComputeBaseline, i, [params]) ─► Action(PublishOrder, target←roster[i], pos)
-           ─► Return(Success)
+EventEntry ─► FlowForEach(Collection←[UnitRoster])
+                 └Loop Body► FunctionCall(ComputeBaseline, i, [params]) ─► PublishEvent(order, target←roster[i], pos)
+                 └Completed► Return(Success)
 ```
 Now the *iterate + per-member dispatch* is visible; only the small compute/publish are helpers.
-**Blueprint value: none (helper) vs medium (ForEach).** This is the trade to weigh.
+**Blueprint value: none (helper) vs medium (FlowForEach).** Both remain valid choices depending on
+how much of the loop body is worth exposing.
 
 ---
 
 ## Summary — where blueprints earn their keep
 
-| Use case | Blueprint value under orchestration-model | Needs |
+| Use case | Blueprint value under orchestration-model | Shipped as |
 |----------|-------------------------------------------|-------|
-| Movement / channel command (ex. 2) | **High** — fully visual today | — |
-| Publish one event (ex. 3) | **Medium-high** | GAP-3 |
-| Read-based condition (ex. 1) | **Medium** — decision visible, scan in C# | GAP-7 |
-| Respond to event (ex. 4) | **High** — Event-node handler (not WaitForEvent) | verify multi-handler scheduling |
-| Loop + per-item work (ex. 5) | **None (helper) / Medium (ForEach)** | GAP-1 (contested) |
+| Movement / channel command (ex. 2) | **High** — fully visual today | `ChannelCommand` |
+| Publish one event (ex. 3) | **Medium-high** | `PublishEvent` |
+| Read-based condition (ex. 1) | **Medium** — decision visible, scan in C# | GAP-7 (context-aware `FunctionCall`) |
+| Respond to event (ex. 4) | **High** — Event-node handler (not WaitForEvent) | `EventEntry` in an Event graph |
+| Loop + per-item work (ex. 5) | **None (helper) / Medium (FlowForEach)** | `FlowForEach` |
 
 **Takeaway:** blueprints add the most for **command/event/decision orchestration**; they add the
 least for **data-processing leaves** (loops, scans), which the model pushes to C#. The Platoon

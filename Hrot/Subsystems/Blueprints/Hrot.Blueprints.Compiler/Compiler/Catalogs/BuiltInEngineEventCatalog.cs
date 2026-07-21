@@ -226,6 +226,13 @@ public sealed class BuiltInEngineEventCatalog : IEngineEventCatalog
                 FilterableFields:    new[] { "IntentId", "JsonParams" },
                 QoS:                 EventQoS.Reliable,
                 PropagatesAcrossNodes: true,
-                Managed:             true),
+                Managed:             true,
+                // Payload data-in pins (besides the "Target" entity) — string IntentId + JsonParams.
+                // Baked so a pin-less PublishEvent node rehydrates these pins (Blocker-1 part 2).
+                PayloadFields:       new EventPayloadField[]
+                {
+                    new("IntentId",   "System.String"),
+                    new("JsonParams", "System.String"),
+                }),
         };
 }

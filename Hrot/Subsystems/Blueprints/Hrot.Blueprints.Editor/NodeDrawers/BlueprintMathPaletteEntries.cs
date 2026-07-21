@@ -108,7 +108,7 @@ public static class BlueprintMathPaletteEntries
             DisplayName = displayName,
             Category    = category,
             Tooltip     = tooltip,
-            Icon        = "",
+            Icon        = "bp/pure",
             CreateInstance = () => new FunctionCallNode
             {
                 Id           = Guid.NewGuid(),

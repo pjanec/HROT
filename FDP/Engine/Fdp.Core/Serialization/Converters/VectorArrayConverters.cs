@@ -7,6 +7,23 @@ using System.Text.Json.Serialization;
 namespace Fdp.Core.Serialization.Converters
 {
     /// <summary>
+    /// Shared numeric formatter for the compact vector/quaternion converters below.
+    /// <para>
+    /// These converters emit their components via <see cref="Utf8JsonWriter.WriteRawValue(string,bool)"/>,
+    /// whose default input validation REJECTS non-finite tokens: <c>float.ToString("G9")</c> renders NaN /
+    /// ±Infinity as the bare words <c>NaN</c>/<c>Infinity</c>/<c>-Infinity</c>, which are not valid JSON, so
+    /// the writer throws and — during a whole-scenario save — takes the editor down. A single stray non-finite
+    /// component (an uninitialised transform, a divide-by-zero upstream) must never crash serialization, so we
+    /// clamp non-finite values to <c>0</c>. Finite values are unchanged (identical G9 output as before).
+    /// </para>
+    /// </summary>
+    internal static class VectorJsonFormat
+    {
+        public static string F(float v) =>
+            float.IsFinite(v) ? v.ToString("G9", CultureInfo.InvariantCulture) : "0";
+    }
+
+    /// <summary>
     /// Serializes/deserializes <see cref="Vector2"/> as a compact single-line JSON array
     /// <c>[x, y]</c> rather than the default verbose object form.
     /// Used in <see cref="FdpJsonOptionsRegistry.DefaultRelaxed"/> so all <c>Vector2</c>-typed
@@ -27,8 +44,8 @@ namespace Fdp.Core.Serialization.Converters
         {
             // WriteRawValue bypasses the global indentation rules so the array stays on one line
             // even when WriteIndented = true is set on the enclosing JsonSerializerOptions.
-            string x = value.X.ToString("G9", CultureInfo.InvariantCulture);
-            string y = value.Y.ToString("G9", CultureInfo.InvariantCulture);
+            string x = VectorJsonFormat.F(value.X);
+            string y = VectorJsonFormat.F(value.Y);
             writer.WriteRawValue($"[{x}, {y}]");
         }
     }
@@ -50,9 +67,9 @@ namespace Fdp.Core.Serialization.Converters
 
         public override void Write(Utf8JsonWriter writer, Vector3 value, JsonSerializerOptions options)
         {
-            string x = value.X.ToString("G9", CultureInfo.InvariantCulture);
-            string y = value.Y.ToString("G9", CultureInfo.InvariantCulture);
-            string z = value.Z.ToString("G9", CultureInfo.InvariantCulture);
+            string x = VectorJsonFormat.F(value.X);
+            string y = VectorJsonFormat.F(value.Y);
+            string z = VectorJsonFormat.F(value.Z);
             writer.WriteRawValue($"[{x}, {y}, {z}]");
         }
     }
@@ -75,10 +92,10 @@ namespace Fdp.Core.Serialization.Converters
 
         public override void Write(Utf8JsonWriter writer, Quaternion value, JsonSerializerOptions options)
         {
-            string x = value.X.ToString("G9", CultureInfo.InvariantCulture);
-            string y = value.Y.ToString("G9", CultureInfo.InvariantCulture);
-            string z = value.Z.ToString("G9", CultureInfo.InvariantCulture);
-            string w = value.W.ToString("G9", CultureInfo.InvariantCulture);
+            string x = VectorJsonFormat.F(value.X);
+            string y = VectorJsonFormat.F(value.Y);
+            string z = VectorJsonFormat.F(value.Z);
+            string w = VectorJsonFormat.F(value.W);
             writer.WriteRawValue($"[{x}, {y}, {z}, {w}]");
         }
     }
@@ -101,10 +118,10 @@ namespace Fdp.Core.Serialization.Converters
 
         public override void Write(Utf8JsonWriter writer, Vector4 value, JsonSerializerOptions options)
         {
-            string x = value.X.ToString("G9", CultureInfo.InvariantCulture);
-            string y = value.Y.ToString("G9", CultureInfo.InvariantCulture);
-            string z = value.Z.ToString("G9", CultureInfo.InvariantCulture);
-            string w = value.W.ToString("G9", CultureInfo.InvariantCulture);
+            string x = VectorJsonFormat.F(value.X);
+            string y = VectorJsonFormat.F(value.Y);
+            string z = VectorJsonFormat.F(value.Z);
+            string w = VectorJsonFormat.F(value.W);
             writer.WriteRawValue($"[{x}, {y}, {z}, {w}]");
         }
     }

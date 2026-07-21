@@ -1,5 +1,7 @@
 # Hrot.Blueprints.Compiler
 
+> Manually maintained; last verified 2026-07-21 against the implemented code.
+
 - **Project file**: `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Hrot.Blueprints.Compiler.csproj`
 - **Target framework**: netstandard2.0
 - **Namespace root**: `Hrot.Blueprints.Core.Compiler`
@@ -22,15 +24,31 @@ graph authored in the editor -- into a self-contained C# source file (`.g.cs`). 
 generated source is subsequently compiled by Roslyn and hot-loaded into the running
 simulation.
 
-The compiler is structured as a strict **seven-stage pipeline**. Each stage has a single
-responsibility and passes an immutable or append-only data structure to the next stage.
-Stages communicate errors and warnings through a shared `DiagnosticSink`; the pipeline
-aborts early whenever errors accumulate.
+The compiler is structured as a strict **Stage0–Stage8 pipeline**: Parse(1) →
+**Rehydrate(0, runs right after Parse, before Validate)** → Validate(2) → Normalize(3) →
+TypeResolve(4) → Schedule/IR(5) → Lower(6) → Emit C#(7) → Roslyn PE/PDB(8). Each stage has a
+single responsibility and passes an immutable or append-only data structure to the next
+stage. `Stage0_Rehydrate` reflection-free reconstructs pin/link data that must mirror the
+editor's `NodePinSchema`. Stages communicate errors and warnings through a shared
+`DiagnosticSink`; the pipeline aborts early whenever errors accumulate.
+
+**Stage 1 is not actually invoked by `BlueprintCompiler.Compile`.** `Compile(BlueprintAsset
+asset, CompileOptions options)` takes an already-deserialized asset and starts directly at
+Stage 0 (Rehydrate); the real production entry points (`Hrot.Blueprints.Generators`'
+`CompileOneAsset`, and the editor's `QuickReloadService`) deserialize JSON themselves via
+`BlueprintJsonServices.Deserialize` and never call `Stage1_Parse.Run`. `Stage1_Parse` exists
+as a standalone helper (own `BP0001`/`BP0002`/`BP0010`/`BP0011` checks) exercised directly
+only by `Stage1_ParseTests`/`Stage1To5Tests` in the test project.
 
 The Roslyn finalization stage (Stage 8) exists as source in a sibling `Roslyn/` folder and
 in `Stage8_RoslynFinalize.cs`, but is **excluded from this project's compilation** via
 `<Compile Remove>` directives. The Roslyn step is linked into the runtime-facing assembly
 (`Hrot.Blueprints.Core`) instead.
+
+The node catalog has grown to **~42 concrete node kinds** (see `Assets/Nodes.cs` below),
+including custom-events pub/sub (`PublishEvent` + `EventEntry` with a Self/Any filter,
+multi-pin per-field pins), the struct-value triple (`MakeStruct`/`BreakStruct`/`SetMembers`),
+and struct-typed `Variables`.
 
 Three Blueprint dispatch kinds are supported:
 
@@ -54,11 +72,17 @@ Three Blueprint dispatch kinds are supported:
            v
   +------------------+     +-----------------+
   |  Stage1_Parse    |---->| DiagnosticSink  |  BP0001, BP0002, BP0010, BP0011
-  +------------------+     +-----------------+
+  +------------------+     +-----------------+  (standalone helper; NOT called by
+                                                  BlueprintCompiler.Compile -- see above)
            |
            v
   +------------------+     +-----------------+
-  | Stage2_Validate  |---->| DiagnosticSink  |  BP1xxx + BP20xx series (17 validators)
+  | Stage0_Rehydrate |---->| DiagnosticSink  |  reflection-free pin/link reconstruction,
+  +------------------+     +-----------------+  mirrors editor's NodePinSchema
+           |
+           v
+  +------------------+     +-----------------+
+  | Stage2_Validate  |---->| DiagnosticSink  |  BP0xxx-BP2xxx series (21 validators)
   +------------------+     +-----------------+
            |
            v
@@ -210,7 +234,7 @@ during normalization).
 | `BlueprintAsset.cs` | Root asset object. Holds header, identity, dispatch kind, declarations, and graphs. |
 | `Declarations.cs` | `VariableDecl`, `ParameterDecl`, `EventDispatcherDecl`, `CustomEventDecl`, `BlueprintTypeRef`. |
 | `GraphTypes.cs` | `Graph`, `Pin`, `Link`, `GraphKind`, `NodeMetadata`, `AssetMetadata`, `Header`, `NodeStatus`. |
-| `Nodes.cs` | `Node` hierarchy (26 concrete node types), polymorphic JSON via `[JsonDerivedType]`. |
+| `Nodes.cs` | `Node` hierarchy (42 concrete node kinds, one `[JsonDerivedType]` entry per kind -- confirmed by direct count). Includes `PublishEvent`, `MakeStruct`, `BreakStruct`, `SetMembers`, `FlowForEach`, `Compare`, `BinaryOp`, `BooleanOp`, `Not`, `GetComponent`, `GetParameter`, `GetAllParameters`, `GetShared`, `SetShared`, `When`, `SpawnEqsSensor`, `ReadEqsResult`, `ScoreDecision`, `ReadRankedResult`, `CallPeerBlueprint`, and the squad quartet (`PartitionElements`/`AssignRoles`/`AdvancePhase`/`AcquireSlot`). `FunctionCallNode` additionally carries a `TargetGraphId` + `TrailingContext` pair: when `TargetGraphId` is non-empty the node is an in-blueprint call to a local `Function` graph (lowers to `IrOp_GraphCall`, validated by `V_FunctionGraphCallRules`) rather than a CLR method call. |
 
 ### `Compiler/` -- Pipeline root
 
@@ -221,6 +245,8 @@ during normalization).
 | `BlueprintSignatureParser.cs` | Reads only identity/dispatch/export fields from JSON without parsing node/link data. |
 | `CompileOptions.cs` | Input parameters record: `CompilerMode`, registries, catalogs, sibling signatures. |
 | `CompileResult.cs` | Output record: success flag, generated source, file name, blueprint ID, structure hash, debug map, diagnostics, canonical asset, PE/PDB bytes. |
+| `DeterministicIds.cs` | Deterministic pin/link `Guid` derivation (e.g. `PinId(nodeId, pinName, direction)`), byte-identical to the editor's `IdGenerator.Deterministic`; used for programmatic `.bp.json` edits and rebind. |
+| `ISearchPredicateRegistry.cs` | Marker interface injected into a generated `InitializePredicates` registrar method for `ConditionMet`-mode `WhenNode` blueprints; implemented by the editor host. |
 | `IrPrinter.cs` | `internal` utility for human-readable SSA dump (snapshot tests, debugging). |
 | `BlueprintJsonServices.cs` | `System.Text.Json` serialize/deserialize with `DefaultJsonTypeInfoResolver`. |
 
@@ -229,7 +255,8 @@ during normalization).
 | File | Description |
 |------|-------------|
 | `Stage1_Parse.cs` | Deserializes JSON to `BlueprintAsset`; validates non-null result and non-empty identity. |
-| `Stage2_Validate.cs` | Runs 17 sequential validators (see below). Stops on fatal errors. |
+| `Stage0_Rehydrate.cs` | Runs right after Parse, before Validate. Reflection-free pin/link reconstruction that must mirror the editor's `NodePinSchema`. |
+| `Stage2_Validate.cs` | Runs 21 sequential validators (see below). Stops on fatal errors. |
 | `Stage3_Normalize.cs` | Three normalization passes: materialize default pin literals, insert implicit casts, eliminate orphan nodes. |
 | `Stage4_TypeResolve.cs` | Resolves `BlueprintTypeRef` strings to `IrTypeRef` records; two-pass wildcard propagation for array nodes; enforces unmanaged constraint on state fields. |
 | `Stage5_Schedule.cs` | BFS-based basic-block scheduler. Converts the graph's node/link structure into SSA-style `IrBlock` lists via `GraphScheduler`. |
@@ -246,19 +273,23 @@ during normalization).
 | `V_DispatchKindCompatibility` | BP1010-BP1031 | Ensures `Library`, `AiPrimitive`, and `Instance` use the correct declaration shape. |
 | `V_NodeStructure` | BP1601 | No duplicate pin IDs within a node. |
 | `V_LinkStructure` | BP1601, BP1602 | No duplicate links; source and target node/pin IDs must exist. |
-| `V_GraphStructure` | BP1601, BP1602 | Each graph has a reachable entry node; a `ReturnNode` is exec-reachable. |
+| `V_GraphStructure` | BP1601, BP1602, BP1102 | Each graph has a reachable entry node; a wired `OnFailure` chain (`WaitForChannel`/`WaitForEvent`) must terminate in an explicit `ReturnNode` (BP1102). |
 | `V_VariablesAndState` | BP1200-BP1211 | No duplicate variable/parameter IDs; name uniqueness across tables. |
-| `V_AiPrimitiveIntent` | BP1100, BP1101 | Action/Condition intent is consistent with graph return types. |
-| `V_LatentRules` | BP9001 | Library assets must not contain latent (wait) nodes. |
-| `V_ChannelCommandReferences` | BP1400-BP1402 | `ChannelCommandNode` references exist in `IChannelCommandCatalog`. |
-| `V_EventGraphReferences` | BP1400 | `EventEntryNode.EventTypeId` references a known engine event. |
-| `V_WaitNodeReferences` | BP1401 | `WaitForChannelNode` / `WaitForEventNode` targets exist in `IWaitPrimitiveCatalog`. |
+| `V_AiPrimitiveIntent` | BP1100, BP1101 | Action/Condition intent is consistent with graph return types; Condition graphs forbid `Return Running` and latent nodes. |
+| `V_LatentRules` | BP1101 | Library assets must not contain latent (wait) nodes. |
+| `V_ChannelCommandReferences` | BP1401 | `ChannelCommandNode` references exist in `IChannelCommandCatalog` (skipped for AN8 non-channel actions where `ActionFqn` is set). |
+| `V_EventGraphReferences` | BP1400 | `EventEntryNode.EventTypeId` references a known engine event or declared custom event. |
+| `V_WaitNodeReferences` | BP1402 | `WaitForChannelNode` / `WaitForEventNode` targets exist in `IWaitPrimitiveCatalog`. |
 | `V_PeerReferences` | BP1300-BP1302 | Peer blueprint Guids appear in `SiblingSignatures`; callee functions are exported. |
 | `V_TypeReferences` | BP1500-BP1503 | All `BlueprintTypeRef` strings resolve in `ITypeRegistry`; unmanaged constraint on state fields. |
 | `V_DeterminismOrdering` | (info only) | Checks that node/pin ordering in the JSON is stable. |
-| `V_WhenNodeRules` | BP2001-BP2015, BP2016, BP2017 | `WhenNode` payload fields are consistent with `Mode`; `BestEffort` events emit BP2016; Brain-targeted Blueprint subscribing to a Muscle-local event emits BP2017. |
+| `V_WhenNodeRules` | BP2001-BP2014, BP2016, BP2017 | `WhenNode` payload fields are consistent with `Mode`; `BestEffort` events emit BP2016; Brain-targeted Blueprint subscribing to a Muscle-local event emits BP2017. |
+| `V_FlowForEachRules` | BP2050 | `FlowForEachNode`'s "Body" exec-subgraph must be latent-free (Branch nodes are allowed -- they lower to a nested inline `if`/`else`). |
 | `V_ReadEqsResultNodeRules` | BP2020, BP2021 | `ReadEqsResultNode` is only valid in Instance Blueprints (`BP2020`); `SensorVariableName` must reference a declared `EqsSensorHandle`-typed variable (`BP2021`). |
 | `V_SpawnEqsSensorNodeRules` | BP2030, BP2031, BP2032 | `SpawnEqsSensorNode` is only valid in Instance Blueprints (`BP2030`); `TemplateAssetId` must be non-empty and present in `IEqsTemplateCatalog` when provided (`BP2031`); `InstanceId` derived from `node.Id.GetHashCode()` must not collide with another sensor in the same graph (`BP2032`). |
+| `V_SharedStateRules` | BP2040, BP2041, BP2042 | `GetSharedNode`/`SetSharedNode.SharedTypeId` must be non-empty (`BP2040`) and a well-formed dotted CLR type name (`BP2041`); forbidden in Library dispatch, which has no `self` in scope (`BP2042`). |
+| `V_FunctionGraphCallRules` | BP1650-BP1654 | Validates `FunctionCallNode.TargetGraphId` in-blueprint function calls: no latent nodes in the called graph (`BP1650`); target resolves to a `Function` graph (`BP1651`); caller arg count matches target `Inputs.Count` (`BP1652`); positional argument `TypeId` compatibility (`BP1653`); no call cycles (`BP1654`). |
+| `V_ExecOutFanOut` | BP1411 | Each exec-output pin may drive at most one successor (fan-out is silently dropped by the scheduler); use a `SequenceNode` to fan out. |
 
 ### `Compiler/Ir/` -- Intermediate representation
 
@@ -268,7 +299,7 @@ during normalization).
 | `IrGraph.cs` | `IrGraph` record + `IrGraphKind` enum. |
 | `IrBlock.cs` | `IrBlock` record + all `IrTerminator` subtypes: `Goto`, `Branch`, `Return`, `ReturnStatus`, `Suspend`, `FallThrough`. |
 | `IrStatement.cs` | `IrStatement` record: optional result `IrValue`, `IrOperation`, `IrDebugAnnotation`. |
-| `IrOperation.cs` | 30+ `IrOperation` record subtypes covering constants, variable reads/writes, pure calls, library/peer/AiPrimitive calls, ECS reads/writes, channel commands, wait primitives, WhenNode reactive-check operations (`IrOp_WhenValueChangedCheck`, `IrOp_WhenStorePrev`, `IrOp_WhenEventFiredCheck`, `IrOp_WhenConditionMetCheck`, `IrOp_WhenEqsResultCheck`), EQS reads/spawns (`IrOp_ReadEqsResult`, `IrOp_SpawnEqsSensor`), and debug probes. |
+| `IrOperation.cs` | 60+ `IrOperation` record subtypes covering constants, variable reads/writes, pure calls, library/peer/AiPrimitive/in-blueprint-graph calls (`IrOp_GraphCall`), custom-event raise/poll (`IrOp_RaiseCustomEvent`, `IrOp_PollEngineEvent`), ECS reads/writes, channel commands (`IrOp_ChannelCommand`, `IrOp_InlineActionCall`), wait primitives, inline control flow (`IrOp_ForEach`, `IrOp_If`), native comparison/arithmetic/boolean ops (`IrOp_Compare`, `IrOp_BinaryOp`, `IrOp_BooleanOp`, `IrOp_Not`), struct ops (`IrOp_MakeStruct`, `IrOp_SetMembers`, `IrOp_FieldRead`), shared-state ops (`IrOp_ReadShared`, `IrOp_WriteShared`, `IrOp_WriteSharedField`), bus events (`IrOp_PublishBusEvent`), WhenNode reactive-check operations (`IrOp_WhenValueChangedCheck`, `IrOp_WhenStorePrev`, `IrOp_WhenEventFiredCheck`, `IrOp_WhenConditionMetCheck`, `IrOp_WhenEqsResultCheck`), EQS/utility reads/spawns (`IrOp_ReadEqsResult`, `IrOp_SpawnEqsSensor`, `IrOp_ScoreDecision`, `IrOp_ReadRankedResult`), and debug probes. |
 | `IrTypeRef.cs` | `IrTypeRef` record: fully qualified name, array/element info, unmanaged flag, size in bytes, entity-handle flag. |
 | `IrValue.cs` | `IrValue(Index, Type)` -- SSA value reference. `IrBlockId(Value)` -- block reference. |
 | `IrDebugAnnotation.cs` | `IrDebugAnnotation` -- `GraphId`, optional `NodeId`, optional `PinId`, optional synthesized label. |
@@ -286,6 +317,8 @@ during normalization).
 | `BuiltInEngineEventCatalog.cs` | 11 built-in engine events in three categories: general (`HitEvent`, `BehaviorFinishedEvent`, `TargetVisibleEvent`), animation lifecycle events (`MontageStartedEvent`, `MontageEndedEvent`, `MontageSectionAdvancedEvent`, `StanceChangedEvent`; all Reliable + propagates across nodes), and animation notify events (`FootstepEvent` muscle-local only, `HitWindowOpenedEvent`, `HitWindowClosedEvent`, `HitNotifyEvent`). |
 | `BuiltInChannelCommandCatalog.cs` | Five built-in channel commands: `MoveTo`, `FollowRoute`, `AimAndFire`, `OpenDoor`, `EjectPassengers`. |
 | `BuiltInWaitPrimitiveCatalog.cs` | Five built-in wait primitives for channel and event waits. |
+| `IClrSignatureResolver.cs` | `IClrSignatureResolver`, `ClrMethodSig`, `ClrParamInfo` -- reflection-free `FunctionCallNode` signature resolution for the netstandard2.0 generator host; implemented by a project that can load the target assembly (e.g. the editor). |
+| `SquadPrimitiveNodeCatalog.cs` | `SquadPrimitiveNodeCatalog`, `SquadPrimitiveNodeEntry` -- editor-palette display metadata for the squad quartet nodes (`PartitionElements`/`AssignRoles`/`AdvancePhase`/`AcquireSlot`). |
 
 ### `Compiler/Lowering/` -- Stage 6 passes
 
@@ -316,6 +349,7 @@ during normalization).
 | `StatementEmitter.cs` | Switches over all `IrOperation` subtypes and emits the corresponding C# expression or statement. Uses `__t{index}` as SSA temporary variable names. |
 | `TerminatorEmitter.cs` | Emits `goto`, `if/else goto`, `return`, `return NodeStatus.*`. Throws on `IrTerm_Suspend` (must have been lowered). |
 | `ChannelCommandLowering.cs` | Inline emission of `GetComponentRW` + field writes for `IrOp_ChannelCommand`. |
+| `InlineActionLowering.cs` | Emits the inline-latent non-channel action call for `IrOp_InlineActionCall` (AN8: AiPrimitive `BlueprintCall` path and `[SharedAiAction]` direct-invocation path). |
 | `DebugMapBuilder.cs` | Maintains an open-node dictionary keyed on `NodeId`; records `(NodeId, GraphId, StartLine, EndLine)` spans. Builds a `DebugMap` record at the end. |
 | `DebugMapSerializer.cs` | Serializes/deserializes `DebugMap` to/from camelCase JSON, ordered deterministically by `GraphId` then `StartLine`. |
 | `Sanitizer.cs` | `SanitizeName`: converts Blueprint names to PascalCase C# identifiers by capitalizing after non-alphanumeric characters. `GeneratedFileName`: produces `{Name}_{Id:X8}_Bp.g.cs` or `BlueprintRegistrar_...` variants. |
@@ -848,16 +882,26 @@ assembly, in-place memory patch is safe; if not, a full re-registration is requi
 | BP1025 | Validate | Error | AiPrimitive contains event graphs. |
 | BP1030 | Validate | Error | Instance asset has a `primitive` block. |
 | BP1031 | Validate | Error | Instance asset uses `parameters`/`workingState`. |
+| BP1100, BP1101 | Validate | Error | Condition intent returns `Running`, or contains a latent node (also used by `V_LatentRules` for Library assets). |
+| BP1102 | Validate | Error | A wired `OnFailure` chain does not terminate in an explicit `ReturnNode`. |
 | BP1300-1302 | Validate | Error | Peer blueprint or called function not found in sibling signatures. |
-| BP1400-1402 | Validate | Error | Channel/event/wait catalog reference not found. |
+| BP1400 | Validate | Error | `EventEntryNode.EventTypeId` not found in the engine event catalog or custom events. |
+| BP1401 | Validate | Error | `ChannelCommandNode` reference not found in `IChannelCommandCatalog`. |
+| BP1402 | Validate | Error | `WaitForChannelNode`/`WaitForEventNode` target not found in `IWaitPrimitiveCatalog`. |
+| BP1411 | Validate | Error | Exec-output pin drives more than one successor (`V_ExecOutFanOut`). |
 | BP1500 | Validate/TypeResolve | Error | Type string not found in registry. |
 | BP1501 | Validate | Error | Type reference constraint violation. |
 | BP1502 | TypeResolve | Error | Unresolvable wildcard (ArrayMakeNode/ArrayGetNode). |
 | BP1503 | TypeResolve | Error | Managed type in unmanaged state struct. |
-| BP1601 | Validate | Error/Warning | Duplicate pin IDs or duplicate links. |
-| BP1602 | Validate | Error | Broken link reference; graph has no entry node. |
-| BP2001 | Normalize | Warning | Orphan node eliminated. |
-| BP2002 | Normalize | Warning | Implicit cast inserted. |
+| BP1600-1602 | Validate | Error/Warning | Orphaned node (info), duplicate pin IDs / links, or broken link / missing entry node. |
+| BP1650-1654 | Validate | Error | `FunctionCallNode.TargetGraphId` in-blueprint call errors: latent node in target, unresolved target, arg-count/type mismatch, call cycle (`V_FunctionGraphCallRules`). |
+| BP2001-BP2017 | Validate | Error/Warning | `WhenNode` payload/mode/edge consistency (`V_WhenNodeRules`); BP2016 (BestEffort QoS) and BP2017 (non-propagating event to a Brain node) are warnings/errors surfaced by the animation subsystem's DDS integration. |
+| BP2020-2021 | Validate | Error | `ReadEqsResultNode` dispatch/sensor-variable rules. |
+| BP2030-2032 | Validate | Error | `SpawnEqsSensorNode` dispatch/template/instance-id-collision rules. |
+| BP2040-2042 | Validate | Error | `GetSharedNode`/`SetSharedNode.SharedTypeId` empty, malformed, or used in unsupported (Library) dispatch. |
+| BP2050 | Validate | Error | `FlowForEachNode` body contains a latent node. |
+| BP3010 | Normalize | Warning | Orphan node eliminated. |
+| BP3011 | Normalize | Warning | Implicit cast inserted. |
 | BP4001-4004 | Schedule | Error | Scheduling errors (unreachable code, missing pin). |
 | BP5001 | Lower | Error | Library asset has no function graphs. |
 | BP9001 | Internal | Error | Library asset contains latent op (should have been caught earlier). |

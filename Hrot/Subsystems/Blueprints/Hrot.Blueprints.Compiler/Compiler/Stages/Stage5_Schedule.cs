@@ -175,11 +175,39 @@ internal sealed class GraphScheduler
     // Per-block CSE cache (cleared when starting each new block)
     private readonly Dictionary<Guid, IrValue> _pinValueCache = new();
 
+    // Cross-block cache for values produced by IMPURE exec statements (e.g. a non-pure
+    // FunctionCall's Return pin, a CallPeerBlueprint's Return pin). Unlike _pinValueCache
+    // (cleared per block -- correct for pure/recomputable reads whose upstream may have been
+    // mutated by an intervening write), a statement-produced value is materialized exactly
+    // once as a real C# local (__tN) at the point the statement is scheduled; the emitted
+    // TickCore body is flat (goto-based, no nested scopes), so that local remains in scope and
+    // definitely-assigned for any later block reachable only through the block that declared
+    // it. Consuming such a pin from a later block must reuse the already-materialized value,
+    // NOT fall through ResolveNodeOutput's switch to the "default" fallback (which would both
+    // produce a bogus value AND, if it matched a re-invocable case, incorrectly re-run the side
+    // effect). Never cleared -- populated at the same sites that write _pinValueCache for
+    // statement-scheduled (non-pure) node outputs, checked first in ResolveDataPin /
+    // ResolveNodeOutput.
+    private readonly Dictionary<Guid, IrValue> _statementPinCache = new();
+
     // Tracks whether a block has been fully scheduled
     private readonly HashSet<int> _scheduledBlocks = new();
 
     // Tracks which block each exec node's statements landed in (nodeId → blockId).
     private readonly Dictionary<Guid, int> _execNodeToBlockId = new();
+
+    // Convergent control flow (merge points). A node reached by >= 2 incoming exec edges is a
+    // "merge point": every predecessor path must JUMP to one shared block for it, rather than
+    // re-inlining its downstream chain into each predecessor's block (which would duplicate the
+    // node's code and, for a Branch, produce duplicate goto labels -> CS0140). _mergePoints is
+    // precomputed from exec in-degree; _mergeBlockForNode lazily allocates the one shared block.
+    // Scope: applied at the Branch-arm, linear-chain, FlowForEach-"Completed", and latent-resume
+    // successor sites -- the ways a diamond/join is formed in a valid graph. (A Sequence-branch or
+    // When-arm root cannot also be a merge target in a well-structured graph: its fall-through
+    // continuation is position-dependent, which a shared block cannot express, so those sites keep
+    // their 1-edge behavior.)
+    private readonly HashSet<Guid> _mergePoints = new();
+    private readonly Dictionary<Guid, int> _mergeBlockForNode = new();
 
     // Fall-through redirect: when a branch's chain ends in block X,
     // control continues to _fallThroughTarget[X] instead of falling through.
@@ -210,6 +238,8 @@ internal sealed class GraphScheduler
                 Entry = new IrBlockId(0),
             };
         }
+
+        ComputeMergePoints();
 
         var entryBlockId = AllocBlock("entry");
         _blockBuilders[entryBlockId.Value].SourceNodeId = entryNode.Id;
@@ -263,6 +293,17 @@ internal sealed class GraphScheduler
             Id      = _graph.Id,
             Name    = _graph.Name,
             Kind    = MapGraphKind(_graph.Kind),
+            // Q#14: for an Event graph, carry the event identity from its EventEntry so the emitter can key
+            // EventHandlers by it (the graph name is a method-name suffix and can't be the FQN).
+            EventTypeFqn = _graph.Kind == GraphKind.Event
+                ? (entryNode as EventEntryNode)?.EventTypeId
+                : null,
+            // Q#14 (3d): Self/Any recipient filter, carried from the EventEntry for the thunk guard.
+            TargetFilterSelf = _graph.Kind == GraphKind.Event
+                && (entryNode as EventEntryNode)?.TargetFilterSelf == true,
+            TargetFieldName = _graph.Kind == GraphKind.Event
+                ? (entryNode as EventEntryNode)?.TargetFieldName
+                : null,
             Inputs  = irInputs,
             Outputs = irOutputs,
             Blocks  = _blockBuilders.Select(b => b.Build()).ToList().AsReadOnly(),
@@ -345,11 +386,22 @@ internal sealed class GraphScheduler
                     return;
 
                 case WaitForChannelNode wfc:
-                    ScheduleLatentNode(wfc, bb, BuildWaitForChannelOp(wfc));
+                    // Q#13: the success continuation is the exec-out that is NOT "OnFailure" (named
+                    // "Out" in real pin-less assets, "ExecOut" via the test builder — resolve by
+                    // exclusion, not a fixed name). The optional "OnFailure" exec-out, when wired,
+                    // becomes the channel-Failure continuation. GetSingleExecSuccessor no longer works
+                    // (two exec-outs). Unwired OnFailure ⇒ null ⇒ auto-Failure (byte-identical).
+                    ScheduleLatentNode(wfc, bb, BuildWaitForChannelOp(wfc),
+                        successSuccessor: GetExecSuccessorExcludingPinName(wfc, "OnFailure"),
+                        failureSuccessor: GetExecSuccessorByPinName(wfc, "OnFailure"));
                     return;
 
                 case WaitForEventNode wfe:
-                    ScheduleLatentNode(wfe, bb, BuildWaitForEventOp(wfe));
+                    // Q#13-D: same OnFailure split as WaitForChannel — success is the non-"OnFailure"
+                    // exec-out; a wired "OnFailure" routes the failure resume. Unwired ⇒ unchanged.
+                    ScheduleLatentNode(wfe, bb, BuildWaitForEventOp(wfe),
+                        successSuccessor: GetExecSuccessorExcludingPinName(wfe, "OnFailure"),
+                        failureSuccessor: GetExecSuccessorByPinName(wfe, "OnFailure"));
                     return;
 
                 case WhenNode wn:
@@ -374,6 +426,11 @@ internal sealed class GraphScheduler
                     {
                         ReportDroppedExecSuccessors(fe);
                         SealFallThrough(blockId, bb, DebugOf(fe));
+                        return;
+                    }
+                    if (IsMergePoint(feCompleted.Id))
+                    {
+                        bb.Terminator = new IrTerm_Goto(GetOrAllocMergeBlock(feCompleted)) { Debug = DebugOf(fe) };
                         return;
                     }
                     node = feCompleted;
@@ -420,6 +477,13 @@ internal sealed class GraphScheduler
                         SealFallThrough(blockId, bb, DebugOf(node));
                         return;
                     }
+                    if (IsMergePoint(succ.Id))
+                    {
+                        // Convergent successor: jump to its shared block instead of re-inlining its
+                        // chain here (another predecessor also reaches it).
+                        bb.Terminator = new IrTerm_Goto(GetOrAllocMergeBlock(succ)) { Debug = DebugOf(node) };
+                        return;
+                    }
                     node = succ;
                     continue;
             }
@@ -430,7 +494,8 @@ internal sealed class GraphScheduler
     // Latent node handling (SC5)
     // -----------------------------------------------------------------------
 
-    private void ScheduleLatentNode(Node node, BlockBuilder bb, IrOperation latentOp)
+    private void ScheduleLatentNode(Node node, BlockBuilder bb, IrOperation latentOp,
+        Node? successSuccessor = null, Node? failureSuccessor = null)
     {
         // The pre-suspend block now represents this latent node.
         bb.SourceNodeId = node.Id;
@@ -464,10 +529,30 @@ internal sealed class GraphScheduler
             },
         });
 
+        // Q#13: when a failure continuation is supplied (WaitForChannel with OnFailure wired),
+        // allocate a parallel failure-resume block, enqueue its exec chain, and thread it via
+        // Suspend.FailureBlock so WaitLowering routes a channel-Failure resume here instead of
+        // returning NodeStatus.Failure. Null ⇒ unchanged auto-Failure behavior.
+        IrBlockId? failureResumeBlockId = null;
+        if (failureSuccessor is not null)
+        {
+            var failBlockId = AllocBlock($"wait_fail_{_resumeCounter - 1}");
+            failureResumeBlockId = failBlockId;
+            if (IsMergePoint(failureSuccessor.Id))
+            {
+                _blockBuilders[failBlockId.Value].Terminator =
+                    new IrTerm_Goto(GetOrAllocMergeBlock(failureSuccessor)) { Debug = DebugOf(node) };
+                _scheduledBlocks.Add(failBlockId.Value);
+            }
+            else
+                _bfsQueue.Enqueue((failBlockId.Value, failureSuccessor));
+        }
+
         bb.Terminator = new IrTerm_Suspend(
             ResumePoint  : resumePointValue,
             WaitUntilTime: null,
-            ResumeBlock  : resumeBlockId)
+            ResumeBlock  : resumeBlockId,
+            FailureBlock : failureResumeBlockId)
         {
             Debug = DebugOf(node),
         };
@@ -477,9 +562,18 @@ internal sealed class GraphScheduler
         if (_fallThroughTarget.TryGetValue(bb.Id.Value, out var latentFt))
             _fallThroughTarget[resumeBlockId.Value] = latentFt;
 
-        // Enqueue continuation in resume block.
-        var continuation = GetSingleExecSuccessor(node);
-        if (continuation is not null)
+        // Enqueue continuation in resume block. Q#13: prefer the caller-resolved success successor
+        // (WaitForChannel's "Out") — GetSingleExecSuccessor returns null once the node has >1 exec-out.
+        var continuation = successSuccessor ?? GetSingleExecSuccessor(node);
+        if (continuation is not null && IsMergePoint(continuation.Id))
+        {
+            // Convergent continuation: the resume block jumps to the shared merge block rather than
+            // re-inlining the join here (another path also reaches it).
+            _blockBuilders[resumeBlockId.Value].Terminator =
+                new IrTerm_Goto(GetOrAllocMergeBlock(continuation)) { Debug = DebugOf(node) };
+            _scheduledBlocks.Add(resumeBlockId.Value);
+        }
+        else if (continuation is not null)
             _bfsQueue.Enqueue((resumeBlockId.Value, continuation));
         else
         {
@@ -563,27 +657,44 @@ internal sealed class GraphScheduler
         TagFirstNewStatement(bb.Statements, branchStmtsBefore, bn.Id);
 
         var idShort = bn.Id.ToString("N").Substring(0, 8);
-        var trueBlock  = AllocBlock($"branch_{idShort}_true");
-        var falseBlock = AllocBlock($"branch_{idShort}_false");
+        var (trueSucc, falseSucc) = GetBranchSuccessors(bn);
 
-        // Propagate fall-through target to both branch exit blocks
-        // (so a Branch inside a Sequence branch continues to the next branch).
-        if (_fallThroughTarget.TryGetValue(bb.Id.Value, out var branchFt))
-        {
-            _fallThroughTarget[trueBlock.Value] = branchFt;
-            _fallThroughTarget[falseBlock.Value] = branchFt;
-        }
+        // Fall-through target inherited by FRESH arm blocks (Branch inside a Sequence branch -> the
+        // arm continues to the next sequence branch). A shared merge block does NOT inherit it.
+        IrBlockId? branchFt = _fallThroughTarget.TryGetValue(bb.Id.Value, out var ft) ? ft : (IrBlockId?)null;
+
+        var trueBlock  = ResolveArmBlock(trueSucc,  $"branch_{idShort}_true",  branchFt);
+        var falseBlock = ResolveArmBlock(falseSucc, $"branch_{idShort}_false", branchFt);
 
         bb.Terminator = new IrTerm_Branch(condValue, trueBlock, falseBlock)
         {
             Debug = DebugOf(bn),
         };
+    }
 
-        var (trueSucc, falseSucc) = GetBranchSuccessors(bn);
-        if (trueSucc  is not null) _bfsQueue.Enqueue((trueBlock.Value,  trueSucc));
-        else SealFallThrough(trueBlock.Value, _blockBuilders[trueBlock.Value]);
-        if (falseSucc is not null) _bfsQueue.Enqueue((falseBlock.Value, falseSucc));
-        else SealFallThrough(falseBlock.Value, _blockBuilders[falseBlock.Value]);
+    /// <summary>
+    /// Resolves the target block for one <see cref="BranchNode"/> arm (also usable by any 2-way
+    /// terminator). A merge-point successor shares its single <see cref="GetOrAllocMergeBlock"/> block
+    /// (all predecessors jump to it, scheduled once); a normal successor gets a fresh block enqueued
+    /// for scheduling; a null successor gets a fresh, sealed fall-through block. <paramref name="fallThrough"/>
+    /// is applied only to FRESH/sealed blocks -- a shared merge block's continuation is a property of the
+    /// join node itself, set once when it is scheduled, not of the arm that reached it.
+    /// </summary>
+    private IrBlockId ResolveArmBlock(Node? succ, string label, IrBlockId? fallThrough)
+    {
+        if (succ is null)
+        {
+            var b = AllocBlock(label);
+            if (fallThrough.HasValue) _fallThroughTarget[b.Value] = fallThrough.Value;
+            SealFallThrough(b.Value, _blockBuilders[b.Value]);
+            return b;
+        }
+        if (IsMergePoint(succ.Id))
+            return GetOrAllocMergeBlock(succ);   // shared block; enqueued on first allocation
+        var fresh = AllocBlock(label);
+        if (fallThrough.HasValue) _fallThroughTarget[fresh.Value] = fallThrough.Value;
+        _bfsQueue.Enqueue((fresh.Value, succ));
+        return fresh;
     }
 
     // -----------------------------------------------------------------------
@@ -989,6 +1100,33 @@ internal sealed class GraphScheduler
                 // Name-keyed slot -- NOT FindVariableIndex (there is no variable/struct-field index;
                 // the accessor resolves the slot by string variableId at runtime).
                 string sharedTypeFqn = NormalizeSharedTypeFqn(ssn.SharedTypeId);
+
+                // Q#14 multi-pin: baked per-field decls → one per-field write per WIRED field pin
+                // (unwired = not written = preserved). Sources resolve top-to-bottom into temporaries
+                // (evaluate-then-write); the writes touch distinct offsets, so they are order-independent.
+                if (ssn.Fields is { Count: > 0 })
+                {
+                    foreach (var f in ssn.Fields)
+                    {
+                        var fieldPin = node.Pins.FirstOrDefault(p =>
+                            !p.IsExec && p.Direction == "In"
+                            && string.Equals(p.Name, f.Name, StringComparison.OrdinalIgnoreCase));
+                        if (fieldPin is null) continue;
+                        var link = _graph.Links.FirstOrDefault(
+                            l => l.ToNodeId == node.Id && l.ToPinId == fieldPin.Id);
+                        if (link is null) continue; // unwired field → leave the slot's value untouched
+                        var fieldVal = ResolveNodeOutput(link.FromNodeId, link.FromPinId, stmts);
+                        stmts.Add(new IrStatement
+                        {
+                            Operation = new IrOp_WriteSharedField(
+                                ssn.VariableId, sharedTypeFqn, NormalizeSharedTypeFqn(f.TypeId),
+                                f.Offset, fieldVal),
+                            Debug = DebugOf(node),
+                        });
+                    }
+                    break;
+                }
+
                 var dataPin = node.Pins.FirstOrDefault(p =>
                     !p.IsExec && p.Direction == "In"
                     && string.Equals(p.Name, "Value", StringComparison.OrdinalIgnoreCase));
@@ -1056,24 +1194,52 @@ internal sealed class GraphScheduler
 
             case FunctionCallNode fc when !fc.IsPure:
             {
-                // Impure library call -- resolve inputs, emit call, cache output.
+                // Impure CLR method call (curated helper, e.g. AreaQueryBatchOps.Request/Free) --
+                // resolve inputs, emit call, cache output. This is NOT a call into another
+                // Library-dispatch blueprint (that is IrOp_LibraryCall's actual purpose, keyed by
+                // a real LibraryBlueprintId resolved elsewhere); fc.TargetTypeId here is an
+                // ordinary CLR type FQN, so this must lower exactly like the pure-FunctionCall
+                // case below (IrOp_PureCall -> `global::{TargetTypeId}.{MethodName}(...)`), just
+                // scheduled eagerly as an exec statement instead of resolved lazily on demand.
+                // Using IrOp_LibraryCall(0, ...) here was a bug: LibraryBlueprintId 0 resolves to
+                // a nonexistent `__LibBp_00000000_Bp` class (CS0103).
                 var inputVals = ResolveAllDataInputs(node, stmts);
                 var outPin = node.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out");
-                IrTypeRef retType = outPin is not null && _typed.PinTypes.TryGetValue(outPin.Id, out var t)
-                    ? t
-                    : Stage5_Schedule.UnknownType;
-                var result = AllocValue(retType);
                 var (appendSelf, appendView) =
                     ResolveFunctionCallTrailingContext(fc);
-                stmts.Add(new IrStatement
-                {
-                    ResultValue = result,
-                    Operation   = new IrOp_LibraryCall(0, $"{fc.TargetTypeId}.{fc.MethodName}",
-                                                       inputVals, retType, appendSelf, appendView),
-                    Debug = DebugOf(node),
-                });
                 if (outPin is not null)
+                {
+                    IrTypeRef retType = _typed.PinTypes.TryGetValue(outPin.Id, out var t)
+                        ? t : Stage5_Schedule.UnknownType;
+                    var result = AllocValue(retType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = result,
+                        Operation   = new IrOp_PureCall($"{fc.TargetTypeId}.{fc.MethodName}",
+                                                         inputVals, retType, appendSelf, appendView),
+                        Debug = DebugOf(node),
+                    });
+                    // Cross-block persistent: this value was materialized as a real statement
+                    // (not recomputable on demand -- re-invoking would re-run the side effect),
+                    // so later blocks reached only through this one must reuse it, not
+                    // recompute/default it. See _statementPinCache.
                     _pinValueCache[outPin.Id] = result;
+                    _statementPinCache[outPin.Id] = result;
+                }
+                else
+                {
+                    // Void return -- bare statement call, no ResultValue (idx stays -1 so the
+                    // emitter writes `{call};` rather than the uncompilable `var __tN = {call};`
+                    // that a void C# method invocation would produce).
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = null,
+                        Operation   = new IrOp_PureCall($"{fc.TargetTypeId}.{fc.MethodName}",
+                                                         inputVals, Stage5_Schedule.UnknownType,
+                                                         appendSelf, appendView),
+                        Debug = DebugOf(node),
+                    });
+                }
                 break;
             }
 
@@ -1093,20 +1259,39 @@ internal sealed class GraphScheduler
                     Debug       = DebugOf(node),
                 });
                 if (outPin is not null)
+                {
+                    // Cross-block persistent: same reasoning as the impure-FunctionCall case
+                    // above -- a statement-produced value, not recomputable on demand.
                     _pinValueCache[outPin.Id] = result;
+                    _statementPinCache[outPin.Id] = result;
+                }
                 break;
             }
 
             case ChannelCommandNode cc:
             {
-                var paramFields = node.Pins
-                    .Where(p => !p.IsExec && p.Direction == "In")
-                    .Select(p =>
-                    {
-                        var val = ResolveDataPin(node.Id, p.Id, stmts);
-                        return (p.Name, val);
-                    })
-                    .ToList();
+                // Blocker-1 (ChannelCommand enricher round-out): a baked ParamFields entry now
+                // surfaces EVERY struct field as a data-IN pin, not just the subset a given asset
+                // happens to wire (see BuiltInChannelCommandCatalog). Most fields are legitimately
+                // optional (the struct's own zero-value is a meaningful default -- e.g. RouteHandle
+                // 0 = fire-and-forget, BackendForce 0 = Auto). Only emit a field into the initializer
+                // when it is ACTUALLY connected (an author-drawn link, or a Stage3-materialized
+                // default-literal link) -- resolved the same way PublishEvent's optional "Target" pin
+                // is resolved (direct link lookup, NOT the unconditional ResolveDataPin below, which
+                // would emit a spurious BP4001 AND an IrValue with no backing statement for every
+                // truly-unwired optional field, breaking codegen with an undeclared __tN reference).
+                // An unconnected field is simply omitted from the `new Params { ... }` initializer,
+                // so the struct's own default (0) applies -- exactly the semantics NodePinSchema's
+                // editor projection already implies (a pin with no wire = "use the default").
+                var paramFields = new List<(string FieldName, IrValue Value)>();
+                foreach (var p in node.Pins.Where(p => !p.IsExec && p.Direction == "In"))
+                {
+                    var link = _graph.Links.FirstOrDefault(
+                        l => l.ToNodeId == node.Id && l.ToPinId == p.Id);
+                    if (link is null) continue; // unwired optional field — struct default applies.
+                    var val = ResolveDataPin(node.Id, p.Id, stmts);
+                    paramFields.Add((p.Name, val));
+                }
 
                 // Look up the catalog to get a fully-qualified channel type, ActionId (numeric
                 // ushort literal) and the params struct FQN.  cc.ActionId / cc.ChannelType are
@@ -1139,16 +1324,31 @@ internal sealed class GraphScheduler
                 // P4 (GAP-3) -- catalog-driven exec node, mirrors ChannelCommandNode's shape
                 // above, but publishes via world.Bus.Publish (architect ruling Q#5-A) instead of
                 // the ECB -- `ecb` is deliberately absent from the AiPrimitive TickCore ABI.
-                var catalogEntry = _ctx.EngineEvents.GetEntries()
-                    .FirstOrDefault(e => string.Equals(e.Name, pen.EventId,
-                        StringComparison.OrdinalIgnoreCase));
-
-                if (catalogEntry is null)
+                // Q#14: baked custom-event fields (EventTypeFqn set by the editor from discovery) take
+                // precedence; otherwise resolve the shape from the EngineEventCatalog by EventId.
+                string eventTypeFqn;
+                string? targetFieldName;
+                bool managed;
+                if (!string.IsNullOrEmpty(pen.EventTypeFqn))
                 {
-                    // Unknown EventId -- no safe partial-emit shape exists for a publish call
-                    // (unlike ChannelCommand, there is no FQN to construct `new global::{}`
-                    // against), so emit no IR rather than producing uncompilable C#.
-                    break;
+                    eventTypeFqn    = pen.EventTypeFqn!;
+                    targetFieldName = pen.TargetFieldName;
+                    managed         = pen.Managed;
+                }
+                else
+                {
+                    var catalogEntry = _ctx.EngineEvents.GetEntries()
+                        .FirstOrDefault(e => string.Equals(e.Name, pen.EventId,
+                            StringComparison.OrdinalIgnoreCase));
+                    if (catalogEntry is null)
+                    {
+                        // Unknown EventId + no baked FQN -- no safe publish shape to construct
+                        // (`new global::{}`), so emit no IR rather than uncompilable C#.
+                        break;
+                    }
+                    eventTypeFqn    = catalogEntry.EventTypeFqn;
+                    targetFieldName = catalogEntry.TargetFieldName;
+                    managed         = catalogEntry.Managed;
                 }
 
                 // Target -- OPTIONAL "Target" data-in pin, resolved EXACTLY like
@@ -1186,8 +1386,8 @@ internal sealed class GraphScheduler
                 }
 
                 var fields = new List<(string FieldName, IrValue Value)>();
-                if (!string.IsNullOrEmpty(catalogEntry.TargetFieldName))
-                    fields.Add((catalogEntry.TargetFieldName, targetEntity));
+                if (!string.IsNullOrEmpty(targetFieldName))
+                    fields.Add((targetFieldName!, targetEntity));
 
                 // Other payload data-in pins (excluding "Target"), reified exactly like
                 // ChannelCommand's paramFields above.
@@ -1199,7 +1399,7 @@ internal sealed class GraphScheduler
                 stmts.Add(new IrStatement
                 {
                     Operation = new IrOp_PublishBusEvent(
-                        catalogEntry.EventTypeFqn, fields, catalogEntry.Managed),
+                        eventTypeFqn, fields, managed),
                     Debug = DebugOf(node),
                 });
                 break;
@@ -1406,6 +1606,7 @@ internal sealed class GraphScheduler
     private IrValue ResolveDataPin(Guid consumerNodeId, Guid pinId,
                                     List<IrStatement> stmts)
     {
+        if (_statementPinCache.TryGetValue(pinId, out var stmtCached)) return stmtCached;
         if (_pinValueCache.TryGetValue(pinId, out var cached)) return cached;
 
         // Find link providing data to this pin.
@@ -1432,6 +1633,7 @@ internal sealed class GraphScheduler
     private IrValue ResolveNodeOutput(Guid sourceNodeId, Guid sourcePinId,
                                        List<IrStatement> stmts)
     {
+        if (_statementPinCache.TryGetValue(sourcePinId, out var stmtCached)) return stmtCached;
         if (_pinValueCache.TryGetValue(sourcePinId, out var cached)) return cached;
 
         if (!_nodeById.TryGetValue(sourceNodeId, out var sourceNode))
@@ -1456,6 +1658,125 @@ internal sealed class GraphScheduler
                     Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = ln.Id, PinId = sourcePinId },
                 });
                 break;
+
+            // Q#14 Option B — MakeStruct: build a struct value from its wired field data-ins (unwired
+            // fields keep the struct default). The single "Value" out-pin carries the constructed struct.
+            case MakeStructNode msn:
+            {
+                string structFqn = NormalizeSharedTypeFqn(msn.StructTypeId);
+                var madeFields = new List<(string, IrValue)>();
+                foreach (var f in msn.Fields)
+                {
+                    var pin = msn.Pins.FirstOrDefault(p =>
+                        !p.IsExec && p.Direction == "In"
+                        && string.Equals(p.Name, f.Name, StringComparison.OrdinalIgnoreCase));
+                    if (pin is null) continue;
+                    var link = _graph.Links.FirstOrDefault(l => l.ToNodeId == msn.Id && l.ToPinId == pin.Id);
+                    if (link is null) continue; // unwired field → left at the struct's default
+                    madeFields.Add((f.Name, ResolveNodeOutput(link.FromNodeId, link.FromPinId, stmts)));
+                }
+                var structType = new IrTypeRef { FullName = structFqn, IsUnmanaged = true, SizeBytes = 0 };
+                result = AllocValue(structType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = result,
+                    Operation   = new IrOp_MakeStruct(structFqn, madeFields),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = msn.Id, PinId = sourcePinId },
+                });
+                break;
+            }
+
+            // Q#14 Option B — BreakStruct: read the "Value" struct data-in once, project each field data-out
+            // via IrOp_FieldRead (same read-once-then-project idiom as multi-pin GetShared).
+            case BreakStructNode bsn:
+            {
+                var valuePin = bsn.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "Value", StringComparison.OrdinalIgnoreCase));
+                IrValue structVal;
+                var vLink = valuePin is null ? null
+                    : _graph.Links.FirstOrDefault(l => l.ToNodeId == bsn.Id && l.ToPinId == valuePin.Id);
+                if (vLink is not null)
+                    structVal = ResolveNodeOutput(vLink.FromNodeId, vLink.FromPinId, stmts);
+                else
+                {
+                    // Unwired struct input → default(struct) so field reads are well-defined.
+                    structVal = AllocValue(new IrTypeRef { FullName = NormalizeSharedTypeFqn(bsn.StructTypeId), IsUnmanaged = true, SizeBytes = 0 });
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = structVal,
+                        Operation   = new IrOp_Const($"default(global::{NormalizeSharedTypeFqn(bsn.StructTypeId)})", structVal.Type),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = bsn.Id, PinId = sourcePinId },
+                    });
+                }
+                foreach (var f in bsn.Fields)
+                {
+                    var fPin = bsn.Pins.FirstOrDefault(p =>
+                        !p.IsExec && p.Direction == "Out"
+                        && string.Equals(p.Name, f.Name, StringComparison.OrdinalIgnoreCase));
+                    if (fPin is null) continue;
+                    IrTypeRef fType = _typed.PinTypes.TryGetValue(fPin.Id, out var fpt)
+                        ? fpt
+                        : new IrTypeRef { FullName = NormalizeSharedTypeFqn(f.TypeId), IsUnmanaged = true, SizeBytes = 0 };
+                    var fRes = AllocValue(fType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = fRes,
+                        Operation   = new IrOp_FieldRead(structVal, f.Name, fType),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = bsn.Id, PinId = fPin.Id },
+                    });
+                    _pinValueCache[fPin.Id] = fRes;
+                }
+                result = _pinValueCache.TryGetValue(sourcePinId, out var bpr) ? bpr : structVal;
+                break;
+            }
+
+            // Q#14 Option B — SetMembers: copy the "Source" struct, overwrite wired members, output "Result".
+            case SetMembersNode smn:
+            {
+                string structFqn = NormalizeSharedTypeFqn(smn.StructTypeId);
+                var structType = new IrTypeRef { FullName = structFqn, IsUnmanaged = true, SizeBytes = 0 };
+
+                var srcPin = smn.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "Source", StringComparison.OrdinalIgnoreCase));
+                var srcLink = srcPin is null ? null
+                    : _graph.Links.FirstOrDefault(l => l.ToNodeId == smn.Id && l.ToPinId == srcPin.Id);
+                IrValue input;
+                if (srcLink is not null)
+                    input = ResolveNodeOutput(srcLink.FromNodeId, srcLink.FromPinId, stmts);
+                else
+                {
+                    input = AllocValue(structType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = input,
+                        Operation   = new IrOp_Const($"default(global::{structFqn})", structType),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = smn.Id, PinId = sourcePinId },
+                    });
+                }
+
+                var setFields = new List<(string, IrValue)>();
+                foreach (var f in smn.Fields)
+                {
+                    var fp = smn.Pins.FirstOrDefault(p =>
+                        !p.IsExec && p.Direction == "In"
+                        && string.Equals(p.Name, f.Name, StringComparison.OrdinalIgnoreCase));
+                    if (fp is null) continue;
+                    var fl = _graph.Links.FirstOrDefault(l => l.ToNodeId == smn.Id && l.ToPinId == fp.Id);
+                    if (fl is null) continue; // unwired member → keep source's value
+                    setFields.Add((f.Name, ResolveNodeOutput(fl.FromNodeId, fl.FromPinId, stmts)));
+                }
+
+                result = AllocValue(structType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = result,
+                    Operation   = new IrOp_SetMembers(structFqn, input, setFields),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = smn.Id, PinId = sourcePinId },
+                });
+                break;
+            }
 
             case GetVariableNode gv:
                 int varIdx = FindVariableIndex(gv.VariableId);
@@ -1483,6 +1804,65 @@ internal sealed class GraphScheduler
                     Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gp.Id, PinId = sourcePinId },
                 });
                 break;
+
+            // GetAllParameters: one out-pin per asset.Parameters entry -- mirrors GetParameterNode's
+            // IrOp_ReadParam lowering, but (like EventEntryNode's data-out pins, which are matched
+            // by NAME against Graph.Inputs) resolves the param index by matching the SPECIFIC
+            // requested out-pin's Name against asset.Parameters (FindParameterIndex's non-Guid
+            // fallback already does a plain name match), rather than a single baked ParameterId.
+            case GetAllParametersNode gap:
+            {
+                var dataOutPins = gap.Pins
+                    .Where(p => !p.IsExec && p.Direction == "Out")
+                    .ToList();
+                var sourcePin = dataOutPins.FirstOrDefault(p => p.Id == sourcePinId);
+                int gapIdx = sourcePin is not null ? FindParameterIndex(sourcePin.Name) : -1;
+
+                result = AllocValue(pinType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = result,
+                    Operation   = new IrOp_ReadParam(gapIdx),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gap.Id, PinId = sourcePinId },
+                });
+                break;
+            }
+
+            // WaitForChannel "Status" data-out (Q#13): re-read channel.Status at point of use.
+            // The continuation only runs after the channel is non-Running, so this yields Success on
+            // the "Out" path and Failure on the "OnFailure" path. Self + GetComponentRO + FieldRead,
+            // mirroring the check-block reads WaitLowering emits. Only the Status pin is a data-out on
+            // this node, so no per-pin discrimination is needed.
+            case WaitForChannelNode wfcStatus:
+            {
+                string channelFqnS = ResolveChannelTypeFqn(wfcStatus.ChannelType);
+                var chTypeRefS = new IrTypeRef { FullName = channelFqnS, IsUnmanaged = true, SizeBytes = 0 };
+
+                var selfVS = AllocValue(Stage5_Schedule.EntityType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = selfVS,
+                    Operation   = new IrOp_Self(),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = wfcStatus.Id, PinId = sourcePinId },
+                });
+
+                var chVS = AllocValue(chTypeRefS);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = chVS,
+                    Operation   = new IrOp_GetComponentRO(channelFqnS, selfVS, chTypeRefS),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = wfcStatus.Id, PinId = sourcePinId },
+                });
+
+                result = AllocValue(pinType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = result,
+                    Operation   = new IrOp_FieldRead(chVS, "Status", pinType),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = wfcStatus.Id, PinId = sourcePinId },
+                });
+                break;
+            }
 
             case GetSharedNode gsn:
             {
@@ -1513,6 +1893,49 @@ internal sealed class GraphScheduler
                         l => l.ToNodeId == gsn.Id && l.ToPinId == targetPin.Id);
                     if (targetLink is not null)
                         targetEntity = ResolveNodeOutput(targetLink.FromNodeId, targetLink.FromPinId, stmts);
+                }
+
+                // Q#14 multi-pin: read the whole struct ONCE, then project each field via IrOp_FieldRead
+                // (the same field-read op GetComponent uses). "Found" is the read's bool. All out-pins are
+                // cached so the single read is shared across every consumed field pin.
+                if (gsn.Fields is { Count: > 0 })
+                {
+                    var structType = new IrTypeRef { FullName = sharedTypeFqn, IsUnmanaged = true, SizeBytes = 0 };
+                    var structVal  = AllocValue(structType);
+                    var foundRes   = AllocValue(Stage5_Schedule.BoolType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = structVal,
+                        Operation   = new IrOp_ReadShared(gsn.VariableId, sharedTypeFqn, foundRes, targetEntity),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gsn.Id, PinId = sourcePinId },
+                    });
+
+                    var foundP = gsn.Pins.FirstOrDefault(p =>
+                        !p.IsExec && p.Direction == "Out"
+                        && string.Equals(p.Name, "Found", StringComparison.OrdinalIgnoreCase));
+                    if (foundP is not null) _pinValueCache[foundP.Id] = foundRes;
+
+                    foreach (var f in gsn.Fields)
+                    {
+                        var fPin = gsn.Pins.FirstOrDefault(p =>
+                            !p.IsExec && p.Direction == "Out"
+                            && string.Equals(p.Name, f.Name, StringComparison.OrdinalIgnoreCase));
+                        if (fPin is null) continue;
+                        IrTypeRef fType = _typed.PinTypes.TryGetValue(fPin.Id, out var fpt)
+                            ? fpt
+                            : new IrTypeRef { FullName = NormalizeSharedTypeFqn(f.TypeId), IsUnmanaged = true, SizeBytes = 0 };
+                        var fRes = AllocValue(fType);
+                        stmts.Add(new IrStatement
+                        {
+                            ResultValue = fRes,
+                            Operation   = new IrOp_FieldRead(structVal, f.Name, fType),
+                            Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gsn.Id, PinId = fPin.Id },
+                        });
+                        _pinValueCache[fPin.Id] = fRes;
+                    }
+
+                    result = _pinValueCache.TryGetValue(sourcePinId, out var mpr) ? mpr : structVal;
+                    break;
                 }
 
                 // Prefer the resolved pin type (from Stage4) when available; otherwise fall back
@@ -2311,18 +2734,42 @@ internal sealed class GraphScheduler
         // statement of its own here).
         var itemVar = AllocValue(Stage5_Schedule.EntityType);
 
-        // Bind "CurrentItem" out-pin -> itemVar, then schedule the Body exec-chain INLINE into a
-        // nested statement list. Cache isolation: snapshot the pin-value cache keys, and after the
-        // body remove every entry added during body scheduling (incl. CurrentItem) so body-scoped
-        // values -- which depend on the changing loop var -- never leak to the outer scope.
+        // Optional "Count" out-pin -> loop-invariant element count, hoisted to an OUTER-scope local by
+        // IrOp_ForEach's emit. Bound BEFORE the body-cache snapshot so it survives body-scope cleanup
+        // (the count is valid inside the body AND in the "Completed" chain after the loop).
+        var countPin = fe.Pins.FirstOrDefault(p =>
+            !p.IsExec && p.Direction == "Out"
+            && string.Equals(p.Name, "Count", StringComparison.OrdinalIgnoreCase));
+        IrValue? countVar = null;
+        if (countPin is not null)
+        {
+            var cv = AllocValue(Stage5_Schedule.Int32Type);
+            countVar = cv;
+            _pinValueCache[countPin.Id] = cv;
+        }
+
+        // Bind "CurrentItem" + optional "CurrentIndex" out-pins, then schedule the Body exec-chain
+        // INLINE into a nested statement list. Cache isolation: snapshot the pin-value cache keys, and
+        // after the body remove every entry added during body scheduling (incl. CurrentItem/Index) so
+        // body-scoped values -- which depend on the changing loop var -- never leak to the outer scope.
         var currentItemPin = fe.Pins.FirstOrDefault(p =>
             !p.IsExec && p.Direction == "Out"
             && string.Equals(p.Name, "CurrentItem", StringComparison.OrdinalIgnoreCase));
+        var currentIndexPin = fe.Pins.FirstOrDefault(p =>
+            !p.IsExec && p.Direction == "Out"
+            && string.Equals(p.Name, "CurrentIndex", StringComparison.OrdinalIgnoreCase));
 
         var bodyStmts = new List<IrStatement>();
         var savedKeys = new HashSet<Guid>(_pinValueCache.Keys);
         if (currentItemPin is not null)
             _pinValueCache[currentItemPin.Id] = itemVar;
+        IrValue? indexVar = null;
+        if (currentIndexPin is not null)
+        {
+            var iv = AllocValue(Stage5_Schedule.Int32Type);
+            indexVar = iv;
+            _pinValueCache[currentIndexPin.Id] = iv;
+        }
 
         // P1b (GAP-1): schedule the Body exec-chain inline; an in-body Branch lowers to a nested
         // IrOp_If (see ScheduleInlineBodyChain), NOT a BFS block split -- an inline for-body cannot
@@ -2335,7 +2782,7 @@ internal sealed class GraphScheduler
         bb.Statements.Add(new IrStatement
         {
             Operation = new IrOp_ForEach(
-                fe.CountAccessorFqn, fe.ItemAccessorFqn, rosterVal, itemVar, bodyStmts),
+                fe.CountAccessorFqn, fe.ItemAccessorFqn, rosterVal, itemVar, bodyStmts, countVar, indexVar),
             Debug = DebugOf(fe),
         });
     }
@@ -2483,6 +2930,23 @@ internal sealed class GraphScheduler
                 break;
             }
         }
+    }
+
+    /// <summary>
+    /// Resolves the exec successor reached via the single exec-out pin whose name is NOT
+    /// <paramref name="excludedName"/> (Q#13: WaitForChannel's success continuation — the one
+    /// exec-out that isn't "OnFailure", robust to "Out" vs the builder's "ExecOut"). Returns null
+    /// unless exactly one such pin exists and it is wired.
+    /// </summary>
+    private Node? GetExecSuccessorExcludingPinName(Node node, string excludedName)
+    {
+        var pins = node.Pins
+            .Where(p => p.IsExec && p.Direction == "Out"
+                     && !string.Equals(p.Name, excludedName, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (pins.Count != 1) return null;
+        var link = _graph.Links.FirstOrDefault(l => l.FromNodeId == node.Id && l.FromPinId == pins[0].Id);
+        return link is not null && _nodeById.TryGetValue(link.ToNodeId, out var t) ? t : null;
     }
 
     /// <summary>Resolves the exec successor reached via a specific named exec-out pin (e.g. "Body"/"Completed").</summary>
@@ -2640,6 +3104,45 @@ internal sealed class GraphScheduler
         var id = new IrBlockId(_nextBlockId++);
         _blockBuilders.Add(new BlockBuilder(id, label));
         return id;
+    }
+
+    /// <summary>
+    /// Precomputes <see cref="_mergePoints"/>: every node reached by 2+ incoming EXEC edges. Such a
+    /// node is a control-flow join and must be scheduled into ONE shared block that all predecessors
+    /// jump to. Counts only exec-out → (exec-in) links; data links are ignored.
+    /// </summary>
+    private void ComputeMergePoints()
+    {
+        var inDegree = new Dictionary<Guid, int>();
+        foreach (var link in _graph.Links)
+        {
+            if (!_nodeById.TryGetValue(link.FromNodeId, out var fromNode)) continue;
+            var fromPin = fromNode.Pins.FirstOrDefault(p => p.Id == link.FromPinId);
+            if (fromPin is null || !fromPin.IsExec || fromPin.Direction != "Out") continue;
+            inDegree.TryGetValue(link.ToNodeId, out var c);
+            inDegree[link.ToNodeId] = c + 1;
+        }
+        foreach (var kv in inDegree)
+            if (kv.Value >= 2) _mergePoints.Add(kv.Key);
+    }
+
+    /// <summary>True when <paramref name="nodeId"/> is a convergent control-flow join (exec in-degree ≥ 2).</summary>
+    private bool IsMergePoint(Guid nodeId) => _mergePoints.Contains(nodeId);
+
+    /// <summary>
+    /// The single shared block for a merge-point node, allocated on first request. Every predecessor
+    /// path terminates with a <c>Goto</c> to this block; it is walked exactly once (the BFS dedups on
+    /// block id via <see cref="_scheduledBlocks"/>, and per-block <see cref="_pinValueCache"/> reset
+    /// makes the join re-resolve its own pure-data inputs independently of which arm reached it).
+    /// </summary>
+    private IrBlockId GetOrAllocMergeBlock(Node n)
+    {
+        if (_mergeBlockForNode.TryGetValue(n.Id, out var existing))
+            return new IrBlockId(existing);
+        var b = AllocBlock($"merge_{n.Id.ToString("N").Substring(0, 8)}");
+        _mergeBlockForNode[n.Id] = b.Value;
+        _bfsQueue.Enqueue((b.Value, n));
+        return b;
     }
 
     private IrValue AllocValue(IrTypeRef type)

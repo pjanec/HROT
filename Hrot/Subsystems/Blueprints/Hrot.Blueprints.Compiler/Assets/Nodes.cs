@@ -9,6 +9,7 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(SequenceNode),            "Sequence")]
 [JsonDerivedType(typeof(GetVariableNode),         "GetVariable")]
 [JsonDerivedType(typeof(GetParameterNode),        "GetParameter")]
+[JsonDerivedType(typeof(GetAllParametersNode),     "GetAllParameters")]
 [JsonDerivedType(typeof(SetVariableNode),         "SetVariable")]
 [JsonDerivedType(typeof(LiteralNode),             "Literal")]
 [JsonDerivedType(typeof(EventEntryNode),          "EventEntry")]
@@ -42,6 +43,9 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(BinaryOpNode),           "BinaryOp")]
 [JsonDerivedType(typeof(BooleanOpNode),          "BooleanOp")]
 [JsonDerivedType(typeof(NotNode),                "Not")]
+[JsonDerivedType(typeof(MakeStructNode),         "MakeStruct")]
+[JsonDerivedType(typeof(BreakStructNode),        "BreakStruct")]
+[JsonDerivedType(typeof(SetMembersNode),         "SetMembers")]
 public abstract class Node
 {
     public Guid Id { get; set; }
@@ -125,6 +129,19 @@ public sealed class GetParameterNode : Node
     public string ParameterId { get; set; } = "";
 }
 
+/// <summary>
+/// Reads ALL of the asset's declared Parameters at once: one data-OUT pin per
+/// <see cref="BlueprintAsset.Parameters"/> entry (name = <see cref="ParameterDecl.Name"/>, type from
+/// <see cref="ParameterDecl.Type"/>), instead of chaining one <see cref="GetParameterNode"/> per
+/// Parameter. Pure-data node (no exec pins, no fields -- it covers the WHOLE Parameters list, so
+/// there is nothing to bake per-instance). Mirrors <see cref="EventEntryNode"/>'s dynamic
+/// one-data-out-per-<c>Graph.Inputs</c> pin projection exactly, retargeted at
+/// <c>asset.Parameters</c>; each pin lowers in Stage5 to the pre-existing <c>IrOp_ReadParam</c>
+/// (resolved by matching the requested out-pin's NAME against <c>asset.Parameters</c>, mirroring
+/// how EventEntryNode's data-out pins are matched by name against <c>Graph.Inputs</c>).
+/// </summary>
+public sealed class GetAllParametersNode : Node { }
+
 public sealed class LiteralNode : Node
 {
     public string TypeId { get; set; } = "";
@@ -134,6 +151,22 @@ public sealed class LiteralNode : Node
 public sealed class EventEntryNode : Node
 {
     public string EventTypeId { get; set; } = "";
+
+    /// <summary>
+    /// Q#14 (3d) Self/Any recipient filter. When true, a subscriber's handler fires ONLY when the event's
+    /// target field (<see cref="TargetFieldName"/>) equals the subscribing entity (Self); false = Any
+    /// (broadcast — every subscriber receives it). Default false ⇒ omitted from JSON, legacy broadcast.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool TargetFilterSelf { get; set; }
+
+    /// <summary>
+    /// Q#14 (3d) the event's <c>[EventTarget]</c> field name (baked by the editor from discovery). Used by
+    /// the Self filter to compare that field against <c>self</c>. Null/empty ⇒ the event has no target field,
+    /// so a Self filter is inert (broadcast).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? TargetFieldName { get; set; }
 }
 
 public sealed class ReturnNode : Node
@@ -440,6 +473,25 @@ public sealed class GetSharedNode : Node
     /// generic argument of <c>BlueprintSharedState.TryGetShared&lt;T&gt;</c>.
     /// </summary>
     public string SharedTypeId { get; set; } = "";
+
+    /// <summary>
+    /// Q#14 multi-pin: baked per-field decls the editor reflects from the shared struct. When non-null,
+    /// GetShared projects one data-out pin PER FIELD (read the struct once, expose each field) instead of a
+    /// single whole-struct "Value" pin. Null (and omitted from JSON) = legacy whole-struct path — existing
+    /// assets round-trip byte-identically.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public List<SharedFieldDecl>? Fields { get; set; }
+}
+
+/// <summary>One baked shared-struct field: name + pin TypeId + byte offset within the struct (for the
+/// per-field write). Mirrors <see cref="PublishEventFieldDecl"/> plus <see cref="Offset"/>.</summary>
+public sealed class SharedFieldDecl
+{
+    public string Name { get; set; } = "";
+    public string TypeId { get; set; } = "";
+    /// <summary>Byte offset of the field within the shared struct (editor-computed via Marshal.OffsetOf).</summary>
+    public int Offset { get; set; }
 }
 
 /// <summary>
@@ -459,6 +511,16 @@ public sealed class SetSharedNode : Node
     /// generic argument of <c>BlueprintSharedState.TrySetShared&lt;T&gt;</c>.
     /// </summary>
     public string SharedTypeId { get; set; } = "";
+
+    /// <summary>
+    /// Q#14 multi-pin: baked per-field decls the editor reflects from the shared struct. When non-null,
+    /// SetShared exposes one data-in pin PER FIELD; each WIRED field lowers to a per-field write
+    /// (<c>BlueprintSharedState.TrySetSharedField</c>) at that field's offset — unwired fields are
+    /// preserved. Null (and omitted from JSON) = legacy whole-struct "Value" path — existing assets
+    /// round-trip byte-identically.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public List<SharedFieldDecl>? Fields { get; set; }
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -604,6 +666,85 @@ public sealed class PublishEventNode : Node
 {
     /// <summary>Name of the EngineEventCatalog entry to publish (e.g. "ClearBehaviorEvent").</summary>
     public string EventId { get; set; } = "";
+
+    // ── Q#14 (custom events, 2a): baked event shape for events NOT in the EngineEventCatalog. The editor
+    // discovers a [BlueprintEvent] struct (or an editor-authored def), bakes its FQN + fields here, and the
+    // compiler uses them instead of a catalog lookup. All null/empty (and omitted from JSON) for the legacy
+    // catalog path — so existing PublishEvent nodes round-trip byte-identically.
+
+    /// <summary>Baked event carrier FQN (the [BlueprintEvent] struct). Empty ⇒ resolve via EventId in the catalog.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? EventTypeFqn { get; set; }
+
+    /// <summary>Baked recipient-entity field name (the [EventTarget] field), or null.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? TargetFieldName { get; set; }
+
+    /// <summary>True when the carrier is a managed class (PublishManaged). Blittable custom events (§7.3) are false.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Managed { get; set; }
+
+    /// <summary>Baked payload fields (name + pin TypeId), or null for the catalog path.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public List<PublishEventFieldDecl>? PayloadFields { get; set; }
+}
+
+/// <summary>One baked <see cref="PublishEventNode.PayloadFields"/> entry: field name + pin TypeId.</summary>
+public sealed class PublishEventFieldDecl
+{
+    public string Name { get; set; } = "";
+    public string TypeId { get; set; } = "";
+}
+
+/// <summary>One baked field of a <see cref="MakeStructNode"/>/<see cref="BreakStructNode"/> (Option B):
+/// field name + pin TypeId (the editor reflects these from the struct; the compiler bakes strings).</summary>
+public sealed class StructFieldDecl
+{
+    public string Name { get; set; } = "";
+    public string TypeId { get; set; } = "";
+}
+
+/// <summary>
+/// Q#14 Option B — constructs a struct VALUE from per-field data-in pins (one per <see cref="Fields"/>
+/// entry) and produces the whole struct on a single data-out "Value" pin. Pure data node (no exec).
+/// Lowers to <c>new global::{StructTypeId} { field = ... }</c> via <c>IrOp_MakeStruct</c> — the struct value
+/// then flows to a consumer (SetShared whole-struct pin, a FunctionCall struct arg, Break, …). The dual of
+/// <see cref="BreakStructNode"/>.
+/// </summary>
+public sealed class MakeStructNode : Node
+{
+    /// <summary>FQN of the struct to construct (unprefixed; emitted as <c>global::{StructTypeId}</c>).</summary>
+    public string StructTypeId { get; set; } = "";
+    /// <summary>Baked fields (name + pin TypeId) → one data-in pin each, matched by name to the initializer.</summary>
+    public List<StructFieldDecl> Fields { get; set; } = new();
+}
+
+/// <summary>
+/// Q#14 Option B — deconstructs a struct VALUE (data-in "Value") into per-field data-out pins (one per
+/// <see cref="Fields"/> entry). Pure data node (no exec). Each field lowers to
+/// <c>IrOp_FieldRead(value, fieldName)</c> (read the struct once, project each field — same op multi-pin
+/// GetShared uses). The dual of <see cref="MakeStructNode"/>.
+/// </summary>
+public sealed class BreakStructNode : Node
+{
+    /// <summary>FQN of the struct being deconstructed (types the "Value" data-in pin).</summary>
+    public string StructTypeId { get; set; } = "";
+    /// <summary>Baked fields (name + pin TypeId) → one data-out pin each.</summary>
+    public List<StructFieldDecl> Fields { get; set; } = new();
+}
+
+/// <summary>
+/// Q#14 Option B — copies a struct VALUE (data-in "Source") and overwrites only the WIRED member fields,
+/// producing the modified copy on data-out "Result" (unwired member pins keep the source's value). Pure
+/// data node. Lowers to <c>var c = source; c.A = a; … → c</c> (<c>IrOp_SetMembers</c>). The struct pins are
+/// named "Source"/"Result" (not "Value") so they never collide with a struct field literally named "Value".
+/// </summary>
+public sealed class SetMembersNode : Node
+{
+    /// <summary>FQN of the struct (types the "Source"/"Result" pins; emitted as <c>global::{StructTypeId}</c>).</summary>
+    public string StructTypeId { get; set; } = "";
+    /// <summary>Baked fields (name + pin TypeId) → one member data-in pin each.</summary>
+    public List<StructFieldDecl> Fields { get; set; } = new();
 }
 
 // ──────────────────────────────────────────────────────────────────────────

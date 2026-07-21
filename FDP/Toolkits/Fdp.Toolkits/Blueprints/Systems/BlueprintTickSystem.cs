@@ -103,6 +103,17 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
                     _logSink.OnHardReset(slot.BlueprintId, entity, oldHash, (ulong)def!.StructureHash);
                 }
 
+                // Q#14: dispatch any custom events this instance subscribes to (before Tick, so the tick
+                // sees handler effects). HasEvent-gated inside DispatchForSlot — absent events cost nothing.
+                if (def.EventHandlers is not null && def.EventHandlers.Count > 0)
+                {
+                    var evSpan = MemoryMarshal.CreateSpan(
+                        ref Unsafe.Add(ref memRef, slot.PayloadOffset),
+                        slot.PayloadSize);
+                    BlueprintEventDispatch.DispatchForSlot(
+                        def, evSpan, repo.Bus, view, ecb, entity, view.Time, deltaTime);
+                }
+
                 if (def.Tick is not null)
                 {
                     var tickSpan = MemoryMarshal.CreateSpan(
@@ -151,6 +162,17 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
                     _logSink.OnHardReset(slot.BlueprintId, entity, oldHash, (ulong)def!.StructureHash);
                 }
 
+                // Q#14: dispatch any custom events this instance subscribes to (before Tick, so the tick
+                // sees handler effects). HasEvent-gated inside DispatchForSlot — absent events cost nothing.
+                if (def.EventHandlers is not null && def.EventHandlers.Count > 0)
+                {
+                    var evSpan = MemoryMarshal.CreateSpan(
+                        ref Unsafe.Add(ref memRef, slot.PayloadOffset),
+                        slot.PayloadSize);
+                    BlueprintEventDispatch.DispatchForSlot(
+                        def, evSpan, repo.Bus, view, ecb, entity, view.Time, deltaTime);
+                }
+
                 if (def.Tick is not null)
                 {
                     var tickSpan = MemoryMarshal.CreateSpan(
@@ -197,6 +219,17 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
                         def.InitDefault(initSpan);
                     }
                     _logSink.OnHardReset(slot.BlueprintId, entity, oldHash, (ulong)def!.StructureHash);
+                }
+
+                // Q#14: dispatch any custom events this instance subscribes to (before Tick, so the tick
+                // sees handler effects). HasEvent-gated inside DispatchForSlot — absent events cost nothing.
+                if (def.EventHandlers is not null && def.EventHandlers.Count > 0)
+                {
+                    var evSpan = MemoryMarshal.CreateSpan(
+                        ref Unsafe.Add(ref memRef, slot.PayloadOffset),
+                        slot.PayloadSize);
+                    BlueprintEventDispatch.DispatchForSlot(
+                        def, evSpan, repo.Bus, view, ecb, entity, view.Time, deltaTime);
                 }
 
                 if (def.Tick is not null)

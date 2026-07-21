@@ -87,6 +87,13 @@ internal static class NodePinSchema
         Func<Guid, BlueprintSignature?>? peerSignatureLookup = null,
         IBehaviorActionCatalog?         behaviorActions      = null)
     {
+        // Literal: always project an editor-only "Value" INPUT pin so the inline body editor renders
+        // on the left of the output pin. The "Value" OUTPUT pin (and its authored GUID, when present)
+        // is preserved unchanged, so link binding is unaffected; the input pin is editor-only (stripped
+        // on save, never seen by the compiler — the value round-trips via LiteralNode.ValueJson).
+        if (node is LiteralNode lit)
+            return LiteralInlinePins(lit);
+
         // Pass 0: asset already has pins (builder-created test assets).
         if (node.Pins.Count > 0)
             return node.Pins;
@@ -127,9 +134,22 @@ internal static class NodePinSchema
             FunctionCallNode fc => FunctionCallPinsDispatch(fc, asset, containingGraph),
             GetVariableNode gv  => GetVariablePins(gv, ResolveVariableTypeId(gv.VariableId, asset)),
             SetVariableNode sv  => SetVariablePins(sv, ResolveVariableTypeId(sv.VariableId, asset)),
+            // GetParameter: pin-less assets (e.g. the integrated HillAssault2I_* blueprints) carry no
+            // authored pins, and the compiler bakes this node at lowering (no pin needed there). The
+            // EDITOR still needs the "Value" out-pin projected so the node renders connected — reconstruct
+            // it here, typed from the referenced Parameter (mirrors the authored shape in the twins).
+            GetParameterNode gp => GetParameterPins(gp, asset),
+            // GetAllParameters: pin-less assets carry no authored pins either; the editor projects
+            // one "Value"-style data-out pin per asset Parameter directly from asset.Parameters
+            // (mirrors EventEntryNodePins projecting one data-out per Graph.Inputs entry).
+            GetAllParametersNode => GetAllParametersPins(asset),
             GetSharedNode gsn   => GetSharedPins(gsn),
             SetSharedNode ssn   => SetSharedPins(ssn),
+            MakeStructNode msn  => MakeStructPins(msn),
+            BreakStructNode bsn => BreakStructPins(bsn),
+            SetMembersNode smn  => SetMembersPins(smn),
             ChannelCommandNode cc => ChannelCommandPins(cc, channelCommands, behaviorActions),
+            PublishEventNode pev => PublishEventPins(pev),
             CallCustomEventNode cce => CallCustomEventPins(cce, asset),
             CallPeerBlueprintNode cpb => CallPeerBlueprintPins(cpb, peerSignatureLookup),
 
@@ -232,7 +252,12 @@ internal static class NodePinSchema
         if (containingGraph is null)
             return ExecOnly("Out");
 
-        if (containingGraph?.Kind == GraphKind.Function && containingGraph.Inputs.Count > 0)
+        // Function graphs expose their declared inputs; Event graphs (Q#14 custom-event subscribers)
+        // expose the event PAYLOAD fields the same way — one data-Out per Graph.Inputs entry — so the
+        // designer can wire the payload downstream. Must stay in parity with the compiler's
+        // Stage0_Rehydrate.EnrichEventEntryPins (which enriches both kinds).
+        if ((containingGraph?.Kind == GraphKind.Function || containingGraph?.Kind == GraphKind.Event)
+            && containingGraph.Inputs.Count > 0)
         {
             var pins = new List<Pin>(1 + containingGraph.Inputs.Count);
             pins.Add(MakeExec("Out", "Out"));
@@ -244,6 +269,34 @@ internal static class NodePinSchema
             return pins;
         }
         return ExecOnly("Out");
+    }
+
+    /// <summary>
+    /// PublishEventNode: for a Q#14 custom event the editor baked <c>EventTypeFqn</c> + <c>PayloadFields</c>
+    /// (+ optional <c>TargetFieldName</c>) onto the node from discovery, so project the payload data-IN pins
+    /// directly from them — <c>exec-In</c>/<c>exec-Out</c>, then the optional <c>Target</c> (<c>Fdp.Core.Entity</c>),
+    /// then one data-IN per payload field, in that exact order. This keeps strict parity with the compiler's
+    /// <c>Stage0_Rehydrate.EnrichPublishEventPins</c> baked path (and with <c>Stage5</c>, which reads the
+    /// not-exec "In" pins by name to build <c>new {Event}{ … }</c>). Pin names + <c>Direction="In"</c> are
+    /// load-bearing. System/catalog events (EventId only, no baked FQN) have no shape available in the editor
+    /// host, so they fall through to the exec-only registry shape — unchanged (no regression).
+    /// </summary>
+    private static IReadOnlyList<Pin> PublishEventPins(PublishEventNode pev)
+    {
+        if (string.IsNullOrEmpty(pev.EventTypeFqn))
+            return FromRegistry(pev);
+
+        var pins = new List<Pin>(3 + (pev.PayloadFields?.Count ?? 0))
+        {
+            MakeExec("In",  "In"),
+            MakeExec("Out", "Out"),
+        };
+        if (!string.IsNullOrEmpty(pev.TargetFieldName))
+            pins.Add(MakeData("Target", "In", "Fdp.Core.Entity"));
+        if (pev.PayloadFields is not null)
+            foreach (var f in pev.PayloadFields)
+                pins.Add(MakeData(f.Name, "In", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+        return pins;
     }
 
     /// <summary>
@@ -568,6 +621,91 @@ internal static class NodePinSchema
             MakeData("Value", "Out", typeId),
         };
 
+    /// <summary>
+    /// GetParameter (editor projection): a single "Value" data-out pin typed from the referenced
+    /// blueprint <see cref="ParameterDecl"/> (fallback <c>System.Object</c>). Matches the authored
+    /// shape the isolated twins persist, so a pin-less integrated blueprint renders its GetParameter
+    /// output connected.
+    /// </summary>
+    /// <summary>
+    /// Literal editor projection: an editor-only "Value" data-IN pin (for inline-editable types) so the
+    /// canvas inline editor renders in the body, plus the "Value" data-OUT pin. The authored output pin
+    /// (and its GUID) is reused when present so outgoing links keep binding; otherwise the output is
+    /// synthesized. The input pin is never persisted (pins are stripped on save) and never reaches the
+    /// compiler — its edited value is written back to <c>LiteralNode.ValueJson</c> on commit.
+    /// </summary>
+    private static IReadOnlyList<Pin> LiteralInlinePins(LiteralNode lit)
+    {
+        var typeId = string.IsNullOrEmpty(lit.TypeId) ? "System.Object" : lit.TypeId;
+        var pins = new List<Pin>();
+
+        // Prepend an editor-only "Value" INPUT pin (inline body editor) — but only when the node
+        // doesn't already carry a data-in pin, so we never duplicate. Its TypeId is the PROXY editor
+        // type (e.g. the whole integer family edits through the Int32 editor); the real literal type is
+        // used only when formatting ValueJson on commit. Rendered glyph-less (see BlueprintGraphModel).
+        bool hasDataIn = lit.Pins.Any(p => !p.IsExec && p.Direction == "In");
+        var editorType = LiteralValueJson.EditorTypeId(typeId);
+        if (editorType != null && !hasDataIn)
+            pins.Add(MakeData("Value", "In", editorType));
+
+        // Preserve ALL authored pins (and their GUIDs) when present; otherwise synthesize the output.
+        if (lit.Pins.Count > 0)
+            pins.AddRange(lit.Pins);
+        else
+            pins.Add(MakeData("Value", "Out", typeId));
+
+        return pins;
+    }
+
+    private static IReadOnlyList<Pin> GetParameterPins(GetParameterNode gp, BlueprintAsset? asset)
+        => new[]
+        {
+            MakeData("Value", "Out", ResolveParameterTypeId(gp.ParameterId, asset)),
+        };
+
+    /// <summary>
+    /// GetAllParameters (editor projection): one data-out pin per <c>asset.Parameters</c> entry
+    /// (name = <see cref="ParameterDecl.Name"/>, type from <see cref="ParameterDecl.Type"/>;
+    /// fallback <c>System.Object</c>) -- mirrors <see cref="EventEntryNodePins"/>'s one-data-out-
+    /// per-<c>Graph.Inputs</c> projection, retargeted at the asset's Parameters list. Returns an
+    /// empty pin list when the asset is null or has no declared Parameters.
+    /// </summary>
+    private static IReadOnlyList<Pin> GetAllParametersPins(BlueprintAsset? asset)
+    {
+        if (asset is null || asset.Parameters.Count == 0)
+            return Array.Empty<Pin>();
+
+        var pins = new List<Pin>(asset.Parameters.Count);
+        foreach (var p in asset.Parameters)
+        {
+            var typeId = string.IsNullOrEmpty(p.Type?.TypeId) ? "System.Object" : p.Type.TypeId;
+            pins.Add(MakeData(p.Name, "Out", typeId));
+        }
+        return pins;
+    }
+
+    /// <summary>
+    /// Looks up a blueprint parameter's <c>TypeId</c> by id (accepts the raw GUID or the
+    /// <c>param:</c>/<c>var:</c> item-id forms). Returns <c>System.Object</c> when not resolvable.
+    /// </summary>
+    private static string ResolveParameterTypeId(string parameterId, BlueprintAsset? asset)
+    {
+        if (asset == null || string.IsNullOrEmpty(parameterId))
+            return "System.Object";
+
+        var idStr = parameterId;
+        if (idStr.StartsWith("param:", StringComparison.OrdinalIgnoreCase)) idStr = idStr[6..];
+        else if (idStr.StartsWith("var:", StringComparison.OrdinalIgnoreCase)) idStr = idStr[4..];
+
+        if (Guid.TryParse(idStr, out var guid))
+        {
+            var decl = asset.Parameters.FirstOrDefault(p => p.Id == guid);
+            if (decl != null && !string.IsNullOrEmpty(decl.Type?.TypeId))
+                return decl.Type.TypeId;
+        }
+        return "System.Object";
+    }
+
     private static IReadOnlyList<Pin> SetVariablePins(SetVariableNode sv, string typeId)
         => new[]
         {
@@ -590,26 +728,82 @@ internal static class NodePinSchema
     /// in parity with the compiler's <c>Stage0_Rehydrate.EnrichGetSharedPins</c>.
     /// </summary>
     private static IReadOnlyList<Pin> GetSharedPins(GetSharedNode gsn)
-        => new[]
+    {
+        // Q#14 multi-pin: baked per-field decls → Target + one data-out per field + Found (read the struct
+        // once, project each field). Parity with the compiler's Stage0 EnrichGetSharedPins.
+        if (gsn.Fields is { Count: > 0 })
+        {
+            var pins = new List<Pin>(2 + gsn.Fields.Count) { MakeData("Target", "In", "Fdp.Core.Entity") };
+            foreach (var f in gsn.Fields)
+                pins.Add(MakeData(f.Name, "Out", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+            pins.Add(MakeData("Found", "Out", "System.Boolean"));
+            return pins;
+        }
+        return new[]
         {
             MakeData("Target", "In",  "Fdp.Core.Entity"),
             MakeData("Value",  "Out", SharedTypePinTypeId(gsn.SharedTypeId)),
             MakeData("Found",  "Out", "System.Boolean"),
         };
+    }
 
     /// <summary>
     /// SetSharedNode (Slice 2a-2): exec node. Data-in "Value" typed DIRECTLY from
     /// <see cref="SetSharedNode.SharedTypeId"/> + data-out "Written" (<c>System.Boolean</c>).
     /// Kept in parity with the compiler's <c>Stage0_Rehydrate.EnrichSetSharedPins</c>.
     /// </summary>
+    /// <summary>Q#14 Option B — MakeStruct: one data-IN per baked field + a struct-typed data-OUT "Value".
+    /// Parity with the compiler's Stage0 EnrichMakeStructPins.</summary>
+    private static IReadOnlyList<Pin> MakeStructPins(MakeStructNode msn)
+    {
+        var pins = new List<Pin>(msn.Fields.Count + 1);
+        foreach (var f in msn.Fields)
+            pins.Add(MakeData(f.Name, "In", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+        pins.Add(MakeData("Value", "Out", SharedTypePinTypeId(msn.StructTypeId)));
+        return pins;
+    }
+
+    /// <summary>Q#14 Option B — BreakStruct: a struct-typed data-IN "Value" + one data-OUT per baked field.
+    /// Parity with the compiler's Stage0 EnrichBreakStructPins.</summary>
+    private static IReadOnlyList<Pin> BreakStructPins(BreakStructNode bsn)
+    {
+        var pins = new List<Pin>(bsn.Fields.Count + 1) { MakeData("Value", "In", SharedTypePinTypeId(bsn.StructTypeId)) };
+        foreach (var f in bsn.Fields)
+            pins.Add(MakeData(f.Name, "Out", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+        return pins;
+    }
+
+    /// <summary>Q#14 Option B — SetMembers: struct-typed data-IN "Source" + one member data-IN per baked
+    /// field + struct-typed data-OUT "Result". Parity with the compiler's Stage0 EnrichSetMembersPins.</summary>
+    private static IReadOnlyList<Pin> SetMembersPins(SetMembersNode smn)
+    {
+        var structType = SharedTypePinTypeId(smn.StructTypeId);
+        var pins = new List<Pin>(smn.Fields.Count + 2) { MakeData("Source", "In", structType) };
+        foreach (var f in smn.Fields)
+            pins.Add(MakeData(f.Name, "In", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+        pins.Add(MakeData("Result", "Out", structType));
+        return pins;
+    }
+
     private static IReadOnlyList<Pin> SetSharedPins(SetSharedNode ssn)
-        => new[]
+    {
+        // Q#14 multi-pin: baked per-field decls → exec + one data-in per field (unwired fields preserved).
+        // Parity with the compiler's Stage0 EnrichSetSharedPins.
+        if (ssn.Fields is { Count: > 0 })
+        {
+            var pins = new List<Pin>(2 + ssn.Fields.Count) { MakeExec("In", "In"), MakeExec("Out", "Out") };
+            foreach (var f in ssn.Fields)
+                pins.Add(MakeData(f.Name, "In", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+            return pins;
+        }
+        return new[]
         {
             MakeExec("In",      "In"),
             MakeExec("Out",     "Out"),
             MakeData("Value",   "In",  SharedTypePinTypeId(ssn.SharedTypeId)),
             MakeData("Written", "Out", "System.Boolean"),
         };
+    }
 
     /// <summary>
     /// Resolves the pin <c>TypeId</c> for a GetShared/SetShared "Value" pin directly from the
@@ -861,6 +1055,15 @@ internal static class NodePinSchema
         }
         return null;
     }
+
+    /// <summary>
+    /// Editor punch-list #4 — public reuse entry point: resolves the CLR <see cref="MethodInfo"/>
+    /// a <see cref="FunctionCallNode"/> targets (by <c>TargetTypeId</c>/<c>MethodName</c>) so the
+    /// node tooltip can surface its XML-doc <c>&lt;summary&gt;</c>. Returns <c>null</c> for the
+    /// in-blueprint Function-graph call mode or when the type/method cannot be resolved.
+    /// </summary>
+    internal static MethodInfo? ResolveClrMethod(FunctionCallNode fc)
+        => ResolveMethod(fc.TargetTypeId, fc.MethodName);
 
     /// <summary>
     /// Resolves a method by declaring-type FQN and method name across loaded assemblies.

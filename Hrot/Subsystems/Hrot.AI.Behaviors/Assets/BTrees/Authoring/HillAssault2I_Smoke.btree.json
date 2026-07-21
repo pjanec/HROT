@@ -1,0 +1,75 @@
+{
+  "$meta": {
+    "docType": "Hrot.BTree",
+    "schemaVersion": 1
+  },
+  "AssetId": "bb000041-0000-0000-0000-000000000000",
+  "Name": "HillAssault2I_Smoke",
+  "TargetNamespace": "Hrot.AI.Behaviors.Trees",
+  "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+  "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+  "Nodes": [
+    {
+      "kind": "Root",
+      "VisualId": "bb410000-0000-0000-0000-000000000001",
+      "ChildVisualIds": [
+        "bb410000-0000-0000-0000-000000000002"
+      ],
+      "DisplayLabel": "Root",
+      "EditorMetadata": { "X": 300, "Y": 0, "Comment": null, "Collapsed": false, "Color": null }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.TickCore",
+        "ExpressionTargetField": "bpParams",
+        "DelegateShape": "AiPrimitiveTickCore",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp+WorkingState"
+      },
+      "VisualId": "bb410000-0000-0000-0000-000000000002",
+      "ChildVisualIds": [],
+      "DisplayLabel": "HillAssault2I_CalculateSegments",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 160,
+        "Comment": "P1b tree-INTEGRATION smoke (architect Q#9-A): composes the REAL generated HillAssault2I_CalculateSegments blueprint (Assets/Blueprints/HillAssault2I_CalculateSegments.bp.json, BlueprintId 0xC870810D) as a host-BTree node -- mirrors T32/T37's composed-generated-blueprint pattern. This node's OWN Params carries the five StartX/StartY/EndX/EndY/TankSpacing floats (baked via the 'bpParams' variable's DefaultValueJson below, mirroring T33_ComposedParamBlueprint); its own WorkingState is EMPTY. The interesting slot is the STANDALONE 'state' Role=State/Scope=Entity blackboard variable declared below, which this node's generated TickCore body reads/writes via BlueprintSharedState.TryGetShared/TrySetShared('state') -- NOT via WorkingStateTargetField binding.",
+        "Collapsed": false,
+        "Color": null
+      }
+    }
+  ],
+  "Pills": [],
+  "Canvas": { "PanX": 0, "PanY": 0, "Zoom": 1 },
+  "SubtreeSyncBindings": {},
+  "Suppressions": { "Conflict": [], "Unused": [] },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+    "HeavyDtoType": null,
+    "Variables": [
+      {
+        "Name": "bpParams",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp+Params",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"StartX\":0,\"StartY\":0,\"EndX\":100,\"EndY\":0,\"TankSpacing\":10}",
+        "Comment": "Authored params for the composed HillAssault2I_CalculateSegments blueprint (StartX=0,StartY=0,EndX=100,EndY=0,TankSpacing=10 -- distance 100 / spacing 10 = 10 slots), baked via DefaultValueJson mirroring T33_ComposedParamBlueprint's ComposedAiPrimitiveNode_WithAuthoredDefault pattern.",
+        "IsAutoManaged": true
+      },
+      {
+        "Name": "state",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "Comment": "Slice P1b/Q9 tree-integration: standalone Entity-scoped shared commander state. NOT bound to any node's WorkingStateTargetField -- the composed HillAssault2I_CalculateSegments node above reads/writes it purely through the blueprint-graph's GetShared/SetShared nodes inside its own TickCore body (BlueprintSharedState.TryGetShared<HillAttackSharedState>(world, self, \"state\")). EmitStatefulWorkingSlotsArray's standalone-variable pass provisions its manifest entry (FNV-1a-32(\"state\") only, Entity scope excludes assetId) so BehaviorIngressSystem.ProvisionStatefulSlots attaches the slot on AssignBehaviorEvent -- mirrors T37_SharedStateManifestProvisioning's 'rally' variable exactly.",
+        "IsAutoManaged": false,
+        "Role": "State",
+        "Scope": "Entity"
+      }
+    ]
+  }
+}

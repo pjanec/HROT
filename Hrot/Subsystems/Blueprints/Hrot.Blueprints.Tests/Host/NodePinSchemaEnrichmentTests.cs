@@ -68,6 +68,36 @@ public sealed class NodePinSchemaEnrichmentTests
     private static bool HasExec(IEnumerable<Pin> pins, string name, string dir)
         => pins.Any(p => p.IsExec && p.Name == name && p.Direction == dir);
 
+    // ── GetParameter editor projection (pin-less integrated blueprints) ──────────
+
+    /// <summary>
+    /// Regression: a pin-less GetParameter node (as stored in the integrated HillAssault2I_*
+    /// blueprints) must still project its "Value" data-out pin in the EDITOR, typed from the
+    /// referenced parameter — otherwise the node renders with no output pin and its wire vanishes.
+    /// (The compiler bakes this at lowering and needs no pin, which is why the proof tests pass
+    /// while the editor projection was broken.)
+    /// </summary>
+    [Fact]
+    public void GetParameter_PinlessAsset_ProjectsTypedValueOutPin()
+    {
+        var pid = System.Guid.NewGuid();
+        var asset = new BlueprintAsset
+        {
+            AssetId = System.Guid.NewGuid(),
+            Name = "T",
+            Parameters = new() { new ParameterDecl { Id = pid, Name = "Width", Type = new BlueprintTypeRef { TypeId = "System.Single" } } },
+        };
+        var node = new GetParameterNode { ParameterId = pid.ToString() }; // pin-less (no authored Pins)
+        Assert.Empty(node.Pins);
+
+        var pins = NodePinSchema.GetCanonicalPins(node, asset: asset);
+
+        var outs = pins.Where(p => !p.IsExec && p.Direction == "Out").ToList();
+        Assert.Single(outs);
+        Assert.Equal("Value", outs[0].Name);
+        Assert.Equal("System.Single", outs[0].TypeRef!.TypeId);
+    }
+
     // ── Task 1: ChannelCommandNode ─────────────────────────────────────────────
 
     [Fact]

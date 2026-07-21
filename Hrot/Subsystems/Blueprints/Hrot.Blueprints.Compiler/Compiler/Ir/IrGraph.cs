@@ -13,6 +13,22 @@ public sealed record IrGraph
     public Guid Id { get; init; }
     public string Name { get; init; } = "";
     public IrGraphKind Kind { get; init; }
+
+    /// <summary>
+    /// Q#14: for an Event graph, the event identity it handles (the <c>EventEntryNode.EventTypeId</c> — a
+    /// typed event's FQN or a custom event's name). The emitter keys <c>BlueprintDefinition.EventHandlers</c>
+    /// by this (NOT the graph name, which is a C# method-name suffix and can't hold an FQN) and reinterprets
+    /// the dispatched payload as <c>global::{EventTypeFqn}</c>. Null for non-Event graphs.
+    /// </summary>
+    public string? EventTypeFqn { get; init; }
+
+    /// <summary>Q#14 (3d): Self/Any recipient filter for an Event graph. When true, the emitted thunk
+    /// early-returns unless the event's <see cref="TargetFieldName"/> equals <c>self</c>.</summary>
+    public bool TargetFilterSelf { get; init; }
+
+    /// <summary>Q#14 (3d): the event's <c>[EventTarget]</c> field name used by the Self filter comparison.</summary>
+    public string? TargetFieldName { get; init; }
+
     public IReadOnlyList<IrField> Inputs { get; init; } = Array.Empty<IrField>();
     public IReadOnlyList<IrField> Outputs { get; init; } = Array.Empty<IrField>();
     public IReadOnlyList<IrBlock> Blocks { get; init; } = Array.Empty<IrBlock>();

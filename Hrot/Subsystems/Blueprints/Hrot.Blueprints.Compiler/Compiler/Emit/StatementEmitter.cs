@@ -84,6 +84,49 @@ internal static class StatementEmitter
                 break;
             }
 
+            case IrOp_MakeStruct op:
+            {
+                // Q#14 Option B: build a struct value into __t{idx}; the value flows to consumers.
+                if (idx >= 0)
+                {
+                    e.WriteLine($"var __t{idx} = new global::{op.StructFqn}");
+                    e.WriteLine("{");
+                    e.Indent();
+                    for (int i = 0; i < op.Fields.Count; i++)
+                    {
+                        var f = op.Fields[i];
+                        var sep = i == op.Fields.Count - 1 ? "" : ",";
+                        e.WriteLine($"{f.FieldName} = __t{f.Value.Index}{sep}");
+                    }
+                    e.Outdent();
+                    e.WriteLine("};");
+                }
+                break;
+            }
+
+            case IrOp_SetMembers op:
+            {
+                // Q#14 Option B: copy the source struct, then overwrite the wired members.
+                if (idx >= 0)
+                {
+                    e.WriteLine($"var __t{idx} = __t{op.Input.Index};");
+                    foreach (var f in op.Fields)
+                        e.WriteLine($"__t{idx}.{f.FieldName} = __t{f.Value.Index};");
+                }
+                break;
+            }
+
+            case IrOp_WriteSharedField op:
+            {
+                // Q#14 multi-pin: true per-field write — touches only this field's bytes, unwired
+                // fields preserved. Result discarded (self-only, not-ready => no-op, mirrors WriteShared).
+                e.WriteLine(
+                    $"global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintSharedState." +
+                    $"TrySetSharedField<global::{op.SharedTypeFqn}, global::{op.FieldTypeFqn}>(" +
+                    $"{wv}, self, \"{op.VariableId}\", {op.FieldOffset}, in __t{op.Value.Index});");
+                break;
+            }
+
             case IrOp_ReadInputArg op:
             {
                 var argName = ctx.CurrentGraph?.Inputs is { } inputs && op.ArgIndex < inputs.Count
@@ -119,10 +162,20 @@ internal static class StatementEmitter
                     string.Join(", ", op.Args.Select(a => $"__t{a.Index}")),
                     ctx, op.AppendSelfArg, op.AppendViewArg);
                 string call;
+                // Intercept synthesized coercion casts produced by Stage3_Normalize.InsertImplicitCasts
+                // (CastNode -> IrOp_PureCall "Cast.<TargetType>"). These must emit a native C# cast, NOT a
+                // call to a nonexistent global::Cast.<Type> method (CS0400). Stage3 only inserts a cast
+                // when ITypeRegistry.TryGetCoercion succeeds, so <TargetType> is always a scalar numeric/
+                // enum FQN and the single arg is the value to convert (no context args).
+                if (op.MethodFqn.StartsWith("Cast.", StringComparison.Ordinal) && op.Args.Count == 1)
+                {
+                    var targetType = op.MethodFqn.Substring("Cast.".Length);
+                    call = $"(global::{targetType})__t{op.Args[0].Index}";
+                }
                 // Intercept synthesized comparison/arithmetic operators produced by WaitLowering_*.
                 // These use the naming convention op_<Operation>_<Type> and must be emitted as
                 // native C# infix expressions rather than global:: method calls (which would be invalid).
-                if (TryGetSynthesizedOpInfix(op.MethodFqn, op.Args, out var infixExpr))
+                else if (TryGetSynthesizedOpInfix(op.MethodFqn, op.Args, out var infixExpr))
                 {
                     call = infixExpr!;
                 }
@@ -297,10 +350,27 @@ internal static class StatementEmitter
                 // no defining statement of its own). Body statements were scheduled inline by Stage5.
                 string roster  = $"__t{op.RosterValue.Index}";
                 string loopVar = $"__fe{op.ItemVar.Index}";
-                e.WriteLine($"for (int {loopVar} = 0; {loopVar} < global::{op.CountAccessorFqn}({roster}); {loopVar}++)");
+                // "Count" out-pin (op.CountVar): hoist the element count into an OUTER-scope local and
+                // reuse it as the loop bound (evaluated once). Otherwise re-evaluate inline each pass
+                // (the original P1a shape -- keeps existing goldens byte-identical).
+                string bound;
+                if (op.CountVar is not null)
+                {
+                    e.WriteLine($"var __t{op.CountVar.Value.Index} = global::{op.CountAccessorFqn}({roster});");
+                    bound = $"__t{op.CountVar.Value.Index}";
+                }
+                else
+                {
+                    bound = $"global::{op.CountAccessorFqn}({roster})";
+                }
+                e.WriteLine($"for (int {loopVar} = 0; {loopVar} < {bound}; {loopVar}++)");
                 e.WriteLine("{");
                 e.Indent();
                 e.WriteLine($"var __t{op.ItemVar.Index} = global::{op.ItemAccessorFqn}({roster}, {loopVar});");
+                // "CurrentIndex" out-pin (op.IndexVar): copy the loop counter into a body-scoped local so
+                // body statements reference the 0-based index by the normal __t convention.
+                if (op.IndexVar is not null)
+                    e.WriteLine($"var __t{op.IndexVar.Value.Index} = {loopVar};");
                 foreach (var bodyStmt in op.Body)
                     Emit(e, bodyStmt);
                 e.Outdent();

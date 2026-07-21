@@ -1,0 +1,881 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
+  "AssetId": "3b6d47d5-74bd-53c3-a79f-58dcdb513b27",
+  "Name": "HillAssault2_RequestAreaQuery",
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "Primitive": {
+    "Intent": "Action",
+    "Hostings": [
+      "BTreeAction"
+    ]
+  },
+  "Parameters": [
+    {
+      "Id": "ac6ab462-b028-5cfa-9d41-96fa37aa1bd5",
+      "Name": "TargetAreaEntity",
+      "Type": {
+        "TypeId": "Fdp.Core.Entity",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": ""
+    }
+  ],
+  "WorkingState": [
+    {
+      "Id": "3fa5d964-4adf-54cc-9e9b-be8bf76c6320",
+      "Name": "CachedEqsRequestId",
+      "Type": {
+        "TypeId": "System.Int64",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "-1",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    },
+    {
+      "Id": "68f68618-a063-5c37-83e6-b450af9f9227",
+      "Name": "EqsRequestTime",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    }
+  ],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "5e1208a6-5ad3-5a8f-99d6-cc8c6542b06a",
+      "Name": "Main",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "647dd64b-9e93-51c2-9bec-137105aab0c2",
+          "EventTypeId": "",
+          "Pins": [
+            {
+              "Id": "c2fec7d2-26ee-5f11-aca0-944fb412487f",
+              "Name": "Out",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            }
+          ],
+          "EditorMetadata": {
+            "X": 40.0,
+            "Y": 400.0
+          }
+        },
+        {
+          "kind": "GetVariable",
+          "Id": "bf9b806a-9224-59a8-8f4e-12282f0c91ba",
+          "VariableId": "3fa5d964-4adf-54cc-9e9b-be8bf76c6320",
+          "Pins": [
+            {
+              "Id": "ddcb620a-4a71-5973-83cd-b71a2c5849d4",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int64",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 40.0,
+            "Y": 40.0
+          }
+        },
+        {
+          "kind": "Literal",
+          "Id": "06877885-5e79-5e3e-a4d5-66ede0b24db8",
+          "TypeId": "System.Int64",
+          "ValueJson": "-1L",
+          "Pins": [
+            {
+              "Id": "7548c355-99bb-5cd2-9d8d-bcd2a2e89d47",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int64",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 40.0,
+            "Y": 120.0
+          }
+        },
+        {
+          "kind": "Compare",
+          "Id": "5c000c1d-5b91-548c-9381-a51dba1b9e64",
+          "Operator": "NotEqual",
+          "Pins": [
+            {
+              "Id": "2d018bca-1dd6-58a8-8a43-2bf6f454a713",
+              "Name": "A",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int64",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "277f8b2f-ff55-5f3e-aab3-5386fea8d8f2",
+              "Name": "B",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int64",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "527cb511-c8a8-5467-982b-fb993c19fece",
+              "Name": "Result",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 300.0,
+            "Y": 80.0
+          }
+        },
+        {
+          "kind": "Branch",
+          "Id": "654fc1f7-c4d8-5c73-a4b8-cb0162b05360",
+          "Pins": [
+            {
+              "Id": "a3426759-2c3d-59b2-b201-661b7c635d78",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "d199c7c1-2294-5d3e-8931-4175c220bfaa",
+              "Name": "True",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "a45c5726-374f-5db2-954e-5d0b474066b7",
+              "Name": "False",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "04b3c54a-e87b-51d3-b143-a33fb4192514",
+              "Name": "Condition",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 560.0,
+            "Y": 400.0
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "60be6bfd-1dfa-5add-a511-45f07069adad",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.AreaQueryBatchOps",
+          "MethodName": "IsReady",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "View",
+          "Pins": [
+            {
+              "Id": "5c7fe326-9768-516d-8a68-6251fbc2a6f5",
+              "Name": "requestId",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int64",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "9d640f8f-9b65-5aa7-9aa0-243cfabd4bb9",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 820.0,
+            "Y": 120.0
+          }
+        },
+        {
+          "kind": "Branch",
+          "Id": "4e68a9b7-f05b-5da7-ba7f-23026cd31fe9",
+          "Pins": [
+            {
+              "Id": "fb91b850-a92e-5052-8271-9a74ad1ac49a",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "3d8a4ce3-2886-5ae0-979f-cd4ad868fc47",
+              "Name": "True",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "47572968-284f-5485-b885-565a024aa7f5",
+              "Name": "False",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "340ef656-b16d-5f9b-b51a-7e696230b36b",
+              "Name": "Condition",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080.0,
+            "Y": 200.0
+          }
+        },
+        {
+          "kind": "GetParameter",
+          "Id": "c357c5b3-aea1-5f3b-99f0-a9d164ef2bc6",
+          "ParameterId": "ac6ab462-b028-5cfa-9d41-96fa37aa1bd5",
+          "Pins": [
+            {
+              "Id": "a3e0fe10-03dc-5d58-a563-8ba9cee103b0",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Fdp.Core.Entity",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 40.0,
+            "Y": 560.0
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "a6b276b5-9274-5f02-804e-5c59580c332b",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.WorldOps",
+          "MethodName": "IsAlive",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "View",
+          "Pins": [
+            {
+              "Id": "45423f85-91f7-5070-ac84-03249143a964",
+              "Name": "e",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Fdp.Core.Entity",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "1c218647-e169-544f-bcaf-d61469cdd597",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 820.0,
+            "Y": 560.0
+          }
+        },
+        {
+          "kind": "Branch",
+          "Id": "1918ee13-43fc-590d-ac81-765079e2af6a",
+          "Pins": [
+            {
+              "Id": "ee46c2e0-931d-54f9-bd49-79845d91af13",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "72a5ea63-a8cc-583a-9739-a3c03b998b57",
+              "Name": "True",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "392e3091-f03f-5a94-bdfd-2cc72698761d",
+              "Name": "False",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "e1b06900-6a7d-59f4-a49a-219ff047b867",
+              "Name": "Condition",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1080.0,
+            "Y": 660.0
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "532e4dc4-6e33-501c-95b4-d5251561ea75",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.AreaQueryBatchOps",
+          "MethodName": "Request",
+          "IsPure": false,
+          "TargetGraphId": "",
+          "TrailingContext": "SelfAndView",
+          "Pins": [
+            {
+              "Id": "ba711667-8ada-5ee6-abc9-9cce3fc42b98",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "4c981ebc-4c10-5d4d-b7a6-2ba6c3230585",
+              "Name": "Out",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "40ebec72-398e-5a1e-91c5-74af12537f77",
+              "Name": "targetArea",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "Fdp.Core.Entity",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "b84e429d-63aa-5514-b63f-57be0a2af9da",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int64",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1340.0,
+            "Y": 660.0
+          }
+        },
+        {
+          "kind": "Compare",
+          "Id": "755096f0-2fa2-5eb6-9db5-feba84ab82aa",
+          "Operator": "Equal",
+          "Pins": [
+            {
+              "Id": "e3d9d6a4-ff18-52ae-9a2b-f76e76053647",
+              "Name": "A",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int64",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "a4a96adb-a14b-5488-a167-4c741e39c316",
+              "Name": "B",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int64",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "6e80e25e-a797-5686-8737-3b25f155145f",
+              "Name": "Result",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1600.0,
+            "Y": 780.0
+          }
+        },
+        {
+          "kind": "Branch",
+          "Id": "66eb8af1-05c6-51bc-ae8c-6b17e4b864a7",
+          "Pins": [
+            {
+              "Id": "763a274d-8d00-5856-8a54-4b2b2dffc78e",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "fc1deab7-90ec-5e3e-acd0-8f1a0ad9fa99",
+              "Name": "True",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "22211f80-b3c7-527c-a536-1b6a1c8353a1",
+              "Name": "False",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "97b85ab2-cb31-5007-937f-e535c044c16f",
+              "Name": "Condition",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1860.0,
+            "Y": 660.0
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "Id": "49a1f4e4-6b6d-5dd7-83e3-d013e91db481",
+          "VariableId": "3fa5d964-4adf-54cc-9e9b-be8bf76c6320",
+          "Pins": [
+            {
+              "Id": "26222fdc-ff14-5da6-999c-150dbb5f5a49",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "b3ed0e29-ecd8-5e30-9955-54aed70983e7",
+              "Name": "Out",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "66b90b13-d484-5858-8655-5a35b1985afc",
+              "Name": "Value",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int64",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "f16977a6-9857-53dc-bf8e-909cb4f59a66",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int64",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 2120.0,
+            "Y": 560.0
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "cab98f45-e3be-516f-8742-a488694c2e36",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.WorldOps",
+          "MethodName": "SimTime",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "View",
+          "Pins": [
+            {
+              "Id": "bfa7cb80-03de-59e4-b5aa-5a0b06cb5a2d",
+              "Name": "Return",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 2120.0,
+            "Y": 720.0
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "Id": "d1bbe966-431f-5d70-95fa-260874ab45a1",
+          "VariableId": "68f68618-a063-5c37-83e6-b450af9f9227",
+          "Pins": [
+            {
+              "Id": "ce0a4594-e3bc-5681-9d1c-42149bb828d9",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "a1ce6752-89df-53ff-abd8-e962a77a3964",
+              "Name": "Out",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "fc85b86f-95dd-5313-a76b-2f57477ca529",
+              "Name": "Value",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            },
+            {
+              "Id": "a9662f8b-d6f2-5979-b7d0-135f33eeb9c9",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 2380.0,
+            "Y": 560.0
+          }
+        },
+        {
+          "kind": "Return",
+          "Id": "fa325522-3527-5f1b-b4fe-c96ad8268a10",
+          "Status": "Success",
+          "Pins": [
+            {
+              "Id": "b388dbfe-450a-5a2a-b52e-b2a5215d08ad",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            }
+          ],
+          "EditorMetadata": {
+            "X": 2640.0,
+            "Y": 400.0
+          }
+        },
+        {
+          "kind": "Return",
+          "Id": "a2febdaa-9196-5c4b-9e25-0e607796fe05",
+          "Status": "Running",
+          "Pins": [
+            {
+              "Id": "b41ab238-f59b-532b-a8d5-b5ad4b66ee0e",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1340.0,
+            "Y": 200.0
+          }
+        },
+        {
+          "kind": "Return",
+          "Id": "1efe394c-5a7d-5e2f-b188-a61584221552",
+          "Status": "Failure",
+          "Pins": [
+            {
+              "Id": "8df627e2-dfdf-559e-8a75-e134dbf12e15",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1340.0,
+            "Y": 900.0
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "647dd64b-9e93-51c2-9bec-137105aab0c2",
+          "FromPinId": "c2fec7d2-26ee-5f11-aca0-944fb412487f",
+          "ToNodeId": "654fc1f7-c4d8-5c73-a4b8-cb0162b05360",
+          "ToPinId": "a3426759-2c3d-59b2-b201-661b7c635d78"
+        },
+        {
+          "FromNodeId": "bf9b806a-9224-59a8-8f4e-12282f0c91ba",
+          "FromPinId": "ddcb620a-4a71-5973-83cd-b71a2c5849d4",
+          "ToNodeId": "5c000c1d-5b91-548c-9381-a51dba1b9e64",
+          "ToPinId": "2d018bca-1dd6-58a8-8a43-2bf6f454a713"
+        },
+        {
+          "FromNodeId": "06877885-5e79-5e3e-a4d5-66ede0b24db8",
+          "FromPinId": "7548c355-99bb-5cd2-9d8d-bcd2a2e89d47",
+          "ToNodeId": "5c000c1d-5b91-548c-9381-a51dba1b9e64",
+          "ToPinId": "277f8b2f-ff55-5f3e-aab3-5386fea8d8f2"
+        },
+        {
+          "FromNodeId": "5c000c1d-5b91-548c-9381-a51dba1b9e64",
+          "FromPinId": "527cb511-c8a8-5467-982b-fb993c19fece",
+          "ToNodeId": "654fc1f7-c4d8-5c73-a4b8-cb0162b05360",
+          "ToPinId": "04b3c54a-e87b-51d3-b143-a33fb4192514"
+        },
+        {
+          "FromNodeId": "bf9b806a-9224-59a8-8f4e-12282f0c91ba",
+          "FromPinId": "ddcb620a-4a71-5973-83cd-b71a2c5849d4",
+          "ToNodeId": "60be6bfd-1dfa-5add-a511-45f07069adad",
+          "ToPinId": "5c7fe326-9768-516d-8a68-6251fbc2a6f5"
+        },
+        {
+          "FromNodeId": "60be6bfd-1dfa-5add-a511-45f07069adad",
+          "FromPinId": "9d640f8f-9b65-5aa7-9aa0-243cfabd4bb9",
+          "ToNodeId": "4e68a9b7-f05b-5da7-ba7f-23026cd31fe9",
+          "ToPinId": "340ef656-b16d-5f9b-b51a-7e696230b36b"
+        },
+        {
+          "FromNodeId": "654fc1f7-c4d8-5c73-a4b8-cb0162b05360",
+          "FromPinId": "d199c7c1-2294-5d3e-8931-4175c220bfaa",
+          "ToNodeId": "4e68a9b7-f05b-5da7-ba7f-23026cd31fe9",
+          "ToPinId": "fb91b850-a92e-5052-8271-9a74ad1ac49a"
+        },
+        {
+          "FromNodeId": "4e68a9b7-f05b-5da7-ba7f-23026cd31fe9",
+          "FromPinId": "3d8a4ce3-2886-5ae0-979f-cd4ad868fc47",
+          "ToNodeId": "fa325522-3527-5f1b-b4fe-c96ad8268a10",
+          "ToPinId": "b388dbfe-450a-5a2a-b52e-b2a5215d08ad"
+        },
+        {
+          "FromNodeId": "4e68a9b7-f05b-5da7-ba7f-23026cd31fe9",
+          "FromPinId": "47572968-284f-5485-b885-565a024aa7f5",
+          "ToNodeId": "a2febdaa-9196-5c4b-9e25-0e607796fe05",
+          "ToPinId": "b41ab238-f59b-532b-a8d5-b5ad4b66ee0e"
+        },
+        {
+          "FromNodeId": "c357c5b3-aea1-5f3b-99f0-a9d164ef2bc6",
+          "FromPinId": "a3e0fe10-03dc-5d58-a563-8ba9cee103b0",
+          "ToNodeId": "a6b276b5-9274-5f02-804e-5c59580c332b",
+          "ToPinId": "45423f85-91f7-5070-ac84-03249143a964"
+        },
+        {
+          "FromNodeId": "a6b276b5-9274-5f02-804e-5c59580c332b",
+          "FromPinId": "1c218647-e169-544f-bcaf-d61469cdd597",
+          "ToNodeId": "1918ee13-43fc-590d-ac81-765079e2af6a",
+          "ToPinId": "e1b06900-6a7d-59f4-a49a-219ff047b867"
+        },
+        {
+          "FromNodeId": "654fc1f7-c4d8-5c73-a4b8-cb0162b05360",
+          "FromPinId": "a45c5726-374f-5db2-954e-5d0b474066b7",
+          "ToNodeId": "1918ee13-43fc-590d-ac81-765079e2af6a",
+          "ToPinId": "ee46c2e0-931d-54f9-bd49-79845d91af13"
+        },
+        {
+          "FromNodeId": "1918ee13-43fc-590d-ac81-765079e2af6a",
+          "FromPinId": "392e3091-f03f-5a94-bdfd-2cc72698761d",
+          "ToNodeId": "1efe394c-5a7d-5e2f-b188-a61584221552",
+          "ToPinId": "8df627e2-dfdf-559e-8a75-e134dbf12e15"
+        },
+        {
+          "FromNodeId": "1918ee13-43fc-590d-ac81-765079e2af6a",
+          "FromPinId": "72a5ea63-a8cc-583a-9739-a3c03b998b57",
+          "ToNodeId": "532e4dc4-6e33-501c-95b4-d5251561ea75",
+          "ToPinId": "ba711667-8ada-5ee6-abc9-9cce3fc42b98"
+        },
+        {
+          "FromNodeId": "c357c5b3-aea1-5f3b-99f0-a9d164ef2bc6",
+          "FromPinId": "a3e0fe10-03dc-5d58-a563-8ba9cee103b0",
+          "ToNodeId": "532e4dc4-6e33-501c-95b4-d5251561ea75",
+          "ToPinId": "40ebec72-398e-5a1e-91c5-74af12537f77"
+        },
+        {
+          "FromNodeId": "532e4dc4-6e33-501c-95b4-d5251561ea75",
+          "FromPinId": "b84e429d-63aa-5514-b63f-57be0a2af9da",
+          "ToNodeId": "755096f0-2fa2-5eb6-9db5-feba84ab82aa",
+          "ToPinId": "e3d9d6a4-ff18-52ae-9a2b-f76e76053647"
+        },
+        {
+          "FromNodeId": "06877885-5e79-5e3e-a4d5-66ede0b24db8",
+          "FromPinId": "7548c355-99bb-5cd2-9d8d-bcd2a2e89d47",
+          "ToNodeId": "755096f0-2fa2-5eb6-9db5-feba84ab82aa",
+          "ToPinId": "a4a96adb-a14b-5488-a167-4c741e39c316"
+        },
+        {
+          "FromNodeId": "755096f0-2fa2-5eb6-9db5-feba84ab82aa",
+          "FromPinId": "6e80e25e-a797-5686-8737-3b25f155145f",
+          "ToNodeId": "66eb8af1-05c6-51bc-ae8c-6b17e4b864a7",
+          "ToPinId": "97b85ab2-cb31-5007-937f-e535c044c16f"
+        },
+        {
+          "FromNodeId": "532e4dc4-6e33-501c-95b4-d5251561ea75",
+          "FromPinId": "4c981ebc-4c10-5d4d-b7a6-2ba6c3230585",
+          "ToNodeId": "66eb8af1-05c6-51bc-ae8c-6b17e4b864a7",
+          "ToPinId": "763a274d-8d00-5856-8a54-4b2b2dffc78e"
+        },
+        {
+          "FromNodeId": "66eb8af1-05c6-51bc-ae8c-6b17e4b864a7",
+          "FromPinId": "fc1deab7-90ec-5e3e-acd0-8f1a0ad9fa99",
+          "ToNodeId": "a2febdaa-9196-5c4b-9e25-0e607796fe05",
+          "ToPinId": "b41ab238-f59b-532b-a8d5-b5ad4b66ee0e"
+        },
+        {
+          "FromNodeId": "66eb8af1-05c6-51bc-ae8c-6b17e4b864a7",
+          "FromPinId": "22211f80-b3c7-527c-a536-1b6a1c8353a1",
+          "ToNodeId": "49a1f4e4-6b6d-5dd7-83e3-d013e91db481",
+          "ToPinId": "26222fdc-ff14-5da6-999c-150dbb5f5a49"
+        },
+        {
+          "FromNodeId": "532e4dc4-6e33-501c-95b4-d5251561ea75",
+          "FromPinId": "b84e429d-63aa-5514-b63f-57be0a2af9da",
+          "ToNodeId": "49a1f4e4-6b6d-5dd7-83e3-d013e91db481",
+          "ToPinId": "66b90b13-d484-5858-8655-5a35b1985afc"
+        },
+        {
+          "FromNodeId": "49a1f4e4-6b6d-5dd7-83e3-d013e91db481",
+          "FromPinId": "b3ed0e29-ecd8-5e30-9955-54aed70983e7",
+          "ToNodeId": "d1bbe966-431f-5d70-95fa-260874ab45a1",
+          "ToPinId": "ce0a4594-e3bc-5681-9d1c-42149bb828d9"
+        },
+        {
+          "FromNodeId": "cab98f45-e3be-516f-8742-a488694c2e36",
+          "FromPinId": "bfa7cb80-03de-59e4-b5aa-5a0b06cb5a2d",
+          "ToNodeId": "d1bbe966-431f-5d70-95fa-260874ab45a1",
+          "ToPinId": "fc85b86f-95dd-5313-a76b-2f57477ca529"
+        },
+        {
+          "FromNodeId": "d1bbe966-431f-5d70-95fa-260874ab45a1",
+          "FromPinId": "a1ce6752-89df-53ff-abd8-e962a77a3964",
+          "ToNodeId": "fa325522-3527-5f1b-b4fe-c96ad8268a10",
+          "ToPinId": "b388dbfe-450a-5a2a-b52e-b2a5215d08ad"
+        }
+      ],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "P1b (Hill-attack -> Blueprints migration, EQS request/poll slice, architect Architect_Question_7_EQS_Slice.md): Action_RequestAreaQuery rebuilt as a visually-authored AiPrimitive BTreeAction (Intent=Action, NOT Condition -- this graph must be able to Return(Running) while a request is in flight or the EQS batch is full; a Condition-intent blueprint's bool wrapper (TickCore(...)==NodeStatus.Success) would collapse Running to false and destroy the poll). Graph: EventEntry -> Compare(GetVariable(CachedEqsRequestId), Literal Int64 -1L, NotEqual) -> Branch1. Branch1.True (a request is already in flight): FunctionCall AreaQueryBatchOps.IsReady(requestId<-CachedEqsRequestId) [IsPure, TrailingContext=View] -> Branch2: True -> Return(Success) (result already resolved, advance the sequence); False -> Return(Running) (still polling). Branch1.False (no request in flight): FunctionCall WorldOps.IsAlive(e<-GetParameter(TargetAreaEntity)) [IsPure, TrailingContext=View] -> Branch3: False -> Return(Failure) (covers the oracle's combined IsNull||!IsAlive guard, since WorldOps.IsAlive(Entity.Null,_)==false); True -> FunctionCall AreaQueryBatchOps.Request(targetArea<-GetParameter(TargetAreaEntity)) [IsPure=false/EXEC so the side effect is never dead-code eliminated, TrailingContext=SelfAndView -- self then view auto-appended by Stage5] -> id:Int64 -> Compare(id, Literal Int64 -1L, Equal) -> Branch4: True (EQS batch full) -> Return(Running) (retry next frame, matches oracle's id==-1 guard); False (submitted) -> SetVariable(CachedEqsRequestId<-id) -> FunctionCall WorldOps.SimTime() [IsPure, TrailingContext=View, no visible data-in pin -- the sole parameter is the auto-appended view] -> now:Single -> SetVariable(EqsRequestTime<-now) -> Return(Success). Return(Success) is a shared 2-in-degree merge point (Branch2.True direct path AND the submitted-request tail); Return(Running) is a shared 2-in-degree merge point (Branch2.False AND Branch4.True) -- both are pure exec-In-only terminal sinks, proven safe by HillAssault2_AimAndFireSpecific's 3-/4-in-degree Return merges; Return(Failure) has a single predecessor. GetVariable(CachedEqsRequestId) and GetParameter(TargetAreaEntity) each fan out their single pure Value-Out pin to 2 consumers (pure data nodes may fan out freely; only exec Out pins must remain single-destination). Curated helpers (AreaQueryBatchOps.Request/IsReady, WorldOps.SimTime, per architect Q#7-D): side-effecting Request stays an EXEC FunctionCall so it is never DCE'd; the Running/Success/Failure routing and the batch-full retry stay fully visual. Does not modify the C# oracle (HillAttackCommanderNodes.Action_RequestAreaQuery, line 188-227).",
+    "Category": null,
+    "Recipe": null
+  }
+}

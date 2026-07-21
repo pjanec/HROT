@@ -83,7 +83,7 @@ internal static class Stage4_TypeResolve
     {
         foreach (var f in fields)
         {
-            if (ctx.TypeRegistry.TryResolve(f.Type, out var resolved))
+            if (TryResolveFieldType(ctx, f.Type, out var resolved))
                 result[f.Id] = resolved;
             else
                 ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1500,
@@ -99,12 +99,38 @@ internal static class Stage4_TypeResolve
     {
         foreach (var f in fields)
         {
-            if (ctx.TypeRegistry.TryResolve(f.Type, out var resolved))
+            if (TryResolveFieldType(ctx, f.Type, out var resolved))
                 result[f.Id] = resolved;
             else
                 ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1500,
                     $"Field type '{f.Type.TypeId}' does not resolve.", assetId));
         }
+    }
+
+    /// <summary>
+    /// Resolves a field/variable type. Falls back to the AN2 "trust the string" project-type path for a
+    /// dotted FQN the registry doesn't know — so a struct-typed Variable (Q#14 Option B) resolves even
+    /// though the reflection-less compiler can't verify it. Size is a placeholder (the real State layout +
+    /// <c>StateSize => Unsafe.SizeOf&lt;State&gt;()</c> come from the generated struct at compile time).
+    /// </summary>
+    private static bool TryResolveFieldType(ValidationContext ctx, BlueprintTypeRef type, out IrTypeRef resolved)
+    {
+        if (ctx.TypeRegistry.TryResolve(type, out resolved)) return true;
+        var id = type.TypeId;
+        if (!string.IsNullOrEmpty(id)
+            && !id.StartsWith("global::", StringComparison.Ordinal)
+            && id.IndexOf('.') >= 0)   // looks like a project FQN (netstandard2.0: no string.Contains(char))
+        {
+            if (ctx.TypeRegistry.TryResolve(
+                    new BlueprintTypeRef { TypeId = "global::" + id, IsArray = type.IsArray }, out resolved))
+            {
+                // The AN2 path guesses a 4-byte size; for a real project struct that's a placeholder, so
+                // flag it — StateFields layout must then use runtime offsets, not baked field-size sums.
+                resolved = resolved with { SizeReliable = false };
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void CheckUnmanagedConstraint(

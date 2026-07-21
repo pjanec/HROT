@@ -25,6 +25,98 @@ internal sealed class RaylibPresentationShell : IPresentationShell
         Raylib_cs.Raylib.InitWindow(width, height, title);
         Raylib_cs.Raylib.SetExitKey(Raylib_cs.KeyboardKey.Null);
         Raylib_cs.Raylib.SetTargetFPS(targetFps);
+        TrySetWindowIcon();
+        TryApplyTaskbarIcons();
+    }
+
+    // ── Windows taskbar icon (console + GUI windows) ─────────────────────────────
+
+    private const uint WM_SETICON = 0x0080;
+    private const nint ICON_SMALL = 0;
+    private const nint ICON_BIG   = 1;
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    private static extern IntPtr GetConsoleWindow();
+
+    [System.Runtime.InteropServices.DllImport("shell32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern IntPtr ExtractIcon(IntPtr hInst, string exeFileName, int iconIndex);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+    private static extern IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+    /// <summary>
+    /// Forces the HROT icon onto the Windows taskbar button(s). A console-subsystem exe gets a
+    /// separate console window whose taskbar button carries the generic conhost icon (GLFW's
+    /// SetWindowIcon only styles the GUI window) — so we WM_SETICON the console window too, plus the
+    /// GUI window, using the icon already embedded in the exe (ApplicationIcon). Best-effort/no-throw.
+    /// </summary>
+    private static void TryApplyTaskbarIcons()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        try
+        {
+            var exePath = Environment.ProcessPath;
+            if (string.IsNullOrEmpty(exePath)) return;
+
+            IntPtr hIcon = ExtractIcon(IntPtr.Zero, exePath, 0);
+            if (hIcon == IntPtr.Zero || hIcon == new IntPtr(1)) return; // 1 = no icons in file
+
+            IntPtr guiHwnd;
+            unsafe { guiHwnd = (IntPtr)Raylib_cs.Raylib.GetWindowHandle(); }
+
+            foreach (var hwnd in new[] { GetConsoleWindow(), guiHwnd })
+            {
+                if (hwnd == IntPtr.Zero) continue;
+                SendMessage(hwnd, WM_SETICON, ICON_BIG, hIcon);
+                SendMessage(hwnd, WM_SETICON, ICON_SMALL, hIcon);
+            }
+        }
+        catch
+        {
+            // Non-fatal — leave whatever icon Windows chose.
+        }
+    }
+
+    /// <summary>
+    /// Sets the window/taskbar icon from the embedded <c>HROT-icon-green.png</c> (see .csproj).
+    /// Best-effort: any failure (missing resource, decode error) is swallowed so the window still
+    /// opens with the default icon. Must be called after <see cref="Raylib_cs.Raylib.InitWindow"/>.
+    /// </summary>
+    private static void TrySetWindowIcon()
+    {
+        try
+        {
+            using var stream = typeof(RaylibPresentationShell).Assembly
+                .GetManifestResourceStream("Hrot.ClusterRunner.HROT-icon-green.png");
+            if (stream == null) return;
+
+            using var ms = new MemoryStream();
+            stream.CopyTo(ms);
+            var pngBytes = ms.ToArray();
+
+            var image = Raylib_cs.Raylib.LoadImageFromMemory(".png", pngBytes);
+            // GLFW wants RGBA8 pixel data; normalise so any PNG encoding works.
+            Raylib_cs.Raylib.ImageFormat(ref image, Raylib_cs.PixelFormat.UncompressedR8G8B8A8);
+            // Pad to a SQUARE canvas before handing to GLFW. SetWindowIcon derives both the small
+            // (title-bar) and big (TASKBAR) icons by scaling this one image; a non-square source
+            // scales cleanly to the small icon but yields a broken/blank big icon — which is why the
+            // title bar showed the icon while the taskbar fell back to the default.
+            int side = System.Math.Max(image.Width, image.Height);
+            if (image.Width != image.Height)
+            {
+                Raylib_cs.Raylib.ImageResizeCanvas(
+                    ref image, side, side,
+                    (side - image.Width) / 2, (side - image.Height) / 2,
+                    Raylib_cs.Color.Blank); // transparent padding
+            }
+            // SetWindowIcon copies the pixels into GLFW, so the image can be freed immediately.
+            Raylib_cs.Raylib.SetWindowIcon(image);
+            Raylib_cs.Raylib.UnloadImage(image);
+        }
+        catch
+        {
+            // Non-fatal — keep the default icon.
+        }
     }
 
     public void SetupImGui()

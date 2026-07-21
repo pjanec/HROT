@@ -142,10 +142,25 @@ internal sealed class NodeRenderer
         }
 
         var font = ImGui.GetFont();
+
+        // Optional header glyph (e.g. the italic ƒ marking a function node), top-left of the header.
+        float leftPad = 4f * zoom;
+        float glyphAdvance = 0f;
+        var glyph = node.HeaderGlyph;
+        if (!string.IsNullOrEmpty(glyph))
+        {
+            var glyphSize = font.CalcTextSizeA(targetFontSize, float.MaxValue, 0f, glyph);
+            float gy = pMin.Y + (headerH - glyphSize.Y) * 0.5f;
+            dl.AddText(font, targetFontSize, new Vector2(pMin.X + leftPad, gy), textColor, glyph);
+            glyphAdvance = glyphSize.X + 3f * zoom;
+        }
+
         var titleSize = font.CalcTextSizeA(targetFontSize, float.MaxValue, 0f, node.Title);
         float centerX = pMin.X + (pMax.X - pMin.X - titleSize.X) * 0.5f;
         float centerY = pMin.Y + (headerH - titleSize.Y) * 0.5f;
-        dl.AddText(font, targetFontSize, new Vector2(MathF.Max(pMin.X + 4f * zoom, centerX), centerY), textColor, node.Title);
+        // Keep the title centered, but never let it overlap the header glyph.
+        float titleMinX = pMin.X + leftPad + glyphAdvance;
+        dl.AddText(font, targetFontSize, new Vector2(MathF.Max(titleMinX, centerX), centerY), textColor, node.Title);
 
         if (useFont) ImGui.PopFont();
     }

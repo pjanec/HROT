@@ -119,13 +119,26 @@ public sealed record IrOp_PublishBusEvent(
 /// (it has no defining statement of its own). <see cref="Body"/> is a NESTED statement list scheduled
 /// inline by Stage5 -- NOT a BFS block -- so there is no per-iteration block / topological cycle.
 /// P1a bodies are latent-free AND branch-free (Stage2 BP2050 enforces).</para>
+/// <para>Optional loop-introspection outs (bound by Stage5 only when the corresponding FlowForEach
+/// data-out pin is wired):
+/// <list type="bullet">
+/// <item><see cref="CountVar"/> -- when set, the element count is hoisted into an OUTER-scope local
+///   (<c>var __t{CountVar.Index} = global::{CountAccessorFqn}({RosterValue});</c>) emitted just before
+///   the <c>for</c>, and that local is reused as the loop bound (count evaluated once). The value is
+///   loop-invariant and in scope both inside the body and in the "Completed" chain.</item>
+/// <item><see cref="IndexVar"/> -- when set, the loop counter is copied into a BODY-scoped local
+///   (<c>var __t{IndexVar.Index} = __fe{ItemVar.Index};</c>) at the top of the body, so body statements
+///   reference the current 0-based index by the normal <c>__t</c> convention.</item>
+/// </list></para>
 /// </summary>
 public sealed record IrOp_ForEach(
     string CountAccessorFqn,
     string ItemAccessorFqn,
     IrValue RosterValue,
     IrValue ItemVar,
-    IReadOnlyList<IrStatement> Body) : IrOperation;
+    IReadOnlyList<IrStatement> Body,
+    IrValue? CountVar = null,
+    IrValue? IndexVar = null) : IrOperation;
 
 /// <summary>
 /// P1b (GAP-1) -- structured, inline <c>if</c>/<c>else</c>. Emitted ONLY by Stage5 for a
@@ -490,4 +503,47 @@ public sealed record IrOp_WriteShared(
     string VariableId,
     string SharedTypeFqn,
     IrValue Value
+) : IrOperation;
+
+/// <summary>
+/// Q#14 multi-pin SetShared: writes ONE field (<paramref name="Value"/>) into the ENTITY-scoped shared
+/// slot <paramref name="VariableId"/> at byte <paramref name="FieldOffset"/> within
+/// <paramref name="SharedTypeFqn"/>, via <c>BlueprintSharedState.TrySetSharedField&lt;TStruct,TField&gt;</c>.
+/// One statement per WIRED field pin (unwired fields never emit → preserved). Sources are resolved
+/// top-to-bottom into temporaries before the writes (evaluate-then-write); the per-field writes touch
+/// distinct byte ranges, so they are order-independent.
+/// </summary>
+/// <param name="VariableId">Entity-scoped slot name (name-keyed).</param>
+/// <param name="SharedTypeFqn">FQN of the shared struct (TStruct — hash validation + bounds).</param>
+/// <param name="FieldTypeFqn">FQN of the field type (TField — the write width).</param>
+/// <param name="FieldOffset">Byte offset of the field within the struct (editor-baked).</param>
+/// <param name="Value">The resolved field data-in.</param>
+public sealed record IrOp_WriteSharedField(
+    string VariableId,
+    string SharedTypeFqn,
+    string FieldTypeFqn,
+    int FieldOffset,
+    IrValue Value
+) : IrOperation;
+
+/// <summary>
+/// Q#14 Option B (<c>MakeStructNode</c>): constructs a struct value from per-field values —
+/// <c>var __t{result} = new global::{StructFqn} { A = __t{..}, B = __t{..} };</c>. The result is the
+/// struct-typed value flowed to downstream consumers (mirrors <see cref="IrOp_PublishBusEvent"/>'s
+/// object-initializer construction, but the value flows out instead of being published).
+/// </summary>
+public sealed record IrOp_MakeStruct(
+    string StructFqn,
+    IReadOnlyList<(string FieldName, IrValue Value)> Fields
+) : IrOperation;
+
+/// <summary>
+/// Q#14 Option B (<c>SetMembersNode</c>): copy-with-changes — <c>var __t{result} = __t{Input};</c> then
+/// <c>__t{result}.{Field} = __t{value};</c> per wired member. The result is a modified COPY (structs are
+/// value types), so the source value is untouched and unwired members keep the source's value.
+/// </summary>
+public sealed record IrOp_SetMembers(
+    string StructFqn,
+    IrValue Input,
+    IReadOnlyList<(string FieldName, IrValue Value)> Fields
 ) : IrOperation;

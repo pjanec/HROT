@@ -119,6 +119,10 @@ internal static class Stage0_Rehydrate
                 EnrichEventEntryPins(pins, graph, staticShapes);
                 break;
 
+            case GetAllParametersNode:
+                EnrichGetAllParametersPins(pins, asset, staticShapes);
+                break;
+
             case ReturnNode:
                 EnrichReturnPins(pins, graph, staticShapes);
                 break;
@@ -139,8 +143,28 @@ internal static class Stage0_Rehydrate
                 EnrichSetSharedPins(pins, ssn, staticShapes);
                 break;
 
+            case MakeStructNode msn:
+                EnrichMakeStructPins(pins, msn);
+                break;
+
+            case BreakStructNode bsn:
+                EnrichBreakStructPins(pins, bsn);
+                break;
+
+            case SetMembersNode smn:
+                EnrichSetMembersPins(pins, smn);
+                break;
+
             case FunctionCallNode fc:
                 EnrichFunctionCallPins(pins, fc, asset, graph, options, staticShapes, outL, inL);
+                break;
+
+            case PublishEventNode pen:
+                EnrichPublishEventPins(pins, pen, options);
+                break;
+
+            case ChannelCommandNode cc:
+                EnrichChannelCommandPins(pins, cc, options);
                 break;
 
             case CallCustomEventNode cce:
@@ -174,8 +198,13 @@ internal static class Stage0_Rehydrate
         List<Pin> pins, Graph graph, IReadOnlyList<PinSchema> staticShapes)
     {
         // Static skeleton: exec-Out "Out" already added from registry.
-        // Enrich: add one data-Out per Graph.Inputs entry for Function graphs.
-        if (graph.Kind != GraphKind.Function || graph.Inputs.Count == 0)
+        // Enrich: add one data-Out per Graph.Inputs entry. Function graphs expose their declared
+        // inputs; Event graphs (Q#14 custom-event subscribers) expose the event PAYLOAD fields the
+        // same way, so downstream nodes can wire the payload (EventEntry data-out → e.g. SetVariable).
+        // Stage5's EventEntryNode resolution (IrOp_ReadInputArg, name-matched against Graph.Inputs)
+        // and the InstanceEmitter thunk (which passes each __ev.{field}) already handle both kinds;
+        // this early-return was the sole gate keeping subscribers from reading their payload.
+        if ((graph.Kind != GraphKind.Function && graph.Kind != GraphKind.Event) || graph.Inputs.Count == 0)
             return;
 
         // Ensure we have the exec-Out from static; then add data-Out pins.
@@ -186,6 +215,25 @@ internal static class Stage0_Rehydrate
         {
             var inpTypeId = GetTypeId(inp.Type);
             pins.Add(MakePin(inp.Name, "Out", isExec: false, typeId: inpTypeId));
+        }
+    }
+
+    /// <summary>
+    /// GetAllParametersNode: pure-data node, static skeleton is empty (registry mirrors
+    /// EventEntryNode's dynamic-kind treatment). Enrich: add ONE data-Out pin per
+    /// <c>asset.Parameters</c> entry (name = <see cref="ParameterDecl.Name"/>, type from
+    /// <see cref="ParameterDecl.Type"/>; fallback <c>System.Object</c>) -- mirrors
+    /// <see cref="EnrichEventEntryPins"/> exactly, retargeted at <c>asset.Parameters</c> instead of
+    /// <c>graph.Inputs</c>. No exec pins (pure node, unlike EventEntryNode's exec-Out).
+    /// </summary>
+    private static void EnrichGetAllParametersPins(
+        List<Pin> pins, BlueprintAsset asset, IReadOnlyList<PinSchema> staticShapes)
+    {
+        pins.Clear();
+        foreach (var p in asset.Parameters)
+        {
+            var typeId = GetTypeId(p.Type);
+            pins.Add(MakePin(p.Name, "Out", isExec: false, typeId: typeId));
         }
     }
 
@@ -240,11 +288,23 @@ internal static class Stage0_Rehydrate
     private static void EnrichGetSharedPins(
         List<Pin> pins, GetSharedNode gsn, IReadOnlyList<PinSchema> staticShapes)
     {
-        var typeId = SharedTypePinTypeId(gsn.SharedTypeId);
         pins.Clear();
-        pins.Add(MakePin("Target", "In",  isExec: false, typeId: "Fdp.Core.Entity"));
-        pins.Add(MakePin("Value",  "Out", isExec: false, typeId: typeId));
-        pins.Add(MakePin("Found",  "Out", isExec: false, typeId: "System.Boolean"));
+        pins.Add(MakePin("Target", "In", isExec: false, typeId: "Fdp.Core.Entity"));
+
+        // Q#14 multi-pin: baked per-field decls → one data-OUT pin per field (read the struct once,
+        // project each field) + "Found". Mirrors EnrichSetSharedPins / the PublishEvent baked path.
+        if (gsn.Fields is { Count: > 0 })
+        {
+            foreach (var f in gsn.Fields)
+                pins.Add(MakePin(f.Name, "Out", isExec: false, typeId: f.TypeId));
+            pins.Add(MakePin("Found", "Out", isExec: false, typeId: "System.Boolean"));
+            return;
+        }
+
+        // Legacy whole-struct path: single "Value" data-out (typed by SharedTypeId) + "Found".
+        var typeId = SharedTypePinTypeId(gsn.SharedTypeId);
+        pins.Add(MakePin("Value", "Out", isExec: false, typeId: typeId));
+        pins.Add(MakePin("Found", "Out", isExec: false, typeId: "System.Boolean"));
     }
 
     /// <summary>
@@ -255,12 +315,61 @@ internal static class Stage0_Rehydrate
     private static void EnrichSetSharedPins(
         List<Pin> pins, SetSharedNode ssn, IReadOnlyList<PinSchema> staticShapes)
     {
-        var typeId = SharedTypePinTypeId(ssn.SharedTypeId);
         pins.Clear();
-        pins.Add(MakePin("In",      "In",  isExec: true,  typeId: ""));
-        pins.Add(MakePin("Out",     "Out", isExec: true,  typeId: ""));
+        pins.Add(MakePin("In",  "In",  isExec: true, typeId: ""));
+        pins.Add(MakePin("Out", "Out", isExec: true, typeId: ""));
+
+        // Q#14 multi-pin: baked per-field decls → one data-in pin per field (name = field name, matched
+        // by Stage5 lowering) so the designer sets fields directly. Unwired fields are simply not written.
+        if (ssn.Fields is { Count: > 0 })
+        {
+            foreach (var f in ssn.Fields)
+                pins.Add(MakePin(f.Name, "In", isExec: false, typeId: f.TypeId));
+            return;
+        }
+
+        // Legacy whole-struct path: single "Value" data-in + "Written" data-out.
+        var typeId = SharedTypePinTypeId(ssn.SharedTypeId);
         pins.Add(MakePin("Value",   "In",  isExec: false, typeId: typeId));
         pins.Add(MakePin("Written", "Out", isExec: false, typeId: "System.Boolean"));
+    }
+
+    /// <summary>
+    /// MakeStructNode (Q#14 Option B): pure data node. One data-IN pin per baked field (name + TypeId) +
+    /// a struct-typed data-OUT "Value". Mirrors the editor's NodePinSchema.MakeStructPins.
+    /// </summary>
+    private static void EnrichMakeStructPins(List<Pin> pins, MakeStructNode msn)
+    {
+        pins.Clear();
+        foreach (var f in msn.Fields)
+            pins.Add(MakePin(f.Name, "In", isExec: false, typeId: f.TypeId));
+        pins.Add(MakePin("Value", "Out", isExec: false, typeId: SharedTypePinTypeId(msn.StructTypeId)));
+    }
+
+    /// <summary>
+    /// BreakStructNode (Q#14 Option B): pure data node. A struct-typed data-IN "Value" + one data-OUT pin
+    /// per baked field. Mirrors the editor's NodePinSchema.BreakStructPins.
+    /// </summary>
+    private static void EnrichBreakStructPins(List<Pin> pins, BreakStructNode bsn)
+    {
+        pins.Clear();
+        pins.Add(MakePin("Value", "In", isExec: false, typeId: SharedTypePinTypeId(bsn.StructTypeId)));
+        foreach (var f in bsn.Fields)
+            pins.Add(MakePin(f.Name, "Out", isExec: false, typeId: f.TypeId));
+    }
+
+    /// <summary>
+    /// SetMembersNode (Q#14 Option B): pure data node. Struct-typed data-IN "Source" + one member data-IN
+    /// per baked field + struct-typed data-OUT "Result". Mirrors the editor's NodePinSchema.SetMembersPins.
+    /// </summary>
+    private static void EnrichSetMembersPins(List<Pin> pins, SetMembersNode smn)
+    {
+        var structType = SharedTypePinTypeId(smn.StructTypeId);
+        pins.Clear();
+        pins.Add(MakePin("Source", "In", isExec: false, typeId: structType));
+        foreach (var f in smn.Fields)
+            pins.Add(MakePin(f.Name, "In", isExec: false, typeId: f.TypeId));
+        pins.Add(MakePin("Result", "Out", isExec: false, typeId: structType));
     }
 
     /// <summary>
@@ -277,6 +386,79 @@ internal static class Stage0_Rehydrate
         return sharedTypeId.StartsWith("global::", StringComparison.Ordinal)
             ? sharedTypeId
             : "global::" + sharedTypeId;
+    }
+
+    /// <summary>
+    /// PublishEvent (P4/GAP-3): exec node whose data-IN pins are catalog-driven (baked, reflection-free).
+    /// The static registry provides exec In/Out; this adds the optional <c>Target</c> pin (when the event
+    /// has a target field) plus one pin per baked <see cref="EngineEventCatalogEntry.PayloadFields"/>
+    /// entry — exactly the pins <c>Stage5_Schedule</c> reads by name when lowering the publish. Lets a
+    /// pin-less PublishEvent node round-trip without hand-authored pins. Unknown event id → exec-only
+    /// (Stage5 emits nothing; surfaced by validation), same graceful shape as the FunctionCall fallback.
+    /// </summary>
+    private static void EnrichPublishEventPins(List<Pin> pins, PublishEventNode pen, CompileOptions options)
+    {
+        // Q#14: baked custom-event path (EventTypeFqn set by the editor from discovery) takes precedence;
+        // otherwise resolve the shape from the EngineEventCatalog by EventId (legacy/system events).
+        string? targetFieldName;
+        IEnumerable<(string Name, string TypeId)> payload;
+
+        if (!string.IsNullOrEmpty(pen.EventTypeFqn))
+        {
+            targetFieldName = pen.TargetFieldName;
+            payload = (pen.PayloadFields ?? new List<PublishEventFieldDecl>())
+                .Select(f => (f.Name, f.TypeId));
+        }
+        else
+        {
+            var entry = options.EngineEvents.GetEntries()
+                .FirstOrDefault(e => string.Equals(e.Name, pen.EventId, StringComparison.OrdinalIgnoreCase));
+            if (entry is null) return;
+            targetFieldName = entry.TargetFieldName;
+            payload = entry.PayloadFields is null
+                ? Enumerable.Empty<(string, string)>()
+                : entry.PayloadFields.Select(f => (f.Name, f.TypeId));
+        }
+
+        // Optional target: pin is always named "Target" (Stage5 matches that name), mapped to the event's
+        // TargetFieldName at lowering. Present only when the event declares a target field.
+        if (!string.IsNullOrEmpty(targetFieldName))
+            pins.Add(MakePin("Target", "In", isExec: false, typeId: "Fdp.Core.Entity"));
+
+        foreach (var (name, typeId) in payload)
+            pins.Add(MakePin(name, "In", isExec: false, typeId: typeId));
+    }
+
+    /// <summary>
+    /// ChannelCommand (Blocker-1, GAP-4): exec node whose data-IN pins are catalog-driven (baked,
+    /// reflection-free) — mirrors <see cref="EnrichPublishEventPins"/>. The static registry provides
+    /// exec In/Out; this adds one data-IN pin per baked
+    /// <see cref="ChannelCommandCatalogEntry.ParamFields"/> entry, matched exactly the way
+    /// <c>Stage2_Validate.V_ChannelCommandReferences</c> / <c>NodePinSchema.ChannelCommandPinsFromCatalog</c>
+    /// match it: <c>LastSegment(ChannelTypeFqn) == node.ChannelType &amp;&amp; entry.Name == node.ActionId</c>.
+    /// These are exactly the pins <c>Stage5_Schedule</c> reads by name (via <c>node.Pins</c>, not-exec
+    /// In pins) when lowering the command. Lets a pin-less ChannelCommand node round-trip without
+    /// hand-authored pins. Unknown action / unbaked entry → exec-only (mirrors the graceful PublishEvent
+    /// and FunctionCall fallback shapes).
+    /// <para>
+    /// AN7 non-channel path (<see cref="ChannelCommandNode.ActionFqn"/> set) is NOT enriched here — that
+    /// path resolves params via <c>IBehaviorActionCatalog</c> reflection (net8 editor host only) and has
+    /// no Stage0 equivalent yet; such nodes fall through to the exec-only fallback below, same as before
+    /// this enricher existed (no regression, no new gap).
+    /// </para>
+    /// </summary>
+    private static void EnrichChannelCommandPins(List<Pin> pins, ChannelCommandNode cc, CompileOptions options)
+    {
+        if (!string.IsNullOrEmpty(cc.ActionFqn))
+            return; // AN7 non-channel path — no baked catalog to enrich from (see doc above).
+
+        var entry = options.ChannelCommands.GetEntries().FirstOrDefault(e =>
+            Stage2Helpers.LastSegment(e.ChannelTypeFqn) == cc.ChannelType
+            && e.Name == cc.ActionId);
+        if (entry?.ParamFields == null) return;
+
+        foreach (var f in entry.ParamFields)
+            pins.Add(MakePin(f.Name, "In", isExec: false, typeId: f.TypeId));
     }
 
     private static void EnrichFunctionCallPins(
@@ -306,7 +488,7 @@ internal static class Stage0_Rehydrate
         // preceding `asset != null` check above is defensive/pre-existing and only guards the
         // graph-call branch); the null-forgiving operator documents that for the nullable-flow
         // analysis, which otherwise cannot see past the compound condition above.
-        EnrichClrFunctionCallPins(pins, fc, asset!, outL, inL);
+        EnrichClrFunctionCallPins(pins, fc, asset!, options, outL, inL);
     }
 
     private static void EnrichFunctionGraphCallPins(
@@ -332,19 +514,25 @@ internal static class Stage0_Rehydrate
     }
 
     private static void EnrichClrFunctionCallPins(List<Pin> pins, FunctionCallNode fc,
-        BlueprintAsset asset, List<Link>? outL, List<Link>? inL)
+        BlueprintAsset asset, CompileOptions options, List<Link>? outL, List<Link>? inL)
     {
-        // Attempt CLR reflection.  Fails gracefully in the netstandard2.0 MSBuild host
-        // where the game assembly is not loaded; tracked for a later registry-driven FunctionCall.
-        var method = ResolveMethod(fc.TargetTypeId, fc.MethodName);
-        if (method == null)
+        // Resolve the target signature. Two sources, in precedence order:
+        //   1. options.ClrSignatureResolver -- the Roslyn semantic model (supplied by the incremental
+        //      generator, which CANNOT reflect over the assembly it is currently compiling). This is
+        //      what lets same-assembly curated-helper calls rehydrate typed pins at generate time, so
+        //      the blueprints need NO explicit persisted pins and the editor save round-trip is safe.
+        //   2. CLR reflection over loaded assemblies -- the in-process path (compiler unit tests, the
+        //      editor host), where the game assembly IS loaded. Byte-for-byte the pre-existing behavior.
+        // Either yields a reflection-free ClrMethodSig; a single builder below turns it into pins.
+        var sig = TryResolveSignature(fc, options);
+        if (sig == null)
         {
             // NO-SWALLOW: emit to debug output naming node + reason.
             if (!string.IsNullOrEmpty(fc.TargetTypeId) || !string.IsNullOrEmpty(fc.MethodName))
             {
                 System.Diagnostics.Debug.WriteLine(
                     $"[BP-Stage0] WARN: FunctionCallNode {fc.Id} cannot resolve " +
-                    $"'{fc.TargetTypeId}.{fc.MethodName}' via CLR reflection — " +
+                    $"'{fc.TargetTypeId}.{fc.MethodName}' via semantic model or CLR reflection — " +
                     $"using link-adjacency placeholder pins (MSBuild host or missing assembly).");
             }
 
@@ -387,7 +575,7 @@ internal static class Stage0_Rehydrate
             return;
         }
 
-        // Have reflection — rebuild with typed data pins.
+        // Have a resolved signature — rebuild with typed data pins.
         pins.Clear();
         if (!fc.IsPure)
         {
@@ -396,62 +584,160 @@ internal static class Stage0_Rehydrate
         }
         try
         {
-            var allParams = method.GetParameters();
+            var allParams = sig.Parameters;
 
-            // P7 -- trailing engine-context recognition (Entity self / ISimulationView view).
-            // Recognized ONLY when the containing asset's dispatch has self/view in scope
-            // (Instance/AiPrimitive -- mirrors EmissionContext.HasSelfInScope). A Library-dispatch
-            // asset has neither in scope (LibraryEmitter.EmitFunctionGraph emits a stateless static
-            // method with only the declared graph inputs as parameters), so trailing Entity/
-            // ISimulationView-typed parameters there are left as ordinary data pins -- unchanged,
-            // pre-P7 behavior. Authoring such a call in a Library graph will surface as an ordinary
-            // "unresolvable data pin" / downstream Roslyn compile error, same as any other invalid
-            // reference in a stateless function body (no new diagnostic added for this edge case;
-            // see P7 report for the recorded gap).
-            int contextCount = 0;
-            if (asset.Dispatch != BlueprintDispatchKind.Library)
-            {
-                (contextCount, _, _) = ResolveTrailingContext(allParams);
-            }
-            var dataParamCount = allParams.Length - contextCount;
+            // Trailing engine-context recognition (Entity self / ISimulationView view). The trailing
+            // context params are OMITTED from the data pins (Stage5 appends them as call arguments; the
+            // omitted-pin count and the appended-arg count must always agree — see the parity note on
+            // Stage5_Schedule.ResolveFunctionCallTrailingContext). Precedence mirrors Stage5:
+            //   * Library dispatch has neither self nor view in scope → 0 context params.
+            //   * an explicit fc.TrailingContext (the editor bake / hand-authored value) wins with NO
+            //     type inspection — this is what makes the pin shape reproducible without reflection.
+            //   * Unspecified → fall back to type-based recognition over the resolved parameter list
+            //     (identical detection to the former reflection path; all pre-existing P7 tests hit this).
+            int contextCount = ResolveContextParamCount(allParams, fc.TrailingContext, asset);
+            var dataParamCount = allParams.Count - contextCount;
 
             for (int i = 0; i < dataParamCount; i++)
             {
                 var param = allParams[i];
-                var pt = param.ParameterType;
-                if (pt.IsByRef) pt = pt.GetElementType() ?? pt;
-                pins.Add(MakePin(param.Name ?? "arg", "In", isExec: false,
-                    typeId: pt.FullName ?? pt.Name));
+                pins.Add(MakePin(string.IsNullOrEmpty(param.Name) ? "arg" : param.Name, "In",
+                    isExec: false, typeId: PinTypeIdForResolvedType(param.TypeFullName, options)));
             }
-            if (method.ReturnType != typeof(void))
+            if (sig.ReturnTypeFullName != null)
                 pins.Add(MakePin("Return", "Out", isExec: false,
-                    typeId: method.ReturnType.FullName ?? method.ReturnType.Name));
+                    typeId: PinTypeIdForResolvedType(sig.ReturnTypeFullName, options)));
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine(
-                $"[BP-Stage0] WARN: FunctionCallNode {fc.Id} reflection on " +
+                $"[BP-Stage0] WARN: FunctionCallNode {fc.Id} signature build on " +
                 $"'{fc.TargetTypeId}.{fc.MethodName}' threw: {ex.Message} — " +
                 $"keeping exec-only fallback.");
             // Leave whatever exec pins exist.
         }
     }
 
-    // ── P7: trailing engine-context recognition (FunctionCall context-aware pins) ──────────────
+    // ── FunctionCall signature resolution (semantic model → reflection) ─────────────────────────
 
     /// <summary>
-    /// P7 -- recognizes the trailing engine-context parameter convention on a FunctionCall's
-    /// resolved CLR method. The parameter list MAY end with <c>Entity self</c>, or an
-    /// <c>ISimulationView</c>-typed parameter (any name), or both in that exact order
-    /// (<c>..., Entity self, ISimulationView &lt;name&gt;</c> -- mirrors the parameter order the
-    /// compiler itself uses for generated methods, e.g. <c>TickCore(..., self, world, time)</c>).
+    /// Resolves a FunctionCall target's signature to a reflection-free <see cref="ClrMethodSig"/>,
+    /// trying the generator-supplied semantic-model resolver first (which sees the assembly currently
+    /// being compiled) and CLR reflection second (in-process hosts where the assembly is loaded).
+    /// Returns <c>null</c> when neither can resolve it — the caller then uses placeholder pins.
+    /// </summary>
+    private static ClrMethodSig? TryResolveSignature(FunctionCallNode fc, CompileOptions options)
+    {
+        if (options.ClrSignatureResolver != null)
+        {
+            try
+            {
+                if (options.ClrSignatureResolver.TryResolve(fc.TargetTypeId, fc.MethodName, out var resolved)
+                    && resolved != null)
+                    return resolved;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"[BP-Stage0] WARN: ClrSignatureResolver threw for " +
+                    $"'{fc.TargetTypeId}.{fc.MethodName}': {ex.Message} — falling back to reflection.");
+            }
+        }
+
+        var method = ResolveMethod(fc.TargetTypeId, fc.MethodName);
+        return method == null ? null : ReflectToSig(method);
+    }
+
+    /// <summary>Converts a resolved CLR <see cref="MethodInfo"/> to a <see cref="ClrMethodSig"/>,
+    /// unwrapping by-ref parameters and mapping <c>void</c> returns to <c>null</c> — so the reflection
+    /// path and the semantic-model path feed the SAME pin builder.</summary>
+    private static ClrMethodSig ReflectToSig(MethodInfo method)
+    {
+        var ps = method.GetParameters();
+        var list = new List<ClrParamInfo>(ps.Length);
+        foreach (var p in ps)
+        {
+            var pt = p.ParameterType;
+            if (pt.IsByRef) pt = pt.GetElementType() ?? pt;
+            list.Add(new ClrParamInfo(p.Name ?? "arg", pt.FullName ?? pt.Name));
+        }
+        string? ret = method.ReturnType == typeof(void)
+            ? null
+            : (method.ReturnType.FullName ?? method.ReturnType.Name);
+        return new ClrMethodSig(list, ret);
+    }
+
+    /// <summary>
+    /// Maps a resolved parameter/return type FQN to the pin <c>TypeId</c>. Types the registry already
+    /// knows (C# primitives, <c>Fdp.Core.Entity</c> and its <c>IsEntityHandle</c> flag, the curated
+    /// structs declared in <see cref="Catalogs.StaticTypeRegistry"/>) pass through UNPREFIXED so they
+    /// resolve via the type table. A curated blittable struct the table does NOT know (e.g. a demo's
+    /// own shared struct) is stamped with the <c>"global::"</c> AN2 sentinel — exactly like
+    /// <see cref="SharedTypePinTypeId"/> does for GetShared/SetShared — so it flows through the
+    /// registry's project-type acceptance path instead of failing BP1500.
     /// <para>
-    /// Recognition is by TYPE (exact <c>Type.FullName</c> match against
-    /// <c>Fdp.Core.Entity</c> / <c>Fdp.ModuleHost.Abstractions.ISimulationView</c>, after stripping
-    /// a by-ref wrapper). The <c>Entity</c> case ALSO requires the parameter be named exactly
-    /// <c>"self"</c> (ordinal) -- <c>Entity</c> is a legitimate ordinary data-pin type elsewhere
-    /// (e.g. <see cref="GetSharedNode"/>'s "Target" pin), so the name disambiguates a genuine
-    /// trailing self-context parameter from an author-supplied <c>Entity</c> data argument.
+    /// This is what makes the semantic-model FunctionCall rehydration (Blocker-1) general: the
+    /// reflection path historically NEVER resolved same-assembly curated structs (it fell back to
+    /// <c>System.Object</c> placeholder pins), so this case never arose; now that the resolver DOES
+    /// surface them, an unregistered curated struct must still resolve without hand-registering each
+    /// one. Trust-the-FQN + emit-a-cast is validated downstream by the C# compiler, same contract as
+    /// every other <c>global::</c> type.
+    /// </para>
+    /// </summary>
+    private static string PinTypeIdForResolvedType(string typeFullName, CompileOptions options)
+    {
+        if (string.IsNullOrEmpty(typeFullName))
+            return "System.Object";
+
+        // Already a project sentinel, or the registry resolves it directly → leave as-is.
+        if (typeFullName.StartsWith("global::", StringComparison.Ordinal))
+            return typeFullName;
+        if (options.TypeRegistry.TryResolve(new BlueprintTypeRef { TypeId = typeFullName }, out _))
+            return typeFullName;
+
+        // Unknown to the registry — treat as a curated project value type and stamp the sentinel so
+        // the registry's global:: acceptance path resolves it (an actually-invalid type surfaces as a
+        // downstream Roslyn compile error, same as any other global:: type).
+        return "global::" + typeFullName;
+    }
+
+    /// <summary>
+    /// Number of trailing parameters consumed as engine context (and therefore OMITTED from the data
+    /// pins). Precedence mirrors <c>Stage5_Schedule.ResolveFunctionCallTrailingContext</c>: Library
+    /// dispatch → 0; an explicit <see cref="FunctionCallContextKind"/> wins with no type inspection;
+    /// <see cref="FunctionCallContextKind.Unspecified"/> → type-based recognition over the resolved
+    /// parameter list.
+    /// </summary>
+    private static int ResolveContextParamCount(
+        IReadOnlyList<ClrParamInfo> parameters, FunctionCallContextKind trailingContext,
+        BlueprintAsset asset)
+    {
+        if (asset.Dispatch == BlueprintDispatchKind.Library)
+            return 0;
+
+        switch (trailingContext)
+        {
+            case FunctionCallContextKind.None:        return 0;
+            case FunctionCallContextKind.Self:        return 1;
+            case FunctionCallContextKind.View:        return 1;
+            case FunctionCallContextKind.SelfAndView: return 2;
+            default: // Unspecified → infer from parameter types (pre-P7-bake behavior).
+                var (count, _, _) = ResolveTrailingContext(parameters);
+                return count;
+        }
+    }
+
+    /// <summary>
+    /// Recognizes the trailing engine-context parameter convention on a resolved parameter list. The
+    /// list MAY end with <c>Entity self</c>, or an <c>ISimulationView</c>-typed parameter (any name),
+    /// or both in that exact order (<c>..., Entity self, ISimulationView &lt;name&gt;</c> -- mirrors the
+    /// parameter order the compiler uses for generated methods, e.g. <c>TickCore(..., self, world, time)</c>).
+    /// <para>
+    /// Recognition is by TYPE (exact FQN match against <c>Fdp.Core.Entity</c> /
+    /// <c>Fdp.ModuleHost.Abstractions.ISimulationView</c>). The <c>Entity</c> case ALSO requires the
+    /// parameter be named exactly <c>"self"</c> (ordinal) -- <c>Entity</c> is a legitimate ordinary
+    /// data-pin type elsewhere (e.g. <see cref="GetSharedNode"/>'s "Target" pin), so the name
+    /// disambiguates a genuine trailing self-context parameter from an author-supplied data argument.
     /// <c>ISimulationView</c> has no legitimate ordinary blueprint-data use, so type alone suffices.
     /// </para>
     /// Kept in parity with <c>NodePinSchema.ResolveTrailingContext</c> (editor projection) and
@@ -459,27 +745,19 @@ internal static class Stage0_Rehydrate
     /// agree on which trailing parameters are "context" so the omitted pin count and the appended
     /// call-argument count always match.
     /// </summary>
-    /// <returns>
-    /// <c>ContextCount</c> -- 0, 1, or 2 trailing parameters consumed as engine context.
-    /// <c>AppendSelf</c>/<c>AppendView</c> -- which kind(s) were recognized (informational here;
-    /// Stage0 only needs <c>ContextCount</c> to slice the pin list -- appending the actual call
-    /// arguments happens later, in Stage5_Schedule).
-    /// </returns>
     private static (int ContextCount, bool AppendSelf, bool AppendView) ResolveTrailingContext(
-        ParameterInfo[] parameters)
+        IReadOnlyList<ClrParamInfo> parameters)
     {
         const string EntityFqn = "Fdp.Core.Entity";
         const string ViewFqn   = "Fdp.ModuleHost.Abstractions.ISimulationView";
 
-        int n = parameters.Length;
+        int n = parameters.Count;
         if (n == 0) return (0, false, false);
 
-        static Type StripByRef(Type t) => t.IsByRef ? (t.GetElementType() ?? t) : t;
-        bool IsSelfParam(ParameterInfo p) =>
-            StripByRef(p.ParameterType).FullName == EntityFqn
-            && string.Equals(p.Name, "self", StringComparison.Ordinal);
-        bool IsViewParam(ParameterInfo p) =>
-            StripByRef(p.ParameterType).FullName == ViewFqn;
+        bool IsSelfParam(ClrParamInfo p) =>
+            p.TypeFullName == EntityFqn && string.Equals(p.Name, "self", StringComparison.Ordinal);
+        bool IsViewParam(ClrParamInfo p) =>
+            p.TypeFullName == ViewFqn;
 
         if (IsViewParam(parameters[n - 1]))
         {
@@ -555,45 +833,74 @@ internal static class Stage0_Rehydrate
     /// then assigns the i-th distinct link GUID to the i-th pin in that bucket.
     /// Pins with no link GUID get a deterministic synthetic GUID.
     /// </summary>
+    /// <summary>
+    /// Assigns pin GUIDs with a per-pin blend of the deterministic content-derived scheme (architect
+    /// Q#10-A/C) and the legacy positional scheme, so migrated, legacy, AND mixed assets all reconstruct
+    /// with every link resolving. Kept in strict parity with <c>BlueprintGraphModel.Rebuild</c>.
+    /// <para>
+    /// Per direction bucket: a link whose pin-GUID equals a pin's deterministic GUID
+    /// (<see cref="DeterministicIds.PinId"/>) binds THAT pin by name (order-independent — the exec/data
+    /// swap the old positional scheme suffered is impossible). Remaining links (legacy/arbitrary GUIDs)
+    /// bind positionally to the still-unassigned pins, exactly as before; leftover unconnected pins get
+    /// the legacy synthetic GUID. A wholly-migrated node resolves entirely by name; a wholly-legacy node
+    /// is byte-for-byte the old positional binding; a mixed node (a link drawn to a pin that had been
+    /// saved unconnected, so it already carries its deterministic GUID) resolves both parts.
+    /// </para>
+    /// </summary>
     private static void AssignLinkGuids(
         List<Pin> pins, Guid nodeId,
         List<Link>? outLinks, List<Link>? inLinks)
     {
-        var outPins = pins.Where(p => p.Direction == "Out").ToList();
-        var inPins  = pins.Where(p => p.Direction == "In" ).ToList();
+        AssignDirection(pins.Where(p => p.Direction == "Out").ToList(), nodeId, "Out",
+            DistinctLinkGuids(outLinks, static l => l.FromPinId));
+        AssignDirection(pins.Where(p => p.Direction == "In").ToList(), nodeId, "In",
+            DistinctLinkGuids(inLinks, static l => l.ToPinId));
+    }
 
-        // Collect distinct FromPinId GUIDs from outgoing links in order of first occurrence.
-        var distinctOutGuids = new List<Guid>();
-        var seenOut = new HashSet<Guid>();
-        if (outLinks != null)
-            foreach (var link in outLinks)
-                if (seenOut.Add(link.FromPinId))
-                    distinctOutGuids.Add(link.FromPinId);
-
-        // Collect distinct ToPinId GUIDs from incoming links.
-        var distinctInGuids = new List<Guid>();
-        var seenIn = new HashSet<Guid>();
-        if (inLinks != null)
-            foreach (var link in inLinks)
-                if (seenIn.Add(link.ToPinId))
-                    distinctInGuids.Add(link.ToPinId);
-
-        // Assign Out pins.
-        for (int i = 0; i < outPins.Count; i++)
+    private static List<Guid> DistinctLinkGuids(List<Link>? links, Func<Link, Guid> select)
+    {
+        var result = new List<Guid>();
+        if (links == null) return result;
+        var seen = new HashSet<Guid>();
+        foreach (var link in links)
         {
-            outPins[i].Id = (i < distinctOutGuids.Count)
-                ? distinctOutGuids[i]
-                : Stage3_Normalize.SynthesizedGuid(
-                    $"pin:{nodeId:N}:{outPins[i].Name}:Out");
+            var g = select(link);
+            if (seen.Add(g)) result.Add(g);
+        }
+        return result;
+    }
+
+    private static void AssignDirection(List<Pin> dirPins, Guid nodeId, string direction, List<Guid> linkGuids)
+    {
+        // Reverse map: deterministic pin-GUID → pin (unique pin name within a direction is assumed).
+        var detToPin = new Dictionary<Guid, Pin>();
+        foreach (var pin in dirPins)
+            detToPin[DeterministicIds.PinId(nodeId, pin.Name, direction)] = pin;
+
+        // Pass 1: links carrying a deterministic GUID bind their exact pin by name.
+        var assigned = new HashSet<Pin>();
+        var legacyGuids = new List<Guid>();
+        foreach (var g in linkGuids)
+        {
+            if (detToPin.TryGetValue(g, out var pin))
+            {
+                if (assigned.Add(pin)) pin.Id = g;
+            }
+            else
+            {
+                legacyGuids.Add(g);
+            }
         }
 
-        // Assign In pins.
-        for (int i = 0; i < inPins.Count; i++)
+        // Pass 2: legacy links bind positionally to the still-unassigned pins (old behavior);
+        // any pin left over (unconnected) gets the legacy synthetic GUID.
+        int li = 0;
+        foreach (var pin in dirPins)
         {
-            inPins[i].Id = (i < distinctInGuids.Count)
-                ? distinctInGuids[i]
-                : Stage3_Normalize.SynthesizedGuid(
-                    $"pin:{nodeId:N}:{inPins[i].Name}:In");
+            if (assigned.Contains(pin)) continue;
+            pin.Id = (li < legacyGuids.Count)
+                ? legacyGuids[li++]
+                : Stage3_Normalize.SynthesizedGuid($"pin:{nodeId:N}:{pin.Name}:{direction}");
         }
     }
 
@@ -654,6 +961,7 @@ internal static class Stage0_Rehydrate
         FunctionCallNode fc   => !fc.IsPure,
         GetVariableNode       => false,
         GetParameterNode      => false,
+        GetAllParametersNode  => false,
         GetSharedNode         => false,
         GetComponentNode      => false,
         CompareNode           => false,
@@ -663,6 +971,10 @@ internal static class Stage0_Rehydrate
         LiteralNode           => false,
         ReadRankedResultNode  => false,
         ReadEqsResultNode     => false,
+        // Q#14 Option B — Make/Break/SetMembers are PURE data nodes (no exec pins).
+        MakeStructNode        => false,
+        BreakStructNode       => false,
+        SetMembersNode        => false,
         // PublishEvent (P4 -- GAP-3) IS an exec node -- unlike the pure GetX nodes above.
         PublishEventNode      => true,
         // FlowForEach (P1 -- GAP-1) IS an exec node (In + Body/Completed exec-outs).

@@ -72,17 +72,28 @@ internal sealed class BlueprintPinModel : IPinModel
         Hrot.Blueprints.Core.Assets.Pin pin,
         NodeId ownerNodeId,
         IPinDefaultValueEditorRegistry? editorRegistry,
-        IEnumValueProvider?             enumProvider)
+        IEnumValueProvider?             enumProvider,
+        string?                         displayLabel = null,
+        bool                            glyphless    = false)
     {
         Id          = new PinId(pin.Id);
         OwnerNodeId = ownerNodeId;
-        Label       = pin.Name;
+        // Display label may differ from the pin's identity Name (e.g. GetParameter's "Value" out-pin
+        // shows the parameter's NAME). The identity Name is untouched, so pin GUIDs / link
+        // rehydration are unaffected — this is render-only.
+        // glyphless (Literal's inline-editor input pin): no pin glyph, no label — only the value box.
+        Label       = glyphless ? "" : (string.IsNullOrEmpty(displayLabel) ? pin.Name : displayLabel);
         Direction   = pin.Direction == "In" ? PinDirection.Input : PinDirection.Output;
         Kind        = pin.IsExec ? PinKind.Exec : PinKind.Data;
         Type        = pin.IsExec ? null : new TypeKey(pin.TypeRef.TypeId);
-        Shape       = pin.IsExec ? PinShape.Triangle
+        Shape       = glyphless ? PinShape.None
+            : pin.IsExec ? PinShape.Triangle
             : pin.TypeRef.IsArray ? PinShape.Diamond
             : PinShape.Circle;
+
+        // Punch-list #4: every data pin surfaces its data type on hover ("data type mandatory").
+        // Exec pins are self-explanatory glyphs → no tooltip.
+        Tooltip     = pin.IsExec ? null : BuildPinTooltip(pin.Name, pin.TypeRef.TypeId, pin.TypeRef.IsArray);
 
         // Expose a default-value container for unconnected input data pins.
         // Conditions: !Exec AND Direction=="In".
@@ -105,6 +116,22 @@ internal sealed class BlueprintPinModel : IPinModel
                     Default = new BlueprintPinDefaultValue(pin.TypeRef.TypeId, rawValue: null, enumProvider);
             }
         }
+    }
+
+    /// <summary>
+    /// Punch-list #4: builds a data-pin hover tooltip. First line is <c>name : ShortType</c>; when the
+    /// short name hides a distinct fully-qualified id, a second dimmer line shows the full type id so the
+    /// author can disambiguate struct/class returns. Array pins are marked <c>[]</c>.
+    /// </summary>
+    private static string BuildPinTooltip(string name, string typeId, bool isArray)
+    {
+        var shortName = TooltipText.ShortTypeName(typeId) + (isArray ? "[]" : "");
+        var display   = string.IsNullOrEmpty(typeId) ? "object" : typeId;
+        if (display.StartsWith("global::", StringComparison.Ordinal)) display = display["global::".Length..];
+        var line1 = $"{name} : {shortName}";
+        return string.Equals(shortName.TrimEnd('[', ']'), display, StringComparison.Ordinal)
+            ? line1
+            : line1 + "\n" + display + (isArray ? "[]" : "");
     }
 }
 

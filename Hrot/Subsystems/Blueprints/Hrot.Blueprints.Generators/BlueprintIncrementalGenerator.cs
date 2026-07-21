@@ -35,13 +35,19 @@ public sealed class BlueprintIncrementalGenerator : IIncrementalGenerator
         IncrementalValueProvider<ImmutableArray<BlueprintSignature>> siblingCatalog =
             signatures.Collect();
 
-        // Provider 4 -- per-asset full compile combined with sibling catalog
+        // Provider 4 -- per-asset full compile combined with sibling catalog + the Compilation.
+        // The Compilation is threaded through so Stage0 can resolve same-assembly FunctionCall target
+        // signatures via the semantic model (RoslynClrSignatureResolver) — reflection cannot see the
+        // curated helper types in the assembly currently being compiled. (Combining CompilationProvider
+        // costs fine-grained incrementality, but this generator already collapses on any sibling change
+        // via siblingCatalog.Collect(), so the tradeoff is consistent with the existing design.)
         IncrementalValuesProvider<CompileResult> compileResults =
             rawFiles.Combine(siblingCatalog)
+                    .Combine(context.CompilationProvider)
                     .Select((pair, ct) =>
                     {
-                        var (rawFile, siblings) = pair;
-                        return CompileOneAsset(rawFile.Path, rawFile.Text, siblings, ct);
+                        var ((rawFile, siblings), compilation) = pair;
+                        return CompileOneAsset(rawFile.Path, rawFile.Text, siblings, compilation, ct);
                     });
 
         // Register source output
@@ -61,6 +67,7 @@ public sealed class BlueprintIncrementalGenerator : IIncrementalGenerator
         string path,
         string text,
         ImmutableArray<BlueprintSignature> siblings,
+        Compilation compilation,
         CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
@@ -90,7 +97,8 @@ public sealed class BlueprintIncrementalGenerator : IIncrementalGenerator
             ChannelCommands:   BuiltInChannelCommandCatalog.Instance,
             WaitPrimitives:    BuiltInWaitPrimitiveCatalog.Instance,
             SiblingSignatures: siblings.ToList(),
-            EmitPdbWithEmbeddedSource: false);
+            EmitPdbWithEmbeddedSource: false,
+            ClrSignatureResolver: new RoslynClrSignatureResolver(compilation));
 
         try
         {

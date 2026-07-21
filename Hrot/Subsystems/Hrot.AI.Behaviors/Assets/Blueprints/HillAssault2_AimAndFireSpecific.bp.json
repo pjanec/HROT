@@ -1,0 +1,624 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
+  "AssetId": "484e3dff-c548-422e-a1e2-13dd0a607343",
+  "Name": "HillAssault2_AimAndFireSpecific",
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "Primitive": {
+    "Intent": "Action",
+    "Hostings": [
+      "BTreeAction"
+    ]
+  },
+  "Parameters": [
+    {
+      "Id": "a27fabf3-32cb-425a-a626-32c2a3e201b1",
+      "Name": "TargetNetworkId",
+      "Type": {
+        "TypeId": "System.Int64",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0"
+    },
+    {
+      "Id": "ea91ccf4-a56c-4737-8a5a-2be4ebdfaa3b",
+      "Name": "MaxRounds",
+      "Type": {
+        "TypeId": "System.Int32",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0"
+    }
+  ],
+  "WorkingState": [
+    {
+      "Id": "dee92abe-a3f1-4cea-b16a-5e069166bb03",
+      "Name": "RoundsFired",
+      "Type": {
+        "TypeId": "System.Int32",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    },
+    {
+      "Id": "57d91566-da07-4058-b997-1c16aef8aa3d",
+      "Name": "LastObservedAmmo",
+      "Type": {
+        "TypeId": "System.Int32",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "-1",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    }
+  ],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "6cd1cbd2-8e5e-4f62-9c24-e32d1461fc53",
+      "Name": "Main",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "06f69163-6200-4d62-bc2d-3b5a16eab0dc",
+          "EventTypeId": "",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 40.0,
+            "Y": 400.0
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "dcf5b58a-ca68-4b0b-b9cf-bc06e8f2aee9",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.NetworkEntityMapOps",
+          "MethodName": "ResolveTarget",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "View",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 300.0,
+            "Y": 40.0
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "1ed3179f-077c-4029-aa8f-5244b9ab0c92",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.WorldOps",
+          "MethodName": "IsNull",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 560.0,
+            "Y": 20.0
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "d5fdeede-3b39-4619-bd0b-ef184cec651b",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.WorldOps",
+          "MethodName": "IsAlive",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "View",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 560.0,
+            "Y": 140.0
+          }
+        },
+        {
+          "kind": "Branch",
+          "Id": "e96fa029-4e96-4110-a3bd-80997baf2744",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 820.0,
+            "Y": 400.0
+          }
+        },
+        {
+          "kind": "Return",
+          "Id": "5ef585ab-76e6-4dbf-9bb1-a232b8f41abc",
+          "Status": "Failure",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1080.0,
+            "Y": 520.0
+          }
+        },
+        {
+          "kind": "Return",
+          "Id": "d04dff5d-8c8d-48c4-9ff3-40fb71259297",
+          "Status": "Success",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 2600.0,
+            "Y": 700.0
+          }
+        },
+        {
+          "kind": "Branch",
+          "Id": "652d3b95-cf56-4fdd-82cc-d292d129c4fd",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1080.0,
+            "Y": 300.0
+          }
+        },
+        {
+          "kind": "GetComponent",
+          "Id": "02decc4a-6b42-445c-a0a1-c93cc708665f",
+          "ComponentTypeFqn": "Fdp.Toolkit.Combat.Components.WeaponState",
+          "FieldName": "Ammo",
+          "FieldTypeFqn": "System.Int32",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1080.0,
+            "Y": 40.0
+          }
+        },
+        {
+          "kind": "GetVariable",
+          "Id": "a6574447-8280-40e3-9c5d-5ec656804fa3",
+          "VariableId": "57d91566-da07-4058-b997-1c16aef8aa3d",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1080.0,
+            "Y": 140.0
+          }
+        },
+        {
+          "kind": "GetVariable",
+          "Id": "d080ab72-b5cb-49e5-8559-06dfd2a3315b",
+          "VariableId": "dee92abe-a3f1-4cea-b16a-5e069166bb03",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1080.0,
+            "Y": 220.0
+          }
+        },
+        {
+          "kind": "Literal",
+          "Id": "7d5b1d26-71c0-4927-a34b-0f170353fc8d",
+          "TypeId": "System.Int32",
+          "ValueJson": "0",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1080.0,
+            "Y": 700.0
+          }
+        },
+        {
+          "kind": "Compare",
+          "Id": "0a148426-eae3-42f8-9003-afed746ca7fd",
+          "Operator": "LessThan",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1360.0,
+            "Y": 140.0
+          }
+        },
+        {
+          "kind": "Compare",
+          "Id": "4af1a61a-7877-49be-9463-54d22c000c39",
+          "Operator": "LessThan",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1360.0,
+            "Y": 40.0
+          }
+        },
+        {
+          "kind": "BinaryOp",
+          "Id": "5f0d55f6-5e47-461f-9539-69565a3ab4ef",
+          "Operator": "Subtract",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1360.0,
+            "Y": 260.0
+          }
+        },
+        {
+          "kind": "BinaryOp",
+          "Id": "d75d0119-bd1c-4aae-a058-b5931fb2c4ac",
+          "Operator": "Add",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1620.0,
+            "Y": 260.0
+          }
+        },
+        {
+          "kind": "Compare",
+          "Id": "eee1a115-29fa-474a-b701-5da75cf957a3",
+          "Operator": "GreaterThan",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1360.0,
+            "Y": 620.0
+          }
+        },
+        {
+          "kind": "Compare",
+          "Id": "195fec72-3895-4ce7-86e1-444e9263e930",
+          "Operator": "GreaterThanOrEqual",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1360.0,
+            "Y": 700.0
+          }
+        },
+        {
+          "kind": "BooleanOp",
+          "Id": "54bf10d7-b39e-4cc3-81a1-f301c5f3a429",
+          "Operator": "And",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1620.0,
+            "Y": 660.0
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "Id": "097d1567-f341-4bd3-910e-0c1d46bce97c",
+          "VariableId": "57d91566-da07-4058-b997-1c16aef8aa3d",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1880.0,
+            "Y": 140.0
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "Id": "9fe8ac4f-c5dd-4138-a2fd-98f908e7fd7d",
+          "VariableId": "dee92abe-a3f1-4cea-b16a-5e069166bb03",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1880.0,
+            "Y": 340.0
+          }
+        },
+        {
+          "kind": "Branch",
+          "Id": "a8c1e97a-d802-4267-adff-1672d5e0f450",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1620.0,
+            "Y": 140.0
+          }
+        },
+        {
+          "kind": "Branch",
+          "Id": "1f7f4854-a12f-4ee9-a825-fb2a52d4c1be",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1880.0,
+            "Y": 40.0
+          }
+        },
+        {
+          "kind": "Branch",
+          "Id": "9e856086-22da-42e1-9771-960cea38b79b",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 2140.0,
+            "Y": 400.0
+          }
+        },
+        {
+          "kind": "ChannelCommand",
+          "Id": "52a87522-c5e8-44af-82fb-ff3eec22f76d",
+          "ChannelType": "WeaponChannel",
+          "ActionId": "AimAndFire",
+          "PinDefaults": {
+            "CooldownSeconds": "10"
+          },
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 2400.0,
+            "Y": 500.0
+          }
+        },
+        {
+          "kind": "WaitForChannel",
+          "Id": "5fd92970-8f0c-4b01-b0e9-cfae6b1537ed",
+          "ChannelType": "WeaponChannel",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 2660.0,
+            "Y": 500.0
+          }
+        },
+        {
+          "kind": "GetAllParameters",
+          "Id": "1b44e6f7-2d28-9f54-b22d-879e0e3fdb2a",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 40,
+            "Y": 40
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "1b44e6f7-2d28-9f54-b22d-879e0e3fdb2a",
+          "FromPinId": "79dd2f32-e825-0759-badd-02335d5b3f2a",
+          "ToNodeId": "dcf5b58a-ca68-4b0b-b9cf-bc06e8f2aee9",
+          "ToPinId": "616277e1-5a1c-135a-8421-2b5a6c8ac26e"
+        },
+        {
+          "FromNodeId": "dcf5b58a-ca68-4b0b-b9cf-bc06e8f2aee9",
+          "FromPinId": "819ee946-d9b7-0857-b9e1-893089b59fb6",
+          "ToNodeId": "1ed3179f-077c-4029-aa8f-5244b9ab0c92",
+          "ToPinId": "3e449816-7d30-325b-b7d6-5c40d3298468"
+        },
+        {
+          "FromNodeId": "dcf5b58a-ca68-4b0b-b9cf-bc06e8f2aee9",
+          "FromPinId": "819ee946-d9b7-0857-b9e1-893089b59fb6",
+          "ToNodeId": "d5fdeede-3b39-4619-bd0b-ef184cec651b",
+          "ToPinId": "27c61eab-d30d-5a52-ac53-97468151f23d"
+        },
+        {
+          "FromNodeId": "06f69163-6200-4d62-bc2d-3b5a16eab0dc",
+          "FromPinId": "1e62e227-4e0c-d050-84c4-856dde9a3f88",
+          "ToNodeId": "e96fa029-4e96-4110-a3bd-80997baf2744",
+          "ToPinId": "07fde891-e547-d55a-bddd-2ce8ec24a14a"
+        },
+        {
+          "FromNodeId": "1ed3179f-077c-4029-aa8f-5244b9ab0c92",
+          "FromPinId": "a2dd49ac-7700-7a5d-abf2-cf854451a644",
+          "ToNodeId": "e96fa029-4e96-4110-a3bd-80997baf2744",
+          "ToPinId": "1c80120d-c087-0a5b-9cda-d4096edcd6b8"
+        },
+        {
+          "FromNodeId": "e96fa029-4e96-4110-a3bd-80997baf2744",
+          "FromPinId": "51d0a392-e00a-ce5d-8243-698cf0e52878",
+          "ToNodeId": "5ef585ab-76e6-4dbf-9bb1-a232b8f41abc",
+          "ToPinId": "e022dc42-6ffa-5258-9b67-89418f2f2dfb"
+        },
+        {
+          "FromNodeId": "e96fa029-4e96-4110-a3bd-80997baf2744",
+          "FromPinId": "ed375b7d-e0e8-6d54-a27d-dfa2af22f12c",
+          "ToNodeId": "652d3b95-cf56-4fdd-82cc-d292d129c4fd",
+          "ToPinId": "caec1c07-1196-1c50-8ead-5bd850bd3ba2"
+        },
+        {
+          "FromNodeId": "d5fdeede-3b39-4619-bd0b-ef184cec651b",
+          "FromPinId": "399e4609-4d42-1851-80a1-ac17b0cd90d1",
+          "ToNodeId": "652d3b95-cf56-4fdd-82cc-d292d129c4fd",
+          "ToPinId": "2b136bd6-ea83-1b5b-8183-efd2cf13b336"
+        },
+        {
+          "FromNodeId": "652d3b95-cf56-4fdd-82cc-d292d129c4fd",
+          "FromPinId": "efb5e0b1-da08-0a50-81d7-165333ceab32",
+          "ToNodeId": "d04dff5d-8c8d-48c4-9ff3-40fb71259297",
+          "ToPinId": "acfd8775-1a11-bc5d-b4b3-f5380bede39f"
+        },
+        {
+          "FromNodeId": "a6574447-8280-40e3-9c5d-5ec656804fa3",
+          "FromPinId": "a0a74139-5ed2-2357-85d6-1ceb6573a889",
+          "ToNodeId": "0a148426-eae3-42f8-9003-afed746ca7fd",
+          "ToPinId": "7d6247fc-25a8-5e52-a779-df228e13f958"
+        },
+        {
+          "FromNodeId": "7d5b1d26-71c0-4927-a34b-0f170353fc8d",
+          "FromPinId": "ea69275e-a2b1-da50-bef3-66a7cdb8ec10",
+          "ToNodeId": "0a148426-eae3-42f8-9003-afed746ca7fd",
+          "ToPinId": "3ae09005-fbd2-8353-9f10-6c946ddf48eb"
+        },
+        {
+          "FromNodeId": "02decc4a-6b42-445c-a0a1-c93cc708665f",
+          "FromPinId": "c4a8728a-05f1-f055-835d-2d6f969f7a6d",
+          "ToNodeId": "4af1a61a-7877-49be-9463-54d22c000c39",
+          "ToPinId": "2ad146d8-ab7c-3c5c-99d6-f0666ec1de4b"
+        },
+        {
+          "FromNodeId": "a6574447-8280-40e3-9c5d-5ec656804fa3",
+          "FromPinId": "a0a74139-5ed2-2357-85d6-1ceb6573a889",
+          "ToNodeId": "4af1a61a-7877-49be-9463-54d22c000c39",
+          "ToPinId": "7c22bf13-857e-4954-ad04-9b28fcf7a0e5"
+        },
+        {
+          "FromNodeId": "a6574447-8280-40e3-9c5d-5ec656804fa3",
+          "FromPinId": "a0a74139-5ed2-2357-85d6-1ceb6573a889",
+          "ToNodeId": "5f0d55f6-5e47-461f-9539-69565a3ab4ef",
+          "ToPinId": "c5603e81-1770-8a50-8f13-ea1de23b1ec9"
+        },
+        {
+          "FromNodeId": "02decc4a-6b42-445c-a0a1-c93cc708665f",
+          "FromPinId": "c4a8728a-05f1-f055-835d-2d6f969f7a6d",
+          "ToNodeId": "5f0d55f6-5e47-461f-9539-69565a3ab4ef",
+          "ToPinId": "a198ff70-aae1-275a-9f11-e540602e7450"
+        },
+        {
+          "FromNodeId": "d080ab72-b5cb-49e5-8559-06dfd2a3315b",
+          "FromPinId": "933d6e84-aa15-e15b-b7f0-a75f553c9948",
+          "ToNodeId": "d75d0119-bd1c-4aae-a058-b5931fb2c4ac",
+          "ToPinId": "70efdffc-900d-9c56-b386-1c238897dfb8"
+        },
+        {
+          "FromNodeId": "5f0d55f6-5e47-461f-9539-69565a3ab4ef",
+          "FromPinId": "15d4031e-aa77-395d-9aeb-dc7937971aae",
+          "ToNodeId": "d75d0119-bd1c-4aae-a058-b5931fb2c4ac",
+          "ToPinId": "94b3404a-7778-2153-b318-5e9181e061d3"
+        },
+        {
+          "FromNodeId": "1b44e6f7-2d28-9f54-b22d-879e0e3fdb2a",
+          "FromPinId": "cd1e44db-d10f-a652-95ed-5324e873caeb",
+          "ToNodeId": "eee1a115-29fa-474a-b701-5da75cf957a3",
+          "ToPinId": "50e103e2-192d-2652-952a-c52df5ef3e70"
+        },
+        {
+          "FromNodeId": "7d5b1d26-71c0-4927-a34b-0f170353fc8d",
+          "FromPinId": "ea69275e-a2b1-da50-bef3-66a7cdb8ec10",
+          "ToNodeId": "eee1a115-29fa-474a-b701-5da75cf957a3",
+          "ToPinId": "b9e551cc-5fb8-b55a-a80f-fb49dbad781a"
+        },
+        {
+          "FromNodeId": "d080ab72-b5cb-49e5-8559-06dfd2a3315b",
+          "FromPinId": "933d6e84-aa15-e15b-b7f0-a75f553c9948",
+          "ToNodeId": "195fec72-3895-4ce7-86e1-444e9263e930",
+          "ToPinId": "a9bcc904-bf59-5f54-872b-5c4dbb0d84bb"
+        },
+        {
+          "FromNodeId": "1b44e6f7-2d28-9f54-b22d-879e0e3fdb2a",
+          "FromPinId": "cd1e44db-d10f-a652-95ed-5324e873caeb",
+          "ToNodeId": "195fec72-3895-4ce7-86e1-444e9263e930",
+          "ToPinId": "f687f401-f98f-dd58-a12a-f09b81bb847b"
+        },
+        {
+          "FromNodeId": "eee1a115-29fa-474a-b701-5da75cf957a3",
+          "FromPinId": "d1a9135f-18bb-3059-b432-6002c51cb7fa",
+          "ToNodeId": "54bf10d7-b39e-4cc3-81a1-f301c5f3a429",
+          "ToPinId": "b8b84d16-ff77-9a57-ba5c-945c4b447adf"
+        },
+        {
+          "FromNodeId": "195fec72-3895-4ce7-86e1-444e9263e930",
+          "FromPinId": "5f884e92-84c3-b45e-9b73-d5c7377a7a58",
+          "ToNodeId": "54bf10d7-b39e-4cc3-81a1-f301c5f3a429",
+          "ToPinId": "0aa5b37c-5f43-ca5a-bc1b-f19c63a12287"
+        },
+        {
+          "FromNodeId": "02decc4a-6b42-445c-a0a1-c93cc708665f",
+          "FromPinId": "c4a8728a-05f1-f055-835d-2d6f969f7a6d",
+          "ToNodeId": "097d1567-f341-4bd3-910e-0c1d46bce97c",
+          "ToPinId": "9ac5898e-91e8-d559-8dcc-ed99d5d50330"
+        },
+        {
+          "FromNodeId": "d75d0119-bd1c-4aae-a058-b5931fb2c4ac",
+          "FromPinId": "4a04ef24-a945-8d58-a190-342bce887585",
+          "ToNodeId": "9fe8ac4f-c5dd-4138-a2fd-98f908e7fd7d",
+          "ToPinId": "44b0c3ee-7aa7-f355-abe8-d2a9abb3e883"
+        },
+        {
+          "FromNodeId": "9fe8ac4f-c5dd-4138-a2fd-98f908e7fd7d",
+          "FromPinId": "2f0df4bd-23f7-8a51-ac54-f6395d50368b",
+          "ToNodeId": "097d1567-f341-4bd3-910e-0c1d46bce97c",
+          "ToPinId": "32403ed8-ab58-3852-8bec-9142fee3883f"
+        },
+        {
+          "FromNodeId": "652d3b95-cf56-4fdd-82cc-d292d129c4fd",
+          "FromPinId": "c5724557-f1aa-be5a-adfa-418a07f1d583",
+          "ToNodeId": "a8c1e97a-d802-4267-adff-1672d5e0f450",
+          "ToPinId": "07321468-8e70-205d-9809-9979b1e7b601"
+        },
+        {
+          "FromNodeId": "0a148426-eae3-42f8-9003-afed746ca7fd",
+          "FromPinId": "e27fcb63-4f3f-f15c-b206-3ceec46e8863",
+          "ToNodeId": "a8c1e97a-d802-4267-adff-1672d5e0f450",
+          "ToPinId": "8e81d3c9-0092-d05a-a93a-d677cd7d9d14"
+        },
+        {
+          "FromNodeId": "a8c1e97a-d802-4267-adff-1672d5e0f450",
+          "FromPinId": "04982a4c-1fde-ce5b-9897-f417fbc98c00",
+          "ToNodeId": "097d1567-f341-4bd3-910e-0c1d46bce97c",
+          "ToPinId": "32403ed8-ab58-3852-8bec-9142fee3883f"
+        },
+        {
+          "FromNodeId": "a8c1e97a-d802-4267-adff-1672d5e0f450",
+          "FromPinId": "20855daf-ed16-d45a-be35-062e90c63727",
+          "ToNodeId": "1f7f4854-a12f-4ee9-a825-fb2a52d4c1be",
+          "ToPinId": "d023b950-7fab-6c5c-99e1-67a1cb7f584a"
+        },
+        {
+          "FromNodeId": "4af1a61a-7877-49be-9463-54d22c000c39",
+          "FromPinId": "8a04b7a1-84d2-cd58-ae0b-cdebed8ab0b3",
+          "ToNodeId": "1f7f4854-a12f-4ee9-a825-fb2a52d4c1be",
+          "ToPinId": "ff11ad0f-7a85-c657-8371-adc76a7cc4cd"
+        },
+        {
+          "FromNodeId": "1f7f4854-a12f-4ee9-a825-fb2a52d4c1be",
+          "FromPinId": "b381ed1c-6dc3-1255-9ae0-71a1aee334f9",
+          "ToNodeId": "9fe8ac4f-c5dd-4138-a2fd-98f908e7fd7d",
+          "ToPinId": "2a1a20d0-0010-b551-84fa-3fcb2adc73d3"
+        },
+        {
+          "FromNodeId": "097d1567-f341-4bd3-910e-0c1d46bce97c",
+          "FromPinId": "43fe5ce6-8a0b-2752-a042-5a8ee480402c",
+          "ToNodeId": "9e856086-22da-42e1-9771-960cea38b79b",
+          "ToPinId": "064c11d2-050d-5b5b-9f3f-c000356fa2ee"
+        },
+        {
+          "FromNodeId": "1f7f4854-a12f-4ee9-a825-fb2a52d4c1be",
+          "FromPinId": "570c2c98-f116-3e5e-afa7-2f6dac15228b",
+          "ToNodeId": "9e856086-22da-42e1-9771-960cea38b79b",
+          "ToPinId": "064c11d2-050d-5b5b-9f3f-c000356fa2ee"
+        },
+        {
+          "FromNodeId": "54bf10d7-b39e-4cc3-81a1-f301c5f3a429",
+          "FromPinId": "b6058491-1a6b-ab57-b818-c4a09235ab30",
+          "ToNodeId": "9e856086-22da-42e1-9771-960cea38b79b",
+          "ToPinId": "d8122295-c002-bd55-af9c-6b8a7d339c08"
+        },
+        {
+          "FromNodeId": "9e856086-22da-42e1-9771-960cea38b79b",
+          "FromPinId": "ab105b0d-94c2-9b54-b377-b049707f0509",
+          "ToNodeId": "d04dff5d-8c8d-48c4-9ff3-40fb71259297",
+          "ToPinId": "acfd8775-1a11-bc5d-b4b3-f5380bede39f"
+        },
+        {
+          "FromNodeId": "9e856086-22da-42e1-9771-960cea38b79b",
+          "FromPinId": "38723329-446a-355f-9284-62dcd2fa3307",
+          "ToNodeId": "52a87522-c5e8-44af-82fb-ff3eec22f76d",
+          "ToPinId": "df8115d1-4ce5-4f58-a3cc-c114532ab5ca"
+        },
+        {
+          "FromNodeId": "dcf5b58a-ca68-4b0b-b9cf-bc06e8f2aee9",
+          "FromPinId": "819ee946-d9b7-0857-b9e1-893089b59fb6",
+          "ToNodeId": "52a87522-c5e8-44af-82fb-ff3eec22f76d",
+          "ToPinId": "ee8415e8-aa17-c85b-8cef-896c6e0e7a47"
+        },
+        {
+          "FromNodeId": "52a87522-c5e8-44af-82fb-ff3eec22f76d",
+          "FromPinId": "049d87d2-6ab8-f159-b128-428bac28f81b",
+          "ToNodeId": "5fd92970-8f0c-4b01-b0e9-cfae6b1537ed",
+          "ToPinId": "b110060a-eab6-c250-a061-4357a1ae40e7"
+        },
+        {
+          "FromNodeId": "5fd92970-8f0c-4b01-b0e9-cfae6b1537ed",
+          "FromPinId": "4caff4cb-47fe-a156-90b8-797f8351ddaf",
+          "ToNodeId": "d04dff5d-8c8d-48c4-9ff3-40fb71259297",
+          "ToPinId": "acfd8775-1a11-bc5d-b4b3-f5380bede39f"
+        }
+      ],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "Migration slice 3 (docs/blueprints/AimAndFireSpecific_Slice_Design.md): blueprint-authored rebuild of the C# oracle HillAttackTankNodes.Action_AimAndFireSpecific (~line 334-438) -- an AiPrimitive BTreeAction. Graph: EventEntry -> GetParameter(TargetNetworkId) -> FunctionCall NetworkEntityMapOps.ResolveTarget(targetNetworkId) [ctx: view, TrailingContext=View, IsPure] -> target Entity, fanned out to WorldOps.IsNull(target) [TrailingContext=None, IsPure] and WorldOps.IsAlive(target) [ctx: view, TrailingContext=View, IsPure] -> BranchNull.True -> Return(Failure); BranchNull.False -> BranchAlive.False -> Return(Success) (target destroyed); BranchAlive.True -> ammo round-count sub-graph: GetComponent(self, WeaponState).Ammo (Target pin unwired => self) + GetVariable(LastObservedAmmo)/GetVariable(RoundsFired)/GetParameter(MaxRounds) feed native Compare (LessThan x2, GreaterThan, GreaterThanOrEqual) + BinaryOp (Subtract, Add) + BooleanOp (And) nodes: BranchA(LastObservedAmmo<0) True -> SetVariable(LastObservedAmmo=ammo) (first-tick init, SHARED merge-point node also reached from the decrement path); False -> BranchB(ammo<LastObservedAmmo) True -> SetVariable(RoundsFired += LastObservedAmmo-ammo) -> the shared SetVariable(LastObservedAmmo=ammo); False -> falls straight through. Both paths converge on BranchCap( (MaxRounds>0) && (RoundsFired>=MaxRounds) ) -- a genuine 2-in-degree merge point, scheduled as a single shared block by the merge-point scheduler fix (no node triplication). BranchCap.True -> Return(Success) (round cap reached, SHARED with the target-destroyed and fire-tail-success returns -- Return is a pure terminal sink, so all three narrative 'Return (Success)' moments in the design doc are the SAME node instance, a 3-in-degree merge point). BranchCap.False -> ChannelCommand(WeaponChannel/AimAndFire) [Target <- resolved target entity, CooldownSeconds <- PinDefault \"10\"] -> WaitForChannel(WeaponChannel) -> the shared Return(Success). DEVIATION 1 (design doc, documented): the oracle's Locomotion-channel clear (stop-to-fire) is DROPPED -- no cross-channel write from this weapon action (architect Q5-B: a brain writes only its own channel via ChannelCommand); the tank is already stationary at its hull-down slot in the real Hill-attack scenario. DEVIATION 2 (design doc, documented): ClearWeaponActionIfActive on the MaxRounds-Success path is SIMPLIFIED to a plain Return(Success) -- the BTree selector/arbitration reclaims the channel (same class as ReverseToBaseline's Clear-on-failure gap). Everything else is faithful to the oracle. New curated helpers: Hrot.AI.Behaviors.Brains.NetworkEntityMapOps.ResolveTarget (P7 context-aware FunctionCall, architect Q6-B target-resolve pattern) and Hrot.AI.Behaviors.Brains.WorldOps.IsAlive/IsNull (general-purpose, broadly reusable). Params vs WorkingState split per Q5-D: MaxRounds/TargetNetworkId = Parameters; RoundsFired/LastObservedAmmo = WorkingState (LastObservedAmmo default -1 sentinel for first-tick init). Does not modify the C# oracle.",
+    "Category": null,
+    "Recipe": null
+  }
+}

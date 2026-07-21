@@ -348,13 +348,25 @@ internal sealed class CSharpEmitter
         WriteLine($"Tick = {className}.TickThunk,");
         if (emittableVariables.Count > 0)
         {
+            // When every field's size is reliable (all primitives/curated types), the compiler's baked
+            // offsets/sizes are correct → emit them as constants (byte-identical to before). If ANY field is
+            // a project struct accepted via the AN2 fallback (size unknown to the reflection-less compiler),
+            // the baked offsets of later fields are wrong — so emit offset/size via a RUNTIME query against
+            // the real generated State layout (Marshal.OffsetOf<State> + Unsafe.SizeOf<T>). Q#14 Option B.
+            bool layoutFromRuntime = emittableVariables.Any(f => !f.Type.SizeReliable);
             WriteLine("StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)");
             WriteLine("{");
             Indent();
             foreach (var f in emittableVariables)
             {
                 var csharpType = StatementEmitter.TypeRefToCSharp(f.Type);
-                WriteLine($"[\"{f.Name}\"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor(\"{f.Name}\", typeof({csharpType}), {f.Offset}, {f.Size}, \"\"),");
+                string offset = layoutFromRuntime
+                    ? $"(int)global::System.Runtime.InteropServices.Marshal.OffsetOf<{className}.State>(\"{f.Name}\")"
+                    : f.Offset.ToString();
+                string size = layoutFromRuntime
+                    ? $"global::System.Runtime.CompilerServices.Unsafe.SizeOf<{csharpType}>()"
+                    : f.Size.ToString();
+                WriteLine($"[\"{f.Name}\"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor(\"{f.Name}\", typeof({csharpType}), {offset}, {size}, \"\"),");
             }
             Outdent();
             WriteLine("},");
@@ -364,8 +376,11 @@ internal sealed class CSharpEmitter
             WriteLine("EventHandlers = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.EventHandlerDelegate>(global::System.StringComparer.Ordinal)");
             WriteLine("{");
             Indent();
+            // Q#14: key by the event IDENTITY (EventTypeFqn) — the FQN the runtime dispatch resolves to a
+            // type-id — not the graph name (which is only the C# method suffix). Fallback to name for legacy
+            // Event graphs that carry no event identity.
             foreach (var evtGraph in eventHandlers)
-                WriteLine($"[\"{evtGraph.Name}\"] = {className}.Event_{evtGraph.Name}_Thunk,");
+                WriteLine($"[\"{evtGraph.EventTypeFqn ?? evtGraph.Name}\"] = {className}.Event_{evtGraph.Name}_Thunk,");
             Outdent();
             WriteLine("},");
         }

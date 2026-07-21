@@ -112,6 +112,11 @@ public sealed class SilkIconProvider : IIconProvider
             // ── Asset kind icons (§5.1, §5.2) ──────────────────────────────
             ["asset/scenario"]        = "ab15",   // world → scenario
             ["asset/blueprint"]       = "n15",   // blueprint
+            // Punch-list #9: per-intent blueprint icons in the Open-Asset picker (same cells as the
+            // BTree blueprint-category glyphs so Action/Condition/Function read consistently).
+            ["asset/blueprint_action"]    = "w13",   // lightning-bolt → Action blueprint
+            ["asset/blueprint_condition"] = "a2",    // tick circle → Condition blueprint
+            ["asset/blueprint_function"]  = "f26",   // gear → Function (library) blueprint
             ["asset/btree"]           = "o6",  // branch → behavior tree
             ["asset/hsm"]             = "p5",  // state machine
             ["asset/blackboard"]      = "w31",  // blackboard

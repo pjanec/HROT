@@ -2,6 +2,7 @@ using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Replication.Services;
+using Hrot.Editor.AiShared;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -41,6 +42,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// (return <c>false</c>) rather than throw.
         /// </para>
         /// </summary>
+        [BlueprintCallable("Tank")]
         public static bool HasTarget(uint targetNetworkId, Entity self, ISimulationView view)
         {
             if (view is not EntityRepository world)

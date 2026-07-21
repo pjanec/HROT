@@ -729,11 +729,11 @@ public sealed class BcpBatch02BlueprintTests
         var model     = new BlueprintGraphModel(asset, graph);
         var nodeModel = model.Nodes.Single(n => n.Id == new NodeId(getNode.Id));
 
-        Assert.Equal("Get Health", nodeModel.Title);
+        Assert.Equal("Get [Health]", nodeModel.Title);
         Assert.DoesNotContain(varId.ToString(), nodeModel.Title);
     }
 
-    /// <summary>A Set node for "Health" projects Title == "Set Health".</summary>
+    /// <summary>A Set node for "Health" projects Title == "Set [Health]".</summary>
     [Fact]
     public void VariableNodeTitle_SetNode_ShowsVariableName()
     {
@@ -751,7 +751,7 @@ public sealed class BcpBatch02BlueprintTests
         var model     = new BlueprintGraphModel(asset, graph);
         var nodeModel = model.Nodes.Single(n => n.Id == new NodeId(setNode.Id));
 
-        Assert.Equal("Set Health", nodeModel.Title);
+        Assert.Equal("Set [Health]", nodeModel.Title);
     }
 
     /// <summary>
@@ -769,7 +769,7 @@ public sealed class BcpBatch02BlueprintTests
         var model     = new BlueprintGraphModel(asset, graph);
         var nodeModel = model.Nodes.Single(n => n.Id == new NodeId(getNode.Id));
 
-        Assert.Equal($"Get {unknownId}", nodeModel.Title);
+        Assert.Equal($"Get [{unknownId}]", nodeModel.Title);
     }
 
     // ── BCP-BATCH-02-FIX2 Task 5: variable-create with name + type ─────────────

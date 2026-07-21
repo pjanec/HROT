@@ -1,5 +1,7 @@
 # Hrot.Blueprints.Core
 
+> Manually maintained; last verified 2026-07-21 against the implemented code.
+
 - **Project file**: `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Core/Hrot.Blueprints.Core.csproj`
 - **Target framework**: net8.0
 - **Date documented**: 2026-05-23
@@ -74,6 +76,7 @@ Three dispatch kinds exist:
 +---------------------------+
 |  Compiler Pipeline        |
 |  Stage1_Parse             |
+|  Stage0_Rehydrate         |
 |  Stage2_Validate          |
 |  Stage3_Normalize         |
 |  Stage4_TypeResolve       |
@@ -102,7 +105,13 @@ Three dispatch kinds exist:
      |
      v
 +--------------------+
-| Stage 2 - Validate |  17 validators, produces Diagnostic list
+| Stage 0 - Rehydrate|  reflection-free pin/link reconstruction;
+|                    |  mirrors editor's NodePinSchema
++--------------------+
+     |
+     v
++--------------------+
+| Stage 2 - Validate |  21 validators, produces Diagnostic list
 +--------------------+
      |
      v
@@ -185,6 +194,7 @@ Files in the Core project folder are prefixed `[CORE]`.  Files compiled via
 | `IBlueprintDebugSession.cs` | `Hrot.Blueprints.Core.Debug` | `BreakpointId`, `WatchId`, `StepMode`, `BreakpointHit`, `NodeExecuted`, `PinValueChanged`, `NodeHistoryEntry`, `Breakpoint`, `Watch`, `BlueprintStateSnapshot`, `IBlueprintDebugSession` |
 | `ExecutionHistory.cs` | `Hrot.Blueprints.Core.Debug` | `ExecutionHistory` |
 | `DebugProbe.cs` | `Hrot.Blueprints.Core.Debug` | `DebugProbe`, `NullProbeSink` |
+| `Debug/SubTickSnapshotRecorder.cs` | `Hrot.Blueprints.Core.Debug` | `SubTickSnapshotRecorder` -- whole-repo keyframe-per-node ring buffer for node-granular debug rewind (`RecordNodeEntry`/`RestoreTo`) |
 | `DebugMapIndex.cs` | `Hrot.Blueprints.Core.Debug` | `NodeMapEntry`, `DebugMapIndex` |
 
 ### Compiler source files linked into Core (from `Hrot.Blueprints.Compiler`)
@@ -207,6 +217,8 @@ Files in the Core project folder are prefixed `[CORE]`.  Files compiled via
 | `Compiler/BlueprintSignatureParser.cs` | `.Compiler` | `BlueprintSignatureParser` |
 | `Compiler/CompileOptions.cs` | `.Compiler` | `CompileOptions` |
 | `Compiler/CompileResult.cs` | `.Compiler` | `CompileResult`, `ValidationOptions`, `ValidationResult` |
+| `Compiler/DeterministicIds.cs` | `.Compiler` | `DeterministicIds` -- deterministic pin-GUID derivation `(nodeId, pinName, direction)`, byte-identical to the editor's `IdGenerator.Deterministic` |
+| `Compiler/ISearchPredicateRegistry.cs` | `.Compiler` | `ISearchPredicateRegistry` -- marker interface injected into `InitializePredicates` for `ConditionMet`-mode `WhenNode` blueprints; implemented by the editor host |
 | `Compiler/IrPrinter.cs` | `.Compiler` | `IrPrinter` |
 | `Compiler/Catalogs/CatalogInterfaces.cs` | `.Compiler.Catalogs` | `EventQoS`, `ExecutionNodeHint`, `EngineEventCatalogEntry`, `ChannelCommandCatalogEntry`, `WaitKind`, `WaitPrimitiveCatalogEntry`, `IEngineEventCatalog`, `IChannelCommandCatalog`, `IWaitPrimitiveCatalog` |
 | `Compiler/Catalogs/IEqsTemplateCatalog.cs` | `.Compiler.Catalogs` | `IEqsTemplateCatalog` |
@@ -217,6 +229,8 @@ Files in the Core project folder are prefixed `[CORE]`.  Files compiled via
 | `Compiler/Catalogs/BuiltInEngineEventCatalog.cs` | `.Compiler.Catalogs` | `BuiltInEngineEventCatalog` |
 | `Compiler/Catalogs/BuiltInChannelCommandCatalog.cs` | `.Compiler.Catalogs` | `BuiltInChannelCommandCatalog` |
 | `Compiler/Catalogs/BuiltInWaitPrimitiveCatalog.cs` | `.Compiler.Catalogs` | `BuiltInWaitPrimitiveCatalog` |
+| `Compiler/Catalogs/IClrSignatureResolver.cs` | `.Compiler.Catalogs` | `IClrSignatureResolver`, `ClrMethodSig`, `ClrParamInfo` -- reflection-free `FunctionCall` signature resolution for the netstandard2.0 generator host; implemented by the generator project (which references Roslyn) |
+| `Compiler/Catalogs/SquadPrimitiveNodeCatalog.cs` | `.Compiler.Catalogs` | `SquadPrimitiveNodeCatalog`, `SquadPrimitiveNodeEntry` -- editor-palette display metadata for the squad quartet nodes |
 | `Compiler/Compatibility/BlueprintCompilerContracts.cs` | `.Compiler` | `CompilerMode`, `BlackboardTier` |
 | `Compiler/Compatibility/BlueprintIdHash.cs` | `.Compiler` | `BlueprintIdHash` |
 | `Compiler/Compatibility/IsExternalInit.cs` | _(polyfill)_ | `IsExternalInit` |
@@ -232,6 +246,7 @@ Files in the Core project folder are prefixed `[CORE]`.  Files compiled via
 | `Compiler/Emit/DebugMapBuilder.cs` | `.Compiler.Emit` | `DebugMap`, `DebugMapEntry`, `DebugMapBuilder` |
 | `Compiler/Emit/DebugMapSerializer.cs` | `.Compiler.Emit` | `DebugMapSerializer` |
 | `Compiler/Emit/EmissionContext.cs` | `.Compiler.Emit` | `EmissionContext` |
+| `Compiler/Emit/InlineActionLowering.cs` | `.Compiler.Emit` | `InlineActionLowering` -- emits the inline-latent non-channel action call for `IrOp_InlineActionCall` (AiPrimitive `BlueprintCall` path and `[SharedAiAction]` direct-invocation path) |
 | `Compiler/Emit/InstanceEmitter.cs` | `.Compiler.Emit` | `InstanceEmitter` |
 | `Compiler/Emit/LibraryEmitter.cs` | `.Compiler.Emit` | `LibraryEmitter` |
 | `Compiler/Emit/Sanitizer.cs` | `.Compiler.Emit` | `Sanitizer` |
@@ -241,7 +256,7 @@ Files in the Core project folder are prefixed `[CORE]`.  Files compiled via
 | `Compiler/Ir/IrBlock.cs` | `.Compiler.Ir` | `IrTerminator` (abstract), `IrTerm_Goto`, `IrTerm_Branch`, `IrTerm_Return`, `IrTerm_ReturnStatus`, `IrTerm_Suspend`, `IrTerm_FallThrough`, `IrBlock` |
 | `Compiler/Ir/IrDebugAnnotation.cs` | `.Compiler.Ir` | `IrDebugAnnotation` |
 | `Compiler/Ir/IrGraph.cs` | `.Compiler.Ir` | `IrGraphKind`, `IrGraph` |
-| `Compiler/Ir/IrOperation.cs` | `.Compiler.Ir` | `IrOperation` (abstract) + 30+ sealed record subtypes |
+| `Compiler/Ir/IrOperation.cs` | `.Compiler.Ir` | `IrOperation` (abstract) + 60+ sealed record subtypes |
 | `Compiler/Ir/IrStatement.cs` | `.Compiler.Ir` | `IrStatement` |
 | `Compiler/Ir/IrTypeRef.cs` | `.Compiler.Ir` | `IrTypeRef` |
 | `Compiler/Ir/IrValue.cs` | `.Compiler.Ir` | `IrValue`, `IrBlockId` |
@@ -260,7 +275,7 @@ Files in the Core project folder are prefixed `[CORE]`.  Files compiled via
 | `Compiler/Roslyn/InMemoryRoslynCompiler.cs` | `.Compiler.Roslyn` | `InMemoryRoslynCompiler` (full Roslyn impl) |
 | `Compiler/Roslyn/MetadataReferenceResolver.cs` | `.Compiler.Roslyn` | `MetadataReferenceResolver` |
 | `Compiler/Stages/Stage1_Parse.cs` | `.Compiler.Stages` | `Stage1_Parse` |
-| `Compiler/Stages/Stage2_Validate.cs` | `.Compiler.Stages` | `Stage2_Validate`, 17 `IValidator` implementations |
+| `Compiler/Stages/Stage2_Validate.cs` | `.Compiler.Stages` | `Stage2_Validate`, 21 `IValidator` implementations |
 | `Compiler/Stages/Stage3_Normalize.cs` | `.Compiler.Stages` | `Stage3_Normalize` |
 | `Compiler/Stages/Stage4_TypeResolve.cs` | `.Compiler.Stages` | `Stage4_TypeResolve` |
 | `Compiler/Stages/Stage5_Schedule.cs` | `.Compiler.Stages` | `Stage5_Schedule`, `GraphScheduler` |
@@ -331,13 +346,13 @@ Discriminator property `"kind"`.  Derived types:
 
 | JSON kind | C# type | Notable properties |
 |-----------|---------|--------------------|
-| `FunctionCall` | `FunctionCallNode` | `TargetTypeId`, `MethodName`, `IsPure` |
+| `FunctionCall` | `FunctionCallNode` | `TargetTypeId`, `MethodName`, `IsPure`, `TargetGraphId` (non-empty = in-blueprint Function-graph call instead of a CLR call), `TrailingContext` (baked self/view trailing-arg decision) |
 | `Branch` | `BranchNode` | -- |
 | `Sequence` | `SequenceNode` | -- |
 | `GetVariable` | `GetVariableNode` | `VariableId` |
 | `SetVariable` | `SetVariableNode` | `VariableId` |
 | `Literal` | `LiteralNode` | `TypeId`, `ValueJson` |
-| `EventEntry` | `EventEntryNode` | `EventTypeId` |
+| `EventEntry` | `EventEntryNode` | `EventTypeId`, `TargetFilterSelf`, `TargetFieldName` (Self/Any recipient filter) |
 | `Return` | `ReturnNode` | `Status` |
 | `Cast` | `CastNode` | `TargetTypeId` |
 | `ArrayMake` | `ArrayMakeNode` | `ElementTypeId` |
@@ -347,7 +362,7 @@ Discriminator property `"kind"`.  Derived types:
 | `BindDispatcher` | `BindEventDispatcherNode` | `DispatcherId` |
 | `CallCustomEvent` | `CallCustomEventNode` | `EventId` |
 | `CallPeerBlueprint` | `CallPeerBlueprintNode` | `PeerBlueprintId`, `FunctionRef` |
-| `ChannelCommand` | `ChannelCommandNode` | `ChannelType`, `ActionId` |
+| `ChannelCommand` | `ChannelCommandNode` | `ChannelType`, `ActionId`; or (AN7/AN8 non-channel action mode) `ActionFqn` + `ActionParamsTypeFqn` |
 | `WaitForChannel` | `WaitForChannelNode` | `ChannelType` |
 | `WaitForEvent` | `WaitForEventNode` | `EventTypeId`, `FilterByField`, `CorrelationField` |
 | `When` | `WhenNode` | `Mode` (`ValueChanged`, `EventFired`, `ConditionMet`, `EqsResult`), `Edges` (`WhenEdge` flags), mode-specific payload |
@@ -355,6 +370,29 @@ Discriminator property `"kind"`.  Derived types:
 | `SpawnEqsSensor` | `SpawnEqsSensorNode` | `TemplateAssetId` |
 | `ScoreDecision` | `ScoreDecisionNode` | `AssetId` (UtilityDecisionDef GUID) |
 | `ReadRankedResult` | `ReadRankedResultNode` | (reads rank-i entry from UtilityResultBuffer) |
+| `PublishEvent` | `PublishEventNode` | `EventTypeId`; per-field pins reified from the event struct; Self/Any target routing |
+| `MakeStruct` | `MakeStructNode` | `TypeId`; one input pin per field, one struct-typed output |
+| `BreakStruct` | `BreakStructNode` | `TypeId`; one struct-typed input, one output pin per field |
+| `SetMembers` | `SetMembersNode` | `TypeId`; per-field write via wired pins, unwired fields preserved |
+| `FlowForEach` | `FlowForEachNode` | `SourceComponentFqn`/`CountAccessorFqn`/`ItemAccessorFqn` (baked, reflection-free source contract read off `self`); `Body` + `Completed` exec-outs; `CurrentItem` (`Entity`) data-out, optional `Count`/`Index` data-outs |
+| `Compare` | `CompareNode` | `Operator` (full `ComparisonOperator` enum) |
+| `BinaryOp` | `BinaryOpNode` | `Operator` (arithmetic) |
+| `BooleanOp` | `BooleanOpNode` | `Operator` (AND/OR/XOR) |
+| `Not` | `NotNode` | -- |
+| `GetComponent` | `GetComponentNode` | `ComponentTypeFqn`, `FieldName`, `FieldTypeFqn` (baked, reflection-free ECS field read off `self` or an optional `Target` entity pin) |
+| `GetParameter` | `GetParameterNode` | reads a single `AiPrimitive` parameter |
+| `GetAllParameters` | `GetAllParametersNode` | reads all `AiPrimitive` parameters |
+| `GetShared` | `GetSharedNode` | multi-pin per-field read of `BlueprintSharedState` |
+| `SetShared` | `SetSharedNode` | multi-pin per-field write via `BlueprintSharedState.TrySetSharedField` |
+| `PartitionElements` | `PartitionElementsNode` | squad quartet: partitions a roster into groups |
+| `AssignRoles` | `AssignRolesNode` | squad quartet: assigns roles to partitioned members |
+| `AdvancePhase` | `AdvancePhaseNode` | squad quartet: advances a squad's phase state |
+| `AcquireSlot` | `AcquireSlotNode` | squad quartet: acquires a `SlotRotation` slot |
+
+Custom events pub/sub (`PublishEvent` + `EventEntry` with a Self/Any filter, discovered via
+`[BlueprintEvent]`/`[EventTarget]`, dispatched by `BlueprintEventDispatch`), multi-pin per-field pins
+(`PublishEvent`/`GetShared`/`SetShared`), and struct-typed `Variables` are all shipped. See
+Stage 0 (`Stage0_Rehydrate`) above for the pin/link reconstruction that these node kinds rely on.
 
 #### `WhenNode` and EQS nodes (schema detail)
 
@@ -670,7 +708,7 @@ Top-level IR container.  Key fields: `AssetId`, `SanitizedName`, `BlueprintId`,
 
 `ResultValue` (`IrValue?`), `Operation` (`IrOperation`), `Debug` (`IrDebugAnnotation`).
 
-#### `IrOperation` (abstract record, 30+ subtypes)
+#### `IrOperation` (abstract record, 60+ subtypes)
 
 Selected subtypes:
 
@@ -684,7 +722,18 @@ Selected subtypes:
 | `IrOp_PeerCall` | Call into a peer Instance Blueprint |
 | `IrOp_GetComponent` / `IrOp_GetComponentRO` | ECS component read |
 | `IrOp_AddComponent` / `IrOp_RemoveComponent` | ECB write |
-| `IrOp_PublishEvent` | Simulation event publish |
+| `IrOp_PublishEvent` | Simulation event publish (via ECB) |
+| `IrOp_PublishBusEvent` | `PublishEventNode` -- publish on `world.Bus` (no ECB; sanctioned for AiPrimitive TickCore) |
+| `IrOp_RaiseCustomEvent` | `CallCustomEventNode` -- dispatches a custom event by index to registered handlers |
+| `IrOp_GraphCall` | `FunctionCallNode.TargetGraphId` -- synchronous call to a local Function graph (latent nodes forbidden, BP1650) |
+| `IrOp_ForEach` | `FlowForEachNode` -- inline bounded `for` loop; `Body` is a nested statement list scheduled inline (not a BFS block) |
+| `IrOp_If` | Inline `if`/`else` for a `BranchNode` reached from inside an `IrOp_ForEach` body |
+| `IrOp_InlineActionCall` | AN8 -- inline-latent non-channel action invocation (AiPrimitive `BlueprintCall` or `[SharedAiAction]` direct call) |
+| `IrOp_Compare` / `IrOp_BinaryOp` / `IrOp_BooleanOp` / `IrOp_Not` | `CompareNode`/`BinaryOpNode`/`BooleanOpNode`/`NotNode` -- native infix comparison/arithmetic/boolean/negation expressions |
+| `IrOp_FieldRead` | Reads one field off an already-resolved value (component ref, struct value, EQS result struct) |
+| `IrOp_MakeStruct` / `IrOp_SetMembers` | `MakeStructNode` (construct from per-field pins) / `SetMembersNode` (copy + overwrite wired member fields) |
+| `IrOp_ReadShared` / `IrOp_WriteShared` / `IrOp_WriteSharedField` | `GetSharedNode`/`SetSharedNode` -- whole-struct or per-field read/write of entity-scoped `BlueprintSharedState` |
+| `IrOp_ScoreDecision` / `IrOp_ReadRankedResult` | `ScoreDecisionNode` / `ReadRankedResultNode` -- Utility AI decision evaluation and ranked-result read |
 | `IrOp_ChannelCommand` | Typed command to a channel component |
 | `IrOp_WaitForChannel` / `IrOp_WaitForEvent` | Latent wait primitives |
 | `IrOp_DebugProbe_NodeEnter` | Probe inserted by `DebugProbeInsertion` in Debug/Trace mode |
@@ -749,15 +798,21 @@ Public constants for all compiler diagnostic codes.  Series:
 |--------|-------|
 | `BP0001`-`BP0011` | Stage 1 -- JSON parse |
 | `BP1010`-`BP1031` | Stage 2 -- asset structure & link validation |
-| `BP1100`-`BP1101` | Stage 2 -- AiPrimitive intent rules |
+| `BP1100`-`BP1102` | Stage 2 -- AiPrimitive intent rules (incl. `V_LatentRules`'s WaitForChannel `OnFailure` termination check) |
 | `BP1200`-`BP1211` | Stage 2 -- variables and state |
 | `BP1300`-`BP1302` | Stage 2 -- peer references |
 | `BP1400`-`BP1402` | Stage 2 -- catalog references |
+| `BP1411` | Stage 2 -- `V_ExecOutFanOut` (an exec-out pin drives more than one successor) |
+| `BP1412` | Stage 5 -- `GraphScheduler` (scheduler did not follow an outgoing exec link) |
+| `BP1413` | Reserved -- latent/suspending node inside a `Sequence` branch (not currently emitted) |
 | `BP1500`-`BP1503` | Stage 2 -- type references |
 | `BP1600`-`BP1602` | Stage 2 -- graph structure (`OrphanedNode`, `GraphHasNoReturn`, `GraphHasNoEntry`) |
+| `BP1650`-`BP1654` | Stage 2 -- `V_FunctionGraphCallRules` (`FunctionCallNode.TargetGraphId`: latent-in-function-graph, target not found, arg count/type mismatch, call cycle) |
 | `BP2001`-`BP2017` | Stage 2 -- `WhenNode` rules (mode/payload consistency, edge rules, dispatch restrictions, BestEffort and cross-node event warnings) |
 | `BP2020`-`BP2021` | Stage 2 -- `ReadEqsResultNode` rules (dispatch check, sensor variable lookup) |
 | `BP2030`-`BP2032` | Stage 2 -- `SpawnEqsSensorNode` rules (dispatch check, template lookup, instance-id collision) |
+| `BP2040`-`BP2042` | Stage 2 -- `V_SharedStateRules` (`GetShared`/`SetShared`: empty/unresolvable `SharedTypeId`, unsupported Library dispatch) |
+| `BP2050` | Stage 2 -- `V_FlowForEachRules` (`FlowForEach` body contains a latent or Branch node) |
 | `BP3001`, `BP3010`-`BP3012` | Stage 3 / 4 -- normalize and type-resolve |
 | `BP4001`-`BP4004` | Stage 5 -- schedule |
 | `BP5001` | Stage 6 -- lower |
@@ -1023,10 +1078,17 @@ Deserialises a JSON string into a `BlueprintAsset` using `System.Text.Json`.  Em
 `BP0001` (null result) or `BP0002` (parse exception).  Also performs basic null-guard
 checks (`BP0010`, `BP0011`).
 
+### Stage 0 -- Rehydrate
+
+Runs right after Parse, before Validate. Reflection-free reconstruction of pin/link data
+that must mirror the editor's `NodePinSchema` (the editor's canonical-pins source of
+truth). Keeping this stage's pin projection in sync with the editor is load-bearing --
+drift here is a historical source of wire-rendering / breakpoint-mapping bugs.
+
 ### Stage 2 -- Validate
 
-Runs 17 independent `IValidator` implementations sequentially.  Stops early on fatal
-errors.  Validators cover:
+Runs 21 independent `IValidator` implementations sequentially, in the fixed order defined
+by `Stage2_Validate`.  Stops early on fatal errors.  Validators cover:
 
 - `V_AssetStructure` -- non-empty `AssetId`, `Name`, valid `Dispatch`
 - `V_DispatchKindCompatibility` -- ensures fields match dispatch kind
@@ -1043,8 +1105,12 @@ errors.  Validators cover:
 - `V_TypeReferences` -- all pin type IDs resolvable
 - `V_DeterminismOrdering` -- (reserved)
 - `V_WhenNodeRules` -- WhenNode payload/mode/edge consistency; BestEffort and cross-node event warnings
+- `V_FlowForEachRules` -- `FlowForEach` body must be a synchronous, latent-free (and branch-free) sub-DAG (BP2050)
 - `V_ReadEqsResultNodeRules` -- ReadEqsResultNode dispatch check and sensor variable lookup
 - `V_SpawnEqsSensorNodeRules` -- SpawnEqsSensorNode dispatch check, template lookup, instance-id collision
+- `V_SharedStateRules` -- GetShared/SetShared `SharedTypeId` resolution and Library-dispatch restriction (BP2040-BP2042)
+- `V_FunctionGraphCallRules` -- `FunctionCallNode.TargetGraphId` resolution, arg count/type match, cycle detection (BP1650-BP1654)
+- `V_ExecOutFanOut` -- exec-out pin fan-out check (BP1411); dropped-successor detection (BP1412) is a separate Stage 5 scheduler check, not part of this validator
 
 ### Stage 3 -- Normalize
 

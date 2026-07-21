@@ -78,7 +78,16 @@ public sealed class BlueprintAssetContributor : IAssetCatalogContributor
                         name = Path.GetFileNameWithoutExtension(
                             Path.GetFileNameWithoutExtension(filePath)); // strip both ".bp" and ".json"
 
-                    found.Add(new BlueprintFileAsset(assetId, name, filePath));
+                    // Punch-list #9: header-only Dispatch + Primitive.Intent → per-intent picker icon.
+                    string? dispatch = root.TryGetProperty("Dispatch", out var dEl) && dEl.ValueKind == JsonValueKind.String
+                        ? dEl.GetString() : null;
+                    string? intent = root.TryGetProperty("Primitive", out var pEl)
+                        && pEl.ValueKind == JsonValueKind.Object
+                        && pEl.TryGetProperty("Intent", out var iEl) && iEl.ValueKind == JsonValueKind.String
+                        ? iEl.GetString() : null;
+                    var iconKey = BlueprintIconKeys.ForHeader(dispatch, intent);
+
+                    found.Add(new BlueprintFileAsset(assetId, name, filePath, iconKey));
                 }
                 catch
                 {
@@ -98,15 +107,16 @@ public sealed class BlueprintAssetContributor : IAssetCatalogContributor
 /// Only the header is read on construction; the full <see cref="Hrot.Blueprints.Core.Assets.BlueprintAsset"/>
 /// is loaded on demand by the editor host when the document is opened.
 /// </summary>
-internal sealed class BlueprintFileAsset : IEditableAsset, IComposedBlueprintIdentity
+internal sealed class BlueprintFileAsset : IEditableAsset, IComposedBlueprintIdentity, IAssetIconKeyProvider
 {
     private bool _isDirty;
 
-    public BlueprintFileAsset(Guid assetId, string name, string sourceFilePath)
+    public BlueprintFileAsset(Guid assetId, string name, string sourceFilePath, string? iconKey = null)
     {
         AssetId = assetId;
         Name = name;
         SourceFilePath = sourceFilePath;
+        IconKey = iconKey;
 
         // Phase C (AIE-053): precompute the generated AiPrimitive class name HERE, on the
         // blueprint-editor side which legitimately references the compiler. The shared
@@ -123,6 +133,9 @@ internal sealed class BlueprintFileAsset : IEditableAsset, IComposedBlueprintIde
 
     /// <inheritdoc/>
     public string GeneratedClassName { get; }
+
+    /// <inheritdoc/>
+    public string? IconKey { get; }
 
     public bool IsDirty => _isDirty;
     public bool IsEditorOwned => false;

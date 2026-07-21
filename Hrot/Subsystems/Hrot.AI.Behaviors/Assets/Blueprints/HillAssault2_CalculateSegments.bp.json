@@ -1,0 +1,674 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
+  "AssetId": "7d4f2c81-3e9a-4b56-9c0d-1a2b3c4d5e6f",
+  "Name": "HillAssault2_CalculateSegments",
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "Primitive": {
+    "Intent": "Action",
+    "Hostings": [
+      "BTreeAction"
+    ]
+  },
+  "Parameters": [
+    {
+      "Id": "a1000000-0000-0000-0000-000000000001",
+      "Name": "StartX",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0"
+    },
+    {
+      "Id": "a1000000-0000-0000-0000-000000000002",
+      "Name": "StartY",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0"
+    },
+    {
+      "Id": "a1000000-0000-0000-0000-000000000003",
+      "Name": "EndX",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0"
+    },
+    {
+      "Id": "a1000000-0000-0000-0000-000000000004",
+      "Name": "EndY",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0"
+    },
+    {
+      "Id": "a1000000-0000-0000-0000-000000000005",
+      "Name": "TankSpacing",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0"
+    }
+  ],
+  "WorkingState": [
+    {
+      "Id": "b2000000-0000-0000-0000-000000000001",
+      "Name": "TotalSlots",
+      "Type": {
+        "TypeId": "System.Int32",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    },
+    {
+      "Id": "b2000000-0000-0000-0000-000000000002",
+      "Name": "BurnedSlotsMask",
+      "Type": {
+        "TypeId": "System.UInt16",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    },
+    {
+      "Id": "b2000000-0000-0000-0000-000000000003",
+      "Name": "WaveUsedSlotsMask",
+      "Type": {
+        "TypeId": "System.UInt16",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    },
+    {
+      "Id": "b2000000-0000-0000-0000-000000000004",
+      "Name": "BaselineReservedMask",
+      "Type": {
+        "TypeId": "System.UInt16",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    },
+    {
+      "Id": "b2000000-0000-0000-0000-000000000005",
+      "Name": "ActiveAttackerCount",
+      "Type": {
+        "TypeId": "System.Int32",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    },
+    {
+      "Id": "b2000000-0000-0000-0000-000000000006",
+      "Name": "CurrentWave",
+      "Type": {
+        "TypeId": "System.Byte",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    },
+    {
+      "Id": "b2000000-0000-0000-0000-000000000007",
+      "Name": "CachedEqsRequestId",
+      "Type": {
+        "TypeId": "System.Int64",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    },
+    {
+      "Id": "b2000000-0000-0000-0000-000000000008",
+      "Name": "CachedTargetGroupHandle",
+      "Type": {
+        "TypeId": "System.Int32",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    },
+    {
+      "Id": "b2000000-0000-0000-0000-000000000009",
+      "Name": "EqsRequestTime",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    }
+  ],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "c0000000-0000-0000-0000-0000000000f4",
+      "Name": "Main",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "e0000000-0000-0000-0000-000000000001",
+          "EventTypeId": "",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 40.0,
+            "Y": 400.0
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "bf000000-0000-0000-0000-000000000001",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.SegmentMath",
+          "MethodName": "TotalSlots",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "None",
+          "Pins": [
+            {
+              "Id": "bfa00000-0000-0000-0000-000000000001",
+              "Name": "startX",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "bfa00000-0000-0000-0000-000000000002",
+              "Name": "startY",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "bfa00000-0000-0000-0000-000000000003",
+              "Name": "endX",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "bfa00000-0000-0000-0000-000000000004",
+              "Name": "endY",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "bfa00000-0000-0000-0000-000000000005",
+              "Name": "rawSpacing",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "bfa00000-0000-0000-0000-000000000006",
+              "Name": "Return",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 340.0,
+            "Y": 160.0
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "Id": "50000000-0000-0000-0000-000000000001",
+          "VariableId": "b2000000-0000-0000-0000-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 620.0,
+            "Y": 400.0
+          }
+        },
+        {
+          "kind": "Literal",
+          "Id": "11000000-0000-0000-0000-000000000001",
+          "TypeId": "System.UInt16",
+          "ValueJson": "(ushort)0",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 620.0,
+            "Y": 480.0
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "Id": "50000000-0000-0000-0000-000000000002",
+          "VariableId": "b2000000-0000-0000-0000-000000000002",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 860.0,
+            "Y": 400.0
+          }
+        },
+        {
+          "kind": "Literal",
+          "Id": "11000000-0000-0000-0000-000000000002",
+          "TypeId": "System.UInt16",
+          "ValueJson": "(ushort)0",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 860.0,
+            "Y": 480.0
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "Id": "50000000-0000-0000-0000-000000000003",
+          "VariableId": "b2000000-0000-0000-0000-000000000003",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1100.0,
+            "Y": 400.0
+          }
+        },
+        {
+          "kind": "Literal",
+          "Id": "11000000-0000-0000-0000-000000000003",
+          "TypeId": "System.UInt16",
+          "ValueJson": "(ushort)0",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1100.0,
+            "Y": 480.0
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "Id": "50000000-0000-0000-0000-000000000004",
+          "VariableId": "b2000000-0000-0000-0000-000000000004",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1340.0,
+            "Y": 400.0
+          }
+        },
+        {
+          "kind": "Literal",
+          "Id": "11000000-0000-0000-0000-000000000004",
+          "TypeId": "System.Int32",
+          "ValueJson": "0",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1340.0,
+            "Y": 480.0
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "Id": "50000000-0000-0000-0000-000000000005",
+          "VariableId": "b2000000-0000-0000-0000-000000000005",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1580.0,
+            "Y": 400.0
+          }
+        },
+        {
+          "kind": "Literal",
+          "Id": "11000000-0000-0000-0000-000000000005",
+          "TypeId": "System.Byte",
+          "ValueJson": "(byte)0",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1580.0,
+            "Y": 480.0
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "Id": "50000000-0000-0000-0000-000000000006",
+          "VariableId": "b2000000-0000-0000-0000-000000000006",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1820.0,
+            "Y": 400.0
+          }
+        },
+        {
+          "kind": "Literal",
+          "Id": "11000000-0000-0000-0000-000000000006",
+          "TypeId": "System.Int64",
+          "ValueJson": "-1L",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1820.0,
+            "Y": 480.0
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "Id": "50000000-0000-0000-0000-000000000007",
+          "VariableId": "b2000000-0000-0000-0000-000000000007",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 2060.0,
+            "Y": 400.0
+          }
+        },
+        {
+          "kind": "Literal",
+          "Id": "11000000-0000-0000-0000-000000000007",
+          "TypeId": "System.Int32",
+          "ValueJson": "-1",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 2060.0,
+            "Y": 480.0
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "Id": "50000000-0000-0000-0000-000000000008",
+          "VariableId": "b2000000-0000-0000-0000-000000000008",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 2300.0,
+            "Y": 400.0
+          }
+        },
+        {
+          "kind": "Literal",
+          "Id": "11000000-0000-0000-0000-000000000008",
+          "TypeId": "System.Single",
+          "ValueJson": "0f",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 2300.0,
+            "Y": 480.0
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "Id": "50000000-0000-0000-0000-000000000009",
+          "VariableId": "b2000000-0000-0000-0000-000000000009",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 2540.0,
+            "Y": 400.0
+          }
+        },
+        {
+          "kind": "Return",
+          "Id": "8e000000-0000-0000-0000-000000000001",
+          "Status": "Success",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 2780.0,
+            "Y": 400.0
+          }
+        },
+        {
+          "kind": "GetAllParameters",
+          "Id": "830dbe1a-9648-5c53-8b16-3d62f909bbe2",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 40,
+            "Y": 40
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "e0000000-0000-0000-0000-000000000001",
+          "FromPinId": "e0a00000-0000-0000-0000-000000000001",
+          "ToNodeId": "50000000-0000-0000-0000-000000000001",
+          "ToPinId": "50a00000-0000-0000-0000-000000000001"
+        },
+        {
+          "FromNodeId": "830dbe1a-9648-5c53-8b16-3d62f909bbe2",
+          "FromPinId": "d8ddb3bb-30b0-e957-bf3c-53baf77443a8",
+          "ToNodeId": "bf000000-0000-0000-0000-000000000001",
+          "ToPinId": "bfa00000-0000-0000-0000-000000000001"
+        },
+        {
+          "FromNodeId": "830dbe1a-9648-5c53-8b16-3d62f909bbe2",
+          "FromPinId": "de0a0371-ce8d-a15f-a7c7-7aaf94431b63",
+          "ToNodeId": "bf000000-0000-0000-0000-000000000001",
+          "ToPinId": "bfa00000-0000-0000-0000-000000000002"
+        },
+        {
+          "FromNodeId": "830dbe1a-9648-5c53-8b16-3d62f909bbe2",
+          "FromPinId": "c4ce47e5-ca14-d957-89dd-5871756fa39b",
+          "ToNodeId": "bf000000-0000-0000-0000-000000000001",
+          "ToPinId": "bfa00000-0000-0000-0000-000000000003"
+        },
+        {
+          "FromNodeId": "830dbe1a-9648-5c53-8b16-3d62f909bbe2",
+          "FromPinId": "979ee622-b2e2-ee57-bf80-cc6e810af33a",
+          "ToNodeId": "bf000000-0000-0000-0000-000000000001",
+          "ToPinId": "bfa00000-0000-0000-0000-000000000004"
+        },
+        {
+          "FromNodeId": "830dbe1a-9648-5c53-8b16-3d62f909bbe2",
+          "FromPinId": "c4d3c164-b70d-105d-94e4-224b2bc79232",
+          "ToNodeId": "bf000000-0000-0000-0000-000000000001",
+          "ToPinId": "bfa00000-0000-0000-0000-000000000005"
+        },
+        {
+          "FromNodeId": "bf000000-0000-0000-0000-000000000001",
+          "FromPinId": "bfa00000-0000-0000-0000-000000000006",
+          "ToNodeId": "50000000-0000-0000-0000-000000000001",
+          "ToPinId": "50b00000-0000-0000-0000-000000000001"
+        },
+        {
+          "FromNodeId": "50000000-0000-0000-0000-000000000001",
+          "FromPinId": "50c00000-0000-0000-0000-000000000001",
+          "ToNodeId": "50000000-0000-0000-0000-000000000002",
+          "ToPinId": "50a00000-0000-0000-0000-000000000002"
+        },
+        {
+          "FromNodeId": "11000000-0000-0000-0000-000000000001",
+          "FromPinId": "11a00000-0000-0000-0000-000000000001",
+          "ToNodeId": "50000000-0000-0000-0000-000000000002",
+          "ToPinId": "50b00000-0000-0000-0000-000000000002"
+        },
+        {
+          "FromNodeId": "50000000-0000-0000-0000-000000000002",
+          "FromPinId": "50c00000-0000-0000-0000-000000000002",
+          "ToNodeId": "50000000-0000-0000-0000-000000000003",
+          "ToPinId": "50a00000-0000-0000-0000-000000000003"
+        },
+        {
+          "FromNodeId": "11000000-0000-0000-0000-000000000002",
+          "FromPinId": "11a00000-0000-0000-0000-000000000002",
+          "ToNodeId": "50000000-0000-0000-0000-000000000003",
+          "ToPinId": "50b00000-0000-0000-0000-000000000003"
+        },
+        {
+          "FromNodeId": "50000000-0000-0000-0000-000000000003",
+          "FromPinId": "50c00000-0000-0000-0000-000000000003",
+          "ToNodeId": "50000000-0000-0000-0000-000000000004",
+          "ToPinId": "50a00000-0000-0000-0000-000000000004"
+        },
+        {
+          "FromNodeId": "11000000-0000-0000-0000-000000000003",
+          "FromPinId": "11a00000-0000-0000-0000-000000000003",
+          "ToNodeId": "50000000-0000-0000-0000-000000000004",
+          "ToPinId": "50b00000-0000-0000-0000-000000000004"
+        },
+        {
+          "FromNodeId": "50000000-0000-0000-0000-000000000004",
+          "FromPinId": "50c00000-0000-0000-0000-000000000004",
+          "ToNodeId": "50000000-0000-0000-0000-000000000005",
+          "ToPinId": "50a00000-0000-0000-0000-000000000005"
+        },
+        {
+          "FromNodeId": "11000000-0000-0000-0000-000000000004",
+          "FromPinId": "11a00000-0000-0000-0000-000000000004",
+          "ToNodeId": "50000000-0000-0000-0000-000000000005",
+          "ToPinId": "50b00000-0000-0000-0000-000000000005"
+        },
+        {
+          "FromNodeId": "50000000-0000-0000-0000-000000000005",
+          "FromPinId": "50c00000-0000-0000-0000-000000000005",
+          "ToNodeId": "50000000-0000-0000-0000-000000000006",
+          "ToPinId": "50a00000-0000-0000-0000-000000000006"
+        },
+        {
+          "FromNodeId": "11000000-0000-0000-0000-000000000005",
+          "FromPinId": "11a00000-0000-0000-0000-000000000005",
+          "ToNodeId": "50000000-0000-0000-0000-000000000006",
+          "ToPinId": "50b00000-0000-0000-0000-000000000006"
+        },
+        {
+          "FromNodeId": "50000000-0000-0000-0000-000000000006",
+          "FromPinId": "50c00000-0000-0000-0000-000000000006",
+          "ToNodeId": "50000000-0000-0000-0000-000000000007",
+          "ToPinId": "50a00000-0000-0000-0000-000000000007"
+        },
+        {
+          "FromNodeId": "11000000-0000-0000-0000-000000000006",
+          "FromPinId": "11a00000-0000-0000-0000-000000000006",
+          "ToNodeId": "50000000-0000-0000-0000-000000000007",
+          "ToPinId": "50b00000-0000-0000-0000-000000000007"
+        },
+        {
+          "FromNodeId": "50000000-0000-0000-0000-000000000007",
+          "FromPinId": "50c00000-0000-0000-0000-000000000007",
+          "ToNodeId": "50000000-0000-0000-0000-000000000008",
+          "ToPinId": "50a00000-0000-0000-0000-000000000008"
+        },
+        {
+          "FromNodeId": "11000000-0000-0000-0000-000000000007",
+          "FromPinId": "11a00000-0000-0000-0000-000000000007",
+          "ToNodeId": "50000000-0000-0000-0000-000000000008",
+          "ToPinId": "50b00000-0000-0000-0000-000000000008"
+        },
+        {
+          "FromNodeId": "50000000-0000-0000-0000-000000000008",
+          "FromPinId": "50c00000-0000-0000-0000-000000000008",
+          "ToNodeId": "50000000-0000-0000-0000-000000000009",
+          "ToPinId": "50a00000-0000-0000-0000-000000000009"
+        },
+        {
+          "FromNodeId": "11000000-0000-0000-0000-000000000008",
+          "FromPinId": "11a00000-0000-0000-0000-000000000008",
+          "ToNodeId": "50000000-0000-0000-0000-000000000009",
+          "ToPinId": "50b00000-0000-0000-0000-000000000009"
+        },
+        {
+          "FromNodeId": "50000000-0000-0000-0000-000000000009",
+          "FromPinId": "50c00000-0000-0000-0000-000000000009",
+          "ToNodeId": "8e000000-0000-0000-0000-000000000001",
+          "ToPinId": "8ea00000-0000-0000-0000-000000000001"
+        }
+      ],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "P1b (Hill-attack -> Blueprints migration): Action_CalculateSegments rebuilt as a visually-authored AiPrimitive BTreeAction, exercising GetParameter reads, a pure curated FunctionCall, and a straight-line SetVariable/Literal init chain against nine WorkingState fields. Graph: EventEntry -> SetVariable(TotalSlots) [Value wired from a pure FunctionCall Hrot.AI.Behaviors.Brains.SegmentMath.TotalSlots(startX,startY,endX,endY,rawSpacing), whose five In pins are fed by five GetParameter reads (StartX,StartY,EndX,EndY,TankSpacing)] -> SetVariable(BurnedSlotsMask) <- Literal(System.UInt16 0) -> SetVariable(WaveUsedSlotsMask) <- Literal(System.UInt16 0) -> SetVariable(BaselineReservedMask) <- Literal(System.UInt16 0) -> SetVariable(ActiveAttackerCount) <- Literal(System.Int32 0) -> SetVariable(CurrentWave) <- Literal(System.Byte 0) -> SetVariable(CachedEqsRequestId) <- Literal(System.Int64 -1) -> SetVariable(CachedTargetGroupHandle) <- Literal(System.Int32 -1) -> SetVariable(EqsRequestTime) <- Literal(System.Single 0f) -> Return(Success). New curated helper: Hrot.AI.Behaviors.Brains.SegmentMath.TotalSlots -- bundles the distance/clamp/spacing-default math (Vector2.Distance, the TankSpacing>0 ? TankSpacing : 30 default, Math.Max(1,...) then clamp to 16) that has no visual-node expression (architect Q#6-A: non-trivial math stays in reviewable curated helpers). Does not modify the C# oracle (HillAttackCommanderNodes.Action_CalculateSegments). Not reproduced: the oracle's BehaviorLog.IsDebugEnabled diagnostic logging call, which is a debug-only side channel with no bearing on WorkingState/return-status behavior.",
+    "Category": null,
+    "Recipe": null
+  }
+}

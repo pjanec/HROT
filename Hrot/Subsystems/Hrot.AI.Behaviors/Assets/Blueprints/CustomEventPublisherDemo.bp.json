@@ -1,0 +1,81 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {},
+  "AssetId": "c5100001-0000-0000-0000-000000000001",
+  "Name": "CustomEventPublisherDemo",
+  "Dispatch": "Instance",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": null,
+  "Parameters": [],
+  "ParameterOrder": null,
+  "WorkingState": [],
+  "WorkingStateOrder": null,
+  "Variables": [],
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "c5100001-0000-0000-0000-0000000000b1",
+      "Name": "Tick",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "c5100001-0000-0000-0000-0000000000c1",
+          "Pins": [
+            { "Id": "c5100001-0000-0000-0000-0000000000d1", "Name": "Out", "Direction": "Out", "IsExec": true, "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } }
+          ],
+          "EditorMetadata": { "X": 80, "Y": 220, "Comment": null }
+        },
+        {
+          "kind": "PublishEvent",
+          "EventId": "",
+          "EventTypeFqn": "Hrot.AI.Behaviors.PingEvent",
+          "TargetFieldName": "Target",
+          "PayloadFields": [
+            { "Name": "Value", "TypeId": "System.Int32" },
+            { "Name": "Strength", "TypeId": "System.Single" }
+          ],
+          "Id": "c5100001-0000-0000-0000-0000000000c2",
+          "Pins": [
+            { "Id": "c5100001-0000-0000-0000-0000000000d3", "Name": "In",       "Direction": "In",  "IsExec": true,  "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100001-0000-0000-0000-0000000000d5", "Name": "Out",      "Direction": "Out", "IsExec": true,  "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100001-0000-0000-0000-0000000000d6", "Name": "Target",   "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "Fdp.Core.Entity", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100001-0000-0000-0000-0000000000d7", "Name": "Value",    "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Int32",  "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100001-0000-0000-0000-0000000000d8", "Name": "Strength", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Single", "IsArray": false, "GenericArgs": [] } }
+          ],
+          "EditorMetadata": { "X": 440, "Y": 220, "Comment": null },
+          "PinDefaults": { "Value": "42", "Strength": "1.5" }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "c5100001-0000-0000-0000-0000000000c3",
+          "Pins": [
+            { "Id": "c5100001-0000-0000-0000-0000000000d4", "Name": "In", "Direction": "In", "IsExec": true, "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } }
+          ],
+          "EditorMetadata": { "X": 820, "Y": 220, "Comment": null }
+        }
+      ],
+      "Links": [
+        { "FromNodeId": "c5100001-0000-0000-0000-0000000000c1", "FromPinId": "c5100001-0000-0000-0000-0000000000d1", "ToNodeId": "c5100001-0000-0000-0000-0000000000c2", "ToPinId": "c5100001-0000-0000-0000-0000000000d3" },
+        { "FromNodeId": "c5100001-0000-0000-0000-0000000000c2", "FromPinId": "c5100001-0000-0000-0000-0000000000d5", "ToNodeId": "c5100001-0000-0000-0000-0000000000c3", "ToPinId": "c5100001-0000-0000-0000-0000000000d4" }
+      ],
+      "EditorMetadata": { "ViewportX": 0, "ViewportY": 0, "ViewportZoom": 0 }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "Q#14 custom-event demo (PUBLISHER). Instance blueprint whose Tick graph publishes Hrot.AI.Behaviors.PingEvent every frame, setting BOTH payload fields before sending — Value=42 (int), Strength=1.5 (float) via the PublishEvent node's per-field pin defaults — Target self-defaulted. Authored with EXPLICIT pins so wires bind by stable id (edit-safe). Compiles to world.Bus.Publish(new PingEvent{ Target = self, Value = 42, Strength = 1.5f }). Pair with CustomEventSubscriberDemo.",
+    "Category": "Demo",
+    "Recipe": null
+  }
+}

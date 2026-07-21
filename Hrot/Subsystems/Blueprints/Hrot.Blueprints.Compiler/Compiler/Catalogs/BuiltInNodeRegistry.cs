@@ -41,6 +41,11 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         // Stage0_Rehydrate's "node.Pins.Count > 0 => skip" guard leaves it alone; no enricher needed).
         GetParameterNode  => Array.Empty<PinSchema>(),   // pure data-Out, type from the referenced Parameter (authored pin)
 
+        // GetAllParameters: pure data-Out node, ONE out-pin per asset.Parameters entry. Dynamic
+        // (like EventEntryNode) -- Stage0_Rehydrate.EnrichGetAllParametersPins rebuilds the full
+        // pin set from asset.Parameters, so no static shape here.
+        GetAllParametersNode => Array.Empty<PinSchema>(),   // pure data-Out(s), one per asset.Parameters entry
+
         // GetShared/SetShared (Slice 2a-2): mirrors Get/SetVariable -- static skeleton only;
         // Stage0_Rehydrate enriches data pins directly from SharedTypeId (NOT asset.Variables --
         // the shared type is foreign to this asset). Slice 2b: GetShared's enricher additionally
@@ -55,22 +60,30 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         // (see Stage0_Rehydrate.Run's "node.Pins.Count > 0 => skip" guard). No enricher needed.
         GetComponentNode => Array.Empty<PinSchema>(),   // pure data-(In Target?)/Out; pins come from the asset JSON
 
-        // Compare (GAP-12): pure data node, mirrors GetComponentNode -- no static shape here; the
-        // asset supplies fully-authored Pins (A/B in, Result out) directly, so Stage0_Rehydrate
-        // never rebuilds them (node.Pins.Count > 0 guard). No enricher needed.
-        CompareNode      => Array.Empty<PinSchema>(),   // pure data-(A,B In)/(Result Out); pins come from the asset JSON
+        // Compare (GAP-12) / BinaryOp (native arithmetic) / BooleanOp (native boolean logic):
+        // pure data nodes, static skeleton data-(A,B In)/(Result Out). Blocker-1 tail fix: these
+        // used to return Array.Empty here on the theory that "the asset always supplies
+        // fully-authored Pins, so Stage0_Rehydrate's node.Pins.Count > 0 guard skips this and no
+        // enricher is needed" -- true for hand-authored assets, but FALSE for a migrated pin-less
+        // asset (Pins: []): with no static shape AND no Stage0_Rehydrate switch case (there isn't
+        // one for these kinds), BuildCanonicalPins produced a genuinely EMPTY node.Pins, so
+        // Stage5_Schedule's CompareNode/BinaryOpNode/BooleanOpNode cases (which look up "A"/"B" by
+        // NAME off cn.Pins) found nothing, silently fell back to a bare AllocValue(UnknownType)
+        // with NO producing statement, and dropped the pure FunctionCall/Literal producer that fed
+        // it entirely -- emitted C# then referenced an SSA temp (__tN) that was never assigned
+        // (CS0103). TypeId is deliberately left "" (untyped, like an exec pin): Stage5 never
+        // consults A/B's own TypeRef (ResolveDataPin walks the LINK to the producer's pin type),
+        // and Result's IR value type is hardcoded by Stage5 (BoolType for Compare/BooleanOp,
+        // aVal.Type for BinaryOp) -- so an empty TypeId costs nothing and Stage4's type checker
+        // (VerifyLinkTypes/BP1500) just skips the untyped pin, same as any other exec-only pin.
+        // A node that already carries authored pins is unaffected (node.Pins.Count > 0 guard).
+        CompareNode      => ComparePins(),
+        BinaryOpNode     => ComparePins(),   // same A/B In, Result Out shape as Compare
 
-        // BinaryOp (native arithmetic node): pure data node, mirrors CompareNode -- no static
-        // shape here; the asset supplies fully-authored Pins (A/B in, Result out) directly, so
-        // Stage0_Rehydrate never rebuilds them (node.Pins.Count > 0 guard). No enricher needed.
-        BinaryOpNode     => Array.Empty<PinSchema>(),   // pure data-(A,B In)/(Result Out); pins come from the asset JSON
-
-        // BooleanOp / Not (native boolean logic nodes): pure data nodes, mirror CompareNode/
-        // BinaryOpNode -- no static shape here; the asset supplies fully-authored Pins (A/B in,
-        // Result out for BooleanOp; A in, Result out for Not) directly, so Stage0_Rehydrate never
-        // rebuilds them (node.Pins.Count > 0 guard). No enricher needed.
-        BooleanOpNode    => Array.Empty<PinSchema>(),   // pure data-(A,B In)/(Result Out); pins come from the asset JSON
-        NotNode          => Array.Empty<PinSchema>(),   // pure data-(A In)/(Result Out); pins come from the asset JSON
+        // BooleanOp / Not (native boolean logic nodes): mirror CompareNode/BinaryOpNode above.
+        // Not is the one-operand case (A in, Result out only).
+        BooleanOpNode    => ComparePins(),
+        NotNode          => NotPins(),
 
         // FunctionCall: static exec skeleton; Stage0_Rehydrate fills data pins.
         FunctionCallNode fc when !fc.IsPure => new[] { ExecIn(), ExecOut() },
@@ -85,20 +98,42 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         CallEventDispatcherNode   => new[] { ExecIn(), ExecOut() },
         BindEventDispatcherNode   => new[] { ExecIn(), ExecOut() },
         ChannelCommandNode        => new[] { ExecIn(), ExecOut() },
-        WaitForChannelNode        => new[] { ExecIn(), ExecOut() },
-        WaitForEventNode          => new[] { ExecIn(), ExecOut() },
+        // WaitForChannel (Q#13): exec-in "In", success exec-out "Out" (name kept for link compat),
+        // failure exec-out "OnFailure", and a "Status" (NodeStatus) data-out. Names are load-bearing
+        // for Stage5 (success = "Out", failure = "OnFailure"). OnFailure/Status unwired ⇒ behavior
+        // byte-identical to the pre-Q13 single-exec-out node.
+        WaitForChannelNode        => new[]
+        {
+            ExecIn(),
+            ExecOut(),
+            new("OnFailure", "Out", true, ""),
+            // Runtime enum, carried with the AN2 "global::" sentinel so StaticTypeRegistry accepts it
+            // as an unmanaged enum (Int32 backing) — the reflection-less compiler can't verify the FQN,
+            // so it trusts the prefix and emits a cast the C# compiler validates. Matches the channel
+            // component's Status field type (global::Fbt.NodeStatus).
+            Data("Status", "Out", "global::Fbt.NodeStatus"),
+        },
+        // WaitForEvent (Q#13-D): same OnFailure exec split as WaitForChannel (shared WaitLowering
+        // failure-block path). No "Status" data-out — the event-wait status model is unvalidated (no
+        // real WaitForEvent asset exists yet); add it demand-driven when a use case appears.
+        WaitForEventNode          => new[] { ExecIn(), ExecOut(), new("OnFailure", "Out", true, "") },
 
         // PublishEvent (P4 -- GAP-3): catalog-driven exec node, mirrors ChannelCommandNode.
         PublishEventNode          => new[] { ExecIn(), ExecOut() },
 
         // FlowForEach (P1 -- GAP-1): exec-in + "Body"/"Completed" named exec-outs (load-bearing for
-        // Stage5) + a "CurrentItem" Entity data-out. Assets/fixtures author these pins explicitly.
+        // Stage5) + a "CurrentItem" Entity data-out, plus optional loop-introspection data-outs
+        // "CurrentIndex" (0-based iteration index, body-scoped) and "Count" (element count,
+        // loop-invariant). Assets/fixtures author the pins they wire explicitly; unwired outs cost
+        // nothing (Stage5 only binds a pin when the asset actually authors + wires it).
         FlowForEachNode           => new[]
         {
             ExecIn(),
             new("Body",      "Out", true,  ""),
             new("Completed", "Out", true,  ""),
-            Data("CurrentItem", "Out", "Fdp.Core.Entity"),
+            Data("CurrentItem",  "Out", "Fdp.Core.Entity"),
+            Data("CurrentIndex", "Out", "System.Int32"),
+            Data("Count",        "Out", "System.Int32"),
         },
 
         ArrayMakeNode am          => ArrayMakePins(am),
@@ -143,6 +178,26 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         {
             new PinSchema("Value", "Out", false,
                 string.IsNullOrEmpty(lt.TypeId) ? "System.Object" : lt.TypeId),
+        };
+
+    /// <summary>
+    /// Compare / BinaryOp / BooleanOp: pure data-(A,B In)/(Result Out). TypeId left "" (untyped) --
+    /// see the GetStaticPins switch comment for why an unresolved TypeRef here is safe.
+    /// </summary>
+    private static IReadOnlyList<PinSchema> ComparePins()
+        => new[]
+        {
+            new PinSchema("A",      "In",  false, ""),
+            new PinSchema("B",      "In",  false, ""),
+            new PinSchema("Result", "Out", false, ""),
+        };
+
+    /// <summary>Not: pure data-(A In)/(Result Out) -- Compare/BinaryOp's single-operand sibling.</summary>
+    private static IReadOnlyList<PinSchema> NotPins()
+        => new[]
+        {
+            new PinSchema("A",      "In",  false, ""),
+            new PinSchema("Result", "Out", false, ""),
         };
 
     /// <summary>Cast: exec In/Out + data-In "In"/System.Object + data-Out "Out"/TargetTypeId.</summary>

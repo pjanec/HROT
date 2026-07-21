@@ -46,9 +46,10 @@ public sealed class BlueprintGraphModel : IGraphModel
     private readonly ActionCatalog.IBehaviorActionCatalog? _behaviorActions;
 
     // Projection caches (rebuilt when the asset graph mutates).
-    private Dictionary<NodeId, INodeModel>  _nodes  = new();
-    private Dictionary<LinkId, ILinkModel>  _links  = new();
-    private Dictionary<PinId,  IPinModel>   _pins   = new();
+    private Dictionary<NodeId,    INodeModel>    _nodes    = new();
+    private Dictionary<LinkId,    ILinkModel>    _links    = new();
+    private Dictionary<PinId,     IPinModel>     _pins     = new();
+    private Dictionary<CommentId, ICommentModel> _comments = new();
 
     // ── ctor / init ──────────────────────────────────────────────────────────
 
@@ -120,13 +121,14 @@ public sealed class BlueprintGraphModel : IGraphModel
 
     public IReadOnlyCollection<INodeModel>    Nodes    => _nodes.Values;
     public IReadOnlyCollection<ILinkModel>    Links    => _links.Values;
-    public IReadOnlyCollection<ICommentModel> Comments => Array.Empty<ICommentModel>();
+    public IReadOnlyCollection<ICommentModel> Comments => _comments.Values;
 
     public event Action<GraphChangeNotification>? Changed;
 
-    public INodeModel?  FindNode(NodeId id)  => _nodes.TryGetValue(id,  out var v) ? v : null;
-    public IPinModel?   FindPin(PinId id)    => _pins.TryGetValue(id,   out var v) ? v : null;
-    public ILinkModel?  FindLink(LinkId id)  => _links.TryGetValue(id,  out var v) ? v : null;
+    public INodeModel?    FindNode(NodeId id)       => _nodes.TryGetValue(id,    out var v) ? v : null;
+    public IPinModel?     FindPin(PinId id)         => _pins.TryGetValue(id,     out var v) ? v : null;
+    public ILinkModel?    FindLink(LinkId id)       => _links.TryGetValue(id,    out var v) ? v : null;
+    public ICommentModel? FindComment(CommentId id) => _comments.TryGetValue(id, out var v) ? v : null;
 
     // ── mutation notification ────────────────────────────────────────────────
 
@@ -158,9 +160,10 @@ public sealed class BlueprintGraphModel : IGraphModel
     /// </summary>
     public void Rebuild()
     {
-        var nodes = new Dictionary<NodeId, INodeModel>();
-        var pins  = new Dictionary<PinId,  IPinModel>();
-        var links = new Dictionary<LinkId, ILinkModel>();
+        var nodes    = new Dictionary<NodeId, INodeModel>();
+        var pins     = new Dictionary<PinId,  IPinModel>();
+        var links    = new Dictionary<LinkId, ILinkModel>();
+        var comments = new Dictionary<CommentId, ICommentModel>();
 
         // ── Pass 1: resolve per-node pin GUIDs ──────────────────────────────
 
@@ -208,53 +211,19 @@ public sealed class BlueprintGraphModel : IGraphModel
             else
             {
                 // SLOW PATH: JSON-loaded assets (Pins: []).
-                // LINK-GUID-DRIVEN: driven by the distinct link pin GUIDs, not by pin index.
-                //
-                // 1. Collect the distinct FromPinId GUIDs from all outgoing links and
-                //    the distinct ToPinId GUIDs from all incoming links.  (Fan-out shares
-                //    one FromPinId so deduplication is critical.)
-                // 2. Assign each distinct outgoing GUID to the next available output pin
-                //    (in pin declaration order).  Same for incoming GUIDs → input pins.
-                // 3. Any pin with no link GUID assigned gets a deterministic synthetic GUID.
-                //
-                // Invariant: every link endpoint GUID is assigned to exactly one pin of the
-                // matching direction, so FindPin succeeds for every link in the graph.
-
-                var outPins = canonicalPins.Where(p => p.Direction == "Out").ToList();
-                var inPins  = canonicalPins.Where(p => p.Direction == "In").ToList();
-
-                // Collect distinct link-endpoint GUIDs in order of first occurrence.
-                var distinctOutGuids = new List<Guid>();
-                var seenOut = new HashSet<Guid>();
-                foreach (var link in outLinks)
-                    if (seenOut.Add(link.FromPinId))
-                        distinctOutGuids.Add(link.FromPinId);
-
-                var distinctInGuids = new List<Guid>();
-                var seenIn = new HashSet<Guid>();
-                foreach (var link in inLinks)
-                    if (seenIn.Add(link.ToPinId))
-                        distinctInGuids.Add(link.ToPinId);
-
-                // Assign output pins: first N pins get the N distinct link GUIDs; rest get deterministic.
-                for (int i = 0; i < outPins.Count; i++)
-                {
-                    var pin  = outPins[i];
-                    var guid = (i < distinctOutGuids.Count)
-                        ? distinctOutGuids[i]
-                        : IdGenerator.Deterministic($"pin:{assetNode.Id:N}:{pin.Name}:Out");
-                    pinGuidMap[pin] = guid;
-                }
-
-                // Assign input pins: first N pins get the N distinct link GUIDs; rest get deterministic.
-                for (int i = 0; i < inPins.Count; i++)
-                {
-                    var pin  = inPins[i];
-                    var guid = (i < distinctInGuids.Count)
-                        ? distinctInGuids[i]
-                        : IdGenerator.Deterministic($"pin:{assetNode.Id:N}:{pin.Name}:In");
-                    pinGuidMap[pin] = guid;
-                }
+                // Per-pin blend of the deterministic content-derived scheme (architect Q#10-A/C) and the
+                // legacy positional scheme, in strict parity with the compiler's
+                // Stage0_Rehydrate.AssignLinkGuids/AssignDirection:
+                //   * A link whose pin-GUID equals a pin's deterministic GUID binds THAT pin by name
+                //     (order-independent — the exec/data swap the old positional scheme suffered is gone).
+                //   * Remaining links (legacy GUIDs) bind positionally to the still-unassigned pins;
+                //     leftover unconnected pins get the deterministic synthetic GUID.
+                // Handles migrated, legacy, and mixed nodes (a link drawn to a pin that had been saved
+                // unconnected already carries that pin's deterministic GUID) so every link resolves.
+                AssignDirectionEditor(canonicalPins.Where(p => p.Direction == "Out").ToList(),
+                    assetNode.Id, "Out", DistinctPinGuids(outLinks, l => l.FromPinId), pinGuidMap);
+                AssignDirectionEditor(canonicalPins.Where(p => p.Direction == "In").ToList(),
+                    assetNode.Id, "In", DistinctPinGuids(inLinks, l => l.ToPinId), pinGuidMap);
             }
 
             // Build the resolved IPinModel list.
@@ -267,7 +236,18 @@ public sealed class BlueprintGraphModel : IGraphModel
                 // Carry over DefaultValue from node.PinDefaults (persisted on the asset) so the
                 // canvas inline editor reads the previously-set value after reload.
                 string? defaultVal = null;
-                assetNode.PinDefaults?.TryGetValue(pin.Name, out defaultVal);
+                bool literalInlinePin = assetNode is Hrot.Blueprints.Core.Assets.LiteralNode
+                    && pin.Direction == "In" && !pin.IsExec;
+                if (literalInlinePin)
+                {
+                    // Literal's editor-only input pin: seed the inline editor from ValueJson (not PinDefaults).
+                    var litForPin = (Hrot.Blueprints.Core.Assets.LiteralNode)assetNode;
+                    defaultVal = LiteralValueJson.ToEditString(litForPin.TypeId, litForPin.ValueJson);
+                }
+                else
+                {
+                    assetNode.PinDefaults?.TryGetValue(pin.Name, out defaultVal);
+                }
                 var resolvedPin = new Hrot.Blueprints.Core.Assets.Pin
                 {
                     Id           = resolvedGuid,
@@ -277,7 +257,8 @@ public sealed class BlueprintGraphModel : IGraphModel
                     TypeRef      = pin.TypeRef,
                     DefaultValue = defaultVal,
                 };
-                resolvedPins.Add(new BlueprintPinModel(resolvedPin, nodeId, _editorRegistry, _enumProvider));
+                var displayLabel = ResolvePinDisplayLabel(assetNode, resolvedPin);
+                resolvedPins.Add(new BlueprintPinModel(resolvedPin, nodeId, _editorRegistry, _enumProvider, displayLabel, glyphless: literalInlinePin));
             }
             resolvedPinLists[assetNode.Id] = resolvedPins;
         }
@@ -302,9 +283,56 @@ public sealed class BlueprintGraphModel : IGraphModel
             links[linkId] = new BlueprintLinkModel(linkId, fromPin, toPin, assetLink.Waypoints);
         }
 
-        _nodes = nodes;
-        _pins  = pins;
-        _links = links;
+        // ── Comments: pure editor annotations, no pin/node resolution needed ──
+        foreach (var assetComment in _graph.Comments)
+        {
+            var commentModel = new BlueprintCommentModel(assetComment);
+            comments[commentModel.Id] = commentModel;
+        }
+
+        _nodes    = nodes;
+        _pins     = pins;
+        _links    = links;
+        _comments = comments;
+    }
+
+    /// <summary>
+    /// Render-only display label for a projected data pin, when it reads clearer than the pin's
+    /// identity Name. GetParameter's generic "Value" out-pin is relabeled with the referenced
+    /// parameter's NAME (the node title stays clean). The pin's identity Name is untouched, so
+    /// GUIDs / link rehydration are unaffected. Returns null to keep the pin's Name.
+    /// (Get/SetShared + Get/SetVariable can adopt the same treatment here once confirmed.)
+    /// </summary>
+    private string? ResolvePinDisplayLabel(
+        Hrot.Blueprints.Core.Assets.Node node,
+        Hrot.Blueprints.Core.Assets.Pin pin)
+    {
+        if (pin.IsExec || pin.Name != "Value") return null;
+
+        return node switch
+        {
+            Hrot.Blueprints.Core.Assets.GetParameterNode gp => ResolveParameterLabel(gp.ParameterId),
+            // Get/SetShared: VariableId is already the shared field's slot name — show it on the pin.
+            Hrot.Blueprints.Core.Assets.GetSharedNode gsn => string.IsNullOrEmpty(gsn.VariableId) ? null : gsn.VariableId,
+            Hrot.Blueprints.Core.Assets.SetSharedNode ssn => string.IsNullOrEmpty(ssn.VariableId) ? null : ssn.VariableId,
+            _ => null,
+        };
+    }
+
+    private string? ResolveParameterLabel(string parameterId)
+    {
+        if (_asset == null || string.IsNullOrEmpty(parameterId)) return null;
+
+        var id = parameterId;
+        if (id.StartsWith("param:", System.StringComparison.OrdinalIgnoreCase)) id = id[6..];
+        else if (id.StartsWith("var:", System.StringComparison.OrdinalIgnoreCase)) id = id[4..];
+
+        if (System.Guid.TryParse(id, out var guid))
+        {
+            var decl = _asset.Parameters.FirstOrDefault(p => p.Id == guid);
+            if (decl != null && !string.IsNullOrEmpty(decl.Name)) return decl.Name;
+        }
+        return null;
     }
 
     private static readonly List<Link> _emptyLinks = new();
@@ -333,6 +361,54 @@ public sealed class BlueprintGraphModel : IGraphModel
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
+
+    /// <summary>Distinct incident-link pin GUIDs in first-occurrence order (fan-out shares one GUID).</summary>
+    private static List<Guid> DistinctPinGuids(IEnumerable<Link> links, Func<Link, Guid> select)
+    {
+        var result = new List<Guid>();
+        var seen = new HashSet<Guid>();
+        foreach (var link in links)
+        {
+            var g = select(link);
+            if (seen.Add(g)) result.Add(g);
+        }
+        return result;
+    }
+
+    /// <summary>Per-direction pin-GUID binding shared by the slow path (parity with the compiler's
+    /// <c>Stage0_Rehydrate.AssignDirection</c>): deterministic-GUID links bind their pin by name, remaining
+    /// legacy links bind positionally to the unassigned pins, leftover pins get a deterministic GUID.</summary>
+    private static void AssignDirectionEditor(
+        List<Pin> dirPins, Guid nodeId, string direction, List<Guid> linkGuids,
+        Dictionary<Pin, Guid> pinGuidMap)
+    {
+        var detToPin = new Dictionary<Guid, Pin>();
+        foreach (var pin in dirPins)
+            detToPin[IdGenerator.Deterministic($"pin:{nodeId:N}:{pin.Name}:{direction}")] = pin;
+
+        var assigned = new HashSet<Pin>(ReferenceEqualityComparer.Instance);
+        var legacyGuids = new List<Guid>();
+        foreach (var g in linkGuids)
+        {
+            if (detToPin.TryGetValue(g, out var pin))
+            {
+                if (assigned.Add(pin)) pinGuidMap[pin] = g;
+            }
+            else
+            {
+                legacyGuids.Add(g);
+            }
+        }
+
+        int li = 0;
+        foreach (var pin in dirPins)
+        {
+            if (assigned.Contains(pin)) continue;
+            pinGuidMap[pin] = (li < legacyGuids.Count)
+                ? legacyGuids[li++]
+                : IdGenerator.Deterministic($"pin:{nodeId:N}:{pin.Name}:{direction}");
+        }
+    }
 
     /// <summary>
     /// Derives a deterministic <see cref="LinkId"/> from the two pin guids.

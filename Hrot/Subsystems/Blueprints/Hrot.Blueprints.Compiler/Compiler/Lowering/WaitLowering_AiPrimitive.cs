@@ -257,14 +257,18 @@ internal static class WaitLowering_AiPrimitive
                         failureBlockId[k], resumeBlockId) { Debug = Synth() },
                 });
 
-                // Failure block: reset phase to 0 and return Failure.
+                // Failure block: reset phase to 0, then Q#13: if the wait carries a FailureBlock
+                // (WaitForChannel OnFailure wired), goto that continuation instead of returning
+                // Failure. Null FailureBlock (inline-action / unwired OnFailure) ⇒ auto-Failure.
                 synthesizedBlocks.Add(new IrBlock
                 {
                     Id         = failureBlockId[k],
                     Label      = $"phase{k}_failure",
                     Statements = new[] { Stmt(null, new IrOp_WriteWorkingStatePhase(0)) },
-                    Terminator = new IrTerm_ReturnStatus(
-                        Hrot.Blueprints.Core.Assets.NodeStatus.Failure) { Debug = Synth() },
+                    Terminator = suspend.FailureBlock is { } onFailBlk
+                        ? new IrTerm_Goto(onFailBlk) { Debug = Synth() }
+                        : new IrTerm_ReturnStatus(
+                            Hrot.Blueprints.Core.Assets.NodeStatus.Failure) { Debug = Synth() },
                 });
             }
             else if (waitOp is IrOp_LatentDelay)
@@ -391,14 +395,18 @@ internal static class WaitLowering_AiPrimitive
                         failureBlockId[k], resumeBlockId) { Debug = Synth() },
                 });
 
-                // Failure block: reset phase to 0 and return Failure.
+                // Failure block: reset phase to 0, then Q#13: if the wait carries a FailureBlock
+                // (WaitForChannel OnFailure wired), goto that continuation instead of returning
+                // Failure. Null FailureBlock (inline-action / unwired OnFailure) ⇒ auto-Failure.
                 synthesizedBlocks.Add(new IrBlock
                 {
                     Id         = failureBlockId[k],
                     Label      = $"phase{k}_failure",
                     Statements = new[] { Stmt(null, new IrOp_WriteWorkingStatePhase(0)) },
-                    Terminator = new IrTerm_ReturnStatus(
-                        Hrot.Blueprints.Core.Assets.NodeStatus.Failure) { Debug = Synth() },
+                    Terminator = suspend.FailureBlock is { } onFailBlk
+                        ? new IrTerm_Goto(onFailBlk) { Debug = Synth() }
+                        : new IrTerm_ReturnStatus(
+                            Hrot.Blueprints.Core.Assets.NodeStatus.Failure) { Debug = Synth() },
                 });
             }
         }

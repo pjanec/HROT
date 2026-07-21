@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
@@ -141,6 +143,15 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
 
             case GraphCommand.RemoveReroute removeReroute:
                 return ApplyRemoveReroute(removeReroute);
+
+            case GraphCommand.AddComment addComment:
+                return ApplyAddComment(addComment);
+
+            case GraphCommand.UpdateComment updateComment:
+                return ApplyUpdateComment(updateComment);
+
+            case GraphCommand.RemoveComment removeComment:
+                return ApplyRemoveComment(removeComment);
 
             default:
                 // Unknown commands are silently accepted (forward-compat).
@@ -363,11 +374,8 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             var assetNode = _graph.Nodes.FirstOrDefault(n => n.Id == nodeId.Value);
             if (assetNode == null) continue;
 
-            // Remove incident links first (not through history to keep things simple).
-            _graph.Links.RemoveAll(l =>
-                l.FromNodeId == assetNode.Id || l.ToNodeId == assetNode.Id);
-
-            // Remove the node through CommandHistory.
+            // Remove the node AND its incident links through CommandHistory as one step
+            // (DeleteNodeCommand captures the incident links so Undo restores node + wires together).
             var delCmd = new DeleteNodeCommand(_graph, assetNode);
             _history.Execute(delCmd);
         }
@@ -384,18 +392,21 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         // Validate through our validator first.
         var validation = _validator.Validate(link.From, link.To);
 
+        // Any existing link this add must replace is collected here and dropped atomically WITH the add
+        // in a single undoable LinkEditCommand (so Undo restores the prior wiring in one step).
+        var toRemove = new List<Link>();
         if (validation.Verdict == LinkValidity.Invalid)
         {
             if (validation.Reason?.Contains("Exec output") == true)
             {
                 // Exec-output replace: remove the existing exec-out link by source pin.
-                RemoveExistingExecOutLink(link.From);
+                toRemove.AddRange(FindLinksByFromPin(link.From));
             }
             else if (validation.Reason?.Contains("replace") == true ||
                      validation.Reason?.Contains("already has") == true)
             {
                 // Data-input replace: remove the existing data link by target pin.
-                RemoveExistingDataLink(link.To);
+                toRemove.AddRange(FindLinksByToPin(link.To));
             }
             else
             {
@@ -421,33 +432,31 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             ToPinId    = toPinGuid,
         };
 
-        _graph.Links.Add(assetLink);
+        // Undoable: drop any replaced link(s) + add the new one as one history step.
+        _history.Execute(new LinkEditCommand(_graph, toRemove, new[] { assetLink }, "Add Link"));
         _markDirty(_asset);
         _model.RebuildAndNotify();
         return new GraphCommandResult(true, null);
     }
 
-    private void RemoveExistingDataLink(PinId toPin)
-    {
-        _graph.Links.RemoveAll(l => l.ToPinId == toPin.Value);
-    }
+    private List<Link> FindLinksByToPin(PinId toPin)
+        => _graph.Links.Where(l => l.ToPinId == toPin.Value).ToList();
 
-    private void RemoveExistingExecOutLink(PinId fromPin)
-    {
-        _graph.Links.RemoveAll(l => l.FromPinId == fromPin.Value);
-    }
+    private List<Link> FindLinksByFromPin(PinId fromPin)
+        => _graph.Links.Where(l => l.FromPinId == fromPin.Value).ToList();
 
     // ── RemoveLinks ──────────────────────────────────────────────────────────
 
     private GraphCommandResult ApplyRemoveLinks(GraphCommand.RemoveLinks removeLinks)
     {
-        foreach (var linkId in removeLinks.Links)
-        {
-            // Reconstruct the (fromPinId, toPinId) pair from our stable LinkId.
-            // Since we can't directly invert the hash, we check each link's derived id.
-            _graph.Links.RemoveAll(l =>
-                BlueprintGraphModel.MakeLinkId(l.FromPinId, l.ToPinId) == linkId);
-        }
+        // Match the exact Link objects whose stable LinkId is in the request, then drop them through
+        // CommandHistory so the delete is undoable (Ctrl-Z restores the wire).
+        var toRemove = _graph.Links
+            .Where(l => removeLinks.Links.Any(id =>
+                BlueprintGraphModel.MakeLinkId(l.FromPinId, l.ToPinId) == id))
+            .ToList();
+        if (toRemove.Count > 0)
+            _history.Execute(new LinkEditCommand(_graph, toRemove, null, "Remove Link(s)"));
 
         _markDirty(_asset);
         _model.RebuildAndNotify();
@@ -620,6 +629,22 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         string pinName  = pinModel.Label;
         string typeId   = pinModel.Type?.Id ?? "";
 
+        // Literal: the inline body editor commits into LiteralNode.ValueJson (with the correct C#
+        // literal formatting — float 'f' suffix, string quotes) rather than the generic PinDefaults
+        // map, so the designer types a bare value and never sees the C# syntax.
+        if (assetNode is LiteralNode literal)
+        {
+            var newJson = LiteralValueJson.ToValueJson(literal.TypeId, cmd.NewValue);
+            var oldJson = literal.ValueJson;
+            _editService.RecordPropertyEdit(
+                _asset,
+                "Set literal value",
+                apply: () => literal.ValueJson = newJson,
+                undo:  () => literal.ValueJson = oldJson);
+            _model.RebuildAndNotify();
+            return new GraphCommandResult(true, null);
+        }
+
         // For enum pins the editor sets value = (long)selectedEntry.Value.
         // ENUM-NAME: persist as the member name string, not the integer.
         string? newStr;
@@ -708,6 +733,104 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         assetLink.Waypoints.RemoveAt(cmd.WaypointIndex);
 
         _markDirty(_asset);
+        _model.RebuildAndNotify();
+        return new GraphCommandResult(true, null);
+    }
+
+    // ── Comments (Unreal-style comment boxes) ─────────────────────────────────
+
+    /// <summary>
+    /// Handles <see cref="GraphCommand.AddComment"/>. Creates a <see cref="GraphComment"/> on the
+    /// asset graph (mirrors how <see cref="ApplyInsertReroute"/> mutates <see cref="Link.Waypoints"/>).
+    /// Routed through <see cref="_editService"/> so Add-Comment participates in undo/redo.
+    /// </summary>
+    private GraphCommandResult ApplyAddComment(GraphCommand.AddComment cmd)
+    {
+        var comment = new GraphComment
+        {
+            Id               = cmd.AssignedId.Value,
+            Text             = cmd.Text,
+            X                = cmd.Position.X,
+            Y                = cmd.Position.Y,
+            W                = cmd.Size.X,
+            H                = cmd.Size.Y,
+            ColorR           = cmd.Color.X,
+            ColorG           = cmd.Color.Y,
+            ColorB           = cmd.Color.Z,
+            ColorA           = cmd.Color.W,
+            MoveWithContents = cmd.MoveWithContents,
+        };
+
+        _editService.RecordPropertyEdit(
+            _asset,
+            "Add Comment",
+            apply: () => _graph.Comments.Add(comment),
+            undo:  () => _graph.Comments.RemoveAll(c => c.Id == comment.Id));
+
+        _model.RebuildAndNotify();
+        return new GraphCommandResult(true, null);
+    }
+
+    /// <summary>
+    /// Handles <see cref="GraphCommand.UpdateComment"/>. Every field is a nullable "only touch
+    /// what's set" patch (rename, drag-move, resize, recolor, z-order restack, move-with-contents
+    /// toggle all funnel through this one command — see <c>CanvasRenderer.DrawContextMenu</c> and
+    /// <c>CommentsRenderer.RenderRenameField</c>). Undo restores exactly the fields that changed.
+    /// </summary>
+    private GraphCommandResult ApplyUpdateComment(GraphCommand.UpdateComment cmd)
+    {
+        var comment = _graph.Comments.FirstOrDefault(c => c.Id == cmd.Id.Value);
+        if (comment == null)
+            return new GraphCommandResult(true, null);   // unknown id — safe no-op
+
+        string?  oldText   = cmd.Text             is not null ? comment.Text             : null;
+        Vector2? oldPos    = cmd.Position          is not null ? new Vector2(comment.X, comment.Y) : null;
+        Vector2? oldSize   = cmd.Size              is not null ? new Vector2(comment.W, comment.H) : null;
+        Vector4? oldColor  = cmd.Color             is not null ? new Vector4(comment.ColorR, comment.ColorG, comment.ColorB, comment.ColorA) : null;
+        int?     oldZOrder = cmd.ZOrder            is not null ? comment.ZOrder            : null;
+        bool?    oldMwc    = cmd.MoveWithContents  is not null ? comment.MoveWithContents  : null;
+
+        _editService.RecordPropertyEdit(
+            _asset,
+            "Update Comment",
+            apply: () => ApplyCommentFields(comment, cmd.Text, cmd.Position, cmd.Size, cmd.Color, cmd.ZOrder, cmd.MoveWithContents),
+            undo:  () => ApplyCommentFields(comment, oldText, oldPos, oldSize, oldColor, oldZOrder, oldMwc));
+
+        _model.RebuildAndNotify();
+        return new GraphCommandResult(true, null);
+    }
+
+    private static void ApplyCommentFields(
+        GraphComment comment, string? text, Vector2? position, Vector2? size, Vector4? color,
+        int? zOrder, bool? moveWithContents)
+    {
+        if (text is not null) comment.Text = text;
+        if (position is not null) { comment.X = position.Value.X; comment.Y = position.Value.Y; }
+        if (size is not null) { comment.W = size.Value.X; comment.H = size.Value.Y; }
+        if (color is not null)
+        {
+            comment.ColorR = color.Value.X;
+            comment.ColorG = color.Value.Y;
+            comment.ColorB = color.Value.Z;
+            comment.ColorA = color.Value.W;
+        }
+        if (zOrder is not null) comment.ZOrder = zOrder.Value;
+        if (moveWithContents is not null) comment.MoveWithContents = moveWithContents.Value;
+    }
+
+    /// <summary>Handles <see cref="GraphCommand.RemoveComment"/>.</summary>
+    private GraphCommandResult ApplyRemoveComment(GraphCommand.RemoveComment cmd)
+    {
+        var comment = _graph.Comments.FirstOrDefault(c => c.Id == cmd.Id.Value);
+        if (comment == null)
+            return new GraphCommandResult(true, null);   // unknown id — safe no-op
+
+        _editService.RecordPropertyEdit(
+            _asset,
+            "Remove Comment",
+            apply: () => _graph.Comments.RemoveAll(c => c.Id == comment.Id),
+            undo:  () => _graph.Comments.Add(comment));
+
         _model.RebuildAndNotify();
         return new GraphCommandResult(true, null);
     }

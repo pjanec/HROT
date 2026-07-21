@@ -17,7 +17,10 @@ namespace NodeEditor.UI.Canvas;
 internal sealed class HitTester
 {
     private const float RerouteHitRadiusPx = 8f;
-    private const float WireHitDistancePx = 6f;
+    // Screen-space half-width of a wire's clickable band. Widened from 6px so the "active" hover/select
+    // zone is easier to find (editor punch-list #13) without being so broad it steals clicks from
+    // nearby wires/pins.
+    private const float WireHitDistancePx = 9f;
     private const int   WireSampleCount   = 24;
 
     // Visual Z-Layers. Higher value = later paint = wins hit test.

@@ -1,0 +1,245 @@
+{
+  "$meta": {
+    "docType": "Hrot.BTree",
+    "schemaVersion": 1
+  },
+  "AssetId": "1a200000-0000-0000-0000-0000000000dd",
+  "Name": "PlatoonHillAttack2",
+  "TargetNamespace": "Hrot.AI.Behaviors.Trees",
+  "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+  "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+  "Nodes": [
+    {
+      "kind": "Root",
+      "VisualId": "1a200000-0000-0000-0000-000000000001",
+      "ChildVisualIds": ["1a200000-0000-0000-0000-000000000002"],
+      "DisplayLabel": "Root",
+      "EditorMetadata": { "X": 400, "Y": 0, "Comment": "P1b tree-INTEGRATION (architect Q#9-A): PlatoonHillAttack2 -- same STRUCTURE as PlatoonHillAttack.btree.json (Sequence(CalculateSegments, DispatchAllToBaseline, AreAllAtBaseline, Repeater(Sequence(RequestAreaQuery, IsAreaQueryResolved, DispatchWaveWithTargets, IsWaveCompleted)))), and every node except AreAllAtBaseline is bound to the INTEGRATED HillAssault2I_* blueprint thunks (DelegateShape:AiPrimitiveTickCore, mirroring HillAssault2I_Smoke.btree.json), which converse over the single standalone 'state' HillAttackSharedState slot (Role=State/Scope=Entity) instead of each owning a private WorkingState. IsWaveCompleted is now INCLUDED as the wave loop's 4th child (HillAssault2I_IsWaveCompleted.bp.json, this PR): its curated WaveMonitorOps.Update/ActiveCount(HillAttackSharedState,...) tree-integration overloads project ActiveRunners/BurnedSlotsMask/BaselineReservedMask into a WaveState, reuse the proven swap-remove kernel, and write the fields back -- so the wave loop is Sequence(RequestAreaQuery, IsAreaQueryResolved, DispatchWaveWithTargets, IsWaveCompleted), matching PlatoonHillAttack.btree.json's structure exactly. AreAllAtBaseline is the UNCHANGED isolated twin (HillAssault2_AreAllAtBaseline, node-local WorkingState only, no shared-state reads/writes) composed the same AiPrimitiveTickCore way, per the task's explicit allowance.", "Collapsed": false, "Color": null }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "1a200000-0000-0000-0000-000000000002",
+      "ChildVisualIds": [
+        "1a200000-0000-0000-0000-0000000000a1",
+        "1a200000-0000-0000-0000-0000000000a2",
+        "1a200000-0000-0000-0000-0000000000a3",
+        "1a200000-0000-0000-0000-000000000003"
+      ],
+      "DisplayLabel": "Sequence",
+      "EditorMetadata": { "X": 400, "Y": 100, "Comment": "Setup (calc slots -> move to baseline -> wait for arrival) then the repeating wave loop.", "Collapsed": false, "Color": null }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.TickCore",
+        "ExpressionTargetField": "bpParamsCalculateSegments",
+        "DelegateShape": "AiPrimitiveTickCore",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp+WorkingState"
+      },
+      "VisualId": "1a200000-0000-0000-0000-0000000000a1",
+      "ChildVisualIds": [],
+      "DisplayLabel": "CalculateSegments (integrated)",
+      "EditorMetadata": { "X": 150, "Y": 230, "Comment": "Composes the generated HillAssault2I_CalculateSegments blueprint (Assets/Blueprints/HillAssault2I_CalculateSegments.bp.json, already committed/proven in Step 2). Writes TotalSlots (+ zeroes the other shared masks/handles) into the shared 'state' slot via its own GetShared/SetShared graph nodes.", "Collapsed": false, "Color": null }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Generated.HillAssault2IDispatchAllToBaseline_64F11A6D_Bp.TickCore",
+        "ExpressionTargetField": "bpParamsDispatchAllToBaseline",
+        "DelegateShape": "AiPrimitiveTickCore",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Generated.HillAssault2IDispatchAllToBaseline_64F11A6D_Bp+WorkingState"
+      },
+      "VisualId": "1a200000-0000-0000-0000-0000000000a2",
+      "ChildVisualIds": [],
+      "DisplayLabel": "DispatchAllToBaseline (integrated)",
+      "EditorMetadata": { "X": 300, "Y": 230, "Comment": "Composes HillAssault2I_DispatchAllToBaseline.bp.json (this PR). Publishes MoveToLocation intents and writes BaselineReservedMask into the SAME shared 'state' slot CalculateSegments just wrote TotalSlots into -- cross-node shared-state flow, asserted by the proof.", "Collapsed": false, "Color": null }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Hrot.AI.Behaviors.Generated.HillAssault2AreAllAtBaseline_4CDE3A29_Bp.TickCore",
+        "ExpressionTargetField": "bpParamsAreAllAtBaseline",
+        "DelegateShape": "AiPrimitiveTickCore",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Generated.HillAssault2AreAllAtBaseline_4CDE3A29_Bp+WorkingState"
+      },
+      "VisualId": "1a200000-0000-0000-0000-0000000000a3",
+      "ChildVisualIds": [],
+      "DisplayLabel": "AreAllAtBaseline (twin, unchanged)",
+      "EditorMetadata": { "X": 450, "Y": 230, "Comment": "Composes the EXISTING isolated twin HillAssault2_AreAllAtBaseline.bp.json unmodified -- node-local WorkingState (AllAtBaseline bool) only, no shared HillAttackSharedState reads/writes, so no integrated version was needed (task instructions).", "Collapsed": false, "Color": null }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "1a200000-0000-0000-0000-000000000003",
+      "ChildVisualIds": [
+        "1a200000-0000-0000-0000-0000000000b1",
+        "1a200000-0000-0000-0000-0000000000b2",
+        "1a200000-0000-0000-0000-0000000000b3",
+        "1a200000-0000-0000-0000-0000000000b4"
+      ],
+      "DisplayLabel": "WaveLoop",
+      "EditorMetadata": { "X": 650, "Y": 230, "Comment": "One wave: EQS scan -> resolve -> dispatch -> wait for the dispatched wave's runners to finish/die before re-polling. Repeater(-1) repeats until IsAreaQueryResolved returns Failure (area clear).", "Collapsed": false, "Color": null }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Generated.HillAssault2IRequestAreaQuery_61F115B4_Bp.TickCore",
+        "ExpressionTargetField": "bpParamsRequestAreaQuery",
+        "DelegateShape": "AiPrimitiveTickCore",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Generated.HillAssault2IRequestAreaQuery_61F115B4_Bp+WorkingState"
+      },
+      "VisualId": "1a200000-0000-0000-0000-0000000000b1",
+      "ChildVisualIds": [],
+      "DisplayLabel": "RequestAreaQuery (integrated)",
+      "EditorMetadata": { "X": 550, "Y": 370, "Comment": "Composes HillAssault2I_RequestAreaQuery.bp.json (this PR). Reads/writes CachedEqsRequestId + EqsRequestTime through the shared 'state' slot. bpParamsRequestAreaQuery.TargetAreaEntity is left at its zero default (Entity.Null) -- the proof does not drive the tree far enough to reach this node (it asserts cross-node state flow after the setup Sequence, per the task spec), so no real EQS target-area entity is provisioned here.", "Collapsed": false, "Color": null }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Generated.HillAssault2IIsAreaQueryResolved_62F11747_Bp.TickCore",
+        "ExpressionTargetField": "bpParamsIsAreaQueryResolved",
+        "DelegateShape": "AiPrimitiveTickCore",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Generated.HillAssault2IIsAreaQueryResolved_62F11747_Bp+WorkingState"
+      },
+      "VisualId": "1a200000-0000-0000-0000-0000000000b2",
+      "ChildVisualIds": [],
+      "DisplayLabel": "IsAreaQueryResolved (integrated)",
+      "EditorMetadata": { "X": 650, "Y": 370, "Comment": "Composes HillAssault2I_IsAreaQueryResolved.bp.json (this PR). Reads/writes CachedEqsRequestId + CachedTargetGroupHandle + EqsRequestTime through the shared 'state' slot.", "Collapsed": false, "Color": null }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Generated.HillAssault2IDispatchWaveWithTargets_60F11421_Bp.TickCore",
+        "ExpressionTargetField": "bpParamsDispatchWaveWithTargets",
+        "DelegateShape": "AiPrimitiveTickCore",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Generated.HillAssault2IDispatchWaveWithTargets_60F11421_Bp+WorkingState"
+      },
+      "VisualId": "1a200000-0000-0000-0000-0000000000b3",
+      "ChildVisualIds": [],
+      "DisplayLabel": "DispatchWaveWithTargets (integrated)",
+      "EditorMetadata": { "X": 750, "Y": 370, "Comment": "Composes HillAssault2I_DispatchWaveWithTargets.bp.json (this PR, the largest transform). Reads TotalSlots/BurnedSlotsMask/WaveUsedSlotsMask/BaselineReservedMask/CachedEqsRequestId/CachedTargetGroupHandle/CurrentWave and writes ActiveRunners/WaveUsedSlotsMask/BaselineReservedMask/CachedTargetGroupHandle/CachedEqsRequestId/EqsRequestTime/CurrentWave, all through the SAME shared 'state' slot.", "Collapsed": false, "Color": null }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_CDAC491D_Bp.TickCore",
+        "ExpressionTargetField": "bpParamsIsWaveCompleted",
+        "DelegateShape": "AiPrimitiveTickCore",
+        "WorkingStateTypeId": "Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_CDAC491D_Bp+WorkingState"
+      },
+      "VisualId": "1a200000-0000-0000-0000-0000000000b4",
+      "ChildVisualIds": [],
+      "DisplayLabel": "IsWaveCompleted (integrated)",
+      "EditorMetadata": { "X": 850, "Y": 370, "Comment": "Composes HillAssault2I_IsWaveCompleted.bp.json (this PR) -- the 4th and final wave-loop node, previously omitted. Reads+writes ActiveRunners/BurnedSlotsMask/BaselineReservedMask through the SAME shared 'state' slot via the curated WaveMonitorOps.Update(HillAttackSharedState,ISimulationView)/ActiveCount(HillAttackSharedState) tree-integration overloads (thin adapters over the proven WaveState swap-remove kernel). Returns Success once ActiveRunners is empty (wave complete), Running otherwise.", "Collapsed": false, "Color": null }
+    }
+  ],
+  "Pills": [
+    {
+      "VisualId": "1a200000-0000-0000-0000-0000000000f1",
+      "HostNodeVisualId": "1a200000-0000-0000-0000-000000000003",
+      "DecoratorType": "Repeater",
+      "IntParam": -1,
+      "FloatParam": null,
+      "Comment": "Repeat waves forever; the loop exits when IsAreaQueryResolved returns Failure (area clear).",
+      "StackIndex": 0
+    }
+  ],
+  "Canvas": { "PanX": 0, "PanY": 0, "Zoom": 1 },
+  "SubtreeSyncBindings": {},
+  "Suppressions": { "Conflict": [], "Unused": [] },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+    "HeavyDtoType": null,
+    "Variables": [
+      {
+        "Name": "bpParamsCalculateSegments",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp+Params",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"StartX\":0,\"StartY\":0,\"EndX\":100,\"EndY\":0,\"TankSpacing\":10}",
+        "Comment": "Firing line 0,0 -> 100,0, spacing 10 -> 10 slots (mirrors HillAssault2I_Smoke's scenario).",
+        "IsAutoManaged": true
+      },
+      {
+        "Name": "bpParamsDispatchAllToBaseline",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Generated.HillAssault2IDispatchAllToBaseline_64F11A6D_Bp+Params",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"BaselineStartX\":0,\"BaselineStartY\":-20,\"BaselineEndX\":100,\"BaselineEndY\":-20}",
+        "Comment": "Baseline line behind the firing line (Y=-20).",
+        "IsAutoManaged": true
+      },
+      {
+        "Name": "bpParamsAreAllAtBaseline",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Generated.HillAssault2AreAllAtBaseline_4CDE3A29_Bp+Params",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{}",
+        "Comment": "Empty Params struct (the twin takes none).",
+        "IsAutoManaged": true
+      },
+      {
+        "Name": "bpParamsRequestAreaQuery",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Generated.HillAssault2IRequestAreaQuery_61F115B4_Bp+Params",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{}",
+        "Comment": "TargetAreaEntity left at its zero default (Entity.Null) -- not exercised by the current proof (see WaveLoop node comment).",
+        "IsAutoManaged": true
+      },
+      {
+        "Name": "bpParamsIsAreaQueryResolved",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Generated.HillAssault2IIsAreaQueryResolved_62F11747_Bp+Params",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{}",
+        "Comment": "Empty Params struct (the twin takes none).",
+        "IsAutoManaged": true
+      },
+      {
+        "Name": "bpParamsDispatchWaveWithTargets",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Generated.HillAssault2IDispatchWaveWithTargets_60F11421_Bp+Params",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"StartX\":0,\"StartY\":0,\"EndX\":100,\"EndY\":0,\"BaselineStartX\":0,\"BaselineStartY\":-20,\"BaselineEndX\":100,\"BaselineEndY\":-20,\"AttackDirX\":0,\"AttackDirY\":1}",
+        "Comment": "Same firing-line/baseline scenario as CalculateSegments/DispatchAllToBaseline; attack direction +Y.",
+        "IsAutoManaged": true
+      },
+      {
+        "Name": "bpParamsIsWaveCompleted",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_CDAC491D_Bp+Params",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{}",
+        "Comment": "Empty Params struct (the integrated node takes none, same as its isolated twin).",
+        "IsAutoManaged": true
+      },
+      {
+        "Name": "state",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "Comment": "The single standalone Entity-scoped shared commander state (architect Q#9-A) -- every integrated node above reads/writes it purely through its own blueprint-graph GetShared/SetShared('state') nodes, never via WorkingStateTargetField. Mirrors HillAssault2I_Smoke.btree.json's 'state' variable / T37_SharedStateManifestProvisioning's 'rally' variable exactly.",
+        "IsAutoManaged": false,
+        "Role": "State",
+        "Scope": "Entity"
+      }
+    ]
+  }
+}

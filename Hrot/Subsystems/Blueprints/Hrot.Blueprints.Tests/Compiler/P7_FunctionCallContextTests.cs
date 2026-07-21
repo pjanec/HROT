@@ -49,6 +49,13 @@ public static class P7ProbeHelpers
     /// with a type-coercion diagnostic. A single-overload helper is deterministic.
     /// </summary>
     public static int Identity(int x) => x;
+
+    /// <summary>
+    /// Impure VOID CLR helper -- used by <c>ImpureCallAndImplicitCastEmitTests</c> to lock the
+    /// "void impure FunctionCall emits a bare statement" fix (no data-out pin => Stage5 must NOT
+    /// synthesize an uncompilable <c>var __tN = VoidProbe(...)</c>).
+    /// </summary>
+    public static void VoidProbe(int x) { }
 }
 
 /// <summary>

@@ -4,6 +4,7 @@ using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Core.Compiler.Diagnostics;
+using Hrot.Blueprints.Core.Compiler.Stages;
 
 namespace Hrot.Blueprints.Tests;
 
@@ -295,6 +296,139 @@ public sealed class NodeCoverageTests
             ". Add a compiling fixture, or a documented exception with a real reason.");
     }
 
+    // ========================================================================
+    // FlowForEach loop-introspection outs (CurrentIndex + Count) -- emitted-C# proof
+    // ========================================================================
+
+    /// <summary>
+    /// Headless proof for the FlowForEach <c>CurrentIndex</c> + <c>Count</c> data-out pins: compiles
+    /// <see cref="BuildFlowForEachIndexCountMinimalAsset"/> through the real Stage1-7 pipeline and
+    /// asserts the generated C# has (a) the element count HOISTED into an outer-scope local
+    /// (<c>var __t.. = global::…UnitRosterOps.Count(__t..);</c>) rather than re-evaluated in the loop
+    /// bound, (b) the loop counter COPIED into a body-scope local
+    /// (<c>var __t.. = __fe..;</c>), and (c) both consumed by the body's arithmetic BinaryOp
+    /// (<c>__t.. - __t..</c>). This locks the emission contract without needing the game assemblies a
+    /// full Roslyn compile would (see the fixture's ValidateOnlyStage1To7 registration).
+    /// </summary>
+    [Fact]
+    public void FlowForEach_IndexAndCount_EmitsHoistedCountAndBodyIndexCopy()
+    {
+        var result = new BlueprintCompiler()
+            .Compile(BuildFlowForEachIndexCountMinimalAsset(), DefaultCompileOptions());
+
+        Assert.True(result.Succeeded,
+            "Compile failed: " + string.Join(", ", result.Diagnostics.Select(d => $"{d.Code}:{d.Message}")));
+        var src = result.GeneratedSource!;
+        Assert.NotNull(src);
+
+        // (a) Count hoisted to an OUTER-scope local: the accessor appears as an assignment RHS
+        // (`= global::…Count(`), which the non-hoisted path never emits (there it is only ever a loop
+        // bound `< global::…Count(`).
+        Assert.Contains("= global::Hrot.AI.Behaviors.Brains.UnitRosterOps.Count(", src);
+        // ...and the for-loop bound is that hoisted local, not a fresh Count() re-eval each pass.
+        Assert.Matches(@"for \(int __fe\d+ = 0; __fe\d+ < __t\d+;", src);
+        Assert.DoesNotMatch(@"< global::Hrot\.AI\.Behaviors\.Brains\.UnitRosterOps\.Count\(", src);
+
+        // (b) Loop counter copied into a body-scope local for CurrentIndex.
+        Assert.Matches(@"var __t\d+ = __fe\d+;", src);
+
+        // (c) Both loop outs consumed by the body's arithmetic BinaryOp (Subtract -> infix ` - `).
+        Assert.Matches(@"__t\d+ - __t\d+", src);
+    }
+
+    // ========================================================================
+    // Guard 4 -- pin-less round-trip: Stage0 must reproduce author-placed DATA pins
+    // ========================================================================
+
+    /// <summary>
+    /// Node kinds whose author-placed data pins are legitimately NOT reproduced by Stage0's pin-less
+    /// rehydration in this harness — each with a documented, reviewed reason. Anything not listed here
+    /// MUST round-trip, so a new kind with a rehydration gap fails <see cref="AllCoverageNodes_PinlessRehydration_ReproducesAuthoredDataPins"/>.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<Type, string> PinlessRoundTripExceptions =
+        new Dictionary<Type, string>
+        {
+            [typeof(CallPeerBlueprintNode)] =
+                "Peer data pins come from a sibling BlueprintSignature resolved via the generator's " +
+                "cross-asset pass; this isolated Stage0 run has no sibling lookup wired, so it yields the " +
+                "exec-only + Return fallback. Real coverage is CoverageAssets' Inline/CallPeerBlueprint " +
+                "(ValidateOnlyStage1To7) which DOES pass the sibling signature.",
+            [typeof(FunctionCallNode)] =
+                "FunctionCall data pins are SIGNATURE-derived (real param names): the editor reflects " +
+                "and the generator uses the Roslyn semantic model (RoslynClrSignatureResolver). These " +
+                "coverage fixtures author placeholder pin names (A/B/Result, Value) that do not match " +
+                "any real method signature, so Stage0's reflection/resolver legitimately produces " +
+                "different names. The real pin-less FunctionCall round-trip (real param names) is proven " +
+                "by FunctionCallSemanticResolveTests + the pin-less HillAssault2I_* proof blueprints.",
+            [typeof(GetComponentNode)] =
+                "GetComponent's 'Value' output is resolved at lowering from the node's BAKED " +
+                "ComponentTypeFqn/FieldName (Stage5_Schedule reads the node fields, not a pin), so it " +
+                "round-trips pin-less without the output pin being reconstructed. Proven by the stripped " +
+                "HillAssault2_AimAndFireSpecific blueprint building green.",
+            [typeof(GetParameterNode)] =
+                "GetParameter's 'Value' output is resolved at lowering from the node's BAKED ParameterId " +
+                "(like GetVariable), not by pin lookup, so it round-trips pin-less without the output pin " +
+                "being reconstructed. Proven by the stripped HillAssault2I_IsWaveCompleted blueprint " +
+                "(which reads a parameter) building green.",
+        };
+
+    /// <summary>
+    /// Guard 4 — pin-less round-trip. Every DATA pin an author/editor places on a node must be
+    /// reproduced by <see cref="Stage0_Rehydrate"/> when the node is stored pin-less (<c>"Pins": []</c>,
+    /// the editor-save form). This is the exact invariant that broke for FunctionCall / PublishEvent /
+    /// ChannelCommand / Compare: a kind whose data pins come from a catalog/signature but whose pin-less
+    /// rehydration produced fewer pins, so a migrated (editor-saved OR AI-authored pin-less) blueprint
+    /// lost wires (BP1602) or dropped producers (CS0103). Reusing every <see cref="CoverageAssets"/>
+    /// fixture makes it self-enforcing: because Guard 3 forces every concrete node kind to have a
+    /// compiling fixture, a newly-added kind with a data-pin rehydration gap fails HERE too.
+    /// <para>Only DATA pins (non-exec) are compared, by (name, direction) — exec pins are always present
+    /// and their names are conventional; the data pins are where the rehydration gap risk lives.</para>
+    /// </summary>
+    [Fact]
+    public void AllCoverageNodes_PinlessRehydration_ReproducesAuthoredDataPins()
+    {
+        var failures = new List<string>();
+
+        foreach (var (description, assets, options, _) in CoverageAssets())
+        {
+            var opts = options ?? DefaultCompileOptions();
+            foreach (var asset in assets)
+            {
+                // Snapshot the author-placed DATA-pin shape per node id (before stripping).
+                var authored = asset.Graphs.SelectMany(g => g.Nodes).ToDictionary(
+                    n => n.Id,
+                    n => n.Pins.Where(p => !p.IsExec).Select(p => (p.Name, p.Direction)).ToHashSet());
+
+                // Editor-save form: same graph, every node pin-less. Deep-clone via JSON so the original
+                // (shared across CoverageAssets iterations) is untouched.
+                var clone = BlueprintJsonServices.Deserialize(BlueprintJsonServices.Serialize(asset))!;
+                foreach (var n in clone.Graphs.SelectMany(g => g.Nodes))
+                    n.Pins = new List<Pin>();
+
+                Stage0_Rehydrate.Run(clone, opts);
+
+                foreach (var n in clone.Graphs.SelectMany(g => g.Nodes))
+                {
+                    if (PinlessRoundTripExceptions.ContainsKey(n.GetType())) continue;
+                    if (!authored.TryGetValue(n.Id, out var want) || want.Count == 0) continue;
+
+                    var got = n.Pins.Where(p => !p.IsExec).Select(p => (p.Name, p.Direction)).ToHashSet();
+                    var missing = want.Except(got).ToList();
+                    if (missing.Count > 0)
+                        failures.Add($"{description} / {n.GetType().Name}: pin-less rehydration is missing " +
+                            "author-placed data pin(s): " +
+                            string.Join(", ", missing.Select(m => $"{m.Name}:{m.Direction}")));
+                }
+            }
+        }
+
+        Assert.True(failures.Count == 0,
+            "Pin-less rehydration dropped author-placed data pins — a round-trip gap. Add a Stage0 " +
+            "enricher (mirror EnrichPublishEventPins/EnrichChannelCommandPins) or complete static " +
+            "registry pins for the kind, or document a PinlessRoundTripExceptions reason:\n" +
+            string.Join("\n", failures));
+    }
+
     private enum CoverageMode { FullRoslynPipeline, ValidateOnlyStage1To7 }
 
     // ── coverage asset providers ───────────────────────────────────────────
@@ -394,7 +528,9 @@ public sealed class NodeCoverageTests
         yield return ("Inline/ReadRankedResult", new[] { BuildReadRankedResultMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetSharedSetShared", new[] { BuildGetSetSharedMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetComponent", new[] { BuildGetComponentMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
+        yield return ("Inline/DiamondMerge", new[] { BuildDiamondMergeMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetParameter", new[] { BuildGetParameterMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
+        yield return ("Inline/GetAllParameters", new[] { BuildGetAllParametersMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/Compare", new[] { BuildCompareMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/BinaryOp", new[] { BuildBinaryOpMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/BooleanOp", new[] { BuildBooleanOpMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
@@ -413,6 +549,12 @@ public sealed class NodeCoverageTests
         // the REAL Roslyn compile of a FlowForEach graph is proven by
         // HillAssault2_ForEachSubordinate_ProofTests through the actual Hrot.AI.Behaviors build.
         yield return ("Inline/FlowForEach", new[] { BuildFlowForEachMinimalAsset() }, null, CoverageMode.ValidateOnlyStage1To7);
+        // FlowForEach loop-introspection outs (CurrentIndex + Count): same game-assembly reason as
+        // above -> ValidateOnlyStage1To7. The GENERATED C# (count-hoist local + body index-copy +
+        // BinaryOp consuming both) is asserted verbatim by
+        // FlowForEach_IndexAndCount_EmitsHoistedCountAndBodyIndexCopy below; a real Roslyn build lands
+        // with the DispatchAllToBaseline slice which uses these outs.
+        yield return ("Inline/FlowForEachIndexCount", new[] { BuildFlowForEachIndexCountMinimalAsset() }, null, CoverageMode.ValidateOnlyStage1To7);
     }
 
     // ---- recipe loading (mirrors RecipeIntegrityTests.LoadRecipe) -----------
@@ -970,6 +1112,77 @@ public sealed class NodeCoverageTests
     /// needed), exercising the real Stage5_Schedule CompareNode lowering (ResolveDataPin(A/B) -&gt;
     /// IrOp_Compare -&gt; infix "==") through the full Roslyn+ALC pipeline.
     /// </summary>
+    /// <summary>
+    /// Convergent control flow (merge point) regression: a diamond where a SECOND Branch is reached
+    /// from BOTH arms of the first (Branch1.True → Branch2, Branch1.False → Branch2). Before the
+    /// merge-point scheduler fix, Branch2 was scheduled once per predecessor edge, emitting duplicate
+    /// C# goto labels (CS0140) — real Roslyn compilation (FullRoslynPipeline) rejected it. With the
+    /// fix, Branch2 (exec in-degree 2) gets a single shared block both arms jump to, so it compiles.
+    /// </summary>
+    private static BlueprintAsset BuildDiamondMergeMinimalAsset()
+    {
+        var litA = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Boolean", ValueJson = "true" };
+        var litAOut = DataPin("Value", "Out", "System.Boolean");
+        litA.Pins.Add(litAOut);
+
+        var litB = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Boolean", ValueJson = "true" };
+        var litBOut = DataPin("Value", "Out", "System.Boolean");
+        litB.Pins.Add(litBOut);
+
+        var b1In    = ExecPin("In",    "In");
+        var b1True  = ExecPin("True",  "Out");
+        var b1False = ExecPin("False", "Out");
+        var b1Cond  = DataPin("Condition", "In", "System.Boolean");
+        var branch1 = new BranchNode { Id = Guid.NewGuid() };
+        branch1.Pins.AddRange(new[] { b1In, b1True, b1False, b1Cond });
+
+        var b2In    = ExecPin("In",    "In");
+        var b2True  = ExecPin("True",  "Out");
+        var b2False = ExecPin("False", "Out");
+        var b2Cond  = DataPin("Condition", "In", "System.Boolean");
+        var branch2 = new BranchNode { Id = Guid.NewGuid() };   // MERGE POINT (in-degree 2)
+        branch2.Pins.AddRange(new[] { b2In, b2True, b2False, b2Cond });
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var retS   = new ReturnNode { Id = Guid.NewGuid() };
+        var retSIn = ExecPin("ExecIn", "In");
+        retS.Pins.Add(retSIn);
+
+        var retF   = new ReturnNode { Id = Guid.NewGuid() };
+        var retFIn = ExecPin("ExecIn", "In");
+        retF.Pins.Add(retFIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, litA, litB, branch1, branch2, retS, retF },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,   FromPinId = entryOut.Id, ToNodeId = branch1.Id, ToPinId = b1In.Id },
+                new Link { FromNodeId = litA.Id,    FromPinId = litAOut.Id,  ToNodeId = branch1.Id, ToPinId = b1Cond.Id },
+                new Link { FromNodeId = litB.Id,    FromPinId = litBOut.Id,  ToNodeId = branch2.Id, ToPinId = b2Cond.Id },
+                // Both arms of Branch1 converge on Branch2 (the merge point).
+                new Link { FromNodeId = branch1.Id, FromPinId = b1True.Id,   ToNodeId = branch2.Id, ToPinId = b2In.Id },
+                new Link { FromNodeId = branch1.Id, FromPinId = b1False.Id,  ToNodeId = branch2.Id, ToPinId = b2In.Id },
+                new Link { FromNodeId = branch2.Id, FromPinId = b2True.Id,   ToNodeId = retS.Id,    ToPinId = retSIn.Id },
+                new Link { FromNodeId = branch2.Id, FromPinId = b2False.Id,  ToNodeId = retF.Id,    ToPinId = retFIn.Id },
+            },
+        };
+
+        return new BlueprintAsset
+        {
+            AssetId  = Guid.NewGuid(),
+            Name     = "DiamondMergeCoverage",
+            Dispatch = BlueprintDispatchKind.Instance,
+            Graphs   = { graph },
+        };
+    }
+
     private static BlueprintAsset BuildCompareMinimalAsset()
     {
         var litAValuePin = DataPin("Value", "Out", "System.Single");
@@ -1330,6 +1543,107 @@ public sealed class NodeCoverageTests
     }
 
     /// <summary>
+    /// GetAllParametersNode -- near-exact mirror of <see cref="BuildGetParameterMinimalAsset"/>
+    /// (same AiPrimitive/WorkingState shape, same evidence bar), but exercises the ONE-node,
+    /// ONE-out-pin-per-Parameter shape: EventEntry -&gt; SetVariable(FloatOut) -&gt;
+    /// SetVariable(IntOut) -&gt; Return, both SetVariable "Value" data-in pins fed by TWO DIFFERENT
+    /// out-pins of a SINGLE GetAllParametersNode. Two Parameters (ParamA:Single, ParamB:Int32) are
+    /// declared; the node's two data-out pins are authored explicitly (mirrors GetParameterNode --
+    /// Stage0_Rehydrate's "node.Pins.Count &gt; 0 =&gt; skip" guard leaves fully-authored pin-less-node
+    /// exceptions alone, so no enricher runs here), exercising the real Stage5_Schedule
+    /// GetAllParametersNode lowering (per-pin FindParameterIndex-by-NAME -&gt; IrOp_ReadParam -&gt;
+    /// `p.ParamA`/`p.ParamB`) through the full Roslyn+ALC pipeline.
+    /// </summary>
+    private static BlueprintAsset BuildGetAllParametersMinimalAsset()
+    {
+        var paramAId = Guid.NewGuid();
+        var paramA = new ParameterDecl
+        {
+            Id   = paramAId,
+            Name = "ParamA",
+            Type = new BlueprintTypeRef { TypeId = "System.Single" },
+        };
+        var paramBId = Guid.NewGuid();
+        var paramB = new ParameterDecl
+        {
+            Id   = paramBId,
+            Name = "ParamB",
+            Type = new BlueprintTypeRef { TypeId = "System.Int32" },
+        };
+
+        var gapPinA = DataPin("ParamA", "Out", "System.Single");
+        var gapPinB = DataPin("ParamB", "Out", "System.Int32");
+        var gapNode = new GetAllParametersNode { Id = Guid.NewGuid() };
+        gapNode.Pins.AddRange(new[] { gapPinA, gapPinB });
+
+        var floatVarId = Guid.NewGuid();
+        var floatVar = new VariableDecl
+        {
+            Id   = floatVarId,
+            Name = "FloatOut",
+            Type = new BlueprintTypeRef { TypeId = "System.Single" },
+        };
+        var intVarId = Guid.NewGuid();
+        var intVar = new VariableDecl
+        {
+            Id   = intVarId,
+            Name = "IntOut",
+            Type = new BlueprintTypeRef { TypeId = "System.Int32" },
+        };
+
+        var setFloatExecIn   = ExecPin("ExecIn",  "In");
+        var setFloatExecOut  = ExecPin("ExecOut", "Out");
+        var setFloatValuePin = DataPin("Value",   "In", "System.Single");
+        var setFloatNode = new SetVariableNode { Id = Guid.NewGuid(), VariableId = floatVarId.ToString() };
+        setFloatNode.Pins.AddRange(new[] { setFloatExecIn, setFloatExecOut, setFloatValuePin });
+
+        var setIntExecIn   = ExecPin("ExecIn",  "In");
+        var setIntExecOut  = ExecPin("ExecOut", "Out");
+        var setIntValuePin = DataPin("Value",   "In", "System.Int32");
+        var setIntNode = new SetVariableNode { Id = Guid.NewGuid(), VariableId = intVarId.ToString() };
+        setIntNode.Pins.AddRange(new[] { setIntExecIn, setIntExecOut, setIntValuePin });
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecPin("ExecIn", "In");
+        ret.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, gapNode, setFloatNode, setIntNode, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,        FromPinId = entryOut.Id,        ToNodeId = setFloatNode.Id, ToPinId = setFloatExecIn.Id },
+                new Link { FromNodeId = setFloatNode.Id,  FromPinId = setFloatExecOut.Id, ToNodeId = setIntNode.Id,   ToPinId = setIntExecIn.Id },
+                new Link { FromNodeId = setIntNode.Id,    FromPinId = setIntExecOut.Id,   ToNodeId = ret.Id,          ToPinId = retIn.Id },
+                new Link { FromNodeId = gapNode.Id,       FromPinId = gapPinA.Id,         ToNodeId = setFloatNode.Id, ToPinId = setFloatValuePin.Id },
+                new Link { FromNodeId = gapNode.Id,       FromPinId = gapPinB.Id,         ToNodeId = setIntNode.Id,   ToPinId = setIntValuePin.Id },
+            },
+        };
+
+        return new BlueprintAsset
+        {
+            AssetId      = Guid.NewGuid(),
+            Name         = "GetAllParametersCoverage",
+            Dispatch     = BlueprintDispatchKind.AiPrimitive,
+            Primitive    = new AiPrimitiveDecl
+            {
+                Intent   = AiPrimitiveIntent.Action,
+                Hostings = { AiPrimitiveHosting.BTreeAction },
+            },
+            Parameters   = { paramA, paramB },
+            WorkingState = { floatVar, intVar },
+            Graphs       = { graph },
+        };
+    }
+
+    /// <summary>
     /// EventEntry -&gt; PublishEvent("ClearBehaviorEvent") -&gt; Return (P4 -- GAP-3). Exercises the
     /// PublishEventNode Stage5 lowering (EngineEventCatalog lookup -&gt; IrOp_PublishBusEvent with the
     /// entry's TargetFieldName self-defaulted). AiPrimitive/Action dispatch (world.Bus is the AiPrimitive
@@ -1434,6 +1748,87 @@ public sealed class NodeCoverageTests
         {
             AssetId   = Guid.NewGuid(),
             Name      = "FlowForEachCoverage",
+            Dispatch  = BlueprintDispatchKind.AiPrimitive,
+            Primitive = new AiPrimitiveDecl
+            {
+                Intent   = AiPrimitiveIntent.Action,
+                Hostings = { AiPrimitiveHosting.BTreeAction },
+            },
+            Graphs    = { graph },
+        };
+    }
+
+    /// <summary>
+    /// EventEntry -&gt; FlowForEach(Body -&gt; SetShared(int "scratch" &lt;- BinaryOp(CurrentIndex -
+    /// Count))) [Completed] -&gt; Return. Exercises the FlowForEach loop-introspection out-pins
+    /// (<c>CurrentIndex</c>, <c>Count</c>): the Count out wires into the arithmetic BinaryOp's B
+    /// operand (proving the loop-invariant count is available in the body scope) and CurrentIndex into
+    /// its A operand (proving the 0-based iteration index is available), so the emitted body reads both
+    /// the outer-scope count local and the body-scope index local. Mirrors
+    /// <see cref="BuildFlowForEachMinimalAsset"/>'s AiPrimitive shape; ValidateOnlyStage1To7 for the
+    /// same game-assembly reason (UnitRosterOps/UnitRoster refs in the generated for-loop).
+    /// </summary>
+    private static BlueprintAsset BuildFlowForEachIndexCountMinimalAsset()
+    {
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var feIn        = ExecPin("In", "In");
+        var feBody      = ExecPin("Body", "Out");
+        var feCompleted = ExecPin("Completed", "Out");
+        var feItem      = DataPin("CurrentItem",  "Out", "Fdp.Core.Entity");
+        var feIndex     = DataPin("CurrentIndex", "Out", "System.Int32");
+        var feCount     = DataPin("Count",        "Out", "System.Int32");
+        var fe = new FlowForEachNode
+        {
+            Id                 = Guid.NewGuid(),
+            SourceComponentFqn = "Fdp.Core.CommandHierarchy.UnitRoster",
+            CountAccessorFqn   = "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count",
+            ItemAccessorFqn    = "Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate",
+        };
+        fe.Pins.AddRange(new[] { feIn, feBody, feCompleted, feItem, feIndex, feCount });
+
+        // index - count (arithmetic BinaryOp): A <- CurrentIndex, B <- Count.
+        var binAPin      = DataPin("A",      "In",  "System.Int32");
+        var binBPin      = DataPin("B",      "In",  "System.Int32");
+        var binResultPin = DataPin("Result", "Out", "System.Int32");
+        var binNode = new BinaryOpNode { Id = Guid.NewGuid(), Operator = ArithmeticOperator.Subtract };
+        binNode.Pins.AddRange(new[] { binAPin, binBPin, binResultPin });
+
+        // SetShared(int) inside the body consumes the BinaryOp result (keeps both loop outs live).
+        var setExecIn   = ExecPin("ExecIn",  "In");
+        var setExecOut  = ExecPin("ExecOut", "Out");
+        var setValuePin = DataPin("Value",   "In",  "System.Int32");
+        var setWritten  = DataPin("Written", "Out", "System.Boolean");
+        var setNode = new SetSharedNode { Id = Guid.NewGuid(), VariableId = "scratch", SharedTypeId = "System.Int32" };
+        setNode.Pins.AddRange(new[] { setExecIn, setExecOut, setValuePin, setWritten });
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecPin("In", "In");
+        ret.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, fe, binNode, setNode, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,   FromPinId = entryOut.Id,     ToNodeId = fe.Id,      ToPinId = feIn.Id },
+                new Link { FromNodeId = fe.Id,      FromPinId = feBody.Id,       ToNodeId = setNode.Id, ToPinId = setExecIn.Id },
+                new Link { FromNodeId = fe.Id,      FromPinId = feIndex.Id,      ToNodeId = binNode.Id, ToPinId = binAPin.Id },
+                new Link { FromNodeId = fe.Id,      FromPinId = feCount.Id,      ToNodeId = binNode.Id, ToPinId = binBPin.Id },
+                new Link { FromNodeId = binNode.Id, FromPinId = binResultPin.Id, ToNodeId = setNode.Id, ToPinId = setValuePin.Id },
+                new Link { FromNodeId = fe.Id,      FromPinId = feCompleted.Id,  ToNodeId = ret.Id,     ToPinId = retIn.Id },
+            },
+        };
+
+        return new BlueprintAsset
+        {
+            AssetId   = Guid.NewGuid(),
+            Name      = "FlowForEachIndexCountCoverage",
             Dispatch  = BlueprintDispatchKind.AiPrimitive,
             Primitive = new AiPrimitiveDecl
             {

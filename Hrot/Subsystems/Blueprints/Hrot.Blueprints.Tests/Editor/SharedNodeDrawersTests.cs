@@ -452,6 +452,33 @@ public sealed class SharedNodeDrawersTests
         Assert.IsType<SetSharedNodeDrawer>(drawer);
     }
 
+    // ── Data-driven canvas refresh (B-fix) ────────────────────────────────────
+
+    [Fact]
+    public void SetSharedSession_StructuralEdit_FiresOnStructureChanged()
+    {
+        // A Details-panel structural edit must let the canvas graph model re-project — via the
+        // data-driven OnStructureChanged observer the document's composition root wires, NOT by the
+        // drawer poking the canvas window. Verify the drawer emits the signal through the concrete
+        // EditService's per-document context (a SpyEditService/IEditService double would skip it).
+        int structureChanged = 0;
+        var editService = new EditService
+        {
+            Context = new EditServiceContext(
+                new Hrot.Blueprints.Editor.GraphEditor.CommandHistory(),
+                _ => { },
+                onStructureChanged: _ => structureChanged++),
+        };
+        var asset   = MakeAsset();
+        var node    = new SetSharedNode { Id = Guid.NewGuid() };
+        var drawer  = new SetSharedNodeDrawer(editService, DefaultTypeProvider);
+        var session = (SetSharedNodeSession)drawer.CreateSession(node, asset);
+
+        session.SetSharedTypeIdForTest("My.Namespace.OtherStruct");
+
+        Assert.True(structureChanged >= 1, "structural edit should notify the derived views to re-project");
+    }
+
     // ── Test stubs ────────────────────────────────────────────────────────────
 
     private sealed class SpyEditService : IEditService

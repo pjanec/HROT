@@ -14,10 +14,12 @@ using Hrot.Editor.AiShared.Documents;
 using Hrot.Editor.AiShared.Windows;
 using NodeEditor.Core;
 using NodeEditor.Core.Action;
+using NodeEditor.Core.Bookmarks;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Core.View;
 using NodeEditor.Primitives;
 using NodeEditor.UI.Action;
+using NodeEditor.UI.Bookmarks;
 using NodeEditor.UI.Find;
 using NodeEditor.UI.MiniEditors;
 
@@ -174,7 +176,15 @@ public static class BlueprintDocumentFactory
         // ── 4. EditService context (AIE-049) ──────────────────────────────────
         // Inject a per-document context into the shared EditService so node drawers
         // route property edits through this document's CommandHistory.
-        var ctx = new EditServiceContext(history, markDirty);
+        //
+        // Data-driven view refresh: the canvas graph model is derived state projected from the
+        // asset. A Details-panel edit that changes a node's projected pin shape (e.g. a struct
+        // field expansion) must re-project it — but the drawer must NOT reach across to the canvas
+        // window. Instead the drawer emits a structural-change signal (EditService.NotifyStructureChanged)
+        // and the composition root (here) subscribes the derived view so it rebuilds itself.
+        var ctx = new EditServiceContext(
+            history, markDirty,
+            onStructureChanged: _ => graphModel.RebuildAndNotify());
         if (editService != null)
             editService.Context = ctx;
 
@@ -258,13 +268,31 @@ public static class BlueprintDocumentFactory
         // Variables section. (Was a no-op since BATCH-13.)
         RegisterCreateVariableCommand(commands, bpAsset, () => bpFile.MarkDirty());
 
+        // ── 10. Bookmarks (navigation aids) ──────────────────────────────────
+        // Per-document BookmarkStore + the shared NodeEdit set/jump commands (Ctrl+1..9
+        // jump, Ctrl+Shift+1..9 set — see BookmarkCommands). Pumped automatically by
+        // AiGraphCanvasWindow's per-frame EditorHotkeyDispatcher since they're registered
+        // on this document's `commands` (same object as FindBar/Toggle-Breakpoint/etc).
+        // The store is exposed via AiCanvasContext.Bookmarks so the composition root can
+        // draw the off-screen edge-marker overlay (BlueprintEditorBootstrap.DrawBookmarkEdgeMarkers)
+        // and, optionally, a Bookmarks panel window.
+        var bookmarkStore = new BookmarkStore();
+        var bookmarkIndicators = new EditorIndicatorsImpl(new ToastQueue());
+        BookmarkCommands.RegisterAll(
+            commands, view, bookmarkStore, bookmarkIndicators,
+            // The Blueprint editor renders a single graph per open document (no in-document
+            // tab switching between the asset's other graphs yet), so every bookmark's
+            // TargetGraph is always this view's own graph id — cross-graph jump is a no-op.
+            navigateToGraph: _ => { });
+
         // Store the BlueprintAsset in AssetRef so the composition root can retarget
         // My Blueprint / Details / Variables windows without a kind-specific dependency.
         return new AiCanvasContext(view, AssetKind.Blueprint.ToString())
         {
-            AssetRef = bpAsset,
-            FindBar  = findBar,
-            Commands = commands,
+            AssetRef  = bpAsset,
+            FindBar   = findBar,
+            Commands  = commands,
+            Bookmarks = bookmarkStore,
         };
     }
 
