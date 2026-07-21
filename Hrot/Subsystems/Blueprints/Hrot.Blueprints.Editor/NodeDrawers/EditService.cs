@@ -35,6 +35,20 @@ public sealed class EditService : IEditService
     // ── extended API (used by BlueprintCommandSink) ──────────────────────────
 
     /// <summary>
+    /// Signals that an edit changed the projected graph <b>structure</b> (a node's pin set,
+    /// links, or a field that drives pin projection) rather than a cosmetic value. This is a
+    /// data-level notification — the caller does NOT know which views derive from the asset.
+    /// The composition root (<see cref="EditServiceContext.OnStructureChanged"/>) is responsible
+    /// for refreshing the derived views (e.g. the canvas graph model rebuilds its projection).
+    /// No-op when there is no active document context.
+    /// </summary>
+    public void NotifyStructureChanged(BlueprintAsset asset)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        Context?.OnStructureChanged?.Invoke(asset);
+    }
+
+    /// <summary>
     /// Records a property change as an undoable command and marks the asset dirty.
     ///
     /// <para>
@@ -83,10 +97,23 @@ public sealed class EditServiceContext
     /// <summary>Marks the given asset as dirty in the editor.</summary>
     public Action<BlueprintAsset> MarkDirty { get; }
 
-    public EditServiceContext(CommandHistory history, Action<BlueprintAsset> markDirty)
+    /// <summary>
+    /// Optional observer invoked when an editing surface reports a <b>structural</b> change to the
+    /// asset (see <see cref="EditService.NotifyStructureChanged"/>). The document's composition root
+    /// wires this to refresh the views that project the asset — e.g. rebuilding the canvas graph
+    /// model — so a Details-panel edit updates the canvas without the drawer referencing it.
+    /// Null when the document has no derived views to refresh (e.g. headless tests).
+    /// </summary>
+    public Action<BlueprintAsset>? OnStructureChanged { get; }
+
+    public EditServiceContext(
+        CommandHistory history,
+        Action<BlueprintAsset> markDirty,
+        Action<BlueprintAsset>? onStructureChanged = null)
     {
-        History    = history    ?? throw new ArgumentNullException(nameof(history));
-        MarkDirty  = markDirty  ?? throw new ArgumentNullException(nameof(markDirty));
+        History            = history    ?? throw new ArgumentNullException(nameof(history));
+        MarkDirty          = markDirty  ?? throw new ArgumentNullException(nameof(markDirty));
+        OnStructureChanged = onStructureChanged;
     }
 }
 

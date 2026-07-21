@@ -177,6 +177,11 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.PublishEventNode pev     => $"Publish: {ShortEventName(!string.IsNullOrEmpty(pev.EventTypeFqn) ? pev.EventTypeFqn : pev.EventId)}",
         Hrot.Blueprints.Core.Assets.ReadEqsResultNode        => "Read EQS Result",
         Hrot.Blueprints.Core.Assets.SpawnEqsSensorNode       => "Spawn EQS Sensor",
+        // Q#14 Option B struct-value nodes: show the short struct name (namespace/global:: stripped)
+        // so the header reads "Make StructDemoData" instead of the raw class name "MakeStructNode".
+        Hrot.Blueprints.Core.Assets.MakeStructNode mk        => string.IsNullOrEmpty(mk.StructTypeId) ? "Make Struct"        : $"Make {ShortTypeName(mk.StructTypeId)}",
+        Hrot.Blueprints.Core.Assets.BreakStructNode br       => string.IsNullOrEmpty(br.StructTypeId) ? "Break Struct"       : $"Break {ShortTypeName(br.StructTypeId)}",
+        Hrot.Blueprints.Core.Assets.SetMembersNode sm        => string.IsNullOrEmpty(sm.StructTypeId) ? "Set Members"        : $"Set Members {ShortTypeName(sm.StructTypeId)}",
         _ => node.GetType().Name,
     };
 
@@ -194,6 +199,10 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.BinaryOpNode             => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.BooleanOpNode            => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.NotNode                  => NodeCategory.Pure,
+        // Q#14 Option B struct-value nodes are pure data (construct/deconstruct/copy-modify).
+        Hrot.Blueprints.Core.Assets.MakeStructNode           => NodeCategory.Pure,
+        Hrot.Blueprints.Core.Assets.BreakStructNode          => NodeCategory.Pure,
+        Hrot.Blueprints.Core.Assets.SetMembersNode           => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.FunctionCallNode fc when fc.IsPure => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.BranchNode               => NodeCategory.FlowControl,
         Hrot.Blueprints.Core.Assets.SequenceNode             => NodeCategory.FlowControl,

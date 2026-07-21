@@ -176,7 +176,15 @@ public static class BlueprintDocumentFactory
         // ── 4. EditService context (AIE-049) ──────────────────────────────────
         // Inject a per-document context into the shared EditService so node drawers
         // route property edits through this document's CommandHistory.
-        var ctx = new EditServiceContext(history, markDirty);
+        //
+        // Data-driven view refresh: the canvas graph model is derived state projected from the
+        // asset. A Details-panel edit that changes a node's projected pin shape (e.g. a struct
+        // field expansion) must re-project it — but the drawer must NOT reach across to the canvas
+        // window. Instead the drawer emits a structural-change signal (EditService.NotifyStructureChanged)
+        // and the composition root (here) subscribes the derived view so it rebuilds itself.
+        var ctx = new EditServiceContext(
+            history, markDirty,
+            onStructureChanged: _ => graphModel.RebuildAndNotify());
         if (editService != null)
             editService.Context = ctx;
 

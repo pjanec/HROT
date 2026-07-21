@@ -49,6 +49,34 @@ public sealed class BlueprintNodeTitleTests
     public void BooleanOp_ShowsOperator(BooleanOperator op, string expected)
         => Assert.Equal(expected, Title(new BooleanOpNode { Operator = op }));
 
+    // Q#14 Option B: struct-value node headers show the short struct name (namespace + global::
+    // stripped), so the canvas reads "Make StructDemoData" — not the raw class name "MakeStructNode".
+    [Theory]
+    [InlineData("Hrot.AI.Behaviors.StructDemoData", "Make StructDemoData")]
+    [InlineData("global::Hrot.AI.Behaviors.StructDemoData", "Make StructDemoData")]
+    public void MakeStruct_ShowsShortStructName(string fqn, string expected)
+        => Assert.Equal(expected, Title(new MakeStructNode { StructTypeId = fqn }));
+
+    [Fact]
+    public void BreakStruct_ShowsShortStructName()
+        => Assert.Equal("Break StructDemoData",
+            Title(new BreakStructNode { StructTypeId = "Hrot.AI.Behaviors.StructDemoData" }));
+
+    [Fact]
+    public void SetMembers_ShowsShortStructName()
+        => Assert.Equal("Set Members StructDemoData",
+            Title(new SetMembersNode { StructTypeId = "Hrot.AI.Behaviors.StructDemoData" }));
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(null)]
+    public void StructNodes_EmptyType_FallBackToGenericLabel(string? fqn)
+    {
+        Assert.Equal("Make Struct",  Title(new MakeStructNode  { StructTypeId = fqn! }));
+        Assert.Equal("Break Struct", Title(new BreakStructNode { StructTypeId = fqn! }));
+        Assert.Equal("Set Members",  Title(new SetMembersNode  { StructTypeId = fqn! }));
+    }
+
     [Fact]
     public void GetParameter_TitleIsClean_NameShownOnPinInstead()
     {

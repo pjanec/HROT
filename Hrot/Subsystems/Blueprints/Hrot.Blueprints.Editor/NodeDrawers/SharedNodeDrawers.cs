@@ -240,6 +240,12 @@ internal sealed class GetSharedNodeSession : INodeEditSession
     {
         IsDirty = true;
         _editService.MarkDirty(_parent);
+        // Every shared-node edit (slot-name label, shared type, field expansion) changes the node's
+        // projected pins, so signal a STRUCTURAL change: the canvas graph model re-projects itself.
+        // Data-driven — this drawer never references the canvas; the composition root wires the refresh
+        // (see BlueprintDocumentFactory). NotifyStructureChanged is the concrete EditService's extended
+        // API (like RecordPropertyEdit); test-double IEditServices simply skip it.
+        (_editService as EditService)?.NotifyStructureChanged(_parent);
     }
 
     // ── INodeEditSession ─────────────────────────────────────────────────────────
@@ -400,6 +406,12 @@ internal sealed class SetSharedNodeSession : INodeEditSession
     {
         IsDirty = true;
         _editService.MarkDirty(_parent);
+        // Every shared-node edit (slot-name label, shared type, field expansion) changes the node's
+        // projected pins, so signal a STRUCTURAL change: the canvas graph model re-projects itself.
+        // Data-driven — this drawer never references the canvas; the composition root wires the refresh
+        // (see BlueprintDocumentFactory). NotifyStructureChanged is the concrete EditService's extended
+        // API (like RecordPropertyEdit); test-double IEditServices simply skip it.
+        (_editService as EditService)?.NotifyStructureChanged(_parent);
     }
 
     // ── INodeEditSession ─────────────────────────────────────────────────────────
