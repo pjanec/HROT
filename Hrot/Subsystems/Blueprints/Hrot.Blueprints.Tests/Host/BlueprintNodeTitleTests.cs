@@ -50,21 +50,22 @@ public sealed class BlueprintNodeTitleTests
         => Assert.Equal(expected, Title(new BooleanOpNode { Operator = op }));
 
     // Q#14 Option B: struct-value node headers show the short struct name (namespace + global::
-    // stripped), so the canvas reads "Make StructDemoData" — not the raw class name "MakeStructNode".
+    // stripped) in [brackets], so the canvas reads "Make [StructDemoData]" — not the raw class name
+    // "MakeStructNode", and the struct name is instantly distinguishable from the verb.
     [Theory]
-    [InlineData("Hrot.AI.Behaviors.StructDemoData", "Make StructDemoData")]
-    [InlineData("global::Hrot.AI.Behaviors.StructDemoData", "Make StructDemoData")]
+    [InlineData("Hrot.AI.Behaviors.StructDemoData", "Make [StructDemoData]")]
+    [InlineData("global::Hrot.AI.Behaviors.StructDemoData", "Make [StructDemoData]")]
     public void MakeStruct_ShowsShortStructName(string fqn, string expected)
         => Assert.Equal(expected, Title(new MakeStructNode { StructTypeId = fqn }));
 
     [Fact]
     public void BreakStruct_ShowsShortStructName()
-        => Assert.Equal("Break StructDemoData",
+        => Assert.Equal("Break [StructDemoData]",
             Title(new BreakStructNode { StructTypeId = "Hrot.AI.Behaviors.StructDemoData" }));
 
     [Fact]
     public void SetMembers_ShowsShortStructName()
-        => Assert.Equal("Set Members StructDemoData",
+        => Assert.Equal("Set Members [StructDemoData]",
             Title(new SetMembersNode { StructTypeId = "Hrot.AI.Behaviors.StructDemoData" }));
 
     [Theory]
@@ -75,6 +76,22 @@ public sealed class BlueprintNodeTitleTests
         Assert.Equal("Make Struct",  Title(new MakeStructNode  { StructTypeId = fqn! }));
         Assert.Equal("Break Struct", Title(new BreakStructNode { StructTypeId = fqn! }));
         Assert.Equal("Set Members",  Title(new SetMembersNode  { StructTypeId = fqn! }));
+    }
+
+    // Get/Set Shared bracket the slot name into the title; empty slot keeps the bare verb.
+    [Fact]
+    public void GetShared_BracketsSlotName()
+        => Assert.Equal("Get Shared [RallyPoint]", Title(new GetSharedNode { VariableId = "RallyPoint" }));
+
+    [Fact]
+    public void SetShared_BracketsSlotName()
+        => Assert.Equal("Set Shared [RallyPoint]", Title(new SetSharedNode { VariableId = "RallyPoint" }));
+
+    [Fact]
+    public void Shared_EmptySlot_KeepsBareTitle()
+    {
+        Assert.Equal("Get Shared", Title(new GetSharedNode { VariableId = "" }));
+        Assert.Equal("Set Shared", Title(new SetSharedNode { VariableId = "" }));
     }
 
     [Fact]

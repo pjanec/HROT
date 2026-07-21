@@ -136,13 +136,16 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.BlueprintAsset? asset) => node switch
     {
         Hrot.Blueprints.Core.Assets.FunctionCallNode fc   => string.IsNullOrEmpty(fc.MethodName) ? "Function Call" : fc.MethodName,
-        Hrot.Blueprints.Core.Assets.GetVariableNode gv    => $"Get {ResolveVariableName(gv.VariableId, asset)}",
-        Hrot.Blueprints.Core.Assets.SetVariableNode sv    => $"Set {ResolveVariableName(sv.VariableId, asset)}",
+        // Identifier titles wrap the identifier in [brackets] so the variable/slot/struct name is
+        // instantly distinguishable from the verb ("Set Members [StructDemoData]", not the ambiguous
+        // 3-word "Set Members StructDemoData").
+        Hrot.Blueprints.Core.Assets.GetVariableNode gv    => $"Get [{ResolveVariableName(gv.VariableId, asset)}]",
+        Hrot.Blueprints.Core.Assets.SetVariableNode sv    => $"Set [{ResolveVariableName(sv.VariableId, asset)}]",
         // Slice 2a-3: GetShared/SetShared — VariableId is a raw manifest-provisioned slot name
-        // (not a blueprint VariableDecl GUID), so no ResolveVariableName lookup is needed.
-        // Field name is shown on the "Value" pin (render-only label in BlueprintGraphModel); title stays clean.
-        Hrot.Blueprints.Core.Assets.GetSharedNode          => "Get Shared",
-        Hrot.Blueprints.Core.Assets.SetSharedNode          => "Set Shared",
+        // (not a blueprint VariableDecl GUID), so no ResolveVariableName lookup is needed. The slot
+        // name is bracketed into the title for fast identification (also shown on the collapsed Value pin).
+        Hrot.Blueprints.Core.Assets.GetSharedNode gsn      => string.IsNullOrEmpty(gsn.VariableId) ? "Get Shared" : $"Get Shared [{gsn.VariableId}]",
+        Hrot.Blueprints.Core.Assets.SetSharedNode ssn      => string.IsNullOrEmpty(ssn.VariableId) ? "Set Shared" : $"Set Shared [{ssn.VariableId}]",
         // Punch-list #1/#5/#8: show the node's own DATA in the body instead of the generic "Value"
         // pin label — the literal's value, the parameter's name, the compare/arith/bool operator.
         // Punch-list: the parameter NAME is shown on the output pin (render-only display label in
@@ -179,9 +182,9 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.SpawnEqsSensorNode       => "Spawn EQS Sensor",
         // Q#14 Option B struct-value nodes: show the short struct name (namespace/global:: stripped)
         // so the header reads "Make StructDemoData" instead of the raw class name "MakeStructNode".
-        Hrot.Blueprints.Core.Assets.MakeStructNode mk        => string.IsNullOrEmpty(mk.StructTypeId) ? "Make Struct"        : $"Make {ShortTypeName(mk.StructTypeId)}",
-        Hrot.Blueprints.Core.Assets.BreakStructNode br       => string.IsNullOrEmpty(br.StructTypeId) ? "Break Struct"       : $"Break {ShortTypeName(br.StructTypeId)}",
-        Hrot.Blueprints.Core.Assets.SetMembersNode sm        => string.IsNullOrEmpty(sm.StructTypeId) ? "Set Members"        : $"Set Members {ShortTypeName(sm.StructTypeId)}",
+        Hrot.Blueprints.Core.Assets.MakeStructNode mk        => string.IsNullOrEmpty(mk.StructTypeId) ? "Make Struct"        : $"Make [{ShortTypeName(mk.StructTypeId)}]",
+        Hrot.Blueprints.Core.Assets.BreakStructNode br       => string.IsNullOrEmpty(br.StructTypeId) ? "Break Struct"       : $"Break [{ShortTypeName(br.StructTypeId)}]",
+        Hrot.Blueprints.Core.Assets.SetMembersNode sm        => string.IsNullOrEmpty(sm.StructTypeId) ? "Set Members"        : $"Set Members [{ShortTypeName(sm.StructTypeId)}]",
         _ => node.GetType().Name,
     };
 
