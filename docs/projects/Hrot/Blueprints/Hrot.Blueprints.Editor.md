@@ -2,955 +2,934 @@
 
 > Manually maintained; last verified 2026-07-21 against the implemented code.
 
-> **Known drift (flagged, not fully re-documented in this pass):** the Editor project has grown
-> substantially since this doc was last deep-audited -- 147 `.cs` files now exist on disk versus
-> the smaller set cataloged in "Source Structure" below. In particular, `GraphEditorWindow.cs` no
-> longer exists (grep confirms), and a new host-integration layer (`BlueprintWindowRegistrar :
-> EngineWindowRegistrar`, `IBlueprintWindowRegistry`, `BlueprintManagedWindowAdapter : ManagedWindow`)
-> now adapts `IBlueprintEditorWindow` panels into a shared engine window-management system --
-> alongside new top-level folders `Windows/`, `EntityBlueprints/`, `ActionCatalog/`, `Runtime/`,
-> `Internal/` not covered below. `BlueprintEditorModule` itself (constructor, `OnEditorActivated`,
-> `DrawAllWindows`) is verified accurate. A dedicated follow-up pass is needed to re-derive the
-> current window/canvas architecture; treat any canvas/`GraphEditorWindow` claims below as historical.
-
 | Field      | Value                                                                              |
-|------------|------------------------------------------------------------------------------------|
-| Project    | `Hrot.Blueprints.Editor`                                                           |
-| Path       | `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Editor/`                              |
-| Framework  | net8.0                                                                             |
-| Nullable   | enabled                                                                            |
-| Date       | 2026-05-23                                                                         |
+|------------|--------------------------------------------------------------------------------------|
+| Project    | `Hrot.Blueprints.Editor`                                                             |
+| Path       | `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Editor/`                                |
+| Framework  | net8.0                                                                                |
+| Nullable   | enabled                                                                               |
+| File count | ~148 `.cs` files                                                                      |
 
 ---
 
 ## README Validation
 
-**Status: Missing**
-
-No `README.md` exists in the project folder. `BlueprintsEditor.cs` is an explicit
-placeholder stub (`// Placeholder for Hrot.Blueprints.Editor assembly.`), indicating
-the project was scaffolded but top-level documentation was not written. All
-architectural knowledge lives in source code comments and this document.
+**Status: Missing.** No `README.md` exists in the project folder. `BlueprintsEditor.cs` is an
+explicit placeholder stub (`// Placeholder for Hrot.Blueprints.Editor assembly.`). All
+architectural knowledge lives in source comments and this document.
 
 ---
 
 ## Executive Overview
 
-`Hrot.Blueprints.Editor` is the ImGui-based UI editor that lets designers and
-engineers author, inspect, reload, and debug Blueprint graphs at runtime. It sits
-on top of the Blueprints visual scripting stack and ties together:
+`Hrot.Blueprints.Editor` is the ImGui-based authoring, debugging, and hot-reload host for the
+Blueprints visual-scripting stack. It has been substantially rebuilt since the original design:
+the graph canvas is no longer a bespoke `GraphEditorWindow` — it is the shared **NodeEdit**
+canvas library (`ExtDeps`), driven through a `Host/` adaptation layer, and the window/asset
+plumbing is now a Blueprint-specific plug-in into the shared **`Hrot.Editor.AiShared`**
+perspective/window/catalog infrastructure rather than a self-contained editor.
 
-- **Authoring**: browse, open, and edit Blueprint assets on disk.
-- **Graph editing**: a canvas window with a command-history-backed undo/redo system
-  for adding/deleting nodes and links.
-- **Property inspection**: a tabbed Inspector that shows node, graph, and asset
-  metadata. Property values are rendered through a pluggable `DrawerRegistry` of
-  typed `IStructEditDrawer<T>` implementations.
-- **Hot reload**: two reload pathways -- a fast in-process Quick Reload that
-  compiles a single asset through the Blueprint AST compiler and Roslyn, then
-  atomically swaps the resulting collectible `AssemblyLoadContext`; and a slower
-  Full Rebuild that spawns `dotnet build` out-of-process.
-- **Debug session**: a full `IBlueprintDebugSession` implementation providing
-  breakpoints, watches, step-into/over/out, per-entity execution history, and
-  simulation-time pause control. Debug windows (panel, watches, callstack, reload
-  log) are ImGui windows registered with the module.
-- **Preferences**: user settings (auto-reload, log limits, grid snap) persisted as
-  camelCase JSON.
+Four pillars:
 
-The authoring workflow is:
+- **Canvas (`Host/`)** — `BlueprintGraphModel` projects one `Graph` of a `BlueprintAsset` onto
+  NodeEdit's `IGraphModel`; `BlueprintCommandSink` turns NodeEdit `GraphCommand`s (add/remove
+  node, wire-drop link, move, set pin default, reroute, comment) into asset mutations, routed
+  through `CommandHistory` for undo/redo. `BlueprintDocumentFactory.Build` assembles the whole
+  per-document NodeEdit stack (`GraphView`, palette, pickers, find bar, bookmarks, debug overlay)
+  and returns an `AiCanvasContext` for `Hrot.Editor.AiShared`'s document manager to host.
+- **Windows** — two coexisting mechanisms. Legacy `IBlueprintEditorWindow` panels (Inspector,
+  Debug Panel, Watch Panel, Callstack, Hot Reload Log) are registered by `BlueprintWindowRegistrar`
+  and adapted into the engine `WindowManager` via `BlueprintManagedWindowAdapter`. Newer panels
+  are authored directly as `Fdp.Presentation.WindowManager.ManagedWindow`s
+  (`BlueprintMyBlueprintWindow`, `BlueprintDetailsWindow`, `BlueprintVariablesManagedWindow`,
+  `GraphSignatureWindow`, `BlueprintBookmarksWindow`, `EntityBlueprintsManagedWindow`) and are
+  registered by the host composition root, retargeted per active document.
+- **Palette / node authoring** — `BlueprintEditorBootstrap` composes the full node-drawer
+  registry and palette registry: built-in vocabulary, channel-command and non-channel behavior
+  actions, math presets, reflection-discovered `[BlueprintCallable]` helpers, custom-event
+  publish/subscribe entries, and Make/Break/SetMembers struct triples.
+- **Debug / hot reload** — `BlueprintDebugSession` (full `IBlueprintDebugSession` +
+  `IAiDebugSession` implementation) drives breakpoints, watches, step/rewind, and call-stack
+  tracking; `BlueprintDebugToNodeEditAdapter` bridges it to NodeEdit's native `IDebugSession` so
+  the canvas draws breakpoint markers and execution overlays without Blueprint-specific renderer
+  code. `QuickReloadService` (in-process ALC swap) and `FullRebuildService` (`dotnet build`)
+  provide the two reload pathways.
+
+Asset browsing/reference-tracking is **not** owned by this project any more: it plugs into the
+shared `Hrot.Editor.AiShared.Catalog` system via `Catalog/BlueprintAssetContributor` (an
+`IAssetCatalogContributor`) and `Catalog/BlueprintReferenceContributor`. The old
+`IAssetCatalog`/`FileSystemAssetCatalog`/`AssetBrowserWindow` types are retired; the only
+Blueprint-local scanner left is `BlueprintPeerSource`, a thin `(Guid, Path)` enumerator used
+purely for peer-signature resolution (`CallPeerBlueprintNode` pin typing, sibling-signature
+compilation).
+
+Authoring workflow:
 
 ```
-Open asset (double-click in Asset Browser)
-    |
+Asset Browser (shared Hrot.Editor.AiShared catalog, fed by BlueprintAssetContributor)
+    |  double-click opens a BlueprintFileAsset
     v
-Edit graph nodes / links in Graph Editor
-    |-- undo/redo via CommandHistory ring buffer
-    |-- mark asset dirty via DirtyTracker
+BlueprintDocumentFactory.Build(...)
+    |-- loads BlueprintAsset from disk (LoadAsset)
+    |-- BlueprintGraphModel projects the Event graph (or first graph) onto NodeEdit
+    |-- BlueprintCommandSink + CommandHistory wired for undo/redo
+    |-- GraphView (NodeEdit) + FindBar + Bookmarks + debug adapter assembled
     v
-Inspect selected node/graph/asset in Inspector
-    |
+AiCanvasContext hosted by Hrot.Editor.AiShared's document manager / canvas window
+    |-- wire-drop node/link editing, pin-default edits, comments, reroutes
+    |-- My Blueprint / Details / Variables / Graph Signature panels retarget to the doc
     v
-Save (marks clean) --> Quick Reload (in-process ALC swap)
-                  \--> Full Rebuild  (dotnet build, then file-watcher drain)
+Save (BlueprintFileAsset.MarkClean) --> QuickReloadService (in-process ALC swap)
+                                   \--> FullRebuildService (dotnet build, then file-watcher drain)
 ```
 
 ---
 
 ## Architecture
 
-### Layer Overview
-
-The editor follows a strict layered architecture:
+### Layer overview
 
 ```
-+-------------------------------------------------------------------+
-|                      Host Application                             |
-|  (provides IWindowRegistrar, IOutputConsole, frame loop)          |
-+-------------------------------------------------------------------+
-          |                            |
-          v                            v
-+---------------------+   +--------------------------+
-|  BlueprintEditorModule  |   | DI Container                |
-|  (orchestrator)     |   | (AddBlueprintEditor(...))   |
-+---------------------+   +--------------------------+
-          |
-          |  owns (List<IBlueprintEditorWindow>)
-          |
-   +------+------+--------+----------+---------+----------+
-   |             |        |          |         |          |
-   v             v        v          v         v          v
-Asset         Graph    Inspector  Preferences  Debug    HotReload
-Browser       Editor   Window     Window       Panel    Log Window
-Window        Window
-   |             |        |                    |
-   v             v        v                    v
-IAssetCatalog  CommandHistory  DrawerRegistry  IBlueprintDebugSession
-EditorState    SelectionState  IStructEditDrawer<T>
-EditorSelection  QuickReloadService
-Store           FullRebuildService
++----------------------------------------------------------------------------------+
+|                      Hrot.Editor.AiShared (host perspective/window/catalog system)|
+|  AiDocumentManager · WindowManager · IAssetCatalogContributor · AiCanvasContext   |
++----------------------------------------------------------------------------------+
+        ^                          ^                              ^
+        |  contributes             |  hosts documents via         |  ManagedWindows
+        |                          |  BlueprintDocumentFactory     |  register directly
++-------+-------+     +------------+-------------+      +---------+----------------+
+| Catalog/      |     | Host/ (NodeEdit adapters)|      | Windows/, Debug/,        |
+| Asset+Ref     |     | BlueprintGraphModel      |      | Variables/,              |
+| Contributors  |     | BlueprintCommandSink     |      | EntityBlueprints/        |
++---------------+     | NodePinSchema            |      +--------------------------+
+                      | BlueprintDocumentFactory |
+                      +--------------------------+
+                                |
+                +---------------+----------------+
+                |               |                |
+                v               v                v
+      NodeDrawers/     Reload/            Debug (Core.Debug)
+      (drawer+palette  QuickReloadService  BlueprintDebugSession
+       registries)     FullRebuildService  DebugMap / probes
 ```
 
-### Core Services (singletons)
+### Two window mechanisms
 
-| Service                   | Role                                                          |
-|---------------------------|---------------------------------------------------------------|
-| `DirtyTracker`            | Tracks which asset GUIDs have unsaved edits                   |
-| `EditorSelectionStore`    | Single-selection store; raises `OnSelectionChanged`           |
-| `EditorState`             | In-memory asset cache keyed by `Guid`                         |
-| `IAssetCatalog`           | Enumerates `AssetCatalogEntry` records from the asset root    |
-| `BlueprintEditorModule`   | Registers windows, drives draw loop, routes reload events     |
+| Mechanism | Registrar | Panels |
+|-----------|-----------|--------|
+| Legacy `IBlueprintEditorWindow` | `BlueprintWindowRegistrar` (implements `Fdp.Toolkit.Runner.IWindowRegistrar`), adapted via `BlueprintManagedWindowAdapter : ManagedWindow` | `InspectorWindow`, `Debug/DebugPanelWindow`, `Debug/WatchPanelWindow`, `Debug/CallstackWindow`, `Debug/HotReloadLogWindow` |
+| Direct `Fdp.Presentation.WindowManager.ManagedWindow` | Registered by the host composition root (outside this project); retargeted per active document | `Windows/BlueprintMyBlueprintWindow`, `Windows/BlueprintDetailsWindow`, `Windows/BlueprintVariablesManagedWindow`, `Windows/GraphSignatureWindow`, `Windows/BlueprintBookmarksWindow`, `EntityBlueprints/EntityBlueprintsManagedWindow` |
 
-### Window Lifecycle
+`PreferencesWindow` (legacy `IBlueprintEditorWindow`) still exists but is not wired through
+`BlueprintWindowRegistrar.RegisterWindows` — it is registered ad hoc by whichever host needs it.
 
-Every window implements `IBlueprintEditorWindow` (or extends
-`BlueprintEditorWindowBase`). The module calls:
+### The NodeEdit canvas (Host/)
 
-1. `OnActivated()` -- once when the editor is first enabled.
-2. `DrawUI()` -- every frame while `IsVisible == true`.
-3. `OnDeactivated()` -- when the editor is torn down.
+The canvas is the `NodeEditor.Core`/`NodeEditor.UI` (`ExtDeps`) `GraphView`, not a
+Blueprint-specific renderer. `Host/` supplies every adapter NodeEdit needs:
 
-Visibility is toggled from the menu via `IWindowRegistrar.RegisterMenuEntry`.
+| Type | NodeEdit contract | Role |
+|------|--------------------|------|
+| `BlueprintNodeModel` | `INodeModel` | Projects one `Node`; `Position` reads live from `NodeMetadata`; `BuildTitle` derives the on-canvas title (operator symbols, literal values, short event/variable names); flags unresolved CLR `FunctionCallNode`s as `NodeState.Error`. |
+| `BlueprintGraphModel` | `IGraphModel` | Projects one `Graph`; two-pass GUID-binding algorithm resolves pin GUIDs for pin-less (`"Pins": []`) JSON-loaded assets from incident `Link.FromPinId`/`ToPinId`, in parity with the compiler's `Stage0_Rehydrate`. |
+| `NodePinSchema` (internal) | — | Canonical per-kind pin projection (`GetCanonicalPins`); resolution order is asset-authored pins → `NodeKindRegistry` descriptor → built-in fallback table. Every dynamic kind (FunctionCall, EventEntry, Return, GetVariable, ChannelCommand, PublishEvent, CallPeerBlueprint, GetShared/SetShared, Make/Break/SetMembers struct nodes, …) is documented in-line with the exact compiler stage it must stay in parity with. |
+| `BlueprintCommandSink` | `IGraphCommandSink` | Applies every `GraphCommand` (AddNode, RemoveNodes, AddLink, RemoveLinks, MoveNodes, ChangeParentMultiple, SetNodeProperty, SetPinDefault, InsertReroute/MoveReroute/RemoveReroute, AddComment/UpdateComment/RemoveComment, Batch). Structural ops go through `CommandHistory`; continuous drags bypass it; property/pin edits go through `EditService.RecordPropertyEdit`. |
+| `BlueprintDocumentFactory` (static) | — | One-shot per-document factory: loads the asset, builds `BlueprintGraphModel`/`BlueprintCommandSink`/`BlueprintNodeCatalog`/`BlueprintTypeSystem`/`BlueprintLinkValidator`, wires the enum-sentinel pin-default-editor registry, registers the F9 Toggle-Breakpoint command, the My-Blueprint "+ Variable" command, and per-document bookmarks, then returns an `AiCanvasContext`. |
+| `BlueprintEditorHostServices` | `IEditorHostServices` | Bundles the above plus the engine `AiEditorAdapterBundle` (pickers, clipboard, icons, diagnostics, input, theme) into one `IEditorHostServices` for `GraphView`. |
+| `BlueprintNodeCatalog` | `INodeCatalog` | Wraps the static `NodeKindRegistry` palette and layers on dynamic entries derived from the open asset's `CallablePeers` and `CustomEvents`; fires `CatalogChanged` on `Refresh`. |
+| `BlueprintTypeSystem` | (type-compat surface) | Pin type-compatibility rules + `SelectableTypeIds` for variable-type pickers. |
+| `BlueprintLinkValidator` | `ILinkValidator` | Output→Input only; Exec↔Exec / Data↔Data only; type compatibility via `BlueprintTypeSystem`; single-data-input rule; rejects self-loops. |
+| `BlueprintDebugToNodeEditAdapter` | `IDebugSession` | Bridges `IBlueprintDebugSession` so NodeEdit's native `NodeRenderer` draws breakpoints/execution overlays/pause pulses with zero Blueprint-specific paint code. |
+
+`GraphEditor/` still exists as the older command-history/selection substrate
+(`CommandHistory`, `IGraphCommand`, `GraphCommands.AddNodeCommand`/`DeleteNodeCommand`/
+`LinkEditCommand`, `SelectionState`) — `BlueprintCommandSink` builds on top of it rather than
+replacing it.
+
+### Two-pass pin/GUID resolution (why `"Pins": []` still works)
+
+Persisted `.bp.json` nodes store `Pins: []` (a deliberate `SaveActiveBlueprintCommand`
+invariant — pins are an editor projection, never serialized). `BlueprintGraphModel.Rebuild()`:
+
+1. **Pass 1** — for each node, get the canonical pin list from `NodePinSchema`, then bind each
+   pin's `Guid` from the incident `Link.FromPinId`/`ToPinId` (deterministic-GUID-first, legacy
+   positional fallback, exactly mirroring the compiler's `Stage0_Rehydrate.AssignDirection`).
+2. **Pass 2** — build `BlueprintNodeModel`/`BlueprintLinkModel` instances from the resolved pins.
+
+Nothing is written back to the asset or disk — the projection is pure and rebuilt on every
+mutation via `RebuildAndNotify()` (or the lightweight `NotifyMoved` during a drag, which skips
+the rebuild to preserve node-model identity across drag frames).
 
 ---
 
-## ASCII Block Diagrams
+## Diagrams
 
-### Diagram 1 -- Module and Window Wiring
-
-```
-+----------------------------+
-|    BlueprintEditorModule   |
-|  _windows: List<IBlueprintEditorWindow>  |
-|  _activated: bool          |
-+----------------------------+
-      |         |       |
-      |         |       +---------------------------+
-      |         |                                   |
-      v         v                                   v
-+-------------+ +-------------------+  +---------------------+
-| AssetBrowser| | GraphEditorWindow |  | InspectorWindow     |
-| Window      | | CurrentAsset      |  | (tabbed: Node/Graph |
-| (table UI)  | | Selection: State  |  |  /Asset)            |
-+-------------+ | Commands:History  |  +---------------------+
-      |         +-------------------+
-      |               |         |
-      v               v         v
-+---------------+ +----------+ +------------------+
-| IAssetCatalog | | Quick    | | FullRebuildService|
-| (FS scan)     | | Reload   | | (dotnet build)   |
-+---------------+ | Service  | +------------------+
-                  +----------+
-                       |
-              +--------+--------+
-              |                 |
-              v                 v
-   +-------------------+ +-------------------+
-   | IBlueprintCompiler| | AiHotReloadCoord  |
-   | (AST + Roslyn)    | | (ALC atomic swap) |
-   +-------------------+ +-------------------+
-```
-
-### Diagram 2 -- Quick Reload Pipeline
+### 1 — Opening a document
 
 ```
-GraphEditorWindow                QuickReloadService
-    |                                   |
-    |-- TriggerAsync(asset) ----------->|
-    |                                   |
-    |                   BuildSiblingSignatures()
-    |                        |  catalog.EnumerateAll()
-    |                        |  EditorState.GetInMemoryAsset()
-    |                        |  BlueprintSignatureBuilder.FromInMemoryAsset()
-    |                        v
-    |                   IBlueprintCompiler.Compile(asset, options)
-    |                        |  [AST compile, emits GeneratedSource]
-    |                        v
-    |                   InMemoryRoslynCompiler.Compile()
-    |                        |  [Roslyn PE + PDB bytes]
-    |                        v
-    |                   new AssemblyLoadContext (collectible)
-    |                        |  alc.LoadFromStream(pe, pdb)
-    |                        v
-    |                   HsmActionDispatcher.ClearAll()
-    |                        v
-    |                   Invoke BlueprintRegistrarAttribute methods
-    |                        |  into BehaviorRegistry (staging)
-    |                        |  into BlueprintRegistryStaging
-    |                        v
-    |                   IBlueprintDebugSession.RegisterDebugMap()
-    |                        v
-    |                   AiHotReloadCoordinator.ApplyQuickReload()
-    |                        |  [atomic ALC swap, RCU commit]
-    |                        v
-    |<-- QuickReloadResult(Succeeded, DurationMs) ---|
-```
-
-### Diagram 3 -- Debug Session Probe Flow
-
-```
-    Running Blueprint (generated code)
-          |
-          | DebugProbe.Sink.OnNodeEnter(entity, nodeId)
-          v
-    BlueprintDebugSession
-          |
-          +-- EntityFilter check --------> skip if wrong entity
-          |
-          +-- ExecutionHistory.Record()
-          |
-          +-- Fire OnNodeExecuted event --> CallstackWindow
-          |
-          +-- Breakpoint lookup (O(1) _bpByNodeString dict)
-          |       |
-          |       +-- HIT --> HandleBreakpointHit()
-          |                       |
-          |                       +-- _isPaused = true
-          |                       +-- _timeController.RequestPause()
-          |                       +-- Fire OnBreakpointHit event --> DebugPanelWindow
-          |
-          +-- StepMode check (Into/Over/Out)
-                  |
-                  +-- MATCHED --> HandleBreakpointHit() (pseudo-breakpoint)
-
-
-    DebugPanelWindow calls:
-          Continue() --> _timeController.RequestResume()
-          StepInto()  --> _timeController.RequestStepOneTick()
-          StepOver()  --> _timeController.RequestStepOneTick()
-          StepOut()   --> _timeController.RequestStepOneTick()
-```
-
-### Diagram 4 -- Asset Discovery and Selection Flow
-
-```
-    FileSystemAssetCatalog
-          |
-          | EnumerateAll()
-          | Directory.EnumerateFiles("*.bp.json", AllDirectories)
-          | Parse AssetId from JSON header
-          v
-    AssetBrowserWindow._catalogEntries  [List<AssetCatalogEntry>]
-          |
-          | User double-clicks a row
-          v
-    EditorState.GetInMemoryAsset(entry.AssetId)
-          |
-          v
-    EditorSelectionStore.SelectAsset(asset)
-          |
-          | OnSelectionChanged event
-          v
-    GraphEditorWindow.OnSelectionChanged()
-          |-- OpenAsset(asset)
-          |-- Selection.ClearAll()
-          |-- Commands.Clear()
-          v
-    InspectorWindow.DrawUI()
-          |-- reads SelectedAsset from EditorSelectionStore
-          |-- renders Node / Graph / Asset tabs
-```
-
-### Diagram 5 -- DI Registration
-
-```
-IServiceCollection.AddBlueprintEditor(assetRootDirectory)
+BlueprintFileAsset (Catalog/BlueprintAssetContributor, header-only)
     |
-    +-- AddSingleton<DirtyTracker>
-    +-- AddSingleton<EditorSelectionStore>
-    +-- AddSingleton<EditorState>
-    +-- AddSingleton<IAssetCatalog>(_ => new FileSystemAssetCatalog(assetRootDirectory))
-    +-- AddSingleton<BlueprintEditorModule>
+    | double-click / AiDocumentManager.Open
+    v
+BlueprintDocumentFactory.Build(asset, bundle, editService, paletteRegistry, ...)
+    |-- LoadAsset(bpFile)                         [File.ReadAllText + BlueprintJsonServices.Deserialize]
+    |-- resolve Event graph (fallback: first graph)
+    |-- BlueprintGraphModel(asset, graph, kindRegistry, channelCommands, peerLookup, ...)
+    |-- BlueprintNodeCatalog / BlueprintTypeSystem / BlueprintLinkValidator / CommandHistory
+    |-- BlueprintCommandSink(asset, graph, model, catalog, validator, history, editService, markDirty, ...)
+    |-- BlueprintEditorHostServices(...)  <-- bundles engine AiEditorAdapterBundle
+    |-- [debugSession != null] BlueprintDebugToNodeEditAdapter -> hostServices.SetDebugSession
+    |-- GraphView(model, commandSink, validator, typeSystem, catalog, hostServices)
+    |-- BlueprintPickerSources.Register(...) / FindBar / EditorCommandsImpl / BookmarkStore
+    v
+AiCanvasContext { View, AssetRef=bpAsset, FindBar, Commands, Bookmarks }
+    |
+    v
+Hosted by the shared AiGraphCanvasWindow; My Blueprint / Details / Variables / Graph
+Signature / Bookmarks ManagedWindows retarget to the new AssetRef.
+```
+
+### 2 — Wire-drop edit -> undo/redo
+
+```
+NodeEdit canvas (user drags a wire / drops a palette node)
+    |
+    v
+GraphCommand (AddNode | AddLink | MoveNodes | SetPinDefault | ...)
+    |
+    v
+BlueprintCommandSink.Apply(command)
+    |-- structural (AddNode/RemoveNodes/AddLink/RemoveLinks/reroute/comment)
+    |       --> CommandHistory.Execute(IGraphCommand)         [undoable]
+    |-- continuous drag (MoveNodes/ChangeParentMultiple)
+    |       --> mutate NodeMetadata.X/Y directly; NotifyMoved  [NOT pushed to history]
+    |-- property/pin edit (SetNodeProperty/SetPinDefault)
+    |       --> EditService.RecordPropertyEdit(apply, undo)   [undoable]
+    v
+_markDirty(asset)  -->  BlueprintFileAsset.MarkDirty()
+    v
+BlueprintGraphModel.RebuildAndNotify()  -->  GraphView redraws
+```
+
+### 3 — Quick Reload pipeline
+
+```
+QuickReloadService.TriggerAsync(asset)
+    |-- BuildSiblingSignatures(asset)
+    |       catalog: BlueprintPeerSource.EnumerateAll()
+    |       per sibling: EditorState.GetInMemoryAsset() override, else BlueprintSignatureParser.Parse(disk)
+    |       edited asset: BlueprintSignatureBuilder.FromInMemoryAsset(asset)
+    |-- IBlueprintCompiler.Compile(asset, CompileOptions{ EmitPdbWithEmbeddedSource: true, ... })
+    |       [[AST compile -> GeneratedSource + DebugMap]]
+    v
+TriggerFromSourcesAsync(sources, assemblyName, debugMap, assetId)
+    |-- InMemoryRoslynCompiler.Compile(sources) -> (peBytes, pdbBytes)
+    |-- new AssemblyLoadContext(assemblyName, isCollectible: true).LoadFromStream(pe, pdb)
+    |-- HsmActionDispatcher.ClearAll()
+    |-- BlueprintRegistrarScanner.Scan(assembly, blueprintStaging, behaviorStaging)
+    |-- IBlueprintDebugSession.RegisterDebugMap(debugMap)      [before coordinator handoff]
+    |-- AiHotReloadCoordinator.ApplyQuickReload(alc, behaviorStaging, blueprintStaging)  [atomic RCU swap]
+    v
+QuickReloadResult(Succeeded, ErrorMessage, DurationMs)
+```
+
+`FullRebuildService.TriggerAsync()` is the out-of-process alternative: spawns
+`dotnet build [buildTarget]`, streams stdout/stderr to `IOutputConsole`, and sets
+`PendingDrainAfterBuild = true` on success so the caller drains the file watcher afterward.
+
+### 4 — Debug probe -> canvas overlay
+
+```
+Generated Blueprint code            DebugProbe.Sink.OnNodeEnter(entity, nodeId)
+    |                                        |
+    v                                        v
+BlueprintDebugSession  <-------------------- (also OnPinValueChanged<T>, OnPeerCallEnter/Exit)
+    |
+    +-- ExecutionHistory ring buffer (per entity)
+    +-- Breakpoint dict lookup (O(1) by node-id string) --> HandleBreakpointHit()
+    |                                                            |
+    |                                                            +-- _isPaused = true
+    |                                                            +-- _timeController.RequestPause()  [soft-pause]
+    |                                                            +-- OnBreakpointHit event
+    +-- StepMode / virtual-pointer bookkeeping (StepBack/Into/Over/Out via ExecSuccessors)
+    |
+    v
+BlueprintDebugToNodeEditAdapter (IDebugSession)
+    |-- CurrentlyExecutingNode / RecentlyExecutedNodes / Breakpoints / WatchedPins
+    v
+NodeEdit NodeRenderer draws breakpoint markers + execution overlay + pause pulse natively.
+
+DebugPanelWindow / WatchPanelWindow / CallstackWindow read the same session for their tables;
+DebugStepControls.Draw() renders the shared Continue/Step-Back/Step-Over/Step-Into/Step-Out row.
 ```
 
 ---
 
 ## Source Structure
 
-### Root Namespace: `Hrot.Blueprints.Editor`
-
 ```
 Hrot.Blueprints.Editor/
 |-- BlueprintsEditor.cs                     -- assembly placeholder stub
-|-- BlueprintEditorModule.cs                -- module orchestrator
-|-- BlueprintEditorBootstrap.cs             -- static factory for drawers, palette, attachment providers
-|-- BlueprintBreakpointMenuPopulator.cs     -- Universal Breakpoints context-menu entries for Blueprint nodes
-|-- BlueprintEditorServiceCollectionExtensions.cs  -- DI registration
-|-- BlueprintEditorConfiguration.cs         -- compile-time config record
-|-- BlueprintEditorPreferences.cs           -- user preferences (JSON)
-|-- BlueprintDebugSession.cs                -- IBlueprintDebugSession impl
-|-- IWindowRegistrar.cs                     -- menu/toolbar/shortcut registration
-|-- IOutputConsole.cs                       -- logging abstraction
-|-- IAssetCatalog.cs                        -- asset enumeration contract
-|-- IBlueprintEditorWindow.cs               -- window contract
-|-- BlueprintEditorWindowBase.cs            -- abstract base window
-|-- ReloadInfo.cs                           -- ReloadSource + ReloadCompletedInfo
-|-- EditorState.cs                          -- in-memory asset cache
-|-- EditorSelectionStore.cs                 -- single-selection store + event
-|-- DirtyTracker.cs                         -- dirty-flag tracker
-|-- FileSystemAssetCatalog.cs               -- IAssetCatalog on filesystem
-|-- NewFromRecipeService.cs                 -- creates new assets from blueprint recipes
-|-- AssetBrowserWindow.cs                   -- asset table browser window
-|-- GraphEditorWindow.cs                    -- graph canvas + toolbar window
-|-- InspectorWindow.cs                      -- tabbed property inspector window
-|-- PreferencesWindow.cs                    -- editor preferences window
+|-- AssemblyInfo.cs
+|-- BlueprintEditorModule.cs                -- legacy-window orchestrator (RegisterWindow/DrawAllWindows/OnReloadCompleted)
+|-- BlueprintEditorBootstrap.cs             -- composes drawer registry, palette registry, attachment providers, canvas renderers, recipe discovery
+|-- BlueprintEditorConfiguration.cs         -- compile-time config record (DebugMapsOutputDirectory, BehaviorsDllDirectory, BehaviorsBuildTarget)
+|-- BlueprintEditorPreferences.cs           -- user prefs (camelCase JSON): AutoReloadOnSave, WatchPanelVisible, GraphEditorGridSnap, NodeHistorySize, HotReloadLogMaxEntries
+|-- BlueprintEditorServiceCollectionExtensions.cs -- AddBlueprintEditor(services) DI registration
+|-- BlueprintEditorWindowBase.cs            -- abstract IBlueprintEditorWindow base
+|-- BlueprintWindowRegistrar.cs             -- registers legacy windows into IBlueprintWindowRegistry / engine WindowManager
+|-- BlueprintManagedWindowAdapter.cs        -- internal ManagedWindow adapter for legacy windows (lazy factory)
+|-- IBlueprintWindowRegistry.cs             -- abstraction over window registration (name -> factory)
+|-- IBlueprintEditorWindow.cs               -- legacy window contract (Title/IsVisible/DrawUI/OnActivated/OnDeactivated)
+|-- IBlueprintEditorCoordinator.cs          -- hot-reload lifecycle events (OnReloadCompleted/OnReloadFailed)
+|-- NullBlueprintEditorCoordinator.cs       -- no-op IBlueprintEditorCoordinator
+|-- IWindowRegistrar.cs                     -- menu/toolbar/shortcut registration abstraction
+|-- IOutputConsole.cs                       -- logging abstraction (LogInfo/Warning/Error/Debug/Diagnostic)
+|-- SystemConsoleOutputConsole.cs           -- Console.WriteLine-backed IOutputConsole
+|-- EditorState.cs                          -- in-memory asset overlay keyed by AssetId
+|-- EditorSelectionStore.cs                 -- single-selection store + OnSelectionChanged
+|-- DirtyTracker.cs                         -- dirty-flag HashSet<Guid>
+|-- BlueprintPeerSource.cs                  -- thin (AssetId, Path) scanner over *.bp.json, replaces the retired IAssetCatalog for peer-signature lookups
+|-- BlueprintNewAssetService.cs             -- INewAssetService impl: creates new Blueprint assets from recipes / the "Empty" recipe
+|-- NewFromRecipeService.cs                 -- clones a recipe BlueprintAsset with a fresh AssetId
+|-- RecipeMetadataAdapter.cs                -- maps compiler RecipeMetadata -> shared Hrot.Editor.AiShared.Recipes.RecipeMetadata
+|-- SaveActiveBlueprintCommand.cs           -- saves the active asset; strips Pins to [] around serialization (projection-only invariant)
+|-- BlueprintBreakpointMenuPopulator.cs     -- Universal-Breakpoints "Add Conditional Data Breakpoint..." node context-menu entry
+|-- BlueprintDebugSession.cs                -- IBlueprintDebugSession + IAiDebugSession impl (declared in Hrot.Blueprints.Core.Debug namespace)
+|-- InspectorWindow.cs                      -- legacy tabbed inspector (Node/Graph/Asset) -- superseded in practice by Windows/BlueprintDetailsWindow
+|-- PreferencesWindow.cs                    -- legacy preferences panel
+|-- ReloadInfo.cs                           -- ReloadSource enum + ReloadCompletedInfo record
+|
+|-- ActionCatalog/
+|   |-- IBehaviorActionCatalog.cs           -- BehaviorActionHosts/-Source enums, BehaviorActionEntry record, facade interface
+|   |-- BehaviorActionCatalog.cs            -- composes IChannelCommandCatalog + IActionSchemaExporter into one snapshot, rebuilds on Changed
+|
+|-- Catalog/
+|   |-- BlueprintAssetContributor.cs        -- IAssetCatalogContributor for AssetKind.Blueprint; header-only *.bp.json scan; BlueprintFileAsset
+|   |-- BlueprintReferenceContributor.cs    -- IReferenceCatalogContributor; exposes asset-id + composed-FQN sub-elements for cross-asset refs
+|   |-- BlueprintIconKeys.cs                -- header Dispatch+Intent -> Action/Condition/Function picker icon key
 |
 |-- Comparison/
-|   |-- BlueprintComparisonSanitizer.cs     -- normalizes assets for structural diff
-|   |-- BlueprintEditorComparisonServiceCollectionExtensions.cs
+|   |-- BlueprintComparisonSanitizer.cs     -- normalizes .bp.json for the Visual Asset Comparison feature
+|   |-- BlueprintEditorComparisonServiceCollectionExtensions.cs -- AddBlueprintEditorComparison() DI extension
+|
+|-- Debug/
+|   |-- DebugPanelWindow.cs                 -- pause/step controls + breakpoint table (legacy window)
+|   |-- WatchPanelWindow.cs                 -- watch table, subscribes to OnPinValueChangedEvent
+|   |-- CallstackWindow.cs                  -- peer-call frame stack table
+|   |-- HotReloadLogWindow.cs               -- reload event log window
+|   |-- HotReloadLogModel.cs                -- queue ring buffer (max 1000)
+|   |-- ReloadLogEntry.cs                   -- log entry record
+|   |-- DebugStepControls.cs                -- shared Continue/Step-Back/Step-Over/Step-Into/Step-Out row + node-position text
+|   |-- ExecSuccessors.cs                   -- computes immediate exec successor node ids for stepping (mirrors Stage5_Schedule)
+|   |-- BlueprintDebugToNodeEditAdapter.cs  -- IBlueprintDebugSession -> NodeEdit IDebugSession bridge
+|   |-- AiDebugCommands.cs                  -- registers the polymorphic "AI Debug" toolbar command group (Continue/StepOver/Into/Out/Pause/StepBack)
+|   |-- BlueprintDebugToNodeEditAdapter... (see above)
+|   |-- MasterSyncTimeControllerAdapter.cs  -- IEngineDebugTimeController over MasterSyncController
+|
+|-- EntityBlueprints/
+|   |-- EntityBlueprintsEditModel.cs        -- headless view-model: Reality scan (3 blackboard tiers) vs staged Adds/Removes, tier projection, CommitPlan
+|   |-- EntityBlueprintsPanel.cs            -- ImGui panel bound to the edit model
+|   |-- EntityBlueprintsManagedWindow.cs    -- ManagedWindow wrapper (lazy panel factory)
 |
 |-- GraphEditor/
-|   |-- IGraphCommand.cs                    -- command interface (Execute/Undo)
-|   |-- GraphCommands.cs                    -- AddNodeCommand, DeleteNodeCommand
-|   |-- CommandHistory.cs                   -- ring-buffer undo/redo stack (cap 64)
+|   |-- IGraphCommand.cs                    -- command interface (Execute/Undo/Description)
+|   |-- GraphCommands.cs                    -- AddNodeCommand, DeleteNodeCommand, LinkEditCommand
+|   |-- CommandHistory.cs                   -- ring-buffer undo/redo stack (capacity 64)
 |   |-- SelectionState.cs                   -- selected node/link Guid sets
 |
+|-- Host/
+|   |-- BlueprintNodeModel.cs               -- INodeModel adapter; BuildTitle/BuildCategory/HeaderGlyph/NodeState.Error detection
+|   |-- BlueprintGraphModel.cs              -- IGraphModel adapter; two-pass pin/GUID projection; Rebuild/NotifyMoved/RebuildAndNotify
+|   |-- BlueprintPinModel.cs                -- IPinModel adapter (referenced by BlueprintGraphModel/NodePinSchema)
+|   |-- BlueprintLinkModel.cs               -- ILinkModel adapter (stable LinkId derived from FromPinId/ToPinId)
+|   |-- BlueprintCommentModel.cs            -- ICommentModel adapter for GraphComment
+|   |-- NodePinSchema.cs                    -- internal canonical per-kind pin projection (compiler-parity source of truth)
+|   |-- BlueprintCommandSink.cs             -- IGraphCommandSink: applies every GraphCommand to the asset
+|   |-- BlueprintDocumentFactory.cs         -- static per-document assembly (asset load -> AiCanvasContext)
+|   |-- BlueprintEditorHostServices.cs      -- IEditorHostServices bundling all Host/ services + engine adapters
+|   |-- BlueprintNodeCatalog.cs             -- INodeCatalog wrapping NodeKindRegistry + dynamic peer/custom-event entries
+|   |-- BlueprintTypeSystem.cs              -- pin type-compatibility rules + SelectableTypeIds
+|   |-- BlueprintLinkValidator.cs           -- ILinkValidator (Output->Input, Exec/Data separation, single-data-input rule)
+|   |-- BlueprintEnumValueProvider.cs       -- IEnumValueProvider (member-name <-> long) for enum-sentinel pins (ENUM-NAME)
+|   |-- EnumSentinelPinEditorRegistry.cs    -- IPinDefaultValueEditorRegistry wrapper: "global::" TypeKeys -> EnumPinEditor
+|   |-- NullPinDefaultValueEditorRegistry.cs-- no-op IPinDefaultValueEditorRegistry
+|   |-- BlueprintPickerSources.cs           -- registers picker sources (methods/types/peers/events/…) with the engine IPickerRegistry
+|   |-- BlueprintSelectionBridgeHelper.cs   -- bridges AiShared selection <-> BlueprintNodeSelection
+|   |-- LiteralValueJson.cs                 -- LiteralNode.ValueJson <-> canvas inline-editor value conversions
+|   |-- FunctionCallTooltip.cs              -- resolved CLR signature + XML-doc summary for FunctionCallNode hover
+|   |-- ClrSourceLocator.cs / ClrXmlDocSource.cs / SourceFileOpener.cs / VisualStudioDteOpener.cs
+|   |                                       -- "open in IDE" support for FunctionCallNode's resolved CLR source
+|
 |-- Inspector/
-|   |-- IStructEditDrawer.cs                -- generic typed drawer interface
-|   |-- DrawContext.cs                      -- rendering context record
+|   |-- IStructEditDrawer.cs                -- generic typed drawer interface (legacy Inspector)
+|   |-- DrawContext.cs                      -- rendering context record (IsReadOnly, IdPrefix, TypeRegistry)
 |   |-- DrawerRegistry.cs                   -- type-keyed drawer dictionary
 |   |-- PrimitiveDrawers.cs                 -- float/int/bool/string stub drawers
+|   |-- BlueprintRuntimeInspectorPane.cs    -- runtime blackboard/state inspector pane
+|
+|-- Internal/
+|   |-- CaptureWindowRegistrar.cs           -- IWindowRegistrar that captures registrations without an ImGui dependency
 |
 |-- NodeDrawers/
-|   |-- IBlueprintNodeDrawer.cs             -- per-node-type drawer interface
-|   |-- BlueprintNodeDrawerRegistry.cs      -- registry mapping Node type -> drawer
-|   |-- NodeKindDescriptor.cs               -- palette entry metadata
-|   |-- NodeKindRegistry.cs                 -- palette registry
-|   |-- IEditService.cs                     -- editor mutation service interface
-|   |-- INodeEditSession.cs                 -- transactional node-edit session
-|   |-- WhenNodeDrawer.cs                   -- drawer for WhenNode (three-mode UI)
+|   |-- IBlueprintNodeDrawer.cs             -- per-node-type drawer interface (Handles/CreateSession)
+|   |-- INodeEditSession.cs                 -- transactional node-edit session (Draw/Dispose)
+|   |-- IEditService.cs / EditService.cs    -- editor mutation + undo/redo service (RecordPropertyEdit)
+|   |-- BlueprintNodeDrawerRegistry.cs      -- registry mapping Node CLR type -> drawer
+|   |-- NodeKindDescriptor.cs / NodeKindRegistry.cs -- palette entry metadata + registry
+|   |-- ISharedStructTypeProvider.cs / (Reflection impl) -- discovers [BlackboardDtoStruct] types for Get/SetShared + Make/Break/SetMembers
+|   |-- WhenNodeDrawer.cs                   -- drawer for WhenNode (4-mode inspector UI)
 |   |-- ReadEqsResultNodeDrawer.cs          -- drawer for ReadEqsResultNode
 |   |-- SpawnEqsSensorNodeDrawer.cs         -- drawer for SpawnEqsSensorNode
-|   |-- PlayMontageChainNodeDrawer.cs       -- drawer for BranchNode used as montage chain
-|   |-- WhenNodePaletteEntries.cs           -- palette entry descriptors for WHEN nodes
-|   |-- MakeBreakStructPaletteEntries.cs    -- palette entries for MakeStruct/BreakStruct/SetMembers, one triple per [BlackboardDtoStruct]
-|   |-- BlueprintEventDiscovery.cs          -- discovers custom events via [BlueprintEvent]/[EventTarget]
-|   |-- BlueprintEventPaletteEntries.cs     -- palette entries for PublishEvent / EventEntry (custom events)
-|   |-- EqsTemplateEntry.cs                 -- single EQS template registration record
-|   |-- EqsTemplateRegistry.cs              -- editor-side catalog of EQS templates
-|
-|-- Host/
-|   |-- BlueprintNodeModel.cs                -- NodeEdit-facing node model; BuildTitle for node titles
-|   |-- GraphModel.cs                        -- NodeEdit-facing graph model
-|   |-- NodePinSchema.cs                     -- canonical pin projection (GetCanonicalPins); mirrored by compiler Stage0_Rehydrate
-|   |-- BlueprintCommandSink.cs              -- routes NodeEdit wire-drop/add/remove into CommandHistory-backed commands
+|   |-- FunctionCallNodeDrawer.cs           -- drawer for FunctionCallNode (CLR method picker)
+|   |-- LiteralNodeDrawer.cs                -- drawer for LiteralNode's inline value editor
+|   |-- ChannelCommandNodeDrawer.cs         -- drawer for ChannelCommandNode (read-only channel/action labels)
+|   |-- SharedNodeDrawers.cs                -- GetSharedNodeDrawer / SetSharedNodeDrawer (VariableId + SharedTypeId picker)
+|   |-- PlayMontageChainNodeDrawer.cs       -- drawer for BranchNode used as a montage-chain UI (requires animation queries)
+|   |-- WhenNodePaletteEntries.cs           -- palette entries: WhenNode, ReadEqsResult, SpawnEqsSensor
+|   |-- BlueprintNodePaletteEntries.cs      -- full built-in node-kind vocabulary + ChannelCommandEntries + NonChannelActionEntries
+|   |-- BlueprintMathPaletteEntries.cs      -- Math/* function-call presets
+|   |-- BlueprintCallablePaletteEntries.cs  -- reflection-discovered [BlueprintCallable] CLR helper entries
+|   |-- BlueprintEventCatalog.cs / BlueprintEventDiscovery.cs / BlueprintEventPaletteEntries.cs
+|   |                                       -- discovers [BlueprintEvent]/[EventTarget] custom events; "Publish: {Event}" + EventEntry palette entries
+|   |-- MakeBreakStructPaletteEntries.cs    -- Make/Break/SetMembers palette triple per [BlackboardDtoStruct]
+|   |-- EqsTemplateEntry.cs / EqsTemplateRegistry.cs -- editor-side catalog of EQS template assets
+|   |-- NodeKindDescriptor.cs / EditorColors.cs
 |
 |-- Reload/
-|   |-- QuickReloadService.cs               -- in-process hot reload coordinator
+|   |-- QuickReloadService.cs               -- in-process hot reload (AST compile -> Roslyn -> collectible ALC -> coordinator)
 |   |-- QuickReloadResult.cs                -- result record
-|   |-- FullRebuildService.cs               -- out-of-process dotnet build
+|   |-- FullRebuildService.cs               -- out-of-process `dotnet build`
 |   |-- FullRebuildResult.cs                -- result record
-|   |-- BlueprintSignatureBuilder.cs        -- in-memory asset -> BlueprintSignature
+|   |-- BlueprintSignatureBuilder.cs        -- in-memory BlueprintAsset -> BlueprintSignature (no disk I/O)
+|
+|-- Runtime/
+|   |-- BlueprintAttachService.cs           -- BlueprintAsset -> runtime blueprintId forwarder to BlueprintInstanceService.AttachToEntity
+|   |-- BlueprintRuntimeWiring.cs           -- single source of truth wiring the Instance-Blueprint runtime into a ModuleHostKernel (editor + headless harness share it)
+|   |-- CounterDemoBlueprint.cs             -- demo/sample blueprint wiring
+|   |-- RunBlueprintOnEntityCommand.cs      -- editor command: run a blueprint on a selected entity
 |
 |-- Variables/
-|   |-- BlueprintVariablesWindow.cs         -- window for managing instance variables
+|   |-- BlueprintVariablesWindow.cs         -- legacy variables-list window (wrapped by Windows/BlueprintVariablesManagedWindow)
+|   |-- GraphSignatureEditModel.cs          -- headless edit model for a Function graph's Inputs/Outputs list
 |
 |-- Visuals/
 |   |-- BlueprintEditorTheme.cs             -- ImGui color/style constants
-|   |-- IAttachmentProvider.cs              -- canvas attachment provider interface
-|   |-- WhenNodeAttachmentProvider.cs       -- attachment decorators for WhenNode
-|   |-- ReadEqsResultAttachmentProvider.cs  -- attachment decorators for ReadEqsResultNode
-|   |-- EqsTemplateAttachmentProvider.cs    -- attachment decorators for SpawnEqsSensorNode
-|   |-- CrossAssetDependencyAttachmentProvider.cs  -- cross-asset dependency arrows
-|   |-- ConditionSummaryAttachment.cs       -- inline condition summary rendering
-|   |-- EqsTemplateAttachment.cs            -- EQS template detail rendering
-|   |-- ReadEqsResultAttachment.cs          -- EQS result detail rendering
-|   |-- CrossAssetDependencyAttachment.cs   -- peer dependency detail rendering
-|   |-- WhenFiringPulseRenderer.cs          -- Debug-only canvas renderer for WHEN pulses
-|   |-- PreviewSynthesizer.cs               -- synthesizes attachment preview data
+|   |-- IAttachmentProvider.cs              -- canvas attachment-decorator provider interface
+|   |-- WhenNodeAttachmentProvider.cs / ConditionSummaryAttachment.cs -- inline condition-summary pill for WhenNode
+|   |-- ReadEqsResultAttachmentProvider.cs / ReadEqsResultAttachment.cs
+|   |-- EqsTemplateAttachmentProvider.cs / EqsTemplateAttachment.cs
+|   |-- CrossAssetDependencyAttachmentProvider.cs / CrossAssetDependencyAttachment.cs -- cross-asset peer-reference arrows
+|   |-- WhenFiringPulseRenderer.cs          -- ICustomCanvasRenderer: pulsing overlay when a WhenNode fires (Debug builds only)
+|   |-- PreviewSynthesizer.cs               -- synthesizes attachment preview label text
 |
-|-- Debug/
-    |-- DebugPanelWindow.cs                 -- pause/step controls window
-    |-- WatchPanelWindow.cs                 -- pin watch table window
-    |-- CallstackWindow.cs                  -- node execution trail window
-    |-- HotReloadLogWindow.cs               -- reload event log window
-    |-- HotReloadLogModel.cs                -- queue ring buffer (max 1000)
-    |-- ReloadLogEntry.cs                   -- log entry record
-    |-- MasterSyncTimeControllerAdapter.cs  -- IEngineDebugTimeController adapter
+|-- Windows/
+    |-- BlueprintMyBlueprintWindow.cs       -- ManagedWindow hosting NodeEdit's MyBlueprintPanel (variables/functions/events list)
+    |-- BlueprintMyBlueprintModel.cs        -- headless projection model for the My-Blueprint panel
+    |-- BlueprintDetailsWindow.cs           -- ManagedWindow: resolves selection -> IBlueprintNodeDrawer session, or a reflection-based read-only summary
+    |-- BlueprintVariablesManagedWindow.cs  -- ManagedWindow wrapper around Variables/BlueprintVariablesWindow
+    |-- GraphSignatureWindow.cs             -- ManagedWindow: edits a Function graph's Inputs/Outputs
+    |-- BlueprintBookmarksWindow.cs         -- ManagedWindow hosting NodeEdit's BookmarksPanel
+    |-- VariableCreateModal.cs              -- name+type modal for variable creation (duplicate-name guarded)
 ```
 
 ---
 
 ## Public API Reference
 
-### Root Namespace
+### Root namespace — orchestration & DI
 
----
-
-#### `BlueprintEditorBootstrap` (static class)
-
-Centralizes all production-code registration for drawers, palette entries, and visual
-attachment providers. Call at editor startup after creating the dependency graph.
+#### `BlueprintEditorServiceCollectionExtensions.AddBlueprintEditor(IServiceCollection)`
 
 ```csharp
-public static class BlueprintEditorBootstrap
-{
-    public static BlueprintNodeDrawerRegistry CreateNodeDrawerRegistry(
-        IChannelCommandCatalog channelCatalog,
-        IEngineEventCatalog eventCatalog,
-        IEditService editService,
-        IPredicateCompiler predicateCompiler,
-        EqsTemplateRegistry eqsTemplates,
-        IAnimationTkbQueries? animationQueries = null,
-        Func<string?>? currentClassProvider = null,
-        ISharedStructTypeProvider? sharedStructTypeProvider = null);
-
-    public static NodeKindRegistry CreatePaletteRegistry(
-        IChannelCommandCatalog?   channelCatalog        = null,
-        IBehaviorActionCatalog?   behaviorActionCatalog = null);
-
-    public static List<IAttachmentProvider> CreateAttachmentProviders(
-        EqsTemplateRegistry eqsTemplates,
-        Func<Guid, string?> peerNameResolver);
-
-    public static List<ICustomCanvasRenderer> CreateCanvasRenderers();
-
-    public static void DrawBookmarkEdgeMarkers(GraphView view, BookmarkStore store, IEditorTheme theme);
-
-    public static List<BlueprintAsset> DiscoverRecipes();
-}
+public static IServiceCollection AddBlueprintEditor(this IServiceCollection services);
 ```
 
-`CreateNodeDrawerRegistry` registers eight drawers: the three When-vocabulary drawers
-(`WhenNode`, `ReadEqsResultNode`, `SpawnEqsSensorNode`), `FunctionCallNode` ->
-`FunctionCallNodeDrawer`, `LiteralNode` -> `LiteralNodeDrawer`, `ChannelCommandNode` ->
-`ChannelCommandNodeDrawer`, `GetSharedNode`/`SetSharedNode` -> `GetSharedNodeDrawer`/
-`SetSharedNodeDrawer`, and -- only when `animationQueries`/`currentClassProvider` are both
-supplied -- `BranchNode` -> `PlayMontageChainNodeDrawer` (montage-chain UI on a plain Branch
-node). `sharedStructTypeProvider` defaults to `ReflectionSharedStructTypeProvider` when omitted.
+Registers `DirtyTracker`, `EditorSelectionStore`, `EditorState`, `BlueprintWindowRegistrar`
+(as itself and as `Fdp.Toolkit.Runner.IWindowRegistrar`), and `BlueprintEditorModule`. **No
+longer takes an `assetRootDirectory` parameter** — asset enumeration is the shared catalog's
+job now (`Catalog/BlueprintAssetContributor`, registered by the host separately).
 
-`CreatePaletteRegistry` now registers far more than the When vocabulary: the three When-Node
-entries, the full built-in vocabulary from `BlueprintNodePaletteEntries.All()`, one entry per
-channel-command action (`BlueprintNodePaletteEntries.ChannelCommandEntries`, only when
-`channelCatalog` is non-null), one entry per non-channel behavior action
-(`BlueprintNodePaletteEntries.NonChannelActionEntries`, only when `behaviorActionCatalog` is
-non-null), `BlueprintMathPaletteEntries.All()`, reflection-discovered `[BlueprintCallable]`
-helpers (`BlueprintCallablePaletteEntries.Discover()`), one "Publish: {Event}" entry per
-discovered custom event (`BlueprintEventPaletteEntries.PublishEntries()`), and one Make/Break
-pair per `[BlackboardDtoStruct]` (`MakeBreakStructPaletteEntries.Entries(...)`).
-
-`CreateAttachmentProviders` returns four providers:
-- `WhenNodeAttachmentProvider` -- inline decorators for WhenNode canvas nodes
-- `ReadEqsResultAttachmentProvider` -- decorators for EQS result reads
-- `EqsTemplateAttachmentProvider` -- shows EQS template name and details
-- `CrossAssetDependencyAttachmentProvider` -- draws cross-asset peer arrows with resolved names
-
-`CreateCanvasRenderers` returns `WhenFiringPulseRenderer` in Debug builds only (compiled out via
-`#if DEBUG`, not a runtime flag).
-
-`DrawBookmarkEdgeMarkers` (not part of the `ICustomCanvasRenderer` pass -- called directly by the
-host once per frame after the canvas renders) draws edge-of-viewport arrows toward off-screen
-bookmarked viewports (slots 1-9), delegating to `BookmarkEdgeMarkerRenderer`.
-
-`DiscoverRecipes` enumerates `*.bp.json` files under the `Hrot.AI.Behaviors` assembly's
-production recipes folder and returns only assets with non-null `EditorMetadata.Recipe`, for the
-Asset Browser's "New from Recipe" dialog.
-
----
-
-#### `BlueprintsEditor` (class, `Hrot.Blueprints.Editor`)
-Assembly placeholder stub. No public members beyond the implicit default constructor.
-
----
-
-#### `IBlueprintEditorWindow` (interface)
-
-```csharp
-public interface IBlueprintEditorWindow
-{
-    string Title { get; }
-    bool IsVisible { get; set; }
-    void ToggleVisible();
-    void DrawUI();
-    void OnActivated();
-    void OnDeactivated();
-}
-```
-
-Implemented by every editor panel. `DrawUI()` is called each frame when
-`IsVisible` is true. `OnActivated` / `OnDeactivated` bracket the editor session.
-
----
-
-#### `BlueprintEditorWindowBase` (abstract class)
-
-```csharp
-public abstract class BlueprintEditorWindowBase : IBlueprintEditorWindow
-{
-    public abstract string Title { get; }
-    public bool IsVisible { get; set; }
-    public void ToggleVisible();
-    public abstract void DrawUI();
-    public virtual void OnActivated();
-    public virtual void OnDeactivated();
-}
-```
-
-Base implementation that provides default no-op `OnActivated/OnDeactivated` and
-the `ToggleVisible()` flip. Derived classes override `Title` and `DrawUI()`.
-
----
-
-#### `BlueprintEditorModule` (sealed class)
+#### `BlueprintEditorModule` (sealed)
 
 ```csharp
 public sealed class BlueprintEditorModule
 {
     public BlueprintEditorModule(
-        IWindowRegistrar windowRegistrar,
-        DirtyTracker dirtyTracker,
-        EditorSelectionStore selectionStore,
-        EditorState editorState,
-        IAssetCatalog catalog,
-        IOutputConsole outputConsole);
+        IWindowRegistrar windowRegistrar, DirtyTracker dirtyTracker,
+        EditorSelectionStore selectionStore, EditorState editorState,
+        IOutputConsole outputConsole, IBlueprintDebugSession? session = null);
 
     public IReadOnlyList<IBlueprintEditorWindow> Windows { get; }
-
     public void RegisterWindow(IBlueprintEditorWindow window);
-    public void OnEditorActivated();
-    public void OnEditorDeactivated();
-    public void DrawAllWindows();
-    public void OnReloadCompleted(ReloadCompletedInfo info);
+    public void OnEditorActivated();     // attaches session, registers "Blueprint/{Title}" menu entries, calls OnActivated on each window
+    public void OnEditorDeactivated();   // detaches session, calls OnDeactivated on each window
+    public void DrawAllWindows();        // per-frame: draws every window with IsVisible == true
+    public void OnReloadCompleted(ReloadCompletedInfo info);  // logs; on FullRebuild loads *.dbgmap.json files and registers them
 }
 ```
 
-Central orchestrator. Call `RegisterWindow` for each panel before calling
-`OnEditorActivated`. `DrawAllWindows` is the per-frame draw call. Routes reload
-completion events to the output console.
+Orchestrates only the **legacy** `IBlueprintEditorWindow` set. The `ManagedWindow`-based panels
+under `Windows/`/`EntityBlueprints/` are independent of this class.
 
----
-
-#### `BlueprintEditorServiceCollectionExtensions` (static class)
+#### `BlueprintWindowRegistrar` (sealed) : `Fdp.Toolkit.Runner.IWindowRegistrar`
 
 ```csharp
-public static class BlueprintEditorServiceCollectionExtensions
+public sealed class BlueprintWindowRegistrar : Fdp.Toolkit.Runner.IWindowRegistrar
 {
-    public static IServiceCollection AddBlueprintEditor(
-        this IServiceCollection services,
-        string assetRootDirectory);
+    public BlueprintWindowRegistrar(
+        EditorSelectionStore selectionStore, DirtyTracker dirtyTracker, EditorState editorState,
+        IBlueprintDebugSession session, IBlueprintEditorCoordinator coordinator,
+        DrawerRegistry drawerRegistry);
+
+    public void RegisterWindows(IBlueprintWindowRegistry registry);
+    // engine entry point: void EngineWindowRegistrar.RegisterWindows(WindowManager wm)
 }
 ```
 
-Registers the five core singletons: `DirtyTracker`, `EditorSelectionStore`,
-`EditorState`, `IAssetCatalog` (as `FileSystemAssetCatalog`), and
-`BlueprintEditorModule`.
+`RegisterWindows` registers factories for **Inspector**, **Debug Panel**, **Watch Panel**,
+**Callstack**, and **Hot Reload Log**. Its explicit `Fdp.Toolkit.Runner.IWindowRegistrar`
+implementation wraps the engine `WindowManager` in a private `WindowManagerRegistry` and calls
+`RegisterWindows(IBlueprintWindowRegistry)`, so each registered window becomes a
+`BlueprintManagedWindowAdapter : ManagedWindow` with lazy (on-first-render) instantiation.
 
----
+#### `BlueprintManagedWindowAdapter` (internal) : `ManagedWindow`
 
-#### `BlueprintEditorConfiguration` (sealed record)
+Bridges any `IBlueprintEditorWindow` factory into the engine `ManagedWindow` contract; the
+underlying window is created on first `DrawClientArea()` call, and `Title` is refreshed from
+the wrapped window every frame (so `DebugPanelWindow`'s `"Debug [PAUSED]"` title updates live).
 
-```csharp
-public sealed record BlueprintEditorConfiguration(
-    string DebugMapsOutputDirectory,
-    string BehaviorsDllDirectory,
-    string BehaviorsBuildTarget = "");
-```
-
-Immutable compile-time configuration. Injected wherever the editor needs to locate
-generated DLLs or debug map files.
-
----
-
-#### `BlueprintEditorPreferences` (sealed class)
+#### `BlueprintEditorBootstrap` (static)
 
 ```csharp
-public sealed class BlueprintEditorPreferences
+public static class BlueprintEditorBootstrap
 {
-    public bool  AutoReloadOnSave         { get; set; }  // default: false
-    public bool  WatchPanelVisible        { get; set; }  // default: true
-    public float GraphEditorGridSnap      { get; set; }  // default: 8.0f
-    public int   NodeHistorySize          { get; set; }  // default: 64
-    public int   HotReloadLogMaxEntries   { get; set; }  // default: 1000
+    public static BlueprintNodeDrawerRegistry CreateNodeDrawerRegistry(
+        IChannelCommandCatalog channelCatalog, IEngineEventCatalog eventCatalog,
+        IEditService editService, IPredicateCompiler predicateCompiler,
+        EqsTemplateRegistry eqsTemplates, IAnimationTkbQueries? animationQueries = null,
+        Func<string?>? currentClassProvider = null,
+        ISharedStructTypeProvider? sharedStructTypeProvider = null);
 
-    public static BlueprintEditorPreferences Defaults { get; }
+    public static NodeKindRegistry CreatePaletteRegistry(
+        IChannelCommandCatalog? channelCatalog = null,
+        IBehaviorActionCatalog? behaviorActionCatalog = null);
 
-    public void Save(string path);
-    public static BlueprintEditorPreferences Load(string path);
+    public static List<IAttachmentProvider> CreateAttachmentProviders(
+        EqsTemplateRegistry eqsTemplates, Func<Guid, string?> peerNameResolver);
+
+    public static List<ICustomCanvasRenderer> CreateCanvasRenderers();
+    public static void DrawBookmarkEdgeMarkers(GraphView view, BookmarkStore store, IEditorTheme theme);
+    public static List<BlueprintAsset> DiscoverRecipes();
 }
 ```
 
-JSON-serialized (camelCase, indented). `Load` returns defaults when the file is
-absent or malformed -- never throws.
+- `CreateNodeDrawerRegistry` registers **8 drawers**: `WhenNode` → `WhenNodeDrawer`,
+  `ReadEqsResultNode` → `ReadEqsResultNodeDrawer`, `SpawnEqsSensorNode` →
+  `SpawnEqsSensorNodeDrawer`, `FunctionCallNode` → `FunctionCallNodeDrawer`, `LiteralNode` →
+  `LiteralNodeDrawer`, `ChannelCommandNode` → `ChannelCommandNodeDrawer`, `GetSharedNode`/
+  `SetSharedNode` → `GetSharedNodeDrawer`/`SetSharedNodeDrawer`, and — only when
+  `animationQueries` and `currentClassProvider` are both supplied — `BranchNode` →
+  `PlayMontageChainNodeDrawer` (a montage-chain UI layered onto a plain Branch node).
+- `CreatePaletteRegistry` registers the 3 When-vocabulary entries, the full built-in vocabulary
+  (`BlueprintNodePaletteEntries.All()`), one entry per channel-command action (when
+  `channelCatalog` is supplied), one entry per non-channel behavior action (when
+  `behaviorActionCatalog` is supplied), `BlueprintMathPaletteEntries.All()`, reflection-discovered
+  `[BlueprintCallable]` entries, one "Publish: {Event}" entry per discovered custom event, and one
+  Make/Break struct pair per `[BlackboardDtoStruct]`.
+- `CreateAttachmentProviders` returns `WhenNodeAttachmentProvider`,
+  `ReadEqsResultAttachmentProvider`, `EqsTemplateAttachmentProvider`,
+  `CrossAssetDependencyAttachmentProvider`.
+- `CreateCanvasRenderers` returns `WhenFiringPulseRenderer` in Debug builds only
+  (`#if DEBUG`, compiled out in Release — not a runtime flag).
+- `DrawBookmarkEdgeMarkers` is called directly by the host (not through the
+  `ICustomCanvasRenderer` pass) once per frame after the canvas renders.
+- `DiscoverRecipes` enumerates `*.bp.json` under `Hrot.AI.Behaviors`'s production recipes
+  folder, returning only assets with non-null `EditorMetadata.Recipe`.
 
----
-
-#### `IWindowRegistrar` (interface)
-
-```csharp
-public interface IWindowRegistrar
-{
-    void RegisterMenuEntry(string path, Action onSelected);
-    void RegisterToolbarEntry(string label, Action onClicked);
-    void RegisterShortcut(string keybind, Action onTriggered);
-}
-```
-
-Provided by the host application. The module registers `Blueprint/<Title>` menu
-entries for each window during `OnEditorActivated`.
-
----
-
-#### `IOutputConsole` (interface)
-
-```csharp
-public interface IOutputConsole
-{
-    void LogInfo(string message);
-    void LogWarning(string message);
-    void LogError(string message);
-    void LogDebug(string message);
-    void LogDiagnostic(Diagnostic diagnostic);  // Microsoft.CodeAnalysis.Diagnostic
-}
-```
-
-Abstracts the output channel. Both reload services write progress and errors here.
-
----
-
-#### `IAssetCatalog` / `AssetCatalogEntry` (interface + record)
-
-```csharp
-public sealed record AssetCatalogEntry(Guid AssetId, string Path);
-
-public interface IAssetCatalog
-{
-    IEnumerable<AssetCatalogEntry> EnumerateAll();
-}
-```
-
-`EnumerateAll` is called lazily; implementations may scan the filesystem on each
-call.
-
----
-
-#### `FileSystemAssetCatalog` (sealed class)
-
-```csharp
-public sealed class FileSystemAssetCatalog : IAssetCatalog
-{
-    public FileSystemAssetCatalog(string rootDirectory);
-    public IEnumerable<AssetCatalogEntry> EnumerateAll();
-}
-```
-
-Scans `rootDirectory` recursively for `*.bp.json` files, parses the `AssetId`
-property from each JSON root object, and yields `AssetCatalogEntry` records.
-Skips unreadable or malformed files silently.
-
----
-
-#### `EditorState` (sealed class)
-
-```csharp
-public sealed class EditorState
-{
-    public void SetInMemoryAsset(BlueprintAsset asset);
-    public BlueprintAsset? GetInMemoryAsset(Guid assetId);
-    public void RemoveInMemoryAsset(Guid assetId);
-    public IReadOnlyDictionary<Guid, BlueprintAsset> InMemoryAssets { get; }
-}
-```
-
-Thread-unsafe in-memory overlay. Stores the "live" working copy of each open
-asset keyed by `Guid`. `QuickReloadService` reads from here when building sibling
-signatures for the compiler.
-
----
-
-#### `EditorSelectionStore` (sealed class)
-
-```csharp
-public sealed class EditorSelectionStore
-{
-    public BlueprintAsset? SelectedAsset { get; }
-    public event Action? OnSelectionChanged;
-    public void SelectAsset(BlueprintAsset? asset);
-}
-```
-
-Raises `OnSelectionChanged` synchronously on every call to `SelectAsset`, even
-when `asset` is the same value.
-
----
-
-#### `DirtyTracker` (sealed class)
+#### Core stores
 
 ```csharp
 public sealed class DirtyTracker
+{ void MarkDirty(Guid); void MarkClean(Guid); bool IsDirty(Guid); IReadOnlySet<Guid> DirtyAssets; }
+
+public sealed class EditorSelectionStore
+{ BlueprintAsset? SelectedAsset; event Action? OnSelectionChanged; void SelectAsset(BlueprintAsset?); }
+
+public sealed class EditorState
 {
-    public void MarkDirty(Guid assetId);
-    public void MarkClean(Guid assetId);
-    public bool IsDirty(Guid assetId);
-    public IReadOnlySet<Guid> DirtyAssets { get; }
+    void SetInMemoryAsset(BlueprintAsset); BlueprintAsset? GetInMemoryAsset(Guid);
+    void RemoveInMemoryAsset(Guid); IReadOnlyDictionary<Guid, BlueprintAsset> InMemoryAssets;
 }
 ```
 
-HashSet-backed. `IsDirty` is O(1). `DirtyAssets` exposes the live set directly --
-do not mutate.
+Unchanged in shape from earlier revisions of this doc; still the in-memory overlay
+`QuickReloadService` reads for sibling signatures.
 
----
-
-#### `ReloadSource` (enum) / `ReloadCompletedInfo` (record)
+#### `BlueprintPeerSource` (sealed) — replaces the retired `IAssetCatalog`
 
 ```csharp
-public enum ReloadSource
+public sealed class BlueprintPeerSource
 {
-    QuickReloadViaApi,
-    FullRebuildViaFileWatcher,
+    public BlueprintPeerSource(string rootDirectory);
+    public IEnumerable<(Guid AssetId, string Path)> EnumerateAll();
 }
-
-public sealed record ReloadCompletedInfo(
-    ReloadSource Source,
-    Guid[]       ReloadedAssetIds,
-    string?      DllPath,
-    long         DurationMs);
 ```
 
-Passed to `BlueprintEditorModule.OnReloadCompleted`. `DllPath` is non-null only
-for full rebuilds.
+Header-only `*.bp.json` scan (case-insensitive extension match, `IgnoreInaccessible: true`).
+Used by `QuickReloadService.BuildSiblingSignatures` and
+`BlueprintDocumentFactory.BuildPeerSignatureLookup` to resolve peer `BlueprintSignature`s for
+`CallPeerBlueprintNode` pin typing — the old `IAssetCatalog`/`AssetCatalogEntry`/
+`FileSystemAssetCatalog` types it replaced are gone entirely (retired when the standalone Asset
+Browser window moved to the shared catalog).
 
----
-
-### Window Classes
-
-#### `AssetBrowserWindow` (sealed)
+#### `SaveActiveBlueprintCommand` (sealed)
 
 ```csharp
-public sealed class AssetBrowserWindow : BlueprintEditorWindowBase
+public sealed class SaveActiveBlueprintCommand
 {
-    public override string Title => "Asset Browser";
-    public IReadOnlyList<AssetCatalogEntry> CatalogEntries { get; }
-    public void RefreshCatalog();
-    public override void DrawUI();
-    public override void OnActivated();   // calls RefreshCatalog()
-    public override void OnDeactivated();
+    public enum SaveStatus { Saved, NoBlueprintOpen, NoSourcePath }
+    public sealed class SaveResult { public SaveStatus Status { get; } /* ... */ }
 }
 ```
 
-Renders a 4-column ImGui table (Name, Dispatch, Hostings, Status). Supports free-
-text filter. Dirty assets are prefixed with `*` and shown with amber color in the
-Status column. Double-click opens the asset in the graph editor by calling
-`EditorSelectionStore.SelectAsset`.
+Implements the **projection-only** invariant (DEBT-BCP-005): before serialization, every node's
+`Pins` list is temporarily swapped to an empty sentinel and restored in a `finally` block, so the
+live in-memory asset is never left mutated even if serialization throws, and the saved file keeps
+`"Pins": []` for byte-stable diffs.
+
+#### `BlueprintNewAssetService` (sealed) : `INewAssetService`
+
+Creates new in-memory `BlueprintAsset`s from a recipe (`NewFromRecipeService.CreateFromRecipe`)
+or from a hardcoded "Empty" recipe built in its constructor.
 
 ---
 
-#### `GraphEditorWindow` (sealed)
+### Catalog namespace (`Hrot.Blueprints.Editor.Catalog`)
+
+#### `BlueprintAssetContributor` (sealed) : `IAssetCatalogContributor`
 
 ```csharp
-public sealed class GraphEditorWindow : BlueprintEditorWindowBase
+public sealed class BlueprintAssetContributor : IAssetCatalogContributor
 {
-    public override string Title => "Graph Editor";
-    public BlueprintAsset? CurrentAsset { get; }
-    public SelectionState  Selection    { get; }   // GraphEditor.SelectionState
-    public CommandHistory  Commands     { get; }   // GraphEditor.CommandHistory
-    public void OpenAsset(BlueprintAsset asset);
-    public override void DrawUI();
-    public override void OnDeactivated();   // clears selection
+    public BlueprintAssetContributor(string rootDirectory);
+    public AssetKind Kind => AssetKind.Blueprint;
+    public string? BaseFolder { get; }
+    public event Action? ContributorChanged;
+    public IReadOnlyList<IEditableAsset> Enumerate();
+    public void Refresh();   // rescans *.bp.json, header-only (AssetId, Name, Dispatch, Primitive.Intent)
 }
 ```
 
-Toolbar buttons: **Save** (marks current asset clean), **Quick Reload** (disabled
-when asset is clean), **Full Rebuild**. The canvas is now the real **NodeEdit `Host/`
-layer** (`BlueprintNodeModel` / `GraphModel` / `NodePinSchema` / `BlueprintCommandSink`),
-supporting wire-drop node/link editing with `CommandHistory`-backed undo. See the
-Host/ NodeEdit Model section immediately below.
+Plugs Blueprint assets into the shared `Hrot.Editor.AiShared.Catalog` asset browser. Produces
+`BlueprintFileAsset : IEditableAsset, IComposedBlueprintIdentity, IAssetIconKeyProvider` —
+lightweight, header-only; the full `BlueprintAsset` is loaded lazily by
+`BlueprintDocumentFactory.LoadAsset` when the document is opened.
+`BlueprintFileAsset.GeneratedClassName` precomputes the AiPrimitive-composed class name
+(`"{SanitizedName}_{BlueprintIdHash:X8}_Bp"`) so BTree-side FQN matching stays Roslyn-free.
+
+#### `BlueprintReferenceContributor` (sealed) : `IReferenceCatalogContributor`
+
+Exposes each Blueprint asset as a referenceable `IAssetSubElement` by asset-id key (matching
+`CallPeerBlueprintNode.PeerBlueprintId`'s `"D"`-formatted string) and by its composed
+AiPrimitive `TickCore` FQN key (for BTree nodes that host it). Per-node reference enumeration is
+deferred (Phase 2) since the header-only asset can't walk the graph without full deserialization.
+
+#### `BlueprintIconKeys` (internal static)
+
+Maps a header's `Dispatch` + `Primitive.Intent` to a picker icon key: `Library` → Function,
+`AiPrimitive`+`Condition` → Condition, `AiPrimitive`+`Action` → Action, else `null` (kind default).
 
 ---
 
-#### Host/ NodeEdit Model
+### Host namespace (`Hrot.Blueprints.Editor.Host`)
 
-Bridges the `NodeEdit` ExtDeps canvas library to the Blueprint asset model, replacing the
-old placeholder child window:
-
-| Type | Role |
-|------|------|
-| `BlueprintNodeModel` | NodeEdit-facing node wrapper; `BuildTitle` produces the node's canvas title text |
-| `GraphModel` | NodeEdit-facing graph wrapper (nodes + links) |
-| `NodePinSchema` | Canonical pin projection (`GetCanonicalPins`); any Stage0 pin-enrichment change on the compiler side must be mirrored here or wires render "unused" |
-| `BlueprintCommandSink` | Routes NodeEdit wire-drop / add / remove interactions into `IGraphCommand`s on `CommandHistory`, so canvas edits are undoable |
-
----
-
-#### `InspectorWindow` (sealed)
+#### `BlueprintDocumentFactory.Build(...)` (static)
 
 ```csharp
-public sealed class InspectorWindow : BlueprintEditorWindowBase
-{
-    public override string Title => "Inspector";
-    public override void DrawUI();
-}
+public static AiCanvasContext Build(
+    IEditableAsset asset, AiEditorAdapterBundle bundle, EditService? editService = null,
+    NodeKindRegistry? paletteRegistry = null,
+    IReadOnlyList<ICustomCanvasRenderer>? extraRenderers = null,
+    IChannelCommandCatalog? channelCommands = null, BlueprintPeerSource? peerAssetCatalog = null,
+    ActionCatalog.IBehaviorActionCatalog? behaviorActions = null,
+    IBlueprintDebugSession? debugSession = null);
 ```
 
-Three tabs: Node (placeholder for selected-node properties), Graph (lists graph
-names), Asset (shows name, AssetId, Dispatch, dirty state).
-
----
-
-#### `PreferencesWindow` (sealed)
+The single entry point for opening a Blueprint document on the shared canvas. See Diagram 1
+above for the exact construction order. Also hosts two headless-testable helpers used by the
+My-Blueprint "+" and variable-create-modal flows:
 
 ```csharp
-public sealed class PreferencesWindow : BlueprintEditorWindowBase
-{
-    public override string Title => "Blueprint Preferences";
-    public override void DrawUI();
-}
+internal static VariableDecl AddVariable(BlueprintAsset asset, Action? markDirty = null);
+internal static VariableDecl? CreateVariable(BlueprintAsset asset, string name, string typeId, Action? markDirty = null);
+internal static bool IsDuplicateVariableName(BlueprintAsset asset, string name);
 ```
 
-Checkbox for `AutoReloadOnSave`, integer input for `HotReloadLogMaxEntries`. Save
-button calls `BlueprintEditorPreferences.Save(savePath)`. Reset button restores
-`Defaults`.
+`CreateVariable` **rejects** (returns `null`, no rename/suffix) blank or case-insensitively
+duplicate names — the caller (the create modal) is expected to warn the user and disable
+Confirm, but this method is the authoritative guard.
 
----
-
-### GraphEditor Namespace
-
-#### `IGraphCommand` (interface)
+#### `BlueprintGraphModel` (sealed) : `IGraphModel`
 
 ```csharp
-public interface IGraphCommand
+public sealed class BlueprintGraphModel : IGraphModel
 {
-    string Description { get; }
-    void Execute();
-    void Undo();
+    public BlueprintGraphModel(
+        BlueprintAsset asset, Graph graph, NodeKindRegistry? kindRegistry = null,
+        IChannelCommandCatalog? channelCommands = null,
+        Func<Guid, BlueprintSignature?>? peerSignatureLookup = null,
+        IPinDefaultValueEditorRegistry? editorRegistry = null,
+        IEnumValueProvider? enumProvider = null,
+        ActionCatalog.IBehaviorActionCatalog? behaviorActions = null);
+
+    public GraphId Id { get; }
+    public IReadOnlyCollection<INodeModel> Nodes { get; }
+    public IReadOnlyCollection<ILinkModel> Links { get; }
+    public IReadOnlyCollection<ICommentModel> Comments { get; }
+    public event Action<GraphChangeNotification>? Changed;
+
+    public INodeModel? FindNode(NodeId); public IPinModel? FindPin(PinId);
+    public ILinkModel? FindLink(LinkId); public ICommentModel? FindComment(CommentId);
+
+    public void Rebuild();                                  // full two-pass re-projection
+    public void NotifyChanged();                            // fires Changed(Wholesale)
+    public void NotifyMoved(IReadOnlyCollection<NodeId>);    // fires Changed(NodesMoved), no rebuild
+    public void RebuildAndNotify();
+
+    public static LinkId MakeLinkId(Guid fromPinId, Guid toPinId);   // deterministic
+    internal Link? FindAssetLink(LinkId id);
 }
 ```
 
----
-
-#### `AddNodeCommand` / `DeleteNodeCommand` (sealed classes)
+#### `NodePinSchema` (internal static)
 
 ```csharp
-public sealed class AddNodeCommand : IGraphCommand
+internal static class NodePinSchema
 {
-    public AddNodeCommand(Graph graph, Node node);
-    public string Description { get; }   // "Add Node <id>"
-    public void Execute();   // graph.Nodes.Add(node)
-    public void Undo();      // graph.Nodes.Remove(node)
-}
-
-public sealed class DeleteNodeCommand : IGraphCommand
-{
-    public DeleteNodeCommand(Graph graph, Node node);
-    public string Description { get; }   // "Delete Node <id>"
-    public void Execute();   // graph.Nodes.Remove(node)
-    public void Undo();      // graph.Nodes.Add(node)
+    public static IReadOnlyList<Pin> GetCanonicalPins(
+        Node node, NodeKindRegistry? registry = null, BlueprintAsset? asset = null,
+        IChannelCommandCatalog? channelCommands = null, Graph? containingGraph = null,
+        Func<Guid, BlueprintSignature?>? peerSignatureLookup = null,
+        IBehaviorActionCatalog? behaviorActions = null);
 }
 ```
 
----
+The single source of truth for "what pins does this node kind have, right now, given this
+asset/graph/catalog context." Resolution order: asset-authored pins (test builders) → literal
+inline-editor special case → `NodeKindRegistry` descriptor → dynamic per-kind computation
+(`EventEntryNode`, `ReturnNode`, `FunctionCallNode` CLR-vs-graph-call dispatch, `GetVariableNode`/
+`SetVariableNode`, `GetParameterNode`, `GetAllParametersNode`, `GetSharedNode`/`SetSharedNode`,
+`MakeStructNode`/`BreakStructNode`/`SetMembersNode`, `ChannelCommandNode` channel-vs-non-channel
+dispatch, `PublishEventNode`, `CallCustomEventNode`, `CallPeerBlueprintNode`) → static
+`BuiltInNodeRegistry` fallback. Every branch's doc comment cites the exact compiler stage
+(`Stage0_Rehydrate`, `Stage5_Schedule`) it must stay in parity with — treat this file as load-bearing
+whenever a node kind's pin shape changes on the compiler side.
 
-#### `CommandHistory` (sealed)
+#### `BlueprintCommandSink` (sealed) : `IGraphCommandSink`
 
 ```csharp
-public sealed class CommandHistory
+public sealed class BlueprintCommandSink : IGraphCommandSink
 {
-    public const int Capacity = 64;
-    public int Count { get; }
-    public bool CanUndo { get; }
-    public bool CanRedo { get; }
-    public void Execute(IGraphCommand command);
-    public void Undo();
-    public void Redo();
-    public void Clear();
+    public BlueprintCommandSink(
+        BlueprintAsset asset, Graph graph, BlueprintGraphModel model, BlueprintNodeCatalog catalog,
+        BlueprintLinkValidator validator, CommandHistory history, EditService editService,
+        Action<BlueprintAsset> markDirty, IChannelCommandCatalog? channelCommands = null,
+        IEnumValueProvider? enumProvider = null,
+        ActionCatalog.IBehaviorActionCatalog? behaviorActions = null);
+
+    public GraphCommandResult Apply(GraphCommand command);
 }
 ```
 
-Ring-buffer with capacity 64. Executing a new command while `_undoIndex < _count`
-discards all redo history (standard linear undo model). When full, the oldest
-entry is evicted.
+Dispatches on the `GraphCommand` discriminated union: `AddNode`, `RemoveNodes`, `AddLink`,
+`RemoveLinks`, `MoveNodes`, `ChangeParentMultiple`, `SetNodeProperty`, `SetPinDefault`,
+`InsertReroute`/`MoveReroute`/`RemoveReroute`, `AddComment`/`UpdateComment`/`RemoveComment`,
+`Batch`. Notably: `ApplyAddLink` auto-replaces a conflicting exec-out fan-out or data-input link
+as **one** undoable `LinkEditCommand` step; `ApplyPinIds` stamps caller-supplied pin GUIDs
+(from the wire-drop auto-connect path) onto a freshly created node's canonical pins so the
+paired `AddLink` resolves; Literal pin-default edits write into `LiteralNode.ValueJson`
+(formatted as a C# literal) rather than the generic `PinDefaults` map; enum pin defaults persist
+as the member-name string (`ENUM-NAME`), not the raw integer.
+
+#### `BlueprintNodeModel` (internal sealed) : `INodeModel`
+
+`BuildTitle` is the canonical node-title formatter — worth knowing when debugging canvas
+display: `FunctionCallNode` → method name (or "Function Call"); `GetVariableNode`/
+`SetVariableNode` → `"Get {name}"`/`"Set {name}"` resolved from `asset.Variables`;
+`LiteralNode` → inline-editable types show `"Literal ({Type})"`, others show the formatted
+value directly; `CompareNode`/`BinaryOpNode`/`BooleanOpNode`/`NotNode` → operator symbol
+(`==`, `+`, `&&`, `!`); `PublishEventNode`/`CallCustomEventNode`/`WaitForEventNode` → short event
+name (last FQN segment); `ChannelCommandNode` → `"Command: {ActionId}"`. A CLR
+`FunctionCallNode` whose method can no longer be resolved by reflection sets
+`NodeState.Error` with a `StatusTooltip` explaining the mismatch.
+
+#### `BlueprintEditorHostServices`, `BlueprintNodeCatalog`, `BlueprintTypeSystem`, `BlueprintLinkValidator`
+
+Standard NodeEdit host-service quartet (`IEditorHostServices`, `INodeCatalog`, type-compat
+surface, `ILinkValidator`) — see the layer table above for their roles; signatures are stable
+DI-style constructors taking the sibling Host/ services plus the engine `AiEditorAdapterBundle`.
 
 ---
 
-#### `SelectionState` (sealed)
+### ActionCatalog namespace
+
+#### `IBehaviorActionCatalog` / `BehaviorActionCatalog`
 
 ```csharp
-public sealed class SelectionState
+[Flags] public enum BehaviorActionHosts { None = 0, Blueprint = 1, BTree = 2, Hsm = 4 }
+public enum BehaviorActionSource { ChannelCommand, Hardcoded, AiPrimitive }
+
+public sealed record BehaviorActionEntry(
+    string Id, string DisplayName, string? Category, string? ChannelTypeFqn,
+    ushort ActionId, string ParamsTypeFqn, BehaviorActionHosts ValidHosts, BehaviorActionSource Source);
+
+public interface IBehaviorActionCatalog
 {
-    public HashSet<Guid> SelectedNodes { get; }
-    public HashSet<Guid> SelectedLinks { get; }
-    public void ClearAll();
-    public bool IsNodeSelected(Guid nodeId);
-    public bool IsLinkSelected(Guid linkId);
-    public void SelectNode(Guid nodeId, bool addToSelection = false);
+    IReadOnlyList<BehaviorActionEntry> GetActions();
+    IReadOnlyList<BehaviorActionEntry> GetActions(BehaviorActionHosts host);
+    event Action? Changed;
 }
 ```
 
-`SelectNode` with `addToSelection = false` clears both sets first.
+`BehaviorActionCatalog` composes `IChannelCommandCatalog` (→ `ChannelCommand` entries, always
+`Blueprint`-hosted) with `IActionSchemaExporter` (→ `Hardcoded`/`AiPrimitive` entries, hosted per
+`ActionHosting` flags; `ActionHosting.Shared` additionally maps to `BehaviorActionHosts.Blueprint`
+— this is the AN7 mechanism that lets `[SharedAiAction]`/compiled-AiPrimitive actions be invoked
+from a Blueprint graph's generalized `ChannelCommandNode.ActionFqn` path). The snapshot rebuilds
+atomically (volatile reference swap) on `IActionSchemaExporter.Changed`.
 
 ---
 
-### Inspector Namespace
+### Debug namespace (`Hrot.Blueprints.Editor.Debug`)
 
-#### `IStructEditDrawer<T>` (interface)
+#### `DebugPanelWindow`, `WatchPanelWindow`, `CallstackWindow` — fully implemented, not stubs
 
 ```csharp
-public interface IStructEditDrawer<T>
+public sealed class DebugPanelWindow : BlueprintEditorWindowBase
 {
-    bool Draw(string label, ref T value, DrawContext ctx);
+    public override string Title => _session.IsPaused ? "Debug [PAUSED]" : "Debug";
+    public bool? LastRenderedPausedState { get; }                       // test-observable
+    public IReadOnlyList<Breakpoint>? LastRenderedBreakpoints { get; }  // test-observable
+    public string? LastStepActionInvoked { get; }                       // test-observable
 }
 ```
 
-Returns `true` if the call modified `value`. Implementations call ImGui widgets.
+`DebugPanelWindow` renders the shared `DebugStepControls` row plus, while paused, a
+Node ID / Asset ID / Hits breakpoint table. `WatchPanelWindow` subscribes/unsubscribes
+`OnPinValueChangedEvent` in `OnActivated`/`OnDeactivated` and renders a Name/Type/Value/Tick
+table (hex-dumped raw bytes, `[stale]` suffix for `Watch.IsStale`). `CallstackWindow` reads
+`IBlueprintDebugSession.GetCurrentCallStack()` and renders a Depth/Asset/Method table, or
+`"No call stack."` when empty. All three skip ImGui calls under
+`ImGui.GetCurrentContext() == IntPtr.Zero` so they're exercised headlessly in tests via their
+`LastRendered*` capture fields.
 
----
-
-#### `DrawContext` (sealed record)
-
-```csharp
-public sealed record DrawContext(
-    bool   IsReadOnly    = false,
-    string IdPrefix      = "",
-    object? TypeRegistry = null);
-```
-
-Passed into every drawer call to communicate rendering constraints and shared
-context.
-
----
-
-#### `DrawerRegistry` (sealed)
+#### `DebugStepControls` (static)
 
 ```csharp
-public sealed class DrawerRegistry
+public static class DebugStepControls
 {
-    public void Register<T>(IStructEditDrawer<T> drawer);
-    public bool TryGet<T>(out IStructEditDrawer<T> drawer);
+    public static void Draw(IBlueprintDebugSession session, Action<string>? onStepAction = null);
+    public static string FormatNodePosition(IBlueprintDebugSession session);  // "node {p+1} / {count}", testable w/o ImGui
 }
 ```
 
-Type-keyed dictionary. `Register` overwrites an existing registration for the
-same type.
+Renders Continue / **Step Back** / Step Over / Step Into / Step Out. Step Back
+(node-granular rewind, NGS-2.4c) is disabled when `session.CurrentNodePointer == 0`.
+
+#### `ExecSuccessors` (static)
+
+```csharp
+public static class ExecSuccessors
+{ public static IReadOnlyList<Guid> GetSuccessors(Graph graph, Guid nodeId); }
+```
+
+Mirrors the compiler's `Stage5_Schedule` successor-following logic (handles both pin-less
+projection-only nodes via `BuiltInNodeRegistry` rehydration and pin-carrying nodes); used by
+step logic to compute where to plant temporary one-shot breakpoints.
+
+#### `BlueprintDebugToNodeEditAdapter` (sealed) : `IDebugSession`
+
+Bridges `IBlueprintDebugSession` to NodeEdit's native `IDebugSession` so `NodeRenderer` draws
+breakpoints/execution overlays without any Blueprint-aware paint code. `CurrentlyExecutingNode`
+prioritizes (1) the virtual step-pointer's current node while paused (NGS-2.4b — makes
+Step-Back/Into/Over move the highlight live), then (2) `PausedAt`, then (3) the most recent
+execution-history entry.
+
+#### `AiDebugCommands` (static)
+
+Registers the polymorphic "AI Debug" toolbar group (`debug.continue`/`stepOver`/`stepInto`/
+`stepOut`/`pause`, common to any `IAiDebugSession`) plus the Blueprint-only `debug.stepBack`
+(present only when `IDebugSessionRegistry.ActiveSession is IBlueprintDebugSession`). Exposes
+`BuildGroupModel`/`NodePositionText` as headless seams for the render path.
+
+#### `BlueprintDebugSession` (sealed, in `Hrot.Blueprints.Core.Debug` namespace)
+
+Full production `IBlueprintDebugSession` + `Hrot.Editor.AiShared.Debug.IAiDebugSession`
+implementation, despite living in this Editor project. Two parallel breakpoint/watch
+dictionaries (by id, and by node/pin-string for O(1) hot-probe lookup); per-entity
+`ExecutionHistory` ring buffers; per-entity call-frame stacks for `GetCurrentCallStack()`;
+graph registration (`RegisterGraph`) so `ExecSuccessors` has structure to step through; soft-pause
+semantics (`HandleBreakpointHit` sets `_isPaused` and calls `_timeController.RequestPause()`
+without blocking the calling thread — the tick completes, the engine pauses at the next frame
+boundary).
+
+#### `MasterSyncTimeControllerAdapter` (sealed) : `IEngineDebugTimeController`
+
+Bridges `MasterSyncController` — transitioning to deterministic mode with an empty slave roster
+pauses the local sim clock without waiting for network acks; `RequestStepOneTick` steps `1/60s`
+while paused.
 
 ---
 
-#### Primitive Drawers
+### NodeDrawers namespace
 
-`FloatDrawer`, `IntDrawer`, `BoolDrawer`, `StringDrawer` -- all implement
-`IStructEditDrawer<T>` with stub bodies (ImGui calls commented out, return
-`false`). They check `ctx.IsReadOnly` and skip modification when set.
+`IBlueprintNodeDrawer` (`Handles(Node)` / `CreateSession(Node, BlueprintAsset)`) +
+`INodeEditSession` (`Draw()` / `Dispose()`) is the drawer contract; `BlueprintDetailsWindow`
+(Windows/) is the one production consumer that resolves a drawer for the current selection.
+
+| Drawer | Node kind | Notes |
+|--------|-----------|-------|
+| `WhenNodeDrawer` | `WhenNode` | 4-section inspector: dispatch guard, mode selector (ValueChanged/EventFired/ConditionMet/EqsResult), mode-specific sub-form, RisingEdge/FallingEdge checkboxes, preview pill via `PreviewSynthesizer`. |
+| `ReadEqsResultNodeDrawer` | `ReadEqsResultNode` | Dispatch guard + combo over `EqsSensorHandle`-typed variables. |
+| `SpawnEqsSensorNodeDrawer` | `SpawnEqsSensorNode` | Dispatch guard + template picker over `EqsTemplateRegistry`. |
+| `FunctionCallNodeDrawer` | `FunctionCallNode` | CLR method picker; reads/writes `TargetTypeId`/`MethodName` via `IEditService`. |
+| `LiteralNodeDrawer` | `LiteralNode` | Typed inline value editor (delegates formatting to `LiteralValueJson`). |
+| `ChannelCommandNodeDrawer` | `ChannelCommandNode` | Read-only `ChannelType`/`ActionId` labels — action is baked at palette-creation time, no in-place mutation path. |
+| `GetSharedNodeDrawer` / `SetSharedNodeDrawer` | `GetSharedNode` / `SetSharedNode` | `VariableId` (free text) + `SharedTypeId` (filtered picker over `ISharedStructTypeProvider`), editable post-placement. |
+| `PlayMontageChainNodeDrawer` | `BranchNode` | Montage-chain UI over a plain Branch node; only registered when animation queries are supplied. |
+
+Palette-entry factories (`NodeKindDescriptor` producers registered into `NodeKindRegistry`):
+`WhenNodePaletteEntries` (When/ReadEqsResult/SpawnEqsSensor), `BlueprintNodePaletteEntries`
+(`All()` built-in vocabulary + `ChannelCommandEntries`/`NonChannelActionEntries`),
+`BlueprintMathPaletteEntries` (Math/* presets), `BlueprintCallablePaletteEntries` (reflection
+over `[BlueprintCallable]`), `BlueprintEventDiscovery`/`BlueprintEventPaletteEntries`
+(reflection over `[BlueprintEvent]`/`[EventTarget]` → "Publish: {Event}" + `EventEntry`
+Self/Any-filter entries), `MakeBreakStructPaletteEntries` (Make/Break/SetMembers triple per
+`[BlackboardDtoStruct]`, via `ISharedStructTypeProvider`).
+
+`EqsTemplateRegistry`/`EqsTemplateEntry` — editor-side catalog of EQS template assets
+(`Register`/`EnumerateAll`/`TryGet(Guid)`); distinct from the compiler-facing
+`IEqsTemplateCatalog` (which exposes only `Contains(Guid)`).
 
 ---
 
-### Reload Namespace
+### EntityBlueprints namespace
+
+`EntityBlueprintsEditModel` is the headless view-model behind the "Entity Blueprints" runtime
+authoring panel: `RefreshReality()` scans all three blackboard-tier components
+(`BlueprintBlackboard1024`/`4096`/`16384`) on a live entity via `EntityRepository`;
+`StageAdd`/`StageRemove`/`RevertAll` manage a pending edit set; `ComputeProjection()` returns a
+`Projection(Slots, Bytes, Tier, Status)` predicting the post-commit blackboard tier and whether
+it needs an upgrade or exceeds the ceiling; `BuildCommitPlan(CommitTiming)` emits either a
+paused-mode `CommitPlan` (direct `AttachBlueprintIds`/`DetachBlueprintIds` + optional
+`UpgradeToTier`) or a running-mode plan (`AttachInstanceBlueprintEvent`/
+`RemoveInstanceBlueprintEvent` records for the event bus). `EntityBlueprintsPanel` renders it;
+`EntityBlueprintsManagedWindow` wraps the panel behind a lazy `ManagedWindow` factory.
+
+---
+
+### Reload namespace
 
 #### `QuickReloadService` (sealed)
 
@@ -960,34 +939,28 @@ public sealed class QuickReloadService
     public IReadOnlyList<BlueprintSignature>? LastSignaturesUsedForTesting { get; }
 
     public QuickReloadService(
-        IAssetCatalog catalog,
-        EditorState editorState,
-        IOutputConsole outputConsole,
-        IBlueprintCompiler compiler,
-        AiHotReloadCoordinator coordinator,
+        BlueprintPeerSource catalog, EditorState editorState, IOutputConsole outputConsole,
+        IBlueprintCompiler compiler, AiHotReloadCoordinator coordinator,
         IBlueprintDebugSession? session = null);
 
     public Task<QuickReloadResult> TriggerAsync(BlueprintAsset asset);
+
+    public Task<QuickReloadResult> TriggerFromSourcesAsync(
+        IReadOnlyList<(string Source, string VirtualPath)> sources, string assemblyName,
+        DebugMap? debugMap = null, Guid? assetIdForDebugMap = null);
 }
 ```
 
-`TriggerAsync` is synchronous internally (no `await`), wrapped in
-`Task.FromResult` for a future-compatible signature. The full 7-step pipeline:
+Constructor now takes `BlueprintPeerSource` (not the retired `IAssetCatalog`).
+`TriggerFromSourcesAsync` is the **kind-agnostic** half of the pipeline (Roslyn compile → ALC
+load → `HsmActionDispatcher.ClearAll()` → `BlueprintRegistrarScanner.Scan` into staging
+registries → register debug map → `AiHotReloadCoordinator.ApplyQuickReload` atomic swap) —
+`TriggerAsync` is the Blueprint-specific half that AST-compiles first and then delegates to it,
+so BTree/HSM hot reload can reuse the same tail pipeline.
 
-1. Build sibling signatures (in-memory overrides + disk fallback).
-2. AST compile via `IBlueprintCompiler.Compile`.
-3. Roslyn compile generated C# source to PE + PDB bytes.
-4. Load into a new collectible `AssemblyLoadContext`.
-5. Clear `HsmActionDispatcher` static state.
-6. Invoke `BlueprintRegistrarAttribute` methods into staging registries.
-7. Register debug map then call `AiHotReloadCoordinator.ApplyQuickReload`.
-
-Registrar parameter injection rules:
-- `BlueprintRegistry` is **forbidden** (violates RCU contract).
-- `HsmActionDispatcher` is **forbidden** (static class -- must be called directly).
-- `BehaviorRegistry`, `IPredicateCompiler`, and `ISearchPredicateRegistry` are **supported** injection types. `IPredicateCompiler` and `ISearchPredicateRegistry` were added by the blueprints-3 When-Node iteration to support `Condition Met` mode `WhenNode` blueprints that call `InitializePredicates` in their registrar.
-
----
+Registrar injection rules (unchanged): `BlueprintRegistry` and `HsmActionDispatcher` are
+**forbidden** injection types (RCU-contract / static-class violations respectively);
+`BehaviorRegistry`, `IPredicateCompiler`, `ISearchPredicateRegistry` are supported.
 
 #### `FullRebuildService` (sealed)
 
@@ -995,785 +968,204 @@ Registrar parameter injection rules:
 public sealed class FullRebuildService
 {
     public bool PendingDrainAfterBuild { get; }
-
     public FullRebuildService(IOutputConsole outputConsole, string buildTarget = "");
-
     public async Task<FullRebuildResult> TriggerAsync();
 }
 ```
 
-Runs `dotnet build [buildTarget]` as a child process with redirected stdout.
-Streams each output line to `_outputConsole.LogInfo`. Sets
-`PendingDrainAfterBuild = true` on success so the caller can trigger a file-
-watcher drain pass.
+Unchanged in shape: spawns `dotnet build [buildTarget]`, streams stdout/stderr line-by-line to
+`IOutputConsole`, sets `PendingDrainAfterBuild = true` on a zero exit code.
 
----
-
-#### `QuickReloadResult` / `FullRebuildResult` (records)
-
-```csharp
-public sealed record QuickReloadResult(bool Succeeded, string? ErrorMessage, long DurationMs);
-public sealed record FullRebuildResult(bool Succeeded, int ExitCode, long DurationMs);
-```
-
----
-
-#### `BlueprintSignatureBuilder` (static class)
+#### `BlueprintSignatureBuilder` (static)
 
 ```csharp
 public static class BlueprintSignatureBuilder
-{
-    public static BlueprintSignature FromInMemoryAsset(BlueprintAsset asset);
-}
-```
-
-Projects a live `BlueprintAsset` to a `BlueprintSignature` without any disk I/O.
-Computes `BlueprintId` via `BlueprintIdHash.Compute(asset.AssetId)`, sanitizes the
-name, and extracts exported function names from graphs of `GraphKind.Function`.
-
----
-
-### Debug Namespace
-
-#### `BlueprintBreakpointMenuPopulator` (static, `Hrot.Blueprints.Core.Debug` namespace)
-
-Populates the right-click context menu for a Blueprint graph node with **Universal
-Breakpoints** items. Blueprint execution is probe-driven rather than trace-buffer-driven,
-so this populator uses the **external-hit path** via `IDataBreakpointManager.OnExternalHit`
-rather than `TraceBufferScanPredicateDto`.
-
-Menu item added: **"Add Conditional Data Breakpoint..."** — creates a `CompoundPredicateDto`
-(AND) with:
-- Branch A (read-only): `ExternalHitTagPredicateDto { Tag = nodeId }` — fires when the
-  Blueprint probe hits this specific node.
-- Branch B (user-configurable): `BlueprintVariablePredicateDto { TargetBlueprintAssetId }` —
-  evaluates the user-specified variable condition against the Blueprint's blackboard memory.
-
-After registration the caller receives the `BreakpointId` and may open the Predicate
-Details Inspector via the optional `onOpenConditionalInspector` callback.
-
-```csharp
-BlueprintBreakpointMenuPopulator.PopulateNodeMenu(
-    nodeId:                     node.Id.ToString("D"),
-    assetId:                    asset.AssetId,
-    builder:                    contextMenuBuilder,
-    manager:                    dataBreakpointManager,
-    onOpenConditionalInspector: (id, dto) => OpenInspectorFor(id));
-```
-
-#### `BlueprintDebugSession` (sealed, lives in `Hrot.Blueprints.Core.Debug` namespace)
-
-Despite its location in the Editor project, `BlueprintDebugSession` is declared in
-`Hrot.Blueprints.Core.Debug`. It is the full production implementation of
-`IBlueprintDebugSession`.
-
-Key public members:
-
-```csharp
-// Probe sink (IBlueprintProbeSink)
-void OnNodeEnter(Entity self, string nodeId);
-void OnPinValueChanged<T>(Entity self, string pinId, T value) where T : unmanaged;
-void OnPeerCallEnter(Entity entity, string targetAssetName, string targetGraphName);
-void OnPeerCallExit(Entity entity);
-
-// Lifecycle
-bool IsAttached { get; }
-void Detach();
-
-// Breakpoints
-BreakpointId SetBreakpoint(Guid assetId, Guid graphId, Guid nodeId);
-void ClearBreakpoint(BreakpointId id);
-void ClearAllBreakpoints();
-IReadOnlyList<Breakpoint> GetBreakpoints();
-bool IsAnyBreakpointActive { get; }
-
-// Watches
-WatchId AddWatch(Guid assetId, Guid graphId, Guid pinId, string displayName, Type expectedType);
-void RemoveWatch(WatchId id);
-void ClearAllWatches();
-IReadOnlyList<Watch> GetWatches();
-bool IsAnyWatchActive { get; }
-
-// Pause state
-bool IsPaused { get; }
-Breakpoint? PausedAt { get; }
-Entity? PausedOnEntity { get; }
-
-// Pause control
-void Continue();
-void Pause();
-void StepOver();
-void StepInto();
-void StepOut();
-
-// Inspection
-BlueprintStateSnapshot? GetCurrentStateSnapshot();
-IReadOnlyList<NodeExecuted> GetRecentNodeHistory(int maxCount = 100);
-IReadOnlyList<NodeHistoryEntry> GetNodeHistory(Entity entity, int maxCount = 100);
-
-// Debug map registration
-void RegisterDebugMap(DebugMap map);
-void UnregisterDebugMap(Guid assetId);
-
-// Entity filter
-void SetEntityFilter(Entity? entity);
-Entity? GetEntityFilter();
-
-// Active entity tracking
-IReadOnlyList<Entity> GetActiveEntities(Guid assetId);
-
-// Hot reload hooks
-void OnHotReloadBegin();
-void OnHotReloadCompleted(Guid[] reloadedAssetIds);
-
-// PDB locator
-void RegisterPdbLocator(Guid assetId, Func<string> pdbPathResolver);
-
-// Events
-event Action<BreakpointHit>? OnBreakpointHit;
-event Action? OnSessionStateChanged;
-event Action<Guid>? OnBreakpointListChanged;
-event Action<NodeExecuted>? OnNodeExecuted;         // IBlueprintDebugSession explicit
-event Action<PinValueChanged>? OnPinValueChangedEvent; // IBlueprintDebugSession explicit
-```
-
-Internal storage uses two parallel dictionaries for O(1) breakpoint and watch
-lookup: one keyed by `BreakpointId`/`WatchId` (for management) and one keyed by
-the node/pin string representation (for hot probe path). Per-entity execution
-histories are stored in `ExecutionHistory` ring buffers; the history size is
-bounded by `BlueprintEditorPreferences.NodeHistorySize` (default 64).
-
-Soft-pause semantics (Patch 1): `HandleBreakpointHit` sets `_isPaused = true` and
-calls `_timeController.RequestPause()` but returns immediately without blocking
-the simulation thread. The current tick completes normally; the engine pauses at
-the next frame boundary.
-
----
-
-#### `DebugPanelWindow` (sealed)
-
-```csharp
-public sealed class DebugPanelWindow : BlueprintEditorWindowBase
-{
-    public override string Title => _session.IsPaused ? "Debug [PAUSED]" : "Debug";
-}
-```
-
-Title dynamically reflects pause state. `DrawUI` is fully implemented: it renders the shared
-`DebugStepControls` row (Continue / Step Over / Step Into / Step Out) and, while paused, a
-3-column breakpoint table (Node ID / Asset ID / Hits). It also exposes test-observable
-`LastRenderedPausedState` / `LastRenderedBreakpoints` / `LastStepActionInvoked` and skips ImGui
-calls when no live context is present (headless tests).
-
----
-
-#### `WatchPanelWindow` (sealed)
-
-```csharp
-public sealed class WatchPanelWindow : BlueprintEditorWindowBase
-{
-    public override string Title => "Watches";
-    public override void OnActivated();    // subscribes to OnPinValueChangedEvent
-    public override void OnDeactivated();  // unsubscribes
-}
-```
-
-Subscribes/unsubscribes from `IBlueprintDebugSession.OnPinValueChangedEvent` so
-the table row data stays live only while the window is visible.
-
----
-
-#### `CallstackWindow` (sealed)
-
-```csharp
-public sealed class CallstackWindow : BlueprintEditorWindowBase
-{
-    public override string Title => "Callstack";
-}
-```
-
-`DrawUI` is fully implemented: it reads `IBlueprintDebugSession.GetCurrentCallStack()` (the
-peer-call frame stack) and renders a 3-column table (Depth / Asset / Method), or "No call stack."
-when empty. The last-rendered `CallFrame` list is exposed via `LastRenderedFrames` for headless
-tests.
-
----
-
-#### `HotReloadLogWindow` (sealed)
-
-```csharp
-public sealed class HotReloadLogWindow : BlueprintEditorWindowBase
-{
-    public HotReloadLogModel Model { get; }
-    public override string Title => "Hot Reload Log";
-    public void OnReloadCompleted(ReloadCompletedInfo info);
-    public void OnReloadFailed(string message, ReloadSource source);
-}
-```
-
-`OnReloadCompleted` creates a success `ReloadLogEntry`; `OnReloadFailed` creates a
-failure entry. The model caps entries at 1000.
-
----
-
-#### `HotReloadLogModel` (sealed)
-
-```csharp
-public sealed class HotReloadLogModel
-{
-    public const int MaxEntries = 1000;
-    public IReadOnlyCollection<ReloadLogEntry> Entries { get; }
-    public int Count { get; }
-    public void AddEntry(ReloadLogEntry entry);
-    public void Clear();
-}
-```
-
-Queue-based ring buffer: enqueue, then dequeue oldest when over limit.
-
----
-
-#### `ReloadLogEntry` (sealed record)
-
-```csharp
-public sealed record ReloadLogEntry(
-    DateTime     Timestamp,
-    ReloadSource Source,
-    bool         Succeeded,
-    string?      Message,
-    long         DurationMs);
+{ public static BlueprintSignature FromInMemoryAsset(BlueprintAsset asset); }
 ```
 
 ---
 
-#### `MasterSyncTimeControllerAdapter` (sealed)
-
-```csharp
-public sealed class MasterSyncTimeControllerAdapter : IBlueprintTimeController
-{
-    public MasterSyncTimeControllerAdapter(MasterSyncController masterSync);
-    public bool IsPausedByDebugger { get; }
-    public void RequestPause();       // SwitchToDeterministic(empty roster)
-    public void RequestResume();      // SwitchToContinuous()
-    public void RequestStepOneTick(); // Step(1/60 s) when paused
-}
-```
-
-Bridges the engine's `MasterSyncController` to `IBlueprintTimeController`.
-Transitioning to deterministic mode with an empty slave roster pauses the local
-simulation clock without waiting for network acknowledgements.
-
----
-
-### NodeDrawers Namespace
-
-#### `WhenNodeDrawer` / `WhenNodeSession`
-
-```csharp
-public sealed class WhenNodeDrawer : IBlueprintNodeDrawer
-{
-    public WhenNodeDrawer(
-        IChannelCommandCatalog channelCatalog,
-        IEngineEventCatalog eventCatalog,
-        IEditService editService,
-        IPredicateCompiler predicateCompiler);
-
-    public bool Handles(Node node);  // true for WhenNode
-    public INodeEditSession CreateSession(Node node, BlueprintAsset parentAsset);
-}
-```
-
-The session (`WhenNodeSession`) draws a four-section inspector:
-
-1. **Dispatch guard** -- shows a warning banner when the parent asset is not `Instance`
-   dispatch.
-2. **Mode selector** -- radio buttons for `ValueChanged`, `EventFired`, `ConditionMet`,
-   `EqsResult`.
-3. **Mode-specific form** -- one of four sub-forms depending on `WhenNode.Mode`:
-   - `ValueChanged`: component-type picker, property-path field, epsilon input, source
-     selector (`SelfComponent` / `PeerBlueprintVariable` / `WorkingStateField`).
-   - `EventFired`: event-type combo (from `IEngineEventCatalog`), target-filter toggle,
-     optional payload condition builder.
-   - `ConditionMet`: embeds the `IPredicateCompiler`'s tree editor UI.
-   - `EqsResult`: sensor-variable combo, trigger enum picker, conditional threshold /
-     max-age inputs.
-4. **Edge selector** -- checkboxes for `RisingEdge` and `FallingEdge`.
-5. **Preview pill** -- calls `PreviewSynthesizer.Synthesize(node)` to show a compact
-   one-line summary (e.g., `"Health.Current ↑"`).
-
-Internal test hook: `WhenNodeSession.SetModeForTest(WhenMode)` simulates a mode change
-without ImGui, used by `WhenNodeDrawerTests`.
-
----
-
-#### `ReadEqsResultNodeDrawer` / `ReadEqsResultNodeSession`
-
-```csharp
-public sealed class ReadEqsResultNodeDrawer : IBlueprintNodeDrawer
-{
-    public bool Handles(Node node);  // true for ReadEqsResultNode
-    public INodeEditSession CreateSession(Node node, BlueprintAsset parentAsset);
-}
-```
-
-The session draws:
-- A dispatch guard (Instance only).
-- A combo populated from all `EqsSensorHandle`-typed variables on the parent asset.
-- Read-only hints for the fixed output pins.
-
-Internal test hook: `ReadEqsResultNodeSession.GetSensorVariableNamesForTest()` returns
-the filtered variable names without ImGui, used by `ReadEqsResultNodeDrawerTests`.
-
----
-
-#### `SpawnEqsSensorNodeDrawer` / `SpawnEqsSensorNodeSession`
-
-```csharp
-public sealed class SpawnEqsSensorNodeDrawer : IBlueprintNodeDrawer
-{
-    public SpawnEqsSensorNodeDrawer(EqsTemplateRegistry eqsTemplates);
-    public bool Handles(Node node);  // true for SpawnEqsSensorNode
-    public INodeEditSession CreateSession(Node node, BlueprintAsset parentAsset);
-}
-```
-
-The session draws:
-- A dispatch guard (Instance only).
-- A template picker combo backed by `EqsTemplateRegistry.EnumerateAll()`.
-- Read-only hints for the five input pins and the `Handle` output pin.
-
-Internal test hook: `SpawnEqsSensorNodeSession.SelectTemplateForTest(Guid)` simulates
-template selection, used by `SpawnEqsSensorNodeDrawerTests`.
-
----
-
-#### `WhenNodePaletteEntries` (static class)
-
-Factory methods for palette registration. Call at editor startup via
-`NodeKindRegistry.Register(...)`.
-
-```csharp
-public static class WhenNodePaletteEntries
-{
-    // Category: ReactiveGuardVocabulary.CategoryName
-    // Default shape: In (exec-in), Out (exec-out), OnFired (exec-out)
-    public static NodeKindDescriptor WhenNode();
-
-    // Category: "EQS"
-    // Default shape: Handle (in), ResultIndex (in), IsReady/ResultCount/Entity/Position/Score (out)
-    public static NodeKindDescriptor ReadEqsResult();
-
-    // Category: "EQS"
-    // Default shape: In/Out (exec), SearchRadius/FactionFilter/... (in), Handle (out)
-    public static NodeKindDescriptor SpawnEqsSensor();
-}
-```
-
----
-
-#### `MakeBreakStructPaletteEntries` (static class)
-
-Generates one `MakeStruct`/`BreakStruct`/`SetMembers` palette triple per `[BlackboardDtoStruct]`-tagged
-type, reifying pins from the struct's own fields (same catalog+picker+reified-pins pattern as
-`ChannelCommand`/`PublishEvent`).
-
-#### `BlueprintEventDiscovery` / `BlueprintEventPaletteEntries`
-
-`BlueprintEventDiscovery` reflection-scans loaded assemblies for `[BlueprintEvent]`-tagged event
-structs and `[EventTarget]` fields; `BlueprintEventPaletteEntries` uses that catalog to populate the
-`PublishEvent` and `EventEntry` (custom-event) palette pickers, including the Self/Any recipient
-filter on `EventEntry`.
-
-#### `EqsTemplateRegistry` / `EqsTemplateEntry`
-
-```csharp
-public sealed class EqsTemplateRegistry
-{
-    public void Register(EqsTemplateEntry entry);
-    public IReadOnlyList<EqsTemplateEntry> EnumerateAll();
-    public EqsTemplateEntry? TryGet(Guid assetId);
-}
-
-public sealed class EqsTemplateEntry
-{
-    public Guid   AssetId     { get; init; }  // matches SpawnEqsSensorNode.TemplateAssetId
-    public string DisplayName { get; init; }
-}
-```
-
-Editor-side catalog of known EQS template assets. Populated at startup from the project's
-EQS template assets. Distinct from the runtime `IEqsTemplateCatalog` (which is
-compiler-facing and exposes only `bool Contains(Guid)`).
-
----
-
-### Visuals Namespace
-
-#### `WhenFiringPulseRenderer`
-
-```csharp
-public sealed class WhenFiringPulseRenderer : ICustomCanvasRenderer
-{
-    public string          Id          => "bp.when_firing_pulse";
-    public CanvasRenderPass Pass        => CanvasRenderPass.AfterNodes;
-    public bool            IsActive    { get; }  // false when isDebugMode=false
-
-    // Defaults: true in DEBUG builds, false in RELEASE builds.
-    public WhenFiringPulseRenderer(bool isDebugMode = ...);
-
-    // Call from the host debug event handler when a WhenNode fires.
-    public void OnNodeFired(NodeId nodeId);
-
-    // Test helpers
-    public bool HasPulse(NodeId nodeId);
-    public int  ActivePulseCount { get; }
-}
-```
-
-When active, renders an expanding amber rectangle around a WhenNode for 0.4 seconds after
-it fires. The alpha fades linearly from 1.0 to 0.0; the rect expands by up to 8 px.
-In Release builds (`isDebugMode = false`) the renderer is a permanent no-op: `IsActive`
-is false, `OnNodeFired` is a no-op, and no per-frame allocation occurs.
-
-Registered via `BlueprintEditorBootstrap.CreateCanvasRenderers()`.
-
----
-
-#### `ConditionSummaryAttachment` / `WhenNodeAttachmentProvider`
-
-```csharp
-public sealed class ConditionSummaryAttachment : IAttachmentModel
-{
-    public string? Glyph    => "⚡";
-    public string? Label    { get; }   // compact summary, max 36 chars
-    public string? Tooltip  { get; }   // "Mode: X  Edges: Y"
-    public AttachmentState State { get; }  // Warning when Edges == None
-
-    public void Refresh(WhenNode node);
-}
-
-public sealed class WhenNodeAttachmentProvider : IAttachmentProvider
-{
-    public bool Handles(Node node);  // true for WhenNode
-    public IAttachmentModel? CreateOrRefresh(Node node, IAttachmentModel? existing);
-}
-```
-
-The pill label is produced by `PreviewSynthesizer.Synthesize(node, maxLength: 36)`,
-which generates a short human-readable summary such as `"Health ↑"` or
-`"Cover sensor: TopChanged"`. The state is `Warning` when `Edges == WhenEdge.None`.
-
----
-
-#### `EqsTemplateAttachment` / `EqsTemplateAttachmentProvider`
-
-```csharp
-public sealed class EqsTemplateAttachment : IAttachmentModel
-{
-    public string? Glyph => "📡";
-    public string? Label { get; }   // template DisplayName, or "(no template)" / "(template not found)"
-    public AttachmentState State { get; }  // Warning when template unset or not found
-
-    public void Refresh(SpawnEqsSensorNode node, EqsTemplateRegistry templates);
-}
-
-public sealed class EqsTemplateAttachmentProvider : IAttachmentProvider
-{
-    public EqsTemplateAttachmentProvider(EqsTemplateRegistry templates);
-    public bool Handles(Node node);  // true for SpawnEqsSensorNode
-    public IAttachmentModel? CreateOrRefresh(Node node, IAttachmentModel? existing);
-}
-```
-
----
-
-#### `ReadEqsResultAttachment` / `ReadEqsResultAttachmentProvider`
-
-```csharp
-public sealed class ReadEqsResultAttachment : IAttachmentModel
-{
-    public string? Glyph => "📊";
-    public string? Label { get; }   // sensor variable name, or "(no variable)"
-    public AttachmentState State { get; }  // Warning when SensorVariableName is empty
-
-    public void Refresh(ReadEqsResultNode node);
-}
-
-public sealed class ReadEqsResultAttachmentProvider : IAttachmentProvider
-{
-    public bool Handles(Node node);  // true for ReadEqsResultNode
-    public IAttachmentModel? CreateOrRefresh(Node node, IAttachmentModel? existing);
-}
-```
-
----
-
-## Visual Asset Comparison
-
-`Hrot.Blueprints.Editor` participates in the Visual Asset Comparison feature via two files
-under `Comparison/`:
-
-| File | Purpose |
-|------|---------|
-| `BlueprintComparisonSanitizer` | Sanitizes `.bp.json` files: migrates schema via `IComparisonMigrationAdapter`, walks the JSON DOM to hoist per-node comments and graph-level canvas comments from `EditorMetadata`, strips presentation fields (`X`, `Y`, `Viewport`, etc.), humanizes `CallPeerBlueprint` cross-asset references via the catalog, and re-serializes with alphabetically sorted keys for determinism. |
-| `BlueprintEditorComparisonServiceCollectionExtensions` | `AddBlueprintEditorComparison()` DI extension; registers `BlueprintComparisonSanitizer` and wires it into `SanitizerRegistry`. |
-
-Call `AddBlueprintEditorComparison()` after `AddSharedAiEditor()` in the composition root.
-
-See [Hrot.Editor.AiShared.Comparison.md](../Editor/Hrot.Editor.AiShared.Comparison.md) for the
-full comparison feature architecture.
+### Variables / Windows namespaces
+
+`GraphSignatureEditModel` is the headless mutation model behind `Windows/GraphSignatureWindow`
+(add/rename/retype/remove a Function graph's `Inputs`/`Outputs` `ParameterDecl` list; each
+mutation invokes an `onChanged` callback that marks the asset dirty).
+
+`Windows/BlueprintMyBlueprintWindow` hosts NodeEdit's `MyBlueprintPanel` behind a
+`BlueprintMyBlueprintModel` projection, retargeted on active-document change; it also owns a
+`VariableCreateModal` wired to the `editor.create-variable` command
+(`BlueprintDocumentFactory.RegisterCreateVariableCommand(commands, openModal)` overload) so the
+My-Blueprint "+" button opens the name/type modal instead of silently creating `NewVar`.
+
+`Windows/BlueprintDetailsWindow` is the modern replacement for the legacy `InspectorWindow`'s
+Node tab: it resolves the active `BlueprintNodeSelection` to an `IBlueprintNodeDrawer` +
+`INodeEditSession` via `BlueprintNodeDrawerRegistry`, and falls back to a reflection-driven
+read-only property summary for node kinds with no registered drawer (distinguishing "nothing
+selected" from "selected but not editable").
+
+`Windows/GraphSignatureWindow`, `Windows/BlueprintVariablesManagedWindow`,
+`Windows/BlueprintBookmarksWindow` follow the same `ManagedWindow` + `Retarget(asset)` pattern.
 
 ---
 
 ## Dependencies
 
-### Project References
+### Project references
 
-| Reference                   | Purpose                                                         |
-|-----------------------------|-----------------------------------------------------------------|
-| `Hrot.Blueprints.Core`      | Asset model (`BlueprintAsset`, `Graph`, `Node`); compiler interfaces (`IBlueprintCompiler`, `CompileOptions`); debug interfaces (`IBlueprintDebugSession`, `IBlueprintProbeSink`, `DebugMap`); catalog helpers (`BlueprintSignatureParser`); `IEngineDebugTimeController` |
-| `Hrot.Diagnostics.Breakpoints` | `IDataBreakpointManager`, `BreakpointId`, `SearchPredicateDto` hierarchy — consumed by `BlueprintBreakpointMenuPopulator` |
-| `Fdp.Core`                  | Entity type, `ISimulationView`, core primitives                  |
-| `Fdp.Presentation`          | ImGui host (ImGuiNET bindings, render loop integration)          |
-| `Fdp.Toolkits`              | `AiHotReloadCoordinator`, `BlueprintRegistry`, `BehaviorRegistry`, `BlueprintRegistryStaging`, `BlueprintIdHash`, `HsmActionDispatcher`, `MasterSyncController`, time controller types |
+| Reference | Purpose |
+|-----------|---------|
+| `Hrot.Blueprints.Core` | Asset model, compiler pipeline, debug interfaces, `BuiltInNodeRegistry`/catalogs. |
+| `Hrot.Diagnostics.Breakpoints` | `IDataBreakpointManager`, `BreakpointId`, `SearchPredicateDto` hierarchy — consumed by `BlueprintBreakpointMenuPopulator`. |
+| `Hrot.Editor.AiShared` | Shared perspective/window/document/catalog/selection/refactor infrastructure this project plugs into (`IAssetCatalogContributor`, `AiCanvasContext`, `AiDocumentManager`, `EditorSelectionStore` (AiShared), `IActionSchemaExporter`, `IRefactorService`, `INewAssetService`, recipe metadata). |
+| `Fdp.Core` | `Entity`, `ISimulationView`, core ECS primitives. |
+| `Fdp.Presentation` | ImGui host (`ImGuiNET`), `WindowManager`/`ManagedWindow`. |
+| `Fdp.Toolkits` | `AiHotReloadCoordinator`, `BlueprintRegistry`/`BlueprintRegistryStaging`, `BehaviorRegistry`, `BlueprintIdHash`, `HsmActionDispatcher`, `MasterSyncController`, `BlueprintInstanceService`, blackboard tier components. |
+| `NodeEditor.Core` / `NodeEditor.UI` (ExtDeps) | The canvas library itself: `IGraphModel`/`INodeModel`/`IPinModel`/`ILinkModel`/`ICommentModel`, `GraphView`, `IGraphCommandSink`, `ILinkValidator`, `INodeCatalog`, `IEditorHostServices`, `IDebugSession`, bookmarks, find bar. |
 
-### NuGet Packages
+### NuGet packages
 
-| Package                                      | Version | Purpose                           |
-|----------------------------------------------|---------|-----------------------------------|
-| `Microsoft.Extensions.DependencyInjection`   | 8.0.0   | DI container for service wiring   |
-
-`Microsoft.CodeAnalysis` (Roslyn) is a transitive dependency via
-`Hrot.Blueprints.Core` (the compiler uses Roslyn). `IOutputConsole.LogDiagnostic`
-accepts `Microsoft.CodeAnalysis.Diagnostic` directly.
+| Package | Purpose |
+|---------|---------|
+| `Microsoft.Extensions.DependencyInjection` | DI container for `AddBlueprintEditor`. |
+| `Microsoft.CodeAnalysis` (Roslyn) | Transitive via `Hrot.Blueprints.Core`; `IOutputConsole.LogDiagnostic` accepts `Microsoft.CodeAnalysis.Diagnostic` directly. |
 
 ---
 
 ## Usage Examples
 
-### Example 1 -- Bootstrapping the Editor with DI
+### Example 1 — DI registration + activating the legacy windows
 
 ```csharp
-// Host-side setup: configure the DI container and activate the module.
 var services = new ServiceCollection();
+services.AddBlueprintEditor();   // DirtyTracker, EditorSelectionStore, EditorState,
+                                  // BlueprintWindowRegistrar, BlueprintEditorModule
 
-// Register editor singletons (catalog root points to the .bp.json asset folder).
-services.AddBlueprintEditor(assetRootDirectory: @"D:\Project\Assets\Blueprints");
-
-// Host provides its own IWindowRegistrar and IOutputConsole implementations.
 services.AddSingleton<IWindowRegistrar, MyWindowRegistrar>();
 services.AddSingleton<IOutputConsole, MyOutputConsole>();
-
-// Register the reload services (provide compiler and coordinator from Hrot.Blueprints.Core).
-services.AddSingleton<IBlueprintCompiler, BlueprintCompiler>();
-services.AddSingleton<AiHotReloadCoordinator>();
-services.AddSingleton<QuickReloadService>();
-services.AddSingleton<FullRebuildService>(sp =>
-    new FullRebuildService(sp.GetRequiredService<IOutputConsole>(), buildTarget: ""));
+services.AddSingleton<IBlueprintDebugSession, BlueprintDebugSession>();
+services.AddSingleton<IBlueprintEditorCoordinator, MyCoordinator>();
+services.AddSingleton<DrawerRegistry>();
 
 var provider = services.BuildServiceProvider();
-
-// Instantiate and configure windows.
 var module = provider.GetRequiredService<BlueprintEditorModule>();
-module.RegisterWindow(new AssetBrowserWindow(
-    provider.GetRequiredService<IAssetCatalog>(),
-    provider.GetRequiredService<EditorSelectionStore>(),
-    provider.GetRequiredService<DirtyTracker>(),
-    provider.GetRequiredService<EditorState>()));
-module.RegisterWindow(provider.GetRequiredService<GraphEditorWindow>());
+
+// Legacy windows are added directly to the module (Inspector/Debug/Watch/Callstack/HotReloadLog
+// are normally supplied via BlueprintWindowRegistrar.RegisterWindows instead — shown here for clarity).
 module.RegisterWindow(new InspectorWindow(
     provider.GetRequiredService<EditorSelectionStore>(),
     provider.GetRequiredService<DirtyTracker>(),
-    new DrawerRegistry()));
+    provider.GetRequiredService<DrawerRegistry>()));
 
-// Activate the module (registers menu entries, calls OnActivated on all windows).
 module.OnEditorActivated();
-
-// Per-frame loop (called by the ImGui host):
-// module.DrawAllWindows();
+// Per-frame: module.DrawAllWindows();
 ```
 
----
-
-### Example 2 -- Triggering a Quick Reload from Code
+### Example 2 — Opening a document on the shared canvas
 
 ```csharp
-// Retrieve services.
-var quickReload = provider.GetRequiredService<QuickReloadService>();
-var editorState = provider.GetRequiredService<EditorState>();
-var dirtyTracker = provider.GetRequiredService<DirtyTracker>();
-var outputConsole = provider.GetRequiredService<IOutputConsole>();
+var docFactory = () => Host.BlueprintDocumentFactory.Build(
+    asset:            blueprintFileAsset,          // IEditableAsset (BlueprintFileAsset)
+    bundle:            aiEditorAdapterBundle,        // engine pickers/clipboard/icons/theme
+    editService:       sharedEditService,
+    paletteRegistry:   BlueprintEditorBootstrap.CreatePaletteRegistry(channelCatalog, behaviorCatalog),
+    channelCommands:   channelCatalog,
+    peerAssetCatalog:  new BlueprintPeerSource(blueprintAssetRoot),
+    behaviorActions:   behaviorActionCatalog,
+    debugSession:      debugSession);
 
-// Assume asset has been edited and stored in EditorState.
+var canvasContext = docFactory();   // AiCanvasContext -- hand to the AiDocumentManager / canvas window
+```
+
+### Example 3 — Triggering a Quick Reload
+
+```csharp
+var quickReload = new QuickReloadService(
+    new BlueprintPeerSource(blueprintAssetRoot), editorState, outputConsole, compiler, coordinator, debugSession);
+
 BlueprintAsset asset = editorState.GetInMemoryAsset(myAssetId)!;
-
-// Trigger an in-process hot reload.
 var result = await quickReload.TriggerAsync(asset);
 
 if (result.Succeeded)
-{
     dirtyTracker.MarkClean(asset.AssetId);
-    outputConsole.LogInfo($"Reload succeeded in {result.DurationMs} ms.");
-}
 else
-{
     outputConsole.LogError($"Reload failed: {result.ErrorMessage}");
-}
 ```
 
----
-
-### Example 3 -- Setting a Breakpoint and Stepping
+### Example 4 — Setting a breakpoint and stepping
 
 ```csharp
-// Obtain the debug session (typically injected as IBlueprintDebugSession).
 IBlueprintDebugSession session = provider.GetRequiredService<IBlueprintDebugSession>();
 
-// Register the debug map produced by the compiler (done automatically by QuickReloadService).
-// session.RegisterDebugMap(compilationResult.DebugMap);
+Guid assetId = asset.AssetId;
+Guid graphId = asset.Graphs[0].Id;
+Guid nodeId  = asset.Graphs[0].Nodes[0].Id;
+var bpId = session.SetBreakpoint(assetId, graphId, nodeId);
 
-// Set a breakpoint on a specific node in a graph.
-Guid assetId = myBlueprintAsset.AssetId;
-Guid graphId = myBlueprintAsset.Graphs[0].Id;
-Guid nodeId  = myBlueprintAsset.Graphs[0].Nodes[0].Id;
-BreakpointId bpId = session.SetBreakpoint(assetId, graphId, nodeId);
-
-// Subscribe to the hit event to update the debug panel.
 session.OnBreakpointHit += hit =>
-{
     Console.WriteLine($"Breakpoint hit at node {hit.NodeId} by entity {hit.Entity}");
-};
 
-// -- later, after the simulation fires OnNodeEnter and the session pauses --
+// ... after the probe fires and the session pauses ...
 if (session.IsPaused)
 {
-    // Step to the next node in the same call depth.
-    session.StepOver();
-    // Or descend into calls:
-    // session.StepInto();
-    // Or resume:
-    // session.Continue();
+    session.StepOver();     // or StepInto() / StepOut() / StepBack() / Continue()
 }
 
-// Clear the breakpoint when done.
 session.ClearBreakpoint(bpId);
 ```
 
----
-
-### Example 4 -- Registering a Custom Property Drawer
+### Example 5 — Saving the active asset
 
 ```csharp
-// Implement a drawer for a custom value type.
-public sealed class Vector2Drawer : IStructEditDrawer<System.Numerics.Vector2>
+var save = new SaveActiveBlueprintCommand(/* ... */);
+var result = save.Execute();   // strips Pins to [] around serialization, restores in a finally block
+
+switch (result.Status)
 {
-    public bool Draw(string label, ref System.Numerics.Vector2 value, DrawContext ctx)
-    {
-        if (ctx.IsReadOnly) return false;
-        return ImGui.InputFloat2(label, ref value);
-    }
+    case SaveActiveBlueprintCommand.SaveStatus.Saved:           dirtyTracker.MarkClean(asset.AssetId); break;
+    case SaveActiveBlueprintCommand.SaveStatus.NoBlueprintOpen: outputConsole.LogWarning("Nothing to save."); break;
+    case SaveActiveBlueprintCommand.SaveStatus.NoSourcePath:    outputConsole.LogError("No source path."); break;
 }
-
-// Register with the DrawerRegistry singleton.
-var registry = new DrawerRegistry();
-registry.Register<System.Numerics.Vector2>(new Vector2Drawer());
-
-// The InspectorWindow uses TryGet<T> when rendering node properties:
-var ctx = new DrawContext(IsReadOnly: false, IdPrefix: "node_");
-if (registry.TryGet<System.Numerics.Vector2>(out var drawer))
-{
-    System.Numerics.Vector2 pos = node.Position;
-    if (drawer.Draw("Position", ref pos, ctx))
-        node.Position = pos;
-}
-```
-
----
-
-### Example 5 -- Persisting and Loading Preferences
-
-```csharp
-string prefsPath = Path.Combine(
-    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-    "MyApp", "blueprint_editor_prefs.json");
-
-// Load (or get defaults if missing/malformed).
-var prefs = BlueprintEditorPreferences.Load(prefsPath);
-
-// Adjust a value.
-prefs.AutoReloadOnSave       = true;
-prefs.NodeHistorySize        = 128;
-prefs.HotReloadLogMaxEntries = 500;
-
-// Save back to disk.
-prefs.Save(prefsPath);
 ```
 
 ---
 
 ## Best Practices
 
-### 1. Always Register Windows Before Activating the Module
-
-`OnEditorActivated` iterates `_windows` and calls `RegisterMenuEntry` +
-`OnActivated` for each entry. Windows added after activation will not have their
-menu entries registered and will not receive `OnActivated`.
-
-### 2. Do Not Pass `BlueprintRegistry` into Blueprint Registrars
-
-`QuickReloadService` enforces this at runtime and throws
-`HotReloadRegistrarException`. The reason is the RCU (read-copy-update) contract:
-staging buffers (`BlueprintRegistryStaging`, `BehaviorRegistry`) must be committed
-atomically by `AiHotReloadCoordinator.ApplyQuickReload`. Direct access to the live
-registry during registrar invocation would corrupt the atomic handoff.
-
-### 3. Use In-Memory Asset Overrides for Sibling Signatures
-
-When a Quick Reload compiles asset A, the compiler needs the public signatures of
-all sibling assets (to resolve cross-blueprint calls). `QuickReloadService`
-prefers `EditorState.GetInMemoryAsset` over the disk copy for any asset that has
-in-memory changes. Always call `EditorState.SetInMemoryAsset` after modifying an
-asset so siblings see the updated signature.
-
-### 4. Detach the Debug Session Before Disposing
-
-`BlueprintDebugSession.Detach()` resumes simulation (if paused), unregisters
-`DebugProbe.Sink`, and clears all breakpoints, watches, and history. Skipping
-`Detach` may leave the simulation permanently paused.
-
-### 5. Prefer `OnActivated` / `OnDeactivated` for Event Subscriptions
-
-`WatchPanelWindow` demonstrates the correct pattern: subscribe to
-`OnPinValueChangedEvent` in `OnActivated` and unsubscribe in `OnDeactivated`.
-Subscribing in a constructor and never unsubscribing leaks the subscriber
-reference and causes spurious updates after the window is hidden.
-
-### 6. Handle `FullRebuildService.PendingDrainAfterBuild`
-
-After a successful full rebuild the caller is responsible for draining the file
-watcher to pick up the new DLL. Check `PendingDrainAfterBuild` after
-`TriggerAsync` returns and reset it after the drain pass.
-
-### 7. Scope `DrawContext.IdPrefix` to Avoid ImGui ID Collisions
-
-ImGui uses label strings as widget IDs. When the same drawer is called for
-multiple nodes in the same frame, set `IdPrefix` to the node's Guid string to
-prevent collisions:
-
-```csharp
-var ctx = new DrawContext(IdPrefix: $"node_{node.Id:N}_");
-```
+1. **Never persist `Node.Pins`.** Pins are an editor projection (`NodePinSchema`); saved assets
+   must keep `"Pins": []`. `SaveActiveBlueprintCommand` enforces this around serialization —
+   don't bypass it with a raw `JsonSerializer.Serialize(asset)` call.
+2. **Register windows before activating.** `BlueprintEditorModule.OnEditorActivated` iterates
+   `_windows` once; anything registered afterward won't get a menu entry or `OnActivated`.
+3. **Never inject `BlueprintRegistry` or `HsmActionDispatcher` into a registrar.**
+   `QuickReloadService` throws `HotReloadRegistrarException` — the RCU contract requires the
+   atomic staging→commit handoff to own the write path exclusively.
+4. **Route sibling-signature resolution through `EditorState`/`BlueprintPeerSource`, not raw
+   disk reads.** `QuickReloadService.BuildSiblingSignatures` prefers the in-memory override for
+   any asset with unsaved edits; call `EditorState.SetInMemoryAsset` after every edit so peers
+   see the current signature.
+5. **Detach the debug session before disposing the host.** `BlueprintDebugSession.Detach()`
+   resumes if paused and clears all breakpoints/watches/history — skipping it can leave the
+   simulation permanently paused.
+6. **Subscribe/unsubscribe session events in `OnActivated`/`OnDeactivated`**, not the
+   constructor — `WatchPanelWindow` is the reference pattern.
+7. **Keep `NodePinSchema` and the compiler's `Stage0_Rehydrate`/`Stage5_Schedule` in lockstep.**
+   Any pin-shape change to a node kind on the compiler side must be mirrored here, or existing
+   wires render "unused" on the canvas even though the compiler still consumes them correctly.
+8. **A non-channel `ChannelCommandNode` needs `behaviorActions` threaded everywhere.** Both
+   `BlueprintGraphModel` (pin projection) and `BlueprintCommandSink.ApplyPinIds` (re-stamping on
+   node creation) must receive the same `IBehaviorActionCatalog`, or the node silently degrades
+   to exec-only pins.
 
 ---
 
 ## Related Projects
 
-| Project                       | Relationship                                                    |
-|-------------------------------|-----------------------------------------------------------------|
-| `Hrot.Blueprints.Core`        | Provides the asset model, compiler pipeline, and debug session interface that this editor implements and drives. **Mandatory dependency.** |
-| `Hrot.Blueprints.Compiler`    | The Roslyn-based code generation backend invoked by `QuickReloadService`. Part of `Hrot.Blueprints.Core`. |
-| `Fdp.Presentation`            | ImGui host library. Provides the `ImGuiNET` bindings and the per-frame render loop that calls `DrawAllWindows()`. |
-| `Fdp.Toolkits`                | Supplies `AiHotReloadCoordinator` (atomic ALC swap), `BlueprintRegistry`, `BehaviorRegistry`, `HsmActionDispatcher`, and the `MasterSyncController` wrapped by `MasterSyncTimeControllerAdapter`. |
-| `Fdp.Core`                    | Core entity system and simulation view types consumed by `BlueprintDebugSession`. |
-| `NodeEdit` (ExtDeps)          | Node-graph canvas rendering library, now integrated into `GraphEditorWindow` via the `Host/` layer (`BlueprintNodeModel`/`GraphModel`/`NodePinSchema`/`BlueprintCommandSink`), with wire-drop editing and `CommandHistory` undo. |
-| `StructEdit` (ExtDeps)        | Struct property editing library; the `Inspector/` subsystem (`IStructEditDrawer<T>`, `DrawerRegistry`) mirrors its API for Blueprint-specific property display. |
+| Project | Relationship |
+|---------|--------------|
+| `Hrot.Blueprints.Core` | Asset model, compiler pipeline, `IBlueprintDebugSession`/`IBlueprintProbeSink` contracts this editor drives and implements against. **Mandatory dependency.** |
+| `Hrot.Blueprints.Compiler` | Roslyn-based code-gen backend invoked by `QuickReloadService`/`Stage8_RoslynFinalize`. Compiled into `Hrot.Blueprints.Core`. |
+| `Hrot.Editor.AiShared` | Shared perspective/window/document/catalog/selection/refactor host this project plugs into via `IAssetCatalogContributor`/`IReferenceCatalogContributor`/`INewAssetService`/`ManagedWindow`/`AiCanvasContext`. **The Asset Browser, document lifecycle, and perspective/window chrome all live here now, not in this project.** |
+| `NodeEditor.Core` / `NodeEditor.UI` (ExtDeps) | The canvas rendering/interaction library itself — `Host/` adapts Blueprint assets onto its `IGraphModel`/`IGraphCommandSink`/`ILinkValidator`/`INodeCatalog`/`IDebugSession` contracts. `GraphEditorWindow.cs` (the old bespoke canvas) no longer exists. |
+| `Fdp.Presentation` | ImGui host (`ImGuiNET`) + `WindowManager`/`ManagedWindow` that both window mechanisms build on. |
+| `Fdp.Toolkits` | `AiHotReloadCoordinator` (atomic ALC swap), `BlueprintRegistry`/`BehaviorRegistry`, `HsmActionDispatcher`, `MasterSyncController`, `BlueprintInstanceService`. |
+| `Fdp.Core` | Core entity system and simulation-view types consumed by `BlueprintDebugSession` and `Runtime/`. |
