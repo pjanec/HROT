@@ -1,6 +1,17 @@
 # Hrot.Blueprints.Editor
 
-> Hand-synced 2026-07-21 to match shipped state; regenerate to fully refresh.
+> Manually maintained; last verified 2026-07-21 against the implemented code.
+
+> **Known drift (flagged, not fully re-documented in this pass):** the Editor project has grown
+> substantially since this doc was last deep-audited -- 147 `.cs` files now exist on disk versus
+> the smaller set cataloged in "Source Structure" below. In particular, `GraphEditorWindow.cs` no
+> longer exists (grep confirms), and a new host-integration layer (`BlueprintWindowRegistrar :
+> EngineWindowRegistrar`, `IBlueprintWindowRegistry`, `BlueprintManagedWindowAdapter : ManagedWindow`)
+> now adapts `IBlueprintEditorWindow` panels into a shared engine window-management system --
+> alongside new top-level folders `Windows/`, `EntityBlueprints/`, `ActionCatalog/`, `Runtime/`,
+> `Internal/` not covered below. `BlueprintEditorModule` itself (constructor, `OnEditorActivated`,
+> `DrawAllWindows`) is verified accurate. A dedicated follow-up pass is needed to re-derive the
+> current window/canvas architecture; treat any canvas/`GraphEditorWindow` claims below as historical.
 
 | Field      | Value                                                                              |
 |------------|------------------------------------------------------------------------------------|
@@ -400,21 +411,42 @@ public static class BlueprintEditorBootstrap
         IPredicateCompiler predicateCompiler,
         EqsTemplateRegistry eqsTemplates,
         IAnimationTkbQueries? animationQueries = null,
-        Func<string?>? currentClassProvider = null);
+        Func<string?>? currentClassProvider = null,
+        ISharedStructTypeProvider? sharedStructTypeProvider = null);
 
-    public static NodeKindRegistry CreatePaletteRegistry();
+    public static NodeKindRegistry CreatePaletteRegistry(
+        IChannelCommandCatalog?   channelCatalog        = null,
+        IBehaviorActionCatalog?   behaviorActionCatalog = null);
 
     public static List<IAttachmentProvider> CreateAttachmentProviders(
         EqsTemplateRegistry eqsTemplates,
         Func<Guid, string?> peerNameResolver);
 
     public static List<ICustomCanvasRenderer> CreateCanvasRenderers();
+
+    public static void DrawBookmarkEdgeMarkers(GraphView view, BookmarkStore store, IEditorTheme theme);
+
+    public static List<BlueprintAsset> DiscoverRecipes();
 }
 ```
 
-`CreateNodeDrawerRegistry` registers drawers for `WhenNode`, `ReadEqsResultNode`,
-`SpawnEqsSensorNode`, and (when animation queries are provided) `BranchNode` as a
-montage-chain node.
+`CreateNodeDrawerRegistry` registers eight drawers: the three When-vocabulary drawers
+(`WhenNode`, `ReadEqsResultNode`, `SpawnEqsSensorNode`), `FunctionCallNode` ->
+`FunctionCallNodeDrawer`, `LiteralNode` -> `LiteralNodeDrawer`, `ChannelCommandNode` ->
+`ChannelCommandNodeDrawer`, `GetSharedNode`/`SetSharedNode` -> `GetSharedNodeDrawer`/
+`SetSharedNodeDrawer`, and -- only when `animationQueries`/`currentClassProvider` are both
+supplied -- `BranchNode` -> `PlayMontageChainNodeDrawer` (montage-chain UI on a plain Branch
+node). `sharedStructTypeProvider` defaults to `ReflectionSharedStructTypeProvider` when omitted.
+
+`CreatePaletteRegistry` now registers far more than the When vocabulary: the three When-Node
+entries, the full built-in vocabulary from `BlueprintNodePaletteEntries.All()`, one entry per
+channel-command action (`BlueprintNodePaletteEntries.ChannelCommandEntries`, only when
+`channelCatalog` is non-null), one entry per non-channel behavior action
+(`BlueprintNodePaletteEntries.NonChannelActionEntries`, only when `behaviorActionCatalog` is
+non-null), `BlueprintMathPaletteEntries.All()`, reflection-discovered `[BlueprintCallable]`
+helpers (`BlueprintCallablePaletteEntries.Discover()`), one "Publish: {Event}" entry per
+discovered custom event (`BlueprintEventPaletteEntries.PublishEntries()`), and one Make/Break
+pair per `[BlackboardDtoStruct]` (`MakeBreakStructPaletteEntries.Entries(...)`).
 
 `CreateAttachmentProviders` returns four providers:
 - `WhenNodeAttachmentProvider` -- inline decorators for WhenNode canvas nodes
@@ -422,7 +454,16 @@ montage-chain node.
 - `EqsTemplateAttachmentProvider` -- shows EQS template name and details
 - `CrossAssetDependencyAttachmentProvider` -- draws cross-asset peer arrows with resolved names
 
-`CreateCanvasRenderers` returns `WhenFiringPulseRenderer` in Debug builds only.
+`CreateCanvasRenderers` returns `WhenFiringPulseRenderer` in Debug builds only (compiled out via
+`#if DEBUG`, not a runtime flag).
+
+`DrawBookmarkEdgeMarkers` (not part of the `ICustomCanvasRenderer` pass -- called directly by the
+host once per frame after the canvas renders) draws edge-of-viewport arrows toward off-screen
+bookmarked viewports (slots 1-9), delegating to `BookmarkEdgeMarkerRenderer`.
+
+`DiscoverRecipes` enumerates `*.bp.json` files under the `Hrot.AI.Behaviors` assembly's
+production recipes folder and returns only assets with non-null `EditorMetadata.Recipe`, for the
+Asset Browser's "New from Recipe" dialog.
 
 ---
 
@@ -1118,7 +1159,11 @@ public sealed class DebugPanelWindow : BlueprintEditorWindowBase
 }
 ```
 
-Title dynamically reflects pause state. `DrawUI` is a stub (Slice 1 placeholder).
+Title dynamically reflects pause state. `DrawUI` is fully implemented: it renders the shared
+`DebugStepControls` row (Continue / Step Over / Step Into / Step Out) and, while paused, a
+3-column breakpoint table (Node ID / Asset ID / Hits). It also exposes test-observable
+`LastRenderedPausedState` / `LastRenderedBreakpoints` / `LastStepActionInvoked` and skips ImGui
+calls when no live context is present (headless tests).
 
 ---
 
@@ -1147,7 +1192,10 @@ public sealed class CallstackWindow : BlueprintEditorWindowBase
 }
 ```
 
-Renders node execution trail for the selected entity. `DrawUI` is a stub.
+`DrawUI` is fully implemented: it reads `IBlueprintDebugSession.GetCurrentCallStack()` (the
+peer-call frame stack) and renders a 3-column table (Depth / Asset / Method), or "No call stack."
+when empty. The last-rendered `CallFrame` list is exposed via `LastRenderedFrames` for headless
+tests.
 
 ---
 
