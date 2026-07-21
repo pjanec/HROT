@@ -1,5 +1,7 @@
 # Hrot.Blueprints.Generators
 
+> Hand-synced 2026-07-21 to match shipped state; regenerate to fully refresh.
+
 **Path**: `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Generators/`
 **Date**: 2026-05-23
 **Target Framework**: `netstandard2.0`
@@ -131,6 +133,11 @@ rawFiles  (Path, Text)
 | Stage 1 Parse |  BlueprintJsonServices.Deserialize
 +-------+-------+
         | BlueprintAsset
+        v
++--------------------+
+| Stage 0 Rehydrate  |  reflection-free pin/link reconstruction; mirrors editor's NodePinSchema
++--------+-----------+
+        |
         v
 +--------------------+
 | Stage 2 Validate   |  17 validators (V_AssetStructure, V_NodeStructure, ..., V_WhenNodeRules, V_ReadEqsResultNodeRules, V_SpawnEqsSensorNodeRules)

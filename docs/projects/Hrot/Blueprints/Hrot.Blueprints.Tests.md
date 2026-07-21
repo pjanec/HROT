@@ -1,5 +1,7 @@
 # Hrot.Blueprints.Tests
 
+> Hand-synced 2026-07-21 to match shipped state; regenerate to fully refresh.
+
 - **Project file**: `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Hrot.Blueprints.Tests.csproj`
 - **Target framework**: net8.0
 - **Test framework**: xUnit 2.x
@@ -234,7 +236,13 @@ Hrot.Blueprints.Tests/
 |
 |-- Compiler/
 |   |-- Stage1_ParseTests.cs             -- Stage 1 JSON parse tests
+|   |-- Stage0_RehydrateTests.cs         -- reflection-free pin/link reconstruction tests
 |   |-- Stage2_ValidationTests/          -- per-validator tests
+|   |   |-- V_FlowForEachValidatorTests.cs -- FlowForEach latent-node-forbidden-in-body rules
+|   |-- MakeBreakStructTests.cs          -- MakeStruct/BreakStruct/SetMembers node tests
+|   |-- StructTypedVariableTests.cs      -- struct-typed Instance Variables tests
+|   |-- MultiPinSetSharedTests.cs        -- multi-pin per-field SetShared/GetShared/PublishEvent tests
+|   |-- CustomEventPubSubCapstoneTests.cs -- end-to-end custom-event publish/subscribe capstone
 |   |-- Stage3_NormalizationTests/       -- normalization pass tests
 |   |-- Stage4_TypeResolveTests.cs       -- type resolution tests
 |   |-- Stage5_ScheduleTests/            -- IR schedule tests
@@ -294,6 +302,10 @@ Hrot.Blueprints.Tests/
 |   |-- EditorWindowTests.cs             -- window activate/deactivate/draw tests
 |   |-- AssetBrowserWindowTests.cs       -- asset browser render and filter tests
 |   |-- CommandHistoryTests.cs           -- undo/redo ring-buffer tests
+|   |-- Host/                           -- NodeEdit Host layer tests
+|   |   |-- BlueprintNodeModelTests.cs    -- node model / BuildTitle tests
+|   |   |-- NodePinSchemaTests.cs         -- canonical pin projection tests
+|   |   |-- BlueprintCommandSinkTests.cs  -- wire-drop add/remove -> CommandHistory undo tests
 |   |-- DrawerRegistryTests.cs           -- drawer registration and lookup tests
 |   |-- HotReloadLogModelTests.cs        -- log ring-buffer cap/clear tests
 |   |-- PreferencesTests.cs              -- save/load/defaults round-trip tests

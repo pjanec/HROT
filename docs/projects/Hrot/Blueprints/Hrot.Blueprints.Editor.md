@@ -1,5 +1,7 @@
 # Hrot.Blueprints.Editor
 
+> Hand-synced 2026-07-21 to match shipped state; regenerate to fully refresh.
+
 | Field      | Value                                                                              |
 |------------|------------------------------------------------------------------------------------|
 | Project    | `Hrot.Blueprints.Editor`                                                           |
@@ -329,8 +331,17 @@ Hrot.Blueprints.Editor/
 |   |-- SpawnEqsSensorNodeDrawer.cs         -- drawer for SpawnEqsSensorNode
 |   |-- PlayMontageChainNodeDrawer.cs       -- drawer for BranchNode used as montage chain
 |   |-- WhenNodePaletteEntries.cs           -- palette entry descriptors for WHEN nodes
+|   |-- MakeBreakStructPaletteEntries.cs    -- palette entries for MakeStruct/BreakStruct/SetMembers, one triple per [BlackboardDtoStruct]
+|   |-- BlueprintEventDiscovery.cs          -- discovers custom events via [BlueprintEvent]/[EventTarget]
+|   |-- BlueprintEventPaletteEntries.cs     -- palette entries for PublishEvent / EventEntry (custom events)
 |   |-- EqsTemplateEntry.cs                 -- single EQS template registration record
 |   |-- EqsTemplateRegistry.cs              -- editor-side catalog of EQS templates
+|
+|-- Host/
+|   |-- BlueprintNodeModel.cs                -- NodeEdit-facing node model; BuildTitle for node titles
+|   |-- GraphModel.cs                        -- NodeEdit-facing graph model
+|   |-- NodePinSchema.cs                     -- canonical pin projection (GetCanonicalPins); mirrored by compiler Stage0_Rehydrate
+|   |-- BlueprintCommandSink.cs              -- routes NodeEdit wire-drop/add/remove into CommandHistory-backed commands
 |
 |-- Reload/
 |   |-- QuickReloadService.cs               -- in-process hot reload coordinator
@@ -717,8 +728,24 @@ public sealed class GraphEditorWindow : BlueprintEditorWindowBase
 ```
 
 Toolbar buttons: **Save** (marks current asset clean), **Quick Reload** (disabled
-when asset is clean), **Full Rebuild**. Canvas is a child window placeholder ready
-for integration with a node-graph rendering library.
+when asset is clean), **Full Rebuild**. The canvas is now the real **NodeEdit `Host/`
+layer** (`BlueprintNodeModel` / `GraphModel` / `NodePinSchema` / `BlueprintCommandSink`),
+supporting wire-drop node/link editing with `CommandHistory`-backed undo. See the
+Host/ NodeEdit Model section immediately below.
+
+---
+
+#### Host/ NodeEdit Model
+
+Bridges the `NodeEdit` ExtDeps canvas library to the Blueprint asset model, replacing the
+old placeholder child window:
+
+| Type | Role |
+|------|------|
+| `BlueprintNodeModel` | NodeEdit-facing node wrapper; `BuildTitle` produces the node's canvas title text |
+| `GraphModel` | NodeEdit-facing graph wrapper (nodes + links) |
+| `NodePinSchema` | Canonical pin projection (`GetCanonicalPins`); any Stage0 pin-enrichment change on the compiler side must be mirrored here or wires render "unused" |
+| `BlueprintCommandSink` | Routes NodeEdit wire-drop / add / remove interactions into `IGraphCommand`s on `CommandHistory`, so canvas edits are undoable |
 
 ---
 
@@ -1296,6 +1323,19 @@ public static class WhenNodePaletteEntries
 
 ---
 
+#### `MakeBreakStructPaletteEntries` (static class)
+
+Generates one `MakeStruct`/`BreakStruct`/`SetMembers` palette triple per `[BlackboardDtoStruct]`-tagged
+type, reifying pins from the struct's own fields (same catalog+picker+reified-pins pattern as
+`ChannelCommand`/`PublishEvent`).
+
+#### `BlueprintEventDiscovery` / `BlueprintEventPaletteEntries`
+
+`BlueprintEventDiscovery` reflection-scans loaded assemblies for `[BlueprintEvent]`-tagged event
+structs and `[EventTarget]` fields; `BlueprintEventPaletteEntries` uses that catalog to populate the
+`PublishEvent` and `EventEntry` (custom-event) palette pickers, including the Self/Any recipient
+filter on `EventEntry`.
+
 #### `EqsTemplateRegistry` / `EqsTemplateEntry`
 
 ```csharp
@@ -1687,5 +1727,5 @@ var ctx = new DrawContext(IdPrefix: $"node_{node.Id:N}_");
 | `Fdp.Presentation`            | ImGui host library. Provides the `ImGuiNET` bindings and the per-frame render loop that calls `DrawAllWindows()`. |
 | `Fdp.Toolkits`                | Supplies `AiHotReloadCoordinator` (atomic ALC swap), `BlueprintRegistry`, `BehaviorRegistry`, `HsmActionDispatcher`, and the `MasterSyncController` wrapped by `MasterSyncTimeControllerAdapter`. |
 | `Fdp.Core`                    | Core entity system and simulation view types consumed by `BlueprintDebugSession`. |
-| `NodeEdit` (ExtDeps)          | Node-graph canvas rendering library intended for future integration into `GraphEditorWindow`. Currently the canvas is a placeholder child window. |
+| `NodeEdit` (ExtDeps)          | Node-graph canvas rendering library, now integrated into `GraphEditorWindow` via the `Host/` layer (`BlueprintNodeModel`/`GraphModel`/`NodePinSchema`/`BlueprintCommandSink`), with wire-drop editing and `CommandHistory` undo. |
 | `StructEdit` (ExtDeps)        | Struct property editing library; the `Inspector/` subsystem (`IStructEditDrawer<T>`, `DrawerRegistry`) mirrors its API for Blueprint-specific property display. |

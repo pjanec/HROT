@@ -1,7 +1,9 @@
 # Blueprints & Behavior Trees — The Big Picture
 
-> **Read this first.** One picture for how the pieces fit; the
+> **The gentle intro.** One picture for how the pieces fit; the
 > [Variables Designer Quickstart](Variables_Designer_Quickstart.md) covers the *memory* choice next.
+> For **what the system can actually do and how it's built**, see
+> [Blueprints_Overview.md](Blueprints_Overview.md) (capabilities + architecture).
 
 ![Blueprints, Behavior Trees, Actions & Conditions — how it fits](diagrams/architecture_overview.svg)
 

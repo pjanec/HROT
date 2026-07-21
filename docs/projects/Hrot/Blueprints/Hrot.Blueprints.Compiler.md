@@ -1,5 +1,7 @@
 # Hrot.Blueprints.Compiler
 
+> Hand-synced 2026-07-21 to match shipped state; regenerate to fully refresh.
+
 - **Project file**: `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Hrot.Blueprints.Compiler.csproj`
 - **Target framework**: netstandard2.0
 - **Namespace root**: `Hrot.Blueprints.Core.Compiler`
@@ -22,15 +24,23 @@ graph authored in the editor -- into a self-contained C# source file (`.g.cs`). 
 generated source is subsequently compiled by Roslyn and hot-loaded into the running
 simulation.
 
-The compiler is structured as a strict **seven-stage pipeline**. Each stage has a single
-responsibility and passes an immutable or append-only data structure to the next stage.
-Stages communicate errors and warnings through a shared `DiagnosticSink`; the pipeline
-aborts early whenever errors accumulate.
+The compiler is structured as a strict **Stage0–Stage8 pipeline**: Parse(1) →
+**Rehydrate(0, runs right after Parse, before Validate)** → Validate(2) → Normalize(3) →
+TypeResolve(4) → Schedule/IR(5) → Lower(6) → Emit C#(7) → Roslyn PE/PDB(8). Each stage has a
+single responsibility and passes an immutable or append-only data structure to the next
+stage. `Stage0_Rehydrate` reflection-free reconstructs pin/link data that must mirror the
+editor's `NodePinSchema`. Stages communicate errors and warnings through a shared
+`DiagnosticSink`; the pipeline aborts early whenever errors accumulate.
 
 The Roslyn finalization stage (Stage 8) exists as source in a sibling `Roslyn/` folder and
 in `Stage8_RoslynFinalize.cs`, but is **excluded from this project's compilation** via
 `<Compile Remove>` directives. The Roslyn step is linked into the runtime-facing assembly
 (`Hrot.Blueprints.Core`) instead.
+
+The node catalog has grown to **~42 concrete node kinds** (see `Assets/Nodes.cs` below),
+including custom-events pub/sub (`PublishEvent` + `EventEntry` with a Self/Any filter,
+multi-pin per-field pins), the struct-value triple (`MakeStruct`/`BreakStruct`/`SetMembers`),
+and struct-typed `Variables`.
 
 Three Blueprint dispatch kinds are supported:
 
@@ -55,6 +65,11 @@ Three Blueprint dispatch kinds are supported:
   +------------------+     +-----------------+
   |  Stage1_Parse    |---->| DiagnosticSink  |  BP0001, BP0002, BP0010, BP0011
   +------------------+     +-----------------+
+           |
+           v
+  +------------------+     +-----------------+
+  | Stage0_Rehydrate |---->| DiagnosticSink  |  reflection-free pin/link reconstruction,
+  +------------------+     +-----------------+  mirrors editor's NodePinSchema
            |
            v
   +------------------+     +-----------------+
@@ -210,7 +225,7 @@ during normalization).
 | `BlueprintAsset.cs` | Root asset object. Holds header, identity, dispatch kind, declarations, and graphs. |
 | `Declarations.cs` | `VariableDecl`, `ParameterDecl`, `EventDispatcherDecl`, `CustomEventDecl`, `BlueprintTypeRef`. |
 | `GraphTypes.cs` | `Graph`, `Pin`, `Link`, `GraphKind`, `NodeMetadata`, `AssetMetadata`, `Header`, `NodeStatus`. |
-| `Nodes.cs` | `Node` hierarchy (26 concrete node types), polymorphic JSON via `[JsonDerivedType]`. |
+| `Nodes.cs` | `Node` hierarchy (~42 concrete node kinds), polymorphic JSON via `[JsonDerivedType]`. Includes `PublishEvent`, `MakeStruct`, `BreakStruct`, `SetMembers`, `FlowForEach`, `Compare`, `BinaryOp`, `BooleanOp`, `Not`, `GetComponent`, `GetParameter`, `GetAllParameters`, `GetShared`, `SetShared`, `When`, `SpawnEqsSensor`, `ReadEqsResult`, `ScoreDecision`, `ReadRankedResult`, `CallPeerBlueprint`, and the squad quartet (`PartitionElements`/`AssignRoles`/`AdvancePhase`/`AcquireSlot`). |
 
 ### `Compiler/` -- Pipeline root
 
@@ -229,6 +244,7 @@ during normalization).
 | File | Description |
 |------|-------------|
 | `Stage1_Parse.cs` | Deserializes JSON to `BlueprintAsset`; validates non-null result and non-empty identity. |
+| `Stage0_Rehydrate.cs` | Runs right after Parse, before Validate. Reflection-free pin/link reconstruction that must mirror the editor's `NodePinSchema`. |
 | `Stage2_Validate.cs` | Runs 17 sequential validators (see below). Stops on fatal errors. |
 | `Stage3_Normalize.cs` | Three normalization passes: materialize default pin literals, insert implicit casts, eliminate orphan nodes. |
 | `Stage4_TypeResolve.cs` | Resolves `BlueprintTypeRef` strings to `IrTypeRef` records; two-pass wildcard propagation for array nodes; enforces unmanaged constraint on state fields. |

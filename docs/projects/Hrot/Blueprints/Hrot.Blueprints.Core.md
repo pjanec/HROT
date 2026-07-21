@@ -1,5 +1,7 @@
 # Hrot.Blueprints.Core
 
+> Hand-synced 2026-07-21 to match shipped state; regenerate to fully refresh.
+
 - **Project file**: `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Core/Hrot.Blueprints.Core.csproj`
 - **Target framework**: net8.0
 - **Date documented**: 2026-05-23
@@ -74,6 +76,7 @@ Three dispatch kinds exist:
 +---------------------------+
 |  Compiler Pipeline        |
 |  Stage1_Parse             |
+|  Stage0_Rehydrate         |
 |  Stage2_Validate          |
 |  Stage3_Normalize         |
 |  Stage4_TypeResolve       |
@@ -98,6 +101,12 @@ Three dispatch kinds exist:
      v
 +--------------------+
 | Stage 1 - Parse    |  System.Text.Json -> BlueprintAsset
++--------------------+
+     |
+     v
++--------------------+
+| Stage 0 - Rehydrate|  reflection-free pin/link reconstruction;
+|                    |  mirrors editor's NodePinSchema
 +--------------------+
      |
      v
@@ -355,6 +364,29 @@ Discriminator property `"kind"`.  Derived types:
 | `SpawnEqsSensor` | `SpawnEqsSensorNode` | `TemplateAssetId` |
 | `ScoreDecision` | `ScoreDecisionNode` | `AssetId` (UtilityDecisionDef GUID) |
 | `ReadRankedResult` | `ReadRankedResultNode` | (reads rank-i entry from UtilityResultBuffer) |
+| `PublishEvent` | `PublishEventNode` | `EventTypeId`; per-field pins reified from the event struct; Self/Any target routing |
+| `MakeStruct` | `MakeStructNode` | `TypeId`; one input pin per field, one struct-typed output |
+| `BreakStruct` | `BreakStructNode` | `TypeId`; one struct-typed input, one output pin per field |
+| `SetMembers` | `SetMembersNode` | `TypeId`; per-field write via wired pins, unwired fields preserved |
+| `FlowForEach` | `FlowForEachNode` | `Collection` in; `Loop Body` + `Completed` exec-outs; `Item`/`Index` data-outs |
+| `Compare` | `CompareNode` | `Operator` (full `ComparisonOperator` enum) |
+| `BinaryOp` | `BinaryOpNode` | `Operator` (arithmetic) |
+| `BooleanOp` | `BooleanOpNode` | `Operator` (AND/OR/XOR) |
+| `Not` | `NotNode` | -- |
+| `GetComponent` | `GetComponentNode` | ECS component read, `[BlueprintReadable]`-tagged |
+| `GetParameter` | `GetParameterNode` | reads a single `AiPrimitive` parameter |
+| `GetAllParameters` | `GetAllParametersNode` | reads all `AiPrimitive` parameters |
+| `GetShared` | `GetSharedNode` | multi-pin per-field read of `BlueprintSharedState` |
+| `SetShared` | `SetSharedNode` | multi-pin per-field write via `BlueprintSharedState.TrySetSharedField` |
+| `PartitionElements` | `PartitionElementsNode` | squad quartet: partitions a roster into groups |
+| `AssignRoles` | `AssignRolesNode` | squad quartet: assigns roles to partitioned members |
+| `AdvancePhase` | `AdvancePhaseNode` | squad quartet: advances a squad's phase state |
+| `AcquireSlot` | `AcquireSlotNode` | squad quartet: acquires a `SlotRotation` slot |
+
+Custom events pub/sub (`PublishEvent` + `EventEntry` with a Self/Any filter, discovered via
+`[BlueprintEvent]`/`[EventTarget]`, dispatched by `BlueprintEventDispatch`), multi-pin per-field pins
+(`PublishEvent`/`GetShared`/`SetShared`), and struct-typed `Variables` are all shipped. See
+Stage 0 (`Stage0_Rehydrate`) above for the pin/link reconstruction that these node kinds rely on.
 
 #### `WhenNode` and EQS nodes (schema detail)
 
@@ -1022,6 +1054,13 @@ The `Hrot.Blueprints.Compiler` project additionally references:
 Deserialises a JSON string into a `BlueprintAsset` using `System.Text.Json`.  Emits
 `BP0001` (null result) or `BP0002` (parse exception).  Also performs basic null-guard
 checks (`BP0010`, `BP0011`).
+
+### Stage 0 -- Rehydrate
+
+Runs right after Parse, before Validate. Reflection-free reconstruction of pin/link data
+that must mirror the editor's `NodePinSchema` (the editor's canonical-pins source of
+truth). Keeping this stage's pin projection in sync with the editor is load-bearing --
+drift here is a historical source of wire-rendering / breakpoint-mapping bugs.
 
 ### Stage 2 -- Validate
 

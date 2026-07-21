@@ -1,8 +1,13 @@
-# How each new blueprint addition is authored (worked, FOR REVIEW — nothing built)
+# How each new blueprint addition is authored — SHIPPED pattern, in use
+
+> See [Blueprints_Overview.md](Blueprints_Overview.md) for the current capabilities + architecture
+> front door.
 
 > Answers "what does the designer actually drop, and how does a specific C# thing (an event struct, a
 > component) get *exposed* as a node with real pins?" Notation: `A ─►B` exec flow; `(pin←src)` a wired
-> data pin; `[var]` a blackboard variable.
+> data pin; `[var]` a blackboard variable. This catalog+picker+reified-pins pattern is shipped and in
+> active use: `PublishEvent`, `FlowForEach`, `[BlueprintCallable]` FunctionCall discovery, and channel
+> commands all ship this way.
 
 ## The one pattern that answers most of it: **catalog + picker + reified pins**
 
@@ -160,6 +165,28 @@ SwapRemoveAt ([runners], index←i)                                 // O(1) comp
 ```
 Fixed named SoA columns (Entity + 3 bytes), cap 16. The `[InlineArray]`/`GetSpanRW()` write-loss
 hazard is handled inside the primitive — invisible to the designer.
+
+## 8. Struct values — `MakeStruct` / `BreakStruct` / `SetMembers` (shipped)
+
+One triple per `[BlackboardDtoStruct]`-tagged type, generated via `MakeBreakStructPaletteEntries`
+(same catalog+reify pattern as above, keyed off the struct's own fields instead of an event/channel
+catalog entry):
+```
+MakeStruct  <T>  (field pins in)  ─out► value            // construct from scratch
+BreakStruct <T>  (value in)       ─out► field pins        // decompose
+SetMembers  <T>  (value in, wired field pins in) ─out► value  // per-field write; unwired fields preserved
+```
+Enables struct-typed `Variables`, not just `Parameters`/`WorkingState`.
+
+## 9. Value ops — `Compare` / `BinaryOp` / `BooleanOp` / `Not` (shipped)
+
+Generic operator-keyed nodes, one node kind per operator family (round-out, not one node per operator):
+```
+Compare   (A, B, Operator←enum) ─► bool     // full ComparisonOperator enum
+BinaryOp  (A, B, Operator←enum) ─► numeric  // arithmetic ops
+BooleanOp (A, B, Operator←enum) ─► bool     // And/Or (no short-circuit)
+Not       (A) ─► bool
+```
 
 ---
 
