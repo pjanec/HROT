@@ -1,0 +1,79 @@
+{
+  "$meta": { "docType": "Hrot.Blueprints", "schemaVersion": 1 },
+  "Header": {},
+  "AssetId": "c5100006-0000-0000-0000-000000000001",
+  "Name": "SetComponentDemo",
+  "Dispatch": "Instance",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": null,
+  "Parameters": [],
+  "ParameterOrder": null,
+  "WorkingState": [],
+  "WorkingStateOrder": null,
+  "Variables": [
+    { "Id": "c5100006-0000-0000-0000-0000000000a1", "Name": "OutWritten", "Type": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] }, "DefaultValueJson": "false", "IsEditable": false, "IsExposedOnSpawn": false, "Category": null, "Tooltip": null, "Comment": null }
+  ],
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "c5100006-0000-0000-0000-0000000000b0",
+      "Name": "Tick",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        { "kind": "EventEntry", "EventTypeId": "", "Id": "c5100006-0000-0000-0000-000000000010",
+          "Pins": [ { "Id": "c5100006-0000-0000-0000-000000000020", "Name": "Out", "Direction": "Out", "IsExec": true, "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } } ],
+          "EditorMetadata": { "X": 40, "Y": 220, "Comment": null } },
+
+        { "kind": "Literal", "TypeId": "System.Int32", "ValueJson": "75", "Id": "c5100006-0000-0000-0000-000000000011",
+          "Pins": [ { "Id": "c5100006-0000-0000-0000-000000000021", "Name": "Value", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] } } ],
+          "EditorMetadata": { "X": 40, "Y": 40, "Comment": null } },
+
+        { "kind": "SetComponent",
+          "ComponentTypeFqn": "Hrot.AI.Behaviors.BpComponentDemo",
+          "Fields": [ { "Name": "Health", "TypeId": "System.Int32" }, { "Name": "Ammo", "TypeId": "System.Int32" }, { "Name": "Speed", "TypeId": "System.Single" } ],
+          "Id": "c5100006-0000-0000-0000-000000000012",
+          "Pins": [
+            { "Id": "c5100006-0000-0000-0000-000000000030", "Name": "In",      "Direction": "In",  "IsExec": true,  "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100006-0000-0000-0000-000000000031", "Name": "Out",     "Direction": "Out", "IsExec": true,  "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100006-0000-0000-0000-000000000032", "Name": "Health",  "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Int32",  "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100006-0000-0000-0000-000000000033", "Name": "Ammo",    "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Int32",  "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100006-0000-0000-0000-000000000034", "Name": "Speed",   "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Single", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100006-0000-0000-0000-000000000035", "Name": "Written", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] } }
+          ],
+          "EditorMetadata": { "X": 380, "Y": 120, "Comment": "Only Health is wired (from Literal 75) -- Ammo/Speed are left unwired on purpose to demonstrate write-if-wired: their live values are preserved, untouched." } },
+
+        { "kind": "SetVariable", "VariableId": "c5100006-0000-0000-0000-0000000000a1", "Id": "c5100006-0000-0000-0000-000000000013",
+          "Pins": [
+            { "Id": "c5100006-0000-0000-0000-000000000040", "Name": "In",    "Direction": "In",  "IsExec": true,  "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100006-0000-0000-0000-000000000041", "Name": "Out",   "Direction": "Out", "IsExec": true,  "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100006-0000-0000-0000-000000000042", "Name": "Value", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] } }
+          ],
+          "EditorMetadata": { "X": 760, "Y": 220, "Comment": null } },
+
+        { "kind": "Return", "Status": "Success", "Id": "c5100006-0000-0000-0000-000000000014",
+          "Pins": [ { "Id": "c5100006-0000-0000-0000-000000000050", "Name": "In", "Direction": "In", "IsExec": true, "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } } ],
+          "EditorMetadata": { "X": 1100, "Y": 220, "Comment": null } }
+      ],
+      "Links": [
+        { "FromNodeId": "c5100006-0000-0000-0000-000000000010", "FromPinId": "c5100006-0000-0000-0000-000000000020", "ToNodeId": "c5100006-0000-0000-0000-000000000012", "ToPinId": "c5100006-0000-0000-0000-000000000030" },
+        { "FromNodeId": "c5100006-0000-0000-0000-000000000012", "FromPinId": "c5100006-0000-0000-0000-000000000031", "ToNodeId": "c5100006-0000-0000-0000-000000000013", "ToPinId": "c5100006-0000-0000-0000-000000000040" },
+        { "FromNodeId": "c5100006-0000-0000-0000-000000000013", "FromPinId": "c5100006-0000-0000-0000-000000000041", "ToNodeId": "c5100006-0000-0000-0000-000000000014", "ToPinId": "c5100006-0000-0000-0000-000000000050" },
+
+        { "FromNodeId": "c5100006-0000-0000-0000-000000000011", "FromPinId": "c5100006-0000-0000-0000-000000000021", "ToNodeId": "c5100006-0000-0000-0000-000000000012", "ToPinId": "c5100006-0000-0000-0000-000000000032" },
+        { "FromNodeId": "c5100006-0000-0000-0000-000000000012", "FromPinId": "c5100006-0000-0000-0000-000000000035", "ToNodeId": "c5100006-0000-0000-0000-000000000013", "ToPinId": "c5100006-0000-0000-0000-000000000042" }
+      ],
+      "EditorMetadata": { "ViewportX": 0, "ViewportY": 0, "ViewportZoom": 0 }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "CA-01..CA-06 component-access demo (WRITE). Instance blueprint. Tick graph: Literal(75) -> SetComponent<BpComponentDemo>(self).Health (Ammo/Speed pins left unwired -> preserved, not written); the write-if-present guard result is mirrored into OutWritten via SetVariable. Compiles to a HasComponent-guarded GetComponentRW<global::Hrot.AI.Behaviors.BpComponentDemo>(self).Health = 75. Self-only (no Target pin). Pair with GetComponentDemo/GetComponentTargetDemo (read half).",
+    "Category": "Demo",
+    "Recipe": null
+  }
+}
