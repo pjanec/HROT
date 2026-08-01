@@ -1,3 +1,6 @@
+using Fdp.Core;
+using Hrot.AI.Behaviors;
+using Hrot.AI.Behaviors.Brains;
 using Hrot.Blueprints.Editor.NodeDrawers;
 using Xunit;
 
@@ -141,4 +144,108 @@ public sealed class ComponentFieldReflectorTests
         Assert.False(ComponentFieldReflector.IsManagedComponent(null));
         Assert.False(ComponentFieldReflector.IsManagedComponent(""));
     }
+
+    // ── TryReflectCollections (CA-07a, R1 curated-accessor) ───────────────────
+
+    // ── test-only accessor pairs for the malformed/mismatched-signature cases ────
+
+    private struct LoneAccessorTestComponent
+    {
+        public int Value;
+    }
+
+    private static class LoneCountOnlyOps
+    {
+        // No matching [BlueprintCollectionItem] for "Items" -- a lone Count accessor declares NO
+        // collection at all.
+        [BlueprintCollection(typeof(LoneAccessorTestComponent), "Items")]
+        public static int Count(in LoneAccessorTestComponent c) => 1;
+    }
+
+    private struct BadSignatureTestComponent
+    {
+        public int Value;
+    }
+
+    private static class BadSignatureOps
+    {
+        // Count's first parameter is NOT byref (not "in"/"ref") -- an invalid Count signature, so
+        // even though a well-formed Item exists for the same Name, no collection is emitted.
+        [BlueprintCollection(typeof(BadSignatureTestComponent), "Bad")]
+        public static int Count(BadSignatureTestComponent c) => 1;
+
+        [BlueprintCollectionItem(typeof(BadSignatureTestComponent), "Bad")]
+        public static int Item(in BadSignatureTestComponent c, int i) => 0;
+    }
+
+    private struct VoidItemTestComponent
+    {
+        public int Value;
+    }
+
+    private static class VoidItemOps
+    {
+        [BlueprintCollection(typeof(VoidItemTestComponent), "Voidy")]
+        public static int Count(in VoidItemTestComponent c) => 1;
+
+        // Item returns void -- an invalid Item signature (element type would be meaningless), so no
+        // collection is emitted even though Count is well-formed.
+        [BlueprintCollectionItem(typeof(VoidItemTestComponent), "Voidy")]
+        public static void Item(in VoidItemTestComponent c, int i) { }
+    }
+
+    [Fact]
+    public void TryReflectCollections_BpCollectionDemo_DiscoversValuesCollection_WithCorrectMetadata()
+    {
+        var fqn = typeof(BpCollectionDemo).FullName!;
+
+        var collections = ComponentFieldReflector.TryReflectCollections(fqn);
+
+        var values = Assert.Single(collections, c => c.Name == "Values");
+        Assert.Equal(typeof(int).FullName, values.ElementTypeId);
+        Assert.Equal($"{typeof(BpCollectionDemoOps).FullName}.Count", values.CountAccessorFqn);
+        Assert.Equal($"{typeof(BpCollectionDemoOps).FullName}.Item", values.ItemAccessorFqn);
+    }
+
+    [Fact]
+    public void TryReflectCollections_LoneCountAccessor_NoMatchingItem_IsIgnored()
+    {
+        var fqn = typeof(LoneAccessorTestComponent).FullName!;
+
+        var collections = ComponentFieldReflector.TryReflectCollections(fqn);
+
+        Assert.Empty(collections);
+    }
+
+    [Fact]
+    public void TryReflectCollections_CountAccessorNotByRef_IsIgnored()
+    {
+        var fqn = typeof(BadSignatureTestComponent).FullName!;
+
+        var collections = ComponentFieldReflector.TryReflectCollections(fqn);
+
+        Assert.Empty(collections);
+    }
+
+    [Fact]
+    public void TryReflectCollections_ItemAccessorReturnsVoid_IsIgnored()
+    {
+        var fqn = typeof(VoidItemTestComponent).FullName!;
+
+        var collections = ComponentFieldReflector.TryReflectCollections(fqn);
+
+        Assert.Empty(collections);
+    }
+
+    [Fact]
+    public void TryReflectCollections_UnresolvableOrEmptyFqn_ReturnsEmptyList()
+    {
+        Assert.Empty(ComponentFieldReflector.TryReflectCollections("Totally.Unknown.Namespace.NoSuchType"));
+        Assert.Empty(ComponentFieldReflector.TryReflectCollections(null));
+        Assert.Empty(ComponentFieldReflector.TryReflectCollections(""));
+    }
+
+    [Fact]
+    public void TryReflectCollections_ComponentWithNoCollectionAccessors_ReturnsEmptyList()
+        => Assert.Empty(ComponentFieldReflector.TryReflectCollections(typeof(UnmanagedTestComponent).FullName!));
 }

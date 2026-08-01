@@ -95,9 +95,30 @@ internal sealed class GetComponentNodeSession : INodeEditSession
         // A component isn't a single pin value -- always (re-)bake the FULL field set for the newly
         // selected type (unlike GetShared's Q#14 toggle, there is no collapsed shape to preserve).
         var reflected = ComponentFieldReflector.TryReflect(fqn);
-        _node.Fields = reflected is { Count: > 0 }
+        var fields = reflected is { Count: > 0 }
             ? reflected.Select(f => new ComponentFieldDecl { Name = f.Name, TypeId = f.TypeId }).ToList()
-            : null;
+            : new List<ComponentFieldDecl>();
+
+        // CA-07a (R1 curated-accessor): APPEND one collection decl per discovered
+        // [BlueprintCollection]/[BlueprintCollectionItem] accessor pair, after the scalar fields
+        // (append order = Fields order = pin order, kept in lockstep with NodePinSchema/Stage0).
+        foreach (var c in ComponentFieldReflector.TryReflectCollections(fqn))
+        {
+            fields.Add(new ComponentFieldDecl
+            {
+                Name             = c.Name,
+                TypeId           = "",
+                IsCollection     = true,
+                ElementTypeId    = c.ElementTypeId,
+                CountAccessorFqn = c.CountAccessorFqn,
+                ItemAccessorFqn  = c.ItemAccessorFqn,
+            });
+        }
+
+        // Non-null (multi-pin mode) whenever there is ANYTHING to expose -- scalar fields and/or
+        // collections; a component with ONLY collections (no scalar fields) must still take the
+        // multi-pin path, not fall back to the legacy single-"Value" shape.
+        _node.Fields = fields.Count > 0 ? fields : null;
         // CA-05 (Slice 1b): bake whether the picked component TYPE itself is managed (a class) --
         // drives Stage5's GetManagedComponentRO vs GetComponentRO emit choice.
         _node.IsManaged = ComponentFieldReflector.IsManagedComponent(fqn);

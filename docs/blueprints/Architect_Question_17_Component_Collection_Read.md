@@ -44,6 +44,51 @@ collection kind** — exactly what `FlowForEach` already does.
 
 ---
 
+## ⚠ CODEBASE REALITY CHECK (2026-08-01, during CA-07 build) — invalidates the auto-resolve premise
+
+Before building CA-07a I audited what ECS component collections actually ARE in this repo. The Q#17 draft
+assumed three uniform kinds (`FixedList<T>`, `[InlineArray]`, `DynamicBuffer<T>`) with clean `Length` + indexer.
+**That premise is false for this codebase:**
+
+1. **`FixedList<T>` and `DynamicBuffer<T>` do not exist here** (0 occurrences repo-wide). The ONLY collection
+   shape in ECS components is **`[InlineArray(N)]`** (and raw C# `fixed` buffers, e.g. `UnitRoster.fixed long
+   SubordinateEntities[16]`).
+2. **Capacity ≠ logical count.** These buffers carry a fixed capacity `N`, but the *logical* element count is a
+   **separate sibling field** (`UnitRoster.Count`, `UtilityResultBuffer.Count`). Auto-using the buffer's `N` as
+   `Length` would iterate garbage tail slots — semantically wrong.
+3. **`[InlineArray]` has a read footgun + no `.Length`.** `GetComponentRO<T>` returns `ref readonly T`; indexing
+   an inline array through a readonly ref triggers the C# 12 `ldobj` defensive-copy (correct for reads, but the
+   *discouraged* path). The blessed pattern is a hand-written `GetSpanRO()` per wrapper — which not every buffer
+   defines. Inline-array types have **no `.Length`** property at all (length = the attribute constant).
+4. **The architect already ruled on exactly this (Q#5-C):** raw fixed/inline-array access is kept **OUT of the
+   visual graph**, confined to a tiny curated helper (`UnitRosterOps.Count(in T)` / `Subordinate(in T,i)`, marked
+   `[BlueprintCallable]`), whose FQNs `FlowForEach` bakes. So the ESTABLISHED, architect-approved answer to
+   "iterate a component collection from a blueprint" is **hand-written curated accessors + baked FQNs** — i.e. the
+   A1 mechanism, not raw auto-resolution.
+
+**Consequence:** pure-A2 (auto-resolve `.Length`/indexer off any collection field and emit it inline in the
+graph's generated code) **contradicts Q#5-C** and is unsafe/incorrect for the Count-carrying inline-array idiom.
+The A2 *UX* (a collection out-pin feeding generic `ForEach`/`Get[i]`/`Length`) is still achievable — but it must
+be backed by **curated baked accessor FQNs** (the `FlowForEach`/Q#5-C mechanism), discovered editor-side via
+`[BlueprintCallable]`/convention, NOT by auto-reflecting the raw buffer. **This is a genuine fork that needs a
+user/architect call before CA-07 proceeds — see the RECONCILED OPTIONS below.**
+
+### Reconciled options (post reality-check)
+
+- **R1 — A2 UX + curated-accessor mechanism (RECOMMENDED).** Full Unreal collection-pin UX (collection out-pin →
+  generic `ForEach`/`Get[i]`/`Length`), but the editor bakes **hand-written accessor FQNs** per collection field
+  (the `UnitRoster`/`FlowForEach` model: `Count(in T)` + `Item(in T,i)`), discovered by convention
+  (`[BlueprintCallable]` ops class, or a `[BlueprintCollection]` field marker naming its accessors). Respects
+  Q#5-C, reflection-free, safe. Cost: only *curated* collection fields are exposed (a component must ship the
+  accessors) — not every raw inline array is auto-iterable. This is A2-UX + A1-mechanism = the honest best fit.
+- **R2 — pure auto-resolve raw inline array.** Bake element type + capacity `N`, emit `GetSpanRO()`-or-unsafe-span
+  reads, `Length = N`. **Rejected:** contradicts Q#5-C, ignores the logical `Count`, emits unsafe span code.
+- **R3 — span-pin.** Recognize wrappers exposing `GetSpanRO()` → project a `ReadOnlySpan<T>` pin. Cleaner but
+  ties to that one convention and still needs the logical-count question answered.
+
+**Claude's lean: R1.** It delivers the collection-pin UX the user committed to while honoring the architect's
+Q#5-C ruling and the ECS's actual collection idiom. Awaiting user/architect confirmation before CA-07a.
+
 ## Q17-A — Composition model (the crux)
 
 How does a collection field connect to the operation nodes?
@@ -112,9 +157,18 @@ decompose with **`Break`** (already shipped); a scalar element → a scalar pin.
 
 ## Architect answers
 
-*(record once relayed)*
-- Q17-A:
-- Q17-B:
-- Q17-C:
-- Q17-D:
-- Q17-E:
+*(recorded 2026-08-01 — user decision, direct)*
+- **Q17-A: A2 — the full Unreal collection-pin UX, committed up front** (not the A1-first-then-evolve
+  interim). A collection component field projects a **collection out-pin**; generic `ForEach` / `Get[i]` /
+  `Length` (and later `Contains`/`Find`) nodes consume a **collection in-pin**. The pin carries only the entity
+  at runtime; on wiring, the editor **bakes the connected field's `(ComponentFqn, field, CollectionKind, Count/Item
+  accessor FQNs)` onto the consuming op** (author-time resolution — stays reflection-free, no runtime collection
+  value). This supersedes the "A1 source-baked ops" interim in Q17-A above.
+- Q17-B: first slice = **iterate (`ForEach`, all kinds) + `Length` + `Get[i]`**, all consuming the collection
+  pin; `Contains`/`Find` follow. Generalize `FlowForEach`'s baked-accessor mechanism to feed the pin-driven ops.
+- Q17-C: small editor-side **per-`CollectionKind` accessor resolver** (`FixedList<T>`, `[InlineArray]`,
+  `DynamicBuffer<T>`) — no common interface to key off; mirror how `FlowForEach` obtained its accessors.
+- Q17-D: managed collections handled as a thin variant (direct `foreach`/`[i]`, element copies) under the
+  existing managed flow rules — later sub-slice.
+- Q17-E: iterated/indexed element = **value copy** → struct element decomposed with `Break` (shipped), scalar
+  element → scalar pin. No new machinery.

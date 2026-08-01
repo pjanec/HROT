@@ -1,4 +1,6 @@
+using System.Linq;
 using System.Reflection;
+using Fdp.Core;
 
 namespace Hrot.Blueprints.Editor.NodeDrawers;
 
@@ -16,6 +18,23 @@ internal sealed class ReflectedComponentField
     public string Name { get; init; } = "";
     public string TypeId { get; init; } = "";
     public bool IsManaged { get; init; }
+}
+
+/// <summary>
+/// CA-07a (R1 curated-accessor) — one discovered virtual collection: a component-level
+/// <c>[BlueprintCollection]</c>/<c>[BlueprintCollectionItem]</c> accessor PAIR (same
+/// <c>ComponentType</c>+<c>Name</c>), reflected off the loaded static-helper classes (e.g.
+/// <c>UnitRosterOps</c>). Mirrors <see cref="Hrot.Blueprints.Core.Assets.ComponentFieldDecl"/>'s
+/// collection fields (<c>ElementTypeId</c>/<c>CountAccessorFqn</c>/<c>ItemAccessorFqn</c>) — this
+/// is the editor-only reflected shape baked verbatim into that decl by
+/// <see cref="ComponentNodeDrawers.GetComponentNodeSession.ApplyComponentTypeFqn"/>.
+/// </summary>
+internal sealed class ReflectedComponentCollection
+{
+    public string Name { get; init; } = "";
+    public string ElementTypeId { get; init; } = "";
+    public string CountAccessorFqn { get; init; } = "";
+    public string ItemAccessorFqn { get; init; } = "";
 }
 
 /// <summary>
@@ -131,4 +150,131 @@ internal static class ComponentFieldReflector
         var type = ResolveType(fqn ?? "");
         return type is { IsClass: true };
     }
+
+    // ── CA-07a: virtual-collection discovery (R1 curated-accessor) ─────────────
+
+    /// <summary>
+    /// Discovers virtual collections exposed by the component type <paramref name="componentFqn"/>
+    /// via <c>[BlueprintCollection]</c>/<c>[BlueprintCollectionItem]</c>-attributed static methods
+    /// found anywhere across <see cref="AppDomain.CurrentDomain"/>'s loaded assemblies (mirrors
+    /// <see cref="ComponentTypeScan"/>'s enumeration/exception-handling shape, but scans METHODS
+    /// rather than component TYPES). Candidates are grouped by their attribute's <c>Name</c>; a
+    /// group is only emitted when BOTH a valid Count accessor (see
+    /// <see cref="IsValidCountAccessor"/>) AND a valid Item accessor (see
+    /// <see cref="IsValidItemAccessor"/>) are present for that name — a lone/malformed accessor is
+    /// silently skipped (declares no collection). Never returns <c>null</c> — an unresolvable or
+    /// collection-less component simply yields an empty list. Result is sorted by <c>Name</c>
+    /// (ordinal) for deterministic bake order, independent of assembly load order.
+    /// </summary>
+    internal static List<ReflectedComponentCollection> TryReflectCollections(string? componentFqn)
+    {
+        var result = new List<ReflectedComponentCollection>();
+        if (string.IsNullOrEmpty(componentFqn)) return result;
+
+        var counts = new Dictionary<string, MethodInfo>(StringComparer.Ordinal);
+        var items  = new Dictionary<string, MethodInfo>(StringComparer.Ordinal);
+
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            Type[] types;
+            try
+            {
+                types = assembly.GetTypes();
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                types = ex.Types.Where(t => t != null).Cast<Type>().ToArray();
+            }
+            catch
+            {
+                continue; // dynamic or otherwise unintrospectable assembly
+            }
+
+            foreach (var t in types)
+            {
+                MethodInfo[] methods;
+                try
+                {
+                    methods = t.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                foreach (var m in methods)
+                {
+                    var countAttr = m.GetCustomAttribute<BlueprintCollectionAttribute>();
+                    if (countAttr != null
+                        && countAttr.ComponentType.FullName == componentFqn
+                        && IsValidCountAccessor(m, countAttr.ComponentType))
+                    {
+                        counts[countAttr.Name] = m;
+                    }
+
+                    var itemAttr = m.GetCustomAttribute<BlueprintCollectionItemAttribute>();
+                    if (itemAttr != null
+                        && itemAttr.ComponentType.FullName == componentFqn
+                        && IsValidItemAccessor(m, itemAttr.ComponentType))
+                    {
+                        items[itemAttr.Name] = m;
+                    }
+                }
+            }
+        }
+
+        foreach (var (name, countMethod) in counts)
+        {
+            if (!items.TryGetValue(name, out var itemMethod)) continue; // lone Count -- no collection
+            result.Add(new ReflectedComponentCollection
+            {
+                Name             = name,
+                ElementTypeId    = itemMethod.ReturnType.FullName ?? itemMethod.ReturnType.Name,
+                CountAccessorFqn = AccessorFqn(countMethod),
+                ItemAccessorFqn  = AccessorFqn(itemMethod),
+            });
+        }
+
+        return result.OrderBy(c => c.Name, StringComparer.Ordinal).ToList();
+    }
+
+    /// <summary>
+    /// Validates a candidate <c>[BlueprintCollection]</c> method: public static (already guaranteed
+    /// by the <see cref="BindingFlags"/> scan), returns <c>int</c>, and takes exactly one byref
+    /// parameter (<c>in</c>/<c>ref</c> — both compile to a byref parameter, and the compiler's
+    /// callers only ever emit <c>in</c>) whose referenced type is <paramref name="componentType"/>.
+    /// </summary>
+    private static bool IsValidCountAccessor(MethodInfo m, Type componentType)
+    {
+        if (m.ReturnType != typeof(int)) return false;
+        var ps = m.GetParameters();
+        if (ps.Length != 1) return false;
+        var pt = ps[0].ParameterType;
+        return pt.IsByRef && pt.GetElementType() == componentType;
+    }
+
+    /// <summary>
+    /// Validates a candidate <c>[BlueprintCollectionItem]</c> method: public static (already
+    /// guaranteed by the <see cref="BindingFlags"/> scan), returns a NON-<c>void</c> type (the
+    /// collection's element type), and takes exactly two parameters -- a byref parameter (<c>in</c>/
+    /// <c>ref</c>) whose referenced type is <paramref name="componentType"/>, followed by an
+    /// <c>int</c> index.
+    /// </summary>
+    private static bool IsValidItemAccessor(MethodInfo m, Type componentType)
+    {
+        if (m.ReturnType == typeof(void)) return false;
+        var ps = m.GetParameters();
+        if (ps.Length != 2) return false;
+        var pt = ps[0].ParameterType;
+        if (!pt.IsByRef || pt.GetElementType() != componentType) return false;
+        return ps[1].ParameterType == typeof(int);
+    }
+
+    /// <summary>
+    /// FQN of a static accessor method as baked onto the node: <c>DeclaringType.FullName + "." +
+    /// Name</c> -- no argument list, no <c>global::</c> prefix (mirrors how <c>FlowForEachNode</c>'s
+    /// <c>CountAccessorFqn</c>/<c>ItemAccessorFqn</c> are authored, e.g.
+    /// "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count").
+    /// </summary>
+    private static string AccessorFqn(MethodInfo m) => $"{m.DeclaringType!.FullName}.{m.Name}";
 }

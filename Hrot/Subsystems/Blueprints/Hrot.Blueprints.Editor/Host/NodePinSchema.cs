@@ -768,7 +768,15 @@ internal static class NodePinSchema
         {
             var pins = new List<Pin>(2 + gcn.Fields.Count) { MakeData("Target", "In", "Fdp.Core.Entity") };
             foreach (var f in gcn.Fields)
-                pins.Add(MakeData(f.Name, "Out", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+            {
+                // CA-07a: a collection decl projects ONE out-pin typed by its ELEMENT type with
+                // IsArray true (the "whole collection" pin), in the SAME position it appears in
+                // Fields -- kept in exact parity with Stage0_Rehydrate.EnrichGetComponentPins.
+                if (f.IsCollection)
+                    pins.Add(MakeData(f.Name, "Out", string.IsNullOrEmpty(f.ElementTypeId) ? "System.Object" : f.ElementTypeId!, isArray: true));
+                else
+                    pins.Add(MakeData(f.Name, "Out", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+            }
             pins.Add(MakeData("Found", "Out", "System.Boolean"));
             return pins;
         }
@@ -1175,12 +1183,18 @@ internal static class NodePinSchema
         TypeRef   = new BlueprintTypeRef(),
     };
 
-    private static Pin MakeData(string name, string direction, string typeId) => new()
+    /// <summary>
+    /// CA-07a: <paramref name="isArray"/> stamps the pin's <see cref="BlueprintTypeRef.IsArray"/> --
+    /// used for a baked collection field's single "whole collection" out-pin (element-typed,
+    /// IsArray true). Defaults to <c>false</c> so every pre-CA-07a call site is unaffected. Mirrors
+    /// the compiler's <c>Stage0_Rehydrate.MakePin</c>.
+    /// </summary>
+    private static Pin MakeData(string name, string direction, string typeId, bool isArray = false) => new()
     {
         Id        = Guid.NewGuid(),
         Name      = name,
         Direction = direction,
         IsExec    = false,
-        TypeRef   = new BlueprintTypeRef { TypeId = typeId },
+        TypeRef   = new BlueprintTypeRef { TypeId = typeId, IsArray = isArray },
     };
 }

@@ -37,8 +37,9 @@ public sealed class GetComponentPinParityTests
         SiblingSignatures: Array.Empty<BlueprintSignature>());
 
     /// <summary>Runs Stage0 pin rehydration on a single-node graph and returns the rehydrated pins as
-    /// (Name, Direction, IsExec, TypeId) tuples, in order.</summary>
-    private static List<(string Name, string Direction, bool IsExec, string? TypeId)> RunStage0(GetComponentNode node)
+    /// (Name, Direction, IsExec, TypeId, IsArray) tuples, in order. IsArray is included (CA-07a) so
+    /// a collection out-pin's array-ness is proven in parity, not just its element TypeId.</summary>
+    private static List<(string Name, string Direction, bool IsExec, string? TypeId, bool IsArray)> RunStage0(GetComponentNode node)
     {
         var graph = new Graph
         {
@@ -57,14 +58,14 @@ public sealed class GetComponentPinParityTests
         Stage0_Rehydrate.Run(asset, DefaultOptions());
 
         return node.Pins
-            .Select(p => (p.Name, p.Direction, p.IsExec, p.TypeRef?.TypeId))
+            .Select(p => (p.Name, p.Direction, p.IsExec, p.TypeRef?.TypeId, p.TypeRef?.IsArray ?? false))
             .ToList();
     }
 
     /// <summary>Runs the editor's projection on an equivalent (freshly-built, pin-less) node.</summary>
-    private static List<(string Name, string Direction, bool IsExec, string? TypeId)> RunEditor(GetComponentNode node)
+    private static List<(string Name, string Direction, bool IsExec, string? TypeId, bool IsArray)> RunEditor(GetComponentNode node)
         => NodePinSchema.GetCanonicalPins(node)
-            .Select(p => (p.Name, p.Direction, p.IsExec, p.TypeRef?.TypeId))
+            .Select(p => (p.Name, p.Direction, p.IsExec, p.TypeRef?.TypeId, p.TypeRef?.IsArray ?? false))
             .ToList();
 
     // ── Multi-pin (Fields baked) ──────────────────────────────────────────────
@@ -92,10 +93,10 @@ public sealed class GetComponentPinParityTests
         // just a Stage0-vs-editor disagreement that happens to move in lockstep.
         Assert.Equal(new[]
         {
-            ("Target", "In",  false, (string?)"Fdp.Core.Entity"),
-            ("X",      "Out", false, (string?)"System.Single"),
-            ("Y",      "Out", false, (string?)"System.Single"),
-            ("Found",  "Out", false, (string?)"System.Boolean"),
+            ("Target", "In",  false, (string?)"Fdp.Core.Entity", false),
+            ("X",      "Out", false, (string?)"System.Single",   false),
+            ("Y",      "Out", false, (string?)"System.Single",   false),
+            ("Found",  "Out", false, (string?)"System.Boolean",  false),
         }, fromEditor);
     }
 
@@ -113,6 +114,83 @@ public sealed class GetComponentPinParityTests
         };
 
         Assert.Equal(RunStage0(Build()), RunEditor(Build()));
+    }
+
+    // ── Multi-pin with a collection decl (CA-07a) ─────────────────────────────
+
+    [Fact]
+    public void MultiPin_CollectionField_EditorProjection_MatchesStage0Enrichment_Exactly()
+    {
+        // Mirrors BpCollectionDemo/BpCollectionDemoOps's baked shape -- a component with ONE scalar
+        // field and ONE collection ("Values"), collection appended AFTER the scalar field (Fields
+        // append order), before the trailing "Found" pin -- exercises ordering AND IsArray parity.
+        GetComponentNode Build() => new()
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = "Hrot.AI.Behaviors.BpCollectionDemo",
+            Fields = new List<ComponentFieldDecl>
+            {
+                new() { Name = "Count", TypeId = "System.Int32" },
+                new()
+                {
+                    Name             = "Values",
+                    TypeId           = "",
+                    IsCollection     = true,
+                    ElementTypeId    = "System.Int32",
+                    CountAccessorFqn = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Count",
+                    ItemAccessorFqn  = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Item",
+                },
+            },
+        };
+
+        var fromStage0 = RunStage0(Build());
+        var fromEditor = RunEditor(Build());
+
+        Assert.Equal(fromStage0, fromEditor);
+
+        Assert.Equal(new[]
+        {
+            ("Target", "In",  false, (string?)"Fdp.Core.Entity", false),
+            ("Count",  "Out", false, (string?)"System.Int32",    false),
+            ("Values", "Out", false, (string?)"System.Int32",    true),
+            ("Found",  "Out", false, (string?)"System.Boolean",  false),
+        }, fromEditor);
+    }
+
+    [Fact]
+    public void MultiPin_CollectionOnlyField_NoScalarFields_StillMultiPin()
+    {
+        // A component with ONLY a collection (no scalar fields) -- must still take the multi-pin
+        // path (Target/Found present), not fall back to the legacy single-"Value" shape.
+        GetComponentNode Build() => new()
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = "Hrot.AI.Behaviors.BpCollectionDemo",
+            Fields = new List<ComponentFieldDecl>
+            {
+                new()
+                {
+                    Name             = "Values",
+                    TypeId           = "",
+                    IsCollection     = true,
+                    ElementTypeId    = "System.Int32",
+                    CountAccessorFqn = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Count",
+                    ItemAccessorFqn  = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Item",
+                },
+            },
+        };
+
+        var fromStage0 = RunStage0(Build());
+        var fromEditor = RunEditor(Build());
+
+        Assert.Equal(fromStage0, fromEditor);
+
+        Assert.Equal(new[]
+        {
+            ("Target", "In",  false, (string?)"Fdp.Core.Entity", false),
+            ("Values", "Out", false, (string?)"System.Int32",    true),
+            ("Found",  "Out", false, (string?)"System.Boolean",  false),
+        }, fromEditor);
     }
 
     // ── Legacy (Fields == null) ───────────────────────────────────────────────
@@ -136,7 +214,7 @@ public sealed class GetComponentPinParityTests
 
         // Legacy is self-only: no Target, no Found -- just the single "Value" out-pin, FieldTypeFqn
         // used VERBATIM (not "global::"-stamped -- see Stage0's EnrichGetComponentPins doc comment).
-        Assert.Equal(new[] { ("Value", "Out", false, (string?)"System.Single") }, fromEditor);
+        Assert.Equal(new[] { ("Value", "Out", false, (string?)"System.Single", false) }, fromEditor);
     }
 
     [Fact]
@@ -155,6 +233,6 @@ public sealed class GetComponentPinParityTests
         var fromEditor = RunEditor(Build());
 
         Assert.Equal(fromStage0, fromEditor);
-        Assert.Equal(new[] { ("Value", "Out", false, (string?)"System.Object") }, fromEditor);
+        Assert.Equal(new[] { ("Value", "Out", false, (string?)"System.Object", false) }, fromEditor);
     }
 }

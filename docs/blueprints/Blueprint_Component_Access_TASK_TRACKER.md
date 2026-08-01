@@ -21,7 +21,10 @@ builds clean.
 | CA-04 | Write editor (unmanaged) | W1 | Sonnet | ✅ |
 | CA-05 | Managed read | 1b | Sonnet + Opus(flow rules) | ✅ |
 | CA-06 | Managed write (ECB) | W2 | Opus + Sonnet(mirror) | ✅ |
-| CA-07 | Collections (iterate + random) | 2 | Opus-led | ⬜ |
+| CA-07a | Collection pin type + GetComponent collection out-pin | 2 | Sonnet + Opus(review) | ✅ |
+| CA-07b | Consumer nodes + IR + emit (ForEach/Get[i]/Length) | 2 | Opus (novel) | ⬜ |
+| CA-07c | Editor wire-baking + palette + drawers | 2 | Sonnet + Opus(review) | ⬜ |
+| CA-07d | Managed collections + Contains/Find (deferred sub-slice) | 2 | later | ⬜ |
 
 ---
 
@@ -172,12 +175,50 @@ builds clean.
 - [ ] Tests: managed write emit (ECB), per-field-managed rejection
 - **Confirm:** ECB API `SetManagedComponent`; AiPrimitive tick has ECB in scope.
 
-### CA-07 — Collections (iterate + random-access) · Slice 2
-- [ ] Generalize `FlowForEach` baked `Count`/`Item[i]` accessors across `FixedList<T>` / `[InlineArray]` / `DynamicBuffer<T>` — iteration
-- [ ] Random-access read: `component.array[i]` + `Length` (build on baked accessors; retire/replace the `ArrayGet`/`ArrayMake` stubs) **(Opus-led)**
+### CA-07 — Collections · Slice 2 — **A2 UX + R1 curated-accessor mechanism** (Q17-A decided 2026-08-01; reality-check pivot to R1)
+
+**Mechanism (R1 — curated accessors, after the ⚠ reality-check in the Q#17 doc):** this ECS has NO
+`FixedList`/`DynamicBuffer` — only `[InlineArray]`/`fixed` buffers whose logical count is a sibling field and
+whose raw access is `unsafe` + architect-ruled off-graph (Q#5-C). So collections are exposed via **curated
+accessor pairs**, NOT auto-reflected off the raw buffer:
+- A component declares a virtual collection with `[BlueprintCollection]` (`int Count(in T)`) +
+  `[BlueprintCollectionItem]` (`TElement Item(in T,int)`) static helpers (`Fdp.Core`), grouped by `(component,name)`.
+- `GetComponent` projects **one collection out-pin** per collection — `BlueprintTypeRef { TypeId = elementFqn,
+  IsArray = true }` (reuse existing `IsArray`; no new pin kind). **A2 UX:** generic consumers wire off it.
+- The collection pin **carries only the entity** at runtime; consumers re-read `GetComponentRO<Comp>(e)` and call
+  the **baked accessor FQNs** — identical to `FlowForEach`'s emit, so collection *kind* never reaches the
+  compiler. New IR ops; `IrOp_ForEach` untouched (FlowForEach goldens byte-identical).
+
+**CA-07a — collection pin type + GetComponent collection out-pin** *(Sonnet build, Opus review + gate)* ✅
+- [x] `[BlueprintCollection]`/`[BlueprintCollectionItem]` marker attrs — `FDP/Engine/Fdp.Core/BlueprintCollectionAttribute.cs`
+- [x] Extend `ComponentFieldDecl`: `IsCollection` + `ElementTypeId`/`CountAccessorFqn`/`ItemAccessorFqn` (byte-stable, `JsonIgnore` when default/null) — `Assets/Nodes.cs`
+- [x] `ComponentFieldReflector.TryReflectCollections` — scan loaded asms, validate `Count`/`Item` signatures, pair by name, ordinal-sort — `NodeDrawers/`
+- [x] `EnrichGetComponentPins` (Stage0) + `GetComponentPins` (editor) — collection decl → ONE `IsArray` element-typed out-pin; `MakePin`/`MakeData` gain `isArray`; strict parity
+- [x] Bake collection decls at picker time (`ComponentNodeDrawers.ApplyComponentTypeFqn`; `Fields` non-null even if collections-only)
+- [x] Stage5 GetComponent loop **skips** collection decls (`if (f.IsCollection) continue;`)
+- [x] Demo: `BpCollectionDemo` (`[ComponentId(189)]`, `int Count` + `fixed int Values[4]`) + `BpCollectionDemoOps` accessor pair
+- [x] Tests: parity (incl. `IsArray`), reflector discovery + lone/malformed-accessor, byte-stable JSON. **Gate: 184 serial ✅ + 160 Component ✅**
+
+**CA-07b — consumer nodes + IR + emit** *(Opus, the novel core)*
+- [ ] Nodes (collection in-pin + baked `ComponentTypeFqn`/`CountAccessorFqn`/`ItemAccessorFqn`/`ElementTypeFqn`): `ComponentForEachNode` (exec: In→Body/Completed, `CurrentItem`+`CurrentIndex` outs), `ComponentItemGetNode` (data: `Index` in → `Element` out), `ComponentItemCountNode` (data: `Count` out) — `Assets/Nodes.cs` + `[JsonDerivedType]`
+- [ ] New IR ops: `IrOp_ComponentCollectionForEach`, `IrOp_ComponentItemGet`, `IrOp_ComponentItemCount` — `Compiler/Ir/IrOperation.cs`
+- [ ] Stage5 lowering (ForEach body inline, mirror `ScheduleFlowForEachNode`; collection in-pin resolves to the entity) — `Stage5_Schedule.cs`
+- [ ] StatementEmitter: read `GetComponentRO<Comp>(e)` once, call `global::{CountFqn}(in c)` / `global::{ItemFqn}(in c,i)` (mirror `IrOp_ForEach` emit) — guard nested-ops-class `+` in FQN — `Emit/StatementEmitter.cs`
+- [ ] Stage2 validators (collection-pin in-pin required; element-type flow) + BP206x codes
+- [ ] `ArrayGetNode` silent-default stub: leave as-is + document (superseded by `ComponentItemGet`)
+- [ ] Tests: iterate + index + length lowering + emit goldens. **Gate 184 + new goldens.**
+
+**CA-07c — editor wire-baking + palette + drawers** *(Sonnet mechanical mirror; Opus reviews wire-bake hook)*
+- [ ] `BlueprintCommandSink.ApplyAddLink` hook: collection out-pin → consumer in-pin bakes `(ComponentFqn, Count/Item FQNs, ElementFqn)` from the source GetComponent collection decl onto the consumer, then `RebuildAndNotify` (mirror `ApplyComponentTypeFqn`) **(Opus reviews)**
+- [ ] Palette entries + drawers for the 3 consumer nodes
+- [ ] Demo blueprint(s) using GetComponent<BpCollectionDemo> "Values" → ForEach/Get/Length (visual check)
+- [ ] Tests: wire-bake round-trip. **Gate 184.**
+
+**CA-07d — deferred sub-slice** *(after visual check)*
 - [ ] Managed collections via direct C# `foreach`/indexer under the managed read-and-pass rules
-- [ ] Tests: per-kind iterate + index + length
-- **Note:** no unmanaged maps/sets (E1). Largest batch — may split when scoped.
+- [ ] `Contains` / `Find`
+
+- **Note:** no unmanaged maps/sets (Q#15-E1). Element = value copy → struct element decomposed with `Break` (shipped).
 
 ---
 
@@ -209,3 +250,13 @@ builds clean.
   full-suite reds (Stage4 BP1500, NodeCoverage Make/Break/SetMembers, 2 perf) reproduce on the clean
   base → pre-existing, not CA-01. Re-gate: 7/7 GetComponent tests + **184/184 serial** byte-identical.
   **CA-01 ✅ done.**
+- **2026-08-02, CA-07a, Sonnet build + Opus review:** R1 curated-accessor collection reads. Added
+  `[BlueprintCollection]`/`[BlueprintCollectionItem]` (Fdp.Core), extended `ComponentFieldDecl`
+  (`IsCollection`/`ElementTypeId`/`CountAccessorFqn`/`ItemAccessorFqn`, byte-stable), reflector
+  `TryReflectCollections` (signature-validated pair discovery, ordinal-sorted), picker bake,
+  `GetComponent` one `IsArray` element-typed out-pin per collection (Stage0 ⇄ NodePinSchema parity,
+  `MakePin`/`MakeData` gain `isArray`), Stage5 skips collection decls, demo `BpCollectionDemo`
+  (ComponentId 189) + `BpCollectionDemoOps`. **Opus review:** parity exact, byte-stability correct,
+  Stage5 skip right, reflector validation sound; noted `AccessorFqn` uses `DeclaringType.FullName`
+  (guard nested-ops-class `+` at CA-07b emit). Re-ran gate MYSELF: **184/184 serial byte-identical**
+  + **160/160 Component**, both builds clean. **CA-07a ✅ done.**

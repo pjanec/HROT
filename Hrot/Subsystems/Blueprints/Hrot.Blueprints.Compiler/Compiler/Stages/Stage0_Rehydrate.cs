@@ -365,7 +365,16 @@ internal static class Stage0_Rehydrate
         {
             pins.Add(MakePin("Target", "In", isExec: false, typeId: "Fdp.Core.Entity"));
             foreach (var f in gcn.Fields)
-                pins.Add(MakePin(f.Name, "Out", isExec: false, typeId: f.TypeId));
+            {
+                // CA-07a: a collection decl projects ONE out-pin typed by its ELEMENT type with
+                // IsArray true (the "whole collection" pin) instead of the scalar TypeId pin --
+                // in the SAME position it appears in Fields (append order), between the scalar
+                // field pins and the trailing "Found" pin below.
+                if (f.IsCollection)
+                    pins.Add(MakePin(f.Name, "Out", isExec: false, typeId: string.IsNullOrEmpty(f.ElementTypeId) ? "System.Object" : f.ElementTypeId!, isArray: true));
+                else
+                    pins.Add(MakePin(f.Name, "Out", isExec: false, typeId: f.TypeId));
+            }
             pins.Add(MakePin("Found", "Out", isExec: false, typeId: "System.Boolean"));
             return;
         }
@@ -1004,12 +1013,17 @@ internal static class Stage0_Rehydrate
         return string.IsNullOrEmpty(typeRef.TypeId) ? "System.Object" : typeRef.TypeId;
     }
 
-    private static Pin MakePin(string name, string direction, bool isExec, string typeId) => new Pin
+    /// <summary>
+    /// CA-07a: <paramref name="isArray"/> stamps the pin's <see cref="BlueprintTypeRef.IsArray"/> --
+    /// used for a baked collection field's single "whole collection" out-pin (element-typed,
+    /// IsArray true). Defaults to <c>false</c> so every pre-CA-07a call site is unaffected.
+    /// </summary>
+    private static Pin MakePin(string name, string direction, bool isExec, string typeId, bool isArray = false) => new Pin
     {
         Name      = name,
         Direction = direction,
         IsExec    = isExec,
-        TypeRef   = new BlueprintTypeRef { TypeId = typeId },
+        TypeRef   = new BlueprintTypeRef { TypeId = typeId, IsArray = isArray },
         // Id will be assigned by AssignLinkGuids.
     };
 

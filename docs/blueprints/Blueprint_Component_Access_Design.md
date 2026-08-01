@@ -124,8 +124,52 @@ Editor is the primary guard (netstandard2.0 compiler can't reflect).
    `IrOp_WriteComponentField`, `HasComponent` guard, validator, drawer/palette).
 3. **1b + W2 — managed** (`IsManaged`; read `GetManagedComponentRO` + managed→unmanaged rejection + UI caveat;
    write `SetManagedComponent` ECB whole-replace + reject per-field managed).
-4. **2 — collections** (generalize `FlowForEach` baked `Count`/`Item[i]` accessors + random-access `Get[i]`/
-   `Length` over `FixedList`/`InlineArray`/`DynamicBuffer`; managed collections via direct `foreach`/indexer).
+4. **2 — collections (R1 curated-accessor, A2 UX)** — see the dedicated section below. CA-07a (collection
+   pin + GetComponent out-pin) ✅, CA-07b (consumer nodes + IR + emit), CA-07c (wire-bake + palette + drawers),
+   CA-07d (managed collections + `Contains`/`Find`, deferred).
+
+## Collections — Slice 2 (R1 curated-accessor, A2 Unreal UX)
+
+**Decided Q17-A = A2 UX (full Unreal collection-pin), R1 mechanism (curated accessors).** The auto-resolve
+premise in the Q#17 draft was invalidated by a codebase reality-check (see that doc's ⚠ section): this ECS has
+**no `FixedList`/`DynamicBuffer`** — only `[InlineArray]`/`fixed` buffers whose *logical count* is a separate
+field, and whose raw access is `unsafe` and architect-ruled **off-graph (Q#5-C)**. So collections are exposed via
+**curated accessor pairs**, not reflected off the raw buffer.
+
+**The accessor contract** (`Fdp.Core.BlueprintCollectionAttribute` + `…ItemAttribute`): a component exposes a
+virtual collection through two `public static` helpers, mirroring `UnitRosterOps`:
+```csharp
+[BlueprintCollection(typeof(TComp), "Name")]      public static int      Count(in TComp c);
+[BlueprintCollectionItem(typeof(TComp), "Name")]  public static TElement Item (in TComp c, int i);
+```
+Element type = `Item`'s return type. The pair is grouped by `(ComponentType, Name)`; a lone/malformed accessor
+declares nothing. Exactly the reflection-free-bakeable formalization of what `FlowForEach` already bakes.
+
+**Data model.** `ComponentFieldDecl` gains (byte-stable, `JsonIgnore`d when default): `IsCollection`,
+`ElementTypeId`, `CountAccessorFqn`, `ItemAccessorFqn`. A collection decl sets `TypeId=""`.
+
+**Pin (A2 UX).** `GetComponent` projects **one collection out-pin** per collection decl —
+`BlueprintTypeRef { TypeId = ElementTypeId, IsArray = true }` (reuse the existing `IsArray` flag; no new pin
+kind), in `Fields` order between the scalar field pins and `Found`. Stage0 `EnrichGetComponentPins` ⇄ editor
+`NodePinSchema.GetComponentPins` kept in exact parity (real-Stage0 parity test). **The pin carries only the
+entity at runtime** — each consumer re-reads `GetComponentRO<Comp>(e)` (can't carry a `ref`/unmanaged buffer
+across nodes reflection-free).
+
+**Discovery + bake (editor).** `ComponentFieldReflector.TryReflectCollections(fqn)` scans loaded assemblies for
+attributed static methods, validates signatures, pairs by name, sorts ordinal; the GetComponent picker
+(`ApplyComponentTypeFqn`) appends the discovered collection decls to `Fields`.
+
+**IR & emit (CA-07b — the novel core).** New consumer nodes (`ComponentForEach` / `ComponentItemGet` /
+`ComponentItemCount`) take a **collection in-pin** and carry baked `(ComponentTypeFqn, CountAccessorFqn,
+ItemAccessorFqn, ElementTypeFqn)`. New IR ops lower to emit that reads the component once then calls the baked
+FQNs — `global::{Count}(in c)` / `global::{Item}(in c, i)` — **identical to `FlowForEach`'s emit**, so the
+collection *kind* (`fixed`/`[InlineArray]`/managed) never reaches the compiler. `IrOp_ForEach` left untouched
+(FlowForEach goldens stay byte-identical). Author-time accessor baking hooks
+`BlueprintCommandSink.ApplyAddLink` (CA-07c). `AccessorFqn` uses `DeclaringType.FullName` — guard nested ops
+classes (the `+` separator) at emit.
+
+**Stage5 (CA-07a).** The GetComponent multi-field loop **skips** collection decls (`if (f.IsCollection)
+continue;`) — no `IrOp_FieldRead`; the collection pin is consumed by CA-07b, not read here.
 
 ## Gate
 

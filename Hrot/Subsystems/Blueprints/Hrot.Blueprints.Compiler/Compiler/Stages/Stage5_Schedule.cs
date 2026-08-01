@@ -2179,6 +2179,11 @@ internal sealed class GraphScheduler
 
                     foreach (var f in gcn.Fields)
                     {
+                        // CA-07a: a collection decl's out-pin gets NO IrOp_FieldRead here -- its
+                        // consumers (element-indexed reads) arrive in CA-07b. Skip it entirely so
+                        // this loop stays scalar-field-only.
+                        if (f.IsCollection) continue;
+
                         var fPin = gcn.Pins.FirstOrDefault(p =>
                             !p.IsExec && p.Direction == "Out"
                             && string.Equals(p.Name, f.Name, StringComparison.OrdinalIgnoreCase));

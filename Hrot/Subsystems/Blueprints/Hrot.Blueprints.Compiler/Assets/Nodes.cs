@@ -585,11 +585,39 @@ public sealed class GetComponentNode : Node
 /// One baked component field: name + pin TypeId. Mirrors <see cref="SharedFieldDecl"/> minus
 /// <c>Offset</c> -- component field access is a typed member read (<c>view.GetComponentRO&lt;T&gt;
 /// (e).Name</c>), not a byte-offset read into a blittable blob, so there is no offset to bake.
+/// <para>
+/// CA-07a (R1 curated-accessor collections): a decl can ALSO describe a virtual COLLECTION instead
+/// of a scalar field -- <see cref="IsCollection"/> true, <see cref="TypeId"/> unused (empty),
+/// <see cref="ElementTypeId"/>/<see cref="CountAccessorFqn"/>/<see cref="ItemAccessorFqn"/> baked
+/// from the pair of <c>[BlueprintCollection]</c>/<c>[BlueprintCollectionItem]</c> curated static
+/// accessors discovered on the component type (see <c>Fdp.Core.BlueprintCollectionAttribute</c>'s
+/// doc comment for the "why" -- architect Q#5-C: raw fixed/inline-array access stays off-graph).
+/// The three new members default to <c>null</c>/<c>false</c> and are <c>JsonIgnore</c>d in that
+/// state, so an existing (pre-CA-07a) scalar decl still serializes to exactly
+/// <c>{"Name":..., "TypeId":...}</c> -- BYTE-IDENTICAL. Mirrors <see cref="FlowForEachNode"/>'s
+/// baked <c>CountAccessorFqn</c>/<c>ItemAccessorFqn</c> pair.
+/// </para>
 /// </summary>
 public sealed class ComponentFieldDecl
 {
     public string Name { get; set; } = "";
     public string TypeId { get; set; } = "";
+
+    /// <summary>CA-07a: true when this decl describes a virtual collection (not a scalar field). Default false ⇒ omitted from JSON.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsCollection { get; set; }
+
+    /// <summary>CA-07a: FQN of the collection's element type (the Item accessor's return type) -- used to type the out-pin. Null (and omitted from JSON) for scalar decls.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ElementTypeId { get; set; }
+
+    /// <summary>CA-07a: baked "Ns.Class.Count" FQN of the <c>[BlueprintCollection]</c> static accessor -- no reflection at compile time. Null (and omitted from JSON) for scalar decls.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? CountAccessorFqn { get; set; }
+
+    /// <summary>CA-07a: baked "Ns.Class.Item" FQN of the <c>[BlueprintCollectionItem]</c> static accessor -- no reflection at compile time. Null (and omitted from JSON) for scalar decls.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ItemAccessorFqn { get; set; }
 }
 
 // ──────────────────────────────────────────────────────────────────────────

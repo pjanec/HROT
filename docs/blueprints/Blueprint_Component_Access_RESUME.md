@@ -30,12 +30,16 @@ blackboard Variables/Shared). Approved by the architect in **Q#15 (read)** + **Q
 
 1. **User is doing a visual check** of CA-01–06 via the demos (open `GetComponentDemo` / `GetComponentTargetDemo`
    / `SetComponentDemo` in `Hrot.AI.Behaviors/Assets/Blueprints/`). Wait for their findings; fix anything they hit.
-2. **CA-07 (collections) needs the Q17-A decision** before building. Q#17 draft:
-   `docs/blueprints/Architect_Question_17_Component_Collection_Read.md`. Follows Unreal (collection field → one
-   collection pin + generic Get/Length/ForEach nodes), backed by baked `Count`/`Item[i]` accessors (A1-approved).
-   **The open call: Q17-A** — **A1** source-baked ops (FlowForEach-style, cheap, reuses `FlowForEach`, less
-   composable) vs **A2** Unreal collection-pin (composable, more machinery). **My lean: A1 first slice → A2 evolve.**
-   User was going to relay to the architect / decide. Once answered, build CA-07 batched (below).
+2. **CA-07 (collections) — Q17-A DECIDED: A2 (full Unreal collection-pin UX, committed up front)** (user call,
+   2026-08-01). Q#17 doc: `docs/blueprints/Architect_Question_17_Component_Collection_Read.md` (answers recorded).
+   A collection component field projects a **collection out-pin**; generic `ForEach` / `Get[i]` / `Length` nodes
+   consume a **collection in-pin**; the pin carries only the entity at runtime and the editor **bakes
+   `(ComponentFqn, field, CollectionKind, Count/Item accessor)` onto the consumer on wire** (author-time, stays
+   reflection-free). First slice = iterate + `Length` + `Get[i]` (unmanaged: `FixedList<T>`, `[InlineArray]`,
+   `DynamicBuffer<T>`); managed collections + `Contains`/`Find` are later sub-slices. **This is novel compiler +
+   editor work (new pin kind, new IR ops, author-time wire-baking) — build it hands-on (Opus), not delegated
+   wholesale to Sonnet; delegate only the mechanical mirror bits (palette/drawer).** Batch plan lives in the
+   design doc + tracker once the seam map is in.
 
 ## How to continue (the workflow — user-approved)
 
