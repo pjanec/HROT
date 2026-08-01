@@ -553,6 +553,29 @@ public sealed class GetComponentNode : Node
     public string FieldName { get; set; } = "";
     /// <summary>FQN of the read field's type (e.g. "Fdp.Toolkit.Navigation.NavigationResult"). Used only to build the result IrTypeRef locally; optional (falls back to the resolved out-pin type / UnknownType).</summary>
     public string FieldTypeFqn { get; set; } = "";
+
+    /// <summary>
+    /// CA-01 multi-pin: baked per-field decls the editor reflects off the component struct. When
+    /// non-null, GetComponent projects one data-out pin PER FIELD (read the component once, expose
+    /// each field) instead of the single legacy "Value" pin (<see cref="FieldName"/>/<see
+    /// cref="FieldTypeFqn"/>). Null (and omitted from JSON) = legacy single-field path -- existing
+    /// assets round-trip byte-identically. Mirrors <see cref="GetSharedNode.Fields"/> exactly, EXCEPT
+    /// no byte <c>Offset</c> -- component reads are typed member access (<c>__c.{Name}</c>), not a
+    /// blittable-struct byte read, so there is nothing to offset into.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public List<ComponentFieldDecl>? Fields { get; set; }
+}
+
+/// <summary>
+/// One baked component field: name + pin TypeId. Mirrors <see cref="SharedFieldDecl"/> minus
+/// <c>Offset</c> -- component field access is a typed member read (<c>view.GetComponentRO&lt;T&gt;
+/// (e).Name</c>), not a byte-offset read into a blittable blob, so there is no offset to bake.
+/// </summary>
+public sealed class ComponentFieldDecl
+{
+    public string Name { get; set; } = "";
+    public string TypeId { get; set; } = "";
 }
 
 // ──────────────────────────────────────────────────────────────────────────

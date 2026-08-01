@@ -272,4 +272,87 @@ public sealed class DeterministicPinReconstructionTests
         Assert.Equal(new[] { ("A", "In"), ("Result", "Out") },
             node.Pins.Select(p => (p.Name, p.Direction)).ToArray());
     }
+
+    // ── GetComponent enricher (CA-01, Slice 1a: unmanaged read) ─────────────────────
+    // Mirrors GetShared's Target/Fields/Found enrichment exactly (EnrichGetSharedPins ->
+    // EnrichGetComponentPins), except the legacy single-field "Value" pin's TypeId comes straight
+    // from FieldTypeFqn (see EnrichGetComponentPins's comment on why no "global::" stamp).
+
+    [Fact]
+    public void GetComponent_MultiPinFields_ProjectsTargetPerFieldOutAndFound()
+    {
+        var gcn = new GetComponentNode
+        {
+            Id = Guid.NewGuid(),
+            ComponentTypeFqn = "System.Numerics.Vector3",
+            Fields = new List<ComponentFieldDecl>
+            {
+                new ComponentFieldDecl { Name = "X", TypeId = "System.Single" },
+                new ComponentFieldDecl { Name = "Y", TypeId = "System.Single" },
+            },
+            Pins = new List<Pin>(),
+        };
+        var graph = new Graph { Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Event,
+            Nodes = new List<Node> { gcn }, Links = new(), Inputs = new(), Outputs = new() };
+        var asset = new BlueprintAsset { AssetId = Guid.NewGuid(), Name = "T",
+            Dispatch = BlueprintDispatchKind.Instance, Graphs = new List<Graph> { graph },
+            Variables = new(), CustomEvents = new() };
+        Stage0_Rehydrate.Run(asset, Options());
+
+        var shape = gcn.Pins.Select(p => (p.Name, p.Direction, p.IsExec, p.TypeRef?.TypeId)).ToList();
+        Assert.Equal(4, shape.Count);   // Target + X + Y + Found -- no leftover legacy "Value" pin
+        Assert.Contains(("Target", "In",  false, "Fdp.Core.Entity"), shape);
+        Assert.Contains(("X",      "Out", false, "System.Single"),   shape);
+        Assert.Contains(("Y",      "Out", false, "System.Single"),   shape);
+        Assert.Contains(("Found",  "Out", false, "System.Boolean"),  shape);
+    }
+
+    [Fact]
+    public void GetComponent_LegacyNullFields_ProjectsValueOnly()
+    {
+        // Frozen legacy single-field shape: self-only, single "Value" out, NO Target/Found (those
+        // are multi-pin-mode only, so Stage5's untouched legacy lowering never leaves a projected
+        // pin uncomputed).
+        var gcn = new GetComponentNode
+        {
+            Id = Guid.NewGuid(),
+            ComponentTypeFqn = "System.Numerics.Vector3",
+            FieldName = "X",
+            FieldTypeFqn = "System.Single",
+            Fields = null,
+            Pins = new List<Pin>(),
+        };
+        var graph = new Graph { Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Event,
+            Nodes = new List<Node> { gcn }, Links = new(), Inputs = new(), Outputs = new() };
+        var asset = new BlueprintAsset { AssetId = Guid.NewGuid(), Name = "T",
+            Dispatch = BlueprintDispatchKind.Instance, Graphs = new List<Graph> { graph },
+            Variables = new(), CustomEvents = new() };
+        Stage0_Rehydrate.Run(asset, Options());
+
+        var shape = gcn.Pins.Select(p => (p.Name, p.Direction, p.IsExec, p.TypeRef?.TypeId)).ToList();
+        Assert.Equal(new[] { ("Value", "Out", false, (string?)"System.Single") }, shape);
+    }
+
+    [Fact]
+    public void GetComponent_LegacyNullFields_EmptyFieldTypeFqn_FallsBackToSystemObject()
+    {
+        var gcn = new GetComponentNode
+        {
+            Id = Guid.NewGuid(),
+            ComponentTypeFqn = "System.Numerics.Vector3",
+            FieldName = "X",
+            FieldTypeFqn = "",
+            Fields = null,
+            Pins = new List<Pin>(),
+        };
+        var graph = new Graph { Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Event,
+            Nodes = new List<Node> { gcn }, Links = new(), Inputs = new(), Outputs = new() };
+        var asset = new BlueprintAsset { AssetId = Guid.NewGuid(), Name = "T",
+            Dispatch = BlueprintDispatchKind.Instance, Graphs = new List<Graph> { graph },
+            Variables = new(), CustomEvents = new() };
+        Stage0_Rehydrate.Run(asset, Options());
+
+        var valuePin = gcn.Pins.First(p => p.Name == "Value");
+        Assert.Equal("System.Object", valuePin.TypeRef?.TypeId);
+    }
 }

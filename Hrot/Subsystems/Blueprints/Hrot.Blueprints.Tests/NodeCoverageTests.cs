@@ -360,11 +360,6 @@ public sealed class NodeCoverageTests
                 "any real method signature, so Stage0's reflection/resolver legitimately produces " +
                 "different names. The real pin-less FunctionCall round-trip (real param names) is proven " +
                 "by FunctionCallSemanticResolveTests + the pin-less HillAssault2I_* proof blueprints.",
-            [typeof(GetComponentNode)] =
-                "GetComponent's 'Value' output is resolved at lowering from the node's BAKED " +
-                "ComponentTypeFqn/FieldName (Stage5_Schedule reads the node fields, not a pin), so it " +
-                "round-trips pin-less without the output pin being reconstructed. Proven by the stripped " +
-                "HillAssault2_AimAndFireSpecific blueprint building green.",
             [typeof(GetParameterNode)] =
                 "GetParameter's 'Value' output is resolved at lowering from the node's BAKED ParameterId " +
                 "(like GetVariable), not by pin lookup, so it round-trips pin-less without the output pin " +

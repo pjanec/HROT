@@ -143,6 +143,10 @@ internal static class Stage0_Rehydrate
                 EnrichSetSharedPins(pins, ssn, staticShapes);
                 break;
 
+            case GetComponentNode gcn:
+                EnrichGetComponentPins(pins, gcn, staticShapes);
+                break;
+
             case MakeStructNode msn:
                 EnrichMakeStructPins(pins, msn);
                 break;
@@ -332,6 +336,45 @@ internal static class Stage0_Rehydrate
         var typeId = SharedTypePinTypeId(ssn.SharedTypeId);
         pins.Add(MakePin("Value",   "In",  isExec: false, typeId: typeId));
         pins.Add(MakePin("Written", "Out", isExec: false, typeId: "System.Boolean"));
+    }
+
+    /// <summary>
+    /// GetComponentNode (CA-01, Slice 1a): pure-data node, mirrors <see cref="EnrichGetSharedPins"/>
+    /// exactly. Static skeleton is empty (registry mirrors GetSharedNode). Build data-In "Target"
+    /// (OPTIONAL, <c>Fdp.Core.Entity</c> -- cross-entity read, unwired = self) + either one data-Out
+    /// pin PER baked <see cref="GetComponentNode.Fields"/> entry (multi-pin) or the legacy single
+    /// "Value" data-Out typed from <see cref="GetComponentNode.FieldTypeFqn"/> -- plus data-Out
+    /// "Found" (<c>System.Boolean</c>) in BOTH cases.
+    /// </summary>
+    private static void EnrichGetComponentPins(
+        List<Pin> pins, GetComponentNode gcn, IReadOnlyList<PinSchema> staticShapes)
+    {
+        pins.Clear();
+
+        // CA-01 multi-pin (Fields baked): optional cross-entity "Target" (unwired = self) + one
+        // data-OUT per field (read the component once, project each field) + "Found". Mirrors
+        // EnrichGetSharedPins's Fields branch. Target/Found are MULTI-PIN-MODE ONLY -- the legacy
+        // single-field path below is frozen at its pre-CA-01 shape so Stage5's untouched legacy
+        // branch never leaves a projected pin uncomputed, and authored-pin hill-attack assets
+        // (which skip this enricher via the Pins.Count>0 guard) round-trip byte-identically.
+        if (gcn.Fields is { Count: > 0 })
+        {
+            pins.Add(MakePin("Target", "In", isExec: false, typeId: "Fdp.Core.Entity"));
+            foreach (var f in gcn.Fields)
+                pins.Add(MakePin(f.Name, "Out", isExec: false, typeId: f.TypeId));
+            pins.Add(MakePin("Found", "Out", isExec: false, typeId: "System.Boolean"));
+            return;
+        }
+
+        // Legacy single-field path (FROZEN, self-only): single "Value" data-out typed by FieldTypeFqn
+        // VERBATIM -- unlike GetShared's whole-struct SharedTypeId, FieldTypeFqn is routinely a
+        // well-known primitive (e.g. "System.Single") that StaticTypeRegistry's TypeTable matches
+        // directly; stamping a "global::" prefix would misroute it into the AN2 enum/project-type
+        // acceptance path (wrong -- that path assumes a 4-byte enum-int32 underlying type). Mirrors
+        // Stage5_Schedule's existing legacy fallback, which also uses FieldTypeFqn verbatim. No
+        // Target/Found pins -- matches the untouched legacy lowering (self-only, single value).
+        var typeId = string.IsNullOrEmpty(gcn.FieldTypeFqn) ? "System.Object" : gcn.FieldTypeFqn;
+        pins.Add(MakePin("Value", "Out", isExec: false, typeId: typeId));
     }
 
     /// <summary>

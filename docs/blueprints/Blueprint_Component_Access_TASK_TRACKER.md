@@ -15,7 +15,7 @@ builds clean.
 
 | # | Batch | Slice | Model | Status |
 |---|-------|-------|-------|--------|
-| CA-01 | Read compiler spine (unmanaged) | 1a | Sonnet + Opus(lowering) | ⬜ |
+| CA-01 | Read compiler spine (unmanaged) | 1a | Sonnet + Opus(lowering) | ✅ |
 | CA-02 | Read editor (unmanaged) | 1a | Sonnet | ⬜ |
 | CA-03 | Write compiler spine (unmanaged) | W1 | Sonnet + Opus(IR/lowering/emit/validator) | ⬜ |
 | CA-04 | Write editor (unmanaged) | W1 | Sonnet | ⬜ |
@@ -26,11 +26,12 @@ builds clean.
 ---
 
 ### CA-01 — Read compiler spine (unmanaged) · Slice 1a
-- [ ] `ComponentFieldDecl { Name; TypeId }` (+ `GetComponentNode.Fields: List<ComponentFieldDecl>?`, additive JSON) — `Assets/Nodes.cs`
-- [ ] Stage0 `EnrichGetComponentPins` — optional `Target` (Entity) in, `Found` (bool) out, per-field `Value` outs when `Fields` baked; legacy single-field when not — `Compiler/Stages/Stage0_Rehydrate.cs`
-- [ ] Stage5 multi-field read lowering — one `IrOp_GetComponentRO` + N× `IrOp_FieldRead`; `Found` ← `IrOp_HasComponent` — `Compiler/Stages/Stage5_Schedule.cs` **(Opus reviews)**
-- [ ] Tests: pin projection (Target/Found/fields), lowering, emit golden (multi-field + Target + Found) — `Hrot.Blueprints.Tests/…`
+- [x] `ComponentFieldDecl { Name; TypeId }` (+ `GetComponentNode.Fields: List<ComponentFieldDecl>?`, additive JSON) — `Assets/Nodes.cs`
+- [x] Stage0 `EnrichGetComponentPins` — optional `Target` (Entity) in, `Found` (bool) out, per-field `Value` outs when `Fields` baked; legacy single-field when not — `Compiler/Stages/Stage0_Rehydrate.cs`
+- [x] Stage5 multi-field read lowering — one `IrOp_GetComponentRO` + N× `IrOp_FieldRead`; `Found` ← `IrOp_HasComponent` — `Compiler/Stages/Stage5_Schedule.cs` **(Opus reviews)**
+- [x] Tests: pin projection (Target/Found/fields), lowering, emit golden (multi-field + Target + Found) — `Hrot.Blueprints.Tests/…`
 - **Files:** Nodes.cs, Stage0_Rehydrate.cs, Stage5_Schedule.cs (+tests). **Reuse:** `EnrichGetSharedPins`, GetShared multi-pin read. **No new IR/emit.**
+- **✅ Done — Opus-reviewed + gated** (legacy shape frozen; 7/7 GetComponent + 184/184 serial): see running log.
 
 ### CA-02 — Read editor (unmanaged) · Slice 1a
 - [ ] `ComponentFieldReflector` — public fields → `(Name, TypeId, IsManaged)`, **no offset**, keeps managed fields — `NodeDrawers/`
@@ -85,3 +86,28 @@ builds clean.
 ## Running log
 *(append per batch: date, who, gate result, notes)*
 - _pending kickoff_
+- **2026-08-01, CA-01, Sonnet:** built the read compiler spine (unmanaged) — `ComponentFieldDecl`
+  (Nodes.cs), `Stage0_Rehydrate.EnrichGetComponentPins` (mirrors `EnrichGetSharedPins`; legacy
+  "Value" pin's TypeId is used VERBATIM from `FieldTypeFqn`, deliberately NOT "global::"-stamped —
+  stamping would misroute well-known primitives like `System.Single` into `StaticTypeRegistry`'s
+  AN2 enum/project-type path), and the `Stage5_Schedule` `GetComponentNode` multi-field branch
+  (one `IrOp_GetComponentRO` + N×`IrOp_FieldRead` + `IrOp_HasComponent` for `Found`; legacy
+  single-field path left byte-identical, reached only via early-`break` skip). Also removed the
+  now-stale `GetComponentNode` entry from `NodeCoverageTests.PinlessRoundTripExceptions` (Guard 4)
+  since pin-less rehydration now genuinely reconstructs its pins. Gate: `Hrot.Blueprints.Compiler` +
+  `Hrot.AI.Behaviors` build clean; 9 new/updated CA-01 tests green; `Hrot.AiEditor.Generators.Tests`
+  184/184 byte-identical (serial). **Known gap flagged for Opus review:** the NEW `Found` out-pin
+  Stage0 now projects on LEGACY (`Fields == null`) `GetComponentNode`s has no Stage5 computation in
+  that branch (kept byte-identical per the batch spec) — if a legacy single-field node's `Found` pin
+  is ever wired, `ResolveNodeOutput` will return the Value field's result instead of a real
+  `HasComponent` check. Not exercised by any existing asset (the pin didn't exist before this batch),
+  but worth a deliberate call before CA-02 exposes it in the editor.
+- **2026-08-01, CA-01, Opus review:** reviewed the diff; **ruled on the flagged gap — froze the legacy
+  single-field shape.** `EnrichGetComponentPins` now projects `Target`/`Found` **only in multi-pin mode
+  (`Fields` baked)**; the legacy (`Fields == null`) branch projects a single `Value` out — self-only, no
+  `Target`/`Found` — matching the untouched Stage5 legacy lowering, so no projected pin is ever left
+  uncomputed. New capability (self+Target, Found) lives entirely in multi-pin mode; CA-02's editor
+  always creates Fields-baked nodes. Updated the legacy-shape test accordingly. Verified the 4
+  full-suite reds (Stage4 BP1500, NodeCoverage Make/Break/SetMembers, 2 perf) reproduce on the clean
+  base → pre-existing, not CA-01. Re-gate: 7/7 GetComponent tests + **184/184 serial** byte-identical.
+  **CA-01 ✅ done.**

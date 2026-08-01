@@ -1974,11 +1974,18 @@ internal sealed class GraphScheduler
                 // in WaitLowering_AiPrimitive's channel-check block (IrOp_Self ->
                 // IrOp_GetComponentRO -> IrOp_FieldRead), so this is not a novel lowering shape,
                 // just the first place a NODE (rather than a synthesized wait-check) drives it.
+                // CA-01 (Slice 1a) adds a MULTI-FIELD path below (baked Fields != null): read the
+                // component ONCE via the SAME IrOp_GetComponentRO, then project each field via
+                // IrOp_FieldRead -- the exact read-once-then-project idiom multi-pin GetShared uses
+                // (IrOp_ReadShared -> N x IrOp_FieldRead) -- plus IrOp_HasComponent for "Found".
+                // Still no new IrOperation. The legacy single-field path below is BYTE-IDENTICAL to
+                // before (it is skipped over entirely -- via the Fields-baked branch's `break` --
+                // when Fields is null, so existing pin-authored assets are untouched).
                 //
-                // Reflection-free rationale: ComponentTypeFqn/FieldName/FieldTypeFqn are baked
-                // strings authored at edit time (mirrors GetSharedNode.SharedTypeId and the P7.1
-                // FunctionCallNode.TrailingContext bake) -- Stage5 never inspects a real CLR Type
-                // to build them, so this survives running inside the Roslyn incremental
+                // Reflection-free rationale: ComponentTypeFqn/FieldName/FieldTypeFqn/Fields[].TypeId
+                // are baked strings authored at edit time (mirrors GetSharedNode.SharedTypeId/Fields
+                // and the P7.1 FunctionCallNode.TrailingContext bake) -- Stage5 never inspects a real
+                // CLR Type to build them, so this survives running inside the Roslyn incremental
                 // generator's netstandard2.0 analyzer host, which cannot load game assemblies
                 // (Hrot.AI.Behaviors.dll etc.) to reflect over.
 
@@ -2026,6 +2033,58 @@ internal sealed class GraphScheduler
                     IsUnmanaged = true,
                     SizeBytes   = 0,
                 };
+
+                // CA-01 multi-pin: baked per-field decls -> read the component ONCE, then project
+                // each field via IrOp_FieldRead (same read-once-then-project idiom as multi-pin
+                // GetShared), plus "Found" via IrOp_HasComponent. All out-pins are cached so the
+                // single read is shared across every consumed field/Found pin.
+                if (gcn.Fields is { Count: > 0 })
+                {
+                    var compValM = AllocValue(componentTypeRef);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = compValM,
+                        Operation   = new IrOp_GetComponentRO(gcn.ComponentTypeFqn, entityValue, componentTypeRef),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gcn.Id, PinId = sourcePinId },
+                    });
+
+                    var foundRes = AllocValue(Stage5_Schedule.BoolType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = foundRes,
+                        Operation   = new IrOp_HasComponent(gcn.ComponentTypeFqn, entityValue),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gcn.Id, PinId = sourcePinId },
+                    });
+
+                    var foundPinM = gcn.Pins.FirstOrDefault(p =>
+                        !p.IsExec && p.Direction == "Out"
+                        && string.Equals(p.Name, "Found", StringComparison.OrdinalIgnoreCase));
+                    if (foundPinM is not null) _pinValueCache[foundPinM.Id] = foundRes;
+
+                    foreach (var f in gcn.Fields)
+                    {
+                        var fPin = gcn.Pins.FirstOrDefault(p =>
+                            !p.IsExec && p.Direction == "Out"
+                            && string.Equals(p.Name, f.Name, StringComparison.OrdinalIgnoreCase));
+                        if (fPin is null) continue;
+                        IrTypeRef fType = _typed.PinTypes.TryGetValue(fPin.Id, out var fpt)
+                            ? fpt
+                            : new IrTypeRef { FullName = NormalizeSharedTypeFqn(f.TypeId), IsUnmanaged = true, SizeBytes = 0 };
+                        var fRes = AllocValue(fType);
+                        stmts.Add(new IrStatement
+                        {
+                            ResultValue = fRes,
+                            Operation   = new IrOp_FieldRead(compValM, f.Name, fType),
+                            Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gcn.Id, PinId = fPin.Id },
+                        });
+                        _pinValueCache[fPin.Id] = fRes;
+                    }
+
+                    result = _pinValueCache.TryGetValue(sourcePinId, out var mpr) ? mpr : compValM;
+                    break;
+                }
+
+                // Legacy single-field path (unchanged emit shape/behavior — Fields is null here).
                 var compVal = AllocValue(componentTypeRef);
                 stmts.Add(new IrStatement
                 {
