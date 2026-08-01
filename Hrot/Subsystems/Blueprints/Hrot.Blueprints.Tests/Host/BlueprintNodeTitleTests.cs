@@ -134,6 +134,41 @@ public sealed class BlueprintNodeTitleTests
         Assert.Equal(NodeState.Normal, State(node));
     }
 
+    // CA-04: SetComponent mirrors GetComponent's title/stale-ref conventions exactly (same
+    // "[ShortTypeName]" bracketing, same red-node-on-unresolved-component pattern).
+
+    [Fact]
+    public void SetComponent_BracketsShortComponentTypeName()
+        => Assert.Equal("Set Component [Vector3]",
+            Title(new SetComponentNode { ComponentTypeFqn = "System.Numerics.Vector3" }));
+
+    [Fact]
+    public void SetComponent_EmptyComponentType_FallsBackToGenericLabel()
+        => Assert.Equal("Set Component", Title(new SetComponentNode { ComponentTypeFqn = "" }));
+
+    [Fact]
+    public void SetComponent_ResolvableComponentType_IsNormalState()
+    {
+        var node = new SetComponentNode { ComponentTypeFqn = "System.Numerics.Vector3" };
+        Assert.Equal(NodeState.Normal, State(node));
+    }
+
+    [Fact]
+    public void SetComponent_UnresolvableComponentType_IsErrorState()
+    {
+        var node = new SetComponentNode { ComponentTypeFqn = "Totally.Unknown.Namespace.NoSuchComponent" };
+        Assert.Equal(NodeState.Error, State(node));
+    }
+
+    [Fact]
+    public void SetComponent_EmptyComponentType_IsNormalState_NotError()
+    {
+        // An unconfigured (not-yet-picked) node is not the same as a STALE reference -- must not
+        // be flagged as an error just because ComponentTypeFqn happens to be empty.
+        var node = new SetComponentNode { ComponentTypeFqn = "" };
+        Assert.Equal(NodeState.Normal, State(node));
+    }
+
     [Fact]
     public void GetParameter_TitleIsClean_NameShownOnPinInstead()
     {

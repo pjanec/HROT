@@ -46,6 +46,48 @@ public static class ComponentPaletteEntries
         }
     }
 
+    /// <summary>
+    /// CA-04 (Slice W1) — Add-Node palette entries for the <c>SetComponent</c> node, one entry per
+    /// discovered <c>[BlueprintWritable]</c> ECS component type (via the caller-supplied
+    /// <paramref name="provider"/> -- callers pass a writable-only provider, e.g.
+    /// <see cref="ReflectionWritableComponentTypeProvider"/>; the Get palette above uses the
+    /// all-components provider instead) that has at least one reflectable field. Mirrors
+    /// <see cref="GetComponentEntries"/> exactly, except it bakes a <see cref="SetComponentNode"/>
+    /// (write-if-present, self-only; managed write is CA-06 -- <see cref="SetComponentNode.IsManaged"/>
+    /// is left at its default <c>false</c> here, unmanaged-only in this batch).
+    /// </summary>
+    public static IEnumerable<NodeKindDescriptor> SetComponentEntries(IComponentTypeProvider provider)
+    {
+        if (provider is null) yield break;
+        foreach (var fqn in provider.GetComponentTypeFqns())
+        {
+            var reflected = ComponentFieldReflector.TryReflect(fqn);
+            // No fields to write -> no useful SetComponent node (mirrors GetComponentEntries's
+            // skip-if-empty).
+            if (reflected is null || reflected.Count == 0) continue;
+
+            var shortName = ShortName(fqn);
+            var bakedFqn  = fqn; // capture for the closure
+
+            yield return new NodeKindDescriptor
+            {
+                Kind        = $"Component.Set.{fqn}",
+                DisplayName = $"Set Component: {shortName}",
+                Category    = BlueprintNodePaletteEntries.Categories.Component,
+                Tooltip     = $"Write fields into the {shortName} ECS component (self only, write-if-present).",
+                Icon        = "bp/variable_get",
+                CreateInstance = () => new SetComponentNode
+                {
+                    Id               = Guid.NewGuid(),
+                    ComponentTypeFqn = bakedFqn,
+                    // Re-reflect per CreateInstance call so each placed node gets its OWN Fields
+                    // list instance (never a list shared/mutated across multiple placed nodes).
+                    Fields = ToComponentFields(ComponentFieldReflector.TryReflect(bakedFqn)!),
+                },
+            };
+        }
+    }
+
     private static List<ComponentFieldDecl> ToComponentFields(IReadOnlyList<ReflectedComponentField> reflected)
         => reflected.Select(f => new ComponentFieldDecl { Name = f.Name, TypeId = f.TypeId }).ToList();
 

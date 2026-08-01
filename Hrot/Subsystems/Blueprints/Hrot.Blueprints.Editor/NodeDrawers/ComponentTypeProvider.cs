@@ -35,9 +35,40 @@ public sealed class ReflectionComponentTypeProvider : IComponentTypeProvider
     private IReadOnlyList<string>? _cached;
 
     public IReadOnlyList<string> GetComponentTypeFqns()
-        => _cached ??= ComputeComponentTypeFqns();
+        => _cached ??= ComponentTypeScan.Compute(
+            static t => t.IsDefined(typeof(ComponentIdAttribute), inherit: false));
+}
 
-    private static IReadOnlyList<string> ComputeComponentTypeFqns()
+/// <summary>
+/// CA-04 (Slice W1) — writable-only view over discovered ECS component types for the
+/// <c>SetComponent</c> write picker/palette (<see cref="ComponentNodeDrawers.SetComponentNodeDrawer"/>
+/// / <see cref="ComponentPaletteEntries.SetComponentEntries"/>). Same <c>[ComponentId]</c> scan as
+/// <see cref="ReflectionComponentTypeProvider"/> (the read side, which stays all-components), ADDITIONALLY
+/// filtered to types that ALSO carry <see cref="Fdp.Core.BlueprintWritableAttribute"/> -- the write gate
+/// (Q#16): system-output components (e.g. <c>SimTransform</c>) never carry that attribute and are
+/// therefore never offered here. One reflection scan shared with the read provider via
+/// <see cref="ComponentTypeScan"/> (DRY), just a different predicate.
+/// </summary>
+public sealed class ReflectionWritableComponentTypeProvider : IComponentTypeProvider
+{
+    private IReadOnlyList<string>? _cached;
+
+    public IReadOnlyList<string> GetComponentTypeFqns()
+        => _cached ??= ComponentTypeScan.Compute(static t =>
+            t.IsDefined(typeof(ComponentIdAttribute), inherit: false)
+            && t.IsDefined(typeof(BlueprintWritableAttribute), inherit: false));
+}
+
+/// <summary>
+/// Shared assembly scan used by both <see cref="ReflectionComponentTypeProvider"/> and
+/// <see cref="ReflectionWritableComponentTypeProvider"/> -- one walk over
+/// <see cref="AppDomain.CurrentDomain"/>'s loaded assemblies, filtered by the caller's predicate, so
+/// the read/write discovery paths never duplicate the (identical) enumeration/exception-handling
+/// logic and can never drift out of sync on how types are found/excluded.
+/// </summary>
+internal static class ComponentTypeScan
+{
+    internal static IReadOnlyList<string> Compute(Func<Type, bool> predicate)
     {
         var result = new List<string>();
 
@@ -64,7 +95,7 @@ public sealed class ReflectionComponentTypeProvider : IComponentTypeProvider
             {
                 if (t.IsInterface) continue;
                 if (t.IsAbstract && t.IsClass) continue; // static classes / abstract bases aren't instantiable components
-                if (!t.IsDefined(typeof(ComponentIdAttribute), inherit: false)) continue;
+                if (!predicate(t)) continue;
                 if (t.FullName is { Length: > 0 } fqn) result.Add(fqn);
             }
         }

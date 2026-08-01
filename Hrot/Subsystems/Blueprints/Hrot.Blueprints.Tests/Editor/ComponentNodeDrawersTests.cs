@@ -275,6 +275,215 @@ public sealed class ComponentNodeDrawersTests
         Assert.True(structureChanged >= 1, "structural edit should notify the derived views to re-project");
     }
 
+    // ── CA-04 (Slice W1): SetComponentNodeDrawer / SetComponentNodeSession ──────
+    // Mirrors the GetComponentNodeDrawer/Session tests above exactly (same picker mechanics, no
+    // expand toggle -- always multi-pin), just against SetComponentNode + SetComponentNodeDrawer.
+
+    [Fact]
+    public void SetDrawer_Handles_SetComponentNode_True()
+    {
+        var drawer = new SetComponentNodeDrawer(new SpyEditService(), DefaultTypeProvider);
+        Assert.True(drawer.Handles(new SetComponentNode { Id = Guid.NewGuid() }));
+    }
+
+    [Fact]
+    public void SetDrawer_Handles_OtherNodeTypes_False()
+    {
+        var drawer = new SetComponentNodeDrawer(new SpyEditService(), DefaultTypeProvider);
+        Assert.False(drawer.Handles(new GetComponentNode { Id = Guid.NewGuid() }));
+        Assert.False(drawer.Handles(new SetSharedNode    { Id = Guid.NewGuid() }));
+    }
+
+    [Fact]
+    public void SetDrawer_CreateSession_ReturnsNonNull_InitiallyNotDirty()
+    {
+        var drawer = new SetComponentNodeDrawer(new SpyEditService(), DefaultTypeProvider);
+        using var session = drawer.CreateSession(new SetComponentNode { Id = Guid.NewGuid() }, MakeAsset());
+
+        Assert.NotNull(session);
+        Assert.False(session.IsDirty);
+    }
+
+    [Fact]
+    public void SetSession_SetComponentTypeFqnForTest_UpdatesNode_BakesFields_MarksDirty()
+    {
+        var spy    = new SpyEditService();
+        var asset  = MakeAsset();
+        var node   = new SetComponentNode { Id = Guid.NewGuid() };
+        var drawer = new SetComponentNodeDrawer(spy, DefaultTypeProvider);
+
+        var session = (SetComponentNodeSession)drawer.CreateSession(node, asset);
+        session.SetComponentTypeFqnForTest(HealthFqn);
+
+        Assert.Equal(HealthFqn, node.ComponentTypeFqn);
+        Assert.NotNull(node.Fields);
+        Assert.Equal(2, node.Fields!.Count);
+        Assert.Contains(node.Fields, f => f.Name == "Health");
+        Assert.Contains(node.Fields, f => f.Name == "Armor");
+        Assert.True(session.IsDirty);
+        Assert.Equal(1, spy.MarkDirtyCallCount);
+        Assert.Same(asset, spy.LastMarkedAsset);
+    }
+
+    [Fact]
+    public void SetSession_SwitchingComponentType_RebakesFieldsForNewType()
+    {
+        var node   = new SetComponentNode { Id = Guid.NewGuid() };
+        var drawer = new SetComponentNodeDrawer(new SpyEditService(), DefaultTypeProvider);
+        var session = (SetComponentNodeSession)drawer.CreateSession(node, MakeAsset());
+
+        session.SetComponentTypeFqnForTest(HealthFqn);
+        Assert.Equal(2, node.Fields!.Count);
+
+        session.SetComponentTypeFqnForTest(AmmoFqn);
+        Assert.Equal(AmmoFqn, node.ComponentTypeFqn);
+        Assert.Single(node.Fields!);
+        Assert.Equal("Ammo", node.Fields![0].Name);
+    }
+
+    [Fact]
+    public void SetSession_SettingSameValue_DoesNotMarkDirtyAgain()
+    {
+        var spy    = new SpyEditService();
+        var node   = new SetComponentNode { Id = Guid.NewGuid(), ComponentTypeFqn = HealthFqn };
+        var drawer = new SetComponentNodeDrawer(spy, DefaultTypeProvider);
+
+        var session = (SetComponentNodeSession)drawer.CreateSession(node, MakeAsset());
+        session.SetComponentTypeFqnForTest(HealthFqn); // same value -- no-op
+
+        Assert.False(session.IsDirty);
+        Assert.Equal(0, spy.MarkDirtyCallCount);
+    }
+
+    [Fact]
+    public void SetSession_ResetDirty_ClearsDirtyFlag()
+    {
+        var node   = new SetComponentNode { Id = Guid.NewGuid() };
+        var drawer = new SetComponentNodeDrawer(new SpyEditService(), DefaultTypeProvider);
+
+        var session = (SetComponentNodeSession)drawer.CreateSession(node, MakeAsset());
+        session.SetComponentTypeFqnForTest(HealthFqn);
+        Assert.True(session.IsDirty);
+
+        session.ResetDirty();
+        Assert.False(session.IsDirty);
+    }
+
+    [Fact]
+    public void SetSession_UnresolvableComponentType_BakesNullFields()
+    {
+        var node   = new SetComponentNode { Id = Guid.NewGuid() };
+        var drawer = new SetComponentNodeDrawer(new SpyEditService(), DefaultTypeProvider);
+        var session = (SetComponentNodeSession)drawer.CreateSession(node, MakeAsset());
+
+        session.SetComponentTypeFqnForTest("My.Namespace.OtherComponent");
+
+        Assert.Equal("My.Namespace.OtherComponent", node.ComponentTypeFqn);
+        Assert.Null(node.Fields);
+    }
+
+    [Fact]
+    public void SetSession_GetAvailableComponentTypesForTest_SurfacesProviderList()
+    {
+        var node   = new SetComponentNode { Id = Guid.NewGuid() };
+        var drawer = new SetComponentNodeDrawer(new SpyEditService(), DefaultTypeProvider);
+        var session = (SetComponentNodeSession)drawer.CreateSession(node, MakeAsset());
+
+        Assert.Equal(DefaultTypeProvider.GetComponentTypeFqns(), session.GetAvailableComponentTypesForTest());
+    }
+
+    [Fact]
+    public void SetSession_GetFilteredComponentTypesForTest_IsCaseInsensitiveSubstringMatch()
+    {
+        var node   = new SetComponentNode { Id = Guid.NewGuid() };
+        var drawer = new SetComponentNodeDrawer(new SpyEditService(), DefaultTypeProvider);
+        var session = (SetComponentNodeSession)drawer.CreateSession(node, MakeAsset());
+
+        var filtered = session.GetFilteredComponentTypesForTest("ammo");
+
+        Assert.Equal(new[] { AmmoFqn }, filtered);
+    }
+
+    [Fact]
+    public void SetSession_CurrentComponentTypeFqn_NotInProviderList_IsFlaggedUnlisted()
+    {
+        var node   = new SetComponentNode { Id = Guid.NewGuid(), ComponentTypeFqn = "Some.Renamed.Or.Unloaded.Component" };
+        var drawer = new SetComponentNodeDrawer(new SpyEditService(), DefaultTypeProvider);
+        var session = (SetComponentNodeSession)drawer.CreateSession(node, MakeAsset());
+
+        Assert.True(session.IsCurrentComponentTypeFqnUnlistedForTest());
+    }
+
+    [Fact]
+    public void SetSession_CurrentComponentTypeFqn_InProviderList_IsNotFlaggedUnlisted()
+    {
+        var node   = new SetComponentNode { Id = Guid.NewGuid(), ComponentTypeFqn = HealthFqn };
+        var drawer = new SetComponentNodeDrawer(new SpyEditService(), DefaultTypeProvider);
+        var session = (SetComponentNodeSession)drawer.CreateSession(node, MakeAsset());
+
+        Assert.False(session.IsCurrentComponentTypeFqnUnlistedForTest());
+    }
+
+    [Fact]
+    public void SetSession_UnlistedComponentTypeFqn_OpenThenNoChange_IsPreservedNotBlanked()
+    {
+        const string unlistedFqn = "Legacy.Namespace.RetiredComponent";
+        var node   = new SetComponentNode { Id = Guid.NewGuid(), ComponentTypeFqn = unlistedFqn };
+        var drawer = new SetComponentNodeDrawer(new SpyEditService(), DefaultTypeProvider);
+
+        var session = (SetComponentNodeSession)drawer.CreateSession(node, MakeAsset());
+
+        Assert.True(session.IsCurrentComponentTypeFqnUnlistedForTest());
+        Assert.Equal(unlistedFqn, node.ComponentTypeFqn); // untouched
+        Assert.False(session.IsDirty);                     // opening alone must not dirty the session
+    }
+
+    [Fact]
+    public void SetSession_GetCurrentFieldsForTest_FlagsManagedFieldsForCaveatDisplay()
+    {
+        var fqn = typeof(ManagedFieldTestComponent).FullName!;
+        var node   = new SetComponentNode { Id = Guid.NewGuid(), ComponentTypeFqn = fqn };
+        var drawer = new SetComponentNodeDrawer(new SpyEditService(), new FakeComponentTypeProvider(fqn));
+        var session = (SetComponentNodeSession)drawer.CreateSession(node, MakeAsset());
+
+        var fields = session.GetCurrentFieldsForTest();
+
+        Assert.Equal(2, fields.Count);
+        Assert.Contains(fields, f => f.Name == "Label" && f.IsManaged);
+        Assert.Contains(fields, f => f.Name == "Ammo"  && !f.IsManaged);
+    }
+
+    [Fact]
+    public void SetDrawerRegistry_Contains_SetComponentNodeDrawer()
+    {
+        var registry = CreateTestDrawerRegistry(new SpyEditService());
+        var drawer   = registry.GetDrawerFor(new SetComponentNode { Id = Guid.NewGuid() });
+
+        Assert.NotNull(drawer);
+        Assert.IsType<SetComponentNodeDrawer>(drawer);
+    }
+
+    [Fact]
+    public void SetSession_StructuralEdit_FiresOnStructureChanged()
+    {
+        int structureChanged = 0;
+        var editService = new EditService
+        {
+            Context = new EditServiceContext(
+                new Hrot.Blueprints.Editor.GraphEditor.CommandHistory(),
+                _ => { },
+                onStructureChanged: _ => structureChanged++),
+        };
+        var asset   = MakeAsset();
+        var node    = new SetComponentNode { Id = Guid.NewGuid() };
+        var drawer  = new SetComponentNodeDrawer(editService, DefaultTypeProvider);
+        var session = (SetComponentNodeSession)drawer.CreateSession(node, asset);
+
+        session.SetComponentTypeFqnForTest(HealthFqn);
+
+        Assert.True(structureChanged >= 1, "structural edit should notify the derived views to re-project");
+    }
+
     // ── Test stubs ────────────────────────────────────────────────────────────
 
     private sealed class SpyEditService : IEditService

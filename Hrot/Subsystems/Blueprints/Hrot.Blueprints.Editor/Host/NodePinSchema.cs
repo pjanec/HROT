@@ -146,6 +146,7 @@ internal static class NodePinSchema
             GetSharedNode gsn   => GetSharedPins(gsn),
             SetSharedNode ssn   => SetSharedPins(ssn),
             GetComponentNode gcn => GetComponentPins(gcn),
+            SetComponentNode scn => SetComponentPins(scn),
             MakeStructNode msn  => MakeStructPins(msn),
             BreakStructNode bsn => BreakStructPins(bsn),
             SetMembersNode smn  => SetMembersPins(smn),
@@ -777,6 +778,30 @@ internal static class NodePinSchema
         // misroute well-known primitives like "System.Single" into the AN2 enum/project-type path).
         var typeId = string.IsNullOrEmpty(gcn.FieldTypeFqn) ? "System.Object" : gcn.FieldTypeFqn;
         return new[] { MakeData("Value", "Out", typeId) };
+    }
+
+    /// <summary>
+    /// SetComponentNode (CA-04, Slice W1): exec node. EXACT parity with the compiler's
+    /// <see cref="Hrot.Blueprints.Core.Compiler.Stages.Stage0_Rehydrate"/>
+    /// <c>EnrichSetComponentPins</c> (frozen at CA-03): exec-In "In" + exec-Out "Out" + one
+    /// data-IN pin PER baked <see cref="SetComponentNode.Fields"/> entry (none baked yet ⇒ no field
+    /// pins) + data-out "Written" (<c>System.Boolean</c>) -- UNCONDITIONALLY (write-if-present: the
+    /// <c>HasComponent&lt;T&gt;</c> guard result always exists, even before any component is picked).
+    /// Self-only (Q#16) -- NO "Target" pin, ever, unlike <see cref="GetComponentPins"/>'s optional
+    /// cross-entity read.
+    /// </summary>
+    private static IReadOnlyList<Pin> SetComponentPins(SetComponentNode scn)
+    {
+        var pins = new List<Pin>(3 + (scn.Fields?.Count ?? 0))
+        {
+            MakeExec("In",  "In"),
+            MakeExec("Out", "Out"),
+        };
+        if (scn.Fields is { Count: > 0 })
+            foreach (var f in scn.Fields)
+                pins.Add(MakeData(f.Name, "In", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+        pins.Add(MakeData("Written", "Out", "System.Boolean"));
+        return pins;
     }
 
     /// <summary>

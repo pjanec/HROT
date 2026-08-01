@@ -117,4 +117,86 @@ public sealed class ComponentPaletteEntriesTests
             Assert.IsType<GetComponentNode>(descriptor.CreateInstance());
         }
     }
+
+    // ── CA-04 (Slice W1): SetComponentEntries ─────────────────────────────────
+
+    [Fact]
+    public void SetComponentEntries_KnownComponentType_YieldsOneEntry_UnderComponentCategory()
+    {
+        var fqn = typeof(HealthTestComponent).FullName!;
+        var provider = new FakeComponentTypeProvider(fqn);
+
+        var entry = Assert.Single(ComponentPaletteEntries.SetComponentEntries(provider));
+
+        Assert.Equal($"Component.Set.{fqn}", entry.Kind);
+        Assert.Equal(BlueprintNodePaletteEntries.Categories.Component, entry.Category);
+        Assert.False(string.IsNullOrWhiteSpace(entry.Tooltip));
+        Assert.Contains(nameof(HealthTestComponent), entry.DisplayName);
+    }
+
+    [Fact]
+    public void SetComponentEntries_CreateInstance_BakesComponentTypeFqnAndFullFieldSet()
+    {
+        var fqn = typeof(HealthTestComponent).FullName!;
+        var entry = ComponentPaletteEntries.SetComponentEntries(new FakeComponentTypeProvider(fqn)).Single();
+
+        var node = Assert.IsType<SetComponentNode>(entry.CreateInstance());
+
+        Assert.Equal(fqn, node.ComponentTypeFqn);
+        Assert.NotNull(node.Fields);
+        Assert.Equal(2, node.Fields!.Count);
+        Assert.Contains(node.Fields, f => f.Name == "Health" && f.TypeId == typeof(int).FullName);
+        Assert.Contains(node.Fields, f => f.Name == "Armor"  && f.TypeId == typeof(float).FullName);
+        Assert.NotEqual(Guid.Empty, node.Id);
+        Assert.False(node.IsManaged); // this batch (W1) never bakes managed=true from the palette
+    }
+
+    [Fact]
+    public void SetComponentEntries_CreateInstance_TwoCalls_ReturnDistinctIds_AndDistinctFieldsListInstances()
+    {
+        var fqn = typeof(HealthTestComponent).FullName!;
+        var entry = ComponentPaletteEntries.SetComponentEntries(new FakeComponentTypeProvider(fqn)).Single();
+
+        var node1 = (SetComponentNode)entry.CreateInstance();
+        var node2 = (SetComponentNode)entry.CreateInstance();
+
+        Assert.NotEqual(node1.Id, node2.Id);
+        Assert.NotSame(node1.Fields, node2.Fields); // never share a mutable Fields list across placements
+    }
+
+    [Fact]
+    public void SetComponentEntries_ZeroFieldTagComponent_IsSkipped()
+    {
+        var fqn = typeof(EmptyTagTestComponent).FullName!;
+        var entries = ComponentPaletteEntries.SetComponentEntries(new FakeComponentTypeProvider(fqn));
+        Assert.Empty(entries);
+    }
+
+    [Fact]
+    public void SetComponentEntries_UnresolvableType_IsSkipped()
+    {
+        var entries = ComponentPaletteEntries.SetComponentEntries(
+            new FakeComponentTypeProvider("Totally.Unknown.Namespace.NoSuchType"));
+        Assert.Empty(entries);
+    }
+
+    [Fact]
+    public void SetComponentEntries_NullProvider_ReturnsEmpty()
+        => Assert.Empty(ComponentPaletteEntries.SetComponentEntries(null!));
+
+    [Fact]
+    public void PaletteRegistry_Construction_DoesNotThrow_AndSetComponentEntriesAreWellFormed()
+    {
+        // Real writable-component discovery depends on which engine assemblies happen to be loaded
+        // and carry [BlueprintWritable] in this test host, so this only asserts construction
+        // succeeds and any discovered entries are well-formed -- the FakeComponentTypeProvider tests
+        // above cover the actual entry logic deterministically.
+        var registry = BlueprintEditorBootstrap.CreatePaletteRegistry();
+
+        foreach (var descriptor in registry.EnumerateAll().Where(d => d.Kind.StartsWith("Component.Set.", StringComparison.Ordinal)))
+        {
+            Assert.Equal(BlueprintNodePaletteEntries.Categories.Component, descriptor.Category);
+            Assert.IsType<SetComponentNode>(descriptor.CreateInstance());
+        }
+    }
 }

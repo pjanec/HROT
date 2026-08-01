@@ -18,7 +18,7 @@ builds clean.
 | CA-01 | Read compiler spine (unmanaged) | 1a | Sonnet + Opus(lowering) | ✅ |
 | CA-02 | Read editor (unmanaged) | 1a | Sonnet | ✅ |
 | CA-03 | Write compiler spine (unmanaged) | W1 | Sonnet + Opus(IR/lowering/emit/validator) | ✅ |
-| CA-04 | Write editor (unmanaged) | W1 | Sonnet | ⬜ |
+| CA-04 | Write editor (unmanaged) | W1 | Sonnet | ✅ |
 | CA-05 | Managed read | 1b | Sonnet + Opus(flow rules) | ⬜ |
 | CA-06 | Managed write (ECB) | W2 | Opus + Sonnet(mirror) | ⬜ |
 | CA-07 | Collections (iterate + random) | 2 | Opus-led | ⬜ |
@@ -84,12 +84,44 @@ builds clean.
 - **2026-08-01, CA-03, Sonnet + Opus review:** built + Opus-reviewed. Deviation from the doc's per-field `IrOp_WriteComponentField`: used a **single `IrOp_WriteComponentFields`** guarded-block op (Opus-directed — cleaner HasComponent guard + one shared RW ref, wired-only writes → unwired preserved). Self-only enforced at Stage0 (no Target pin) + validated (BP2062). `[BlueprintWritable]` in `Fdp.Core`; compiler does NOT reflect it (editor-primary). Gate: compiler/`Fdp.Core`/`AI.Behaviors` clean; **15 CA-03 tests + 184/184 serial**. **CA-03 ✅ done.**
 
 ### CA-04 — Write editor (unmanaged) · Slice W1
-- [ ] `SetComponentPaletteEntries` — reflect **`[BlueprintWritable]`** types only — `NodeDrawers/`
-- [ ] `NodePinSchema.SetComponentPins` — parity with Stage0 `EnrichSetComponentPins` — `Host/NodePinSchema.cs`
-- [ ] `ComponentNodeDrawers` (Set) — writable-set picker + field-expand — `NodeDrawers/`
-- [ ] `BlueprintNodeModel` — title `Set Component [T]` + stale-ref error
-- [ ] Editor tests: writable-only discovery, pin parity, title
+- [x] `SetComponentPaletteEntries` — reflect **`[BlueprintWritable]`** types only — `NodeDrawers/`
+- [x] `NodePinSchema.SetComponentPins` — parity with Stage0 `EnrichSetComponentPins` — `Host/NodePinSchema.cs`
+- [x] `ComponentNodeDrawers` (Set) — writable-set picker — `NodeDrawers/`
+- [x] `BlueprintNodeModel` — title `Set Component [T]` + stale-ref error
+- [x] Editor tests: writable-only discovery, pin parity, title
 - **Reuse:** CA-02 infra + `SetSharedNodeDrawer`/`SetSharedPins`.
+- **2026-08-01, CA-04, Sonnet:** built the write editor (unmanaged) — `ReflectionWritableComponentTypeProvider`
+  (`NodeDrawers/ComponentTypeProvider.cs`), a writable-only `IComponentTypeProvider` filtered on
+  **both** `[ComponentId]` and `Fdp.Core.BlueprintWritableAttribute`; factored the shared assembly
+  scan into an internal `ComponentTypeScan.Compute(predicate)` helper so the read (`ReflectionComponentTypeProvider`,
+  unchanged, all-components) and write providers share one reflection walk (DRY, per the batch
+  spec). `ComponentPaletteEntries.SetComponentEntries` mirrors `GetComponentEntries` — one
+  `"Component.Set.{fqn}"` entry per writable component with ≥1 reflectable field, `CreateInstance`
+  bakes `ComponentTypeFqn` + a fresh `Fields` list (never shared across placements); `IsManaged` left
+  at its default `false` (CA-06 territory). `NodePinSchema.SetComponentPins` is a byte-for-byte
+  mirror of the frozen Stage0 `EnrichSetComponentPins`: exec In/Out + one data-IN per field +
+  data-out `Written` (unconditional, even with zero fields baked) — no `Target`, ever (self-only).
+  `SetComponentNodeDrawer`/`SetComponentNodeSession` (`NodeDrawers/ComponentNodeDrawers.cs`) mirror
+  `GetComponentNodeDrawer`/`Session` exactly (reuses `SharedTypePickerLogic`, no expand toggle —
+  always multi-pin, routes through `EditService.NotifyStructureChanged`); managed fields are still
+  listed by the picker (not special-cased out) but flagged with a "write path not yet wired (CA-06)"
+  caveat instead of CA-02's "read-only, never persisted" caveat. `BlueprintNodeModel`: generalized
+  the CA-02 `IsUnresolvedComponent` check to take a `string?` FQN (was `GetComponentNode`-typed) so
+  both `GetComponentNode.ComponentTypeFqn` and `SetComponentNode.ComponentTypeFqn` share the same
+  stale-ref detector; title `Set Component [T]` (bracketed, mirrors Get); category
+  `NodeCategory.VariableSet` (mirrors `SetSharedNode`). Registered both in
+  `BlueprintEditorBootstrap` (new `writableComponentTypeProvider` param on
+  `CreateNodeDrawerRegistry`, defaulting to `ReflectionWritableComponentTypeProvider`; new
+  `SetComponentEntries` registration in `CreatePaletteRegistry`). No compiler changes (CA-03 stays
+  frozen; `BuiltInNodeRegistry`'s `SetComponentNode => [ExecIn(), ExecOut()]` static skeleton
+  already existed from CA-03).
+  **Gate:** `Hrot.Blueprints.Editor` + `Hrot.AI.Behaviors` build clean; 104/104 `Hrot.Blueprints.Tests`
+  Editor+Host-subset tests green (66 pre-existing CA-02 + new CA-04: writable-discovery,
+  `SetComponentEntries`, `SetComponentPinParityTests` real-Stage0 cross-check, drawer/session,
+  title/stale-ref); `Hrot.AiEditor.Generators.Tests` **184/184** byte-identical (serial). Full
+  `Hrot.Blueprints.Tests` suite (parallel) reproduces the SAME 8 pre-existing reds CA-01/CA-02
+  already characterized (4 ALC-not-reclaimed-under-parallel-load, 2 perf thresholds, 1 NodeCoverage
+  Make/Break/SetMembers, 1 Stage4 BP1500) — no new regressions. Awaiting Opus review.
 
 ### CA-05 — Managed read · Slice 1b
 - [ ] `GetComponentNode.IsManaged` baked by editor reflector; `IrOp_GetManagedComponentRO` **(new)** → `view.GetManagedComponentRO<T>` — `IrOperation.cs`, `StatementEmitter.cs`, `Stage5` **(Opus reviews)**

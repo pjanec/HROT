@@ -91,10 +91,18 @@ internal sealed class BlueprintNodeModel : INodeModel
         }
         // CA-02: reuses the same red-node pattern for a GetComponent node whose baked
         // ComponentTypeFqn no longer resolves (component renamed/removed from C#).
-        else if (node is Hrot.Blueprints.Core.Assets.GetComponentNode gcnErr && IsUnresolvedComponent(gcnErr))
+        else if (node is Hrot.Blueprints.Core.Assets.GetComponentNode gcnErr && IsUnresolvedComponent(gcnErr.ComponentTypeFqn))
         {
             State = NodeState.Error;
             StatusTooltip = $"⚠ Unresolved ECS component: {gcnErr.ComponentTypeFqn}\n"
+                          + "It may have been renamed or removed from C#. Re-pick the component (add a new node).";
+        }
+        // CA-04: same stale-ref pattern for a SetComponent node whose baked ComponentTypeFqn no
+        // longer resolves.
+        else if (node is Hrot.Blueprints.Core.Assets.SetComponentNode scnErr && IsUnresolvedComponent(scnErr.ComponentTypeFqn))
+        {
+            State = NodeState.Error;
+            StatusTooltip = $"⚠ Unresolved ECS component: {scnErr.ComponentTypeFqn}\n"
                           + "It may have been renamed or removed from C#. Re-pick the component (add a new node).";
         }
         else
@@ -113,15 +121,17 @@ internal sealed class BlueprintNodeModel : INodeModel
            && NodePinSchema.ResolveClrMethod(fc) == null;
 
     /// <summary>
-    /// True when <paramref name="gcn"/> has a non-empty <c>ComponentTypeFqn</c> that reflection can
-    /// no longer resolve to a loaded CLR type — i.e. the ECS component struct/class was renamed or
-    /// deleted. Uses <see cref="NodeDrawers.ComponentFieldReflector.ResolveType"/> (existence-only
-    /// check) rather than <c>TryReflect</c>, so a resolvable zero-field ("tag") component is never
-    /// misreported as unresolved.
+    /// True when <paramref name="componentTypeFqn"/> is non-empty but reflection can no longer
+    /// resolve it to a loaded CLR type — i.e. the ECS component struct/class was renamed or
+    /// deleted. Shared by <see cref="Hrot.Blueprints.Core.Assets.GetComponentNode"/> (CA-02) and
+    /// <see cref="Hrot.Blueprints.Core.Assets.SetComponentNode"/> (CA-04) stale-ref checks. Uses
+    /// <see cref="NodeDrawers.ComponentFieldReflector.ResolveType"/> (existence-only check) rather
+    /// than <c>TryReflect</c>, so a resolvable zero-field ("tag") component is never misreported as
+    /// unresolved.
     /// </summary>
-    private static bool IsUnresolvedComponent(Hrot.Blueprints.Core.Assets.GetComponentNode gcn)
-        => !string.IsNullOrEmpty(gcn.ComponentTypeFqn)
-           && NodeDrawers.ComponentFieldReflector.ResolveType(gcn.ComponentTypeFqn) == null;
+    private static bool IsUnresolvedComponent(string? componentTypeFqn)
+        => !string.IsNullOrEmpty(componentTypeFqn)
+           && NodeDrawers.ComponentFieldReflector.ResolveType(componentTypeFqn) == null;
 
     /// <summary>
     /// Updates the asset's <see cref="Hrot.Blueprints.Core.Assets.NodeMetadata"/> position in place.
@@ -169,6 +179,8 @@ internal sealed class BlueprintNodeModel : INodeModel
         // "[ShortTypeName]" convention -- the component identity is the interesting bit, not the
         // generic "GetComponentNode" class name.
         Hrot.Blueprints.Core.Assets.GetComponentNode gcn   => string.IsNullOrEmpty(gcn.ComponentTypeFqn) ? "Get Component" : $"Get Component [{ShortTypeName(gcn.ComponentTypeFqn)}]",
+        // CA-04: same "[ShortTypeName]" convention for the write node.
+        Hrot.Blueprints.Core.Assets.SetComponentNode scn   => string.IsNullOrEmpty(scn.ComponentTypeFqn) ? "Set Component" : $"Set Component [{ShortTypeName(scn.ComponentTypeFqn)}]",
         // Punch-list #1/#5/#8: show the node's own DATA in the body instead of the generic "Value"
         // pin label — the literal's value, the parameter's name, the compare/arith/bool operator.
         // Punch-list: the parameter NAME is shown on the output pin (render-only display label in
@@ -220,6 +232,8 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.SetSharedNode            => NodeCategory.VariableSet,
         // CA-02: GetComponent is pure-data (no exec pins), the "get" analog of GetShared.
         Hrot.Blueprints.Core.Assets.GetComponentNode         => NodeCategory.VariableGet,
+        // CA-04: SetComponent is an exec node, the "set" analog of SetShared.
+        Hrot.Blueprints.Core.Assets.SetComponentNode         => NodeCategory.VariableSet,
         Hrot.Blueprints.Core.Assets.LiteralNode              => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.GetParameterNode         => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.GetAllParametersNode     => NodeCategory.Pure,
