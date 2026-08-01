@@ -169,6 +169,102 @@ public sealed class BlueprintNodeTitleTests
         Assert.Equal(NodeState.Normal, State(node));
     }
 
+    // CA-07c: the three collection CONSUMER nodes bracket the short component-type name once baked
+    // (on wire), same convention as GetComponent/SetComponent; a fresh/unwired instance shows a
+    // generic label instead.
+
+    [Fact]
+    public void ComponentForEach_BracketsShortComponentTypeName()
+        => Assert.Equal("For Each [BpCollectionDemo]",
+            Title(new ComponentForEachNode { ComponentTypeFqn = "Hrot.AI.Behaviors.BpCollectionDemo" }));
+
+    [Fact]
+    public void ComponentForEach_EmptyComponentType_FallsBackToGenericLabel()
+        => Assert.Equal("For Each Component Item", Title(new ComponentForEachNode { ComponentTypeFqn = "" }));
+
+    [Fact]
+    public void ComponentItemGet_BracketsShortComponentTypeName()
+        => Assert.Equal("Get Item [BpCollectionDemo]",
+            Title(new ComponentItemGetNode { ComponentTypeFqn = "Hrot.AI.Behaviors.BpCollectionDemo" }));
+
+    [Fact]
+    public void ComponentItemGet_EmptyComponentType_FallsBackToGenericLabel()
+        => Assert.Equal("Get Item", Title(new ComponentItemGetNode { ComponentTypeFqn = "" }));
+
+    [Fact]
+    public void ComponentItemCount_BracketsShortComponentTypeName()
+        => Assert.Equal("Item Count [BpCollectionDemo]",
+            Title(new ComponentItemCountNode { ComponentTypeFqn = "Hrot.AI.Behaviors.BpCollectionDemo" }));
+
+    [Fact]
+    public void ComponentItemCount_EmptyComponentType_FallsBackToGenericLabel()
+        => Assert.Equal("Item Count", Title(new ComponentItemCountNode { ComponentTypeFqn = "" }));
+
+    [Fact]
+    public void ComponentCollectionConsumers_ResolvableComponentType_IsNormalState()
+    {
+        Assert.Equal(NodeState.Normal, State(new ComponentForEachNode   { ComponentTypeFqn = "System.Numerics.Vector3" }));
+        Assert.Equal(NodeState.Normal, State(new ComponentItemGetNode   { ComponentTypeFqn = "System.Numerics.Vector3" }));
+        Assert.Equal(NodeState.Normal, State(new ComponentItemCountNode { ComponentTypeFqn = "System.Numerics.Vector3" }));
+    }
+
+    [Fact]
+    public void ComponentCollectionConsumers_UnresolvableComponentType_IsErrorState()
+    {
+        const string bogus = "Totally.Unknown.Namespace.NoSuchComponent";
+        Assert.Equal(NodeState.Error, State(new ComponentForEachNode   { ComponentTypeFqn = bogus }));
+        Assert.Equal(NodeState.Error, State(new ComponentItemGetNode   { ComponentTypeFqn = bogus }));
+        Assert.Equal(NodeState.Error, State(new ComponentItemCountNode { ComponentTypeFqn = bogus }));
+    }
+
+    [Fact]
+    public void ComponentCollectionConsumers_EmptyComponentType_IsNormalState_NotError()
+    {
+        // Not-yet-wired (freshly placed from the palette) is not the same as a STALE reference.
+        Assert.Equal(NodeState.Normal, State(new ComponentForEachNode   { ComponentTypeFqn = "" }));
+        Assert.Equal(NodeState.Normal, State(new ComponentItemGetNode   { ComponentTypeFqn = "" }));
+        Assert.Equal(NodeState.Normal, State(new ComponentItemCountNode { ComponentTypeFqn = "" }));
+    }
+
+    // CA-07c: BP2066-mirroring check -- "Collection" wired but baked accessors empty (the
+    // "collectionPinWired" signal BlueprintGraphModel computes from _graph.Links; these tests drive
+    // it directly since BlueprintNodeModel itself has no connectivity awareness).
+
+    [Fact]
+    public void ComponentCollectionConsumer_WiredButAccessorsEmpty_IsErrorState_MirrorsBP2066()
+    {
+        var node = new ComponentItemCountNode { ComponentTypeFqn = "", CountAccessorFqn = "" };
+        var model = new BlueprintNodeModel(node, System.Array.Empty<IPinModel>(), asset: null, collectionPinWired: true);
+        Assert.Equal(NodeState.Error, model.State);
+    }
+
+    [Fact]
+    public void ComponentCollectionConsumer_UnwiredAndAccessorsEmpty_IsNormalState_NotBP2066()
+    {
+        // Unwired ("not used yet") is a legitimate state -- mirrors Stage2's own "only fires when
+        // wired" rule -- so the SAME empty-accessors node must NOT be flagged when unwired.
+        var node = new ComponentItemCountNode { ComponentTypeFqn = "", CountAccessorFqn = "" };
+        var model = new BlueprintNodeModel(node, System.Array.Empty<IPinModel>(), asset: null, collectionPinWired: false);
+        Assert.Equal(NodeState.Normal, model.State);
+    }
+
+    [Fact]
+    public void ComponentCollectionConsumer_WiredWithFullBake_IsNormalState()
+    {
+        // "System.Numerics.Vector3" (not a Hrot.AI.Behaviors type) so the stale-ref check's
+        // ComponentFieldReflector.ResolveType finds it via plain reflection in THIS test host,
+        // mirroring GetComponent_ResolvableComponentType_IsNormalState above.
+        var node = new ComponentForEachNode
+        {
+            ComponentTypeFqn = "System.Numerics.Vector3",
+            CountAccessorFqn = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Count",
+            ItemAccessorFqn  = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Item",
+            ElementTypeFqn   = "System.Int32",
+        };
+        var model = new BlueprintNodeModel(node, System.Array.Empty<IPinModel>(), asset: null, collectionPinWired: true);
+        Assert.Equal(NodeState.Normal, model.State);
+    }
+
     [Fact]
     public void GetParameter_TitleIsClean_NameShownOnPinInstead()
     {

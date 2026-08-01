@@ -143,6 +143,84 @@ public sealed class ComponentCollectionConsumerLoweringTests
         Assert.Contains($"= global::{CountFqn}(", src);
     }
 
+    /// <summary>
+    /// CA-07c regression: <see cref="ComponentItemCountNode"/> has no <c>ElementTypeFqn</c>, so the
+    /// editor's <c>NodePinSchema</c> / the compiler's
+    /// <see cref="Hrot.Blueprints.Core.Compiler.Stages.Stage0_Rehydrate"/>
+    /// ALWAYS type its "Collection" pin "System.Object" (IsArray) -- unlike the OTHER
+    /// <c>ComponentItemCount_Lowering_...</c> test above (which hand-authors Collection as
+    /// System.Int32 to match the source and sidesteps this entirely), THIS fixture mirrors the pin
+    /// shape a REAL saved-and-reloaded asset actually gets (SaveActiveBlueprintCommand always strips
+    /// Pins to <c>[]</c>, so Stage0's enrichment -- always System.Object here -- is what really runs).
+    /// Before the Stage4_TypeResolve.WildcardFullName fix this failed BP1501 ("System.Int32[]" -&gt;
+    /// "System.Object[]" -- no coercion), because the OLD wildcard check compared FullName by exact
+    /// string and never stripped the "[]" StaticTypeRegistry.TryResolve appends to an array's
+    /// element-name.
+    /// </summary>
+    [Fact]
+    public void ComponentItemCount_RealObjectTypedCollectionPin_CompilesClean_MirrorsSaveReloadShape()
+    {
+        var (getNode, valuesOut) = BuildGetComponentCollectionNode();
+
+        // Mirrors NodePinSchema.ComponentItemCountPins / Stage0_Rehydrate.EnrichComponentItemCountPins
+        // EXACTLY -- "Collection" is ALWAYS System.Object here, never the real element type.
+        var collectionIn = DataPin("Collection", "In",  "System.Object", isArray: true);
+        var countOut     = DataPin("Count",      "Out", "System.Int32");
+        var countNode = new ComponentItemCountNode
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = ComponentFqn,
+            CountAccessorFqn = CountFqn,
+        };
+        countNode.Pins.AddRange(new[] { collectionIn, countOut });
+
+        var intVarId = Guid.NewGuid();
+        var intVar = new VariableDecl { Id = intVarId, Name = "CountOut", Type = new BlueprintTypeRef { TypeId = "System.Int32" } };
+
+        var setExecIn   = ExecPin("ExecIn",  "In");
+        var setExecOut  = ExecPin("ExecOut", "Out");
+        var setValueIn  = DataPin("Value", "In", "System.Int32");
+        var setNode = new SetVariableNode { Id = Guid.NewGuid(), VariableId = intVarId.ToString() };
+        setNode.Pins.AddRange(new[] { setExecIn, setExecOut, setValueIn });
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecPin("ExecIn", "In");
+        ret.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, getNode, countNode, setNode, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,    FromPinId = entryOut.Id,     ToNodeId = setNode.Id,   ToPinId = setExecIn.Id },
+                new Link { FromNodeId = setNode.Id,  FromPinId = setExecOut.Id,   ToNodeId = ret.Id,       ToPinId = retIn.Id },
+                new Link { FromNodeId = getNode.Id,  FromPinId = valuesOut.Id,    ToNodeId = countNode.Id, ToPinId = collectionIn.Id },
+                new Link { FromNodeId = countNode.Id, FromPinId = countOut.Id,    ToNodeId = setNode.Id,   ToPinId = setValueIn.Id },
+            },
+        };
+
+        var asset = new BlueprintAsset
+        {
+            AssetId   = Guid.NewGuid(),
+            Name      = "ComponentItemCountRealShapeCoverage",
+            Dispatch  = BlueprintDispatchKind.Instance,
+            Variables = { intVar },
+            Graphs    = { graph },
+        };
+
+        var result = new BlueprintCompiler().Compile(asset, DefaultCompileOptions());
+        Assert.True(result.Succeeded,
+            "Compile failed: " + string.Join(", ", result.Diagnostics.Select(d => $"{d.Code}:{d.Message}")));
+        Assert.Contains($"= global::{CountFqn}(", result.GeneratedSource!);
+    }
+
     [Fact]
     public void ComponentItemCount_UnwiredCollection_CompilesToSafeDefault_NoAccessorCallEmitted()
     {

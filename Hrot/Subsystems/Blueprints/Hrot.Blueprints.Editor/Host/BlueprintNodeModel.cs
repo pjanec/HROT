@@ -63,10 +63,22 @@ internal sealed class BlueprintNodeModel : INodeModel
     /// declared NAME (instead of showing the raw <c>var:&lt;guid&gt;</c> id). May be null
     /// in unit tests that don't exercise variable nodes.
     /// </param>
+    /// <param name="collectionPinWired">
+    /// CA-07c: true when this node is one of the three component-collection CONSUMER kinds
+    /// (<see cref="Hrot.Blueprints.Core.Assets.ComponentForEachNode"/>/
+    /// <see cref="Hrot.Blueprints.Core.Assets.ComponentItemGetNode"/>/
+    /// <see cref="Hrot.Blueprints.Core.Assets.ComponentItemCountNode"/>) AND its "Collection" data-IN
+    /// pin has an incoming link right now. Computed by the caller (<see cref="BlueprintGraphModel"/>,
+    /// which has the graph's <c>Links</c> in scope) since this constructor otherwise has no
+    /// connectivity signal. Drives the BP2066-mirroring stale-bake error check below; ignored for
+    /// every other node kind. Defaults false so every other call site (including headless tests) is
+    /// unaffected.
+    /// </param>
     public BlueprintNodeModel(
         Hrot.Blueprints.Core.Assets.Node node,
         IReadOnlyList<IPinModel> resolvedPins,
-        Hrot.Blueprints.Core.Assets.BlueprintAsset? asset = null)
+        Hrot.Blueprints.Core.Assets.BlueprintAsset? asset = null,
+        bool collectionPinWired = false)
     {
         _node     = node;
         Id        = new NodeId(node.Id);
@@ -105,11 +117,63 @@ internal sealed class BlueprintNodeModel : INodeModel
             StatusTooltip = $"⚠ Unresolved ECS component: {scnErr.ComponentTypeFqn}\n"
                           + "It may have been renamed or removed from C#. Re-pick the component (add a new node).";
         }
+        // CA-07c: same stale-ref pattern for the three collection CONSUMER nodes -- their
+        // ComponentTypeFqn is baked on WIRE (BlueprintCommandSink.TryBakeCollectionConsumer), not
+        // picked from a dropdown, but a renamed/removed component still needs the same red-node signal.
+        else if (node is (Hrot.Blueprints.Core.Assets.ComponentForEachNode
+                       or Hrot.Blueprints.Core.Assets.ComponentItemGetNode
+                       or Hrot.Blueprints.Core.Assets.ComponentItemCountNode)
+                 && IsUnresolvedComponent(CollectionConsumerComponentTypeFqn(node)))
+        {
+            State = NodeState.Error;
+            StatusTooltip = $"⚠ Unresolved ECS component: {CollectionConsumerComponentTypeFqn(node)}\n"
+                          + "It may have been renamed or removed from C#. Re-wire the Collection pin from a GetComponent node.";
+        }
+        // CA-07c: mirrors Stage2's BP2066 (wired Collection pin + empty baked accessors is
+        // structurally invalid) -- catches a "Collection" wired to something OTHER than a real
+        // GetComponent collection pin (TryBakeCollectionConsumer left the bake empty because
+        // detection failed), so the designer sees it on the canvas instead of only at compile time.
+        else if (collectionPinWired && IsCollectionConsumerBakeIncomplete(node))
+        {
+            State = NodeState.Error;
+            StatusTooltip = "⚠ \"Collection\" is wired but no component-collection accessor metadata "
+                          + "was baked. Wire it FROM a GetComponent node's collection out-pin.";
+        }
         else
         {
             State = NodeState.Normal;
         }
     }
+
+    /// <summary>
+    /// The baked <c>ComponentTypeFqn</c> off any of the three collection CONSUMER node kinds, or
+    /// <c>""</c> for any other node. Shared by the stale-ref check above.
+    /// </summary>
+    private static string CollectionConsumerComponentTypeFqn(Hrot.Blueprints.Core.Assets.Node node) => node switch
+    {
+        Hrot.Blueprints.Core.Assets.ComponentForEachNode cfe   => cfe.ComponentTypeFqn,
+        Hrot.Blueprints.Core.Assets.ComponentItemGetNode cig   => cig.ComponentTypeFqn,
+        Hrot.Blueprints.Core.Assets.ComponentItemCountNode cic => cic.ComponentTypeFqn,
+        _ => "",
+    };
+
+    /// <summary>
+    /// True when a collection CONSUMER node's REQUIRED baked accessor props (per its own field set --
+    /// see <c>Nodes.cs</c>) are missing. <c>ComponentForEachNode</c> needs
+    /// ComponentTypeFqn+CountAccessorFqn+ItemAccessorFqn; <c>ComponentItemGetNode</c> needs
+    /// ComponentTypeFqn+ItemAccessorFqn (no Count); <c>ComponentItemCountNode</c> needs
+    /// ComponentTypeFqn+CountAccessorFqn (no Item). False for every other node kind.
+    /// </summary>
+    private static bool IsCollectionConsumerBakeIncomplete(Hrot.Blueprints.Core.Assets.Node node) => node switch
+    {
+        Hrot.Blueprints.Core.Assets.ComponentForEachNode cfe =>
+            string.IsNullOrEmpty(cfe.ComponentTypeFqn) || string.IsNullOrEmpty(cfe.CountAccessorFqn) || string.IsNullOrEmpty(cfe.ItemAccessorFqn),
+        Hrot.Blueprints.Core.Assets.ComponentItemGetNode cig =>
+            string.IsNullOrEmpty(cig.ComponentTypeFqn) || string.IsNullOrEmpty(cig.ItemAccessorFqn),
+        Hrot.Blueprints.Core.Assets.ComponentItemCountNode cic =>
+            string.IsNullOrEmpty(cic.ComponentTypeFqn) || string.IsNullOrEmpty(cic.CountAccessorFqn),
+        _ => false,
+    };
 
     /// <summary>
     /// True when <paramref name="fc"/> targets a CLR method (has a TargetTypeId, not an in-blueprint graph)
@@ -181,6 +245,12 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.GetComponentNode gcn   => string.IsNullOrEmpty(gcn.ComponentTypeFqn) ? "Get Component" : $"Get Component [{ShortTypeName(gcn.ComponentTypeFqn)}]",
         // CA-04: same "[ShortTypeName]" convention for the write node.
         Hrot.Blueprints.Core.Assets.SetComponentNode scn   => string.IsNullOrEmpty(scn.ComponentTypeFqn) ? "Set Component" : $"Set Component [{ShortTypeName(scn.ComponentTypeFqn)}]",
+        // CA-07c: the three collection CONSUMER nodes bake ComponentTypeFqn on WIRE (no picker), so
+        // an unwired/freshly-placed instance shows a generic label; once wired, the same
+        // "[ShortTypeName]" bracket convention as Get/SetComponent kicks in.
+        Hrot.Blueprints.Core.Assets.ComponentForEachNode cfe    => string.IsNullOrEmpty(cfe.ComponentTypeFqn) ? "For Each Component Item" : $"For Each [{ShortTypeName(cfe.ComponentTypeFqn)}]",
+        Hrot.Blueprints.Core.Assets.ComponentItemGetNode cig    => string.IsNullOrEmpty(cig.ComponentTypeFqn) ? "Get Item"                 : $"Get Item [{ShortTypeName(cig.ComponentTypeFqn)}]",
+        Hrot.Blueprints.Core.Assets.ComponentItemCountNode cic  => string.IsNullOrEmpty(cic.ComponentTypeFqn) ? "Item Count"               : $"Item Count [{ShortTypeName(cic.ComponentTypeFqn)}]",
         // Punch-list #1/#5/#8: show the node's own DATA in the body instead of the generic "Value"
         // pin label — the literal's value, the parameter's name, the compare/arith/bool operator.
         // Punch-list: the parameter NAME is shown on the output pin (render-only display label in
@@ -234,6 +304,11 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.GetComponentNode         => NodeCategory.VariableGet,
         // CA-04: SetComponent is an exec node, the "set" analog of SetShared.
         Hrot.Blueprints.Core.Assets.SetComponentNode         => NodeCategory.VariableSet,
+        // CA-07c: ComponentForEach is an exec node (Body/Completed loop-control), the collection
+        // analog of BranchNode/SequenceNode. ItemGet/ItemCount are pure data reads, like Compare/BinaryOp.
+        Hrot.Blueprints.Core.Assets.ComponentForEachNode     => NodeCategory.FlowControl,
+        Hrot.Blueprints.Core.Assets.ComponentItemGetNode     => NodeCategory.Pure,
+        Hrot.Blueprints.Core.Assets.ComponentItemCountNode   => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.LiteralNode              => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.GetParameterNode         => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.GetAllParametersNode     => NodeCategory.Pure,

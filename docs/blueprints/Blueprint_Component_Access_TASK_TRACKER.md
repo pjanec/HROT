@@ -23,7 +23,7 @@ builds clean.
 | CA-06 | Managed write (ECB) | W2 | Opus + Sonnet(mirror) | ✅ |
 | CA-07a | Collection pin type + GetComponent collection out-pin | 2 | Sonnet + Opus(review) | ✅ |
 | CA-07b | Consumer nodes + IR + emit (ForEach/Get[i]/Length) | 2 | Sonnet + Opus(review/BP2050 fix) | ✅ |
-| CA-07c | Editor wire-baking + palette + drawers | 2 | Sonnet + Opus(review) | ⬜ |
+| CA-07c | Editor wire-baking + palette + drawers + demo bp | 2 | Sonnet + Opus(review/wildcard fix) | ✅ |
 | CA-07d | Managed collections + Contains/Find (deferred sub-slice) | 2 | later | ⬜ |
 
 ---
@@ -276,3 +276,23 @@ accessor pairs**, NOT auto-reflected off the raw buffer:
   `default` (Get/Count) or empty loop (ForEach). **Opus review:** lowerings faithful to
   `ScheduleFlowForEachNode`; entity-cache change correct; parity exact. Re-ran gate MYSELF after the
   BP2050 fix: **184/184 serial byte-identical** + **177/177 Component+FlowForEach**. **CA-07b ✅.**
+- **2026-08-02, CA-07c, Sonnet build + Opus review/fixes:** editor wire-baking + palette + titles +
+  demo. `BlueprintCommandSink.TryBakeCollectionConsumer` (in `ApplyAddLink`, outside history like
+  `ApplyComponentTypeFqn`): wiring a GetComponent collection out-pin → a consumer's "Collection" pin
+  bakes `ComponentTypeFqn` + the decl's accessor FQNs + `ElementTypeFqn` onto the consumer (per-kind
+  switch); `RebuildAndNotify` re-projects the now-element-typed pins. Palette entries
+  (`ComponentPaletteEntries.ConsumerEntries`), titles (`For Each [T]`/`Get Item [T]`/`Item Count [T]`),
+  NodeCategory, stale-ref Error + BP2066-mirroring "wired-but-unbaked" Error (`collectionPinWired`
+  threaded from `BlueprintGraphModel`). Demo `ComponentCollectionDemo.bp.json` (GetComponent<BpCollectionDemo>
+  "Values" → all three consumers; compiles clean via the generator).
+  **Companion fixes (both reviewed by Opus):** (1) a REAL latent COMPILER bug — `Stage4_TypeResolve.
+  VerifyLinkTypes`'s `System.Object` wildcard never stripped the `[]` array suffix, so `Int32[] →
+  Object[]` (ItemCount's `System.Object[]` Collection pin) wrongly failed BP1501; fixed with
+  `WildcardFullName` (narrow — `Int32[]→String[]` still fails, +tests). (2) editor
+  `BlueprintTypeSystem.AreCompatible` mirror of the same wildcard so the first wire is accepted.
+  **Opus-caught bug (broad re-gate):** the agent's `~Component` filter never ran `BlueprintTypeSystemTests`,
+  which red-flagged its own too-broad `AreCompatible` (exec-vs-`System.Object` wrongly compatible) —
+  Opus tightened the wildcard to require the other side be a real data type (non-empty Id). Re-gate
+  MYSELF: **184/184 serial** + **399/400** broad (Component/Stage4/TypeSystem/FlowForEach/CommandSink/
+  Palette/Title), sole red = pre-existing `TypeResolve_UnknownFieldType_EmitsBP1500` (BP1500, ignore-list).
+  **CA-07c ✅ — the feature is now wireable in the editor; ready for the user's visual check.**

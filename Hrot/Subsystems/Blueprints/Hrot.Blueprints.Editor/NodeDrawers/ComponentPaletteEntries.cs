@@ -104,6 +104,51 @@ public static class ComponentPaletteEntries
         }
     }
 
+    /// <summary>
+    /// CA-07c -- Add-Node palette entries for the three component-collection CONSUMER nodes
+    /// (<see cref="ComponentForEachNode"/>/<see cref="ComponentItemGetNode"/>/
+    /// <see cref="ComponentItemCountNode"/>). Unlike <see cref="GetComponentEntries"/>/
+    /// <see cref="SetComponentEntries"/> these have NO type picker and no per-component fan-out --
+    /// there is exactly ONE static entry per kind, dropping a default-constructed node with empty
+    /// baked props (<c>ComponentTypeFqn</c>/accessor FQNs all <c>""</c>). The props get baked later,
+    /// on wire, by <see cref="Hrot.Blueprints.Editor.Host.BlueprintCommandSink"/>'s
+    /// <c>TryBakeCollectionConsumer</c> hook when the designer connects a
+    /// <see cref="GetComponentNode"/> collection out-pin into the placed node's "Collection" pin
+    /// (mirrors <see cref="BlueprintNodePaletteEntries.Make{TNode}"/>'s bare default-construct
+    /// pattern -- pins are projected by <c>NodePinSchema</c> at render time, nothing hand-authored
+    /// here).
+    /// </summary>
+    public static IEnumerable<NodeKindDescriptor> ConsumerEntries()
+    {
+        yield return new NodeKindDescriptor
+        {
+            Kind           = "Component.ForEach",
+            DisplayName    = "For Each Component Item",
+            Category       = BlueprintNodePaletteEntries.Categories.Component,
+            Tooltip        = "Iterate a wired component collection element-by-element (wire a GetComponent collection out-pin into \"Collection\").",
+            Icon           = "bp/macro",
+            CreateInstance = () => new ComponentForEachNode { Id = Guid.NewGuid() },
+        };
+        yield return new NodeKindDescriptor
+        {
+            Kind           = "Component.ItemGet",
+            DisplayName    = "Get Component Item",
+            Category       = BlueprintNodePaletteEntries.Categories.Component,
+            Tooltip        = "Read a single element off a wired component collection by index (wire a GetComponent collection out-pin into \"Collection\").",
+            Icon           = "bp/variable_get",
+            CreateInstance = () => new ComponentItemGetNode { Id = Guid.NewGuid() },
+        };
+        yield return new NodeKindDescriptor
+        {
+            Kind           = "Component.ItemCount",
+            DisplayName    = "Component Item Count",
+            Category       = BlueprintNodePaletteEntries.Categories.Component,
+            Tooltip        = "Read a wired component collection's element count (wire a GetComponent collection out-pin into \"Collection\").",
+            Icon           = "bp/variable_get",
+            CreateInstance = () => new ComponentItemCountNode { Id = Guid.NewGuid() },
+        };
+    }
+
     private static List<ComponentFieldDecl> ToComponentFields(IReadOnlyList<ReflectedComponentField> reflected)
         => reflected.Select(f => new ComponentFieldDecl { Name = f.Name, TypeId = f.TypeId }).ToList();
 

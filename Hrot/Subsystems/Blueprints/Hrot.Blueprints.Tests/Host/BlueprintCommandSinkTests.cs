@@ -254,6 +254,203 @@ public sealed class BlueprintCommandSinkTests
         Assert.Equal(out3.Id, linksToIn2[0].FromPinId);
     }
 
+    // ── AddLink: CA-07c wire-bake (TryBakeCollectionConsumer) ─────────────────
+
+    private const string CollectionComponentFqn = "Hrot.AI.Behaviors.BpCollectionDemo";
+    private const string CollectionCountFqn     = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Count";
+    private const string CollectionItemFqn      = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Item";
+
+    /// <summary>
+    /// Builds a fully pin-authored <c>GetComponent&lt;BpCollectionDemo&gt;</c> node with a single
+    /// baked collection decl ("Values", element System.Int32) -- mirrors
+    /// <c>ComponentCollectionConsumerLoweringTests.BuildGetComponentCollectionNode</c>.
+    /// </summary>
+    private static (GetComponentNode Node, Pin ValuesOut) AddGetComponentCollectionNode(Graph graph)
+    {
+        var valuesOut = new Pin { Id = Guid.NewGuid(), Name = "Values", Direction = "Out", IsExec = false,
+            TypeRef = new BlueprintTypeRef { TypeId = "System.Int32", IsArray = true } };
+        var foundOut = new Pin { Id = Guid.NewGuid(), Name = "Found", Direction = "Out", IsExec = false,
+            TypeRef = new BlueprintTypeRef { TypeId = "System.Boolean" } };
+        var node = new GetComponentNode
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = CollectionComponentFqn,
+            Fields = new List<ComponentFieldDecl>
+            {
+                new()
+                {
+                    Name             = "Values",
+                    IsCollection     = true,
+                    ElementTypeId    = "System.Int32",
+                    CountAccessorFqn = CollectionCountFqn,
+                    ItemAccessorFqn  = CollectionItemFqn,
+                },
+            },
+        };
+        node.Pins.AddRange(new[] { valuesOut, foundOut });
+        graph.Nodes.Add(node);
+        return (node, valuesOut);
+    }
+
+    [Fact]
+    public void CommandSink_AddLink_GetComponentCollectionIntoComponentForEach_BakesAllFourProps()
+    {
+        var (asset, graph) = MakeAssetWithGraph();
+        var (_, valuesOut) = AddGetComponentCollectionNode(graph);
+
+        var collectionIn = new Pin { Id = Guid.NewGuid(), Name = "Collection", Direction = "In", IsExec = false,
+            TypeRef = new BlueprintTypeRef { TypeId = "System.Object", IsArray = true } };
+        var forEach = new ComponentForEachNode { Id = Guid.NewGuid() };
+        forEach.Pins.Add(collectionIn);
+        graph.Nodes.Add(forEach);
+
+        var (sink, _, _, _, _, _) = MakeSut(asset, graph);
+
+        var result = sink.Apply(new GraphCommand.AddLink(
+            new LinkId(Guid.NewGuid()), new PinId(valuesOut.Id), new PinId(collectionIn.Id)));
+
+        Assert.True(result.Success);
+        var baked = (ComponentForEachNode)graph.Nodes.Single(n => n.Id == forEach.Id);
+        Assert.Equal(CollectionComponentFqn, baked.ComponentTypeFqn);
+        Assert.Equal(CollectionCountFqn,     baked.CountAccessorFqn);
+        Assert.Equal(CollectionItemFqn,      baked.ItemAccessorFqn);
+        Assert.Equal("System.Int32",         baked.ElementTypeFqn);
+    }
+
+    [Fact]
+    public void CommandSink_AddLink_GetComponentCollectionIntoComponentItemGet_BakesThreeProps_NoCountAccessor()
+    {
+        var (asset, graph) = MakeAssetWithGraph();
+        var (_, valuesOut) = AddGetComponentCollectionNode(graph);
+
+        var collectionIn = new Pin { Id = Guid.NewGuid(), Name = "Collection", Direction = "In", IsExec = false,
+            TypeRef = new BlueprintTypeRef { TypeId = "System.Object", IsArray = true } };
+        var itemGet = new ComponentItemGetNode { Id = Guid.NewGuid() };
+        itemGet.Pins.Add(collectionIn);
+        graph.Nodes.Add(itemGet);
+
+        var (sink, _, _, _, _, _) = MakeSut(asset, graph);
+
+        var result = sink.Apply(new GraphCommand.AddLink(
+            new LinkId(Guid.NewGuid()), new PinId(valuesOut.Id), new PinId(collectionIn.Id)));
+
+        Assert.True(result.Success);
+        var baked = (ComponentItemGetNode)graph.Nodes.Single(n => n.Id == itemGet.Id);
+        Assert.Equal(CollectionComponentFqn, baked.ComponentTypeFqn);
+        Assert.Equal(CollectionItemFqn,      baked.ItemAccessorFqn);
+        Assert.Equal("System.Int32",         baked.ElementTypeFqn);
+    }
+
+    [Fact]
+    public void CommandSink_AddLink_GetComponentCollectionIntoComponentItemCount_BakesTwoProps_NoItemAccessorOrElementType()
+    {
+        var (asset, graph) = MakeAssetWithGraph();
+        var (_, valuesOut) = AddGetComponentCollectionNode(graph);
+
+        var collectionIn = new Pin { Id = Guid.NewGuid(), Name = "Collection", Direction = "In", IsExec = false,
+            TypeRef = new BlueprintTypeRef { TypeId = "System.Object", IsArray = true } };
+        var itemCount = new ComponentItemCountNode { Id = Guid.NewGuid() };
+        itemCount.Pins.Add(collectionIn);
+        graph.Nodes.Add(itemCount);
+
+        var (sink, _, _, _, _, _) = MakeSut(asset, graph);
+
+        var result = sink.Apply(new GraphCommand.AddLink(
+            new LinkId(Guid.NewGuid()), new PinId(valuesOut.Id), new PinId(collectionIn.Id)));
+
+        Assert.True(result.Success);
+        var baked = (ComponentItemCountNode)graph.Nodes.Single(n => n.Id == itemCount.Id);
+        Assert.Equal(CollectionComponentFqn, baked.ComponentTypeFqn);
+        Assert.Equal(CollectionCountFqn,     baked.CountAccessorFqn);
+    }
+
+    [Fact]
+    public void CommandSink_AddLink_NonGetComponentSourceIntoCollectionPin_DoesNotBake_LinkStillAdded()
+    {
+        var (asset, graph) = MakeAssetWithGraph();
+
+        // A plain FunctionCall array output -- NOT a GetComponent collection pin.
+        var srcOut = new Pin { Id = Guid.NewGuid(), Name = "Result", Direction = "Out", IsExec = false,
+            TypeRef = new BlueprintTypeRef { TypeId = "System.Int32", IsArray = true } };
+        var srcNode = new FunctionCallNode { Id = Guid.NewGuid(), MethodName = "Src" };
+        srcNode.Pins.Add(srcOut);
+        graph.Nodes.Add(srcNode);
+
+        var collectionIn = new Pin { Id = Guid.NewGuid(), Name = "Collection", Direction = "In", IsExec = false,
+            TypeRef = new BlueprintTypeRef { TypeId = "System.Object", IsArray = true } };
+        var itemCount = new ComponentItemCountNode { Id = Guid.NewGuid() };
+        itemCount.Pins.Add(collectionIn);
+        graph.Nodes.Add(itemCount);
+
+        var (sink, _, _, _, _, _) = MakeSut(asset, graph);
+
+        var result = sink.Apply(new GraphCommand.AddLink(
+            new LinkId(Guid.NewGuid()), new PinId(srcOut.Id), new PinId(collectionIn.Id)));
+
+        // Detection fails (source isn't GetComponentNode) -- the wire still goes through untouched
+        // (validator/BP2066 handle the semantic mismatch, not this hook), but nothing gets baked.
+        Assert.True(result.Success);
+        Assert.Single(graph.Links);
+        var untouched = (ComponentItemCountNode)graph.Nodes.Single(n => n.Id == itemCount.Id);
+        Assert.Equal("", untouched.ComponentTypeFqn);
+        Assert.Equal("", untouched.CountAccessorFqn);
+    }
+
+    [Fact]
+    public void CommandSink_AddLink_GetComponentScalarFieldIntoCollectionPin_DoesNotBake_NoMatchingDecl()
+    {
+        var (asset, graph) = MakeAssetWithGraph();
+
+        // A GetComponent node with only a SCALAR field (no collection decl at all).
+        var healthOut = new Pin { Id = Guid.NewGuid(), Name = "Health", Direction = "Out", IsExec = false,
+            TypeRef = new BlueprintTypeRef { TypeId = "System.Int32" } };
+        var gcn = new GetComponentNode
+        {
+            Id = Guid.NewGuid(),
+            ComponentTypeFqn = "Hrot.AI.Behaviors.BpComponentDemo",
+            Fields = new List<ComponentFieldDecl> { new() { Name = "Health", TypeId = "System.Int32" } },
+        };
+        gcn.Pins.Add(healthOut);
+        graph.Nodes.Add(gcn);
+
+        var collectionIn = new Pin { Id = Guid.NewGuid(), Name = "Collection", Direction = "In", IsExec = false,
+            TypeRef = new BlueprintTypeRef { TypeId = "System.Object", IsArray = true } };
+        var itemCount = new ComponentItemCountNode { Id = Guid.NewGuid() };
+        itemCount.Pins.Add(collectionIn);
+        graph.Nodes.Add(itemCount);
+
+        var (sink, _, _, _, _, _) = MakeSut(asset, graph);
+
+        var result = sink.Apply(new GraphCommand.AddLink(
+            new LinkId(Guid.NewGuid()), new PinId(healthOut.Id), new PinId(collectionIn.Id)));
+
+        Assert.True(result.Success);
+        var untouched = (ComponentItemCountNode)graph.Nodes.Single(n => n.Id == itemCount.Id);
+        Assert.Equal("", untouched.ComponentTypeFqn);
+    }
+
+    [Fact]
+    public void CommandSink_AddLink_IntoOrdinaryDataPinNamedCollection_OnNonConsumerNode_DoesNotThrow()
+    {
+        // Guards the detection switch: a pin coincidentally named "Collection" on some OTHER node
+        // kind must not crash the bake hook (only ComponentForEach/ItemGet/ItemCount are handled).
+        var (asset, graph) = MakeAssetWithGraph();
+        var (_, valuesOut) = AddGetComponentCollectionNode(graph);
+
+        var collectionIn = new Pin { Id = Guid.NewGuid(), Name = "Collection", Direction = "In", IsExec = false,
+            TypeRef = new BlueprintTypeRef { TypeId = "System.Object", IsArray = true } };
+        var otherNode = new FunctionCallNode { Id = Guid.NewGuid(), MethodName = "NotAConsumer" };
+        otherNode.Pins.Add(collectionIn);
+        graph.Nodes.Add(otherNode);
+
+        var (sink, _, _, _, _, _) = MakeSut(asset, graph);
+
+        var result = sink.Apply(new GraphCommand.AddLink(
+            new LinkId(Guid.NewGuid()), new PinId(valuesOut.Id), new PinId(collectionIn.Id)));
+
+        Assert.True(result.Success);
+    }
+
     // ── MoveNodes ────────────────────────────────────────────────────────────
 
     [Fact]

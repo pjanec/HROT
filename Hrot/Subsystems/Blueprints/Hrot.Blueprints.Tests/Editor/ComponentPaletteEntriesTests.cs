@@ -229,4 +229,77 @@ public sealed class ComponentPaletteEntriesTests
             Assert.IsType<SetComponentNode>(descriptor.CreateInstance());
         }
     }
+
+    // ── CA-07c: ConsumerEntries (ComponentForEach/ItemGet/ItemCount) ──────────
+
+    [Fact]
+    public void ConsumerEntries_YieldsExactlyThreeStaticEntries()
+        => Assert.Equal(3, ComponentPaletteEntries.ConsumerEntries().Count());
+
+    [Fact]
+    public void ConsumerEntries_AllUnderComponentCategory_WithNonEmptyTooltips()
+    {
+        foreach (var entry in ComponentPaletteEntries.ConsumerEntries())
+        {
+            Assert.Equal(BlueprintNodePaletteEntries.Categories.Component, entry.Category);
+            Assert.False(string.IsNullOrWhiteSpace(entry.Tooltip));
+            Assert.False(string.IsNullOrWhiteSpace(entry.DisplayName));
+        }
+    }
+
+    [Fact]
+    public void ConsumerEntries_CreateInstance_ComponentForEach_BlankNode_EmptyBakedProps()
+    {
+        var entry = ComponentPaletteEntries.ConsumerEntries().Single(e => e.Kind == "Component.ForEach");
+        var node = Assert.IsType<ComponentForEachNode>(entry.CreateInstance());
+
+        Assert.Equal("", node.ComponentTypeFqn);
+        Assert.Equal("", node.CountAccessorFqn);
+        Assert.Equal("", node.ItemAccessorFqn);
+        Assert.Equal("", node.ElementTypeFqn);
+        Assert.NotEqual(Guid.Empty, node.Id);
+    }
+
+    [Fact]
+    public void ConsumerEntries_CreateInstance_ComponentItemGet_BlankNode_EmptyBakedProps()
+    {
+        var entry = ComponentPaletteEntries.ConsumerEntries().Single(e => e.Kind == "Component.ItemGet");
+        var node = Assert.IsType<ComponentItemGetNode>(entry.CreateInstance());
+
+        Assert.Equal("", node.ComponentTypeFqn);
+        Assert.Equal("", node.ItemAccessorFqn);
+        Assert.Equal("", node.ElementTypeFqn);
+        Assert.NotEqual(Guid.Empty, node.Id);
+    }
+
+    [Fact]
+    public void ConsumerEntries_CreateInstance_ComponentItemCount_BlankNode_EmptyBakedProps()
+    {
+        var entry = ComponentPaletteEntries.ConsumerEntries().Single(e => e.Kind == "Component.ItemCount");
+        var node = Assert.IsType<ComponentItemCountNode>(entry.CreateInstance());
+
+        Assert.Equal("", node.ComponentTypeFqn);
+        Assert.Equal("", node.CountAccessorFqn);
+        Assert.NotEqual(Guid.Empty, node.Id);
+    }
+
+    [Fact]
+    public void ConsumerEntries_TwoCalls_ReturnDistinctIds()
+    {
+        var entry = ComponentPaletteEntries.ConsumerEntries().Single(e => e.Kind == "Component.ForEach");
+        var node1 = (ComponentForEachNode)entry.CreateInstance();
+        var node2 = (ComponentForEachNode)entry.CreateInstance();
+        Assert.NotEqual(node1.Id, node2.Id);
+    }
+
+    [Fact]
+    public void PaletteRegistry_Construction_DiscoversAllThreeConsumerEntries()
+    {
+        var registry = BlueprintEditorBootstrap.CreatePaletteRegistry();
+        var kinds = registry.EnumerateAll().Select(d => d.Kind).ToList();
+
+        Assert.Contains("Component.ForEach",   kinds);
+        Assert.Contains("Component.ItemGet",   kinds);
+        Assert.Contains("Component.ItemCount", kinds);
+    }
 }

@@ -432,11 +432,97 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             ToPinId    = toPinGuid,
         };
 
+        // CA-07c: author-time accessor baking on wire -- see TryBakeCollectionConsumer's doc comment.
+        // Mutates the target consumer node's asset properties directly, OUTSIDE CommandHistory (same
+        // pattern as ComponentNodeDrawers.ApplyComponentTypeFqn's picker-bake: a stale bake surviving
+        // an Undo-of-link is harmless, since Stage2's BP2066 / Stage5's safe-default lowering only act
+        // when the Collection pin is ACTUALLY wired). RebuildAndNotify() below re-projects the
+        // consumer's now-element-typed pins from the freshly-baked FQNs.
+        TryBakeCollectionConsumer(fromPin, toPin);
+
         // Undoable: drop any replaced link(s) + add the new one as one history step.
         _history.Execute(new LinkEditCommand(_graph, toRemove, new[] { assetLink }, "Add Link"));
         _markDirty(_asset);
         _model.RebuildAndNotify();
         return new GraphCommandResult(true, null);
+    }
+
+    /// <summary>
+    /// CA-07c -- author-time accessor baking on wire for the three component-collection CONSUMER
+    /// nodes (<see cref="ComponentForEachNode"/>/<see cref="ComponentItemGetNode"/>/
+    /// <see cref="ComponentItemCountNode"/>). Those nodes have NO type picker of their own (CA-07b):
+    /// their <c>ComponentTypeFqn</c>/<c>CountAccessorFqn</c>/<c>ItemAccessorFqn</c>/
+    /// <c>ElementTypeFqn</c> props start empty and stay empty until a designer wires a
+    /// <see cref="GetComponentNode"/> collection out-pin into the consumer's "Collection" data-IN
+    /// pin -- THIS is that wiring moment.
+    /// <para>
+    /// Detection: <paramref name="toPin"/>'s Label is "Collection" (ordinal-ignore-case) AND its
+    /// owner node is one of the three consumer kinds, AND <paramref name="fromPin"/>'s owner node is
+    /// a <see cref="GetComponentNode"/>. If either side doesn't match, this is an ordinary wire (or a
+    /// designer's mistake heading for a type-mismatch/BP2066 rejection elsewhere) -- do nothing and
+    /// leave the link as-is; some other tool/validation handles that case.
+    /// </para>
+    /// <para>
+    /// Resolution: looks up the GetComponent's baked collection decl by NAME
+    /// (<c>gcn.Fields.First(f =&gt; f.IsCollection &amp;&amp; f.Name == fromPin.Label)</c> -- the
+    /// source pin's Label is the field/collection Name verbatim, no display-label override exists
+    /// for GetComponent field pins). If no matching decl is found (stale/mismatched wire, or the
+    /// source isn't actually a collection pin), do nothing -- same "leave it to other validation"
+    /// rule as above.
+    /// </para>
+    /// <para>
+    /// Bake: switches on the consumer's concrete type and sets ONLY that type's props (mirrors each
+    /// node's own field set from <c>Nodes.cs</c>): <c>ComponentForEachNode</c> gets all four
+    /// (ComponentTypeFqn/CountAccessorFqn/ItemAccessorFqn/ElementTypeFqn); <c>ComponentItemGetNode</c>
+    /// gets ComponentTypeFqn/ItemAccessorFqn/ElementTypeFqn (no CountAccessorFqn -- Get never counts);
+    /// <c>ComponentItemCountNode</c> gets only ComponentTypeFqn/CountAccessorFqn (no
+    /// ItemAccessorFqn/ElementTypeFqn -- Count's "Collection" pin is always <c>System.Object</c>,
+    /// Stage0/NodePinSchema never consult an element type for it). Accessor FQNs baked as <c>""</c>
+    /// (never null) when the decl's own accessor is null -- defensive; a decl with
+    /// <c>IsCollection == true</c> should always carry both accessor FQNs (CA-07a bakes them
+    /// together), but this never throws on a malformed/hand-edited one.
+    /// </para>
+    /// <para>
+    /// Mutates the target <see cref="Node"/> object directly, NOT through <see cref="_history"/> --
+    /// see the call site's doc comment for why that's acceptable here.
+    /// </para>
+    /// </summary>
+    private void TryBakeCollectionConsumer(IPinModel fromPin, IPinModel toPin)
+    {
+        if (!string.Equals(toPin.Label, "Collection", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var consumerNode = _graph.Nodes.FirstOrDefault(n => n.Id == toPin.OwnerNodeId.Value);
+        if (consumerNode is not (ComponentForEachNode or ComponentItemGetNode or ComponentItemCountNode))
+            return;
+
+        var sourceNode = _graph.Nodes.FirstOrDefault(n => n.Id == fromPin.OwnerNodeId.Value);
+        if (sourceNode is not GetComponentNode gcn)
+            return;
+
+        var decl = gcn.Fields?.FirstOrDefault(f =>
+            f.IsCollection && string.Equals(f.Name, fromPin.Label, StringComparison.OrdinalIgnoreCase));
+        if (decl == null)
+            return;
+
+        switch (consumerNode)
+        {
+            case ComponentForEachNode cfe:
+                cfe.ComponentTypeFqn = gcn.ComponentTypeFqn;
+                cfe.CountAccessorFqn = decl.CountAccessorFqn ?? "";
+                cfe.ItemAccessorFqn  = decl.ItemAccessorFqn  ?? "";
+                cfe.ElementTypeFqn   = decl.ElementTypeId    ?? "";
+                break;
+            case ComponentItemGetNode cig:
+                cig.ComponentTypeFqn = gcn.ComponentTypeFqn;
+                cig.ItemAccessorFqn  = decl.ItemAccessorFqn ?? "";
+                cig.ElementTypeFqn   = decl.ElementTypeId   ?? "";
+                break;
+            case ComponentItemCountNode cic:
+                cic.ComponentTypeFqn = gcn.ComponentTypeFqn;
+                cic.CountAccessorFqn = decl.CountAccessorFqn ?? "";
+                break;
+        }
     }
 
     private List<Link> FindLinksByToPin(PinId toPin)

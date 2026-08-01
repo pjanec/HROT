@@ -160,6 +160,12 @@ public static class BlueprintEditorBootstrap
         foreach (var descriptor in ComponentPaletteEntries.SetComponentEntries(new ReflectionWritableComponentTypeProvider()))
             registry.Register(descriptor);
 
+        // CA-07c: register the three static component-collection CONSUMER entries (ForEach/ItemGet/
+        // ItemCount). No type provider needed -- these nodes have no picker of their own; their
+        // ComponentTypeFqn/accessor FQNs are baked on WIRE by BlueprintCommandSink, not at creation.
+        foreach (var descriptor in ComponentPaletteEntries.ConsumerEntries())
+            registry.Register(descriptor);
+
         return registry;
     }
 
