@@ -85,6 +85,34 @@ public sealed record IrOp_HasComponent(string ComponentTypeFqn, IrValue Entity) 
 public sealed record IrOp_GetComponent(string ComponentTypeFqn, IrValue Entity, IrTypeRef Type) : IrOperation;
 public sealed record IrOp_GetComponentRO(string ComponentTypeFqn, IrValue Entity, IrTypeRef Type) : IrOperation;
 
+/// <summary>
+/// CA-03 (Slice W1, Q#16) -- unmanaged, self-only, write-if-present ECS write. A SINGLE guarded
+/// block (not per-field ops, unlike multi-pin SetShared's <see cref="IrOp_WriteSharedField"/>):
+/// the entity's <c>HasComponent&lt;T&gt;</c> result drives BOTH the emitting
+/// <see cref="Assets.SetComponentNode"/>'s "Written" data-out (this op's ResultValue) AND the
+/// write guard -- <c>GetComponentRW&lt;T&gt;</c> is fetched only INSIDE that guard (mirrors
+/// <c>ChannelCommandLowering</c>'s pre-existing <c>HasComponent</c>-guarded RW emit shape). Only
+/// the fields present in <see cref="Fields"/> are assigned; an unwired field is simply ABSENT from
+/// the list (Stage5 only adds a WIRED field's resolved value here), so its value in the live
+/// component is left untouched ("unwired preserved" -- same semantics as
+/// <see cref="IrOp_WriteSharedField"/>, but as one statement/block instead of N, since this is a
+/// typed member write, not a byte-offset write, so there is no independent-byte-range reason to
+/// split it per field).
+/// </summary>
+/// <param name="ComponentTypeFqn">FQN of the ECS component struct to write. Baked string -- no reflection.</param>
+/// <param name="Entity">
+/// ALWAYS the resolved <c>self</c> Entity (an <see cref="IrOp_Self"/> value Stage5 emits just
+/// before this op) -- <see cref="Assets.SetComponentNode"/> has no "Target" pin at all (self-only
+/// by construction, Q#16), unlike <see cref="IrOp_GetComponent"/>/<see cref="IrOp_GetComponentRO"/>
+/// which do carry a resolved cross-entity Entity argument.
+/// </param>
+/// <param name="Fields">WIRED (Name, Value) pairs only -- see the type doc comment.</param>
+public sealed record IrOp_WriteComponentFields(
+    string ComponentTypeFqn,
+    IrValue Entity,
+    IReadOnlyList<(string Name, IrValue Value)> Fields
+) : IrOperation;
+
 // ECS write via ECB (impure)
 public sealed record IrOp_AddComponent(string ComponentTypeFqn, IrValue Entity, IrValue Value) : IrOperation;
 public sealed record IrOp_RemoveComponent(string ComponentTypeFqn, IrValue Entity) : IrOperation;

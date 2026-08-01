@@ -1152,6 +1152,60 @@ internal sealed class GraphScheduler
                 break;
             }
 
+            case SetComponentNode scn:
+            {
+                // CA-03 (Slice W1, Q#16) -- unmanaged write-if-present, self-only. Resolve ONLY
+                // the WIRED field data-in pins into an (Name, Value) list -- an unwired field is
+                // simply never added, which is exactly how "unwired preserved" is achieved (mirrors
+                // SetSharedNode's per-field branch above, minus the byte offset -- there is no
+                // blittable-blob write here, just a typed member assignment).
+                var fields = new List<(string Name, IrValue Value)>();
+                if (scn.Fields is { Count: > 0 })
+                {
+                    foreach (var f in scn.Fields)
+                    {
+                        var fieldPin = node.Pins.FirstOrDefault(p =>
+                            !p.IsExec && p.Direction == "In"
+                            && string.Equals(p.Name, f.Name, StringComparison.OrdinalIgnoreCase));
+                        if (fieldPin is null) continue;
+                        var link = _graph.Links.FirstOrDefault(
+                            l => l.ToNodeId == node.Id && l.ToPinId == fieldPin.Id);
+                        if (link is null) continue; // unwired field -> not written -> preserved
+                        var fieldVal = ResolveNodeOutput(link.FromNodeId, link.FromPinId, stmts);
+                        fields.Add((f.Name, fieldVal));
+                    }
+                }
+
+                // Self-only by construction (Q#16) -- SetComponentNode has no "Target" pin at all;
+                // entity is ALWAYS the resolved self (mirrors GetComponentNode's unwired-Target
+                // self-default, just unconditional here).
+                var selfEntity = AllocValue(Stage5_Schedule.EntityType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = selfEntity,
+                    Operation   = new IrOp_Self(),
+                    Debug       = DebugOf(node),
+                });
+
+                // This ResultValue doubles as the guarded block's HasComponent bool AND the
+                // "Written" out-pin's value -- ALWAYS allocated (the write must be guarded whether
+                // or not a graph author actually wires "Written" downstream).
+                var writtenResultC = AllocValue(Stage5_Schedule.BoolType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = writtenResultC,
+                    Operation   = new IrOp_WriteComponentFields(scn.ComponentTypeFqn, selfEntity, fields),
+                    Debug       = DebugOf(node),
+                });
+
+                var writtenPinC = node.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, "Written", StringComparison.OrdinalIgnoreCase));
+                if (writtenPinC is not null)
+                    _pinValueCache[writtenPinC.Id] = writtenResultC;
+                break;
+            }
+
             case FunctionCallNode fc when !fc.IsPure && !string.IsNullOrEmpty(fc.TargetGraphId):
             {
                 // Impure in-blueprint function-graph call (BATCH-03A).

@@ -311,6 +311,34 @@ internal static class StatementEmitter
                 break;
 
             // ------------------------------------------------------------------
+            // ECS write (direct, unmanaged, self-only, write-if-present) -- CA-03
+            // ------------------------------------------------------------------
+
+            case IrOp_WriteComponentFields op:
+            {
+                // CA-03 (Slice W1, Q#16). Single guarded block: HasComponent's bool drives BOTH
+                // the "Written" out-pin (idx -- Stage5 ALWAYS allocates a ResultValue for this op,
+                // so idx is always >= 0 here) and the write guard; GetComponentRW is fetched only
+                // INSIDE the guard (mirrors ChannelCommandLowering's pre-existing HasComponent-
+                // guarded RW emit shape). Only the WIRED fields carried in op.Fields are assigned --
+                // an unwired field is simply absent from the list, so its value is preserved.
+                string entity = $"__t{op.Entity.Index}";
+                e.WriteLine($"var __t{idx} = {wv}.HasComponent<global::{op.ComponentTypeFqn}>({entity});");
+                e.WriteLine($"if (__t{idx})");
+                e.WriteLine("{");
+                e.Indent();
+                if (op.Fields.Count > 0)
+                {
+                    e.WriteLine($"ref var __wc{idx} = ref {wv}.GetComponentRW<global::{op.ComponentTypeFqn}>({entity});");
+                    foreach (var f in op.Fields)
+                        e.WriteLine($"__wc{idx}.{f.Name} = __t{f.Value.Index};");
+                }
+                e.Outdent();
+                e.WriteLine("}");
+                break;
+            }
+
+            // ------------------------------------------------------------------
             // ECS writes via ECB
             // ------------------------------------------------------------------
 

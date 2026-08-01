@@ -103,6 +103,11 @@ public static class DiagnosticCodes
 
     public const string BP2050 = "BP2050";  // FlowForEach body contains a latent or (P1a) Branch node -- body must be a synchronous, latent-free (and branch-free) sub-DAG
 
+    // Stage 2 -- Validate (SetComponent rules -- CA-03, Slice W1)
+    public const string BP2060 = "BP2060";  // SetComponentNode.ComponentTypeFqn empty
+    public const string BP2061 = "BP2061";  // SetComponentNode.ComponentTypeFqn not a well-formed type name
+    public const string BP2062 = "BP2062";  // SetComponentNode carries a "Target" pin -- self-only, not permitted
+
     // Stage 3 -- Normalize
     public const string BP3010 = "BP3010";
     public const string BP3011 = "BP3011";

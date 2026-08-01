@@ -41,6 +41,7 @@ internal static class Stage2_Validate
         new V_ReadEqsResultNodeRules(),
         new V_SpawnEqsSensorNodeRules(),
         new V_SharedStateRules(),
+        new V_ComponentAccessRules(),
         new V_FunctionGraphCallRules(),
         new V_ExecOutFanOut(),
     };
@@ -1191,6 +1192,72 @@ internal sealed class V_SharedStateRules : IValidator
                         $"{node.GetType().Name}: SharedTypeId '{sharedTypeId}' does not resolve to a " +
                         "known unmanaged/blittable struct type (not a well-formed type name).",
                         asset.AssetId, graph.Id, node.Id));
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// V_ComponentAccessRules (BP2060-BP2062 -- CA-03, Slice W1: SetComponent write)
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// Validates <see cref="SetComponentNode"/> nodes -- STRUCTURAL checks only.
+/// <list type="bullet">
+///   <item>BP2060 -- <c>ComponentTypeFqn</c> is empty.</item>
+///   <item>BP2061 -- <c>ComponentTypeFqn</c> does not look like a well-formed dotted CLR type FQN
+///     (same syntactic-only check as <see cref="V_SharedStateRules"/>'s BP2041 -- see that
+///     validator's doc comment for why a full-resolution check is not meaningful here).</item>
+///   <item>BP2062 -- the node carries a "Target" pin. <see cref="SetComponentNode"/> is SELF-ONLY
+///     by construction (Q#16) -- <c>Stage0_Rehydrate.EnrichSetComponentPins</c> never projects
+///     one, so a "Target" pin here can only come from a hand-authored/legacy asset; flagged
+///     regardless of whether the pin is actually linked.</item>
+/// </list>
+/// <para>
+/// Deliberately absent: a <c>[BlueprintWritable]</c> check. The compiler runs as a netstandard2.0
+/// Roslyn analyzer and cannot reflect over the real component type to see the attribute (the same
+/// reflection-free constraint documented throughout this file's other validators/Nodes.cs) --
+/// <c>[BlueprintWritable]</c> is an EDITOR-primary gate (CA-04's write picker); see
+/// <see cref="Fdp.Core.BlueprintWritableAttribute"/>'s doc comment.
+/// </para>
+/// </summary>
+internal sealed class V_ComponentAccessRules : IValidator
+{
+    // Same syntactic FQN check as V_SharedStateRules -- one-or-more dot/plus-separated C#
+    // identifier segments, optional "global::" prefix.
+    private static readonly System.Text.RegularExpressions.Regex FqnPattern = new(
+        @"^(global::)?[A-Za-z_][A-Za-z0-9_]*([.+][A-Za-z_][A-Za-z0-9_]*)*$",
+        System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        foreach (var graph in asset.Graphs)
+        {
+            foreach (var node in graph.Nodes)
+            {
+                if (node is not SetComponentNode scn) continue;
+
+                if (string.IsNullOrEmpty(scn.ComponentTypeFqn))
+                {
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2060,
+                        $"{nameof(SetComponentNode)}: ComponentTypeFqn must not be empty.",
+                        asset.AssetId, graph.Id, node.Id));
+                }
+                else if (!FqnPattern.IsMatch(scn.ComponentTypeFqn))
+                {
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2061,
+                        $"{nameof(SetComponentNode)}: ComponentTypeFqn '{scn.ComponentTypeFqn}' is not " +
+                        "a well-formed type name.",
+                        asset.AssetId, graph.Id, node.Id));
+                }
+
+                if (node.Pins.Any(p =>
+                        !p.IsExec && string.Equals(p.Name, "Target", StringComparison.OrdinalIgnoreCase)))
+                {
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2062,
+                        $"{nameof(SetComponentNode)} is self-only -- a \"Target\" pin/link is not permitted.",
+                        asset.AssetId, graph.Id, node.Id));
+                }
             }
         }
     }

@@ -147,6 +147,10 @@ internal static class Stage0_Rehydrate
                 EnrichGetComponentPins(pins, gcn, staticShapes);
                 break;
 
+            case SetComponentNode scn:
+                EnrichSetComponentPins(pins, scn, staticShapes);
+                break;
+
             case MakeStructNode msn:
                 EnrichMakeStructPins(pins, msn);
                 break;
@@ -375,6 +379,31 @@ internal static class Stage0_Rehydrate
         // Target/Found pins -- matches the untouched legacy lowering (self-only, single value).
         var typeId = string.IsNullOrEmpty(gcn.FieldTypeFqn) ? "System.Object" : gcn.FieldTypeFqn;
         pins.Add(MakePin("Value", "Out", isExec: false, typeId: typeId));
+    }
+
+    /// <summary>
+    /// SetComponentNode (CA-03, Slice W1): exec node, mirrors <see cref="EnrichSetSharedPins"/>.
+    /// Static skeleton is exec In/Out. Build: one data-IN pin PER baked <see
+    /// cref="SetComponentNode.Fields"/> entry (unmanaged write; no fields baked yet ⇒ none) plus a
+    /// data-OUT "Written" (<c>System.Boolean</c>) -- UNCONDITIONALLY, unlike SetShared's per-field
+    /// branch (which has no "Written" at all): SetComponent is write-if-present (no implicit add),
+    /// so "Written" is the write's HasComponent guard result and always exists, in both the
+    /// no-fields-yet and multi-field states. Self-only (Q#16) -- NO "Target" pin, ever.
+    /// </summary>
+    private static void EnrichSetComponentPins(
+        List<Pin> pins, SetComponentNode scn, IReadOnlyList<PinSchema> staticShapes)
+    {
+        pins.Clear();
+        pins.Add(MakePin("In",  "In",  isExec: true, typeId: ""));
+        pins.Add(MakePin("Out", "Out", isExec: true, typeId: ""));
+
+        if (scn.Fields is { Count: > 0 })
+        {
+            foreach (var f in scn.Fields)
+                pins.Add(MakePin(f.Name, "In", isExec: false, typeId: f.TypeId));
+        }
+
+        pins.Add(MakePin("Written", "Out", isExec: false, typeId: "System.Boolean"));
     }
 
     /// <summary>

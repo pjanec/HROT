@@ -61,6 +61,11 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         // "node.Pins.Count > 0 => skip" guard, same as GetShared).
         GetComponentNode => Array.Empty<PinSchema>(),   // pure data-(In Target?)/Out; enriched by Stage0 when pin-less
 
+        // SetComponent (CA-03, Slice W1): exec node, mirrors SetSharedNode -- static skeleton is
+        // exec In/Out; Stage0_Rehydrate.EnrichSetComponentPins adds per-field data-ins + "Written"
+        // whenever the node is stored pin-less. Self-only -- no "Target" pin (unlike GetComponent).
+        SetComponentNode => new[] { ExecIn(), ExecOut() },
+
         // Compare (GAP-12) / BinaryOp (native arithmetic) / BooleanOp (native boolean logic):
         // pure data nodes, static skeleton data-(A,B In)/(Result Out). Blocker-1 tail fix: these
         // used to return Array.Empty here on the theory that "the asset always supplies

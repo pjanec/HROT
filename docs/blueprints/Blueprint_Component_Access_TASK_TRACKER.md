@@ -17,7 +17,7 @@ builds clean.
 |---|-------|-------|-------|--------|
 | CA-01 | Read compiler spine (unmanaged) | 1a | Sonnet + Opus(lowering) | ✅ |
 | CA-02 | Read editor (unmanaged) | 1a | Sonnet | ✅ |
-| CA-03 | Write compiler spine (unmanaged) | W1 | Sonnet + Opus(IR/lowering/emit/validator) | ⬜ |
+| CA-03 | Write compiler spine (unmanaged) | W1 | Sonnet + Opus(IR/lowering/emit/validator) | ✅ |
 | CA-04 | Write editor (unmanaged) | W1 | Sonnet | ⬜ |
 | CA-05 | Managed read | 1b | Sonnet + Opus(flow rules) | ⬜ |
 | CA-06 | Managed write (ECB) | W2 | Opus + Sonnet(mirror) | ⬜ |
@@ -73,14 +73,15 @@ builds clean.
   Re-gate: **68 Component editor tests + 184/184 serial**. **CA-02 ✅ done.**
 
 ### CA-03 — Write compiler spine (unmanaged) · Slice W1
-- [ ] `[BlueprintWritable]` attribute (confirm assembly — co-locate w/ component contracts) + `SetComponentNode` (`ComponentTypeFqn`, `Fields`, `IsManaged`) + JsonDerivedType `"SetComponent"` — `Assets/Nodes.cs`
-- [ ] `IrOp_WriteComponentField(target, name, val)` **(new)** + reuse `IrOp_GetComponent`(RW)/`IrOp_HasComponent` — `Compiler/Ir/IrOperation.cs` **(Opus)**
-- [ ] Stage0 `EnrichSetComponentPins` — exec In/Out, per-field data-ins (unmanaged), `Written` out — `Stage0_Rehydrate.cs`
-- [ ] Stage2 `V_ComponentAccessRules` — writable-set (`[BlueprintWritable]`), self-only (reject `Target`), well-formed FQN (BP206x) — `Stage2_Validate.cs` **(Opus reviews)**
-- [ ] Stage5 write lowering — `HasComponent` guard + `IrOp_GetComponent`(RW) + N× `IrOp_WriteComponentField` (wired-only) — `Stage5_Schedule.cs` **(Opus)**
-- [ ] `StatementEmitter` — `IrOp_WriteComponentField` → `__c.{name} = __t{v};` — `Compiler/Emit/StatementEmitter.cs` **(Opus reviews)**
-- [ ] Tests: write lowering/emit (write-if-present, wired-only), validator (non-writable + Target rejected)
-- **Reuse:** `IrOp_WriteSharedField` shape, `ChannelCommandLowering` `GetComponentRW(self)` emit, `V_SharedStateRules`.
+- [x] `[BlueprintWritable]` attribute in **`Fdp.Core`** (next to `[ComponentId]`) + `SetComponentNode` (`ComponentTypeFqn`, `Fields`, `IsManaged`) + JsonDerivedType `"SetComponent"` — `Assets/Nodes.cs`
+- [x] **`IrOp_WriteComponentFields`** (single guarded-block op — Opus-preferred over per-field for clean HasComponent-guard + shared RW ref) — `Compiler/Ir/IrOperation.cs`
+- [x] Stage0 `EnrichSetComponentPins` — exec In/Out, per-field data-ins, `Written` out; **self-only, no Target** — `Stage0_Rehydrate.cs`
+- [x] Stage2 `V_ComponentAccessRules` — **structural only** (BP2060 empty / BP2061 malformed FQN / BP2062 self-only reject Target); **no `[BlueprintWritable]` check** (editor-primary, option a) — `Stage2_Validate.cs`
+- [x] Stage5 write lowering — wired-only field resolution (unwired preserved) + `IrOp_Self`; `Written` ← guard bool — `Stage5_Schedule.cs`
+- [x] `StatementEmitter` — `var __t{i}=HasComponent<T>(self); if(__t{i}){ ref var __wc=ref GetComponentRW<T>(self); __wc.f=__t{v}; }` — `Compiler/Emit/StatementEmitter.cs`
+- [x] Tests: write lowering/emit (write-if-present, wired-only), validator (empty/malformed/Target)
+- **Reuse:** `ChannelCommandLowering` `GetComponentRW(self)` emit, `SetSharedNode` per-field lowering, `V_SharedStateRules`.
+- **2026-08-01, CA-03, Sonnet + Opus review:** built + Opus-reviewed. Deviation from the doc's per-field `IrOp_WriteComponentField`: used a **single `IrOp_WriteComponentFields`** guarded-block op (Opus-directed — cleaner HasComponent guard + one shared RW ref, wired-only writes → unwired preserved). Self-only enforced at Stage0 (no Target pin) + validated (BP2062). `[BlueprintWritable]` in `Fdp.Core`; compiler does NOT reflect it (editor-primary). Gate: compiler/`Fdp.Core`/`AI.Behaviors` clean; **15 CA-03 tests + 184/184 serial**. **CA-03 ✅ done.**
 
 ### CA-04 — Write editor (unmanaged) · Slice W1
 - [ ] `SetComponentPaletteEntries` — reflect **`[BlueprintWritable]`** types only — `NodeDrawers/`

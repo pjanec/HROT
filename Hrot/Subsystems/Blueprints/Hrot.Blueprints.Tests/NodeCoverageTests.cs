@@ -523,6 +523,7 @@ public sealed class NodeCoverageTests
         yield return ("Inline/ReadRankedResult", new[] { BuildReadRankedResultMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetSharedSetShared", new[] { BuildGetSetSharedMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetComponent", new[] { BuildGetComponentMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
+        yield return ("Inline/SetComponent", new[] { BuildSetComponentMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/DiamondMerge", new[] { BuildDiamondMergeMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetParameter", new[] { BuildGetParameterMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetAllParameters", new[] { BuildGetAllParametersMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
@@ -1093,6 +1094,85 @@ public sealed class NodeCoverageTests
             Name      = "GetComponentCoverage",
             Dispatch  = BlueprintDispatchKind.Instance,
             Variables = { floatVar },
+            Graphs    = { graph },
+        };
+    }
+
+    /// <summary>
+    /// EventEntry -&gt; SetComponent(Fields=[X]; X &lt;- Literal 5.5f) -&gt; SetVariable(WrittenOut &lt;-
+    /// SetComponent.Written) -&gt; Return (CA-03, Slice W1 -- unmanaged write). Mirrors <see
+    /// cref="BuildGetComponentMinimalAsset"/>'s shape/evidence bar exactly: <c>System.Numerics.Vector3</c>
+    /// (public, MUTABLE field "X") as the "component" type -- <c>GetComponentRW&lt;T&gt;</c>/
+    /// <c>HasComponent&lt;T&gt;</c> only require <c>T : unmanaged</c> at compile time (no registration
+    /// check), so this exercises the SAME Stage5_Schedule SetComponentNode lowering (IrOp_Self -&gt;
+    /// IrOp_WriteComponentFields's HasComponent-guarded GetComponentRW) real components use, without
+    /// pulling in Hrot.AI.Behaviors/Fdp.Toolkits.
+    /// </summary>
+    private static BlueprintAsset BuildSetComponentMinimalAsset()
+    {
+        var litValuePin = DataPin("Value", "Out", "System.Single");
+        var litNode = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Single", ValueJson = "5.5f" };
+        litNode.Pins.Add(litValuePin);
+
+        var setExecIn  = ExecPin("In",  "In");
+        var setExecOut = ExecPin("Out", "Out");
+        var setXPin    = DataPin("X",       "In",  "System.Single");
+        var setWritten = DataPin("Written", "Out", "System.Boolean");
+        var setNode = new SetComponentNode
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = "System.Numerics.Vector3",
+            Fields           = new List<ComponentFieldDecl>
+            {
+                new ComponentFieldDecl { Name = "X", TypeId = "System.Single" },
+            },
+        };
+        setNode.Pins.AddRange(new[] { setExecIn, setExecOut, setXPin, setWritten });
+
+        var boolVarId = Guid.NewGuid();
+        var boolVar = new VariableDecl
+        {
+            Id   = boolVarId,
+            Name = "WrittenOut",
+            Type = new BlueprintTypeRef { TypeId = "System.Boolean" },
+        };
+
+        var setVarExecIn  = ExecPin("ExecIn",  "In");
+        var setVarExecOut = ExecPin("ExecOut", "Out");
+        var setVarValueIn = DataPin("Value",   "In", "System.Boolean");
+        var setVarNode = new SetVariableNode { Id = Guid.NewGuid(), VariableId = boolVarId.ToString() };
+        setVarNode.Pins.AddRange(new[] { setVarExecIn, setVarExecOut, setVarValueIn });
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecPin("ExecIn", "In");
+        ret.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, litNode, setNode, setVarNode, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,      FromPinId = entryOut.Id,      ToNodeId = setNode.Id,    ToPinId = setExecIn.Id },
+                new Link { FromNodeId = setNode.Id,     FromPinId = setExecOut.Id,    ToNodeId = setVarNode.Id, ToPinId = setVarExecIn.Id },
+                new Link { FromNodeId = setVarNode.Id,  FromPinId = setVarExecOut.Id, ToNodeId = ret.Id,        ToPinId = retIn.Id },
+                new Link { FromNodeId = litNode.Id,     FromPinId = litValuePin.Id,   ToNodeId = setNode.Id,    ToPinId = setXPin.Id },
+                new Link { FromNodeId = setNode.Id,     FromPinId = setWritten.Id,    ToNodeId = setVarNode.Id, ToPinId = setVarValueIn.Id },
+            },
+        };
+
+        return new BlueprintAsset
+        {
+            AssetId   = Guid.NewGuid(),
+            Name      = "SetComponentCoverage",
+            Dispatch  = BlueprintDispatchKind.Instance,
+            Variables = { boolVar },
             Graphs    = { graph },
         };
     }

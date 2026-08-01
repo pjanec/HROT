@@ -355,4 +355,66 @@ public sealed class DeterministicPinReconstructionTests
         var valuePin = gcn.Pins.First(p => p.Name == "Value");
         Assert.Equal("System.Object", valuePin.TypeRef?.TypeId);
     }
+
+    // ── SetComponent enricher (CA-03, Slice W1: unmanaged write) ────────────────────
+    // Mirrors GetComponent's Fields/Found enrichment (EnrichGetComponentPins -> EnrichSetComponentPins),
+    // but exec (not pure-data), self-only (no "Target" pin, ever), and "Written" is UNCONDITIONAL
+    // (there is no legacy whole-struct shape to freeze -- SetComponent is a brand-new node kind).
+
+    [Fact]
+    public void SetComponent_MultiPinFields_ProjectsExecPerFieldInAndWritten()
+    {
+        var scn = new SetComponentNode
+        {
+            Id = Guid.NewGuid(),
+            ComponentTypeFqn = "System.Numerics.Vector3",
+            Fields = new List<ComponentFieldDecl>
+            {
+                new ComponentFieldDecl { Name = "X", TypeId = "System.Single" },
+                new ComponentFieldDecl { Name = "Y", TypeId = "System.Single" },
+            },
+            Pins = new List<Pin>(),
+        };
+        var graph = new Graph { Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Event,
+            Nodes = new List<Node> { scn }, Links = new(), Inputs = new(), Outputs = new() };
+        var asset = new BlueprintAsset { AssetId = Guid.NewGuid(), Name = "T",
+            Dispatch = BlueprintDispatchKind.Instance, Graphs = new List<Graph> { graph },
+            Variables = new(), CustomEvents = new() };
+        Stage0_Rehydrate.Run(asset, Options());
+
+        var shape = scn.Pins.Select(p => (p.Name, p.Direction, p.IsExec, p.TypeRef?.TypeId)).ToList();
+        Assert.Equal(5, shape.Count);   // In + Out (exec) + X + Y + Written -- no "Target" pin, ever
+        Assert.Contains(("In",      "In",  true,  (string?)""), shape);
+        Assert.Contains(("Out",     "Out", true,  (string?)""), shape);
+        Assert.Contains(("X",       "In",  false, "System.Single"),  shape);
+        Assert.Contains(("Y",       "In",  false, "System.Single"),  shape);
+        Assert.Contains(("Written", "Out", false, "System.Boolean"), shape);
+        Assert.DoesNotContain(shape, p => p.Name == "Target");
+    }
+
+    [Fact]
+    public void SetComponent_NullFields_ProjectsExecAndWrittenOnly_NoFieldPins()
+    {
+        // A freshly-dropped SetComponent before the editor bakes any fields: still exec In/Out +
+        // "Written" (the write-if-present guard result always exists), just zero field pins.
+        var scn = new SetComponentNode
+        {
+            Id = Guid.NewGuid(),
+            ComponentTypeFqn = "System.Numerics.Vector3",
+            Fields = null,
+            Pins = new List<Pin>(),
+        };
+        var graph = new Graph { Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Event,
+            Nodes = new List<Node> { scn }, Links = new(), Inputs = new(), Outputs = new() };
+        var asset = new BlueprintAsset { AssetId = Guid.NewGuid(), Name = "T",
+            Dispatch = BlueprintDispatchKind.Instance, Graphs = new List<Graph> { graph },
+            Variables = new(), CustomEvents = new() };
+        Stage0_Rehydrate.Run(asset, Options());
+
+        var shape = scn.Pins.Select(p => (p.Name, p.Direction, p.IsExec, p.TypeRef?.TypeId)).ToList();
+        Assert.Equal(3, shape.Count);
+        Assert.Contains(("In",      "In",  true,  (string?)""), shape);
+        Assert.Contains(("Out",     "Out", true,  (string?)""), shape);
+        Assert.Contains(("Written", "Out", false, "System.Boolean"), shape);
+    }
 }
