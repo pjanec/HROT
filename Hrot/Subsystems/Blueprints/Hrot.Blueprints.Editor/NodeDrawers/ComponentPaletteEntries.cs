@@ -49,24 +49,34 @@ public static class ComponentPaletteEntries
     }
 
     /// <summary>
-    /// CA-04 (Slice W1) — Add-Node palette entries for the <c>SetComponent</c> node, one entry per
+    /// CA-04/CA-06 — Add-Node palette entries for the <c>SetComponent</c> node, one entry per
     /// discovered <c>[BlueprintWritable]</c> ECS component type (via the caller-supplied
     /// <paramref name="provider"/> -- callers pass a writable-only provider, e.g.
     /// <see cref="ReflectionWritableComponentTypeProvider"/>; the Get palette above uses the
-    /// all-components provider instead) that has at least one reflectable field. Mirrors
-    /// <see cref="GetComponentEntries"/> exactly, except it bakes a <see cref="SetComponentNode"/>
-    /// (write-if-present, self-only; managed write is CA-06 -- <see cref="SetComponentNode.IsManaged"/>
-    /// is left at its default <c>false</c> here, unmanaged-only in this batch).
+    /// all-components provider instead). Bakes ONE of two mutually-exclusive shapes, keyed by
+    /// <see cref="ComponentFieldReflector.IsManagedComponent"/> (mirrors
+    /// <see cref="GetComponentEntries"/>'s CA-05 <c>IsManaged</c> bake):
+    /// <list type="bullet">
+    ///   <item>UNMANAGED: skipped if it has no reflectable fields (nothing to write); otherwise
+    ///   <see cref="SetComponentNode.IsManaged"/> = false, <see cref="SetComponentNode.Fields"/> =
+    ///   the FULL reflected field set (CA-03/CA-04, unchanged).</item>
+    ///   <item>MANAGED (CA-06, Slice W2, Q#16-C): NEVER skipped for having zero fields -- a
+    ///   whole-replace write doesn't depend on field count, so even a managed tag-like component is
+    ///   a legitimate target. <see cref="SetComponentNode.IsManaged"/> = true,
+    ///   <see cref="SetComponentNode.Fields"/> = <c>null</c> (never baked -- Stage2's BP2064 would
+    ///   reject a managed node carrying per-field Fields).</item>
+    /// </list>
     /// </summary>
     public static IEnumerable<NodeKindDescriptor> SetComponentEntries(IComponentTypeProvider provider)
     {
         if (provider is null) yield break;
         foreach (var fqn in provider.GetComponentTypeFqns())
         {
+            bool isManaged = ComponentFieldReflector.IsManagedComponent(fqn);
             var reflected = ComponentFieldReflector.TryReflect(fqn);
-            // No fields to write -> no useful SetComponent node (mirrors GetComponentEntries's
-            // skip-if-empty).
-            if (reflected is null || reflected.Count == 0) continue;
+            // Unmanaged, no fields to write -> no useful SetComponent node (mirrors
+            // GetComponentEntries's skip-if-empty). Managed is NEVER skipped here -- see summary.
+            if (!isManaged && (reflected is null || reflected.Count == 0)) continue;
 
             var shortName = ShortName(fqn);
             var bakedFqn  = fqn; // capture for the closure
@@ -76,15 +86,19 @@ public static class ComponentPaletteEntries
                 Kind        = $"Component.Set.{fqn}",
                 DisplayName = $"Set Component: {shortName}",
                 Category    = BlueprintNodePaletteEntries.Categories.Component,
-                Tooltip     = $"Write fields into the {shortName} ECS component (self only, write-if-present).",
+                Tooltip     = isManaged
+                    ? $"Replace the {shortName} managed ECS component (self only, write-if-present, whole-value via ECB)."
+                    : $"Write fields into the {shortName} ECS component (self only, write-if-present).",
                 Icon        = "bp/variable_get",
                 CreateInstance = () => new SetComponentNode
                 {
                     Id               = Guid.NewGuid(),
                     ComponentTypeFqn = bakedFqn,
-                    // Re-reflect per CreateInstance call so each placed node gets its OWN Fields
-                    // list instance (never a list shared/mutated across multiple placed nodes).
-                    Fields = ToComponentFields(ComponentFieldReflector.TryReflect(bakedFqn)!),
+                    IsManaged        = isManaged,
+                    // Managed: whole-replace only -- never bake per-field Fields (see summary).
+                    // Unmanaged: re-reflect per CreateInstance call so each placed node gets its OWN
+                    // Fields list instance (never a list shared/mutated across multiple placed nodes).
+                    Fields = isManaged ? null : ToComponentFields(ComponentFieldReflector.TryReflect(bakedFqn)!),
                 },
             };
         }

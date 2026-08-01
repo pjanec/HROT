@@ -781,22 +781,30 @@ internal static class NodePinSchema
     }
 
     /// <summary>
-    /// SetComponentNode (CA-04, Slice W1): exec node. EXACT parity with the compiler's
+    /// SetComponentNode (CA-04/CA-06): exec node. EXACT parity with the compiler's
     /// <see cref="Hrot.Blueprints.Core.Compiler.Stages.Stage0_Rehydrate"/>
-    /// <c>EnrichSetComponentPins</c> (frozen at CA-03): exec-In "In" + exec-Out "Out" + one
-    /// data-IN pin PER baked <see cref="SetComponentNode.Fields"/> entry (none baked yet ⇒ no field
-    /// pins) + data-out "Written" (<c>System.Boolean</c>) -- UNCONDITIONALLY (write-if-present: the
-    /// <c>HasComponent&lt;T&gt;</c> guard result always exists, even before any component is picked).
-    /// Self-only (Q#16) -- NO "Target" pin, ever, unlike <see cref="GetComponentPins"/>'s optional
-    /// cross-entity read.
+    /// <c>EnrichSetComponentPins</c>: exec-In "In" + exec-Out "Out" + either (UNMANAGED) one data-IN
+    /// pin PER baked <see cref="SetComponentNode.Fields"/> entry, or (MANAGED, CA-06 Slice W2,
+    /// Q#16-C -- checked FIRST) a SINGLE data-IN "Value" pin typed by
+    /// <see cref="SetComponentNode.ComponentTypeFqn"/> -- whole-replace only, never per-field -- plus
+    /// data-out "Written" (<c>System.Boolean</c>) in BOTH shapes, UNCONDITIONALLY (write-if-present:
+    /// the <c>Has(Managed)Component&lt;T&gt;</c> guard result always exists, even before any component
+    /// is picked). Self-only (Q#16) -- NO "Target" pin, ever, unlike <see cref="GetComponentPins"/>'s
+    /// optional cross-entity read.
     /// </summary>
     private static IReadOnlyList<Pin> SetComponentPins(SetComponentNode scn)
     {
-        var pins = new List<Pin>(3 + (scn.Fields?.Count ?? 0))
+        var pins = new List<Pin>(4)
         {
             MakeExec("In",  "In"),
             MakeExec("Out", "Out"),
         };
+        if (scn.IsManaged)
+        {
+            pins.Add(MakeData("Value", "In", SharedTypePinTypeId(scn.ComponentTypeFqn)));
+            pins.Add(MakeData("Written", "Out", "System.Boolean"));
+            return pins;
+        }
         if (scn.Fields is { Count: > 0 })
             foreach (var f in scn.Fields)
                 pins.Add(MakeData(f.Name, "In", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));

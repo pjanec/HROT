@@ -366,6 +366,38 @@ internal static class StatementEmitter
             }
 
             // ------------------------------------------------------------------
+            // ECS write (managed, self-only, write-if-present, whole-replace via ECB) -- CA-06
+            // ------------------------------------------------------------------
+
+            case IrOp_SetManagedComponent op:
+            {
+                // CA-06 (Slice W2, Q#16-C). Same guarded shape as IrOp_WriteComponentFields (the
+                // HasManagedComponent bool drives BOTH "Written" and the write guard), but the write
+                // itself is a single ECB-queued whole-value replace -- there is no direct RW fetch,
+                // and never per-field assignment (per-field managed write is FORBIDDEN -- snapshot
+                // aliasing). HasManagedComponent<T> is called on `wv` (the concrete EntityRepository),
+                // NOT ctx.SimulationViewVar -- it is PUBLIC and DIRECT there (see IrOp_HasComponent's
+                // and IrOp_GetManagedComponentRO's doc comments), exactly like the unmanaged guard
+                // above; only GetManagedComponentRO needs the interface cast (an explicitly-implemented
+                // member), which is irrelevant here since this op never reads.
+                string entity = $"__t{op.Entity.Index}";
+                e.WriteLine($"var __t{idx} = {wv}.HasManagedComponent<global::{op.ComponentTypeFqn}>({entity});");
+                if (op.Value is { } val)
+                {
+                    // Brace-less single-statement if (mirrors TerminatorEmitter's goto shape) -- the
+                    // guard's ONLY job when a value IS wired is to skip a single ECB call, not a block.
+                    e.WriteLine($"if (__t{idx})");
+                    e.Indent();
+                    e.WriteLine($"{ctx.EcbVar}.SetManagedComponent<global::{op.ComponentTypeFqn}>({entity}, __t{val.Index});");
+                    e.Outdent();
+                }
+                // op.Value is null (the "Value" pin was left unwired): the guard line above is the
+                // ENTIRE emit -- "Written" still reflects HasManagedComponent, but there is nothing to
+                // write, so no `if` at all (not even an empty one).
+                break;
+            }
+
+            // ------------------------------------------------------------------
             // ECS writes via ECB
             // ------------------------------------------------------------------
 

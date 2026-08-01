@@ -593,54 +593,66 @@ public sealed class ComponentFieldDecl
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// SetComponent (CA-03, Slice W1 -- Q#16 write, unmanaged only)
+// SetComponent (CA-03/CA-06 -- Q#16/Q#16-C write, unmanaged per-field + managed whole-replace)
 //
 // Reflection-free by construction, mirrors GetComponentNode/SetSharedNode: ComponentTypeFqn/
 // Fields[].TypeId are baked strings authored at edit time -- the netstandard2.0 compiler never
 // reflects. Self-only (Q#16) -- there is no "Target" pin/field at all (unlike GetComponentNode's
-// optional cross-entity read). Write-if-present: the emitted guard checks HasComponent<T> before
-// writing (no implicit add -- an absent component just yields Written=false, never throws).
-// Per-field, wired-only: only WIRED field pins are assigned; an unwired field's value in the live
-// component is left untouched. The `[BlueprintWritable]` gate (which real component types may
-// carry this write picker to) is enforced EDITOR-SIDE ONLY (CA-04) -- see
-// BlueprintWritableAttribute's doc comment for why the compiler cannot check it. IsManaged is
-// carried here (additive) for CA-06 (managed whole-replace via ECB); this batch (W1) only lowers
-// the unmanaged (IsManaged == false) path -- see Stage5_Schedule's SetComponentNode case.
+// optional cross-entity read). Write-if-present: the emitted guard checks Has(Managed)Component<T>
+// before writing (no implicit add -- an absent component just yields Written=false, never throws).
+// UNMANAGED (IsManaged == false): per-field, wired-only -- only WIRED field pins are assigned; an
+// unwired field's value in the live component is left untouched. MANAGED (IsManaged == true, CA-06
+// Slice W2, Q#16-C): whole-component replace ONLY via the ECB (Fields is NEVER populated in this
+// case -- per-field managed write is FORBIDDEN, snapshot aliasing) -- a single "Value" data-in pin,
+// queued as `ecb.SetManagedComponent<T>(self, value)`. The `[BlueprintWritable]` gate (which real
+// component types may carry this write picker to) is enforced EDITOR-SIDE ONLY (CA-04) -- see
+// BlueprintWritableAttribute's doc comment for why the compiler cannot check it.
 // ──────────────────────────────────────────────────────────────────────────
 
 /// <summary>
-/// Writes WIRED fields into an ECS component on <c>self</c> (self-only -- no "Target" pin, unlike
+/// Writes into an ECS component on <c>self</c> (self-only -- no "Target" pin, unlike
 /// <see cref="GetComponentNode"/>'s optional cross-entity read). Exec node: exec-In "In"/exec-Out
-/// "Out", one data-in pin PER baked <see cref="Fields"/> entry (unwired fields are simply not
-/// written -- preserved), plus a data-out "Written" (<c>System.Boolean</c>) driven by a
-/// <c>HasComponent&lt;T&gt;</c> write-if-present guard (no implicit add). Compiles to
-/// <c>if ({view}.HasComponent&lt;global::ComponentTypeFqn&gt;(self)) { ref var __c = ref
-/// {view}.GetComponentRW&lt;global::ComponentTypeFqn&gt;(self); __c.{Field} = ...; }</c> -- see
-/// <c>Stage5_Schedule</c>'s <c>SetComponentNode</c> case and <c>StatementEmitter</c>'s
-/// <c>IrOp_WriteComponentFields</c> case (both new, CA-03).
+/// "Out", plus a data-out "Written" (<c>System.Boolean</c>) driven by a write-if-present guard (no
+/// implicit add). Two shapes, keyed by <see cref="IsManaged"/>:
+/// <list type="bullet">
+///   <item><b>Unmanaged</b> (<see cref="IsManaged"/> == false): one data-in pin PER baked
+///   <see cref="Fields"/> entry (unwired fields are simply not written -- preserved). Compiles to
+///   <c>if ({view}.HasComponent&lt;global::ComponentTypeFqn&gt;(self)) { ref var __c = ref
+///   {view}.GetComponentRW&lt;global::ComponentTypeFqn&gt;(self); __c.{Field} = ...; }</c> -- see
+///   <c>Stage5_Schedule</c>'s <c>SetComponentNode</c> case and <c>StatementEmitter</c>'s
+///   <c>IrOp_WriteComponentFields</c> case (CA-03).</item>
+///   <item><b>Managed</b> (<see cref="IsManaged"/> == true, CA-06 Slice W2, Q#16-C): a SINGLE
+///   data-in "Value" pin (component-typed) -- whole-replace only, never per-field. Compiles to
+///   <c>if ({wv}.HasManagedComponent&lt;global::ComponentTypeFqn&gt;(self)) {ecb}
+///   .SetManagedComponent&lt;global::ComponentTypeFqn&gt;(self, value);</c> -- see
+///   <c>Stage5_Schedule</c>'s managed <c>SetComponentNode</c> case and <c>StatementEmitter</c>'s
+///   <c>IrOp_SetManagedComponent</c> case (CA-06).</item>
+/// </list>
 /// </summary>
 public sealed class SetComponentNode : Node
 {
-    /// <summary>FQN of the ECS component struct to write (e.g. "Hrot.AI.Behaviors.SomeBehaviorOwnedState"). Emitted as GetComponentRW&lt;global::FQN&gt;. Baked string -- no reflection.</summary>
+    /// <summary>FQN of the ECS component to write (e.g. "Hrot.AI.Behaviors.SomeBehaviorOwnedState"). Emitted as GetComponentRW&lt;global::FQN&gt; (unmanaged) or SetManagedComponent&lt;global::FQN&gt; (managed). Baked string -- no reflection.</summary>
     public string ComponentTypeFqn { get; set; } = "";
 
     /// <summary>
     /// Baked per-field decls the editor reflects off the WRITABLE (<c>[BlueprintWritable]</c>)
-    /// component struct -- one data-IN pin per entry (unmanaged write only in this batch; W1).
-    /// Null/empty is a valid "no fields baked yet" state (a freshly dropped node before the editor
-    /// picks a component) -- Stage0 still projects exec In/Out + "Written" in that case, just no
-    /// field pins. Mirrors <see cref="GetComponentNode.Fields"/> minus <c>Offset</c> (typed member
-    /// write, not a byte-offset write).
+    /// component struct -- one data-IN pin per entry. UNMANAGED ONLY: when <see cref="IsManaged"/>
+    /// is <c>true</c> this MUST be null/empty -- a managed write is whole-replace-only (Stage2's
+    /// V_ComponentAccessRules BP2064 rejects a managed node that carries Fields). Null/empty is
+    /// also the valid "no fields baked yet" state for an unmanaged node (a freshly dropped node
+    /// before the editor picks a component) -- Stage0 still projects exec In/Out + "Written" in
+    /// that case, just no field pins. Mirrors <see cref="GetComponentNode.Fields"/> minus
+    /// <c>Offset</c> (typed member write, not a byte-offset write).
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public List<ComponentFieldDecl>? Fields { get; set; }
 
     /// <summary>
     /// True when <see cref="ComponentTypeFqn"/> is a MANAGED (reference) type -- the write path is
-    /// then a single whole-value replace via the ECB (<c>ecb.SetManagedComponent</c>), never
-    /// per-field. CA-06 (Slice W2) builds that lowering; this batch (CA-03, W1) only handles the
-    /// <c>false</c> (unmanaged, per-field) case in <c>Stage5_Schedule</c>. Default <c>false</c> ⇒
-    /// omitted from JSON, so existing (unmanaged-only) assets round-trip byte-identically.
+    /// then a single whole-value replace via the ECB (<c>ecb.SetManagedComponent&lt;T&gt;</c>,
+    /// CA-06 Slice W2), never per-field. Default <c>false</c> ⇒ omitted from JSON, so existing
+    /// (unmanaged-only) assets round-trip byte-identically. See <see cref="Fields"/>'s doc comment
+    /// for the mutual-exclusion invariant this flag drives.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public bool IsManaged { get; set; }

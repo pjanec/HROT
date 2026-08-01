@@ -382,13 +382,16 @@ internal static class Stage0_Rehydrate
     }
 
     /// <summary>
-    /// SetComponentNode (CA-03, Slice W1): exec node, mirrors <see cref="EnrichSetSharedPins"/>.
-    /// Static skeleton is exec In/Out. Build: one data-IN pin PER baked <see
-    /// cref="SetComponentNode.Fields"/> entry (unmanaged write; no fields baked yet ⇒ none) plus a
-    /// data-OUT "Written" (<c>System.Boolean</c>) -- UNCONDITIONALLY, unlike SetShared's per-field
-    /// branch (which has no "Written" at all): SetComponent is write-if-present (no implicit add),
-    /// so "Written" is the write's HasComponent guard result and always exists, in both the
-    /// no-fields-yet and multi-field states. Self-only (Q#16) -- NO "Target" pin, ever.
+    /// SetComponentNode (CA-03/CA-06): exec node, mirrors <see cref="EnrichSetSharedPins"/>.
+    /// Static skeleton is exec In/Out. UNMANAGED (<see cref="SetComponentNode.IsManaged"/> == false):
+    /// one data-IN pin PER baked <see cref="SetComponentNode.Fields"/> entry (no fields baked yet ⇒
+    /// none). MANAGED (CA-06, Slice W2, Q#16-C): a SINGLE data-IN "Value" pin typed by
+    /// <see cref="SetComponentNode.ComponentTypeFqn"/> instead -- whole-replace only, never per-field
+    /// (checked first, below, before the unmanaged Fields branch). Both shapes get a data-OUT
+    /// "Written" (<c>System.Boolean</c>) -- UNCONDITIONALLY, unlike SetShared's per-field branch
+    /// (which has no "Written" at all): SetComponent is write-if-present (no implicit add), so
+    /// "Written" is the write's Has(Managed)Component guard result and always exists. Self-only
+    /// (Q#16) -- NO "Target" pin, ever, in either shape.
     /// </summary>
     private static void EnrichSetComponentPins(
         List<Pin> pins, SetComponentNode scn, IReadOnlyList<PinSchema> staticShapes)
@@ -396,6 +399,19 @@ internal static class Stage0_Rehydrate
         pins.Clear();
         pins.Add(MakePin("In",  "In",  isExec: true, typeId: ""));
         pins.Add(MakePin("Out", "Out", isExec: true, typeId: ""));
+
+        // CA-06 (Slice W2, Q#16-C): managed write is WHOLE-REPLACE ONLY -- a single data-IN "Value"
+        // pin typed by ComponentTypeFqn (global::-stamped, mirrors SetShared's legacy whole-struct
+        // "Value" pin), NEVER per-field pins (per-field managed write is FORBIDDEN -- snapshot
+        // aliasing). Checked BEFORE scn.Fields below so a managed node's Fields (which the editor
+        // must never bake -- see SetComponentNodeSession.ApplyComponentTypeFqn) can't leak a
+        // per-field shape through even if a hand-authored/legacy asset carries both.
+        if (scn.IsManaged)
+        {
+            pins.Add(MakePin("Value", "In", isExec: false, typeId: SharedTypePinTypeId(scn.ComponentTypeFqn)));
+            pins.Add(MakePin("Written", "Out", isExec: false, typeId: "System.Boolean"));
+            return;
+        }
 
         if (scn.Fields is { Count: > 0 })
         {

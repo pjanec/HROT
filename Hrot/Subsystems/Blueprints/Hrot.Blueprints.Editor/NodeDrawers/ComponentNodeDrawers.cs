@@ -201,16 +201,24 @@ internal sealed class GetComponentNodeSession : INodeEditSession
 }
 
 /// <summary>
-/// CA-04 (Slice W1) — Details-panel drawer for <see cref="SetComponentNode"/>: a filtered picker
+/// CA-04/CA-06 — Details-panel drawer for <see cref="SetComponentNode"/>: a filtered picker
 /// over a WRITABLE-only <see cref="IComponentTypeProvider"/> (the caller wires
 /// <see cref="ReflectionWritableComponentTypeProvider"/> -- see
 /// <see cref="BlueprintEditorBootstrap.CreateNodeDrawerRegistry"/>) for
-/// <see cref="SetComponentNode.ComponentTypeFqn"/>. Mirrors <see cref="GetComponentNodeDrawer"/>
-/// exactly: no "Expand to field pins" toggle (a component write is always multi-pin), selecting a
-/// type always (re-)bakes the FULL field set. Managed fields are still listed (this batch doesn't
-/// special-case managed components out of the picker), flagged with a "write path not yet wired"
-/// caveat -- CA-06 builds the managed (ECB whole-replace) write lowering; wiring a managed field's
-/// pin here has no compiled effect until then.
+/// <see cref="SetComponentNode.ComponentTypeFqn"/>. No "Expand to field pins" toggle (a component
+/// write is always multi-pin/single-pin, never a collapsed legacy shape). Selecting a type bakes
+/// ONE of two mutually-exclusive shapes (mirrors <see cref="GetComponentNodeDrawer"/>'s managed
+/// branch, CA-05):
+/// <list type="bullet">
+///   <item>UNMANAGED component (<see cref="ComponentFieldReflector.IsManagedComponent"/> false):
+///   <see cref="SetComponentNode.IsManaged"/> = false, <see cref="SetComponentNode.Fields"/> = the
+///   FULL reflected field set -- one data-IN pin per field (CA-03/CA-04, unchanged).</item>
+///   <item>MANAGED component (CA-06, Slice W2, Q#16-C): <see cref="SetComponentNode.IsManaged"/> =
+///   true, <see cref="SetComponentNode.Fields"/> = <c>null</c> (NEVER baked -- per-field managed
+///   write is forbidden) -- Stage0/NodePinSchema instead project a SINGLE "Value" data-IN pin typed
+///   by the component, fed by a library/function call (or another managed pass-through) that
+///   constructs a fresh instance.</item>
+/// </list>
 /// </summary>
 public sealed class SetComponentNodeDrawer : IBlueprintNodeDrawer
 {
@@ -287,12 +295,26 @@ internal sealed class SetComponentNodeSession : INodeEditSession
     {
         if (fqn == _node.ComponentTypeFqn) return;
         _node.ComponentTypeFqn = fqn;
-        // A component write isn't a single pin value -- always (re-)bake the FULL field set for the
-        // newly selected type (mirrors GetComponentNodeSession.ApplyComponentTypeFqn).
-        var reflected = ComponentFieldReflector.TryReflect(fqn);
-        _node.Fields = reflected is { Count: > 0 }
-            ? reflected.Select(f => new ComponentFieldDecl { Name = f.Name, TypeId = f.TypeId }).ToList()
-            : null;
+        // CA-06 (Slice W2, Q#16-C): bake whether the picked component TYPE itself is managed --
+        // drives Stage5's whole-replace-via-ECB emit choice (mirrors
+        // GetComponentNodeSession.ApplyComponentTypeFqn's CA-05 IsManaged bake).
+        _node.IsManaged = ComponentFieldReflector.IsManagedComponent(fqn);
+        if (_node.IsManaged)
+        {
+            // Managed write is WHOLE-REPLACE ONLY -- never bake per-field Fields (Stage2's BP2064
+            // rejects a managed node that carries them). Stage0/NodePinSchema project a single
+            // "Value" pin from ComponentTypeFqn directly; there is nothing to reflect per-field here.
+            _node.Fields = null;
+        }
+        else
+        {
+            // Unmanaged (CA-03/CA-04, unchanged): always (re-)bake the FULL field set for the newly
+            // selected type -- a component write isn't a single pin value.
+            var reflected = ComponentFieldReflector.TryReflect(fqn);
+            _node.Fields = reflected is { Count: > 0 }
+                ? reflected.Select(f => new ComponentFieldDecl { Name = f.Name, TypeId = f.TypeId }).ToList()
+                : null;
+        }
         MarkChanged();
     }
 
@@ -317,7 +339,10 @@ internal sealed class SetComponentNodeSession : INodeEditSession
         DrawComponentTypePicker();
         DrawFieldSummary();
 
-        ImGui.TextDisabled("(self only, write-if-present -- writes view.GetComponentRW<T>, guarded by HasComponent<T>; no implicit add)");
+        if (_node.IsManaged)
+            ImGui.TextDisabled("(self only, write-if-present -- whole-replace via ecb.SetManagedComponent<T>, guarded by HasManagedComponent<T>; no implicit add)");
+        else
+            ImGui.TextDisabled("(self only, write-if-present -- writes view.GetComponentRW<T>, guarded by HasComponent<T>; no implicit add)");
         if (string.IsNullOrEmpty(_node.ComponentTypeFqn))
             ImGui.TextColored(EditorColors.Warning, "(pick a Component Type)");
     }
@@ -356,13 +381,25 @@ internal sealed class SetComponentNodeSession : INodeEditSession
     }
 
     /// <summary>
-    /// Lists the currently-baked field pins, flagging managed fields with a "write path not yet
-    /// wired" caveat -- CA-06 builds the managed (ECB whole-replace) write; this slice (W1) only
-    /// lowers the unmanaged per-field write, so a managed field's pin can be wired but has no
-    /// compiled effect yet.
+    /// Summarizes the currently-baked pin shape. MANAGED (CA-06, Slice W2): a single "Value" pin,
+    /// whole-replace -- feed it from a library/function call (or another managed pass-through) that
+    /// constructs a fresh instance; there is no per-field write path for a managed component at all
+    /// (architect-forbidden -- snapshot aliasing), so there is nothing further to list. UNMANAGED
+    /// (CA-03/CA-04, unchanged): lists the baked field pins, flagging any still-managed FIELD
+    /// embedded in the otherwise-unmanaged struct with a "write path not yet wired" caveat (that
+    /// per-FIELD case is orthogonal to the node-level <see cref="SetComponentNode.IsManaged"/> flag
+    /// this drawer branches on -- see <see cref="ComponentFieldReflector.IsManagedComponent"/>'s doc
+    /// comment for the distinction).
     /// </summary>
     private void DrawFieldSummary()
     {
+        if (_node.IsManaged)
+        {
+            ImGui.TextDisabled("(single \"Value\" pin -- whole-component replace; feed it from a " +
+                "library/function call that constructs a fresh instance)");
+            return;
+        }
+
         if (_node.Fields is not { Count: > 0 } fields) return;
 
         ImGui.TextDisabled($"({fields.Count} field pin(s) + Written(out))");

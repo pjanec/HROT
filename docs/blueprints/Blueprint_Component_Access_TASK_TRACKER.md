@@ -20,7 +20,7 @@ builds clean.
 | CA-03 | Write compiler spine (unmanaged) | W1 | Sonnet + Opus(IR/lowering/emit/validator) | ✅ |
 | CA-04 | Write editor (unmanaged) | W1 | Sonnet | ✅ |
 | CA-05 | Managed read | 1b | Sonnet + Opus(flow rules) | ✅ |
-| CA-06 | Managed write (ECB) | W2 | Opus + Sonnet(mirror) | ⬜ |
+| CA-06 | Managed write (ECB) | W2 | Opus + Sonnet(mirror) | ✅ |
 | CA-07 | Collections (iterate + random) | 2 | Opus-led | ⬜ |
 
 ---

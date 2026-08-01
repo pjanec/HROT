@@ -1198,7 +1198,7 @@ internal sealed class V_SharedStateRules : IValidator
 }
 
 // ---------------------------------------------------------------------------
-// V_ComponentAccessRules (BP2060-BP2062 -- CA-03, Slice W1: SetComponent write)
+// V_ComponentAccessRules (BP2060-BP2065 -- CA-03/CA-05/CA-06: SetComponent/GetComponent access)
 // ---------------------------------------------------------------------------
 
 /// <summary>
@@ -1218,6 +1218,14 @@ internal sealed class V_SharedStateRules : IValidator
 ///     or <see cref="SetSharedNode"/>). Rule G1 (Q#15): a managed component-read value is
 ///     read-and-pass-to-managed-consumer only -- never persisted. See this rule's own doc comment
 ///     below for what BP1503/BP1501 already cover vs. the gap this closes.</item>
+///   <item>BP2064 (CA-06, Slice W2, Q#16-C) -- a <see cref="SetComponentNode"/> with
+///     <c>IsManaged == true</c> ALSO carries per-field <c>Fields</c>. Managed writes are
+///     whole-replace-only (a single "Value" pin) -- per-field managed write is forbidden (snapshot
+///     aliasing).</item>
+///   <item>BP2065 (CA-06, Slice W2) -- a managed <see cref="SetComponentNode"/> in an
+///     AiPrimitive-dispatch asset. AiPrimitive's generated <c>TickCore</c> has no
+///     <c>IEntityCommandBuffer</c> parameter in scope (see <c>AiPrimitiveEmitter.EmitTickCore</c>),
+///     so there is nowhere to queue <c>ecb.SetManagedComponent</c>.</item>
 /// </list>
 /// <para>
 /// Deliberately absent: a <c>[BlueprintWritable]</c> check. The compiler runs as a netstandard2.0
@@ -1263,6 +1271,43 @@ internal sealed class V_ComponentAccessRules : IValidator
                         ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2062,
                             $"{nameof(SetComponentNode)} is self-only -- a \"Target\" pin/link is not permitted.",
                             asset.AssetId, graph.Id, node.Id));
+                    }
+
+                    if (scn.IsManaged)
+                    {
+                        // BP2064 (CA-06, Slice W2, Q#16-C) -- managed write is WHOLE-REPLACE ONLY.
+                        // A managed node that ALSO carries per-field Fields (hand-authored/legacy
+                        // asset, or an editor bug) is structurally contradictory -- reject it rather
+                        // than silently ignoring the Fields list or, worse, letting some future
+                        // Stage5 change accidentally read it for a per-field managed write (the
+                        // architect-forbidden shape: per-field managed write risks snapshot aliasing).
+                        if (scn.Fields is { Count: > 0 })
+                        {
+                            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2064,
+                                $"{nameof(SetComponentNode)}: a managed (IsManaged=true) node must not " +
+                                "carry per-field Fields -- managed writes are whole-replace-only " +
+                                "(single \"Value\" pin). Per-field managed write is forbidden.",
+                                asset.AssetId, graph.Id, node.Id));
+                        }
+
+                        // BP2065 (CA-06, Slice W2) -- AiPrimitive's generated TickCore(ref Params p,
+                        // ref WorkingState ws, Entity self, EntityRepository world, float time) (see
+                        // AiPrimitiveEmitter.EmitTickCore) carries NO IEntityCommandBuffer parameter
+                        // at all -- there is no ECB in scope to queue ecb.SetManagedComponent on.
+                        // Instance dispatch's Tick/Event/Func_* methods (InstanceEmitter) all declare
+                        // one; Library dispatch has no `self` either (a separate, pre-existing gap
+                        // this rule does not attempt to close). Reject HERE, at Stage2, so the
+                        // pipeline never reaches Stage5/emit for this asset (BlueprintCompiler.Compile
+                        // stops at the first Stage2 error) -- EmissionContext.EcbVar's AiPrimitive
+                        // branch throws as defense-in-depth for exactly this case.
+                        if (asset.Dispatch == BlueprintDispatchKind.AiPrimitive)
+                        {
+                            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2065,
+                                $"{nameof(SetComponentNode)}: a managed (IsManaged=true) write is not " +
+                                "permitted in an AiPrimitive-dispatch asset -- TickCore has no " +
+                                "IEntityCommandBuffer in scope to queue the write on.",
+                                asset.AssetId, graph.Id, node.Id));
+                        }
                     }
                 }
                 else if (node is GetComponentNode { IsManaged: true } gcn && gcn.Fields is { Count: > 0 })
@@ -1310,8 +1355,9 @@ internal sealed class V_ComponentAccessRules : IValidator
     /// link into a <see cref="FunctionCallNode"/> data-in (library/function call parameter) is NOT
     /// touched, so a legitimate managed-&gt;managed pass-through (e.g. a library call taking the managed
     /// type) is never rejected. <see cref="SetComponentNode"/> is also NOT a checked destination here:
-    /// "reject per-field managed write" is CA-06's own rule (a managed <c>SetComponentNode</c> write is
-    /// whole-replace-only, a separate BP206x the CA-06 batch owns), not this one.
+    /// "reject per-field managed write" is CA-06's own rule -- BP2064, above in this class's
+    /// <c>Validate</c> method (a managed <c>SetComponentNode</c> write is whole-replace-only) -- not
+    /// this one.
     /// </para>
     /// </summary>
     private static void CheckManagedReadNotPersisted(

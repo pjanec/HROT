@@ -111,6 +111,10 @@ public static class DiagnosticCodes
     // Stage 2 -- Validate (managed component-read flow rules -- CA-05, Slice 1b)
     public const string BP2063 = "BP2063";  // Managed GetComponent field value wired into a persisting sink (SetVariable/SetShared)
 
+    // Stage 2 -- Validate (managed component-write rules -- CA-06, Slice W2)
+    public const string BP2064 = "BP2064";  // Managed SetComponentNode carries per-field Fields -- managed write is whole-replace-only
+    public const string BP2065 = "BP2065";  // Managed SetComponentNode in AiPrimitive dispatch -- TickCore has no IEntityCommandBuffer in scope
+
     // Stage 3 -- Normalize
     public const string BP3010 = "BP3010";
     public const string BP3011 = "BP3011";

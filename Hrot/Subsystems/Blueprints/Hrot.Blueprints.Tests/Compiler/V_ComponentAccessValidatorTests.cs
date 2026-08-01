@@ -290,4 +290,127 @@ public sealed class V_ComponentAccessValidatorTests
         var diags = Validate(asset);
         Assert.DoesNotContain(diags, d => d.Code == DiagnosticCodes.BP2063);
     }
+
+    // ---- BP2064 (CA-06, Slice W2, Q#16-C): managed SetComponent carries per-field Fields -------
+
+    private const string ManagedWriteFqn = "Hrot.Blueprints.Tests.Fixtures.FakeManagedComponentForSetValidator";
+
+    [Fact]
+    [CoversDiagnosticCode("BP2064")]
+    public void Validate_ManagedSetComponentWithPerFieldFields_BP2064()
+    {
+        var asset = BlueprintAssetBuilder
+            .Instance("ManagedSetComponentTest")
+            .WithGraph("Main", g => g.Entry().Return())
+            .Build();
+        asset.Graphs[0].Nodes.Add(new SetComponentNode
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = ManagedWriteFqn,
+            IsManaged        = true,
+            // A managed node must NEVER carry per-field Fields (whole-replace only) -- authored here
+            // to prove a hand-authored/legacy/editor-bug asset is caught.
+            Fields = new List<ComponentFieldDecl> { new() { Name = "Name", TypeId = "System.String" } },
+        });
+
+        var diags = Validate(asset);
+        Assert.Contains(diags, d => d.Code == DiagnosticCodes.BP2064);
+    }
+
+    [Fact]
+    public void Validate_ManagedSetComponentWholeValueShape_NoBP2064()
+    {
+        var asset = BlueprintAssetBuilder
+            .Instance("ManagedSetComponentTest")
+            .WithGraph("Main", g => g.Entry().Return())
+            .Build();
+        asset.Graphs[0].Nodes.Add(new SetComponentNode
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = ManagedWriteFqn,
+            IsManaged        = true,
+            Fields           = null,
+        });
+
+        var diags = Validate(asset);
+        Assert.DoesNotContain(diags, d => d.Code == DiagnosticCodes.BP2064);
+    }
+
+    [Fact]
+    public void Validate_UnmanagedSetComponentWithPerFieldFields_NoBP2064()
+    {
+        var asset = BlueprintAssetBuilder
+            .Instance("UnmanagedSetComponentTest")
+            .WithGraph("Main", g => g.Entry().Return())
+            .Build();
+        asset.Graphs[0].Nodes.Add(new SetComponentNode
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = "System.Numerics.Vector3",
+            IsManaged        = false,
+            Fields = new List<ComponentFieldDecl> { new() { Name = "X", TypeId = "System.Single" } },
+        });
+
+        var diags = Validate(asset);
+        Assert.DoesNotContain(diags, d => d.Code == DiagnosticCodes.BP2064);
+    }
+
+    // ---- BP2065 (CA-06, Slice W2): managed SetComponent in AiPrimitive dispatch -- no ECB --------
+
+    [Fact]
+    [CoversDiagnosticCode("BP2065")]
+    public void Validate_ManagedSetComponentInAiPrimitive_BP2065()
+    {
+        var asset = BlueprintAssetBuilder
+            .AiPrimitive("ManagedSetComponentAiPrimitiveTest")
+            .WithHostings(AiPrimitiveHosting.BTreeAction)
+            .WithGraph("Main", g => g.Entry().Return())
+            .Build();
+        asset.Graphs[0].Nodes.Add(new SetComponentNode
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = ManagedWriteFqn,
+            IsManaged        = true,
+        });
+
+        var diags = Validate(asset);
+        Assert.Contains(diags, d => d.Code == DiagnosticCodes.BP2065);
+    }
+
+    [Fact]
+    public void Validate_ManagedSetComponentInInstanceDispatch_NoBP2065()
+    {
+        var asset = BlueprintAssetBuilder
+            .Instance("ManagedSetComponentInstanceTest")
+            .WithGraph("Main", g => g.Entry().Return())
+            .Build();
+        asset.Graphs[0].Nodes.Add(new SetComponentNode
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = ManagedWriteFqn,
+            IsManaged        = true,
+        });
+
+        var diags = Validate(asset);
+        Assert.DoesNotContain(diags, d => d.Code == DiagnosticCodes.BP2065);
+    }
+
+    [Fact]
+    public void Validate_UnmanagedSetComponentInAiPrimitive_NoBP2065()
+    {
+        var asset = BlueprintAssetBuilder
+            .AiPrimitive("UnmanagedSetComponentAiPrimitiveTest")
+            .WithHostings(AiPrimitiveHosting.BTreeAction)
+            .WithGraph("Main", g => g.Entry().Return())
+            .Build();
+        asset.Graphs[0].Nodes.Add(new SetComponentNode
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = "System.Numerics.Vector3",
+            IsManaged        = false,
+        });
+
+        var diags = Validate(asset);
+        Assert.DoesNotContain(diags, d => d.Code == DiagnosticCodes.BP2065);
+    }
 }

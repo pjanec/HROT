@@ -140,6 +140,36 @@ public sealed record IrOp_WriteComponentFields(
     IReadOnlyList<(string Name, IrValue Value)> Fields
 ) : IrOperation;
 
+/// <summary>
+/// CA-06 (Slice W2, Q#16-C) -- managed, self-only, write-if-present ECS WHOLE-COMPONENT replace via
+/// the ECB. Distinct from <see cref="IrOp_WriteComponentFields"/> (unmanaged, per-field, direct
+/// <c>GetComponentRW&lt;T&gt;</c> mutation): a managed component is never mutated field-by-field
+/// (Q#16-C -- per-field managed write is FORBIDDEN, snapshot aliasing) -- the only legal managed write
+/// is a full replacement value queued on the <see cref="Fdp.Interfaces.IEntityCommandBuffer"/>
+/// (<c>SetManagedComponent&lt;T&gt;</c>, deferred playback). The guard's <c>HasManagedComponent&lt;T&gt;</c>
+/// result drives BOTH the emitting <see cref="Assets.SetComponentNode"/>'s "Written" data-out (this
+/// op's ResultValue) AND the write guard (write-if-present, no implicit add -- mirrors
+/// <see cref="IrOp_WriteComponentFields"/>'s semantics exactly, just via the ECB instead of a direct
+/// RW fetch).
+/// </summary>
+/// <param name="ComponentTypeFqn">FQN of the managed (<c>class</c>) ECS component to write. Baked string -- no reflection.</param>
+/// <param name="Entity">
+/// ALWAYS the resolved <c>self</c> Entity (an <see cref="IrOp_Self"/> value Stage5 emits just before
+/// this op) -- <see cref="Assets.SetComponentNode"/> has no "Target" pin at all (self-only by
+/// construction, Q#16), same as the unmanaged write.
+/// </param>
+/// <param name="Value">
+/// The wired "Value" data-in pin's resolved value (a fresh/pass-through instance of the managed
+/// component type), or <c>null</c> when the pin is left unwired -- in that case ONLY the guard is
+/// emitted (Written still reflects <c>HasManagedComponent&lt;T&gt;</c>), never a
+/// <c>SetManagedComponent</c> call with nothing to write.
+/// </param>
+public sealed record IrOp_SetManagedComponent(
+    string ComponentTypeFqn,
+    IrValue Entity,
+    IrValue? Value
+) : IrOperation;
+
 // ECS write via ECB (impure)
 public sealed record IrOp_AddComponent(string ComponentTypeFqn, IrValue Entity, IrValue Value) : IrOperation;
 public sealed record IrOp_RemoveComponent(string ComponentTypeFqn, IrValue Entity) : IrOperation;

@@ -122,6 +122,37 @@ internal sealed class EmissionContext
             : "view";
 
     /// <summary>
+    /// CA-06 (Slice W2) -- the <c>IEntityCommandBuffer</c>-typed expression for the in-scope ECB,
+    /// used by <see cref="IrOp_SetManagedComponent"/>'s emit (<c>Emit.StatementEmitter</c>'s case).
+    /// <para>
+    /// Instance dispatch: bare <c>ecb</c> -- every Instance-emitted method (<c>Tick</c>,
+    /// <c>Event_*</c>, the in-blueprint <c>Func_*</c> helpers, and their thunks -- see
+    /// <c>InstanceEmitter</c>) declares an <c>IEntityCommandBuffer ecb</c> parameter, exactly the
+    /// identifier the pre-existing ECB-write ops (<see cref="IrOp_AddComponent"/>,
+    /// <see cref="IrOp_RemoveComponent"/>, <see cref="IrOp_DestroyEntity"/>,
+    /// <see cref="IrOp_PublishEvent"/>) already emit as a literal <c>"ecb"</c> string -- this property
+    /// exists so CA-06's NEW op resolves the identifier through the context (matching
+    /// <see cref="SimulationViewVar"/>'s style) rather than adding yet another ad-hoc literal.
+    /// </para>
+    /// <para>
+    /// AiPrimitive dispatch: THROWS. <c>TickCore(ref Params p, ref WorkingState ws, Entity self,
+    /// EntityRepository world, float time)</c> (see <c>AiPrimitiveEmitter.EmitTickCore</c>) carries NO
+    /// <c>IEntityCommandBuffer</c> parameter at all -- there is no ECB in scope to name. Reaching this
+    /// property for an AiPrimitive-dispatch asset would mean Stage2's <c>V_ComponentAccessRules</c>
+    /// (BP2065) failed to reject a managed <see cref="Assets.SetComponentNode"/> there BEFORE Stage5/
+    /// emit ever ran (the compiler pipeline stops at the first Stage2 error -- see
+    /// <c>BlueprintCompiler.Compile</c> -- so this is defense-in-depth, not a reachable runtime path).
+    /// </para>
+    /// </summary>
+    public string EcbVar =>
+        Asset.Dispatch == AssetDispatch.AiPrimitive
+            ? throw new System.InvalidOperationException(
+                "EmissionContext.EcbVar has no scope in AiPrimitive dispatch -- TickCore carries no " +
+                "IEntityCommandBuffer parameter. A managed SetComponentNode write must be rejected by " +
+                "Stage2_Validate's V_ComponentAccessRules (BP2065) before Stage5/emit ever reaches here.")
+            : "ecb";
+
+    /// <summary>
     /// True when the emitted method has an <c>Entity self</c> parameter in scope.
     /// AiPrimitive (TickCore / thunks) and Instance (Tick/Event) methods carry <c>self</c>;
     /// Library-dispatch function graphs are stateless static methods with no entity context,

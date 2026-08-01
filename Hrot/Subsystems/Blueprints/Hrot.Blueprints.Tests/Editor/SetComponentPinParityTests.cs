@@ -163,4 +163,56 @@ public sealed class SetComponentPinParityTests
             ("Written", "Out", false, (string?)"System.Boolean"),
         }, fromEditor);
     }
+
+    // ── Managed (CA-06, Slice W2, Q#16-C) -- single "Value" pin, never per-field ──────────────
+
+    [Fact]
+    public void Managed_EditorProjection_MatchesStage0Enrichment_SingleValuePin()
+    {
+        SetComponentNode Build() => new()
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = "Hrot.Blueprints.Tests.Fixtures.FakeManagedComponentForPinParity",
+            IsManaged        = true,
+        };
+
+        var fromStage0 = RunStage0(Build());
+        var fromEditor = RunEditor(Build());
+
+        Assert.Equal(fromStage0, fromEditor);
+
+        // Single "Value" pin (global::-stamped, mirrors SetShared's legacy whole-struct "Value"
+        // pin), no field pins whatsoever -- + "Written", unconditionally. NO "Target", ever.
+        Assert.Equal(new[]
+        {
+            ("In",      "In",  true,  (string?)""),
+            ("Out",     "Out", true,  (string?)""),
+            ("Value",   "In",  false, (string?)"global::Hrot.Blueprints.Tests.Fixtures.FakeManagedComponentForPinParity"),
+            ("Written", "Out", false, (string?)"System.Boolean"),
+        }, fromEditor);
+    }
+
+    [Fact]
+    public void Managed_WithSpuriousFieldsBaked_EditorProjection_MatchesStage0_IgnoresFields()
+    {
+        // Defense-in-depth: even if a hand-authored/legacy asset carries BOTH IsManaged=true AND a
+        // per-field Fields list (Stage2's BP2064 rejects this at validation time), Stage0/NodePinSchema
+        // must still agree with EACH OTHER on the projected shape (the managed single-Value shape,
+        // Fields ignored) -- this is a pin-parity test, not a validator test (see
+        // V_ComponentAccessValidatorTests.Validate_ManagedSetComponentWithPerFieldFields_BP2064 for
+        // the rejection itself).
+        SetComponentNode Build() => new()
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = "Hrot.Blueprints.Tests.Fixtures.FakeManagedComponentForPinParity",
+            IsManaged        = true,
+            Fields = new List<ComponentFieldDecl> { new() { Name = "Name", TypeId = "System.String" } },
+        };
+
+        var fromStage0 = RunStage0(Build());
+        var fromEditor = RunEditor(Build());
+
+        Assert.Equal(fromStage0, fromEditor);
+        Assert.DoesNotContain(fromEditor, p => p.Name == "Name");
+    }
 }

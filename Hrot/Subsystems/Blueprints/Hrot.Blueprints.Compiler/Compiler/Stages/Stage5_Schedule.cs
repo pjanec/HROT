@@ -1152,6 +1152,57 @@ internal sealed class GraphScheduler
                 break;
             }
 
+            case SetComponentNode { IsManaged: true } scnM:
+            {
+                // CA-06 (Slice W2, Q#16-C) -- managed whole-replace write-if-present, self-only.
+                // Shape mirrors the unmanaged branch below (self via IrOp_Self, one guarded
+                // ResultValue doubling as "Written"), but the node projects a SINGLE data-IN "Value"
+                // pin (component-typed) instead of per-field pins (see Stage0_Rehydrate
+                // .EnrichSetComponentPins's IsManaged branch) -- resolve THAT pin's wire directly
+                // (mirrors the per-field lookup's own link-lookup style, just for one named pin),
+                // not ResolveDataPin (which would emit a spurious BP4001 for an intentionally-unwired
+                // pin -- unwired here is a legal "guard only, nothing to write" state, see
+                // IrOp_SetManagedComponent's doc comment).
+                var valuePinM = scnM.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "Value", StringComparison.OrdinalIgnoreCase));
+
+                IrValue? wiredValueM = null;
+                if (valuePinM is not null)
+                {
+                    var valueLinkM = _graph.Links.FirstOrDefault(
+                        l => l.ToNodeId == node.Id && l.ToPinId == valuePinM.Id);
+                    if (valueLinkM is not null)
+                        wiredValueM = ResolveNodeOutput(valueLinkM.FromNodeId, valueLinkM.FromPinId, stmts);
+                }
+
+                // Self-only by construction (Q#16) -- same as the unmanaged branch.
+                var selfEntityM = AllocValue(Stage5_Schedule.EntityType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = selfEntityM,
+                    Operation   = new IrOp_Self(),
+                    Debug       = DebugOf(node),
+                });
+
+                // ALWAYS allocated (guards the write AND drives "Written"), same reasoning as the
+                // unmanaged branch's writtenResultC.
+                var writtenResultM = AllocValue(Stage5_Schedule.BoolType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = writtenResultM,
+                    Operation   = new IrOp_SetManagedComponent(scnM.ComponentTypeFqn, selfEntityM, wiredValueM),
+                    Debug       = DebugOf(node),
+                });
+
+                var writtenPinM = node.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, "Written", StringComparison.OrdinalIgnoreCase));
+                if (writtenPinM is not null)
+                    _pinValueCache[writtenPinM.Id] = writtenResultM;
+                break;
+            }
+
             case SetComponentNode scn:
             {
                 // CA-03 (Slice W1, Q#16) -- unmanaged write-if-present, self-only. Resolve ONLY
