@@ -81,9 +81,36 @@ public sealed record IrOp_PollEngineEvent(
     Guid HandlerGraphId) : IrOperation;
 
 // ECS read (impure)
-public sealed record IrOp_HasComponent(string ComponentTypeFqn, IrValue Entity) : IrOperation;
+/// <param name="IsManaged">
+/// CA-05 (Slice 1b) -- when true, emits <c>{wv}.HasManagedComponent&lt;T&gt;()</c> instead of
+/// <c>{wv}.HasComponent&lt;T&gt;()</c>. Both are PUBLIC, direct (non-reflective) members of the
+/// concrete <c>Fdp.Core.EntityRepository</c> (no <c>InternalsVisibleTo</c> needed from generated
+/// code) -- <c>HasManagedComponent&lt;T&gt; where T : class</c> is the idiomatic pairing used
+/// throughout the engine's own production call sites (e.g. <c>SmartEgressUtil</c>) alongside
+/// <c>GetManagedComponentRO&lt;T&gt;</c> (see <see cref="IrOp_GetManagedComponentRO"/>). Default
+/// <c>false</c> -- existing (unmanaged) call sites are unaffected.
+/// </param>
+public sealed record IrOp_HasComponent(string ComponentTypeFqn, IrValue Entity, bool IsManaged = false) : IrOperation;
 public sealed record IrOp_GetComponent(string ComponentTypeFqn, IrValue Entity, IrTypeRef Type) : IrOperation;
 public sealed record IrOp_GetComponentRO(string ComponentTypeFqn, IrValue Entity, IrTypeRef Type) : IrOperation;
+
+/// <summary>
+/// CA-05 (Slice 1b, Q#15 managed read) -- reads a MANAGED (reference/<c>class</c>) ECS component
+/// instance. Distinct from <see cref="IrOp_GetComponentRO"/> (unmanaged, <c>T : unmanaged</c>-shaped)
+/// because the managed accessor is a DIFFERENT API surface: <c>ISimulationView.GetManagedComponentRO
+/// &lt;T&gt;() where T : class</c> (an explicitly-implemented interface member on
+/// <c>Fdp.Core.EntityRepository</c> -- PUBLIC only via the interface, not the concrete class, and
+/// documented/observed to THROW if the entity lacks the component; every production call site in the
+/// engine -- e.g. <c>SmartEgressUtil</c>, <c>RouteContextSystem</c> -- guards it with
+/// <c>HasManagedComponent&lt;T&gt;</c> first). <see cref="Emit.StatementEmitter"/>'s case therefore
+/// emits a SINGLE guarded expression (never an unconditional call) so a managed read stays
+/// fail-safe/never-throw exactly like the unmanaged read, even when <c>Target</c> (or, in principle,
+/// <c>self</c>) lacks the component: <c>HasManagedComponent&lt;T&gt;(e) ? GetManagedComponentRO&lt;T&gt;
+/// (e) : default!</c>. Paired with <see cref="IrOp_FieldRead"/>'s <c>SourceIsManaged</c> flag, which
+/// makes the per-field projection off this value null-safe too (a null managed instance's field reads
+/// as the field's default, never an NRE).
+/// </summary>
+public sealed record IrOp_GetManagedComponentRO(string ComponentTypeFqn, IrValue Entity, IrTypeRef Type) : IrOperation;
 
 /// <summary>
 /// CA-03 (Slice W1, Q#16) -- unmanaged, self-only, write-if-present ECS write. A SINGLE guarded
@@ -260,7 +287,17 @@ public sealed record IrOp_WriteCursorWaitUntilTime(IrValue Seconds) : IrOperatio
 public sealed record IrOp_ReadCursorWaitUntilTime : IrOperation;
 
 // Field read from a component ref (Stage 6 lowering)
-public sealed record IrOp_FieldRead(IrValue Source, string FieldName, IrTypeRef ResultType) : IrOperation;
+/// <param name="SourceIsManaged">
+/// CA-05 (Slice 1b) -- when true, <see cref="Source"/> is the (possibly-<c>null</c>) result of an
+/// <see cref="IrOp_GetManagedComponentRO"/> -- see that op's doc comment for why it can legitimately
+/// be null (component absent). <see cref="Emit.StatementEmitter"/>'s case then emits a null-safe
+/// projection (<c>{source}?.{FieldName} ?? default</c>) instead of a bare member access, so reading a
+/// field off an absent managed component degrades to the field's default value instead of an NRE --
+/// the same "fail-safe, never throw" contract the unmanaged read already has. Default <c>false</c> --
+/// existing (unmanaged / non-nullable source) call sites emit the unchanged bare
+/// <c>{source}.{FieldName}</c>.
+/// </param>
+public sealed record IrOp_FieldRead(IrValue Source, string FieldName, IrTypeRef ResultType, bool SourceIsManaged = false) : IrOperation;
 
 /// <summary>
 /// GAP-12 -- native <c>CompareNode</c> lowering. Emits a single infix C# comparison expression:

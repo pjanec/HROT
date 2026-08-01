@@ -41,6 +41,8 @@ public static class ComponentPaletteEntries
                     // Re-reflect per CreateInstance call so each placed node gets its OWN Fields
                     // list instance (never a list shared/mutated across multiple placed nodes).
                     Fields = ToComponentFields(ComponentFieldReflector.TryReflect(bakedFqn)!),
+                    // CA-05 (Slice 1b): bake whether the component TYPE itself is managed (a class).
+                    IsManaged = ComponentFieldReflector.IsManagedComponent(bakedFqn),
                 },
             };
         }

@@ -108,6 +108,9 @@ public static class DiagnosticCodes
     public const string BP2061 = "BP2061";  // SetComponentNode.ComponentTypeFqn not a well-formed type name
     public const string BP2062 = "BP2062";  // SetComponentNode carries a "Target" pin -- self-only, not permitted
 
+    // Stage 2 -- Validate (managed component-read flow rules -- CA-05, Slice 1b)
+    public const string BP2063 = "BP2063";  // Managed GetComponent field value wired into a persisting sink (SetVariable/SetShared)
+
     // Stage 3 -- Normalize
     public const string BP3010 = "BP3010";
     public const string BP3011 = "BP3011";

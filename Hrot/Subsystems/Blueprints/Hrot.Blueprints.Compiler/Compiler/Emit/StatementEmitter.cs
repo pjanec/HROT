@@ -297,7 +297,13 @@ internal static class StatementEmitter
 
             case IrOp_HasComponent op:
                 if (idx >= 0)
-                    e.WriteLine($"var __t{idx} = {wv}.HasComponent<global::{op.ComponentTypeFqn}>(__t{op.Entity.Index});");
+                {
+                    // CA-05: managed components pair with HasManagedComponent<T> (public, direct,
+                    // T : class) -- the idiomatic Has+Get pairing used throughout the engine's own
+                    // production call sites (see IrOp_GetManagedComponentRO's doc comment).
+                    string hasMethod = op.IsManaged ? "HasManagedComponent" : "HasComponent";
+                    e.WriteLine($"var __t{idx} = {wv}.{hasMethod}<global::{op.ComponentTypeFqn}>(__t{op.Entity.Index});");
+                }
                 break;
 
             case IrOp_GetComponent op:
@@ -308,6 +314,27 @@ internal static class StatementEmitter
             case IrOp_GetComponentRO op:
                 if (idx >= 0)
                     e.WriteLine($"ref readonly var __t{idx} = ref {wv}.GetComponentRO<global::{op.ComponentTypeFqn}>(__t{op.Entity.Index});");
+                break;
+
+            case IrOp_GetManagedComponentRO op:
+                if (idx >= 0)
+                {
+                    // CA-05 (Slice 1b, Q#15 managed read). ISimulationView.GetManagedComponentRO<T>
+                    // (T : class) is an EXPLICITLY-implemented interface member on EntityRepository --
+                    // only reachable via an ISimulationView-typed receiver (ctx.SimulationViewVar), and
+                    // documented/observed to THROW if the entity lacks the component. Every real call
+                    // site in the engine (SmartEgressUtil, RouteContextSystem, ...) guards it with
+                    // HasManagedComponent<T> first -- mirrored here so a managed read stays
+                    // fail-safe/never-throw exactly like the unmanaged read, even for an arbitrary
+                    // Target entity that turns out not to carry the component. HasManagedComponent<T>
+                    // itself is PUBLIC and DIRECT on the concrete EntityRepository (wv) -- no interface
+                    // cast needed for the guard, only for the throwing Get.
+                    string entity = $"__t{op.Entity.Index}";
+                    string simView = ctx.SimulationViewVar;
+                    e.WriteLine(
+                        $"var __t{idx} = {wv}.HasManagedComponent<global::{op.ComponentTypeFqn}>({entity}) "
+                        + $"? {simView}.GetManagedComponentRO<global::{op.ComponentTypeFqn}>({entity}) : default!;");
+                }
                 break;
 
             // ------------------------------------------------------------------
@@ -538,7 +565,19 @@ internal static class StatementEmitter
             // ------------------------------------------------------------------
 
             case IrOp_FieldRead op:
-                if (idx >= 0) e.WriteLine($"var __t{idx} = __t{op.Source.Index}.{op.FieldName};");
+                if (idx >= 0)
+                {
+                    // CA-05: a managed source (IrOp_GetManagedComponentRO's result) may legitimately be
+                    // null (component absent -- see that op's doc comment), so project the field with a
+                    // null-conditional + "?? default" instead of a bare member access. This keeps the
+                    // read fail-safe/never-throw all the way through (never an NRE downstream of a
+                    // missing managed component), mirroring the unmanaged read's tolerance of a missing
+                    // component. Unaffected (bare access, byte-identical) when SourceIsManaged is false.
+                    string rhs = op.SourceIsManaged
+                        ? $"__t{op.Source.Index}?.{op.FieldName} ?? default"
+                        : $"__t{op.Source.Index}.{op.FieldName}";
+                    e.WriteLine($"var __t{idx} = {rhs};");
+                }
                 break;
 
             // ------------------------------------------------------------------

@@ -25,6 +25,12 @@ public sealed class ComponentPaletteEntriesTests
         // zero public instance fields -- must be SKIPPED by the palette (nothing to read).
     }
 
+    // CA-05 (Slice 1b): a genuinely managed (class) component.
+    private sealed class ManagedTestComponentClass
+    {
+        public int Health;
+    }
+
     private sealed class FakeComponentTypeProvider : IComponentTypeProvider
     {
         private readonly IReadOnlyList<string> _fqns;
@@ -76,6 +82,30 @@ public sealed class ComponentPaletteEntriesTests
 
         Assert.NotEqual(node1.Id, node2.Id);
         Assert.NotSame(node1.Fields, node2.Fields); // never share a mutable Fields list across placements
+    }
+
+    // ── CA-05 (Slice 1b): GetComponentEntries bakes IsManaged for a managed component ──
+
+    [Fact]
+    public void CreateInstance_ManagedComponent_BakesIsManagedTrue()
+    {
+        var fqn = typeof(ManagedTestComponentClass).FullName!;
+        var entry = ComponentPaletteEntries.GetComponentEntries(new FakeComponentTypeProvider(fqn)).Single();
+
+        var node = Assert.IsType<GetComponentNode>(entry.CreateInstance());
+
+        Assert.True(node.IsManaged);
+    }
+
+    [Fact]
+    public void CreateInstance_UnmanagedComponent_BakesIsManagedFalse()
+    {
+        var fqn = typeof(HealthTestComponent).FullName!;
+        var entry = ComponentPaletteEntries.GetComponentEntries(new FakeComponentTypeProvider(fqn)).Single();
+
+        var node = Assert.IsType<GetComponentNode>(entry.CreateInstance());
+
+        Assert.False(node.IsManaged);
     }
 
     // ── GetComponentEntries: skip rules ──────────────────────────────────────

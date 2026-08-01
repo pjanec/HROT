@@ -2081,10 +2081,13 @@ internal sealed class GraphScheduler
                 // string" -- no StaticTypeRegistry lookup needed; the FQN is emitted verbatim as
                 // `global::{FQN}` and validated by the downstream Roslyn compile, exactly like
                 // GetSharedNode's SharedTypeFqn / IrOp_GetComponentRO's other call sites).
+                // CA-05: IsUnmanaged mirrors gcn.IsManaged -- metadata only (the FQN is emitted
+                // verbatim regardless), but correctly reflects which of the two ECS tiers this read
+                // targets.
                 var componentTypeRef = new IrTypeRef
                 {
                     FullName    = gcn.ComponentTypeFqn,
-                    IsUnmanaged = true,
+                    IsUnmanaged = !gcn.IsManaged,
                     SizeBytes   = 0,
                 };
 
@@ -2092,13 +2095,21 @@ internal sealed class GraphScheduler
                 // each field via IrOp_FieldRead (same read-once-then-project idiom as multi-pin
                 // GetShared), plus "Found" via IrOp_HasComponent. All out-pins are cached so the
                 // single read is shared across every consumed field/Found pin.
+                // CA-05 (Slice 1b): when gcn.IsManaged, the read op is IrOp_GetManagedComponentRO
+                // (not IrOp_GetComponentRO), Found's guard op is HasManagedComponent (IsManaged:
+                // true on the SAME IrOp_HasComponent -- no new Found-op needed), and each field
+                // projection is SourceIsManaged so a null (absent) managed instance degrades to the
+                // field's default instead of an NRE -- see those ops' doc comments for the throw-
+                // safety rationale.
                 if (gcn.Fields is { Count: > 0 })
                 {
                     var compValM = AllocValue(componentTypeRef);
                     stmts.Add(new IrStatement
                     {
                         ResultValue = compValM,
-                        Operation   = new IrOp_GetComponentRO(gcn.ComponentTypeFqn, entityValue, componentTypeRef),
+                        Operation   = gcn.IsManaged
+                            ? new IrOp_GetManagedComponentRO(gcn.ComponentTypeFqn, entityValue, componentTypeRef)
+                            : new IrOp_GetComponentRO(gcn.ComponentTypeFqn, entityValue, componentTypeRef),
                         Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gcn.Id, PinId = sourcePinId },
                     });
 
@@ -2106,7 +2117,7 @@ internal sealed class GraphScheduler
                     stmts.Add(new IrStatement
                     {
                         ResultValue = foundRes,
-                        Operation   = new IrOp_HasComponent(gcn.ComponentTypeFqn, entityValue),
+                        Operation   = new IrOp_HasComponent(gcn.ComponentTypeFqn, entityValue, IsManaged: gcn.IsManaged),
                         Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gcn.Id, PinId = sourcePinId },
                     });
 
@@ -2128,7 +2139,7 @@ internal sealed class GraphScheduler
                         stmts.Add(new IrStatement
                         {
                             ResultValue = fRes,
-                            Operation   = new IrOp_FieldRead(compValM, f.Name, fType),
+                            Operation   = new IrOp_FieldRead(compValM, f.Name, fType, SourceIsManaged: gcn.IsManaged),
                             Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gcn.Id, PinId = fPin.Id },
                         });
                         _pinValueCache[fPin.Id] = fRes;

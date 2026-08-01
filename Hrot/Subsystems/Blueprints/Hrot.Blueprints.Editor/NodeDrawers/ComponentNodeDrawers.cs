@@ -98,6 +98,9 @@ internal sealed class GetComponentNodeSession : INodeEditSession
         _node.Fields = reflected is { Count: > 0 }
             ? reflected.Select(f => new ComponentFieldDecl { Name = f.Name, TypeId = f.TypeId }).ToList()
             : null;
+        // CA-05 (Slice 1b): bake whether the picked component TYPE itself is managed (a class) --
+        // drives Stage5's GetManagedComponentRO vs GetComponentRO emit choice.
+        _node.IsManaged = ComponentFieldReflector.IsManagedComponent(fqn);
         MarkChanged();
     }
 
@@ -164,12 +167,26 @@ internal sealed class GetComponentNodeSession : INodeEditSession
     /// Lists the currently-baked field pins, flagging managed fields with the Q#15 "read/pass-through
     /// only — never persisted or mutated" caveat (managed writes/persistence are out of this slice's
     /// scope entirely; this is purely an informational heads-up for the designer).
+    /// <para>
+    /// CA-05 (Slice 1b): when the whole COMPONENT is managed (<see cref="GetComponentNode.IsManaged"/>),
+    /// every field pin is sourced off a managed instance (<c>view.GetManagedComponentRO&lt;T&gt;</c>)
+    /// even if an individual field's OWN type happens to be a primitive/blittable value (e.g. an
+    /// <c>int</c> field on a <c>class</c> component) -- so the node-level caveat below fires
+    /// independently of the per-FIELD <see cref="ReflectedComponentField.IsManaged"/> loop, which
+    /// stays to cover the OTHER case (a managed field embedded in an otherwise-unmanaged struct
+    /// component, pre-existing since CA-02).
+    /// </para>
     /// </summary>
     private void DrawFieldSummary()
     {
         if (_node.Fields is not { Count: > 0 } fields) return;
 
         ImGui.TextDisabled($"({fields.Count} field pin(s) + Target(in)/Found(out))");
+
+        if (_node.IsManaged)
+            ImGui.TextColored(EditorColors.Warning,
+                "  managed component — all fields are read-only: cannot be stored in a Variable/" +
+                "WorkingState/Shared, pass to a library/function call only");
 
         var reflected = ComponentFieldReflector.TryReflect(_node.ComponentTypeFqn);
         if (reflected is null) return;

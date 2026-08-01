@@ -1202,16 +1202,22 @@ internal sealed class V_SharedStateRules : IValidator
 // ---------------------------------------------------------------------------
 
 /// <summary>
-/// Validates <see cref="SetComponentNode"/> nodes -- STRUCTURAL checks only.
+/// Validates <see cref="SetComponentNode"/> and <see cref="GetComponentNode"/> nodes.
 /// <list type="bullet">
-///   <item>BP2060 -- <c>ComponentTypeFqn</c> is empty.</item>
-///   <item>BP2061 -- <c>ComponentTypeFqn</c> does not look like a well-formed dotted CLR type FQN
-///     (same syntactic-only check as <see cref="V_SharedStateRules"/>'s BP2041 -- see that
-///     validator's doc comment for why a full-resolution check is not meaningful here).</item>
+///   <item>BP2060 -- <see cref="SetComponentNode"/>.<c>ComponentTypeFqn</c> is empty.</item>
+///   <item>BP2061 -- <see cref="SetComponentNode"/>.<c>ComponentTypeFqn</c> does not look like a
+///     well-formed dotted CLR type FQN (same syntactic-only check as <see cref="V_SharedStateRules"/>'s
+///     BP2041 -- see that validator's doc comment for why a full-resolution check is not meaningful
+///     here).</item>
 ///   <item>BP2062 -- the node carries a "Target" pin. <see cref="SetComponentNode"/> is SELF-ONLY
 ///     by construction (Q#16) -- <c>Stage0_Rehydrate.EnrichSetComponentPins</c> never projects
 ///     one, so a "Target" pin here can only come from a hand-authored/legacy asset; flagged
 ///     regardless of whether the pin is actually linked.</item>
+///   <item>BP2063 (CA-05, Slice 1b) -- a <see cref="GetComponentNode"/> with <c>IsManaged == true</c>
+///     has one of its FIELD out-pins wired directly into a persisting sink (<see cref="SetVariableNode"/>
+///     or <see cref="SetSharedNode"/>). Rule G1 (Q#15): a managed component-read value is
+///     read-and-pass-to-managed-consumer only -- never persisted. See this rule's own doc comment
+///     below for what BP1503/BP1501 already cover vs. the gap this closes.</item>
 /// </list>
 /// <para>
 /// Deliberately absent: a <c>[BlueprintWritable]</c> check. The compiler runs as a netstandard2.0
@@ -1235,30 +1241,102 @@ internal sealed class V_ComponentAccessRules : IValidator
         {
             foreach (var node in graph.Nodes)
             {
-                if (node is not SetComponentNode scn) continue;
+                if (node is SetComponentNode scn)
+                {
+                    if (string.IsNullOrEmpty(scn.ComponentTypeFqn))
+                    {
+                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2060,
+                            $"{nameof(SetComponentNode)}: ComponentTypeFqn must not be empty.",
+                            asset.AssetId, graph.Id, node.Id));
+                    }
+                    else if (!FqnPattern.IsMatch(scn.ComponentTypeFqn))
+                    {
+                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2061,
+                            $"{nameof(SetComponentNode)}: ComponentTypeFqn '{scn.ComponentTypeFqn}' is not " +
+                            "a well-formed type name.",
+                            asset.AssetId, graph.Id, node.Id));
+                    }
 
-                if (string.IsNullOrEmpty(scn.ComponentTypeFqn))
-                {
-                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2060,
-                        $"{nameof(SetComponentNode)}: ComponentTypeFqn must not be empty.",
-                        asset.AssetId, graph.Id, node.Id));
+                    if (node.Pins.Any(p =>
+                            !p.IsExec && string.Equals(p.Name, "Target", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2062,
+                            $"{nameof(SetComponentNode)} is self-only -- a \"Target\" pin/link is not permitted.",
+                            asset.AssetId, graph.Id, node.Id));
+                    }
                 }
-                else if (!FqnPattern.IsMatch(scn.ComponentTypeFqn))
+                else if (node is GetComponentNode { IsManaged: true } gcn && gcn.Fields is { Count: > 0 })
                 {
-                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2061,
-                        $"{nameof(SetComponentNode)}: ComponentTypeFqn '{scn.ComponentTypeFqn}' is not " +
-                        "a well-formed type name.",
-                        asset.AssetId, graph.Id, node.Id));
-                }
-
-                if (node.Pins.Any(p =>
-                        !p.IsExec && string.Equals(p.Name, "Target", StringComparison.OrdinalIgnoreCase)))
-                {
-                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2062,
-                        $"{nameof(SetComponentNode)} is self-only -- a \"Target\" pin/link is not permitted.",
-                        asset.AssetId, graph.Id, node.Id));
+                    CheckManagedReadNotPersisted(gcn, graph, asset, ctx);
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// BP2063 (CA-05, Slice 1b) -- Rule G1's "never persist a managed component-read value" half
+    /// (the "never mutate" half is structural: <see cref="GetComponentNode"/> has no write path at
+    /// all).
+    /// <para>
+    /// <b>What was ALREADY enforced before this rule (investigated, not duplicated):</b>
+    /// <list type="bullet">
+    ///   <item><b>BP1503</b> (<c>Stage4_TypeResolve.CheckUnmanagedConstraint</c>) rejects DECLARING an
+    ///     <c>asset.Variables</c>/<c>asset.WorkingState</c> entry whose OWN declared type resolves to
+    ///     managed -- independent of wiring. So "managed value -&gt; a Variable declared with that same
+    ///     managed type" is already impossible: the Variable itself cannot exist. This does NOT cover
+    ///     <c>SetSharedNode</c> at all (<see cref="V_SharedStateRules"/> only checks <c>SharedTypeId</c>
+    ///     syntactically, never its managed-ness), and does not stop wiring in general -- only the
+    ///     specific case of a type-matched, explicitly-declared managed Variable/WorkingState field.
+    ///   </item>
+    ///   <item><b>BP1501</b> (<c>Stage4_TypeResolve.VerifyLinkTypes</c>) rejects a link only when the
+    ///     source/destination pin's resolved <c>IrTypeRef.FullName</c> DIFFERS (with no registered
+    ///     coercion). It is a pure type-NAME-equality check -- it has no concept of managed-vs-unmanaged
+    ///     at all, so a link where both ends happen to share the same type name is accepted by BP1501
+    ///     regardless of whether that shared type is managed.
+    ///   </item>
+    /// </list>
+    /// <b>The gap this closes:</b> <see cref="SetSharedNode"/> has NO managed-ness check anywhere
+    /// (BP1503 never looks at it), so wiring a managed <see cref="GetComponentNode"/> field straight
+    /// into a <see cref="SetSharedNode"/> field pin of the SAME type name was previously accepted by
+    /// both BP1503 (out of scope) and BP1501 (name matches). This rule closes that gap directly at the
+    /// LINK level, and -- for defense in depth / a clearer diagnostic message pointing at the actual
+    /// managed-read node -- also flags the <see cref="SetVariableNode"/> case even though BP1503
+    /// typically already blocks it earlier (via the Variable's own declared type).
+    /// </para>
+    /// <para>
+    /// Deliberately narrow: only flags a link whose SOURCE is one of <paramref name="gcn"/>'s named
+    /// FIELD out-pins (excludes "Found", a plain <c>System.Boolean</c> that is never itself a managed
+    /// value) landing on <see cref="SetVariableNode"/>/<see cref="SetSharedNode"/> specifically -- a
+    /// link into a <see cref="FunctionCallNode"/> data-in (library/function call parameter) is NOT
+    /// touched, so a legitimate managed-&gt;managed pass-through (e.g. a library call taking the managed
+    /// type) is never rejected. <see cref="SetComponentNode"/> is also NOT a checked destination here:
+    /// "reject per-field managed write" is CA-06's own rule (a managed <c>SetComponentNode</c> write is
+    /// whole-replace-only, a separate BP206x the CA-06 batch owns), not this one.
+    /// </para>
+    /// </summary>
+    private static void CheckManagedReadNotPersisted(
+        GetComponentNode gcn, Graph graph, BlueprintAsset asset, ValidationContext ctx)
+    {
+        var fieldPinIds = new HashSet<Guid>(
+            gcn.Pins.Where(p =>
+                    !p.IsExec && p.Direction == "Out"
+                    && !string.Equals(p.Name, "Found", StringComparison.OrdinalIgnoreCase)
+                    && gcn.Fields!.Any(f => string.Equals(f.Name, p.Name, StringComparison.OrdinalIgnoreCase)))
+                .Select(p => p.Id));
+        if (fieldPinIds.Count == 0) return;
+
+        foreach (var link in graph.Links)
+        {
+            if (link.FromNodeId != gcn.Id || !fieldPinIds.Contains(link.FromPinId)) continue;
+
+            var sink = graph.Nodes.FirstOrDefault(n => n.Id == link.ToNodeId);
+            if (sink is not (SetVariableNode or SetSharedNode)) continue;
+
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2063,
+                $"{nameof(GetComponentNode)}: a managed component-read field value may only feed a " +
+                $"managed consumer (e.g. a library/function call) -- wiring it into {sink!.GetType().Name} " +
+                "would persist it, which Rule G1 (Q#15) forbids.",
+                asset.AssetId, graph.Id, gcn.Id, link.FromPinId));
         }
     }
 }

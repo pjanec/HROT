@@ -112,4 +112,23 @@ internal static class ComponentFieldReflector
             return true;
         }
     }
+
+    /// <summary>
+    /// CA-05 (Slice 1b) -- component-LEVEL managed check: true when <paramref name="fqn"/> resolves
+    /// to a genuine reference type (<c>class</c>). Distinct from <see cref="ReflectedComponentField.IsManaged"/>
+    /// (per-FIELD, uses <c>IsReferenceOrContainsReferences</c> so it also catches a managed field
+    /// embedded in an otherwise-unmanaged struct component) -- THIS check answers "is the component
+    /// itself a class", i.e. does it require <c>view.GetManagedComponentRO&lt;T&gt;() where T : class</c>
+    /// instead of <c>view.GetComponentRO&lt;T&gt;()</c> to read at all. A component type is, by
+    /// construction in this ECS, either a blittable <c>struct</c> (Tier 1, unmanaged) or a <c>class</c>
+    /// (Tier 2, managed) -- never a struct that itself fails the <c>class</c> check while still
+    /// containing references (that shape is covered by the per-field flag above, not this one).
+    /// Unresolvable FQN (unloaded assembly, typo) -- returns <c>false</c> (safe default: the caller's
+    /// stale-reference guard, not this check, is responsible for flagging an unresolved type).
+    /// </summary>
+    internal static bool IsManagedComponent(string? fqn)
+    {
+        var type = ResolveType(fqn ?? "");
+        return type is { IsClass: true };
+    }
 }

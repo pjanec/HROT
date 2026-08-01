@@ -566,6 +566,19 @@ public sealed class GetComponentNode : Node
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public List<ComponentFieldDecl>? Fields { get; set; }
+
+    /// <summary>
+    /// CA-05 (Slice 1b): true when <see cref="ComponentTypeFqn"/> is a MANAGED (reference/<c>class</c>)
+    /// component -- the read path is then <c>view.GetManagedComponentRO&lt;T&gt;</c> instead of
+    /// <c>view.GetComponentRO&lt;T&gt;</c> (see <c>Stage5_Schedule</c>'s <c>GetComponentNode</c> case
+    /// and <c>StatementEmitter</c>'s <c>IrOp_GetManagedComponentRO</c> case). Baked by the editor's
+    /// <c>GetComponentNodeDrawer</c> from <c>ComponentFieldReflector.IsManagedComponent</c> when the
+    /// component type is picked -- the compiler itself never reflects. Default <c>false</c> ⇒ omitted
+    /// from JSON, so existing (unmanaged-only) assets round-trip byte-identically. Mirrors
+    /// <see cref="SetComponentNode.IsManaged"/> exactly.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsManaged { get; set; }
 }
 
 /// <summary>

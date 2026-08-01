@@ -149,4 +149,145 @@ public sealed class V_ComponentAccessValidatorTests
         var diags = Validate(asset);
         Assert.DoesNotContain(diags, d => d.Code == DiagnosticCodes.BP2061);
     }
+
+    // ---- BP2063 (CA-05, Slice 1b): managed GetComponent field -> persisting sink -------------
+
+    private const string ManagedFqn = "Hrot.Blueprints.Tests.Fixtures.FakeManagedComponentForValidator";
+
+    /// <summary>Builds a managed multi-pin GetComponentNode with one field pin "Name" + "Found".</summary>
+    private static GetComponentNode MakeManagedGetComponent(out Pin namePin, out Pin foundPin)
+    {
+        namePin  = new Pin { Id = Guid.NewGuid(), Name = "Name",  Direction = "Out", IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "System.String" } };
+        foundPin = new Pin { Id = Guid.NewGuid(), Name = "Found", Direction = "Out", IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "System.Boolean" } };
+        var node = new GetComponentNode
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = ManagedFqn,
+            IsManaged        = true,
+            Fields           = new List<ComponentFieldDecl> { new() { Name = "Name", TypeId = "System.String" } },
+        };
+        node.Pins.AddRange(new[] { namePin, foundPin });
+        return node;
+    }
+
+    [Fact]
+    [CoversDiagnosticCode("BP2063")]
+    public void Validate_ManagedFieldWiredIntoSetVariable_BP2063()
+    {
+        var asset = BlueprintAssetBuilder
+            .AiPrimitive("ManagedReadTest")
+            .WithHostings(AiPrimitiveHosting.BTreeAction)
+            .WithGraph("Main", g => g.Entry().Return())
+            .Build();
+
+        var getComp = MakeManagedGetComponent(out var namePin, out _);
+        var setVar  = new SetVariableNode { Id = Guid.NewGuid(), VariableId = "SomeVar" };
+        var setValueIn = new Pin { Id = Guid.NewGuid(), Name = "Value", Direction = "In", IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "System.String" } };
+        setVar.Pins.Add(setValueIn);
+
+        asset.Graphs[0].Nodes.Add(getComp);
+        asset.Graphs[0].Nodes.Add(setVar);
+        asset.Graphs[0].Links.Add(new Link { FromNodeId = getComp.Id, FromPinId = namePin.Id, ToNodeId = setVar.Id, ToPinId = setValueIn.Id });
+
+        var diags = Validate(asset);
+        Assert.Contains(diags, d => d.Code == DiagnosticCodes.BP2063);
+    }
+
+    [Fact]
+    [CoversDiagnosticCode("BP2063")]
+    public void Validate_ManagedFieldWiredIntoSetShared_BP2063()
+    {
+        var asset = BlueprintAssetBuilder
+            .AiPrimitive("ManagedReadTest")
+            .WithHostings(AiPrimitiveHosting.BTreeAction)
+            .WithGraph("Main", g => g.Entry().Return())
+            .Build();
+
+        var getComp  = MakeManagedGetComponent(out var namePin, out _);
+        var setShared = new SetSharedNode { Id = Guid.NewGuid(), VariableId = "SomeSlot", SharedTypeId = "System.String" };
+        var setValueIn = new Pin { Id = Guid.NewGuid(), Name = "Value", Direction = "In", IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "System.String" } };
+        setShared.Pins.Add(setValueIn);
+
+        asset.Graphs[0].Nodes.Add(getComp);
+        asset.Graphs[0].Nodes.Add(setShared);
+        asset.Graphs[0].Links.Add(new Link { FromNodeId = getComp.Id, FromPinId = namePin.Id, ToNodeId = setShared.Id, ToPinId = setValueIn.Id });
+
+        var diags = Validate(asset);
+        Assert.Contains(diags, d => d.Code == DiagnosticCodes.BP2063);
+    }
+
+    [Fact]
+    public void Validate_ManagedFieldWiredIntoFunctionCall_NoBP2063_LegitimatePassThrough()
+    {
+        var asset = BlueprintAssetBuilder
+            .AiPrimitive("ManagedReadTest")
+            .WithHostings(AiPrimitiveHosting.BTreeAction)
+            .WithGraph("Main", g => g.Entry().Return())
+            .Build();
+
+        var getComp = MakeManagedGetComponent(out var namePin, out _);
+        var call    = new FunctionCallNode { Id = Guid.NewGuid(), TargetTypeId = "Some.Library", MethodName = "Consume", IsPure = true };
+        var callArgIn = new Pin { Id = Guid.NewGuid(), Name = "Arg0", Direction = "In", IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = ManagedFqn } };
+        call.Pins.Add(callArgIn);
+
+        asset.Graphs[0].Nodes.Add(getComp);
+        asset.Graphs[0].Nodes.Add(call);
+        asset.Graphs[0].Links.Add(new Link { FromNodeId = getComp.Id, FromPinId = namePin.Id, ToNodeId = call.Id, ToPinId = callArgIn.Id });
+
+        var diags = Validate(asset);
+        Assert.DoesNotContain(diags, d => d.Code == DiagnosticCodes.BP2063);
+    }
+
+    [Fact]
+    public void Validate_ManagedFoundPinWiredIntoSetVariable_NoBP2063_FoundIsNeverManaged()
+    {
+        var asset = BlueprintAssetBuilder
+            .AiPrimitive("ManagedReadTest")
+            .WithHostings(AiPrimitiveHosting.BTreeAction)
+            .WithGraph("Main", g => g.Entry().Return())
+            .Build();
+
+        var getComp = MakeManagedGetComponent(out _, out var foundPin);
+        var setVar  = new SetVariableNode { Id = Guid.NewGuid(), VariableId = "FoundVar" };
+        var setValueIn = new Pin { Id = Guid.NewGuid(), Name = "Value", Direction = "In", IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "System.Boolean" } };
+        setVar.Pins.Add(setValueIn);
+
+        asset.Graphs[0].Nodes.Add(getComp);
+        asset.Graphs[0].Nodes.Add(setVar);
+        asset.Graphs[0].Links.Add(new Link { FromNodeId = getComp.Id, FromPinId = foundPin.Id, ToNodeId = setVar.Id, ToPinId = setValueIn.Id });
+
+        var diags = Validate(asset);
+        Assert.DoesNotContain(diags, d => d.Code == DiagnosticCodes.BP2063);
+    }
+
+    [Fact]
+    public void Validate_UnmanagedGetComponent_FieldWiredIntoSetVariable_NoBP2063()
+    {
+        var asset = BlueprintAssetBuilder
+            .AiPrimitive("UnmanagedReadTest")
+            .WithHostings(AiPrimitiveHosting.BTreeAction)
+            .WithGraph("Main", g => g.Entry().Return())
+            .Build();
+
+        var xPin = new Pin { Id = Guid.NewGuid(), Name = "X", Direction = "Out", IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "System.Single" } };
+        var getComp = new GetComponentNode
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = "System.Numerics.Vector3",
+            IsManaged        = false,
+            Fields           = new List<ComponentFieldDecl> { new() { Name = "X", TypeId = "System.Single" } },
+        };
+        getComp.Pins.Add(xPin);
+
+        var setVar = new SetVariableNode { Id = Guid.NewGuid(), VariableId = "FloatVar" };
+        var setValueIn = new Pin { Id = Guid.NewGuid(), Name = "Value", Direction = "In", IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "System.Single" } };
+        setVar.Pins.Add(setValueIn);
+
+        asset.Graphs[0].Nodes.Add(getComp);
+        asset.Graphs[0].Nodes.Add(setVar);
+        asset.Graphs[0].Links.Add(new Link { FromNodeId = getComp.Id, FromPinId = xPin.Id, ToNodeId = setVar.Id, ToPinId = setValueIn.Id });
+
+        var diags = Validate(asset);
+        Assert.DoesNotContain(diags, d => d.Code == DiagnosticCodes.BP2063);
+    }
 }

@@ -19,7 +19,7 @@ builds clean.
 | CA-02 | Read editor (unmanaged) | 1a | Sonnet | ✅ |
 | CA-03 | Write compiler spine (unmanaged) | W1 | Sonnet + Opus(IR/lowering/emit/validator) | ✅ |
 | CA-04 | Write editor (unmanaged) | W1 | Sonnet | ✅ |
-| CA-05 | Managed read | 1b | Sonnet + Opus(flow rules) | ⬜ |
+| CA-05 | Managed read | 1b | Sonnet + Opus(flow rules) | ✅ |
 | CA-06 | Managed write (ECB) | W2 | Opus + Sonnet(mirror) | ⬜ |
 | CA-07 | Collections (iterate + random) | 2 | Opus-led | ⬜ |
 
@@ -124,11 +124,46 @@ builds clean.
   Make/Break/SetMembers, 1 Stage4 BP1500) — no new regressions. Awaiting Opus review.
 
 ### CA-05 — Managed read · Slice 1b
-- [ ] `GetComponentNode.IsManaged` baked by editor reflector; `IrOp_GetManagedComponentRO` **(new)** → `view.GetManagedComponentRO<T>` — `IrOperation.cs`, `StatementEmitter.cs`, `Stage5` **(Opus reviews)**
-- [ ] Managed fields exposed in the read picker with the **persistence caveat** UI — `ComponentNodeDrawers`
-- [ ] Stage2 — reject **managed→unmanaged** wiring; uphold BP1503 (no persist) — `V_ComponentAccessRules`
-- [ ] Tests: managed read emit (`GetManagedComponentRO`), managed→unmanaged rejection, no-persist
+- [x] `GetComponentNode.IsManaged` baked by editor reflector; `IrOp_GetManagedComponentRO` **(new)** → `view.GetManagedComponentRO<T>` — `IrOperation.cs`, `StatementEmitter.cs`, `Stage5` **(Opus reviews)**
+- [x] Managed fields exposed in the read picker with the **persistence caveat** UI — `ComponentNodeDrawers`
+- [x] Stage2 — reject **managed→unmanaged** wiring; uphold BP1503 (no persist) — `V_ComponentAccessRules`
+- [x] Tests: managed read emit (`GetManagedComponentRO`), managed→unmanaged rejection, no-persist
 - **Confirm:** view API `GetManagedComponentRO<T>`.
+- **2026-08-01, CA-05, Sonnet:** built the managed read path. `GetComponentNode.IsManaged` (NEW — the
+  doc's Context section said this already existed; it didn't, only `SetComponentNode.IsManaged` did)
+  baked by `GetComponentNodeDrawer.ApplyComponentTypeFqn` via a NEW `ComponentFieldReflector.
+  IsManagedComponent(fqn)` (component-LEVEL check: `ResolveType(fqn) is { IsClass: true }` — distinct
+  from CA-02's per-FIELD `IsManaged`, which uses `IsReferenceOrContainsReferences` and also catches a
+  managed field embedded in an otherwise-unmanaged struct). New `IrOp_GetManagedComponentRO(fqn,
+  Entity, Type)` (exact signature per spec); `IrOp_HasComponent` gained an additive `IsManaged = false`
+  param (reused, no new Found-op); `IrOp_FieldRead` gained an additive `SourceIsManaged = false` param.
+  **Throw-safety finding (see running log below for full detail):** `ISimulationView.
+  GetManagedComponentRO<T>` throws unconditionally when the component is absent (confirmed via
+  `EntityRepository.View.cs` + the universal Has-then-Get calling convention at every real call site in
+  the engine, e.g. `SmartEgressUtil`) — unlike unmanaged `GetComponentRO` (fail-safe outside
+  `FDP_PARANOID_MODE`). To preserve the design's "fail-safe, never throw" reads invariant, the emit
+  guards the call: `HasManagedComponent<T>(e) ? GetManagedComponentRO<T>(e) : default!`, and
+  `IrOp_FieldRead`'s managed variant projects `source?.Field ?? default` (null-safe) instead of a bare
+  member access — this is a DELIBERATE deviation from the design doc's literal (unguarded) emit
+  snippet; flagged for Opus sign-off. `HasManagedComponent<T>` (public, direct, `T : class`) is used for
+  BOTH the guard and "Found" (not the unconstrained `HasComponent<T>`, which also happens to dispatch
+  correctly for managed types via reflection, but is slower/less direct — see running log). New
+  `EmissionContext.SimulationViewVar` resolves an `ISimulationView`-typed receiver (`view` for Instance;
+  `((ISimulationView)world)` for AiPrimitive) since `GetManagedComponentRO` is only reachable through
+  the interface (explicit impl), never through the concrete `EntityRepository` (which would need
+  `InternalsVisibleTo`, not granted to generated blueprint code). Stage2 `V_ComponentAccessRules` gained
+  BP2063: rejects a managed `GetComponentNode` field-out-pin wired into `SetVariableNode`/
+  `SetSharedNode` (closes a genuine gap — `V_SharedStateRules` never checks managed-ness at all; BP1503
+  only covers `Variables`/`WorkingState`'s own DECLARED type, not link-level wiring) without touching
+  `FunctionCallNode` destinations (legitimate managed→managed pass-through stays allowed).
+  **Gate:** `Hrot.Blueprints.Compiler` + `Hrot.Blueprints.Editor` + `Hrot.AI.Behaviors` build clean; 138
+  Component-prefixed tests green (15 new CA-05 lowering + 6 new BP2063 validator + 9 new editor
+  reflector/drawer/palette); clean-rebuilt `Hrot.AiEditor.Generators.Tests` **184/184** byte-identical
+  (serial). Full `Hrot.Blueprints.Tests` suite (parallel) reproduces the SAME 9-ish pre-existing reds
+  CA-01..CA-04 already characterized (1 Stage4 BP1500, 1 NodeCoverage Make/Break/SetMembers, 2
+  perf/allocation thresholds, and a handful of ALC/dynamic-compile tests that fail only under parallel
+  contention and pass in isolation) — no new regressions. **Awaiting Opus review of the throw-safety
+  guard + BP2063 scope.**
 
 ### CA-06 — Managed write (ECB whole-replace) · Slice W2
 - [ ] `SetComponentNode` managed path: single whole-value in-pin; `IrOp_SetManagedComponent(fqn, self, val)` **(new)** → `ecb.SetManagedComponent(self, __t{v})` — `IrOperation.cs`, `StatementEmitter.cs`, `Stage5` **(Opus)**

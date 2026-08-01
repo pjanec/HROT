@@ -31,6 +31,14 @@ public sealed class ComponentFieldReflectorTests
         // Deliberately no public instance fields (zero-size "tag" component).
     }
 
+    // CA-05 (Slice 1b): a genuinely MANAGED (class) component -- distinct from
+    // ManagedFieldTestComponent above (a STRUCT that merely contains a managed FIELD).
+    private sealed class ManagedTestComponentClass
+    {
+        public int Health;
+        public string? Label;
+    }
+
     // ── TryReflect: field shape ───────────────────────────────────────────────
 
     [Fact]
@@ -105,4 +113,32 @@ public sealed class ComponentFieldReflectorTests
     [Fact]
     public void ResolveType_ResolvesZeroFieldTagComponent_NotConfusedWithUnresolved()
         => Assert.NotNull(ComponentFieldReflector.ResolveType(typeof(TagTestComponent).FullName!));
+
+    // ── IsManagedComponent (CA-05, Slice 1b): component-LEVEL managed check ──────────────
+
+    [Fact]
+    public void IsManagedComponent_ClassComponent_True()
+        => Assert.True(ComponentFieldReflector.IsManagedComponent(typeof(ManagedTestComponentClass).FullName!));
+
+    [Fact]
+    public void IsManagedComponent_UnmanagedStructComponent_False()
+        => Assert.False(ComponentFieldReflector.IsManagedComponent(typeof(UnmanagedTestComponent).FullName!));
+
+    [Fact]
+    public void IsManagedComponent_StructWithManagedField_StillFalse()
+        // A struct containing a reference-typed FIELD is still a value type -- IsManagedComponent
+        // answers "is the component itself a class", not "does it contain a reference anywhere"
+        // (that's ReflectedComponentField.IsManaged's job, per-field).
+        => Assert.False(ComponentFieldReflector.IsManagedComponent(typeof(ManagedFieldTestComponent).FullName!));
+
+    [Fact]
+    public void IsManagedComponent_UnresolvableFqn_False()
+        => Assert.False(ComponentFieldReflector.IsManagedComponent("Totally.Unknown.Namespace.NoSuchType"));
+
+    [Fact]
+    public void IsManagedComponent_NullOrEmptyFqn_False()
+    {
+        Assert.False(ComponentFieldReflector.IsManagedComponent(null));
+        Assert.False(ComponentFieldReflector.IsManagedComponent(""));
+    }
 }

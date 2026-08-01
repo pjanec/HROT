@@ -240,6 +240,55 @@ public sealed class ComponentNodeDrawersTests
         Assert.Contains(fields, f => f.Name == "Ammo"  && !f.IsManaged);
     }
 
+    // ── CA-05 (Slice 1b): picking a MANAGED component bakes IsManaged=true ──
+
+    private sealed class ManagedTestComponentClass
+    {
+        public int Health;
+    }
+
+    [Fact]
+    public void Session_PickingManagedComponent_BakesIsManagedTrue()
+    {
+        var fqn    = typeof(ManagedTestComponentClass).FullName!;
+        var node   = new GetComponentNode { Id = Guid.NewGuid() };
+        var drawer = new GetComponentNodeDrawer(new SpyEditService(), new FakeComponentTypeProvider(fqn));
+        var session = (GetComponentNodeSession)drawer.CreateSession(node, MakeAsset());
+
+        session.SetComponentTypeFqnForTest(fqn);
+
+        Assert.True(node.IsManaged);
+        Assert.NotNull(node.Fields);
+        Assert.Contains(node.Fields!, f => f.Name == "Health");
+    }
+
+    [Fact]
+    public void Session_PickingUnmanagedComponent_BakesIsManagedFalse()
+    {
+        var node   = new GetComponentNode { Id = Guid.NewGuid() };
+        var session = (GetComponentNodeSession)new GetComponentNodeDrawer(new SpyEditService(), DefaultTypeProvider)
+            .CreateSession(node, MakeAsset());
+
+        session.SetComponentTypeFqnForTest(HealthFqn);
+
+        Assert.False(node.IsManaged);
+    }
+
+    [Fact]
+    public void Session_SwitchingFromManagedToUnmanagedComponent_UpdatesIsManaged()
+    {
+        var managedFqn = typeof(ManagedTestComponentClass).FullName!;
+        var node   = new GetComponentNode { Id = Guid.NewGuid() };
+        var drawer = new GetComponentNodeDrawer(new SpyEditService(), new FakeComponentTypeProvider(managedFqn, HealthFqn));
+        var session = (GetComponentNodeSession)drawer.CreateSession(node, MakeAsset());
+
+        session.SetComponentTypeFqnForTest(managedFqn);
+        Assert.True(node.IsManaged);
+
+        session.SetComponentTypeFqnForTest(HealthFqn);
+        Assert.False(node.IsManaged);
+    }
+
     // ── Registration in CreateNodeDrawerRegistry ─────────────────────────────
 
     [Fact]
