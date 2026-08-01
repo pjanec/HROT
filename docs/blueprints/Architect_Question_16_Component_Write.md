@@ -1,8 +1,8 @@
 # Architect question #16 — self ECS component WRITE (per-field unmanaged / whole-replace managed)
 
-**Status: 🟡 DRAFT — for architect.** Reopens the "writes go through actions only" policy for the **self-write**
-case. Counterpart to Q#15 (component READ). The user has approved the *shape* below; the open items are the
-**writable-component policy** and the **tick-ordering/authority** guarantees only the architect can rule on.
+**Status: ✅ APPROVED (architect) — A1 · B1 · C · D.** Self-write cleared: opt-in `[BlueprintWritable]` marker,
+direct `GetComponentRW<T>(self)` for unmanaged (write-if-present), ECB whole-replace for managed. Counterpart to
+Q#15 (READ, approved). Cleared to build (W1 → W2).
 
 ## The need
 
@@ -106,7 +106,7 @@ in-phase), **write-if-present** (no implicit add). **Confirm** vs an ECB-mediate
 - **Discovery:** reflect the writable set at editor startup (per A1, `[BlueprintWritable]`-marked types), same
   pipeline as the read picker.
 
-## Proposed build order (post-answers)
+## Proposed build order (approved)
 
 1. **Slice W1 (gated on A/B/D):** self **unmanaged** per-field write to a **writable-set** component
    (`GetComponentRW<T>(self).F = v`, wired-only), palette + picker (writable set) + drawer, `NodeState.Error`
@@ -114,10 +114,19 @@ in-phase), **write-if-present** (no implicit add). **Confirm** vs an ECB-mediate
 2. **Slice W2 (gated on A/C):** self **managed** whole-replace write via ECB (`SetManagedComponent(self, fresh)`),
    `IsManaged` flag; per-field managed rejected.
 
-## Architect answers
+## Architect answers (received)
 
-*(record here once relayed)*
-- Q16-A:
-- Q16-B:
-- Q16-C:
-- Q16-D:
+- **Q16-A — A1 APPROVED.** Opt-in **`[BlueprintWritable]`** marker attribute (mirrors `[BlueprintCallable]` /
+  `[BlueprintEvent]` / `[BlackboardDtoStruct]`). System outputs stay unwritable unless a component author
+  deliberately marks the type.
+- **Q16-B — B1 CONFIRMED. Architect fact:** `BlueprintTickSystem` runs in the **Simulation** phase and declares
+  `[UpdateBefore]` the downstream dispatchers (**`LocomotionDispatcherSystem`**, **`WeaponDispatcherSystem`**), so
+  writing behavior-owned **intent** components is race-free. System-output components (`SimTransform`, physics
+  state) are excluded from the `[BlueprintWritable]` set by policy → ordering safe by construction.
+- **Q16-C — APPROVED.** Managed writes = ECB **whole-component replace** (`SetManagedComponent(self, fresh)`);
+  **per-field managed is strictly forbidden** (snapshot aliasing corrupts history / Flight Recorder / background
+  threads). Deferred ECB playback applies the structural update at the sync point.
+- **Q16-D — APPROVED.** Unmanaged writes = **direct `GetComponentRW<T>(self)`** (immediate, in-place, no ECB
+  overhead; matches the channel-command precedent). **Write-if-present** — do **not** implicitly add a missing
+  component; absent → graceful fail (`Found`-style signal / `NodeState.Error`).
+- **Build order APPROVED** (W1 unmanaged per-field → W2 managed whole-replace).
