@@ -22,7 +22,7 @@ builds clean.
 | CA-05 | Managed read | 1b | Sonnet + Opus(flow rules) | ✅ |
 | CA-06 | Managed write (ECB) | W2 | Opus + Sonnet(mirror) | ✅ |
 | CA-07a | Collection pin type + GetComponent collection out-pin | 2 | Sonnet + Opus(review) | ✅ |
-| CA-07b | Consumer nodes + IR + emit (ForEach/Get[i]/Length) | 2 | Opus (novel) | ⬜ |
+| CA-07b | Consumer nodes + IR + emit (ForEach/Get[i]/Length) | 2 | Sonnet + Opus(review/BP2050 fix) | ✅ |
 | CA-07c | Editor wire-baking + palette + drawers | 2 | Sonnet + Opus(review) | ⬜ |
 | CA-07d | Managed collections + Contains/Find (deferred sub-slice) | 2 | later | ⬜ |
 
@@ -199,7 +199,7 @@ accessor pairs**, NOT auto-reflected off the raw buffer:
 - [x] Demo: `BpCollectionDemo` (`[ComponentId(189)]`, `int Count` + `fixed int Values[4]`) + `BpCollectionDemoOps` accessor pair
 - [x] Tests: parity (incl. `IsArray`), reflector discovery + lone/malformed-accessor, byte-stable JSON. **Gate: 184 serial ✅ + 160 Component ✅**
 
-**CA-07b — consumer nodes + IR + emit** *(Opus, the novel core)*
+**CA-07b — consumer nodes + IR + emit** *(Sonnet build, Opus review + hands-on BP2050 fix)* ✅ **DONE** (all items below built; see running log)
 - [ ] Nodes (collection in-pin + baked `ComponentTypeFqn`/`CountAccessorFqn`/`ItemAccessorFqn`/`ElementTypeFqn`): `ComponentForEachNode` (exec: In→Body/Completed, `CurrentItem`+`CurrentIndex` outs), `ComponentItemGetNode` (data: `Index` in → `Element` out), `ComponentItemCountNode` (data: `Count` out) — `Assets/Nodes.cs` + `[JsonDerivedType]`
 - [ ] New IR ops: `IrOp_ComponentCollectionForEach`, `IrOp_ComponentItemGet`, `IrOp_ComponentItemCount` — `Compiler/Ir/IrOperation.cs`
 - [ ] Stage5 lowering (ForEach body inline, mirror `ScheduleFlowForEachNode`; collection in-pin resolves to the entity) — `Stage5_Schedule.cs`
@@ -260,3 +260,19 @@ accessor pairs**, NOT auto-reflected off the raw buffer:
   Stage5 skip right, reflector validation sound; noted `AccessorFqn` uses `DeclaringType.FullName`
   (guard nested-ops-class `+` at CA-07b emit). Re-ran gate MYSELF: **184/184 serial byte-identical**
   + **160/160 Component**, both builds clean. **CA-07a ✅ done.**
+- **2026-08-02, CA-07b, Sonnet build + Opus review/fix:** the three collection CONSUMER nodes
+  (`ComponentForEachNode`/`ComponentItemGetNode`/`ComponentItemCountNode`) + IR + emit. Design
+  collapsed nicely: `ComponentForEach` REUSES `IrOp_ForEach` + `IrOp_GetComponentRO` unchanged
+  (only the entity source differs — resolved from the "Collection" in-pin, not `IrOp_Self`), and
+  Get[i]/Length need just ONE new tiny op `IrOp_ComponentAccessorCall` → `global::{Fqn}(comp[,i])`
+  (same call shape `IrOp_ForEach` already emits; component binds `in T` via the `ref readonly`
+  local). Changed CA-07a's Stage5 skip so the GetComponent collection out-pin caches → `entityValue`
+  (that's what lets consumers re-read the component off the source entity). Stage0 enrichers +
+  `NodePinSchema` twins (element-typed pins, exact parity) + `BuiltInNodeRegistry` fallbacks. BP2066
+  (wired Collection + empty baked FQNs). **Opus hands-on fix:** the agent flagged that
+  `V_FlowForEachRules` (BP2050, latent-free body) only matched `FlowForEachNode` — a REAL hole,
+  since `ScheduleComponentForEachNode` uses the same inline for-body scheduling; generalized the
+  validator to walk `ComponentForEach` bodies + added a test. Safe defaults: unwired/unbaked →
+  `default` (Get/Count) or empty loop (ForEach). **Opus review:** lowerings faithful to
+  `ScheduleFlowForEachNode`; entity-cache change correct; parity exact. Re-ran gate MYSELF after the
+  BP2050 fix: **184/184 serial byte-identical** + **177/177 Component+FlowForEach**. **CA-07b ✅.**

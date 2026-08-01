@@ -151,6 +151,18 @@ internal static class Stage0_Rehydrate
                 EnrichSetComponentPins(pins, scn, staticShapes);
                 break;
 
+            case ComponentForEachNode cfe:
+                EnrichComponentForEachPins(pins, cfe);
+                break;
+
+            case ComponentItemGetNode cig:
+                EnrichComponentItemGetPins(pins, cig);
+                break;
+
+            case ComponentItemCountNode cic:
+                EnrichComponentItemCountPins(pins, cic);
+                break;
+
             case MakeStructNode msn:
                 EnrichMakeStructPins(pins, msn);
                 break;
@@ -429,6 +441,58 @@ internal static class Stage0_Rehydrate
         }
 
         pins.Add(MakePin("Written", "Out", isExec: false, typeId: "System.Boolean"));
+    }
+
+    /// <summary>
+    /// ComponentForEachNode (CA-07b): exec node. Static skeleton (registry) types "Collection"/
+    /// "CurrentItem" as System.Object -- rebuild here with the REAL element type from the node's
+    /// OWN baked <see cref="ComponentForEachNode.ElementTypeFqn"/> (falls back to System.Object
+    /// when not yet baked, e.g. a freshly dropped node before CA-07c wires it). "Collection" is
+    /// IsArray (mirrors the GetComponent collection out-pin it consumes -- see
+    /// <see cref="EnrichGetComponentPins"/>'s collection-decl branch); "CurrentItem" is the same
+    /// element type; "CurrentIndex"/"Count" are System.Int32. "Body"/"Completed" exec-out names are
+    /// load-bearing for Stage5 (mirrors FlowForEachNode, which needs no enricher since its item
+    /// type is always the fixed Fdp.Core.Entity).
+    /// </summary>
+    private static void EnrichComponentForEachPins(List<Pin> pins, ComponentForEachNode cfe)
+    {
+        var elemType = string.IsNullOrEmpty(cfe.ElementTypeFqn) ? "System.Object" : cfe.ElementTypeFqn;
+        pins.Clear();
+        pins.Add(MakePin("In", "In", isExec: true, typeId: ""));
+        pins.Add(MakePin("Collection", "In", isExec: false, typeId: elemType, isArray: true));
+        pins.Add(MakePin("Body",      "Out", isExec: true, typeId: ""));
+        pins.Add(MakePin("Completed", "Out", isExec: true, typeId: ""));
+        pins.Add(MakePin("CurrentItem",  "Out", isExec: false, typeId: elemType));
+        pins.Add(MakePin("CurrentIndex", "Out", isExec: false, typeId: "System.Int32"));
+        pins.Add(MakePin("Count",        "Out", isExec: false, typeId: "System.Int32"));
+    }
+
+    /// <summary>
+    /// ComponentItemGetNode (CA-07b): pure-data node. "Collection" (IsArray) + "Element" are typed
+    /// by the node's OWN baked <see cref="ComponentItemGetNode.ElementTypeFqn"/> (falls back to
+    /// System.Object when not yet baked). Mirrors <see cref="EnrichComponentForEachPins"/>.
+    /// </summary>
+    private static void EnrichComponentItemGetPins(List<Pin> pins, ComponentItemGetNode cig)
+    {
+        var elemType = string.IsNullOrEmpty(cig.ElementTypeFqn) ? "System.Object" : cig.ElementTypeFqn;
+        pins.Clear();
+        pins.Add(MakePin("Collection", "In",  isExec: false, typeId: elemType, isArray: true));
+        pins.Add(MakePin("Index",      "In",  isExec: false, typeId: "System.Int32"));
+        pins.Add(MakePin("Element",    "Out", isExec: false, typeId: elemType));
+    }
+
+    /// <summary>
+    /// ComponentItemCountNode (CA-07b): pure-data node. No <c>ElementTypeFqn</c> on this node
+    /// (Count never needs the element type), so "Collection" is always typed System.Object
+    /// (IsArray) here -- <c>Stage4_TypeResolve.VerifyLinkTypes</c> already suppresses a link-type
+    /// mismatch when either side is System.Object (the same escape hatch reflection-less CLR-call
+    /// pins rely on), so this never mismatches the typed collection out-pin it is wired from.
+    /// </summary>
+    private static void EnrichComponentItemCountPins(List<Pin> pins, ComponentItemCountNode cic)
+    {
+        pins.Clear();
+        pins.Add(MakePin("Collection", "In",  isExec: false, typeId: "System.Object", isArray: true));
+        pins.Add(MakePin("Count",      "Out", isExec: false, typeId: "System.Int32"));
     }
 
     /// <summary>

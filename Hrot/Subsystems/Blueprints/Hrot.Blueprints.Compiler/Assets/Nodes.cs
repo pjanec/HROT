@@ -40,6 +40,9 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(SetComponentNode),       "SetComponent")]
 [JsonDerivedType(typeof(PublishEventNode),       "PublishEvent")]
 [JsonDerivedType(typeof(FlowForEachNode),        "FlowForEach")]
+[JsonDerivedType(typeof(ComponentForEachNode),   "ComponentForEach")]
+[JsonDerivedType(typeof(ComponentItemGetNode),   "ComponentItemGet")]
+[JsonDerivedType(typeof(ComponentItemCountNode), "ComponentItemCount")]
 [JsonDerivedType(typeof(CompareNode),            "Compare")]
 [JsonDerivedType(typeof(BinaryOpNode),           "BinaryOp")]
 [JsonDerivedType(typeof(BooleanOpNode),          "BooleanOp")]
@@ -185,6 +188,9 @@ public sealed class ArrayMakeNode : Node
     public string ElementTypeId { get; set; } = "";
 }
 
+// Superseded (CA-07b) by ComponentItemGetNode for component collections -- ArrayGetNode's own
+// Stage5_Schedule lowering was never implemented (see NodeCoverageTests.CompileCoverageExceptions);
+// kept as-is (not deleted -- it is referenced by Stage4/NodeCoverage).
 public sealed class ArrayGetNode : Node { }
 
 public sealed class LatentDelayNode : Node { }
@@ -908,4 +914,85 @@ public sealed class FlowForEachNode : Node
     public string CountAccessorFqn { get; set; } = "";
     /// <summary>FQN of a static <c>Entity Item(in T, int i)</c> helper giving the i-th element (e.g. "Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate").</summary>
     public string ItemAccessorFqn { get; set; } = "";
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Component collection consumers (CA-07b -- R1 curated-accessor collection reads)
+//
+// Consume the collection out-pin CA-07a's GetComponentNode projects for an IsCollection field (see
+// ComponentFieldDecl's doc comment). At RUNTIME there is no "collection value" to carry -- only the
+// curated Count/Item accessor pair -- so Stage5 instead resolves that out-pin to the ENTITY the
+// component was read off (see Stage5_Schedule's GetComponentNode case, collection-decl branch). A
+// consumer here resolves ITS "Collection" data-in pin to that SAME entity, RE-READS the component
+// off it (IrOp_GetComponentRO -- the exact op FlowForEachNode's roster read already uses), then
+// calls its own baked curated accessors directly (new IrOp_ComponentAccessorCall). Mirrors
+// FlowForEachNode's SourceComponentFqn/CountAccessorFqn/ItemAccessorFqn baking, retargeted at a
+// per-consumer ComponentTypeFqn/accessor pair (and a resolved entity) instead of a fixed roster
+// contract read off self. Accessor baking itself happens at WIRE time in CA-07c -- NOT here; this
+// batch only consumes whatever is already baked on the node.
+// ──────────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// CA-07b -- iterates a component collection consumed off a GetComponent collection out-pin (see
+/// the section doc comment above), running a latent-free body once per element. Exec node: exec-in
+/// "In", data-in "Collection" (<c>IsArray</c>, element-typed -- wired FROM a GetComponent collection
+/// out-pin; resolves to the source ENTITY), "Body" exec-out (loop body root), "Completed" exec-out
+/// (after the loop), a "CurrentItem" data-out (element-typed) the body reads, and optional
+/// "CurrentIndex"/"Count" (<c>System.Int32</c>) loop-introspection data-outs. Mirrors
+/// <see cref="FlowForEachNode"/> EXACTLY, except the component is re-read off the resolved
+/// "Collection" entity instead of <c>self</c>, and the accessor FQNs are this node's OWN baked
+/// <see cref="CountAccessorFqn"/>/<see cref="ItemAccessorFqn"/> rather than a fixed roster contract
+/// -- both lower to the SAME (unchanged) <c>IrOp_ForEach</c>. See <c>Stage5_Schedule</c>'s
+/// <c>ComponentForEachNode</c> case / <c>ScheduleComponentForEachNode</c>.
+/// </summary>
+public sealed class ComponentForEachNode : Node
+{
+    /// <summary>FQN of the ECS component to re-read off the resolved "Collection" entity (e.g. "Hrot.AI.Behaviors.BpCollectionDemo"). Baked string -- no reflection.</summary>
+    public string ComponentTypeFqn { get; set; } = "";
+    /// <summary>FQN of a static <c>int Count(in T)</c> curated accessor giving the element count (baked at wire time, CA-07c).</summary>
+    public string CountAccessorFqn { get; set; } = "";
+    /// <summary>FQN of a static <c>TElement Item(in T, int i)</c> curated accessor giving the i-th element (baked at wire time, CA-07c).</summary>
+    public string ItemAccessorFqn { get; set; } = "";
+    /// <summary>FQN of the collection's element type (the Item accessor's return type) -- types "Collection"/"CurrentItem".</summary>
+    public string ElementTypeFqn { get; set; } = "";
+}
+
+/// <summary>
+/// CA-07b -- reads a single element off a component collection by index (see the section doc
+/// comment above). Pure-data node (no exec pins): data-in "Collection" (<c>IsArray</c>,
+/// element-typed -- wired FROM a GetComponent collection out-pin; resolves to the source ENTITY),
+/// data-in "Index" (<c>System.Int32</c>), data-out "Element" (element-typed). Compiles to
+/// <c>global::{ItemAccessorFqn}({component}, {index})</c> off a freshly re-read
+/// <c>GetComponentRO&lt;global::ComponentTypeFqn&gt;</c> on the resolved entity -- see
+/// <c>Stage5_Schedule</c>'s <c>ComponentItemGetNode</c> case and the new
+/// <c>IrOp_ComponentAccessorCall</c>.
+/// </summary>
+public sealed class ComponentItemGetNode : Node
+{
+    /// <summary>FQN of the ECS component to re-read off the resolved "Collection" entity. Baked string -- no reflection.</summary>
+    public string ComponentTypeFqn { get; set; } = "";
+    /// <summary>FQN of a static <c>TElement Item(in T, int i)</c> curated accessor (baked at wire time, CA-07c).</summary>
+    public string ItemAccessorFqn { get; set; } = "";
+    /// <summary>FQN of the collection's element type (the Item accessor's return type) -- types "Collection"/"Element".</summary>
+    public string ElementTypeFqn { get; set; } = "";
+}
+
+/// <summary>
+/// CA-07b -- reads a component collection's element count (see the section doc comment above).
+/// Pure-data node (no exec pins): data-in "Collection" (<c>IsArray</c> -- wired FROM a GetComponent
+/// collection out-pin; resolves to the source ENTITY), data-out "Count" (<c>System.Int32</c>).
+/// Compiles to <c>global::{CountAccessorFqn}({component})</c> off a freshly re-read
+/// <c>GetComponentRO&lt;global::ComponentTypeFqn&gt;</c> on the resolved entity -- see
+/// <c>Stage5_Schedule</c>'s <c>ComponentItemCountNode</c> case and the new
+/// <c>IrOp_ComponentAccessorCall</c>. No <c>ElementTypeFqn</c> -- Count never needs the element
+/// type, so "Collection" is typed <c>System.Object</c> (IsArray) here, same "typed-unknown
+/// placeholder" escape hatch <c>Stage4_TypeResolve.VerifyLinkTypes</c> already grants CLR-call
+/// pins rehydrated without reflection.
+/// </summary>
+public sealed class ComponentItemCountNode : Node
+{
+    /// <summary>FQN of the ECS component to re-read off the resolved "Collection" entity. Baked string -- no reflection.</summary>
+    public string ComponentTypeFqn { get; set; } = "";
+    /// <summary>FQN of a static <c>int Count(in T)</c> curated accessor (baked at wire time, CA-07c).</summary>
+    public string CountAccessorFqn { get; set; } = "";
 }

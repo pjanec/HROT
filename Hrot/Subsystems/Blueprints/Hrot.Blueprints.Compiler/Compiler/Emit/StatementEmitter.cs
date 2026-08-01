@@ -613,6 +613,22 @@ internal static class StatementEmitter
                 break;
 
             // ------------------------------------------------------------------
+            // Component collection accessor call (CA-07b)
+            // ------------------------------------------------------------------
+
+            case IrOp_ComponentAccessorCall op:
+                if (idx >= 0)
+                {
+                    // Component binds to the accessor's `in T` parameter implicitly -- it is the
+                    // `ref readonly` local a preceding IrOp_GetComponentRO produced, same as
+                    // IrOp_ForEach's own accessor calls. Index is present only for the Item shape.
+                    string comp = $"__t{op.Component.Index}";
+                    string args = op.Index is not null ? $"{comp}, __t{op.Index.Value.Index}" : comp;
+                    e.WriteLine($"var __t{idx} = global::{op.AccessorFqn}({args});");
+                }
+                break;
+
+            // ------------------------------------------------------------------
             // Compare (GAP-12) -- native comparison node lowering
             // ------------------------------------------------------------------
 

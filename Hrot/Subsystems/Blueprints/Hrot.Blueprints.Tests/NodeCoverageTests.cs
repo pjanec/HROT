@@ -551,6 +551,13 @@ public sealed class NodeCoverageTests
         // FlowForEach_IndexAndCount_EmitsHoistedCountAndBodyIndexCopy below; a real Roslyn build lands
         // with the DispatchAllToBaseline slice which uses these outs.
         yield return ("Inline/FlowForEachIndexCount", new[] { BuildFlowForEachIndexCountMinimalAsset() }, null, CoverageMode.ValidateOnlyStage1To7);
+        // Component-collection consumers (CA-07b): same game-assembly reason as FlowForEach ->
+        // ValidateOnlyStage1To7 (BpCollectionDemoOps lives in Hrot.AI.Behaviors). The generated C#
+        // (re-read off the resolved entity + accessor calls + the ForEach loop shape) is asserted
+        // verbatim by ComponentCollectionConsumerLoweringTests.
+        yield return ("Inline/ComponentItemCount", new[] { BuildComponentItemCountMinimalAsset() }, null, CoverageMode.ValidateOnlyStage1To7);
+        yield return ("Inline/ComponentItemGet", new[] { BuildComponentItemGetMinimalAsset() }, null, CoverageMode.ValidateOnlyStage1To7);
+        yield return ("Inline/ComponentForEach", new[] { BuildComponentForEachMinimalAsset() }, null, CoverageMode.ValidateOnlyStage1To7);
     }
 
     // ---- recipe loading (mirrors RecipeIntegrityTests.LoadRecipe) -----------
@@ -1910,6 +1917,242 @@ public sealed class NodeCoverageTests
                 Intent   = AiPrimitiveIntent.Action,
                 Hostings = { AiPrimitiveHosting.BTreeAction },
             },
+            Graphs    = { graph },
+        };
+    }
+
+    // ---- Component-collection consumer minimal fixtures (CA-07b) --------------
+
+    private const string CcComponentFqn = "Hrot.AI.Behaviors.BpCollectionDemo";
+    private const string CcCountFqn     = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Count";
+    private const string CcItemFqn      = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Item";
+
+    /// <summary>
+    /// Builds a pin-authored <c>GetComponent&lt;BpCollectionDemo&gt;</c> node with a single baked
+    /// collection decl ("Values", element System.Int32) -- multi-pin shape: "Values" (Out, IsArray)
+    /// + "Found" (Out, bool). Shared by the three ComponentXxx coverage fixtures below.
+    /// </summary>
+    private static (GetComponentNode Node, Pin ValuesOut) BuildComponentCollectionSourceNode()
+    {
+        var valuesOut = DataPin("Values", "Out", "System.Int32");
+        valuesOut.TypeRef.IsArray = true;
+        var foundOut = DataPin("Found", "Out", "System.Boolean");
+        var node = new GetComponentNode
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = CcComponentFqn,
+            Fields = new List<ComponentFieldDecl>
+            {
+                new()
+                {
+                    Name             = "Values",
+                    TypeId           = "",
+                    IsCollection     = true,
+                    ElementTypeId    = "System.Int32",
+                    CountAccessorFqn = CcCountFqn,
+                    ItemAccessorFqn  = CcItemFqn,
+                },
+            },
+        };
+        node.Pins.AddRange(new[] { valuesOut, foundOut });
+        return (node, valuesOut);
+    }
+
+    /// <summary>
+    /// EventEntry -&gt; SetVariable(CountOut &lt;- ComponentItemCount(Collection &lt;-
+    /// GetComponent&lt;BpCollectionDemo&gt;.Values)) -&gt; Return. ValidateOnlyStage1To7 (same
+    /// game-assembly reason as FlowForEach -- BpCollectionDemoOps lives in Hrot.AI.Behaviors).
+    /// </summary>
+    private static BlueprintAsset BuildComponentItemCountMinimalAsset()
+    {
+        var (getNode, valuesOut) = BuildComponentCollectionSourceNode();
+
+        var collectionIn = DataPin("Collection", "In", "System.Int32");
+        collectionIn.TypeRef.IsArray = true;
+        var countOut = DataPin("Count", "Out", "System.Int32");
+        var countNode = new ComponentItemCountNode
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = CcComponentFqn,
+            CountAccessorFqn = CcCountFqn,
+        };
+        countNode.Pins.AddRange(new[] { collectionIn, countOut });
+
+        var intVarId = Guid.NewGuid();
+        var intVar = new VariableDecl { Id = intVarId, Name = "CountOut", Type = new BlueprintTypeRef { TypeId = "System.Int32" } };
+
+        var setExecIn  = ExecPin("ExecIn",  "In");
+        var setExecOut = ExecPin("ExecOut", "Out");
+        var setValueIn = DataPin("Value", "In", "System.Int32");
+        var setNode = new SetVariableNode { Id = Guid.NewGuid(), VariableId = intVarId.ToString() };
+        setNode.Pins.AddRange(new[] { setExecIn, setExecOut, setValueIn });
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecPin("ExecIn", "In");
+        ret.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, getNode, countNode, setNode, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,    FromPinId = entryOut.Id,   ToNodeId = setNode.Id,   ToPinId = setExecIn.Id },
+                new Link { FromNodeId = setNode.Id,  FromPinId = setExecOut.Id, ToNodeId = ret.Id,       ToPinId = retIn.Id },
+                new Link { FromNodeId = getNode.Id,  FromPinId = valuesOut.Id,  ToNodeId = countNode.Id, ToPinId = collectionIn.Id },
+                new Link { FromNodeId = countNode.Id, FromPinId = countOut.Id,  ToNodeId = setNode.Id,   ToPinId = setValueIn.Id },
+            },
+        };
+
+        return new BlueprintAsset
+        {
+            AssetId   = Guid.NewGuid(),
+            Name      = "ComponentItemCountCoverage",
+            Dispatch  = BlueprintDispatchKind.Instance,
+            Variables = { intVar },
+            Graphs    = { graph },
+        };
+    }
+
+    /// <summary>
+    /// EventEntry -&gt; SetVariable(ElementOut &lt;- ComponentItemGet(Collection &lt;-
+    /// GetComponent&lt;BpCollectionDemo&gt;.Values, Index &lt;- Literal 0)) -&gt; Return.
+    /// ValidateOnlyStage1To7 -- same reason as <see cref="BuildComponentItemCountMinimalAsset"/>.
+    /// </summary>
+    private static BlueprintAsset BuildComponentItemGetMinimalAsset()
+    {
+        var (getNode, valuesOut) = BuildComponentCollectionSourceNode();
+
+        var collectionIn = DataPin("Collection", "In", "System.Int32");
+        collectionIn.TypeRef.IsArray = true;
+        var indexIn    = DataPin("Index",   "In",  "System.Int32");
+        var elementOut = DataPin("Element", "Out", "System.Int32");
+        var getItemNode = new ComponentItemGetNode
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = CcComponentFqn,
+            ItemAccessorFqn  = CcItemFqn,
+            ElementTypeFqn   = "System.Int32",
+        };
+        getItemNode.Pins.AddRange(new[] { collectionIn, indexIn, elementOut });
+
+        var litValueOut = DataPin("Value", "Out", "System.Int32");
+        var litNode = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Int32", ValueJson = "0" };
+        litNode.Pins.Add(litValueOut);
+
+        var intVarId = Guid.NewGuid();
+        var intVar = new VariableDecl { Id = intVarId, Name = "ElementOut", Type = new BlueprintTypeRef { TypeId = "System.Int32" } };
+
+        var setExecIn  = ExecPin("ExecIn",  "In");
+        var setExecOut = ExecPin("ExecOut", "Out");
+        var setValueIn = DataPin("Value", "In", "System.Int32");
+        var setNode = new SetVariableNode { Id = Guid.NewGuid(), VariableId = intVarId.ToString() };
+        setNode.Pins.AddRange(new[] { setExecIn, setExecOut, setValueIn });
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecPin("ExecIn", "In");
+        ret.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, getNode, litNode, getItemNode, setNode, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,      FromPinId = entryOut.Id,    ToNodeId = setNode.Id,     ToPinId = setExecIn.Id },
+                new Link { FromNodeId = setNode.Id,    FromPinId = setExecOut.Id,  ToNodeId = ret.Id,         ToPinId = retIn.Id },
+                new Link { FromNodeId = getNode.Id,    FromPinId = valuesOut.Id,   ToNodeId = getItemNode.Id, ToPinId = collectionIn.Id },
+                new Link { FromNodeId = litNode.Id,    FromPinId = litValueOut.Id, ToNodeId = getItemNode.Id, ToPinId = indexIn.Id },
+                new Link { FromNodeId = getItemNode.Id, FromPinId = elementOut.Id, ToNodeId = setNode.Id,     ToPinId = setValueIn.Id },
+            },
+        };
+
+        return new BlueprintAsset
+        {
+            AssetId   = Guid.NewGuid(),
+            Name      = "ComponentItemGetCoverage",
+            Dispatch  = BlueprintDispatchKind.Instance,
+            Variables = { intVar },
+            Graphs    = { graph },
+        };
+    }
+
+    /// <summary>
+    /// EventEntry -&gt; ComponentForEach(Collection &lt;- GetComponent&lt;BpCollectionDemo&gt;.Values)
+    /// [Body -&gt; SetVariable(ItemOut &lt;- CurrentItem)] [Completed -&gt; Return].
+    /// ValidateOnlyStage1To7 -- same reason as <see cref="BuildComponentItemCountMinimalAsset"/>.
+    /// </summary>
+    private static BlueprintAsset BuildComponentForEachMinimalAsset()
+    {
+        var (getNode, valuesOut) = BuildComponentCollectionSourceNode();
+
+        var feIn = ExecPin("In", "In");
+        var feCollection = DataPin("Collection", "In", "System.Int32");
+        feCollection.TypeRef.IsArray = true;
+        var feBody      = ExecPin("Body", "Out");
+        var feCompleted = ExecPin("Completed", "Out");
+        var feItem      = DataPin("CurrentItem", "Out", "System.Int32");
+        var fe = new ComponentForEachNode
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = CcComponentFqn,
+            CountAccessorFqn = CcCountFqn,
+            ItemAccessorFqn  = CcItemFqn,
+            ElementTypeFqn   = "System.Int32",
+        };
+        fe.Pins.AddRange(new[] { feIn, feCollection, feBody, feCompleted, feItem });
+
+        var intVarId = Guid.NewGuid();
+        var intVar = new VariableDecl { Id = intVarId, Name = "ItemOut", Type = new BlueprintTypeRef { TypeId = "System.Int32" } };
+
+        var setExecIn  = ExecPin("ExecIn",  "In");
+        var setExecOut = ExecPin("ExecOut", "Out");
+        var setValueIn = DataPin("Value", "In", "System.Int32");
+        var setNode = new SetVariableNode { Id = Guid.NewGuid(), VariableId = intVarId.ToString() };
+        setNode.Pins.AddRange(new[] { setExecIn, setExecOut, setValueIn });
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecPin("In", "In");
+        ret.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, getNode, fe, setNode, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,   FromPinId = entryOut.Id,    ToNodeId = fe.Id,      ToPinId = feIn.Id },
+                new Link { FromNodeId = getNode.Id, FromPinId = valuesOut.Id,   ToNodeId = fe.Id,      ToPinId = feCollection.Id },
+                new Link { FromNodeId = fe.Id,      FromPinId = feBody.Id,      ToNodeId = setNode.Id, ToPinId = setExecIn.Id },
+                new Link { FromNodeId = fe.Id,      FromPinId = feItem.Id,      ToNodeId = setNode.Id, ToPinId = setValueIn.Id },
+                new Link { FromNodeId = fe.Id,      FromPinId = feCompleted.Id, ToNodeId = ret.Id,     ToPinId = retIn.Id },
+            },
+        };
+
+        return new BlueprintAsset
+        {
+            AssetId   = Guid.NewGuid(),
+            Name      = "ComponentForEachCoverage",
+            Dispatch  = BlueprintDispatchKind.Instance,
+            Variables = { intVar },
             Graphs    = { graph },
         };
     }

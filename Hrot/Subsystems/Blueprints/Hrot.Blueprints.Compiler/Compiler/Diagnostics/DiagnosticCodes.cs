@@ -115,6 +115,9 @@ public static class DiagnosticCodes
     public const string BP2064 = "BP2064";  // Managed SetComponentNode carries per-field Fields -- managed write is whole-replace-only
     public const string BP2065 = "BP2065";  // Managed SetComponentNode in AiPrimitive dispatch -- TickCore has no IEntityCommandBuffer in scope
 
+    // Stage 2 -- Validate (component-collection consumer rules -- CA-07b)
+    public const string BP2066 = "BP2066";  // ComponentForEach/ComponentItemGet/ComponentItemCount: "Collection" is wired but baked accessor FQNs are empty
+
     // Stage 3 -- Normalize
     public const string BP3010 = "BP3010";
     public const string BP3011 = "BP3011";

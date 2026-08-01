@@ -1226,6 +1226,11 @@ internal sealed class V_SharedStateRules : IValidator
 ///     AiPrimitive-dispatch asset. AiPrimitive's generated <c>TickCore</c> has no
 ///     <c>IEntityCommandBuffer</c> parameter in scope (see <c>AiPrimitiveEmitter.EmitTickCore</c>),
 ///     so there is nowhere to queue <c>ecb.SetManagedComponent</c>.</item>
+///   <item>BP2066 (CA-07b) -- a component-collection consumer (<see cref="ComponentForEachNode"/>/
+///     <see cref="ComponentItemGetNode"/>/<see cref="ComponentItemCountNode"/>) whose "Collection"
+///     data-in pin IS wired but whose baked accessor FQNs are empty. The wiring is meaningless
+///     without the bake (CA-07c wires it at edit time); Stage5 would otherwise silently degrade to
+///     its "safe default" (no read, out-pin resolves to <c>default</c>) with no diagnostic at all.</item>
 /// </list>
 /// <para>
 /// Deliberately absent: a <c>[BlueprintWritable]</c> check. The compiler runs as a netstandard2.0
@@ -1314,7 +1319,53 @@ internal sealed class V_ComponentAccessRules : IValidator
                 {
                     CheckManagedReadNotPersisted(gcn, graph, asset, ctx);
                 }
+                else if (node is ComponentForEachNode or ComponentItemGetNode or ComponentItemCountNode)
+                {
+                    CheckComponentCollectionConsumer(node, graph, asset, ctx);
+                }
             }
+        }
+    }
+
+    /// <summary>
+    /// BP2066 (CA-07b) -- see this class's doc comment. Only fires when "Collection" is WIRED
+    /// (an unwired Collection is a legitimate "not used yet" state -- Stage5 degrades it silently,
+    /// same as any other unconnected optional pin elsewhere in this file); the missing-accessor
+    /// check is per-kind (ComponentForEach needs BOTH Count+Item, ComponentItemGet needs only Item,
+    /// ComponentItemCount needs only Count -- mirrors each kind's own Stage5 lowering requirement).
+    /// </summary>
+    private static void CheckComponentCollectionConsumer(
+        Node node, Graph graph, BlueprintAsset asset, ValidationContext ctx)
+    {
+        var collectionPin = node.Pins.FirstOrDefault(p =>
+            !p.IsExec && p.Direction == "In"
+            && string.Equals(p.Name, "Collection", StringComparison.OrdinalIgnoreCase));
+        if (collectionPin is null) return;
+
+        bool wired = graph.Links.Any(l => l.ToNodeId == node.Id && l.ToPinId == collectionPin.Id);
+        if (!wired) return;
+
+        var (componentTypeFqn, countFqn, itemFqn) = node switch
+        {
+            ComponentForEachNode cfe   => (cfe.ComponentTypeFqn, cfe.CountAccessorFqn, cfe.ItemAccessorFqn),
+            ComponentItemGetNode cig   => (cig.ComponentTypeFqn, "", cig.ItemAccessorFqn),
+            ComponentItemCountNode cic => (cic.ComponentTypeFqn, cic.CountAccessorFqn, ""),
+            _                          => ("", "", ""),
+        };
+
+        bool needsCount = node is ComponentForEachNode or ComponentItemCountNode;
+        bool needsItem  = node is ComponentForEachNode or ComponentItemGetNode;
+
+        bool missing = string.IsNullOrEmpty(componentTypeFqn)
+            || (needsCount && string.IsNullOrEmpty(countFqn))
+            || (needsItem  && string.IsNullOrEmpty(itemFqn));
+
+        if (missing)
+        {
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2066,
+                $"{node.GetType().Name}: \"Collection\" is wired but the node's baked accessor " +
+                "FQNs are empty -- the collection was not baked at wire time (CA-07c).",
+                asset.AssetId, graph.Id, node.Id));
         }
     }
 
@@ -1670,12 +1721,12 @@ internal sealed class V_ExecOutFanOut : IValidator
 // ---------------------------------------------------------------------------
 
 /// <summary>
-/// P1 (GAP-1): a <see cref="FlowForEachNode"/>'s "Body" exec-subgraph must be a synchronous,
-/// latent-free sub-DAG. The body lowers to an inline C# <c>for</c> whose statements are scheduled
-/// inline (not BFS blocks), so a latent node -- which needs a suspend/resume block split -- cannot
-/// appear inside it. P1b lifted the P1a branch-free restriction: a <see cref="BranchNode"/> in the
-/// body now lowers to a nested inline <c>if</c>/<c>else</c> (IrOp_If), so branches ARE allowed;
-/// only latent nodes remain forbidden.
+/// P1 (GAP-1): a <see cref="FlowForEachNode"/>'s -- and (CA-07b) a <see cref="ComponentForEachNode"/>'s
+/// -- "Body" exec-subgraph must be a synchronous, latent-free sub-DAG. Both lower to an inline C#
+/// <c>for</c> whose statements are scheduled inline (not BFS blocks), so a latent node -- which needs
+/// a suspend/resume block split -- cannot appear inside it. P1b lifted the P1a branch-free
+/// restriction: a <see cref="BranchNode"/> in the body now lowers to a nested inline <c>if</c>/
+/// <c>else</c> (IrOp_If), so branches ARE allowed; only latent nodes remain forbidden.
 /// </summary>
 internal sealed class V_FlowForEachRules : IValidator
 {
@@ -1684,15 +1735,21 @@ internal sealed class V_FlowForEachRules : IValidator
         foreach (var graph in asset.Graphs)
         {
             var nodeById = graph.Nodes.ToDictionary(n => n.Id);
-            foreach (var fe in graph.Nodes.OfType<FlowForEachNode>())
+            // CA-07b: ComponentForEachNode shares FlowForEachNode's inline for-body scheduling
+            // (ScheduleComponentForEachNode -> ScheduleInlineBodyChain), so its "Body" carries the
+            // SAME latent-free requirement -- a latent node there would need a suspend/resume block
+            // split the inline for-body cannot span. Both loop kinds expose a "Body" exec-out.
+            foreach (var loop in graph.Nodes.Where(n => n is FlowForEachNode or ComponentForEachNode))
             {
-                var bodyPin = fe.Pins.FirstOrDefault(p => p.IsExec && p.Direction == "Out"
+                var bodyPin = loop.Pins.FirstOrDefault(p => p.IsExec && p.Direction == "Out"
                     && string.Equals(p.Name, "Body", StringComparison.OrdinalIgnoreCase));
                 if (bodyPin is null) continue;
 
+                var loopKind = loop is ComponentForEachNode ? "ComponentForEach" : "FlowForEach";
+
                 var visited = new HashSet<Guid>();
                 var queue = new Queue<Node>();
-                foreach (var start in ExecTargets(graph, fe.Id, bodyPin.Id, nodeById))
+                foreach (var start in ExecTargets(graph, loop.Id, bodyPin.Id, nodeById))
                     queue.Enqueue(start);
 
                 while (queue.Count > 0)
@@ -1705,7 +1762,7 @@ internal sealed class V_FlowForEachRules : IValidator
                     // inline for-body cannot span.
                     if (n is LatentDelayNode or WaitForChannelNode or WaitForEventNode or WhenNode)
                         ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2050,
-                            $"FlowForEach body must be latent-free: a latent '{n.GetType().Name}' is reachable from the loop 'Body'.",
+                            $"{loopKind} body must be latent-free: a latent '{n.GetType().Name}' is reachable from the loop 'Body'.",
                             asset.AssetId, graph.Id, n.Id));
 
                     foreach (var outPin in n.Pins.Where(p => p.IsExec && p.Direction == "Out"))

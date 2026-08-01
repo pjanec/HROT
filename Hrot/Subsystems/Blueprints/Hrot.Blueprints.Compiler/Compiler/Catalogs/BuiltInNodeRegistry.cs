@@ -142,6 +142,35 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
             Data("Count",        "Out", "System.Int32"),
         },
 
+        // ComponentForEach / ComponentItemGet / ComponentItemCount (CA-07b): the "Collection"/
+        // "CurrentItem"/"Element" pins are element-typed by each node's OWN baked ElementTypeFqn
+        // (varies per instance, unlike FlowForEach's fixed Entity-typed roster item) -- this static
+        // skeleton types them "System.Object" as a placeholder for Guard 2 / the pin-less-
+        // rehydration fallback path; Stage0_Rehydrate.EnrichComponent{ForEach,ItemGet,ItemCount}Pins
+        // ALWAYS rebuilds with the real element type (mirrors GetComponentNode). "Body"/"Completed"
+        // exec-out names are load-bearing for Stage5 (mirrors FlowForEachNode).
+        ComponentForEachNode      => new[]
+        {
+            ExecIn(),
+            Data("Collection", "In", "System.Object"),
+            new("Body",      "Out", true,  ""),
+            new("Completed", "Out", true,  ""),
+            Data("CurrentItem",  "Out", "System.Object"),
+            Data("CurrentIndex", "Out", "System.Int32"),
+            Data("Count",        "Out", "System.Int32"),
+        },
+        ComponentItemGetNode      => new[]
+        {
+            Data("Collection", "In",  "System.Object"),
+            Data("Index",      "In",  "System.Int32"),
+            Data("Element",    "Out", "System.Object"),
+        },
+        ComponentItemCountNode    => new[]
+        {
+            Data("Collection", "In",  "System.Object"),
+            Data("Count",      "Out", "System.Int32"),
+        },
+
         ArrayMakeNode am          => ArrayMakePins(am),
         ArrayGetNode              => ArrayGetPins(),
 

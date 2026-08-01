@@ -148,4 +148,67 @@ public sealed class V_FlowForEachValidatorTests
         var diags = Validate(asset);
         Assert.DoesNotContain(diags, d => d.Code == DiagnosticCodes.BP2050);
     }
+
+    // ---- CA-07b: ComponentForEach shares the same latent-free body rule ----
+
+    /// <summary>
+    /// CA-07b: <see cref="ComponentForEachNode"/> uses the SAME inline for-body scheduling as
+    /// FlowForEach, so a latent node in its "Body" must ALSO trip BP2050 (it would otherwise reach
+    /// <c>ScheduleInlineBodyChain</c>, which cannot span a suspend/resume block split).
+    /// </summary>
+    [Fact]
+    public void Validate_LatentInComponentForEachBody_BP2050()
+    {
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("Out", "Out");
+        entry.Pins.Add(entryOut);
+
+        var cfeIn        = ExecPin("In", "In");
+        var cfeBody      = ExecPin("Body", "Out");
+        var cfeCompleted = ExecPin("Completed", "Out");
+        var cfe = new ComponentForEachNode
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = "Hrot.AI.Behaviors.BpCollectionDemo",
+            CountAccessorFqn = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Count",
+            ItemAccessorFqn  = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Item",
+            ElementTypeFqn   = "System.Int32",
+        };
+        cfe.Pins.AddRange(new[] { cfeIn, cfeBody, cfeCompleted });
+
+        var delayIn  = ExecPin("In", "In");
+        var delayOut = ExecPin("Out", "Out");
+        var delay = new LatentDelayNode { Id = Guid.NewGuid() };
+        delay.Pins.AddRange(new[] { delayIn, delayOut });
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecPin("In", "In");
+        ret.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, cfe, delay, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id, FromPinId = entryOut.Id,     ToNodeId = cfe.Id,   ToPinId = cfeIn.Id },
+                new Link { FromNodeId = cfe.Id,   FromPinId = cfeBody.Id,      ToNodeId = delay.Id, ToPinId = delayIn.Id },
+                new Link { FromNodeId = cfe.Id,   FromPinId = cfeCompleted.Id, ToNodeId = ret.Id,   ToPinId = retIn.Id },
+            },
+        };
+
+        var asset = new BlueprintAsset
+        {
+            AssetId   = Guid.NewGuid(),
+            Name      = "ComponentForEachValidatorTest",
+            Dispatch  = Hrot.Blueprints.Core.Assets.BlueprintDispatchKind.AiPrimitive,
+            Primitive = new AiPrimitiveDecl { Intent = AiPrimitiveIntent.Action, Hostings = { AiPrimitiveHosting.BTreeAction } },
+            Graphs    = { graph },
+        };
+
+        var diags = Validate(asset);
+        Assert.Contains(diags, d => d.Code == DiagnosticCodes.BP2050);
+    }
 }

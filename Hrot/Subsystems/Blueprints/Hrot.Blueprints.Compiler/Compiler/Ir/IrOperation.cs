@@ -330,6 +330,19 @@ public sealed record IrOp_ReadCursorWaitUntilTime : IrOperation;
 public sealed record IrOp_FieldRead(IrValue Source, string FieldName, IrTypeRef ResultType, bool SourceIsManaged = false) : IrOperation;
 
 /// <summary>
+/// CA-07b -- calls a baked curated collection accessor (<c>[BlueprintCollection]</c>'s
+/// <c>Count(in T)</c> or <c>[BlueprintCollectionItem]</c>'s <c>Item(in T, int)</c>) on a component
+/// ref. Emits <c>global::{AccessorFqn}({component})</c> (Count shape, <see cref="Index"/> null) or
+/// <c>global::{AccessorFqn}({component}, {index})</c> (Item shape). <see cref="Component"/> is the
+/// <c>ref readonly</c> local produced by a preceding <see cref="IrOp_GetComponentRO"/> -- the
+/// accessor's <c>in T</c> parameter binds to it implicitly, exactly like <see cref="IrOp_ForEach"/>'s
+/// own Count/Item accessor calls (this op factors that same call shape out for the CA-07b consumer
+/// nodes, which read a component OTHER than the one <c>IrOp_ForEach</c>'s roster read targets).
+/// </summary>
+public sealed record IrOp_ComponentAccessorCall(
+    string AccessorFqn, IrValue Component, IrValue? Index, IrTypeRef ResultType) : IrOperation;
+
+/// <summary>
 /// GAP-12 -- native <c>CompareNode</c> lowering. Emits a single infix C# comparison expression:
 /// <c>var __t{idx} = __t{Left.Index} {infix} __t{Right.Index};</c>, where <c>{infix}</c> comes from
 /// a <see cref="Hrot.Blueprints.Core.Assets.ComparisonOperator"/> -> C#-infix switch in
