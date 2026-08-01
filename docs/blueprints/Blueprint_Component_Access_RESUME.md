@@ -26,7 +26,17 @@ blackboard Variables/Shared). Approved by the architect in **Q#15 (read)** + **Q
 **CA-01–06 are DONE**: full Get/Set Component, unmanaged + managed, compiler + editor, each gated at
 **184/184 serial** (see gate below). CA-07 is the only remaining batch.
 
-## IMMEDIATE NEXT STEP
+## UPDATE 2026-08-02 — CA-07 (collections, A2/R1) a+b+c DONE
+
+CA-07a `66cf4432` (collection pin + GetComponent out-pin), CA-07b `3b294552` (consumer nodes
+ForEach/Get[i]/Count + IR + emit; `IrOp_ForEach` reused, one new `IrOp_ComponentAccessorCall`),
+CA-07c `3d480e5b` (wire-bake in `ApplyAddLink` + palette + titles + demo). All gated (184 serial +
+broad). **Feature is editor-wireable now.** Demo: `Hrot.AI.Behaviors/Assets/Blueprints/ComponentCollectionDemo.bp.json`
+(GetComponent<BpCollectionDemo> "Values" → ForEach/Get/Count). **Awaiting the user's visual check.**
+**Remaining:** CA-07d (managed collections + `Contains`/`Find`, deferred) → then PR
+`claude/blueprint-component-read` → `main`. Full detail in the TASK_TRACKER running log.
+
+## IMMEDIATE NEXT STEP (superseded by the UPDATE above)
 
 1. **User is doing a visual check** of CA-01–06 via the demos (open `GetComponentDemo` / `GetComponentTargetDemo`
    / `SetComponentDemo` in `Hrot.AI.Behaviors/Assets/Blueprints/`). Wait for their findings; fix anything they hit.
