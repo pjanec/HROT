@@ -145,6 +145,7 @@ internal static class NodePinSchema
             GetAllParametersNode => GetAllParametersPins(asset),
             GetSharedNode gsn   => GetSharedPins(gsn),
             SetSharedNode ssn   => SetSharedPins(ssn),
+            GetComponentNode gcn => GetComponentPins(gcn),
             MakeStructNode msn  => MakeStructPins(msn),
             BreakStructNode bsn => BreakStructPins(bsn),
             SetMembersNode smn  => SetMembersPins(smn),
@@ -745,6 +746,37 @@ internal static class NodePinSchema
             MakeData("Value",  "Out", SharedTypePinTypeId(gsn.SharedTypeId)),
             MakeData("Found",  "Out", "System.Boolean"),
         };
+    }
+
+    /// <summary>
+    /// GetComponentNode (CA-02, Slice 1a): pure-data node. EXACT parity with the compiler's
+    /// <see cref="Hrot.Blueprints.Core.Compiler.Stages.Stage0_Rehydrate"/>
+    /// <c>EnrichGetComponentPins</c> (frozen at CA-01): multi-pin mode (<see
+    /// cref="GetComponentNode.Fields"/> baked) projects OPTIONAL cross-entity data-in "Target"
+    /// (<c>Fdp.Core.Entity</c>, unwired = self) + one data-OUT pin PER baked field + data-out
+    /// "Found" (<c>System.Boolean</c>); legacy (<c>Fields == null</c>) mode projects a single
+    /// self-only "Value" data-out typed from <see cref="GetComponentNode.FieldTypeFqn"/> -- NO
+    /// Target/Found in that branch (mirrors the untouched legacy Stage5 lowering, which never
+    /// computes them). The CA-02 editor (picker/palette) ALWAYS bakes <c>Fields</c>, so a
+    /// designer-placed node is always multi-pin; the legacy shape is reachable only for
+    /// pre-CA-01 assets already on disk.
+    /// </summary>
+    private static IReadOnlyList<Pin> GetComponentPins(GetComponentNode gcn)
+    {
+        if (gcn.Fields is { Count: > 0 })
+        {
+            var pins = new List<Pin>(2 + gcn.Fields.Count) { MakeData("Target", "In", "Fdp.Core.Entity") };
+            foreach (var f in gcn.Fields)
+                pins.Add(MakeData(f.Name, "Out", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+            pins.Add(MakeData("Found", "Out", "System.Boolean"));
+            return pins;
+        }
+
+        // Legacy single-field path (FROZEN, self-only, no Target/Found) -- FieldTypeFqn used VERBATIM,
+        // NOT "global::"-stamped (see Stage0_Rehydrate.EnrichGetComponentPins's comment: stamping would
+        // misroute well-known primitives like "System.Single" into the AN2 enum/project-type path).
+        var typeId = string.IsNullOrEmpty(gcn.FieldTypeFqn) ? "System.Object" : gcn.FieldTypeFqn;
+        return new[] { MakeData("Value", "Out", typeId) };
     }
 
     /// <summary>

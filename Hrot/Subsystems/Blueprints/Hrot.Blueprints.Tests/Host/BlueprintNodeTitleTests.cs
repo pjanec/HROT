@@ -1,6 +1,7 @@
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.Host;
 using NodeEditor.Core.Interfaces;
+using NodeEditor.Primitives;
 
 namespace Hrot.Blueprints.Tests.Host;
 
@@ -13,6 +14,9 @@ public sealed class BlueprintNodeTitleTests
 {
     private static string Title(Node node, BlueprintAsset? asset = null)
         => new BlueprintNodeModel(node, System.Array.Empty<IPinModel>(), asset).Title;
+
+    private static NodeState State(Node node, BlueprintAsset? asset = null)
+        => new BlueprintNodeModel(node, System.Array.Empty<IPinModel>(), asset).State;
 
     [Theory]
     [InlineData("System.Int32", "5")]
@@ -92,6 +96,42 @@ public sealed class BlueprintNodeTitleTests
     {
         Assert.Equal("Get Shared", Title(new GetSharedNode { VariableId = "" }));
         Assert.Equal("Set Shared", Title(new SetSharedNode { VariableId = "" }));
+    }
+
+    // CA-02: GetComponent brackets the short component-type name (mirrors Make/Break/SetMembers'
+    // "[ShortTypeName]" convention), and flags NodeState.Error when the baked ComponentTypeFqn no
+    // longer resolves (renamed/removed from C#) -- reuses the FunctionCall red-node pattern.
+
+    [Fact]
+    public void GetComponent_BracketsShortComponentTypeName()
+        => Assert.Equal("Get Component [Vector3]",
+            Title(new GetComponentNode { ComponentTypeFqn = "System.Numerics.Vector3" }));
+
+    [Fact]
+    public void GetComponent_EmptyComponentType_FallsBackToGenericLabel()
+        => Assert.Equal("Get Component", Title(new GetComponentNode { ComponentTypeFqn = "" }));
+
+    [Fact]
+    public void GetComponent_ResolvableComponentType_IsNormalState()
+    {
+        var node = new GetComponentNode { ComponentTypeFqn = "System.Numerics.Vector3" };
+        Assert.Equal(NodeState.Normal, State(node));
+    }
+
+    [Fact]
+    public void GetComponent_UnresolvableComponentType_IsErrorState()
+    {
+        var node = new GetComponentNode { ComponentTypeFqn = "Totally.Unknown.Namespace.NoSuchComponent" };
+        Assert.Equal(NodeState.Error, State(node));
+    }
+
+    [Fact]
+    public void GetComponent_EmptyComponentType_IsNormalState_NotError()
+    {
+        // An unconfigured (not-yet-picked) node is not the same as a STALE reference -- must not
+        // be flagged as an error just because ComponentTypeFqn happens to be empty.
+        var node = new GetComponentNode { ComponentTypeFqn = "" };
+        Assert.Equal(NodeState.Normal, State(node));
     }
 
     [Fact]

@@ -16,7 +16,7 @@ builds clean.
 | # | Batch | Slice | Model | Status |
 |---|-------|-------|-------|--------|
 | CA-01 | Read compiler spine (unmanaged) | 1a | Sonnet + Opus(lowering) | ✅ |
-| CA-02 | Read editor (unmanaged) | 1a | Sonnet | ⬜ |
+| CA-02 | Read editor (unmanaged) | 1a | Sonnet | ✅ |
 | CA-03 | Write compiler spine (unmanaged) | W1 | Sonnet + Opus(IR/lowering/emit/validator) | ⬜ |
 | CA-04 | Write editor (unmanaged) | W1 | Sonnet | ⬜ |
 | CA-05 | Managed read | 1b | Sonnet + Opus(flow rules) | ⬜ |
@@ -34,13 +34,43 @@ builds clean.
 - **✅ Done — Opus-reviewed + gated** (legacy shape frozen; 7/7 GetComponent + 184/184 serial): see running log.
 
 ### CA-02 — Read editor (unmanaged) · Slice 1a
-- [ ] `ComponentFieldReflector` — public fields → `(Name, TypeId, IsManaged)`, **no offset**, keeps managed fields — `NodeDrawers/`
-- [ ] `ComponentTypeProvider` + `GetComponentPaletteEntries` (reflect all component types) — `NodeDrawers/`, registered in `BlueprintEditorBootstrap.CreatePaletteRegistry`
-- [ ] `NodePinSchema.GetComponentPins` — parity with Stage0 `EnrichGetComponentPins` — `Host/NodePinSchema.cs`
-- [ ] `ComponentNodeDrawers` (Get) — component picker + "Expand to field pins" (mirror `SharedNodeDrawers`) — `NodeDrawers/`
-- [ ] `BlueprintNodeModel` — title `Get Component [T]` + `NodeState.Error` on unresolved component (reuse `IsUnresolvedClrCall` path) — `Host/BlueprintNodeModel.cs`
-- [ ] Editor tests: reflector, palette discovery, pin parity, title, stale-ref
-- **Reuse:** `SharedStructFieldReflector`, `SharedNodeDrawers`, `ReflectionSharedStructTypeProvider`, `GetSharedPins`.
+- [x] `ComponentFieldReflector` — public fields → `(Name, TypeId, IsManaged)`, **no offset**, keeps managed fields — `NodeDrawers/`
+- [x] `ComponentTypeProvider` + `GetComponentPaletteEntries` (reflect all component types) — `NodeDrawers/`, registered in `BlueprintEditorBootstrap.CreatePaletteRegistry`
+- [x] `NodePinSchema.GetComponentPins` — parity with Stage0 `EnrichGetComponentPins` — `Host/NodePinSchema.cs`
+- [x] `ComponentNodeDrawers` (Get) — component picker (NO "Expand to field pins" toggle — always multi-pin, see file doc comment) — `NodeDrawers/`
+- [x] `BlueprintNodeModel` — title `Get Component [T]` + `NodeState.Error` on unresolved component (reuse `IsUnresolvedClrCall` path) — `Host/BlueprintNodeModel.cs`
+- [x] Editor tests: reflector, palette discovery, pin parity, title, stale-ref
+- **Reuse:** `SharedStructFieldReflector` (pattern only, not code — CA-02 keeps managed fields), `SharedTypePickerLogic` (reused AS-IS, no duplicate), `ReflectionSharedStructTypeProvider` (pattern), `GetSharedPins` (pattern).
+- **2026-08-01, CA-02, Sonnet:** built the read editor (unmanaged) — `ComponentFieldReflector` +
+  `ReflectedComponentField` (`NodeDrawers/ComponentFieldReflector.cs`; managed/unmanaged determined
+  via `RuntimeHelpers.IsReferenceOrContainsReferences<T>()` invoked reflectively — the exact CLR test
+  the `unmanaged` generic constraint uses, so it can never disagree with what `GetComponentRO<T>`
+  accepts); `IComponentTypeProvider`/`ReflectionComponentTypeProvider` keyed on **`[ComponentId]`**
+  presence (`Fdp.Core.ComponentIdAttribute`) — this IS the component marker (no separate
+  interface/base class exists; `ComponentTypeRegistry.GetOrRegisterManaged` requires it on every
+  component struct/class); `ComponentPaletteEntries.GetComponentEntries` (skips zero-field/tag
+  components, mirrors `MakeBreakStructPaletteEntries`); `NodePinSchema.GetComponentPins` (byte-for-
+  byte mirror of the frozen Stage0 `EnrichGetComponentPins`: multi-pin `Target`+fields+`Found`,
+  legacy single `Value`); `GetComponentNodeDrawer`/`GetComponentNodeSession`
+  (`NodeDrawers/ComponentNodeDrawers.cs`, reuses `SharedTypePickerLogic` directly — no duplicate
+  filter/contains helper — deliberately has NO expand-toggle, since a component is always multi-pin);
+  `BlueprintNodeModel` title `Get Component [T]` + `NodeState.Error` via a NEW
+  `ComponentFieldReflector.ResolveType`-based check (kept separate from `TryReflect` so a resolvable
+  zero-field/tag component is never misreported as unresolved). Registered both in
+  `BlueprintEditorBootstrap` (drawer + palette). Added `Categories.Component` (distinct from
+  `SharedState`/`Variables`).
+  **Gate:** `Hrot.Blueprints.Editor` + `Hrot.AI.Behaviors` build clean; 66/66 new CA-02 editor tests
+  green (reflector, discovery, palette, drawer/session, pin-parity-vs-Stage0, title, stale-ref);
+  `Hrot.AiEditor.Generators.Tests` **184/184** byte-identical (serial). Full `Hrot.Blueprints.Tests`
+  suite run in parallel shows 8 pre-existing reds (Stage4 BP1500, NodeCoverage Make/Break/SetMembers,
+  2 perf tests, 4 ALC-not-reclaimed-under-parallel-load) — reproduces the same failure set CA-01
+  already characterized as pre-existing/not-CA-introduced (the 4 ALC ones are a parallel-runner
+  artifact of running the whole suite together, not serial-mode flakiness).
+- **2026-08-01, CA-02, Opus review:** reviewed — `GetComponentPins` is an exact mirror of the frozen
+  Stage0, and `GetComponentPinParityTests` genuinely cross-checks (runs real `Stage0_Rehydrate.Run` +
+  pins the literal shape, so drift on either side fails). `[ComponentId]` discovery + `IsManaged` via
+  `IsReferenceOrContainsReferences<T>` are correct; stale-ref (empty→Normal, unresolved→Error) correct.
+  Re-gate: **68 Component editor tests + 184/184 serial**. **CA-02 ✅ done.**
 
 ### CA-03 — Write compiler spine (unmanaged) · Slice W1
 - [ ] `[BlueprintWritable]` attribute (confirm assembly — co-locate w/ component contracts) + `SetComponentNode` (`ComponentTypeFqn`, `Fields`, `IsManaged`) + JsonDerivedType `"SetComponent"` — `Assets/Nodes.cs`
