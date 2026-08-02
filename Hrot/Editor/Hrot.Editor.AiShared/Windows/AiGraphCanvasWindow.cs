@@ -358,15 +358,14 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
     /// </summary>
     private void UpdateTitle(AiDocument? doc)
     {
+        // MULTI-TAB: the window hosts a tab bar (one tab per open document of this kind), and each
+        // tab shows its own asset name (GetTabLabel). The window title therefore stays the stable
+        // CONTAINER name ("{kind} Canvas") and must NOT reflect the active document — showing a
+        // specific blueprint name made the window's close [x] look like it would close just that
+        // blueprint, when it actually closes the whole canvas window and every tab in it.
         if (ReferenceEquals(doc, _titleDoc)) return;
         _titleDoc = doc;
-
-        var assetName = doc?.Asset?.Name;
-        // Use an ASCII hyphen separator: the engine ImGui font cannot render an em-dash
-        // ("—"), which showed up as "?" in the window title (BCP-BATCH-02-FIX2 Task 4).
-        Title = string.IsNullOrEmpty(assetName)
-            ? _baseTitle
-            : $"{assetName} - {_assetKind}";
+        Title = _baseTitle;
     }
 
     // ── MULTI-TAB: tab bar ────────────────────────────────────────────────────
