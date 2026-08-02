@@ -281,21 +281,20 @@ path stays **A1 UX** (same consumer nodes — user requirement) but with the **3
 collection projection** (the reviewer's A3 was cleaner but changed UX → rejected); (ii) **memory-safety hardening**
 (Count-clamp + init-on-all-paths) promoted into LV-1; (iii) **`ref`-bind read** adopted.
 
-### Open points to clarify before build (2026-08-03)
-Genuine UX/behavior forks the review surfaced that aren't purely internal — need a call before LV-1:
-1. **Cross-boundary passing.** Per-asset wrapper types (F4) mean a list variable **cannot** be passed as a
-   function-graph / peer / AiPrimitive **parameter or return** in v1 (a Stage2 diagnostic would reject it). Is
-   that acceptable, or is "pass a list to a sub-graph" a needed v1 use case? *(Lean: out of scope v1 — it's the
-   one real UX limitation; revisit with a shared wrapper type later.)*
-2. **List on generic pins.** A list variable is usable only via the collection out-pin (→ consumer nodes), the
-   write nodes, and whole-list clone. It cannot be wired into arbitrary data pins. *(Lean: yes, forbid — closes
-   the O(N)-copy footgun.)*
-3. **Whole-list clone.** Allow `SetVariable(listA ← listB)` of the same shape as a legitimate copy/reset (single
-   flat struct assignment)? *(Lean: allow.)*
-4. **Struct-element equality (Contains/Find).** Require a `[BlackboardDtoStruct]` element used with Contains/Find
-   to implement `IEquatable<T>` (avoids `EqualityComparer<T>.Default` boxing/reflection), or allow the slow
-   fallback with a doc note? *(Lean: require `IEquatable<T>` — a validation diagnostic if missing.)*
-5. **Nested lists.** Forbid a fixed-list element type that itself contains a fixed list (size explosion,
-   layout complexity)? *(Lean: forbid v1 — element must be a scalar / `Entity` / flat blittable struct.)*
-6. **Debugger visibility (LV-5) scope.** Confirm a list variable should render in the state inspector/watch as
-   `List<T>[N] Count=k {…first min(Count,N)…}` (it's currently invisible). *(Lean: yes, in scope.)*
+### Open points — RESOLVED (user, 2026-08-03). Design fully pinned.
+1. **Cross-boundary passing — OUT OF SCOPE v1**, but must stay doable later (incl. **ref-param** passing — the
+   need is expected). Enforcement: a Stage2 diagnostic rejects a list variable wired into any function-graph /
+   peer / AiPrimitive arg or return pin. **Forward-compat constraint:** that diagnostic is trivially liftable, and
+   the per-asset nested wrapper (F4) can later migrate to a **shared** `(Elem,N)` wrapper type (a cross-file
+   `.Collect()` emission pass) WITHOUT asset migration (assets never name the wrapper — it's all generated). LV-1
+   must not bake an assumption that hard-blocks a future shared-type + by-ref call ABI.
+2. **List on generic pins — FORBID.** Usable only via its collection out-pin (→ consumer nodes), the write nodes,
+   and the whole-list clone (#3). Stage2 diagnostic on any other data-pin wiring (closes the O(N)-copy footgun).
+3. **Whole-list clone — ALLOW.** `SetVariable(listA ← listB)` of identical shape = one flat struct assignment
+   (clone/reset). Compiler test asserts a single flat assignment, not a loop.
+4. **Struct-element equality — REQUIRE `IEquatable<T>`** on a `[BlackboardDtoStruct]` element used with
+   Contains/Find (validation diagnostic if missing) — avoids `EqualityComparer<T>.Default` boxing/reflection.
+5. **Nested lists — FORBID v1.** A first-class fixed-list element (list-of-lists) is rejected (size × tier footgun
+   + layout/graph-UX complexity). An **opaque** blittable struct element that internally has a raw `fixed T[N]`
+   buffer stays allowed (it's element bytes, not a second-level surfaced list).
+6. **Debugger visibility — IN SCOPE (LV-5).** Render a list var as `List<T>[N] Count=k {…first min(Count,N)…}`.
