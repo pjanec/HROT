@@ -397,8 +397,12 @@ public sealed class BlueprintCommandSinkTests
     }
 
     [Fact]
-    public void CommandSink_AddLink_GetComponentScalarFieldIntoCollectionPin_DoesNotBake_NoMatchingDecl()
+    public void CommandSink_AddLink_GetComponentScalarFieldIntoCollectionPin_IsRejected_ArrayArity()
     {
+        // A GetComponent SCALAR field (Int32, not an array) wired into a "Collection" (array) data-IN
+        // pin is now REJECTED by the array-arity rule in BlueprintLinkValidator (a scalar cannot feed
+        // a collection pin) — the wire never lands, so the consumer can't be left wired-but-unbaked
+        // (which previously produced a hard BP2066 at compile). CA-07c robustness.
         var (asset, graph) = MakeAssetWithGraph();
 
         // A GetComponent node with only a SCALAR field (no collection decl at all).
@@ -424,7 +428,9 @@ public sealed class BlueprintCommandSinkTests
         var result = sink.Apply(new GraphCommand.AddLink(
             new LinkId(Guid.NewGuid()), new PinId(healthOut.Id), new PinId(collectionIn.Id)));
 
-        Assert.True(result.Success);
+        // Rejected (scalar → array), no link added, node left untouched.
+        Assert.False(result.Success);
+        Assert.Empty(graph.Links);
         var untouched = (ComponentItemCountNode)graph.Nodes.Single(n => n.Id == itemCount.Id);
         Assert.Equal("", untouched.ComponentTypeFqn);
     }
