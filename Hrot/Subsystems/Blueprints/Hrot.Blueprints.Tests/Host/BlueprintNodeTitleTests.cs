@@ -279,4 +279,35 @@ public sealed class BlueprintNodeTitleTests
         };
         Assert.Equal("Get Parameter", Title(new GetParameterNode { ParameterId = pid.ToString() }, asset));
     }
+
+    [Fact]
+    public void GetSetVariable_ResolvesWorkingStateSlotName_NotRawGuid()
+    {
+        // Get/SetVariable can target a WorkingState slot (the cross-entity / shared-state demos
+        // declare their mirrored slots there, not in Variables). The title must resolve the NAME,
+        // not fall back to the raw GUID (regression: SharedStateCrossEntityDemo showed "Get [guid]").
+        var vid = System.Guid.NewGuid();
+        var asset = new BlueprintAsset
+        {
+            AssetId = System.Guid.NewGuid(),
+            Name = "T",
+            WorkingState = new() { new VariableDecl { Id = vid, Name = "Commander" } },
+        };
+        Assert.Equal("Get [Commander]", Title(new GetVariableNode { VariableId = vid.ToString() }, asset));
+        Assert.Equal("Set [Commander]", Title(new SetVariableNode { VariableId = vid.ToString() }, asset));
+    }
+
+    [Fact]
+    public void GetVariable_ResolvesVariablesListName()
+    {
+        // The existing (Variables list) path still resolves.
+        var vid = System.Guid.NewGuid();
+        var asset = new BlueprintAsset
+        {
+            AssetId = System.Guid.NewGuid(),
+            Name = "T",
+            Variables = new() { new VariableDecl { Id = vid, Name = "Count" } },
+        };
+        Assert.Equal("Get [Count]", Title(new GetVariableNode { VariableId = vid.ToString() }, asset));
+    }
 }

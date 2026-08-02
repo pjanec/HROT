@@ -345,7 +345,11 @@ internal sealed class BlueprintNodeModel : INodeModel
 
         if (Guid.TryParse(idStr, out var guid))
         {
-            var decl = asset.Variables.FirstOrDefault(v => v.Id == guid);
+            // Get/SetVariable can target either a blueprint Variable OR a WorkingState slot — both
+            // are VariableDecl lists (the cross-entity / shared-state demos declare their mirrored
+            // slots in WorkingState). Without the WorkingState fallback the title showed the raw GUID.
+            var decl = asset.Variables.FirstOrDefault(v => v.Id == guid)
+                    ?? asset.WorkingState.FirstOrDefault(v => v.Id == guid);
             if (decl != null && !string.IsNullOrEmpty(decl.Name))
                 return decl.Name;
         }
