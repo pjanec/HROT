@@ -2502,44 +2502,47 @@ namespace Hrot.Editor
                     ResolveDocumentForCurrentPerspective(windowManager, _aiDocumentManager));
             // ───────────────────────────────────────────────────────────────────────────────────
 
-            // PU-603: flush-on-close — save dirty path'd docs before close.
-            // Manager fires BeforeDocumentClosed before removing the doc from its list.
-            // _aiDocumentManager is guaranteed non-null here (assigned 3 lines above).
-            _aiDocumentManager.BeforeDocumentClosed += doc =>
+            // SAVE-ON-CLOSE FIX: saving is DECOUPLED from closing. The former
+            // BeforeDocumentClosed "flush-on-close" (PU-603) silently wrote ANY dirty doc to
+            // disk on EVERY close path (tab X, whole-editor close, app-exit) with no
+            // confirmation — and for blueprints the projection-only save corrupted
+            // hand-authored explicit-GUID assets. It is removed. This delegate is now invoked
+            // ONLY by the unsaved-changes prompt's "Save" button (AiGraphCanvasWindow.
+            // ResolveCloseSave); every other close path discards. Kind dispatch reuses the
+            // per-kind save delegates wired above for Save-All (§PU-602).
+            // FOLLOW-UP: app-exit currently discards dirty docs silently; a real app-exit
+            // "you have unsaved changes" prompt is tracked separately (user-requested).
+            Action<Hrot.Editor.AiShared.Documents.AiDocument> saveDocumentOnClose = doc =>
             {
-                    if (!doc.IsDirty) return;
-                    var asset = doc.Asset;
-                    var path  = asset.SourceFilePath;
-                    if (string.IsNullOrEmpty(path)) return; // no path → skip silently
+                var asset = doc.Asset;
+                var path  = asset.SourceFilePath;
+                if (string.IsNullOrEmpty(path)) return; // no path → nothing to save
 
-                    try
+                try
+                {
+                    switch (doc.Kind)
                     {
-                        switch (doc.Kind)
-                        {
-                            case Hrot.Editor.AiShared.AssetKind.Blueprint:
-                                // saveBlueprintDelegate resolves BlueprintAsset via ViewState.
-                                saveBlueprintDelegate(asset, path);
-                                doc.MarkClean();
-                                break;
-                            case Hrot.Editor.AiShared.AssetKind.BTree:
-                                saveBTreeDelegate(asset, path);
-                                doc.MarkClean();
-                                break;
-                            case Hrot.Editor.AiShared.AssetKind.Hsm:
-                                saveHsmDelegate(asset, path);
-                                doc.MarkClean();
-                                break;
-                            default:
-                                // Other kinds (Scenario, Blackboard, Utility) are not saved via
-                                // the document-save path — skip silently.
-                                break;
-                        }
+                        case Hrot.Editor.AiShared.AssetKind.Blueprint:
+                            // saveBlueprintDelegate resolves BlueprintAsset via ViewState.
+                            saveBlueprintDelegate(asset, path);
+                            break;
+                        case Hrot.Editor.AiShared.AssetKind.BTree:
+                            saveBTreeDelegate(asset, path);
+                            break;
+                        case Hrot.Editor.AiShared.AssetKind.Hsm:
+                            saveHsmDelegate(asset, path);
+                            break;
+                        default:
+                            // Other kinds (Scenario, Blackboard, Utility) are not saved via
+                            // the document-save path — skip silently.
+                            break;
                     }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"[PU-603] Failed to save '{asset.Name}' on close: {ex.Message}");
-                    }
-                };
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[SAVE-ON-CLOSE] Failed to save '{asset.Name}': {ex.Message}");
+                }
+            };
             // ─────────────────────────────────────────────────────────────────────────────────────
 
             // ── AIE-031: Register BTree/HSM runtime inspector panes ─────────────────────────────
@@ -2755,8 +2758,9 @@ namespace Hrot.Editor
                 renderer:   new Hrot.Editor.AiShared.Windows.DelegatingCanvasRenderSeam(
                     renderDelegate:    view => btreeCanvasRenderer.Render(view, null),
                     renderWithFindBar: (view, fb, cmds) => btreeCanvasRenderer.Render(view, fb, cmds)),
-                pickers:    adapterBundle.PickerRegistry,
-                input:      adapterBundle.InputSource);
+                pickers:      adapterBundle.PickerRegistry,
+                input:        adapterBundle.InputSource,
+                saveDocument: saveDocumentOnClose);
 
             var hsmCanvasWindow = new Hrot.Editor.AiShared.Windows.AiGraphCanvasWindow(
                 assetKind:  "HSM",
@@ -2764,8 +2768,9 @@ namespace Hrot.Editor
                 renderer:   new Hrot.Editor.AiShared.Windows.DelegatingCanvasRenderSeam(
                     renderDelegate:    view => hsmCanvasRenderer.Render(view, null),
                     renderWithFindBar: (view, fb, cmds) => hsmCanvasRenderer.Render(view, fb, cmds)),
-                pickers:    adapterBundle.PickerRegistry,
-                input:      adapterBundle.InputSource);
+                pickers:      adapterBundle.PickerRegistry,
+                input:        adapterBundle.InputSource,
+                saveDocument: saveDocumentOnClose);
 
             // AIE-046: Blueprint canvas window.
             var blueprintCanvasWindow = new Hrot.Editor.AiShared.Windows.AiGraphCanvasWindow(
@@ -2774,8 +2779,9 @@ namespace Hrot.Editor
                 renderer:   new Hrot.Editor.AiShared.Windows.DelegatingCanvasRenderSeam(
                     renderDelegate:    view => blueprintCanvasRenderer.Render(view, null),
                     renderWithFindBar: (view, fb, cmds) => blueprintCanvasRenderer.Render(view, fb, cmds)),
-                pickers:    adapterBundle.PickerRegistry,
-                input:      adapterBundle.InputSource);
+                pickers:      adapterBundle.PickerRegistry,
+                input:        adapterBundle.InputSource,
+                saveDocument: saveDocumentOnClose);
 
             // Register the canvas windows into their respective perspectives via the extension seam.
             _btreeRegistrar!.RegisterExtraWindow(windowManager, btreeCanvasWindow);

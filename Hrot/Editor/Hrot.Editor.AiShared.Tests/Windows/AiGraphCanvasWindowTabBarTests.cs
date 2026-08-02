@@ -251,12 +251,15 @@ public sealed class AiGraphCanvasWindowTabBarTests
     }
 
     [Fact]
-    public void ResolveCloseDiscard_ClosesWithoutSaving()
+    public void ResolveCloseDiscard_ClosesWithoutInvokingSaveDelegate()
     {
-        var dm  = MakeDocManager();
-        var win = new AiGraphCanvasWindow("BTree", dm, new RecordingRenderSeam());
-        bool flushedDirty = false;
-        dm.BeforeDocumentClosed += d => { if (d.IsDirty) flushedDirty = true; };
+        // SAVE-ON-CLOSE FIX: saving is decoupled from closing — the ONLY persistence path is
+        // the injected saveDocument delegate, invoked exclusively by ResolveCloseSave. "Don't
+        // Save" must never invoke it (edits are discarded).
+        var dm    = MakeDocManager();
+        var saved = new List<AiDocument>();
+        var win   = new AiGraphCanvasWindow("BTree", dm, new RecordingRenderSeam(),
+            saveDocument: saved.Add);
         var a = dm.Open(new FakeAsset(AssetKind.BTree, "A"));
         a.MarkDirty();
         win.SimulateTabClose(a);
@@ -264,26 +267,48 @@ public sealed class AiGraphCanvasWindowTabBarTests
         win.ResolveCloseDiscard();
 
         Assert.DoesNotContain(a, dm.OpenDocuments); // closed
-        Assert.False(a.IsDirty);                    // marked clean → upstream flush skips it
-        Assert.False(flushedDirty);                 // not persisted
+        Assert.False(a.IsDirty);                    // marked clean, but never saved
+        Assert.Empty(saved);                        // save delegate NOT invoked → not persisted
         Assert.Null(win.PendingCloseDoc);
     }
 
     [Fact]
-    public void ResolveCloseSave_ClosesWhileDirtySoUpstreamFlushPersists()
+    public void ResolveCloseSave_InvokesSaveDelegateOnce_MarksClean_ThenCloses()
     {
-        var dm  = MakeDocManager();
-        var win = new AiGraphCanvasWindow("BTree", dm, new RecordingRenderSeam());
-        bool flushedDirty = false;
-        dm.BeforeDocumentClosed += d => { if (d.IsDirty) flushedDirty = true; };
+        // SAVE-ON-CLOSE FIX: "Save" explicitly invokes the injected saveDocument delegate
+        // (the sole write path), marks the doc clean, then closes it.
+        var dm    = MakeDocManager();
+        var saved = new List<AiDocument>();
+        var win   = new AiGraphCanvasWindow("BTree", dm, new RecordingRenderSeam(),
+            saveDocument: saved.Add);
         var a = dm.Open(new FakeAsset(AssetKind.BTree, "A"));
         a.MarkDirty();
         win.SimulateTabClose(a);
 
         win.ResolveCloseSave();
 
+        Assert.Single(saved);                       // save delegate invoked exactly once…
+        Assert.Same(a, saved[0]);                   // …for the pending-close document
         Assert.DoesNotContain(a, dm.OpenDocuments); // closed
-        Assert.True(flushedDirty);                  // upstream flush saw it dirty → saved
+        Assert.False(a.IsDirty);                    // marked clean after saving
+        Assert.Null(win.PendingCloseDoc);
+    }
+
+    [Fact]
+    public void ResolveCloseSave_WithNoSaveDelegate_StillClosesAndMarksClean()
+    {
+        // Headless / no-delegate wiring (saveDocument == null): "Save" degrades to closing
+        // without persisting rather than throwing.
+        var dm  = MakeDocManager();
+        var win = new AiGraphCanvasWindow("BTree", dm, new RecordingRenderSeam());
+        var a   = dm.Open(new FakeAsset(AssetKind.BTree, "A"));
+        a.MarkDirty();
+        win.SimulateTabClose(a);
+
+        win.ResolveCloseSave();
+
+        Assert.DoesNotContain(a, dm.OpenDocuments);
+        Assert.False(a.IsDirty);
         Assert.Null(win.PendingCloseDoc);
     }
 

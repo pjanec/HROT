@@ -133,6 +133,16 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
     // registered IEditorCommands bindings). Null in legacy headless tests.
     private readonly IInputSource? _input;
 
+    // SAVE-ON-CLOSE FIX: the ONLY path that persists a document. Invoked exclusively by the
+    // unsaved-changes prompt's "Save" button (ResolveCloseSave). Injected by the composition
+    // root (dispatches by doc.Kind to the per-kind save delegates). Previously the upstream
+    // AiDocumentManager.BeforeDocumentClosed handler silently flushed ANY dirty doc on close,
+    // which meant every close path (app-exit, window-close) wrote to disk with no confirmation
+    // and — for blueprints — corrupted hand-authored assets via the projection-only save. That
+    // flush is removed; saving is now decoupled from closing. Null in headless tests that don't
+    // exercise the Save button.
+    private readonly Action<AiDocument>? _saveDocument;
+
     // BCP-BATCH-02-FIX Task 2: stable base title (the "{assetKind} Canvas" empty-state
     // label). The dynamic title is rebuilt from this + the active document name.
     private readonly string _baseTitle;
@@ -195,13 +205,20 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
     ///   Optional stable ImGui id suffix. When <c>null</c> a default of
     ///   <c>"ai_canvas_{assetKind.ToLowerInvariant()}"</c> is used.
     /// </param>
+    /// <param name="saveDocument">
+    ///   Optional save delegate invoked ONLY by the unsaved-changes prompt's "Save" button
+    ///   (<see cref="ResolveCloseSave"/>). The composition root supplies a kind-dispatching
+    ///   implementation; when <c>null</c> (headless tests) "Save" closes without persisting.
+    ///   This is the sole persistence path on close — there is no silent flush.
+    /// </param>
     public AiGraphCanvasWindow(
-        string            assetKind,
-        AiDocumentManager docManager,
-        ICanvasRenderSeam renderer,
-        IPickerRegistry?  pickers    = null,
-        IInputSource?     input      = null,
-        string?           idOverride = null)
+        string             assetKind,
+        AiDocumentManager  docManager,
+        ICanvasRenderSeam  renderer,
+        IPickerRegistry?   pickers      = null,
+        IInputSource?      input        = null,
+        string?            idOverride   = null,
+        Action<AiDocument>? saveDocument = null)
         : base(
             id:                 idOverride ?? $"ai_canvas_{assetKind.ToLowerInvariant()}",
             title:              $"{assetKind} Canvas",
@@ -211,10 +228,11 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         _assetKind  = assetKind  ?? throw new ArgumentNullException(nameof(assetKind));
         _docManager = docManager ?? throw new ArgumentNullException(nameof(docManager));
         _renderer   = renderer   ?? throw new ArgumentNullException(nameof(renderer));
-        _pickers    = pickers;
-        _hotkeys    = input != null ? new EditorHotkeyDispatcher(input) : null;
-        _input      = input;
-        _baseTitle  = $"{assetKind} Canvas";
+        _pickers      = pickers;
+        _hotkeys      = input != null ? new EditorHotkeyDispatcher(input) : null;
+        _input        = input;
+        _saveDocument = saveDocument;
+        _baseTitle    = $"{assetKind} Canvas";
 
         IsOpen = true;
     }
@@ -463,13 +481,14 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
 
     // ── MULTI-TAB: unsaved-changes prompt on tab close ────────────────────────
     //
-    // Historically a tab's X called AiDocumentManager.Close directly, and the upstream
-    // BeforeDocumentClosed handler silently flushed dirty docs to disk — closing a tab
-    // therefore saved edits with no confirmation (dangerous for exploratory edits). Now
-    // the close routes through RequestTabClose: a clean doc closes immediately; a dirty
-    // one defers and raises a modal. The three outcomes reuse the existing flush:
-    //   Save       → close while still dirty  → BeforeDocumentClosed flushes to disk.
-    //   Don't Save → MarkClean() then close   → BeforeDocumentClosed skips (edits dropped).
+    // Historically a tab's X called AiDocumentManager.Close directly, and an upstream
+    // BeforeDocumentClosed handler silently flushed dirty docs to disk — so EVERY close
+    // path (tab X, whole-editor close, app-exit) saved edits with no confirmation, and for
+    // blueprints the projection-only save corrupted hand-authored assets. That flush is now
+    // removed; saving is decoupled from closing. Close routes through RequestTabClose: a
+    // clean doc closes immediately; a dirty one defers and raises a modal. The three outcomes:
+    //   Save       → invoke the injected _saveDocument, MarkClean(), then close (the ONLY write).
+    //   Don't Save → MarkClean() then close   → edits discarded, nothing written.
     //   Cancel     → nothing (tab stays open).
 
     private AiDocument? _pendingCloseDoc;
@@ -490,12 +509,20 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         _openClosePopup  = true;
     }
 
-    /// <summary>Confirm "Save": close while dirty so the upstream flush persists it. (Test seam.)</summary>
+    /// <summary>
+    /// Confirm "Save": explicitly persist the document via the injected save delegate, mark it
+    /// clean, then close. This is the ONLY close path that writes to disk. (Test seam.)
+    /// </summary>
     public void ResolveCloseSave()
     {
         var doc = _pendingCloseDoc;
         _pendingCloseDoc = null;
-        if (doc != null) _docManager.Close(doc);
+        if (doc != null)
+        {
+            _saveDocument?.Invoke(doc);
+            doc.MarkClean();
+            _docManager.Close(doc);
+        }
     }
 
     /// <summary>Confirm "Don't Save": discard unsaved edits, then close. (Test seam.)</summary>
