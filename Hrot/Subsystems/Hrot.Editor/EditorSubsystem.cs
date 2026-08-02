@@ -3561,11 +3561,18 @@ namespace Hrot.Editor
         /// <inheritdoc/>
         public void Shutdown()
         {
-            // ── PU-603: flush pending regeneration + save all dirty open docs ──────────────────────
-            // FlushNow() drains any debounced .cs regeneration before we tear down.
-            // SaveAllAiDocumentsCommand skips no-path docs (warns via Console); never throws.
+            // ── SAVE-ON-CLOSE FIX: app-exit does NOT save open documents ───────────────────────────
+            // Saving is decoupled from closing (see AiGraphCanvasWindow.ResolveCloseSave): only an
+            // explicit prompt-"Save" persists a doc; every other close path — including app-exit —
+            // DISCARDS unsaved edits. The former `_saveAllCallback?.Invoke()` here silently
+            // force-saved every dirty doc on exit, which (for blueprints) wrote a projection-only,
+            // pin-stripped file over the source — persisting exploratory/invalid edits the user never
+            // chose to keep. Removed.
+            // FlushNow() is kept: it only drains the debounced BTree/HSM regen (blueprints are
+            // in-memory-only there and never written), consistent with their auto-save-on-edit design.
+            // FOLLOW-UP (user-requested): a real app-exit "you have unsaved changes" prompt — until
+            // then, app-exit silently discards.
             _regenerationScheduler?.FlushNow();
-            _saveAllCallback?.Invoke();
             // ─────────────────────────────────────────────────────────────────────────────────────
 
             // ── CF-8: persist debug session before clearing ─────────────────────────────────────
