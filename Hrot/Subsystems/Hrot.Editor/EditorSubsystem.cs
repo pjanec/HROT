@@ -162,7 +162,7 @@ namespace Hrot.Editor
     /// </list>
     /// </para>
     /// </summary>
-    public sealed class EditorSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable
+    public sealed class EditorSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable, Fdp.Toolkit.Runner.IAppExitGuard
     {
         private const int EditorNodeId = 0;
 
@@ -364,6 +364,12 @@ namespace Hrot.Editor
         // FlushNow()s the regeneration scheduler then calls SaveAllAiDocumentsCommand.Execute.
         private Action? _saveAllCallback;
         private string _saveAllStatus = string.Empty;
+
+        // App-exit "unsaved changes" prompt: state machine (headless-testable) + one-shot popup latch.
+        // When the window [X] is clicked with dirty documents open, IAppExitGuard.OnExitRequested opens
+        // the modal instead of exiting; the loop keeps running until the user resolves it.
+        private Hrot.Editor.AiShared.Documents.AppExitPromptController? _exitPrompt;
+        private bool _exitPopupOpened;
 
         // BATCH-06: perspective-level shell hotkey dispatcher (Ctrl+S/Ctrl+Shift+S fix, §20).
         private ImGuiInputSource? _shellInputSource;
@@ -1662,9 +1668,78 @@ namespace Hrot.Editor
         /// the Window Manager.  This method renders the map right-click context menu popup
         /// and the entity rename modal.
         /// </remarks>
+        // ── IAppExitGuard: app-exit "unsaved changes" prompt ──────────────────────────────────
+
+        /// <inheritdoc/>
+        public Fdp.Toolkit.Runner.ExitDisposition OnExitRequested()
+        {
+            if (_exitPrompt == null) return Fdp.Toolkit.Runner.ExitDisposition.CanExit;
+            return _exitPrompt.RequestExit()
+                ? Fdp.Toolkit.Runner.ExitDisposition.CanExit
+                : Fdp.Toolkit.Runner.ExitDisposition.Deferred;
+        }
+
+        /// <inheritdoc/>
+        public bool ExitApproved => _exitPrompt?.ExitApproved ?? false;
+
+        /// <summary>
+        /// Renders the app-exit unsaved-changes modal while a close is pending. ImGui-only; the button
+        /// actions delegate to the headless-testable <see cref="AiShared.Documents.AppExitPromptController"/>.
+        /// </summary>
+        private void DrawExitPromptModal()
+        {
+            if (_exitPrompt == null || !_exitPrompt.IsPrompting) return;
+
+            const string popupId = "Unsaved Changes###ai_app_exit_confirm";
+            if (!_exitPopupOpened)
+            {
+                ImGuiNET.ImGui.OpenPopup(popupId);
+                _exitPopupOpened = true;
+            }
+
+            var center = ImGuiNET.ImGui.GetMainViewport().GetCenter();
+            ImGuiNET.ImGui.SetNextWindowPos(center, ImGuiNET.ImGuiCond.Appearing, new System.Numerics.Vector2(0.5f, 0.5f));
+
+            bool stayOpen = true;
+            if (ImGuiNET.ImGui.BeginPopupModal(popupId, ref stayOpen,
+                    ImGuiNET.ImGuiWindowFlags.AlwaysAutoResize | ImGuiNET.ImGuiWindowFlags.NoSavedSettings))
+            {
+                var dirty = _exitPrompt.DirtyDocuments;
+                ImGuiNET.ImGui.TextUnformatted(
+                    $"You have {dirty.Count} document{(dirty.Count == 1 ? "" : "s")} with unsaved changes:");
+                ImGuiNET.ImGui.Spacing();
+                foreach (var d in dirty)
+                    ImGuiNET.ImGui.BulletText($"{d.Asset.Name}  ({d.Kind})");
+                ImGuiNET.ImGui.Spacing();
+                ImGuiNET.ImGui.TextUnformatted("Save them before exiting?");
+                ImGuiNET.ImGui.Spacing();
+
+                if (ImGuiNET.ImGui.Button("Save All & Exit"))
+                { ImGuiNET.ImGui.CloseCurrentPopup(); _exitPopupOpened = false; _exitPrompt.ResolveSaveAndExit(); }
+                ImGuiNET.ImGui.SameLine();
+                if (ImGuiNET.ImGui.Button("Discard & Exit"))
+                { ImGuiNET.ImGui.CloseCurrentPopup(); _exitPopupOpened = false; _exitPrompt.ResolveDiscardAndExit(); }
+                ImGuiNET.ImGui.SameLine();
+                if (ImGuiNET.ImGui.Button("Cancel"))
+                { ImGuiNET.ImGui.CloseCurrentPopup(); _exitPopupOpened = false; _exitPrompt.ResolveCancel(); }
+
+                ImGuiNET.ImGui.EndPopup();
+            }
+            else if (!stayOpen)
+            {
+                // Dismissed via the popup's [X] / Esc — treat as Cancel (stay open, nothing saved).
+                _exitPopupOpened = false;
+                _exitPrompt.ResolveCancel();
+            }
+        }
+
         public void DrawUI()
         {
             if (_headless) return;
+
+            // App-exit unsaved-changes modal — rendered on top when a window-close was deferred.
+            if (ImGuiNET.ImGui.GetCurrentContext() != System.IntPtr.Zero)
+                DrawExitPromptModal();
 
             // ── BATCH-06: perspective-level shell hotkey dispatch (Ctrl+S fix, §20) ───────────
             // Pump the shell command hotkeys once per frame so Ctrl+S/Ctrl+Shift+S fire
@@ -2345,6 +2420,11 @@ namespace Hrot.Editor
                     saveHsmDelegate,
                     msg => _saveAllStatus = msg);
             };
+
+            // App-exit unsaved-changes prompt: reuses the same Save-All action for its
+            // "Save All & Exit" choice. Its dirty-doc list comes from the document manager.
+            _exitPrompt = new Hrot.Editor.AiShared.Documents.AppExitPromptController(
+                _aiDocumentManager, () => _saveAllCallback?.Invoke());
 
             // ── BATCH-20 (DEC-9): per-kind service registry for Save-As ──────────────────────────
             // Create the INewAssetService dictionary so ShellSaveCommands.requestSaveAs
