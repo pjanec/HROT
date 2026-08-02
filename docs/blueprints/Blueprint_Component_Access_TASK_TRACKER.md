@@ -307,3 +307,17 @@ accessor pairs**, NOT auto-reflected off the raw buffer:
   (`BlueprintPinDefaultZeroTests.PinModel_WithRegistry_ArrayInputPin_DefaultIsNull`). Editor builds
   clean; 17 pin-model + 293 pin/typesystem/component tests green. **Awaiting user re-check of the
   ItemGet node layout.**
+- **2026-08-02, CA-07c follow-up #2 (visual feedback), Opus:** user's precise repro — dragging FROM
+  GetItem's "Collection" input pin and dropping on GetComponent's "Values" output pin connected the
+  link but the Collection pin "moved to the right" (worked fine dragging the other direction). Root
+  cause (PRE-EXISTING, GENERAL — in the shared NodeEdit lib): `CanvasInput`'s pending-wire drop-on-PIN
+  path called `cb.AddLink(SourcePin, CandidateTarget)` WITHOUT normalizing by pin direction, so
+  dragging from an input pin stored a backwards link (From=input, To=output); the slow-path pin-GUID
+  binding (fresh node, empty Pins) then mis-assigned that outgoing link's FromPinId to an OUTPUT pin
+  → the input pin rendered on the right. The drop-on-NODE path already normalized; the drop-on-PIN
+  path did not. Fix: normalize orientation to output(From)->input(To) in the drop-on-pin path
+  (`NodeEditor.UI/Canvas/CanvasInput.cs`), mirroring the drop-on-node path. Also makes the CA-07c
+  wire-bake fire regardless of drag direction (bake keys on toPin=="Collection"). Affects ALL node
+  editors (Blueprint/BTree/HSM), fixing a latent drag-from-input bug on any fresh node. Gate:
+  NodeEditor.UI.Tests 90/90; Blueprint wire/command-sink/component 237/237. **Awaiting user re-check.**
+  (The earlier array-pin inline-editor fix `98463ac9` stands — a real but DIFFERENT bug.)

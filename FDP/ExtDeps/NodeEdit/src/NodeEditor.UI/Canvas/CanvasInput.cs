@@ -1093,7 +1093,17 @@ internal sealed class CanvasInput
 
             if (pw.CandidateTarget.HasValue && pw.CandidateValid)
             {
-                var (fwd, inv) = cb.AddLink(pw.SourcePin, pw.CandidateTarget.Value);
+                // Normalize link orientation by pin DIRECTION, not drag direction: a link is always
+                // stored output(From) -> input(To). Dragging FROM an input pin and dropping on an
+                // output pin (the reverse of the common gesture) would otherwise store a backwards
+                // link, which the slow-path pin-GUID binding (fresh node, empty Pins) mis-assigns to
+                // the output side — visually the input pin "jumps" to the right. Mirrors the
+                // drop-on-node path below, which already normalizes this way.
+                var srcPin = view.Model.FindPin(pw.SourcePin);
+                bool srcIsOutput = srcPin?.Direction == PinDirection.Output;
+                var fromId = srcIsOutput ? pw.SourcePin : pw.CandidateTarget.Value;
+                var toId   = srcIsOutput ? pw.CandidateTarget.Value : pw.SourcePin;
+                var (fwd, inv) = cb.AddLink(fromId, toId);
                 view.Execute(fwd, inv, "Connect Pins");
                 view.Interaction.ResetToIdle();
             }
