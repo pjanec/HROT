@@ -4,6 +4,7 @@ using Hrot.Blueprints.Core;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Editor.AiShared.Documents;
 using Hrot.Editor.AiShared.Windows;
+using NodeEditor.Primitives;
 
 namespace Hrot.Blueprints.Editor;
 
@@ -69,6 +70,44 @@ public sealed class SaveActiveBlueprintCommand
         if (asset is null) throw new ArgumentNullException(nameof(asset));
         if (string.IsNullOrWhiteSpace(path)) throw new ArgumentException("Path must be non-empty.", nameof(path));
 
+        // ── Anti-drift canonicalization (DEBT-BCP-005 deep fix) ──────────────────────────────
+        // Because saves are projection-only ("Pins": []), pins are reconstructed on reload and
+        // links reference pins by GUID only. Reconstruction (editor Rebuild + compiler Stage0, in
+        // parity) binds a link BY NAME when its GUID equals the pin's deterministic
+        // Deterministic("pin:{node}:{name}:{dir}") GUID, else falls back to ORDER-FRAGILE positional
+        // binding. Editor-created pins are born with RANDOM GUIDs (IdGenerator.NewPinId), so their
+        // links hit the positional path — and a non-canonical link order silently swaps pins that
+        // share a direction bucket (e.g. Branch's exec-In vs data-In "Condition"), corrupting the
+        // asset on the next round-trip.
+        //
+        // Fix: before stripping, rewrite every link endpoint whose pin is present in memory to that
+        // pin's deterministic GUID. The saved file then binds entirely BY NAME on reload — the
+        // positional swap becomes impossible. Serialize-only: link edits (and the pin swap) are
+        // reverted in the finally, so the live asset is never mutated. Nodes with no in-memory pins
+        // (already projection-only, loaded) are left untouched — their links are either already
+        // deterministic or migrated by the one-time repo-wide pass.
+        // Uses IdGenerator.Deterministic (≡ compiler DeterministicIds.PinId) for cross-tool parity.
+        var pinToDeterministic = new Dictionary<Guid, Guid>();
+        foreach (var graph in asset.Graphs)
+            foreach (var node in graph.Nodes)
+                foreach (var pin in node.Pins)
+                    pinToDeterministic[pin.Id] =
+                        IdGenerator.Deterministic($"pin:{node.Id:N}:{pin.Name}:{pin.Direction}");
+
+        var linkEdits = new List<(Link link, Guid from, Guid to)>();
+        foreach (var graph in asset.Graphs)
+            foreach (var link in graph.Links)
+            {
+                var newFrom = pinToDeterministic.TryGetValue(link.FromPinId, out var f) ? f : link.FromPinId;
+                var newTo   = pinToDeterministic.TryGetValue(link.ToPinId,   out var t) ? t : link.ToPinId;
+                if (newFrom != link.FromPinId || newTo != link.ToPinId)
+                {
+                    linkEdits.Add((link, link.FromPinId, link.ToPinId));
+                    link.FromPinId = newFrom;
+                    link.ToPinId   = newTo;
+                }
+            }
+
         // Collect all nodes whose Pins list is non-empty; remember the original references.
         var swapped = new List<(Node node, List<Pin> original)>();
         foreach (var graph in asset.Graphs)
@@ -91,9 +130,14 @@ public sealed class SaveActiveBlueprintCommand
         }
         finally
         {
-            // Restore originals — live asset pins are intact again.
+            // Restore originals — live asset pins and link GUIDs are intact again.
             foreach (var (node, original) in swapped)
                 node.Pins = original;
+            foreach (var (link, from, to) in linkEdits)
+            {
+                link.FromPinId = from;
+                link.ToPinId   = to;
+            }
         }
 
         // Pretty-print with numeric arrays inlined (same post-process as ScenarioFileService).
