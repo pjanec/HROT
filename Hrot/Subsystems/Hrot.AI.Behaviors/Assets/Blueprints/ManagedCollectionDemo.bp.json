@@ -1,0 +1,223 @@
+{
+  "$meta": { "docType": "Hrot.Blueprints", "schemaVersion": 1 },
+  "Header": {},
+  "AssetId": "c5100008-0000-0000-0000-000000000001",
+  "Name": "ManagedCollectionDemo",
+  "Dispatch": "Instance",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": null,
+  "Parameters": [],
+  "ParameterOrder": null,
+  "WorkingState": [],
+  "WorkingStateOrder": null,
+  "Variables": [
+    { "Id": "c5100008-0000-0000-0000-0000000000a1", "Name": "LoopLastItem",   "Type": { "TypeId": "System.Int32",   "IsArray": false, "GenericArgs": [] }, "DefaultValueJson": "0",     "IsEditable": false, "IsExposedOnSpawn": false, "Category": null, "Tooltip": null, "Comment": null },
+    { "Id": "c5100008-0000-0000-0000-0000000000a2", "Name": "ElementOut",     "Type": { "TypeId": "System.Int32",   "IsArray": false, "GenericArgs": [] }, "DefaultValueJson": "0",     "IsEditable": false, "IsExposedOnSpawn": false, "Category": null, "Tooltip": null, "Comment": null },
+    { "Id": "c5100008-0000-0000-0000-0000000000a3", "Name": "CountOut",       "Type": { "TypeId": "System.Int32",   "IsArray": false, "GenericArgs": [] }, "DefaultValueJson": "0",     "IsEditable": false, "IsExposedOnSpawn": false, "Category": null, "Tooltip": null, "Comment": null },
+    { "Id": "c5100008-0000-0000-0000-0000000000a4", "Name": "ContainsResult", "Type": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] }, "DefaultValueJson": "false", "IsEditable": false, "IsExposedOnSpawn": false, "Category": null, "Tooltip": null, "Comment": null },
+    { "Id": "c5100008-0000-0000-0000-0000000000a5", "Name": "FoundIndex",     "Type": { "TypeId": "System.Int32",   "IsArray": false, "GenericArgs": [] }, "DefaultValueJson": "0",     "IsEditable": false, "IsExposedOnSpawn": false, "Category": null, "Tooltip": null, "Comment": null },
+    { "Id": "c5100008-0000-0000-0000-0000000000a6", "Name": "WasFound",       "Type": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] }, "DefaultValueJson": "false", "IsEditable": false, "IsExposedOnSpawn": false, "Category": null, "Tooltip": null, "Comment": null }
+  ],
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "c5100008-0000-0000-0000-0000000000b0",
+      "Name": "Tick",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        { "kind": "EventEntry", "EventTypeId": "", "Id": "c5100008-0000-0000-0000-000000000010",
+          "Pins": [ { "Id": "c5100008-0000-0000-0000-000000000101", "Name": "Out", "Direction": "Out", "IsExec": true, "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } } ],
+          "EditorMetadata": { "X": 40, "Y": 360, "Comment": null } },
+
+        { "kind": "GetComponent",
+          "ComponentTypeFqn": "Hrot.AI.Behaviors.BpManagedCollectionDemo",
+          "IsManaged": true,
+          "Fields": [ { "Name": "MemberIds", "TypeId": "", "IsCollection": true, "ElementTypeId": "System.Int32", "CollectionKind": "ManagedMember", "CollectionFieldName": "MemberIds" } ],
+          "Id": "c5100008-0000-0000-0000-000000000011",
+          "Pins": [
+            { "Id": "c5100008-0000-0000-0000-000000000110", "Name": "Target",    "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "Fdp.Core.Entity", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-000000000111", "Name": "MemberIds", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Int32",   "IsArray": true,  "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-000000000112", "Name": "Found",     "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] } }
+          ],
+          "EditorMetadata": { "X": 40, "Y": 40, "Comment": "MANAGED (class) component. Target left unwired -> reads self via GetManagedComponentRO (null-safe). \"MemberIds\" is the CA-07d-2 managed-collection out-pin -- a plain List<int> field, NO curated accessors. Fanned out into all FIVE consumer nodes below." } },
+
+        { "kind": "ComponentForEach",
+          "ComponentTypeFqn": "Hrot.AI.Behaviors.BpManagedCollectionDemo",
+          "ElementTypeFqn": "System.Int32",
+          "CollectionKind": "ManagedMember",
+          "CollectionFieldName": "MemberIds",
+          "Id": "c5100008-0000-0000-0000-000000000012",
+          "Pins": [
+            { "Id": "c5100008-0000-0000-0000-000000000120", "Name": "In",           "Direction": "In",  "IsExec": true,  "TypeRef": { "TypeId": "",             "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-000000000121", "Name": "Collection",   "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Int32", "IsArray": true,  "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-000000000122", "Name": "Body",         "Direction": "Out", "IsExec": true,  "TypeRef": { "TypeId": "",             "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-000000000123", "Name": "Completed",    "Direction": "Out", "IsExec": true,  "TypeRef": { "TypeId": "",             "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-000000000124", "Name": "CurrentItem",  "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-000000000125", "Name": "CurrentIndex", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-000000000126", "Name": "Count",        "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] } }
+          ],
+          "EditorMetadata": { "X": 460, "Y": 40, "Comment": "Managed loop: emits `for (int i=0; i < (__ml?.Count ?? 0); i++) { var item = __ml![i]; ... }` off the List<int> -- no curated accessor call. CollectionKind/CollectionFieldName authored AS IF the wire-bake hook had already run (dragging MemberIds -> Collection bakes them live)." } },
+
+        { "kind": "SetVariable", "VariableId": "c5100008-0000-0000-0000-0000000000a1", "Id": "c5100008-0000-0000-0000-000000000013",
+          "Pins": [
+            { "Id": "c5100008-0000-0000-0000-000000000130", "Name": "In",    "Direction": "In",  "IsExec": true,  "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-000000000131", "Name": "Out",   "Direction": "Out", "IsExec": true,  "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-000000000132", "Name": "Value", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] } }
+          ],
+          "EditorMetadata": { "X": 860, "Y": 40, "Comment": "Loop body: latent-free -- mirrors CurrentItem into LoopLastItem each iteration (last-written wins)." } },
+
+        { "kind": "ComponentItemGet",
+          "ComponentTypeFqn": "Hrot.AI.Behaviors.BpManagedCollectionDemo",
+          "ElementTypeFqn": "System.Int32",
+          "CollectionKind": "ManagedMember",
+          "CollectionFieldName": "MemberIds",
+          "Id": "c5100008-0000-0000-0000-000000000014",
+          "Pins": [
+            { "Id": "c5100008-0000-0000-0000-000000000140", "Name": "Collection", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Int32", "IsArray": true,  "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-000000000141", "Name": "Index",      "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-000000000142", "Name": "Element",    "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] } }
+          ],
+          "EditorMetadata": { "X": 460, "Y": 280, "Comment": "Managed indexer: Index=Literal(0), so Element reads MemberIds[0] via a null+bounds-guarded `(__ml != null && (uint)i < (uint)__ml.Count) ? __ml[i] : default` -- never throws." } },
+
+        { "kind": "Literal", "TypeId": "System.Int32", "ValueJson": "0", "Id": "c5100008-0000-0000-0000-000000000015",
+          "Pins": [ { "Id": "c5100008-0000-0000-0000-000000000150", "Name": "Value", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] } } ],
+          "EditorMetadata": { "X": 40, "Y": 250, "Comment": null } },
+
+        { "kind": "SetVariable", "VariableId": "c5100008-0000-0000-0000-0000000000a2", "Id": "c5100008-0000-0000-0000-000000000016",
+          "Pins": [
+            { "Id": "c5100008-0000-0000-0000-000000000160", "Name": "In",    "Direction": "In",  "IsExec": true,  "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-000000000161", "Name": "Out",   "Direction": "Out", "IsExec": true,  "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-000000000162", "Name": "Value", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] } }
+          ],
+          "EditorMetadata": { "X": 860, "Y": 280, "Comment": null } },
+
+        { "kind": "ComponentItemCount",
+          "ComponentTypeFqn": "Hrot.AI.Behaviors.BpManagedCollectionDemo",
+          "CollectionKind": "ManagedMember",
+          "CollectionFieldName": "MemberIds",
+          "ElementTypeFqn": "System.Int32",
+          "Id": "c5100008-0000-0000-0000-000000000017",
+          "Pins": [
+            { "Id": "c5100008-0000-0000-0000-000000000170", "Name": "Collection", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Object", "IsArray": true,  "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-000000000171", "Name": "Count",      "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Int32",  "IsArray": false, "GenericArgs": [] } }
+          ],
+          "EditorMetadata": { "X": 460, "Y": 460, "Comment": "Managed count: emits `(__ml?.Count ?? 0)`. \"Collection\" pin stays System.Object (Count never needs the element type at the pin); ElementTypeFqn IS baked here for the managed case (types the compiler's IReadOnlyList<int> local)." } },
+
+        { "kind": "SetVariable", "VariableId": "c5100008-0000-0000-0000-0000000000a3", "Id": "c5100008-0000-0000-0000-000000000018",
+          "Pins": [
+            { "Id": "c5100008-0000-0000-0000-000000000180", "Name": "In",    "Direction": "In",  "IsExec": true,  "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-000000000181", "Name": "Out",   "Direction": "Out", "IsExec": true,  "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-000000000182", "Name": "Value", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] } }
+          ],
+          "EditorMetadata": { "X": 860, "Y": 460, "Comment": null } },
+
+        { "kind": "ComponentContains",
+          "ComponentTypeFqn": "Hrot.AI.Behaviors.BpManagedCollectionDemo",
+          "ElementTypeFqn": "System.Int32",
+          "CollectionKind": "ManagedMember",
+          "CollectionFieldName": "MemberIds",
+          "Id": "c5100008-0000-0000-0000-000000000019",
+          "Pins": [
+            { "Id": "c5100008-0000-0000-0000-000000000190", "Name": "Collection", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Int32",   "IsArray": true,  "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-000000000191", "Name": "Item",       "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Int32",   "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-000000000192", "Name": "Result",     "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] } }
+          ],
+          "EditorMetadata": { "X": 460, "Y": 640, "Comment": "CA-07d-1 search over the managed list: `EqualityComparer<int>.Default.Equals(__ml![i], 42)`, short-circuit on first match -> Result." } },
+
+        { "kind": "Literal", "TypeId": "System.Int32", "ValueJson": "42", "Id": "c5100008-0000-0000-0000-00000000001a",
+          "Pins": [ { "Id": "c5100008-0000-0000-0000-0000000001a0", "Name": "Value", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] } } ],
+          "EditorMetadata": { "X": 40, "Y": 600, "Comment": null } },
+
+        { "kind": "SetVariable", "VariableId": "c5100008-0000-0000-0000-0000000000a4", "Id": "c5100008-0000-0000-0000-00000000001b",
+          "Pins": [
+            { "Id": "c5100008-0000-0000-0000-0000000001b0", "Name": "In",    "Direction": "In",  "IsExec": true,  "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-0000000001b1", "Name": "Out",   "Direction": "Out", "IsExec": true,  "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-0000000001b2", "Name": "Value", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] } }
+          ],
+          "EditorMetadata": { "X": 860, "Y": 640, "Comment": null } },
+
+        { "kind": "ComponentFind",
+          "ComponentTypeFqn": "Hrot.AI.Behaviors.BpManagedCollectionDemo",
+          "ElementTypeFqn": "System.Int32",
+          "CollectionKind": "ManagedMember",
+          "CollectionFieldName": "MemberIds",
+          "Id": "c5100008-0000-0000-0000-00000000001c",
+          "Pins": [
+            { "Id": "c5100008-0000-0000-0000-0000000001c0", "Name": "Collection", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Int32",   "IsArray": true,  "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-0000000001c1", "Name": "Item",       "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Int32",   "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-0000000001c2", "Name": "Index",      "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Int32",   "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-0000000001c3", "Name": "Found",      "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] } }
+          ],
+          "EditorMetadata": { "X": 460, "Y": 820, "Comment": "CA-07d-1 find: same managed search loop, records the first matching index (-1 if absent) + a Found bool. Query = Literal(7)." } },
+
+        { "kind": "Literal", "TypeId": "System.Int32", "ValueJson": "7", "Id": "c5100008-0000-0000-0000-00000000001d",
+          "Pins": [ { "Id": "c5100008-0000-0000-0000-0000000001d0", "Name": "Value", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] } } ],
+          "EditorMetadata": { "X": 40, "Y": 790, "Comment": null } },
+
+        { "kind": "SetVariable", "VariableId": "c5100008-0000-0000-0000-0000000000a5", "Id": "c5100008-0000-0000-0000-00000000001e",
+          "Pins": [
+            { "Id": "c5100008-0000-0000-0000-0000000001e0", "Name": "In",    "Direction": "In",  "IsExec": true,  "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-0000000001e1", "Name": "Out",   "Direction": "Out", "IsExec": true,  "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-0000000001e2", "Name": "Value", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] } }
+          ],
+          "EditorMetadata": { "X": 860, "Y": 820, "Comment": null } },
+
+        { "kind": "SetVariable", "VariableId": "c5100008-0000-0000-0000-0000000000a6", "Id": "c5100008-0000-0000-0000-00000000001f",
+          "Pins": [
+            { "Id": "c5100008-0000-0000-0000-0000000001f0", "Name": "In",    "Direction": "In",  "IsExec": true,  "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-0000000001f1", "Name": "Out",   "Direction": "Out", "IsExec": true,  "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } },
+            { "Id": "c5100008-0000-0000-0000-0000000001f2", "Name": "Value", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] } }
+          ],
+          "EditorMetadata": { "X": 1260, "Y": 820, "Comment": null } },
+
+        { "kind": "Return", "Status": "Success", "Id": "c5100008-0000-0000-0000-000000000020",
+          "Pins": [ { "Id": "c5100008-0000-0000-0000-000000000200", "Name": "In", "Direction": "In", "IsExec": true, "TypeRef": { "TypeId": "", "IsArray": false, "GenericArgs": [] } } ],
+          "EditorMetadata": { "X": 1660, "Y": 360, "Comment": null } }
+      ],
+      "Links": [
+        { "FromNodeId": "c5100008-0000-0000-0000-000000000010", "FromPinId": "c5100008-0000-0000-0000-000000000101", "ToNodeId": "c5100008-0000-0000-0000-000000000012", "ToPinId": "c5100008-0000-0000-0000-000000000120" },
+
+        { "FromNodeId": "c5100008-0000-0000-0000-000000000012", "FromPinId": "c5100008-0000-0000-0000-000000000122", "ToNodeId": "c5100008-0000-0000-0000-000000000013", "ToPinId": "c5100008-0000-0000-0000-000000000130" },
+        { "FromNodeId": "c5100008-0000-0000-0000-000000000012", "FromPinId": "c5100008-0000-0000-0000-000000000124", "ToNodeId": "c5100008-0000-0000-0000-000000000013", "ToPinId": "c5100008-0000-0000-0000-000000000132" },
+        { "FromNodeId": "c5100008-0000-0000-0000-000000000012", "FromPinId": "c5100008-0000-0000-0000-000000000123", "ToNodeId": "c5100008-0000-0000-0000-000000000016", "ToPinId": "c5100008-0000-0000-0000-000000000160" },
+
+        { "FromNodeId": "c5100008-0000-0000-0000-000000000011", "FromPinId": "c5100008-0000-0000-0000-000000000111", "ToNodeId": "c5100008-0000-0000-0000-000000000012", "ToPinId": "c5100008-0000-0000-0000-000000000121" },
+        { "FromNodeId": "c5100008-0000-0000-0000-000000000011", "FromPinId": "c5100008-0000-0000-0000-000000000111", "ToNodeId": "c5100008-0000-0000-0000-000000000014", "ToPinId": "c5100008-0000-0000-0000-000000000140" },
+        { "FromNodeId": "c5100008-0000-0000-0000-000000000011", "FromPinId": "c5100008-0000-0000-0000-000000000111", "ToNodeId": "c5100008-0000-0000-0000-000000000017", "ToPinId": "c5100008-0000-0000-0000-000000000170" },
+        { "FromNodeId": "c5100008-0000-0000-0000-000000000011", "FromPinId": "c5100008-0000-0000-0000-000000000111", "ToNodeId": "c5100008-0000-0000-0000-000000000019", "ToPinId": "c5100008-0000-0000-0000-000000000190" },
+        { "FromNodeId": "c5100008-0000-0000-0000-000000000011", "FromPinId": "c5100008-0000-0000-0000-000000000111", "ToNodeId": "c5100008-0000-0000-0000-00000000001c", "ToPinId": "c5100008-0000-0000-0000-0000000001c0" },
+
+        { "FromNodeId": "c5100008-0000-0000-0000-000000000015", "FromPinId": "c5100008-0000-0000-0000-000000000150", "ToNodeId": "c5100008-0000-0000-0000-000000000014", "ToPinId": "c5100008-0000-0000-0000-000000000141" },
+        { "FromNodeId": "c5100008-0000-0000-0000-000000000014", "FromPinId": "c5100008-0000-0000-0000-000000000142", "ToNodeId": "c5100008-0000-0000-0000-000000000016", "ToPinId": "c5100008-0000-0000-0000-000000000162" },
+
+        { "FromNodeId": "c5100008-0000-0000-0000-000000000016", "FromPinId": "c5100008-0000-0000-0000-000000000161", "ToNodeId": "c5100008-0000-0000-0000-000000000018", "ToPinId": "c5100008-0000-0000-0000-000000000180" },
+        { "FromNodeId": "c5100008-0000-0000-0000-000000000017", "FromPinId": "c5100008-0000-0000-0000-000000000171", "ToNodeId": "c5100008-0000-0000-0000-000000000018", "ToPinId": "c5100008-0000-0000-0000-000000000182" },
+
+        { "FromNodeId": "c5100008-0000-0000-0000-000000000018", "FromPinId": "c5100008-0000-0000-0000-000000000181", "ToNodeId": "c5100008-0000-0000-0000-00000000001b", "ToPinId": "c5100008-0000-0000-0000-0000000001b0" },
+        { "FromNodeId": "c5100008-0000-0000-0000-00000000001a", "FromPinId": "c5100008-0000-0000-0000-0000000001a0", "ToNodeId": "c5100008-0000-0000-0000-000000000019", "ToPinId": "c5100008-0000-0000-0000-000000000191" },
+        { "FromNodeId": "c5100008-0000-0000-0000-000000000019", "FromPinId": "c5100008-0000-0000-0000-000000000192", "ToNodeId": "c5100008-0000-0000-0000-00000000001b", "ToPinId": "c5100008-0000-0000-0000-0000000001b2" },
+
+        { "FromNodeId": "c5100008-0000-0000-0000-00000000001b", "FromPinId": "c5100008-0000-0000-0000-0000000001b1", "ToNodeId": "c5100008-0000-0000-0000-00000000001e", "ToPinId": "c5100008-0000-0000-0000-0000000001e0" },
+        { "FromNodeId": "c5100008-0000-0000-0000-00000000001d", "FromPinId": "c5100008-0000-0000-0000-0000000001d0", "ToNodeId": "c5100008-0000-0000-0000-00000000001c", "ToPinId": "c5100008-0000-0000-0000-0000000001c1" },
+        { "FromNodeId": "c5100008-0000-0000-0000-00000000001c", "FromPinId": "c5100008-0000-0000-0000-0000000001c2", "ToNodeId": "c5100008-0000-0000-0000-00000000001e", "ToPinId": "c5100008-0000-0000-0000-0000000001e2" },
+
+        { "FromNodeId": "c5100008-0000-0000-0000-00000000001e", "FromPinId": "c5100008-0000-0000-0000-0000000001e1", "ToNodeId": "c5100008-0000-0000-0000-00000000001f", "ToPinId": "c5100008-0000-0000-0000-0000000001f0" },
+        { "FromNodeId": "c5100008-0000-0000-0000-00000000001c", "FromPinId": "c5100008-0000-0000-0000-0000000001c3", "ToNodeId": "c5100008-0000-0000-0000-00000000001f", "ToPinId": "c5100008-0000-0000-0000-0000000001f2" },
+
+        { "FromNodeId": "c5100008-0000-0000-0000-00000000001f", "FromPinId": "c5100008-0000-0000-0000-0000000001f1", "ToNodeId": "c5100008-0000-0000-0000-000000000020", "ToPinId": "c5100008-0000-0000-0000-000000000200" }
+      ],
+      "EditorMetadata": { "ViewportX": 0, "ViewportY": 0, "ViewportZoom": 0 }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "CA-07d-2 MANAGED component-collection demo. Instance blueprint. Tick graph: GetComponent<BpManagedCollectionDemo>(self) exposes its \"MemberIds\" List<int> as a managed collection out-pin (CA-07d-2, native member access -- NO curated accessors), fanned out into ALL FIVE consumer nodes -- ComponentForEach (mirrors CurrentItem into LoopLastItem each iteration), ComponentItemGet (Index=0 -> ElementOut), ComponentItemCount (-> CountOut), ComponentContains (query 42 -> ContainsResult), ComponentFind (query 7 -> FoundIndex + WasFound). Every consumer's CollectionKind=ManagedMember + CollectionFieldName=MemberIds are authored exactly as BlueprintCommandSink.TryBakeCollectionConsumer would bake them live when the designer drags the wire. The compiler emits native `__ml?.Count ?? 0` / `__ml![i]` off an IReadOnlyList<int> local instead of curated Count/Item calls. Managed counterpart of ComponentCollectionDemo (curated fixed-buffer collection).",
+    "Category": "Demo",
+    "Recipe": null
+  }
+}
