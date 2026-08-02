@@ -296,3 +296,14 @@ accessor pairs**, NOT auto-reflected off the raw buffer:
   MYSELF: **184/184 serial** + **399/400** broad (Component/Stage4/TypeSystem/FlowForEach/CommandSink/
   Palette/Title), sole red = pre-existing `TypeResolve_UnknownFieldType_EmitsBP1500` (BP1500, ignore-list).
   **CA-07c ✅ — the feature is now wireable in the editor; ready for the user's visual check.**
+- **2026-08-02, CA-07c follow-up (visual feedback), Opus:** user visual check — GetComponent/
+  SetComponent/ComponentForEach look good (picker, titles, diamond array-pin, ForEach title-on-connect
+  all work). Bug on `ComponentItemGet`: its unconnected `Collection` (array) input pin rendered a
+  spurious scalar inline value-box (drawn AFTER pin glyphs → on top), which occluded the `Element`
+  output pin and appeared as a widget on the right/outside. Root cause: `BlueprintPinModel` builds the
+  canvas `TypeKey` from the element TypeId only (drops `IsArray`), so `GetDefaultEditor` handed an
+  array input pin the element's scalar editor. Fix: `BlueprintPinModel` no longer synthesizes a
+  `Default` for array pins (`!pin.TypeRef.IsArray`) — array pins are wire-only. +regression test
+  (`BlueprintPinDefaultZeroTests.PinModel_WithRegistry_ArrayInputPin_DefaultIsNull`). Editor builds
+  clean; 17 pin-model + 293 pin/typesystem/component tests green. **Awaiting user re-check of the
+  ItemGet node layout.**

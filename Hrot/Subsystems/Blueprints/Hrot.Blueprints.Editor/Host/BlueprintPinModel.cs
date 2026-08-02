@@ -96,10 +96,14 @@ internal sealed class BlueprintPinModel : IPinModel
         Tooltip     = pin.IsExec ? null : BuildPinTooltip(pin.Name, pin.TypeRef.TypeId, pin.TypeRef.IsArray);
 
         // Expose a default-value container for unconnected input data pins.
-        // Conditions: !Exec AND Direction=="In".
+        // Conditions: !Exec AND Direction=="In" AND NOT an array pin.
+        // Array pins (IsArray → diamond glyph) carry a COLLECTION, not a scalar value: no
+        // scalar inline editor can author them (the TypeKey drops IsArray, so GetDefaultEditor
+        // would otherwise hand an array-typed input pin the element type's scalar editor — a
+        // spurious value-box beside the pin). They are wire-only, so never synthesize a Default.
         // With registry: always show when the type has a registered editor (even if DefaultValue==null).
         // Without registry (legacy): only when DefaultValue is already persisted.
-        if (!pin.IsExec && pin.Direction == "In")
+        if (!pin.IsExec && pin.Direction == "In" && !pin.TypeRef.IsArray)
         {
             if (pin.DefaultValue != null)
             {

@@ -105,6 +105,32 @@ public sealed class BlueprintPinDefaultZeroTests
         Assert.Null(model.Default);
     }
 
+    // ── Array In-data pin → null regardless of registry (no scalar editor) ────
+
+    /// <summary>
+    /// An ARRAY input data pin (IsArray → diamond) carries a collection, not a scalar, so it must
+    /// NOT synthesize a scalar inline editor even when its ELEMENT type has a registered editor
+    /// (the canvas TypeKey drops IsArray, so GetDefaultEditor would otherwise hand it the element's
+    /// scalar editor — a spurious value-box drawn over/beside the pin). Regression for the CA-07c
+    /// collection consumer "Collection" pin rendering.
+    /// </summary>
+    [Fact]
+    public void PinModel_WithRegistry_ArrayInputPin_DefaultIsNull()
+    {
+        var pin = new Pin
+        {
+            Id        = Guid.NewGuid(),
+            Name      = "Collection",
+            Direction = "In",
+            IsExec    = false,
+            TypeRef   = new BlueprintTypeRef { TypeId = "System.Int32", IsArray = true },
+        };
+        var nodeId = new NodeId(Guid.NewGuid());
+        var model  = new BlueprintPinModel(pin, nodeId, new StubEditorRegistry());
+
+        Assert.Null(model.Default);
+    }
+
     // ── Connected / Out / Exec pins → null regardless of registry ────────────
 
     [Fact]
