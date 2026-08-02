@@ -1346,14 +1346,14 @@ internal sealed class V_ComponentAccessRules : IValidator
         bool wired = graph.Links.Any(l => l.ToNodeId == node.Id && l.ToPinId == collectionPin.Id);
         if (!wired) return;
 
-        var (componentTypeFqn, countFqn, itemFqn) = node switch
+        var (componentTypeFqn, countFqn, itemFqn, kind, fieldName) = node switch
         {
-            ComponentForEachNode cfe   => (cfe.ComponentTypeFqn, cfe.CountAccessorFqn, cfe.ItemAccessorFqn),
-            ComponentItemGetNode cig   => (cig.ComponentTypeFqn, "", cig.ItemAccessorFqn),
-            ComponentItemCountNode cic => (cic.ComponentTypeFqn, cic.CountAccessorFqn, ""),
-            ComponentContainsNode ccn  => (ccn.ComponentTypeFqn, ccn.CountAccessorFqn, ccn.ItemAccessorFqn),
-            ComponentFindNode cfn      => (cfn.ComponentTypeFqn, cfn.CountAccessorFqn, cfn.ItemAccessorFqn),
-            _                          => ("", "", ""),
+            ComponentForEachNode cfe   => (cfe.ComponentTypeFqn, cfe.CountAccessorFqn, cfe.ItemAccessorFqn, cfe.CollectionKind, cfe.CollectionFieldName),
+            ComponentItemGetNode cig   => (cig.ComponentTypeFqn, "", cig.ItemAccessorFqn, cig.CollectionKind, cig.CollectionFieldName),
+            ComponentItemCountNode cic => (cic.ComponentTypeFqn, cic.CountAccessorFqn, "", cic.CollectionKind, cic.CollectionFieldName),
+            ComponentContainsNode ccn  => (ccn.ComponentTypeFqn, ccn.CountAccessorFqn, ccn.ItemAccessorFqn, ccn.CollectionKind, ccn.CollectionFieldName),
+            ComponentFindNode cfn      => (cfn.ComponentTypeFqn, cfn.CountAccessorFqn, cfn.ItemAccessorFqn, cfn.CollectionKind, cfn.CollectionFieldName),
+            _                          => ("", "", "", CollectionKind.CuratedStatic, (string?)null),
         };
 
         // Contains/Find both loop (Count) and compare each element (Item) -> need BOTH, like ForEach.
@@ -1362,15 +1362,23 @@ internal sealed class V_ComponentAccessRules : IValidator
         bool needsItem  = node is ComponentForEachNode or ComponentItemGetNode
                                   or ComponentContainsNode or ComponentFindNode;
 
+        // CA-07d-2: a MANAGED collection (Q#18-C/D) bakes CollectionFieldName for native member access,
+        // NOT the curated accessor FQNs (which are legitimately empty) -- so the required-non-empty set
+        // is per-KIND: managed needs the field name; curated needs its accessor FQN(s).
         bool missing = string.IsNullOrEmpty(componentTypeFqn)
-            || (needsCount && string.IsNullOrEmpty(countFqn))
-            || (needsItem  && string.IsNullOrEmpty(itemFqn));
+            || (kind == CollectionKind.ManagedMember
+                    ? string.IsNullOrEmpty(fieldName)
+                    : ((needsCount && string.IsNullOrEmpty(countFqn))
+                       || (needsItem  && string.IsNullOrEmpty(itemFqn))));
 
         if (missing)
         {
+            string what = kind == CollectionKind.ManagedMember
+                ? "the node's baked managed collection field name (CollectionFieldName) is empty"
+                : "the node's baked accessor FQNs are empty";
             ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2066,
-                $"{node.GetType().Name}: \"Collection\" is wired but the node's baked accessor " +
-                "FQNs are empty -- the collection was not baked at wire time (CA-07c).",
+                $"{node.GetType().Name}: \"Collection\" is wired but {what} -- " +
+                "the collection was not baked at wire time (CA-07c/d-2).",
                 asset.AssetId, graph.Id, node.Id));
         }
     }

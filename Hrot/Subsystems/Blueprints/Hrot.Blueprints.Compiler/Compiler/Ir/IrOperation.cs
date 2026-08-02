@@ -216,6 +216,13 @@ public sealed record IrOp_PublishBusEvent(
 ///   reference the current 0-based index by the normal <c>__t</c> convention.</item>
 /// </list></para>
 /// </summary>
+/// <param name="Kind">CA-07d-2: <c>CuratedStatic</c> (default) emits the baked
+/// <paramref name="CountAccessorFqn"/>/<paramref name="ItemAccessorFqn"/> static calls (byte-identical
+/// to FlowForEach / CA-07b); <c>ManagedMember</c> emits native <c>IReadOnlyList&lt;T&gt;</c> access off
+/// <paramref name="ManagedFieldName"/> (the accessor FQNs are empty). See <see cref="Emit.StatementEmitter"/>.</param>
+/// <param name="ManagedFieldName">CA-07d-2: for <c>ManagedMember</c>, the managed collection field name
+/// on the component the <paramref name="RosterValue"/> read produced (element type = <c>RosterValue-less</c>
+/// <see cref="ItemVar"/>'s type).</param>
 public sealed record IrOp_ForEach(
     string CountAccessorFqn,
     string ItemAccessorFqn,
@@ -223,7 +230,9 @@ public sealed record IrOp_ForEach(
     IrValue ItemVar,
     IReadOnlyList<IrStatement> Body,
     IrValue? CountVar = null,
-    IrValue? IndexVar = null) : IrOperation;
+    IrValue? IndexVar = null,
+    Hrot.Blueprints.Core.Assets.CollectionKind Kind = Hrot.Blueprints.Core.Assets.CollectionKind.CuratedStatic,
+    string ManagedFieldName = "") : IrOperation;
 
 /// <summary>
 /// P1b (GAP-1) -- structured, inline <c>if</c>/<c>else</c>. Emitted ONLY by Stage5 for a
@@ -339,8 +348,17 @@ public sealed record IrOp_FieldRead(IrValue Source, string FieldName, IrTypeRef 
 /// own Count/Item accessor calls (this op factors that same call shape out for the CA-07b consumer
 /// nodes, which read a component OTHER than the one <c>IrOp_ForEach</c>'s roster read targets).
 /// </summary>
+/// <param name="Kind">CA-07d-2: <c>CuratedStatic</c> (default) emits <c>global::{AccessorFqn}(comp[,i])</c>;
+/// <c>ManagedMember</c> emits native member access off <paramref name="ManagedFieldName"/> via an
+/// <c>IReadOnlyList&lt;<paramref name="ElementTypeFqn"/>&gt;</c> local -- <c>(__ml?.Count ?? 0)</c> for the
+/// Count shape (<paramref name="Index"/> null), a null+bounds-guarded <c>__ml[i]</c> for the Item shape.</param>
+/// <param name="ManagedFieldName">CA-07d-2: for <c>ManagedMember</c>, the managed collection field name (accessor FQN empty).</param>
+/// <param name="ElementTypeFqn">CA-07d-2: for <c>ManagedMember</c>, the collection's element type FQN, used to type the
+/// <c>IReadOnlyList&lt;T&gt;</c> local so a <c>T[]</c> field still exposes <c>.Count</c>/indexer uniformly. Empty for curated.</param>
 public sealed record IrOp_ComponentAccessorCall(
-    string AccessorFqn, IrValue Component, IrValue? Index, IrTypeRef ResultType) : IrOperation;
+    string AccessorFqn, IrValue Component, IrValue? Index, IrTypeRef ResultType,
+    Hrot.Blueprints.Core.Assets.CollectionKind Kind = Hrot.Blueprints.Core.Assets.CollectionKind.CuratedStatic,
+    string ManagedFieldName = "", string ElementTypeFqn = "") : IrOperation;
 
 /// <summary>
 /// CA-07d-1 -- bounded linear search over a component collection, sharing the SAME curated
@@ -353,6 +371,12 @@ public sealed record IrOp_ComponentAccessorCall(
 /// <see cref="ElementTypeFqn"/> types the <c>EqualityComparer&lt;T&gt;</c> so scalars, enums, and struct
 /// value-copies all compare correctly with one reflection-free path (Q#18-A).
 /// </summary>
+/// <param name="Kind">CA-07d-2: <c>CuratedStatic</c> (default) walks the collection via the baked
+/// <paramref name="CountAccessorFqn"/>/<paramref name="ItemAccessorFqn"/> static calls; <c>ManagedMember</c>
+/// walks a native <c>IReadOnlyList&lt;<paramref name="ElementTypeFqn"/>&gt;</c> local off
+/// <paramref name="ManagedFieldName"/> (accessor FQNs empty). The <c>EqualityComparer&lt;T&gt;</c> compare
+/// + short-circuit are identical either way.</param>
+/// <param name="ManagedFieldName">CA-07d-2: for <c>ManagedMember</c>, the managed collection field name (accessor FQNs empty).</param>
 public sealed record IrOp_ComponentCollectionSearch(
     string CountAccessorFqn,
     string ItemAccessorFqn,
@@ -361,7 +385,9 @@ public sealed record IrOp_ComponentCollectionSearch(
     IrValue Query,
     IrValue? ContainsResult = null,
     IrValue? FindIndex = null,
-    IrValue? FindFound = null) : IrOperation;
+    IrValue? FindFound = null,
+    Hrot.Blueprints.Core.Assets.CollectionKind Kind = Hrot.Blueprints.Core.Assets.CollectionKind.CuratedStatic,
+    string ManagedFieldName = "") : IrOperation;
 
 /// <summary>
 /// GAP-12 -- native <c>CompareNode</c> lowering. Emits a single infix C# comparison expression:

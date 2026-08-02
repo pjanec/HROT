@@ -452,23 +452,29 @@ internal static class StatementEmitter
                 // no defining statement of its own). Body statements were scheduled inline by Stage5.
                 string roster  = $"__t{op.RosterValue.Index}";
                 string loopVar = $"__fe{op.ItemVar.Index}";
+                // CA-07d-2: curated -> baked static accessors (byte-identical); managed -> an
+                // IReadOnlyList<TElem> __ml local off the (nullable) managed component, .Count/[i].
+                // mlKey = RosterValue.Index (unique per component re-read in this block).
+                var (countExpr, itemExpr) = RenderCollectionAccessors(
+                    e, op.Kind, roster, op.ManagedFieldName, op.ItemVar.Type.FullName,
+                    op.CountAccessorFqn, op.ItemAccessorFqn, op.RosterValue.Index);
                 // "Count" out-pin (op.CountVar): hoist the element count into an OUTER-scope local and
                 // reuse it as the loop bound (evaluated once). Otherwise re-evaluate inline each pass
                 // (the original P1a shape -- keeps existing goldens byte-identical).
                 string bound;
                 if (op.CountVar is not null)
                 {
-                    e.WriteLine($"var __t{op.CountVar.Value.Index} = global::{op.CountAccessorFqn}({roster});");
+                    e.WriteLine($"var __t{op.CountVar.Value.Index} = {countExpr};");
                     bound = $"__t{op.CountVar.Value.Index}";
                 }
                 else
                 {
-                    bound = $"global::{op.CountAccessorFqn}({roster})";
+                    bound = countExpr;
                 }
                 e.WriteLine($"for (int {loopVar} = 0; {loopVar} < {bound}; {loopVar}++)");
                 e.WriteLine("{");
                 e.Indent();
-                e.WriteLine($"var __t{op.ItemVar.Index} = global::{op.ItemAccessorFqn}({roster}, {loopVar});");
+                e.WriteLine($"var __t{op.ItemVar.Index} = {itemExpr(loopVar)};");
                 // "CurrentIndex" out-pin (op.IndexVar): copy the loop counter into a body-scoped local so
                 // body statements reference the 0-based index by the normal __t convention.
                 if (op.IndexVar is not null)
@@ -634,12 +640,36 @@ internal static class StatementEmitter
             case IrOp_ComponentAccessorCall op:
                 if (idx >= 0)
                 {
-                    // Component binds to the accessor's `in T` parameter implicitly -- it is the
-                    // `ref readonly` local a preceding IrOp_GetComponentRO produced, same as
-                    // IrOp_ForEach's own accessor calls. Index is present only for the Item shape.
                     string comp = $"__t{op.Component.Index}";
-                    string args = op.Index is not null ? $"{comp}, __t{op.Index.Value.Index}" : comp;
-                    e.WriteLine($"var __t{idx} = global::{op.AccessorFqn}({args});");
+                    if (op.Kind == CollectionKind.ManagedMember)
+                    {
+                        // CA-07d-2 -- native member access off the (nullable) managed component. Resolve
+                        // the List<T>/IReadOnlyList<T>/T[] once via an IReadOnlyList<TElem> local (so a
+                        // T[] field still exposes .Count/indexer). __ml{idx} is unique per statement.
+                        string ml = $"__ml{idx}";
+                        e.WriteLine($"global::System.Collections.Generic.IReadOnlyList<global::{op.ElementTypeFqn}> {ml} = {comp}?.{op.ManagedFieldName};");
+                        if (op.Index is not null)
+                        {
+                            // Item shape -- standalone read (no enclosing loop bound), so guard BOTH the
+                            // null collection AND the index (out-of-range / absent -> default, never throws;
+                            // mirrors the managed-read "never throw" contract of IrOp_FieldRead SourceIsManaged).
+                            string i = $"__t{op.Index.Value.Index}";
+                            e.WriteLine($"var __t{idx} = ({ml} != null && (uint){i} < (uint){ml}.Count) ? {ml}[{i}] : default;");
+                        }
+                        else
+                        {
+                            // Count shape.
+                            e.WriteLine($"var __t{idx} = ({ml}?.Count ?? 0);");
+                        }
+                    }
+                    else
+                    {
+                        // Curated -- Component binds to the accessor's `in T` parameter implicitly (the
+                        // `ref readonly` local a preceding IrOp_GetComponentRO produced), same as
+                        // IrOp_ForEach's own accessor calls. Index is present only for the Item shape.
+                        string args = op.Index is not null ? $"{comp}, __t{op.Index.Value.Index}" : comp;
+                        e.WriteLine($"var __t{idx} = global::{op.AccessorFqn}({args});");
+                    }
                 }
                 break;
 
@@ -653,14 +683,21 @@ internal static class StatementEmitter
                 string query = $"__t{op.Query.Index}";
                 string eq    = $"global::System.Collections.Generic.EqualityComparer<global::{op.ElementTypeFqn}>.Default";
 
+                // CA-07d-2: curated -> baked static Count/Item calls (byte-identical); managed -> an
+                // IReadOnlyList<TElem> __ml local (.Count bound, [i] element). The EqualityComparer
+                // compare + first-match short-circuit are identical either way.
+                var (countExpr, itemExpr) = RenderCollectionAccessors(
+                    e, op.Kind, comp, op.ManagedFieldName, op.ElementTypeFqn,
+                    op.CountAccessorFqn, op.ItemAccessorFqn, op.Component.Index);
+
                 if (op.ContainsResult is not null) e.WriteLine($"var __t{op.ContainsResult.Value.Index} = false;");
                 if (op.FindIndex is not null)      e.WriteLine($"var __t{op.FindIndex.Value.Index} = -1;");
                 if (op.FindFound is not null)      e.WriteLine($"var __t{op.FindFound.Value.Index} = false;");
 
-                e.WriteLine($"for (int __csI = 0, __csN = global::{op.CountAccessorFqn}({comp}); __csI < __csN; __csI++)");
+                e.WriteLine($"for (int __csI = 0, __csN = {countExpr}; __csI < __csN; __csI++)");
                 e.WriteLine("{");
                 e.Indent();
-                e.WriteLine($"if ({eq}.Equals(global::{op.ItemAccessorFqn}({comp}, __csI), {query}))");
+                e.WriteLine($"if ({eq}.Equals({itemExpr("__csI")}, {query}))");
                 e.WriteLine("{");
                 e.Indent();
                 if (op.ContainsResult is not null) e.WriteLine($"__t{op.ContainsResult.Value.Index} = true;");
@@ -1139,6 +1176,37 @@ internal static class StatementEmitter
             return synthFieldName.Substring(prefix.Length,
                 synthFieldName.Length - prefix.Length - suffix.Length);
         return synthFieldName;
+    }
+
+    /// <summary>
+    /// <summary>
+    /// CA-07d-2 -- renders a component collection's <c>Count</c>/<c>Item</c> access for one lowering op.
+    /// <list type="bullet">
+    ///   <item><b>CuratedStatic</b> (default): returns the baked static-accessor calls
+    ///   (<c>global::{Fqn}(comp[,i])</c>) and emits NOTHING -- BYTE-IDENTICAL to CA-07b/d-1, so the whole
+    ///   curated golden set is unaffected.</item>
+    ///   <item><b>ManagedMember</b>: emits a single <c>IReadOnlyList&lt;TElem&gt; __ml{key} = comp?.Field;</c>
+    ///   local (resolve the managed <c>List&lt;T&gt;</c>/<c>IReadOnlyList&lt;T&gt;</c>/<c>T[]</c> ONCE,
+    ///   null-safe; the interface type is what lets a <c>T[]</c> field still expose <c>.Count</c>/indexer
+    ///   uniformly) and returns member access: Count <c>(__ml?.Count ?? 0)</c>, Item <c>__ml![i]</c>.
+    ///   Item is only indexed by callers INSIDE a Count-bounded loop, where a null <c>__ml</c> yields
+    ///   count 0 and the body never runs -- so <c>__ml!</c> is provably safe there (the standalone
+    ///   ItemGet shape does its OWN null+bounds guard, it does not use this Item lambda).</item>
+    /// </list>
+    /// <paramref name="mlKey"/> must be unique per component-read in the enclosing block (callers pass the
+    /// component or op result index) so multiple managed collections in one block never collide on <c>__ml</c>.
+    /// </summary>
+    private static (string Count, System.Func<string, string> Item) RenderCollectionAccessors(
+        CSharpEmitter e, CollectionKind kind, string comp, string managedFieldName,
+        string elementTypeFqn, string countAccessorFqn, string itemAccessorFqn, int mlKey)
+    {
+        if (kind == CollectionKind.ManagedMember)
+        {
+            string ml = $"__ml{mlKey}";
+            e.WriteLine($"global::System.Collections.Generic.IReadOnlyList<global::{elementTypeFqn}> {ml} = {comp}?.{managedFieldName};");
+            return ($"({ml}?.Count ?? 0)", i => $"{ml}![{i}]");
+        }
+        return ($"global::{countAccessorFqn}({comp})", i => $"global::{itemAccessorFqn}({comp}, {i})");
     }
 
     /// <summary>

@@ -606,6 +606,30 @@ public sealed class GetComponentNode : Node
 /// baked <c>CountAccessorFqn</c>/<c>ItemAccessorFqn</c> pair.
 /// </para>
 /// </summary>
+/// <summary>
+/// CA-07d-2 -- how a component-collection out-pin / consumer resolves its <c>Count</c>/<c>Item</c>
+/// accessors, i.e. how the compiler emits element access.
+/// <list type="bullet">
+///   <item><b>CuratedStatic</b> (default, CA-07a/b/d-1): the collection is exposed via a curated
+///   <c>[BlueprintCollection]</c>/<c>[BlueprintCollectionItem]</c> static accessor PAIR, baked as
+///   <c>CountAccessorFqn</c>/<c>ItemAccessorFqn</c> -- emit <c>global::{Fqn}(comp[,i])</c>. Covers the
+///   unmanaged fixed/inline-array shapes (architect Q#5-C: raw access stays off-graph).</item>
+///   <item><b>ManagedMember</b> (CA-07d-2, Q#18-C/D): the collection is a plain managed member field of
+///   a MANAGED (class) component -- a <c>List&lt;T&gt;</c> / <c>IReadOnlyList&lt;T&gt;</c> / <c>T[]</c>
+///   named by <c>CollectionFieldName</c>, with NO curated accessors. Emit native member access via an
+///   <c>IReadOnlyList&lt;TElement&gt;</c> local (<c>comp?.Field</c>, null-safe) -> <c>.Count</c>/<c>[i]</c>.</item>
+/// </list>
+/// Default (<c>CuratedStatic</c> == 0) is <c>JsonIgnore</c>d, so pre-CA-07d-2 decls/consumers serialize
+/// BYTE-IDENTICALLY (the whole curated golden set is unaffected).
+/// </summary>
+public enum CollectionKind
+{
+    /// <summary>Curated <c>[BlueprintCollection]</c>/<c>[BlueprintCollectionItem]</c> static accessor pair (default).</summary>
+    CuratedStatic = 0,
+    /// <summary>Native managed member (<c>List&lt;T&gt;</c>/<c>IReadOnlyList&lt;T&gt;</c>/<c>T[]</c>) on a class component -- no curated accessors.</summary>
+    ManagedMember = 1,
+}
+
 public sealed class ComponentFieldDecl
 {
     public string Name { get; set; } = "";
@@ -626,6 +650,14 @@ public sealed class ComponentFieldDecl
     /// <summary>CA-07a: baked "Ns.Class.Item" FQN of the <c>[BlueprintCollectionItem]</c> static accessor -- no reflection at compile time. Null (and omitted from JSON) for scalar decls.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? ItemAccessorFqn { get; set; }
+
+    /// <summary>CA-07d-2: rendering mode for this collection decl. <c>CuratedStatic</c> (default, omitted from JSON) uses the accessor-FQN pair above; <c>ManagedMember</c> uses <see cref="ManagedFieldName"/> native member access.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public CollectionKind CollectionKind { get; set; }
+
+    /// <summary>CA-07d-2: for <see cref="CollectionKind.ManagedMember"/>, the name of the managed <c>List&lt;T&gt;</c>/<c>IReadOnlyList&lt;T&gt;</c>/<c>T[]</c> field on the component (e.g. "MemberIds"). Null (and omitted from JSON) for curated decls.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? CollectionFieldName { get; set; }
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -957,6 +989,13 @@ public sealed class ComponentForEachNode : Node
     public string ItemAccessorFqn { get; set; } = "";
     /// <summary>FQN of the collection's element type (the Item accessor's return type) -- types "Collection"/"CurrentItem".</summary>
     public string ElementTypeFqn { get; set; } = "";
+
+    /// <summary>CA-07d-2: <c>CuratedStatic</c> (default) uses the accessor FQNs above; <c>ManagedMember</c> uses <see cref="CollectionFieldName"/> native access. Omitted from JSON when default.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public CollectionKind CollectionKind { get; set; }
+    /// <summary>CA-07d-2: for <see cref="CollectionKind.ManagedMember"/>, the managed collection field name on the component; accessor FQNs are empty. Null (omitted) for curated.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? CollectionFieldName { get; set; }
 }
 
 /// <summary>
@@ -977,6 +1016,13 @@ public sealed class ComponentItemGetNode : Node
     public string ItemAccessorFqn { get; set; } = "";
     /// <summary>FQN of the collection's element type (the Item accessor's return type) -- types "Collection"/"Element".</summary>
     public string ElementTypeFqn { get; set; } = "";
+
+    /// <summary>CA-07d-2: <c>CuratedStatic</c> (default) uses the accessor FQN above; <c>ManagedMember</c> uses <see cref="CollectionFieldName"/> native indexer. Omitted from JSON when default.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public CollectionKind CollectionKind { get; set; }
+    /// <summary>CA-07d-2: for <see cref="CollectionKind.ManagedMember"/>, the managed collection field name on the component; accessor FQN is empty. Null (omitted) for curated.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? CollectionFieldName { get; set; }
 }
 
 /// <summary>
@@ -997,6 +1043,16 @@ public sealed class ComponentItemCountNode : Node
     public string ComponentTypeFqn { get; set; } = "";
     /// <summary>FQN of a static <c>int Count(in T)</c> curated accessor (baked at wire time, CA-07c).</summary>
     public string CountAccessorFqn { get; set; } = "";
+
+    /// <summary>CA-07d-2: <c>CuratedStatic</c> (default) uses <see cref="CountAccessorFqn"/>; <c>ManagedMember</c> uses <see cref="CollectionFieldName"/>'s native <c>.Count</c>. Omitted from JSON when default.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public CollectionKind CollectionKind { get; set; }
+    /// <summary>CA-07d-2: for <see cref="CollectionKind.ManagedMember"/>, the managed collection field name; <see cref="CountAccessorFqn"/> is empty. Null (omitted) for curated.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? CollectionFieldName { get; set; }
+    /// <summary>CA-07d-2: for <see cref="CollectionKind.ManagedMember"/>, the collection's element type FQN -- types the <c>IReadOnlyList&lt;TElement&gt;</c> local so <c>T[]</c> fields expose <c>.Count</c> uniformly. Null (omitted) for curated (Count never needs the element type there).</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ElementTypeFqn { get; set; }
 }
 
 /// <summary>
@@ -1019,6 +1075,13 @@ public sealed class ComponentContainsNode : Node
     public string ItemAccessorFqn { get; set; } = "";
     /// <summary>FQN of the collection's element type -- types "Collection"/"Item" and the equality comparer.</summary>
     public string ElementTypeFqn { get; set; } = "";
+
+    /// <summary>CA-07d-2: <c>CuratedStatic</c> (default) uses the accessor FQNs above; <c>ManagedMember</c> uses <see cref="CollectionFieldName"/> native access. Omitted from JSON when default.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public CollectionKind CollectionKind { get; set; }
+    /// <summary>CA-07d-2: for <see cref="CollectionKind.ManagedMember"/>, the managed collection field name; accessor FQNs are empty. Null (omitted) for curated.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? CollectionFieldName { get; set; }
 }
 
 /// <summary>
@@ -1039,4 +1102,11 @@ public sealed class ComponentFindNode : Node
     public string ItemAccessorFqn { get; set; } = "";
     /// <summary>FQN of the collection's element type -- types "Collection"/"Item" and the equality comparer.</summary>
     public string ElementTypeFqn { get; set; } = "";
+
+    /// <summary>CA-07d-2: <c>CuratedStatic</c> (default) uses the accessor FQNs above; <c>ManagedMember</c> uses <see cref="CollectionFieldName"/> native access. Omitted from JSON when default.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public CollectionKind CollectionKind { get; set; }
+    /// <summary>CA-07d-2: for <see cref="CollectionKind.ManagedMember"/>, the managed collection field name; accessor FQNs are empty. Null (omitted) for curated.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? CollectionFieldName { get; set; }
 }
