@@ -487,6 +487,15 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
     /// FQNs (CA-07a bakes them together), but this never throws on a malformed/hand-edited one.
     /// </para>
     /// <para>
+    /// CA-07d-2: every consumer ALSO gets <c>CollectionKind</c>/<c>CollectionFieldName</c> copied
+    /// verbatim off the decl -- <c>CuratedStatic</c>/<c>""</c> for a curated decl (identical to
+    /// before this existed) or <c>ManagedMember</c>/the managed member name for a managed one (whose
+    /// accessor FQNs are empty by construction, per above). <c>ComponentItemCountNode</c> ALSO gets
+    /// <c>ElementTypeFqn</c> baked, but ONLY for the managed case -- the compiler needs it to type the
+    /// native <c>IReadOnlyList&lt;TElement&gt;</c> local; curated Count still never sets it (preserves
+    /// curated JSON byte-identity).
+    /// </para>
+    /// <para>
     /// Mutates the target <see cref="Node"/> object directly, NOT through <see cref="_history"/> --
     /// see the call site's doc comment for why that's acceptable here.
     /// </para>
@@ -512,31 +521,43 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         switch (consumerNode)
         {
             case ComponentForEachNode cfe:
-                cfe.ComponentTypeFqn = gcn.ComponentTypeFqn;
-                cfe.CountAccessorFqn = decl.CountAccessorFqn ?? "";
-                cfe.ItemAccessorFqn  = decl.ItemAccessorFqn  ?? "";
-                cfe.ElementTypeFqn   = decl.ElementTypeId    ?? "";
+                cfe.ComponentTypeFqn    = gcn.ComponentTypeFqn;
+                cfe.CountAccessorFqn    = decl.CountAccessorFqn ?? "";
+                cfe.ItemAccessorFqn     = decl.ItemAccessorFqn  ?? "";
+                cfe.ElementTypeFqn      = decl.ElementTypeId    ?? "";
+                cfe.CollectionKind      = decl.CollectionKind;
+                cfe.CollectionFieldName = decl.CollectionFieldName;
                 break;
             case ComponentItemGetNode cig:
-                cig.ComponentTypeFqn = gcn.ComponentTypeFqn;
-                cig.ItemAccessorFqn  = decl.ItemAccessorFqn ?? "";
-                cig.ElementTypeFqn   = decl.ElementTypeId   ?? "";
+                cig.ComponentTypeFqn    = gcn.ComponentTypeFqn;
+                cig.ItemAccessorFqn     = decl.ItemAccessorFqn ?? "";
+                cig.ElementTypeFqn      = decl.ElementTypeId   ?? "";
+                cig.CollectionKind      = decl.CollectionKind;
+                cig.CollectionFieldName = decl.CollectionFieldName;
                 break;
             case ComponentItemCountNode cic:
-                cic.ComponentTypeFqn = gcn.ComponentTypeFqn;
-                cic.CountAccessorFqn = decl.CountAccessorFqn ?? "";
+                cic.ComponentTypeFqn    = gcn.ComponentTypeFqn;
+                cic.CountAccessorFqn    = decl.CountAccessorFqn ?? "";
+                cic.CollectionKind      = decl.CollectionKind;
+                cic.CollectionFieldName = decl.CollectionFieldName;
+                if (decl.CollectionKind == CollectionKind.ManagedMember)
+                    cic.ElementTypeFqn = decl.ElementTypeId;
                 break;
             case ComponentContainsNode ccn:
-                ccn.ComponentTypeFqn = gcn.ComponentTypeFqn;
-                ccn.CountAccessorFqn = decl.CountAccessorFqn ?? "";
-                ccn.ItemAccessorFqn  = decl.ItemAccessorFqn  ?? "";
-                ccn.ElementTypeFqn   = decl.ElementTypeId    ?? "";
+                ccn.ComponentTypeFqn    = gcn.ComponentTypeFqn;
+                ccn.CountAccessorFqn    = decl.CountAccessorFqn ?? "";
+                ccn.ItemAccessorFqn     = decl.ItemAccessorFqn  ?? "";
+                ccn.ElementTypeFqn      = decl.ElementTypeId    ?? "";
+                ccn.CollectionKind      = decl.CollectionKind;
+                ccn.CollectionFieldName = decl.CollectionFieldName;
                 break;
             case ComponentFindNode cfn:
-                cfn.ComponentTypeFqn = gcn.ComponentTypeFqn;
-                cfn.CountAccessorFqn = decl.CountAccessorFqn ?? "";
-                cfn.ItemAccessorFqn  = decl.ItemAccessorFqn  ?? "";
-                cfn.ElementTypeFqn   = decl.ElementTypeId    ?? "";
+                cfn.ComponentTypeFqn    = gcn.ComponentTypeFqn;
+                cfn.CountAccessorFqn    = decl.CountAccessorFqn ?? "";
+                cfn.ItemAccessorFqn     = decl.ItemAccessorFqn  ?? "";
+                cfn.ElementTypeFqn      = decl.ElementTypeId    ?? "";
+                cfn.CollectionKind      = decl.CollectionKind;
+                cfn.CollectionFieldName = decl.CollectionFieldName;
                 break;
         }
     }

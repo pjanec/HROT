@@ -1,6 +1,7 @@
 using System.Linq;
 using System.Reflection;
 using Fdp.Core;
+using Hrot.Blueprints.Core.Assets;
 
 namespace Hrot.Blueprints.Editor.NodeDrawers;
 
@@ -35,6 +36,12 @@ internal sealed class ReflectedComponentCollection
     public string ElementTypeId { get; init; } = "";
     public string CountAccessorFqn { get; init; } = "";
     public string ItemAccessorFqn { get; init; } = "";
+
+    /// <summary>CA-07d-2: <c>CuratedStatic</c> (default) for an accessor-pair discovery; <c>ManagedMember</c> for a native managed-member discovery (see <see cref="CollectionFieldName"/>).</summary>
+    public CollectionKind CollectionKind { get; init; }
+
+    /// <summary>CA-07d-2: for <see cref="Hrot.Blueprints.Core.Assets.CollectionKind.ManagedMember"/>, the name of the managed <c>List&lt;T&gt;</c>/<c>IReadOnlyList&lt;T&gt;</c>/<c>T[]</c> member. Empty for curated entries.</summary>
+    public string CollectionFieldName { get; init; } = "";
 }
 
 /// <summary>
@@ -235,7 +242,84 @@ internal static class ComponentFieldReflector
             });
         }
 
+        // CA-07d-2 (Q#18-C/D): managed-member discovery -- mirrors the curated accessor-pair pass
+        // above, but for a MANAGED component's own native collection MEMBERS (no
+        // [BlueprintCollection]/[BlueprintCollectionItem] accessors involved). Scope is
+        // deliberately narrow: T[] / List<T> / IReadOnlyList<T> only -- no IEnumerable<T>, no
+        // Dictionary/HashSet (Q#18-D). Only runs for managed (class) components; a curated entry
+        // for the same name always wins (never happens in practice -- a managed class doesn't also
+        // carry curated accessors -- but the dedup keeps this pass strictly additive).
+        if (IsManagedComponent(componentFqn))
+        {
+            var componentType = ResolveType(componentFqn!);
+            if (componentType != null)
+            {
+                var existingNames = new HashSet<string>(result.Select(c => c.Name), StringComparer.Ordinal);
+
+                foreach (var f in componentType.GetFields(BindingFlags.Public | BindingFlags.Instance))
+                {
+                    if (existingNames.Contains(f.Name)) continue;
+                    if (!TryGetManagedCollectionElement(f.FieldType, out var elementType)) continue;
+                    result.Add(new ReflectedComponentCollection
+                    {
+                        Name                = f.Name,
+                        ElementTypeId       = elementType.FullName ?? elementType.Name,
+                        CountAccessorFqn    = "",
+                        ItemAccessorFqn     = "",
+                        CollectionKind      = CollectionKind.ManagedMember,
+                        CollectionFieldName = f.Name,
+                    });
+                    existingNames.Add(f.Name);
+                }
+
+                foreach (var p in componentType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+                {
+                    if (p.GetGetMethod() is null) continue; // no public getter -- unreadable
+                    if (p.GetIndexParameters().Length > 0) continue; // indexer, not a member collection
+                    if (existingNames.Contains(p.Name)) continue;
+                    if (!TryGetManagedCollectionElement(p.PropertyType, out var elementType)) continue;
+                    result.Add(new ReflectedComponentCollection
+                    {
+                        Name                = p.Name,
+                        ElementTypeId       = elementType.FullName ?? elementType.Name,
+                        CountAccessorFqn    = "",
+                        ItemAccessorFqn     = "",
+                        CollectionKind      = CollectionKind.ManagedMember,
+                        CollectionFieldName = p.Name,
+                    });
+                    existingNames.Add(p.Name);
+                }
+            }
+        }
+
         return result.OrderBy(c => c.Name, StringComparer.Ordinal).ToList();
+    }
+
+    /// <summary>
+    /// CA-07d-2: true when <paramref name="memberType"/> is one of the three managed-collection
+    /// shapes in scope (Q#18-D) -- a single-dimension array, <c>List&lt;T&gt;</c>, or
+    /// <c>IReadOnlyList&lt;T&gt;</c> -- with <paramref name="elementType"/> set to <c>T</c>.
+    /// Anything else (including <c>IEnumerable&lt;T&gt;</c>, <c>Dictionary</c>, <c>HashSet</c>)
+    /// returns <c>false</c> -- deliberately out of scope, not a managed collection member.
+    /// </summary>
+    private static bool TryGetManagedCollectionElement(Type memberType, out Type elementType)
+    {
+        if (memberType.IsArray && memberType.GetArrayRank() == 1)
+        {
+            elementType = memberType.GetElementType()!;
+            return true;
+        }
+        if (memberType.IsGenericType)
+        {
+            var genericDef = memberType.GetGenericTypeDefinition();
+            if (genericDef == typeof(List<>) || genericDef == typeof(IReadOnlyList<>))
+            {
+                elementType = memberType.GetGenericArguments()[0];
+                return true;
+            }
+        }
+        elementType = typeof(void);
+        return false;
     }
 
     /// <summary>

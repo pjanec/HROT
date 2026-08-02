@@ -106,12 +106,14 @@ internal sealed class GetComponentNodeSession : INodeEditSession
         {
             fields.Add(new ComponentFieldDecl
             {
-                Name             = c.Name,
-                TypeId           = "",
-                IsCollection     = true,
-                ElementTypeId    = c.ElementTypeId,
-                CountAccessorFqn = c.CountAccessorFqn,
-                ItemAccessorFqn  = c.ItemAccessorFqn,
+                Name                = c.Name,
+                TypeId              = "",
+                IsCollection        = true,
+                ElementTypeId       = c.ElementTypeId,
+                CountAccessorFqn    = c.CountAccessorFqn,
+                ItemAccessorFqn     = c.ItemAccessorFqn,
+                CollectionKind      = c.CollectionKind,
+                CollectionFieldName = c.CollectionKind == CollectionKind.ManagedMember ? c.CollectionFieldName : null,
             });
         }
 

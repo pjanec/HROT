@@ -1,6 +1,7 @@
 using Fdp.Core;
 using Hrot.AI.Behaviors;
 using Hrot.AI.Behaviors.Brains;
+using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.NodeDrawers;
 using Xunit;
 
@@ -248,4 +249,22 @@ public sealed class ComponentFieldReflectorTests
     [Fact]
     public void TryReflectCollections_ComponentWithNoCollectionAccessors_ReturnsEmptyList()
         => Assert.Empty(ComponentFieldReflector.TryReflectCollections(typeof(UnmanagedTestComponent).FullName!));
+
+    // ── TryReflectCollections: managed-member discovery (CA-07d-2, Q#18-C/D) ─────
+
+    [Fact]
+    public void TryReflectCollections_BpManagedCollectionDemo_DiscoversMemberIds_AsManagedMember()
+    {
+        var fqn = typeof(BpManagedCollectionDemo).FullName!;
+
+        var collections = ComponentFieldReflector.TryReflectCollections(fqn);
+
+        var memberIds = Assert.Single(collections);
+        Assert.Equal("MemberIds", memberIds.Name);
+        Assert.Equal(CollectionKind.ManagedMember, memberIds.CollectionKind);
+        Assert.Equal("MemberIds", memberIds.CollectionFieldName);
+        Assert.Equal(typeof(int).FullName, memberIds.ElementTypeId);
+        Assert.Equal("", memberIds.CountAccessorFqn);
+        Assert.Equal("", memberIds.ItemAccessorFqn);
+    }
 }

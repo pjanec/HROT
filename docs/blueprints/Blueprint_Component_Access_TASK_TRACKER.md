@@ -25,7 +25,7 @@ builds clean.
 | CA-07b | Consumer nodes + IR + emit (ForEach/Get[i]/Length) | 2 | Sonnet + Opus(review/BP2050 fix) | ✅ |
 | CA-07c | Editor wire-baking + palette + drawers + demo bp | 2 | Sonnet + Opus(review/wildcard fix) | ✅ |
 | CA-07d-1 | Contains/Find nodes (unmanaged, extend CA-07b) | 2 | Opus(compiler 761f452d) + Sonnet(editor b9532ac3, Opus-reviewed) | ✅ |
-| CA-07d-2 | Managed collections (List/IReadOnlyList/T[], native .Count/[i]) | 2 | later | ⬜ |
+| CA-07d-2 | Managed collections (List/IReadOnlyList/T[], native .Count/[i]) | 2 | Opus(compiler 14a330f2) + Sonnet(editor, Opus-reviewed) | ✅ |
 
 *(CA-07d split per Architect Q#18 fast-track: A3 EqualityComparer emit, B2 Find=Index+Found + ship both, C2 managed auto-resolve, D scope List/IReadOnlyList/T[].)*
 
@@ -351,3 +351,43 @@ accessor pairs**, NOT auto-reflected off the raw buffer:
   `Hrot.AI.Behaviors` builds clean. **REAL underlying bug flagged: the editor rewrites blueprint assets
   on open (project_blueprint_editor_writes_on_open) — strips pins + adds DTO artifacts — which corrupts
   ANY opened blueprint, not just this demo. Needs its own investigation.**
+- **2026-08-02, CA-07d-2 (managed collections) compiler, Opus (commit `14a330f2`):** built the managed
+  side hands-on. A managed (class) component with a `List<T>`/`IReadOnlyList<T>`/`T[]` member now feeds
+  all 5 consumers, emitting NATIVE member access instead of curated `[BlueprintCollection]` accessors
+  (Q#18-C/D). Mechanism = a single `CollectionKind {CuratedStatic, ManagedMember}` discriminator +
+  `CollectionFieldName` threaded through Nodes.cs (5 consumers + `ComponentFieldDecl`; ItemCount also
+  gained `ElementTypeFqn`) → IR ops (`IrOp_ForEach`/`IrOp_ComponentAccessorCall`/`IrOp_ComponentCollectionSearch`
+  got `Kind`+`ManagedFieldName`, all trailing-optional defaulting CuratedStatic) → `StatementEmitter`
+  (`RenderCollectionAccessors` helper: curated = `global::{Fqn}(comp[,i])` emits nothing new; managed =
+  one `IReadOnlyList<TElem> __ml = comp?.Field;` local → `(__ml?.Count ?? 0)` / `__ml![i]`; standalone
+  ItemGet gets its own null+`(uint)`-bounds guard → `default`, never throws) → Stage5 (managed consumers
+  re-read via `IrOp_GetManagedComponentRO`, IsUnmanaged=false) → Stage2 (BP2066 per-kind: managed
+  requires `ComponentTypeFqn`+`CollectionFieldName`, accessor FQNs legitimately empty). The
+  `IReadOnlyList<TElem>` interface-typed local is what lets a `T[]` field still expose `.Count`/indexer
+  uniformly. New `BpManagedCollectionDemo` (class, `List<int> MemberIds`) +
+  `ComponentManagedCollectionLoweringTests` (6 tests — all 5 consumers assert native `__ml` access + no
+  curated call + managed read path; BP2066 managed test tagged `[CoversDiagnosticCode("BP2066")]`, which
+  ALSO closed a pre-existing `V_AllValidatorsCoverage` gap — BP2066 never had a coverage tag since CA-07b).
+  **Gate: Generators 184/184 byte-identical** (`CollectionKind` defaults CuratedStatic + all-JsonIgnore-when-default
+  new members → curated path provably untouched); managed + curated consumer/search lowering green; full
+  Blueprints.Tests = only the known pre-existing reds remain (ALC-reclaim cascade, perf-alloc,
+  BP1500, NodeCoverage BreakStruct/MakeStruct/SetMembers). Editor mirror (reflector managed-member
+  discovery + wire-bake stamps ManagedMember) delegated to Sonnet, Opus-reviewing.
+- **2026-08-02, CA-07d-2 (managed collections) editor, Sonnet + Opus review:** mirrored the compiler
+  side into the editor. `ComponentFieldReflector.TryReflectCollections` gained a managed-member
+  discovery pass (runs only for a managed/class component): scans public instance FIELDS + non-indexer
+  PROPERTIES for `T[]`/`List<T>`/`IReadOnlyList<T>` (new `TryGetManagedCollectionElement` helper, scope
+  per Q#18-D — no IEnumerable/Dictionary/HashSet), emitting a `ReflectedComponentCollection` with
+  `CollectionKind=ManagedMember` + `CollectionFieldName`, empty accessor FQNs, deduped by Name against
+  curated entries. `ComponentNodeDrawers.ApplyComponentTypeFqn` copies `CollectionKind`/`CollectionFieldName`
+  onto each collection `ComponentFieldDecl` (null field-name for curated → JSON byte-identical).
+  `BlueprintCommandSink.TryBakeCollectionConsumer` stamps `CollectionKind`/`CollectionFieldName` onto all
+  5 consumers at wire time; `ComponentItemCountNode` additionally bakes `ElementTypeFqn` **managed-only**
+  (compiler needs it for the `IReadOnlyList<TElem>` local; curated Count still never sets it). **NodePinSchema
+  / Stage0 UNCHANGED** — the out-pin projects off `IsCollection`+`ElementTypeId` (never accessor FQNs), so
+  a managed decl (empty FQNs, ElementTypeId set) yields an identical pin; parity verified by the existing
+  `GetComponentPinParityTests`/`ComponentCollectionConsumerPinParityTests` (green). New editor tests:
+  reflector managed discovery + wire-bake into Contains (kind/field stamped, FQNs empty) + into ItemCount
+  (ElementTypeFqn baked managed-only). **Opus-reviewed the real diff** (reflector logic, both bake sites,
+  test assertions) + re-ran gates hands-on: build 0 warnings; 86 editor/parity/lowering tests green
+  (incl. both parity suites). **CA-07d-2 ✅ done + gated.**

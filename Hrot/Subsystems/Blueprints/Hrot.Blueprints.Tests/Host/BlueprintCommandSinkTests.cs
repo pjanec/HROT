@@ -417,6 +417,100 @@ public sealed class BlueprintCommandSinkTests
         Assert.Equal("System.Int32",         baked.ElementTypeFqn);
     }
 
+    // ── AddLink: CA-07d-2 managed-member wire-bake (TryBakeCollectionConsumer) ────
+
+    private const string ManagedCollectionComponentFqn = "Hrot.AI.Behaviors.BpManagedCollectionDemo";
+    private const string ManagedCollectionFieldName     = "MemberIds";
+
+    /// <summary>
+    /// Builds a fully pin-authored MANAGED <c>GetComponent&lt;BpManagedCollectionDemo&gt;</c> node
+    /// with a single baked MANAGED collection decl ("MemberIds", element System.Int32, empty
+    /// accessor FQNs) -- the managed counterpart of <see cref="AddGetComponentCollectionNode"/>.
+    /// </summary>
+    private static (GetComponentNode Node, Pin MemberIdsOut) AddGetComponentManagedCollectionNode(Graph graph)
+    {
+        var memberIdsOut = new Pin { Id = Guid.NewGuid(), Name = "MemberIds", Direction = "Out", IsExec = false,
+            TypeRef = new BlueprintTypeRef { TypeId = "System.Int32", IsArray = true } };
+        var node = new GetComponentNode
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = ManagedCollectionComponentFqn,
+            IsManaged        = true,
+            Fields = new List<ComponentFieldDecl>
+            {
+                new()
+                {
+                    Name                = ManagedCollectionFieldName,
+                    IsCollection        = true,
+                    ElementTypeId       = "System.Int32",
+                    CountAccessorFqn    = "",
+                    ItemAccessorFqn     = "",
+                    CollectionKind      = CollectionKind.ManagedMember,
+                    CollectionFieldName = ManagedCollectionFieldName,
+                },
+            },
+        };
+        node.Pins.Add(memberIdsOut);
+        graph.Nodes.Add(node);
+        return (node, memberIdsOut);
+    }
+
+    [Fact]
+    public void CommandSink_AddLink_GetComponentManagedCollectionIntoComponentContains_BakesKindAndFieldName_AccessorFqnsEmpty()
+    {
+        var (asset, graph) = MakeAssetWithGraph();
+        var (_, memberIdsOut) = AddGetComponentManagedCollectionNode(graph);
+
+        var collectionIn = new Pin { Id = Guid.NewGuid(), Name = "Collection", Direction = "In", IsExec = false,
+            TypeRef = new BlueprintTypeRef { TypeId = "System.Object", IsArray = true } };
+        var contains = new ComponentContainsNode { Id = Guid.NewGuid() };
+        contains.Pins.Add(collectionIn);
+        graph.Nodes.Add(contains);
+
+        var (sink, _, _, _, _, _) = MakeSut(asset, graph);
+
+        var result = sink.Apply(new GraphCommand.AddLink(
+            new LinkId(Guid.NewGuid()), new PinId(memberIdsOut.Id), new PinId(collectionIn.Id)));
+
+        Assert.True(result.Success);
+        var baked = (ComponentContainsNode)graph.Nodes.Single(n => n.Id == contains.Id);
+        Assert.Equal(ManagedCollectionComponentFqn, baked.ComponentTypeFqn);
+        Assert.Equal(CollectionKind.ManagedMember,  baked.CollectionKind);
+        Assert.Equal(ManagedCollectionFieldName,    baked.CollectionFieldName);
+        Assert.Equal("System.Int32",                baked.ElementTypeFqn);
+        Assert.Equal("",                            baked.CountAccessorFqn);
+        Assert.Equal("",                            baked.ItemAccessorFqn);
+    }
+
+    [Fact]
+    public void CommandSink_AddLink_GetComponentManagedCollectionIntoComponentItemCount_BakesElementTypeFqn_ManagedOnly()
+    {
+        // ComponentItemCountNode's ElementTypeFqn is baked ONLY for the managed case (the compiler
+        // needs it to type the native IReadOnlyList<TElement> local) -- curated Count never sets it
+        // (see CommandSink_AddLink_GetComponentCollectionIntoComponentItemCount_BakesTwoProps_NoItemAccessorOrElementType).
+        var (asset, graph) = MakeAssetWithGraph();
+        var (_, memberIdsOut) = AddGetComponentManagedCollectionNode(graph);
+
+        var collectionIn = new Pin { Id = Guid.NewGuid(), Name = "Collection", Direction = "In", IsExec = false,
+            TypeRef = new BlueprintTypeRef { TypeId = "System.Object", IsArray = true } };
+        var itemCount = new ComponentItemCountNode { Id = Guid.NewGuid() };
+        itemCount.Pins.Add(collectionIn);
+        graph.Nodes.Add(itemCount);
+
+        var (sink, _, _, _, _, _) = MakeSut(asset, graph);
+
+        var result = sink.Apply(new GraphCommand.AddLink(
+            new LinkId(Guid.NewGuid()), new PinId(memberIdsOut.Id), new PinId(collectionIn.Id)));
+
+        Assert.True(result.Success);
+        var baked = (ComponentItemCountNode)graph.Nodes.Single(n => n.Id == itemCount.Id);
+        Assert.Equal(ManagedCollectionComponentFqn, baked.ComponentTypeFqn);
+        Assert.Equal(CollectionKind.ManagedMember,  baked.CollectionKind);
+        Assert.Equal(ManagedCollectionFieldName,    baked.CollectionFieldName);
+        Assert.Equal("System.Int32",                baked.ElementTypeFqn);
+        Assert.Equal("",                            baked.CountAccessorFqn);
+    }
+
     [Fact]
     public void CommandSink_AddLink_NonGetComponentSourceIntoCollectionPin_DoesNotBake_LinkStillAdded()
     {
