@@ -28,10 +28,25 @@ internal static class StatementEmitter
             case IrOp_Const op:
                 if (idx >= 0)
                 {
-                    // Qualify NodeStatus.* literals synthesized by WaitLowering stages.
-                    var literal = op.CSharpLiteral.StartsWith("NodeStatus.", StringComparison.Ordinal)
-                        ? $"global::Fbt.{op.CSharpLiteral}"
-                        : op.CSharpLiteral;
+                    string literal;
+                    if (op.CSharpLiteral == "default")
+                    {
+                        // A bare `default` has no target type in `var x = default;` (CS8716). Emit a
+                        // TYPED default from the op's result type -- used by CA-07b's unwired/unbaked
+                        // component-collection consumer safe-default (ComponentItemGet/ItemCount).
+                        // Unknown type ("?") -> object.
+                        var tn = op.Type?.FullName;
+                        literal = string.IsNullOrEmpty(tn) || tn == "?"
+                            ? "default(object)"
+                            : $"default(global::{tn})";
+                    }
+                    else
+                    {
+                        // Qualify NodeStatus.* literals synthesized by WaitLowering stages.
+                        literal = op.CSharpLiteral.StartsWith("NodeStatus.", StringComparison.Ordinal)
+                            ? $"global::Fbt.{op.CSharpLiteral}"
+                            : op.CSharpLiteral;
+                    }
                     e.WriteLine($"var __t{idx} = {literal};");
                 }
                 break;

@@ -332,3 +332,19 @@ accessor pairs**, NOT auto-reflected off the raw buffer:
   dropping the stray node + backwards link. Verified: `Hrot.AI.Behaviors` builds — **0 errors, no BP1601**.
   Lesson: use targeted `git add <path>` (not `-A`) while the user has the editor open, so editor-saved
   assets aren't swept into commits.
+- **2026-08-02, CA-07c follow-up #4 (compile error) + demo removal, Opus:** user hit `CS8716` (untyped
+  `default`) then, after a partial fix, `CS0266` (object->int) in the demo's generated code. Root: the
+  editor REWRITES the asset on open (lossy DTO round-trip) — strips all `Pins` to `[]`, adds
+  `FieldName`/`FieldTypeFqn`, adds a stray unwired `ComponentItemGet`. With pins stripped, the demo's
+  sequential-GUID links dangle → scrambled wiring → an unwired consumer hit my CA-07b safe-default
+  (`IrOp_Const("default", pinType)`) which emitted a BARE `default` (CS8716); typing it surfaced the
+  real object->int mismatch from the scrambled graph (CS0266). Two actions: (1) **emit fix** — the
+  `IrOp_Const` "default" literal now emits a TYPED `default(global::T)` (unknown type -> `object`); no
+  valid graph should ever emit bare `default`. Serial **184/184** byte-identical (the "default" literal
+  is exclusively CA-07b's safe-default, so existing goldens unchanged). (2) **removed
+  ComponentCollectionDemo.bp.json** — the editor's save-on-open kept corrupting it into an
+  un-compilable mis-wired state, and its visual-check job is DONE (user confirmed the wire-orientation
+  fix works). The three consumer nodes stay covered by in-code fixtures (`ComponentCollectionConsumerLoweringTests`).
+  `Hrot.AI.Behaviors` builds clean. **REAL underlying bug flagged: the editor rewrites blueprint assets
+  on open (project_blueprint_editor_writes_on_open) — strips pins + adds DTO artifacts — which corrupts
+  ANY opened blueprint, not just this demo. Needs its own investigation.**
