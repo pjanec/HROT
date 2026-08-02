@@ -90,18 +90,31 @@ Read/query is reused (A1). The net-new **mutation** nodes:
 **Claude's lean:** ship the **core 5 write nodes**; reuse the 5 read/query nodes; defer `RemoveValue`/sort. This
 is the smallest vocabulary that makes the list fully usable without gaps.
 
-## Q19-D — Element mutation model (value semantics)
+## Q19-D — Write path: in-place, no array copy
 
-Fixed buffers can't cross the graph by-ref, and pins are by-value, so mutating the i-th struct element's field is
-**get copy → modify → `ListSet[i]` write-back** (a value round-trip). There is no `ref`-to-element pin.
+**Hard requirement (user):** writing one element must **not** copy the whole list. The write nodes must emit
+direct in-place slot mutation — the compiler must support **fast writes, not just read-only pins**.
 
-- **D1 — value round-trip only** (`ItemGet[i]` → edit → `ListSet[i]`). Consistent with how every other blittable
-  value flows through the graph; no new concept.
-- **D2 — dedicated in-place element-field write nodes** (e.g. `ListSetField(list, i, "FieldName", value)`).
-  Ergonomic for struct elements, but a new reflective-ish node shape and bespoke emit.
+The read side (A1) surfaces the list as a read-only collection out-pin — correct for `ForEach`/`Get`/query. The
+**write** side does NOT go through a by-value pin. Instead, write nodes bind the list the same way
+`SetVariableNode` already binds a scalar: **by variable id (an lvalue on the state local `s`/`ws`)**, and emit
+direct mutation of that field — *this is the established "write `s.field = value` in place" pattern, extended to
+indexed/append ops*:
 
-**Claude's lean: D1** for v1 — round-trip is uniform with the rest of the graph and needs no new machinery;
-revisit D2 only if struct-element editing proves painful in practice.
+- `ListSet(var, i, v)` → `if ((uint)i < (uint)s.{f}.Count) s.{f}.Items[i] = v; else «false + diag»;`
+- `ListAdd(var, v)` → `if (s.{f}.Count < N) { s.{f}.Items[s.{f}.Count++] = v; «true» } else «false + diag»;`
+- `ListInsertAt`/`ListRemoveAt` → in-place tail shift on `s.{f}.Items`, adjust `Count`.
+- `ListClear`/`ListResize` → set `Count` (+ zero-fill grown range), in place.
+
+**Zero array copies.** The only copy that ever occurs is editing a *sub-field of a struct element* routed through
+a by-value pin (`Get[i]` copy → edit field → `Set[i]` writes the element back) — that copies **one element**,
+never the array, and is inherent to value-type element access; acceptable for v1. An in-place element-field write
+node (`s.{f}.Items[i].Field = v`, cheap given `[InlineArray]`'s ref-returning indexer) can be added later if that
+one-element copy ever matters.
+
+**Decision: in-place lvalue writes** (write nodes bind by variable id → direct `s.{f}.Items[i]=…` / in-place
+Add/shift). New IR op family (`IrOp_ListWrite*`), but the lvalue binding reuses the `SetVariableNode` pattern — no
+whole-array materialization anywhere.
 
 ## Q19-E — Scope knobs
 
@@ -136,7 +149,7 @@ revisit D2 only if struct-element editing proves painful in practice.
 | Q19-A read surfacing | **A1** — reuse CA-07 consumers via `CollectionKind=BlackboardFixedList`; one emit case |
 | Q19-B type + storage | **B1** — capacity-carrying list type + generated `[InlineArray(N)]`+`Count` wrapper; resolves unmanaged w/ real `SizeBytes` |
 | Q19-C write nodes | core 6 (`Add`/`InsertAt`/`Set`/`RemoveAt`/`Clear`/`Resize`); reuse `Contains`/`Find`/`ItemGet`/`ItemCount`/`ForEach`; defer `RemoveValue`/sort |
-| Q19-D mutation | **D1** — value round-trip (`Get[i]` → edit → `Set[i]`); no by-ref element pin |
+| Q19-D mutation | **in-place lvalue writes** — write nodes bind the list by variable id (like `SetVariable`) → direct `s.{f}.Items[i]=…` / in-place Add/shift; **never copy the array** |
 | Q19-E scope | Instance Variables **+** WorkingState; no blittable `T?`; no dead-Entity auto-compaction |
 | Q19-F OOB write | **F1** — bounded indexer; grow via declared initial length + `ListResize`; no auto-extend |
 
@@ -144,11 +157,20 @@ revisit D2 only if struct-element editing proves painful in practice.
 feature. Record/playback/snapshot stay plain byte copies.
 
 ## Architect answers
-*(pending — this is a full architect round, not a fast-track: it is a new capability + new type kind, larger than
-Q#18's refinement of an existing mechanism.)*
-- **Q19-A:** _TBD_
-- **Q19-B:** _TBD_
-- **Q19-C:** _TBD_
-- **Q19-D:** _TBD_
-- **Q19-E:** _TBD_
-- **Q19-F:** _TBD_
+*(2026-08-03 — decided by user directly; Claude's leans adopted except Q19-D, which the user sharpened into a hard
+in-place-write requirement.)*
+- **Q19-A: A1** — reuse the CA-07 read/query consumers via a new `CollectionKind=BlackboardFixedList`; only write
+  nodes are net-new.
+- **Q19-B: B1** — capacity-carrying list type + generated `[InlineArray(N)]`+`Count` wrapper, resolves unmanaged
+  with real `SizeBytes`; optional declared initial length (preallocation).
+- **Q19-C:** ship the 6 write nodes (`Add`/`InsertAt`/`Set`/`RemoveAt`/`Clear`/`Resize`); reuse
+  `Contains`/`Find`/`Get[i]`/`Count`/`ForEach` (accepted implicitly — no objection).
+- **Q19-D: in-place lvalue writes — HARD REQUIREMENT.** Writing one element must NOT copy the whole array. Write
+  nodes bind the list by variable id (the `SetVariableNode` lvalue pattern) and emit direct `s.{f}.Items[i]=…` /
+  in-place Add/shift. The compiler must support fast writes, not just read-only pins. (New `IrOp_ListWrite*`
+  family; lvalue binding reuses `SetVariable`. Only a struct-element sub-field edit copies one element, never the
+  array — future in-place element-field write node optional.)
+- **Q19-E:** applies to **both** Instance `Variables` and AiPrimitive `WorkingState`; no dead-`Entity`
+  auto-compaction; (blittable `T?` slots remain out of scope with the managed decision).
+- **Q19-F: F1** — bounded indexer (OOB `Set` → false + diagnostic; `Get` → default); grow via declared initial
+  length + `ListResize`. No auto-extend. *(Not overridden; consistent with the never-silent overflow rule.)*
