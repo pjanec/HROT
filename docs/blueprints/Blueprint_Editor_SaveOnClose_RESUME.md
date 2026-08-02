@@ -35,7 +35,19 @@ running log + `Architect_Question_17_*.md`.
 
 ---
 
-## THREAD 2 — Editor "save-on-close" bug — INVESTIGATED, APPROVED, **IMPLEMENT NEXT**
+## THREAD 2 — Editor "save-on-close" bug — ✅ **FIXED** (commit `27b4af5c`)
+
+**DONE.** Decoupled save from close exactly as designed below. Removed the
+`BeforeDocumentClosed` flush in `EditorSubsystem`; injected a kind-dispatching
+`saveDocument` delegate into all three `AiGraphCanvasWindow` ctors; `ResolveCloseSave`
+now `_saveDocument?.Invoke(doc); doc.MarkClean(); _docManager.Close(doc)` — the only write
+path. Tab-close tests rewritten to assert against an injected save spy; the old
+`BeforeDocumentClosed` flush tests reframed as event-mechanism-only. Gate: full
+`Hrot.Editor.AiShared.Tests` = **1177/1177 green**; `Hrot.Editor` builds clean.
+**Still open:** the two follow-ups below (app-exit prompt + lossless projection save).
+The design record that follows is retained for context.
+
+### (original design — now implemented)
 
 ### Root cause (confirmed)
 `EditorSubsystem.cs:2508` subscribes to `AiDocumentManager.BeforeDocumentClosed` and, for **any dirty
