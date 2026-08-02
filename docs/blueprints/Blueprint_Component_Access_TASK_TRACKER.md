@@ -321,3 +321,14 @@ accessor pairs**, NOT auto-reflected off the raw buffer:
   editors (Blueprint/BTree/HSM), fixing a latent drag-from-input bug on any fresh node. Gate:
   NodeEditor.UI.Tests 90/90; Blueprint wire/command-sink/component 237/237. **Awaiting user re-check.**
   (The earlier array-pin inline-editor fix `98463ac9` stands — a real but DIFFERENT bug.)
+- **2026-08-02, CA-07c follow-up #3 (compile error), Opus:** user hit `BP1601 duplicate pin Id
+  ...022` on the GetComponent node when compiling. Cause: the committed `ComponentCollectionDemo.bp.json`
+  was an EDITOR-SAVED corruption (my earlier `git add -A` swept up the user's in-editor changes) — all
+  node `Pins` stripped to `[]`, a stray extra `ComponentItemGet` node added, and a BACKWARDS link whose
+  `ToPinId` was GetComponent's `Values` OUTPUT pin (...022). That put ...022 in both the outgoing and
+  incoming buckets, so `Stage0.AssignLinkGuids` minted two pins with id ...022 → BP1601. (The backwards
+  link is exactly the pre-fix drag-from-input bug now fixed by fc1222e5.) Fix: rewrote the demo to the
+  correct self-consistent EXPLICIT-PINS form (Stage0 skips authored-pin nodes → compiles reliably),
+  dropping the stray node + backwards link. Verified: `Hrot.AI.Behaviors` builds — **0 errors, no BP1601**.
+  Lesson: use targeted `git add <path>` (not `-A`) while the user has the editor open, so editor-saved
+  assets aren't swept into commits.
