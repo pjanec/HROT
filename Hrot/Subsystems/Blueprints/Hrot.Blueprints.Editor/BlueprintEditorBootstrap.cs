@@ -34,9 +34,13 @@ public static class BlueprintEditorBootstrap
         EqsTemplateRegistry eqsTemplates,
         IAnimationTkbQueries? animationQueries = null,
         Func<string?>? currentClassProvider = null,
-        ISharedStructTypeProvider? sharedStructTypeProvider = null)
+        ISharedStructTypeProvider? sharedStructTypeProvider = null,
+        IComponentTypeProvider? componentTypeProvider = null,
+        IComponentTypeProvider? writableComponentTypeProvider = null)
     {
-        sharedStructTypeProvider ??= new ReflectionSharedStructTypeProvider();
+        sharedStructTypeProvider     ??= new ReflectionSharedStructTypeProvider();
+        componentTypeProvider        ??= new ReflectionComponentTypeProvider();
+        writableComponentTypeProvider ??= new ReflectionWritableComponentTypeProvider();
 
         var registry = new BlueprintNodeDrawerRegistry();
 
@@ -61,6 +65,14 @@ public static class BlueprintEditorBootstrap
         // SharedNodeDrawers.cs for the picker rationale.
         registry.Register(typeof(GetSharedNode), new GetSharedNodeDrawer(editService, sharedStructTypeProvider));
         registry.Register(typeof(SetSharedNode), new SetSharedNodeDrawer(editService, sharedStructTypeProvider));
+
+        // CA-02: GetComponentNode -- ComponentTypeFqn (filtered picker over IComponentTypeProvider,
+        // always re-bakes the full field set; no collapse toggle, see ComponentNodeDrawers.cs).
+        registry.Register(typeof(GetComponentNode), new GetComponentNodeDrawer(editService, componentTypeProvider));
+
+        // CA-04: SetComponentNode -- same picker mechanism as GetComponentNode, but over the
+        // WRITABLE-only provider ([BlueprintWritable]-gated), see ComponentNodeDrawers.cs.
+        registry.Register(typeof(SetComponentNode), new SetComponentNodeDrawer(editService, writableComponentTypeProvider));
 
         // ANC-P5-08a: Register PlayMontageChainNode drawer (if animation queries available)
         if (animationQueries != null && currentClassProvider != null)
@@ -134,6 +146,24 @@ public static class BlueprintEditorBootstrap
         // Q#14 Option B: register a "Make {Struct}"/"Break {Struct}" pair per discovered
         // [BlackboardDtoStruct]. Each drops a Make/BreakStruct node baked with the struct FQN + fields.
         foreach (var descriptor in MakeBreakStructPaletteEntries.Entries(new ReflectionSharedStructTypeProvider()))
+            registry.Register(descriptor);
+
+        // CA-02: register a "Get Component: {Type}" entry per discovered ECS component type
+        // ([ComponentId]-marked struct/class) with at least one reflectable field. Each drops a
+        // GetComponentNode baked with the component FQN + its full reflected field set.
+        foreach (var descriptor in ComponentPaletteEntries.GetComponentEntries(new ReflectionComponentTypeProvider()))
+            registry.Register(descriptor);
+
+        // CA-04: register a "Set Component: {Type}" entry per discovered [BlueprintWritable] ECS
+        // component type with at least one reflectable field. Each drops a SetComponentNode baked
+        // with the component FQN + its full reflected field set.
+        foreach (var descriptor in ComponentPaletteEntries.SetComponentEntries(new ReflectionWritableComponentTypeProvider()))
+            registry.Register(descriptor);
+
+        // CA-07c: register the three static component-collection CONSUMER entries (ForEach/ItemGet/
+        // ItemCount). No type provider needed -- these nodes have no picker of their own; their
+        // ComponentTypeFqn/accessor FQNs are baked on WIRE by BlueprintCommandSink, not at creation.
+        foreach (var descriptor in ComponentPaletteEntries.ConsumerEntries())
             registry.Register(descriptor);
 
         return registry;

@@ -145,6 +145,11 @@ internal static class NodePinSchema
             GetAllParametersNode => GetAllParametersPins(asset),
             GetSharedNode gsn   => GetSharedPins(gsn),
             SetSharedNode ssn   => SetSharedPins(ssn),
+            GetComponentNode gcn => GetComponentPins(gcn),
+            SetComponentNode scn => SetComponentPins(scn),
+            ComponentForEachNode cfe   => ComponentForEachPins(cfe),
+            ComponentItemGetNode cig   => ComponentItemGetPins(cig),
+            ComponentItemCountNode cic => ComponentItemCountPins(cic),
             MakeStructNode msn  => MakeStructPins(msn),
             BreakStructNode bsn => BreakStructPins(bsn),
             SetMembersNode smn  => SetMembersPins(smn),
@@ -748,6 +753,133 @@ internal static class NodePinSchema
     }
 
     /// <summary>
+    /// GetComponentNode (CA-02, Slice 1a): pure-data node. EXACT parity with the compiler's
+    /// <see cref="Hrot.Blueprints.Core.Compiler.Stages.Stage0_Rehydrate"/>
+    /// <c>EnrichGetComponentPins</c> (frozen at CA-01): multi-pin mode (<see
+    /// cref="GetComponentNode.Fields"/> baked) projects OPTIONAL cross-entity data-in "Target"
+    /// (<c>Fdp.Core.Entity</c>, unwired = self) + one data-OUT pin PER baked field + data-out
+    /// "Found" (<c>System.Boolean</c>); legacy (<c>Fields == null</c>) mode projects a single
+    /// self-only "Value" data-out typed from <see cref="GetComponentNode.FieldTypeFqn"/> -- NO
+    /// Target/Found in that branch (mirrors the untouched legacy Stage5 lowering, which never
+    /// computes them). The CA-02 editor (picker/palette) ALWAYS bakes <c>Fields</c>, so a
+    /// designer-placed node is always multi-pin; the legacy shape is reachable only for
+    /// pre-CA-01 assets already on disk.
+    /// </summary>
+    private static IReadOnlyList<Pin> GetComponentPins(GetComponentNode gcn)
+    {
+        if (gcn.Fields is { Count: > 0 })
+        {
+            var pins = new List<Pin>(2 + gcn.Fields.Count) { MakeData("Target", "In", "Fdp.Core.Entity") };
+            foreach (var f in gcn.Fields)
+            {
+                // CA-07a: a collection decl projects ONE out-pin typed by its ELEMENT type with
+                // IsArray true (the "whole collection" pin), in the SAME position it appears in
+                // Fields -- kept in exact parity with Stage0_Rehydrate.EnrichGetComponentPins.
+                if (f.IsCollection)
+                    pins.Add(MakeData(f.Name, "Out", string.IsNullOrEmpty(f.ElementTypeId) ? "System.Object" : f.ElementTypeId!, isArray: true));
+                else
+                    pins.Add(MakeData(f.Name, "Out", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+            }
+            pins.Add(MakeData("Found", "Out", "System.Boolean"));
+            return pins;
+        }
+
+        // Legacy single-field path (FROZEN, self-only, no Target/Found) -- FieldTypeFqn used VERBATIM,
+        // NOT "global::"-stamped (see Stage0_Rehydrate.EnrichGetComponentPins's comment: stamping would
+        // misroute well-known primitives like "System.Single" into the AN2 enum/project-type path).
+        var typeId = string.IsNullOrEmpty(gcn.FieldTypeFqn) ? "System.Object" : gcn.FieldTypeFqn;
+        return new[] { MakeData("Value", "Out", typeId) };
+    }
+
+    /// <summary>
+    /// SetComponentNode (CA-04/CA-06): exec node. EXACT parity with the compiler's
+    /// <see cref="Hrot.Blueprints.Core.Compiler.Stages.Stage0_Rehydrate"/>
+    /// <c>EnrichSetComponentPins</c>: exec-In "In" + exec-Out "Out" + either (UNMANAGED) one data-IN
+    /// pin PER baked <see cref="SetComponentNode.Fields"/> entry, or (MANAGED, CA-06 Slice W2,
+    /// Q#16-C -- checked FIRST) a SINGLE data-IN "Value" pin typed by
+    /// <see cref="SetComponentNode.ComponentTypeFqn"/> -- whole-replace only, never per-field -- plus
+    /// data-out "Written" (<c>System.Boolean</c>) in BOTH shapes, UNCONDITIONALLY (write-if-present:
+    /// the <c>Has(Managed)Component&lt;T&gt;</c> guard result always exists, even before any component
+    /// is picked). Self-only (Q#16) -- NO "Target" pin, ever, unlike <see cref="GetComponentPins"/>'s
+    /// optional cross-entity read.
+    /// </summary>
+    private static IReadOnlyList<Pin> SetComponentPins(SetComponentNode scn)
+    {
+        var pins = new List<Pin>(4)
+        {
+            MakeExec("In",  "In"),
+            MakeExec("Out", "Out"),
+        };
+        if (scn.IsManaged)
+        {
+            pins.Add(MakeData("Value", "In", SharedTypePinTypeId(scn.ComponentTypeFqn)));
+            pins.Add(MakeData("Written", "Out", "System.Boolean"));
+            return pins;
+        }
+        if (scn.Fields is { Count: > 0 })
+            foreach (var f in scn.Fields)
+                pins.Add(MakeData(f.Name, "In", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+        pins.Add(MakeData("Written", "Out", "System.Boolean"));
+        return pins;
+    }
+
+    /// <summary>
+    /// ComponentForEachNode (CA-07b): exec node. EXACT parity with the compiler's
+    /// <see cref="Hrot.Blueprints.Core.Compiler.Stages.Stage0_Rehydrate"/>
+    /// <c>EnrichComponentForEachPins</c>: exec-In "In" + data-in "Collection" (IsArray,
+    /// element-typed from <see cref="ComponentForEachNode.ElementTypeFqn"/>, falling back to
+    /// System.Object) + exec-Out "Body" + exec-Out "Completed" + data-out "CurrentItem"
+    /// (same element type) + data-out "CurrentIndex" (System.Int32) + data-out "Count"
+    /// (System.Int32).
+    /// </summary>
+    private static IReadOnlyList<Pin> ComponentForEachPins(ComponentForEachNode cfe)
+    {
+        var elemType = string.IsNullOrEmpty(cfe.ElementTypeFqn) ? "System.Object" : cfe.ElementTypeFqn;
+        return new[]
+        {
+            MakeExec("In", "In"),
+            MakeData("Collection", "In", elemType, isArray: true),
+            MakeExec("Body", "Out"),
+            MakeExec("Completed", "Out"),
+            MakeData("CurrentItem",  "Out", elemType),
+            MakeData("CurrentIndex", "Out", "System.Int32"),
+            MakeData("Count",        "Out", "System.Int32"),
+        };
+    }
+
+    /// <summary>
+    /// ComponentItemGetNode (CA-07b): pure-data node. EXACT parity with the compiler's
+    /// <c>Stage0_Rehydrate.EnrichComponentItemGetPins</c>: data-in "Collection" (IsArray,
+    /// element-typed from <see cref="ComponentItemGetNode.ElementTypeFqn"/>, falling back to
+    /// System.Object) + data-in "Index" (System.Int32) + data-out "Element" (same element type).
+    /// </summary>
+    private static IReadOnlyList<Pin> ComponentItemGetPins(ComponentItemGetNode cig)
+    {
+        var elemType = string.IsNullOrEmpty(cig.ElementTypeFqn) ? "System.Object" : cig.ElementTypeFqn;
+        return new[]
+        {
+            MakeData("Collection", "In",  elemType, isArray: true),
+            MakeData("Index",      "In",  "System.Int32"),
+            MakeData("Element",    "Out", elemType),
+        };
+    }
+
+    /// <summary>
+    /// ComponentItemCountNode (CA-07b): pure-data node. EXACT parity with the compiler's
+    /// <c>Stage0_Rehydrate.EnrichComponentItemCountPins</c>: data-in "Collection" (IsArray,
+    /// ALWAYS System.Object -- no ElementTypeFqn on this node, Count never needs it) + data-out
+    /// "Count" (System.Int32).
+    /// </summary>
+    private static IReadOnlyList<Pin> ComponentItemCountPins(ComponentItemCountNode cic)
+    {
+        return new[]
+        {
+            MakeData("Collection", "In",  "System.Object", isArray: true),
+            MakeData("Count",      "Out", "System.Int32"),
+        };
+    }
+
+    /// <summary>
     /// SetSharedNode (Slice 2a-2): exec node. Data-in "Value" typed DIRECTLY from
     /// <see cref="SetSharedNode.SharedTypeId"/> + data-out "Written" (<c>System.Boolean</c>).
     /// Kept in parity with the compiler's <c>Stage0_Rehydrate.EnrichSetSharedPins</c>.
@@ -1110,12 +1242,18 @@ internal static class NodePinSchema
         TypeRef   = new BlueprintTypeRef(),
     };
 
-    private static Pin MakeData(string name, string direction, string typeId) => new()
+    /// <summary>
+    /// CA-07a: <paramref name="isArray"/> stamps the pin's <see cref="BlueprintTypeRef.IsArray"/> --
+    /// used for a baked collection field's single "whole collection" out-pin (element-typed,
+    /// IsArray true). Defaults to <c>false</c> so every pre-CA-07a call site is unaffected. Mirrors
+    /// the compiler's <c>Stage0_Rehydrate.MakePin</c>.
+    /// </summary>
+    private static Pin MakeData(string name, string direction, string typeId, bool isArray = false) => new()
     {
         Id        = Guid.NewGuid(),
         Name      = name,
         Direction = direction,
         IsExec    = false,
-        TypeRef   = new BlueprintTypeRef { TypeId = typeId },
+        TypeRef   = new BlueprintTypeRef { TypeId = typeId, IsArray = isArray },
     };
 }

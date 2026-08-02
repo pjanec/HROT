@@ -205,12 +205,28 @@ internal static class Stage4_TypeResolve
         if (fromType.FullName == toType.FullName) return;
         if (ctx.TypeRegistry.TryGetCoercion(fromType, toType, out _)) return;
         // System.Object pins are typed-unknown placeholders (e.g. CLR calls rehydrated without
-        // reflection in the MSBuild host); suppress mismatch to let the graph compile.
-        if (fromType.FullName == "System.Object" || toType.FullName == "System.Object") return;
+        // reflection in the MSBuild host; CA-07c's ComponentItemCountNode.Collection, which has no
+        // ElementTypeFqn of its own and so is ALWAYS "System.Object" -- see
+        // Stage0_Rehydrate.EnrichComponentItemCountPins); suppress mismatch to let the graph compile.
+        // StaticTypeRegistry.TryResolve wraps an array element's FullName as "ElementFullName[]"
+        // (e.g. "System.Object[]"), so the wildcard check must strip that suffix too -- otherwise a
+        // REAL wired collection (e.g. "System.Int32[]" -> "System.Object[]") would be flagged as a
+        // mismatch even though the scalar "System.Int32" -> "System.Object" case is explicitly fine.
+        if (WildcardFullName(fromType) == "System.Object" || WildcardFullName(toType) == "System.Object") return;
 
         ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1501,
             $"Link type mismatch: '{fromType.FullName}' -> '{toType.FullName}' -- no coercion.",
             ctx.AssetId, graph.Id, link.FromNodeId, link.FromPinId));
     }
+
+    /// <summary>
+    /// The type's element FullName when it's an array wrapper (strips the trailing "[]"
+    /// <see cref="Hrot.Blueprints.Core.Compiler.Catalogs.StaticTypeRegistry.TryResolve"/> appends),
+    /// otherwise the type's own FullName verbatim. Used ONLY by <see cref="VerifyLinkTypes"/>'s
+    /// System.Object wildcard check -- an array of the placeholder type is just as much a
+    /// "typed-unknown" as the scalar placeholder itself.
+    /// </summary>
+    private static string WildcardFullName(IrTypeRef type)
+        => type.IsArray && type.ElementType != null ? type.ElementType.FullName : type.FullName;
 }
 

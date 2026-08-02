@@ -41,6 +41,7 @@ internal static class Stage2_Validate
         new V_ReadEqsResultNodeRules(),
         new V_SpawnEqsSensorNodeRules(),
         new V_SharedStateRules(),
+        new V_ComponentAccessRules(),
         new V_FunctionGraphCallRules(),
         new V_ExecOutFanOut(),
     };
@@ -1197,6 +1198,247 @@ internal sealed class V_SharedStateRules : IValidator
 }
 
 // ---------------------------------------------------------------------------
+// V_ComponentAccessRules (BP2060-BP2065 -- CA-03/CA-05/CA-06: SetComponent/GetComponent access)
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// Validates <see cref="SetComponentNode"/> and <see cref="GetComponentNode"/> nodes.
+/// <list type="bullet">
+///   <item>BP2060 -- <see cref="SetComponentNode"/>.<c>ComponentTypeFqn</c> is empty.</item>
+///   <item>BP2061 -- <see cref="SetComponentNode"/>.<c>ComponentTypeFqn</c> does not look like a
+///     well-formed dotted CLR type FQN (same syntactic-only check as <see cref="V_SharedStateRules"/>'s
+///     BP2041 -- see that validator's doc comment for why a full-resolution check is not meaningful
+///     here).</item>
+///   <item>BP2062 -- the node carries a "Target" pin. <see cref="SetComponentNode"/> is SELF-ONLY
+///     by construction (Q#16) -- <c>Stage0_Rehydrate.EnrichSetComponentPins</c> never projects
+///     one, so a "Target" pin here can only come from a hand-authored/legacy asset; flagged
+///     regardless of whether the pin is actually linked.</item>
+///   <item>BP2063 (CA-05, Slice 1b) -- a <see cref="GetComponentNode"/> with <c>IsManaged == true</c>
+///     has one of its FIELD out-pins wired directly into a persisting sink (<see cref="SetVariableNode"/>
+///     or <see cref="SetSharedNode"/>). Rule G1 (Q#15): a managed component-read value is
+///     read-and-pass-to-managed-consumer only -- never persisted. See this rule's own doc comment
+///     below for what BP1503/BP1501 already cover vs. the gap this closes.</item>
+///   <item>BP2064 (CA-06, Slice W2, Q#16-C) -- a <see cref="SetComponentNode"/> with
+///     <c>IsManaged == true</c> ALSO carries per-field <c>Fields</c>. Managed writes are
+///     whole-replace-only (a single "Value" pin) -- per-field managed write is forbidden (snapshot
+///     aliasing).</item>
+///   <item>BP2065 (CA-06, Slice W2) -- a managed <see cref="SetComponentNode"/> in an
+///     AiPrimitive-dispatch asset. AiPrimitive's generated <c>TickCore</c> has no
+///     <c>IEntityCommandBuffer</c> parameter in scope (see <c>AiPrimitiveEmitter.EmitTickCore</c>),
+///     so there is nowhere to queue <c>ecb.SetManagedComponent</c>.</item>
+///   <item>BP2066 (CA-07b) -- a component-collection consumer (<see cref="ComponentForEachNode"/>/
+///     <see cref="ComponentItemGetNode"/>/<see cref="ComponentItemCountNode"/>) whose "Collection"
+///     data-in pin IS wired but whose baked accessor FQNs are empty. The wiring is meaningless
+///     without the bake (CA-07c wires it at edit time); Stage5 would otherwise silently degrade to
+///     its "safe default" (no read, out-pin resolves to <c>default</c>) with no diagnostic at all.</item>
+/// </list>
+/// <para>
+/// Deliberately absent: a <c>[BlueprintWritable]</c> check. The compiler runs as a netstandard2.0
+/// Roslyn analyzer and cannot reflect over the real component type to see the attribute (the same
+/// reflection-free constraint documented throughout this file's other validators/Nodes.cs) --
+/// <c>[BlueprintWritable]</c> is an EDITOR-primary gate (CA-04's write picker); see
+/// <see cref="Fdp.Core.BlueprintWritableAttribute"/>'s doc comment.
+/// </para>
+/// </summary>
+internal sealed class V_ComponentAccessRules : IValidator
+{
+    // Same syntactic FQN check as V_SharedStateRules -- one-or-more dot/plus-separated C#
+    // identifier segments, optional "global::" prefix.
+    private static readonly System.Text.RegularExpressions.Regex FqnPattern = new(
+        @"^(global::)?[A-Za-z_][A-Za-z0-9_]*([.+][A-Za-z_][A-Za-z0-9_]*)*$",
+        System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        foreach (var graph in asset.Graphs)
+        {
+            foreach (var node in graph.Nodes)
+            {
+                if (node is SetComponentNode scn)
+                {
+                    if (string.IsNullOrEmpty(scn.ComponentTypeFqn))
+                    {
+                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2060,
+                            $"{nameof(SetComponentNode)}: ComponentTypeFqn must not be empty.",
+                            asset.AssetId, graph.Id, node.Id));
+                    }
+                    else if (!FqnPattern.IsMatch(scn.ComponentTypeFqn))
+                    {
+                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2061,
+                            $"{nameof(SetComponentNode)}: ComponentTypeFqn '{scn.ComponentTypeFqn}' is not " +
+                            "a well-formed type name.",
+                            asset.AssetId, graph.Id, node.Id));
+                    }
+
+                    if (node.Pins.Any(p =>
+                            !p.IsExec && string.Equals(p.Name, "Target", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2062,
+                            $"{nameof(SetComponentNode)} is self-only -- a \"Target\" pin/link is not permitted.",
+                            asset.AssetId, graph.Id, node.Id));
+                    }
+
+                    if (scn.IsManaged)
+                    {
+                        // BP2064 (CA-06, Slice W2, Q#16-C) -- managed write is WHOLE-REPLACE ONLY.
+                        // A managed node that ALSO carries per-field Fields (hand-authored/legacy
+                        // asset, or an editor bug) is structurally contradictory -- reject it rather
+                        // than silently ignoring the Fields list or, worse, letting some future
+                        // Stage5 change accidentally read it for a per-field managed write (the
+                        // architect-forbidden shape: per-field managed write risks snapshot aliasing).
+                        if (scn.Fields is { Count: > 0 })
+                        {
+                            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2064,
+                                $"{nameof(SetComponentNode)}: a managed (IsManaged=true) node must not " +
+                                "carry per-field Fields -- managed writes are whole-replace-only " +
+                                "(single \"Value\" pin). Per-field managed write is forbidden.",
+                                asset.AssetId, graph.Id, node.Id));
+                        }
+
+                        // BP2065 (CA-06, Slice W2) -- AiPrimitive's generated TickCore(ref Params p,
+                        // ref WorkingState ws, Entity self, EntityRepository world, float time) (see
+                        // AiPrimitiveEmitter.EmitTickCore) carries NO IEntityCommandBuffer parameter
+                        // at all -- there is no ECB in scope to queue ecb.SetManagedComponent on.
+                        // Instance dispatch's Tick/Event/Func_* methods (InstanceEmitter) all declare
+                        // one; Library dispatch has no `self` either (a separate, pre-existing gap
+                        // this rule does not attempt to close). Reject HERE, at Stage2, so the
+                        // pipeline never reaches Stage5/emit for this asset (BlueprintCompiler.Compile
+                        // stops at the first Stage2 error) -- EmissionContext.EcbVar's AiPrimitive
+                        // branch throws as defense-in-depth for exactly this case.
+                        if (asset.Dispatch == BlueprintDispatchKind.AiPrimitive)
+                        {
+                            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2065,
+                                $"{nameof(SetComponentNode)}: a managed (IsManaged=true) write is not " +
+                                "permitted in an AiPrimitive-dispatch asset -- TickCore has no " +
+                                "IEntityCommandBuffer in scope to queue the write on.",
+                                asset.AssetId, graph.Id, node.Id));
+                        }
+                    }
+                }
+                else if (node is GetComponentNode { IsManaged: true } gcn && gcn.Fields is { Count: > 0 })
+                {
+                    CheckManagedReadNotPersisted(gcn, graph, asset, ctx);
+                }
+                else if (node is ComponentForEachNode or ComponentItemGetNode or ComponentItemCountNode)
+                {
+                    CheckComponentCollectionConsumer(node, graph, asset, ctx);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// BP2066 (CA-07b) -- see this class's doc comment. Only fires when "Collection" is WIRED
+    /// (an unwired Collection is a legitimate "not used yet" state -- Stage5 degrades it silently,
+    /// same as any other unconnected optional pin elsewhere in this file); the missing-accessor
+    /// check is per-kind (ComponentForEach needs BOTH Count+Item, ComponentItemGet needs only Item,
+    /// ComponentItemCount needs only Count -- mirrors each kind's own Stage5 lowering requirement).
+    /// </summary>
+    private static void CheckComponentCollectionConsumer(
+        Node node, Graph graph, BlueprintAsset asset, ValidationContext ctx)
+    {
+        var collectionPin = node.Pins.FirstOrDefault(p =>
+            !p.IsExec && p.Direction == "In"
+            && string.Equals(p.Name, "Collection", StringComparison.OrdinalIgnoreCase));
+        if (collectionPin is null) return;
+
+        bool wired = graph.Links.Any(l => l.ToNodeId == node.Id && l.ToPinId == collectionPin.Id);
+        if (!wired) return;
+
+        var (componentTypeFqn, countFqn, itemFqn) = node switch
+        {
+            ComponentForEachNode cfe   => (cfe.ComponentTypeFqn, cfe.CountAccessorFqn, cfe.ItemAccessorFqn),
+            ComponentItemGetNode cig   => (cig.ComponentTypeFqn, "", cig.ItemAccessorFqn),
+            ComponentItemCountNode cic => (cic.ComponentTypeFqn, cic.CountAccessorFqn, ""),
+            _                          => ("", "", ""),
+        };
+
+        bool needsCount = node is ComponentForEachNode or ComponentItemCountNode;
+        bool needsItem  = node is ComponentForEachNode or ComponentItemGetNode;
+
+        bool missing = string.IsNullOrEmpty(componentTypeFqn)
+            || (needsCount && string.IsNullOrEmpty(countFqn))
+            || (needsItem  && string.IsNullOrEmpty(itemFqn));
+
+        if (missing)
+        {
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2066,
+                $"{node.GetType().Name}: \"Collection\" is wired but the node's baked accessor " +
+                "FQNs are empty -- the collection was not baked at wire time (CA-07c).",
+                asset.AssetId, graph.Id, node.Id));
+        }
+    }
+
+    /// <summary>
+    /// BP2063 (CA-05, Slice 1b) -- Rule G1's "never persist a managed component-read value" half
+    /// (the "never mutate" half is structural: <see cref="GetComponentNode"/> has no write path at
+    /// all).
+    /// <para>
+    /// <b>What was ALREADY enforced before this rule (investigated, not duplicated):</b>
+    /// <list type="bullet">
+    ///   <item><b>BP1503</b> (<c>Stage4_TypeResolve.CheckUnmanagedConstraint</c>) rejects DECLARING an
+    ///     <c>asset.Variables</c>/<c>asset.WorkingState</c> entry whose OWN declared type resolves to
+    ///     managed -- independent of wiring. So "managed value -&gt; a Variable declared with that same
+    ///     managed type" is already impossible: the Variable itself cannot exist. This does NOT cover
+    ///     <c>SetSharedNode</c> at all (<see cref="V_SharedStateRules"/> only checks <c>SharedTypeId</c>
+    ///     syntactically, never its managed-ness), and does not stop wiring in general -- only the
+    ///     specific case of a type-matched, explicitly-declared managed Variable/WorkingState field.
+    ///   </item>
+    ///   <item><b>BP1501</b> (<c>Stage4_TypeResolve.VerifyLinkTypes</c>) rejects a link only when the
+    ///     source/destination pin's resolved <c>IrTypeRef.FullName</c> DIFFERS (with no registered
+    ///     coercion). It is a pure type-NAME-equality check -- it has no concept of managed-vs-unmanaged
+    ///     at all, so a link where both ends happen to share the same type name is accepted by BP1501
+    ///     regardless of whether that shared type is managed.
+    ///   </item>
+    /// </list>
+    /// <b>The gap this closes:</b> <see cref="SetSharedNode"/> has NO managed-ness check anywhere
+    /// (BP1503 never looks at it), so wiring a managed <see cref="GetComponentNode"/> field straight
+    /// into a <see cref="SetSharedNode"/> field pin of the SAME type name was previously accepted by
+    /// both BP1503 (out of scope) and BP1501 (name matches). This rule closes that gap directly at the
+    /// LINK level, and -- for defense in depth / a clearer diagnostic message pointing at the actual
+    /// managed-read node -- also flags the <see cref="SetVariableNode"/> case even though BP1503
+    /// typically already blocks it earlier (via the Variable's own declared type).
+    /// </para>
+    /// <para>
+    /// Deliberately narrow: only flags a link whose SOURCE is one of <paramref name="gcn"/>'s named
+    /// FIELD out-pins (excludes "Found", a plain <c>System.Boolean</c> that is never itself a managed
+    /// value) landing on <see cref="SetVariableNode"/>/<see cref="SetSharedNode"/> specifically -- a
+    /// link into a <see cref="FunctionCallNode"/> data-in (library/function call parameter) is NOT
+    /// touched, so a legitimate managed-&gt;managed pass-through (e.g. a library call taking the managed
+    /// type) is never rejected. <see cref="SetComponentNode"/> is also NOT a checked destination here:
+    /// "reject per-field managed write" is CA-06's own rule -- BP2064, above in this class's
+    /// <c>Validate</c> method (a managed <c>SetComponentNode</c> write is whole-replace-only) -- not
+    /// this one.
+    /// </para>
+    /// </summary>
+    private static void CheckManagedReadNotPersisted(
+        GetComponentNode gcn, Graph graph, BlueprintAsset asset, ValidationContext ctx)
+    {
+        var fieldPinIds = new HashSet<Guid>(
+            gcn.Pins.Where(p =>
+                    !p.IsExec && p.Direction == "Out"
+                    && !string.Equals(p.Name, "Found", StringComparison.OrdinalIgnoreCase)
+                    && gcn.Fields!.Any(f => string.Equals(f.Name, p.Name, StringComparison.OrdinalIgnoreCase)))
+                .Select(p => p.Id));
+        if (fieldPinIds.Count == 0) return;
+
+        foreach (var link in graph.Links)
+        {
+            if (link.FromNodeId != gcn.Id || !fieldPinIds.Contains(link.FromPinId)) continue;
+
+            var sink = graph.Nodes.FirstOrDefault(n => n.Id == link.ToNodeId);
+            if (sink is not (SetVariableNode or SetSharedNode)) continue;
+
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2063,
+                $"{nameof(GetComponentNode)}: a managed component-read field value may only feed a " +
+                $"managed consumer (e.g. a library/function call) -- wiring it into {sink!.GetType().Name} " +
+                "would persist it, which Rule G1 (Q#15) forbids.",
+                asset.AssetId, graph.Id, gcn.Id, link.FromPinId));
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // V_FunctionGraphCallRules  (BATCH-03A + BATCH-03B)
 // ---------------------------------------------------------------------------
 
@@ -1479,12 +1721,12 @@ internal sealed class V_ExecOutFanOut : IValidator
 // ---------------------------------------------------------------------------
 
 /// <summary>
-/// P1 (GAP-1): a <see cref="FlowForEachNode"/>'s "Body" exec-subgraph must be a synchronous,
-/// latent-free sub-DAG. The body lowers to an inline C# <c>for</c> whose statements are scheduled
-/// inline (not BFS blocks), so a latent node -- which needs a suspend/resume block split -- cannot
-/// appear inside it. P1b lifted the P1a branch-free restriction: a <see cref="BranchNode"/> in the
-/// body now lowers to a nested inline <c>if</c>/<c>else</c> (IrOp_If), so branches ARE allowed;
-/// only latent nodes remain forbidden.
+/// P1 (GAP-1): a <see cref="FlowForEachNode"/>'s -- and (CA-07b) a <see cref="ComponentForEachNode"/>'s
+/// -- "Body" exec-subgraph must be a synchronous, latent-free sub-DAG. Both lower to an inline C#
+/// <c>for</c> whose statements are scheduled inline (not BFS blocks), so a latent node -- which needs
+/// a suspend/resume block split -- cannot appear inside it. P1b lifted the P1a branch-free
+/// restriction: a <see cref="BranchNode"/> in the body now lowers to a nested inline <c>if</c>/
+/// <c>else</c> (IrOp_If), so branches ARE allowed; only latent nodes remain forbidden.
 /// </summary>
 internal sealed class V_FlowForEachRules : IValidator
 {
@@ -1493,15 +1735,21 @@ internal sealed class V_FlowForEachRules : IValidator
         foreach (var graph in asset.Graphs)
         {
             var nodeById = graph.Nodes.ToDictionary(n => n.Id);
-            foreach (var fe in graph.Nodes.OfType<FlowForEachNode>())
+            // CA-07b: ComponentForEachNode shares FlowForEachNode's inline for-body scheduling
+            // (ScheduleComponentForEachNode -> ScheduleInlineBodyChain), so its "Body" carries the
+            // SAME latent-free requirement -- a latent node there would need a suspend/resume block
+            // split the inline for-body cannot span. Both loop kinds expose a "Body" exec-out.
+            foreach (var loop in graph.Nodes.Where(n => n is FlowForEachNode or ComponentForEachNode))
             {
-                var bodyPin = fe.Pins.FirstOrDefault(p => p.IsExec && p.Direction == "Out"
+                var bodyPin = loop.Pins.FirstOrDefault(p => p.IsExec && p.Direction == "Out"
                     && string.Equals(p.Name, "Body", StringComparison.OrdinalIgnoreCase));
                 if (bodyPin is null) continue;
 
+                var loopKind = loop is ComponentForEachNode ? "ComponentForEach" : "FlowForEach";
+
                 var visited = new HashSet<Guid>();
                 var queue = new Queue<Node>();
-                foreach (var start in ExecTargets(graph, fe.Id, bodyPin.Id, nodeById))
+                foreach (var start in ExecTargets(graph, loop.Id, bodyPin.Id, nodeById))
                     queue.Enqueue(start);
 
                 while (queue.Count > 0)
@@ -1514,7 +1762,7 @@ internal sealed class V_FlowForEachRules : IValidator
                     // inline for-body cannot span.
                     if (n is LatentDelayNode or WaitForChannelNode or WaitForEventNode or WhenNode)
                         ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2050,
-                            $"FlowForEach body must be latent-free: a latent '{n.GetType().Name}' is reachable from the loop 'Body'.",
+                            $"{loopKind} body must be latent-free: a latent '{n.GetType().Name}' is reachable from the loop 'Body'.",
                             asset.AssetId, graph.Id, n.Id));
 
                     foreach (var outPin in n.Pins.Where(p => p.IsExec && p.Direction == "Out"))

@@ -92,6 +92,38 @@ public sealed class BlueprintTypeSystemTests
         Assert.True(sut.IsImplicitCast(new TypeKey(BlueprintTypeSystem.Int32), new TypeKey(BlueprintTypeSystem.Single)));
     }
 
+    // ── CA-07c: System.Object wildcard ───────────────────────────────────────
+    // Mirrors Stage4_TypeResolve.VerifyLinkTypes' identical "typed-unknown placeholder" rule --
+    // required so the FIRST wire attempt (real source type -> an unbaked ComponentForEach/ItemGet/
+    // ItemCount "Collection" pin, which projects as System.Object until CA-07c's wire-bake hook
+    // re-types it) is accepted by the editor validator.
+
+    [Fact]
+    public void ObjectWildcard_AnyRealTypeIntoObject_IsCompatible()
+    {
+        var sut = MakeSut();
+        Assert.True(sut.AreCompatible(new TypeKey(BlueprintTypeSystem.Int32), new TypeKey("System.Object")));
+        Assert.True(sut.AreCompatible(new TypeKey(BlueprintTypeSystem.Bool),  new TypeKey("System.Object")));
+        Assert.True(sut.AreCompatible(new TypeKey(BlueprintTypeSystem.Vector3), new TypeKey("System.Object")));
+    }
+
+    [Fact]
+    public void ObjectWildcard_ObjectIntoAnyRealType_IsCompatible()
+    {
+        var sut = MakeSut();
+        Assert.True(sut.AreCompatible(new TypeKey("System.Object"), new TypeKey(BlueprintTypeSystem.Int32)));
+    }
+
+    [Fact]
+    public void ObjectWildcard_DoesNotSuppress_ExecVsData()
+    {
+        var sut = MakeSut();
+        // Exec (TypeKey.Empty) is a distinct sentinel, not "System.Object" -- the wildcard rule must
+        // not accidentally swallow the exec/data kind split (that's enforced upstream by
+        // BlueprintLinkValidator's PinKind check, but AreCompatible itself should stay precise too).
+        Assert.False(sut.AreCompatible(TypeKey.Empty, new TypeKey("System.Object")));
+    }
+
     [Fact]
     public void ImplicitCast_SameType_IsNotImplicitCast()
     {

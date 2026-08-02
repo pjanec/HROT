@@ -81,9 +81,94 @@ public sealed record IrOp_PollEngineEvent(
     Guid HandlerGraphId) : IrOperation;
 
 // ECS read (impure)
-public sealed record IrOp_HasComponent(string ComponentTypeFqn, IrValue Entity) : IrOperation;
+/// <param name="IsManaged">
+/// CA-05 (Slice 1b) -- when true, emits <c>{wv}.HasManagedComponent&lt;T&gt;()</c> instead of
+/// <c>{wv}.HasComponent&lt;T&gt;()</c>. Both are PUBLIC, direct (non-reflective) members of the
+/// concrete <c>Fdp.Core.EntityRepository</c> (no <c>InternalsVisibleTo</c> needed from generated
+/// code) -- <c>HasManagedComponent&lt;T&gt; where T : class</c> is the idiomatic pairing used
+/// throughout the engine's own production call sites (e.g. <c>SmartEgressUtil</c>) alongside
+/// <c>GetManagedComponentRO&lt;T&gt;</c> (see <see cref="IrOp_GetManagedComponentRO"/>). Default
+/// <c>false</c> -- existing (unmanaged) call sites are unaffected.
+/// </param>
+public sealed record IrOp_HasComponent(string ComponentTypeFqn, IrValue Entity, bool IsManaged = false) : IrOperation;
 public sealed record IrOp_GetComponent(string ComponentTypeFqn, IrValue Entity, IrTypeRef Type) : IrOperation;
 public sealed record IrOp_GetComponentRO(string ComponentTypeFqn, IrValue Entity, IrTypeRef Type) : IrOperation;
+
+/// <summary>
+/// CA-05 (Slice 1b, Q#15 managed read) -- reads a MANAGED (reference/<c>class</c>) ECS component
+/// instance. Distinct from <see cref="IrOp_GetComponentRO"/> (unmanaged, <c>T : unmanaged</c>-shaped)
+/// because the managed accessor is a DIFFERENT API surface: <c>ISimulationView.GetManagedComponentRO
+/// &lt;T&gt;() where T : class</c> (an explicitly-implemented interface member on
+/// <c>Fdp.Core.EntityRepository</c> -- PUBLIC only via the interface, not the concrete class, and
+/// documented/observed to THROW if the entity lacks the component; every production call site in the
+/// engine -- e.g. <c>SmartEgressUtil</c>, <c>RouteContextSystem</c> -- guards it with
+/// <c>HasManagedComponent&lt;T&gt;</c> first). <see cref="Emit.StatementEmitter"/>'s case therefore
+/// emits a SINGLE guarded expression (never an unconditional call) so a managed read stays
+/// fail-safe/never-throw exactly like the unmanaged read, even when <c>Target</c> (or, in principle,
+/// <c>self</c>) lacks the component: <c>HasManagedComponent&lt;T&gt;(e) ? GetManagedComponentRO&lt;T&gt;
+/// (e) : default!</c>. Paired with <see cref="IrOp_FieldRead"/>'s <c>SourceIsManaged</c> flag, which
+/// makes the per-field projection off this value null-safe too (a null managed instance's field reads
+/// as the field's default, never an NRE).
+/// </summary>
+public sealed record IrOp_GetManagedComponentRO(string ComponentTypeFqn, IrValue Entity, IrTypeRef Type) : IrOperation;
+
+/// <summary>
+/// CA-03 (Slice W1, Q#16) -- unmanaged, self-only, write-if-present ECS write. A SINGLE guarded
+/// block (not per-field ops, unlike multi-pin SetShared's <see cref="IrOp_WriteSharedField"/>):
+/// the entity's <c>HasComponent&lt;T&gt;</c> result drives BOTH the emitting
+/// <see cref="Assets.SetComponentNode"/>'s "Written" data-out (this op's ResultValue) AND the
+/// write guard -- <c>GetComponentRW&lt;T&gt;</c> is fetched only INSIDE that guard (mirrors
+/// <c>ChannelCommandLowering</c>'s pre-existing <c>HasComponent</c>-guarded RW emit shape). Only
+/// the fields present in <see cref="Fields"/> are assigned; an unwired field is simply ABSENT from
+/// the list (Stage5 only adds a WIRED field's resolved value here), so its value in the live
+/// component is left untouched ("unwired preserved" -- same semantics as
+/// <see cref="IrOp_WriteSharedField"/>, but as one statement/block instead of N, since this is a
+/// typed member write, not a byte-offset write, so there is no independent-byte-range reason to
+/// split it per field).
+/// </summary>
+/// <param name="ComponentTypeFqn">FQN of the ECS component struct to write. Baked string -- no reflection.</param>
+/// <param name="Entity">
+/// ALWAYS the resolved <c>self</c> Entity (an <see cref="IrOp_Self"/> value Stage5 emits just
+/// before this op) -- <see cref="Assets.SetComponentNode"/> has no "Target" pin at all (self-only
+/// by construction, Q#16), unlike <see cref="IrOp_GetComponent"/>/<see cref="IrOp_GetComponentRO"/>
+/// which do carry a resolved cross-entity Entity argument.
+/// </param>
+/// <param name="Fields">WIRED (Name, Value) pairs only -- see the type doc comment.</param>
+public sealed record IrOp_WriteComponentFields(
+    string ComponentTypeFqn,
+    IrValue Entity,
+    IReadOnlyList<(string Name, IrValue Value)> Fields
+) : IrOperation;
+
+/// <summary>
+/// CA-06 (Slice W2, Q#16-C) -- managed, self-only, write-if-present ECS WHOLE-COMPONENT replace via
+/// the ECB. Distinct from <see cref="IrOp_WriteComponentFields"/> (unmanaged, per-field, direct
+/// <c>GetComponentRW&lt;T&gt;</c> mutation): a managed component is never mutated field-by-field
+/// (Q#16-C -- per-field managed write is FORBIDDEN, snapshot aliasing) -- the only legal managed write
+/// is a full replacement value queued on the <see cref="Fdp.Interfaces.IEntityCommandBuffer"/>
+/// (<c>SetManagedComponent&lt;T&gt;</c>, deferred playback). The guard's <c>HasManagedComponent&lt;T&gt;</c>
+/// result drives BOTH the emitting <see cref="Assets.SetComponentNode"/>'s "Written" data-out (this
+/// op's ResultValue) AND the write guard (write-if-present, no implicit add -- mirrors
+/// <see cref="IrOp_WriteComponentFields"/>'s semantics exactly, just via the ECB instead of a direct
+/// RW fetch).
+/// </summary>
+/// <param name="ComponentTypeFqn">FQN of the managed (<c>class</c>) ECS component to write. Baked string -- no reflection.</param>
+/// <param name="Entity">
+/// ALWAYS the resolved <c>self</c> Entity (an <see cref="IrOp_Self"/> value Stage5 emits just before
+/// this op) -- <see cref="Assets.SetComponentNode"/> has no "Target" pin at all (self-only by
+/// construction, Q#16), same as the unmanaged write.
+/// </param>
+/// <param name="Value">
+/// The wired "Value" data-in pin's resolved value (a fresh/pass-through instance of the managed
+/// component type), or <c>null</c> when the pin is left unwired -- in that case ONLY the guard is
+/// emitted (Written still reflects <c>HasManagedComponent&lt;T&gt;</c>), never a
+/// <c>SetManagedComponent</c> call with nothing to write.
+/// </param>
+public sealed record IrOp_SetManagedComponent(
+    string ComponentTypeFqn,
+    IrValue Entity,
+    IrValue? Value
+) : IrOperation;
 
 // ECS write via ECB (impure)
 public sealed record IrOp_AddComponent(string ComponentTypeFqn, IrValue Entity, IrValue Value) : IrOperation;
@@ -232,7 +317,30 @@ public sealed record IrOp_WriteCursorWaitUntilTime(IrValue Seconds) : IrOperatio
 public sealed record IrOp_ReadCursorWaitUntilTime : IrOperation;
 
 // Field read from a component ref (Stage 6 lowering)
-public sealed record IrOp_FieldRead(IrValue Source, string FieldName, IrTypeRef ResultType) : IrOperation;
+/// <param name="SourceIsManaged">
+/// CA-05 (Slice 1b) -- when true, <see cref="Source"/> is the (possibly-<c>null</c>) result of an
+/// <see cref="IrOp_GetManagedComponentRO"/> -- see that op's doc comment for why it can legitimately
+/// be null (component absent). <see cref="Emit.StatementEmitter"/>'s case then emits a null-safe
+/// projection (<c>{source}?.{FieldName} ?? default</c>) instead of a bare member access, so reading a
+/// field off an absent managed component degrades to the field's default value instead of an NRE --
+/// the same "fail-safe, never throw" contract the unmanaged read already has. Default <c>false</c> --
+/// existing (unmanaged / non-nullable source) call sites emit the unchanged bare
+/// <c>{source}.{FieldName}</c>.
+/// </param>
+public sealed record IrOp_FieldRead(IrValue Source, string FieldName, IrTypeRef ResultType, bool SourceIsManaged = false) : IrOperation;
+
+/// <summary>
+/// CA-07b -- calls a baked curated collection accessor (<c>[BlueprintCollection]</c>'s
+/// <c>Count(in T)</c> or <c>[BlueprintCollectionItem]</c>'s <c>Item(in T, int)</c>) on a component
+/// ref. Emits <c>global::{AccessorFqn}({component})</c> (Count shape, <see cref="Index"/> null) or
+/// <c>global::{AccessorFqn}({component}, {index})</c> (Item shape). <see cref="Component"/> is the
+/// <c>ref readonly</c> local produced by a preceding <see cref="IrOp_GetComponentRO"/> -- the
+/// accessor's <c>in T</c> parameter binds to it implicitly, exactly like <see cref="IrOp_ForEach"/>'s
+/// own Count/Item accessor calls (this op factors that same call shape out for the CA-07b consumer
+/// nodes, which read a component OTHER than the one <c>IrOp_ForEach</c>'s roster read targets).
+/// </summary>
+public sealed record IrOp_ComponentAccessorCall(
+    string AccessorFqn, IrValue Component, IrValue? Index, IrTypeRef ResultType) : IrOperation;
 
 /// <summary>
 /// GAP-12 -- native <c>CompareNode</c> lowering. Emits a single infix C# comparison expression:

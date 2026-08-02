@@ -45,6 +45,13 @@ public static class BlueprintNodePaletteEntries
         /// distinction in the picker.
         /// </summary>
         public const string SharedState = "Shared State";
+        /// <summary>
+        /// CA-02 — real ECS component reads (<c>GetComponentNode</c>), distinct from
+        /// <see cref="SharedState"/> (a Blueprint-authored slot) and <see cref="Variables"/> (a
+        /// blueprint-local declaration): a component is discovered by reflecting the engine's live
+        /// <c>[ComponentId]</c>-marked ECS component types, not authored/declared in this asset.
+        /// </summary>
+        public const string Component   = "Component";
         public const string Function    = "Function";
         /// <summary>Constant/literal value nodes — kept out of Function so designers see them distinctly.</summary>
         public const string Literal     = "Literal";
@@ -408,6 +415,7 @@ public static class BlueprintNodePaletteEntries
         Categories.Event       => "bp/event",
         Categories.Variables   => "bp/variable_get",
         Categories.SharedState => "bp/variable_get",
+        Categories.Component   => "bp/variable_get",
         Categories.Function    => "bp/function",
         Categories.Literal     => "bp/pure",
         Categories.Array       => "bp/macro",

@@ -264,10 +264,10 @@ public sealed class AiGraphCanvasWindowTests
         Assert.Equal("BTree", ctx.Kind);
     }
 
-    // ── BCP-BATCH-02-FIX2 Task 4: ASCII window title (no em-dash → no "?") ──────
+    // ── MULTI-TAB: window title is the stable container name, not the active asset ──
 
     [Fact]
-    public void UpdateTitle_UsesAsciiSeparator_AndContainsAssetName()
+    public void UpdateTitle_IsStableContainerName_NotTheActiveAssetName()
     {
         var dm  = MakeDocManager();
         var win = new AiGraphCanvasWindow("Blueprint", dm, new RecordingRenderSeam());
@@ -279,16 +279,15 @@ public sealed class AiGraphCanvasWindowTests
         // Run the non-ImGui per-frame path that refreshes the title.
         win.SimulateDrawClientArea();
 
-        // Title must contain the asset name.
-        Assert.Contains("PatrolBehavior", win.Title);
+        // The window hosts a tab bar (one tab per open blueprint), so the title stays the container
+        // name and must NOT reflect the active document — otherwise the window's close [x] reads as
+        // "close this blueprint" when it actually closes the whole canvas and every tab in it.
+        Assert.Equal("Blueprint Canvas", win.Title);
+        Assert.DoesNotContain("PatrolBehavior", win.Title);
 
-        // Title must be pure ASCII — the old em-dash "—" (U+2014) rendered as "?".
-        Assert.DoesNotContain("—", win.Title);
+        // Title stays pure ASCII — the engine ImGui font renders no em-dash "—" (U+2014 → "?").
         foreach (var ch in win.Title)
             Assert.True(ch <= 0x7F, $"Title contains non-ASCII char U+{(int)ch:X4}: '{win.Title}'");
-
-        // And it must use the plain ASCII hyphen separator.
-        Assert.Contains("PatrolBehavior - ", win.Title);
     }
 
     [Fact]

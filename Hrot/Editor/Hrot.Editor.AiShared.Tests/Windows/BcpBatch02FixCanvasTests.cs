@@ -287,31 +287,34 @@ public sealed class BcpBatch02FixCanvasTests
         Assert.Equal(0, invoked);
     }
 
-    // ── Task 2: window title reflects the active asset name ─────────────────────
+    // ── MULTI-TAB: window title is the container name, not the active asset ──────
 
     [Fact]
-    public void Title_ReflectsActiveAssetName()
+    public void Title_IsContainerName_NotActiveAsset()
     {
         var (win, doc, _) = OpenWindow("Blueprint", input: null, assetName: "PatrolBehavior");
         doc.ViewState = new AiCanvasContext(MakeGraphView(), "Blueprint");
 
         win.SimulateDrawClientArea();
 
-        Assert.Contains("PatrolBehavior", win.Title);
+        // Tabs carry per-blueprint names; the window title is the stable container name so its
+        // close [x] doesn't read as "close this blueprint".
+        Assert.Equal("Blueprint Canvas", win.Title);
+        Assert.DoesNotContain("PatrolBehavior", win.Title);
     }
 
     [Fact]
-    public void Title_KeepsStableId_AcrossTitleChange()
+    public void Title_KeepsStableId()
     {
         var (win, doc, _) = OpenWindow("Blueprint", input: null, assetName: "PatrolBehavior");
         doc.ViewState = new AiCanvasContext(MakeGraphView(), "Blueprint");
 
         win.SimulateDrawClientArea();
 
-        // ManagedWindow forms its ImGui name as "{Title}###{Id}"; the stable Id is unchanged
-        // by the title update, so dock identity is preserved while the title shows the asset.
+        // ManagedWindow forms its ImGui name as "{Title}###{Id}"; the stable Id preserves dock
+        // identity, and the title stays the container name.
         Assert.Equal("ai_canvas_blueprint", win.Id);
-        Assert.Contains("PatrolBehavior", win.Title);
+        Assert.Equal("Blueprint Canvas", win.Title);
     }
 
     [Fact]

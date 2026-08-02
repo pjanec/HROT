@@ -143,6 +143,26 @@ internal static class Stage0_Rehydrate
                 EnrichSetSharedPins(pins, ssn, staticShapes);
                 break;
 
+            case GetComponentNode gcn:
+                EnrichGetComponentPins(pins, gcn, staticShapes);
+                break;
+
+            case SetComponentNode scn:
+                EnrichSetComponentPins(pins, scn, staticShapes);
+                break;
+
+            case ComponentForEachNode cfe:
+                EnrichComponentForEachPins(pins, cfe);
+                break;
+
+            case ComponentItemGetNode cig:
+                EnrichComponentItemGetPins(pins, cig);
+                break;
+
+            case ComponentItemCountNode cic:
+                EnrichComponentItemCountPins(pins, cic);
+                break;
+
             case MakeStructNode msn:
                 EnrichMakeStructPins(pins, msn);
                 break;
@@ -332,6 +352,147 @@ internal static class Stage0_Rehydrate
         var typeId = SharedTypePinTypeId(ssn.SharedTypeId);
         pins.Add(MakePin("Value",   "In",  isExec: false, typeId: typeId));
         pins.Add(MakePin("Written", "Out", isExec: false, typeId: "System.Boolean"));
+    }
+
+    /// <summary>
+    /// GetComponentNode (CA-01, Slice 1a): pure-data node, mirrors <see cref="EnrichGetSharedPins"/>
+    /// exactly. Static skeleton is empty (registry mirrors GetSharedNode). Build data-In "Target"
+    /// (OPTIONAL, <c>Fdp.Core.Entity</c> -- cross-entity read, unwired = self) + either one data-Out
+    /// pin PER baked <see cref="GetComponentNode.Fields"/> entry (multi-pin) or the legacy single
+    /// "Value" data-Out typed from <see cref="GetComponentNode.FieldTypeFqn"/> -- plus data-Out
+    /// "Found" (<c>System.Boolean</c>) in BOTH cases.
+    /// </summary>
+    private static void EnrichGetComponentPins(
+        List<Pin> pins, GetComponentNode gcn, IReadOnlyList<PinSchema> staticShapes)
+    {
+        pins.Clear();
+
+        // CA-01 multi-pin (Fields baked): optional cross-entity "Target" (unwired = self) + one
+        // data-OUT per field (read the component once, project each field) + "Found". Mirrors
+        // EnrichGetSharedPins's Fields branch. Target/Found are MULTI-PIN-MODE ONLY -- the legacy
+        // single-field path below is frozen at its pre-CA-01 shape so Stage5's untouched legacy
+        // branch never leaves a projected pin uncomputed, and authored-pin hill-attack assets
+        // (which skip this enricher via the Pins.Count>0 guard) round-trip byte-identically.
+        if (gcn.Fields is { Count: > 0 })
+        {
+            pins.Add(MakePin("Target", "In", isExec: false, typeId: "Fdp.Core.Entity"));
+            foreach (var f in gcn.Fields)
+            {
+                // CA-07a: a collection decl projects ONE out-pin typed by its ELEMENT type with
+                // IsArray true (the "whole collection" pin) instead of the scalar TypeId pin --
+                // in the SAME position it appears in Fields (append order), between the scalar
+                // field pins and the trailing "Found" pin below.
+                if (f.IsCollection)
+                    pins.Add(MakePin(f.Name, "Out", isExec: false, typeId: string.IsNullOrEmpty(f.ElementTypeId) ? "System.Object" : f.ElementTypeId!, isArray: true));
+                else
+                    pins.Add(MakePin(f.Name, "Out", isExec: false, typeId: f.TypeId));
+            }
+            pins.Add(MakePin("Found", "Out", isExec: false, typeId: "System.Boolean"));
+            return;
+        }
+
+        // Legacy single-field path (FROZEN, self-only): single "Value" data-out typed by FieldTypeFqn
+        // VERBATIM -- unlike GetShared's whole-struct SharedTypeId, FieldTypeFqn is routinely a
+        // well-known primitive (e.g. "System.Single") that StaticTypeRegistry's TypeTable matches
+        // directly; stamping a "global::" prefix would misroute it into the AN2 enum/project-type
+        // acceptance path (wrong -- that path assumes a 4-byte enum-int32 underlying type). Mirrors
+        // Stage5_Schedule's existing legacy fallback, which also uses FieldTypeFqn verbatim. No
+        // Target/Found pins -- matches the untouched legacy lowering (self-only, single value).
+        var typeId = string.IsNullOrEmpty(gcn.FieldTypeFqn) ? "System.Object" : gcn.FieldTypeFqn;
+        pins.Add(MakePin("Value", "Out", isExec: false, typeId: typeId));
+    }
+
+    /// <summary>
+    /// SetComponentNode (CA-03/CA-06): exec node, mirrors <see cref="EnrichSetSharedPins"/>.
+    /// Static skeleton is exec In/Out. UNMANAGED (<see cref="SetComponentNode.IsManaged"/> == false):
+    /// one data-IN pin PER baked <see cref="SetComponentNode.Fields"/> entry (no fields baked yet ⇒
+    /// none). MANAGED (CA-06, Slice W2, Q#16-C): a SINGLE data-IN "Value" pin typed by
+    /// <see cref="SetComponentNode.ComponentTypeFqn"/> instead -- whole-replace only, never per-field
+    /// (checked first, below, before the unmanaged Fields branch). Both shapes get a data-OUT
+    /// "Written" (<c>System.Boolean</c>) -- UNCONDITIONALLY, unlike SetShared's per-field branch
+    /// (which has no "Written" at all): SetComponent is write-if-present (no implicit add), so
+    /// "Written" is the write's Has(Managed)Component guard result and always exists. Self-only
+    /// (Q#16) -- NO "Target" pin, ever, in either shape.
+    /// </summary>
+    private static void EnrichSetComponentPins(
+        List<Pin> pins, SetComponentNode scn, IReadOnlyList<PinSchema> staticShapes)
+    {
+        pins.Clear();
+        pins.Add(MakePin("In",  "In",  isExec: true, typeId: ""));
+        pins.Add(MakePin("Out", "Out", isExec: true, typeId: ""));
+
+        // CA-06 (Slice W2, Q#16-C): managed write is WHOLE-REPLACE ONLY -- a single data-IN "Value"
+        // pin typed by ComponentTypeFqn (global::-stamped, mirrors SetShared's legacy whole-struct
+        // "Value" pin), NEVER per-field pins (per-field managed write is FORBIDDEN -- snapshot
+        // aliasing). Checked BEFORE scn.Fields below so a managed node's Fields (which the editor
+        // must never bake -- see SetComponentNodeSession.ApplyComponentTypeFqn) can't leak a
+        // per-field shape through even if a hand-authored/legacy asset carries both.
+        if (scn.IsManaged)
+        {
+            pins.Add(MakePin("Value", "In", isExec: false, typeId: SharedTypePinTypeId(scn.ComponentTypeFqn)));
+            pins.Add(MakePin("Written", "Out", isExec: false, typeId: "System.Boolean"));
+            return;
+        }
+
+        if (scn.Fields is { Count: > 0 })
+        {
+            foreach (var f in scn.Fields)
+                pins.Add(MakePin(f.Name, "In", isExec: false, typeId: f.TypeId));
+        }
+
+        pins.Add(MakePin("Written", "Out", isExec: false, typeId: "System.Boolean"));
+    }
+
+    /// <summary>
+    /// ComponentForEachNode (CA-07b): exec node. Static skeleton (registry) types "Collection"/
+    /// "CurrentItem" as System.Object -- rebuild here with the REAL element type from the node's
+    /// OWN baked <see cref="ComponentForEachNode.ElementTypeFqn"/> (falls back to System.Object
+    /// when not yet baked, e.g. a freshly dropped node before CA-07c wires it). "Collection" is
+    /// IsArray (mirrors the GetComponent collection out-pin it consumes -- see
+    /// <see cref="EnrichGetComponentPins"/>'s collection-decl branch); "CurrentItem" is the same
+    /// element type; "CurrentIndex"/"Count" are System.Int32. "Body"/"Completed" exec-out names are
+    /// load-bearing for Stage5 (mirrors FlowForEachNode, which needs no enricher since its item
+    /// type is always the fixed Fdp.Core.Entity).
+    /// </summary>
+    private static void EnrichComponentForEachPins(List<Pin> pins, ComponentForEachNode cfe)
+    {
+        var elemType = string.IsNullOrEmpty(cfe.ElementTypeFqn) ? "System.Object" : cfe.ElementTypeFqn;
+        pins.Clear();
+        pins.Add(MakePin("In", "In", isExec: true, typeId: ""));
+        pins.Add(MakePin("Collection", "In", isExec: false, typeId: elemType, isArray: true));
+        pins.Add(MakePin("Body",      "Out", isExec: true, typeId: ""));
+        pins.Add(MakePin("Completed", "Out", isExec: true, typeId: ""));
+        pins.Add(MakePin("CurrentItem",  "Out", isExec: false, typeId: elemType));
+        pins.Add(MakePin("CurrentIndex", "Out", isExec: false, typeId: "System.Int32"));
+        pins.Add(MakePin("Count",        "Out", isExec: false, typeId: "System.Int32"));
+    }
+
+    /// <summary>
+    /// ComponentItemGetNode (CA-07b): pure-data node. "Collection" (IsArray) + "Element" are typed
+    /// by the node's OWN baked <see cref="ComponentItemGetNode.ElementTypeFqn"/> (falls back to
+    /// System.Object when not yet baked). Mirrors <see cref="EnrichComponentForEachPins"/>.
+    /// </summary>
+    private static void EnrichComponentItemGetPins(List<Pin> pins, ComponentItemGetNode cig)
+    {
+        var elemType = string.IsNullOrEmpty(cig.ElementTypeFqn) ? "System.Object" : cig.ElementTypeFqn;
+        pins.Clear();
+        pins.Add(MakePin("Collection", "In",  isExec: false, typeId: elemType, isArray: true));
+        pins.Add(MakePin("Index",      "In",  isExec: false, typeId: "System.Int32"));
+        pins.Add(MakePin("Element",    "Out", isExec: false, typeId: elemType));
+    }
+
+    /// <summary>
+    /// ComponentItemCountNode (CA-07b): pure-data node. No <c>ElementTypeFqn</c> on this node
+    /// (Count never needs the element type), so "Collection" is always typed System.Object
+    /// (IsArray) here -- <c>Stage4_TypeResolve.VerifyLinkTypes</c> already suppresses a link-type
+    /// mismatch when either side is System.Object (the same escape hatch reflection-less CLR-call
+    /// pins rely on), so this never mismatches the typed collection out-pin it is wired from.
+    /// </summary>
+    private static void EnrichComponentItemCountPins(List<Pin> pins, ComponentItemCountNode cic)
+    {
+        pins.Clear();
+        pins.Add(MakePin("Collection", "In",  isExec: false, typeId: "System.Object", isArray: true));
+        pins.Add(MakePin("Count",      "Out", isExec: false, typeId: "System.Int32"));
     }
 
     /// <summary>
@@ -916,12 +1077,17 @@ internal static class Stage0_Rehydrate
         return string.IsNullOrEmpty(typeRef.TypeId) ? "System.Object" : typeRef.TypeId;
     }
 
-    private static Pin MakePin(string name, string direction, bool isExec, string typeId) => new Pin
+    /// <summary>
+    /// CA-07a: <paramref name="isArray"/> stamps the pin's <see cref="BlueprintTypeRef.IsArray"/> --
+    /// used for a baked collection field's single "whole collection" out-pin (element-typed,
+    /// IsArray true). Defaults to <c>false</c> so every pre-CA-07a call site is unaffected.
+    /// </summary>
+    private static Pin MakePin(string name, string direction, bool isExec, string typeId, bool isArray = false) => new Pin
     {
         Name      = name,
         Direction = direction,
         IsExec    = isExec,
-        TypeRef   = new BlueprintTypeRef { TypeId = typeId },
+        TypeRef   = new BlueprintTypeRef { TypeId = typeId, IsArray = isArray },
         // Id will be assigned by AssignLinkGuids.
     };
 

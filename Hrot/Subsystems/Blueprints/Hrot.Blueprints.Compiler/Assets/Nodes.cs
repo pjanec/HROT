@@ -37,8 +37,12 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(GetSharedNode),          "GetShared")]
 [JsonDerivedType(typeof(SetSharedNode),          "SetShared")]
 [JsonDerivedType(typeof(GetComponentNode),       "GetComponent")]
+[JsonDerivedType(typeof(SetComponentNode),       "SetComponent")]
 [JsonDerivedType(typeof(PublishEventNode),       "PublishEvent")]
 [JsonDerivedType(typeof(FlowForEachNode),        "FlowForEach")]
+[JsonDerivedType(typeof(ComponentForEachNode),   "ComponentForEach")]
+[JsonDerivedType(typeof(ComponentItemGetNode),   "ComponentItemGet")]
+[JsonDerivedType(typeof(ComponentItemCountNode), "ComponentItemCount")]
 [JsonDerivedType(typeof(CompareNode),            "Compare")]
 [JsonDerivedType(typeof(BinaryOpNode),           "BinaryOp")]
 [JsonDerivedType(typeof(BooleanOpNode),          "BooleanOp")]
@@ -184,6 +188,9 @@ public sealed class ArrayMakeNode : Node
     public string ElementTypeId { get; set; } = "";
 }
 
+// Superseded (CA-07b) by ComponentItemGetNode for component collections -- ArrayGetNode's own
+// Stage5_Schedule lowering was never implemented (see NodeCoverageTests.CompileCoverageExceptions);
+// kept as-is (not deleted -- it is referenced by Stage4/NodeCoverage).
 public sealed class ArrayGetNode : Node { }
 
 public sealed class LatentDelayNode : Node { }
@@ -553,6 +560,136 @@ public sealed class GetComponentNode : Node
     public string FieldName { get; set; } = "";
     /// <summary>FQN of the read field's type (e.g. "Fdp.Toolkit.Navigation.NavigationResult"). Used only to build the result IrTypeRef locally; optional (falls back to the resolved out-pin type / UnknownType).</summary>
     public string FieldTypeFqn { get; set; } = "";
+
+    /// <summary>
+    /// CA-01 multi-pin: baked per-field decls the editor reflects off the component struct. When
+    /// non-null, GetComponent projects one data-out pin PER FIELD (read the component once, expose
+    /// each field) instead of the single legacy "Value" pin (<see cref="FieldName"/>/<see
+    /// cref="FieldTypeFqn"/>). Null (and omitted from JSON) = legacy single-field path -- existing
+    /// assets round-trip byte-identically. Mirrors <see cref="GetSharedNode.Fields"/> exactly, EXCEPT
+    /// no byte <c>Offset</c> -- component reads are typed member access (<c>__c.{Name}</c>), not a
+    /// blittable-struct byte read, so there is nothing to offset into.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public List<ComponentFieldDecl>? Fields { get; set; }
+
+    /// <summary>
+    /// CA-05 (Slice 1b): true when <see cref="ComponentTypeFqn"/> is a MANAGED (reference/<c>class</c>)
+    /// component -- the read path is then <c>view.GetManagedComponentRO&lt;T&gt;</c> instead of
+    /// <c>view.GetComponentRO&lt;T&gt;</c> (see <c>Stage5_Schedule</c>'s <c>GetComponentNode</c> case
+    /// and <c>StatementEmitter</c>'s <c>IrOp_GetManagedComponentRO</c> case). Baked by the editor's
+    /// <c>GetComponentNodeDrawer</c> from <c>ComponentFieldReflector.IsManagedComponent</c> when the
+    /// component type is picked -- the compiler itself never reflects. Default <c>false</c> ⇒ omitted
+    /// from JSON, so existing (unmanaged-only) assets round-trip byte-identically. Mirrors
+    /// <see cref="SetComponentNode.IsManaged"/> exactly.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsManaged { get; set; }
+}
+
+/// <summary>
+/// One baked component field: name + pin TypeId. Mirrors <see cref="SharedFieldDecl"/> minus
+/// <c>Offset</c> -- component field access is a typed member read (<c>view.GetComponentRO&lt;T&gt;
+/// (e).Name</c>), not a byte-offset read into a blittable blob, so there is no offset to bake.
+/// <para>
+/// CA-07a (R1 curated-accessor collections): a decl can ALSO describe a virtual COLLECTION instead
+/// of a scalar field -- <see cref="IsCollection"/> true, <see cref="TypeId"/> unused (empty),
+/// <see cref="ElementTypeId"/>/<see cref="CountAccessorFqn"/>/<see cref="ItemAccessorFqn"/> baked
+/// from the pair of <c>[BlueprintCollection]</c>/<c>[BlueprintCollectionItem]</c> curated static
+/// accessors discovered on the component type (see <c>Fdp.Core.BlueprintCollectionAttribute</c>'s
+/// doc comment for the "why" -- architect Q#5-C: raw fixed/inline-array access stays off-graph).
+/// The three new members default to <c>null</c>/<c>false</c> and are <c>JsonIgnore</c>d in that
+/// state, so an existing (pre-CA-07a) scalar decl still serializes to exactly
+/// <c>{"Name":..., "TypeId":...}</c> -- BYTE-IDENTICAL. Mirrors <see cref="FlowForEachNode"/>'s
+/// baked <c>CountAccessorFqn</c>/<c>ItemAccessorFqn</c> pair.
+/// </para>
+/// </summary>
+public sealed class ComponentFieldDecl
+{
+    public string Name { get; set; } = "";
+    public string TypeId { get; set; } = "";
+
+    /// <summary>CA-07a: true when this decl describes a virtual collection (not a scalar field). Default false ⇒ omitted from JSON.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsCollection { get; set; }
+
+    /// <summary>CA-07a: FQN of the collection's element type (the Item accessor's return type) -- used to type the out-pin. Null (and omitted from JSON) for scalar decls.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ElementTypeId { get; set; }
+
+    /// <summary>CA-07a: baked "Ns.Class.Count" FQN of the <c>[BlueprintCollection]</c> static accessor -- no reflection at compile time. Null (and omitted from JSON) for scalar decls.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? CountAccessorFqn { get; set; }
+
+    /// <summary>CA-07a: baked "Ns.Class.Item" FQN of the <c>[BlueprintCollectionItem]</c> static accessor -- no reflection at compile time. Null (and omitted from JSON) for scalar decls.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ItemAccessorFqn { get; set; }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// SetComponent (CA-03/CA-06 -- Q#16/Q#16-C write, unmanaged per-field + managed whole-replace)
+//
+// Reflection-free by construction, mirrors GetComponentNode/SetSharedNode: ComponentTypeFqn/
+// Fields[].TypeId are baked strings authored at edit time -- the netstandard2.0 compiler never
+// reflects. Self-only (Q#16) -- there is no "Target" pin/field at all (unlike GetComponentNode's
+// optional cross-entity read). Write-if-present: the emitted guard checks Has(Managed)Component<T>
+// before writing (no implicit add -- an absent component just yields Written=false, never throws).
+// UNMANAGED (IsManaged == false): per-field, wired-only -- only WIRED field pins are assigned; an
+// unwired field's value in the live component is left untouched. MANAGED (IsManaged == true, CA-06
+// Slice W2, Q#16-C): whole-component replace ONLY via the ECB (Fields is NEVER populated in this
+// case -- per-field managed write is FORBIDDEN, snapshot aliasing) -- a single "Value" data-in pin,
+// queued as `ecb.SetManagedComponent<T>(self, value)`. The `[BlueprintWritable]` gate (which real
+// component types may carry this write picker to) is enforced EDITOR-SIDE ONLY (CA-04) -- see
+// BlueprintWritableAttribute's doc comment for why the compiler cannot check it.
+// ──────────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// Writes into an ECS component on <c>self</c> (self-only -- no "Target" pin, unlike
+/// <see cref="GetComponentNode"/>'s optional cross-entity read). Exec node: exec-In "In"/exec-Out
+/// "Out", plus a data-out "Written" (<c>System.Boolean</c>) driven by a write-if-present guard (no
+/// implicit add). Two shapes, keyed by <see cref="IsManaged"/>:
+/// <list type="bullet">
+///   <item><b>Unmanaged</b> (<see cref="IsManaged"/> == false): one data-in pin PER baked
+///   <see cref="Fields"/> entry (unwired fields are simply not written -- preserved). Compiles to
+///   <c>if ({view}.HasComponent&lt;global::ComponentTypeFqn&gt;(self)) { ref var __c = ref
+///   {view}.GetComponentRW&lt;global::ComponentTypeFqn&gt;(self); __c.{Field} = ...; }</c> -- see
+///   <c>Stage5_Schedule</c>'s <c>SetComponentNode</c> case and <c>StatementEmitter</c>'s
+///   <c>IrOp_WriteComponentFields</c> case (CA-03).</item>
+///   <item><b>Managed</b> (<see cref="IsManaged"/> == true, CA-06 Slice W2, Q#16-C): a SINGLE
+///   data-in "Value" pin (component-typed) -- whole-replace only, never per-field. Compiles to
+///   <c>if ({wv}.HasManagedComponent&lt;global::ComponentTypeFqn&gt;(self)) {ecb}
+///   .SetManagedComponent&lt;global::ComponentTypeFqn&gt;(self, value);</c> -- see
+///   <c>Stage5_Schedule</c>'s managed <c>SetComponentNode</c> case and <c>StatementEmitter</c>'s
+///   <c>IrOp_SetManagedComponent</c> case (CA-06).</item>
+/// </list>
+/// </summary>
+public sealed class SetComponentNode : Node
+{
+    /// <summary>FQN of the ECS component to write (e.g. "Hrot.AI.Behaviors.SomeBehaviorOwnedState"). Emitted as GetComponentRW&lt;global::FQN&gt; (unmanaged) or SetManagedComponent&lt;global::FQN&gt; (managed). Baked string -- no reflection.</summary>
+    public string ComponentTypeFqn { get; set; } = "";
+
+    /// <summary>
+    /// Baked per-field decls the editor reflects off the WRITABLE (<c>[BlueprintWritable]</c>)
+    /// component struct -- one data-IN pin per entry. UNMANAGED ONLY: when <see cref="IsManaged"/>
+    /// is <c>true</c> this MUST be null/empty -- a managed write is whole-replace-only (Stage2's
+    /// V_ComponentAccessRules BP2064 rejects a managed node that carries Fields). Null/empty is
+    /// also the valid "no fields baked yet" state for an unmanaged node (a freshly dropped node
+    /// before the editor picks a component) -- Stage0 still projects exec In/Out + "Written" in
+    /// that case, just no field pins. Mirrors <see cref="GetComponentNode.Fields"/> minus
+    /// <c>Offset</c> (typed member write, not a byte-offset write).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public List<ComponentFieldDecl>? Fields { get; set; }
+
+    /// <summary>
+    /// True when <see cref="ComponentTypeFqn"/> is a MANAGED (reference) type -- the write path is
+    /// then a single whole-value replace via the ECB (<c>ecb.SetManagedComponent&lt;T&gt;</c>,
+    /// CA-06 Slice W2), never per-field. Default <c>false</c> ⇒ omitted from JSON, so existing
+    /// (unmanaged-only) assets round-trip byte-identically. See <see cref="Fields"/>'s doc comment
+    /// for the mutual-exclusion invariant this flag drives.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsManaged { get; set; }
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -777,4 +914,85 @@ public sealed class FlowForEachNode : Node
     public string CountAccessorFqn { get; set; } = "";
     /// <summary>FQN of a static <c>Entity Item(in T, int i)</c> helper giving the i-th element (e.g. "Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate").</summary>
     public string ItemAccessorFqn { get; set; } = "";
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Component collection consumers (CA-07b -- R1 curated-accessor collection reads)
+//
+// Consume the collection out-pin CA-07a's GetComponentNode projects for an IsCollection field (see
+// ComponentFieldDecl's doc comment). At RUNTIME there is no "collection value" to carry -- only the
+// curated Count/Item accessor pair -- so Stage5 instead resolves that out-pin to the ENTITY the
+// component was read off (see Stage5_Schedule's GetComponentNode case, collection-decl branch). A
+// consumer here resolves ITS "Collection" data-in pin to that SAME entity, RE-READS the component
+// off it (IrOp_GetComponentRO -- the exact op FlowForEachNode's roster read already uses), then
+// calls its own baked curated accessors directly (new IrOp_ComponentAccessorCall). Mirrors
+// FlowForEachNode's SourceComponentFqn/CountAccessorFqn/ItemAccessorFqn baking, retargeted at a
+// per-consumer ComponentTypeFqn/accessor pair (and a resolved entity) instead of a fixed roster
+// contract read off self. Accessor baking itself happens at WIRE time in CA-07c -- NOT here; this
+// batch only consumes whatever is already baked on the node.
+// ──────────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// CA-07b -- iterates a component collection consumed off a GetComponent collection out-pin (see
+/// the section doc comment above), running a latent-free body once per element. Exec node: exec-in
+/// "In", data-in "Collection" (<c>IsArray</c>, element-typed -- wired FROM a GetComponent collection
+/// out-pin; resolves to the source ENTITY), "Body" exec-out (loop body root), "Completed" exec-out
+/// (after the loop), a "CurrentItem" data-out (element-typed) the body reads, and optional
+/// "CurrentIndex"/"Count" (<c>System.Int32</c>) loop-introspection data-outs. Mirrors
+/// <see cref="FlowForEachNode"/> EXACTLY, except the component is re-read off the resolved
+/// "Collection" entity instead of <c>self</c>, and the accessor FQNs are this node's OWN baked
+/// <see cref="CountAccessorFqn"/>/<see cref="ItemAccessorFqn"/> rather than a fixed roster contract
+/// -- both lower to the SAME (unchanged) <c>IrOp_ForEach</c>. See <c>Stage5_Schedule</c>'s
+/// <c>ComponentForEachNode</c> case / <c>ScheduleComponentForEachNode</c>.
+/// </summary>
+public sealed class ComponentForEachNode : Node
+{
+    /// <summary>FQN of the ECS component to re-read off the resolved "Collection" entity (e.g. "Hrot.AI.Behaviors.BpCollectionDemo"). Baked string -- no reflection.</summary>
+    public string ComponentTypeFqn { get; set; } = "";
+    /// <summary>FQN of a static <c>int Count(in T)</c> curated accessor giving the element count (baked at wire time, CA-07c).</summary>
+    public string CountAccessorFqn { get; set; } = "";
+    /// <summary>FQN of a static <c>TElement Item(in T, int i)</c> curated accessor giving the i-th element (baked at wire time, CA-07c).</summary>
+    public string ItemAccessorFqn { get; set; } = "";
+    /// <summary>FQN of the collection's element type (the Item accessor's return type) -- types "Collection"/"CurrentItem".</summary>
+    public string ElementTypeFqn { get; set; } = "";
+}
+
+/// <summary>
+/// CA-07b -- reads a single element off a component collection by index (see the section doc
+/// comment above). Pure-data node (no exec pins): data-in "Collection" (<c>IsArray</c>,
+/// element-typed -- wired FROM a GetComponent collection out-pin; resolves to the source ENTITY),
+/// data-in "Index" (<c>System.Int32</c>), data-out "Element" (element-typed). Compiles to
+/// <c>global::{ItemAccessorFqn}({component}, {index})</c> off a freshly re-read
+/// <c>GetComponentRO&lt;global::ComponentTypeFqn&gt;</c> on the resolved entity -- see
+/// <c>Stage5_Schedule</c>'s <c>ComponentItemGetNode</c> case and the new
+/// <c>IrOp_ComponentAccessorCall</c>.
+/// </summary>
+public sealed class ComponentItemGetNode : Node
+{
+    /// <summary>FQN of the ECS component to re-read off the resolved "Collection" entity. Baked string -- no reflection.</summary>
+    public string ComponentTypeFqn { get; set; } = "";
+    /// <summary>FQN of a static <c>TElement Item(in T, int i)</c> curated accessor (baked at wire time, CA-07c).</summary>
+    public string ItemAccessorFqn { get; set; } = "";
+    /// <summary>FQN of the collection's element type (the Item accessor's return type) -- types "Collection"/"Element".</summary>
+    public string ElementTypeFqn { get; set; } = "";
+}
+
+/// <summary>
+/// CA-07b -- reads a component collection's element count (see the section doc comment above).
+/// Pure-data node (no exec pins): data-in "Collection" (<c>IsArray</c> -- wired FROM a GetComponent
+/// collection out-pin; resolves to the source ENTITY), data-out "Count" (<c>System.Int32</c>).
+/// Compiles to <c>global::{CountAccessorFqn}({component})</c> off a freshly re-read
+/// <c>GetComponentRO&lt;global::ComponentTypeFqn&gt;</c> on the resolved entity -- see
+/// <c>Stage5_Schedule</c>'s <c>ComponentItemCountNode</c> case and the new
+/// <c>IrOp_ComponentAccessorCall</c>. No <c>ElementTypeFqn</c> -- Count never needs the element
+/// type, so "Collection" is typed <c>System.Object</c> (IsArray) here, same "typed-unknown
+/// placeholder" escape hatch <c>Stage4_TypeResolve.VerifyLinkTypes</c> already grants CLR-call
+/// pins rehydrated without reflection.
+/// </summary>
+public sealed class ComponentItemCountNode : Node
+{
+    /// <summary>FQN of the ECS component to re-read off the resolved "Collection" entity. Baked string -- no reflection.</summary>
+    public string ComponentTypeFqn { get; set; } = "";
+    /// <summary>FQN of a static <c>int Count(in T)</c> curated accessor (baked at wire time, CA-07c).</summary>
+    public string CountAccessorFqn { get; set; } = "";
 }

@@ -339,14 +339,21 @@ public sealed class SaveAllAiDocumentsCommandTests
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PU-603: BeforeDocumentClosed flush hook
+// AiDocumentManager.BeforeDocumentClosed event contract
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// <summary>
-/// Headless tests for the PU-603 flush-on-close hook
-/// (<see cref="AiDocumentManager.BeforeDocumentClosed"/>).
+/// Headless tests for the <see cref="AiDocumentManager.BeforeDocumentClosed"/> event contract
+/// (fires once, before the doc is removed from the open list, with the doc still present).
+/// <para>
+/// NOTE: the old PU-603 "flush-on-close" — where <c>EditorSubsystem</c> subscribed this event to
+/// silently write ANY dirty doc to disk on every close — was REMOVED (save is now decoupled from
+/// close: only the unsaved-changes prompt's "Save" persists, via an injected delegate). These
+/// tests therefore subscribe their OWN handler and validate the manager's event mechanism only;
+/// they no longer mirror any production subscription.
+/// </para>
 /// </summary>
-public sealed class FlushOnCloseTests
+public sealed class BeforeDocumentClosedEventTests
 {
     [Fact]
     public void BeforeDocumentClosed_FiredBeforeDocRemoved_WithDirtyDoc()
@@ -379,8 +386,9 @@ public sealed class FlushOnCloseTests
     [Fact]
     public void BeforeDocumentClosed_SaveDirtyDoc_ViaSpyDelegate()
     {
-        // Simulate the EditorSubsystem's BeforeDocumentClosed handler:
-        // if doc.IsDirty and has a path, invoke save delegate and MarkClean.
+        // Event-mechanism check: a subscriber CAN observe the closing doc and act on it.
+        // (Production no longer subscribes a flush here — save is decoupled from close — so this
+        // only exercises the event surface, using a locally-wired handler.)
         var tmp = Path.Combine(Path.GetTempPath(), $"onclose_{Guid.NewGuid():N}.btree.json");
         try
         {

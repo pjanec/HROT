@@ -118,6 +118,17 @@ public sealed class BlueprintTypeSystem : ITypeSystem
     ///   <item>Exec (empty key) is compatible only with Exec.</item>
     ///   <item>Data pins are compatible when their type keys are equal.</item>
     ///   <item>Int32 → Single is also compatible (widening; Blueprint allows this).</item>
+    ///   <item>
+    ///   <c>System.Object</c> on either side is a "typed-unknown placeholder" wildcard -- mirrors
+    ///   the compiler's <c>Stage4_TypeResolve.VerifyLinkTypes</c> identical rule EXACTLY (CA-07c):
+    ///   a freshly-placed <c>ComponentForEachNode</c>/<c>ComponentItemGetNode</c>/
+    ///   <c>ComponentItemCountNode</c>'s "Collection" data-IN pin projects as
+    ///   <c>System.Object</c> (IsArray) until <see cref="BlueprintCommandSink"/>'s wire-bake hook
+    ///   re-types it from the source <c>GetComponentNode</c> collection pin's real element type --
+    ///   without this rule the FIRST wire attempt (real element type -&gt; System.Object) would be
+    ///   rejected here even though the compiler already accepts it, so the consumer nodes could
+    ///   never be wired up in the editor at all.
+    ///   </item>
     /// </list>
     /// </remarks>
     public bool AreCompatible(TypeKey from, TypeKey to)
@@ -125,6 +136,11 @@ public sealed class BlueprintTypeSystem : ITypeSystem
         if (from == to) return true;
         // Widening: int → float
         if (from.Id == Int32 && to.Id == Single) return true;
+        // Typed-unknown placeholder wildcard (mirrors Stage4_TypeResolve.VerifyLinkTypes). Only a
+        // DATA pin can be the placeholder: the OTHER side must be a real data type (non-empty Id),
+        // so this never swallows the exec/data kind split (exec pins carry TypeKey.Empty — Id "").
+        if (from.Id == "System.Object" && !string.IsNullOrEmpty(to.Id)) return true;
+        if (to.Id == "System.Object" && !string.IsNullOrEmpty(from.Id)) return true;
         return false;
     }
 

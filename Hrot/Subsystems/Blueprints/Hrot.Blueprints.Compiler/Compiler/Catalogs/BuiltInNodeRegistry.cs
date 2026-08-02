@@ -54,11 +54,17 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         GetSharedNode   => Array.Empty<PinSchema>(),   // pure data-(In Target?)/Out, type from SharedTypeId
         SetSharedNode   => new[] { ExecIn(), ExecOut() },
 
-        // GetComponent (P2 -- Hill-attack -> Blueprints migration): pure data-(In Target?)/Out
-        // node, mirrors GetSharedNode -- no static shape here; the asset supplies fully-authored
-        // Pins (Value out + optional Target in) directly, so Stage0_Rehydrate never rebuilds them
-        // (see Stage0_Rehydrate.Run's "node.Pins.Count > 0 => skip" guard). No enricher needed.
-        GetComponentNode => Array.Empty<PinSchema>(),   // pure data-(In Target?)/Out; pins come from the asset JSON
+        // GetComponent (P2 migration + CA-01 multi-pin): pure data-(In Target?)/Out node, mirrors
+        // GetSharedNode -- static skeleton is empty; Stage0_Rehydrate.EnrichGetComponentPins
+        // rebuilds Target(in)/per-field-or-legacy-Value(out)/Found(out) whenever the node is
+        // stored pin-less (fully-authored fixtures with Pins.Count > 0 are left alone by the
+        // "node.Pins.Count > 0 => skip" guard, same as GetShared).
+        GetComponentNode => Array.Empty<PinSchema>(),   // pure data-(In Target?)/Out; enriched by Stage0 when pin-less
+
+        // SetComponent (CA-03, Slice W1): exec node, mirrors SetSharedNode -- static skeleton is
+        // exec In/Out; Stage0_Rehydrate.EnrichSetComponentPins adds per-field data-ins + "Written"
+        // whenever the node is stored pin-less. Self-only -- no "Target" pin (unlike GetComponent).
+        SetComponentNode => new[] { ExecIn(), ExecOut() },
 
         // Compare (GAP-12) / BinaryOp (native arithmetic) / BooleanOp (native boolean logic):
         // pure data nodes, static skeleton data-(A,B In)/(Result Out). Blocker-1 tail fix: these
@@ -134,6 +140,35 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
             Data("CurrentItem",  "Out", "Fdp.Core.Entity"),
             Data("CurrentIndex", "Out", "System.Int32"),
             Data("Count",        "Out", "System.Int32"),
+        },
+
+        // ComponentForEach / ComponentItemGet / ComponentItemCount (CA-07b): the "Collection"/
+        // "CurrentItem"/"Element" pins are element-typed by each node's OWN baked ElementTypeFqn
+        // (varies per instance, unlike FlowForEach's fixed Entity-typed roster item) -- this static
+        // skeleton types them "System.Object" as a placeholder for Guard 2 / the pin-less-
+        // rehydration fallback path; Stage0_Rehydrate.EnrichComponent{ForEach,ItemGet,ItemCount}Pins
+        // ALWAYS rebuilds with the real element type (mirrors GetComponentNode). "Body"/"Completed"
+        // exec-out names are load-bearing for Stage5 (mirrors FlowForEachNode).
+        ComponentForEachNode      => new[]
+        {
+            ExecIn(),
+            Data("Collection", "In", "System.Object"),
+            new("Body",      "Out", true,  ""),
+            new("Completed", "Out", true,  ""),
+            Data("CurrentItem",  "Out", "System.Object"),
+            Data("CurrentIndex", "Out", "System.Int32"),
+            Data("Count",        "Out", "System.Int32"),
+        },
+        ComponentItemGetNode      => new[]
+        {
+            Data("Collection", "In",  "System.Object"),
+            Data("Index",      "In",  "System.Int32"),
+            Data("Element",    "Out", "System.Object"),
+        },
+        ComponentItemCountNode    => new[]
+        {
+            Data("Collection", "In",  "System.Object"),
+            Data("Count",      "Out", "System.Int32"),
         },
 
         ArrayMakeNode am          => ArrayMakePins(am),

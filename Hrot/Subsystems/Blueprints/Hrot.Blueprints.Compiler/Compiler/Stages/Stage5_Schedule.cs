@@ -436,6 +436,29 @@ internal sealed class GraphScheduler
                     node = feCompleted;
                     continue;
 
+                case ComponentForEachNode cfe:
+                    // CA-07b -- component-collection inline bounded loop. Schedules + continues the
+                    // outer chain EXACTLY like FlowForEachNode above (see ScheduleComponentForEachNode's
+                    // doc comment for the one lowering difference: the component is re-read off the
+                    // resolved "Collection" in-pin entity, not self).
+                    _execNodeToBlockId[cfe.Id] = blockId;
+                    bb.SourceNodeId ??= cfe.Id;
+                    ScheduleComponentForEachNode(cfe, bb);
+                    var cfeCompleted = GetExecSuccessorByPinName(cfe, "Completed");
+                    if (cfeCompleted is null)
+                    {
+                        ReportDroppedExecSuccessors(cfe);
+                        SealFallThrough(blockId, bb, DebugOf(cfe));
+                        return;
+                    }
+                    if (IsMergePoint(cfeCompleted.Id))
+                    {
+                        bb.Terminator = new IrTerm_Goto(GetOrAllocMergeBlock(cfeCompleted)) { Debug = DebugOf(cfe) };
+                        return;
+                    }
+                    node = cfeCompleted;
+                    continue;
+
                 case SequenceNode seq:
                     ScheduleSequenceNode(seq, bb);
                     return;
@@ -1149,6 +1172,111 @@ internal sealed class GraphScheduler
 
                 if (writtenPin is not null && writtenResult.HasValue)
                     _pinValueCache[writtenPin.Id] = writtenResult.Value;
+                break;
+            }
+
+            case SetComponentNode { IsManaged: true } scnM:
+            {
+                // CA-06 (Slice W2, Q#16-C) -- managed whole-replace write-if-present, self-only.
+                // Shape mirrors the unmanaged branch below (self via IrOp_Self, one guarded
+                // ResultValue doubling as "Written"), but the node projects a SINGLE data-IN "Value"
+                // pin (component-typed) instead of per-field pins (see Stage0_Rehydrate
+                // .EnrichSetComponentPins's IsManaged branch) -- resolve THAT pin's wire directly
+                // (mirrors the per-field lookup's own link-lookup style, just for one named pin),
+                // not ResolveDataPin (which would emit a spurious BP4001 for an intentionally-unwired
+                // pin -- unwired here is a legal "guard only, nothing to write" state, see
+                // IrOp_SetManagedComponent's doc comment).
+                var valuePinM = scnM.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "Value", StringComparison.OrdinalIgnoreCase));
+
+                IrValue? wiredValueM = null;
+                if (valuePinM is not null)
+                {
+                    var valueLinkM = _graph.Links.FirstOrDefault(
+                        l => l.ToNodeId == node.Id && l.ToPinId == valuePinM.Id);
+                    if (valueLinkM is not null)
+                        wiredValueM = ResolveNodeOutput(valueLinkM.FromNodeId, valueLinkM.FromPinId, stmts);
+                }
+
+                // Self-only by construction (Q#16) -- same as the unmanaged branch.
+                var selfEntityM = AllocValue(Stage5_Schedule.EntityType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = selfEntityM,
+                    Operation   = new IrOp_Self(),
+                    Debug       = DebugOf(node),
+                });
+
+                // ALWAYS allocated (guards the write AND drives "Written"), same reasoning as the
+                // unmanaged branch's writtenResultC.
+                var writtenResultM = AllocValue(Stage5_Schedule.BoolType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = writtenResultM,
+                    Operation   = new IrOp_SetManagedComponent(scnM.ComponentTypeFqn, selfEntityM, wiredValueM),
+                    Debug       = DebugOf(node),
+                });
+
+                var writtenPinM = node.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, "Written", StringComparison.OrdinalIgnoreCase));
+                if (writtenPinM is not null)
+                    _pinValueCache[writtenPinM.Id] = writtenResultM;
+                break;
+            }
+
+            case SetComponentNode scn:
+            {
+                // CA-03 (Slice W1, Q#16) -- unmanaged write-if-present, self-only. Resolve ONLY
+                // the WIRED field data-in pins into an (Name, Value) list -- an unwired field is
+                // simply never added, which is exactly how "unwired preserved" is achieved (mirrors
+                // SetSharedNode's per-field branch above, minus the byte offset -- there is no
+                // blittable-blob write here, just a typed member assignment).
+                var fields = new List<(string Name, IrValue Value)>();
+                if (scn.Fields is { Count: > 0 })
+                {
+                    foreach (var f in scn.Fields)
+                    {
+                        var fieldPin = node.Pins.FirstOrDefault(p =>
+                            !p.IsExec && p.Direction == "In"
+                            && string.Equals(p.Name, f.Name, StringComparison.OrdinalIgnoreCase));
+                        if (fieldPin is null) continue;
+                        var link = _graph.Links.FirstOrDefault(
+                            l => l.ToNodeId == node.Id && l.ToPinId == fieldPin.Id);
+                        if (link is null) continue; // unwired field -> not written -> preserved
+                        var fieldVal = ResolveNodeOutput(link.FromNodeId, link.FromPinId, stmts);
+                        fields.Add((f.Name, fieldVal));
+                    }
+                }
+
+                // Self-only by construction (Q#16) -- SetComponentNode has no "Target" pin at all;
+                // entity is ALWAYS the resolved self (mirrors GetComponentNode's unwired-Target
+                // self-default, just unconditional here).
+                var selfEntity = AllocValue(Stage5_Schedule.EntityType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = selfEntity,
+                    Operation   = new IrOp_Self(),
+                    Debug       = DebugOf(node),
+                });
+
+                // This ResultValue doubles as the guarded block's HasComponent bool AND the
+                // "Written" out-pin's value -- ALWAYS allocated (the write must be guarded whether
+                // or not a graph author actually wires "Written" downstream).
+                var writtenResultC = AllocValue(Stage5_Schedule.BoolType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = writtenResultC,
+                    Operation   = new IrOp_WriteComponentFields(scn.ComponentTypeFqn, selfEntity, fields),
+                    Debug       = DebugOf(node),
+                });
+
+                var writtenPinC = node.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, "Written", StringComparison.OrdinalIgnoreCase));
+                if (writtenPinC is not null)
+                    _pinValueCache[writtenPinC.Id] = writtenResultC;
                 break;
             }
 
@@ -1974,11 +2102,18 @@ internal sealed class GraphScheduler
                 // in WaitLowering_AiPrimitive's channel-check block (IrOp_Self ->
                 // IrOp_GetComponentRO -> IrOp_FieldRead), so this is not a novel lowering shape,
                 // just the first place a NODE (rather than a synthesized wait-check) drives it.
+                // CA-01 (Slice 1a) adds a MULTI-FIELD path below (baked Fields != null): read the
+                // component ONCE via the SAME IrOp_GetComponentRO, then project each field via
+                // IrOp_FieldRead -- the exact read-once-then-project idiom multi-pin GetShared uses
+                // (IrOp_ReadShared -> N x IrOp_FieldRead) -- plus IrOp_HasComponent for "Found".
+                // Still no new IrOperation. The legacy single-field path below is BYTE-IDENTICAL to
+                // before (it is skipped over entirely -- via the Fields-baked branch's `break` --
+                // when Fields is null, so existing pin-authored assets are untouched).
                 //
-                // Reflection-free rationale: ComponentTypeFqn/FieldName/FieldTypeFqn are baked
-                // strings authored at edit time (mirrors GetSharedNode.SharedTypeId and the P7.1
-                // FunctionCallNode.TrailingContext bake) -- Stage5 never inspects a real CLR Type
-                // to build them, so this survives running inside the Roslyn incremental
+                // Reflection-free rationale: ComponentTypeFqn/FieldName/FieldTypeFqn/Fields[].TypeId
+                // are baked strings authored at edit time (mirrors GetSharedNode.SharedTypeId/Fields
+                // and the P7.1 FunctionCallNode.TrailingContext bake) -- Stage5 never inspects a real
+                // CLR Type to build them, so this survives running inside the Roslyn incremental
                 // generator's netstandard2.0 analyzer host, which cannot load game assemblies
                 // (Hrot.AI.Behaviors.dll etc.) to reflect over.
 
@@ -2020,12 +2155,93 @@ internal sealed class GraphScheduler
                 // string" -- no StaticTypeRegistry lookup needed; the FQN is emitted verbatim as
                 // `global::{FQN}` and validated by the downstream Roslyn compile, exactly like
                 // GetSharedNode's SharedTypeFqn / IrOp_GetComponentRO's other call sites).
+                // CA-05: IsUnmanaged mirrors gcn.IsManaged -- metadata only (the FQN is emitted
+                // verbatim regardless), but correctly reflects which of the two ECS tiers this read
+                // targets.
                 var componentTypeRef = new IrTypeRef
                 {
                     FullName    = gcn.ComponentTypeFqn,
-                    IsUnmanaged = true,
+                    IsUnmanaged = !gcn.IsManaged,
                     SizeBytes   = 0,
                 };
+
+                // CA-01 multi-pin: baked per-field decls -> read the component ONCE, then project
+                // each field via IrOp_FieldRead (same read-once-then-project idiom as multi-pin
+                // GetShared), plus "Found" via IrOp_HasComponent. All out-pins are cached so the
+                // single read is shared across every consumed field/Found pin.
+                // CA-05 (Slice 1b): when gcn.IsManaged, the read op is IrOp_GetManagedComponentRO
+                // (not IrOp_GetComponentRO), Found's guard op is HasManagedComponent (IsManaged:
+                // true on the SAME IrOp_HasComponent -- no new Found-op needed), and each field
+                // projection is SourceIsManaged so a null (absent) managed instance degrades to the
+                // field's default instead of an NRE -- see those ops' doc comments for the throw-
+                // safety rationale.
+                if (gcn.Fields is { Count: > 0 })
+                {
+                    var compValM = AllocValue(componentTypeRef);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = compValM,
+                        Operation   = gcn.IsManaged
+                            ? new IrOp_GetManagedComponentRO(gcn.ComponentTypeFqn, entityValue, componentTypeRef)
+                            : new IrOp_GetComponentRO(gcn.ComponentTypeFqn, entityValue, componentTypeRef),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gcn.Id, PinId = sourcePinId },
+                    });
+
+                    var foundRes = AllocValue(Stage5_Schedule.BoolType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = foundRes,
+                        Operation   = new IrOp_HasComponent(gcn.ComponentTypeFqn, entityValue, IsManaged: gcn.IsManaged),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gcn.Id, PinId = sourcePinId },
+                    });
+
+                    var foundPinM = gcn.Pins.FirstOrDefault(p =>
+                        !p.IsExec && p.Direction == "Out"
+                        && string.Equals(p.Name, "Found", StringComparison.OrdinalIgnoreCase));
+                    if (foundPinM is not null) _pinValueCache[foundPinM.Id] = foundRes;
+
+                    foreach (var f in gcn.Fields)
+                    {
+                        // CA-07b (supersedes CA-07a's "skip entirely" comment): a collection decl's
+                        // out-pin gets NO IrOp_FieldRead -- there is no runtime "collection value",
+                        // only the curated accessor pair. Instead, cache the out-pin DIRECTLY to the
+                        // already-computed entityValue (the entity the component was read off, in
+                        // scope above): a downstream ComponentForEach/ComponentItemGet/
+                        // ComponentItemCount consumer resolves ITS "Collection" in-pin to that SAME
+                        // entity, re-reads the component there, and calls its own baked accessors
+                        // (see Stage5's ComponentForEachNode/ComponentItemGetNode/
+                        // ComponentItemCountNode cases below). The pin is not inert -- it now
+                        // carries the entity instead of a field value.
+                        if (f.IsCollection)
+                        {
+                            var colPin = gcn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out"
+                                && string.Equals(p.Name, f.Name, StringComparison.OrdinalIgnoreCase));
+                            if (colPin is not null) _pinValueCache[colPin.Id] = entityValue;   // collection pin => the entity
+                            continue;
+                        }
+
+                        var fPin = gcn.Pins.FirstOrDefault(p =>
+                            !p.IsExec && p.Direction == "Out"
+                            && string.Equals(p.Name, f.Name, StringComparison.OrdinalIgnoreCase));
+                        if (fPin is null) continue;
+                        IrTypeRef fType = _typed.PinTypes.TryGetValue(fPin.Id, out var fpt)
+                            ? fpt
+                            : new IrTypeRef { FullName = NormalizeSharedTypeFqn(f.TypeId), IsUnmanaged = true, SizeBytes = 0 };
+                        var fRes = AllocValue(fType);
+                        stmts.Add(new IrStatement
+                        {
+                            ResultValue = fRes,
+                            Operation   = new IrOp_FieldRead(compValM, f.Name, fType, SourceIsManaged: gcn.IsManaged),
+                            Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gcn.Id, PinId = fPin.Id },
+                        });
+                        _pinValueCache[fPin.Id] = fRes;
+                    }
+
+                    result = _pinValueCache.TryGetValue(sourcePinId, out var mpr) ? mpr : compValM;
+                    break;
+                }
+
+                // Legacy single-field path (unchanged emit shape/behavior — Fields is null here).
                 var compVal = AllocValue(componentTypeRef);
                 stmts.Add(new IrStatement
                 {
@@ -2060,6 +2276,140 @@ internal sealed class GraphScheduler
                 if (valuePin is not null) _pinValueCache[valuePin.Id] = fieldVal;
 
                 result = fieldVal;
+                break;
+            }
+
+            case ComponentItemGetNode cign:
+            {
+                // CA-07b -- reads one element off a component collection via its baked curated Item
+                // accessor. "Collection" resolves to the source ENTITY the GetComponent
+                // collection-decl branch cached there (Stage5's GetComponentNode case above) -- there
+                // is no runtime "collection value", only the entity + the accessor pair. Unwired
+                // Collection OR empty baked ComponentTypeFqn/ItemAccessorFqn => safe default (no read
+                // emitted; a bare default(...) value, same shape the generic "unknown pure source"
+                // fallback at the bottom of this switch uses).
+                var collPin = cign.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "Collection", StringComparison.OrdinalIgnoreCase));
+                var collLink = collPin is null ? null : _graph.Links.FirstOrDefault(
+                    l => l.ToNodeId == cign.Id && l.ToPinId == collPin.Id);
+
+                if (collLink is null
+                    || string.IsNullOrEmpty(cign.ComponentTypeFqn)
+                    || string.IsNullOrEmpty(cign.ItemAccessorFqn))
+                {
+                    result = AllocValue(pinType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = result,
+                        Operation   = new IrOp_Const("default", pinType),
+                        Debug       = new IrDebugAnnotation
+                        {
+                            GraphId     = _graph.Id,
+                            NodeId      = cign.Id,
+                            PinId       = sourcePinId,
+                            Synthesized = "component-item-get-unwired-or-unbaked",
+                        },
+                    });
+                    break;
+                }
+
+                var entity = ResolveNodeOutput(collLink.FromNodeId, collLink.FromPinId, stmts);
+
+                var compTypeRef = new IrTypeRef { FullName = cign.ComponentTypeFqn, IsUnmanaged = true, SizeBytes = 0 };
+                var compVal = AllocValue(compTypeRef);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = compVal,
+                    Operation   = new IrOp_GetComponentRO(cign.ComponentTypeFqn, entity, compTypeRef),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = cign.Id, PinId = sourcePinId },
+                });
+
+                var indexPin = cign.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "Index", StringComparison.OrdinalIgnoreCase));
+                IrValue indexVal = indexPin is not null
+                    ? ResolveDataPin(cign.Id, indexPin.Id, stmts)
+                    : AllocValue(Stage5_Schedule.Int32Type);
+
+                var elemTypeRef = new IrTypeRef
+                {
+                    FullName    = string.IsNullOrEmpty(cign.ElementTypeFqn) ? "System.Object" : cign.ElementTypeFqn,
+                    IsUnmanaged = true,
+                    SizeBytes   = 0,
+                };
+                var elemVal = AllocValue(elemTypeRef);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = elemVal,
+                    Operation   = new IrOp_ComponentAccessorCall(cign.ItemAccessorFqn, compVal, indexVal, elemTypeRef),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = cign.Id, PinId = sourcePinId },
+                });
+
+                var elementPin = cign.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, "Element", StringComparison.OrdinalIgnoreCase));
+                if (elementPin is not null) _pinValueCache[elementPin.Id] = elemVal;
+
+                result = elemVal;
+                break;
+            }
+
+            case ComponentItemCountNode cicn:
+            {
+                // CA-07b -- reads a component collection's Count via its baked curated accessor.
+                // Mirrors ComponentItemGetNode's case above exactly, minus the Index operand.
+                var collPin = cicn.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "Collection", StringComparison.OrdinalIgnoreCase));
+                var collLink = collPin is null ? null : _graph.Links.FirstOrDefault(
+                    l => l.ToNodeId == cicn.Id && l.ToPinId == collPin.Id);
+
+                if (collLink is null
+                    || string.IsNullOrEmpty(cicn.ComponentTypeFqn)
+                    || string.IsNullOrEmpty(cicn.CountAccessorFqn))
+                {
+                    result = AllocValue(pinType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = result,
+                        Operation   = new IrOp_Const("default", pinType),
+                        Debug       = new IrDebugAnnotation
+                        {
+                            GraphId     = _graph.Id,
+                            NodeId      = cicn.Id,
+                            PinId       = sourcePinId,
+                            Synthesized = "component-item-count-unwired-or-unbaked",
+                        },
+                    });
+                    break;
+                }
+
+                var entity = ResolveNodeOutput(collLink.FromNodeId, collLink.FromPinId, stmts);
+
+                var compTypeRef = new IrTypeRef { FullName = cicn.ComponentTypeFqn, IsUnmanaged = true, SizeBytes = 0 };
+                var compVal = AllocValue(compTypeRef);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = compVal,
+                    Operation   = new IrOp_GetComponentRO(cicn.ComponentTypeFqn, entity, compTypeRef),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = cicn.Id, PinId = sourcePinId },
+                });
+
+                var countVal = AllocValue(Stage5_Schedule.Int32Type);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = countVal,
+                    Operation   = new IrOp_ComponentAccessorCall(cicn.CountAccessorFqn, compVal, null, Stage5_Schedule.Int32Type),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = cicn.Id, PinId = sourcePinId },
+                });
+
+                var countPin = cicn.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, "Count", StringComparison.OrdinalIgnoreCase));
+                if (countPin is not null) _pinValueCache[countPin.Id] = countVal;
+
+                result = countVal;
                 break;
             }
 
@@ -2787,6 +3137,123 @@ internal sealed class GraphScheduler
         });
     }
 
+    // -----------------------------------------------------------------------
+    // ComponentForEach (CA-07b) inline loop scheduling
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// CA-07b: schedules a <see cref="ComponentForEachNode"/> as an inline bounded loop -- copies
+    /// <see cref="ScheduleFlowForEachNode"/>'s shape EXACTLY (same <see cref="IrOp_ForEach"/>,
+    /// unchanged; same <see cref="ScheduleInlineBodyChain"/> body scheduling; same
+    /// CurrentItem/CurrentIndex/Count pin binding + body-cache isolation snapshot), with THREE
+    /// differences: (a) the component is re-read off the ENTITY the wired "Collection" data-in pin
+    /// resolves to (see the section doc comment on <see cref="Assets.ComponentForEachNode"/> in
+    /// Nodes.cs) instead of <c>self</c>; (b) <c>itemVar</c> is allocated with the node's OWN baked
+    /// <see cref="ComponentForEachNode.ElementTypeFqn"/> (falls back to System.Object), not the
+    /// fixed <c>Fdp.Core.Entity</c> FlowForEach always uses; (c) the accessor FQNs come from this
+    /// node's OWN baked <see cref="ComponentForEachNode.CountAccessorFqn"/>/
+    /// <see cref="ComponentForEachNode.ItemAccessorFqn"/> instead of a fixed roster contract.
+    /// <para>
+    /// "Collection" unwired, OR the node's baked ComponentTypeFqn/CountAccessorFqn/ItemAccessorFqn
+    /// are empty (not yet baked by CA-07c at wire time): safe default -- NOTHING is emitted (no
+    /// read, no <see cref="IrOp_ForEach"/>) and this method returns immediately. The "Body" chain
+    /// simply never runs (an empty loop); the caller (<c>ScheduleBlock</c>) still continues the
+    /// outer chain at "Completed" as normal -- no diagnostic, no crash, mirrors how an unconnected
+    /// OPTIONAL pin degrades elsewhere in this file (Stage2's <c>V_ComponentAccessRules</c> BP2066
+    /// catches the "wired but not baked" half of this at validation time; unwired is legitimately
+    /// just "not used yet").
+    /// </para>
+    /// </summary>
+    private void ScheduleComponentForEachNode(ComponentForEachNode cfe, BlockBuilder bb)
+    {
+        var collPin = cfe.Pins.FirstOrDefault(p =>
+            !p.IsExec && p.Direction == "In"
+            && string.Equals(p.Name, "Collection", StringComparison.OrdinalIgnoreCase));
+        var collLink = collPin is null ? null : _graph.Links.FirstOrDefault(
+            l => l.ToNodeId == cfe.Id && l.ToPinId == collPin.Id);
+
+        if (collLink is null
+            || string.IsNullOrEmpty(cfe.ComponentTypeFqn)
+            || string.IsNullOrEmpty(cfe.CountAccessorFqn)
+            || string.IsNullOrEmpty(cfe.ItemAccessorFqn))
+        {
+            return;
+        }
+
+        // Resolve "Collection" to the source ENTITY (cached there by Stage5's GetComponentNode
+        // case, collection-decl branch), into the OUTER block, before the loop -- mirrors
+        // ScheduleFlowForEachNode's self+roster read, but off the resolved entity instead of self.
+        var entityVal = ResolveNodeOutput(collLink.FromNodeId, collLink.FromPinId, bb.Statements);
+
+        var compTypeRef = new IrTypeRef { FullName = cfe.ComponentTypeFqn, IsUnmanaged = true, SizeBytes = 0 };
+        var compVal = AllocValue(compTypeRef);
+        bb.Statements.Add(new IrStatement
+        {
+            ResultValue = compVal,
+            Operation   = new IrOp_GetComponentRO(cfe.ComponentTypeFqn, entityVal, compTypeRef),
+            Debug       = DebugOf(cfe),
+        });
+
+        // Per-iteration item value, ELEMENT-typed (not Fdp.Core.Entity -- the one FlowForEach-shape
+        // difference besides the entity source) -- declared INSIDE the emitted for by IrOp_ForEach.
+        var elemTypeRef = new IrTypeRef
+        {
+            FullName    = string.IsNullOrEmpty(cfe.ElementTypeFqn) ? "System.Object" : cfe.ElementTypeFqn,
+            IsUnmanaged = true,
+            SizeBytes   = 0,
+        };
+        var itemVar = AllocValue(elemTypeRef);
+
+        // Optional "Count" out-pin -- identical shape to ScheduleFlowForEachNode's countPin handling.
+        var countPin = cfe.Pins.FirstOrDefault(p =>
+            !p.IsExec && p.Direction == "Out"
+            && string.Equals(p.Name, "Count", StringComparison.OrdinalIgnoreCase));
+        IrValue? countVar = null;
+        if (countPin is not null)
+        {
+            var cv = AllocValue(Stage5_Schedule.Int32Type);
+            countVar = cv;
+            _pinValueCache[countPin.Id] = cv;
+        }
+
+        // Bind "CurrentItem" + optional "CurrentIndex" out-pins, then schedule the Body exec-chain
+        // INLINE -- identical cache-isolation shape to ScheduleFlowForEachNode.
+        var currentItemPin = cfe.Pins.FirstOrDefault(p =>
+            !p.IsExec && p.Direction == "Out"
+            && string.Equals(p.Name, "CurrentItem", StringComparison.OrdinalIgnoreCase));
+        var currentIndexPin = cfe.Pins.FirstOrDefault(p =>
+            !p.IsExec && p.Direction == "Out"
+            && string.Equals(p.Name, "CurrentIndex", StringComparison.OrdinalIgnoreCase));
+
+        var bodyStmts = new List<IrStatement>();
+        var savedKeys = new HashSet<Guid>(_pinValueCache.Keys);
+        if (currentItemPin is not null)
+            _pinValueCache[currentItemPin.Id] = itemVar;
+        IrValue? indexVar = null;
+        if (currentIndexPin is not null)
+        {
+            var iv = AllocValue(Stage5_Schedule.Int32Type);
+            indexVar = iv;
+            _pinValueCache[currentIndexPin.Id] = iv;
+        }
+
+        ScheduleInlineBodyChain(GetExecSuccessorByPinName(cfe, "Body"), null, bodyStmts, bb.Id.Value);
+
+        foreach (var k in _pinValueCache.Keys.Where(k => !savedKeys.Contains(k)).ToList())
+            _pinValueCache.Remove(k);
+
+        // Reuses IrOp_ForEach UNCHANGED -- it only needs a component ref-readonly local
+        // (compVal, from IrOp_GetComponentRO -- doesn't care which entity produced it), the
+        // Count/Item accessor FQNs, and an ItemVar of the right type. None of that is
+        // FlowForEach-specific.
+        bb.Statements.Add(new IrStatement
+        {
+            Operation = new IrOp_ForEach(
+                cfe.CountAccessorFqn, cfe.ItemAccessorFqn, compVal, itemVar, bodyStmts, countVar, indexVar),
+            Debug = DebugOf(cfe),
+        });
+    }
+
     /// <summary>
     /// P1b (GAP-1): schedules an inline exec-chain -- a <see cref="FlowForEachNode"/> body, or a
     /// <see cref="BranchNode"/> arm within one -- into <paramref name="stmts"/> as NESTED statements,
@@ -2920,6 +3387,13 @@ internal sealed class GraphScheduler
             case FlowForEachNode fe:
             {
                 var comp = GetExecSuccessorByPinName(fe, "Completed");
+                if (comp is not null) yield return comp;
+                break;
+            }
+            case ComponentForEachNode cfe:
+            {
+                // CA-07b -- same "Body" is nested / "Completed" is outer flow" shape as FlowForEachNode.
+                var comp = GetExecSuccessorByPinName(cfe, "Completed");
                 if (comp is not null) yield return comp;
                 break;
             }

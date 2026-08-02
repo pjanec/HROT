@@ -1,6 +1,7 @@
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.Host;
 using NodeEditor.Core.Interfaces;
+using NodeEditor.Primitives;
 
 namespace Hrot.Blueprints.Tests.Host;
 
@@ -13,6 +14,9 @@ public sealed class BlueprintNodeTitleTests
 {
     private static string Title(Node node, BlueprintAsset? asset = null)
         => new BlueprintNodeModel(node, System.Array.Empty<IPinModel>(), asset).Title;
+
+    private static NodeState State(Node node, BlueprintAsset? asset = null)
+        => new BlueprintNodeModel(node, System.Array.Empty<IPinModel>(), asset).State;
 
     [Theory]
     [InlineData("System.Int32", "5")]
@@ -94,6 +98,173 @@ public sealed class BlueprintNodeTitleTests
         Assert.Equal("Set Shared", Title(new SetSharedNode { VariableId = "" }));
     }
 
+    // CA-02: GetComponent brackets the short component-type name (mirrors Make/Break/SetMembers'
+    // "[ShortTypeName]" convention), and flags NodeState.Error when the baked ComponentTypeFqn no
+    // longer resolves (renamed/removed from C#) -- reuses the FunctionCall red-node pattern.
+
+    [Fact]
+    public void GetComponent_BracketsShortComponentTypeName()
+        => Assert.Equal("Get Component [Vector3]",
+            Title(new GetComponentNode { ComponentTypeFqn = "System.Numerics.Vector3" }));
+
+    [Fact]
+    public void GetComponent_EmptyComponentType_FallsBackToGenericLabel()
+        => Assert.Equal("Get Component", Title(new GetComponentNode { ComponentTypeFqn = "" }));
+
+    [Fact]
+    public void GetComponent_ResolvableComponentType_IsNormalState()
+    {
+        var node = new GetComponentNode { ComponentTypeFqn = "System.Numerics.Vector3" };
+        Assert.Equal(NodeState.Normal, State(node));
+    }
+
+    [Fact]
+    public void GetComponent_UnresolvableComponentType_IsErrorState()
+    {
+        var node = new GetComponentNode { ComponentTypeFqn = "Totally.Unknown.Namespace.NoSuchComponent" };
+        Assert.Equal(NodeState.Error, State(node));
+    }
+
+    [Fact]
+    public void GetComponent_EmptyComponentType_IsNormalState_NotError()
+    {
+        // An unconfigured (not-yet-picked) node is not the same as a STALE reference -- must not
+        // be flagged as an error just because ComponentTypeFqn happens to be empty.
+        var node = new GetComponentNode { ComponentTypeFqn = "" };
+        Assert.Equal(NodeState.Normal, State(node));
+    }
+
+    // CA-04: SetComponent mirrors GetComponent's title/stale-ref conventions exactly (same
+    // "[ShortTypeName]" bracketing, same red-node-on-unresolved-component pattern).
+
+    [Fact]
+    public void SetComponent_BracketsShortComponentTypeName()
+        => Assert.Equal("Set Component [Vector3]",
+            Title(new SetComponentNode { ComponentTypeFqn = "System.Numerics.Vector3" }));
+
+    [Fact]
+    public void SetComponent_EmptyComponentType_FallsBackToGenericLabel()
+        => Assert.Equal("Set Component", Title(new SetComponentNode { ComponentTypeFqn = "" }));
+
+    [Fact]
+    public void SetComponent_ResolvableComponentType_IsNormalState()
+    {
+        var node = new SetComponentNode { ComponentTypeFqn = "System.Numerics.Vector3" };
+        Assert.Equal(NodeState.Normal, State(node));
+    }
+
+    [Fact]
+    public void SetComponent_UnresolvableComponentType_IsErrorState()
+    {
+        var node = new SetComponentNode { ComponentTypeFqn = "Totally.Unknown.Namespace.NoSuchComponent" };
+        Assert.Equal(NodeState.Error, State(node));
+    }
+
+    [Fact]
+    public void SetComponent_EmptyComponentType_IsNormalState_NotError()
+    {
+        // An unconfigured (not-yet-picked) node is not the same as a STALE reference -- must not
+        // be flagged as an error just because ComponentTypeFqn happens to be empty.
+        var node = new SetComponentNode { ComponentTypeFqn = "" };
+        Assert.Equal(NodeState.Normal, State(node));
+    }
+
+    // CA-07c: the three collection CONSUMER nodes bracket the short component-type name once baked
+    // (on wire), same convention as GetComponent/SetComponent; a fresh/unwired instance shows a
+    // generic label instead.
+
+    [Fact]
+    public void ComponentForEach_BracketsShortComponentTypeName()
+        => Assert.Equal("For Each [BpCollectionDemo]",
+            Title(new ComponentForEachNode { ComponentTypeFqn = "Hrot.AI.Behaviors.BpCollectionDemo" }));
+
+    [Fact]
+    public void ComponentForEach_EmptyComponentType_FallsBackToGenericLabel()
+        => Assert.Equal("For Each Component Item", Title(new ComponentForEachNode { ComponentTypeFqn = "" }));
+
+    [Fact]
+    public void ComponentItemGet_BracketsShortComponentTypeName()
+        => Assert.Equal("Get Item [BpCollectionDemo]",
+            Title(new ComponentItemGetNode { ComponentTypeFqn = "Hrot.AI.Behaviors.BpCollectionDemo" }));
+
+    [Fact]
+    public void ComponentItemGet_EmptyComponentType_FallsBackToGenericLabel()
+        => Assert.Equal("Get Item", Title(new ComponentItemGetNode { ComponentTypeFqn = "" }));
+
+    [Fact]
+    public void ComponentItemCount_BracketsShortComponentTypeName()
+        => Assert.Equal("Item Count [BpCollectionDemo]",
+            Title(new ComponentItemCountNode { ComponentTypeFqn = "Hrot.AI.Behaviors.BpCollectionDemo" }));
+
+    [Fact]
+    public void ComponentItemCount_EmptyComponentType_FallsBackToGenericLabel()
+        => Assert.Equal("Item Count", Title(new ComponentItemCountNode { ComponentTypeFqn = "" }));
+
+    [Fact]
+    public void ComponentCollectionConsumers_ResolvableComponentType_IsNormalState()
+    {
+        Assert.Equal(NodeState.Normal, State(new ComponentForEachNode   { ComponentTypeFqn = "System.Numerics.Vector3" }));
+        Assert.Equal(NodeState.Normal, State(new ComponentItemGetNode   { ComponentTypeFqn = "System.Numerics.Vector3" }));
+        Assert.Equal(NodeState.Normal, State(new ComponentItemCountNode { ComponentTypeFqn = "System.Numerics.Vector3" }));
+    }
+
+    [Fact]
+    public void ComponentCollectionConsumers_UnresolvableComponentType_IsErrorState()
+    {
+        const string bogus = "Totally.Unknown.Namespace.NoSuchComponent";
+        Assert.Equal(NodeState.Error, State(new ComponentForEachNode   { ComponentTypeFqn = bogus }));
+        Assert.Equal(NodeState.Error, State(new ComponentItemGetNode   { ComponentTypeFqn = bogus }));
+        Assert.Equal(NodeState.Error, State(new ComponentItemCountNode { ComponentTypeFqn = bogus }));
+    }
+
+    [Fact]
+    public void ComponentCollectionConsumers_EmptyComponentType_IsNormalState_NotError()
+    {
+        // Not-yet-wired (freshly placed from the palette) is not the same as a STALE reference.
+        Assert.Equal(NodeState.Normal, State(new ComponentForEachNode   { ComponentTypeFqn = "" }));
+        Assert.Equal(NodeState.Normal, State(new ComponentItemGetNode   { ComponentTypeFqn = "" }));
+        Assert.Equal(NodeState.Normal, State(new ComponentItemCountNode { ComponentTypeFqn = "" }));
+    }
+
+    // CA-07c: BP2066-mirroring check -- "Collection" wired but baked accessors empty (the
+    // "collectionPinWired" signal BlueprintGraphModel computes from _graph.Links; these tests drive
+    // it directly since BlueprintNodeModel itself has no connectivity awareness).
+
+    [Fact]
+    public void ComponentCollectionConsumer_WiredButAccessorsEmpty_IsErrorState_MirrorsBP2066()
+    {
+        var node = new ComponentItemCountNode { ComponentTypeFqn = "", CountAccessorFqn = "" };
+        var model = new BlueprintNodeModel(node, System.Array.Empty<IPinModel>(), asset: null, collectionPinWired: true);
+        Assert.Equal(NodeState.Error, model.State);
+    }
+
+    [Fact]
+    public void ComponentCollectionConsumer_UnwiredAndAccessorsEmpty_IsNormalState_NotBP2066()
+    {
+        // Unwired ("not used yet") is a legitimate state -- mirrors Stage2's own "only fires when
+        // wired" rule -- so the SAME empty-accessors node must NOT be flagged when unwired.
+        var node = new ComponentItemCountNode { ComponentTypeFqn = "", CountAccessorFqn = "" };
+        var model = new BlueprintNodeModel(node, System.Array.Empty<IPinModel>(), asset: null, collectionPinWired: false);
+        Assert.Equal(NodeState.Normal, model.State);
+    }
+
+    [Fact]
+    public void ComponentCollectionConsumer_WiredWithFullBake_IsNormalState()
+    {
+        // "System.Numerics.Vector3" (not a Hrot.AI.Behaviors type) so the stale-ref check's
+        // ComponentFieldReflector.ResolveType finds it via plain reflection in THIS test host,
+        // mirroring GetComponent_ResolvableComponentType_IsNormalState above.
+        var node = new ComponentForEachNode
+        {
+            ComponentTypeFqn = "System.Numerics.Vector3",
+            CountAccessorFqn = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Count",
+            ItemAccessorFqn  = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Item",
+            ElementTypeFqn   = "System.Int32",
+        };
+        var model = new BlueprintNodeModel(node, System.Array.Empty<IPinModel>(), asset: null, collectionPinWired: true);
+        Assert.Equal(NodeState.Normal, model.State);
+    }
+
     [Fact]
     public void GetParameter_TitleIsClean_NameShownOnPinInstead()
     {
@@ -107,5 +278,36 @@ public sealed class BlueprintNodeTitleTests
             Parameters = new() { new ParameterDecl { Id = pid, Name = "FiringLineStart" } },
         };
         Assert.Equal("Get Parameter", Title(new GetParameterNode { ParameterId = pid.ToString() }, asset));
+    }
+
+    [Fact]
+    public void GetSetVariable_ResolvesWorkingStateSlotName_NotRawGuid()
+    {
+        // Get/SetVariable can target a WorkingState slot (the cross-entity / shared-state demos
+        // declare their mirrored slots there, not in Variables). The title must resolve the NAME,
+        // not fall back to the raw GUID (regression: SharedStateCrossEntityDemo showed "Get [guid]").
+        var vid = System.Guid.NewGuid();
+        var asset = new BlueprintAsset
+        {
+            AssetId = System.Guid.NewGuid(),
+            Name = "T",
+            WorkingState = new() { new VariableDecl { Id = vid, Name = "Commander" } },
+        };
+        Assert.Equal("Get [Commander]", Title(new GetVariableNode { VariableId = vid.ToString() }, asset));
+        Assert.Equal("Set [Commander]", Title(new SetVariableNode { VariableId = vid.ToString() }, asset));
+    }
+
+    [Fact]
+    public void GetVariable_ResolvesVariablesListName()
+    {
+        // The existing (Variables list) path still resolves.
+        var vid = System.Guid.NewGuid();
+        var asset = new BlueprintAsset
+        {
+            AssetId = System.Guid.NewGuid(),
+            Name = "T",
+            Variables = new() { new VariableDecl { Id = vid, Name = "Count" } },
+        };
+        Assert.Equal("Get [Count]", Title(new GetVariableNode { VariableId = vid.ToString() }, asset));
     }
 }

@@ -105,6 +105,142 @@ public sealed class Stage4_TypeResolveTests
         Assert.Contains(sink.All, d => d.Code == DiagnosticCodes.BP1501);
     }
 
+    /// <summary>
+    /// CA-07c regression: <c>StaticTypeRegistry.TryResolve</c> wraps an array's FullName as
+    /// "ElementFullName[]" (e.g. "System.Object[]"), so the OLD exact-string wildcard check
+    /// (<c>fromType.FullName == "System.Object"</c>) never matched an ARRAY of the placeholder type
+    /// -- a real component collection (e.g. "System.Int32[]") wired into
+    /// <see cref="ComponentItemCountNode"/>'s "Collection" pin (ALWAYS "System.Object[]", no
+    /// <c>ElementTypeFqn</c> on this node) was WRONGLY flagged BP1501, even though the scalar
+    /// "System.Int32" -&gt; "System.Object" case was already explicitly fine. Verified against the
+    /// real repro before the fix (build failed with exactly this message); this asserts the fix at
+    /// the Stage4 unit level too.
+    /// </summary>
+    [Fact]
+    [CoversDiagnosticCode("BP1501")]
+    public void TypeResolve_IntArrayIntoObjectArray_DoesNotEmitBP1501()
+    {
+        var assetId = Guid.NewGuid();
+        var graphId = Guid.NewGuid();
+        var entryId = Guid.NewGuid();
+        var retId   = Guid.NewGuid();
+        var execOut = Guid.NewGuid();
+        var execIn  = Guid.NewGuid();
+        var arrOut  = Guid.NewGuid();
+        var arrIn   = Guid.NewGuid();
+
+        var graph = new Graph
+        {
+            Id      = graphId,
+            Name    = "G",
+            Kind    = GraphKind.Function,
+            Inputs  = new(), Outputs = new(),
+            Nodes   = new List<Node>
+            {
+                new EventEntryNode { Id = entryId,
+                    Pins = new List<Pin>
+                    {
+                        new Pin { Id = execOut, Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() },
+                        new Pin { Id = arrOut, Name = "IntArray", Direction = "Out", IsExec = false,
+                            TypeRef = new BlueprintTypeRef { TypeId = "System.Int32", IsArray = true } },
+                    }},
+                new ReturnNode { Id = retId, Status = NodeStatus.Success,
+                    Pins = new List<Pin>
+                    {
+                        new Pin { Id = execIn, Name = "ExecIn", Direction = "In", IsExec = true, TypeRef = new() },
+                        // Mirrors ComponentItemCountNode's "Collection" pin: always System.Object, IsArray.
+                        new Pin { Id = arrIn, Name = "ObjArray", Direction = "In", IsExec = false,
+                            TypeRef = new BlueprintTypeRef { TypeId = "System.Object", IsArray = true } },
+                    }},
+            },
+            Links = new List<Link>
+            {
+                new Link { FromNodeId = entryId, FromPinId = execOut, ToNodeId = retId, ToPinId = execIn },
+                new Link { FromNodeId = entryId, FromPinId = arrOut,  ToNodeId = retId, ToPinId = arrIn  },
+            },
+        };
+
+        var asset = new BlueprintAsset
+        {
+            AssetId  = assetId,
+            Name     = "L",
+            Dispatch = Hrot.Blueprints.Core.Assets.BlueprintDispatchKind.Library,
+            Parameters = new(), WorkingState = new(), Variables = new(),
+            EventDispatchers = new(), CustomEvents = new(), CallablePeers = new(),
+            Graphs  = new List<Graph> { graph },
+            Header  = new Header(),
+        };
+
+        var sink = new DiagnosticSink();
+        Stage4_TypeResolve.Run(asset, new ValidationContext(sink, DefaultOptions()));
+
+        Assert.DoesNotContain(sink.All, d => d.Code == DiagnosticCodes.BP1501);
+    }
+
+    /// <summary>
+    /// Companion negative case: the array-wildcard fix must NOT become a blanket "any array is
+    /// compatible with any array" hole -- only an array of literal System.Object is a wildcard.
+    /// </summary>
+    [Fact]
+    [CoversDiagnosticCode("BP1501")]
+    public void TypeResolve_IntArrayIntoStringArray_StillEmitsBP1501()
+    {
+        var assetId = Guid.NewGuid();
+        var graphId = Guid.NewGuid();
+        var entryId = Guid.NewGuid();
+        var retId   = Guid.NewGuid();
+        var execOut = Guid.NewGuid();
+        var execIn  = Guid.NewGuid();
+        var arrOut  = Guid.NewGuid();
+        var arrIn   = Guid.NewGuid();
+
+        var graph = new Graph
+        {
+            Id      = graphId,
+            Name    = "G",
+            Kind    = GraphKind.Function,
+            Inputs  = new(), Outputs = new(),
+            Nodes   = new List<Node>
+            {
+                new EventEntryNode { Id = entryId,
+                    Pins = new List<Pin>
+                    {
+                        new Pin { Id = execOut, Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() },
+                        new Pin { Id = arrOut, Name = "IntArray", Direction = "Out", IsExec = false,
+                            TypeRef = new BlueprintTypeRef { TypeId = "System.Int32", IsArray = true } },
+                    }},
+                new ReturnNode { Id = retId, Status = NodeStatus.Success,
+                    Pins = new List<Pin>
+                    {
+                        new Pin { Id = execIn, Name = "ExecIn", Direction = "In", IsExec = true, TypeRef = new() },
+                        new Pin { Id = arrIn, Name = "StrArray", Direction = "In", IsExec = false,
+                            TypeRef = new BlueprintTypeRef { TypeId = "System.String", IsArray = true } },
+                    }},
+            },
+            Links = new List<Link>
+            {
+                new Link { FromNodeId = entryId, FromPinId = execOut, ToNodeId = retId, ToPinId = execIn },
+                new Link { FromNodeId = entryId, FromPinId = arrOut,  ToNodeId = retId, ToPinId = arrIn  },
+            },
+        };
+
+        var asset = new BlueprintAsset
+        {
+            AssetId  = assetId,
+            Name     = "L",
+            Dispatch = Hrot.Blueprints.Core.Assets.BlueprintDispatchKind.Library,
+            Parameters = new(), WorkingState = new(), Variables = new(),
+            EventDispatchers = new(), CustomEvents = new(), CallablePeers = new(),
+            Graphs  = new List<Graph> { graph },
+            Header  = new Header(),
+        };
+
+        var sink = new DiagnosticSink();
+        Stage4_TypeResolve.Run(asset, new ValidationContext(sink, DefaultOptions()));
+
+        Assert.Contains(sink.All, d => d.Code == DiagnosticCodes.BP1501);
+    }
+
     // ---- BP1503: Managed type in state ----------------------------------
 
     [Fact]

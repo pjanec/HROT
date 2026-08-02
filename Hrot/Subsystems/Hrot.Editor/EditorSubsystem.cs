@@ -162,7 +162,7 @@ namespace Hrot.Editor
     /// </list>
     /// </para>
     /// </summary>
-    public sealed class EditorSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable
+    public sealed class EditorSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable, Fdp.Toolkit.Runner.IAppExitGuard
     {
         private const int EditorNodeId = 0;
 
@@ -364,6 +364,12 @@ namespace Hrot.Editor
         // FlushNow()s the regeneration scheduler then calls SaveAllAiDocumentsCommand.Execute.
         private Action? _saveAllCallback;
         private string _saveAllStatus = string.Empty;
+
+        // App-exit "unsaved changes" prompt: state machine (headless-testable) + one-shot popup latch.
+        // When the window [X] is clicked with dirty documents open, IAppExitGuard.OnExitRequested opens
+        // the modal instead of exiting; the loop keeps running until the user resolves it.
+        private Hrot.Editor.AiShared.Documents.AppExitPromptController? _exitPrompt;
+        private bool _exitPopupOpened;
 
         // BATCH-06: perspective-level shell hotkey dispatcher (Ctrl+S/Ctrl+Shift+S fix, §20).
         private ImGuiInputSource? _shellInputSource;
@@ -1662,9 +1668,78 @@ namespace Hrot.Editor
         /// the Window Manager.  This method renders the map right-click context menu popup
         /// and the entity rename modal.
         /// </remarks>
+        // ── IAppExitGuard: app-exit "unsaved changes" prompt ──────────────────────────────────
+
+        /// <inheritdoc/>
+        public Fdp.Toolkit.Runner.ExitDisposition OnExitRequested()
+        {
+            if (_exitPrompt == null) return Fdp.Toolkit.Runner.ExitDisposition.CanExit;
+            return _exitPrompt.RequestExit()
+                ? Fdp.Toolkit.Runner.ExitDisposition.CanExit
+                : Fdp.Toolkit.Runner.ExitDisposition.Deferred;
+        }
+
+        /// <inheritdoc/>
+        public bool ExitApproved => _exitPrompt?.ExitApproved ?? false;
+
+        /// <summary>
+        /// Renders the app-exit unsaved-changes modal while a close is pending. ImGui-only; the button
+        /// actions delegate to the headless-testable <see cref="AiShared.Documents.AppExitPromptController"/>.
+        /// </summary>
+        private void DrawExitPromptModal()
+        {
+            if (_exitPrompt == null || !_exitPrompt.IsPrompting) return;
+
+            const string popupId = "Unsaved Changes###ai_app_exit_confirm";
+            if (!_exitPopupOpened)
+            {
+                ImGuiNET.ImGui.OpenPopup(popupId);
+                _exitPopupOpened = true;
+            }
+
+            var center = ImGuiNET.ImGui.GetMainViewport().GetCenter();
+            ImGuiNET.ImGui.SetNextWindowPos(center, ImGuiNET.ImGuiCond.Appearing, new System.Numerics.Vector2(0.5f, 0.5f));
+
+            bool stayOpen = true;
+            if (ImGuiNET.ImGui.BeginPopupModal(popupId, ref stayOpen,
+                    ImGuiNET.ImGuiWindowFlags.AlwaysAutoResize | ImGuiNET.ImGuiWindowFlags.NoSavedSettings))
+            {
+                var dirty = _exitPrompt.DirtyDocuments;
+                ImGuiNET.ImGui.TextUnformatted(
+                    $"You have {dirty.Count} document{(dirty.Count == 1 ? "" : "s")} with unsaved changes:");
+                ImGuiNET.ImGui.Spacing();
+                foreach (var d in dirty)
+                    ImGuiNET.ImGui.BulletText($"{d.Asset.Name}  ({d.Kind})");
+                ImGuiNET.ImGui.Spacing();
+                ImGuiNET.ImGui.TextUnformatted("Save them before exiting?");
+                ImGuiNET.ImGui.Spacing();
+
+                if (ImGuiNET.ImGui.Button("Save All & Exit"))
+                { ImGuiNET.ImGui.CloseCurrentPopup(); _exitPopupOpened = false; _exitPrompt.ResolveSaveAndExit(); }
+                ImGuiNET.ImGui.SameLine();
+                if (ImGuiNET.ImGui.Button("Discard & Exit"))
+                { ImGuiNET.ImGui.CloseCurrentPopup(); _exitPopupOpened = false; _exitPrompt.ResolveDiscardAndExit(); }
+                ImGuiNET.ImGui.SameLine();
+                if (ImGuiNET.ImGui.Button("Cancel"))
+                { ImGuiNET.ImGui.CloseCurrentPopup(); _exitPopupOpened = false; _exitPrompt.ResolveCancel(); }
+
+                ImGuiNET.ImGui.EndPopup();
+            }
+            else if (!stayOpen)
+            {
+                // Dismissed via the popup's [X] / Esc — treat as Cancel (stay open, nothing saved).
+                _exitPopupOpened = false;
+                _exitPrompt.ResolveCancel();
+            }
+        }
+
         public void DrawUI()
         {
             if (_headless) return;
+
+            // App-exit unsaved-changes modal — rendered on top when a window-close was deferred.
+            if (ImGuiNET.ImGui.GetCurrentContext() != System.IntPtr.Zero)
+                DrawExitPromptModal();
 
             // ── BATCH-06: perspective-level shell hotkey dispatch (Ctrl+S fix, §20) ───────────
             // Pump the shell command hotkeys once per frame so Ctrl+S/Ctrl+Shift+S fire
@@ -2346,6 +2421,11 @@ namespace Hrot.Editor
                     msg => _saveAllStatus = msg);
             };
 
+            // App-exit unsaved-changes prompt: reuses the same Save-All action for its
+            // "Save All & Exit" choice. Its dirty-doc list comes from the document manager.
+            _exitPrompt = new Hrot.Editor.AiShared.Documents.AppExitPromptController(
+                _aiDocumentManager, () => _saveAllCallback?.Invoke());
+
             // ── BATCH-20 (DEC-9): per-kind service registry for Save-As ──────────────────────────
             // Create the INewAssetService dictionary so ShellSaveCommands.requestSaveAs
             // can seed a SaveAsDialog from the current document's asset.
@@ -2502,44 +2582,47 @@ namespace Hrot.Editor
                     ResolveDocumentForCurrentPerspective(windowManager, _aiDocumentManager));
             // ───────────────────────────────────────────────────────────────────────────────────
 
-            // PU-603: flush-on-close — save dirty path'd docs before close.
-            // Manager fires BeforeDocumentClosed before removing the doc from its list.
-            // _aiDocumentManager is guaranteed non-null here (assigned 3 lines above).
-            _aiDocumentManager.BeforeDocumentClosed += doc =>
+            // SAVE-ON-CLOSE FIX: saving is DECOUPLED from closing. The former
+            // BeforeDocumentClosed "flush-on-close" (PU-603) silently wrote ANY dirty doc to
+            // disk on EVERY close path (tab X, whole-editor close, app-exit) with no
+            // confirmation — and for blueprints the projection-only save corrupted
+            // hand-authored explicit-GUID assets. It is removed. This delegate is now invoked
+            // ONLY by the unsaved-changes prompt's "Save" button (AiGraphCanvasWindow.
+            // ResolveCloseSave); every other close path discards. Kind dispatch reuses the
+            // per-kind save delegates wired above for Save-All (§PU-602).
+            // FOLLOW-UP: app-exit currently discards dirty docs silently; a real app-exit
+            // "you have unsaved changes" prompt is tracked separately (user-requested).
+            Action<Hrot.Editor.AiShared.Documents.AiDocument> saveDocumentOnClose = doc =>
             {
-                    if (!doc.IsDirty) return;
-                    var asset = doc.Asset;
-                    var path  = asset.SourceFilePath;
-                    if (string.IsNullOrEmpty(path)) return; // no path → skip silently
+                var asset = doc.Asset;
+                var path  = asset.SourceFilePath;
+                if (string.IsNullOrEmpty(path)) return; // no path → nothing to save
 
-                    try
+                try
+                {
+                    switch (doc.Kind)
                     {
-                        switch (doc.Kind)
-                        {
-                            case Hrot.Editor.AiShared.AssetKind.Blueprint:
-                                // saveBlueprintDelegate resolves BlueprintAsset via ViewState.
-                                saveBlueprintDelegate(asset, path);
-                                doc.MarkClean();
-                                break;
-                            case Hrot.Editor.AiShared.AssetKind.BTree:
-                                saveBTreeDelegate(asset, path);
-                                doc.MarkClean();
-                                break;
-                            case Hrot.Editor.AiShared.AssetKind.Hsm:
-                                saveHsmDelegate(asset, path);
-                                doc.MarkClean();
-                                break;
-                            default:
-                                // Other kinds (Scenario, Blackboard, Utility) are not saved via
-                                // the document-save path — skip silently.
-                                break;
-                        }
+                        case Hrot.Editor.AiShared.AssetKind.Blueprint:
+                            // saveBlueprintDelegate resolves BlueprintAsset via ViewState.
+                            saveBlueprintDelegate(asset, path);
+                            break;
+                        case Hrot.Editor.AiShared.AssetKind.BTree:
+                            saveBTreeDelegate(asset, path);
+                            break;
+                        case Hrot.Editor.AiShared.AssetKind.Hsm:
+                            saveHsmDelegate(asset, path);
+                            break;
+                        default:
+                            // Other kinds (Scenario, Blackboard, Utility) are not saved via
+                            // the document-save path — skip silently.
+                            break;
                     }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"[PU-603] Failed to save '{asset.Name}' on close: {ex.Message}");
-                    }
-                };
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[SAVE-ON-CLOSE] Failed to save '{asset.Name}': {ex.Message}");
+                }
+            };
             // ─────────────────────────────────────────────────────────────────────────────────────
 
             // ── AIE-031: Register BTree/HSM runtime inspector panes ─────────────────────────────
@@ -2755,8 +2838,9 @@ namespace Hrot.Editor
                 renderer:   new Hrot.Editor.AiShared.Windows.DelegatingCanvasRenderSeam(
                     renderDelegate:    view => btreeCanvasRenderer.Render(view, null),
                     renderWithFindBar: (view, fb, cmds) => btreeCanvasRenderer.Render(view, fb, cmds)),
-                pickers:    adapterBundle.PickerRegistry,
-                input:      adapterBundle.InputSource);
+                pickers:      adapterBundle.PickerRegistry,
+                input:        adapterBundle.InputSource,
+                saveDocument: saveDocumentOnClose);
 
             var hsmCanvasWindow = new Hrot.Editor.AiShared.Windows.AiGraphCanvasWindow(
                 assetKind:  "HSM",
@@ -2764,8 +2848,9 @@ namespace Hrot.Editor
                 renderer:   new Hrot.Editor.AiShared.Windows.DelegatingCanvasRenderSeam(
                     renderDelegate:    view => hsmCanvasRenderer.Render(view, null),
                     renderWithFindBar: (view, fb, cmds) => hsmCanvasRenderer.Render(view, fb, cmds)),
-                pickers:    adapterBundle.PickerRegistry,
-                input:      adapterBundle.InputSource);
+                pickers:      adapterBundle.PickerRegistry,
+                input:        adapterBundle.InputSource,
+                saveDocument: saveDocumentOnClose);
 
             // AIE-046: Blueprint canvas window.
             var blueprintCanvasWindow = new Hrot.Editor.AiShared.Windows.AiGraphCanvasWindow(
@@ -2774,14 +2859,36 @@ namespace Hrot.Editor
                 renderer:   new Hrot.Editor.AiShared.Windows.DelegatingCanvasRenderSeam(
                     renderDelegate:    view => blueprintCanvasRenderer.Render(view, null),
                     renderWithFindBar: (view, fb, cmds) => blueprintCanvasRenderer.Render(view, fb, cmds)),
-                pickers:    adapterBundle.PickerRegistry,
-                input:      adapterBundle.InputSource);
+                pickers:      adapterBundle.PickerRegistry,
+                input:        adapterBundle.InputSource,
+                saveDocument: saveDocumentOnClose);
 
             // Register the canvas windows into their respective perspectives via the extension seam.
             _btreeRegistrar!.RegisterExtraWindow(windowManager, btreeCanvasWindow);
             _hsmRegistrar!.RegisterExtraWindow(windowManager, hsmCanvasWindow);
             // AIE-046: Register Blueprint canvas window into the Blueprint perspective.
             _blueprintRegistrar!.RegisterExtraWindow(windowManager, blueprintCanvasWindow);
+
+            // UX: when a document becomes active (opened from the browser, or re-activated), make
+            // sure its canvas window is visible. The user may have closed the canvas, and switching
+            // perspective alone does NOT reopen a closed window (WindowManager.SwitchPerspective only
+            // flips CurrentPerspective). AiDocumentManager.Activate switches perspective BEFORE firing
+            // ActiveChanged, so here OwningPerspective == CurrentPerspective — ShowWindow just sets
+            // IsOpen=true (idempotent, no cross-perspective pinning, no focus-stealing).
+            _aiDocumentManager.ActiveChanged += () =>
+            {
+                var activeDoc = _aiDocumentManager.Active;
+                var canvasId = activeDoc?.Kind switch
+                {
+                    Hrot.Editor.AiShared.AssetKind.Blueprint => blueprintCanvasWindow.Id,
+                    Hrot.Editor.AiShared.AssetKind.BTree     => btreeCanvasWindow.Id,
+                    Hrot.Editor.AiShared.AssetKind.Hsm       => hsmCanvasWindow.Id,
+                    _ => null,
+                };
+                if (canvasId != null)
+                    windowManager.ShowWindow(canvasId);
+            };
+
             // BF-UX1 FIX C: wire the per-frame selection→Details bridge.
             // Bookmarks: also draw the off-screen edge-marker overlay (yellow arrows toward
             // bookmarked slots 1-9 that are scrolled out of view) every frame the canvas is
@@ -3555,11 +3662,18 @@ namespace Hrot.Editor
         /// <inheritdoc/>
         public void Shutdown()
         {
-            // ── PU-603: flush pending regeneration + save all dirty open docs ──────────────────────
-            // FlushNow() drains any debounced .cs regeneration before we tear down.
-            // SaveAllAiDocumentsCommand skips no-path docs (warns via Console); never throws.
+            // ── SAVE-ON-CLOSE FIX: app-exit does NOT save open documents ───────────────────────────
+            // Saving is decoupled from closing (see AiGraphCanvasWindow.ResolveCloseSave): only an
+            // explicit prompt-"Save" persists a doc; every other close path — including app-exit —
+            // DISCARDS unsaved edits. The former `_saveAllCallback?.Invoke()` here silently
+            // force-saved every dirty doc on exit, which (for blueprints) wrote a projection-only,
+            // pin-stripped file over the source — persisting exploratory/invalid edits the user never
+            // chose to keep. Removed.
+            // FlushNow() is kept: it only drains the debounced BTree/HSM regen (blueprints are
+            // in-memory-only there and never written), consistent with their auto-save-on-edit design.
+            // FOLLOW-UP (user-requested): a real app-exit "you have unsaved changes" prompt — until
+            // then, app-exit silently discards.
             _regenerationScheduler?.FlushNow();
-            _saveAllCallback?.Invoke();
             // ─────────────────────────────────────────────────────────────────────────────────────
 
             // ── CF-8: persist debug session before clearing ─────────────────────────────────────

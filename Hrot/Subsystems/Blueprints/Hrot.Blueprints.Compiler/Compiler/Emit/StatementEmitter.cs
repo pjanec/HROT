@@ -28,10 +28,25 @@ internal static class StatementEmitter
             case IrOp_Const op:
                 if (idx >= 0)
                 {
-                    // Qualify NodeStatus.* literals synthesized by WaitLowering stages.
-                    var literal = op.CSharpLiteral.StartsWith("NodeStatus.", StringComparison.Ordinal)
-                        ? $"global::Fbt.{op.CSharpLiteral}"
-                        : op.CSharpLiteral;
+                    string literal;
+                    if (op.CSharpLiteral == "default")
+                    {
+                        // A bare `default` has no target type in `var x = default;` (CS8716). Emit a
+                        // TYPED default from the op's result type -- used by CA-07b's unwired/unbaked
+                        // component-collection consumer safe-default (ComponentItemGet/ItemCount).
+                        // Unknown type ("?") -> object.
+                        var tn = op.Type?.FullName;
+                        literal = string.IsNullOrEmpty(tn) || tn == "?"
+                            ? "default(object)"
+                            : $"default(global::{tn})";
+                    }
+                    else
+                    {
+                        // Qualify NodeStatus.* literals synthesized by WaitLowering stages.
+                        literal = op.CSharpLiteral.StartsWith("NodeStatus.", StringComparison.Ordinal)
+                            ? $"global::Fbt.{op.CSharpLiteral}"
+                            : op.CSharpLiteral;
+                    }
                     e.WriteLine($"var __t{idx} = {literal};");
                 }
                 break;
@@ -297,7 +312,13 @@ internal static class StatementEmitter
 
             case IrOp_HasComponent op:
                 if (idx >= 0)
-                    e.WriteLine($"var __t{idx} = {wv}.HasComponent<global::{op.ComponentTypeFqn}>(__t{op.Entity.Index});");
+                {
+                    // CA-05: managed components pair with HasManagedComponent<T> (public, direct,
+                    // T : class) -- the idiomatic Has+Get pairing used throughout the engine's own
+                    // production call sites (see IrOp_GetManagedComponentRO's doc comment).
+                    string hasMethod = op.IsManaged ? "HasManagedComponent" : "HasComponent";
+                    e.WriteLine($"var __t{idx} = {wv}.{hasMethod}<global::{op.ComponentTypeFqn}>(__t{op.Entity.Index});");
+                }
                 break;
 
             case IrOp_GetComponent op:
@@ -309,6 +330,87 @@ internal static class StatementEmitter
                 if (idx >= 0)
                     e.WriteLine($"ref readonly var __t{idx} = ref {wv}.GetComponentRO<global::{op.ComponentTypeFqn}>(__t{op.Entity.Index});");
                 break;
+
+            case IrOp_GetManagedComponentRO op:
+                if (idx >= 0)
+                {
+                    // CA-05 (Slice 1b, Q#15 managed read). ISimulationView.GetManagedComponentRO<T>
+                    // (T : class) is an EXPLICITLY-implemented interface member on EntityRepository --
+                    // only reachable via an ISimulationView-typed receiver (ctx.SimulationViewVar), and
+                    // documented/observed to THROW if the entity lacks the component. Every real call
+                    // site in the engine (SmartEgressUtil, RouteContextSystem, ...) guards it with
+                    // HasManagedComponent<T> first -- mirrored here so a managed read stays
+                    // fail-safe/never-throw exactly like the unmanaged read, even for an arbitrary
+                    // Target entity that turns out not to carry the component. HasManagedComponent<T>
+                    // itself is PUBLIC and DIRECT on the concrete EntityRepository (wv) -- no interface
+                    // cast needed for the guard, only for the throwing Get.
+                    string entity = $"__t{op.Entity.Index}";
+                    string simView = ctx.SimulationViewVar;
+                    e.WriteLine(
+                        $"var __t{idx} = {wv}.HasManagedComponent<global::{op.ComponentTypeFqn}>({entity}) "
+                        + $"? {simView}.GetManagedComponentRO<global::{op.ComponentTypeFqn}>({entity}) : default!;");
+                }
+                break;
+
+            // ------------------------------------------------------------------
+            // ECS write (direct, unmanaged, self-only, write-if-present) -- CA-03
+            // ------------------------------------------------------------------
+
+            case IrOp_WriteComponentFields op:
+            {
+                // CA-03 (Slice W1, Q#16). Single guarded block: HasComponent's bool drives BOTH
+                // the "Written" out-pin (idx -- Stage5 ALWAYS allocates a ResultValue for this op,
+                // so idx is always >= 0 here) and the write guard; GetComponentRW is fetched only
+                // INSIDE the guard (mirrors ChannelCommandLowering's pre-existing HasComponent-
+                // guarded RW emit shape). Only the WIRED fields carried in op.Fields are assigned --
+                // an unwired field is simply absent from the list, so its value is preserved.
+                string entity = $"__t{op.Entity.Index}";
+                e.WriteLine($"var __t{idx} = {wv}.HasComponent<global::{op.ComponentTypeFqn}>({entity});");
+                e.WriteLine($"if (__t{idx})");
+                e.WriteLine("{");
+                e.Indent();
+                if (op.Fields.Count > 0)
+                {
+                    e.WriteLine($"ref var __wc{idx} = ref {wv}.GetComponentRW<global::{op.ComponentTypeFqn}>({entity});");
+                    foreach (var f in op.Fields)
+                        e.WriteLine($"__wc{idx}.{f.Name} = __t{f.Value.Index};");
+                }
+                e.Outdent();
+                e.WriteLine("}");
+                break;
+            }
+
+            // ------------------------------------------------------------------
+            // ECS write (managed, self-only, write-if-present, whole-replace via ECB) -- CA-06
+            // ------------------------------------------------------------------
+
+            case IrOp_SetManagedComponent op:
+            {
+                // CA-06 (Slice W2, Q#16-C). Same guarded shape as IrOp_WriteComponentFields (the
+                // HasManagedComponent bool drives BOTH "Written" and the write guard), but the write
+                // itself is a single ECB-queued whole-value replace -- there is no direct RW fetch,
+                // and never per-field assignment (per-field managed write is FORBIDDEN -- snapshot
+                // aliasing). HasManagedComponent<T> is called on `wv` (the concrete EntityRepository),
+                // NOT ctx.SimulationViewVar -- it is PUBLIC and DIRECT there (see IrOp_HasComponent's
+                // and IrOp_GetManagedComponentRO's doc comments), exactly like the unmanaged guard
+                // above; only GetManagedComponentRO needs the interface cast (an explicitly-implemented
+                // member), which is irrelevant here since this op never reads.
+                string entity = $"__t{op.Entity.Index}";
+                e.WriteLine($"var __t{idx} = {wv}.HasManagedComponent<global::{op.ComponentTypeFqn}>({entity});");
+                if (op.Value is { } val)
+                {
+                    // Brace-less single-statement if (mirrors TerminatorEmitter's goto shape) -- the
+                    // guard's ONLY job when a value IS wired is to skip a single ECB call, not a block.
+                    e.WriteLine($"if (__t{idx})");
+                    e.Indent();
+                    e.WriteLine($"{ctx.EcbVar}.SetManagedComponent<global::{op.ComponentTypeFqn}>({entity}, __t{val.Index});");
+                    e.Outdent();
+                }
+                // op.Value is null (the "Value" pin was left unwired): the guard line above is the
+                // ENTIRE emit -- "Written" still reflects HasManagedComponent, but there is nothing to
+                // write, so no `if` at all (not even an empty one).
+                break;
+            }
 
             // ------------------------------------------------------------------
             // ECS writes via ECB
@@ -510,7 +612,35 @@ internal static class StatementEmitter
             // ------------------------------------------------------------------
 
             case IrOp_FieldRead op:
-                if (idx >= 0) e.WriteLine($"var __t{idx} = __t{op.Source.Index}.{op.FieldName};");
+                if (idx >= 0)
+                {
+                    // CA-05: a managed source (IrOp_GetManagedComponentRO's result) may legitimately be
+                    // null (component absent -- see that op's doc comment), so project the field with a
+                    // null-conditional + "?? default" instead of a bare member access. This keeps the
+                    // read fail-safe/never-throw all the way through (never an NRE downstream of a
+                    // missing managed component), mirroring the unmanaged read's tolerance of a missing
+                    // component. Unaffected (bare access, byte-identical) when SourceIsManaged is false.
+                    string rhs = op.SourceIsManaged
+                        ? $"__t{op.Source.Index}?.{op.FieldName} ?? default"
+                        : $"__t{op.Source.Index}.{op.FieldName}";
+                    e.WriteLine($"var __t{idx} = {rhs};");
+                }
+                break;
+
+            // ------------------------------------------------------------------
+            // Component collection accessor call (CA-07b)
+            // ------------------------------------------------------------------
+
+            case IrOp_ComponentAccessorCall op:
+                if (idx >= 0)
+                {
+                    // Component binds to the accessor's `in T` parameter implicitly -- it is the
+                    // `ref readonly` local a preceding IrOp_GetComponentRO produced, same as
+                    // IrOp_ForEach's own accessor calls. Index is present only for the Item shape.
+                    string comp = $"__t{op.Component.Index}";
+                    string args = op.Index is not null ? $"{comp}, __t{op.Index.Value.Index}" : comp;
+                    e.WriteLine($"var __t{idx} = global::{op.AccessorFqn}({args});");
+                }
                 break;
 
             // ------------------------------------------------------------------

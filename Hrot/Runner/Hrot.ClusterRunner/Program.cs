@@ -277,11 +277,29 @@ class Program
 
             if (windowCtrl.IsLocalWindowOpen)
             {
-                // 4. The proper non-headless Render Loop
-                while (!Raylib_cs.Raylib.WindowShouldClose())
+                // 4. The proper non-headless Render Loop.
+                // App-exit guards (e.g. the editor's unsaved-changes prompt) may DEFER a window-close.
+                var exitGuards = subsystems
+                    .OfType<Fdp.Toolkit.Runner.IAppExitGuard>()
+                    .ToList();
+                bool exiting = false;
+                while (!exiting)
                 {
                     orchestrator.DrainConsoleActions();
                     float dt = Raylib_cs.Raylib.GetFrameTime();
+
+                    // WindowShouldClose() is edge-triggered (it reads AND resets the GLFW close flag),
+                    // so this fires once on the frame the window [X] is clicked. Ask every guard: if any
+                    // DEFERS (unsaved work → it opens its own modal), keep running; otherwise exit now.
+                    if (Raylib_cs.Raylib.WindowShouldClose())
+                    {
+                        bool deferred = false;
+                        foreach (var guard in exitGuards)
+                            if (guard.OnExitRequested() == Fdp.Toolkit.Runner.ExitDisposition.Deferred)
+                                deferred = true;
+                        if (!deferred)
+                            break; // no unsaved work → exit immediately (skip this frame's render)
+                    }
 
                     orchestrator.Update(dt);
 
@@ -337,6 +355,11 @@ class Program
                     rlImGui_cs.rlImGui.End();
 
                     Raylib_cs.Raylib.EndDrawing();
+
+                    // A guard's modal approved exit this frame (Save All & Exit / Discard & Exit).
+                    foreach (var guard in exitGuards)
+                        if (guard.ExitApproved)
+                            exiting = true;
                 }
 
             }

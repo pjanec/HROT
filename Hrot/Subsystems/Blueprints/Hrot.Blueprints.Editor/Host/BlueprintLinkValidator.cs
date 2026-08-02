@@ -77,6 +77,22 @@ public sealed class BlueprintLinkValidator : ILinkValidator
                 return InvalidReplace("Data input pin already has a connection (will replace existing).");
         }
 
+        // Array-arity rule: a collection (array) pin connects only to another collection pin, and a
+        // scalar only to a scalar. The editor's TypeKey deliberately DROPS IsArray (see
+        // BlueprintPinModel — so scalar inline editors resolve by element type), so
+        // AreCompatible below cannot see array-ness; enforce it here via pin Shape (Diamond == array,
+        // Circle == scalar for data pins). Without this, a scalar output (e.g. a Literal's Int32)
+        // could be wired into a ComponentForEach / ItemGet / ItemCount "Collection" data-IN pin,
+        // which then never bakes its accessor FQNs → the compile fails hard with BP2066. This keeps
+        // the intended wire (a GetComponent collection out-pin, also Diamond → Collection) valid
+        // while rejecting non-collection sources at draw time (CA-07c robustness).
+        bool fromIsArray = fromPin.Shape == PinShape.Diamond;
+        bool toIsArray   = toPin.Shape   == PinShape.Diamond;
+        if (fromIsArray != toIsArray)
+            return Invalid(toIsArray
+                ? "Cannot connect a single value to a collection (array) input — wire a collection source."
+                : "Cannot connect a collection (array) to a single-value input.");
+
         // Type compatibility.
         var fromType = fromPin.Type;
         var toType   = toPin.Type;
