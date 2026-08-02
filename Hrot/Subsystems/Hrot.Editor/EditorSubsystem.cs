@@ -2788,6 +2788,27 @@ namespace Hrot.Editor
             _hsmRegistrar!.RegisterExtraWindow(windowManager, hsmCanvasWindow);
             // AIE-046: Register Blueprint canvas window into the Blueprint perspective.
             _blueprintRegistrar!.RegisterExtraWindow(windowManager, blueprintCanvasWindow);
+
+            // UX: when a document becomes active (opened from the browser, or re-activated), make
+            // sure its canvas window is visible. The user may have closed the canvas, and switching
+            // perspective alone does NOT reopen a closed window (WindowManager.SwitchPerspective only
+            // flips CurrentPerspective). AiDocumentManager.Activate switches perspective BEFORE firing
+            // ActiveChanged, so here OwningPerspective == CurrentPerspective — ShowWindow just sets
+            // IsOpen=true (idempotent, no cross-perspective pinning, no focus-stealing).
+            _aiDocumentManager.ActiveChanged += () =>
+            {
+                var activeDoc = _aiDocumentManager.Active;
+                var canvasId = activeDoc?.Kind switch
+                {
+                    Hrot.Editor.AiShared.AssetKind.Blueprint => blueprintCanvasWindow.Id,
+                    Hrot.Editor.AiShared.AssetKind.BTree     => btreeCanvasWindow.Id,
+                    Hrot.Editor.AiShared.AssetKind.Hsm       => hsmCanvasWindow.Id,
+                    _ => null,
+                };
+                if (canvasId != null)
+                    windowManager.ShowWindow(canvasId);
+            };
+
             // BF-UX1 FIX C: wire the per-frame selection→Details bridge.
             // Bookmarks: also draw the off-screen edge-marker overlay (yellow arrows toward
             // bookmarked slots 1-9 that are scrolled out of view) every frame the canvas is
