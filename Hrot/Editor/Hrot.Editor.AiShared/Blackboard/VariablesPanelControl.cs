@@ -260,7 +260,7 @@ public sealed class VariablesPanelControl
         IReadOnlyDictionary<string, string>? liveValues = null)
     {
         var schema = section.Schema;
-        if (ImGui.BeginTable(section.TableId, 7, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
+        if (ImGui.BeginTable(section.TableId, 7, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
         {
             ImGui.TableSetupColumn("Name",  ImGuiTableColumnFlags.WidthStretch);
             ImGui.TableSetupColumn("Type",  ImGuiTableColumnFlags.WidthFixed, 90f);
@@ -487,7 +487,7 @@ public sealed class VariablesPanelControl
     {
         var schema = section.Schema;
         string tableId = $"##no_tbl_{section.TableId}";
-        if (ImGui.BeginTable(tableId, 4, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
+        if (ImGui.BeginTable(tableId, 4, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
         {
             ImGui.TableSetupColumn("Name",  ImGuiTableColumnFlags.WidthStretch);
             ImGui.TableSetupColumn("Type",  ImGuiTableColumnFlags.WidthFixed, 90f);
