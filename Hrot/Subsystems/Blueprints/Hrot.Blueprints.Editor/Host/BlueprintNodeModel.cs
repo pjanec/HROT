@@ -64,10 +64,12 @@ internal sealed class BlueprintNodeModel : INodeModel
     /// in unit tests that don't exercise variable nodes.
     /// </param>
     /// <param name="collectionPinWired">
-    /// CA-07c: true when this node is one of the three component-collection CONSUMER kinds
+    /// CA-07c/CA-07d-1: true when this node is one of the five component-collection CONSUMER kinds
     /// (<see cref="Hrot.Blueprints.Core.Assets.ComponentForEachNode"/>/
     /// <see cref="Hrot.Blueprints.Core.Assets.ComponentItemGetNode"/>/
-    /// <see cref="Hrot.Blueprints.Core.Assets.ComponentItemCountNode"/>) AND its "Collection" data-IN
+    /// <see cref="Hrot.Blueprints.Core.Assets.ComponentItemCountNode"/>/
+    /// <see cref="Hrot.Blueprints.Core.Assets.ComponentContainsNode"/>/
+    /// <see cref="Hrot.Blueprints.Core.Assets.ComponentFindNode"/>) AND its "Collection" data-IN
     /// pin has an incoming link right now. Computed by the caller (<see cref="BlueprintGraphModel"/>,
     /// which has the graph's <c>Links</c> in scope) since this constructor otherwise has no
     /// connectivity signal. Drives the BP2066-mirroring stale-bake error check below; ignored for
@@ -117,12 +119,14 @@ internal sealed class BlueprintNodeModel : INodeModel
             StatusTooltip = $"⚠ Unresolved ECS component: {scnErr.ComponentTypeFqn}\n"
                           + "It may have been renamed or removed from C#. Re-pick the component (add a new node).";
         }
-        // CA-07c: same stale-ref pattern for the three collection CONSUMER nodes -- their
+        // CA-07c/CA-07d-1: same stale-ref pattern for the five collection CONSUMER nodes -- their
         // ComponentTypeFqn is baked on WIRE (BlueprintCommandSink.TryBakeCollectionConsumer), not
         // picked from a dropdown, but a renamed/removed component still needs the same red-node signal.
         else if (node is (Hrot.Blueprints.Core.Assets.ComponentForEachNode
                        or Hrot.Blueprints.Core.Assets.ComponentItemGetNode
-                       or Hrot.Blueprints.Core.Assets.ComponentItemCountNode)
+                       or Hrot.Blueprints.Core.Assets.ComponentItemCountNode
+                       or Hrot.Blueprints.Core.Assets.ComponentContainsNode
+                       or Hrot.Blueprints.Core.Assets.ComponentFindNode)
                  && IsUnresolvedComponent(CollectionConsumerComponentTypeFqn(node)))
         {
             State = NodeState.Error;
@@ -146,7 +150,7 @@ internal sealed class BlueprintNodeModel : INodeModel
     }
 
     /// <summary>
-    /// The baked <c>ComponentTypeFqn</c> off any of the three collection CONSUMER node kinds, or
+    /// The baked <c>ComponentTypeFqn</c> off any of the five collection CONSUMER node kinds, or
     /// <c>""</c> for any other node. Shared by the stale-ref check above.
     /// </summary>
     private static string CollectionConsumerComponentTypeFqn(Hrot.Blueprints.Core.Assets.Node node) => node switch
@@ -154,6 +158,8 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.ComponentForEachNode cfe   => cfe.ComponentTypeFqn,
         Hrot.Blueprints.Core.Assets.ComponentItemGetNode cig   => cig.ComponentTypeFqn,
         Hrot.Blueprints.Core.Assets.ComponentItemCountNode cic => cic.ComponentTypeFqn,
+        Hrot.Blueprints.Core.Assets.ComponentContainsNode ccn  => ccn.ComponentTypeFqn,
+        Hrot.Blueprints.Core.Assets.ComponentFindNode cfn      => cfn.ComponentTypeFqn,
         _ => "",
     };
 
@@ -162,7 +168,9 @@ internal sealed class BlueprintNodeModel : INodeModel
     /// see <c>Nodes.cs</c>) are missing. <c>ComponentForEachNode</c> needs
     /// ComponentTypeFqn+CountAccessorFqn+ItemAccessorFqn; <c>ComponentItemGetNode</c> needs
     /// ComponentTypeFqn+ItemAccessorFqn (no Count); <c>ComponentItemCountNode</c> needs
-    /// ComponentTypeFqn+CountAccessorFqn (no Item). False for every other node kind.
+    /// ComponentTypeFqn+CountAccessorFqn (no Item). <c>ComponentContainsNode</c>/<c>ComponentFindNode</c>
+    /// (CA-07d-1) are search nodes that both loop (Count) and compare (Item), so they need the same
+    /// ComponentTypeFqn+CountAccessorFqn+ItemAccessorFqn set as ForEach. False for every other node kind.
     /// </summary>
     private static bool IsCollectionConsumerBakeIncomplete(Hrot.Blueprints.Core.Assets.Node node) => node switch
     {
@@ -172,6 +180,10 @@ internal sealed class BlueprintNodeModel : INodeModel
             string.IsNullOrEmpty(cig.ComponentTypeFqn) || string.IsNullOrEmpty(cig.ItemAccessorFqn),
         Hrot.Blueprints.Core.Assets.ComponentItemCountNode cic =>
             string.IsNullOrEmpty(cic.ComponentTypeFqn) || string.IsNullOrEmpty(cic.CountAccessorFqn),
+        Hrot.Blueprints.Core.Assets.ComponentContainsNode ccn =>
+            string.IsNullOrEmpty(ccn.ComponentTypeFqn) || string.IsNullOrEmpty(ccn.CountAccessorFqn) || string.IsNullOrEmpty(ccn.ItemAccessorFqn),
+        Hrot.Blueprints.Core.Assets.ComponentFindNode cfn =>
+            string.IsNullOrEmpty(cfn.ComponentTypeFqn) || string.IsNullOrEmpty(cfn.CountAccessorFqn) || string.IsNullOrEmpty(cfn.ItemAccessorFqn),
         _ => false,
     };
 
@@ -251,6 +263,10 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.ComponentForEachNode cfe    => string.IsNullOrEmpty(cfe.ComponentTypeFqn) ? "For Each Component Item" : $"For Each [{ShortTypeName(cfe.ComponentTypeFqn)}]",
         Hrot.Blueprints.Core.Assets.ComponentItemGetNode cig    => string.IsNullOrEmpty(cig.ComponentTypeFqn) ? "Get Item"                 : $"Get Item [{ShortTypeName(cig.ComponentTypeFqn)}]",
         Hrot.Blueprints.Core.Assets.ComponentItemCountNode cic  => string.IsNullOrEmpty(cic.ComponentTypeFqn) ? "Item Count"               : $"Item Count [{ShortTypeName(cic.ComponentTypeFqn)}]",
+        // CA-07d-1: same wire-baked "generic label until wired" convention as the other collection
+        // CONSUMER nodes above.
+        Hrot.Blueprints.Core.Assets.ComponentContainsNode ccn   => string.IsNullOrEmpty(ccn.ComponentTypeFqn) ? "Contains"                 : $"Contains [{ShortTypeName(ccn.ComponentTypeFqn)}]",
+        Hrot.Blueprints.Core.Assets.ComponentFindNode cfn       => string.IsNullOrEmpty(cfn.ComponentTypeFqn) ? "Find"                     : $"Find [{ShortTypeName(cfn.ComponentTypeFqn)}]",
         // Punch-list #1/#5/#8: show the node's own DATA in the body instead of the generic "Value"
         // pin label — the literal's value, the parameter's name, the compare/arith/bool operator.
         // Punch-list: the parameter NAME is shown on the output pin (render-only display label in
@@ -309,6 +325,9 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.ComponentForEachNode     => NodeCategory.FlowControl,
         Hrot.Blueprints.Core.Assets.ComponentItemGetNode     => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.ComponentItemCountNode   => NodeCategory.Pure,
+        // CA-07d-1: Contains/Find are pure-data search reads, same category as ItemGet/ItemCount.
+        Hrot.Blueprints.Core.Assets.ComponentContainsNode    => NodeCategory.Pure,
+        Hrot.Blueprints.Core.Assets.ComponentFindNode        => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.LiteralNode              => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.GetParameterNode         => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.GetAllParametersNode     => NodeCategory.Pure,

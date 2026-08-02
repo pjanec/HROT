@@ -230,11 +230,11 @@ public sealed class ComponentPaletteEntriesTests
         }
     }
 
-    // ── CA-07c: ConsumerEntries (ComponentForEach/ItemGet/ItemCount) ──────────
+    // ── CA-07c/CA-07d-1: ConsumerEntries (ComponentForEach/ItemGet/ItemCount/Contains/Find) ──
 
     [Fact]
-    public void ConsumerEntries_YieldsExactlyThreeStaticEntries()
-        => Assert.Equal(3, ComponentPaletteEntries.ConsumerEntries().Count());
+    public void ConsumerEntries_YieldsExactlyFiveStaticEntries()
+        => Assert.Equal(5, ComponentPaletteEntries.ConsumerEntries().Count());
 
     [Fact]
     public void ConsumerEntries_AllUnderComponentCategory_WithNonEmptyTooltips()
@@ -284,6 +284,32 @@ public sealed class ComponentPaletteEntriesTests
     }
 
     [Fact]
+    public void ConsumerEntries_CreateInstance_ComponentContains_BlankNode_EmptyBakedProps()
+    {
+        var entry = ComponentPaletteEntries.ConsumerEntries().Single(e => e.Kind == "Component.Contains");
+        var node = Assert.IsType<ComponentContainsNode>(entry.CreateInstance());
+
+        Assert.Equal("", node.ComponentTypeFqn);
+        Assert.Equal("", node.CountAccessorFqn);
+        Assert.Equal("", node.ItemAccessorFqn);
+        Assert.Equal("", node.ElementTypeFqn);
+        Assert.NotEqual(Guid.Empty, node.Id);
+    }
+
+    [Fact]
+    public void ConsumerEntries_CreateInstance_ComponentFind_BlankNode_EmptyBakedProps()
+    {
+        var entry = ComponentPaletteEntries.ConsumerEntries().Single(e => e.Kind == "Component.Find");
+        var node = Assert.IsType<ComponentFindNode>(entry.CreateInstance());
+
+        Assert.Equal("", node.ComponentTypeFqn);
+        Assert.Equal("", node.CountAccessorFqn);
+        Assert.Equal("", node.ItemAccessorFqn);
+        Assert.Equal("", node.ElementTypeFqn);
+        Assert.NotEqual(Guid.Empty, node.Id);
+    }
+
+    [Fact]
     public void ConsumerEntries_TwoCalls_ReturnDistinctIds()
     {
         var entry = ComponentPaletteEntries.ConsumerEntries().Single(e => e.Kind == "Component.ForEach");
@@ -293,7 +319,7 @@ public sealed class ComponentPaletteEntriesTests
     }
 
     [Fact]
-    public void PaletteRegistry_Construction_DiscoversAllThreeConsumerEntries()
+    public void PaletteRegistry_Construction_DiscoversAllFiveConsumerEntries()
     {
         var registry = BlueprintEditorBootstrap.CreatePaletteRegistry();
         var kinds = registry.EnumerateAll().Select(d => d.Kind).ToList();
@@ -301,5 +327,7 @@ public sealed class ComponentPaletteEntriesTests
         Assert.Contains("Component.ForEach",   kinds);
         Assert.Contains("Component.ItemGet",   kinds);
         Assert.Contains("Component.ItemCount", kinds);
+        Assert.Contains("Component.Contains",  kinds);
+        Assert.Contains("Component.Find",      kinds);
     }
 }

@@ -269,11 +269,11 @@ public sealed class BlueprintGraphModel : IGraphModel
         {
             var resolvedPins = resolvedPinLists[assetNode.Id];
 
-            // CA-07c: the three collection CONSUMER kinds need to know whether their "Collection"
+            // CA-07c/CA-07d-1: the five collection CONSUMER kinds need to know whether their "Collection"
             // data-IN pin is CURRENTLY wired (BlueprintNodeModel's BP2066-mirroring stale-bake error
             // check) -- this constructor has no other connectivity signal, so resolve it here where
             // _graph.Links is in scope.
-            var collectionPinWired = assetNode is ComponentForEachNode or ComponentItemGetNode or ComponentItemCountNode
+            var collectionPinWired = assetNode is ComponentForEachNode or ComponentItemGetNode or ComponentItemCountNode or ComponentContainsNode or ComponentFindNode
                 && resolvedPins.Any(p => p.Direction == PinDirection.Input
                                        && p.Label == "Collection"
                                        && _graph.Links.Any(l => l.ToNodeId == assetNode.Id && l.ToPinId == p.Id.Value));

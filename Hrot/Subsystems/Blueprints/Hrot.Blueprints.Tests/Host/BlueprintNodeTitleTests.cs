@@ -200,12 +200,35 @@ public sealed class BlueprintNodeTitleTests
     public void ComponentItemCount_EmptyComponentType_FallsBackToGenericLabel()
         => Assert.Equal("Item Count", Title(new ComponentItemCountNode { ComponentTypeFqn = "" }));
 
+    // CA-07d-1: the two search CONSUMER nodes (Contains/Find) follow the SAME wire-baked
+    // "generic label until wired" convention as the three above.
+
+    [Fact]
+    public void ComponentContains_BracketsShortComponentTypeName()
+        => Assert.Equal("Contains [BpCollectionDemo]",
+            Title(new ComponentContainsNode { ComponentTypeFqn = "Hrot.AI.Behaviors.BpCollectionDemo" }));
+
+    [Fact]
+    public void ComponentContains_EmptyComponentType_FallsBackToGenericLabel()
+        => Assert.Equal("Contains", Title(new ComponentContainsNode { ComponentTypeFqn = "" }));
+
+    [Fact]
+    public void ComponentFind_BracketsShortComponentTypeName()
+        => Assert.Equal("Find [BpCollectionDemo]",
+            Title(new ComponentFindNode { ComponentTypeFqn = "Hrot.AI.Behaviors.BpCollectionDemo" }));
+
+    [Fact]
+    public void ComponentFind_EmptyComponentType_FallsBackToGenericLabel()
+        => Assert.Equal("Find", Title(new ComponentFindNode { ComponentTypeFqn = "" }));
+
     [Fact]
     public void ComponentCollectionConsumers_ResolvableComponentType_IsNormalState()
     {
         Assert.Equal(NodeState.Normal, State(new ComponentForEachNode   { ComponentTypeFqn = "System.Numerics.Vector3" }));
         Assert.Equal(NodeState.Normal, State(new ComponentItemGetNode   { ComponentTypeFqn = "System.Numerics.Vector3" }));
         Assert.Equal(NodeState.Normal, State(new ComponentItemCountNode { ComponentTypeFqn = "System.Numerics.Vector3" }));
+        Assert.Equal(NodeState.Normal, State(new ComponentContainsNode  { ComponentTypeFqn = "System.Numerics.Vector3" }));
+        Assert.Equal(NodeState.Normal, State(new ComponentFindNode      { ComponentTypeFqn = "System.Numerics.Vector3" }));
     }
 
     [Fact]
@@ -215,6 +238,8 @@ public sealed class BlueprintNodeTitleTests
         Assert.Equal(NodeState.Error, State(new ComponentForEachNode   { ComponentTypeFqn = bogus }));
         Assert.Equal(NodeState.Error, State(new ComponentItemGetNode   { ComponentTypeFqn = bogus }));
         Assert.Equal(NodeState.Error, State(new ComponentItemCountNode { ComponentTypeFqn = bogus }));
+        Assert.Equal(NodeState.Error, State(new ComponentContainsNode  { ComponentTypeFqn = bogus }));
+        Assert.Equal(NodeState.Error, State(new ComponentFindNode      { ComponentTypeFqn = bogus }));
     }
 
     [Fact]
@@ -224,6 +249,8 @@ public sealed class BlueprintNodeTitleTests
         Assert.Equal(NodeState.Normal, State(new ComponentForEachNode   { ComponentTypeFqn = "" }));
         Assert.Equal(NodeState.Normal, State(new ComponentItemGetNode   { ComponentTypeFqn = "" }));
         Assert.Equal(NodeState.Normal, State(new ComponentItemCountNode { ComponentTypeFqn = "" }));
+        Assert.Equal(NodeState.Normal, State(new ComponentContainsNode  { ComponentTypeFqn = "" }));
+        Assert.Equal(NodeState.Normal, State(new ComponentFindNode      { ComponentTypeFqn = "" }));
     }
 
     // CA-07c: BP2066-mirroring check -- "Collection" wired but baked accessors empty (the
@@ -255,6 +282,54 @@ public sealed class BlueprintNodeTitleTests
         // ComponentFieldReflector.ResolveType finds it via plain reflection in THIS test host,
         // mirroring GetComponent_ResolvableComponentType_IsNormalState above.
         var node = new ComponentForEachNode
+        {
+            ComponentTypeFqn = "System.Numerics.Vector3",
+            CountAccessorFqn = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Count",
+            ItemAccessorFqn  = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Item",
+            ElementTypeFqn   = "System.Int32",
+        };
+        var model = new BlueprintNodeModel(node, System.Array.Empty<IPinModel>(), asset: null, collectionPinWired: true);
+        Assert.Equal(NodeState.Normal, model.State);
+    }
+
+    // CA-07d-1: Contains/Find need the SAME three baked props (ComponentTypeFqn+CountAccessorFqn+
+    // ItemAccessorFqn) as ForEach -- they both loop (Count) and compare (Item) -- so they mirror the
+    // ForEach BP2066 cases above, not the Get/Count single-accessor ones.
+
+    [Fact]
+    public void ComponentContains_WiredButAccessorsEmpty_IsErrorState_MirrorsBP2066()
+    {
+        var node = new ComponentContainsNode { ComponentTypeFqn = "", CountAccessorFqn = "", ItemAccessorFqn = "" };
+        var model = new BlueprintNodeModel(node, System.Array.Empty<IPinModel>(), asset: null, collectionPinWired: true);
+        Assert.Equal(NodeState.Error, model.State);
+    }
+
+    [Fact]
+    public void ComponentContains_WiredWithFullBake_IsNormalState()
+    {
+        var node = new ComponentContainsNode
+        {
+            ComponentTypeFqn = "System.Numerics.Vector3",
+            CountAccessorFqn = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Count",
+            ItemAccessorFqn  = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Item",
+            ElementTypeFqn   = "System.Int32",
+        };
+        var model = new BlueprintNodeModel(node, System.Array.Empty<IPinModel>(), asset: null, collectionPinWired: true);
+        Assert.Equal(NodeState.Normal, model.State);
+    }
+
+    [Fact]
+    public void ComponentFind_WiredButAccessorsEmpty_IsErrorState_MirrorsBP2066()
+    {
+        var node = new ComponentFindNode { ComponentTypeFqn = "", CountAccessorFqn = "", ItemAccessorFqn = "" };
+        var model = new BlueprintNodeModel(node, System.Array.Empty<IPinModel>(), asset: null, collectionPinWired: true);
+        Assert.Equal(NodeState.Error, model.State);
+    }
+
+    [Fact]
+    public void ComponentFind_WiredWithFullBake_IsNormalState()
+    {
+        var node = new ComponentFindNode
         {
             ComponentTypeFqn = "System.Numerics.Vector3",
             CountAccessorFqn = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Count",

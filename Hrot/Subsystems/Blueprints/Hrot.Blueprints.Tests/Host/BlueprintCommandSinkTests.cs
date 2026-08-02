@@ -365,6 +365,59 @@ public sealed class BlueprintCommandSinkTests
     }
 
     [Fact]
+    public void CommandSink_AddLink_GetComponentCollectionIntoComponentContains_BakesAllFourProps()
+    {
+        // CA-07d-1: Contains is a SEARCH node (loop + compare), so it bakes all four props like
+        // ForEach, not the two/three-prop subset ItemCount/ItemGet get.
+        var (asset, graph) = MakeAssetWithGraph();
+        var (_, valuesOut) = AddGetComponentCollectionNode(graph);
+
+        var collectionIn = new Pin { Id = Guid.NewGuid(), Name = "Collection", Direction = "In", IsExec = false,
+            TypeRef = new BlueprintTypeRef { TypeId = "System.Object", IsArray = true } };
+        var contains = new ComponentContainsNode { Id = Guid.NewGuid() };
+        contains.Pins.Add(collectionIn);
+        graph.Nodes.Add(contains);
+
+        var (sink, _, _, _, _, _) = MakeSut(asset, graph);
+
+        var result = sink.Apply(new GraphCommand.AddLink(
+            new LinkId(Guid.NewGuid()), new PinId(valuesOut.Id), new PinId(collectionIn.Id)));
+
+        Assert.True(result.Success);
+        var baked = (ComponentContainsNode)graph.Nodes.Single(n => n.Id == contains.Id);
+        Assert.Equal(CollectionComponentFqn, baked.ComponentTypeFqn);
+        Assert.Equal(CollectionCountFqn,     baked.CountAccessorFqn);
+        Assert.Equal(CollectionItemFqn,      baked.ItemAccessorFqn);
+        Assert.Equal("System.Int32",         baked.ElementTypeFqn);
+    }
+
+    [Fact]
+    public void CommandSink_AddLink_GetComponentCollectionIntoComponentFind_BakesAllFourProps()
+    {
+        // CA-07d-1: Find is a SEARCH node (loop + compare), so it bakes all four props like ForEach.
+        var (asset, graph) = MakeAssetWithGraph();
+        var (_, valuesOut) = AddGetComponentCollectionNode(graph);
+
+        var collectionIn = new Pin { Id = Guid.NewGuid(), Name = "Collection", Direction = "In", IsExec = false,
+            TypeRef = new BlueprintTypeRef { TypeId = "System.Object", IsArray = true } };
+        var find = new ComponentFindNode { Id = Guid.NewGuid() };
+        find.Pins.Add(collectionIn);
+        graph.Nodes.Add(find);
+
+        var (sink, _, _, _, _, _) = MakeSut(asset, graph);
+
+        var result = sink.Apply(new GraphCommand.AddLink(
+            new LinkId(Guid.NewGuid()), new PinId(valuesOut.Id), new PinId(collectionIn.Id)));
+
+        Assert.True(result.Success);
+        var baked = (ComponentFindNode)graph.Nodes.Single(n => n.Id == find.Id);
+        Assert.Equal(CollectionComponentFqn, baked.ComponentTypeFqn);
+        Assert.Equal(CollectionCountFqn,     baked.CountAccessorFqn);
+        Assert.Equal(CollectionItemFqn,      baked.ItemAccessorFqn);
+        Assert.Equal("System.Int32",         baked.ElementTypeFqn);
+    }
+
+    [Fact]
     public void CommandSink_AddLink_NonGetComponentSourceIntoCollectionPin_DoesNotBake_LinkStillAdded()
     {
         var (asset, graph) = MakeAssetWithGraph();

@@ -176,4 +176,106 @@ public sealed class ComponentCollectionConsumerPinParityTests
             ("Count",      "Out", false, (string?)"System.Int32",  false),
         }, fromEditor);
     }
+
+    // ── ComponentContainsNode ─────────────────────────────────────────────────
+
+    [Fact]
+    public void ComponentContains_Baked_EditorProjection_MatchesStage0Enrichment_Exactly()
+    {
+        ComponentContainsNode Build() => new()
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = "Hrot.AI.Behaviors.BpCollectionDemo",
+            CountAccessorFqn = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Count",
+            ItemAccessorFqn  = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Item",
+            ElementTypeFqn   = "System.Int32",
+        };
+
+        var fromStage0 = RunStage0(Build());
+        var fromEditor = RunEditor(Build());
+
+        Assert.Equal(fromStage0, fromEditor);
+        Assert.Equal(new[]
+        {
+            ("Collection", "In",  false, (string?)"System.Int32", true),
+            ("Item",       "In",  false, (string?)"System.Int32", false),
+            ("Result",     "Out", false, (string?)"System.Boolean", false),
+        }, fromEditor);
+    }
+
+    [Fact]
+    public void ComponentContains_EmptyElementTypeFqn_FallsBackToSystemObject_BothSidesAgree()
+    {
+        ComponentContainsNode Build() => new()
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = "Hrot.AI.Behaviors.BpCollectionDemo",
+            CountAccessorFqn = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Count",
+            ItemAccessorFqn  = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Item",
+            ElementTypeFqn   = "",
+        };
+
+        var fromStage0 = RunStage0(Build());
+        var fromEditor = RunEditor(Build());
+
+        Assert.Equal(fromStage0, fromEditor);
+        Assert.Equal(new[]
+        {
+            ("Collection", "In",  false, (string?)"System.Object", true),
+            ("Item",       "In",  false, (string?)"System.Object", false),
+            ("Result",     "Out", false, (string?)"System.Boolean", false),
+        }, fromEditor);
+    }
+
+    // ── ComponentFindNode ─────────────────────────────────────────────────────
+
+    [Fact]
+    public void ComponentFind_Baked_EditorProjection_MatchesStage0Enrichment_Exactly()
+    {
+        ComponentFindNode Build() => new()
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = "Hrot.AI.Behaviors.BpCollectionDemo",
+            CountAccessorFqn = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Count",
+            ItemAccessorFqn  = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Item",
+            ElementTypeFqn   = "System.Int32",
+        };
+
+        var fromStage0 = RunStage0(Build());
+        var fromEditor = RunEditor(Build());
+
+        Assert.Equal(fromStage0, fromEditor);
+        Assert.Equal(new[]
+        {
+            ("Collection", "In",  false, (string?)"System.Int32", true),
+            ("Item",       "In",  false, (string?)"System.Int32", false),
+            ("Index",      "Out", false, (string?)"System.Int32", false),
+            ("Found",      "Out", false, (string?)"System.Boolean", false),
+        }, fromEditor);
+    }
+
+    [Fact]
+    public void ComponentFind_EmptyElementTypeFqn_FallsBackToSystemObject_BothSidesAgree()
+    {
+        ComponentFindNode Build() => new()
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = "Hrot.AI.Behaviors.BpCollectionDemo",
+            CountAccessorFqn = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Count",
+            ItemAccessorFqn  = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Item",
+            ElementTypeFqn   = "",
+        };
+
+        var fromStage0 = RunStage0(Build());
+        var fromEditor = RunEditor(Build());
+
+        Assert.Equal(fromStage0, fromEditor);
+        Assert.Equal(new[]
+        {
+            ("Collection", "In",  false, (string?)"System.Object", true),
+            ("Item",       "In",  false, (string?)"System.Object", false),
+            ("Index",      "Out", false, (string?)"System.Int32", false),
+            ("Found",      "Out", false, (string?)"System.Boolean", false),
+        }, fromEditor);
+    }
 }

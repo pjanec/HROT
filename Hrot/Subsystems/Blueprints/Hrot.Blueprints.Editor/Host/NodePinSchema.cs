@@ -150,6 +150,8 @@ internal static class NodePinSchema
             ComponentForEachNode cfe   => ComponentForEachPins(cfe),
             ComponentItemGetNode cig   => ComponentItemGetPins(cig),
             ComponentItemCountNode cic => ComponentItemCountPins(cic),
+            ComponentContainsNode ccn  => ComponentContainsPins(ccn),
+            ComponentFindNode cfn      => ComponentFindPins(cfn),
             MakeStructNode msn  => MakeStructPins(msn),
             BreakStructNode bsn => BreakStructPins(bsn),
             SetMembersNode smn  => SetMembersPins(smn),
@@ -876,6 +878,42 @@ internal static class NodePinSchema
         {
             MakeData("Collection", "In",  "System.Object", isArray: true),
             MakeData("Count",      "Out", "System.Int32"),
+        };
+    }
+
+    /// <summary>
+    /// ComponentContainsNode (CA-07d-1): pure-data node. EXACT parity with the compiler's
+    /// <c>Stage0_Rehydrate.EnrichComponentContainsPins</c>: data-in "Collection" (IsArray,
+    /// element-typed from <see cref="ComponentContainsNode.ElementTypeFqn"/>, falling back to
+    /// System.Object) + data-in "Item" (same element type) + data-out "Result" (System.Boolean).
+    /// </summary>
+    private static IReadOnlyList<Pin> ComponentContainsPins(ComponentContainsNode ccn)
+    {
+        var elemType = string.IsNullOrEmpty(ccn.ElementTypeFqn) ? "System.Object" : ccn.ElementTypeFqn;
+        return new[]
+        {
+            MakeData("Collection", "In",  elemType, isArray: true),
+            MakeData("Item",       "In",  elemType),
+            MakeData("Result",     "Out", "System.Boolean"),
+        };
+    }
+
+    /// <summary>
+    /// ComponentFindNode (CA-07d-1): pure-data node. EXACT parity with the compiler's
+    /// <c>Stage0_Rehydrate.EnrichComponentFindPins</c>: data-in "Collection" (IsArray,
+    /// element-typed from <see cref="ComponentFindNode.ElementTypeFqn"/>, falling back to
+    /// System.Object) + data-in "Item" (same element type) + data-out "Index" (System.Int32)
+    /// + data-out "Found" (System.Boolean).
+    /// </summary>
+    private static IReadOnlyList<Pin> ComponentFindPins(ComponentFindNode cfn)
+    {
+        var elemType = string.IsNullOrEmpty(cfn.ElementTypeFqn) ? "System.Object" : cfn.ElementTypeFqn;
+        return new[]
+        {
+            MakeData("Collection", "In",  elemType, isArray: true),
+            MakeData("Item",       "In",  elemType),
+            MakeData("Index",      "Out", "System.Int32"),
+            MakeData("Found",      "Out", "System.Boolean"),
         };
     }
 

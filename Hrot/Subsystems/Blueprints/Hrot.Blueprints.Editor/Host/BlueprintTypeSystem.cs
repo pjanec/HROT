@@ -122,7 +122,8 @@ public sealed class BlueprintTypeSystem : ITypeSystem
     ///   <c>System.Object</c> on either side is a "typed-unknown placeholder" wildcard -- mirrors
     ///   the compiler's <c>Stage4_TypeResolve.VerifyLinkTypes</c> identical rule EXACTLY (CA-07c):
     ///   a freshly-placed <c>ComponentForEachNode</c>/<c>ComponentItemGetNode</c>/
-    ///   <c>ComponentItemCountNode</c>'s "Collection" data-IN pin projects as
+    ///   <c>ComponentItemCountNode</c>/<c>ComponentContainsNode</c>/<c>ComponentFindNode</c>
+    ///   (CA-07d-1)'s "Collection" data-IN pin projects as
     ///   <c>System.Object</c> (IsArray) until <see cref="BlueprintCommandSink"/>'s wire-bake hook
     ///   re-types it from the source <c>GetComponentNode</c> collection pin's real element type --
     ///   without this rule the FIRST wire attempt (real element type -&gt; System.Object) would be

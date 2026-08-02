@@ -448,16 +448,17 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
     }
 
     /// <summary>
-    /// CA-07c -- author-time accessor baking on wire for the three component-collection CONSUMER
-    /// nodes (<see cref="ComponentForEachNode"/>/<see cref="ComponentItemGetNode"/>/
-    /// <see cref="ComponentItemCountNode"/>). Those nodes have NO type picker of their own (CA-07b):
+    /// CA-07c/CA-07d-1 -- author-time accessor baking on wire for the five component-collection
+    /// CONSUMER nodes (<see cref="ComponentForEachNode"/>/<see cref="ComponentItemGetNode"/>/
+    /// <see cref="ComponentItemCountNode"/>/<see cref="ComponentContainsNode"/>/
+    /// <see cref="ComponentFindNode"/>). Those nodes have NO type picker of their own (CA-07b):
     /// their <c>ComponentTypeFqn</c>/<c>CountAccessorFqn</c>/<c>ItemAccessorFqn</c>/
     /// <c>ElementTypeFqn</c> props start empty and stay empty until a designer wires a
     /// <see cref="GetComponentNode"/> collection out-pin into the consumer's "Collection" data-IN
     /// pin -- THIS is that wiring moment.
     /// <para>
     /// Detection: <paramref name="toPin"/>'s Label is "Collection" (ordinal-ignore-case) AND its
-    /// owner node is one of the three consumer kinds, AND <paramref name="fromPin"/>'s owner node is
+    /// owner node is one of the five consumer kinds, AND <paramref name="fromPin"/>'s owner node is
     /// a <see cref="GetComponentNode"/>. If either side doesn't match, this is an ordinary wire (or a
     /// designer's mistake heading for a type-mismatch/BP2066 rejection elsewhere) -- do nothing and
     /// leave the link as-is; some other tool/validation handles that case.
@@ -477,10 +478,13 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
     /// gets ComponentTypeFqn/ItemAccessorFqn/ElementTypeFqn (no CountAccessorFqn -- Get never counts);
     /// <c>ComponentItemCountNode</c> gets only ComponentTypeFqn/CountAccessorFqn (no
     /// ItemAccessorFqn/ElementTypeFqn -- Count's "Collection" pin is always <c>System.Object</c>,
-    /// Stage0/NodePinSchema never consult an element type for it). Accessor FQNs baked as <c>""</c>
-    /// (never null) when the decl's own accessor is null -- defensive; a decl with
-    /// <c>IsCollection == true</c> should always carry both accessor FQNs (CA-07a bakes them
-    /// together), but this never throws on a malformed/hand-edited one.
+    /// Stage0/NodePinSchema never consult an element type for it). <c>ComponentContainsNode</c>/
+    /// <c>ComponentFindNode</c> (CA-07d-1) are pure-data SEARCH nodes -- they loop the collection
+    /// (need CountAccessorFqn) AND compare each element against the query "Item" (need
+    /// ItemAccessorFqn + ElementTypeFqn to type "Collection"/"Item"), so like ForEach they get all
+    /// four props. Accessor FQNs baked as <c>""</c> (never null) when the decl's own accessor is
+    /// null -- defensive; a decl with <c>IsCollection == true</c> should always carry both accessor
+    /// FQNs (CA-07a bakes them together), but this never throws on a malformed/hand-edited one.
     /// </para>
     /// <para>
     /// Mutates the target <see cref="Node"/> object directly, NOT through <see cref="_history"/> --
@@ -493,7 +497,7 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             return;
 
         var consumerNode = _graph.Nodes.FirstOrDefault(n => n.Id == toPin.OwnerNodeId.Value);
-        if (consumerNode is not (ComponentForEachNode or ComponentItemGetNode or ComponentItemCountNode))
+        if (consumerNode is not (ComponentForEachNode or ComponentItemGetNode or ComponentItemCountNode or ComponentContainsNode or ComponentFindNode))
             return;
 
         var sourceNode = _graph.Nodes.FirstOrDefault(n => n.Id == fromPin.OwnerNodeId.Value);
@@ -521,6 +525,18 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             case ComponentItemCountNode cic:
                 cic.ComponentTypeFqn = gcn.ComponentTypeFqn;
                 cic.CountAccessorFqn = decl.CountAccessorFqn ?? "";
+                break;
+            case ComponentContainsNode ccn:
+                ccn.ComponentTypeFqn = gcn.ComponentTypeFqn;
+                ccn.CountAccessorFqn = decl.CountAccessorFqn ?? "";
+                ccn.ItemAccessorFqn  = decl.ItemAccessorFqn  ?? "";
+                ccn.ElementTypeFqn   = decl.ElementTypeId    ?? "";
+                break;
+            case ComponentFindNode cfn:
+                cfn.ComponentTypeFqn = gcn.ComponentTypeFqn;
+                cfn.CountAccessorFqn = decl.CountAccessorFqn ?? "";
+                cfn.ItemAccessorFqn  = decl.ItemAccessorFqn  ?? "";
+                cfn.ElementTypeFqn   = decl.ElementTypeId    ?? "";
                 break;
         }
     }

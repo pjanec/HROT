@@ -105,9 +105,10 @@ public static class ComponentPaletteEntries
     }
 
     /// <summary>
-    /// CA-07c -- Add-Node palette entries for the three component-collection CONSUMER nodes
+    /// CA-07c/CA-07d-1 -- Add-Node palette entries for the five component-collection CONSUMER nodes
     /// (<see cref="ComponentForEachNode"/>/<see cref="ComponentItemGetNode"/>/
-    /// <see cref="ComponentItemCountNode"/>). Unlike <see cref="GetComponentEntries"/>/
+    /// <see cref="ComponentItemCountNode"/>/<see cref="ComponentContainsNode"/>/
+    /// <see cref="ComponentFindNode"/>). Unlike <see cref="GetComponentEntries"/>/
     /// <see cref="SetComponentEntries"/> these have NO type picker and no per-component fan-out --
     /// there is exactly ONE static entry per kind, dropping a default-constructed node with empty
     /// baked props (<c>ComponentTypeFqn</c>/accessor FQNs all <c>""</c>). The props get baked later,
@@ -146,6 +147,24 @@ public static class ComponentPaletteEntries
             Tooltip        = "Read a wired component collection's element count (wire a GetComponent collection out-pin into \"Collection\").",
             Icon           = "bp/variable_get",
             CreateInstance = () => new ComponentItemCountNode { Id = Guid.NewGuid() },
+        };
+        yield return new NodeKindDescriptor
+        {
+            Kind           = "Component.Contains",
+            DisplayName    = "Contains",
+            Category       = BlueprintNodePaletteEntries.Categories.Component,
+            Tooltip        = "Search a wired component collection for a query item (wire a GetComponent collection out-pin into \"Collection\").",
+            Icon           = "bp/variable_get",
+            CreateInstance = () => new ComponentContainsNode { Id = Guid.NewGuid() },
+        };
+        yield return new NodeKindDescriptor
+        {
+            Kind           = "Component.Find",
+            DisplayName    = "Find",
+            Category       = BlueprintNodePaletteEntries.Categories.Component,
+            Tooltip        = "Find a query item's index in a wired component collection (wire a GetComponent collection out-pin into \"Collection\").",
+            Icon           = "bp/variable_get",
+            CreateInstance = () => new ComponentFindNode { Id = Guid.NewGuid() },
         };
     }
 
