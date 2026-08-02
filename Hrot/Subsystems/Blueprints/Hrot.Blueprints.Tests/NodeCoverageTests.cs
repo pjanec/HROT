@@ -558,6 +558,10 @@ public sealed class NodeCoverageTests
         yield return ("Inline/ComponentItemCount", new[] { BuildComponentItemCountMinimalAsset() }, null, CoverageMode.ValidateOnlyStage1To7);
         yield return ("Inline/ComponentItemGet", new[] { BuildComponentItemGetMinimalAsset() }, null, CoverageMode.ValidateOnlyStage1To7);
         yield return ("Inline/ComponentForEach", new[] { BuildComponentForEachMinimalAsset() }, null, CoverageMode.ValidateOnlyStage1To7);
+        // CA-07d-1: search nodes -- same game-assembly reason (BpCollectionDemoOps in Hrot.AI.Behaviors),
+        // generated search-loop C# asserted verbatim by ComponentSearchLoweringTests.
+        yield return ("Inline/ComponentContains", new[] { BuildComponentContainsMinimalAsset() }, null, CoverageMode.ValidateOnlyStage1To7);
+        yield return ("Inline/ComponentFind", new[] { BuildComponentFindMinimalAsset() }, null, CoverageMode.ValidateOnlyStage1To7);
     }
 
     // ---- recipe loading (mirrors RecipeIntegrityTests.LoadRecipe) -----------
@@ -2083,6 +2087,147 @@ public sealed class NodeCoverageTests
         {
             AssetId   = Guid.NewGuid(),
             Name      = "ComponentItemGetCoverage",
+            Dispatch  = BlueprintDispatchKind.Instance,
+            Variables = { intVar },
+            Graphs    = { graph },
+        };
+    }
+
+    /// <summary>
+    /// CA-07d-1: EventEntry -&gt; SetVariable(HasIt &lt;- ComponentContains(Collection &lt;-
+    /// GetComponent&lt;BpCollectionDemo&gt;.Values, Item &lt;- Literal 42)) -&gt; Return.
+    /// ValidateOnlyStage1To7 -- same reason as <see cref="BuildComponentItemGetMinimalAsset"/>.
+    /// </summary>
+    private static BlueprintAsset BuildComponentContainsMinimalAsset()
+    {
+        var (getNode, valuesOut) = BuildComponentCollectionSourceNode();
+
+        var collectionIn = DataPin("Collection", "In", "System.Int32");
+        collectionIn.TypeRef.IsArray = true;
+        var itemIn    = DataPin("Item",   "In",  "System.Int32");
+        var resultOut = DataPin("Result", "Out", "System.Boolean");
+        var contains = new ComponentContainsNode
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = CcComponentFqn,
+            CountAccessorFqn = CcCountFqn,
+            ItemAccessorFqn  = CcItemFqn,
+            ElementTypeFqn   = "System.Int32",
+        };
+        contains.Pins.AddRange(new[] { collectionIn, itemIn, resultOut });
+
+        var litValueOut = DataPin("Value", "Out", "System.Int32");
+        var litNode = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Int32", ValueJson = "42" };
+        litNode.Pins.Add(litValueOut);
+
+        var boolVarId = Guid.NewGuid();
+        var boolVar = new VariableDecl { Id = boolVarId, Name = "HasIt", Type = new BlueprintTypeRef { TypeId = "System.Boolean" } };
+
+        var setExecIn  = ExecPin("ExecIn",  "In");
+        var setExecOut = ExecPin("ExecOut", "Out");
+        var setValueIn = DataPin("Value", "In", "System.Boolean");
+        var setNode = new SetVariableNode { Id = Guid.NewGuid(), VariableId = boolVarId.ToString() };
+        setNode.Pins.AddRange(new[] { setExecIn, setExecOut, setValueIn });
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecPin("ExecIn", "In");
+        ret.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, getNode, litNode, contains, setNode, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,    FromPinId = entryOut.Id,    ToNodeId = setNode.Id,  ToPinId = setExecIn.Id },
+                new Link { FromNodeId = setNode.Id,  FromPinId = setExecOut.Id,  ToNodeId = ret.Id,      ToPinId = retIn.Id },
+                new Link { FromNodeId = getNode.Id,  FromPinId = valuesOut.Id,   ToNodeId = contains.Id, ToPinId = collectionIn.Id },
+                new Link { FromNodeId = litNode.Id,  FromPinId = litValueOut.Id, ToNodeId = contains.Id, ToPinId = itemIn.Id },
+                new Link { FromNodeId = contains.Id, FromPinId = resultOut.Id,   ToNodeId = setNode.Id,  ToPinId = setValueIn.Id },
+            },
+        };
+
+        return new BlueprintAsset
+        {
+            AssetId   = Guid.NewGuid(),
+            Name      = "ComponentContainsCoverage",
+            Dispatch  = BlueprintDispatchKind.Instance,
+            Variables = { boolVar },
+            Graphs    = { graph },
+        };
+    }
+
+    /// <summary>
+    /// CA-07d-1: EventEntry -&gt; SetVariable(FoundIndex &lt;- ComponentFind(Collection &lt;-
+    /// GetComponent&lt;BpCollectionDemo&gt;.Values, Item &lt;- Literal 7).Index) -&gt; Return.
+    /// ValidateOnlyStage1To7 -- same reason as <see cref="BuildComponentItemGetMinimalAsset"/>.
+    /// </summary>
+    private static BlueprintAsset BuildComponentFindMinimalAsset()
+    {
+        var (getNode, valuesOut) = BuildComponentCollectionSourceNode();
+
+        var collectionIn = DataPin("Collection", "In", "System.Int32");
+        collectionIn.TypeRef.IsArray = true;
+        var itemIn   = DataPin("Item",  "In",  "System.Int32");
+        var indexOut = DataPin("Index", "Out", "System.Int32");
+        var foundOut = DataPin("Found", "Out", "System.Boolean");
+        var find = new ComponentFindNode
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = CcComponentFqn,
+            CountAccessorFqn = CcCountFqn,
+            ItemAccessorFqn  = CcItemFqn,
+            ElementTypeFqn   = "System.Int32",
+        };
+        find.Pins.AddRange(new[] { collectionIn, itemIn, indexOut, foundOut });
+
+        var litValueOut = DataPin("Value", "Out", "System.Int32");
+        var litNode = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Int32", ValueJson = "7" };
+        litNode.Pins.Add(litValueOut);
+
+        var intVarId = Guid.NewGuid();
+        var intVar = new VariableDecl { Id = intVarId, Name = "FoundIndex", Type = new BlueprintTypeRef { TypeId = "System.Int32" } };
+
+        var setExecIn  = ExecPin("ExecIn",  "In");
+        var setExecOut = ExecPin("ExecOut", "Out");
+        var setValueIn = DataPin("Value", "In", "System.Int32");
+        var setNode = new SetVariableNode { Id = Guid.NewGuid(), VariableId = intVarId.ToString() };
+        setNode.Pins.AddRange(new[] { setExecIn, setExecOut, setValueIn });
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecPin("ExecIn", "In");
+        ret.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, getNode, litNode, find, setNode, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,   FromPinId = entryOut.Id,    ToNodeId = setNode.Id, ToPinId = setExecIn.Id },
+                new Link { FromNodeId = setNode.Id, FromPinId = setExecOut.Id,  ToNodeId = ret.Id,     ToPinId = retIn.Id },
+                new Link { FromNodeId = getNode.Id, FromPinId = valuesOut.Id,   ToNodeId = find.Id,    ToPinId = collectionIn.Id },
+                new Link { FromNodeId = litNode.Id, FromPinId = litValueOut.Id, ToNodeId = find.Id,    ToPinId = itemIn.Id },
+                new Link { FromNodeId = find.Id,    FromPinId = indexOut.Id,    ToNodeId = setNode.Id, ToPinId = setValueIn.Id },
+            },
+        };
+
+        return new BlueprintAsset
+        {
+            AssetId   = Guid.NewGuid(),
+            Name      = "ComponentFindCoverage",
             Dispatch  = BlueprintDispatchKind.Instance,
             Variables = { intVar },
             Graphs    = { graph },

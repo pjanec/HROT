@@ -1319,7 +1319,8 @@ internal sealed class V_ComponentAccessRules : IValidator
                 {
                     CheckManagedReadNotPersisted(gcn, graph, asset, ctx);
                 }
-                else if (node is ComponentForEachNode or ComponentItemGetNode or ComponentItemCountNode)
+                else if (node is ComponentForEachNode or ComponentItemGetNode or ComponentItemCountNode
+                                 or ComponentContainsNode or ComponentFindNode)
                 {
                     CheckComponentCollectionConsumer(node, graph, asset, ctx);
                 }
@@ -1350,11 +1351,16 @@ internal sealed class V_ComponentAccessRules : IValidator
             ComponentForEachNode cfe   => (cfe.ComponentTypeFqn, cfe.CountAccessorFqn, cfe.ItemAccessorFqn),
             ComponentItemGetNode cig   => (cig.ComponentTypeFqn, "", cig.ItemAccessorFqn),
             ComponentItemCountNode cic => (cic.ComponentTypeFqn, cic.CountAccessorFqn, ""),
+            ComponentContainsNode ccn  => (ccn.ComponentTypeFqn, ccn.CountAccessorFqn, ccn.ItemAccessorFqn),
+            ComponentFindNode cfn      => (cfn.ComponentTypeFqn, cfn.CountAccessorFqn, cfn.ItemAccessorFqn),
             _                          => ("", "", ""),
         };
 
-        bool needsCount = node is ComponentForEachNode or ComponentItemCountNode;
-        bool needsItem  = node is ComponentForEachNode or ComponentItemGetNode;
+        // Contains/Find both loop (Count) and compare each element (Item) -> need BOTH, like ForEach.
+        bool needsCount = node is ComponentForEachNode or ComponentItemCountNode
+                                  or ComponentContainsNode or ComponentFindNode;
+        bool needsItem  = node is ComponentForEachNode or ComponentItemGetNode
+                                  or ComponentContainsNode or ComponentFindNode;
 
         bool missing = string.IsNullOrEmpty(componentTypeFqn)
             || (needsCount && string.IsNullOrEmpty(countFqn))

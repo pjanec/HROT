@@ -2413,6 +2413,156 @@ internal sealed class GraphScheduler
                 break;
             }
 
+            case ComponentContainsNode ccn:
+            {
+                // CA-07d-1 -- linear search: does the collection contain the "Item" query value?
+                // Resolves "Collection" -> entity -> re-read component EXACTLY like ComponentItemGetNode,
+                // then emits a single IrOp_ComponentCollectionSearch (ContainsResult set). Unwired
+                // Collection OR empty baked ComponentTypeFqn/Count/Item accessors => safe default (false).
+                var collPin = ccn.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "Collection", StringComparison.OrdinalIgnoreCase));
+                var collLink = collPin is null ? null : _graph.Links.FirstOrDefault(
+                    l => l.ToNodeId == ccn.Id && l.ToPinId == collPin.Id);
+
+                if (collLink is null
+                    || string.IsNullOrEmpty(ccn.ComponentTypeFqn)
+                    || string.IsNullOrEmpty(ccn.CountAccessorFqn)
+                    || string.IsNullOrEmpty(ccn.ItemAccessorFqn))
+                {
+                    result = AllocValue(pinType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = result,
+                        Operation   = new IrOp_Const("default", pinType),
+                        Debug       = new IrDebugAnnotation
+                        {
+                            GraphId = _graph.Id, NodeId = ccn.Id, PinId = sourcePinId,
+                            Synthesized = "component-contains-unwired-or-unbaked",
+                        },
+                    });
+                    break;
+                }
+
+                var entity = ResolveNodeOutput(collLink.FromNodeId, collLink.FromPinId, stmts);
+                var compTypeRef = new IrTypeRef { FullName = ccn.ComponentTypeFqn, IsUnmanaged = true, SizeBytes = 0 };
+                var compVal = AllocValue(compTypeRef);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = compVal,
+                    Operation   = new IrOp_GetComponentRO(ccn.ComponentTypeFqn, entity, compTypeRef),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = ccn.Id, PinId = sourcePinId },
+                });
+
+                var itemPin = ccn.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "Item", StringComparison.OrdinalIgnoreCase));
+                var elemTypeRef = new IrTypeRef
+                {
+                    FullName    = string.IsNullOrEmpty(ccn.ElementTypeFqn) ? "System.Object" : ccn.ElementTypeFqn,
+                    IsUnmanaged = true, SizeBytes = 0,
+                };
+                IrValue queryVal = itemPin is not null
+                    ? ResolveDataPin(ccn.Id, itemPin.Id, stmts)
+                    : AllocValue(elemTypeRef);
+
+                var boolVal = AllocValue(Stage5_Schedule.BoolType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = boolVal,
+                    Operation   = new IrOp_ComponentCollectionSearch(
+                        ccn.CountAccessorFqn, ccn.ItemAccessorFqn,
+                        string.IsNullOrEmpty(ccn.ElementTypeFqn) ? "System.Object" : ccn.ElementTypeFqn,
+                        compVal, queryVal, ContainsResult: boolVal),
+                    Debug = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = ccn.Id, PinId = sourcePinId },
+                });
+
+                var resultPin = ccn.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, "Result", StringComparison.OrdinalIgnoreCase));
+                if (resultPin is not null) _pinValueCache[resultPin.Id] = boolVal;
+
+                result = boolVal;
+                break;
+            }
+
+            case ComponentFindNode cfn:
+            {
+                // CA-07d-1 -- linear search returning the first index (Q#18-B: Index + Found out-pins).
+                // Same Collection->entity->component resolution as ComponentContainsNode; one
+                // IrOp_ComponentCollectionSearch sets BOTH FindIndex (int, -1 absent) and FindFound.
+                var collPin = cfn.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "Collection", StringComparison.OrdinalIgnoreCase));
+                var collLink = collPin is null ? null : _graph.Links.FirstOrDefault(
+                    l => l.ToNodeId == cfn.Id && l.ToPinId == collPin.Id);
+
+                if (collLink is null
+                    || string.IsNullOrEmpty(cfn.ComponentTypeFqn)
+                    || string.IsNullOrEmpty(cfn.CountAccessorFqn)
+                    || string.IsNullOrEmpty(cfn.ItemAccessorFqn))
+                {
+                    result = AllocValue(pinType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = result,
+                        Operation   = new IrOp_Const("default", pinType),
+                        Debug       = new IrDebugAnnotation
+                        {
+                            GraphId = _graph.Id, NodeId = cfn.Id, PinId = sourcePinId,
+                            Synthesized = "component-find-unwired-or-unbaked",
+                        },
+                    });
+                    break;
+                }
+
+                var entity = ResolveNodeOutput(collLink.FromNodeId, collLink.FromPinId, stmts);
+                var compTypeRef = new IrTypeRef { FullName = cfn.ComponentTypeFqn, IsUnmanaged = true, SizeBytes = 0 };
+                var compVal = AllocValue(compTypeRef);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = compVal,
+                    Operation   = new IrOp_GetComponentRO(cfn.ComponentTypeFqn, entity, compTypeRef),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = cfn.Id, PinId = sourcePinId },
+                });
+
+                var itemPin = cfn.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "Item", StringComparison.OrdinalIgnoreCase));
+                var elemTypeRef = new IrTypeRef
+                {
+                    FullName    = string.IsNullOrEmpty(cfn.ElementTypeFqn) ? "System.Object" : cfn.ElementTypeFqn,
+                    IsUnmanaged = true, SizeBytes = 0,
+                };
+                IrValue queryVal = itemPin is not null
+                    ? ResolveDataPin(cfn.Id, itemPin.Id, stmts)
+                    : AllocValue(elemTypeRef);
+
+                var indexVal = AllocValue(Stage5_Schedule.Int32Type);
+                var foundVal = AllocValue(Stage5_Schedule.BoolType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = indexVal,
+                    Operation   = new IrOp_ComponentCollectionSearch(
+                        cfn.CountAccessorFqn, cfn.ItemAccessorFqn,
+                        string.IsNullOrEmpty(cfn.ElementTypeFqn) ? "System.Object" : cfn.ElementTypeFqn,
+                        compVal, queryVal, FindIndex: indexVal, FindFound: foundVal),
+                    Debug = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = cfn.Id, PinId = sourcePinId },
+                });
+
+                var indexPin = cfn.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, "Index", StringComparison.OrdinalIgnoreCase));
+                var foundPin = cfn.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, "Found", StringComparison.OrdinalIgnoreCase));
+                if (indexPin is not null) _pinValueCache[indexPin.Id] = indexVal;
+                if (foundPin is not null) _pinValueCache[foundPin.Id] = foundVal;
+
+                result = _pinValueCache.TryGetValue(sourcePinId, out var cfr) ? cfr : indexVal;
+                break;
+            }
+
             case CompareNode cn:
             {
                 // GAP-12 -- native comparison node. Pure data, mirrors GetComponentNode/LiteralNode

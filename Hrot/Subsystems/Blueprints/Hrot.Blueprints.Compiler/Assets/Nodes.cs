@@ -43,6 +43,8 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(ComponentForEachNode),   "ComponentForEach")]
 [JsonDerivedType(typeof(ComponentItemGetNode),   "ComponentItemGet")]
 [JsonDerivedType(typeof(ComponentItemCountNode), "ComponentItemCount")]
+[JsonDerivedType(typeof(ComponentContainsNode),  "ComponentContains")]
+[JsonDerivedType(typeof(ComponentFindNode),      "ComponentFind")]
 [JsonDerivedType(typeof(CompareNode),            "Compare")]
 [JsonDerivedType(typeof(BinaryOpNode),           "BinaryOp")]
 [JsonDerivedType(typeof(BooleanOpNode),          "BooleanOp")]
@@ -995,4 +997,46 @@ public sealed class ComponentItemCountNode : Node
     public string ComponentTypeFqn { get; set; } = "";
     /// <summary>FQN of a static <c>int Count(in T)</c> curated accessor (baked at wire time, CA-07c).</summary>
     public string CountAccessorFqn { get; set; } = "";
+}
+
+/// <summary>
+/// CA-07d-1 -- tests whether a component collection contains a query element. Pure-data node (no exec
+/// pins): data-in "Collection" (<c>IsArray</c> -- wired FROM a GetComponent collection out-pin; resolves
+/// to the source ENTITY), data-in "Item" (element-typed -- the value to search for), data-out "Result"
+/// (<c>System.Boolean</c>). Lowers to a bounded search loop over the SAME baked curated
+/// <see cref="CountAccessorFqn"/>/<see cref="ItemAccessorFqn"/> as <see cref="ComponentForEachNode"/>,
+/// comparing each element with <c>EqualityComparer&lt;TElement&gt;.Default.Equals</c> (Q#18-A) and
+/// short-circuiting on the first match -- see <c>Stage5_Schedule</c>'s <c>ComponentContainsNode</c> case
+/// and <c>IrOp_ComponentCollectionSearch</c>. Reflection-free (baked FQN strings).
+/// </summary>
+public sealed class ComponentContainsNode : Node
+{
+    /// <summary>FQN of the ECS component to re-read off the resolved "Collection" entity. Baked string -- no reflection.</summary>
+    public string ComponentTypeFqn { get; set; } = "";
+    /// <summary>FQN of a static <c>int Count(in T)</c> curated accessor (baked at wire time).</summary>
+    public string CountAccessorFqn { get; set; } = "";
+    /// <summary>FQN of a static <c>TElement Item(in T, int i)</c> curated accessor (baked at wire time).</summary>
+    public string ItemAccessorFqn { get; set; } = "";
+    /// <summary>FQN of the collection's element type -- types "Collection"/"Item" and the equality comparer.</summary>
+    public string ElementTypeFqn { get; set; } = "";
+}
+
+/// <summary>
+/// CA-07d-1 -- finds the index of a query element in a component collection. Pure-data node (no exec
+/// pins): data-in "Collection" (<c>IsArray</c>), data-in "Item" (element-typed -- the value to find),
+/// data-out "Index" (<c>System.Int32</c>; <c>-1</c> when absent) + data-out "Found" (<c>System.Boolean</c>,
+/// Q#18-B). Same bounded search loop + <c>EqualityComparer&lt;TElement&gt;.Default.Equals</c> as
+/// <see cref="ComponentContainsNode"/>, recording the 0-based index of the first match -- see
+/// <c>Stage5_Schedule</c>'s <c>ComponentFindNode</c> case and <c>IrOp_ComponentCollectionSearch</c>.
+/// </summary>
+public sealed class ComponentFindNode : Node
+{
+    /// <summary>FQN of the ECS component to re-read off the resolved "Collection" entity. Baked string -- no reflection.</summary>
+    public string ComponentTypeFqn { get; set; } = "";
+    /// <summary>FQN of a static <c>int Count(in T)</c> curated accessor (baked at wire time).</summary>
+    public string CountAccessorFqn { get; set; } = "";
+    /// <summary>FQN of a static <c>TElement Item(in T, int i)</c> curated accessor (baked at wire time).</summary>
+    public string ItemAccessorFqn { get; set; } = "";
+    /// <summary>FQN of the collection's element type -- types "Collection"/"Item" and the equality comparer.</summary>
+    public string ElementTypeFqn { get; set; } = "";
 }

@@ -24,7 +24,10 @@ builds clean.
 | CA-07a | Collection pin type + GetComponent collection out-pin | 2 | Sonnet + Opus(review) | ✅ |
 | CA-07b | Consumer nodes + IR + emit (ForEach/Get[i]/Length) | 2 | Sonnet + Opus(review/BP2050 fix) | ✅ |
 | CA-07c | Editor wire-baking + palette + drawers + demo bp | 2 | Sonnet + Opus(review/wildcard fix) | ✅ |
-| CA-07d | Managed collections + Contains/Find (deferred sub-slice) | 2 | later | ⬜ |
+| CA-07d-1 | Contains/Find nodes (unmanaged, extend CA-07b) | 2 | Opus(compiler core) + Sonnet(editor mirror) | 🚧 |
+| CA-07d-2 | Managed collections (List/IReadOnlyList/T[], native .Count/[i]) | 2 | later | ⬜ |
+
+*(CA-07d split per Architect Q#18 fast-track: A3 EqualityComparer emit, B2 Find=Index+Found + ship both, C2 managed auto-resolve, D scope List/IReadOnlyList/T[].)*
 
 ---
 

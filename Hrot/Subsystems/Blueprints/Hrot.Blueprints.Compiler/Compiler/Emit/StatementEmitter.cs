@@ -643,6 +643,37 @@ internal static class StatementEmitter
                 }
                 break;
 
+            case IrOp_ComponentCollectionSearch op:
+            {
+                // CA-07d-1 -- bounded linear search sharing IrOp_ForEach's curated Count/Item accessors.
+                // Declare the result(s) first (so they outlive the loop scope), then walk the collection
+                // and short-circuit on the first EqualityComparer match. Loop locals (__cs*) are scoped
+                // to the for-statement, so multiple searches in one block never collide.
+                string comp  = $"__t{op.Component.Index}";
+                string query = $"__t{op.Query.Index}";
+                string eq    = $"global::System.Collections.Generic.EqualityComparer<global::{op.ElementTypeFqn}>.Default";
+
+                if (op.ContainsResult is not null) e.WriteLine($"var __t{op.ContainsResult.Value.Index} = false;");
+                if (op.FindIndex is not null)      e.WriteLine($"var __t{op.FindIndex.Value.Index} = -1;");
+                if (op.FindFound is not null)      e.WriteLine($"var __t{op.FindFound.Value.Index} = false;");
+
+                e.WriteLine($"for (int __csI = 0, __csN = global::{op.CountAccessorFqn}({comp}); __csI < __csN; __csI++)");
+                e.WriteLine("{");
+                e.Indent();
+                e.WriteLine($"if ({eq}.Equals(global::{op.ItemAccessorFqn}({comp}, __csI), {query}))");
+                e.WriteLine("{");
+                e.Indent();
+                if (op.ContainsResult is not null) e.WriteLine($"__t{op.ContainsResult.Value.Index} = true;");
+                if (op.FindIndex is not null)      e.WriteLine($"__t{op.FindIndex.Value.Index} = __csI;");
+                if (op.FindFound is not null)      e.WriteLine($"__t{op.FindFound.Value.Index} = true;");
+                e.WriteLine("break;");
+                e.Outdent();
+                e.WriteLine("}");
+                e.Outdent();
+                e.WriteLine("}");
+                break;
+            }
+
             // ------------------------------------------------------------------
             // Compare (GAP-12) -- native comparison node lowering
             // ------------------------------------------------------------------

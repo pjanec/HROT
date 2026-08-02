@@ -343,6 +343,27 @@ public sealed record IrOp_ComponentAccessorCall(
     string AccessorFqn, IrValue Component, IrValue? Index, IrTypeRef ResultType) : IrOperation;
 
 /// <summary>
+/// CA-07d-1 -- bounded linear search over a component collection, sharing the SAME curated
+/// <see cref="CountAccessorFqn"/>/<see cref="ItemAccessorFqn"/> accessors as <see cref="IrOp_ForEach"/>.
+/// Emits (see <see cref="Emit.StatementEmitter"/>): declare the result(s), then
+/// <c>for (int i = 0, n = Count(comp); i &lt; n; i++) if (EqualityComparer&lt;TElem&gt;.Default.Equals(Item(comp,i), query)) { …set results…; break; }</c>.
+/// Backs BOTH consumer nodes via which result values are set:
+///   <see cref="ComponentContainsNode"/> -> <see cref="ContainsResult"/> (bool);
+///   <see cref="ComponentFindNode"/> -> <see cref="FindIndex"/> (int, -1 if absent) + <see cref="FindFound"/> (bool).
+/// <see cref="ElementTypeFqn"/> types the <c>EqualityComparer&lt;T&gt;</c> so scalars, enums, and struct
+/// value-copies all compare correctly with one reflection-free path (Q#18-A).
+/// </summary>
+public sealed record IrOp_ComponentCollectionSearch(
+    string CountAccessorFqn,
+    string ItemAccessorFqn,
+    string ElementTypeFqn,
+    IrValue Component,
+    IrValue Query,
+    IrValue? ContainsResult = null,
+    IrValue? FindIndex = null,
+    IrValue? FindFound = null) : IrOperation;
+
+/// <summary>
 /// GAP-12 -- native <c>CompareNode</c> lowering. Emits a single infix C# comparison expression:
 /// <c>var __t{idx} = __t{Left.Index} {infix} __t{Right.Index};</c>, where <c>{infix}</c> comes from
 /// a <see cref="Hrot.Blueprints.Core.Assets.ComparisonOperator"/> -> C#-infix switch in

@@ -163,6 +163,14 @@ internal static class Stage0_Rehydrate
                 EnrichComponentItemCountPins(pins, cic);
                 break;
 
+            case ComponentContainsNode ccn:
+                EnrichComponentContainsPins(pins, ccn);
+                break;
+
+            case ComponentFindNode cfn:
+                EnrichComponentFindPins(pins, cfn);
+                break;
+
             case MakeStructNode msn:
                 EnrichMakeStructPins(pins, msn);
                 break;
@@ -493,6 +501,35 @@ internal static class Stage0_Rehydrate
         pins.Clear();
         pins.Add(MakePin("Collection", "In",  isExec: false, typeId: "System.Object", isArray: true));
         pins.Add(MakePin("Count",      "Out", isExec: false, typeId: "System.Int32"));
+    }
+
+    /// <summary>
+    /// ComponentContainsNode (CA-07d-1): pure-data node. "Collection" (IsArray) + "Item" (the query
+    /// value) are typed by the node's OWN baked <see cref="ComponentContainsNode.ElementTypeFqn"/>
+    /// (falls back to System.Object); "Result" is Boolean. Mirrors <see cref="EnrichComponentItemGetPins"/>.
+    /// </summary>
+    private static void EnrichComponentContainsPins(List<Pin> pins, ComponentContainsNode ccn)
+    {
+        var elemType = string.IsNullOrEmpty(ccn.ElementTypeFqn) ? "System.Object" : ccn.ElementTypeFqn;
+        pins.Clear();
+        pins.Add(MakePin("Collection", "In",  isExec: false, typeId: elemType, isArray: true));
+        pins.Add(MakePin("Item",       "In",  isExec: false, typeId: elemType));
+        pins.Add(MakePin("Result",     "Out", isExec: false, typeId: "System.Boolean"));
+    }
+
+    /// <summary>
+    /// ComponentFindNode (CA-07d-1): pure-data node. "Collection" (IsArray) + "Item" (query) typed by
+    /// the node's baked <see cref="ComponentFindNode.ElementTypeFqn"/>; "Index" is Int32, "Found" is
+    /// Boolean (Q#18-B). Mirrors <see cref="EnrichComponentContainsPins"/>.
+    /// </summary>
+    private static void EnrichComponentFindPins(List<Pin> pins, ComponentFindNode cfn)
+    {
+        var elemType = string.IsNullOrEmpty(cfn.ElementTypeFqn) ? "System.Object" : cfn.ElementTypeFqn;
+        pins.Clear();
+        pins.Add(MakePin("Collection", "In",  isExec: false, typeId: elemType, isArray: true));
+        pins.Add(MakePin("Item",       "In",  isExec: false, typeId: elemType));
+        pins.Add(MakePin("Index",      "Out", isExec: false, typeId: "System.Int32"));
+        pins.Add(MakePin("Found",      "Out", isExec: false, typeId: "System.Boolean"));
     }
 
     /// <summary>
