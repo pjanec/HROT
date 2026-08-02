@@ -166,14 +166,30 @@ editor `BlueprintNodeModel` (red-node + `IsCollectionConsumerBakeIncomplete`), S
 render shortcut `{comp}?.{field}` (managed path, `StatementEmitter.cs:650`) **doesn't compile** for a value-type
 state local `s` (`?.` on a struct). And `GetVariablePins` has no `IsCollection` branch to even project a collection
 out-pin (`NodePinSchema.cs:625`). → A1 is ~8 files of moderate work, not "one emit case."
-- **DELTA: read path switches A1 → A3 (dedicated list nodes).** New `ListForEach/ListGet/ListCount/ListContains/
-  ListFind` nodes bound to the list **by variable id** (the Get/SetVariable pattern — no collection pin, no
-  GetVariable projection, no `ComponentTypeFqn` gates, so BP2066/BlueprintNodeModel simply don't apply). Their
-  Stage5 cases are thin shims that bind `s.{field}` and delegate into the SAME `IrOp_ForEach`/
-  `IrOp_ComponentAccessorCall`/`IrOp_ComponentCollectionSearch` ops with a new `Kind=BlackboardFixedList`;
-  `RenderCollectionAccessors` gains that case (`s.{f}.Items[i]` / `s.{f}.Count`). **Reuse is captured at the
-  IR/emit layer; the component consumer nodes are untouched.** Also removes the Major-4 (GetVariable pin) and
-  Minor-10 (element-type-change staleness) gaps for free.
+- **Reviewer proposed A3 (dedicated list nodes bound by variable id).** Structurally cleaner (sidesteps the 3
+  gates), BUT it gives a DIFFERENT node-level UX (pick-a-variable vs wire-a-collection-pin).
+- **DECISION (user, 2026-08-03) — keep the A1 UX, pay the compiler cost.** Requirement: *working with an array
+  variable must be identical, from the designer's point of view, to working with a component collection field.*
+  So the list surfaces a **collection out-pin** (off `GetVariableNode`, exactly like `GetComponent`'s collection
+  out-pin) that wires into the SAME `ComponentForEach/ItemGet/ItemCount/Contains/Find` consumer nodes. The extra
+  work the reviewer flagged is accepted as LV-2 scope:
+  1. **`GetVariablePins` gets an `IsCollection` branch** (mirror `GetComponentPins`) + its `Stage0_Rehydrate`
+     mirror — projects the element-typed `IsArray` collection out-pin for a list variable.
+  2. **Wire-bake** (`TryBakeCollectionConsumer`) also accepts a `GetVariableNode`-list source, stamping
+     `CollectionKind=BlackboardFixedList` + the **variable ref** (field name) onto the consumer, `ComponentTypeFqn`
+     left empty.
+  3. **All 3 `ComponentTypeFqn` gates become Kind-aware** — `BlueprintNodeModel` (red-node + bake-incomplete),
+     Stage2 **BP2066**, and the 5 Stage5 unwired-guards require the *variable ref* (not `ComponentTypeFqn`) when
+     `Kind=BlackboardFixedList`. (Also covers the Minor-10 element-type-change staleness.)
+  4. **Stage5 source-resolution branch** — when the wired source is a list variable, bind the "component ref" slot
+     to a **`ref`/`ref readonly` local aliasing `s.{field}`** (NOT an entity+`GetComponentRO`); delegate into the
+     SAME `IrOp_ForEach`/`IrOp_ComponentAccessorCall`/`IrOp_ComponentCollectionSearch` ops with a new
+     `Kind=BlackboardFixedList`.
+  5. **`RenderCollectionAccessors`** gains the `BlackboardFixedList` case — `s.{f}.Items[i]` / `s.{f}.Count`, a NEW
+     branch (no `?.`, no host indirection — the reviewer's non-compiling-`?.` blocker is avoided by not reusing the
+     managed render).
+  Reuse still lands at the IR/emit layer (same three ops); the *added* cost vs A3 is the 3 Kind-aware gates + the
+  GetVariable collection projection — the price of identical UX, which is the requirement.
 
 ### F2 (BLOCKER, memory safety) — "zeroed blob = free defaults" is FALSE for WorkingState
 Instance state is safe (`BlueprintInstanceService`/genesis/singleton all call `InitDefault`, which is `s = default`
@@ -237,12 +253,10 @@ Overflow diagnostic → extend the existing `DebugProbe` (`IrOp_DebugProbe_*`), 
 `[BlackboardDtoStruct]` element lacking `IEquatable<T>` → recommend requiring `IEquatable<T>` on struct elements
 used with Contains/Find. Alignment-slack + capacity-0/1 + InitialLength-0 edge tests.
 
-### New architect micro-decision (surfaced by review)
-**Read binding: `ref` vs value-copy + mutate-during-own-ForEach.** `GetComponentRO` aliases (`ref readonly`,
-zero-copy, sees same-tick writes); a value-copy read of the whole list struct is O(N) and reads a stale snapshot if
-the loop body mutates the same list. **Lean: ref-bind + loop bound snapshotted at entry + per-iteration index
-clamped to live `min(Count,N)`** (never OOB; may skip/repeat a slot on a mid-loop resize) — matches the component
-path and avoids the O(N) copy. Needs a one-line architect nod (sets the mutate-during-iterate contract).
+### Read binding — DECIDED (user, 2026-08-03)
+**`ref`-bind + loop bound snapshotted at entry + per-iteration index clamped to live `min(Count,N)`.** Matches the
+component path (`GetComponentRO` aliasing, zero-copy, sees same-tick writes), avoids the O(N) whole-struct copy,
+and is never OOB (a mid-loop resize may skip/repeat a slot — documented contract). Value-copy rejected.
 
 ### Revised sequencing (was 5 slices / "read near-free" → 6 slices / heavier LV-1)
 1. **LV-1 — foundation + safety (Opus).** Capacity-carrying type (discriminator `Capacity`; `SizeReliable=false`);
@@ -251,15 +265,37 @@ path and avoids the O(N) copy. Needs a one-line architect nod (sets the mutate-d
    diagnostics (element-unmanaged; capacity bounds via `V_VariablesAndState`; forbid-list-on-generic-pins;
    forbid-cross-boundary). **Gate:** declares + compiles + `Marshal.OffsetOf` round-trip proof (non-8-aligned
    element) + 184 byte-identical.
-2. **LV-2 — read via dedicated list nodes (A3) (Opus + Sonnet).** 5 read nodes bound by var-id → Stage5 shims →
-   same IR ops with `Kind=BlackboardFixedList`; `RenderCollectionAccessors` case; ref-bind; mutate-during-iterate
-   contract.
+2. **LV-2 — read via the SAME consumer nodes (A1 UX) (Opus + Sonnet).** `GetVariablePins` `IsCollection` branch
+   (+ Stage0 mirror); wire-bake accepts a list-variable source; **3 `ComponentTypeFqn` gates made Kind-aware**
+   (BlueprintNodeModel, Stage2 BP2066, 5 Stage5 guards); Stage5 variable-source branch binding a `ref` to
+   `s.{field}` → same IR ops with `Kind=BlackboardFixedList`; `RenderCollectionAccessors` case; ref-bind +
+   snapshotted-bound + per-iter clamp.
 3. **LV-3 — write nodes (Opus).** Add/InsertAt/Set/RemoveAt/Clear/Resize + whole-list clone; in-place emit w/
    clamp; overflow via `DebugProbe`.
 4. **LV-4 — editor declare UX (Sonnet + Opus review).** Blueprint-local element×capacity×initial-length; tier warn.
 5. **LV-5 — debugger/watch visibility (Sonnet + Opus review).**
 6. **LV-6 — demo + docs.**
 
-**Verdict:** no blocker is unresolvable; the design is sound *with these deltas*. The two structural changes are
-(i) read path **A1 → A3 dedicated nodes** (cleaner, sidesteps 3 gates) and (ii) **memory-safety hardening**
-(Count-clamp + init-on-all-paths) promoted into LV-1. One new architect micro-decision (ref-vs-value read).
+**Verdict:** no blocker is unresolvable; the design is sound *with these deltas*. Structural changes: (i) read
+path stays **A1 UX** (same consumer nodes — user requirement) but with the **3 gates made Kind-aware + GetVariable
+collection projection** (the reviewer's A3 was cleaner but changed UX → rejected); (ii) **memory-safety hardening**
+(Count-clamp + init-on-all-paths) promoted into LV-1; (iii) **`ref`-bind read** adopted.
+
+### Open points to clarify before build (2026-08-03)
+Genuine UX/behavior forks the review surfaced that aren't purely internal — need a call before LV-1:
+1. **Cross-boundary passing.** Per-asset wrapper types (F4) mean a list variable **cannot** be passed as a
+   function-graph / peer / AiPrimitive **parameter or return** in v1 (a Stage2 diagnostic would reject it). Is
+   that acceptable, or is "pass a list to a sub-graph" a needed v1 use case? *(Lean: out of scope v1 — it's the
+   one real UX limitation; revisit with a shared wrapper type later.)*
+2. **List on generic pins.** A list variable is usable only via the collection out-pin (→ consumer nodes), the
+   write nodes, and whole-list clone. It cannot be wired into arbitrary data pins. *(Lean: yes, forbid — closes
+   the O(N)-copy footgun.)*
+3. **Whole-list clone.** Allow `SetVariable(listA ← listB)` of the same shape as a legitimate copy/reset (single
+   flat struct assignment)? *(Lean: allow.)*
+4. **Struct-element equality (Contains/Find).** Require a `[BlackboardDtoStruct]` element used with Contains/Find
+   to implement `IEquatable<T>` (avoids `EqualityComparer<T>.Default` boxing/reflection), or allow the slow
+   fallback with a doc note? *(Lean: require `IEquatable<T>` — a validation diagnostic if missing.)*
+5. **Nested lists.** Forbid a fixed-list element type that itself contains a fixed list (size explosion,
+   layout complexity)? *(Lean: forbid v1 — element must be a scalar / `Entity` / flat blittable struct.)*
+6. **Debugger visibility (LV-5) scope.** Confirm a list variable should render in the state inspector/watch as
+   `List<T>[N] Count=k {…first min(Count,N)…}` (it's currently invisible). *(Lean: yes, in scope.)*
