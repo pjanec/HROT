@@ -150,12 +150,28 @@ blueprint debugger is a genuine special case, not an oversight:
 | Purpose | display-only grid cell | structured display + editing machinery |
 
 **Unify the FORMATTING, not the mechanism:** relocate the LV-5 helper (`TryFormatFixedList` +
-element primitives) to a shared dependency-light home; the watch keeps calling it transiently,
-and the `FixedListViewProvider` uses the SAME helper for its collapsed/summary row (per-element
-nodes on expand). One definition of the summary string and the F2 clamp; two hosts, each keeping
-the mechanism its constraints demand. If the blueprint debugger ever wants expandable/editable
-state rows, StructEdit is the destination — as its own workstream with an explicit ALC lifecycle
-design (rebuild-on-reload, discard-on-unload), not inside FC-3.
+element primitives) so ONE definition of the summary string and the F2 clamp exists; the watch
+keeps calling it transiently, and the `FixedListViewProvider` uses the SAME helper for its
+collapsed/summary row (per-element nodes on expand). Two hosts, each keeping the mechanism its
+constraints demand. If the blueprint debugger ever wants expandable/editable state rows,
+StructEdit is the destination — as its own workstream with an explicit ALC lifecycle design
+(rebuild-on-reload, discard-on-unload), not inside FC-3.
+
+**D-p — placement (StructEdit is an INDEPENDENT library in ExtDeps; it must not reference
+non-StructEdit code).** `IBufferViewProvider` is a public extension interface — providers are
+handed in by the host, so the HROT-specific pieces need not enter the library at all:
+
+- **P1 (lean):** StructEdit gains ONLY a generic, convention-free change — consult providers on
+  the `InlineArray` path as the `FixedBuffer` path already does (an upstream gap regardless).
+  The `FixedListViewProvider` (our Count+buffer wrapper convention, F2 clamp, G6 semantics) AND
+  the shared summary formatter live side-by-side in a host-side shared editor lib, referenced by
+  both the blueprint watch and the provider. Dependencies flow host → StructEdit only.
+- **P2:** upstream "bounded fixed list" (`int Count` + one `[InlineArray(N)]` buffer) as a
+  first-class GENERIC StructEdit node kind, formatter included, maintained to library standards
+  (own tests, zero HROT references); the watch then calls into StructEdit (also a legal
+  direction). Cleaner if the pattern is deemed general C#12, not HROT convention; P1's provider
+  is exactly the code that would later promote, so P2 can be deferred without waste.
+- **P3:** duplicate the formatter — rejected (the clamp rule would exist twice and drift).
 
 ## Reuse-vs-build summary
 
