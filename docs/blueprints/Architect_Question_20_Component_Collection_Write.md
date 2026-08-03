@@ -145,6 +145,105 @@ rule (vs. a Godot-style auto-extend), and that `Resize` shrink need not re-zero 
 
 Blueprint-variable writes (Q#19) and action-DTO recognition are **independent** slices — not chained off FC-1.
 
+## Architect-role review pass (2026-08-04) — verdicts + gaps found
+
+*(Claude played the architect against the code — every claim re-verified at the cited line. The NotebookLM
+pass can still override; record its deltas in "Architect answers" below as usual.)*
+
+### Verdicts on the asks
+
+| Ask | Verdict |
+|---|---|
+| **Q20-A** | **A1 approved, with a free A2 amendment.** Gate = component-level `[BlueprintWritable]` **AND** curated *write accessors existing* for that (component, field). Under Q#5-C accessor mediation (G1) the graph can only mutate through curated statics — an author who ships read accessors only has made that collection read-only **per field** with zero new vocabulary. The "system-re-sorted roster" case is served: don't write its mutators. No `[BlueprintWritableCollection]` attribute. |
+| **Q20-B** | **B1 approved as policy — but the load-bearing engine fact is currently FALSE in the compositions blueprints actually run in** (G2). Plus a collection-specific sibling hazard Q#16 never had: same-graph mutation during iteration (G3). |
+| **Q20-C** | **C1 approved, no exception.** No "not-snapshotted" managed marker exists; inventing one now is speculative vocabulary. ManagedMember collections stay read-only: new `BPxxxx` + write-picker exclusion. |
+| **Q20-D** | **Approved:** the 6-op family (= Q19-C), `SetAt` does not grow `Count` (= Q19-F F1), false-on-overflow, write-if-present. **Corrected by:** emit shape (G1), zeroing policy (G6), out-pin contract (G5). |
+
+### Gaps / flaws found (each with the fix)
+
+**G1 (blocker) — the proposed emit contradicts Q#5-C: raw element mutation must stay OFF-graph.**
+Q20-D says "mutate the `[InlineArray]` element(s)" after `GetComponentRW`, and Robustness mandates the `Span<T>`
+pattern "for all element writes" — but for `CuratedStatic` collections the standing ruling (Q#5-C, reaffirmed by
+Q#17's reality check) keeps raw fixed/inline-array access out of generated graph code; reads already lower to
+curated accessor calls. **Fix:** writes lower to curated **write-accessor statics** — `Ops.Add(ref __wc, v)` on
+the guarded `ref` local, mirroring the read emit — and the `Span<T>` mandate relocates *inside* the hand-written
+accessors (compiler can't see it → enforced by the accessor recipe + the per-accessor round-trip test gate,
+optionally a Roslyn analyzer later). **The doc's actual missing design surface is the write-accessor
+convention.** Proposed: `[BlueprintCollectionWrite(typeof(C), "Field", op)]` on statics with pinned shapes —
+`bool Add(ref C c, Elem v)` · `bool SetAt(ref C c, int i, Elem v)` · `bool InsertAt(ref C c, int i, Elem v)` ·
+`bool RemoveAt(ref C c, int i)` · `void Clear(ref C c)` · `bool Resize(ref C c, int n)` — discovered by the
+`ComponentFieldReflector.TryReflectCollections` pipeline; a partial set is legal (the palette offers what
+exists → per-op curation for free, reinforcing the Q20-A amendment).
+
+**G2 (blocker, engine fact) — the Q16-B ordering guarantee is not honored where blueprints run today.**
+`BlueprintTickSystem` declares `[UpdateBefore]` the three dispatchers (`BlueprintTickSystem.cs:17-19`), but
+`EditorSubsystem.cs:889` **appends** `bpTick` after ALL sim systems — and `CgfLogicPack.cs:160` puts the
+`ActionDispatchModule` dispatchers inside that very list. Module-group order is array position
+(`ChannelArbitrationSystem.cs:10-12`), and `EditorHarness.cs:223` says outright that the `[UpdateBefore]`
+ordering "is not re-applied inside the group". So the *actual* contract in the editor compositions is
+**write-visible-next-tick** (deterministic one-tick lag), not "dispatcher reads it the same tick". Not a
+corruption risk, but Q#16/Q#20 sell writes on a guarantee the composition doesn't deliver. **Fix (FC-1 gate):**
+splice `bpTick` before the dispatch systems in both compositions **or** add a composition-order assertion/test;
+until then, document one-tick-lag as the real contract.
+
+**G3 (major, new hazard class) — mutation during iteration is undefined AND wire-dependent.**
+Verified in `StatementEmitter.cs:461-474`: `IrOp_ForEach`'s loop bound is **hoisted once** iff the `Count`
+out-pin is wired, else **re-evaluated each pass**; the roster is a `ref readonly` view of live chunk memory. A
+`RemoveAt` inside a `ForEach` body over the same collection therefore behaves differently by wiring:
+unwired-Count → live-shrinking bound (silently skips successors); wired-Count → stale bound → `ItemGet` reads
+vacated slots. Scalar writes (Q#16) never invalidated an iteration — this class is new. **Fix:** validator
+diagnostic (start as a warning) when a collection-write node targeting the same baked
+(`ComponentTypeFqn`, field) sits inside a `ForEach` body iterating that collection; document "a collection is
+read-only while being iterated" as the designer rule. Statically checkable because the binding is author-time.
+
+**G4 (decision the doc skips) — binding shape: collection in-pin vs picker-bound.**
+Q17-A committed the Unreal collection-pin UX, and Unreal's array *writes* also take the array pin; Q20 silently
+makes writes picker-bound ("no Target pin") — right instinct on safety, but an unstated UX asymmetry.
+**Ruling: prefer the collection in-pin for writes too**, with (a) validate-time self-only enforcement on the
+*producer* (the wired `GetComponent` must have `Target` unwired — author-time visible, closes R2a structurally,
+generalizes BP2062 to consumers) and (b) defense-in-depth: emit always binds `self`, never a wire-derived
+entity. Fallback if the producer check proves awkward in FC-1: picker-bound is acceptable, but then brand the
+nodes as the `SetComponent` statement family, not collection-pin consumers.
+
+**G5 (minor contract holes in Q20-D).**
+- Out-pins unspecified → **one `Ok` bool** (component present AND op applied); the `DebugProbe` diagnostic
+  distinguishes cause (absent / full / OOB). Mirrors scalar `Written` + Q19's bool.
+- A failed op (e.g. full list) has already fetched `GetComponentRW` → chunk-version bump on a no-op. Accept for
+  v1 (matches scalar; avoiding it costs a pre-check RO fetch) — document it.
+- CuratedStatic capacity `N` is invisible to the editor (only the accessor knows it) → optional capacity
+  const/accessor in the convention for budget/diagnostic UX. Nice-to-have, not gating.
+
+**G6 (cross-home inconsistency) — two different zeroing policies were approved.**
+Q19 settled **zero-on-GROW** ("only a grow-after-shrink must re-zero"; `ListResize` zero-fills the grown
+range); Q20's Robustness mandates **re-zero-on-SHRINK**. Both give "tail reads default", but they produce
+different byte images for identical op sequences across homes and double work if merged blindly. The
+determinism justification is also overstated: a deterministic sim writes deterministic stale bytes, and no
+production byte-level world hash exists (only test-side `ComputeStateHash`); the real byte-image consumers are
+the debugger's whole-repo keyframes (`SubTickSnapshotRecorder`) and any future rebaseline/JIP byte compare.
+**Ruling: ONE invariant for ALL homes, pinned in FC-0 — "slots ≥ `Count` are always `default(T)`".** Mutators
+zero vacated slots (`RemoveAt` tail slot, `Clear`, `Resize`-shrink); grow then needs **no** fill (the blob is
+already zero; Q19's grow-fill demotes to a debug assert). Stronger property: `Contains`/`Find` can never match
+stale-tail garbage even under a `Count` bug, and the byte image is canonical.
+
+**G7 (test-shape flaw) — the FC-0 reference implementation cannot exercise R3.**
+`BpCollectionDemo.Values` is an `unsafe fixed int[4]` buffer (`BpCollectionDemo.cs:28`) — the `ldobj`
+defensive-copy trap is an `[InlineArray]` phenomenon and does not exist for `fixed` buffers. "Extend
+`BpCollectionDemoOps` with mutators + round-trip test" would pass even with the naïve unsafe pattern and prove
+nothing about R3. **Fix:** FC-0 must add an `[InlineArray]`-backed demo component (or convert the demo) so the
+round-trip gate actually bites; keep one `fixed`-buffer accessor set too — both idioms exist in the wild
+(`UnitRoster`).
+
+### Scope steers (RESUME step 2 / review R5)
+
+- **`GetShared`/`SetShared` list slots + list-typed `asset.Parameters`: OUT for v1**, with explicit
+  validate-time rejection + a diagnostic naming the supported homes (not a silent gap). Add to the Q#19-E scope
+  table.
+- **Enforcement-point note (Q20-A):** as with Q#16/CA-04, the `[BlueprintWritable]`+accessor gate is
+  **editor-primary** (`BlueprintWritableAttribute.cs:20-28` — netstandard2.0 Stage2 cannot reflect
+  attributes); Stage2 checks stay structural. Hand-edited JSON bypasses the attribute gate but not the
+  structural ones — accepted precedent, restate it in FC-1's tracker.
+
 ## Architect answers (received)
 
-_(pending — Q20-A · Q20-B · Q20-C · Q20-D)_
+_(pending — Q20-A · Q20-B · Q20-C · Q20-D; the review pass above records Claude-as-architect verdicts G1–G7
+for the NotebookLM pass to confirm or override)_
