@@ -156,4 +156,30 @@ public sealed class ListVariableFoundationTests
     }
 
     private delegate void SpanAction(Span<byte> bytes);
+
+    // ---- LV-1b: AiPrimitive WorkingState lists ------------------------------
+
+    [Fact]
+    public void AiPrimitive_WorkingStateList_EmitsWrapperAndCountSeed()
+    {
+        var asset = BlueprintAssetBuilder
+            .AiPrimitive("WsListPrim")
+            .WithHostings(AiPrimitiveHosting.BTreeAction)
+            .WithWorkingStateField("Targets", typeof(int))
+            .WithGraph("Main", g => g.Entry().Return())
+            .Build();
+        asset.WorkingState[0].Type = new BlueprintTypeRef
+        {
+            TypeId = "System.Int32", Capacity = 4, InitialLength = 2,
+        };
+
+        var result = new BlueprintCompiler().Compile(asset, Options());
+        Assert.True(result.Succeeded,
+            "Compile failed: " + string.Join(", ", result.Diagnostics.Select(d => $"{d.Code}:{d.Message}")));
+        var src = result.GeneratedSource!;
+
+        Assert.Contains("public struct __List_System_Int32_4", src);      // wrapper nested in the primitive class
+        Assert.Contains("public __List_System_Int32_4 Targets;", src);    // WorkingState field
+        Assert.Contains("dst->Targets.Count = 2;", src);                  // InitDefaultWorkingState seed
+    }
 }
