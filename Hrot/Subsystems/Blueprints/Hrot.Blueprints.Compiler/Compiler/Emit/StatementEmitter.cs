@@ -63,6 +63,11 @@ internal static class StatementEmitter
                 e.WriteLine($"{sv}.{ctx.VarFieldName(op.VariableIndex)} = __t{op.Value.Index};");
                 break;
 
+            case IrOp_StateFieldRef op:
+                // FC-2/LV-2 -- writable ref-bind onto the state field (see the op's doc comment).
+                if (idx >= 0) e.WriteLine($"ref var __t{idx} = ref {sv}.{op.FieldName};");
+                break;
+
             // ------------------------------------------------------------------
             // GetShared / SetShared (Slice 2a-2 + Slice 2b): entity-scoped shared working-state,
             // compiled to calls into the Slice 2a-1 accessor.
@@ -513,7 +518,7 @@ internal static class StatementEmitter
                 // mlKey = RosterValue.Index (unique per component re-read in this block).
                 var (countExpr, itemExpr) = RenderCollectionAccessors(
                     e, op.Kind, roster, op.ManagedFieldName, op.ItemVar.Type.FullName,
-                    op.CountAccessorFqn, op.ItemAccessorFqn, op.RosterValue.Index);
+                    op.CountAccessorFqn, op.ItemAccessorFqn, op.RosterValue.Index, op.Capacity);
                 // "Count" out-pin (op.CountVar): hoist the element count into an OUTER-scope local and
                 // reuse it as the loop bound (evaluated once). Otherwise re-evaluate inline each pass
                 // (the original P1a shape -- keeps existing goldens byte-identical).
@@ -522,6 +527,15 @@ internal static class StatementEmitter
                 {
                     e.WriteLine($"var __t{op.CountVar.Value.Index} = {countExpr};");
                     bound = $"__t{op.CountVar.Value.Index}";
+                }
+                else if (op.Kind == CollectionKind.BlackboardFixedList)
+                {
+                    // FC-2/LV-2 (decided read binding): the list loop bound is ALWAYS snapshotted at
+                    // entry (ref-bind sees same-tick writes; a mid-loop resize may skip/repeat a
+                    // slot -- documented contract -- but the bound itself never moves). __feb{n} is
+                    // unique per loop via the item var's SSA index.
+                    e.WriteLine($"var __feb{op.ItemVar.Index} = {countExpr};");
+                    bound = $"__feb{op.ItemVar.Index}";
                 }
                 else
                 {
@@ -718,6 +732,24 @@ internal static class StatementEmitter
                             e.WriteLine($"var __t{idx} = ({ml}?.Count ?? 0);");
                         }
                     }
+                    else if (op.Kind == CollectionKind.BlackboardFixedList)
+                    {
+                        // FC-2/LV-2 -- `comp` is the writable ref local bound onto the state field
+                        // (IrOp_StateFieldRef). Same clamped never-throw contract as
+                        // RenderCollectionAccessors' list branch: Count clamps to min(Count, N)
+                        // (F2 defensive clamp), an out-of-range Item index yields default.
+                        string clampedCount = $"global::System.Math.Min({comp}.Count, {op.Capacity})";
+                        if (op.Index is not null)
+                        {
+                            string i = $"__t{op.Index.Value.Index}";
+                            string elemCs = TypeRefToCSharp(new IrTypeRef { FullName = op.ElementTypeFqn });
+                            e.WriteLine($"var __t{idx} = ((uint){i} < (uint){clampedCount} ? {comp}.Items[{i}] : default({elemCs}));");
+                        }
+                        else
+                        {
+                            e.WriteLine($"var __t{idx} = {clampedCount};");
+                        }
+                    }
                     else
                     {
                         // Curated -- Component binds to the accessor's `in T` parameter implicitly (the
@@ -744,7 +776,7 @@ internal static class StatementEmitter
                 // compare + first-match short-circuit are identical either way.
                 var (countExpr, itemExpr) = RenderCollectionAccessors(
                     e, op.Kind, comp, op.ManagedFieldName, op.ElementTypeFqn,
-                    op.CountAccessorFqn, op.ItemAccessorFqn, op.Component.Index);
+                    op.CountAccessorFqn, op.ItemAccessorFqn, op.Component.Index, op.Capacity);
 
                 if (op.ContainsResult is not null) e.WriteLine($"var __t{op.ContainsResult.Value.Index} = false;");
                 if (op.FindIndex is not null)      e.WriteLine($"var __t{op.FindIndex.Value.Index} = -1;");
@@ -1254,13 +1286,28 @@ internal static class StatementEmitter
     /// </summary>
     private static (string Count, System.Func<string, string> Item) RenderCollectionAccessors(
         CSharpEmitter e, CollectionKind kind, string comp, string managedFieldName,
-        string elementTypeFqn, string countAccessorFqn, string itemAccessorFqn, int mlKey)
+        string elementTypeFqn, string countAccessorFqn, string itemAccessorFqn, int mlKey,
+        int capacity = 0)
     {
         if (kind == CollectionKind.ManagedMember)
         {
             string ml = $"__ml{mlKey}";
             e.WriteLine($"global::System.Collections.Generic.IReadOnlyList<global::{elementTypeFqn}> {ml} = {comp}?.{managedFieldName};");
             return ($"({ml}?.Count ?? 0)", i => $"{ml}![{i}]");
+        }
+        if (kind == CollectionKind.BlackboardFixedList)
+        {
+            // FC-2/LV-2 (Q#19-A + the decided read binding): `comp` is a writable ref local bound
+            // onto the state field (IrOp_StateFieldRef). Count is the F2 defensive clamp
+            // min(Count, N) -- a garbage/stale Count can never drive an out-of-capacity index --
+            // and the item read is guarded never-throw for arbitrary indices (ItemGet): in-range
+            // reads the live slot, out-of-range yields default (the same safe-default contract the
+            // component consumers use). Loop consumers bound i by the clamped count, so their
+            // guard folds to always-true.
+            string elemCs = TypeRefToCSharp(new IrTypeRef { FullName = elementTypeFqn });
+            return (
+                $"global::System.Math.Min({comp}.Count, {capacity})",
+                i => $"((uint){i} < (uint)global::System.Math.Min({comp}.Count, {capacity}) ? {comp}.Items[{i}] : default({elemCs}))");
         }
         return ($"global::{countAccessorFqn}({comp})", i => $"global::{itemAccessorFqn}({comp}, {i})");
     }

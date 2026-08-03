@@ -210,6 +210,17 @@ public sealed record IrOp_CollectionWrite(
     bool ReturnsBool
 ) : IrOperation;
 
+/// <summary>
+/// FC-2/LV-2 (Q#19-A/F1) -- binds a WRITABLE `ref` local to a State/WorkingState FIELD:
+/// <c>ref var __tN = ref {s|ws}.{FieldName};</c>. The list-variable analog of the component path's
+/// <c>IrOp_GetComponentRO</c> roster read: the collection consumers' RosterValue/Component argument
+/// references this local and <c>RenderCollectionAccessors</c>' BlackboardFixedList branch renders
+/// <c>__tN.Count</c>/<c>__tN.Items[i]</c> off it -- ref-bind (zero-copy, sees same-tick writes),
+/// per the decided read-binding contract. A writable ref (not `ref readonly`) so element reads use
+/// the inline array's direct element access, never the readonly defensive-copy path.
+/// </summary>
+public sealed record IrOp_StateFieldRef(string FieldName, IrTypeRef Type) : IrOperation;
+
 // ECS write via ECB (impure)
 public sealed record IrOp_AddComponent(string ComponentTypeFqn, IrValue Entity, IrValue Value) : IrOperation;
 public sealed record IrOp_RemoveComponent(string ComponentTypeFqn, IrValue Entity) : IrOperation;
@@ -272,7 +283,8 @@ public sealed record IrOp_ForEach(
     IrValue? CountVar = null,
     IrValue? IndexVar = null,
     Hrot.Blueprints.Core.Assets.CollectionKind Kind = Hrot.Blueprints.Core.Assets.CollectionKind.CuratedStatic,
-    string ManagedFieldName = "") : IrOperation;
+    string ManagedFieldName = "",
+    int Capacity = 0) : IrOperation;
 
 /// <summary>
 /// P1b (GAP-1) -- structured, inline <c>if</c>/<c>else</c>. Emitted ONLY by Stage5 for a
@@ -398,7 +410,8 @@ public sealed record IrOp_FieldRead(IrValue Source, string FieldName, IrTypeRef 
 public sealed record IrOp_ComponentAccessorCall(
     string AccessorFqn, IrValue Component, IrValue? Index, IrTypeRef ResultType,
     Hrot.Blueprints.Core.Assets.CollectionKind Kind = Hrot.Blueprints.Core.Assets.CollectionKind.CuratedStatic,
-    string ManagedFieldName = "", string ElementTypeFqn = "") : IrOperation;
+    string ManagedFieldName = "", string ElementTypeFqn = "",
+    int Capacity = 0) : IrOperation;
 
 /// <summary>
 /// CA-07d-1 -- bounded linear search over a component collection, sharing the SAME curated
@@ -427,7 +440,8 @@ public sealed record IrOp_ComponentCollectionSearch(
     IrValue? FindIndex = null,
     IrValue? FindFound = null,
     Hrot.Blueprints.Core.Assets.CollectionKind Kind = Hrot.Blueprints.Core.Assets.CollectionKind.CuratedStatic,
-    string ManagedFieldName = "") : IrOperation;
+    string ManagedFieldName = "",
+    int Capacity = 0) : IrOperation;
 
 /// <summary>
 /// GAP-12 -- native <c>CompareNode</c> lowering. Emits a single infix C# comparison expression:

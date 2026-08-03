@@ -629,6 +629,8 @@ public enum CollectionKind
     CuratedStatic = 0,
     /// <summary>Native managed member (<c>List&lt;T&gt;</c>/<c>IReadOnlyList&lt;T&gt;</c>/<c>T[]</c>) on a class component -- no curated accessors.</summary>
     ManagedMember = 1,
+    /// <summary>FC-2/LV-2 (Q#19-A): a fixed-capacity LIST VARIABLE in the blueprint's State/WorkingState -- the consumer's "Collection" resolves to a `ref` onto the state field (no entity, no component re-read); <c>CollectionFieldName</c> carries the VARIABLE name; accessor FQNs are empty. Emit renders <c>__ref.Count</c>/<c>__ref.Items[i]</c> with the F2 min(Count, N) clamp.</summary>
+    BlackboardFixedList = 2,
 }
 
 public sealed class ComponentFieldDecl

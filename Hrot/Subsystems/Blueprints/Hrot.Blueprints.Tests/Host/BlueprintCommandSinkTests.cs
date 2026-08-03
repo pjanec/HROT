@@ -534,6 +534,73 @@ public sealed class BlueprintCommandSinkTests
         Assert.Equal(CollectionKind.CuratedStatic, write.CollectionKind);   // untouched default
     }
 
+    // ── AddLink: FC-2/LV-2 list-variable wire-bake (TryBakeCollectionConsumer) ────
+
+    [Fact]
+    public void CommandSink_AddLink_ListVariableIntoForEach_BakesKindAndVariableName()
+    {
+        var (asset, graph) = MakeAssetWithGraph();
+        asset.Variables.Add(new VariableDecl
+        {
+            Id = Guid.NewGuid(), Name = "MyList",
+            Type = new BlueprintTypeRef { TypeId = "System.Int32", Capacity = 4 },
+        });
+
+        var gvOut = new Pin { Id = Guid.NewGuid(), Name = "Value", Direction = "Out", IsExec = false,
+            TypeRef = new BlueprintTypeRef { TypeId = "System.Int32", IsArray = true } };
+        var gv = new GetVariableNode { Id = Guid.NewGuid(), VariableId = asset.Variables[0].Id.ToString() };
+        gv.Pins.Add(gvOut);
+        graph.Nodes.Add(gv);
+
+        var collectionIn = new Pin { Id = Guid.NewGuid(), Name = "Collection", Direction = "In", IsExec = false,
+            TypeRef = new BlueprintTypeRef { TypeId = "System.Object", IsArray = true } };
+        var forEach = new ComponentForEachNode { Id = Guid.NewGuid() };
+        forEach.Pins.Add(collectionIn);
+        graph.Nodes.Add(forEach);
+
+        var (sink, _, _, _, _, _) = MakeSut(asset, graph);
+        var result = sink.Apply(new GraphCommand.AddLink(
+            new LinkId(Guid.NewGuid()), new PinId(gvOut.Id), new PinId(collectionIn.Id)));
+
+        Assert.True(result.Success);
+        Assert.Equal(CollectionKind.BlackboardFixedList, forEach.CollectionKind);
+        Assert.Equal("MyList",       forEach.CollectionFieldName);
+        Assert.Equal("System.Int32", forEach.ElementTypeFqn);
+        Assert.Equal("",             forEach.ComponentTypeFqn);   // no entity/component for a list source
+        Assert.Equal("",             forEach.CountAccessorFqn);
+        Assert.Equal("",             forEach.ItemAccessorFqn);
+    }
+
+    [Fact]
+    public void CommandSink_AddLink_ScalarVariableIntoForEach_DoesNotBake()
+    {
+        var (asset, graph) = MakeAssetWithGraph();
+        asset.Variables.Add(new VariableDecl
+        {
+            Id = Guid.NewGuid(), Name = "Scalar",
+            Type = new BlueprintTypeRef { TypeId = "System.Int32" },   // Capacity 0 => not a list
+        });
+
+        var gvOut = new Pin { Id = Guid.NewGuid(), Name = "Value", Direction = "Out", IsExec = false,
+            TypeRef = new BlueprintTypeRef { TypeId = "System.Int32" } };
+        var gv = new GetVariableNode { Id = Guid.NewGuid(), VariableId = asset.Variables[0].Id.ToString() };
+        gv.Pins.Add(gvOut);
+        graph.Nodes.Add(gv);
+
+        var collectionIn = new Pin { Id = Guid.NewGuid(), Name = "Collection", Direction = "In", IsExec = false,
+            TypeRef = new BlueprintTypeRef { TypeId = "System.Object", IsArray = true } };
+        var forEach = new ComponentForEachNode { Id = Guid.NewGuid() };
+        forEach.Pins.Add(collectionIn);
+        graph.Nodes.Add(forEach);
+
+        var (sink, _, _, _, _, _) = MakeSut(asset, graph);
+        sink.Apply(new GraphCommand.AddLink(
+            new LinkId(Guid.NewGuid()), new PinId(gvOut.Id), new PinId(collectionIn.Id)));
+
+        Assert.Equal(CollectionKind.CuratedStatic, forEach.CollectionKind);   // untouched
+        Assert.Null(forEach.CollectionFieldName);
+    }
+
     // ── AddLink: CA-07d-2 managed-member wire-bake (TryBakeCollectionConsumer) ────
 
     private const string ManagedCollectionComponentFqn = "Hrot.AI.Behaviors.BpManagedCollectionDemo";

@@ -193,8 +193,21 @@ Suite 2490/0 · goldens 184/184.
   compile+load of a list-var asset + emitted-source assertions (wrapper, State field, `Count = L` seed,
   `Marshal.OffsetOf` fallback in StateFields) + 184/184 goldens.
 
-**LV-2…LV-6** per the design's Revised sequencing (read via Kind-aware consumers + `ref`-bind/snapshot-bound/
-per-iter clamp · write nodes via `IrOp_ListWrite` + DebugProbe overflow (reuse FC-0's
+**LV-1b — WorkingState + F2 fix · ✅ (2026-08-04).** `TryAttach` zero-on-attach (the allocator choke point —
+free-list reuse handed stale bytes; poison-byte tests pin fresh + reused paths) · AiPrimitiveEmitter WS list
+wrappers + `InitDefaultWorkingState` Count seeding (BlueprintCall inline-zero path documented Count=0-safe).
+
+**LV-2 — read path · ✅ (2026-08-04).** The A1 UX delivered: `CollectionKind.BlackboardFixedList` ·
+`IrOp_StateFieldRef` (writable `ref` onto `s.{field}`; no entity, no component re-read) · Capacity threaded
+through `IrOp_ForEach`/`IrOp_ComponentAccessorCall`/`IrOp_ComponentCollectionSearch` · emit renders the F2
+clamp `Math.Min(ref.Count, N)` everywhere + guarded never-throw ItemGet + ForEach bound ALWAYS snapshotted at
+entry (decided read binding) · Stage5 producer-driven list-source branches in all 5 consumers (wire is source
+of truth; bake serves gates) · Stage0 + editor `GetVariablePins` collection out-pin projection (parity-tested) ·
+wire-bake GetVariable branch (Kind + variable name; scalar vars refuse) · BP2066 + `BlueprintNodeModel`
+bake-incomplete made Kind-aware. 8 tests incl. a full Roslyn+ALC ForEach compile. Suite 2498/1-known-flake ·
+goldens 184/184.
+
+**LV-3…LV-6 remaining** (write nodes via `IrOp_ListWrite` + DebugProbe overflow (reuse FC-0's
 `CollectionWriteFailed`) · declare-UX · debugger visibility · demo/docs).
 
 ### FC-3 — see the umbrella §Sequencing (details filled in when the batch starts)

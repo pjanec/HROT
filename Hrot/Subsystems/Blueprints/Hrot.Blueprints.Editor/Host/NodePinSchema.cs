@@ -132,7 +132,7 @@ internal static class NodePinSchema
             EventEntryNode      => EventEntryNodePins(containingGraph),
             ReturnNode          => ReturnNodePins(containingGraph),
             FunctionCallNode fc => FunctionCallPinsDispatch(fc, asset, containingGraph),
-            GetVariableNode gv  => GetVariablePins(gv, ResolveVariableTypeId(gv.VariableId, asset)),
+            GetVariableNode gv  => GetVariablePins(gv, asset),
             SetVariableNode sv  => SetVariablePins(sv, ResolveVariableTypeId(sv.VariableId, asset)),
             // GetParameter: pin-less assets (e.g. the integrated HillAssault2I_* blueprints) carry no
             // authored pins, and the compiler bakes this node at lowering (no pin needed there). The
@@ -623,11 +623,27 @@ internal static class NodePinSchema
         return (0, false, false);
     }
 
-    private static IReadOnlyList<Pin> GetVariablePins(GetVariableNode gv, string typeId)
-        => new[]
-        {
-            MakeData("Value", "Out", typeId),
-        };
+    private static IReadOnlyList<Pin> GetVariablePins(GetVariableNode gv, BlueprintAsset? asset)
+    {
+        // FC-2/LV-2 (Q#19-A): a FIXED-LIST variable projects a COLLECTION out-pin (IsArray +
+        // element-typed) -- EXACT parity with Stage0's EnrichGetVariablePins list branch; scalar
+        // variables keep the plain "Value" pin.
+        var decl = FindVariableDecl(gv.VariableId, asset);
+        if (decl is { Type.Capacity: > 0 })
+            return new[] { MakeData("Value", "Out", decl.Type.TypeId, isArray: true) };
+        return new[] { MakeData("Value", "Out", ResolveVariableTypeId(gv.VariableId, asset)) };
+    }
+
+    /// <summary>FC-2/LV-2: the full VariableDecl behind a Get/SetVariable id ("var:"-prefix tolerated), from Variables or WorkingState; null when absent.</summary>
+    internal static VariableDecl? FindVariableDecl(string variableId, BlueprintAsset? asset)
+    {
+        if (asset is null) return null;
+        var vid = variableId ?? "";
+        if (vid.StartsWith("var:", StringComparison.Ordinal)) vid = vid.Substring(4);
+        if (!Guid.TryParse(vid, out var id)) return null;
+        return asset.Variables.FirstOrDefault(v => v.Id == id)
+            ?? asset.WorkingState.FirstOrDefault(v => v.Id == id);
+    }
 
     /// <summary>
     /// GetParameter (editor projection): a single "Value" data-out pin typed from the referenced

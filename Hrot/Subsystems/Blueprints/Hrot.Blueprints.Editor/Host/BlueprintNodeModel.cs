@@ -176,6 +176,18 @@ internal sealed class BlueprintNodeModel : INodeModel
     /// </summary>
     private static bool IsCollectionConsumerBakeIncomplete(Hrot.Blueprints.Core.Assets.Node node) => node switch
     {
+        // FC-2/LV-2: a BlackboardFixedList consumer bakes only the variable name (component FQN /
+        // accessor FQNs legitimately empty) -- checked FIRST, before the per-kind curated patterns.
+        Hrot.Blueprints.Core.Assets.ComponentForEachNode { CollectionKind: Hrot.Blueprints.Core.Assets.CollectionKind.BlackboardFixedList } lf =>
+            string.IsNullOrEmpty(lf.CollectionFieldName),
+        Hrot.Blueprints.Core.Assets.ComponentItemGetNode { CollectionKind: Hrot.Blueprints.Core.Assets.CollectionKind.BlackboardFixedList } lg =>
+            string.IsNullOrEmpty(lg.CollectionFieldName),
+        Hrot.Blueprints.Core.Assets.ComponentItemCountNode { CollectionKind: Hrot.Blueprints.Core.Assets.CollectionKind.BlackboardFixedList } lc =>
+            string.IsNullOrEmpty(lc.CollectionFieldName),
+        Hrot.Blueprints.Core.Assets.ComponentContainsNode { CollectionKind: Hrot.Blueprints.Core.Assets.CollectionKind.BlackboardFixedList } lcn =>
+            string.IsNullOrEmpty(lcn.CollectionFieldName),
+        Hrot.Blueprints.Core.Assets.ComponentFindNode { CollectionKind: Hrot.Blueprints.Core.Assets.CollectionKind.BlackboardFixedList } lfn =>
+            string.IsNullOrEmpty(lfn.CollectionFieldName),
         Hrot.Blueprints.Core.Assets.ComponentForEachNode cfe =>
             string.IsNullOrEmpty(cfe.ComponentTypeFqn) || string.IsNullOrEmpty(cfe.CountAccessorFqn) || string.IsNullOrEmpty(cfe.ItemAccessorFqn),
         Hrot.Blueprints.Core.Assets.ComponentItemGetNode cig =>

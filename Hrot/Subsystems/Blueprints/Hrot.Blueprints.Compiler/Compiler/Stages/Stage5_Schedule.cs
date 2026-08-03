@@ -2391,10 +2391,12 @@ internal sealed class GraphScheduler
                 // CA-07d-2: managed collections bake CollectionFieldName (native member access) instead
                 // of the curated ItemAccessorFqn -- the unbaked guard checks the kind's OWN required key.
                 bool cignManaged = cign.CollectionKind == CollectionKind.ManagedMember;
+                var cignListDecl = TryGetListVariableDecl(collLink);   // FC-2/LV-2: list-variable source
                 if (collLink is null
-                    || string.IsNullOrEmpty(cign.ComponentTypeFqn)
-                    || (cignManaged ? string.IsNullOrEmpty(cign.CollectionFieldName)
-                                    : string.IsNullOrEmpty(cign.ItemAccessorFqn)))
+                    || (cignListDecl is null
+                        && (string.IsNullOrEmpty(cign.ComponentTypeFqn)
+                            || (cignManaged ? string.IsNullOrEmpty(cign.CollectionFieldName)
+                                            : string.IsNullOrEmpty(cign.ItemAccessorFqn)))))
                 {
                     result = AllocValue(pinType);
                     stmts.Add(new IrStatement
@@ -2412,20 +2414,29 @@ internal sealed class GraphScheduler
                     break;
                 }
 
-                var entity = ResolveNodeOutput(collLink.FromNodeId, collLink.FromPinId, stmts);
-
-                // CA-07d-2: managed component -> IrOp_GetManagedComponentRO (null-safe, IsUnmanaged=false),
-                // mirroring GetComponentNode's managed read; curated -> unchanged IrOp_GetComponentRO.
-                var compTypeRef = new IrTypeRef { FullName = cign.ComponentTypeFqn, IsUnmanaged = !cignManaged, SizeBytes = 0 };
-                var compVal = AllocValue(compTypeRef);
-                stmts.Add(new IrStatement
+                IrValue compVal;
+                if (cignListDecl is not null)
                 {
-                    ResultValue = compVal,
-                    Operation   = cignManaged
-                        ? new IrOp_GetManagedComponentRO(cign.ComponentTypeFqn, entity, compTypeRef)
-                        : new IrOp_GetComponentRO(cign.ComponentTypeFqn, entity, compTypeRef),
-                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = cign.Id, PinId = sourcePinId },
-                });
+                    // FC-2/LV-2: bind a ref onto the state field -- no entity, no component re-read.
+                    compVal = EmitListStateFieldRef(cignListDecl, stmts, cign.Id, sourcePinId);
+                }
+                else
+                {
+                    var entity = ResolveNodeOutput(collLink!.FromNodeId, collLink.FromPinId, stmts);
+
+                    // CA-07d-2: managed component -> IrOp_GetManagedComponentRO (null-safe, IsUnmanaged=false),
+                    // mirroring GetComponentNode's managed read; curated -> unchanged IrOp_GetComponentRO.
+                    var compTypeRef = new IrTypeRef { FullName = cign.ComponentTypeFqn, IsUnmanaged = !cignManaged, SizeBytes = 0 };
+                    compVal = AllocValue(compTypeRef);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = compVal,
+                        Operation   = cignManaged
+                            ? new IrOp_GetManagedComponentRO(cign.ComponentTypeFqn, entity, compTypeRef)
+                            : new IrOp_GetComponentRO(cign.ComponentTypeFqn, entity, compTypeRef),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = cign.Id, PinId = sourcePinId },
+                    });
+                }
 
                 var indexPin = cign.Pins.FirstOrDefault(p =>
                     !p.IsExec && p.Direction == "In"
@@ -2434,7 +2445,9 @@ internal sealed class GraphScheduler
                     ? ResolveDataPin(cign.Id, indexPin.Id, stmts)
                     : AllocValue(Stage5_Schedule.Int32Type);
 
-                var cignElemFqn = string.IsNullOrEmpty(cign.ElementTypeFqn) ? "System.Object" : cign.ElementTypeFqn;
+                var cignElemFqn = !string.IsNullOrEmpty(cign.ElementTypeFqn) ? cign.ElementTypeFqn
+                    : cignListDecl is not null ? cignListDecl.Type.TypeId
+                    : "System.Object";
                 var elemTypeRef = new IrTypeRef
                 {
                     FullName    = cignElemFqn,
@@ -2447,7 +2460,9 @@ internal sealed class GraphScheduler
                     ResultValue = elemVal,
                     Operation   = new IrOp_ComponentAccessorCall(
                         cign.ItemAccessorFqn, compVal, indexVal, elemTypeRef,
-                        cign.CollectionKind, cign.CollectionFieldName ?? "", cignElemFqn),
+                        cignListDecl is not null ? CollectionKind.BlackboardFixedList : cign.CollectionKind,
+                        cign.CollectionFieldName ?? "", cignElemFqn,
+                        Capacity: cignListDecl?.Type.Capacity ?? 0),
                     Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = cign.Id, PinId = sourcePinId },
                 });
 
@@ -2471,10 +2486,12 @@ internal sealed class GraphScheduler
                     l => l.ToNodeId == cicn.Id && l.ToPinId == collPin.Id);
 
                 bool cicnManaged = cicn.CollectionKind == CollectionKind.ManagedMember;
+                var cicnListDecl = TryGetListVariableDecl(collLink);   // FC-2/LV-2
                 if (collLink is null
-                    || string.IsNullOrEmpty(cicn.ComponentTypeFqn)
-                    || (cicnManaged ? string.IsNullOrEmpty(cicn.CollectionFieldName)
-                                    : string.IsNullOrEmpty(cicn.CountAccessorFqn)))
+                    || (cicnListDecl is null
+                        && (string.IsNullOrEmpty(cicn.ComponentTypeFqn)
+                            || (cicnManaged ? string.IsNullOrEmpty(cicn.CollectionFieldName)
+                                            : string.IsNullOrEmpty(cicn.CountAccessorFqn)))))
                 {
                     result = AllocValue(pinType);
                     stmts.Add(new IrStatement
@@ -2492,18 +2509,26 @@ internal sealed class GraphScheduler
                     break;
                 }
 
-                var entity = ResolveNodeOutput(collLink.FromNodeId, collLink.FromPinId, stmts);
-
-                var compTypeRef = new IrTypeRef { FullName = cicn.ComponentTypeFqn, IsUnmanaged = !cicnManaged, SizeBytes = 0 };
-                var compVal = AllocValue(compTypeRef);
-                stmts.Add(new IrStatement
+                IrValue compVal;
+                if (cicnListDecl is not null)
                 {
-                    ResultValue = compVal,
-                    Operation   = cicnManaged
-                        ? new IrOp_GetManagedComponentRO(cicn.ComponentTypeFqn, entity, compTypeRef)
-                        : new IrOp_GetComponentRO(cicn.ComponentTypeFqn, entity, compTypeRef),
-                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = cicn.Id, PinId = sourcePinId },
-                });
+                    compVal = EmitListStateFieldRef(cicnListDecl, stmts, cicn.Id, sourcePinId);
+                }
+                else
+                {
+                    var entity = ResolveNodeOutput(collLink!.FromNodeId, collLink.FromPinId, stmts);
+
+                    var compTypeRef = new IrTypeRef { FullName = cicn.ComponentTypeFqn, IsUnmanaged = !cicnManaged, SizeBytes = 0 };
+                    compVal = AllocValue(compTypeRef);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = compVal,
+                        Operation   = cicnManaged
+                            ? new IrOp_GetManagedComponentRO(cicn.ComponentTypeFqn, entity, compTypeRef)
+                            : new IrOp_GetComponentRO(cicn.ComponentTypeFqn, entity, compTypeRef),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = cicn.Id, PinId = sourcePinId },
+                    });
+                }
 
                 var countVal = AllocValue(Stage5_Schedule.Int32Type);
                 stmts.Add(new IrStatement
@@ -2513,8 +2538,11 @@ internal sealed class GraphScheduler
                     // the IReadOnlyList<TElem> local so a T[] field still exposes .Count).
                     Operation   = new IrOp_ComponentAccessorCall(
                         cicn.CountAccessorFqn, compVal, null, Stage5_Schedule.Int32Type,
-                        cicn.CollectionKind, cicn.CollectionFieldName ?? "",
-                        string.IsNullOrEmpty(cicn.ElementTypeFqn) ? "System.Object" : cicn.ElementTypeFqn!),
+                        cicnListDecl is not null ? CollectionKind.BlackboardFixedList : cicn.CollectionKind,
+                        cicn.CollectionFieldName ?? "",
+                        !string.IsNullOrEmpty(cicn.ElementTypeFqn) ? cicn.ElementTypeFqn!
+                            : cicnListDecl is not null ? cicnListDecl.Type.TypeId : "System.Object",
+                        Capacity: cicnListDecl?.Type.Capacity ?? 0),
                     Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = cicn.Id, PinId = sourcePinId },
                 });
 
@@ -2540,11 +2568,13 @@ internal sealed class GraphScheduler
                     l => l.ToNodeId == ccn.Id && l.ToPinId == collPin.Id);
 
                 bool ccnManaged = ccn.CollectionKind == CollectionKind.ManagedMember;
+                var ccnListDecl = TryGetListVariableDecl(collLink);   // FC-2/LV-2
                 if (collLink is null
-                    || string.IsNullOrEmpty(ccn.ComponentTypeFqn)
-                    || (ccnManaged ? string.IsNullOrEmpty(ccn.CollectionFieldName)
-                                   : (string.IsNullOrEmpty(ccn.CountAccessorFqn)
-                                      || string.IsNullOrEmpty(ccn.ItemAccessorFqn))))
+                    || (ccnListDecl is null
+                        && (string.IsNullOrEmpty(ccn.ComponentTypeFqn)
+                            || (ccnManaged ? string.IsNullOrEmpty(ccn.CollectionFieldName)
+                                           : (string.IsNullOrEmpty(ccn.CountAccessorFqn)
+                                              || string.IsNullOrEmpty(ccn.ItemAccessorFqn))))))
                 {
                     result = AllocValue(pinType);
                     stmts.Add(new IrStatement
@@ -2560,19 +2590,29 @@ internal sealed class GraphScheduler
                     break;
                 }
 
-                var entity = ResolveNodeOutput(collLink.FromNodeId, collLink.FromPinId, stmts);
-                var compTypeRef = new IrTypeRef { FullName = ccn.ComponentTypeFqn, IsUnmanaged = !ccnManaged, SizeBytes = 0 };
-                var compVal = AllocValue(compTypeRef);
-                stmts.Add(new IrStatement
+                IrValue compVal;
+                if (ccnListDecl is not null)
                 {
-                    ResultValue = compVal,
-                    Operation   = ccnManaged
-                        ? new IrOp_GetManagedComponentRO(ccn.ComponentTypeFqn, entity, compTypeRef)
-                        : new IrOp_GetComponentRO(ccn.ComponentTypeFqn, entity, compTypeRef),
-                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = ccn.Id, PinId = sourcePinId },
-                });
+                    compVal = EmitListStateFieldRef(ccnListDecl, stmts, ccn.Id, sourcePinId);
+                }
+                else
+                {
+                    var entity = ResolveNodeOutput(collLink!.FromNodeId, collLink.FromPinId, stmts);
+                    var compTypeRef = new IrTypeRef { FullName = ccn.ComponentTypeFqn, IsUnmanaged = !ccnManaged, SizeBytes = 0 };
+                    compVal = AllocValue(compTypeRef);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = compVal,
+                        Operation   = ccnManaged
+                            ? new IrOp_GetManagedComponentRO(ccn.ComponentTypeFqn, entity, compTypeRef)
+                            : new IrOp_GetComponentRO(ccn.ComponentTypeFqn, entity, compTypeRef),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = ccn.Id, PinId = sourcePinId },
+                    });
+                }
 
-                var ccnElemFqn = string.IsNullOrEmpty(ccn.ElementTypeFqn) ? "System.Object" : ccn.ElementTypeFqn;
+                var ccnElemFqn = !string.IsNullOrEmpty(ccn.ElementTypeFqn) ? ccn.ElementTypeFqn
+                    : ccnListDecl is not null ? ccnListDecl.Type.TypeId
+                    : "System.Object";
                 var itemPin = ccn.Pins.FirstOrDefault(p =>
                     !p.IsExec && p.Direction == "In"
                     && string.Equals(p.Name, "Item", StringComparison.OrdinalIgnoreCase));
@@ -2592,7 +2632,9 @@ internal sealed class GraphScheduler
                     Operation   = new IrOp_ComponentCollectionSearch(
                         ccn.CountAccessorFqn, ccn.ItemAccessorFqn, ccnElemFqn,
                         compVal, queryVal, ContainsResult: boolVal,
-                        Kind: ccn.CollectionKind, ManagedFieldName: ccn.CollectionFieldName ?? ""),
+                        Kind: ccnListDecl is not null ? CollectionKind.BlackboardFixedList : ccn.CollectionKind,
+                        ManagedFieldName: ccn.CollectionFieldName ?? "",
+                        Capacity: ccnListDecl?.Type.Capacity ?? 0),
                     Debug = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = ccn.Id, PinId = sourcePinId },
                 });
 
@@ -2617,11 +2659,13 @@ internal sealed class GraphScheduler
                     l => l.ToNodeId == cfn.Id && l.ToPinId == collPin.Id);
 
                 bool cfnManaged = cfn.CollectionKind == CollectionKind.ManagedMember;
+                var cfnListDecl = TryGetListVariableDecl(collLink);   // FC-2/LV-2
                 if (collLink is null
-                    || string.IsNullOrEmpty(cfn.ComponentTypeFqn)
-                    || (cfnManaged ? string.IsNullOrEmpty(cfn.CollectionFieldName)
-                                   : (string.IsNullOrEmpty(cfn.CountAccessorFqn)
-                                      || string.IsNullOrEmpty(cfn.ItemAccessorFqn))))
+                    || (cfnListDecl is null
+                        && (string.IsNullOrEmpty(cfn.ComponentTypeFqn)
+                            || (cfnManaged ? string.IsNullOrEmpty(cfn.CollectionFieldName)
+                                           : (string.IsNullOrEmpty(cfn.CountAccessorFqn)
+                                              || string.IsNullOrEmpty(cfn.ItemAccessorFqn))))))
                 {
                     result = AllocValue(pinType);
                     stmts.Add(new IrStatement
@@ -2637,19 +2681,29 @@ internal sealed class GraphScheduler
                     break;
                 }
 
-                var entity = ResolveNodeOutput(collLink.FromNodeId, collLink.FromPinId, stmts);
-                var compTypeRef = new IrTypeRef { FullName = cfn.ComponentTypeFqn, IsUnmanaged = !cfnManaged, SizeBytes = 0 };
-                var compVal = AllocValue(compTypeRef);
-                stmts.Add(new IrStatement
+                IrValue compVal;
+                if (cfnListDecl is not null)
                 {
-                    ResultValue = compVal,
-                    Operation   = cfnManaged
-                        ? new IrOp_GetManagedComponentRO(cfn.ComponentTypeFqn, entity, compTypeRef)
-                        : new IrOp_GetComponentRO(cfn.ComponentTypeFqn, entity, compTypeRef),
-                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = cfn.Id, PinId = sourcePinId },
-                });
+                    compVal = EmitListStateFieldRef(cfnListDecl, stmts, cfn.Id, sourcePinId);
+                }
+                else
+                {
+                    var entity = ResolveNodeOutput(collLink!.FromNodeId, collLink.FromPinId, stmts);
+                    var compTypeRef = new IrTypeRef { FullName = cfn.ComponentTypeFqn, IsUnmanaged = !cfnManaged, SizeBytes = 0 };
+                    compVal = AllocValue(compTypeRef);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = compVal,
+                        Operation   = cfnManaged
+                            ? new IrOp_GetManagedComponentRO(cfn.ComponentTypeFqn, entity, compTypeRef)
+                            : new IrOp_GetComponentRO(cfn.ComponentTypeFqn, entity, compTypeRef),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = cfn.Id, PinId = sourcePinId },
+                    });
+                }
 
-                var cfnElemFqn = string.IsNullOrEmpty(cfn.ElementTypeFqn) ? "System.Object" : cfn.ElementTypeFqn;
+                var cfnElemFqn = !string.IsNullOrEmpty(cfn.ElementTypeFqn) ? cfn.ElementTypeFqn
+                    : cfnListDecl is not null ? cfnListDecl.Type.TypeId
+                    : "System.Object";
                 var itemPin = cfn.Pins.FirstOrDefault(p =>
                     !p.IsExec && p.Direction == "In"
                     && string.Equals(p.Name, "Item", StringComparison.OrdinalIgnoreCase));
@@ -2670,7 +2724,9 @@ internal sealed class GraphScheduler
                     Operation   = new IrOp_ComponentCollectionSearch(
                         cfn.CountAccessorFqn, cfn.ItemAccessorFqn, cfnElemFqn,
                         compVal, queryVal, FindIndex: indexVal, FindFound: foundVal,
-                        Kind: cfn.CollectionKind, ManagedFieldName: cfn.CollectionFieldName ?? ""),
+                        Kind: cfnListDecl is not null ? CollectionKind.BlackboardFixedList : cfn.CollectionKind,
+                        ManagedFieldName: cfn.CollectionFieldName ?? "",
+                        Capacity: cfnListDecl?.Type.Capacity ?? 0),
                     Debug = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = cfn.Id, PinId = sourcePinId },
                 });
 
@@ -3438,6 +3494,46 @@ internal sealed class GraphScheduler
     /// just "not used yet").
     /// </para>
     /// </summary>
+
+    /// <summary>
+    /// FC-2/LV-2 (Q#19-A/F1) -- when the "Collection" wire's PRODUCER is a <see cref="GetVariableNode"/>
+    /// referencing a FIXED-LIST variable (Capacity &gt; 0, in Variables or WorkingState), returns that
+    /// declaration; else null. Producer-driven (robust even for a hand-authored consumer whose
+    /// CollectionKind was never baked) -- the baked Kind/CollectionFieldName serve the editor/Stage2
+    /// gates, the WIRE is the source of truth here.
+    /// </summary>
+    private VariableDecl? TryGetListVariableDecl(Link? collLink)
+    {
+        if (collLink is null) return null;
+        if (!_nodeById.TryGetValue(collLink.FromNodeId, out var n) || n is not GetVariableNode gv) return null;
+        var vid = gv.VariableId ?? "";
+        if (vid.StartsWith("var:", StringComparison.Ordinal)) vid = vid.Substring(4);
+        if (!Guid.TryParse(vid, out var id)) return null;
+        var decl = _typed.Asset.Variables.FirstOrDefault(v => v.Id == id)
+                ?? _typed.Asset.WorkingState.FirstOrDefault(v => v.Id == id);
+        return decl is { Type.Capacity: > 0 } ? decl : null;
+    }
+
+    /// <summary>
+    /// FC-2/LV-2 -- emits the <see cref="IrOp_StateFieldRef"/> binding a writable `ref` local onto the
+    /// list variable's state field; the collection consumers use the returned value exactly where the
+    /// component path uses its <c>IrOp_GetComponentRO</c> roster value.
+    /// </summary>
+    private IrValue EmitListStateFieldRef(VariableDecl decl, List<IrStatement> stmts, Guid nodeId, Guid pinId)
+    {
+        var listType = _typed.FieldTypes.TryGetValue(decl.Id, out var lt)
+            ? lt
+            : new IrTypeRef { FullName = "__List_Unresolved", IsUnmanaged = true, SizeBytes = 0, Capacity = decl.Type.Capacity };
+        var refVal = AllocValue(listType);
+        stmts.Add(new IrStatement
+        {
+            ResultValue = refVal,
+            Operation   = new IrOp_StateFieldRef(decl.Name, listType),
+            Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = nodeId, PinId = pinId },
+        });
+        return refVal;
+    }
+
     private void ScheduleComponentForEachNode(ComponentForEachNode cfe, BlockBuilder bb)
     {
         var collPin = cfe.Pins.FirstOrDefault(p =>
@@ -3447,37 +3543,50 @@ internal sealed class GraphScheduler
             l => l.ToNodeId == cfe.Id && l.ToPinId == collPin.Id);
 
         bool cfeManaged = cfe.CollectionKind == CollectionKind.ManagedMember;
+        var cfeListDecl = TryGetListVariableDecl(collLink);   // FC-2/LV-2: list-variable source
         if (collLink is null
-            || string.IsNullOrEmpty(cfe.ComponentTypeFqn)
-            || (cfeManaged ? string.IsNullOrEmpty(cfe.CollectionFieldName)
-                           : (string.IsNullOrEmpty(cfe.CountAccessorFqn)
-                              || string.IsNullOrEmpty(cfe.ItemAccessorFqn))))
+            || (cfeListDecl is null
+                && (string.IsNullOrEmpty(cfe.ComponentTypeFqn)
+                    || (cfeManaged ? string.IsNullOrEmpty(cfe.CollectionFieldName)
+                                   : (string.IsNullOrEmpty(cfe.CountAccessorFqn)
+                                      || string.IsNullOrEmpty(cfe.ItemAccessorFqn))))))
         {
             return;
         }
 
-        // Resolve "Collection" to the source ENTITY (cached there by Stage5's GetComponentNode
-        // case, collection-decl branch), into the OUTER block, before the loop -- mirrors
-        // ScheduleFlowForEachNode's self+roster read, but off the resolved entity instead of self.
-        var entityVal = ResolveNodeOutput(collLink.FromNodeId, collLink.FromPinId, bb.Statements);
-
-        // CA-07d-2: managed -> IrOp_GetManagedComponentRO (null-safe), curated -> IrOp_GetComponentRO.
-        var compTypeRef = new IrTypeRef { FullName = cfe.ComponentTypeFqn, IsUnmanaged = !cfeManaged, SizeBytes = 0 };
-        var compVal = AllocValue(compTypeRef);
-        bb.Statements.Add(new IrStatement
+        IrValue compVal;
+        if (cfeListDecl is not null)
         {
-            ResultValue = compVal,
-            Operation   = cfeManaged
-                ? new IrOp_GetManagedComponentRO(cfe.ComponentTypeFqn, entityVal, compTypeRef)
-                : new IrOp_GetComponentRO(cfe.ComponentTypeFqn, entityVal, compTypeRef),
-            Debug       = DebugOf(cfe),
-        });
+            // FC-2/LV-2: bind a ref onto the state field (no entity, no component re-read).
+            compVal = EmitListStateFieldRef(cfeListDecl, bb.Statements, cfe.Id, Guid.Empty);
+        }
+        else
+        {
+            // Resolve "Collection" to the source ENTITY (cached there by Stage5's GetComponentNode
+            // case, collection-decl branch), into the OUTER block, before the loop -- mirrors
+            // ScheduleFlowForEachNode's self+roster read, but off the resolved entity instead of self.
+            var entityVal = ResolveNodeOutput(collLink!.FromNodeId, collLink.FromPinId, bb.Statements);
+
+            // CA-07d-2: managed -> IrOp_GetManagedComponentRO (null-safe), curated -> IrOp_GetComponentRO.
+            var compTypeRef = new IrTypeRef { FullName = cfe.ComponentTypeFqn, IsUnmanaged = !cfeManaged, SizeBytes = 0 };
+            compVal = AllocValue(compTypeRef);
+            bb.Statements.Add(new IrStatement
+            {
+                ResultValue = compVal,
+                Operation   = cfeManaged
+                    ? new IrOp_GetManagedComponentRO(cfe.ComponentTypeFqn, entityVal, compTypeRef)
+                    : new IrOp_GetComponentRO(cfe.ComponentTypeFqn, entityVal, compTypeRef),
+                Debug       = DebugOf(cfe),
+            });
+        }
 
         // Per-iteration item value, ELEMENT-typed (not Fdp.Core.Entity -- the one FlowForEach-shape
         // difference besides the entity source) -- declared INSIDE the emitted for by IrOp_ForEach.
         var elemTypeRef = new IrTypeRef
         {
-            FullName    = string.IsNullOrEmpty(cfe.ElementTypeFqn) ? "System.Object" : cfe.ElementTypeFqn,
+            FullName    = !string.IsNullOrEmpty(cfe.ElementTypeFqn) ? cfe.ElementTypeFqn
+                : cfeListDecl is not null ? cfeListDecl.Type.TypeId
+                : "System.Object",
             IsUnmanaged = true,
             SizeBytes   = 0,
         };
@@ -3529,7 +3638,9 @@ internal sealed class GraphScheduler
         {
             Operation = new IrOp_ForEach(
                 cfe.CountAccessorFqn, cfe.ItemAccessorFqn, compVal, itemVar, bodyStmts, countVar, indexVar,
-                Kind: cfe.CollectionKind, ManagedFieldName: cfe.CollectionFieldName ?? ""),
+                Kind: cfeListDecl is not null ? CollectionKind.BlackboardFixedList : cfe.CollectionKind,
+                ManagedFieldName: cfe.CollectionFieldName ?? "",
+                Capacity: cfeListDecl?.Type.Capacity ?? 0),
             Debug = DebugOf(cfe),
         });
     }

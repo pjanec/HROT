@@ -1517,15 +1517,22 @@ internal sealed class V_ComponentAccessRules : IValidator
         // CA-07d-2: a MANAGED collection (Q#18-C/D) bakes CollectionFieldName for native member access,
         // NOT the curated accessor FQNs (which are legitimately empty) -- so the required-non-empty set
         // is per-KIND: managed needs the field name; curated needs its accessor FQN(s).
-        bool missing = string.IsNullOrEmpty(componentTypeFqn)
-            || (kind == CollectionKind.ManagedMember
+        // FC-2/LV-2: a BlackboardFixedList consumer (Q#19-A) bakes only the VARIABLE name in
+        // CollectionFieldName -- ComponentTypeFqn and the accessor FQNs are legitimately empty
+        // (there is no entity/component; Stage5 binds a ref onto the state field).
+        bool missing = kind == CollectionKind.BlackboardFixedList
+            ? string.IsNullOrEmpty(fieldName)
+            : string.IsNullOrEmpty(componentTypeFqn)
+              || (kind == CollectionKind.ManagedMember
                     ? string.IsNullOrEmpty(fieldName)
                     : ((needsCount && string.IsNullOrEmpty(countFqn))
                        || (needsItem  && string.IsNullOrEmpty(itemFqn))));
 
         if (missing)
         {
-            string what = kind == CollectionKind.ManagedMember
+            string what = kind == CollectionKind.BlackboardFixedList
+                ? "the node's baked list-variable name (CollectionFieldName) is empty"
+                : kind == CollectionKind.ManagedMember
                 ? "the node's baked managed collection field name (CollectionFieldName) is empty"
                 : "the node's baked accessor FQNs are empty";
             ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2066,

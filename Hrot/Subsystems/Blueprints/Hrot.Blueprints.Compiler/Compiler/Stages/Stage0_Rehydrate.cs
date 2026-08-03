@@ -289,9 +289,28 @@ internal static class Stage0_Rehydrate
     {
         // Static: empty (registry returns empty for GetVariable).
         // Build: data-Out "Value" typed from the variable.
-        var typeId = ResolveVariableTypeId(gv.VariableId, asset);
+        // FC-2/LV-2 (Q#19-A): a FIXED-LIST variable projects a COLLECTION out-pin instead --
+        // IsArray + element-typed (mirrors GetComponent's collection-decl out-pin), consumed by the
+        // same ForEach/ItemGet/ItemCount/Contains/Find nodes.
         pins.Clear();
+        var decl = FindVariableDecl(gv.VariableId, asset);
+        if (decl is { Type.Capacity: > 0 })
+        {
+            pins.Add(MakePin("Value", "Out", isExec: false, typeId: decl.Type.TypeId, isArray: true));
+            return;
+        }
+        var typeId = ResolveVariableTypeId(gv.VariableId, asset);
         pins.Add(MakePin("Value", "Out", isExec: false, typeId: typeId));
+    }
+
+    /// <summary>FC-2/LV-2: the full VariableDecl behind a Get/SetVariable id ("var:"-prefix tolerated), from Variables or WorkingState; null when absent.</summary>
+    private static VariableDecl? FindVariableDecl(string variableId, BlueprintAsset asset)
+    {
+        var vid = variableId ?? "";
+        if (vid.StartsWith("var:", StringComparison.Ordinal)) vid = vid.Substring(4);
+        if (!Guid.TryParse(vid, out var id)) return null;
+        return asset.Variables.FirstOrDefault(v => v.Id == id)
+            ?? asset.WorkingState.FirstOrDefault(v => v.Id == id);
     }
 
     private static void EnrichSetVariablePins(

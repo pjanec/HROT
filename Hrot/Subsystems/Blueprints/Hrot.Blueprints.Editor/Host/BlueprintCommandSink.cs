@@ -510,6 +510,52 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             return;
 
         var sourceNode = _graph.Nodes.FirstOrDefault(n => n.Id == fromPin.OwnerNodeId.Value);
+
+        // FC-2/LV-2 (Q#19-A): the source may be a GetVariable over a FIXED-LIST variable -- bake
+        // Kind=BlackboardFixedList + the VARIABLE name into CollectionFieldName (ComponentTypeFqn
+        // and accessor FQNs stay empty; Stage5 resolves the decl through the wire). The WRITE node
+        // is list-writable only via the LV-3 List* nodes -- a CollectionWriteNode wired to a list
+        // variable stays unbaked (component-write ops don't apply to blackboard fields).
+        if (sourceNode is GetVariableNode gvSrc)
+        {
+            var listDecl = NodePinSchema.FindVariableDecl(gvSrc.VariableId, _asset);
+            if (listDecl is not { Type.Capacity: > 0 }) return;
+            switch (consumerNode)
+            {
+                case ComponentForEachNode cfeL:
+                    cfeL.CollectionKind = CollectionKind.BlackboardFixedList;
+                    cfeL.CollectionFieldName = listDecl.Name;
+                    cfeL.ElementTypeFqn = listDecl.Type.TypeId;
+                    cfeL.ComponentTypeFqn = ""; cfeL.CountAccessorFqn = ""; cfeL.ItemAccessorFqn = "";
+                    break;
+                case ComponentItemGetNode cigL:
+                    cigL.CollectionKind = CollectionKind.BlackboardFixedList;
+                    cigL.CollectionFieldName = listDecl.Name;
+                    cigL.ElementTypeFqn = listDecl.Type.TypeId;
+                    cigL.ComponentTypeFqn = ""; cigL.ItemAccessorFqn = "";
+                    break;
+                case ComponentItemCountNode cicL:
+                    cicL.CollectionKind = CollectionKind.BlackboardFixedList;
+                    cicL.CollectionFieldName = listDecl.Name;
+                    cicL.ElementTypeFqn = listDecl.Type.TypeId;
+                    cicL.ComponentTypeFqn = ""; cicL.CountAccessorFqn = "";
+                    break;
+                case ComponentContainsNode ccnL:
+                    ccnL.CollectionKind = CollectionKind.BlackboardFixedList;
+                    ccnL.CollectionFieldName = listDecl.Name;
+                    ccnL.ElementTypeFqn = listDecl.Type.TypeId;
+                    ccnL.ComponentTypeFqn = ""; ccnL.CountAccessorFqn = ""; ccnL.ItemAccessorFqn = "";
+                    break;
+                case ComponentFindNode cfnL:
+                    cfnL.CollectionKind = CollectionKind.BlackboardFixedList;
+                    cfnL.CollectionFieldName = listDecl.Name;
+                    cfnL.ElementTypeFqn = listDecl.Type.TypeId;
+                    cfnL.ComponentTypeFqn = ""; cfnL.CountAccessorFqn = ""; cfnL.ItemAccessorFqn = "";
+                    break;
+            }
+            return;
+        }
+
         if (sourceNode is not GetComponentNode gcn)
             return;
 
