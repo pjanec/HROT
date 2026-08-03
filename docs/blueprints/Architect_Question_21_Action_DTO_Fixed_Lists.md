@@ -139,6 +139,24 @@ no conflict. D1 remains the fallback if FC-3 must stay minimal; write-safety for
 working-state (vs displaying) is a sub-decision — **D-e:** display-only v1 (lean) vs editable
 rows from day one.
 
+**D addendum — why NOT unify the blueprint watch onto StructEdit (asked 2026-08-03).** The
+blueprint debugger is a genuine special case, not an oversight:
+
+| Constraint | Blueprint watch | StructEdit |
+|---|---|---|
+| Type source | **collectible ALC** generated types (`State`, `__List_…`) — full unload on hot-reload is a tested invariant (`VerifyAlcUnloadOnDispose`) | statically compiled types (components, HSM/BTree DTOs) — the only StructEdit consumers today |
+| Retention | transient `byte[] + Type → string`; nothing rooted, ALC-safe by shape | persistent `EditDocument` whose node metadata holds `ClrType`/binding refs — pins a collectible ALC unless documents are rebuilt/discarded on every reload |
+| Memory model | renders a **snapshot copy** (also works on dead bytes) | binds **live native memory** (that's the point — editing) |
+| Purpose | display-only grid cell | structured display + editing machinery |
+
+**Unify the FORMATTING, not the mechanism:** relocate the LV-5 helper (`TryFormatFixedList` +
+element primitives) to a shared dependency-light home; the watch keeps calling it transiently,
+and the `FixedListViewProvider` uses the SAME helper for its collapsed/summary row (per-element
+nodes on expand). One definition of the summary string and the F2 clamp; two hosts, each keeping
+the mechanism its constraints demand. If the blueprint debugger ever wants expandable/editable
+state rows, StructEdit is the destination — as its own workstream with an explicit ALC lifecycle
+design (rebuild-on-reload, discard-on-unload), not inside FC-3.
+
 ## Reuse-vs-build summary
 
 | Piece | Reuse | Build |
