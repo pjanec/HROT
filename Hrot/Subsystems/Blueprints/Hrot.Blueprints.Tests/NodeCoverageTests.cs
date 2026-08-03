@@ -566,6 +566,11 @@ public sealed class NodeCoverageTests
         // accessor FQN points into Hrot.AI.Behaviors), generated guarded-accessor C# asserted
         // verbatim by CollectionWriteLoweringTests.
         yield return ("Inline/CollectionWrite", new[] { BuildCollectionWriteMinimalAsset() }, null, CoverageMode.ValidateOnlyStage1To7);
+        // Q#14 Option B struct-value nodes (Make/SetMembers/Break) -- FULL Roslyn coverage over the
+        // test-assembly MultiPinShared struct (the exact type MakeBreakStructTests already
+        // round-trips at runtime; registering it HERE closes the coverage-bookkeeping gap that
+        // left these three kinds unlisted).
+        yield return ("Inline/MakeSetMembersBreakStruct", new[] { BuildMakeSetMembersBreakMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
     }
 
     // ---- recipe loading (mirrors RecipeIntegrityTests.LoadRecipe) -----------
@@ -2026,6 +2031,98 @@ public sealed class NodeCoverageTests
             Variables = { intVar },
             Graphs    = { graph },
         };
+    }
+
+    /// <summary>
+    /// Q#14 Option B: EventEntry -&gt; SetVariable(A) -&gt; SetVariable(B) -&gt; Return, data:
+    /// Literal 7 -&gt; MakeStruct.A -&gt; SetMembers(Source; B &lt;- Literal 9) -&gt; BreakStruct
+    /// -&gt; the two variables. One asset covering all three struct-value node kinds through the
+    /// FULL Roslyn pipeline over <see cref="Hrot.Blueprints.Tests.Runtime.MultiPinShared"/> (a
+    /// test-assembly struct the fixture compile resolves -- proven by MakeBreakStructTests).
+    /// </summary>
+    private static BlueprintAsset BuildMakeSetMembersBreakMinimalAsset()
+    {
+        string structFqn = typeof(Hrot.Blueprints.Tests.Runtime.MultiPinShared).FullName!;
+        var intT    = new BlueprintTypeRef { TypeId = "System.Int32" };
+        BlueprintTypeRef StructT() => new() { TypeId = "global::" + structFqn };
+
+        var asset = Builders.BlueprintAssetBuilder.Instance("MakeSetMembersBreakCoverage")
+            .WithVariable("OutA", typeof(int), "0")
+            .WithVariable("OutB", typeof(int), "0")
+            .Build();
+        var outAId = asset.Variables[0].Id;
+        var outBId = asset.Variables[1].Id;
+
+        var eOut  = ExecPin("Out", "Out");
+        var entry = new EventEntryNode { Id = Guid.NewGuid(), EventTypeId = "" };
+        entry.Pins.Add(eOut);
+
+        var lit7Out = DataPin("Value", "Out", "System.Int32");
+        var lit7    = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Int32", ValueJson = "7" };
+        lit7.Pins.Add(lit7Out);
+        var lit9Out = DataPin("Value", "Out", "System.Int32");
+        var lit9    = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Int32", ValueJson = "9" };
+        lit9.Pins.Add(lit9Out);
+
+        var fields2 = new List<StructFieldDecl>
+        {
+            new() { Name = "A", TypeId = "System.Int32" },
+            new() { Name = "B", TypeId = "System.Int32" },
+        };
+
+        var mA   = DataPin("A", "In", "System.Int32");
+        var mVal = new Pin { Id = Guid.NewGuid(), Name = "Value", Direction = "Out", IsExec = false, TypeRef = StructT() };
+        var make = new MakeStructNode { Id = Guid.NewGuid(), StructTypeId = structFqn, Fields = fields2 };
+        make.Pins.AddRange(new[] { mA, mVal });
+
+        var smSrc = new Pin { Id = Guid.NewGuid(), Name = "Source", Direction = "In", IsExec = false, TypeRef = StructT() };
+        var smB   = DataPin("B", "In", "System.Int32");
+        var smRes = new Pin { Id = Guid.NewGuid(), Name = "Result", Direction = "Out", IsExec = false, TypeRef = StructT() };
+        var setMembers = new SetMembersNode { Id = Guid.NewGuid(), StructTypeId = structFqn, Fields = fields2 };
+        setMembers.Pins.AddRange(new[] { smSrc, smB, smRes });
+
+        var bVal = new Pin { Id = Guid.NewGuid(), Name = "Value", Direction = "In", IsExec = false, TypeRef = StructT() };
+        var bA   = DataPin("A", "Out", "System.Int32");
+        var bB   = DataPin("B", "Out", "System.Int32");
+        var brk  = new BreakStructNode { Id = Guid.NewGuid(), StructTypeId = structFqn, Fields = fields2 };
+        brk.Pins.AddRange(new[] { bVal, bA, bB });
+
+        var saIn  = ExecPin("In", "In");
+        var saOut = ExecPin("Out", "Out");
+        var saVal = DataPin("Value", "In", "System.Int32");
+        var setA  = new SetVariableNode { Id = Guid.NewGuid(), VariableId = outAId.ToString() };
+        setA.Pins.AddRange(new[] { saIn, saOut, saVal });
+
+        var sbIn  = ExecPin("In", "In");
+        var sbOut = ExecPin("Out", "Out");
+        var sbVal = DataPin("Value", "In", "System.Int32");
+        var setB  = new SetVariableNode { Id = Guid.NewGuid(), VariableId = outBId.ToString() };
+        setB.Pins.AddRange(new[] { sbIn, sbOut, sbVal });
+
+        var rIn = ExecPin("In", "In");
+        var ret = new ReturnNode { Id = Guid.NewGuid() };
+        ret.Pins.Add(rIn);
+
+        asset.Graphs.Add(new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Tick",
+            Kind  = GraphKind.Event,
+            Nodes = { entry, lit7, lit9, make, setMembers, brk, setA, setB, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,      FromPinId = eOut.Id,    ToNodeId = setA.Id,       ToPinId = saIn.Id },
+                new Link { FromNodeId = setA.Id,       FromPinId = saOut.Id,   ToNodeId = setB.Id,       ToPinId = sbIn.Id },
+                new Link { FromNodeId = setB.Id,       FromPinId = sbOut.Id,   ToNodeId = ret.Id,        ToPinId = rIn.Id },
+                new Link { FromNodeId = lit7.Id,       FromPinId = lit7Out.Id, ToNodeId = make.Id,       ToPinId = mA.Id },
+                new Link { FromNodeId = make.Id,       FromPinId = mVal.Id,    ToNodeId = setMembers.Id, ToPinId = smSrc.Id },
+                new Link { FromNodeId = lit9.Id,       FromPinId = lit9Out.Id, ToNodeId = setMembers.Id, ToPinId = smB.Id },
+                new Link { FromNodeId = setMembers.Id, FromPinId = smRes.Id,   ToNodeId = brk.Id,        ToPinId = bVal.Id },
+                new Link { FromNodeId = brk.Id,        FromPinId = bA.Id,      ToNodeId = setA.Id,       ToPinId = saVal.Id },
+                new Link { FromNodeId = brk.Id,        FromPinId = bB.Id,      ToNodeId = setB.Id,       ToPinId = sbVal.Id },
+            },
+        });
+        return asset;
     }
 
     /// <summary>
