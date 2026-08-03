@@ -175,6 +175,12 @@ Full detail + evidence: `Architect_Question_20_Component_Collection_Write.md` §
 | **Mutation-during-iteration (G3)** | Designer rule "a collection is read-only while being iterated"; validator warning when a write to the same baked (component, field) sits inside a `ForEach` over it (wire-dependent semantics otherwise — hoisted vs re-evaluated bound). |
 | **R5 scope** | `GetShared`/`SetShared` list slots + list-typed `asset.Parameters`: **OUT v1**, explicit validate-time rejection + diagnostic naming the supported homes. |
 
+> **FC-0 empirical correction to R3 (2026-08-04):** the `[InlineArray]` "ldobj → temp → write lost" mechanism
+> from `GetComponentRW`'s doc **does not reproduce** on the current toolchain — the naive `ref`-local element
+> write lands; the only reproducible loss is the missing-`ref` **value copy** (generic to all component writes).
+> The accessor + `Span<T>` mandate stands on curation (Q#5-C), readonly-read copies, and burying the value-copy
+> hazard — not on the indexer trap. Compiler behavior is pinned by two FC-0 tests. See the tracker's FC-0 note.
+
 ## Detailed designs & references
 - **Blueprint variable collection (full detail):** `Blueprint_List_Variables_Design.md` — design + adversarial
   review (F1–F8) + decided open points + Q#19 decisions. Its read-path (reuse the existing consumer nodes) and

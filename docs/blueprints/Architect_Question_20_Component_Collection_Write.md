@@ -123,6 +123,13 @@ rule (vs. a Godot-style auto-extend), and that `Resize` shrink need not re-zero 
   write**. All element writes MUST go through the `Span<T>` pattern (`MemoryMarshal.CreateSpan` / the inline-array
   `AsSpan`) that writes through the `ref` to real component storage. **Gate: an InlineArray write round-trip test**
   (write element → re-read component → value present) is required before FC-1 lands, for every home.
+  > **FC-0 empirical correction (2026-08-04):** the warned trap **does not reproduce** on the current toolchain
+  > (.NET SDK 8.0.4xx) — a naive element write through a `ref` local (or ref-returning receiver) LANDS; the only
+  > reproducible loss mode is the missing-`ref` **value copy**, which is not InlineArray-specific.
+  > `EntityRepository.GetComponentRW`'s ldobj claim appears stale. The convention above **stays mandated**
+  > (Q#5-C off-graph rule, readonly-read defensive copies, value-copy hazard confined inside `ref`-receiver
+  > accessors, generator uniformity), and two FC-0 tests pin the measured compiler behavior in both directions
+  > (`FixedCollectionOpsTests.NaiveRefLocalWrite_CurrentToolchain_Lands` / `ValueCopyWrite_IsLost`).
 - **Determinism on shrink/remove.** `RemoveAt`/`Resize`-shrink/`Clear` must **re-zero** the vacated tail slots
   (not just lower `Count`) so byte-for-byte memcpy snapshots/record-playback stay identical regardless of prior
   contents. (`Count`-only shrink leaves stale bytes → nondeterministic hashes.)
