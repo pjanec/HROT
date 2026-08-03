@@ -1,7 +1,9 @@
 # Architect question #20 — component COLLECTION element WRITE (fixed-capacity, self, unmanaged only)
 
-**Status: 🟡 PENDING architect.** The write counterpart to Q#17/#18 (component collection READ, shipped) and the
-collection-shaped sibling of Q#16 (scalar component WRITE, approved). Gates the Fixed Collections build (FC-0/FC-1).
+**Status: ✅ APPROVED (architect, 2026-08-04) — A1+amendment · B1-as-composed (1-tick lag documented) · C1 ·
+D + G1 accessor mediation; G1–G7 confirmed, FC-1b generator approved.** The write counterpart to Q#17/#18
+(component collection READ, shipped) and the collection-shaped sibling of Q#16 (scalar component WRITE,
+approved). Cleared to build FC-0 → FC-1 → FC-1b.
 See `Blueprint_Fixed_Collections_Design.md` (umbrella) + `Fixed_Collections_RESUME.md`.
 
 ## The need
@@ -343,6 +345,30 @@ public struct PatrolPlan
 
 ## Architect answers (received)
 
-_(pending — Q20-A · Q20-B · Q20-C · Q20-D; the review pass above records Claude-as-architect verdicts G1–G7
-for the NotebookLM pass to confirm or override; the G1 resolution + build-order deltas are recorded as design
-decisions with the user, 2026-08-04)_
+*(NotebookLM architect pass, 2026-08-04, relayed by the user — the review-pass verdicts G1–G7 and the G1
+resolution were reviewed and confirmed wholesale. Caveat noted by the user: the architect is itself an AI
+reading the docs/code; its restatements were cross-checked against the code before recording. One
+doc-inconsistency surfaced by the cross-check: `Blueprint_List_Variables_Design.md` §3 still carried the
+pre-review `SizeReliable=true` — now annotated as superseded by its §F3.)*
+
+- **Q20-A — A1 + amendment APPROVED.** Component-level `[BlueprintWritable]` gate; field-level curation (A2)
+  falls out for free from accessor mediation — an author who provides no write accessors for a system-owned
+  sequence has kept it read-only.
+- **Q20-B / G2 — CONFIRMED as analyzed.** The composition reality is `BlueprintTickSystem` runs **after** the
+  dispatchers (array order), so the actual contract today is **write-visible-next-tick** (1-tick lag).
+  Document that as the contract, unless the `bpTick` splice is fixed as part of the FC-1 gate (choice left to
+  FC-1).
+- **Q20-C — C1 APPROVED.** `ManagedMember` collections strictly read-only from blueprints; write nodes bound
+  to a managed collection rejected at validate-time (per-field managed mutation corrupts snapshots via
+  reference aliasing — Q#16); managed mutation only via whole-component ECB replace.
+- **Q20-D + G1 — APPROVED.** The 6-op family, write-if-present, false-on-overflow. **Strictly enforced:** raw
+  element mutation and `[InlineArray]` Span casts stay OFF-graph — the emitter outputs curated write-accessor
+  calls (`Ops.Add(ref __wc, v)`), and the `Span<T>` trap mitigation lives exclusively inside the accessors.
+  **FC-1b `[BlueprintCollectionField]` source generator APPROVED** (freestanding static class in a new file —
+  avoids the constraint that blocked generating the struct type).
+- **G3 — MANDATED.** Validate-time diagnostic (starting as a warning) flagging a collection-write node
+  targeting the same component+field inside a `ForEach` body over that collection.
+- **G4 — MANDATED.** Writes use the **collection in-pin** (UX symmetry with reads); validate-time enforces the
+  producer's `Target` is unwired (self-only).
+- **G6 — PINNED for ALL homes.** Universal zeroing invariant: slots `>= Count` are always `default(T)`;
+  `RemoveAt`/`Clear`/`Resize`-shrink zero vacated slots immediately; grow never fills.

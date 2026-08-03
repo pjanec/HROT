@@ -62,7 +62,9 @@ struct __List_{Elem}_{N} { public int Count; public __Buf_{Elem}_{N} Items; }
 - **`BlueprintTypeRef`** (asset) gains a list shape. Proposal: reuse `IsArray=true` + `GenericArgs=[elementType]`
   and a **new `Capacity` int** (0/absent ⇒ not a fixed list). `TypeId` names the element or a synthetic list id.
 - **`IrTypeRef`** (IR) gains `Capacity` (and keeps `ElementType`). A fixed-list resolves
-  `IsUnmanaged = elementIsUnmanaged`, `SizeBytes = §2 formula`, `SizeReliable = true`.
+  `IsUnmanaged = elementIsUnmanaged`, `SizeBytes = §2 formula`, ~~`SizeReliable = true`~~
+  **`SizeReliable = false` — SUPERSEDED by Review §F3** (the alignment heuristic over-pads composite types;
+  `false` forces the runtime `Marshal.OffsetOf` layout path, which is the safety net).
 - **`StaticTypeRegistry.TryResolve`**: new branch — when `Capacity > 0` and the element resolves unmanaged,
   return the list `IrTypeRef` (unmanaged, real size). This is what lets it **pass BP1503** (unlike a plain `T[]`,
   which stays `IsUnmanaged=false, SizeBytes=0`). Element must itself be unmanaged, else BP1503 fires on the element.

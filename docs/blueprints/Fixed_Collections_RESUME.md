@@ -84,19 +84,17 @@ under-designed**. Headlines (full detail + deltas in `Blueprint_Fixed_Collection
   build the DebugProbe overflow hook in FC-0.
 
 ## Immediate next step (at resume)
-1. **✅ WRITTEN + REVIEWED — `Architect_Question_20_Component_Collection_Write.md`.** A Claude-as-architect
-   review pass (2026-08-04, on `claude/reset-from-blueprint-1t6cq8`) recorded verdicts + gaps **G1–G7** in the
-   doc and the resolutions were folded into the designs (umbrella §"Decisions folded" + Q#20 §"G1 resolution" +
-   List-Variables/Q#19 zeroing amendments). Headlines: write emit is **accessor-mediated**
-   (`[BlueprintCollectionWrite]` statics; Span pattern lives in accessors) with an **FC-1b source generator**
-   (`[BlueprintCollectionField]`, opt-in per field); **tail-always-default zeroing invariant** for all homes;
-   collection **in-pin** write binding + producer self-check; the `[UpdateBefore]` dispatcher ordering is NOT
-   delivered by the current editor compositions (G2 — FC-1 gate: fix splice or composition test); FC-0 reference
-   must be `[InlineArray]`-backed (G7). **NotebookLM architect pass still pending** to confirm/override
-   Q20-A/B/C/D + G1–G7.
-2. ~~Decide `GetShared`/`Parameters` scope~~ **DECIDED (G-review):** OUT v1 + explicit validate-time rejection
-   diagnostic. Remaining: decide parked PR timing.
-3. Then set up `Blueprint_Fixed_Collections_TASK_TRACKER.md` and build: **FC-0** (convention + `[InlineArray]`
+1. **✅ Q#20 APPROVED (architect, 2026-08-04).** The Claude-as-architect review pass (G1–G7 + G1 resolution,
+   on `claude/reset-from-blueprint-1t6cq8`) was confirmed wholesale by the NotebookLM architect: A1+amendment ·
+   1-tick-lag documented as the B contract (fix-the-splice left as an FC-1 choice) · C1 · D with strict
+   accessor mediation · FC-1b generator approved · G3 validator + G4 in-pin + G6 universal invariant mandated.
+   All rulings recorded in the Q#20 doc; resolutions folded into umbrella §"Decisions folded", List-Variables
+   (Span-form emits, zeroing, §3 `SizeReliable=false` annotation), Q#19 (zeroing supersession).
+   **FC-0/FC-1/FC-1b are cleared to build.**
+2. ~~Decide `GetShared`/`Parameters` scope~~ **DECIDED:** OUT v1 + explicit validate-time rejection
+   diagnostic. Remaining open: parked-PR timing; the FC-1 G2 choice (fix `bpTick` splice vs document 1-tick
+   lag + composition test).
+3. Next: set up `Blueprint_Fixed_Collections_TASK_TRACKER.md` and build: **FC-0** (convention + `[InlineArray]`
    reference + round-trip test + invariant + DebugProbe overflow) → **FC-1** (component write nodes + G2/G3/G4
    gates) → **FC-1b** (ops generator) → blueprint-var writes (independent) → action-DTO.
 
