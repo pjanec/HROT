@@ -15,7 +15,7 @@ Stage5 lowering + emit + validator work done and reviewed hands-on. **Gate (ever
 |---|-------|-------|--------|
 | FC-0 | Runtime foundation: write-accessor convention + reference impls + probe hook + gates | component home | ✅ |
 | FC-1·C | Write compiler spine: node + Stage0 pins + **IR op family** + Stage5 + emit + Stage2 gates (G3/G4/managed/BP-writable-structural) | component home | ✅ |
-| FC-1·E | Write editor: reflector write-accessor discovery, palette (two-gate filter), drawer, wire-bake, demo bp | component home | ⬜ |
+| FC-1·E | Write editor: reflector write-accessor discovery, palette (two-gate filter), drawer, wire-bake, demo bp | component home | ✅ |
 | FC-1·G2 | Tick-order: fix the `bpTick` splice (preferred) or pin 1-tick lag + composition-order test | composition | ⬜ |
 | FC-1b | `[BlueprintCollectionField]` Roslyn source generator emitting `{Component}CollectionOps` from the FC-0 template | tooling | ⬜ |
 | FC-2 | Blueprint-variable collection (List Variables LV-1…LV-5; independent of FC-1) | blackboard home | ⬜ |
@@ -83,4 +83,24 @@ tests pin the measured behavior so any future compiler change fails loudly
   for the coverage gate)
 - **Gate:** clean build · 20/20 new tests · full Blueprints suite green · Generators 184/184 serial byte-identical.
 
-### FC-1·E / FC-1·G2 / FC-1b / FC-2 / FC-3 — see the umbrella §Sequencing (details filled in when the batch starts)
+### FC-1·E — Write editor · ✅ (2026-08-04)
+- [x] `ComponentFieldReflector`: `IsWritableComponent` (gate 1 — `[BlueprintWritable]`) +
+  `TryReflectWriteAccessors(componentFqn, name)` (gate 2 — `[BlueprintCollectionWrite]` statics keyed by the
+  asset-side `CollectionWriteOp`, per-op signature validation incl. writable-`ref`-receiver; partial sets legal)
+- [x] `ComponentPaletteEntries.CollectionWriteEntries` — six static no-picker entries
+  ("Add/Set At/Insert At/Remove At/Clear/Resize (Collection)") + bootstrap registration
+- [x] `NodePinSchema.CollectionWritePins` — exact Stage0 parity (per-op operand pins, System.Object fallback)
+- [x] `BlueprintCommandSink.TryBakeCollectionConsumer` extended: bakes
+  ComponentTypeFqn/WriteAccessorFqn/ElementTypeFqn only when gate 0 (not ManagedMember, Q#20-C) + gate 1 +
+  gate 2 (op accessor exists) all pass; refused wire stays unbaked → canvas error + BP2067
+- [x] `BlueprintNodeModel`: verb titles ("Set At [BpFixedListDemo]" / "Set At (Collection)" unbaked),
+  bake-incomplete + stale-component `NodeState.Error`, `VariableSet` category; `BlueprintGraphModel`
+  wired-flag extended
+- [x] Tests (18): per-op pin parity vs Stage0 + fallback · write-accessor discovery on BOTH FC-0 reference ops
+  classes · gate-1 check (BpCollectionDemo: accessors present, not writable) · sink bake + two refusal cases
+  (non-writable, ManagedMember) · title/state model cases
+- **Not done (deliberate):** no Details-panel drawer (consumers precedent — nothing to pick, wire-bake only);
+  demo `.bp.json` deferred to the FC-1 wrap-up alongside a runtime end-to-end proof.
+- **Gate:** clean build · 38/38 CollectionWrite tests · full suite failures unchanged from base · 184/184 goldens.
+
+### FC-1·G2 / FC-1b / FC-2 / FC-3 — see the umbrella §Sequencing (details filled in when the batch starts)

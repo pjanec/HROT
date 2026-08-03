@@ -152,6 +152,7 @@ internal static class NodePinSchema
             ComponentItemCountNode cic => ComponentItemCountPins(cic),
             ComponentContainsNode ccn  => ComponentContainsPins(ccn),
             ComponentFindNode cfn      => ComponentFindPins(cfn),
+            CollectionWriteNode cwn    => CollectionWritePins(cwn),
             MakeStructNode msn  => MakeStructPins(msn),
             BreakStructNode bsn => BreakStructPins(bsn),
             SetMembersNode smn  => SetMembersPins(smn),
@@ -879,6 +880,46 @@ internal static class NodePinSchema
             MakeData("Collection", "In",  "System.Object", isArray: true),
             MakeData("Count",      "Out", "System.Int32"),
         };
+    }
+
+    /// <summary>
+    /// CollectionWriteNode (FC-1, Q#20): exec node. EXACT parity with the compiler's
+    /// <c>Stage0_Rehydrate.EnrichCollectionWritePins</c>: exec In/Out + data-in "Collection"
+    /// (IsArray, element-typed from <see cref="CollectionWriteNode.ElementTypeFqn"/>, System.Object
+    /// fallback) + per-<see cref="CollectionWriteNode.Op"/> operand data-ins (Add: Value ·
+    /// SetAt/InsertAt: Index+Value · RemoveAt: Index · Clear: none · Resize: Length) + data-out
+    /// "Ok" (System.Boolean).
+    /// </summary>
+    private static IReadOnlyList<Pin> CollectionWritePins(CollectionWriteNode cwn)
+    {
+        var elemType = string.IsNullOrEmpty(cwn.ElementTypeFqn) ? "System.Object" : cwn.ElementTypeFqn;
+        var pins = new List<Pin>
+        {
+            MakeExec("In", "In"),
+            MakeExec("Out", "Out"),
+            MakeData("Collection", "In", elemType, isArray: true),
+        };
+        switch (cwn.Op)
+        {
+            case CollectionWriteOp.Add:
+                pins.Add(MakeData("Value", "In", elemType));
+                break;
+            case CollectionWriteOp.SetAt:
+            case CollectionWriteOp.InsertAt:
+                pins.Add(MakeData("Index", "In", "System.Int32"));
+                pins.Add(MakeData("Value", "In", elemType));
+                break;
+            case CollectionWriteOp.RemoveAt:
+                pins.Add(MakeData("Index", "In", "System.Int32"));
+                break;
+            case CollectionWriteOp.Clear:
+                break;
+            case CollectionWriteOp.Resize:
+                pins.Add(MakeData("Length", "In", "System.Int32"));
+                break;
+        }
+        pins.Add(MakeData("Ok", "Out", "System.Boolean"));
+        return pins;
     }
 
     /// <summary>

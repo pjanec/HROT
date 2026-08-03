@@ -166,6 +166,12 @@ public static class BlueprintEditorBootstrap
         foreach (var descriptor in ComponentPaletteEntries.ConsumerEntries())
             registry.Register(descriptor);
 
+        // FC-1 (Q#20): register the six static collection WRITE entries (Add/SetAt/InsertAt/
+        // RemoveAt/Clear/Resize). Same no-picker wire-bake shape as the consumers; the two
+        // writability gates act at wire time in BlueprintCommandSink.
+        foreach (var descriptor in ComponentPaletteEntries.CollectionWriteEntries())
+            registry.Register(descriptor);
+
         return registry;
     }
 

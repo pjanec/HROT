@@ -506,7 +506,7 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             return;
 
         var consumerNode = _graph.Nodes.FirstOrDefault(n => n.Id == toPin.OwnerNodeId.Value);
-        if (consumerNode is not (ComponentForEachNode or ComponentItemGetNode or ComponentItemCountNode or ComponentContainsNode or ComponentFindNode))
+        if (consumerNode is not (ComponentForEachNode or ComponentItemGetNode or ComponentItemCountNode or ComponentContainsNode or ComponentFindNode or CollectionWriteNode))
             return;
 
         var sourceNode = _graph.Nodes.FirstOrDefault(n => n.Id == fromPin.OwnerNodeId.Value);
@@ -558,6 +558,26 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
                 cfn.ElementTypeFqn      = decl.ElementTypeId    ?? "";
                 cfn.CollectionKind      = decl.CollectionKind;
                 cfn.CollectionFieldName = decl.CollectionFieldName;
+                break;
+
+            // FC-1 (Q#20): the WRITE node bakes only when BOTH writability gates pass -- otherwise
+            // it deliberately stays unbaked (canvas bake-incomplete error + Stage2 BP2067 flag it;
+            // the "do nothing, other validation handles it" rule this method already follows for a
+            // mismatched wire). Gates: (0) ManagedMember decls are NEVER element-writable (Q#20-C /
+            // BP2068 -- do not bake a shape Stage2 exists to reject); (1) the component carries
+            // [BlueprintWritable] (the same opt-in the SetComponent picker enforces, CA-04);
+            // (2) the op's [BlueprintCollectionWrite] accessor exists for this (component,
+            // collection) -- accessor PRESENCE is the per-field/per-op opt-in (Q#20-A amendment).
+            case CollectionWriteNode cwn:
+                if (decl.CollectionKind == CollectionKind.ManagedMember) return;
+                if (!NodeDrawers.ComponentFieldReflector.IsWritableComponent(gcn.ComponentTypeFqn)) return;
+                var writeOps = NodeDrawers.ComponentFieldReflector.TryReflectWriteAccessors(
+                    gcn.ComponentTypeFqn, decl.Name);
+                if (!writeOps.TryGetValue(cwn.Op, out var writeFqn)) return;
+                cwn.ComponentTypeFqn = gcn.ComponentTypeFqn;
+                cwn.WriteAccessorFqn = writeFqn;
+                cwn.ElementTypeFqn   = decl.ElementTypeId ?? "";
+                cwn.CollectionKind   = CollectionKind.CuratedStatic;
                 break;
         }
     }

@@ -417,6 +417,123 @@ public sealed class BlueprintCommandSinkTests
         Assert.Equal("System.Int32",         baked.ElementTypeFqn);
     }
 
+    // ── AddLink: FC-1 (Q#20) collection-WRITE wire-bake + the two writability gates ──
+
+    private const string WritableComponentFqn = "Hrot.AI.Behaviors.BpFixedListDemo";
+    private const string WritableOpsFqn       = "Hrot.AI.Behaviors.Brains.BpFixedListDemoOps";
+
+    /// <summary>GetComponent producer over the FC-0 `[BlueprintWritable]` + `[InlineArray]` demo ("Items" collection).</summary>
+    private static (GetComponentNode Node, Pin ItemsOut) AddWritableCollectionSource(Graph graph)
+    {
+        var itemsOut = new Pin { Id = Guid.NewGuid(), Name = "Items", Direction = "Out", IsExec = false,
+            TypeRef = new BlueprintTypeRef { TypeId = "System.Int32", IsArray = true } };
+        var node = new GetComponentNode
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = WritableComponentFqn,
+            Fields = new List<ComponentFieldDecl>
+            {
+                new()
+                {
+                    Name             = "Items",
+                    IsCollection     = true,
+                    ElementTypeId    = "System.Int32",
+                    CountAccessorFqn = WritableOpsFqn + ".Count",
+                    ItemAccessorFqn  = WritableOpsFqn + ".Item",
+                },
+            },
+        };
+        node.Pins.Add(itemsOut);
+        graph.Nodes.Add(node);
+        return (node, itemsOut);
+    }
+
+    private static (CollectionWriteNode Node, Pin CollectionIn) AddCollectionWriteNode(
+        Graph graph, CollectionWriteOp op)
+    {
+        var collectionIn = new Pin { Id = Guid.NewGuid(), Name = "Collection", Direction = "In", IsExec = false,
+            TypeRef = new BlueprintTypeRef { TypeId = "System.Object", IsArray = true } };
+        var node = new CollectionWriteNode { Id = Guid.NewGuid(), Op = op };
+        node.Pins.Add(collectionIn);
+        graph.Nodes.Add(node);
+        return (node, collectionIn);
+    }
+
+    [Fact]
+    public void CommandSink_AddLink_WritableCollectionIntoCollectionWrite_BakesOpAccessor()
+    {
+        var (asset, graph) = MakeAssetWithGraph();
+        var (_, itemsOut)  = AddWritableCollectionSource(graph);
+        var (write, collectionIn) = AddCollectionWriteNode(graph, CollectionWriteOp.SetAt);
+
+        var (sink, _, _, _, _, _) = MakeSut(asset, graph);
+        var result = sink.Apply(new GraphCommand.AddLink(
+            new LinkId(Guid.NewGuid()), new PinId(itemsOut.Id), new PinId(collectionIn.Id)));
+
+        Assert.True(result.Success);
+        Assert.Equal(WritableComponentFqn,        write.ComponentTypeFqn);
+        Assert.Equal(WritableOpsFqn + ".SetAt",   write.WriteAccessorFqn);
+        Assert.Equal("System.Int32",              write.ElementTypeFqn);
+        Assert.Equal(CollectionKind.CuratedStatic, write.CollectionKind);
+    }
+
+    [Fact]
+    public void CommandSink_AddLink_NonWritableComponentIntoCollectionWrite_RefusesBake()
+    {
+        // Gate 1 (Q#20-A): BpCollectionDemo SHIPS write accessors (the FC-0 fixed-buffer reference
+        // set) but is deliberately NOT [BlueprintWritable] -- the wire must land, the bake must not.
+        var (asset, graph) = MakeAssetWithGraph();
+        var (_, valuesOut) = AddGetComponentCollectionNode(graph);   // BpCollectionDemo producer
+        var (write, collectionIn) = AddCollectionWriteNode(graph, CollectionWriteOp.Add);
+
+        var (sink, _, _, _, _, _) = MakeSut(asset, graph);
+        var result = sink.Apply(new GraphCommand.AddLink(
+            new LinkId(Guid.NewGuid()), new PinId(valuesOut.Id), new PinId(collectionIn.Id)));
+
+        Assert.True(result.Success);                       // the LINK itself is legal
+        Assert.Equal("", write.ComponentTypeFqn);          // ... but nothing baked
+        Assert.Equal("", write.WriteAccessorFqn);
+    }
+
+    [Fact]
+    public void CommandSink_AddLink_ManagedMemberCollectionIntoCollectionWrite_RefusesBake()
+    {
+        // Gate 0 (Q#20-C): a ManagedMember decl is never element-writable -- refuse before either
+        // writability gate is even consulted.
+        var (asset, graph) = MakeAssetWithGraph();
+        var membersOut = new Pin { Id = Guid.NewGuid(), Name = "MemberIds", Direction = "Out", IsExec = false,
+            TypeRef = new BlueprintTypeRef { TypeId = "System.Int32", IsArray = true } };
+        var producer = new GetComponentNode
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = "Hrot.AI.Behaviors.BpManagedCollectionDemo",
+            IsManaged        = true,
+            Fields = new List<ComponentFieldDecl>
+            {
+                new()
+                {
+                    Name                = "MemberIds",
+                    IsCollection        = true,
+                    ElementTypeId       = "System.Int32",
+                    CollectionKind      = CollectionKind.ManagedMember,
+                    CollectionFieldName = "MemberIds",
+                },
+            },
+        };
+        producer.Pins.Add(membersOut);
+        graph.Nodes.Add(producer);
+        var (write, collectionIn) = AddCollectionWriteNode(graph, CollectionWriteOp.Add);
+
+        var (sink, _, _, _, _, _) = MakeSut(asset, graph);
+        var result = sink.Apply(new GraphCommand.AddLink(
+            new LinkId(Guid.NewGuid()), new PinId(membersOut.Id), new PinId(collectionIn.Id)));
+
+        Assert.True(result.Success);
+        Assert.Equal("", write.ComponentTypeFqn);
+        Assert.Equal("", write.WriteAccessorFqn);
+        Assert.Equal(CollectionKind.CuratedStatic, write.CollectionKind);   // untouched default
+    }
+
     // ── AddLink: CA-07d-2 managed-member wire-bake (TryBakeCollectionConsumer) ────
 
     private const string ManagedCollectionComponentFqn = "Hrot.AI.Behaviors.BpManagedCollectionDemo";

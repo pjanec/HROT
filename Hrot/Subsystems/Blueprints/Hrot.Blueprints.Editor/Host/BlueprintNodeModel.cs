@@ -126,7 +126,8 @@ internal sealed class BlueprintNodeModel : INodeModel
                        or Hrot.Blueprints.Core.Assets.ComponentItemGetNode
                        or Hrot.Blueprints.Core.Assets.ComponentItemCountNode
                        or Hrot.Blueprints.Core.Assets.ComponentContainsNode
-                       or Hrot.Blueprints.Core.Assets.ComponentFindNode)
+                       or Hrot.Blueprints.Core.Assets.ComponentFindNode
+                       or Hrot.Blueprints.Core.Assets.CollectionWriteNode)
                  && IsUnresolvedComponent(CollectionConsumerComponentTypeFqn(node)))
         {
             State = NodeState.Error;
@@ -160,6 +161,7 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.ComponentItemCountNode cic => cic.ComponentTypeFqn,
         Hrot.Blueprints.Core.Assets.ComponentContainsNode ccn  => ccn.ComponentTypeFqn,
         Hrot.Blueprints.Core.Assets.ComponentFindNode cfn      => cfn.ComponentTypeFqn,
+        Hrot.Blueprints.Core.Assets.CollectionWriteNode cwn    => cwn.ComponentTypeFqn,
         _ => "",
     };
 
@@ -184,7 +186,24 @@ internal sealed class BlueprintNodeModel : INodeModel
             string.IsNullOrEmpty(ccn.ComponentTypeFqn) || string.IsNullOrEmpty(ccn.CountAccessorFqn) || string.IsNullOrEmpty(ccn.ItemAccessorFqn),
         Hrot.Blueprints.Core.Assets.ComponentFindNode cfn =>
             string.IsNullOrEmpty(cfn.ComponentTypeFqn) || string.IsNullOrEmpty(cfn.CountAccessorFqn) || string.IsNullOrEmpty(cfn.ItemAccessorFqn),
+        // FC-1 (Q#20): the WRITE node needs ComponentTypeFqn + its op's WriteAccessorFqn. Also the
+        // canvas-visible signal when the wire-bake REFUSED a non-writable/managed/accessor-less
+        // target (TryBakeCollectionConsumer's two gates) -- the wire exists, the bake doesn't.
+        Hrot.Blueprints.Core.Assets.CollectionWriteNode cwn =>
+            string.IsNullOrEmpty(cwn.ComponentTypeFqn) || string.IsNullOrEmpty(cwn.WriteAccessorFqn),
         _ => false,
+    };
+
+    /// <summary>FC-1 (Q#20): the designer-facing verb for a collection write op (title use).</summary>
+    private static string CollectionWriteVerb(Hrot.Blueprints.Core.Assets.CollectionWriteOp op) => op switch
+    {
+        Hrot.Blueprints.Core.Assets.CollectionWriteOp.Add      => "Add",
+        Hrot.Blueprints.Core.Assets.CollectionWriteOp.SetAt    => "Set At",
+        Hrot.Blueprints.Core.Assets.CollectionWriteOp.InsertAt => "Insert At",
+        Hrot.Blueprints.Core.Assets.CollectionWriteOp.RemoveAt => "Remove At",
+        Hrot.Blueprints.Core.Assets.CollectionWriteOp.Clear    => "Clear",
+        Hrot.Blueprints.Core.Assets.CollectionWriteOp.Resize   => "Resize",
+        _ => "Collection Write",
     };
 
     /// <summary>
@@ -267,6 +286,11 @@ internal sealed class BlueprintNodeModel : INodeModel
         // CONSUMER nodes above.
         Hrot.Blueprints.Core.Assets.ComponentContainsNode ccn   => string.IsNullOrEmpty(ccn.ComponentTypeFqn) ? "Contains"                 : $"Contains [{ShortTypeName(ccn.ComponentTypeFqn)}]",
         Hrot.Blueprints.Core.Assets.ComponentFindNode cfn       => string.IsNullOrEmpty(cfn.ComponentTypeFqn) ? "Find"                     : $"Find [{ShortTypeName(cfn.ComponentTypeFqn)}]",
+        // FC-1 (Q#20): same wire-baked "generic verb until wired" convention -- the op is the verb,
+        // the component identity lands in brackets once the wire bakes it.
+        Hrot.Blueprints.Core.Assets.CollectionWriteNode cwn     => string.IsNullOrEmpty(cwn.ComponentTypeFqn)
+            ? $"{CollectionWriteVerb(cwn.Op)} (Collection)"
+            : $"{CollectionWriteVerb(cwn.Op)} [{ShortTypeName(cwn.ComponentTypeFqn)}]",
         // Punch-list #1/#5/#8: show the node's own DATA in the body instead of the generic "Value"
         // pin label — the literal's value, the parameter's name, the compare/arith/bool operator.
         // Punch-list: the parameter NAME is shown on the output pin (render-only display label in
@@ -328,6 +352,8 @@ internal sealed class BlueprintNodeModel : INodeModel
         // CA-07d-1: Contains/Find are pure-data search reads, same category as ItemGet/ItemCount.
         Hrot.Blueprints.Core.Assets.ComponentContainsNode    => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.ComponentFindNode        => NodeCategory.Pure,
+        // FC-1 (Q#20): CollectionWrite is an exec write node, the collection analog of SetComponent.
+        Hrot.Blueprints.Core.Assets.CollectionWriteNode      => NodeCategory.VariableSet,
         Hrot.Blueprints.Core.Assets.LiteralNode              => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.GetParameterNode         => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.GetAllParametersNode     => NodeCategory.Pure,
