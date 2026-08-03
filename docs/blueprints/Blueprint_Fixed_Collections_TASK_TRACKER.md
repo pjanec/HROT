@@ -143,4 +143,58 @@ scalar writes were approved on the same-tick fact too — this restores their co
 - **Gate:** clean builds (analyzers + AI.Behaviors with generator active) · 13/13 new tests · full suite
   failure set unchanged · goldens 184/184.
 
-### FC-2 / FC-3 — see the umbrella §Sequencing (details filled in when the batch starts)
+### FC-2 — Blueprint-variable collection (List Variables LV-1…LV-6) · 🔧 (started 2026-08-04)
+
+Design: `Blueprint_List_Variables_Design.md` (+ its Review deltas F1–F8 and "Revised sequencing"). Pre-existing
+suite failures were fixed first (suite fully green at FC-2 start: 2483/0).
+
+**LV-1a — Instance-side foundation · ✅ (2026-08-04).** Shipped: `BlueprintTypeRef.Capacity/InitialLength`
+(JSON-additive) · `IrTypeRef.Capacity/InitialLength` · `StaticTypeRegistry` list branch (unmanaged element only,
+computed size, `SizeReliable=false`, `__List_{Elem}_{N}` FullName) · `InstanceEmitter.EmitListWrappers`
+(per-class nested `[InlineArray]` buffer + wrapper, deduped per (elem,N)) + State field + `InitDefault`
+`Count = L` seeding · BP1504 (InitialLength ∉ [0,Capacity]) · **plus a latent-hazard fix found while testing:**
+`CSharpEmitter.layoutFromRuntime` only scanned descriptor-VISIBLE fields, but a synthesized `__List_…` field is
+descriptor-excluded while still occupying unreliable bytes — a scalar declared AFTER a list kept its wrong baked
+offset; the scan now covers ALL variables. 7 tests (`ListVariableFoundationTests`): resolve sizes incl.
+non-8-aligned element · managed-element rejection · BP1504 · emitted wrapper/seed/runtime-layout assertions ·
+full Roslyn+ALC `Marshal.OffsetOf`/`SizeOf` round-trip + `InitDefault` seed via Span delegate (the F3 gate).
+Suite 2490/0 · goldens 184/184.
+
+**LV-1 remaining notes.** Scouted facts (verified in code, 2026-08-04):
+- `BlueprintTypeRef` (`Assets/Declarations.cs:40`): gains `Capacity` + `InitialLength` (int, JSON-ignored when 0;
+  discriminator is `Capacity`, NOT `IsArray` — F7).
+- `IrTypeRef`: gains `Capacity` (+ carry `InitialLength`); element rides the existing `ElementType`.
+- `StaticTypeRegistry.TryResolve` (`:106`): new `Capacity > 0` branch BEFORE the IsArray branch — resolve element
+  as scalar, require unmanaged + element.Capacity==0 (nested lists forbidden), size =
+  `alignUp(alignUp(4, elemAlign) + N*elemSize, max(4, elemAlign))`, `SizeReliable=false` (F3),
+  `FullName = "__List_{San(elemFullName)}_{N}"` ('.'/'+'→'_').
+- `TypeRefToCSharp` (`StatementEmitter.cs:1430`) already routes `_`-prefixed FullNames as local generated types
+  (bare name) — the per-class nested wrapper (F4) needs NO emit change for State-internal use. ⚠ PITFALL: the
+  `StateFields` descriptor emission (`CSharpEmitter.cs:356-369`) writes `typeof({csharpType})` in the REGISTRATION
+  context — a nested wrapper must be qualified `{className}.__List_…` there (check whether registration is inside
+  the class; `typeof({className}.State)` at `:346` suggests qualification IS needed).
+- Wrapper emit site: `InstanceEmitter.EmitStateStruct` (`:102`) — emit deduped per-(elem,N) nested
+  `[InlineArray(N)] __Buf_{San}_{N}` + `[StructLayout(Sequential)] __List_{San}_{N} { public int Count; public __Buf… Items; }`
+  before `struct State`; State field emission (`:110`) works unchanged via `CSharpType`.
+- InitialLength seeding: `InstanceEmitter.EmitInitDefault` (`:126`) — after `s = default;`, emit
+  `s.{Name}.Count = L;` for list vars with `InitialLength > 0`.
+- Layout: `FieldLayout` (`Lowering/FieldLayout.cs`) keys alignment off SizeBytes (heuristic, over-pads) — fine
+  because `SizeReliable=false` already flips `CSharpEmitter.cs:356` `layoutFromRuntime` → `Marshal.OffsetOf` +
+  `Unsafe.SizeOf` (the F3 safety net; NO new mechanism needed).
+- Diagnostics: new `BP1504` (InitialLength out of `[0, Capacity]` / Capacity < 0) in Stage4's
+  `ResolveFieldTypes(VariableDecl)`; element-managed simply fails resolve → existing BP1500. The
+  forbid-list-on-generic-pins / cross-boundary / whole-list-clone gates need the LV-2/3 pin surfaces — deferred
+  there (recorded, not dropped).
+- **Scope split:** LV-1a = Instance `State` path (InitDefault always runs — F2-safe). LV-1b = AiPrimitive
+  `WorkingState` (AiPrimitiveEmitter) + the F2 init-on-all-attach-paths engine fix
+  (`BehaviorIngressSystem.AttachSlotsToMemory` + `InlineActionLowering`) — do NOT ship WorkingState lists before
+  that fix (garbage-Count OOB hazard; the defensive clamp lands with the LV-2/3 accessors).
+- Gate: registry unit tests (size/align incl. non-8-aligned element, e.g. short×3 → 12B) + full Roslyn
+  compile+load of a list-var asset + emitted-source assertions (wrapper, State field, `Count = L` seed,
+  `Marshal.OffsetOf` fallback in StateFields) + 184/184 goldens.
+
+**LV-2…LV-6** per the design's Revised sequencing (read via Kind-aware consumers + `ref`-bind/snapshot-bound/
+per-iter clamp · write nodes via `IrOp_ListWrite` + DebugProbe overflow (reuse FC-0's
+`CollectionWriteFailed`) · declare-UX · debugger visibility · demo/docs).
+
+### FC-3 — see the umbrella §Sequencing (details filled in when the batch starts)

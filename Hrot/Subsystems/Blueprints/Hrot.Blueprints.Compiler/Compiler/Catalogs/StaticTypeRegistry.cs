@@ -105,6 +105,44 @@ public sealed class StaticTypeRegistry : ITypeRegistry
 
     public bool TryResolve(BlueprintTypeRef typeRef, out IrTypeRef irType)
     {
+        // FC-2/LV-1 (Q#19-B): fixed-capacity list variable. Capacity -- not IsArray -- is the list
+        // discriminator (review F7). The element must itself resolve UNMANAGED (a managed element
+        // fails resolve -> the standard BP1500 unresolvable-type path; Q#19 settled: no managed
+        // elements, ever) and must not itself be a list (nested lists forbidden -- open point #5).
+        // The resolved type is the per-class generated `__List_{Elem}_{N}` wrapper: genuinely
+        // unmanaged with a REAL computed size (so it passes BP1503 and participates in the tier
+        // budget), but SizeReliable=false (review F3: the SizeBytes-keyed alignment heuristic
+        // over-pads composite types, so state layout must use the runtime Marshal.OffsetOf path --
+        // CSharpEmitter's layoutFromRuntime fallback).
+        if (typeRef.Capacity > 0)
+        {
+            if (typeRef.IsArray) { irType = null!; return false; }   // list-of-array is not a shape
+            var elementRef = new BlueprintTypeRef { TypeId = typeRef.TypeId };
+            if (!TryResolve(elementRef, out var elem) || !elem.IsUnmanaged || elem.Capacity > 0
+                || elem.SizeBytes <= 0)
+            {
+                irType = null!;
+                return false;
+            }
+
+            int n         = typeRef.Capacity;
+            int elemAlign = elem.SizeBytes switch { 1 => 1, 2 => 2, <= 4 => 4, _ => 8 };
+            int header    = AlignUp(4, elemAlign);                    // int Count + pad to element
+            int size      = AlignUp(header + n * elem.SizeBytes, Math.Max(4, elemAlign));
+
+            irType = new IrTypeRef
+            {
+                FullName      = $"__List_{Sanitize(elem.FullName)}_{n}",
+                IsUnmanaged   = true,
+                SizeBytes     = size,
+                SizeReliable  = false,   // F3: runtime Marshal.OffsetOf layout, never baked offsets
+                Capacity      = n,
+                InitialLength = typeRef.InitialLength,
+                ElementType   = elem,
+            };
+            return true;
+        }
+
         if (typeRef.IsArray)
         {
             // Resolve element type first.
@@ -174,4 +212,11 @@ public sealed class StaticTypeRegistry : ITypeRegistry
         IsUnmanaged = true,
         SizeBytes   = sizeBytes,
     };
+
+    /// <summary>FC-2/LV-1: element FQN → wrapper-name segment ('.'/'+' → '_', e.g. "System.Int32" → "System_Int32").</summary>
+    private static string Sanitize(string fullName)
+        => fullName.Replace('.', '_').Replace('+', '_');
+
+    private static int AlignUp(int offset, int align)
+        => (offset + align - 1) & ~(align - 1);
 }

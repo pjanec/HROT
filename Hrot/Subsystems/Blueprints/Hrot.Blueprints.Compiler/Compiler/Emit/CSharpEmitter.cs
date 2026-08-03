@@ -353,13 +353,24 @@ internal sealed class CSharpEmitter
             // a project struct accepted via the AN2 fallback (size unknown to the reflection-less compiler),
             // the baked offsets of later fields are wrong — so emit offset/size via a RUNTIME query against
             // the real generated State layout (Marshal.OffsetOf<State> + Unsafe.SizeOf<T>). Q#14 Option B.
-            bool layoutFromRuntime = emittableVariables.Any(f => !f.Type.SizeReliable);
+            // FC-2/LV-1: scan ALL variables, not just the emittable (descriptor-visible) subset -- a
+            // synthesized `__List_…` field is EXCLUDED from StateFields (IsReferencableStateFieldType;
+            // debugger visibility lands in LV-5) but still occupies state bytes with an unreliable
+            // computed size, so any SCALAR field declared after it has a wrong baked offset and must
+            // take the runtime Marshal.OffsetOf path too.
+            bool layoutFromRuntime = asset.Variables.Any(f => !f.Type.SizeReliable);
             WriteLine("StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)");
             WriteLine("{");
             Indent();
             foreach (var f in emittableVariables)
             {
+                // FC-2/LV-1: a fixed-list field's type is the PER-CLASS nested wrapper
+                // (`__List_{Elem}_{N}`) -- this registration block runs OUTSIDE the class (note the
+                // `typeof({className}.State)` above), so the bare local name TypeRefToCSharp emits
+                // must be qualified here.
                 var csharpType = StatementEmitter.TypeRefToCSharp(f.Type);
+                if (f.Type.Capacity > 0)
+                    csharpType = $"{className}.{csharpType}";
                 string offset = layoutFromRuntime
                     ? $"(int)global::System.Runtime.InteropServices.Marshal.OffsetOf<{className}.State>(\"{f.Name}\")"
                     : f.Offset.ToString();
