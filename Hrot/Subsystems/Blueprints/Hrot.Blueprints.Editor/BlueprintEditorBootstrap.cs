@@ -172,6 +172,11 @@ public static class BlueprintEditorBootstrap
         foreach (var descriptor in ComponentPaletteEntries.CollectionWriteEntries())
             registry.Register(descriptor);
 
+        // FC-2/LV-3: register the six fixed-list VARIABLE write entries (same six verbs, bound
+        // to a declared list variable via VariableId instead of a wired component collection).
+        foreach (var descriptor in ComponentPaletteEntries.ListWriteEntries())
+            registry.Register(descriptor);
+
         return registry;
     }
 

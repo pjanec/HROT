@@ -153,6 +153,7 @@ internal static class NodePinSchema
             ComponentContainsNode ccn  => ComponentContainsPins(ccn),
             ComponentFindNode cfn      => ComponentFindPins(cfn),
             CollectionWriteNode cwn    => CollectionWritePins(cwn),
+            ListWriteNode lwn          => ListWritePins(lwn, asset),
             MakeStructNode msn  => MakeStructPins(msn),
             BreakStructNode bsn => BreakStructPins(bsn),
             SetMembersNode smn  => SetMembersPins(smn),
@@ -935,6 +936,39 @@ internal static class NodePinSchema
                 break;
         }
         pins.Add(MakeData("Ok", "Out", "System.Boolean"));
+        return pins;
+    }
+
+    /// <summary>
+    /// ListWriteNode (FC-2/LV-3): EXACT parity with the compiler's
+    /// <c>Stage0_Rehydrate.EnrichListWritePins</c> -- see that method's doc comment.
+    /// </summary>
+    private static IReadOnlyList<Pin> ListWritePins(ListWriteNode lwn, BlueprintAsset? asset)
+    {
+        var decl = FindVariableDecl(lwn.VariableId, asset);
+        var elemType = decl is { Type.Capacity: > 0 } ? decl.Type.TypeId : "System.Object";
+        var pins = new List<Pin> { MakeExec("In", "In"), MakeExec("Out", "Out") };
+        switch (lwn.Op)
+        {
+            case CollectionWriteOp.Add:
+                pins.Add(MakeData("Value", "In", elemType));
+                break;
+            case CollectionWriteOp.SetAt:
+            case CollectionWriteOp.InsertAt:
+                pins.Add(MakeData("Index", "In", "System.Int32"));
+                pins.Add(MakeData("Value", "In", elemType));
+                break;
+            case CollectionWriteOp.RemoveAt:
+                pins.Add(MakeData("Index", "In", "System.Int32"));
+                break;
+            case CollectionWriteOp.Clear:
+                break;
+            case CollectionWriteOp.Resize:
+                pins.Add(MakeData("Length", "In", "System.Int32"));
+                break;
+        }
+        if (lwn.Op != CollectionWriteOp.Clear)
+            pins.Add(MakeData("Ok", "Out", "System.Boolean"));
         return pins;
     }
 

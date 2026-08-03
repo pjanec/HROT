@@ -42,6 +42,7 @@ internal static class Stage2_Validate
         new V_SpawnEqsSensorNodeRules(),
         new V_SharedStateRules(),
         new V_ComponentAccessRules(),
+        new V_ListVariableRules(),
         new V_FunctionGraphCallRules(),
         new V_ExecOutFanOut(),
     };
@@ -1607,6 +1608,145 @@ internal sealed class V_ComponentAccessRules : IValidator
                 $"managed consumer (e.g. a library/function call) -- wiring it into {sink!.GetType().Name} " +
                 "would persist it, which Rule G1 (Q#15) forbids.",
                 asset.AssetId, graph.Id, gcn.Id, link.FromPinId));
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// V_ListVariableRules  (FC-2/LV-3 -- BP1505/BP1506: fixed-list variable rules)
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// FC-2/LV-3 -- rules for FIXED-LIST variables (BlueprintTypeRef.Capacity &gt; 0).
+///
+/// BP1505 -- a <see cref="ListWriteNode"/> whose VariableId does not resolve to a declared
+/// fixed-list variable (empty binding is flagged only when the node is exec-wired into a
+/// chain -- an unbound palette drop is legitimate not-used-yet authoring, mirroring the
+/// BP2067 wired-gating philosophy).
+///
+/// BP1506 -- a fixed-list variable's <see cref="GetVariableNode"/> "Value" output wired to a
+/// pin that cannot accept a whole list. The blittable wrapper struct is NOT a general value:
+/// only the collection consumers' "Collection" in-pin reads it (by producer resolution), and
+/// the ONE whole-value exception is <see cref="SetVariableNode"/> targeting an IDENTICAL-shape
+/// fixed-list variable (same element TypeId, same Capacity) -- the whole-list clone, which
+/// lowers to flat struct copies. Everything else (generic math/compare pins, function args,
+/// a component CollectionWriteNode, a shape-mismatched SetVariable) is rejected here rather
+/// than failing obscurely at Stage4/emit.
+/// </summary>
+internal sealed class V_ListVariableRules : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        foreach (var graph in asset.Graphs)
+        {
+            foreach (var node in graph.Nodes)
+            {
+                switch (node)
+                {
+                    case ListWriteNode lwn:
+                        CheckListWriteTarget(lwn, graph, asset, ctx);
+                        break;
+                    case GetVariableNode gv when ResolveListDecl(asset, gv.VariableId) is { } listDecl:
+                        CheckListValueWires(gv, listDecl, graph, asset, ctx);
+                        break;
+                }
+            }
+        }
+    }
+
+    /// <summary>Resolves a variableId ("var:"-prefix tolerated) to a FIXED-LIST decl; else null.</summary>
+    private static VariableDecl? ResolveListDecl(BlueprintAsset asset, string? variableId)
+    {
+        var decl = ResolveAnyDecl(asset, variableId);
+        return decl is { Type.Capacity: > 0 } ? decl : null;
+    }
+
+    private static VariableDecl? ResolveAnyDecl(BlueprintAsset asset, string? variableId)
+    {
+        var vid = variableId ?? "";
+        if (vid.StartsWith("var:", StringComparison.Ordinal)) vid = vid.Substring(4);
+        if (!Guid.TryParse(vid, out var id)) return null;
+        return asset.Variables.FirstOrDefault(v => v.Id == id)
+            ?? asset.WorkingState.FirstOrDefault(v => v.Id == id);
+    }
+
+    private static void CheckListWriteTarget(
+        ListWriteNode lwn, Graph graph, BlueprintAsset asset, ValidationContext ctx)
+    {
+        if (ResolveListDecl(asset, lwn.VariableId) is not null) return;
+
+        bool bound = !string.IsNullOrEmpty(lwn.VariableId);
+        if (!bound)
+        {
+            // Unbound AND out of any exec chain -- a fresh palette drop; stay silent
+            // (Stage5 degrades it to Ok=false).
+            var execIn = lwn.Pins.FirstOrDefault(p => p.IsExec && p.Direction == "In");
+            bool inFlow = execIn is not null && graph.Links.Any(
+                l => l.ToNodeId == lwn.Id && l.ToPinId == execIn.Id);
+            if (!inFlow) return;
+        }
+
+        var scalar = ResolveAnyDecl(asset, lwn.VariableId);
+        string detail = scalar is not null
+            ? $"variable '{scalar.Name}' is not a fixed-list (Capacity == 0)"
+            : bound ? $"VariableId '{lwn.VariableId}' does not resolve to a declared variable"
+                    : "VariableId is empty but the node is wired into an exec chain";
+        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1505,
+            $"{nameof(ListWriteNode)}: write target must be a declared fixed-list variable -- {detail}.",
+            asset.AssetId, graph.Id, lwn.Id));
+    }
+
+    private static void CheckListValueWires(
+        GetVariableNode gv, VariableDecl listDecl, Graph graph, BlueprintAsset asset, ValidationContext ctx)
+    {
+        var outPins = new HashSet<Guid>(
+            gv.Pins.Where(p => !p.IsExec && p.Direction == "Out").Select(p => p.Id));
+
+        foreach (var link in graph.Links)
+        {
+            if (link.FromNodeId != gv.Id || !outPins.Contains(link.FromPinId)) continue;
+
+            var sink = graph.Nodes.FirstOrDefault(n => n.Id == link.ToNodeId);
+            if (sink is null) continue;
+            var toPin = sink.Pins.FirstOrDefault(p => p.Id == link.ToPinId);
+            if (toPin is null || toPin.IsExec) continue;
+
+            // The blessed consumers: the 5 collection readers' "Collection" in-pin.
+            bool isConsumerCollectionPin =
+                sink is ComponentForEachNode or ComponentItemGetNode or ComponentItemCountNode
+                        or ComponentContainsNode or ComponentFindNode
+                && string.Equals(toPin.Name, "Collection", StringComparison.OrdinalIgnoreCase);
+            if (isConsumerCollectionPin) continue;
+
+            // The one whole-value exception: SetVariable onto an IDENTICAL-shape list (clone).
+            if (sink is SetVariableNode svn)
+            {
+                var target = ResolveAnyDecl(asset, svn.VariableId);
+                if (target is not null
+                    && target.Type.Capacity == listDecl.Type.Capacity
+                    && string.Equals(target.Type.TypeId, listDecl.Type.TypeId, StringComparison.Ordinal))
+                {
+                    continue;   // whole-list clone -- lowers to flat struct copies
+                }
+                string shape = target is null
+                    ? "an unresolved variable"
+                    : target.Type.Capacity <= 0
+                        ? $"non-list variable '{target.Name}'"
+                        : $"list '{target.Name}' of different shape " +
+                          $"({target.Type.TypeId}[{target.Type.Capacity}] vs {listDecl.Type.TypeId}[{listDecl.Type.Capacity}])";
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1506,
+                    $"fixed-list variable '{listDecl.Name}' may only be SetVariable-cloned onto an " +
+                    $"identical-shape fixed-list (same element type, same capacity) -- target is {shape}.",
+                    asset.AssetId, graph.Id, gv.Id, link.FromPinId));
+                continue;
+            }
+
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1506,
+                $"fixed-list variable '{listDecl.Name}' wired to {sink.GetType().Name}.\"{toPin.Name}\" -- " +
+                "a fixed-list may only feed a collection consumer's \"Collection\" pin or an " +
+                "identical-shape SetVariable whole-list clone; use the collection nodes " +
+                "(ItemGet/Count/Contains/Find/ForEach/ListWrite) to work with elements.",
+                asset.AssetId, graph.Id, gv.Id, link.FromPinId));
         }
     }
 }

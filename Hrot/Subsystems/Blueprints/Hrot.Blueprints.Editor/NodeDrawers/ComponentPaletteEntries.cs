@@ -203,6 +203,39 @@ public static class ComponentPaletteEntries
         }
     }
 
+    /// <summary>
+    /// FC-2/LV-3 -- Add-Node palette entries for the fixed-list VARIABLE write node, one static
+    /// entry per <see cref="CollectionWriteOp"/> (mirrors <see cref="CollectionWriteEntries"/>'s
+    /// no-picker shape: a default-constructed <see cref="ListWriteNode"/> with empty VariableId,
+    /// bound later in the inspector/variable picker; unbound stays a silent no-op and BP1505
+    /// flags it once it joins an exec chain).
+    /// </summary>
+    public static IEnumerable<NodeKindDescriptor> ListWriteEntries()
+    {
+        (CollectionWriteOp Op, string Kind, string Name, string What)[] ops =
+        {
+            (CollectionWriteOp.Add,      "Variable.List.Add",      "Add (List)",       "Append a value to"),
+            (CollectionWriteOp.SetAt,    "Variable.List.SetAt",    "Set At (List)",    "Overwrite an element of"),
+            (CollectionWriteOp.InsertAt, "Variable.List.InsertAt", "Insert At (List)", "Insert a value into"),
+            (CollectionWriteOp.RemoveAt, "Variable.List.RemoveAt", "Remove At (List)", "Remove an element from"),
+            (CollectionWriteOp.Clear,    "Variable.List.Clear",    "Clear (List)",     "Clear"),
+            (CollectionWriteOp.Resize,   "Variable.List.Resize",   "Resize (List)",    "Set the logical length of"),
+        };
+        foreach (var (op, kind, name, what) in ops)
+        {
+            var bakedOp = op; // capture for the closure
+            yield return new NodeKindDescriptor
+            {
+                Kind           = kind,
+                DisplayName    = name,
+                Category       = BlueprintNodePaletteEntries.Categories.Variables,
+                Tooltip        = $"{what} a fixed-list blueprint variable in place (pick the target list variable; capacity-bounded, Ok=false on overflow/out-of-range).",
+                Icon           = "bp/variable_set",
+                CreateInstance = () => new ListWriteNode { Id = Guid.NewGuid(), Op = bakedOp },
+            };
+        }
+    }
+
     private static List<ComponentFieldDecl> ToComponentFields(IReadOnlyList<ReflectedComponentField> reflected)
         => reflected.Select(f => new ComponentFieldDecl { Name = f.Name, TypeId = f.TypeId }).ToList();
 

@@ -207,7 +207,24 @@ wire-bake GetVariable branch (Kind + variable name; scalar vars refuse) · BP206
 bake-incomplete made Kind-aware. 8 tests incl. a full Roslyn+ALC ForEach compile. Suite 2498/1-known-flake ·
 goldens 184/184.
 
-**LV-3…LV-6 remaining** (write nodes via `IrOp_ListWrite` + DebugProbe overflow (reuse FC-0's
-`CollectionWriteFailed`) · declare-UX · debugger visibility · demo/docs).
+**LV-3 — write path · ✅ (2026-08-03).** `ListWriteNode` (VariableId + the six `CollectionWriteOp` verbs,
+JSON tag `"ListWrite"`) · `IrOp_ListWrite` → scoped in-place emit: Span cast (R3) + F2 clamp
+`min(Count, N)` + per-verb G6 zeroing (RemoveAt vacated slot · Clear prefix · Resize dropped tail) +
+capacity/bound guards driving `Ok` (no Ok on Clear) + `DebugProbe.CollectionWriteFailed` probes (non-Release,
+self-in-scope) · Stage5 lowering mirrors CollectionWriteNode (always-alloc Ok except Clear, WIRED-ONLY
+required operands, degrade to safe no-write on unbound/unwired — emit dereferences `Value!`/`IntArg!` per
+verb, so Stage5 MUST never pass nulls for required operands) · **BP1505** (target not a fixed-list var;
+empty binding flagged only when exec-wired — palette drops stay silent) + **BP1506** (list value fenced off
+generic pins; ONE exception: identical-shape `SetVariable` whole-list clone, which rides the generic
+Read/WriteVariable path and lowers to FLAT struct copies — test-asserted no Span/loop) in new
+`V_ListVariableRules` · Stage0 `EnrichListWritePins` + editor `NodePinSchema.ListWritePins` (parity-tested
+all 6 ops) · palette `ListWriteEntries` (six `Variable.List.*` entries, Variables category) + bootstrap
+registration + `BlueprintNodeModel` title `"{Verb} [{VarName}]"` / VariableSet category · NodeCoverage
+`Inline/ListWrite` fixture (FullRoslynPipeline). 19 tests (`ListVariableWriteTests`): per-verb emit shapes ·
+degrade path · clone · BP1505/1506 (covered codes) · pin parity ×6 · **runtime round-trip through the real
+generated `TickThunk`** (Add(5);Add(7) → state bytes show Count=2/Items and the LV-2 ItemCount read sees 2).
+Suite 2519/0 (10 pre-existing skips) · goldens 184/184 serial · full sln clean.
+
+**LV-4…LV-6 remaining** (declare-UX · debugger visibility · demo/docs).
 
 ### FC-3 — see the umbrella §Sequencing (details filled in when the batch starts)

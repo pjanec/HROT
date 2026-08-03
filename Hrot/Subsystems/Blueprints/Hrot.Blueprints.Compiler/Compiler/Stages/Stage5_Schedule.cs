@@ -1374,6 +1374,85 @@ internal sealed class GraphScheduler
                 break;
             }
 
+            case ListWriteNode lwn:
+            {
+                // FC-2/LV-3 -- fixed-list VARIABLE write. Mirrors CollectionWriteNode's shape
+                // (always-allocated Ok except Clear, wired-only required operands, degrade to a
+                // safe no-write) but the target is the state field named by VariableId -- no
+                // entity, no accessor, in-place mutation via IrOp_ListWrite.
+                var lwDecl = TryGetListVariableDeclById(lwn.VariableId);
+
+                IrValue? lwOk = null;
+                if (lwn.Op != CollectionWriteOp.Clear)
+                {
+                    lwOk = AllocValue(Stage5_Schedule.BoolType);
+                    var lwOkPin = node.Pins.FirstOrDefault(p =>
+                        !p.IsExec && p.Direction == "Out"
+                        && string.Equals(p.Name, "Ok", StringComparison.OrdinalIgnoreCase));
+                    if (lwOkPin is not null) _pinValueCache[lwOkPin.Id] = lwOk.Value;
+                }
+
+                bool lwNeedsInt   = lwn.Op is CollectionWriteOp.SetAt or CollectionWriteOp.InsertAt
+                                             or CollectionWriteOp.RemoveAt or CollectionWriteOp.Resize;
+                bool lwNeedsValue = lwn.Op is CollectionWriteOp.Add or CollectionWriteOp.SetAt
+                                             or CollectionWriteOp.InsertAt;
+                string lwIntPinName = lwn.Op == CollectionWriteOp.Resize ? "Length" : "Index";
+
+                IrValue? ResolveWiredLwOperand(string pinName)
+                {
+                    var pin = node.Pins.FirstOrDefault(p =>
+                        !p.IsExec && p.Direction == "In"
+                        && string.Equals(p.Name, pinName, StringComparison.OrdinalIgnoreCase));
+                    if (pin is null) return null;
+                    var link = _graph.Links.FirstOrDefault(
+                        l => l.ToNodeId == node.Id && l.ToPinId == pin.Id);
+                    if (link is null) return null;
+                    return ResolveNodeOutput(link.FromNodeId, link.FromPinId, stmts);
+                }
+
+                IrValue? lwIntArg = lwNeedsInt   ? ResolveWiredLwOperand(lwIntPinName) : null;
+                IrValue? lwValue  = lwNeedsValue ? ResolveWiredLwOperand("Value")      : null;
+
+                bool lwDegraded = lwDecl is null
+                    || (lwNeedsInt   && lwIntArg is null)
+                    || (lwNeedsValue && lwValue  is null);
+                if (lwDegraded)
+                {
+                    // Unbound target / unwired required operand -- safe no-write, Ok=false
+                    // (Stage2's BP1505 catches the unbound-target half at validation time).
+                    if (lwOk is { } lwOkVal)
+                    {
+                        stmts.Add(new IrStatement
+                        {
+                            ResultValue = lwOkVal,
+                            Operation   = new IrOp_Const("false", Stage5_Schedule.BoolType),
+                            Debug       = new IrDebugAnnotation
+                            {
+                                GraphId     = _graph.Id,
+                                NodeId      = node.Id,
+                                Synthesized = "list-write-unbound-or-unwired",
+                            },
+                        });
+                    }
+                    break;
+                }
+
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = lwOk,
+                    Operation   = new IrOp_ListWrite(
+                        lwDecl!.Name,
+                        lwDecl.Type.TypeId,
+                        lwDecl.Type.Capacity,
+                        lwn.Op.ToString(),
+                        node.Id,
+                        lwIntArg,
+                        lwValue),
+                    Debug       = DebugOf(node),
+                });
+                break;
+            }
+
             case FunctionCallNode fc when !fc.IsPure && !string.IsNullOrEmpty(fc.TargetGraphId):
             {
                 // Impure in-blueprint function-graph call (BATCH-03A).
@@ -3507,6 +3586,20 @@ internal sealed class GraphScheduler
         if (collLink is null) return null;
         if (!_nodeById.TryGetValue(collLink.FromNodeId, out var n) || n is not GetVariableNode gv) return null;
         var vid = gv.VariableId ?? "";
+        if (vid.StartsWith("var:", StringComparison.Ordinal)) vid = vid.Substring(4);
+        if (!Guid.TryParse(vid, out var id)) return null;
+        var decl = _typed.Asset.Variables.FirstOrDefault(v => v.Id == id)
+                ?? _typed.Asset.WorkingState.FirstOrDefault(v => v.Id == id);
+        return decl is { Type.Capacity: > 0 } ? decl : null;
+    }
+
+    /// <summary>
+    /// FC-2/LV-3 -- resolves a <see cref="ListWriteNode.VariableId"/> ("var:"-prefix tolerated)
+    /// to its FIXED-LIST declaration (Capacity &gt; 0, Variables or WorkingState); else null.
+    /// </summary>
+    private VariableDecl? TryGetListVariableDeclById(string? variableId)
+    {
+        var vid = variableId ?? "";
         if (vid.StartsWith("var:", StringComparison.Ordinal)) vid = vid.Substring(4);
         if (!Guid.TryParse(vid, out var id)) return null;
         var decl = _typed.Asset.Variables.FirstOrDefault(v => v.Id == id)

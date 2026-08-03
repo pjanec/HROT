@@ -566,6 +566,10 @@ public sealed class NodeCoverageTests
         // accessor FQN points into Hrot.AI.Behaviors), generated guarded-accessor C# asserted
         // verbatim by CollectionWriteLoweringTests.
         yield return ("Inline/CollectionWrite", new[] { BuildCollectionWriteMinimalAsset() }, null, CoverageMode.ValidateOnlyStage1To7);
+        // FC-2/LV-3: fixed-list VARIABLE write -- FULL Roslyn coverage (the emitted Span-form write
+        // touches only the generated state struct, no game assemblies); per-op emit + runtime
+        // round-trip asserted by ListVariableWriteTests.
+        yield return ("Inline/ListWrite", new[] { BuildListWriteMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         // Q#14 Option B struct-value nodes (Make/SetMembers/Break) -- FULL Roslyn coverage over the
         // test-assembly MultiPinShared struct (the exact type MakeBreakStructTests already
         // round-trips at runtime; registering it HERE closes the coverage-bookkeeping gap that
@@ -2191,6 +2195,70 @@ public sealed class NodeCoverageTests
             Name     = "CollectionWriteCoverage",
             Dispatch = BlueprintDispatchKind.Instance,
             Graphs   = { graph },
+        };
+    }
+
+    /// <summary>
+    /// FC-2/LV-3: EventEntry -&gt; ListWrite(Add; Value &lt;- Literal 5) onto a declared fixed-list
+    /// variable -&gt; Return. FullRoslynPipeline -- the emitted Span-form write references only the
+    /// generated state struct (no game assemblies); the per-op emit shapes are asserted verbatim
+    /// by <c>ListVariableWriteTests</c>.
+    /// </summary>
+    private static BlueprintAsset BuildListWriteMinimalAsset()
+    {
+        var listVarId = Guid.NewGuid();
+        var listVar = new VariableDecl
+        {
+            Id   = listVarId,
+            Name = "MyList",
+            Type = new BlueprintTypeRef { TypeId = "System.Int32", Capacity = 4, InitialLength = 0 },
+        };
+
+        var lwExecIn  = ExecPin("In",  "In");
+        var lwExecOut = ExecPin("Out", "Out");
+        var lwValueIn = DataPin("Value", "In", "System.Int32");
+        var lwOkOut   = DataPin("Ok",    "Out", "System.Boolean");
+        var listWrite = new ListWriteNode
+        {
+            Id         = Guid.NewGuid(),
+            VariableId = listVarId.ToString(),
+            Op         = CollectionWriteOp.Add,
+        };
+        listWrite.Pins.AddRange(new[] { lwExecIn, lwExecOut, lwValueIn, lwOkOut });
+
+        var valLitOut = DataPin("Value", "Out", "System.Int32");
+        var valLit    = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Int32", ValueJson = "5" };
+        valLit.Pins.Add(valLitOut);
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecPin("ExecIn", "In");
+        ret.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, listWrite, valLit, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,     FromPinId = entryOut.Id,  ToNodeId = listWrite.Id, ToPinId = lwExecIn.Id },
+                new Link { FromNodeId = listWrite.Id, FromPinId = lwExecOut.Id, ToNodeId = ret.Id,       ToPinId = retIn.Id },
+                new Link { FromNodeId = valLit.Id,    FromPinId = valLitOut.Id, ToNodeId = listWrite.Id, ToPinId = lwValueIn.Id },
+            },
+        };
+
+        return new BlueprintAsset
+        {
+            AssetId   = Guid.NewGuid(),
+            Name      = "ListWriteCoverage",
+            Dispatch  = BlueprintDispatchKind.Instance,
+            Variables = { listVar },
+            Graphs    = { graph },
         };
     }
 

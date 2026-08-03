@@ -176,6 +176,9 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         // whenever the node is stored pin-less (mirrors SetComponentNode).
         CollectionWriteNode       => new[] { ExecIn(), ExecOut() },
 
+        // ListWrite (FC-2/LV-3, Q#19-C): exec node -- same skeleton/enricher split.
+        ListWriteNode             => new[] { ExecIn(), ExecOut() },
+
         ArrayMakeNode am          => ArrayMakePins(am),
         ArrayGetNode              => ArrayGetPins(),
 

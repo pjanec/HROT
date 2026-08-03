@@ -221,6 +221,32 @@ public sealed record IrOp_CollectionWrite(
 /// </summary>
 public sealed record IrOp_StateFieldRef(string FieldName, IrTypeRef Type) : IrOperation;
 
+/// <summary>
+/// FC-2/LV-3 (Q#19-C/D) -- in-place fixed-list VARIABLE mutation, the blackboard sibling of
+/// <see cref="IrOp_CollectionWrite"/> (they share the verb vocabulary, NOT machinery -- review R1).
+/// Emits a scoped block that ref-binds the state field, applies the F2 clamp, mutates through the
+/// <c>Span&lt;T&gt;</c> cast (never the naive inline-array indexer -- the amended Q#19-D emit), keeps
+/// the G6 tail-always-default invariant (RemoveAt/Clear/Resize-shrink zero vacated slots; grow never
+/// fills), and drives the "Ok" ResultValue per the false-on-overflow contract (+ a Debug-mode
+/// <c>DebugProbe.CollectionWriteFailed</c> on refusal). Clear has no ResultValue semantics beyond
+/// completing (its node has no "Ok" pin).
+/// </summary>
+/// <param name="FieldName">The state field (variable name) -- rendered off the s/ws local.</param>
+/// <param name="ElementTypeFqn">Element type for the Span cast / default().</param>
+/// <param name="Capacity">Declared capacity N (bounds + clamp).</param>
+/// <param name="Verb">"Add"/"SetAt"/"InsertAt"/"RemoveAt"/"Clear"/"Resize" -- probe arg + emit dispatch.</param>
+/// <param name="NodeId">Authoring node id -- probe arg.</param>
+/// <param name="IntArg">Index (SetAt/InsertAt/RemoveAt) or Length (Resize); null for Add/Clear.</param>
+/// <param name="Value">Element operand (Add/SetAt/InsertAt); null otherwise.</param>
+public sealed record IrOp_ListWrite(
+    string FieldName,
+    string ElementTypeFqn,
+    int Capacity,
+    string Verb,
+    Guid NodeId,
+    IrValue? IntArg,
+    IrValue? Value) : IrOperation;
+
 // ECS write via ECB (impure)
 public sealed record IrOp_AddComponent(string ComponentTypeFqn, IrValue Entity, IrValue Value) : IrOperation;
 public sealed record IrOp_RemoveComponent(string ComponentTypeFqn, IrValue Entity) : IrOperation;

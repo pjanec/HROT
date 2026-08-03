@@ -175,6 +175,10 @@ internal static class Stage0_Rehydrate
                 EnrichCollectionWritePins(pins, cwn);
                 break;
 
+            case ListWriteNode lwn:
+                EnrichListWritePins(pins, lwn, asset);
+                break;
+
             case MakeStructNode msn:
                 EnrichMakeStructPins(pins, msn);
                 break;
@@ -576,6 +580,43 @@ internal static class Stage0_Rehydrate
                 break;
         }
         pins.Add(MakePin("Ok", "Out", isExec: false, typeId: "System.Boolean"));
+    }
+
+    /// <summary>
+    /// ListWriteNode (FC-2/LV-3, Q#19-C): exec node bound BY VARIABLE ID (no Collection pin -- the
+    /// SetVariable lvalue pattern). Operand data-ins per <see cref="ListWriteNode.Op"/> (Add: Value ·
+    /// SetAt/InsertAt: Index+Value · RemoveAt: Index · Clear: none · Resize: Length), element-typed
+    /// from the referenced variable's declared element; "Ok" (Boolean) on every fallible op (all but
+    /// Clear).
+    /// </summary>
+    private static void EnrichListWritePins(List<Pin> pins, ListWriteNode lwn, BlueprintAsset asset)
+    {
+        var decl = FindVariableDecl(lwn.VariableId, asset);
+        var elemType = decl is { Type.Capacity: > 0 } ? decl.Type.TypeId : "System.Object";
+        pins.Clear();
+        pins.Add(MakePin("In",  "In",  isExec: true, typeId: ""));
+        pins.Add(MakePin("Out", "Out", isExec: true, typeId: ""));
+        switch (lwn.Op)
+        {
+            case CollectionWriteOp.Add:
+                pins.Add(MakePin("Value", "In", isExec: false, typeId: elemType));
+                break;
+            case CollectionWriteOp.SetAt:
+            case CollectionWriteOp.InsertAt:
+                pins.Add(MakePin("Index", "In", isExec: false, typeId: "System.Int32"));
+                pins.Add(MakePin("Value", "In", isExec: false, typeId: elemType));
+                break;
+            case CollectionWriteOp.RemoveAt:
+                pins.Add(MakePin("Index", "In", isExec: false, typeId: "System.Int32"));
+                break;
+            case CollectionWriteOp.Clear:
+                break;
+            case CollectionWriteOp.Resize:
+                pins.Add(MakePin("Length", "In", isExec: false, typeId: "System.Int32"));
+                break;
+        }
+        if (lwn.Op != CollectionWriteOp.Clear)
+            pins.Add(MakePin("Ok", "Out", isExec: false, typeId: "System.Boolean"));
     }
 
     /// <summary>

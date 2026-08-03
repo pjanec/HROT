@@ -46,6 +46,7 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(ComponentContainsNode),  "ComponentContains")]
 [JsonDerivedType(typeof(ComponentFindNode),      "ComponentFind")]
 [JsonDerivedType(typeof(CollectionWriteNode),    "CollectionWrite")]
+[JsonDerivedType(typeof(ListWriteNode),          "ListWrite")]
 [JsonDerivedType(typeof(CompareNode),            "Compare")]
 [JsonDerivedType(typeof(BinaryOpNode),           "BinaryOp")]
 [JsonDerivedType(typeof(BooleanOpNode),          "BooleanOp")]
@@ -1153,6 +1154,26 @@ public sealed class CollectionWriteNode : Node
     /// <summary>Must stay <c>CuratedStatic</c> -- a <c>ManagedMember</c> collection is not element-writable (Q#20-C; Stage2 BP2068). Present so a hand-authored/legacy managed bake is REJECTED rather than silently mis-emitted. Omitted from JSON when default.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public CollectionKind CollectionKind { get; set; }
+}
+
+/// <summary>
+/// FC-2/LV-3 (Q#19-C/D) -- mutates a FIXED-LIST VARIABLE in place, bound BY VARIABLE ID (the
+/// SetVariable lvalue pattern -- the list is NEVER routed through a by-value data pin; Q#19-D hard
+/// requirement: writing one element must not copy the array). Exec node: exec In/Out, per-<see
+/// cref="Op"/> operand data-ins ("Index"/"Length" int, "Value" element-typed), and -- for the
+/// fallible ops -- a data-out "Ok" (<c>System.Boolean</c>; the settled overflow contract: false +
+/// a Debug-mode <c>DebugProbe.CollectionWriteFailed</c> diagnostic on full/out-of-range, never
+/// silent, never throw). Clear cannot fail and has no "Ok". Emit is the amended Span form (the
+/// naive <c>s.f.Items[i]=</c> is the R3 write-loss shape) with the F2 clamp and the G6
+/// tail-always-default invariant -- see <c>StatementEmitter</c>'s <c>IrOp_ListWrite</c> case.
+/// </summary>
+public sealed class ListWriteNode : Node
+{
+    /// <summary>The target fixed-list variable's id (GUID string, "var:"-prefix tolerated) -- Variables or WorkingState.</summary>
+    public string VariableId { get; set; } = "";
+
+    /// <summary>The mutation verb -- drives the operand pin set and emit arity (shares the component write's vocabulary, Q#19-C).</summary>
+    public CollectionWriteOp Op { get; set; }
 }
 
 /// <summary>

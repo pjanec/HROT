@@ -68,6 +68,104 @@ internal static class StatementEmitter
                 if (idx >= 0) e.WriteLine($"ref var __t{idx} = ref {sv}.{op.FieldName};");
                 break;
 
+            case IrOp_ListWrite op:
+            {
+                // FC-2/LV-3 (Q#19-C/D amended emit) -- scoped in-place mutation of the state-field
+                // list. All element access through the Span cast (R3), F2 clamp on the working
+                // count, G6 zeroing on shrink/remove/clear, false-on-overflow driving the Ok result
+                // (idx < 0 for Clear -- no Ok pin). Probe gating mirrors the component write.
+                string elemCs = TypeRefToCSharp(new IrTypeRef { FullName = op.ElementTypeFqn });
+                bool probes = e.Ctx.Mode != Hrot.Blueprints.Core.Compiler.CompilerMode.Release
+                              && e.Ctx.HasSelfInScope;
+                string field = $"{sv}.{op.FieldName}";
+                int cap = op.Capacity;
+                string n = e.Ctx.NextLocalCounter("lw");
+                string spanV = $"__lws{n}";
+                string cntV  = $"__lwc{n}";
+
+                if (idx >= 0) e.WriteLine($"var __t{idx} = false;");
+                e.WriteLine("{");
+                e.Indent();
+                e.WriteLine($"var {spanV} = (global::System.Span<{elemCs}>){field}.Items;");
+                e.WriteLine($"int {cntV} = global::System.Math.Min({field}.Count, {cap});");
+                string ok = idx >= 0 ? $"__t{idx}" : "";
+                void Probe(string reason)
+                {
+                    if (probes)
+                        e.WriteLine($"else global::Hrot.Blueprints.Core.Debug.DebugProbe.CollectionWriteFailed(self, \"{op.NodeId:D}\", \"{op.Verb}\", \"{reason}\");");
+                }
+                switch (op.Verb)
+                {
+                    case "Add":
+                        e.WriteLine($"if ({cntV} < {cap})");
+                        e.WriteLine("{");
+                        e.Indent();
+                        e.WriteLine($"{spanV}[{cntV}] = __t{op.Value!.Value.Index};");
+                        e.WriteLine($"{field}.Count = {cntV} + 1;");
+                        if (idx >= 0) e.WriteLine($"{ok} = true;");
+                        e.Outdent();
+                        e.WriteLine("}");
+                        Probe("op-rejected");
+                        break;
+                    case "SetAt":
+                        e.WriteLine($"if ((uint)__t{op.IntArg!.Value.Index} < (uint){cntV})");
+                        e.WriteLine("{");
+                        e.Indent();
+                        e.WriteLine($"{spanV}[__t{op.IntArg!.Value.Index}] = __t{op.Value!.Value.Index};");
+                        if (idx >= 0) e.WriteLine($"{ok} = true;");
+                        e.Outdent();
+                        e.WriteLine("}");
+                        Probe("op-rejected");
+                        break;
+                    case "InsertAt":
+                        e.WriteLine($"if ({cntV} < {cap} && (uint)__t{op.IntArg!.Value.Index} <= (uint){cntV})");
+                        e.WriteLine("{");
+                        e.Indent();
+                        e.WriteLine($"{spanV}[__t{op.IntArg!.Value.Index}..{cntV}].CopyTo({spanV}[(__t{op.IntArg!.Value.Index} + 1)..]);");
+                        e.WriteLine($"{spanV}[__t{op.IntArg!.Value.Index}] = __t{op.Value!.Value.Index};");
+                        e.WriteLine($"{field}.Count = {cntV} + 1;");
+                        if (idx >= 0) e.WriteLine($"{ok} = true;");
+                        e.Outdent();
+                        e.WriteLine("}");
+                        Probe("op-rejected");
+                        break;
+                    case "RemoveAt":
+                        e.WriteLine($"if ((uint)__t{op.IntArg!.Value.Index} < (uint){cntV})");
+                        e.WriteLine("{");
+                        e.Indent();
+                        e.WriteLine($"{spanV}[(__t{op.IntArg!.Value.Index} + 1)..{cntV}].CopyTo({spanV}[__t{op.IntArg!.Value.Index}..]);");
+                        e.WriteLine($"{spanV}[{cntV} - 1] = default;   // G6: vacated slot re-zeroed");
+                        e.WriteLine($"{field}.Count = {cntV} - 1;");
+                        if (idx >= 0) e.WriteLine($"{ok} = true;");
+                        e.Outdent();
+                        e.WriteLine("}");
+                        Probe("op-rejected");
+                        break;
+                    case "Clear":
+                        e.WriteLine($"{spanV}[..{cntV}].Clear();   // G6");
+                        e.WriteLine($"{field}.Count = 0;");
+                        if (idx >= 0) e.WriteLine($"{ok} = true;");
+                        break;
+                    case "Resize":
+                        e.WriteLine($"if ((uint)__t{op.IntArg!.Value.Index} <= (uint){cap})");
+                        e.WriteLine("{");
+                        e.Indent();
+                        e.WriteLine($"if (__t{op.IntArg!.Value.Index} < {cntV})");
+                        e.Indent();
+                        e.WriteLine($"{spanV}[__t{op.IntArg!.Value.Index}..{cntV}].Clear();   // G6: dropped tail re-zeroed");
+                        e.Outdent();
+                        e.WriteLine($"{field}.Count = __t{op.IntArg!.Value.Index};");
+                        if (idx >= 0) e.WriteLine($"{ok} = true;");
+                        e.Outdent();
+                        e.WriteLine("}");
+                        Probe("op-rejected");
+                        break;
+                }
+                e.Outdent();
+                e.WriteLine("}");
+                break;
+            }
+
             // ------------------------------------------------------------------
             // GetShared / SetShared (Slice 2a-2 + Slice 2b): entity-scoped shared working-state,
             // compiled to calls into the Slice 2a-1 accessor.

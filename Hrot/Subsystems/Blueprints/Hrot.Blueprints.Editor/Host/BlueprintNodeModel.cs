@@ -303,6 +303,11 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.CollectionWriteNode cwn     => string.IsNullOrEmpty(cwn.ComponentTypeFqn)
             ? $"{CollectionWriteVerb(cwn.Op)} (Collection)"
             : $"{CollectionWriteVerb(cwn.Op)} [{ShortTypeName(cwn.ComponentTypeFqn)}]",
+        // FC-2/LV-3: same verb convention, the bound LIST VARIABLE's name in brackets (mirrors
+        // Get/SetVariable's "[name]" identifier convention rather than a component type).
+        Hrot.Blueprints.Core.Assets.ListWriteNode lwn           => string.IsNullOrEmpty(lwn.VariableId)
+            ? $"{CollectionWriteVerb(lwn.Op)} (List)"
+            : $"{CollectionWriteVerb(lwn.Op)} [{ResolveVariableName(lwn.VariableId, asset)}]",
         // Punch-list #1/#5/#8: show the node's own DATA in the body instead of the generic "Value"
         // pin label — the literal's value, the parameter's name, the compare/arith/bool operator.
         // Punch-list: the parameter NAME is shown on the output pin (render-only display label in
@@ -366,6 +371,8 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.ComponentFindNode        => NodeCategory.Pure,
         // FC-1 (Q#20): CollectionWrite is an exec write node, the collection analog of SetComponent.
         Hrot.Blueprints.Core.Assets.CollectionWriteNode      => NodeCategory.VariableSet,
+        // FC-2/LV-3: ListWrite is the exec write node for fixed-list VARIABLES (SetVariable analog).
+        Hrot.Blueprints.Core.Assets.ListWriteNode            => NodeCategory.VariableSet,
         Hrot.Blueprints.Core.Assets.LiteralNode              => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.GetParameterNode         => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.GetAllParametersNode     => NodeCategory.Pure,
