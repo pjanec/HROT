@@ -243,7 +243,106 @@ round-trip gate actually bites; keep one `fixed`-buffer accessor set too — bot
   attributes); Stage2 checks stay structural. Hand-edited JSON bypasses the attribute gate but not the
   structural ones — accepted precedent, restate it in FC-1's tracker.
 
+## G1 resolution (decided 2026-08-04) — write-accessor convention + generated ops class
+
+The missing design surface from G1, now pinned. Two layers: a **convention** (what an ops class looks like,
+hand-written or generated) and a **generator** that mechanizes it.
+
+### The convention
+
+New attribute (Fdp.Core, sibling of `[BlueprintCollection]`/`[BlueprintCollectionItem]`):
+
+```csharp
+public enum BlueprintCollectionOp { Add, SetAt, InsertAt, RemoveAt, Clear, Resize }
+
+[AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
+public sealed class BlueprintCollectionWriteAttribute(
+    Type component, string collection, BlueprintCollectionOp op) : Attribute { }
+```
+
+Pinned signatures (discovered by the `ComponentFieldReflector.TryReflectCollections` pipeline; the write node
+bakes one `WriteAccessorFqn` per op, exactly like `CountAccessorFqn`/`ItemAccessorFqn`):
+
+| Op | Signature | Contract |
+|---|---|---|
+| `Add` | `bool Add(ref C c, Elem v)` | false on full |
+| `SetAt` | `bool SetAt(ref C c, int i, Elem v)` | `[0,Count)` only — never grows `Count` |
+| `InsertAt` | `bool InsertAt(ref C c, int i, Elem v)` | shift up; false on full / `i > Count` |
+| `RemoveAt` | `bool RemoveAt(ref C c, int i)` | shift down; **zero the vacated slot** (G6) |
+| `Clear` | `void Clear(ref C c)` | **zero `[0,Count)`** (G6), `Count = 0` |
+| `Resize` | `bool Resize(ref C c, int n)` | `n ≤ N`; **shrink zeroes dropped tail** (G6); grow needs no fill |
+
+Rules: `ref C` receiver (mutates real chunk storage through the `GetComponentRW` ref); every element access
+inside goes through the **`Span<T>` cast** (`((Span<Elem>)c.Buf)[i] = v` — the R3 mandate lives HERE, verified
+by the FC-0 round-trip test); mutators own `Count` and the G6 tail-always-default invariant; the graph never
+touches `Count` or the buffer directly. **A partial set is legal** — the palette offers exactly the ops that
+exist (per-op, per-field curation with no extra vocabulary; the Q20-A amendment). Capacity stays a public
+`const int Capacity` on the component — the editor reads it reflectively for budget/diagnostic UX.
+
+Emit shape (mirrors the Q#16 guarded write; raw buffer access stays off-graph, per Q#5-C):
+
+```csharp
+var __t8 = false;
+var __t7 = wv.HasComponent<global::…PatrolPlan>(__self);
+if (__t7)
+{
+    ref var __wc7 = ref wv.GetComponentRW<global::…PatrolPlan>(__self);
+    __t8 = global::…PatrolPlanCollectionOps.SetAt(ref __wc7, __t3, __t5);   // __t8 = "Ok" out-pin
+}
+```
+
+### The generator (FC-1b) — dev writes ONE attribute, not ~60 lines of trap-prone code
+
+A Roslyn **source generator** emits the ops class (`{Component}CollectionOps`, own file, deterministic name)
+for every field marked:
+
+```csharp
+[BlueprintWritable]
+public struct PatrolPlan
+{
+    public const int Capacity = 8;
+    [InlineArray(Capacity)] public struct WaypointBuffer { private Entity _e0; }
+
+    public int Count;
+
+    [BlueprintCollectionField(nameof(Count))]        // ← the only thing the dev writes
+    public WaypointBuffer Waypoints;
+}
+```
+
+- **Explicitly NOT auto-triggered** on "any `[InlineArray]` in a `[BlueprintWritable]` DTO": (a) the logical
+  Count field is a sibling and not inferable (capacity ≠ count, Q#17 reality check; ambiguous with two
+  collections); (b) auto-emitting mutators would delete the per-field writability gate (the A2 hazard);
+  (c) bespoke-semantics collections (dedup, `UnitRoster` compaction) must keep hand-written ops.
+- **Knobs on the attribute:** `Access = ReadOnly` (read accessors only) · `Ops = Add | Clear` (partial write
+  set). Default = read pair + full write set.
+- **Generator diagnostics:** missing/non-`int` count field · non-blittable element · buffer on a managed
+  (class) component (Q20-C) · a hand-written `[BlueprintCollection*]` accessor already exists for the same
+  (component, field) → **hand-written wins, generator emits nothing** (the bespoke escape hatch is automatic).
+- Generated code compiles into the game assembly → editor reflection discovery and the netstandard2.0 baked-FQN
+  compiler path are **unchanged**; the emitter can't tell generated from hand-written. R3 enforcement gets
+  stronger: the round-trip test validates the generator's template once, not every future hand-written class.
+- **Relation to the locked "no source generator v1" decision** (umbrella doc): NOT a contradiction — that
+  ruling covered generating the *collection type* (blocked: can't augment a non-`partial` struct; ~3 lines
+  anyway). This generates the free-standing *accessor class* — a new type in a new file, the sweet spot for
+  generators. The umbrella doc is amended accordingly.
+
+### Build-order deltas (fold of G2/G3/G6/G7 + this resolution)
+
+1. **FC-0** — hand-written reference ops on a **new `[InlineArray]`-backed demo component** (G7 —
+   `BpCollectionDemo`'s `fixed` buffer cannot exercise the R3 trap; keep a `fixed`-buffer accessor set too,
+   both idioms exist) + the InlineArray write round-trip test + the mutation-op IR family + the real
+   `DebugProbe` overflow hook + the **tail-always-default invariant** (G6) pinned as the canonical zeroing
+   rule for ALL homes.
+2. **FC-1** — component-collection write nodes per the convention above; **collection in-pin binding with
+   validate-time producer self-check** (G4: wired `GetComponent` must have `Target` unwired; emit binds `self`
+   regardless); iteration-mutation validator warning (G3); **composition-order assertion/test** for
+   `BlueprintTickSystem` vs the dispatchers (G2) — or the `bpTick` splice fixed.
+3. **FC-1b** — the `[BlueprintCollectionField]` source generator (template = the FC-0 reference, proven by the
+   same round-trip test).
+
 ## Architect answers (received)
 
 _(pending — Q20-A · Q20-B · Q20-C · Q20-D; the review pass above records Claude-as-architect verdicts G1–G7
-for the NotebookLM pass to confirm or override)_
+for the NotebookLM pass to confirm or override; the G1 resolution + build-order deltas are recorded as design
+decisions with the user, 2026-08-04)_

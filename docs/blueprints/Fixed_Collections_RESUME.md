@@ -84,14 +84,21 @@ under-designed**. Headlines (full detail + deltas in `Blueprint_Fixed_Collection
   build the DebugProbe overflow hook in FC-0.
 
 ## Immediate next step (at resume)
-1. **✅ WRITTEN — `Architect_Question_20_Component_Collection_Write.md`** (mirrors Q#16). Q20-A element-write gate
-   granularity (component-level `[BlueprintWritable]` vs per-collection-field opt-in) · Q20-B tick-order for
-   sequence mutation · Q20-C managed collections read-only (per-field-managed forbiddance) · Q20-D op family +
-   overflow/existence/`Count` contract. Design notes: `Span<T>` InlineArray-write mandate + re-zero-on-shrink +
-   self-only (no Target pin). **PENDING architect pass — gates FC-0/FC-1.**
-2. Decide `GetShared`/`Parameters` scope (add to Q#19-E table). Decide parked PR timing.
-3. Then set up `Blueprint_Fixed_Collections_TASK_TRACKER.md` and build: FC-0 (foundation + `Span<T>` pattern +
-   DebugProbe overflow) → blueprint-var writes & component writes as **independent** slices → action-DTO.
+1. **✅ WRITTEN + REVIEWED — `Architect_Question_20_Component_Collection_Write.md`.** A Claude-as-architect
+   review pass (2026-08-04, on `claude/reset-from-blueprint-1t6cq8`) recorded verdicts + gaps **G1–G7** in the
+   doc and the resolutions were folded into the designs (umbrella §"Decisions folded" + Q#20 §"G1 resolution" +
+   List-Variables/Q#19 zeroing amendments). Headlines: write emit is **accessor-mediated**
+   (`[BlueprintCollectionWrite]` statics; Span pattern lives in accessors) with an **FC-1b source generator**
+   (`[BlueprintCollectionField]`, opt-in per field); **tail-always-default zeroing invariant** for all homes;
+   collection **in-pin** write binding + producer self-check; the `[UpdateBefore]` dispatcher ordering is NOT
+   delivered by the current editor compositions (G2 — FC-1 gate: fix splice or composition test); FC-0 reference
+   must be `[InlineArray]`-backed (G7). **NotebookLM architect pass still pending** to confirm/override
+   Q20-A/B/C/D + G1–G7.
+2. ~~Decide `GetShared`/`Parameters` scope~~ **DECIDED (G-review):** OUT v1 + explicit validate-time rejection
+   diagnostic. Remaining: decide parked PR timing.
+3. Then set up `Blueprint_Fixed_Collections_TASK_TRACKER.md` and build: **FC-0** (convention + `[InlineArray]`
+   reference + round-trip test + invariant + DebugProbe overflow) → **FC-1** (component write nodes + G2/G3/G4
+   gates) → **FC-1b** (ops generator) → blueprint-var writes (independent) → action-DTO.
 
 Memory: [[project_fixed_capacity_list_variables]] (now the Fixed Collections workstream tracker),
 [[project_component_access_workstream]] (CA-07 machinery reused).
