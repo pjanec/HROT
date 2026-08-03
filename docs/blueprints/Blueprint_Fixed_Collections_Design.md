@@ -14,10 +14,12 @@ behavior stack. Supersedes the standalone "list variables" framing — the black
 | **Action collection** | field in a behavior action's params / working-state struct | — (not a blueprint variable) | `ref p.field` → `p.field.Items[i]=x` by ref (plain C#) | the action's own data |
 
 **Read is unified** — the consumer nodes (`ForEach`/`ItemGet`/`ItemCount`/`Contains`/`Find`) + the
-`CollectionKind` discriminator serve component and blueprint-variable collections identically. **Write is unified**
-— one mutation-op family (`Add`/`Set`/`InsertAt`/`RemoveAt`/`Clear`/`Resize`) over a `CollectionKind`
-*write-backing* (component vs blackboard field). **An action collection needs no graph work** — the action mutates
-its struct field by ref in plain C#; the only editor gap is *recognizing* the collection field.
+`CollectionKind` discriminator serve component and blueprint-variable collections identically. **Write shares a
+verb vocabulary, not machinery** (corrected by the 2nd review, §R1) — `Add`/`Set`/`InsertAt`/`RemoveAt`/`Clear`/
+`Resize` exist for both, but component writes are pin-bound (entity → `GetComponentRW` + accessor) and
+blueprint-variable writes are variable-id-bound (`SetVariable` lvalue) — different node shapes and emit. **An action
+collection's runtime read/write is free by ref**, but its editor/authoring support is *not* trivial (2nd review §R4).
+See **"Second review"** below for the corrected picture — read this section's claims through those deltas.
 
 ## Verified gaps (2026-08-03, against the code)
 - **Component write:** `Nodes.cs` has only component-collection **read** nodes — no write node exists; a blueprint
@@ -87,8 +89,66 @@ Investigated 2026-08-03 — captured so the relationship isn't re-derived later.
   editor recognizes/inspects a collection field; document the hand-written wrapper pattern. Action access is
   already free. Least blocking; pull forward if the behavior-DTO need is urgent.
 
-Rationale: component writes are the cheapest, highest-felt-value slice and build the shared write machinery the
-blueprint-variable home reuses; action-collection recognition is mostly editor work riding on the settled pattern.
+> **Ordering corrected by the 2nd review (§R1, §R2):** FC-2 does **not** reuse FC-1's write machinery (they share
+> only the verb names), so the slices are **independent**, not a dependency chain. And component writes (FC-1) are
+> **architect-gated** — they collide with the Q#16 write rulings (self-only, `[BlueprintWritable]` set, no managed
+> per-field writes), so a `Architect_Question_Component_Collection_Write` doc must land **before** FC-0/FC-1. The
+> "cheapest, no new safety work" framing was wrong.
+
+## Second review — adversarial pass on the new surface (2026-08-03)
+Three independent reviewers (component-writes · action-DTO · unification) audited the *new* surface against the
+code (the blueprint-variable home already carries its F1–F8 review). The **read side held**; the **write side and
+the action-DTO home were materially under-designed**. Findings → deltas:
+
+**R1 (blocker) — "write is unified" is false.** Blueprint-variable writes (Q19-D) are **variable-id-bound** (the
+`SetVariable` lvalue pattern), a fresh `IrOp_ListWrite*` family with **no `CollectionKind`**. Component writes must
+be **pin-bound** (entity-resolved `Collection`/`Target` → `GetComponentRW` + accessor call) — a different node shape
+*and* emit. They share only the verb vocabulary. **DELTA:** reframe "one op family over a write-backing" → "shared
+verbs, per-home binding/emit"; **decouple FC-1↔FC-2** (independent slices, not a dependency chain).
+
+**R2 (blocker ×4) — component writes collide with the Q#16 write rulings.** The read side is deliberately permissive
+(any component, any entity via the GetComponent `Target` pin); the write side has architect constraints the new
+nodes bypass: (a) **cross-entity write** — a write consumer inheriting a wired `Target` entity violates Q#16
+"self-only"; BP2062 is pinned to `SetComponentNode` and won't catch a new node. (b) **`[BlueprintWritable]` gate
+bypassed** — write nodes bake `ComponentTypeFqn` off GetComponent's *unfiltered* read picker, so any component with
+a collection becomes writable (Q#16-A). (c) **ManagedMember writes forbidden** — `List<T>.Add/RemoveAt` on a managed
+component field is a per-field managed mutation → snapshot-aliasing corruption (Q#16-C / BP2064). **DELTA:** component
+writes need their **own architect question** (mirror Q#16) *before* FC-0 — self-only enforcement for a wire-derived
+entity, `[BlueprintWritable]` gating, and **scope writes to CuratedStatic + unmanaged only** (reject ManagedMember).
+
+**R3 (blocker, cross-cutting correctness) — the `[InlineArray]` silent-mutation-loss trap.** `GetComponentRW`'s own
+doc warns: `ref var q = ref GetComponentRW<T>(e); q.Buf[0] = x;` copies the buffer to a temp → **the write is lost**.
+The naive accessor `c.Items[c.Count++] = v` is exactly this shape; the safe form casts to `Span<T>`
+(`((Span<Elem>)c.Items)[i] = v` / `MemoryMarshal.CreateSpan`). Not verifiable from a signature. **DELTA (all homes):**
+mandate the `Span<T>` access pattern for every `[InlineArray]` element write, gated by an `[InlineArray]`-based write
+test. Supersedes the softer review F8 note.
+
+**R4 (blocker/major) — the action-DTO home is not "just recognition."** Runtime read/write by ref *is* free
+(verified end-to-end). But: (a) `BlackboardFieldClassifier` has **no live production caller** — the recognition
+pipeline must be stood up, not just extended; (b) the **F2 reused-slot zero-init OOB hazard applies to a stateful
+action's working-state** collection too (same `AttachSlotsToMemory` path); (c) authoring an initial value needs a
+**custom JSON converter** (`ParseParams` STJ can't populate `[InlineArray]`'s private backing field); (d) the
+behavior inspector (`LiveBlackboardPanel`) is **composite-blind** → needs marshal work. **DELTA:** reframe from "no
+graph work" to "runtime free by ref; needs a recognition pipeline + F2 safety + a JSON converter + inspector marshal."
+
+**R5 (major) — a third blueprint-authored home is unaddressed: Shared (`GetShared`/`SetShared`).** These already
+give a blueprint a cross-entity, id-keyed shared value — the natural place a designer reaches for a "shared list,"
+absent from Q#19's scope. Also unaddressed: `asset.Parameters` (exposed-on-spawn) as a collection. **DELTA:** add
+both to the scope table (in, or out + diagnostic).
+
+**R6 (minor).** The AiPrimitive "WorkingState == action ws" coincidence's usability is **unverified** given F4's
+per-asset private-nested wrapper — spike it or mark non-actionable. The `Component*Node` class names become misnomers
+once they iterate a blackboard variable — rename (`CollectionForEachNode`…) at build time. The `DebugProbe` overflow
+hook is aspirational (only `NodeEnter`/`PinValue` exist) — FC-0 must build it.
+
+**Confirmed sound (no gap):** cross-entity *reads* (GetComponent `Target` pin works), different-CLR-types coherence,
+capacity/element-mismatch, and the action by-ref write safety (true `ref` all the way, no value-copy trap in the
+delegate chain).
+
+**Revised approach:** `Architect_Question_Component_Collection_Write` (self-only / writable-gate / managed-exclusion)
+→ **FC-0** foundation (incl. the `Span<T>` write pattern + a real `DebugProbe` overflow hook) → blueprint-variable
+writes **and** component writes as **independent** slices → action-DTO (recognition pipeline + F2 safety + JSON
+converter + inspector marshal). Scope table gains Shared + Parameters.
 
 ## Detailed designs & references
 - **Blueprint variable collection (full detail):** `Blueprint_List_Variables_Design.md` — design + adversarial

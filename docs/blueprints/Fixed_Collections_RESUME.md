@@ -64,12 +64,32 @@ that can live in three homes, with shared read/write machinery:
 Each slice gated: clean build → **Generators 184/184 byte-identical** → new tests green. Opus does novel
 compiler work; Sonnet mirrors editor; Opus reviews + gates + commits.
 
+## Second review — DONE (2026-08-03); findings folded into the umbrella §"Second review"
+The 3-reviewer pass found the **read side solid** but the **write side + action-DTO home materially
+under-designed**. Headlines (full detail + deltas in `Blueprint_Fixed_Collections_Design.md` "Second review"):
+- **R1:** "write is unified" is FALSE — component writes (pin-bound, `GetComponentRW`+accessor) and blueprint-var
+  writes (variable-id-bound `IrOp_ListWrite*`, no CollectionKind) share only the verb names → **FC-1 and FC-2 are
+  INDEPENDENT slices, not a chain.**
+- **R2:** component writes collide with Q#16 rulings (self-only / `[BlueprintWritable]` gate / no managed per-field
+  write) → need a new **`Architect_Question_Component_Collection_Write`** BEFORE building; scope writes to
+  **CuratedStatic + unmanaged only**.
+- **R3 (cross-cutting):** the `[InlineArray]` silent-mutation-loss trap (`GetComponentRW`'s own doc warns
+  `q.Buf[0]=x` loses the write) → **mandate the `Span<T>` write pattern for all homes**, gated by an InlineArray
+  write test.
+- **R4:** action-DTO is NOT "just recognition" — `BlackboardFieldClassifier` has no live caller (pipeline must be
+  stood up), the F2 zero-init OOB hazard hits action working-state too, authored JSON init needs a custom converter,
+  inspector is composite-blind.
+- **R5:** `GetShared`/`SetShared` (cross-entity shared) + `asset.Parameters` are unaddressed homes → add to scope.
+- **R6:** verify the AiPrimitive coincidence or mark non-actionable; rename `Component*Node`→`Collection*Node`;
+  build the DebugProbe overflow hook in FC-0.
+
 ## Immediate next step (at resume)
-1. **A second adversarial design review was launched** (3 reviewers: component-writes/FC-0 · action-DTO/classifier
-   · unification-coherence/completeness) aimed at the NEW surface (the blueprint-variable F1–F8 is already done).
-   **When it returns, synthesize its findings into the umbrella + a "Review" note, exactly as F1–F8 were folded
-   into `Blueprint_List_Variables_Design.md`.**
-2. Then: decide the parked PR timing, set up `Blueprint_Fixed_Collections_TASK_TRACKER.md`, and build FC-0 → FC-1.
+1. **Write `Architect_Question_Component_Collection_Write.md`** (mirror Q#16: self-only enforcement for a
+   wire-derived entity · `[BlueprintWritable]` gating · ManagedMember exclusion) and run it past the architect —
+   this gates FC-0/FC-1.
+2. Decide `GetShared`/`Parameters` scope (add to Q#19-E table). Decide parked PR timing.
+3. Then set up `Blueprint_Fixed_Collections_TASK_TRACKER.md` and build: FC-0 (foundation + `Span<T>` pattern +
+   DebugProbe overflow) → blueprint-var writes & component writes as **independent** slices → action-DTO.
 
 Memory: [[project_fixed_capacity_list_variables]] (now the Fixed Collections workstream tracker),
 [[project_component_access_workstream]] (CA-07 machinery reused).
