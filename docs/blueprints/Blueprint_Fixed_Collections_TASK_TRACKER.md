@@ -252,6 +252,15 @@ via string FQNs against LOADED-assembly scans only — new test classes shifted 
 failed (reproducibly, incl. at the LV-4 baseline); a static-ctor force-load of `Hrot.AI.Behaviors` makes it
 deterministic. Suite 2529/1-known-flake (`MoveToAndFire_BTreeTick`, passes isolated) · goldens 184/184.
 
-**LV-6 remaining** (demo/docs).
+**LV-6 — demo + docs · ✅ (2026-08-03). FC-2 COMPLETE.** `ListVariableDemo.bp.json` recipe (Tutorial;
+Instance: `Waypoints` int×4 + scalar `Count`; per tick `Add(7)` then `Count ← ItemCount(Waypoints)` —
+teaches declare / capacity-bounded write / consumer read / watch rendering) · registered in all three
+`RecipeIntegrityTests` theories (parse / description+concepts / validate-clean) · runtime PROOF
+(`ListVariableDemoTests`): 5 real `TickThunk` ticks — list fills 1→4, 5th Add rejected (capacity bound
+held), all landed slots carry the value; this also closes the FC-1-deferred "demo + runtime end-to-end"
+item for the list home · docs: `Blueprint_Fixed_List_Variables.md` (table-led quick reference: declare /
+read / write / clone / debug, write-verb contract, BP1504-1506, v1 limits) + hand-authored
+`img/fixed_list_layout.svg` (wrapper layout, F2 clamp window, G6 tail). Suite 2534/1-known-flake
+(`WhenNode_EqsResult_Under150ns` perf timing under parallel load, passes isolated) · goldens 184/184.
 
 ### FC-3 — see the umbrella §Sequencing (details filled in when the batch starts)

@@ -1,0 +1,286 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
+  "AssetId": "00000099-0000-0000-0000-0000000000dd",
+  "Name": "ListVariableDemo",
+  "Dispatch": "Instance",
+  "Primitive": null,
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [
+    {
+      "Id": "d0000001-0000-0000-0000-000000000001",
+      "Name": "Waypoints",
+      "Type": {
+        "TypeId": "System.Int32",
+        "Capacity": 4
+      },
+      "DefaultValueJson": "0"
+    },
+    {
+      "Id": "d0000001-0000-0000-0000-000000000002",
+      "Name": "Count",
+      "Type": {
+        "TypeId": "System.Int32"
+      },
+      "DefaultValueJson": "0"
+    }
+  ],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "d1000001-0000-0000-0000-000000000001",
+      "Name": "Tick",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "d2000001-0000-0000-0000-000000000001",
+          "Pins": [
+            {
+              "Id": "de000001-0000-0000-0000-000000000001",
+              "Name": "ExecOut",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            }
+          ],
+          "EditorMetadata": {
+            "X": 80.0,
+            "Y": 200.0
+          }
+        },
+        {
+          "kind": "ListWrite",
+          "Id": "d2000001-0000-0000-0000-000000000002",
+          "VariableId": "d0000001-0000-0000-0000-000000000001",
+          "Op": "Add",
+          "Pins": [
+            {
+              "Id": "de000001-0000-0000-0000-000000000011",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "de000001-0000-0000-0000-000000000012",
+              "Name": "Out",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "de000001-0000-0000-0000-000000000013",
+              "Name": "Value",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32"
+              }
+            },
+            {
+              "Id": "de000001-0000-0000-0000-000000000014",
+              "Name": "Ok",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean"
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 320.0,
+            "Y": 200.0
+          }
+        },
+        {
+          "kind": "Literal",
+          "Id": "d2000001-0000-0000-0000-000000000003",
+          "TypeId": "System.Int32",
+          "ValueJson": "7",
+          "Pins": [
+            {
+              "Id": "de000001-0000-0000-0000-000000000021",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32"
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 80.0,
+            "Y": 320.0
+          }
+        },
+        {
+          "kind": "GetVariable",
+          "Id": "d2000001-0000-0000-0000-000000000004",
+          "VariableId": "d0000001-0000-0000-0000-000000000001",
+          "Pins": [
+            {
+              "Id": "de000001-0000-0000-0000-000000000031",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": true
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 320.0,
+            "Y": 380.0
+          }
+        },
+        {
+          "kind": "ComponentItemCount",
+          "Id": "d2000001-0000-0000-0000-000000000005",
+          "CollectionKind": "BlackboardFixedList",
+          "CollectionFieldName": "Waypoints",
+          "Pins": [
+            {
+              "Id": "de000001-0000-0000-0000-000000000041",
+              "Name": "Collection",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Object",
+                "IsArray": true
+              }
+            },
+            {
+              "Id": "de000001-0000-0000-0000-000000000042",
+              "Name": "Count",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32"
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 540.0,
+            "Y": 380.0
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "Id": "d2000001-0000-0000-0000-000000000006",
+          "VariableId": "d0000001-0000-0000-0000-000000000002",
+          "Pins": [
+            {
+              "Id": "de000001-0000-0000-0000-000000000051",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "de000001-0000-0000-0000-000000000052",
+              "Name": "Out",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "de000001-0000-0000-0000-000000000053",
+              "Name": "Value",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32"
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 760.0,
+            "Y": 200.0
+          }
+        },
+        {
+          "kind": "Return",
+          "Id": "d2000001-0000-0000-0000-000000000007",
+          "Pins": [
+            {
+              "Id": "de000001-0000-0000-0000-000000000061",
+              "Name": "ExecIn",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            }
+          ],
+          "EditorMetadata": {
+            "X": 980.0,
+            "Y": 200.0
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "d2000001-0000-0000-0000-000000000001",
+          "FromPinId": "de000001-0000-0000-0000-000000000001",
+          "ToNodeId": "d2000001-0000-0000-0000-000000000002",
+          "ToPinId": "de000001-0000-0000-0000-000000000011"
+        },
+        {
+          "FromNodeId": "d2000001-0000-0000-0000-000000000002",
+          "FromPinId": "de000001-0000-0000-0000-000000000012",
+          "ToNodeId": "d2000001-0000-0000-0000-000000000006",
+          "ToPinId": "de000001-0000-0000-0000-000000000051"
+        },
+        {
+          "FromNodeId": "d2000001-0000-0000-0000-000000000006",
+          "FromPinId": "de000001-0000-0000-0000-000000000052",
+          "ToNodeId": "d2000001-0000-0000-0000-000000000007",
+          "ToPinId": "de000001-0000-0000-0000-000000000061"
+        },
+        {
+          "FromNodeId": "d2000001-0000-0000-0000-000000000003",
+          "FromPinId": "de000001-0000-0000-0000-000000000021",
+          "ToNodeId": "d2000001-0000-0000-0000-000000000002",
+          "ToPinId": "de000001-0000-0000-0000-000000000013"
+        },
+        {
+          "FromNodeId": "d2000001-0000-0000-0000-000000000004",
+          "FromPinId": "de000001-0000-0000-0000-000000000031",
+          "ToNodeId": "d2000001-0000-0000-0000-000000000005",
+          "ToPinId": "de000001-0000-0000-0000-000000000041"
+        },
+        {
+          "FromNodeId": "d2000001-0000-0000-0000-000000000005",
+          "FromPinId": "de000001-0000-0000-0000-000000000042",
+          "ToNodeId": "d2000001-0000-0000-0000-000000000006",
+          "ToPinId": "de000001-0000-0000-0000-000000000053"
+        }
+      ]
+    }
+  ],
+  "EditorMetadata": {
+    "Recipe": {
+      "DisplayName": "List Variable Demo  (fixed-capacity lists)",
+      "Category": "Tutorial",
+      "Description": "Instance blueprint with a fixed-capacity list variable (Waypoints: int, capacity 4). Every tick it appends 7 via the Add (List) write node and mirrors the list's logical length into a scalar via Item Count. After four ticks the list is full and Add degrades to Ok=false — the list never overflows. Watch Waypoints render as List<Int32>[4] Count=k {…} in the debugger.",
+      "Difficulty": "Beginner",
+      "ConceptsTaught": [
+        "Declaring a fixed-capacity list variable (Container: List (fixed))",
+        "ListWrite Add — capacity-bounded, Ok=false on overflow",
+        "Reading a list with the shared collection consumers (Item Count over GetVariable)",
+        "Debugger watch rendering of list state"
+      ]
+    }
+  }
+}

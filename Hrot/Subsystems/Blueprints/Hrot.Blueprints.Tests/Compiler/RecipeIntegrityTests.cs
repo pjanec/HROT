@@ -99,6 +99,7 @@ public sealed class RecipeIntegrityTests
     [InlineData("LocomotionMoveToDemo")]
     [InlineData("EditorTypesDemo")]
     [InlineData("GateConditionDemo")]
+    [InlineData("ListVariableDemo")]
     public void AllRecipes_Parse(string name)
     {
         var asset = LoadRecipe(name);
@@ -117,6 +118,7 @@ public sealed class RecipeIntegrityTests
     [InlineData("LocomotionMoveToDemo")]
     [InlineData("EditorTypesDemo")]
     [InlineData("GateConditionDemo")]
+    [InlineData("ListVariableDemo")]
     public void AllRecipes_HaveDescriptionsAndConcepts(string name)
     {
         var asset = LoadRecipe(name);
@@ -135,6 +137,7 @@ public sealed class RecipeIntegrityTests
     [InlineData("SquadState")]
     [InlineData("EditorTypesDemo")]
     [InlineData("GateConditionDemo")]
+    [InlineData("ListVariableDemo")]
     public void AllRecipes_ValidateOnly_NoErrors(string name)
     {
         var asset  = LoadRecipe(name);
