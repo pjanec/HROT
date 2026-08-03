@@ -1324,6 +1324,158 @@ internal sealed class V_ComponentAccessRules : IValidator
                 {
                     CheckComponentCollectionConsumer(node, graph, asset, ctx);
                 }
+                else if (node is CollectionWriteNode cwn)
+                {
+                    CheckCollectionWrite(cwn, graph, asset, ctx);
+                }
+            }
+
+            // G3 (Q#20/BP2071): warn on a collection write inside a ForEach body iterating the
+            // SAME collection -- checked per graph, after the per-node loop (needs both endpoints).
+            CheckWriteInsideIteration(graph, asset, ctx);
+        }
+    }
+
+    /// <summary>
+    /// FC-1 (Q#20) -- BP2067/BP2068/BP2069/BP2070. Mirrors <see cref="CheckComponentCollectionConsumer"/>'s
+    /// wired-gating for the bake checks (unwired "Collection" is a legitimate not-used-yet state --
+    /// Stage5 degrades it to Ok=false silently), but the self-only checks (BP2069 "Target" pin,
+    /// BP2068 managed kind) fire regardless of wiring -- they are structural contradictions, not
+    /// incomplete authoring.
+    /// </summary>
+    private static void CheckCollectionWrite(
+        CollectionWriteNode cwn, Graph graph, BlueprintAsset asset, ValidationContext ctx)
+    {
+        // BP2069 -- self-only: no "Target" pin, ever (the CollectionWrite analog of BP2062, which
+        // is pinned to SetComponentNode and deliberately not widened -- see Q#20 review R2a).
+        if (cwn.Pins.Any(p =>
+                !p.IsExec && string.Equals(p.Name, "Target", StringComparison.OrdinalIgnoreCase)))
+        {
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2069,
+                $"{nameof(CollectionWriteNode)} is self-only -- a \"Target\" pin/link is not permitted.",
+                asset.AssetId, graph.Id, cwn.Id));
+        }
+
+        // BP2068 -- managed collections are not element-writable (Q#20-C): a ManagedMember bake on
+        // a WRITE node is structurally forbidden whether or not it is wired (Stage5 additionally
+        // degrades it to Ok=false as a backstop).
+        if (cwn.CollectionKind == CollectionKind.ManagedMember)
+        {
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2068,
+                $"{nameof(CollectionWriteNode)}: a ManagedMember collection is not element-writable " +
+                "(Q#20-C -- per-field managed mutation corrupts snapshots via reference aliasing); " +
+                "managed collections may only be replaced whole via SetComponent (ECB).",
+                asset.AssetId, graph.Id, cwn.Id));
+        }
+
+        var collectionPin = cwn.Pins.FirstOrDefault(p =>
+            !p.IsExec && p.Direction == "In"
+            && string.Equals(p.Name, "Collection", StringComparison.OrdinalIgnoreCase));
+        if (collectionPin is null) return;
+
+        var collLink = graph.Links.FirstOrDefault(
+            l => l.ToNodeId == cwn.Id && l.ToPinId == collectionPin.Id);
+        if (collLink is null) return;
+
+        // BP2067 -- wired but not baked (the write analog of BP2066), including a malformed FQN
+        // (the write node folds BP2060/BP2061's syntactic checks in here rather than splitting).
+        if (string.IsNullOrEmpty(cwn.ComponentTypeFqn)
+            || !FqnPattern.IsMatch(cwn.ComponentTypeFqn)
+            || string.IsNullOrEmpty(cwn.WriteAccessorFqn)
+            || !FqnPattern.IsMatch(cwn.WriteAccessorFqn))
+        {
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2067,
+                $"{nameof(CollectionWriteNode)}: \"Collection\" is wired but the baked " +
+                "ComponentTypeFqn/WriteAccessorFqn are empty or malformed -- the collection was " +
+                "not baked at wire time.",
+                asset.AssetId, graph.Id, cwn.Id));
+        }
+
+        // BP2070 (G4) -- producer must be a SELF read: a GetComponent with "Target" wired resolves
+        // the collection off another entity, and a write consumer inheriting that binding would be
+        // a cross-entity write (forbidden). The emitted write binds `self` regardless (defense in
+        // depth) -- this rule makes the mismatch visible instead of silently writing elsewhere
+        // than the designer wired.
+        var producer = graph.Nodes.FirstOrDefault(n => n.Id == collLink.FromNodeId);
+        if (producer is GetComponentNode producerGcn)
+        {
+            var targetPin = producerGcn.Pins.FirstOrDefault(p =>
+                !p.IsExec && p.Direction == "In"
+                && string.Equals(p.Name, "Target", StringComparison.OrdinalIgnoreCase));
+            bool targetWired = targetPin is not null && graph.Links.Any(
+                l => l.ToNodeId == producerGcn.Id && l.ToPinId == targetPin.Id);
+            if (targetWired)
+            {
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2070,
+                    $"{nameof(CollectionWriteNode)}: the producing GetComponent has \"Target\" " +
+                    "wired -- collection writes are self-only (Q#16/Q#20); the write would bind " +
+                    "self, not the wired entity. Read cross-entity, write self.",
+                    asset.AssetId, graph.Id, cwn.Id));
+            }
+        }
+    }
+
+    /// <summary>
+    /// FC-1 (Q#20 G3) -- BP2071 WARNING: a <see cref="CollectionWriteNode"/> reachable from a
+    /// <see cref="ComponentForEachNode"/>'s "Body" exec chain, mutating the SAME collection that
+    /// ForEach is iterating, has wire-dependent semantics (the loop bound is hoisted once iff the
+    /// "Count" out-pin is wired, else re-evaluated per pass -- see StatementEmitter's IrOp_ForEach
+    /// case), so RemoveAt/Add inside the body silently skips or re-reads elements depending on an
+    /// unrelated wire. Designer rule: a collection is read-only while being iterated. "Same
+    /// collection" = same ComponentTypeFqn + same accessor OWNER CLASS (one curated ops class per
+    /// (component, collection) -- comparing the class avoids needing the collection name, which
+    /// consumers do not bake). The body walk follows exec successors transitively (bounded by a
+    /// visited set) -- a rare rejoining wire can over-approximate, acceptable for a warning.
+    /// </summary>
+    private static void CheckWriteInsideIteration(Graph graph, BlueprintAsset asset, ValidationContext ctx)
+    {
+        static string AccessorOwner(string fqn)
+        {
+            int i = fqn.LastIndexOf('.');
+            return i <= 0 ? "" : fqn.Substring(0, i);
+        }
+
+        foreach (var node in graph.Nodes)
+        {
+            if (node is not ComponentForEachNode cfe) continue;
+            if (string.IsNullOrEmpty(cfe.ComponentTypeFqn)) continue;
+            string iterOwner = AccessorOwner(
+                !string.IsNullOrEmpty(cfe.CountAccessorFqn) ? cfe.CountAccessorFqn : cfe.ItemAccessorFqn);
+            if (string.IsNullOrEmpty(iterOwner)) continue;
+
+            var bodyPin = cfe.Pins.FirstOrDefault(p =>
+                p.IsExec && p.Direction == "Out"
+                && string.Equals(p.Name, "Body", StringComparison.OrdinalIgnoreCase));
+            if (bodyPin is null) continue;
+
+            // BFS over exec successors starting from the Body wire.
+            var visited = new HashSet<Guid>();
+            var queue = new Queue<Guid>();
+            foreach (var l in graph.Links.Where(l => l.FromNodeId == cfe.Id && l.FromPinId == bodyPin.Id))
+                queue.Enqueue(l.ToNodeId);
+            while (queue.Count > 0)
+            {
+                var id = queue.Dequeue();
+                if (!visited.Add(id)) continue;
+                var n = graph.Nodes.FirstOrDefault(x => x.Id == id);
+                if (n is null) continue;
+
+                if (n is CollectionWriteNode w
+                    && string.Equals(w.ComponentTypeFqn, cfe.ComponentTypeFqn, StringComparison.Ordinal)
+                    && !string.IsNullOrEmpty(w.WriteAccessorFqn)
+                    && string.Equals(AccessorOwner(w.WriteAccessorFqn), iterOwner, StringComparison.Ordinal))
+                {
+                    ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP2071,
+                        $"{nameof(CollectionWriteNode)} mutates the collection a surrounding " +
+                        "ComponentForEach is iterating -- semantics depend on whether the loop's " +
+                        "\"Count\" pin is wired (hoisted vs live bound). A collection is read-only " +
+                        "while being iterated; restructure to collect-then-apply after \"Completed\".",
+                        asset.AssetId, graph.Id, w.Id));
+                }
+
+                foreach (var outPin in n.Pins.Where(p => p.IsExec && p.Direction == "Out"))
+                    foreach (var l in graph.Links.Where(l => l.FromNodeId == n.Id && l.FromPinId == outPin.Id))
+                        queue.Enqueue(l.ToNodeId);
             }
         }
     }

@@ -118,6 +118,13 @@ public static class DiagnosticCodes
     // Stage 2 -- Validate (component-collection consumer rules -- CA-07b)
     public const string BP2066 = "BP2066";  // ComponentForEach/ComponentItemGet/ComponentItemCount: "Collection" is wired but baked accessor FQNs are empty
 
+    // Stage 2 -- Validate (component-collection WRITE rules -- FC-1, Q#20)
+    public const string BP2067 = "BP2067";  // CollectionWriteNode: "Collection" is wired but ComponentTypeFqn/WriteAccessorFqn are empty or malformed (not baked at wire time)
+    public const string BP2068 = "BP2068";  // CollectionWriteNode bound to a ManagedMember collection -- managed collections are not element-writable (Q#20-C, snapshot aliasing)
+    public const string BP2069 = "BP2069";  // CollectionWriteNode carries a "Target" pin -- writes are self-only (Q#16/Q#20)
+    public const string BP2070 = "BP2070";  // CollectionWriteNode's producer GetComponent has "Target" wired -- cross-entity collection write is not permitted (G4)
+    public const string BP2071 = "BP2071";  // WARNING: CollectionWriteNode mutates the collection a surrounding ComponentForEach is iterating (G3 -- wire-dependent semantics)
+
     // Stage 3 -- Normalize
     public const string BP3010 = "BP3010";
     public const string BP3011 = "BP3011";

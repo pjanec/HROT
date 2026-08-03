@@ -1280,6 +1280,100 @@ internal sealed class GraphScheduler
                 break;
             }
 
+            case CollectionWriteNode cwn:
+            {
+                // FC-1 (Q#20) -- component-collection element write. The "Ok" ResultValue is ALWAYS
+                // allocated (mirrors SetComponentNode's "Written"), so downstream wires resolve even
+                // on the degraded paths below.
+                var okResult = AllocValue(Stage5_Schedule.BoolType);
+                var okPin = node.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, "Ok", StringComparison.OrdinalIgnoreCase));
+                if (okPin is not null) _pinValueCache[okPin.Id] = okResult;
+
+                // Author-time binding check -- mirrors the CA-07 consumers' unwired/unbaked safe
+                // default (Stage2's BP2067 catches the wired-but-unbaked half at validation time;
+                // unwired is legitimately "not used yet"). The wire is NEVER the write entity (G4
+                // defense-in-depth: self-only regardless of what the producer resolved to).
+                var cwCollPin = node.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "Collection", StringComparison.OrdinalIgnoreCase));
+                bool cwWired = cwCollPin is not null && _graph.Links.Any(
+                    l => l.ToNodeId == node.Id && l.ToPinId == cwCollPin.Id);
+
+                // Per-op operand pins -- required operands resolved WIRED-ONLY (an unwired required
+                // operand degrades to the same safe no-write default; never a dangling IrValue).
+                bool needsInt   = cwn.Op is CollectionWriteOp.SetAt or CollectionWriteOp.InsertAt
+                                            or CollectionWriteOp.RemoveAt or CollectionWriteOp.Resize;
+                bool needsValue = cwn.Op is CollectionWriteOp.Add or CollectionWriteOp.SetAt
+                                            or CollectionWriteOp.InsertAt;
+                string intPinName = cwn.Op == CollectionWriteOp.Resize ? "Length" : "Index";
+
+                IrValue? ResolveWiredOperand(string pinName)
+                {
+                    var pin = node.Pins.FirstOrDefault(p =>
+                        !p.IsExec && p.Direction == "In"
+                        && string.Equals(p.Name, pinName, StringComparison.OrdinalIgnoreCase));
+                    if (pin is null) return null;
+                    var link = _graph.Links.FirstOrDefault(
+                        l => l.ToNodeId == node.Id && l.ToPinId == pin.Id);
+                    if (link is null) return null;
+                    return ResolveNodeOutput(link.FromNodeId, link.FromPinId, stmts);
+                }
+
+                IrValue? cwIntArg = needsInt   ? ResolveWiredOperand(intPinName) : null;
+                IrValue? cwValue  = needsValue ? ResolveWiredOperand("Value")    : null;
+
+                bool degraded = !cwWired
+                    || string.IsNullOrEmpty(cwn.ComponentTypeFqn)
+                    || string.IsNullOrEmpty(cwn.WriteAccessorFqn)
+                    || cwn.CollectionKind == CollectionKind.ManagedMember   // BP2068 backstop
+                    || (needsInt   && cwIntArg is null)
+                    || (needsValue && cwValue  is null);
+                if (degraded)
+                {
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = okResult,
+                        Operation   = new IrOp_Const("false", Stage5_Schedule.BoolType),
+                        Debug       = new IrDebugAnnotation
+                        {
+                            GraphId     = _graph.Id,
+                            NodeId      = node.Id,
+                            Synthesized = "collection-write-unwired-or-unbaked",
+                        },
+                    });
+                    break;
+                }
+
+                // Self-only by construction (Q#16/Q#20) -- entity is ALWAYS the resolved self,
+                // mirrors SetComponentNode exactly; the Collection wire's entity is deliberately
+                // never read here.
+                var cwSelf = AllocValue(Stage5_Schedule.EntityType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = cwSelf,
+                    Operation   = new IrOp_Self(),
+                    Debug       = DebugOf(node),
+                });
+
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = okResult,
+                    Operation   = new IrOp_CollectionWrite(
+                        cwn.ComponentTypeFqn,
+                        cwSelf,
+                        cwn.WriteAccessorFqn,
+                        cwn.Op.ToString(),
+                        node.Id,
+                        cwIntArg,
+                        cwValue,
+                        ReturnsBool: cwn.Op != CollectionWriteOp.Clear),
+                    Debug       = DebugOf(node),
+                });
+                break;
+            }
+
             case FunctionCallNode fc when !fc.IsPure && !string.IsNullOrEmpty(fc.TargetGraphId):
             {
                 // Impure in-blueprint function-graph call (BATCH-03A).

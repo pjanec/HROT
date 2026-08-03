@@ -171,6 +171,10 @@ internal static class Stage0_Rehydrate
                 EnrichComponentFindPins(pins, cfn);
                 break;
 
+            case CollectionWriteNode cwn:
+                EnrichCollectionWritePins(pins, cwn);
+                break;
+
             case MakeStructNode msn:
                 EnrichMakeStructPins(pins, msn);
                 break;
@@ -515,6 +519,44 @@ internal static class Stage0_Rehydrate
         pins.Add(MakePin("Collection", "In",  isExec: false, typeId: elemType, isArray: true));
         pins.Add(MakePin("Item",       "In",  isExec: false, typeId: elemType));
         pins.Add(MakePin("Result",     "Out", isExec: false, typeId: "System.Boolean"));
+    }
+
+    /// <summary>
+    /// CollectionWriteNode (FC-1, Q#20): exec node. "Collection" (IsArray, element-typed by the
+    /// node's baked <see cref="CollectionWriteNode.ElementTypeFqn"/>, System.Object fallback --
+    /// mirrors <see cref="EnrichComponentItemGetPins"/>) is the author-time binding pin ONLY (the
+    /// write entity is always <c>self</c>); operand data-ins vary per <see
+    /// cref="CollectionWriteNode.Op"/> (Add: Value · SetAt/InsertAt: Index+Value · RemoveAt: Index ·
+    /// Clear: none · Resize: Length); "Ok" (Boolean) is the write-if-present AND-op-applied result
+    /// (mirrors SetComponent's unconditional "Written").
+    /// </summary>
+    private static void EnrichCollectionWritePins(List<Pin> pins, CollectionWriteNode cwn)
+    {
+        var elemType = string.IsNullOrEmpty(cwn.ElementTypeFqn) ? "System.Object" : cwn.ElementTypeFqn;
+        pins.Clear();
+        pins.Add(MakePin("In",  "In",  isExec: true, typeId: ""));
+        pins.Add(MakePin("Out", "Out", isExec: true, typeId: ""));
+        pins.Add(MakePin("Collection", "In", isExec: false, typeId: elemType, isArray: true));
+        switch (cwn.Op)
+        {
+            case CollectionWriteOp.Add:
+                pins.Add(MakePin("Value", "In", isExec: false, typeId: elemType));
+                break;
+            case CollectionWriteOp.SetAt:
+            case CollectionWriteOp.InsertAt:
+                pins.Add(MakePin("Index", "In", isExec: false, typeId: "System.Int32"));
+                pins.Add(MakePin("Value", "In", isExec: false, typeId: elemType));
+                break;
+            case CollectionWriteOp.RemoveAt:
+                pins.Add(MakePin("Index", "In", isExec: false, typeId: "System.Int32"));
+                break;
+            case CollectionWriteOp.Clear:
+                break;
+            case CollectionWriteOp.Resize:
+                pins.Add(MakePin("Length", "In", isExec: false, typeId: "System.Int32"));
+                break;
+        }
+        pins.Add(MakePin("Ok", "Out", isExec: false, typeId: "System.Boolean"));
     }
 
     /// <summary>

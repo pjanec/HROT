@@ -170,6 +170,46 @@ public sealed record IrOp_SetManagedComponent(
     IrValue? Value
 ) : IrOperation;
 
+/// <summary>
+/// FC-1 (Q#20) -- component-collection element write through a curated
+/// <c>[BlueprintCollectionWrite]</c> static accessor. Same guarded write-if-present shape as
+/// <see cref="IrOp_WriteComponentFields"/> (the <c>HasComponent&lt;T&gt;</c> bool drives BOTH the
+/// guard and this op's ResultValue), but the ResultValue is then REASSIGNED to the accessor's own
+/// bool inside the guard, so it carries "component present AND op applied" -- the emitting
+/// <see cref="Assets.CollectionWriteNode"/>'s "Ok" data-out (Stage5 ALWAYS allocates it):
+/// <code>
+/// var __tN = wv.HasComponent&lt;global::{ComponentTypeFqn}&gt;(self);
+/// if (__tN)
+/// {
+///     ref var __wcN = ref wv.GetComponentRW&lt;global::{ComponentTypeFqn}&gt;(self);
+///     __tN = global::{WriteAccessorFqn}(ref __wcN[, intArg][, value]);   // Clear: plain call, __tN stays true
+/// }
+/// </code>
+/// Raw buffer mutation NEVER appears in generated code (Q#5-C / Q#20 G1) -- the accessor owns the
+/// <c>Span&lt;T&gt;</c> pattern, Count maintenance, and the tail-always-default invariant. In
+/// non-Release mode with <c>self</c> in scope, a refused op / absent component additionally emits
+/// <c>DebugProbe.CollectionWriteFailed(self, nodeId, verb, reason)</c> (the never-silent
+/// false-on-overflow contract; reasons: "op-rejected" / "component-absent").
+/// </summary>
+/// <param name="ComponentTypeFqn">FQN of the component carrying the collection. Baked string -- no reflection.</param>
+/// <param name="Entity">ALWAYS the resolved <c>self</c> (an <see cref="IrOp_Self"/> value) -- the "Collection" wire is author-time binding only, never the write entity (Q#16/Q#20 self-only; Stage2 BP2069/BP2070 enforce).</param>
+/// <param name="WriteAccessorFqn">Baked FQN of the curated write-accessor static for <paramref name="Verb"/>.</param>
+/// <param name="Verb">The op name ("Add"/"SetAt"/"InsertAt"/"RemoveAt"/"Clear"/"Resize") -- probe argument only; arity is driven by <paramref name="IntArg"/>/<paramref name="Value"/>/<paramref name="ReturnsBool"/>.</param>
+/// <param name="NodeId">The authoring node's id -- probe argument (mirrors <c>IrOp_DebugProbe_NodeEnter</c>'s "D" format).</param>
+/// <param name="IntArg">The int operand (Index for SetAt/InsertAt/RemoveAt, Length for Resize), or null (Add/Clear). Passed AFTER the ref receiver, BEFORE <paramref name="Value"/>.</param>
+/// <param name="Value">The element operand (Add/SetAt/InsertAt), or null.</param>
+/// <param name="ReturnsBool">False only for Clear (a void accessor -- the ResultValue keeps the guard bool).</param>
+public sealed record IrOp_CollectionWrite(
+    string ComponentTypeFqn,
+    IrValue Entity,
+    string WriteAccessorFqn,
+    string Verb,
+    Guid NodeId,
+    IrValue? IntArg,
+    IrValue? Value,
+    bool ReturnsBool
+) : IrOperation;
+
 // ECS write via ECB (impure)
 public sealed record IrOp_AddComponent(string ComponentTypeFqn, IrValue Entity, IrValue Value) : IrOperation;
 public sealed record IrOp_RemoveComponent(string ComponentTypeFqn, IrValue Entity) : IrOperation;

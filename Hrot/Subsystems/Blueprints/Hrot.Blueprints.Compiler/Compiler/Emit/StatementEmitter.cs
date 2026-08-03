@@ -413,6 +413,62 @@ internal static class StatementEmitter
             }
 
             // ------------------------------------------------------------------
+            // Component-collection element write (curated accessor, self-only) -- FC-1, Q#20
+            // ------------------------------------------------------------------
+
+            case IrOp_CollectionWrite op:
+            {
+                // FC-1 (Q#20 "G1 resolution"). Same guarded write-if-present shape as
+                // IrOp_WriteComponentFields (idx is always >= 0 -- Stage5 always allocates the "Ok"
+                // ResultValue), but the mutation is a CURATED ACCESSOR CALL on the guarded ref --
+                // raw buffer/element access never appears here (Q#5-C: the Span<T> pattern lives
+                // inside the accessor). For bool ops the guard local is REASSIGNED to the accessor
+                // result (Ok = present AND applied); Clear (void) keeps the guard bool. The
+                // DebugProbe.CollectionWriteFailed calls are gated EXACTLY like the other probe ops
+                // (non-Release + self in scope -- Library dispatch has no `self`): the never-silent
+                // contract is a debug/trace diagnostic, and DebugProbe.Sink is a null no-op even
+                // then.
+                string entity = $"__t{op.Entity.Index}";
+                bool probes = e.Ctx.Mode != Hrot.Blueprints.Core.Compiler.CompilerMode.Release
+                              && e.Ctx.HasSelfInScope;
+
+                string args = $"ref __wc{idx}";
+                if (op.IntArg is { } intArg) args += $", __t{intArg.Index}";
+                if (op.Value  is { } val)    args += $", __t{val.Index}";
+
+                e.WriteLine($"var __t{idx} = {wv}.HasComponent<global::{op.ComponentTypeFqn}>({entity});");
+                e.WriteLine($"if (__t{idx})");
+                e.WriteLine("{");
+                e.Indent();
+                e.WriteLine($"ref var __wc{idx} = ref {wv}.GetComponentRW<global::{op.ComponentTypeFqn}>({entity});");
+                if (op.ReturnsBool)
+                {
+                    e.WriteLine($"__t{idx} = global::{op.WriteAccessorFqn}({args});");
+                    if (probes)
+                    {
+                        e.WriteLine($"if (!__t{idx})");
+                        e.Indent();
+                        e.WriteLine($"global::Hrot.Blueprints.Core.Debug.DebugProbe.CollectionWriteFailed(self, \"{op.NodeId:D}\", \"{op.Verb}\", \"op-rejected\");");
+                        e.Outdent();
+                    }
+                }
+                else
+                {
+                    e.WriteLine($"global::{op.WriteAccessorFqn}({args});");
+                }
+                e.Outdent();
+                e.WriteLine("}");
+                if (probes)
+                {
+                    e.WriteLine("else");
+                    e.Indent();
+                    e.WriteLine($"global::Hrot.Blueprints.Core.Debug.DebugProbe.CollectionWriteFailed(self, \"{op.NodeId:D}\", \"{op.Verb}\", \"component-absent\");");
+                    e.Outdent();
+                }
+                break;
+            }
+
+            // ------------------------------------------------------------------
             // ECS writes via ECB
             // ------------------------------------------------------------------
 

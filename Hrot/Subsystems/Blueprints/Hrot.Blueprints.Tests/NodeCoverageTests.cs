@@ -562,6 +562,10 @@ public sealed class NodeCoverageTests
         // generated search-loop C# asserted verbatim by ComponentSearchLoweringTests.
         yield return ("Inline/ComponentContains", new[] { BuildComponentContainsMinimalAsset() }, null, CoverageMode.ValidateOnlyStage1To7);
         yield return ("Inline/ComponentFind", new[] { BuildComponentFindMinimalAsset() }, null, CoverageMode.ValidateOnlyStage1To7);
+        // FC-1 (Q#20): collection element WRITE -- same game-assembly reason (the baked write-
+        // accessor FQN points into Hrot.AI.Behaviors), generated guarded-accessor C# asserted
+        // verbatim by CollectionWriteLoweringTests.
+        yield return ("Inline/CollectionWrite", new[] { BuildCollectionWriteMinimalAsset() }, null, CoverageMode.ValidateOnlyStage1To7);
     }
 
     // ---- recipe loading (mirrors RecipeIntegrityTests.LoadRecipe) -----------
@@ -2021,6 +2025,75 @@ public sealed class NodeCoverageTests
             Dispatch  = BlueprintDispatchKind.Instance,
             Variables = { intVar },
             Graphs    = { graph },
+        };
+    }
+
+    /// <summary>
+    /// FC-1 (Q#20): EventEntry -&gt; CollectionWrite(SetAt; Collection &lt;-
+    /// GetComponent&lt;BpCollectionDemo&gt;.Values, Index &lt;- Literal 0, Value &lt;- Literal 42)
+    /// -&gt; Return. ValidateOnlyStage1To7 -- same game-assembly reason as
+    /// <see cref="BuildComponentItemCountMinimalAsset"/> (BpCollectionDemoOps.SetAt lives in
+    /// Hrot.AI.Behaviors); the guarded-accessor emit is asserted verbatim by
+    /// <c>CollectionWriteLoweringTests</c>.
+    /// </summary>
+    private static BlueprintAsset BuildCollectionWriteMinimalAsset()
+    {
+        var (getNode, valuesOut) = BuildComponentCollectionSourceNode();
+
+        var collectionIn = DataPin("Collection", "In", "System.Int32");
+        collectionIn.TypeRef.IsArray = true;
+        var writeExecIn  = ExecPin("In",  "In");
+        var writeExecOut = ExecPin("Out", "Out");
+        var indexIn = DataPin("Index", "In", "System.Int32");
+        var valueIn = DataPin("Value", "In", "System.Int32");
+        var okOut   = DataPin("Ok",    "Out", "System.Boolean");
+        var writeNode = new CollectionWriteNode
+        {
+            Id               = Guid.NewGuid(),
+            ComponentTypeFqn = CcComponentFqn,
+            Op               = CollectionWriteOp.SetAt,
+            WriteAccessorFqn = "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.SetAt",
+            ElementTypeFqn   = "System.Int32",
+        };
+        writeNode.Pins.AddRange(new[] { writeExecIn, writeExecOut, collectionIn, indexIn, valueIn, okOut });
+
+        var idxLitOut = DataPin("Value", "Out", "System.Int32");
+        var idxLit    = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Int32", ValueJson = "0" };
+        idxLit.Pins.Add(idxLitOut);
+        var valLitOut = DataPin("Value", "Out", "System.Int32");
+        var valLit    = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Int32", ValueJson = "42" };
+        valLit.Pins.Add(valLitOut);
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecPin("ExecIn", "In");
+        ret.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, getNode, writeNode, idxLit, valLit, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,     FromPinId = entryOut.Id,     ToNodeId = writeNode.Id, ToPinId = writeExecIn.Id },
+                new Link { FromNodeId = writeNode.Id, FromPinId = writeExecOut.Id, ToNodeId = ret.Id,       ToPinId = retIn.Id },
+                new Link { FromNodeId = getNode.Id,   FromPinId = valuesOut.Id,    ToNodeId = writeNode.Id, ToPinId = collectionIn.Id },
+                new Link { FromNodeId = idxLit.Id,    FromPinId = idxLitOut.Id,    ToNodeId = writeNode.Id, ToPinId = indexIn.Id },
+                new Link { FromNodeId = valLit.Id,    FromPinId = valLitOut.Id,    ToNodeId = writeNode.Id, ToPinId = valueIn.Id },
+            },
+        };
+
+        return new BlueprintAsset
+        {
+            AssetId  = Guid.NewGuid(),
+            Name     = "CollectionWriteCoverage",
+            Dispatch = BlueprintDispatchKind.Instance,
+            Graphs   = { graph },
         };
     }
 

@@ -14,7 +14,7 @@ Stage5 lowering + emit + validator work done and reviewed hands-on. **Gate (ever
 | # | Batch | Scope | Status |
 |---|-------|-------|--------|
 | FC-0 | Runtime foundation: write-accessor convention + reference impls + probe hook + gates | component home | ✅ |
-| FC-1·C | Write compiler spine: node + Stage0 pins + **IR op family** + Stage5 + emit + Stage2 gates (G3/G4/managed/BP-writable-structural) | component home | ⬜ |
+| FC-1·C | Write compiler spine: node + Stage0 pins + **IR op family** + Stage5 + emit + Stage2 gates (G3/G4/managed/BP-writable-structural) | component home | ✅ |
 | FC-1·E | Write editor: reflector write-accessor discovery, palette (two-gate filter), drawer, wire-bake, demo bp | component home | ⬜ |
 | FC-1·G2 | Tick-order: fix the `bpTick` splice (preferred) or pin 1-tick lag + composition-order test | composition | ⬜ |
 | FC-1b | `[BlueprintCollectionField]` Roslyn source generator emitting `{Component}CollectionOps` from the FC-0 template | tooling | ⬜ |
@@ -61,16 +61,26 @@ generator uniformity) — but its justification is curation + the value-copy haz
 tests pin the measured behavior so any future compiler change fails loudly
 (`NaiveRefLocalWrite_CurrentToolchain_Lands` / `ValueCopyWrite_IsLost`).
 
-### FC-1·C — Write compiler spine · ⬜
-- [ ] `CollectionWriteNode` (Assets) — baked: `ComponentTypeFqn`, collection name, `CollectionWriteOp`,
-  `WriteAccessorFqn`, `CollectionKind` (CuratedStatic only v1); collection in-pin (G4) + per-op operand pins +
-  `Ok` out-pin
-- [ ] Stage0 pin enrichment mirror
-- [ ] `IrOp_CollectionWrite` + Stage5 lowering (self-bound `IrOp_Self`, guarded shape) + StatementEmitter case
-  (`HasComponent` guard → `GetComponentRW` ref → accessor call → `Ok`; `DebugProbe.CollectionWriteFailed` on
-  both failure paths)
-- [ ] Stage2 `V_CollectionWriteRules`: producer-self check (G4 — source GetComponent `Target` unwired),
-  ManagedMember rejection (new BPxxxx), G3 iterate-while-writing warning, structural FQN/accessor checks
-- [ ] Lowering + emit tests through Stage3→7 (CA-03 pattern); goldens 184/184
+### FC-1·C — Write compiler spine · ✅ (2026-08-04)
+- [x] `CollectionWriteNode` (Assets, discriminator "CollectionWrite") — baked `ComponentTypeFqn` ·
+  `Op: CollectionWriteOp` (asset-side mirror of `Fdp.Core.BlueprintCollectionOp`) · `WriteAccessorFqn` ·
+  `ElementTypeFqn` · `CollectionKind` (CuratedStatic only); collection in-pin (G4 UX; never the write entity) +
+  per-op operand pins ("Index"/"Length"/"Value") + unconditional `Ok` out (= present AND applied)
+- [x] Stage0 `EnrichCollectionWritePins` + registry exec-skeleton entry
+- [x] `IrOp_CollectionWrite` + Stage5 case (always-allocated Ok; wired-only operand resolution; unwired/unbaked/
+  managed/missing-operand degrade to const `Ok=false`; entity = unconditional `IrOp_Self`) + StatementEmitter
+  case (guarded `HasComponent` → `GetComponentRW` ref → `global::{WriteAccessorFqn}(ref __wc[, i][, v])`;
+  Clear keeps the guard bool; `DebugProbe.CollectionWriteFailed` on op-rejected/component-absent, gated
+  non-Release + self-in-scope exactly like the other probe ops — satisfying Q#19's "diagnostic in Debug/Trace,
+  no-op in Release" contract)
+- [x] Stage2 (`V_ComponentAccessRules` extension): **BP2067** wired-but-unbaked/malformed · **BP2068**
+  ManagedMember write forbidden (Q#20-C) · **BP2069** "Target" pin (self-only) · **BP2070** producer
+  GetComponent `Target` wired (G4 cross-entity) · **BP2071 warning** write-inside-ForEach-body over the same
+  collection (G3; "same collection" = ComponentTypeFqn + accessor owner class; exec-BFS from the Body wire)
+- [x] Tests (20): `CollectionWriteLoweringTests` (guarded accessor shape, per-op arity, Clear void shape,
+  **self-bound even with a cross-entity producer** (Stage3-7, skipping Stage2), Release no-probes, three
+  degrade paths) + `V_CollectionWriteValidatorTests` (BP2067-71 fire + negative cases, `[CoversDiagnosticCode]`
+  for the coverage gate)
+- **Gate:** clean build · 20/20 new tests · full Blueprints suite green · Generators 184/184 serial byte-identical.
 
 ### FC-1·E / FC-1·G2 / FC-1b / FC-2 / FC-3 — see the umbrella §Sequencing (details filled in when the batch starts)
