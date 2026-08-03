@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 580" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <defs>
+    <marker id="a6" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1100" height="580" fill="#f7f8fa"/>
+
+  <text x="550" y="36" text-anchor="middle" font-size="22" font-weight="700" fill="#111827">Who declares the collection — editor vs C#</text>
+  <text x="550" y="58" text-anchor="middle" font-size="13" fill="#6b7280">the runtime collection is the same; only the authoring surface and how the editor learns of it differ</text>
+
+  <!-- Left panel: editor -->
+  <rect x="36" y="82" width="440" height="404" rx="10" fill="#faf5ff" stroke="#c4b5fd"/>
+  <text x="256" y="110" text-anchor="middle" font-size="14" font-weight="700" fill="#5b21b6">🧩 Declared in the editor UI</text>
+  <text x="256" y="128" text-anchor="middle" font-size="11.5" fill="#7c3aed">by a designer — no C# written</text>
+
+  <rect x="58" y="146" width="396" height="56" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="256" y="170" text-anchor="middle" font-size="12" fill="#111827">pick element type × capacity</text>
+  <text x="256" y="188" text-anchor="middle" font-size="11.5" fill="#6b7280">(Add-Variable dialog · container mode)</text>
+
+  <line x1="256" y1="202" x2="256" y2="226" stroke="#64748b" stroke-width="1.6" marker-end="url(#a6)"/>
+
+  <rect x="58" y="228" width="396" height="48" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="256" y="257" text-anchor="middle" font-size="12" fill="#111827">⚙ the compiler generates the wrapper + storage</text>
+
+  <line x1="256" y1="276" x2="256" y2="300" stroke="#64748b" stroke-width="1.6" marker-end="url(#a6)"/>
+
+  <rect x="58" y="302" width="396" height="92" rx="8" fill="#ede9fe" stroke="#7c3aed"/>
+  <text x="256" y="328" text-anchor="middle" font-size="13" font-weight="700" fill="#5b21b6">Blueprint variable collection</text>
+  <text x="256" y="352" text-anchor="middle" font-size="11.5" fill="#374151">appears as a blueprint variable with a</text>
+  <text x="256" y="369" text-anchor="middle" font-size="11.5" fill="#374151">collection out-pin, ready to wire into nodes</text>
+
+  <text x="256" y="428" text-anchor="middle" font-size="11.5" fill="#6b7280">one surface, fully authored in the editor</text>
+
+  <!-- Right panel: C# -->
+  <rect x="500" y="82" width="564" height="404" rx="10" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="782" y="110" text-anchor="middle" font-size="14" font-weight="700" fill="#334155">🖉 Written in C# by a developer</text>
+  <text x="782" y="128" text-anchor="middle" font-size="11.5" fill="#64748b">the editor discovers or recognizes what's declared</text>
+
+  <rect x="522" y="146" width="520" height="50" rx="7" fill="#0f172a" stroke="#334155"/>
+  <text x="782" y="176" text-anchor="middle" font-size="11.5" font-family="ui-monospace, monospace" fill="#e2e8f0">[InlineArray(N)] Items · int Count</text>
+
+  <!-- split arrows -->
+  <line x1="782" y1="196" x2="648" y2="224" stroke="#64748b" stroke-width="1.5" marker-end="url(#a6)"/>
+  <line x1="782" y1="196" x2="916" y2="224" stroke="#64748b" stroke-width="1.5" marker-end="url(#a6)"/>
+
+  <!-- sub-left: component -->
+  <rect x="522" y="226" width="250" height="60" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="647" y="249" text-anchor="middle" font-size="11.5" fill="#111827">on an ECS component</text>
+  <text x="647" y="266" text-anchor="middle" font-size="11" fill="#6b7280">+ read / write accessors</text>
+  <text x="647" y="279" text-anchor="middle" font-size="10.5" fill="#6b7280">→ editor discovers it by reflection</text>
+
+  <line x1="647" y1="286" x2="647" y2="310" stroke="#64748b" stroke-width="1.5" marker-end="url(#a6)"/>
+
+  <rect x="522" y="312" width="250" height="82" rx="8" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="647" y="338" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1e40af">Component collection</text>
+  <text x="647" y="360" text-anchor="middle" font-size="11" fill="#374151">appears as a GetComponent</text>
+  <text x="647" y="376" text-anchor="middle" font-size="11" fill="#374151">collection out-pin</text>
+
+  <!-- sub-right: action -->
+  <rect x="792" y="226" width="250" height="60" rx="7" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="917" y="249" text-anchor="middle" font-size="11.5" fill="#111827">in a behavior action's DTO</text>
+  <text x="917" y="266" text-anchor="middle" font-size="11" fill="#6b7280">(no accessors needed)</text>
+  <text x="917" y="279" text-anchor="middle" font-size="10.5" fill="#6b7280">→ editor recognizes the field</text>
+
+  <line x1="917" y1="286" x2="917" y2="310" stroke="#64748b" stroke-width="1.5" marker-end="url(#a6)"/>
+
+  <rect x="792" y="312" width="250" height="82" rx="8" fill="#fef3c7" stroke="#d97706"/>
+  <text x="917" y="338" text-anchor="middle" font-size="12.5" font-weight="700" fill="#92400e">Action collection</text>
+  <text x="917" y="360" text-anchor="middle" font-size="11" fill="#374151">a field the action uses</text>
+  <text x="917" y="376" text-anchor="middle" font-size="11" fill="#374151">directly by ref</text>
+
+  <text x="782" y="428" text-anchor="middle" font-size="11.5" fill="#6b7280">two surfaces — reflected (component) or recognized (action)</text>
+
+  <!-- footer -->
+  <rect x="36" y="504" width="1028" height="58" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="56" y="530" font-size="12.5" fill="#374151">The editor <tspan font-weight="700" fill="#5b21b6">generates</tspan> the blueprint-variable one, <tspan font-weight="700" fill="#1e40af">reflects</tspan> the component one, and <tspan font-weight="700" fill="#92400e">recognizes</tspan> the action one —</text>
+  <text x="56" y="549" font-size="12.5" fill="#374151">three ways to reach the very same collection type and its operations.</text>
+</svg>

@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 640" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <defs>
+    <marker id="a3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1040" height="640" fill="#f7f8fa"/>
+
+  <text x="520" y="36" text-anchor="middle" font-size="22" font-weight="700" fill="#111827">Which collection should I use?</text>
+  <text x="520" y="58" text-anchor="middle" font-size="13" fill="#6b7280">same underlying collection — the answer is only about where it should live and who needs it</text>
+
+  <!-- start -->
+  <rect x="330" y="86" width="300" height="48" rx="10" fill="#eef2ff" stroke="#6366f1"/>
+  <text x="480" y="115" text-anchor="middle" font-size="13.5" font-weight="700" fill="#3730a3">I need a fixed-capacity collection…</text>
+
+  <!-- decision 1 -->
+  <rect x="300" y="168" width="360" height="66" rx="10" fill="#ffffff" stroke="#94a3b8"/>
+  <text x="480" y="196" text-anchor="middle" font-size="12.5" fill="#111827">Does it belong to the entity and get read/written</text>
+  <text x="480" y="214" text-anchor="middle" font-size="12.5" fill="#111827">by several behaviors or systems (and persist with it)?</text>
+
+  <!-- outcome 1 -->
+  <rect x="712" y="160" width="300" height="82" rx="10" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="726" y="184" font-size="13" font-weight="700" fill="#1e40af">→ Component collection</text>
+  <text x="726" y="205" font-size="11.5" fill="#374151">shared, entity-owned data many actors touch</text>
+  <text x="726" y="223" font-size="11" fill="#6b7280">e.g. a squad roster / target list on the unit</text>
+
+  <!-- decision 2 -->
+  <rect x="300" y="290" width="360" height="66" rx="10" fill="#ffffff" stroke="#94a3b8"/>
+  <text x="480" y="318" text-anchor="middle" font-size="12.5" fill="#111827">Is it private working state of one blueprint's</text>
+  <text x="480" y="336" text-anchor="middle" font-size="12.5" fill="#111827">own logic, used inside its graph?</text>
+
+  <!-- outcome 2 -->
+  <rect x="712" y="282" width="300" height="82" rx="10" fill="#ede9fe" stroke="#7c3aed"/>
+  <text x="726" y="306" font-size="13" font-weight="700" fill="#5b21b6">→ Blueprint variable collection</text>
+  <text x="726" y="327" font-size="11.5" fill="#374151">a scratch list the blueprint fills / iterates</text>
+  <text x="726" y="345" font-size="11" fill="#6b7280">e.g. candidates gathered during a tick</text>
+
+  <!-- decision 3 -->
+  <rect x="300" y="412" width="360" height="66" rx="10" fill="#ffffff" stroke="#94a3b8"/>
+  <text x="480" y="440" text-anchor="middle" font-size="12.5" fill="#111827">Is it a parameter / working field of one</text>
+  <text x="480" y="458" text-anchor="middle" font-size="12.5" fill="#111827">specific C# behavior action?</text>
+
+  <!-- outcome 3 -->
+  <rect x="712" y="404" width="300" height="82" rx="10" fill="#fef3c7" stroke="#d97706"/>
+  <text x="726" y="428" font-size="13" font-weight="700" fill="#92400e">→ Action collection</text>
+  <text x="726" y="449" font-size="11.5" fill="#374151">a list the action itself manages by ref</text>
+  <text x="726" y="467" font-size="11" fill="#6b7280">e.g. slots the action reads/updates each tick</text>
+
+  <!-- arrows down the spine -->
+  <line x1="480" y1="134" x2="480" y2="166" stroke="#64748b" stroke-width="1.6" marker-end="url(#a3)"/>
+  <line x1="480" y1="234" x2="480" y2="288" stroke="#64748b" stroke-width="1.6" marker-end="url(#a3)"/>
+  <line x1="480" y1="356" x2="480" y2="410" stroke="#64748b" stroke-width="1.6" marker-end="url(#a3)"/>
+
+  <!-- yes arrows to the right -->
+  <line x1="660" y1="201" x2="710" y2="201" stroke="#64748b" stroke-width="1.6" marker-end="url(#a3)"/>
+  <line x1="660" y1="323" x2="710" y2="323" stroke="#64748b" stroke-width="1.6" marker-end="url(#a3)"/>
+  <line x1="660" y1="445" x2="710" y2="445" stroke="#64748b" stroke-width="1.6" marker-end="url(#a3)"/>
+
+  <!-- yes/no labels -->
+  <g font-size="11" font-weight="700">
+    <text x="685" y="196" text-anchor="middle" fill="#16a34a">yes</text>
+    <text x="685" y="318" text-anchor="middle" fill="#16a34a">yes</text>
+    <text x="685" y="440" text-anchor="middle" fill="#16a34a">yes</text>
+    <text x="493" y="156" fill="#94a3b8">no</text>
+    <text x="493" y="278" fill="#94a3b8">no</text>
+  </g>
+
+  <!-- footer -->
+  <rect x="120" y="520" width="800" height="74" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="140" y="545" font-size="12.5" fill="#374151">Rule of thumb: <tspan font-weight="700" fill="#1e40af">shared on the entity</tspan> → component · <tspan font-weight="700" fill="#5b21b6">private to a blueprint</tspan> → blueprint variable ·</text>
+  <text x="140" y="565" font-size="12.5" fill="#374151"><tspan font-weight="700" fill="#92400e">internal to a C# action</tspan> → action collection.</text>
+  <text x="140" y="584" font-size="11.5" fill="#6b7280">The collection type and its operations are identical in all three — only the home differs.</text>
+</svg>

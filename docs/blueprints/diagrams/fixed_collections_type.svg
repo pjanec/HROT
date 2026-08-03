@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 600" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <rect x="0" y="0" width="1080" height="600" fill="#f7f8fa"/>
+
+  <text x="540" y="36" text-anchor="middle" font-size="22" font-weight="700" fill="#111827">What the collection actually is</text>
+  <text x="540" y="58" text-anchor="middle" font-size="13" fill="#6b7280">a capacity of N pre-allocated slots + a count of how many are in use — capped, blittable, memcpy-safe</text>
+
+  <!-- code box -->
+  <rect x="40" y="86" width="440" height="150" rx="8" fill="#0f172a" stroke="#334155"/>
+  <text x="60" y="112" font-size="12" font-family="ui-monospace, monospace" fill="#7dd3fc">[InlineArray(N)]</text>
+  <text x="60" y="130" font-size="12" font-family="ui-monospace, monospace" fill="#e2e8f0">struct Buffer { Elem _e0; }   <tspan fill="#64748b">// N contiguous slots</tspan></text>
+  <text x="60" y="162" font-size="12" font-family="ui-monospace, monospace" fill="#e2e8f0">struct FixedList {</text>
+  <text x="60" y="180" font-size="12" font-family="ui-monospace, monospace" fill="#e2e8f0">    int    Count;   <tspan fill="#64748b">// in use, 0..N</tspan></text>
+  <text x="60" y="198" font-size="12" font-family="ui-monospace, monospace" fill="#e2e8f0">    Buffer Items;   <tspan fill="#64748b">// the N slots</tspan></text>
+  <text x="60" y="216" font-size="12" font-family="ui-monospace, monospace" fill="#e2e8f0">}</text>
+
+  <!-- accessor box -->
+  <rect x="504" y="86" width="536" height="150" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="522" y="110" font-size="12.5" font-weight="700" fill="#111827">Accessor class — used only from the blueprint graph</text>
+  <text x="522" y="132" font-size="11.5" font-family="ui-monospace, monospace" fill="#166534">read:  Count(in c) → int   ·   Item(in c, i) → Elem</text>
+  <text x="522" y="153" font-size="11.5" font-family="ui-monospace, monospace" fill="#9a3412">write: Add(ref c, v) · Set(ref c, i, v) · InsertAt(…)</text>
+  <text x="522" y="171" font-size="11.5" font-family="ui-monospace, monospace" fill="#9a3412">       RemoveAt(ref c, i) · Clear(ref c) · Resize(…)</text>
+  <text x="522" y="200" font-size="11.5" fill="#374151">A C# action needs none of this — it touches</text>
+  <text x="522" y="217" font-size="11.5" fill="#374151"><tspan font-family="ui-monospace, monospace" fill="#111827">c.Items[i]</tspan> / <tspan font-family="ui-monospace, monospace" fill="#111827">c.Count</tspan> directly by ref.</text>
+
+  <!-- slot strip -->
+  <text x="40" y="284" font-size="12.5" font-weight="700" fill="#111827">Items — N pre-allocated slots, default-filled up front (example: capacity N = 8, Count = 3)</text>
+
+  <!-- capacity brace -->
+  <path d="M60,300 L60,292 L412,292 L412,300" fill="none" stroke="#94a3b8" stroke-width="1.2"/>
+  <text x="236" y="286" text-anchor="middle" font-size="11" fill="#64748b">capacity N = 8 (fixed)</text>
+
+  <!-- cells -->
+  <g>
+    <rect x="60" y="304" width="44" height="42" rx="4" fill="#dbeafe" stroke="#3b82f6"/><text x="82" y="330" text-anchor="middle" font-size="12" fill="#1e40af">0</text>
+    <rect x="104" y="304" width="44" height="42" rx="4" fill="#dbeafe" stroke="#3b82f6"/><text x="126" y="330" text-anchor="middle" font-size="12" fill="#1e40af">1</text>
+    <rect x="148" y="304" width="44" height="42" rx="4" fill="#dbeafe" stroke="#3b82f6"/><text x="170" y="330" text-anchor="middle" font-size="12" fill="#1e40af">2</text>
+    <rect x="192" y="304" width="44" height="42" rx="4" fill="#f1f5f9" stroke="#cbd5e1"/><text x="214" y="330" text-anchor="middle" font-size="12" fill="#94a3b8">·</text>
+    <rect x="236" y="304" width="44" height="42" rx="4" fill="#f1f5f9" stroke="#cbd5e1"/><text x="258" y="330" text-anchor="middle" font-size="12" fill="#94a3b8">·</text>
+    <rect x="280" y="304" width="44" height="42" rx="4" fill="#f1f5f9" stroke="#cbd5e1"/><text x="302" y="330" text-anchor="middle" font-size="12" fill="#94a3b8">·</text>
+    <rect x="324" y="304" width="44" height="42" rx="4" fill="#f1f5f9" stroke="#cbd5e1"/><text x="346" y="330" text-anchor="middle" font-size="12" fill="#94a3b8">·</text>
+    <rect x="368" y="304" width="44" height="42" rx="4" fill="#f1f5f9" stroke="#cbd5e1"/><text x="390" y="330" text-anchor="middle" font-size="12" fill="#94a3b8">·</text>
+  </g>
+
+  <!-- count brace under first 3 -->
+  <path d="M60,352 L60,360 L192,360 L192,352" fill="none" stroke="#3b82f6" stroke-width="1.2"/>
+  <text x="126" y="376" text-anchor="middle" font-size="11" fill="#1e40af">Count = 3 (in use)</text>
+  <text x="302" y="376" text-anchor="middle" font-size="11" fill="#94a3b8">unused — hold default values</text>
+
+  <text x="470" y="330" font-size="11.5" fill="#374151">grow with <tspan font-family="ui-monospace, monospace" fill="#111827">Add</tspan>/<tspan font-family="ui-monospace, monospace" fill="#111827">Resize</tspan> (never past N),</text>
+  <text x="470" y="348" font-size="11.5" fill="#374151">shrink with <tspan font-family="ui-monospace, monospace" fill="#111827">RemoveAt</tspan>/<tspan font-family="ui-monospace, monospace" fill="#111827">Clear</tspan>; index within Count.</text>
+
+  <!-- authoring routes -->
+  <text x="40" y="424" font-size="13" font-weight="700" fill="#111827">Where the type comes from</text>
+
+  <rect x="40" y="436" width="500" height="120" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="58" y="460" font-size="12.5" font-weight="700" fill="#111827">🖉 Hand-written — component &amp; action collections</text>
+  <text x="58" y="482" font-size="12" fill="#374151">A developer writes the small wrapper (~3 lines) in C#,</text>
+  <text x="58" y="500" font-size="12" fill="#374151">plus the accessor class when the blueprint graph uses it.</text>
+  <text x="58" y="524" font-size="11.5" fill="#6b7280">Same pattern the engine already uses for fixed-buffer</text>
+  <text x="58" y="540" font-size="11.5" fill="#6b7280">components today; nothing is generated behind your back.</text>
+
+  <rect x="560" y="436" width="480" height="120" rx="8" fill="#faf5ff" stroke="#c4b5fd"/>
+  <text x="578" y="460" font-size="12.5" font-weight="700" fill="#5b21b6">⚙ Compiler-generated — blueprint variable collection</text>
+  <text x="578" y="482" font-size="12" fill="#374151">The designer only picks element type × capacity in the</text>
+  <text x="578" y="500" font-size="12" fill="#374151">editor; the compiler emits the wrapper and its storage.</text>
+  <text x="578" y="524" font-size="11.5" fill="#6b7280">No accessor class — the compiler emits the element access</text>
+  <text x="578" y="540" font-size="11.5" fill="#6b7280">inline. No C# is written by the designer.</text>
+</svg>
