@@ -365,6 +365,9 @@ pre-review `SizeReliable=true` — now annotated as superseded by its §F3.)*
   dispatchers (array order), so the actual contract today is **write-visible-next-tick** (1-tick lag).
   Document that as the contract, unless the `bpTick` splice is fixed as part of the FC-1 gate (choice left to
   FC-1).
+  > **FC-1·G2 outcome (2026-08-04): the splice was FIXED** — `BlueprintRuntimeWiring.SpliceIntoSimulation`
+  > inserts the tick before its `[UpdateBefore]` targets in both compositions; the same-tick Q#16-B contract
+  > now holds by construction (pinned by `BlueprintTickSpliceTests`). The 1-tick-lag documentation path is moot.
 - **Q20-C — C1 APPROVED.** `ManagedMember` collections strictly read-only from blueprints; write nodes bound
   to a managed collection rejected at validate-time (per-field managed mutation corrupts snapshots via
   reference aliasing — Q#16); managed mutation only via whole-component ECB replace.

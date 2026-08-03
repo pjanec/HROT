@@ -220,9 +220,12 @@ public sealed class EditorHarness : IDisposable
             Kernel, Repo, BlueprintRegistry);
 
         // Simulation-phase systems must go through a module (kernel forbids global registration).
-        // bpTick is appended to the CGF sim list; its [UpdateBefore] dispatcher ordering is not
-        // re-applied inside the group, but the demo blueprint only mutates its own slot state.
-        var cgfSimWithBlueprint = new List<IEcsModuleSystem>(cgfLogicPackInst.SimulationSystems) { bpTick };
+        // FC-1·G2: bpTick is SPLICED before the action dispatchers (its [UpdateBefore] targets) --
+        // module-group order is array position and the kernel does not re-apply ordering attributes
+        // inside the group, so the old append ran the tick AFTER the dispatchers (intent writes
+        // dispatched one tick late). Same splice as EditorSubsystem, via the shared helper.
+        var cgfSimWithBlueprint = Hrot.Blueprints.Editor.Runtime.BlueprintRuntimeWiring
+            .SpliceIntoSimulation(cgfLogicPackInst.SimulationSystems, bpTick);
         Kernel.RegisterModule(new EditorSimulationModule(
             cgfSimWithBlueprint,
             simHostCorePack.SimulationSystems));

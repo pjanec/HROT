@@ -884,9 +884,14 @@ namespace Hrot.Editor
             var bpTick = Hrot.Blueprints.Editor.Runtime.BlueprintRuntimeWiring.WireBlueprintRuntime(
                 _kernel, _world!, _blueprintRegistry);
 
+            // FC-1·G2: splice bpTick BEFORE the action dispatchers (its [UpdateBefore] targets)
+            // instead of appending it -- module-group order is array position, so an appended tick
+            // ran AFTER the dispatchers and intent writes were only dispatched next tick, silently
+            // violating the Q#16-B same-tick contract. See BlueprintRuntimeWiring.SpliceIntoSimulation.
             var toggleSim = new TogglableSimulationGroup(
                 "EditorSim",
-                cgfLogicPackInst.SimulationSystems.Concat(simHostCorePack.SimulationSystems).Append(bpTick).ToArray());
+                Hrot.Blueprints.Editor.Runtime.BlueprintRuntimeWiring.SpliceIntoSimulation(
+                    cgfLogicPackInst.SimulationSystems.Concat(simHostCorePack.SimulationSystems), bpTick).ToArray());
 
             var togglePostSim = new TogglablePostSimulationGroup(
                 "EditorPostSim",

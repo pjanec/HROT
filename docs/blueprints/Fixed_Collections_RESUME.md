@@ -92,8 +92,8 @@ under-designed**. Headlines (full detail + deltas in `Blueprint_Fixed_Collection
    (Span-form emits, zeroing, §3 `SizeReliable=false` annotation), Q#19 (zeroing supersession).
    **FC-0/FC-1/FC-1b are cleared to build.**
 2. ~~Decide `GetShared`/`Parameters` scope~~ **DECIDED:** OUT v1 + explicit validate-time rejection
-   diagnostic. Remaining open: parked-PR timing; the FC-1 G2 choice (fix `bpTick` splice vs document 1-tick
-   lag + composition test).
+   diagnostic. ~~The FC-1 G2 choice~~ **DONE (FC-1·G2): splice FIXED in both compositions** — same-tick
+   contract holds by construction. Remaining open: parked-PR timing.
 3. Next: set up `Blueprint_Fixed_Collections_TASK_TRACKER.md` and build: **FC-0** (convention + `[InlineArray]`
    reference + round-trip test + invariant + DebugProbe overflow) → **FC-1** (component write nodes + G2/G3/G4
    gates) → **FC-1b** (ops generator) → blueprint-var writes (independent) → action-DTO.

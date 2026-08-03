@@ -16,7 +16,7 @@ Stage5 lowering + emit + validator work done and reviewed hands-on. **Gate (ever
 | FC-0 | Runtime foundation: write-accessor convention + reference impls + probe hook + gates | component home | ✅ |
 | FC-1·C | Write compiler spine: node + Stage0 pins + **IR op family** + Stage5 + emit + Stage2 gates (G3/G4/managed/BP-writable-structural) | component home | ✅ |
 | FC-1·E | Write editor: reflector write-accessor discovery, palette (two-gate filter), drawer, wire-bake, demo bp | component home | ✅ |
-| FC-1·G2 | Tick-order: fix the `bpTick` splice (preferred) or pin 1-tick lag + composition-order test | composition | ⬜ |
+| FC-1·G2 | Tick-order: fix the `bpTick` splice (preferred) or pin 1-tick lag + composition-order test | composition | ✅ |
 | FC-1b | `[BlueprintCollectionField]` Roslyn source generator emitting `{Component}CollectionOps` from the FC-0 template | tooling | ⬜ |
 | FC-2 | Blueprint-variable collection (List Variables LV-1…LV-5; independent of FC-1) | blackboard home | ⬜ |
 | FC-3 | Action-DTO recognition pipeline + F2 safety + JSON converter + inspector marshal | action home | ⬜ |
@@ -103,4 +103,21 @@ tests pin the measured behavior so any future compiler change fails loudly
   demo `.bp.json` deferred to the FC-1 wrap-up alongside a runtime end-to-end proof.
 - **Gate:** clean build · 38/38 CollectionWrite tests · full suite failures unchanged from base · 184/184 goldens.
 
-### FC-1·G2 / FC-1b / FC-2 / FC-3 — see the umbrella §Sequencing (details filled in when the batch starts)
+### FC-1·G2 — Tick-order splice fix · ✅ (2026-08-04)
+**Chose FIX over document-the-lag** (the lag was an accident of composition, not design intent; Q#16's shipped
+scalar writes were approved on the same-tick fact too — this restores their contract retroactively).
+- [x] `BlueprintRuntimeWiring.SpliceIntoSimulation(sims, bpTick)` — inserts the tick immediately BEFORE the
+  first system named by its own `[UpdateBefore]` attributes (attribute-driven, not hardcoded); appends when no
+  target present (degenerate compositions keep old behavior). Single shared splice.
+- [x] Both composition sites converted: `EditorSubsystem` (was `.Append(bpTick)` after the dispatchers) +
+  `EditorHarness` (was list-append) — comments updated.
+- [x] Tests (3, `BlueprintTickSpliceTests`): insert-before-first-dispatcher with order preservation ·
+  no-dispatcher append fallback · the `[UpdateBefore]` target set pinned to exactly the three dispatchers.
+- **Verified not-a-regression:** the ClusterRunner integration suite's failures are PRE-EXISTING on the branch
+  base (stash-baseline: identical 8/8 failure set incl. `BlueprintKernelRunTests` before the splice change —
+  environmental in this container: DDS transport / raycast dependencies). No new failures introduced.
+- **Contract now TRUE by construction:** blueprint intent writes are dispatched the SAME tick (Q#16-B as the
+  architect approved it); the "write-visible-next-tick" reality documented in G2 is retired for these two
+  compositions.
+
+### FC-1b / FC-2 / FC-3 — see the umbrella §Sequencing (details filled in when the batch starts)
