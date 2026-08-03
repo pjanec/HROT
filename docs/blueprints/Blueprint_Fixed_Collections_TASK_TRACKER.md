@@ -17,7 +17,7 @@ Stage5 lowering + emit + validator work done and reviewed hands-on. **Gate (ever
 | FC-1·C | Write compiler spine: node + Stage0 pins + **IR op family** + Stage5 + emit + Stage2 gates (G3/G4/managed/BP-writable-structural) | component home | ✅ |
 | FC-1·E | Write editor: reflector write-accessor discovery, palette (two-gate filter), drawer, wire-bake, demo bp | component home | ✅ |
 | FC-1·G2 | Tick-order: fix the `bpTick` splice (preferred) or pin 1-tick lag + composition-order test | composition | ✅ |
-| FC-1b | `[BlueprintCollectionField]` Roslyn source generator emitting `{Component}CollectionOps` from the FC-0 template | tooling | ⬜ |
+| FC-1b | `[BlueprintCollectionField]` Roslyn source generator emitting the ops class from the FC-0 template | tooling | ✅ |
 | FC-2 | Blueprint-variable collection (List Variables LV-1…LV-5; independent of FC-1) | blackboard home | ⬜ |
 | FC-3 | Action-DTO recognition pipeline + F2 safety + JSON converter + inspector marshal | action home | ⬜ |
 
@@ -120,4 +120,27 @@ scalar writes were approved on the same-tick fact too — this restores their co
   architect approved it); the "write-visible-next-tick" reality documented in G2 is retired for these two
   compositions.
 
-### FC-1b / FC-2 / FC-3 — see the umbrella §Sequencing (details filled in when the batch starts)
+### FC-1b — Collection ops source generator · ✅ (2026-08-04)
+- [x] `[BlueprintCollectionField(nameof(Count))]` + `CollectionAccess` + `CollectionOps` flags (Fdp.Core) —
+  the dev-facing surface is ONE attribute; opt-in per field (never auto-triggered), `Access=ReadOnly` /
+  `Ops=` subset are the declarative curation knobs
+- [x] `CollectionOpsGenerator` (in `Fdp.Toolkits.Analyzers` — the repo's existing generator home, already
+  wired as an analyzer into `Hrot.AI.Behaviors`): emits `{Component}{Field}Ops` in the component's namespace
+  from the FC-0 template (Span write-through · G6 tail-always-default · F2 clamp); **per-field class naming**
+  so adding a second collection later never renames an already-baked FQN
+- [x] Diagnostics FCOL001-004 (count field missing/not-int · not `[InlineArray]` · managed element ·
+  class/managed component per Q#20-C); **hand-written wins** — any `[BlueprintCollection*]` accessor for the
+  same (component, name) in the compilation silently suppresses generation (bespoke escape hatch)
+- [x] `BpGenListDemo` (`[ComponentId(192)]`, `[BlueprintWritable]`) — the generated-ops demo; its ONLY
+  authoring surface is the attribute
+- [x] Tests: 9 generator-driver tests (`Fdp.Toolkits.Tests/FixedCollections/`: emit shape incl. the three
+  template rules, compiles-against-real-BCL, ReadOnly/Ops knobs, all four diagnostics, hand-written-wins both
+  ways) + 4 end-to-end (`GeneratedCollectionOpsTests`: the FC-0 round-trip/G6/overflow/F2 gates against the
+  REAL generated `BpGenListDemoItemsOps`, and editor discovery finding read pair + all 6 write ops +
+  gate 1 — generated is indistinguishable from hand-written)
+- **Note:** the doc's provisional `{Component}CollectionOps` name became `{Component}{Field}Ops` — baked FQNs
+  must never change when a second collection field is added later (assets persist accessor FQNs).
+- **Gate:** clean builds (analyzers + AI.Behaviors with generator active) · 13/13 new tests · full suite
+  failure set unchanged · goldens 184/184.
+
+### FC-2 / FC-3 — see the umbrella §Sequencing (details filled in when the batch starts)

@@ -302,8 +302,10 @@ if (__t7)
 
 ### The generator (FC-1b) — dev writes ONE attribute, not ~60 lines of trap-prone code
 
-A Roslyn **source generator** emits the ops class (`{Component}CollectionOps`, own file, deterministic name)
-for every field marked:
+A Roslyn **source generator** emits the ops class (own file, deterministic name — **built as
+`{Component}{Field}Ops`**, not the provisionally-sketched `{Component}CollectionOps`: baked accessor FQNs
+persist in assets, so the class name must never change when a SECOND collection field is added to the same
+component later) for every field marked:
 
 ```csharp
 [BlueprintWritable]
