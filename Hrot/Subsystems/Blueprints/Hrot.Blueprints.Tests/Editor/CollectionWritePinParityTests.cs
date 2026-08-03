@@ -23,6 +23,15 @@ namespace Hrot.Blueprints.Tests.Editor;
 /// </summary>
 public sealed class CollectionWritePinParityTests
 {
+    // ComponentFieldReflector resolves purely by scanning LOADED assemblies (this class names
+    // its targets via string FQNs only, so nothing here would otherwise trigger the load) --
+    // force-load Hrot.AI.Behaviors deterministically instead of depending on a sibling test
+    // class having touched one of its types first (a latent ordering flake).
+    static CollectionWritePinParityTests()
+    {
+        _ = typeof(Hrot.AI.Behaviors.BpFixedListDemo).Assembly;
+    }
+
     private const string WritableFqn    = "Hrot.AI.Behaviors.BpFixedListDemo";
     private const string WritableOps    = "Hrot.AI.Behaviors.Brains.BpFixedListDemoOps";
     private const string NonWritableFqn = "Hrot.AI.Behaviors.BpCollectionDemo";

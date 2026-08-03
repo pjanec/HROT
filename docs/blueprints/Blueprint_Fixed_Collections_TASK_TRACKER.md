@@ -236,6 +236,22 @@ the discriminator, IsArray never set) · My Blueprint tree badges list vars `[N]
 (Capacity WhenWritingDefault) + list JSON round-trip · tree badge · budget table covers every selectable
 unmanaged type. Suite 2525/0 · goldens 184/184.
 
-**LV-5…LV-6 remaining** (debugger visibility · demo/docs).
+**LV-5 — debugger/watch visibility · ✅ (2026-08-03).** List fields are now descriptor-VISIBLE:
+`IsReferencableStateFieldType` admits `Capacity > 0` (the emit site already qualifies the nested wrapper
+`{className}.__List_…`; offsets/sizes ride the F3 runtime `Marshal.OffsetOf` path) · watch rendering:
+`BlueprintDebugSession.MarshalFromBytes` routes wrapper bytes to `TryFormatFixedList` →
+`List<Elem>[N] Count=k {e0, e1, …}` — Count/Items/element-type/capacity discovered purely by reflection
+(name prefix + `InlineArrayAttribute.Length` + `Unsafe.SizeOf<T>` via MakeGenericMethod, so ALC-loaded
+generated types work), shown window F2-clamped `min(max(Count,0), N)` (garbage Count can never OOB) ·
+narrow primitives (byte/sbyte/short/ushort/ulong) added to `MarshalFromBytes` so list ELEMENTS render as
+values · LV-1a foundation test flipped to assert descriptor VISIBILITY. 6 tests (`ListVariableWatchTests`):
+hand-authored wrapper twin renders/clamps/refuses · MarshalFromBytes routing · end-to-end through the real
+staged `BlueprintDefinition.StateFields` + generated State (offset parity + live-bytes render).
+**Plus a latent test-ordering flake fixed en route:** `CollectionWritePinParityTests` resolved its targets
+via string FQNs against LOADED-assembly scans only — new test classes shifted xUnit ordering and 4 tests
+failed (reproducibly, incl. at the LV-4 baseline); a static-ctor force-load of `Hrot.AI.Behaviors` makes it
+deterministic. Suite 2529/1-known-flake (`MoveToAndFire_BTreeTick`, passes isolated) · goldens 184/184.
+
+**LV-6 remaining** (demo/docs).
 
 ### FC-3 — see the umbrella §Sequencing (details filled in when the batch starts)

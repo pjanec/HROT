@@ -320,6 +320,11 @@ internal sealed class CSharpEmitter
     /// </summary>
     private static bool IsReferencableStateFieldType(IrTypeRef t)
     {
+        // FC-2/LV-5: a fixed-list field's synthesized `__List_…` wrapper IS referencable -- the
+        // emit site qualifies it `{className}.__List_…` (the nested wrapper is public), so list
+        // variables are descriptor-VISIBLE for the debugger/watch (LV-5).
+        if (t.Capacity > 0) return true;
+
         // Unwrap arrays: an array of a synthesized type is also not referencable.
         var underlying = t.IsArray ? t.ElementType! : t;
         return !underlying.FullName.StartsWith("_");

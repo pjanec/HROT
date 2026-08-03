@@ -115,9 +115,12 @@ public sealed class ListVariableFoundationTests
         Assert.Contains("public __List_System_Int32_4 MyList;", src);
         Assert.Contains("s.MyList.Count = 2;", src);                 // InitialLength seeding
 
-        // F3: the list itself is descriptor-invisible until LV-5 (synthesized-type exclusion), but
-        // its unreliable size must flip the SCALAR-after-it onto the runtime Marshal.OffsetOf path.
-        Assert.DoesNotContain("\"MyList\"] = new", src);
+        // F3/LV-5: the list is descriptor-VISIBLE (qualified nested wrapper type, runtime
+        // offset/size -- the LV-5 watch reads it), and its unreliable size flips the
+        // SCALAR-after-it onto the runtime Marshal.OffsetOf path too.
+        Assert.Contains("\"MyList\"] = new", src);
+        Assert.Matches(@"typeof\([A-Za-z0-9_]+\.__List_System_Int32_4\)", src);
+        Assert.Matches(@"Marshal\.OffsetOf<[^>]+\.State>\(""MyList""\)", src);
         Assert.Matches(@"Marshal\.OffsetOf<[^>]+\.State>\(""After""\)", src);
     }
 
