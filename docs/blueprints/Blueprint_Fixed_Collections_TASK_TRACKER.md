@@ -18,8 +18,8 @@ Stage5 lowering + emit + validator work done and reviewed hands-on. **Gate (ever
 | FC-1·E | Write editor: reflector write-accessor discovery, palette (two-gate filter), drawer, wire-bake, demo bp | component home | ✅ |
 | FC-1·G2 | Tick-order: fix the `bpTick` splice (preferred) or pin 1-tick lag + composition-order test | composition | ✅ |
 | FC-1b | `[BlueprintCollectionField]` Roslyn source generator emitting the ops class from the FC-0 template | tooling | ✅ |
-| FC-2 | Blueprint-variable collection (List Variables LV-1…LV-5; independent of FC-1) | blackboard home | ⬜ |
-| FC-3 | Action-DTO recognition pipeline + F2 safety + JSON converter + inspector marshal | action home | ⬜ |
+| FC-2 | Blueprint-variable collection (List Variables LV-1…LV-6; independent of FC-1) | blackboard home | ✅ |
+| FC-3 | Action-DTO home per **Q#21 ✅**: classifier+panel (A1/B1) · JSON converter (C3/C1, C-e) · StructEdit inspector (D3/D-e/D-p-P1) + F2 verify | action home | 🔧 |
 
 > **Resequencing note (2026-08-04):** the design docs placed "the mutation-op IR family" in FC-0. It is
 > tracked under **FC-1·C** instead: the codebase's only idiomatic test path for IR ops runs Stage3→7 through a
@@ -263,4 +263,27 @@ read / write / clone / debug, write-verb contract, BP1504-1506, v1 limits) + han
 `img/fixed_list_layout.svg` (wrapper layout, F2 clamp window, G6 tail). Suite 2534/1-known-flake
 (`WhenNode_EqsResult_Under150ns` perf timing under parallel load, passes isolated) · goldens 184/184.
 
-### FC-3 — see the umbrella §Sequencing (details filled in when the batch starts)
+### FC-3 — action-DTO home · 🔧 APPROVED (Q#21, 2026-08-03), building
+
+All Q#21 leans ratified as-is (full table in `Architect_Question_21_Action_DTO_Fixed_Lists.md`):
+**A1** wrapper-struct recognition only → `EditorManaged` `List<T>[N]` · **B1** Variables-panel
+display-only wiring · **C3/C1** plain-array JSON via a `JsonConverterFactory` in BOTH
+`FdpJsonOptionsRegistry` singletons (Count = length clamped to [0,N], G6-zeroed tail, elements
+recurse through the enclosing options) + the one-line `__paramJsonOpts` → registry switch in
+`BTreeBridgeEmitCore` · **C-e** Entity elements author-`Null`-only · **D3** StructEdit inspector via
+`FixedListViewProvider` (min(Count,N) window; collapsed row = shared summary formatter) · **D-e**
+display-only v1 · **D-p P1** StructEdit (independent ExtDeps lib) gains ONLY the generic InlineArray
+provider-hook parity; provider + formatter live host-side (deps flow host → StructEdit only).
+
+Verified facts shrinking the slice: F2 already closed at the `TryAttach` choke point
+(`AttachSlotsToMemory` funnels through it — verify-test only); StructEdit already has
+`InlineArrayBinding` + struct-element recursion over native bytes (test-covered); the blueprint
+watch stays on the transient bytes→string formatter (collectible-ALC constraint), sharing ONE
+summary formatter with the provider.
+
+**Slices:** FC-3a classifier + panel display → FC-3b JSON converter (+ registry switch; tests incl.
+custom-struct/vector elements + Entity.Null) → FC-3c formatter relocation + StructEdit generic
+patch + `FixedListViewProvider` + `LiveBlackboardPanel` wiring + F2 action-path verify test →
+docs fold-in (`Blueprint_Fixed_List_Variables.md` gains the action home) + tracker completion.
+Gates per slice: clean build · new tests green · full Blueprints + AiShared suites' failure sets
+unchanged · goldens 184/184 serial.

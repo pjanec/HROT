@@ -98,6 +98,22 @@ Investigated 2026-08-03 — captured so the relationship isn't re-derived later.
 - **FC-3 — action-collection recognition.** Teach the `BlackboardFieldClassifier` the array kind so the behavior
   editor recognizes/inspects a collection field; document the hand-written wrapper pattern. Action access is
   already free. Least blocking; pull forward if the behavior-DTO need is urgent.
+  > **DECIDED (Q#21, ✅ 2026-08-03)** — R4's reframing held; the approved shape is: **A1** classifier
+  > recognizes the wrapper-struct pattern only (`int Count` + one `[InlineArray(N)]` buffer →
+  > `EditorManaged`, `List<T>[N]` display; loose twin fields stay passthrough) · **B1** display-only
+  > Variables-panel wiring (no source round-trip editing in v1) · **C3/C1** plain-array JSON via a
+  > `JsonConverterFactory` in `FdpJsonOptionsRegistry` (Count = length clamped, G6-zeroed tail;
+  > elements recurse through the enclosing options so vectors/FixedStrings/custom unmanaged structs
+  > inherit support; `__paramJsonOpts` switches to the registry; Entity elements author-`Null`-only) ·
+  > **D3/P1** StructEdit-based inspector — StructEdit (independent ExtDeps library) gains ONLY the
+  > generic InlineArray provider-hook parity; the `FixedListViewProvider` (min(Count,N) window,
+  > display-only v1) + the shared summary formatter live host-side. The blueprint debugger watch
+  > deliberately stays on the transient bytes→string formatter (collectible-ALC constraint — a
+  > persistent EditDocument would pin generated types against the tested full-unload invariant);
+  > watch and provider share ONE formatter, two hosts. The R4(b) F2 hazard is already closed
+  > (FC-2/LV-1b `TryAttach` zero-on-attach sits at the `AttachSlotsToMemory` choke point) — FC-3
+  > adds a verify-only test. Slices: FC-3a classifier+panel → FC-3b JSON → FC-3c inspector+F2 → docs.
+  > Full detail: `Architect_Question_21_Action_DTO_Fixed_Lists.md`.
 
 > **Ordering corrected by the 2nd review (§R1, §R2):** FC-2 does **not** reuse FC-1's write machinery (they share
 > only the verb names), so the slices are **independent**, not a dependency chain. And component writes (FC-1) are

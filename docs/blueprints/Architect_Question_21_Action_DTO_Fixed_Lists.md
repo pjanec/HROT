@@ -1,10 +1,24 @@
 # Architect question #21 — fixed-list fields in ACTION DTOs (recognition, authoring, inspection)
 
-**Status: 🟡 DRAFT — awaiting architect pass.** The third and final home of the Fixed Collections
+**Status: ✅ APPROVED (architect, 2026-08-03) — all recommended leans ratified as-is:**
+
+| Decision | Ratified answer |
+|---|---|
+| A — recognized shape | **A1** — wrapper-struct pattern only (`int Count` + one `[InlineArray(N)]` buffer) → `EditorManaged`, `List<T>[N]` display; loose twin-field DTOs stay passthrough |
+| B — pipeline scope | **B1** — wire the classifier into the existing Variables-panel path, display-only in v1 |
+| C — JSON authoring | **C3 via C1** — plain-array form through a `JsonConverterFactory` (Count = length clamped to `[0,N]`, G6-zeroed tail; write emits used window; elements recurse through the enclosing options), registered in BOTH `FdpJsonOptionsRegistry` singletons + the one-line `__paramJsonOpts` switch in `BTreeBridgeEmitCore` |
+| C-e — Entity elements | allowed; **author `Entity.Null` only** (documented), handles are runtime-written |
+| D — inspector | **D3** — StructEdit-based (`FixedListViewProvider`, `min(Count,N)` window, collapsed row = shared summary formatter) |
+| D-e — edit vs display | **display-only v1** |
+| D-p — placement | **P1** — StructEdit gains only the generic InlineArray provider-hook parity; provider + formatter live host-side, dependencies flow host → StructEdit only |
+
+Cleared to build FC-3a (classifier + panel) → FC-3b (JSON) → FC-3c (inspector + F2 verify) → docs.
+
+The third and final home of the Fixed Collections
 umbrella (FC-3). The component home (Q#20, FC-0/FC-1/FC-1b shipped) and the blueprint-variable home
 (Q#19, FC-2 shipped: LV-1…LV-6) are done. Review R4 of the umbrella
 (`Blueprint_Fixed_Collections_Design.md` §Second review) ruled this home "not just recognition" —
-this doc asks the resulting decisions.
+this doc asked the resulting decisions.
 See `Blueprint_Fixed_Collections_Design.md` (umbrella) + `Blueprint_Fixed_List_Variables.md` (FC-2 result).
 
 ## The need
