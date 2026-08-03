@@ -377,12 +377,26 @@ public static class BlueprintDocumentFactory
     /// <see cref="BlueprintTypeSystem.Bool"/>.
     /// </param>
     /// <param name="markDirty">Optional dirty-marking callback (invoked only on success).</param>
+    /// <param name="capacity">
+    /// FC-2/LV-4: <c>&gt; 0</c> declares a FIXED-LIST variable of this capacity (the
+    /// discriminator is <see cref="BlueprintTypeRef.Capacity"/>, never IsArray — F7);
+    /// <c>0</c> (default) declares an ordinary scalar. A list of a managed element type
+    /// (<c>System.String</c>) is rejected here (the compiler's BP1500 is the authoritative
+    /// backstop for hand-edited JSON).
+    /// </param>
+    /// <param name="initialLength">
+    /// FC-2/LV-4: the list's seeded logical length; clamped into <c>[0, capacity]</c>
+    /// (BP1504 remains the compile-time guard for out-of-range hand-edited JSON).
+    /// Ignored for scalars.
+    /// </param>
     /// <returns>The created declaration, or <see langword="null"/> if the name was rejected.</returns>
     internal static VariableDecl? CreateVariable(
         BlueprintAsset asset,
         string         name,
         string         typeId,
-        Action?        markDirty = null)
+        Action?        markDirty     = null,
+        int            capacity      = 0,
+        int            initialLength = 0)
     {
         ArgumentNullException.ThrowIfNull(asset);
 
@@ -396,11 +410,22 @@ public static class BlueprintDocumentFactory
 
         var finalType = string.IsNullOrWhiteSpace(typeId) ? BlueprintTypeSystem.Bool : typeId.Trim();
 
+        // FC-2/LV-4: fixed-list element must be unmanaged (blittable state bytes).
+        if (capacity > 0 && finalType == BlueprintTypeSystem.String)
+            return null;
+
         var decl = new VariableDecl
         {
             Id   = Guid.NewGuid(),
             Name = trimmed,
-            Type = new BlueprintTypeRef { TypeId = finalType },
+            Type = capacity > 0
+                ? new BlueprintTypeRef
+                {
+                    TypeId        = finalType,
+                    Capacity      = capacity,
+                    InitialLength = Math.Clamp(initialLength, 0, capacity),
+                }
+                : new BlueprintTypeRef { TypeId = finalType },
         };
         asset.Variables.Add(decl);
         markDirty?.Invoke();

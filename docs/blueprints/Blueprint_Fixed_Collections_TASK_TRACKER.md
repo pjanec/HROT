@@ -225,6 +225,17 @@ degrade path · clone · BP1505/1506 (covered codes) · pin parity ×6 · **runt
 generated `TickThunk`** (Add(5);Add(7) → state bytes show Count=2/Items and the LV-2 ItemCount read sees 2).
 Suite 2519/0 (10 pre-existing skips) · goldens 184/184 serial · full sln clean.
 
-**LV-4…LV-6 remaining** (declare-UX · debugger visibility · demo/docs).
+**LV-4 — declare-UX · ✅ (2026-08-03).** Blueprint-local only (F7 held: shared `BlackboardVariableEntry` /
+WorkingState panel untouched). `VariableCreateModal` gains a **Container** dropdown (Single / List (fixed)) +
+Capacity (1..256 UI clamp) + Initial Length (live-clamped [0,cap]) + a state-bytes budget line
+(`≈ 4 + N×elemSize`, per-selectable-type size table) + managed-element fence (String list disables Create) ·
+confirm payload now `(name, typeId, capacity, initialLength)` · `BlueprintDocumentFactory.CreateVariable`
+gains `capacity/initialLength` (authoritative guard: String-list rejected, InitialLength clamped; Capacity is
+the discriminator, IsArray never set) · My Blueprint tree badges list vars `[N]`. 6 tests
+(`ListVariableDeclareUxTests`): discriminator/clamp/fence · scalar JSON stays byte-compatible
+(Capacity WhenWritingDefault) + list JSON round-trip · tree badge · budget table covers every selectable
+unmanaged type. Suite 2525/0 · goldens 184/184.
+
+**LV-5…LV-6 remaining** (debugger visibility · demo/docs).
 
 ### FC-3 — see the umbrella §Sequencing (details filled in when the batch starts)

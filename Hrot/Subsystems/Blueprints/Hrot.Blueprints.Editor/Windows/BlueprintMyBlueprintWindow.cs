@@ -78,8 +78,8 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
                 ? (Action)bpFile.MarkDirty
                 : null;
             _createVariableModal = new VariableCreateModal(
-                (name, typeId) => BlueprintDocumentFactory.CreateVariable(
-                    blueprintAsset, name, typeId, markDirty),
+                (name, typeId, capacity, initialLength) => BlueprintDocumentFactory.CreateVariable(
+                    blueprintAsset, name, typeId, markDirty, capacity, initialLength),
                 blueprintAsset);
 
             BlueprintDocumentFactory.RegisterCreateVariableCommand(

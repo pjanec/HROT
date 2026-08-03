@@ -166,13 +166,16 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
         foreach (var v in _asset.Variables)
         {
             var accent = GetVariableAccentColor(v.Type?.TypeId ?? "");
+            // FC-2/LV-4: a fixed-list variable shows its capacity as a "[N]" badge so lists are
+            // recognizable at a glance in the My Blueprint tree.
+            var badge = v.Type is { Capacity: > 0 } ? $"[{v.Type.Capacity}]" : null;
             result.Add(new MyBlueprintItem(
                 ItemId:       $"var:{v.Id}",
                 SectionId:    SectionVariables,
                 DisplayName:  v.Name,
                 CategoryPath: v.Category,
                 IconKey:      null,
-                BadgeText:    null,
+                BadgeText:    badge,
                 AccentColor:  accent,
                 Children:     null,
                 IsRenamable:  true,

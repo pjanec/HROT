@@ -895,9 +895,12 @@ public sealed class BcpBatch02BlueprintTests
     {
         var (asset, _) = MakeAssetWithGraph();
 
-        // The confirm callback is exactly what production wires: route to CreateVariable.
-        Action<string, string> confirm = (name, typeId) =>
-            Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory.CreateVariable(asset, name, typeId);
+        // The confirm callback is exactly what production wires: route to CreateVariable
+        // (FC-2/LV-4: the payload now carries capacity/initialLength; 0 = scalar).
+        Hrot.Blueprints.Editor.Windows.VariableCreateModal.ConfirmHandler confirm =
+            (name, typeId, capacity, initialLength) =>
+                Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory.CreateVariable(
+                    asset, name, typeId, null, capacity, initialLength);
 
         var modal = new Hrot.Blueprints.Editor.Windows.VariableCreateModal(confirm);
 
@@ -907,7 +910,7 @@ public sealed class BcpBatch02BlueprintTests
         Assert.Empty(asset.Variables); // Draw alone (no confirm) creates nothing.
 
         // Fire the confirm callback as the Create button would.
-        confirm("Speed", "System.Single");
+        confirm("Speed", "System.Single", 0, 0);
 
         var decl = Assert.Single(asset.Variables);
         Assert.Equal("Speed", decl.Name);
