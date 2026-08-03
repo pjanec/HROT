@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 660" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <defs>
+    <marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1200" height="660" fill="#f7f8fa"/>
+
+  <text x="600" y="34" text-anchor="middle" font-size="22" font-weight="700" fill="#111827">Collection access — one pipeline, three emitted forms</text>
+  <text x="600" y="56" text-anchor="middle" font-size="13" fill="#6b7280">the blueprint graph is backing-agnostic; <tspan font-family="ui-monospace, monospace" fill="#374151">CollectionKind</tspan> picks the emitted C# at the very end</text>
+
+  <!-- Stage 1: source node -->
+  <rect x="24" y="110" width="196" height="150" rx="8" fill="#eef2ff" stroke="#6366f1"/>
+  <text x="122" y="133" text-anchor="middle" font-size="12.5" font-weight="700" fill="#3730a3">1 · SOURCE node</text>
+  <line x1="38" y1="143" x2="206" y2="143" stroke="#c7d2fe"/>
+  <text x="38" y="166" font-size="12" fill="#1e40af">GetComponent  (X)</text>
+  <text x="38" y="185" font-size="12" fill="#5b21b6">GetVariable  (Y)</text>
+  <text x="38" y="213" font-size="11.5" fill="#374151">projects a collection</text>
+  <text x="38" y="229" font-size="11.5" fill="#374151">out-pin (IsArray,</text>
+  <text x="38" y="245" font-size="11.5" fill="#374151">element-typed)</text>
+
+  <!-- Stage 2: out-pin payload -->
+  <rect x="256" y="120" width="196" height="130" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="354" y="143" text-anchor="middle" font-size="12.5" font-weight="700" fill="#334155">2 · out-pin carries</text>
+  <line x1="270" y1="153" x2="438" y2="153" stroke="#e2e8f0"/>
+  <text x="270" y="176" font-size="11.5" font-family="ui-monospace, monospace" fill="#111827">CollectionKind</text>
+  <text x="270" y="196" font-size="11.5" fill="#374151">backing ref</text>
+  <text x="284" y="211" font-size="10.5" fill="#6b7280">(component type / var field)</text>
+  <text x="270" y="231" font-size="11.5" fill="#374151">element type</text>
+
+  <!-- Stage 3: consumer / write node -->
+  <rect x="488" y="96" width="210" height="178" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="593" y="119" text-anchor="middle" font-size="12.5" font-weight="700" fill="#334155">3 · consumer / write node</text>
+  <line x1="502" y1="129" x2="684" y2="129" stroke="#e2e8f0"/>
+  <text x="502" y="151" font-size="11.5" fill="#16a34a" font-weight="600">Reads (CA-07, shipped)</text>
+  <text x="502" y="168" font-size="11" fill="#374151">ForEach · ItemGet · ItemCount</text>
+  <text x="502" y="183" font-size="11" fill="#374151">Contains · Find</text>
+  <text x="502" y="209" font-size="11.5" fill="#ea580c" font-weight="600">Writes (FC-0)</text>
+  <text x="502" y="226" font-size="11" fill="#374151">Add · Set · InsertAt</text>
+  <text x="502" y="241" font-size="11" fill="#374151">RemoveAt · Clear · Resize</text>
+  <text x="502" y="263" font-size="10.5" fill="#6b7280">backing-agnostic at this layer</text>
+
+  <!-- Stage 4: the switch -->
+  <rect x="734" y="130" width="150" height="110" rx="8" fill="#fff7ed" stroke="#fb923c"/>
+  <text x="809" y="153" text-anchor="middle" font-size="12.5" font-weight="700" fill="#9a3412">4 · compiler</text>
+  <text x="809" y="171" text-anchor="middle" font-size="11" fill="#9a3412">RenderCollection-</text>
+  <text x="809" y="185" text-anchor="middle" font-size="11" fill="#9a3412">Accessors</text>
+  <line x1="748" y1="196" x2="870" y2="196" stroke="#fed7aa"/>
+  <text x="809" y="216" text-anchor="middle" font-size="11.5" fill="#111827">switch on</text>
+  <text x="809" y="231" text-anchor="middle" font-size="11" font-family="ui-monospace, monospace" fill="#9a3412">CollectionKind</text>
+
+  <!-- arrows 1->2->3->4 -->
+  <line x1="220" y1="185" x2="254" y2="185" stroke="#64748b" stroke-width="1.6" marker-end="url(#a2)"/>
+  <line x1="452" y1="185" x2="486" y2="185" stroke="#64748b" stroke-width="1.6" marker-end="url(#a2)"/>
+  <line x1="698" y1="185" x2="732" y2="185" stroke="#64748b" stroke-width="1.6" marker-end="url(#a2)"/>
+
+  <!-- Stage 5: three emitted forms -->
+  <!-- A CuratedStatic -->
+  <rect x="918" y="86" width="266" height="86" rx="8" fill="#ffffff" stroke="#16a34a"/>
+  <text x="932" y="107" font-size="12" font-weight="700" fill="#166534">CuratedStatic  →  X (unmanaged comp)</text>
+  <text x="932" y="128" font-size="11" font-family="ui-monospace, monospace" fill="#374151">global::Ops.Count(comp)</text>
+  <text x="932" y="145" font-size="11" font-family="ui-monospace, monospace" fill="#374151">global::Ops.Item(comp, i)</text>
+  <text x="932" y="163" font-size="10.5" fill="#16a34a">shipped (CA-07b/c)</text>
+
+  <!-- B ManagedMember -->
+  <rect x="918" y="184" width="266" height="86" rx="8" fill="#ffffff" stroke="#16a34a"/>
+  <text x="932" y="205" font-size="12" font-weight="700" fill="#166534">ManagedMember  →  managed comp list</text>
+  <text x="932" y="226" font-size="11" font-family="ui-monospace, monospace" fill="#374151">__ml?.Count ?? 0</text>
+  <text x="932" y="243" font-size="11" font-family="ui-monospace, monospace" fill="#374151">__ml![i]</text>
+  <text x="932" y="261" font-size="10.5" fill="#16a34a">shipped (CA-07d-2)</text>
+
+  <!-- C BlackboardFixedList -->
+  <rect x="918" y="282" width="266" height="86" rx="8" fill="#fffbeb" stroke="#ea580c"/>
+  <text x="932" y="303" font-size="12" font-weight="700" fill="#9a3412">BlackboardFixedList  →  Y (var)</text>
+  <text x="932" y="324" font-size="11" font-family="ui-monospace, monospace" fill="#374151">s.field.Count</text>
+  <text x="932" y="341" font-size="11" font-family="ui-monospace, monospace" fill="#374151">s.field.Items[i]</text>
+  <text x="932" y="359" font-size="10.5" fill="#ea580c">to build (FC-2)  ·  new case</text>
+
+  <!-- fan-out arrows 4 -> A/B/C -->
+  <line x1="884" y1="185" x2="914" y2="129" stroke="#64748b" stroke-width="1.4" marker-end="url(#a2)"/>
+  <line x1="884" y1="185" x2="914" y2="227" stroke="#64748b" stroke-width="1.4" marker-end="url(#a2)"/>
+  <line x1="884" y1="185" x2="914" y2="325" stroke="#64748b" stroke-width="1.4" marker-end="url(#a2)"/>
+
+  <!-- write note -->
+  <rect x="24" y="330" width="860" height="70" rx="8" fill="#fff7ed" stroke="#fdba74"/>
+  <text x="40" y="354" font-size="12.5" font-weight="700" fill="#9a3412">Writes are in place — never a whole-array copy.</text>
+  <text x="40" y="376" font-size="12" fill="#374151">e.g. <tspan font-family="ui-monospace, monospace" fill="#111827">Add</tspan> → <tspan font-family="ui-monospace, monospace" fill="#111827">comp.Items[comp.Count++] = v;</tspan>  (X, via write accessor)  ·  <tspan font-family="ui-monospace, monospace" fill="#111827">s.field.Items[s.field.Count++] = v;</tspan>  (Y)</text>
+  <text x="40" y="393" font-size="11.5" fill="#6b7280">overflow → returns false + a Debug-mode diagnostic (never silent, never OOB — length clamped to min(Count, N)).</text>
+
+  <!-- Z aside -->
+  <rect x="24" y="430" width="1160" height="86" rx="8" fill="#fffbeb" stroke="#fcd34d"/>
+  <text x="40" y="454" font-size="12.5" font-weight="700" fill="#92400e">Z (action DTO) skips this whole pipeline.</text>
+  <text x="40" y="476" font-size="12" fill="#374151">A C# action holds the collection as a plain struct field, mutated by ref directly: <tspan font-family="ui-monospace, monospace" fill="#111827">p.field.Items[i] = x;</tspan> — no nodes, no lowering.</text>
+  <text x="40" y="497" font-size="11.5" fill="#6b7280">The only Z work is the BTree/HSM editor learning to recognize the collection field (FC-3). Same collection <tspan font-style="italic">shape</tspan>, different consumer.</text>
+
+  <!-- takeaway -->
+  <text x="600" y="556" text-anchor="middle" font-size="13" font-weight="700" fill="#0369a1">Takeaway: the nodes, pins, and wiring are identical across X and Y.</text>
+  <text x="600" y="577" text-anchor="middle" font-size="12.5" fill="#374151">Only the last step (RenderCollectionAccessors) differs — adding backing Y is one new emit case, not a new node set.</text>
+</svg>

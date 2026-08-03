@@ -1,0 +1,157 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 780" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <defs>
+    <marker id="arw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1280" height="780" fill="#f7f8fa"/>
+
+  <text x="640" y="34" text-anchor="middle" font-size="23" font-weight="700" fill="#111827">Fixed Collections — how it plugs into the stack</text>
+  <text x="640" y="57" text-anchor="middle" font-size="13.5" fill="#6b7280">one <tspan font-family="ui-monospace, monospace" fill="#374151">[InlineArray(N)] + int Count</tspan> collection · three backings · shared read/write machinery</text>
+
+  <g font-size="12.5" fill="#374151">
+    <rect x="360" y="74" width="14" height="14" rx="3" fill="#16a34a"/><text x="380" y="85">shipped</text>
+    <rect x="452" y="74" width="14" height="14" rx="3" fill="#2563eb"/><text x="472" y="85">designed</text>
+    <rect x="556" y="74" width="14" height="14" rx="3" fill="#ea580c"/><text x="576" y="85">to build (FC-n)</text>
+    <text x="700" y="85">🖉 hand-written C#</text>
+    <text x="836" y="85">🧩 editor-declared</text>
+    <text x="968" y="85">⚙ compiler-generated</text>
+  </g>
+
+  <g font-size="12.5" font-weight="700" fill="#475569" text-anchor="middle">
+    <text x="240" y="118">AUTHORED BY</text>
+    <text x="476" y="118">STORAGE (backing)</text>
+    <text x="749" y="118">BLUEPRINT GRAPH access</text>
+    <text x="1087" y="118">C# ACTION / CONDITION access</text>
+  </g>
+
+  <g stroke="#e5e7eb" stroke-width="1">
+    <line x1="362" y1="128" x2="362" y2="700"/>
+    <line x1="590" y1="128" x2="590" y2="700"/>
+    <line x1="908" y1="128" x2="908" y2="700"/>
+  </g>
+
+  <!-- ROW X -->
+  <rect x="18" y="135" width="98" height="150" rx="8" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="67" y="200" text-anchor="middle" font-size="14" font-weight="700" fill="#1e40af">X</text>
+  <text x="67" y="220" text-anchor="middle" font-size="10.5" fill="#1e40af">ECS</text>
+  <text x="67" y="234" text-anchor="middle" font-size="10.5" fill="#1e40af">component</text>
+
+  <rect x="124" y="135" width="230" height="150" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="136" y="160" font-size="12.5" fill="#111827">🖉 dev hand-writes the C#</text>
+  <text x="136" y="177" font-size="12.5" fill="#111827">component struct:</text>
+  <text x="136" y="197" font-size="11.5" font-family="ui-monospace, monospace" fill="#374151">[InlineArray(N)] Items</text>
+  <text x="136" y="212" font-size="11.5" font-family="ui-monospace, monospace" fill="#374151">int Count</text>
+  <text x="136" y="234" font-size="12" fill="#111827">+ accessor class:</text>
+  <text x="136" y="251" font-size="11.5" fill="#16a34a">reads ✔ [BlueprintCollection]</text>
+  <text x="136" y="267" font-size="11.5" fill="#ea580c">+ write accessors (FC-0)</text>
+
+  <rect x="372" y="135" width="210" height="150" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="384" y="185" font-size="12.5" fill="#111827">ECS component on</text>
+  <text x="384" y="202" font-size="12.5" fill="#111827">the entity</text>
+  <text x="384" y="228" font-size="12" fill="#6b7280">shared · persistent ·</text>
+  <text x="384" y="244" font-size="12" fill="#6b7280">one per component type</text>
+
+  <!-- ROW Y -->
+  <rect x="18" y="300" width="98" height="150" rx="8" fill="#ede9fe" stroke="#7c3aed"/>
+  <text x="67" y="360" text-anchor="middle" font-size="14" font-weight="700" fill="#5b21b6">Y</text>
+  <text x="67" y="380" text-anchor="middle" font-size="10.5" fill="#5b21b6">Blueprint</text>
+  <text x="67" y="394" text-anchor="middle" font-size="10.5" fill="#5b21b6">blackboard</text>
+  <text x="67" y="408" text-anchor="middle" font-size="10.5" fill="#5b21b6">variable</text>
+
+  <rect x="124" y="300" width="230" height="150" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="136" y="326" font-size="12.5" fill="#111827">🧩 designer declares in</text>
+  <text x="136" y="343" font-size="12.5" fill="#111827">the editor:</text>
+  <text x="136" y="362" font-size="12" fill="#374151">element × capacity</text>
+  <text x="136" y="378" font-size="12" fill="#374151">(container-mode dialog)</text>
+  <text x="136" y="404" font-size="12.5" fill="#111827">⚙ compiler generates</text>
+  <text x="136" y="421" font-size="12.5" fill="#111827">the wrapper + storage</text>
+  <text x="136" y="440" font-size="11.5" fill="#2563eb">designed (FC-2)</text>
+
+  <rect x="372" y="300" width="210" height="150" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="384" y="345" font-size="12.5" fill="#111827">field in the State /</text>
+  <text x="384" y="362" font-size="12.5" fill="#111827">WorkingState blackboard</text>
+  <text x="384" y="379" font-size="12.5" fill="#111827">blob</text>
+  <text x="384" y="405" font-size="12" fill="#6b7280">private to one</text>
+  <text x="384" y="421" font-size="12" fill="#6b7280">blueprint instance</text>
+
+  <!-- Shared graph machinery spans X+Y -->
+  <rect x="598" y="135" width="304" height="315" rx="8" fill="#f0f9ff" stroke="#38bdf8"/>
+  <text x="750" y="158" text-anchor="middle" font-size="12.5" font-weight="700" fill="#0369a1">SHARED graph machinery (X &amp; Y)</text>
+  <line x1="612" y1="168" x2="888" y2="168" stroke="#bae6fd"/>
+  <text x="612" y="190" font-size="12.5" fill="#111827">Reads — CA-07 consumer nodes</text>
+  <text x="612" y="207" font-size="11.5" fill="#16a34a">✔ ForEach · ItemGet · ItemCount</text>
+  <text x="612" y="223" font-size="11.5" fill="#16a34a">✔ Contains · Find</text>
+  <text x="612" y="252" font-size="12.5" fill="#111827">Writes — one op family</text>
+  <text x="612" y="269" font-size="11.5" fill="#ea580c">Add · Set · InsertAt · RemoveAt</text>
+  <text x="612" y="285" font-size="11.5" fill="#ea580c">Clear · Resize   (FC-0)</text>
+  <text x="612" y="314" font-size="12" fill="#374151">keyed by <tspan font-family="ui-monospace, monospace" fill="#111827">CollectionKind</tspan> →</text>
+  <text x="626" y="331" font-size="11.5" fill="#6b7280">{ component | blackboard field }</text>
+  <line x1="612" y1="348" x2="888" y2="348" stroke="#e0f2fe"/>
+  <text x="612" y="372" font-size="11.5" fill="#374151">X surfaces via <tspan fill="#1e40af">GetComponent</tspan> out-pin</text>
+  <text x="612" y="392" font-size="11.5" fill="#374151">Y surfaces via <tspan fill="#5b21b6">GetVariable</tspan> out-pin</text>
+  <text x="612" y="420" font-size="11" fill="#6b7280">same nodes, same wiring — the</text>
+  <text x="612" y="435" font-size="11" fill="#6b7280">designer works identically for both</text>
+
+  <line x1="582" y1="210" x2="596" y2="240" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arw)"/>
+  <line x1="582" y1="375" x2="596" y2="345" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arw)"/>
+
+  <rect x="916" y="135" width="346" height="150" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="930" y="190" font-size="12.5" fill="#111827">✔ any action/condition, by ref:</text>
+  <text x="930" y="212" font-size="11.5" font-family="ui-monospace, monospace" fill="#374151">ctx.World.GetComponentRW&lt;C&gt;()</text>
+  <text x="930" y="230" font-size="11.5" font-family="ui-monospace, monospace" fill="#374151">c.Items[i] = x;</text>
+  <text x="930" y="255" font-size="11.5" fill="#16a34a">already works — in place, zero copy</text>
+
+  <rect x="916" y="300" width="346" height="150" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="930" y="360" font-size="12.5" fill="#111827">only an AiPrimitive (a blueprint</text>
+  <text x="930" y="378" font-size="12.5" fill="#111827">compiled INTO an action) — its</text>
+  <text x="930" y="396" font-size="12.5" fill="#111827">WorkingState is the action's <tspan font-family="ui-monospace, monospace">ws</tspan>.</text>
+  <text x="930" y="420" font-size="11.5" fill="#6b7280">otherwise n/a — a private blueprint</text>
+  <text x="930" y="436" font-size="11.5" fill="#6b7280">var isn't visible to other actions</text>
+
+  <!-- ROW Z -->
+  <rect x="18" y="465" width="98" height="150" rx="8" fill="#fef3c7" stroke="#d97706"/>
+  <text x="67" y="527" text-anchor="middle" font-size="14" font-weight="700" fill="#92400e">Z</text>
+  <text x="67" y="547" text-anchor="middle" font-size="10.5" fill="#92400e">BTree/HSM</text>
+  <text x="67" y="561" text-anchor="middle" font-size="10.5" fill="#92400e">action DTO</text>
+
+  <rect x="124" y="465" width="230" height="150" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="136" y="492" font-size="12.5" fill="#111827">🖉 dev hand-writes the C#</text>
+  <text x="136" y="509" font-size="12.5" fill="#111827">params / working-state</text>
+  <text x="136" y="526" font-size="12.5" fill="#111827">DTO struct with a field:</text>
+  <text x="136" y="547" font-size="11.5" font-family="ui-monospace, monospace" fill="#374151">[InlineArray(N)] Items</text>
+  <text x="136" y="562" font-size="11.5" font-family="ui-monospace, monospace" fill="#374151">int Count</text>
+  <text x="136" y="586" font-size="11.5" fill="#6b7280">no accessor class needed</text>
+  <text x="136" y="601" font-size="11.5" fill="#6b7280">(actions use it directly)</text>
+
+  <rect x="372" y="465" width="210" height="150" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="384" y="512" font-size="12.5" fill="#111827">the action's params /</text>
+  <text x="384" y="529" font-size="12.5" fill="#111827">working-state block</text>
+  <text x="384" y="555" font-size="12" fill="#6b7280">BrainBlackboard, or a</text>
+  <text x="384" y="571" font-size="12" fill="#6b7280">partition slot (stateful)</text>
+
+  <rect x="598" y="465" width="304" height="150" rx="8" fill="#fafafa" stroke="#e5e7eb"/>
+  <text x="750" y="533" text-anchor="middle" font-size="12.5" fill="#9ca3af">— not a blueprint variable —</text>
+  <text x="750" y="553" text-anchor="middle" font-size="11.5" fill="#9ca3af">no blueprint-graph access</text>
+
+  <rect x="916" y="465" width="346" height="150" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="930" y="512" font-size="12.5" fill="#111827">✔ the action, by ref (plain C#):</text>
+  <text x="930" y="534" font-size="11.5" font-family="ui-monospace, monospace" fill="#374151">ref p → p.Items[i] = x;</text>
+  <text x="930" y="556" font-size="11.5" fill="#16a34a">already works — free, zero copy</text>
+  <text x="930" y="582" font-size="12" fill="#111827">gap: the BTree/HSM editor must</text>
+  <text x="930" y="599" font-size="12" fill="#ea580c">recognize the field (FC-3)</text>
+
+  <!-- Footer build order -->
+  <rect x="18" y="650" width="1244" height="112" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="34" y="675" font-size="13" font-weight="700" fill="#111827">Build order (one workstream)</text>
+  <g font-size="12" fill="#374151">
+    <rect x="34" y="688" width="52" height="18" rx="4" fill="#ea580c"/><text x="60" y="701" text-anchor="middle" fill="#fff" font-weight="700">FC-0</text>
+    <text x="94" y="701">foundation — shape + write accessors + write-op IR family + <tspan font-family="ui-monospace, monospace">CollectionKind</tspan> write-backing</text>
+    <rect x="34" y="712" width="52" height="18" rx="4" fill="#ea580c"/><text x="60" y="725" text-anchor="middle" fill="#fff" font-weight="700">FC-1</text>
+    <text x="94" y="725">(X) component write nodes — cheapest, fills the felt gap, reuses shipped CA-07 reads</text>
+    <rect x="640" y="712" width="52" height="18" rx="4" fill="#ea580c"/><text x="666" y="725" text-anchor="middle" fill="#fff" font-weight="700">FC-2</text>
+    <text x="700" y="725">(Y) blackboard list variable — heavy storage/layout/safety; reuses FC-1 write nodes</text>
+    <rect x="34" y="736" width="52" height="18" rx="4" fill="#ea580c"/><text x="60" y="749" text-anchor="middle" fill="#fff" font-weight="700">FC-3</text>
+    <text x="94" y="749">(Z) action-DTO collections — BTree/HSM editor learns the array kind; action access already free</text>
+  </g>
+</svg>
