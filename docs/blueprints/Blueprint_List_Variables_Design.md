@@ -1,5 +1,10 @@
 # Blueprint List Variables — Design
 
+> **Scope note:** this is the **blueprint-variable-collection** home of the broader *Fixed Collections* capability
+> (`Blueprint_Fixed_Collections_Design.md`) — i.e. build slice **FC-2**. The LV-1…LV-5 steps below are FC-2's
+> internal sub-steps. The umbrella covers the other two homes (component collections, action-DTO collections) and
+> the shared read/write machinery this reuses.
+
 Fixed-capacity, typed, ordered **list variables** stored inline in the unmanaged blackboard blob. Decisions
 locked in `Architect_Question_19_Fixed_Capacity_List_Variables.md` (A1/B1/C/D-in-place/E/F1). This is the
 implementation design; a companion **Review** section (end) records the adversarial pass and any deltas.
@@ -105,10 +110,18 @@ they do NOT take the list through a by-value data pin):
 
 ## 6. Editor
 
-- **Declare UX** (`BlackboardTypeChoiceBuilder` / Variables panel): the type picker gains "**Fixed list of ⟨T⟩ ×
-  capacity ⟨N⟩ [initial length ⟨L⟩]**", where ⟨T⟩ is the existing element choice list (primitives +
-  `[BlackboardDtoStruct]` + `Entity`). Persists `BlueprintTypeRef { element, Capacity=N }` + initial length.
-  Capacity feeds the existing tier-budget `PackWarning`.
+- **Declare UX** (Add-Variable dialog in the Variables panel; approved mockup 2026-08-03). A **Container** dropdown
+  next to the element type — **Single** (today's behaviour, unchanged) | **Fixed list**. Choosing *Fixed list*
+  reveals **Capacity** (≥1) and **Initial length** (0…capacity, default 0) fields, plus a **live budget line**
+  (element size × capacity + overhead vs the current tier, red past the limit — surfaces the over-budget footgun
+  at creation, not as a later compile error). Element combo is unchanged (primitives + `[BlackboardDtoStruct]` +
+  `Entity`). Persists `BlueprintTypeRef { element, Capacity=N, InitialLength=L }`.
+  - **Capacity is fixed at creation** (v1) — changing it would reallocate/migrate instance state; to change,
+    delete + re-add. The Variables **table** renders a fixed list as e.g. `Entity[16]`.
+  - **Injected, not widened** (review §F7): the shared `VariablesPanelControl` gains the container/capacity rows
+    only when the Blueprint host passes a "list support" capability; HSM passes nothing → identical old UI. The
+    capacity/length ride a Blueprint-local carry into `BlueprintTypeRef` — the shared `BlackboardVariableEntry`
+    isn't widened. Discriminator is `Capacity`, **not `IsArray`** (§F7).
 - **Read pin + wire-bake:** the list-source out-pin projects `IsArray`/element-typed; `TryBakeCollectionConsumer`
   stamps `CollectionKind=BlackboardFixedList` + the variable ref (mirror of the CA-07d-2 managed bake).
 - **Write nodes + palette:** the 6 write nodes get drawers (variable picker like `SetVariable`) + palette entries.

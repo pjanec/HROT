@@ -1,5 +1,8 @@
 # Architect question #19 — Fixed-capacity typed **list variables** (blackboard-resident)
 
+> **Scope note:** these decisions govern the **blueprint-variable-collection** home of the *Fixed Collections*
+> capability (`Blueprint_Fixed_Collections_Design.md`). Full implementation design: `Blueprint_List_Variables_Design.md`.
+
 **Context.** Blueprint variables (`asset.Variables`) and AiPrimitive `WorkingState` live in a fixed-size
 **unmanaged** blackboard blob (`BlueprintBlackboard1024/4096/16384`, tiered via `TierHint`), emitted as a
 `[StructLayout(Sequential)] struct State`/`WorkingState` with one typed field per declared variable and
