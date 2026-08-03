@@ -86,28 +86,68 @@ authored initial list.
 array form, infers Count = length ≤ N, zeroes tail; write emits the array of the used window).
 The designer never sees `Count` in JSON; the byte image stays canonical.
 
+**C addendum — element types + reuse (verified 2026-08-03).** The platform already has canonical
+STJ machinery the converter should ride, not duplicate:
+
+| Fact | Evidence |
+|---|---|
+| Scenario save/load + DDS round-trips use ONE canonical options singleton with per-type converters: Vector2/3/4 + Quaternion (compact `[x,y,z]` form), FixedString32/64, strict string enums, `IncludeFields=true` | `Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed` |
+| Custom unmanaged struct elements serialize field-wise through those options with NO extra work (`IncludeFields=true`) | STJ default behavior |
+| The generated `ParseParams` today builds its own bare `new JsonSerializerOptions { IncludeFields = true }` — it does NOT use the registry | `BTreeBridgeEmitCore.cs:157` (`__paramJsonOpts`) |
+
+**Design consequence:** implement the list converter as a `JsonConverterFactory` whose per-element
+read/write recurses via `JsonSerializer.…<TElem>(…, options)` — element support is then *inherited*
+from the enclosing options (primitives, vectors, FixedString, enums, and arbitrary unmanaged structs
+all work day one). Register it in `FdpJsonOptionsRegistry` (both singletons) and switch the emitted
+`__paramJsonOpts` to `FdpJsonOptionsRegistry.DefaultRelaxed` — one line in `BTreeBridgeEmitCore` —
+so behavior JSON, scenario save/load, and diagnostic dumps all gain list support at once.
+
+**Entity elements:** structurally fine (unmanaged `(Index, Generation)`; a converter exists but is
+private to `RecordingExportService` — hoist or rely on `IncludeFields`). *Semantically*, an authored
+non-null handle is meaningless — generation/index don't survive across runs, and state snapshots
+round-trip as the byte image, never through JSON. Sub-decision **C-e:** allow `Entity`-element lists
+but document "author `Entity.Null` only" (lean), or reject Entity lists in JSON authoring outright.
+
 ### D — Inspector marshal: reuse the LV-5 formatter, or structured rows?
 
 `LiveBlackboardPanel` renders primitives only; a list field shows nothing useful.
 
-- **D1 (lean):** reuse the **LV-5 reflection formatter** (`TryFormatFixedList`) — one string row
+- **D1:** reuse the **LV-5 reflection formatter** (`TryFormatFixedList`) — one string row
   `List<T>[N] Count=k {…}`, F2-clamped, zero new UI. Move/share the helper so the BTree editor can
   call it without referencing the Blueprints editor.
-- **D2:** structured expandable rows (one row per element, editable). Real UI work; editing live
-  bytes raises write-safety questions (who owns the write? tick races).
+- **D2:** hand-rolled structured expandable rows (one row per element, editable). Real UI work;
+  editing live bytes raises write-safety questions (who owns the write? tick races).
+- **D3 (StructEdit-based — verified viable 2026-08-03):** the in-repo **StructEdit** library
+  (`FDP/ExtDeps/StructEdit`, already consumed by the HSM/BTree/IG editors) **already supports
+  `[InlineArray]` end-to-end over native bytes**: reflection discovery
+  (`DetermineKind → EditNodeKind.InlineArray`), `InlineArrayBinding` with per-element offsets into
+  a `NativeStructEditBuffer`, per-element child nodes — and struct elements recurse into full
+  per-field node trees (a `Float3`-element inline array is test-covered, J001-T5). What it does
+  NOT have is **list semantics**: all N slots render (Count is just another int field), no
+  Count-clamped window, no bounded add/remove. The library's `IBufferViewProvider` hook (custom
+  views that "claim" a buffer — already used for `FixedBuffer`) is the designed extension point:
+  a `FixedListViewProvider` recognizing the A1 wrapper shape would present `min(Count,N)` element
+  rows + a bounded resize driven by `Count`. Two small upstream tweaks needed: consult providers
+  on the InlineArray path too (today only FixedBuffer does), and — only if StructEdit.Json is ever
+  wanted for lists — fix its container serializer's `ToString()` fallback for struct elements.
 
-**Claude's lean: D1** for FC-3; D2 only if a concrete workflow demands element-level live editing
-(none does today).
+**Claude's lean: D3.** The support is largely built and battle-tested elsewhere in the repo; the
+`FixedListViewProvider` is a genuinely reusable addition (BTree/HSM inspectors AND
+`[InlineArray]` component fields get it too), and it delivers element-level display instead of a
+string. The LV-5 string formatter stays where it already ships (the Blueprints debugger watch) —
+no conflict. D1 remains the fallback if FC-3 must stay minimal; write-safety for *editing* live
+working-state (vs displaying) is a sub-decision — **D-e:** display-only v1 (lean) vs editable
+rows from day one.
 
 ## Reuse-vs-build summary
 
 | Piece | Reuse | Build |
 |---|---|---|
 | Zero-on-attach (F2) | ✅ LV-1b `TryAttach` fix already covers `AttachSlotsToMemory` | verify-only test on the action path |
-| Watch/inspector rendering | ✅ LV-5 `TryFormatFixedList` | relocation to a shared home + panel hook |
+| Inspector rendering | ✅ StructEdit `InlineArrayBinding` + native-byte editing (D3); LV-5 formatter stays for the Blueprints watch | `FixedListViewProvider` + provider hook on the InlineArray path + `LiveBlackboardPanel` wiring |
 | DTO shape + ops | ✅ FC-0 convention + FC-1b generator | — |
 | Classifier | extend known-type set (A) | the panel wiring (B1) |
-| JSON | — | the converter (C) |
+| JSON element types | ✅ `FdpJsonOptionsRegistry` converters (vectors, FixedString, enums) + `IncludeFields` for custom structs | the list `JsonConverterFactory` (C) + point `__paramJsonOpts` at the registry (1 line) |
 
 ## Proposed slice plan (post-approval)
 
