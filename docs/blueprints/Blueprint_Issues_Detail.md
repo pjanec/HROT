@@ -188,7 +188,12 @@ Whether a designer can *place* and *configure* each node kind. 13 of 50 kinds ru
 Document, undo, and panel plumbing.
 
 ### BP-11 — No inspector or drawer edit is undoable ⭐
-**Complexity:** RW-L · **Confidence:** ✔✔
+**Complexity:** RW-M *(raised from RW-L — see estimate note below)* · **Confidence:** ✔✔
+- ✅ **UNBLOCKED — architect approved 2026-08-04.** Package **A1 + B1 + C2 + D2 + E1**: collapse onto NodeEdit's `UndoStack` and retire `CommandHistory`; promote `RecordPropertyEdit` + `NotifyStructureChanged` onto `IEditService`; keep `EditService` canvas-agnostic via an injected transport delegate; adapter-first migration; coalesce continuous edits into one entry on widget deactivation. Full answers + reasoning: [Architect_Question_22](Architect_Question_22_Undo_Unification.md#answers--approved-2026-08-04).
+- ⚠ **Three implementation gaps found after approval** (all recorded in the Q22 addendum; none blocks the design):
+  1. **`UndoStack` can't carry a `PropertyEditCommand`.** `ApplyAndRecord` takes a `GraphCommand` — a ~30-variant data-record hierarchy with **zero delegate-carrying members**. Route through the existing `SetNodeProperty` (already handled at `BlueprintCommandSink:129`) rather than adding a variant to the vendored `FDP/ExtDeps/NodeEdit` tree.
+  2. **D2 fixes Tier 2 only.** Drawers never call `RecordPropertyEdit`, so re-pointing `CommandHistory` cannot capture them — the ~9 `MarkDirty` sites across 5 drawer files still need converting. That is the bulk of the work.
+  3. **The sink's `default:` returns success** for unknown commands, so a new `GraphCommand` variant without a sink case would no-op *and report success* — the exact failure class BP-11 exists to remove.
 - **The real shape is two undo stacks that are never bridged**, not "drawers bypass undo":
 
 | Layer | State |
@@ -200,8 +205,8 @@ Document, undo, and panel plumbing.
 
 - **Net effect:** no drawer/inspector edit is undoable. Structural edits **are** (`view.Execute` → `UndoStack.ApplyAndRecord` stores a forward/inverse pair).
 - ⚠ **Correction (2026-08-04):** an earlier revision said the 2 `SharedNodeDrawers` downcast sites were "written to be undoable". **They are not** — they call `NotifyStructureChanged`, which is unrelated to undo. **No drawer calls `RecordPropertyEdit` at all.** The real shape is *three* tiers: canvas edits → `UndoStack` (works); `BlueprintCommandSink` property edits → `CommandHistory` (recorded, unreachable); drawer edits → `MarkDirty` only (not recorded).
-- 📐 **Architect pass required before building** — see [Architect_Question_22_Undo_Unification.md](Architect_Question_22_Undo_Unification.md).
-- **Fix:** (1) promote `RecordPropertyEdit` + `NotifyStructureChanged` onto `IEditService`; (2) re-point the implementation at `view.Execute(fwd, inv, label)` so edits land on the single live stack — needs the document's `GraphView` in `EditServiceContext`; (3) convert the ~10 `MarkDirty`-only edit sites across 6 drawers; (4) `CommandHistory` then becomes genuinely dead and can go.
+- **Approved fix, in order:** (1) make `CommandHistory.Execute` delegate to `UndoStack` via an injected transport delegate (D2 + C2) — fixes the 6 sink sites with no call-site churn; (2) promote `RecordPropertyEdit` + `NotifyStructureChanged` onto `IEditService` (B1), deleting both `as EditService` downcasts; (3) convert the **~9** `MarkDirty`-only sites across **5** drawer files to record apply/undo pairs; (4) add activation-time coalescing (E1 — snapshot on `IsItemActivated()`, commit on `IsItemDeactivatedAfterEdit()`); (5) `CommandHistory` is then dead and can go.
+- **Test:** a headless assertion that a drawer edit followed by `view.UndoLast()` restores the prior value — the assertion no existing test makes.
 - ⚠ **Do not simply delete `CommandHistory` today** — its `Execute()` performs the actual mutation, so it is load-bearing until step 2 lands. Bounded 64-entry ring; no leak.
 
 ### BP-12a — My Blueprint: drag-variable-into-graph as Get/Set is dead

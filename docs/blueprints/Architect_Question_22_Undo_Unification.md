@@ -126,14 +126,83 @@ produce one undo entry.
 **Verification is fully headless** — assert that a drawer edit followed by `view.UndoLast()` restores the
 prior value, which is exactly the assertion no existing test makes.
 
-## Answers
+## Answers — **APPROVED 2026-08-04**
 
-*(to be filled in from the architect pass)*
+Full recommended package accepted: **A1 + B1 + C2 + D2 + E1**. ✅ **BP-11 is unblocked.**
 
-| Sub-question | Decision | Notes |
+| Sub-question | Decision | Architect's reasoning |
 |---|---|---|
-| Q22-A — which stack | | |
-| Q22-B — interface shape | | |
-| Q22-C — GraphView access | | |
-| Q22-D — migration order | | |
-| Q22-E — granularity | | |
+| Q22-A — which stack | **A1** | Collapse onto `UndoStack`, retire `CommandHistory`. Explicitly answers the open sub-question: `UndoStack` *was* conceived as graph-centric, but a unified chronological Ctrl+Z is paramount; non-graph commands on it are acceptable **provided C2's transport delegates keep the layering clean**. A3's coordinator rejected as unnecessary complexity. |
+| Q22-B — interface shape | **B1** | Promote `RecordPropertyEdit` + `NotifyStructureChanged` onto `IEditService`; kills the `as EditService` downcasts. B2's minimality "is exactly the ambiguity that allowed Tier 3 to silently skip undo." Test doubles implement as no-ops. |
+| Q22-C — GraphView access | **C2** | Injected transport delegate. Direct `GraphView` coupling (C1) would break the deliberate precedent already set by `OnStructureChanged`. |
+| Q22-D — migration order | **D2** | Adapter first — `CommandHistory.Execute` delegates to `UndoStack`. Delete `CommandHistory` as later cleanup. |
+| Q22-E — granularity | **E1** | Coalesce by (node, property) while the widget is active; one entry on deactivation. E2's ring churn rejected — "a single drag would instantly blow past our 64-entry buffer." |
+
+Verification strategy approved as proposed: a headless test asserting a drawer edit followed by
+`view.UndoLast()` restores the prior value.
+
+---
+
+## ⚠ Implementation addendum — three gaps in the approved package
+
+Checked against code after the approval. **None blocks the decisions above**; all three are
+implementation-level and the recommended resolutions stay inside the approved architecture.
+
+### 1. `UndoStack` cannot carry a `PropertyEditCommand` — a transport must be chosen (**the real one**)
+
+`UndoStack.ApplyAndRecord(GraphCommand forward, GraphCommand inverse, string label)` takes
+**`GraphCommand`**, applying it via `_sink.Apply(forward)`. `GraphCommand` is an abstract record with
+~30 *data* variants describing graph mutations — **zero `Action`/`Func<` anywhere in the file**. A
+`PropertyEditCommand(string, Action apply, Action undo)` is therefore **not expressible on the stack as-is**.
+
+> **C2 does not dodge this.** Whatever the delegate's signature, the value that ultimately lands on
+> `UndoStack` must be a `GraphCommand` pair. This is the one genuine hole in the package.
+
+| Option | Assessment |
+|---|---|
+| **R1 — route through the existing `SetNodeProperty(NodeId, string Key, object? Value)`** ✅ **recommended** | Already in the vocabulary, already handled by `BlueprintCommandSink:129` → `ApplySetNodeProperty`, and the sink ctor doc already names it *"Property-edit service for `GraphCommand.SetNodeProperty`"*. Zero changes to NodeEdit. |
+| R2 — add a delegate-carrying variant to `GraphCommand` | Requires editing **`FDP/ExtDeps/NodeEdit`** — a vendored external tree. Needs its own layering nod. Avoid unless R1 provably can't express an edit. |
+
+**Open (non-blocking) question:** `SetNodeProperty` is keyed by `NodeId` + string key. Any drawer edit
+that is *not* node-scoped — asset-level variables, multi-field bakes — cannot be expressed by it. If such
+a case appears during implementation, R2 (or an asset-scoped sibling) needs a quick confirm. Everything
+node-scoped proceeds on R1 now.
+
+### 2. D2 fixes Tier 2 only — **Tier 3 still needs its call sites converted**
+
+The approval states D2 "immediately routes Tiers 2 and 3 into the unified undo stack." **It routes Tier 2
+only.** Tier 3 drawers never call `RecordPropertyEdit` — they call `MarkDirty` and nothing else (verified:
+`RecordPropertyEdit`'s only non-test callers are the 6 in `BlueprintCommandSink`). Re-pointing
+`CommandHistory` cannot capture an edit that was never recorded.
+
+So the ~9 `MarkDirty`-only sites across 5 drawer files (`ComponentNodeDrawers` 2 ·
+`PlayMontageChainNodeDrawer` 3 · `SharedNodeDrawers` 2 · `FunctionCallNodeDrawer` 1 ·
+`LiteralNodeDrawer` 1) must each be converted to record an apply/undo pair. **This is unavoidable under
+any of A1/D1/D2** and is the bulk of the work. D2's low-risk claim holds for the 6 sink sites; it does not
+extend to the drawers.
+
+### 3. A new `GraphCommand` variant would fail **silently** if the sink isn't updated
+
+`BlueprintCommandSink.Apply`'s `default:` case returns `new GraphCommandResult(true, null)` —
+*"Unknown commands are silently accepted (forward-compat)"*. It reports **success**. So under R2, adding a
+variant without a matching sink case yields an undo that no-ops *and claims to have worked* — precisely
+the failure class BP-11 exists to remove. R1 sidesteps this entirely (`SetNodeProperty` already has a case).
+
+### Minor — E1 mechanics
+
+`IsItemDeactivatedAfterEdit()` fires *after* the value has already changed, so it cannot "capture the
+pre-drag baseline" as described. Snapshot the baseline on **`IsItemActivated()`**, pair it with the final
+value on deactivation. Same design, correct hook.
+
+### Not applicable
+
+The closing offer regarding *"ALC safety limits during teardown"* concerns `AssemblyLoadContext`
+lifetime and has no bearing on undo unification. Disregarded.
+
+---
+
+## Net effect on the estimate
+
+**BP-11 reclassified `RW-L` → `RW-M`.** Not because the design changed — the approved package is sound —
+but because the verified work is a transport decision (gap 1) plus ~9 call-site conversions (gap 2) plus
+activation-time coalescing (E1), which is past "contained new logic, no design decisions."

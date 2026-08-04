@@ -12,8 +12,8 @@ architect decision first).
 | Complexity | Count |
 |---|---:|
 | `WIRING` | 19 |
-| `RW-L` | 23 |
-| `RW-M` | 18 |
+| `RW-L` | 22 |
+| `RW-M` | 19 |
 | `RW-H` | 2 |
 | **Total actionable** | **62** |
 | *(refuted on verification)* | *1* |
@@ -67,7 +67,7 @@ architect decision first).
 - [ ] **BP-22** · `RW-L` — `GetParameter` cannot be placed; asset-specific, so needs a picker not a baked entry
 - [ ] **BP-21** · `RW-L` — `When` → ValueChanged form stubbed; reuse `ComponentFieldReflector` + component pickers
 - [ ] **BP-26** · `RW-L` — `When` → ConditionMet form stubbed. *Reclassified from REAL WORK:* a full StructEdit-generic predicate editor already exists in `Fdp.Presentation`, which the Blueprint editor already references
-- [ ] **BP-27** · `RW-M` — `ScoreDecision.AssetId` uneditable; no `UtilityDecisionDef` catalog exists. ⚠ re-check against StructEdit pickers first — BP-26 was misclassified on identical reasoning
+- [ ] **BP-27** · `RW-M` — `ScoreDecision.AssetId` uneditable. ✅ *re-check done:* `UtilityDecisionDef` exists only in `Fdp.Toolkits.Tests`, and `AssetId` is a bare GUID string. StructEdit edits DTO fields but can't discover assets, so unlike BP-26 there's no picker to inherit — `RW-M` confirmed
 
 ## Area C — Editor infrastructure
 *Document, undo and panel plumbing.*
@@ -75,7 +75,7 @@ architect decision first).
 
 - [ ] **BP-12a** · `WIRING` — Drag-variable-into-graph as Get/Set is dead (`create-variable-get`/`-set` unregistered) — the most-used motion in Unreal authoring
 - [ ] **BP-12e** · `WIRING` — Dead panel commands **fail silently**; `InvokeCreate` discards the result. Root cause of the whole BP-12 family's UX. *Tally: 14 commands invoked, 1 registered*
-- [ ] **BP-11** ⭐ · `RW-L` — 🔴 **No inspector/drawer edit is undoable**, including the 2 written to be. Two undo stacks exist and are never bridged; Ctrl+Z drains the wrong one
+- [ ] **BP-11** ⭐ · `RW-M` — 🔴 **No inspector/drawer edit is undoable.** Three tiers; Ctrl+Z drains a stack the drawers never write to. ✅ **UNBLOCKED — architect approved A1+B1+C2+D2+E1** ([Q22](Architect_Question_22_Undo_Unification.md#answers--approved-2026-08-04)). ⚠ *raised `RW-L`→`RW-M`:* the stack takes `GraphCommand`, not delegates, so a transport must be picked, and D2 fixes only the 6 sink sites — the ~9 drawer sites still need converting
 - [ ] **BP-12b** · `RW-L` — Panel items can't be renamed/duplicated/deleted; a variable can be created but never removed
 - [ ] **BP-12c** · `RW-L` — Custom events and dispatchers can't be created. ⚠ consider *removing* the dispatcher section instead (superseded)
 - [ ] **BP-24** · `RW-M` — **No Function-graph create path; canvas locked to one graph.** In any multi-graph asset every graph but the first is unreachable through the UI. Data + compiler layers already support functions
@@ -140,8 +140,10 @@ architect decision first).
 
 ## Needs an architect decision before scoping
 
-`BP-40` · `BP-38` (already LOCKED as deferred) · `BP-52` (UX-1/UX-2) · `BP-27` *if* the StructEdit
-re-check confirms no reusable picker.
+`BP-40` · `BP-38` (already LOCKED as deferred) · `BP-52` (UX-1/UX-2).
+
+**Cleared:** `BP-11` — approved 2026-08-04, see [Q22](Architect_Question_22_Undo_Unification.md).
+`BP-27` — re-check done, no reusable picker exists, `RW-M` confirmed; no architect round needed.
 
 ## Confidence
 
