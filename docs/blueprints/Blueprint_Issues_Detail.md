@@ -178,7 +178,9 @@ Document, undo, and panel plumbing.
 | `CommandHistory.Undo`/`Redo` | **never called from any UI path** (tests only) |
 | Ctrl+Z | → `view.UndoLast()` → NodeEdit's `UndoStack` — *a different stack* |
 
-- **Net effect:** no drawer/inspector edit is undoable, *including the 2 sites written to be*. Only `SharedNodeDrawers.cs` even attempts it. Structural edits **are** undoable (`view.Execute` → `UndoStack.ApplyAndRecord` stores a forward/inverse pair).
+- **Net effect:** no drawer/inspector edit is undoable. Structural edits **are** (`view.Execute` → `UndoStack.ApplyAndRecord` stores a forward/inverse pair).
+- ⚠ **Correction (2026-08-04):** an earlier revision said the 2 `SharedNodeDrawers` downcast sites were "written to be undoable". **They are not** — they call `NotifyStructureChanged`, which is unrelated to undo. **No drawer calls `RecordPropertyEdit` at all.** The real shape is *three* tiers: canvas edits → `UndoStack` (works); `BlueprintCommandSink` property edits → `CommandHistory` (recorded, unreachable); drawer edits → `MarkDirty` only (not recorded).
+- 📐 **Architect pass required before building** — see [Architect_Question_22_Undo_Unification.md](Architect_Question_22_Undo_Unification.md).
 - **Fix:** (1) promote `RecordPropertyEdit` + `NotifyStructureChanged` onto `IEditService`; (2) re-point the implementation at `view.Execute(fwd, inv, label)` so edits land on the single live stack — needs the document's `GraphView` in `EditServiceContext`; (3) convert the ~10 `MarkDirty`-only edit sites across 6 drawers; (4) `CommandHistory` then becomes genuinely dead and can go.
 - ⚠ **Do not simply delete `CommandHistory` today** — its `Execute()` performs the actual mutation, so it is load-bearing until step 2 lands. Bounded 64-entry ring; no leak.
 
