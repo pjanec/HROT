@@ -125,6 +125,54 @@ public static class BlackboardFieldClassifier
         if (t.IsEnum) return true;
         if (t.IsDefined(typeof(BlackboardDtoStructAttribute), inherit: false)) return true;
         if (knownTypes.Contains(t)) return true;
+        // FC-3a (Q#21-A1): the fixed-list WRAPPER pattern is a first-class known shape, provided
+        // its element type is itself known by this same rule (recursion terminates: an element
+        // cannot be another wrapper -- TryGetFixedListShape rejects nesting).
+        if (TryGetFixedListShape(t, out var elem, out _) && IsKnownType(elem, knownTypes)) return true;
         return false;
+    }
+
+    /// <summary>
+    /// FC-3a (Q#21-A1) -- structural recognition of the canonical fixed-list WRAPPER pattern:
+    /// a plain struct whose instance fields are EXACTLY one <c>int Count</c> plus one buffer
+    /// field whose type carries <c>[InlineArray(N)]</c> (field order irrelevant). The element
+    /// type is the buffer's single backing field's type; it must be a value type and must not
+    /// itself be a wrapper (no nested lists -- v1 rule shared with the other two homes).
+    /// Loose twin-field DTOs (<c>Items</c> + <c>Count</c> declared side-by-side on the DTO)
+    /// are deliberately NOT recognized -- they remain read-only passthrough (Q#21-A1).
+    /// </summary>
+    public static bool TryGetFixedListShape(Type t, out Type elementType, out int capacity)
+    {
+        elementType = typeof(void);
+        capacity = 0;
+
+        if (!t.IsValueType || t.IsEnum || t.IsPrimitive) return false;
+
+        var fields = t.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+        if (fields.Length != 2) return false;
+
+        FieldInfo? countField = null, bufferField = null;
+        foreach (var f in fields)
+        {
+            if (f.FieldType == typeof(int) && f.Name == "Count") countField = f;
+            else if (f.FieldType.IsValueType
+                     && f.FieldType.IsDefined(typeof(System.Runtime.CompilerServices.InlineArrayAttribute), inherit: false))
+                bufferField = f;
+        }
+        if (countField is null || bufferField is null) return false;
+
+        var bufType = bufferField.FieldType;
+        var attr = (System.Runtime.CompilerServices.InlineArrayAttribute)
+            bufType.GetCustomAttributes(typeof(System.Runtime.CompilerServices.InlineArrayAttribute), inherit: false)[0];
+        var backing = bufType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+        if (backing.Length != 1) return false;
+
+        var elem = backing[0].FieldType;
+        if (!elem.IsValueType) return false;
+        if (TryGetFixedListShape(elem, out _, out _)) return false;   // no nested lists (v1)
+
+        elementType = elem;
+        capacity = attr.Length;
+        return capacity > 0;
     }
 }
