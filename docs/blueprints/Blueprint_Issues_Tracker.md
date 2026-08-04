@@ -15,8 +15,19 @@ architect decision first).
 | `RW-L` | 20 | 2 |
 | `RW-M` | 20 | — |
 | `RW-H` | 2 | — |
-| **Total** | **51** | **12** |
+| **Total** | **52** | **12** |
 | *(refuted on verification)* | | *1* |
+
+> 🔁 **Systemic pattern — now three confirmed instances. Check for it before trusting any validator
+> or guard in this repo.**
+> *An optional constructor dependency defaults to an inert value; the tests pass it explicitly and
+> prove the logic; every production site omits it, so the feature is silently dead.*
+> 1. **BP-29** — `PredicateCompiler`'s `blueprintRegistry` → conditional breakpoints never fired. **Fixed.**
+> 2. **BP-61** — `HsmValidator`'s `isStatefulSubtree` + `sharedScopeKeys` → both HSM concurrency rules
+>    never fire. **Open.**
+> 3. **BP-30/BP-31** — the same blind spot is *why* BP-31 was mis-scoped: it credited HSM with a guard
+>    that has never actually run.
+> A green test suite is not evidence that a guard is wired. Grep the production construction sites.
 
 > ✅ **Batch 3 shipped (2026-08-04) — the palette batch: BP-04 + BP-09.**
 > **BP-04:** 14 baked entries (6 `Compare` · 5 `BinaryOp` · 2 `BooleanOp` · 1 `Not`) — the four kinds
@@ -138,10 +149,11 @@ architect decision first).
 ## Area F — Runtime & state architecture
 → [detail](Blueprint_Issues_Detail.md#area-f--runtime--state-architecture)
 
-- [ ] **BP-31** · `RW-L` — BTree lacks the concurrent-stateful validator HSM has; a Subtree twice under a `Parallel` is unguarded
+- [ ] **BP-31** · `RW-L` — ⚠ **RE-SCOPED — do not build as written.** The premise is inverted: HSM\'s guard is wired to always-false in production (**BP-61**), so neither host is guarded. Mirroring it would add a second rule that can never fire. Fix BP-61 first
 - [ ] **BP-41** · `RW-L` — No test for two *different* AiPrimitive blueprints on one entity; coverage is by analogy only
 - [ ] **BP-44** · `RW-L` — Custom Events 1d: no event-definition authoring UI
 - [ ] **BP-30** · `RW-M` — 🔴 **HSM-hosted AiPrimitive blueprints collide** — they zero and re-init each other every tick, so neither retains state. BTree has the partition-slot mechanism (16 refs); HSM has **0** and no compose command
+- [ ] **BP-61** 🔴 · `RW-M` — **HSM's two concurrency validators never fire in production.** `HsmValidator` defaults `isStatefulSubtree` to `_ => false` and `sharedScopeKeys` to empty; both production sites (`HsmGraphModel:43`, `HsmAssetValidator:18`) omit them, so Rules 8/8b emit nothing. Same shape as BP-29 — tests inject the lambda and prove the logic while the wiring stays dead. ⚠ No `IsStateful` notion exists editor-side, so this needs a design, not a one-liner — *found while scoping BP-31*
 - [ ] **BP-45** · `RW-M` — Cross-entity event dispatch (`BlueprintDeferredEvent`) absent; the most-cited deferred capability
 - [ ] **BP-42** · `RW-M` — Cross-entity shared-state **write** (read path shipped); deferred by design
 - [x] ~~**BP-46** — Generic `GetShared<T>` partition-slot accessor~~ ❌ **REFUTED — already shipped.** `BlueprintSharedState.TryGetShared<T>` exists at `:58` and the compiler emits calls to it. No work required

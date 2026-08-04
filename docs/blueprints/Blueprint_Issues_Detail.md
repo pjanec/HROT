@@ -371,8 +371,33 @@ Strongest area of the subsystem — several capabilities **exceed** stock Unreal
 - **Fix:** an `HsmBridgeEmitCore` analogue of `EmitBlueprintActionThunks` plus an HSM compose command. Reuses the FNV-1a key math and `BlueprintBlackboardPartitions` verbatim — same rail, new emitter surface.
 - *(BTree is fine: `ComposeAiPrimitiveAction` auto-creates a distinct `Role=State, Scope=Node` host variable per placement, so two blueprints — or one placed twice — separate correctly. Option β's Fix-1/Fix-2/`ClearBehaviorEvent` detach are all shipped and tested.)*
 
+### BP-61 — HSM's two concurrency validators never fire in production 🔴 **[NEW — found while scoping BP-31]**
+**Complexity:** RW-M · **Confidence:** ✔✔
+- **The same defect shape as BP-29, third instance in this codebase.** `HsmValidator`'s constructor takes two optional resolvers and **defaults both to inert values**:
+
+```csharp
+public HsmValidator(IActionSchemaExporter? schema = null,
+    Func<Guid, bool>? isStatefulSubtree = null,
+    Func<Guid, IReadOnlyCollection<int>>? sharedScopeKeys = null)
+{
+    _isStatefulSubtree = isStatefulSubtree ?? (_ => false);          // <-- always false
+    _sharedScopeKeys   = sharedScopeKeys   ?? (_ => Array.Empty<int>());  // <-- always empty
+}
+```
+
+- **Both production construction sites omit both resolvers:**
+  - `HsmGraphModel.cs:43` — `new HsmValidator()`
+  - `HsmAssetValidator.cs:18` — `new HsmValidator(schema)`
+- **Consequence:** Rule 8 (`CheckConcurrentStatefulSubtrees`) hits `if (!_isStatefulSubtree(subtreeId)) continue;` for every candidate and emits nothing; Rule 8b (`CheckConcurrentSharedScopeKeys`) iterates an always-empty key set. **Neither rule can ever produce a diagnostic in the running editor.**
+- **Why the tests miss it:** `HsmValidatorStatefulSubtreeTests` constructs the validator *with* a lambda (`isStatefulSubtree: id => id == subtreeId`), proving the rule logic correct while the wiring stays dead — exactly as `BlueprintVariableTests` did for BP-29.
+- ⚠ **Not a one-line fix.** Unlike BP-29 there is no existing value to pass: **no `IsStateful` / `HasWorkingState` notion exists editor-side at all** (verified: zero hits). A resolver must first be able to answer "does this referenced subtree asset carry per-node working state?", which means resolving the asset and inspecting its state declaration. That is the design question to settle before wiring.
+
 ### BP-31 — BTree lacks the concurrent-stateful validator HSM has
 **Complexity:** RW-L · **Confidence:** ✔✔
+
+> ⚠ **RE-SCOPED (2026-08-04) — the premise is inverted; do not build as written.**
+> This entry assumed HSM has a working guard that BTree lacks. It does not: **HSM's rule is wired to always-false in production** (see **BP-61**), so neither host is actually guarded. Mirroring it onto BTree today would produce a *second* rule that can never fire.
+> **BP-61 must be fixed first** — and its resolver design will determine what BTree's equivalent should even consume. `BTreeValidator` is additionally a static-method class with no constructor, so it would need an injection seam that HSM's instance-based validator already has.
 - A Subtree referenced twice under a `Parallel` node is currently unguarded on the BTree side. Port `HsmValidator.CheckConcurrentStatefulSubtrees` / `CheckConcurrentSharedScopeKeys` (`HsmValidator.cs:234-325`) to `BTreeValidator`.
 
 ### BP-41 — No test for two different AiPrimitive blueprints on one entity
