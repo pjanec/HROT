@@ -9,14 +9,23 @@
 architect decision first).
 🔴 = correctness/data-loss issue, not an enhancement.
 
-| Complexity | Count |
-|---|---:|
-| `WIRING` | 19 |
-| `RW-L` | 22 |
-| `RW-M` | 19 |
-| `RW-H` | 2 |
-| **Total actionable** | **62** |
-| *(refuted on verification)* | *1* |
+| Complexity | Open | Done |
+|---|---:|---:|
+| `WIRING` | 16 | 3 |
+| `RW-L` | 20 | 2 |
+| `RW-M` | 19 | — |
+| `RW-H` | 2 | — |
+| **Total** | **57** | **5** |
+| *(refuted on verification)* | | *1* |
+
+> ✅ **Batch 1 shipped (2026-08-04) — the silent-failure batch: BP-59, BP-29, BP-16, BP-15, BP-12e.**
+> Common theme: a failure that was invisible is now loud. Verified headless — full solution builds
+> clean; blueprint suite **2551 passed / 0 failed**, breakpoints 130, NodeEdit core 195 + UI 90.
+> Two things the test suite corrected while building it, both recorded in the detail file:
+> decision-asset ids are **not** parseable GUIDs (`CombatPostureDecision` ships
+> `3c6f9e42-…-posture0000001`), and custom events resolve **by name as well as GUID**.
+> The new BP-15 validator also caught a real shipped defect — an inert `CallCustomEvent`
+> placeholder in `EnumDemo.bp.json`, now removed.
 
 > ✅ **Second verification pass (2026-08-04) — all 33 spot-checked (`✔`) claims re-derived from code.**
 > **27 confirmed and upgraded to `✔✔`**; 6 documentation-accuracy items left at `✔` (their file/section
@@ -38,7 +47,7 @@ architect decision first).
 *Canvas ergonomics. Mostly NodeEdit-core capability the Blueprint host never registers.*
 → [detail](Blueprint_Issues_Detail.md#area-a--graph-editor-ux)
 
-- [ ] **BP-59** 🔴 · `WIRING` — **Context-menu "Delete Node" is not undoable, but the Del key is.** `CanvasRenderer.cs:758` applies `RemoveNodes` raw; `EditCommands.cs` builds a proper inverse for the same intent. Silent unrecoverable data loss — *found in the verification pass*
+- [x] **BP-59** 🔴 · `WIRING` — **Context-menu "Delete Node" is not undoable, but the Del key is.** `CanvasRenderer.cs:758` applies `RemoveNodes` raw; `EditCommands.cs` builds a proper inverse for the same intent. Silent unrecoverable data loss — *found in the verification pass*
 - [ ] **BP-02** · `WIRING` — Undo bypassed via `view.Commands.Apply`. ⚠ *scope corrected:* **15 sites, not 10** — also pin "Reset to Default" (`:638`), comment delete (`:845`), "Promote to Variable" (`:970`)
 - [ ] **BP-03** · `WIRING` — Bookmarks can't be renamed or deleted; `BookmarkStore.Remove` already exists
 - [ ] **BP-23a** · `RW-L` — **No copy/cut/paste/duplicate on the canvas.** Paste is hard-disabled; `AddNodeCommand` already accepts a prebuilt `Node`, so paste can skip the 8-of-50 property whitelist
@@ -74,7 +83,7 @@ architect decision first).
 → [detail](Blueprint_Issues_Detail.md#area-c--editor-infrastructure)
 
 - [ ] **BP-12a** · `WIRING` — Drag-variable-into-graph as Get/Set is dead (`create-variable-get`/`-set` unregistered) — the most-used motion in Unreal authoring
-- [ ] **BP-12e** · `WIRING` — Dead panel commands **fail silently**; `InvokeCreate` discards the result. Root cause of the whole BP-12 family's UX. *Tally: 14 commands invoked, 1 registered*
+- [x] **BP-12e** · `WIRING` — Dead panel commands **fail silently**; `InvokeCreate` discards the result. Root cause of the whole BP-12 family's UX. *Tally: 14 commands invoked, 1 registered*
 - [ ] **BP-11** ⭐ · `RW-M` — 🔴 **No inspector/drawer edit is undoable.** Three tiers; Ctrl+Z drains a stack the drawers never write to. ✅ **UNBLOCKED — architect approved A1+B1+C2+D2+E1** ([Q22](Architect_Question_22_Undo_Unification.md#answers--approved-2026-08-04)). ⚠ *raised `RW-L`→`RW-M`:* the stack takes `GraphCommand`, not delegates, so a transport must be picked, and D2 fixes only the 6 sink sites — the ~9 drawer sites still need converting
 - [ ] **BP-12b** · `RW-L` — Panel items can't be renamed/duplicated/deleted; a variable can be created but never removed
 - [ ] **BP-12c** · `RW-L` — Custom events and dispatchers can't be created. ⚠ consider *removing* the dispatcher section instead (superseded)
@@ -85,8 +94,8 @@ architect decision first).
 ## Area D — Compiler & correctness
 → [detail](Blueprint_Issues_Detail.md#area-d--compiler--correctness)
 
-- [ ] **BP-16** · `RW-L` — 🔴 **`ArrayMake`/`ArrayGet` produce a silent wrong value** — emit `default` with *no diagnostic at all*, unlike the exec-side BP4004 path. Compiles clean, returns wrong data. A ~30-line Stage2 validator converts it to a compile error
-- [ ] **BP-15** · `RW-L` — 4 node kinds accept bad references silently (no Stage2 validator for `ScoreDecision`/`ReadRankedResult`/`CallCustomEvent`/`Cast`)
+- [x] **BP-16** · `RW-L` — 🔴 **`ArrayMake`/`ArrayGet` produce a silent wrong value** — emit `default` with *no diagnostic at all*, unlike the exec-side BP4004 path. Compiles clean, returns wrong data. A ~30-line Stage2 validator converts it to a compile error
+- [x] **BP-15** · `RW-L` — 4 node kinds accept bad references silently (no Stage2 validator for `ScoreDecision`/`ReadRankedResult`/`CallCustomEvent`/`Cast`)
 - [ ] **BP-32** · `RW-L` — `When` FallingEdge deferred for ValueChanged mode (live `// TODO M3`); falling-edge behaviours silently never fire
 - [ ] **BP-58** · `RW-L` — `Cast` has no drawer (emit bug itself is **fixed**; July matrix is stale)
 - [ ] **BP-33** · `RW-M` — `WaitForEvent` structurally broken: no `EventTypeId` satisfies both Stage2 and Roslyn. **Decide repair vs delete** — superseded by named `EventEntry` handlers
@@ -95,7 +104,7 @@ architect decision first).
 *Strongest area — several capabilities **exceed** stock Unreal. Universal Breakpoints (Slice-2 D1) is **already built**: 128 unit + 25 integration tests pass.*
 → [detail](Blueprint_Issues_Detail.md#area-e--debug--diagnostics)
 
-- [ ] **BP-29** · `WIRING` — 🔴 **LIVE BUG: blueprint conditional breakpoints silently never fire.** `PredicateCompiler` gets no `blueprintRegistry` at any of 3 production sites, so the predicate compiles to constant-false. Invisible to tests because they pass the registry explicitly. 2 one-liners + 1 needing plumbing
+- [x] **BP-29** · `WIRING` — 🔴 **LIVE BUG: blueprint conditional breakpoints silently never fire.** `PredicateCompiler` gets no `blueprintRegistry` at any of 3 production sites, so the predicate compiles to constant-false. Invisible to tests because they pass the registry explicitly. 2 one-liners + 1 needing plumbing
 - [ ] **BP-01** · `WIRING` — Watch panel shows raw hex bytes; `MarshalFromBytes` is complete, tested, and used at 4 other sites in the same file
 - [ ] **BP-35** · `RW-L` — D4 `MultiplexingProbeSink` missing; `IBlueprintProbeSink` exists, needs a composite
 - [ ] **BP-37** · `RW-M` — `LifecyclePredicateDto` by `NetworkId` throws. ⚠ *raised on verification:* `INetworkEntityMap` **doesn't exist**; the concrete map lives in a network project Breakpoints doesn't reference → layering decision first

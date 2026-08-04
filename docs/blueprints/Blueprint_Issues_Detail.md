@@ -72,6 +72,8 @@ Canvas ergonomics. Mostly NodeEdit-core capability the Blueprint host never regi
 
 ### BP-59 — Context-menu "Delete Node" is not undoable, but the Del key is 🔴 **[NEW — found in verification pass]**
 **Complexity:** WIRING · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-04).** Routed `CanvasRenderer.cs:758` to `EditCommands.DeleteSelectedUndoable`, the same path the Del key uses — which also removes the implicitly orphaned links the raw command left dangling.
 - **Two paths for the same user intent; only one is undoable.**
   - **Del key** → `EditCommands.cs:95-125` builds a correct forward/inverse pair — `RemoveNodes` forward, plus a `Batch("Restore Nodes", …)` inverse that reconstructs each node via `AddNode(n.Id, n.Kind, n.Position, props)`. **Undoable.**
   - **Right-click → "Delete Node" / "Delete N Nodes"** → `CanvasRenderer.cs:758` calls `view.Commands.Apply(new GraphCommand.RemoveNodes(targetNodes))` raw. **Not undoable — the nodes are gone.**
@@ -229,6 +231,8 @@ Document, undo, and panel plumbing.
 
 ### BP-12e — Dead commands fail silently
 **Complexity:** WIRING · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-04).** `InvokeCreate` now logs failures through the host diagnostics sink, and menu items / section "+" buttons whose command has no handler are **disabled with a "Not implemented" tooltip** instead of rendering as live buttons that do nothing.
 - **Root cause of the whole BP-12 family's user experience.** `MyBlueprintPanel.InvokeCreate` discards the returned `EditorCommandResult` (`:288-289`) while `EditorCommandsImpl.Invoke` returns `"Unknown command"` (`:21-22`). Buttons render, click, and do nothing — no error, no toast.
 - **Tally: 14 commands invoked by the panel, 1 registered** (`editor.create-variable`).
 - **Fix:** surface the failure (log/toast/disable), so an unimplemented command is visible rather than mysterious.
@@ -251,12 +255,16 @@ Document, undo, and panel plumbing.
 
 ### BP-16 — `ArrayMake` / `ArrayGet` produce a silent wrong value 🔴
 **Complexity:** RW-L · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-04).** New `V_UnloweredNodeKinds` rejects both kinds with **BP1420 error** (not a warning — BP4004 still lets the build succeed). `NodeCoverageTests` re-categorised via `UnloweredNodeKinds_AreRejectedAtStage2`, following the `WaitForEventNode` precedent.
 - **The most dangerous defect found:** compiles clean, returns wrong data. The pure-value fallback (`Stage5_Schedule.cs:3209-3224`) emits `IrOp_Const("default", pinType)` with **no `Diagnostics.Add` call at all** — unlike the exec-side fallback (`:1803-1804`) which does emit BP4004.
 - `NodeCoverageTests.cs:105-118` documents the asymmetry verbatim.
 - **Cheapest safe fix:** a Stage2 validator rejecting both kinds (~20-40 lines) turns silent corruption into a compile **error** — strictly better than BP4004's warning, which still lets the asset "succeed". No lowering required.
 
 ### BP-15 — Four node kinds accept bad references silently
 **Complexity:** RW-L · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-04).** New `V_ValueNodeReferences` (BP1403–BP1406). ⚠ **Two claims in this entry were wrong, corrected by the test suite:** (1) `ScoreDecision.AssetId` is **not** a parseable GUID by convention — the shipped `CombatPostureDecision` uses `3c6f9e42-5d10-6f3a-ac23-posture0000001`, so the check is non-empty only; (2) custom events resolve **by Name as well as GUID** (`FindCustomEventIndex`), so GUID-only matching rejected the ordinary `CallCustomEvent("OnFire")` shape. `Cast` checks empty only — unresolvable targets are already BP1500 via `V_TypeReferences`. Caught a real defect: an inert `CallCustomEvent` placeholder shipped in `EnumDemo.bp.json`, removed.
 - No Stage2 validator for `ScoreDecision`, `ReadRankedResult`, `CallCustomEvent`, `Cast` — none appear among the 23 registered `IValidator`s.
 - Template: `V_WaitNodeReferences` (`Stage2_Validate.cs:587-615`), ~30 lines each.
 
@@ -283,6 +291,8 @@ Strongest area of the subsystem — several capabilities **exceed** stock Unreal
 
 ### BP-29 — Blueprint conditional breakpoints silently never fire 🔴
 **Complexity:** WIRING · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-04).** Registry now passed at all three sites. `ReplayBrowserSubsystem` had none, so it builds one and feeds the two-arg `CgfBehaviorSetup.LoadFromAiAssembly`, mirroring `CgfSubsystem`. Regression test puts the with/without-registry constructions side by side.
 - **A live production bug, invisible to the test suite.**
 - `PredicateCompiler`'s 3rd ctor arg `blueprintRegistry` defaults to null (`:27`), and `CompileBlueprintVariablePredicate` then returns `static (_, _) => false` (`:235-237`).
 - **All three production sites omit it:** `EditorSubsystem.cs:994`, `CgfSubsystem.cs:555`, `ReplayBrowserSubsystem.cs:641`.
