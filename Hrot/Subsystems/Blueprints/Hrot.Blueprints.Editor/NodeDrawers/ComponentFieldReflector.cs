@@ -102,7 +102,9 @@ internal static class ComponentFieldReflector
         if (string.IsNullOrEmpty(fqn)) return null;
         var t = Type.GetType(fqn);
         if (t != null) return t;
-        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+        // BP-62: searches EditorTypeResolutionScope, not AppDomain directly, so an assembly that is
+        // referenced but not yet lazily loaded is force-loaded first rather than silently missing.
+        foreach (var asm in EditorTypeResolutionScope.Assemblies())
         {
             try { t = asm.GetType(fqn); } catch { continue; }
             if (t != null) return t;
@@ -332,9 +334,27 @@ internal static class ComponentFieldReflector
     /// reports it separately).
     /// </summary>
     internal static bool IsWritableComponent(string? fqn)
+        => GetWritability(fqn) == ComponentWritability.Writable;
+
+    /// <summary>
+    /// BP-62 — the three-way answer <see cref="IsWritableComponent"/> collapses into a bool.
+    ///
+    /// <para>
+    /// The distinction matters: <see cref="ComponentWritability.NotWritable"/> is a **decision**
+    /// (the type resolved and does not carry <c>[BlueprintWritable]</c>), whereas
+    /// <see cref="ComponentWritability.Unresolved"/> is an **absence of information** (the FQN did
+    /// not resolve at all — a typo, a deleted component, or an assembly that is not present).
+    /// Treating the second as the first is what let a collection-write bake silently no-op instead
+    /// of reporting a broken reference.
+    /// </para>
+    /// </summary>
+    internal static ComponentWritability GetWritability(string? fqn)
     {
         var type = ResolveType(fqn ?? "");
-        return type?.GetCustomAttribute<BlueprintWritableAttribute>() != null;
+        if (type == null) return ComponentWritability.Unresolved;
+        return type.GetCustomAttribute<BlueprintWritableAttribute>() != null
+            ? ComponentWritability.Writable
+            : ComponentWritability.NotWritable;
     }
 
     /// <summary>
@@ -467,4 +487,22 @@ internal static class ComponentFieldReflector
     /// "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count").
     /// </summary>
     private static string AccessorFqn(MethodInfo m) => $"{m.DeclaringType!.FullName}.{m.Name}";
+}
+
+/// <summary>
+/// BP-62 — outcome of a component-writability check. Separates a decision ("resolved, and it is /
+/// is not writable") from missing information ("could not resolve at all"), which
+/// <c>bool IsWritableComponent</c> cannot express. See
+/// <see cref="ComponentFieldReflector.GetWritability"/>.
+/// </summary>
+internal enum ComponentWritability
+{
+    /// <summary>Type resolved and carries <c>[BlueprintWritable]</c>.</summary>
+    Writable,
+
+    /// <summary>Type resolved and deliberately does NOT carry <c>[BlueprintWritable]</c>.</summary>
+    NotWritable,
+
+    /// <summary>FQN did not resolve — unknown, not a negative answer.</summary>
+    Unresolved,
 }

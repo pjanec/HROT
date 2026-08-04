@@ -50,8 +50,8 @@ prove the logic; every production site omits it, so the feature is silently dead
 > sites. Both fixed/found instances had passing tests that injected the dependency by hand.
 
 > 🧪 **Before judging any test failure, read the [Test baseline appendix](#appendix--test-baseline-what-green-means-in-this-repo)**
-> at the end of this document — this suite has both a parallel-load flake and an order-dependent
-> test, and the older "~8–9 reds is normal" guidance is stale.
+> at the end of this document. Current baseline is **2583 passed / 0 failed** with the suite
+> serialized; the older "~8–9 reds is normal" guidance is stale and would hide real regressions.
 
 ---
 
@@ -116,6 +116,12 @@ Canvas ergonomics. Mostly NodeEdit-core capability the Blueprint host never regi
 
 ### BP-62 — Component type resolution depends on assembly **load order** ⚠ **[NEW — root cause of the order-dependent test]**
 **Complexity:** RW-M · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-04) — fixed at the product level, not papered over in the test.**
+> New `EditorTypeResolutionScope` force-loads referenced-but-not-yet-loaded assemblies once per process (transitive walk of the reference graph from everything currently loaded), then returns the **live** `AppDomain` list so ALC hot-reloaded assemblies still appear — the list itself is deliberately not cached. Both resolution paths now go through it: `ComponentFieldReflector.ResolveType` **and** `ComponentTypeScan.Compute` (the picker), which had the identical flaw.
+> The conflation is gone too: new `ComponentWritability` tri-state (`Writable` / `NotWritable` / `Unresolved`) separates a decision from missing information. `IsWritableComponent` keeps its bool contract (delegates, `== Writable`) so no call-site churn; the collection-write bake uses the tri-state.
+> **Proof it is a real fix:** the test's `EnsureAiBehaviorsLoaded()` band-aid was *removed*, and `BakesOpAccessor` still passes standalone. 8 new regression tests pin the tri-state and both discovery paths. Suite 2583/0.
+> ⚠ *Residual, deliberately not chased here:* an `Unresolved` at the bake site still leaves the node silently unbaked rather than logging. Making it loud needs an `IDiagnosticsSink` injected into `BlueprintCommandSink`, which it does not currently take — a wider change than this fix.
 - **`ComponentFieldReflector.ResolveType` only sees assemblies that are already loaded:**
 
 ```csharp
@@ -556,7 +562,7 @@ Recorded 2026-08-04 while shipping batches 1–3, then re-measured after seriali
 
 | Suite | Result |
 |---|---|
-| `Hrot.Blueprints.Tests` | **2575 passed**, 10 skipped — green on **5 of 6** consecutive runs |
+| `Hrot.Blueprints.Tests` | **2583 passed**, 10 skipped, 0 failed |
 | `Hrot.Diagnostics.Breakpoints.Tests` | 130 passed, 0 failed |
 | `Hrot.Blueprints.Compiler.Tests` | 3 passed, 0 failed |
 | `NodeEditor.Core.Tests` / `NodeEditor.UI.Tests` | 195 / 90 passed, 0 failed |

@@ -616,7 +616,16 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             // collection) -- accessor PRESENCE is the per-field/per-op opt-in (Q#20-A amendment).
             case CollectionWriteNode cwn:
                 if (decl.CollectionKind == CollectionKind.ManagedMember) return;
-                if (!NodeDrawers.ComponentFieldReflector.IsWritableComponent(gcn.ComponentTypeFqn)) return;
+
+                // BP-62: distinguish "resolved, not writable" (a real decision -- leave unbaked so
+                // Stage2 BP2068 reports it) from "could not resolve at all" (no information). The
+                // two used to collapse into one `false`, so an unloaded component assembly looked
+                // identical to a deliberate non-writable one and the bake silently no-opped.
+                // EditorTypeResolutionScope now force-loads referenced assemblies, so Unresolved
+                // here means a genuinely broken reference -- a typo, or a deleted/renamed component
+                // -- which the stale-reference guard reports on its own.
+                var writability = NodeDrawers.ComponentFieldReflector.GetWritability(gcn.ComponentTypeFqn);
+                if (writability != NodeDrawers.ComponentWritability.Writable) return;
                 var writeOps = NodeDrawers.ComponentFieldReflector.TryReflectWriteAccessors(
                     gcn.ComponentTypeFqn, decl.Name);
                 if (!writeOps.TryGetValue(cwn.Op, out var writeFqn)) return;
