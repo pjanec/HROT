@@ -97,13 +97,35 @@ install_cbm() {
     # Use the official, checksum-verified installer. --skip-config keeps it from
     # rewriting agent MCP configs (we manage .mcp.json ourselves). --dir sets the
     # target; on Linux the installer auto-selects the fully-static -portable build.
-    if curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh \
-        | bash -s -- --skip-config --dir "$CBM_DIR"; then
+    curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh \
+        | bash -s -- --skip-config --dir "$CBM_DIR" || true
+
+    # The installer's --dir has meant different things across releases: <=0.8 put the
+    # binary there, 0.9 puts only the updater there and drops the binary in
+    # ~/.local/bin. It can also exit non-zero from a bad self-check while having
+    # installed a perfectly good binary. So trust the filesystem, not the exit code:
+    # find the real binary and make $CBM_BIN resolve to it.
+    if [ ! -x "$CBM_BIN" ] || ! "$CBM_BIN" --version >/dev/null 2>&1; then
+        local found=""
+        for cand in "$HOME/.local/bin/codebase-memory-mcp" \
+                    /root/.local/bin/codebase-memory-mcp \
+                    /usr/local/bin/codebase-memory-mcp; do
+            if [ -x "$cand" ] && "$cand" --version >/dev/null 2>&1; then found="$cand"; break; fi
+        done
+        if [ -n "$found" ]; then
+            mkdir -p "$CBM_DIR" 2>/dev/null || true
+            ln -sf "$found" "$CBM_BIN" 2>/dev/null || cp -f "$found" "$CBM_BIN" 2>/dev/null || true
+            log "Linked $CBM_BIN -> $found (installer used its own location)."
+        fi
+    fi
+
+    if [ -x "$CBM_BIN" ] && "$CBM_BIN" --version >/dev/null 2>&1; then
         log "codebase-memory-mcp installed: $("$CBM_BIN" --version 2>&1)"
     else
-        log "ERROR: codebase-memory-mcp install failed."
-        log "       Most likely the network policy blocks github.com releases."
-        log "       Switch the environment network policy to Full and re-run."
+        log "ERROR: codebase-memory-mcp not runnable at $CBM_BIN."
+        log "       If the download itself failed, the network policy may block"
+        log "       github.com releases - switch the policy to Full and re-run."
+        log "       Otherwise set CODEBASE_MEMORY_MCP_BIN to the real binary path."
         return 1
     fi
 }
