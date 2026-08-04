@@ -117,6 +117,19 @@ public sealed class LiveBlackboardPanel
         if (t == typeof(Vector2)) return (*(Vector2*)fieldPtr).ToString();
         if (t == typeof(Vector3)) return (*(Vector3*)fieldPtr).ToString();
         if (t == typeof(Vector4)) return (*(Vector4*)fieldPtr).ToString();
+
+        // FC-3c (Q#21-D3): a fixed-list wrapper field renders through the SHARED summary
+        // formatter — "List<T>[N] Count=k {…}", F2-clamped — instead of the composite-blind "?".
+        try
+        {
+            int size = System.Runtime.InteropServices.Marshal.SizeOf(t);
+            if (field.FieldOffset + size <= BehaviorConstants.MaxBehaviorParamByteSize
+                && Fdp.Core.FixedListFormatter.TryFormat(
+                    new ReadOnlySpan<byte>(fieldPtr, size), t, out var listSummary))
+                return listSummary;
+        }
+        catch (ArgumentException) { /* non-blittable — fall through to "?" */ }
+
         return "?";
     }
 }

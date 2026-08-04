@@ -1753,59 +1753,16 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
     }
 
     /// <summary>
-    /// FC-2/LV-5 -- renders a generated fixed-list wrapper struct (<c>__List_{Elem}_{N}</c>:
-    /// <c>{ int Count; [InlineArray(N)] Buf Items; }</c>, an ALC type discovered purely by
-    /// reflection) as <c>List&lt;Elem&gt;[N] Count=k {e0, e1, …}</c>. The rendered element
-    /// window is F2-clamped to <c>min(max(Count,0), N)</c> so a stale/garbage Count can never
-    /// drive an out-of-range read of the payload bytes.
+    /// FC-2/LV-5 → FC-3c: thin delegate to <see cref="Fdp.Core.FixedListFormatter"/> — THE
+    /// single definition of the list summary string, shared with the StructEdit
+    /// <c>FixedListBufferViewProvider</c>'s collapsed row. This watch stays a transient
+    /// bytes→string call by design: the wrapper types live in COLLECTIBLE ALCs and nothing
+    /// here may retain them (see Q#21 D addendum). Recognition is structural
+    /// (<see cref="Fdp.Core.FixedListShape"/>) — generated <c>__List_…</c> wrappers and
+    /// hand-authored A1 wrappers both render.
     /// </summary>
     internal static bool TryFormatFixedList(byte[] bytes, Type type, out string formatted)
-    {
-        formatted = "";
-        if (!type.IsValueType || !type.Name.StartsWith("__List_", StringComparison.Ordinal))
-            return false;
-
-        var countField = type.GetField("Count");
-        var itemsField = type.GetField("Items");
-        if (countField?.FieldType != typeof(int) || itemsField is null) return false;
-
-        var bufType = itemsField.FieldType;
-        int capacity = bufType
-            .GetCustomAttributes(typeof(System.Runtime.CompilerServices.InlineArrayAttribute), false)
-            .OfType<System.Runtime.CompilerServices.InlineArrayAttribute>()
-            .FirstOrDefault()?.Length ?? 0;
-        var elemField = bufType.GetFields(
-            System.Reflection.BindingFlags.Instance |
-            System.Reflection.BindingFlags.Public |
-            System.Reflection.BindingFlags.NonPublic).FirstOrDefault();
-        if (capacity <= 0 || elemField is null) return false;
-
-        var elemType = elemField.FieldType;
-        int itemsOffset = (int)System.Runtime.InteropServices.Marshal.OffsetOf(type, "Items");
-        // Unsafe.SizeOf<T> (not Marshal.SizeOf: bool must be 1 byte, matching the state layout).
-        int elemSize = (int)typeof(System.Runtime.CompilerServices.Unsafe)
-            .GetMethod(nameof(System.Runtime.CompilerServices.Unsafe.SizeOf))!
-            .MakeGenericMethod(elemType).Invoke(null, null)!;
-        if (bytes.Length < 4 || elemSize <= 0) return false;
-
-        int count = System.Runtime.InteropServices.MemoryMarshal.Read<int>(bytes);
-        int shown = Math.Min(Math.Max(count, 0), capacity);
-
-        var sb = new System.Text.StringBuilder();
-        sb.Append("List<").Append(elemType.Name).Append(">[").Append(capacity)
-          .Append("] Count=").Append(count).Append(" {");
-        for (int i = 0; i < shown; i++)
-        {
-            int start = itemsOffset + i * elemSize;
-            if (start + elemSize > bytes.Length) break;
-            if (i > 0) sb.Append(", ");
-            var elem = MarshalFromBytes(bytes[start..(start + elemSize)], elemType);
-            sb.Append(elem is byte[] ? "…" : elem?.ToString() ?? "?");
-        }
-        sb.Append('}');
-        formatted = sb.ToString();
-        return true;
-    }
+        => Fdp.Core.FixedListFormatter.TryFormat(bytes, type, out formatted);
 
     // ── IAiDebugSession bridge (toolbar/registry surface; UBP toolbar debug icons) ───────────────
     // BlueprintDebugSession also implements IAiDebugSession so it can be the registry's ActiveSession,

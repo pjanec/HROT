@@ -29,6 +29,9 @@
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\FastBTree\src\Fbt.Kernel\Fbt.Kernel.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\FastHSM\src\Fhsm.Kernel\Fhsm.Kernel.csproj" />
+    <!-- FC-3c: IBufferViewProvider for the fixed-list inspector view (StructEdit is an
+         independent library; the HROT-specific provider lives HERE, deps flow host→StructEdit). -->
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\StructEdit\src\StructEdit.Core\StructEdit.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.Core\NodeEditor.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.Primitives\NodeEditor.Primitives.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.UI\NodeEditor.UI.csproj" />

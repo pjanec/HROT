@@ -60,5 +60,35 @@ namespace Fdp.Toolkit.Tests.Blueprints.Partitioning
                     Assert.Equal(0, mem[offC + i]);
             }
         }
+
+        /// <summary>
+        /// FC-3c (Q#21, action-path F2 verify) -- the STATEFUL-ACTION working-state attach path
+        /// (<c>BehaviorIngressSystem.AttachSlotsToMemory</c>) funnels every allocation through
+        /// <c>TryAttach</c>: fresh slots directly, and size/hash-MISMATCHED slots via the S2-3
+        /// re-provision sequence (TryDetach then TryAttach at the manifest size). This pins the
+        /// exact re-provision sequence: the re-attached slot's payload must come back zeroed
+        /// even though the detached block carried the previous working state's bytes -- a stale
+        /// non-zero byte read as a fixed-list <c>Count</c> would drive an OOB element read.
+        /// </summary>
+        [Fact]
+        public void ReprovisionSequence_DetachThenAttachAtNewSize_PayloadIsZeroed()
+        {
+            var bytes = NewInitializedBlock();
+            fixed (byte* mem = bytes)
+            {
+                // The slot as a stale version would have left it: attached, then filled with
+                // live working-state bytes (incl. a plausible garbage list Count).
+                Assert.True(BlueprintBlackboardPartitions.TryAttach(mem, 20, 48, 0x1111, out int offOld));
+                for (int i = 0; i < 48; i++) mem[offOld + i] = 0x7F;
+
+                // AttachSlotsToMemory's mismatch branch: detach the old slot, re-attach at the
+                // NEW manifest size/hash (a grown DTO on hard reload).
+                Assert.True(BlueprintBlackboardPartitions.TryDetach(mem, 20));
+                Assert.True(BlueprintBlackboardPartitions.TryAttach(mem, 20, 80, 0x2222, out int offNew));
+
+                for (int i = 0; i < 80; i++)
+                    Assert.Equal(0, mem[offNew + i]);
+            }
+        }
     }
 }
