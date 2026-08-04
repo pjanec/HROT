@@ -102,20 +102,22 @@ public sealed class NodeCoverageTests
                 "No Stage5_Schedule case for AcquireSlotNode -- falls through to the generic " +
                 "`default:` branch (BP4004 warning), no IR emitted. Doc comment says it 'wraps " +
                 "SlotRotation.AcquireSlot' but that wiring was never implemented.",
+            // BP-16 (FIXED): both kinds are now REJECTED by Stage2's V_UnloweredNodeKinds with a
+            // BP1420 *error*, so they no longer reach Stage5 at all. Previously the exec path emitted
+            // a BP4004 warning while reading the output pin silently yielded default(T) with no
+            // diagnostic whatsoever -- the asset compiled clean and returned wrong data. They stay in
+            // this dictionary (still "documented, no lowering") but are characterized by
+            // UnloweredNodeKinds_AreRejectedAtStage2 below rather than by the BP4004 theory.
             [typeof(ArrayMakeNode)] =
-                "No Stage5_Schedule case for ArrayMakeNode as an exec statement -- falls through " +
-                "to the generic `default:` branch (BP4004 warning), no IR emitted for the exec " +
-                "chain. Its 'Array' output pin is also unhandled by the separate pure-data-value " +
-                "resolver (ResolveNodeOutput), which silently returns a dummy default(...) value " +
-                "for any unrecognized source node -- i.e. reading ArrayMake's output produces a " +
-                "silent wrong-value bug with no diagnostic at all, worse than the BP4004 case.",
+                "No Stage5_Schedule case for ArrayMakeNode. Its 'Array' output pin was unhandled by " +
+                "the pure-data-value resolver (ResolveNodeOutput), which silently returned a dummy " +
+                "default(...) value with no diagnostic -- a silent wrong-value bug, worse than the " +
+                "BP4004 case. Now rejected at Stage2 with BP1420 (BP-16).",
             [typeof(ArrayGetNode)] =
-                "No Stage5_Schedule case for ArrayGetNode as an exec statement -- falls through " +
-                "to the generic `default:` branch (BP4004 warning), no IR emitted for the exec " +
-                "chain. Its 'Element' output pin is also unhandled by the separate pure-data-value " +
-                "resolver (ResolveNodeOutput), which silently returns a dummy default(...) value " +
-                "for any unrecognized source node -- i.e. reading ArrayGet's output produces a " +
-                "silent wrong-value bug with no diagnostic at all, worse than the BP4004 case.",
+                "No Stage5_Schedule case for ArrayGetNode. Its 'Element' output pin was unhandled by " +
+                "the pure-data-value resolver (ResolveNodeOutput), which silently returned a dummy " +
+                "default(...) value with no diagnostic -- a silent wrong-value bug, worse than the " +
+                "BP4004 case. Now rejected at Stage2 with BP1420 (BP-16).",
             [typeof(CallEventDispatcherNode)] =
                 "No Stage5_Schedule case for CallEventDispatcherNode -- falls through to the " +
                 "generic `default:` branch (BP4004 warning), no IR emitted.",
@@ -156,13 +158,60 @@ public sealed class NodeCoverageTests
         }
     }
 
-    // WaitForEventNode's exception has a DIFFERENT root cause (no BP4004 involved -- see its
-    // reason string above) and is characterized separately by
-    // WaitForEventNode_ShortEventTypeId_ValidatesButFailsRoslynCompile_BUG below.
+    // Kinds whose exception has a DIFFERENT root cause than the BP4004 default-branch warning, and
+    // which are therefore characterized by their own tests rather than by the BP4004 theory:
+    //   - WaitForEventNode          -> WaitForEventNode_ShortEventTypeId_ValidatesButFailsRoslynCompile_BUG
+    //   - ArrayMakeNode/ArrayGetNode -> UnloweredNodeKinds_AreRejectedAtStage2 (BP-16; BP1420 error,
+    //                                   so the compile now FAILS and never reaches Stage5's BP4004)
+    private static readonly HashSet<Type> SeparatelyCharacterizedExceptions = new()
+    {
+        typeof(WaitForEventNode),
+        typeof(ArrayMakeNode),
+        typeof(ArrayGetNode),
+    };
+
     public static IEnumerable<object[]> CompileCoverageExceptionTheoryData() =>
         CompileCoverageExceptions.Keys
-            .Where(t => t != typeof(WaitForEventNode))
+            .Where(t => !SeparatelyCharacterizedExceptions.Contains(t))
             .Select(t => new object[] { t });
+
+    public static IEnumerable<object[]> UnloweredRejectedTheoryData() =>
+        new[] { typeof(ArrayMakeNode), typeof(ArrayGetNode) }.Select(t => new object[] { t });
+
+    /// <summary>
+    /// BP-16 — <c>ArrayMakeNode</c> and <c>ArrayGetNode</c> must be rejected at Stage 2 with a BP1420
+    /// <b>error</b>, not swallowed.
+    ///
+    /// <para>
+    /// Before the fix these compiled clean: the exec path emitted a BP4004 warning (which still lets
+    /// <c>Succeeded</c> be true) while reading the output pin went through the separate pure-data-value
+    /// resolver, whose default branch emits <c>IrOp_Const("default", pinType)</c> with <b>no diagnostic
+    /// at all</b>. The result was a graph that built successfully and returned wrong data at runtime.
+    /// </para>
+    ///
+    /// <para>
+    /// If this test starts failing because real lowering was implemented, remove the kind from
+    /// <see cref="CompileCoverageExceptions"/> and <see cref="SeparatelyCharacterizedExceptions"/>,
+    /// drop its case from <c>V_UnloweredNodeKinds</c>, and give it real fixture coverage in
+    /// <see cref="CoverageAssets"/>.
+    /// </para>
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(UnloweredRejectedTheoryData))]
+    [Hrot.Blueprints.Tests.Compiler.CoversDiagnosticCode("BP1420")]
+    public void UnloweredNodeKinds_AreRejectedAtStage2(Type nodeType)
+    {
+        var asset   = BuildSingleExecNodeAsset(nodeType);
+        var options = DefaultCompileOptions();
+
+        var result = new BlueprintCompiler().Compile(asset, options);
+
+        Assert.False(result.Succeeded,
+            $"{nodeType.Name}: must NOT compile -- it has no lowering, so a 'successful' build would "
+            + "emit default(T) for its output pin and silently return wrong data at runtime.");
+        Assert.Contains(result.Diagnostics, d =>
+            d.Code == DiagnosticCodes.BP1420 && d.Severity == DiagnosticSeverity.Error);
+    }
 
     /// <summary>
     /// Characterizes the CURRENT (buggy) behavior of every BP4004-excepted node kind: it

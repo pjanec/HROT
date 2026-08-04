@@ -33,6 +33,8 @@ internal static class Stage2_Validate
         new V_ChannelCommandReferences(),
         new V_EventGraphReferences(),
         new V_WaitNodeReferences(),
+        new V_ValueNodeReferences(),   // BP-15
+        new V_UnloweredNodeKinds(),    // BP-16
         new V_PeerReferences(),
         new V_TypeReferences(),
         new V_DeterminismOrdering(),
@@ -611,6 +613,174 @@ internal sealed class V_WaitNodeReferences : IValidator
                         asset.AssetId, graph.Id, node.Id));
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// V_UnloweredNodeKinds  (BP-16)
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// BP-16 — rejects node kinds that reach codegen with no Stage5 lowering.
+///
+/// <para>
+/// <c>ArrayMakeNode</c> and <c>ArrayGetNode</c> have no <c>Stage5_Schedule</c> case. On the exec path
+/// they fall to the generic <c>default:</c> branch, which emits a BP4004 <b>warning</b> and no IR. But
+/// reading their output pin goes through the separate pure-data-value resolver, whose <c>default:</c>
+/// branch emits <c>IrOp_Const("default", pinType)</c> with <b>no diagnostic at all</b> — so the asset
+/// compiles clean and returns wrong data at runtime. <c>NodeCoverageTests</c> documents this asymmetry
+/// verbatim ("worse than the BP4004 case").
+/// </para>
+///
+/// <para>
+/// Erroring here converts silent data corruption into a build failure. Deliberately an <b>error</b>, not
+/// a warning: BP4004's warning still lets the asset "succeed", which is the behaviour that hid the bug.
+/// Fixed-capacity list variables are the supported vehicle for collection storage.
+/// </para>
+/// </summary>
+internal sealed class V_UnloweredNodeKinds : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        foreach (var graph in asset.Graphs)
+        {
+            foreach (var node in graph.Nodes)
+            {
+                string? kind = node switch
+                {
+                    ArrayMakeNode => nameof(ArrayMakeNode),
+                    ArrayGetNode  => nameof(ArrayGetNode),
+                    _             => null
+                };
+                if (kind is null) continue;
+
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1420,
+                    $"'{kind}' has no compiler lowering. Its exec path emits no IR, and reading its "
+                    + "output pin silently yields default(T) with no diagnostic — the asset would "
+                    + "compile clean and return wrong data. Remove the node; use a fixed-capacity "
+                    + "list variable for collection storage.",
+                    asset.AssetId, graph.Id, node.Id));
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// V_ValueNodeReferences  (BP-15)
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// BP-15 — reference checks for four node kinds that previously had no validator at all, so a typo or
+/// an unset field passed Stage 2 silently.
+///
+/// <list type="bullet">
+///   <item><c>CallCustomEventNode.EventId</c> — mirrors <see cref="V_EventGraphReferences"/>, which
+///   validates only the <i>subscribe</i> side (<c>EventEntryNode</c>); the <i>call</i> side was
+///   unchecked. Same escape hatches: a custom-event GUID, a catalog match, or a dotted FQN the
+///   compiler cannot verify.</item>
+///   <item><c>ScoreDecisionNode.AssetId</c> — must be a well-formed GUID. No
+///   <c>UtilityDecisionDef</c> catalog exists editor-side (see BP-27), so existence cannot be checked
+///   here; shape is the strongest available guard.</item>
+///   <item><c>ReadRankedResultNode.Rank</c> — documented as a 0-based index, so a negative rank can
+///   never match.</item>
+///   <item><c>CastNode.TargetTypeId</c> — empty only. An <i>unresolvable</i> target is already caught
+///   as BP1500 by <see cref="V_TypeReferences"/>, because <c>BuiltInNodeRegistry</c> projects the
+///   out-pin type from this field. The empty case escapes that check: the registry substitutes
+///   <c>System.Object</c>, which resolves fine and makes the cast a silent no-op.</item>
+/// </list>
+/// </summary>
+internal sealed class V_ValueNodeReferences : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        // Mirror Stage5's FindCustomEventIndex, which resolves an EventId against asset.CustomEvents
+        // by parsed Guid OR by Name. Matching only on Guid here would reject the ordinary authoring
+        // shape -- CallCustomEvent("OnFire") against .WithCustomEvent("OnFire").
+        var customEventIds   = new HashSet<Guid>(asset.CustomEvents.Select(e => e.Id));
+        var customEventNames = new HashSet<string>(
+            asset.CustomEvents.Select(e => e.Name), StringComparer.Ordinal);
+        var engineEvents     = ctx.EngineEvents.GetEntries();
+
+        foreach (var graph in asset.Graphs)
+        {
+            foreach (var node in graph.Nodes)
+            {
+                switch (node)
+                {
+                    case CallCustomEventNode call:
+                        ValidateCustomEventCall(
+                            call, asset, graph, ctx, customEventIds, customEventNames, engineEvents);
+                        break;
+
+                    // Non-empty only. Decision asset ids are NOT parseable Guids by convention -- the
+                    // shipped CombatPostureDecision uses "3c6f9e42-5d10-6f3a-ac23-posture0000001", a
+                    // deliberately human-readable pseudo-GUID. Requiring Guid.TryParse would reject
+                    // real production assets. No UtilityDecisionDef catalog exists editor-side
+                    // (see BP-27), so existence cannot be checked here either.
+                    case ScoreDecisionNode score when string.IsNullOrWhiteSpace(score.AssetId):
+                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1404,
+                            "ScoreDecision has no target decision asset (AssetId is empty).",
+                            asset.AssetId, graph.Id, node.Id));
+                        break;
+
+                    case ReadRankedResultNode ranked when ranked.Rank < 0:
+                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1405,
+                            $"ReadRankedResult.Rank is {ranked.Rank}; rank is a 0-based index and "
+                            + "cannot be negative.",
+                            asset.AssetId, graph.Id, node.Id));
+                        break;
+
+                    case CastNode cast when string.IsNullOrWhiteSpace(cast.TargetTypeId):
+                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1406,
+                            "Cast has no TargetTypeId; the node would silently degrade to a "
+                            + "System.Object no-op cast.",
+                            asset.AssetId, graph.Id, node.Id));
+                        break;
+                }
+            }
+        }
+    }
+
+    private static void ValidateCustomEventCall(
+        CallCustomEventNode call,
+        BlueprintAsset asset,
+        Graph graph,
+        ValidationContext ctx,
+        HashSet<Guid> customEventIds,
+        HashSet<string> customEventNames,
+        IReadOnlyList<EngineEventCatalogEntry> engineEvents)
+    {
+        if (string.IsNullOrWhiteSpace(call.EventId))
+        {
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1403,
+                "CallCustomEvent has no target event (EventId is empty).",
+                asset.AssetId, graph.Id, call.Id));
+            return;
+        }
+
+        // An asset-authored custom event, matched by GUID or by name -- both are what
+        // Stage5's FindCustomEventIndex accepts.
+        if (Guid.TryParse(call.EventId, out var eventGuid) && customEventIds.Contains(eventGuid))
+            return;
+        if (customEventNames.Contains(call.EventId))
+            return;
+
+        // A dotted identity is a baked [BlueprintEvent] the compiler cannot verify
+        // (netstandard2.0 cannot reflect game assemblies) -- trust it, as V_EventGraphReferences does.
+        if (call.EventId.IndexOf('.') >= 0) return;
+
+        // Empty catalog means none is configured -- skip the unknown-name check (opt-in),
+        // matching V_EventGraphReferences.
+        if (engineEvents.Count == 0) return;
+
+        if (engineEvents.Any(e =>
+                e.EventTypeFqn == call.EventId
+                || Stage2Helpers.LastSegment(e.EventTypeFqn) == call.EventId))
+            return;
+
+        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1403,
+            $"CallCustomEvent references unknown event '{call.EventId}'.",
+            asset.AssetId, graph.Id, call.Id));
     }
 }
 

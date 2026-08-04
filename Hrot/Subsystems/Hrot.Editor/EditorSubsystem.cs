@@ -991,7 +991,11 @@ namespace Hrot.Editor
 
             var bpTimeAdapter           = new MasterSyncTimeControllerAdapter(_timeController!);
             var bpEditSvc               = new ComponentEditServiceBuilder().Build();
-            var bpPredicateCompiler     = new PredicateCompiler(bpEditSvc, _behaviorRegistry);
+            // _blueprintRegistry is required for BlueprintVariablePredicateDto -- the predicate that
+            // "Add Conditional Data Breakpoint..." synthesizes. Omitting it makes
+            // CompileBlueprintVariablePredicate return a constant-false delegate, so blueprint
+            // conditional breakpoints silently never fire (BP-29).
+            var bpPredicateCompiler     = new PredicateCompiler(bpEditSvc, _behaviorRegistry, _blueprintRegistry);
             var bpEventScannerCompiler  = new EventScannerCompiler(bpEditSvc);
             _bpSnapshotProvider         = new DebugSnapshotProvider(_bpPreTickSnapshot);
             _bpManager                  = new DataBreakpointManager(

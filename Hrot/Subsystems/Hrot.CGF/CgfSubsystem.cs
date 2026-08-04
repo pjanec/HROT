@@ -552,7 +552,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         var bpTimeAdapter          = new CgfNoOpTimeController();
         var bpEditSvc              = new ComponentEditServiceBuilder().Build();
-        var bpPredicateCompiler    = new PredicateCompiler(bpEditSvc, _behaviorRegistry);
+        // See BP-29: without _blueprintRegistry, CompileBlueprintVariablePredicate returns a
+        // constant-false delegate and blueprint conditional breakpoints silently never fire.
+        var bpPredicateCompiler    = new PredicateCompiler(bpEditSvc, _behaviorRegistry, _blueprintRegistry);
         var bpEventScannerCompiler = new EventScannerCompiler(bpEditSvc);
         _bpSnapshotProvider        = new DebugSnapshotProvider(_bpPreTickSnapshot);
         _bpManager                 = new DataBreakpointManager(

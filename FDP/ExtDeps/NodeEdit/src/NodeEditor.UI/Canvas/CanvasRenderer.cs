@@ -755,7 +755,11 @@ public sealed class CanvasRenderer
                 if (ImGui.MenuItem(targetNodes.Count > 1 ? $"Delete {targetNodes.Count} Nodes" : "Delete Node", "Del"))
                 {
                     if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
-                    view.Commands.Apply(new Core.Commands.GraphCommand.RemoveNodes(targetNodes));
+                    // Route through the same undoable path as the Del key (BP-59). A raw
+                    // Commands.Apply(RemoveNodes) records no inverse, so the nodes were
+                    // unrecoverable; DeleteSelectedUndoable also removes the implicitly
+                    // orphaned links, which the raw command left dangling.
+                    EditCommands.DeleteSelectedUndoable(view);
                 }
 
                 ImGui.Separator();

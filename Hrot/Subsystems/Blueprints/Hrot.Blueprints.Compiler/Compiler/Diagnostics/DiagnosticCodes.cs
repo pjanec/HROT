@@ -42,6 +42,15 @@ public static class DiagnosticCodes
     public const string BP1400 = "BP1400";
     public const string BP1401 = "BP1401";
     public const string BP1402 = "BP1402";
+    public const string BP1403 = "BP1403";  // BP-15: CallCustomEventNode.EventId references an unknown event
+    public const string BP1404 = "BP1404";  // BP-15: ScoreDecisionNode.AssetId missing or not a well-formed GUID
+    public const string BP1405 = "BP1405";  // BP-15: ReadRankedResultNode.Rank is negative (rank is 0-based)
+    public const string BP1406 = "BP1406";  // BP-15: CastNode.TargetTypeId is empty or unresolvable
+
+    // Stage 2 -- Validate (node kinds with no Stage5 lowering)
+    // BP-16: these compile clean today and yield a silent wrong value at runtime. Erroring in Stage 2
+    // converts silent data corruption into a build failure. See V_UnloweredNodeKinds.
+    public const string BP1420 = "BP1420";  // Node kind has no Stage5 lowering -- would emit default(T) with no diagnostic
 
     // Stage 2 -- Validate (exec-out connectivity)
     public const string BP1411 = "BP1411";  // ExecOutFanOut: exec-out pin drives more than one successor
