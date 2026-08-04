@@ -58,6 +58,7 @@ public static class DiagnosticCodes
     public const string BP1504 = "BP1504";  // FC-2/LV-1: fixed-list variable with InitialLength outside [0, Capacity]
     public const string BP1505 = "BP1505";  // FC-2/LV-3: ListWriteNode target is not a declared fixed-list variable
     public const string BP1506 = "BP1506";  // FC-2/LV-3: fixed-list variable wired to a pin that cannot accept a list (whole-list clone via SetVariable is the one exception)
+    public const string BP1507 = "BP1507";  // FC-3 (R5): fixed-list type on a Parameter declaration -- lists live on Variables/WorkingState/action DTOs, never Parameters/Shared (v1)
 
     // Stage 2 -- Validate (graph structure)
     public const string BP1600 = "BP1600";  // OrphanedNode (Stage 2 graph-structure)

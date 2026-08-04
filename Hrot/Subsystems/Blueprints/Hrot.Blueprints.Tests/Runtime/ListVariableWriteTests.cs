@@ -455,6 +455,62 @@ public sealed class ListVariableWriteTests
         Assert.DoesNotContain("for (", src.Substring(src.IndexOf("s.ListB")));        // no element loop
     }
 
+    // ---- BP1507: no list-typed Parameters; Shared fenced by BP1506 (R5) -----
+
+    [Fact]
+    [Compiler.CoversDiagnosticCode("BP1507")]
+    public void BP1507_ListTypedParameter_Rejected_NamingSupportedHomes()
+    {
+        // Parameters exist on AiPrimitive dispatch (Instance rejects the section outright, BP1031).
+        var asset = BlueprintAssetBuilder.AiPrimitive("V")
+            .WithHostings(AiPrimitiveHosting.BTreeAction)
+            .WithGraph("Main", g => g.Entry().Return())
+            .Build();
+        asset.Parameters.Add(new ParameterDecl
+        {
+            Id   = Guid.NewGuid(),
+            Name = "BadList",
+            Type = new BlueprintTypeRef { TypeId = "System.Int32", Capacity = 4 },
+        });
+
+        var sink = new DiagnosticSink();
+        Stage2_Validate.Run(asset, new ValidationContext(sink, Options()));
+
+        var d = Assert.Single(sink.All, x => x.Code == DiagnosticCodes.BP1507);
+        Assert.Contains("Variable", d.Message);                // names the supported homes
+        Assert.Contains("WorkingState", d.Message);
+
+        // A scalar parameter stays clean.
+        asset.Parameters[0].Type = new BlueprintTypeRef { TypeId = "System.Int32" };
+        var sink2 = new DiagnosticSink();
+        Stage2_Validate.Run(asset, new ValidationContext(sink2, Options()));
+        Assert.DoesNotContain(sink2.All, x => x.Code == DiagnosticCodes.BP1507);
+    }
+
+    [Fact]
+    public void SharedHome_FencedAtWireLevel_ListIntoSetShared_TripsBP1506()
+    {
+        // R5's Shared half: there is no list-typed shared DECLARATION surface, so the fence is
+        // the wire rule -- a list variable feeding SetShared's "Value" pin is not in BP1506's
+        // allowlist (consumers' "Collection" / identical-shape SetVariable clone only).
+        var asset = BuildTwoListAsset();
+        var graph = asset.Graphs[0];
+
+        var gvOut = DataPin("Value", "Out", "System.Int32", isArray: true);
+        var gv = new GetVariableNode { Id = Guid.NewGuid(), VariableId = asset.Variables[0].Id.ToString() };
+        gv.Pins.Add(gvOut);
+        var ssVal = DataPin("Value", "In", "System.Int32", isArray: true);
+        var ss = new SetSharedNode { Id = Guid.NewGuid(), VariableId = "sharedSlot", SharedTypeId = "System.Int32" };
+        ss.Pins.Add(ssVal);
+        graph.Nodes.Add(gv);
+        graph.Nodes.Add(ss);
+        graph.Links.Add(new Link { FromNodeId = gv.Id, FromPinId = gvOut.Id, ToNodeId = ss.Id, ToPinId = ssVal.Id });
+
+        var sink = new DiagnosticSink();
+        Stage2_Validate.Run(asset, new ValidationContext(sink, Options()));
+        Assert.Contains(sink.All, d => d.Code == DiagnosticCodes.BP1506);
+    }
+
     // ---- editor pin parity --------------------------------------------------
 
     [Theory]

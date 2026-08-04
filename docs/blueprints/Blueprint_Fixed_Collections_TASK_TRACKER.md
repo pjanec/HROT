@@ -286,6 +286,18 @@ bytes→string per the ALC constraint; LV-5 tests pass unchanged) · `FixedListB
 
 **Docs ✅.** `Blueprint_Fixed_List_Variables.md` gained the action-DTO home section.
 
+**Post-close sweep (2026-08-04) ✅ — the two recorded-but-unshipped v1 items:**
+- **BP1507 (umbrella R5):** list-typed `Parameter` declarations now rejected at validate time with a
+  diagnostic naming the supported homes (`V_ListVariableRules`; AiPrimitive-dispatch surface — Instance
+  rejects the Parameters section outright via BP1031). The Shared half needs no new code: a list wired
+  into `SetShared`/`GetShared` already trips BP1506's allowlist — pinned by an explicit test.
+- **Component-home demo + runtime proof (FC-1 deferred):** `CollectionWriteDemo.bp.json` recipe
+  (GetComponent collection out-pin → Add (Collection) → Item Count mirror; registered in all three
+  integrity theories) + `CollectionWriteDemoTests`: real Roslyn+ALC compile, then 5 TickThunk ticks
+  against a LIVE `EntityRepository` (the emitted `((EntityRepository)view)` cast target) with a real
+  `BpFixedListDemo`-carrying entity — component fills 1→4, fifth Add rejects, all landed slots carry
+  the value. Suite 2542/0 · goldens 184/184.
+
 Gates at close: goldens 184/184 serial · Blueprints 2542+/known-ALC-flakes-only · AiShared 1202/2
 pre-existing environmental · Fdp.Core failure set unchanged (env perf/migration) · Toolkits 1927/0 ·
 StructEdit 1 pre-existing (circular-ref, on HEAD baseline).

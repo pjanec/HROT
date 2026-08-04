@@ -38,6 +38,7 @@ to a safe no-write at compile time.
 | BP1504 | declared `InitialLength` outside `[0, Capacity]` |
 | BP1505 | `ListWrite` target is not a declared fixed-list variable (empty binding flagged once exec-wired) |
 | BP1506 | list value wired to a pin that can't take a list — anything but a consumer's `Collection` pin or an identical-shape `SetVariable` clone |
+| BP1507 | fixed-list type declared on a `Parameter` — lists live on Variables / WorkingState / action DTOs, never Parameters or Shared (the Shared side is fenced at the wire by BP1506) |
 | BP2066 | consumer wired to a list but the wire-bake state is missing (Kind-aware) |
 
 ## The action-DTO home (FC-3)
@@ -61,6 +62,6 @@ StructEdit collapsed rows all render the identical summary string.
 
 - Element must be unmanaged (no `String`); no nested lists.
 - Self-state only: instance `Variables`, AiPrimitive `WorkingState`, and action DTOs (zero-on-attach guaranteed).
-- Not accepted by `GetShared`/`Parameters`.
+- Not accepted by `GetShared`/`Parameters` — enforced: BP1507 on a list-typed Parameter declaration, BP1506 on a list wired into Shared.
 - Editor capacity UI clamp: 1–256.
 - Action-DTO editor recognition and inspection are display-only (no visual re-type/resize of C# source).

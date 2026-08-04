@@ -1637,6 +1637,23 @@ internal sealed class V_ListVariableRules : IValidator
 {
     public void Validate(BlueprintAsset asset, ValidationContext ctx)
     {
+        // FC-3 (umbrella R5, Q#21) -- BP1507: a PARAMETER may not carry a fixed-list type.
+        // Parameters are the exposed-on-spawn surface; the supported list homes are instance
+        // Variables, AiPrimitive WorkingState, and action DTOs. (The Shared home is fenced at
+        // the WIRE level: a list value feeding SetShared/GetShared trips BP1506 -- see
+        // CheckListValueWires' allowlist.)
+        foreach (var p in asset.Parameters)
+        {
+            if (p.Type is { Capacity: > 0 })
+            {
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1507,
+                    $"Parameter '{p.Name}' declares a fixed-list type (Capacity={p.Type.Capacity}) -- " +
+                    "lists are not supported on Parameters (or Shared slots) in v1; declare the list " +
+                    "as an instance Variable, an AiPrimitive WorkingState field, or an action-DTO field.",
+                    asset.AssetId));
+            }
+        }
+
         foreach (var graph in asset.Graphs)
         {
             foreach (var node in graph.Nodes)

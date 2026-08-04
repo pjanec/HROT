@@ -1,0 +1,314 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
+  "AssetId": "00000099-0000-0000-0000-0000000000de",
+  "Name": "CollectionWriteDemo",
+  "Dispatch": "Instance",
+  "Primitive": null,
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [
+    {
+      "Id": "e0000001-0000-0000-0000-000000000001",
+      "Name": "Count",
+      "Type": {
+        "TypeId": "System.Int32"
+      },
+      "DefaultValueJson": "0"
+    }
+  ],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "e1000001-0000-0000-0000-000000000001",
+      "Name": "Tick",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "e2000001-0000-0000-0000-000000000001",
+          "Pins": [
+            {
+              "Id": "ee000001-0000-0000-0000-000000000001",
+              "Name": "ExecOut",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            }
+          ],
+          "EditorMetadata": {
+            "X": 80.0,
+            "Y": 200.0
+          }
+        },
+        {
+          "kind": "GetComponent",
+          "Id": "e2000001-0000-0000-0000-000000000002",
+          "ComponentTypeFqn": "Hrot.AI.Behaviors.BpFixedListDemo",
+          "Fields": [
+            {
+              "Name": "Items",
+              "TypeId": "",
+              "IsCollection": true,
+              "ElementTypeId": "System.Int32",
+              "CountAccessorFqn": "Hrot.AI.Behaviors.Brains.BpFixedListDemoOps.Count",
+              "ItemAccessorFqn": "Hrot.AI.Behaviors.Brains.BpFixedListDemoOps.Item"
+            }
+          ],
+          "Pins": [
+            {
+              "Id": "ee000001-0000-0000-0000-000000000011",
+              "Name": "Items",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": true
+              }
+            },
+            {
+              "Id": "ee000001-0000-0000-0000-000000000012",
+              "Name": "Found",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean"
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 80.0,
+            "Y": 320.0
+          }
+        },
+        {
+          "kind": "CollectionWrite",
+          "Id": "e2000001-0000-0000-0000-000000000003",
+          "ComponentTypeFqn": "Hrot.AI.Behaviors.BpFixedListDemo",
+          "Op": "Add",
+          "WriteAccessorFqn": "Hrot.AI.Behaviors.Brains.BpFixedListDemoOps.Add",
+          "ElementTypeFqn": "System.Int32",
+          "Pins": [
+            {
+              "Id": "ee000001-0000-0000-0000-000000000021",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "ee000001-0000-0000-0000-000000000022",
+              "Name": "Out",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "ee000001-0000-0000-0000-000000000023",
+              "Name": "Collection",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": true
+              }
+            },
+            {
+              "Id": "ee000001-0000-0000-0000-000000000024",
+              "Name": "Value",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32"
+              }
+            },
+            {
+              "Id": "ee000001-0000-0000-0000-000000000025",
+              "Name": "Ok",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Boolean"
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 320.0,
+            "Y": 200.0
+          }
+        },
+        {
+          "kind": "Literal",
+          "Id": "e2000001-0000-0000-0000-000000000004",
+          "TypeId": "System.Int32",
+          "ValueJson": "7",
+          "Pins": [
+            {
+              "Id": "ee000001-0000-0000-0000-000000000031",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32"
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 80.0,
+            "Y": 440.0
+          }
+        },
+        {
+          "kind": "ComponentItemCount",
+          "Id": "e2000001-0000-0000-0000-000000000005",
+          "ComponentTypeFqn": "Hrot.AI.Behaviors.BpFixedListDemo",
+          "CountAccessorFqn": "Hrot.AI.Behaviors.Brains.BpFixedListDemoOps.Count",
+          "Pins": [
+            {
+              "Id": "ee000001-0000-0000-0000-000000000041",
+              "Name": "Collection",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Object",
+                "IsArray": true
+              }
+            },
+            {
+              "Id": "ee000001-0000-0000-0000-000000000042",
+              "Name": "Count",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32"
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 540.0,
+            "Y": 380.0
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "Id": "e2000001-0000-0000-0000-000000000006",
+          "VariableId": "e0000001-0000-0000-0000-000000000001",
+          "Pins": [
+            {
+              "Id": "ee000001-0000-0000-0000-000000000051",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "ee000001-0000-0000-0000-000000000052",
+              "Name": "Out",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "ee000001-0000-0000-0000-000000000053",
+              "Name": "Value",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32"
+              }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 760.0,
+            "Y": 200.0
+          }
+        },
+        {
+          "kind": "Return",
+          "Id": "e2000001-0000-0000-0000-000000000007",
+          "Pins": [
+            {
+              "Id": "ee000001-0000-0000-0000-000000000061",
+              "Name": "ExecIn",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            }
+          ],
+          "EditorMetadata": {
+            "X": 980.0,
+            "Y": 200.0
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "e2000001-0000-0000-0000-000000000001",
+          "FromPinId": "ee000001-0000-0000-0000-000000000001",
+          "ToNodeId": "e2000001-0000-0000-0000-000000000003",
+          "ToPinId": "ee000001-0000-0000-0000-000000000021"
+        },
+        {
+          "FromNodeId": "e2000001-0000-0000-0000-000000000003",
+          "FromPinId": "ee000001-0000-0000-0000-000000000022",
+          "ToNodeId": "e2000001-0000-0000-0000-000000000006",
+          "ToPinId": "ee000001-0000-0000-0000-000000000051"
+        },
+        {
+          "FromNodeId": "e2000001-0000-0000-0000-000000000006",
+          "FromPinId": "ee000001-0000-0000-0000-000000000052",
+          "ToNodeId": "e2000001-0000-0000-0000-000000000007",
+          "ToPinId": "ee000001-0000-0000-0000-000000000061"
+        },
+        {
+          "FromNodeId": "e2000001-0000-0000-0000-000000000004",
+          "FromPinId": "ee000001-0000-0000-0000-000000000031",
+          "ToNodeId": "e2000001-0000-0000-0000-000000000003",
+          "ToPinId": "ee000001-0000-0000-0000-000000000024"
+        },
+        {
+          "FromNodeId": "e2000001-0000-0000-0000-000000000002",
+          "FromPinId": "ee000001-0000-0000-0000-000000000011",
+          "ToNodeId": "e2000001-0000-0000-0000-000000000003",
+          "ToPinId": "ee000001-0000-0000-0000-000000000023"
+        },
+        {
+          "FromNodeId": "e2000001-0000-0000-0000-000000000002",
+          "FromPinId": "ee000001-0000-0000-0000-000000000011",
+          "ToNodeId": "e2000001-0000-0000-0000-000000000005",
+          "ToPinId": "ee000001-0000-0000-0000-000000000041"
+        },
+        {
+          "FromNodeId": "e2000001-0000-0000-0000-000000000005",
+          "FromPinId": "ee000001-0000-0000-0000-000000000042",
+          "ToNodeId": "e2000001-0000-0000-0000-000000000006",
+          "ToPinId": "ee000001-0000-0000-0000-000000000053"
+        }
+      ]
+    }
+  ],
+  "EditorMetadata": {
+    "Recipe": {
+      "DisplayName": "Collection Write Demo  (component fixed lists)",
+      "Category": "Tutorial",
+      "Description": "Instance blueprint that mutates a fixed-capacity collection on its OWN ECS component (BpFixedListDemo, [BlueprintWritable]). Every tick it appends 7 via the Add (Collection) write node — wired from GetComponent's collection out-pin — and mirrors the logical length into a variable via Item Count. After four ticks the component's list is full and Add degrades to Ok=false; the write is self-only and accessor-mediated (BpFixedListDemoOps).",
+      "Difficulty": "Beginner",
+      "ConceptsTaught": [
+        "GetComponent collection out-pin → CollectionWrite \"Collection\" in-pin wiring",
+        "Self-only, accessor-mediated component collection writes ([BlueprintWritable] + ops class)",
+        "Capacity-bounded Add — Ok=false on overflow, never silent corruption",
+        "Reading the same collection with Item Count beside the write"
+      ]
+    }
+  }
+}
