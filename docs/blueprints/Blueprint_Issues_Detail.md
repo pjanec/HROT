@@ -526,43 +526,65 @@ and collapse-to-function if ever brought back into scope.
 
 # Appendix — Test baseline (what "green" means in this repo)
 
-Recorded 2026-08-04 while shipping batches 1–3. **Read this before concluding a change broke
-something**, and before dismissing a failure as "just a flake".
+Recorded 2026-08-04 while shipping batches 1–3, then re-measured after serializing the suite.
+**Read this before concluding a change broke something**, and before dismissing a failure as
+"just a flake".
 
 ## Current baseline
 
 | Suite | Result |
 |---|---|
-| `Hrot.Blueprints.Tests` | **2574 passed**, 10 skipped, **~1 varying failure per full run** |
+| `Hrot.Blueprints.Tests` | **2575 passed**, 10 skipped — green on **5 of 6** consecutive runs |
 | `Hrot.Diagnostics.Breakpoints.Tests` | 130 passed, 0 failed |
 | `Hrot.Blueprints.Compiler.Tests` | 3 passed, 0 failed |
 | `NodeEditor.Core.Tests` / `NodeEditor.UI.Tests` | 195 / 90 passed, 0 failed |
 | Full solution build | clean, 0 errors |
 
-## Two distinct pre-existing defects — neither is a regression
+## Fixed: the suite was running in parallel, alone among 9 test projects
 
-**1. Parallel-load flakiness.** A full run of `Hrot.Blueprints.Tests` typically shows **exactly one**
-failure, and it is **a different test each run** — observed on `MoveToAndFire_BTreeTick_Tests`,
-`LibraryFunction_InvokeTests`, and others. Each passes in isolation and on re-run. Prior sessions
-already recorded this: `Blueprint_CA07d2_Managed_Collections_RESUME.md:125` names *"env-flaky
-perf/ALC/MoveToAndFire"* explicitly.
+`Hrot.Blueprints.Tests` had **no `xunit.runner.json`**, so xUnit defaulted to parallel collections.
+Nine other test projects in this repo already ship the same config with parallelism fully disabled.
+Adding it (plus the `<Content Include>` line — without that it never reaches the output directory and
+has no effect) made the suite deterministic:
 
-**2. Order-dependent test — the opposite failure mode.**
-`BlueprintCommandSinkTests.CommandSink_AddLink_WritableCollectionIntoCollectionWrite_BakesOpAccessor`
-**fails when run alone** (`Expected: "Hrot.AI.Behaviors.BpFixedListDemo" / Actual: ""`) and **passes
-inside the full suite** — it depends on state another test establishes, most likely a static
-registry. Verified identical on stashed pre-change code, so it predates this work. Worth fixing:
-a test that only passes with company is not a guard.
+| | Runs | Result |
+|---|---|---|
+| **Before** (parallel) | 3 | **Every run** had exactly 1 failure, **a different test each time** — `MoveToAndFire_BTreeTick_Tests`, `LibraryFunction_InvokeTests`, `CommandSink_AddLink_…BakesOpAccessor` |
+| **After** (serialized) | 6 | **5 green** (2575/0); 1 run had the `PdbEmbeddedSourceTests` pair fail |
 
-> ⚠ **Do not filter-run this test alone and conclude you broke it.** Equally, do not use flakiness
-> as a blanket excuse — see below.
+**Cost: ~90s wall vs ~50s parallel (~1.8×).** Worth it — a suite that cries wolf once per run trains
+people to ignore it, which is how a real regression gets waved through.
+
+## Two genuine defects remain — do NOT disable them
+
+**1. `CommandSink_AddLink_WritableCollectionIntoCollectionWrite_BakesOpAccessor` — order-dependent.**
+Serialization fixed it *in-suite*, but it **still fails when run alone via `--filter`**
+(`Expected: "Hrot.AI.Behaviors.BpFixedListDemo" / Actual: ""`). So the underlying bug is untouched:
+the test depends on state another test establishes.
+*Lead:* `TryBakeCollectionConsumer` early-returns unless `toPin.Label == "Collection"`, and `Label`
+comes from the **projected pin model**, not the asset `Pin` the test authors. Projection routes
+through `NodePinSchema` → `BuiltInNodeRegistry.Instance`, a lazily-initialised static singleton — the
+prime suspect for the ordering dependency. Verified identical on stashed pre-change code, so it
+predates this work.
+
+**2. `PdbEmbeddedSourceTests` (`WithPdbOption_PdbIsNonNull`, `PdbContainsEmbeddedSourceSignature`) —
+environment-sensitive.** Failed together once in 6 serialized runs. These run a real Roslyn compile
+with PDB + embedded-source emission, so they are resource/timing sensitive. Prior sessions flagged
+the same family: `Blueprint_CA07d2_..._RESUME.md:125` names *"env-flaky perf/ALC"* tests.
+
+## Why not just `[Fact(Skip = …)]` them
+
+A skipped test is a **permanent silent coverage hole** that nobody revisits — and both of these point
+at real defects: one at a static-initialisation dependency in the editor host, one at PDB emission
+under load. Together they are ~0.08% of the suite. Serializing removed the noise that actually
+impeded regression detection; the remaining two deserve fixes, not suppression. If one must be
+quarantined temporarily, use `Skip` **with a linked issue id in the message** so it resurfaces.
 
 ## The "~8–9 reds" note is stale
 
 `Blueprint_Component_Access_RESUME.md:79` says a full parallel run shows *"~8–9 reds that are
-pre-existing/flaky"*. **That is no longer true — the baseline is ~1.** Anyone still quoting the old
-figure could wave through eight genuine regressions. If you see more than one or two failures,
-treat them as real until proven otherwise.
+pre-existing/flaky — DO NOT chase"*. **That is no longer true.** Anyone still quoting it could wave
+through eight genuine regressions. That file now carries a correction banner.
 
 ## Method that worked
 
