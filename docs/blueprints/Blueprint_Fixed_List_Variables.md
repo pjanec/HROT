@@ -40,9 +40,27 @@ to a safe no-write at compile time.
 | BP1506 | list value wired to a pin that can't take a list — anything but a consumer's `Collection` pin or an identical-shape `SetVariable` clone |
 | BP2066 | consumer wired to a list but the wire-bake state is missing (Kind-aware) |
 
+## The action-DTO home (FC-3)
+
+Hand-authored C# actions (BTree/HSM) use the same wrapper shape in their Params/working-state DTOs
+— runtime access is plain `ref` C#; the tooling around it:
+
+| What | How | Where |
+|---|---|---|
+| Declare | `struct WaypointList { public int Count; [InlineArray(4)]-backed Items; }` — the **one canonical shape** (`FixedListShape`); loose `Items`+`Count` twin fields stay read-only passthrough | `Fdp.Core.FixedListShape` (single definition; classifier + converter + inspector all delegate) |
+| Editor recognition | classifier marks the wrapper field EditorManaged, Variables panel shows `List<T>[4]` (display-only v1) | `BlackboardFieldClassifier` / `BlackboardTypeHelper` |
+| JSON authoring | plain array — `"Stops": [10, 20]`; Count = length clamped to `[0,N]`, tail zeroed (G6), writes emit the used window; element types inherited from the canonical options (vectors, FixedStrings, enums, custom unmanaged structs; `Entity` → author `Null` only) | `FixedListJsonConverterFactory` in `FdpJsonOptionsRegistry` (both singletons; generated `ParseParams` uses them) |
+| Mutate from C# | direct `ref` + the Span-form write pattern, or the `[BlueprintCollectionField]` generator's ops class | FC-0/FC-1b convention |
+| Inspect live | `LiveBlackboardPanel` renders `List<Int32>[4] Count=2 {10, 20}` (shared formatter); any StructEdit host gets a count-bounded element view via `FixedListBufferViewProvider` | `Fdp.Core.FixedListFormatter` + `Hrot.Editor.AiShared.Inspector` |
+| F2 safety | every working-state attach path (fresh, free-list reuse, hard-reload re-provision) hands out zeroed payload | `BlueprintBlackboardPartitions.TryAttach` (pinned by `SlotAttachZeroingTests`) |
+
+One formatter, every surface: the Blueprints debugger watch, the behavior blackboard panel, and
+StructEdit collapsed rows all render the identical summary string.
+
 ## Limits (v1)
 
 - Element must be unmanaged (no `String`); no nested lists.
-- Self-state only: instance `Variables` and AiPrimitive `WorkingState` (zero-on-attach guaranteed).
+- Self-state only: instance `Variables`, AiPrimitive `WorkingState`, and action DTOs (zero-on-attach guaranteed).
 - Not accepted by `GetShared`/`Parameters`.
 - Editor capacity UI clamp: 1–256.
+- Action-DTO editor recognition and inspection are display-only (no visual re-type/resize of C# source).

@@ -19,7 +19,7 @@ Stage5 lowering + emit + validator work done and reviewed hands-on. **Gate (ever
 | FC-1·G2 | Tick-order: fix the `bpTick` splice (preferred) or pin 1-tick lag + composition-order test | composition | ✅ |
 | FC-1b | `[BlueprintCollectionField]` Roslyn source generator emitting the ops class from the FC-0 template | tooling | ✅ |
 | FC-2 | Blueprint-variable collection (List Variables LV-1…LV-6; independent of FC-1) | blackboard home | ✅ |
-| FC-3 | Action-DTO home per **Q#21 ✅**: classifier+panel (A1/B1) · JSON converter (C3/C1, C-e) · StructEdit inspector (D3/D-e/D-p-P1) + F2 verify | action home | 🔧 |
+| FC-3 | Action-DTO home per **Q#21 ✅**: classifier+panel (A1/B1) · JSON converter (C3/C1, C-e) · StructEdit inspector (D3/D-e/D-p-P1) + F2 verify | action home | ✅ |
 
 > **Resequencing note (2026-08-04):** the design docs placed "the mutation-op IR family" in FC-0. It is
 > tracked under **FC-1·C** instead: the codebase's only idiomatic test path for IR ops runs Stage3→7 through a
@@ -263,7 +263,34 @@ read / write / clone / debug, write-verb contract, BP1504-1506, v1 limits) + han
 `img/fixed_list_layout.svg` (wrapper layout, F2 clamp window, G6 tail). Suite 2534/1-known-flake
 (`WhenNode_EqsResult_Under150ns` perf timing under parallel load, passes isolated) · goldens 184/184.
 
-### FC-3 — action-DTO home · 🔧 APPROVED (Q#21, 2026-08-03), building
+### FC-3 — action-DTO home · ✅ COMPLETE (2026-08-04) — **the Fixed Collections umbrella is CLOSED**
+
+**FC-3a (classifier+panel) ✅.** `FixedListShape` recognition wired into `BlackboardFieldClassifier`
+(A1 wrapper only → EditorManaged; loose twins stay passthrough; nested lists rejected) ·
+`GetDisplayName` → `List<T>[N]` (B1 display-only). 16 tests.
+
+**FC-3b (JSON) ✅.** `Fdp.Core.FixedListShape` (THE single shape definition — classifier delegates) ·
+`FixedListJsonConverterFactory` in BOTH `FdpJsonOptionsRegistry` singletons (plain-array authoring,
+Count=length clamped, G6-zeroed tail, used-window writes, elements recurse through enclosing options —
+vectors/FixedStrings/enums/custom structs inherited; Entity author-Null-only) · generated
+`__paramJsonOpts` → `DefaultRelaxed` (goldens unaffected — the byte-identical gate compares topology
+cores only, PU-205 §14). 11 tests incl. byte-image canonicality vs a runtime-built wrapper.
+
+**FC-3c (inspector + F2) ✅.** StructEdit generic patch (InlineArray provider-hook parity +
+`ProjectBufferAsElements` bounded-window projection; 4 upstream tests, zero HROT refs — D-p P1 held) ·
+`Fdp.Core.FixedListFormatter` (THE summary string; blueprints watch delegates, stays transient
+bytes→string per the ALC constraint; LV-5 tests pass unchanged) · `FixedListBufferViewProvider`
+(AiShared, host-side; claims wrapper buffers, min(Count,N) window, collapsed row = shared summary) ·
+`LiveBlackboardPanel` renders wrappers via the formatter instead of `?` · action-path F2 verify
+(the `AttachSlotsToMemory` re-provision sequence hands back zeroed payload). 15 tests.
+
+**Docs ✅.** `Blueprint_Fixed_List_Variables.md` gained the action-DTO home section.
+
+Gates at close: goldens 184/184 serial · Blueprints 2542+/known-ALC-flakes-only · AiShared 1202/2
+pre-existing environmental · Fdp.Core failure set unchanged (env perf/migration) · Toolkits 1927/0 ·
+StructEdit 1 pre-existing (circular-ref, on HEAD baseline).
+
+<details><summary>Original approval record (Q#21, 2026-08-03)</summary>
 
 All Q#21 leans ratified as-is (full table in `Architect_Question_21_Action_DTO_Fixed_Lists.md`):
 **A1** wrapper-struct recognition only → `EditorManaged` `List<T>[N]` · **B1** Variables-panel
@@ -287,3 +314,5 @@ patch + `FixedListViewProvider` + `LiveBlackboardPanel` wiring + F2 action-path 
 docs fold-in (`Blueprint_Fixed_List_Variables.md` gains the action home) + tracker completion.
 Gates per slice: clean build · new tests green · full Blueprints + AiShared suites' failure sets
 unchanged · goldens 184/184 serial.
+
+</details>
