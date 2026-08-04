@@ -11,11 +11,11 @@ architect decision first).
 
 | Complexity | Open | Done |
 |---|---:|---:|
-| `WIRING` | 9 | 10 |
-| `RW-L` | 18 | 4 |
-| `RW-M` | 21 | 1 |
+| `WIRING` | 10 | 10 |
+| `RW-L` | 19 | 4 |
+| `RW-M` | 20 | 2 |
 | `RW-H` | 2 | — |
-| **Total** | **50** | **15** |
+| **Total** | **51** | **16** |
 | *(refuted on verification)* | | *1* |
 
 > 📌 **Resuming this programme?** Start with [Blueprint_Gaps_Programme_RESUME.md](Blueprint_Gaps_Programme_RESUME.md) — branch, batches
@@ -121,7 +121,7 @@ architect decision first).
 
 - [ ] **BP-12a** · `WIRING` — Drag-variable-into-graph as Get/Set is dead (`create-variable-get`/`-set` unregistered) — the most-used motion in Unreal authoring
 - [x] **BP-12e** · `WIRING` — Dead panel commands **fail silently**; `InvokeCreate` discards the result. Root cause of the whole BP-12 family's UX. *Tally: 14 commands invoked, 1 registered*
-- [ ] **BP-11** ⭐ · `RW-M` — 🔴 **No inspector/drawer edit is undoable.** Three tiers; Ctrl+Z drains a stack the drawers never write to. ✅ **UNBLOCKED — architect approved A1+B1+C2+D2+E1** ([Q22](Architect_Question_22_Undo_Unification.md#answers--approved-2026-08-04)). ⚠ *raised `RW-L`→`RW-M`:* the stack takes `GraphCommand`, not delegates, so a transport must be picked, and D2 fixes only the 6 sink sites — the ~9 drawer sites still need converting
+- [x] **BP-11** ⭐ · `RW-M` — 🔴 **No inspector/drawer edit is undoable.** Three tiers; Ctrl+Z drained a stack the drawers never wrote to. Shipped A1+B1+C2+E1 ([Q22](Architect_Question_22_Undo_Unification.md#-implementation-outcome-2026-08-04--shipped)); transport is **R3** (a Blueprint-owned `GraphCommand` subtype — R1 provably can't carry multi-field bakes, R2 would have meant editing the vendored tree). ⚠ **D2 superseded — gap 4:** the sink was double-recording, so making `CommandHistory` live would have pushed 2 entries per gesture and 3 on undo. Sinks apply; the stack records
 - [ ] **BP-12b** · `RW-L` — Panel items can't be renamed/duplicated/deleted; a variable can be created but never removed
 - [ ] **BP-12c** · `RW-L` — Custom events and dispatchers can't be created. ⚠ consider *removing* the dispatcher section instead (superseded)
 - [ ] **BP-24** · `RW-M` — **No Function-graph create path; canvas locked to one graph.** In any multi-graph asset every graph but the first is unreachable through the UI. Data + compiler layers already support functions
@@ -176,6 +176,8 @@ architect decision first).
 - [ ] **BP-52** · `RW-M` — UX-1…UX-5 authoring ergonomics unbuilt; UX-1/UX-2 need an architect nod first
 - [ ] **BP-53** · `RW-M` ⚠ **UNCLEAR** — E6 cross-asset blueprint-action picker. *Partially refuted:* `[HsmActionPicker]` exists and is used throughout `HsmFacets.cs`; whether it spans cross-asset blueprint actions is unestablished. Peripheral to blueprint editing — re-scope before acting
 - [ ] **BP-54** · `RW-M` ⚠ **UNCLEAR** — G7 resolver-authoring UX. Runtime `BehaviorRegistry.RegisterResolver` exists; "authoring UX" is too loosely defined in the source doc to verify. Peripheral — re-scope before acting
+- [ ] **BP-63** · `RW-L` — **NodeEdit's built-in Comment Details view is not undoable.** `CommentDetailsView.Commit` calls `_ctx.CommandSink.Apply` raw; `IDetailsContext` exposes neither the view nor the model, so there is nothing to build an inverse from (its own `Revert()` says so). Needs a widened context in the vendored tree — a BP-02-family bypass BP-02 did not reach. *Not a regression: it was already non-undoable* — *found while fixing BP-11*
+- [ ] **BP-64** · `WIRING` — **2 pre-existing Windows-only reds in `Hrot.Editor.AiShared.Tests`** (1202 pass): `ExportDeliveryModalTests.SaveToFile_InvalidPath` (no invalid path chars on Linux) and `AssetBaseNameCollisionGuardTests.CheckCollisionOnDisk` (asserts `C:\Trees`). Verified against a stashed tree — they predate this programme. Decide platform-gate vs. rewrite; the suite is not in the gate list, which is why it went unnoticed — *found while fixing BP-11*
 
 ---
 

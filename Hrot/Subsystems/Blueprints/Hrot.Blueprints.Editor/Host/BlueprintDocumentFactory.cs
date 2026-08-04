@@ -182,9 +182,27 @@ public static class BlueprintDocumentFactory
         // field expansion) must re-project it — but the drawer must NOT reach across to the canvas
         // window. Instead the drawer emits a structural-change signal (EditService.NotifyStructureChanged)
         // and the composition root (here) subscribes the derived view so it rebuilds itself.
+        // BP-11 (Q22-A1/C2): property edits go on the SAME UndoStack as structural ones, so Ctrl+Z
+        // reverses a mixed sequence in the order the designer performed it. The view does not exist
+        // yet (§7 below), so the transport closes over this local and is assigned before any edit
+        // can be issued — a delegate, not a GraphView reference, keeps EditService canvas-agnostic
+        // exactly as onStructureChanged already does.
+        GraphView? undoTarget = null;
+        Action<string, Action, Action> recordUndoable = (label, apply, undo) =>
+        {
+            if (undoTarget is { } v)
+                v.Execute(
+                    new BlueprintEditCommand(label, apply),
+                    new BlueprintEditCommand(label, undo),
+                    label);
+            else
+                apply();   // no view yet — still perform the edit, just without a stack entry
+        };
+
         var ctx = new EditServiceContext(
             history, markDirty,
-            onStructureChanged: _ => graphModel.RebuildAndNotify());
+            onStructureChanged: _ => graphModel.RebuildAndNotify(),
+            recordUndoable: recordUndoable);
         if (editService != null)
             editService.Context = ctx;
 
@@ -234,6 +252,10 @@ public static class BlueprintDocumentFactory
             hostServices.TypeSystem,
             hostServices.NodeCatalog,
             hostServices);
+
+        // BP-11: close the loop on the transport declared at §4 — from here on, a drawer edit lands
+        // on this view's UndoStack alongside the structural edits.
+        undoTarget = view;
 
         // ── 8. Picker sources (BCP-E) ─────────────────────────────────────────
         BlueprintPickerSources.Register(bundle.PickerRegistry, nodeCatalog, bpAsset);

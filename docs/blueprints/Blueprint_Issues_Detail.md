@@ -256,6 +256,34 @@ Document, undo, and panel plumbing.
 
 ### BP-11 — No inspector or drawer edit is undoable ⭐
 **Complexity:** RW-M *(raised from RW-L — see estimate note below)* · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-04).** One stack. A drawer edit is now reversed by the undo the editor actually runs, and a mixed canvas/drawer sequence undoes in the order the designer performed it. 18 new tests.
+>
+> **What shipped, against the approved package:**
+>
+> | Sub-q | Approved | Shipped |
+> |---|---|---|
+> | A1 one stack | ✅ | ✅ `UndoStack` is the only live recorder |
+> | B1 promote onto `IEditService` | ✅ | ✅ both downcast sites deleted; 10 test doubles updated |
+> | C2 transport delegate | ✅ | ✅ `EditServiceContext.RecordUndoable`, wired in `BlueprintDocumentFactory` |
+> | D2 adapter first | ✅ | ⚠ **superseded — see gap 4** |
+> | E1 coalescing | ✅ | ✅ `ContinuousEditCoalescer<T>`, baseline on *activation* |
+>
+> **Transport: R3, not the addendum's R1 or R2.** R1 (`GraphCommand.SetNodeProperty`) is *provably* unable to carry these edits — the addendum's own escape clause. Drawer edits are multi-field bakes: picking a component type rewrites `ComponentTypeFqn`, the whole `Fields` list **and** `IsManaged`; picking a function target rewrites four fields. `SetNodeProperty` is one key + one value, and its sink whitelist covers none of `Fields`/`IsManaged`/`IsPure`/`ValueJson`. R2 was the sanctioned fallback but required editing the vendored `FDP/ExtDeps/NodeEdit` tree. **R3 gets R2's expressiveness with neither cost:** `GraphCommand` is a plain `public abstract record`, so `BlueprintEditCommand(string Label, Action Mutate)` is declared in `Hrot.Blueprints.Editor` and the vendored tree is untouched. Gap 3's silent-`default:` trap is closed by adding the sink case in the same change and pinning it with a test that asserts the *delegate ran* (asserting on `Success` cannot catch it).
+>
+> ### ⚠ Gap 4 — the sink was double-recording (found during implementation, not in the audit or the architect round)
+> **D2 as written would have produced two undo entries per gesture, then three on undo.** `BlueprintCommandSink` recorded on `CommandHistory` for *every* command — 6 `RecordPropertyEdit` sites plus 4 `_history.Execute` ones — while `UndoStack` was already recording the same gestures at the issuing site (`CanvasRenderer`, since BP-02). That was harmless only because `CommandHistory` was dead. Making it live — which is exactly what D2 asks for — would have surfaced it: `ApplyAndRecord` applies *then* pushes, so the sink's inner entry lands first, and on undo the inverse re-enters the same sink method and pushes again.
+>
+> **Resolution:** a sink is the **applier**; the stack is the **recorder**. The 6 property sites now apply + `MarkDirty` and record nothing; callers snapshot the previous value and issue the pair through `GraphView.Execute` (BP-02 already converted the canvas sites). `GetNodeProperty` was made `internal` so callers can take that snapshot. Pinned by `SinkAppliedCommand_PushesExactlyOneUndoEntry_NotTwo`.
+>
+> **Not converted, and why:** the 4 `_history.Execute` structural sites are redundant-but-harmless (those gestures are recorded on `UndoStack` by the caller) and removing them is cleanup, not a fix — left with `CommandHistory` as the documented fallback. Deleting `CommandHistory` outright stays queued as D2's "later cleanup".
+>
+> **Verification** (the assertion no prior test made — every one of these fails if the transport is disabled): drawer edit → `Undo()` restores · the whole multi-field bake reverts, not one field · redo re-applies · one gesture = exactly one entry · interleaved canvas + drawer edits undo in reverse chronological order · undo re-projects derived views. Non-vacuity checked by disabling the transport: **7 of 11 fail**, and only the undoability ones.
+>
+> Files: `Host/BlueprintEditCommand.cs`, `NodeDrawers/ContinuousEditCoalescer.cs` (both new) · `Host/BlueprintCommandSink.cs`, `Host/BlueprintDocumentFactory.cs`, `NodeDrawers/{IEditService,EditService,ComponentNodeDrawers,SharedNodeDrawers,FunctionCallNodeDrawer,LiteralNodeDrawer,PlayMontageChainNodeDrawer}.cs` · tests `Editor/{BlueprintUndoUnificationTests,ContinuousEditCoalescerTests}.cs`.
+>
+> **Found while fixing:** BP-63 (NodeEdit's Comment Details view commits via a raw `CommandSink.Apply`), BP-64 (2 pre-existing Windows-only reds in `Hrot.Editor.AiShared.Tests`).
+
 - ✅ **UNBLOCKED — architect approved 2026-08-04.** Package **A1 + B1 + C2 + D2 + E1**: collapse onto NodeEdit's `UndoStack` and retire `CommandHistory`; promote `RecordPropertyEdit` + `NotifyStructureChanged` onto `IEditService`; keep `EditService` canvas-agnostic via an injected transport delegate; adapter-first migration; coalesce continuous edits into one entry on widget deactivation. Full answers + reasoning: [Architect_Question_22](Architect_Question_22_Undo_Unification.md#answers--approved-2026-08-04).
 - ⚠ **Three implementation gaps found after approval** (all recorded in the Q22 addendum; none blocks the design):
   1. **`UndoStack` can't carry a `PropertyEditCommand`.** `ApplyAndRecord` takes a `GraphCommand` — a ~30-variant data-record hierarchy with **zero delegate-carrying members**. Route through the existing `SetNodeProperty` (already handled at `BlueprintCommandSink:129`) rather than adding a variant to the vendored `FDP/ExtDeps/NodeEdit` tree.
@@ -576,6 +604,19 @@ Cheap, and currently actively misleading.
 `BP-52` (UX-1/UX-2) · `BP-27` *if* the StructEdit re-check confirms no reusable picker · plus macros
 and collapse-to-function if ever brought back into scope.
 
+### BP-63 — NodeEdit's built-in Comment Details view is not undoable
+**Complexity:** RW-L · **Confidence:** ✔✔ *(found while fixing BP-11)*
+- `CommentDetailsView.Commit` (`FDP/ExtDeps/NodeEdit/src/NodeEditor.UI/Panels/Views/CommentDetailsView.cs:43`) calls `_ctx.CommandSink.Apply(new GraphCommand.UpdateComment(...))` **raw** — the same bypass shape BP-02/BP-59 fixed across `CanvasRenderer`, in a file BP-02's sweep did not reach.
+- ⚠ **Not a one-line conversion.** `IDetailsContext` exposes only `CommandSink`, `Editors`, `Icons`, `Theme` — no `GraphView` to record on and **no `IGraphModel` to snapshot the prior state from**. The class says so itself: `Revert()` is a no-op commented *"Re-load from model not possible here (no IGraphModel reference)"*. Fixing it means widening the context in the vendored tree.
+- **Not a regression from BP-11.** It was already non-undoable — the sink recorded onto `CommandHistory`, which no UI path read. BP-11 removed that dead recording, so the file's status is unchanged and now honest.
+
+### BP-64 — 2 pre-existing Windows-only test failures in `Hrot.Editor.AiShared.Tests`
+**Complexity:** WIRING · **Confidence:** ✔✔ *(found while fixing BP-11)*
+- `ExportDeliveryModalTests.SaveToFile_InvalidPath_ReturnsErrorString` expects a non-null error, but Linux has no invalid path characters, so the save succeeds.
+- `AssetBaseNameCollisionGuardTests.CheckCollisionOnDisk_ConsultsOnlyTargetDirectory` asserts `"C:\Trees"` and gets `""`.
+- **Verified pre-existing:** both reproduce on a `git stash`ed tree. 1202 of 1204 pass.
+- **Why it went unnoticed:** this suite is not in the programme's gate list. Decide platform-gate (`SkipUnless` Windows) vs. rewriting the assertions to be path-agnostic — and consider whether the gate list should include it.
+
 ---
 
 # Appendix — Programme log (2026-08-04 session)
@@ -593,6 +634,7 @@ those notes do not.
 | 3 | BP-04 · BP-09 | palette: add what was unreachable, retire what was dead |
 | 4 | BP-62 · BP-35 (+ suite serialization) | reflection robustness & test health |
 | 5 | BP-41 | coverage: three *different* AiPrimitives on one entity |
+| 6 | BP-11 ⭐ | undo unification — one stack for canvas and drawer edits |
 
 ## The audit was wrong seven times — every correction is recorded in-place
 
@@ -629,9 +671,15 @@ Two architect statements were also wrong and are corrected in the
 
 ## New issues found *while fixing*, not by the audit
 
-**BP-59** (🔴 data loss) · **BP-60** · **BP-61** (🔴) · **BP-62**. Three of the four were found by
-following an inconsistency rather than by reading the register — which is the argument for
-re-deriving claims rather than working the list top-down.
+**BP-59** (🔴 data loss) · **BP-60** · **BP-61** (🔴) · **BP-62** · **BP-63** · **BP-64**. Nearly all
+were found by following an inconsistency rather than by reading the register — which is the argument
+for re-deriving claims rather than working the list top-down.
+
+The same holds one level up: **the architect round missed a gap the code showed immediately.** Q22's
+approved D2 ("make `CommandHistory.Execute` delegate to `UndoStack`") would have double-recorded,
+because the sink was already recording every command it applied onto a stack that happened to be
+dead. Three reviewers — audit, architect, post-approval addendum — all read D2 as the low-risk step.
+It was the one step that could not work.
 
 ---
 

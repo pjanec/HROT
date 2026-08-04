@@ -201,6 +201,52 @@ lifetime and has no bearing on undo unification. Disregarded.
 
 ---
 
+## ✅ Implementation outcome (2026-08-04) — shipped
+
+The approved package held. Two things changed at implementation time; both are recorded here rather
+than applied silently.
+
+### 1. Transport is **R3**, a third option the addendum did not consider
+
+R1 was recommended, with R2 as the fallback "unless R1 provably can't express an edit". **It provably
+can't.** Drawer edits are multi-field bakes — picking a component type rewrites `ComponentTypeFqn`,
+the whole `Fields` list *and* `IsManaged`; picking a function target rewrites four fields — and
+`SetNodeProperty` is one key plus one value whose sink whitelist covers none of the fields involved.
+
+R2 was therefore live, but its two objections (edit the vendored `FDP/ExtDeps/NodeEdit` tree; the
+silent-`default:` trap) are both avoidable:
+
+> `GraphCommand` is a plain `public abstract record`, so a **host** assembly can extend the vocabulary.
+> `BlueprintEditCommand(string Label, Action Mutate)` lives in `Hrot.Blueprints.Editor`; the vendored
+> tree is untouched, and the sink case ships in the same change, pinned by a test that asserts the
+> carried delegate *ran* — asserting on `Success` cannot catch a missing case, since `default:`
+> returns success.
+
+**This did not go back to the architect.** It is strictly inside the approved architecture and
+strictly cheaper than the fallback the architect had already sanctioned; blocking a relay round on a
+safer variant of an approved option would have bought no decision.
+
+### 2. ⚠ Gap 4 — **D2 would have double-recorded.** Superseded.
+
+Not caught by the audit, the architect round, or the addendum. `BlueprintCommandSink` recorded on
+`CommandHistory` for *every* command it applied, while `UndoStack` was already recording the same
+gestures at the issuing site (`CanvasRenderer`, since BP-02). Harmless only because `CommandHistory`
+was dead — and D2's whole premise is making it live. `ApplyAndRecord` applies *then* pushes, so the
+sink's inner entry would land first and, on undo, the inverse would re-enter the same sink method and
+push a third.
+
+**Resolution — the invariant D2 was reaching for, stated directly:** a sink is the *applier*; the
+stack is the *recorder*. The sink's 6 property sites now apply and mark dirty, and record nothing.
+This is D2's endpoint reached in one step instead of two; the "delete `CommandHistory`" cleanup
+remains queued.
+
+### Minor — E1's hook, as flagged
+
+Baseline is captured on `IsItemActivated()`. `ContinuousEditCoalescer<T>` takes the two ImGui signals
+as plain booleans so the coalescing rule is headlessly testable, which the widgets are not.
+
+---
+
 ## Net effect on the estimate
 
 **BP-11 reclassified `RW-L` → `RW-M`.** Not because the design changed — the approved package is sound —

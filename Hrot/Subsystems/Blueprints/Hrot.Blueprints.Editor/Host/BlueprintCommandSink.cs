@@ -153,6 +153,11 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             case GraphCommand.RemoveComment removeComment:
                 return ApplyRemoveComment(removeComment);
 
+            // BP-11: the Blueprint-owned transport that carries drawer/inspector edits onto the
+            // single UndoStack. MUST stay above the default: arm — see BlueprintEditCommand.
+            case BlueprintEditCommand edit:
+                return ApplyBlueprintEdit(edit);
+
             default:
                 // Unknown commands are silently accepted (forward-compat).
                 return new GraphCommandResult(true, null);
@@ -722,29 +727,56 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         return new GraphCommandResult(true, null);
     }
 
+    // ── BlueprintEditCommand (BP-11 transport) ───────────────────────────────
+
+    /// <summary>
+    /// Runs a Blueprint drawer/inspector edit that arrived via the single
+    /// <see cref="NodeEditor.Core.Commands.UndoStack"/>. Undo is <em>not</em> recorded here: the
+    /// stack recorded the forward/inverse pair before handing us this one, so recording again would
+    /// push a second entry for the same gesture (see the class docs on <see cref="BlueprintEditCommand"/>).
+    /// </summary>
+    private GraphCommandResult ApplyBlueprintEdit(BlueprintEditCommand edit)
+    {
+        edit.Mutate();
+        _markDirty(_asset);
+        // Drawer edits routinely change a node's projected pin set (component field bakes, struct
+        // expansion), so re-project unconditionally — the same refresh NotifyStructureChanged drives.
+        _model.RebuildAndNotify();
+        return new GraphCommandResult(true, null);
+    }
+
     // ── SetNodeProperty ──────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Applies a Details-panel property write.
+    ///
+    /// <para>
+    /// BP-11: this <b>applies only</b> — it does not record undo. A sink is the applier; the
+    /// <see cref="NodeEditor.Core.Commands.UndoStack"/> is the recorder, and it already pushed this
+    /// command's inverse before calling us. Recording here as well would double-push, and on undo the
+    /// inverse would land back in this method and push a third entry. Callers snapshot the previous
+    /// value and issue the pair through <c>GraphView.Execute</c>.
+    /// </para>
+    /// </summary>
     private GraphCommandResult ApplySetNodeProperty(GraphCommand.SetNodeProperty prop)
     {
         var assetNode = _graph.Nodes.FirstOrDefault(n => n.Id == prop.Node.Value);
         if (assetNode == null)
             return new GraphCommandResult(false, $"Node {prop.Node} not found.");
 
-        // Route through the EditService for undo/redo.
-        object? previousValue = GetNodeProperty(assetNode, prop.Key);
-        object? newValue      = prop.Value;
-
-        _editService.RecordPropertyEdit(
-            _asset,
-            $"Set {prop.Key} on {assetNode.Id}",
-            apply: () => SetNodeProperty(assetNode, prop.Key, newValue),
-            undo:  () => SetNodeProperty(assetNode, prop.Key, previousValue));
+        SetNodeProperty(assetNode, prop.Key, prop.Value);
+        _markDirty(_asset);
 
         _model.RebuildAndNotify();
         return new GraphCommandResult(true, null);
     }
 
-    private static object? GetNodeProperty(Node node, string key) => key switch
+    /// <summary>
+    /// Reads the current value of a <see cref="GraphCommand.SetNodeProperty"/> key. BP-11: exposed
+    /// because the <em>caller</em> now snapshots the previous value to build the inverse command —
+    /// the sink no longer does it (see <see cref="ApplySetNodeProperty"/>).
+    /// </summary>
+    internal static object? GetNodeProperty(Node node, string key) => key switch
     {
         "Comment"      => node.EditorMetadata.Comment,
         "TargetTypeId" => (node as FunctionCallNode)?.TargetTypeId,
@@ -832,13 +864,8 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         // map, so the designer types a bare value and never sees the C# syntax.
         if (assetNode is LiteralNode literal)
         {
-            var newJson = LiteralValueJson.ToValueJson(literal.TypeId, cmd.NewValue);
-            var oldJson = literal.ValueJson;
-            _editService.RecordPropertyEdit(
-                _asset,
-                "Set literal value",
-                apply: () => literal.ValueJson = newJson,
-                undo:  () => literal.ValueJson = oldJson);
+            literal.ValueJson = LiteralValueJson.ToValueJson(literal.TypeId, cmd.NewValue);
+            _markDirty(_asset);
             _model.RebuildAndNotify();
             return new GraphCommandResult(true, null);
         }
@@ -857,14 +884,8 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             newStr = BlueprintPinDefaultValue.FormatValue(cmd.NewValue);
         }
 
-        // Capture old value for undo.
-        string? oldStr  = assetNode.PinDefaults?.TryGetValue(pinName, out var o) == true ? o : null;
-
-        _editService.RecordPropertyEdit(
-            _asset,
-            $"Set pin default '{pinName}'",
-            apply: () => SetPinDefaultOnNode(assetNode, pinName, newStr),
-            undo:  () => SetPinDefaultOnNode(assetNode, pinName, oldStr));
+        SetPinDefaultOnNode(assetNode, pinName, newStr);
+        _markDirty(_asset);
 
         _model.RebuildAndNotify();
         return new GraphCommandResult(true, null);
@@ -959,11 +980,8 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             MoveWithContents = cmd.MoveWithContents,
         };
 
-        _editService.RecordPropertyEdit(
-            _asset,
-            "Add Comment",
-            apply: () => _graph.Comments.Add(comment),
-            undo:  () => _graph.Comments.RemoveAll(c => c.Id == comment.Id));
+        _graph.Comments.Add(comment);
+        _markDirty(_asset);
 
         _model.RebuildAndNotify();
         return new GraphCommandResult(true, null);
@@ -981,18 +999,8 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         if (comment == null)
             return new GraphCommandResult(true, null);   // unknown id — safe no-op
 
-        string?  oldText   = cmd.Text             is not null ? comment.Text             : null;
-        Vector2? oldPos    = cmd.Position          is not null ? new Vector2(comment.X, comment.Y) : null;
-        Vector2? oldSize   = cmd.Size              is not null ? new Vector2(comment.W, comment.H) : null;
-        Vector4? oldColor  = cmd.Color             is not null ? new Vector4(comment.ColorR, comment.ColorG, comment.ColorB, comment.ColorA) : null;
-        int?     oldZOrder = cmd.ZOrder            is not null ? comment.ZOrder            : null;
-        bool?    oldMwc    = cmd.MoveWithContents  is not null ? comment.MoveWithContents  : null;
-
-        _editService.RecordPropertyEdit(
-            _asset,
-            "Update Comment",
-            apply: () => ApplyCommentFields(comment, cmd.Text, cmd.Position, cmd.Size, cmd.Color, cmd.ZOrder, cmd.MoveWithContents),
-            undo:  () => ApplyCommentFields(comment, oldText, oldPos, oldSize, oldColor, oldZOrder, oldMwc));
+        ApplyCommentFields(comment, cmd.Text, cmd.Position, cmd.Size, cmd.Color, cmd.ZOrder, cmd.MoveWithContents);
+        _markDirty(_asset);
 
         _model.RebuildAndNotify();
         return new GraphCommandResult(true, null);
@@ -1023,11 +1031,8 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         if (comment == null)
             return new GraphCommandResult(true, null);   // unknown id — safe no-op
 
-        _editService.RecordPropertyEdit(
-            _asset,
-            "Remove Comment",
-            apply: () => _graph.Comments.RemoveAll(c => c.Id == comment.Id),
-            undo:  () => _graph.Comments.Add(comment));
+        _graph.Comments.RemoveAll(c => c.Id == comment.Id);
+        _markDirty(_asset);
 
         _model.RebuildAndNotify();
         return new GraphCommandResult(true, null);

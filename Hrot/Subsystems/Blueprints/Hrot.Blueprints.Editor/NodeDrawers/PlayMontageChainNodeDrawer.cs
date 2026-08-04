@@ -436,18 +436,49 @@ internal sealed class PlayMontageChainNodeSession : INodeEditSession
             return;
         }
 
-        // 1. Copy the working chain into the node's storage via Span<int>.
-        var dst = montagesAccess.AsSpan();
+        // BP-11: snapshot the STORED chain before overwriting it — that is the undo baseline.
+        var  dst         = montagesAccess.AsSpan();
+        byte beforeCount = countAccess.Read();
+        var  beforeItems = dst.ToArray();
+
+        // Build the chain the working state implies (tail zeroed so old entries past the new
+        // ChainCount don't leak — matches DD-5 §3.5 ClearMontageQueueNode convention).
+        var afterItems = new int[dst.Length];
         int n = Math.Min(_chainCount, Math.Min(dst.Length, _chainedMontages.Length));
-        for (int i = 0; i < n; i++) dst[i] = _chainedMontages[i];
-        // Zero the tail (don't leak old entries past the new ChainCount).
+        for (int i = 0; i < n; i++) afterItems[i] = _chainedMontages[i];
+        byte afterCount = _chainCount;
+
+        // This runs every frame while IsDirty, so a no-diff write must not push an undo entry —
+        // otherwise a single add-montage click would fill the stack for as long as the panel is open.
+        if (beforeCount == afterCount && beforeItems.AsSpan().SequenceEqual(afterItems))
+            return;
+
+        _editService.RecordPropertyEdit(
+            _parent, "Edit Montage Chain",
+            apply: () => ApplyChain(afterCount,  afterItems),
+            undo:  () => ApplyChain(beforeCount, beforeItems));
+    }
+
+    /// <summary>
+    /// BP-11: writes a chain into the node's storage <b>and</b> back into this session's working
+    /// copy. Both halves matter — <see cref="WriteBackToNode"/> re-runs every frame while
+    /// <see cref="IsDirty"/>, so an undo that only restored the node would be immediately overwritten
+    /// by the stale working state on the next frame.
+    /// </summary>
+    private void ApplyChain(byte count, int[] items)
+    {
+        var (countAccess, montagesAccess) = ResolveChainAccess(_node);
+        if (countAccess is null || montagesAccess is null) return;
+
+        var dst = montagesAccess.AsSpan();
+        int n   = Math.Min(items.Length, dst.Length);
+        for (int i = 0; i < n; i++) dst[i] = items[i];
         for (int i = n; i < dst.Length; i++) dst[i] = 0;
+        countAccess.Write(count);
 
-        // 2. Update ChainCount.
-        countAccess.Write(_chainCount);
-
-        // 3. Mark the asset dirty for save propagation.
-        _editService.MarkDirty(_parent);
+        _chainCount = count;
+        for (int i = 0; i < _chainedMontages.Length; i++)
+            _chainedMontages[i] = i < items.Length ? items[i] : 0;
     }
 
     // ── Reflection-backed accessors (storage-agnostic) ────────────────────────────
