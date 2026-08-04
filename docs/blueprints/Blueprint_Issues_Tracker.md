@@ -11,12 +11,23 @@ architect decision first).
 
 | Complexity | Open | Done |
 |---|---:|---:|
-| `WIRING` | 16 | 3 |
+| `WIRING` | 11 | 8 |
 | `RW-L` | 20 | 2 |
-| `RW-M` | 19 | — |
+| `RW-M` | 20 | — |
 | `RW-H` | 2 | — |
-| **Total** | **57** | **5** |
+| **Total** | **53** | **10** |
 | *(refuted on verification)* | | *1* |
+
+> ✅ **Batch 2 shipped (2026-08-04) — BP-02 + all four documentation-accuracy items.**
+> **BP-02:** 13 of the 15 undo-bypass sites now route through `view.Execute` with a real inverse
+> (the 14th was BP-59; the 15th is blocked — see BP-60). NodeEdit core 195 + UI 90 green.
+> **BP-47/48/49/50:** the Overview's node-status marks no longer conflate the compiler and authoring
+> axes (new **⛔** mark for compiler-rejected kinds); Runtime DD **§9.6** — *the audit cited §13.5,
+> which was wrong* — and Overview §1 now carry the BTree-vs-HSM working-state correction; the
+> cross-entity `BlueprintDeferredEvent` example is fenced as **NOT IMPLEMENTED**; the v1.1 roadmap
+> is banner-marked **HISTORICAL**.
+> ⚠ **New issue found while fixing BP-02: BP-60** — "Promote to Variable" silently does nothing in
+> the Blueprint editor.
 
 > ✅ **Batch 1 shipped (2026-08-04) — the silent-failure batch: BP-59, BP-29, BP-16, BP-15, BP-12e.**
 > Common theme: a failure that was invisible is now loud. Verified headless — full solution builds
@@ -48,7 +59,8 @@ architect decision first).
 → [detail](Blueprint_Issues_Detail.md#area-a--graph-editor-ux)
 
 - [x] **BP-59** 🔴 · `WIRING` — **Context-menu "Delete Node" is not undoable, but the Del key is.** `CanvasRenderer.cs:758` applies `RemoveNodes` raw; `EditCommands.cs` builds a proper inverse for the same intent. Silent unrecoverable data loss — *found in the verification pass*
-- [ ] **BP-02** · `WIRING` — Undo bypassed via `view.Commands.Apply`. ⚠ *scope corrected:* **15 sites, not 10** — also pin "Reset to Default" (`:638`), comment delete (`:845`), "Promote to Variable" (`:970`)
+- [ ] **BP-60** 🔴 · `RW-M` — **"Promote to Variable" silently does nothing.** `PromoteToVariable` is implemented only in `NodeEditor.Demo`'s `FakeCommandSink`; `BlueprintCommandSink` has no case, so it hits the `default:` that returns success and no-ops. Modal opens, name typed, nothing happens — *found while fixing BP-02*
+- [x] **BP-02** · `WIRING` — Undo bypassed via `view.Commands.Apply`. ⚠ *scope corrected:* **15 sites, not 10** — also pin "Reset to Default" (`:638`), comment delete (`:845`), "Promote to Variable" (`:970`)
 - [ ] **BP-03** · `WIRING` — Bookmarks can't be renamed or deleted; `BookmarkStore.Remove` already exists
 - [ ] **BP-23a** · `RW-L` — **No copy/cut/paste/duplicate on the canvas.** Paste is hard-disabled; `AddNodeCommand` already accepts a prebuilt `Node`, so paste can skip the 8-of-50 property whitelist
 - [ ] **BP-13** · `RW-L` — No align/distribute/straighten; 9 commands declared, 0 implemented. `CommandBuilder.MoveNodes` is the ready primitive
@@ -129,10 +141,10 @@ architect decision first).
 *Cheap, and currently actively misleading.*
 → [detail](Blueprint_Issues_Detail.md#area-g--documentation-accuracy)
 
-- [ ] **BP-47** · `WIRING` — `Blueprints_Overview.md:75` marks the 4 unplaceable value-op nodes ✅, conflating compiler and authoring axes
-- [ ] **BP-48** · `WIRING` — Runtime DD §13.5 + Overview §1/§5 stale on AiPrimitive working state (wrong for BTree-composed nodes)
-- [ ] **BP-49** · `WIRING` — Authoring guide describes cross-entity routing **as if current**; it doesn't exist (BP-45)
-- [ ] **BP-50** · `WIRING` — Trackers contradict the code; the **v1.1 roadmap is fully superseded** — label it history, not status
+- [x] **BP-47** · `WIRING` — `Blueprints_Overview.md:75` marks the 4 unplaceable value-op nodes ✅, conflating compiler and authoring axes
+- [x] **BP-48** · `WIRING` — Runtime DD §13.5 + Overview §1/§5 stale on AiPrimitive working state (wrong for BTree-composed nodes)
+- [x] **BP-49** · `WIRING` — Authoring guide describes cross-entity routing **as if current**; it doesn't exist (BP-45)
+- [x] **BP-50** · `WIRING` — Trackers contradict the code; the **v1.1 roadmap is fully superseded** — label it history, not status
 - [ ] **BP-55** · `WIRING` — Asset-Browser delete affordance. ⚠ *lowered on verification:* `RefactorService.PreviewDelete` (with dangling-ref detection) already exists; every caller is a test fake, so only the UI affordance is missing
 - [ ] **BP-51** · `RW-L` — DOC-3/DOC-4 illustrated SVGs (memory layout, lifetime timeline) missing
 - [ ] **BP-52** · `RW-M` — UX-1…UX-5 authoring ergonomics unbuilt; UX-1/UX-2 need an architect nod first

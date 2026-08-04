@@ -28,6 +28,15 @@ and who ticks it.
 Variables vs WorkingState is not cosmetic: **Variables** = Instance persistent state; **WorkingState**
 = AiPrimitive scratch/latent state. Using the wrong one is a compile error (BP1031).
 
+> ⚠ **"host-provisioned" WorkingState means different things per host — and only one of them works
+> for multiple AiPrimitives on an entity.** (BP-48; failure mode is **BP-30**.)
+> **BTree** provisions a real partition slot: `ComposeAiPrimitiveAction` auto-creates a distinct
+> `Role=State, Scope=Node` host variable per placement, so two blueprints — or one placed twice —
+> separate correctly. **HSM does not**: it still uses the legacy fixed offset (`Blackboard1024`+8,
+> one `StructureHash`) with no compose command, so two stateful AiPrimitives on one HSM entity
+> `InitBlock`-zero and re-init each other every tick and **neither retains state**.
+> See [Runtime DD §9.6](Blueprint_Subsystem_Runtime_Detailed_Design.md) for the mechanism.
+
 ---
 
 ## 2. How it is built (assembly boundary)
@@ -52,8 +61,13 @@ accepts them as project/unmanaged types. This is why almost every "advanced" nod
 ## 3. Node vocabulary (~42 kinds)
 
 Grouped by purpose. Status is coarse: **✅** shipped & used · **◐** runs but thin authoring surface ·
-**⚠** legacy/avoid (superseded — see notes). Per-node, per-axis detail lives in the (dated)
-[Feature Maturity Matrix](Blueprint_Feature_Maturity_Matrix.md).
+**⚠** legacy/avoid (superseded — see notes) · **⛔** rejected by the compiler. Per-node, per-axis detail
+lives in the (dated) [Feature Maturity Matrix](Blueprint_Feature_Maturity_Matrix.md).
+
+> ⚠ **These marks describe the *compiler* axis and the *authoring* axis together, and the two do not
+> always agree.** A node can lower and run perfectly while being impossible to place or configure in
+> the editor. Where they diverge the weaker axis wins the mark, with a note. See
+> [Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md) for the live gap list.
 
 **Entry / flow control** — `EventEntry` ✅ (graph entry; Function inputs *or* event payload fields),
 `Return` ✅, `Branch` ✅, `Sequence` ✅.
@@ -72,8 +86,24 @@ pins), `CallCustomEvent` ◐ (blueprint-local custom event), `WaitForEvent` ⚠ 
 ⚠ / `BindDispatcher` ⚠ (legacy dispatcher model — superseded by `PublishEvent` + `EventEntry`
 subscribe).
 
-**Data / pure ops** — `Literal` ✅, `Compare` ✅ (full `ComparisonOperator` set), `BinaryOp` ✅
-(Add/Sub/Mul/Div/Mod), `BooleanOp` ✅ (And/Or), `Not` ✅, `Cast` ⚠, `ArrayMake` ⚠ / `ArrayGet` ⚠.
+**Data / pure ops** — `Literal` ✅, `Compare` ◐ (full `ComparisonOperator` set), `BinaryOp` ◐
+(Add/Sub/Mul/Div/Mod), `BooleanOp` ◐ (And/Or), `Not` ◐, `Cast` ◐,
+`ArrayMake` ⛔ / `ArrayGet` ⛔.
+
+> **Why `Compare` / `BinaryOp` / `BooleanOp` / `Not` are ◐, not ✅.** All four are fully lowered and
+> compile-tested — but they have **no palette entry**, so they cannot be placed in the editor at all
+> (BP-04); they are reachable only from hand-authored JSON. The previous ✅ marked the compiler axis
+> and hid the authoring gap. Math is partly covered in practice by `BlueprintMathPaletteEntries`,
+> which routes through CLR `BlueprintMath` helpers as `FunctionCall`.
+>
+> **`Cast` is ◐, not ⚠.** Its emit bug is fixed — `StatementEmitter` intercepts `Cast.`-prefixed
+> calls and emits a native `(global::T)` cast. It is also inserted implicitly by Stage3 Normalize.
+> It simply has no drawer (BP-58).
+>
+> **`ArrayMake` / `ArrayGet` are ⛔ — they are now a compile error (BP1420).** They never had Stage5
+> lowering: reading their output silently yielded `default(T)` with no diagnostic, so a graph using
+> them compiled clean and returned wrong data. `V_UnloweredNodeKinds` rejects them outright (BP-16).
+> Use a fixed-capacity list variable for collection storage.
 
 **Calls** — `FunctionCall` ✅ (a CLR `[BlueprintCallable]` method *or* an in-blueprint Function graph;
 bakes the self/view trailing-context decision), `CallPeerBlueprint` ◐.

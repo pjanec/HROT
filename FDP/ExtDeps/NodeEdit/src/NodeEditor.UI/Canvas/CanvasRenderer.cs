@@ -635,7 +635,15 @@ public sealed class CanvasRenderer
                 ImGui.EndDisabled();
 
                 if (ImGui.MenuItem("Reset to Default"))
-                    view.Commands.Apply(new Core.Commands.GraphCommand.SetPinDefault(pinId, null));
+                {
+                    // BP-02: snapshot the current value first so the reset is reversible; this
+                    // previously discarded the old value with no way back.
+                    var oldDefault = view.Model.FindPin(pinId)?.Default?.Value;
+                    view.Execute(
+                        new Core.Commands.GraphCommand.SetPinDefault(pinId, null),
+                        new Core.Commands.GraphCommand.SetPinDefault(pinId, oldDefault),
+                        "Reset Pin to Default");
+                }
 
                 ImGui.BeginDisabled();
                 ImGui.MenuItem("Convert to Reroute Node");
@@ -806,17 +814,36 @@ public sealed class CanvasRenderer
                     view.Interaction.RenamingComment = commentId;
                 }
 
+                // BP-02: every comment mutation below goes through view.Execute with an explicit
+                // inverse snapshotted from the CURRENT model state, so Ctrl+Z reverses it. These
+                // previously called view.Commands.Apply directly and were silently un-undoable.
+                var oldColor = comment.Color;
+                var oldZ     = comment.ZOrder;
+                var oldMwc   = comment.MoveWithContents;
+
+                // Inverse restoring only the colour channel.
+                Core.Commands.GraphCommand ColorInverse() =>
+                    new Core.Commands.GraphCommand.UpdateComment(
+                        commentId, null, null, null, oldColor, null, null);
+
+                void SetColor(Vector4 c) =>
+                    view.Execute(
+                        new Core.Commands.GraphCommand.UpdateComment(
+                            commentId, null, null, null, c, null, null),
+                        ColorInverse(),
+                        "Set Comment Color");
+
                 ImGui.Separator();
                 if (ImGui.BeginMenu("Color"))
                 {
-                    if (ImGui.MenuItem("Blue"))   view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.29f, 0.56f, 0.88f, 1f), null, null));
-                    if (ImGui.MenuItem("Green"))  view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.49f, 0.82f, 0.13f, 1f), null, null));
-                    if (ImGui.MenuItem("Yellow")) view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.97f, 0.90f, 0.11f, 1f), null, null));
-                    if (ImGui.MenuItem("Orange")) view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.96f, 0.65f, 0.14f, 1f), null, null));
-                    if (ImGui.MenuItem("Red"))    view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.81f, 0.01f, 0.11f, 1f), null, null));
-                    if (ImGui.MenuItem("Purple")) view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.56f, 0.07f, 0.99f, 1f), null, null));
-                    if (ImGui.MenuItem("Cyan"))   view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.31f, 0.89f, 0.76f, 1f), null, null));
-                    if (ImGui.MenuItem("Brown"))  view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.54f, 0.34f, 0.16f, 1f), null, null));
+                    if (ImGui.MenuItem("Blue"))   SetColor(new Vector4(0.29f, 0.56f, 0.88f, 1f));
+                    if (ImGui.MenuItem("Green"))  SetColor(new Vector4(0.49f, 0.82f, 0.13f, 1f));
+                    if (ImGui.MenuItem("Yellow")) SetColor(new Vector4(0.97f, 0.90f, 0.11f, 1f));
+                    if (ImGui.MenuItem("Orange")) SetColor(new Vector4(0.96f, 0.65f, 0.14f, 1f));
+                    if (ImGui.MenuItem("Red"))    SetColor(new Vector4(0.81f, 0.01f, 0.11f, 1f));
+                    if (ImGui.MenuItem("Purple")) SetColor(new Vector4(0.56f, 0.07f, 0.99f, 1f));
+                    if (ImGui.MenuItem("Cyan"))   SetColor(new Vector4(0.31f, 0.89f, 0.76f, 1f));
+                    if (ImGui.MenuItem("Brown"))  SetColor(new Vector4(0.54f, 0.34f, 0.16f, 1f));
                     ImGui.EndMenu();
                 }
 
@@ -824,12 +851,18 @@ public sealed class CanvasRenderer
                 if (ImGui.MenuItem("Bring to Front"))
                 {
                     int maxZ = view.Model.Comments.Count > 0 ? view.Model.Comments.Max(c => c.ZOrder) : 0;
-                    view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, maxZ + 1, null));
+                    view.Execute(
+                        new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, maxZ + 1, null),
+                        new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, oldZ, null),
+                        "Bring Comment to Front");
                 }
                 if (ImGui.MenuItem("Send to Back"))
                 {
                     int minZ = view.Model.Comments.Count > 0 ? view.Model.Comments.Min(c => c.ZOrder) : 0;
-                    view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, minZ - 1, null));
+                    view.Execute(
+                        new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, minZ - 1, null),
+                        new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, oldZ, null),
+                        "Send Comment to Back");
                 }
 
                 ImGui.Separator();
@@ -837,16 +870,25 @@ public sealed class CanvasRenderer
                 ImGui.MenuItem("Resize to Fit Contents");
                 ImGui.EndDisabled();
 
-                bool mwc = comment.MoveWithContents;
+                bool mwc = oldMwc;
                 if (ImGui.MenuItem("Move with Contents", null, ref mwc))
                 {
-                    view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, null, mwc));
+                    view.Execute(
+                        new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, null, mwc),
+                        new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, null, oldMwc),
+                        "Toggle Move with Contents");
                 }
 
                 ImGui.Separator();
                 if (ImGui.MenuItem("Delete", "Del"))
                 {
-                    view.Commands.Apply(new Core.Commands.GraphCommand.RemoveComment(commentId));
+                    // Inverse re-adds the comment with its original id and every property, so undo
+                    // restores it intact rather than leaving a hole.
+                    view.Execute(
+                        new Core.Commands.GraphCommand.RemoveComment(commentId),
+                        new Core.Commands.GraphCommand.AddComment(
+                            commentId, comment.Text, comment.Position, comment.Size, oldColor, oldMwc),
+                        "Delete Comment");
                 }
                 break;
             }
@@ -971,6 +1013,15 @@ public sealed class CanvasRenderer
         if (ImGui.Button("Promote", new Vector2(120, 0)) || ((inputEnter || globalEnter) && canPromote))
         {
             string? categoryPath = string.IsNullOrWhiteSpace(_promoteVariableCategoryPath) ? null : _promoteVariableCategoryPath.Trim();
+            // BP-02: deliberately NOT routed through view.Execute yet -- see BP-60.
+            // PromoteToVariable is implemented only by NodeEditor.Demo's FakeCommandSink;
+            // BlueprintCommandSink has no case for it, so in the Blueprint editor it falls to that
+            // sink's `default:` branch, which silently returns success and does nothing. Recording an
+            // undo entry for a no-op would make Ctrl+Z consume a step that reverses nothing.
+            // A correct inverse also cannot be written from here: promotion creates a variable and
+            // rewires pins, and UndoStack requires the caller to supply the inverse, which needs the
+            // ids the sink allocates. Undo must therefore be designed together with the sink
+            // implementation (BP-60), not retrofitted at this call site.
             view.Commands.Apply(new Core.Commands.GraphCommand.PromoteToVariable(
                 _pendingPromotePinId.Value,
                 _promoteVariableName.Trim(),

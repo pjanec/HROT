@@ -56,6 +56,8 @@ Canvas ergonomics. Mostly NodeEdit-core capability the Blueprint host never regi
 
 ### BP-02 — Comment colour and z-order changes bypass undo
 **Complexity:** WIRING · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-04).** **13 of the 15 sites** now route through `view.Execute` with an inverse snapshotted from the current model state — 8 comment colours, 3 z-order/move-with-contents, comment delete (inverse re-adds with the original id and every property), and pin "Reset to Default" (inverse restores the prior value). The 14th was BP-59. **The 15th, `PromoteToVariable`, is deliberately left alone — see BP-60.**
 - **Evidence:** `CanvasRenderer.cs:808-815` (8 palette colours) and `:823/:828` (Bring to Front / Send to Back) call `view.Commands.Apply(...)` directly instead of `view.Execute(fwd, inv, label)`.
 - ⚠ **Scope corrected (2026-08-04) — there are 15 such sites, not 10.** The audit counted only the comment colours and z-order. Full enumeration of `view.Commands.Apply` in `CanvasRenderer.cs`:
 
@@ -80,6 +82,13 @@ Canvas ergonomics. Mostly NodeEdit-core capability the Blueprint host never regi
 - **Severity:** silent, unrecoverable data loss on a destructive action, reachable from the most obvious place a designer would look. Strictly worse than BP-02's cosmetic bypasses.
 - **Fix:** route `:758` through the same `EditCommands` delete path the Del key uses — the inverse-builder already exists and is proven, so this is a call-site swap, not new logic.
 - **Why the audit missed it:** BP-02 was scoped from its symptom ("comment colour"), so the enumeration stopped at comment commands.
+
+### BP-60 — "Promote to Variable" silently does nothing in the Blueprint editor 🔴 **[NEW — found while fixing BP-02]**
+**Complexity:** RW-M · **Confidence:** ✔✔
+- **`GraphCommand.PromoteToVariable` is implemented only by `NodeEditor.Demo`'s `FakeCommandSink`** (`:176`, `:357`). `BlueprintCommandSink` has **no case for it**, so it falls to that sink's `default:` branch — *"Unknown commands are silently accepted (forward-compat)"* — which returns `Success = true` and does nothing.
+- **User-visible effect:** the pin context menu offers "Promote to Variable…" / "Promote to Local Variable…", a modal opens, the designer types a name and clicks **Promote**, the modal closes — and nothing happens. No node, no variable, no error. Same family as BP-09 and BP-12e: the UI advertises an action that cannot run.
+- **Reference implementation exists** — `FakeCommandSink.ApplyPromoteToVariable` (~50 lines) resolves the pin, allocates a `VariableId`, adds a `Util.GetVar`/`Util.SetVar` node offset from the owner, and links it. The Blueprint version additionally needs to append a declaration to `asset.Variables` with a type inferred from the pin.
+- ⚠ **Undo must be designed together with the implementation, not retrofitted.** `UndoStack` requires the *caller* to supply the inverse, but the inverse needs the node/link/variable ids the sink allocates. This is why BP-02 deliberately left this one call site on `Commands.Apply`: recording an undo entry for a no-op would make Ctrl+Z consume a step that reverses nothing.
 
 ### BP-03 — Bookmarks cannot be renamed or deleted
 **Complexity:** WIRING · **Confidence:** ✔✔
@@ -395,18 +404,26 @@ Cheap, and currently actively misleading.
 
 ### BP-47 — `Blueprints_Overview.md:75` marks unplaceable nodes ✅
 **Complexity:** WIRING · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-04).** `Blueprints_Overview.md` §3: the four value ops go ✅ → ◐ with a note that they are unplaceable (BP-04); `Cast` ⚠ → ◐ (its emit bug is fixed, it just has no drawer — BP-58); `ArrayMake`/`ArrayGet` ⚠ → new **⛔** mark, since BP-16 made them a compile error. The legend now states explicitly that the marks blend the compiler and authoring axes and that the weaker axis wins.
 - `Compare` / `BinaryOp` / `BooleanOp` / `Not` are marked shipped, conflating the compiler axis with the authoring axis. They cannot be placed (BP-04).
 
 ### BP-48 — Runtime DD and Overview stale on AiPrimitive working state
 **Complexity:** WIRING · **Confidence:** ✔
+
+> ✅ **DONE (2026-08-04).** ⚠ **Citation was wrong** — it is Runtime DD **§9.6** ("Cross-AiPrimitive reconciliation"), not §13.5. Both that section and `Blueprints_Overview.md` §1 now carry a correction table: BTree provisions a real partition slot per placement (so multiple AiPrimitives separate correctly), HSM still uses the legacy fixed offset with no compose command (so they collide — BP-30). The stale "one Blueprint per entity" invariant is called out as no longer holding uniformly.
 - `Blueprint_Subsystem_Runtime_Detailed_Design.md` §13.5 and `Blueprints_Overview.md` §1/§5 describe AiPrimitive working state as living only in `Blackboard1024`. True for the legacy/HSM path, **wrong for BTree-composed nodes** (partition tiers).
 
 ### BP-49 — Aspirational prose presented as current
 **Complexity:** WIRING · **Confidence:** ✔
+
+> ✅ **DONE (2026-08-04).** The cross-entity `DispatchOrder` snippet in `Blueprint_Authoring_Examples.md` §3 is now fenced with an explicit ⛔ **NOT IMPLEMENTED** banner recording that `BlueprintDeferredEvent` has zero hits repo-wide, retained only as a design sketch, and the verdict line now separates the shipped same-entity case from the unshipped cross-entity one (BP-45).
 - `Blueprint_New_Node_Authoring_Guide.md` §1a describes cross-entity routing that does not exist (BP-45). Mark clearly as future.
 
 ### BP-50 — Trackers contradict the code
 **Complexity:** WIRING · **Confidence:** ✔
+
+> ✅ **DONE (2026-08-04).** `Blueprint_Subsystem_Implementation_Roadmap_v1.1.md` now opens with a **📜 HISTORICAL — NOT A STATUS DOCUMENT** banner pointing at the Overview and the issue tracker, and saying plainly that its M0–M12 milestones describe pre-implementation intent and do not describe the code.
 - `Blueprint_Subsystem_Implementation_Roadmap_v1.1.md` is **fully superseded** (M0–M16 predate component access, collections, custom events, 50 node kinds) — label it history, not status.
 - Also stale: `Custom_Events_BUILD_TRACKER.md` (3d "still remaining", shipped one commit later), `WaveCore_Slice_Design.md` (fixed CS0400 bug, un-parked asset), `Blueprint_Authoring_UX_Backlog.md` (DOC-2 "[next]", already shipped), `Blueprint_Component_Access_TASK_TRACKER.md` and `Blueprint_Editor_SaveOnClose_RESUME.md` (both flag since-fixed items as open).
 

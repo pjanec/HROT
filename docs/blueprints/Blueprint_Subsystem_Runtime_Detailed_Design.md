@@ -1831,6 +1831,21 @@ The runtime layer (`BlueprintTickSystem`) does not participate in AiPrimitive re
 
 This separation is intentional. AiPrimitive working state has a different invariant (one Blueprint per entity's Blackboard1024 in Slice 1), so its reconciliation is layout-aware in a way that's unsuitable for the general `BlueprintBlackboard*` partition path.
 
+> ⚠ **STALE since Slice 1 — the "one Blueprint per entity" invariant no longer holds uniformly, and
+> the two hosts now differ.** (Audit 2026-08-04, BP-48; failure mode tracked as **BP-30**.)
+>
+> | Host | Working-state storage | Multiple AiPrimitives per entity? |
+> |---|---|---|
+> | **BTree** | partition slot — `ComposeAiPrimitiveAction` auto-creates a distinct `Role=State, Scope=Node` host variable per placement (16 refs in `BTreeBridgeEmitCore`) | ✅ **yes**, they separate correctly |
+> | **HSM** | the legacy fixed offset shown above (`Blackboard1024`+8, single 8-byte `StructureHash`) — **0 partition refs, no compose command** | ❌ **no — they collide** |
+>
+> The snippet above is the HSM path. With two stateful AiPrimitives on one HSM entity, each tick sees
+> the *other's* `StructureHash`, takes the mismatch branch, and `InitBlock`-zeroes the whole
+> `Blackboard1024` before re-initialising its own working state — so the two alternately wipe each
+> other and **neither retains state**. Read this section as describing the HSM path only; for
+> BTree-composed nodes the partition-slot path in the general `BlueprintBlackboard*` machinery
+> applies instead.
+
 ### 9.7 Diagnostic surface
 
 The Editor's "Hot Reload Log" window (per Editor DD) shows per-slot reconciliation events. For each tick after a reload, the runtime can optionally emit a single log line per reset:
