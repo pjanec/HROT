@@ -12,10 +12,10 @@ architect decision first).
 | Complexity | Open | Done |
 |---|---:|---:|
 | `WIRING` | 9 | 10 |
-| `RW-L` | 20 | 2 |
+| `RW-L` | 19 | 3 |
 | `RW-M` | 21 | 1 |
 | `RW-H` | 2 | — |
-| **Total** | **52** | **13** |
+| **Total** | **51** | **14** |
 | *(refuted on verification)* | | *1* |
 
 > 🔁 **Systemic pattern — now three confirmed instances. Check for it before trusting any validator
@@ -140,7 +140,7 @@ architect decision first).
 
 - [x] **BP-29** · `WIRING` — 🔴 **LIVE BUG: blueprint conditional breakpoints silently never fire.** `PredicateCompiler` gets no `blueprintRegistry` at any of 3 production sites, so the predicate compiles to constant-false. Invisible to tests because they pass the registry explicitly. 2 one-liners + 1 needing plumbing
 - [ ] **BP-01** · `WIRING` — Watch panel shows raw hex bytes; `MarshalFromBytes` is complete, tested, and used at 4 other sites in the same file
-- [ ] **BP-35** · `RW-L` — D4 `MultiplexingProbeSink` missing; `IBlueprintProbeSink` exists, needs a composite
+- [x] **BP-35** · `RW-L` — D4 `MultiplexingProbeSink` missing; `IBlueprintProbeSink` exists, needs a composite
 - [ ] **BP-37** · `RW-M` — `LifecyclePredicateDto` by `NetworkId` throws. ⚠ *raised on verification:* `INetworkEntityMap` **doesn't exist**; the concrete map lives in a network project Breakpoints doesn't reference → layering decision first
 - [ ] **BP-36** · `RW-M` — D5 stack-frame inspection is Blueprint-local; lifting it would let BTree/HSM pauses carry a call stack
 - [ ] **BP-38** · `RW-M` — D9 pause-on-Blueprint-exception. **Already LOCKED as deferred** by architect decision; rewind machinery is reusable

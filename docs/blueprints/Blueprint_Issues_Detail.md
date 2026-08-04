@@ -373,6 +373,10 @@ Strongest area of the subsystem — several capabilities **exceed** stock Unreal
 
 ### BP-35 — D4 `MultiplexingProbeSink` missing
 **Complexity:** RW-L · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-04).** New `MultiplexingProbeSink` fans one probe stream out to N observers, so an editor session and a recording sink can watch the same run. Copy-on-write sink list (lock on mutate, `volatile` array read on the probe path) — allocation-free dispatch via an index loop, which matters because probes fire per node-enter and `ProbeOverheadTests` holds the budget.
+> ⚠ **The trap it would have walked into:** `DebugProbe.NewTick()` resolved the session with `Sink as IBlueprintDebugSession`. A composite is a probe sink, **not** a session — it deliberately does not implement that far larger interface (breakpoints/watches/filters) — so the cast would have failed and every session behind the multiplexer would have silently stopped receiving `OnNewTick`, quietly breaking per-frame breakpoint dedup. `DebugProbe` now fans out explicitly, with a regression test.
+> `OnCollectionWriteFailed` is forwarded **explicitly** rather than inherited from its default interface implementation, which would have dropped the never-silent write diagnostic for every inner sink. Exceptions deliberately propagate (same as a directly-wired sink) rather than being swallowed — pinned by a test so it stays a decision. 11 new tests; suite 2594/0.
 - `IBlueprintProbeSink` exists; needs a composite implementation + a `DebugProbe.Sink` swap so multiple debuggers can observe one run.
 
 ### BP-36 — D5 stack-frame inspection is Blueprint-local

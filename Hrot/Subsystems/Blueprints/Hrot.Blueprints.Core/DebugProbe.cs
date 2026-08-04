@@ -41,7 +41,17 @@ public static class DebugProbe
     /// Resets the per-frame breakpoint dedup set (Debug DD §9.2).
     /// </summary>
     public static void NewTick()
-        => (Sink as IBlueprintDebugSession)?.OnNewTick();
+    {
+        // Read once -- Sink is a mutable static and could change between the test and the call.
+        var sink = Sink;
+
+        // BP-35: a MultiplexingProbeSink is a probe sink, not a session, so the `as` below would
+        // fail and every session behind it would silently stop receiving OnNewTick -- quietly
+        // breaking per-frame breakpoint dedup. Let it fan out to its own sessions instead.
+        if (sink is MultiplexingProbeSink mux) { mux.NotifyNewTick(); return; }
+
+        (sink as IBlueprintDebugSession)?.OnNewTick();
+    }
 }
 
 /// <summary>No-op sink used when a non-null sink is required but no session is attached.</summary>
