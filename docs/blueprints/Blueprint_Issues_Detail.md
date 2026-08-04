@@ -144,6 +144,13 @@ internal static Type? ResolveType(string fqn)
 
 ### BP-03 — Bookmarks cannot be renamed or deleted
 **Complexity:** WIRING · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-04).** `BookmarkStore.Rename(id, label)` added (blank labels refused — a
+> label-less bookmark is an unclickable blank row). Panel rows gained inline rename (double-click or
+> context menu), a delete button plus menu item, and **click-to-jump**, which the panel never had:
+> a bookmark's whole purpose was reachable only via Ctrl+1..9, so the panel itself was inert.
+> Ordering/labelling moved to `BookmarkPanelLogic` so they are testable without an ImGui context.
+> 13 tests.
 - **Evidence:** `BlueprintBookmarksWindow.cs:11-13` self-documents "(V1: no rename/delete UI…)"; `BookmarksPanel.cs:17-36` is a read-only text list.
 - **Fix:** `BookmarkStore.Remove(id)` already exists; `Bookmark` is a `record`, so rename is `b with { Label = x }` + `SetSlot`.
 
@@ -202,18 +209,53 @@ Whether a designer can *place* and *configure* each node kind. 13 of 50 kinds ru
 
 ### BP-05 — `ReadRankedResult.Rank` uneditable
 **Complexity:** WIRING · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-04).** Clamped to ≥ 0 (a rank indexes the EQS result list; a negative one
+> indexes out of range — clamped rather than rejected, so the stepper cannot author an invalid
+> asset). Hold-to-repeat coalesces to one undo entry via `ContinuousEditCoalescer`.
 - Plain `ImGui.InputInt`; no catalog dependency. Simplest of the drawer gaps.
 
 ### BP-06 — `WaitForChannel.ChannelType` uneditable
 **Complexity:** WIRING · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-04).** ⚠ **The catalog is keyed by *(channel, action)***, so the naive
+> `Select(e => e.ChannelTypeFqn)` the task implies would list a channel once per action — a channel
+> with 8 actions appears 8×. Deduplicated and sorted. Unlisted current values are surfaced and
+> preserved, mirroring `GetSharedNodeSession`'s picker.
 - Runs and is run-proven, but has no drawer. Reuse `IChannelCommandCatalog`; `ChannelCommandNodeDrawer.cs` (109 lines) is a near-direct template and `WaitForChannel` needs only the channel-type list.
 
 ### BP-07 — `CallCustomEvent.EventId` uneditable
 **Complexity:** WIRING · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-04).** ⚠ **The audit named the wrong source.** It says reuse
+> `UnifiedEventDiscovery.All()` — but that enumerates `[BlueprintEvent]` C# structs and
+> editor-authored **engine** events, the vocabulary `WaitForEvent` and the When node's EventFired
+> mode use. A custom event is **asset-scoped**: `NodePinSchema.CallCustomEventPins` resolves
+> `EventId` against `asset.CustomEvents`, and Stage5 does the same. Building it as written would
+> have produced a picker whose every choice failed to resolve.
+>
+> The drawer reads the owning asset, writes the declaration's **GUID** (what pin projection parses)
+> and still resolves a bare **Name**, which Stage5 accepts — so hand-authored assets don't show as
+> dangling. The event's parameters are its data-IN pins, so the edit is structural.
 - Reuse `UnifiedEventDiscovery.All()`, already production-wired, which unifies C# `[BlueprintEvent]` structs and editor-authored events.
 
 ### BP-08 — `CallPeerBlueprint` target uneditable
 **Complexity:** WIRING · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-04).** New `IBlueprintPeerProvider` seam (mirroring `IComponentTypeProvider`)
+> with a `BlueprintPeerSource`-backed implementation and an empty default — peers are discovered by
+> scanning a directory, which a headless test must be able to replace, and the drawer registry is
+> built at startup where no asset root is in scope.
+>
+> Two **dependent** pickers: choosing a peer narrows the function list and **clears a `FunctionRef`
+> the new peer doesn't export, in the same edit**. Leaving it would silently collapse the node's
+> pins to the untyped `exec + Return:System.Object` fallback with nothing on screen to say why.
+> Dangling peer and dangling function are flagged separately — with a resolved peer we know the
+> function name is wrong, which is a different message.
+>
+> ⚠ **Wired in `EditorSubsystem`, not left to the default.** The provider defaults to empty, so
+> omitting it at the one production call site would have shipped a picker that always says "no peer
+> Blueprints discovered" — the inert-default guard (BP-29, BP-61) all over again. Passed explicitly.
 - Reuse `BlueprintPeerSource.EnumerateAll()` (already used by `QuickReloadService` for this very node kind) plus the existing peer-signature lookup for the function list.
 
 ### BP-14 — `Return.Status` uneditable (always Success)
@@ -222,6 +264,13 @@ Whether a designer can *place* and *configure* each node kind. 13 of 50 kinds ru
 
 ### BP-10 — `When` → EventFired form is a stub
 **Complexity:** WIRING · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-04).** Filtered picker over the catalog (name / display name / FQN). Choosing
+> an event **adopts that entry's `TargetFieldName` in the same edit** — the field belongs to the
+> event's own payload shape, so it cannot survive a change of event. The self-filter checkbox is
+> offered only when the catalog says the event carries a target field; otherwise "Self" would
+> silently mean "everything", the opposite of what the checkbox promises. BestEffort events are
+> flagged (the compiler's BP2016 warning, surfaced at authoring time).
 - `WhenNodeDrawer.cs:172-177` is `ImGui.TextDisabled`. The catalog `_eventCatalog.GetEntries()` is **already injected and called at `:175`** — the result is simply never rendered.
 
 ### BP-21 — `When` → ValueChanged form is a stub
@@ -306,6 +355,16 @@ Document, undo, and panel plumbing.
 
 ### BP-12a — My Blueprint: drag-variable-into-graph as Get/Set is dead
 **Complexity:** WIRING · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-04).** ⚠ **Scope corrected — the title is wrong.** The **drag**-to-canvas path
+> already worked: `CanvasRenderer` accepts the drop and calls `PlaceVariableNode`. The dead route is
+> the **My Blueprint context menu** (`MyBlueprintContextMenu.DrawVariableMenu` → "Get"/"Set"), which
+> matters most when the panel is docked away from the canvas. Registered in
+> `BlueprintDocumentFactory` against the document's view, so placement is undoable, at
+> `ctx.CanvasPos` or the viewport centre (a menu invocation carries no mouse position; the graph
+> origin would be off-screen). No selection places nothing, rather than a node bound to nothing.
+>
+> **Found while testing this: BP-65** — placement wasn't undoable *at all*.
 - `editor.create-variable-get` / `-set` are invoked by the context menu but never registered. This is the most-used motion in Unreal authoring.
 - Reuse the palette / `AddNode` path that already creates `GetVariableNode` / `SetVariableNode` with a baked `VariableId`.
 
@@ -604,14 +663,38 @@ Cheap, and currently actively misleading.
 `BP-52` (UX-1/UX-2) · `BP-27` *if* the StructEdit re-check confirms no reusable picker · plus macros
 and collapse-to-function if ever brought back into scope.
 
+### BP-65 — Placing a node was silently non-undoable 🔴
+**Complexity:** WIRING · **Confidence:** ✔✔ *(found while testing BP-12a)*
+
+> ✅ **DONE (2026-08-04).**
+- **`BlueprintCommandSink.CreateAssetNode` ignored `GraphCommand.AddNode.AssignedId`** and minted its own `Guid.NewGuid()` — at two sites (the generic path and `FinishVariableNode`).
+- `CommandBuilder.AddNode` mints an id, puts it in the forward command and pairs it with **`RemoveNodes([thatId])`**. So every inverse named a node that did not exist: **palette drops, wire-drops, variable drags, custom-event drags — none of them undoable.**
+- **The other two sinks already got this right:** `BTreeCommandSink.cs:134` and `HsmCommandSink.cs:184/276` both use `cmd.AssignedId.Value`. The Blueprint sink even honours it for `AddComment` (`:970`) — just not for nodes.
+- **Why nothing caught it:** the sink *also* recorded an `AddNodeCommand` on `CommandHistory`, which holds the node **object** rather than its id, so `history.Undo()` worked correctly — in a stack no UI path ever reached (that is BP-11). `CommandSink_AddNode_Undo_RemovesNode` therefore passed while the real path was broken.
+- **Fix:** honour the assigned id, falling back to a fresh Guid only when it is empty. Pinned by three tests in `BlueprintUndoUnificationTests`.
+
 ### BP-63 — NodeEdit's built-in Comment Details view is not undoable
 **Complexity:** RW-L · **Confidence:** ✔✔ *(found while fixing BP-11)*
+
+> ✅ **DONE (2026-08-04).** `IDetailsContext` gained two members, **both defaulted so no implementer
+> breaks**: `Model` (so a view can read the state it is about to overwrite) and
+> `Execute(forward, inverse, label)` (whose default applies the forward through the sink, exactly the
+> old behaviour). `CommentDetailsView.Commit` now builds a real inverse from the model and routes
+> through `Execute`; `Revert()` actually reverts instead of just clearing the dirty flag.
 - `CommentDetailsView.Commit` (`FDP/ExtDeps/NodeEdit/src/NodeEditor.UI/Panels/Views/CommentDetailsView.cs:43`) calls `_ctx.CommandSink.Apply(new GraphCommand.UpdateComment(...))` **raw** — the same bypass shape BP-02/BP-59 fixed across `CanvasRenderer`, in a file BP-02's sweep did not reach.
 - ⚠ **Not a one-line conversion.** `IDetailsContext` exposes only `CommandSink`, `Editors`, `Icons`, `Theme` — no `GraphView` to record on and **no `IGraphModel` to snapshot the prior state from**. The class says so itself: `Revert()` is a no-op commented *"Re-load from model not possible here (no IGraphModel reference)"*. Fixing it means widening the context in the vendored tree.
 - **Not a regression from BP-11.** It was already non-undoable — the sink recorded onto `CommandHistory`, which no UI path read. BP-11 removed that dead recording, so the file's status is unchanged and now honest.
 
 ### BP-64 — 2 pre-existing Windows-only test failures in `Hrot.Editor.AiShared.Tests`
 **Complexity:** WIRING · **Confidence:** ✔✔ *(found while fixing BP-11)*
+
+> ✅ **DONE (2026-08-04).** Rewritten path-agnostic rather than platform-gated — the assertions are
+> about path *semantics*, which hold on both platforms once the paths are built with
+> `Path.Combine` instead of hardcoded as Windows literals. `CheckCollisionOnDisk` was the sharper
+> case: `@"C:\Trees\Foo.btree.json"` is **one long file name** on Linux, so the
+> `GetDirectoryName`/`GetFileName` split under test never happened — the test was passing for the
+> wrong reason on Windows. `SaveToFile` now targets a path under a non-existent subdirectory, which
+> fails everywhere. **1204/1204.**
 - `ExportDeliveryModalTests.SaveToFile_InvalidPath_ReturnsErrorString` expects a non-null error, but Linux has no invalid path characters, so the save succeeds.
 - `AssetBaseNameCollisionGuardTests.CheckCollisionOnDisk_ConsultsOnlyTargetDirectory` asserts `"C:\Trees"` and gets `""`.
 - **Verified pre-existing:** both reproduce on a `git stash`ed tree. 1202 of 1204 pass.
@@ -635,8 +718,9 @@ those notes do not.
 | 4 | BP-62 · BP-35 (+ suite serialization) | reflection robustness & test health |
 | 5 | BP-41 | coverage: three *different* AiPrimitives on one entity |
 | 6 | BP-11 ⭐ | undo unification — one stack for canvas and drawer edits |
+| 7 | BP-03 · BP-05…BP-08 · BP-10 · BP-12a · BP-63 · BP-64 (+ BP-65) | the WIRING batch — machinery existed, only the UI hook was missing |
 
-## The audit was wrong seven times — every correction is recorded in-place
+## The audit was wrong nine times — every correction is recorded in-place
 
 This matters more than any single fix: **the register cannot be trusted without re-derivation.**
 
@@ -649,6 +733,8 @@ This matters more than any single fix: **the register cannot be trusted without 
 | BP-31 — "BTree lacks HSM's guard" | HSM's guard **never runs in production**. Premise inverted (BP-61). |
 | BP-48 — "Runtime DD §13.5" | It is **§9.6**. |
 | BP-41 — implies a slot-**key** collision risk | Keys were never at risk (per-`VisualId`). The untested thing is per-slot **sizing** — every prior test placed one `WorkingState` *type*. |
+| BP-07 — "reuse `UnifiedEventDiscovery`" | That enumerates **engine** events. A custom event is **asset-scoped** (`asset.CustomEvents`); every choice from that picker would have failed to resolve. |
+| BP-12a — "drag-variable-into-graph is dead" | The **drag** path already worked (`CanvasRenderer.PlaceVariableNode`). The dead route is the **context menu**. |
 
 Two architect statements were also wrong and are corrected in the
 [Q22 addendum](Architect_Question_22_Undo_Unification.md): D2 does **not** fix tier 3, and
@@ -671,7 +757,8 @@ Two architect statements were also wrong and are corrected in the
 
 ## New issues found *while fixing*, not by the audit
 
-**BP-59** (🔴 data loss) · **BP-60** · **BP-61** (🔴) · **BP-62** · **BP-63** · **BP-64**. Nearly all
+**BP-59** (🔴 data loss) · **BP-60** · **BP-61** (🔴) · **BP-62** · **BP-63** · **BP-64** ·
+**BP-65** (🔴). Nearly all
 were found by following an inconsistency rather than by reading the register — which is the argument
 for re-deriving claims rather than working the list top-down.
 
@@ -680,6 +767,12 @@ approved D2 ("make `CommandHistory.Execute` delegate to `UndoStack`") would have
 because the sink was already recording every command it applied onto a stack that happened to be
 dead. Three reviewers — audit, architect, post-approval addendum — all read D2 as the low-risk step.
 It was the one step that could not work.
+
+**BP-65 is the same lesson once more, and the sharpest instance.** Node placement had been
+non-undoable in the Blueprint editor for the whole life of the feature, in a sink whose two sibling
+sinks (BTree, HSM) got it right — and no audit item mentions it. It surfaced only because a test
+written for something else (BP-12a's menu commands) asserted that undo actually removed the node.
+Every part of the register's coverage of undo was written *around* this bug without seeing it.
 
 ---
 

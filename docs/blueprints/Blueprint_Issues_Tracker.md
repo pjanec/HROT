@@ -11,11 +11,11 @@ architect decision first).
 
 | Complexity | Open | Done |
 |---|---:|---:|
-| `WIRING` | 10 | 10 |
-| `RW-L` | 19 | 4 |
+| `WIRING` | 2 | 19 |
+| `RW-L` | 18 | 5 |
 | `RW-M` | 20 | 2 |
 | `RW-H` | 2 | — |
-| **Total** | **51** | **16** |
+| **Total** | **42** | **26** |
 | *(refuted on verification)* | | *1* |
 
 > 📌 **Resuming this programme?** Start with [Blueprint_Gaps_Programme_RESUME.md](Blueprint_Gaps_Programme_RESUME.md) — branch, batches
@@ -86,7 +86,8 @@ architect decision first).
 - [ ] **BP-60** 🔴 · `RW-M` — **"Promote to Variable" silently does nothing.** `PromoteToVariable` is implemented only in `NodeEditor.Demo`'s `FakeCommandSink`; `BlueprintCommandSink` has no case, so it hits the `default:` that returns success and no-ops. Modal opens, name typed, nothing happens — *found while fixing BP-02*
 - [x] **BP-62** ⚠ · `RW-M` — **Component type resolution depends on assembly load order.** `ComponentFieldReflector.ResolveType` scans only `AppDomain.CurrentDomain.GetAssemblies()`, which excludes not-yet-loaded assemblies, and callers read `null` as *"not a writable component"* rather than *"unknown"* — so the collection-write bake silently no-ops. Masked in the editor only by a startup side effect (`LoadFromAiAssembly`). *Root cause of the order-dependent test; found by chasing it down*
 - [x] **BP-02** · `WIRING` — Undo bypassed via `view.Commands.Apply`. ⚠ *scope corrected:* **15 sites, not 10** — also pin "Reset to Default" (`:638`), comment delete (`:845`), "Promote to Variable" (`:970`)
-- [ ] **BP-03** · `WIRING` — Bookmarks can't be renamed or deleted; `BookmarkStore.Remove` already exists
+- [x] **BP-03** · `WIRING` — Bookmarks can't be renamed or deleted; `BookmarkStore.Remove` already exists. Added `Rename` + inline edit, delete button/menu, and click-to-jump; ordering/labelling split into `BookmarkPanelLogic` so they're headlessly testable
+- [x] **BP-65** 🔴 · `WIRING` — **Placing a node was silently non-undoable.** `BlueprintCommandSink` ignored `GraphCommand.AddNode.AssignedId` and minted its own Guid, so `CommandBuilder`'s paired `RemoveNodes([thatId])` inverse named a node that doesn't exist — palette drops, wire-drops, variable drags, all of it. The **BTree and HSM sinks already honour it**; only this one didn't. Masked until BP-11 by the sink's parallel `CommandHistory` record, which holds the node *object* — *found while testing BP-12a*
 - [ ] **BP-23a** · `RW-L` — **No copy/cut/paste/duplicate on the canvas.** Paste is hard-disabled; `AddNodeCommand` already accepts a prebuilt `Node`, so paste can skip the 8-of-50 property whitelist
 - [ ] **BP-13** · `RW-L` — No align/distribute/straighten; 9 commands declared, 0 implemented. `CommandBuilder.MoveNodes` is the ready primitive
 - [ ] **BP-17** · `RW-L` — No node renaming/custom titles; `Subtitle => null` always. Every piece has a precedent to mirror
@@ -104,11 +105,11 @@ architect decision first).
 
 - [x] **BP-04** · `WIRING` — `Compare`/`BinaryOp`/`BooleanOp`/`Not` **cannot be placed at all** despite being lowered + compile-tested. 14 baked palette entries, no drawer needed
 - [x] **BP-09** · `WIRING` — 6 abandoned node kinds are **advertised in the palette** but compile to a silent no-op. Delete 6 `Make<T>` blocks
-- [ ] **BP-05** · `WIRING` — `ReadRankedResult.Rank` uneditable; plain `InputInt`
-- [ ] **BP-06** · `WIRING` — `WaitForChannel.ChannelType` uneditable; reuse `IChannelCommandCatalog`
-- [ ] **BP-07** · `WIRING` — `CallCustomEvent.EventId` uneditable; reuse `UnifiedEventDiscovery`
-- [ ] **BP-08** · `WIRING` — `CallPeerBlueprint` target uneditable; reuse `BlueprintPeerSource`
-- [ ] **BP-10** · `WIRING` — `When` → EventFired form stubbed; the catalog is *already injected and called*, just never rendered
+- [x] **BP-05** · `WIRING` — `ReadRankedResult.Rank` uneditable; plain `InputInt`. Clamped to ≥ 0; the gesture coalesces to one undo entry
+- [x] **BP-06** · `WIRING` — `WaitForChannel.ChannelType` uneditable; reuse `IChannelCommandCatalog`. ⚠ the catalog is keyed by *(channel, action)*, so the list needs deduplicating — otherwise a channel with 8 actions appears 8×
+- [x] **BP-07** · `WIRING` — `CallCustomEvent.EventId` uneditable. ⚠ **the audit named the wrong source:** `UnifiedEventDiscovery` enumerates *engine* events; a custom event is **asset-scoped** (`asset.CustomEvents`), so every choice from that picker would have failed to resolve
+- [x] **BP-08** · `WIRING` — `CallPeerBlueprint` target uneditable; reuse `BlueprintPeerSource` behind a new `IBlueprintPeerProvider` seam. Dependent peer→function pickers; switching peer clears a function it doesn't export, in the same edit
+- [x] **BP-10** · `WIRING` — `When` → EventFired form stubbed; the catalog is *already injected and called*, just never rendered. Filtered picker + self-filter toggle (shown only when the event carries a target field)
 - [ ] **BP-14** · `RW-L` — `Return.Status` uneditable (always Success); a `NodeStatus` combo, ~20-30 lines
 - [ ] **BP-22** · `RW-L` — `GetParameter` cannot be placed; asset-specific, so needs a picker not a baked entry
 - [ ] **BP-21** · `RW-L` — `When` → ValueChanged form stubbed; reuse `ComponentFieldReflector` + component pickers
@@ -119,7 +120,7 @@ architect decision first).
 *Document, undo and panel plumbing.*
 → [detail](Blueprint_Issues_Detail.md#area-c--editor-infrastructure)
 
-- [ ] **BP-12a** · `WIRING` — Drag-variable-into-graph as Get/Set is dead (`create-variable-get`/`-set` unregistered) — the most-used motion in Unreal authoring
+- [x] **BP-12a** · `WIRING` — Get/Set from the My Blueprint menu is dead (`create-variable-get`/`-set` unregistered) — the most-used motion in Unreal authoring. ⚠ *scope corrected:* the **drag**-to-canvas path already worked (`CanvasRenderer.PlaceVariableNode`); the **menu** was the dead route
 - [x] **BP-12e** · `WIRING` — Dead panel commands **fail silently**; `InvokeCreate` discards the result. Root cause of the whole BP-12 family's UX. *Tally: 14 commands invoked, 1 registered*
 - [x] **BP-11** ⭐ · `RW-M` — 🔴 **No inspector/drawer edit is undoable.** Three tiers; Ctrl+Z drained a stack the drawers never wrote to. Shipped A1+B1+C2+E1 ([Q22](Architect_Question_22_Undo_Unification.md#-implementation-outcome-2026-08-04--shipped)); transport is **R3** (a Blueprint-owned `GraphCommand` subtype — R1 provably can't carry multi-field bakes, R2 would have meant editing the vendored tree). ⚠ **D2 superseded — gap 4:** the sink was double-recording, so making `CommandHistory` live would have pushed 2 entries per gesture and 3 on undo. Sinks apply; the stack records
 - [ ] **BP-12b** · `RW-L` — Panel items can't be renamed/duplicated/deleted; a variable can be created but never removed
@@ -176,8 +177,8 @@ architect decision first).
 - [ ] **BP-52** · `RW-M` — UX-1…UX-5 authoring ergonomics unbuilt; UX-1/UX-2 need an architect nod first
 - [ ] **BP-53** · `RW-M` ⚠ **UNCLEAR** — E6 cross-asset blueprint-action picker. *Partially refuted:* `[HsmActionPicker]` exists and is used throughout `HsmFacets.cs`; whether it spans cross-asset blueprint actions is unestablished. Peripheral to blueprint editing — re-scope before acting
 - [ ] **BP-54** · `RW-M` ⚠ **UNCLEAR** — G7 resolver-authoring UX. Runtime `BehaviorRegistry.RegisterResolver` exists; "authoring UX" is too loosely defined in the source doc to verify. Peripheral — re-scope before acting
-- [ ] **BP-63** · `RW-L` — **NodeEdit's built-in Comment Details view is not undoable.** `CommentDetailsView.Commit` calls `_ctx.CommandSink.Apply` raw; `IDetailsContext` exposes neither the view nor the model, so there is nothing to build an inverse from (its own `Revert()` says so). Needs a widened context in the vendored tree — a BP-02-family bypass BP-02 did not reach. *Not a regression: it was already non-undoable* — *found while fixing BP-11*
-- [ ] **BP-64** · `WIRING` — **2 pre-existing Windows-only reds in `Hrot.Editor.AiShared.Tests`** (1202 pass): `ExportDeliveryModalTests.SaveToFile_InvalidPath` (no invalid path chars on Linux) and `AssetBaseNameCollisionGuardTests.CheckCollisionOnDisk` (asserts `C:\Trees`). Verified against a stashed tree — they predate this programme. Decide platform-gate vs. rewrite; the suite is not in the gate list, which is why it went unnoticed — *found while fixing BP-11*
+- [x] **BP-63** · `RW-L` — **NodeEdit's built-in Comment Details view is not undoable.** `CommentDetailsView.Commit` calls `_ctx.CommandSink.Apply` raw; `IDetailsContext` exposes neither the view nor the model, so there is nothing to build an inverse from (its own `Revert()` says so). Needs a widened context in the vendored tree — a BP-02-family bypass BP-02 did not reach. *Not a regression: it was already non-undoable* — *found while fixing BP-11*
+- [x] **BP-64** · `WIRING` — **2 pre-existing Windows-only reds in `Hrot.Editor.AiShared.Tests`** (1202 pass): `ExportDeliveryModalTests.SaveToFile_InvalidPath` (no invalid path chars on Linux) and `AssetBaseNameCollisionGuardTests.CheckCollisionOnDisk` (asserts `C:\Trees`). Verified against a stashed tree — they predate this programme. Decide platform-gate vs. rewrite; the suite is not in the gate list, which is why it went unnoticed — *found while fixing BP-11*
 
 ---
 

@@ -12,7 +12,7 @@
 
 ## Status
 
-**51 open · 16 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
+**42 open · 26 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
 table; do not duplicate them here.
 
 | Batch | Items |
@@ -23,19 +23,57 @@ table; do not duplicate them here.
 | 4 — test health & reflection | BP-62, BP-35 (+ suite serialization) |
 | 5 — coverage | BP-41 |
 | 6 — undo unification | BP-11 ⭐ |
+| 7 — wiring | BP-03, BP-05…BP-08, BP-10, BP-12a, BP-63, BP-64 (+ BP-65 🔴) |
 
-**Everything is verified headless.** No GPU/visual check has been needed so far.
+**Everything is verified headless.** Batch 7 is the first that adds real UI surface — new Details
+panel drawers, the When EventFired form, the bookmarks panel — so it wants a visual pass. The logic
+behind each is covered headlessly; what a test cannot check is layout and feel.
 
 ---
 
 ## Next up
 
-1. Remaining `WIRING` items (BP-03, BP-05…BP-08, BP-10, BP-12a) are **drawer/UI work — these need
-   the user's eyes**, unlike everything shipped so far.
-2. **BP-63** (`RW-L`) and **BP-64** (`WIRING`) — both found while fixing BP-11; headless, contained.
+**The `WIRING` tier is done** — 19 of 21 shipped; the 2 remaining (BP-01 watch-panel decoding,
+BP-55 asset-browser delete) are not blueprint-authoring items.
+
+1. 👀 **Visual pass on batch 7** — five new Details-panel surfaces and the bookmarks panel. Logic is
+   covered headlessly; layout and feel are not.
+2. **BP-60** (🔴 `RW-M`) — "Promote to Variable" silently does nothing. Now the last 🔴 in Area A,
+   and the last known instance of the sink's `default:`-returns-success trap.
+3. **BP-23a / BP-13 / BP-17…BP-20** (`RW-L`) — the canvas-ergonomics tier, each with a stated
+   ready-made primitive to mirror.
 
 **Blocked / do not build as written:** `BP-31` (premise inverted — see BP-61) ·
 `BP-40`, `BP-38`, `BP-52` (architect decision first) · `BP-53`, `BP-54` (UNCLEAR, re-scope first).
+
+---
+
+## 👀 Visual check — what batch 7 added, and where to look
+
+Everything below is logic-tested headless. What a test cannot see is layout, wording and feel.
+Listed roughly cheapest-to-reach first.
+
+| # | Where | What to do | What should happen |
+|---|---|---|---|
+| 1 | **My Blueprint** → right-click a variable | "Get", then "Set" | A node appears **in the middle of the visible canvas**, bound to that variable. **Ctrl+Z removes it.** *(BP-12a + BP-65)* |
+| 2 | Canvas → drop any node from the palette | Ctrl+Z | The node goes away. This never worked before — *BP-65*, the one to check first |
+| 3 | **Details** on a `ReadRankedResult` node | Change Rank; hold the stepper | Editable at last; a hold produces **one** undo entry, not one per frame *(BP-05)* |
+| 4 | Details on a `WaitForChannel` node | Open the Channel combo | Each channel appears **once**, sorted, with a filter box *(BP-06)* |
+| 5 | Details on a `CallCustomEvent` node | Open the Event combo | Lists **this Blueprint's own** custom events with their parameter names; picking one re-projects the node's argument pins *(BP-07)* |
+| 6 | Details on a `CallPeerBlueprint` node | Pick a peer, then a function | Function list is scoped to the peer. Pick a function, then switch to a peer without it → **the function clears**, and one Ctrl+Z restores both *(BP-08)* |
+| 7 | Details on a `When` node, mode = **Event Fired** | Open the Event combo | A real filtered list instead of "(n events available)". The "Only when it targets me" checkbox appears **only** for events that carry a target field *(BP-10)* |
+| 8 | **Bookmarks** panel (set one with Ctrl+Shift+1) | Click the row · double-click it · the ✕ | Click jumps the canvas · double-click renames inline (Esc cancels) · ✕ deletes; right-click has all three *(BP-03)* |
+| 9 | Any Details-panel edit at all | Ctrl+Z | Reverses it. Before BP-11 **no** inspector or drawer edit was undoable |
+
+**Most likely to look wrong:** the right-aligned ✕ in the bookmarks panel (a hand-computed
+`GetContentRegionAvail` offset), and the combo widths on the new drawers — they inherit whatever the
+Details panel's item width is, which I could not see.
+
+**If a picker looks empty**, that is a catalog with nothing in it rather than a drawer bug. The peer
+picker says *"no peer Blueprints discovered"* explicitly, and it scans
+`{BaseDirectory}/blueprints` — if that directory is empty in your build, the message is correct.
+(The provider **is** wired in `EditorSubsystem`; leaving it null would have been the inert-default
+failure this programme keeps finding, so it is passed explicitly.)
 
 ---
 
@@ -63,7 +101,7 @@ lazily; a `ProjectReference` does **not** force a load. Use
 `EditorTypeResolutionScope.Assemblies()` for any type scan in the editor. Never cache the assembly
 array — hot reload adds ALCs at runtime.
 
-### 4. 🆕 Sinks apply; the undo stack records (**BP-11**)
+### 4. 🆕 Sinks apply; the undo stack records (**BP-11**) — and must adopt the caller's ids (**BP-65**)
 `IGraphCommandSink.Apply` must **never** push an undo entry. `UndoStack.ApplyAndRecord` applies the
 forward *then* pushes, so a sink that also records lands an inner entry first — and on undo the
 inverse re-enters the same sink method and pushes a third. The caller snapshots the prior state and
@@ -73,6 +111,12 @@ issues the pair through `GraphView.Execute`. This was invisible for as long as t
 > `GraphCommand` is a plain `public abstract record`, so a **host** assembly can extend the command
 > vocabulary — `BlueprintEditCommand(Label, Mutate)` does — without editing the vendored NodeEdit
 > tree. Any new variant needs a sink case in the same change (see the `default:` trap below).
+
+**A sink must also adopt the ids the caller assigned.** `CommandBuilder` mints an id, puts it in the
+forward command and names it in the paired inverse; a sink that mints its own instead produces
+inverses that match nothing. That was BP-65 — node placement was non-undoable for the life of the
+feature, while the BTree and HSM sinks had it right all along. **When adding a sink case for an
+`Add*` command, check what the inverse references.**
 
 ### 5. Conventions the code enforces that are easy to miss
 - **Decision-asset ids are NOT parseable GUIDs.** Shipped `CombatPostureDecision` uses
@@ -94,13 +138,13 @@ issues the pair through `GraphView.Execute`. This was invisible for as long as t
 
 - `Hrot.Blueprints.Tests` is now **serialized** (`xunit.runner.json` + the `<Content Include>` line —
   without the latter the config never reaches the output dir and does nothing). It was the only
-  suite of 10 running parallel. Before: 1 varying failure *every* run. After: **2612 / 0**.
+  suite of 10 running parallel. Before: 1 varying failure *every* run. After: **2657 / 0**.
 - ⚠ **`Blueprint_Component_Access_RESUME.md`'s "~8–9 reds, DO NOT chase" is STALE** — banner-marked
   at the source. Expect 0 failures; investigate any.
 - Residual: `PdbEmbeddedSourceTests` pair flaked once in ~6 runs (real Roslyn+PDB emission,
   resource-sensitive). Not yet chased.
-- ⚠ **`Hrot.Editor.AiShared.Tests` is NOT in the gate list and has 2 Windows-only reds** (1202 pass) —
-  see **BP-64**. Pre-existing; verified against a stashed tree.
+- ✅ **`Hrot.Editor.AiShared.Tests` is now in the gate list** (1204/0). Its 2 Windows-only reds were
+  BP-64, fixed. It was missing from the list, which is why they went unnoticed.
 - **To classify a failure:** `git stash` → re-run the same filter → `git stash pop`. If it fails
   identically without your changes, it predates you. This is how BP-64 was classified.
 
@@ -111,13 +155,16 @@ dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Hrot.Blueprints.Tes
 dotnet test Hrot/Diagnostics/Hrot.Diagnostics.Breakpoints.Tests/Hrot.Diagnostics.Breakpoints.Tests.csproj -v q --nologo
 dotnet test FDP/ExtDeps/NodeEdit/tests/NodeEditor.Core.Tests/NodeEditor.Core.Tests.csproj -v q --nologo
 dotnet test FDP/ExtDeps/NodeEdit/tests/NodeEditor.UI.Tests/NodeEditor.UI.Tests.csproj -v q --nologo
+dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests/Hrot.Editor.AiShared.Tests.csproj -v q --nologo
+dotnet test Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests/Hrot.BTree.Editor.Tests.csproj -v q --nologo
+dotnet test Hrot/Subsystems/AI/Hrot.AiEditor.Generators.Tests/Hrot.AiEditor.Generators.Tests.csproj -v q --nologo
 ```
 
 ---
 
 ## Working agreement (from the user, this programme)
 
-- **Verify claims against code; do not trust the audit doc or the architect blindly.** **Seven** audit
+- **Verify claims against code; do not trust the audit doc or the architect blindly.** **Nine** audit
   claims and two architect statements were wrong and were corrected in-repo. Every correction is
   recorded in the detail file rather than silently applied. Note the failure mode is not only "claim
   is false" — BP-41's claim was true but named the *wrong risk*, so building it as written would have
@@ -143,4 +190,6 @@ dotnet test FDP/ExtDeps/NodeEdit/tests/NodeEditor.UI.Tests/NodeEditor.UI.Tests.c
 | Type resolution scope (BP-62) | `Hrot/.../Hrot.Blueprints.Editor/NodeDrawers/EditorTypeResolutionScope.cs` |
 | Probe fan-out (BP-35) | `Hrot/.../Hrot.Blueprints.Core/MultiplexingProbeSink.cs` |
 | Undo transport (BP-11) | `Hrot/.../Hrot.Blueprints.Editor/Host/BlueprintEditCommand.cs` · `NodeDrawers/EditService.cs` (`RecordUndoable`) · wired in `Host/BlueprintDocumentFactory.cs` |
+| New Details-panel drawers (BP-05…BP-08) | `Hrot/.../Hrot.Blueprints.Editor/NodeDrawers/{ReadRankedResult,WaitForChannel,CallCustomEvent,CallPeerBlueprint}NodeDrawer.cs` · registered in `BlueprintEditorBootstrap.cs` |
+| Bookmarks panel (BP-03) | `FDP/ExtDeps/NodeEdit/src/NodeEditor.UI/Bookmarks/BookmarksPanel.cs` + `Core/Bookmarks/BookmarkStore.cs` |
 | AiPrimitive composition rail (BP-41/BP-30) | `Hrot/Subsystems/AI/Hrot.AiEditor.Persistence/Emit/BTreeBridgeEmitCore.cs` (slot keys + manifest) · `FDP/Toolkits/.../Behavior/Systems/BehaviorIngressSystem.cs` (provisioning) |

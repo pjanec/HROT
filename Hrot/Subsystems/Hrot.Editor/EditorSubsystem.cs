@@ -1039,8 +1039,18 @@ namespace Hrot.Editor
 
             // Note: These registries are created but not yet wired to UI components.
             // Final wiring happens in the canvas/UI initialization below (section 10+).
+            // BP-08: the CallPeerBlueprint drawer's peer list. Built here rather than reusing the
+            // `blueprintPeerCatalog` created much later for pin projection, because the drawer
+            // registry is constructed at startup — the root is the same constant path. Leaving it
+            // null would ship a picker that always reports "no peer Blueprints discovered", i.e.
+            // the inert-default failure this programme keeps finding (BP-29, BP-61).
+            var blueprintPeerProvider = new Hrot.Blueprints.Editor.NodeDrawers.BlueprintPeerSourceProvider(
+                new Hrot.Blueprints.Editor.BlueprintPeerSource(
+                    System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blueprints")));
+
             _blueprintNodeDrawers = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreateNodeDrawerRegistry(
-                channelCatalog, engineEventCatalog, blueprintEditService, bpPredicateCompiler, eqsTemplates);
+                channelCatalog, engineEventCatalog, blueprintEditService, bpPredicateCompiler, eqsTemplates,
+                peerProvider: blueprintPeerProvider);
             // Blueprint palette is built below (after the BehaviorActionCatalog is constructed) with BOTH
             // the channel-command catalog (AN4: per-channel-action entries) AND the unified behavior-action
             // catalog (AN7: non-channel "Action:{FQN}" entries). _blueprintPaletteEntries is only consumed
