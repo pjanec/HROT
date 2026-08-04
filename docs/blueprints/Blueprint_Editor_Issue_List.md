@@ -22,6 +22,7 @@
 | **BP-08** | `CallPeerBlueprint` target uneditable | reuse `BlueprintPeerSource.EnumerateAll()` + existing peer-signature lookup | new drawer |
 | **BP-09** | 6 abandoned node kinds are **advertised in the palette** with inviting descriptions, but compile to a silent no-op | delete 6 `Make<T>` blocks | `BlueprintNodePaletteEntries.cs:100-105, 233-244` |
 | **BP-10** | `When` → **EventFired** form is a `TextDisabled` stub | `_eventCatalog.GetEntries()` is *already injected and called* at `WhenNodeDrawer.cs:175` — just never rendered | `WhenNodeDrawer.cs:172-177` |
+| **BP-29** 🔴 | **LIVE BUG — blueprint conditional breakpoints silently never fire.** `PredicateCompiler`'s 3rd ctor arg `blueprintRegistry` defaults to null, and `CompileBlueprintVariablePredicate` then returns `static (_, _) => false` (`PredicateCompiler.cs:235-237`). All 3 production sites omit it — so `BlueprintVariablePredicateDto`, the exact predicate "Add Conditional Data Breakpoint…" synthesizes, always evaluates false | pass the existing registry as the 3rd arg | `EditorSubsystem.cs:994` and `CgfSubsystem.cs:555` are **one-liners** (`_blueprintRegistry` already in scope, 19 / 7 refs). `ReplayBrowserSubsystem.cs:641` has **no** registry field — needs plumbing first |
 
 ## Tier 2 — SMALL
 
@@ -47,8 +48,23 @@
 | **BP-23** | Copy / cut / paste / duplicate — **entirely absent**, Paste hard-disabled | See [§Copy-paste](#copy-paste-is-cheaper-than-it-looks). **Same-graph paste is upper-SMALL**; cross-asset paste is REAL WORK (VariableId/type re-resolution) |
 | **BP-24** | No Function-graph create path; canvas binds to one graph permanently → **every graph but the first is unreachable in a multi-graph asset** | data + compiler layers already support it; needs a create command + a graph-switch concept in `BlueprintDocumentFactory` |
 | **BP-25** | Cross-blueprint search is cosmetic (`FindEngine` ignores `scope`) | `FindEngine`/`FindBar` are architecturally single-graph-bound; needs a multi-graph aggregation layer + cross-tab navigate |
-| **BP-26** | `When` → **ConditionMet** form | ⚠ **Not "wire the existing predicate builder."** `PredicateBuilderState` is referenced only by its own test, and `DataBreakpointManagerPanel.DrawPredicateEditor` is **read-only** (`Summarize` + `TextUnformatted`). Needs new ImGui editors for all 9 `SearchPredicateDto` subtypes. Open in Architect Q4 |
-| **BP-27** | `ScoreDecision.AssetId` uneditable | no `UtilityDecisionDef` catalog exists anywhere editor-side — needs a discovery source before a picker. Open in Architect Q4 |
+| **BP-27** | `ScoreDecision.AssetId` uneditable | no `UtilityDecisionDef` catalog exists anywhere editor-side — needs a discovery source before a picker. ⚠ re-check against StructEdit picker infra before accepting this class (see BP-26's correction) |
+| **BP-30** | **HSM-hosted AiPrimitive blueprints still collide** — see [§C1](#slice-2-c1--aiprimitive-concurrent-working-state) | needs an `HsmBridgeEmitCore` analogue of the BTree emitter + an HSM compose command |
+
+> **BP-26 moved to Tier 2 — it was misclassified.** A complete predicate *editing* UI already exists at
+> `FDP/Engine/Fdp.Presentation/ImGui/Panels/ReplayBrowser/ReplaySearchPanel.cs` (587 lines): 7 modes
+> including **Compound** AND/OR trees, save/load presets, built generically on StructEdit
+> (`_editService.Open(dto, type)` → `ComponentEditDrawer` + a per-type drawer dictionary, incl. a
+> recursive `PredicateValueFieldDrawer`). It is **not** hand-written per subtype.
+> **`Hrot.Blueprints.Editor` already references `Fdp.Presentation`** (csproj line 26), `WhenNodeDrawer`
+> already has `IPredicateCompiler` injected, and `ConditionMetPayload.Condition` is already designed to
+> hold a `SearchPredicateDto` tree as JSON. Job = open an edit session, render with `ComponentEditDrawer`,
+> serialize to the node field. Residual risk is layout/sizing (panel-width UI inside a node drawer) and
+> swapping replay-recording sources for blueprint ones (`ComponentTypeProvider` exists). **SMALL.**
+>
+> *(The earlier "no predicate UI exists" finding searched only `Hrot/` and missed `FDP/Engine/`.
+> `PredicateBuilderState` being orphaned and `DataBreakpointManagerPanel` being read-only were both
+> true — they were simply the wrong surface.)*
 | **BP-28** | Advanced-pin hiding | needs a new persisted per-pin flag *and* an authoring UI to mark pins advanced; no "which params are advanced" concept exists |
 
 ## The undo defect
@@ -91,8 +107,64 @@ Remaining real work: new node IDs + internal link remapping, and a command varia
 prebuilt `Node`. **Scope same-graph paste first**; cross-asset paste (variable/type re-resolution) is
 a separate, larger job.
 
+## Slice-2 deep dives
+
+### Universal Breakpoints (D1) — **already built**, not a pending slice
+
+128 unit + 25 integration tests pass (verified by running them, not just reading). Present and wired
+into `EditorSubsystem` / `CgfSubsystem`: `DataBreakpointManager` (1090 lines), `DataBreakpointSystem`
+(PostSimulation, `QueryDelta`-gated), `DebugSnapshotProvider`, **forward-snapshot rewind exactly as
+spec'd** (triple-buffer `_preTick`/`_postTick`/`_live` + `EntityRepository.SyncFrom`), event
+breakpoints via a distinct `EventScannerCompiler` path, deferred live-edit mutation through an ECB,
+hot-reload auto-rebind, and a reference-counted zero-cost gate when nothing is armed. Node-granular
+sub-tick stepping (incl. Step Back) goes *beyond* what §5 asked for.
+
+The blocker is **BP-29**, not missing features. Genuinely missing:
+
+| Gap | Effort |
+|---|---|
+| D4 `MultiplexingProbeSink` (multi-debugger fan-out) — `IBlueprintProbeSink` exists, needs a composite | SMALL |
+| D5 stack-frame inspection is Blueprint-session-local; lifting it to `IDataBreakpointManager` would let BTree/HSM pauses carry a call stack | SMALL–REAL WORK |
+| `LifecyclePredicateDto` by `NetworkId` — throws `NotSupportedException`; needs `INetworkEntityMap` injected | SMALL |
+| D9 pause-on-exception — rewind machinery is reusable; **explicitly deferred by architect decision** (Debug Protocol DD §13.3) | SMALL–REAL WORK |
+| D8 CLR/VS source-line debugger sync | REAL WORK |
+
+⚠ **Library-dispatch graphs cannot carry node breakpoints** — `StatementEmitter.cs:944-951` suppresses
+probes when `!HasSelfInScope`, since Library functions are stateless and have no `self`. Deliberate,
+but a real surprise if an author expects to breakpoint a Library graph. Architect call, not a build.
+
+### Slice-2 C1 — AiPrimitive concurrent working-state
+
+**Built for BTree, still broken for HSM.** BTree-composed AiPrimitives get per-node FNV-1a slot keys
+(`FNV(assetId, nodeVisualId)`, or `FNV(assetId, variableId)` for Behavior scope) over the
+`BlueprintBlackboard{1024,4096,16384}` partition tiers, and `BTreeCommandSink.ComposeAiPrimitiveAction`
+auto-creates a distinct `Role=State, Scope=Node` host variable per placement — so two blueprints, or
+one placed twice, separate correctly. Option β's Fix-1/Fix-2/`ClearBehaviorEvent` detach are all shipped
+and tested.
+
+Verified asymmetry — the two hosts have **opposite** halves of the solution:
+
+| | partition-slot mechanism | concurrent-stateful validator |
+|---|:--:|:--:|
+| **BTree** | ✅ 16 refs in `BTreeBridgeEmitCore` | ❌ none (only `NestedParallel`) |
+| **HSM** | ❌ **0 refs** in `HsmBridgeEmitCore`; no compose command | ✅ `CheckConcurrentStatefulSubtrees` + `CheckConcurrentSharedScopeKeys` |
+
+- **BP-30 (REAL WORK):** HSM-hosted AiPrimitives still use the legacy fixed offset (`Blackboard1024`+8,
+  one 8-byte `StructureHash`). Two stateful AiPrimitives on one HSM entity alternately `InitBlock`-zero
+  and re-init each other every tick — **neither retains state**. Reuses the FNV key math verbatim; needs
+  a new emitter surface + compose command.
+- **BP-31 (SMALL):** port HSM's concurrent-stateful validators to `BTreeValidator` — a Subtree
+  referenced twice under a `Parallel` is currently unguarded.
+- **Test gap:** no test covers *two different* blueprint-authored AiPrimitive assets concurrently on one
+  entity. Coverage is by analogy (`T20` uses hardcoded actions on the same rail; `T35` uses the same
+  blueprint 3×). Worth a direct proof test.
+- **Doc drift:** `Blueprint_Subsystem_Runtime_Detailed_Design.md` §13.5 and `Blueprints_Overview.md`
+  §1/§5 still describe AiPrimitive working state as living only in `Blackboard1024` — true for the
+  legacy/HSM path, wrong for BTree-composed nodes.
+
 ## Suggested order
 
+0. **BP-29** — one-line fix restoring blueprint conditional breakpoints, which are silently dead today
 1. **BP-16** + **BP-09** — stop silent data corruption and un-advertise dead nodes (cheap, correctness)
 2. **BP-11** — undo unification (highest value; ends silent unrecoverable edits)
 3. **BP-01 → BP-10** — the Tier-1 wiring sweep, all independent and parallelizable
