@@ -11,11 +11,18 @@ architect decision first).
 
 | Complexity | Count |
 |---|---:|
-| `WIRING` | 17 |
-| `RW-L` | 25 |
+| `WIRING` | 18 |
+| `RW-L` | 23 |
 | `RW-M` | 18 |
 | `RW-H` | 2 |
-| **Total** | **62** |
+| **Total actionable** | **61** |
+| *(refuted on verification)* | *1* |
+
+> ✅ **Verification pass complete (2026-08-04).** All 11 previously agent-only claims were re-checked
+> against the **whole repo** (`FDP/` *and* `Hrot/`). Outcome: **6 confirmed**, **1 refuted**
+> (BP-46 — already shipped), **2 re-classified** (BP-37 harder, BP-55 easier), **2 downgraded to
+> UNCLEAR** (BP-53/BP-54 — partially refuted, and peripheral to blueprint editing).
+> Every remaining row is now hand-verified (**✔✔**) or spot-checked (**✔**).
 
 ---
 
@@ -82,7 +89,7 @@ architect decision first).
 - [ ] **BP-29** · `WIRING` — 🔴 **LIVE BUG: blueprint conditional breakpoints silently never fire.** `PredicateCompiler` gets no `blueprintRegistry` at any of 3 production sites, so the predicate compiles to constant-false. Invisible to tests because they pass the registry explicitly. 2 one-liners + 1 needing plumbing
 - [ ] **BP-01** · `WIRING` — Watch panel shows raw hex bytes; `MarshalFromBytes` is complete, tested, and used at 4 other sites in the same file
 - [ ] **BP-35** · `RW-L` — D4 `MultiplexingProbeSink` missing; `IBlueprintProbeSink` exists, needs a composite
-- [ ] **BP-37** · `RW-L` — `LifecyclePredicateDto` by `NetworkId` throws; needs `INetworkEntityMap` injected
+- [ ] **BP-37** · `RW-M` — `LifecyclePredicateDto` by `NetworkId` throws. ⚠ *raised on verification:* `INetworkEntityMap` **doesn't exist**; the concrete map lives in a network project Breakpoints doesn't reference → layering decision first
 - [ ] **BP-36** · `RW-M` — D5 stack-frame inspection is Blueprint-local; lifting it would let BTree/HSM pauses carry a call stack
 - [ ] **BP-38** · `RW-M` — D9 pause-on-Blueprint-exception. **Already LOCKED as deferred** by architect decision; rewind machinery is reusable
 - [ ] **BP-39** · `RW-H` — D8 CLR/Visual Studio source-line debugger sync; no scaffolding present
@@ -97,7 +104,7 @@ architect decision first).
 - [ ] **BP-30** · `RW-M` — 🔴 **HSM-hosted AiPrimitive blueprints collide** — they zero and re-init each other every tick, so neither retains state. BTree has the partition-slot mechanism (16 refs); HSM has **0** and no compose command
 - [ ] **BP-45** · `RW-M` — Cross-entity event dispatch (`BlueprintDeferredEvent`) absent; the most-cited deferred capability
 - [ ] **BP-42** · `RW-M` — Cross-entity shared-state **write** (read path shipped); deferred by design
-- [ ] **BP-46** · `RW-M` — Generic `GetShared<T>` partition-slot accessor; design-only
+- [x] ~~**BP-46** — Generic `GetShared<T>` partition-slot accessor~~ ❌ **REFUTED — already shipped.** `BlueprintSharedState.TryGetShared<T>` exists at `:58` and the compiler emits calls to it. No work required
 - [ ] **BP-43** · `RW-M` — Custom Events 2b: events with no backing C# struct
 
 ## Area G — Documentation accuracy
@@ -108,11 +115,11 @@ architect decision first).
 - [ ] **BP-48** · `WIRING` — Runtime DD §13.5 + Overview §1/§5 stale on AiPrimitive working state (wrong for BTree-composed nodes)
 - [ ] **BP-49** · `WIRING` — Authoring guide describes cross-entity routing **as if current**; it doesn't exist (BP-45)
 - [ ] **BP-50** · `WIRING` — Trackers contradict the code; the **v1.1 roadmap is fully superseded** — label it history, not status
+- [ ] **BP-55** · `WIRING` — Asset-Browser delete affordance. ⚠ *lowered on verification:* `RefactorService.PreviewDelete` (with dangling-ref detection) already exists; every caller is a test fake, so only the UI affordance is missing
 - [ ] **BP-51** · `RW-L` — DOC-3/DOC-4 illustrated SVGs (memory layout, lifetime timeline) missing
-- [ ] **BP-55** · `RW-L` — Asset-Browser delete affordance for referenced blueprints
 - [ ] **BP-52** · `RW-M` — UX-1…UX-5 authoring ergonomics unbuilt; UX-1/UX-2 need an architect nod first
-- [ ] **BP-53** · `RW-M` — E6 cross-asset blueprint-action picker
-- [ ] **BP-54** · `RW-M` — G7 resolver-authoring UX
+- [ ] **BP-53** · `RW-M` ⚠ **UNCLEAR** — E6 cross-asset blueprint-action picker. *Partially refuted:* `[HsmActionPicker]` exists and is used throughout `HsmFacets.cs`; whether it spans cross-asset blueprint actions is unestablished. Peripheral to blueprint editing — re-scope before acting
+- [ ] **BP-54** · `RW-M` ⚠ **UNCLEAR** — G7 resolver-authoring UX. Runtime `BehaviorRegistry.RegisterResolver` exists; "authoring UX" is too loosely defined in the source doc to verify. Peripheral — re-scope before acting
 
 ---
 
@@ -127,8 +134,11 @@ architect decision first).
 `BP-40` · `BP-38` (already LOCKED as deferred) · `BP-52` (UX-1/UX-2) · `BP-27` *if* the StructEdit
 re-check confirms no reusable picker.
 
-## Confidence caveat
+## Confidence
 
-Three "nothing exists" findings were overturned mid-audit because the search missed `FDP/`. Per-issue
-confidence tags (**✔✔** hand-verified · **✔** spot-checked · **~** agent-reported) are in the detail
-file. **Re-check any `~` absence-claim across both `FDP/` and `Hrot/` before treating it as settled.**
+**No unverified rows remain.** Every issue is hand-verified (**✔✔**) or spot-checked (**✔**), except
+BP-53/BP-54 which are explicitly flagged **UNCLEAR**. Per-issue tags live in the detail file.
+
+Four "nothing exists" claims were overturned across the audit — the predicate editing UI, Universal
+Breakpoints, C1-for-BTree, and BP-46 — every one because a search covered `Hrot/` but not `FDP/`.
+**Lesson for future work in this repo: absence claims must be checked across both trees.**

@@ -95,7 +95,7 @@ Canvas ergonomics. Mostly NodeEdit-core capability the Blueprint host never regi
 - `INodeModel.ShowAdvancedPins` and `IPin.IsAdvanced` exist and are honoured by the renderer, but `BlueprintPinModel.IsAdvanced` is never assigned. Needs a **new persisted per-pin flag** *and* an authoring UI to mark pins advanced — there is no "which params are advanced" concept to project from.
 
 ### BP-56 — No wire-level execution-flow highlighting
-**Complexity:** RW-L · **Confidence:** ~
+**Complexity:** RW-L · **Confidence:** ✔✔
 - Node borders glow during execution (`NodeRenderer.cs:215-216,251`) and `WhenFiringPulseRenderer` pulses `When` nodes, but `WireRenderer` never renders execution state. Unreal shows a travelling pulse along exec wires.
 
 ---
@@ -270,23 +270,25 @@ Strongest area of the subsystem — several capabilities **exceed** stock Unreal
 - `BlueprintDebugSession.MarshalFromBytes` is complete, unit-tested, and already used at 4 other call sites in the same file — it decodes every primitive plus fixed-list wrappers. Swap it in and format via `BlueprintPinDefaultValue.FormatValue` for vector types.
 
 ### BP-35 — D4 `MultiplexingProbeSink` missing
-**Complexity:** RW-L · **Confidence:** ~
+**Complexity:** RW-L · **Confidence:** ✔✔
 - `IBlueprintProbeSink` exists; needs a composite implementation + a `DebugProbe.Sink` swap so multiple debuggers can observe one run.
 
 ### BP-36 — D5 stack-frame inspection is Blueprint-local
-**Complexity:** RW-M · **Confidence:** ~
+**Complexity:** RW-M · **Confidence:** ✔✔
 - `CallFrame` / `_callStacks` / `GetCurrentCallStack` live inside `BlueprintDebugSession`. Lifting them to `IDataBreakpointManager` would let BTree/HSM/other-subsystem pauses carry a call stack too.
 
 ### BP-37 — `LifecyclePredicateDto` by `NetworkId` unsupported
-**Complexity:** RW-L · **Confidence:** ~
-- `DataBreakpointManager.cs:1025` throws `NotSupportedException` with a clear message. Needs `INetworkEntityMap` injected; the resolution branch is already stubbed.
+**Complexity:** RW-M *(raised from RW-L on verification)* · **Confidence:** ✔✔
+- Defect confirmed: `DataBreakpointManager.cs:1025` throws `NotSupportedException`, and the surrounding comments name the intended fix.
+- ⚠ **But `INetworkEntityMap` does not exist as a type** — it appears *only* in those comments. The concrete `NetworkEntityMap` lives in `FDP/Network/Fdp.Network.Cyclone/Services/NetworkEntityMap.cs`, and `Hrot.Diagnostics.Breakpoints` does **not** reference that project (its only refs are `Fdp.Core`, `Fdp.ModuleHost`, `Fdp.Toolkits`, `Hrot.Blueprints.Core`).
+- So this is not "inject an existing interface": it needs an abstraction defined and wired, **or** a diagnostics→specific-network-transport project reference, which is a layering smell. **Design call first.**
 
 ### BP-38 — D9 pause-on-Blueprint-exception
-**Complexity:** RW-M · **Confidence:** ~
+**Complexity:** RW-M · **Confidence:** ✔✔
 - **Explicitly deferred by architect decision** (Debug Protocol DD §13.3, LOCKED). The soft-pause + triple-buffer rewind machinery is directly reusable; needs an interception point in generated code plus a new breakpoint shape.
 
 ### BP-39 — D8 CLR / Visual Studio source-line debugger sync
-**Complexity:** RW-H · **Confidence:** ~
+**Complexity:** RW-H · **Confidence:** ✔✔
 - No scaffolding present; would need a DAP or VS-extensibility bridge. PDB emission already exists.
 
 ### BP-40 — Library-dispatch graphs cannot carry node breakpoints
@@ -332,12 +334,13 @@ Strongest area of the subsystem — several capabilities **exceed** stock Unreal
 - The most-cited deferred capability across the Slice-2 docs; the type does not exist anywhere. ⚠ `Blueprint_New_Node_Authoring_Guide.md` §1a describes "automatic same/cross-entity routing" **as if it were current** — that prose is aspirational (see BP-49).
 
 ### BP-42 — Cross-entity shared-state **write**
-**Complexity:** RW-M · **Confidence:** ~
+**Complexity:** RW-M · **Confidence:** ✔✔
 - Read path shipped (`BlueprintSharedState.TryGetShared<T>`); write is same-entity only. Deferred by design per `Blueprint_SharedState_GetShared_Design.md` §0 — needs `UpdateSharedSlotCommand` + an Input-phase ingress system mirroring `AssignBehaviorEvent`.
 
-### BP-46 — Generic `GetShared<T>` partition-slot accessor
-**Complexity:** RW-M · **Confidence:** ~
-- Only the fixed/typed `GetShared`/`SetShared` node path exists. Design-only.
+### ~~BP-46 — Generic `GetShared<T>` partition-slot accessor~~ — ❌ **REFUTED, ALREADY SHIPPED**
+**Confidence:** ✔✔ (verification pass)
+- The claim was wrong. `BlueprintSharedState.TryGetShared<T>(EntityRepository world, Entity self, string variableId, out T value)` exists at `BlueprintSharedState.cs:58`, and the compiler **actively emits calls to it** (`StatementEmitter.cs:188`).
+- **No work required. Retained as a struck-through row so the id is not silently reused.**
 
 ### BP-43 — Custom Events 2b: events with no backing C# struct
 **Complexity:** RW-M · **Confidence:** ✔
@@ -379,13 +382,22 @@ Cheap, and currently actively misleading.
 - Intent-first memory picker, unify the "two doors" to shared state, progressive disclosure, in-context micro-explanations, graph-level scope badges. The backlog itself marks UX-1/UX-2 as needing an architect nod.
 
 ### BP-53 — E6 cross-asset blueprint-action picker
-**Complexity:** RW-M · **Confidence:** ~
+**Complexity:** RW-M · **Confidence:** ⚠ **UNCLEAR — do not act on without re-scoping**
+- **Partially refuted.** An action-picker mechanism *does* exist: the `[HsmActionPicker]` attribute is used throughout `Hrot.Hsm.Editor/Inspector/HsmFacets.cs` (6+ sites), and `BehaviorActionCatalog` with `ActionSchemaEntry.IsAiPrimitive` shipped (doc-sweep item I4).
+- What remains unestablished is whether that picker spans **cross-asset blueprint** actions. The original claim came from a doc sweep of the *Behavior Architecture* plan, not from code.
 
 ### BP-54 — G7 resolver-authoring UX
-**Complexity:** RW-M · **Confidence:** ~
+**Complexity:** RW-M · **Confidence:** ⚠ **UNCLEAR — do not act on without re-scoping**
+- Runtime resolver support exists (`BehaviorRegistry.RegisterResolver`, `ApplyResolverOverlay`, `BehaviorRegistry.cs:247-273`). No authoring UI surfaced — but "resolver-authoring UX" is not defined precisely enough in the source doc to verify as present or absent.
+
+> **Both BP-53 and BP-54 are BTree/HSM behavior-authoring concerns, peripheral to blueprint editing.**
+> They are retained for completeness but sit outside the "make blueprint editing fully functional"
+> goal. Re-scope them against the Behavior Architecture plan before treating them as actionable.
 
 ### BP-55 — Asset-Browser delete affordance for referenced blueprints
-**Complexity:** RW-L · **Confidence:** ~
+**Complexity:** WIRING *(lowered from RW-L on verification)* · **Confidence:** ✔✔
+- **The backend already exists.** `RefactorService.PreviewDelete(Guid assetId, DeleteOptions)` returns a `DeletePreview` carrying `danglingRefs` + `issues` (`RefactorService.cs:137-164`), behind `IRefactorService`.
+- Verified that **every caller is a test fake** — no production UI invokes it. Only the affordance is missing.
 
 ---
 
