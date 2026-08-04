@@ -11,12 +11,22 @@ architect decision first).
 
 | Complexity | Open | Done |
 |---|---:|---:|
-| `WIRING` | 11 | 8 |
+| `WIRING` | 9 | 10 |
 | `RW-L` | 20 | 2 |
 | `RW-M` | 20 | — |
 | `RW-H` | 2 | — |
-| **Total** | **53** | **10** |
+| **Total** | **51** | **12** |
 | *(refuted on verification)* | | *1* |
+
+> ✅ **Batch 3 shipped (2026-08-04) — the palette batch: BP-04 + BP-09.**
+> **BP-04:** 14 baked entries (6 `Compare` · 5 `BinaryOp` · 2 `BooleanOp` · 1 `Not`) — the four kinds
+> were fully lowered but had no palette row, so they were reachable only from hand-authored JSON.
+> No drawer needed: `Stage0_Rehydrate` reconstructs `A`/`B`/`Result` for a pin-less instance.
+> **BP-09:** the 6 abandoned kinds are gone from the picker — **plus `ArrayMake`/`ArrayGet`**, which
+> BP-16 turned into a hard BP1420 error, so offering them would let a designer place a node that
+> guarantees a broken build. Node classes retained so old assets still deserialize, then fail loudly.
+> A round-out test asserts **every** operator enum value has a palette row, so a newly added operator
+> cannot silently become unreachable — the exact shape of the original BP-04 defect.
 
 > ✅ **Batch 2 shipped (2026-08-04) — BP-02 + all four documentation-accuracy items.**
 > **BP-02:** 13 of the 15 undo-bypass sites now route through `view.Execute` with a real inverse
@@ -77,8 +87,8 @@ architect decision first).
 *Whether a designer can place and configure each node kind. **13 of 50 kinds run but can't be configured.***
 → [detail](Blueprint_Issues_Detail.md#area-b--node-authoring-surface)
 
-- [ ] **BP-04** · `WIRING` — `Compare`/`BinaryOp`/`BooleanOp`/`Not` **cannot be placed at all** despite being lowered + compile-tested. 14 baked palette entries, no drawer needed
-- [ ] **BP-09** · `WIRING` — 6 abandoned node kinds are **advertised in the palette** but compile to a silent no-op. Delete 6 `Make<T>` blocks
+- [x] **BP-04** · `WIRING` — `Compare`/`BinaryOp`/`BooleanOp`/`Not` **cannot be placed at all** despite being lowered + compile-tested. 14 baked palette entries, no drawer needed
+- [x] **BP-09** · `WIRING` — 6 abandoned node kinds are **advertised in the palette** but compile to a silent no-op. Delete 6 `Make<T>` blocks
 - [ ] **BP-05** · `WIRING` — `ReadRankedResult.Rank` uneditable; plain `InputInt`
 - [ ] **BP-06** · `WIRING` — `WaitForChannel.ChannelType` uneditable; reuse `IChannelCommandCatalog`
 - [ ] **BP-07** · `WIRING` — `CallCustomEvent.EventId` uneditable; reuse `UnifiedEventDiscovery`

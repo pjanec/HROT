@@ -702,7 +702,11 @@ public sealed class BcpBatch02BlueprintTests
         Assert.IsType<SequenceNode>(registry.TryGet("Sequence")!.CreateInstance());
         Assert.IsType<GetVariableNode>(registry.TryGet("GetVariable")!.CreateInstance());
         Assert.IsType<FunctionCallNode>(registry.TryGet("FunctionCall")!.CreateInstance());
-        Assert.IsType<AcquireSlotNode>(registry.TryGet("AcquireSlot")!.CreateInstance());
+
+        // Was "AcquireSlot" until BP-09 removed that entry (no Stage5 lowering -- it compiled to a
+        // silent no-op). "Compare.Equal" is a BP-04 entry, so this also covers a baked descriptor.
+        var compare = Assert.IsType<CompareNode>(registry.TryGet("Compare.Equal")!.CreateInstance());
+        Assert.Equal(ComparisonOperator.Equal, compare.Operator);
     }
 
     // ── BCP-BATCH-02-FIX2 Task 3: variable node title shows NAME, not UUID ─────

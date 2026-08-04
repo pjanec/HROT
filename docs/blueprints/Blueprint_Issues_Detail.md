@@ -137,6 +137,8 @@ Whether a designer can *place* and *configure* each node kind. 13 of 50 kinds ru
 
 ### BP-04 — `Compare` / `BinaryOp` / `BooleanOp` / `Not` cannot be placed at all
 **Complexity:** WIRING · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-04).** 14 baked palette entries added via a new `MakeBaked<TNode>` helper — 6 `Compare`, 5 `BinaryOp`, 2 `BooleanOp`, 1 `Not` — grouped under the existing `Math/Compare`, `Math` and `Math/Bool` picker categories. Baking is safe because `BlueprintCommandSink.CreateAssetNode` builds from `CreateInstance` and only *overlays* caller props, so the 8-of-50 `ApplyInitialProperties` whitelist is never in the path. **Pins are left empty deliberately** — `Stage0_Rehydrate` reconstructs `A`/`B`/`Result` for a pin-less instance (`DeterministicPinReconstructionTests`), so no pin authoring or drawer is needed. Guarded by a test asserting **every** enum value has a row, so a new operator cannot silently become unreachable.
 - **Symptom:** Four fully-lowered, compile-tested node kinds are unreachable from the editor. Verified they are instantiated **only in tests** — zero `new CompareNode` etc. in the editor tree.
 - **Why it happened:** `BlueprintMathPaletteEntries.cs` routes math through CLR `BlueprintMath` helpers as `FunctionCallNode`, so the functional need is partly covered and the native kinds were never given a front door.
 - **Fix:** 14 palette entries (one per enum value), baked at create — exactly the `MakeMath` / `ChannelCommandEntries` recipe. **No drawer needed.** ~40-60 lines.
@@ -188,6 +190,8 @@ Whether a designer can *place* and *configure* each node kind. 13 of 50 kinds ru
 
 ### BP-09 — Six abandoned node kinds are advertised in the palette
 **Complexity:** WIRING · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-04).** All 6 `Make<T>` palette blocks deleted (`CallDispatcher`, `BindDispatcher`, `PartitionElements`, `AssignRoles`, `AdvancePhase`, `AcquireSlot`). **Also removed `ArrayMake`/`ArrayGet`** — BP-16 made them a BP1420 compile error, so offering them would let a designer place a node that guarantees a broken build. Node classes are retained so existing assets still deserialize (and now fail loudly). `BcpBatch02BlueprintTests` was asserting `AcquireSlot` was present; retargeted to `Compare.Equal`.
 - `CallDispatcher`, `BindDispatcher`, `PartitionElements`, `AssignRoles`, `AdvancePhase`, `AcquireSlot` have live palette entries at `BlueprintNodePaletteEntries.cs:100-105` and `:233-244`, with inviting descriptions ("Broadcast an event dispatcher to all bound listeners"), but are unlowered and compile to a silent no-op (BP4004 warning).
 - Both families are **superseded by design** — dispatchers by `PublishEvent`/`EventEntry`, the squad quartet by `MemberSlotList`/`SlotRotation`.
 - **Fix:** delete 6 `Make<T>` blocks. Pairs naturally with BP-16.
