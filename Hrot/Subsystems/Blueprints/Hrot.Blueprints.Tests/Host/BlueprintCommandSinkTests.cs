@@ -459,9 +459,33 @@ public sealed class BlueprintCommandSinkTests
         return (node, collectionIn);
     }
 
+    /// <summary>
+    /// Forces <c>Hrot.AI.Behaviors</c> to be loaded before a test that reflects over it.
+    ///
+    /// <para>
+    /// <c>ComponentFieldReflector.ResolveType</c> resolves a component FQN by scanning
+    /// <c>AppDomain.CurrentDomain.GetAssemblies()</c>, which returns only assemblies that are
+    /// <b>already loaded</b> — and the CLR loads them lazily on first use. A ProjectReference alone
+    /// does NOT guarantee the assembly is loaded; something has to touch a type in it.
+    /// </para>
+    ///
+    /// <para>
+    /// Without this, the collection-write bake below silently no-ops: <c>IsWritableComponent</c>
+    /// cannot find <c>BpFixedListDemo</c>, returns false, and <c>TryBakeCollectionConsumer</c>
+    /// early-returns leaving <c>ComponentTypeFqn</c> empty. The test then passed only when some
+    /// *other* test in the run happened to load the assembly first — it failed under
+    /// <c>--filter</c> and flaked under parallel execution. See BP-62 for the product-side
+    /// implication of that load-order sensitivity.
+    /// </para>
+    /// </summary>
+    private static void EnsureAiBehaviorsLoaded()
+        => _ = typeof(Hrot.AI.Behaviors.BpFixedListDemo).Assembly;
+
     [Fact]
     public void CommandSink_AddLink_WritableCollectionIntoCollectionWrite_BakesOpAccessor()
     {
+        EnsureAiBehaviorsLoaded();
+
         var (asset, graph) = MakeAssetWithGraph();
         var (_, itemsOut)  = AddWritableCollectionSource(graph);
         var (write, collectionIn) = AddCollectionWriteNode(graph, CollectionWriteOp.SetAt);

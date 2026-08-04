@@ -114,6 +114,28 @@ Canvas ergonomics. Mostly NodeEdit-core capability the Blueprint host never regi
 - **Reference implementation exists** — `FakeCommandSink.ApplyPromoteToVariable` (~50 lines) resolves the pin, allocates a `VariableId`, adds a `Util.GetVar`/`Util.SetVar` node offset from the owner, and links it. The Blueprint version additionally needs to append a declaration to `asset.Variables` with a type inferred from the pin.
 - ⚠ **Undo must be designed together with the implementation, not retrofitted.** `UndoStack` requires the *caller* to supply the inverse, but the inverse needs the node/link/variable ids the sink allocates. This is why BP-02 deliberately left this one call site on `Commands.Apply`: recording an undo entry for a no-op would make Ctrl+Z consume a step that reverses nothing.
 
+### BP-62 — Component type resolution depends on assembly **load order** ⚠ **[NEW — root cause of the order-dependent test]**
+**Complexity:** RW-M · **Confidence:** ✔✔
+- **`ComponentFieldReflector.ResolveType` only sees assemblies that are already loaded:**
+
+```csharp
+internal static Type? ResolveType(string fqn)
+{
+    var t = Type.GetType(fqn);                                  // this assembly / already-resolved only
+    if (t != null) return t;
+    foreach (var asm in AppDomain.CurrentDomain.GetAssemblies()) // ONLY loaded assemblies
+        { try { t = asm.GetType(fqn); } catch { continue; } if (t != null) return t; }
+    return null;                                                 // silently "not a component"
+}
+```
+
+- The CLR loads assemblies **lazily on first use**, and a `ProjectReference` does *not* force a load. So a component whose assembly nothing has touched yet resolves to `null`, and every caller reads that as *"not a writable component"* rather than *"don't know yet"*.
+- **Callers affected:** `IsWritableComponent` (the `[BlueprintWritable]` opt-in gate), `TryReflectWriteAccessors`, the `SetComponent` picker's type bake, and `BlueprintNodeModel`'s stale-reference check.
+- **How it surfaced:** `BlueprintCommandSink.TryBakeCollectionConsumer`'s `CollectionWriteNode` case gates on `IsWritableComponent(...)`. With `Hrot.AI.Behaviors` unloaded the gate returns false, the method early-returns, and the node keeps `ComponentTypeFqn == ""` — **silently unbaked**. This is exactly why `CommandSink_AddLink_…BakesOpAccessor` passed only when some *other* test happened to load the assembly first.
+- **Editor impact:** probably masked today, because the editor loads the AI assembly at startup via `CgfBehaviorSetup.LoadFromAiAssembly`. But the dependency is real and unstated: the bake's correctness rests on an unrelated startup side effect. It also **degrades silently** — an unbaked node is only caught later by the canvas bake-incomplete error / Stage2 BP2067, well away from the wire that caused it.
+- **Fix direction (needs a decision):** either resolve against an explicit, eagerly-populated assembly set (the editor already knows which game assemblies it loads), or have `ResolveType` distinguish *"resolved: not writable"* from *"could not resolve"* so callers can fail loudly instead of treating unknown as no.
+- **Test-side mitigation applied:** `BlueprintCommandSinkTests.EnsureAiBehaviorsLoaded()` touches a type in the assembly before the reflecting test, making it deterministic alone and in-suite. ⚠ **That is a band-aid on the test, not a fix for the product.** Other test files also reference `Hrot.AI.Behaviors.*` FQNs as strings and carry the same latent dependency; they pass today because the full suite loads the assembly early.
+
 ### BP-03 — Bookmarks cannot be renamed or deleted
 **Complexity:** WIRING · **Confidence:** ✔✔
 - **Evidence:** `BlueprintBookmarksWindow.cs:11-13` self-documents "(V1: no rename/delete UI…)"; `BookmarksPanel.cs:17-36` is a read-only text list.
@@ -557,15 +579,13 @@ people to ignore it, which is how a real regression gets waved through.
 
 ## Two genuine defects remain — do NOT disable them
 
-**1. `CommandSink_AddLink_WritableCollectionIntoCollectionWrite_BakesOpAccessor` — order-dependent.**
-Serialization fixed it *in-suite*, but it **still fails when run alone via `--filter`**
-(`Expected: "Hrot.AI.Behaviors.BpFixedListDemo" / Actual: ""`). So the underlying bug is untouched:
-the test depends on state another test establishes.
-*Lead:* `TryBakeCollectionConsumer` early-returns unless `toPin.Label == "Collection"`, and `Label`
-comes from the **projected pin model**, not the asset `Pin` the test authors. Projection routes
-through `NodePinSchema` → `BuiltInNodeRegistry.Instance`, a lazily-initialised static singleton — the
-prime suspect for the ordering dependency. Verified identical on stashed pre-change code, so it
-predates this work.
+**1. ~~`CommandSink_AddLink_…BakesOpAccessor` — order-dependent.~~ ✅ ROOT-CAUSED AND FIXED.**
+It now passes alone (1/1), in its class (36/36), and in the full suite (2575/0). The cause was **not**
+test-local: `TryBakeCollectionConsumer`'s `CollectionWriteNode` case gates on
+`ComponentFieldReflector.IsWritableComponent`, which resolves the component FQN by scanning only
+*already-loaded* assemblies. With `Hrot.AI.Behaviors` unloaded the gate returned false and the bake
+silently no-opped. Fixed test-side by forcing the load; the underlying product fragility is
+**BP-62**, which is the finding that actually matters.
 
 **2. `PdbEmbeddedSourceTests` (`WithPdbOption_PdbIsNonNull`, `PdbContainsEmbeddedSourceSignature`) —
 environment-sensitive.** Failed together once in 6 serialized runs. These run a real Roslyn compile

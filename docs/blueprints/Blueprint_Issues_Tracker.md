@@ -13,9 +13,9 @@ architect decision first).
 |---|---:|---:|
 | `WIRING` | 9 | 10 |
 | `RW-L` | 20 | 2 |
-| `RW-M` | 20 | — |
+| `RW-M` | 22 | — |
 | `RW-H` | 2 | — |
-| **Total** | **52** | **12** |
+| **Total** | **53** | **12** |
 | *(refuted on verification)* | | *1* |
 
 > 🔁 **Systemic pattern — now three confirmed instances. Check for it before trusting any validator
@@ -81,6 +81,7 @@ architect decision first).
 
 - [x] **BP-59** 🔴 · `WIRING` — **Context-menu "Delete Node" is not undoable, but the Del key is.** `CanvasRenderer.cs:758` applies `RemoveNodes` raw; `EditCommands.cs` builds a proper inverse for the same intent. Silent unrecoverable data loss — *found in the verification pass*
 - [ ] **BP-60** 🔴 · `RW-M` — **"Promote to Variable" silently does nothing.** `PromoteToVariable` is implemented only in `NodeEditor.Demo`'s `FakeCommandSink`; `BlueprintCommandSink` has no case, so it hits the `default:` that returns success and no-ops. Modal opens, name typed, nothing happens — *found while fixing BP-02*
+- [ ] **BP-62** ⚠ · `RW-M` — **Component type resolution depends on assembly load order.** `ComponentFieldReflector.ResolveType` scans only `AppDomain.CurrentDomain.GetAssemblies()`, which excludes not-yet-loaded assemblies, and callers read `null` as *"not a writable component"* rather than *"unknown"* — so the collection-write bake silently no-ops. Masked in the editor only by a startup side effect (`LoadFromAiAssembly`). *Root cause of the order-dependent test; found by chasing it down*
 - [x] **BP-02** · `WIRING` — Undo bypassed via `view.Commands.Apply`. ⚠ *scope corrected:* **15 sites, not 10** — also pin "Reset to Default" (`:638`), comment delete (`:845`), "Promote to Variable" (`:970`)
 - [ ] **BP-03** · `WIRING` — Bookmarks can't be renamed or deleted; `BookmarkStore.Remove` already exists
 - [ ] **BP-23a** · `RW-L` — **No copy/cut/paste/duplicate on the canvas.** Paste is hard-disabled; `AddNodeCommand` already accepts a prebuilt `Node`, so paste can skip the 8-of-50 property whitelist
