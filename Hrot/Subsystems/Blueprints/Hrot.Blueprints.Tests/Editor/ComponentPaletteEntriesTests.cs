@@ -251,7 +251,7 @@ public sealed class ComponentPaletteEntriesTests
     public void ConsumerEntries_CreateInstance_ComponentForEach_BlankNode_EmptyBakedProps()
     {
         var entry = ComponentPaletteEntries.ConsumerEntries().Single(e => e.Kind == "Component.ForEach");
-        var node = Assert.IsType<ComponentForEachNode>(entry.CreateInstance());
+        var node = Assert.IsType<CollectionForEachNode>(entry.CreateInstance());
 
         Assert.Equal("", node.ComponentTypeFqn);
         Assert.Equal("", node.CountAccessorFqn);
@@ -264,7 +264,7 @@ public sealed class ComponentPaletteEntriesTests
     public void ConsumerEntries_CreateInstance_ComponentItemGet_BlankNode_EmptyBakedProps()
     {
         var entry = ComponentPaletteEntries.ConsumerEntries().Single(e => e.Kind == "Component.ItemGet");
-        var node = Assert.IsType<ComponentItemGetNode>(entry.CreateInstance());
+        var node = Assert.IsType<CollectionItemGetNode>(entry.CreateInstance());
 
         Assert.Equal("", node.ComponentTypeFqn);
         Assert.Equal("", node.ItemAccessorFqn);
@@ -276,7 +276,7 @@ public sealed class ComponentPaletteEntriesTests
     public void ConsumerEntries_CreateInstance_ComponentItemCount_BlankNode_EmptyBakedProps()
     {
         var entry = ComponentPaletteEntries.ConsumerEntries().Single(e => e.Kind == "Component.ItemCount");
-        var node = Assert.IsType<ComponentItemCountNode>(entry.CreateInstance());
+        var node = Assert.IsType<CollectionItemCountNode>(entry.CreateInstance());
 
         Assert.Equal("", node.ComponentTypeFqn);
         Assert.Equal("", node.CountAccessorFqn);
@@ -287,7 +287,7 @@ public sealed class ComponentPaletteEntriesTests
     public void ConsumerEntries_CreateInstance_ComponentContains_BlankNode_EmptyBakedProps()
     {
         var entry = ComponentPaletteEntries.ConsumerEntries().Single(e => e.Kind == "Component.Contains");
-        var node = Assert.IsType<ComponentContainsNode>(entry.CreateInstance());
+        var node = Assert.IsType<CollectionContainsNode>(entry.CreateInstance());
 
         Assert.Equal("", node.ComponentTypeFqn);
         Assert.Equal("", node.CountAccessorFqn);
@@ -300,7 +300,7 @@ public sealed class ComponentPaletteEntriesTests
     public void ConsumerEntries_CreateInstance_ComponentFind_BlankNode_EmptyBakedProps()
     {
         var entry = ComponentPaletteEntries.ConsumerEntries().Single(e => e.Kind == "Component.Find");
-        var node = Assert.IsType<ComponentFindNode>(entry.CreateInstance());
+        var node = Assert.IsType<CollectionFindNode>(entry.CreateInstance());
 
         Assert.Equal("", node.ComponentTypeFqn);
         Assert.Equal("", node.CountAccessorFqn);
@@ -313,8 +313,8 @@ public sealed class ComponentPaletteEntriesTests
     public void ConsumerEntries_TwoCalls_ReturnDistinctIds()
     {
         var entry = ComponentPaletteEntries.ConsumerEntries().Single(e => e.Kind == "Component.ForEach");
-        var node1 = (ComponentForEachNode)entry.CreateInstance();
-        var node2 = (ComponentForEachNode)entry.CreateInstance();
+        var node1 = (CollectionForEachNode)entry.CreateInstance();
+        var node2 = (CollectionForEachNode)entry.CreateInstance();
         Assert.NotEqual(node1.Id, node2.Id);
     }
 

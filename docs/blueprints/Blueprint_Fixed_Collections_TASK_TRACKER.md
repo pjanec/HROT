@@ -297,6 +297,17 @@ bytes→string per the ALC constraint; LV-5 tests pass unchanged) · `FixedListB
   against a LIVE `EntityRepository` (the emitted `((EntityRepository)view)` cast target) with a real
   `BpFixedListDemo`-carrying entity — component fills 1→4, fifth Add rejects, all landed slots carry
   the value. Suite 2542/0 · goldens 184/184.
+- **R6 rename ✅:** the five consumer nodes renamed `Component*Node` → `Collection*Node`
+  (ForEach/ItemGet/ItemCount/Contains/Find) INCLUDING the JSON `kind` tags, since they iterate both
+  component collections and fixed-list variables since LV-2. Old tags load FOREVER via a legacy-tag
+  map in `BlueprintJsonServices.Deserialize` (fast-path substring check → DOM `kind` rewrite);
+  written `$meta.schemaVersion` bumped 1→2; repo assets/recipes updated; tag policy documented on
+  the `Node` base (old tags must never be reused). Untouched by design: `Get/SetComponentNode`,
+  `CollectionWriteNode` (component-only but generically named — accepted), editor palette Kind-ID
+  strings. Round-trip pinned by `LegacyNodeKindMigrationTests`. Executed as a Sonnet-delegated
+  mechanical sweep re-based and completed on HEAD (the delegate's worktree had forked pre-FC-0;
+  its `BlueprintJsonServices` legacy map + migration test were ported verbatim, the identifier/tag
+  sweep redone on HEAD). Suite 2544/0 · goldens 184/184.
 - **FCOL005 (parked Contains/Find hazard):** new `CollectionElementEquatableAnalyzer` in
   `Fdp.Toolkits.Analyzers` — WARNING when a searchable collection's element is a user struct without
   `IEquatable<T>` (the emitted `EqualityComparer<T>.Default` search would box per comparison on the

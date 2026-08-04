@@ -3,6 +3,12 @@ using System.Text.Json.Serialization;
 
 namespace Hrot.Blueprints.Core.Assets;
 
+/// <remarks>
+/// R6 rename (2026-08-04): the five collection-consumer tags were renamed
+/// Component*&#8594;Collection* (ForEach/ItemGet/ItemCount/Contains/Find). The OLD tags are
+/// accepted on read forever via <c>BlueprintJsonServices.Deserialize</c>'s legacy-tag map and
+/// must NEVER be reused for new node kinds.
+/// </remarks>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
 [JsonDerivedType(typeof(FunctionCallNode),        "FunctionCall")]
 [JsonDerivedType(typeof(BranchNode),              "Branch")]
@@ -40,11 +46,11 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(SetComponentNode),       "SetComponent")]
 [JsonDerivedType(typeof(PublishEventNode),       "PublishEvent")]
 [JsonDerivedType(typeof(FlowForEachNode),        "FlowForEach")]
-[JsonDerivedType(typeof(ComponentForEachNode),   "ComponentForEach")]
-[JsonDerivedType(typeof(ComponentItemGetNode),   "ComponentItemGet")]
-[JsonDerivedType(typeof(ComponentItemCountNode), "ComponentItemCount")]
-[JsonDerivedType(typeof(ComponentContainsNode),  "ComponentContains")]
-[JsonDerivedType(typeof(ComponentFindNode),      "ComponentFind")]
+[JsonDerivedType(typeof(CollectionForEachNode),   "CollectionForEach")]
+[JsonDerivedType(typeof(CollectionItemGetNode),   "CollectionItemGet")]
+[JsonDerivedType(typeof(CollectionItemCountNode), "CollectionItemCount")]
+[JsonDerivedType(typeof(CollectionContainsNode),  "CollectionContains")]
+[JsonDerivedType(typeof(CollectionFindNode),      "CollectionFind")]
 [JsonDerivedType(typeof(CollectionWriteNode),    "CollectionWrite")]
 [JsonDerivedType(typeof(ListWriteNode),          "ListWrite")]
 [JsonDerivedType(typeof(CompareNode),            "Compare")]
@@ -192,7 +198,7 @@ public sealed class ArrayMakeNode : Node
     public string ElementTypeId { get; set; } = "";
 }
 
-// Superseded (CA-07b) by ComponentItemGetNode for component collections -- ArrayGetNode's own
+// Superseded (CA-07b) by CollectionItemGetNode for component collections -- ArrayGetNode's own
 // Stage5_Schedule lowering was never implemented (see NodeCoverageTests.CompileCoverageExceptions);
 // kept as-is (not deleted -- it is referenced by Stage4/NodeCoverage).
 public sealed class ArrayGetNode : Node { }
@@ -981,9 +987,9 @@ public sealed class FlowForEachNode : Node
 /// "Collection" entity instead of <c>self</c>, and the accessor FQNs are this node's OWN baked
 /// <see cref="CountAccessorFqn"/>/<see cref="ItemAccessorFqn"/> rather than a fixed roster contract
 /// -- both lower to the SAME (unchanged) <c>IrOp_ForEach</c>. See <c>Stage5_Schedule</c>'s
-/// <c>ComponentForEachNode</c> case / <c>ScheduleComponentForEachNode</c>.
+/// <c>CollectionForEachNode</c> case / <c>ScheduleCollectionForEachNode</c>.
 /// </summary>
-public sealed class ComponentForEachNode : Node
+public sealed class CollectionForEachNode : Node
 {
     /// <summary>FQN of the ECS component to re-read off the resolved "Collection" entity (e.g. "Hrot.AI.Behaviors.BpCollectionDemo"). Baked string -- no reflection.</summary>
     public string ComponentTypeFqn { get; set; } = "";
@@ -1009,10 +1015,10 @@ public sealed class ComponentForEachNode : Node
 /// data-in "Index" (<c>System.Int32</c>), data-out "Element" (element-typed). Compiles to
 /// <c>global::{ItemAccessorFqn}({component}, {index})</c> off a freshly re-read
 /// <c>GetComponentRO&lt;global::ComponentTypeFqn&gt;</c> on the resolved entity -- see
-/// <c>Stage5_Schedule</c>'s <c>ComponentItemGetNode</c> case and the new
+/// <c>Stage5_Schedule</c>'s <c>CollectionItemGetNode</c> case and the new
 /// <c>IrOp_ComponentAccessorCall</c>.
 /// </summary>
-public sealed class ComponentItemGetNode : Node
+public sealed class CollectionItemGetNode : Node
 {
     /// <summary>FQN of the ECS component to re-read off the resolved "Collection" entity. Baked string -- no reflection.</summary>
     public string ComponentTypeFqn { get; set; } = "";
@@ -1035,13 +1041,13 @@ public sealed class ComponentItemGetNode : Node
 /// collection out-pin; resolves to the source ENTITY), data-out "Count" (<c>System.Int32</c>).
 /// Compiles to <c>global::{CountAccessorFqn}({component})</c> off a freshly re-read
 /// <c>GetComponentRO&lt;global::ComponentTypeFqn&gt;</c> on the resolved entity -- see
-/// <c>Stage5_Schedule</c>'s <c>ComponentItemCountNode</c> case and the new
+/// <c>Stage5_Schedule</c>'s <c>CollectionItemCountNode</c> case and the new
 /// <c>IrOp_ComponentAccessorCall</c>. No <c>ElementTypeFqn</c> -- Count never needs the element
 /// type, so "Collection" is typed <c>System.Object</c> (IsArray) here, same "typed-unknown
 /// placeholder" escape hatch <c>Stage4_TypeResolve.VerifyLinkTypes</c> already grants CLR-call
 /// pins rehydrated without reflection.
 /// </summary>
-public sealed class ComponentItemCountNode : Node
+public sealed class CollectionItemCountNode : Node
 {
     /// <summary>FQN of the ECS component to re-read off the resolved "Collection" entity. Baked string -- no reflection.</summary>
     public string ComponentTypeFqn { get; set; } = "";
@@ -1064,12 +1070,12 @@ public sealed class ComponentItemCountNode : Node
 /// pins): data-in "Collection" (<c>IsArray</c> -- wired FROM a GetComponent collection out-pin; resolves
 /// to the source ENTITY), data-in "Item" (element-typed -- the value to search for), data-out "Result"
 /// (<c>System.Boolean</c>). Lowers to a bounded search loop over the SAME baked curated
-/// <see cref="CountAccessorFqn"/>/<see cref="ItemAccessorFqn"/> as <see cref="ComponentForEachNode"/>,
+/// <see cref="CountAccessorFqn"/>/<see cref="ItemAccessorFqn"/> as <see cref="CollectionForEachNode"/>,
 /// comparing each element with <c>EqualityComparer&lt;TElement&gt;.Default.Equals</c> (Q#18-A) and
-/// short-circuiting on the first match -- see <c>Stage5_Schedule</c>'s <c>ComponentContainsNode</c> case
+/// short-circuiting on the first match -- see <c>Stage5_Schedule</c>'s <c>CollectionContainsNode</c> case
 /// and <c>IrOp_ComponentCollectionSearch</c>. Reflection-free (baked FQN strings).
 /// </summary>
-public sealed class ComponentContainsNode : Node
+public sealed class CollectionContainsNode : Node
 {
     /// <summary>FQN of the ECS component to re-read off the resolved "Collection" entity. Baked string -- no reflection.</summary>
     public string ComponentTypeFqn { get; set; } = "";
@@ -1181,10 +1187,10 @@ public sealed class ListWriteNode : Node
 /// pins): data-in "Collection" (<c>IsArray</c>), data-in "Item" (element-typed -- the value to find),
 /// data-out "Index" (<c>System.Int32</c>; <c>-1</c> when absent) + data-out "Found" (<c>System.Boolean</c>,
 /// Q#18-B). Same bounded search loop + <c>EqualityComparer&lt;TElement&gt;.Default.Equals</c> as
-/// <see cref="ComponentContainsNode"/>, recording the 0-based index of the first match -- see
-/// <c>Stage5_Schedule</c>'s <c>ComponentFindNode</c> case and <c>IrOp_ComponentCollectionSearch</c>.
+/// <see cref="CollectionContainsNode"/>, recording the 0-based index of the first match -- see
+/// <c>Stage5_Schedule</c>'s <c>CollectionFindNode</c> case and <c>IrOp_ComponentCollectionSearch</c>.
 /// </summary>
-public sealed class ComponentFindNode : Node
+public sealed class CollectionFindNode : Node
 {
     /// <summary>FQN of the ECS component to re-read off the resolved "Collection" entity. Baked string -- no reflection.</summary>
     public string ComponentTypeFqn { get; set; } = "";

@@ -449,9 +449,9 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
 
     /// <summary>
     /// CA-07c/CA-07d-1 -- author-time accessor baking on wire for the five component-collection
-    /// CONSUMER nodes (<see cref="ComponentForEachNode"/>/<see cref="ComponentItemGetNode"/>/
-    /// <see cref="ComponentItemCountNode"/>/<see cref="ComponentContainsNode"/>/
-    /// <see cref="ComponentFindNode"/>). Those nodes have NO type picker of their own (CA-07b):
+    /// CONSUMER nodes (<see cref="CollectionForEachNode"/>/<see cref="CollectionItemGetNode"/>/
+    /// <see cref="CollectionItemCountNode"/>/<see cref="CollectionContainsNode"/>/
+    /// <see cref="CollectionFindNode"/>). Those nodes have NO type picker of their own (CA-07b):
     /// their <c>ComponentTypeFqn</c>/<c>CountAccessorFqn</c>/<c>ItemAccessorFqn</c>/
     /// <c>ElementTypeFqn</c> props start empty and stay empty until a designer wires a
     /// <see cref="GetComponentNode"/> collection out-pin into the consumer's "Collection" data-IN
@@ -473,13 +473,13 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
     /// </para>
     /// <para>
     /// Bake: switches on the consumer's concrete type and sets ONLY that type's props (mirrors each
-    /// node's own field set from <c>Nodes.cs</c>): <c>ComponentForEachNode</c> gets all four
-    /// (ComponentTypeFqn/CountAccessorFqn/ItemAccessorFqn/ElementTypeFqn); <c>ComponentItemGetNode</c>
+    /// node's own field set from <c>Nodes.cs</c>): <c>CollectionForEachNode</c> gets all four
+    /// (ComponentTypeFqn/CountAccessorFqn/ItemAccessorFqn/ElementTypeFqn); <c>CollectionItemGetNode</c>
     /// gets ComponentTypeFqn/ItemAccessorFqn/ElementTypeFqn (no CountAccessorFqn -- Get never counts);
-    /// <c>ComponentItemCountNode</c> gets only ComponentTypeFqn/CountAccessorFqn (no
+    /// <c>CollectionItemCountNode</c> gets only ComponentTypeFqn/CountAccessorFqn (no
     /// ItemAccessorFqn/ElementTypeFqn -- Count's "Collection" pin is always <c>System.Object</c>,
-    /// Stage0/NodePinSchema never consult an element type for it). <c>ComponentContainsNode</c>/
-    /// <c>ComponentFindNode</c> (CA-07d-1) are pure-data SEARCH nodes -- they loop the collection
+    /// Stage0/NodePinSchema never consult an element type for it). <c>CollectionContainsNode</c>/
+    /// <c>CollectionFindNode</c> (CA-07d-1) are pure-data SEARCH nodes -- they loop the collection
     /// (need CountAccessorFqn) AND compare each element against the query "Item" (need
     /// ItemAccessorFqn + ElementTypeFqn to type "Collection"/"Item"), so like ForEach they get all
     /// four props. Accessor FQNs baked as <c>""</c> (never null) when the decl's own accessor is
@@ -490,7 +490,7 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
     /// CA-07d-2: every consumer ALSO gets <c>CollectionKind</c>/<c>CollectionFieldName</c> copied
     /// verbatim off the decl -- <c>CuratedStatic</c>/<c>""</c> for a curated decl (identical to
     /// before this existed) or <c>ManagedMember</c>/the managed member name for a managed one (whose
-    /// accessor FQNs are empty by construction, per above). <c>ComponentItemCountNode</c> ALSO gets
+    /// accessor FQNs are empty by construction, per above). <c>CollectionItemCountNode</c> ALSO gets
     /// <c>ElementTypeFqn</c> baked, but ONLY for the managed case -- the compiler needs it to type the
     /// native <c>IReadOnlyList&lt;TElement&gt;</c> local; curated Count still never sets it (preserves
     /// curated JSON byte-identity).
@@ -506,7 +506,7 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             return;
 
         var consumerNode = _graph.Nodes.FirstOrDefault(n => n.Id == toPin.OwnerNodeId.Value);
-        if (consumerNode is not (ComponentForEachNode or ComponentItemGetNode or ComponentItemCountNode or ComponentContainsNode or ComponentFindNode or CollectionWriteNode))
+        if (consumerNode is not (CollectionForEachNode or CollectionItemGetNode or CollectionItemCountNode or CollectionContainsNode or CollectionFindNode or CollectionWriteNode))
             return;
 
         var sourceNode = _graph.Nodes.FirstOrDefault(n => n.Id == fromPin.OwnerNodeId.Value);
@@ -522,31 +522,31 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             if (listDecl is not { Type.Capacity: > 0 }) return;
             switch (consumerNode)
             {
-                case ComponentForEachNode cfeL:
+                case CollectionForEachNode cfeL:
                     cfeL.CollectionKind = CollectionKind.BlackboardFixedList;
                     cfeL.CollectionFieldName = listDecl.Name;
                     cfeL.ElementTypeFqn = listDecl.Type.TypeId;
                     cfeL.ComponentTypeFqn = ""; cfeL.CountAccessorFqn = ""; cfeL.ItemAccessorFqn = "";
                     break;
-                case ComponentItemGetNode cigL:
+                case CollectionItemGetNode cigL:
                     cigL.CollectionKind = CollectionKind.BlackboardFixedList;
                     cigL.CollectionFieldName = listDecl.Name;
                     cigL.ElementTypeFqn = listDecl.Type.TypeId;
                     cigL.ComponentTypeFqn = ""; cigL.ItemAccessorFqn = "";
                     break;
-                case ComponentItemCountNode cicL:
+                case CollectionItemCountNode cicL:
                     cicL.CollectionKind = CollectionKind.BlackboardFixedList;
                     cicL.CollectionFieldName = listDecl.Name;
                     cicL.ElementTypeFqn = listDecl.Type.TypeId;
                     cicL.ComponentTypeFqn = ""; cicL.CountAccessorFqn = "";
                     break;
-                case ComponentContainsNode ccnL:
+                case CollectionContainsNode ccnL:
                     ccnL.CollectionKind = CollectionKind.BlackboardFixedList;
                     ccnL.CollectionFieldName = listDecl.Name;
                     ccnL.ElementTypeFqn = listDecl.Type.TypeId;
                     ccnL.ComponentTypeFqn = ""; ccnL.CountAccessorFqn = ""; ccnL.ItemAccessorFqn = "";
                     break;
-                case ComponentFindNode cfnL:
+                case CollectionFindNode cfnL:
                     cfnL.CollectionKind = CollectionKind.BlackboardFixedList;
                     cfnL.CollectionFieldName = listDecl.Name;
                     cfnL.ElementTypeFqn = listDecl.Type.TypeId;
@@ -566,7 +566,7 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
 
         switch (consumerNode)
         {
-            case ComponentForEachNode cfe:
+            case CollectionForEachNode cfe:
                 cfe.ComponentTypeFqn    = gcn.ComponentTypeFqn;
                 cfe.CountAccessorFqn    = decl.CountAccessorFqn ?? "";
                 cfe.ItemAccessorFqn     = decl.ItemAccessorFqn  ?? "";
@@ -574,14 +574,14 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
                 cfe.CollectionKind      = decl.CollectionKind;
                 cfe.CollectionFieldName = decl.CollectionFieldName;
                 break;
-            case ComponentItemGetNode cig:
+            case CollectionItemGetNode cig:
                 cig.ComponentTypeFqn    = gcn.ComponentTypeFqn;
                 cig.ItemAccessorFqn     = decl.ItemAccessorFqn ?? "";
                 cig.ElementTypeFqn      = decl.ElementTypeId   ?? "";
                 cig.CollectionKind      = decl.CollectionKind;
                 cig.CollectionFieldName = decl.CollectionFieldName;
                 break;
-            case ComponentItemCountNode cic:
+            case CollectionItemCountNode cic:
                 cic.ComponentTypeFqn    = gcn.ComponentTypeFqn;
                 cic.CountAccessorFqn    = decl.CountAccessorFqn ?? "";
                 cic.CollectionKind      = decl.CollectionKind;
@@ -589,7 +589,7 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
                 if (decl.CollectionKind == CollectionKind.ManagedMember)
                     cic.ElementTypeFqn = decl.ElementTypeId;
                 break;
-            case ComponentContainsNode ccn:
+            case CollectionContainsNode ccn:
                 ccn.ComponentTypeFqn    = gcn.ComponentTypeFqn;
                 ccn.CountAccessorFqn    = decl.CountAccessorFqn ?? "";
                 ccn.ItemAccessorFqn     = decl.ItemAccessorFqn  ?? "";
@@ -597,7 +597,7 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
                 ccn.CollectionKind      = decl.CollectionKind;
                 ccn.CollectionFieldName = decl.CollectionFieldName;
                 break;
-            case ComponentFindNode cfn:
+            case CollectionFindNode cfn:
                 cfn.ComponentTypeFqn    = gcn.ComponentTypeFqn;
                 cfn.CountAccessorFqn    = decl.CountAccessorFqn ?? "";
                 cfn.ItemAccessorFqn     = decl.ItemAccessorFqn  ?? "";

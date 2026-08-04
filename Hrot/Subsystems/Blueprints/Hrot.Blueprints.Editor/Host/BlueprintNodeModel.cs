@@ -65,11 +65,11 @@ internal sealed class BlueprintNodeModel : INodeModel
     /// </param>
     /// <param name="collectionPinWired">
     /// CA-07c/CA-07d-1: true when this node is one of the five component-collection CONSUMER kinds
-    /// (<see cref="Hrot.Blueprints.Core.Assets.ComponentForEachNode"/>/
-    /// <see cref="Hrot.Blueprints.Core.Assets.ComponentItemGetNode"/>/
-    /// <see cref="Hrot.Blueprints.Core.Assets.ComponentItemCountNode"/>/
-    /// <see cref="Hrot.Blueprints.Core.Assets.ComponentContainsNode"/>/
-    /// <see cref="Hrot.Blueprints.Core.Assets.ComponentFindNode"/>) AND its "Collection" data-IN
+    /// (<see cref="Hrot.Blueprints.Core.Assets.CollectionForEachNode"/>/
+    /// <see cref="Hrot.Blueprints.Core.Assets.CollectionItemGetNode"/>/
+    /// <see cref="Hrot.Blueprints.Core.Assets.CollectionItemCountNode"/>/
+    /// <see cref="Hrot.Blueprints.Core.Assets.CollectionContainsNode"/>/
+    /// <see cref="Hrot.Blueprints.Core.Assets.CollectionFindNode"/>) AND its "Collection" data-IN
     /// pin has an incoming link right now. Computed by the caller (<see cref="BlueprintGraphModel"/>,
     /// which has the graph's <c>Links</c> in scope) since this constructor otherwise has no
     /// connectivity signal. Drives the BP2066-mirroring stale-bake error check below; ignored for
@@ -122,11 +122,11 @@ internal sealed class BlueprintNodeModel : INodeModel
         // CA-07c/CA-07d-1: same stale-ref pattern for the five collection CONSUMER nodes -- their
         // ComponentTypeFqn is baked on WIRE (BlueprintCommandSink.TryBakeCollectionConsumer), not
         // picked from a dropdown, but a renamed/removed component still needs the same red-node signal.
-        else if (node is (Hrot.Blueprints.Core.Assets.ComponentForEachNode
-                       or Hrot.Blueprints.Core.Assets.ComponentItemGetNode
-                       or Hrot.Blueprints.Core.Assets.ComponentItemCountNode
-                       or Hrot.Blueprints.Core.Assets.ComponentContainsNode
-                       or Hrot.Blueprints.Core.Assets.ComponentFindNode
+        else if (node is (Hrot.Blueprints.Core.Assets.CollectionForEachNode
+                       or Hrot.Blueprints.Core.Assets.CollectionItemGetNode
+                       or Hrot.Blueprints.Core.Assets.CollectionItemCountNode
+                       or Hrot.Blueprints.Core.Assets.CollectionContainsNode
+                       or Hrot.Blueprints.Core.Assets.CollectionFindNode
                        or Hrot.Blueprints.Core.Assets.CollectionWriteNode)
                  && IsUnresolvedComponent(CollectionConsumerComponentTypeFqn(node)))
         {
@@ -156,21 +156,21 @@ internal sealed class BlueprintNodeModel : INodeModel
     /// </summary>
     private static string CollectionConsumerComponentTypeFqn(Hrot.Blueprints.Core.Assets.Node node) => node switch
     {
-        Hrot.Blueprints.Core.Assets.ComponentForEachNode cfe   => cfe.ComponentTypeFqn,
-        Hrot.Blueprints.Core.Assets.ComponentItemGetNode cig   => cig.ComponentTypeFqn,
-        Hrot.Blueprints.Core.Assets.ComponentItemCountNode cic => cic.ComponentTypeFqn,
-        Hrot.Blueprints.Core.Assets.ComponentContainsNode ccn  => ccn.ComponentTypeFqn,
-        Hrot.Blueprints.Core.Assets.ComponentFindNode cfn      => cfn.ComponentTypeFqn,
+        Hrot.Blueprints.Core.Assets.CollectionForEachNode cfe   => cfe.ComponentTypeFqn,
+        Hrot.Blueprints.Core.Assets.CollectionItemGetNode cig   => cig.ComponentTypeFqn,
+        Hrot.Blueprints.Core.Assets.CollectionItemCountNode cic => cic.ComponentTypeFqn,
+        Hrot.Blueprints.Core.Assets.CollectionContainsNode ccn  => ccn.ComponentTypeFqn,
+        Hrot.Blueprints.Core.Assets.CollectionFindNode cfn      => cfn.ComponentTypeFqn,
         Hrot.Blueprints.Core.Assets.CollectionWriteNode cwn    => cwn.ComponentTypeFqn,
         _ => "",
     };
 
     /// <summary>
     /// True when a collection CONSUMER node's REQUIRED baked accessor props (per its own field set --
-    /// see <c>Nodes.cs</c>) are missing. <c>ComponentForEachNode</c> needs
-    /// ComponentTypeFqn+CountAccessorFqn+ItemAccessorFqn; <c>ComponentItemGetNode</c> needs
-    /// ComponentTypeFqn+ItemAccessorFqn (no Count); <c>ComponentItemCountNode</c> needs
-    /// ComponentTypeFqn+CountAccessorFqn (no Item). <c>ComponentContainsNode</c>/<c>ComponentFindNode</c>
+    /// see <c>Nodes.cs</c>) are missing. <c>CollectionForEachNode</c> needs
+    /// ComponentTypeFqn+CountAccessorFqn+ItemAccessorFqn; <c>CollectionItemGetNode</c> needs
+    /// ComponentTypeFqn+ItemAccessorFqn (no Count); <c>CollectionItemCountNode</c> needs
+    /// ComponentTypeFqn+CountAccessorFqn (no Item). <c>CollectionContainsNode</c>/<c>CollectionFindNode</c>
     /// (CA-07d-1) are search nodes that both loop (Count) and compare (Item), so they need the same
     /// ComponentTypeFqn+CountAccessorFqn+ItemAccessorFqn set as ForEach. False for every other node kind.
     /// </summary>
@@ -178,25 +178,25 @@ internal sealed class BlueprintNodeModel : INodeModel
     {
         // FC-2/LV-2: a BlackboardFixedList consumer bakes only the variable name (component FQN /
         // accessor FQNs legitimately empty) -- checked FIRST, before the per-kind curated patterns.
-        Hrot.Blueprints.Core.Assets.ComponentForEachNode { CollectionKind: Hrot.Blueprints.Core.Assets.CollectionKind.BlackboardFixedList } lf =>
+        Hrot.Blueprints.Core.Assets.CollectionForEachNode { CollectionKind: Hrot.Blueprints.Core.Assets.CollectionKind.BlackboardFixedList } lf =>
             string.IsNullOrEmpty(lf.CollectionFieldName),
-        Hrot.Blueprints.Core.Assets.ComponentItemGetNode { CollectionKind: Hrot.Blueprints.Core.Assets.CollectionKind.BlackboardFixedList } lg =>
+        Hrot.Blueprints.Core.Assets.CollectionItemGetNode { CollectionKind: Hrot.Blueprints.Core.Assets.CollectionKind.BlackboardFixedList } lg =>
             string.IsNullOrEmpty(lg.CollectionFieldName),
-        Hrot.Blueprints.Core.Assets.ComponentItemCountNode { CollectionKind: Hrot.Blueprints.Core.Assets.CollectionKind.BlackboardFixedList } lc =>
+        Hrot.Blueprints.Core.Assets.CollectionItemCountNode { CollectionKind: Hrot.Blueprints.Core.Assets.CollectionKind.BlackboardFixedList } lc =>
             string.IsNullOrEmpty(lc.CollectionFieldName),
-        Hrot.Blueprints.Core.Assets.ComponentContainsNode { CollectionKind: Hrot.Blueprints.Core.Assets.CollectionKind.BlackboardFixedList } lcn =>
+        Hrot.Blueprints.Core.Assets.CollectionContainsNode { CollectionKind: Hrot.Blueprints.Core.Assets.CollectionKind.BlackboardFixedList } lcn =>
             string.IsNullOrEmpty(lcn.CollectionFieldName),
-        Hrot.Blueprints.Core.Assets.ComponentFindNode { CollectionKind: Hrot.Blueprints.Core.Assets.CollectionKind.BlackboardFixedList } lfn =>
+        Hrot.Blueprints.Core.Assets.CollectionFindNode { CollectionKind: Hrot.Blueprints.Core.Assets.CollectionKind.BlackboardFixedList } lfn =>
             string.IsNullOrEmpty(lfn.CollectionFieldName),
-        Hrot.Blueprints.Core.Assets.ComponentForEachNode cfe =>
+        Hrot.Blueprints.Core.Assets.CollectionForEachNode cfe =>
             string.IsNullOrEmpty(cfe.ComponentTypeFqn) || string.IsNullOrEmpty(cfe.CountAccessorFqn) || string.IsNullOrEmpty(cfe.ItemAccessorFqn),
-        Hrot.Blueprints.Core.Assets.ComponentItemGetNode cig =>
+        Hrot.Blueprints.Core.Assets.CollectionItemGetNode cig =>
             string.IsNullOrEmpty(cig.ComponentTypeFqn) || string.IsNullOrEmpty(cig.ItemAccessorFqn),
-        Hrot.Blueprints.Core.Assets.ComponentItemCountNode cic =>
+        Hrot.Blueprints.Core.Assets.CollectionItemCountNode cic =>
             string.IsNullOrEmpty(cic.ComponentTypeFqn) || string.IsNullOrEmpty(cic.CountAccessorFqn),
-        Hrot.Blueprints.Core.Assets.ComponentContainsNode ccn =>
+        Hrot.Blueprints.Core.Assets.CollectionContainsNode ccn =>
             string.IsNullOrEmpty(ccn.ComponentTypeFqn) || string.IsNullOrEmpty(ccn.CountAccessorFqn) || string.IsNullOrEmpty(ccn.ItemAccessorFqn),
-        Hrot.Blueprints.Core.Assets.ComponentFindNode cfn =>
+        Hrot.Blueprints.Core.Assets.CollectionFindNode cfn =>
             string.IsNullOrEmpty(cfn.ComponentTypeFqn) || string.IsNullOrEmpty(cfn.CountAccessorFqn) || string.IsNullOrEmpty(cfn.ItemAccessorFqn),
         // FC-1 (Q#20): the WRITE node needs ComponentTypeFqn + its op's WriteAccessorFqn. Also the
         // canvas-visible signal when the wire-bake REFUSED a non-writable/managed/accessor-less
@@ -291,13 +291,13 @@ internal sealed class BlueprintNodeModel : INodeModel
         // CA-07c: the three collection CONSUMER nodes bake ComponentTypeFqn on WIRE (no picker), so
         // an unwired/freshly-placed instance shows a generic label; once wired, the same
         // "[ShortTypeName]" bracket convention as Get/SetComponent kicks in.
-        Hrot.Blueprints.Core.Assets.ComponentForEachNode cfe    => string.IsNullOrEmpty(cfe.ComponentTypeFqn) ? "For Each Component Item" : $"For Each [{ShortTypeName(cfe.ComponentTypeFqn)}]",
-        Hrot.Blueprints.Core.Assets.ComponentItemGetNode cig    => string.IsNullOrEmpty(cig.ComponentTypeFqn) ? "Get Item"                 : $"Get Item [{ShortTypeName(cig.ComponentTypeFqn)}]",
-        Hrot.Blueprints.Core.Assets.ComponentItemCountNode cic  => string.IsNullOrEmpty(cic.ComponentTypeFqn) ? "Item Count"               : $"Item Count [{ShortTypeName(cic.ComponentTypeFqn)}]",
+        Hrot.Blueprints.Core.Assets.CollectionForEachNode cfe    => string.IsNullOrEmpty(cfe.ComponentTypeFqn) ? "For Each Component Item" : $"For Each [{ShortTypeName(cfe.ComponentTypeFqn)}]",
+        Hrot.Blueprints.Core.Assets.CollectionItemGetNode cig    => string.IsNullOrEmpty(cig.ComponentTypeFqn) ? "Get Item"                 : $"Get Item [{ShortTypeName(cig.ComponentTypeFqn)}]",
+        Hrot.Blueprints.Core.Assets.CollectionItemCountNode cic  => string.IsNullOrEmpty(cic.ComponentTypeFqn) ? "Item Count"               : $"Item Count [{ShortTypeName(cic.ComponentTypeFqn)}]",
         // CA-07d-1: same wire-baked "generic label until wired" convention as the other collection
         // CONSUMER nodes above.
-        Hrot.Blueprints.Core.Assets.ComponentContainsNode ccn   => string.IsNullOrEmpty(ccn.ComponentTypeFqn) ? "Contains"                 : $"Contains [{ShortTypeName(ccn.ComponentTypeFqn)}]",
-        Hrot.Blueprints.Core.Assets.ComponentFindNode cfn       => string.IsNullOrEmpty(cfn.ComponentTypeFqn) ? "Find"                     : $"Find [{ShortTypeName(cfn.ComponentTypeFqn)}]",
+        Hrot.Blueprints.Core.Assets.CollectionContainsNode ccn   => string.IsNullOrEmpty(ccn.ComponentTypeFqn) ? "Contains"                 : $"Contains [{ShortTypeName(ccn.ComponentTypeFqn)}]",
+        Hrot.Blueprints.Core.Assets.CollectionFindNode cfn       => string.IsNullOrEmpty(cfn.ComponentTypeFqn) ? "Find"                     : $"Find [{ShortTypeName(cfn.ComponentTypeFqn)}]",
         // FC-1 (Q#20): same wire-baked "generic verb until wired" convention -- the op is the verb,
         // the component identity lands in brackets once the wire bakes it.
         Hrot.Blueprints.Core.Assets.CollectionWriteNode cwn     => string.IsNullOrEmpty(cwn.ComponentTypeFqn)
@@ -363,12 +363,12 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.SetComponentNode         => NodeCategory.VariableSet,
         // CA-07c: ComponentForEach is an exec node (Body/Completed loop-control), the collection
         // analog of BranchNode/SequenceNode. ItemGet/ItemCount are pure data reads, like Compare/BinaryOp.
-        Hrot.Blueprints.Core.Assets.ComponentForEachNode     => NodeCategory.FlowControl,
-        Hrot.Blueprints.Core.Assets.ComponentItemGetNode     => NodeCategory.Pure,
-        Hrot.Blueprints.Core.Assets.ComponentItemCountNode   => NodeCategory.Pure,
+        Hrot.Blueprints.Core.Assets.CollectionForEachNode     => NodeCategory.FlowControl,
+        Hrot.Blueprints.Core.Assets.CollectionItemGetNode     => NodeCategory.Pure,
+        Hrot.Blueprints.Core.Assets.CollectionItemCountNode   => NodeCategory.Pure,
         // CA-07d-1: Contains/Find are pure-data search reads, same category as ItemGet/ItemCount.
-        Hrot.Blueprints.Core.Assets.ComponentContainsNode    => NodeCategory.Pure,
-        Hrot.Blueprints.Core.Assets.ComponentFindNode        => NodeCategory.Pure,
+        Hrot.Blueprints.Core.Assets.CollectionContainsNode    => NodeCategory.Pure,
+        Hrot.Blueprints.Core.Assets.CollectionFindNode        => NodeCategory.Pure,
         // FC-1 (Q#20): CollectionWrite is an exec write node, the collection analog of SetComponent.
         Hrot.Blueprints.Core.Assets.CollectionWriteNode      => NodeCategory.VariableSet,
         // FC-2/LV-3: ListWrite is the exec write node for fixed-list VARIABLES (SetVariable analog).

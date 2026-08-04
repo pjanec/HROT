@@ -152,7 +152,7 @@ public sealed class V_FlowForEachValidatorTests
     // ---- CA-07b: ComponentForEach shares the same latent-free body rule ----
 
     /// <summary>
-    /// CA-07b: <see cref="ComponentForEachNode"/> uses the SAME inline for-body scheduling as
+    /// CA-07b: <see cref="CollectionForEachNode"/> uses the SAME inline for-body scheduling as
     /// FlowForEach, so a latent node in its "Body" must ALSO trip BP2050 (it would otherwise reach
     /// <c>ScheduleInlineBodyChain</c>, which cannot span a suspend/resume block split).
     /// </summary>
@@ -166,7 +166,7 @@ public sealed class V_FlowForEachValidatorTests
         var cfeIn        = ExecPin("In", "In");
         var cfeBody      = ExecPin("Body", "Out");
         var cfeCompleted = ExecPin("Completed", "Out");
-        var cfe = new ComponentForEachNode
+        var cfe = new CollectionForEachNode
         {
             Id               = Guid.NewGuid(),
             ComponentTypeFqn = "Hrot.AI.Behaviors.BpCollectionDemo",

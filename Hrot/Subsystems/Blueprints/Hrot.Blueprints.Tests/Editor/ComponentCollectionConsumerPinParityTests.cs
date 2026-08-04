@@ -9,8 +9,8 @@ namespace Hrot.Blueprints.Tests.Editor;
 
 /// <summary>
 /// CA-07b — pin-parity coverage for the three component-collection consumer nodes
-/// (<see cref="ComponentForEachNode"/>/<see cref="ComponentItemGetNode"/>/
-/// <see cref="ComponentItemCountNode"/>), mirroring <c>GetComponentPinParityTests</c> exactly:
+/// (<see cref="CollectionForEachNode"/>/<see cref="CollectionItemGetNode"/>/
+/// <see cref="CollectionItemCountNode"/>), mirroring <c>GetComponentPinParityTests</c> exactly:
 /// proves <see cref="NodePinSchema.GetCanonicalPins"/>'s projection is byte-identical (by Name,
 /// Direction, IsExec, TypeId, IsArray, in order) to the compiler's real
 /// <see cref="Stage0_Rehydrate"/> enrichment for each kind, including the element-typed
@@ -55,12 +55,12 @@ public sealed class ComponentCollectionConsumerPinParityTests
             .Select(p => (p.Name, p.Direction, p.IsExec, p.TypeRef?.TypeId, p.TypeRef?.IsArray ?? false))
             .ToList();
 
-    // ── ComponentForEachNode ──────────────────────────────────────────────────
+    // ── CollectionForEachNode ──────────────────────────────────────────────────
 
     [Fact]
     public void ComponentForEach_Baked_EditorProjection_MatchesStage0Enrichment_Exactly()
     {
-        ComponentForEachNode Build() => new()
+        CollectionForEachNode Build() => new()
         {
             Id               = Guid.NewGuid(),
             ComponentTypeFqn = "Hrot.AI.Behaviors.BpCollectionDemo",
@@ -88,7 +88,7 @@ public sealed class ComponentCollectionConsumerPinParityTests
     [Fact]
     public void ComponentForEach_EmptyElementTypeFqn_FallsBackToSystemObject_BothSidesAgree()
     {
-        ComponentForEachNode Build() => new()
+        CollectionForEachNode Build() => new()
         {
             Id               = Guid.NewGuid(),
             ComponentTypeFqn = "Hrot.AI.Behaviors.BpCollectionDemo",
@@ -105,12 +105,12 @@ public sealed class ComponentCollectionConsumerPinParityTests
         Assert.Contains(("CurrentItem", "Out", false, (string?)"System.Object", false), fromEditor);
     }
 
-    // ── ComponentItemGetNode ──────────────────────────────────────────────────
+    // ── CollectionItemGetNode ──────────────────────────────────────────────────
 
     [Fact]
     public void ComponentItemGet_Baked_EditorProjection_MatchesStage0Enrichment_Exactly()
     {
-        ComponentItemGetNode Build() => new()
+        CollectionItemGetNode Build() => new()
         {
             Id               = Guid.NewGuid(),
             ComponentTypeFqn = "Hrot.AI.Behaviors.BpCollectionDemo",
@@ -133,7 +133,7 @@ public sealed class ComponentCollectionConsumerPinParityTests
     [Fact]
     public void ComponentItemGet_EmptyElementTypeFqn_FallsBackToSystemObject_BothSidesAgree()
     {
-        ComponentItemGetNode Build() => new()
+        CollectionItemGetNode Build() => new()
         {
             Id               = Guid.NewGuid(),
             ComponentTypeFqn = "Hrot.AI.Behaviors.BpCollectionDemo",
@@ -153,12 +153,12 @@ public sealed class ComponentCollectionConsumerPinParityTests
         }, fromEditor);
     }
 
-    // ── ComponentItemCountNode ────────────────────────────────────────────────
+    // ── CollectionItemCountNode ────────────────────────────────────────────────
 
     [Fact]
     public void ComponentItemCount_Baked_EditorProjection_MatchesStage0Enrichment_Exactly()
     {
-        ComponentItemCountNode Build() => new()
+        CollectionItemCountNode Build() => new()
         {
             Id               = Guid.NewGuid(),
             ComponentTypeFqn = "Hrot.AI.Behaviors.BpCollectionDemo",
@@ -177,12 +177,12 @@ public sealed class ComponentCollectionConsumerPinParityTests
         }, fromEditor);
     }
 
-    // ── ComponentContainsNode ─────────────────────────────────────────────────
+    // ── CollectionContainsNode ─────────────────────────────────────────────────
 
     [Fact]
     public void ComponentContains_Baked_EditorProjection_MatchesStage0Enrichment_Exactly()
     {
-        ComponentContainsNode Build() => new()
+        CollectionContainsNode Build() => new()
         {
             Id               = Guid.NewGuid(),
             ComponentTypeFqn = "Hrot.AI.Behaviors.BpCollectionDemo",
@@ -206,7 +206,7 @@ public sealed class ComponentCollectionConsumerPinParityTests
     [Fact]
     public void ComponentContains_EmptyElementTypeFqn_FallsBackToSystemObject_BothSidesAgree()
     {
-        ComponentContainsNode Build() => new()
+        CollectionContainsNode Build() => new()
         {
             Id               = Guid.NewGuid(),
             ComponentTypeFqn = "Hrot.AI.Behaviors.BpCollectionDemo",
@@ -227,12 +227,12 @@ public sealed class ComponentCollectionConsumerPinParityTests
         }, fromEditor);
     }
 
-    // ── ComponentFindNode ─────────────────────────────────────────────────────
+    // ── CollectionFindNode ─────────────────────────────────────────────────────
 
     [Fact]
     public void ComponentFind_Baked_EditorProjection_MatchesStage0Enrichment_Exactly()
     {
-        ComponentFindNode Build() => new()
+        CollectionFindNode Build() => new()
         {
             Id               = Guid.NewGuid(),
             ComponentTypeFqn = "Hrot.AI.Behaviors.BpCollectionDemo",
@@ -257,7 +257,7 @@ public sealed class ComponentCollectionConsumerPinParityTests
     [Fact]
     public void ComponentFind_EmptyElementTypeFqn_FallsBackToSystemObject_BothSidesAgree()
     {
-        ComponentFindNode Build() => new()
+        CollectionFindNode Build() => new()
         {
             Id               = Guid.NewGuid(),
             ComponentTypeFqn = "Hrot.AI.Behaviors.BpCollectionDemo",

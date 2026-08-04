@@ -273,7 +273,7 @@ public sealed class BlueprintGraphModel : IGraphModel
             // data-IN pin is CURRENTLY wired (BlueprintNodeModel's BP2066-mirroring stale-bake error
             // check) -- this constructor has no other connectivity signal, so resolve it here where
             // _graph.Links is in scope.
-            var collectionPinWired = assetNode is ComponentForEachNode or ComponentItemGetNode or ComponentItemCountNode or ComponentContainsNode or ComponentFindNode or CollectionWriteNode
+            var collectionPinWired = assetNode is CollectionForEachNode or CollectionItemGetNode or CollectionItemCountNode or CollectionContainsNode or CollectionFindNode or CollectionWriteNode
                 && resolvedPins.Any(p => p.Direction == PinDirection.Input
                                        && p.Label == "Collection"
                                        && _graph.Links.Any(l => l.ToNodeId == assetNode.Id && l.ToPinId == p.Id.Value));

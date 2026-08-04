@@ -43,7 +43,7 @@
           ],
           "EditorMetadata": { "X": 40, "Y": 40, "Comment": "Target left unwired -> reads self. \"Values\" is the CA-07a virtual-collection out-pin (curated accessors on BpCollectionDemoOps), fanned out below into all three CA-07b consumer nodes." } },
 
-        { "kind": "ComponentForEach",
+        { "kind": "CollectionForEach",
           "ComponentTypeFqn": "Hrot.AI.Behaviors.BpCollectionDemo",
           "CountAccessorFqn": "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Count",
           "ItemAccessorFqn": "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Item",
@@ -68,7 +68,7 @@
           ],
           "EditorMetadata": { "X": 800, "Y": 40, "Comment": "Loop body: latent-free -- mirrors CurrentItem into LoopLastItem each iteration (last-written wins)." } },
 
-        { "kind": "ComponentItemGet",
+        { "kind": "CollectionItemGet",
           "ComponentTypeFqn": "Hrot.AI.Behaviors.BpCollectionDemo",
           "ItemAccessorFqn": "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Item",
           "ElementTypeFqn": "System.Int32",
@@ -92,7 +92,7 @@
           ],
           "EditorMetadata": { "X": 800, "Y": 260, "Comment": null } },
 
-        { "kind": "ComponentItemCount",
+        { "kind": "CollectionItemCount",
           "ComponentTypeFqn": "Hrot.AI.Behaviors.BpCollectionDemo",
           "CountAccessorFqn": "Hrot.AI.Behaviors.Brains.BpCollectionDemoOps.Count",
           "Id": "c5100007-0000-0000-0000-000000000017",

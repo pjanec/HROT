@@ -151,23 +151,23 @@ internal static class Stage0_Rehydrate
                 EnrichSetComponentPins(pins, scn, staticShapes);
                 break;
 
-            case ComponentForEachNode cfe:
+            case CollectionForEachNode cfe:
                 EnrichComponentForEachPins(pins, cfe);
                 break;
 
-            case ComponentItemGetNode cig:
+            case CollectionItemGetNode cig:
                 EnrichComponentItemGetPins(pins, cig);
                 break;
 
-            case ComponentItemCountNode cic:
+            case CollectionItemCountNode cic:
                 EnrichComponentItemCountPins(pins, cic);
                 break;
 
-            case ComponentContainsNode ccn:
+            case CollectionContainsNode ccn:
                 EnrichComponentContainsPins(pins, ccn);
                 break;
 
-            case ComponentFindNode cfn:
+            case CollectionFindNode cfn:
                 EnrichComponentFindPins(pins, cfn);
                 break;
 
@@ -479,9 +479,9 @@ internal static class Stage0_Rehydrate
     }
 
     /// <summary>
-    /// ComponentForEachNode (CA-07b): exec node. Static skeleton (registry) types "Collection"/
+    /// CollectionForEachNode (CA-07b): exec node. Static skeleton (registry) types "Collection"/
     /// "CurrentItem" as System.Object -- rebuild here with the REAL element type from the node's
-    /// OWN baked <see cref="ComponentForEachNode.ElementTypeFqn"/> (falls back to System.Object
+    /// OWN baked <see cref="CollectionForEachNode.ElementTypeFqn"/> (falls back to System.Object
     /// when not yet baked, e.g. a freshly dropped node before CA-07c wires it). "Collection" is
     /// IsArray (mirrors the GetComponent collection out-pin it consumes -- see
     /// <see cref="EnrichGetComponentPins"/>'s collection-decl branch); "CurrentItem" is the same
@@ -489,7 +489,7 @@ internal static class Stage0_Rehydrate
     /// load-bearing for Stage5 (mirrors FlowForEachNode, which needs no enricher since its item
     /// type is always the fixed Fdp.Core.Entity).
     /// </summary>
-    private static void EnrichComponentForEachPins(List<Pin> pins, ComponentForEachNode cfe)
+    private static void EnrichComponentForEachPins(List<Pin> pins, CollectionForEachNode cfe)
     {
         var elemType = string.IsNullOrEmpty(cfe.ElementTypeFqn) ? "System.Object" : cfe.ElementTypeFqn;
         pins.Clear();
@@ -503,11 +503,11 @@ internal static class Stage0_Rehydrate
     }
 
     /// <summary>
-    /// ComponentItemGetNode (CA-07b): pure-data node. "Collection" (IsArray) + "Element" are typed
-    /// by the node's OWN baked <see cref="ComponentItemGetNode.ElementTypeFqn"/> (falls back to
+    /// CollectionItemGetNode (CA-07b): pure-data node. "Collection" (IsArray) + "Element" are typed
+    /// by the node's OWN baked <see cref="CollectionItemGetNode.ElementTypeFqn"/> (falls back to
     /// System.Object when not yet baked). Mirrors <see cref="EnrichComponentForEachPins"/>.
     /// </summary>
-    private static void EnrichComponentItemGetPins(List<Pin> pins, ComponentItemGetNode cig)
+    private static void EnrichComponentItemGetPins(List<Pin> pins, CollectionItemGetNode cig)
     {
         var elemType = string.IsNullOrEmpty(cig.ElementTypeFqn) ? "System.Object" : cig.ElementTypeFqn;
         pins.Clear();
@@ -517,13 +517,13 @@ internal static class Stage0_Rehydrate
     }
 
     /// <summary>
-    /// ComponentItemCountNode (CA-07b): pure-data node. No <c>ElementTypeFqn</c> on this node
+    /// CollectionItemCountNode (CA-07b): pure-data node. No <c>ElementTypeFqn</c> on this node
     /// (Count never needs the element type), so "Collection" is always typed System.Object
     /// (IsArray) here -- <c>Stage4_TypeResolve.VerifyLinkTypes</c> already suppresses a link-type
     /// mismatch when either side is System.Object (the same escape hatch reflection-less CLR-call
     /// pins rely on), so this never mismatches the typed collection out-pin it is wired from.
     /// </summary>
-    private static void EnrichComponentItemCountPins(List<Pin> pins, ComponentItemCountNode cic)
+    private static void EnrichComponentItemCountPins(List<Pin> pins, CollectionItemCountNode cic)
     {
         pins.Clear();
         pins.Add(MakePin("Collection", "In",  isExec: false, typeId: "System.Object", isArray: true));
@@ -531,11 +531,11 @@ internal static class Stage0_Rehydrate
     }
 
     /// <summary>
-    /// ComponentContainsNode (CA-07d-1): pure-data node. "Collection" (IsArray) + "Item" (the query
-    /// value) are typed by the node's OWN baked <see cref="ComponentContainsNode.ElementTypeFqn"/>
+    /// CollectionContainsNode (CA-07d-1): pure-data node. "Collection" (IsArray) + "Item" (the query
+    /// value) are typed by the node's OWN baked <see cref="CollectionContainsNode.ElementTypeFqn"/>
     /// (falls back to System.Object); "Result" is Boolean. Mirrors <see cref="EnrichComponentItemGetPins"/>.
     /// </summary>
-    private static void EnrichComponentContainsPins(List<Pin> pins, ComponentContainsNode ccn)
+    private static void EnrichComponentContainsPins(List<Pin> pins, CollectionContainsNode ccn)
     {
         var elemType = string.IsNullOrEmpty(ccn.ElementTypeFqn) ? "System.Object" : ccn.ElementTypeFqn;
         pins.Clear();
@@ -620,11 +620,11 @@ internal static class Stage0_Rehydrate
     }
 
     /// <summary>
-    /// ComponentFindNode (CA-07d-1): pure-data node. "Collection" (IsArray) + "Item" (query) typed by
-    /// the node's baked <see cref="ComponentFindNode.ElementTypeFqn"/>; "Index" is Int32, "Found" is
+    /// CollectionFindNode (CA-07d-1): pure-data node. "Collection" (IsArray) + "Item" (query) typed by
+    /// the node's baked <see cref="CollectionFindNode.ElementTypeFqn"/>; "Index" is Int32, "Found" is
     /// Boolean (Q#18-B). Mirrors <see cref="EnrichComponentContainsPins"/>.
     /// </summary>
-    private static void EnrichComponentFindPins(List<Pin> pins, ComponentFindNode cfn)
+    private static void EnrichComponentFindPins(List<Pin> pins, CollectionFindNode cfn)
     {
         var elemType = string.IsNullOrEmpty(cfn.ElementTypeFqn) ? "System.Object" : cfn.ElementTypeFqn;
         pins.Clear();

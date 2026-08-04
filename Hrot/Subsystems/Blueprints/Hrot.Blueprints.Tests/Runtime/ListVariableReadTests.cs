@@ -103,7 +103,7 @@ public sealed class ListVariableReadTests
     {
         var collectionIn = DataPin("Collection", "In", "System.Object", isArray: true);
         var countOut     = DataPin("Count", "Out", "System.Int32");
-        var count = new ComponentItemCountNode
+        var count = new CollectionItemCountNode
         {
             Id = Guid.NewGuid(),
             // The editor wire-bake state (TryBakeCollectionConsumer's GetVariable branch).
@@ -127,7 +127,7 @@ public sealed class ListVariableReadTests
         var collectionIn = DataPin("Collection", "In", "System.Int32", isArray: true);
         var indexIn      = DataPin("Index", "In", "System.Int32");
         var elementOut   = DataPin("Element", "Out", "System.Int32");
-        var get = new ComponentItemGetNode
+        var get = new CollectionItemGetNode
         {
             Id = Guid.NewGuid(),
             CollectionKind = CollectionKind.BlackboardFixedList,
@@ -153,7 +153,7 @@ public sealed class ListVariableReadTests
         var collectionIn = DataPin("Collection", "In", "System.Int32", isArray: true);
         var itemIn       = DataPin("Item", "In", "System.Int32");
         var resultOut    = DataPin("Result", "Out", "System.Boolean");
-        var contains = new ComponentContainsNode
+        var contains = new CollectionContainsNode
         {
             Id = Guid.NewGuid(),
             CollectionKind = CollectionKind.BlackboardFixedList,
@@ -199,7 +199,7 @@ public sealed class ListVariableReadTests
         var feBody  = ExecPin("Body", "Out");
         var feDone  = ExecPin("Completed", "Out");
         var feItem  = DataPin("CurrentItem", "Out", "System.Int32");
-        var forEach = new ComponentForEachNode
+        var forEach = new CollectionForEachNode
         {
             Id = Guid.NewGuid(),
             CollectionKind = CollectionKind.BlackboardFixedList,
@@ -283,7 +283,7 @@ public sealed class ListVariableReadTests
         var gv = new GetVariableNode { Id = Guid.NewGuid(), VariableId = Guid.NewGuid().ToString() };
         gv.Pins.Add(gvOut);
         var collectionIn = DataPin("Collection", "In", "System.Object", isArray: true);
-        var count = new ComponentItemCountNode
+        var count = new CollectionItemCountNode
         {
             Id = Guid.NewGuid(),
             CollectionKind = CollectionKind.BlackboardFixedList,   // list kind, but NO variable name baked

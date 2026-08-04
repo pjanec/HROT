@@ -169,7 +169,7 @@
           }
         },
         {
-          "kind": "ComponentItemCount",
+          "kind": "CollectionItemCount",
           "Id": "e2000001-0000-0000-0000-000000000005",
           "ComponentTypeFqn": "Hrot.AI.Behaviors.BpFixedListDemo",
           "CountAccessorFqn": "Hrot.AI.Behaviors.Brains.BpFixedListDemoOps.Count",

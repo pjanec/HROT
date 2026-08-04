@@ -35,7 +35,7 @@ public class BlueprintJsonServicesTests
 
         var meta = JsonEnvelope.Read(dom);
         Assert.Equal(HrotDocumentTypes.Blueprint, meta.DocType);
-        Assert.Equal(1, meta.SchemaVersion);
+        Assert.Equal(2, meta.SchemaVersion);
     }
 
     /// <summary>

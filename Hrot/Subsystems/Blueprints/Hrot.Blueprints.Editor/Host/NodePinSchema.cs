@@ -147,11 +147,11 @@ internal static class NodePinSchema
             SetSharedNode ssn   => SetSharedPins(ssn),
             GetComponentNode gcn => GetComponentPins(gcn),
             SetComponentNode scn => SetComponentPins(scn),
-            ComponentForEachNode cfe   => ComponentForEachPins(cfe),
-            ComponentItemGetNode cig   => ComponentItemGetPins(cig),
-            ComponentItemCountNode cic => ComponentItemCountPins(cic),
-            ComponentContainsNode ccn  => ComponentContainsPins(ccn),
-            ComponentFindNode cfn      => ComponentFindPins(cfn),
+            CollectionForEachNode cfe   => ComponentForEachPins(cfe),
+            CollectionItemGetNode cig   => ComponentItemGetPins(cig),
+            CollectionItemCountNode cic => ComponentItemCountPins(cic),
+            CollectionContainsNode ccn  => ComponentContainsPins(ccn),
+            CollectionFindNode cfn      => ComponentFindPins(cfn),
             CollectionWriteNode cwn    => CollectionWritePins(cwn),
             ListWriteNode lwn          => ListWritePins(lwn, asset),
             MakeStructNode msn  => MakeStructPins(msn),
@@ -844,15 +844,15 @@ internal static class NodePinSchema
     }
 
     /// <summary>
-    /// ComponentForEachNode (CA-07b): exec node. EXACT parity with the compiler's
+    /// CollectionForEachNode (CA-07b): exec node. EXACT parity with the compiler's
     /// <see cref="Hrot.Blueprints.Core.Compiler.Stages.Stage0_Rehydrate"/>
     /// <c>EnrichComponentForEachPins</c>: exec-In "In" + data-in "Collection" (IsArray,
-    /// element-typed from <see cref="ComponentForEachNode.ElementTypeFqn"/>, falling back to
+    /// element-typed from <see cref="CollectionForEachNode.ElementTypeFqn"/>, falling back to
     /// System.Object) + exec-Out "Body" + exec-Out "Completed" + data-out "CurrentItem"
     /// (same element type) + data-out "CurrentIndex" (System.Int32) + data-out "Count"
     /// (System.Int32).
     /// </summary>
-    private static IReadOnlyList<Pin> ComponentForEachPins(ComponentForEachNode cfe)
+    private static IReadOnlyList<Pin> ComponentForEachPins(CollectionForEachNode cfe)
     {
         var elemType = string.IsNullOrEmpty(cfe.ElementTypeFqn) ? "System.Object" : cfe.ElementTypeFqn;
         return new[]
@@ -868,12 +868,12 @@ internal static class NodePinSchema
     }
 
     /// <summary>
-    /// ComponentItemGetNode (CA-07b): pure-data node. EXACT parity with the compiler's
+    /// CollectionItemGetNode (CA-07b): pure-data node. EXACT parity with the compiler's
     /// <c>Stage0_Rehydrate.EnrichComponentItemGetPins</c>: data-in "Collection" (IsArray,
-    /// element-typed from <see cref="ComponentItemGetNode.ElementTypeFqn"/>, falling back to
+    /// element-typed from <see cref="CollectionItemGetNode.ElementTypeFqn"/>, falling back to
     /// System.Object) + data-in "Index" (System.Int32) + data-out "Element" (same element type).
     /// </summary>
-    private static IReadOnlyList<Pin> ComponentItemGetPins(ComponentItemGetNode cig)
+    private static IReadOnlyList<Pin> ComponentItemGetPins(CollectionItemGetNode cig)
     {
         var elemType = string.IsNullOrEmpty(cig.ElementTypeFqn) ? "System.Object" : cig.ElementTypeFqn;
         return new[]
@@ -885,12 +885,12 @@ internal static class NodePinSchema
     }
 
     /// <summary>
-    /// ComponentItemCountNode (CA-07b): pure-data node. EXACT parity with the compiler's
+    /// CollectionItemCountNode (CA-07b): pure-data node. EXACT parity with the compiler's
     /// <c>Stage0_Rehydrate.EnrichComponentItemCountPins</c>: data-in "Collection" (IsArray,
     /// ALWAYS System.Object -- no ElementTypeFqn on this node, Count never needs it) + data-out
     /// "Count" (System.Int32).
     /// </summary>
-    private static IReadOnlyList<Pin> ComponentItemCountPins(ComponentItemCountNode cic)
+    private static IReadOnlyList<Pin> ComponentItemCountPins(CollectionItemCountNode cic)
     {
         return new[]
         {
@@ -973,12 +973,12 @@ internal static class NodePinSchema
     }
 
     /// <summary>
-    /// ComponentContainsNode (CA-07d-1): pure-data node. EXACT parity with the compiler's
+    /// CollectionContainsNode (CA-07d-1): pure-data node. EXACT parity with the compiler's
     /// <c>Stage0_Rehydrate.EnrichComponentContainsPins</c>: data-in "Collection" (IsArray,
-    /// element-typed from <see cref="ComponentContainsNode.ElementTypeFqn"/>, falling back to
+    /// element-typed from <see cref="CollectionContainsNode.ElementTypeFqn"/>, falling back to
     /// System.Object) + data-in "Item" (same element type) + data-out "Result" (System.Boolean).
     /// </summary>
-    private static IReadOnlyList<Pin> ComponentContainsPins(ComponentContainsNode ccn)
+    private static IReadOnlyList<Pin> ComponentContainsPins(CollectionContainsNode ccn)
     {
         var elemType = string.IsNullOrEmpty(ccn.ElementTypeFqn) ? "System.Object" : ccn.ElementTypeFqn;
         return new[]
@@ -990,13 +990,13 @@ internal static class NodePinSchema
     }
 
     /// <summary>
-    /// ComponentFindNode (CA-07d-1): pure-data node. EXACT parity with the compiler's
+    /// CollectionFindNode (CA-07d-1): pure-data node. EXACT parity with the compiler's
     /// <c>Stage0_Rehydrate.EnrichComponentFindPins</c>: data-in "Collection" (IsArray,
-    /// element-typed from <see cref="ComponentFindNode.ElementTypeFqn"/>, falling back to
+    /// element-typed from <see cref="CollectionFindNode.ElementTypeFqn"/>, falling back to
     /// System.Object) + data-in "Item" (same element type) + data-out "Index" (System.Int32)
     /// + data-out "Found" (System.Boolean).
     /// </summary>
-    private static IReadOnlyList<Pin> ComponentFindPins(ComponentFindNode cfn)
+    private static IReadOnlyList<Pin> ComponentFindPins(CollectionFindNode cfn)
     {
         var elemType = string.IsNullOrEmpty(cfn.ElementTypeFqn) ? "System.Object" : cfn.ElementTypeFqn;
         return new[]

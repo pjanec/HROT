@@ -300,7 +300,7 @@ public sealed class BlueprintCommandSinkTests
 
         var collectionIn = new Pin { Id = Guid.NewGuid(), Name = "Collection", Direction = "In", IsExec = false,
             TypeRef = new BlueprintTypeRef { TypeId = "System.Object", IsArray = true } };
-        var forEach = new ComponentForEachNode { Id = Guid.NewGuid() };
+        var forEach = new CollectionForEachNode { Id = Guid.NewGuid() };
         forEach.Pins.Add(collectionIn);
         graph.Nodes.Add(forEach);
 
@@ -310,7 +310,7 @@ public sealed class BlueprintCommandSinkTests
             new LinkId(Guid.NewGuid()), new PinId(valuesOut.Id), new PinId(collectionIn.Id)));
 
         Assert.True(result.Success);
-        var baked = (ComponentForEachNode)graph.Nodes.Single(n => n.Id == forEach.Id);
+        var baked = (CollectionForEachNode)graph.Nodes.Single(n => n.Id == forEach.Id);
         Assert.Equal(CollectionComponentFqn, baked.ComponentTypeFqn);
         Assert.Equal(CollectionCountFqn,     baked.CountAccessorFqn);
         Assert.Equal(CollectionItemFqn,      baked.ItemAccessorFqn);
@@ -325,7 +325,7 @@ public sealed class BlueprintCommandSinkTests
 
         var collectionIn = new Pin { Id = Guid.NewGuid(), Name = "Collection", Direction = "In", IsExec = false,
             TypeRef = new BlueprintTypeRef { TypeId = "System.Object", IsArray = true } };
-        var itemGet = new ComponentItemGetNode { Id = Guid.NewGuid() };
+        var itemGet = new CollectionItemGetNode { Id = Guid.NewGuid() };
         itemGet.Pins.Add(collectionIn);
         graph.Nodes.Add(itemGet);
 
@@ -335,7 +335,7 @@ public sealed class BlueprintCommandSinkTests
             new LinkId(Guid.NewGuid()), new PinId(valuesOut.Id), new PinId(collectionIn.Id)));
 
         Assert.True(result.Success);
-        var baked = (ComponentItemGetNode)graph.Nodes.Single(n => n.Id == itemGet.Id);
+        var baked = (CollectionItemGetNode)graph.Nodes.Single(n => n.Id == itemGet.Id);
         Assert.Equal(CollectionComponentFqn, baked.ComponentTypeFqn);
         Assert.Equal(CollectionItemFqn,      baked.ItemAccessorFqn);
         Assert.Equal("System.Int32",         baked.ElementTypeFqn);
@@ -349,7 +349,7 @@ public sealed class BlueprintCommandSinkTests
 
         var collectionIn = new Pin { Id = Guid.NewGuid(), Name = "Collection", Direction = "In", IsExec = false,
             TypeRef = new BlueprintTypeRef { TypeId = "System.Object", IsArray = true } };
-        var itemCount = new ComponentItemCountNode { Id = Guid.NewGuid() };
+        var itemCount = new CollectionItemCountNode { Id = Guid.NewGuid() };
         itemCount.Pins.Add(collectionIn);
         graph.Nodes.Add(itemCount);
 
@@ -359,7 +359,7 @@ public sealed class BlueprintCommandSinkTests
             new LinkId(Guid.NewGuid()), new PinId(valuesOut.Id), new PinId(collectionIn.Id)));
 
         Assert.True(result.Success);
-        var baked = (ComponentItemCountNode)graph.Nodes.Single(n => n.Id == itemCount.Id);
+        var baked = (CollectionItemCountNode)graph.Nodes.Single(n => n.Id == itemCount.Id);
         Assert.Equal(CollectionComponentFqn, baked.ComponentTypeFqn);
         Assert.Equal(CollectionCountFqn,     baked.CountAccessorFqn);
     }
@@ -374,7 +374,7 @@ public sealed class BlueprintCommandSinkTests
 
         var collectionIn = new Pin { Id = Guid.NewGuid(), Name = "Collection", Direction = "In", IsExec = false,
             TypeRef = new BlueprintTypeRef { TypeId = "System.Object", IsArray = true } };
-        var contains = new ComponentContainsNode { Id = Guid.NewGuid() };
+        var contains = new CollectionContainsNode { Id = Guid.NewGuid() };
         contains.Pins.Add(collectionIn);
         graph.Nodes.Add(contains);
 
@@ -384,7 +384,7 @@ public sealed class BlueprintCommandSinkTests
             new LinkId(Guid.NewGuid()), new PinId(valuesOut.Id), new PinId(collectionIn.Id)));
 
         Assert.True(result.Success);
-        var baked = (ComponentContainsNode)graph.Nodes.Single(n => n.Id == contains.Id);
+        var baked = (CollectionContainsNode)graph.Nodes.Single(n => n.Id == contains.Id);
         Assert.Equal(CollectionComponentFqn, baked.ComponentTypeFqn);
         Assert.Equal(CollectionCountFqn,     baked.CountAccessorFqn);
         Assert.Equal(CollectionItemFqn,      baked.ItemAccessorFqn);
@@ -400,7 +400,7 @@ public sealed class BlueprintCommandSinkTests
 
         var collectionIn = new Pin { Id = Guid.NewGuid(), Name = "Collection", Direction = "In", IsExec = false,
             TypeRef = new BlueprintTypeRef { TypeId = "System.Object", IsArray = true } };
-        var find = new ComponentFindNode { Id = Guid.NewGuid() };
+        var find = new CollectionFindNode { Id = Guid.NewGuid() };
         find.Pins.Add(collectionIn);
         graph.Nodes.Add(find);
 
@@ -410,7 +410,7 @@ public sealed class BlueprintCommandSinkTests
             new LinkId(Guid.NewGuid()), new PinId(valuesOut.Id), new PinId(collectionIn.Id)));
 
         Assert.True(result.Success);
-        var baked = (ComponentFindNode)graph.Nodes.Single(n => n.Id == find.Id);
+        var baked = (CollectionFindNode)graph.Nodes.Single(n => n.Id == find.Id);
         Assert.Equal(CollectionComponentFqn, baked.ComponentTypeFqn);
         Assert.Equal(CollectionCountFqn,     baked.CountAccessorFqn);
         Assert.Equal(CollectionItemFqn,      baked.ItemAccessorFqn);
@@ -554,7 +554,7 @@ public sealed class BlueprintCommandSinkTests
 
         var collectionIn = new Pin { Id = Guid.NewGuid(), Name = "Collection", Direction = "In", IsExec = false,
             TypeRef = new BlueprintTypeRef { TypeId = "System.Object", IsArray = true } };
-        var forEach = new ComponentForEachNode { Id = Guid.NewGuid() };
+        var forEach = new CollectionForEachNode { Id = Guid.NewGuid() };
         forEach.Pins.Add(collectionIn);
         graph.Nodes.Add(forEach);
 
@@ -589,7 +589,7 @@ public sealed class BlueprintCommandSinkTests
 
         var collectionIn = new Pin { Id = Guid.NewGuid(), Name = "Collection", Direction = "In", IsExec = false,
             TypeRef = new BlueprintTypeRef { TypeId = "System.Object", IsArray = true } };
-        var forEach = new ComponentForEachNode { Id = Guid.NewGuid() };
+        var forEach = new CollectionForEachNode { Id = Guid.NewGuid() };
         forEach.Pins.Add(collectionIn);
         graph.Nodes.Add(forEach);
 
@@ -647,7 +647,7 @@ public sealed class BlueprintCommandSinkTests
 
         var collectionIn = new Pin { Id = Guid.NewGuid(), Name = "Collection", Direction = "In", IsExec = false,
             TypeRef = new BlueprintTypeRef { TypeId = "System.Object", IsArray = true } };
-        var contains = new ComponentContainsNode { Id = Guid.NewGuid() };
+        var contains = new CollectionContainsNode { Id = Guid.NewGuid() };
         contains.Pins.Add(collectionIn);
         graph.Nodes.Add(contains);
 
@@ -657,7 +657,7 @@ public sealed class BlueprintCommandSinkTests
             new LinkId(Guid.NewGuid()), new PinId(memberIdsOut.Id), new PinId(collectionIn.Id)));
 
         Assert.True(result.Success);
-        var baked = (ComponentContainsNode)graph.Nodes.Single(n => n.Id == contains.Id);
+        var baked = (CollectionContainsNode)graph.Nodes.Single(n => n.Id == contains.Id);
         Assert.Equal(ManagedCollectionComponentFqn, baked.ComponentTypeFqn);
         Assert.Equal(CollectionKind.ManagedMember,  baked.CollectionKind);
         Assert.Equal(ManagedCollectionFieldName,    baked.CollectionFieldName);
@@ -669,7 +669,7 @@ public sealed class BlueprintCommandSinkTests
     [Fact]
     public void CommandSink_AddLink_GetComponentManagedCollectionIntoComponentItemCount_BakesElementTypeFqn_ManagedOnly()
     {
-        // ComponentItemCountNode's ElementTypeFqn is baked ONLY for the managed case (the compiler
+        // CollectionItemCountNode's ElementTypeFqn is baked ONLY for the managed case (the compiler
         // needs it to type the native IReadOnlyList<TElement> local) -- curated Count never sets it
         // (see CommandSink_AddLink_GetComponentCollectionIntoComponentItemCount_BakesTwoProps_NoItemAccessorOrElementType).
         var (asset, graph) = MakeAssetWithGraph();
@@ -677,7 +677,7 @@ public sealed class BlueprintCommandSinkTests
 
         var collectionIn = new Pin { Id = Guid.NewGuid(), Name = "Collection", Direction = "In", IsExec = false,
             TypeRef = new BlueprintTypeRef { TypeId = "System.Object", IsArray = true } };
-        var itemCount = new ComponentItemCountNode { Id = Guid.NewGuid() };
+        var itemCount = new CollectionItemCountNode { Id = Guid.NewGuid() };
         itemCount.Pins.Add(collectionIn);
         graph.Nodes.Add(itemCount);
 
@@ -687,7 +687,7 @@ public sealed class BlueprintCommandSinkTests
             new LinkId(Guid.NewGuid()), new PinId(memberIdsOut.Id), new PinId(collectionIn.Id)));
 
         Assert.True(result.Success);
-        var baked = (ComponentItemCountNode)graph.Nodes.Single(n => n.Id == itemCount.Id);
+        var baked = (CollectionItemCountNode)graph.Nodes.Single(n => n.Id == itemCount.Id);
         Assert.Equal(ManagedCollectionComponentFqn, baked.ComponentTypeFqn);
         Assert.Equal(CollectionKind.ManagedMember,  baked.CollectionKind);
         Assert.Equal(ManagedCollectionFieldName,    baked.CollectionFieldName);
@@ -709,7 +709,7 @@ public sealed class BlueprintCommandSinkTests
 
         var collectionIn = new Pin { Id = Guid.NewGuid(), Name = "Collection", Direction = "In", IsExec = false,
             TypeRef = new BlueprintTypeRef { TypeId = "System.Object", IsArray = true } };
-        var itemCount = new ComponentItemCountNode { Id = Guid.NewGuid() };
+        var itemCount = new CollectionItemCountNode { Id = Guid.NewGuid() };
         itemCount.Pins.Add(collectionIn);
         graph.Nodes.Add(itemCount);
 
@@ -722,7 +722,7 @@ public sealed class BlueprintCommandSinkTests
         // (validator/BP2066 handle the semantic mismatch, not this hook), but nothing gets baked.
         Assert.True(result.Success);
         Assert.Single(graph.Links);
-        var untouched = (ComponentItemCountNode)graph.Nodes.Single(n => n.Id == itemCount.Id);
+        var untouched = (CollectionItemCountNode)graph.Nodes.Single(n => n.Id == itemCount.Id);
         Assert.Equal("", untouched.ComponentTypeFqn);
         Assert.Equal("", untouched.CountAccessorFqn);
     }
@@ -750,7 +750,7 @@ public sealed class BlueprintCommandSinkTests
 
         var collectionIn = new Pin { Id = Guid.NewGuid(), Name = "Collection", Direction = "In", IsExec = false,
             TypeRef = new BlueprintTypeRef { TypeId = "System.Object", IsArray = true } };
-        var itemCount = new ComponentItemCountNode { Id = Guid.NewGuid() };
+        var itemCount = new CollectionItemCountNode { Id = Guid.NewGuid() };
         itemCount.Pins.Add(collectionIn);
         graph.Nodes.Add(itemCount);
 
@@ -762,7 +762,7 @@ public sealed class BlueprintCommandSinkTests
         // Rejected (scalar → array), no link added, node left untouched.
         Assert.False(result.Success);
         Assert.Empty(graph.Links);
-        var untouched = (ComponentItemCountNode)graph.Nodes.Single(n => n.Id == itemCount.Id);
+        var untouched = (CollectionItemCountNode)graph.Nodes.Single(n => n.Id == itemCount.Id);
         Assert.Equal("", untouched.ComponentTypeFqn);
     }
 

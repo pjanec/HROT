@@ -1987,7 +1987,7 @@ public sealed class NodeCoverageTests
         var collectionIn = DataPin("Collection", "In", "System.Int32");
         collectionIn.TypeRef.IsArray = true;
         var countOut = DataPin("Count", "Out", "System.Int32");
-        var countNode = new ComponentItemCountNode
+        var countNode = new CollectionItemCountNode
         {
             Id               = Guid.NewGuid(),
             ComponentTypeFqn = CcComponentFqn,
@@ -2275,7 +2275,7 @@ public sealed class NodeCoverageTests
         collectionIn.TypeRef.IsArray = true;
         var indexIn    = DataPin("Index",   "In",  "System.Int32");
         var elementOut = DataPin("Element", "Out", "System.Int32");
-        var getItemNode = new ComponentItemGetNode
+        var getItemNode = new CollectionItemGetNode
         {
             Id               = Guid.NewGuid(),
             ComponentTypeFqn = CcComponentFqn,
@@ -2344,7 +2344,7 @@ public sealed class NodeCoverageTests
         collectionIn.TypeRef.IsArray = true;
         var itemIn    = DataPin("Item",   "In",  "System.Int32");
         var resultOut = DataPin("Result", "Out", "System.Boolean");
-        var contains = new ComponentContainsNode
+        var contains = new CollectionContainsNode
         {
             Id               = Guid.NewGuid(),
             ComponentTypeFqn = CcComponentFqn,
@@ -2415,7 +2415,7 @@ public sealed class NodeCoverageTests
         var itemIn   = DataPin("Item",  "In",  "System.Int32");
         var indexOut = DataPin("Index", "Out", "System.Int32");
         var foundOut = DataPin("Found", "Out", "System.Boolean");
-        var find = new ComponentFindNode
+        var find = new CollectionFindNode
         {
             Id               = Guid.NewGuid(),
             ComponentTypeFqn = CcComponentFqn,
@@ -2487,7 +2487,7 @@ public sealed class NodeCoverageTests
         var feBody      = ExecPin("Body", "Out");
         var feCompleted = ExecPin("Completed", "Out");
         var feItem      = DataPin("CurrentItem", "Out", "System.Int32");
-        var fe = new ComponentForEachNode
+        var fe = new CollectionForEachNode
         {
             Id               = Guid.NewGuid(),
             ComponentTypeFqn = CcComponentFqn,

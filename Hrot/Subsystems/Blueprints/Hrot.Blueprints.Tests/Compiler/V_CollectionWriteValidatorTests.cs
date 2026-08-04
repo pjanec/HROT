@@ -176,10 +176,10 @@ public sealed class V_CollectionWriteValidatorTests
 
     // ---- BP2071 (warning): write inside iteration of the same collection --
 
-    private static ComponentForEachNode AddForEach(BlueprintAsset asset)
+    private static CollectionForEachNode AddForEach(BlueprintAsset asset)
     {
         var graph = asset.Graphs[0];
-        var forEach = new ComponentForEachNode
+        var forEach = new CollectionForEachNode
         {
             Id               = Guid.NewGuid(),
             ComponentTypeFqn = ComponentFqn,
@@ -193,7 +193,7 @@ public sealed class V_CollectionWriteValidatorTests
         return forEach;
     }
 
-    private static void WireBody(BlueprintAsset asset, ComponentForEachNode forEach, CollectionWriteNode write)
+    private static void WireBody(BlueprintAsset asset, CollectionForEachNode forEach, CollectionWriteNode write)
     {
         var bodyPin = forEach.Pins.First(p => p.Name == "Body");
         var execIn = new Pin { Id = Guid.NewGuid(), Name = "In", Direction = "In", IsExec = true, TypeRef = new() };

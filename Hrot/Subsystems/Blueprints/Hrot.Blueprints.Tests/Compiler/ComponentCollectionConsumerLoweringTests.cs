@@ -9,8 +9,8 @@ namespace Hrot.Blueprints.Tests.Compiler;
 
 /// <summary>
 /// CA-07b — lowering + emit-golden coverage for the three component-collection consumer nodes
-/// (<see cref="ComponentForEachNode"/>/<see cref="ComponentItemGetNode"/>/
-/// <see cref="ComponentItemCountNode"/>). Each fixture wires a
+/// (<see cref="CollectionForEachNode"/>/<see cref="CollectionItemGetNode"/>/
+/// <see cref="CollectionItemCountNode"/>). Each fixture wires a
 /// <c>GetComponent&lt;Hrot.AI.Behaviors.BpCollectionDemo&gt;</c> collection out-pin ("Values")
 /// straight into a consumer, mirroring CA-07a's <c>GetComponentPinParityTests</c>/
 /// <c>NodeCoverageTests</c> demo-shape and asserting the SAME emission-contract style
@@ -71,7 +71,7 @@ public sealed class ComponentCollectionConsumerLoweringTests
         return (node, valuesOut);
     }
 
-    // ── ComponentItemCountNode ────────────────────────────────────────────────
+    // ── CollectionItemCountNode ────────────────────────────────────────────────
 
     [Fact]
     public void ComponentItemCount_Lowering_EmitsAccessorCallOffResolvedEntity()
@@ -80,7 +80,7 @@ public sealed class ComponentCollectionConsumerLoweringTests
 
         var collectionIn = DataPin("Collection", "In",  "System.Int32", isArray: true);
         var countOut     = DataPin("Count",      "Out", "System.Int32");
-        var countNode = new ComponentItemCountNode
+        var countNode = new CollectionItemCountNode
         {
             Id               = Guid.NewGuid(),
             ComponentTypeFqn = ComponentFqn,
@@ -137,14 +137,14 @@ public sealed class ComponentCollectionConsumerLoweringTests
 
         // Re-reads GetComponentRO<BpCollectionDemo> TWICE: once inside GetComponentNode's own
         // (CA-01) multi-pin projection (unused here besides Found), once more inside
-        // ComponentItemCountNode's case, off the SAME resolved (self) entity -- proves the "re-read
+        // CollectionItemCountNode's case, off the SAME resolved (self) entity -- proves the "re-read
         // off the resolved entity" contract, not an accidental reuse of GetComponentNode's read.
         Assert.Equal(2, Regex.Matches(src, Regex.Escape($"GetComponentRO<global::{ComponentFqn}>")).Count);
         Assert.Contains($"= global::{CountFqn}(", src);
     }
 
     /// <summary>
-    /// CA-07c regression: <see cref="ComponentItemCountNode"/> has no <c>ElementTypeFqn</c>, so the
+    /// CA-07c regression: <see cref="CollectionItemCountNode"/> has no <c>ElementTypeFqn</c>, so the
     /// editor's <c>NodePinSchema</c> / the compiler's
     /// <see cref="Hrot.Blueprints.Core.Compiler.Stages.Stage0_Rehydrate"/>
     /// ALWAYS type its "Collection" pin "System.Object" (IsArray) -- unlike the OTHER
@@ -166,7 +166,7 @@ public sealed class ComponentCollectionConsumerLoweringTests
         // EXACTLY -- "Collection" is ALWAYS System.Object here, never the real element type.
         var collectionIn = DataPin("Collection", "In",  "System.Object", isArray: true);
         var countOut     = DataPin("Count",      "Out", "System.Int32");
-        var countNode = new ComponentItemCountNode
+        var countNode = new CollectionItemCountNode
         {
             Id               = Guid.NewGuid(),
             ComponentTypeFqn = ComponentFqn,
@@ -226,7 +226,7 @@ public sealed class ComponentCollectionConsumerLoweringTests
     {
         var collectionIn = DataPin("Collection", "In",  "System.Object", isArray: true);
         var countOut     = DataPin("Count",      "Out", "System.Int32");
-        var countNode = new ComponentItemCountNode
+        var countNode = new CollectionItemCountNode
         {
             Id               = Guid.NewGuid(),
             ComponentTypeFqn = ComponentFqn,
@@ -282,7 +282,7 @@ public sealed class ComponentCollectionConsumerLoweringTests
         Assert.DoesNotContain($"GetComponentRO<global::{ComponentFqn}>", src);
     }
 
-    // ── ComponentItemGetNode ──────────────────────────────────────────────────
+    // ── CollectionItemGetNode ──────────────────────────────────────────────────
 
     [Fact]
     public void ComponentItemGet_Lowering_EmitsAccessorCallWithIndexOffResolvedEntity()
@@ -292,7 +292,7 @@ public sealed class ComponentCollectionConsumerLoweringTests
         var collectionIn = DataPin("Collection", "In",  "System.Int32", isArray: true);
         var indexIn      = DataPin("Index",      "In",  "System.Int32");
         var elementOut   = DataPin("Element",    "Out", "System.Int32");
-        var getItemNode = new ComponentItemGetNode
+        var getItemNode = new CollectionItemGetNode
         {
             Id               = Guid.NewGuid(),
             ComponentTypeFqn = ComponentFqn,
@@ -358,7 +358,7 @@ public sealed class ComponentCollectionConsumerLoweringTests
         Assert.Matches(new Regex(Regex.Escape($"= global::{ItemFqn}(") + @"__t\d+, __t\d+\);"), src);
     }
 
-    // ── ComponentForEachNode ──────────────────────────────────────────────────
+    // ── CollectionForEachNode ──────────────────────────────────────────────────
 
     [Fact]
     public void ComponentForEach_Lowering_EmitsForLoopMirroringFlowForEachShape()
@@ -370,7 +370,7 @@ public sealed class ComponentCollectionConsumerLoweringTests
         var feBody      = ExecPin("Body", "Out");
         var feCompleted = ExecPin("Completed", "Out");
         var feItem      = DataPin("CurrentItem", "Out", "System.Int32");
-        var fe = new ComponentForEachNode
+        var fe = new CollectionForEachNode
         {
             Id               = Guid.NewGuid(),
             ComponentTypeFqn = ComponentFqn,
@@ -446,7 +446,7 @@ public sealed class ComponentCollectionConsumerLoweringTests
         var feBody      = ExecPin("Body", "Out");
         var feCompleted = ExecPin("Completed", "Out");
         var feItem      = DataPin("CurrentItem", "Out", "System.Int32");
-        var fe = new ComponentForEachNode
+        var fe = new CollectionForEachNode
         {
             Id               = Guid.NewGuid(),
             ComponentTypeFqn = ComponentFqn,
@@ -508,7 +508,7 @@ public sealed class ComponentCollectionConsumerLoweringTests
         var collectionIn = DataPin("Collection", "In",  "System.Object", isArray: true);
         var countOut     = DataPin("Count",      "Out", "System.Int32");
         // ComponentTypeFqn baked, but CountAccessorFqn left empty -- structurally invalid once wired.
-        var countNode = new ComponentItemCountNode
+        var countNode = new CollectionItemCountNode
         {
             Id               = Guid.NewGuid(),
             ComponentTypeFqn = ComponentFqn,
@@ -560,7 +560,7 @@ public sealed class ComponentCollectionConsumerLoweringTests
     {
         var collectionIn = DataPin("Collection", "In",  "System.Object", isArray: true);
         var countOut     = DataPin("Count",      "Out", "System.Int32");
-        var countNode = new ComponentItemCountNode
+        var countNode = new CollectionItemCountNode
         {
             Id               = Guid.NewGuid(),
             ComponentTypeFqn = "",

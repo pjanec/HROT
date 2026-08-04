@@ -109,7 +109,7 @@ public sealed class ComponentManagedCollectionLoweringTests
 
         var collectionIn = DataPin("Collection", "In",  ElementFqn, isArray: true);
         var countOut     = DataPin("Count",      "Out", "System.Int32");
-        var countNode = new ComponentItemCountNode
+        var countNode = new CollectionItemCountNode
         {
             Id = Guid.NewGuid(), ComponentTypeFqn = ComponentFqn,
             CollectionKind = CollectionKind.ManagedMember, CollectionFieldName = FieldName, ElementTypeFqn = ElementFqn,
@@ -158,7 +158,7 @@ public sealed class ComponentManagedCollectionLoweringTests
         var collectionIn = DataPin("Collection", "In",  ElementFqn, isArray: true);
         var indexIn      = DataPin("Index",      "In",  "System.Int32");
         var elementOut   = DataPin("Element",    "Out", ElementFqn);
-        var getItem = new ComponentItemGetNode
+        var getItem = new CollectionItemGetNode
         {
             Id = Guid.NewGuid(), ComponentTypeFqn = ComponentFqn, ElementTypeFqn = ElementFqn,
             CollectionKind = CollectionKind.ManagedMember, CollectionFieldName = FieldName,
@@ -212,7 +212,7 @@ public sealed class ComponentManagedCollectionLoweringTests
         var feBody      = ExecPin("Body", "Out");
         var feCompleted = ExecPin("Completed", "Out");
         var feItem      = DataPin("CurrentItem", "Out", ElementFqn);
-        var fe = new ComponentForEachNode
+        var fe = new CollectionForEachNode
         {
             Id = Guid.NewGuid(), ComponentTypeFqn = ComponentFqn, ElementTypeFqn = ElementFqn,
             CollectionKind = CollectionKind.ManagedMember, CollectionFieldName = FieldName,
@@ -263,7 +263,7 @@ public sealed class ComponentManagedCollectionLoweringTests
         var collectionIn = DataPin("Collection", "In",  ElementFqn, isArray: true);
         var itemIn       = DataPin("Item",       "In",  ElementFqn);
         var resultOut    = DataPin("Result",     "Out", "System.Boolean");
-        var contains = new ComponentContainsNode
+        var contains = new CollectionContainsNode
         {
             Id = Guid.NewGuid(), ComponentTypeFqn = ComponentFqn, ElementTypeFqn = ElementFqn,
             CollectionKind = CollectionKind.ManagedMember, CollectionFieldName = FieldName,
@@ -317,7 +317,7 @@ public sealed class ComponentManagedCollectionLoweringTests
         var itemIn       = DataPin("Item",       "In",  ElementFqn);
         var indexOut     = DataPin("Index",      "Out", "System.Int32");
         var foundOut     = DataPin("Found",      "Out", "System.Boolean");
-        var find = new ComponentFindNode
+        var find = new CollectionFindNode
         {
             Id = Guid.NewGuid(), ComponentTypeFqn = ComponentFqn, ElementTypeFqn = ElementFqn,
             CollectionKind = CollectionKind.ManagedMember, CollectionFieldName = FieldName,
@@ -380,7 +380,7 @@ public sealed class ComponentManagedCollectionLoweringTests
         var itemIn       = DataPin("Item",       "In",  "System.Object");
         var resultOut    = DataPin("Result",     "Out", "System.Boolean");
         // ManagedMember but CollectionFieldName left null -> invalid once Collection is wired.
-        var contains = new ComponentContainsNode
+        var contains = new CollectionContainsNode
         {
             Id = Guid.NewGuid(), ComponentTypeFqn = ComponentFqn, CollectionKind = CollectionKind.ManagedMember,
         };

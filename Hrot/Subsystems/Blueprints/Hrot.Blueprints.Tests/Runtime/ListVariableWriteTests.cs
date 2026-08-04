@@ -249,7 +249,7 @@ public sealed class ListVariableWriteTests
         gv.Pins.Add(gvOut);
         var countCollIn = DataPin("Collection", "In", "System.Object", isArray: true);
         var countOut    = DataPin("Count", "Out", "System.Int32");
-        var count = new ComponentItemCountNode
+        var count = new CollectionItemCountNode
         {
             Id = Guid.NewGuid(),
             CollectionKind = CollectionKind.BlackboardFixedList,

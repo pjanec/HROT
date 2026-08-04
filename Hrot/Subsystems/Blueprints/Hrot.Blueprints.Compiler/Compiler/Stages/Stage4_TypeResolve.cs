@@ -217,7 +217,7 @@ internal static class Stage4_TypeResolve
         if (fromType.FullName == toType.FullName) return;
         if (ctx.TypeRegistry.TryGetCoercion(fromType, toType, out _)) return;
         // System.Object pins are typed-unknown placeholders (e.g. CLR calls rehydrated without
-        // reflection in the MSBuild host; CA-07c's ComponentItemCountNode.Collection, which has no
+        // reflection in the MSBuild host; CA-07c's CollectionItemCountNode.Collection, which has no
         // ElementTypeFqn of its own and so is ALWAYS "System.Object" -- see
         // Stage0_Rehydrate.EnrichComponentItemCountPins); suppress mismatch to let the graph compile.
         // StaticTypeRegistry.TryResolve wraps an array element's FullName as "ElementFullName[]"

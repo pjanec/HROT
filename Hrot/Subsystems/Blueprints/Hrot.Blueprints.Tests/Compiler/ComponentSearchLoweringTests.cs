@@ -9,7 +9,7 @@ namespace Hrot.Blueprints.Tests.Compiler;
 
 /// <summary>
 /// CA-07d-1 — lowering coverage for the two component-collection SEARCH nodes
-/// (<see cref="ComponentContainsNode"/> / <see cref="ComponentFindNode"/>). Each wires a
+/// (<see cref="CollectionContainsNode"/> / <see cref="CollectionFindNode"/>). Each wires a
 /// <c>GetComponent&lt;BpCollectionDemo&gt;</c> "Values" collection out-pin into the consumer + a
 /// Literal query, and asserts the emitted bounded search loop uses the SAME baked Count/Item accessors
 /// as ForEach plus <c>EqualityComparer&lt;T&gt;.Default.Equals</c> (Q#18-A). Same ValidateOnlyStage1To7
@@ -67,7 +67,7 @@ public sealed class ComponentSearchLoweringTests
         var collectionIn = DataPin("Collection", "In",  "System.Int32", isArray: true);
         var itemIn       = DataPin("Item",       "In",  "System.Int32");
         var resultOut    = DataPin("Result",     "Out", "System.Boolean");
-        var contains = new ComponentContainsNode
+        var contains = new CollectionContainsNode
         {
             Id = Guid.NewGuid(), ComponentTypeFqn = ComponentFqn,
             CountAccessorFqn = CountFqn, ItemAccessorFqn = ItemFqn, ElementTypeFqn = "System.Int32",
@@ -134,7 +134,7 @@ public sealed class ComponentSearchLoweringTests
         var collectionIn = DataPin("Collection", "In",  "System.Object", isArray: true);
         var itemIn       = DataPin("Item",       "In",  "System.Object");
         var resultOut    = DataPin("Result",     "Out", "System.Boolean");
-        var contains = new ComponentContainsNode
+        var contains = new CollectionContainsNode
         {
             Id = Guid.NewGuid(), ComponentTypeFqn = ComponentFqn,
             CountAccessorFqn = CountFqn, ItemAccessorFqn = ItemFqn, ElementTypeFqn = "System.Int32",
@@ -195,7 +195,7 @@ public sealed class ComponentSearchLoweringTests
         var itemIn       = DataPin("Item",       "In",  "System.Int32");
         var indexOut     = DataPin("Index",      "Out", "System.Int32");
         var foundOut     = DataPin("Found",      "Out", "System.Boolean");
-        var find = new ComponentFindNode
+        var find = new CollectionFindNode
         {
             Id = Guid.NewGuid(), ComponentTypeFqn = ComponentFqn,
             CountAccessorFqn = CountFqn, ItemAccessorFqn = ItemFqn, ElementTypeFqn = "System.Int32",
@@ -276,7 +276,7 @@ public sealed class ComponentSearchLoweringTests
         var indexOut     = DataPin("Index",      "Out", "System.Int32");
         var foundOut     = DataPin("Found",      "Out", "System.Boolean");
         // ComponentTypeFqn baked but accessor FQNs empty -> invalid once Collection is wired.
-        var find = new ComponentFindNode { Id = Guid.NewGuid(), ComponentTypeFqn = ComponentFqn };
+        var find = new CollectionFindNode { Id = Guid.NewGuid(), ComponentTypeFqn = ComponentFqn };
         find.Pins.AddRange(new[] { collectionIn, itemIn, indexOut, foundOut });
 
         var litValueOut = DataPin("Values", "Out", "System.Int32", isArray: true);

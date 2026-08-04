@@ -436,14 +436,14 @@ internal sealed class GraphScheduler
                     node = feCompleted;
                     continue;
 
-                case ComponentForEachNode cfe:
+                case CollectionForEachNode cfe:
                     // CA-07b -- component-collection inline bounded loop. Schedules + continues the
-                    // outer chain EXACTLY like FlowForEachNode above (see ScheduleComponentForEachNode's
+                    // outer chain EXACTLY like FlowForEachNode above (see ScheduleCollectionForEachNode's
                     // doc comment for the one lowering difference: the component is re-read off the
                     // resolved "Collection" in-pin entity, not self).
                     _execNodeToBlockId[cfe.Id] = blockId;
                     bb.SourceNodeId ??= cfe.Id;
-                    ScheduleComponentForEachNode(cfe, bb);
+                    ScheduleCollectionForEachNode(cfe, bb);
                     var cfeCompleted = GetExecSuccessorByPinName(cfe, "Completed");
                     if (cfeCompleted is null)
                     {
@@ -2382,8 +2382,8 @@ internal sealed class GraphScheduler
                         // scope above): a downstream ComponentForEach/ComponentItemGet/
                         // ComponentItemCount consumer resolves ITS "Collection" in-pin to that SAME
                         // entity, re-reads the component there, and calls its own baked accessors
-                        // (see Stage5's ComponentForEachNode/ComponentItemGetNode/
-                        // ComponentItemCountNode cases below). The pin is not inert -- it now
+                        // (see Stage5's CollectionForEachNode/CollectionItemGetNode/
+                        // CollectionItemCountNode cases below). The pin is not inert -- it now
                         // carries the entity instead of a field value.
                         if (f.IsCollection)
                         {
@@ -2452,7 +2452,7 @@ internal sealed class GraphScheduler
                 break;
             }
 
-            case ComponentItemGetNode cign:
+            case CollectionItemGetNode cign:
             {
                 // CA-07b -- reads one element off a component collection via its baked curated Item
                 // accessor. "Collection" resolves to the source ENTITY the GetComponent
@@ -2554,10 +2554,10 @@ internal sealed class GraphScheduler
                 break;
             }
 
-            case ComponentItemCountNode cicn:
+            case CollectionItemCountNode cicn:
             {
                 // CA-07b -- reads a component collection's Count via its baked curated accessor.
-                // Mirrors ComponentItemGetNode's case above exactly, minus the Index operand.
+                // Mirrors CollectionItemGetNode's case above exactly, minus the Index operand.
                 var collPin = cicn.Pins.FirstOrDefault(p =>
                     !p.IsExec && p.Direction == "In"
                     && string.Equals(p.Name, "Collection", StringComparison.OrdinalIgnoreCase));
@@ -2634,10 +2634,10 @@ internal sealed class GraphScheduler
                 break;
             }
 
-            case ComponentContainsNode ccn:
+            case CollectionContainsNode ccn:
             {
                 // CA-07d-1 -- linear search: does the collection contain the "Item" query value?
-                // Resolves "Collection" -> entity -> re-read component EXACTLY like ComponentItemGetNode,
+                // Resolves "Collection" -> entity -> re-read component EXACTLY like CollectionItemGetNode,
                 // then emits a single IrOp_ComponentCollectionSearch (ContainsResult set). Unwired
                 // Collection OR empty baked ComponentTypeFqn/Count/Item accessors => safe default (false).
                 var collPin = ccn.Pins.FirstOrDefault(p =>
@@ -2726,10 +2726,10 @@ internal sealed class GraphScheduler
                 break;
             }
 
-            case ComponentFindNode cfn:
+            case CollectionFindNode cfn:
             {
                 // CA-07d-1 -- linear search returning the first index (Q#18-B: Index + Found out-pins).
-                // Same Collection->entity->component resolution as ComponentContainsNode; one
+                // Same Collection->entity->component resolution as CollectionContainsNode; one
                 // IrOp_ComponentCollectionSearch sets BOTH FindIndex (int, -1 absent) and FindFound.
                 var collPin = cfn.Pins.FirstOrDefault(p =>
                     !p.IsExec && p.Direction == "In"
@@ -3551,17 +3551,17 @@ internal sealed class GraphScheduler
     // -----------------------------------------------------------------------
 
     /// <summary>
-    /// CA-07b: schedules a <see cref="ComponentForEachNode"/> as an inline bounded loop -- copies
+    /// CA-07b: schedules a <see cref="CollectionForEachNode"/> as an inline bounded loop -- copies
     /// <see cref="ScheduleFlowForEachNode"/>'s shape EXACTLY (same <see cref="IrOp_ForEach"/>,
     /// unchanged; same <see cref="ScheduleInlineBodyChain"/> body scheduling; same
     /// CurrentItem/CurrentIndex/Count pin binding + body-cache isolation snapshot), with THREE
     /// differences: (a) the component is re-read off the ENTITY the wired "Collection" data-in pin
-    /// resolves to (see the section doc comment on <see cref="Assets.ComponentForEachNode"/> in
+    /// resolves to (see the section doc comment on <see cref="Assets.CollectionForEachNode"/> in
     /// Nodes.cs) instead of <c>self</c>; (b) <c>itemVar</c> is allocated with the node's OWN baked
-    /// <see cref="ComponentForEachNode.ElementTypeFqn"/> (falls back to System.Object), not the
+    /// <see cref="CollectionForEachNode.ElementTypeFqn"/> (falls back to System.Object), not the
     /// fixed <c>Fdp.Core.Entity</c> FlowForEach always uses; (c) the accessor FQNs come from this
-    /// node's OWN baked <see cref="ComponentForEachNode.CountAccessorFqn"/>/
-    /// <see cref="ComponentForEachNode.ItemAccessorFqn"/> instead of a fixed roster contract.
+    /// node's OWN baked <see cref="CollectionForEachNode.CountAccessorFqn"/>/
+    /// <see cref="CollectionForEachNode.ItemAccessorFqn"/> instead of a fixed roster contract.
     /// <para>
     /// "Collection" unwired, OR the node's baked ComponentTypeFqn/CountAccessorFqn/ItemAccessorFqn
     /// are empty (not yet baked by CA-07c at wire time): safe default -- NOTHING is emitted (no
@@ -3627,7 +3627,7 @@ internal sealed class GraphScheduler
         return refVal;
     }
 
-    private void ScheduleComponentForEachNode(ComponentForEachNode cfe, BlockBuilder bb)
+    private void ScheduleCollectionForEachNode(CollectionForEachNode cfe, BlockBuilder bb)
     {
         var collPin = cfe.Pins.FirstOrDefault(p =>
             !p.IsExec && p.Direction == "In"
@@ -3874,7 +3874,7 @@ internal sealed class GraphScheduler
                 if (comp is not null) yield return comp;
                 break;
             }
-            case ComponentForEachNode cfe:
+            case CollectionForEachNode cfe:
             {
                 // CA-07b -- same "Body" is nested / "Completed" is outer flow" shape as FlowForEachNode.
                 var comp = GetExecSuccessorByPinName(cfe, "Completed");

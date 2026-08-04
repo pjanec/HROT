@@ -149,7 +149,7 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         // rehydration fallback path; Stage0_Rehydrate.EnrichComponent{ForEach,ItemGet,ItemCount}Pins
         // ALWAYS rebuilds with the real element type (mirrors GetComponentNode). "Body"/"Completed"
         // exec-out names are load-bearing for Stage5 (mirrors FlowForEachNode).
-        ComponentForEachNode      => new[]
+        CollectionForEachNode      => new[]
         {
             ExecIn(),
             Data("Collection", "In", "System.Object"),
@@ -159,13 +159,13 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
             Data("CurrentIndex", "Out", "System.Int32"),
             Data("Count",        "Out", "System.Int32"),
         },
-        ComponentItemGetNode      => new[]
+        CollectionItemGetNode      => new[]
         {
             Data("Collection", "In",  "System.Object"),
             Data("Index",      "In",  "System.Int32"),
             Data("Element",    "Out", "System.Object"),
         },
-        ComponentItemCountNode    => new[]
+        CollectionItemCountNode    => new[]
         {
             Data("Collection", "In",  "System.Object"),
             Data("Count",      "Out", "System.Int32"),

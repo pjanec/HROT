@@ -445,8 +445,8 @@ public sealed record IrOp_ComponentAccessorCall(
 /// Emits (see <see cref="Emit.StatementEmitter"/>): declare the result(s), then
 /// <c>for (int i = 0, n = Count(comp); i &lt; n; i++) if (EqualityComparer&lt;TElem&gt;.Default.Equals(Item(comp,i), query)) { …set results…; break; }</c>.
 /// Backs BOTH consumer nodes via which result values are set:
-///   <see cref="ComponentContainsNode"/> -> <see cref="ContainsResult"/> (bool);
-///   <see cref="ComponentFindNode"/> -> <see cref="FindIndex"/> (int, -1 if absent) + <see cref="FindFound"/> (bool).
+///   <see cref="CollectionContainsNode"/> -> <see cref="ContainsResult"/> (bool);
+///   <see cref="CollectionFindNode"/> -> <see cref="FindIndex"/> (int, -1 if absent) + <see cref="FindFound"/> (bool).
 /// <see cref="ElementTypeFqn"/> types the <c>EqualityComparer&lt;T&gt;</c> so scalars, enums, and struct
 /// value-copies all compare correctly with one reflection-free path (Q#18-A).
 /// </summary>

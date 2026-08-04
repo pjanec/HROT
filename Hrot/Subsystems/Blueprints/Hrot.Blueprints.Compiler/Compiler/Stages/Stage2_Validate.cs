@@ -1227,8 +1227,8 @@ internal sealed class V_SharedStateRules : IValidator
 ///     AiPrimitive-dispatch asset. AiPrimitive's generated <c>TickCore</c> has no
 ///     <c>IEntityCommandBuffer</c> parameter in scope (see <c>AiPrimitiveEmitter.EmitTickCore</c>),
 ///     so there is nowhere to queue <c>ecb.SetManagedComponent</c>.</item>
-///   <item>BP2066 (CA-07b) -- a component-collection consumer (<see cref="ComponentForEachNode"/>/
-///     <see cref="ComponentItemGetNode"/>/<see cref="ComponentItemCountNode"/>) whose "Collection"
+///   <item>BP2066 (CA-07b) -- a component-collection consumer (<see cref="CollectionForEachNode"/>/
+///     <see cref="CollectionItemGetNode"/>/<see cref="CollectionItemCountNode"/>) whose "Collection"
 ///     data-in pin IS wired but whose baked accessor FQNs are empty. The wiring is meaningless
 ///     without the bake (CA-07c wires it at edit time); Stage5 would otherwise silently degrade to
 ///     its "safe default" (no read, out-pin resolves to <c>default</c>) with no diagnostic at all.</item>
@@ -1320,8 +1320,8 @@ internal sealed class V_ComponentAccessRules : IValidator
                 {
                     CheckManagedReadNotPersisted(gcn, graph, asset, ctx);
                 }
-                else if (node is ComponentForEachNode or ComponentItemGetNode or ComponentItemCountNode
-                                 or ComponentContainsNode or ComponentFindNode)
+                else if (node is CollectionForEachNode or CollectionItemGetNode or CollectionItemCountNode
+                                 or CollectionContainsNode or CollectionFindNode)
                 {
                     CheckComponentCollectionConsumer(node, graph, asset, ctx);
                 }
@@ -1418,7 +1418,7 @@ internal sealed class V_ComponentAccessRules : IValidator
 
     /// <summary>
     /// FC-1 (Q#20 G3) -- BP2071 WARNING: a <see cref="CollectionWriteNode"/> reachable from a
-    /// <see cref="ComponentForEachNode"/>'s "Body" exec chain, mutating the SAME collection that
+    /// <see cref="CollectionForEachNode"/>'s "Body" exec chain, mutating the SAME collection that
     /// ForEach is iterating, has wire-dependent semantics (the loop bound is hoisted once iff the
     /// "Count" out-pin is wired, else re-evaluated per pass -- see StatementEmitter's IrOp_ForEach
     /// case), so RemoveAt/Add inside the body silently skips or re-reads elements depending on an
@@ -1438,7 +1438,7 @@ internal sealed class V_ComponentAccessRules : IValidator
 
         foreach (var node in graph.Nodes)
         {
-            if (node is not ComponentForEachNode cfe) continue;
+            if (node is not CollectionForEachNode cfe) continue;
             if (string.IsNullOrEmpty(cfe.ComponentTypeFqn)) continue;
             string iterOwner = AccessorOwner(
                 !string.IsNullOrEmpty(cfe.CountAccessorFqn) ? cfe.CountAccessorFqn : cfe.ItemAccessorFqn);
@@ -1501,19 +1501,19 @@ internal sealed class V_ComponentAccessRules : IValidator
 
         var (componentTypeFqn, countFqn, itemFqn, kind, fieldName) = node switch
         {
-            ComponentForEachNode cfe   => (cfe.ComponentTypeFqn, cfe.CountAccessorFqn, cfe.ItemAccessorFqn, cfe.CollectionKind, cfe.CollectionFieldName),
-            ComponentItemGetNode cig   => (cig.ComponentTypeFqn, "", cig.ItemAccessorFqn, cig.CollectionKind, cig.CollectionFieldName),
-            ComponentItemCountNode cic => (cic.ComponentTypeFqn, cic.CountAccessorFqn, "", cic.CollectionKind, cic.CollectionFieldName),
-            ComponentContainsNode ccn  => (ccn.ComponentTypeFqn, ccn.CountAccessorFqn, ccn.ItemAccessorFqn, ccn.CollectionKind, ccn.CollectionFieldName),
-            ComponentFindNode cfn      => (cfn.ComponentTypeFqn, cfn.CountAccessorFqn, cfn.ItemAccessorFqn, cfn.CollectionKind, cfn.CollectionFieldName),
+            CollectionForEachNode cfe   => (cfe.ComponentTypeFqn, cfe.CountAccessorFqn, cfe.ItemAccessorFqn, cfe.CollectionKind, cfe.CollectionFieldName),
+            CollectionItemGetNode cig   => (cig.ComponentTypeFqn, "", cig.ItemAccessorFqn, cig.CollectionKind, cig.CollectionFieldName),
+            CollectionItemCountNode cic => (cic.ComponentTypeFqn, cic.CountAccessorFqn, "", cic.CollectionKind, cic.CollectionFieldName),
+            CollectionContainsNode ccn  => (ccn.ComponentTypeFqn, ccn.CountAccessorFqn, ccn.ItemAccessorFqn, ccn.CollectionKind, ccn.CollectionFieldName),
+            CollectionFindNode cfn      => (cfn.ComponentTypeFqn, cfn.CountAccessorFqn, cfn.ItemAccessorFqn, cfn.CollectionKind, cfn.CollectionFieldName),
             _                          => ("", "", "", CollectionKind.CuratedStatic, (string?)null),
         };
 
         // Contains/Find both loop (Count) and compare each element (Item) -> need BOTH, like ForEach.
-        bool needsCount = node is ComponentForEachNode or ComponentItemCountNode
-                                  or ComponentContainsNode or ComponentFindNode;
-        bool needsItem  = node is ComponentForEachNode or ComponentItemGetNode
-                                  or ComponentContainsNode or ComponentFindNode;
+        bool needsCount = node is CollectionForEachNode or CollectionItemCountNode
+                                  or CollectionContainsNode or CollectionFindNode;
+        bool needsItem  = node is CollectionForEachNode or CollectionItemGetNode
+                                  or CollectionContainsNode or CollectionFindNode;
 
         // CA-07d-2: a MANAGED collection (Q#18-C/D) bakes CollectionFieldName for native member access,
         // NOT the curated accessor FQNs (which are legitimately empty) -- so the required-non-empty set
@@ -1730,8 +1730,8 @@ internal sealed class V_ListVariableRules : IValidator
 
             // The blessed consumers: the 5 collection readers' "Collection" in-pin.
             bool isConsumerCollectionPin =
-                sink is ComponentForEachNode or ComponentItemGetNode or ComponentItemCountNode
-                        or ComponentContainsNode or ComponentFindNode
+                sink is CollectionForEachNode or CollectionItemGetNode or CollectionItemCountNode
+                        or CollectionContainsNode or CollectionFindNode
                 && string.Equals(toPin.Name, "Collection", StringComparison.OrdinalIgnoreCase);
             if (isConsumerCollectionPin) continue;
 
@@ -2051,7 +2051,7 @@ internal sealed class V_ExecOutFanOut : IValidator
 // ---------------------------------------------------------------------------
 
 /// <summary>
-/// P1 (GAP-1): a <see cref="FlowForEachNode"/>'s -- and (CA-07b) a <see cref="ComponentForEachNode"/>'s
+/// P1 (GAP-1): a <see cref="FlowForEachNode"/>'s -- and (CA-07b) a <see cref="CollectionForEachNode"/>'s
 /// -- "Body" exec-subgraph must be a synchronous, latent-free sub-DAG. Both lower to an inline C#
 /// <c>for</c> whose statements are scheduled inline (not BFS blocks), so a latent node -- which needs
 /// a suspend/resume block split -- cannot appear inside it. P1b lifted the P1a branch-free
@@ -2065,17 +2065,17 @@ internal sealed class V_FlowForEachRules : IValidator
         foreach (var graph in asset.Graphs)
         {
             var nodeById = graph.Nodes.ToDictionary(n => n.Id);
-            // CA-07b: ComponentForEachNode shares FlowForEachNode's inline for-body scheduling
-            // (ScheduleComponentForEachNode -> ScheduleInlineBodyChain), so its "Body" carries the
+            // CA-07b: CollectionForEachNode shares FlowForEachNode's inline for-body scheduling
+            // (ScheduleCollectionForEachNode -> ScheduleInlineBodyChain), so its "Body" carries the
             // SAME latent-free requirement -- a latent node there would need a suspend/resume block
             // split the inline for-body cannot span. Both loop kinds expose a "Body" exec-out.
-            foreach (var loop in graph.Nodes.Where(n => n is FlowForEachNode or ComponentForEachNode))
+            foreach (var loop in graph.Nodes.Where(n => n is FlowForEachNode or CollectionForEachNode))
             {
                 var bodyPin = loop.Pins.FirstOrDefault(p => p.IsExec && p.Direction == "Out"
                     && string.Equals(p.Name, "Body", StringComparison.OrdinalIgnoreCase));
                 if (bodyPin is null) continue;
 
-                var loopKind = loop is ComponentForEachNode ? "ComponentForEach" : "FlowForEach";
+                var loopKind = loop is CollectionForEachNode ? "CollectionForEach" : "FlowForEach";
 
                 var visited = new HashSet<Guid>();
                 var queue = new Queue<Node>();

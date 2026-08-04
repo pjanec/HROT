@@ -140,7 +140,7 @@ public sealed class Stage4_TypeResolveTests
     /// "ElementFullName[]" (e.g. "System.Object[]"), so the OLD exact-string wildcard check
     /// (<c>fromType.FullName == "System.Object"</c>) never matched an ARRAY of the placeholder type
     /// -- a real component collection (e.g. "System.Int32[]") wired into
-    /// <see cref="ComponentItemCountNode"/>'s "Collection" pin (ALWAYS "System.Object[]", no
+    /// <see cref="CollectionItemCountNode"/>'s "Collection" pin (ALWAYS "System.Object[]", no
     /// <c>ElementTypeFqn</c> on this node) was WRONGLY flagged BP1501, even though the scalar
     /// "System.Int32" -&gt; "System.Object" case was already explicitly fine. Verified against the
     /// real repro before the fix (build failed with exactly this message); this asserts the fix at
@@ -178,7 +178,7 @@ public sealed class Stage4_TypeResolveTests
                     Pins = new List<Pin>
                     {
                         new Pin { Id = execIn, Name = "ExecIn", Direction = "In", IsExec = true, TypeRef = new() },
-                        // Mirrors ComponentItemCountNode's "Collection" pin: always System.Object, IsArray.
+                        // Mirrors CollectionItemCountNode's "Collection" pin: always System.Object, IsArray.
                         new Pin { Id = arrIn, Name = "ObjArray", Direction = "In", IsExec = false,
                             TypeRef = new BlueprintTypeRef { TypeId = "System.Object", IsArray = true } },
                     }},

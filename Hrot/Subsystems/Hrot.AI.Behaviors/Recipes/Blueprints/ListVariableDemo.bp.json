@@ -147,7 +147,7 @@
           }
         },
         {
-          "kind": "ComponentItemCount",
+          "kind": "CollectionItemCount",
           "Id": "d2000001-0000-0000-0000-000000000005",
           "CollectionKind": "BlackboardFixedList",
           "CollectionFieldName": "Waypoints",
