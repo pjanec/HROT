@@ -18,6 +18,9 @@ architect decision first).
 | **Total** | **51** | **14** |
 | *(refuted on verification)* | | *1* |
 
+> 📌 **Resuming this programme?** Start with [Blueprint_Gaps_Programme_RESUME.md](Blueprint_Gaps_Programme_RESUME.md) — branch, batches
+> shipped, next items, and the traps that cost real time. This tracker stays the source of truth.
+
 > 🔁 **Systemic pattern — now three confirmed instances. Check for it before trusting any validator
 > or guard in this repo.**
 > *An optional constructor dependency defaults to an inert value; the tests pass it explicitly and
