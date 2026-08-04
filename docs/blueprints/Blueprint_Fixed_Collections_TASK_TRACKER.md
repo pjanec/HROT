@@ -297,6 +297,13 @@ bytes→string per the ALC constraint; LV-5 tests pass unchanged) · `FixedListB
   against a LIVE `EntityRepository` (the emitted `((EntityRepository)view)` cast target) with a real
   `BpFixedListDemo`-carrying entity — component fills 1→4, fifth Add rejects, all landed slots carry
   the value. Suite 2542/0 · goldens 184/184.
+- **FCOL005 (parked Contains/Find hazard):** new `CollectionElementEquatableAnalyzer` in
+  `Fdp.Toolkits.Analyzers` — WARNING when a searchable collection's element is a user struct without
+  `IEquatable<T>` (the emitted `EqualityComparer<T>.Default` search would box per comparison on the
+  Tick hot path). Fires on both declaration sites: `[BlueprintCollectionItem]` return types and
+  `[BlueprintCollectionField]` buffer elements; primitives/enums/equatable structs clean. 6 tests;
+  zero hits in the current codebase (all elements are int). The blueprint compiler stays
+  reflection-less — the check lives where Roslyn symbols exist.
 
 Gates at close: goldens 184/184 serial · Blueprints 2542+/known-ALC-flakes-only · AiShared 1202/2
 pre-existing environmental · Fdp.Core failure set unchanged (env perf/migration) · Toolkits 1927/0 ·
