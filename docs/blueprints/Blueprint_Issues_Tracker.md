@@ -11,12 +11,20 @@ architect decision first).
 
 | Complexity | Count |
 |---|---:|
-| `WIRING` | 18 |
+| `WIRING` | 19 |
 | `RW-L` | 23 |
 | `RW-M` | 18 |
 | `RW-H` | 2 |
-| **Total actionable** | **61** |
+| **Total actionable** | **62** |
 | *(refuted on verification)* | *1* |
+
+> ✅ **Second verification pass (2026-08-04) — all 33 spot-checked (`✔`) claims re-derived from code.**
+> **27 confirmed and upgraded to `✔✔`**; 6 documentation-accuracy items left at `✔` (their file/section
+> citations are loose, though the underlying claims hold). **No claim was refuted.** Two corrections and
+> one new issue:
+> - **BP-59 (new, 🔴)** — context-menu node delete bypasses undo while the Del key doesn't.
+> - **BP-02 scope** — 15 undo-bypass sites, not 10.
+> - **BP-27 ⚠ resolved** — re-check confirms `RW-M`; no reusable picker exists.
 
 > ✅ **Verification pass complete (2026-08-04).** All 11 previously agent-only claims were re-checked
 > against the **whole repo** (`FDP/` *and* `Hrot/`). Outcome: **6 confirmed**, **1 refuted**
@@ -30,7 +38,8 @@ architect decision first).
 *Canvas ergonomics. Mostly NodeEdit-core capability the Blueprint host never registers.*
 → [detail](Blueprint_Issues_Detail.md#area-a--graph-editor-ux)
 
-- [ ] **BP-02** · `WIRING` — Comment colour and z-order changes bypass undo (`view.Commands.Apply` instead of `view.Execute`)
+- [ ] **BP-59** 🔴 · `WIRING` — **Context-menu "Delete Node" is not undoable, but the Del key is.** `CanvasRenderer.cs:758` applies `RemoveNodes` raw; `EditCommands.cs` builds a proper inverse for the same intent. Silent unrecoverable data loss — *found in the verification pass*
+- [ ] **BP-02** · `WIRING` — Undo bypassed via `view.Commands.Apply`. ⚠ *scope corrected:* **15 sites, not 10** — also pin "Reset to Default" (`:638`), comment delete (`:845`), "Promote to Variable" (`:970`)
 - [ ] **BP-03** · `WIRING` — Bookmarks can't be renamed or deleted; `BookmarkStore.Remove` already exists
 - [ ] **BP-23a** · `RW-L` — **No copy/cut/paste/duplicate on the canvas.** Paste is hard-disabled; `AddNodeCommand` already accepts a prebuilt `Node`, so paste can skip the 8-of-50 property whitelist
 - [ ] **BP-13** · `RW-L` — No align/distribute/straighten; 9 commands declared, 0 implemented. `CommandBuilder.MoveNodes` is the ready primitive
