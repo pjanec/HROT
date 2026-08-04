@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using NodeEditor.Core.Commands;
 using NodeEditor.Primitives;
 
 namespace NodeEditor.Core.Interfaces;
@@ -30,6 +31,31 @@ public interface IDetailsContext
     IPinDefaultValueEditorRegistry Editors { get; }
     IIconProvider Icons { get; }
     IEditorTheme Theme { get; }
+
+    /// <summary>
+    /// BP-63 — the graph being edited, so a view can read the state it is about to overwrite and
+    /// build a matching inverse command. Without it a Details view can only push a forward command
+    /// blind, which is why <c>CommentDetailsView</c> was neither undoable nor revertable.
+    ///
+    /// <para>
+    /// Defaulted to <c>null</c> so existing implementers keep compiling; a view must degrade to a
+    /// plain <see cref="CommandSink"/> apply when it is absent.
+    /// </para>
+    /// </summary>
+    Core.Interfaces.IGraphModel? Model => null;
+
+    /// <summary>
+    /// BP-63 — applies a change through the host's undo stack, given both directions.
+    ///
+    /// <para>
+    /// The default implementation applies the forward through <see cref="CommandSink"/> and drops
+    /// the inverse, preserving the previous (non-undoable) behaviour for hosts that have no stack.
+    /// A host with a <c>GraphView</c> should override it with <c>view.Execute</c> so Details-panel
+    /// edits share the one stack Ctrl+Z drains.
+    /// </para>
+    /// </summary>
+    GraphCommandResult Execute(GraphCommand forward, GraphCommand inverse, string label)
+        => CommandSink.Apply(forward);
 }
 
 /// <summary>Context handed to a view at Draw time.</summary>

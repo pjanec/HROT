@@ -169,7 +169,11 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
     private GraphCommandResult ApplyAddNode(GraphCommand.AddNode add)
     {
         // Create the asset-level node. Unknown kinds fall back to FunctionCallNode.
-        var assetNode = CreateAssetNode(add.Kind, add.Position, add.InitialProperties);
+        // BP-65: the node MUST take the caller's AssignedId. CommandBuilder.AddNode pairs the
+        // forward with `RemoveNodes([thatId])`, so minting a fresh Guid here made every inverse
+        // reference a node that does not exist — placement was silently non-undoable. The BTree and
+        // HSM sinks already honour AssignedId; only this one did not.
+        var assetNode = CreateAssetNode(add.AssignedId, add.Kind, add.Position, add.InitialProperties);
         if (assetNode == null)
             return new GraphCommandResult(false, $"Could not create node for kind: {add.Kind.Id}");
 
@@ -183,6 +187,7 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
     }
 
     private Node? CreateAssetNode(
+        NodeId assignedId,
         NodeKindKey kind,
         Vector2 position,
         IReadOnlyDictionary<string, object?>? props)
@@ -194,9 +199,9 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         // GetVariableNode / SetVariableNode so NodePinSchema projects the correct pins:
         // Get = PURE (single data-out "Value"), Set = exec in/out + typed data "Value".
         if (IsGetVariableKind(kind.Id))
-            return FinishVariableNode(new GetVariableNode(), position, props);
+            return FinishVariableNode(new GetVariableNode(), assignedId, position, props);
         if (IsSetVariableKind(kind.Id))
-            return FinishVariableNode(new SetVariableNode(), position, props);
+            return FinishVariableNode(new SetVariableNode(), assignedId, position, props);
 
         // Map the NodeKindKey back to the appropriate asset Node subtype.
         // The NodeKindRegistry descriptor has a CreateInstance factory; use it
@@ -216,7 +221,7 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             assetNode = new FunctionCallNode { MethodName = kind.Id };
         }
 
-        assetNode.Id = Guid.NewGuid();
+        assetNode.Id = ResolveNodeId(assignedId);
         assetNode.EditorMetadata = new NodeMetadata { X = position.X, Y = position.Y };
 
         // Apply initial properties if provided.
@@ -295,6 +300,15 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
     /// True when <paramref name="kindId"/> denotes a "get variable" node create request
     /// (the My-Blueprint drag-to-canvas / context-menu "Get" path).
     /// </summary>
+    /// <summary>
+    /// BP-65: the id a newly created node takes. Callers that route through
+    /// <c>CommandBuilder.AddNode</c> / <c>GraphView.Execute</c> always supply one, and the paired
+    /// inverse <c>RemoveNodes</c> names it — so honouring it is what makes placement undoable. An
+    /// empty id (a caller that constructed <c>AddNode</c> by hand) still gets a fresh Guid.
+    /// </summary>
+    private static Guid ResolveNodeId(NodeId assignedId)
+        => assignedId.Value == Guid.Empty ? Guid.NewGuid() : assignedId.Value;
+
     private static bool IsGetVariableKind(string kindId) =>
         kindId is "Util.GetVar" or "Variable.Get" or "Blueprint.GetVariable" or "GetVariable";
 
@@ -312,10 +326,11 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
     /// </summary>
     private Node FinishVariableNode(
         Node node,
+        NodeId assignedId,
         Vector2 position,
         IReadOnlyDictionary<string, object?>? props)
     {
-        node.Id = Guid.NewGuid();
+        node.Id = ResolveNodeId(assignedId);
         node.EditorMetadata = new NodeMetadata { X = position.X, Y = position.Y };
         if (props != null)
             ApplyInitialProperties(node, props);

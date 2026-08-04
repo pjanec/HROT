@@ -210,6 +210,64 @@ public sealed class BlueprintUndoUnificationTests
         Assert.Equal(0, h.Undo.UndoCount);
     }
 
+    // ── 2b. BP-65: the sink must adopt the caller's node id ──────────────────
+
+    /// <summary>
+    /// BP-65 — <c>CommandBuilder.AddNode</c> mints an id, puts it in the forward command, and pairs
+    /// it with <c>RemoveNodes([thatId])</c>. The sink used to ignore <c>AssignedId</c> and mint its
+    /// own Guid, so every inverse named a node that did not exist: <b>placing a node was silently
+    /// non-undoable</b> — palette drops, wire-drops, variable drags, all of it. The BTree and HSM
+    /// sinks already honoured it; only this one did not.
+    ///
+    /// <para>
+    /// Invisible until BP-11 because the sink also recorded an <c>AddNodeCommand</c> on
+    /// <c>CommandHistory</c>, which holds the node <em>object</em> rather than its id and so undid
+    /// correctly — in a stack no UI path ever reached.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void AddedNode_TakesTheCallersAssignedId_SoTheInverseCanFindIt()
+    {
+        var h  = new Harness();
+        var id = new NodeId(Guid.NewGuid());
+
+        h.Undo.ApplyAndRecord(
+            new GraphCommand.AddNode(id, new NodeKindKey("FunctionCallNode"), Vector2.Zero, null),
+            new GraphCommand.RemoveNodes(new[] { id }),
+            "Add Node");
+
+        Assert.Contains(h.Graph.Nodes, n => n.Id == id.Value);
+    }
+
+    [Fact]
+    public void AddNode_IsUndoable_ThroughTheStack()
+    {
+        var h      = new Harness();
+        var id     = new NodeId(Guid.NewGuid());
+        int before = h.Graph.Nodes.Count;
+
+        h.Undo.ApplyAndRecord(
+            new GraphCommand.AddNode(id, new NodeKindKey("FunctionCallNode"), Vector2.Zero, null),
+            new GraphCommand.RemoveNodes(new[] { id }),
+            "Add Node");
+        Assert.Equal(before + 1, h.Graph.Nodes.Count);
+
+        Assert.True(h.Undo.Undo());
+        Assert.Equal(before, h.Graph.Nodes.Count);
+    }
+
+    /// <summary>A hand-built AddNode with no id still gets one — it just is not undoable.</summary>
+    [Fact]
+    public void AddNode_WithAnEmptyAssignedId_StillGetsAFreshId()
+    {
+        var h = new Harness();
+
+        h.Sink.Apply(new GraphCommand.AddNode(
+            new NodeId(Guid.Empty), new NodeKindKey("FunctionCallNode"), Vector2.Zero, null));
+
+        Assert.All(h.Graph.Nodes, n => Assert.NotEqual(Guid.Empty, n.Id));
+    }
+
     // ── 3. Mixed ordering — the entire reason for one stack (Q22-A1) ─────────
 
     /// <summary>

@@ -1,3 +1,4 @@
+using System.Numerics;
 using Hrot.Blueprints.Core;   // BlueprintJsonServices (in Hrot.Blueprints.Core namespace, Compiler assembly)
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
@@ -15,6 +16,7 @@ using Hrot.Editor.AiShared.Windows;
 using NodeEditor.Core;
 using NodeEditor.Core.Action;
 using NodeEditor.Core.Bookmarks;
+using NodeEditor.Core.Commands;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Core.View;
 using NodeEditor.Primitives;
@@ -290,6 +292,13 @@ public static class BlueprintDocumentFactory
         // Variables section. (Was a no-op since BATCH-13.)
         RegisterCreateVariableCommand(commands, bpAsset, () => bpFile.MarkDirty());
 
+        // BP-12a: My Blueprint → right-click a variable → "Get"/"Set". The context menu has always
+        // invoked editor.create-variable-get / -set, but nothing registered them, so the most-used
+        // motion in Unreal-style authoring silently did nothing. (The drag-to-canvas path already
+        // worked — CanvasRenderer.PlaceVariableNode handles the drop — so this closes the gap for
+        // the menu, which is the only route when the panel is docked away from the canvas.)
+        RegisterVariableGetSetCommands(commands, view, bpAsset);
+
         // ── 10. Bookmarks (navigation aids) ──────────────────────────────────
         // Per-document BookmarkStore + the shared NodeEdit set/jump commands (Ctrl+1..9
         // jump, Ctrl+Shift+1..9 set — see BookmarkCommands). Pumped automatically by
@@ -316,6 +325,88 @@ public static class BlueprintDocumentFactory
             Commands  = commands,
             Bookmarks = bookmarkStore,
         };
+    }
+
+    // ── Variable Get/Set placement commands (BP-12a) ──────────────────────────
+
+    /// <summary>
+    /// Registers <c>editor.create-variable-get</c> and <c>editor.create-variable-set</c>, which the
+    /// My Blueprint panel's variable context menu invokes with the variable id in
+    /// <c>ctx.Args["itemId"]</c> (see <c>MyBlueprintContextMenu.DrawVariableMenu</c>).
+    ///
+    /// <para>
+    /// The node is created through <c>view.Execute</c>, so placing one is undoable like any other
+    /// structural edit (BP-11's single stack). Placement goes at <c>ctx.CanvasPos</c> when the caller
+    /// supplied one, otherwise the centre of the current viewport — a menu invocation carries no
+    /// mouse position, and dropping the node at the graph origin would put it off-screen.
+    /// </para>
+    ///
+    /// <para>Exposed <c>internal</c> so tests can drive both commands without ImGui.</para>
+    /// </summary>
+    internal static void RegisterVariableGetSetCommands(
+        EditorCommandsImpl commands,
+        GraphView          view,
+        BlueprintAsset     asset)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(asset);
+
+        var reg = new CommandRegistration(commands);
+
+        reg.Add(
+            "editor.create-variable-get", "Get Variable", "Add",
+            ctx => PlaceVariableNode(view, asset, ctx, isGet: true),
+            description: "Places a Get node for the selected variable.");
+
+        reg.Add(
+            "editor.create-variable-set", "Set Variable", "Add",
+            ctx => PlaceVariableNode(view, asset, ctx, isGet: false),
+            description: "Places a Set node for the selected variable.");
+    }
+
+    /// <summary>
+    /// Places a <c>GetVariableNode</c>/<c>SetVariableNode</c> for the variable named in
+    /// <paramref name="ctx"/>. Mirrors <c>CanvasRenderer.PlaceVariableNode</c>'s kind ids and
+    /// property bag so both routes produce an identical node.
+    /// </summary>
+    private static void PlaceVariableNode(
+        GraphView view, BlueprintAsset asset, EditorCommandContext ctx, bool isGet)
+    {
+        var variableId = ctx.Args is not null && ctx.Args.TryGetValue("itemId", out var raw)
+            ? raw as string
+            : null;
+
+        // No variable in the context means the menu was invoked without a selection; do nothing
+        // rather than placing a node bound to nothing.
+        if (string.IsNullOrEmpty(variableId)) return;
+
+        // Prefer the declaration's own name for the display property; fall back to the id so a
+        // variable that has since been renamed still places something meaningful.
+        var variableName = asset.Variables
+            .FirstOrDefault(v => string.Equals(v.Name, variableId, StringComparison.Ordinal))
+            ?.Name ?? variableId!;
+
+        var position = ctx.CanvasPos ?? ViewportCentre(view);
+
+        var kind  = new NodeKindKey(isGet ? "Util.GetVar" : "Util.SetVar");
+        var props = new Dictionary<string, object?>
+        {
+            ["VariableId"]   = variableId,
+            ["VariableName"] = variableName,
+        };
+
+        var cb = new CommandBuilder(view.Model);
+        var (fwd, inv) = cb.AddNode(kind, position, props);
+        view.Execute(fwd, inv, isGet ? "Add Get Variable" : "Add Set Variable");
+    }
+
+    /// <summary>Centre of the visible canvas in graph space; graph origin before the first layout.</summary>
+    private static Vector2 ViewportCentre(GraphView view)
+    {
+        var size = view.Viewport.CanvasScreenSize;
+        if (size.X <= 0f || size.Y <= 0f) return Vector2.Zero;
+        return view.Viewport.ScreenToGraph(view.Viewport.CanvasScreenOrigin + size * 0.5f);
     }
 
     // ── Create-variable command (BCP-BATCH-02-FIX Task 3) ─────────────────────
