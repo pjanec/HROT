@@ -159,8 +159,20 @@ Cheapest-per-unit-pain first; all of 1–3 are wiring against shipped infrastruc
 | 4 | **Route drawer edits through `GraphCommand`** | closes the silent-unrecoverable-edit hole |
 | 5 | **Function-graph create + canvas graph-switching** | unlocks a first-class capability already in the data model; unblocks multi-graph assets |
 | 6 | **Guard `ArrayMake`/`ArrayGet`; gate the abandoned 6** | removes the silent-wrong-value trap |
-| 7 | `WhenNodeDrawer` 4 mode forms | most-cited doc gap; wire the existing predicate builder |
+| 7 | `WhenNodeDrawer` mode forms | ⚠ *not* one job — EventFired/ValueChanged are wiring; **ConditionMet is REAL WORK** (see below) |
 | 8 | Align/distribute, error list, cross-blueprint search | steady ergonomic wins |
+
+> **Corrections after the 2026-08-04 verification pass** (details in
+> [Blueprint_Editor_Issue_List.md](Blueprint_Editor_Issue_List.md)):
+> - **"Wire the existing predicate builder" was wrong.** `PredicateBuilderState` is referenced only
+>   by its own test, and `DataBreakpointManagerPanel.DrawPredicateEditor` is **read-only**. There is
+>   no predicate *editing* UI to reuse — `When`/ConditionMet needs new editors for 9
+>   `SearchPredicateDto` subtypes.
+> - **The undo defect is two unbridged stacks**, not drawers bypassing an available path. The undo
+>   API isn't on `IEditService`, and `RecordPropertyEdit` records to a stack Ctrl+Z never drains.
+>   Do not delete `CommandHistory` — its `Execute()` still performs the mutation.
+> - **Copy/paste is cheaper than "REAL WORK"** — `AddNodeCommand` accepts a prebuilt `Node`, so paste
+>   bypasses the 8-of-50 `ApplyInitialProperties` whitelist. Same-graph paste is upper-SMALL.
 
 Macros and collapse-to-function are **genuinely new capability** (no data model) — architect round
 required before either is scoped.
