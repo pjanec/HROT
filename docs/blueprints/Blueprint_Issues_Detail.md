@@ -29,6 +29,30 @@
 > Any remaining **~** absence-claim should be re-checked across `FDP/` **and** `Hrot/` before being
 > treated as settled.
 
+## Two repo-wide patterns this audit kept hitting
+
+**1. Absence claims need both trees.** Four "nothing exists" findings were overturned — the predicate
+editing UI, Universal Breakpoints, C1-for-BTree, and BP-46 — every one because a search covered
+`Hrot/` but not `FDP/`. Verifying *presence* is easy; verifying *absence* is where the failure mode
+lives.
+
+**2. 🔁 The inert-default guard — three confirmed instances.**
+*An optional constructor dependency defaults to an inert value; the tests pass it explicitly and
+prove the logic; every production site omits it, so the feature is silently dead.*
+
+| # | Where | Effect | Status |
+|---|---|---|---|
+| 1 | `PredicateCompiler`'s `blueprintRegistry` (**BP-29**) | conditional breakpoints never fired | **Fixed** |
+| 2 | `HsmValidator`'s `isStatefulSubtree` + `sharedScopeKeys` (**BP-61**) | both HSM concurrency rules never fire | **Open** |
+| 3 | — | this blind spot is *why* **BP-31** was mis-scoped: it credited HSM with a guard that has never run | **Re-scoped** |
+
+> **A green test suite is not evidence that a guard is wired.** Grep the production construction
+> sites. Both fixed/found instances had passing tests that injected the dependency by hand.
+
+> 🧪 **Before judging any test failure, read the [Test baseline appendix](#appendix--test-baseline-what-green-means-in-this-repo)**
+> at the end of this document — this suite has both a parallel-load flake and an order-dependent
+> test, and the older "~8–9 reds is normal" guidance is stale.
+
 ---
 
 # Area A — Graph editor UX
@@ -497,3 +521,51 @@ Cheap, and currently actively misleading.
 `BP-40` (Library-dispatch breakpoints) · `BP-38` (pause-on-exception, already LOCKED as deferred) ·
 `BP-52` (UX-1/UX-2) · `BP-27` *if* the StructEdit re-check confirms no reusable picker · plus macros
 and collapse-to-function if ever brought back into scope.
+
+---
+
+# Appendix — Test baseline (what "green" means in this repo)
+
+Recorded 2026-08-04 while shipping batches 1–3. **Read this before concluding a change broke
+something**, and before dismissing a failure as "just a flake".
+
+## Current baseline
+
+| Suite | Result |
+|---|---|
+| `Hrot.Blueprints.Tests` | **2574 passed**, 10 skipped, **~1 varying failure per full run** |
+| `Hrot.Diagnostics.Breakpoints.Tests` | 130 passed, 0 failed |
+| `Hrot.Blueprints.Compiler.Tests` | 3 passed, 0 failed |
+| `NodeEditor.Core.Tests` / `NodeEditor.UI.Tests` | 195 / 90 passed, 0 failed |
+| Full solution build | clean, 0 errors |
+
+## Two distinct pre-existing defects — neither is a regression
+
+**1. Parallel-load flakiness.** A full run of `Hrot.Blueprints.Tests` typically shows **exactly one**
+failure, and it is **a different test each run** — observed on `MoveToAndFire_BTreeTick_Tests`,
+`LibraryFunction_InvokeTests`, and others. Each passes in isolation and on re-run. Prior sessions
+already recorded this: `Blueprint_CA07d2_Managed_Collections_RESUME.md:125` names *"env-flaky
+perf/ALC/MoveToAndFire"* explicitly.
+
+**2. Order-dependent test — the opposite failure mode.**
+`BlueprintCommandSinkTests.CommandSink_AddLink_WritableCollectionIntoCollectionWrite_BakesOpAccessor`
+**fails when run alone** (`Expected: "Hrot.AI.Behaviors.BpFixedListDemo" / Actual: ""`) and **passes
+inside the full suite** — it depends on state another test establishes, most likely a static
+registry. Verified identical on stashed pre-change code, so it predates this work. Worth fixing:
+a test that only passes with company is not a guard.
+
+> ⚠ **Do not filter-run this test alone and conclude you broke it.** Equally, do not use flakiness
+> as a blanket excuse — see below.
+
+## The "~8–9 reds" note is stale
+
+`Blueprint_Component_Access_RESUME.md:79` says a full parallel run shows *"~8–9 reds that are
+pre-existing/flaky"*. **That is no longer true — the baseline is ~1.** Anyone still quoting the old
+figure could wave through eight genuine regressions. If you see more than one or two failures,
+treat them as real until proven otherwise.
+
+## Method that worked
+
+To decide whether a failure is yours: `git stash`, run the same filter, `git stash pop`. If it fails
+identically without your changes, it predates you. This is how both defects above were classified,
+and how the BP-15 validator errors were correctly identified as *real* rather than dismissed.

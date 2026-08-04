@@ -76,6 +76,14 @@ Component tests: `dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/.
 
 ## PRE-EXISTING test reds (DO NOT chase — verified on the base, not ours)
 
+> ⚠ **STALE as of 2026-08-04 — the count below is no longer the baseline.** A full
+> `Hrot.Blueprints.Tests` run now shows **2574 passed with ~1 varying failure**, not ~8–9. Taking
+> "~8–9 reds are expected" at face value today could wave through eight genuine regressions.
+> Current baseline, plus the two distinct pre-existing defects (a parallel-load flake and an
+> order-dependent test), are recorded in
+> [Blueprint_Issues_Detail.md § Test baseline](Blueprint_Issues_Detail.md#appendix--test-baseline-what-green-means-in-this-repo).
+> Historical content follows unchanged.
+
 Full `Hrot.Blueprints.Tests` (parallel) shows ~8–9 reds that are pre-existing/flaky and unrelated to this
 workstream: `Stage4_TypeResolveTests` BP1500 (UnknownFieldType), `NodeCoverageTests.AllNodeKinds` re
 `Make/Break/SetMembersStruct`, 2 perf/allocation thresholds, and several ALC/dynamic-compile tests that pass in
