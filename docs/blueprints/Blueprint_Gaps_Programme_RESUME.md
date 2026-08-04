@@ -1,7 +1,7 @@
 # RESUME / HANDOFF — Blueprint gaps & QoL programme (2026-08-04)
 
 > **Goal:** make blueprint editing fully functional and pleasant.
-> **Branch:** `claude/blueprint-gaps-qol-audit-uyjjk5` · **HEAD at handoff:** `1df1f3e`
+> **Branch:** `claude/blueprint-gaps-qol-audit-uyjjk5` · **HEAD at handoff:** `966bc2d`
 > **Live state:** [Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md) (checklist) ·
 > [Blueprint_Issues_Detail.md](Blueprint_Issues_Detail.md) (per-issue evidence + `DONE` notes)
 >
@@ -131,7 +131,7 @@ dotnet test FDP/ExtDeps/NodeEdit/tests/NodeEditor.UI.Tests/NodeEditor.UI.Tests.c
 - **Record findings in the detail doc**, not only in commit messages.
 - Ask in plain prose; **never** the multiple-choice widget.
 
-## Key code reference points (as of `1df1f3e`)
+## Key code reference points (as of `966bc2d`)
 
 | Concern | File |
 |---|---|
