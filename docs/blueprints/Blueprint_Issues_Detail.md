@@ -50,7 +50,7 @@ prove the logic; every production site omits it, so the feature is silently dead
 > sites. Both fixed/found instances had passing tests that injected the dependency by hand.
 
 > 🧪 **Before judging any test failure, read the [Test baseline appendix](#appendix--test-baseline-what-green-means-in-this-repo)**
-> at the end of this document. Current baseline is **2583 passed / 0 failed** with the suite
+> at the end of this document. Current baseline is **2594 passed / 0 failed** with the suite
 > serialized; the older "~8–9 reds is normal" guidance is stale and would hide real regressions.
 
 ---
@@ -556,6 +556,61 @@ and collapse-to-function if ever brought back into scope.
 
 ---
 
+# Appendix — Programme log (2026-08-04 session)
+
+Orientation for resuming: [Blueprint_Gaps_Programme_RESUME.md](Blueprint_Gaps_Programme_RESUME.md).
+Per-issue outcomes are in the `DONE` notes above — this records the **arc and the decisions**, which
+those notes do not.
+
+## Batches shipped
+
+| # | Items | Theme |
+|---|---|---|
+| 1 | BP-59 · BP-29 · BP-16 · BP-15 · BP-12e | silent failures made loud |
+| 2 | BP-02 · BP-47 · BP-48 · BP-49 · BP-50 | undo bypasses + documentation accuracy |
+| 3 | BP-04 · BP-09 | palette: add what was unreachable, retire what was dead |
+| 4 | BP-62 · BP-35 (+ suite serialization) | reflection robustness & test health |
+
+## The audit was wrong six times — every correction is recorded in-place
+
+This matters more than any single fix: **the register cannot be trusted without re-derivation.**
+
+| Claim | Reality |
+|---|---|
+| BP-46 — generic `GetShared<T>` missing | **Already shipped**; compiler emits calls to it. Refuted. |
+| BP-37 — "inject `INetworkEntityMap`" | That type **does not exist**; raised `RW-L`→`RW-M`. |
+| BP-55 — needs a delete affordance built | Backend exists; only the UI hook is missing. Lowered to `WIRING`. |
+| BP-02 — 10 undo-bypass sites | **15**, including node delete (became BP-59, 🔴 data loss). |
+| BP-31 — "BTree lacks HSM's guard" | HSM's guard **never runs in production**. Premise inverted (BP-61). |
+| BP-48 — "Runtime DD §13.5" | It is **§9.6**. |
+
+Two architect statements were also wrong and are corrected in the
+[Q22 addendum](Architect_Question_22_Undo_Unification.md): D2 does **not** fix tier 3, and
+`IsItemDeactivatedAfterEdit` cannot capture a pre-drag baseline.
+
+## Decisions taken (so they are not silently revisited)
+
+- **BP-15 `ScoreDecision.AssetId` is checked for non-empty only.** A `Guid.TryParse` check rejected
+  the shipped `CombatPostureDecision`. The pseudo-GUID convention is now pinned by a test.
+- **`ArrayMake`/`ArrayGet` are a hard error (BP1420), not a warning.** BP4004's warning still lets a
+  build succeed, which is what hid the bug.
+- **`PromoteToVariable` was deliberately left on `Commands.Apply`** during BP-02 — recording undo for
+  a no-op would make Ctrl+Z consume a step that reverses nothing. Tracked as BP-60.
+- **Removed a shipped asset node.** `EnumDemo.bp.json` carried an inert `CallCustomEvent`
+  (empty `EventId`, no pins, unlinked) that the new BP-15 validator caught. Deleting it was chosen
+  over weakening the validator to a warning.
+- **Multiplexer exceptions propagate**, matching a directly-wired sink; swallowing would hide a
+  broken observer.
+- **Flaky tests are fixed, never skipped.** A skip is a permanent silent coverage hole.
+
+## New issues found *while fixing*, not by the audit
+
+**BP-59** (🔴 data loss) · **BP-60** · **BP-61** (🔴) · **BP-62**. Three of the four were found by
+following an inconsistency rather than by reading the register — which is the argument for
+re-deriving claims rather than working the list top-down.
+
+---
+
 # Appendix — Test baseline (what "green" means in this repo)
 
 Recorded 2026-08-04 while shipping batches 1–3, then re-measured after serializing the suite.
@@ -564,9 +619,13 @@ Recorded 2026-08-04 while shipping batches 1–3, then re-measured after seriali
 
 ## Current baseline
 
+> Totals quoted in individual `DONE` notes are **point-in-time** — the count grows as each
+> batch adds tests (2551 → 2575 → 2583 → 2594). Only the table below is the *current* baseline.
+
+
 | Suite | Result |
 |---|---|
-| `Hrot.Blueprints.Tests` | **2583 passed**, 10 skipped, 0 failed |
+| `Hrot.Blueprints.Tests` | **2594 passed**, 10 skipped, 0 failed |
 | `Hrot.Diagnostics.Breakpoints.Tests` | 130 passed, 0 failed |
 | `Hrot.Blueprints.Compiler.Tests` | 3 passed, 0 failed |
 | `NodeEditor.Core.Tests` / `NodeEditor.UI.Tests` | 195 / 90 passed, 0 failed |
