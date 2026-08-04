@@ -12,10 +12,10 @@ architect decision first).
 | Complexity | Open | Done |
 |---|---:|---:|
 | `WIRING` | 9 | 10 |
-| `RW-L` | 19 | 3 |
+| `RW-L` | 18 | 4 |
 | `RW-M` | 21 | 1 |
 | `RW-H` | 2 | — |
-| **Total** | **51** | **14** |
+| **Total** | **50** | **15** |
 | *(refuted on verification)* | | *1* |
 
 > 📌 **Resuming this programme?** Start with [Blueprint_Gaps_Programme_RESUME.md](Blueprint_Gaps_Programme_RESUME.md) — branch, batches
@@ -154,7 +154,7 @@ architect decision first).
 → [detail](Blueprint_Issues_Detail.md#area-f--runtime--state-architecture)
 
 - [ ] **BP-31** · `RW-L` — ⚠ **RE-SCOPED — do not build as written.** The premise is inverted: HSM\'s guard is wired to always-false in production (**BP-61**), so neither host is guarded. Mirroring it would add a second rule that can never fire. Fix BP-61 first
-- [ ] **BP-41** · `RW-L` — No test for two *different* AiPrimitive blueprints on one entity; coverage is by analogy only
+- [x] **BP-41** · `RW-L` — No test for two *different* AiPrimitive blueprints on one entity; coverage is by analogy only. ⚠ *the real gap was **per-slot sizing**, not key collision* — every prior test placed a single `WorkingState` **type**. HSM half stays with **BP-30** (unauthorable today)
 - [ ] **BP-44** · `RW-L` — Custom Events 1d: no event-definition authoring UI
 - [ ] **BP-30** · `RW-M` — 🔴 **HSM-hosted AiPrimitive blueprints collide** — they zero and re-init each other every tick, so neither retains state. BTree has the partition-slot mechanism (16 refs); HSM has **0** and no compose command
 - [ ] **BP-61** 🔴 · `RW-M` — **HSM's two concurrency validators never fire in production.** `HsmValidator` defaults `isStatefulSubtree` to `_ => false` and `sharedScopeKeys` to empty; both production sites (`HsmGraphModel:43`, `HsmAssetValidator:18`) omit them, so Rules 8/8b emit nothing. Same shape as BP-29 — tests inject the lambda and prove the logic while the wiring stays dead. ⚠ No `IsStateful` notion exists editor-side, so this needs a design, not a one-liner — *found while scoping BP-31*

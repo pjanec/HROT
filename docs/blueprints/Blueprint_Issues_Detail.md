@@ -458,6 +458,28 @@ public HsmValidator(IActionSchemaExporter? schema = null,
 
 ### BP-41 — No test for two different AiPrimitive blueprints on one entity
 **Complexity:** RW-L · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-04).** New proof `T39_TwoDistinctPrimitives` — **three** different AiPrimitives on one entity, 5 tests, all green.
+>
+> ⚠ **The audit named the wrong risk.** It reads as a slot-*key* collision worry, but keys were never in doubt: a Node-scoped key is `FNV-1a(assetId, nodeVisualId)`, so distinct placements differ regardless of which blueprint sits on them — which is exactly why T20/T35 already looked like enough. The untested thing is **per-slot sizing**: every prior test places a single `WorkingState` *type*, so a provisioner that sized every slot from the first placement would pass all of them.
+>
+> **What the proof varies** (the differences are the mechanism, not decoration):
+>
+> | | Params | WorkingState | Per tick |
+> |---|--:|--:|---|
+> | **A** `DemoAiPrimitiveNodes` | 4 B | 4 B `{int Ticks}` | `Ticks += 1` |
+> | **B** `DemoAiPrimitiveNodesB` *(new)* | 8 B | **16 B** `{long Accumulator; int Steps}` | `Accumulator += 7` |
+> | **C** `ParamDemo_CEFE162F_Bp` | 8 B | **empty** (zero-size edge) | writes `LocomotionChannel` |
+>
+> **C is a real blueprint-generated primitive** (from `ParamDemo.bp.json`, the one `T33` composes alone) — so the proof is not purely stand-in-on-stand-in, and it covers the empty-`WorkingState` case that `Marshal.SizeOf` reports as 1 byte.
+>
+> **Asserted:** 3 distinct slot keys · manifest sizes each slot from *its own* type (4 / 16 / 1) with 3 distinct `StructureHash`es · the three provisioned payload ranges are **pairwise disjoint** at their 8-byte-aligned extents · after N ticks A reads `Ticks = N` while B reads `Accumulator = 7N, Steps = N` — arithmetically distinct, so cross-talk is a wrong number, not a coincidence · C actually dispatches (`ActiveAction = 99`).
+>
+> **Non-vacuity checked**, not assumed: flipping `StrideB` 7 → 8 fails the runtime test and only that one.
+>
+> **The HSM half is not deferred — it is currently unauthorable.** BP-30 records that HSM has **no compose command** (0 partition-slot refs), so two AiPrimitives cannot be placed on one HSM at all; there is no artifact to characterize. The regression test belongs with BP-30's fix, not here.
+>
+> Files: `Assets/BTrees/Authoring/T39_TwoDistinctPrimitives.btree.json`, `Brains/DemoAiPrimitiveNodesB.cs`, `Demos/T39_TwoDistinctAiPrimitives_ProofTests.cs`.
 - Coverage is by analogy only: `T20` uses two *hardcoded* stateful actions on the same rail; `T35` uses the *same* blueprint 3×. The scenario an author will actually hit is unproven. HSM's collision has no regression test either.
 
 ### BP-45 — Cross-entity event dispatch (`BlueprintDeferredEvent`) absent
@@ -570,8 +592,9 @@ those notes do not.
 | 2 | BP-02 · BP-47 · BP-48 · BP-49 · BP-50 | undo bypasses + documentation accuracy |
 | 3 | BP-04 · BP-09 | palette: add what was unreachable, retire what was dead |
 | 4 | BP-62 · BP-35 (+ suite serialization) | reflection robustness & test health |
+| 5 | BP-41 | coverage: three *different* AiPrimitives on one entity |
 
-## The audit was wrong six times — every correction is recorded in-place
+## The audit was wrong seven times — every correction is recorded in-place
 
 This matters more than any single fix: **the register cannot be trusted without re-derivation.**
 
@@ -583,6 +606,7 @@ This matters more than any single fix: **the register cannot be trusted without 
 | BP-02 — 10 undo-bypass sites | **15**, including node delete (became BP-59, 🔴 data loss). |
 | BP-31 — "BTree lacks HSM's guard" | HSM's guard **never runs in production**. Premise inverted (BP-61). |
 | BP-48 — "Runtime DD §13.5" | It is **§9.6**. |
+| BP-41 — implies a slot-**key** collision risk | Keys were never at risk (per-`VisualId`). The untested thing is per-slot **sizing** — every prior test placed one `WorkingState` *type*. |
 
 Two architect statements were also wrong and are corrected in the
 [Q22 addendum](Architect_Question_22_Undo_Unification.md): D2 does **not** fix tier 3, and

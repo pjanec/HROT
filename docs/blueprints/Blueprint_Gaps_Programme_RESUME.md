@@ -12,7 +12,7 @@
 
 ## Status
 
-**51 open · 14 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
+**50 open · 15 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
 table; do not duplicate them here.
 
 | Batch | Items |
@@ -21,6 +21,7 @@ table; do not duplicate them here.
 | 2 — undo + docs | BP-02, BP-47, BP-48, BP-49, BP-50 |
 | 3 — palette | BP-04, BP-09 |
 | 4 — test health & reflection | BP-62, BP-35 (+ suite serialization) |
+| 5 — coverage | BP-41 |
 
 **Everything is verified headless.** No GPU/visual check has been needed so far.
 
@@ -28,13 +29,11 @@ table; do not duplicate them here.
 
 ## Next up
 
-1. **BP-41** (`RW-L`) — missing coverage test: two *different* AiPrimitive blueprints on one entity.
-   Pure test authoring, headless. The obvious next one.
-2. **BP-11** ⭐ (`RW-M`, 🔴) — undo unification. **Architect-approved**
+1. **BP-11** ⭐ (`RW-M`, 🔴) — undo unification. **Architect-approved**
    ([Q22](Architect_Question_22_Undo_Unification.md#answers--approved-2026-08-04)) —
    package A1+B1+C2+D2+E1. ⚠ Read the **addendum**: three gaps were found in the approved package
    after approval, one of them load-bearing (the stack takes `GraphCommand`, not delegates).
-3. Remaining `WIRING` items (BP-03, BP-05…BP-08, BP-10, BP-12a) are **drawer/UI work — these need
+2. Remaining `WIRING` items (BP-03, BP-05…BP-08, BP-10, BP-12a) are **drawer/UI work — these need
    the user's eyes**, unlike everything shipped so far.
 
 **Blocked / do not build as written:** `BP-31` (premise inverted — see BP-61) ·
