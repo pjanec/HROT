@@ -1,7 +1,7 @@
 # RESUME / HANDOFF — Blueprint gaps & QoL programme (2026-08-04)
 
 > **Goal:** make blueprint editing fully functional and pleasant.
-> **Branch:** `claude/blueprint-gaps-qol-audit-uyjjk5` · **HEAD at handoff:** `6fe9498`
+> **Branch:** `claude/blueprint-gaps-qol-audit-uyjjk5` · **HEAD at handoff:** `1df1f3e`
 > **Live state:** [Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md) (checklist) ·
 > [Blueprint_Issues_Detail.md](Blueprint_Issues_Detail.md) (per-issue evidence + `DONE` notes)
 >
@@ -105,9 +105,11 @@ dotnet test FDP/ExtDeps/NodeEdit/tests/NodeEditor.UI.Tests/NodeEditor.UI.Tests.c
 
 ## Working agreement (from the user, this programme)
 
-- **Verify claims against code; do not trust the audit doc or the architect blindly.** Four audit
+- **Verify claims against code; do not trust the audit doc or the architect blindly.** **Seven** audit
   claims and two architect statements were wrong and were corrected in-repo. Every correction is
-  recorded in the detail file rather than silently applied.
+  recorded in the detail file rather than silently applied. Note the failure mode is not only "claim
+  is false" — BP-41's claim was true but named the *wrong risk*, so building it as written would have
+  re-proved something already covered.
 - **Fix, don't disable.** Flaky/failing tests get root-caused; skipping is a permanent silent
   coverage hole.
 - **Non-trivial designs get an architect round** (`Architect_Question_N_*.md`) — the user relays to
@@ -115,7 +117,7 @@ dotnet test FDP/ExtDeps/NodeEdit/tests/NodeEditor.UI.Tests/NodeEditor.UI.Tests.c
 - **Record findings in the detail doc**, not only in commit messages.
 - Ask in plain prose; **never** the multiple-choice widget.
 
-## Key code reference points (as of `6fe9498`)
+## Key code reference points (as of `1df1f3e`)
 
 | Concern | File |
 |---|---|
@@ -127,3 +129,4 @@ dotnet test FDP/ExtDeps/NodeEdit/tests/NodeEditor.UI.Tests/NodeEditor.UI.Tests.c
 | Type resolution scope (BP-62) | `Hrot/.../Hrot.Blueprints.Editor/NodeDrawers/EditorTypeResolutionScope.cs` |
 | Probe fan-out (BP-35) | `Hrot/.../Hrot.Blueprints.Core/MultiplexingProbeSink.cs` |
 | Undo stacks (BP-11 target) | `Hrot/.../Hrot.Blueprints.Editor/NodeDrawers/EditService.cs` + `GraphEditor/CommandHistory.cs` |
+| AiPrimitive composition rail (BP-41/BP-30) | `Hrot/Subsystems/AI/Hrot.AiEditor.Persistence/Emit/BTreeBridgeEmitCore.cs` (slot keys + manifest) · `FDP/Toolkits/.../Behavior/Systems/BehaviorIngressSystem.cs` (provisioning) |
