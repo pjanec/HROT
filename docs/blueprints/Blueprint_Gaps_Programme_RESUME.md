@@ -1,7 +1,7 @@
 # RESUME / HANDOFF — Blueprint gaps & QoL programme (2026-08-04)
 
 > **Goal:** make blueprint editing fully functional and pleasant.
-> **Branch:** `claude/blueprint-gaps-qol-audit-uyjjk5` · **HEAD at handoff:** `f586b0f`
+> **Branch:** `claude/blueprint-gaps-qol-audit-uyjjk5` · **HEAD at handoff:** `d8cfc75`
 > **Live state:** [Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md) (checklist) ·
 > [Blueprint_Issues_Detail.md](Blueprint_Issues_Detail.md) (per-issue evidence + `DONE` notes)
 >
@@ -73,15 +73,18 @@ Listed roughly cheapest-to-reach first.
 | 8 | **Bookmarks** panel (set one with Ctrl+Shift+1) | Click the row · double-click it · the ✕ | Click jumps the canvas · double-click renames inline (Esc cancels) · ✕ deletes; right-click has all three *(BP-03)* |
 | 9 | Any Details-panel edit at all | Ctrl+Z | Reverses it. Before BP-11 **no** inspector or drawer edit was undoable |
 
-**Most likely to look wrong:** the right-aligned ✕ in the bookmarks panel (a hand-computed
-`GetContentRegionAvail` offset), and the combo widths on the new drawers — they inherit whatever the
-Details panel's item width is, which I could not see.
+### Outcome of the 2026-08-05 pass
 
-**If a picker looks empty**, that is a catalog with nothing in it rather than a drawer bug. The peer
-picker says *"no peer Blueprints discovered"* explicitly, and it scans
-`{BaseDirectory}/blueprints` — if that directory is empty in your build, the message is correct.
-(The provider **is** wired in `EditorSubsystem`; leaving it null would have been the inert-default
-failure this programme keeps finding, so it is passed explicitly.)
+| Row | Result |
+|---|---|
+| 1, 2, 3, 4, 7, 9 | ✅ as described |
+| 5 — `CallCustomEvent` | ⛔ **untestable — no asset can declare a custom event.** The drawer is right; **BP-12c** is the blocker |
+| 6 — `CallPeerBlueprint` | 🔴 **empty — BP-66**, the catalog scanned a directory that does not exist. Fixed; **re-check** |
+| 8 — bookmarks ✕ | 🔴 **unreachable** — a full-width `Selectable` swallowed the click. Fixed; **re-check** |
+| — When node | 🔎 the other three modes (`ValueChanged`, `ConditionMet`, `EqsResult`) are stubs — **BP-67** |
+
+I predicted the ✕ would be the thing to look wrong. It was, but for the wrong reason: the
+*alignment* was fine, the *hit test* was not — which is the half a headless test can never reach.
 
 ---
 
@@ -199,7 +202,7 @@ dotnet test Hrot/Subsystems/AI/Hrot.AiEditor.Generators.Tests/Hrot.AiEditor.Gene
 - **Record findings in the detail doc**, not only in commit messages.
 - Ask in plain prose; **never** the multiple-choice widget.
 
-## Key code reference points (as of `f586b0f`)
+## Key code reference points (as of `d8cfc75`)
 
 | Concern | File |
 |---|---|
