@@ -13,9 +13,9 @@ architect decision first).
 |---|---:|---:|
 | `WIRING` | 2 | 21 |
 | `RW-L` | 17 | 6 |
-| `RW-M` | 21 | 2 |
+| `RW-M` | 20 | 3 |
 | `RW-H` | 2 | — |
-| **Total** | **42** | **29** |
+| **Total** | **41** | **30** |
 | *(refuted on verification)* | | *1* |
 
 > 📌 **Resuming this programme?** Start with [Blueprint_Gaps_Programme_RESUME.md](Blueprint_Gaps_Programme_RESUME.md) — branch, batches
@@ -31,6 +31,17 @@ architect decision first).
 > 3. **BP-30/BP-31** — the same blind spot is *why* BP-31 was mis-scoped: it credited HSM with a guard
 >    that has never actually run.
 > A green test suite is not evidence that a guard is wired. Grep the production construction sites.
+
+> ✅ **Batch 9 shipped (2026-08-05) — BP-60: "Promote to Variable" works.**
+> Fixed as a **host command**, not a sink case. `GraphCommand.PromoteToVariable` is one opaque
+> command whose new-node id the sink allocates internally, so no caller could write its inverse —
+> that is precisely why BP-02 left this site on `Commands.Apply` and why it reached the
+> `default:` arm that returns success. Promotion is not one primitive anyway: it is *declare a
+> variable* + *place a node* + *link it*. Composing it at the host from commands the sink already
+> implements keeps BP-11's invariant (**the sink applies, the stack records**) and makes the whole
+> gesture **one undo entry**, because the caller owns every id in it.
+> **This lifts BP-02's 15th and last undo bypass.** ⚠ Every test asserts the *effect*; a test on
+> `Success` would have passed against the bug.
 
 > ✅ **Batch 8 shipped (2026-08-05) — custom-event authoring: BP-12c + BP-68.**
 > "Custom Events +" opens a create modal (name + typed parameters), mirroring `editor.create-variable`
@@ -97,7 +108,7 @@ architect decision first).
 → [detail](Blueprint_Issues_Detail.md#area-a--graph-editor-ux)
 
 - [x] **BP-59** 🔴 · `WIRING` — **Context-menu "Delete Node" is not undoable, but the Del key is.** `CanvasRenderer.cs:758` applies `RemoveNodes` raw; `EditCommands.cs` builds a proper inverse for the same intent. Silent unrecoverable data loss — *found in the verification pass*
-- [ ] **BP-60** 🔴 · `RW-M` — **"Promote to Variable" silently does nothing.** `PromoteToVariable` is implemented only in `NodeEditor.Demo`'s `FakeCommandSink`; `BlueprintCommandSink` has no case, so it hits the `default:` that returns success and no-ops. Modal opens, name typed, nothing happens — *found while fixing BP-02*
+- [x] **BP-60** 🔴 · `RW-M` — **"Promote to Variable" silently does nothing.** `PromoteToVariable` was implemented only in `NodeEditor.Demo`'s `FakeCommandSink`; `BlueprintCommandSink` has no case, so it hit the `default:` that returns success and no-ops. ⚠ **fixed as a host command, not a sink case** — the single opaque command hides the new node's id, so no caller could ever write its inverse (which is why BP-02 left this site on `Commands.Apply`). Promotion is *declare + place + link*; composing it from primitives the sink already implements keeps BP-11's invariant and makes the gesture one undo entry. **Lifts BP-02's 15th and last bypass** — *found while fixing BP-02*
 - [x] **BP-62** ⚠ · `RW-M` — **Component type resolution depends on assembly load order.** `ComponentFieldReflector.ResolveType` scans only `AppDomain.CurrentDomain.GetAssemblies()`, which excludes not-yet-loaded assemblies, and callers read `null` as *"not a writable component"* rather than *"unknown"* — so the collection-write bake silently no-ops. Masked in the editor only by a startup side effect (`LoadFromAiAssembly`). *Root cause of the order-dependent test; found by chasing it down*
 - [x] **BP-02** · `WIRING` — Undo bypassed via `view.Commands.Apply`. ⚠ *scope corrected:* **15 sites, not 10** — also pin "Reset to Default" (`:638`), comment delete (`:845`), "Promote to Variable" (`:970`)
 - [x] **BP-03** · `WIRING` — Bookmarks can't be renamed or deleted; `BookmarkStore.Remove` already exists. Added `Rename` + inline edit, delete button/menu, and click-to-jump; ordering/labelling split into `BookmarkPanelLogic` so they're headlessly testable

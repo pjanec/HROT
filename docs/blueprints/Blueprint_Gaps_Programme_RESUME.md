@@ -12,7 +12,7 @@
 
 ## Status
 
-**42 open · 29 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
+**41 open · 30 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
 table; do not duplicate them here.
 
 | Batch | Items |
@@ -25,6 +25,7 @@ table; do not duplicate them here.
 | 6 — undo unification | BP-11 ⭐ |
 | 7 — wiring | BP-03, BP-05…BP-08, BP-10, BP-12a, BP-63, BP-64 (+ BP-65 🔴, BP-66 🔴) |
 | 8 — custom-event authoring | BP-12c, BP-68 🔴 (+ BP1407/BP1408, dispatcher section removed) |
+| 9 — promote to variable | BP-60 🔴 (lifts BP-02's last bypass) |
 
 **Batch 7's visual pass is done (2026-08-05)** and it earned its keep: one bug of mine (the
 bookmarks ✕ was unreachable — a full-width `Selectable` swallowed the click), one long-standing 🔴
@@ -70,41 +71,30 @@ BP-55 asset-browser delete) are not blueprint-authoring items.
 
 Written for a fresh context. Everything here was verified against code on 2026-08-05.
 
-### BP-60 🔴 — "Promote to Variable" silently does nothing (`RW-M`) · **do this first**
+### Next, in order
 
-The last 🔴 in Area A and the last known instance of the `default:`-returns-success trap.
-
-| Fact | Where |
-|---|---|
-| The command exists in the vocabulary | `GraphCommand.PromoteToVariable(PinId Pin, string VariableName, bool IsLocal, string? CategoryPath)` — `GraphCommand.cs:86` |
-| The UI fully works — modal opens, name typed | `CanvasRenderer.cs:627/629` → `OpenPromoteToVariableModal` at `:977` |
-| `BlueprintCommandSink` has **no case** for it | → hits `default:`, which returns **success**. Nothing happens, and it reports that it worked |
-| **A complete reference implementation exists** | `NodeEditor.Demo/FakeBlueprint/FakeCommandSink.cs:357` `ApplyPromoteToVariable` — handles input pins (place `Util.GetVar` left of the owner, link to the pin) and output pins symmetrically |
-| Deliberately left on `Commands.Apply` by BP-02 | `CanvasRenderer.cs:1025` — it was the 15th of 15 bypass sites, blocked on exactly this |
-
-**Two things to get right, both learned the hard way this programme:**
-1. **The sink applies; the stack records** (BP-11). Do *not* record undo inside the new sink case —
-   build the forward/inverse pair at the `CanvasRenderer` call site and route through
-   `view.Execute`, which also lifts BP-02's last bypass.
-2. **A test asserting `Success` proves nothing** here — that is the bug. Assert the *effect*: the
-   variable exists on the asset and a Get/Set node is linked to the pin.
-
-**Done means:** promote from an input pin and from an output pin; the variable appears in My
-Blueprint; Ctrl+Z reverses the whole gesture as one entry.
-
-### Then, in order
-
-2. **BP-23a** (`RW-L`) — copy/cut/paste/duplicate. The one a designer notices first. Paste is
+1. **BP-23a** (`RW-L`) — copy/cut/paste/duplicate. The one a designer notices first. Paste is
    hard-disabled; `AddNodeCommand` already accepts a prebuilt `Node`, so paste can skip the
    8-of-50 property whitelist. ⚠ now also needs to honour `AssignedId` — see BP-65.
-3. **BP-13 / BP-17…BP-20** (`RW-L`) — align-distribute, node titles, collapse, minimap, error list.
+2. **BP-13 / BP-17…BP-20** (`RW-L`) — align-distribute, node titles, collapse, minimap, error list.
    Each has a named ready-made primitive in its detail entry.
-4. **BP-67** (`RW-M`) — the When node's other three forms. Largest of these; hold it until the
+3. **BP-67** (`RW-M`) — the When node's other three forms. Largest of these; hold it until the
    above land.
 
 ---
 
-## 👀 Visual check — batch 8 (do this next)
+## 👀 Visual check — batch 9: Promote to Variable (BP-60)
+
+| # | Where | What to do | What should happen |
+|---|---|---|---|
+| P1 | Right-click a node's **data input** pin → Promote to Variable | type a name, Promote | A **Get** node appears to the **left**, wired into that pin, and the variable shows up in My Blueprint with the pin's type |
+| P2 | Right-click a node's **data output** pin → Promote | same | A **Set** node appears to the **right**, fed by that pin |
+| P3 | Ctrl+Z after either | — | **One** press reverses the whole thing: node gone, wire gone, variable gone from My Blueprint. Ctrl+Y puts it all back |
+| P4 | Promote twice with the same name | — | The second becomes `Name1` rather than failing — promoting is not overwriting |
+
+---
+
+## 👀 Visual check — batch 8
 
 | # | Where | What to do | What should happen |
 |---|---|---|---|

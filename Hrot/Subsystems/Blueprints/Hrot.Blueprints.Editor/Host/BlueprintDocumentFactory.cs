@@ -299,6 +299,12 @@ public static class BlueprintDocumentFactory
         // the menu, which is the only route when the panel is docked away from the canvas.)
         RegisterVariableGetSetCommands(commands, view, bpAsset);
 
+        // BP-60: the canvas's "Promote to Variable" modal. Until now the modal opened, took a name,
+        // and applied a GraphCommand this sink has no case for — landing on the default: arm that
+        // returns success. Nothing happened, and it reported that it worked.
+        RegisterPromoteToVariableCommand(
+            commands, view, bpAsset, nodeCatalog.KindRegistry, () => bpFile.MarkDirty());
+
         // ── 10. Bookmarks (navigation aids) ──────────────────────────────────
         // Per-document BookmarkStore + the shared NodeEdit set/jump commands (Ctrl+1..9
         // jump, Ctrl+Shift+1..9 set — see BookmarkCommands). Pumped automatically by
@@ -400,6 +406,183 @@ public static class BlueprintDocumentFactory
         var (fwd, inv) = cb.AddNode(kind, position, props);
         view.Execute(fwd, inv, isGet ? "Add Get Variable" : "Add Set Variable");
     }
+
+    // ── Promote to Variable (BP-60) ───────────────────────────────────────────
+
+    /// <summary>Horizontal offset of the node promotion places beside the promoted pin's owner.</summary>
+    private const float PromoteNodeOffsetX = 240f;
+
+    /// <summary>
+    /// BP-60 — registers <c>editor.promote-to-variable</c>, which the canvas's promote modal invokes
+    /// with the pin and the entered name.
+    ///
+    /// <para>
+    /// <b>Why a host command and not a sink case.</b> <c>GraphCommand.PromoteToVariable</c> is a
+    /// single opaque command: whichever sink implements it allocates the new node's id internally,
+    /// so a caller cannot write the inverse — which is exactly why BP-02 left this one site on
+    /// <c>Commands.Apply</c>, and why it hit the sink's <c>default:</c> arm and silently reported
+    /// success. Promotion is not one primitive anyway; it is <i>declare a variable</i> + <i>place a
+    /// node</i> + <i>link it</i>. Composing it here from commands the sink already implements keeps
+    /// BP-11's invariant intact — <b>the sink applies, the stack records</b> — and makes the whole
+    /// gesture one undo entry, because the caller owns every id in it.
+    /// </para>
+    ///
+    /// <para>Exposed <c>internal</c> so tests can drive the whole gesture without ImGui.</para>
+    /// </summary>
+    /// <param name="commands">The editor command catalog.</param>
+    /// <param name="view">The document's view; promotion is recorded on its undo stack.</param>
+    /// <param name="asset">The asset that receives the new <see cref="VariableDecl"/>.</param>
+    /// <param name="kindRegistry">
+    /// Used to project the new node's canonical pins so the link can name the right one.
+    /// </param>
+    /// <param name="markDirty">Invoked when a promotion succeeds.</param>
+    internal static void RegisterPromoteToVariableCommand(
+        EditorCommandsImpl commands,
+        GraphView          view,
+        BlueprintAsset     asset,
+        NodeKindRegistry?  kindRegistry = null,
+        Action?            markDirty    = null)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(asset);
+
+        var reg = new CommandRegistration(commands);
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.PromoteToVariable,
+            "Promote to Variable", "Refactor",
+            ctx => PromoteToVariable(view, asset, kindRegistry, markDirty, ctx),
+            description: "Creates a Blueprint variable from this pin and wires it up.");
+    }
+
+    /// <summary>
+    /// Performs the promotion described by <paramref name="ctx"/>'s arguments
+    /// (<c>pinId</c>, <c>name</c>, <c>isLocal</c>, <c>categoryPath</c>).
+    ///
+    /// <para>
+    /// An <b>input</b> pin gets a Get node placed to its left, feeding it; an <b>output</b> pin gets
+    /// a Set node to its right, fed by it. Same shape as the reference implementation in
+    /// <c>NodeEditor.Demo</c>'s <c>FakeCommandSink</c> — which was the only implementation that
+    /// existed.
+    /// </para>
+    /// </summary>
+    private static void PromoteToVariable(
+        GraphView            view,
+        BlueprintAsset       asset,
+        NodeKindRegistry?    kindRegistry,
+        Action?              markDirty,
+        EditorCommandContext ctx)
+    {
+        if (ReadArg(ctx, "pinId") is not PinId pinId) return;
+
+        var pin = view.Model.FindPin(pinId);
+        // Exec pins carry no value, so there is nothing to promote.
+        if (pin is null || pin.Kind != PinKind.Data) return;
+
+        var owner = view.Model.FindNode(pin.OwnerNodeId);
+        if (owner is null) return;
+
+        var rawName = ReadArg(ctx, "name") as string;
+        // The modal disables Confirm on a blank name, but the guard belongs here too.
+        if (string.IsNullOrWhiteSpace(rawName)) return;
+
+        // Never collide with an existing declaration: the designer asked to promote, not to
+        // overwrite, and CreateVariable would reject a duplicate outright.
+        var name     = MakeUniqueName(asset.Variables.Select(v => v.Name), rawName!.Trim());
+        var category = ReadArg(ctx, "categoryPath") as string;
+
+        // BP-57: the data model has no per-graph variable scope, so "Promote to Local Variable"
+        // can only produce a Blueprint-scoped one. Say so rather than silently reinterpreting it.
+        if (ReadArg(ctx, "isLocal") is true)
+            view.Host.Diagnostics?.Log(DiagnosticSeverity.Info,
+                $"Promote: local variables are not supported yet (BP-57); '{name}' was created "
+                + "as a Blueprint variable.");
+
+        bool isInput = pin.Direction == PinDirection.Input;
+
+        var decl = new VariableDecl
+        {
+            Id       = Guid.NewGuid(),
+            Name     = name,
+            Type     = new BlueprintTypeRef { TypeId = PromotedTypeId(pin) },
+            Category = string.IsNullOrWhiteSpace(category) ? null : category!.Trim(),
+        };
+
+        // The variable id is stored in the "var:" form the compiler tolerates and the My Blueprint
+        // drag path already emits, so a promoted node is indistinguishable from a dragged one.
+        var variableId = $"var:{decl.Id:D}";
+        var nodeKind   = new NodeKindKey(isInput ? "Util.GetVar" : "Util.SetVar");
+
+        // Project the new node's pins here so the link can name the right one. The sink stamps
+        // InitialProperties["PinIds"] onto canonical pins in inputs-then-outputs order (ApplyPinIds),
+        // so mirroring that order is what makes the ids line up.
+        var probe = isInput
+            ? (Node)new GetVariableNode { VariableId = variableId }
+            : new SetVariableNode { VariableId = variableId };
+        var canonical = NodePinSchema.GetCanonicalPins(probe, kindRegistry, asset);
+        var ordered   = canonical.Where(p => p.Direction == "In")
+            .Concat(canonical.Where(p => p.Direction != "In"))
+            .ToList();
+
+        // The Value pin faces the promoted pin: a Get node feeds it (Value out), a Set node
+        // receives it (Value in).
+        var wantDirection = isInput ? "Out" : "In";
+        var valueIndex = ordered.FindIndex(p =>
+            !p.IsExec
+            && p.Direction == wantDirection
+            && string.Equals(p.Name, "Value", StringComparison.OrdinalIgnoreCase));
+        if (valueIndex < 0) return;
+
+        var pinIds = ordered.Select(_ => IdGenerator.NewPinId()).ToList();
+        var nodeId = IdGenerator.NewNodeId();
+        var linkId = IdGenerator.NewLinkId();
+
+        var position = owner.Position
+            + new Vector2(isInput ? -PromoteNodeOffsetX : PromoteNodeOffsetX, 0f);
+
+        var props = new Dictionary<string, object?>
+        {
+            ["VariableId"]   = variableId,
+            ["VariableName"] = name,
+            ["PinIds"]       = pinIds,
+        };
+
+        var (from, to) = isInput
+            ? (pinIds[valueIndex], pinId)
+            : (pinId, pinIds[valueIndex]);
+
+        // Three steps, one undo entry. CommandBuilder.Batch reverses the inverses, so undo runs
+        // unlink → remove node → undeclare, which is the only order that leaves no dangling
+        // reference at any point.
+        var steps = new List<(GraphCommand Forward, GraphCommand Inverse)>
+        {
+            (new BlueprintEditCommand("Declare Variable",   () => asset.Variables.Add(decl)),
+             new BlueprintEditCommand("Undeclare Variable", () => asset.Variables.Remove(decl))),
+
+            (new GraphCommand.AddNode(nodeId, nodeKind, position, props),
+             new GraphCommand.RemoveNodes(new[] { nodeId })),
+
+            (new GraphCommand.AddLink(linkId, from, to),
+             new GraphCommand.RemoveLinks(new[] { linkId })),
+        };
+
+        var cb = new CommandBuilder(view.Model);
+        var (forward, inverse) = cb.Batch("Promote to Variable", steps);
+        view.Execute(forward, inverse, "Promote to Variable");
+
+        markDirty?.Invoke();
+    }
+
+    /// <summary>
+    /// The declared type for a promoted pin. An untyped (wildcard) pin falls back to
+    /// <see cref="BlueprintTypeSystem.Bool"/> — the same default the "+ Variable" quick-add uses —
+    /// so promotion always produces a well-formed declaration the designer can retype.
+    /// </summary>
+    private static string PromotedTypeId(IPinModel pin)
+        => pin.Type is { IsEmpty: false } type ? type.Id : BlueprintTypeSystem.Bool;
+
+    private static object? ReadArg(EditorCommandContext ctx, string key)
+        => ctx.Args is not null && ctx.Args.TryGetValue(key, out var value) ? value : null;
 
     /// <summary>Centre of the visible canvas in graph space; graph origin before the first layout.</summary>
     private static Vector2 ViewportCentre(GraphView view)

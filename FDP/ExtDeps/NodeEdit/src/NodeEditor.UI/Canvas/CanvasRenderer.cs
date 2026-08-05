@@ -1020,20 +1020,38 @@ public sealed class CanvasRenderer
         if (ImGui.Button("Promote", new Vector2(120, 0)) || ((inputEnter || globalEnter) && canPromote))
         {
             string? categoryPath = string.IsNullOrWhiteSpace(_promoteVariableCategoryPath) ? null : _promoteVariableCategoryPath.Trim();
-            // BP-02: deliberately NOT routed through view.Execute yet -- see BP-60.
-            // PromoteToVariable is implemented only by NodeEditor.Demo's FakeCommandSink;
-            // BlueprintCommandSink has no case for it, so in the Blueprint editor it falls to that
-            // sink's `default:` branch, which silently returns success and does nothing. Recording an
-            // undo entry for a no-op would make Ctrl+Z consume a step that reverses nothing.
-            // A correct inverse also cannot be written from here: promotion creates a variable and
-            // rewires pins, and UndoStack requires the caller to supply the inverse, which needs the
-            // ids the sink allocates. Undo must therefore be designed together with the sink
-            // implementation (BP-60), not retrofitted at this call site.
-            view.Commands.Apply(new Core.Commands.GraphCommand.PromoteToVariable(
-                _pendingPromotePinId.Value,
-                _promoteVariableName.Trim(),
-                _pendingPromoteIsLocal,
-                categoryPath));
+
+            // BP-60: prefer a host handler for editor.promote-to-variable when one is registered.
+            //
+            // Promotion is not a single primitive — it declares a variable, places a node and links
+            // it — and GraphCommand.PromoteToVariable hides all three behind one opaque command
+            // whose new-node id the sink allocates internally. That is why this site could not build
+            // an inverse and was left on Commands.Apply by BP-02, and why in the Blueprint editor it
+            // reached a sink with no case for it: the `default:` arm, which returns success and does
+            // nothing. A host that composes the gesture from primitives owns every id in it and can
+            // record one proper undo entry.
+            //
+            // The single-command path remains for hosts whose sink implements it directly
+            // (NodeEditor.Demo's FakeCommandSink).
+            var promoted = _editorCommands?.Invoke(
+                CommandCatalog.PromoteToVariable,
+                new EditorCommandContext(
+                    ScreenPos: null,
+                    CanvasPos: null,
+                    Args: new Dictionary<string, object?>
+                    {
+                        ["pinId"]        = _pendingPromotePinId.Value,
+                        ["name"]         = _promoteVariableName.Trim(),
+                        ["isLocal"]      = _pendingPromoteIsLocal,
+                        ["categoryPath"] = categoryPath,
+                    }));
+
+            if (promoted is not { Success: true })
+                view.Commands.Apply(new Core.Commands.GraphCommand.PromoteToVariable(
+                    _pendingPromotePinId.Value,
+                    _promoteVariableName.Trim(),
+                    _pendingPromoteIsLocal,
+                    categoryPath));
             _pendingPromotePinId = null;
             ImGui.CloseCurrentPopup();
         }

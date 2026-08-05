@@ -109,6 +109,39 @@ Canvas ergonomics. Mostly NodeEdit-core capability the Blueprint host never regi
 
 ### BP-60 — "Promote to Variable" silently does nothing in the Blueprint editor 🔴 **[NEW — found while fixing BP-02]**
 **Complexity:** RW-M · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-05).** Fixed as a **host command** (`editor.promote-to-variable`, registered by
+> `BlueprintDocumentFactory`), not as a `BlueprintCommandSink` case.
+>
+> **Why.** `GraphCommand.PromoteToVariable` is a single opaque command: whichever sink implements it
+> allocates the new node's id internally, so a caller cannot write the inverse. That is exactly why
+> BP-02 left this one site on `Commands.Apply`, and why in the Blueprint editor it reached the sink's
+> `default:` arm — which returns `new GraphCommandResult(true, null)`. Promotion is not one primitive
+> anyway: it is *declare a variable* + *place a node* + *link it*. Composed at the host from commands
+> the sink already implements, the caller owns every id, so BP-11's invariant holds (**the sink
+> applies, the stack records**) and the gesture is **one undo entry** that reverses all three steps
+> in the only safe order — unlink, remove node, undeclare.
+>
+> **This lifts BP-02's 15th and last bypass.** `CanvasRenderer` now invokes the command when a host
+> registers one and falls back to the single-command path for `NodeEditor.Demo`, whose
+> `FakeCommandSink` does implement it.
+>
+> Shape matches the reference implementation: an **input** pin gets a Get node to its left feeding
+> it, an **output** pin gets a Set node to its right fed by it. The link names the right pin because
+> the host projects the new node's canonical pins itself and pre-mints their GUIDs through
+> `InitialProperties["PinIds"]` — the same machinery the wire-drop create-path uses.
+>
+> ⚠ **A name collision uniquifies rather than rejects.** `CreateVariable` refuses duplicates, which
+> from this modal would look exactly like the bug being fixed. ⚠ **BP-57:** there is no per-graph
+> scope in the data model, so "Promote to Local Variable" produces a Blueprint variable and logs
+> that it did — rather than silently reinterpreting the request.
+>
+> ⚠ **Every test asserts the effect, never `Success`.** A test on the result would have passed
+> against the bug — that *is* the bug. Non-vacuity checked by pointing the handler back at the old
+> `Commands.Apply` path: 9 of 15 went red, and the 6 that stayed green are the guards that correctly
+> expect nothing to happen.
+
+**Complexity:** RW-M · **Confidence:** ✔✔
 - **`GraphCommand.PromoteToVariable` is implemented only by `NodeEditor.Demo`'s `FakeCommandSink`** (`:176`, `:357`). `BlueprintCommandSink` has **no case for it**, so it falls to that sink's `default:` branch — *"Unknown commands are silently accepted (forward-compat)"* — which returns `Success = true` and does nothing.
 - **User-visible effect:** the pin context menu offers "Promote to Variable…" / "Promote to Local Variable…", a modal opens, the designer types a name and clicks **Promote**, the modal closes — and nothing happens. No node, no variable, no error. Same family as BP-09 and BP-12e: the UI advertises an action that cannot run.
 - **Reference implementation exists** — `FakeCommandSink.ApplyPromoteToVariable` (~50 lines) resolves the pin, allocates a `VariableId`, adds a `Util.GetVar`/`Util.SetVar` node offset from the owner, and links it. The Blueprint version additionally needs to append a declaration to `asset.Variables` with a type inferred from the pin.
@@ -802,6 +835,7 @@ those notes do not.
 | 6 | BP-11 ⭐ | undo unification — one stack for canvas and drawer edits |
 | 7 | BP-03 · BP-05…BP-08 · BP-10 · BP-12a · BP-63 · BP-64 (+ BP-65) | the WIRING batch — machinery existed, only the UI hook was missing |
 | 8 | BP-12c · BP-68 (+ BP1407/BP1408; dispatcher section retired) | custom-event authoring — unblocks BP-07 |
+| 9 | BP-60 🔴 | promote-to-variable — and BP-02's last undo bypass |
 
 ## The audit was wrong nine times — every correction is recorded in-place
 
