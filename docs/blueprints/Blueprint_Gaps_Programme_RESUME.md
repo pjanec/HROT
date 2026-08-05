@@ -12,7 +12,7 @@
 
 ## Status
 
-**41 open · 30 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
+**34 open · 37 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
 table; do not duplicate them here.
 
 | Batch | Items |
@@ -26,122 +26,127 @@ table; do not duplicate them here.
 | 7 — wiring | BP-03, BP-05…BP-08, BP-10, BP-12a, BP-63, BP-64 (+ BP-65 🔴, BP-66 🔴) |
 | 8 — custom-event authoring | BP-12c, BP-68 🔴 (+ BP1407/BP1408, dispatcher section removed) |
 | 9 — promote to variable | BP-60 🔴 (lifts BP-02's last bypass) |
+| 10 — canvas clipboard | BP-23a |
+| 11 — panel item CRUD | BP-12b |
+| 12 — alignment | BP-13 |
+| 13 — node header | BP-17, BP-18 |
+| 14 — navigation aids | BP-19, BP-20 |
 
-**Batch 7's visual pass is done (2026-08-05)** and it earned its keep: one bug of mine (the
-bookmarks ✕ was unreachable — a full-width `Selectable` swallowed the click), one long-standing 🔴
-(**BP-66**, the peer catalog scanning a directory that does not exist), and two scope findings —
-**BP-07 was blocked by BP-12c** (batch 8 unblocked it), and the When node's other three mode forms
-are stubs (**BP-67**).
+**Batch 7's visual pass (2026-08-05)** earned its keep: one bug of mine (the bookmarks ✕ was
+unreachable — a full-width `Selectable` swallowed the click), one long-standing 🔴 (**BP-66**, the
+peer catalog scanning a directory that does not exist), and two scope findings.
 
-**Batch 8 (2026-08-05)** shipped BP-12c and, in doing so, found that the audit's framing was
-incomplete: a `CustomEventDecl` is only *half* a custom event. The body is an `Event` graph of the
-same name — `InstanceEmitter` emits `Event_{graph.Name}` from the graph, not from the declaration —
-and the editor has no graph-create path (**BP-24**). Calling an unhandled event therefore emitted
-C# that did not compile, with no diagnostic. New `V_CustomEventHandlers` (**BP1407** missing handler,
-**BP1408** arity mismatch) makes that a Stage 2 error naming the graph to add. Declaring without
-calling stays silent — which is exactly what the new create button produces on its own.
+**Batches 8–14 ran overnight on 2026-08-05.** Seven batches, nine items, ~120 new tests, all suites
+green. Three themes worth carrying forward:
+
+1. **The `default:`-returns-success trap has now bitten four times** — BP-60, BP-68 and BP-18 all
+   had a command the sink silently accepted and ignored. **Never assert on `Success`; assert the
+   effect.** Grep for `GraphCommand` variants with no `case` in `BlueprintCommandSink` before
+   assuming a command works.
+2. **Asset-scoped features belong host-side, not in the vendored sink command.** BP-60 and BP-23a
+   both looked like "add a sink case" and both were wrong: the single opaque command hides the ids
+   the caller needs for an inverse. Composing the gesture at the host from primitives the sink
+   already implements keeps BP-11's invariant *and* makes it one undo entry.
+3. **A wiring fix exposes the next one.** Shipping BP-12c made the very next gesture fail (BP-68),
+   because until then no asset could declare a custom event. The visual check is what finds these,
+   not the suite.
 
 ---
 
 ## Next up
 
-**The `WIRING` tier is done** — 19 of 21 shipped; the 2 remaining (BP-01 watch-panel decoding,
-BP-55 asset-browser delete) are not blueprint-authoring items.
+**The `RW-L` tier is nearly done** — 13 of 23 shipped, and everything a designer touches daily is in.
 
-1. **BP-60** (🔴 `RW-M`) — "Promote to Variable" silently does nothing. The last 🔴 in Area A, and
-   the last known instance of the sink's `default:`-returns-success trap. Scouting is already
-   written up below — a complete reference implementation exists in `FakeCommandSink.cs:357`.
-2. **BP-23a / BP-13 / BP-17…BP-20** (`RW-L`) — the canvas-ergonomics tier, each with a stated
-   ready-made primitive to mirror. `BP-23a` (copy/paste) is the one a designer notices first.
-3. **BP-67** (`RW-M`) — the When node's other three forms. ⚠ *not* a repeat of BP-10: those had a
-   catalog already injected and called; these need pickers built from scratch.
-4. **BP-24** (`RW-M`) — graph create + graph switching, now with a second reason to want it: it is
-   what closes the other half of BP-12c. Every graph but the first is currently unreachable in the
-   UI, so an author cannot write a custom event's body.
+1. **BP-67** (`RW-M`) — the When node's other three forms (`ValueChanged`, `ConditionMet`,
+   `EqsResult`). ⚠ *not* a repeat of BP-10: that had a catalog already injected and called; these
+   need pickers built from scratch.
+2. **BP-24** (`RW-M`) — graph create + graph switching. Two reasons to want it now: every graph but
+   the first is unreachable in the UI, **and** it is what closes the other half of BP-12c (a custom
+   event's body is an `Event` graph the editor cannot create). ⚠ **fix the canvas graph-selection
+   rule as part of it** — see the latent note in the detail doc's found-while-fixing section.
+3. **BP-56** (`RW-L`) — wire-level execution-flow highlighting (nodes glow, wires don't).
+4. **BP-23b** (`RW-M`) — cross-asset paste. BP-23a's machinery is in place; this adds variable/type
+   re-resolution against the destination asset.
+5. **BP-61** (🔴 `RW-M`) — the last open inert-default guard: both HSM concurrency rules never fire.
 
-> 👀 **Re-check after the next round:** the bookmarks ✕ (now sized so the row and the button cannot
-> overlap) and the `CallPeerBlueprint` picker (BP-66 — should list peers now).
+**Still unregistered on the My Blueprint menu** (deliberately out of BP-12b's scope):
+`editor.move-to-category`, `editor.change-variable-type`, `editor.show-properties`,
+`editor.find-references` (that one is BP-12d).
 
 **Blocked / do not build as written:** `BP-31` (premise inverted — see BP-61) ·
 `BP-40`, `BP-38`, `BP-52` (architect decision first) · `BP-53`, `BP-54` (UNCLEAR, re-scope first).
 
 ---
 
-## 🎯 Next task briefing — scouting already done, do not re-derive
-
-Written for a fresh context. Everything here was verified against code on 2026-08-05.
-
-### Next, in order
-
-1. **BP-23a** (`RW-L`) — copy/cut/paste/duplicate. The one a designer notices first. Paste is
-   hard-disabled; `AddNodeCommand` already accepts a prebuilt `Node`, so paste can skip the
-   8-of-50 property whitelist. ⚠ now also needs to honour `AssignedId` — see BP-65.
-2. **BP-13 / BP-17…BP-20** (`RW-L`) — align-distribute, node titles, collapse, minimap, error list.
-   Each has a named ready-made primitive in its detail entry.
-3. **BP-67** (`RW-M`) — the When node's other three forms. Largest of these; hold it until the
-   above land.
-
----
-
-## 👀 Visual check — batch 9: Promote to Variable (BP-60)
-
-| # | Where | What to do | What should happen |
-|---|---|---|---|
-| P1 | Right-click a node's **data input** pin → Promote to Variable | type a name, Promote | A **Get** node appears to the **left**, wired into that pin, and the variable shows up in My Blueprint with the pin's type |
-| P2 | Right-click a node's **data output** pin → Promote | same | A **Set** node appears to the **right**, fed by that pin |
-| P3 | Ctrl+Z after either | — | **One** press reverses the whole thing: node gone, wire gone, variable gone from My Blueprint. Ctrl+Y puts it all back |
-| P4 | Promote twice with the same name | — | The second becomes `Name1` rather than failing — promoting is not overwriting |
-
----
-
-## 👀 Visual check — batch 8
-
-| # | Where | What to do | What should happen |
-|---|---|---|---|
-| 0 | **My Blueprint** → drag a custom event onto the canvas | drop it, then look at **Details** | A real **Call Custom Event** node, already bound to that event, with one pin per parameter. Ctrl+Z removes it *(BP-68 — this was the reported failure)* |
-| A | **My Blueprint** → "Custom Events" **+** | It should be **enabled** (it was greyed with "Not implemented") | A modal opens: Name, then "+ Parameter" rows of name + type. Bad names are refused *before* Confirm, with the reason shown |
-| B | Confirm the modal | — | The event appears under Custom Events, and the palette gains a **"Call {Name}"** entry under *CustomEvents* |
-| C | Drop that Call node, open **Details** | Open the Event combo | **BP-07's row 5, now reachable** — the event is listed as `Name (Param1, Param2)`; picking it projects one data-in pin per parameter |
-| D | The panel's section list | — | There is **no "Event Dispatchers" section** any more. That is intentional (BP-09 superseded the concept) |
-
-> ⚠ **BP-68 note:** the same fix covers the palette's per-asset **"Call {Name}"** and **"Call Peer"**
-> rows — both created an unbound generic node too. Worth a glance at each.
->
-> ⚠ Compiling a `CallCustomEvent` still needs an `Event` graph of the same name, which the editor
-> cannot create yet (**BP-24**). That now fails as **BP1407** naming the graph to add, instead of a
-> Roslyn error about a missing `Event_X` method. The modal says so before you confirm.
-
----
-
-## 👀 Visual check — what batch 7 added, and where to look
+## 👀 Morning visual check — batches 9–14
 
 Everything below is logic-tested headless. What a test cannot see is layout, wording and feel.
-Listed roughly cheapest-to-reach first.
+Roughly cheapest-to-reach first.
+
+### Canvas clipboard (BP-23a) — the big one
 
 | # | Where | What to do | What should happen |
 |---|---|---|---|
-| 1 | **My Blueprint** → right-click a variable | "Get", then "Set" | A node appears **in the middle of the visible canvas**, bound to that variable. **Ctrl+Z removes it.** *(BP-12a + BP-65)* |
-| 2 | Canvas → drop any node from the palette | Ctrl+Z | The node goes away. This never worked before — *BP-65*, the one to check first |
-| 3 | **Details** on a `ReadRankedResult` node | Change Rank; hold the stepper | Editable at last; a hold produces **one** undo entry, not one per frame *(BP-05)* |
-| 4 | Details on a `WaitForChannel` node | Open the Channel combo | Each channel appears **once**, sorted, with a filter box *(BP-06)* |
-| 5 | Details on a `CallCustomEvent` node | Open the Event combo | Lists **this Blueprint's own** custom events with their parameter names; picking one re-projects the node's argument pins *(BP-07)* |
-| 6 | Details on a `CallPeerBlueprint` node | Pick a peer, then a function | Function list is scoped to the peer. Pick a function, then switch to a peer without it → **the function clears**, and one Ctrl+Z restores both *(BP-08)* |
-| 7 | Details on a `When` node, mode = **Event Fired** | Open the Event combo | A real filtered list instead of "(n events available)". The "Only when it targets me" checkbox appears **only** for events that carry a target field *(BP-10)* |
-| 8 | **Bookmarks** panel (set one with Ctrl+Shift+1) | Click the row · double-click it · the ✕ | Click jumps the canvas · double-click renames inline (Esc cancels) · ✕ deletes; right-click has all three *(BP-03)* |
-| 9 | Any Details-panel edit at all | Ctrl+Z | Reverses it. Before BP-11 **no** inspector or drawer edit was undoable |
+| C1 | Select a node, **Ctrl+C**, then **Ctrl+V** | — | A copy appears, **offset** from the original and **selected**, so you can drag it straight away |
+| C2 | Select two wired nodes, copy, right-click empty canvas → **Paste** | — | Both land with the **wire between them intact**, top-left corner at the cursor |
+| C3 | Select one end of a wired pair, copy, paste | — | Just that node — a half-selected wire is **not** copied |
+| C4 | **Ctrl+X** then **Ctrl+V** | — | Cut removes, paste restores. Ctrl+Z after either reverses it in **one** press |
+| C5 | Copy node A, select node B, **Ctrl+D** | — | B is duplicated and **the clipboard still holds A** |
+| C6 | Configure a `Compare` node (operator `>`), copy, paste | — | The copy keeps `>`. *(This is the audit's trap: a paste built on `AddNode` would have silently reset it)* |
 
-### Outcome of the 2026-08-05 pass
+### Promote to Variable (BP-60)
 
-| Row | Result |
-|---|---|
-| 1, 2, 3, 4, 7, 9 | ✅ as described |
-| 5 — `CallCustomEvent` | ⛔ was untestable — no asset could declare a custom event. **BP-12c shipped; re-check via batch 8 row C** |
-| 6 — `CallPeerBlueprint` | 🔴 **empty — BP-66**, the catalog scanned a directory that does not exist. Fixed; **re-check** |
-| 8 — bookmarks ✕ | 🔴 **unreachable** — a full-width `Selectable` swallowed the click. Fixed; **re-check** |
-| — When node | 🔎 the other three modes (`ValueChanged`, `ConditionMet`, `EqsResult`) are stubs — **BP-67** |
+| # | Where | What to do | What should happen |
+|---|---|---|---|
+| P1 | Right-click a node's **data input** pin → Promote to Variable | type a name | A **Get** node to the **left**, wired in; the variable appears in My Blueprint with the pin's type |
+| P2 | Right-click a **data output** pin → Promote | — | A **Set** node to the **right**, fed by that pin |
+| P3 | Ctrl+Z after either | — | **One** press reverses all of it — node, wire and variable. Ctrl+Y restores |
+| P4 | Promote twice with the same name | — | The second becomes `Name1` rather than failing |
 
-I predicted the ✕ would be the thing to look wrong. It was, but for the wrong reason: the
-*alignment* was fine, the *hit test* was not — which is the half a headless test can never reach.
+### My Blueprint item CRUD (BP-12b)
+
+| # | Where | What to do | What should happen |
+|---|---|---|---|
+| M1 | Right-click a variable → **Rename** / **Duplicate** / **Delete** | — | All three work. They were live-looking and inert before |
+| M2 | Rename a **custom event** that has a Call node placed | — | The node's header follows the new name; Ctrl+Z restores |
+| M3 | Delete a variable that a Get node uses | — | The declaration goes; **the node stays** (dangling, recoverable) rather than vanishing |
+
+### Node header (BP-17, BP-18)
+
+| # | Where | What to do | What should happen |
+|---|---|---|---|
+| N1 | Right-click a node → **Rename…** | type a title | The header shows it, and the **generated title moves to the subtitle** — you can still tell what the node is |
+| N2 | Rename again, clear the field | — | The generated title comes back |
+| N3 | Right-click → **Collapse Node** | then Expand | The body folds to the header and back. Ctrl+Z reverses each |
+
+### Alignment (BP-13)
+
+| # | Where | What to do | What should happen |
+|---|---|---|---|
+| A1 | Select 2+ nodes → right-click → **Align** ▸ Left / Right / Top / Bottom | — | Right and Bottom use the node's **far edge**, so different-width nodes line up properly |
+| A2 | Select 3+ → **Align ▸ Distribute Horizontally** | press twice | Even gaps; the **second press changes nothing** |
+| A3 | Select a wired chain → **Align ▸ Straighten Connection** | — | They snap onto the **first selected node's** row; wires run flat |
+| A4 | Align an already-aligned pair, then Ctrl+Z | — | Undo reverses your *previous* edit — an alignment that moves nothing records nothing |
+
+### Navigation (BP-19, BP-20)
+
+| # | Where | What to do | What should happen |
+|---|---|---|---|
+| V1 | Right-click empty canvas → **Show Minimap** | — | A corner overlay: nodes as blocks, the current view as an outline |
+| V2 | Click / drag inside the minimap | — | The canvas recentres and follows the drag. Pan far off-graph → the view outline stays **inside** the overlay |
+| V3 | On a graph with a red node, press **F8** | Shift+F8 | Selects and centres each problem node, wrapping. **Errors before warnings** |
+
+### Custom events (batch 8, if not already checked)
+
+| # | Where | What to do | What should happen |
+|---|---|---|---|
+| E1 | **My Blueprint** → drag a custom event onto the canvas | look at Details | A real **Call Custom Event** node, bound, with a pin per parameter. Header shows the **name**, not a GUID *(BP-68)* |
+| E2 | "Custom Events" **+** | — | Create modal: name + typed parameter rows; bad names refused *before* Confirm |
+| E3 | The panel's section list | — | **No "Event Dispatchers" section** — intentional, the concept is superseded |
+
+> ⚠ Compiling a `CallCustomEvent` still needs an `Event` graph of the same name, which the editor
+> cannot create yet (**BP-24**). That fails as **BP1407** naming the graph to add, not as a Roslyn
+> error. The create modal says so before you confirm.
 
 ---
 
@@ -186,14 +191,35 @@ inverses that match nothing. That was BP-65 — node placement was non-undoable 
 feature, while the BTree and HSM sinks had it right all along. **When adding a sink case for an
 `Add*` command, check what the inverse references.**
 
-### 5. 🆕 A full-width `Selectable` eats every click in its row
+### 5. 🆕 `default:`-returns-success — **four instances now**
+`BlueprintCommandSink.Apply`'s `default:` arm returns `new GraphCommandResult(true, null)` for any
+command it has no case for. A feature can therefore be fully built, fully wired, and silently do
+nothing while reporting success.
+
+| Command | Symptom | Status |
+|---|---|---|
+| `PromoteToVariable` (**BP-60**) | modal opened, name typed, nothing happened | Fixed |
+| dynamic kinds (**BP-68**) | dragged custom event became an unbound `FunctionCallNode` | Fixed |
+| `SetNodeCollapsed` (**BP-18**) | collapse silently ignored | Fixed |
+
+> **A test asserting `Success` proves nothing here — that is the bug.** Assert the effect. Before
+> assuming any `GraphCommand` works, grep `BlueprintCommandSink.Apply` for a `case`.
+
+### 6. 🆕 Asset-scoped features belong at the host, not in a sink case
+`GraphCommand.PromoteToVariable` and a paste both look like "add a sink case". Both are wrong: the
+single opaque command allocates ids *inside* the sink, so no caller can write the inverse — and
+`ApplyInitialProperties` only knows 8 node kinds of 50, so a paste routed through `AddNode` silently
+strips the other 42. Compose the gesture at the host from primitives the sink already implements
+(`BP-60`, `BP-23a`): the caller owns every id, BP-11's invariant holds, and it is one undo entry.
+
+### 7. 🆕 A full-width `Selectable` eats every click in its row
 An `ImGui.Selectable` with no explicit size spans the whole remaining row, so a button drawn after it
 with `SameLine` is *drawn and correctly positioned but unreachable*. Size the Selectable to stop
 short of the trailing controls — more predictable than `AllowItemOverlap`, which depends on draw
 order and on remembering `SetItemAllowOverlap`. (BP-03's delete button; caught only by the visual
 pass, since no headless test can see it.)
 
-### 6. Conventions the code enforces that are easy to miss
+### 8. Conventions the code enforces that are easy to miss
 - **Decision-asset ids are NOT parseable GUIDs.** Shipped `CombatPostureDecision` uses
   `3c6f9e42-5d10-6f3a-ac23-posture0000001`. A `Guid.TryParse` check rejects real assets.
 - **Custom events resolve by *Name* as well as GUID** (`Stage5.FindCustomEventIndex`).
@@ -226,7 +252,8 @@ pass, since no headless test can see it.)
   resource-sensitive). Not yet chased. **`WhenNodePerfTests.WhenNode_ValueChanged_Under100ns_perTick`
   joins it** — a wall-clock ns/tick benchmark; it reds under load and passes alone. Re-run the single
   filter before treating either as a regression.
-- Batch 8 baseline: blueprints **2703 total / 2692 passed / 10 skipped** (+46 over batch 7).
+- Batch 14 baseline: blueprints **2788 total / 2778 passed / 10 skipped** · NodeEdit core **203**
+  + UI **131** · AiShared **1204** · BTree editor **612** · breakpoints **130** · generators **189**.
 - ✅ **`Hrot.Editor.AiShared.Tests` is now in the gate list** (1204/0). Its 2 Windows-only reds were
   BP-64, fixed. It was missing from the list, which is why they went unnoticed.
 - **To classify a failure:** `git stash` → re-run the same filter → `git stash pop`. If it fails
@@ -262,7 +289,7 @@ dotnet test Hrot/Subsystems/AI/Hrot.AiEditor.Generators.Tests/Hrot.AiEditor.Gene
 - **Record findings in the detail doc**, not only in commit messages.
 - Ask in plain prose; **never** the multiple-choice widget.
 
-## Key code reference points (as of batch 8)
+## Key code reference points (as of batch 14)
 
 | Concern | File |
 |---|---|
