@@ -12,10 +12,10 @@ architect decision first).
 | Complexity | Open | Done |
 |---|---:|---:|
 | `WIRING` | 2 | 20 |
-| `RW-L` | 18 | 5 |
+| `RW-L` | 17 | 6 |
 | `RW-M` | 21 | 2 |
 | `RW-H` | 2 | — |
-| **Total** | **43** | **27** |
+| **Total** | **42** | **28** |
 | *(refuted on verification)* | | *1* |
 
 > 📌 **Resuming this programme?** Start with [Blueprint_Gaps_Programme_RESUME.md](Blueprint_Gaps_Programme_RESUME.md) — branch, batches
@@ -31,6 +31,17 @@ architect decision first).
 > 3. **BP-30/BP-31** — the same blind spot is *why* BP-31 was mis-scoped: it credited HSM with a guard
 >    that has never actually run.
 > A green test suite is not evidence that a guard is wired. Grep the production construction sites.
+
+> ✅ **Batch 8 shipped (2026-08-05) — custom-event authoring: BP-12c.**
+> "Custom Events +" opens a create modal (name + typed parameters), mirroring `editor.create-variable`
+> exactly. This **unblocks BP-07**, whose picker was correct but had nothing it could ever list.
+> ⚠ **The dispatcher half was retired, not wired** — the audit's own suggestion; BP-09 had already
+> deleted the concept's node kinds and nothing consumes `EventDispatchers`.
+> ⚠ **Found while fixing: a declaration is only half a custom event.** The body is an `Event` graph of
+> the same name, which the editor cannot create (**BP-24**) — so calling an unhandled event emitted C#
+> that did not compile, blaming a method the designer never wrote. New **BP1407/BP1408** make that a
+> Stage 2 error naming the graph to add. They fire at **call sites only**, so the new create button
+> never produces a broken asset on its own.
 
 > ✅ **Batch 3 shipped (2026-08-04) — the palette batch: BP-04 + BP-09.**
 > **BP-04:** 14 baked entries (6 `Compare` · 5 `BinaryOp` · 2 `BooleanOp` · 1 `Not`) — the four kinds
@@ -108,7 +119,7 @@ architect decision first).
 - [x] **BP-09** · `WIRING` — 6 abandoned node kinds are **advertised in the palette** but compile to a silent no-op. Delete 6 `Make<T>` blocks
 - [x] **BP-05** · `WIRING` — `ReadRankedResult.Rank` uneditable; plain `InputInt`. Clamped to ≥ 0; the gesture coalesces to one undo entry
 - [x] **BP-06** · `WIRING` — `WaitForChannel.ChannelType` uneditable; reuse `IChannelCommandCatalog`. ⚠ the catalog is keyed by *(channel, action)*, so the list needs deduplicating — otherwise a channel with 8 actions appears 8×
-- [x] **BP-07** · `WIRING` — `CallCustomEvent.EventId` uneditable. ⚠ **unreachable until BP-12c** — no asset can declare a custom event yet, so the picker correctly renders "this Blueprint declares no custom events". ⚠ **the audit named the wrong source:** `UnifiedEventDiscovery` enumerates *engine* events; a custom event is **asset-scoped** (`asset.CustomEvents`), so every choice from that picker would have failed to resolve
+- [x] **BP-07** · `WIRING` — `CallCustomEvent.EventId` uneditable. ✅ **unblocked by BP-12c** — an asset can now declare custom events, so the picker has something to list. ⚠ **the audit named the wrong source:** `UnifiedEventDiscovery` enumerates *engine* events; a custom event is **asset-scoped** (`asset.CustomEvents`), so every choice from that picker would have failed to resolve
 - [x] **BP-08** · `WIRING` — `CallPeerBlueprint` target uneditable; reuse `BlueprintPeerSource` behind a new `IBlueprintPeerProvider` seam. Dependent peer→function pickers; switching peer clears a function it doesn't export, in the same edit
 - [ ] **BP-67** · `RW-M` — **The When node's other three mode forms are also stubs.** `ValueChanged` (component/property picker), `ConditionMet` (predicate editor) and `EqsResult` (trigger + sensor picker) each render one `TextDisabled` line, so three of the node's four modes cannot be configured at all. Unlike BP-10 these have **no already-injected catalog** to render — ValueChanged needs a component→property picker, ConditionMet a predicate editor UI — *found in the visual check*
 - [x] **BP-10** · `WIRING` — `When` → EventFired form stubbed; the catalog is *already injected and called*, just never rendered. Filtered picker + self-filter toggle (shown only when the event carries a target field)
@@ -126,7 +137,7 @@ architect decision first).
 - [x] **BP-12e** · `WIRING` — Dead panel commands **fail silently**; `InvokeCreate` discards the result. Root cause of the whole BP-12 family's UX. *Tally: 14 commands invoked, 1 registered*
 - [x] **BP-11** ⭐ · `RW-M` — 🔴 **No inspector/drawer edit is undoable.** Three tiers; Ctrl+Z drained a stack the drawers never wrote to. Shipped A1+B1+C2+E1 ([Q22](Architect_Question_22_Undo_Unification.md#-implementation-outcome-2026-08-04--shipped)); transport is **R3** (a Blueprint-owned `GraphCommand` subtype — R1 provably can't carry multi-field bakes, R2 would have meant editing the vendored tree). ⚠ **D2 superseded — gap 4:** the sink was double-recording, so making `CommandHistory` live would have pushed 2 entries per gesture and 3 on undo. Sinks apply; the stack records
 - [ ] **BP-12b** · `RW-L` — Panel items can't be renamed/duplicated/deleted; a variable can be created but never removed
-- [ ] **BP-12c** ⭐ · `RW-L` — Custom events and dispatchers can't be created. ⚠ consider *removing* the dispatcher section instead (superseded). **Now blocking BP-07** — the `CallCustomEvent` picker is built and correct but has nothing to list, because no asset can declare a custom event; the My Blueprint "Custom Events [+]" does nothing (*confirmed in the visual check*)
+- [x] **BP-12c** · `RW-L` — Custom events can't be created — **the blocker for BP-07**, whose picker had nothing it could ever list. "Custom Events +" now opens a create modal (name + typed parameters). ⚠ **the dispatcher half was removed, not wired** — BP-09 established dispatchers are superseded and deleted their node kinds; nothing consumes `EventDispatchers` and no shipped asset declares one. ⚠ **found while fixing: the declaration is only half a custom event** — the body is an Event graph of the same name, which the editor cannot create yet (BP-24), so a call to an unhandled event emitted C# that did not compile. New **BP1407/BP1408** turn that into a Stage 2 diagnostic
 - [ ] **BP-24** · `RW-M` — **No Function-graph create path; canvas locked to one graph.** In any multi-graph asset every graph but the first is unreachable through the UI. Data + compiler layers already support functions
 - [ ] **BP-12d** · `RW-M` — `find-references` dead; overlaps BP-25's multi-graph layer
 - [ ] **BP-57** · `RW-M` — Per-function local variables absent from the data model itself. Depends on BP-24

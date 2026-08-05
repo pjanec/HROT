@@ -33,6 +33,10 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
     // asset so its confirm callback targets the current asset.
     private VariableCreateModal? _createVariableModal;
 
+    // BP-12c: custom-event-create modal (name + parameters). Rebuilt per active asset for the
+    // same reason as the variable modal — its confirm callback closes over the target asset.
+    private CustomEventCreateModal? _createCustomEventModal;
+
     // ── ctor ─────────────────────────────────────────────────────────────────
 
     /// <param name="idOverride">Stable ImGui id; defaults to <c>"ai_my_blueprint_blueprint"</c>.</param>
@@ -84,10 +88,22 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
 
             BlueprintDocumentFactory.RegisterCreateVariableCommand(
                 cmdImpl, _createVariableModal.Open);
+
+            // BP-12c: same shape for "Custom Events +". Until this, the section declared
+            // editor.create-custom-event and nothing registered it, so the button was inert —
+            // and BP-07's CallCustomEvent picker had nothing it could ever list.
+            _createCustomEventModal = new CustomEventCreateModal(
+                (name, parameters) => BlueprintDocumentFactory.CreateCustomEvent(
+                    blueprintAsset, name, parameters, markDirty),
+                blueprintAsset);
+
+            BlueprintDocumentFactory.RegisterCreateCustomEventCommand(
+                cmdImpl, _createCustomEventModal.Open);
         }
         else
         {
-            _createVariableModal = null;
+            _createVariableModal    = null;
+            _createCustomEventModal = null;
         }
     }
 
@@ -120,7 +136,8 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
 
         _panel.Draw();
 
-        // Draw the variable-create modal (opened by the "+" command). No-op when closed.
+        // Draw the create modals (opened by the section "+" commands). No-op when closed.
         _createVariableModal?.Draw();
+        _createCustomEventModal?.Draw();
     }
 }

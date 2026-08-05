@@ -560,10 +560,15 @@ public static class BlueprintDocumentFactory
     }
 
     private static string MakeUniqueVariableName(BlueprintAsset asset, string baseName)
+        => MakeUniqueName(asset.Variables.Select(v => v.Name), baseName);
+
+    /// <summary>
+    /// <paramref name="baseName"/> if free, otherwise the first <c>baseName1</c>, <c>baseName2</c>, …
+    /// not already in <paramref name="existingNames"/> (case-insensitive).
+    /// </summary>
+    private static string MakeUniqueName(IEnumerable<string> existingNames, string baseName)
     {
-        var existing = new HashSet<string>(
-            asset.Variables.Select(v => v.Name),
-            StringComparer.OrdinalIgnoreCase);
+        var existing = new HashSet<string>(existingNames, StringComparer.OrdinalIgnoreCase);
 
         if (!existing.Contains(baseName)) return baseName;
         for (int i = 1; ; i++)
@@ -572,6 +577,189 @@ public static class BlueprintDocumentFactory
             if (!existing.Contains(candidate)) return candidate;
         }
     }
+
+    // ── Create-custom-event command (BP-12c) ──────────────────────────────────
+
+    /// <summary>
+    /// BP-12c — registers <c>editor.create-custom-event</c> as a <b>quick-add</b>: one click appends a
+    /// parameterless <see cref="CustomEventDecl"/> with a free default name. Mirrors the
+    /// <c>editor.create-variable</c> quick-add overload and exists for the same reason — so the create
+    /// path is drivable headlessly, without ImGui.
+    /// <para>
+    /// Production wiring uses the modal overload
+    /// (<see cref="RegisterCreateCustomEventCommand(EditorCommandsImpl, Action)"/>).
+    /// </para>
+    /// </summary>
+    internal static void RegisterCreateCustomEventCommand(
+        EditorCommandsImpl commands,
+        BlueprintAsset     asset,
+        Action?            markDirty = null)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(asset);
+
+        var reg = new CommandRegistration(commands);
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.CreateCustomEvent,
+            "Create Custom Event", "Add",
+            _ => AddCustomEvent(asset, markDirty),
+            description: "Declare a new custom event on this blueprint.");
+    }
+
+    /// <summary>
+    /// BP-12c — registers <c>editor.create-custom-event</c> so the My Blueprint panel's
+    /// "Custom Events +" opens the create modal (name + parameters) rather than appending a
+    /// default-named declaration. The modal's confirm callback calls
+    /// <see cref="CreateCustomEvent"/>.
+    /// </summary>
+    /// <param name="commands">The editor command catalog.</param>
+    /// <param name="openModal">Opens the custom-event-create modal (e.g. <c>modal.Open</c>).</param>
+    public static void RegisterCreateCustomEventCommand(
+        EditorCommandsImpl commands,
+        Action             openModal)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(openModal);
+
+        var reg = new CommandRegistration(commands);
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.CreateCustomEvent,
+            "Create Custom Event", "Add",
+            _ => openModal(),
+            description: "Declare a new custom event on this blueprint.");
+    }
+
+    /// <summary>
+    /// The "Custom Events +" quick-add path (no modal): appends a parameterless
+    /// <see cref="CustomEventDecl"/> with an auto-generated free name (<c>NewEvent</c>,
+    /// <c>NewEvent1</c>, …), so repeated clicks never collide. Never rejects.
+    /// </summary>
+    internal static CustomEventDecl AddCustomEvent(BlueprintAsset asset, Action? markDirty = null)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+
+        var name = MakeUniqueName(asset.CustomEvents.Select(e => e.Name), "NewEvent");
+        // A free, identifier-shaped name cannot be rejected by CreateCustomEvent.
+        return CreateCustomEvent(asset, name, parameters: null, markDirty)!;
+    }
+
+    /// <summary>
+    /// Headless-testable create path used by the custom-event modal: appends a
+    /// <see cref="CustomEventDecl"/> named <paramref name="name"/> with the supplied
+    /// <paramref name="parameters"/>.
+    ///
+    /// <para>
+    /// <b>Rejects</b> (returns <see langword="null"/>, adds nothing) when the event name — or any
+    /// parameter name — is blank, is not a C# identifier, or collides with a sibling
+    /// (case-insensitively). The name is not cosmetic: the compiler emits
+    /// <c>Event_{Name}(…)</c> verbatim (<c>InstanceEmitter.EmitEventMethod</c>) and each parameter
+    /// becomes a C# parameter, so a name with a space or a leading digit is a Roslyn error rather
+    /// than a validation message. The modal warns and disables Confirm up front; this method is the
+    /// authoritative guard. No silent renaming.
+    /// </para>
+    /// </summary>
+    /// <param name="asset">The asset to append the declaration to.</param>
+    /// <param name="name">The event name; must be a C# identifier and unique on the asset.</param>
+    /// <param name="parameters">
+    /// Ordered <c>(name, typeId)</c> payload parameters; these become the <c>CallCustomEvent</c>
+    /// node's data-in pins (<c>NodePinSchema.CallCustomEventPins</c>). Null/empty declares a
+    /// parameterless event.
+    /// </param>
+    /// <param name="markDirty">Optional dirty-marking callback (invoked only on success).</param>
+    /// <returns>The created declaration, or <see langword="null"/> if anything was rejected.</returns>
+    internal static CustomEventDecl? CreateCustomEvent(
+        BlueprintAsset asset,
+        string         name,
+        IReadOnlyList<(string Name, string TypeId)>? parameters = null,
+        Action?        markDirty = null)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+
+        if (!IsValidDeclarationName(name)) return null;
+        var trimmed = name.Trim();
+        if (IsDuplicateCustomEventName(asset, trimmed)) return null;
+
+        var paramDecls = new List<ParameterDecl>();
+        if (parameters is not null)
+        {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (paramName, typeId) in parameters)
+            {
+                if (!IsValidDeclarationName(paramName)) return null;
+                var paramTrimmed = paramName.Trim();
+                if (!seen.Add(paramTrimmed)) return null;
+
+                paramDecls.Add(new ParameterDecl
+                {
+                    Id   = Guid.NewGuid(),
+                    Name = paramTrimmed,
+                    Type = new BlueprintTypeRef
+                    {
+                        TypeId = string.IsNullOrWhiteSpace(typeId)
+                            ? BlueprintTypeSystem.Bool
+                            : typeId.Trim(),
+                    },
+                });
+            }
+        }
+
+        var decl = new CustomEventDecl
+        {
+            Id         = Guid.NewGuid(),
+            Name       = trimmed,
+            Parameters = paramDecls,
+        };
+        asset.CustomEvents.Add(decl);
+        markDirty?.Invoke();
+        return decl;
+    }
+
+    /// <summary>
+    /// True when <paramref name="name"/> matches an existing custom-event name (case-insensitive).
+    /// Exposed <c>internal</c> so the create modal can validate live input and disable Confirm.
+    /// </summary>
+    internal static bool IsDuplicateCustomEventName(BlueprintAsset asset, string name)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        var trimmed = name.Trim();
+        return asset.CustomEvents.Any(e =>
+            string.Equals(e.Name, trimmed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// True when <paramref name="name"/> can be emitted verbatim into generated C# — a non-keyword
+    /// identifier (letter or <c>_</c> first, then letters/digits/<c>_</c>). Exposed
+    /// <c>internal</c> so the create modal can warn before Confirm rather than after Roslyn.
+    /// </summary>
+    internal static bool IsValidDeclarationName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        var trimmed = name.Trim();
+
+        if (!char.IsLetter(trimmed[0]) && trimmed[0] != '_') return false;
+        for (int i = 1; i < trimmed.Length; i++)
+            if (!char.IsLetterOrDigit(trimmed[i]) && trimmed[i] != '_') return false;
+
+        return !CSharpKeywords.Contains(trimmed);
+    }
+
+    /// <summary>
+    /// C# reserved words. A parameter named <c>class</c> is a well-formed identifier by shape but a
+    /// compile error once emitted, so shape alone is not enough.
+    /// </summary>
+    private static readonly HashSet<string> CSharpKeywords = new(StringComparer.Ordinal)
+    {
+        "abstract", "as", "base", "bool", "break", "byte", "case", "catch", "char", "checked",
+        "class", "const", "continue", "decimal", "default", "delegate", "do", "double", "else",
+        "enum", "event", "explicit", "extern", "false", "finally", "fixed", "float", "for",
+        "foreach", "goto", "if", "implicit", "in", "int", "interface", "internal", "is", "lock",
+        "long", "namespace", "new", "null", "object", "operator", "out", "override", "params",
+        "private", "protected", "public", "readonly", "ref", "return", "sbyte", "sealed", "short",
+        "sizeof", "stackalloc", "static", "string", "struct", "switch", "this", "throw", "true",
+        "try", "typeof", "uint", "ulong", "unchecked", "unsafe", "ushort", "using", "virtual",
+        "void", "volatile", "while",
+    };
 
     // ── Private helpers ───────────────────────────────────────────────────────
 

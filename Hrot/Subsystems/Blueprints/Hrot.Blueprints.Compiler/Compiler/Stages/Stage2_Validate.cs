@@ -34,6 +34,7 @@ internal static class Stage2_Validate
         new V_EventGraphReferences(),
         new V_WaitNodeReferences(),
         new V_ValueNodeReferences(),   // BP-15
+        new V_CustomEventHandlers(),   // BP-12c
         new V_UnloweredNodeKinds(),    // BP-16
         new V_PeerReferences(),
         new V_TypeReferences(),
@@ -790,6 +791,106 @@ internal static partial class Stage2Helpers
     {
         int idx = fqn.LastIndexOf('.');
         return idx < 0 ? fqn : fqn.Substring(idx + 1);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// V_CustomEventHandlers  (BP-12c)
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// BP-12c — a declared custom event is only half a custom event.
+///
+/// <para>
+/// The <i>declaration</i> lives on the asset (<see cref="BlueprintAsset.CustomEvents"/>) and gives
+/// the call node its argument pins. The <i>body</i> is an <see cref="GraphKind.Event"/> graph whose
+/// <c>Name</c> matches: <c>InstanceEmitter.EmitEventMethod</c> emits
+/// <c>Event_{graph.Name}(…)</c> with one C# parameter per <c>graph.Inputs</c> entry, and
+/// <c>StatementEmitter</c> lowers <c>IrOp_RaiseCustomEvent</c> to a direct call to that method with
+/// one argument per <i>declaration</i> parameter.
+/// </para>
+///
+/// <para>
+/// So a call to an event with no matching Event graph — or to one whose graph takes a different
+/// number of inputs — produces generated C# that does not compile. <c>V_ValueNodeReferences</c>
+/// (BP-15) already rejects a call to an event that isn't declared at all; this validator covers the
+/// declared-but-unhandled case, which until now surfaced only as a Roslyn error naming a method the
+/// designer never wrote.
+/// </para>
+///
+/// <para>
+/// <b>Call sites only.</b> Declaring a custom event and never calling it is legal and silent — the
+/// editor's create path (BP-12c) produces exactly that, and there is no way to author the paired
+/// Event graph in the editor yet (BP-24). Erroring on the declaration would make the new create
+/// button emit a broken asset on first use.
+/// </para>
+/// </summary>
+internal sealed class V_CustomEventHandlers : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        if (asset.CustomEvents.Count == 0) return;
+
+        var eventGraphsByName = new Dictionary<string, Graph>(StringComparer.Ordinal);
+        foreach (var g in asset.Graphs)
+        {
+            if (g.Kind != GraphKind.Event) continue;
+            if (string.IsNullOrEmpty(g.Name)) continue;
+            // First wins; a duplicate Event-graph name is V_GraphStructure's business.
+            if (!eventGraphsByName.ContainsKey(g.Name))
+                eventGraphsByName[g.Name] = g;
+        }
+
+        foreach (var graph in asset.Graphs)
+        {
+            foreach (var call in graph.Nodes.OfType<CallCustomEventNode>())
+            {
+                var decl = ResolveDecl(asset, call.EventId);
+
+                // Unresolved ids are BP1403's job (and a dotted FQN is a baked engine event that
+                // never routes through Event_{Name} at all).
+                if (decl is null) continue;
+
+                if (!eventGraphsByName.TryGetValue(decl.Name, out var handler))
+                {
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1407,
+                        $"Custom event '{decl.Name}' is declared but has no handler: the call lowers "
+                        + $"to Event_{decl.Name}(...), which is emitted from an Event graph named "
+                        + $"'{decl.Name}'. Add one, or remove the call.",
+                        asset.AssetId, graph.Id, call.Id));
+                    continue;
+                }
+
+                if (handler.Inputs.Count != decl.Parameters.Count)
+                {
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1408,
+                        $"Custom event '{decl.Name}' declares {decl.Parameters.Count} parameter(s) "
+                        + $"but its handler graph takes {handler.Inputs.Count} input(s); the emitted "
+                        + "call would not match Event_" + decl.Name + "'s signature.",
+                        asset.AssetId, graph.Id, call.Id));
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Mirrors Stage5's <c>FindCustomEventIndex</c> — a GUID (what the editor writes) or a bare
+    /// Name (hand-authored assets). Anything else is not an asset-scoped custom event.
+    /// </summary>
+    private static CustomEventDecl? ResolveDecl(BlueprintAsset asset, string eventId)
+    {
+        if (string.IsNullOrWhiteSpace(eventId)) return null;
+
+        if (Guid.TryParse(eventId, out var guid))
+        {
+            foreach (var e in asset.CustomEvents)
+                if (e.Id == guid) return e;
+            return null;
+        }
+
+        foreach (var e in asset.CustomEvents)
+            if (string.Equals(e.Name, eventId, StringComparison.Ordinal)) return e;
+        return null;
     }
 }
 

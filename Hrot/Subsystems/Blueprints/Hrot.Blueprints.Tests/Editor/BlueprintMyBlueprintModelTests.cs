@@ -37,16 +37,18 @@ public sealed class BlueprintMyBlueprintModelTests
 
         var sections = model.Sections;
 
-        // Must have exactly 6 sections.
-        Assert.Equal(6, sections.Count);
+        // BP-12c: five, not six — the Event Dispatchers section is gone. Dispatchers were
+        // superseded by PublishEvent/EventEntry (BP-09 deleted their node kinds); the section was
+        // display-only over a field nothing consumes and no shipped asset populates.
+        Assert.Equal(5, sections.Count);
 
-        // Fixed order: Graphs, Functions, Macros, Custom Events, Variables, Event Dispatchers.
+        // Fixed order: Graphs, Functions, Macros, Custom Events, Variables.
         Assert.Equal(BlueprintMyBlueprintModel.SectionGraphs,       sections[0].Id);
         Assert.Equal(BlueprintMyBlueprintModel.SectionFunctions,    sections[1].Id);
         Assert.Equal(BlueprintMyBlueprintModel.SectionMacros,       sections[2].Id);
         Assert.Equal(BlueprintMyBlueprintModel.SectionCustomEvents, sections[3].Id);
         Assert.Equal(BlueprintMyBlueprintModel.SectionVariables,    sections[4].Id);
-        Assert.Equal(BlueprintMyBlueprintModel.SectionDispatchers,  sections[5].Id);
+        Assert.DoesNotContain(sections, s => s.Id == "dispatchers");
 
         // SortOrder must match position.
         for (int i = 0; i < sections.Count; i++)
@@ -113,27 +115,38 @@ public sealed class BlueprintMyBlueprintModelTests
         Assert.False(items[0].IsDeletable);
     }
 
-    // ── AIE-047 SC4: custom events + dispatchers projected ───────────────────
+    // ── AIE-047 SC4: custom events projected ─────────────────────────────────
 
     [Fact]
-    public void MyBlueprintModel_CustomEvents_AndDispatchers_Projected()
+    public void MyBlueprintModel_CustomEvents_Projected()
     {
         var asset = MakeAsset();
-        asset.CustomEvents.Add(new CustomEventDecl    { Id = Guid.NewGuid(), Name = "OnEnemyKilled" });
-        asset.CustomEvents.Add(new CustomEventDecl    { Id = Guid.NewGuid(), Name = "OnLevelUp" });
+        asset.CustomEvents.Add(new CustomEventDecl { Id = Guid.NewGuid(), Name = "OnEnemyKilled" });
+        asset.CustomEvents.Add(new CustomEventDecl { Id = Guid.NewGuid(), Name = "OnLevelUp" });
+
+        var model = MakeModel(asset);
+
+        var evtItems = model.GetItems(BlueprintMyBlueprintModel.SectionCustomEvents);
+
+        Assert.Equal(2, evtItems.Count);
+        Assert.Equal("OnEnemyKilled", evtItems[0].DisplayName);
+        Assert.Equal("OnLevelUp",     evtItems[1].DisplayName);
+    }
+
+    /// <summary>
+    /// BP-12c — a dispatcher declaration on a hand-authored asset must not resurrect the section.
+    /// The field still round-trips; the panel simply no longer offers the abandoned concept.
+    /// </summary>
+    [Fact]
+    public void MyBlueprintModel_Dispatchers_AreNotProjected()
+    {
+        var asset = MakeAsset();
         asset.EventDispatchers.Add(new EventDispatcherDecl { Id = Guid.NewGuid(), Name = "OnHealthChanged" });
 
         var model = MakeModel(asset);
 
-        var evtItems  = model.GetItems(BlueprintMyBlueprintModel.SectionCustomEvents);
-        var dispItems = model.GetItems(BlueprintMyBlueprintModel.SectionDispatchers);
-
-        Assert.Equal(2, evtItems.Count);
-        Assert.Equal("OnEnemyKilled",   evtItems[0].DisplayName);
-        Assert.Equal("OnLevelUp",       evtItems[1].DisplayName);
-
-        Assert.Single(dispItems);
-        Assert.Equal("OnHealthChanged", dispItems[0].DisplayName);
+        Assert.Empty(model.GetItems("dispatchers"));
+        Assert.DoesNotContain(model.Sections, s => s.CreateCommandId == "editor.create-event-dispatcher");
     }
 
     // ── AIE-047 SC5: faked sections return empty, no throw ───────────────────
@@ -232,7 +245,7 @@ public sealed class BlueprintMyBlueprintModelTests
         var sectionsB = model.Sections;
 
         Assert.Same(sectionsA, sectionsB);
-        Assert.Equal(6, sectionsB.Count);
+        Assert.Equal(5, sectionsB.Count);
     }
 
     // ── Inner fake ────────────────────────────────────────────────────────────

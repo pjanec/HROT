@@ -1,7 +1,7 @@
-# RESUME / HANDOFF — Blueprint gaps & QoL programme (2026-08-04)
+# RESUME / HANDOFF — Blueprint gaps & QoL programme (2026-08-05)
 
 > **Goal:** make blueprint editing fully functional and pleasant.
-> **Branch:** `claude/blueprint-gaps-qol-audit-uyjjk5` · **HEAD at handoff:** `6e07ce6`
+> **Branch:** `claude/blueprint-gaps-qol-audit-uyjjk5` · **HEAD at handoff:** `PENDING`
 > **Live state:** [Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md) (checklist) ·
 > [Blueprint_Issues_Detail.md](Blueprint_Issues_Detail.md) (per-issue evidence + `DONE` notes)
 >
@@ -12,7 +12,7 @@
 
 ## Status
 
-**43 open · 27 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
+**42 open · 28 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
 table; do not duplicate them here.
 
 | Batch | Items |
@@ -24,12 +24,21 @@ table; do not duplicate them here.
 | 5 — coverage | BP-41 |
 | 6 — undo unification | BP-11 ⭐ |
 | 7 — wiring | BP-03, BP-05…BP-08, BP-10, BP-12a, BP-63, BP-64 (+ BP-65 🔴, BP-66 🔴) |
+| 8 — custom-event authoring | BP-12c (+ BP1407/BP1408, dispatcher section removed) |
 
 **Batch 7's visual pass is done (2026-08-05)** and it earned its keep: one bug of mine (the
 bookmarks ✕ was unreachable — a full-width `Selectable` swallowed the click), one long-standing 🔴
 (**BP-66**, the peer catalog scanning a directory that does not exist), and two scope findings —
-**BP-07 is blocked by BP-12c**, and the When node's other three mode forms are stubs (**BP-67**).
-Everything else on the checklist behaved.
+**BP-07 was blocked by BP-12c** (batch 8 unblocked it), and the When node's other three mode forms
+are stubs (**BP-67**).
+
+**Batch 8 (2026-08-05)** shipped BP-12c and, in doing so, found that the audit's framing was
+incomplete: a `CustomEventDecl` is only *half* a custom event. The body is an `Event` graph of the
+same name — `InstanceEmitter` emits `Event_{graph.Name}` from the graph, not from the declaration —
+and the editor has no graph-create path (**BP-24**). Calling an unhandled event therefore emitted
+C# that did not compile, with no diagnostic. New `V_CustomEventHandlers` (**BP1407** missing handler,
+**BP1408** arity mismatch) makes that a Stage 2 error naming the graph to add. Declaring without
+calling stays silent — which is exactly what the new create button produces on its own.
 
 ---
 
@@ -38,15 +47,16 @@ Everything else on the checklist behaved.
 **The `WIRING` tier is done** — 19 of 21 shipped; the 2 remaining (BP-01 watch-panel decoding,
 BP-55 asset-browser delete) are not blueprint-authoring items.
 
-1. **BP-12c** ⭐ (`RW-L`) — custom-event authoring. Now the highest-leverage item: it is **the
-   blocker for BP-07**, whose picker is built and correct but has nothing to list. Ships one item
-   and makes a second visible.
-2. **BP-60** (🔴 `RW-M`) — "Promote to Variable" silently does nothing. The last 🔴 in Area A, and
-   the last known instance of the sink's `default:`-returns-success trap.
-3. **BP-23a / BP-13 / BP-17…BP-20** (`RW-L`) — the canvas-ergonomics tier, each with a stated
+1. **BP-60** (🔴 `RW-M`) — "Promote to Variable" silently does nothing. The last 🔴 in Area A, and
+   the last known instance of the sink's `default:`-returns-success trap. Scouting is already
+   written up below — a complete reference implementation exists in `FakeCommandSink.cs:357`.
+2. **BP-23a / BP-13 / BP-17…BP-20** (`RW-L`) — the canvas-ergonomics tier, each with a stated
    ready-made primitive to mirror. `BP-23a` (copy/paste) is the one a designer notices first.
-4. **BP-67** (`RW-M`) — the When node's other three forms. ⚠ *not* a repeat of BP-10: those had a
+3. **BP-67** (`RW-M`) — the When node's other three forms. ⚠ *not* a repeat of BP-10: those had a
    catalog already injected and called; these need pickers built from scratch.
+4. **BP-24** (`RW-M`) — graph create + graph switching, now with a second reason to want it: it is
+   what closes the other half of BP-12c. Every graph but the first is currently unreachable in the
+   UI, so an author cannot write a custom event's body.
 
 > 👀 **Re-check after the next round:** the bookmarks ✕ (now sized so the row and the button cannot
 > overlap) and the `CallPeerBlueprint` picker (BP-66 — should list peers now).
@@ -60,30 +70,7 @@ BP-55 asset-browser delete) are not blueprint-authoring items.
 
 Written for a fresh context. Everything here was verified against code on 2026-08-05.
 
-### BP-12c ⭐ — custom-event authoring (`RW-L`) · **do this first**
-
-**Why first:** it is the blocker for **BP-07**, whose picker is built, correct and currently shows
-"this Blueprint declares no custom events" because nothing can create one. One item shipped, a
-second made visible.
-
-| Fact | Where |
-|---|---|
-| The section already declares the command | `Windows/BlueprintMyBlueprintModel.cs:54` — `"editor.create-custom-event"` |
-| …and **nothing registers it** — that is the whole bug | grep: one hit repo-wide, the declaration above |
-| The section already renders its items | `BlueprintMyBlueprintModel.cs:141` `BuildCustomEventItems()` reads `_asset.CustomEvents` |
-| The data model | `CustomEventDecl { Guid Id; string Name; List<ParameterDecl> Parameters }` (`Assets/Declarations.cs:33`) |
-| **The pattern to mirror, exactly** | `editor.create-variable`: `BlueprintDocumentFactory.RegisterCreateVariableCommand` (two overloads — quick-add and modal) + `VariableCreateModal` + `CreateVariable` at `:506` |
-| Where to register | `BlueprintDocumentFactory` §9, beside `RegisterVariableGetSetCommands` (BP-12a) |
-| Consumer to verify against | `NodePinSchema.CallCustomEventPins` resolves `EventId` → `asset.CustomEvents` by **GUID**; Stage5's `FindCustomEventIndex` also accepts **Name** |
-
-**Round-out to consider:** the tracker note says *"consider removing the dispatcher section instead
-(superseded)"* — dispatchers are a separate, abandoned concept. Decide that explicitly rather than
-building a dispatcher-create path by symmetry.
-
-**Done means:** "+ Custom Events" creates a declaration with a name and (at minimum) an empty
-parameter list, it appears in the panel, **and BP-07's picker lists it**. Re-check checklist row 5.
-
-### BP-60 🔴 — "Promote to Variable" silently does nothing (`RW-M`)
+### BP-60 🔴 — "Promote to Variable" silently does nothing (`RW-M`) · **do this first**
 
 The last 🔴 in Area A and the last known instance of the `default:`-returns-success trap.
 
@@ -107,13 +94,28 @@ Blueprint; Ctrl+Z reverses the whole gesture as one entry.
 
 ### Then, in order
 
-3. **BP-23a** (`RW-L`) — copy/cut/paste/duplicate. The one a designer notices first. Paste is
+2. **BP-23a** (`RW-L`) — copy/cut/paste/duplicate. The one a designer notices first. Paste is
    hard-disabled; `AddNodeCommand` already accepts a prebuilt `Node`, so paste can skip the
    8-of-50 property whitelist. ⚠ now also needs to honour `AssignedId` — see BP-65.
-4. **BP-13 / BP-17…BP-20** (`RW-L`) — align-distribute, node titles, collapse, minimap, error list.
+3. **BP-13 / BP-17…BP-20** (`RW-L`) — align-distribute, node titles, collapse, minimap, error list.
    Each has a named ready-made primitive in its detail entry.
-5. **BP-67** (`RW-M`) — the When node's other three forms. Largest of these; hold it until the
+4. **BP-67** (`RW-M`) — the When node's other three forms. Largest of these; hold it until the
    above land.
+
+---
+
+## 👀 Visual check — batch 8 (do this next)
+
+| # | Where | What to do | What should happen |
+|---|---|---|---|
+| A | **My Blueprint** → "Custom Events" **+** | It should be **enabled** (it was greyed with "Not implemented") | A modal opens: Name, then "+ Parameter" rows of name + type. Bad names are refused *before* Confirm, with the reason shown |
+| B | Confirm the modal | — | The event appears under Custom Events, and the palette gains a **"Call {Name}"** entry under *CustomEvents* |
+| C | Drop that Call node, open **Details** | Open the Event combo | **BP-07's row 5, now reachable** — the event is listed as `Name (Param1, Param2)`; picking it projects one data-in pin per parameter |
+| D | The panel's section list | — | There is **no "Event Dispatchers" section** any more. That is intentional (BP-09 superseded the concept) |
+
+> ⚠ Compiling a `CallCustomEvent` still needs an `Event` graph of the same name, which the editor
+> cannot create yet (**BP-24**). That now fails as **BP1407** naming the graph to add, instead of a
+> Roslyn error about a missing `Event_X` method. The modal says so before you confirm.
 
 ---
 
@@ -139,7 +141,7 @@ Listed roughly cheapest-to-reach first.
 | Row | Result |
 |---|---|
 | 1, 2, 3, 4, 7, 9 | ✅ as described |
-| 5 — `CallCustomEvent` | ⛔ **untestable — no asset can declare a custom event.** The drawer is right; **BP-12c** is the blocker |
+| 5 — `CallCustomEvent` | ⛔ was untestable — no asset could declare a custom event. **BP-12c shipped; re-check via batch 8 row C** |
 | 6 — `CallPeerBlueprint` | 🔴 **empty — BP-66**, the catalog scanned a directory that does not exist. Fixed; **re-check** |
 | 8 — bookmarks ✕ | 🔴 **unreachable** — a full-width `Selectable` swallowed the click. Fixed; **re-check** |
 | — When node | 🔎 the other three modes (`ValueChanged`, `ConditionMet`, `EqsResult`) are stubs — **BP-67** |
@@ -227,7 +229,10 @@ pass, since no headless test can see it.)
 - ⚠ **`Blueprint_Component_Access_RESUME.md`'s "~8–9 reds, DO NOT chase" is STALE** — banner-marked
   at the source. Expect 0 failures; investigate any.
 - Residual: `PdbEmbeddedSourceTests` pair flaked once in ~6 runs (real Roslyn+PDB emission,
-  resource-sensitive). Not yet chased.
+  resource-sensitive). Not yet chased. **`WhenNodePerfTests.WhenNode_ValueChanged_Under100ns_perTick`
+  joins it** — a wall-clock ns/tick benchmark; it reds under load and passes alone. Re-run the single
+  filter before treating either as a regression.
+- Batch 8 baseline: blueprints **2703 total / 2692 passed / 10 skipped** (+46 over batch 7).
 - ✅ **`Hrot.Editor.AiShared.Tests` is now in the gate list** (1204/0). Its 2 Windows-only reds were
   BP-64, fixed. It was missing from the list, which is why they went unnoticed.
 - **To classify a failure:** `git stash` → re-run the same filter → `git stash pop`. If it fails
@@ -263,7 +268,7 @@ dotnet test Hrot/Subsystems/AI/Hrot.AiEditor.Generators.Tests/Hrot.AiEditor.Gene
 - **Record findings in the detail doc**, not only in commit messages.
 - Ask in plain prose; **never** the multiple-choice widget.
 
-## Key code reference points (as of `6e07ce6`)
+## Key code reference points (as of batch 8)
 
 | Concern | File |
 |---|---|

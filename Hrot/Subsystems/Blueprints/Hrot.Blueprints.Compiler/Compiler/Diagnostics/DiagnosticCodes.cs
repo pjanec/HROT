@@ -46,6 +46,8 @@ public static class DiagnosticCodes
     public const string BP1404 = "BP1404";  // BP-15: ScoreDecisionNode.AssetId missing or not a well-formed GUID
     public const string BP1405 = "BP1405";  // BP-15: ReadRankedResultNode.Rank is negative (rank is 0-based)
     public const string BP1406 = "BP1406";  // BP-15: CastNode.TargetTypeId is empty or unresolvable
+    public const string BP1407 = "BP1407";  // BP-12c: CallCustomEvent targets a declared event with no Event graph to handle it
+    public const string BP1408 = "BP1408";  // BP-12c: the handling Event graph's inputs do not match the custom event's parameters
 
     // Stage 2 -- Validate (node kinds with no Stage5 lowering)
     // BP-16: these compile clean today and yield a silent wrong value at runtime. Erroring in Stage 2

@@ -238,10 +238,10 @@ Whether a designer can *place* and *configure* each node kind. 13 of 50 kinds ru
 > and still resolves a bare **Name**, which Stage5 accepts — so hand-authored assets don't show as
 > dangling. The event's parameters are its data-IN pins, so the edit is structural.
 >
-> ⚠ **Unreachable until BP-12c.** Confirmed in the visual check: no asset can declare a custom event
-> yet (My Blueprint → "Custom Events [+]" does nothing), so the picker correctly renders "this
-> Blueprint declares no custom events" and there is nothing to select. The drawer is done; **BP-12c
-> is now its blocker**, and shipping it makes this one visible.
+> ⚠ **Was unreachable until BP-12c** — no asset could declare a custom event, so the picker
+> correctly rendered "this Blueprint declares no custom events" and had nothing to select. BP-12c
+> shipped (2026-08-05) and the picker is now live; `CustomEventCreateTests` asserts the round trip
+> end-to-end (create → listed → selected by GUID → resolves).
 - Reuse `UnifiedEventDiscovery.All()`, already production-wired, which unifies C# `[BlueprintEvent]` structs and editor-authored events.
 
 ### BP-08 — `CallPeerBlueprint` target uneditable
@@ -379,6 +379,35 @@ Document, undo, and panel plumbing.
 
 ### BP-12c — My Blueprint: custom events and dispatchers cannot be created
 **Complexity:** RW-L · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-05).** "Custom Events +" opens a create modal (name + an editable list of typed
+> parameters) that calls a headless `BlueprintDocumentFactory.CreateCustomEvent`, mirroring the
+> `editor.create-variable` pair exactly — quick-add overload for tests, modal overload for
+> production. **Parameters are part of the create gesture**, not a follow-up: they *are* what the
+> declaration is for (`NodePinSchema.CallCustomEventPins` projects one data-in pin per parameter,
+> and BP-07's picker labels an event by them), and there is no post-create editor for them.
+>
+> ⚠ **Names are validated as C# identifiers, not just as non-blank.** `InstanceEmitter` emits
+> `Event_{Name}` and each parameter becomes a C# parameter — so `On Hit`, `1st`, or `class` are
+> Roslyn errors, not validation messages. The modal shows the reason and disables Confirm;
+> `CreateCustomEvent` is the authoritative guard.
+>
+> ⚠ **The dispatcher half was removed, not wired** — the audit's own suggestion, taken. BP-09
+> established dispatchers are superseded by `PublishEvent`/`EventEntry` and deleted their six node
+> kinds; nothing in the editor or compiler consumes `EventDispatchers`, and **no shipped asset
+> declares one**. The section is gone from `BlueprintMyBlueprintModel`; the asset field stays so
+> hand-authored JSON round-trips. (The generic NodeEdit panel's right-click "+ Event Dispatcher"
+> remains, disabled — it belongs to the vendored tree and its Demo model still uses the concept.)
+>
+> 🔎 **Found while fixing — a declaration is only half a custom event.** The *body* is an `Event`
+> graph of the same name: `InstanceEmitter.EmitEventMethod` emits `Event_{graph.Name}` with one
+> parameter per `graph.Inputs`, while `StatementEmitter` lowers `IrOp_RaiseCustomEvent` to a direct
+> call with one argument per *declaration* parameter. Nothing checked that the two agree, so a call
+> to an unhandled event produced C# that did not compile, blaming a method the designer never wrote.
+> New `V_CustomEventHandlers` → **BP1407** (declared, called, no handler graph — names the graph to
+> add) and **BP1408** (handler arity mismatch). **Call sites only**: declaring an event and never
+> calling it stays silent, which is exactly what the new create button produces on its own — the
+> paired graph needs **BP-24**, which has no editor path yet.
 - `editor.create-custom-event`, `editor.create-event-dispatcher` unregistered; both sections are display-only.
 - ⚠ Dispatchers are a superseded concept (see BP-09) — consider **removing** that section rather than wiring it.
 
@@ -398,6 +427,7 @@ Document, undo, and panel plumbing.
 **Complexity:** RW-M · **Confidence:** ✔✔
 - The data + compiler layers **already support author-defined functions**: `GraphKind.Function`, `FunctionCallNode.TargetGraphId`, and real multi-graph assets on disk (`DeepNestedBlueprint.bp.json` holds 3 Function graphs). `GraphSignatureWindow` does genuine Add/Remove/Rename/Retype/Move CRUD on `Graph.Inputs`/`Outputs` and is properly wired.
 - **Missing 1 — no create path:** nothing in the editor ever appends to `BlueprintAsset.Graphs` (verified: the only `Graphs.Add` hits are compiler-internal lowering).
+- ⚠ **Second reason to want this, added by BP-12c:** a custom event's *body* is an `Event` graph named after it. With no graph-create path, a declared custom event can never be given one, and calling it is a BP1407 error. BP-12c ships the declaration half; BP-24 is the other half.
 - **Missing 2 — no graph switching:** `BlueprintDocumentFactory.cs:130-131` binds the canvas permanently at open time via `Graphs.FirstOrDefault(g => g.Kind == Event) ?? Graphs.FirstOrDefault()`.
 - ⚠ **Consequence:** in any multi-graph asset, **every graph but the first is unreachable through the UI**. The `FunctionCall` target picker can only select graphs hand-authored in JSON.
 - Also fixes the My Blueprint "Graphs" section's double-click, currently `navigateToGraph: _ => { }`.
@@ -740,6 +770,7 @@ those notes do not.
 | 5 | BP-41 | coverage: three *different* AiPrimitives on one entity |
 | 6 | BP-11 ⭐ | undo unification — one stack for canvas and drawer edits |
 | 7 | BP-03 · BP-05…BP-08 · BP-10 · BP-12a · BP-63 · BP-64 (+ BP-65) | the WIRING batch — machinery existed, only the UI hook was missing |
+| 8 | BP-12c (+ BP1407/BP1408; dispatcher section retired) | custom-event authoring — unblocks BP-07 |
 
 ## The audit was wrong nine times — every correction is recorded in-place
 
@@ -756,6 +787,7 @@ This matters more than any single fix: **the register cannot be trusted without 
 | BP-41 — implies a slot-**key** collision risk | Keys were never at risk (per-`VisualId`). The untested thing is per-slot **sizing** — every prior test placed one `WorkingState` *type*. |
 | BP-07 — "reuse `UnifiedEventDiscovery`" | That enumerates **engine** events. A custom event is **asset-scoped** (`asset.CustomEvents`); every choice from that picker would have failed to resolve. |
 | BP-12a — "drag-variable-into-graph is dead" | The **drag** path already worked (`CanvasRenderer.PlaceVariableNode`). The dead route is the **context menu**. |
+| BP-12c — "custom events can't be created" | True, but **the declaration is only half the feature**. The body is an `Event` graph of the same name (`Event_{graph.Name}` is emitted from the graph, not the declaration), and the editor cannot create graphs at all — BP-24. Shipping the declaration alone made *calling* one a compile error, so it needed BP1407/BP1408 to say so. |
 
 Two architect statements were also wrong and are corrected in the
 [Q22 addendum](Architect_Question_22_Undo_Unification.md): D2 does **not** fix tier 3, and
@@ -775,11 +807,19 @@ Two architect statements were also wrong and are corrected in the
 - **Multiplexer exceptions propagate**, matching a directly-wired sink; swallowing would hide a
   broken observer.
 - **Flaky tests are fixed, never skipped.** A skip is a permanent silent coverage hole.
+- **The Event Dispatchers section was deleted, not wired** (BP-12c). The audit offered the choice;
+  BP-09 had already retired the concept's node kinds, nothing consumes `EventDispatchers`, and no
+  shipped asset declares one. Wiring a create path would have been the only way to author data
+  nothing reads.
+- **BP1407/BP1408 fire at the CALL site, never at the declaration.** Erroring on a declaration would
+  make BP-12c's own create button emit a broken asset on first click, with no way to fix it until
+  BP-24 lands.
 
 ## New issues found *while fixing*, not by the audit
 
 **BP-59** (🔴 data loss) · **BP-60** · **BP-61** (🔴) · **BP-62** · **BP-63** · **BP-64** ·
-**BP-65** (🔴). Nearly all
+**BP-65** (🔴) · **BP-66** (🔴) · **BP1407/BP1408** (custom events with no handler graph compiled to
+uncompilable C#). Nearly all
 were found by following an inconsistency rather than by reading the register — which is the argument
 for re-deriving claims rather than working the list top-down.
 
@@ -794,6 +834,13 @@ non-undoable in the Blueprint editor for the whole life of the feature, in a sin
 sinks (BTree, HSM) got it right — and no audit item mentions it. It surfaced only because a test
 written for something else (BP-12a's menu commands) asserted that undo actually removed the node.
 Every part of the register's coverage of undo was written *around* this bug without seeing it.
+
+**Latent, recorded for BP-24:** `BlueprintDocumentFactory` binds the canvas to
+`Graphs.FirstOrDefault(g => g.Kind == Event) ?? Graphs.FirstOrDefault()`. An asset whose main graph
+is a `Function` graph would therefore *switch* to a newly added `Event` graph on next open. This is
+why BP-12c does **not** auto-create the handler graph alongside the declaration: it would silently
+move the designer's canvas off the graph they were editing. Fix the selection rule as part of BP-24
+(graph switching) before adding any graph-create path.
 
 ---
 

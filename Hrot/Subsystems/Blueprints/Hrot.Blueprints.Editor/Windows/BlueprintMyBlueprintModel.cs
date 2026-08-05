@@ -16,7 +16,6 @@ namespace Hrot.Blueprints.Editor.Windows;
 ///   <item>Graphs — from <see cref="BlueprintAsset.Graphs"/></item>
 ///   <item>Custom Events — from <see cref="BlueprintAsset.CustomEvents"/></item>
 ///   <item>Variables — from <see cref="BlueprintAsset.Variables"/> (name/type/category/accent)</item>
-///   <item>Event Dispatchers — from <see cref="BlueprintAsset.EventDispatchers"/></item>
 /// </list>
 ///
 /// <para><b>Faked/empty sections</b> (no data model yet in v1):</para>
@@ -25,8 +24,16 @@ namespace Hrot.Blueprints.Editor.Windows;
 ///   <item>Macros — always empty list; section header still present in fixed order</item>
 /// </list>
 ///
-/// Fixed section order per D.6.2 spec: Graphs, Functions, Macros, Custom Events, Variables,
-/// Event Dispatchers.
+/// <para>
+/// <b>BP-12c — no Event Dispatchers section.</b> BP-09 established that dispatchers are superseded
+/// by <c>PublishEvent</c>/<c>EventEntry</c> and deleted the six dispatcher/squad node kinds from the
+/// palette; nothing in the editor or the compiler consumes
+/// <see cref="BlueprintAsset.EventDispatchers"/>, and no shipped asset declares one. Rather than
+/// wire a create path for an abandoned concept, the section is gone. The field stays on the asset so
+/// hand-authored JSON still round-trips.
+/// </para>
+///
+/// Fixed section order per D.6.2 spec: Graphs, Functions, Macros, Custom Events, Variables.
 ///
 /// Fire <see cref="Changed"/> when the model should be refreshed (e.g. after
 /// <see cref="Retarget"/> is called with a new asset, or when the subscribed
@@ -41,7 +48,6 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
     public const string SectionMacros      = "macros";
     public const string SectionCustomEvents = "customevents";
     public const string SectionVariables   = "variables";
-    public const string SectionDispatchers = "dispatchers";
 
     // ── Fixed section descriptors (D.6.2 order) ────────────────────────────
 
@@ -53,7 +59,6 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
             new(SectionMacros,       "Macros",           2, null, true,  true,  "editor.create-macro"),
             new(SectionCustomEvents, "Custom Events",    3, null, true,  true,  "editor.create-custom-event"),
             new(SectionVariables,    "Variables",        4, null, true,  true,  "editor.create-variable"),
-            new(SectionDispatchers,  "Event Dispatchers",5, null, true,  true,  "editor.create-event-dispatcher"),
         };
 
     // ── State ─────────────────────────────────────────────────────────────────
@@ -109,7 +114,6 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
             SectionMacros       => Array.Empty<MyBlueprintItem>(),   // faked/empty v1
             SectionCustomEvents => BuildCustomEventItems(),
             SectionVariables    => BuildVariableItems(),
-            SectionDispatchers  => BuildDispatcherItems(),
             _                   => Array.Empty<MyBlueprintItem>(),
         };
     }
@@ -182,28 +186,6 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
                 IsDeletable:  true,
                 IsHostDefined: false,
                 Tooltip:      v.Tooltip));
-        }
-        return result;
-    }
-
-    private IReadOnlyList<MyBlueprintItem> BuildDispatcherItems()
-    {
-        var result = new List<MyBlueprintItem>(_asset!.EventDispatchers.Count);
-        foreach (var d in _asset.EventDispatchers)
-        {
-            result.Add(new MyBlueprintItem(
-                ItemId:       $"disp:{d.Id}",
-                SectionId:    SectionDispatchers,
-                DisplayName:  d.Name,
-                CategoryPath: null,
-                IconKey:      null,
-                BadgeText:    null,
-                AccentColor:  null,
-                Children:     null,
-                IsRenamable:  true,
-                IsDeletable:  true,
-                IsHostDefined: false,
-                Tooltip:      null));
         }
         return result;
     }
