@@ -199,9 +199,20 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         // GetVariableNode / SetVariableNode so NodePinSchema projects the correct pins:
         // Get = PURE (single data-out "Value"), Set = exec in/out + typed data "Value".
         if (IsGetVariableKind(kind.Id))
-            return FinishVariableNode(new GetVariableNode(), assignedId, position, props);
+            return FinishNode(new GetVariableNode(), assignedId, position, props);
         if (IsSetVariableKind(kind.Id))
-            return FinishVariableNode(new SetVariableNode(), assignedId, position, props);
+            return FinishNode(new SetVariableNode(), assignedId, position, props);
+
+        // BP-68: asset-scoped dynamic kinds. Three create-paths mint kind ids the
+        // NodeKindRegistry cannot know about — the My Blueprint drag-to-canvas drop
+        // ("Event.CallCustom"), and BlueprintNodeCatalog's per-asset palette entries
+        // ("CustomEvent.{Name}", "CallPeer.{guid}"). They used to fall through to the generic
+        // FunctionCallNode below, so dragging a custom event onto the canvas produced a node
+        // that was not a CallCustomEventNode at all: no drawer could edit it and the BP-07
+        // picker never saw it. The sink is the only place that holds the asset, so it is the
+        // only place that can bind them.
+        if (CreateDynamicNode(kind.Id) is { } dynamicNode)
+            return FinishNode(dynamicNode, assignedId, position, props);
 
         // Map the NodeKindKey back to the appropriate asset Node subtype.
         // The NodeKindRegistry descriptor has a CreateInstance factory; use it
@@ -217,7 +228,7 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         }
         else
         {
-            // Dynamic kind (custom event, callable peer) — create a generic FunctionCallNode.
+            // Still-unknown kind — a generic FunctionCallNode, as before.
             assetNode = new FunctionCallNode { MethodName = kind.Id };
         }
 
@@ -320,11 +331,12 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         kindId is "Util.SetVar" or "Variable.Set" or "Blueprint.SetVariable" or "SetVariable";
 
     /// <summary>
-    /// Stamps id, position and the <c>VariableId</c> property onto a freshly created
-    /// <see cref="GetVariableNode"/>/<see cref="SetVariableNode"/> so
-    /// <see cref="NodePinSchema"/> can type the Value pin from the declared variable.
+    /// Stamps id, position, initial properties and caller-supplied pin GUIDs onto a freshly
+    /// created node. Used by the create-paths that build the node themselves rather than through
+    /// the registry — Get/Set variable and (BP-68) the asset-scoped dynamic kinds — so that, for
+    /// example, <see cref="NodePinSchema"/> can type a Get's Value pin from the declared variable.
     /// </summary>
-    private Node FinishVariableNode(
+    private Node FinishNode(
         Node node,
         NodeId assignedId,
         Vector2 position,
@@ -339,7 +351,91 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         return node;
     }
 
-    private static void ApplyInitialProperties(Node node, IReadOnlyDictionary<string, object?> props)
+    // ── Asset-scoped dynamic kinds (BP-68) ───────────────────────────────────
+
+    /// <summary>Prefix of the per-asset palette entry minted by <c>BlueprintNodeCatalog</c>.</summary>
+    private const string CustomEventKindPrefix = "CustomEvent.";
+
+    /// <summary>Prefix of the per-asset callable-peer palette entry.</summary>
+    private const string CallPeerKindPrefix = "CallPeer.";
+
+    /// <summary>
+    /// BP-68 — builds the real node for a kind id the <c>NodeKindRegistry</c> cannot contain because
+    /// it is derived from <i>this asset's</i> declarations. Returns <see langword="null"/> for
+    /// anything else, leaving the generic <c>FunctionCallNode</c> fallback in place.
+    ///
+    /// <para>
+    /// Only the identity carried by the kind id is seeded here; <see cref="ApplyInitialProperties"/>
+    /// then overrides it from the command's properties when the create-path supplied them (the
+    /// drag-to-canvas drop does, the palette does not).
+    /// </para>
+    /// </summary>
+    private Node? CreateDynamicNode(string kindId)
+    {
+        // My Blueprint → drag a custom event onto the canvas. CanvasRenderer's drop handler emits
+        // this kind; the event identity travels in the properties.
+        if (kindId == "Event.CallCustom")
+            return new CallCustomEventNode();
+
+        if (kindId.StartsWith(CustomEventKindPrefix, StringComparison.Ordinal))
+            return new CallCustomEventNode
+            {
+                EventId = ResolveCustomEventId(kindId.Substring(CustomEventKindPrefix.Length)),
+            };
+
+        if (kindId.StartsWith(CallPeerKindPrefix, StringComparison.Ordinal))
+            return new CallPeerBlueprintNode
+            {
+                PeerBlueprintId = NormalizePeerId(kindId.Substring(CallPeerKindPrefix.Length)),
+            };
+
+        return null;
+    }
+
+    /// <summary>
+    /// Normalises whatever a create-path knows about a custom event into the canonical form the
+    /// BP-07 picker writes and <c>NodePinSchema.CallCustomEventPins</c> parses: the declaration's
+    /// GUID in "D" form.
+    ///
+    /// <para>
+    /// Accepts the My Blueprint item id (<c>evt:{guid}</c>), a bare GUID, or the event's name — the
+    /// palette entry carries only a name, and Stage5's <c>FindCustomEventIndex</c> accepts one too.
+    /// An input that matches no declaration is passed through unchanged rather than blanked: the
+    /// drawer surfaces it as "unresolved", which is recoverable, whereas an empty EventId looks like
+    /// a node the designer never configured.
+    /// </para>
+    /// </summary>
+    private string ResolveCustomEventId(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return "";
+
+        var value = raw!.Trim();
+        if (value.StartsWith("evt:", StringComparison.Ordinal))
+            value = value.Substring(4);
+
+        if (Guid.TryParse(value, out var byGuid))
+        {
+            var known = _asset.CustomEvents.FirstOrDefault(e => e.Id == byGuid);
+            return known?.Id.ToString("D") ?? value;
+        }
+
+        var byName = _asset.CustomEvents.FirstOrDefault(
+            e => string.Equals(e.Name, value, StringComparison.Ordinal));
+        return byName?.Id.ToString("D") ?? value;
+    }
+
+    /// <summary>
+    /// The callable-peer palette entry spells its GUID in "N" form. <c>Guid.TryParse</c> accepts
+    /// both, but the pickers write "D", so normalise rather than leave two spellings in assets.
+    /// </summary>
+    private static string NormalizePeerId(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return "";
+        var value = raw!.Trim();
+        return Guid.TryParse(value, out var id) ? id.ToString("D") : value;
+    }
+
+    private void ApplyInitialProperties(Node node, IReadOnlyDictionary<string, object?> props)
     {
         // Apply well-known properties that map directly to asset fields.
         if (props.TryGetValue("Comment", out var comment) && comment is string s)
@@ -366,6 +462,22 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         else if (node is EventEntryNode ee)
         {
             if (props.TryGetValue("EventTypeId", out var eid) && eid is string es) ee.EventTypeId = es;
+        }
+        // BP-68: the My Blueprint drop ships the panel's item id ("evt:{guid}") and the display
+        // name; either resolves to the declaration's GUID.
+        else if (node is CallCustomEventNode cce)
+        {
+            if (props.TryGetValue("EventId", out var ceid) && ceid is string ces)
+                cce.EventId = ResolveCustomEventId(ces);
+            else if (props.TryGetValue("EventName", out var cen) && cen is string cns)
+                cce.EventId = ResolveCustomEventId(cns);
+        }
+        else if (node is CallPeerBlueprintNode cpb)
+        {
+            if (props.TryGetValue("PeerBlueprintId", out var pid) && pid is string pids)
+                cpb.PeerBlueprintId = NormalizePeerId(pids);
+            if (props.TryGetValue("FunctionRef", out var fr) && fr is string frs)
+                cpb.FunctionRef = frs;
         }
         else if (node is ChannelCommandNode cc)
         {

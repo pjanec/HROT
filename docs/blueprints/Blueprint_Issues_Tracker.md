@@ -11,11 +11,11 @@ architect decision first).
 
 | Complexity | Open | Done |
 |---|---:|---:|
-| `WIRING` | 2 | 20 |
+| `WIRING` | 2 | 21 |
 | `RW-L` | 17 | 6 |
 | `RW-M` | 21 | 2 |
 | `RW-H` | 2 | — |
-| **Total** | **42** | **28** |
+| **Total** | **42** | **29** |
 | *(refuted on verification)* | | *1* |
 
 > 📌 **Resuming this programme?** Start with [Blueprint_Gaps_Programme_RESUME.md](Blueprint_Gaps_Programme_RESUME.md) — branch, batches
@@ -32,7 +32,7 @@ architect decision first).
 >    that has never actually run.
 > A green test suite is not evidence that a guard is wired. Grep the production construction sites.
 
-> ✅ **Batch 8 shipped (2026-08-05) — custom-event authoring: BP-12c.**
+> ✅ **Batch 8 shipped (2026-08-05) — custom-event authoring: BP-12c + BP-68.**
 > "Custom Events +" opens a create modal (name + typed parameters), mirroring `editor.create-variable`
 > exactly. This **unblocks BP-07**, whose picker was correct but had nothing it could ever list.
 > ⚠ **The dispatcher half was retired, not wired** — the audit's own suggestion; BP-09 had already
@@ -42,6 +42,9 @@ architect decision first).
 > that did not compile, blaming a method the designer never wrote. New **BP1407/BP1408** make that a
 > Stage 2 error naming the graph to add. They fire at **call sites only**, so the new create button
 > never produces a broken asset on its own.
+> ⚠ **BP-68, found in this batch's own visual check:** the moment an asset *had* a custom event, the
+> next gesture — dragging it onto the canvas — exposed that the sink binds nothing for asset-scoped
+> dynamic kinds. Fixed for all three of them.
 
 > ✅ **Batch 3 shipped (2026-08-04) — the palette batch: BP-04 + BP-09.**
 > **BP-04:** 14 baked entries (6 `Compare` · 5 `BinaryOp` · 2 `BooleanOp` · 1 `Not`) — the four kinds
@@ -99,6 +102,7 @@ architect decision first).
 - [x] **BP-02** · `WIRING` — Undo bypassed via `view.Commands.Apply`. ⚠ *scope corrected:* **15 sites, not 10** — also pin "Reset to Default" (`:638`), comment delete (`:845`), "Promote to Variable" (`:970`)
 - [x] **BP-03** · `WIRING` — Bookmarks can't be renamed or deleted; `BookmarkStore.Remove` already exists. Added `Rename` + inline edit, delete button/menu, and click-to-jump; ordering/labelling split into `BookmarkPanelLogic` so they're headlessly testable
 - [x] **BP-65** 🔴 · `WIRING` — **Placing a node was silently non-undoable.** `BlueprintCommandSink` ignored `GraphCommand.AddNode.AssignedId` and minted its own Guid, so `CommandBuilder`'s paired `RemoveNodes([thatId])` inverse named a node that doesn't exist — palette drops, wire-drops, variable drags, all of it. The **BTree and HSM sinks already honour it**; only this one didn't. Masked until BP-11 by the sink's parallel `CommandHistory` record, which holds the node *object* — *found while testing BP-12a*
+- [x] **BP-68** 🔴 · `WIRING` — **Dragging a custom event out of My Blueprint produced an unbound node.** `BlueprintCommandSink.CreateAssetNode` mapped every kind missing from `NodeKindRegistry` to a generic `FunctionCallNode` — its own comment said *"Dynamic kind (custom event, callable peer)"*. Three create-paths land there and **all three are asset-scoped kinds the sink is the only thing able to bind**: the drag drop (`Event.CallCustom`) and both per-asset palette entries (`CustomEvent.{Name}`, `CallPeer.{guid}`). Result: a node with no drawer that BP-07's picker could never see, because it was not a `CallCustomEventNode` at all. Hidden because the *static* "Call Custom Event" palette entry is registry-backed and worked — *found in the BP-12c visual check*
 - [x] **BP-66** 🔴 · `WIRING` — **The peer-blueprint catalog scanned a directory that does not exist.** `EditorSubsystem` built `BlueprintPeerSource` over `{BaseDirectory}/blueprints`; every other consumer uses `Assets/Blueprints` (`AssetRoots.AssetsRelative`) — *including two other sites in the same file*. So `EnumerateAll()` returned nothing and **`CallPeerBlueprint` pin projection has never resolved a peer**, silently falling back to untyped `exec + Return:System.Object`. Long-standing; surfaced by BP-08's picker reporting "no peer Blueprints discovered" — *found in the visual check*
 - [ ] **BP-23a** · `RW-L` — **No copy/cut/paste/duplicate on the canvas.** Paste is hard-disabled; `AddNodeCommand` already accepts a prebuilt `Node`, so paste can skip the 8-of-50 property whitelist
 - [ ] **BP-13** · `RW-L` — No align/distribute/straighten; 9 commands declared, 0 implemented. `CommandBuilder.MoveNodes` is the ready primitive

@@ -373,6 +373,37 @@ Document, undo, and panel plumbing.
 - `editor.create-variable-get` / `-set` are invoked by the context menu but never registered. This is the most-used motion in Unreal authoring.
 - Reuse the palette / `AddNode` path that already creates `GetVariableNode` / `SetVariableNode` with a baked `VariableId`.
 
+### BP-68 — Asset-scoped dynamic kinds created an unbound generic node 🔴 **[NEW — found in BP-12c's visual check]**
+**Complexity:** WIRING · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-05).** `BlueprintCommandSink.CreateAssetNode` mapped any kind missing from
+> `NodeKindRegistry` to `new FunctionCallNode { MethodName = kind.Id }`. Its own comment named the
+> victims — *"Dynamic kind (custom event, callable peer)"* — without noticing that those are exactly
+> the kinds **only the sink can bind**, because only the sink holds the asset:
+>
+> | Create-path | Kind id | Should be |
+> |---|---|---|
+> | My Blueprint → drag onto canvas | `Event.CallCustom` (+ `EventId`/`EventName` props) | `CallCustomEventNode` bound to the declaration |
+> | Palette → per-asset entry | `CustomEvent.{Name}` | same |
+> | Palette → callable peer | `CallPeer.{guid:N}` | `CallPeerBlueprintNode` bound to the peer |
+>
+> The symptom was a node with **no drawer and nothing to edit** — BP-07's picker never saw it,
+> because it was not a `CallCustomEventNode` at all. `CreateDynamicNode` now resolves all three, and
+> `ApplyInitialProperties` normalises whatever identity the path supplies (the panel's `evt:{guid}`
+> item id, a bare GUID, or the event's name) into the canonical GUID the picker writes. An
+> identity that resolves to nothing is **passed through, not blanked** — the drawer shows it as
+> "unresolved", which is recoverable; an empty `EventId` looks like a node never configured.
+>
+> ⚠ **Why it hid for so long:** the *static* "Call Custom Event" palette entry is registry-backed and
+> always worked, and until BP-12c **no asset could declare a custom event**, so neither dynamic
+> custom-event path had anything to carry. The peer path was hidden behind BP-66's dead catalog.
+> Three separate bugs kept the same code path unreachable.
+>
+> ⚠ **Undo was reported as broken too, and I could not reproduce it.** The drop already routed
+> through `view.Execute`, and a test driving the exact command path — including `view.UndoLast()`,
+> what Ctrl+Z calls — removes the node. Most likely the degenerate fallback node was the thing that
+> looked unremovable. Worth re-checking now that a real node is created.
+
 ### BP-12b — My Blueprint: items cannot be renamed, duplicated, or deleted
 **Complexity:** RW-L · **Confidence:** ✔✔
 - `editor.rename-item`, `duplicate-item`, `delete-item` are all unregistered. Consequence: a variable can be **created but never renamed or removed**.
@@ -770,7 +801,7 @@ those notes do not.
 | 5 | BP-41 | coverage: three *different* AiPrimitives on one entity |
 | 6 | BP-11 ⭐ | undo unification — one stack for canvas and drawer edits |
 | 7 | BP-03 · BP-05…BP-08 · BP-10 · BP-12a · BP-63 · BP-64 (+ BP-65) | the WIRING batch — machinery existed, only the UI hook was missing |
-| 8 | BP-12c (+ BP1407/BP1408; dispatcher section retired) | custom-event authoring — unblocks BP-07 |
+| 8 | BP-12c · BP-68 (+ BP1407/BP1408; dispatcher section retired) | custom-event authoring — unblocks BP-07 |
 
 ## The audit was wrong nine times — every correction is recorded in-place
 
@@ -818,7 +849,7 @@ Two architect statements were also wrong and are corrected in the
 ## New issues found *while fixing*, not by the audit
 
 **BP-59** (🔴 data loss) · **BP-60** · **BP-61** (🔴) · **BP-62** · **BP-63** · **BP-64** ·
-**BP-65** (🔴) · **BP-66** (🔴) · **BP1407/BP1408** (custom events with no handler graph compiled to
+**BP-65** (🔴) · **BP-66** (🔴) · **BP-68** (🔴) · **BP1407/BP1408** (custom events with no handler graph compiled to
 uncompilable C#). Nearly all
 were found by following an inconsistency rather than by reading the register — which is the argument
 for re-deriving claims rather than working the list top-down.
@@ -834,6 +865,12 @@ non-undoable in the Blueprint editor for the whole life of the feature, in a sin
 sinks (BTree, HSM) got it right — and no audit item mentions it. It surfaced only because a test
 written for something else (BP-12a's menu commands) asserted that undo actually removed the node.
 Every part of the register's coverage of undo was written *around* this bug without seeing it.
+
+**BP-68 adds a third variation: a bug can need another bug fixed before it is even reachable.** The
+sink has bound nothing for asset-scoped dynamic kinds for the life of the feature, and no audit item
+mentions it — because until BP-12c no asset could declare a custom event, and until BP-66 no peer was
+ever discovered. Shipping BP-12c made the very next gesture fail. **Expect the item after a wiring
+fix to expose the next one**; the visual check is what finds these, not the suite.
 
 **Latent, recorded for BP-24:** `BlueprintDocumentFactory` binds the canvas to
 `Graphs.FirstOrDefault(g => g.Kind == Event) ?? Graphs.FirstOrDefault()`. An asset whose main graph

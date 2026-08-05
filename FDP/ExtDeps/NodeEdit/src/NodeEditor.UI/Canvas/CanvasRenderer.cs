@@ -166,7 +166,14 @@ public sealed class CanvasRenderer
                     var dropPos = view.Viewport.ScreenToGraph(ImGui.GetMousePos());
 
                     var kind = new NodeKindKey("Event.CallCustom");
-                    var props = new Dictionary<string, object?> { ["EventName"] = evtName };
+                    // The item id is the authoritative identity (the host resolves it to the
+                    // declaration); the display name is a fallback for hosts that key by name.
+                    // Shipping only the name left the host with nothing precise to bind to.
+                    var props = new Dictionary<string, object?>
+                    {
+                        ["EventId"]   = evtId,
+                        ["EventName"] = evtName,
+                    };
                     var cb = new CommandBuilder(view.Model);
                     var (fwd, inv) = cb.AddNode(kind, dropPos, props);
                     view.Execute(fwd, inv, "Call Custom Event");

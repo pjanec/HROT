@@ -12,7 +12,7 @@
 
 ## Status
 
-**42 open · 28 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
+**42 open · 29 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
 table; do not duplicate them here.
 
 | Batch | Items |
@@ -24,7 +24,7 @@ table; do not duplicate them here.
 | 5 — coverage | BP-41 |
 | 6 — undo unification | BP-11 ⭐ |
 | 7 — wiring | BP-03, BP-05…BP-08, BP-10, BP-12a, BP-63, BP-64 (+ BP-65 🔴, BP-66 🔴) |
-| 8 — custom-event authoring | BP-12c (+ BP1407/BP1408, dispatcher section removed) |
+| 8 — custom-event authoring | BP-12c, BP-68 🔴 (+ BP1407/BP1408, dispatcher section removed) |
 
 **Batch 7's visual pass is done (2026-08-05)** and it earned its keep: one bug of mine (the
 bookmarks ✕ was unreachable — a full-width `Selectable` swallowed the click), one long-standing 🔴
@@ -108,11 +108,15 @@ Blueprint; Ctrl+Z reverses the whole gesture as one entry.
 
 | # | Where | What to do | What should happen |
 |---|---|---|---|
+| 0 | **My Blueprint** → drag a custom event onto the canvas | drop it, then look at **Details** | A real **Call Custom Event** node, already bound to that event, with one pin per parameter. Ctrl+Z removes it *(BP-68 — this was the reported failure)* |
 | A | **My Blueprint** → "Custom Events" **+** | It should be **enabled** (it was greyed with "Not implemented") | A modal opens: Name, then "+ Parameter" rows of name + type. Bad names are refused *before* Confirm, with the reason shown |
 | B | Confirm the modal | — | The event appears under Custom Events, and the palette gains a **"Call {Name}"** entry under *CustomEvents* |
 | C | Drop that Call node, open **Details** | Open the Event combo | **BP-07's row 5, now reachable** — the event is listed as `Name (Param1, Param2)`; picking it projects one data-in pin per parameter |
 | D | The panel's section list | — | There is **no "Event Dispatchers" section** any more. That is intentional (BP-09 superseded the concept) |
 
+> ⚠ **BP-68 note:** the same fix covers the palette's per-asset **"Call {Name}"** and **"Call Peer"**
+> rows — both created an unbound generic node too. Worth a glance at each.
+>
 > ⚠ Compiling a `CallCustomEvent` still needs an `Event` graph of the same name, which the editor
 > cannot create yet (**BP-24**). That now fails as **BP1407** naming the graph to add, instead of a
 > Roslyn error about a missing `Event_X` method. The modal says so before you confirm.
