@@ -412,6 +412,319 @@ public static class BlueprintDocumentFactory
         view.Execute(fwd, inv, isGet ? "Add Get Variable" : "Add Set Variable");
     }
 
+    // ── My Blueprint item rename / delete / duplicate (BP-12b) ────────────────
+
+    /// <summary>
+    /// BP-12b — registers <c>editor.rename-item</c>, <c>editor.delete-item</c> and
+    /// <c>editor.duplicate-item</c>, which the My Blueprint context menu has always invoked and
+    /// nothing ever handled. Consequence: a variable could be <b>created but never renamed or
+    /// removed</b>.
+    /// </summary>
+    /// <param name="view">
+    /// When supplied, each edit is recorded on this view's undo stack (BP-11's single stack).
+    /// Null applies the edit directly — for hosts with no open canvas.
+    /// </param>
+    /// <param name="promptForName">
+    /// Opens the rename prompt: <c>(currentName, onConfirm)</c>. Null makes rename require an
+    /// explicit <c>Args["newName"]</c>, which is how tests drive it.
+    /// </param>
+    internal static void RegisterMyBlueprintItemCommands(
+        EditorCommandsImpl        commands,
+        BlueprintAsset            asset,
+        GraphView?                view          = null,
+        Action?                   markDirty     = null,
+        Action<string, Action<string>>? promptForName = null)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(asset);
+
+        var reg = new CommandRegistration(commands);
+
+        reg.Add(
+            "editor.rename-item", "Rename", "Edit",
+            ctx =>
+            {
+                var itemId = ReadArg(ctx, "itemId") as string;
+                if (string.IsNullOrEmpty(itemId)) return;
+
+                if (ReadArg(ctx, "newName") is string supplied)
+                {
+                    RecordItemEdit(view, asset, markDirty, "Rename",
+                        () => RenameItem(asset, itemId!, supplied));
+                    return;
+                }
+
+                if (promptForName is null) return;
+                var current = ItemDisplayName(asset, itemId!) ?? "";
+                promptForName(current, entered => RecordItemEdit(view, asset, markDirty, "Rename",
+                    () => RenameItem(asset, itemId!, entered)));
+            },
+            description: "Renames the selected item.");
+
+        reg.Add(
+            "editor.delete-item", "Delete", "Edit",
+            ctx =>
+            {
+                if (ReadArg(ctx, "itemId") is not string itemId || itemId.Length == 0) return;
+                RecordItemEdit(view, asset, markDirty, "Delete", () => DeleteItem(asset, itemId));
+            },
+            description: "Deletes the selected item from this Blueprint.");
+
+        reg.Add(
+            "editor.duplicate-item", "Duplicate", "Edit",
+            ctx =>
+            {
+                if (ReadArg(ctx, "itemId") is not string itemId || itemId.Length == 0) return;
+                RecordItemEdit(view, asset, markDirty, "Duplicate",
+                    () => DuplicateItem(asset, itemId));
+            },
+            description: "Adds a copy of the selected item.");
+    }
+
+    /// <summary>
+    /// Runs an item edit as a snapshot-and-restore undo step. These are <b>asset-level</b> edits —
+    /// declarations, not graph elements — so the inverse cannot be expressed as a
+    /// <see cref="GraphCommand"/>; <see cref="BlueprintEditCommand"/> carries both halves onto the
+    /// same stack as everything else (BP-11).
+    ///
+    /// <para>
+    /// The inverse restores the declaration <i>lists</i> wholesale rather than reversing the
+    /// specific mutation. Rename, delete and duplicate each touch a different shape of state
+    /// (a field, a list entry, both), and a snapshot is one correct inverse for all three.
+    /// </para>
+    /// </summary>
+    private static void RecordItemEdit(
+        GraphView? view, BlueprintAsset asset, Action? markDirty, string label, Func<bool> mutate)
+    {
+        var beforeVariables = SnapshotVariables(asset);
+        var beforeEvents    = SnapshotEvents(asset);
+
+        if (!mutate()) return;
+
+        var afterVariables = SnapshotVariables(asset);
+        var afterEvents    = SnapshotEvents(asset);
+
+        if (view is null)
+        {
+            markDirty?.Invoke();
+            return;
+        }
+
+        void Restore(List<VariableDecl> variables, List<CustomEventDecl> events)
+        {
+            asset.Variables.Clear();
+            asset.Variables.AddRange(variables);
+            asset.CustomEvents.Clear();
+            asset.CustomEvents.AddRange(events);
+        }
+
+        // The forward has already been applied above, so its Mutate re-applies the same end state
+        // on redo rather than repeating the operation (which would, e.g., duplicate twice).
+        view.Execute(
+            new BlueprintEditCommand(label, () => Restore(afterVariables,  afterEvents)),
+            new BlueprintEditCommand(label, () => Restore(beforeVariables, beforeEvents)),
+            label);
+
+        markDirty?.Invoke();
+    }
+
+    /// <summary>
+    /// A <b>deep</b> copy of the declaration list. A shallow one would be wrong for rename: the
+    /// declarations are mutated in place, so both snapshots would hold the same object and undo
+    /// would restore the new name.
+    /// </summary>
+    private static List<VariableDecl> SnapshotVariables(BlueprintAsset asset)
+        => asset.Variables.Select(v => new VariableDecl
+        {
+            Id   = v.Id,
+            Name = v.Name,
+            Type = new BlueprintTypeRef
+            {
+                TypeId        = v.Type.TypeId,
+                IsArray       = v.Type.IsArray,
+                Capacity      = v.Type.Capacity,
+                InitialLength = v.Type.InitialLength,
+                GenericArgs   = v.Type.GenericArgs.ToList(),
+            },
+            DefaultValueJson = v.DefaultValueJson,
+            IsEditable       = v.IsEditable,
+            IsExposedOnSpawn = v.IsExposedOnSpawn,
+            Category         = v.Category,
+            Tooltip          = v.Tooltip,
+            Comment          = v.Comment,
+        }).ToList();
+
+    private static List<CustomEventDecl> SnapshotEvents(BlueprintAsset asset)
+        => asset.CustomEvents.Select(e => new CustomEventDecl
+        {
+            Id         = e.Id,
+            Name       = e.Name,
+            Parameters = e.Parameters.Select(p => new ParameterDecl
+            {
+                Id               = p.Id,
+                Name             = p.Name,
+                Type             = new BlueprintTypeRef { TypeId = p.Type.TypeId },
+                DefaultValueJson = p.DefaultValueJson,
+                Tooltip          = p.Tooltip,
+                Comment          = p.Comment,
+            }).ToList(),
+        }).ToList();
+
+    /// <summary>The declared name behind a My Blueprint item id, or null when it resolves to nothing.</summary>
+    internal static string? ItemDisplayName(BlueprintAsset asset, string itemId)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        return FindVariable(asset, itemId)?.Name ?? FindCustomEvent(asset, itemId)?.Name;
+    }
+
+    /// <summary>
+    /// Renames the variable or custom event named by <paramref name="itemId"/>. Returns false —
+    /// changing nothing — for a blank, invalid or already-taken name, and for an id that resolves
+    /// to nothing.
+    ///
+    /// <para>
+    /// Renaming a custom event also renames its paired <c>Event</c> handler graph and rewrites any
+    /// <b>name-keyed</b> <c>CallCustomEvent</c> reference. The editor writes GUIDs, which survive a
+    /// rename untouched, but Stage5 accepts a bare name and hand-authored assets use one — leaving
+    /// those behind would turn a rename into a silent BP1403.
+    /// </para>
+    /// </summary>
+    internal static bool RenameItem(BlueprintAsset asset, string itemId, string newName)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        if (string.IsNullOrWhiteSpace(newName)) return false;
+
+        var trimmed = newName.Trim();
+
+        if (FindVariable(asset, itemId) is { } variable)
+        {
+            if (string.Equals(variable.Name, trimmed, StringComparison.Ordinal)) return false;
+            if (IsDuplicateVariableName(asset, trimmed)) return false;
+            variable.Name = trimmed;
+            return true;
+        }
+
+        if (FindCustomEvent(asset, itemId) is { } evt)
+        {
+            if (string.Equals(evt.Name, trimmed, StringComparison.Ordinal)) return false;
+            // Same identifier rule as the create path: the compiler emits Event_{Name} verbatim.
+            if (!IsValidDeclarationName(trimmed)) return false;
+            if (IsDuplicateCustomEventName(asset, trimmed)) return false;
+
+            var oldName = evt.Name;
+            evt.Name = trimmed;
+
+            foreach (var graph in asset.Graphs)
+                if (graph.Kind == GraphKind.Event
+                    && string.Equals(graph.Name, oldName, StringComparison.Ordinal))
+                    graph.Name = trimmed;
+
+            foreach (var call in asset.Graphs.SelectMany(g => g.Nodes).OfType<CallCustomEventNode>())
+                if (string.Equals(call.EventId, oldName, StringComparison.Ordinal))
+                    call.EventId = trimmed;
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Removes the declaration named by <paramref name="itemId"/>.
+    ///
+    /// <para>
+    /// Nodes that referenced it are <b>left in place</b>. They render as dangling references and the
+    /// compiler names them (BP1403 / BP1500), which is recoverable; silently deleting a designer's
+    /// wired-up nodes because a declaration went away is not.
+    /// </para>
+    /// </summary>
+    internal static bool DeleteItem(BlueprintAsset asset, string itemId)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+
+        if (FindVariable(asset, itemId) is { } variable)
+            return asset.Variables.Remove(variable);
+
+        if (FindCustomEvent(asset, itemId) is { } evt)
+            return asset.CustomEvents.Remove(evt);
+
+        return false;
+    }
+
+    /// <summary>
+    /// Adds a copy of the declaration named by <paramref name="itemId"/> under a free name
+    /// (<c>Health</c> → <c>Health1</c>). Parameters, type, category and tooltip come along; the id
+    /// does not.
+    /// </summary>
+    internal static bool DuplicateItem(BlueprintAsset asset, string itemId)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+
+        if (FindVariable(asset, itemId) is { } variable)
+        {
+            asset.Variables.Add(new VariableDecl
+            {
+                Id       = Guid.NewGuid(),
+                Name     = MakeUniqueName(asset.Variables.Select(v => v.Name), variable.Name),
+                Type     = new BlueprintTypeRef
+                {
+                    TypeId        = variable.Type.TypeId,
+                    IsArray       = variable.Type.IsArray,
+                    Capacity      = variable.Type.Capacity,
+                    InitialLength = variable.Type.InitialLength,
+                },
+                DefaultValueJson = variable.DefaultValueJson,
+                IsEditable       = variable.IsEditable,
+                IsExposedOnSpawn = variable.IsExposedOnSpawn,
+                Category         = variable.Category,
+                Tooltip          = variable.Tooltip,
+            });
+            return true;
+        }
+
+        if (FindCustomEvent(asset, itemId) is { } evt)
+        {
+            asset.CustomEvents.Add(new CustomEventDecl
+            {
+                Id         = Guid.NewGuid(),
+                Name       = MakeUniqueName(asset.CustomEvents.Select(e => e.Name), evt.Name),
+                Parameters = evt.Parameters.Select(p => new ParameterDecl
+                {
+                    Id               = Guid.NewGuid(),
+                    Name             = p.Name,
+                    Type             = new BlueprintTypeRef { TypeId = p.Type.TypeId },
+                    DefaultValueJson = p.DefaultValueJson,
+                    Tooltip          = p.Tooltip,
+                }).ToList(),
+            });
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Resolves a <c>var:{guid}</c> item id. The My Blueprint panel prefixes its item ids by
+    /// section; the prefix is what tells a variable id from an event id.
+    /// </summary>
+    private static VariableDecl? FindVariable(BlueprintAsset asset, string itemId)
+        => TryItemGuid(itemId, "var:", out var id)
+            ? asset.Variables.FirstOrDefault(v => v.Id == id)
+            : null;
+
+    private static CustomEventDecl? FindCustomEvent(BlueprintAsset asset, string itemId)
+        => TryItemGuid(itemId, "evt:", out var id)
+            ? asset.CustomEvents.FirstOrDefault(e => e.Id == id)
+            : null;
+
+    private static bool TryItemGuid(string itemId, string prefix, out Guid id)
+    {
+        id = Guid.Empty;
+        if (string.IsNullOrEmpty(itemId)) return false;
+        if (!itemId.StartsWith(prefix, StringComparison.Ordinal)) return false;
+        return Guid.TryParse(itemId.Substring(prefix.Length), out id);
+    }
+
     // ── Clipboard: copy / cut / paste / duplicate (BP-23a) ────────────────────
 
     /// <summary>

@@ -2262,7 +2262,9 @@ namespace Hrot.Editor
                         editableAsset:  active.Asset,
                         blueprintAsset: bpAsset,
                         hostServices:   ctx?.View.Host,
-                        commands:       ctx?.Commands ?? new NodeEditor.Core.Action.EditorCommandsImpl());
+                        commands:       ctx?.Commands ?? new NodeEditor.Core.Action.EditorCommandsImpl(),
+                        // BP-12b: item rename/delete/duplicate record onto this document's undo stack.
+                        view:           ctx?.View);
 
                     // Retarget Details window (just needs the BlueprintAsset).
                     _blueprintDetailsWindow?.Retarget(bpAsset);

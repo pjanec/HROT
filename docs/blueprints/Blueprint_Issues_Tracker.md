@@ -12,10 +12,10 @@ architect decision first).
 | Complexity | Open | Done |
 |---|---:|---:|
 | `WIRING` | 2 | 21 |
-| `RW-L` | 16 | 7 |
+| `RW-L` | 15 | 8 |
 | `RW-M` | 20 | 3 |
 | `RW-H` | 2 | — |
-| **Total** | **40** | **31** |
+| **Total** | **39** | **32** |
 | *(refuted on verification)* | | *1* |
 
 > 📌 **Resuming this programme?** Start with [Blueprint_Gaps_Programme_RESUME.md](Blueprint_Gaps_Programme_RESUME.md) — branch, batches
@@ -31,6 +31,15 @@ architect decision first).
 > 3. **BP-30/BP-31** — the same blind spot is *why* BP-31 was mis-scoped: it credited HSM with a guard
 >    that has never actually run.
 > A green test suite is not evidence that a guard is wired. Grep the production construction sites.
+
+> ✅ **Batch 11 shipped (2026-08-05) — BP-12b: My Blueprint items can be renamed, duplicated, deleted.**
+> The context menu has always invoked all three; nothing ever registered them. Works for variables
+> and custom events, undoable on the same stack as everything else.
+> ⚠ **Renaming a custom event also renames its paired `Event` graph and rewrites name-keyed
+> `CallCustomEvent` references** — the compiler emits `Event_{Name}` from the *graph*, and Stage5
+> accepts a bare name, so renaming the declaration alone would be a silent BP1407/BP1403.
+> ⚠ **Deleting a declaration leaves its nodes in place.** Dangling is recoverable and the compiler
+> names it; silently deleting a designer's wired-up nodes is not.
 
 > ✅ **Batch 10 shipped (2026-08-05) — BP-23a: copy / cut / paste / duplicate.**
 > Registered host-side for the same reason as BP-60: a clipboard entry is a list of asset `Node`s.
@@ -160,7 +169,7 @@ architect decision first).
 - [x] **BP-12a** · `WIRING` — Get/Set from the My Blueprint menu is dead (`create-variable-get`/`-set` unregistered) — the most-used motion in Unreal authoring. ⚠ *scope corrected:* the **drag**-to-canvas path already worked (`CanvasRenderer.PlaceVariableNode`); the **menu** was the dead route
 - [x] **BP-12e** · `WIRING` — Dead panel commands **fail silently**; `InvokeCreate` discards the result. Root cause of the whole BP-12 family's UX. *Tally: 14 commands invoked, 1 registered*
 - [x] **BP-11** ⭐ · `RW-M` — 🔴 **No inspector/drawer edit is undoable.** Three tiers; Ctrl+Z drained a stack the drawers never wrote to. Shipped A1+B1+C2+E1 ([Q22](Architect_Question_22_Undo_Unification.md#-implementation-outcome-2026-08-04--shipped)); transport is **R3** (a Blueprint-owned `GraphCommand` subtype — R1 provably can't carry multi-field bakes, R2 would have meant editing the vendored tree). ⚠ **D2 superseded — gap 4:** the sink was double-recording, so making `CommandHistory` live would have pushed 2 entries per gesture and 3 on undo. Sinks apply; the stack records
-- [ ] **BP-12b** · `RW-L` — Panel items can't be renamed/duplicated/deleted; a variable can be created but never removed
+- [x] **BP-12b** · `RW-L` — Panel items can't be renamed/duplicated/deleted; a variable can be created but never removed. Registered for variables **and** custom events, undoable via `BlueprintEditCommand`. ⚠ **renaming a custom event also renames its paired Event graph and rewrites name-keyed `CallCustomEvent` refs** — the GUID form survives untouched, but Stage5 accepts a bare name and leaving those behind would turn a rename into a silent BP1403. ⚠ deleting a declaration **leaves its nodes in place** — dangling is recoverable and named by the compiler; silently deleting wired-up nodes is not. *`move-to-category` / `change-variable-type` still unregistered*
 - [x] **BP-12c** · `RW-L` — Custom events can't be created — **the blocker for BP-07**, whose picker had nothing it could ever list. "Custom Events +" now opens a create modal (name + typed parameters). ⚠ **the dispatcher half was removed, not wired** — BP-09 established dispatchers are superseded and deleted their node kinds; nothing consumes `EventDispatchers` and no shipped asset declares one. ⚠ **found while fixing: the declaration is only half a custom event** — the body is an Event graph of the same name, which the editor cannot create yet (BP-24), so a call to an unhandled event emitted C# that did not compile. New **BP1407/BP1408** turn that into a Stage 2 diagnostic
 - [ ] **BP-24** · `RW-M` — **No Function-graph create path; canvas locked to one graph.** In any multi-graph asset every graph but the first is unreachable through the UI. Data + compiler layers already support functions
 - [ ] **BP-12d** · `RW-M` — `find-references` dead; overlaps BP-25's multi-graph layer

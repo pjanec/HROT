@@ -37,6 +37,10 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
     // same reason as the variable modal — its confirm callback closes over the target asset.
     private CustomEventCreateModal? _createCustomEventModal;
 
+    // BP-12b: the rename prompt for My Blueprint items. Shared by variables and custom events —
+    // the per-kind validity rules live in BlueprintDocumentFactory.RenameItem, not here.
+    private readonly ItemRenameModal _renameItemModal = new();
+
     // ── ctor ─────────────────────────────────────────────────────────────────
 
     /// <param name="idOverride">Stable ImGui id; defaults to <c>"ai_my_blueprint_blueprint"</c>.</param>
@@ -57,11 +61,16 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
     /// Retarget to a different active Blueprint asset (or null to clear).
     /// Also receives host services so the panel can be (re)created.
     /// </summary>
+    /// <param name="view">
+    /// BP-12b — the document's canvas view, when one is open. Item rename/delete/duplicate are
+    /// recorded on its undo stack; without it they still work, just unrecorded.
+    /// </param>
     public void Retarget(
         IEditableAsset?      editableAsset,
         BlueprintAsset?      blueprintAsset,
         IEditorHostServices? hostServices,
-        IEditorCommands?     commands)
+        IEditorCommands?     commands,
+        NodeEditor.Core.View.GraphView? view = null)
     {
         _model.Retarget(editableAsset, blueprintAsset);
 
@@ -99,6 +108,13 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
 
             BlueprintDocumentFactory.RegisterCreateCustomEventCommand(
                 cmdImpl, _createCustomEventModal.Open);
+
+            // BP-12b: rename / delete / duplicate. The context menu has always invoked these three
+            // and nothing ever handled them, so a variable could be created but never renamed or
+            // removed.
+            BlueprintDocumentFactory.RegisterMyBlueprintItemCommands(
+                cmdImpl, blueprintAsset, view, markDirty,
+                promptForName: (current, onConfirm) => _renameItemModal.Open(current, onConfirm));
         }
         else
         {
@@ -139,5 +155,6 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
         // Draw the create modals (opened by the section "+" commands). No-op when closed.
         _createVariableModal?.Draw();
         _createCustomEventModal?.Draw();
+        _renameItemModal.Draw();
     }
 }

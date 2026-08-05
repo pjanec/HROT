@@ -463,6 +463,28 @@ Document, undo, and panel plumbing.
 
 ### BP-12b — My Blueprint: items cannot be renamed, duplicated, or deleted
 **Complexity:** RW-L · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-05).** `editor.rename-item` / `-delete-item` / `-duplicate-item` registered for
+> variables and custom events, each recorded on the document's undo stack via
+> `BlueprintEditCommand` (BP-11's transport — these are asset-level edits, so the inverse cannot be
+> a `GraphCommand`).
+>
+> ⚠ **The inverse is a snapshot, and it must be a DEEP one.** Rename mutates a declaration in place,
+> so a shallow list copy would hold the same object in both snapshots and "undo" would restore the
+> new name. Caught by the first test run.
+>
+> ⚠ **Renaming a custom event does three things, not one:** it renames the declaration, renames the
+> paired `Event` handler graph (the compiler emits `Event_{Name}` from the *graph*), and rewrites any
+> **name-keyed** `CallCustomEvent` reference. The editor writes GUIDs, which survive untouched, but
+> Stage5 accepts a bare name and hand-authored assets use one — renaming the declaration alone would
+> be a silent BP1407/BP1403.
+>
+> ⚠ **Deleting a declaration leaves its nodes in place.** They render dangling and the compiler names
+> them (BP1403/BP1500), which is recoverable; silently deleting a designer's wired-up nodes because
+> a declaration went away is not.
+>
+> Still unregistered on that menu: `editor.move-to-category`, `editor.change-variable-type`,
+> `editor.show-properties`, and `editor.find-references` (BP-12d).
 - `editor.rename-item`, `duplicate-item`, `delete-item` are all unregistered. Consequence: a variable can be **created but never renamed or removed**.
 
 ### BP-12c — My Blueprint: custom events and dispatchers cannot be created
@@ -861,6 +883,7 @@ those notes do not.
 | 8 | BP-12c · BP-68 (+ BP1407/BP1408; dispatcher section retired) | custom-event authoring — unblocks BP-07 |
 | 9 | BP-60 🔴 | promote-to-variable — and BP-02's last undo bypass |
 | 10 | BP-23a | canvas clipboard: copy / cut / paste / duplicate |
+| 11 | BP-12b | My Blueprint item rename / delete / duplicate |
 
 ## The audit was wrong nine times — every correction is recorded in-place
 
