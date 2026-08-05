@@ -237,6 +237,11 @@ Whether a designer can *place* and *configure* each node kind. 13 of 50 kinds ru
 > The drawer reads the owning asset, writes the declaration's **GUID** (what pin projection parses)
 > and still resolves a bare **Name**, which Stage5 accepts — so hand-authored assets don't show as
 > dangling. The event's parameters are its data-IN pins, so the edit is structural.
+>
+> ⚠ **Unreachable until BP-12c.** Confirmed in the visual check: no asset can declare a custom event
+> yet (My Blueprint → "Custom Events [+]" does nothing), so the picker correctly renders "this
+> Blueprint declares no custom events" and there is nothing to select. The drawer is done; **BP-12c
+> is now its blocker**, and shipping it makes this one visible.
 - Reuse `UnifiedEventDiscovery.All()`, already production-wired, which unifies C# `[BlueprintEvent]` structs and editor-authored events.
 
 ### BP-08 — `CallPeerBlueprint` target uneditable
@@ -672,6 +677,22 @@ and collapse-to-function if ever brought back into scope.
 - **The other two sinks already got this right:** `BTreeCommandSink.cs:134` and `HsmCommandSink.cs:184/276` both use `cmd.AssignedId.Value`. The Blueprint sink even honours it for `AddComment` (`:970`) — just not for nodes.
 - **Why nothing caught it:** the sink *also* recorded an `AddNodeCommand` on `CommandHistory`, which holds the node **object** rather than its id, so `history.Undo()` worked correctly — in a stack no UI path ever reached (that is BP-11). `CommandSink_AddNode_Undo_RemovesNode` therefore passed while the real path was broken.
 - **Fix:** honour the assigned id, falling back to a fresh Guid only when it is empty. Pinned by three tests in `BlueprintUndoUnificationTests`.
+
+### BP-66 — The peer-blueprint catalog scanned a directory that does not exist 🔴
+**Complexity:** WIRING · **Confidence:** ✔✔ *(found in the visual check)*
+
+> ✅ **DONE (2026-08-05).**
+- `EditorSubsystem` built `BlueprintPeerSource` over **`{BaseDirectory}/blueprints`**. Every other blueprint consumer uses **`Assets/Blueprints`** via `AssetRoots.AssetsRelative(AssetKind.Blueprint)` — including **two other sites in the same file** (`:715` `_bpRootDir`, `:3099` the quick-reload catalog), both of which also honour a resolved project directory.
+- So `EnumerateAll()` yielded nothing, and `BlueprintDocumentFactory`'s peer-signature lookup **never resolved a peer**. `NodePinSchema.CallPeerBlueprintPins` treats that as "not found" and returns its graceful fallback — untyped `exec + Return:System.Object`. **The typed-argument-pin feature has never worked in the editor.**
+- **Why it stayed invisible:** the fallback is deliberate and silent — it exists so the node still renders when no lookup is wired. A path that finds nothing is indistinguishable from no lookup at all.
+- **Fix:** both sites now use `_bpRootDir` (already resolved at `:715`) with `AssetRoots.AssetsFor` as the fallback.
+- ⚠ **This is why BP-08's picker reported "no peer Blueprints discovered".** The drawer was correct; the catalog under it was empty.
+
+### BP-67 — The When node's other three mode forms are stubs
+**Complexity:** RW-M · **Confidence:** ✔✔ *(found in the visual check)*
+- BP-10 fixed **EventFired**. The remaining three modes each render a single `TextDisabled` line and cannot be configured at all: `DrawValueChangedForm` ("component/property picker"), `DrawConditionMetForm` ("predicate editor"), `DrawEqsResultForm` ("trigger and sensor picker").
+- ⚠ **Not the same shape as BP-10.** EventFired was `WIRING` because its catalog was already injected *and already called* — only the result was unrendered. These three have **no ready-made source**: ValueChanged needs a component→property picker (BP-62's `ComponentFieldReflector` gets partway, but property *paths* are new), ConditionMet needs a predicate-editor UI over `IPredicateCompiler`, and EqsResult needs a trigger enum plus a sensor-variable picker (`ReadEqsResultNodeDrawer` already lists `EqsSensorHandle` variables — the one reusable piece).
+- **Three of the node's four modes are unusable**, so the node is effectively EventFired-only.
 
 ### BP-63 — NodeEdit's built-in Comment Details view is not undoable
 **Complexity:** RW-L · **Confidence:** ✔✔ *(found while fixing BP-11)*

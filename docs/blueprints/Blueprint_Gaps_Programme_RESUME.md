@@ -12,7 +12,7 @@
 
 ## Status
 
-**42 open · 26 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
+**43 open · 27 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
 table; do not duplicate them here.
 
 | Batch | Items |
@@ -23,11 +23,13 @@ table; do not duplicate them here.
 | 4 — test health & reflection | BP-62, BP-35 (+ suite serialization) |
 | 5 — coverage | BP-41 |
 | 6 — undo unification | BP-11 ⭐ |
-| 7 — wiring | BP-03, BP-05…BP-08, BP-10, BP-12a, BP-63, BP-64 (+ BP-65 🔴) |
+| 7 — wiring | BP-03, BP-05…BP-08, BP-10, BP-12a, BP-63, BP-64 (+ BP-65 🔴, BP-66 🔴) |
 
-**Everything is verified headless.** Batch 7 is the first that adds real UI surface — new Details
-panel drawers, the When EventFired form, the bookmarks panel — so it wants a visual pass. The logic
-behind each is covered headlessly; what a test cannot check is layout and feel.
+**Batch 7's visual pass is done (2026-08-05)** and it earned its keep: one bug of mine (the
+bookmarks ✕ was unreachable — a full-width `Selectable` swallowed the click), one long-standing 🔴
+(**BP-66**, the peer catalog scanning a directory that does not exist), and two scope findings —
+**BP-07 is blocked by BP-12c**, and the When node's other three mode forms are stubs (**BP-67**).
+Everything else on the checklist behaved.
 
 ---
 
@@ -36,12 +38,18 @@ behind each is covered headlessly; what a test cannot check is layout and feel.
 **The `WIRING` tier is done** — 19 of 21 shipped; the 2 remaining (BP-01 watch-panel decoding,
 BP-55 asset-browser delete) are not blueprint-authoring items.
 
-1. 👀 **Visual pass on batch 7** — five new Details-panel surfaces and the bookmarks panel. Logic is
-   covered headlessly; layout and feel are not.
-2. **BP-60** (🔴 `RW-M`) — "Promote to Variable" silently does nothing. Now the last 🔴 in Area A,
-   and the last known instance of the sink's `default:`-returns-success trap.
+1. **BP-12c** ⭐ (`RW-L`) — custom-event authoring. Now the highest-leverage item: it is **the
+   blocker for BP-07**, whose picker is built and correct but has nothing to list. Ships one item
+   and makes a second visible.
+2. **BP-60** (🔴 `RW-M`) — "Promote to Variable" silently does nothing. The last 🔴 in Area A, and
+   the last known instance of the sink's `default:`-returns-success trap.
 3. **BP-23a / BP-13 / BP-17…BP-20** (`RW-L`) — the canvas-ergonomics tier, each with a stated
-   ready-made primitive to mirror.
+   ready-made primitive to mirror. `BP-23a` (copy/paste) is the one a designer notices first.
+4. **BP-67** (`RW-M`) — the When node's other three forms. ⚠ *not* a repeat of BP-10: those had a
+   catalog already injected and called; these need pickers built from scratch.
+
+> 👀 **Re-check after the next round:** the bookmarks ✕ (now sized so the row and the button cannot
+> overlap) and the `CallPeerBlueprint` picker (BP-66 — should list peers now).
 
 **Blocked / do not build as written:** `BP-31` (premise inverted — see BP-61) ·
 `BP-40`, `BP-38`, `BP-52` (architect decision first) · `BP-53`, `BP-54` (UNCLEAR, re-scope first).
@@ -118,7 +126,14 @@ inverses that match nothing. That was BP-65 — node placement was non-undoable 
 feature, while the BTree and HSM sinks had it right all along. **When adding a sink case for an
 `Add*` command, check what the inverse references.**
 
-### 5. Conventions the code enforces that are easy to miss
+### 5. 🆕 A full-width `Selectable` eats every click in its row
+An `ImGui.Selectable` with no explicit size spans the whole remaining row, so a button drawn after it
+with `SameLine` is *drawn and correctly positioned but unreachable*. Size the Selectable to stop
+short of the trailing controls — more predictable than `AllowItemOverlap`, which depends on draw
+order and on remembering `SetItemAllowOverlap`. (BP-03's delete button; caught only by the visual
+pass, since no headless test can see it.)
+
+### 6. Conventions the code enforces that are easy to miss
 - **Decision-asset ids are NOT parseable GUIDs.** Shipped `CombatPostureDecision` uses
   `3c6f9e42-5d10-6f3a-ac23-posture0000001`. A `Guid.TryParse` check rejects real assets.
 - **Custom events resolve by *Name* as well as GUID** (`Stage5.FindCustomEventIndex`).
@@ -129,6 +144,12 @@ feature, while the BTree and HSM sinks had it right all along. **When adding a s
   therefore proves nothing — assert the *effect*.
 - Palette baking is safe: `CreateAssetNode` builds via `CreateInstance` then only *overlays* caller
   props — it does **not** route through `ApplyInitialProperties`' 8-of-50 whitelist.
+- **Blueprint assets live under `Assets/Blueprints`** (`AssetRoots.AssetsRelative`), resolved against
+  the project dir when found. Never hand-build a blueprint path — BP-66 was a lone
+  `{BaseDirectory}/blueprints` that silently made a whole feature inert.
+- **A "graceful fallback" hides a wiring bug.** `CallPeerBlueprintPins` falls back to untyped pins
+  when the peer lookup finds nothing — indistinguishable from no lookup at all, which is exactly how
+  BP-66 survived. When a path degrades silently by design, test the *populated* case.
 
 ---
 

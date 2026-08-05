@@ -68,14 +68,24 @@ public sealed class BookmarksPanel
         ImGui.PopStyleVar();
     }
 
+    /// <summary>Width reserved at the right edge of a row for the delete button.</summary>
+    private const float DeleteButtonWidth = 22f;
+
     private void DrawRow(Bookmark b)
     {
         ImGui.Text(BookmarkPanelLogic.SlotLabel(b));
         ImGui.SameLine();
 
-        // Selectable rather than TextUnformatted: the V1 panel gave no affordance that a bookmark
-        // was anything other than text.
-        if (ImGui.Selectable(b.Label, false, ImGuiSelectableFlags.AllowDoubleClick))
+        // The Selectable is explicitly sized to stop short of the delete button. A zero-width
+        // Selectable spans the full remaining row, so it swallowed the click before the button ever
+        // saw it — the button was drawn and correctly positioned, and simply unreachable. Sizing the
+        // two so their rects do not overlap is more predictable here than AllowItemOverlap, which
+        // relies on draw order and on the caller remembering SetItemAllowOverlap.
+        var rowWidth        = ImGui.GetContentRegionAvail().X;
+        var selectableWidth = MathF.Max(1f, rowWidth - DeleteButtonWidth - ImGui.GetStyle().ItemSpacing.X);
+
+        if (ImGui.Selectable(b.Label, false, ImGuiSelectableFlags.AllowDoubleClick,
+                new Vector2(selectableWidth, 0f)))
         {
             if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
                 BeginRename(b);
@@ -100,11 +110,9 @@ public sealed class BookmarksPanel
             ImGui.EndPopup();
         }
 
-        // Right-aligned delete button, so removing a bookmark does not depend on first discovering
-        // the context menu.
+        // Delete button, in the strip the Selectable above deliberately left free. No cursor
+        // arithmetic needed: SameLine lands exactly where the Selectable ended.
         ImGui.SameLine();
-        var avail = ImGui.GetContentRegionAvail().X;
-        if (avail > 20f) ImGui.SetCursorPosX(ImGui.GetCursorPosX() + avail - 20f);
         if (ImGui.SmallButton("x"))
             _store.Remove(b.BookmarkId);
         if (ImGui.IsItemHovered())

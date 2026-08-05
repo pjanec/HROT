@@ -11,11 +11,11 @@ architect decision first).
 
 | Complexity | Open | Done |
 |---|---:|---:|
-| `WIRING` | 2 | 19 |
+| `WIRING` | 2 | 20 |
 | `RW-L` | 18 | 5 |
-| `RW-M` | 20 | 2 |
+| `RW-M` | 21 | 2 |
 | `RW-H` | 2 | — |
-| **Total** | **42** | **26** |
+| **Total** | **43** | **27** |
 | *(refuted on verification)* | | *1* |
 
 > 📌 **Resuming this programme?** Start with [Blueprint_Gaps_Programme_RESUME.md](Blueprint_Gaps_Programme_RESUME.md) — branch, batches
@@ -88,6 +88,7 @@ architect decision first).
 - [x] **BP-02** · `WIRING` — Undo bypassed via `view.Commands.Apply`. ⚠ *scope corrected:* **15 sites, not 10** — also pin "Reset to Default" (`:638`), comment delete (`:845`), "Promote to Variable" (`:970`)
 - [x] **BP-03** · `WIRING` — Bookmarks can't be renamed or deleted; `BookmarkStore.Remove` already exists. Added `Rename` + inline edit, delete button/menu, and click-to-jump; ordering/labelling split into `BookmarkPanelLogic` so they're headlessly testable
 - [x] **BP-65** 🔴 · `WIRING` — **Placing a node was silently non-undoable.** `BlueprintCommandSink` ignored `GraphCommand.AddNode.AssignedId` and minted its own Guid, so `CommandBuilder`'s paired `RemoveNodes([thatId])` inverse named a node that doesn't exist — palette drops, wire-drops, variable drags, all of it. The **BTree and HSM sinks already honour it**; only this one didn't. Masked until BP-11 by the sink's parallel `CommandHistory` record, which holds the node *object* — *found while testing BP-12a*
+- [x] **BP-66** 🔴 · `WIRING` — **The peer-blueprint catalog scanned a directory that does not exist.** `EditorSubsystem` built `BlueprintPeerSource` over `{BaseDirectory}/blueprints`; every other consumer uses `Assets/Blueprints` (`AssetRoots.AssetsRelative`) — *including two other sites in the same file*. So `EnumerateAll()` returned nothing and **`CallPeerBlueprint` pin projection has never resolved a peer**, silently falling back to untyped `exec + Return:System.Object`. Long-standing; surfaced by BP-08's picker reporting "no peer Blueprints discovered" — *found in the visual check*
 - [ ] **BP-23a** · `RW-L` — **No copy/cut/paste/duplicate on the canvas.** Paste is hard-disabled; `AddNodeCommand` already accepts a prebuilt `Node`, so paste can skip the 8-of-50 property whitelist
 - [ ] **BP-13** · `RW-L` — No align/distribute/straighten; 9 commands declared, 0 implemented. `CommandBuilder.MoveNodes` is the ready primitive
 - [ ] **BP-17** · `RW-L` — No node renaming/custom titles; `Subtitle => null` always. Every piece has a precedent to mirror
@@ -107,8 +108,9 @@ architect decision first).
 - [x] **BP-09** · `WIRING` — 6 abandoned node kinds are **advertised in the palette** but compile to a silent no-op. Delete 6 `Make<T>` blocks
 - [x] **BP-05** · `WIRING` — `ReadRankedResult.Rank` uneditable; plain `InputInt`. Clamped to ≥ 0; the gesture coalesces to one undo entry
 - [x] **BP-06** · `WIRING` — `WaitForChannel.ChannelType` uneditable; reuse `IChannelCommandCatalog`. ⚠ the catalog is keyed by *(channel, action)*, so the list needs deduplicating — otherwise a channel with 8 actions appears 8×
-- [x] **BP-07** · `WIRING` — `CallCustomEvent.EventId` uneditable. ⚠ **the audit named the wrong source:** `UnifiedEventDiscovery` enumerates *engine* events; a custom event is **asset-scoped** (`asset.CustomEvents`), so every choice from that picker would have failed to resolve
+- [x] **BP-07** · `WIRING` — `CallCustomEvent.EventId` uneditable. ⚠ **unreachable until BP-12c** — no asset can declare a custom event yet, so the picker correctly renders "this Blueprint declares no custom events". ⚠ **the audit named the wrong source:** `UnifiedEventDiscovery` enumerates *engine* events; a custom event is **asset-scoped** (`asset.CustomEvents`), so every choice from that picker would have failed to resolve
 - [x] **BP-08** · `WIRING` — `CallPeerBlueprint` target uneditable; reuse `BlueprintPeerSource` behind a new `IBlueprintPeerProvider` seam. Dependent peer→function pickers; switching peer clears a function it doesn't export, in the same edit
+- [ ] **BP-67** · `RW-M` — **The When node's other three mode forms are also stubs.** `ValueChanged` (component/property picker), `ConditionMet` (predicate editor) and `EqsResult` (trigger + sensor picker) each render one `TextDisabled` line, so three of the node's four modes cannot be configured at all. Unlike BP-10 these have **no already-injected catalog** to render — ValueChanged needs a component→property picker, ConditionMet a predicate editor UI — *found in the visual check*
 - [x] **BP-10** · `WIRING` — `When` → EventFired form stubbed; the catalog is *already injected and called*, just never rendered. Filtered picker + self-filter toggle (shown only when the event carries a target field)
 - [ ] **BP-14** · `RW-L` — `Return.Status` uneditable (always Success); a `NodeStatus` combo, ~20-30 lines
 - [ ] **BP-22** · `RW-L` — `GetParameter` cannot be placed; asset-specific, so needs a picker not a baked entry
@@ -124,7 +126,7 @@ architect decision first).
 - [x] **BP-12e** · `WIRING` — Dead panel commands **fail silently**; `InvokeCreate` discards the result. Root cause of the whole BP-12 family's UX. *Tally: 14 commands invoked, 1 registered*
 - [x] **BP-11** ⭐ · `RW-M` — 🔴 **No inspector/drawer edit is undoable.** Three tiers; Ctrl+Z drained a stack the drawers never wrote to. Shipped A1+B1+C2+E1 ([Q22](Architect_Question_22_Undo_Unification.md#-implementation-outcome-2026-08-04--shipped)); transport is **R3** (a Blueprint-owned `GraphCommand` subtype — R1 provably can't carry multi-field bakes, R2 would have meant editing the vendored tree). ⚠ **D2 superseded — gap 4:** the sink was double-recording, so making `CommandHistory` live would have pushed 2 entries per gesture and 3 on undo. Sinks apply; the stack records
 - [ ] **BP-12b** · `RW-L` — Panel items can't be renamed/duplicated/deleted; a variable can be created but never removed
-- [ ] **BP-12c** · `RW-L` — Custom events and dispatchers can't be created. ⚠ consider *removing* the dispatcher section instead (superseded)
+- [ ] **BP-12c** ⭐ · `RW-L` — Custom events and dispatchers can't be created. ⚠ consider *removing* the dispatcher section instead (superseded). **Now blocking BP-07** — the `CallCustomEvent` picker is built and correct but has nothing to list, because no asset can declare a custom event; the My Blueprint "Custom Events [+]" does nothing (*confirmed in the visual check*)
 - [ ] **BP-24** · `RW-M` — **No Function-graph create path; canvas locked to one graph.** In any multi-graph asset every graph but the first is unreachable through the UI. Data + compiler layers already support functions
 - [ ] **BP-12d** · `RW-M` — `find-references` dead; overlaps BP-25's multi-graph layer
 - [ ] **BP-57** · `RW-M` — Per-function local variables absent from the data model itself. Depends on BP-24

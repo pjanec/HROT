@@ -1039,14 +1039,17 @@ namespace Hrot.Editor
 
             // Note: These registries are created but not yet wired to UI components.
             // Final wiring happens in the canvas/UI initialization below (section 10+).
-            // BP-08: the CallPeerBlueprint drawer's peer list. Built here rather than reusing the
-            // `blueprintPeerCatalog` created much later for pin projection, because the drawer
-            // registry is constructed at startup — the root is the same constant path. Leaving it
-            // null would ship a picker that always reports "no peer Blueprints discovered", i.e.
-            // the inert-default failure this programme keeps finding (BP-29, BP-61).
+            // BP-08 / BP-66: the CallPeerBlueprint drawer's peer list, scanned from the SAME root
+            // (_bpRootDir, resolved at §715 via AssetRoots.AssetsRelative) that every other blueprint
+            // consumer uses. NOT "{BaseDirectory}/blueprints" — that directory does not exist; see
+            // BP-66, where the long-standing pin-projection catalog had the same wrong path and so
+            // never resolved a peer either. Leaving the provider null would ship a picker that always
+            // reports "no peer Blueprints discovered" — the inert-default failure this programme
+            // keeps finding (BP-29, BP-61).
             var blueprintPeerProvider = new Hrot.Blueprints.Editor.NodeDrawers.BlueprintPeerSourceProvider(
                 new Hrot.Blueprints.Editor.BlueprintPeerSource(
-                    System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blueprints")));
+                    _bpRootDir ?? Hrot.Editor.AiShared.AssetRoots.AssetsFor(
+                        Hrot.Editor.AiShared.AssetKind.Blueprint)));
 
             _blueprintNodeDrawers = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreateNodeDrawerRegistry(
                 channelCatalog, engineEventCatalog, blueprintEditService, bpPredicateCompiler, eqsTemplates,
@@ -2967,8 +2970,15 @@ namespace Hrot.Editor
             // BATCH-03C2: blueprint asset catalog used by BlueprintDocumentFactory to build the
             // peer-signature lookup so CallPeerBlueprintNodes project typed argument pins from the
             // peer blueprint's exported function signature (read on demand from disk).
+            //
+            // BP-66: this scanned "{BaseDirectory}/blueprints" — a directory that does not exist.
+            // Every other blueprint consumer uses Assets/Blueprints (AssetRoots.AssetsRelative), so
+            // EnumerateAll() returned nothing and the lookup silently fell back to the untyped
+            // exec+Return pin shape for every CallPeerBlueprint node. It matched the other path in
+            // this same file at §715 and §3099.
             var blueprintPeerCatalog = new Hrot.Blueprints.Editor.BlueprintPeerSource(
-                System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blueprints"));
+                _bpRootDir ?? Hrot.Editor.AiShared.AssetRoots.AssetsFor(
+                    Hrot.Editor.AiShared.AssetKind.Blueprint));
 
             // Wire AiDocumentManager.Open so that opening a BTree/HSM/Blueprint asset populates
             // ViewState via the matching document factory.
