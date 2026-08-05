@@ -98,6 +98,20 @@ Canvas ergonomics. Mostly NodeEdit-core capability the Blueprint host never regi
 
 ### BP-13 — No node align / distribute / straighten
 **Complexity:** RW-L · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-05).** `AlignCommands` in NodeEdit itself — no asset knowledge is involved, so
+> unlike BP-23a/BP-60 this belongs in the vendored tree. All nine are batch moves, so all nine go
+> through `CommandBuilder.MoveNodes` and are single undo entries for free.
+>
+> Decisions: alignment measures **bounds**, not origins (aligning right or centring by the top-left
+> corner leaves different-width nodes visibly ragged); distribute equalises **edge** gaps and never
+> moves the two extremes, so it is idempotent and a second press is a no-op; straighten **anchors on
+> the first selected node** and walks links inside the selection, rather than averaging — the
+> designer keeps control of where the row lands. An alignment that would move nothing records
+> nothing, so it cannot cost a Ctrl+Z that appears to do nothing.
+>
+> Exposed as an **Align** submenu on the node context menu; rows grey out with a tooltip naming the
+> selection size they need.
 - **Evidence:** `CommandCatalog.cs:83-91` declares 9 commands (AlignLeft/Right/Top/Bottom/CenterH/CenterV/DistributeH/DistributeV/StraightenConn); zero implementations anywhere in `NodeEdit/src`.
 - **Fix:** `CommandBuilder.MoveNodes(IReadOnlyList<(NodeId, Vector2)>)` is the exact batch-move-with-inverse primitive already used by drag. AABB-of-selection pattern exists at `ViewCommands.cs:71-86`. Reroute primitives cover StraightenConn.
 - **Note:** Distribute needs a stable position sort.
@@ -884,6 +898,7 @@ those notes do not.
 | 9 | BP-60 🔴 | promote-to-variable — and BP-02's last undo bypass |
 | 10 | BP-23a | canvas clipboard: copy / cut / paste / duplicate |
 | 11 | BP-12b | My Blueprint item rename / delete / duplicate |
+| 12 | BP-13 | align / distribute / straighten |
 
 ## The audit was wrong nine times — every correction is recorded in-place
 

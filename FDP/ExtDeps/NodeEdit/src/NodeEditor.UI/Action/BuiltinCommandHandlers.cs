@@ -26,5 +26,8 @@ public static class BuiltinCommandHandlers
         EditCommands.Register(cmds, view);
         ViewCommands.Register(cmds, view);
         CanvasCommands.Register(cmds, view, findBar);
+        // BP-13: the nine alignment ids CommandCatalog has always declared, with no implementation
+        // anywhere until now.
+        AlignCommands.Register(cmds, view);
     }
 }

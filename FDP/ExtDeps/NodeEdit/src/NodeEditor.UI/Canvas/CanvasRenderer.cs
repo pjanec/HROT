@@ -773,6 +773,27 @@ public sealed class CanvasRenderer
 
                 ImGui.Separator();
 
+                // BP-13: nine alignment commands that CommandCatalog declared and nothing
+                // implemented. Grouped in a submenu so the node menu does not grow by nine rows.
+                if (ImGui.BeginMenu("Align"))
+                {
+                    DrawAlignItem("Left",                CommandCatalog.AlignLeft);
+                    DrawAlignItem("Right",               CommandCatalog.AlignRight);
+                    DrawAlignItem("Top",                 CommandCatalog.AlignTop);
+                    DrawAlignItem("Bottom",              CommandCatalog.AlignBottom);
+                    ImGui.Separator();
+                    DrawAlignItem("Center Horizontally", CommandCatalog.AlignCenterH);
+                    DrawAlignItem("Center Vertically",   CommandCatalog.AlignCenterV);
+                    ImGui.Separator();
+                    DrawAlignItem("Distribute Horizontally", CommandCatalog.DistributeH);
+                    DrawAlignItem("Distribute Vertically",   CommandCatalog.DistributeV);
+                    ImGui.Separator();
+                    DrawAlignItem("Straighten Connection",   CommandCatalog.StraightenConn);
+                    ImGui.EndMenu();
+                }
+
+                ImGui.Separator();
+
                 // BP-23a: the three clipboard actions a designer reaches for first. Right-clicking
                 // an unselected node targets just that node, matching Delete below.
                 bool hasClipboardHost = IsCommandEnabled(CommandCatalog.Copy);
@@ -1008,6 +1029,21 @@ public sealed class CanvasRenderer
             float thickness = isActive ? 3.0f : 1.5f;
             dl.AddRect(rect.Min, rect.Max, ImGui.GetColorU32(outlineColor), 4f, ImDrawFlags.None, thickness);
         }
+    }
+
+    /// <summary>
+    /// One row of the Align submenu. Greyed out (rather than hidden) when the selection is too
+    /// small, so the menu shape is stable and the requirement is discoverable.
+    /// </summary>
+    private void DrawAlignItem(string label, string commandId)
+    {
+        bool enabled = IsCommandEnabled(commandId);
+        if (ImGui.MenuItem(label, null, false, enabled))
+            _editorCommands?.Invoke(commandId);
+        if (!enabled && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+            ImGui.SetTooltip(commandId.Contains("distribute")
+                ? "Select at least three nodes"
+                : "Select at least two nodes");
     }
 
     /// <summary>

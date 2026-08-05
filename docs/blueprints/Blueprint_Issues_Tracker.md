@@ -12,10 +12,10 @@ architect decision first).
 | Complexity | Open | Done |
 |---|---:|---:|
 | `WIRING` | 2 | 21 |
-| `RW-L` | 15 | 8 |
+| `RW-L` | 14 | 9 |
 | `RW-M` | 20 | 3 |
 | `RW-H` | 2 | — |
-| **Total** | **39** | **32** |
+| **Total** | **38** | **33** |
 | *(refuted on verification)* | | *1* |
 
 > 📌 **Resuming this programme?** Start with [Blueprint_Gaps_Programme_RESUME.md](Blueprint_Gaps_Programme_RESUME.md) — branch, batches
@@ -31,6 +31,16 @@ architect decision first).
 > 3. **BP-30/BP-31** — the same blind spot is *why* BP-31 was mis-scoped: it credited HSM with a guard
 >    that has never actually run.
 > A green test suite is not evidence that a guard is wired. Grep the production construction sites.
+
+> ✅ **Batch 12 shipped (2026-08-05) — BP-13: align / distribute / straighten.**
+> Nine declared command ids, zero implementations, all of them a batch move — so all nine reduce to
+> `CommandBuilder.MoveNodes` and each is one undo entry for free. Registered in NodeEdit itself: no
+> asset knowledge is involved, unlike BP-23a/BP-60.
+> ⚠ Alignment works on node **bounds**, not origins (right/centre by the top-left corner leaves
+> different-width nodes ragged); distribute equalises **edge** gaps and holds the extremes still, so
+> it is idempotent; straighten **anchors on the first selected node** rather than averaging, so the
+> designer keeps control and a second invocation changes nothing. An alignment that would move
+> nothing records nothing — it must not cost a Ctrl+Z.
 
 > ✅ **Batch 11 shipped (2026-08-05) — BP-12b: My Blueprint items can be renamed, duplicated, deleted.**
 > The context menu has always invoked all three; nothing ever registered them. Works for variables
@@ -134,7 +144,7 @@ architect decision first).
 - [x] **BP-68** 🔴 · `WIRING` — **Dragging a custom event out of My Blueprint produced an unbound node.** `BlueprintCommandSink.CreateAssetNode` mapped every kind missing from `NodeKindRegistry` to a generic `FunctionCallNode` — its own comment said *"Dynamic kind (custom event, callable peer)"*. Three create-paths land there and **all three are asset-scoped kinds the sink is the only thing able to bind**: the drag drop (`Event.CallCustom`) and both per-asset palette entries (`CustomEvent.{Name}`, `CallPeer.{guid}`). Result: a node with no drawer that BP-07's picker could never see, because it was not a `CallCustomEventNode` at all. Hidden because the *static* "Call Custom Event" palette entry is registry-backed and worked — *found in the BP-12c visual check*
 - [x] **BP-66** 🔴 · `WIRING` — **The peer-blueprint catalog scanned a directory that does not exist.** `EditorSubsystem` built `BlueprintPeerSource` over `{BaseDirectory}/blueprints`; every other consumer uses `Assets/Blueprints` (`AssetRoots.AssetsRelative`) — *including two other sites in the same file*. So `EnumerateAll()` returned nothing and **`CallPeerBlueprint` pin projection has never resolved a peer**, silently falling back to untyped `exec + Return:System.Object`. Long-standing; surfaced by BP-08's picker reporting "no peer Blueprints discovered" — *found in the visual check*
 - [x] **BP-23a** · `RW-L` — **No copy/cut/paste/duplicate on the canvas.** All four ids were declared in `CommandCatalog` with **zero** handlers repo-wide and Paste was hard-disabled. Registered host-side (like BP-60) because a clipboard entry is a list of asset `Node`s: JSON round-trip via `[JsonPolymorphic]`, fresh node **and pin** GUIDs, internal links remapped, foreign clipboard text rejected. ⚠ **paste ships fully-built nodes through `BlueprintEditCommand`** — routing it through `AddNode` would have re-applied only the 8-of-50 whitelist and silently stripped the other 42 kinds
-- [ ] **BP-13** · `RW-L` — No align/distribute/straighten; 9 commands declared, 0 implemented. `CommandBuilder.MoveNodes` is the ready primitive
+- [x] **BP-13** · `RW-L` — No align/distribute/straighten; 9 commands declared, 0 implemented. All nine now registered in NodeEdit itself (no asset knowledge needed) via `CommandBuilder.MoveNodes`, so each is one undo entry. ⚠ **alignment uses node *bounds*, not origins** — aligning right or centring by the top-left corner leaves different-width nodes ragged; **distribute equalises edge gaps** and holds the extremes still, so it is idempotent; **straighten anchors on the first selected node** rather than averaging. An Align submenu on the node context menu
 - [ ] **BP-17** · `RW-L` — No node renaming/custom titles; `Subtitle => null` always. Every piece has a precedent to mirror
 - [ ] **BP-18** · `RW-L` — Node body collapse hardcoded `false`; `SetNodeCollapsed` exists with a working reference impl
 - [ ] **BP-19** · `RW-L` — No minimap; `ViewportState` already supplies the transform math
