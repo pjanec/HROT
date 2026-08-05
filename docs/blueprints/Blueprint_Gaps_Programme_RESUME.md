@@ -56,6 +56,67 @@ BP-55 asset-browser delete) are not blueprint-authoring items.
 
 ---
 
+## 🎯 Next task briefing — scouting already done, do not re-derive
+
+Written for a fresh context. Everything here was verified against code on 2026-08-05.
+
+### BP-12c ⭐ — custom-event authoring (`RW-L`) · **do this first**
+
+**Why first:** it is the blocker for **BP-07**, whose picker is built, correct and currently shows
+"this Blueprint declares no custom events" because nothing can create one. One item shipped, a
+second made visible.
+
+| Fact | Where |
+|---|---|
+| The section already declares the command | `Windows/BlueprintMyBlueprintModel.cs:54` — `"editor.create-custom-event"` |
+| …and **nothing registers it** — that is the whole bug | grep: one hit repo-wide, the declaration above |
+| The section already renders its items | `BlueprintMyBlueprintModel.cs:141` `BuildCustomEventItems()` reads `_asset.CustomEvents` |
+| The data model | `CustomEventDecl { Guid Id; string Name; List<ParameterDecl> Parameters }` (`Assets/Declarations.cs:33`) |
+| **The pattern to mirror, exactly** | `editor.create-variable`: `BlueprintDocumentFactory.RegisterCreateVariableCommand` (two overloads — quick-add and modal) + `VariableCreateModal` + `CreateVariable` at `:506` |
+| Where to register | `BlueprintDocumentFactory` §9, beside `RegisterVariableGetSetCommands` (BP-12a) |
+| Consumer to verify against | `NodePinSchema.CallCustomEventPins` resolves `EventId` → `asset.CustomEvents` by **GUID**; Stage5's `FindCustomEventIndex` also accepts **Name** |
+
+**Round-out to consider:** the tracker note says *"consider removing the dispatcher section instead
+(superseded)"* — dispatchers are a separate, abandoned concept. Decide that explicitly rather than
+building a dispatcher-create path by symmetry.
+
+**Done means:** "+ Custom Events" creates a declaration with a name and (at minimum) an empty
+parameter list, it appears in the panel, **and BP-07's picker lists it**. Re-check checklist row 5.
+
+### BP-60 🔴 — "Promote to Variable" silently does nothing (`RW-M`)
+
+The last 🔴 in Area A and the last known instance of the `default:`-returns-success trap.
+
+| Fact | Where |
+|---|---|
+| The command exists in the vocabulary | `GraphCommand.PromoteToVariable(PinId Pin, string VariableName, bool IsLocal, string? CategoryPath)` — `GraphCommand.cs:86` |
+| The UI fully works — modal opens, name typed | `CanvasRenderer.cs:627/629` → `OpenPromoteToVariableModal` at `:977` |
+| `BlueprintCommandSink` has **no case** for it | → hits `default:`, which returns **success**. Nothing happens, and it reports that it worked |
+| **A complete reference implementation exists** | `NodeEditor.Demo/FakeBlueprint/FakeCommandSink.cs:357` `ApplyPromoteToVariable` — handles input pins (place `Util.GetVar` left of the owner, link to the pin) and output pins symmetrically |
+| Deliberately left on `Commands.Apply` by BP-02 | `CanvasRenderer.cs:1025` — it was the 15th of 15 bypass sites, blocked on exactly this |
+
+**Two things to get right, both learned the hard way this programme:**
+1. **The sink applies; the stack records** (BP-11). Do *not* record undo inside the new sink case —
+   build the forward/inverse pair at the `CanvasRenderer` call site and route through
+   `view.Execute`, which also lifts BP-02's last bypass.
+2. **A test asserting `Success` proves nothing** here — that is the bug. Assert the *effect*: the
+   variable exists on the asset and a Get/Set node is linked to the pin.
+
+**Done means:** promote from an input pin and from an output pin; the variable appears in My
+Blueprint; Ctrl+Z reverses the whole gesture as one entry.
+
+### Then, in order
+
+3. **BP-23a** (`RW-L`) — copy/cut/paste/duplicate. The one a designer notices first. Paste is
+   hard-disabled; `AddNodeCommand` already accepts a prebuilt `Node`, so paste can skip the
+   8-of-50 property whitelist. ⚠ now also needs to honour `AssignedId` — see BP-65.
+4. **BP-13 / BP-17…BP-20** (`RW-L`) — align-distribute, node titles, collapse, minimap, error list.
+   Each has a named ready-made primitive in its detail entry.
+5. **BP-67** (`RW-M`) — the When node's other three forms. Largest of these; hold it until the
+   above land.
+
+---
+
 ## 👀 Visual check — what batch 7 added, and where to look
 
 Everything below is logic-tested headless. What a test cannot see is layout, wording and feel.
