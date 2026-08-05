@@ -324,8 +324,15 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.BooleanOpNode boo     => $"Logic {OperatorSymbol(boo.Operator)}",
         Hrot.Blueprints.Core.Assets.NotNode               => "Not (!)",
         Hrot.Blueprints.Core.Assets.EventEntryNode ee     => string.IsNullOrEmpty(ee.EventTypeId) ? "Event" : $"Event: {ShortEventName(ee.EventTypeId)}",
-        Hrot.Blueprints.Core.Assets.CallPeerBlueprintNode cp => $"Call Peer: {cp.FunctionRef}",
-        Hrot.Blueprints.Core.Assets.CallCustomEventNode ce   => $"Call {ce.EventId}",
+        Hrot.Blueprints.Core.Assets.CallPeerBlueprintNode cp => string.IsNullOrEmpty(cp.FunctionRef)
+            ? "Call Peer"
+            : $"Call Peer: {cp.FunctionRef}",
+        // BP-68: EventId is the declaration's GUID (what the picker and pin projection use), so the
+        // raw field made the header read "Call 3f2a…". Resolve it to the declared name, exactly as
+        // Get/SetVariable resolve theirs.
+        Hrot.Blueprints.Core.Assets.CallCustomEventNode ce   => string.IsNullOrEmpty(ce.EventId)
+            ? "Call Custom Event"
+            : $"Call {ResolveCustomEventName(ce.EventId, asset)}",
         Hrot.Blueprints.Core.Assets.ChannelCommandNode cc    => $"Command: {cc.ActionId}",
         Hrot.Blueprints.Core.Assets.WhenNode                 => "When",
         Hrot.Blueprints.Core.Assets.ReturnNode               => "Return",
@@ -419,6 +426,37 @@ internal sealed class BlueprintNodeModel : INodeModel
         }
 
         return variableId;
+    }
+
+    /// <summary>
+    /// BP-68 — the declared name behind a <c>CallCustomEvent.EventId</c>.
+    /// <para>
+    /// Accepts both forms the rest of the pipeline accepts: the declaration's GUID (what the BP-07
+    /// picker writes and <c>NodePinSchema</c> parses) and a bare name (hand-authored assets, which
+    /// Stage5's <c>FindCustomEventIndex</c> resolves too). An id that matches no declaration is
+    /// returned as-is so a dangling reference stays visible on the node rather than reading as a
+    /// valid event.
+    /// </para>
+    /// </summary>
+    private static string ResolveCustomEventName(
+        string eventId,
+        Hrot.Blueprints.Core.Assets.BlueprintAsset? asset)
+    {
+        if (asset == null || string.IsNullOrEmpty(eventId))
+            return eventId;
+
+        var idStr = eventId.StartsWith("evt:", StringComparison.OrdinalIgnoreCase)
+            ? eventId[4..]
+            : eventId;
+
+        if (Guid.TryParse(idStr, out var guid))
+        {
+            var decl = asset.CustomEvents.FirstOrDefault(e => e.Id == guid);
+            if (decl != null && !string.IsNullOrEmpty(decl.Name))
+                return decl.Name;
+        }
+
+        return eventId;
     }
 
     /// <summary>

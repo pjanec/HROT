@@ -229,6 +229,65 @@ public sealed class DynamicKindNodeCreateTests
             Assert.IsType<FunctionCallNode>(graph.Nodes[0]).MethodName);
     }
 
+    // ── Node header (BP-68 follow-up) ─────────────────────────────────────────
+
+    /// <summary>
+    /// The header showed the raw <c>EventId</c>, so a correctly-bound node read
+    /// <c>"Call 3f2a…"</c>. It must resolve to the declared name, like Get/SetVariable do.
+    /// </summary>
+    [Fact]
+    public void TheHeader_ShowsTheEventName_NotItsGuid()
+    {
+        var asset = BlueprintAssetBuilder.Instance("TitleAsset")
+            .WithGraph("EventGraph", GraphKind.Event, _ => { }).Build();
+        var decl  = DeclareEvent(asset, "OnHit");
+
+        var node = new CallCustomEventNode { EventId = decl.Id.ToString("D") };
+
+        Assert.Equal("Call OnHit", Title(node, asset));
+    }
+
+    /// <summary>Hand-authored assets store the bare name; Stage5 accepts it, so the header must too.</summary>
+    [Fact]
+    public void TheHeader_AcceptsABareName()
+    {
+        var asset = BlueprintAssetBuilder.Instance("TitleAsset")
+            .WithGraph("EventGraph", GraphKind.Event, _ => { }).Build();
+        DeclareEvent(asset, "OnHit");
+
+        Assert.Equal("Call OnHit", Title(new CallCustomEventNode { EventId = "OnHit" }, asset));
+    }
+
+    /// <summary>
+    /// A dangling id stays visible rather than being prettied away — the designer needs to see that
+    /// this node points at nothing. An unset one reads as the node kind, not "Call ".
+    /// </summary>
+    [Fact]
+    public void TheHeader_KeepsADanglingId_AndNamesTheKindWhenUnset()
+    {
+        var asset = BlueprintAssetBuilder.Instance("TitleAsset")
+            .WithGraph("EventGraph", GraphKind.Event, _ => { }).Build();
+        var orphan = Guid.NewGuid().ToString("D");
+
+        Assert.Equal($"Call {orphan}", Title(new CallCustomEventNode { EventId = orphan }, asset));
+        Assert.Equal("Call Custom Event", Title(new CallCustomEventNode(), asset));
+    }
+
+    /// <summary>A freshly dropped peer node has no function yet; the header must not trail a colon.</summary>
+    [Fact]
+    public void ThePeerHeader_ReadsCleanlyBeforeAFunctionIsChosen()
+    {
+        var asset = BlueprintAssetBuilder.Instance("TitleAsset")
+            .WithGraph("EventGraph", GraphKind.Event, _ => { }).Build();
+
+        Assert.Equal("Call Peer", Title(new CallPeerBlueprintNode(), asset));
+        Assert.Equal("Call Peer: Fire",
+            Title(new CallPeerBlueprintNode { FunctionRef = "Fire" }, asset));
+    }
+
+    private static string Title(Node node, BlueprintAsset asset)
+        => new BlueprintNodeModel(node, Array.Empty<IPinModel>(), asset).Title;
+
     // ── Test doubles ──────────────────────────────────────────────────────────
 
     private sealed class StubHostServices : IEditorHostServices
