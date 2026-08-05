@@ -12,10 +12,10 @@ architect decision first).
 | Complexity | Open | Done |
 |---|---:|---:|
 | `WIRING` | 2 | 21 |
-| `RW-L` | 12 | 11 |
+| `RW-L` | 10 | 13 |
 | `RW-M` | 20 | 3 |
 | `RW-H` | 2 | — |
-| **Total** | **36** | **35** |
+| **Total** | **34** | **37** |
 | *(refuted on verification)* | | *1* |
 
 > 📌 **Resuming this programme?** Start with [Blueprint_Gaps_Programme_RESUME.md](Blueprint_Gaps_Programme_RESUME.md) — branch, batches
@@ -31,6 +31,14 @@ architect decision first).
 > 3. **BP-30/BP-31** — the same blind spot is *why* BP-31 was mis-scoped: it credited HSM with a guard
 >    that has never actually run.
 > A green test suite is not evidence that a guard is wired. Grep the production construction sites.
+
+> ✅ **Batch 14 shipped (2026-08-05) — BP-19 + BP-20: minimap and jump-to-issue.**
+> Two more declared-but-never-registered command ids. The minimap is a corner overlay with a
+> viewport rectangle and click/drag-to-recentre; **uniform fit, not stretched**, over the graph
+> bounds *unioned with the visible rect*, so the viewport box stays inside it when you pan off the
+> graph. Jump-to-issue is **F8 / Shift+F8**, visits **errors before warnings**, and **anchors on the
+> selection** rather than a stored cursor — so it stays correct after a click elsewhere, and after a
+> fix removes a node from the list.
 
 > ✅ **Batch 13 shipped (2026-08-05) — BP-17 + BP-18: node titles and body collapse.**
 > Both were the same shape: the canvas already honoured the feature (`NodeRenderer` draws a subtitle
@@ -157,8 +165,8 @@ architect decision first).
 - [x] **BP-13** · `RW-L` — No align/distribute/straighten; 9 commands declared, 0 implemented. All nine now registered in NodeEdit itself (no asset knowledge needed) via `CommandBuilder.MoveNodes`, so each is one undo entry. ⚠ **alignment uses node *bounds*, not origins** — aligning right or centring by the top-left corner leaves different-width nodes ragged; **distribute equalises edge gaps** and holds the extremes still, so it is idempotent; **straighten anchors on the first selected node** rather than averaging. An Align submenu on the node context menu
 - [x] **BP-17** · `RW-L` — No node renaming/custom titles; `Subtitle => null` always. New `NodeMetadata.CustomTitle` + a `"Title"` `SetNodeProperty` key + Rename (F2) on the node menu. ⚠ **the generated title becomes the subtitle** — a renamed node must not lose the only indication of what it is — and **blank clears the override** rather than storing an empty header, so a node can always be put back without undo
 - [x] **BP-18** · `RW-L` — Node body collapse hardcoded `false`; `SetNodeCollapsed` existed with a working reference impl but **the sink had no case, so it hit the `default:` that returns success** — the same trap as BP-60. New `NodeMetadata.Collapsed` + a sink case + a Collapse/Expand menu item
-- [ ] **BP-19** · `RW-L` — No minimap; `ViewportState` already supplies the transform math
-- [ ] **BP-20** · `RW-L` — No error list / jump-to-next-error; `NodeState.Error` flags and a cycle-and-centre pattern already exist
+- [x] **BP-19** · `RW-L` — No minimap; `ViewportState` already supplied the transform math. Corner overlay with a viewport rectangle, click/drag to recentre, `editor.toggle-minimap` (declared, never registered) now live plus a canvas-menu toggle. ⚠ **uniform fit, not stretched**, and the mapped region is the graph bounds **unioned with the visible rect** so the viewport box stays inside it when you pan off the graph
+- [x] **BP-20** · `RW-L` — No error list / jump-to-next-error; `NodeState.Error` flags and a cycle-and-centre pattern already existed. `editor.next-error`/`prev-error` registered on **F8 / Shift+F8**, selecting and centring each problem node. ⚠ **errors before warnings**, and the sequence **anchors on the selection** rather than a stored cursor, so it stays right after a click elsewhere or after a fix removes a node from the list
 - [ ] **BP-56** · `RW-L` — No wire-level execution-flow highlighting (nodes glow, wires don't)
 - [ ] **BP-23b** · `RW-M` — Cross-asset paste; needs variable/type re-resolution. Do after BP-23a
 - [ ] **BP-25** · `RW-M` — Cross-blueprint search is cosmetic; `FindEngine` ignores its `scope` argument by its own docstring

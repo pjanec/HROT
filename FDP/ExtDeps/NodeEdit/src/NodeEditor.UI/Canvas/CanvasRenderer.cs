@@ -38,6 +38,11 @@ public sealed class CanvasRenderer
     private readonly ContainerRenderer       _containers     = new();
     private readonly AttachmentRenderer      _attachments    = new();
     private readonly CanvasRenderContextImpl _renderCtx      = new();
+    // BP-19: the overview minimap. Off by default; toggled by editor.toggle-minimap.
+    private readonly MinimapRenderer         _minimap        = new();
+
+    /// <summary>BP-19 — the overview minimap overlay. Visibility is toggled via the view commands.</summary>
+    public MinimapRenderer Minimap => _minimap;
 
     // Per-renderer perf accumulators (keyed by renderer Id).
     private readonly Dictionary<string, MutablePerfRecord> _perfRecords = new();
@@ -394,6 +399,10 @@ public sealed class CanvasRenderer
             _pendingVariableDropName = null;
         }
 
+        // BP-19: drawn last so it sits above the graph, and before the modals so a popup is not
+        // covered by it.
+        _minimap.Draw(view, dl);
+
         DrawPromoteVariableModal(view);
         DrawNodeRenameModal(view);
         ImGui.PopStyleVar();
@@ -604,6 +613,11 @@ public sealed class CanvasRenderer
                         view.Viewport.FrameRect(new RectF(new Vector2(minX, minY), new Vector2(maxX - minX, maxY - minY)));
                     }
                 }
+
+                // BP-19: discoverability — the toggle is also on editor.toggle-minimap, but nothing
+                // in the UI pointed at it.
+                if (ImGui.MenuItem("Show Minimap", null, view.Viewport.ShowMinimap))
+                    view.Viewport.ShowMinimap = !view.Viewport.ShowMinimap;
 
                 if (ImGui.MenuItem("Reset Zoom", "Ctrl+0"))
                 {

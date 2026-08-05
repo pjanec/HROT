@@ -256,10 +256,36 @@ internal static Type? ResolveType(string fqn)
 
 ### BP-19 — No minimap
 **Complexity:** RW-L · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-05).** `MinimapRenderer` — a corner overlay drawing each node as a filled rect
+> (error nodes in the error colour) plus an outline of the current view; clicking or dragging inside
+> recentres the viewport, so it works as a scrubber rather than only a jump target.
+>
+> Two geometry decisions: the fit is **uniform**, not per-axis, or the minimap stops being a
+> recognisable miniature of the graph; and the mapped region is the graph bounds **unioned with the
+> visible rect**, so the viewport rectangle stays inside the overlay even when the user has panned
+> away from every node — which is exactly when a minimap earns its keep. Sub-pixel nodes are floored
+> to 2px: a minimap that omits nodes is worse than none.
+>
+> The visibility flag lives on `ViewportState` so `editor.toggle-minimap` — declared and never
+> registered — could be registered alongside the other view commands, which only ever see the
+> `GraphView`.
 - `CommandCatalog.ToggleMinimap` declared, never implemented. `ViewportState` supplies all needed transform math (`GraphToScreen` / `ScreenToGraph` / `FrameRect`). ~150-200 lines incl. click-to-pan.
 
 ### BP-20 — No error list / jump-to-next-error
 **Complexity:** RW-L · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-05).** `editor.next-error` / `editor.prev-error` registered on **F8 /
+> Shift+F8**, selecting and centring each node whose `State` is `Error` or `Warning`.
+>
+> **Open question answered by the existing data:** the source is the host's node model, which is
+> live rather than compile-time — a Blueprint already marks an unresolved CLR call or a stale
+> component bake, and the canvas already paints them. Nothing new had to be plumbed.
+>
+> **Errors before warnings**, so the first press on a broken graph lands on something that actually
+> stops the build. The sequence **anchors on the current selection** rather than a stored cursor:
+> a stored index would resume from a stale position after the user clicks elsewhere, and would
+> silently skip an entry once a fix removes a node from the list.
 - **Evidence:** `CommandCatalog.NextError` / `PrevError` declared, never registered. No error-list UI.
 - **Fix:** `NodeState.Error`/`Warning` flags already exist and `FindEngine` already filters on them (`:47-53`). `FindBar.Next` / `CenterOnActive` is a ready cycle-and-centre pattern to mirror.
 - **Open question:** diagnostics source — compile-time only, or live?
@@ -918,6 +944,7 @@ those notes do not.
 | 11 | BP-12b | My Blueprint item rename / delete / duplicate |
 | 12 | BP-13 | align / distribute / straighten |
 | 13 | BP-17 · BP-18 | node custom titles and body collapse |
+| 14 | BP-19 · BP-20 | minimap and jump-to-issue |
 
 ## The audit was wrong nine times — every correction is recorded in-place
 

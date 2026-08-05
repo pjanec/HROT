@@ -33,6 +33,13 @@ public sealed class ViewportState
     /// <summary>True when zoom is below the simplified-rendering threshold.</summary>
     public bool IsLowZoom => Zoom < LowZoomThreshold;
 
+    /// <summary>
+    /// BP-19 — whether the overview minimap overlay is drawn. Lives here rather than on the
+    /// renderer so <c>editor.toggle-minimap</c> can be registered alongside the other view commands,
+    /// which only ever see the <c>GraphView</c>. Off by default; hidden costs nothing per frame.
+    /// </summary>
+    public bool ShowMinimap { get; set; }
+
     /// <summary>Convert a graph-space point to screen coordinates.</summary>
     public Vector2 GraphToScreen(Vector2 graph)
         => CanvasScreenOrigin + (graph - PanGraph) * Zoom;
