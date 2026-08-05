@@ -574,7 +574,13 @@ public sealed class CanvasRenderer
                 }
 
                 ImGui.Separator();
-                ImGui.MenuItem("Paste", "Ctrl+V", false, false);
+                // BP-23a: Paste was hard-disabled (the trailing `false, false` = unselected,
+                // DISABLED) because no host implemented it. It is live whenever a host registers
+                // editor.paste, and pastes at the cursor rather than at the copy's origin.
+                bool canPaste = IsCommandEnabled(CommandCatalog.Paste);
+                if (ImGui.MenuItem("Paste", "Ctrl+V", false, canPaste))
+                    _editorCommands?.Invoke(CommandCatalog.Paste, new EditorCommandContext(
+                        ScreenPos: null, CanvasPos: _contextMenuGraphPos, Args: null));
                 ImGui.Separator();
 
                 if (ImGui.MenuItem("Frame All", "Home"))
@@ -763,6 +769,29 @@ public sealed class CanvasRenderer
                         var fwd = new Core.Commands.GraphCommand.ExpandNode(target.Node);
                         view.Execute(fwd, new Core.Commands.GraphCommand.Batch("Undo Expand", invs), "Expand Node");
                     }
+                }
+
+                ImGui.Separator();
+
+                // BP-23a: the three clipboard actions a designer reaches for first. Right-clicking
+                // an unselected node targets just that node, matching Delete below.
+                bool hasClipboardHost = IsCommandEnabled(CommandCatalog.Copy);
+                if (ImGui.MenuItem("Copy", "Ctrl+C", false, hasClipboardHost))
+                {
+                    if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
+                    _editorCommands?.Invoke(CommandCatalog.Copy);
+                }
+
+                if (ImGui.MenuItem("Cut", "Ctrl+X", false, hasClipboardHost))
+                {
+                    if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
+                    _editorCommands?.Invoke(CommandCatalog.Cut);
+                }
+
+                if (ImGui.MenuItem("Duplicate", "Ctrl+D", false, hasClipboardHost))
+                {
+                    if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
+                    _editorCommands?.Invoke(CommandCatalog.Duplicate);
                 }
 
                 ImGui.Separator();
@@ -980,6 +1009,14 @@ public sealed class CanvasRenderer
             dl.AddRect(rect.Min, rect.Max, ImGui.GetColorU32(outlineColor), 4f, ImDrawFlags.None, thickness);
         }
     }
+
+    /// <summary>
+    /// True when a host has registered <paramref name="commandId"/> and it is currently enabled.
+    /// Menu items for host-owned actions (BP-23a's clipboard set) grey out rather than disappear,
+    /// so the canvas menu keeps a stable shape whichever host it is embedded in.
+    /// </summary>
+    private bool IsCommandEnabled(string commandId)
+        => _editorCommands?.Get(commandId)?.IsEnabled() == true;
 
     private void OpenPromoteToVariableModal(PinId pinId, bool isLocal)
     {

@@ -12,10 +12,10 @@ architect decision first).
 | Complexity | Open | Done |
 |---|---:|---:|
 | `WIRING` | 2 | 21 |
-| `RW-L` | 17 | 6 |
+| `RW-L` | 16 | 7 |
 | `RW-M` | 20 | 3 |
 | `RW-H` | 2 | — |
-| **Total** | **41** | **30** |
+| **Total** | **40** | **31** |
 | *(refuted on verification)* | | *1* |
 
 > 📌 **Resuming this programme?** Start with [Blueprint_Gaps_Programme_RESUME.md](Blueprint_Gaps_Programme_RESUME.md) — branch, batches
@@ -31,6 +31,15 @@ architect decision first).
 > 3. **BP-30/BP-31** — the same blind spot is *why* BP-31 was mis-scoped: it credited HSM with a guard
 >    that has never actually run.
 > A green test suite is not evidence that a guard is wired. Grep the production construction sites.
+
+> ✅ **Batch 10 shipped (2026-08-05) — BP-23a: copy / cut / paste / duplicate.**
+> Registered host-side for the same reason as BP-60: a clipboard entry is a list of asset `Node`s.
+> `Node` is already `[JsonPolymorphic]`, so the round-trip is free; paste re-mints node **and pin**
+> GUIDs, remaps the links whose *both* ends were copied, and rejects foreign clipboard text.
+> ⚠ **Paste ships fully-built nodes through `BlueprintEditCommand`**, never `AddNode` — that path
+> re-applies only `ApplyInitialProperties`' 8-of-50 whitelist and would have silently stripped the
+> configuration of the other 42 kinds. A test pins exactly that.
+> Duplicate deliberately does **not** touch the clipboard. Paste leaves its nodes selected.
 
 > ✅ **Batch 9 shipped (2026-08-05) — BP-60: "Promote to Variable" works.**
 > Fixed as a **host command**, not a sink case. `GraphCommand.PromoteToVariable` is one opaque
@@ -115,7 +124,7 @@ architect decision first).
 - [x] **BP-65** 🔴 · `WIRING` — **Placing a node was silently non-undoable.** `BlueprintCommandSink` ignored `GraphCommand.AddNode.AssignedId` and minted its own Guid, so `CommandBuilder`'s paired `RemoveNodes([thatId])` inverse named a node that doesn't exist — palette drops, wire-drops, variable drags, all of it. The **BTree and HSM sinks already honour it**; only this one didn't. Masked until BP-11 by the sink's parallel `CommandHistory` record, which holds the node *object* — *found while testing BP-12a*
 - [x] **BP-68** 🔴 · `WIRING` — **Dragging a custom event out of My Blueprint produced an unbound node.** `BlueprintCommandSink.CreateAssetNode` mapped every kind missing from `NodeKindRegistry` to a generic `FunctionCallNode` — its own comment said *"Dynamic kind (custom event, callable peer)"*. Three create-paths land there and **all three are asset-scoped kinds the sink is the only thing able to bind**: the drag drop (`Event.CallCustom`) and both per-asset palette entries (`CustomEvent.{Name}`, `CallPeer.{guid}`). Result: a node with no drawer that BP-07's picker could never see, because it was not a `CallCustomEventNode` at all. Hidden because the *static* "Call Custom Event" palette entry is registry-backed and worked — *found in the BP-12c visual check*
 - [x] **BP-66** 🔴 · `WIRING` — **The peer-blueprint catalog scanned a directory that does not exist.** `EditorSubsystem` built `BlueprintPeerSource` over `{BaseDirectory}/blueprints`; every other consumer uses `Assets/Blueprints` (`AssetRoots.AssetsRelative`) — *including two other sites in the same file*. So `EnumerateAll()` returned nothing and **`CallPeerBlueprint` pin projection has never resolved a peer**, silently falling back to untyped `exec + Return:System.Object`. Long-standing; surfaced by BP-08's picker reporting "no peer Blueprints discovered" — *found in the visual check*
-- [ ] **BP-23a** · `RW-L` — **No copy/cut/paste/duplicate on the canvas.** Paste is hard-disabled; `AddNodeCommand` already accepts a prebuilt `Node`, so paste can skip the 8-of-50 property whitelist
+- [x] **BP-23a** · `RW-L` — **No copy/cut/paste/duplicate on the canvas.** All four ids were declared in `CommandCatalog` with **zero** handlers repo-wide and Paste was hard-disabled. Registered host-side (like BP-60) because a clipboard entry is a list of asset `Node`s: JSON round-trip via `[JsonPolymorphic]`, fresh node **and pin** GUIDs, internal links remapped, foreign clipboard text rejected. ⚠ **paste ships fully-built nodes through `BlueprintEditCommand`** — routing it through `AddNode` would have re-applied only the 8-of-50 whitelist and silently stripped the other 42 kinds
 - [ ] **BP-13** · `RW-L` — No align/distribute/straighten; 9 commands declared, 0 implemented. `CommandBuilder.MoveNodes` is the ready primitive
 - [ ] **BP-17** · `RW-L` — No node renaming/custom titles; `Subtitle => null` always. Every piece has a precedent to mirror
 - [ ] **BP-18** · `RW-L` — Node body collapse hardcoded `false`; `SetNodeCollapsed` exists with a working reference impl

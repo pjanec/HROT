@@ -61,6 +61,30 @@ Canvas ergonomics. Mostly NodeEdit-core capability the Blueprint host never regi
 
 ### BP-23a — No copy / cut / paste / duplicate on the canvas (same-graph)
 **Complexity:** RW-L · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-05).** Registered host-side (`BlueprintDocumentFactory.RegisterClipboardCommands`)
+> for the same reason as BP-60: a clipboard entry is a list of asset `Node`s, which the vendored tree
+> knows nothing about. `BlueprintClipboard` owns the payload format and the id remapping.
+>
+> ⚠ **The audit's trap, taken seriously.** Paste adds **fully-built** nodes through
+> `BlueprintEditCommand`. Routing it through `GraphCommand.AddNode` would rebuild each node from its
+> kind and re-apply only what `ApplyInitialProperties` knows — 8 node kinds of 50 — silently
+> stripping the rest. `NodeConfiguration_SurvivesPaste_ForKindsTheSinkCannotBuild` pins it with
+> `CompareNode.Operator` and `CastNode.TargetTypeId`, two the sink cannot set.
+>
+> **Pin GUIDs are re-minted too, not just node ids.** Pins carry their own GUIDs and links reference
+> them directly, so a paste that reused them would leave two nodes whose pins collide — and any
+> later link lookup could resolve to either.
+>
+> Decisions worth not revisiting: a link is copied only when **both** ends are in the selection (a
+> half-copied wire dangles or silently re-attaches); **Duplicate never touches the clipboard**, so
+> duplicating cannot clobber what was copied; paste **leaves its nodes selected**, so paste-then-drag
+> works; a paste with no target position is **offset**, because a copy landing exactly on its source
+> looks like nothing happened; and the payload carries a format marker so ordinary clipboard text is
+> never parsed as a graph.
+>
+> The canvas menu's Paste entry — hard-disabled since it was written — now greys out only when there
+> is genuinely nothing to paste, and the node menu gained Copy / Cut / Duplicate.
 - **Symptom:** Paste is permanently greyed out; there is no copy at all. Probably the single most-felt gap.
 - **Evidence:** `CanvasRenderer.cs:570` — `ImGui.MenuItem("Paste", "Ctrl+V", false, false)` (trailing `false, false` = *selected, enabled*). `CommandCatalog.cs:19-22` declares Copy/Cut/Paste/Duplicate; **zero** handler registrations repo-wide.
 - **Fix:** `Node` is already `[JsonPolymorphic]`, so JSON round-trip is free. `IClipboard` exists, is DI-wired, and has **zero call sites**. `BreakpointJsonClipboard.cs` is an in-repo precedent for the same pattern. Crucially **`AddNodeCommand(Graph, Node)` takes a fully-built node** (`Execute() => _graph.Nodes.Add(_node)`), so paste bypasses the `ApplyInitialProperties` whitelist entirely.
@@ -836,6 +860,7 @@ those notes do not.
 | 7 | BP-03 · BP-05…BP-08 · BP-10 · BP-12a · BP-63 · BP-64 (+ BP-65) | the WIRING batch — machinery existed, only the UI hook was missing |
 | 8 | BP-12c · BP-68 (+ BP1407/BP1408; dispatcher section retired) | custom-event authoring — unblocks BP-07 |
 | 9 | BP-60 🔴 | promote-to-variable — and BP-02's last undo bypass |
+| 10 | BP-23a | canvas clipboard: copy / cut / paste / duplicate |
 
 ## The audit was wrong nine times — every correction is recorded in-place
 

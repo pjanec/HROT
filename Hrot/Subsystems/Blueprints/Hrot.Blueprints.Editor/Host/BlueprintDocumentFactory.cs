@@ -305,6 +305,11 @@ public static class BlueprintDocumentFactory
         RegisterPromoteToVariableCommand(
             commands, view, bpAsset, nodeCatalog.KindRegistry, () => bpFile.MarkDirty());
 
+        // BP-23a: copy/cut/paste/duplicate. All four command ids were declared in CommandCatalog
+        // with no handler anywhere in the repo, and the canvas menu's Paste was hard-disabled.
+        RegisterClipboardCommands(
+            commands, view, graph, hostServices.Clipboard, () => bpFile.MarkDirty());
+
         // ── 10. Bookmarks (navigation aids) ──────────────────────────────────
         // Per-document BookmarkStore + the shared NodeEdit set/jump commands (Ctrl+1..9
         // jump, Ctrl+Shift+1..9 set — see BookmarkCommands). Pumped automatically by
@@ -405,6 +410,139 @@ public static class BlueprintDocumentFactory
         var cb = new CommandBuilder(view.Model);
         var (fwd, inv) = cb.AddNode(kind, position, props);
         view.Execute(fwd, inv, isGet ? "Add Get Variable" : "Add Set Variable");
+    }
+
+    // ── Clipboard: copy / cut / paste / duplicate (BP-23a) ────────────────────
+
+    /// <summary>
+    /// BP-23a — registers <c>editor.copy</c>, <c>editor.cut</c>, <c>editor.paste</c> and
+    /// <c>editor.duplicate</c>. All four ids were declared in <c>CommandCatalog</c> with no handler
+    /// anywhere in the repo, and the canvas menu's Paste entry was hard-disabled.
+    ///
+    /// <para>
+    /// <b>Host-side, like BP-60.</b> A clipboard entry is a list of asset <see cref="Node"/>s, and
+    /// paste must add them <i>fully built</i>. Routing through <c>GraphCommand.AddNode</c> would
+    /// rebuild each node from its kind and then re-apply only the properties
+    /// <c>ApplyInitialProperties</c> knows — 8 node kinds of 50 — silently dropping the
+    /// configuration of the other 42. <see cref="BlueprintEditCommand"/> carries the built nodes
+    /// straight onto the graph instead, and gives the whole paste one undo entry.
+    /// </para>
+    ///
+    /// <para>Exposed <c>internal</c> so tests can drive all four without ImGui.</para>
+    /// </summary>
+    /// <param name="clipboard">
+    /// The host clipboard. Copy/cut/paste use it; <b>duplicate deliberately does not</b>, so
+    /// duplicating never clobbers what the designer had copied.
+    /// </param>
+    internal static void RegisterClipboardCommands(
+        EditorCommandsImpl commands,
+        GraphView          view,
+        Graph              graph,
+        IClipboard?        clipboard,
+        Action?            markDirty = null)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(graph);
+
+        var reg = new CommandRegistration(commands);
+
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.Copy, "Copy", "Edit",
+            _ => CopySelection(view, graph, clipboard),
+            isEnabled: () => view.Selection.Nodes.Any(),
+            description: "Copies the selected nodes.",
+            defaultKey: new KeyBinding(EditorKey.C, KeyModifiers.Ctrl));
+
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.Cut, "Cut", "Edit",
+            _ =>
+            {
+                // Copy first: the delete is undoable, so a failed copy must not lose the nodes.
+                // Deleting through the registered command reuses BP-59's undoable path (which also
+                // removes the orphaned links) rather than re-deriving it here.
+                if (CopySelection(view, graph, clipboard))
+                    commands.Invoke(NodeEditor.Core.CommandCatalog.DeleteSelection);
+            },
+            isEnabled: () => view.Selection.Nodes.Any(),
+            description: "Copies the selected nodes and deletes them.",
+            defaultKey: new KeyBinding(EditorKey.X, KeyModifiers.Ctrl));
+
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.Paste, "Paste", "Edit",
+            ctx => PasteFrom(view, graph, clipboard?.GetText(), ctx.CanvasPos, markDirty),
+            isEnabled: () => BlueprintClipboard.TryParse(clipboard?.GetText(), out _),
+            description: "Pastes previously copied nodes.",
+            defaultKey: new KeyBinding(EditorKey.V, KeyModifiers.Ctrl));
+
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.Duplicate, "Duplicate", "Edit",
+            _ => PasteFrom(view, graph, BlueprintClipboard.Copy(graph, SelectedNodeIds(view)),
+                           targetPosition: null, markDirty),
+            isEnabled: () => view.Selection.Nodes.Any(),
+            description: "Duplicates the selected nodes in place.",
+            defaultKey: new KeyBinding(EditorKey.D, KeyModifiers.Ctrl));
+    }
+
+    private static IReadOnlyCollection<Guid> SelectedNodeIds(GraphView view)
+        => view.Selection.Nodes.Select(n => n.Value).ToList();
+
+    /// <summary>Writes the selection to the clipboard; false when there was nothing to write.</summary>
+    private static bool CopySelection(GraphView view, Graph graph, IClipboard? clipboard)
+    {
+        if (clipboard is null) return false;
+
+        var text = BlueprintClipboard.Copy(graph, SelectedNodeIds(view));
+        if (text is null) return false;
+
+        clipboard.SetText(text);
+        return true;
+    }
+
+    /// <summary>
+    /// Adds a clipboard fragment to the graph as one undoable step, and leaves the pasted nodes
+    /// selected — so paste-then-drag works, and a second Ctrl+V after a paste duplicates what was
+    /// just pasted rather than the original.
+    /// </summary>
+    /// <param name="targetPosition">
+    /// Graph-space position for the fragment's top-left corner (the canvas passes the cursor).
+    /// Null pastes at the original coordinates plus a small offset, so the copy is visibly distinct
+    /// from what it was copied from.
+    /// </param>
+    private static void PasteFrom(
+        GraphView view, Graph graph, string? text, Vector2? targetPosition, Action? markDirty)
+    {
+        if (!BlueprintClipboard.TryParse(text, out var payload)) return;
+
+        var offset = targetPosition is { } target
+            ? target - BlueprintClipboard.TopLeftOf(payload)
+            : BlueprintClipboard.DefaultPasteOffset;
+
+        var fragment = BlueprintClipboard.Rehydrate(payload, offset);
+        if (fragment.Nodes.Count == 0) return;
+
+        var pastedIds = fragment.Nodes.Select(n => new NodeId(n.Id)).ToList();
+
+        void Apply()
+        {
+            foreach (var node in fragment.Nodes) graph.Nodes.Add(node);
+            foreach (var link in fragment.Links) graph.Links.Add(link);
+        }
+
+        void Undo()
+        {
+            foreach (var link in fragment.Links) graph.Links.Remove(link);
+            foreach (var node in fragment.Nodes) graph.Nodes.Remove(node);
+        }
+
+        var label = fragment.Nodes.Count == 1 ? "Paste Node" : $"Paste {fragment.Nodes.Count} Nodes";
+        view.Execute(
+            new BlueprintEditCommand(label, Apply),
+            new BlueprintEditCommand(label, Undo),
+            label);
+
+        view.Selection.ReplaceWith(pastedIds.Select(SelectionEntry.OfNode).ToArray());
+        markDirty?.Invoke();
     }
 
     // ── Promote to Variable (BP-60) ───────────────────────────────────────────
