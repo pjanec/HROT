@@ -12,10 +12,10 @@ architect decision first).
 | Complexity | Open | Done |
 |---|---:|---:|
 | `WIRING` | 2 | 21 |
-| `RW-L` | 14 | 9 |
+| `RW-L` | 12 | 11 |
 | `RW-M` | 20 | 3 |
 | `RW-H` | 2 | — |
-| **Total** | **38** | **33** |
+| **Total** | **36** | **35** |
 | *(refuted on verification)* | | *1* |
 
 > 📌 **Resuming this programme?** Start with [Blueprint_Gaps_Programme_RESUME.md](Blueprint_Gaps_Programme_RESUME.md) — branch, batches
@@ -31,6 +31,16 @@ architect decision first).
 > 3. **BP-30/BP-31** — the same blind spot is *why* BP-31 was mis-scoped: it credited HSM with a guard
 >    that has never actually run.
 > A green test suite is not evidence that a guard is wired. Grep the production construction sites.
+
+> ✅ **Batch 13 shipped (2026-08-05) — BP-17 + BP-18: node titles and body collapse.**
+> Both were the same shape: the canvas already honoured the feature (`NodeRenderer` draws a subtitle
+> and a collapsed node), but `BlueprintNodeModel` hardcoded `Subtitle => null` / `IsCollapsed =>
+> false` and nothing could change either. `SetNodeCollapsed` even existed as a command — **the sink
+> had no case, so it hit the `default:` that returns success**, the third instance of that trap
+> after BP-60 and BP-68.
+> ⚠ A renamed node keeps its **generated title as the subtitle**, and **blank clears the override**
+> rather than storing an empty header. Both new `NodeMetadata` fields are omitted from JSON at their
+> defaults, so existing assets round-trip byte-identically.
 
 > ✅ **Batch 12 shipped (2026-08-05) — BP-13: align / distribute / straighten.**
 > Nine declared command ids, zero implementations, all of them a batch move — so all nine reduce to
@@ -145,8 +155,8 @@ architect decision first).
 - [x] **BP-66** 🔴 · `WIRING` — **The peer-blueprint catalog scanned a directory that does not exist.** `EditorSubsystem` built `BlueprintPeerSource` over `{BaseDirectory}/blueprints`; every other consumer uses `Assets/Blueprints` (`AssetRoots.AssetsRelative`) — *including two other sites in the same file*. So `EnumerateAll()` returned nothing and **`CallPeerBlueprint` pin projection has never resolved a peer**, silently falling back to untyped `exec + Return:System.Object`. Long-standing; surfaced by BP-08's picker reporting "no peer Blueprints discovered" — *found in the visual check*
 - [x] **BP-23a** · `RW-L` — **No copy/cut/paste/duplicate on the canvas.** All four ids were declared in `CommandCatalog` with **zero** handlers repo-wide and Paste was hard-disabled. Registered host-side (like BP-60) because a clipboard entry is a list of asset `Node`s: JSON round-trip via `[JsonPolymorphic]`, fresh node **and pin** GUIDs, internal links remapped, foreign clipboard text rejected. ⚠ **paste ships fully-built nodes through `BlueprintEditCommand`** — routing it through `AddNode` would have re-applied only the 8-of-50 whitelist and silently stripped the other 42 kinds
 - [x] **BP-13** · `RW-L` — No align/distribute/straighten; 9 commands declared, 0 implemented. All nine now registered in NodeEdit itself (no asset knowledge needed) via `CommandBuilder.MoveNodes`, so each is one undo entry. ⚠ **alignment uses node *bounds*, not origins** — aligning right or centring by the top-left corner leaves different-width nodes ragged; **distribute equalises edge gaps** and holds the extremes still, so it is idempotent; **straighten anchors on the first selected node** rather than averaging. An Align submenu on the node context menu
-- [ ] **BP-17** · `RW-L` — No node renaming/custom titles; `Subtitle => null` always. Every piece has a precedent to mirror
-- [ ] **BP-18** · `RW-L` — Node body collapse hardcoded `false`; `SetNodeCollapsed` exists with a working reference impl
+- [x] **BP-17** · `RW-L` — No node renaming/custom titles; `Subtitle => null` always. New `NodeMetadata.CustomTitle` + a `"Title"` `SetNodeProperty` key + Rename (F2) on the node menu. ⚠ **the generated title becomes the subtitle** — a renamed node must not lose the only indication of what it is — and **blank clears the override** rather than storing an empty header, so a node can always be put back without undo
+- [x] **BP-18** · `RW-L` — Node body collapse hardcoded `false`; `SetNodeCollapsed` existed with a working reference impl but **the sink had no case, so it hit the `default:` that returns success** — the same trap as BP-60. New `NodeMetadata.Collapsed` + a sink case + a Collapse/Expand menu item
 - [ ] **BP-19** · `RW-L` — No minimap; `ViewportState` already supplies the transform math
 - [ ] **BP-20** · `RW-L` — No error list / jump-to-next-error; `NodeState.Error` flags and a cycle-and-centre pattern already exist
 - [ ] **BP-56** · `RW-L` — No wire-level execution-flow highlighting (nodes glow, wires don't)

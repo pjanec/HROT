@@ -227,11 +227,29 @@ internal static Type? ResolveType(string fqn)
 
 ### BP-17 — No node renaming / custom titles
 **Complexity:** RW-L · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-05).** New `NodeMetadata.CustomTitle`, a `"Title"` key on the existing
+> `SetNodeProperty` path (so the undo plumbing came for free), and a Rename item on the node menu.
+>
+> Two decisions: the **generated title becomes the subtitle** when an override is set — a renamed
+> node must not lose the only indication of what it actually is, and `NodeRenderer` already draws
+> subtitles; and **blank clears the override** rather than storing an empty header, so a node can
+> always be restored to the title its configuration implies without reaching for undo. The two are
+> kept separate rather than baked, so a node whose configuration later changes still re-derives its
+> generated title underneath.
 - **Evidence:** `BlueprintNodeModel.cs:24` — `Subtitle => null` always. Node context menu (`CanvasRenderer.cs` `HoverKind.Node`) has no Rename; the Rename at `:800` belongs to `HoverKind.Comment`. A `"Comment"` `SetNodeProperty` key exists end-to-end but **no UI ever issues it**.
 - **Fix:** every piece has a precedent — `InteractionState.RenamingComment` inline-rename UX to mirror, and `SetNodeProperty` undo plumbing already proven. Add `NodeMetadata.CustomTitle`, a `"Title"` case, an F2 menu item, and a `RenamingNode` interaction field.
 
 ### BP-18 — Node body collapse not exposed
 **Complexity:** RW-L · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-05).** New `NodeMetadata.Collapsed`, a `SetNodeCollapsed` case on the sink, and
+> a Collapse/Expand item on the node menu.
+>
+> ⚠ **The third instance of the `default:`-returns-success trap** (after BP-60 and BP-68): the
+> command existed, `NodeRenderer` honoured the flag, and the sink silently accepted the command
+> while doing nothing. The test asserts the *effect*, and a separate one asserts that collapsing an
+> unknown node now **fails** rather than reporting success.
 - **Evidence:** `BlueprintNodeModel.cs:44-45` hardcodes `IsCollapsed => false`. `NodeRenderer` honours the flag.
 - **Fix:** `GraphCommand.SetNodeCollapsed` is already defined, with a working reference implementation in `NodeEditor.Demo/FakeBlueprint/FakeCommandSink.cs:126`. Needs a `NodeMetadata` field + a sink case + a collapse glyph.
 - ⚠ `BlueprintCommandSink.Apply`'s `default:` case **silently no-ops unknown commands** (`:156-158`), so issuing `SetNode*` today fails quietly.
@@ -899,6 +917,7 @@ those notes do not.
 | 10 | BP-23a | canvas clipboard: copy / cut / paste / duplicate |
 | 11 | BP-12b | My Blueprint item rename / delete / duplicate |
 | 12 | BP-13 | align / distribute / straighten |
+| 13 | BP-17 · BP-18 | node custom titles and body collapse |
 
 ## The audit was wrong nine times — every correction is recorded in-place
 

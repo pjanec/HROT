@@ -129,6 +129,11 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             case GraphCommand.SetNodeProperty prop:
                 return ApplySetNodeProperty(prop);
 
+            // BP-18: editor-only view state on NodeMetadata. Without this case it hit the
+            // default: arm below and collapsed nothing, while reporting success.
+            case GraphCommand.SetNodeCollapsed collapse:
+                return ApplySetNodeCollapsed(collapse);
+
             case GraphCommand.SetPinDefault setPinDefault:
                 return ApplySetPinDefault(setPinDefault);
 
@@ -885,6 +890,19 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
     /// value and issue the pair through <c>GraphView.Execute</c>.
     /// </para>
     /// </summary>
+    /// <summary>BP-18 — toggles a node's collapsed view state.</summary>
+    private GraphCommandResult ApplySetNodeCollapsed(GraphCommand.SetNodeCollapsed collapse)
+    {
+        var assetNode = _graph.Nodes.FirstOrDefault(n => n.Id == collapse.Node.Value);
+        if (assetNode == null)
+            return new GraphCommandResult(false, $"Node {collapse.Node} not found.");
+
+        assetNode.EditorMetadata.Collapsed = collapse.Collapsed;
+        _markDirty(_asset);
+        _model.RebuildAndNotify();
+        return new GraphCommandResult(true, null);
+    }
+
     private GraphCommandResult ApplySetNodeProperty(GraphCommand.SetNodeProperty prop)
     {
         var assetNode = _graph.Nodes.FirstOrDefault(n => n.Id == prop.Node.Value);
@@ -906,6 +924,8 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
     internal static object? GetNodeProperty(Node node, string key) => key switch
     {
         "Comment"      => node.EditorMetadata.Comment,
+        // BP-17: the author-supplied header text. Null means "use the generated title".
+        "Title"        => node.EditorMetadata.CustomTitle,
         "TargetTypeId" => (node as FunctionCallNode)?.TargetTypeId,
         "MethodName"   => (node as FunctionCallNode)?.MethodName,
         // Slice 2a-3: GetSharedNode/SetSharedNode share the "VariableId" key with
@@ -928,6 +948,13 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         {
             case "Comment":
                 node.EditorMetadata.Comment = value as string;
+                break;
+            // BP-17: blank clears the override rather than storing an empty header, so a node can
+            // always be restored to the title its configuration implies.
+            case "Title":
+                var title = value as string;
+                node.EditorMetadata.CustomTitle =
+                    string.IsNullOrWhiteSpace(title) ? null : title!.Trim();
                 break;
             case "TargetTypeId" when node is FunctionCallNode fc1:
                 fc1.TargetTypeId = value as string ?? "";

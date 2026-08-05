@@ -20,8 +20,25 @@ internal sealed class BlueprintNodeModel : INodeModel
 
     public NodeId      Id               { get; }
     public NodeKindKey Kind             { get; }
-    public string      Title            { get; }
-    public string?     Subtitle         => null;
+
+    /// <summary>
+    /// BP-17: an author-supplied title wins over the generated one. Read live from
+    /// <c>EditorMetadata</c> so a rename shows up on the next frame without rebuilding the model.
+    /// </summary>
+    public string      Title            => string.IsNullOrWhiteSpace(_node.EditorMetadata.CustomTitle)
+        ? GeneratedTitle
+        : _node.EditorMetadata.CustomTitle!;
+
+    /// <summary>
+    /// BP-17: when a node carries a custom title, the generated one becomes the subtitle — a
+    /// renamed node must not lose the only indication of what it actually is.
+    /// </summary>
+    public string?     Subtitle         => string.IsNullOrWhiteSpace(_node.EditorMetadata.CustomTitle)
+        ? null
+        : GeneratedTitle;
+
+    /// <summary>The title derived from the node's kind and configuration (BP-17's fallback).</summary>
+    internal string    GeneratedTitle   { get; }
     public NodeCategory Category        { get; }
     /// <summary>
     /// Reads live from the asset's <see cref="Hrot.Blueprints.Core.Assets.NodeMetadata"/>
@@ -41,7 +58,8 @@ internal sealed class BlueprintNodeModel : INodeModel
     /// null for every other node kind.
     /// </summary>
     public string?     StatusTooltip    { get; }
-    public bool        IsCollapsed      => false;
+    /// <summary>BP-18: editor-only view state, read live so the collapse glyph responds at once.</summary>
+    public bool        IsCollapsed      => _node.EditorMetadata.Collapsed;
     public bool        ShowAdvancedPins => false;
     public NodeId?     ParentContainerId => null;
     /// <summary>
@@ -85,7 +103,7 @@ internal sealed class BlueprintNodeModel : INodeModel
         _node     = node;
         Id        = new NodeId(node.Id);
         Kind      = new NodeKindKey(node.GetType().Name);
-        Title     = BuildTitle(node, asset);
+        GeneratedTitle = BuildTitle(node, asset);
         Category  = BuildCategory(node);
         _pins     = new List<IPinModel>(resolvedPins);
         StatusTooltip = node is Hrot.Blueprints.Core.Assets.FunctionCallNode fc

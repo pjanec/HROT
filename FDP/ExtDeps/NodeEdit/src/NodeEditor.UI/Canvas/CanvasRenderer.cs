@@ -51,6 +51,9 @@ public sealed class CanvasRenderer
     private string? _pendingVariableDropId;
     private string? _pendingVariableDropName;
     private Vector2 _pendingVariableDropPos;
+    private NodeId? _pendingRenameNodeId;
+    private string  _nodeRenameText = "";
+    private bool    _showNodeRenameModal;
     private PinId? _pendingPromotePinId;
     private bool _pendingPromoteIsLocal;
     private bool _showPromoteVariableModal;
@@ -392,6 +395,7 @@ public sealed class CanvasRenderer
         }
 
         DrawPromoteVariableModal(view);
+        DrawNodeRenameModal(view);
         ImGui.PopStyleVar();
     }
 
@@ -773,6 +777,28 @@ public sealed class CanvasRenderer
 
                 ImGui.Separator();
 
+                // BP-17: a custom header. The generated title becomes the subtitle, so renaming a
+                // node never costs the only indication of what it actually is.
+                if (ImGui.MenuItem("Rename\u2026", "F2"))
+                {
+                    if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
+                    OpenNodeRenameModal(target.Node, node?.Title ?? "");
+                }
+
+                // BP-18: IsCollapsed was hardcoded false, so the flag NodeRenderer already honours
+                // could never be set.
+                bool isCollapsed = node?.IsCollapsed == true;
+                if (ImGui.MenuItem(isCollapsed ? "Expand Node" : "Collapse Node"))
+                {
+                    foreach (var id in targetNodes)
+                        view.Execute(
+                            new Core.Commands.GraphCommand.SetNodeCollapsed(id, !isCollapsed),
+                            new Core.Commands.GraphCommand.SetNodeCollapsed(id, isCollapsed),
+                            isCollapsed ? "Expand Node" : "Collapse Node");
+                }
+
+                ImGui.Separator();
+
                 // BP-13: nine alignment commands that CommandCatalog declared and nothing
                 // implemented. Grouped in a submenu so the node menu does not grow by nine rows.
                 if (ImGui.BeginMenu("Align"))
@@ -1053,6 +1079,75 @@ public sealed class CanvasRenderer
     /// </summary>
     private bool IsCommandEnabled(string commandId)
         => _editorCommands?.Get(commandId)?.IsEnabled() == true;
+
+    private void OpenNodeRenameModal(NodeId nodeId, string currentTitle)
+    {
+        _pendingRenameNodeId = nodeId;
+        _nodeRenameText      = currentTitle;
+        _showNodeRenameModal = true;
+    }
+
+    /// <summary>
+    /// BP-17 — the node-title prompt. Clearing the field restores the generated title rather than
+    /// storing an empty header, so a rename is always reversible without undo.
+    /// </summary>
+    private void DrawNodeRenameModal(GraphView view)
+    {
+        if (_showNodeRenameModal)
+        {
+            ImGui.OpenPopup("##canvas_rename_node");
+            _showNodeRenameModal = false;
+        }
+
+        bool open = true;
+        if (!ImGui.BeginPopupModal("##canvas_rename_node", ref open, ImGuiWindowFlags.AlwaysAutoResize))
+            return;
+
+        if (_pendingRenameNodeId is null)
+        {
+            ImGui.CloseCurrentPopup();
+            ImGui.EndPopup();
+            return;
+        }
+
+        if (ImGui.IsWindowAppearing()) ImGui.SetKeyboardFocusHere();
+
+        ImGui.TextDisabled("Node title");
+        ImGui.SetNextItemWidth(240f);
+        bool entered = ImGui.InputText("##node_title", ref _nodeRenameText, 128,
+            ImGuiInputTextFlags.AutoSelectAll | ImGuiInputTextFlags.EnterReturnsTrue);
+        ImGui.TextDisabled("Leave blank to restore the generated title.");
+
+        ImGui.Separator();
+
+        if (ImGui.Button("Rename", new Vector2(110, 0)) || entered)
+        {
+            var nodeId = _pendingRenameNodeId.Value;
+            // The inverse needs the value the node had before this edit — the sink no longer
+            // snapshots for the caller (BP-11).
+            var previous = view.Model.FindNode(nodeId) is { } current && current.Subtitle is not null
+                ? current.Title          // already renamed: the custom title is what shows
+                : null;                  // generated title: the override was unset
+
+            var next = string.IsNullOrWhiteSpace(_nodeRenameText) ? null : _nodeRenameText.Trim();
+            view.Execute(
+                new Core.Commands.GraphCommand.SetNodeProperty(nodeId, "Title", next),
+                new Core.Commands.GraphCommand.SetNodeProperty(nodeId, "Title", previous),
+                "Rename Node");
+
+            _pendingRenameNodeId = null;
+            ImGui.CloseCurrentPopup();
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("Cancel", new Vector2(110, 0)))
+        {
+            _pendingRenameNodeId = null;
+            ImGui.CloseCurrentPopup();
+        }
+
+        ImGui.EndPopup();
+    }
 
     private void OpenPromoteToVariableModal(PinId pinId, bool isLocal)
     {
