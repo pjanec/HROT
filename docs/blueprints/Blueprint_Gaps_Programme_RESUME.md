@@ -1,7 +1,7 @@
-# RESUME / HANDOFF — Blueprint gaps & QoL programme (2026-08-06)
+# RESUME / HANDOFF — Blueprint gaps & QoL programme (2026-08-06, rev 2)
 
 > **Goal:** make blueprint editing fully functional and pleasant.
-> **Branch:** `claude/blueprint-gaps-qol-audit-uyjjk5` · **HEAD at handoff:** `c31a3b8`
+> **Branch:** `claude/blueprint-gaps-qol-audit-uyjjk5` · **HEAD at handoff:** `PENDING`
 > **Live state:** [Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md) (checklist) ·
 > [Blueprint_Issues_Detail.md](Blueprint_Issues_Detail.md) (per-issue evidence + `DONE` notes)
 >
@@ -11,7 +11,10 @@
 ### Starting a fresh session? Read in this order
 
 1. **Status** and **Next up** below — where the programme is and what comes next.
-2. **🎯 Next task briefing** — the scouting for the next two items is already done; do not re-derive it.
+2. **🎯 Next task briefing** — **BP-24 is the committed next item**, and its architect question is
+   already written: [Architect_Question_23_Graph_Create_And_Switching.md](Architect_Question_23_Graph_Create_And_Switching.md).
+   The user relays it to the architect (NotebookLM); **ask whether the answers are back before
+   building**. The briefing below carries the scouting for it and for BP-67.
 3. **Traps that cost real time** — eight of them, each one earned. Trap #5 (`default:` returns
    success) and #6 (asset-scoped features belong at the host) have each bitten more than once.
 4. **Test baseline** — what "green" means, and which two failures are known flakes.
@@ -68,19 +71,30 @@ green. Three themes worth carrying forward:
 
 ## Next up
 
-**The `RW-L` tier is nearly done** — 13 of 23 shipped, and everything a designer touches daily is in.
+**Committed by the user (2026-08-06): BP-24 is next.**
 
-1. **BP-67** (`RW-M`) — the When node's other three forms (`ValueChanged`, `ConditionMet`,
-   `EqsResult`). ⚠ *not* a repeat of BP-10: that had a catalog already injected and called; these
-   need pickers built from scratch.
-2. **BP-24** (`RW-M`) — graph create + graph switching. Two reasons to want it now: every graph but
-   the first is unreachable in the UI, **and** it is what closes the other half of BP-12c (a custom
-   event's body is an `Event` graph the editor cannot create). ⚠ **fix the canvas graph-selection
-   rule as part of it** — see the latent note in the detail doc's found-while-fixing section.
-3. **BP-56** (`RW-L`) — wire-level execution-flow highlighting (nodes glow, wires don't).
-4. **BP-23b** (`RW-M`) — cross-asset paste. BP-23a's machinery is in place; this adds variable/type
-   re-resolution against the destination asset.
-5. **BP-61** (🔴 `RW-M`) — the last open inert-default guard: both HSM concurrency rules never fire.
+1. **BP-24** (`RW-M`) — graph create + canvas graph switching. **Architect round first** —
+   [Architect_Question_23](Architect_Question_23_Graph_Create_And_Switching.md) is drafted and
+   scouted against code; the user relays it. It decides four things: rebuild-vs-retarget (A),
+   what can be created (B), which graph opens (C — a live bug either way), and the switch gesture
+   (D). Claude's leans are in the doc. **If the answers are not back yet, take BP-69 or BP-70
+   (below) or BP-67's EqsResult slice while waiting — do not start BP-24 ahead of the answers.**
+2. **BP-69** 🔴 (`WIRING`) — name-referenced `CallCustomEvent` loses its argument pins (both pin
+   projections early-return on `!Guid.TryParse`; validators/scheduler accept the name form).
+   Three-line fallback in each, mirroring `FindCustomEventIndex`. Independent of BP-24.
+3. **BP-70** 🔴 (`WIRING`, one line — **but a design decision, not a bug fix**) — the emitter's
+   `EventTypeFqn ?? Name` fallback never fires because `EventTypeId` defaults to `""` not null, so
+   Event graphs land in `EventHandlers` under `""` and the documented name-keyed bus dispatch is
+   unreachable. Fixing it makes every custom event globally raisable by name-hash. **Ask the user
+   (or fold into Q23-B3) before applying.**
+4. **BP-67** (`RW-M`) — the When node's other three forms; the **EqsResult slice is `RW-L` and
+   shippable alone** (see briefing).
+5. Then: BP-56 (wire glow) · BP-23b (cross-asset paste) · BP-61 🔴 (inert-default HSM guards).
+
+**Context for BP-24 (from the 2026-08-06 discussion with the user):** a blueprint-local custom event
+is a strictly weaker Function graph — same call shape, no return value, name-paired instead of
+id-paired — and its one distinguishing capability (bus-raisable by name) is dead (BP-70). BP-24 is
+what makes Function graphs and custom-event bodies authorable at all, which is why the user chose it.
 
 **Still unregistered on the My Blueprint menu** (deliberately out of BP-12b's scope):
 `editor.move-to-category`, `editor.change-variable-type`, `editor.show-properties`,
@@ -94,8 +108,10 @@ green. Three themes worth carrying forward:
 ## 🎯 Next task briefing — scouting already done, do not re-derive
 
 Verified against code on 2026-08-06. Written so a fresh session can start editing immediately.
+**BP-24 is the committed item — its briefing is below the BP-67 one, and its decisions live in
+[Architect_Question_23](Architect_Question_23_Graph_Create_And_Switching.md).**
 
-### BP-67 — the When node's other three mode forms (`RW-M`) · **do this first**
+### BP-67 — the When node's other three mode forms (`RW-M`) · *fallback while Q23 answers are pending*
 
 BP-10 fixed **EventFired**. The other three each render one `TextDisabled` line and cannot be
 configured at all, so the node is effectively EventFired-only.
@@ -126,29 +142,31 @@ Do them in this order, easiest first:
 **Done means:** pick a mode, configure it, Ctrl+Z reverses it, and the preview pill at the bottom of
 the drawer reflects it. Take EqsResult alone if time is short; it is a clean, shippable slice.
 
-### BP-24 — graph create + graph switching (`RW-M`)
+### BP-24 — graph create + graph switching (`RW-M`) · **committed next, architect round pending**
 
-| Fact | Where |
-|---|---|
-| Data + compiler already support it | `GraphKind.Function`, `FunctionCallNode.TargetGraphId`; `DeepNestedBlueprint.bp.json` ships 3 Function graphs |
-| Signature CRUD already works | `Windows/GraphSignatureWindow.cs` — real Add/Remove/Rename/Retype/Move on `Graph.Inputs`/`Outputs`, properly wired |
-| **Missing 1** — nothing ever appends to `BlueprintAsset.Graphs` | verified: the only `Graphs.Add` hits are compiler-internal lowering |
-| **Missing 2** — the canvas is bound at open time | `BlueprintDocumentFactory.cs:132-135` |
-| Panel hook waiting for it | `BlueprintMyBlueprintWindow` passes `navigateToGraph: _ => { }` |
+**All scouting lives in [Architect_Question_23](Architect_Question_23_Graph_Create_And_Switching.md)**
+— ground-truth tables verified 2026-08-06, four decision groups (A–D) with Claude's leans, and the
+per-graph-state table showing exactly what a naive rebuild would lose. Do not re-derive; read that
+doc first.
 
-⚠ **Fix the selection rule as part of this, before adding any create path.** The canvas binds to
-`Graphs.FirstOrDefault(g => g.Kind == Event) ?? Graphs.FirstOrDefault()` — it *prefers* an Event
-graph. So adding an Event graph to a Function-graph asset silently moves the designer's canvas off
-the graph they were editing on the next open. This is why **BP-12c deliberately does not
-auto-create the handler graph**.
+The three facts that shape the build, whichever answers come back:
 
-⚠ **Second reason to want this:** a custom event's body *is* an `Event` graph named after it
-(`InstanceEmitter` emits `Event_{graph.Name}`). BP-12c ships the declaration half; until BP-24,
-calling a declared custom event is a **BP1407** error naming a graph the editor cannot create.
+| Fact | Where | Consequence |
+|---|---|---|
+| `BlueprintGraphModel._graph` and `BlueprintCommandSink._graph` are **`readonly`** | `BlueprintGraphModel.cs:37`, `BlueprintCommandSink.cs:34` | "switch" today = rebuild the whole §3–§10 stack of `BlueprintDocumentFactory.Build` |
+| A rebuild loses the **undo stack**, bookmarks, selection, viewport | created per-`GraphView` in `Build` §7/§10 | BP-11's "one undo stack" headline silently breaks unless answered deliberately (Q23-A) |
+| The open-time selection **prefers an Event graph** | `BlueprintDocumentFactory.cs:132-135` | creating an Event graph moves the designer's canvas — must be fixed **before** any create path (Q23-C); also why BP-12c doesn't auto-create handler graphs |
 
-**Round-out when it lands:** `editor.create-function` and `editor.create-macro` are declared on the
-My Blueprint sections and still unregistered — the Functions section is the natural home for a
-graph-create path.
+**Wiring points ready to receive it:** `CommandCatalog.GoToGraph` (declared, no handler) ·
+`BlueprintMyBlueprintWindow`'s `navigateToGraph: _ => { }` · `editor.create-function` /
+`editor.create-macro` declared on the panel sections, unregistered · the retarget fan-out at
+`EditorSubsystem.cs:~2261` (all four Blueprint windows must re-fire on switch) · the debug adapter
+is bound to a `graph.Id` and must be re-bound.
+
+**Done means:** create a Function graph from My Blueprint; double-click any graph in the Graphs
+section and the canvas shows it; undo behaves per the Q23-A answer; the `FunctionCall` target picker
+lists the new graph; `DeepNestedBlueprint.bp.json`'s three graphs are all reachable; and the BP1407
+loop closes — declare a custom event, create its body, call it, compile clean.
 
 ---
 
