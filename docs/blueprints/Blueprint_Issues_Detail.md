@@ -622,17 +622,37 @@ authoring shape"*.
 `FindCustomEventIndex`), *or* narrow Stage 2 to reject the Name form outright. Do not leave the two
 halves disagreeing.
 
-### BP-70 — Custom-event handler graphs land in `EventHandlers` under an empty key **[NEW — found while documenting custom events]**
-**Complexity:** RW-L · **Confidence:** ✔✔
+### BP-70 — The `?? Name` fallback for Event-graph identity never fires 🔴 **[NEW — found while explaining custom events]**
+**Complexity:** WIRING · **Confidence:** ✔✔ *(reproduced against the emitter)*
 
-`CSharpEmitter` keys the runtime handler table by `evtGraph.EventTypeFqn ?? evtGraph.Name`.
-`EventTypeFqn` is carried from the graph's `EventEntry.EventTypeId`, which for a **custom-event**
-handler is empty — custom events are invoked as a direct static call and never dispatched through
-that table at all. The emitted line is literally `[""] = Foo_Bp.Event_OnHit_Thunk,`.
+`CSharpEmitter` keys the runtime handler table by `evtGraph.EventTypeFqn ?? evtGraph.Name`, and its
+own comment states the intent: *"Fallback to name for legacy Event graphs that carry no event
+identity."*
 
-Inert today (nothing resolves `""`), but with **two** custom events both entries key on `""` and the
-later silently overwrites the earlier. **Fix:** skip Event graphs with no event identity, or key
-them by graph name.
+`EventTypeFqn` is copied from `EventEntryNode.EventTypeId` — declared `string EventTypeId { get; set; } = ""`.
+So for an Event graph with no bus identity it is **the empty string, not null**, `??` never triggers,
+and the emitted line is literally:
+
+```csharp
+[""] = DoorActorDemo_338A7C0C_Bp.Event_OnHit_Thunk,
+```
+
+**Consequence.** `BlueprintEventDispatch.ResolveTypeId("")` finds no type, falls through to
+`"".GetHashCode() & 0x7FFFFFFF`, and `bus.HasEvent(thatId)` is false forever. The whole
+name-keyed dispatch route the runtime documents — *"an event-type FQN, **or a custom event name**"*,
+resolved via *"the FQN hash (matching the bus's custom/untyped fallback)"* — is therefore
+**unreachable**. `BlueprintEventSubscriptionRegistry` indexes the same dead key.
+
+That is the difference between "a blueprint-local custom event can also be raised on the bus by
+name" and "it can only ever be called directly by `CallCustomEvent`". Today only the latter works,
+which is a large part of why the feature looks redundant against Function graphs.
+
+Two such graphs additionally collide on `""`, and the later silently overwrites the earlier.
+
+**Fix is one line:** `string.IsNullOrEmpty(evtGraph.EventTypeFqn) ? evtGraph.Name : evtGraph.EventTypeFqn`.
+⚠ Before shipping it, decide whether name-keyed bus dispatch is *wanted* — see the note under BP-24
+about custom events being a strictly weaker Function graph. Turning it on makes every custom event
+globally raisable by a name-hash, which is a design decision, not a bug fix.
 
 ### BP-24 — No Function-graph create path; canvas is locked to one graph
 **Complexity:** RW-M · **Confidence:** ✔✔
