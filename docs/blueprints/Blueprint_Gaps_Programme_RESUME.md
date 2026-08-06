@@ -1,7 +1,7 @@
 # RESUME / HANDOFF — Blueprint gaps & QoL programme (2026-08-06, rev 3)
 
 > **Goal:** make blueprint editing fully functional and pleasant.
-> **Branch:** `claude/blueprint-authoring-status-6sr5ld` · **HEAD at handoff:** `503a708` (Batch 17: BP-69)
+> **Branch:** `claude/blueprint-authoring-status-6sr5ld` · **HEAD at handoff:** `5b15588` (Batch 18: BP-73)
 > **Live state:** [Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md) (checklist — **every row
 > deep-links to its detail entry**, `#bp-<id>`) ·
 > [Blueprint_Issues_Detail.md](Blueprint_Issues_Detail.md) (per-issue evidence + `DONE` notes)
@@ -18,9 +18,10 @@
    **BP-24 is now closed** — Batch 16 shipped **BP-71** 🔴 and **BP-72**, the two gaps its post-ship
    audit found ([Q24](Architect_Question_24_Function_Return_Value_Wiring.md) A1+B1+C3). **Batch 17
    shipped [BP-69](Blueprint_Issues_Detail.md#bp-69)** 🔴 plus the general unwired-pin hardening it
-   forced (see Status). Next up: **[BP-70](Blueprint_Issues_Detail.md#bp-70)** 🔴 or
-   **[BP-73](Blueprint_Issues_Detail.md#bp-73)** (N function outputs — fully scouted, carrier ruling
-   made, see its tracker row) or **BP-67's EqsResult slice**; BP-57 and BP-25 are newly unblocked.
+   forced, and **Batch 18 shipped [BP-73](Blueprint_Issues_Detail.md#bp-73)** — N function outputs,
+   closing the last of Q24. Next up: **[BP-70](Blueprint_Issues_Detail.md#bp-70)** 🔴 or **BP-67's
+   EqsResult slice**; BP-57 and BP-25 are newly unblocked. ⚠ **Nothing in batches 9–18 has been
+   looked at in the running editor** — the visual check is the largest outstanding risk.
 3. **Traps that cost real time** — nine of them, each one earned. Trap #5 (`default:` returns
    success) and #6 (asset-scoped features belong at the host) have each bitten more than once;
    **#9 is why BP-71 survived a 2788-test suite — and it then struck BP-69's own test, which passed

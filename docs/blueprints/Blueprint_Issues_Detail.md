@@ -475,7 +475,7 @@ return becomes a Stage 2 error (today: a warning plus an untraceable CS0103) and
 `GraphSignatureWindow` lets a designer add more and **silently discards them**.
 
 <a id="bp-73"></a>
-### BP-73 — Function graphs support only ONE output value (Unreal supports N) **[SCHEDULED — Q24-D, decided 2026-08-06]**
+### BP-73 — Function graphs support only ONE output value (Unreal supports N) ✅ **[SHIPPED — Batch 18]**
 **Complexity:** RW-M · **Confidence:** ✔✔ *(costed against code, not estimated)*
 
 **Decision:** the user wants **proper N-output** for Unreal parity. It is deliberately **not** bundled
@@ -526,6 +526,52 @@ one carrier value, then N cheap field-reads fan it out.
 shipped asset and no existing test moves.
 
 **Depends on BP-71** (the pin must be wirable at all before N of them are useful).
+
+---
+
+### ✅ Resolved — Batch 18 (2026-08-06)
+
+Shipped as scoped. The five `Outputs[0]` sites all loop now, and the estimate held (~330 lines).
+
+**Carrier: `ValueTuple`** — item 1 above called this "the one real design question"; here is what
+settles it. `CSharpEmitter.IsReferencableStateFieldType` (`:330`) treats a `_`-prefixed synthesized
+type as **NOT referencable outside the generated class** and excludes it from `StateFields`, so a
+`_FuncOut_{Name}` return would be **invisible to the debugger/watch** — the very thing the "easier to
+name in the watch panel" argument wanted. A `ValueTuple` is a BCL type. *The `_`-prefix precedent
+cited in the table above is real but points the wrong way.*
+
+**The simplification that shrank the work.** The carrier needs **no `IrTypeRef` representation at
+all**: temps emit as `var __tN = …`, so C# infers it. Only the three method-**declaration** sites need
+a composed type string, and each already reads `graph.Outputs`, so one shared
+`LibraryEmitter.CSharpReturnType` covers them. N-output never enters the type system.
+
+| Piece | Shipped as |
+|---|---|
+| Carrier | unnamed `ValueTuple`, e.g. `(float, bool)` |
+| Pack | `IrOp_MakeTuple` in a statement **before** the return ⇒ `IrTerm_Return` keeps its single `IrValue`, so block emitters / debug map / breakpoint anchoring are untouched |
+| Fan-out | `IrOp_TupleField`, read **positionally** (`ItemN`) so an output whose name is not a valid C# identifier cannot break it — the same reason the tuple is **unnamed** (named elements inherit the `ItemN` positional-collision rule for no benefit the emit uses) |
+| Library ABI | sequential writes with an `__oo` advance, as the table predicted |
+| BP1656 | **retired**, not reworded |
+
+⚠ **Fan-out emits a statement per out-pin even when only some are wired.** Emitting lazily on first
+use would place the extraction in whichever block first *consumed* the pin — which for a result
+crossing a branch is not the block holding the call. An unused `var` is harmless; a value read in a
+block that never declared it is CS0103.
+
+⚠ **BP1656 retirement touched three places, not one:** the validator, BP-71's test asserting the gate
+**fires** (inverted rather than deleted, so the transition stays visible in the suite), and the
+diagnostic-coverage ratchet — whose not-emitted list is now documented to cover **retired** as well as
+reserved codes. The code stays in `DiagnosticCodes` so the number is never reused.
+
+**13 tests.** Verified by reverting the source: **9 of 12 go red**, and the 3 that stay green are
+exactly the additivity guards, which must not move. One test compiles through **Roslyn** — the only
+check that proves the emit is *valid* C#, since `BlueprintCompiler.Compile(...).Succeeded` does not run
+it. That test immediately earned its place by catching a fixture bug: a `System.Single` literal
+authored as `1.5` emits a C# **double**, because `ValueJson` is emitted **verbatim** and float literals
+need the `f` suffix (the shipped convention, e.g. `ValueJson = "5.5f"`). One test that asserted inside
+`if (src is not null)` was also tightened — it could pass vacuously, BP-69's exact shape.
+
+All eight gates green (blueprints **2854/0**, 10 skipped).
 
 <a id="bp-10"></a>
 ### BP-10 — `When` → EventFired form is a stub

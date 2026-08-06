@@ -211,6 +211,26 @@ diagnostic needs a `[CoversDiagnosticCode]` test or `V_AllValidatorsCoverageTest
 matches the existing `_`-prefixed convention and is easier to name in diagnostics and the watch panel.
 The Library path uses neither — it stays sequential span writes.
 
+> ### ✅ Settled by BP-73 (Batch 18, 2026-08-06) — **`ValueTuple`**
+>
+> The tie-breaker is not preference but `CSharpEmitter.IsReferencableStateFieldType` (`:330`), which
+> treats a `_`-prefixed synthesized type as **NOT referencable outside the generated class** and
+> excludes it from `StateFields`. A `_FuncOut_{Name}` return would therefore be **invisible to the
+> debugger/watch** — precisely the property the paragraph above credits it with. A `ValueTuple` is a
+> BCL type. *The `_`-prefix precedent is real, but it points the wrong way.*
+>
+> ⚡ **And the carrier turned out to need no `IrTypeRef` representation at all.** Temps are emitted as
+> `var __tN = …`, so C# infers the carrier; only the three method-**declaration** sites need a composed
+> type string, and all three already read `graph.Outputs`. One shared `LibraryEmitter.CSharpReturnType`
+> covers them and N-output never enters the type system — which is what kept the slice at ~330 lines.
+>
+> The emitted tuple is **unnamed**, and elements are read **positionally** (`ItemN`): named elements
+> inherit the `ItemN` positional-collision rule and would break on an output whose name is not a valid
+> C# identifier, for no benefit the generated code uses.
+>
+> The Library path is indeed sequential span writes, as predicted. Full write-up:
+> [BP-73](Blueprint_Issues_Detail.md#bp-73).
+
 ---
 
 ## What this unblocks
@@ -247,4 +267,4 @@ not affected.
 | **Q24-A — which side moves** | ✅ **A1 — flip both projections to `Direction == "In"`; widen `BuildReturnTerminator` to accept either.** | Removes a special case instead of adding one: `Return` is the compiler's only pin declared `"Out"` and consumed as an input (1 of ~20 `ResolveDataPin` sites, against the universal `ResolveAllDataInputs`). Matches Unreal, whose Return Node is an input-collecting node. Free bonus: the pin gains an inline default-value editor, since `BlueprintPinModel` synthesises `Default` only for `"In"` data pins — so `return 0;` no longer needs a wired literal. |
 | **Q24-B — legacy direction** | ✅ **B1 — accept both directions in `BuildReturnTerminator`, permanently.** | One `\|\|`. Zero on-disk instances to migrate either way (0 of 92 assets author Return pins), so the deciding factor is which failure is worse — and B1 makes B2's silently-void return impossible. |
 | **Q24-C — diagnostic** | ✅ **C3 — Stage 2 error *and* emit `default(T)`.** | Today: BP4001 *warning* → an undeclared dummy temp → `return __t7;` → **CS0103 with no BP attribution** (BP-69's shape). C1 alone is the right authoring answer; C2 alone repeats BP-16 (silent wrong value). Together the designer gets a named error and the emitter can never produce an untraceable Roslyn failure. ⚠ Needs a `[CoversDiagnosticCode]` test. |
-| **Q24-D — output count** | ✅ **D1′ — single-output now; proper N-output is WANTED and is now a costed, scheduled item: [BP-73](Blueprint_Issues_Detail.md#BP-73).** The `Outputs.Count > 1` diagnostic must read **"not supported yet — see BP-73"**, never "illegal" or "unsupported". | N-output is **`RW-M`, ~250–450 lines, and additive** — the Library ABI is already span-based and N-shaped, `_statementPinCache` already does per-pin values, the debug map already loops all outputs, and `TypeRefToCSharp` already passes synthesized types through. It is **not** luxurious, and Unreal parity is the stated goal. But demand is zero today (no asset returns even one value), and bundling it would block a two-line correctness fix behind a carrier-type design round. So: ship the fix, keep the door open, build N as its own slice. |
+| **Q24-D — output count** | ✅ **D1′ — single-output now; proper N-output is WANTED and is now a costed, scheduled item: [BP-73](Blueprint_Issues_Detail.md#bp-73).** The `Outputs.Count > 1` diagnostic must read **"not supported yet — see BP-73"**, never "illegal" or "unsupported". | N-output is **`RW-M`, ~250–450 lines, and additive** — the Library ABI is already span-based and N-shaped, `_statementPinCache` already does per-pin values, the debug map already loops all outputs, and `TypeRefToCSharp` already passes synthesized types through. It is **not** luxurious, and Unreal parity is the stated goal. But demand is zero today (no asset returns even one value), and bundling it would block a two-line correctness fix behind a carrier-type design round. So: ship the fix, keep the door open, build N as its own slice. |

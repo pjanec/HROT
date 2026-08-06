@@ -13,9 +13,9 @@ architect decision first).
 |---|---:|---:|
 | `WIRING` | 3 | 22 |
 | `RW-L` | 10 | 15 |
-| `RW-M` | 20 | 4 |
+| `RW-M` | 19 | 5 |
 | `RW-H` | 2 | — |
-| **Total** | **35** | **41** |
+| **Total** | **34** | **42** |
 | *(refuted on verification)* | | *1* |
 
 > 📌 **Resuming this programme?** Start with [Blueprint_Gaps_Programme_RESUME.md](Blueprint_Gaps_Programme_RESUME.md) — branch, batches
@@ -31,6 +31,38 @@ architect decision first).
 > 3. **BP-30/BP-31** — the same blind spot is *why* BP-31 was mis-scoped: it credited HSM with a guard
 >    that has never actually run.
 > A green test suite is not evidence that a guard is wired. Grep the production construction sites.
+
+> ✅ **Batch 18 shipped (2026-08-06) — [BP-73](Blueprint_Issues_Detail.md#bp-73): Function graphs may
+> declare N outputs (Unreal parity).** Closes **Q24-D**, the one sub-question BP-71 left open.
+> **Carrier: `ValueTuple`**, decided on evidence rather than taste —
+> `CSharpEmitter.IsReferencableStateFieldType:330` treats a `_`-prefixed synthesized type as **not
+> referencable** outside the generated class and excludes it from the debug map, so the
+> `_FuncOut_{Name}` struct that the *"easier to name in the watch panel"* argument favoured would in
+> fact be **invisible to the watch**.
+> ⚡ **The finding that shrank the slice:** the carrier needs **no `IrTypeRef` representation at all**.
+> Temps emit as `var __tN = …`, so C# infers it; only the three method-**declaration** sites need a
+> composed type string, and all three already read `graph.Outputs` — one shared `CSharpReturnType`
+> covers them. N-output never enters the type system, which is why ~330 lines was enough.
+> `IrOp_MakeTuple` packs in a statement *before* the return, so **`IrTerm_Return` keeps its single
+> `IrValue`** and every consumer of it (block emitters, debug map, breakpoint anchoring) is untouched.
+> `IrOp_TupleField` reads elements **positionally** (`ItemN`), which is also why the emitted tuple is
+> **unnamed**: named elements inherit the `ItemN` positional-collision rule and buy nothing the emit
+> uses. Library dispatch writes outputs **sequentially** with an `__oo` advance — blitting the tuple
+> would embed the ValueTuple's CLR padding while the reader walks fields by `Unsafe.SizeOf<T>`, and for
+> `(bool, float)` those disagree: a wrong-**VALUES** bug, not a compile error.
+> ⚠ **Retiring a gate is never one edit.** BP1656 said *"not supported yet — see BP-73"*, so shipping
+> BP-73 had to touch the validator, **BP-71's test asserting the gate fires** (inverted rather than
+> deleted, so the transition stays visible), and the diagnostic-**coverage ratchet**, whose
+> not-emitted list is now documented to cover *retired* as well as *reserved* codes. The code stays in
+> `DiagnosticCodes` so the number is never reused.
+> ⚠ **Trap #9 again, twice.** 13 tests, and reverting the source confirms **9 of 12 go red** — the 3
+> that stay green are exactly the additivity guards, which must not move. One test compiles through
+> **Roslyn**, the only check that proves the emit is *valid* C# (`Compile(...).Succeeded` does **not**
+> run it), and it earned its place immediately by catching a fixture bug: a `System.Single` literal
+> authored as `1.5` emits a C# **double**, because `ValueJson` is emitted **verbatim** and float
+> literals need the `f` suffix. A second test was tightened after review — it asserted inside
+> `if (src is not null)` and so could pass vacuously.
+> All eight gates green (blueprints **2854/0**, 10 skipped).
 
 > ✅ **Batch 17 shipped (2026-08-06) — [BP-69](Blueprint_Issues_Detail.md#bp-69) 🔴, and the general
 > unwired-pin hardening it forced.** `CallCustomEventNode.EventId` accepts a GUID or a bare Name;
@@ -269,7 +301,7 @@ architect decision first).
 - [ ] **[BP-67](Blueprint_Issues_Detail.md#bp-67)** · `RW-M` — **The When node's other three mode forms are also stubs.** `ValueChanged` (component/property picker), `ConditionMet` (predicate editor) and `EqsResult` (trigger + sensor picker) each render one `TextDisabled` line, so three of the node's four modes cannot be configured at all. Unlike BP-10 these have **no already-injected catalog** to render — ValueChanged needs a component→property picker, ConditionMet a predicate editor UI — *found in the visual check*
 - [x] **[BP-10](Blueprint_Issues_Detail.md#bp-10)** · `WIRING` — `When` → EventFired form stubbed; the catalog is *already injected and called*, just never rendered. Filtered picker + self-filter toggle (shown only when the event carries a target field)
 - [x] **[BP-71](Blueprint_Issues_Detail.md#bp-71)** 🔴 · `RW-L` — **A Function graph's return value cannot be wired.** ✅ **Batch 16.** The `Return` node's value pin is declared `Direction=="Out"` by *both* projections (`NodePinSchema.ReturnNodePins:328`, `Stage0_Rehydrate.EnrichReturnPins`) but consumed as an **input** — `Stage5.BuildReturnTerminator:1896` matches `Direction=="Out"` then calls `ResolveDataPin(rn.Id, outPin.Id)`, which follows a link *arriving* at the node. `BlueprintPinModel:86` maps Direction straight through and `BlueprintLinkValidator` rejects same-direction links, so **nothing can be wired in** — and the pin gets no inline default editor either (that too is `Direction=="In"`-only). ⚠ **`Return` is the compiler's only such pin**: of ~20 `ResolveDataPin` sites it is the sole `"Out"` one, against the universal `ResolveAllDataInputs` convention. Deliberate and **test-locked** at both ends, so a green suite proves nothing — the two halves have simply never been used together. Ends in **CS0103 with no BP diagnostic** (BP-69's shape): unwired ⇒ BP4001 *warning* + a dummy temp that is never declared ⇒ `return __t7;`. Blast radius nil — of 92 shipped assets, **0** wire a function return. 📐 **[Q24](Architect_Question_24_Function_Return_Value_Wiring.md): A1+B1+C3 decided by the user 2026-08-06 — buildable now** (flip both projections to `"In"`, accept either direction in the terminator, Stage 2 error + `default(T)` on an unwired return). Q24-**D** (one output or many) is still open and does not block it — *found while auditing what BP-24 unblocked*
-- [ ] **[BP-73](Blueprint_Issues_Detail.md#bp-73)** · `RW-M` — **Function graphs support only ONE output value; Unreal supports N.** ✅ **Scheduled by decision** ([Q24-D](Architect_Question_24_Function_Return_Value_Wiring.md#q24-d--one-output-or-many), 2026-08-06) — the user wants proper N-output; until it ships, `Outputs.Count > 1` is a Stage 2 error worded ***"not supported yet — see BP-73"***, never "illegal". **Costed, not estimated:** the Library ABI is **already** N-shaped (results go into an `outputs` byte span via `MemoryMarshal.Write`, and N *inputs* already walk an `__off` cursor — mirror that loop, sequential writes not a packed struct); `_statementPinCache` already maps pin→value so a statement-produced value is never recomputed; `CSharpEmitter.Emit:69` already registers **every** `graph.Outputs` entry in the debug map; the signature window is already N-row; `TypeRefToCSharp:1591` already passes synthesized `_`-prefixed types through. ⚠ **Do not turn `IrStatement.ResultValue` into a list** — it carries the one-`PinId`-per-statement debug annotation, probe insertion and breakpoint mapping. Keep one carrier value + N field-read statements. **Genuinely new:** the Instance carrier (**`ValueTuple` vs a synthesized `_FuncOut_{Name}` struct — settle first**), one fan-out `IrOp`, and looping the three `[0]` projections. ~250–450 lines, strictly additive (`Count <= 1` emits exactly today's C#). **Depends on BP-71**
+- [x] **[BP-73](Blueprint_Issues_Detail.md#bp-73)** · `RW-M` — **Function graphs support only ONE output value; Unreal supports N.** ✅ **Scheduled by decision** ([Q24-D](Architect_Question_24_Function_Return_Value_Wiring.md#q24-d--one-output-or-many), 2026-08-06) — the user wants proper N-output; until it ships, `Outputs.Count > 1` is a Stage 2 error worded ***"not supported yet — see BP-73"***, never "illegal". **Costed, not estimated:** the Library ABI is **already** N-shaped (results go into an `outputs` byte span via `MemoryMarshal.Write`, and N *inputs* already walk an `__off` cursor — mirror that loop, sequential writes not a packed struct); `_statementPinCache` already maps pin→value so a statement-produced value is never recomputed; `CSharpEmitter.Emit:69` already registers **every** `graph.Outputs` entry in the debug map; the signature window is already N-row; `TypeRefToCSharp:1591` already passes synthesized `_`-prefixed types through. ⚠ **Do not turn `IrStatement.ResultValue` into a list** — it carries the one-`PinId`-per-statement debug annotation, probe insertion and breakpoint mapping. Keep one carrier value + N field-read statements. **Genuinely new:** the Instance carrier (**`ValueTuple` vs a synthesized `_FuncOut_{Name}` struct — settle first**), one fan-out `IrOp`, and looping the three `[0]` projections. ~250–450 lines, strictly additive (`Count <= 1` emits exactly today's C#). **Depends on BP-71** 🛠 **Shipped Batch 18.** Carrier is a **ValueTuple**, settling the item's one open design question on evidence: `CSharpEmitter.IsReferencableStateFieldType:330` treats a `_`-prefixed synthesized type as **not referencable** outside the generated class and excludes it from the debug map, so a `_FuncOut_X` struct return would be **invisible to the watch** — the opposite of the argument for it. ⚡ **The simplification that shrank the work:** the carrier needs **no `IrTypeRef`** — temps emit as `var __tN = …`, so only the three method-*declaration* sites need a composed type string and one shared `CSharpReturnType` covers them; N-output never enters the type system. `IrOp_MakeTuple` packs before the return so **`IrTerm_Return` keeps its single `IrValue`** (zero terminator/debug-map churn); `IrOp_TupleField` reads **positionally**, so an output named with a non-identifier cannot break it. Library ABI writes **sequentially** with an `__oo` advance — blitting the tuple would embed CLR padding the reader does not expect, a wrong-**values** bug rather than a compile error. **BP1656 retired** across three places (validator, BP-71's gate test *inverted* not deleted, and the coverage ratchet, now documented to cover retired as well as reserved codes). 13 tests; **9 of 12 go red on revert** and the 3 that don't are exactly the additivity guards. One test runs **Roslyn** — the only proof the emit is *valid* C# — and immediately caught a fixture bug (a `System.Single` literal written `1.5` emits a C# **double**; `ValueJson` is verbatim, so floats need the `f` suffix)
 - [ ] **[BP-14](Blueprint_Issues_Detail.md#bp-14)** · `RW-L` — `Return.Status` uneditable (always Success); a `NodeStatus` combo, ~20-30 lines
 - [ ] **[BP-22](Blueprint_Issues_Detail.md#bp-22)** · `RW-L` — `GetParameter` cannot be placed; asset-specific, so needs a picker not a baked entry
 - [ ] **[BP-21](Blueprint_Issues_Detail.md#bp-21)** · `RW-L` — `When` → ValueChanged form stubbed; reuse `ComponentFieldReflector` + component pickers
