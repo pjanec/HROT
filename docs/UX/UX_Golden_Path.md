@@ -1,6 +1,6 @@
 # The Golden Path — executable specification
 
-> **Status: v0.1, 2026-08-06. LIVING DOCUMENT — expected to change.**
+> **Status: v0.2, 2026-08-06. LIVING DOCUMENT — expected to change.**
 > This is the programme's **specification**: the journey is the requirement, panels are implementation
 > detail. It will be revised as the walk digs deeper and the requirements adjust. **Revise it rather
 > than working around it** — a step that turns out to be wrong is a finding, not an obstacle.
@@ -10,13 +10,34 @@
 
 ## What this doc is for
 
-Two things, and it must keep being good at both:
+Three things, and it must keep being good at all of them:
 
 1. **The acceptance test for the whole programme.** When both paths walk clean, the programme is done.
-2. **The source of the task register.** Every deviation observed on a walk becomes a `UXT-nn`.
+2. **The build order.** ⭐ Since the editor is getting a **new shell** ([UXD-08](UX_Design.md#uxd-08)),
+   step *N* of this document is what ships next: the new shell starts near-empty and **each step earns
+   its surface**. Nothing enters the shell without a step that requires it.
+3. **The source of the task register.** Every deviation observed on a walk becomes a `UXT-nn`.
    [UX_Task_Tracker.md](UX_Task_Tracker.md) is deliberately empty until the first walk fills it —
    *the audit says what is broken in the code; the walk says what stops a person, and only the second
    is a task list.*
+
+> ### ⭐ The first walk is reconnaissance, not a repair list
+>
+> The editor's shell is being **replaced**, not repaired ([UXD-08](UX_Design.md#uxd-08)) — so a walk of
+> the *current* app would otherwise produce a defect list for a shell we are about to discard.
+>
+> **Walk it anyway, once, reframed.** It is the only way to turn this document's ~20 predictions into
+> facts about what the existing panels *actually do* — and the new shell has to compose those same
+> panels ([UXD-09](UX_Design.md#uxd-09)). So the walk's output is:
+>
+> - a **capability inventory** — which panel really answers which step, and how well;
+> - **corrected predictions** — logged in [Corrections](UX_Tasks_Detail.md#corrections);
+> - **the build order** — per step, what the new shell must compose, and where a view-model seam is
+>   missing (that last one is where estimates will be wrong);
+> - **only then** a defect list, for behaviour that is wrong *inside* a panel rather than in the shell.
+>
+> Record a shell-level annoyance as *"the new shell must not reproduce this"*, not as a bug to fix in
+> the old one. **Do not spend effort fixing the old shell.**
 
 ## The two paths
 
@@ -52,11 +73,14 @@ walk is performed by a **Windows implementation session or the user**. See
    whatever knowledge you need.
 3. For every step record: **clicks used**, **windows opened**, **what the UI said**, **what actually
    happened**, verdict `PASS` / `FAIL` / `BLOCKED`.
-4. Take a screenshot at every `FAIL`. Attach to the deviation row.
-5. Fill in the [deviation log](#deviation-log) as you go, then cut `UXT` entries from it.
+4. **Also record, for each step: which panel(s) actually served it, and whether their logic is reachable
+   without their ImGui** (a `Handle*` method, an edit model, a view-model) — this is what the new shell
+   will compose, and a missing seam is the finding that matters most.
+5. Take a screenshot at every `FAIL`. Attach to the deviation row.
+6. Fill in the [deviation log](#deviation-log) as you go, then cut `UXT` entries from it.
 
-**Do not fix anything during the walk.** A walk that stops to fix things produces neither a clean
-result nor a complete list.
+**Do not fix anything during the walk** — and in particular **do not fix the old shell**, which is being
+replaced. A walk that stops to fix things produces neither a clean result nor a complete list.
 
 ### Prediction columns are predictions
 
@@ -265,6 +289,15 @@ can serve several steps.
 |---|---|---|---|---|---|---|---|
 | | | *no walk performed yet* | | | | | |
 
+### Capability inventory
+
+The reconnaissance half of the walk ([above](#what-this-doc-is-for)). One row per step: what already
+serves it, and whether the new shell can compose that logic without its current window.
+
+| Step | Panel(s) that actually served it | Logic reachable headlessly? | What the new shell composes |
+|---|---|---|---|
+| | *no walk performed yet* | | |
+
 ### Walk record
 
 | Walk | Date | Walker | Environment | Path | Result |
@@ -275,4 +308,5 @@ can serve several steps.
 
 | Rev | Date | Change |
 |---|---|---|
+| v0.2 | 2026-08-06 | ⭐ **The editor is getting a new shell** ([UXD-08](UX_Design.md#uxd-08)), so this doc gains a third job: it is now the **build order** — the new shell starts near-empty and each step earns its surface. The first walk is reframed as **reconnaissance** (capability inventory + corrected predictions + build order), not a repair list for a shell being discarded. Added the capability-inventory table and a walk step for recording whether each panel's logic is reachable without its ImGui |
 | v0.1 | 2026-08-06 | Created. Path A (A1–A12) and Path B (B1–B5) from the user's stated journey, with code-derived predictions from the opening audit. **No walk performed** — every prediction is unverified |

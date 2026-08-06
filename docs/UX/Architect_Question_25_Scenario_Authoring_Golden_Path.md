@@ -24,7 +24,14 @@ open, in what order, and without hitting controls that silently do nothing.
 
 **Already ruled by the user, so *not* asked below:** no general undo stack (Q25-A asks only *how* to
 spend the cheap budget); prefabs are wanted (Q25-B asks *how* to represent them); blueprint authoring
-stays on Path A rather than hiding behind a designer mode.
+stays on Path A rather than hiding behind a designer mode; and the editor **should become its own
+application with a purpose-built shell, keeping features and init path shared** (Q25-F asks *where the
+seam goes*, not whether).
+
+> 📌 **Read [Q25-F](#q25-f--a-dedicated-editor-application-with-a-purpose-built-shell) first.** It came
+> last chronologically but is logically prior: it reframes Q25-D, makes Q25-A's argument structural, and
+> it addresses the *cause behind the cause* — the editor's UI is currently the emergent output of a
+> generic cluster-node window aggregator, not a designed shell.
 
 ---
 
@@ -288,6 +295,164 @@ today. ⚠ Reuse candidates below are **not yet traced** — the architect's ste
 
 ---
 
+## Q25-F — A dedicated editor application with a purpose-built shell
+
+<a id="q25-f--a-dedicated-editor-application-with-a-purpose-built-shell"></a>
+
+> ⚠ **Answer this one first. It reframes [Q25-D](#q25-d--two-audiences-one-set-of-shared-panels-what-is-the-mechanism)
+> and makes [Q25-A](#q25-a--how-do-we-spend-a-cheap-recoverability-budget)'s host-composition argument
+> structural rather than a matter of discipline.**
+>
+> **User's proposal (2026-08-06):** stop shipping the editor as a `ClusterRunner` mode and build a
+> **dedicated standalone editor executable** — *fully-fledged feature-wise, with a very much shared init
+> path so all the internal machinery still runs*, and a **new UI built step by step** by composing what
+> mostly already exists (placing existing windows, or combining their content into new ones) as we walk
+> the golden path.
+
+### Why this is not merely cosmetic — verified
+
+**The editor's UI structure was never designed. It is the correct output of a generic cluster-node
+window aggregator.** `LocalWindowController.OpenLocalWindow()` is the *entire* editor shell, in ~60
+lines:
+
+| Fact | Evidence |
+|---|---|
+| Every subsystem dumps its windows into one manager | `foreach (var sub in _subsystems) if (sub is IWindowRegistrar r) r.RegisterWindows(wm);` — `LocalWindowController.cs:53-55` |
+| The default perspective is *"the second subsystem's name"* | `var first = _subsystems.Skip(1).FirstOrDefault(); string defaultPersp = first?.Name ?? "Default";` — `LocalWindowController.cs:80-82` |
+| Perspectives are cluster roles, hardcoded | `perspectiveMap = { IG, SimHost, ExCon, CGF, StrideMock }` — `Program.cs:~243` |
+| The window is titled for the cluster, not the product | `"HROT Cluster Runner"` — `LocalWindowController.cs:38` |
+| `--mode editor` still pays cluster startup for subsystems it never runs | `ScanForSubsystems().Select(type => { … CreateParticipant(domainId) … })` creates a DDS participant + network factory for **every discovered** subsystem, *then* filters to the requested ones — `Program.cs:181-210` |
+
+> **Therefore:** "a bag of windows with no front door" is not an oversight inside the editor. It is what
+> this host is *for*. No amount of panel work changes it; only a curated shell does. That makes Q25-F
+> arguably the **highest-leverage question in this round** — it addresses the cause behind the cause
+> named in [the briefing](UX_Programme_Briefing.md#2-why-the-work-is-where-it-is).
+
+### Why it is cheap — verified
+
+| Fact | Evidence |
+|---|---|
+| The whole host is small | `Hrot.ClusterRunner` is **2,217 lines**; `LocalWindowController` 102, `IPresentationShell` 28, `RaylibPresentationShell` 198 |
+| **No subsystem depends on the host** | the only `Hrot.ClusterRunner` mentions in subsystem `.csproj` files are `InternalsVisibleTo` test attributes. The dependency arrow already runs host → subsystems |
+| The orchestrator is not host-local | `SubsystemOrchestrator` / `ISubsystem` / `RunnerOptions` live in `FDP/Toolkits/Fdp.Toolkits/Runner/` |
+| The Raylib/ImGui boundary is already a seam | `IPresentationShell` (InitWindow · SetupImGui · FontService · IconAtlas · GizmoFont) — reusable verbatim |
+
+⚠ **The honest caveat: "standalone" ≠ "no cluster machinery".** The editor's own features route through
+the orchestration state machine — `EditorApplication.LoadScenarioByName` publishes a
+`TransitionStateIntent` and waits for `ClusterState.Idle` (`EditorApplication.cs:156-167`), and
+Play/Stop goes through `PreviewClusterOpHandler`. A dedicated app **still hosts the orchestrator**; it
+drops mode parsing, DDS participants, and the other subsystems. This is exactly why the user's
+*shared init path* constraint is the right one.
+
+⚠ **Also unverified:** whether `--mode editor` actually uses the DDS-backed `NedNetworkFactory` injected
+by `Program.cs`, or the editor's own `OfflineNetworkFactory`. **This must be established before the
+seam is cut** — it decides how much of the network composition the shared init has to keep.
+
+### F-i — Where does the seam between shared init and new shell go?
+
+The user's constraint: **fully-fledged features, very much shared init.** So the question is not whether
+to share, but where to cut.
+
+- **F1 — Extract the composition into a shared host library** (`Hrot.Host.Composition` or similar) that
+  both executables call: subsystem construction, orchestrator, console service, render loop, exit
+  guards. Each exe supplies its **own shell composition**.
+  *Reuse:* all init, verbatim, in one place. *Build:* the extraction + a shell abstraction wider than
+  today's `IPresentationShell` (which covers Raylib/ImGui only, not *what gets registered*).
+  *Cost:* one refactor of a working host, touching `ClusterRunner`'s two test projects.
+- **F2 — The new exe references `ClusterRunner` as a library** and calls its bootstrap, overriding only
+  the shell.
+  *Reuse:* no extraction needed. *Build:* `LocalWindowController` is `internal` and hardcodes the
+  generic loop, so it must be opened up and parameterised.
+  *Cost:* the editor product now depends on the cluster host — backwards, and it keeps cluster concerns
+  in the editor's dependency graph.
+- **F3 — No new exe yet: one exe, a `--shell` selector** choosing between the generic aggregator and a
+  new curated editor shell.
+  *Reuse:* everything; nothing to extract. *Build:* only the new shell.
+  *Cost:* no distinct product identity (title, icon, own settings/layout file), and the shell choice
+  stays a developer flag rather than a deliverable.
+- **F4 — New exe with its own copied init.**
+  *Cost:* divergence. Rejected — it is the failure mode this codebase's shared-panel discipline exists
+  to avoid.
+
+> **Claude's lean: F3 → F1, staged.** Build the curated shell **first** behind a selector in the
+> existing exe (F3), because that proves the shell with zero refactor risk and keeps every gate green
+> while the UI is still churning. Then, once the shell has stabilised around the golden path, extract
+> the shared composition and split the dedicated exe (F1) — at which point the extraction is a
+> mechanical move rather than a redesign. **F1 is the destination; F3 is how to get there without
+> betting the host on an unproven layout.**
+>
+> **Sub-question F′:** is that staging acceptable, or does the dedicated exe need to exist from day one
+> for product/delivery reasons (installer, branding, separate release cadence)? If the latter, go
+> straight to F1.
+
+### F-ii — What does the new shell keep of the window machinery?
+
+- **G1 — Keep `WindowManager` and curate what enters it**: an explicit registration list, an explicit
+  default layout, and only the editor's own perspectives (Editor / BTree / HSM / Blueprint) — the
+  cluster-role perspectives simply do not exist in this app.
+  *Reuse:* docking, layout persistence, menu generation, icon atlas, status bar, font pipeline.
+  *Build:* the curated list + a default-layout description.
+- **G2 — G1 plus a first-class "layout template" concept** so the default layout is data, not code, and
+  a user can reset to it.
+  *Build:* a small layout-template format + a Reset Layout command.
+  *Note:* [UXR-04](UX_Requirements.md#uxr-04) ("delete the layout profile, launch, walk the path — no
+  window opened manually") is much easier to satisfy — and to *test* — if the default layout is data.
+- **G3 — A new layout mechanism.** Rejected unless the architect sees a reason: `WindowManager` already
+  persists layout, groups menus and handles DPI/font scaling.
+
+> **Claude's lean: G2.** G1 is the minimum, but "Reset Layout" plus a data-defined default is what makes
+> the working-layout requirement verifiable rather than aspirational, and it is small.
+>
+> ⚠ **Note the collision to resolve:** two overlapping *perspective* concepts exist today — cluster-node
+> perspectives (which collapse to a single one in this app) and the editor's internal
+> Editor/BTree/HSM/Blueprint perspectives (which stay). Code that assumes the former exists must be
+> found before the shell is cut.
+
+### F-iii — How do we combine the content of existing windows into new composite panels?
+
+The user's plan is to *place existing windows, or combine their content into new ones*. The second half
+is the load-bearing part — [UXR-14](UX_Requirements.md#uxr-14) (one inspector) and
+[UXR-20](UX_Requirements.md#uxr-20) (one behaviors section) both require merging what are currently
+four separate windows, **without forking panels** ([non-goal 4](UX_Requirements.md#non-goals)).
+
+- **H1 — Re-host the view-models, not the windows.** Compose new panels over the existing headless
+  logic (`Handle*` methods, `EntityBlueprintsEditModel`, `BlueprintMyBlueprintModel`, …), leaving the
+  old windows intact for their other hosts.
+  *Reuse:* the house pattern already separates logic from ImGui in most of these panels — that is
+  precisely why this codebase is testable.
+  *Build:* a view-model seam wherever one is missing. **That is the real work, and it is where the
+  estimate will be wrong if we are careless.**
+- **H2 — Embed whole existing windows as child regions / tabs** of a new composite.
+  *Reuse:* maximal, immediate. *Cost:* the composite inherits each window's own titling, padding and
+  scroll behaviour — visually a stack of windows in a box, which is the current problem in a smaller
+  frame.
+- **H3 — Extract each window's draw body into a callable *section*** (`DrawSection(ctx)`) that both the
+  old window and the new composite call.
+  *Reuse:* one implementation, two hosts — no duplicated rendering. *Build:* mechanical but broad;
+  touches every shared panel and therefore every other host's tests.
+
+> **Claude's lean: H1 as the rule, H3 where a panel's rendering is genuinely worth reusing verbatim,
+> H2 never for the spine panels** (it reproduces the problem) though it is acceptable as temporary
+> scaffolding for a step we have not designed yet — **if labelled as scaffolding in the task entry.**
+>
+> **Sub-question F″:** for the *graph canvases* specifically (BTree/HSM/Blueprint — already good, and
+> large), is the intent that the new app hosts them **unchanged in their own perspectives** (Claude's
+> assumption), or that they too eventually move into the new shell's layout? This decides whether
+> "compose what exists" has a hard boundary at the canvas.
+
+### F-iv — Does `--mode editor` survive?
+
+- **I1 — Retire it once the new app reaches parity.** One editor, one walk, one answer to "what did you
+  test?".
+- **I2 — Keep both indefinitely.** *Cost:* two shells, an ambiguous golden-path walk, and doubled
+  visual-verification burden — the divergence trap in slow motion.
+- **I3 — Keep it as a thin alias** that launches the new shell.
+
+> **Claude's lean: I1, with I3 as a courtesy during transition.** Under the staged F3 → F1 answer this
+> resolves naturally: the flag becomes the alias, then goes away.
+
+---
+
 ## Answers
 
 *To be filled in by the user after the architect round. Record the chosen option per sub-question,
@@ -296,6 +461,12 @@ reframes rather than answers.*
 
 | Question | Decision | Notes |
 |---|---|---|
+| **Q25-F-i — shared-init / new-shell seam** | — | *answer first; reframes D* |
+| **Q25-F′ — staged (F3→F1), or dedicated exe from day one?** | — | |
+| **Q25-F-ii — what the shell keeps of the window machinery** | — | |
+| **Q25-F-iii — how existing window content is combined** | — | |
+| **Q25-F″ — do the graph canvases move into the new shell?** | — | |
+| **Q25-F-iv — does `--mode editor` survive?** | — | |
 | Q25-A — recoverability budget | — | |
 | Q25-A′ — snapshot cost at authoring scale | — | |
 | Q25-B-i — template representation | — | |
@@ -303,7 +474,7 @@ reframes rather than answers.*
 | Q25-B′ — carry a template id from day one? | — | |
 | Q25-C — affinity + param declaration | — | |
 | Q25-C′ — can `BehaviorUiCompiler` be schema-driven? | — | |
-| Q25-D — shared-panel audience mechanism | — | |
+| Q25-D — shared-panel audience mechanism | — | *may collapse into F: two hosts ⇒ two compositions* |
 | Q25-D′ — is auto-retry on live-retask conflict ever safe? | — | |
 | Q25-E — problems-list home | — | |
 

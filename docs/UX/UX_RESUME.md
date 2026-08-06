@@ -1,6 +1,6 @@
 # RESUME / HANDOFF — Scenario-Authoring UX programme
 
-> **rev 2 · 2026-08-06 · branch `claude/reset-working-branch-qd1qpv` · HEAD at write `764b06c`**
+> **rev 3 · 2026-08-06 · branch `claude/reset-working-branch-qd1qpv` · HEAD at write `764b06c`**
 >
 > 📌 **This file exists so a session that has lost its context can resume without re-deriving
 > anything.** Read §0 and §1 before doing anything else. If this file and
@@ -40,6 +40,33 @@ forked panels. Full statement: [UX_Requirements.md](UX_Requirements.md#who-we-ar
 **The core insight that must not be lost:** with no outliner and no right-click affordances on
 objects, *choosing a window becomes the interaction model*. That is the root cause of the user's
 complaint — it is not a documentation gap, and it will not be fixed by adding features.
+
+### ⭐ And the cause behind that cause
+
+**The editor's UI was never designed.** It is produced by `LocalWindowController.OpenLocalWindow()` —
+~60 lines in the *cluster host* that loop over subsystems asking each to dump its windows into one
+manager, then pick the default perspective as literally `_subsystems.Skip(1).FirstOrDefault()?.Name`.
+Perspectives are hardcoded cluster roles; the window is titled "HROT Cluster Runner"; `ScanForSubsystems`
+builds a DDS participant for *every* subsystem before filtering to the requested ones.
+
+**The bag-of-windows is not a defect in the editor — it is the correct output of a generic cluster-node
+window aggregator.**
+
+**User ruling 2026-08-06 ([UXD-08](UX_Design.md#uxd-08)):** the editor becomes its **own application
+with a purpose-built shell** — *fully-fledged feature-wise, with a very much shared init path so all the
+internal machinery still runs*, and the UI grown **step by step** by composing what mostly exists.
+
+Consequences that must not be lost:
+
+- **[UX_Golden_Path.md](UX_Golden_Path.md) is now the build order**, not only the acceptance test. The
+  shell starts near-empty; each step earns its surface.
+- **The first walk is reconnaissance**, not a repair list — we are replacing the shell, so do **not**
+  spend effort fixing the old one.
+- ⚠ **"Standalone" ≠ "no cluster machinery".** Scenario load publishes a `TransitionStateIntent` and
+  waits for `ClusterState.Idle`; Play/Stop goes through `PreviewClusterOpHandler`. The new app hosts the
+  orchestrator too — which is exactly why the shared-init constraint is right.
+- The host is only **2,217 lines** and **no subsystem project depends on it** (only `InternalsVisibleTo`
+  test attributes), so this is cheap. The seam is [Q25-F](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-f--a-dedicated-editor-application-with-a-purpose-built-shell).
 
 **The inversion, concretely:** the golden path is the specification. Panels are implementation detail.
 When a design question arises, the tiebreaker is *"which answer makes the author's walkthrough
@@ -107,9 +134,9 @@ needed knowledge it did not carry, that is a coordinator defect.
 | Artefact | State |
 |---|---|
 | [UX_Requirements.md](UX_Requirements.md) | ✅ **v2** — 46 requirements (`UXR-01`…`UXR-X6`), 7 groups + cross-cutting. Two-audience section added; `G7` added for Path B; `UXR-15`/`17` rewritten to the cheap-recoverability ruling; all 4 opening questions **answered** |
-| [UX_Golden_Path.md](UX_Golden_Path.md) | ✅ **v0.1 — the specification.** Path A (A1–A12) + Path B (B1–B5), each step with intent / gesture / required outcome / requirement links / **code-derived prediction**. Deviation log ready. **Living document — revise it as we dig** |
-| [Architect_Question_25_…](Architect_Question_25_Scenario_Authoring_Golden_Path.md) | ✅ **drafted, awaiting the architect.** Five decision-shaped questions (A–E) + 4 sub-questions, each with options, reuse-vs-build tradeoff and Claude's lean. **Answers table empty** |
-| [UX_Design.md](UX_Design.md) | ▣ base, v0.2 — thesis, two-paths constraint, five-questions frame, target layout, **18** decisions. `UXD-02` is `RULED`; five are routed into Q25 |
+| [UX_Golden_Path.md](UX_Golden_Path.md) | ✅ **v0.2 — the specification *and* the build order.** Path A (A1–A12) + Path B (B1–B5), each step with intent / gesture / required outcome / requirement links / **code-derived prediction**. First walk reframed as **reconnaissance**; capability-inventory table added. **Living document — revise it as we dig** |
+| [Architect_Question_25_…](Architect_Question_25_Scenario_Authoring_Golden_Path.md) | ✅ **drafted, awaiting the architect.** **Six** decision-shaped questions (A–**F**) + 7 sub-questions, each with options, reuse-vs-build tradeoff and Claude's lean. **Q25-F (new editor app / shell seam) is flagged to be answered FIRST** — it reframes D. **Answers table empty** |
+| [UX_Design.md](UX_Design.md) | ▣ base, v0.3 — thesis, two-paths constraint, "a new shell not a repaired one", five-questions frame, target layout, **20** decisions. `UXD-02` and `UXD-08` are `RULED`; six are routed into Q25. Sequencing gains a Milestone 0 (stand up the shell) |
 | [UX_Tasks_Detail.md](UX_Tasks_Detail.md) | ▣ base — template, rules, complexity scale, baseline evidence index. **Register empty** |
 | [UX_Task_Tracker.md](UX_Task_Tracker.md) | ▣ base — 6 milestones, all empty |
 | [handoffs/](handoffs/) | ▣ template only |
@@ -162,34 +189,52 @@ The user relays; Claude cannot reach the architect. Answers go into
 matching [UXD rows](UX_Design.md#3-design-decisions-uxd) flip to `DECIDED`, then the affected milestones
 unblock in [UX_Task_Tracker.md](UX_Task_Tracker.md).
 
-### 3. Walk Path A — the task register's source
+### 3. Walk Path A as reconnaissance
 
 **Needs a Windows session** ([§1.10](#110-session-topology)). Delete/rename `imgui.ini` first — a walk
-against a hand-tuned layout proves nothing about a new user's experience. Walk A1–A12 in order, record
-clicks used / windows opened / what the UI said / what happened, screenshot every `FAIL`, and fill the
-[deviation log](UX_Golden_Path.md#deviation-log). **Do not fix anything during the walk.**
+against a hand-tuned layout proves nothing about a new user's experience. Walk A1–A12 in order and fill
+both tables in [UX_Golden_Path.md](UX_Golden_Path.md#deviation-log):
 
-Then cut one `UXT-nn` per deviation into
-[UX_Tasks_Detail.md](UX_Tasks_Detail.md) + [UX_Task_Tracker.md](UX_Task_Tracker.md). **This is what
-fills the deliberately-empty register** — the audit says what is broken in the code, the walk says what
-stops a person, and only the second is a task list.
+- the **deviation log** — clicks used / windows opened / what the UI said / what happened, screenshot
+  every `FAIL`;
+- the **capability inventory** — per step, which panel actually served it and **whether its logic is
+  reachable without its ImGui** (a `Handle*` method, an edit model). That last column is what the new
+  shell composes, and a missing seam is the finding that matters most ([UXD-09](UX_Design.md#uxd-09)).
 
-⚠ Also correct the predictions: every `Prediction` row in the golden path is code-derived and
-unverified. Where the walk disagrees, the walk wins — log it in
-[Corrections](UX_Tasks_Detail.md#corrections).
+⚠ **Reconnaissance, not repair.** The shell is being replaced, so record shell-level annoyances as
+*"the new shell must not reproduce this"* — **do not fix the old shell.** Only behaviour wrong *inside*
+a panel becomes a defect task.
+
+Then cut `UXT-nn` entries into [UX_Tasks_Detail.md](UX_Tasks_Detail.md) +
+[UX_Task_Tracker.md](UX_Task_Tracker.md). **This is what fills the deliberately-empty register.**
+
+⚠ Also correct the predictions: every `Prediction` row is code-derived and unverified. Where the walk
+disagrees, the walk wins — log it in [Corrections](UX_Tasks_Detail.md#corrections).
 
 ### 4. Trace Path B, then walk it
 
 All of Path B is **code-inferred** — nobody has established what an ExCon operator sees today. Trace it
 before designing ([UXD-07](UX_Design.md#uxd-07)), then walk B1–B5 with an actual SME if possible.
 
-### 5. Milestone 1 — make the editor honest
+### 5. Milestone 0 — stand up the new shell
+
+Gated on [Q25-F](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-f--a-dedicated-editor-application-with-a-purpose-built-shell)
+(the seam) but not on the rest of Q25. An empty, curated editor shell over the **shared** init path, plus
+the default-layout mechanism. Deliberately near-empty: surfaces arrive only as golden-path steps earn
+them.
+
+⚠ **Establish before cutting the seam:** whether `--mode editor` actually uses the DDS-backed
+`NedNetworkFactory` injected by `Program.cs`, or the editor's own `OfflineNetworkFactory`. It decides how
+much network composition the shared init must keep. Also find any code assuming *cluster-role*
+perspectives exist — the new app has only the editor's own Editor/BTree/HSM/Blueprint perspectives.
+
+### 6. Milestone 1 — make the editor honest
 
 Independent of Q25's outcome and of the walk, so it can start in parallel once the user releases the
 gate: [UXD-11](UX_Design.md#uxd-11) (no-dead-control enforcement) and
 [UXD-10](UX_Design.md#uxd-10)/[Q25-E](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-e--where-does-the-one-problems-list-live)
 (problems list). Cheap, high trust yield, and every later task's visual verification depends on controls
-not lying.
+not lying. *A new shell inherits no dead controls of its own — but the composed panels bring theirs.*
 
 ### Not yet
 

@@ -32,6 +32,16 @@ subsystem or architect decision first). 🔴 = correctness / data-loss / trust d
 
 ---
 
+## Milestone 0 — Stand up the new shell ⭐
+
+*A curated editor shell over the **shared** init path, plus the default-layout mechanism — deliberately
+near-empty; surfaces arrive only as golden-path steps earn them. Closes
+[UXR-04](UX_Requirements.md#uxr-04), [UXR-06](UX_Requirements.md#uxr-06); enables every milestone below.*
+
+| ☐ | ID | Task | Cmplx | Req | Design |
+|:-:|---|---|:--:|---|---|
+| 🔒 | | *blocked on [Q25-F](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-f--a-dedicated-editor-application-with-a-purpose-built-shell) — the shared-init / new-shell seam ([UXD-08](UX_Design.md#uxd-08) `RULED`, shape pending)* | `RW-M` | | |
+
 ## Milestone 1 — Make the editor honest
 
 *Nothing downstream is verifiable while controls can lie. Closes

@@ -1,6 +1,6 @@
 # Scenario-Authoring UX — Design (`UXD`)
 
-> **Status: BASE — v0.2, 2026-08-06.** Structure and decision register are in place. The four opening
+> **Status: BASE — v0.3, 2026-08-06.** Structure and decision register are in place. The four opening
 > questions are **answered** ([OQ-1…OQ-4](UX_Requirements.md#answered-questions)); the remaining
 > structural decisions are in the architect round
 > **[Q25](Architect_Question_25_Scenario_Authoring_Golden_Path.md)**.
@@ -49,6 +49,33 @@ Consequence: **the golden-path walkthrough is the specification**, and panels ar
 detail. When a design question arises, the tiebreaker is "which answer makes the walkthrough shorter
 for the author", not "which fits the current window layout".
 
+### A new shell, not a repaired one ⭐
+
+**Ruled by the user 2026-08-06 ([UXD-08](#uxd-08)):** the editor becomes its **own application with a
+purpose-built shell** — fully-fledged feature-wise, **init path shared** with the cluster host so all
+the internal machinery still runs, and the UI grown **step by step** by composing what mostly already
+exists.
+
+This is not cosmetic. The current shell is `LocalWindowController.OpenLocalWindow()` — ~60 lines that
+loop over subsystems asking each to dump its windows into one manager, and pick the default perspective
+as *"the name of the second subsystem"*. **The bag-of-windows is not a defect in the editor; it is the
+correct output of a generic cluster-node window aggregator.** Panel work cannot fix that. A curated
+shell can.
+
+Two consequences for everything below:
+
+1. **The golden path becomes the build order, not only the acceptance test.** Step *N* ships exactly the
+   surface step *N* needs. Nothing enters the shell without a step that earns it.
+2. **[UXR-04](UX_Requirements.md#uxr-04) stops being a fight.** A greenfield shell has no legacy layout
+   to argue with, so "the default layout is a working layout" becomes a design choice instead of a
+   migration.
+
+The seam between shared init and new shell is [Q25-F](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-f--a-dedicated-editor-application-with-a-purpose-built-shell)
+(Claude's lean: prove the shell behind a selector in the existing exe, then extract the shared
+composition and split the exe). ⚠ **"Standalone" does not mean "no cluster machinery"** — scenario load
+still publishes a `TransitionStateIntent` and Play/Stop still goes through `PreviewClusterOpHandler`, so
+the new app hosts the orchestrator too. That is precisely why the shared-init constraint is right.
+
 ## 2. The five questions → the target layout
 
 From [Briefing §3](UX_Programme_Briefing.md#3-the-frame-we-design-against). Every panel in the default
@@ -89,7 +116,10 @@ Status: `OPEN` = undecided · `LEAN` = Claude's recommendation, awaiting archite
 user has set the direction, shape still in the architect round · `DECIDED` = ruled, safe to implement
 (records who ruled and where).
 
-**Six of these are in the Q25 round** — [Q25-A](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-a--how-do-we-spend-a-cheap-recoverability-budget)
+**Seven of these are in the Q25 round.**
+⭐ [Q25-F](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-f--a-dedicated-editor-application-with-a-purpose-built-shell)
+= UXD-08 + UXD-09 — **answer this one first; it reframes Q25-D.** Then
+[Q25-A](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-a--how-do-we-spend-a-cheap-recoverability-budget)
 = UXD-02 · [Q25-B](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-b--how-is-an-entity-template-prefab-represented)
 = UXD-04 · [Q25-C](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-c--where-does-an-asset-authored-behavior-declare-its-affinity-and-its-parameters)
 = UXD-03 · [Q25-D](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-d--two-audiences-one-set-of-shared-panels-what-is-the-mechanism)
@@ -107,6 +137,8 @@ user has set the direction, shape still in the architect round · `DECIDED` = ru
 | <a id="uxd-05"></a>**UXD-05** | **Where the Behaviors section lives** — inside the unified Inspector, or a dedicated docked panel the Inspector links to | `OPEN` | Blocks [UXR-14](UX_Requirements.md#uxr-14), [UXR-20](UX_Requirements.md#uxr-20). Not in Q25 — decide after the walk shows how the author actually moves between map and behavior |
 | <a id="uxd-06"></a>**UXD-06** | **Two audiences over one shared panel set** — how Path A and Path B differ without forking panels or inventing a global mode | `OPEN` → [Q25-D](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-d--two-audiences-one-set-of-shared-panels-what-is-the-mechanism) | Blocks [UXR-26](UX_Requirements.md#uxr-26), [UXR-73](UX_Requirements.md#uxr-73), [UXR-75](UX_Requirements.md#uxr-75). Claude's lean: **per-host composition** (the codebase's existing pattern) + disclosure within a panel; reject a global mode. ⚡ Verified: **no role/mode/expert-mode concept exists anywhere today** — this is new either way. Separately, Claude's lean is that OCC conflict handling belongs in the **service**, so no host renders a version modal |
 | <a id="uxd-07"></a>**UXD-07** | **Path B gesture set** — the minimum walk-up-usable surface for runtime intervention (add entity, retask, verify) | `OPEN` | Blocks [G7](UX_Requirements.md#g7--runtime-intervention-excon). ⚠ **All of Path B is code-inferred** — what an ExCon operator sees today is untraced. Needs its own walk before design |
+| <a id="uxd-08"></a>**UXD-08** | **A dedicated editor application with a purpose-built shell** — features and init path shared with the cluster host; only the UI composition is new, grown step by step along the golden path | `RULED` ⭐ → [Q25-F](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-f--a-dedicated-editor-application-with-a-purpose-built-shell) | **User ruling (2026-08-06): do it.** ⚡ **This is the cause behind the cause.** `LocalWindowController.OpenLocalWindow()` *is* the editor shell, in ~60 lines: every subsystem dumps its windows into one manager, the default perspective is literally `_subsystems.Skip(1).FirstOrDefault()?.Name`, perspectives are hardcoded cluster roles, the title is "HROT Cluster Runner", and `ScanForSubsystems` builds a DDS participant for **every** subsystem before filtering. The bag-of-windows is what this host is *for*. Cheap: the host is 2,217 lines and **no subsystem project depends on it** (only `InternalsVisibleTo`). Q25-F decides the seam (Claude's lean: **F3 → F1** staged), what the shell keeps (**G2**), how window content is combined (**H1**), and whether `--mode editor` survives (**I1**) |
+| <a id="uxd-09"></a>**UXD-09** | **Panel composition rule** — how content from several existing windows becomes one new panel without forking them | `LEAN` → [Q25-F-iii](Architect_Question_25_Scenario_Authoring_Golden_Path.md#f-iii--how-do-we-combine-the-content-of-existing-windows-into-new-composite-panels) | Required by [UXR-14](UX_Requirements.md#uxr-14) and [UXR-20](UX_Requirements.md#uxr-20), which both merge ~4 windows. Claude's lean: **re-host the view-models, not the windows** (`Handle*` methods, `EntityBlueprintsEditModel`, … — the house pattern already separates logic from ImGui); extract a *section* seam only where the rendering itself is worth reusing; **never** embed whole windows as child regions in a spine panel, except as task-labelled scaffolding. ⚠ **The missing view-model seams are where an estimate will be wrong** |
 
 ### Feedback & trust
 
@@ -132,18 +164,25 @@ user has set the direction, shape still in the architect round · `DECIDED` = ru
 Ordered by **trust-per-unit-cost**, not by visibility. Rationale: every later task is verified by a
 person walking the golden path — if controls still lie, that verification is worthless.
 
+0. **Stand up the new shell** ([UXD-08](#uxd-08)) — an empty, curated editor shell over the shared init
+   path, plus the default-layout mechanism. Everything after this composes *into* it, so it comes first;
+   but it stays deliberately near-empty until a golden-path step earns each surface.
 1. **Make the editor honest** — no dead controls, acknowledgement, problems panel ([UXD-11](#uxd-11),
-   [UXD-10](#uxd-10), [UXD-12](#uxd-12)). Nothing downstream is verifiable without this.
-2. **Build the spine** — outliner, unified inspector, selection ([UXD-20](#uxd-20), [UXD-05](#uxd-05)).
+   [UXD-10](#uxd-10), [UXD-12](#uxd-12)). Nothing downstream is verifiable without this. *A new shell
+   inherits no dead controls of its own — but the composed panels bring theirs along, so the
+   enforcement test still earns its keep.*
+2. **Build the spine** — outliner, unified inspector, selection ([UXD-20](#uxd-20), [UXD-05](#uxd-05),
+   composed per [UXD-09](#uxd-09)).
 3. **Make the loop legible** — play chrome, status pill, tool state, palette, context menus
    ([UXD-13](#uxd-13), [UXD-23](#uxd-23), [UXD-24](#uxd-24)).
 4. **Fix assignment** — one model, no allocator internals, typed params ([UXD-03](#uxd-03),
    [UXD-21](#uxd-21)).
-5. **Structural bets** — undo model, templates ([UXD-02](#uxd-02), [UXD-04](#uxd-04)). Architect-gated.
+5. **Structural bets** — recoverability net, templates ([UXD-02](#uxd-02), [UXD-04](#uxd-04)).
+   Architect-gated.
 6. **Prove the round-trip** — an explicit save/reload/run regression, then the walkthrough doc
    ([UXR-61](UX_Requirements.md#uxr-61), [UXR-X6](UX_Requirements.md#uxr-x6)).
 
-Milestones are not yet cut into tasks — that follows the golden-path walk (see
+Milestones are not yet cut into tasks — that follows the reconnaissance walk (see
 [UX_RESUME.md](UX_RESUME.md#next-up)).
 
 ## 5. Constraints
