@@ -1,5 +1,24 @@
 # Blueprint Editor — Verified Issue List (2026-08-04)
 
+> ## ⛔ SUPERSEDED — do not use for status
+>
+> This is the **original** verified issue list, frozen as written on 2026-08-04. It records what the
+> audit believed at the time, including the items it got wrong.
+>
+> **Live status lives in [Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)** (checklist) and
+> [Blueprint_Issues_Detail.md](Blueprint_Issues_Detail.md) (per-item evidence + `DONE` notes).
+> To resume the programme, start at
+> [Blueprint_Gaps_Programme_RESUME.md](Blueprint_Gaps_Programme_RESUME.md).
+>
+> ⚠ **Some "Fix" columns below are wrong** and were corrected in-repo while building — the
+> corrections table in the detail doc lists all ten. The sharpest: **BP-07's** *"reuse
+> `UnifiedEventDiscovery.All()`"* would have produced a picker whose every choice failed to resolve,
+> because a custom event is asset-scoped (`asset.CustomEvents`), not an engine event. **Re-derive any
+> claim here against code before building on it.**
+>
+> The ID scheme is still current — BP-xx numbers in the tracker refer to these rows.
+
+
 > **Goal:** make blueprint editing fully functional and pleasant to use.
 > **Scope:** wiring of existing/easy-to-add capability + high-value ergonomics.
 > Macros and collapse-to-function are **out of scope** (new capability, no data model).

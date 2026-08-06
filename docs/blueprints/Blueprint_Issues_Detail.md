@@ -946,7 +946,7 @@ those notes do not.
 | 13 | BP-17 · BP-18 | node custom titles and body collapse |
 | 14 | BP-19 · BP-20 | minimap and jump-to-issue |
 
-## The audit was wrong nine times — every correction is recorded in-place
+## The audit was wrong ten times — every correction is recorded in-place
 
 This matters more than any single fix: **the register cannot be trusted without re-derivation.**
 

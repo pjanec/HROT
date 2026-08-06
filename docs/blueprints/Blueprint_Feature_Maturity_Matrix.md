@@ -1,12 +1,26 @@
 # Blueprint Feature-Maturity Matrix (audit, 2026-07-16)
 
-> ⚠ **Dated snapshot (2026-07-16) — partly superseded.** Several items below have since shipped and
-> should now read ✅: `FlowForEach`, `PublishEvent` (+ custom-event pub/sub via `EventEntry`), the
-> `Compare` / `BinaryOp` / `BooleanOp` / `Not` value ops, and the `MakeStruct` / `BreakStruct` /
-> `SetMembers` struct-value nodes (not in this table at all). The node count is now ~42, not 30. For the
-> current capability list see [Blueprints_Overview.md §3](Blueprints_Overview.md). This audit is kept for
-> its per-axis (compiler / authoring / tests) breakdown and the still-valid "avoid" call-outs
-> (`Cast`, `WaitForEvent`, dispatchers, `ArrayMake`/`ArrayGet`, squad quartet).
+> ⚠ **Dated snapshot (2026-07-16) — largely superseded. Do not use for status.**
+> Kept only for its per-axis (compiler / authoring / tests) breakdown, which is still a useful way to
+> think about the subsystem. For the current capability list see
+> [Blueprints_Overview.md §3](Blueprints_Overview.md); for open gaps see
+> [Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md).
+>
+> **What has changed since:** the node count is ~42, not 30. `FlowForEach`, `PublishEvent` (+
+> custom-event pub/sub via `EventEntry`), the `Compare` / `BinaryOp` / `BooleanOp` / `Not` value ops
+> and the `MakeStruct` / `BreakStruct` / `SetMembers` struct-value nodes all read ✅ now — the last
+> three are not in this table at all.
+>
+> ⚠ **Its central thesis is the part that has actually moved.** *"Authoring is the weaker axis —
+> ~16 kinds cannot be meaningfully configured"* was correct in July and drove the whole
+> 2026-08 gap programme. That programme closed the authoring gap for **`When` (EventFired mode),
+> `ReadRankedResult`, `WaitForChannel`, `CallCustomEvent`, `CallPeerBlueprint`** and the four value
+> ops. What remains authoring-thin is a much shorter list: `Cast` (BP-58), `ScoreDecision` (BP-27),
+> and `When`'s other three modes (BP-67).
+>
+> The still-valid "avoid" call-outs: `WaitForEvent`, the dispatcher pair, `ArrayMake`/`ArrayGet` and
+> the squad quartet — the last three are now hard compile errors or palette-removed (BP-09/BP-16),
+> so the advice has become enforcement.
 >
 > Full-pipeline readiness of all 30 node kinds, to build the Hill-attack migration with eyes open.
 > Two read-only audits (compiler-side; editor+runtime+tests) merged here. `file:line` evidence lives

@@ -1,5 +1,26 @@
 # Blueprint Gaps & QoL Audit (2026-08-04)
 
+> ## ⛔ SUPERSEDED — do not use for status
+>
+> The **source analysis** for the gap programme, frozen as written. Kept for its method and its
+> per-area reasoning; **not** a current picture of the editor.
+>
+> **Live status:** [Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md) ·
+> **Evidence + outcomes:** [Blueprint_Issues_Detail.md](Blueprint_Issues_Detail.md) ·
+> **To resume:** [Blueprint_Gaps_Programme_RESUME.md](Blueprint_Gaps_Programme_RESUME.md).
+>
+> ⚠ **This register has been wrong ten times** — one claim fully refuted (BP-46, already shipped),
+> several mis-scoped, and several naming the wrong fix or the wrong risk. Every correction is
+> recorded in the detail doc's *"The audit was wrong ten times"* table. **Verify against code before
+> building.**
+>
+> ⚠ Its headline thesis — *"declared API surface with no registered handler"* — held up well and
+> drove most of the programme. But the *complementary* failure it did not name turned out to matter
+> as much: **`BlueprintCommandSink.Apply`'s `default:` arm returns success for any command it has no
+> case for**, so a feature can be fully built, fully wired, and silently do nothing while reporting
+> that it worked. That shape accounts for BP-60, BP-68 and BP-18.
+
+
 > **Scope:** planned-but-unimplemented blueprint features (function editing, macros, My Blueprint
 > panel wiring) + quality-of-life parity against Unreal's Blueprint editor.
 > **Method:** 4 parallel doc-vs-code scans over 89 design docs / 50 node kinds / 145 editor files.
