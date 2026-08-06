@@ -16,8 +16,9 @@
    [Architect_Question_23_Graph_Create_And_Switching.md](Architect_Question_23_Graph_Create_And_Switching.md)).
    Next up: **BP-69 / BP-70** (both 🔴, scouted below) or **BP-67's EqsResult slice**; BP-57 and
    BP-25 are newly unblocked. The briefing below carries the scouting. **BP-71** 🔴 is **decided and
-   buildable** — [Q24](Architect_Question_24_Function_Return_Value_Wiring.md) A1+B1+C3 (user,
-   2026-08-06); only Q24-D (N outputs) is still open, and it blocks nothing.
+   buildable** — [Q24](Architect_Question_24_Function_Return_Value_Wiring.md) all four decided
+   (A1+B1+C3+D1′, user, 2026-08-06). **BP-73** carries proper Unreal-style N-output as a scheduled,
+   costed follow-up; BP-71 ships single-output only.
 3. **Traps that cost real time** — nine of them, each one earned. Trap #5 (`default:` returns
    success) and #6 (asset-scoped features belong at the host) have each bitten more than once;
    **#9 is new** and is why BP-71 survived a 2788-test suite.
@@ -32,7 +33,7 @@ lists every one.
 
 ## Status
 
-**37 open · 38 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
+**38 open · 38 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
 table; do not duplicate them here.
 
 | Batch | Items |
@@ -80,11 +81,12 @@ green. Three themes worth carrying forward:
    [Q24](Architect_Question_24_Function_Return_Value_Wiring.md) **A1+B1+C3, decided by the user
    2026-08-06**: flip both Return-pin projections to `Direction == "In"`, accept **either** direction
    in `BuildReturnTerminator` (one `||`), and make an unwired return a **Stage 2 error** *plus* emit
-   `default(T)` so Roslyn can never fail unattributably. **Single-output only** — Q24-**D** (Unreal-style
-   N outputs) is still open and does not block this; it is costed in the doc as `RW-M` / ~250–450 lines
-   and mostly additive (the Library ABI is already span-based and N-shaped, `_statementPinCache`
-   already does per-pin values, the debug map already loops all outputs). Recommended **D1′**: word the
-   `Outputs.Count > 1` diagnostic *"not supported yet"*, not *"illegal"*.
+   `default(T)` so Roslyn can never fail unattributably. **Single-output only** — Q24-**D** decided as
+   **D1′**: proper N-output (Unreal parity) is **wanted** and is now the scheduled, costed **BP-73**
+   (`RW-M`, ~250–450 lines, mostly additive — the Library ABI is already span-based and N-shaped,
+   `_statementPinCache` already does per-pin values, the debug map already loops all outputs). Until
+   BP-73 ships, the `Outputs.Count > 1` diagnostic must read ***"not supported yet — see BP-73"***,
+   never *"illegal"*.
    ⚠ New `BPxxxx` codes need a `[CoversDiagnosticCode]` test or the build fails.
    ⚠ An approval is not a verification — re-derive against code first (Q22-D2 precedent).
 1. ✅ **BP-24 — SHIPPED (Batch 15, 2026-08-06)** to the Q23 package (A2+B2+C2+D1). Ship notes in

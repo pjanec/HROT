@@ -13,9 +13,9 @@ architect decision first).
 |---|---:|---:|
 | `WIRING` | 4 | 21 |
 | `RW-L` | 12 | 13 |
-| `RW-M` | 19 | 4 |
+| `RW-M` | 20 | 4 |
 | `RW-H` | 2 | — |
-| **Total** | **37** | **38** |
+| **Total** | **38** | **38** |
 | *(refuted on verification)* | | *1* |
 
 > 📌 **Resuming this programme?** Start with [Blueprint_Gaps_Programme_RESUME.md](Blueprint_Gaps_Programme_RESUME.md) — branch, batches
@@ -220,6 +220,7 @@ architect decision first).
 - [ ] **BP-67** · `RW-M` — **The When node's other three mode forms are also stubs.** `ValueChanged` (component/property picker), `ConditionMet` (predicate editor) and `EqsResult` (trigger + sensor picker) each render one `TextDisabled` line, so three of the node's four modes cannot be configured at all. Unlike BP-10 these have **no already-injected catalog** to render — ValueChanged needs a component→property picker, ConditionMet a predicate editor UI — *found in the visual check*
 - [x] **BP-10** · `WIRING` — `When` → EventFired form stubbed; the catalog is *already injected and called*, just never rendered. Filtered picker + self-filter toggle (shown only when the event carries a target field)
 - [ ] **BP-71** 🔴 · `RW-L` — **A Function graph's return value cannot be wired.** The `Return` node's value pin is declared `Direction=="Out"` by *both* projections (`NodePinSchema.ReturnNodePins:328`, `Stage0_Rehydrate.EnrichReturnPins`) but consumed as an **input** — `Stage5.BuildReturnTerminator:1896` matches `Direction=="Out"` then calls `ResolveDataPin(rn.Id, outPin.Id)`, which follows a link *arriving* at the node. `BlueprintPinModel:86` maps Direction straight through and `BlueprintLinkValidator` rejects same-direction links, so **nothing can be wired in** — and the pin gets no inline default editor either (that too is `Direction=="In"`-only). ⚠ **`Return` is the compiler's only such pin**: of ~20 `ResolveDataPin` sites it is the sole `"Out"` one, against the universal `ResolveAllDataInputs` convention. Deliberate and **test-locked** at both ends, so a green suite proves nothing — the two halves have simply never been used together. Ends in **CS0103 with no BP diagnostic** (BP-69's shape): unwired ⇒ BP4001 *warning* + a dummy temp that is never declared ⇒ `return __t7;`. Blast radius nil — of 92 shipped assets, **0** wire a function return. 📐 **[Q24](Architect_Question_24_Function_Return_Value_Wiring.md): A1+B1+C3 decided by the user 2026-08-06 — buildable now** (flip both projections to `"In"`, accept either direction in the terminator, Stage 2 error + `default(T)` on an unwired return). Q24-**D** (one output or many) is still open and does not block it — *found while auditing what BP-24 unblocked*
+- [ ] **BP-73** · `RW-M` — **Function graphs support only ONE output value; Unreal supports N.** ✅ **Scheduled by decision** ([Q24-D](Architect_Question_24_Function_Return_Value_Wiring.md#q24-d--one-output-or-many), 2026-08-06) — the user wants proper N-output; until it ships, `Outputs.Count > 1` is a Stage 2 error worded ***"not supported yet — see BP-73"***, never "illegal". **Costed, not estimated:** the Library ABI is **already** N-shaped (results go into an `outputs` byte span via `MemoryMarshal.Write`, and N *inputs* already walk an `__off` cursor — mirror that loop, sequential writes not a packed struct); `_statementPinCache` already maps pin→value so a statement-produced value is never recomputed; `CSharpEmitter.Emit:69` already registers **every** `graph.Outputs` entry in the debug map; the signature window is already N-row; `TypeRefToCSharp:1591` already passes synthesized `_`-prefixed types through. ⚠ **Do not turn `IrStatement.ResultValue` into a list** — it carries the one-`PinId`-per-statement debug annotation, probe insertion and breakpoint mapping. Keep one carrier value + N field-read statements. **Genuinely new:** the Instance carrier (**`ValueTuple` vs a synthesized `_FuncOut_{Name}` struct — settle first**), one fan-out `IrOp`, and looping the three `[0]` projections. ~250–450 lines, strictly additive (`Count <= 1` emits exactly today's C#). **Depends on BP-71**
 - [ ] **BP-14** · `RW-L` — `Return.Status` uneditable (always Success); a `NodeStatus` combo, ~20-30 lines
 - [ ] **BP-22** · `RW-L` — `GetParameter` cannot be placed; asset-specific, so needs a picker not a baked entry
 - [ ] **BP-21** · `RW-L` — `When` → ValueChanged form stubbed; reuse `ComponentFieldReflector` + component pickers
@@ -303,12 +304,11 @@ architect decision first).
 
 `BP-40` · `BP-38` (already LOCKED as deferred) · `BP-52` (UX-1/UX-2).
 
-**Cleared:** **`BP-71`** — [Q24](Architect_Question_24_Function_Return_Value_Wiring.md) **A1+B1+C3
-decided by the user 2026-08-06**; buildable now, single-output only. **Q24-`D`** (one output or many)
-remains open and does **not** block it — it is costed in the doc as `RW-M` / ~250–450 lines and
-mostly additive, with Claude recommending **D1′**: ship single-output now, and word the
-`Outputs.Count > 1` diagnostic *"not supported yet"* rather than *"illegal"* so Unreal-style
-N-output stays open as its own item.
+**Cleared:** **`BP-71`** — [Q24](Architect_Question_24_Function_Return_Value_Wiring.md) **all four
+sub-questions decided by the user 2026-08-06** (A1+B1+C3+D1′); buildable now, single-output only.
+Q24-**D** resolved as **D1′**: proper N-output is **wanted** and is now the scheduled, costed
+**`BP-73`**; until it ships the `Outputs.Count > 1` diagnostic reads *"not supported yet — see
+BP-73"*, never *"illegal"*.
 
 **Cleared:** `BP-11` — approved 2026-08-04, see [Q22](Architect_Question_22_Undo_Unification.md).
 `BP-27` — re-check done, no reusable picker exists, `RW-M` confirmed; no architect round needed.

@@ -434,6 +434,58 @@ return becomes a Stage 2 error (today: a warning plus an untraceable CS0103) and
 `Graph.Outputs.Count > 1` is rejected — only `[0]` is ever read, at 5 sites, while
 `GraphSignatureWindow` lets a designer add more and **silently discards them**.
 
+### BP-73 — Function graphs support only ONE output value (Unreal supports N) **[SCHEDULED — Q24-D, decided 2026-08-06]**
+**Complexity:** RW-M · **Confidence:** ✔✔ *(costed against code, not estimated)*
+
+**Decision:** the user wants **proper N-output** for Unreal parity. It is deliberately **not** bundled
+into BP-71 — until this ships, `Outputs.Count > 1` is a Stage 2 error worded
+***"not supported yet — see BP-73"***, never "illegal". See
+[Q24-D](Architect_Question_24_Function_Return_Value_Wiring.md#q24-d--one-output-or-many).
+
+**Today.** `Graph.Outputs` is a `List<ParameterDecl>` but only `[0]` is ever read — 5 sites
+(`InstanceEmitter:272`, `LibraryEmitter:33`, `CSharpEmitter:240`, `Stage0_Rehydrate:284/808`,
+`Stage5:1480/3010`). `GraphSignatureWindow` lets a designer add a second and it was **silently
+discarded** (BP-71 makes that loud).
+
+#### ⚠ The one invariant not to break
+
+`IrStatement` has exactly one `IrValue? ResultValue` (`Ir/IrStatement.cs:5`). Making it a list would
+touch every statement consumer **plus** the one-`PinId`-per-statement debug annotation, probe
+insertion and breakpoint mapping. **Do not.** Both viable designs below keep it: the call produces
+one carrier value, then N cheap field-reads fan it out.
+
+#### What already exists (this is why it is `RW-M`, not `RW-H`)
+
+| Piece | State |
+|---|---|
+| **Library dispatch ABI** | **already N-shaped.** `EmitLibraryFunctionAdapter` writes results into an `outputs` **byte span** via `MemoryMarshal.Write` (`CSharpEmitter:267`) and already walks **N inputs** with an `__off` cursor (`:252-258`). N outputs is that loop mirrored. ⚠ **Sequential writes with `__off` advance, not one packed struct** — the reader walks sequentially and struct padding would not match. |
+| **Per-pin value resolution** | **exists.** `_statementPinCache` maps pin→value precisely so a statement-produced value is never recomputed (`Stage5:1526` — *"re-invoking would re-run the side effect"*). Probes/watch stay per-pin correct for free. |
+| **Debug map** | **already loops all outputs** — `CSharpEmitter.Emit:69` registers every `graph.Outputs` entry as a `DebugPinInfo`. |
+| **Signature window** | **nothing to build** — already N-row Add/Remove/Rename/Retype/Move. |
+| **Synthesized return types** | **precedent exists** — `StatementEmitter.TypeRefToCSharp:1591` passes `_`-prefixed names through verbatim, commented *"local generated type (synthesized struct)"*. |
+
+#### What is genuinely new
+
+1. **The Instance carrier** — the one real design question. `IrOp_GraphCall.ReturnType` is a single
+   `IrTypeRef` and the emitted C# is a plain method. **`ValueTuple` vs a synthesized
+   `_FuncOut_{Name}` struct:** the tuple gives named elements free; the struct matches the existing
+   `_`-prefix convention and is easier to name in diagnostics and the watch panel. **Settle this
+   first.** The Library path uses neither.
+2. **Fan-out op** — one new `IrOp` reading field *i* of the carrier, one statement per *consumed*
+   out-pin, each cached in `_statementPinCache`.
+3. **Return side** — `BuildReturnTerminator` collects N pins. It can stay **single-value** by
+   synthesizing a carrier-construction statement immediately before the return
+   (`var __t9 = (a, b); return __t9;`) ⇒ **zero terminator changes**.
+4. **Projections** — `EnrichReturnPins`, `ReturnNodePins`, `FunctionGraphCallPins` loop instead of
+   taking `[0]`. All three **already loop over `Inputs`** — mirror that.
+5. Retire the "not supported yet" diagnostic; keep a `[CoversDiagnosticCode]` test if the code stays.
+
+**Estimate: ~250–450 lines across compiler + editor, plus tests.** Strictly additive — with
+`Outputs.Count <= 1` the emitter keeps producing today's bare `float`/`void`, so no golden IR, no
+shipped asset and no existing test moves.
+
+**Depends on BP-71** (the pin must be wirable at all before N of them are useful).
+
 ### BP-10 — `When` → EventFired form is a stub
 **Complexity:** WIRING · **Confidence:** ✔✔
 

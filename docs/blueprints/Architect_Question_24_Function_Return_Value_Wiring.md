@@ -231,12 +231,13 @@ not affected.
 
 ---
 
-## Answers — **A/B/C DECIDED 2026-08-06 by the user** · D open
+## Answers — **ALL FOUR DECIDED 2026-08-06 by the user**
 
-> ⚠ **Provenance:** A, B and C were decided by the **user directly** ("for a b c lets use your
-> lean"), not by the NotebookLM architect — the same delegation precedent as Q23's self-researched
-> round. **D is still open**, reframed above with a real cost estimate after the user noted that
-> Unreal supports multiple outputs and asked whether N-output is disproportionately expensive.
+> ⚠ **Provenance:** all four were decided by the **user directly**, not by the NotebookLM architect —
+> the same delegation precedent as Q23's self-researched round. A/B/C: *"for a b c lets use your
+> lean"*. D was reframed with a real cost estimate after the user noted Unreal supports multiple
+> outputs, then decided: *"i would definitely like D with 'proper N', as costed, scheduled item.
+> Until implemented fully, i agree with the 'not supported yet — see BP-73'."*
 >
 > ⚠ Per the working agreement, an approval is **not** a verification (Q22's approved D2 was the one
 > step that could not work). Re-check each decision against the code before building it.
@@ -246,4 +247,4 @@ not affected.
 | **Q24-A — which side moves** | ✅ **A1 — flip both projections to `Direction == "In"`; widen `BuildReturnTerminator` to accept either.** | Removes a special case instead of adding one: `Return` is the compiler's only pin declared `"Out"` and consumed as an input (1 of ~20 `ResolveDataPin` sites, against the universal `ResolveAllDataInputs`). Matches Unreal, whose Return Node is an input-collecting node. Free bonus: the pin gains an inline default-value editor, since `BlueprintPinModel` synthesises `Default` only for `"In"` data pins — so `return 0;` no longer needs a wired literal. |
 | **Q24-B — legacy direction** | ✅ **B1 — accept both directions in `BuildReturnTerminator`, permanently.** | One `\|\|`. Zero on-disk instances to migrate either way (0 of 92 assets author Return pins), so the deciding factor is which failure is worse — and B1 makes B2's silently-void return impossible. |
 | **Q24-C — diagnostic** | ✅ **C3 — Stage 2 error *and* emit `default(T)`.** | Today: BP4001 *warning* → an undeclared dummy temp → `return __t7;` → **CS0103 with no BP attribution** (BP-69's shape). C1 alone is the right authoring answer; C2 alone repeats BP-16 (silent wrong value). Together the designer gets a named error and the emitter can never produce an untraceable Roslyn failure. ⚠ Needs a `[CoversDiagnosticCode]` test. |
-| **Q24-D — output count** | ⏳ **open** — see the costing above. Claude recommends **D1′** (single-output now; N as a named follow-up, with the `Outputs.Count > 1` diagnostic worded "not supported yet", not "illegal"). | N-output is **`RW-M`, ~250–450 lines, and additive** — the Library ABI is already span-based and N-shaped, `_statementPinCache` already does per-pin values, the debug map already loops all outputs, and `TypeRefToCSharp` already passes synthesized types through. It is **not** luxurious. But demand is zero today (no asset returns even one value), and bundling it would block a two-line correctness fix behind a carrier-type design round. |
+| **Q24-D — output count** | ✅ **D1′ — single-output now; proper N-output is WANTED and is now a costed, scheduled item: [BP-73](Blueprint_Issues_Detail.md#BP-73).** The `Outputs.Count > 1` diagnostic must read **"not supported yet — see BP-73"**, never "illegal" or "unsupported". | N-output is **`RW-M`, ~250–450 lines, and additive** — the Library ABI is already span-based and N-shaped, `_statementPinCache` already does per-pin values, the debug map already loops all outputs, and `TypeRefToCSharp` already passes synthesized types through. It is **not** luxurious, and Unreal parity is the stated goal. But demand is zero today (no asset returns even one value), and bundling it would block a two-line correctness fix behind a carrier-type design round. So: ship the fix, keep the door open, build N as its own slice. |
