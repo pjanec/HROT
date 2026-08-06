@@ -1,8 +1,9 @@
 # RESUME / HANDOFF — Blueprint gaps & QoL programme (2026-08-06, rev 3)
 
 > **Goal:** make blueprint editing fully functional and pleasant.
-> **Branch:** `claude/blueprint-authoring-status-6sr5ld` · **HEAD at handoff:** `ce064b3` (Batch 16: BP-71 + BP-72)
-> **Live state:** [Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md) (checklist) ·
+> **Branch:** `claude/blueprint-authoring-status-6sr5ld` · **HEAD at handoff:** `503a708` (Batch 17: BP-69)
+> **Live state:** [Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md) (checklist — **every row
+> deep-links to its detail entry**, `#bp-<id>`) ·
 > [Blueprint_Issues_Detail.md](Blueprint_Issues_Detail.md) (per-issue evidence + `DONE` notes)
 >
 > **The two tracker docs are the source of truth.** This file is orientation only — if it and the
@@ -14,14 +15,16 @@
 2. **🎯 Next task briefing** — **BP-24 SHIPPED (Batch 15, 2026-08-06)** to the Q23 decisions
    (A2+B2+C2+D1, recorded in
    [Architect_Question_23_Graph_Create_And_Switching.md](Architect_Question_23_Graph_Create_And_Switching.md)).
-   Next up: **BP-69 / BP-70** (both 🔴, scouted below) or **BP-67's EqsResult slice**; BP-57 and
-   BP-25 are newly unblocked. The briefing below carries the scouting. **BP-24 is now closed** —
-   Batch 16 shipped **BP-71** 🔴 and **BP-72**, the two gaps its post-ship audit found
-   ([Q24](Architect_Question_24_Function_Return_Value_Wiring.md) A1+B1+C3). **BP-73** carries proper
-   Unreal-style N-output as a scheduled, costed follow-up.
+   **BP-24 is now closed** — Batch 16 shipped **BP-71** 🔴 and **BP-72**, the two gaps its post-ship
+   audit found ([Q24](Architect_Question_24_Function_Return_Value_Wiring.md) A1+B1+C3). **Batch 17
+   shipped [BP-69](Blueprint_Issues_Detail.md#bp-69)** 🔴 plus the general unwired-pin hardening it
+   forced (see Status). Next up: **[BP-70](Blueprint_Issues_Detail.md#bp-70)** 🔴 or
+   **[BP-73](Blueprint_Issues_Detail.md#bp-73)** (N function outputs — fully scouted, carrier ruling
+   made, see its tracker row) or **BP-67's EqsResult slice**; BP-57 and BP-25 are newly unblocked.
 3. **Traps that cost real time** — nine of them, each one earned. Trap #5 (`default:` returns
    success) and #6 (asset-scoped features belong at the host) have each bitten more than once;
-   **#9 is new** and is why BP-71 survived a 2788-test suite.
+   **#9 is why BP-71 survived a 2788-test suite — and it then struck BP-69's own test, which passed
+   against the bug.** Reverting the fix to watch the test go red is now a **required** step.
 4. **Test baseline** — what "green" means, and which two failures are known flakes.
 5. **Working agreement** — how the user wants this programme run.
 

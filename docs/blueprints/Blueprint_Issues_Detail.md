@@ -5,6 +5,12 @@
 > [Blueprint_Gaps_And_QoL_Audit.md](Blueprint_Gaps_And_QoL_Audit.md).
 > **Goal of the programme:** make blueprint editing fully functional and pleasant.
 > Macros and collapse-to-function are **out of scope** (new capability, no data model).
+>
+> 🔗 **Every issue has a stable anchor `#bp-<id>`** (e.g.
+> [`#bp-69`](Blueprint_Issues_Detail.md#bp-69)) — an explicit `<a id>` on each heading, so the tracker's
+> deep links survive heading rewording. Headings carry emoji, quotes and `[NEW — …]` tags, so
+> GitHub's prose-derived anchors would be both ugly and fragile. **When adding an issue, add its
+> anchor line too**; `Blueprint_Issues_Tracker.md` links every row this way.
 
 ## How to read this
 
@@ -59,6 +65,7 @@ prove the logic; every production site omits it, so the feature is silently dead
 
 Canvas ergonomics. Mostly NodeEdit-core capability the Blueprint host never registers.
 
+<a id="bp-23a"></a>
 ### BP-23a — No copy / cut / paste / duplicate on the canvas (same-graph)
 **Complexity:** RW-L · **Confidence:** ✔✔
 
@@ -92,10 +99,12 @@ Canvas ergonomics. Mostly NodeEdit-core capability the Blueprint host never regi
 - **Trap to avoid:** do *not* extend `BlueprintCommandSink.ApplyInitialProperties` — it whitelists only **8 of 50** node kinds, so a paste built on it would silently drop config on the other 42.
 - **Remaining work:** new node GUIDs + internal link remapping.
 
+<a id="bp-23b"></a>
 ### BP-23b — Cross-asset / cross-graph paste
 **Complexity:** RW-M · **Confidence:** ✔
 - Needs `VariableId` / type re-resolution against the destination asset. Scope **after** BP-23a.
 
+<a id="bp-13"></a>
 ### BP-13 — No node align / distribute / straighten
 **Complexity:** RW-L · **Confidence:** ✔✔
 
@@ -116,6 +125,7 @@ Canvas ergonomics. Mostly NodeEdit-core capability the Blueprint host never regi
 - **Fix:** `CommandBuilder.MoveNodes(IReadOnlyList<(NodeId, Vector2)>)` is the exact batch-move-with-inverse primitive already used by drag. AABB-of-selection pattern exists at `ViewCommands.cs:71-86`. Reroute primitives cover StraightenConn.
 - **Note:** Distribute needs a stable position sort.
 
+<a id="bp-02"></a>
 ### BP-02 — Comment colour and z-order changes bypass undo
 **Complexity:** WIRING · **Confidence:** ✔✔
 
@@ -134,6 +144,7 @@ Canvas ergonomics. Mostly NodeEdit-core capability the Blueprint host never regi
 
 - **Fix:** capture the prior value as the inverse and route through `view.Execute`, as every other op in the same file does. Do **all 15**, not just the comment ones.
 
+<a id="bp-59"></a>
 ### BP-59 — Context-menu "Delete Node" is not undoable, but the Del key is 🔴 **[NEW — found in verification pass]**
 **Complexity:** WIRING · **Confidence:** ✔✔
 
@@ -145,6 +156,7 @@ Canvas ergonomics. Mostly NodeEdit-core capability the Blueprint host never regi
 - **Fix:** route `:758` through the same `EditCommands` delete path the Del key uses — the inverse-builder already exists and is proven, so this is a call-site swap, not new logic.
 - **Why the audit missed it:** BP-02 was scoped from its symptom ("comment colour"), so the enumeration stopped at comment commands.
 
+<a id="bp-60"></a>
 ### BP-60 — "Promote to Variable" silently does nothing in the Blueprint editor 🔴 **[NEW — found while fixing BP-02]**
 **Complexity:** RW-M · **Confidence:** ✔✔
 
@@ -185,6 +197,7 @@ Canvas ergonomics. Mostly NodeEdit-core capability the Blueprint host never regi
 - **Reference implementation exists** — `FakeCommandSink.ApplyPromoteToVariable` (~50 lines) resolves the pin, allocates a `VariableId`, adds a `Util.GetVar`/`Util.SetVar` node offset from the owner, and links it. The Blueprint version additionally needs to append a declaration to `asset.Variables` with a type inferred from the pin.
 - ⚠ **Undo must be designed together with the implementation, not retrofitted.** `UndoStack` requires the *caller* to supply the inverse, but the inverse needs the node/link/variable ids the sink allocates. This is why BP-02 deliberately left this one call site on `Commands.Apply`: recording an undo entry for a no-op would make Ctrl+Z consume a step that reverses nothing.
 
+<a id="bp-62"></a>
 ### BP-62 — Component type resolution depends on assembly **load order** ⚠ **[NEW — root cause of the order-dependent test]**
 **Complexity:** RW-M · **Confidence:** ✔✔
 
@@ -213,6 +226,7 @@ internal static Type? ResolveType(string fqn)
 - **Fix direction (needs a decision):** either resolve against an explicit, eagerly-populated assembly set (the editor already knows which game assemblies it loads), or have `ResolveType` distinguish *"resolved: not writable"* from *"could not resolve"* so callers can fail loudly instead of treating unknown as no.
 - **Test-side mitigation applied:** `BlueprintCommandSinkTests.EnsureAiBehaviorsLoaded()` touches a type in the assembly before the reflecting test, making it deterministic alone and in-suite. ⚠ **That is a band-aid on the test, not a fix for the product.** Other test files also reference `Hrot.AI.Behaviors.*` FQNs as strings and carry the same latent dependency; they pass today because the full suite loads the assembly early.
 
+<a id="bp-03"></a>
 ### BP-03 — Bookmarks cannot be renamed or deleted
 **Complexity:** WIRING · **Confidence:** ✔✔
 
@@ -225,6 +239,7 @@ internal static Type? ResolveType(string fqn)
 - **Evidence:** `BlueprintBookmarksWindow.cs:11-13` self-documents "(V1: no rename/delete UI…)"; `BookmarksPanel.cs:17-36` is a read-only text list.
 - **Fix:** `BookmarkStore.Remove(id)` already exists; `Bookmark` is a `record`, so rename is `b with { Label = x }` + `SetSlot`.
 
+<a id="bp-17"></a>
 ### BP-17 — No node renaming / custom titles
 **Complexity:** RW-L · **Confidence:** ✔✔
 
@@ -240,6 +255,7 @@ internal static Type? ResolveType(string fqn)
 - **Evidence:** `BlueprintNodeModel.cs:24` — `Subtitle => null` always. Node context menu (`CanvasRenderer.cs` `HoverKind.Node`) has no Rename; the Rename at `:800` belongs to `HoverKind.Comment`. A `"Comment"` `SetNodeProperty` key exists end-to-end but **no UI ever issues it**.
 - **Fix:** every piece has a precedent — `InteractionState.RenamingComment` inline-rename UX to mirror, and `SetNodeProperty` undo plumbing already proven. Add `NodeMetadata.CustomTitle`, a `"Title"` case, an F2 menu item, and a `RenamingNode` interaction field.
 
+<a id="bp-18"></a>
 ### BP-18 — Node body collapse not exposed
 **Complexity:** RW-L · **Confidence:** ✔✔
 
@@ -254,6 +270,7 @@ internal static Type? ResolveType(string fqn)
 - **Fix:** `GraphCommand.SetNodeCollapsed` is already defined, with a working reference implementation in `NodeEditor.Demo/FakeBlueprint/FakeCommandSink.cs:126`. Needs a `NodeMetadata` field + a sink case + a collapse glyph.
 - ⚠ `BlueprintCommandSink.Apply`'s `default:` case **silently no-ops unknown commands** (`:156-158`), so issuing `SetNode*` today fails quietly.
 
+<a id="bp-19"></a>
 ### BP-19 — No minimap
 **Complexity:** RW-L · **Confidence:** ✔✔
 
@@ -272,6 +289,7 @@ internal static Type? ResolveType(string fqn)
 > `GraphView`.
 - `CommandCatalog.ToggleMinimap` declared, never implemented. `ViewportState` supplies all needed transform math (`GraphToScreen` / `ScreenToGraph` / `FrameRect`). ~150-200 lines incl. click-to-pan.
 
+<a id="bp-20"></a>
 ### BP-20 — No error list / jump-to-next-error
 **Complexity:** RW-L · **Confidence:** ✔✔
 
@@ -290,15 +308,18 @@ internal static Type? ResolveType(string fqn)
 - **Fix:** `NodeState.Error`/`Warning` flags already exist and `FindEngine` already filters on them (`:47-53`). `FindBar.Next` / `CenterOnActive` is a ready cycle-and-centre pattern to mirror.
 - **Open question:** diagnostics source — compile-time only, or live?
 
+<a id="bp-25"></a>
 ### BP-25 — Cross-blueprint search is cosmetic
 **Complexity:** RW-M · **Confidence:** ✔✔
 - **Evidence:** `FindEngine.Search(query, scope, view)` never reads `scope`; its own docstring says *"only `FindScope.CurrentGraph` is handled here"*. The UI offers Asset / OpenTabs / WholeProject.
 - **Why bigger:** `FindEngine`/`FindBar` are architecturally single-graph-bound. Needs a multi-graph aggregation layer, merged ranking, and cross-tab navigate-then-centre.
 
+<a id="bp-28"></a>
 ### BP-28 — No advanced-pin hiding
 **Complexity:** RW-M · **Confidence:** ✔✔
 - `INodeModel.ShowAdvancedPins` and `IPin.IsAdvanced` exist and are honoured by the renderer, but `BlueprintPinModel.IsAdvanced` is never assigned. Needs a **new persisted per-pin flag** *and* an authoring UI to mark pins advanced — there is no "which params are advanced" concept to project from.
 
+<a id="bp-56"></a>
 ### BP-56 — No wire-level execution-flow highlighting
 **Complexity:** RW-L · **Confidence:** ✔✔
 - Node borders glow during execution (`NodeRenderer.cs:215-216,251`) and `WhenFiringPulseRenderer` pulses `When` nodes, but `WireRenderer` never renders execution state. Unreal shows a travelling pulse along exec wires.
@@ -309,6 +330,7 @@ internal static Type? ResolveType(string fqn)
 
 Whether a designer can *place* and *configure* each node kind. 13 of 50 kinds run but cannot be configured.
 
+<a id="bp-04"></a>
 ### BP-04 — `Compare` / `BinaryOp` / `BooleanOp` / `Not` cannot be placed at all
 **Complexity:** WIRING · **Confidence:** ✔✔
 
@@ -318,10 +340,12 @@ Whether a designer can *place* and *configure* each node kind. 13 of 50 kinds ru
 - **Fix:** 14 palette entries (one per enum value), baked at create — exactly the `MakeMath` / `ChannelCommandEntries` recipe. **No drawer needed.** ~40-60 lines.
 - **Also:** `Blueprints_Overview.md:75` marks these ✅ — see BP-47.
 
+<a id="bp-22"></a>
 ### BP-22 — `GetParameter` cannot be placed
 **Complexity:** RW-L · **Confidence:** ✔✔
 - Lowered at `Stage5_Schedule.cs:2098`, zero editor instantiations. Unlike BP-04 it is **asset-specific** (`ParameterId` references `asset.Parameters`), so it needs a picker rather than a baked entry. Model on `BlueprintPickerSources`' `variables.all` pattern re-pointed at parameters.
 
+<a id="bp-05"></a>
 ### BP-05 — `ReadRankedResult.Rank` uneditable
 **Complexity:** WIRING · **Confidence:** ✔✔
 
@@ -330,6 +354,7 @@ Whether a designer can *place* and *configure* each node kind. 13 of 50 kinds ru
 > asset). Hold-to-repeat coalesces to one undo entry via `ContinuousEditCoalescer`.
 - Plain `ImGui.InputInt`; no catalog dependency. Simplest of the drawer gaps.
 
+<a id="bp-06"></a>
 ### BP-06 — `WaitForChannel.ChannelType` uneditable
 **Complexity:** WIRING · **Confidence:** ✔✔
 
@@ -339,6 +364,7 @@ Whether a designer can *place* and *configure* each node kind. 13 of 50 kinds ru
 > preserved, mirroring `GetSharedNodeSession`'s picker.
 - Runs and is run-proven, but has no drawer. Reuse `IChannelCommandCatalog`; `ChannelCommandNodeDrawer.cs` (109 lines) is a near-direct template and `WaitForChannel` needs only the channel-type list.
 
+<a id="bp-07"></a>
 ### BP-07 — `CallCustomEvent.EventId` uneditable
 **Complexity:** WIRING · **Confidence:** ✔✔
 
@@ -359,6 +385,7 @@ Whether a designer can *place* and *configure* each node kind. 13 of 50 kinds ru
 > end-to-end (create → listed → selected by GUID → resolves).
 - Reuse `UnifiedEventDiscovery.All()`, already production-wired, which unifies C# `[BlueprintEvent]` structs and editor-authored events.
 
+<a id="bp-08"></a>
 ### BP-08 — `CallPeerBlueprint` target uneditable
 **Complexity:** WIRING · **Confidence:** ✔✔
 
@@ -378,10 +405,12 @@ Whether a designer can *place* and *configure* each node kind. 13 of 50 kinds ru
 > Blueprints discovered" — the inert-default guard (BP-29, BP-61) all over again. Passed explicitly.
 - Reuse `BlueprintPeerSource.EnumerateAll()` (already used by `QuickReloadService` for this very node kind) plus the existing peer-signature lookup for the function list.
 
+<a id="bp-14"></a>
 ### BP-14 — `Return.Status` uneditable (always Success)
 **Complexity:** RW-L · **Confidence:** ✔✔
 - `Nodes.cs:182` — `Status { get; set; } = NodeStatus.Success`; no drawer, no bake path. A combo over `NodeStatus` mirroring `WhenNodeDrawer.DrawModeSelector`, ~20-30 lines.
 
+<a id="bp-71"></a>
 ### BP-71 — A Function graph's return value cannot be wired 🔴 **[NEW — found while auditing what BP-24 unblocked]**
 **Complexity:** RW-L *(the change is small; the contract decision is not)* · **Confidence:** ✔✔
 *(re-derived across editor, compiler and all 92 shipped assets)*
@@ -445,6 +474,7 @@ return becomes a Stage 2 error (today: a warning plus an untraceable CS0103) and
 `Graph.Outputs.Count > 1` is rejected — only `[0]` is ever read, at 5 sites, while
 `GraphSignatureWindow` lets a designer add more and **silently discards them**.
 
+<a id="bp-73"></a>
 ### BP-73 — Function graphs support only ONE output value (Unreal supports N) **[SCHEDULED — Q24-D, decided 2026-08-06]**
 **Complexity:** RW-M · **Confidence:** ✔✔ *(costed against code, not estimated)*
 
@@ -497,6 +527,7 @@ shipped asset and no existing test moves.
 
 **Depends on BP-71** (the pin must be wirable at all before N of them are useful).
 
+<a id="bp-10"></a>
 ### BP-10 — `When` → EventFired form is a stub
 **Complexity:** WIRING · **Confidence:** ✔✔
 
@@ -508,10 +539,12 @@ shipped asset and no existing test moves.
 > flagged (the compiler's BP2016 warning, surfaced at authoring time).
 - `WhenNodeDrawer.cs:172-177` is `ImGui.TextDisabled`. The catalog `_eventCatalog.GetEntries()` is **already injected and called at `:175`** — the result is simply never rendered.
 
+<a id="bp-21"></a>
 ### BP-21 — `When` → ValueChanged form is a stub
 **Complexity:** RW-L · **Confidence:** ✔✔
 - Needs a component + property picker; `ComponentFieldReflector` and the existing component pickers are directly reusable.
 
+<a id="bp-26"></a>
 ### BP-26 — `When` → ConditionMet form is a stub
 **Complexity:** RW-L · **Confidence:** ✔✔
 - **Corrected mid-audit — this is not REAL WORK.** A complete predicate *editing* UI already exists: `FDP/Engine/Fdp.Presentation/ImGui/Panels/ReplayBrowser/ReplaySearchPanel.cs` (587 lines) — 7 modes including **Compound** AND/OR trees, save/load presets — built **generically on StructEdit** (`_editService.Open(dto, type)` → `ComponentEditDrawer` + a per-type drawer dictionary incl. a recursive `PredicateValueFieldDrawer`), not hand-written per subtype.
@@ -519,11 +552,13 @@ shipped asset and no existing test moves.
 - **Residual risk:** panel-width UI inside a narrower node drawer (layout/sizing), and swapping replay-recording sources for blueprint ones (`ComponentTypeProvider` exists).
 - *(The earlier "no predicate UI exists" finding searched only `Hrot/`. `PredicateBuilderState` being orphaned and `DataBreakpointManagerPanel` being read-only were both true — wrong surface.)*
 
+<a id="bp-27"></a>
 ### BP-27 — `ScoreDecision.AssetId` uneditable
 **Complexity:** RW-M · **Confidence:** ✔✔
 - No `UtilityDecisionDef` catalog exists editor-side, so a discovery source is needed before a picker. `Architect_Question_4_Editor_Components.md` asks this exact question and records no answer.
 - ✅ **Re-check done (2026-08-04) — RW-M stands.** `UtilityDecisionDef` appears **only** in `FDP/Toolkits/Fdp.Toolkits.Tests/Utility/UtilityDecisionGeneratorTests.cs` — there is no production catalog. `ScoreDecisionNode.AssetId` is a bare GUID string (`Nodes.cs:395`). StructEdit edits DTO *fields*; it cannot *discover assets*, so unlike BP-26 there is no reusable picker to inherit. A discovery source must be built first.
 
+<a id="bp-09"></a>
 ### BP-09 — Six abandoned node kinds are advertised in the palette
 **Complexity:** WIRING · **Confidence:** ✔✔
 
@@ -538,6 +573,7 @@ shipped asset and no existing test moves.
 
 Document, undo, and panel plumbing.
 
+<a id="bp-11"></a>
 ### BP-11 — No inspector or drawer edit is undoable ⭐
 **Complexity:** RW-M *(raised from RW-L — see estimate note below)* · **Confidence:** ✔✔
 
@@ -588,6 +624,7 @@ Document, undo, and panel plumbing.
 - **Test:** a headless assertion that a drawer edit followed by `view.UndoLast()` restores the prior value — the assertion no existing test makes.
 - ⚠ **Do not simply delete `CommandHistory` today** — its `Execute()` performs the actual mutation, so it is load-bearing until step 2 lands. Bounded 64-entry ring; no leak.
 
+<a id="bp-12a"></a>
 ### BP-12a — My Blueprint: drag-variable-into-graph as Get/Set is dead
 **Complexity:** WIRING · **Confidence:** ✔✔
 
@@ -603,6 +640,7 @@ Document, undo, and panel plumbing.
 - `editor.create-variable-get` / `-set` are invoked by the context menu but never registered. This is the most-used motion in Unreal authoring.
 - Reuse the palette / `AddNode` path that already creates `GetVariableNode` / `SetVariableNode` with a baked `VariableId`.
 
+<a id="bp-68"></a>
 ### BP-68 — Asset-scoped dynamic kinds created an unbound generic node 🔴 **[NEW — found in BP-12c's visual check]**
 **Complexity:** WIRING · **Confidence:** ✔✔
 
@@ -634,6 +672,7 @@ Document, undo, and panel plumbing.
 > what Ctrl+Z calls — removes the node. Most likely the degenerate fallback node was the thing that
 > looked unremovable. Worth re-checking now that a real node is created.
 
+<a id="bp-12b"></a>
 ### BP-12b — My Blueprint: items cannot be renamed, duplicated, or deleted
 **Complexity:** RW-L · **Confidence:** ✔✔
 
@@ -660,6 +699,7 @@ Document, undo, and panel plumbing.
 > `editor.show-properties`, and `editor.find-references` (BP-12d).
 - `editor.rename-item`, `duplicate-item`, `delete-item` are all unregistered. Consequence: a variable can be **created but never renamed or removed**.
 
+<a id="bp-12c"></a>
 ### BP-12c — My Blueprint: custom events and dispatchers cannot be created
 **Complexity:** RW-L · **Confidence:** ✔✔
 
@@ -694,10 +734,12 @@ Document, undo, and panel plumbing.
 - `editor.create-custom-event`, `editor.create-event-dispatcher` unregistered; both sections are display-only.
 - ⚠ Dispatchers are a superseded concept (see BP-09) — consider **removing** that section rather than wiring it.
 
+<a id="bp-12d"></a>
 ### BP-12d — My Blueprint: `find-references` is dead
 **Complexity:** RW-M · **Confidence:** ✔✔
 - `editor.find-references` unregistered. Overlaps BP-25 (cross-blueprint search) — a real implementation likely needs the same multi-graph layer.
 
+<a id="bp-12e"></a>
 ### BP-12e — Dead commands fail silently
 **Complexity:** WIRING · **Confidence:** ✔✔
 
@@ -706,6 +748,7 @@ Document, undo, and panel plumbing.
 - **Tally: 14 commands invoked by the panel, 1 registered** (`editor.create-variable`).
 - **Fix:** surface the failure (log/toast/disable), so an unimplemented command is visible rather than mysterious.
 
+<a id="bp-69"></a>
 ### BP-69 — A name-referenced `CallCustomEvent` silently loses its argument pins 🔴 **[NEW — found while documenting custom events]**
 **Complexity:** WIRING · **Confidence:** ✔✔ *(reproduced against the compiler)*
 
@@ -737,6 +780,40 @@ authoring shape"*.
 `FindCustomEventIndex`), *or* narrow Stage 2 to reject the Name form outright. Do not leave the two
 halves disagreeing.
 
+---
+
+### ✅ Resolved — Batch 17 (2026-08-06)
+
+Both projections now resolve through a `ResolveCustomEventDecl` helper that mirrors
+`FindCustomEventIndex` exactly: GUID first, then an ordinal `Name` match.
+
+⚠ **The `WIRING` / "three lines each" estimate above was wrong — not in size, in consequence.**
+Creating the argument pins exposed the next defect in the same breath. An **unwired** argument pin
+goes through `ResolveDataPin`'s dummy path, which allocated an `IrValue` with **no producing
+statement** — and a value is only declared in the generated C# by the statement that produces it:
+
+| | emitted call | Roslyn | BP diagnostic |
+|---|---|---|---|
+| before | `Event_X(ref s, view, ecb, self, time)` | CS7036 | none |
+| after the 3-line fix alone | `Event_X(..., __t0, __t1)`, no `var __t0` | **CS0103** | BP4001 *warning* |
+| shipped | `Event_X(..., __t0, __t1)` with both declared | ✅ | BP4001 *warning* |
+
+Fixing one and introducing the other is a lateral move, so `ResolveDataPin` now emits a typed
+`default(T)` `IrOp_Const` statement for an unwired pin, using Stage 4's resolved pin type so a
+`float` parameter gets `default(float)` rather than `default(object)`. **This hardens all ~20
+`ResolveDataPin` call sites**, not just the return terminator [BP-71](#bp-71) covered.
+
+⚠ **Trap #9 struck this item's own tests.** The first end-to-end test **passed against the bug**, for
+two independent reasons: its caller graph had no exec links (so the call node was unreachable and no
+call site was emitted at all), and `IndexOf("Event_OnDamaged(")` matched the method **declaration**
+rather than the invocation. This was caught only by reverting the fix to check the tests went red —
+they didn't. **Reverting to watch a test fail is now a required step, not an optional one.** The test
+now asserts on trimmed invocation lines and pins the exact argument-less text the defect produced.
+
+7 new tests (`BP69_NameReferencedCallCustomEventTests`); **4 go red on revert, verified**. All eight
+gates green (blueprints 2842/0, 10 skipped).
+
+<a id="bp-70"></a>
 ### BP-70 — The `?? Name` fallback for Event-graph identity never fires 🔴 **[NEW — found while explaining custom events]**
 **Complexity:** WIRING · **Confidence:** ✔✔ *(reproduced against the emitter)*
 
@@ -769,6 +846,7 @@ Two such graphs additionally collide on `""`, and the later silently overwrites 
 about custom events being a strictly weaker Function graph. Turning it on makes every custom event
 globally raisable by a name-hash, which is a design decision, not a bug fix.
 
+<a id="bp-24"></a>
 ### BP-24 — No Function-graph create path; canvas is locked to one graph
 **Complexity:** RW-M · **Confidence:** ✔✔
 
@@ -822,6 +900,7 @@ globally raisable by a name-hash, which is a design decision, not a bug fix.
 - ⚠ **Consequence:** in any multi-graph asset, **every graph but the first is unreachable through the UI**. The `FunctionCall` target picker can only select graphs hand-authored in JSON.
 - Also fixes the My Blueprint "Graphs" section's double-click, currently `navigateToGraph: _ => { }`.
 
+<a id="bp-72"></a>
 ### BP-72 — The Graph Signature window ignores the canvas, and Event-graph parameters cannot be edited at all **[NEW — found while auditing what BP-24 unblocked]**
 **Complexity:** RW-L · **Confidence:** ✔✔
 
@@ -862,6 +941,7 @@ but seed it from the canvas. ⚠ Event-graph `Inputs` are mirrored from `CustomE
 (BP-24's auto-create); editing one side must rewrite the other or BP1408 fires. That pairing is the
 real work here, not the picker.
 
+<a id="bp-57"></a>
 ### BP-57 — Per-function local variables absent from the data model
 **Complexity:** RW-M · **Confidence:** ✔✔
 - `Graph` has no `LocalVariables` field — only `Id, Name, Kind, Inputs, Outputs, Nodes, Links, Comments, EditorMetadata`. All variables are blueprint-scoped. A genuine **design gap**, not unwired UI. ✅ **Unblocked — BP-24 shipped** (functions are creatable, the canvas reaches them).
@@ -870,6 +950,7 @@ real work here, not the picker.
 
 # Area D — Compiler & correctness
 
+<a id="bp-16"></a>
 ### BP-16 — `ArrayMake` / `ArrayGet` produce a silent wrong value 🔴
 **Complexity:** RW-L · **Confidence:** ✔✔
 
@@ -878,6 +959,7 @@ real work here, not the picker.
 - `NodeCoverageTests.cs:105-118` documents the asymmetry verbatim.
 - **Cheapest safe fix:** a Stage2 validator rejecting both kinds (~20-40 lines) turns silent corruption into a compile **error** — strictly better than BP4004's warning, which still lets the asset "succeed". No lowering required.
 
+<a id="bp-15"></a>
 ### BP-15 — Four node kinds accept bad references silently
 **Complexity:** RW-L · **Confidence:** ✔✔
 
@@ -885,16 +967,19 @@ real work here, not the picker.
 - No Stage2 validator for `ScoreDecision`, `ReadRankedResult`, `CallCustomEvent`, `Cast` — none appear among the 23 registered `IValidator`s.
 - Template: `V_WaitNodeReferences` (`Stage2_Validate.cs:587-615`), ~30 lines each.
 
+<a id="bp-32"></a>
 ### BP-32 — `When` FallingEdge deferred for ValueChanged mode
 **Complexity:** RW-L · **Confidence:** ✔✔
 - Live `// TODO M3` at `Stage5_Schedule.cs:862` — block structure allocated, condition logic deferred. **Falling-edge behaviours silently never fire** in that mode.
 - Partially fixed since July: `ConditionMet` FallingEdge *is* implemented and tested (`WhenNodeRuntimeTests.cs:771`).
 
+<a id="bp-33"></a>
 ### BP-33 — `WaitForEvent` is structurally broken
 **Complexity:** RW-M · **Confidence:** ✔✔
 - No `EventTypeId` satisfies both stages: Stage2 matches by short name against `BuiltInWaitPrimitiveCatalog` (`:602`), but Stage5's `BuildWaitForEventOp` never resolves it to an FQN (unlike `WaitForChannel`'s parallel path), so Roslyn always fails CS0400. Documented by a `[Fact(Skip=…)]` regression test.
 - **Decide first:** repair, or delete the kind (superseded by named `EventEntry` handlers). Cheapest interim: fold into BP-16's validator.
 
+<a id="bp-58"></a>
 ### BP-58 — `Cast` has no drawer and no validator
 **Complexity:** RW-L · **Confidence:** ✔✔
 - The **emit bug is FIXED** — `StatementEmitter.cs:283-292` now intercepts `Cast.`-prefixed calls and emits a native `(global::T)` cast. The July matrix is stale here.
@@ -906,6 +991,7 @@ real work here, not the picker.
 
 Strongest area of the subsystem — several capabilities **exceed** stock Unreal. One live bug.
 
+<a id="bp-29"></a>
 ### BP-29 — Blueprint conditional breakpoints silently never fire 🔴
 **Complexity:** WIRING · **Confidence:** ✔✔
 
@@ -918,11 +1004,13 @@ Strongest area of the subsystem — several capabilities **exceed** stock Unreal
 - **Fix:** `EditorSubsystem` and `CgfSubsystem` are **one-liners** (`_blueprintRegistry` already in scope — 19 and 7 references). `ReplayBrowserSubsystem` has **no** registry field and needs plumbing first.
 - **Add a regression test that constructs the compiler the way production does**, so this class of bug is catchable.
 
+<a id="bp-01"></a>
 ### BP-01 — Watch panel shows raw hex bytes
 **Complexity:** WIRING · **Confidence:** ✔✔
 - `WatchPanelWindow.cs:54-56` renders `Convert.ToHexString(w.LastValueBytes)`.
 - `BlueprintDebugSession.MarshalFromBytes` is complete, unit-tested, and already used at 4 other call sites in the same file — it decodes every primitive plus fixed-list wrappers. Swap it in and format via `BlueprintPinDefaultValue.FormatValue` for vector types.
 
+<a id="bp-35"></a>
 ### BP-35 — D4 `MultiplexingProbeSink` missing
 **Complexity:** RW-L · **Confidence:** ✔✔
 
@@ -931,24 +1019,29 @@ Strongest area of the subsystem — several capabilities **exceed** stock Unreal
 > `OnCollectionWriteFailed` is forwarded **explicitly** rather than inherited from its default interface implementation, which would have dropped the never-silent write diagnostic for every inner sink. Exceptions deliberately propagate (same as a directly-wired sink) rather than being swallowed — pinned by a test so it stays a decision. 11 new tests; suite 2594/0.
 - `IBlueprintProbeSink` exists; needs a composite implementation + a `DebugProbe.Sink` swap so multiple debuggers can observe one run.
 
+<a id="bp-36"></a>
 ### BP-36 — D5 stack-frame inspection is Blueprint-local
 **Complexity:** RW-M · **Confidence:** ✔✔
 - `CallFrame` / `_callStacks` / `GetCurrentCallStack` live inside `BlueprintDebugSession`. Lifting them to `IDataBreakpointManager` would let BTree/HSM/other-subsystem pauses carry a call stack too.
 
+<a id="bp-37"></a>
 ### BP-37 — `LifecyclePredicateDto` by `NetworkId` unsupported
 **Complexity:** RW-M *(raised from RW-L on verification)* · **Confidence:** ✔✔
 - Defect confirmed: `DataBreakpointManager.cs:1025` throws `NotSupportedException`, and the surrounding comments name the intended fix.
 - ⚠ **But `INetworkEntityMap` does not exist as a type** — it appears *only* in those comments. The concrete `NetworkEntityMap` lives in `FDP/Network/Fdp.Network.Cyclone/Services/NetworkEntityMap.cs`, and `Hrot.Diagnostics.Breakpoints` does **not** reference that project (its only refs are `Fdp.Core`, `Fdp.ModuleHost`, `Fdp.Toolkits`, `Hrot.Blueprints.Core`).
 - So this is not "inject an existing interface": it needs an abstraction defined and wired, **or** a diagnostics→specific-network-transport project reference, which is a layering smell. **Design call first.**
 
+<a id="bp-38"></a>
 ### BP-38 — D9 pause-on-Blueprint-exception
 **Complexity:** RW-M · **Confidence:** ✔✔
 - **Explicitly deferred by architect decision** (Debug Protocol DD §13.3, LOCKED). The soft-pause + triple-buffer rewind machinery is directly reusable; needs an interception point in generated code plus a new breakpoint shape.
 
+<a id="bp-39"></a>
 ### BP-39 — D8 CLR / Visual Studio source-line debugger sync
 **Complexity:** RW-H · **Confidence:** ✔✔
 - No scaffolding present; would need a DAP or VS-extensibility bridge. PDB emission already exists.
 
+<a id="bp-40"></a>
 ### BP-40 — Library-dispatch graphs cannot carry node breakpoints
 **Complexity:** RW-H (architect decision) · **Confidence:** ✔✔
 - `StatementEmitter.cs:944-951` suppresses `NodeEnter`/`PinValueChanged` probes when `!HasSelfInScope`, because entity-scoped probes reference `self`, which stateless Library functions never have.
@@ -966,6 +1059,7 @@ Strongest area of the subsystem — several capabilities **exceed** stock Unreal
 
 # Area F — Runtime & state architecture
 
+<a id="bp-30"></a>
 ### BP-30 — HSM-hosted AiPrimitive blueprints collide 🔴
 **Complexity:** RW-M · **Confidence:** ✔✔
 - **Verified asymmetry — the two hosts hold opposite halves of the solution:**
@@ -979,6 +1073,7 @@ Strongest area of the subsystem — several capabilities **exceed** stock Unreal
 - **Fix:** an `HsmBridgeEmitCore` analogue of `EmitBlueprintActionThunks` plus an HSM compose command. Reuses the FNV-1a key math and `BlueprintBlackboardPartitions` verbatim — same rail, new emitter surface.
 - *(BTree is fine: `ComposeAiPrimitiveAction` auto-creates a distinct `Role=State, Scope=Node` host variable per placement, so two blueprints — or one placed twice — separate correctly. Option β's Fix-1/Fix-2/`ClearBehaviorEvent` detach are all shipped and tested.)*
 
+<a id="bp-61"></a>
 ### BP-61 — HSM's two concurrency validators never fire in production 🔴 **[NEW — found while scoping BP-31]**
 **Complexity:** RW-M · **Confidence:** ✔✔
 - **The same defect shape as BP-29, third instance in this codebase.** `HsmValidator`'s constructor takes two optional resolvers and **defaults both to inert values**:
@@ -1000,6 +1095,7 @@ public HsmValidator(IActionSchemaExporter? schema = null,
 - **Why the tests miss it:** `HsmValidatorStatefulSubtreeTests` constructs the validator *with* a lambda (`isStatefulSubtree: id => id == subtreeId`), proving the rule logic correct while the wiring stays dead — exactly as `BlueprintVariableTests` did for BP-29.
 - ⚠ **Not a one-line fix.** Unlike BP-29 there is no existing value to pass: **no `IsStateful` / `HasWorkingState` notion exists editor-side at all** (verified: zero hits). A resolver must first be able to answer "does this referenced subtree asset carry per-node working state?", which means resolving the asset and inspecting its state declaration. That is the design question to settle before wiring.
 
+<a id="bp-31"></a>
 ### BP-31 — BTree lacks the concurrent-stateful validator HSM has
 **Complexity:** RW-L · **Confidence:** ✔✔
 
@@ -1008,6 +1104,7 @@ public HsmValidator(IActionSchemaExporter? schema = null,
 > **BP-61 must be fixed first** — and its resolver design will determine what BTree's equivalent should even consume. `BTreeValidator` is additionally a static-method class with no constructor, so it would need an injection seam that HSM's instance-based validator already has.
 - A Subtree referenced twice under a `Parallel` node is currently unguarded on the BTree side. Port `HsmValidator.CheckConcurrentStatefulSubtrees` / `CheckConcurrentSharedScopeKeys` (`HsmValidator.cs:234-325`) to `BTreeValidator`.
 
+<a id="bp-41"></a>
 ### BP-41 — No test for two different AiPrimitive blueprints on one entity
 **Complexity:** RW-L · **Confidence:** ✔✔
 
@@ -1034,10 +1131,12 @@ public HsmValidator(IActionSchemaExporter? schema = null,
 > Files: `Assets/BTrees/Authoring/T39_TwoDistinctPrimitives.btree.json`, `Brains/DemoAiPrimitiveNodesB.cs`, `Demos/T39_TwoDistinctAiPrimitives_ProofTests.cs`.
 - Coverage is by analogy only: `T20` uses two *hardcoded* stateful actions on the same rail; `T35` uses the *same* blueprint 3×. The scenario an author will actually hit is unproven. HSM's collision has no regression test either.
 
+<a id="bp-45"></a>
 ### BP-45 — Cross-entity event dispatch (`BlueprintDeferredEvent`) absent
 **Complexity:** RW-M · **Confidence:** ✔✔
 - The most-cited deferred capability across the Slice-2 docs; the type does not exist anywhere. ⚠ `Blueprint_New_Node_Authoring_Guide.md` §1a describes "automatic same/cross-entity routing" **as if it were current** — that prose is aspirational (see BP-49).
 
+<a id="bp-42"></a>
 ### BP-42 — Cross-entity shared-state **write**
 **Complexity:** RW-M · **Confidence:** ✔✔
 - Read path shipped (`BlueprintSharedState.TryGetShared<T>`); write is same-entity only. Deferred by design per `Blueprint_SharedState_GetShared_Design.md` §0 — needs `UpdateSharedSlotCommand` + an Input-phase ingress system mirroring `AssignBehaviorEvent`.
@@ -1047,10 +1146,12 @@ public HsmValidator(IActionSchemaExporter? schema = null,
 - The claim was wrong. `BlueprintSharedState.TryGetShared<T>(EntityRepository world, Entity self, string variableId, out T value)` exists at `BlueprintSharedState.cs:58`, and the compiler **actively emits calls to it** (`StatementEmitter.cs:188`).
 - **No work required. Retained as a struck-through row so the id is not silently reused.**
 
+<a id="bp-43"></a>
 ### BP-43 — Custom Events 2b: events with no backing C# struct
 **Complexity:** RW-M · **Confidence:** ✔
 - No `PublishRaw` / `InjectIntoCurrentBySize` / `IrOp_PublishCustomEvent` anywhere. Blocks fully designer-authored events.
 
+<a id="bp-44"></a>
 ### BP-44 — Custom Events 1d: no event-definition authoring UI
 **Complexity:** RW-L · **Confidence:** ✔
 - Only `BlueprintEventCatalog.cs` (data/reflection) exists; no editor window to define an event.
@@ -1061,24 +1162,28 @@ public HsmValidator(IActionSchemaExporter? schema = null,
 
 Cheap, and currently actively misleading.
 
+<a id="bp-47"></a>
 ### BP-47 — `Blueprints_Overview.md:75` marks unplaceable nodes ✅
 **Complexity:** WIRING · **Confidence:** ✔✔
 
 > ✅ **DONE (2026-08-04).** `Blueprints_Overview.md` §3: the four value ops go ✅ → ◐ with a note that they are unplaceable (BP-04); `Cast` ⚠ → ◐ (its emit bug is fixed, it just has no drawer — BP-58); `ArrayMake`/`ArrayGet` ⚠ → new **⛔** mark, since BP-16 made them a compile error. The legend now states explicitly that the marks blend the compiler and authoring axes and that the weaker axis wins.
 - `Compare` / `BinaryOp` / `BooleanOp` / `Not` are marked shipped, conflating the compiler axis with the authoring axis. They cannot be placed (BP-04).
 
+<a id="bp-48"></a>
 ### BP-48 — Runtime DD and Overview stale on AiPrimitive working state
 **Complexity:** WIRING · **Confidence:** ✔
 
 > ✅ **DONE (2026-08-04).** ⚠ **Citation was wrong** — it is Runtime DD **§9.6** ("Cross-AiPrimitive reconciliation"), not §13.5. Both that section and `Blueprints_Overview.md` §1 now carry a correction table: BTree provisions a real partition slot per placement (so multiple AiPrimitives separate correctly), HSM still uses the legacy fixed offset with no compose command (so they collide — BP-30). The stale "one Blueprint per entity" invariant is called out as no longer holding uniformly.
 - `Blueprint_Subsystem_Runtime_Detailed_Design.md` §13.5 and `Blueprints_Overview.md` §1/§5 describe AiPrimitive working state as living only in `Blackboard1024`. True for the legacy/HSM path, **wrong for BTree-composed nodes** (partition tiers).
 
+<a id="bp-49"></a>
 ### BP-49 — Aspirational prose presented as current
 **Complexity:** WIRING · **Confidence:** ✔
 
 > ✅ **DONE (2026-08-04).** The cross-entity `DispatchOrder` snippet in `Blueprint_Authoring_Examples.md` §3 is now fenced with an explicit ⛔ **NOT IMPLEMENTED** banner recording that `BlueprintDeferredEvent` has zero hits repo-wide, retained only as a design sketch, and the verdict line now separates the shipped same-entity case from the unshipped cross-entity one (BP-45).
 - `Blueprint_New_Node_Authoring_Guide.md` §1a describes cross-entity routing that does not exist (BP-45). Mark clearly as future.
 
+<a id="bp-50"></a>
 ### BP-50 — Trackers contradict the code
 **Complexity:** WIRING · **Confidence:** ✔
 
@@ -1086,19 +1191,23 @@ Cheap, and currently actively misleading.
 - `Blueprint_Subsystem_Implementation_Roadmap_v1.1.md` is **fully superseded** (M0–M16 predate component access, collections, custom events, 50 node kinds) — label it history, not status.
 - Also stale: `Custom_Events_BUILD_TRACKER.md` (3d "still remaining", shipped one commit later), `WaveCore_Slice_Design.md` (fixed CS0400 bug, un-parked asset), `Blueprint_Authoring_UX_Backlog.md` (DOC-2 "[next]", already shipped), `Blueprint_Component_Access_TASK_TRACKER.md` and `Blueprint_Editor_SaveOnClose_RESUME.md` (both flag since-fixed items as open).
 
+<a id="bp-51"></a>
 ### BP-51 — DOC-3 / DOC-4 illustrated SVGs missing
 **Complexity:** RW-L · **Confidence:** ✔✔
 - Memory-layout schematic and lifetime timeline. DOC-1 and DOC-2 shipped.
 
+<a id="bp-52"></a>
 ### BP-52 — UX-1…UX-5 authoring ergonomics unbuilt
 **Complexity:** RW-M (architect first) · **Confidence:** ✔✔
 - Intent-first memory picker, unify the "two doors" to shared state, progressive disclosure, in-context micro-explanations, graph-level scope badges. The backlog itself marks UX-1/UX-2 as needing an architect nod.
 
+<a id="bp-53"></a>
 ### BP-53 — E6 cross-asset blueprint-action picker
 **Complexity:** RW-M · **Confidence:** ⚠ **UNCLEAR — do not act on without re-scoping**
 - **Partially refuted.** An action-picker mechanism *does* exist: the `[HsmActionPicker]` attribute is used throughout `Hrot.Hsm.Editor/Inspector/HsmFacets.cs` (6+ sites), and `BehaviorActionCatalog` with `ActionSchemaEntry.IsAiPrimitive` shipped (doc-sweep item I4).
 - What remains unestablished is whether that picker spans **cross-asset blueprint** actions. The original claim came from a doc sweep of the *Behavior Architecture* plan, not from code.
 
+<a id="bp-54"></a>
 ### BP-54 — G7 resolver-authoring UX
 **Complexity:** RW-M · **Confidence:** ⚠ **UNCLEAR — do not act on without re-scoping**
 - Runtime resolver support exists (`BehaviorRegistry.RegisterResolver`, `ApplyResolverOverlay`, `BehaviorRegistry.cs:247-273`). No authoring UI surfaced — but "resolver-authoring UX" is not defined precisely enough in the source doc to verify as present or absent.
@@ -1107,6 +1216,7 @@ Cheap, and currently actively misleading.
 > They are retained for completeness but sit outside the "make blueprint editing fully functional"
 > goal. Re-scope them against the Behavior Architecture plan before treating them as actionable.
 
+<a id="bp-55"></a>
 ### BP-55 — Asset-Browser delete affordance for referenced blueprints
 **Complexity:** WIRING *(lowered from RW-L on verification)* · **Confidence:** ✔✔
 - **The backend already exists.** `RefactorService.PreviewDelete(Guid assetId, DeleteOptions)` returns a `DeletePreview` carrying `danglingRefs` + `issues` (`RefactorService.cs:137-164`), behind `IRefactorService`.
@@ -1128,6 +1238,7 @@ Cheap, and currently actively misleading.
 `BP-52` (UX-1/UX-2) · `BP-27` *if* the StructEdit re-check confirms no reusable picker · plus macros
 and collapse-to-function if ever brought back into scope.
 
+<a id="bp-65"></a>
 ### BP-65 — Placing a node was silently non-undoable 🔴
 **Complexity:** WIRING · **Confidence:** ✔✔ *(found while testing BP-12a)*
 
@@ -1138,6 +1249,7 @@ and collapse-to-function if ever brought back into scope.
 - **Why nothing caught it:** the sink *also* recorded an `AddNodeCommand` on `CommandHistory`, which holds the node **object** rather than its id, so `history.Undo()` worked correctly — in a stack no UI path ever reached (that is BP-11). `CommandSink_AddNode_Undo_RemovesNode` therefore passed while the real path was broken.
 - **Fix:** honour the assigned id, falling back to a fresh Guid only when it is empty. Pinned by three tests in `BlueprintUndoUnificationTests`.
 
+<a id="bp-66"></a>
 ### BP-66 — The peer-blueprint catalog scanned a directory that does not exist 🔴
 **Complexity:** WIRING · **Confidence:** ✔✔ *(found in the visual check)*
 
@@ -1148,12 +1260,14 @@ and collapse-to-function if ever brought back into scope.
 - **Fix:** both sites now use `_bpRootDir` (already resolved at `:715`) with `AssetRoots.AssetsFor` as the fallback.
 - ⚠ **This is why BP-08's picker reported "no peer Blueprints discovered".** The drawer was correct; the catalog under it was empty.
 
+<a id="bp-67"></a>
 ### BP-67 — The When node's other three mode forms are stubs
 **Complexity:** RW-M · **Confidence:** ✔✔ *(found in the visual check)*
 - BP-10 fixed **EventFired**. The remaining three modes each render a single `TextDisabled` line and cannot be configured at all: `DrawValueChangedForm` ("component/property picker"), `DrawConditionMetForm` ("predicate editor"), `DrawEqsResultForm` ("trigger and sensor picker").
 - ⚠ **Not the same shape as BP-10.** EventFired was `WIRING` because its catalog was already injected *and already called* — only the result was unrendered. These three have **no ready-made source**: ValueChanged needs a component→property picker (BP-62's `ComponentFieldReflector` gets partway, but property *paths* are new), ConditionMet needs a predicate-editor UI over `IPredicateCompiler`, and EqsResult needs a trigger enum plus a sensor-variable picker (`ReadEqsResultNodeDrawer` already lists `EqsSensorHandle` variables — the one reusable piece).
 - **Three of the node's four modes are unusable**, so the node is effectively EventFired-only.
 
+<a id="bp-63"></a>
 ### BP-63 — NodeEdit's built-in Comment Details view is not undoable
 **Complexity:** RW-L · **Confidence:** ✔✔ *(found while fixing BP-11)*
 
@@ -1166,6 +1280,7 @@ and collapse-to-function if ever brought back into scope.
 - ⚠ **Not a one-line conversion.** `IDetailsContext` exposes only `CommandSink`, `Editors`, `Icons`, `Theme` — no `GraphView` to record on and **no `IGraphModel` to snapshot the prior state from**. The class says so itself: `Revert()` is a no-op commented *"Re-load from model not possible here (no IGraphModel reference)"*. Fixing it means widening the context in the vendored tree.
 - **Not a regression from BP-11.** It was already non-undoable — the sink recorded onto `CommandHistory`, which no UI path read. BP-11 removed that dead recording, so the file's status is unchanged and now honest.
 
+<a id="bp-64"></a>
 ### BP-64 — 2 pre-existing Windows-only test failures in `Hrot.Editor.AiShared.Tests`
 **Complexity:** WIRING · **Confidence:** ✔✔ *(found while fixing BP-11)*
 
