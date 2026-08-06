@@ -1,6 +1,6 @@
 # RESUME / HANDOFF — Scenario-Authoring UX programme
 
-> **rev 4 · 2026-08-06 · branch `claude/reset-working-branch-qd1qpv` · HEAD at write `764b06c`**
+> **rev 5 · 2026-08-06 · branch `claude/reset-working-branch-qd1qpv` · HEAD at write `764b06c`**
 >
 > 📌 **This file exists so a session that has lost its context can resume without re-deriving
 > anything.** Read §0 and §1 before doing anything else. If this file and
@@ -110,9 +110,24 @@ preset can drop network composition entirely. ⚠ But note `EditorSubsystem( INe
 **dependency that looks injected and is not** — do not let a future session "helpfully" wire it and give
 the editor a network.
 
-⚠ **The editor MCP server does not exist yet.** The user notes it may become one of the editor's few
-network interfaces. Today the repo has only MCP *client* config (`.mcp.json`, `.cursor/mcp.json`). Treat
-as intent: don't design for it, don't make adding it later require reopening the shell.
+⚠ **CORRECTED 2026-08-06 — the MCP server exists, on a stranded branch.** An earlier note in this file
+said it "does not exist yet"; that was true of *our line* only. It was **developed on
+`origin/feat/ai-debug-api`** (tip `d7b2a6e1`, 16 batches, **49 MCP tools**): a loopback HTTP control plane
+(`DebugApiHost`, `HttpListener` on `http://localhost:{port}/`) inside `Hrot.Editor`, plus an external
+Node MCP server that proxies it. **The user requires it merged and kept operational as infrastructure.**
+
+🔴 **It cannot be merged — `feat/ai-debug-api` has NO common ancestor with `main` or our branch.** It
+carries the original project history (2137 commits, roots back to 2025-12-30); the trunk was re-created
+around 2026-07-16 (120 commits, 3 roots). It must be **ported forward as files**, never merged. Full
+description, inventory and plan: **[MCP_PORT_PLAN.md](MCP_PORT_PLAN.md)**.
+
+**Why this programme cares:** the API is a **headless harness for most of Path A's mechanics** (partly
+lifting the coordinator's can't-run-the-editor limit), an independent inventory of editor capability, and
+— most usefully — `DebugApiService.cs` (2140 lines) has *already answered* much of the
+"is this logic reachable without ImGui?" question that [UXD-09](UX_Design.md#uxd-09) needs. Groups H/M
+(`checkpoint`, `restore_checkpoint`, `diff_state`, `focus_entity`) also feed
+[Q25-A](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-a--how-do-we-spend-a-cheap-recoverability-budget).
+⚠ All of that is claimed by the branch's own docs and **not verified against its code**.
 
 **The inversion, concretely:** the golden path is the specification. Panels are implementation detail.
 When a design question arises, the tiebreaker is *"which answer makes the author's walkthrough

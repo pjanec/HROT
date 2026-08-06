@@ -22,7 +22,8 @@
 | 6 | [UX_Task_Tracker.md](UX_Task_Tracker.md) | `UXT-nn` checklist. Live status. |
 | 7 | [UX_Tasks_Detail.md](UX_Tasks_Detail.md) | Per-task evidence, scope, acceptance, `DONE` notes. |
 | 8 | [SHARED_SURFACES.md](SHARED_SURFACES.md) | 🔒 **Co-ownership + consult-before-touch.** Two programmes edit this repo; the blueprint one is active. Read before touching any shared panel or menu. |
-| 9 | [handoffs/](handoffs/) | One doc per implementation session. Template: [HANDOFF_TEMPLATE.md](handoffs/HANDOFF_TEMPLATE.md). |
+| 9 | [MCP_PORT_PLAN.md](MCP_PORT_PLAN.md) | Description of the stranded **AI Debug API + MCP server** on `feat/ai-debug-api` and how to port it. Infrastructure, not UX — but it is a headless harness for the golden path and evidence for the shell's seams. |
+| 10 | [handoffs/](handoffs/) | One doc per implementation session. Template: [HANDOFF_TEMPLATE.md](handoffs/HANDOFF_TEMPLATE.md). |
 
 ## Two audiences
 
