@@ -1,6 +1,6 @@
 # RESUME / HANDOFF — Scenario-Authoring UX programme
 
-> **rev 5 · 2026-08-06 · branch `claude/reset-working-branch-qd1qpv` · HEAD at write `764b06c`**
+> **rev 6 · 2026-08-06 · branch `claude/reset-working-branch-qd1qpv` · HEAD at write `764b06c`**
 >
 > 📌 **This file exists so a session that has lost its context can resume without re-deriving
 > anything.** Read §0 and §1 before doing anything else. If this file and
@@ -112,13 +112,18 @@ the editor a network.
 
 ⚠ **CORRECTED 2026-08-06 — the MCP server exists, on a stranded branch.** An earlier note in this file
 said it "does not exist yet"; that was true of *our line* only. It was **developed on
-`origin/feat/ai-debug-api`** (tip `d7b2a6e1`, 16 batches, **49 MCP tools**): a loopback HTTP control plane
+`origin/feat/ai-debug-api`** (tip `d7b2a6e1`) in **34 commits over two days, 2026-06-14 → 15** — 16
+batches, **49 MCP tools**, ~3.2k lines of production C#. **Recent and compact work.** It is a loopback
+HTTP control plane
 (`DebugApiHost`, `HttpListener` on `http://localhost:{port}/`) inside `Hrot.Editor`, plus an external
 Node MCP server that proxies it. **The user requires it merged and kept operational as infrastructure.**
 
-🔴 **It cannot be merged — `feat/ai-debug-api` has NO common ancestor with `main` or our branch.** It
-carries the original project history (2137 commits, roots back to 2025-12-30); the trunk was re-created
-around 2026-07-16 (120 commits, 3 roots). It must be **ported forward as files**, never merged. Full
+🔴 **It cannot be merged — `feat/ai-debug-api` has NO common ancestor with `main` or our branch.** That
+branch carries the *original* project history (2137 commits, roots to 2025-12-30) while the trunk was
+re-created around 2026-07-16 (120 commits, 3 roots). ⚠ **2137 is the old history, NOT the size of the MCP
+work** — git merely sees all of it as foreign and would try to reconcile the whole disjoint history
+instead of the 34 commits anyone wants. **The topology is the obstacle; the work is small.** Port it
+forward as files, never merge. Full
 description, inventory and plan: **[MCP_PORT_PLAN.md](MCP_PORT_PLAN.md)**.
 
 **Why this programme cares:** the API is a **headless harness for most of Path A's mechanics** (partly

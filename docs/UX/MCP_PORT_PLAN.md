@@ -15,7 +15,7 @@
 | **Branch** | `origin/feat/ai-debug-api` |
 | **Tip** | `d7b2a6e1` — *"feat(ai-debug-api): BATCH-16 educating semantic errors at the API (Tier 1, C#)"* |
 | **Shape** | A C# HTTP API inside `Hrot.Editor` + an external Node.js MCP server that proxies it |
-| **Scale** | 16 shipped batches (ADA-BATCH-01…16), **49 MCP tools** across endpoint groups A–N |
+| **Scale of the work** | **34 commits over two days — 2026-06-14 to 2026-06-15.** 16 batches (ADA-BATCH-01…16), 49 MCP tools, groups A–N. **~3.2k lines of production C# + 4.0k of tests + a 17-file Node server.** Recent and compact |
 | **Status per its own README** | Groups A–N "fully implemented", including K (behavior traces), L (live mutation / fault injection), M (focus + annotations). ⚠ **Claimed by the branch's docs; not verified against its code by this session** |
 
 ### The two halves
@@ -43,11 +43,22 @@ server is an out-of-process client of it.
 | `main` ↔ `feat/ai-debug-api` | **none** | **unrelated histories** |
 | ours ↔ `feat/ai-debug-api` | **none** | **unrelated histories** |
 
-| Branch | Commits | Root commit dates |
+| Branch | Total commits on the branch | Root commit dates |
 |---|---:|---|
 | `feat/ai-debug-api` | 2137 | back to **2025-12-30** *("Core ECS with flight recorder — barebones")* |
 | `main` | 120 | **2026-07-16 … 2026-08-01**, three separate roots |
 | ours | 217 | (descends from `main`) |
+
+> ### ⚠ Do not read 2137 as the size of the MCP work
+>
+> **It is the branch's entire project history**, going back to the original repo. The ADA/MCP work itself
+> is **34 commits over two days (2026-06-14 → 2026-06-15)** — a compact, recent burst sitting on top of
+> that old history.
+>
+> The 2137 matters for exactly one reason: it is why `git merge` is useless here. Because the two lines
+> share no ancestor, git sees *all* 2137 as "not in our branch" and would try to reconcile the whole
+> disjoint history — not the 34 commits anyone actually wants. **The topology is the obstacle; the work
+> is small.**
 
 **Reading:** the trunk was re-created (fresh import or squash) around mid-July 2026. `feat/ai-debug-api`
 still carries the **original long project history** and was never re-based onto the new trunk. The two
@@ -64,7 +75,7 @@ work (0 of 8 marker files present). A tree diff from our branch to `feat` report
 
 ## What actually has to move — the whole inventory
 
-Despite 2137 divergent commits, the **content** is small and well-localised. **26 non-doc files**:
+**26 non-doc files**, matching the two-day scale of the work:
 
 ### Production code (9 files)
 
@@ -116,6 +127,10 @@ are active.
 
 **Approach: port the files, re-do the wiring by hand. No history merge.**
 
+**Expected size of the port itself:** copy 26 files + two directories (all new paths, no conflicts),
+hand-write ~10 lines in `EditorSubsystem.cs`, reconcile 3 behavior-id files, then build and verify.
+The judgement is concentrated in steps 3, 5 and 7 — everything else is mechanical.
+
 | # | Step | Notes |
 |---|---|---|
 | 1 | **Decide the target branch.** Not this UX branch — this is infrastructure everything else builds on | ⚠ [open question](#open-questions) |
@@ -134,7 +149,7 @@ are active.
 | `git merge --allow-unrelated-histories` | Would try to reconcile two disjoint project histories: 1187 files, 133k deletions in one direction. Catastrophic |
 | Cherry-pick the 16 ADA batch commits | Cherry-pick works across unrelated histories (it applies patches), but every batch touches `EditorSubsystem.cs`, so you would resolve the same conflict 16 times against a file that has since changed enormously |
 | Leave it on its own branch, run it separately | The HTTP host is **in-process** in `Hrot.Editor`, so this needs two divergent builds of the app. Defeats *"stay operational, part of infrastructure"* |
-| Rebase `feat` onto the trunk | 2137 commits with no common ancestor — not a rebase, a replay of the entire project history |
+| Rebase `feat` onto the trunk | No common ancestor, so this is not a rebase of the 34 ADA commits — it is a replay of the branch's entire 2137-commit project history |
 
 ## Why the UX programme cares
 
