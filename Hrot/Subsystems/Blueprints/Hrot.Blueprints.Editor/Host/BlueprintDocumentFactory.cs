@@ -358,6 +358,10 @@ public static class BlueprintDocumentFactory
             FindBar   = findBar,
             Commands  = commands,
             Bookmarks = bookmarkStore,
+            // BP-72: graph-scoped windows must follow the switched canvas. Read through the
+            // switcher, never a captured `graph` — that is the same staleness trap the five
+            // build-time capture sites hit in BP-24.
+            CurrentGraphId = () => switcher.CurrentGraphId,
         };
     }
 

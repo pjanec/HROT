@@ -350,6 +350,42 @@ public sealed class GraphSwitchingTests
 
     // ── Test doubles (repo pattern: private per test file) ────────────────────
 
+    // ── BP-72: a graph-scoped window follows the switch, end to end ──────────
+
+    /// <summary>
+    /// <b>The seam test (trap #9).</b> BP-72's window logic and BP-24's switcher were each already
+    /// correct in isolation; what was missing was the wire between them, so the Graph Signature
+    /// window edited a graph the designer was not looking at. This drives a REAL
+    /// <see cref="BlueprintGraphSwitcher"/> through the same provider the composition root passes
+    /// (<c>AiCanvasContext.CurrentGraphId</c>) and asserts the window's resolved edit target moves
+    /// with it — the two halves used together, not merely each asserted alone.
+    /// </summary>
+    [Fact]
+    public void GraphSignatureWindow_FollowsARealCanvasSwitch()
+    {
+        var sut = MakeSut();
+
+        // Exactly what BlueprintDocumentFactory installs on the canvas context.
+        Func<Guid> currentGraphId = () => sut.Switcher.CurrentGraphId;
+
+        var window = new Hrot.Blueprints.Editor.Windows.GraphSignatureWindow(
+            new Hrot.Blueprints.Editor.EditorSelectionStore(),
+            new Hrot.Blueprints.Editor.DirtyTracker());
+        window.Retarget(sut.Asset, currentGraphId);
+
+        // Canvas is on graph A (Function "Main").
+        window.ResolveEditModels()!.Value.Inputs.AddParameter("fromA", "System.Int32");
+
+        // Switch the canvas to graph B (Event "OnThing") — Event graphs are editable since BP-72.
+        Assert.True(sut.Switcher.SwitchTo(sut.GraphB.Id));
+        window.ResolveEditModels()!.Value.Inputs.AddParameter("fromB", "System.Single");
+
+        Assert.Single(sut.GraphA.Inputs);
+        Assert.Equal("fromA", sut.GraphA.Inputs[0].Name);
+        Assert.Single(sut.GraphB.Inputs);
+        Assert.Equal("fromB", sut.GraphB.Inputs[0].Name);
+    }
+
     private sealed class FakeClipboard : IClipboard
     {
         private string? _text;

@@ -61,6 +61,22 @@ public sealed class AiCanvasContext
     public BookmarkStore? Bookmarks { get; set; }
 
     /// <summary>
+    /// Optional provider for the id of the graph the canvas is currently showing, set by document
+    /// factories whose asset holds more than one graph (Blueprint, since BP-24's graph switching).
+    /// <para>
+    /// A plain delegate rather than a typed reference, for the same reason <see cref="AssetRef"/> is
+    /// an <see cref="object"/>: this assembly is shared by BTree/HSM/Blueprint and must not depend
+    /// on any one of them. Kinds with a single graph per document leave it <c>null</c>.
+    /// </para>
+    /// <para>
+    /// BP-72: graph-scoped windows (the Graph Signature editor) need this to stay pointed at the
+    /// graph the designer is looking at. Asset-scoped windows — My Blueprint, Details, Variables —
+    /// do not, which is why Q23's retarget audit found no fan-out work and missed this one.
+    /// </para>
+    /// </summary>
+    public Func<Guid>? CurrentGraphId { get; set; }
+
+    /// <summary>
     /// Creates a canvas context.
     /// </summary>
     /// <param name="view">Constructed graph view for the document.</param>

@@ -2273,7 +2273,11 @@ namespace Hrot.Editor
                     _blueprintLegacySelectionStore.SelectAsset(bpAsset);
 
                     // BATCH-03D2: Retarget Graph Signature window.
-                    _blueprintSignatureWindow?.Retarget(bpAsset);
+                    // BP-72: also hand it the canvas's current-graph provider. Unlike the three
+                    // windows above (all asset-scoped) this one is GRAPH-scoped, so after a BP-24
+                    // graph switch it would otherwise sit on functionGraphs[0] and edit the
+                    // signature of a graph the designer is not looking at.
+                    _blueprintSignatureWindow?.Retarget(bpAsset, ctx?.CurrentGraphId);
                 }
                 else
                 {
