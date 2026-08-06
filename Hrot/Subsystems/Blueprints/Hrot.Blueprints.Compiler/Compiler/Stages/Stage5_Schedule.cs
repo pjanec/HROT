@@ -1891,11 +1891,47 @@ internal sealed class GraphScheduler
             return new IrTerm_ReturnStatus(rn.Status) { Debug = DebugOf(rn) };
         }
 
-        // Function graph: return data value from output pin (if any).
-        var outPin = rn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out");
+        // Function graph: return the data value wired into the Return node's value pin (if any).
+        //
+        // BP-71 / Q24-B1: accept EITHER direction. The projections now emit "In" (the only form a
+        // designer can wire, and the convention everywhere else -- see ResolveAllDataInputs), but
+        // hand-authored JSON may still carry the legacy "Out" form, which this method has always
+        // resolved as an input anyway. Accepting both means there is nothing to migrate and no
+        // silently-void return for an asset written against the old shape.
+        var valuePin = rn.Pins.FirstOrDefault(
+            p => !p.IsExec && (p.Direction == "In" || p.Direction == "Out"));
+
         IrValue? retVal = null;
-        if (outPin is not null)
-            retVal = ResolveDataPin(rn.Id, outPin.Id, currentBlock.Statements);
+        if (valuePin is not null)
+        {
+            // BP-71 / Q24-C3: only call ResolveDataPin when a link actually arrives -- it emits
+            // BP4001 and hands back a dummy IrValue that is never DECLARED anywhere, so the
+            // emitter would write `return __t7;` with no `var __t7`, i.e. CS0103 with no BP
+            // diagnostic to explain it (BP-69's shape). Stage 2's V_FunctionGraphReturnValue makes
+            // the unwired case a hard error; this is the belt-and-braces path that keeps the
+            // GENERATED C# compilable regardless, via the typed `default(T)` IrOp_Const already
+            // used by CA-07b's unwired-collection-consumer safe default.
+            bool wired = _graph.Links.Any(
+                l => l.ToNodeId == rn.Id && l.ToPinId == valuePin.Id);
+
+            if (wired)
+            {
+                retVal = ResolveDataPin(rn.Id, valuePin.Id, currentBlock.Statements);
+            }
+            else
+            {
+                var retType = _typed.PinTypes.TryGetValue(valuePin.Id, out var pt)
+                    ? pt : Stage5_Schedule.UnknownType;
+                var dflt = AllocValue(retType);
+                currentBlock.Statements.Add(new IrStatement
+                {
+                    ResultValue = dflt,
+                    Operation   = new IrOp_Const("default", retType),
+                    Debug       = DebugOf(rn),
+                });
+                retVal = dflt;
+            }
+        }
 
         return new IrTerm_Return(retVal) { Debug = DebugOf(rn) };
     }

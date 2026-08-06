@@ -277,14 +277,24 @@ internal static class Stage0_Rehydrate
         List<Pin> pins, Graph graph, IReadOnlyList<PinSchema> staticShapes)
     {
         // Static skeleton: exec-In "In" already added from registry.
-        // Enrich: add data-Out from Graph.Outputs[0] for Function graphs.
+        // Enrich: add data-In from Graph.Outputs[0] for Function graphs.
+        //
+        // BP-71 / Q24-A1: this pin used to be "Out". BuildReturnTerminator has always resolved it
+        // as an INPUT (ResolveDataPin follows a link arriving AT the Return node), but the editor
+        // maps Direction straight onto the canvas and rejects same-direction links — so an "Out"
+        // pin could never be wired and a Function graph could not return a value at all. "In" is
+        // now the one convention on both sides, matching ResolveAllDataInputs everywhere else.
+        // BuildReturnTerminator still accepts either direction (Q24-B1) so hand-authored JSON
+        // carrying the legacy "Out" form keeps working.
+        //
+        // Single output only (Outputs[0]); proper N-output is the scheduled BP-73.
         if (graph.Kind != GraphKind.Function || graph.Outputs.Count == 0)
             return;
 
         var output = graph.Outputs[0];
         var typeId = GetTypeId(output.Type);
         // Data pin already not in static (static is exec-In only) — just add it.
-        pins.Add(MakePin(output.Name, "Out", isExec: false, typeId: typeId));
+        pins.Add(MakePin(output.Name, "In", isExec: false, typeId: typeId));
     }
 
     private static void EnrichGetVariablePins(

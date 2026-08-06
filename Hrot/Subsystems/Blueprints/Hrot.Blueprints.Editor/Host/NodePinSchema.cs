@@ -310,19 +310,30 @@ internal static class NodePinSchema
 
     /// <summary>
     /// ReturnNode: when the containing graph is a <see cref="GraphKind.Function"/> graph
-    /// with at least one output, emit <c>exec-In</c> + one data-Out pin from
+    /// with at least one output, emit <c>exec-In</c> + one data-<b>In</b> pin from
     /// <c>Graph.Outputs[0]</c> (name from <c>out.Name</c>, type from <c>out.Type.TypeId</c>;
     /// fallback <c>System.Object</c>).
     /// <para>
-    /// Compiler contract (Stage5_Schedule.cs ~881-897 <c>BuildReturnTerminator</c>): Stage5
-    /// reads <c>rn.Pins.FirstOrDefault(p =&gt; !p.IsExec &amp;&amp; p.Direction == "Out")</c>.
-    /// The value pin therefore MUST have <c>Direction="Out"</c>, NOT <c>"In"</c> — this
-    /// mirrors the GetVariable convention where data flows OUT of the node toward consumers.
-    /// The compiler reads the pin as a producer (it resolves the wired source value and caches
-    /// it for the return terminator), so "Out" is semantically correct: the node <em>provides</em>
-    /// the return value on that pin.
+    /// <b>BP-71 / Q24-A1 — this pin used to be <c>"Out"</c>, and that made a Function graph's
+    /// return value impossible to author.</b> <see cref="BlueprintPinModel"/> maps
+    /// <c>Direction</c> straight onto the canvas (<c>"In" → Input</c>, else <c>Output</c>) and
+    /// <c>BlueprintLinkValidator</c> rejects same-direction links, so an <c>"Out"</c> pin could
+    /// never receive a value — while <c>Stage5_Schedule.BuildReturnTerminator</c> resolved it as
+    /// an <em>input</em> all along (<c>ResolveDataPin</c> follows a link whose <c>ToNodeId</c> is
+    /// the Return node). The two halves were each individually test-locked and never used
+    /// together. <c>"In"</c> is now the single convention on both sides, matching
+    /// <c>ResolveAllDataInputs</c> — and Unreal, whose Return Node collects inputs.
     /// </para>
-    /// Only the single first output is projected; multi-output support is deferred to a later batch.
+    /// <para>
+    /// Free consequence, not incidental: <see cref="BlueprintPinModel"/> synthesises an inline
+    /// default-value editor only for <c>Direction=="In"</c> data pins, so the return value can
+    /// now also be typed directly into the node without wiring a Literal.
+    /// </para>
+    /// <para>
+    /// <b>Single output only</b> — <c>Outputs[0]</c>. Proper N-output (Unreal parity) is the
+    /// scheduled <b>BP-73</b>; until it ships, <c>V_FunctionGraphReturnValue</c> reports
+    /// <c>Outputs.Count &gt; 1</c> as "not supported yet".
+    /// </para>
     /// Fallback to exec-only for non-Function graphs and Function graphs with no outputs.
     /// </summary>
     private static IReadOnlyList<Pin> ReturnNodePins(Graph? containingGraph)
@@ -337,7 +348,7 @@ internal static class NodePinSchema
             return new[]
             {
                 MakeExec("In", "In"),
-                MakeData(output.Name, "Out", typeId),
+                MakeData(output.Name, "In", typeId),
             };
         }
         return ExecOnly("In");

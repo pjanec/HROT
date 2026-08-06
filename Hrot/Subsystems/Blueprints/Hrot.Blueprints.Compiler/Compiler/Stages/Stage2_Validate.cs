@@ -47,6 +47,7 @@ internal static class Stage2_Validate
         new V_ComponentAccessRules(),
         new V_ListVariableRules(),
         new V_FunctionGraphCallRules(),
+        new V_FunctionGraphReturnValue(),   // BP-71 (BP1655) + BP-73 gate (BP1656)
         new V_ExecOutFanOut(),
     };
 
@@ -2266,6 +2267,85 @@ internal sealed class V_FunctionGraphCallRules : IValidator
         path.Reverse();
         path.Add(startName); // close the cycle notation: A → B → A
         return path;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// V_FunctionGraphReturnValue  (BP-71 / Q24-C3 + Q24-D)
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// BP1655 — a Function graph declares an output, but a <see cref="ReturnNode"/> in it has nothing
+/// wired into its value pin.
+/// BP1656 — a Function graph declares MORE THAN ONE output, which is not supported yet (BP-73).
+///
+/// <para>
+/// <b>Why BP1655 exists (BP-71).</b> Before this, an unwired return produced a BP4001 *warning*
+/// plus a dummy <c>IrValue</c> that was never declared, so the emitter wrote <c>return __t7;</c>
+/// with no <c>var __t7</c> — <b>CS0103 from Roslyn with no BP diagnostic to explain it</b> (the same
+/// unattributable shape as BP-69). Stage 5 now also falls back to a typed <c>default(T)</c> so the
+/// generated C# always compiles; this validator is what tells the *designer* rather than letting a
+/// silently-defaulted return through (the BP-16 lesson: never a silent wrong value).
+/// </para>
+/// <para>
+/// <b>Pin-ful graphs only</b>, like every other structural check here. A JSON-loaded asset carries
+/// <c>"Pins": []</c> and is rehydrated in Stage 0, so its Return node has no value pin to inspect at
+/// Stage 2 — and a graph with no links at all is an unauthored stub, not a designer error
+/// (<c>V_GraphStructure</c> makes the same exemption). Stage 5's <c>default(T)</c> covers
+/// correctness on that path.
+/// </para>
+/// <para>
+/// Accepts a value pin in <b>either</b> direction: the projections now emit <c>"In"</c> (Q24-A1),
+/// but hand-authored JSON may carry the legacy <c>"Out"</c> form, which Stage 5 still honours
+/// (Q24-B1). Flagging the legacy form as "no pin" would turn a working asset into an error.
+/// </para>
+/// </summary>
+internal sealed class V_FunctionGraphReturnValue : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        foreach (var graph in asset.Graphs)
+        {
+            if (graph.Kind != GraphKind.Function) continue;
+            if (graph.Outputs.Count == 0) continue;
+
+            // ----- BP1656: multi-output is scheduled (BP-73), not illegal -----
+            if (graph.Outputs.Count > 1)
+            {
+                var names = string.Join(", ", graph.Outputs.Select(o => $"'{o.Name}'"));
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1656,
+                    $"Function graph '{graph.Name}' declares {graph.Outputs.Count} outputs ({names}). " +
+                    $"Multiple return values are NOT SUPPORTED YET — see BP-73. Only the first " +
+                    $"output is compiled today; keep one output, or return a struct. " +
+                    $"(Tracked as BP-73: proper N-output, Unreal-style.)",
+                    asset.AssetId, graph.Id));
+            }
+
+            // ----- BP1655: an authored Return node must have its value wired -----
+            // Unauthored stub (no links at all, pins not yet rehydrated) — nothing to judge.
+            if (graph.Links.Count == 0) continue;
+
+            foreach (var rn in graph.Nodes.OfType<ReturnNode>())
+            {
+                if (rn.Pins.Count == 0) continue; // pin-less: Stage 0 has not projected yet
+
+                var valuePin = rn.Pins.FirstOrDefault(
+                    p => !p.IsExec && (p.Direction == "In" || p.Direction == "Out"));
+                if (valuePin is null) continue; // no value slot projected — not this rule's business
+
+                bool wired = graph.Links.Any(
+                    l => l.ToNodeId == rn.Id && l.ToPinId == valuePin.Id);
+                if (wired) continue;
+
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1655,
+                    $"Function graph '{graph.Name}' declares output '{graph.Outputs[0].Name}' " +
+                    $"({graph.Outputs[0].Type?.TypeId}), but the Return node (id={rn.Id}) has " +
+                    $"nothing wired into its '{valuePin.Name}' pin. Wire a value into it, or set " +
+                    $"the pin's inline default. Without this the function returns " +
+                    $"default({graph.Outputs[0].Type?.TypeId}).",
+                    asset.AssetId, graph.Id, rn.Id));
+            }
+        }
     }
 }
 
