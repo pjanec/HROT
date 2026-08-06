@@ -18,10 +18,11 @@
 | 2 | [UX_Golden_Path.md](UX_Golden_Path.md) | **The specification.** Path A (A1–A12) + Path B (B1–B5), step by step, with acceptance criteria. The programme's acceptance test and the source of its task register. |
 | 3 | [UX_Requirements.md](UX_Requirements.md) | `UXR-nn` — what "approachable" means, as testable statements. The scope contract. |
 | 4 | [UX_Design.md](UX_Design.md) | `UXD-nn` — how we intend to satisfy the requirements, and which decisions are still open. |
-| 5 | [Architect_Question_25_…](Architect_Question_25_Scenario_Authoring_Golden_Path.md) | The five structural decisions, awaiting the architect. |
+| 5 | [Architect_Question_25_…](Architect_Question_25_Scenario_Authoring_Golden_Path.md) | **Six** structural decisions, awaiting the architect. **Q25-F (new editor app / shell seam) is flagged to be answered first.** |
 | 6 | [UX_Task_Tracker.md](UX_Task_Tracker.md) | `UXT-nn` checklist. Live status. |
 | 7 | [UX_Tasks_Detail.md](UX_Tasks_Detail.md) | Per-task evidence, scope, acceptance, `DONE` notes. |
-| 8 | [handoffs/](handoffs/) | One doc per implementation session. Template: [HANDOFF_TEMPLATE.md](handoffs/HANDOFF_TEMPLATE.md). |
+| 8 | [SHARED_SURFACES.md](SHARED_SURFACES.md) | 🔒 **Co-ownership + consult-before-touch.** Two programmes edit this repo; the blueprint one is active. Read before touching any shared panel or menu. |
+| 9 | [handoffs/](handoffs/) | One doc per implementation session. Template: [HANDOFF_TEMPLATE.md](handoffs/HANDOFF_TEMPLATE.md). |
 
 ## Two audiences
 
@@ -33,6 +34,15 @@
 
 Same shared panels serve both — differences come from presentation and defaults, never forked panels.
 Full statement: [Who we are building for](UX_Requirements.md#who-we-are-building-for).
+
+## Hard constraints
+
+1. 🔒 **`ClusterRunner` stays fully operational** — blueprint development runs against it in parallel
+   sessions.
+2. 🔒 **The construction kit survives** — the distributed `--mode` variants keep working. The editor app
+   is one **preset** of the kit: networkless, all-in-one, in-process.
+3. 🔒 **Place, do not edit** — prefer placing existing windows into the designed layout; in-window and
+   shared-menu changes go through [SHARED_SURFACES.md](SHARED_SURFACES.md) first.
 
 ## Session topology
 
@@ -61,7 +71,11 @@ trace to a `UXR-nn` does not belong in this programme.
 ## Relationship to the blueprint programme
 
 `docs/blueprints/` fixed the **inner loop** — editing inside a graph canvas. 17 batches, ~76 issues.
-That work is largely done and its lessons (the nine traps) carry over verbatim.
+Its lessons (the nine traps) carry over verbatim.
+
+🔒 **It is still active, in parallel sessions.** `ClusterRunner` must stay operational, and the graph
+editor windows are that programme's live surface — **place them, do not touch them.** See
+[SHARED_SURFACES.md](SHARED_SURFACES.md).
 
 This programme fixes the **outer loop** — the scenario shell around those canvases. Different
 surface, same method: verified claims, deep-linked register, architect gate before non-trivial

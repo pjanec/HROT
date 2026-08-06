@@ -22,7 +22,7 @@ One `<a id="uxt-nn">` anchored entry per task, so the tracker can deep-link ever
    was assembled from a code scan, but *the blueprint audit was wrong ten times* — re-derive before
    building, and correct the entry in the same commit if it was wrong.
 3. **`DONE` notes record what was actually observed**, including the visual check
-   ([Briefing §5.10](UX_Programme_Briefing.md#510-visual-verification-is-mandatory)) and the
+   ([Briefing §5.11](UX_Programme_Briefing.md#511-visual-verification-is-mandatory)) and the
    revert-to-red confirmation ([§5.5](UX_Programme_Briefing.md#55-revert-to-watch-it-go-red)).
    A `DONE` note without a visual observation is incomplete.
 4. **Wrong estimates get recorded**, not quietly corrected — see [Corrections](#corrections). The

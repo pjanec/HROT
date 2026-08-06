@@ -1,6 +1,6 @@
 # RESUME / HANDOFF — Scenario-Authoring UX programme
 
-> **rev 3 · 2026-08-06 · branch `claude/reset-working-branch-qd1qpv` · HEAD at write `764b06c`**
+> **rev 4 · 2026-08-06 · branch `claude/reset-working-branch-qd1qpv` · HEAD at write `764b06c`**
 >
 > 📌 **This file exists so a session that has lost its context can resume without re-deriving
 > anything.** Read §0 and §1 before doing anything else. If this file and
@@ -68,6 +68,52 @@ Consequences that must not be lost:
 - The host is only **2,217 lines** and **no subsystem project depends on it** (only `InternalsVisibleTo`
   test attributes), so this is cheap. The seam is [Q25-F](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-f--a-dedicated-editor-application-with-a-purpose-built-shell).
 
+### 🔒 Three hard constraints on the new app (user, 2026-08-06)
+
+**These are not preferences. An answer that violates one is wrong regardless of its other merits.**
+
+1. **`ClusterRunner` stays fully operational, continuously** — blueprint development runs against it in
+   **parallel sessions**. No "will fix after the refactor" states.
+2. **The construction kit survives** — the system must keep composing network-distributed variants exactly
+   as today (`--mode orchestrator,simhost,cgf`, `ig`, `excon`, `all`). **The editor app is one preset of
+   the kit, not a replacement for it.**
+3. **Place, do not edit.** The new UI must be careful about changing window *content* — prefer **placing**
+   existing windows into the designed layout. Any in-window or **shared-menu** change must be
+   **synchronised/consulted** with the parallel sessions via
+   **[SHARED_SURFACES.md](SHARED_SURFACES.md)** ([UXD-10b](UX_Design.md#uxd-10b)).
+
+⚠ **Constraint 3 invalidated one of Claude's earlier leans.** Q25-F-iii originally recommended *re-host
+the view-models* as the rule; that means touching panel internals. **Revised: layout first** — H0 for
+everything layout can satisfy, view-model reuse only where the seam already exists, section-extraction
+deferred. [UXR-14](UX_Requirements.md#uxr-14) (one inspector) and
+[UXR-20](UX_Requirements.md#uxr-20) (one behaviors section) are therefore **re-sequenced behind the
+consult protocol** — they are the first things to do once in-window change is affordable, not the first
+things overall.
+
+**The upside that makes this workable:** the new shell is a **greenfield project** — new files, new
+`.csproj` — so it is **collision-free by construction**. This is an additional argument for the new app
+over repairing the old shell in place, which would have collided continuously.
+
+### The editor's architectural identity — verified
+
+**Networkless, all-in-one, in-process by design, and already enforced in code:**
+
+```csharp
+// EditorSubsystem.cs:180
+private readonly INetworkFactory _networkFactory = new OfflineNetworkFactory();
+// EditorSubsystem.cs:557
+public EditorSubsystem( INetworkFactory _ )      // ← the injected factory is DISCARDED
+```
+
+So the DDS participant `Program.cs:194` creates for the editor is **built and thrown away**; the editor
+preset can drop network composition entirely. ⚠ But note `EditorSubsystem( INetworkFactory _ )` is a
+**dependency that looks injected and is not** — do not let a future session "helpfully" wire it and give
+the editor a network.
+
+⚠ **The editor MCP server does not exist yet.** The user notes it may become one of the editor's few
+network interfaces. Today the repo has only MCP *client* config (`.mcp.json`, `.cursor/mcp.json`). Treat
+as intent: don't design for it, don't make adding it later require reopening the shell.
+
 **The inversion, concretely:** the golden path is the specification. Panels are implementation detail.
 When a design question arises, the tiebreaker is *"which answer makes the author's walkthrough
 shorter"* — never *"which fits the current window layout"*.
@@ -91,20 +137,24 @@ handoff and is the canonical statement.** Condensed here so a compacted session 
    decision-shaped sub-questions + Claude's lean + reuse-vs-build tradeoff) relayed by the user to
    their NotebookLM architect. **Claude cannot reach the architect.** UX questions start at **Q25**
    (the blueprint programme reached Q24) and live in `docs/UX/`.
-3. **Delegate to Sonnet** for mirror-a-pattern slices, mechanical edits and broad searches. Keep the
+3. 🔒 **Place, do not edit.** Two programmes share this repo and the blueprint one is **active**.
+   Additive at the shell boundary; in-window and shared-menu changes go through
+   [SHARED_SURFACES.md](SHARED_SURFACES.md) first. `ClusterRunner` must stay operational and the
+   construction kit must survive.
+4. **Delegate to Sonnet** for mirror-a-pattern slices, mechanical edits and broad searches. Keep the
    strong model for design, the ECS/undo model, and the final diff review. **The orchestrating session
    reviews the real diff and re-runs the gates itself** — never trust a subagent's "all green".
-4. **Verify before building.** The blueprint audit register was wrong ten times. Re-derive every claim
+5. **Verify before building.** The blueprint audit register was wrong ten times. Re-derive every claim
    from code — including claims in *these* docs — and fix the doc in the same commit if it was wrong.
-5. **Assert the effect, never the report.** `default:`-returns-success has silently killed four
+6. **Assert the effect, never the report.** `default:`-returns-success has silently killed four
    shipped features in this codebase.
-6. **Revert to watch it go red.** Required, not optional. A test written for a fix once passed against
+7. **Revert to watch it go red.** Required, not optional. A test written for a fix once passed against
    the bug.
-7. **Visual verification is mandatory.** This is a UX programme — a green suite proves nothing about
+8. **Visual verification is mandatory.** This is a UX programme — a green suite proves nothing about
    whether the thing feels usable. Perform the designer's gesture in the running editor
    (`--mode editor`) and record what you saw in the task's `DONE` note.
-8. **Docs stay short.** Terse tables, hand-authored SVG for non-trivial diagrams, deep-link everything.
-9. **Ask questions in plain chat prose** — never the multiple-choice widget.
+9. **Docs stay short.** Terse tables, hand-authored SVG for non-trivial diagrams, deep-link everything.
+10. **Ask questions in plain chat prose** — never the multiple-choice widget.
 
 ### 1.10 Session topology
 
@@ -139,6 +189,7 @@ needed knowledge it did not carry, that is a coordinator defect.
 | [UX_Design.md](UX_Design.md) | ▣ base, v0.3 — thesis, two-paths constraint, "a new shell not a repaired one", five-questions frame, target layout, **20** decisions. `UXD-02` and `UXD-08` are `RULED`; six are routed into Q25. Sequencing gains a Milestone 0 (stand up the shell) |
 | [UX_Tasks_Detail.md](UX_Tasks_Detail.md) | ▣ base — template, rules, complexity scale, baseline evidence index. **Register empty** |
 | [UX_Task_Tracker.md](UX_Task_Tracker.md) | ▣ base — 6 milestones, all empty |
+| [SHARED_SURFACES.md](SHARED_SURFACES.md) | ✅ **new** — co-ownership list (9 shared surfaces), consult-before-touch rule, consult log, and the re-sequencing this constraint forces. ⚠ **The blueprint programme's RESUME does not link to it yet** (that edit is itself a co-owned change) |
 | [handoffs/](handoffs/) | ▣ template only |
 | **Golden-path walk** | ☐ **not performed** — needs a Windows session. Every prediction is unverified |
 

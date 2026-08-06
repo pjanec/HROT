@@ -179,7 +179,31 @@ or contradicts an architect ruling, flag it for a nod first.
 - Ask questions in **plain chat prose**. Do **not** use the multiple-choice question widget.
 - Report outcomes faithfully. If a gate is red, say so with the output. If a step was skipped, say so.
 
-### 5.9 Session topology
+### 5.9 Two programmes, one repo — place, do not edit 🔒
+
+**The blueprint programme is actively developed in parallel sessions, and `ClusterRunner` must stay
+fully operational.** That is a hard constraint on how this programme works, not a preference:
+
+| | |
+|---|---|
+| ✅ **Always allowed** | Add files/projects/windows/registrations/layout. **Place and dock** existing windows. Read shared view-models through seams that already exist |
+| ⚠ **Consult first** | Any change to a co-owned window's **internals**; adding a seam to a shared panel; changing a **shared menu**'s structure or an existing command's behaviour |
+| ⛔ **Never** | Fork a shared panel; change `ClusterRunner`'s behaviour for the editor's convenience; break the **construction kit** (the distributed `--mode` variants must keep working) |
+
+**Mechanism: [SHARED_SURFACES.md](SHARED_SURFACES.md)** — the co-ownership list and the consult log. Add a
+row there **before** touching a co-owned surface.
+
+**Why git does not catch this:** a change that alters a shared panel's *behaviour* can invalidate a
+blueprint session's visual verification mid-flight. Branches detect textual collisions, not semantic ones.
+
+**The upside to protect:** the new editor shell is a **greenfield project** — new files, new `.csproj` —
+so it is collision-free by construction. When a golden-path step can be satisfied by *placing* a window
+rather than editing one, place it.
+
+🔴 **The blueprint/BTree/HSM editor windows are the parallel programme's active surface. Place them; do
+not touch them.**
+
+### 5.10 Session topology
 
 | Role | Where | Does |
 |---|---|---|
@@ -199,7 +223,7 @@ or contradicts an architect ruling, flag it for a nod first.
 - **Predictions get corrected.** Where a walk contradicts a prediction, the walk wins: record it in
   [UX_Tasks_Detail.md](UX_Tasks_Detail.md#corrections).
 
-### 5.10 Visual verification is mandatory
+### 5.11 Visual verification is mandatory
 
 This is a **UX** programme: a green test suite proves nothing about whether the thing feels usable.
 Every task ends with the implementer actually performing the designer's gesture in the running editor
@@ -215,7 +239,7 @@ The nine traps earned by the blueprint programme apply here too. The four most r
 | 5 | **`default:` returns success.** A command the sink silently accepts and ignores. Bitten four times. |
 | 6 | **Asset-scoped features belong at the host**, not inside a vendored command — the single opaque command hides the ids a caller needs for an inverse. |
 | 8 | **An optional ctor dependency defaulting to an inert value.** Tests pass it explicitly and prove the logic; every production site omits it; the feature is silently dead. Three confirmed instances. **Grep the production construction sites.** |
-| 9 | **A test can be locked on both halves of a contract and the feature still be unusable**, because no test performs the designer's gesture. Hence §5.5 and §5.10. |
+| 9 | **A test can be locked on both halves of a contract and the feature still be unusable**, because no test performs the designer's gesture. Hence §5.5 and §5.11. |
 
 Full list and history: [`docs/blueprints/Blueprint_Gaps_Programme_RESUME.md`](../blueprints/Blueprint_Gaps_Programme_RESUME.md).
 

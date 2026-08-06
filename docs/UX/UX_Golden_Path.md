@@ -38,6 +38,13 @@ Three things, and it must keep being good at all of them:
 >
 > Record a shell-level annoyance as *"the new shell must not reproduce this"*, not as a bug to fix in
 > the old one. **Do not spend effort fixing the old shell.**
+>
+> 🔒 **And note what the build order may do at each step.** Under
+> [UXD-10b](UX_Design.md#uxd-10b) the rule is **place, do not edit**: a step that can be satisfied by
+> *placing* an existing window into the layout ships early; a step needing a change *inside* a window or
+> to a **shared menu** waits for a consult via [SHARED_SURFACES.md](SHARED_SURFACES.md), because the
+> blueprint programme is developing against those same panels in parallel. So the capability-inventory
+> column *"logic reachable without its ImGui?"* decides not just cost but **ordering**.
 
 ## The two paths
 
@@ -63,7 +70,7 @@ Applied to **every** step, on top of each step's own criterion
 
 **This session (Linux, coordinator) cannot run the editor** — it is a Windows/Raylib ImGui app. The
 walk is performed by a **Windows implementation session or the user**. See
-[Briefing §5.9](UX_Programme_Briefing.md#59-session-topology).
+[Briefing §5.10](UX_Programme_Briefing.md#510-session-topology).
 
 1. `run_Editor.bat` (or `Hrot.ClusterRunner.exe --mode editor`). **Delete or rename the layout profile
    first** (`imgui.ini`) — a walk against a hand-tuned layout proves nothing about a new user's

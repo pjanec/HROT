@@ -344,9 +344,38 @@ Play/Stop goes through `PreviewClusterOpHandler`. A dedicated app **still hosts 
 drops mode parsing, DDS participants, and the other subsystems. This is exactly why the user's
 *shared init path* constraint is the right one.
 
-⚠ **Also unverified:** whether `--mode editor` actually uses the DDS-backed `NedNetworkFactory` injected
-by `Program.cs`, or the editor's own `OfflineNetworkFactory`. **This must be established before the
-seam is cut** — it decides how much of the network composition the shared init has to keep.
+### ✅ Resolved: the editor is networkless by construction, and the host wastes a DDS participant on it
+
+Previously flagged as unverified; now established, and it matters for F-i:
+
+```csharp
+// EditorSubsystem.cs:180
+private readonly INetworkFactory _networkFactory = new OfflineNetworkFactory();
+// EditorSubsystem.cs:557
+public EditorSubsystem( INetworkFactory _ )      // ← the injected factory is DISCARDED
+```
+
+**The editor discards the network factory the host injects and hardcodes `OfflineNetworkFactory`.** So
+the user's stated design intent — *the editor is a networkless, all-in-one, in-process solution* — is
+already enforced in code, and the DDS participant `Program.cs` creates for the editor
+(`Program.cs:194`) is **built and thrown away**. A dedicated editor app can drop network composition
+entirely for its own preset.
+
+⚠ Two riders:
+
+1. `EditorSubsystem( INetworkFactory _ )` is a **dependency that looks injected and is not** — trap #8's
+   shape inverted. A future session could "helpfully" wire it and quietly give the editor a network. If
+   the app is split, make the intent explicit rather than positional.
+2. The **construction-kit nature must survive** (user, 2026-08-06): the system must still compose
+   network-distributed variants exactly as `ClusterRunner` does today. So a shared host library must keep
+   *generic* subsystem composition with real network factories — **the editor app is one preset of the
+   kit, not a replacement for it.** See [F-i](#f-i--where-does-the-seam-between-shared-init-and-new-shell-go).
+
+⚠ **The MCP server does not exist yet.** The user notes the editor's MCP server may become one of its few
+network interfaces. Today the repo contains only MCP *client* config (`.mcp.json`, `.cursor/mcp.json`)
+for the codebase-memory tooling — **no editor-side MCP server**. Treat it as intent, not as a
+constraint to design against yet, but do not architect the app so that adding one later requires
+reopening the shell.
 
 ### F-i — Where does the seam between shared init and new shell go?
 
@@ -373,6 +402,21 @@ to share, but where to cut.
 - **F4 — New exe with its own copied init.**
   *Cost:* divergence. Rejected — it is the failure mode this codebase's shared-panel discipline exists
   to avoid.
+
+> ### 🔒 Two hard constraints on any answer here
+>
+> **1. `ClusterRunner` stays fully operational, continuously.** Blueprint development runs in parallel in
+> other sessions against it. No option may put it in a broken or "will fix after the refactor" state, and
+> the extraction in F1 must therefore be mechanical and gated on ClusterRunner's own suites staying green.
+>
+> **2. The construction kit survives.** The system must still compose network-distributed variants exactly
+> as it does today (`--mode orchestrator,simhost,cgf`, `--mode ig`, `--mode excon`, `--mode all`). A
+> shared host library must keep **generic** subsystem composition with real network factories; the editor
+> app is **one preset of the kit** — networkless, all-in-one, in-process — not a replacement for it.
+>
+> These two rule out any answer that reshapes the host around the editor's needs. They *favour* F3→F1
+> staged: the selector stage cannot break the cluster host at all, and by the time F1 extracts anything,
+> the shell it serves is already proven.
 
 > **Claude's lean: F3 → F1, staged.** Build the curated shell **first** behind a selector in the
 > existing exe (F3), because that proves the shell with zero refactor risk and keeps every gate green
@@ -415,30 +459,94 @@ is the load-bearing part — [UXR-14](UX_Requirements.md#uxr-14) (one inspector)
 [UXR-20](UX_Requirements.md#uxr-20) (one behaviors section) both require merging what are currently
 four separate windows, **without forking panels** ([non-goal 4](UX_Requirements.md#non-goals)).
 
+> ### ⚠ Corrected 2026-08-06 — the parallel-development constraint changes the answer
+>
+> **User constraint:** `ClusterRunner` must stay fully operational because blueprint work is proceeding
+> **in parallel in other sessions**. Therefore the new UI must *"be careful about changing the content of
+> the windows — rather place them properly into the desired layout"*, and any change **inside** a window
+> or to a **shared menu** must be **synchronised/consulted with the other sessions**.
+>
+> Claude's earlier lean here was **H1 (re-host the view-models) as the rule**. That is now wrong as a
+> *starting* position: re-hosting view-models means touching panel internals, which is precisely the
+> churn the constraint forbids without consultation. **The lean is revised below.** See also
+> [F-v](#f-v--how-do-we-stay-out-of-the-parallel-blueprint-work).
+
+- **H0 — Place only. Change nothing inside a window.** The new shell registers, positions and docks
+  existing windows into a designed layout; window *content* is untouched.
+  *Reuse:* total — zero panel edits, zero collision with parallel work.
+  *Build:* only the shell's registration + layout.
+  *Cost:* layout-level requirements are satisfiable ([UXR-04](UX_Requirements.md#uxr-04),
+  [UXR-06](UX_Requirements.md#uxr-06)) but *merge*-level ones are not
+  ([UXR-14](UX_Requirements.md#uxr-14), [UXR-20](UX_Requirements.md#uxr-20)) — so H0 alone cannot finish
+  the programme; it can start it safely.
 - **H1 — Re-host the view-models, not the windows.** Compose new panels over the existing headless
   logic (`Handle*` methods, `EntityBlueprintsEditModel`, `BlueprintMyBlueprintModel`, …), leaving the
   old windows intact for their other hosts.
-  *Reuse:* the house pattern already separates logic from ImGui in most of these panels — that is
-  precisely why this codebase is testable.
-  *Build:* a view-model seam wherever one is missing. **That is the real work, and it is where the
-  estimate will be wrong if we are careless.**
+  *Reuse:* the house pattern already separates logic from ImGui in most panels — precisely why this
+  codebase is testable. **Reads shared code; does not modify it** when the seam already exists.
+  *Build:* a view-model seam wherever one is missing — **and adding a seam *does* modify a shared
+  panel, so it needs a consult.**
 - **H2 — Embed whole existing windows as child regions / tabs** of a new composite.
-  *Reuse:* maximal, immediate. *Cost:* the composite inherits each window's own titling, padding and
-  scroll behaviour — visually a stack of windows in a box, which is the current problem in a smaller
+  *Reuse:* maximal, immediate, no panel edits. *Cost:* the composite inherits each window's titling,
+  padding and scroll behaviour — a stack of windows in a box, i.e. the current problem in a smaller
   frame.
 - **H3 — Extract each window's draw body into a callable *section*** (`DrawSection(ctx)`) that both the
   old window and the new composite call.
-  *Reuse:* one implementation, two hosts — no duplicated rendering. *Build:* mechanical but broad;
-  touches every shared panel and therefore every other host's tests.
+  *Reuse:* one implementation, two hosts. *Cost:* mechanical but broad — **modifies every shared panel
+  and therefore collides hardest with parallel blueprint work.** The right move eventually, the wrong
+  move now.
 
-> **Claude's lean: H1 as the rule, H3 where a panel's rendering is genuinely worth reusing verbatim,
-> H2 never for the spine panels** (it reproduces the problem) though it is acceptable as temporary
-> scaffolding for a step we have not designed yet — **if labelled as scaffolding in the task entry.**
+> **Claude's revised lean: H0 first for everything the layout can satisfy; H1 only where the
+> view-model seam already exists (read-only reuse); H3 deferred until the blueprint programme's active
+> surface is quiet or the change is consulted; H2 only as task-labelled scaffolding.**
 >
-> **Sub-question F″:** for the *graph canvases* specifically (BTree/HSM/Blueprint — already good, and
-> large), is the intent that the new app hosts them **unchanged in their own perspectives** (Claude's
-> assumption), or that they too eventually move into the new shell's layout? This decides whether
-> "compose what exists" has a hard boundary at the canvas.
+> Concretely: **the merge requirements are re-sequenced, not dropped.** UXR-14/UXR-20 stop being early
+> spine work and move behind the consultation protocol — they are the *first* things to do once
+> in-window change is affordable, not the first things to do overall.
+>
+> **Sub-question F″:** for the *graph canvases* specifically (BTree/HSM/Blueprint — already good, large,
+> and **the active surface of the parallel programme**), is the intent that the new app hosts them
+> **unchanged in their own perspectives** (Claude's assumption, and doubly so under this constraint), or
+> that they eventually move into the new shell's layout? This decides whether "compose what exists" has
+> a hard boundary at the canvas.
+
+### F-v — How do we stay out of the parallel blueprint work?
+
+<a id="f-v--how-do-we-stay-out-of-the-parallel-blueprint-work"></a>
+
+Two programmes now edit one repo: the **blueprint** programme (inner loop, active, other sessions) and
+this **UX** programme (outer loop). The constraint is not merely git hygiene — a UX change that alters a
+shared panel's behaviour can invalidate a blueprint session's visual verification mid-flight.
+
+**One structural advantage worth naming:** a **greenfield shell project is collision-free by
+construction** — new files, new `.csproj`, which no blueprint session touches. Under this constraint the
+new-app plan and the parallel-work constraint *reinforce* each other; repairing the old shell in place
+would have collided continuously.
+
+- **J1 — Declared co-ownership list + consult-before-touch.** Name the shared surfaces (the shared
+  panels, the global menu registry, `WindowManager`, `EditorSubsystem`'s composition root, the blueprint
+  editor windows). The UX programme may freely **register, place and dock**; altering a co-owned
+  surface's internals requires a consult note the other programme can see.
+  *Build:* a list + a handoff section + the discipline.
+- **J2 — Additive-only rule at the shell boundary.** The new shell may only *add* registrations and
+  layout; any edit to a co-owned file is a separate, individually-reviewed task.
+  *Build:* nothing; it is a rule. Pairs naturally with J1.
+- **J3 — Time-slice it.** Freeze blueprint work while shared surfaces are changed.
+  *Cost:* the user is actively developing blueprints in parallel — this defeats the purpose.
+- **J4 — Branch isolation with periodic integration.** Each programme on its own branch, merged on a
+  cadence.
+  *Cost:* does not help at all with *semantic* collisions (a changed panel behaviour), only textual ones,
+  and it delays discovery.
+
+> **Claude's lean: J1 + J2.** The co-ownership list and the additive-only boundary are cheap, they make
+> the constraint checkable rather than hoped-for, and they compose with the existing shared-panel-hosts
+> discipline already in the handoff template. J4 as ordinary practice, not as the mechanism.
+>
+> **Sub-question F‴:** what is the **consultation channel** in practice? Claude cannot reach other
+> sessions. Options: the user relays; or a co-owned `docs/UX/SHARED_SURFACES.md` where a proposed change
+> is written down and the other programme's RESUME links to it. Claude's lean: the file, because it
+> survives compaction and both programmes' sessions can read it — **but only the user can confirm that
+> the blueprint sessions will actually read it.**
 
 ### F-iv — Does `--mode editor` survive?
 
@@ -464,9 +572,11 @@ reframes rather than answers.*
 | **Q25-F-i — shared-init / new-shell seam** | — | *answer first; reframes D* |
 | **Q25-F′ — staged (F3→F1), or dedicated exe from day one?** | — | |
 | **Q25-F-ii — what the shell keeps of the window machinery** | — | |
-| **Q25-F-iii — how existing window content is combined** | — | |
+| **Q25-F-iii — how existing window content is combined** | — | *lean revised to H0-first by the parallel-development constraint* |
 | **Q25-F″ — do the graph canvases move into the new shell?** | — | |
 | **Q25-F-iv — does `--mode editor` survive?** | — | |
+| **Q25-F-v — staying out of the parallel blueprint work** | — | *lean J1 + J2* |
+| **Q25-F‴ — what is the consultation channel in practice?** | — | *only the user can confirm the blueprint sessions will read it* |
 | Q25-A — recoverability budget | — | |
 | Q25-A′ — snapshot cost at authoring scale | — | |
 | Q25-B-i — template representation | — | |
