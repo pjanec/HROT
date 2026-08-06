@@ -591,6 +591,49 @@ Document, undo, and panel plumbing.
 - **Tally: 14 commands invoked by the panel, 1 registered** (`editor.create-variable`).
 - **Fix:** surface the failure (log/toast/disable), so an unimplemented command is visible rather than mysterious.
 
+### BP-69 — A name-referenced `CallCustomEvent` silently loses its argument pins 🔴 **[NEW — found while documenting custom events]**
+**Complexity:** WIRING · **Confidence:** ✔✔ *(reproduced against the compiler)*
+
+`CallCustomEventNode.EventId` has **two accepted forms** and they are not treated equally:
+
+| Consumer | GUID form | Name form |
+|---|---|---|
+| `Stage2_Validate.V_ValueNodeReferences` | ✅ | ✅ |
+| `Stage2_Validate.V_CustomEventHandlers` (BP1407/BP1408) | ✅ | ✅ |
+| `Stage5_Schedule.FindCustomEventIndex` | ✅ | ✅ |
+| `BlueprintDocumentFactory.RenameItem` (BP-12b) | ✅ (untouched) | ✅ (rewritten) |
+| **`NodePinSchema.CallCustomEventPins`** (editor) | ✅ | ❌ `return` on `!Guid.TryParse` |
+| **`Stage0_Rehydrate.EnrichCallCustomEventPins`** (compiler) | ✅ | ❌ same |
+
+So a name-referenced call to an event **that has parameters** shows exec-only pins in the editor and
+emits `Event_X(ref s, view, ecb, self, time)` — no arguments — against a method that declares them.
+Result: **CS7036 from Roslyn, with no BP diagnostic**.
+
+⚠ **BP1408 does not catch this.** It compares the declaration's `Parameters` against the handler
+graph's `Inputs`, and those agree; the mismatch is between the declaration and the **call node's
+data-in pins**, which is a third list nothing compares.
+
+The editor's own picker writes the GUID, so the shipped path is safe. The exposed cases are
+hand-authored JSON and the `.WithCustomEvent("X") + CallCustomEvent("X")` shape used across the test
+builders — which is precisely the shape `V_ValueNodeReferences`' comment calls *"the ordinary
+authoring shape"*.
+
+**Fix:** accept the Name form in both projections (a three-line fallback each, mirroring
+`FindCustomEventIndex`), *or* narrow Stage 2 to reject the Name form outright. Do not leave the two
+halves disagreeing.
+
+### BP-70 — Custom-event handler graphs land in `EventHandlers` under an empty key **[NEW — found while documenting custom events]**
+**Complexity:** RW-L · **Confidence:** ✔✔
+
+`CSharpEmitter` keys the runtime handler table by `evtGraph.EventTypeFqn ?? evtGraph.Name`.
+`EventTypeFqn` is carried from the graph's `EventEntry.EventTypeId`, which for a **custom-event**
+handler is empty — custom events are invoked as a direct static call and never dispatched through
+that table at all. The emitted line is literally `[""] = Foo_Bp.Event_OnHit_Thunk,`.
+
+Inert today (nothing resolves `""`), but with **two** custom events both entries key on `""` and the
+later silently overwrites the earlier. **Fix:** skip Event graphs with no event identity, or key
+them by graph name.
+
 ### BP-24 — No Function-graph create path; canvas is locked to one graph
 **Complexity:** RW-M · **Confidence:** ✔✔
 - The data + compiler layers **already support author-defined functions**: `GraphKind.Function`, `FunctionCallNode.TargetGraphId`, and real multi-graph assets on disk (`DeepNestedBlueprint.bp.json` holds 3 Function graphs). `GraphSignatureWindow` does genuine Add/Remove/Rename/Retype/Move CRUD on `Graph.Inputs`/`Outputs` and is properly wired.
@@ -992,7 +1035,7 @@ Two architect statements were also wrong and are corrected in the
 ## New issues found *while fixing*, not by the audit
 
 **BP-59** (🔴 data loss) · **BP-60** · **BP-61** (🔴) · **BP-62** · **BP-63** · **BP-64** ·
-**BP-65** (🔴) · **BP-66** (🔴) · **BP-68** (🔴) · **BP1407/BP1408** (custom events with no handler graph compiled to
+**BP-65** (🔴) · **BP-66** (🔴) · **BP-68** (🔴) · **BP-69** (🔴) · **BP-70** · **BP1407/BP1408** (custom events with no handler graph compiled to
 uncompilable C#). Nearly all
 were found by following an inconsistency rather than by reading the register — which is the argument
 for re-deriving claims rather than working the list top-down.

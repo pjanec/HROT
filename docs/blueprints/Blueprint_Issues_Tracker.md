@@ -11,11 +11,11 @@ architect decision first).
 
 | Complexity | Open | Done |
 |---|---:|---:|
-| `WIRING` | 2 | 21 |
-| `RW-L` | 10 | 13 |
+| `WIRING` | 3 | 21 |
+| `RW-L` | 11 | 13 |
 | `RW-M` | 20 | 3 |
 | `RW-H` | 2 | — |
-| **Total** | **34** | **37** |
+| **Total** | **36** | **37** |
 | *(refuted on verification)* | | *1* |
 
 > 📌 **Resuming this programme?** Start with [Blueprint_Gaps_Programme_RESUME.md](Blueprint_Gaps_Programme_RESUME.md) — branch, batches
@@ -180,6 +180,8 @@ architect decision first).
 - [x] **BP-09** · `WIRING` — 6 abandoned node kinds are **advertised in the palette** but compile to a silent no-op. Delete 6 `Make<T>` blocks
 - [x] **BP-05** · `WIRING` — `ReadRankedResult.Rank` uneditable; plain `InputInt`. Clamped to ≥ 0; the gesture coalesces to one undo entry
 - [x] **BP-06** · `WIRING` — `WaitForChannel.ChannelType` uneditable; reuse `IChannelCommandCatalog`. ⚠ the catalog is keyed by *(channel, action)*, so the list needs deduplicating — otherwise a channel with 8 actions appears 8×
+- [ ] **BP-69** 🔴 · `WIRING` — **A name-referenced `CallCustomEvent` silently loses its argument pins.** `EventId` accepts two forms — the declaration's GUID (what the picker writes) and a bare **Name** — and Stage2's `V_ValueNodeReferences`, Stage5's `FindCustomEventIndex` and BP-12b's rename path all honour both. But **both pin projections resolve only the GUID**: `NodePinSchema.CallCustomEventPins` and `Stage0_Rehydrate.EnrichCallCustomEventPins` each `return` early on `!Guid.TryParse`. So a name-referenced call to an event *with* parameters shows exec-only pins in the editor and emits `Event_X(ref s, view, ecb, self, time)` with **no arguments**, against a handler that declares some → **CS7036 with no BP diagnostic**. ⚠ **BP1408 does not catch it**: it compares the declaration's parameters against the handler graph's inputs, which agree — the mismatch is at the *call node's pins*. *Fix: accept the Name form in both projections (three lines each), or reject it in Stage 2.* — *found while writing up how custom events work*
+- [ ] **BP-70** · `RW-L` — **A custom-event handler graph lands in the runtime `EventHandlers` table under an empty key.** `CSharpEmitter` keys the dictionary by `evtGraph.EventTypeFqn ?? evtGraph.Name`, and `EventTypeFqn` comes from the graph's `EventEntry.EventTypeId` — which is empty for a custom-event handler, since custom events are called directly and never dispatched through that table. Harmless with one custom event; **two collide on `""`** and the later silently wins. Inert today (nothing looks up `""`), but it is a bogus entry in a runtime dictionary. *Fix: skip Event graphs with no event identity, or key them by graph name.* — *found while writing up how custom events work*
 - [x] **BP-07** · `WIRING` — `CallCustomEvent.EventId` uneditable. ✅ **unblocked by BP-12c** — an asset can now declare custom events, so the picker has something to list. ⚠ **the audit named the wrong source:** `UnifiedEventDiscovery` enumerates *engine* events; a custom event is **asset-scoped** (`asset.CustomEvents`), so every choice from that picker would have failed to resolve
 - [x] **BP-08** · `WIRING` — `CallPeerBlueprint` target uneditable; reuse `BlueprintPeerSource` behind a new `IBlueprintPeerProvider` seam. Dependent peer→function pickers; switching peer clears a function it doesn't export, in the same edit
 - [ ] **BP-67** · `RW-M` — **The When node's other three mode forms are also stubs.** `ValueChanged` (component/property picker), `ConditionMet` (predicate editor) and `EqsResult` (trigger + sensor picker) each render one `TextDisabled` line, so three of the node's four modes cannot be configured at all. Unlike BP-10 these have **no already-injected catalog** to render — ValueChanged needs a component→property picker, ConditionMet a predicate editor UI — *found in the visual check*
