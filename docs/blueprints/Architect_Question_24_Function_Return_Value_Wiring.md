@@ -6,6 +6,10 @@
 > Found while auditing what **BP-24** (graph create + switching, Batch 15) actually unblocked.
 > This changes a pin-direction contract that the compiler, the editor and a test all encode
 > independently, so per the engine-rules gate it gets an architect pass before any code.
+>
+> **Status: A/B/C decided by the user 2026-08-06 (A1 + B1 + C3) — BP-71 is unblocked and buildable.
+> Q24-D (one output or many) is still open**; it does not block the A/B/C work, which is
+> single-output-only either way.
 
 **Symptom.** BP-24 made Function graphs creatable and reachable. `GraphSignatureWindow` can give one
 an **Output**. `FunctionCallNodeDrawer` can target it and `FunctionGraphCallPins` projects a typed
@@ -151,15 +155,61 @@ an unattributable Roslyn failure. ⚠ Every new `BPxxxx` needs a `[CoversDiagnos
 `Stage5:1480/3010`). `GraphSignatureWindow` happily lets a designer add a second one, which is then
 **silently ignored**.
 
-- **D1 — formalise single-output.** A Stage 2 error on `Outputs.Count > 1`, and the signature window
-  disables **+** at one. Honest about what the compiler does.
-- **D2 — support N outputs** (tuple return, or `out` parameters). Real emitter work, and the call
-  site needs N return pins instead of one.
-- **D3 — leave it.** Today's behaviour: the second output vanishes without a word.
+> The user's goal is **Unreal parity** — Unreal's Return Node carries one input pin per declared
+> output. So the question is not *whether* N outputs are wanted but *when*, and what they cost.
+> Costed against code 2026-08-06.
 
-**Claude's lean: D1, decided in this round even though it is not the reported bug.** D3 is a
-silent-data-loss shape and the programme has spent fifteen batches removing exactly those. D2 is a
-capability decision that deserves its own demand — nothing has asked for it.
+### What multi-output would actually cost
+
+**The one invariant not to break.** `IrStatement` has exactly one `IrValue? ResultValue`
+(`Ir/IrStatement.cs:5`). Making it a list would touch every statement consumer plus the
+one-`PinId`-per-statement debug annotation, probe insertion and breakpoint mapping. **Avoid.**
+Everything below keeps the one-result invariant and is therefore additive.
+
+| Piece | Cost | Why |
+|---|---|---|
+| **Library dispatch** | **≈free** | `EmitLibraryFunctionAdapter` already writes results into an `outputs` **byte span** via `MemoryMarshal.Write` (`CSharpEmitter:267`), and already walks **N inputs** with an `__off` cursor (`:252-258`). N outputs is that same loop mirrored. ⚠ Write them **sequentially with `__off` advance**, not as one packed struct — the reader side walks sequentially, and struct padding would not match. |
+| **Per-pin value resolution** | **already exists** | `_statementPinCache` maps pin→value precisely so a statement-produced value is not recomputed (`Stage5:1526` — *"re-invoking would re-run the side effect"*). One `IrOp_GraphCall` statement + one field-read statement per consumed pin, each cached. Probes/watch stay per-pin correct for free. |
+| **Debug map** | **already assumes N** | `CSharpEmitter.Emit:69` loops `foreach (var field in graph.Outputs)` and registers *every* one. Only the emit/return sites hardcode `[0]`. |
+| **Editor projections** | small | `EnrichReturnPins`, `ReturnNodePins`, `FunctionGraphCallPins` loop instead of taking `[0]`. All three **already loop over `Inputs`** — mirror it. |
+| **Signature window** | **nothing** | already N-row CRUD (Add/Remove/Rename/Retype/Move). |
+| **Instance dispatch — the carrier** | **the only real design work** | `IrOp_GraphCall.ReturnType` is a single `IrTypeRef` and the emitted C# is a plain method. N needs a carrier: a `ValueTuple` or a synthesized struct. **Precedent exists** — `StatementEmitter.TypeRefToCSharp:1591` already passes through `_ when t.FullName.StartsWith("_")`, commented *"local generated type (synthesized struct)"*. So composing a return type and threading it through `IrTypeRef.FullName` is an established move, not a new one. |
+| **Return terminator** | small, and avoidable | `BuildReturnTerminator` collects N pins. It can stay **single-value** by synthesizing a carrier-construction statement just before the return (`var __t9 = (a, b); return __t9;`) — **zero terminator changes**. |
+
+**Estimate: ~250–450 lines across compiler + editor, plus tests. `RW-M`, not `RW-H`.** No new
+subsystem, no invariant broken, and strictly additive: with `Outputs.Count <= 1` the emitter keeps
+producing today's bare `float`/`void`, so no golden IR, no shipped asset and no existing test moves.
+
+**So: not luxurious.** The machinery this needs mostly exists, in the right shape, for other reasons.
+
+### The argument for not doing it *in this item*
+
+Demand is currently **zero**: of 92 assets, 2 declare an output and **neither wires it** — there is
+no function anywhere returning even *one* value yet. Meanwhile BP-71's fix is two lines. Bundling N
+turns a two-line unblock into a multi-day slice, and the two-line version is what makes Function
+graphs useful at all.
+
+### Options
+
+- **D1 — formalise single-output permanently.** Stage 2 error on `Outputs.Count > 1`; signature
+  window caps at one. Honest, but forecloses Unreal parity.
+- **D2 — build N now**, inside BP-71.
+- **D3 — leave it.** Today: the second output vanishes without a word.
+- **D1′ — single-output *now*, N as a named follow-up.** BP-71 fixes the direction and adds a
+  Stage 2 diagnostic on `Outputs.Count > 1` whose message says **"not supported yet — see BP-73"**,
+  not "illegal". Kills the silent discard (the actual defect today) without foreclosing anything.
+
+**Claude's recommendation: D1′.** D3 is a silent-data-loss shape and this programme has spent fifteen
+batches removing those. D1 contradicts the stated Unreal-parity goal. D2 is the right *capability*
+but the wrong *sequencing* — it blocks a two-line correctness fix behind a design round for a carrier
+type, for a feature no asset can yet exercise. D1′ gets the fix out this week and leaves N a costed,
+scheduled item rather than an open question. ⚠ Whichever is chosen, the `Outputs.Count > 1`
+diagnostic needs a `[CoversDiagnosticCode]` test or `V_AllValidatorsCoverageTests` fails the build.
+
+**If N is wanted in its own slice, the one question to settle first:** `ValueTuple` vs a synthesized
+`_FuncOut_{Name}` struct for the Instance carrier. Tuple gives named elements free; a synth struct
+matches the existing `_`-prefixed convention and is easier to name in diagnostics and the watch panel.
+The Library path uses neither — it stays sequential span writes.
 
 ---
 
@@ -181,14 +231,19 @@ not affected.
 
 ---
 
-## Answers — *pending architect round*
+## Answers — **A/B/C DECIDED 2026-08-06 by the user** · D open
 
-> Relay to NotebookLM, record the decisions in this section, **then** build. Do not start on the
-> strength of Claude's leans.
+> ⚠ **Provenance:** A, B and C were decided by the **user directly** ("for a b c lets use your
+> lean"), not by the NotebookLM architect — the same delegation precedent as Q23's self-researched
+> round. **D is still open**, reframed above with a real cost estimate after the user noted that
+> Unreal supports multiple outputs and asked whether N-output is disproportionately expensive.
+>
+> ⚠ Per the working agreement, an approval is **not** a verification (Q22's approved D2 was the one
+> step that could not work). Re-check each decision against the code before building it.
 
 | Sub-question | Decision | Reasoning |
 |---|---|---|
-| Q24-A — which side moves | | |
-| Q24-B — legacy direction | | |
-| Q24-C — diagnostic | | |
-| Q24-D — output count | | |
+| **Q24-A — which side moves** | ✅ **A1 — flip both projections to `Direction == "In"`; widen `BuildReturnTerminator` to accept either.** | Removes a special case instead of adding one: `Return` is the compiler's only pin declared `"Out"` and consumed as an input (1 of ~20 `ResolveDataPin` sites, against the universal `ResolveAllDataInputs`). Matches Unreal, whose Return Node is an input-collecting node. Free bonus: the pin gains an inline default-value editor, since `BlueprintPinModel` synthesises `Default` only for `"In"` data pins — so `return 0;` no longer needs a wired literal. |
+| **Q24-B — legacy direction** | ✅ **B1 — accept both directions in `BuildReturnTerminator`, permanently.** | One `\|\|`. Zero on-disk instances to migrate either way (0 of 92 assets author Return pins), so the deciding factor is which failure is worse — and B1 makes B2's silently-void return impossible. |
+| **Q24-C — diagnostic** | ✅ **C3 — Stage 2 error *and* emit `default(T)`.** | Today: BP4001 *warning* → an undeclared dummy temp → `return __t7;` → **CS0103 with no BP attribution** (BP-69's shape). C1 alone is the right authoring answer; C2 alone repeats BP-16 (silent wrong value). Together the designer gets a named error and the emitter can never produce an untraceable Roslyn failure. ⚠ Needs a `[CoversDiagnosticCode]` test. |
+| **Q24-D — output count** | ⏳ **open** — see the costing above. Claude recommends **D1′** (single-output now; N as a named follow-up, with the `Outputs.Count > 1` diagnostic worded "not supported yet", not "illegal"). | N-output is **`RW-M`, ~250–450 lines, and additive** — the Library ABI is already span-based and N-shaped, `_statementPinCache` already does per-pin values, the debug map already loops all outputs, and `TypeRefToCSharp` already passes synthesized types through. It is **not** luxurious. But demand is zero today (no asset returns even one value), and bundling it would block a two-line correctness fix behind a carrier-type design round. |

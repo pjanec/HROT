@@ -386,7 +386,13 @@ Whether a designer can *place* and *configure* each node kind. 13 of 50 kinds ru
 **Complexity:** RW-L *(the change is small; the contract decision is not)* · **Confidence:** ✔✔
 *(re-derived across editor, compiler and all 92 shipped assets)*
 
-📐 **Architect round required — [Q24](Architect_Question_24_Function_Return_Value_Wiring.md). Do not build before it is answered.**
+🟢 **DECIDED — [Q24](Architect_Question_24_Function_Return_Value_Wiring.md) A1+B1+C3, by the user
+2026-08-06. Buildable, single-output only.** Flip both projections to `Direction == "In"`; accept
+**either** direction in `BuildReturnTerminator` (one `||`, so no migration and no silently-void
+return); an unwired return becomes a **Stage 2 error** *and* the emitter falls back to `default(T)`.
+Q24-**D** (Unreal-style N outputs) is still open and blocks nothing here — costed in the doc as
+`RW-M` / ~250–450 lines and mostly additive, recommended **D1′** (ship single-output; word the
+`Outputs.Count > 1` diagnostic *"not supported yet"*, not *"illegal"*).
 
 The `Return` node's value pin is declared an **output** and consumed as an **input**:
 

@@ -15,8 +15,9 @@
    (A2+B2+C2+D1, recorded in
    [Architect_Question_23_Graph_Create_And_Switching.md](Architect_Question_23_Graph_Create_And_Switching.md)).
    Next up: **BP-69 / BP-70** (both 🔴, scouted below) or **BP-67's EqsResult slice**; BP-57 and
-   BP-25 are newly unblocked. The briefing below carries the scouting. **BP-71** 🔴 is blocked on
-   [Q24](Architect_Question_24_Function_Return_Value_Wiring.md) — drafted, not yet relayed.
+   BP-25 are newly unblocked. The briefing below carries the scouting. **BP-71** 🔴 is **decided and
+   buildable** — [Q24](Architect_Question_24_Function_Return_Value_Wiring.md) A1+B1+C3 (user,
+   2026-08-06); only Q24-D (N outputs) is still open, and it blocks nothing.
 3. **Traps that cost real time** — nine of them, each one earned. Trap #5 (`default:` returns
    success) and #6 (asset-scoped features belong at the host) have each bitten more than once;
    **#9 is new** and is why BP-71 survived a 2788-test suite.
@@ -75,9 +76,17 @@ green. Three themes worth carrying forward:
 
 ## Next up
 
-0. 📐 **Q24 is drafted and waiting on the architect** —
-   [Architect_Question_24](Architect_Question_24_Function_Return_Value_Wiring.md), for **BP-71**.
-   Relay it before taking BP-71; everything else below is independent of it.
+0. 🟢 **BP-71** 🔴 (`RW-L`) — **decided and buildable.**
+   [Q24](Architect_Question_24_Function_Return_Value_Wiring.md) **A1+B1+C3, decided by the user
+   2026-08-06**: flip both Return-pin projections to `Direction == "In"`, accept **either** direction
+   in `BuildReturnTerminator` (one `||`), and make an unwired return a **Stage 2 error** *plus* emit
+   `default(T)` so Roslyn can never fail unattributably. **Single-output only** — Q24-**D** (Unreal-style
+   N outputs) is still open and does not block this; it is costed in the doc as `RW-M` / ~250–450 lines
+   and mostly additive (the Library ABI is already span-based and N-shaped, `_statementPinCache`
+   already does per-pin values, the debug map already loops all outputs). Recommended **D1′**: word the
+   `Outputs.Count > 1` diagnostic *"not supported yet"*, not *"illegal"*.
+   ⚠ New `BPxxxx` codes need a `[CoversDiagnosticCode]` test or the build fails.
+   ⚠ An approval is not a verification — re-derive against code first (Q22-D2 precedent).
 1. ✅ **BP-24 — SHIPPED (Batch 15, 2026-08-06)** to the Q23 package (A2+B2+C2+D1). Ship notes in
    the tracker banner and `Blueprint_Issues_Detail.md#BP-24`. **Visual check pending** — see the
    morning-check section, batch-15 block.
