@@ -105,8 +105,8 @@ what makes Function graphs and custom-event bodies authorable at all, which is w
 ## 🎯 Next task briefing — scouting already done, do not re-derive
 
 Verified against code on 2026-08-06. Written so a fresh session can start editing immediately.
-**BP-24 is the committed item — its briefing is below the BP-67 one, and its decisions live in
-[Architect_Question_23](Architect_Question_23_Graph_Create_And_Switching.md).**
+**BP-24 shipped in Batch 15** — its what-was-built summary is below the BP-67 briefing; decisions in
+[Architect_Question_23](Architect_Question_23_Graph_Create_And_Switching.md).
 
 ### BP-67 — the When node's other three mode forms (`RW-M`) · *a strong next candidate*
 
