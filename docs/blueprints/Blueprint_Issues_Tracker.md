@@ -12,10 +12,10 @@ architect decision first).
 | Complexity | Open | Done |
 |---|---:|---:|
 | `WIRING` | 4 | 21 |
-| `RW-L` | 10 | 13 |
+| `RW-L` | 12 | 13 |
 | `RW-M` | 19 | 4 |
 | `RW-H` | 2 | — |
-| **Total** | **35** | **38** |
+| **Total** | **37** | **38** |
 | *(refuted on verification)* | | *1* |
 
 > 📌 **Resuming this programme?** Start with [Blueprint_Gaps_Programme_RESUME.md](Blueprint_Gaps_Programme_RESUME.md) — branch, batches
@@ -55,6 +55,15 @@ architect decision first).
 > all three together. ⚠ The five build-time `graph` capture sites (sink, model, debug adapter,
 > ToggleBreakpoint closure, clipboard commands) are all provider-based now — a captured graph goes
 > stale on the first switch; the clipboard one would have **pasted into the wrong graph**.
+>
+> 🔎 **Post-ship audit (2026-08-06) — two gaps BP-24 exposed rather than caused.** The
+> *create → author → call with arguments* loop verifies end-to-end in code
+> (`FunctionCallNodeDrawer.DrawFunctionGraphPicker` lists the asset's Function graphs;
+> `NodePinSchema.FunctionGraphCallPins` projects typed argument pins from `target.Inputs`). What does
+> **not** work: **BP-71** 🔴 — the callee cannot *return* a value, because the `Return` node's value
+> pin faces the wrong way on the canvas ([Q24](Architect_Question_24_Function_Return_Value_Wiring.md));
+> and **BP-72** — the Graph Signature window does not follow the switched canvas and hides Event
+> graphs, so a custom event's parameters cannot be edited after creation.
 
 > ✅ **Batch 14 shipped (2026-08-05) — BP-19 + BP-20: minimap and jump-to-issue.**
 > Two more declared-but-never-registered command ids. The minimap is a corner overlay with a
@@ -210,6 +219,7 @@ architect decision first).
 - [x] **BP-08** · `WIRING` — `CallPeerBlueprint` target uneditable; reuse `BlueprintPeerSource` behind a new `IBlueprintPeerProvider` seam. Dependent peer→function pickers; switching peer clears a function it doesn't export, in the same edit
 - [ ] **BP-67** · `RW-M` — **The When node's other three mode forms are also stubs.** `ValueChanged` (component/property picker), `ConditionMet` (predicate editor) and `EqsResult` (trigger + sensor picker) each render one `TextDisabled` line, so three of the node's four modes cannot be configured at all. Unlike BP-10 these have **no already-injected catalog** to render — ValueChanged needs a component→property picker, ConditionMet a predicate editor UI — *found in the visual check*
 - [x] **BP-10** · `WIRING` — `When` → EventFired form stubbed; the catalog is *already injected and called*, just never rendered. Filtered picker + self-filter toggle (shown only when the event carries a target field)
+- [ ] **BP-71** 🔴 · `RW-L` — **A Function graph's return value cannot be wired.** The `Return` node's value pin is declared `Direction=="Out"` by *both* projections (`NodePinSchema.ReturnNodePins:328`, `Stage0_Rehydrate.EnrichReturnPins`) but consumed as an **input** — `Stage5.BuildReturnTerminator:1896` matches `Direction=="Out"` then calls `ResolveDataPin(rn.Id, outPin.Id)`, which follows a link *arriving* at the node. `BlueprintPinModel:86` maps Direction straight through and `BlueprintLinkValidator` rejects same-direction links, so **nothing can be wired in** — and the pin gets no inline default editor either (that too is `Direction=="In"`-only). ⚠ **`Return` is the compiler's only such pin**: of ~20 `ResolveDataPin` sites it is the sole `"Out"` one, against the universal `ResolveAllDataInputs` convention. Deliberate and **test-locked** at both ends, so a green suite proves nothing — the two halves have simply never been used together. Ends in **CS0103 with no BP diagnostic** (BP-69's shape): unwired ⇒ BP4001 *warning* + a dummy temp that is never declared ⇒ `return __t7;`. Blast radius nil — of 92 shipped assets, **0** wire a function return. 📐 **[Q24](Architect_Question_24_Function_Return_Value_Wiring.md) first** — the fix flips a contract three files encode independently — *found while auditing what BP-24 unblocked*
 - [ ] **BP-14** · `RW-L` — `Return.Status` uneditable (always Success); a `NodeStatus` combo, ~20-30 lines
 - [ ] **BP-22** · `RW-L` — `GetParameter` cannot be placed; asset-specific, so needs a picker not a baked entry
 - [ ] **BP-21** · `RW-L` — `When` → ValueChanged form stubbed; reuse `ComponentFieldReflector` + component pickers
@@ -226,6 +236,7 @@ architect decision first).
 - [x] **BP-12b** · `RW-L` — Panel items can't be renamed/duplicated/deleted; a variable can be created but never removed. Registered for variables **and** custom events, undoable via `BlueprintEditCommand`. ⚠ **renaming a custom event also renames its paired Event graph and rewrites name-keyed `CallCustomEvent` refs** — the GUID form survives untouched, but Stage5 accepts a bare name and leaving those behind would turn a rename into a silent BP1403. ⚠ deleting a declaration **leaves its nodes in place** — dangling is recoverable and named by the compiler; silently deleting wired-up nodes is not. *`move-to-category` / `change-variable-type` still unregistered*
 - [x] **BP-12c** · `RW-L` — Custom events can't be created — **the blocker for BP-07**, whose picker had nothing it could ever list. "Custom Events +" now opens a create modal (name + typed parameters). ⚠ **the dispatcher half was removed, not wired** — BP-09 established dispatchers are superseded and deleted their node kinds; nothing consumes `EventDispatchers` and no shipped asset declares one. ⚠ **found while fixing: the declaration is only half a custom event** — the body is an Event graph of the same name, which the editor cannot create yet (BP-24), so a call to an unhandled event emitted C# that did not compile. New **BP1407/BP1408** turn that into a Stage 2 diagnostic
 - [x] **BP-24** · `RW-M` — **No Function-graph create path; canvas locked to one graph.** ✅ Batch 15: canvas switches by retargeting the model+sink in place (undo/bookmarks/commands survive; undo auto-switches to the entry's graph); "Functions +" creates Function graphs; declaring a custom event auto-creates its body (BP1407 loop closed); Event-graph open preference removed; double-click in My Blueprint navigates; cross-graph bookmark jumps live. Decisions: [Q23](Architect_Question_23_Graph_Create_And_Switching.md)
+- [ ] **BP-72** · `RW-L` — **The Graph Signature window ignores the canvas, and Event-graph parameters are editable nowhere.** Its `Retarget` is asset-scoped (`EditorSubsystem.cs:2276`) and it keeps its own combo seeded at `functionGraphs[0]`, so after a BP-24 graph switch the designer edits the `Inputs`/`Outputs` of a graph they are not looking at. It also filters to **Function graphs only**, so a custom event's auto-created **Event** body graph is excluded — its parameters can be set at creation (`CustomEventCreateModal`) and never again, short of hand-editing JSON. ⚠ The halves interact: following the canvas alone would land on an Event graph and print "No Function graphs in this blueprint". ⚠ Event `Inputs` mirror `CustomEventDecl.Parameters` — editing one side must rewrite the other or BP1408 fires; that pairing is the real work, not the picker — *found while auditing what BP-24 unblocked*
 - [ ] **BP-12d** · `RW-M` — `find-references` dead; overlaps BP-25's multi-graph layer
 - [ ] **BP-57** · `RW-M` — Per-function local variables absent from the data model itself. ✅ **unblocked — BP-24 shipped** (functions are creatable and the canvas reaches them)
 
@@ -290,7 +301,10 @@ architect decision first).
 
 ## Needs an architect decision before scoping
 
-`BP-40` · `BP-38` (already LOCKED as deferred) · `BP-52` (UX-1/UX-2).
+`BP-40` · `BP-38` (already LOCKED as deferred) · `BP-52` (UX-1/UX-2) ·
+**`BP-71`** — [Q24](Architect_Question_24_Function_Return_Value_Wiring.md) drafted 2026-08-06,
+**awaiting the architect round**; the code change is two lines but it flips a pin-direction contract
+the editor, the compiler and two tests each encode independently.
 
 **Cleared:** `BP-11` — approved 2026-08-04, see [Q22](Architect_Question_22_Undo_Unification.md).
 `BP-27` — re-check done, no reusable picker exists, `RW-M` confirmed; no architect round needed.

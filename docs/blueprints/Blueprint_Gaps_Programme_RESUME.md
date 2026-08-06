@@ -15,9 +15,11 @@
    (A2+B2+C2+D1, recorded in
    [Architect_Question_23_Graph_Create_And_Switching.md](Architect_Question_23_Graph_Create_And_Switching.md)).
    Next up: **BP-69 / BP-70** (both 🔴, scouted below) or **BP-67's EqsResult slice**; BP-57 and
-   BP-25 are newly unblocked. The briefing below carries the scouting.
-3. **Traps that cost real time** — eight of them, each one earned. Trap #5 (`default:` returns
-   success) and #6 (asset-scoped features belong at the host) have each bitten more than once.
+   BP-25 are newly unblocked. The briefing below carries the scouting. **BP-71** 🔴 is blocked on
+   [Q24](Architect_Question_24_Function_Return_Value_Wiring.md) — drafted, not yet relayed.
+3. **Traps that cost real time** — nine of them, each one earned. Trap #5 (`default:` returns
+   success) and #6 (asset-scoped features belong at the host) have each bitten more than once;
+   **#9 is new** and is why BP-71 survived a 2788-test suite.
 4. **Test baseline** — what "green" means, and which two failures are known flakes.
 5. **Working agreement** — how the user wants this programme run.
 
@@ -29,7 +31,7 @@ lists every one.
 
 ## Status
 
-**35 open · 38 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
+**37 open · 38 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
 table; do not duplicate them here.
 
 | Batch | Items |
@@ -73,9 +75,18 @@ green. Three themes worth carrying forward:
 
 ## Next up
 
+0. 📐 **Q24 is drafted and waiting on the architect** —
+   [Architect_Question_24](Architect_Question_24_Function_Return_Value_Wiring.md), for **BP-71**.
+   Relay it before taking BP-71; everything else below is independent of it.
 1. ✅ **BP-24 — SHIPPED (Batch 15, 2026-08-06)** to the Q23 package (A2+B2+C2+D1). Ship notes in
    the tracker banner and `Blueprint_Issues_Detail.md#BP-24`. **Visual check pending** — see the
    morning-check section, batch-15 block.
+   ⚠ **Post-ship audit (2026-08-06) found two gaps it exposed rather than caused**: **BP-71** 🔴 (a
+   Function graph's return value cannot be wired — the `Return` node's value pin faces the wrong way
+   on the canvas; Q24 above) and **BP-72** (the Graph Signature window ignores the switched canvas
+   and hides Event graphs, so a custom event's parameters are editable nowhere after creation). The
+   rest of the loop — create a Function graph, author it, call it with typed arguments — verifies
+   end-to-end in code.
 2. **BP-69** 🔴 (`WIRING`) — name-referenced `CallCustomEvent` loses its argument pins (both pin
    projections early-return on `!Guid.TryParse`; validators/scheduler accept the name form).
    Three-line fallback in each, mirroring `FindCustomEventIndex`. Independent of BP-24.
@@ -333,6 +344,21 @@ pass, since no headless test can see it.)
 - **A "graceful fallback" hides a wiring bug.** `CallPeerBlueprintPins` falls back to untyped pins
   when the peer lookup finds nothing — indistinguishable from no lookup at all, which is exactly how
   BP-66 survived. When a path degrades silently by design, test the *populated* case.
+
+### 9. 🆕 Two halves of a contract, each tested alone, never together (**BP-71**)
+*Both sides of an interface can be fully implemented, individually correct, individually
+**test-locked** — and still unusable together, because no test ever crosses the seam.*
+
+The `Return` node's value pin is `Direction=="Out"` in the editor projection **and** in the compiler
+rehydrator, and `Stage5.BuildReturnTerminator` reads it as an *input*. Two tests assert the `"Out"`
+contract in prose. The canvas rejects same-direction links, so the pin can never be wired — a
+Function graph cannot return a value. **No test placed a Return node in a Function graph with an
+output and then tried to author the link**, and no shipped asset does it either (of 92 `.bp.json`,
+zero wire a function return).
+
+> **A convention asserted at both ends is not the same as a path exercised end-to-end.** When a
+> feature spans editor *and* compiler, ask what the *designer's gesture* is and whether any test
+> performs it. Absence of a failing test is the expected state for a seam nobody crosses.
 
 ---
 

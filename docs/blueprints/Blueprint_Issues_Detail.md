@@ -382,6 +382,52 @@ Whether a designer can *place* and *configure* each node kind. 13 of 50 kinds ru
 **Complexity:** RW-L · **Confidence:** ✔✔
 - `Nodes.cs:182` — `Status { get; set; } = NodeStatus.Success`; no drawer, no bake path. A combo over `NodeStatus` mirroring `WhenNodeDrawer.DrawModeSelector`, ~20-30 lines.
 
+### BP-71 — A Function graph's return value cannot be wired 🔴 **[NEW — found while auditing what BP-24 unblocked]**
+**Complexity:** RW-L *(the change is small; the contract decision is not)* · **Confidence:** ✔✔
+*(re-derived across editor, compiler and all 92 shipped assets)*
+
+📐 **Architect round required — [Q24](Architect_Question_24_Function_Return_Value_Wiring.md). Do not build before it is answered.**
+
+The `Return` node's value pin is declared an **output** and consumed as an **input**:
+
+| Where | Says |
+|---|---|
+| `Host/NodePinSchema.cs:328` `ReturnNodePins` | `MakeData(output.Name, **"Out"**, typeId)` |
+| `Stage0_Rehydrate.EnrichReturnPins` | `MakePin(output.Name, **"Out"**, …)` |
+| `Stage5_Schedule.BuildReturnTerminator:1896` | matches `!IsExec && Direction == "Out"`, then `ResolveDataPin(rn.Id, outPin.Id)` — which looks for a link with **`ToNodeId == rn.Id`** |
+
+`BlueprintPinModel.cs:86` maps Direction straight through (`"In" → Input`, else `Output`), and
+`BlueprintLinkValidator` rejects same-direction links outright. **So the designer cannot wire a value
+into it, and there is no fallback:** the pin gets no inline default-value editor either, because
+`BlueprintPinModel` synthesises `Default` only for `Direction == "In"` data pins.
+
+⚠ **`Return` is the only node in the compiler with this shape.** The universal convention is
+`ResolveAllDataInputs` — `Where(p => !p.IsExec && p.Direction == "In")` (`Stage5_Schedule.cs:3233`).
+Of ~20 `ResolveDataPin` call sites, `BuildReturnTerminator:1898` is the **sole** one passing an
+`"Out"` pin.
+
+**The contract is deliberate and test-locked** — `BATCH03A_FunctionGraphCallTests.cs:139` and
+`NodePinSchemaEnrichmentTests.cs:750` both state it in prose ("*the value pin MUST have
+`Direction=="Out"` (compiler contract)*"). Nothing is broken in the compiler's own terms; **the two
+halves have never been used together.** That is why a green suite proves nothing here.
+
+**Failure mode** (Instance dispatch only — `BuildReturnTerminator` returns `IrTerm_ReturnStatus`
+early for `Library`/`AiPrimitive` and ignores the pin): `ResolveDataPin` finds no link ⇒ **BP4001
+*warning*** + a dummy `IrValue`; temps are declared only at their assigning statement, and a dummy
+has none; `TerminatorEmitter` writes `return __t7;` ⇒ **CS0103 with no BP diagnostic**. The same
+unattributed-Roslyn-error shape as **BP-69**.
+
+**Blast radius is near-zero — the path is wholly unexercised.** Across all **92** `*.bp.json`:
+**2** graphs declare `Outputs` (`SquadState.bp.json` `GetThreatLevel`, two copies), **0** `Return`
+nodes carry authored pins (all `"Pins": []`, reprojected on load), **0** functions wire a return
+value. `GetThreatLevel` itself has `"Links": []` — it does not wire its own return either.
+
+**Fix (pending Q24-A):** flip both projections to `"In"` and widen `BuildReturnTerminator` to accept
+either direction — two lines, one predicate, two contract tests. Q24 also decides whether an unwired
+return becomes a Stage 2 error (today: a warning plus an untraceable CS0103) and whether
+`Graph.Outputs.Count > 1` is rejected — only `[0]` is ever read, at 5 sites, while
+`GraphSignatureWindow` lets a designer add more and **silently discards them**.
+
 ### BP-10 — `When` → EventFired form is a stub
 **Complexity:** WIRING · **Confidence:** ✔✔
 
@@ -706,6 +752,33 @@ globally raisable by a name-hash, which is a design decision, not a bug fix.
 - **Missing 2 — no graph switching:** `BlueprintDocumentFactory.cs:130-131` binds the canvas permanently at open time via `Graphs.FirstOrDefault(g => g.Kind == Event) ?? Graphs.FirstOrDefault()`.
 - ⚠ **Consequence:** in any multi-graph asset, **every graph but the first is unreachable through the UI**. The `FunctionCall` target picker can only select graphs hand-authored in JSON.
 - Also fixes the My Blueprint "Graphs" section's double-click, currently `navigateToGraph: _ => { }`.
+
+### BP-72 — The Graph Signature window ignores the canvas, and Event-graph parameters cannot be edited at all **[NEW — found while auditing what BP-24 unblocked]**
+**Complexity:** RW-L · **Confidence:** ✔✔
+
+BP-24 gave the canvas a current graph (`BlueprintGraphSwitcher.CurrentGraph`). `GraphSignatureWindow`
+predates it and was never joined up:
+
+- **It does not follow the canvas.** `Retarget(BlueprintAsset?)` is **asset**-scoped
+  (`EditorSubsystem.cs:2276`) and resets to `functionGraphs[0]`; the window then keeps its own combo
+  (`GraphSignatureWindow.cs:118`). So switching the canvas to a Function graph leaves the signature
+  window pointing somewhere else — the designer edits `Inputs`/`Outputs` of a graph they are not
+  looking at. Q23's retarget audit classified the window fan-out as asset-scoped and needing no
+  re-fire, which is true of My Blueprint / Details / Variables but **not** of this one.
+- **It lists Function graphs only** — `asset.Graphs.Where(g => g.Kind == GraphKind.Function)`. A
+  custom event's body is an **Event** graph, so once BP-24 auto-creates it, its `Inputs` (the event's
+  parameters) are editable **nowhere**: `CustomEventCreateModal` sets them at creation, BP-12b covers
+  rename only, and this window filters the graph out. Adding a parameter to an existing custom event
+  therefore requires hand-editing JSON.
+
+⚠ The two halves interact: fixing only the first would follow the canvas onto an Event graph and then
+show "No Function graphs in this blueprint."
+
+**Fix:** take the switcher (or a `Func<Graph>`) so the combo defaults to the current graph, and widen
+the filter to Function **+** Event graphs. Keep the combo — an explicit override is still useful —
+but seed it from the canvas. ⚠ Event-graph `Inputs` are mirrored from `CustomEventDecl.Parameters`
+(BP-24's auto-create); editing one side must rewrite the other or BP1408 fires. That pairing is the
+real work here, not the picker.
 
 ### BP-57 — Per-function local variables absent from the data model
 **Complexity:** RW-M · **Confidence:** ✔✔
