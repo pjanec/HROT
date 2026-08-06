@@ -22,6 +22,10 @@
    closing the last of Q24. Next up: **[BP-70](Blueprint_Issues_Detail.md#bp-70)** 🔴 or **BP-67's
    EqsResult slice**; BP-57 and BP-25 are newly unblocked. ⚠ **Nothing in batches 9–18 has been
    looked at in the running editor** — the visual check is the largest outstanding risk.
+   🔎 **A functions audit followed BP-73** and registered six gaps — **BP-74**…**BP-78** plus BP-57.
+   Two of them had been parked in *Out of scope* on a **false "absent from the codebase" premise**
+   (fifth and sixth such overturn, always `Hrot/` searched and `FDP/` not). **Macros are now in scope**
+   and gated on [Q25](Architect_Question_25_Macros.md) — drafted, awaiting the architect round.
 3. **Traps that cost real time** — nine of them, each one earned. Trap #5 (`default:` returns
    success) and #6 (asset-scoped features belong at the host) have each bitten more than once;
    **#9 is why BP-71 survived a 2788-test suite — and it then struck BP-69's own test, which passed

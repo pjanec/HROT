@@ -11,11 +11,11 @@ architect decision first).
 
 | Complexity | Open | Done |
 |---|---:|---:|
-| `WIRING` | 3 | 22 |
-| `RW-L` | 10 | 15 |
+| `WIRING` | 5 | 22 |
+| `RW-L` | 12 | 15 |
 | `RW-M` | 19 | 5 |
-| `RW-H` | 2 | — |
-| **Total** | **34** | **42** |
+| `RW-H` | 3 | — |
+| **Total** | **39** | **42** |
 | *(refuted on verification)* | | *1* |
 
 > 📌 **Resuming this programme?** Start with [Blueprint_Gaps_Programme_RESUME.md](Blueprint_Gaps_Programme_RESUME.md) — branch, batches
@@ -31,6 +31,22 @@ architect decision first).
 > 3. **BP-30/BP-31** — the same blind spot is *why* BP-31 was mis-scoped: it credited HSM with a guard
 >    that has never actually run.
 > A green test suite is not evidence that a guard is wired. Grep the production construction sites.
+
+> 🔎 **Functions audit (2026-08-06) — after BP-73, "is a blueprint function actually usable?"**
+> Eight capabilities checked end to end. **Working:** author a function (BP-24) · edit its signature
+> (BP-72) · pass parameters · wire the return (BP-71) · N outputs (BP-73) · call another blueprint's
+> function (`CallPeerBlueprint` + BP-66). **Missing, now tracked:** collapse-a-selection into a
+> function (**BP-74**) · a function has no palette entry and cannot be dragged (**BP-75**) ·
+> Go-to-Definition/Expand can never enable (**BP-76**) · the Macros "+" button is dead (**BP-77**) ·
+> macros as a capability (**BP-78**, design gated on [Q25](Architect_Question_25_Macros.md)) ·
+> function-local variables (**BP-57**, already open).
+> ⚠ **Two of these had been sitting in "Out of scope" on a false premise** — see that section. Fifth
+> and sixth overturned "nothing exists" claim, same root cause every time: `Hrot/` searched, `FDP/`
+> not.
+> ⭐ **The finding that reframes macros:** **BP1650** forbids latent nodes in any called function
+> graph, because a function is a plain `static` method and the latent cursor/resume machinery exists
+> only for the top-level graph. A macro **inlines** ⇒ it is the **only** construct that can factor out
+> a reusable *latent* sequence. That, not Unreal parity, is the argument.
 
 > ✅ **Batch 18 shipped (2026-08-06) — [BP-73](Blueprint_Issues_Detail.md#bp-73): Function graphs may
 > declare N outputs (Unreal parity).** Closes **Q24-D**, the one sub-question BP-71 left open.
@@ -302,6 +318,11 @@ architect decision first).
 - [x] **[BP-10](Blueprint_Issues_Detail.md#bp-10)** · `WIRING` — `When` → EventFired form stubbed; the catalog is *already injected and called*, just never rendered. Filtered picker + self-filter toggle (shown only when the event carries a target field)
 - [x] **[BP-71](Blueprint_Issues_Detail.md#bp-71)** 🔴 · `RW-L` — **A Function graph's return value cannot be wired.** ✅ **Batch 16.** The `Return` node's value pin is declared `Direction=="Out"` by *both* projections (`NodePinSchema.ReturnNodePins:328`, `Stage0_Rehydrate.EnrichReturnPins`) but consumed as an **input** — `Stage5.BuildReturnTerminator:1896` matches `Direction=="Out"` then calls `ResolveDataPin(rn.Id, outPin.Id)`, which follows a link *arriving* at the node. `BlueprintPinModel:86` maps Direction straight through and `BlueprintLinkValidator` rejects same-direction links, so **nothing can be wired in** — and the pin gets no inline default editor either (that too is `Direction=="In"`-only). ⚠ **`Return` is the compiler's only such pin**: of ~20 `ResolveDataPin` sites it is the sole `"Out"` one, against the universal `ResolveAllDataInputs` convention. Deliberate and **test-locked** at both ends, so a green suite proves nothing — the two halves have simply never been used together. Ends in **CS0103 with no BP diagnostic** (BP-69's shape): unwired ⇒ BP4001 *warning* + a dummy temp that is never declared ⇒ `return __t7;`. Blast radius nil — of 92 shipped assets, **0** wire a function return. 📐 **[Q24](Architect_Question_24_Function_Return_Value_Wiring.md): A1+B1+C3 decided by the user 2026-08-06 — buildable now** (flip both projections to `"In"`, accept either direction in the terminator, Stage 2 error + `default(T)` on an unwired return). Q24-**D** (one output or many) is still open and does not block it — *found while auditing what BP-24 unblocked*
 - [x] **[BP-73](Blueprint_Issues_Detail.md#bp-73)** · `RW-M` — **Function graphs support only ONE output value; Unreal supports N.** ✅ **Scheduled by decision** ([Q24-D](Architect_Question_24_Function_Return_Value_Wiring.md#q24-d--one-output-or-many), 2026-08-06) — the user wants proper N-output; until it ships, `Outputs.Count > 1` is a Stage 2 error worded ***"not supported yet — see BP-73"***, never "illegal". **Costed, not estimated:** the Library ABI is **already** N-shaped (results go into an `outputs` byte span via `MemoryMarshal.Write`, and N *inputs* already walk an `__off` cursor — mirror that loop, sequential writes not a packed struct); `_statementPinCache` already maps pin→value so a statement-produced value is never recomputed; `CSharpEmitter.Emit:69` already registers **every** `graph.Outputs` entry in the debug map; the signature window is already N-row; `TypeRefToCSharp:1591` already passes synthesized `_`-prefixed types through. ⚠ **Do not turn `IrStatement.ResultValue` into a list** — it carries the one-`PinId`-per-statement debug annotation, probe insertion and breakpoint mapping. Keep one carrier value + N field-read statements. **Genuinely new:** the Instance carrier (**`ValueTuple` vs a synthesized `_FuncOut_{Name}` struct — settle first**), one fan-out `IrOp`, and looping the three `[0]` projections. ~250–450 lines, strictly additive (`Count <= 1` emits exactly today's C#). **Depends on BP-71** 🛠 **Shipped Batch 18.** Carrier is a **ValueTuple**, settling the item's one open design question on evidence: `CSharpEmitter.IsReferencableStateFieldType:330` treats a `_`-prefixed synthesized type as **not referencable** outside the generated class and excludes it from the debug map, so a `_FuncOut_X` struct return would be **invisible to the watch** — the opposite of the argument for it. ⚡ **The simplification that shrank the work:** the carrier needs **no `IrTypeRef`** — temps emit as `var __tN = …`, so only the three method-*declaration* sites need a composed type string and one shared `CSharpReturnType` covers them; N-output never enters the type system. `IrOp_MakeTuple` packs before the return so **`IrTerm_Return` keeps its single `IrValue`** (zero terminator/debug-map churn); `IrOp_TupleField` reads **positionally**, so an output named with a non-identifier cannot break it. Library ABI writes **sequentially** with an `__oo` advance — blitting the tuple would embed CLR padding the reader does not expect, a wrong-**values** bug rather than a compile error. **BP1656 retired** across three places (validator, BP-71's gate test *inverted* not deleted, and the coverage ratchet, now documented to cover retired as well as reserved codes). 13 tests; **9 of 12 go red on revert** and the 3 that don't are exactly the additivity guards. One test runs **Roslyn** — the only proof the emit is *valid* C# — and immediately caught a fixture bug (a `System.Single` literal written `1.5` emits a C# **double**; `ValueJson` is verbatim, so floats need the `f` suffix)
+- [ ] **[BP-74](Blueprint_Issues_Detail.md#bp-74)** 🔴 · `RW-L` — **Collapse selection → Function/Macro is unreachable, and would no-op if reached.** `GraphCommand.CollapseToFunction`/`CollapseToMacro` exist in NodeEdit core (`GraphCommand.cs:93,100`) and the ids are declared — but `BlueprintCommandSink` has **no case** (⇒ the `default:` arm that **returns success**, trap #5 again) and `CanvasRenderer` has **no menu item at all** (the Demo binds Ctrl+E in `DemoShell`, not in shared UI). So **both halves are missing**. ⚠ **`FakeCommandSink:401` is a scenario prop, not a reference impl** — it hardcodes S22's `Base`/`Multiplier`/`Bonus`/`Result` pins and models the gesture but *not* the boundary analysis (which crossing links become params vs returns), which is the actual work. Do as a **host command** so it is one undo entry (BP-60 precedent) — *found in the functions audit*
+- [ ] **[BP-75](Blueprint_Issues_Detail.md#bp-75)** · `RW-L` — **A function graph gets no palette entry and cannot be dragged onto the canvas.** `BlueprintNodeCatalog` mints per-asset entries for custom events (`CustomEvent.{Name}:243`) and peers (`CallPeer.{guid}:260`) — and **never iterates `asset.Graphs`**. `CreateDynamicNode` likewise has no function case. The only route to calling a function you just created is: place the generic "Function Call" node, switch its drawer to graph mode, pick from a combo. That combo works (`FunctionCallNodeDrawer:185`), so this is **discoverability, not correctness** — but it is the Unreal motion, and it is inconsistent with the two sibling asset-scoped kinds that both got it in BP-12c/BP-68. **Fix mirrors BP-12c exactly** — *found in the functions audit*
+- [ ] **[BP-76](Blueprint_Issues_Detail.md#bp-76)** · `WIRING` — **"Go to Definition" (F12) and "Expand Node" can never enable in the Blueprint editor.** `CanvasRenderer:740-753` gates both on hardcoded kind ids `"Function.Call"`/`"Macro.Call"`/`"Event.CallCustom"` — **NodeEditor.Demo's** dotted convention. Blueprint ids are `"FunctionCall"`/`"CallCustomEvent"`, so nothing ever matches and both items render **permanently greyed**. ⚠ **`canExpand` also tests `node.Title == "ScaleBy"`** — a *demo node's display name*, in shared UI every host renders. ⚠ And nothing registers `editor.go-to-definition`, so fixing only the gate turns a greyed item into a dead one. **Cheap because `GoToGraph` already exists** and does the switch (`BlueprintDocumentFactory:788`): jump-to-definition is `TargetGraphId` → `switcher.SwitchTo`. Replace the id list with a host capability predicate — *found in the functions audit*
+- [ ] **[BP-77](Blueprint_Issues_Detail.md#bp-77)** 🔴 · `WIRING` — **My Blueprint's "Macros +" button is live and does nothing.** `BlueprintMyBlueprintModel:59` declares the section with `canCreate: true` → `"editor.create-macro"`; **nothing registers that id** anywhere in `Hrot/`, and the item list is hardcoded empty (*"faked/empty v1"*, `:116`). The **BP-60 shape**, visible to a designer today. Resolves either way — implement with BP-78, or hide the section until macros exist — but a live button with no handler is the defect — *found in the functions audit*
+- [ ] **[BP-78](Blueprint_Issues_Detail.md#bp-78)** · `RW-H` — **Macros: design + implement.** ✅ **Taken into scope 2026-08-06 by the user.** 📐 **Design first: [Q25](Architect_Question_25_Macros.md)** — A: what a macro *is* · B: where expansion happens · C: scope/sharing · D: multiple exec pins · E: guard rails. ⭐ **Why here, not "Unreal has them":** **BP1650** (`Stage2_Validate:2150`) forbids latent nodes in any function graph — a function is a plain `static` method and the `BlueprintLatentCursor`/resume-block machinery exists **only** for the top-level graph. A macro **inlines**, so a latent node inside it lands where the cursor already lives ⇒ **a macro is the only construct that can factor out a reusable *latent* sequence** (*aim → wait 0.4s → fire*), which today must be copy-pasted at every call site. Multi exec in/out is the secondary payoff and is likewise inlining-only. **Missing:** `GraphKind.Macro` (enum is `{Function, Event, Construction}`), any expansion pass, any `create-macro` handler (BP-77) — *found in the functions audit*
 - [ ] **[BP-14](Blueprint_Issues_Detail.md#bp-14)** · `RW-L` — `Return.Status` uneditable (always Success); a `NodeStatus` combo, ~20-30 lines
 - [ ] **[BP-22](Blueprint_Issues_Detail.md#bp-22)** · `RW-L` — `GetParameter` cannot be placed; asset-specific, so needs a picker not a baked entry
 - [ ] **[BP-21](Blueprint_Issues_Detail.md#bp-21)** · `RW-L` — `When` → ValueChanged form stubbed; reuse `ComponentFieldReflector` + component pickers
@@ -377,11 +398,24 @@ architect decision first).
 
 ## Out of scope
 
-- [ ] ~~Macros~~ — absent from the entire codebase; new capability, architect round required
-- [ ] ~~Collapse-to-function / collapse-to-macro~~ — absent, and nothing to collapse into until BP-24
 - [ ] ~~Squad-quartet & dispatcher lowering~~ — abandoned by design; remove rather than implement (BP-09)
 
+> ⚠ **Two entries left this section on 2026-08-06 — and both had been listed on a false premise.**
+> *Macros* was recorded as **"absent from the entire codebase"** and *collapse-to-function* as
+> **"absent, and nothing to collapse into until BP-24"**. Neither is absent: `GraphCommand.CollapseToFunction`
+> / `CollapseToMacro`, the `editor.create-macro` / `collapse-to-*` command ids, the `Macro.Call` menu
+> gates and a **rendered Macros section with a live "+" button** all exist. What is missing is the
+> `Hrot/` half — no `GraphKind.Macro`, no expansion pass, no sink cases, no handlers.
+> **These are the fifth and sixth overturned "nothing exists" claims, every one of them caused by a
+> search that covered `Hrot/` but not `FDP/`.** The lesson recorded at the bottom of this file was
+> already there; it was not applied. Now tracked as **BP-74** and **BP-78** (+ Q25).
+
 ## Needs an architect decision before scoping
+
+**`BP-78` (macros) — package drafted, awaiting the round:**
+[Architect_Question_25_Macros.md](Architect_Question_25_Macros.md). Five decision-shaped
+sub-questions (A–E) with options, a recommended lean and the reuse-vs-build tradeoff for each.
+Nothing is built until the answers land; implementation items split out from them.
 
 `BP-40` · `BP-38` (already LOCKED as deferred) · `BP-52` (UX-1/UX-2).
 

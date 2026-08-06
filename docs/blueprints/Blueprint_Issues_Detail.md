@@ -573,6 +573,147 @@ need the `f` suffix (the shipped convention, e.g. `ValueJson = "5.5f"`). One tes
 
 All eight gates green (blueprints **2854/0**, 10 skipped).
 
+<a id="bp-74"></a>
+### BP-74 — Collapse selection → Function / Macro is unreachable, and would no-op if reached 🔴 **[NEW — functions audit, 2026-08-06]**
+**Complexity:** RW-L · **Confidence:** ✔✔ *(both trees checked)*
+
+> ⚠ The register previously listed this as **out of scope — "absent, and nothing to collapse into
+> until BP-24"**. Both halves of that are now wrong: BP-24 shipped, and the capability is **not
+> absent** — it is scaffolded in `FDP/` and unwired in `Hrot/`. The search that produced the original
+> claim covered `Hrot/` only, which is the failure mode this register has already recorded four times.
+
+| Piece | State |
+|---|---|
+| `GraphCommand.CollapseToFunction` / `CollapseToMacro` | **exist** — `NodeEditor.Core/Commands/GraphCommand.cs:93,100` |
+| `editor.collapse-to-function` / `-macro` ids | declared — `CommandCatalog.cs:57-58` |
+| `BlueprintCommandSink` case | **none** ⇒ falls to the `default:` arm that **returns success** (trap #5, as BP-18 and BP-60) |
+| Canvas menu item | **none** — `CanvasRenderer` has no Collapse entry at all; the Demo binds Ctrl+E in `DemoShell`, not in shared UI |
+
+So **both halves are missing**: there is no way to invoke it, and if there were, it would silently
+report success and do nothing.
+
+⚠ **`FakeCommandSink.ApplyCollapseToFunction:401` is a scenario prop, not a reference
+implementation.** It hardcodes the S22 demo's pin signature (`Base`/`Multiplier`/`Bonus`/`Result`) as
+literal `AddPin` calls. It models the gesture — delete the selection, add a call node at the
+centroid, add a My Blueprint entry — but **not** the actual problem: deciding which links crossing the
+selection boundary become parameters and which become returns. That boundary analysis is the work.
+
+**Fix:** boundary analysis over the selection (in-edges → Inputs, out-edges → Outputs), create the
+graph, place the call node, remap links — composed from primitives the sink already implements, as a
+**host command** so it is one undo entry (the BP-60 precedent: the single opaque command hides the new
+ids, so no caller could write its inverse). Collapse-to-**macro** is the same gesture and lands with
+`BP-78`.
+
+<a id="bp-75"></a>
+### BP-75 — A function graph has no palette entry and cannot be dragged onto the canvas **[NEW — functions audit, 2026-08-06]**
+**Complexity:** RW-L · **Confidence:** ✔✔
+
+`BlueprintNodeCatalog` mints per-asset palette entries for exactly two things:
+
+| Asset-scoped thing | Palette entry | Drag-to-canvas |
+|---|---|---|
+| Custom event | ✅ `CustomEvent.{Name}` (`:243`) | ✅ `Event.CallCustom` (BP-68) |
+| Callable peer | ✅ `CallPeer.{guid}` (`:260`) | ✅ (BP-68) |
+| **Function graph** | ❌ **nothing** | ❌ `CreateDynamicNode` has no case |
+
+The catalog never iterates `asset.Graphs` at all. So after creating a function the designer's only
+route to calling it is: place the generic **"Function Call"** node (`BlueprintNodePaletteEntries:147`),
+then switch its drawer to graph mode and pick the target from a combo
+(`FunctionCallNodeDrawer:185`). That combo **does** work — this is a discoverability gap, not a
+correctness one — but it is not the Unreal motion, and it is inconsistent with the two sibling
+asset-scoped kinds that both got the treatment in BP-12c/BP-68.
+
+**Fix:** mirror BP-12c exactly — a `Function.{guid}` per-asset catalog entry plus a `CreateDynamicNode`
+case binding it to a `FunctionCallNode` with `TargetGraphId` pre-set. The My Blueprint drag path is the
+same one BP-68 fixed for the other two kinds.
+
+<a id="bp-76"></a>
+### BP-76 — "Go to Definition" and "Expand Node" can never enable in the Blueprint editor **[NEW — functions audit, 2026-08-06]**
+**Complexity:** WIRING · **Confidence:** ✔✔
+
+`CanvasRenderer` shows both menu items and gates them on a **hardcoded list of node-kind ids**:
+
+```
+node.Kind.Id == "Function.Call" || "Macro.Call" || "Event.CallCustom"     // :740-743, :751-753
+```
+
+Those are **NodeEditor.Demo's** dotted naming convention. The Blueprint editor's ids are
+`"FunctionCall"` and `"CallCustomEvent"` (`BlueprintNodePaletteEntries:110,147`), so **no blueprint
+node can ever match** and both items render permanently greyed. `Go to Definition` also advertises
+**F12**, which does nothing.
+
+⚠ **The gate is worse than a wrong list.** `canExpand` additionally tests
+`node.Title == "ScaleBy"` (`:753`) — a **demo node's display name**, in shared UI code that every host
+renders. Any host other than the Demo inherits a dead menu item.
+
+⚠ Separately, **nothing registers `editor.go-to-definition`** in the Blueprint editor, so fixing only
+the gate would turn a greyed item into a dead one.
+
+**The good news:** `CommandCatalog.GoToGraph` **is** registered
+(`BlueprintDocumentFactory.RegisterGoToGraphCommand:788`) and already does the canvas switch via
+`BlueprintGraphSwitcher`. So jump-to-definition is *resolve `FunctionCallNode.TargetGraphId` → 
+`switcher.SwitchTo`* — genuinely `WIRING` once the gate is addressed.
+
+**Fix:** replace the hardcoded id list with a host-supplied capability predicate (the id list and the
+`"ScaleBy"` title test both belong to the Demo, not to shared UI), then register
+`editor.go-to-definition` alongside `GoToGraph`. ⚠ Touching `CanvasRenderer` means the NodeEdit UI
+suite is a gate for this one.
+
+<a id="bp-77"></a>
+### BP-77 — My Blueprint's "Macros +" button is live and does nothing 🔴 **[NEW — functions audit, 2026-08-06]**
+**Complexity:** WIRING · **Confidence:** ✔✔
+
+`BlueprintMyBlueprintModel:59` declares the Macros section with `canCreate: true` and the create
+command `"editor.create-macro"`. **Nothing registers that id** anywhere in `Hrot/`. The section's item
+list is hardcoded to `Array.Empty<MyBlueprintItem>()` — *"faked/empty v1"* (`:116`).
+
+This is the **BP-60 shape** (a live affordance whose command has no handler) and it is **visible to a
+designer right now**, independent of whether macros are ever built.
+
+**Fix:** it resolves either way — implement it as part of `BP-78`, or hide the section until macros
+exist. ⚠ Do **not** leave a live button with no handler; that is the defect.
+
+<a id="bp-78"></a>
+### BP-78 — Macros: design and implement **[NEW — taken INTO scope 2026-08-06 by the user]**
+**Complexity:** RW-H · **Confidence:** ✔✔ *(scaffolding verified; semantics undecided)*
+
+> ⚠ The register previously listed macros as **out of scope — "absent from the entire codebase; new
+> capability, architect round required"**. The architect round is indeed required, but **"absent" was
+> wrong** — see the scaffolding table in
+> [Q25](Architect_Question_25_Macros.md#ground-truth-verified-against-code-2026-08-06). Fifth and
+> sixth overturned "nothing exists" claim.
+
+📐 **Design first: [Architect_Question_25_Macros.md](Architect_Question_25_Macros.md)** — five
+decision-shaped sub-questions (A: what a macro *is* · B: where expansion happens · C: scope and
+sharing · D: multiple exec pins · E: guard rails), each with options, a recommended lean and the
+reuse-vs-build tradeoff. **Nothing is built until those answers land**; implementation items will be
+split out from them.
+
+#### ⭐ Why macros are worth building *here* — not "Unreal has them"
+
+**`BP1650`** (`Stage2_Validate.cs:2150-2166`): *"A function graph invoked by FunctionCall must not
+contain latent nodes; latent execution is only supported in the top-level Tick/event graphs."*
+
+A function compiles to a plain `static` C# method. Latent execution needs the
+`BlueprintLatentCursor` in the blueprint's `State` struct plus a resume-block state machine, and that
+machinery exists **only** for the top-level graph — the validator is describing the emit, not being
+cautious. A **macro inlines**, so a latent node inside one lands where the cursor already lives.
+
+⇒ **A macro is currently the only possible way to factor out a reusable *latent* sequence**
+(*aim → wait 0.4s → fire*). Today that must be copy-pasted at every call site, and no amount of work
+on functions can ever fix it. Multiple exec in/out pins are the secondary payoff, and are likewise
+only expressible by inlining — a C# method has one entry and one return.
+
+#### What exists / what does not
+
+Scaffolding (command ids, `GraphCommand.CollapseToMacro`, the `Macro.Call` gate references, the
+rendered My Blueprint section) is listed in Q25. **Missing:** `GraphKind.Macro` — the enum is
+`{ Function, Event, Construction }` (`Assets/GraphTypes.cs:24`) — any expansion pass, and any handler
+for `editor.create-macro` (`BP-77`).
+
+⚠ **`FakeCommandSink`'s macro/function collapse is a scenario prop** with S22's pin names hardcoded;
+it is not prior art for the semantics. See [BP-74](#bp-74).
+
 <a id="bp-10"></a>
 ### BP-10 — `When` → EventFired form is a stub
 **Complexity:** WIRING · **Confidence:** ✔✔
