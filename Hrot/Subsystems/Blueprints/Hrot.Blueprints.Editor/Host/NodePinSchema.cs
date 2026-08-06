@@ -426,11 +426,19 @@ internal static class NodePinSchema
     /// Grounded in Stage5_Schedule.cs:695-703: <c>ResolveAllDataInputs(node, stmts)</c> maps
     /// all non-exec data-IN pins positionally to the raised event's parameters
     /// (<c>IrOp_RaiseCustomEvent(idx, inputVals)</c>).
-    /// The event is matched by <c>Guid.TryParse(EventId) &amp;&amp; events[i].Id == guid</c>
-    /// (Stage5_Schedule.cs:1157-1159 — primary key is <see cref="CustomEventDecl.Id"/>, with
-    /// a Name fallback at line 1160).
-    /// Graceful fallback to exec-only when: asset is null, EventId does not parse to a Guid,
-    /// no matching <see cref="CustomEventDecl"/> found, or the event has zero parameters.
+    /// The event is resolved in <b>either</b> accepted form — the declaration's
+    /// <see cref="CustomEventDecl.Id"/> (what the picker writes) or a bare
+    /// <see cref="CustomEventDecl.Name"/> — mirroring <c>Stage5_Schedule.FindCustomEventIndex</c>.
+    /// <para>
+    /// <b>BP-69: this used to bail on <c>!Guid.TryParse</c>.</b> A name-referenced call to an event
+    /// WITH parameters therefore showed exec-only pins in the editor and emitted
+    /// <c>Event_X(ref s, view, ecb, self, time)</c> — no arguments — against a handler that declares
+    /// some, i.e. <b>CS7036 with no BP diagnostic</b>. BP1408 does not catch it: it compares the
+    /// declaration's Parameters against the handler graph's Inputs, which agree; the mismatch is at
+    /// the call node's pins, a third list nothing compared.
+    /// </para>
+    /// Graceful fallback to exec-only when: asset is null, the EventId resolves to no
+    /// <see cref="CustomEventDecl"/>, or the event has zero parameters.
     /// </summary>
     private static IReadOnlyList<Pin> CallCustomEventPins(CallCustomEventNode cce, BlueprintAsset? asset)
     {
@@ -443,10 +451,7 @@ internal static class NodePinSchema
         if (asset == null)
             return execPins;
 
-        if (!Guid.TryParse(cce.EventId, out var eventGuid))
-            return execPins;
-
-        var decl = asset.CustomEvents.FirstOrDefault(e => e.Id == eventGuid);
+        var decl = ResolveCustomEventDecl(asset, cce.EventId);
         if (decl == null || decl.Parameters.Count == 0)
             return execPins;
 
@@ -458,6 +463,28 @@ internal static class NodePinSchema
             pins.Add(MakeData(param.Name, "In", typeId));
         }
         return pins;
+    }
+
+    /// <summary>
+    /// BP-69 — resolves a <see cref="CallCustomEventNode.EventId"/> in <b>either</b> accepted form.
+    /// Mirrors <c>Stage5_Schedule.FindCustomEventIndex</c>, the authority on the two forms: GUID
+    /// first, then an ordinal <see cref="CustomEventDecl.Name"/> match. Stage 2's
+    /// <c>V_ValueNodeReferences</c>/<c>V_CustomEventHandlers</c> and BP-12b's rename path honour
+    /// both, so a projection honouring only one is the odd one out — which is exactly how BP-69's
+    /// missing argument pins went unnoticed.
+    /// </summary>
+    private static CustomEventDecl? ResolveCustomEventDecl(BlueprintAsset asset, string eventId)
+    {
+        if (string.IsNullOrWhiteSpace(eventId)) return null;
+
+        if (Guid.TryParse(eventId, out var guid))
+        {
+            var byId = asset.CustomEvents.FirstOrDefault(e => e.Id == guid);
+            if (byId != null) return byId;
+        }
+
+        return asset.CustomEvents.FirstOrDefault(
+            e => string.Equals(e.Name, eventId, StringComparison.Ordinal));
     }
 
     /// <summary>

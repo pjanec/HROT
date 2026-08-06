@@ -1952,11 +1952,36 @@ internal sealed class GraphScheduler
 
         if (link == null)
         {
-            // Unconnected -- emit BP4001 and return a dummy value.
+            // Unconnected -- emit BP4001 and return a DECLARED default.
+            //
+            // BP-69/BP-71: this used to `AllocValue` a bare dummy and return it. An IrValue is only
+            // declared in the generated C# by the statement that produces it, so a dummy with no
+            // statement produced `Foo(__t7)` / `return __t7;` with no `var __t7` anywhere --
+            // **CS0103 from Roslyn with only a BP4001 *warning* to explain it**. That is the same
+            // unattributable shape as BP-69 itself, and it is reachable from every one of the ~20
+            // ResolveDataPin call sites, not just the return terminator BP-71 hardened.
+            //
+            // Emitting a typed `default(T)` statement makes the value real: the warning still names
+            // the unwired pin, the designer still gets Stage 2 errors where a validator covers the
+            // case (e.g. BP1655 for a function return), and Roslyn can no longer fail for a reason
+            // no diagnostic explains. Type comes from Stage 4's resolved pin type where known, so
+            // `default(float)` is passed to a float parameter rather than `default(object)`.
             _ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP4001,
                 $"Unconnected required data input pin {pinId} on node {consumerNodeId}.",
                 _ctx.AssetId, _graph.Id, consumerNodeId, pinId));
-            var dummy = AllocValue(Stage5_Schedule.UnknownType);
+
+            var dummyType = _typed.PinTypes.TryGetValue(pinId, out var resolvedPinType)
+                ? resolvedPinType : Stage5_Schedule.UnknownType;
+            var dummy = AllocValue(dummyType);
+            stmts.Add(new IrStatement
+            {
+                ResultValue = dummy,
+                Operation   = new IrOp_Const("default", dummyType),
+                Debug       = new IrDebugAnnotation
+                {
+                    GraphId = _graph.Id, NodeId = consumerNodeId, PinId = pinId,
+                },
+            });
             _pinValueCache[pinId] = dummy;
             return dummy;
         }

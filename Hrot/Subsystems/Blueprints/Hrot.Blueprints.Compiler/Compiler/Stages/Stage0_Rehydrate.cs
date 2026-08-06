@@ -1088,9 +1088,17 @@ internal static class Stage0_Rehydrate
     {
         // Static: exec In/Out from registry.
         // Enrich: add data-In per custom-event parameter.
+        //
+        // BP-69: EventId accepts TWO forms — the declaration's GUID (what the editor's picker
+        // writes) and a bare Name (hand-authored JSON, and the shape the test builders use).
+        // This used to `return` on !Guid.TryParse, so a name-referenced call to an event WITH
+        // parameters got no argument pins at all, and the emitter produced
+        // Event_X(ref s, view, ecb, self, time) against a handler that declares some ⇒ CS7036 with
+        // no BP diagnostic. BP1408 cannot catch it: it compares the declaration's Parameters
+        // against the handler graph's Inputs, and those two agree — the mismatch is at the CALL
+        // NODE's pins, a third list nothing compared.
         if (asset == null) return;
-        if (!Guid.TryParse(cce.EventId, out var eventGuid)) return;
-        var decl = asset.CustomEvents.FirstOrDefault(e => e.Id == eventGuid);
+        var decl = ResolveCustomEventDecl(asset, cce.EventId);
         if (decl == null || decl.Parameters.Count == 0) return;
 
         foreach (var param in decl.Parameters)
@@ -1098,6 +1106,27 @@ internal static class Stage0_Rehydrate
             var typeId = GetTypeId(param.Type);
             pins.Add(MakePin(param.Name, "In", isExec: false, typeId: typeId));
         }
+    }
+
+    /// <summary>
+    /// BP-69 — resolves a <see cref="CallCustomEventNode.EventId"/> in <b>either</b> accepted form.
+    /// Mirrors <c>Stage5_Schedule.FindCustomEventIndex</c> exactly, which is the authority on the
+    /// two forms: GUID first, then an ordinal <see cref="CustomEventDecl.Name"/> match. Stage 2's
+    /// <c>V_ValueNodeReferences</c> and <c>V_CustomEventHandlers</c> and BP-12b's rename path all
+    /// honour both, so a projection that honours only one is the odd one out.
+    /// </summary>
+    private static CustomEventDecl? ResolveCustomEventDecl(BlueprintAsset asset, string eventId)
+    {
+        if (string.IsNullOrWhiteSpace(eventId)) return null;
+
+        if (Guid.TryParse(eventId, out var guid))
+        {
+            var byId = asset.CustomEvents.FirstOrDefault(e => e.Id == guid);
+            if (byId != null) return byId;
+        }
+
+        return asset.CustomEvents.FirstOrDefault(
+            e => string.Equals(e.Name, eventId, StringComparison.Ordinal));
     }
 
     private static void EnrichCallPeerBlueprintPins(
