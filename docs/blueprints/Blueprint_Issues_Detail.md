@@ -386,8 +386,19 @@ Whether a designer can *place* and *configure* each node kind. 13 of 50 kinds ru
 **Complexity:** RW-L *(the change is small; the contract decision is not)* · **Confidence:** ✔✔
 *(re-derived across editor, compiler and all 92 shipped assets)*
 
-🟢 **DECIDED — [Q24](Architect_Question_24_Function_Return_Value_Wiring.md) A1+B1+C3, by the user
-2026-08-06. Buildable, single-output only.** Flip both projections to `Direction == "In"`; accept
+> ✅ **DONE (2026-08-06, Batch 16)** to [Q24](Architect_Question_24_Function_Return_Value_Wiring.md)
+> **A1+B1+C3**. Both projections emit `Direction=="In"`; `BuildReturnTerminator` accepts either
+> direction; **BP1655** (unwired return) and **BP1656** (`Outputs.Count > 1`, worded *"not supported
+> yet — see BP-73"*) are new Stage 2 errors; Stage 5 falls back to a **declared** `default(T)` via the
+> existing `IrOp_Const("default")`, so the dangling-temp CS0103 is structurally impossible.
+> 12 new tests including the seam-crossing one the old suite lacked — the **link validator accepting
+> the wire** — plus a companion that keeps the legacy-`"Out"` rejection as evidence of the defect.
+> ⚠ **BP1655 skips link-less graphs** (the unauthored on-disk stub shape). Shipped
+> `SquadState.GetThreatLevel` is exactly that and stays green in
+> `RecipeIntegrityTests.AllRecipes_ValidateOnly_NoErrors` — real-asset proof of the exemption, not
+> just a synthetic one.
+
+**Original decision record —** A1+B1+C3, by the user 2026-08-06; single-output only. Flip both projections to `Direction == "In"`; accept
 **either** direction in `BuildReturnTerminator` (one `||`, so no migration and no silently-void
 return); an unwired return becomes a **Stage 2 error** *and* the emitter falls back to `default(T)`.
 Q24-**D** (Unreal-style N outputs) is still open and blocks nothing here — costed in the doc as
@@ -813,6 +824,19 @@ globally raisable by a name-hash, which is a design decision, not a bug fix.
 
 ### BP-72 — The Graph Signature window ignores the canvas, and Event-graph parameters cannot be edited at all **[NEW — found while auditing what BP-24 unblocked]**
 **Complexity:** RW-L · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-06, Batch 16).** `AiCanvasContext` gained `Func<Guid>? CurrentGraphId` — a plain
+> delegate, for the same reason `AssetRef` is an `object`: the shared assembly must not depend on one
+> asset kind. `BlueprintDocumentFactory` sets it from the **switcher** (never a captured `graph`), and
+> `EditorSubsystem` passes it to `Retarget`. The picker snaps when the canvas **moves** and otherwise
+> leaves an explicit combo choice alone, so it does not fight the user each frame. The filter is now
+> Function **+** Event; Event rows read `Name (event)` and their list is titled **Parameters**, and
+> every Inputs mutation mirrors into the paired `CustomEventDecl.Parameters` (ids preserved by name)
+> so BP1408 cannot fire. **Outputs are hidden for Event graphs** — a custom event returns nothing, and
+> an editable list the compiler discards would be a fresh instance of what BP-71 just removed. A
+> Function graph with >1 output warns inline, pointing at BP-73.
+> 11 new tests, one of them driving a **real** `BlueprintGraphSwitcher` end-to-end through the same
+> provider the composition root passes (trap #9: assert the halves *together*).
 
 BP-24 gave the canvas a current graph (`BlueprintGraphSwitcher.CurrentGraph`). `GraphSignatureWindow`
 predates it and was never joined up:

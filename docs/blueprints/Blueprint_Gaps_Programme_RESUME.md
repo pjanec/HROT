@@ -1,7 +1,7 @@
-# RESUME / HANDOFF — Blueprint gaps & QoL programme (2026-08-06, rev 2)
+# RESUME / HANDOFF — Blueprint gaps & QoL programme (2026-08-06, rev 3)
 
 > **Goal:** make blueprint editing fully functional and pleasant.
-> **Branch:** `claude/blueprint-gaps-qol-audit-uyjjk5` · **HEAD at handoff:** `4687fc1` (BP-24 shipped)
+> **Branch:** `claude/blueprint-authoring-status-6sr5ld` · **HEAD at handoff:** `ce064b3` (Batch 16: BP-71 + BP-72)
 > **Live state:** [Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md) (checklist) ·
 > [Blueprint_Issues_Detail.md](Blueprint_Issues_Detail.md) (per-issue evidence + `DONE` notes)
 >
@@ -15,10 +15,10 @@
    (A2+B2+C2+D1, recorded in
    [Architect_Question_23_Graph_Create_And_Switching.md](Architect_Question_23_Graph_Create_And_Switching.md)).
    Next up: **BP-69 / BP-70** (both 🔴, scouted below) or **BP-67's EqsResult slice**; BP-57 and
-   BP-25 are newly unblocked. The briefing below carries the scouting. **BP-71** 🔴 is **decided and
-   buildable** — [Q24](Architect_Question_24_Function_Return_Value_Wiring.md) all four decided
-   (A1+B1+C3+D1′, user, 2026-08-06). **BP-73** carries proper Unreal-style N-output as a scheduled,
-   costed follow-up; BP-71 ships single-output only.
+   BP-25 are newly unblocked. The briefing below carries the scouting. **BP-24 is now closed** —
+   Batch 16 shipped **BP-71** 🔴 and **BP-72**, the two gaps its post-ship audit found
+   ([Q24](Architect_Question_24_Function_Return_Value_Wiring.md) A1+B1+C3). **BP-73** carries proper
+   Unreal-style N-output as a scheduled, costed follow-up.
 3. **Traps that cost real time** — nine of them, each one earned. Trap #5 (`default:` returns
    success) and #6 (asset-scoped features belong at the host) have each bitten more than once;
    **#9 is new** and is why BP-71 survived a 2788-test suite.
@@ -33,7 +33,7 @@ lists every one.
 
 ## Status
 
-**38 open · 38 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
+**36 open · 40 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
 table; do not duplicate them here.
 
 | Batch | Items |
@@ -53,6 +53,7 @@ table; do not duplicate them here.
 | 13 — node header | BP-17, BP-18 |
 | 14 — navigation aids | BP-19, BP-20 |
 | 15 — graph create + switching | BP-24 ⭐ (Q23 A2+B2+C2+D1; + BP-12b rename-undo desync fixed) |
+| 16 — closing out BP-24 | BP-71 🔴 (Q24 A1+B1+C3; +BP1655/BP1656), BP-72 |
 
 **Batch 7's visual pass (2026-08-05)** earned its keep: one bug of mine (the bookmarks ✕ was
 unreachable — a full-width `Selectable` swallowed the click), one long-standing 🔴 (**BP-66**, the
@@ -77,27 +78,17 @@ green. Three themes worth carrying forward:
 
 ## Next up
 
-0. 🟢 **BP-71** 🔴 (`RW-L`) — **decided and buildable.**
-   [Q24](Architect_Question_24_Function_Return_Value_Wiring.md) **A1+B1+C3, decided by the user
-   2026-08-06**: flip both Return-pin projections to `Direction == "In"`, accept **either** direction
-   in `BuildReturnTerminator` (one `||`), and make an unwired return a **Stage 2 error** *plus* emit
-   `default(T)` so Roslyn can never fail unattributably. **Single-output only** — Q24-**D** decided as
-   **D1′**: proper N-output (Unreal parity) is **wanted** and is now the scheduled, costed **BP-73**
-   (`RW-M`, ~250–450 lines, mostly additive — the Library ABI is already span-based and N-shaped,
-   `_statementPinCache` already does per-pin values, the debug map already loops all outputs). Until
-   BP-73 ships, the `Outputs.Count > 1` diagnostic must read ***"not supported yet — see BP-73"***,
-   never *"illegal"*.
-   ⚠ New `BPxxxx` codes need a `[CoversDiagnosticCode]` test or the build fails.
-   ⚠ An approval is not a verification — re-derive against code first (Q22-D2 precedent).
-1. ✅ **BP-24 — SHIPPED (Batch 15, 2026-08-06)** to the Q23 package (A2+B2+C2+D1). Ship notes in
-   the tracker banner and `Blueprint_Issues_Detail.md#BP-24`. **Visual check pending** — see the
-   morning-check section, batch-15 block.
-   ⚠ **Post-ship audit (2026-08-06) found two gaps it exposed rather than caused**: **BP-71** 🔴 (a
-   Function graph's return value cannot be wired — the `Return` node's value pin faces the wrong way
-   on the canvas; Q24 above) and **BP-72** (the Graph Signature window ignores the switched canvas
-   and hides Event graphs, so a custom event's parameters are editable nowhere after creation). The
-   rest of the loop — create a Function graph, author it, call it with typed arguments — verifies
-   end-to-end in code.
+0. ✅ **BP-71 + BP-72 — SHIPPED (Batch 16, 2026-08-06).** The two gaps BP-24 exposed. BP-71 to
+   [Q24](Architect_Question_24_Function_Return_Value_Wiring.md) A1+B1+C3: the Return value pin is
+   `Direction=="In"` in both projections, the terminator accepts either, **BP1655** (unwired return)
+   and **BP1656** (`Outputs.Count > 1` → *"not supported yet — see BP-73"*) are new Stage 2 errors,
+   and Stage 5 falls back to a declared `default(T)`. BP-72: the Graph Signature window follows the
+   switched canvas and covers **Event** graphs, mirroring their Inputs into the paired
+   `CustomEventDecl.Parameters`. **Visual check pending** — batch-16 rows below.
+1. ✅ **BP-24 — SHIPPED (Batch 15) and now CLOSED.** Its post-ship audit found BP-71 + BP-72, both
+   shipped in Batch 16. Decisions in [Q23](Architect_Question_23_Graph_Create_And_Switching.md);
+   ship notes in the tracker banner and `Blueprint_Issues_Detail.md#BP-24`.
+   **Visual check still pending** for batches 9–16.
 2. **BP-69** 🔴 (`WIRING`) — name-referenced `CallCustomEvent` loses its argument pins (both pin
    projections early-return on `!Guid.TryParse`; validators/scheduler accept the name form).
    Three-line fallback in each, mirroring `FindCustomEventIndex`. Independent of BP-24.
@@ -108,7 +99,10 @@ green. Three themes worth carrying forward:
    (or fold into Q23-B3) before applying.**
 4. **BP-67** (`RW-M`) — the When node's other three forms; the **EqsResult slice is `RW-L` and
    shippable alone** (see briefing).
-5. Then: BP-56 (wire glow) · BP-23b (cross-asset paste) · BP-61 🔴 (inert-default HSM guards).
+5. **BP-73** (`RW-M`) — proper Unreal-style **N function outputs**; costed in full in the tracker
+   and detail (the Library ABI is already N-shaped; settle `ValueTuple` vs a synthesized
+   `_FuncOut_{Name}` struct first). Depends on BP-71, which is now done.
+6. Then: BP-56 (wire glow) · BP-23b (cross-asset paste) · BP-61 🔴 (inert-default HSM guards).
 
 **Context for BP-24 (from the 2026-08-06 discussion with the user):** a blueprint-local custom event
 is a strictly weaker Function graph — same call shape, no return value, name-paired instead of
@@ -180,16 +174,29 @@ Everything about it now lives in two places: the decisions + retarget audit in
 
 ---
 
-## 👀 Morning visual check — batches 9–15 · **NOT YET DONE**
+## 👀 Morning visual check — batches 9–16 · **NOT YET DONE**
 
-⚠ **Status: pending.** Batches 9–14 shipped overnight and batch 15 the following day; all are
+⚠ **Status: pending.** Batches 9–14 shipped overnight, then 15 and 16 the following day; all are
 logic-tested headless, but **no human has looked at them in the running editor yet**. What a test
 cannot see is layout, wording and feel — and the batch-7 pass proved that half (the bookmarks ✕
 was correctly positioned and completely unclickable). Treat every row below as unverified.
 
 Roughly cheapest-to-reach first.
 
-### Graph create + switching (BP-24) — newest, check first
+### Function return values + graph signatures (BP-71, BP-72) — newest, check first
+
+| # | Where | What to do | What should happen |
+|---|---|---|---|
+| R1 | A Function graph (My Blueprint → Functions **+**) · Graph Signature → **Outputs +**, name it, pick a type | look at the **Return** node | It grows a **value pin on the LEFT**. Before BP-71 that pin was on the right and nothing could reach it |
+| R2 | Drag any value output → the Return node's value pin | — | **The wire connects.** This is the gesture that was impossible; if it refuses, BP-71 regressed |
+| R3 | Leave the value pin unwired and compile | — | A **BP1655 error naming the graph and the pin** — not a Roslyn CS0103, and not a silently-defaulted return |
+| R4 | Click the Return node's value pin box without wiring anything | type a number | An **inline default editor** — a function can return a constant with no Literal node. Free consequence of the pin being an input |
+| R5 | Graph Signature → add a **second** Output | compile | **BP1656**, and its wording says ***"not supported yet — see BP-73"***. An inline warning also appears under the Outputs list. It must not read "illegal" — N outputs are coming |
+| R6 | Open a multi-graph asset · switch the canvas between graphs | watch **Graph Signature** | Its picker **follows the canvas**. Before BP-72 it sat on the first Function graph, so you edited a signature you were not looking at |
+| R7 | Pick a different graph in the Graph Signature combo, then switch the canvas | — | Your explicit pick **sticks** until the canvas actually moves — the combo must not fight you every frame |
+| R8 | Create a custom event with a parameter · select its **body graph** in Graph Signature | add a parameter | The section is titled **Parameters**, the row reads `Name (event)`, and **Outputs shows "n/a"** (a custom event returns nothing). The new parameter appears on the Call node's pins, and compiling does **not** raise BP1408 — the declaration was mirrored |
+
+### Graph create + switching (BP-24)
 
 | # | Where | What to do | What should happen |
 |---|---|---|---|
@@ -386,8 +393,11 @@ zero wire a function return).
   resource-sensitive). Not yet chased. **`WhenNodePerfTests.WhenNode_ValueChanged_Under100ns_perTick`
   joins it** — a wall-clock ns/tick benchmark; it reds under load and passes alone. Re-run the single
   filter before treating either as a regression.
-- Batch 14 baseline: blueprints **2788 total / 2778 passed / 10 skipped** · NodeEdit core **203**
-  + UI **131** · AiShared **1204** · BTree editor **612** · breakpoints **130** · generators **189**.
+- **Batch 16 baseline (2026-08-06, all eight gates run on Linux/cloud):** blueprints
+  **2845 total / 2835 passed / 10 skipped** · NodeEdit core **208** + UI **131** · AiShared **1204** ·
+  BTree editor **612** · breakpoints **130** · generators **189** · solution build **0 errors /
+  58 pre-existing warnings**. (Batch 14 was 2788/2778; +41 from BP-24, +23 from Batch 16.)
+  Both known flakes passed in this run — do not treat a green one as proof they are fixed.
 - ✅ **`Hrot.Editor.AiShared.Tests` is now in the gate list** (1204/0). Its 2 Windows-only reds were
   BP-64, fixed. It was missing from the list, which is why they went unnoticed.
 - **To classify a failure:** `git stash` → re-run the same filter → `git stash pop`. If it fails
