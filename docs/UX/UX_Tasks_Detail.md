@@ -1,9 +1,11 @@
 # Scenario-Authoring UX — Task Detail (`UXT`)
 
-> **Status: BASE — empty register, 2026-08-06.** Tasks are added as they are identified, primarily by
-> the golden-path walk (see [UX_RESUME.md](UX_RESUME.md#next-up)).
+> **Status: BASE — empty register, 2026-08-06.** Tasks are cut from the
+> **[golden-path walk](UX_Golden_Path.md#deviation-log)**, which has **not yet been performed** (it needs
+> a Windows session — see [UX_RESUME.md](UX_RESUME.md#next-up)).
 >
 > Checklist view: [UX_Task_Tracker.md](UX_Task_Tracker.md) · Scope: [UX_Requirements.md](UX_Requirements.md) ·
+> Journey spec: [UX_Golden_Path.md](UX_Golden_Path.md) ·
 > Design: [UX_Design.md](UX_Design.md) · Orientation: [UX_Programme_Briefing.md](UX_Programme_Briefing.md)
 
 ## How this doc works
@@ -20,7 +22,7 @@ One `<a id="uxt-nn">` anchored entry per task, so the tracker can deep-link ever
    was assembled from a code scan, but *the blueprint audit was wrong ten times* — re-derive before
    building, and correct the entry in the same commit if it was wrong.
 3. **`DONE` notes record what was actually observed**, including the visual check
-   ([Briefing §5.9](UX_Programme_Briefing.md#59-visual-verification-is-mandatory)) and the
+   ([Briefing §5.10](UX_Programme_Briefing.md#510-visual-verification-is-mandatory)) and the
    revert-to-red confirmation ([§5.5](UX_Programme_Briefing.md#55-revert-to-watch-it-go-red)).
    A `DONE` note without a visual observation is incomplete.
 4. **Wrong estimates get recorded**, not quietly corrected — see [Corrections](#corrections). The

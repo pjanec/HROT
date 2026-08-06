@@ -1,10 +1,13 @@
 # RESUME / HANDOFF — Scenario-Authoring UX programme
 
-> **rev 1 · 2026-08-06 · branch `claude/reset-working-branch-qd1qpv` · HEAD at write `31e7ddd`**
+> **rev 2 · 2026-08-06 · branch `claude/reset-working-branch-qd1qpv` · HEAD at write `764b06c`**
 >
 > 📌 **This file exists so a session that has lost its context can resume without re-deriving
 > anything.** Read §0 and §1 before doing anything else. If this file and
 > [UX_Task_Tracker.md](UX_Task_Tracker.md) disagree about status, **the tracker wins**.
+>
+> **This session is the COORDINATOR** (Linux cloud). Implementation and testing happen in **separate
+> Windows sessions**. The coordinator cannot run the editor — see [§1.10](#110-session-topology).
 
 ---
 
@@ -17,14 +20,22 @@ HROT's authoring **infrastructure works**. The authoring **experience does not**
 > It is working to a large extent infrastructure-wise, but is practically unusable because of very bad
 > UX. HROT was built bottom-up, this might need an inverted approach."*
 
-**The goal:** an ordinary scenario author — not an engine developer — can walk the golden path end to
-end without being told which window to open.
+**The goal:** both audiences walk their path end to end without being told which window to open.
 
 ```
-new scenario → place entity → assign behavior (mission plan w/ tasks) → run it
-  → author a new behavior (BTree / Blueprint) → run it → debug it → hot-reload it
-  → iterate until working → save scenario → reload it → run → behaviors still attached
+Path A — authoring (editor; engineers / advanced military SME)
+  new scenario → place entity → assign behavior (mission plan w/ tasks) → run it
+    → author a new behavior (BTree / Blueprint) → run it → debug it → hot-reload it
+    → iterate until working → save scenario → reload it → run → behaviors still attached
+
+Path B — runtime intervention (distributed ExCon; ORDINARY SME, strictest bar)
+  know it is live → find a unit → retask it / add a unit → see the effect
 ```
+
+**Two audiences, settled 2026-08-06.** Authoring is for engineers and advanced SME — competence may be
+assumed. **ExCon runtime intervention must be usable by ordinary SME people**: a narrower surface with a
+*higher* bar. Both run on the **same shared panels**; differences are presentation and defaults, never
+forked panels. Full statement: [UX_Requirements.md](UX_Requirements.md#who-we-are-building-for).
 
 **The core insight that must not be lost:** with no outliner and no right-click affordances on
 objects, *choosing a window becomes the interaction model*. That is the root cause of the user's
@@ -68,6 +79,25 @@ handoff and is the canonical statement.** Condensed here so a compacted session 
 8. **Docs stay short.** Terse tables, hand-authored SVG for non-trivial diagrams, deep-link everything.
 9. **Ask questions in plain chat prose** — never the multiple-choice widget.
 
+### 1.10 Session topology
+
+<a id="110-session-topology"></a>
+
+| Role | Where | Does |
+|---|---|---|
+| **Coordinator** (this session) | Linux cloud | requirements, design, architect questions, task cutting, handoffs, diff review, doc upkeep |
+| **Implementers** | Windows local sessions | build, run the editor, walk the path, verify visually, report back |
+
+**The coordinator cannot run the editor** — it is a Windows/Raylib ImGui app (`run_Editor.bat`).
+Therefore **every coordinator statement about running behaviour is a code-derived prediction and must
+be labelled as one.** The golden-path predictions in [UX_Golden_Path.md](UX_Golden_Path.md) are exactly
+that. Where a walk contradicts a prediction, **the walk wins** — record it in
+[UX_Tasks_Detail.md](UX_Tasks_Detail.md#corrections).
+
+Handoffs are the interface: an implementer receives the
+[Briefing](UX_Programme_Briefing.md) + its handoff + the task entry, and nothing else. If a handoff
+needed knowledge it did not carry, that is a coordinator defect.
+
 ---
 
 ## 2. Status
@@ -76,25 +106,35 @@ handoff and is the canonical statement.** Condensed here so a compacted session 
 
 | Artefact | State |
 |---|---|
-| [UX_Requirements.md](UX_Requirements.md) | ✅ v1 baseline — 40 requirements (`UXR-01`…`UXR-X6`), 6 golden-path groups + cross-cutting, non-goals, 4 open questions |
-| [UX_Design.md](UX_Design.md) | ▣ **base only** — thesis, five-questions frame, target layout, 17 decisions registered. Most are `OPEN`/`LEAN`. **Do not implement from an `OPEN` decision** |
+| [UX_Requirements.md](UX_Requirements.md) | ✅ **v2** — 46 requirements (`UXR-01`…`UXR-X6`), 7 groups + cross-cutting. Two-audience section added; `G7` added for Path B; `UXR-15`/`17` rewritten to the cheap-recoverability ruling; all 4 opening questions **answered** |
+| [UX_Golden_Path.md](UX_Golden_Path.md) | ✅ **v0.1 — the specification.** Path A (A1–A12) + Path B (B1–B5), each step with intent / gesture / required outcome / requirement links / **code-derived prediction**. Deviation log ready. **Living document — revise it as we dig** |
+| [Architect_Question_25_…](Architect_Question_25_Scenario_Authoring_Golden_Path.md) | ✅ **drafted, awaiting the architect.** Five decision-shaped questions (A–E) + 4 sub-questions, each with options, reuse-vs-build tradeoff and Claude's lean. **Answers table empty** |
+| [UX_Design.md](UX_Design.md) | ▣ base, v0.2 — thesis, two-paths constraint, five-questions frame, target layout, **18** decisions. `UXD-02` is `RULED`; five are routed into Q25 |
 | [UX_Tasks_Detail.md](UX_Tasks_Detail.md) | ▣ base — template, rules, complexity scale, baseline evidence index. **Register empty** |
 | [UX_Task_Tracker.md](UX_Task_Tracker.md) | ▣ base — 6 milestones, all empty |
 | [handoffs/](handoffs/) | ▣ template only |
-| Architect question Q25 | ☐ not drafted |
-| Golden-path walk | ☐ not performed |
+| **Golden-path walk** | ☐ **not performed** — needs a Windows session. Every prediction is unverified |
 
 **The opening audit is done** and its findings are recorded in two places: the `Now` column of each
 requirement, and the [baseline evidence index](UX_Tasks_Detail.md#baseline-evidence-index). The
 headline verified findings:
 
 - outliner is a **27-line stub** printing `• [entityId]`;
-- **no undo exists on the scenario side at all** 🔴;
+- **no undo and no autosave on the scenario side at all** 🔴;
 - toolbar is 6 text buttons, no state / shortcuts / tooltips, mixing authoring with dev plumbing;
 - `New Scenario` yields a void;
 - **two unrelated behavior-assignment models**, one exposing blackboard tiers/bytes/`OverCeiling`;
 - behavior params fall back to raw JSON, stored as escaped JSON-in-JSON;
 - **no problems panel** — the editor's answer to "why isn't my unit moving?" is silence;
+- **no role/mode/expert-mode concept exists anywhere** — relevant to how Path A and Path B differ;
+- ⚡ **the sharpest finding, made while drafting Q25:** the behavior-affinity mechanism *already
+  exists* — `BehaviorContractAttribute(name, BehaviorCategory)` → `BehaviorCatalog.GetValidBehaviors(tkbType)`
+  → the mission list, and `BehaviorUiCompiler.Compile<TDto>()` → the typed param form. But
+  `BehaviorCatalog` reflects **one assembly in a static ctor**, so an **asset-authored** behavior can
+  never declare affinity or params. That single cause explains the ungated
+  `AppendEditorBTreeBehaviors` (`TODO (option c)`), the raw-JSON param fallback, **and** a latent
+  staleness bug: a static reflection snapshot cannot see hot-reloaded behaviors. It is
+  [Q25-C](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-c--where-does-an-asset-authored-behavior-declare-its-affinity-and-its-parameters);
 - ✅ one genuinely good bone: `EditorPreviewAdapter` does correct ECS snapshot-on-play /
   rewind-on-stop. Build on it.
 
@@ -104,39 +144,52 @@ headline verified findings:
 
 <a id="next-up"></a>
 
-**In this order. Do not skip 1 — the task register is deliberately empty and step 1 is what fills it.**
+> ⏸ **The user is reading the golden-path spec and Q25 before anything starts. Do not begin
+> implementation work until they come back.** *(Their instruction, 2026-08-06: "let me read it before we
+> start doing anything.")*
 
-### 1. The golden-path walk *(next action)*
+### 1. User review — the current gate
 
-Write the golden path as a **numbered, keystroke-level walkthrough** — every step with its acceptance
-criterion (A1: ≤2 clicks from the previous state, no window-opening detour; A2: outcome stated in the
-UI). Then **walk it in the running editor** (`--mode editor`) and log every deviation.
+The user reads [UX_Golden_Path.md](UX_Golden_Path.md) and
+[Q25](Architect_Question_25_Scenario_Authoring_Golden_Path.md). Expect the golden path to change — it is
+a **living document** and the user asked for it to be adjusted as we dig. Revise it rather than working
+around it.
 
-Each deviation becomes a `UXT-nn` entry. **This is the task register's source** — the audit says what is
-broken in the code, the walk says what stops an author, and only the second is a task list.
+### 2. Relay Q25 to the architect
 
-> Output: `docs/UX/UX_Golden_Path.md` (the spec) + populated
-> [UX_Tasks_Detail.md](UX_Tasks_Detail.md) / [UX_Task_Tracker.md](UX_Task_Tracker.md).
->
-> ⚠ **Blocker to check first:** whether the editor can actually be launched and driven in this
-> environment. It is a Windows/Raylib ImGui app (`run_Editor.bat`); this is a Linux cloud container. If
-> it cannot be run here, the walk must either be done by the user, or replaced by a code-derived
-> dry-walk that is **explicitly labelled as unverified** — do not silently downgrade it.
+The user relays; Claude cannot reach the architect. Answers go into
+[Q25's answers table](Architect_Question_25_Scenario_Authoring_Golden_Path.md#answers), then the
+matching [UXD rows](UX_Design.md#3-design-decisions-uxd) flip to `DECIDED`, then the affected milestones
+unblock in [UX_Task_Tracker.md](UX_Task_Tracker.md).
 
-### 2. Architect question Q25
+### 3. Walk Path A — the task register's source
 
-Draft `docs/UX/Architect_Question_25_Scenario_Authoring_Golden_Path.md`, batching the `OPEN` structural
-decisions into one relayed round: [UXD-02](UX_Design.md#uxd-02) (scenario mutation/undo model — the
-biggest), [UXD-03](UX_Design.md#uxd-03) (Behavior as a first-class concept),
-[UXD-04](UX_Design.md#uxd-04) (entity templates), [UXD-06](UX_Design.md#uxd-06) (offline vs cluster
-surface split). A/B/C/D form, Claude's lean per sub-question, reuse-vs-build tradeoff each.
+**Needs a Windows session** ([§1.10](#110-session-topology)). Delete/rename `imgui.ini` first — a walk
+against a hand-tuned layout proves nothing about a new user's experience. Walk A1–A12 in order, record
+clicks used / windows opened / what the UI said / what happened, screenshot every `FAIL`, and fill the
+[deviation log](UX_Golden_Path.md#deviation-log). **Do not fix anything during the walk.**
 
-### 3. Milestone 1 — make the editor honest
+Then cut one `UXT-nn` per deviation into
+[UX_Tasks_Detail.md](UX_Tasks_Detail.md) + [UX_Task_Tracker.md](UX_Task_Tracker.md). **This is what
+fills the deliberately-empty register** — the audit says what is broken in the code, the walk says what
+stops a person, and only the second is a task list.
 
-Independent of Q25 and of the walk's outcome, so it can start in parallel:
-[UXD-11](UX_Design.md#uxd-11) (no-dead-control enforcement) and
-[UXD-10](UX_Design.md#uxd-10) (diagnostic bus / problems panel). Cheap, high trust yield, and every
-later task's verification depends on controls not lying.
+⚠ Also correct the predictions: every `Prediction` row in the golden path is code-derived and
+unverified. Where the walk disagrees, the walk wins — log it in
+[Corrections](UX_Tasks_Detail.md#corrections).
+
+### 4. Trace Path B, then walk it
+
+All of Path B is **code-inferred** — nobody has established what an ExCon operator sees today. Trace it
+before designing ([UXD-07](UX_Design.md#uxd-07)), then walk B1–B5 with an actual SME if possible.
+
+### 5. Milestone 1 — make the editor honest
+
+Independent of Q25's outcome and of the walk, so it can start in parallel once the user releases the
+gate: [UXD-11](UX_Design.md#uxd-11) (no-dead-control enforcement) and
+[UXD-10](UX_Design.md#uxd-10)/[Q25-E](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-e--where-does-the-one-problems-list-live)
+(problems list). Cheap, high trust yield, and every later task's visual verification depends on controls
+not lying.
 
 ### Not yet
 
@@ -145,22 +198,26 @@ to avoid.
 
 ---
 
-## 4. Open questions
+## 4. Questions — all four answered
 
 <a id="open-questions"></a>
 
-**Asked of the user 2026-08-06; unanswered.** Recorded in
-[UX_Requirements.md](UX_Requirements.md#open-questions-blocking-requirements) too.
+**Answered by the user 2026-08-06.** Full effect on scope:
+[UX_Requirements.md](UX_Requirements.md#answered-questions).
 
-| # | Question | Blocks | Answer |
+| # | Question | Answer | Where it landed |
 |---|---|---|---|
-| **OQ-1** | Who is the "ordinary author" — a military SME with no programming background, or an engineer? Does blueprint authoring belong on the golden path at all, or behind a *designer* mode? | All of G4; [UXR-40](UX_Requirements.md#uxr-40), [UXR-21](UX_Requirements.md#uxr-21) | — |
-| **OQ-2** | Is the golden path **editor-only** (`--mode editor`, offline, snapshot/rewind), or must it also hold in the distributed ExCon/CGF path? The OCC machinery in `MissionPanel` only makes sense for the latter and is much of what makes assignment feel heavy offline | [UXR-26](UX_Requirements.md#uxr-26), [UXR-20](UX_Requirements.md#uxr-20), [UXD-06](UX_Design.md#uxd-06) | — |
-| **OQ-3** | Scenario undo: pay for a command-based mutation model, or buy safety cheaply first (confirm-destructive + autosave + revert-to-saved)? | [UXR-15](UX_Requirements.md#uxr-15), [UXR-17](UX_Requirements.md#uxr-17), [UXD-02](UX_Design.md#uxd-02) | — |
-| **OQ-4** | Entity templates: a new asset kind, or scenario-embedded? | [UXR-16](UX_Requirements.md#uxr-16), [UXD-04](UX_Design.md#uxd-04) | — |
+| **OQ-1** | Who is the author? Is blueprint authoring on the path? | **Engineers / advanced military SME.** Focus on the editor. Blueprint authoring **stays on the path** — no designer-mode hiding | [Two-audience section](UX_Requirements.md#who-we-are-building-for) |
+| **OQ-2** | Editor-only, or must the path hold in ExCon too? | **Both, as two paths.** ExCon = run an authored scenario and interfere live (add entities, assign mission plans) — **and that must be usable by ordinary SME** | New **[G7](UX_Requirements.md#g7--runtime-intervention-excon)**; Path B in [UX_Golden_Path.md](UX_Golden_Path.md#path-b--runtime-intervention); [UXD-07](UX_Design.md#uxd-07) |
+| **OQ-3** | Undo — full model or cheap safety? | **Cheap first.** Reason: the same editor code runs in the simulation runtime, where real undo is not feasible anyway | [UXR-15](UX_Requirements.md#uxr-15)/[UXR-17](UX_Requirements.md#uxr-17) rewritten; general undo is now [non-goal 1](UX_Requirements.md#non-goals); shape → [Q25-A](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-a--how-do-we-spend-a-cheap-recoverability-budget) |
+| **OQ-4** | Templates — new asset kind or scenario-embedded? | **Wanted, and likely cheap if built on what the scenario format already saves** | [UXD-04](UX_Design.md#uxd-04) `LEAN`; → [Q25-B](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-b--how-is-an-entity-template-prefab-represented) |
 
-**OQ-1 and OQ-2 shape the requirements themselves**, not just the design — worth chasing before
-Milestone 4. OQ-3 and OQ-4 are architect-round material (Q25).
+> **Do not re-ask these.** OQ-3's reasoning in particular is load-bearing and easy to lose: the
+> constraint is *architectural* (shared editor/runtime code), not budgetary — so "we have time now,
+> let's build proper undo" would be the wrong conclusion.
+
+**Now open instead:** the five Q25 questions + 4 sub-questions, awaiting the architect. See
+[Q25's answers table](Architect_Question_25_Scenario_Authoring_Golden_Path.md#answers).
 
 ---
 

@@ -13,23 +13,37 @@ editors, a genuinely strong debugging story (conditional/data breakpoints, step-
 reload with embedded PDBs, jump-to-C#-source). It was built **bottom-up**, and it shows: the
 infrastructure is solid, the front door is not.
 
-**The user we are building for** is an *ordinary scenario author*, not an engine developer. They want
-to lay out units on a map, tell them what to do, press play, fix what looks wrong, and save.
+**Two audiences, two surfaces, two different bars** — settled with the user 2026-08-06. Full statement:
+[Who we are building for](UX_Requirements.md#who-we-are-building-for).
 
-**The single sentence that defines success:** that user can walk the golden path end to end without
-being told which window to open.
+| | **Path A — Authoring** | **Path B — Runtime intervention** |
+|---|---|---|
+| Surface | the editor (`--mode editor`, offline) | distributed **ExCon**, live exercise |
+| Audience | **engineers / advanced military SME** | **ordinary SME people** |
+| Job | build a scenario; author and debug behaviors | run an authored scenario and interfere live — add entities, retask units |
+| Bar | learnable; no tribal knowledge needed | **walk-up usable**; no engine vocabulary |
+
+Path A may assume competence — but *knowing which window to open* is clairvoyance, not competence, and
+stays a defect. Path B has the **higher** bar over a **smaller** surface, and both are served by the
+**same shared panels** — differences come from presentation and defaults, never from forked panels.
+
+**The single sentence that defines success:** both audiences walk their path end to end without being
+told which window to open.
 
 ### The golden path
 
 ```
-new scenario → place entity → assign behavior (mission plan w/ tasks) → run it
-  → author a new behavior (BTree / Blueprint) → run it → debug it → hot-reload it
-  → iterate until working → save scenario → reload it → run → behaviors still attached
+Path A:  new scenario → place entity → assign behavior (mission plan w/ tasks) → run it
+           → author a new behavior (BTree / Blueprint) → run it → debug it → hot-reload it
+           → iterate until working → save scenario → reload it → run → behaviors still attached
+
+Path B:  know it is live → find a unit → retask it / add a unit → see the effect
 ```
 
-Every requirement in [UX_Requirements.md](UX_Requirements.md) exists to make one step of that path
-walkable. **If a change does not make a step of the golden path easier, safer, or more discoverable,
-it is out of scope for this programme.**
+**The step-by-step specification is [UX_Golden_Path.md](UX_Golden_Path.md)** — the programme's
+acceptance test and the source of its task register. Every requirement in
+[UX_Requirements.md](UX_Requirements.md) exists to make one step of it walkable. **If a change does not
+make a step easier, safer, or more discoverable, it is out of scope.**
 
 ## 2. Why the work is where it is
 
@@ -41,7 +55,8 @@ Nobody has worked on the **outer loop** — the scenario shell. The audit that o
 found, verified against code:
 
 - the scene outliner (`EditorOrbatPanel`) is **27 lines** that print `• [entityId]`;
-- there is **no undo anywhere** on the scenario side (place, drag, mission edit are all one-way);
+- there is **no undo and no autosave anywhere** on the scenario side (place, drag, mission edit are all
+  one-way, with no net under them);
 - the toolbar is **6 unlabeled text buttons** with no active-mode feedback and no shortcuts;
 - `New Scenario` produces a void with no next-step affordance;
 - behavior assignment has **two unrelated mental models**, one of which exposes blackboard tiers,
@@ -164,7 +179,27 @@ or contradicts an architect ruling, flag it for a nod first.
 - Ask questions in **plain chat prose**. Do **not** use the multiple-choice question widget.
 - Report outcomes faithfully. If a gate is red, say so with the output. If a step was skipped, say so.
 
-### 5.9 Visual verification is mandatory
+### 5.9 Session topology
+
+| Role | Where | Does |
+|---|---|---|
+| **Coordinator** | one Linux cloud session | Requirements, design, architect questions, task cutting, handoff authoring, diff review, doc upkeep. **Cannot run the editor** |
+| **Implementers** | Windows local sessions, usually | Build, run the editor, walk the golden path, verify visually, report back |
+
+**Consequences that bite if forgotten:**
+
+- **The coordinator must never claim a visual verification it could not perform.** Anything the
+  coordinator concludes about *running* behaviour is a code-derived **prediction** and must be labelled
+  as such. The editor is a Windows/Raylib ImGui app (`run_Editor.bat`).
+- **Handoffs are the interface.** An implementation session gets this briefing + its handoff + the task
+  entry, and nothing else. If a handoff needed knowledge it did not carry, that is a coordinator defect
+  — the implementer should say so in the report.
+- **Findings flow back into the docs, not just into chat.** The implementer updates the task's `DONE`
+  note, the tracker row and the RESUME in the same commit as the work.
+- **Predictions get corrected.** Where a walk contradicts a prediction, the walk wins: record it in
+  [UX_Tasks_Detail.md](UX_Tasks_Detail.md#corrections).
+
+### 5.10 Visual verification is mandatory
 
 This is a **UX** programme: a green test suite proves nothing about whether the thing feels usable.
 Every task ends with the implementer actually performing the designer's gesture in the running editor
@@ -180,7 +215,7 @@ The nine traps earned by the blueprint programme apply here too. The four most r
 | 5 | **`default:` returns success.** A command the sink silently accepts and ignores. Bitten four times. |
 | 6 | **Asset-scoped features belong at the host**, not inside a vendored command — the single opaque command hides the ids a caller needs for an inverse. |
 | 8 | **An optional ctor dependency defaulting to an inert value.** Tests pass it explicitly and prove the logic; every production site omits it; the feature is silently dead. Three confirmed instances. **Grep the production construction sites.** |
-| 9 | **A test can be locked on both halves of a contract and the feature still be unusable**, because no test performs the designer's gesture. Hence §5.5 and §5.9. |
+| 9 | **A test can be locked on both halves of a contract and the feature still be unusable**, because no test performs the designer's gesture. Hence §5.5 and §5.10. |
 
 Full list and history: [`docs/blueprints/Blueprint_Gaps_Programme_RESUME.md`](../blueprints/Blueprint_Gaps_Programme_RESUME.md).
 

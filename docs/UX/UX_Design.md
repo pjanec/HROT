@@ -1,10 +1,13 @@
 # Scenario-Authoring UX — Design (`UXD`)
 
-> **Status: BASE — v0.1, 2026-08-06.** Structure and decision register are in place; most decisions
-> are **OPEN** pending the golden-path walk and the architect round (Q25).
+> **Status: BASE — v0.2, 2026-08-06.** Structure and decision register are in place. The four opening
+> questions are **answered** ([OQ-1…OQ-4](UX_Requirements.md#answered-questions)); the remaining
+> structural decisions are in the architect round
+> **[Q25](Architect_Question_25_Scenario_Authoring_Golden_Path.md)**.
 > **Do not implement from an `OPEN` decision.**
 >
-> Requirements: [UX_Requirements.md](UX_Requirements.md) · Tasks: [UX_Task_Tracker.md](UX_Task_Tracker.md) ·
+> Requirements: [UX_Requirements.md](UX_Requirements.md) · Journey spec:
+> [UX_Golden_Path.md](UX_Golden_Path.md) · Tasks: [UX_Task_Tracker.md](UX_Task_Tracker.md) ·
 > Orientation: [UX_Programme_Briefing.md](UX_Programme_Briefing.md)
 
 ## 1. Design thesis
@@ -16,8 +19,23 @@ touched in.
 
 > **Therefore the design is mostly composition, not construction.**
 > We are building a *spine* that the existing capability hangs off, plus the feedback layer that makes
-> it trustworthy. Two items are genuine construction: scenario undo ([UXR-15](UX_Requirements.md#uxr-15))
-> and entity templates ([UXR-16](UX_Requirements.md#uxr-16)).
+> it trustworthy. Genuine construction is now down to three items: the recoverability net
+> ([UXR-15](UX_Requirements.md#uxr-15)), entity templates ([UXR-16](UX_Requirements.md#uxr-16)), and the
+> problems list ([UXR-X2](UX_Requirements.md#uxr-x2)). A general undo stack was **ruled out** — see the
+> [rationale](UX_Requirements.md#uxr-17).
+
+### Two paths, one panel set
+
+Per [Who we are building for](UX_Requirements.md#who-we-are-building-for), the programme serves **Path A**
+(authoring, editor, engineers/advanced SME) and **Path B** (runtime intervention, ExCon, ordinary SME).
+Both are driven by the **same shared panels**, and forking them is a
+[non-goal](UX_Requirements.md#non-goals). The design consequence:
+
+> **Every difference between the two audiences must be expressible as a capability the host composes,
+> or as disclosure within a panel — never as a duplicated panel and never as a global "mode".**
+
+This is [UXD-06](#uxd-06), and it is the constraint that keeps Path B's stricter bar from becoming a
+second UI to maintain.
 
 ### The inversion
 
@@ -67,25 +85,34 @@ changes is that **entering and leaving them is driven from the entity**, not fro
 
 ## 3. Design decisions (`UXD`)
 
-Status: `OPEN` = undecided · `LEAN` = Claude's recommendation, awaiting architect/user · `DECIDED` =
-ruled, safe to implement (records who ruled and where).
+Status: `OPEN` = undecided · `LEAN` = Claude's recommendation, awaiting architect/user · `RULED` = the
+user has set the direction, shape still in the architect round · `DECIDED` = ruled, safe to implement
+(records who ruled and where).
+
+**Six of these are in the Q25 round** — [Q25-A](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-a--how-do-we-spend-a-cheap-recoverability-budget)
+= UXD-02 · [Q25-B](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-b--how-is-an-entity-template-prefab-represented)
+= UXD-04 · [Q25-C](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-c--where-does-an-asset-authored-behavior-declare-its-affinity-and-its-parameters)
+= UXD-03 · [Q25-D](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-d--two-audiences-one-set-of-shared-panels-what-is-the-mechanism)
+= UXD-06 · [Q25-E](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-e--where-does-the-one-problems-list-live)
+= UXD-10. **Record the answers there, then flip the rows here to `DECIDED`.**
 
 ### Structural
 
 | ID | Decision | Status | Notes |
 |---|---|:--:|---|
 | <a id="uxd-01"></a>**UXD-01** | The default Editor-perspective layout (§2) | `LEAN` | Proposed above. Cheap to change now, expensive later — settle before UXT work on panels. Ties [UXR-04](UX_Requirements.md#uxr-04) |
-| <a id="uxd-02"></a>**UXD-02** | **Scenario mutation model** — how authoring edits reach the ECS so they can be undone | `OPEN` 🔴 | **The single biggest decision in the programme.** Options: (a) command/undo-stack over an edit service, all gizmos and panels routed through it; (b) snapshot-diff undo reusing the preview snapshot machinery; (c) no undo — cheap safety net only (confirm + autosave + revert-to-saved). Blocks [UXR-15](UX_Requirements.md#uxr-15), [UXR-17](UX_Requirements.md#uxr-17). **Architect round required.** See OQ-3 |
-| <a id="uxd-03"></a>**UXD-03** | **Behavior as a first-class concept** — one author-facing "Behavior" with one affinity contract, one param schema and one assignment path, over three implementations | `OPEN` | Blocks [UXR-20](UX_Requirements.md#uxr-20), [UXR-22](UX_Requirements.md#uxr-22), [UXR-40](UX_Requirements.md#uxr-40), [UXR-41](UX_Requirements.md#uxr-41). Reuse candidate: `BehaviorRegistry` + `[BehaviorContract]` + `BehaviorUiCompiler` already form two-thirds of this |
-| <a id="uxd-04"></a>**UXD-04** | **Entity template/prefab representation** — new asset kind vs scenario-embedded; override semantics | `OPEN` | Blocks [UXR-16](UX_Requirements.md#uxr-16). See OQ-4 |
-| <a id="uxd-05"></a>**UXD-05** | **Where the Behaviors section lives** — inside the unified Inspector, or a dedicated docked panel the Inspector links to | `OPEN` | Blocks [UXR-14](UX_Requirements.md#uxr-14), [UXR-20](UX_Requirements.md#uxr-20) |
-| <a id="uxd-06"></a>**UXD-06** | **Offline vs cluster surface split** — how one panel serves both without showing OCC/Force-Commit offline | `OPEN` | Blocks [UXR-26](UX_Requirements.md#uxr-26). Depends on OQ-2 |
+| <a id="uxd-02"></a>**UXD-02** | **Recoverability model** — what protects an author's work, given that a general undo stack is ruled out | `RULED` 🔴 | **User ruling (OQ-3): cheap safety first.** Reason is architectural, not budgetary — the same editor code runs in the simulation runtime, where undo is *semantically* impossible. Shape is [Q25-A](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-a--how-do-we-spend-a-cheap-recoverability-budget) (Claude's lean: autosave + revert + confirm, **plus** bounded single-step inverses on the 4 spatial gizmo gestures, which the runtime host simply does not register). Blocks [UXR-15](UX_Requirements.md#uxr-15), [UXR-17](UX_Requirements.md#uxr-17) |
+| <a id="uxd-03"></a>**UXD-03** | **Behavior as a first-class concept** — one affinity contract, one param schema, one assignment path, over three implementations | `OPEN` → [Q25-C](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-c--where-does-an-asset-authored-behavior-declare-its-affinity-and-its-parameters) | Blocks [UXR-20](UX_Requirements.md#uxr-20), [UXR-22](UX_Requirements.md#uxr-22), [UXR-40](UX_Requirements.md#uxr-40), [UXR-41](UX_Requirements.md#uxr-41). ⚡ **Sharpened by a new finding:** affinity already exists (`BehaviorContractAttribute(name, BehaviorCategory)` → `BehaviorCatalog.GetValidBehaviors(tkbType)`) but is built by reflecting **one assembly in a static ctor** — so an asset-authored behavior can never declare affinity, which is precisely why `AppendEditorBTreeBehaviors` appends everything ungated. Same root cause fails both UXR-22 and UXR-23 |
+| <a id="uxd-04"></a>**UXD-04** | **Entity template/prefab representation** + override semantics | `LEAN` → [Q25-B](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-b--how-is-an-entity-template-prefab-represented) | User: wanted, and likely cheap if built on what the scenario format already saves — **the code supports that instinct** (a scenario entity is already a self-contained bag from a pluggable translator set; blueprint assignments already persist as a portable `BlueprintAssignmentDto` list). Claude's lean: scenario-fragment representation + copy-on-place, carrying a template id from day one so live overrides remain possible later. Blocks [UXR-16](UX_Requirements.md#uxr-16) |
+| <a id="uxd-05"></a>**UXD-05** | **Where the Behaviors section lives** — inside the unified Inspector, or a dedicated docked panel the Inspector links to | `OPEN` | Blocks [UXR-14](UX_Requirements.md#uxr-14), [UXR-20](UX_Requirements.md#uxr-20). Not in Q25 — decide after the walk shows how the author actually moves between map and behavior |
+| <a id="uxd-06"></a>**UXD-06** | **Two audiences over one shared panel set** — how Path A and Path B differ without forking panels or inventing a global mode | `OPEN` → [Q25-D](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-d--two-audiences-one-set-of-shared-panels-what-is-the-mechanism) | Blocks [UXR-26](UX_Requirements.md#uxr-26), [UXR-73](UX_Requirements.md#uxr-73), [UXR-75](UX_Requirements.md#uxr-75). Claude's lean: **per-host composition** (the codebase's existing pattern) + disclosure within a panel; reject a global mode. ⚡ Verified: **no role/mode/expert-mode concept exists anywhere today** — this is new either way. Separately, Claude's lean is that OCC conflict handling belongs in the **service**, so no host renders a version modal |
+| <a id="uxd-07"></a>**UXD-07** | **Path B gesture set** — the minimum walk-up-usable surface for runtime intervention (add entity, retask, verify) | `OPEN` | Blocks [G7](UX_Requirements.md#g7--runtime-intervention-excon). ⚠ **All of Path B is code-inferred** — what an ExCon operator sees today is untraced. Needs its own walk before design |
 
 ### Feedback & trust
 
 | ID | Decision | Status | Notes |
 |---|---|:--:|---|
-| <a id="uxd-10"></a>**UXD-10** | **Diagnostic bus** — one sink that validation, compiler, load and runtime faults all publish to, with a navigable source reference per entry | `LEAN` | Required by [UXR-X2](UX_Requirements.md#uxr-x2), [UXR-34](UX_Requirements.md#uxr-34), [UXR-62](UX_Requirements.md#uxr-62). Reuse candidates to trace: the alert manager, `DiagnosticsWindow`, `FindResultsWindow`'s navigation model |
+| <a id="uxd-10"></a>**UXD-10** | **Diagnostic bus** — one sink that validation, compiler, load and runtime faults all publish to, with a navigable source reference per entry | `LEAN` → [Q25-E](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-e--where-does-the-one-problems-list-live) | Required by [UXR-X2](UX_Requirements.md#uxr-x2), [UXR-34](UX_Requirements.md#uxr-34), [UXR-62](UX_Requirements.md#uxr-62). Claude's lean: build editor-side, but define the entry contract (severity · message · source ref · navigate) so ExCon publishes into the same model later. Reuse candidates ⚠ untraced: the alert manager, `DiagnosticsWindow`, `FindResultsWindow`'s navigation model |
 | <a id="uxd-11"></a>**UXD-11** | **No-dead-control enforcement mechanism** — command-registry completeness test + debug-build throwing `default:` arms | `LEAN` | Required by [UXR-X1](UX_Requirements.md#uxr-x1). Cheap, high trust yield, and it protects every later task. **Strong candidate for the first slice** |
 | <a id="uxd-12"></a>**UXD-12** | **Acknowledgement mechanism** — toast/status-line convention for gesture outcomes | `OPEN` | Required by [UXR-X3](UX_Requirements.md#uxr-x3). Must not become modal spam |
 | <a id="uxd-13"></a>**UXD-13** | **Play-mode chrome** — what changes visually, and the Play/Pause/Step/Stop contract wording | `LEAN` | Tint + explicit state label. Reuses correct `EditorPreviewAdapter` snapshot/rewind semantics. Consider renaming Preview → Play, keeping an Unreal-style *Simulate* distinction if needed. [UXR-31](UX_Requirements.md#uxr-31) |
@@ -139,4 +166,4 @@ Milestones are not yet cut into tasks — that follows the golden-path walk (see
 | **Cosmetic churn mistaken for progress.** Icons and tints feel productive and change nothing | Every task states which `UXR` it closes and which of the five questions it improves. No `UXR` ⇒ no task |
 | **Scope creep into runtime capability** | Non-goals list in [UX_Requirements.md](UX_Requirements.md#non-goals) is binding |
 | **Doc drift** — this programme's own registers becoming misleading, as happened to ~6 blueprint docs | The tracker is the only status source; every task ends by updating it in the same commit |
-| **A UX change that tests green and still feels bad** | Mandatory visual verification per task ([Briefing §5.9](UX_Programme_Briefing.md#59-visual-verification-is-mandatory)) |
+| **A UX change that tests green and still feels bad** | Mandatory visual verification per task ([Briefing §5.10](UX_Programme_Briefing.md#510-visual-verification-is-mandatory)) |

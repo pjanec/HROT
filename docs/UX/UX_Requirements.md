@@ -1,9 +1,9 @@
 # Scenario-Authoring UX — Requirements (`UXR`)
 
-> **Status:** v1 baseline, 2026-08-06. **Source of truth for scope.**
+> **Status:** **v2**, 2026-08-06. **Source of truth for scope.**
 > A task that does not trace to a `UXR-nn` does not belong in this programme.
-> Design: [UX_Design.md](UX_Design.md) · Tasks: [UX_Task_Tracker.md](UX_Task_Tracker.md) ·
-> Orientation: [UX_Programme_Briefing.md](UX_Programme_Briefing.md)
+> Journey spec: [UX_Golden_Path.md](UX_Golden_Path.md) · Design: [UX_Design.md](UX_Design.md) ·
+> Tasks: [UX_Task_Tracker.md](UX_Task_Tracker.md) · Orientation: [UX_Programme_Briefing.md](UX_Programme_Briefing.md)
 
 ## How to read this
 
@@ -25,6 +25,33 @@ Applied to every step of the golden path, in addition to the per-requirement acc
   the editor in, with **zero window-opening detours**.
 - **A2 — Legibility of outcome.** After every author gesture, the UI states what happened. Silence is
   a defect, not a neutral outcome.
+
+## Who we are building for
+
+**Two audiences, two surfaces, two different usability bars.** Answered by the user 2026-08-06 (OQ-1,
+OQ-2); this split governs the whole programme.
+
+| | **Path A — Authoring** | **Path B — Runtime intervention** |
+|---|---|---|
+| **Surface** | The editor (`--mode editor`, offline) | Distributed **ExCon** against a running exercise |
+| **Audience** | **Engineers and advanced military SME** | **Ordinary SME people** |
+| **Job** | Build a scenario from nothing; author and debug behaviors | Run an already-authored scenario and interfere with it live — add entities, assign mission plans |
+| **Gestures** | Wide — the full golden path | **Narrow** — a handful, but they must be near-flawless |
+| **Usability bar** | Learnable. A competent engineer should not need tribal knowledge | **Walk-up usable.** No engine vocabulary, no sequencing knowledge, no recoverable-by-expert-only states |
+| **Scope** | G0–G6 below | **G7** below |
+
+**Consequences that must not be forgotten:**
+
+1. **Path A may assume competence, not clairvoyance.** Blueprint/BTree authoring stays on Path A —
+   it does not need hiding behind a "designer mode". But *knowing which window to open* is
+   clairvoyance, not competence, and remains a defect.
+2. **Path B has the higher bar over a smaller surface.** Fewer requirements, stricter acceptance.
+3. **Path B is where the distributed protocol is real.** OCC versioning, commit acks and conflicts
+   genuinely exist there — so they must be **handled**, not exposed. An ordinary SME must never read
+   the words "version conflict" or press "Force Commit".
+4. **Both paths share panel code.** `MissionPanel`, the entity inspector and the ORBAT panel serve
+   both. Requirements that differ between paths must be met by **presentation and defaults**, not by
+   forking the panels.
 
 ---
 
@@ -52,9 +79,23 @@ Applied to every step of the golden path, in addition to the per-requirement acc
 | <a id="uxr-12"></a>**UXR-12** | **Place an entity** by choosing what to place from a browsable catalog, then clicking the map | Place a tank without typing a type id or editing JSON | `Place Entity` activates a placement gizmo using `LastSelectedTkbType` (defaults to `Tank_M1Abrams`); ⚠ catalog-picker UX not yet traced | P0 |
 | <a id="uxr-13"></a>**UXR-13** | **Rename, duplicate and delete** an entity from the outliner | Right-click a unit in the outliner → all three available and effective | No outliner interactions of any kind | P0 |
 | <a id="uxr-14"></a>**UXR-14** | **One inspector** shows everything about the selected entity — identity, transform, components, behaviors — with engine-internal detail behind an *Advanced* disclosure | Select a unit → answer "what is this and what will it do?" from one panel | Split across Entity Property Inspector, Mission Panel, Entity Blueprints, StructEdit facets | P1 |
-| <a id="uxr-15"></a>**UXR-15** | **Undo/redo covers scenario authoring** — placement, drag, rotate, delete, component edit, behavior assignment | Place a unit, drag it, assign a behavior, press Ctrl+Z three times → all three reverted | **No undo exists on the scenario side.** Zero `Undo` references in `Hrot.Editor` / `Hrot.Presentation`. Undo exists only inside graph editors | P0 🔴 |
-| <a id="uxr-16"></a>**UXR-16** | **Reusable entity templates** — save a configured unit (or group) as a template, place instances, override per instance | Configure a tank, save as template, place 3, change one without affecting the others | No scenario-level template/prefab concept. TKB types are the only reuse unit; a scenario entity is a verbatim ~20-component bag | P1 |
-| <a id="uxr-17"></a>**UXR-17** | **Destructive actions are recoverable or confirmed** — and the scenario autosaves | Delete a platoon, then recover it (undo) or be warned before it happens | ⚠ not traced; no undo backstop exists | P1 🔴 |
+| <a id="uxr-15"></a>**UXR-15** | **No authoring gesture can silently destroy work.** Destructive actions confirm; the scenario autosaves; *Revert to Saved* always exists — see the rationale note below | Delete a platoon → confirmed first. Kill the editor mid-session → reopen and lose ≤1 autosave interval. *Revert to Saved* restores the last save exactly | **Nothing exists.** Zero `Undo` references in `Hrot.Editor` / `Hrot.Presentation`; ⚠ autosave and confirm-on-destructive not traced | P0 🔴 |
+| <a id="uxr-16"></a>**UXR-16** | **Reusable entity templates** — save a configured unit (or group) as a template, place instances, override per instance | Configure a tank, save as template, place 3, change one without affecting the others | No scenario-level template/prefab concept. TKB types are the only reuse unit; a scenario entity is a verbatim ~20-component bag — **which is also why this may be cheap: the saved form already is the template** | P1 |
+| <a id="uxr-17"></a>**UXR-17** | **Ctrl+Z works for the last authoring gesture where it is semantically sound** — single-step undo of placement, drag, rotate and delete, as a bounded scope | Place a unit, press Ctrl+Z → it is gone. Drag it, Ctrl+Z → it is back at the previous position | Absent. **Deliberately scoped to single-step; see the rationale note** | P1 |
+
+> ### 📌 Why there is no full undo requirement
+>
+> **Ruled by the user, 2026-08-06 (OQ-3): cheap safety first, not a general undo stack.** The reason is
+> architectural, not budgetary: **the same editor code is reused inside the simulation runtime host**,
+> and there a general undo is not merely expensive but *semantically impossible* — you cannot un-send a
+> command to a running distributed simulation, nor un-run the frames it produced.
+>
+> A general undo model would therefore be an editor-only fiction layered over shared code, and would
+> diverge the two paths exactly where [G7](#g7--runtime-intervention-excon) needs them to agree.
+>
+> So: **recoverability** ([UXR-15](#uxr-15)) is the P0 contract, single-step undo ([UXR-17](#uxr-17)) is
+> a bounded convenience, and a general undo stack is a [non-goal](#non-goals). The equivalent safety on
+> Path B is confirmation plus an unmistakable "this is live" affordance ([UXR-72](#uxr-72)).
 
 ## G2 — Behavior assignment
 
@@ -115,6 +156,23 @@ Applied to every step of the golden path, in addition to the per-requirement acc
 | <a id="uxr-62"></a>**UXR-62** | **Load failures are legible and partial-safe** — a scenario that cannot fully load says exactly what was dropped | Load a scenario referencing a deleted behavior → named, actionable diagnostic | `_alertManager.OnScenarioLoaded(LastLoadResult)` exists; ⚠ surfaced detail not traced | P1 |
 | <a id="uxr-63"></a>**UXR-63** | **The scenario file stays reviewable** — a human can read a diff and see what an author changed | Diff two saves after one behavior change → the diff is small and readable | Fights [UXR-24](#uxr-24): escaped JSON-in-JSON makes params diff as one opaque line | P2 |
 
+## G7 — Runtime intervention (ExCon)
+
+<a id="g7--runtime-intervention-excon"></a>
+
+*"Run the authored scenario and interfere with it live."* **Path B — ordinary SME. Narrow surface,
+strictest bar.** These requirements are met by presentation and defaults over the **same** panel code
+Path A uses (see [Who we are building for](#who-we-are-building-for), consequence 4).
+
+| ID | Requirement | Acceptance | Now | Pri |
+|---|---|---|---|:--:|
+| <a id="uxr-70"></a>**UXR-70** | **Add an entity to a running exercise** without engine vocabulary — pick what, click where, it exists | An SME with 5 minutes of instruction adds a unit mid-exercise, unaided | ⚠ path exists (`SpawnEntityCommand` via the ExCon/CGF route) — the *SME-facing* gesture is not traced | P0 |
+| <a id="uxr-71"></a>**UXR-71** | **Assign or change a mission plan on a live entity** — pick the unit, pick what it should do, set params, confirm | Same SME retasks a unit mid-exercise, unaided | `MissionPanel` does this, but through OCC commit + version + Force Commit + raw-JSON params | P0 |
+| <a id="uxr-72"></a>**UXR-72** | **"This is live" is unmistakable, and every live change is confirmed before it takes effect** | Glance at the screen → know changes affect a running exercise. Every commit is confirmed and acknowledged | ⚠ not traced. This is Path B's substitute for undo — nothing can be taken back once sent | P0 🔴 |
+| <a id="uxr-73"></a>**UXR-73** | **Distributed-protocol mechanics are handled, never exposed.** Version conflicts are resolved or explained in plain language; the word "OCC" and a "Force Commit" button never reach an SME | Provoke a version conflict → the SME sees a plain-language message and a safe next step | `MissionPanel` surfaces a conflict modal and a **Force Commit** button unconditionally | P0 |
+| <a id="uxr-74"></a>**UXR-74** | **The consequence of a live change is visible** — the SME sees the unit accept the new task, or sees it fail | Retask a unit → observe within seconds that it took effect | Task-state glyphs exist in `MissionPanel` (`GetTaskIcon`); ⚠ end-to-end legibility not traced | P1 |
+| <a id="uxr-75"></a>**UXR-75** | **An SME cannot reach authoring-only or developer surfaces** from the ExCon console | Survey every reachable control in ExCon → none opens a graph canvas, allocator or cluster control | ⚠ not traced | P1 |
+
 ## Cross-cutting
 
 <a id="cross-cutting"></a>
@@ -134,24 +192,35 @@ Applied to every step of the golden path, in addition to the per-requirement acc
 
 Explicitly **out of scope** for this programme, to keep it finishable:
 
-1. **A fourth graph language**, or unifying BTree/HSM/Blueprint *implementations*. [UXR-40](#uxr-40) is
+1. **A general undo/redo stack for scenario authoring.** Ruled out on architectural grounds — see the
+   [rationale note](#uxr-17) above. [UXR-15](#uxr-15) (recoverability) and [UXR-17](#uxr-17)
+   (single-step) are what we build instead.
+2. **A fourth graph language**, or unifying BTree/HSM/Blueprint *implementations*. [UXR-40](#uxr-40) is
    about one *entry point*, not one engine.
-2. **Reworking the distributed protocol.** [UXR-26](#uxr-26) asks that offline authoring not *show*
-   OCC surfaces — not that OCC be removed.
-3. **Runtime/compiler capability.** New node kinds, scheduler work, EQS, waves — all belong to the
+3. **Reworking the distributed protocol.** [UXR-73](#uxr-73) asks that OCC be *handled and hidden* from
+   an SME — not that it be removed. [UXR-26](#uxr-26) likewise asks only that offline authoring not
+   *show* it.
+4. **Forking shared panels per audience.** The two paths differ by presentation and defaults, not by
+   duplicated panels ([consequence 4](#who-we-are-building-for)).
+5. **Runtime/compiler capability.** New node kinds, scheduler work, EQS, waves — all belong to the
    blueprint programme's register.
-4. **Rendering/terrain quality**, map projection, and 3D presentation.
-5. **Multi-user concurrent authoring.**
-6. **Localisation** and accessibility beyond keyboard-reachability.
+6. **Rendering/terrain quality**, map projection, and 3D presentation.
+7. **Multi-user concurrent authoring.**
+8. **Localisation** and accessibility beyond keyboard-reachability.
 
-## Open questions blocking requirements
+## Answered questions
 
-Answers change the shape of the requirements above. Recorded here, tracked in
-[UX_RESUME.md](UX_RESUME.md#open-questions).
+<a id="answered-questions"></a>
 
-| # | Question | Blocks |
-|---|---|---|
-| OQ-1 | Who is the "ordinary author" — a military SME with no programming background, or an engineer? Does blueprint authoring belong on the golden path at all, or behind a *designer* mode? | G4 entirely; [UXR-40](#uxr-40), [UXR-21](#uxr-21) |
-| OQ-2 | Is the golden path **editor-only** (`--mode editor`, offline), or must it hold in the distributed ExCon/CGF path too? | [UXR-26](#uxr-26), [UXR-20](#uxr-20) |
-| OQ-3 | Scenario undo: pay for a command-based mutation model, or buy safety cheaply first (confirm-destructive + autosave + revert-to-saved)? | [UXR-15](#uxr-15), [UXR-17](#uxr-17) — the largest single item in the programme |
-| OQ-4 | Entity templates: a new asset kind, or scenario-embedded? | [UXR-16](#uxr-16) |
+**All four opening questions answered by the user 2026-08-06.** Recorded here because they changed the
+requirements above, not merely the design. Also tracked in [UX_RESUME.md](UX_RESUME.md#open-questions).
+
+| # | Question | Answer | Effect on this doc |
+|---|---|---|---|
+| **OQ-1** | Who is the author? Does blueprint authoring belong on the golden path? | **Engineers and advanced military SME.** Focus on the editor. Blueprint/BTree authoring **stays on the path** — no designer-mode hiding | New [audience section](#who-we-are-building-for); [UXR-40](#uxr-40) is one entry point, not a simplification |
+| **OQ-2** | Editor-only, or must the path hold in the distributed ExCon/CGF surface? | **Both, as two distinct paths.** Authoring = editor. ExCon = running an already-authored scenario and interfering at runtime (add entities, assign mission plans live) — **and that must be usable by ordinary SME** | Added **[G7](#g7--runtime-intervention-excon)**; refined [UXR-26](#uxr-26) |
+| **OQ-3** | Scenario undo — full model, or cheap safety first? | **Cheap first.** Rationale from the user: the same editor code is reused in the simulation runtime, where real undo is not feasible anyway | [UXR-15](#uxr-15)/[UXR-17](#uxr-17) rewritten; general undo became [non-goal 1](#non-goals) |
+| **OQ-4** | Entity templates — new asset kind, or scenario-embedded? | **Interesting and wanted.** User's lean: build on **what the scenario format already saves**, which may make it relatively easy | [UXR-16](#uxr-16) `Now` column notes the format is already template-shaped; representation is [UXD-04](UX_Design.md#uxd-04), in Q25 |
+
+**No open questions block the requirements.** Remaining decisions are design-level and go to the
+architect round — see [Architect_Question_25_Scenario_Authoring_Golden_Path.md](Architect_Question_25_Scenario_Authoring_Golden_Path.md).

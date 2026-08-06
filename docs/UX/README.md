@@ -15,11 +15,30 @@
 |---|---|---|
 | 0 | **[UX_RESUME.md](UX_RESUME.md)** | 📌 **Start here, always.** Goals, way of working, live progress, next task. Survives context compaction. |
 | 1 | [UX_Programme_Briefing.md](UX_Programme_Briefing.md) | Big picture + work habits. **Referenced by every handoff doc** so implementation sessions inherit the context. |
-| 2 | [UX_Requirements.md](UX_Requirements.md) | `UXR-nn` — what "approachable" means, as testable statements. The contract. |
-| 3 | [UX_Design.md](UX_Design.md) | `UXD-nn` — how we intend to satisfy the requirements, and which decisions are still open. |
-| 4 | [UX_Task_Tracker.md](UX_Task_Tracker.md) | `UXT-nn` checklist. Live status. |
-| 5 | [UX_Tasks_Detail.md](UX_Tasks_Detail.md) | Per-task evidence, scope, acceptance, `DONE` notes. |
-| 6 | [handoffs/](handoffs/) | One doc per implementation session. Template: [HANDOFF_TEMPLATE.md](handoffs/HANDOFF_TEMPLATE.md). |
+| 2 | [UX_Golden_Path.md](UX_Golden_Path.md) | **The specification.** Path A (A1–A12) + Path B (B1–B5), step by step, with acceptance criteria. The programme's acceptance test and the source of its task register. |
+| 3 | [UX_Requirements.md](UX_Requirements.md) | `UXR-nn` — what "approachable" means, as testable statements. The scope contract. |
+| 4 | [UX_Design.md](UX_Design.md) | `UXD-nn` — how we intend to satisfy the requirements, and which decisions are still open. |
+| 5 | [Architect_Question_25_…](Architect_Question_25_Scenario_Authoring_Golden_Path.md) | The five structural decisions, awaiting the architect. |
+| 6 | [UX_Task_Tracker.md](UX_Task_Tracker.md) | `UXT-nn` checklist. Live status. |
+| 7 | [UX_Tasks_Detail.md](UX_Tasks_Detail.md) | Per-task evidence, scope, acceptance, `DONE` notes. |
+| 8 | [handoffs/](handoffs/) | One doc per implementation session. Template: [HANDOFF_TEMPLATE.md](handoffs/HANDOFF_TEMPLATE.md). |
+
+## Two audiences
+
+| | Path A — Authoring | Path B — Runtime intervention |
+|---|---|---|
+| Surface | the editor (`--mode editor`, offline) | distributed **ExCon**, live exercise |
+| Audience | engineers / advanced military SME | **ordinary SME people** |
+| Bar | learnable, no tribal knowledge | **walk-up usable**, no engine vocabulary |
+
+Same shared panels serve both — differences come from presentation and defaults, never forked panels.
+Full statement: [Who we are building for](UX_Requirements.md#who-we-are-building-for).
+
+## Session topology
+
+**Coordinator** = one Linux cloud session (design, docs, task cutting, review) — **cannot run the
+editor**. **Implementers** = Windows local sessions (build, run, walk, verify). Every coordinator claim
+about running behaviour is a labelled prediction until a walk confirms it.
 
 ## Source of truth
 

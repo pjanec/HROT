@@ -82,7 +82,7 @@ you changed, plus every host listed above. Build must be 0 errors.*
 - [ ] **Revert-to-red confirmed.** Revert your fix, watch the new tests fail, restore.
       *([Briefing §5.5](../UX_Programme_Briefing.md#55-revert-to-watch-it-go-red)) — required, not optional.*
 - [ ] **Visual check performed** in the running editor. Record what you actually saw.
-      *([Briefing §5.9](../UX_Programme_Briefing.md#59-visual-verification-is-mandatory)) — a green suite
+      *([Briefing §5.10](../UX_Programme_Briefing.md#510-visual-verification-is-mandatory)) — a green suite
       proves nothing about usability. If the editor cannot be launched in your environment, say so
       explicitly rather than skipping this silently.*
 - [ ] **No dead controls added.** Every control you render works, or is visibly disabled with a stated

@@ -24,9 +24,11 @@ subsystem or architect decision first). 🔴 = correctness / data-loss / trust d
 | `RW-H` | — | — |
 | **Total** | **0** | **0** |
 
-> **The register is deliberately empty.** Tasks are cut from the **golden-path walk**, not from the
-> audit — the audit says what is broken in the code, the walk says what stops an author, and only the
-> second is a task list. See [UX_RESUME.md](UX_RESUME.md#next-up).
+> **The register is deliberately empty.** Tasks are cut from the
+> **[golden-path walk](UX_Golden_Path.md#deviation-log)**, not from the audit — the audit says what is
+> broken in the code, the walk says what stops a person, and only the second is a task list.
+> **The walk has not been performed** (it needs a Windows session). See
+> [UX_RESUME.md](UX_RESUME.md#next-up).
 
 ---
 
@@ -72,12 +74,13 @@ subsystem or architect decision first). 🔴 = correctness / data-loss / trust d
 
 ## Milestone 5 — Structural bets (architect-gated)
 
-*Scenario undo, entity templates. Closes [UXR-15](UX_Requirements.md#uxr-15),
+*Recoverability net, entity templates. Closes [UXR-15](UX_Requirements.md#uxr-15),
 [UXR-16](UX_Requirements.md#uxr-16), [UXR-17](UX_Requirements.md#uxr-17).*
 
 | ☐ | ID | Task | Cmplx | Req | Design |
 |:-:|---|---|:--:|---|---|
-| 🔒 | | *blocked on [UXD-02](UX_Design.md#uxd-02) / [UXD-04](UX_Design.md#uxd-04) — architect round (Q25)* | `RW-H` | | |
+| 🔒 | | *blocked on [Q25-A](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-a--how-do-we-spend-a-cheap-recoverability-budget) ([UXD-02](UX_Design.md#uxd-02), `RULED` cheap — shape pending)* | `RW-M` | | |
+| 🔒 | | *blocked on [Q25-B](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-b--how-is-an-entity-template-prefab-represented) ([UXD-04](UX_Design.md#uxd-04) — template representation + override semantics)* | `RW-M` | | |
 
 ## Milestone 6 — Prove the round-trip
 
@@ -88,6 +91,15 @@ subsystem or architect decision first). 🔴 = correctness / data-loss / trust d
 | ☐ | ID | Task | Cmplx | Req | Design |
 |:-:|---|---|:--:|---|---|
 | | | *no tasks cut yet* | | | |
+
+## Milestone 7 — Path B: runtime intervention (ExCon)
+
+*The **ordinary SME** surface — narrow, strictest bar. Closes
+[G7](UX_Requirements.md#g7--runtime-intervention-excon) ([UXR-70](UX_Requirements.md#uxr-70)…[UXR-75](UX_Requirements.md#uxr-75)).*
+
+| ☐ | ID | Task | Cmplx | Req | Design |
+|:-:|---|---|:--:|---|---|
+| 🔒 | | *blocked twice over: all of Path B is code-inferred (**trace it first**, [UXD-07](UX_Design.md#uxd-07)) and the shared-panel mechanism is [Q25-D](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-d--two-audiences-one-set-of-shared-panels-what-is-the-mechanism)* | | | |
 
 ---
 
