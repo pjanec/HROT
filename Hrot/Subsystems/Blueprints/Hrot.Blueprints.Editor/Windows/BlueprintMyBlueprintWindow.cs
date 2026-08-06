@@ -37,6 +37,10 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
     // same reason as the variable modal — its confirm callback closes over the target asset.
     private CustomEventCreateModal? _createCustomEventModal;
 
+    // BP-24: function-create modal (name only; the signature is edited in the Graph Signature
+    // window). Rebuilt per active asset like its siblings.
+    private FunctionCreateModal? _createFunctionModal;
+
     // BP-12b: the rename prompt for My Blueprint items. Shared by variables and custom events —
     // the per-kind validity rules live in BlueprintDocumentFactory.RenameItem, not here.
     private readonly ItemRenameModal _renameItemModal = new();
@@ -101,13 +105,36 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
             // BP-12c: same shape for "Custom Events +". Until this, the section declared
             // editor.create-custom-event and nothing registered it, so the button was inert —
             // and BP-07's CallCustomEvent picker had nothing it could ever list.
+            // BP-24: the create now also builds the event's body graph (one undo entry via the
+            // view) and the canvas switches to it, Unreal-style — declare, land in the body, wire.
             _createCustomEventModal = new CustomEventCreateModal(
-                (name, parameters) => BlueprintDocumentFactory.CreateCustomEvent(
-                    blueprintAsset, name, parameters, markDirty),
+                (name, parameters) =>
+                {
+                    var decl = BlueprintDocumentFactory.CreateCustomEvent(
+                        blueprintAsset, name, parameters, markDirty, view);
+                    if (decl is not null)
+                        NavigateToGraphOf($"evt:{decl.Id}");
+                },
                 blueprintAsset);
 
             BlueprintDocumentFactory.RegisterCreateCustomEventCommand(
                 cmdImpl, _createCustomEventModal.Open);
+
+            // BP-24: "Functions +" / the header's "+ Function". Both were greyed-out stubs
+            // (BP-12e's honesty pass) because editor.create-function had no handler — and could
+            // not have one while the canvas was locked to a single graph.
+            _createFunctionModal = new FunctionCreateModal(
+                name =>
+                {
+                    var graph = BlueprintDocumentFactory.CreateFunctionGraph(
+                        blueprintAsset, name, markDirty, view);
+                    if (graph is not null)
+                        NavigateToGraphOf($"graph:{graph.Id}");
+                },
+                blueprintAsset);
+
+            BlueprintDocumentFactory.RegisterCreateFunctionCommand(
+                cmdImpl, _createFunctionModal.Open);
 
             // BP-12b: rename / delete / duplicate. The context menu has always invoked these three
             // and nothing ever handled them, so a variable could be created but never renamed or
@@ -120,8 +147,19 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
         {
             _createVariableModal    = null;
             _createCustomEventModal = null;
+            _createFunctionModal    = null;
         }
     }
+
+    /// <summary>
+    /// Routes a My Blueprint item id to <c>editor.go-to-graph</c>, which owns all id resolution
+    /// (BP-24). Used after a create so the canvas lands on the new graph, and by double-click.
+    /// </summary>
+    private void NavigateToGraphOf(string itemId)
+        => _commands?.Invoke(
+            NodeEditor.Core.CommandCatalog.GoToGraph,
+            new NodeEditor.Core.Action.EditorCommandContext(
+                null, null, new Dictionary<string, object?> { ["itemId"] = itemId }));
 
     /// <summary>
     /// Exposes the underlying model for tests that need to verify projection
@@ -147,7 +185,19 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
                 host:            _hostServices,
                 commands:        _commands,
                 navigateToGraph: _ => { },
-                navigateToItem:  (_, _) => { });
+                // BP-24 (Q23-D1): double-click navigates. The panel fires this for every item;
+                // graph rows (Graphs/Functions sections) and custom events (→ their body graph)
+                // route to the editor.go-to-graph handler, which owns all id resolution.
+                // Variables stay non-navigating — nowhere sensible to go.
+                navigateToItem:  (sectionId, itemId) =>
+                {
+                    if (sectionId is BlueprintMyBlueprintModel.SectionGraphs
+                                  or BlueprintMyBlueprintModel.SectionFunctions
+                                  or BlueprintMyBlueprintModel.SectionCustomEvents)
+                    {
+                        NavigateToGraphOf(itemId);
+                    }
+                });
         }
 
         _panel.Draw();
@@ -155,6 +205,7 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
         // Draw the create modals (opened by the section "+" commands). No-op when closed.
         _createVariableModal?.Draw();
         _createCustomEventModal?.Draw();
+        _createFunctionModal?.Draw();
         _renameItemModal.Draw();
     }
 }

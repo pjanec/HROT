@@ -656,6 +656,50 @@ globally raisable by a name-hash, which is a design decision, not a bug fix.
 
 ### BP-24 — No Function-graph create path; canvas is locked to one graph
 **Complexity:** RW-M · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-06, Batch 15).** Architect package **Q23 A2+B2+C2+D1**
+> ([decisions + full retarget audit](Architect_Question_23_Graph_Create_And_Switching.md)).
+>
+> **Switching (A2):** `BlueprintGraphSwitcher` retargets `BlueprintGraphModel._graph` and
+> `BlueprintCommandSink._graph` (both un-`readonly`d) **in place** — the `GraphView`, undo stack,
+> FindBar, `EditorCommandsImpl` and `BookmarkStore` keep their identity across a switch. `Model.Id`
+> is derived from the graph id, so bookmark filtering follows automatically. The debug adapter is
+> the one deliberate rebuild (it binds `graph.Id` at construction, cheap to remake).
+>
+> **Undo (the Q23-A sub-decision):** one per-asset stack; `UndoStack` gained optional
+> `ContextProvider` (sampled at record time) + `ContextRestorer` (invoked before replaying an entry
+> whose context differs) — zero changes at any `view.Execute` call site. Undo/redo auto-switches
+> the canvas to the entry's graph, Unreal-style. Without this, an entry recorded in graph A would
+> be replayed by the sink while it points at graph B — mutating the wrong graph.
+>
+> **Create (B2):** `CreateFunctionGraph` (name modal; signature edited in Graph Signature window);
+> the new graph is born with the entry-indicator `EventEntryNode { EventTypeId = "" }` — the
+> shipped-asset shape `FindEntryNode` looks for. `CreateCustomEvent` now also builds the body
+> `Event` graph (Inputs mirroring the parameters) in the same undo entry, adopting a hand-authored
+> body of the same name instead of duplicating; a non-Event graph holding the name is rejected.
+> **The BP1407 loop closes for editor-created events.**
+>
+> **Open rule (C2):** last-viewed (session memory, `BlueprintGraphViewMemory`) → first in authored
+> order. The Event-preference is gone. Per-graph viewport persists via the previously-unwired
+> `Graph.EditorMetadata.ViewportX/Y/Zoom`, written on switch-away, never dirtying the asset.
+> Cross-restart last-viewed is parked until anything actually composes
+> `BlueprintEditorPreferences` (nothing loads that file today).
+>
+> **Gesture (D1):** the panel already fired `navigateToItem` on double-click of *every* row — only
+> the host delegate was a no-op. Graphs/Functions rows (sections split Unreal-style) and custom
+> events (→ body graph) route to `editor.go-to-graph`, which gained its first handler. Cross-graph
+> bookmark jumps work for free: `BookmarkCommands.cs:59` had the whole design behind the no-op.
+>
+> ⚠ **Found & fixed: BP-12b rename-undo desync** — renaming a custom event renames its body graph
+> and rewrites name-keyed call refs, but the snapshot undo only restored declaration lists; undoing
+> left the `Event_{Name}` pairing broken (silent BP1407). `SnapshotEventNaming` restores all three.
+> ⚠ **Five `graph`-capture sites audited** (model, sink, debug adapter, ToggleBreakpoint closure,
+> clipboard commands) — all read through the switcher now; the captured-graph clipboard would have
+> pasted into the wrong graph after a switch.
+> **Scope guards:** graph rename/delete not in this slice; Construction graphs not offered.
+> Tests: `GraphSwitchingTests` + `GraphCreateTests` + `UndoStackContextTests` (41 new, all
+> effect-asserting; 11 go red when the wiring is disabled).
+
 - The data + compiler layers **already support author-defined functions**: `GraphKind.Function`, `FunctionCallNode.TargetGraphId`, and real multi-graph assets on disk (`DeepNestedBlueprint.bp.json` holds 3 Function graphs). `GraphSignatureWindow` does genuine Add/Remove/Rename/Retype/Move CRUD on `Graph.Inputs`/`Outputs` and is properly wired.
 - **Missing 1 — no create path:** nothing in the editor ever appends to `BlueprintAsset.Graphs` (verified: the only `Graphs.Add` hits are compiler-internal lowering).
 - ⚠ **Second reason to want this, added by BP-12c:** a custom event's *body* is an `Event` graph named after it. With no graph-create path, a declared custom event can never be given one, and calling it is a BP1407 error. BP-12c ships the declaration half; BP-24 is the other half.
@@ -665,7 +709,7 @@ globally raisable by a name-hash, which is a design decision, not a bug fix.
 
 ### BP-57 — Per-function local variables absent from the data model
 **Complexity:** RW-M · **Confidence:** ✔✔
-- `Graph` has no `LocalVariables` field — only `Id, Name, Kind, Inputs, Outputs, Nodes, Links, Comments, EditorMetadata`. All variables are blueprint-scoped. A genuine **design gap**, not unwired UI. Depends on BP-24.
+- `Graph` has no `LocalVariables` field — only `Id, Name, Kind, Inputs, Outputs, Nodes, Links, Comments, EditorMetadata`. All variables are blueprint-scoped. A genuine **design gap**, not unwired UI. ✅ **Unblocked — BP-24 shipped** (functions are creatable, the canvas reaches them).
 
 ---
 

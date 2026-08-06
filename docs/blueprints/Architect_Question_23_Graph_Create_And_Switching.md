@@ -158,6 +158,11 @@ programme). Cross-asset graph references.
 
 ## Answers — **DECIDED 2026-08-06** (self-researched round; the user delegated this pass to Claude)
 
+> ✅ **IMPLEMENTED 2026-08-06 (Batch 15)** exactly as decided below. Ship notes:
+> `Blueprint_Issues_Detail.md#BP-24`. One addition surfaced during the build: BP-12b's
+> custom-event **rename-undo desync** (body graph + name-keyed refs not covered by the snapshot
+> undo) — fixed with a naming snapshot.
+
 Package: **A2 + B2 + C2 + D1**, undo sub-question resolved as **one per-asset stack with
 per-entry graph context and auto-switch** (the Unreal behaviour).
 

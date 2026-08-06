@@ -31,7 +31,10 @@ namespace Hrot.Blueprints.Editor.Host;
 public sealed class BlueprintCommandSink : IGraphCommandSink
 {
     private readonly BlueprintAsset      _asset;
-    private readonly Graph               _graph;
+    // BP-24: not readonly — Retarget points the sink at another graph of the same asset when the
+    // canvas switches, so the GraphView's fixed Commands reference keeps working. All 20+ uses
+    // are reads; nothing caches _graph-derived state across calls.
+    private Graph                        _graph;
     private readonly BlueprintGraphModel _model;
     private readonly BlueprintNodeCatalog _catalog;
     private readonly BlueprintLinkValidator _validator;
@@ -100,6 +103,17 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         _enumProvider    = enumProvider;
         _behaviorActions = behaviorActions;
     }
+
+    /// <summary>BP-24 — the graph this sink currently mutates.</summary>
+    public Graph CurrentGraph => _graph;
+
+    /// <summary>
+    /// BP-24 — retargets the sink at a different graph <b>of the same asset</b>. Must be kept in
+    /// lock-step with <see cref="BlueprintGraphModel.Retarget"/> (the switcher does both), or
+    /// commands would mutate one graph while the canvas renders another.
+    /// </summary>
+    public void Retarget(Graph graph)
+        => _graph = graph ?? throw new ArgumentNullException(nameof(graph));
 
     // ── IGraphCommandSink ────────────────────────────────────────────────────
 

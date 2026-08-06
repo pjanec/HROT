@@ -34,7 +34,9 @@ namespace Hrot.Blueprints.Editor.Host;
 public sealed class BlueprintGraphModel : IGraphModel
 {
     private readonly BlueprintAsset    _asset;
-    private readonly Graph             _graph;
+    // BP-24: not readonly — Retarget swaps the projected graph in place so the GraphView (and
+    // everything holding this model) survives a canvas graph switch with its identity intact.
+    private Graph                      _graph;
     private readonly NodeKindRegistry? _kindRegistry;
     private readonly IChannelCommandCatalog? _channelCommands;
     private readonly Func<Guid, BlueprintSignature?>? _peerSignatureLookup;
@@ -368,6 +370,26 @@ public sealed class BlueprintGraphModel : IGraphModel
     {
         Rebuild();
         NotifyChanged();
+    }
+
+    /// <summary>
+    /// BP-24 — the asset graph currently projected. Exposed so the graph switcher can save
+    /// per-graph view state for the outgoing graph before retargeting.
+    /// </summary>
+    public Graph CurrentGraph => _graph;
+
+    /// <summary>
+    /// BP-24 — switches the projection to a different graph <b>of the same asset</b> and rebuilds.
+    /// The model object survives, so the <see cref="GraphView"/>, undo stack, find bar, command
+    /// set and bookmark store built around it all keep working; <see cref="Id"/> changes
+    /// automatically because it is derived from the graph id (which is exactly what the
+    /// bookmark filtering wants). Callers fire <see cref="NotifyChanged"/> when ready —
+    /// the switcher restores viewport/selection between Retarget and the notify.
+    /// </summary>
+    public void Retarget(Graph graph)
+    {
+        _graph = graph ?? throw new ArgumentNullException(nameof(graph));
+        Rebuild();
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

@@ -73,7 +73,9 @@ public sealed class ClipboardCommandTests
 
         // DeleteSelection comes from NodeEdit's own registrar; Cut delegates to it.
         NodeEditor.UI.Action.BuiltinCommandHandlers.RegisterAll(commands, view, findBar: null);
-        BlueprintDocumentFactory.RegisterClipboardCommands(commands, view, graph, clipboard);
+        // BP-24 changed the signature to a resolver so paste follows the canvas across graph
+        // switches; a single-graph harness just returns its one graph.
+        BlueprintDocumentFactory.RegisterClipboardCommands(commands, view, () => graph, clipboard);
 
         return new Sut(commands, view, graph, clipboard);
     }

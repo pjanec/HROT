@@ -218,9 +218,10 @@ The features below post-date most existing docs (they are folded into the sectio
 | **Wire-edit undo** | Link add/remove/replace and node delete are undoable through `CommandHistory`. |
 | **Unified undo (BP-11)** | One stack for canvas *and* inspector/drawer edits, in performance order. Before this, **no** Details-panel edit was undoable at all. |
 | **Canvas clipboard (BP-23a)** | Copy / cut / paste / duplicate, same-graph. Paste ships fully-built nodes, so every kind keeps its configuration. |
-| **Custom-event authoring (BP-12c)** | Declare a custom event with typed parameters from My Blueprint; the `CallCustomEvent` picker and the palette pick it up. ⚠ its *body* still needs an `Event` graph, which the editor cannot create yet (BP-24) — calling an unhandled event is a **BP1407** error. |
+| **Custom-event authoring (BP-12c + BP-24)** | Declare a custom event with typed parameters from My Blueprint; **its body `Event` graph is created with it** and the canvas opens on it. `CallCustomEvent` picker and palette pick it up. (BP1407 now only fires for hand-authored JSON that lacks a body.) |
 | **Promote to Variable (BP-60)** | Right-click a data pin → declare a variable and wire a Get/Set to it, as one undo entry. |
 | **Navigation aids (BP-13/19/20)** | Align / distribute / straighten, an overview minimap, and F8 / Shift+F8 to walk error and warning nodes. |
+| **Graph create + switching (BP-24)** | Create Function graphs from My Blueprint (Functions section is real now); double-click any graph to show it on the canvas. Undo history, bookmarks and per-graph pan/zoom/selection survive switches; undo auto-switches to the graph the edit was made in; bookmarks jump across graphs. |
 
 ---
 

@@ -141,12 +141,10 @@ public sealed class CustomEventCreateModal
         }
         else
         {
-            // A custom event's body is an Event graph named after it (the compiler emits
-            // Event_{Name} from the graph, not from the declaration). There is no editor path to
-            // create one yet — BP-24 — so say so here rather than let the designer discover it as a
-            // Roslyn error after wiring up a CallCustomEvent.
-            ImGui.TextDisabled("Declaring the event adds it to the palette and the Call Custom Event");
-            ImGui.TextDisabled("picker. Its body needs an Event graph of the same name (BP-24).");
+            // BP-24: the body Event graph is created with the declaration and the canvas opens
+            // on it (the compiler emits Event_{Name} from that graph).
+            ImGui.TextDisabled("Creates the event and its body graph; the canvas will open on the");
+            ImGui.TextDisabled("body. Call it with a Call Custom Event node from any graph here.");
         }
 
         ImGui.Separator();

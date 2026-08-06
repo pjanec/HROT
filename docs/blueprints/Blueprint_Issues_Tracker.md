@@ -13,9 +13,9 @@ architect decision first).
 |---|---:|---:|
 | `WIRING` | 4 | 21 |
 | `RW-L` | 10 | 13 |
-| `RW-M` | 20 | 3 |
+| `RW-M` | 19 | 4 |
 | `RW-H` | 2 | — |
-| **Total** | **36** | **37** |
+| **Total** | **35** | **38** |
 | *(refuted on verification)* | | *1* |
 
 > 📌 **Resuming this programme?** Start with [Blueprint_Gaps_Programme_RESUME.md](Blueprint_Gaps_Programme_RESUME.md) — branch, batches
@@ -31,6 +31,30 @@ architect decision first).
 > 3. **BP-30/BP-31** — the same blind spot is *why* BP-31 was mis-scoped: it credited HSM with a guard
 >    that has never actually run.
 > A green test suite is not evidence that a guard is wired. Grep the production construction sites.
+
+> ✅ **Batch 15 shipped (2026-08-06) — BP-24: graph create + canvas graph switching.** Architect
+> package **Q23 A2+B2+C2+D1** (self-researched round, recorded in
+> [Architect_Question_23](Architect_Question_23_Graph_Create_And_Switching.md)).
+> **A2:** a switch retargets `BlueprintGraphModel` + `BlueprintCommandSink` **in place** — the
+> `GraphView`, its undo stack, FindBar, commands and bookmarks all survive. Undo is **one per-asset
+> stack whose entries carry a graph context**; undo/redo auto-switches the canvas to the entry's
+> graph before replaying (`UndoStack.ContextProvider`/`ContextRestorer` — without this, an entry
+> recorded in graph A would replay into whatever graph the sink pointed at). Per-graph
+> viewport+selection save/restore; the camera also persists via the previously-unwired
+> `Graph.EditorMetadata` slots. **B2:** "Functions +" creates a Function graph (entry-indicator
+> `EventEntryNode`, the shipped-asset shape); **declaring a custom event now auto-creates its body
+> graph** in the same undo entry — the BP1407 loop closes for editor-created events. **C2:** the
+> Event-graph open preference is dead (it moved the canvas whenever an asset gained an Event graph);
+> open = last-viewed (session memory) → first-in-authored-order. **D1:** double-click any graph in
+> My Blueprint (Graphs/Functions sections split Unreal-style; custom events navigate to their body);
+> `editor.go-to-graph` gained its first handler; **cross-graph bookmark jumps lit up for free** —
+> `BookmarkCommands` had the full design waiting behind a no-op delegate.
+> ⚠ **Found & fixed while building: BP-12b's rename-undo desync** — renaming a custom event also
+> renames its body graph and rewrites name-keyed call refs, but the undo snapshots only restored the
+> declaration lists, leaving the pairing broken (a silent BP1407). A naming snapshot now restores
+> all three together. ⚠ The five build-time `graph` capture sites (sink, model, debug adapter,
+> ToggleBreakpoint closure, clipboard commands) are all provider-based now — a captured graph goes
+> stale on the first switch; the clipboard one would have **pasted into the wrong graph**.
 
 > ✅ **Batch 14 shipped (2026-08-05) — BP-19 + BP-20: minimap and jump-to-issue.**
 > Two more declared-but-never-registered command ids. The minimap is a corner overlay with a
@@ -201,9 +225,9 @@ architect decision first).
 - [x] **BP-11** ⭐ · `RW-M` — 🔴 **No inspector/drawer edit is undoable.** Three tiers; Ctrl+Z drained a stack the drawers never wrote to. Shipped A1+B1+C2+E1 ([Q22](Architect_Question_22_Undo_Unification.md#-implementation-outcome-2026-08-04--shipped)); transport is **R3** (a Blueprint-owned `GraphCommand` subtype — R1 provably can't carry multi-field bakes, R2 would have meant editing the vendored tree). ⚠ **D2 superseded — gap 4:** the sink was double-recording, so making `CommandHistory` live would have pushed 2 entries per gesture and 3 on undo. Sinks apply; the stack records
 - [x] **BP-12b** · `RW-L` — Panel items can't be renamed/duplicated/deleted; a variable can be created but never removed. Registered for variables **and** custom events, undoable via `BlueprintEditCommand`. ⚠ **renaming a custom event also renames its paired Event graph and rewrites name-keyed `CallCustomEvent` refs** — the GUID form survives untouched, but Stage5 accepts a bare name and leaving those behind would turn a rename into a silent BP1403. ⚠ deleting a declaration **leaves its nodes in place** — dangling is recoverable and named by the compiler; silently deleting wired-up nodes is not. *`move-to-category` / `change-variable-type` still unregistered*
 - [x] **BP-12c** · `RW-L` — Custom events can't be created — **the blocker for BP-07**, whose picker had nothing it could ever list. "Custom Events +" now opens a create modal (name + typed parameters). ⚠ **the dispatcher half was removed, not wired** — BP-09 established dispatchers are superseded and deleted their node kinds; nothing consumes `EventDispatchers` and no shipped asset declares one. ⚠ **found while fixing: the declaration is only half a custom event** — the body is an Event graph of the same name, which the editor cannot create yet (BP-24), so a call to an unhandled event emitted C# that did not compile. New **BP1407/BP1408** turn that into a Stage 2 diagnostic
-- [ ] **BP-24** · `RW-M` — **No Function-graph create path; canvas locked to one graph.** In any multi-graph asset every graph but the first is unreachable through the UI. Data + compiler layers already support functions
+- [x] **BP-24** · `RW-M` — **No Function-graph create path; canvas locked to one graph.** ✅ Batch 15: canvas switches by retargeting the model+sink in place (undo/bookmarks/commands survive; undo auto-switches to the entry's graph); "Functions +" creates Function graphs; declaring a custom event auto-creates its body (BP1407 loop closed); Event-graph open preference removed; double-click in My Blueprint navigates; cross-graph bookmark jumps live. Decisions: [Q23](Architect_Question_23_Graph_Create_And_Switching.md)
 - [ ] **BP-12d** · `RW-M` — `find-references` dead; overlaps BP-25's multi-graph layer
-- [ ] **BP-57** · `RW-M` — Per-function local variables absent from the data model itself. Depends on BP-24
+- [ ] **BP-57** · `RW-M` — Per-function local variables absent from the data model itself. ✅ **unblocked — BP-24 shipped** (functions are creatable and the canvas reaches them)
 
 ## Area D — Compiler & correctness
 → [detail](Blueprint_Issues_Detail.md#area-d--compiler--correctness)

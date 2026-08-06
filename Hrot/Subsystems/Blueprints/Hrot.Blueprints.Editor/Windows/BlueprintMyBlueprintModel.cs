@@ -109,8 +109,10 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
 
         return sectionId switch
         {
-            SectionGraphs       => BuildGraphItems(),
-            SectionFunctions    => Array.Empty<MyBlueprintItem>(),   // faked/empty v1
+            SectionGraphs       => BuildGraphItems(SectionGraphs,    functionGraphs: false),
+            // BP-24: real — lists the asset's Function graphs (was faked/empty while nothing
+            // could create one and the canvas could not switch to one anyway).
+            SectionFunctions    => BuildGraphItems(SectionFunctions, functionGraphs: true),
             SectionMacros       => Array.Empty<MyBlueprintItem>(),   // faked/empty v1
             SectionCustomEvents => BuildCustomEventItems(),
             SectionVariables    => BuildVariableItems(),
@@ -120,14 +122,20 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
 
     // ── Private builders ──────────────────────────────────────────────────────
 
-    private IReadOnlyList<MyBlueprintItem> BuildGraphItems()
+    /// <summary>
+    /// Graph rows, split Unreal-style: the Functions section carries the Function graphs, the
+    /// Graphs section everything else (Event bodies, Construction). Both row kinds share the
+    /// <c>graph:{id}</c> item-id form, which <c>editor.go-to-graph</c> resolves on double-click.
+    /// </summary>
+    private IReadOnlyList<MyBlueprintItem> BuildGraphItems(string sectionId, bool functionGraphs)
     {
         var result = new List<MyBlueprintItem>(_asset!.Graphs.Count);
         foreach (var g in _asset.Graphs)
         {
+            if ((g.Kind == GraphKind.Function) != functionGraphs) continue;
             result.Add(new MyBlueprintItem(
                 ItemId:       $"graph:{g.Id}",
-                SectionId:    SectionGraphs,
+                SectionId:    sectionId,
                 DisplayName:  g.Name,
                 CategoryPath: null,
                 IconKey:      null,

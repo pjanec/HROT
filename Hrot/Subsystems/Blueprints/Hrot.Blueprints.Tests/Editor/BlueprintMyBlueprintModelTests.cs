@@ -104,15 +104,18 @@ public sealed class BlueprintMyBlueprintModelTests
         asset.Graphs.Add(new Graph { Id = Guid.NewGuid(), Name = "UpdateGraph", Kind = GraphKind.Function });
 
         var model = MakeModel(asset);
-        var items = model.GetItems(BlueprintMyBlueprintModel.SectionGraphs);
 
-        Assert.Equal(2, items.Count);
-        Assert.Equal("EventGraph",  items[0].DisplayName);
-        Assert.Equal("UpdateGraph", items[1].DisplayName);
+        // BP-24 split the graph rows Unreal-style: Function graphs live in the Functions
+        // section (real since graphs became creatable), everything else stays under Graphs.
+        var graphItems = model.GetItems(BlueprintMyBlueprintModel.SectionGraphs);
+        Assert.Equal("EventGraph", Assert.Single(graphItems).DisplayName);
+
+        var functionItems = model.GetItems(BlueprintMyBlueprintModel.SectionFunctions);
+        Assert.Equal("UpdateGraph", Assert.Single(functionItems).DisplayName);
 
         // Graphs are host-defined, not user-deletable.
-        Assert.True(items[0].IsHostDefined);
-        Assert.False(items[0].IsDeletable);
+        Assert.True(graphItems[0].IsHostDefined);
+        Assert.False(graphItems[0].IsDeletable);
     }
 
     // ── AIE-047 SC4: custom events projected ─────────────────────────────────

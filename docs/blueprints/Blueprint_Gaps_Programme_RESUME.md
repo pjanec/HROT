@@ -11,11 +11,11 @@
 ### Starting a fresh session? Read in this order
 
 1. **Status** and **Next up** below — where the programme is and what comes next.
-2. **🎯 Next task briefing** — **BP-24 is the committed next item**, and its architect question is
-   **answered**: [Architect_Question_23_Graph_Create_And_Switching.md](Architect_Question_23_Graph_Create_And_Switching.md)
-   § *Answers — DECIDED 2026-08-06*. The user delegated this round to Claude's own research; the
-   package is **A2 + B2 + C2 + D1** with a per-asset context-tagged undo stack. **BP-24 is
-   unblocked** — build to those decisions. The briefing below carries the scouting for it and for BP-67.
+2. **🎯 Next task briefing** — **BP-24 SHIPPED (Batch 15, 2026-08-06)** to the Q23 decisions
+   (A2+B2+C2+D1, recorded in
+   [Architect_Question_23_Graph_Create_And_Switching.md](Architect_Question_23_Graph_Create_And_Switching.md)).
+   Next up: **BP-69 / BP-70** (both 🔴, scouted below) or **BP-67's EqsResult slice**; BP-57 and
+   BP-25 are newly unblocked. The briefing below carries the scouting.
 3. **Traps that cost real time** — eight of them, each one earned. Trap #5 (`default:` returns
    success) and #6 (asset-scoped features belong at the host) have each bitten more than once.
 4. **Test baseline** — what "green" means, and which two failures are known flakes.
@@ -29,7 +29,7 @@ lists every one.
 
 ## Status
 
-**34 open · 37 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
+**35 open · 38 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
 table; do not duplicate them here.
 
 | Batch | Items |
@@ -48,6 +48,7 @@ table; do not duplicate them here.
 | 12 — alignment | BP-13 |
 | 13 — node header | BP-17, BP-18 |
 | 14 — navigation aids | BP-19, BP-20 |
+| 15 — graph create + switching | BP-24 ⭐ (Q23 A2+B2+C2+D1; + BP-12b rename-undo desync fixed) |
 
 **Batch 7's visual pass (2026-08-05)** earned its keep: one bug of mine (the bookmarks ✕ was
 unreachable — a full-width `Selectable` swallowed the click), one long-standing 🔴 (**BP-66**, the
@@ -72,16 +73,9 @@ green. Three themes worth carrying forward:
 
 ## Next up
 
-**Committed by the user (2026-08-06): BP-24 is next.**
-
-1. **BP-24** (`RW-M`) — graph create + canvas graph switching. **Unblocked** —
-   [Architect_Question_23](Architect_Question_23_Graph_Create_And_Switching.md) is **answered**
-   (self-researched round, user-delegated, 2026-08-06): **A2** retarget-in-place keeping every
-   object identity, undo = one per-asset stack with per-entry graph context + auto-switch;
-   **B2** create Function *and* Event graphs, declaring a custom event auto-creates its body;
-   **C2** persist last-viewed per asset (prefs file, never the asset) and **delete the
-   Event-preference**; **D1** double-click in My Blueprint. The answers section carries the full
-   five-site retarget audit and the retarget ordering. Build to those decisions.
+1. ✅ **BP-24 — SHIPPED (Batch 15, 2026-08-06)** to the Q23 package (A2+B2+C2+D1). Ship notes in
+   the tracker banner and `Blueprint_Issues_Detail.md#BP-24`. **Visual check pending** — see the
+   morning-check section, batch-15 block.
 2. **BP-69** 🔴 (`WIRING`) — name-referenced `CallCustomEvent` loses its argument pins (both pin
    projections early-return on `!Guid.TryParse`; validators/scheduler accept the name form).
    Three-line fallback in each, mirroring `FindCustomEventIndex`. Independent of BP-24.
@@ -114,7 +108,7 @@ Verified against code on 2026-08-06. Written so a fresh session can start editin
 **BP-24 is the committed item — its briefing is below the BP-67 one, and its decisions live in
 [Architect_Question_23](Architect_Question_23_Graph_Create_And_Switching.md).**
 
-### BP-67 — the When node's other three mode forms (`RW-M`) · *no longer the fallback — BP-24 is unblocked*
+### BP-67 — the When node's other three mode forms (`RW-M`) · *a strong next candidate*
 
 BP-10 fixed **EventFired**. The other three each render one `TextDisabled` line and cannot be
 configured at all, so the node is effectively EventFired-only.
@@ -145,44 +139,46 @@ Do them in this order, easiest first:
 **Done means:** pick a mode, configure it, Ctrl+Z reverses it, and the preview pill at the bottom of
 the drawer reflects it. Take EqsResult alone if time is short; it is a clean, shippable slice.
 
-### BP-24 — graph create + graph switching (`RW-M`) · **committed next, decisions recorded — build it**
+### BP-24 — ✅ SHIPPED (Batch 15, 2026-08-06)
 
-**All scouting AND the decisions live in
-[Architect_Question_23](Architect_Question_23_Graph_Create_And_Switching.md)** — ground-truth tables
-verified 2026-08-06, and the *Answers — DECIDED 2026-08-06* section holds the package
-(**A2 + B2 + C2 + D1**, per-asset context-tagged undo), the complete five-site retarget audit, the
-retarget ordering, and the scope guards (no graph rename/delete, no Construction graphs). Do not
-re-derive; read that doc first.
+Everything about it now lives in two places: the decisions + retarget audit in
+[Architect_Question_23](Architect_Question_23_Graph_Create_And_Switching.md), the ship notes in
+`Blueprint_Issues_Detail.md#BP-24`. The pieces a future session may build on:
 
-The three facts that shape the build:
-
-| Fact | Where | Consequence |
-|---|---|---|
-| `BlueprintGraphModel._graph` and `BlueprintCommandSink._graph` are **`readonly`** | `BlueprintGraphModel.cs:37`, `BlueprintCommandSink.cs:34` | "switch" today = rebuild the whole §3–§10 stack of `BlueprintDocumentFactory.Build` |
-| A rebuild loses the **undo stack**, bookmarks, selection, viewport | created per-`GraphView` in `Build` §7/§10 | BP-11's "one undo stack" headline silently breaks unless answered deliberately (Q23-A) |
-| The open-time selection **prefers an Event graph** | `BlueprintDocumentFactory.cs:132-135` | creating an Event graph moves the designer's canvas — must be fixed **before** any create path (Q23-C); also why BP-12c doesn't auto-create handler graphs |
-
-**Wiring points ready to receive it:** `CommandCatalog.GoToGraph` (declared, no handler) ·
-`BlueprintMyBlueprintWindow`'s `navigateToGraph: _ => { }` · `editor.create-function` /
-`editor.create-macro` declared on the panel sections, unregistered · the retarget fan-out at
-`EditorSubsystem.cs:~2261` (all four Blueprint windows must re-fire on switch) · the debug adapter
-is bound to a `graph.Id` and must be re-bound.
-
-**Done means:** create a Function graph from My Blueprint; double-click any graph in the Graphs
-section and the canvas shows it; undo behaves per the Q23-A answer; the `FunctionCall` target picker
-lists the new graph; `DeepNestedBlueprint.bp.json`'s three graphs are all reachable; and the BP1407
-loop closes — declare a custom event, create its body, call it, compile clean.
+- **`BlueprintGraphSwitcher`** (`Host/BlueprintGraphSwitcher.cs`) — `SwitchTo(graphGuid)` /
+  `SwitchToViewId(GraphId)` / `CurrentGraph`; owns per-graph viewport+selection cache, the
+  GraphMetadata camera persistence, the debug-adapter rebind, and the `UndoStack` context hooks.
+- **`editor.go-to-graph`** — the one navigation entry point; accepts `Args["itemId"]`
+  (`graph:{guid}` or `evt:{guid}` → body graph) or `Args["graphId"]`.
+- **`CreateFunctionGraph` / extended `CreateCustomEvent`** in the factory — both undoable when a
+  `GraphView` is passed; `FindCustomEventBodyGraph` is the pairing lookup.
+- **Not in the slice (deliberate):** graph rename/delete from the panel, Construction graphs,
+  cross-restart last-viewed (parked until something composes `BlueprintEditorPreferences` —
+  today nothing loads that file).
 
 ---
 
-## 👀 Morning visual check — batches 9–14 · **NOT YET DONE**
+## 👀 Morning visual check — batches 9–15 · **NOT YET DONE**
 
-⚠ **Status: pending.** Batches 9–14 shipped overnight and are logic-tested headless, but **no human
-has looked at them in the running editor yet**. What a test cannot see is layout, wording and feel —
-and the batch-7 pass proved that half (the bookmarks ✕ was correctly positioned and completely
-unclickable). Treat every row below as unverified.
+⚠ **Status: pending.** Batches 9–14 shipped overnight and batch 15 the following day; all are
+logic-tested headless, but **no human has looked at them in the running editor yet**. What a test
+cannot see is layout, wording and feel — and the batch-7 pass proved that half (the bookmarks ✕
+was correctly positioned and completely unclickable). Treat every row below as unverified.
 
 Roughly cheapest-to-reach first.
+
+### Graph create + switching (BP-24) — newest, check first
+
+| # | Where | What to do | What should happen |
+|---|---|---|---|
+| G1 | My Blueprint, any multi-graph asset (e.g. the CustomEventSubscriberDemo) | **double-click** a graph row | The canvas shows that graph. Double-click back — pan/zoom and selection of each graph are **remembered** |
+| G2 | My Blueprint header **+ ▼ → + Function** (or the Functions section **+**) | type a name | New Function graph appears under **Functions** (a new section split: Function graphs there, Event bodies under Graphs) and **the canvas opens on it**, showing one entry node |
+| G3 | **Custom Events +** → create an event with a parameter | — | The event AND its body graph are created; **the canvas lands on the body**. One Ctrl+Z removes both |
+| G4 | Add a node on graph A, switch to graph B, **Ctrl+Z** | — | The canvas **switches back to A by itself** and the node is gone — undo follows the edit, Unreal-style |
+| G5 | Copy a node on A, switch to B, **Ctrl+V** | — | The paste lands on **B** (the graph you are looking at) |
+| G6 | Set a bookmark (Ctrl+Shift+1) on A, switch to B, press **Ctrl+1** | — | The canvas jumps back to A, centred on the bookmark — cross-graph bookmarks are live |
+| G7 | Open an asset, switch graphs, close and reopen it | — | It reopens on the **last graph you were viewing** (same session) |
+| G8 | Rename a custom event (My Blueprint → Rename) that has a Call node, then Ctrl+Z | — | Name, body-graph name and the call node all revert **together** (the BP-12b desync fix) |
 
 ### Canvas clipboard (BP-23a) — the big one
 
