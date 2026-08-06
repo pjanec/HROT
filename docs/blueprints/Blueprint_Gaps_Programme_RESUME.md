@@ -1,12 +1,25 @@
-# RESUME / HANDOFF — Blueprint gaps & QoL programme (2026-08-05)
+# RESUME / HANDOFF — Blueprint gaps & QoL programme (2026-08-06)
 
 > **Goal:** make blueprint editing fully functional and pleasant.
-> **Branch:** `claude/blueprint-gaps-qol-audit-uyjjk5` · **HEAD at handoff:** `bfda2d3`
+> **Branch:** `claude/blueprint-gaps-qol-audit-uyjjk5` · **HEAD at handoff:** `PENDING`
 > **Live state:** [Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md) (checklist) ·
 > [Blueprint_Issues_Detail.md](Blueprint_Issues_Detail.md) (per-issue evidence + `DONE` notes)
 >
 > **The two tracker docs are the source of truth.** This file is orientation only — if it and the
 > tracker disagree, the tracker wins.
+
+### Starting a fresh session? Read in this order
+
+1. **Status** and **Next up** below — where the programme is and what comes next.
+2. **🎯 Next task briefing** — the scouting for the next two items is already done; do not re-derive it.
+3. **Traps that cost real time** — eight of them, each one earned. Trap #5 (`default:` returns
+   success) and #6 (asset-scoped features belong at the host) have each bitten more than once.
+4. **Test baseline** — what "green" means, and which two failures are known flakes.
+5. **Working agreement** — how the user wants this programme run.
+
+Then open the tracker for the item you are taking and re-derive its claim against code before
+building. **The audit register has been wrong ten times**; the corrections table in the detail doc
+lists every one.
 
 ---
 
@@ -78,9 +91,74 @@ green. Three themes worth carrying forward:
 
 ---
 
-## 👀 Morning visual check — batches 9–14
+## 🎯 Next task briefing — scouting already done, do not re-derive
 
-Everything below is logic-tested headless. What a test cannot see is layout, wording and feel.
+Verified against code on 2026-08-06. Written so a fresh session can start editing immediately.
+
+### BP-67 — the When node's other three mode forms (`RW-M`) · **do this first**
+
+BP-10 fixed **EventFired**. The other three each render one `TextDisabled` line and cannot be
+configured at all, so the node is effectively EventFired-only.
+
+| Fact | Where |
+|---|---|
+| The three stubs, ~3 lines each | `NodeDrawers/WhenNodeDrawer.cs` — `DrawValueChangedForm` `:170`, `DrawConditionMetForm` `:333`, `DrawEqsResultForm` `:339` |
+| The form to mirror (shipped, tested) | `DrawEventFiredForm` in the same file — filtered `BeginCombo`, `ApplyEventTypeId`, `ApplyTargetFilter` |
+| Data model — all four payloads already exist | `Assets/Nodes.cs:267-360`: `ValueChangedPayload`, `EventFiredPayload`, `ConditionMetPayload`, `EqsResultPayload` |
+| Undo/dirty plumbing | already there — `_editService.RecordPropertyEdit` + `NotifyStructureChanged`, same as BP-10 |
+
+⚠ **Not the same shape as BP-10.** EventFired was `WIRING` because its catalog was already injected
+*and already called* — only the result went unrendered. These three have **no ready-made source**.
+Do them in this order, easiest first:
+
+1. **EqsResult** — the tractable one. `EqsResultPayload { SensorVariableName, Trigger, ScoreThreshold, MaxAgeSeconds }`;
+   `EqsTrigger` is a 4-value enum (combo), and **the sensor picker already exists**:
+   `ReadEqsResultNodeDrawer.cs:28-33` lists `FDP.Eqs.EqsSensorHandle`-typed variables and `:59`
+   shows the empty-state message to copy. This one is genuinely `RW-L`.
+2. **ValueChanged** — `ValueChangedPayload` has a 3-way `Source` discriminator (`SelfComponent` /
+   `PeerBlueprintVariable` / `WorkingStateField`), so it is really three sub-forms. `ComponentTypeId`
+   can reuse the component picker; **`PropertyPath` is the new part** — `ComponentFieldReflector`
+   (see trap #3 on assembly load order) gets you fields, not paths.
+3. **ConditionMet** — `ConditionMetPayload.Condition` is a raw `JsonNode` holding a predicate tree;
+   the editor converts to/from `SearchPredicateDto` at its own boundary. **A predicate-tree editor is
+   a component in its own right** — worth splitting into its own item rather than smuggling it in.
+
+**Done means:** pick a mode, configure it, Ctrl+Z reverses it, and the preview pill at the bottom of
+the drawer reflects it. Take EqsResult alone if time is short; it is a clean, shippable slice.
+
+### BP-24 — graph create + graph switching (`RW-M`)
+
+| Fact | Where |
+|---|---|
+| Data + compiler already support it | `GraphKind.Function`, `FunctionCallNode.TargetGraphId`; `DeepNestedBlueprint.bp.json` ships 3 Function graphs |
+| Signature CRUD already works | `Windows/GraphSignatureWindow.cs` — real Add/Remove/Rename/Retype/Move on `Graph.Inputs`/`Outputs`, properly wired |
+| **Missing 1** — nothing ever appends to `BlueprintAsset.Graphs` | verified: the only `Graphs.Add` hits are compiler-internal lowering |
+| **Missing 2** — the canvas is bound at open time | `BlueprintDocumentFactory.cs:132-135` |
+| Panel hook waiting for it | `BlueprintMyBlueprintWindow` passes `navigateToGraph: _ => { }` |
+
+⚠ **Fix the selection rule as part of this, before adding any create path.** The canvas binds to
+`Graphs.FirstOrDefault(g => g.Kind == Event) ?? Graphs.FirstOrDefault()` — it *prefers* an Event
+graph. So adding an Event graph to a Function-graph asset silently moves the designer's canvas off
+the graph they were editing on the next open. This is why **BP-12c deliberately does not
+auto-create the handler graph**.
+
+⚠ **Second reason to want this:** a custom event's body *is* an `Event` graph named after it
+(`InstanceEmitter` emits `Event_{graph.Name}`). BP-12c ships the declaration half; until BP-24,
+calling a declared custom event is a **BP1407** error naming a graph the editor cannot create.
+
+**Round-out when it lands:** `editor.create-function` and `editor.create-macro` are declared on the
+My Blueprint sections and still unregistered — the Functions section is the natural home for a
+graph-create path.
+
+---
+
+## 👀 Morning visual check — batches 9–14 · **NOT YET DONE**
+
+⚠ **Status: pending.** Batches 9–14 shipped overnight and are logic-tested headless, but **no human
+has looked at them in the running editor yet**. What a test cannot see is layout, wording and feel —
+and the batch-7 pass proved that half (the bookmarks ✕ was correctly positioned and completely
+unclickable). Treat every row below as unverified.
+
 Roughly cheapest-to-reach first.
 
 ### Canvas clipboard (BP-23a) — the big one
@@ -303,4 +381,11 @@ dotnet test Hrot/Subsystems/AI/Hrot.AiEditor.Generators.Tests/Hrot.AiEditor.Gene
 | Undo transport (BP-11) | `Hrot/.../Hrot.Blueprints.Editor/Host/BlueprintEditCommand.cs` · `NodeDrawers/EditService.cs` (`RecordUndoable`) · wired in `Host/BlueprintDocumentFactory.cs` |
 | New Details-panel drawers (BP-05…BP-08) | `Hrot/.../Hrot.Blueprints.Editor/NodeDrawers/{ReadRankedResult,WaitForChannel,CallCustomEvent,CallPeerBlueprint}NodeDrawer.cs` · registered in `BlueprintEditorBootstrap.cs` |
 | Bookmarks panel (BP-03) | `FDP/ExtDeps/NodeEdit/src/NodeEditor.UI/Bookmarks/BookmarksPanel.cs` + `Core/Bookmarks/BookmarkStore.cs` |
+| Canvas clipboard (BP-23a) | `Hrot/.../Hrot.Blueprints.Editor/Host/BlueprintClipboard.cs` · commands in `Host/BlueprintDocumentFactory.cs` (`RegisterClipboardCommands`) |
+| Promote to Variable (BP-60) | `Host/BlueprintDocumentFactory.cs` (`RegisterPromoteToVariableCommand`) · call site `CanvasRenderer.DrawPromoteVariableModal` |
+| My Blueprint item CRUD (BP-12b) | `Host/BlueprintDocumentFactory.cs` (`RegisterMyBlueprintItemCommands`, `RenameItem`/`DeleteItem`/`DuplicateItem`) · `Windows/ItemRenameModal.cs` |
+| Custom-event authoring (BP-12c) | `Windows/CustomEventCreateModal.cs` · `Host/BlueprintDocumentFactory.CreateCustomEvent` · validator `Stage2_Validate.V_CustomEventHandlers` |
+| Align / distribute (BP-13) | `FDP/ExtDeps/NodeEdit/src/NodeEditor.UI/Action/AlignCommands.cs` |
+| Minimap + jump-to-issue (BP-19/20) | `.../NodeEditor.UI/Canvas/MinimapRenderer.cs` · `.../NodeEditor.UI/Action/ErrorNavigationCommands.cs` |
+| Node title / collapse (BP-17/18) | `Assets/GraphTypes.cs` (`NodeMetadata.CustomTitle`, `.Collapsed`) · `Host/BlueprintNodeModel.cs` · sink cases in `Host/BlueprintCommandSink.cs` |
 | AiPrimitive composition rail (BP-41/BP-30) | `Hrot/Subsystems/AI/Hrot.AiEditor.Persistence/Emit/BTreeBridgeEmitCore.cs` (slot keys + manifest) · `FDP/Toolkits/.../Behavior/Systems/BehaviorIngressSystem.cs` (provisioning) |
