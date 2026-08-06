@@ -237,10 +237,7 @@ internal sealed class CSharpEmitter
     private void EmitLibraryFunctionAdapter(string className, IrGraph graph)
     {
         bool hasStatusReturn = graph.Blocks.Any(b => b.Terminator is IrTerm_ReturnStatus);
-        string returnType = graph.Outputs.Count > 0
-            ? LibraryEmitter.CSharpType(graph.Outputs[0].Type)
-            : hasStatusReturn ? "global::Fbt.NodeStatus"
-            : "void";
+        string returnType = LibraryEmitter.CSharpReturnType(graph, hasStatusReturn);
 
         WriteLine($"[\"{graph.Name}\"] = static (inputs, outputs, view, self, time) =>");
         WriteLine("{");
@@ -261,6 +258,27 @@ internal sealed class CSharpEmitter
         if (returnType == "void")
         {
             WriteLine($"{call};");
+        }
+        else if (graph.Outputs.Count > 1)
+        {
+            // BP-73: N outputs are written SEQUENTIALLY, element by element, mirroring the
+            // `__off`-advancing walk that unpacks the inputs above.
+            //
+            // ⚠ NOT `MemoryMarshal.Write(outputs, ref __r)` on the tuple itself. That would blit the
+            // ValueTuple's CLR layout -- including whatever internal padding the runtime chose --
+            // whereas the reader on the other side of this span walks fields back-to-back by
+            // Unsafe.SizeOf<T> exactly as the input side does. The two would silently disagree for
+            // any output list whose types have different alignments (e.g. (bool, float)), which is a
+            // wrong-VALUES bug, not a compile error.
+            WriteLine($"{returnType} __r = {call};");
+            WriteLine("int __oo = 0;");
+            for (int i = 0; i < graph.Outputs.Count; i++)
+            {
+                string t = LibraryEmitter.CSharpType(graph.Outputs[i].Type);
+                WriteLine($"{t} __out{i} = __r.Item{i + 1};");
+                WriteLine($"global::System.Runtime.InteropServices.MemoryMarshal.Write(outputs.Slice(__oo), ref __out{i});");
+                WriteLine($"__oo += global::System.Runtime.CompilerServices.Unsafe.SizeOf<{t}>();");
+            }
         }
         else
         {

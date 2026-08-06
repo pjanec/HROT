@@ -287,14 +287,17 @@ internal static class Stage0_Rehydrate
         // BuildReturnTerminator still accepts either direction (Q24-B1) so hand-authored JSON
         // carrying the legacy "Out" form keeps working.
         //
-        // Single output only (Outputs[0]); proper N-output is the scheduled BP-73.
+        // BP-73: one data-In per declared output, in declaration order. Stage5.BuildReturnTerminator
+        // pairs them POSITIONALLY with Graph.Outputs, so order here is load-bearing.
         if (graph.Kind != GraphKind.Function || graph.Outputs.Count == 0)
             return;
 
-        var output = graph.Outputs[0];
-        var typeId = GetTypeId(output.Type);
-        // Data pin already not in static (static is exec-In only) — just add it.
-        pins.Add(MakePin(output.Name, "In", isExec: false, typeId: typeId));
+        foreach (var output in graph.Outputs)
+        {
+            var typeId = GetTypeId(output.Type);
+            // Data pins are not in the static shape (static is exec-In only) — just add them.
+            pins.Add(MakePin(output.Name, "In", isExec: false, typeId: typeId));
+        }
     }
 
     private static void EnrichGetVariablePins(
@@ -815,9 +818,11 @@ internal static class Stage0_Rehydrate
             var typeId = GetTypeId(inp.Type);
             pins.Add(MakePin(inp.Name, "In", isExec: false, typeId: typeId));
         }
-        if (target.Outputs.Count > 0)
+        // BP-73: one data-Out per target output, in declaration order. Stage5's EmitCarrierFanOut
+        // pairs these positionally with the target's Graph.Outputs, so the order is load-bearing
+        // (mirrors NodePinSchema.FunctionGraphCallPins).
+        foreach (var output in target.Outputs)
         {
-            var output = target.Outputs[0];
             var typeId = GetTypeId(output.Type);
             pins.Add(MakePin(output.Name, "Out", isExec: false, typeId: typeId));
         }

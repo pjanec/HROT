@@ -782,3 +782,32 @@ public sealed record IrOp_SetMembers(
     IrValue Input,
     IReadOnlyList<(string FieldName, IrValue Value)> Fields
 ) : IrOperation;
+
+/// <summary>
+/// BP-73: packs N function-graph outputs into the <b>carrier</b> a multi-output
+/// <c>Func_X</c> returns — <c>var __t{result} = (__t{a}, __t{b});</c>.
+/// <para>
+/// The carrier is a <b>ValueTuple</b>, not a synthesized struct. Deciding constraint:
+/// <c>CSharpEmitter.IsReferencableStateFieldType</c> treats a <c>'_'</c>-prefixed synthesized type as
+/// NOT referencable outside the generated class and excludes it from <c>StateFields</c>, so a
+/// <c>_FuncOut_X</c> return would be invisible to the debugger/watch; a ValueTuple is a BCL type.
+/// </para>
+/// <para>
+/// ⚠ The carrier deliberately has <b>no <see cref="IrTypeRef"/> representation</b>. Temps are emitted
+/// as <c>var __tN = …</c>, so C# infers it; only the three method-DECLARATION sites need a composed
+/// type string, and each builds it from <c>graph.Outputs</c> via
+/// <c>LibraryEmitter.CSharpReturnType</c>. That keeps N-output out of the type system entirely.
+/// </para>
+/// </summary>
+public sealed record IrOp_MakeTuple(IReadOnlyList<IrValue> Values) : IrOperation;
+
+/// <summary>
+/// BP-73: reads one element back out of a multi-output carrier —
+/// <c>var __t{result} = __t{Source}.Item{Index + 1};</c>.
+/// <para>
+/// Accessed positionally (<c>ItemN</c>) rather than by element name: <c>ItemN</c> is always present on
+/// a ValueTuple regardless of whether the declaration names its elements, so the fan-out cannot break
+/// on an output whose name is not a valid C# identifier.
+/// </para>
+/// </summary>
+public sealed record IrOp_TupleField(IrValue Source, int Index) : IrOperation;

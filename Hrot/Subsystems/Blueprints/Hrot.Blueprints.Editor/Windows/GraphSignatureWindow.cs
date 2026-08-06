@@ -196,14 +196,14 @@ public sealed class GraphSignatureWindow : ManagedWindow
         ImGuiNET.ImGui.TextUnformatted("Outputs");
         DrawParameterRows("##outputs", selectedGraph.Outputs, outputsModel);
 
-        // BP-73 gate: the compiler reads only Outputs[0]; more than one is a Stage 2 error
-        // (BP1656) until proper N-output ships. Warn at the point of authoring rather than
-        // letting the designer discover it at compile time.
+        // BP-73 shipped: N outputs compile. The old BP1656 gate warning here is gone; what remains
+        // is a plain statement of the resulting shape, because the Return node and every call site
+        // grow a pin per output and the designer should know that before adding a third.
         if (selectedGraph.Outputs.Count > 1)
         {
-            ImGuiNET.ImGui.TextColored(EditorColors.Warning,
-                $"Only the first output compiles today ({selectedGraph.Outputs.Count} declared).");
-            ImGuiNET.ImGui.TextDisabled("Multiple return values: not supported yet — see BP-73.");
+            ImGuiNET.ImGui.TextDisabled(
+                $"{selectedGraph.Outputs.Count} outputs — returned together; the Return node and "
+                + "every call site show one pin each.");
         }
     }
 

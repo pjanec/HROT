@@ -341,15 +341,19 @@ internal static class NodePinSchema
         if (containingGraph is null)
             return ExecOnly("In");
 
+        // BP-73: one data-In per declared output, in declaration order (Stage 5 pairs them
+        // positionally with Graph.Outputs, so the order is load-bearing — mirrors
+        // Stage0_Rehydrate.EnrichReturnPins).
         if (containingGraph?.Kind == GraphKind.Function && containingGraph.Outputs.Count > 0)
         {
-            var output = containingGraph.Outputs[0];
-            var typeId = string.IsNullOrEmpty(output.Type?.TypeId) ? "System.Object" : output.Type.TypeId;
-            return new[]
+            var pins = new List<Pin>(1 + containingGraph.Outputs.Count) { MakeExec("In", "In") };
+            foreach (var output in containingGraph.Outputs)
             {
-                MakeExec("In", "In"),
-                MakeData(output.Name, "In", typeId),
-            };
+                var typeId = string.IsNullOrEmpty(output.Type?.TypeId)
+                    ? "System.Object" : output.Type.TypeId;
+                pins.Add(MakeData(output.Name, "In", typeId));
+            }
+            return pins;
         }
         return ExecOnly("In");
     }
@@ -410,9 +414,10 @@ internal static class NodePinSchema
             pins.Add(MakeData(inp.Name, "In", typeId));
         }
 
-        if (target.Outputs.Count > 0)
+        // BP-73: one data-Out per target output, in declaration order. Stage5's EmitCarrierFanOut
+        // pairs these positionally with the target's Graph.Outputs, so the order is load-bearing.
+        foreach (var output in target.Outputs)
         {
-            var output = target.Outputs[0];
             var typeId = string.IsNullOrEmpty(output.Type?.TypeId) ? "System.Object" : output.Type.TypeId;
             pins.Add(MakeData(output.Name, "Out", typeId));
         }

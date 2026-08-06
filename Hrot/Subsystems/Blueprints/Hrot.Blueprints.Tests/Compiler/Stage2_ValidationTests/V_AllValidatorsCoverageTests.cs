@@ -9,7 +9,9 @@ namespace Hrot.Blueprints.Tests.Compiler;
 /// </summary>
 public sealed class V_AllValidatorsCoverageTests
 {
-    // Codes that are defined but not yet emitted by current implementation.
+    // Codes that are DEFINED but not emitted -- either not yet (reserved for a future slice) or no
+    // longer (retired when the feature they gated shipped). Both belong here: the ratchet's question
+    // is "is this code emittable today", and a retired code answers no just as a reserved one does.
     private static readonly HashSet<string> KnownNotYetEmittedCodes = new(StringComparer.Ordinal)
     {
         "BP1600",  // OrphanedNode: declared as graph-structure code, not yet emitted
@@ -21,6 +23,10 @@ public sealed class V_AllValidatorsCoverageTests
         "BP4003",  // Reserved for Stage 5, Slice 2
         "BP1413",  // LatentInSequence: safety valve; fall-through propagation handles it, not emitted
         "BP6001",  // Reserved for Stage 7, Slice 2
+        // RETIRED, not reserved: BP1656 gated Function graphs with >1 output while N-output was
+        // unimplemented. BP-73 shipped N-output, so the gate is gone and the code is deliberately
+        // never emitted again -- kept in DiagnosticCodes only so the number is not reused.
+        "BP1656",
     };
 
     [Fact]

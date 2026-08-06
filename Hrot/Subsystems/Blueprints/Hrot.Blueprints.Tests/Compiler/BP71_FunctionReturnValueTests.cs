@@ -346,27 +346,34 @@ public sealed class BP71_FunctionReturnValueTests
     }
 
     // =====================================================================
-    // D1′ — multi-output is "not supported YET", and says so
+    // D1′ — SUPERSEDED BY BP-73: multi-output now compiles
     // =====================================================================
 
+    /// <summary>
+    /// ⚠ <b>This test was inverted by BP-73, deliberately.</b>
+    /// <para>
+    /// BP-71 shipped BP1656 as a temporary gate on <c>Outputs.Count &gt; 1</c>, with wording that said
+    /// "NOT SUPPORTED YET — see BP-73" precisely because N-output was wanted rather than illegal. It
+    /// asserted the error fires and names BP-73. <b>BP-73 has now shipped</b>, so the gate is retired
+    /// and the assertion flips: a multi-output graph must produce NO BP1656.
+    /// </para>
+    /// <para>
+    /// The test is kept rather than deleted so the transition stays visible in the suite — a reader
+    /// who finds BP1656 in <c>DiagnosticCodes</c> can see here why it is no longer emitted. The full
+    /// N-output behaviour is covered by <c>BP73_MultipleFunctionOutputsTests</c>.
+    /// </para>
+    /// </summary>
     [Fact]
-    [CoversDiagnosticCode("BP1656")]
-    public void BP1656_MoreThanOneOutput_IsAnError_ThatNamesBP73()
+    public void BP1656_IsRetiredByBP73_MultiOutputIsNoLongerAnError()
     {
         var graph = MakeReturningGraph("Compute", Guid.NewGuid(), "System.Int32");
         graph.Outputs.Add(Out("Second", "System.Single"));
         var asset = MakeAsset(graph);
 
-        var d = Assert.Single(RunStage2(asset), x => x.Code == "BP1656");
-        Assert.Equal(DiagnosticSeverity.Error, d.Severity);
-        // The wording matters: N-output is scheduled work (BP-73), not a permanent prohibition.
-        // A designer who hits this must be told it is coming, not that they are wrong.
-        Assert.Contains("BP-73", d.Message);
-        Assert.Contains("NOT SUPPORTED YET", d.Message);
+        Assert.Empty(RunStage2(asset).Where(x => x.Code == "BP1656"));
     }
 
     [Fact]
-    [CoversDiagnosticCode("BP1656")]
     public void BP1656_DoesNotFire_ForASingleOutput()
     {
         var asset = MakeAsset(MakeReturningGraph("Compute", Guid.NewGuid(), "System.Int32"));

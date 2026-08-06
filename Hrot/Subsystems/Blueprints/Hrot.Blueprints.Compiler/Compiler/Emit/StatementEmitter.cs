@@ -322,6 +322,26 @@ internal static class StatementEmitter
                 break;
             }
 
+            // ------------------------------------------------------------------
+            // BP-73: multi-output function carrier (pack / unpack)
+            // ------------------------------------------------------------------
+
+            case IrOp_MakeTuple op:
+            {
+                var elems = string.Join(", ", op.Values.Select(v => $"__t{v.Index}"));
+                if (idx >= 0)
+                    e.WriteLine($"var __t{idx} = ({elems});");
+                break;
+            }
+
+            case IrOp_TupleField op:
+            {
+                // Positional access -- ItemN exists on every ValueTuple, named elements or not.
+                if (idx >= 0)
+                    e.WriteLine($"var __t{idx} = __t{op.Source.Index}.Item{op.Index + 1};");
+                break;
+            }
+
             case IrOp_PeerCall op:
             {
                 var peerClass = $"__Peer_{op.PeerBlueprintId:X8}_Bp";

@@ -1472,8 +1472,29 @@ internal sealed class GraphScheduler
                         _ctx.AssetId, _graph.Id, node.Id));
                     break;
                 }
-                var gcArgs   = ResolveAllDataInputs(node, stmts);
-                var gcOutPin = node.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out");
+                var gcArgs    = ResolveAllDataInputs(node, stmts);
+                var gcOutPins = node.Pins.Where(p => !p.IsExec && p.Direction == "Out").ToList();
+                var gcOutPin  = gcOutPins.FirstOrDefault();
+
+                // BP-73: a target graph with N outputs returns a ValueTuple carrier, which is then
+                // fanned out one statement per out-pin. Each fan-out value is cached in
+                // _statementPinCache (NOT _pinValueCache) because it is produced by a REAL statement
+                // already in the block -- the distinction that stops a later consumer from
+                // recomputing or defaulting it.
+                if (targetGraph.Outputs.Count > 1)
+                {
+                    var multiCarrier = AllocValue(Stage5_Schedule.UnknownType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = multiCarrier,
+                        Operation   = new IrOp_GraphCall(
+                            targetGraphGuid, gcArgs, Stage5_Schedule.UnknownType),
+                        Debug       = DebugOf(node),
+                    });
+                    EmitCarrierFanOut(multiCarrier, gcOutPins, targetGraph, stmts, node);
+                    break;
+                }
+
                 IrTypeRef gcRetType;
                 if (gcOutPin is not null && _typed.PinTypes.TryGetValue(gcOutPin.Id, out var gcPinType))
                     gcRetType = gcPinType;
@@ -1898,42 +1919,121 @@ internal sealed class GraphScheduler
         // hand-authored JSON may still carry the legacy "Out" form, which this method has always
         // resolved as an input anyway. Accepting both means there is nothing to migrate and no
         // silently-void return for an asset written against the old shape.
-        var valuePin = rn.Pins.FirstOrDefault(
-            p => !p.IsExec && (p.Direction == "In" || p.Direction == "Out"));
+        // BP-73: N outputs. The pins are collected in declaration order (Stage 0 / the editor both
+        // project one per Graph.Outputs entry, in order), each resolved exactly as the single-output
+        // case always was, then packed into one carrier value by IrOp_MakeTuple.
+        //
+        // ⚠ IrTerm_Return keeps its SINGLE IrValue. Packing in a preceding statement rather than
+        // widening the terminator means every consumer of IrTerm_Return -- the block emitters, the
+        // debug map, the breakpoint anchoring above -- is untouched by this feature.
+        var valuePins = rn.Pins
+            .Where(p => !p.IsExec && (p.Direction == "In" || p.Direction == "Out"))
+            .ToList();
 
-        IrValue? retVal = null;
-        if (valuePin is not null)
+        if (valuePins.Count > 1)
         {
-            // BP-71 / Q24-C3: only call ResolveDataPin when a link actually arrives -- it emits
-            // BP4001 and hands back a dummy IrValue that is never DECLARED anywhere, so the
-            // emitter would write `return __t7;` with no `var __t7`, i.e. CS0103 with no BP
-            // diagnostic to explain it (BP-69's shape). Stage 2's V_FunctionGraphReturnValue makes
-            // the unwired case a hard error; this is the belt-and-braces path that keeps the
-            // GENERATED C# compilable regardless, via the typed `default(T)` IrOp_Const already
-            // used by CA-07b's unwired-collection-consumer safe default.
-            bool wired = _graph.Links.Any(
-                l => l.ToNodeId == rn.Id && l.ToPinId == valuePin.Id);
+            var parts = new List<IrValue>(valuePins.Count);
+            foreach (var vp in valuePins)
+                parts.Add(ResolveReturnValuePin(rn, vp, currentBlock));
 
-            if (wired)
+            var carrier = AllocValue(Stage5_Schedule.UnknownType);
+            currentBlock.Statements.Add(new IrStatement
             {
-                retVal = ResolveDataPin(rn.Id, valuePin.Id, currentBlock.Statements);
-            }
-            else
-            {
-                var retType = _typed.PinTypes.TryGetValue(valuePin.Id, out var pt)
-                    ? pt : Stage5_Schedule.UnknownType;
-                var dflt = AllocValue(retType);
-                currentBlock.Statements.Add(new IrStatement
-                {
-                    ResultValue = dflt,
-                    Operation   = new IrOp_Const("default", retType),
-                    Debug       = DebugOf(rn),
-                });
-                retVal = dflt;
-            }
+                ResultValue = carrier,
+                Operation   = new IrOp_MakeTuple(parts),
+                Debug       = DebugOf(rn),
+            });
+            return new IrTerm_Return(carrier) { Debug = DebugOf(rn) };
         }
 
+        var valuePin = valuePins.FirstOrDefault();
+
+        IrValue? retVal = valuePin is not null
+            ? ResolveReturnValuePin(rn, valuePin, currentBlock)
+            : null;
+
         return new IrTerm_Return(retVal) { Debug = DebugOf(rn) };
+    }
+
+    /// <summary>
+    /// BP-73: unpacks a multi-output call's ValueTuple carrier into one value per out-pin, in
+    /// declaration order, and caches each against its pin so downstream consumers resolve normally.
+    /// <para>
+    /// Emits a statement per pin even when only some are wired. That is deliberate: the alternative
+    /// -- emitting lazily on first use -- would put the extraction inside whichever block first
+    /// consumed the pin, which for a call whose result crosses a branch is a different block than the
+    /// call. An unused <c>var</c> is harmless; a value read in a block that never declared it is
+    /// CS0103.
+    /// </para>
+    /// <para>
+    /// ⚠ Cached in <see cref="_statementPinCache"/>, not <c>_pinValueCache</c>: these values are
+    /// produced by real statements already appended to the block.
+    /// </para>
+    /// </summary>
+    private void EmitCarrierFanOut(
+        IrValue carrier, List<Pin> outPins, Graph targetGraph,
+        List<IrStatement> stmts, Node node)
+    {
+        // Pair pins to outputs POSITIONALLY -- both projections emit one out-pin per Graph.Outputs
+        // entry in declaration order, so index i of each list is the same output. Guard on the
+        // shorter list so a stale asset with fewer pins than the target now declares cannot throw.
+        int n = Math.Min(outPins.Count, targetGraph.Outputs.Count);
+        for (int i = 0; i < n; i++)
+        {
+            var pin = outPins[i];
+            var fieldType = _typed.PinTypes.TryGetValue(pin.Id, out var pt)
+                ? pt
+                : _ctx.TypeRegistry.TryResolve(targetGraph.Outputs[i].Type, out var rt)
+                    ? rt
+                    : Stage5_Schedule.UnknownType;
+
+            var fieldVal = AllocValue(fieldType);
+            stmts.Add(new IrStatement
+            {
+                ResultValue = fieldVal,
+                Operation   = new IrOp_TupleField(carrier, i),
+                Debug       = new IrDebugAnnotation
+                {
+                    GraphId = _graph.Id, NodeId = node.Id, PinId = pin.Id,
+                },
+            });
+            _statementPinCache[pin.Id] = fieldVal;
+        }
+    }
+
+    /// <summary>
+    /// Resolves one of the <c>Return</c> node's value pins: the wired value, or a declared
+    /// <c>default(T)</c> when nothing is wired to it.
+    /// <para>
+    /// BP-71 / Q24-C3: only call <see cref="ResolveDataPin"/> when a link actually arrives. Its
+    /// unwired path emits BP4001 and hands back a dummy — historically one that was never DECLARED,
+    /// so the emitter wrote <c>return __t7;</c> with no <c>var __t7</c>: CS0103 with no BP diagnostic
+    /// (BP-69's shape). Stage 2's <c>V_FunctionGraphReturnValue</c> makes the unwired case a hard
+    /// error; this keeps the GENERATED C# compilable regardless.
+    /// </para>
+    /// <para>
+    /// BP-73: shared by the single-output path and by each element of a multi-output carrier, so an
+    /// unwired output among N behaves exactly like the one unwired output of a single-output graph.
+    /// </para>
+    /// </summary>
+    private IrValue ResolveReturnValuePin(ReturnNode rn, Pin valuePin, BlockBuilder currentBlock)
+    {
+        bool wired = _graph.Links.Any(
+            l => l.ToNodeId == rn.Id && l.ToPinId == valuePin.Id);
+
+        if (wired)
+            return ResolveDataPin(rn.Id, valuePin.Id, currentBlock.Statements);
+
+        var retType = _typed.PinTypes.TryGetValue(valuePin.Id, out var pt)
+            ? pt : Stage5_Schedule.UnknownType;
+        var dflt = AllocValue(retType);
+        currentBlock.Statements.Add(new IrStatement
+        {
+            ResultValue = dflt,
+            Operation   = new IrOp_Const("default", retType),
+            Debug       = DebugOf(rn),
+        });
+        return dflt;
     }
 
     // -----------------------------------------------------------------------
@@ -3067,6 +3167,42 @@ internal sealed class GraphScheduler
                     break;
                 }
                 var pureGcArgs = ResolveAllDataInputs(sourceNode, stmts);
+
+                // BP-73: multi-output pure call. ResolveNodeOutput is asked for ONE source pin at a
+                // time, so the call is emitted once and every out-pin's extraction is cached by
+                // EmitCarrierFanOut; the pin actually requested is then read straight back out of
+                // that cache. A second out-pin resolved later hits _statementPinCache at the top of
+                // this method and never re-emits the call.
+                if (pureTargetGraph.Outputs.Count > 1)
+                {
+                    var pureOutPins = sourceNode.Pins
+                        .Where(p => !p.IsExec && p.Direction == "Out").ToList();
+
+                    var pureCarrier = AllocValue(Stage5_Schedule.UnknownType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = pureCarrier,
+                        Operation   = new IrOp_GraphCall(
+                            pureGcGuid, pureGcArgs, Stage5_Schedule.UnknownType),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = fc.Id },
+                    });
+                    EmitCarrierFanOut(pureCarrier, pureOutPins, pureTargetGraph, stmts, sourceNode);
+
+                    if (_statementPinCache.TryGetValue(sourcePinId, out var fanned))
+                        return fanned;
+
+                    // Requested pin is not among the projected out-pins (stale asset): fall back to a
+                    // declared default so the generated C# still compiles.
+                    result = AllocValue(pinType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = result,
+                        Operation   = new IrOp_Const("default", pinType),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = fc.Id },
+                    });
+                    break;
+                }
+
                 IrTypeRef pureGcRetType;
                 if (pureTargetGraph.Outputs.Count > 0 && _ctx.TypeRegistry.TryResolve(pureTargetGraph.Outputs[0].Type, out var pureResolved))
                     pureGcRetType = pureResolved;

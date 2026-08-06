@@ -2309,17 +2309,12 @@ internal sealed class V_FunctionGraphReturnValue : IValidator
             if (graph.Kind != GraphKind.Function) continue;
             if (graph.Outputs.Count == 0) continue;
 
-            // ----- BP1656: multi-output is scheduled (BP-73), not illegal -----
-            if (graph.Outputs.Count > 1)
-            {
-                var names = string.Join(", ", graph.Outputs.Select(o => $"'{o.Name}'"));
-                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1656,
-                    $"Function graph '{graph.Name}' declares {graph.Outputs.Count} outputs ({names}). " +
-                    $"Multiple return values are NOT SUPPORTED YET — see BP-73. Only the first " +
-                    $"output is compiled today; keep one output, or return a struct. " +
-                    $"(Tracked as BP-73: proper N-output, Unreal-style.)",
-                    asset.AssetId, graph.Id));
-            }
+            // ----- BP1656 RETIRED by BP-73 -----
+            // This used to be an error for Outputs.Count > 1 whose wording said "not supported yet
+            // -- see BP-73". BP-73 shipped: N outputs now compile to a ValueTuple carrier that the
+            // call site fans back out. The code is kept in DiagnosticCodes as a retired entry so the
+            // number is never reused, and there is deliberately no replacement diagnostic -- a
+            // multi-output function graph is now ordinary, valid authoring.
 
             // ----- BP1655: an authored Return node must have its value wired -----
             // Unauthored stub (no links at all, pins not yet rehydrated) — nothing to judge.

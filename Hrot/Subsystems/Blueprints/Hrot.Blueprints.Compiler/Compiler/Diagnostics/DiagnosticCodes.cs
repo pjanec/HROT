@@ -83,7 +83,9 @@ public static class DiagnosticCodes
     public const string BP1653 = "BP1653";  // FunctionCallNode argument type mismatch (positional: caller data-IN pin type incompatible with target Input type)
     public const string BP1654 = "BP1654";  // Function-graph call cycle detected (direct or transitive recursion)
     public const string BP1655 = "BP1655";  // BP-71: Function graph declares an output but its Return node has no value wired
-    public const string BP1656 = "BP1656";  // BP-71/BP-73: Function graph declares more than one output -- not supported yet
+    // RETIRED by BP-73 (N outputs now compile to a ValueTuple carrier). Kept so the number is
+    // never reused; no longer emitted anywhere.
+    public const string BP1656 = "BP1656";  // [retired] Function graph declares more than one output
 
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch

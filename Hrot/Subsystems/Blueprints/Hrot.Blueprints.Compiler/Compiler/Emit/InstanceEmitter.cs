@@ -269,9 +269,9 @@ internal static class InstanceEmitter
     /// </summary>
     private static void EmitInstanceFunctionMethod(CSharpEmitter e, IrAsset asset, IrGraph graph)
     {
-        var retType = graph.Outputs.Count > 0
-            ? CSharpType(graph.Outputs[0].Type)
-            : "void";
+        // BP-73: N outputs come back as a ValueTuple carrier; 1 output is unchanged.
+        // An Instance function graph has no NodeStatus return, hence hasStatusReturn: false.
+        var retType = LibraryEmitter.CSharpReturnType(graph, hasStatusReturn: false);
 
         var sanitized = Sanitizer.SanitizeName(graph.Name);
 
