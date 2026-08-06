@@ -12,9 +12,10 @@
 
 1. **Status** and **Next up** below — where the programme is and what comes next.
 2. **🎯 Next task briefing** — **BP-24 is the committed next item**, and its architect question is
-   already written: [Architect_Question_23_Graph_Create_And_Switching.md](Architect_Question_23_Graph_Create_And_Switching.md).
-   The user relays it to the architect (NotebookLM); **ask whether the answers are back before
-   building**. The briefing below carries the scouting for it and for BP-67.
+   **answered**: [Architect_Question_23_Graph_Create_And_Switching.md](Architect_Question_23_Graph_Create_And_Switching.md)
+   § *Answers — DECIDED 2026-08-06*. The user delegated this round to Claude's own research; the
+   package is **A2 + B2 + C2 + D1** with a per-asset context-tagged undo stack. **BP-24 is
+   unblocked** — build to those decisions. The briefing below carries the scouting for it and for BP-67.
 3. **Traps that cost real time** — eight of them, each one earned. Trap #5 (`default:` returns
    success) and #6 (asset-scoped features belong at the host) have each bitten more than once.
 4. **Test baseline** — what "green" means, and which two failures are known flakes.
@@ -73,12 +74,14 @@ green. Three themes worth carrying forward:
 
 **Committed by the user (2026-08-06): BP-24 is next.**
 
-1. **BP-24** (`RW-M`) — graph create + canvas graph switching. **Architect round first** —
-   [Architect_Question_23](Architect_Question_23_Graph_Create_And_Switching.md) is drafted and
-   scouted against code; the user relays it. It decides four things: rebuild-vs-retarget (A),
-   what can be created (B), which graph opens (C — a live bug either way), and the switch gesture
-   (D). Claude's leans are in the doc. **If the answers are not back yet, take BP-69 or BP-70
-   (below) or BP-67's EqsResult slice while waiting — do not start BP-24 ahead of the answers.**
+1. **BP-24** (`RW-M`) — graph create + canvas graph switching. **Unblocked** —
+   [Architect_Question_23](Architect_Question_23_Graph_Create_And_Switching.md) is **answered**
+   (self-researched round, user-delegated, 2026-08-06): **A2** retarget-in-place keeping every
+   object identity, undo = one per-asset stack with per-entry graph context + auto-switch;
+   **B2** create Function *and* Event graphs, declaring a custom event auto-creates its body;
+   **C2** persist last-viewed per asset (prefs file, never the asset) and **delete the
+   Event-preference**; **D1** double-click in My Blueprint. The answers section carries the full
+   five-site retarget audit and the retarget ordering. Build to those decisions.
 2. **BP-69** 🔴 (`WIRING`) — name-referenced `CallCustomEvent` loses its argument pins (both pin
    projections early-return on `!Guid.TryParse`; validators/scheduler accept the name form).
    Three-line fallback in each, mirroring `FindCustomEventIndex`. Independent of BP-24.
@@ -111,7 +114,7 @@ Verified against code on 2026-08-06. Written so a fresh session can start editin
 **BP-24 is the committed item — its briefing is below the BP-67 one, and its decisions live in
 [Architect_Question_23](Architect_Question_23_Graph_Create_And_Switching.md).**
 
-### BP-67 — the When node's other three mode forms (`RW-M`) · *fallback while Q23 answers are pending*
+### BP-67 — the When node's other three mode forms (`RW-M`) · *no longer the fallback — BP-24 is unblocked*
 
 BP-10 fixed **EventFired**. The other three each render one `TextDisabled` line and cannot be
 configured at all, so the node is effectively EventFired-only.
@@ -142,14 +145,16 @@ Do them in this order, easiest first:
 **Done means:** pick a mode, configure it, Ctrl+Z reverses it, and the preview pill at the bottom of
 the drawer reflects it. Take EqsResult alone if time is short; it is a clean, shippable slice.
 
-### BP-24 — graph create + graph switching (`RW-M`) · **committed next, architect round pending**
+### BP-24 — graph create + graph switching (`RW-M`) · **committed next, decisions recorded — build it**
 
-**All scouting lives in [Architect_Question_23](Architect_Question_23_Graph_Create_And_Switching.md)**
-— ground-truth tables verified 2026-08-06, four decision groups (A–D) with Claude's leans, and the
-per-graph-state table showing exactly what a naive rebuild would lose. Do not re-derive; read that
-doc first.
+**All scouting AND the decisions live in
+[Architect_Question_23](Architect_Question_23_Graph_Create_And_Switching.md)** — ground-truth tables
+verified 2026-08-06, and the *Answers — DECIDED 2026-08-06* section holds the package
+(**A2 + B2 + C2 + D1**, per-asset context-tagged undo), the complete five-site retarget audit, the
+retarget ordering, and the scope guards (no graph rename/delete, no Construction graphs). Do not
+re-derive; read that doc first.
 
-The three facts that shape the build, whichever answers come back:
+The three facts that shape the build:
 
 | Fact | Where | Consequence |
 |---|---|---|
