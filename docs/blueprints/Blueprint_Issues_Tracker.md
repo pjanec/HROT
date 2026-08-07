@@ -12,10 +12,10 @@ architect decision first).
 | Complexity | Open | Done |
 |---|---:|---:|
 | `WIRING` | 5 | 22 |
-| `RW-L` | 12 | 15 |
-| `RW-M` | 19 | 5 |
-| `RW-H` | 3 | — |
-| **Total** | **39** | **42** |
+| `RW-L` | 14 | 15 |
+| `RW-M` | 21 | 5 |
+| `RW-H` | 3 | 1 |
+| **Total** | **43** | **43** |
 | *(refuted on verification)* | | *1* |
 
 > 📌 **Resuming this programme?** Start with [Blueprint_Gaps_Programme_RESUME.md](Blueprint_Gaps_Programme_RESUME.md) — branch, batches
@@ -38,7 +38,8 @@ architect decision first).
 > function (`CallPeerBlueprint` + BP-66). **Missing, now tracked:** collapse-a-selection into a
 > function (**BP-74**) · a function has no palette entry and cannot be dragged (**BP-75**) ·
 > Go-to-Definition/Expand can never enable (**BP-76**) · the Macros "+" button is dead (**BP-77**) ·
-> macros as a capability (**BP-78**, design gated on [Q25](Architect_Question_25_Macros.md)) ·
+> macros as a capability (**BP-78** — design **closed** 2026-08-07 by
+> [Q25](Architect_Question_25_Macros.md); building as **BP-79…BP-83**) ·
 > function-local variables (**BP-57**, already open).
 > ⚠ **Two of these had been sitting in "Out of scope" on a false premise** — see that section. Fifth
 > and sixth overturned "nothing exists" claim, same root cause every time: `Hrot/` searched, `FDP/`
@@ -322,7 +323,12 @@ architect decision first).
 - [ ] **[BP-75](Blueprint_Issues_Detail.md#bp-75)** · `RW-L` — **A function graph gets no palette entry and cannot be dragged onto the canvas.** `BlueprintNodeCatalog` mints per-asset entries for custom events (`CustomEvent.{Name}:243`) and peers (`CallPeer.{guid}:260`) — and **never iterates `asset.Graphs`**. `CreateDynamicNode` likewise has no function case. The only route to calling a function you just created is: place the generic "Function Call" node, switch its drawer to graph mode, pick from a combo. That combo works (`FunctionCallNodeDrawer:185`), so this is **discoverability, not correctness** — but it is the Unreal motion, and it is inconsistent with the two sibling asset-scoped kinds that both got it in BP-12c/BP-68. **Fix mirrors BP-12c exactly** — *found in the functions audit*
 - [ ] **[BP-76](Blueprint_Issues_Detail.md#bp-76)** · `WIRING` — **"Go to Definition" (F12) and "Expand Node" can never enable in the Blueprint editor.** `CanvasRenderer:740-753` gates both on hardcoded kind ids `"Function.Call"`/`"Macro.Call"`/`"Event.CallCustom"` — **NodeEditor.Demo's** dotted convention. Blueprint ids are `"FunctionCall"`/`"CallCustomEvent"`, so nothing ever matches and both items render **permanently greyed**. ⚠ **`canExpand` also tests `node.Title == "ScaleBy"`** — a *demo node's display name*, in shared UI every host renders. ⚠ And nothing registers `editor.go-to-definition`, so fixing only the gate turns a greyed item into a dead one. **Cheap because `GoToGraph` already exists** and does the switch (`BlueprintDocumentFactory:788`): jump-to-definition is `TargetGraphId` → `switcher.SwitchTo`. Replace the id list with a host capability predicate — *found in the functions audit*
 - [ ] **[BP-77](Blueprint_Issues_Detail.md#bp-77)** 🔴 · `WIRING` — **My Blueprint's "Macros +" button is live and does nothing.** `BlueprintMyBlueprintModel:59` declares the section with `canCreate: true` → `"editor.create-macro"`; **nothing registers that id** anywhere in `Hrot/`, and the item list is hardcoded empty (*"faked/empty v1"*, `:116`). The **BP-60 shape**, visible to a designer today. Resolves either way — implement with BP-78, or hide the section until macros exist — but a live button with no handler is the defect — *found in the functions audit*
-- [ ] **[BP-78](Blueprint_Issues_Detail.md#bp-78)** · `RW-H` — **Macros: design + implement.** ✅ **Taken into scope 2026-08-06 by the user.** 📐 **Design first: [Q25](Architect_Question_25_Macros.md)** — A: what a macro *is* · B: where expansion happens · C: scope/sharing · D: multiple exec pins · E: guard rails. ⭐ **Why here, not "Unreal has them":** **BP1650** (`Stage2_Validate:2150`) forbids latent nodes in any function graph — a function is a plain `static` method and the `BlueprintLatentCursor`/resume-block machinery exists **only** for the top-level graph. A macro **inlines**, so a latent node inside it lands where the cursor already lives ⇒ **a macro is the only construct that can factor out a reusable *latent* sequence** (*aim → wait 0.4s → fire*), which today must be copy-pasted at every call site. Multi exec in/out is the secondary payoff and is likewise inlining-only. **Missing:** `GraphKind.Macro` (enum is `{Function, Event, Construction}`), any expansion pass, any `create-macro` handler (BP-77) — *found in the functions audit*
+- [x] **[BP-78](Blueprint_Issues_Detail.md#bp-78)** · `RW-H` — **Macros: design.** ✅ **Scoped 2026-08-06, design CLOSED 2026-08-07** by [Q25](Architect_Question_25_Macros.md) (self-researched round): **A1** own `GraphKind.Macro` · **B1** new `Stage2_5_ExpandMacros` · **C1** asset-local now · **D3** one exec-in / **N ≥ 0** exec-out · **E** four rails kept + two added. Implementation split to **BP-79…BP-83**. ⭐ **Why here, not "Unreal has them":** **BP1650** (`Stage2_Validate:2150`) forbids latent nodes in any function graph, so **a macro is the only construct that can factor out a reusable *latent* sequence** (*aim → wait 0.4s → fire*), which today must be copy-pasted at every call site. ⚠ The original mechanism claim ("the cursor machinery exists only for the top-level graph") was **false** and is corrected in Q25: `InstanceLowering:16-21` lowers *every* graph with a latent op, and `Func_X` does get `ref State s`. The real blocker is that `State` holds **one** `Cursor` (`InstanceEmitter:109`) and suspend is an early `return` (`WaitLowering_Instance:109`) — a suspending function would clobber the caller's cursor and return with no way to signal it suspended
+- [ ] **[BP-79](Blueprint_Issues_Detail.md#bp-79)** 🔴 · `RW-L` — **`GraphKind.Macro` + fail-loud net. Lands FIRST.** Add the enum member (serialises as a **string** — `BlueprintJsonServices:26` registers `JsonStringEnumConverter` — so this is additive on disk), then close the two silent-failure holes **before** any expansion code exists: (1) `Stage5_Schedule:4311-4314`'s `GraphKind → IrGraphKind` map ends in `_ => IrGraphKind.Function`, so a macro that survives expansion is **silently emitted as a `Func_X`** — trap #5, and it re-creates the exact BP1650 breakage with no diagnostic; make it an explicit error. (2) `InstanceEmitter:81-82` picks *"the first `Function` graph"* as the Tick graph when none is named `Tick` — a macro must never be eligible; free under A1's separate enum member, but needs a test so a refactor cannot quietly undo it. ⚠ **This is why A1 beat "a flag on a Function graph"**: under the flag design a macro could *become the tick graph* — *from [Q25](Architect_Question_25_Macros.md) A1/E*
+- [ ] **[BP-80](Blueprint_Issues_Detail.md#bp-80)** · `RW-M` — **Macro authoring surface.** Create/rename/delete a macro graph; `Input`/`Output` boundary nodes with pin projection for one exec-in and **N ≥ 0** exec-out (mirrors `EventEntryNodePins`' one-pin-per-declared-thing loop, `NodePinSchema:259` — which today emits exactly one exec-out, so the N-exec-out projection is new but small); Graph Signature window coverage (BP-72 precedent); a **real handler for `editor.create-macro`** ⇒ **closes BP-77**; palette entry + drag (same fix shape as BP-75). Both pin projections must move together — editor `NodePinSchema` **and** compiler `Stage0_Rehydrate` — *from [Q25](Architect_Question_25_Macros.md) A1/D3*
+- [ ] **[BP-81](Blueprint_Issues_Detail.md#bp-81)** · `RW-H` — **`Stage2_5_ExpandMacros` — the expansion pass.** New stage between Validate and Normalize; one call site in `BlueprintCompiler.Compile` (the pipeline is a literal statement sequence, `:54-77`, and `Stage3_Normalize` already returns a **new** asset, so the shape is precedented). Clone the macro body per call site with a fresh-Guid remap, splice boundary links into the host graph, stamp `OriginNodeId` on every synthesized node. ✅ **The cloning half already exists** — `BlueprintClipboard.Rehydrate:129-184` (shipped by BP-23a) does the JSON deep-copy, fresh node **and** pin GUIDs, link remap, and the `LinkedToIds` mirror. Two real deltas: (1) boundary links must be **rewired**, not dropped as `Rehydrate:171-174` does — that is this item's actual work; (2) ⚠ it lives in `.Editor` and Stage 2.5 lives in `.Compiler`, and the dependency runs Editor → Compiler — **move the remap down** rather than duplicating it (BP-69 duplicated `ResolveCustomEventDecl` across this same boundary). ✅ **Verified cheaper than assumed:** because the call node is *gone* before Stage 5, `GetSingleExecSuccessor`'s `Count != 1 → null` limit (`:3628`) and BP1412 never see a macro, so N exec-outs cost the scheduler **nothing** — they become N ordinary host links — *from [Q25](Architect_Question_25_Macros.md) B1*
+- [ ] **[BP-82](Blueprint_Issues_Detail.md#bp-82)** · `RW-L` — **Macro guard rails (Stage 2).** No recursion, direct or mutual — **reuse, don't build**: BP1654 (`Stage2_Validate:2173+`) is already a three-colour DFS over the FunctionCall graph; the macro check is the same algorithm over macro-call edges. Plus an expansion depth cap, and "no macro-local state" as an error **from day one** (moot until BP-57 lands function locals, but retrofitting a rail is how BP-60-shaped holes appear). ⚠ Multi-**entry** macros stay rejected: `Stage5:204-208` records that the merge machinery is deliberately **not** applied at Sequence-branch or When-arm roots, so a body entered from two places is not uniformly safe — *from [Q25](Architect_Question_25_Macros.md) D3/E*
+- [ ] **[BP-83](Blueprint_Issues_Detail.md#bp-83)** · `RW-M` — **Macro debug provenance: a breakpoint inside a macro must arm at every expansion site.** `OriginNodeId` is confirmed live but is a **fallback** — `CSharpEmitter:45,53` read `debug?.NodeId ?? debug?.OriginNodeId`. And `DebugMapBuilder.RecordNodeStart:99` ignores a re-open while a node id is already open (`RecordNodeEnd` closes it), so one designer node expanded at two call sites yields **two `DebugMapEntry` rows, same `NodeId`, different line ranges**. Line→node stays 1:1; **node→line becomes one-to-many** — the breakpoint path must arm all of them, and the watch panel must pick the right frame. ✅ *Checked and cleared:* resume-point renumbering is **not** a hazard — `IrOp_WriteCursorResumeAt` numbers by block-list position, but adding a macro call changes `StructureHash` ⇒ hard reload ⇒ `LatentCursorReloadTests` documents *"hard reload resets cursor to ResumeAt=0"* — *from [Q25](Architect_Question_25_Macros.md) E*
 - [ ] **[BP-14](Blueprint_Issues_Detail.md#bp-14)** · `RW-L` — `Return.Status` uneditable (always Success); a `NodeStatus` combo, ~20-30 lines
 - [ ] **[BP-22](Blueprint_Issues_Detail.md#bp-22)** · `RW-L` — `GetParameter` cannot be placed; asset-specific, so needs a picker not a baked entry
 - [ ] **[BP-21](Blueprint_Issues_Detail.md#bp-21)** · `RW-L` — `When` → ValueChanged form stubbed; reuse `ComponentFieldReflector` + component pickers
@@ -412,12 +418,16 @@ architect decision first).
 
 ## Needs an architect decision before scoping
 
-**`BP-78` (macros) — package drafted, awaiting the round:**
-[Architect_Question_25_Macros.md](Architect_Question_25_Macros.md). Five decision-shaped
-sub-questions (A–E) with options, a recommended lean and the reuse-vs-build tradeoff for each.
-Nothing is built until the answers land; implementation items split out from them.
-
 `BP-40` · `BP-38` (already LOCKED as deferred) · `BP-52` (UX-1/UX-2).
+
+**Cleared:** **`BP-78`** (macros) — [Q25](Architect_Question_25_Macros.md) **all five sub-questions
+decided 2026-08-07** as a **self-researched** round (same footing as Q23 and Q24, and recorded as such
+in the doc): **A1** own `GraphKind.Macro` · **B1** new `Stage2_5_ExpandMacros` between Validate and
+Normalize · **C1** asset-local now, libraries their own round · **D3** one exec-in / **N ≥ 0**
+exec-out · **E** four rails kept, two added, one dropped as already-handled. Buildable now as
+**BP-79…BP-83**, in that order — BP-79 first because it closes the two *silent*-failure holes.
+⚠ The round overturned one of the question's own factual claims and revised another (see its
+verification log); **D** got cheaper, not dearer, once the evidence was gathered.
 
 **Cleared:** **`BP-71`** — [Q24](Architect_Question_24_Function_Return_Value_Wiring.md) **all four
 sub-questions decided by the user 2026-08-06** (A1+B1+C3+D1′); buildable now, single-output only.
@@ -433,6 +443,18 @@ BP-73"*, never *"illegal"*.
 **No unverified rows remain.** Every issue is hand-verified (**✔✔**) or spot-checked (**✔**), except
 BP-53/BP-54 which are explicitly flagged **UNCLEAR**. Per-issue tags live in the detail file.
 
-Four "nothing exists" claims were overturned across the audit — the predicate editing UI, Universal
-Breakpoints, C1-for-BTree, and BP-46 — every one because a search covered `Hrot/` but not `FDP/`.
-**Lesson for future work in this repo: absence claims must be checked across both trees.**
+**Seven** "nothing exists" claims have now been overturned:
+
+| # | Claim | Where it actually lived |
+|---:|---|---|
+| 1–4 | the predicate editing UI · Universal Breakpoints · C1-for-BTree · BP-46 | `FDP/`, not `Hrot/` |
+| 5–6 | collapse-to-function (`BP-74`) · macros (`BP-78`) — the audit register had both filed **out of scope as absent** | `FDP/ExtDeps/NodeEdit/` |
+| 7 | *"the macro expansion pass must write its own node cloning"* (`BP-81`) | **`Hrot/` all along** — `BlueprintClipboard.Rehydrate`, shipped by `BP-23a` in this very programme |
+
+**Lessons.** (a) Absence claims must be checked across **both** trees — that is 1–6.
+(b) ⚠ **#7 is the more uncomfortable one: the code was in `Hrot/`, and it was ours.** No cross-tree
+rule would have caught it; the fix had shipped as `BP-23a` and was simply not recalled when scoping a
+later item. Before writing "no prior art exists", grep the **done** rows of this tracker.
+(c) #7 surfaced only because a link-validator false positive forced a re-read of the `BP-23a` row —
+the second time in this programme that a *broken tool* found a real defect. Check the tool, but read
+what it points at.

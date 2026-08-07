@@ -674,35 +674,50 @@ designer right now**, independent of whether macros are ever built.
 exist. ⚠ Do **not** leave a live button with no handler; that is the defect.
 
 <a id="bp-78"></a>
-### BP-78 — Macros: design and implement **[NEW — taken INTO scope 2026-08-06 by the user]**
-**Complexity:** RW-H · **Confidence:** ✔✔ *(scaffolding verified; semantics undecided)*
+### BP-78 — Macros: **design** **[scoped 2026-08-06 · design CLOSED 2026-08-07]**
+**Complexity:** RW-H · **Confidence:** ✔✔
+
+> ✅ **DONE (2026-08-07) — design only.** [Q25](Architect_Question_25_Macros.md) answered all five
+> sub-questions in a **self-researched** round (no NotebookLM; same footing as Q23 and Q24, and
+> recorded as such in the doc's Answers section):
+> **A1** own `GraphKind.Macro` · **B1** new `Stage2_5_ExpandMacros` between Validate and Normalize ·
+> **C1** asset-local now, macro libraries their own round · **D3** one exec-in / **N ≥ 0** exec-out ·
+> **E** four rails kept, **two added**, one dropped as already-handled.
+> **Implementation is [BP-79](#bp-79)…[BP-83](#bp-83)**, in that order. Nothing is built under this ID.
 
 > ⚠ The register previously listed macros as **out of scope — "absent from the entire codebase; new
-> capability, architect round required"**. The architect round is indeed required, but **"absent" was
+> capability, architect round required"**. The round was indeed required, but **"absent" was
 > wrong** — see the scaffolding table in
 > [Q25](Architect_Question_25_Macros.md#ground-truth-verified-against-code-2026-08-06). Fifth and
 > sixth overturned "nothing exists" claim.
-
-📐 **Design first: [Architect_Question_25_Macros.md](Architect_Question_25_Macros.md)** — five
-decision-shaped sub-questions (A: what a macro *is* · B: where expansion happens · C: scope and
-sharing · D: multiple exec pins · E: guard rails), each with options, a recommended lean and the
-reuse-vs-build tradeoff. **Nothing is built until those answers land**; implementation items will be
-split out from them.
 
 #### ⭐ Why macros are worth building *here* — not "Unreal has them"
 
 **`BP1650`** (`Stage2_Validate.cs:2150-2166`): *"A function graph invoked by FunctionCall must not
 contain latent nodes; latent execution is only supported in the top-level Tick/event graphs."*
 
-A function compiles to a plain `static` C# method. Latent execution needs the
-`BlueprintLatentCursor` in the blueprint's `State` struct plus a resume-block state machine, and that
-machinery exists **only** for the top-level graph — the validator is describing the emit, not being
-cautious. A **macro inlines**, so a latent node inside one lands where the cursor already lives.
+A function compiles to a plain `static` C# method, so it structurally cannot contain a `Delay` or a
+`WaitForChannel`. A **macro inlines**, so a latent node inside one lands where the cursor already
+lives.
 
 ⇒ **A macro is currently the only possible way to factor out a reusable *latent* sequence**
 (*aim → wait 0.4s → fire*). Today that must be copy-pasted at every call site, and no amount of work
-on functions can ever fix it. Multiple exec in/out pins are the secondary payoff, and are likewise
+on functions can ever fix it. Multiple exec out pins are the secondary payoff, and are likewise
 only expressible by inlining — a C# method has one entry and one return.
+
+> ⚠ **Correction (2026-08-07).** This section previously said the `BlueprintLatentCursor`/resume-block
+> machinery *"exists **only** for the top-level graph"*. **That claim is false.**
+> `InstanceLowering.cs:16-21` applies `WaitLowering_Instance` to **every** graph in the asset that
+> contains a latent op, and `Func_X` does receive `ref State s` (`InstanceEmitter.cs:283-291`) — so
+> the cursor is reachable from a function body. The real reason BP1650 must exist is narrower:
+> `State` holds exactly **one** `Cursor` field (`InstanceEmitter.cs:109`) — one resume slot per
+> instance, not per call frame — and suspension is expressed as an early **`return`**
+> (`WaitLowering_Instance.cs:109`). A suspending `Func_X` would clobber the caller's single shared
+> cursor *and* return to a caller with no way to learn it suspended. Fixing that for functions needs a
+> cursor **stack** plus suspend propagation through every call site.
+> **The justification is unchanged in substance and stronger in force:** macros avoid the problem by
+> construction instead of paying for it. Found by the Q25 answers round, which was explicitly required
+> to test this claim rather than inherit it.
 
 #### What exists / what does not
 
@@ -713,6 +728,127 @@ for `editor.create-macro` (`BP-77`).
 
 ⚠ **`FakeCommandSink`'s macro/function collapse is a scenario prop** with S22's pin names hardcoded;
 it is not prior art for the semantics. See [BP-74](#bp-74).
+
+---
+
+<a id="bp-79"></a>
+### BP-79 — `GraphKind.Macro` + the fail-loud net **[from Q25 · lands FIRST]**
+**Complexity:** RW-L · **Confidence:** ✔✔ 🔴
+
+Add the enum member to `{ Function, Event, Construction }` (`Assets/GraphTypes.cs:24`). It serialises
+as a **string** — `BlueprintJsonServices.cs:26` registers `JsonStringEnumConverter` — so appending is
+additive on disk.
+
+**Then close the two silent-failure holes, before any expansion code exists.** This ordering is the
+whole point of the item: it converts every later bug in BP-81 from a silent miscompile into a build
+error.
+
+| Hole | Where | Why it is silent |
+|---|---|---|
+| `GraphKind → IrGraphKind` ends in a catch-all | `Stage5_Schedule.cs:4311-4314` — `_ => IrGraphKind.Function` | A macro that survives expansion is emitted as a `Func_X` **with no diagnostic** — re-creating the exact BP1650 breakage the feature exists to avoid. **Trap #5** (a `default:` arm that reports success), which already bit BP-18, BP-60 and BP-74 |
+| Tick-graph selection falls back to "first Function graph" | `InstanceEmitter.cs:81-82` — `?? FirstOrDefault(g => g.Kind == Function)` | A macro must never be eligible. Free under A1's separate enum member — but it needs an explicit test, because a later refactor could quietly make it eligible again |
+
+⭐ **This pair is why Q25 answered A1 (own `GraphKind`) rather than "a flag on a Function graph".**
+Under the flag design a macro *could become the tick graph*. The 40 existing
+`== GraphKind.Function` filters in the compiler then fail correctly and by default.
+
+<a id="bp-80"></a>
+### BP-80 — Macro authoring surface **[from Q25 · closes BP-77]**
+**Complexity:** RW-M · **Confidence:** ✔✔
+
+Create / rename / delete a macro graph, plus:
+
+- **`Input` / `Output` boundary nodes** with pin projection for one exec-in and **N ≥ 0** exec-out.
+  Mirrors `EventEntryNodePins`' one-pin-per-declared-thing loop (`NodePinSchema.cs:259`) — which today
+  emits exactly **one** exec-out, so the N-exec-out projection is genuinely new, but small.
+- ⚠ **Both pin projections move together** — editor `NodePinSchema` **and** compiler
+  `Stage0_Rehydrate`. They are the two halves that must agree; every batch that touched one and not
+  the other produced a silent shape mismatch.
+- **Graph Signature window** coverage (BP-72 precedent).
+- **A real handler for `editor.create-macro`** ⇒ **closes [BP-77](#bp-77)**, whose "+" button is live
+  and does nothing today.
+- **Palette entry + drag** — same fix shape as [BP-75](#bp-75).
+
+<a id="bp-81"></a>
+### BP-81 — `Stage2_5_ExpandMacros` — the expansion pass **[from Q25-B]**
+**Complexity:** RW-H · **Confidence:** ✔✔
+
+A new stage between Validate and Normalize, with **one** call site: `BlueprintCompiler.Compile` is a
+literal statement sequence (`:54-77`), and `Stage3_Normalize.Run` already returns a **new** asset, so a
+stage that rewrites the node set has a precedent to copy.
+
+**Work:** clone the macro body per call site with a fresh-Guid remap · splice boundary links into the
+host graph · stamp `OriginNodeId` on every synthesized node.
+
+✅ **The cloning half already exists — reuse it.** `BlueprintClipboard.Rehydrate`
+(`Hrot.Blueprints.Editor/Host/BlueprintClipboard.cs:129-184`, shipped by [BP-23a](#bp-23a)) is
+substantially the required transform: a JSON deep-copy through `[JsonPolymorphic]` that is independent
+per call, fresh **node and pin** GUIDs via two maps, internal links remapped, and the denormalised
+`Pin.LinkedToIds` mirror remapped too (`:159-164` — leaving stale ids there "would make a pasted node
+claim wires it does not have", which applies verbatim to an expanded node).
+
+Two real deltas, and they are the actual scope of this item:
+
+1. **Boundary links must be *rewired*, not dropped.** `Rehydrate:171-174` `continue`s on any link
+   whose endpoint is outside the fragment. Expansion needs precisely those links spliced onto the host
+   graph — the macro's `Input`/`Output` boundary nodes collapse away and their outside-the-fragment
+   endpoints reconnect to whatever the call node was wired to. This is the part with no prior art
+   (and the part `FakeCommandSink` also skips — see [BP-74](#bp-74)).
+2. ⚠ **Assembly direction.** `BlueprintClipboard` lives in `Hrot.Blueprints.**Editor**`; Stage 2.5 lives
+   in `Hrot.Blueprints.**Compiler**`, and the dependency runs Editor → Compiler, not the reverse. The
+   remap logic must move **down** into the compiler assembly (with the editor then calling it), or be
+   duplicated. This repo has done both — BP-69 duplicated `ResolveCustomEventDecl` across this exact
+   boundary. **Prefer moving it down**, so the two paths cannot drift.
+
+⚠ `BlueprintCommandSink` implements no Collapse case — see [BP-74](#bp-74).
+
+✅ **Verified cheaper than the question assumed.** Because the call node is **gone** before Stage 5:
+
+- `GetSingleExecSuccessor` (`Stage5:3628`) returns null for `execOutPins.Count != 1`, and
+  `ReportDroppedExecSuccessors` raises **BP1412** — *"a node type with multiple exec-out pins, e.g.
+  Sequence, is not yet schedulable"*. **Neither ever sees a macro.** N exec-outs become N ordinary
+  host-graph links, so they cost the scheduler nothing.
+- `ComputeMergePoints` (`Stage5:4269`) already handles exec in-degree ≥ 2 generically, allocating one
+  shared block per join.
+
+**Why this seam and not Stage 0:** `BlueprintCompiler.Validate()` (`:108-123`) runs **Stage 2 alone**
+as the editor's live validator. Under B1 the editor validates macros exactly **as authored**; expanding
+earlier would red-underline synthesized nodes the designer never placed.
+
+<a id="bp-82"></a>
+### BP-82 — Macro guard rails (Stage 2) **[from Q25-D/E]**
+**Complexity:** RW-L · **Confidence:** ✔✔
+
+| Rule | Approach |
+|---|---|
+| No recursion, direct or mutual | **Reuse, don't build.** BP1654 (`Stage2_Validate.cs:2173+`) is already a three-colour DFS over the FunctionCall graph; the macro check is the same algorithm over macro-call edges |
+| Expansion depth cap | Counter in the pass — a macro calling a macro 20 deep is a build-time bomb |
+| No macro-local state | An error **from day one**. Moot until BP-57 lands function locals, but retrofitting a rail later is exactly how BP-60-shaped holes appear |
+| Multi-**entry** macros rejected | `Stage5:204-208` records that the merge machinery is deliberately **not** applied at Sequence-branch or When-arm roots ("its fall-through continuation is position-dependent, which a shared block cannot express"), so a body entered from two places is not uniformly safe. D3 → D1 stays additive with no asset migration |
+
+<a id="bp-83"></a>
+### BP-83 — Macro debug provenance: arm a breakpoint at **every** expansion site **[from Q25-E]**
+**Complexity:** RW-M · **Confidence:** ✔✔
+
+`OriginNodeId` is confirmed live, but it is a **fallback**: `CSharpEmitter.cs:45,53` read
+`debug?.NodeId ?? debug?.OriginNodeId`.
+
+And `DebugMapBuilder.RecordNodeStart` (`:99`) ignores a re-open while a node id is already open, with
+`RecordNodeEnd` (`:103`) closing it. So one designer node expanded at two call sites yields **two
+`DebugMapEntry` rows — same `NodeId`, different line ranges**:
+
+- **line → node** stays 1:1 ✅
+- **node → line** becomes **one-to-many** ⚠ — the breakpoint path must arm *all* of them, and the
+  watch panel must resolve which frame it is looking at.
+
+This is the rail Q25 flagged as *"the one that will bite if it is skipped"*: eighteen batches went into
+making failures attributable, and an expansion pass that loses provenance reintroduces the
+error-with-no-explicable-source shape that BP-69, BP-71 and BP-73 each ended in.
+
+✅ **Checked and cleared — not a hazard:** `IrOp_WriteCursorResumeAt(k + 1)` numbers resume points by
+**block-list position** (`WaitLowering_Instance.cs:89`), so adding a macro call renumbers every
+downstream resume point. But that changes `StructureHash` ⇒ **hard** reload, and
+`LatentCursorReloadTests` documents *"hard reload resets cursor to ResumeAt=0"*. No new rail needed.
 
 <a id="bp-10"></a>
 ### BP-10 — `When` → EventFired form is a stub

@@ -1,7 +1,8 @@
-# RESUME / HANDOFF — Blueprint gaps & QoL programme (2026-08-06, rev 3)
+# RESUME / HANDOFF — Blueprint gaps & QoL programme (2026-08-07, rev 4)
 
 > **Goal:** make blueprint editing fully functional and pleasant.
-> **Branch:** `claude/blueprint-authoring-status-6sr5ld` · **HEAD at handoff:** `5b15588` (Batch 18: BP-73)
+> **Branch:** `claude/blueprint-authoring-status-6sr5ld` · **HEAD at handoff:** `f6c8f4b` + the Q25
+> answers commit (docs only — no code changed in the Q25 round)
 > **Live state:** [Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md) (checklist — **every row
 > deep-links to its detail entry**, `#bp-<id>`) ·
 > [Blueprint_Issues_Detail.md](Blueprint_Issues_Detail.md) (per-issue evidence + `DONE` notes)
@@ -24,8 +25,23 @@
    looked at in the running editor** — the visual check is the largest outstanding risk.
    🔎 **A functions audit followed BP-73** and registered six gaps — **BP-74**…**BP-78** plus BP-57.
    Two of them had been parked in *Out of scope* on a **false "absent from the codebase" premise**
-   (fifth and sixth such overturn, always `Hrot/` searched and `FDP/` not). **Macros are now in scope**
-   and gated on [Q25](Architect_Question_25_Macros.md) — drafted, awaiting the architect round.
+   (fifth and sixth such overturn, always `Hrot/` searched and `FDP/` not). **Macros are now in scope.**
+   ✅ **[Q25](Architect_Question_25_Macros.md) is ANSWERED (2026-08-07)** — a **self-researched** round
+   (no NotebookLM; same footing as Q23/Q24 and recorded as such): **A1** own `GraphKind.Macro` ·
+   **B1** new `Stage2_5_ExpandMacros` between Validate and Normalize · **C1** asset-local now ·
+   **D3** one exec-in / **N ≥ 0** exec-out · **E** four rails kept, two added, one dropped.
+   `BP-78` is closed as a **design** item; implementation is **BP-79…BP-83**, in that order.
+   ⚠ **Start with BP-79** — it is small, and it closes the two *silent*-failure holes
+   (`Stage5:4314`'s `_ => IrGraphKind.Function` catch-all, and `InstanceEmitter:82`'s "first Function
+   graph is the Tick graph" fallback) **before** any expansion code exists, so every later bug in
+   BP-81 is a build error instead of a silent miscompile.
+   📌 The round overturned **two** of the question's own claims and revised a third — see its
+   verification log. Every correction made the feature *cheaper* or its failure mode *louder*; none was
+   cosmetic. Notably the doc's headline mechanism claim ("the latent cursor machinery exists only for
+   the top-level graph") was **false**, and `BP-81`'s "no node-clone prior art" was **also false** —
+   `BlueprintClipboard.Rehydrate` shipped it in `BP-23a`, in this same programme. **That is overturn
+   #7, and the first one that was our own `Hrot/` code**: before writing "no prior art exists", grep
+   the tracker's **done** rows.
 3. **Traps that cost real time** — nine of them, each one earned. Trap #5 (`default:` returns
    success) and #6 (asset-scoped features belong at the host) have each bitten more than once;
    **#9 is why BP-71 survived a 2788-test suite — and it then struck BP-69's own test, which passed
@@ -86,31 +102,20 @@ green. Three themes worth carrying forward:
 
 ## Next up
 
-0. ✅ **BP-71 + BP-72 — SHIPPED (Batch 16, 2026-08-06).** The two gaps BP-24 exposed. BP-71 to
-   [Q24](Architect_Question_24_Function_Return_Value_Wiring.md) A1+B1+C3: the Return value pin is
-   `Direction=="In"` in both projections, the terminator accepts either, **BP1655** (unwired return)
-   and **BP1656** (`Outputs.Count > 1` → *"not supported yet — see BP-73"*) are new Stage 2 errors,
-   and Stage 5 falls back to a declared `default(T)`. BP-72: the Graph Signature window follows the
-   switched canvas and covers **Event** graphs, mirroring their Inputs into the paired
-   `CustomEventDecl.Parameters`. **Visual check pending** — batch-16 rows below.
-1. ✅ **BP-24 — SHIPPED (Batch 15) and now CLOSED.** Its post-ship audit found BP-71 + BP-72, both
-   shipped in Batch 16. Decisions in [Q23](Architect_Question_23_Graph_Create_And_Switching.md);
-   ship notes in the tracker banner and `Blueprint_Issues_Detail.md#BP-24`.
-   **Visual check still pending** for batches 9–16.
-2. **BP-69** 🔴 (`WIRING`) — name-referenced `CallCustomEvent` loses its argument pins (both pin
-   projections early-return on `!Guid.TryParse`; validators/scheduler accept the name form).
-   Three-line fallback in each, mirroring `FindCustomEventIndex`. Independent of BP-24.
-3. **BP-70** 🔴 (`WIRING`, one line — **but a design decision, not a bug fix**) — the emitter's
-   `EventTypeFqn ?? Name` fallback never fires because `EventTypeId` defaults to `""` not null, so
-   Event graphs land in `EventHandlers` under `""` and the documented name-keyed bus dispatch is
-   unreachable. Fixing it makes every custom event globally raisable by name-hash. **Ask the user
-   (or fold into Q23-B3) before applying.**
-4. **BP-67** (`RW-M`) — the When node's other three forms; the **EqsResult slice is `RW-L` and
-   shippable alone** (see briefing).
-5. **BP-73** (`RW-M`) — proper Unreal-style **N function outputs**; costed in full in the tracker
-   and detail (the Library ABI is already N-shaped; settle `ValueTuple` vs a synthesized
-   `_FuncOut_{Name}` struct first). Depends on BP-71, which is now done.
-6. Then: BP-56 (wire glow) · BP-23b (cross-asset paste) · BP-61 🔴 (inert-default HSM guards).
+**Shipped and closed:** BP-24 (Batch 15) → BP-71 🔴 + BP-72 (Batch 16) → BP-69 🔴 (Batch 17)
+→ BP-73 (Batch 18) → **Q25 answered, `BP-78` design closed** (2026-08-07, docs only).
+⚠ **Visual check still pending for batches 9–18** — the largest outstanding risk in the programme.
+
+Three independent fronts; pick by appetite, not by order.
+
+| # | Item | Why now |
+|---:|---|---|
+| 1 | **BP-79** 🔴 (`RW-L`) | **The cheapest high-value thing on the board.** Adds `GraphKind.Macro` and closes the two *silent*-failure holes (`Stage5:4314` catch-all, `InstanceEmitter:82` tick-graph fallback). Small, self-contained, and it makes every later macro bug loud. Do this before BP-80/81 whatever else happens |
+| 2 | **BP-80 → BP-81 → BP-82 → BP-83** | The rest of macros, in that order. BP-81 is the only `RW-H`; its cloning half is already built (`BlueprintClipboard.Rehydrate`, from BP-23a) so the real work is boundary rewiring |
+| 3 | **BP-70** 🔴 (`WIRING`, one line — **a design decision, not a bug fix**) | The emitter's `EventTypeFqn ?? Name` fallback never fires because `EventTypeId` defaults to `""`, not null, so Event graphs land in `EventHandlers` under `""` and the documented name-keyed bus dispatch is unreachable. Fixing it makes every custom event globally raisable by name-hash. **Ask the user (or fold into Q23-B3) before applying** |
+| 4 | **BP-74** 🔴 · **BP-75** · **BP-76** · **BP-77** 🔴 | The rest of the functions audit. BP-74 (collapse → function/macro) pairs naturally with BP-80; **BP-77 is closed for free by BP-80** |
+| 5 | **BP-67** (`RW-M`) | The When node's other three forms; the **EqsResult slice is `RW-L` and shippable alone** (see briefing) |
+| 6 | Then | BP-57 (function locals, unblocked) · BP-25 (unblocked) · BP-56 (wire glow) · BP-23b (cross-asset paste) · BP-61 🔴 (inert-default HSM guards) |
 
 **Context for BP-24 (from the 2026-08-06 discussion with the user):** a blueprint-local custom event
 is a strictly weaker Function graph — same call shape, no return value, name-paired instead of
