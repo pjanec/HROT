@@ -1,10 +1,34 @@
-# RESUME — implementation session (Batches 20–22 shipped; Batch 23 overnight is next)
+# RESUME — implementation session (Batches 20–22 shipped; Batch 23 items 1–3 shipped, item 4 open)
 
-> **Written immediately before a context compaction.** Self-contained; assumes no prior conversation.
+> **Self-contained; assumes no prior conversation.**
 > **You are an *implementation* session**; a coordinator session owns the tracker and writes handoffs.
->
-> 🌙 **Batch 23 is an OVERNIGHT AUTONOMOUS batch. The user is asleep and nobody will answer a
-> question.** Read `HANDOFF_Batch23_Overnight_Autonomous.md` in full before doing anything.
+
+## 🛑 WHERE BATCH 23 STOPPED — read this first
+
+**Items 1, 2 and 3 are DONE, gated, committed separately and pushed. Item 4 (BP-108, the Print/Log
+node) has NOT been started** — beyond its design note, which IS written and committed.
+
+Stopped **at the item boundary on purpose**, per the handoff's own rule ("three finished items beat
+four half-finished ones"). Item 4 is bigger than items 1–3 combined: a new node type, **two** pin
+projections, Stage5 lowering, emit, a drawer, a detail-panel property UI, and a test that must register
+the NLog rule itself.
+
+### ⇒ Next session: start at [`PrintString_Node_Design.md`](PrintString_Node_Design.md)
+
+It records the ⚖️ D4+D5 pre-approved shape **and one correction you must not undo**:
+
+🔴 **D5 names the wrong accessor.** `FdpLog<T>` derives its logger name from `typeof(T).FullName`, so a
+generated blueprint class logs under `Hrot.AI.Behaviors.Generated.…` — which the `AI.Behavior*` NLog
+rule **does not match**. It would compile, reach the rolling file, and never reach the AI Behaviors tab
+or the test. **Use `Hrot.AI.Behaviors.Logging.BehaviorLog`** (`LogManager.GetLogger("AI.Behavior")`),
+which is the shipped helper for exactly this. ⚠ It has no `Info` tier — the five-level round-out adds
+one, mirroring its existing four.
+
+The *sink* decision (D5: reuse `AiBehaviorLogTarget`, do not invent `IBlueprintLogSink`) is **correct
+and verified** — `SharedInstance`, `GetMessages()`, `Clear()` and `OnMessageAdded` all exist and are
+already wired to the editor's "AI Behaviors" tab.
+
+---
 
 ---
 
@@ -15,29 +39,29 @@
 | **Repo** | `pjanec/HROT` |
 | **Implementation branch (PUSH HERE)** | `claude/blueprint-macro-feature-sdmspn` |
 | **Coordinator branch (do NOT push)** | `claude/blueprint-authoring-status-6sr5ld` · at `041a455a` |
-| **HEAD** | reset onto `041a455a` — **Batches 20/21/22 are all merged and verified by the coordinator** |
-| **Next task** | [HANDOFF_Batch23_Overnight_Autonomous.md](HANDOFF_Batch23_Overnight_Autonomous.md) — 4 items, already in the tree |
-| **Counts** | **61 open · 53 fixed · 1 refuted**, reconciled three ways |
+| **HEAD** | Batch 23 items 1–3 on top of `041a455a` (Batches 20/21/22 merged + coordinator-verified) |
+| **Next task** | [HANDOFF_Batch23_Overnight_Autonomous.md](HANDOFF_Batch23_Overnight_Autonomous.md) **item 4 only** (BP-108) |
+| **Counts** | **63 open · 55 fixed · 1 refuted**, reconciled three ways |
 
 **⚠ Do not create a pull request.** Not in any batch so far.
 
 ---
 
-## 1. Batch 23 — the four items (all decisions pre-made by the coordinator, marked ⚖️)
+## 1. Batch 23 — outcomes
 
-| # | Item | Note |
+| # | Item | Outcome |
 |---|---|---|
-| 1 | 🔴 **BP-112** — CS9191 breaks the full build for every Library asset | "Two halves; the second is the one that matters." **Reproduce first** |
-| 2 | 🔴 **BP-87** — the type picker offers 8 types the compiler cannot resolve | ⚠ Read *"D2 — the coordinator's correction"* **before touching anything**; item 4 of that list is explicitly not optional |
-| 3 | 🟠 **BP-113** — `CallPeerBlueprint` shows only `Outputs[0]` | Follows directly from my BP-110 work |
-| 4 | 🟠 **BP-108** — the Print/Log node | ⚖️ D4+D5 pre-approve the shape — **do not redesign it** |
+| 1 | 🔴 **BP-112** — CS9191 broke the build for every Library asset | ✅ **Done.** Reproduced first: **BP-110 had NOT fixed it**, unrelated defects sharing the Library surface. `MemoryMarshal.Write<T>` takes `in`, the emitter passed `ref`. ⭐ Durable half: `LibraryFunctionsDemo.bp.json`, the **first Library asset ever compiled by the real generator** — it is an `AdditionalFiles` entry, so a regression fails the **build**. Revert → 4 × CS9191 |
+| 2 | 🔴 **BP-87** — picker offered 8 unresolvable types | ✅ **Items 1–5 done; row stays open for item 6 only** (⚖️ D3). List is blueprint-local, projected from `StaticTypeRegistry` — **AiShared untouched**, and its 1213/0 proves it. Item 4 shipped *with* item 3: C#'s full implicit ladder, 35 rungs, widening only |
+| 3 | 🟠 **BP-113** — `CallPeerBlueprint` showed only `Outputs[0]` | ✅ **Done.** ⚠ **THREE** sites, not the two the handoff named — Stage5's lowering still collapsed to the first pin. ⚖️ D1 honoured (not unified) |
+| 4 | 🟠 **BP-108** — the Print/Log node | 🛑 **NOT STARTED** (design note only). See the banner at the top |
 
-**The autonomous rules that matter most:** never block (register a row + `⏸ COORDINATOR DECISION
-NEEDED` and move on) · **commit per item** so item 4 failing does not lose items 1–3 · stop cleanly
-*between* items rather than half-finishing · never widen scope · **revert-goes-red on everything, never
-delegated** · **new IDs are BP-114+** (the tracker/detail files are mine for the batch).
+**New rows registered this batch:** **BP-114** (Type combo displays `bool` for any asset storing an FQN
+`TypeId` — pre-existing, mis-display only) · **BP-115** (no test covers a peer whose *name* needs
+sanitizing — raised by the coordinator in §1 and registered so it is not lost).
 
----
+### ⚠ Where a ⚖️ decision was wrong against the code
+**D5's accessor** — see the banner. Everything else in §2 of the handoff held up.
 
 ## 2. What I shipped (all merged and coordinator-verified)
 
