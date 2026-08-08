@@ -2769,7 +2769,7 @@ namespace Hrot.Editor
                     Hrot.Editor.AiShared.Browser.AssetFolderDerivation.KnownSubfolders(
                         catalog.All, kind, baseFolderFor));
 
-                string initialName = string.Equals(recipe.Name, "Empty", System.StringComparison.OrdinalIgnoreCase)
+                string initialName = _newAssetServices[kind].IsBlankTemplate(recipe)
                     ? $"New{kind}"
                     : recipe.Name;
 

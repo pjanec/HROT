@@ -51,12 +51,12 @@ teach** — put it in the Macros section tooltip and the create dialog.
 
 | Unreal | Today | Fix |
 |---|---|---|
-| *Create Advanced Asset → Blueprint Class / **Function Library** / **Macro Library*** | every new asset is `Instance`, hardcoded | **BP-92** — dispatch picker at create; build it as an **extensible list**, not a toggle |
+| *Create Advanced Asset → Blueprint Class / **Function Library** / **Macro Library*** | ~~every new asset is `Instance`, hardcoded~~ | ✅ **BP-92 DONE** — one blank-template recipe entry per dispatch (`Empty`→Instance, `Function Library`→Library), which is Unreal's own shape; `MacroLibrary` is one more table row |
 | Asset icon differs per Blueprint type | one icon for all | **BP-98** (new) |
 | Asset browser shows what the asset *is* | name only | **BP-98** (new) |
 
-⚠ This is upstream of everything else. `SquadState` is a functions-only asset labelled `Instance`
-**because that is the only thing the editor can make** — fix this first or every other label lies.
+✅ **Shipped (Batch 20).** `SquadState` is still labelled `Instance` — retagging existing assets was
+deliberately left as a separate, reviewable change — but new assets can now declare themselves.
 
 ### 2. My Blueprint panel
 
@@ -92,9 +92,11 @@ Unreal's six sections: *Add New · Graphs · Functions · Macros · Variables ·
 | Details panel with **Inputs / Outputs** and `+` buttons | one **Graph Signature** window, elsewhere |
 | Opens from **three** places: My Blueprint item · **entry node** · **result node** | **one** place, none of them the node you are looking at |
 | Inputs → data-**out** pins on entry; outputs → data-**in** pins on Return | ✅ **identical** — BP-71/BP-73 got this right |
+| Details opens from the **result node** | ✅ **BP-92/BP-89 DONE** — `ReturnNodeDrawer` lists the graph's Outputs with add/remove/retype |
 
-⇒ The data model is already at parity. **Only the control is in the wrong place.** Putting add/remove on
-the Return node's Details is not a workaround — it is exactly what Unreal does. → **BP-89**
+⇒ The data model is already at parity. **Only the control was in the wrong place.** ✅ **BP-89 DONE
+(Batch 20)** — add/remove now lives on the Return node's Details, which is exactly what Unreal does.
+⚠ Edits from the standalone Graph Signature window are still not undoable; only the Return panel records.
 
 ### 5. Rename
 
@@ -111,8 +113,8 @@ Ordered so each step makes the next honest. **Nothing here needs an architect ro
 
 | # | Item | Why here |
 |---|---:|---|
-| 1 | **BP-92** dispatch at create | Everything downstream labels the asset; do it before the labels exist |
-| 2 | **BP-89** outputs on the Return node | Unblocks the **T-series** — `BP-73` is still unverified because of this |
+| ~~1~~ | ✅ **BP-92** dispatch at create | **DONE (Batch 20).** Everything downstream labels the asset; done before the labels exist |
+| ~~2~~ | ✅ **BP-89** outputs on the Return node | **DONE (Batch 20).** Unblocks the **T-series** — `BP-73` is now verifiable, but still unverified |
 | 3 | **BP-85** + **BP-100** breadcrumb + kind icons | Makes the three kinds visible; kills the "graph emptied" scare |
 | 4 | **BP-101** F2 rename everywhere | Cheap, and closes the third instance of one pattern |
 | 5 | **BP-88** Graphs `+` | Honest only *after* step 1 — else it cements the wrong dispatch |
@@ -121,8 +123,8 @@ Ordered so each step makes the next honest. **Nothing here needs an architect ro
 | 8 | **BP-95** one call node · **BP-97** wire feedback · **BP-96** conversions · **BP-87** types | Wiring polish, once the shapes are right |
 | 9 | **BP-98** asset icons · **BP-99** panel search | Nice-to-have; genuinely last |
 
-⚠ **Steps 1 and 2 are the ones that pay immediately.** Step 2 alone unblocks a verification that has
-been stuck for four batches.
+✅ **Steps 1 and 2 shipped in Batch 20.** Step 2 unblocked a verification that had been stuck for four
+batches — **performing it is now the outstanding work, not building it.** Next up: step 3.
 
 ---
 

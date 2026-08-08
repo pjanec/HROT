@@ -1,3 +1,4 @@
+using Hrot.Blueprints.Core;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor;
 using Hrot.Blueprints.Editor.Variables;
@@ -169,5 +170,120 @@ public sealed class NewAssetServiceTests
     {
         var svc = new BlueprintNewAssetService();
         Assert.Equal(AssetKind.Blueprint, svc.Kind);
+    }
+
+    // ── BP-92: blank-template table (Empty / Function Library) ────────────
+
+    [Fact]
+    public void AvailableRecipes_ExposesBothBuiltInTemplates_WithExpectedDispatch()
+    {
+        var svc = new BlueprintNewAssetService();
+        var recipes = svc.AvailableRecipes();
+
+        var empty = recipes.First(r => r.Name == "Empty");
+        var library = recipes.First(r => r.Name == "Function Library");
+
+        var emptyBp = Assert.IsType<BlueprintEditableAssetAdapter>(empty).Asset;
+        var libraryBp = Assert.IsType<BlueprintEditableAssetAdapter>(library).Asset;
+
+        Assert.Equal(BlueprintDispatchKind.Instance, emptyBp.Dispatch);
+        Assert.Equal(BlueprintDispatchKind.Library, libraryBp.Dispatch);
+    }
+
+    [Fact]
+    public void CreateNew_WithLibraryTemplate_ProducesLibraryDispatch_FreshId_RequestedName()
+    {
+        var svc = new BlueprintNewAssetService();
+        var libraryTemplate = svc.AvailableRecipes().First(r => r.Name == "Function Library");
+
+        var result = svc.CreateNew(libraryTemplate, "MyLibrary", "");
+        var bp = Assert.IsType<BlueprintEditableAssetAdapter>(result).Asset;
+
+        Assert.Equal(BlueprintDispatchKind.Library, bp.Dispatch);
+        Assert.NotEqual(Guid.Empty, bp.AssetId);
+        Assert.NotEqual(libraryTemplate.AssetId, bp.AssetId);
+        Assert.Equal("MyLibrary", bp.Name);
+    }
+
+    [Fact]
+    public void CreateNew_WithInstanceTemplate_ProducesInstanceDispatch()
+    {
+        var svc = new BlueprintNewAssetService();
+        var emptyTemplate = svc.AvailableRecipes().First(r => r.Name == "Empty");
+
+        var result = svc.CreateNew(emptyTemplate, "MyInstance", "");
+        var bp = Assert.IsType<BlueprintEditableAssetAdapter>(result).Asset;
+
+        Assert.Equal(BlueprintDispatchKind.Instance, bp.Dispatch);
+    }
+
+    [Fact]
+    public void CreateNew_WithNullRecipe_StillDefaultsToInstanceDispatch()
+    {
+        // Pre-existing default behaviour must be unchanged: null recipe => first table row (Instance).
+        var svc = new BlueprintNewAssetService();
+        var result = svc.CreateNew(null, "MyDefault", "");
+        var bp = Assert.IsType<BlueprintEditableAssetAdapter>(result).Asset;
+
+        Assert.Equal(BlueprintDispatchKind.Instance, bp.Dispatch);
+    }
+
+    [Fact]
+    public void CreateNew_FromBuiltInTemplate_StripsRecipeMetadata()
+    {
+        var svc = new BlueprintNewAssetService();
+        var libraryTemplate = svc.AvailableRecipes().First(r => r.Name == "Function Library");
+
+        var result = svc.CreateNew(libraryTemplate, "MyLibrary", "");
+        var bp = Assert.IsType<BlueprintEditableAssetAdapter>(result).Asset;
+
+        Assert.NotNull(bp.EditorMetadata);
+        Assert.Null(bp.EditorMetadata.Recipe);
+
+        // Original template's recipe metadata is untouched.
+        var templateBp = Assert.IsType<BlueprintEditableAssetAdapter>(libraryTemplate).Asset;
+        Assert.NotNull(templateBp.EditorMetadata.Recipe);
+        Assert.Equal("Function Library", templateBp.EditorMetadata.Recipe!.DisplayName);
+    }
+
+    [Fact]
+    public void CreateNew_FromLibraryTemplate_RoundTripsDispatchThroughJson()
+    {
+        var svc = new BlueprintNewAssetService();
+        var libraryTemplate = svc.AvailableRecipes().First(r => r.Name == "Function Library");
+
+        var result = svc.CreateNew(libraryTemplate, "MyLibrary", "");
+        var bp = Assert.IsType<BlueprintEditableAssetAdapter>(result).Asset;
+
+        var json = BlueprintJsonServices.Serialize(bp);
+        var reloaded = BlueprintJsonServices.Deserialize(json);
+
+        Assert.NotNull(reloaded);
+        Assert.Equal(BlueprintDispatchKind.Library, reloaded!.Dispatch);
+    }
+
+    [Fact]
+    public void IsBlankTemplate_TrueForBuiltInTemplates_FalseForDiskRecipe()
+    {
+        var svc = new BlueprintNewAssetService();
+        var recipes = svc.AvailableRecipes();
+
+        var empty = recipes.First(r => r.Name == "Empty");
+        var library = recipes.First(r => r.Name == "Function Library");
+
+        Assert.True(svc.IsBlankTemplate(empty));
+        Assert.True(svc.IsBlankTemplate(library));
+
+        var diskRecipe = Wrap(new BlueprintAsset
+        {
+            AssetId = Guid.NewGuid(),
+            Name    = "SomeDiskRecipe",
+            EditorMetadata = new AssetMetadata
+            {
+                Recipe = new Core.Assets.RecipeMetadata { DisplayName = "Some Disk Recipe" },
+            },
+        });
+
+        Assert.False(svc.IsBlankTemplate(diskRecipe));
     }
 }

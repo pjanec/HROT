@@ -499,11 +499,27 @@ internal sealed class V_LatentRules : IValidator
                 {
                     if (node is LatentDelayNode or WaitForChannelNode or WaitForEventNode)
                         ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1101,
-                            $"Library assets must not contain latent nodes (node {node.Id} in '{graph.Name}').",
+                            $"A Function Library cannot contain latent nodes: its graphs compile to plain " +
+                            $"static methods, which have nowhere to suspend. Remove " +
+                            $"'{FriendlyNodeName(node)}' from graph '{graph.Name}', or move this logic into " +
+                            $"an Event graph on an Instance blueprint.",
                             asset.AssetId, graph.Id, node.Id));
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// The node's palette-facing name (its CLR type name without the <c>Node</c> suffix), so the
+    /// diagnostic names what the designer sees on the canvas rather than a raw GUID.
+    /// </summary>
+    private static string FriendlyNodeName(Node node)
+    {
+        var name = node.GetType().Name;
+        // netstandard2.0 is one of this project's targets — no range operator here.
+        return name.EndsWith("Node", StringComparison.Ordinal)
+            ? name.Substring(0, name.Length - 4)
+            : name;
     }
 }
 

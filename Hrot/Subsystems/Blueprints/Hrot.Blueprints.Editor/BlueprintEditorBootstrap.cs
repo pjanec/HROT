@@ -54,6 +54,10 @@ public static class BlueprintEditorBootstrap
         // BATCH-03D1: Register FunctionCallNode drawer
         registry.Register(typeof(FunctionCallNode), new FunctionCallNodeDrawer(editService));
 
+        // BP-89: outputs are declared on the result node (Unreal parity) — the Return node's
+        // Details panel previously fell back to a read-only summary with no way to add outputs.
+        registry.Register(typeof(ReturnNode), new ReturnNodeDrawer(editService));
+
         // Typed literal nodes: Inspector editor for the literal value (one widget per TypeId)
         registry.Register(typeof(LiteralNode), new LiteralNodeDrawer(editService));
 
