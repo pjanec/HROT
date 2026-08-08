@@ -57,7 +57,7 @@ lists every one.
 
 ## Status
 
-**56 open · 48 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
+**59 open · 51 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
 table; do not duplicate them here.
 
 | Batch | Items |
@@ -79,6 +79,7 @@ table; do not duplicate them here.
 | 15 — graph create + switching | BP-24 ⭐ (Q23 A2+B2+C2+D1; + BP-12b rename-undo desync fixed) |
 | 16 — closing out BP-24 | BP-71 🔴 (Q24 A1+B1+C3; +BP1655/BP1656), BP-72 |
 | 20 — functions & macros UX, steps 1–2 | BP-92 (dispatch at create), BP-89 (outputs on the Return node) |
+| 21 — the Batch-20 visual check's defects | BP-103 🔴 (blank template had zero graphs — crashed on open, broke the build), BP-104 🔴 (Library outputs ignored), BP-105 (inert Status combo); re-ticks BP-92 |
 
 **Batch 7's visual pass (2026-08-05)** earned its keep: one bug of mine (the bookmarks ✕ was
 unreachable — a full-width `Selectable` swallowed the click), one long-standing 🔴 (**BP-66**, the
@@ -110,6 +111,9 @@ green. Three themes worth carrying forward:
 defects the visual check found in its first ten minutes.
 → **Batch 20 (2026-08-08): [BP-92](Blueprint_Issues_Detail.md#bp-92) + [BP-89](Blueprint_Issues_Detail.md#bp-89)** —
 steps 1 and 2 of the [functions & macros UX plan](Blueprint_Functions_Macros_UX_Plan.md).
+→ **Batch 21 (2026-08-08): [BP-103](Blueprint_Issues_Detail.md#bp-103) 🔴 +
+[BP-104](Blueprint_Issues_Detail.md#bp-104) 🔴 + [BP-105](Blueprint_Issues_Detail.md#bp-105)** — the
+three defects the user found driving the editor after Batch 20; re-ticks **BP-92**.
 
 **Batch 19 verified by the user in the running editor:** Get/Set/Literal delete → undo → redo → save →
 reopen all correct (**BP-84 closed**); shorter renames produce exact names on the entry node's data-out
@@ -160,12 +164,18 @@ and it is still the programme's largest outstanding risk.**
 > **Needs an architect call on scope before fixing** — see the item.
 
 📋 **Coordinated batches (from 2026-08-08).** A coordinator session owns the tracker and writes
-handoffs; implementation sessions build. **Last handoff — DELIVERED (Batch 20):**
+handoffs; implementation sessions build. **Last handoff — DELIVERED (Batch 21):**
 [HANDOFF_Batch21_Fix_Empty_Asset_And_Library_Returns.md](HANDOFF_Batch21_Fix_Empty_Asset_And_Library_Returns.md)
-— **BP-103** 🔴 (a blank-template asset has zero graphs: crashes on open **and breaks the solution
-build**) · **BP-104** 🔴 (suspected: a Library function's outputs are ignored) · **BP-105** (the Return
-panel shows an inert control). All three came from the user at the UI *after* Batch 20's gates were
-green — ⚠ **`BP-92` is REOPENED** until a new Library opens without throwing.
+— **BP-103** 🔴 (a blank-template asset had zero graphs: crashed on open **and broke the solution
+build**) · **BP-104** 🔴 (**confirmed** — a Library function's declared outputs were ignored) ·
+**BP-105** (the Return panel showed an inert control). All three came from the user at the UI *after*
+Batch 20's gates were green — the clearest evidence yet that the visual check finds what the suite
+cannot. ✅ **`BP-92` re-ticked**: a new Library now opens without throwing.
+📌 **Two follow-ups registered as rows, not buried notes** (the BP-102 lesson):
+[BP-106](Blueprint_Issues_Detail.md#bp-106) (an `AiPrimitive` graph's declared outputs are still
+silently dropped — now the only silent case left) and
+[BP-107](Blueprint_Issues_Detail.md#bp-107) 📐 (`Return.Status` is a compile-time constant, so
+`Running` is inexpressible — **architect round required**).
 *(Previous: [Batch 20](HANDOFF_Batch20_Dispatch_And_Outputs.md) — BP-92 + BP-89, steps 1–2 of the
 [functions/macros UX plan](Blueprint_Functions_Macros_UX_Plan.md).)*
 **Next in that plan: step 3** — [BP-85](Blueprint_Issues_Detail.md#bp-85) breadcrumb + **BP-100**

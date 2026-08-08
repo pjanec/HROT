@@ -2291,6 +2291,31 @@ That fixes the crash **and** removes the immediate-BP5001 surprise, since a seed
 moment it is created. ⚠ It also means [BP-88](#bp-88) ("no route to an Event graph") is partly answered
 for new assets — but not for existing ones, so BP-88 stands.
 
+> ✅ **DONE (2026-08-08, Batch 21).** `BlankTemplateRow` gained a `SeedGraphName`; `MakeEmptyBlueprint`
+> seeds it via `BlueprintDocumentFactory.CreateFunctionGraph` — the same path the production
+> **Create Function** command uses, so the graph arrives with its `EventEntryNode`. A null return
+> from that call now **throws** rather than falling through, since falling through would silently
+> reproduce the graphless asset this exists to prevent.
+>
+> ⚠ **Correction to this entry's own table.** It proposed an **Event**/`Tick` graph for the Instance
+> template. That would have been wrong: `InstanceEmitter.EmitTickMethod` selects the tick graph as
+> `Kind == Function && Name == "Tick"`, falling back to the first **Function** graph. A `Tick` graph of
+> **Event** kind does not match that lookup — it would be emitted as an event handler and the new
+> blueprint would **silently never tick**. The seed is `Tick`/**Function**. The three shipped assets
+> that do use `Tick`/Event (`CoverAwarePatrol`, `HealthThresholdReaction`, `SquadAwareEngagement`)
+> reach the runtime by another path and are not the model to copy — the emitter is.
+>
+> 7 tests cover create → open → compile per template, including an explicit **no-BP5001** assertion for
+> a fresh Library. Reverting the seeding reddens 6 of them, with the real diagnostic text. The 7th —
+> "Instance compiles" — correctly stays green under revert, since BP5001 is Library-specific and a
+> graphless Instance asset compiles fine; it only crashes on *open*, which its sibling test catches.
+> The open-seam is `ResolveInitialGraph`, not the full `Build`: `Build` needs an
+> `AiEditorAdapterBundle` and host services that are not assembled headlessly, and `ResolveInitialGraph`
+> is the exact call `Build` makes immediately before the throw.
+>
+> 🔓 **This re-ticks [BP-92](#bp-92)**, which the coordinator reopened — a new Library now opens
+> without throwing.
+
 <a id="bp-104"></a>
 ### BP-104 — SUSPECTED: a `Library` function's declared outputs are **ignored** 🔴
 **Complexity:** RW-M · **Confidence:** ⚠ *suspected from source — NOT reproduced. Confirm before fixing.*
@@ -2335,6 +2360,42 @@ In the new Function Library, add an output to a function and compile. If it erro
 `AiPrimitive` when the branch was written — `LibraryMath.bp.json` has **zero** outputs, so no shipped
 asset would ever have exposed it.
 
+> ✅ **DONE (2026-08-08, Batch 21) — CONFIRMED, and the diagnosis needed narrowing.**
+>
+> ⚠ **"Does `Library` belong in that branch at all?" — partly yes, and removing it wholesale would
+> have broken shipped behaviour.** A `Library` with **zero** outputs returning `NodeStatus` is
+> deliberate: it is exactly what `LibraryEmitter.CSharpReturnType`'s `hasStatusReturn` parameter
+> exists for, it is what `LibraryMath` ships, and `BPC_ImplicitReturnTests`
+> **`Library_NoReturn_EmitsImplicitSuccessReturn`** pins it under the comment *"Test 6: Library
+> dispatch also gets implicit ReturnStatus"*. The defect is narrower: **`Library` *with* declared
+> outputs**, which was simply never implemented.
+>
+> ⭐ **Three other halves already derived the method shape from `graph.Outputs`** —
+> `CSharpReturnType` declares the return type from them, `CSharpEmitter.EmitLibraryFunctionAdapter`
+> writes the return **value** into the `outputs` span with `__r.ItemN` fan-out, and BP-73's
+> `LibraryAdapter_WritesOutputsSequentially_NotAsABlittedTuple` asserts that source. The terminator
+> was the **one** half still disagreeing — trap #9 again.
+>
+> **Fix:** the status branch is now taken for `AiPrimitive` **unconditionally** (NodeStatus is its
+> BTree/HSM hosting contract) and for `Library` **only when the graph declares no outputs**. Applied
+> at **both** sites — `BuildReturnTerminator` and `SealFallThrough`'s implicit end-of-chain return,
+> where `_graph` turned out to be in scope after all, so there is no residual gap.
+>
+> ⚠ **Correction to the predicted failure mode.** This was **not** a silent wrong value.
+> `CSharpReturnType` ignores `hasStatusReturn` once an output exists, so the body returned
+> `NodeStatus` from a method declared as the output type — a **hard Roslyn error**. The exact code
+> depends on the output type: **CS0029** for the multi-output tuple case, but **CS0266** for a single
+> numeric output (*"Cannot implicitly convert type 'Fbt.NodeStatus' to 'int'. An explicit conversion
+> exists"* — `NodeStatus` is an enum, so an explicit conversion to its underlying type exists). It
+> survived only because `CompileOk` asserts `Succeeded` **without invoking Roslyn**, so no test ever
+> compiled Library-with-outputs. `Library_SingleOutput_PassesRoslyn_EndToEnd` and
+> `Library_MultiOutput_PassesRoslyn_EndToEnd` now do; reverting the fix reddens both with those exact
+> compiler errors.
+>
+> 📌 **Left behind as [BP-106](#bp-106):** `AiPrimitive` is unconditional by design, so a designer can
+> still declare outputs on an AiPrimitive graph and have them silently dropped. That should be a
+> **Stage 2 error**, and it is now the only remaining silent case.
+
 <a id="bp-105"></a>
 ### BP-105 — `Status` and `Outputs` are mutually exclusive by dispatch; the panel shows both
 **Complexity:** RW-M · **Confidence:** ✔✔
@@ -2367,6 +2428,66 @@ outcome.
 `Status` pin would let the primitive compute its own result. That is a real change to the AiPrimitive
 contract, so it wants an architect view rather than a quiet fix. ⚠ Note this is **ours, not Unreal's** —
 Unreal has no equivalent, so the parity yardstick does not apply here.
+
+> ✅ **DONE (2026-08-08, Batch 21) — the UI half only, as scoped.** `ReturnNodeSession` now renders
+> only the control(s) the asset's dispatch actually reads, each labelled with why it applies:
+>
+> | Dispatch | Shows |
+> |---|---|
+> | `Instance` | Outputs only |
+> | `Library` | Outputs always (it is how you declare them) **+ Status only while zero outputs are declared** |
+> | `AiPrimitive` | Status only |
+>
+> The `Library` row mirrors [BP-104](#bp-104)'s rule exactly, so the panel and the compiler cannot
+> disagree. Exposed as `ShowsOutputsForTest` / `ShowsStatusForTest` and covered by 5 tests; reverting
+> the conditional makes them fail to **compile** (`CS1061` — the hooks do not exist without the fix),
+> which is a stronger red than an assertion.
+>
+> 📌 **The design question underneath is NOT closed — registered as [BP-107](#bp-107).** For
+> `AiPrimitive` the combo is genuinely live, but the value is a compile-time constant, so `Running` —
+> the most useful BTree status — remains inexpressible. Making `Status` a data-in pin was deliberately
+> **not** built here: it changes the AiPrimitive hosting contract and needs an architect round.
+
+<a id="bp-106"></a>
+### BP-106 — an `AiPrimitive` graph's declared Outputs are silently ignored
+**Complexity:** RW-L · **Confidence:** ✔✔✔ *(read from the code changed in [BP-104](#bp-104))*
+
+`Stage5.BuildReturnTerminator` returns `IrTerm_ReturnStatus` for `AiPrimitive` **unconditionally** —
+which is **correct**: `NodeStatus` is the BTree/HSM hosting contract, and it must not depend on whether
+the author happened to declare outputs. But nothing anywhere says so.
+
+Since [BP-89](#bp-89) the Return panel offers an Outputs table, and since [BP-105](#bp-105) it is hidden
+for `AiPrimitive` — so the *editor* no longer invites the mistake. **Hand-authored JSON still can**, and
+a `Library`-dispatch asset retagged to `AiPrimitive` would silently drop every declared output.
+
+**Fix:** a **Stage 2 error** when an `AiPrimitive` graph declares outputs — reject it at authoring time
+rather than miscompile it quietly. ⚠ Every new `BPxxxx` code needs a `[CoversDiagnosticCode]` test or
+`V_AllValidatorsCoverageTests` fails the build.
+
+⚠ **This is now the only remaining silent case** in the dispatch/return family — BP-104 made `Library`
+outputs-driven and loud, and `Instance` has always been value-returning.
+
+<a id="bp-107"></a>
+### BP-107 — 📐 `Return.Status` is a compile-time constant, so `Running` is inexpressible (architect)
+**Complexity:** RW-M · **Confidence:** ✔✔✔ *(the user's objection is correct)*
+
+> User (raised against [BP-105](#bp-105)): *"Status offers an editable combo; but what is the purpose
+> of it?"*
+
+Answered narrowly by BP-105 — the combo is live for `AiPrimitive` and hidden where it is inert. **The
+deeper objection stands.** `BuildReturnTerminator` emits `IrTerm_ReturnStatus(rn.Status)`, where
+`rn.Status` is **baked at author time**. An AiPrimitive can therefore only ever return the one status
+picked in the editor, while **`Running`** — an action still in progress — is inherently a *runtime*
+decision. Expressing it today needs a separate branch and Return node per outcome, and even then the
+node cannot say *"still running"* on the basis of its own computation.
+
+**Fix direction (the user's, and it is right):** make `Status` a data-**in** pin so graph logic can
+drive it.
+
+📐 **Architect round required before any implementation.** It changes the AiPrimitive hosting contract,
+and the `Running`/latent interaction touches the same cursor machinery as
+[Q25](Architect_Question_25_Macros.md)'s macro expansion. ⚠ **Ours, not Unreal's** — Unreal has no
+equivalent, so the parity yardstick does not apply.
 
 <a id="bp-102"></a>
 ### BP-102 — Graph Signature window edits are still not undoable
