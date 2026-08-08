@@ -877,19 +877,84 @@ Two obvious suspects are **already ruled out**, so do not start there:
 | The undo lost the node's data (kind / `VariableId`) | `DeleteNodeCommand.Undo` (`GraphEditor/GraphCommands.cs:57-62`) re-adds the **same `Node` object** it removed. Nothing is reconstructed, so nothing can be lost |
 | The pin projection failed to resolve the variable | `NodePinSchema.GetVariablePins` (`:670-679`) returns **one `Value` out-pin unconditionally** — even an unresolvable id falls through to `ResolveVariableTypeId` → `System.Object` and still yields a pin. It cannot return zero pins |
 
-⇒ The fault is **downstream of both**. Two live hypotheses:
+⇒ The fault is **downstream of both**. Two hypotheses were put up:
 
 1. **The node view-model is not rebuilt after undo** — the asset is correct but the canvas renders a
-   stale/empty pin list.
+   stale/empty pin list. *(Local fix.)*
 2. **Node *order* is not restored.** `Undo` does `_graph.Nodes.Add(_node)` — an **append**. Contrast
    `LinkEditCommand` immediately below it, which restores links *at their original indices* with the
    explicit comment *"order matters for positional-projection assets"*. A recipe-loaded asset carries
    `"Pins": []` and is rehydrated in Stage 0, where `AssignDirection` falls back to **positional**
-   binding — so node order is load-bearing on exactly this path.
+   binding. *(Would be far broader — any pin-less asset after any undo.)*
 
-⚠ Hypothesis 2 would make this **broader than `GetVariable`**: any pin-less (recipe- or JSON-loaded)
-asset could mis-bind after an undo. Discriminate before fixing — see the narrow experiment recorded in
-the visual-check section.
+#### ✅ Discriminated 2026-08-08 — **hypothesis 1**
+
+The user added a second `GetVariable`, wired it, deleted the first, and pressed Ctrl+Z:
+**only the restored node lost its pins.** The sibling node's pins and wires were unaffected.
+
+⇒ **Node ordering is not implicated, and the blast radius is one node, not the whole graph.** The fix
+is a view-model rebuild (or pin-list invalidation) on the undo path — `RW-L`, as tagged. Do **not**
+reorder `DeleteNodeCommand.Undo`'s `Nodes.Add`; that was the expensive hypothesis and it is now ruled
+out.
+
+⚠ Still worth one check during the fix: whether the broken state **persists to disk** or clears on
+reopen. It serialises either way (pins are stripped on save and re-projected on load), so a reopen
+almost certainly heals it — which would downgrade the *data-loss* framing above to a
+render-until-reopen defect. Confirm rather than assume.
+
+<a id="bp-86"></a>
+### BP-86 — Function input parameters render with **corrupted names** on the entry node 🔴
+**Complexity:** RW-L · **Confidence:** ✔✔ *(observed; four layers eliminated, culprit not yet pinned)*
+
+Add three input parameters to a Function graph's signature. The entry node correctly grows one data-out
+pin per input — but their labels are **mangled**:
+
+| Expected | Observed |
+|---|---|
+| `Param0` | **`P1?am0`** |
+| `Param1` | **`P2?am1`** |
+| `Param2` | **`P3?am2`** |
+
+#### The corruption is positional and structured — not random
+
+Aligning `Param0` against `P1?am0` character by character:
+
+```
+P a r a m 0      ← expected
+P 1 ? a m 0      ← observed
+  ^ ^
+  └─┴── indices 1..2 overwritten
+```
+
+Two bytes at **offset 1–2** are replaced by *(row index + 1)* as an ASCII digit, plus one byte that
+renders as `?` (i.e. not printable / not valid UTF-8). The `am{i}` tail and the leading `P` survive.
+The same 2-byte stomp at the same offset repeats per row with an incrementing 1-based digit.
+
+⇒ This is a **buffer/encoding defect, not a string-formatting mistake.** A wrong format string would
+produce a consistently wrong *shape*; this preserves the original length and overwrites two interior
+bytes with a row-dependent value.
+
+#### Layers already eliminated — do not re-search these
+
+| Layer | Verdict |
+|---|---|
+| Name **generator** | ✅ correct — `GraphSignatureWindow.cs:386` is `$"Param{model.Parameters.Count}"`, which yields `Param0`/`Param1`/`Param2` |
+| Edit **model** | ✅ correct — `GraphSignatureEditModel.AddParameter:61-71` stores `Name = name` **verbatim**, no transformation |
+| Signature-window **row buffer** | ✅ correct — `DrawParameterRows:338-348` does `UTF8.GetBytes(param.Name + "\0")` → `Array.Resize(256)` → `InputText`, and only writes back when `InputText` returns true |
+| Pin **display-label** resolver | ✅ not involved — `BlueprintGraphModel.ResolvePinDisplayLabel:318-332` early-returns unless the pin is named exactly `"Value"`; these are named `Param0`… |
+
+⇒ Remaining suspects: **`BlueprintPinModel`'s label path**, or the **NodeEdit canvas pin-label
+renderer** (an ImGui text/id buffer). Note `PushID($"name_{tableId}_{i}")` puts a row index adjacent to
+the name in the same frame — the row-dependent digit makes an ImGui id/label buffer the prime suspect.
+
+#### 🔬 The one cheap test that splits this
+
+**Save, then read `Graphs[].Inputs[].Name` in the `.bp.json`:**
+
+- `"Name": "Param0"` ⇒ **render-only.** Data is clean; fix the label path. Downgrade from 🔴.
+- `"Name": "P1?am0"` ⇒ **data corruption.** The mangled name is persisted, will reach the compiler as
+  an identifier, and `Sanitizer.SanitizeName` will then have to cope with a `?`. Stays 🔴 and gets
+  priority.
 
 <a id="bp-85"></a>
 ### BP-85 — The canvas never says which graph you are editing
