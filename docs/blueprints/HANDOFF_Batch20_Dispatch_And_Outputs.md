@@ -33,7 +33,9 @@ revert-and-watch-it-go-red discipline to Sonnet's work exactly as to your own.
 
 | | |
 |---|---|
-| **Repo / branch** | `pjanec/HROT` · `claude/blueprint-authoring-status-6sr5ld` — **push only here** |
+| **Repo** | `pjanec/HROT` |
+| **Implementation branch** | `claude/blueprint-macro-feature-sdmspn` — cut from the coordinator branch; **push here** |
+| **Coordinator branch** | `claude/blueprint-authoring-status-6sr5ld` — docs/tracker only; do **not** push here |
 | **Plan** | [Blueprint_Functions_Macros_UX_Plan.md](Blueprint_Functions_Macros_UX_Plan.md) — this batch is steps **1 and 2** |
 | **Truth** | [Tracker](Blueprint_Issues_Tracker.md) · [Detail](Blueprint_Issues_Detail.md) |
 | **Orientation** | [RESUME](Blueprint_Gaps_Programme_RESUME.md) — traps, gates, working agreement |
@@ -184,3 +186,18 @@ the detail file · **counts reconciled three ways** (checkbox tally, header tota
 · committed and pushed to `claude/blueprint-authoring-status-6sr5ld`.
 
 ⚠ **Do not create a pull request.**
+
+---
+
+## 6. ⚠ Shared-file protocol (added after BP-92 landed)
+
+Two branches are live: yours (code) and the coordinator's (docs/tracker). To avoid a merge conflict on
+the files **both** roles write:
+
+| File | Who writes it during a batch |
+|---|---|
+| `Blueprint_Issues_Tracker.md` · `Blueprint_Issues_Detail.md` | **You** — mark rows `[x]`, add `DONE` notes, reconcile the counts |
+| Everything else in `docs/blueprints/` | **Coordinator** — will not touch the two files above while a batch is in flight |
+
+⇒ Own the tracker and detail files for the duration of this batch. The coordinator holds off on them
+until your work lands, then integrates.
