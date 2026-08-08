@@ -136,6 +136,22 @@ internal sealed class CSharpEmitter
         WriteLine("using Fdp.Toolkit.Blueprints;");
     }
 
+    // ── BP-110: cross-asset call target resolution ────────────────────────────
+
+    /// <summary>
+    /// The generated class name for the sibling whose <see cref="BlueprintSignature.BlueprintId"/>
+    /// is <paramref name="blueprintId"/>, or <see langword="null"/> when no sibling matches.
+    /// </summary>
+    internal string? ResolveSiblingClassName(int blueprintId)
+    {
+        foreach (var sig in _ctx.SiblingSignatures)
+        {
+            if (sig.BlueprintId == blueprintId)
+                return $"{sig.SanitizedName}_{sig.BlueprintId:X8}_Bp";
+        }
+        return null;
+    }
+
     private void EmitRegistrarClass(IrAsset asset)
     {
         var className = $"{asset.SanitizedName}_{asset.BlueprintId:X8}_Bp";
