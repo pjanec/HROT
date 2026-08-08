@@ -6,10 +6,27 @@
 
 ---
 
-## 0. ⚠ FIRST ACTION — an unverified merge is already committed
+## 0. ✅ Batch 22 is VERIFIED — gates run 2026-08-08 on the merged tree
 
-The Batch-22 merge **was committed** by this resume commit, but **its gates were never run**.
-The user interrupted the build. **Run this before anything else:**
+| Suite | Result |
+|---|---|
+| **Solution build** `IOS-IG-SimHost.sln` | ✅ **0 errors** |
+| Blueprints | ✅ **2907 passed / 0 failed / 10 skipped** (2917 total) |
+| AiShared | ✅ **1213 / 0** |
+| BTree editor | ✅ **612 / 0** |
+| Breakpoints | ✅ **130 / 0** |
+| NodeEdit Core | ✅ **208 / 0** |
+| NodeEdit UI | ✅ **131 / 0** |
+| Generators | ✅ **189 / 0** |
+
+**+2 net tests vs the Batch-21 baseline of 2905** — exactly the two Batch 22 added
+(`CallPeerBlueprintRoslynTests`, `BP109_SmokeTestEndToEndTests`, one `[Fact]` each). Reconciled.
+**No flakes fired this run.**
+
+⚠ **Run gates with `--logger "console;verbosity=normal"`.** `-v q` prints counts but not the failing
+test's *name* — that is why Batch 22 had to register BP-111.
+
+<details><summary>The gate command list</summary>
 
 ```bash
 dotnet build IOS-IG-SimHost.sln -v q --nologo
@@ -21,15 +38,38 @@ dotnet test FDP/ExtDeps/NodeEdit/tests/NodeEditor.Core.Tests/NodeEditor.Core.Tes
 dotnet test FDP/ExtDeps/NodeEdit/tests/NodeEditor.UI.Tests/NodeEditor.UI.Tests.csproj -v q --nologo
 dotnet test Hrot/Subsystems/AI/Hrot.AiEditor.Generators.Tests/Hrot.AiEditor.Generators.Tests.csproj -v q --nologo
 ```
+</details>
 
-**Baseline to beat (measured on the merged Batch-21 tree):** build **0 errors** · Blueprints
-**2905 / 0 / 10 skipped** · AiShared **1213 / 0** · BTree **612 / 0**.
 Known flakes: `PdbEmbeddedSourceTests`, `WhenNodePerfTests.WhenNode_ValueChanged_Under100ns_perTick`.
-
-⚠ **Batch 22 reported two intermittent failures** and registered **BP-111** because `-v q` prints
-counts but not the failing test's *name*. **If a suite is red, re-run it without `-v q`.**
-
 ⚠ Classify any failure with `git stash` → re-run → `git stash pop`.
+
+---
+
+## 0b. 🌙 Batch 23 is an **overnight autonomous** batch — in flight
+
+📄 **[HANDOFF_Batch23_Overnight_Autonomous.md](HANDOFF_Batch23_Overnight_Autonomous.md)**
+
+Four items, ordered, independently committable: **BP-112** (CS9191 + the missing `Dispatch: Library`
+generator fixture) → **BP-87** (type picker / registry / coercions) → **BP-113** (peer call N outputs) →
+**BP-108** (Print/Log node). Expect it to stop at an item boundary; that is the designed outcome.
+
+**Six ⚖️ decisions were pre-made so the session never has to ask overnight** — §2 of the handoff.
+The two that took real research:
+
+1. ⚠ **BP-87 must NOT widen `BlackboardTypeHelper.DefaultKnownTypeNames`.** That array lives in
+   `Hrot.Editor.AiShared` and is shared by the **BTree and HSM** editors as well as blueprints
+   (`BehaviorTreeAssetMapper:453`, `HsmAssetMapper:473`, `BlackboardTypeChoiceBuilder:46`). The detail
+   entry said "add to the dropdown" without saying *which*, and the obvious answer is the wrong one.
+   ✅ Verified the clean path: the consumer `ParameterRowsView` is already blueprint-local, and
+   `Hrot.Blueprints.Editor` → `Core` → `Compiler`, so `StaticTypeRegistry` **is** reachable from the
+   editor ⇒ a blueprint-local list derived from the registry is feasible without AiShared ever learning
+   about the compiler.
+2. ⭐ **BP-108 needs no new log-sink abstraction.** `Fdp.Core/Logging/AiBehaviorLogTarget.cs` is already
+   an NLog `Target` **and** an `IMessageLogSource` with a shared singleton and `OnMessageAdded`, already
+   wired to the editor's "AI Behaviors" tab. Its design point *"the sink must be interceptable"* is
+   satisfied by shipped code. Shape pre-approved as fixed-arity `Arg0..Arg2` + literal format + all five
+   verbosity levels — conservative enough to defend without the architect **because every piece reuses
+   existing machinery**.
 
 ---
 
@@ -91,15 +131,32 @@ claiming production works because siblings compile together. **That is the eleve
    break the build. Do not "correct" BP-103 on the strength of this.
 2. **Two entities in one world needed no code changes** — the risk I flagged did not materialise.
 
-### Still to do on this batch
+### ✅ Verification complete
 
-- [ ] Run the gates (§0).
-- [ ] Review the actual diff of `e214c4dc` — it touches `CSharpEmitter`, `EmissionContext`,
-      `StatementEmitter`, `Stage7_Emit`, `BlueprintCompiler`. **That is compiler surface, not test
-      scaffolding** — review it as such.
-- [ ] Confirm **BP-112** (CS9191) is still live, or was incidentally fixed by their emitter changes.
-      The user hit it on a library with **no peer call**, so it is probably distinct — but check.
-- [ ] Check they reported: gate numbers, revert-goes-red, Sonnet split.
+- [x] **Gates run — all eight green** (§0).
+- [x] **Diff of `e214c4dc` reviewed.** It touches compiler surface (`CSharpEmitter`,
+      `EmissionContext`, `StatementEmitter`, `Stage7_Emit`, `BlueprintCompiler`), not test scaffolding.
+      **The fix is sound.** `ResolveSiblingClassName` matches on `BlueprintId` and rebuilds
+      `{SanitizedName}_{BlueprintId:X8}_Bp`; the reasoning for resolving the real name rather than
+      emitting a `using` alias (production emits into the global namespace, the test fixture's
+      `MergeGeneratedSources` wraps in one, so no single alias form is correct for both) is correct.
+      Falling back to the old `__Peer_` name on an unresolved id correctly keeps Stage 2's BP1301/BP1302
+      as the author-facing diagnostic.
+- [x] ⭐ **Checked the one way it could have been subtly wrong — it is not.** Both *production*
+      producers of a `BlueprintSignature` derive `SanitizedName` through `Sanitizer.SanitizeName`
+      (`BlueprintSignatureParser.cs:39`, `BlueprintSignatureBuilder.cs:19`) — the same function
+      `Stage5_Schedule.cs:58` uses for the asset's own name. **The two names cannot drift.**
+- [x] Test count reconciles: **+2 vs baseline**, one `[Fact]` in each new file.
+
+⚠ **Small latent trap left behind, worth a row but not a fix:** four tests construct signatures with
+`SanitizedName: peer.Name` **raw** — `CallPeerBlueprintRoslynTests:171`,
+`BP109_SmokeTestEndToEndTests:85`, `RecipeIntegrityTests:64`, `NodeCoverageTests:534`. It works only
+because every fixture name is already sanitizer-clean, so **no test covers a peer whose name needs
+sanitizing**. It fails loudly (CS0103) rather than silently ⇒ low risk. Handed to Batch 23 as §1 of its
+handoff.
+
+- [ ] **BP-112** (CS9191) — still open; handed to Batch 23 as item 1, with an explicit instruction to
+      **confirm it still reproduces first** in case the emitter changes fixed it incidentally.
 
 ---
 
@@ -121,7 +178,7 @@ breaks the solution build.
 
 ---
 
-## 5. Next batch — my recommendation
+## 5. Next batch — ✅ issued as Batch 23 (see §0b)
 
 **BP-112 + BP-113**, and they converge:
 
