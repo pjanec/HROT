@@ -1159,9 +1159,20 @@ internal static class Stage0_Rehydrate
             var typeId = string.IsNullOrEmpty(inp.TypeId) ? "System.Object" : inp.TypeId;
             pins.Add(MakePin(inp.Name, "In", isExec: false, typeId: typeId));
         }
-        var returnTypeId = funcSig.Outputs.Count > 0 && !string.IsNullOrEmpty(funcSig.Outputs[0].TypeId)
-            ? funcSig.Outputs[0].TypeId : "System.Object";
-        pins.Add(MakePin("Return", "Out", isExec: false, typeId: returnTypeId));
+        // BP-113: one data-OUT per peer function output, in declaration order — the same projection
+        // NodePinSchema.CallPeerBlueprintPins makes, and the same one BP-73 gave the same-asset
+        // FunctionCall node. ⚠ Both projections must stay in step: they are the two halves of trap #9,
+        // and this node shipped with only one of them fixed.
+        if (funcSig.Outputs.Count == 0)
+        {
+            pins.Add(MakePin("Return", "Out", isExec: false, typeId: "System.Object"));
+            return;
+        }
+        foreach (var outp in funcSig.Outputs)
+        {
+            var outTypeId = string.IsNullOrEmpty(outp.TypeId) ? "System.Object" : outp.TypeId;
+            pins.Add(MakePin(outp.Name, "Out", isExec: false, typeId: outTypeId));
+        }
         return;
 
         addReturnFallback:

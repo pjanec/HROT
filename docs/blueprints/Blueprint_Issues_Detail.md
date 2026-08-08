@@ -2182,6 +2182,80 @@ That second row is the failure mode item 4 exists to prevent, made concrete: wit
 and the rungs missing, `ushort`/`uint` *resolve* and cannot be *wired* — later and less legible than the
 BP1500 they replaced, exactly as the handoff predicted.
 
+#### ✅ FIXED — Batch 23
+
+**Precondition checked first**, as the handoff demanded: `BlueprintSignatureParser.ParseParamList`
+enumerates the whole JSON array, so `ExportedFunctions` **already carried N outputs**. The signature was
+never the limiting half — good, because fixing the editor against a signature that could not express the
+answer would have looked right and done nothing.
+
+##### ⚠ THREE sites had to move, not two
+
+The handoff named two projections. There was a third, and it was the one that mattered:
+
+| Site | What it did |
+|---|---|
+| `NodePinSchema.CallPeerBlueprintPins` | editor projection — one pin from `Outputs[0]` |
+| `Stage0_Rehydrate.EnrichCallPeerBlueprintPins` | compiler's reconstruction for a pin-less asset — same |
+| ⭐ `Stage5_Schedule`, `case CallPeerBlueprintNode` | **lowering — still took `FirstOrDefault()` data-OUT** |
+
+Fixing only the two projections would have advertised N pins that the compiler silently collapsed to
+one: the identical defect, one layer down, and now harder to see because the editor would look correct.
+
+`EmitCarrierFanOut` gained an overload keyed on a bare list of declared output types instead of a local
+`Graph`, so a **cross-asset** call — whose target is a `BlueprintFunctionSig` in a sibling's signature,
+not a graph in this asset — lowers through the **identical path** as BP-73's same-asset call. The
+existing `Graph` overload now forwards to it, so the FunctionCall path is byte-identical.
+
+##### Pin naming
+
+Pins are named after the declared outputs, mirroring `FunctionCall`. Zero-output functions keep the
+historic `Return:System.Object`.
+
+⚠ This renames the single pin of a 1-output peer call from `Return` to the output's name, which changes
+its deterministic GUID (`DeterministicIds.PinId` hashes the pin *name*). **Saved assets still bind**: the
+exec `Out` pin keeps its name and so still binds by name, leaving the one remaining data link to fall
+positionally onto the first data-OUT — the right slot. `BP109_SmokeTestEndToEndTests` exercises exactly
+this with real saved assets and stays green.
+
+⚖️ **D1 honoured** — *not* unified with `FunctionCall`. Unification remains a genuine simplification, but
+it is an architectural change and wants the architect.
+
+##### Revert-goes-red — all three halves, independently
+
+| Reverted | Result |
+|---|---|
+| `Stage5` fan-out | the end-to-end test fails; the BP-110 test stays green |
+| `NodePinSchema` | 2 editor-projection tests fail |
+| `Stage0` | the rehydration test fails — **and only that one** |
+
+⭐ That last row is the point. Every other test in the file hands the compiler explicit pins, so **none of
+them reach Stage 0's enricher** — trap #9's exact shape, and how BP-113 shipped in the first place. The
+new `CallPeerBlueprint_MultiOutputPeer_PinsRehydratedByStage0_StillReturnsBothValues` gives that node
+**no pins at all** and addresses them through `DeterministicIds.PinId(nodeId, name, direction)`, so the
+links resolve only if Stage 0 reconstructs pins actually named `Lo` and `Hi`.
+
+The end-to-end tests assert **two different values** (`Lo=7`, `Hi=99`) across the asset boundary, never a
+pin count — a pin-count assertion is what let the defect ship, and a single-value assertion would pass
+even with the carrier fields collapsed or aliased.
+
+<a id="bp-115"></a>
+### BP-115 — no test covers a peer blueprint whose name needs sanitizing
+**Complexity:** RW-L · **Confidence:** ✔✔✔ *(raised by the coordinator, Batch 23 handoff §1)*
+
+BP-110 resolves a peer call's target class as `{SanitizedName}_{BlueprintId:X8}_Bp`, read from the
+sibling `BlueprintSignature`. Both production producers derive `SanitizedName` through
+`Sanitizer.SanitizeName` (`BlueprintSignatureParser.cs:39`, `BlueprintSignatureBuilder.cs:19`) — the same
+function `Stage5_Schedule.cs:58` uses for the asset's own name, so the two cannot drift.
+
+⚠ **Several tests construct the signature with `SanitizedName: peer.Name` — raw, unsanitized:**
+`CallPeerBlueprintRoslynTests.cs`, `BP109_SmokeTestEndToEndTests.cs`, `RecipeIntegrityTests.cs`,
+`NodeCoverageTests.cs`. It works only because every fixture name is already sanitizer-clean.
+
+Low risk — a mismatch fails **loudly** (CS0103), not silently. But it means no test covers a peer whose
+name actually requires sanitizing (`My Lib!`, a leading digit, a dot). **Fix:** one fixture with such a
+name, built through the real `Sanitizer`.
+
 <a id="bp-114"></a>
 ### BP-114 — the parameter Type combo displays the wrong type for any asset storing a fully-qualified `TypeId`
 **Complexity:** RW-L · **Confidence:** ✔✔✔ *(read from source; reachable with shipped assets)*
@@ -2595,6 +2669,21 @@ counts but not test names. Re-running with `--logger "console;verbosity=normal"`
 **Fix options:** gate wall-clock assertions behind an explicit perf category excluded from the standard
 suite (they measure the sandbox, not the code), **or** widen the documented flake list and change the
 gate command so a failure names the test. ⚠ Until then, every session pays the same tax.
+
+#### ⚠ Batch 23 — worse than recorded, and it cost time again
+
+The full-suite run failed **two** perf tests: `WhenNode_EqsResult_Under150ns_perTick` **and
+`ReadEqsResultNode_Under80ns_perInvocation`** — a *third* name, also absent from the documented flake
+list, which still names only `WhenNode_ValueChanged_Under100ns_perTick`.
+
+⭐ **Classification evidence, and it is decisive:** re-running the class in isolation passed both 3/3 —
+and on a fourth isolated run a **different** member failed (`WhenNode_ConditionMet_Under200ns_perTick`).
+**A different test failing on each run is timing, not logic.** So this is not "two flaky tests"; it is
+**the entire wall-clock perf class**, of which the documented list names one in five.
+
+⇒ The fix should be categorical, not another name added to a list: put every wall-clock assertion behind
+a perf trait excluded from the gate suites, so a real regression and a loaded CI box stop being
+indistinguishable.
 
 <a id="bp-103"></a>
 ### BP-103 — A blank-template blueprint has **zero graphs**: crashes on open, breaks the build 🔴

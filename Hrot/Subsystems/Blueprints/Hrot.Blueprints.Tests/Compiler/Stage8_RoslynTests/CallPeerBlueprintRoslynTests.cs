@@ -229,4 +229,349 @@ public sealed class CallPeerBlueprintRoslynTests
         int captured = ReadSlotField<int>(fixture, caller, entity, capturedVar.Name);
         Assert.Equal(42, captured);
     }
+
+    // =========================================================================
+    // BP-113 regression lock: a peer function with >1 output must fan the carrier back
+    // out ACROSS the asset boundary, not just within the same asset.
+    //
+    // BP-73 gave an N-output Function graph a ValueTuple carrier + fan-out for the SAME-asset
+    // FunctionCall node, but never touched CallPeerBlueprint -- the CROSS-asset call to a Library's
+    // exported function. So an N-output function worked when called from inside its own asset and
+    // silently lost every output past Outputs[0] the moment another blueprint called it -- exactly
+    // backwards for a Function Library, whose entire purpose is being called from elsewhere.
+    //
+    // This is only testable end-to-end at all because BP-110 (above) made a peer call able to
+    // compile and run in the first place; before that fix Roslyn couldn't even resolve the call
+    // target, so there was no cross-asset call site to fan a carrier out of.
+    // =========================================================================
+
+    /// <summary>
+    /// Library asset exporting one Function graph "Split" with TWO declared outputs
+    /// ("Lo", "Hi", both System.Int32) -- EventEntry -&gt; Return(Lo=7, Hi=99). Two DIFFERENT
+    /// literal values is the point: a carrier that silently collapsed both outputs onto one slot,
+    /// or transposed them, would be caught by asserting both values independently rather than just
+    /// a pin count.
+    /// </summary>
+    private static BlueprintAsset BuildMultiOutputLibraryPeer(Guid peerAssetId)
+    {
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var litLo    = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Int32", ValueJson = "7" };
+        var litLoOut = DataPin("value", "Out", "System.Int32");
+        litLo.Pins.Add(litLoOut);
+
+        var litHi    = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Int32", ValueJson = "99" };
+        var litHiOut = DataPin("value", "Out", "System.Int32");
+        litHi.Pins.Add(litHiOut);
+
+        var ret       = new ReturnNode { Id = Guid.NewGuid() };
+        var retExecIn = ExecPin("ExecIn", "In");
+        // Return's data-IN pins pair POSITIONALLY with Graph.Outputs -- "Lo" first, "Hi" second,
+        // matching the outputs list below.
+        var retLoIn = DataPin("Lo", "In", "System.Int32");
+        var retHiIn = DataPin("Hi", "In", "System.Int32");
+        ret.Pins.AddRange(new[] { retExecIn, retLoIn, retHiIn });
+
+        var graph = new Graph
+        {
+            Id      = Guid.NewGuid(),
+            Name    = "Split",
+            Kind    = GraphKind.Function,
+            Outputs = { Decl("Lo", "System.Int32"), Decl("Hi", "System.Int32") },
+            Nodes   = { entry, litLo, litHi, ret },
+            Links   =
+            {
+                new Link { FromNodeId = entry.Id, FromPinId = entryOut.Id, ToNodeId = ret.Id, ToPinId = retExecIn.Id },
+                new Link { FromNodeId = litLo.Id,  FromPinId = litLoOut.Id, ToNodeId = ret.Id, ToPinId = retLoIn.Id },
+                new Link { FromNodeId = litHi.Id,  FromPinId = litHiOut.Id, ToNodeId = ret.Id, ToPinId = retHiIn.Id },
+            },
+        };
+
+        return new BlueprintAsset
+        {
+            AssetId  = peerAssetId,
+            Name     = "SplitLib",
+            Dispatch = BlueprintDispatchKind.Library,
+            Graphs   = { graph },
+        };
+    }
+
+    /// <summary>
+    /// Caller Instance asset for the multi-output peer: EventEntry -&gt; CallPeerBlueprint("Split")
+    /// -&gt; SetVariable(CapturedLo) -&gt; SetVariable(CapturedHi) -&gt; Return. The call node carries TWO
+    /// data-OUT pins ("Lo", "Hi", both System.Int32) in declaration order, one wired to each
+    /// SetVariable's Value pin -- exactly the shape Stage5's <c>EmitCarrierFanOut</c> pairs
+    /// positionally against the peer signature's declared outputs.
+    /// </summary>
+    private static BlueprintAsset BuildMultiOutputCaller(
+        Guid peerAssetId, out VariableDecl capturedLo, out VariableDecl capturedHi)
+    {
+        capturedLo = new VariableDecl
+        {
+            Id = Guid.NewGuid(), Name = "CapturedLo",
+            Type = new BlueprintTypeRef { TypeId = "System.Int32" }, DefaultValueJson = "0",
+        };
+        capturedHi = new VariableDecl
+        {
+            Id = Guid.NewGuid(), Name = "CapturedHi",
+            Type = new BlueprintTypeRef { TypeId = "System.Int32" }, DefaultValueJson = "0",
+        };
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var callNode  = new CallPeerBlueprintNode
+        {
+            Id              = Guid.NewGuid(),
+            PeerBlueprintId = peerAssetId.ToString(),
+            FunctionRef     = "Split",
+        };
+        var callIn   = ExecPin("In", "In");
+        var callOut  = ExecPin("Out", "Out");
+        var callLo   = DataPin("Lo", "Out", "System.Int32");
+        var callHi   = DataPin("Hi", "Out", "System.Int32");
+        callNode.Pins.AddRange(new[] { callIn, callOut, callLo, callHi });
+
+        var setLo      = new SetVariableNode { Id = Guid.NewGuid(), VariableId = capturedLo.Id.ToString() };
+        var setLoIn    = ExecPin("In", "In");
+        var setLoOut   = ExecPin("Out", "Out");
+        var setLoValue = DataPin("Value", "In", "System.Int32");
+        setLo.Pins.AddRange(new[] { setLoIn, setLoOut, setLoValue });
+
+        var setHi      = new SetVariableNode { Id = Guid.NewGuid(), VariableId = capturedHi.Id.ToString() };
+        var setHiIn    = ExecPin("In", "In");
+        var setHiOut   = ExecPin("Out", "Out");
+        var setHiValue = DataPin("Value", "In", "System.Int32");
+        setHi.Pins.AddRange(new[] { setHiIn, setHiOut, setHiValue });
+
+        var ret       = new ReturnNode { Id = Guid.NewGuid() };
+        var retExecIn = ExecPin("ExecIn", "In");
+        ret.Pins.Add(retExecIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Tick",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, callNode, setLo, setHi, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,    FromPinId = entryOut.Id, ToNodeId = callNode.Id, ToPinId = callIn.Id },
+                new Link { FromNodeId = callNode.Id, FromPinId = callOut.Id,  ToNodeId = setLo.Id,     ToPinId = setLoIn.Id },
+                new Link { FromNodeId = callNode.Id, FromPinId = callLo.Id,   ToNodeId = setLo.Id,     ToPinId = setLoValue.Id },
+                new Link { FromNodeId = setLo.Id,    FromPinId = setLoOut.Id, ToNodeId = setHi.Id,     ToPinId = setHiIn.Id },
+                new Link { FromNodeId = callNode.Id, FromPinId = callHi.Id,   ToNodeId = setHi.Id,     ToPinId = setHiValue.Id },
+                new Link { FromNodeId = setHi.Id,    FromPinId = setHiOut.Id, ToNodeId = ret.Id,       ToPinId = retExecIn.Id },
+            },
+        };
+
+        var asset = new BlueprintAsset
+        {
+            AssetId       = Guid.NewGuid(),
+            Name          = "CallPeerMultiOutputCaller",
+            Dispatch      = BlueprintDispatchKind.Instance,
+            Variables     = { capturedLo, capturedHi },
+            CallablePeers = { peerAssetId },
+            Graphs        = { graph },
+        };
+        return asset;
+    }
+
+    private static BlueprintSignature MakeMultiOutputPeerSignature(BlueprintAsset peer) => new(
+        Path:                  "",
+        AssetId:               peer.AssetId,
+        Name:                  peer.Name,
+        SanitizedName:         peer.Name,
+        BlueprintId:           BlueprintIdHash.Compute(peer.AssetId),
+        Dispatch:              peer.Dispatch,
+        ExportedFunctions:     new[]
+        {
+            new BlueprintFunctionSig(
+                "Split",
+                Array.Empty<BlueprintParamSig>(),
+                new[]
+                {
+                    new BlueprintParamSig("Lo", "System.Int32"),
+                    new BlueprintParamSig("Hi", "System.Int32"),
+                }),
+        },
+        Hostings:              Array.Empty<AiPrimitiveHosting>(),
+        DeclaredCallablePeers: Array.Empty<Guid>());
+
+    /// <summary>
+    /// <b>BP-113 — a Library function with >1 output must fan its carrier out across the asset
+    /// boundary, not just within the same asset.</b>
+    /// <para>
+    /// BP-73 gave an N-output Function graph a ValueTuple carrier plus a fan-out at every call site
+    /// -- but only for the SAME-asset <c>FunctionCall</c> node. It never touched
+    /// <c>CallPeerBlueprint</c>, the CROSS-asset call to another blueprint's exported function. The
+    /// result: an N-output function worked perfectly when called from inside its own asset, and
+    /// silently dropped every output past <c>Outputs[0]</c> the instant another blueprint called
+    /// it through a Library export -- which is backwards, since being callable from elsewhere is
+    /// the entire reason a Function Library exists.
+    /// </para>
+    /// <para>
+    /// This test is only possible at all because of the BP-110 fix above: before BP-110, Roslyn
+    /// could not even resolve the generated call to <c>__Peer_{hash}_Bp</c>, so there was no
+    /// compiling cross-asset call site to fan a carrier out of in the first place.
+    /// </para>
+    /// <para>
+    /// Asserting <b>two different</b> peer-returned values (<c>Lo=7</c>, <c>Hi=99</c>) -- rather than
+    /// just a data-OUT pin count -- is deliberate: a pin-count-only assertion is exactly the kind of
+    /// check that let the original defect ship (the editor projected the right number of pins while
+    /// the compiler still collapsed them to one underneath), and asserting a single captured value
+    /// could pass even if the carrier's fields were collapsed or silently aliased onto each other.
+    /// Two distinct values landing in two distinct captured variables is the only way to prove the
+    /// fan-out actually ran.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void CallPeerBlueprint_MultiOutputPeerFunction_ReturnsBothValuesAcrossTheAssetBoundary()
+    {
+        var peerAssetId = Guid.NewGuid();
+        var peer   = BuildMultiOutputLibraryPeer(peerAssetId);
+        var caller = BuildMultiOutputCaller(peerAssetId, out var capturedLo, out var capturedHi);
+        var options = MakeOptions(new[] { MakeMultiOutputPeerSignature(peer) });
+
+        using var fixture = new BlueprintTestFixture(
+            new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+
+        // Throws with the Roslyn diagnostics if the generated C# does not compile.
+        fixture.CompileAndLoadMany(new[] { peer, caller }, options);
+
+        var entity = fixture.CreateEntity();
+        fixture.AttachBlueprint(caller, entity);
+        fixture.TickFrame(0.016f);
+
+        int lo = ReadSlotField<int>(fixture, caller, entity, capturedLo.Name);
+        int hi = ReadSlotField<int>(fixture, caller, entity, capturedHi.Name);
+
+        // Two DIFFERENT values proves the fan-out actually happened -- a same-value coincidence
+        // (e.g. both fields defaulting to 0, or both aliasing the SAME carrier field) would slip
+        // past an assertion of only one value.
+        Assert.True(lo == 7 && hi == 99,
+            $"expected Lo=7 and Hi=99 as two DISTINCT values fanned out of the carrier across the " +
+            $"asset boundary, but got Lo={lo}, Hi={hi}. Asserting two different values (rather than " +
+            $"just a pin count, or a single value) is the whole point -- a collapsed or transposed " +
+            $"carrier could still make ONE of these pass.");
+    }
+
+    /// <summary>
+    /// <b>BP-113 — the OTHER projection: <c>Stage0_Rehydrate</c>, not the editor's.</b>
+    /// <para>
+    /// The peer-call pin shape is written down in two places —
+    /// <c>NodePinSchema.CallPeerBlueprintPins</c> (what the editor draws) and
+    /// <c>Stage0_Rehydrate.EnrichCallPeerBlueprintPins</c> (what the compiler reconstructs for an
+    /// asset that persisted no pins). ⚠ <b>Both had to move together, and every other test in this
+    /// file hands the compiler explicit pins — which exercises neither enricher.</b> That is trap #9
+    /// exactly: two halves of one contract, each covered alone, the seam never crossed. It is how
+    /// BP-113 itself shipped.
+    /// </para>
+    /// <para>
+    /// So this caller's <c>CallPeerBlueprintNode</c> carries <b>no pins at all</b>
+    /// (<c>Stage0_Rehydrate</c> only rehydrates a node whose <c>Pins</c> list is empty — <c>:69</c>),
+    /// and its links address the pins by their <b>deterministic</b> GUIDs,
+    /// <c>DeterministicIds.PinId(nodeId, name, direction)</c>. Those GUIDs are derived from the pin
+    /// <i>name</i>, so the links resolve only if Stage 0 reconstructs pins actually named
+    /// <c>Lo</c> and <c>Hi</c>. Were it still projecting a single <c>Return</c>, the two data links
+    /// would bind to nothing and the captured values would not arrive.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void CallPeerBlueprint_MultiOutputPeer_PinsRehydratedByStage0_StillReturnsBothValues()
+    {
+        var peerAssetId = Guid.NewGuid();
+        var peer = BuildMultiOutputLibraryPeer(peerAssetId);
+
+        var capturedLo = new VariableDecl
+        {
+            Id = Guid.NewGuid(), Name = "CapturedLo",
+            Type = new BlueprintTypeRef { TypeId = "System.Int32" }, DefaultValueJson = "0",
+        };
+        var capturedHi = new VariableDecl
+        {
+            Id = Guid.NewGuid(), Name = "CapturedHi",
+            Type = new BlueprintTypeRef { TypeId = "System.Int32" }, DefaultValueJson = "0",
+        };
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        // ⭐ No pins. Stage 0 must project them from the peer signature.
+        var callNode = new CallPeerBlueprintNode
+        {
+            Id              = Guid.NewGuid(),
+            PeerBlueprintId = peerAssetId.ToString(),
+            FunctionRef     = "Split",
+        };
+
+        var setLo      = new SetVariableNode { Id = Guid.NewGuid(), VariableId = capturedLo.Id.ToString() };
+        var setLoIn    = ExecPin("In", "In");
+        var setLoOut   = ExecPin("Out", "Out");
+        var setLoValue = DataPin("Value", "In", "System.Int32");
+        setLo.Pins.AddRange(new[] { setLoIn, setLoOut, setLoValue });
+
+        var setHi      = new SetVariableNode { Id = Guid.NewGuid(), VariableId = capturedHi.Id.ToString() };
+        var setHiIn    = ExecPin("In", "In");
+        var setHiOut   = ExecPin("Out", "Out");
+        var setHiValue = DataPin("Value", "In", "System.Int32");
+        setHi.Pins.AddRange(new[] { setHiIn, setHiOut, setHiValue });
+
+        var ret       = new ReturnNode { Id = Guid.NewGuid() };
+        var retExecIn = ExecPin("ExecIn", "In");
+        ret.Pins.Add(retExecIn);
+
+        // Address the not-yet-existing pins by the GUIDs Stage 0 will deterministically give them.
+        Guid CallPin(string name, string dir) => DeterministicIds.PinId(callNode.Id, name, dir);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Tick",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, callNode, setLo, setHi, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,    FromPinId = entryOut.Id,           ToNodeId = callNode.Id, ToPinId = CallPin("In", "In") },
+                new Link { FromNodeId = callNode.Id, FromPinId = CallPin("Out", "Out"), ToNodeId = setLo.Id,    ToPinId = setLoIn.Id },
+                new Link { FromNodeId = callNode.Id, FromPinId = CallPin("Lo",  "Out"), ToNodeId = setLo.Id,    ToPinId = setLoValue.Id },
+                new Link { FromNodeId = setLo.Id,    FromPinId = setLoOut.Id,           ToNodeId = setHi.Id,    ToPinId = setHiIn.Id },
+                new Link { FromNodeId = callNode.Id, FromPinId = CallPin("Hi",  "Out"), ToNodeId = setHi.Id,    ToPinId = setHiValue.Id },
+                new Link { FromNodeId = setHi.Id,    FromPinId = setHiOut.Id,           ToNodeId = ret.Id,      ToPinId = retExecIn.Id },
+            },
+        };
+
+        var caller = new BlueprintAsset
+        {
+            AssetId       = Guid.NewGuid(),
+            Name          = "CallPeerRehydratedCaller",
+            Dispatch      = BlueprintDispatchKind.Instance,
+            Variables     = { capturedLo, capturedHi },
+            CallablePeers = { peerAssetId },
+            Graphs        = { graph },
+        };
+
+        var options = MakeOptions(new[] { MakeMultiOutputPeerSignature(peer) });
+
+        using var fixture = new BlueprintTestFixture(
+            new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        fixture.CompileAndLoadMany(new[] { peer, caller }, options);
+
+        var entity = fixture.CreateEntity();
+        fixture.AttachBlueprint(caller, entity);
+        fixture.TickFrame(0.016f);
+
+        int lo = ReadSlotField<int>(fixture, caller, entity, capturedLo.Name);
+        int hi = ReadSlotField<int>(fixture, caller, entity, capturedHi.Name);
+
+        Assert.True(lo == 7 && hi == 99,
+            $"expected Lo=7 and Hi=99 from pins reconstructed by Stage0_Rehydrate (the node persisted " +
+            $"none), but got Lo={lo}, Hi={hi}. This is the half of the contract the editor-side tests " +
+            $"cannot reach: if Stage 0 still projected one pin named 'Return', the deterministic " +
+            $"'Lo'/'Hi' link GUIDs would bind to nothing.");
+    }
 }

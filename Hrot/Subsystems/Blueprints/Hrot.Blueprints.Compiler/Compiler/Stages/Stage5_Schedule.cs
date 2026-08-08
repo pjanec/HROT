@@ -1578,7 +1578,37 @@ internal sealed class GraphScheduler
                 if (!Guid.TryParse(cpb.PeerBlueprintId, out var peerId)) break;
                 int peerId32 = BlueprintIdHash.Compute(peerId);
                 var inputVals = ResolveAllDataInputs(node, stmts);
-                var outPin = node.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out");
+                var peerOutPins = node.Pins.Where(p => !p.IsExec && p.Direction == "Out").ToList();
+
+                // BP-113: a peer function declaring N outputs returns a ValueTuple carrier, fanned
+                // out one statement per out-pin -- byte-for-byte what BP-73 does for the same-asset
+                // FunctionCall. Without this the two pin projections would advertise N pins that the
+                // compiler silently collapsed to one: the editor half fixed, the lowering not.
+                var peerFuncSig = _ctx.SiblingSignaturesById.TryGetValue(peerId, out var peerSigForCall)
+                    ? peerSigForCall.ExportedFunctions.FirstOrDefault(
+                        f => string.Equals(f.Name, cpb.FunctionRef, StringComparison.Ordinal))
+                    : null;
+
+                if (peerFuncSig is not null && peerFuncSig.Outputs.Count > 1)
+                {
+                    var peerCarrier = AllocValue(Stage5_Schedule.UnknownType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = peerCarrier,
+                        Operation   = new IrOp_PeerCall(peerId32, cpb.FunctionRef, inputVals,
+                                                        Stage5_Schedule.UnknownType),
+                        Debug       = DebugOf(node),
+                    });
+                    EmitCarrierFanOut(
+                        peerCarrier, peerOutPins,
+                        peerFuncSig.Outputs
+                            .Select(o => new BlueprintTypeRef { TypeId = o.TypeId })
+                            .ToList(),
+                        stmts, node);
+                    break;
+                }
+
+                var outPin = peerOutPins.FirstOrDefault();
                 IrTypeRef retType = outPin is not null && _typed.PinTypes.TryGetValue(outPin.Id, out var t)
                     ? t : Stage5_Schedule.UnknownType;
                 var result = AllocValue(retType);
@@ -2004,17 +2034,29 @@ internal sealed class GraphScheduler
     private void EmitCarrierFanOut(
         IrValue carrier, List<Pin> outPins, Graph targetGraph,
         List<IrStatement> stmts, Node node)
+        => EmitCarrierFanOut(
+            carrier, outPins, targetGraph.Outputs.Select(o => o.Type).ToList(), stmts, node);
+
+    /// <summary>
+    /// BP-113: the same fan-out, driven by a bare list of declared output types rather than a local
+    /// <see cref="Graph"/> — so a <b>cross-asset</b> peer call, whose target is a
+    /// <c>BlueprintFunctionSig</c> in a sibling's signature and not a graph in this asset, lowers
+    /// through the identical path as the same-asset call.
+    /// </summary>
+    private void EmitCarrierFanOut(
+        IrValue carrier, List<Pin> outPins, IReadOnlyList<BlueprintTypeRef> outputTypes,
+        List<IrStatement> stmts, Node node)
     {
-        // Pair pins to outputs POSITIONALLY -- both projections emit one out-pin per Graph.Outputs
-        // entry in declaration order, so index i of each list is the same output. Guard on the
-        // shorter list so a stale asset with fewer pins than the target now declares cannot throw.
-        int n = Math.Min(outPins.Count, targetGraph.Outputs.Count);
+        // Pair pins to outputs POSITIONALLY -- both projections emit one out-pin per declared output
+        // in declaration order, so index i of each list is the same output. Guard on the shorter list
+        // so a stale asset with fewer pins than the target now declares cannot throw.
+        int n = Math.Min(outPins.Count, outputTypes.Count);
         for (int i = 0; i < n; i++)
         {
             var pin = outPins[i];
             var fieldType = _typed.PinTypes.TryGetValue(pin.Id, out var pt)
                 ? pt
-                : _ctx.TypeRegistry.TryResolve(targetGraph.Outputs[i].Type, out var rt)
+                : _ctx.TypeRegistry.TryResolve(outputTypes[i], out var rt)
                     ? rt
                     : Stage5_Schedule.UnknownType;
 

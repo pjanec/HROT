@@ -549,11 +549,26 @@ internal static class NodePinSchema
             pins.Add(MakeData(inp.Name, "In", typeId));
         }
 
-        // Data-OUT: Return pin typed from Outputs[0] (or System.Object when no outputs).
-        var returnTypeId = funcSig.Outputs.Count > 0 && !string.IsNullOrEmpty(funcSig.Outputs[0].TypeId)
-            ? funcSig.Outputs[0].TypeId
-            : "System.Object";
-        pins.Add(MakeData("Return", "Out", returnTypeId));
+        // BP-113: one data-OUT per peer function output, in declaration order — mirroring exactly
+        // what BP-73 did for the same-asset FunctionCall node (FunctionGraphCallPins above).
+        // Stage5 fans the ValueTuple carrier out POSITIONALLY, so the order is load-bearing.
+        //
+        // ⚠ This used to be a single `Return` pin typed from `Outputs[0]`, which made an N-output
+        // function usable locally and unreachable across an asset boundary — the entire purpose of a
+        // Function Library. BP-73 gave N outputs to the same-asset node and never touched this one.
+        if (funcSig.Outputs.Count == 0)
+        {
+            // No declared outputs: keep the historic `Return:System.Object` shape.
+            pins.Add(MakeData("Return", "Out", "System.Object"));
+        }
+        else
+        {
+            foreach (var outp in funcSig.Outputs)
+            {
+                var outTypeId = string.IsNullOrEmpty(outp.TypeId) ? "System.Object" : outp.TypeId;
+                pins.Add(MakeData(outp.Name, "Out", outTypeId));
+            }
+        }
 
         return pins;
     }

@@ -1040,9 +1040,9 @@ public sealed class NodePinSchemaEnrichmentTests
     /// <summary>
     /// CallPeerBlueprint with a stub lookup providing a peer signature with matching
     /// FunctionRef (2 typed inputs + 1 typed output) → exec In/Out + 2 data-IN (names/types/order)
-    /// + Return data-OUT typed from the output.
+    /// + one data-OUT pin per declared output, named after the output.
     /// Grounded in Stage5_Schedule.cs:656-673: ResolveAllDataInputs reads all data-IN pins
-    /// positionally; first data-OUT is the return slot.
+    /// positionally; one data-OUT per declared output.
     /// </summary>
     [Fact]
     public void CallPeerBlueprint_WithLookup_MatchingFunctionRef_ProjectsTypedPins()
@@ -1075,11 +1075,93 @@ public sealed class NodePinSchemaEnrichmentTests
         Assert.Equal("Count",        dataIn[1].Name);
         Assert.Equal("System.Int32",  dataIn[1].TypeId);
 
-        // Single Return data-OUT pin typed from Outputs[0].
+        // BP-113: one data-OUT pin per declared output, named after the output -- NOT the fixed
+        // "Return" name asserted here before the fix. Mirrors what BP-73 already did for the
+        // same-asset FunctionCall node. The old assertion (name=="Return") is exactly the
+        // one-pin-called-Return shape that was the defect: it locked in a projection that only
+        // ever surfaced Outputs[0], so a peer function with >1 output silently lost the rest at
+        // the asset boundary.
+        var dataOut = Data(pins, "Out");
+        var ret = Assert.Single(dataOut);
+        Assert.Equal("Result",        ret.Name);
+        Assert.Equal("System.Double", ret.TypeId);
+    }
+
+    /// <summary>
+    /// BP-113 — a peer function declaring TWO outputs must project TWO data-OUT pins on the
+    /// CallPeerBlueprint node, one per output, in declaration order. Before the fix only
+    /// <c>Outputs[0]</c> was projected: an N-output function exported from a Library was reachable
+    /// from within the SAME asset (BP-73's FunctionCall) but had its outputs collapsed to one the
+    /// moment another blueprint tried to call it across the asset boundary -- defeating the entire
+    /// point of a Function Library, which exists specifically to be called from elsewhere.
+    /// </summary>
+    [Fact]
+    public void CallPeerBlueprint_WithLookup_MultiOutputFunction_ProjectsOneDataOutPerOutput()
+    {
+        var peerId  = Guid.NewGuid();
+        var peerSig = MakePeerSig(
+            peerId,
+            "Split",
+            inputs:  new[] { ("V", "System.Int32") },
+            outputs: new[] { ("Lo", "System.Int32"), ("Hi", "System.Single") });
+
+        var lookup = (Guid id) => id == peerId ? peerSig : null;
+        var node = new CallPeerBlueprintNode
+        {
+            PeerBlueprintId = peerId.ToString(),
+            FunctionRef     = "Split",
+        };
+
+        var pins = NodePinSchema.GetCanonicalPins(node, peerSignatureLookup: lookup);
+
+        Assert.True(HasExec(pins, "In",  "In"),  "exec In missing");
+        Assert.True(HasExec(pins, "Out", "Out"), "exec Out missing");
+
+        var dataIn = Data(pins, "In");
+        var v = Assert.Single(dataIn);
+        Assert.Equal("V", v.Name);
+        Assert.Equal("System.Int32", v.TypeId);
+
+        var dataOut = Data(pins, "Out");
+        Assert.True(dataOut.Length == 2,
+            "an N-output function was previously unreachable across an asset boundary because " +
+            "only Outputs[0] was projected onto the CallPeerBlueprint node -- which is the entire " +
+            $"point of a Function Library existing at all (got {dataOut.Length} data-OUT pins).");
+        Assert.Equal("Lo",           dataOut[0].Name);
+        Assert.Equal("System.Int32", dataOut[0].TypeId);
+        Assert.Equal("Hi",           dataOut[1].Name);
+        Assert.Equal("System.Single", dataOut[1].TypeId);
+    }
+
+    /// <summary>
+    /// BP-113 — a peer function declaring ZERO outputs keeps the historic single
+    /// <c>Return:System.Object</c> data-OUT pin unchanged. This shape predates BP-113 (it is the
+    /// static/no-lookup fallback shape too) and is deliberately NOT touched by the multi-output
+    /// fan-out path, which only engages when the peer signature reports more than one output.
+    /// </summary>
+    [Fact]
+    public void CallPeerBlueprint_WithLookup_ZeroOutputFunction_KeepsHistoricReturnPin()
+    {
+        var peerId  = Guid.NewGuid();
+        var peerSig = MakePeerSig(
+            peerId,
+            "DoIt",
+            inputs:  Array.Empty<(string Name, string TypeId)>(),
+            outputs: Array.Empty<(string Name, string TypeId)>());
+
+        var lookup = (Guid id) => id == peerId ? peerSig : null;
+        var node = new CallPeerBlueprintNode
+        {
+            PeerBlueprintId = peerId.ToString(),
+            FunctionRef     = "DoIt",
+        };
+
+        var pins = NodePinSchema.GetCanonicalPins(node, peerSignatureLookup: lookup);
+
         var dataOut = Data(pins, "Out");
         var ret = Assert.Single(dataOut);
         Assert.Equal("Return",        ret.Name);
-        Assert.Equal("System.Double", ret.TypeId);
+        Assert.Equal("System.Object", ret.TypeId);
     }
 
     /// <summary>
