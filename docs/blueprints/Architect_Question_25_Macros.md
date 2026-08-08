@@ -235,6 +235,76 @@ or its failure mode *louder*.
 | **Q25-D** — multiple exec pins | **D3** — one exec-in, **N ≥ 0** exec-out | Lean confirmed, cost revised **down** (verification #6). Extended from the question's D3 per the round-out rule: N ≥ 0 rather than N ≥ 1 makes a zero-exec macro fall out for free, which *is* option **A3** (pure-data macro) as a subset of A1 rather than an alternative to it. Multi-**entry** (D1) stays out: `Stage5:204-208` states the merge machinery is deliberately **not** applied at Sequence-branch or When-arm roots, so a body entered from two places is not uniformly safe. D3 → D1 remains additive with no asset migration. |
 | **Q25-E** — guard rails | All four kept; **two added**, one dropped as already-handled | See the table below. |
 
+### 🔗 Consistency with Functions and `Dispatch: Library` (added 2026-08-08)
+
+Raised by the user: *"include also the macros perspective; the solution should be consistent."*
+Prompted by the [BP-92](Blueprint_Issues_Detail.md#bp-92) finding that **function-only blueprints
+already exist** — `BlueprintDispatchKind.Library` is real end-to-end and merely uncreatable from the
+editor.
+
+#### ⚠ First, a correction to my own remark
+
+On finding Library dispatch I said Q25-C's "cross-asset macros are expensive" reasoning was *"weaker
+than it looked"*. **That was wrong, and backwards.** The two cases are not the same mechanism:
+
+| | Function library | Macro library |
+|---|---|---|
+| Consumer needs from it | **signature** only | **the body**, to inline |
+| The library asset itself emits | real `static` methods | **nothing** |
+| Editing it forces consumer rebuilds | no — signature-compatible changes are free | **always** |
+| Latent nodes inside | ❌ forbidden (`BP1650`, `BP9001`) | ✅ the entire point |
+
+`Dispatch: Library` works precisely *because* a caller only needs a signature — which is what
+`BlueprintSignature` already carries and `CallPeerBlueprint` already uses. **Cross-asset macros still
+need bodies, and that dependency is untouched by any of this.** Q25-C1 (asset-local now) stands
+unchanged, and on firmer ground than before.
+
+#### Unreal does exactly this split — and for our reason
+
+The Unreal docs state it in the same terms this question derived from code: *"you can place latent nodes
+in a macro, but not in a function… macros are auto-expanded into graphs as if they were a collapsed node
+during compiling."* That is `BP1650` and Q25's ⭐ section, independently confirmed. Unreal also scopes a
+Macro Library by a **parent class**, so its macros only appear in the context menu of Blueprints of that
+class or below — a scoping idea worth stealing later, and orthogonal to everything here.
+
+#### The consistent model — two independent axes
+
+Unreal has both, and so do we; they should not be conflated:
+
+| Axis | Values | Chosen |
+|---|---|---|
+| **Asset dispatch** — what the asset *is* | `Instance` · `AiPrimitive` · `Library` · *(future)* `MacroLibrary` | at **create** time |
+| **Graph kind** — what a graph *inside* it is | `Function` · `Event` · `Construction` · **`Macro`** (Q25-A1) | per graph |
+
+⇒ **Macros are a graph kind, not an asset kind** — exactly as Q25-A1 decided. Any asset may hold them,
+which is Unreal's model too (any Blueprint can declare both Functions and Macros). A *Macro Library* is
+then simply "an asset whose graphs are all macros", i.e. the deferred Q25-C2 — and it remains deferred
+for the body-dependency reason above, not for lack of a place to put it.
+
+**What this obliges us to do now:** [BP-92](Blueprint_Issues_Detail.md#bp-92)'s create-time dispatch
+picker must be built as an **extensible list**, not an Instance/Library toggle, so a fourth option slots
+in without a data migration.
+
+#### ⚠ Three forward-compat hazards in code, all cheap now and expensive later
+
+Found while checking this; **BP-79 is the very next item to build, so hazard 1 matters immediately.**
+
+1. **`BP-79`'s own fail-loud guard would reject a macro library.** BP-79 makes any `GraphKind.Macro`
+   reaching Stage 5 an error — correct for an asset that *consumes* macros, since expansion should have
+   removed them. But a library asset that only *declares* macros has no call sites, so its macro graphs
+   legitimately reach Stage 5 unexpanded. ⇒ **phrase the guard as "a macro graph reached Stage 5 *as a
+   compilation target*"**, and make a declared-but-uncalled macro **skipped**, not an error. Getting the
+   wording right costs nothing today.
+2. **`BP9001_InternalLibraryLatent`** (`LibraryLowering.cs:11-17`) scans **every graph** of a Library
+   asset for latent ops. A macro is *allowed* to be latent, so once macros can live in a library this
+   must narrow to *"latent in a **Function** graph of a Library"*.
+3. **`BP5001_LibraryHasNoFunctions`** (`:20-24`) errors when a Library has no `Function` graph. A
+   macro-only library trips it. Must become "no Function **and** no Macro graphs".
+
+⇒ Add hazards 2–3 to [BP-82](Blueprint_Issues_Detail.md#bp-82)'s rail list as *forward-compat only*
+(no behaviour change until C2 lands), and fold hazard 1 into
+[BP-79](Blueprint_Issues_Detail.md#bp-79)'s wording.
+
 ### Q25-E — final guard rails
 
 | Rule | Status | Detail |
