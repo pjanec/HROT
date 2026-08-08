@@ -2025,10 +2025,47 @@ noise and the diff is near-unreviewable.
 - Combined with the reformat, an unwanted semantic edit is **easy to miss in review**.
 - It defeats the whole "try it and discard" workflow — there is no safe way to explore an asset.
 
-**Investigate:** what triggers the write — asset close, perspective/document switch, application exit,
-or a timer? Is it `AiDocumentManager` / `saveDocument`, or an autosave elsewhere? Decide the intended
-policy (explicit Save only, with a dirty marker + prompt on close, is the conventional answer) and make
-the serializer **round-trip-stable** so any legitimate save produces a minimal diff.
+#### ✅ Trigger identified (2026-08-08, cloud session) — **a 500 ms debounce timer**
+
+It is **not** close, exit, or a perspective switch. It is
+**`RegenerationScheduler`** (`Hrot.Editor.AiShared/Emit/RegenerationScheduler.cs`), wired at
+`EditorSubsystem.cs:3312` and ticked once per frame from `EditorSubsystem.cs:1628`:
+
+- Any edit calls `Schedule(asset)`; the debounce window **resets from the last edit**.
+- `DebounceTicks` defaults to **500 ms**.
+- When it elapses, `flushAction` fires. For BTree/HSM (`EditorSubsystem.cs:3325-3345`) that is
+  `mapper.ToDto → JsonServices.Serialize → JsonAestheticFormatter.FlattenNumericArrays →
+  AtomicFileWriter.Write(path, …)` — **a real write to the asset's own `SourceFilePath`.**
+
+⇒ **Every BTree/HSM asset is written to disk half a second after you stop typing, with no Save
+anywhere in the path.** `AiGraphCanvasWindow.cs:558`'s claim that close-save is *"the ONLY write"* is
+true of that window and false of the application.
+
+**The asymmetry is the smoking gun, and it is documented in the code itself.** In the same
+`flushAction`:
+
+| Kind | Behaviour |
+|---|---|
+| **Blueprint** | Guarded by `_blueprintAutoReloadOnEdit`, **default `false`** — *"BF-UX1 FIX A: only auto-recompile when the opt-in flag is set… The user triggers compilation via the Quick Reload / Full Rebuild toolbar buttons."* |
+| **BTree / HSM** | **No guard at all** — writes unconditionally |
+
+Blueprints were given an explicit opt-in for auto-*recompile*; BTree/HSM auto-*write* never got one.
+That is exactly why the user's blueprint work stayed clean while `.btree.json` and `.hsm.json` were
+modified underneath them.
+
+⚠ **It also exceeds its own documented scope.** The comment at `EditorSubsystem.cs:3323-3324` states
+*"SampleScout.btree.json / SampleGuard.hsm.json are the only two editor-owned assets"* — but the flush
+is keyed off `asset.SourceFilePath` with no ownership check, so it wrote
+**`PlatoonHillAttack2.btree.json`**, a hand-authored production asset that is *not* one of the two.
+
+⇒ **The reformatting is not a separate bug**: every flush is a full `ToDto → Serialize` round-trip, so
+the file is rewritten wholesale from the DTO each time. That is also the mechanism behind
+[BP-94](#bp-94) — same round-trip, same 500 ms cadence.
+
+**Decide the policy** (explicit Save only, with a dirty marker + prompt on close, is the conventional
+answer). The narrowest immediate mitigation mirroring the existing Blueprint precedent is to put the
+BTree/HSM JSON write behind the same kind of opt-in flag, defaulted off — but note that the scheduler's
+*other* job (debounced regeneration) is legitimate, so **do not simply disable the scheduler**.
 
 ⚠ See [BP-94](#bp-94) — the same round-trip *also* changes values the user never touched, which is a
 separate and arguably worse defect.
@@ -2050,19 +2087,55 @@ The `state` variable was not edited at all — only an unrelated variable was ad
 HillAssault2 integration depends on (see [BP-83](#bp-83) and the tree-integration work), so silently
 turning `false` into "unspecified" is not cosmetic.
 
-**Two candidate causes, both worth checking:**
-1. The writer **omits default-valued properties** (`false` → omitted), and the reader then defaults the
-   absent key to something other than `false` — a classic asymmetric-default round-trip bug.
-2. `Blackboard.Managed` is **inferred on save** from whether variables exist, rather than round-tripped
-   — which would flip it the moment any variable is added.
+#### ⚠ Both fields traced (2026-08-08, cloud session) — **this entry largely dissolves into BP-93**
 
-⚠ Cause 2 may be *intended* behaviour (adding a managed variable arguably implies `Managed: true`); the
-user adding `halo1` is a plausible trigger. **Confirm before treating it as a bug** — but
-`IsAutoManaged` has no such excuse.
+**1. `IsAutoManaged` `false` → absent is NOT a bug — it is by design and value-preserving.**
 
-**Test to add regardless:** load every shipped `.btree.json` / `.hsm.json` / `.bp.json`, save it
-untouched, and assert the parsed result is **deeply equal** to the original. That single test would
-have caught both fields, and is the durable guard for [BP-93](#bp-93)'s reformatting too.
+`BehaviorTreeAssetDto.cs:38-40`:
+
+```csharp
+/// Omitted from JSON when false (default) for backwards compatibility.
+[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+public bool IsAutoManaged { get; set; }
+```
+
+The omission is deliberate and documented, and **absent deserializes back to `false`** — the DTO's own
+default. So `false → omitted → false` round-trips correctly. Both mappers are symmetric too
+(`BehaviorTreeAssetMapper:407,425`; `HsmAssetMapper:430,447`), and neither `BTreeJsonServices` nor
+`HsmJsonServices` sets a global `DefaultIgnoreCondition`.
+
+⇒ **This entry's claim that *"'false' → 'unspecified' is not cosmetic"* was wrong.** Absent *is*
+`false`, by the schema's stated contract. What changed is the file's *text*, not its *meaning* — the
+original file simply carried an explicit `false` that this serializer no longer writes. The
+shared-state wiring is unaffected.
+
+**2. `Managed` `false` → `true` is a real value change, and it is intended.**
+
+`BTreeCommandSink.cs:231` and `:276` set `_asset.IsBlackboardEditorManaged = true` on the
+add/promote-variable paths (right beside the `IsAutoManaged: true` calls). The flag means *"the editor
+manages this blackboard"*, so adding `halo1` legitimately flips it. Candidate 2 as originally written —
+*"inferred on save from whether variables exist"* — is **not** the mechanism; it is set at edit time by
+the command, then round-tripped faithfully.
+
+⇒ **The value change is correct. The defect is that the edit was persisted at all** — which is
+[BP-93](#bp-93), not a separate serializer bug.
+
+#### What actually remains here
+
+| Was claimed | Verdict |
+|---|---|
+| `IsAutoManaged` silently dropped | ❌ **Not a defect** — documented `WhenWritingDefault` omission; absent ≡ `false` |
+| `Managed` flipped by the writer | ❌ **Not a defect** — set by the add-variable command, round-tripped correctly |
+| Round-trip is not value-preserving | ❌ **Refuted** — on these two fields it is |
+| **Wholesale reformatting** (compact → expanded) | ✅ **Real** — `WriteIndented = false` + `JsonAestheticFormatter` produce a different layout from the hand-authored files, so any write rewrites ~160 lines and buries the real change |
+
+**Still worth doing, for the reformatting alone:** load every shipped `.btree.json` / `.hsm.json` /
+`.bp.json`, save untouched, and assert the parsed result is **deeply equal** to the original — deep
+equality, *not* textual, so it passes on the by-design omissions above while still catching a genuine
+value change. Pair it with a **byte**-stability test only if the layout is made canonical first.
+
+⇒ **Severity downgraded from 🔴 to a diff-hygiene item.** The alarming half of the original report was
+[BP-93](#bp-93) all along: the writes should not have happened.
 
 ---
 
