@@ -2244,6 +2244,130 @@ it is why nobody hits this problem there.
 > **T1–T7 are now performable.** They remain *unperformed* — this unblocks the visual check, it is
 > not the visual check.
 
+<a id="bp-103"></a>
+### BP-103 — A blank-template blueprint has **zero graphs**: crashes on open, breaks the build 🔴
+**Complexity:** RW-L · **Confidence:** ✔✔✔ *(user-reproduced; cause read from source)*
+
+> User: creating a Function Library `FuncLib1` threw
+> **`Blueprint asset 'FuncLib1' has no graphs`**, and the resulting file makes the editor fail to compile.
+
+**Cause, in two lines.** `BlueprintNewAssetService.MakeEmptyBlueprint` synthesises an asset with **no
+`Graphs` at all** — and nothing adds one afterwards. `BlueprintDocumentFactory:138` then does:
+
+```csharp
+var graph = ResolveInitialGraph(bpAsset)
+         ?? throw new InvalidOperationException($"Blueprint asset '{bpAsset.Name}' has no graphs.");
+```
+
+`ResolveInitialGraph:1605` is `Graphs.FirstOrDefault(…) ?? Graphs.FirstOrDefault()` — null for an empty
+list.
+
+#### ⚠ Pre-existing, not a BP-92 regression
+
+Verified against `8fbe18dd`: the **old `Empty` template had the identical hole**. "New Blueprint → Empty"
+has always produced a graph-less asset. BP-92 did not create the bug — it added a *second door* to it,
+and the user walked through the new one. (The old door was presumably never opened.)
+
+#### ⚠⚠ The worse half: it breaks the solution build
+
+The asset is written to disk before it is opened, so the crash leaves a **persistent** file. An empty
+`Library` then fails compile with **BP5001** — and the blueprint compile is an **MSBuild step of
+`Hrot.AI.Behaviors`**, so `dotnet build` of the whole solution fails until the file is deleted.
+
+⇒ **The editor now offers a create path that bricks the build.** Same shape as the untracked
+`SquadState1` problem recorded in [BP-87](#bp-87).
+
+#### Fix
+
+**Seed a starter graph per blank template** — one more field on the `BlankTemplateRow` table BP-92
+introduced:
+
+| Template | Seed |
+|---|---|
+| `Empty` (Instance) | an Event/Tick graph |
+| `Function Library` (Library) | a `NewFunction` Function graph |
+
+That fixes the crash **and** removes the immediate-BP5001 surprise, since a seeded library is valid the
+moment it is created. ⚠ It also means [BP-88](#bp-88) ("no route to an Event graph") is partly answered
+for new assets — but not for existing ones, so BP-88 stands.
+
+<a id="bp-104"></a>
+### BP-104 — SUSPECTED: a `Library` function's declared outputs are **ignored** 🔴
+**Complexity:** RW-M · **Confidence:** ⚠ *suspected from source — NOT reproduced. Confirm before fixing.*
+
+`Stage5.BuildReturnTerminator:1907-1913`:
+
+```csharp
+if (_typed.Asset.Dispatch == AssetDispatchKind.AiPrimitive
+    || _typed.Asset.Dispatch == AssetDispatchKind.Library)
+{
+    // AiPrimitive returns a NodeStatus.
+    return new IrTerm_ReturnStatus(rn.Status) { Debug = DebugOf(rn) };
+}
+// Function graph: return the data value wired into the Return node's value pin …
+```
+
+**Library takes the `AiPrimitive` branch**, so the graph's `Outputs` are never read — but
+`LibraryEmitter.CSharpReturnType` declares the method's return type **from `graph.Outputs`**:
+
+```csharp
+0 => hasStatusReturn ? "global::Fbt.NodeStatus" : "void",
+1 => CSharpType(graph.Outputs[0].Type),
+```
+
+⇒ A Library function with one `float` output should be emitted as `static float` whose body does
+`return NodeStatus.Success;`. That cannot compile.
+
+#### ⚠ Why nothing caught it — trap #9, again
+
+| Test | Library dispatch? | Runs Roslyn? |
+|---|---|---|
+| `LibraryAdapter_WritesOutputsSequentially_NotAsABlittedTuple` | ✅ yes, 2 outputs | ❌ **no** — uses `CompileOk`, which asserts `Compile(...).Succeeded`, and that **does not run the C# compiler** |
+| `MultiOutput_PassesRoslyn_EndToEnd` | ❌ no (default Instance) | ✅ yes |
+
+**No test compiles a Library-with-outputs through Roslyn.** Both halves are covered; the seam is not —
+the exact shape that let BP-71 survive 2788 tests.
+
+#### Reproduce first
+
+In the new Function Library, add an output to a function and compile. If it errors, this is confirmed.
+**Then** the real question is whether `Library` belongs in that branch at all, or was lumped in with
+`AiPrimitive` when the branch was written — `LibraryMath.bp.json` has **zero** outputs, so no shipped
+asset would ever have exposed it.
+
+<a id="bp-105"></a>
+### BP-105 — `Status` and `Outputs` are mutually exclusive by dispatch; the panel shows both
+**Complexity:** RW-M · **Confidence:** ✔✔
+
+> User: *"Status offers an editable combo; but what is the purpose of it? Shouldn't this be an input
+> data pin?"*
+
+A fair question with an uncomfortable answer. `BuildReturnTerminator` picks exactly **one** of the two:
+
+| Asset dispatch | Return node uses | Ignores |
+|---|---|---|
+| `Instance` | the declared **Outputs** | **`Status`** |
+| `AiPrimitive` · `Library` | **`Status`** | the **Outputs** (see [BP-104](#bp-104)) |
+
+⇒ On the Instance function graph the user was looking at, the `Status` combo [BP-89](#bp-89) added is a
+**live control that does nothing**. That is trap #5 in a new costume — and BP-89 introduced it while
+fixing a different instance of the same family, which is worth noting rather than glossing.
+
+**Fix (UI, cheap):** render only the half that applies to the asset's dispatch, and say which it is.
+The drawer already resolves the containing graph, so the asset's dispatch is in reach.
+
+#### 📐 The design question underneath
+
+`Status` is **baked at author time** into the IR terminator — it is a compile-time constant. So a
+behaviour-tree primitive can only ever return a **fixed** status from a given Return node; expressing
+`Running`, which is inherently a runtime decision, requires a separate branch and Return node per
+outcome.
+
+**The user's instinct that it should be a data-in pin is exactly right for that case** — a wired
+`Status` pin would let the primitive compute its own result. That is a real change to the AiPrimitive
+contract, so it wants an architect view rather than a quiet fix. ⚠ Note this is **ours, not Unreal's** —
+Unreal has no equivalent, so the parity yardstick does not apply here.
+
 <a id="bp-102"></a>
 ### BP-102 — Graph Signature window edits are still not undoable
 **Complexity:** RW-L · **Confidence:** ✔✔✔ *(declared by the Batch-20 session, confirmed by the coordinator)*
