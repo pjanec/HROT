@@ -161,8 +161,13 @@ and it is still the programme's largest outstanding risk.**
 
 📋 **Coordinated batches (from 2026-08-08).** A coordinator session owns the tracker and writes
 handoffs; implementation sessions build. **Last handoff — DELIVERED (Batch 20):**
-[HANDOFF_Batch20_Dispatch_And_Outputs.md](HANDOFF_Batch20_Dispatch_And_Outputs.md) — **BP-92** then
-**BP-89**, steps 1–2 of the [functions/macros UX plan](Blueprint_Functions_Macros_UX_Plan.md).
+[HANDOFF_Batch21_Fix_Empty_Asset_And_Library_Returns.md](HANDOFF_Batch21_Fix_Empty_Asset_And_Library_Returns.md)
+— **BP-103** 🔴 (a blank-template asset has zero graphs: crashes on open **and breaks the solution
+build**) · **BP-104** 🔴 (suspected: a Library function's outputs are ignored) · **BP-105** (the Return
+panel shows an inert control). All three came from the user at the UI *after* Batch 20's gates were
+green — ⚠ **`BP-92` is REOPENED** until a new Library opens without throwing.
+*(Previous: [Batch 20](HANDOFF_Batch20_Dispatch_And_Outputs.md) — BP-92 + BP-89, steps 1–2 of the
+[functions/macros UX plan](Blueprint_Functions_Macros_UX_Plan.md).)*
 **Next in that plan: step 3** — [BP-85](Blueprint_Issues_Detail.md#bp-85) breadcrumb + **BP-100**
 kind icons, then **BP-101** F2 rename, then **BP-88** Graphs `+` (now honest, since step 1 landed).
 ⚡ Every handoff carries the **Sonnet-delegation rule** — see *Working agreement → Coordinator /
