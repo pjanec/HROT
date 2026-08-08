@@ -2135,6 +2135,82 @@ untracked and was left in place.
 > [BP-89](#bp-89). If an action is reachable *only* by double-clicking an unmarked row, users do not
 > find it. Check for this before adding any new list interaction.
 
+#### ⏳ PARTIALLY FIXED — Batch 23 (items 1–5; item 6 deliberately left)
+
+| Item | |
+|---|---|
+| 1 · `FixedString32/64` offered | ✅ registered as bare aliases, for symmetry with the vectors |
+| 2 · bare vector aliases → FQN | ✅ `Vector2/3/4`, `Quaternion` |
+| 3 · unsigned aliases registered | ✅ `sbyte ushort uint ulong` |
+| 4 · unsigned coercions | ✅ **shipped with 3, never after it** — see below |
+| 5 · derive the list from the registry | ✅ the durable half |
+| 6 · `System.String` as a *variable* | ⏸ ⚖️ **out of scope by coordinator decision D3** — row stays open |
+
+##### ⚠ The AiShared trap, avoided
+
+The obvious home for the list — `BlackboardTypeHelper.DefaultKnownTypeNames` — is **shared by three
+editors**: blueprints (`ParameterRowsView`), behaviour trees (`BehaviorTreeAssetMapper:453`), HSM
+(`HsmAssetMapper:473`) and the shared Add-Variable dropdown (`BlackboardTypeChoiceBuilder:46`).
+Widening it would have changed the BTree and HSM pickers to fix a blueprint-only defect.
+
+⇒ The list is now **blueprint-local** (`BlueprintTypeChoices`) and `Hrot.Editor.AiShared` is untouched.
+Confirmed by the gates: **AiShared stayed at 1213/0**.
+
+##### ⭐ Item 5 — what actually kills the drift
+
+`BlueprintTypeChoices.TypeIds` is a **projection** of `StaticTypeRegistry.EditorOfferableTypeIds`, which
+sits in the same file as the type table and the coercion table it must agree with. A second
+hand-maintained array is how BP-87 happened; `BP87_TypePickerTests.OfferedTypes_AllResolve` is what stops
+it coming back — the picker can no longer offer a type the compiler cannot resolve without a red test.
+
+##### ⚠ Item 4 was not optional, and the revert proves it
+
+The coercion table now states **C#'s own implicit-numeric-conversion ladder** (minus `decimal`, which the
+registry does not carry): 35 rungs, **widening only**. No `Int32→UInt32` or `Int64→Int32` — C# itself
+demands a cast for those, and a silent lossy coercion inside a visual graph is a wrong-values bug the
+designer cannot see. `CoercionTable_MatchesCSharpsImplicitNumericConversions_Exactly` asserts the match
+in **both** directions, so a missing rung and a smuggled-in narrowing rung are equally red.
+
+**Revert-goes-red, both halves independently:**
+
+| Reverted | Result |
+|---|---|
+| the new aliases | **13 of 14** red |
+| the new coercion rungs (back to the original 8, all signed) | **2 of 14** red, naming **27 unwireable pairs** |
+
+That second row is the failure mode item 4 exists to prevent, made concrete: with the aliases registered
+and the rungs missing, `ushort`/`uint` *resolve* and cannot be *wired* — later and less legible than the
+BP1500 they replaced, exactly as the handoff predicted.
+
+<a id="bp-114"></a>
+### BP-114 — the parameter Type combo displays the wrong type for any asset storing a fully-qualified `TypeId`
+**Complexity:** RW-L · **Confidence:** ✔✔✔ *(read from source; reachable with shipped assets)*
+
+`ParameterRowsView` resolves the combo's selected index by **exact string match**:
+
+```csharp
+var currentIdx = Enumerable.Range(0, typeNames.Count)
+    .FirstOrDefault(j => typeNames[j] == typeId, -1);
+if (currentIdx < 0) currentIdx = 0;
+```
+
+The offered list holds **aliases** (`int`), but many shipped assets store the **canonical FQN**
+(`System.Int32` — `SmokeMathLib`, `LibraryFunctionsDemo`, most `Assets/Blueprints` entries). Neither
+spelling matches the other, so the fallback fires and the combo displays **`bool`** for an `int`
+parameter.
+
+⚠ Mis-display only — `RetypeParameter` runs on an actual combo *change*, so nothing is rewritten on open.
+But the designer is shown a lie, and "correcting" the visibly-wrong entry silently retypes the parameter
+for real.
+
+**Fix:** match on the *resolved* `IrTypeRef.FullName` instead of the raw string, so `int` and
+`System.Int32` collapse to the same entry. `StaticTypeRegistry` is already reachable from the editor
+(BP-87 item 5), so this needs no new plumbing.
+
+⚠ **Pre-existing — not introduced by BP-87.** The same exact-match logic was there when the list lived in
+`Hrot.Editor.AiShared`; BP-87 only made it visible by putting a correct list in front of it.
+*— found while fixing BP-87, Batch 23*
+
 <a id="bp-88"></a>
 ### BP-88 — An Instance blueprint can contain **no Event graph, and none can be created**
 **Complexity:** RW-L · **Confidence:** ✔✔✔ *(grounded in the asset JSON)*

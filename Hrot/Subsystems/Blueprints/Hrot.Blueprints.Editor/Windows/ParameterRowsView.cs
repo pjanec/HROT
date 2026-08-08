@@ -1,6 +1,5 @@
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.Variables;
-using Hrot.Editor.AiShared.Blackboard;
 
 namespace Hrot.Blueprints.Editor.Windows;
 
@@ -58,7 +57,7 @@ public static class ParameterRowsView
 
                 // ── Type column ───────────────────────────────────────────────
                 ImGuiNET.ImGui.TableSetColumnIndex(1);
-                var typeNames  = BlackboardTypeHelper.DefaultKnownTypeNames;
+                var typeNames  = BlueprintTypeChoices.TypeIds;
                 var typeId     = param.Type?.TypeId ?? "";
                 var currentIdx = Enumerable.Range(0, typeNames.Count)
                     .FirstOrDefault(j => typeNames[j] == typeId, -1);
@@ -90,7 +89,7 @@ public static class ParameterRowsView
         // ── "+ Add" row ───────────────────────────────────────────────────────
         if (ImGuiNET.ImGui.Button($"+##{tableId}_add"))
         {
-            var defaultType = BlackboardTypeHelper.DefaultKnownTypeNames[0];
+            var defaultType = BlueprintTypeChoices.DefaultTypeId;
             model.AddParameter($"Param{model.Parameters.Count}", defaultType);
         }
     }

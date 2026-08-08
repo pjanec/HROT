@@ -79,27 +79,129 @@ public sealed class StaticTypeRegistry : ITypeRegistry
             // ushort + MemberSlotList (96, 8-aligned) + long + int + float + byte -> 8-aligned = 136.
             ["Hrot.AI.Behaviors.Brains.HillAttackSharedState"] = Unmanaged("Hrot.AI.Behaviors.Brains.HillAttackSharedState", 136),
 
-            // Common aliases used in test assets
+            // Common aliases used in test assets -- and, since BP-87, the exact strings the editor's
+            // type picker writes into an asset. Every alias here maps to the CANONICAL FullName, so
+            // the coercion table below (keyed on FullName) sees `uint` and `System.UInt32` alike.
             ["bool"]   = Unmanaged("System.Boolean", 1),
             ["byte"]   = Unmanaged("System.Byte",    1),
+            ["sbyte"]  = Unmanaged("System.SByte",   1),
             ["short"]  = Unmanaged("System.Int16",   2),
+            ["ushort"] = Unmanaged("System.UInt16",  2),
             ["int"]    = Unmanaged("System.Int32",   4),
+            ["uint"]   = Unmanaged("System.UInt32",  4),
             ["long"]   = Unmanaged("System.Int64",   8),
+            ["ulong"]  = Unmanaged("System.UInt64",  8),
             ["float"]  = Unmanaged("System.Single",  4),
             ["double"] = Unmanaged("System.Double",  8),
+
+            // BP-87: the vector types were registered under their FQN only, so the bare name the
+            // picker offered ("Vector3") failed to resolve -- BP1500 on an asset the editor itself
+            // produced.
+            ["Vector2"]    = Unmanaged("System.Numerics.Vector2",    8),
+            ["Vector3"]    = Unmanaged("System.Numerics.Vector3",    12),
+            ["Vector4"]    = Unmanaged("System.Numerics.Vector4",    16),
+            ["Quaternion"] = Unmanaged("System.Numerics.Quaternion", 16),
+
+            // BP-87: the blittable fixed-length strings the user asked to be able to pick. Bare
+            // aliases for symmetry with the vectors above.
+            ["FixedString32"] = Unmanaged("Fdp.Core.FixedString32", 32),
+            ["FixedString64"] = Unmanaged("Fdp.Core.FixedString64", 64),
         };
 
+    /// <summary>
+    /// BP-87: the type IDs a blueprint editor may offer in a parameter/variable type picker.
+    ///
+    /// <para>
+    /// ⚠ <b>Every entry MUST be a key of <see cref="TypeTable"/> above</b>, and any numeric pair the
+    /// designer can plausibly wire together must have a rung in <see cref="CoercionTable"/> below.
+    /// Both are locked by <c>BP87_TypePickerTests</c>. This list lives here, beside the two tables it
+    /// depends on, precisely so the drift that caused BP-87 is visible in one file: the picker used to
+    /// be a hand-maintained array in <c>Hrot.Editor.AiShared</c> that offered <b>eight types the
+    /// compiler could not resolve</b> (<c>sbyte ushort uint ulong</c> unregistered under any name;
+    /// <c>Vector2/3/4 Quaternion</c> registered under their FQN only).
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ Deliberately <b>not</b> just <c>TypeTable.Keys</c>: that table also carries curated project
+    /// structs (<c>MemberSlotList</c>, <c>WaveState</c>, …), the managed <c>System.String</c>/
+    /// <c>System.Object</c>, and every FQN spelling of the aliases — none of which belong in a picker.
+    /// </para>
+    /// </summary>
+    public static readonly IReadOnlyList<string> EditorOfferableTypeIds = new[]
+    {
+        "bool", "byte", "sbyte", "short", "ushort", "int", "uint", "long", "ulong",
+        "float", "double",
+        "Vector2", "Vector3", "Vector4", "Quaternion",
+        "FixedString32", "FixedString64",
+    };
+
     // Coercion table: (fromFullName, toFullName) --> C# expression template
+    //
+    // BP-87 item 4: this is C#'s own implicit-numeric-conversion table (minus `decimal`, which the
+    // registry does not carry), and nothing more. Widening only -- there is deliberately no
+    // Int32->UInt32 or Int64->Int32 rung, because C# itself demands an explicit cast for those and a
+    // silent lossy coercion in a visual graph is a wrong-VALUES bug the designer cannot see.
+    //
+    // ⚠ Why the unsigned rungs are not optional. Before BP-87 this table had exactly eight entries
+    // and EVERY ONE was signed: registering `uint`/`ushort` as pickable types without them would have
+    // produced types that RESOLVE but cannot be WIRED -- a worse failure than the BP1500 they replace,
+    // because it surfaces later and reads as an editor glitch rather than a type error. The user's
+    // condition for keeping the unsigned types was explicit: "as long as it can be seamlessly
+    // converted to ints (wiring possible between uint <-> ushort <-> int pins)".
     private static readonly IReadOnlyDictionary<(string From, string To), string> CoercionTable =
         new Dictionary<(string, string), string>
         {
+            // sbyte -> short, int, long, float, double
+            { ("System.SByte",  "System.Int16"),  "(short)$expr"  },
+            { ("System.SByte",  "System.Int32"),  "(int)$expr"    },
+            { ("System.SByte",  "System.Int64"),  "(long)$expr"   },
+            { ("System.SByte",  "System.Single"), "(float)$expr"  },
+            { ("System.SByte",  "System.Double"), "(double)$expr" },
+
+            // byte -> short, ushort, int, uint, long, ulong, float, double
+            { ("System.Byte",   "System.Int16"),  "(short)$expr"  },
+            { ("System.Byte",   "System.UInt16"), "(ushort)$expr" },
             { ("System.Byte",   "System.Int32"),  "(int)$expr"    },
+            { ("System.Byte",   "System.UInt32"), "(uint)$expr"   },
+            { ("System.Byte",   "System.Int64"),  "(long)$expr"   },
+            { ("System.Byte",   "System.UInt64"), "(ulong)$expr"  },
             { ("System.Byte",   "System.Single"), "(float)$expr"  },
+            { ("System.Byte",   "System.Double"), "(double)$expr" },
+
+            // short -> int, long, float, double
             { ("System.Int16",  "System.Int32"),  "(int)$expr"    },
+            { ("System.Int16",  "System.Int64"),  "(long)$expr"   },
             { ("System.Int16",  "System.Single"), "(float)$expr"  },
+            { ("System.Int16",  "System.Double"), "(double)$expr" },
+
+            // ushort -> int, uint, long, ulong, float, double
+            { ("System.UInt16", "System.Int32"),  "(int)$expr"    },
+            { ("System.UInt16", "System.UInt32"), "(uint)$expr"   },
+            { ("System.UInt16", "System.Int64"),  "(long)$expr"   },
+            { ("System.UInt16", "System.UInt64"), "(ulong)$expr"  },
+            { ("System.UInt16", "System.Single"), "(float)$expr"  },
+            { ("System.UInt16", "System.Double"), "(double)$expr" },
+
+            // int -> long, float, double
             { ("System.Int32",  "System.Int64"),  "(long)$expr"   },
             { ("System.Int32",  "System.Single"), "(float)$expr"  },
             { ("System.Int32",  "System.Double"), "(double)$expr" },
+
+            // uint -> long, ulong, float, double
+            { ("System.UInt32", "System.Int64"),  "(long)$expr"   },
+            { ("System.UInt32", "System.UInt64"), "(ulong)$expr"  },
+            { ("System.UInt32", "System.Single"), "(float)$expr"  },
+            { ("System.UInt32", "System.Double"), "(double)$expr" },
+
+            // long -> float, double  (implicit in C# despite the precision loss)
+            { ("System.Int64",  "System.Single"), "(float)$expr"  },
+            { ("System.Int64",  "System.Double"), "(double)$expr" },
+
+            // ulong -> float, double  (likewise)
+            { ("System.UInt64", "System.Single"), "(float)$expr"  },
+            { ("System.UInt64", "System.Double"), "(double)$expr" },
+
+            // float -> double
             { ("System.Single", "System.Double"), "(double)$expr" },
         };
 
