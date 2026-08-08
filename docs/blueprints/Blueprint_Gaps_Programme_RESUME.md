@@ -152,6 +152,13 @@ programme's largest unverified item.
 > was built and gated with that file temporarily moved aside; it is untracked and was left in place.
 > **Needs an architect call on scope before fixing** — see the item.
 
+📋 **Coordinated batches (from 2026-08-08).** A coordinator session owns the tracker and writes
+handoffs; implementation sessions build. **Current handoff:**
+[HANDOFF_Batch20_Dispatch_And_Outputs.md](HANDOFF_Batch20_Dispatch_And_Outputs.md) — **BP-92** then
+**BP-89**, steps 1–2 of the [functions/macros UX plan](Blueprint_Functions_Macros_UX_Plan.md).
+⚡ Every handoff carries the **Sonnet-delegation rule** — see *Working agreement → Coordinator /
+implementation split*.
+
 Three independent fronts; pick by appetite, not by order.
 
 | # | Item | Why now |
@@ -590,6 +597,36 @@ dotnet test Hrot/Subsystems/AI/Hrot.AiEditor.Generators.Tests/Hrot.AiEditor.Gene
   the approved plan against the code before building it.
 - **Record findings in the detail doc**, not only in commit messages.
 - Ask in plain prose; **never** the multiple-choice widget.
+
+### 🎛️ Coordinator / implementation split (from 2026-08-08)
+
+The user has split the roles. **A coordinator session owns the plan; implementation sessions own the
+code.**
+
+| Role | Owns |
+|---|---|
+| **Coordinator** (this session) | the tracker · writing handoffs · reviewing the returned **diff** (not the summary) · re-running gates · deciding the next batch |
+| **Implementation session** | building exactly what the handoff scopes, and reporting back honestly |
+
+**⚡ Model-delegation rule — every handoff must restate this, with a per-item split.**
+
+The implementation session runs on **Opus** and is expected to **delegate to Sonnet sub-agents**
+anything that does not need Opus-level reasoning. Tokens are the constraint; this is not optional.
+
+| Give to **Sonnet** | Keep on **Opus** |
+|---|---|
+| Mirror-an-existing-pattern slices (a new drawer copying an existing drawer) | Novel scheduler / IR / compiler work |
+| Mechanical edits across many call sites | Anything where the *design* is still open |
+| Broad searches, inventory sweeps | The final **diff review** and the **gate runs** |
+| Test scaffolding from a stated contract | Deciding whether a test actually proves the fix |
+
+⚠ **State the split per item in the handoff**, not as a general aspiration — "use Sonnet where
+possible" gets ignored; *"BP-89's drawer is a Sonnet slice, the pin-projection parity check is Opus"*
+does not.
+
+⚠ **Delegation never transfers the verification duty.** Opus re-runs the gates and applies the
+revert-and-watch-it-go-red discipline on Sonnet's work exactly as on its own. Trap #9 exists because a
+test passed against the bug.
 
 ## Key code reference points (as of batch 14)
 
