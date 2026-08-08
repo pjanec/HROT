@@ -169,10 +169,18 @@ implementation sessions build. ⚡ Every handoff carries the **Sonnet-delegation
 *Working agreement → Coordinator / implementation split*.
 
 🔀 **Two things run in parallel right now (2026-08-08):**
-1. **Build** — [HANDOFF_Batch22_EndToEnd_Smoke.md](HANDOFF_Batch22_EndToEnd_Smoke.md): **BP-109** 🔴,
-   two entities · two blueprints · one shared Library function, as **shipped recipe assets plus a gate
-   test**. ⭐ Not a demo — **no test has ever executed a `CallPeerBlueprint`**, so this closes a real
-   coverage hole on a shipped feature.
+1. ✅ **Build — DELIVERED (Batch 22).**
+   [HANDOFF_Batch22_EndToEnd_Smoke.md](HANDOFF_Batch22_EndToEnd_Smoke.md): **BP-109** 🔴 shipped —
+   two entities · two blueprints · one shared Library function, as recipe assets **plus** a gate test
+   that loads those same on-disk files. Runs in **2 seconds**.
+   ⭐ **It found what it was built to find, immediately: [BP-110](Blueprint_Issues_Detail.md#bp-110)
+   🔴 — a `CallPeerBlueprint` had never COMPILED.** The hole was deeper than "never executed": the
+   emitted call named `__Peer_{id:X8}_Bp`, a class nothing declares, so it *could not* execute.
+   Reproduced with caller and peer in the same merged compilation, which disproves the
+   `NodeCoverageTests` comment claiming production resolves it by compiling siblings together.
+   ✅ Two entities on different blueprints in one world — flagged unproven — **works, no code changes**.
+   📌 Also registered: [BP-111](Blueprint_Issues_Detail.md#bp-111) — the known-flake list is incomplete
+   and the gate's `-v q` hides the failing test's name; that cost time twice in this batch.
 2. **Verify** — the Windows visual check of Batches 20–21 (see *🎯 Batch 20 — DO THIS FIRST* below).
    Findings go to the coordinator and land in a **later** batch, not Batch 22.
 
