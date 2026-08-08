@@ -1120,6 +1120,106 @@ made again.
 ✅ **Confirmed in the running editor (2026-08-08)** — screenshot evidence; `Tick` is correctly labelled
 `(Function)`, which the pre-fix build would have called `Event Graph`.
 
+<a id="bp-95"></a>
+### BP-95 — One "call function" node; stop making the designer declare peers
+**Complexity:** RW-M · **Confidence:** ✔✔
+
+> User: *"if we can hide (at least from the user's point of view) the unnecessary complexity — a node
+> for calling a function would call any, no matter how it is defined, as long as it is technically
+> possible."*
+
+#### What the ceremony actually is
+
+Two node kinds exist today:
+
+| Node | Scope | Binds by |
+|---|---|---|
+| `FunctionCallNode` | same asset | `TargetGraphId` |
+| `CallPeerBlueprintNode` | another asset | `PeerBlueprintId` + `FunctionRef` |
+
+The cross-asset one passes **three** gates (`Stage2_Validate.cs:905-940`):
+
+| Gate | Diagnostic | Nature |
+|---|---|---|
+| Target GUID is in the consumer's `CallablePeers` list | **BP1300** | ⚠ **hand-maintained ceremony** |
+| Target is among `SiblingSignatures` | **BP1301** | build-system registration |
+| Named function is exported by the target | **BP1302** | ✅ real validation — keep |
+
+#### Why only one of the three is really in the way
+
+**Gate 2 is already effectively satisfied.** The csproj globs
+`<AdditionalFiles Include="Assets\Blueprints\**\*.bp.json" />`, so every asset under the assets root is
+already visible to the compiler. BP1301 fires only for assets outside that tree.
+
+**Gate 3 is genuine** — calling a function that does not exist must fail.
+
+⇒ **`CallablePeers` is the only real ceremony**, and it is exactly what Unreal does not have: a
+Blueprint Function Library's functions appear in every Blueprint's context menu with no declaration
+and no per-consumer opt-in.
+
+#### The fix, in the order that matters
+
+1. **Editor-maintain `CallablePeers`.** When the designer picks a function from another asset, the
+   editor adds the target GUID — the same bake-on-wire pattern as [BP-12c](#bp-12c) / [BP-68](#bp-68).
+   The declaration stays as a compiler-level fact (it is plausibly load-bearing for build ordering and
+   incremental rebuild); it simply stops being something a human types. ⚠ Confirm the build-ordering
+   assumption before removing any validation — this is the piece to check, not assume.
+2. **Unify the two node kinds** behind one picker that lists local **and** peer functions together and
+   resolves whichever applies. That is the user's ask, and it is only safe once (1) removes the reason
+   the two kinds diverged.
+
+⚠ Interacts with [BP-75](#bp-75) (function palette entries) and [BP-92](#bp-92) (Library dispatch —
+once a Library asset is creatable, cross-asset calls become the *normal* case rather than the exception,
+which raises the value of this item).
+
+<a id="bp-96"></a>
+### BP-96 — Narrowing conversions have no path; `float`→`int` is a hard error
+**Complexity:** RW-M · **Confidence:** ✔✔
+
+#### ⚠ First, a correction in the user's favour
+
+> User: *"between int and float types — I think now these two are incompatible."*
+
+**Half right. `int`→`float` already works, automatically and invisibly.**
+`Stage3_Normalize.cs:275-292` inserts a **synthesized `CastNode`** on any link where
+`ITypeRegistry.TryGetCoercion` succeeds, and `Int32→Single` **is** in the table. The designer wires it
+and nothing is required of them — no node, no ceremony, no diagnostic.
+
+**The reverse is not supported.** `Single→Int32` is absent from `CoercionTable` — the table is
+explicitly a *"Slice 1 conservative set"* (`StaticTypeRegistry.cs:8`) and is **widening-only**:
+
+```
+Byte→Int32, Byte→Single, Int16→Int32, Int16→Single,
+Int32→Int64, Int32→Single, Int32→Double, Single→Double
+```
+
+So `float`→`int` hits **BP1501** *"Link type mismatch … no coercion"* (`Stage4_TypeResolve.cs:218-231`)
+with no suggested remedy, because none exists.
+
+#### ✅ Unreal does precisely what the user proposed
+
+Implicit widening on the wire, and an explicit **`Truncate`** node (rounds toward zero: `1.6 → 1`,
+`-1.6 → -1`) for the lossy direction. Our half of that is already built; the explicit half is missing.
+
+#### Work
+
+1. **A conversion-node family for the lossy direction** — `Truncate`, `Round`, `Floor`, `Ceil`
+   (round-out per the build-general rule: they share one machinery and are all plausibly wanted).
+   `CastNode` already exists (`Nodes.cs:185`) and is what Stage 3 synthesizes, so the emit path is
+   proven.
+2. **Fixed-string coercions** — `String`→`FixedString32/64` and `FixedString64`→`FixedString32`.
+   ⚠ The user has explicitly approved these as **silently truncating**. Record that as a *deliberate*
+   data-loss default: it is the one place this programme knowingly accepts a silent wrong value, and
+   the BP-16 lesson ("never a silent wrong value") is being consciously overridden for ergonomics.
+   Worth a one-line note at the coercion site so a later reader does not "fix" it.
+3. **Unsigned coercions** — see [BP-87](#bp-87); they are the gate on offering those types at all.
+
+⚠ **The editor performs no link type-checking whatsoever.** Grepping `Hrot.Blueprints.Editor` and
+`NodeEditor.Core` for `CanCoerce` / `CanConnect` / `IsCompatible` returns **nothing** — every invalid
+wire is drawable and fails only at compile time, as BP1501, in another project. Adding the nodes above
+without an editor-side hint leaves them undiscoverable; pair this with a "no coercion — insert a
+Truncate?" affordance at wire time.
+
 <a id="bp-10"></a>
 ### BP-10 — `When` → EventFired form is a stub
 **Complexity:** WIRING · **Confidence:** ✔✔
