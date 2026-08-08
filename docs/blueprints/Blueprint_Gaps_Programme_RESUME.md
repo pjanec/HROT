@@ -318,6 +318,62 @@ data-loss framing to render-until-reopen. Confirm rather than assume.
 
 Ordered **newest-first**, because newest is least verified.
 
+### 🎯 Batch 20 — DO THIS FIRST (BP-92, BP-89, and the long-blocked T-series)
+
+Batch 20 shipped **BP-92** (create a `Library` blueprint) and **BP-89** (declare outputs on the Return
+node). BP-89 is what **unblocks T1–T7 below** — the programme's largest unverified item, stuck five
+batches. All gates are green; none of it has been seen in the editor.
+
+**Budget ~20 minutes. Do the sections in this order — each sets up the next.**
+
+#### A. Create a Function Library (BP-92) — ~3 min
+
+| # | Do | Expect |
+|---|---|---|
+| A1 | **New Blueprint** → look at the template list | **Two** blank templates now: **`Empty`** and **`Function Library`**, each with a description. (Plus the 13 disk recipes) |
+| A2 | Pick **`Function Library`**, accept the default name | The name defaults to **`NewBlueprint`**, *not* `Function Library` |
+| A3 | Save, then open the `.bp.json` | `"Dispatch": "Library"` |
+| A4 | **Compile it while still empty** | ⭐ **The point of this check.** A **BP5001** that reads as *guidance* — it should tell you to add a Function graph via My Blueprint → Functions → **+**. If it reads like an internal error, that is the defect |
+| A5 | Add a Function graph, compile again | Clean |
+| A6 | Put a **Delay** in that library's function, compile | **BP1101** naming the node by its palette name (not a GUID) and saying a library cannot suspend |
+| A7 | Open any existing asset | Still `Instance`. **Nothing was migrated** — deliberate |
+
+#### B. Declare outputs on the Return node (BP-89) — ~4 min
+
+| # | Do | Expect |
+|---|---|---|
+| B1 | Open a Function graph, select the **Return** node | The Details panel now has an **Outputs** section — headed *"Outputs — one data-in pin on this Return node, and one data-out pin on every call site."* Before this batch it showed only `Success` |
+| B2 | With no outputs declared, read the panel | *"This function declares no outputs. Add one to return a value."* — the state that previously read as broken now says it is correct |
+| B3 | Click **`+`** | A row appears; the **Return node grows a data-in pin** immediately |
+| B4 | Rename it to something **shorter** than the default | ⚠ **BP-86 regression guard.** The name must be exact — no `?`, no leftover tail |
+| B5 | Change its type | The pin's type follows |
+| B6 | **Ctrl+Z** after each of add / remove / rename / retype | ⭐ **Each is ONE undo step** and restores the exact prior state |
+| B7 | Add a **third** output, then Ctrl+Z twice, Ctrl+Y twice | State is stable — this path had an aliasing bug the session found and fixed; it is the one most worth stressing |
+
+#### C. ⚠ Known gap — confirm it, do not report it as new (BP-102)
+
+| # | Do | Expect |
+|---|---|---|
+| C1 | Add an output from the **Graph Signature window** (not the Return node), then **Ctrl+Z** | ❌ **It will NOT undo.** That is [BP-102](Blueprint_Issues_Detail.md#bp-102), already registered. Confirm the asymmetry — undoable from the Return node, not from the signature window |
+
+#### D. `Return.Status` (BP-14) — ~1 min
+
+| # | Do | Expect |
+|---|---|---|
+| D1 | On the Return node's Details, find **Status** | An editable **combo** (Success / Failure / Running) |
+| D2 | Change it, then **Ctrl+Z** | One undo step, restores the previous value |
+
+⇒ If D1–D2 work, **BP-14 is closed** — it was fixed as a side effect of BP-89 and the implementing
+session did not notice. Tell the coordinator and the row gets ticked.
+
+#### E. ⭐ Then the T-series below — it is now performable
+
+`T1`–`T7` have been blocked for five batches. **Use section B's `+` button** to add the three outputs;
+that is the affordance whose absence blocked them. **T7 is the one to watch**: a second output must now
+**compile cleanly** — any surviving "multiple outputs not supported" message is a leftover defect.
+
+---
+
 ### N function outputs (BP-73) — batch 18, newest
 
 | # | Where | What to do | What should happen |
