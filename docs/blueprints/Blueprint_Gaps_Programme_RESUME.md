@@ -57,7 +57,7 @@ lists every one.
 
 ## Status
 
-**36 open · 40 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
+**56 open · 48 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
 table; do not duplicate them here.
 
 | Batch | Items |
@@ -78,6 +78,7 @@ table; do not duplicate them here.
 | 14 — navigation aids | BP-19, BP-20 |
 | 15 — graph create + switching | BP-24 ⭐ (Q23 A2+B2+C2+D1; + BP-12b rename-undo desync fixed) |
 | 16 — closing out BP-24 | BP-71 🔴 (Q24 A1+B1+C3; +BP1655/BP1656), BP-72 |
+| 20 — functions & macros UX, steps 1–2 | BP-92 (dispatch at create), BP-89 (outputs on the Return node) |
 
 **Batch 7's visual pass (2026-08-05)** earned its keep: one bug of mine (the bookmarks ✕ was
 unreachable — a full-width `Selectable` swallowed the click), one long-standing 🔴 (**BP-66**, the
@@ -107,23 +108,29 @@ green. Three themes worth carrying forward:
 → **Batch 19 (2026-08-08, Windows): [BP-86](Blueprint_Issues_Detail.md#bp-86) 🔴 +
 [BP-84](Blueprint_Issues_Detail.md#bp-84) 🔴 + [BP-85](Blueprint_Issues_Detail.md#bp-85)** — the three
 defects the visual check found in its first ten minutes.
+→ **Batch 20 (2026-08-08): [BP-92](Blueprint_Issues_Detail.md#bp-92) + [BP-89](Blueprint_Issues_Detail.md#bp-89)** —
+steps 1 and 2 of the [functions & macros UX plan](Blueprint_Functions_Macros_UX_Plan.md).
 
 **Batch 19 verified by the user in the running editor:** Get/Set/Literal delete → undo → redo → save →
 reopen all correct (**BP-84 closed**); shorter renames produce exact names on the entry node's data-out
 pins (**BP-86 closed for Blueprints**); the canvas breadcrumb reads correctly (**BP-85 closed**).
 
 ⚠ **The T-series (T1–T7, [BP-73](Blueprint_Issues_Detail.md#bp-73) N function outputs) is STILL
-unverified — and now we know why it could not be done:** the user could not find how to add function
-outputs at all ([BP-89](Blueprint_Issues_Detail.md#bp-89)). Fix BP-89 first; it is the gate on the
-programme's largest unverified item.
+unverified — but it is no longer blocked.** The gate was that the user could not find how to add
+function outputs at all ([BP-89](Blueprint_Issues_Detail.md#bp-89)); **BP-89 shipped in Batch 20**, so
+outputs are now declared on the Return node's Details panel, where the designer already is.
+**T1–T7 are performable and remain unperformed — that is the next thing to do in the running editor,
+and it is still the programme's largest outstanding risk.**
 
 > 🧱 **Five UX blockers found in the batch-19 visual check (2026-08-08)** —
 > [BP-88](Blueprint_Issues_Detail.md#bp-88) (no Event graph exists in an Instance blueprint, and none
-> can be created) · [BP-89](Blueprint_Issues_Detail.md#bp-89) (function outputs undiscoverable —
-> **blocks T1–T7**) · [BP-90](Blueprint_Issues_Detail.md#bp-90) (blackboard rename has no affordance)
+> can be created — **unblocked by BP-92**, since a functions-only asset can now declare itself a
+> `Library` rather than mislabel itself `Instance`) · ~~[BP-89](Blueprint_Issues_Detail.md#bp-89)~~
+> (**closed in Batch 20**) · [BP-90](Blueprint_Issues_Detail.md#bp-90) (blackboard rename has no affordance)
 > · [BP-91](Blueprint_Issues_Detail.md#bp-91) (no way to add an HSM event) ·
-> 📐 [BP-92](Blueprint_Issues_Detail.md#bp-92) (**architect**: where do Functions live / how are they
-> shared?).
+> ~~📐 [BP-92](Blueprint_Issues_Detail.md#bp-92)~~ (**closed in Batch 20** — the dispatch choice was
+> never an architect question; the one that *is* — whether `Library` calls skip the `CallablePeers`
+> opt-in — stays open).
 >
 > **Four of the five are discoverability, not missing features** — the code is there. 🔁 Third
 > confirmed instance of *double-click-only, no affordance, no hint* (BP-75, BP-90, and BP-89's Outputs
@@ -153,9 +160,11 @@ programme's largest unverified item.
 > **Needs an architect call on scope before fixing** — see the item.
 
 📋 **Coordinated batches (from 2026-08-08).** A coordinator session owns the tracker and writes
-handoffs; implementation sessions build. **Current handoff:**
+handoffs; implementation sessions build. **Last handoff — DELIVERED (Batch 20):**
 [HANDOFF_Batch20_Dispatch_And_Outputs.md](HANDOFF_Batch20_Dispatch_And_Outputs.md) — **BP-92** then
 **BP-89**, steps 1–2 of the [functions/macros UX plan](Blueprint_Functions_Macros_UX_Plan.md).
+**Next in that plan: step 3** — [BP-85](Blueprint_Issues_Detail.md#bp-85) breadcrumb + **BP-100**
+kind icons, then **BP-101** F2 rename, then **BP-88** Graphs `+` (now honest, since step 1 landed).
 ⚡ Every handoff carries the **Sonnet-delegation rule** — see *Working agreement → Coordinator /
 implementation split*.
 

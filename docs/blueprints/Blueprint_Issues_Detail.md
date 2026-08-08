@@ -2202,6 +2202,48 @@ it is why nobody hits this problem there.
   BP-85 note already records that the entry-node/Return-node asymmetry costs real time
   ([§ four things that look like bugs](#bp-85), item 4).
 
+> ✅ **DONE (2026-08-08, Batch 20).** New `ReturnNodeDrawer` + `ReturnNodeSession`
+> (`NodeDrawers/ReturnNodeDrawer.cs`), registered in `BlueprintEditorBootstrap` beside the
+> `FunctionCallNode` drawer. **There was no Return drawer at all** — `BlueprintDetailsWindow`
+> fell through to `DrawReadOnlySummary`, a reflection dump of the single property `ReturnNode`
+> has. That *is* the reported symptom, and it also means a registered drawer **replaces** that
+> fallback, so the drawer renders `Status` itself — now an editable combo instead of read-only.
+> `CreateSession` only receives the asset, so the session resolves its containing graph by
+> scanning `parentAsset.Graphs`.
+>
+> `DrawParameterRows` was **extracted**, not copied, into `Windows/ParameterRowsView.cs`; both the
+> Graph Signature window and the Return panel call it, so they cannot drift. BP-86's
+> `ImGuiBufferText.Decode` moved verbatim — no `TrimEnd('\0')` reintroduced, and
+> `GraphSignatureNulCorruptionTests` still passes through the new path. Zero declared outputs now
+> renders *"This function declares no outputs. Add one to return a value."* above a live `+`.
+>
+> ⚠ **Two corrections to the handoff's premises.** (1) `GraphSignatureEditModel` had **no undo
+> integration whatsoever** — the named reuse target could not produce an undo entry, so it gained
+> an optional recorder seam (null recorder ⇒ pre-BP-89 behaviour byte-for-byte). Undo is by
+> whole-list snapshot: `ParameterDecl` is mutable and rename/retype edit elements in place, so a
+> shallow copy cannot capture "before". (2) `ReturnNode` is in namespace
+> `Hrot.Blueprints.Core.Assets`, not `…Compiler.Assets` — the *project* is the compiler, the
+> namespace is not.
+>
+> 🔴 **One defect found in review, not by the tests.** `RestoreInto` published the snapshot's own
+> `ParameterDecl` instances into the live list, so a later in-place rename rewrote an *older* undo
+> entry's captured state and replaying it restored the newer value (reachable as undo → redo →
+> edit → undo → undo). The snapshot is now re-copied on the way out;
+> `OutputUndoEntry_ReplayedAfterALaterInPlaceRename_StillRestoresTheOriginalName` fails against the
+> old code.
+>
+> Outputs edits also raise `NotifyStructureChanged` in **both** directions (they change pin
+> projection on the Return node *and* every call site); a `Status` edit does not. Reverting the
+> `record` wiring reddens 6 tests; dropping only the two `NotifyStructureChanged` calls reddens
+> exactly the 2 structure-changed tests — the concerns are independently locked. 20 new tests.
+>
+> ⚠ **Remaining gap:** edits from the **standalone Graph Signature window are still not undoable.**
+> It holds a `DirtyTracker` but no `IEditService`, and wiring one in means restructuring its
+> construction — deliberately out of scope here.
+>
+> **T1–T7 are now performable.** They remain *unperformed* — this unblocks the visual check, it is
+> not the visual check.
+
 <a id="bp-90"></a>
 ### BP-90 — Blackboard / variables panel rename has **no visible affordance** (BTree, and everywhere the control is reused)
 **Complexity:** RW-L · **Confidence:** ✔✔✔ *(read from source)*
@@ -2319,6 +2361,46 @@ Library-dispatch calls should skip the `CallablePeers` opt-in. That one *is* wor
 the create-time dispatch choice is not.
 
 ⚠ Upstream of [BP-88](#bp-88); touches [BP-75](#bp-75).
+
+> ✅ **DONE (2026-08-08, Batch 20).** `BlueprintNewAssetService` is now table-driven: one built-in
+> **blank-template recipe per dispatch kind** — `Empty` → `Instance`, `Function Library` →
+> `Library`. `MacroLibrary` (Q25) slots in as one more row with no data migration, which is what
+> "extensible list, not a toggle" required. `AiPrimitive` is deliberately **not** offered: it needs
+> a `Primitive` declaration and hostings this flow does not populate.
+>
+> ⚠ **Correction to the handoff.** It specifies "create-dialog UI (a combo + label)" — **there is no
+> such dialog in production.** `NewAssetLauncher` opens a *recipe tree picker*, then the vendored
+> `SaveAsBrowserDialog` (name + folder only), then calls `CreateNew`; `NewAssetDialog` is a headless
+> model nothing in production constructs. A combo would have meant editing the vendored NodeEdit
+> tree. One recipe entry per dispatch is also **exactly Unreal's own shape** — *Blueprint Class /
+> Blueprint Function Library / Blueprint Macro Library* are separate entries in its create-asset
+> menu — so this is parity, and needs no new UI at all.
+>
+> Blank templates are matched by **`AssetId` against the cached instances the picker was handed**,
+> replacing a `Name == "Empty"` string compare. That same compare also drove the default asset name
+> in `ShowNewAssetDialog` and would have named a new library `Function Library`; it now routes
+> through a **default-implemented** `INewAssetService.IsBlankTemplate`, so BTree/HSM/Scenario
+> services compile untouched.
+>
+> ⭐ **"Visible in the UI" needed no new code — it was already built and unreachable.**
+> `BlueprintFileAsset` implements `IAssetSubtitleProvider` fed from the header `Dispatch` (BP-85
+> breadcrumb) and `BlueprintIconKeys.ForHeader` already maps `Library` to a distinct browser icon.
+> Verified end to end: `Dispatch` serialises as a **root-level string** (`"Dispatch": "Library"`),
+> which is what `BlueprintAssetContributor` reads, and `RefreshFromAssembly` does call
+> `_blueprintRefresh()`, so a new library is catalogued and opened rather than merely written.
+>
+> **No existing asset changed dispatch** — retagging `SquadState` is a separate, reviewable change.
+>
+> **Three Library diagnostics rewritten as designer-facing guidance**, now that users can reach them
+> for the first time. **BP1101** (the one a designer actually hits, `V_LatentRules`) named the node
+> by raw GUID; it now names it by palette name and says *why* a library cannot suspend. **BP5001**
+> (empty library — hit immediately on creating one) points at *My Blueprint → Functions → +* and
+> offers the other exit. **BP9001** no longer opens with *"Stage 2 should have caught this"*. All
+> three are asserted on by **code**, not message text, so no test was weakened. ⚠ Trap:
+> `Hrot.Blueprints.Compiler` multi-targets **netstandard2.0** — `name[..^4]` does not compile there.
+>
+> 📐 The one genuine architect question — whether `Library` calls should skip the `CallablePeers`
+> opt-in — **remains open and unaddressed here.**
 
 <a id="bp-93"></a>
 ### BP-93 — The editor **writes tracked assets to disk without an explicit Save** 🔴
