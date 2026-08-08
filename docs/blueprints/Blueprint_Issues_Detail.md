@@ -2244,6 +2244,72 @@ it is why nobody hits this problem there.
 > **T1–T7 are now performable.** They remain *unperformed* — this unblocks the visual check, it is
 > not the visual check.
 
+<a id="bp-110"></a>
+### BP-110 — Generated Library adapter emits `ref` for an `in` parameter → CS9191 → full build fails 🔴
+**Complexity:** RW-L · **Confidence:** ✔✔✔ *(user-reproduced)*
+
+A freshly created, otherwise-empty `Function Library` **hot-reloads fine in memory** but **fails the
+full build**:
+
+```
+FuncLib1_632F0EA6_Bp.g.cs(45,93): error CS9191: The 'ref' modifier for argument 2
+corresponding to 'in' parameter is equivalent to 'in'. Consider using 'in' instead.
+```
+
+#### ⭐ Why no test caught it — an entire gate has a blind spot
+
+The failure is in the **Roslyn source-generator path** (`BlueprintIncrementalGenerator`), which
+`BlueprintCompiler.Compile` and `BlueprintTestFixture.CompileAndLoad` do **not** run.
+
+The generator *is* gated — `Hrot.AiEditor.Generators.Tests` is one of the eight suites. But **every
+fixture in it is an `AiPrimitive` HillAssault2 asset. Not one is `Dispatch: Library`.** So no test has
+ever put a Library asset through the generator, and the in-memory path the other suites use has
+different codegen.
+
+⇒ This is the third distinct "both halves tested, seam never crossed" instance in three batches
+(BP-104, BP-109, this). The pattern here is sharper: **the gate existed and simply had no fixture of
+that shape.**
+
+#### Fix — two halves, and the second is the one that matters
+
+1. Emit `in` (or drop the modifier) at the adapter call site.
+2. ⭐ **Add a `Dispatch: Library` fixture to `Hrot.AiEditor.Generators.Tests`.** Without it the next
+   Library-only codegen defect is equally invisible.
+
+⚠ **This is why the user asked why it could not be exercised headlessly — and they are right that it
+can.** Nothing about this needed a UI. See [BP-109](#bp-109); the same fixture serves both.
+
+<a id="bp-111"></a>
+### BP-111 — `CallPeerBlueprint` projects only `Outputs[0]`: multi-output functions are unusable across assets 🔴
+**Complexity:** RW-M · **Confidence:** ✔✔✔ *(user-reproduced, cause read from source)*
+
+> User: *"I tried CallPeerBlueprint and in the Detail window I selected FuncLib1 and then NewFunction,
+> but CallPeerBlueprint keeps showing just a single output data pin — the first returned value."*
+
+`NodePinSchema.CallPeerBlueprintPins` (`:552-556`):
+
+```csharp
+// Data-OUT: Return pin typed from Outputs[0] (or System.Object when no outputs).
+var returnTypeId = funcSig.Outputs.Count > 0 ? funcSig.Outputs[0].TypeId : "System.Object";
+pins.Add(MakeData("Return", "Out", returnTypeId));
+```
+
+**One pin, always, from `Outputs[0]`** — the comment states it outright.
+
+⚠ **[BP-73](#bp-73) gave N outputs to `FunctionCall` (same-asset) and never touched the cross-asset
+node.** So N-output functions work *locally* and are **unreachable from another blueprint** — which is
+the entire purpose of a Function Library. The two halves of "shared multi-output function" were built
+in different batches and never met.
+
+#### Before building
+
+- Both projections must move together — `NodePinSchema` **and** `Stage0_Rehydrate`. Trap #9's home.
+- ⚠ **Check `BlueprintSignature.ExportedFunctions` actually carries N outputs first.** It is a
+  `BlueprintFunctionSig(Name, Inputs, Outputs)` so the shape is there — but confirm the *parser*
+  populates more than one, or the editor half will be fixed against a signature that cannot express it.
+- Pairs naturally with [BP-95](#bp-95) (one call node for local and peer functions) — worth checking
+  whether unifying the nodes makes this fix free rather than duplicated.
+
 <a id="bp-108"></a>
 ### BP-108 — No Print/Log node: a blueprint cannot emit a formatted string
 **Complexity:** RW-M · **Confidence:** ✔✔✔ *(absence verified)*
