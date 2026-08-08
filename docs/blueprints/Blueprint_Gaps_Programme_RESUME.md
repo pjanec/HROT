@@ -187,16 +187,51 @@ Everything about it now lives in two places: the decisions + retarget audit in
 
 ---
 
-## 👀 Morning visual check — batches 9–16 · **NOT YET DONE**
+## 👀 Visual check — batches 9–18 · **NOT YET DONE**
 
-⚠ **Status: pending.** Batches 9–14 shipped overnight, then 15 and 16 the following day; all are
-logic-tested headless, but **no human has looked at them in the running editor yet**. What a test
-cannot see is layout, wording and feel — and the batch-7 pass proved that half (the bookmarks ✕
-was correctly positioned and completely unclickable). Treat every row below as unverified.
+⚠ **Status: pending.** Batches 9–14 shipped overnight, 15–16 the following day, then 17 (BP-69) and
+18 (BP-73). All are logic-tested headless, but **no human has looked at any of them in the running
+editor yet**. What a test cannot see is layout, wording and feel — and the batch-7 pass proved that
+half (the bookmarks ✕ was correctly positioned and completely unclickable). Treat every row as
+unverified.
 
-Roughly cheapest-to-reach first.
+> 🎯 **The single most valuable thing to look for: a pin-projection mismatch.** Every batch from 15 on
+> touched **both** `NodePinSchema` (editor) and `Stage0_Rehydrate` (compiler), which must agree. A
+> headless test typically exercises one of them, so a divergence survives green suites and shows up
+> only in the editor, as one of these:
+> - a pin **renders but refuses a wire** (editor invented a pin the compiler doesn't have), or
+> - a compile error **naming a pin you can plainly see** (compiler expects a pin the editor didn't draw).
+>
+> If you hit either, that is a real defect regardless of what the row said to expect — capture the
+> node kind, the pin name, and the diagnostic code.
 
-### Function return values + graph signatures (BP-71, BP-72) — newest, check first
+Ordered **newest-first**, because newest is least verified.
+
+### N function outputs (BP-73) — batch 18, newest
+
+| # | Where | What to do | What should happen |
+|---|---|---|---|
+| T1 | A Function graph · Graph Signature → **Outputs +** three times, name and type each | look at the **Return** node | It grows **three value pins, all on the LEFT**, in declaration order. Not one pin, not pins on the right |
+| T2 | Wire all three, then place a call to that function | look at the **call node** | It shows **three data-out pins**, names and order matching the signature |
+| T3 | Wire one of the call node's outputs downstream and compile | — | Compiles clean. ⚠ The emit returns a `ValueTuple` and the call site unpacks it — if you get a Roslyn `CS` error mentioning `Item1`/`__t`, that is BP-73's carrier fan-out and I need the exact text |
+| T4 | Leave **one** of the three Return pins unwired · compile | — | A **BP1655** naming that pin. The other two must still work — a partial wiring is an error about the one pin, not a collapse |
+| T5 | Leave **one** call-node output pin unwired · compile | — | Compiles clean. Unused outputs are fine; only unwired *Return* inputs are errors |
+| T6 | Reorder or delete an output in Graph Signature | look at Return + call nodes | Both follow. A stale pin left behind on either is a projection bug |
+| T7 | Graph Signature → add a **second** Output | compile | ✅ **It compiles.** ⚠ **BP1656 is RETIRED by BP-73** — if you see *any* diagnostic saying multiple outputs are unsupported, or an inline warning under the Outputs list, that is a **leftover and a defect**. The old checklist told you to expect BP1656 here; that expectation is now wrong |
+
+### Name-referenced custom event calls (BP-69) — batch 17
+
+⚠ **Trust this suite least.** BP-69's own end-to-end test passed *against the bug* (trap #9) and was
+only caught by reverting the fix. The visual check is the real gate here.
+
+| # | Where | What to do | What should happen |
+|---|---|---|---|
+| K1 | An asset whose `CallCustomEvent` references an event **by name**, not GUID (e.g. hand-edit a `.bp.json` to `"EventId": "OnDamaged"`) · open it | look at the Call node | It shows **one data-in pin per event parameter**. Before BP-69 the node collapsed to exec-only and every argument wire was silently dropped on load |
+| K2 | Wire the argument pins and compile | — | Clean compile, and the generated call passes the arguments. A `CS7036` (missing argument) means the pins projected but the compiler half didn't |
+| K3 | Same node, leave an argument pin **unwired** · compile | — | Clean compile — the unwired pin becomes a typed `default(T)`. ⚠ A `CS0103` (undeclared `__t0`) is the exact failure the general `ResolveDataPin` hardening was added to prevent; report it verbatim |
+| K4 | Rename the event in My Blueprint | look at the name-referenced Call node | Follows the rename (BP-12b rewrites name-keyed refs). A node still showing the old name would compile to a BP1403 |
+
+### Function return values + graph signatures (BP-71, BP-72) — batch 16
 
 | # | Where | What to do | What should happen |
 |---|---|---|---|
@@ -204,7 +239,7 @@ Roughly cheapest-to-reach first.
 | R2 | Drag any value output → the Return node's value pin | — | **The wire connects.** This is the gesture that was impossible; if it refuses, BP-71 regressed |
 | R3 | Leave the value pin unwired and compile | — | A **BP1655 error naming the graph and the pin** — not a Roslyn CS0103, and not a silently-defaulted return |
 | R4 | Click the Return node's value pin box without wiring anything | type a number | An **inline default editor** — a function can return a constant with no Literal node. Free consequence of the pin being an input |
-| R5 | Graph Signature → add a **second** Output | compile | **BP1656**, and its wording says ***"not supported yet — see BP-73"***. An inline warning also appears under the Outputs list. It must not read "illegal" — N outputs are coming |
+| ~~R5~~ | ~~Graph Signature → add a second Output~~ | ~~compile~~ | ❌ **RETIRED — do not check this row.** BP1656 no longer exists; BP-73 removed the gate, the `DiagnosticCodes` entry is marked `[retired]`, and the authoring warning became an informational note. **Superseded by T7**, which asserts the opposite outcome |
 | R6 | Open a multi-graph asset · switch the canvas between graphs | watch **Graph Signature** | Its picker **follows the canvas**. Before BP-72 it sat on the first Function graph, so you edited a signature you were not looking at |
 | R7 | Pick a different graph in the Graph Signature combo, then switch the canvas | — | Your explicit pick **sticks** until the canvas actually moves — the combo must not fight you every frame |
 | R8 | Create a custom event with a parameter · select its **body graph** in Graph Signature | add a parameter | The section is titled **Parameters**, the row reads `Name (event)`, and **Outputs shows "n/a"** (a custom event returns nothing). The new parameter appears on the Call node's pins, and compiling does **not** raise BP1408 — the declaration was mirrored |
