@@ -108,10 +108,32 @@ green. Three themes worth carrying forward:
 [BP-84](Blueprint_Issues_Detail.md#bp-84) 🔴 + [BP-85](Blueprint_Issues_Detail.md#bp-85)** — the three
 defects the visual check found in its first ten minutes.
 
-⚠ **Visual check still only partly done for batches 9–18** — the T-series (T1–T7,
-[BP-73](Blueprint_Issues_Detail.md#bp-73) N function outputs) remains the biggest unverified item, and
-it is the *reason* to keep going: batch 19 shipped a defect (`▸` rendering as `?`) that **no headless
-test in this repo could see**, caught only by looking at the running editor.
+**Batch 19 verified by the user in the running editor:** Get/Set/Literal delete → undo → redo → save →
+reopen all correct (**BP-84 closed**); shorter renames produce exact names on the entry node's data-out
+pins (**BP-86 closed for Blueprints**); the canvas breadcrumb reads correctly (**BP-85 closed**).
+
+⚠ **The T-series (T1–T7, [BP-73](Blueprint_Issues_Detail.md#bp-73) N function outputs) is STILL
+unverified — and now we know why it could not be done:** the user could not find how to add function
+outputs at all ([BP-89](Blueprint_Issues_Detail.md#bp-89)). Fix BP-89 first; it is the gate on the
+programme's largest unverified item.
+
+> 🧱 **Five UX blockers found in the batch-19 visual check (2026-08-08)** —
+> [BP-88](Blueprint_Issues_Detail.md#bp-88) (no Event graph exists in an Instance blueprint, and none
+> can be created) · [BP-89](Blueprint_Issues_Detail.md#bp-89) (function outputs undiscoverable —
+> **blocks T1–T7**) · [BP-90](Blueprint_Issues_Detail.md#bp-90) (blackboard rename has no affordance)
+> · [BP-91](Blueprint_Issues_Detail.md#bp-91) (no way to add an HSM event) ·
+> 📐 [BP-92](Blueprint_Issues_Detail.md#bp-92) (**architect**: where do Functions live / how are they
+> shared?).
+>
+> **Four of the five are discoverability, not missing features** — the code is there. 🔁 Third
+> confirmed instance of *double-click-only, no affordance, no hint* (BP-75, BP-90, and BP-89's Outputs
+> table).
+>
+> ⚠ **BP-90 and BP-91 also left [BP-86](Blueprint_Issues_Detail.md#bp-86) sites 2 and 4–6 unverified by
+> hand** — those panels could not be reached. Headless coverage stands; the editor confirmation does not.
+
+⚠ The visual check remains the highest-value activity in this programme: batch 19 shipped a defect
+(`▸` rendering as `?`) that **no headless test in this repo could see**.
 
 > 🔴 **New, and it blocks `dotnet build`:** [BP-87](Blueprint_Issues_Detail.md#bp-87) — the parameter
 > type dropdown offers **8 types the compiler cannot resolve**. The untracked `SquadState1.bp.json`

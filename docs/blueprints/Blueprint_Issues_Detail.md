@@ -1867,6 +1867,134 @@ dropdown should be derived from what the compiler can resolve, so this cannot dr
 work was built and gated with the file temporarily moved aside and restored afterwards; it is
 untracked and was left in place.
 
+---
+
+# UX blockers found in the batch-19 visual check (2026-08-08)
+
+> All five are *"there is no way to…"* / *"I could not find how to…"* reports from the user driving the
+> real editor after batch 19 shipped. **Four of the five affordances exist in code and were simply not
+> discoverable** — which makes them cheap to fix and expensive to leave.
+>
+> 🔁 **Pattern, third confirmed instance: double-click-only, no affordance, no hint.**
+> [BP-75](#bp-75) (function items) · [BP-90](#bp-90) (blackboard variables) · and the Outputs table in
+> [BP-89](#bp-89). If an action is reachable *only* by double-clicking an unmarked row, users do not
+> find it. Check for this before adding any new list interaction.
+
+<a id="bp-88"></a>
+### BP-88 — An Instance blueprint can contain **no Event graph, and none can be created**
+**Complexity:** RW-L · **Confidence:** ✔✔✔ *(grounded in the asset JSON)*
+
+> User: *"I now can switch just between functions … and have no idea how to go to the instance graph."*
+
+**They were not failing to navigate — there is nothing to navigate to.** `SquadState1.bp.json`
+(`Dispatch: Instance`) contains **two graphs, both `Kind=Function`** (`GetThreatLevel`, `NewFunc1`).
+The shipped `Recipes/Blueprints/SquadState.bp.json` ships exactly one graph, `GetThreatLevel`,
+`Kind=0` (Function). So **My Blueprint's `Graphs (0)` is literal.**
+
+Two distinct gaps:
+
+1. **No create-path for an Event graph.** BP-24 shipped **"Functions +"** (and Macros has a `+`), but
+   the **Graphs** section has none. A designer who starts from the `SquadState` recipe therefore has
+   *no route at all* to an Event/Tick graph.
+2. **An `Instance` asset with zero Event graphs may not be a meaningful shape.** Contrast the sibling
+   recipe `SquadAwareEngagement.bp.json`, which is `Tick`/`Kind=1` (Event). `SquadState` is
+   functions-only yet declares `Dispatch: Instance` — i.e. it is shaped like a *library* and labelled
+   like an *instance*. See [BP-92](#bp-92); resolve that before deciding whether the fix is "add a
+   Graphs +" or "the recipe's dispatch is wrong".
+
+⚠ Do not fix (1) in isolation until (2) is answered — adding a create button to an asset shape that
+should not exist would cement the confusion.
+
+<a id="bp-89"></a>
+### BP-89 — Function **outputs are undiscoverable**, and the Return node's Details panel shows only `Success`
+**Complexity:** RW-L · **Confidence:** ✔✔✔
+
+> User: *"I have no idea how to add 3 function outputs. Where? Return node detail panel always shows
+> Success and nothing else."*
+
+⚠ **This blocked the T1–T7 verification of [BP-73](#bp-73)** — the largest unverified item in the
+programme could not be exercised because the entry point could not be found.
+
+The affordance **exists**: *Graph Signature* window → **Outputs** table → **`+`**. It is a bare `+`
+under an unlabelled table, in a panel the designer has no reason to associate with the Return node
+they are actually looking at. Nothing on the Return node, and nothing in its Details panel, points at it.
+
+**Fix — make the Return node self-explanatory, since that is where the designer already is:**
+- Details for a `Return` node should list the graph's **declared outputs** (and offer add/remove), not
+  just `Success`.
+- With zero outputs declared, say so and link to Graph Signature, rather than rendering a bare node
+  that reads as broken.
+- Label the Graph Signature tables (`Inputs` / `Outputs`) with what the pins will *become* — the
+  BP-85 note already records that the entry-node/Return-node asymmetry costs real time
+  ([§ four things that look like bugs](#bp-85), item 4).
+
+<a id="bp-90"></a>
+### BP-90 — Blackboard / variables panel rename has **no visible affordance** (BTree, and everywhere the control is reused)
+**Complexity:** RW-L · **Confidence:** ✔✔✔ *(read from source)*
+
+> User: *"For BTree there is no possibility for rename in the variable panel, nor in the blackboard
+> variable panel."*
+
+Rename **is** implemented — `VariablesPanelControl.cs:319` starts it on
+`ImGui.IsMouseDoubleClicked(Left)` over the row, gated on `!schema.IsReadOnly`. There is **no** context
+menu, no pencil affordance, and no tooltip saying so; the only tooltip on the row is the unrelated
+*"Not referenced by any node"* hint for unused variables.
+
+Two failure modes, indistinguishable to the user:
+- they never discover the double-click, **or**
+- `schema.IsReadOnly` is true for this asset and the double-click is silently swallowed — **no
+  feedback either way.**
+
+**Fix:** a right-click → *Rename* item (and/or an inline pencil), plus a disabled-with-reason state
+when `IsReadOnly`. ⚠ **Also determine why `IsReadOnly` is set for a BTree blackboard** — if it is, that
+is a second, larger issue hiding behind this one.
+
+⚠ **Testing consequence:** [BP-86](#bp-86) sites 4–6 (`VariablesPanelControl:561,562,640`) could **not
+be exercised in the editor** for this reason. They are covered by the headless helper tests, but the
+NUL fix at those three sites remains unconfirmed by hand.
+
+<a id="bp-91"></a>
+### BP-91 — No discoverable way to **add an event to an HSM graph**
+**Complexity:** RW-L · **Confidence:** ✔ *(user-reported; not yet traced to source)*
+
+> User: *"I did not find any way how to add event in HSM graph."*
+
+⚠ **Testing consequence:** [BP-86](#bp-86) site 2 (`HsmEventsWindow.cs:110`) could **not be exercised
+in the editor** — the events window's rename path is reachable only once an event exists.
+
+**Next step (not done):** determine whether the HSM events window has a create path at all, or whether
+it is (like BP-90) present but undiscoverable. Trace `HsmEventsWindow` before scoping — the answer
+decides whether this is a missing feature or a missing affordance.
+
+<a id="bp-92"></a>
+### BP-92 — 📐 Where do Functions *live*, and how are they shared? (architect)
+**Complexity:** RW-H *(architect decision first)* · **Confidence:** n/a — this is a design question
+
+> User: *"why are functions stored together in an instance blueprint json? how can they be shareable
+> with other blueprints? should they be in separate blueprint files? I do not understand the logic.
+> How does Unreal do that?"*
+
+A fair question the current model does not answer on screen. Today a Function graph is stored **inside
+the owning asset's `.bp.json`**, alongside that asset's Event graphs, and cross-asset calls go through
+the peer mechanism (`CallPeer.{guid}`, see [BP-68](#bp-68)) rather than through any notion of a shared
+function library.
+
+**Questions for the architect** (not for Claude to settle):
+1. Is an asset-private Function the intended model, with the peer-call mechanism as the *only* sharing
+   route — or should there be a first-class shared function library asset?
+2. If functions stay asset-private, what does `Dispatch: Instance` mean for a functions-only asset like
+   `SquadState`? (See [BP-88](#bp-88) — that combination is what triggered the question.)
+3. Unreal parity is being used as the yardstick across this programme (BP-71, BP-73, BP-75). Unreal
+   distinguishes per-Blueprint functions from **Blueprint Function Libraries** — a separate asset type
+   whose static functions any Blueprint may call. ⚠ Claude cannot verify Unreal's current semantics
+   from this repo; **confirm the parity target before it is used to justify a design**, given the
+   programme's record of overturned assumptions.
+
+⚠ This is upstream of [BP-88](#bp-88) and touches [BP-75](#bp-75) (function palette entries) — settle
+it before building either.
+
+---
+
 ## Explicitly out of scope
 
 | Item | Why |
@@ -1888,6 +2016,10 @@ and collapse-to-function if ever brought back into scope.
   `sbyte`/`ushort`/`uint`/`ulong` should be legal at all is a real design question (they exist in no
   compiler table and have no coercion entries). Register or remove — the status quo offers them and
   then fails the build.
+- **[BP-92](#bp-92)** — **where do Functions live and how are they shared?** Asset-private + peer-call,
+  or a first-class shared function library? And what does `Dispatch: Instance` mean for a
+  functions-only asset? ⚠ Upstream of [BP-88](#bp-88) and [BP-75](#bp-75) — settle before building
+  either. Raised by the user in the batch-19 visual check.
 - **[BP-84](#bp-84) follow-on** — undo-of-delete rebuilds a node from its *kind string alone*, because
   `INodeModel` exposes no property bag and so the shared `EditCommands` cannot build a lossless
   inverse. BP-84 fixed this Blueprint-side with a removed-node tombstone; **the BTree and HSM sinks
