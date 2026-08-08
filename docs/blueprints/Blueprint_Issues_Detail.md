@@ -2244,6 +2244,83 @@ it is why nobody hits this problem there.
 > **T1–T7 are now performable.** They remain *unperformed* — this unblocks the visual check, it is
 > not the visual check.
 
+<a id="bp-108"></a>
+### BP-108 — No Print/Log node: a blueprint cannot emit a formatted string
+**Complexity:** RW-M · **Confidence:** ✔✔✔ *(absence verified)*
+
+> User: *"we are still missing a node allowing us to write a formatted string to log or console, which
+> could be testable. That one is really useful and should be added."*
+
+Confirmed absent — no `PrintString` / `LogNode` / `DebugPrint` anywhere in `Assets/Nodes.cs`. Unreal's
+**Print String** is the first node most designers reach for, and without it there is **no way to see
+what a graph is doing** short of attaching a debugger.
+
+⭐ **It is also what makes an engine-only smoke test readable** — see [BP-109](#bp-109). A test that
+asserts on captured log lines reads like the scenario it verifies; one that asserts on state-struct
+fields does not.
+
+#### ⚠ Three design points that decide the shape — settle them before building
+
+1. **The log sink must be interceptable.** If the node writes straight to a console, a test can assert
+   **nothing**. Testability is not a nice-to-have here — it is the reason the node is being asked for,
+   so it belongs in the design rather than being retrofitted.
+2. **Format arguments need a variadic/wildcard pin shape**, which no existing node has. Check
+   `WhenNode`'s multi-form pin projection before inventing a mechanism — and note that both pin
+   projections (`NodePinSchema` **and** `Stage0_Rehydrate`) must agree, which is trap #9's home.
+3. **`System.String` is managed.** [BP1503](#bp-87) forbids it in a `State` struct. A format
+   **literal** is fine; a string **variable** is not. That boundary is real and must be stated in the
+   node's own docs, or the first designer to try storing a message will hit an unexplained error.
+   ⚠ This is also why [BP-87](#bp-87) wants `FixedString32/64` in the type picker — the two items meet
+   here.
+
+<a id="bp-109"></a>
+### BP-109 — End-to-end smoke test: two entities, two blueprints, one shared Library function 🔴
+**Complexity:** RW-M · **Confidence:** ✔✔✔
+
+> User: *"a scenario with two entities each running a different blueprint, each running its own local
+> function returning something useful; both blueprints also running a single shared function from a
+> shared function library. Is that doable already? Can something like that become part of the test
+> suite?"*
+
+**Yes — and it should be, because it closes a real hole.**
+
+#### ⭐ Why this is 🔴: no test ever *runs* a `CallPeerBlueprint`
+
+Every occurrence of `CallPeerBlueprint` in the suite is **compile-time only**:
+
+| Test | Level |
+|---|---|
+| `V_PeerReferencesTests` | Stage 2 validation |
+| `NodePinSchemaEnrichmentTests` | editor pin projection |
+| `DynamicKindNodeCreateTests` | node creation |
+| `AssetJsonRoundTripTests` | serialization |
+
+**The cross-asset shared-function call has never been executed.** That is trap #9's exact shape — both
+halves individually locked, the seam never crossed — and it is precisely how [BP-66](#bp-66) (the peer
+catalog scanning a directory that did not exist) survived for months. It is also the feature the user
+most wants to rely on.
+
+#### ✅ The substrate already exists
+
+`BlueprintRunHarness` (`Tests/Runtime/BlueprintRunHarness.cs`) spawns an entity, attaches a registered
+blueprint, pumps the **real** `BlueprintTickSystem` + `BlueprintMaintenanceSystem`, and reads a field
+back via `BlueprintStateView.TryGetField<T>`. Roughly six test files already use it.
+
+⚠ **Unexercised:** every current caller does **one entity, one asset**. Two entities running *different*
+blueprints in one world is plausible but unproven — treat it as something to verify, not assume.
+
+#### Shape
+
+- **Ship it as recipe assets, not test-only fixtures**, so it doubles as the sample data a designer can
+  open in the editor. That gives one artifact two jobs and keeps it honest — a fixture that only the
+  test can load proves less than one a human can also inspect.
+- Assert on **returned values**, not just "it ticked": each local function returns something derived
+  from that entity's own state, so the two entities must produce **different** results while the shared
+  library function produces a **consistent** one.
+- ⚠ **Better with [BP-108](#bp-108).** Asserting on captured log lines makes the test read like the
+  scenario; without it, assert via `TryGetField<T>` — workable, less legible. **BP-109 does not block on
+  BP-108**, but doing BP-108 first makes BP-109 materially better.
+
 <a id="bp-103"></a>
 ### BP-103 — A blank-template blueprint has **zero graphs**: crashes on open, breaks the build 🔴
 **Complexity:** RW-L · **Confidence:** ✔✔✔ *(user-reproduced; cause read from source)*
