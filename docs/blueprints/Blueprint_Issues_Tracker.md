@@ -12,10 +12,10 @@ architect decision first).
 | Complexity | Open | Done |
 |---|---:|---:|
 | `WIRING` | 5 | 22 |
-| `RW-L` | 23 | 20 |
+| `RW-L` | 24 | 20 |
 | `RW-M` | 25 | 5 |
 | `RW-H` | 3 | 1 |
-| **Total** | **56** | **48** |
+| **Total** | **57** | **48** |
 | *(refuted on verification)* | | *1* |
 
 > 📌 **Resuming this programme?** Start with [Blueprint_Gaps_Programme_RESUME.md](Blueprint_Gaps_Programme_RESUME.md) — branch, batches
@@ -347,6 +347,7 @@ architect decision first).
 - [ ] **[BP-99](Blueprint_Issues_Detail.md#bp-99)** · `RW-L` — **My Blueprint has no search box.** Unreal's panel opens with one, and it filters every section at once — the standard way to find an item in a large blueprint. Ours has five sections and no filter, so finding a function in a 30-graph asset means scrolling. Purely additive; no data-model change — *from the [functions/macros UX plan](Blueprint_Functions_Macros_UX_Plan.md)*
 - [ ] **[BP-100](Blueprint_Issues_Detail.md#bp-100)** · `RW-L` — **Graph kind is invisible: no icon on My Blueprint rows or canvas tabs.** The three kinds behave completely differently (Event = latent OK, no return · Function = returns values, **no latent** per BP1650 · Macro = inlined, latent OK, N exec-outs) yet render identically as plain text. **Fix: one colour + one letter per kind, repeated in every surface** — panel row, tab, breadcrumb, palette entry — so the distinction is learned once. Extends **[BP-85](Blueprint_Issues_Detail.md#bp-85)**'s breadcrumb rather than duplicating it — *from the [functions/macros UX plan](Blueprint_Functions_Macros_UX_Plan.md)*
 - [ ] **[BP-101](Blueprint_Issues_Detail.md#bp-101)** · `RW-L` — **No F2 / context-menu rename on panel items — double-click is the only route, everywhere.** ⚠ **Third confirmed instance of one pattern**: [BP-75](Blueprint_Issues_Detail.md#bp-75) (function items), [BP-89](Blueprint_Issues_Detail.md#bp-89) (the Outputs `+`), [BP-90](Blueprint_Issues_Detail.md#bp-90) (blackboard variables). Unreal renames from **F2 and a right-click entry** on every item, with double-click as an *additional* shortcut — never the only one. **Fix it as a convention across all panels in one pass**, not per control, or the fourth instance is already being written — *from the [functions/macros UX plan](Blueprint_Functions_Macros_UX_Plan.md)*
+- [ ] **[BP-102](Blueprint_Issues_Detail.md#bp-102)** · `RW-L` — **Graph Signature window edits are still not undoable** — the same edit is undoable from the Return node and not from the signature window. *Declared as a known gap by the Batch-20 session and confirmed by the coordinator; registered because a gap recorded only in a DONE note appears in no count and no priority list.* `GraphSignatureWindow` holds a `DirtyTracker` but **no `IEditService`**, so the shared `GraphSignatureEditModel` recorder seam BP-89 added is simply not passed one — the model already supports it (`null` recorder = pre-BP-89 behaviour). **Fix:** wire an `IEditService` into the window's construction. ⚠ **A BP-02-family bypass** — that batch spent its length removing 15 undo bypasses; this is a 16th, newly *visible* rather than newly created. ⚠ Two surfaces of one control now behave differently, which is worse than both being non-undoable — *found in Batch 20*
 - [ ] **[BP-14](Blueprint_Issues_Detail.md#bp-14)** · `RW-L` — `Return.Status` uneditable (always Success); a `NodeStatus` combo, ~20-30 lines
 - [ ] **[BP-22](Blueprint_Issues_Detail.md#bp-22)** · `RW-L` — `GetParameter` cannot be placed; asset-specific, so needs a picker not a baked entry
 - [ ] **[BP-21](Blueprint_Issues_Detail.md#bp-21)** · `RW-L` — `When` → ValueChanged form stubbed; reuse `ComponentFieldReflector` + component pickers

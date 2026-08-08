@@ -2244,6 +2244,34 @@ it is why nobody hits this problem there.
 > **T1–T7 are now performable.** They remain *unperformed* — this unblocks the visual check, it is
 > not the visual check.
 
+<a id="bp-102"></a>
+### BP-102 — Graph Signature window edits are still not undoable
+**Complexity:** RW-L · **Confidence:** ✔✔✔ *(declared by the Batch-20 session, confirmed by the coordinator)*
+
+> Registered by the coordinator because the Batch-20 session recorded this **only as a note inside
+> BP-89's DONE block**. A gap documented there appears in no count, no priority list and no handoff —
+> it is invisible to the process. Anything a session knowingly leaves behind gets a row.
+
+**The same edit is undoable from one surface and not the other.** BP-89 added a recorder seam to
+`GraphSignatureEditModel` and wired it from `ReturnNodeDrawer`, so adding an output from the **Return
+node** is one undo entry. The **Graph Signature window** shares the identical model and view
+(`ParameterRowsView`) but constructs the model with **no recorder**, so the identical gesture there is
+silently non-undoable.
+
+**Cause:** `GraphSignatureWindow` holds a `DirtyTracker` but **no `IEditService`**. The model already
+supports the seam — passing `null` is the documented pre-BP-89 behaviour — so nothing needs designing;
+the window simply has nothing to pass.
+
+**Fix:** wire an `IEditService` into `GraphSignatureWindow`'s construction and hand it to the model.
+
+⚠ **This is a BP-02-family bypass.** That batch spent its full length removing 15 undo bypasses, and
+[BP-60](#bp-60) closed the last one. This is a 16th — **newly *visible*, not newly created**: the
+window was never undoable, and BP-89 made the asymmetry obvious by fixing the other half.
+
+⚠ **Two surfaces of one control behaving differently is worse than both being broken.** A designer who
+learns "outputs are undoable" from the Return node will trust it in the signature window and lose work.
+Prefer fixing it over documenting it.
+
 <a id="bp-90"></a>
 ### BP-90 — Blackboard / variables panel rename has **no visible affordance** (BTree, and everywhere the control is reused)
 **Complexity:** RW-L · **Confidence:** ✔✔✔ *(read from source)*
