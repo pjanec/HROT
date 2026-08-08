@@ -241,16 +241,16 @@ precisely why this check matters.
 | ✅ **BP-71 confirmed working** | On `SquadState1`, the Return node showed a value pin **named after the declared output** (`ThreatLevel`) as an **input**, and it **accepted a wire** from `GetVariable`. The saved JSON proves it: a link with `ToNodeId` = the Return node. R1 + R2 pass |
 | ✅ EventEntry projection correct | One `Out` exec pin on a 0-input Function graph |
 | 🔴 **BP-84 — NEW defect, ✅ diagnosed** | Delete a `GetVariable`, **Ctrl+Z**, and it returns **without its `Value` output pin**. **Discriminating experiment run:** only the *restored* node loses pins; the wired sibling is untouched ⇒ **view-model rebuild**, not node ordering. Blast radius one node. `RW-L` — see [BP-84](Blueprint_Issues_Detail.md#bp-84) |
-| 🔴 **BP-86 — NEW defect** | Function input params render as **`P1?am0` / `P2?am1` / `P3?am2`** instead of `Param0/1/2`. Two bytes stomped at offset 1–2 with a row-dependent digit ⇒ buffer/encoding, not formatting. Four layers already eliminated — see [BP-86](Blueprint_Issues_Detail.md#bp-86) |
+| 🔴 **BP-86 — NEW, ✅ root-caused** | Renaming to a **shorter** value keeps the old value's tail past an embedded NUL: `P1` over `Param0` persists `P1␀am0`. `TrimEnd('\0')` strips only *trailing* nulls; `InputText` leaves the buffer's tail intact. **Truncate at the first null.** ⚠ **Seven sites** share the idiom, across the HSM and Blackboard editors too — see [BP-86](Blueprint_Issues_Detail.md#bp-86) |
 | 🔴 **BP-85 — NEW** | The canvas never names the active graph, so creating a function reads as *"my graph was emptied"* |
 | ✅ **BP-75 confirmed live** | Single-click **and** drag of a Functions-section item both do nothing. Only double-click works |
 | ⚪ Not defects (checked) | `Header: {}` on save is **correct** — `$meta` supersedes it (D-021, `GraphTypes.cs:162`) · `"VariableId": "var:<guid>"` is a **tolerated form by design** (`BlueprintDocumentFactory:1083-1085`) · New-from-Recipe **writing the file before any save** is by design (`NewFromRecipeService` returns an unregistered asset "ready for the host to save and register") · a Return node with **no** value pin in a 0-output function is **correct** — declare an Output in Graph Signature first · ⚠ **adding *Input* params correctly leaves the Return node unchanged** — inputs surface as data-outs on the **entry** node; the Return node reflects **Outputs**. Mistaking this for a bug cost real time, which is BP-85's case in one sentence |
 
-**🔬 Open question for BP-86, ~10 seconds:** save and read `Graphs[].Inputs[].Name` in the `.bp.json`.
-`Param0` ⇒ render-only, downgrade from 🔴. `P1?am0` ⇒ the mangled name is **persisted** and will reach
-the compiler as an identifier — stays 🔴 and jumps the queue.
+📋 **Fixing these on Windows? Start from
+[HANDOFF_Windows_Fix_Session.md](HANDOFF_Windows_Fix_Session.md)** — self-contained, with the exact fix
+for BP-86, what is already ruled out for BP-84, the fixture setup, and the in-editor verification steps.
 
-**🔬 Open question for BP-84, same cost:** does closing and reopening the asset heal the pin-less node?
+**🔬 Open question for BP-84:** does closing and reopening the asset heal the pin-less node?
 Pins are stripped on save and re-projected on load, so it probably does — which would downgrade the
 data-loss framing to render-until-reopen. Confirm rather than assume.
 

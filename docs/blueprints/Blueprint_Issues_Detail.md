@@ -906,55 +906,77 @@ render-until-reopen defect. Confirm rather than assume.
 ### BP-86 — Function input parameters render with **corrupted names** on the entry node 🔴
 **Complexity:** RW-L · **Confidence:** ✔✔ *(observed; four layers eliminated, culprit not yet pinned)*
 
-Add three input parameters to a Function graph's signature. The entry node correctly grows one data-out
-pin per input — but their labels are **mangled**:
+Add three input parameters to a Function graph's signature and **rename them to something shorter than
+the default** — the user typed `P1`, `P2`, `P3` over the generated `Param0`, `Param1`, `Param2`. The
+entry node's pins then read:
 
-| Expected | Observed |
+| Typed | Persisted / rendered |
 |---|---|
-| `Param0` | **`P1?am0`** |
-| `Param1` | **`P2?am1`** |
-| `Param2` | **`P3?am2`** |
+| `P1` | **`P1␀am0`** — shown as `P1?am0` |
+| `P2` | **`P2␀am1`** — shown as `P2?am1` |
+| `P3` | **`P3␀am2`** — shown as `P3?am2` |
 
-#### The corruption is positional and structured — not random
+#### ✅ Root cause — confirmed, `GraphSignatureWindow.cs:343-345`
 
-Aligning `Param0` against `P1?am0` character by character:
-
-```
-P a r a m 0      ← expected
-P 1 ? a m 0      ← observed
-  ^ ^
-  └─┴── indices 1..2 overwritten
+```csharp
+var newName = System.Text.Encoding.UTF8
+    .GetString(nameBuf)      // ← decodes ALL 256 bytes
+    .TrimEnd('\0');          // ← strips only TRAILING nulls
 ```
 
-Two bytes at **offset 1–2** are replaced by *(row index + 1)* as an ASCII digit, plus one byte that
-renders as `?` (i.e. not printable / not valid UTF-8). The `am{i}` tail and the leading `P` survive.
-The same 2-byte stomp at the same offset repeats per row with an incrementing 1-based digit.
+`nameBuf` is a 256-byte buffer seeded with the *old* name. `ImGui.InputText` writes the new text plus a
+terminating `\0` **and leaves the remainder of the buffer untouched.** So typing `P1` over `Param0`
+gives:
 
-⇒ This is a **buffer/encoding defect, not a string-formatting mistake.** A wrong format string would
-produce a consistently wrong *shape*; this preserves the original length and overwrites two interior
-bytes with a row-dependent value.
+```
+offset:  0    1    2    3    4    5    6 ...
+before: 'P'  'a'  'r'  'a'  'm'  '0'  \0      ← "Param0"
+after:  'P'  '1'  \0   'a'  'm'  '0'  \0      ← InputText wrote "P1\0", bytes 3-5 survive
+                  ↑ terminator — everything past it is stale
+```
 
-#### Layers already eliminated — do not re-search these
+`GetString` over the whole buffer yields `"P1\0am0\0\0…"`, and `TrimEnd('\0')` removes only the
+*trailing* nulls — leaving **`"P1\0am0"`**, with the interior `\0` intact. The canvas renders that
+embedded null as `?`.
 
-| Layer | Verdict |
+⇒ **The bug fires whenever the new name is SHORTER than the old one**, and the visible residue is
+exactly the old name's tail. My earlier reading of this — "two bytes overwritten by *(row index + 1)*" —
+was **wrong**: the incrementing digit is not a row index at all, it is the trailing digit of the
+default name `Param{i}` showing through. The correct diagnosis only became possible once the user said
+they had typed `P1`/`P2`/`P3` themselves.
+
+#### 🔴 It is persisted, not render-only
+
+`RenameParameter(param.Name, newName)` writes the mangled string straight into `ParameterDecl.Name`, so
+it round-trips to `.bp.json` and reaches the compiler as an **identifier containing a NUL**. This is
+data corruption, not a display glitch.
+
+#### The fix — truncate at the FIRST null
+
+```csharp
+int len = Array.IndexOf(nameBuf, (byte)0);
+if (len < 0) len = nameBuf.Length;
+var newName = System.Text.Encoding.UTF8.GetString(nameBuf, 0, len);
+```
+
+#### ⚠ Systemic — **seven sites**, same shape
+
+`TrimEnd('\0')` after decoding a whole ImGui buffer is a repeated idiom in this codebase. Every one is
+the same latent defect, and each corrupts as soon as a user shortens an existing value:
+
+| # | Site |
 |---|---|
-| Name **generator** | ✅ correct — `GraphSignatureWindow.cs:386` is `$"Param{model.Parameters.Count}"`, which yields `Param0`/`Param1`/`Param2` |
-| Edit **model** | ✅ correct — `GraphSignatureEditModel.AddParameter:61-71` stores `Name = name` **verbatim**, no transformation |
-| Signature-window **row buffer** | ✅ correct — `DrawParameterRows:338-348` does `UTF8.GetBytes(param.Name + "\0")` → `Array.Resize(256)` → `InputText`, and only writes back when `InputText` returns true |
-| Pin **display-label** resolver | ✅ not involved — `BlueprintGraphModel.ResolvePinDisplayLabel:318-332` early-returns unless the pin is named exactly `"Value"`; these are named `Param0`… |
+| 1 | `Hrot.Blueprints.Editor/Windows/GraphSignatureWindow.cs:345` ← **this bug** |
+| 2 | `Hrot.Hsm.Editor/Windows/HsmEventsWindow.cs:110` |
+| 3 | `Hrot.Editor.AiShared/Windows/InspectorWindow.cs:231` |
+| 4 | `Hrot.Editor.AiShared/Blackboard/VariablesPanelControl.cs:561` |
+| 5 | `Hrot.Editor.AiShared/Blackboard/VariablesPanelControl.cs:562` |
+| 6 | `Hrot.Editor.AiShared/Blackboard/VariablesPanelControl.cs:640` |
+| 7 | `Fdp.Presentation/ImGui/Panels/ImGuiFileDialogService.cs:184` |
 
-⇒ Remaining suspects: **`BlueprintPinModel`'s label path**, or the **NodeEdit canvas pin-label
-renderer** (an ImGui text/id buffer). Note `PushID($"name_{tableId}_{i}")` puts a row index adjacent to
-the name in the same frame — the row-dependent digit makes an ImGui id/label buffer the prime suspect.
-
-#### 🔬 The one cheap test that splits this
-
-**Save, then read `Graphs[].Inputs[].Name` in the `.bp.json`:**
-
-- `"Name": "Param0"` ⇒ **render-only.** Data is clean; fix the label path. Downgrade from 🔴.
-- `"Name": "P1?am0"` ⇒ **data corruption.** The mangled name is persisted, will reach the compiler as
-  an identifier, and `Sanitizer.SanitizeName` will then have to cope with a `?`. Stays 🔴 and gets
-  priority.
+Sites 4–6 add `.Trim()`, which does **not** help — `Trim()` does not remove an interior NUL either.
+Fix all seven behind one shared helper rather than patching site 1 alone; this is trap #5's lesson in a
+different costume (an idiom that looks defensive and isn't).
 
 <a id="bp-85"></a>
 ### BP-85 — The canvas never says which graph you are editing
