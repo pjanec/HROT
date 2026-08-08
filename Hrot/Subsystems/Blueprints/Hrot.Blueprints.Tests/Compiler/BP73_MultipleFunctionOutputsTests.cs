@@ -519,6 +519,55 @@ public sealed class BP73_MultipleFunctionOutputsTests
     }
 
     // =====================================================================
+    // 8. BP-104 — Library dispatch WITH declared outputs must pass Roslyn too
+    // =====================================================================
+
+    /// <summary>
+    /// BP-104: before this fix, <c>Stage5_Schedule.BuildReturnTerminator</c> took the
+    /// <c>AiPrimitive || Library</c> branch unconditionally and returned <c>IrTerm_ReturnStatus</c>
+    /// for EVERY Library function regardless of declared outputs, while
+    /// <c>LibraryEmitter.CSharpReturnType</c> already declared the method's return type from
+    /// <c>Outputs.Count</c> (the output type for 1, a tuple for N). A Library function with a single
+    /// declared output was therefore declared e.g. <c>int Compute(...)</c> while its body executed
+    /// <c>return NodeStatus.Success;</c> — CS0029, caught by NOTHING else in this suite because
+    /// <c>CompileOk</c> only asserts <c>Succeeded</c> and never invokes the C# compiler.
+    /// <para>
+    /// This is the load-bearing regression test: it is the only place in this file (or BP-73's
+    /// bare-source-inspection siblings) that actually runs Roslyn over a Library function with
+    /// outputs, so it is the only assertion that would have caught this shape.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Library_SingleOutput_PassesRoslyn_EndToEnd()
+    {
+        var target = MakeMultiOutputFunction(Guid.NewGuid(), ("Result", "System.Int32", "7"));
+        var asset = MakeAsset(target);
+        asset.Dispatch = BlueprintDispatchKind.Library;
+
+        using var fixture = new BlueprintTestFixture(
+            new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+
+        // Throws with the Roslyn diagnostics if the generated C# does not compile (e.g. CS0029).
+        fixture.CompileAndLoad(asset);
+    }
+
+    /// <summary>BP-104: same regression, N outputs — the method is declared to return a tuple.</summary>
+    [Fact]
+    public void Library_MultiOutput_PassesRoslyn_EndToEnd()
+    {
+        var target = MakeMultiOutputFunction(Guid.NewGuid(),
+            ("Amount",   "System.Single",  "1.5f"),
+            ("Critical", "System.Boolean", "true"));
+        var asset = MakeAsset(target);
+        asset.Dispatch = BlueprintDispatchKind.Library;
+
+        using var fixture = new BlueprintTestFixture(
+            new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+
+        fixture.CompileAndLoad(asset);
+    }
+
+    // =====================================================================
     // helpers
     // =====================================================================
 

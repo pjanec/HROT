@@ -443,6 +443,94 @@ public sealed class ReturnNodeDrawerTests
         Assert.Equal(0, recordCount);
     }
 
+    // ── BP-105: which section(s) apply, per dispatch ─────────────────────────
+    //
+    // MakeAsset leaves Dispatch at its default (Library == 0) unless overridden below — see
+    // BlueprintDispatchKind's declaration order in BlueprintAsset.cs.
+
+    [Fact]
+    public void Instance_ShowsOutputs_NotStatus()
+    {
+        var graph = MakeFunctionGraph();
+        var node  = MakeNode();
+        graph.Nodes.Add(node);
+        var asset = MakeAsset(graph);
+        asset.Dispatch = BlueprintDispatchKind.Instance;
+
+        var drawer  = new ReturnNodeDrawer(new SpyEditService());
+        var session = (ReturnNodeSession)drawer.CreateSession(node, asset);
+
+        Assert.True(session.ShowsOutputsForTest);
+        Assert.False(session.ShowsStatusForTest);
+    }
+
+    [Fact]
+    public void AiPrimitive_ShowsStatus_NotOutputs()
+    {
+        var graph = MakeFunctionGraph();
+        var node  = MakeNode();
+        graph.Nodes.Add(node);
+        var asset = MakeAsset(graph);
+        asset.Dispatch = BlueprintDispatchKind.AiPrimitive;
+
+        var drawer  = new ReturnNodeDrawer(new SpyEditService());
+        var session = (ReturnNodeSession)drawer.CreateSession(node, asset);
+
+        Assert.False(session.ShowsOutputsForTest);
+        Assert.True(session.ShowsStatusForTest);
+    }
+
+    [Fact]
+    public void Library_ZeroOutputs_ShowsBothOutputsAndStatus()
+    {
+        var graph = MakeFunctionGraph();
+        var node  = MakeNode();
+        graph.Nodes.Add(node);
+        var asset = MakeAsset(graph);
+        asset.Dispatch = BlueprintDispatchKind.Library;
+
+        var drawer  = new ReturnNodeDrawer(new SpyEditService());
+        var session = (ReturnNodeSession)drawer.CreateSession(node, asset);
+
+        Assert.True(session.ShowsOutputsForTest);
+        Assert.True(session.ShowsStatusForTest);
+    }
+
+    [Fact]
+    public void Library_WithDeclaredOutput_ShowsOutputs_NotStatus()
+    {
+        var graph = MakeFunctionGraph();
+        var node  = MakeNode();
+        graph.Nodes.Add(node);
+        var asset = MakeAsset(graph);
+        asset.Dispatch = BlueprintDispatchKind.Library;
+
+        var drawer  = new ReturnNodeDrawer(new SpyEditService());
+        var session = (ReturnNodeSession)drawer.CreateSession(node, asset);
+
+        // Declaring an output must flip Status off — the same instant the compiler (BP-104)
+        // switches from IrTerm_ReturnStatus to IrTerm_Return for this graph.
+        session.OutputsModelForTest!.AddParameter("Result", "System.Int32");
+
+        Assert.True(session.ShowsOutputsForTest);
+        Assert.False(session.ShowsStatusForTest);
+    }
+
+    [Fact]
+    public void ContainingGraphNotFound_ShowsNeitherSection()
+    {
+        var graphA = MakeFunctionGraph("GraphA");
+        var node   = MakeNode(); // never added to any graph's Nodes list
+        var asset  = MakeAsset(graphA);
+        asset.Dispatch = BlueprintDispatchKind.Instance;
+
+        var drawer  = new ReturnNodeDrawer(new SpyEditService());
+        var session = (ReturnNodeSession)drawer.CreateSession(node, asset);
+
+        Assert.False(session.ShowsOutputsForTest);
+        Assert.False(session.ShowsStatusForTest);
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
 
     private static BlueprintNodeDrawerRegistry CreateTestDrawerRegistry()

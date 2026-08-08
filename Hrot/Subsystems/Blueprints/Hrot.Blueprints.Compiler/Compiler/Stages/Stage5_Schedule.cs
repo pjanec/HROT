@@ -813,8 +813,10 @@ internal sealed class GraphScheduler
     /// Sets the terminator on <paramref name="bb"/>: if a fall-through redirect
     /// is registered for <paramref name="blockId"/>, emits <see cref="IrTerm_Goto"/>;
     /// otherwise synthesizes the dispatch-appropriate implicit return
-    /// (<see cref="IrTerm_ReturnStatus"/>(Success) for AiPrimitive/Library,
-    /// void <see cref="IrTerm_Return"/> for Instance).
+    /// (<see cref="IrTerm_ReturnStatus"/>(Success) for AiPrimitive, and for Library only
+    /// while <see cref="_graph"/> declares no outputs; void <see cref="IrTerm_Return"/>
+    /// otherwise -- Instance, or an outputs-declaring Library graph whose chain fell off the
+    /// end with no explicit Return, matching <see cref="BuildReturnTerminator"/>'s rule -- BP-104).
     /// Centralizes the decision so that branch chaining (Sequence) is honoured
     /// wherever a block's exec chain naturally ends.
     /// </summary>
@@ -828,8 +830,14 @@ internal sealed class GraphScheduler
 
         // Genuine end-of-chain — synthesize the implicit return per dispatch kind
         // (mirrors BuildReturnTerminator's defaults without an explicit ReturnNode).
+        // BP-104: _graph (the graph currently being scheduled) is in scope here, so the same
+        // outputs-driven rule as BuildReturnTerminator applies: AiPrimitive is unconditional;
+        // Library only takes the status branch when it declares no outputs. An outputs-declaring
+        // Library graph that falls off the end with no ReturnNode gets an implicit VOID return here
+        // -- same as Instance -- rather than a NodeStatus that would mismatch its declared C# return
+        // type (the same CS0029 shape BuildReturnTerminator fixes for the explicit-Return case).
         if (_typed.Asset.Dispatch == AssetDispatchKind.AiPrimitive
-            || _typed.Asset.Dispatch == AssetDispatchKind.Library)
+            || (_typed.Asset.Dispatch == AssetDispatchKind.Library && _graph.Outputs.Count == 0))
         {
             var term = new IrTerm_ReturnStatus(NodeStatus.Success);
             if (debug is not null) term = term with { Debug = debug };
@@ -1905,20 +1913,47 @@ internal sealed class GraphScheduler
 
     private IrTerminator BuildReturnTerminator(ReturnNode rn, BlockBuilder currentBlock)
     {
-        if (_typed.Asset.Dispatch == AssetDispatchKind.AiPrimitive
-            || _typed.Asset.Dispatch == AssetDispatchKind.Library)
-        {
-            // AiPrimitive returns a NodeStatus.
-            return new IrTerm_ReturnStatus(rn.Status) { Debug = DebugOf(rn) };
-        }
-
-        // Function graph: return the data value wired into the Return node's value pin (if any).
+        // BP-104: hoisted above the dispatch branch -- both arms need it. Stage 0 projects exactly
+        // one data-in pin on the Return node per Graph.Outputs entry (in declaration order -- see
+        // ResolveAllDataInputs), so "has value pins" == "the containing graph declares outputs".
         //
         // BP-71 / Q24-B1: accept EITHER direction. The projections now emit "In" (the only form a
         // designer can wire, and the convention everywhere else -- see ResolveAllDataInputs), but
         // hand-authored JSON may still carry the legacy "Out" form, which this method has always
         // resolved as an input anyway. Accepting both means there is nothing to migrate and no
         // silently-void return for an asset written against the old shape.
+        var valuePins = rn.Pins
+            .Where(p => !p.IsExec && (p.Direction == "In" || p.Direction == "Out"))
+            .ToList();
+
+        // BP-104: three OTHER halves already derive the method shape from graph.Outputs --
+        // LibraryEmitter.CSharpReturnType (0 outputs -> NodeStatus/void, >=1 -> the output type or a
+        // tuple), CSharpEmitter.EmitLibraryFunctionAdapter (writes the RETURN VALUE into the outputs
+        // span), and BP73_MultipleFunctionOutputsTests' Library adapter test. This terminator was the
+        // ONE remaining half still emitting IrTerm_ReturnStatus unconditionally for Library, so a
+        // Library function that declares outputs got a method declared to return that type/tuple
+        // whose body executed `return NodeStatus.Success;` -- CS0029, a hard Roslyn error that
+        // `CompileOk`-style helpers (which only assert `Succeeded`, never invoking the C# compiler)
+        // let through silently.
+        //
+        // AiPrimitive is UNCONDITIONAL: NodeStatus is its BTree/HSM hosting contract, independent of
+        // whether the graph happens to declare outputs. Library instead takes the status branch only
+        // when it declares NO outputs -- that zero-output case is deliberate and test-locked
+        // (BPC_ImplicitReturnTests.Library_NoReturn_EmitsImplicitSuccessReturn feeds LibraryMath.bp.json)
+        // and must keep returning NodeStatus, not be swept into the value-return path below.
+        bool wantsStatusReturn =
+            _typed.Asset.Dispatch == AssetDispatchKind.AiPrimitive
+            || (_typed.Asset.Dispatch == AssetDispatchKind.Library && valuePins.Count == 0);
+
+        if (wantsStatusReturn)
+        {
+            // AiPrimitive returns a NodeStatus. So does a Library function with zero outputs.
+            return new IrTerm_ReturnStatus(rn.Status) { Debug = DebugOf(rn) };
+        }
+
+        // Function graph (Instance dispatch), or a Library function that DOES declare outputs:
+        // return the data value wired into the Return node's value pin (if any).
+        //
         // BP-73: N outputs. The pins are collected in declaration order (Stage 0 / the editor both
         // project one per Graph.Outputs entry, in order), each resolved exactly as the single-output
         // case always was, then packed into one carrier value by IrOp_MakeTuple.
@@ -1926,10 +1961,6 @@ internal sealed class GraphScheduler
         // ⚠ IrTerm_Return keeps its SINGLE IrValue. Packing in a preceding statement rather than
         // widening the terminator means every consumer of IrTerm_Return -- the block emitters, the
         // debug map, the breakpoint anchoring above -- is untouched by this feature.
-        var valuePins = rn.Pins
-            .Where(p => !p.IsExec && (p.Direction == "In" || p.Direction == "Out"))
-            .ToList();
-
         if (valuePins.Count > 1)
         {
             var parts = new List<IrValue>(valuePins.Count);

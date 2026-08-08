@@ -20,9 +20,22 @@ namespace Hrot.Blueprints.Editor.NodeDrawers;
 /// </para>
 ///
 /// <para>
-/// A registered drawer fully replaces <c>DrawReadOnlySummary</c>, so this drawer still renders
-/// <see cref="ReturnNode.Status"/> itself (as an editable combo) — otherwise the fix would remove
-/// the one thing the panel showed before.
+/// <b>BP-105.</b> The first version of this drawer rendered BOTH the Outputs table and the Status
+/// combo unconditionally, on every dispatch — but <c>Stage5_Schedule.BuildReturnTerminator</c>
+/// (BP-104) reads exactly one of them, so the other control was inert: editing it changed nothing
+/// the compiler would ever look at. The panel now shows only the control(s) the current
+/// <see cref="BlueprintAsset.Dispatch"/> actually uses, per BP-104's rule:
+/// <list type="bullet">
+/// <item><b>Instance</b> — declared Outputs only (Status is never read for Instance).</item>
+/// <item><b>Library</b> — Outputs always (it is how you declare them), <b>and</b> Status only while
+/// zero outputs are declared (the compiler falls back to <c>NodeStatus</c> for a zero-output Library
+/// function; once an output is declared, Status stops being read).</item>
+/// <item><b>AiPrimitive</b> — Status only (an AiPrimitive returns a node status to its BTree/HSM
+/// host unconditionally; it never has declared outputs to fall back on).</item>
+/// </list>
+/// Each rendered section is labeled with why it applies, so the panel does not look like an
+/// arbitrary subset — see the internal test hooks
+/// <see cref="ReturnNodeSession.ShowsOutputsForTest"/> / <see cref="ReturnNodeSession.ShowsStatusForTest"/>.
 /// </para>
 /// </summary>
 public sealed class ReturnNodeDrawer : IBlueprintNodeDrawer
@@ -65,10 +78,37 @@ internal sealed class ReturnNodeSession : INodeEditSession
     private static Graph? ResolveContainingGraph(Node node, BlueprintAsset asset)
         => asset.Graphs.FirstOrDefault(g => g.Nodes.Contains(node));
 
+    // ── BP-105: which control(s) apply, mirroring BP-104's terminator rule ──────
+    //
+    // Instance   -> Outputs only (BuildReturnTerminator never reads Status for Instance).
+    // Library    -> Outputs ALWAYS (it is how you declare them), Status only while the graph
+    //               declares ZERO outputs (BuildReturnTerminator/SealFallThrough fall back to
+    //               NodeStatus only in that case -- BP-104).
+    // AiPrimitive -> Status only (NodeStatus is unconditional -- its BTree/HSM hosting contract).
+    //
+    // Both are false when the containing graph could not be resolved: Draw() renders the warning
+    // and nothing else in that case, so neither control is actually on screen.
+
+    private bool ShowOutputs =>
+        _graph != null &&
+        (_parent.Dispatch == BlueprintDispatchKind.Instance
+         || _parent.Dispatch == BlueprintDispatchKind.Library);
+
+    private bool ShowStatus =>
+        _graph != null &&
+        (_parent.Dispatch == BlueprintDispatchKind.AiPrimitive
+         || (_parent.Dispatch == BlueprintDispatchKind.Library && _graph.Outputs.Count == 0));
+
     // ── Internal test hooks (InternalsVisibleTo Hrot.Blueprints.Tests) ──────────
 
     /// <summary>Test hook: the graph this session resolved as the node's container, or null.</summary>
     internal Graph? ResolvedGraphForTest => _graph;
+
+    /// <summary>Test hook: whether <see cref="Draw"/> renders the Outputs table for this session's dispatch.</summary>
+    internal bool ShowsOutputsForTest => ShowOutputs;
+
+    /// <summary>Test hook: whether <see cref="Draw"/> renders the Status combo for this session's dispatch.</summary>
+    internal bool ShowsStatusForTest => ShowStatus;
 
     /// <summary>
     /// Test hook: the same <see cref="GraphSignatureEditModel"/> over <c>Outputs</c> that
@@ -129,38 +169,79 @@ internal sealed class ReturnNodeSession : INodeEditSession
             return;
         }
 
+        bool showOutputs = ShowOutputs;
+        bool showStatus  = ShowStatus;
+
         // ── Outputs ──────────────────────────────────────────────────────────
-        ImGui.TextUnformatted(
-            "Outputs — one data-in pin on this Return node, and one data-out pin on every call site.");
-        ImGui.Separator();
-
-        if (_graph.Outputs.Count == 0)
+        // BP-105: rendered only for the dispatch kinds whose compiled terminator actually reads
+        // Outputs (BP-104) — Instance always, Library always (it is how a Library function
+        // declares a value return at all). AiPrimitive never declares outputs, so the table
+        // is replaced by a one-line explanation instead of an empty/unusable control.
+        if (showOutputs)
         {
-            // BP-89: the reported defect was exactly this state read as "broken" — make it obvious
-            // it is correct, not broken, and put the "+" control right here so adding the first
-            // output does not require finding the separate Graph Signature window.
-            ImGui.TextUnformatted("This function declares no outputs. Add one to return a value.");
+            ImGui.TextUnformatted(_parent.Dispatch == BlueprintDispatchKind.Library
+                ? "Outputs — how this Library function returns a value; declaring one switches "
+                  + "it from a NodeStatus return to a value return."
+                : "Outputs — one data-in pin on this Return node, and one data-out pin on every call site.");
+            ImGui.Separator();
+
+            if (_graph.Outputs.Count == 0)
+            {
+                // BP-89: the reported defect was exactly this state read as "broken" — make it
+                // obvious it is correct, not broken, and put the "+" control right here so adding
+                // the first output does not require finding the separate Graph Signature window.
+                ImGui.TextUnformatted("This function declares no outputs. Add one to return a value.");
+            }
+
+            var outputsModel = BuildOutputsModel();
+            ParameterRowsView.Draw("##return_outputs", _graph.Outputs, outputsModel);
+
+            if (_graph.Outputs.Count > 1)
+            {
+                ImGui.TextDisabled(
+                    $"{_graph.Outputs.Count} outputs — returned together; the Return node and "
+                    + "every call site show one pin each.");
+            }
         }
-
-        var outputsModel = BuildOutputsModel();
-        ParameterRowsView.Draw("##return_outputs", _graph.Outputs, outputsModel);
-
-        if (_graph.Outputs.Count > 1)
+        else
         {
             ImGui.TextDisabled(
-                $"{_graph.Outputs.Count} outputs — returned together; the Return node and "
-                + "every call site show one pin each.");
+                "This AiPrimitive returns a node Status to its BTree/HSM host, so it has no "
+                + "declared Outputs.");
         }
 
-        ImGui.Separator();
+        if (showOutputs && showStatus)
+            ImGui.Separator();
 
         // ── Status ───────────────────────────────────────────────────────────
-        DrawStatusCombo();
+        // BP-105: rendered only for AiPrimitive (unconditional) or a Library function that
+        // currently declares zero outputs (BP-104's fallback case). An Instance function, or a
+        // Library function that HAS declared outputs, never has this terminator read — showing
+        // the combo there would be exactly the inert control BP-105 reports.
+        if (showStatus)
+        {
+            ImGui.TextUnformatted(_parent.Dispatch == BlueprintDispatchKind.Library
+                ? "Status — this Library function declares no outputs, so it returns a node "
+                  + "status instead. Declaring an output above hides this control."
+                : "Status — the node status returned to this AiPrimitive's BTree/HSM host.");
+            DrawStatusCombo();
+        }
+        else if (_parent.Dispatch == BlueprintDispatchKind.Instance)
+        {
+            ImGui.TextDisabled(
+                "This Instance function returns its declared Outputs above; Status is not read "
+                + "by the compiler for Instance dispatch.");
+        }
+        else if (_parent.Dispatch == BlueprintDispatchKind.Library)
+        {
+            ImGui.TextDisabled(
+                "This Library function declares an output above, so it returns that value; "
+                + "Status is not read once any output is declared.");
+        }
     }
 
     private void DrawStatusCombo()
     {
-        ImGui.TextUnformatted("Status");
         var names      = Enum.GetNames(typeof(NodeStatus));
         int currentIdx = (int)_node.Status;
         if (ImGui.Combo("##return_status", ref currentIdx, names, names.Length))
