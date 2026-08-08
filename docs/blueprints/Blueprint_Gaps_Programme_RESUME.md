@@ -205,6 +205,35 @@ unverified.
 > If you hit either, that is a real defect regardless of what the row said to expect — capture the
 > node kind, the pin name, and the diagnostic code.
 
+### 📂 Fixtures — what is actually openable (verified 2026-08-08)
+
+Two roots, and the distinction matters (`AssetRoots.cs`): **`Assets/Blueprints`** is the browse/save
+destination (the asset browser); **`Recipes/Blueprints`** is the *creation* source — reachable only via
+**New from Recipe**. Both resolve from `AppContext.BaseDirectory`; the 13 recipes are `Content` with
+`CopyToOutputDirectory=PreserveNewest`, so they do reach the output dir.
+
+⚠ **There is exactly ONE shipped asset anywhere with a Function graph that declares an output:**
+
+| Fixture | Where | Shape |
+|---|---|---|
+| **`SquadState`** | **Recipe** (New from Recipe) | Instance · graph `GetThreatLevel`, `Kind=Function`, **1 output** (`ThreatLevel`, `System.Single`) · 3 nodes (EventEntry, GetVariable, Return) · **`Links: []`** |
+
+Everything else — all 12 other recipes and every asset under `Assets/Blueprints` — has **0 outputs on
+every graph**. ⇒ **Shipped-asset coverage of function return values is effectively zero**, which is
+precisely why this check matters.
+
+⚠ **Two traps in using `SquadState`:**
+
+1. **Compiling it as-shipped does NOT produce BP1655.** `V_FunctionGraphReturnValue` has a documented
+   *unauthored-stub* exemption — `if (graph.Links.Count == 0) continue;` — and `SquadState` has no
+   links. To see BP1655 you must first add **any** link in that graph (e.g. EventEntry exec → Return
+   exec) while leaving the Return's **value** pin unwired. See R3.
+2. **It has no graph named `Tick`.** `InstanceEmitter.cs:81-82` therefore selects `GetThreatLevel` as
+   the tick graph (`?? FirstOrDefault(Kind == Function)`), and `:83` then excludes it from the `Func_`
+   emission. Whether a peer can still call it is **unverified** — flagged, not diagnosed. This is the
+   same fallback BP-79 adds a guard for; it is unrelated to the pin-projection checks below, so it does
+   not block them.
+
 Ordered **newest-first**, because newest is least verified.
 
 ### N function outputs (BP-73) — batch 18, newest
@@ -252,7 +281,7 @@ checking, because the fix hardened ~20 `ResolveDataPin` call sites that *everyth
 |---|---|---|---|
 | R1 | A Function graph (My Blueprint → Functions **+**) · Graph Signature → **Outputs +**, name it, pick a type | look at the **Return** node | It grows a **value pin on the LEFT**. Before BP-71 that pin was on the right and nothing could reach it |
 | R2 | Drag any value output → the Return node's value pin | — | **The wire connects.** This is the gesture that was impossible; if it refuses, BP-71 regressed |
-| R3 | Leave the value pin unwired and compile | — | A **BP1655 error naming the graph and the pin** — not a Roslyn CS0103, and not a silently-defaulted return |
+| R3 | Leave the value pin unwired and compile — ⚠ **the graph must contain at least one link**, else the unauthored-stub exemption skips the check | — | A **BP1655 error naming the graph and the pin** — not a Roslyn CS0103, and not a silently-defaulted return. **A graph with `Links.Count == 0` is exempt by design**, so an all-unwired stub (e.g. `SquadState` as shipped) correctly reports *nothing* |
 | R4 | Click the Return node's value pin box without wiring anything | type a number | An **inline default editor** — a function can return a constant with no Literal node. Free consequence of the pin being an input |
 | ~~R5~~ | ~~Graph Signature → add a second Output~~ | ~~compile~~ | ❌ **RETIRED — do not check this row.** BP1656 no longer exists; BP-73 removed the gate, the `DiagnosticCodes` entry is marked `[retired]`, and the authoring warning became an informational note. **Superseded by T7**, which asserts the opposite outcome |
 | R6 | Open a multi-graph asset · switch the canvas between graphs | watch **Graph Signature** | Its picker **follows the canvas**. Before BP-72 it sat on the first Function graph, so you edited a signature you were not looking at |
