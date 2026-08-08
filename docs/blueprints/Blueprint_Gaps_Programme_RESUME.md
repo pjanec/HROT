@@ -163,25 +163,22 @@ and it is still the programme's largest outstanding risk.**
 > was built and gated with that file temporarily moved aside; it is untracked and was left in place.
 > **Needs an architect call on scope before fixing** — see the item.
 
-📋 **Coordinated batches (from 2026-08-08).** A coordinator session owns the tracker and writes
-handoffs; implementation sessions build. **Last handoff — DELIVERED (Batch 21):**
-[HANDOFF_Batch21_Fix_Empty_Asset_And_Library_Returns.md](HANDOFF_Batch21_Fix_Empty_Asset_And_Library_Returns.md)
-— **BP-103** 🔴 (a blank-template asset had zero graphs: crashed on open **and broke the solution
-build**) · **BP-104** 🔴 (**confirmed** — a Library function's declared outputs were ignored) ·
-**BP-105** (the Return panel showed an inert control). All three came from the user at the UI *after*
-Batch 20's gates were green — the clearest evidence yet that the visual check finds what the suite
-cannot. ✅ **`BP-92` re-ticked**: a new Library now opens without throwing.
-📌 **Two follow-ups registered as rows, not buried notes** (the BP-102 lesson):
-[BP-106](Blueprint_Issues_Detail.md#bp-106) (an `AiPrimitive` graph's declared outputs are still
-silently dropped — now the only silent case left) and
-[BP-107](Blueprint_Issues_Detail.md#bp-107) 📐 (`Return.Status` is a compile-time constant, so
-`Running` is inexpressible — **architect round required**).
-*(Previous: [Batch 20](HANDOFF_Batch20_Dispatch_And_Outputs.md) — BP-92 + BP-89, steps 1–2 of the
-[functions/macros UX plan](Blueprint_Functions_Macros_UX_Plan.md).)*
-**Next in that plan: step 3** — [BP-85](Blueprint_Issues_Detail.md#bp-85) breadcrumb + **BP-100**
-kind icons, then **BP-101** F2 rename, then **BP-88** Graphs `+` (now honest, since step 1 landed).
-⚡ Every handoff carries the **Sonnet-delegation rule** — see *Working agreement → Coordinator /
-implementation split*.
+📋 **Coordinated batches.** A coordinator session owns the tracker and writes handoffs;
+implementation sessions build. ⚡ Every handoff carries the **Sonnet-delegation rule** — see
+*Working agreement → Coordinator / implementation split*.
+
+🔀 **Two things run in parallel right now (2026-08-08):**
+1. **Build** — [HANDOFF_Batch22_EndToEnd_Smoke.md](HANDOFF_Batch22_EndToEnd_Smoke.md): **BP-109** 🔴,
+   two entities · two blueprints · one shared Library function, as **shipped recipe assets plus a gate
+   test**. ⭐ Not a demo — **no test has ever executed a `CallPeerBlueprint`**, so this closes a real
+   coverage hole on a shipped feature.
+2. **Verify** — the Windows visual check of Batches 20–21 (see *🎯 Batch 20 — DO THIS FIRST* below).
+   Findings go to the coordinator and land in a **later** batch, not Batch 22.
+
+⚠ **[BP-108](Blueprint_Issues_Detail.md#bp-108) (Print/Log node) is deliberately NOT in Batch 22.**
+There is no `ToString`/`Format`/`Concat` node and no string coercion, so a Print node taking only a
+string could print literals only. It needs a format-literal + typed-args pin shape no node has ⇒ design
+note first. BP-109 asserts via `TryGetField<T>` instead and does not wait.
 
 Three independent fronts; pick by appetite, not by order.
 
