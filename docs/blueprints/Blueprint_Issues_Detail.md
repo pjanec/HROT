@@ -2279,6 +2279,40 @@ that shape.**
 ⚠ **This is why the user asked why it could not be exercised headlessly — and they are right that it
 can.** Nothing about this needed a UI. See [BP-109](#bp-109); the same fixture serves both.
 
+#### ✅ FIXED — Batch 23
+
+**Reproduced first, as instructed.** A `Dispatch: Library` asset dropped into `Assets/Blueprints`
+failed the build with exactly the reported CS9191 ⇒ **BP-110's emitter change had not incidentally
+fixed it.** The two are unrelated defects that happen to share the Library surface.
+
+| | |
+|---|---|
+| **Cause** | `CSharpEmitter.EmitLibraryFunctionAdapter` emitted `MemoryMarshal.Write(outputs, ref __r)`. `MemoryMarshal.Write<T>` declares that parameter **`in T`**, and `ref`→`in` is CS9191 — a *warning*, but every project here sets `TreatWarningsAsErrors`. |
+| **Why Library only** | Those two lines are the **only** `MemoryMarshal.Write` emit sites in the whole compiler. No other dispatch kind reaches them. |
+| **Why the in-memory suites are blind to it** | `BlueprintTestFixture.CompileAndLoad` does not treat warnings as errors, so it would have compiled the defect happily even if a Library fixture had existed there. **Only the real build fails.** |
+| **Fix** | Emit `in`. |
+
+##### ⭐ The second half — the durable part
+
+`Assets/Blueprints/LibraryFunctionsDemo.bp.json` is the **first Library asset ever to pass through the
+real source generator**. Because `Assets\Blueprints\**\*.bp.json` is an `<AdditionalFiles>` entry of
+`Hrot.AI.Behaviors`, a regression in the Library emit path now **fails the solution build before any
+test runs** — a stronger lock than any assertion.
+
+It covers all three branches of `EmitLibraryFunctionAdapter`:
+
+| Function | Shape | Adapter branch |
+|---|---|---|
+| `Combine(A, B) → Result` | 1 output | the single `Write(outputs, in __r)` that broke |
+| `Offsets(V) → (Plus, Minus)` | 2 outputs | the BP-73 sequential `Write(outputs.Slice(__oo), in __outN)` walk |
+| `Noop()` | 0 outputs | the `NodeStatus` status-return shape |
+
+`LibraryFunctionsDemo_ProofTests` then runs the generated `[BlueprintRegistrar]` into a real
+`BlueprintRegistryStaging` and **invokes each adapter**, asserting the marshalled values round-trip
+(`Combine(3,4)=7`, `Offsets(10)=(11,9)`, `Noop()=Success`) — not merely that it compiled.
+
+**Revert-goes-red:** restoring `ref` fails the build with **4 × CS9191**, one per emitted write site.
+
 <a id="bp-113"></a>
 ### BP-113 — `CallPeerBlueprint` projects only `Outputs[0]`: multi-output functions are unusable across assets 🔴
 **Complexity:** RW-M · **Confidence:** ✔✔✔ *(user-reproduced, cause read from source)*

@@ -249,6 +249,15 @@ internal sealed class CSharpEmitter
     /// G2/R2: emits one <c>["Name"] = static (inputs, outputs, view, self, time) => {...}</c> entry
     /// that unpacks the function's blittable inputs from <c>inputs</c>, calls the emitted static
     /// method, and writes any return value to <c>outputs</c>.
+    ///
+    /// <para>
+    /// BP-112: the write sites pass <c>in</c>, not <c>ref</c>. <c>MemoryMarshal.Write&lt;T&gt;</c>
+    /// declares its value parameter <c>in T</c>, and passing <c>ref</c> to an <c>in</c> parameter is
+    /// <b>CS9191</b> — a warning everywhere else, but every project here sets
+    /// <c>TreatWarningsAsErrors</c>, so it failed the whole solution build. These two lines are the
+    /// only emit sites in the compiler that write through <c>MemoryMarshal.Write</c>, which is why
+    /// the failure was exclusive to <c>Library</c> dispatch.
+    /// </para>
     /// </summary>
     private void EmitLibraryFunctionAdapter(string className, IrGraph graph)
     {
@@ -280,7 +289,7 @@ internal sealed class CSharpEmitter
             // BP-73: N outputs are written SEQUENTIALLY, element by element, mirroring the
             // `__off`-advancing walk that unpacks the inputs above.
             //
-            // ⚠ NOT `MemoryMarshal.Write(outputs, ref __r)` on the tuple itself. That would blit the
+            // ⚠ NOT `MemoryMarshal.Write(outputs, in __r)` on the tuple itself. That would blit the
             // ValueTuple's CLR layout -- including whatever internal padding the runtime chose --
             // whereas the reader on the other side of this span walks fields back-to-back by
             // Unsafe.SizeOf<T> exactly as the input side does. The two would silently disagree for
@@ -292,14 +301,14 @@ internal sealed class CSharpEmitter
             {
                 string t = LibraryEmitter.CSharpType(graph.Outputs[i].Type);
                 WriteLine($"{t} __out{i} = __r.Item{i + 1};");
-                WriteLine($"global::System.Runtime.InteropServices.MemoryMarshal.Write(outputs.Slice(__oo), ref __out{i});");
+                WriteLine($"global::System.Runtime.InteropServices.MemoryMarshal.Write(outputs.Slice(__oo), in __out{i});");
                 WriteLine($"__oo += global::System.Runtime.CompilerServices.Unsafe.SizeOf<{t}>();");
             }
         }
         else
         {
             WriteLine($"{returnType} __r = {call};");
-            WriteLine("global::System.Runtime.InteropServices.MemoryMarshal.Write(outputs, ref __r);");
+            WriteLine("global::System.Runtime.InteropServices.MemoryMarshal.Write(outputs, in __r);");
         }
 
         Outdent();
