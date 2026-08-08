@@ -222,11 +222,26 @@ Ordered **newest-first**, because newest is least verified.
 ### Name-referenced custom event calls (BP-69) — batch 17
 
 ⚠ **Trust this suite least.** BP-69's own end-to-end test passed *against the bug* (trap #9) and was
-only caught by reverting the fix. The visual check is the real gate here.
+only caught by reverting the fix.
+
+⚠ **But this needs a hand-edited `.bp.json`, and it is lower *live* risk than its position suggests —
+do it last, or skip it if time is short.** Verified 2026-08-08:
+
+- **No shipped asset contains a `CallCustomEvent` node at all** — 0 across every `*.bp.json` in the
+  repo. The eight `HillAssault2*` assets that carry a name-form `"EventId"` are **`PublishEvent`**
+  nodes, a different kind on a different projection (`PublishEventPins`), so they do **not** exercise
+  this path.
+- **The editor never mints the name form.** `BlueprintCommandSink.ResolveCustomEventId:427-441`
+  normalises a declared event to its GUID (`return known?.Id.ToString("D")`). So the name form is
+  reachable only from a hand-authored or legacy file — which is exactly why BP-12b's rename path
+  (`BlueprintDocumentFactory:673`) rewrites name-keyed refs.
+
+⇒ **BP-69 is a load-path fix for hand-authored assets, not a live-UI regression risk.** Still worth
+checking, because the fix hardened ~20 `ResolveDataPin` call sites that *everything* uses (see K3).
 
 | # | Where | What to do | What should happen |
 |---|---|---|---|
-| K1 | An asset whose `CallCustomEvent` references an event **by name**, not GUID (e.g. hand-edit a `.bp.json` to `"EventId": "OnDamaged"`) · open it | look at the Call node | It shows **one data-in pin per event parameter**. Before BP-69 the node collapsed to exec-only and every argument wire was silently dropped on load |
+| K1 | **Setup required.** Author a custom event with 2+ parameters, place its Call node, save, then hand-edit the `.bp.json` to replace that node's `"EventId"` GUID with the event's **name** · reopen | look at the Call node | It shows **one data-in pin per event parameter**. Before BP-69 the node collapsed to exec-only and every argument wire was silently dropped on load |
 | K2 | Wire the argument pins and compile | — | Clean compile, and the generated call passes the arguments. A `CS7036` (missing argument) means the pins projected but the compiler half didn't |
 | K3 | Same node, leave an argument pin **unwired** · compile | — | Clean compile — the unwired pin becomes a typed `default(T)`. ⚠ A `CS0103` (undeclared `__t0`) is the exact failure the general `ResolveDataPin` hardening was added to prevent; report it verbatim |
 | K4 | Rename the event in My Blueprint | look at the name-referenced Call node | Follows the rename (BP-12b rewrites name-keyed refs). A node still showing the old name would compile to a BP1403 |
