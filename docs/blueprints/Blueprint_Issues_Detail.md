@@ -850,6 +850,72 @@ error-with-no-explicable-source shape that BP-69, BP-71 and BP-73 each ended in.
 downstream resume point. But that changes `StructureHash` ⇒ **hard** reload, and
 `LatentCursorReloadTests` documents *"hard reload resets cursor to ResumeAt=0"*. No new rail needed.
 
+<a id="bp-84"></a>
+### BP-84 — Undo after deleting a `GetVariable` node restores it **without its output pin** 🔴
+**Complexity:** RW-L · **Confidence:** ✔✔ *(user-reproduced; cause narrowed, not yet pinned)*
+
+> 🔎 **The first defect found by the batches-9–18 visual check (2026-08-08)** — exactly the class the
+> eight green suites cannot see.
+
+**Reproduction** (user, on a `SquadState1` created from the `SquadState` recipe):
+
+1. Open the `GetThreatLevel` Function graph. The `GetVariable` node correctly shows its **`Value`
+   output pin**.
+2. Delete that node.
+3. **Ctrl+Z.**
+4. ⇒ The node comes back **without the `Value` pin**. Nothing can be wired to it.
+
+**Why this is 🔴 and not cosmetic:** the node still serialises, so saving here persists a graph whose
+`GetVariable` can never be connected — a silent, durable break from a single Ctrl+Z.
+
+#### Cause: narrowed to the view layer
+
+Two obvious suspects are **already ruled out**, so do not start there:
+
+| Suspect | Ruled out because |
+|---|---|
+| The undo lost the node's data (kind / `VariableId`) | `DeleteNodeCommand.Undo` (`GraphEditor/GraphCommands.cs:57-62`) re-adds the **same `Node` object** it removed. Nothing is reconstructed, so nothing can be lost |
+| The pin projection failed to resolve the variable | `NodePinSchema.GetVariablePins` (`:670-679`) returns **one `Value` out-pin unconditionally** — even an unresolvable id falls through to `ResolveVariableTypeId` → `System.Object` and still yields a pin. It cannot return zero pins |
+
+⇒ The fault is **downstream of both**. Two live hypotheses:
+
+1. **The node view-model is not rebuilt after undo** — the asset is correct but the canvas renders a
+   stale/empty pin list.
+2. **Node *order* is not restored.** `Undo` does `_graph.Nodes.Add(_node)` — an **append**. Contrast
+   `LinkEditCommand` immediately below it, which restores links *at their original indices* with the
+   explicit comment *"order matters for positional-projection assets"*. A recipe-loaded asset carries
+   `"Pins": []` and is rehydrated in Stage 0, where `AssignDirection` falls back to **positional**
+   binding — so node order is load-bearing on exactly this path.
+
+⚠ Hypothesis 2 would make this **broader than `GetVariable`**: any pin-less (recipe- or JSON-loaded)
+asset could mis-bind after an undo. Discriminate before fixing — see the narrow experiment recorded in
+the visual-check section.
+
+<a id="bp-85"></a>
+### BP-85 — The canvas never says which graph you are editing
+**Complexity:** RW-L · **Confidence:** ✔✔
+
+> 🔎 Found by the same visual check. Not a crash, but it produced a **false data-loss scare**, which is
+> the expensive kind of UX bug.
+
+The canvas tab shows only the **asset** name (`SquadState1`). So when the user pressed **Functions +**
+and the canvas correctly switched to the new empty graph, it read as *"the graph tab has been emptied
+and replaced with a single Event node"*. The switch was right; the absence of any label made it look
+like destruction. Their words: *"Not easy to see in what function graph we currently editing."*
+
+Compounding it: nothing on the canvas states the asset's **dispatch** either, so *"Not even sure what
+`SquadState1` actually is — is it an Instance blueprint?"* is a fair question with no on-screen answer.
+
+**Fix:** show the active graph's **name and kind** in the canvas tab or a breadcrumb, and the asset's
+dispatch alongside the asset name. Cheap: BP-72 already routes canvas-switch events to the Graph
+Signature window via `BlueprintGraphSwitcher`, so the signal this needs is already live.
+
+**Related, same root (discoverability of the signature):** a Function graph with **zero declared
+outputs** gives its `Return` node no value pin — correct behaviour, but the user hit it as *"no data
+input pins — nowhere to connect the return value"*. There is no hint that outputs are declared in the
+**Graph Signature** window first. Surfacing the active graph's signature summary on the canvas would
+answer both complaints at once.
+
 <a id="bp-10"></a>
 ### BP-10 — `When` → EventFired form is a stub
 **Complexity:** WIRING · **Confidence:** ✔✔
