@@ -57,7 +57,7 @@ lists every one.
 
 ## Status
 
-**59 open · 51 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
+**61 open · 53 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
 table; do not duplicate them here.
 
 | Batch | Items |
@@ -80,6 +80,7 @@ table; do not duplicate them here.
 | 16 — closing out BP-24 | BP-71 🔴 (Q24 A1+B1+C3; +BP1655/BP1656), BP-72 |
 | 20 — functions & macros UX, steps 1–2 | BP-92 (dispatch at create), BP-89 (outputs on the Return node) |
 | 21 — the Batch-20 visual check's defects | BP-103 🔴 (blank template had zero graphs — crashed on open, broke the build), BP-104 🔴 (Library outputs ignored), BP-105 (inert Status combo); re-ticks BP-92 |
+| 22 — end-to-end smoke test | BP-109 🔴 (two entities, two blueprints, one shared Library) — which found **BP-110** 🔴: a `CallPeerBlueprint` had never compiled at all |
 
 **Batch 7's visual pass (2026-08-05)** earned its keep: one bug of mine (the bookmarks ✕ was
 unreachable — a full-width `Selectable` swallowed the click), one long-standing 🔴 (**BP-66**, the
@@ -631,6 +632,11 @@ zero wire a function return).
   suite of 10 running parallel. Before: 1 varying failure *every* run. After: **2657 / 0**.
 - ⚠ **`Blueprint_Component_Access_RESUME.md`'s "~8–9 reds, DO NOT chase" is STALE** — banner-marked
   at the source. Expect 0 failures; investigate any.
+- ⚠ **The known-flake list below is INCOMPLETE — see [BP-111](Blueprint_Issues_Detail.md#bp-111).**
+  `WhenNodePerfTests.WhenNode_EqsResult_Under150ns_perTick` also flakes under full-suite load (passes
+  5/5 in isolation) and is **not** listed, so it reads as a regression. Worse, the gate command uses
+  `-v q`, which prints counts but **not the failing test's name** — re-run with
+  `--logger "console;verbosity=normal"` to identify it. This cost time twice in Batch 22.
 - Residual: `PdbEmbeddedSourceTests` pair flaked once in ~6 runs (real Roslyn+PDB emission,
   resource-sensitive). Not yet chased. **`WhenNodePerfTests.WhenNode_ValueChanged_Under100ns_perTick`
   joins it** — a wall-clock ns/tick benchmark; it reds under load and passes alone. Re-run the single

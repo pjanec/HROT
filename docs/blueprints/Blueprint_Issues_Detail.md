@@ -2321,6 +2321,105 @@ blueprints in one world is plausible but unproven — treat it as something to v
   scenario; without it, assert via `TryGetField<T>` — workable, less legible. **BP-109 does not block on
   BP-108**, but doing BP-108 first makes BP-109 materially better.
 
+> ✅ **DONE (2026-08-08, Batch 22).** `Integration/BP109_SmokeTestEndToEndTests.cs`, plus three recipe
+> assets — `SmokePatrol` / `SmokeGuard` (Instance) and `SmokeMathLib` (Library) in
+> `Recipes/Blueprints/`. **The test loads those on-disk `.bp.json` files**, so the artifact a designer
+> can open is the artifact under test. **Runs in 2 seconds.**
+>
+> 🔴 **It immediately found what it was built to find — see [BP-110](#bp-110).** A
+> `CallPeerBlueprint` had never compiled at all, so the ⭐ assertion could not even be written until
+> that was fixed. The hole this entry describes was real and deeper than stated: not merely *"never
+> executed"* but *"could not execute"*.
+>
+> ✅ **The unproven bit works, with no code changes.** Two entities running *different* blueprints in
+> one world ticks correctly: `BlueprintTickSystem.TickTier_1024` iterates every entity in the tier and
+> every slot on it, dispatching per slot by `BlueprintId` — nothing in the runtime assumed
+> one-entity-one-asset. Recorded here so the next session does not re-treat it as a risk.
+>
+> ⚠ **Correction to the handoff's build warning.** It cautioned that a malformed new recipe breaks the
+> solution build (BP-103's lesson). Not for these: `Recipes\Blueprints\*.bp.json` are `<Content>`
+> (copied only), while it is `Assets\Blueprints\**\*.bp.json` that are `<AdditionalFiles>` compiled by
+> the generator. Recipes cannot break the build — and correspondingly are **not** compiled by it, so
+> the test compiles them itself.
+>
+> **Break-it-to-prove-it** (a new test, so: break what it covers). Seeding both entities identically
+> fails the isolation assertion — `Expected: 21, Actual: 15`. Changing `SmokeMathLib`'s `Add` to
+> `Multiply` fails the shared-result assertion — `Expected: 30, Actual: 200` (= 10*20), which proves
+> the peer call genuinely re-executes the library body rather than returning anything cached.
+>
+> 📌 BP-108 was **not** done first; assertions go through `TryGetField<T>` as the fallback anticipated.
+
+<a id="bp-110"></a>
+### BP-110 — A `CallPeerBlueprint` has **never compiled**: the generated call names a class nothing declares 🔴
+**Complexity:** RW-M · **Confidence:** ✔✔✔ *(reproduced through Roslyn, then fixed)*
+
+`Compiler/Emit/StatementEmitter.cs`'s `IrOp_PeerCall` case emitted:
+
+```csharp
+var peerClass = $"__Peer_{op.PeerBlueprintId:X8}_Bp";   // __Peer_6928BFD5_Bp.Combine(...)
+```
+
+but **every emitter that declares a blueprint class** names it `{SanitizedName}_{BlueprintId:X8}_Bp`
+(`LibraryEmitter:9`, `InstanceEmitter:9`, `AiPrimitiveEmitter:10`, `CSharpEmitter:141`). Nothing —
+not the compiler, not the source generator, no `.targets` — ever declared or aliased a `__Peer_`
+name. `IrOp_AiPrimitiveCall` had the identical defect via `__AiPrim_{id:X8}_Bp`.
+
+```
+BP7001: Roslyn: CS0103 The name '__Peer_6928BFD5_Bp' does not exist in the current context
+```
+
+⭐ **Reproduced with caller and peer in the SAME merged compilation.** That matters: it disproves the
+explanation recorded in `NodeCoverageTests.cs:716`, which asserts the name resolves in production
+*"because Hrot.AI.Behaviors' build compiles ALL sibling blueprints together"*. Compiling siblings
+together does not create a differently-named class. **That comment is the eleventh wrong audit claim.**
+
+#### Why a 2900-test suite never noticed
+
+- **No asset under `Assets/Blueprints/`** — the generator's `<AdditionalFiles>`, i.e. everything the
+  solution build actually compiles — contains a `CallPeerBlueprint`.
+- The only two fixtures that do (`with-callable-peer.bp.json`, `with_peer_call.bp.json`) are used by
+  validation, pin-projection, round-trip and sanitizer tests that **stop before Roslyn**.
+- `NodeCoverageTests` deliberately used `ValidateOnlyStage1To7` *because* of this symptom, and recorded
+  the wrong reason for it rather than treating it as a defect.
+
+**Trap #9 again, and the costliest instance yet** — both halves individually test-locked, the seam
+never crossed, on the feature the user most wants to rely on.
+
+#### Fix
+
+The call site now emits the peer's **real** class name, resolved from the sibling
+`BlueprintSignature` the caller was compiled with (`SanitizedName` + `BlueprintId`) — the same list
+Stage 2's peer-reference check already validates against, not a recomputed hash. `SiblingSignatures`
+are threaded to the emitter through `Stage7_Emit` → `EmissionContext`.
+
+⚠ **Resolving the name beats emitting a `using` alias**, which was the first attempt and failed:
+an alias must sit above the type declarations, but the test fixture's `MergeGeneratedSources` wraps
+generated types in a **block-scoped namespace** while production leaves them in the **global**
+namespace — so no single alias form is correct for both (`CS0400 … could not be found in the global
+namespace`). Emitting the real name is correct either way. An unresolved id keeps the old name so
+Stage 2's BP1301/BP1302 stays the diagnostic the author sees.
+
+**Locked by** `Stage8_RoslynTests/CallPeerBlueprintRoslynTests.cs`: compiles caller + peer, runs a real
+tick, and asserts the **value the peer returned** is readable from the entity's state slot. Reverting
+the resolution reproduces the `CS0103` exactly.
+
+<a id="bp-111"></a>
+### BP-111 — Wall-clock perf assertions flake under full-suite load, and the known-flake list is incomplete
+**Complexity:** RW-L · **Confidence:** ✔✔✔ *(measured)*
+
+`WhenNodePerfTests.WhenNode_EqsResult_Under150ns_perTick` fails intermittently inside a full-suite run
+and passes **5/5 in isolation** — a CPU-contention artifact, not a regression. But only its sibling
+`WhenNode_ValueChanged_Under100ns_perTick` is on the documented known-flake list, so the failure reads
+as a genuine regression to anyone following the handoff's classification rule.
+
+**This cost time twice in Batch 22 alone** — once on the Generators suite, once on Blueprints — and in
+neither case could the failing test even be *named*, because the gate command uses `-v q`, which prints
+counts but not test names. Re-running with `--logger "console;verbosity=normal"` is what identifies it.
+
+**Fix options:** gate wall-clock assertions behind an explicit perf category excluded from the standard
+suite (they measure the sandbox, not the code), **or** widen the documented flake list and change the
+gate command so a failure names the test. ⚠ Until then, every session pays the same tax.
+
 <a id="bp-103"></a>
 ### BP-103 — A blank-template blueprint has **zero graphs**: crashes on open, breaks the build 🔴
 **Complexity:** RW-L · **Confidence:** ✔✔✔ *(user-reproduced; cause read from source)*
