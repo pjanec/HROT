@@ -1,6 +1,10 @@
 using Hrot.Blueprints.Core;
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Core.Compiler;
+using Hrot.Blueprints.Core.Compiler.Catalogs;
+using Hrot.Blueprints.Core.Compiler.Diagnostics;
 using Hrot.Blueprints.Editor;
+using Hrot.Blueprints.Editor.Host;
 using Hrot.Blueprints.Editor.Variables;
 using Hrot.Editor.AiShared;
 using Xunit;
@@ -285,5 +289,111 @@ public sealed class NewAssetServiceTests
         });
 
         Assert.False(svc.IsBlankTemplate(diskRecipe));
+    }
+
+    // ── BP-103: a blank template is never minted with zero graphs ─────────────
+    //
+    // Before the fix, MakeEmptyBlueprint produced a BlueprintAsset with an empty Graphs list.
+    // BlueprintDocumentFactory.Build then threw InvalidOperationException on open, and — because
+    // the editor writes the .bp.json before opening it — a graphless Library asset left on disk
+    // failed blueprint compilation with BP5001, which is an MSBuild step of Hrot.AI.Behaviors, so
+    // dotnet build of the whole solution broke until someone deleted the file by hand.
+    //
+    // One test per template, covering create -> open -> compile:
+    //   1) CreateNew yields >=1 graph: a GraphKind.Function graph with the expected seed name,
+    //      containing an EventEntryNode (the explicit entry indicator FindEntryNode looks for).
+    //   2) BlueprintDocumentFactory.ResolveInitialGraph (the internal seam Build itself calls to
+    //      pick the graph to open — see Build ~line 138) returns non-null. Driving the full
+    //      Build(...) needs an AiEditorAdapterBundle and other ImGui/host-service wiring that this
+    //      test project does not construct headlessly for a bare BlueprintAsset, so
+    //      ResolveInitialGraph is the honest seam: it is the exact call Build makes before the
+    //      throw this bug ships as, and it is internal + InternalsVisibleTo'd for this reason.
+    //   3) The freshly created asset compiles successfully through the full compiler pipeline
+    //      (BlueprintCompiler.Compile, mirroring Demos/LibraryMathDemoTests.cs), with no BP5001
+    //      for the Library template specifically.
+
+    private static CompileOptions DefaultCompileOptions() =>
+        new(
+            Mode:              CompilerMode.Debug,
+            NodeRegistry:      BuiltInNodeRegistry.Instance,
+            TypeRegistry:      StaticTypeRegistry.Instance,
+            EngineEvents:      BuiltInEngineEventCatalog.Instance,
+            ChannelCommands:   BuiltInChannelCommandCatalog.Instance,
+            WaitPrimitives:    BuiltInWaitPrimitiveCatalog.Instance,
+            SiblingSignatures: Array.Empty<BlueprintSignature>());
+
+    [Theory]
+    [InlineData("Empty", "Tick")]
+    [InlineData("Function Library", "NewFunction")]
+    public void CreateNew_FromBlankTemplate_SeedsAFunctionGraph_WithAnEntryNode(
+        string templateName, string expectedGraphName)
+    {
+        var svc      = new BlueprintNewAssetService();
+        var template = svc.AvailableRecipes().First(r => r.Name == templateName);
+
+        var result = svc.CreateNew(template, "MyAsset", "");
+        var bp     = Assert.IsType<BlueprintEditableAssetAdapter>(result).Asset;
+
+        Assert.NotEmpty(bp.Graphs);
+        var graph = Assert.Single(bp.Graphs);
+        Assert.Equal(GraphKind.Function, graph.Kind);
+        Assert.Equal(expectedGraphName, graph.Name);
+
+        var entry = Assert.IsType<EventEntryNode>(Assert.Single(graph.Nodes));
+        Assert.Equal("", entry.EventTypeId);
+    }
+
+    [Theory]
+    [InlineData("Empty")]
+    [InlineData("Function Library")]
+    public void CreateNew_FromBlankTemplate_ResolveInitialGraph_DoesNotReturnNull(string templateName)
+    {
+        var svc      = new BlueprintNewAssetService();
+        var template = svc.AvailableRecipes().First(r => r.Name == templateName);
+
+        var result = svc.CreateNew(template, "MyAsset", "");
+        var bp     = Assert.IsType<BlueprintEditableAssetAdapter>(result).Asset;
+
+        // This is the exact call BlueprintDocumentFactory.Build makes (~line 138) before throwing
+        // "Blueprint asset '{name}' has no graphs." on a graphless asset. Non-null here is proof
+        // the crash-on-open half of BP-103 cannot happen for a freshly created blank template.
+        var openedGraph = BlueprintDocumentFactory.ResolveInitialGraph(bp);
+        Assert.NotNull(openedGraph);
+    }
+
+    [Theory]
+    [InlineData("Empty")]
+    [InlineData("Function Library")]
+    public void CreateNew_FromBlankTemplate_CompilesImmediately_NoErrors(string templateName)
+    {
+        var svc      = new BlueprintNewAssetService();
+        var template = svc.AvailableRecipes().First(r => r.Name == templateName);
+
+        var result = svc.CreateNew(template, "MyAsset", "");
+        var bp     = Assert.IsType<BlueprintEditableAssetAdapter>(result).Asset;
+
+        var compileResult = new BlueprintCompiler().Compile(bp, DefaultCompileOptions());
+
+        Assert.True(compileResult.Succeeded,
+            $"Blueprint compile failed: {string.Join(", ", compileResult.Diagnostics.Select(d => d.Code))}");
+    }
+
+    [Fact]
+    public void CreateNew_FromLibraryTemplate_CompilesImmediately_WithoutBP5001()
+    {
+        // BP5001 (LibraryLowering: "a Library must declare at least one Function graph") is the
+        // specific diagnostic this fix exists to prevent — this is the assertion the bug report
+        // calls out by name, kept separate from the general no-errors check above.
+        var svc      = new BlueprintNewAssetService();
+        var template = svc.AvailableRecipes().First(r => r.Name == "Function Library");
+
+        var result = svc.CreateNew(template, "MyLibrary", "");
+        var bp     = Assert.IsType<BlueprintEditableAssetAdapter>(result).Asset;
+
+        var compileResult = new BlueprintCompiler().Compile(bp, DefaultCompileOptions());
+
+        Assert.DoesNotContain(compileResult.Diagnostics, d => d.Code == DiagnosticCodes.BP5001);
+        Assert.True(compileResult.Succeeded,
+            $"Blueprint compile failed: {string.Join(", ", compileResult.Diagnostics.Select(d => d.Code))}");
     }
 }

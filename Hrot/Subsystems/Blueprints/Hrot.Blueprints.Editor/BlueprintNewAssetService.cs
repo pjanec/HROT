@@ -1,5 +1,6 @@
 using Hrot.Blueprints.Core;
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Editor.Host;
 using Hrot.Blueprints.Editor.Variables;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Recipes;
@@ -25,17 +26,32 @@ public sealed class BlueprintNewAssetService : INewAssetService
     ///
     /// AiPrimitive is deliberately NOT offered here: an AiPrimitive asset needs a
     /// Primitive declaration and hostings that this flow does not populate.
+    ///
+    /// <para>
+    /// BP-103 — <c>SeedGraphName</c> is the one starter Function graph every blank-template
+    /// asset is minted with (see <see cref="MakeEmptyBlueprint"/>). A graphless asset crashes
+    /// <see cref="BlueprintDocumentFactory.Build"/> on open and, once written to disk, bricks
+    /// <c>dotnet build</c> via BP5001 (<c>LibraryLowering</c> requires >=1 Function graph for a
+    /// Library asset). "Tick" for the Instance template is not arbitrary: InstanceEmitter.EmitTickMethod
+    /// selects the tick graph by <c>Kind == IrGraphKind.Function &amp;&amp; Name == "Tick"</c>
+    /// (falling back to the first Function graph) — a graph named "Tick" of <c>Event</c> kind would
+    /// NOT match and the new blueprint would silently never tick. "NewFunction" for Library is forced
+    /// by BP5001 itself.
+    /// </para>
     /// </summary>
-    private readonly record struct BlankTemplateRow(string Name, BlueprintDispatchKind Dispatch, string Description);
+    private readonly record struct BlankTemplateRow(
+        string Name, BlueprintDispatchKind Dispatch, string Description, string SeedGraphName);
 
     private static readonly BlankTemplateRow[] BlankTemplates =
     {
         new("Empty",
             BlueprintDispatchKind.Instance,
-            "Start from scratch with an empty blueprint. Runs on an entity instance; graphs may contain latent nodes such as Delay."),
+            "Start from scratch with an empty blueprint. Runs on an entity instance; graphs may contain latent nodes such as Delay.",
+            SeedGraphName: "Tick"),
         new("Function Library",
             BlueprintDispatchKind.Library,
-            "A shared library of pure Functions, callable from any other blueprint. Compiles to static methods, so its graphs cannot contain latent nodes such as Delay."),
+            "A shared library of pure Functions, callable from any other blueprint. Compiles to static methods, so its graphs cannot contain latent nodes such as Delay.",
+            SeedGraphName: "NewFunction"),
     };
 
     private readonly NewFromRecipeService _newFromRecipeService = new();
@@ -47,7 +63,7 @@ public sealed class BlueprintNewAssetService : INewAssetService
         for (int i = 0; i < BlankTemplates.Length; i++)
         {
             var row   = BlankTemplates[i];
-            var asset = MakeEmptyBlueprint(row.Dispatch, row.Name);
+            var asset = MakeEmptyBlueprint(row.Dispatch, row.Name, row.SeedGraphName);
             // The recipe entry in AvailableRecipes carries recipe metadata.
             asset.EditorMetadata.Recipe = new Core.Assets.RecipeMetadata
             {
@@ -71,12 +87,12 @@ public sealed class BlueprintNewAssetService : INewAssetService
         if (recipe == null)
         {
             // Null recipe preserves today's default behaviour: the first table row (Instance).
-            newAsset = MakeEmptyBlueprint(BlankTemplates[0].Dispatch, name);
+            newAsset = MakeEmptyBlueprint(BlankTemplates[0].Dispatch, name, BlankTemplates[0].SeedGraphName);
             newAsset.AssetId = Guid.NewGuid();
         }
         else if (TryGetBlankTemplateRow(recipe, out var row))
         {
-            newAsset = MakeEmptyBlueprint(row.Dispatch, name);
+            newAsset = MakeEmptyBlueprint(row.Dispatch, name, row.SeedGraphName);
             newAsset.AssetId = Guid.NewGuid();
         }
         else
@@ -141,10 +157,20 @@ public sealed class BlueprintNewAssetService : INewAssetService
     /// Synthesizes a minimal valid BlueprintAsset in code — no disk read, no file I/O.
     /// The returned asset has no recipe metadata; callers that use this as a blank-template
     /// recipe entry (the constructor) add it afterwards.
+    ///
+    /// <para>
+    /// BP-103 — "minimal valid" must include at least one graph: <see cref="BlueprintDocumentFactory.Build"/>
+    /// throws <see cref="InvalidOperationException"/> on a graphless asset (crashes on open), and an
+    /// empty <c>Library</c> fails compilation with BP5001. Seeds a Function graph named
+    /// <paramref name="seedGraphName"/> via <see cref="BlueprintDocumentFactory.CreateFunctionGraph"/>
+    /// — the same path production "Create Function" uses — with <c>markDirty: null, view: null</c> so
+    /// the append is direct, no undo entry.
+    /// </para>
     /// </summary>
-    private static BlueprintAsset MakeEmptyBlueprint(BlueprintDispatchKind dispatch, string name)
+    private static BlueprintAsset MakeEmptyBlueprint(
+        BlueprintDispatchKind dispatch, string name, string seedGraphName)
     {
-        return new BlueprintAsset
+        var asset = new BlueprintAsset
         {
             Header         = new Header(),
             AssetId        = Guid.NewGuid(),
@@ -152,5 +178,20 @@ public sealed class BlueprintNewAssetService : INewAssetService
             Dispatch       = dispatch,
             EditorMetadata = new AssetMetadata(),
         };
+
+        // seedGraphName is always one of the two hard-coded, valid-identifier names in
+        // BlankTemplates ("Tick" / "NewFunction") against a freshly-minted, graphless asset — a
+        // null return here would mean CreateFunctionGraph's own validity/collision rules regressed,
+        // not a legitimate empty-asset outcome. Fail loudly rather than silently ship the exact
+        // graphless asset this fix exists to prevent.
+        var graph = BlueprintDocumentFactory.CreateFunctionGraph(
+            asset, seedGraphName, markDirty: null, view: null);
+        if (graph is null)
+            throw new InvalidOperationException(
+                $"BP-103: failed to seed starter graph '{seedGraphName}' for blank-template asset " +
+                $"'{name}' (dispatch={dispatch}). CreateFunctionGraph rejected the name — this should " +
+                "be impossible for a fresh, graphless asset and a hard-coded valid identifier.");
+
+        return asset;
     }
 }
