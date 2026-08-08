@@ -1120,6 +1120,79 @@ made again.
 ✅ **Confirmed in the running editor (2026-08-08)** — screenshot evidence; `Tick` is correctly labelled
 `(Function)`, which the pre-fix build would have called `Event Graph`.
 
+<a id="bp-98"></a>
+### BP-98 — The asset browser gives no signal of what a blueprint *is*
+**Complexity:** RW-L · **Confidence:** ✔✔
+
+> User: *"the SquadState1 appears among blueprints with the usual instance blueprint icon (nothing
+> indicating a function blueprint)… I am not even sure what SquadState1 actually is — is it an instance
+> blueprint?"*
+
+Every blueprint renders with the same icon regardless of `Dispatch`, so a behaviour asset and a pure
+function library are indistinguishable until opened — and even then, only by inference. Unreal gives
+**Blueprint Class**, **Blueprint Function Library** and **Blueprint Macro Library** distinct asset
+icons in the Content Browser.
+
+**Fix:** dispatch-derived icon plus a subtitle. `IAssetSubtitleProvider` already exists (added in batch
+19 for [BP-85](#bp-85)) and `IAssetIconKeyProvider` is its sibling, so the plumbing is in place.
+
+⚠ **Depends on [BP-92](#bp-92)** — while `BlueprintNewAssetService:96` forces every asset to `Instance`,
+a dispatch-derived icon would correctly show every asset as the same thing. Do BP-92 first or this
+ships a label that is accurate and useless.
+
+<a id="bp-99"></a>
+### BP-99 — My Blueprint has no search box
+**Complexity:** RW-L · **Confidence:** ✔✔
+
+Unreal's My Blueprint panel opens with a search field that filters **all** sections at once — the
+standard way to find an item in a large blueprint. Ours has five sections (Graphs, Functions, Macros,
+Custom Events, Variables) and no filter, so locating a function in a 30-graph asset means scrolling.
+
+Purely additive: no data-model change, no compiler involvement. Genuinely low priority — listed so it
+is not rediscovered as a "finding" later.
+
+<a id="bp-100"></a>
+### BP-100 — Graph kind is invisible: no icon on My Blueprint rows or canvas tabs
+**Complexity:** RW-L · **Confidence:** ✔✔
+
+The three graph kinds behave **completely differently**, and render identically as plain text:
+
+| | Runs how | Latent? | Returns? | Shared? |
+|---|---|---|---|---|
+| **Event** | on tick / on an event | ✅ | ✗ | ✗ |
+| **Function** | called | ❌ **BP1650** | ✅ N outputs | ✅ cross-asset |
+| **Macro** | **inlined** at each call site | ✅ | ✅ | ⚠ asset-local |
+
+A designer cannot act correctly without knowing which one they are editing — *"can I put a Delay here?"*
+has three different answers and no on-screen cue.
+
+**Fix: one colour + one letter per kind, repeated in every surface** — My Blueprint row, canvas tab,
+breadcrumb, palette entry — so the mapping is learned once and reused. Extends
+[BP-85](#bp-85)'s breadcrumb rather than duplicating it; see the
+[functions/macros UX plan](Blueprint_Functions_Macros_UX_Plan.md) for the target layout.
+
+⚠ Put the *latent* rule in the Macros section tooltip and the create dialog. It is the one fact that
+explains why macros exist at all, and it is currently written down only in `Stage2_Validate.cs`.
+
+<a id="bp-101"></a>
+### BP-101 — No F2 / context-menu rename on panel items; double-click is the only route
+**Complexity:** RW-L · **Confidence:** ✔✔
+
+> 🔁 **Third confirmed instance of one pattern** — an action that exists but is reachable *only* by
+> double-clicking an unmarked row: [BP-75](#bp-75) (function items), [BP-89](#bp-89) (the Outputs `+`),
+> [BP-90](#bp-90) (blackboard variables). Each was reported by the user as *"there is no way to…"*.
+
+Unreal renames from **F2** *and* a right-click **Rename** entry, on every panel item; double-click is an
+*additional* shortcut, never the only one.
+
+**Fix it as a convention in one pass across all panels** — a shared keybinding plus a context-menu entry
+— rather than per control. Fixing them one at a time is what produced three instances; the fourth is
+otherwise already being written.
+
+⚠ Ties into [BP-90](#bp-90)'s open question: establish **why `IsReadOnly` is set for a BTree
+blackboard**, since that silently swallows the rename even where the affordance exists. The two are
+independent — do not let the investigation block the affordance.
+
 <a id="bp-97"></a>
 ### BP-97 — No wire-time type feedback; every invalid wire is drawable
 **Complexity:** RW-M · **Confidence:** ✔✔
