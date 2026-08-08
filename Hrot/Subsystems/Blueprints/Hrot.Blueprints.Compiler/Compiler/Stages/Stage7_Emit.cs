@@ -7,9 +7,10 @@ namespace Hrot.Blueprints.Core.Compiler.Stages;
 internal static class Stage7_Emit
 {
     public static (string GeneratedSource, DebugMap DebugMap) Run(
-        IrAsset asset, CompilerMode mode, DiagnosticSink sink)
+        IrAsset asset, CompilerMode mode, DiagnosticSink sink,
+        IReadOnlyList<BlueprintSignature>? siblingSignatures = null)
     {
-        var ctx = new EmissionContext(asset, mode);
+        var ctx = new EmissionContext(asset, mode, siblingSignatures);
         var emitter = new CSharpEmitter(ctx);
         return emitter.Emit(asset);
     }

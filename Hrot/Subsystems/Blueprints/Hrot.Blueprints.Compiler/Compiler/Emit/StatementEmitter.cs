@@ -344,7 +344,17 @@ internal static class StatementEmitter
 
             case IrOp_PeerCall op:
             {
-                var peerClass = $"__Peer_{op.PeerBlueprintId:X8}_Bp";
+                // BP-110: emit the peer's REAL generated class name
+                // ({SanitizedName}_{BlueprintId:X8}_Bp), resolved from the sibling signatures the
+                // caller was compiled with. The old `__Peer_{id:X8}_Bp` name was a class NOTHING
+                // ever declared or aliased, so a CallPeerBlueprint could not compile even with the
+                // peer in the same compilation (CS0103). Resolving the real name here -- rather than
+                // emitting a `using` alias -- keeps it correct whether the generated types end up in
+                // the global namespace (production) or wrapped in one (the test fixture's
+                // MergeGeneratedSources). Falls back to the old name when no sibling signature is
+                // present, so Stage 2's BP1301/BP1302 stays the diagnostic the author sees.
+                var peerClass = e.ResolveSiblingClassName(op.PeerBlueprintId)
+                                ?? $"__Peer_{op.PeerBlueprintId:X8}_Bp";
                 var argList = string.Join(", ", op.Args.Select(a => $"__t{a.Index}"));
                 var call = $"{peerClass}.{op.MethodName}({argList})";
                 if (idx >= 0)
@@ -356,7 +366,9 @@ internal static class StatementEmitter
 
             case IrOp_AiPrimitiveCall op:
             {
-                var primClass = $"__AiPrim_{op.AiPrimitiveBlueprintId:X8}_Bp";
+                // BP-110: same defect and same fix as IrOp_PeerCall above.
+                var primClass = e.ResolveSiblingClassName(op.AiPrimitiveBlueprintId)
+                                ?? $"__AiPrim_{op.AiPrimitiveBlueprintId:X8}_Bp";
                 var argList = string.Join(", ", op.Args.Select(a => $"__t{a.Index}"));
                 var call = $"{primClass}.Call({argList})";
                 if (idx >= 0)

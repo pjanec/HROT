@@ -74,7 +74,8 @@ public sealed class BlueprintCompiler : IBlueprintCompiler
         if (sink.HasErrors) return FailResult(sink, typed.Asset);
 
         // Stage 7 -- Emit C# source
-        var (generatedSource, debugMap) = Stage7_Emit.Run(lowered, options.Mode, sink);
+        var (generatedSource, debugMap) = Stage7_Emit.Run(
+            lowered, options.Mode, sink, options.SiblingSignatures);
         if (sink.HasErrors) return FailResult(sink, typed.Asset);
 
         byte[]? pe = null;

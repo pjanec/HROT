@@ -57,7 +57,7 @@ lists every one.
 
 ## Status
 
-**59 open · 51 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
+**61 open · 53 fixed · 1 refuted (BP-46).** Counts and per-complexity breakdown live in the tracker
 table; do not duplicate them here.
 
 | Batch | Items |
@@ -80,6 +80,7 @@ table; do not duplicate them here.
 | 16 — closing out BP-24 | BP-71 🔴 (Q24 A1+B1+C3; +BP1655/BP1656), BP-72 |
 | 20 — functions & macros UX, steps 1–2 | BP-92 (dispatch at create), BP-89 (outputs on the Return node) |
 | 21 — the Batch-20 visual check's defects | BP-103 🔴 (blank template had zero graphs — crashed on open, broke the build), BP-104 🔴 (Library outputs ignored), BP-105 (inert Status combo); re-ticks BP-92 |
+| 22 — end-to-end smoke test | BP-109 🔴 (two entities, two blueprints, one shared Library) — which found **BP-110** 🔴: a `CallPeerBlueprint` had never compiled at all |
 
 **Batch 7's visual pass (2026-08-05)** earned its keep: one bug of mine (the bookmarks ✕ was
 unreachable — a full-width `Selectable` swallowed the click), one long-standing 🔴 (**BP-66**, the
@@ -168,10 +169,18 @@ implementation sessions build. ⚡ Every handoff carries the **Sonnet-delegation
 *Working agreement → Coordinator / implementation split*.
 
 🔀 **Two things run in parallel right now (2026-08-08):**
-1. **Build** — [HANDOFF_Batch22_EndToEnd_Smoke.md](HANDOFF_Batch22_EndToEnd_Smoke.md): **BP-109** 🔴,
-   two entities · two blueprints · one shared Library function, as **shipped recipe assets plus a gate
-   test**. ⭐ Not a demo — **no test has ever executed a `CallPeerBlueprint`**, so this closes a real
-   coverage hole on a shipped feature.
+1. ✅ **Build — DELIVERED (Batch 22).**
+   [HANDOFF_Batch22_EndToEnd_Smoke.md](HANDOFF_Batch22_EndToEnd_Smoke.md): **BP-109** 🔴 shipped —
+   two entities · two blueprints · one shared Library function, as recipe assets **plus** a gate test
+   that loads those same on-disk files. Runs in **2 seconds**.
+   ⭐ **It found what it was built to find, immediately: [BP-110](Blueprint_Issues_Detail.md#bp-110)
+   🔴 — a `CallPeerBlueprint` had never COMPILED.** The hole was deeper than "never executed": the
+   emitted call named `__Peer_{id:X8}_Bp`, a class nothing declares, so it *could not* execute.
+   Reproduced with caller and peer in the same merged compilation, which disproves the
+   `NodeCoverageTests` comment claiming production resolves it by compiling siblings together.
+   ✅ Two entities on different blueprints in one world — flagged unproven — **works, no code changes**.
+   📌 Also registered: [BP-111](Blueprint_Issues_Detail.md#bp-111) — the known-flake list is incomplete
+   and the gate's `-v q` hides the failing test's name; that cost time twice in this batch.
 2. **Verify** — the Windows visual check of Batches 20–21 (see *🎯 Batch 20 — DO THIS FIRST* below).
    Findings go to the coordinator and land in a **later** batch, not Batch 22.
 
@@ -682,6 +691,11 @@ zero wire a function return).
   suite of 10 running parallel. Before: 1 varying failure *every* run. After: **2657 / 0**.
 - ⚠ **`Blueprint_Component_Access_RESUME.md`'s "~8–9 reds, DO NOT chase" is STALE** — banner-marked
   at the source. Expect 0 failures; investigate any.
+- ⚠ **The known-flake list below is INCOMPLETE — see [BP-111](Blueprint_Issues_Detail.md#bp-111).**
+  `WhenNodePerfTests.WhenNode_EqsResult_Under150ns_perTick` also flakes under full-suite load (passes
+  5/5 in isolation) and is **not** listed, so it reads as a regression. Worse, the gate command uses
+  `-v q`, which prints counts but **not the failing test's name** — re-run with
+  `--logger "console;verbosity=normal"` to identify it. This cost time twice in Batch 22.
 - Residual: `PdbEmbeddedSourceTests` pair flaked once in ~6 runs (real Roslyn+PDB emission,
   resource-sensitive). Not yet chased. **`WhenNodePerfTests.WhenNode_ValueChanged_Under100ns_perTick`
   joins it** — a wall-clock ns/tick benchmark; it reds under load and passes alone. Re-run the single

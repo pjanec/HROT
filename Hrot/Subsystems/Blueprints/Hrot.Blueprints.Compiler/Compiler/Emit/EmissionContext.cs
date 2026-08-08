@@ -15,10 +15,24 @@ internal sealed class EmissionContext
     public CompilerMode Mode { get; }
     public IrGraph? CurrentGraph { get; set; }
 
-    public EmissionContext(IrAsset asset, CompilerMode mode)
+    /// <summary>
+    /// CallPeerBlueprint/AiPrimitiveCall alias fix -- the cross-asset function signatures the
+    /// caller was compiled WITH (<c>CompileOptions.SiblingSignatures</c>), threaded through so
+    /// <c>CSharpEmitter.EmitUsings</c> can resolve a peer's REAL generated class name
+    /// (<c>{SanitizedName}_{BlueprintId:X8}_Bp</c>) for the <c>__Peer_{id:X8}_Bp</c> /
+    /// <c>__AiPrim_{id:X8}_Bp</c> bare names <c>StatementEmitter</c> emits as call targets. Stage2's
+    /// <c>V_PeerReferences</c> already validated (BP1301) that every <c>CallPeerBlueprintNode</c>
+    /// reaching this stage has a matching entry here -- this is the SAME list, not recomputed.
+    /// </summary>
+    public IReadOnlyList<BlueprintSignature> SiblingSignatures { get; }
+
+    public EmissionContext(
+        IrAsset asset, CompilerMode mode,
+        IReadOnlyList<BlueprintSignature>? siblingSignatures = null)
     {
         Asset = asset;
         Mode = mode;
+        SiblingSignatures = siblingSignatures ?? Array.Empty<BlueprintSignature>();
         _blockLabels = new Dictionary<int, string>();
         foreach (var g in asset.Graphs)
             foreach (var b in g.Blocks)
