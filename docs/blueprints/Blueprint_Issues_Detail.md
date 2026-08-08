@@ -1120,6 +1120,44 @@ made again.
 ✅ **Confirmed in the running editor (2026-08-08)** — screenshot evidence; `Tick` is correctly labelled
 `(Function)`, which the pre-fix build would have called `Event Graph`.
 
+<a id="bp-97"></a>
+### BP-97 — No wire-time type feedback; every invalid wire is drawable
+**Complexity:** RW-M · **Confidence:** ✔✔
+
+Grepping **both** `Hrot.Blueprints.Editor` and `NodeEditor.Core` for `CanCoerce` / `CanConnect` /
+`IsCompatible` returns **nothing**. There is no link type-check anywhere in the editor. A `float`→`int`
+wire draws happily, saves, and surfaces as **BP1501** *"no coercion"* during an MSBuild run — in a
+different project, long after the gesture.
+
+#### ✅ Unreal's behaviour is the specification
+
+| Case | Unreal |
+|---|---|
+| Same type | connects |
+| **Compatible, different** | **auto-inserts a conversion (autocast) node**, with a tooltip naming the conversion |
+| **Incompatible** | **an icon appears with the reason**, and the connection is **refused** |
+
+#### ⭐ We already have the first half — server-side
+
+`Stage3_Normalize.cs:275-292` inserts a synthesized `CastNode` on **any** link where
+`ITypeRegistry.TryGetCoercion` succeeds. The decision "can these two pins connect, and via what
+conversion?" is therefore **already computed and already correct** — it just happens at compile time,
+invisibly, and only tells the designer when the answer is *no* (and then via a build error).
+
+⇒ This item is mostly **surfacing an existing decision at wire time**, not new logic:
+
+1. Expose `TryGetCoercion` to the canvas (the editor already references the compiler assembly).
+2. On hover / drag, show the conversion that will be inserted — matching Unreal's tooltip.
+3. When it returns false, **refuse the wire and say why**, rather than accepting it silently.
+
+⚠ **This gates [BP-96](#bp-96).** Shipping `Truncate`/`Round`/`Floor`/`Ceil` without wire-time feedback
+leaves them undiscoverable — precisely the [BP-89](#bp-89) trap, where the affordance existed and the
+user could not find it. The natural pairing is Unreal's: refuse the lossy wire, and offer the
+conversion node in the refusal.
+
+⚠ Note the asymmetry this fixes: today the *silent* case is the working one (auto-cast, no feedback)
+and the *loud* case is a build error in another project. Both ends are wrong way round.
+
 <a id="bp-95"></a>
 ### BP-95 — One "call function" node; stop making the designer declare peers
 **Complexity:** RW-M · **Confidence:** ✔✔
@@ -2049,6 +2087,13 @@ Two distinct gaps:
 ⚠ Do not fix (1) in isolation until (2) is answered — adding a create button to an asset shape that
 should not exist would cement the confusion.
 
+#### ✅ Unreal comparison
+
+In Unreal an **Event Graph always exists** on a Blueprint, and more can be added — a Blueprint is never
+in the state this asset is in. The reason ours can be is [BP-92](#bp-92): the editor can only ever
+create `Dispatch: Instance`, so a functions-only asset has no way to say it is a **library** and no way
+to gain an event graph either. ⇒ fix BP-92 first; "add a Graphs +" alone would cement the confusion.
+
 <a id="bp-89"></a>
 ### BP-89 — Function **outputs are undiscoverable**, and the Return node's Details panel shows only `Success`
 **Complexity:** RW-L · **Confidence:** ✔✔✔
@@ -2062,6 +2107,18 @@ programme could not be exercised because the entry point could not be found.
 The affordance **exists**: *Graph Signature* window → **Outputs** table → **`+`**. It is a bare `+`
 under an unlabelled table, in a panel the designer has no reason to associate with the Return node
 they are actually looking at. Nothing on the Return node, and nothing in its Details panel, points at it.
+
+#### ✅ Unreal validates the proposed fix — and goes further
+
+In Unreal the **Details panel** carries **Inputs** and **Outputs** sections with **+** buttons, and it
+opens from **three** places: the My Blueprint item, the **function entry node**, *or* the **result
+node**. Input params surface as data-**out** pins on the entry node and outputs as data-**in** pins on
+the return node — **exactly our shape**, which BP-71/BP-73 already got right.
+
+⇒ The gap is purely *where the control lives*. We have **one** entry point — a separate Graph Signature
+window; Unreal has three, two of which are the node the designer is already looking at. Putting
+add/remove on the Return node's Details is therefore not a workaround: **it is what Unreal does**, and
+it is why nobody hits this problem there.
 
 **Fix — make the Return node self-explanatory, since that is where the designer already is:**
 - Details for a `Return` node should list the graph's **declared outputs** (and offer add/remove), not
@@ -2096,6 +2153,14 @@ is a second, larger issue hiding behind this one.
 ⚠ **Testing consequence:** [BP-86](#bp-86) sites 4–6 (`VariablesPanelControl:561,562,640`) could **not
 be exercised in the editor** for this reason. They are covered by the headless helper tests, but the
 NUL fix at those three sites remains unconfirmed by hand.
+
+#### ✅ Unreal comparison
+
+Unreal renames from **F2** *and* a right-click **Rename** entry, on every panel item, everywhere —
+double-click is an *additional* shortcut, never the only route. ⇒ our fix is not a new idea, it is the
+industry-default affordance we are missing. **This is the third instance of the same pattern here**
+([BP-75](#bp-75), [BP-89](#bp-89), this) — worth fixing as a convention across all panels rather than
+one control at a time.
 
 <a id="bp-91"></a>
 ### BP-91 — No discoverable way to **add an event to an HSM graph**

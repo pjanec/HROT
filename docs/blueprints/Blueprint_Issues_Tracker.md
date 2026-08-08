@@ -13,9 +13,9 @@ architect decision first).
 |---|---:|---:|
 | `WIRING` | 5 | 22 |
 | `RW-L` | 21 | 18 |
-| `RW-M` | 24 | 5 |
+| `RW-M` | 25 | 5 |
 | `RW-H` | 3 | 1 |
-| **Total** | **53** | **46** |
+| **Total** | **54** | **46** |
 | *(refuted on verification)* | | *1* |
 
 > 📌 **Resuming this programme?** Start with [Blueprint_Gaps_Programme_RESUME.md](Blueprint_Gaps_Programme_RESUME.md) — branch, batches
@@ -342,6 +342,7 @@ architect decision first).
 - [ ] **[BP-94](Blueprint_Issues_Detail.md#bp-94)** · `RW-L` — **Save rewrites the whole file, burying the real change in ~160 lines of reformatting.** ⚠ **DOWNGRADED from 🔴 and largely refuted (2026-08-08, verified against code).** The original report — *"a load→save round-trip changes fields the user never touched"* — does not hold on either field. **(1)** `IsAutoManaged` `false` → absent is **by design**: `BehaviorTreeAssetDto.cs:38-40` carries `[JsonIgnore(WhenWritingDefault)]` with the comment *"Omitted from JSON when false (default) for backwards compatibility"*, and absent deserializes back to `false`, so it **round-trips correctly**; both mappers are symmetric and neither serializer sets a global `DefaultIgnoreCondition`. The claim that this is "not cosmetic" was wrong — absent **is** `false`. **(2)** `Managed` `false` → `true` is a **real but correct** change: `BTreeCommandSink:231,276` set it on the add/promote-variable path, then it round-trips faithfully — not "inferred on save" as guessed. ⇒ the defect was that the edit was **persisted at all**, which is **[BP-93](Blueprint_Issues_Detail.md#bp-93)**. **What remains:** wholesale reformatting (`WriteIndented=false` + `JsonAestheticFormatter` vs hand-authored layout). **Test to add:** load every shipped asset, save untouched, assert **deep** (not textual) equality — passes the by-design omissions, still catches a genuine value change — *found after the batch-19 visual check*
 - [ ] **[BP-95](Blueprint_Issues_Detail.md#bp-95)** · `RW-M` — **One "call function" node; stop making the designer declare peers.** *User: "if we can hide the unnecessary complexity — a node for calling a function would call any, no matter how it is defined, as long as it is technically possible."* Today there are **two** node kinds — `FunctionCallNode` (same asset, by `TargetGraphId`) and `CallPeerBlueprintNode` (cross-asset, by `PeerBlueprintId`+`FunctionRef`) — and the cross-asset one passes **three** gates: the target GUID must be in the consumer's hand-maintained `CallablePeers` (**BP1300**), the target must be among `SiblingSignatures` (**BP1301**), and the function must be exported (**BP1302**). ✅ **Unreal needs none of this** — a Blueprint Function Library's functions appear in every Blueprint's context menu automatically. ⭐ **Gate 2 is already effectively satisfied**: the csproj globs `<AdditionalFiles Include="Assets\Blueprints\**\*.bp.json" />`, so every asset is already visible to the compiler. ⇒ **`CallablePeers` is the only real ceremony, and it should be editor-maintained, not author-typed** — when the designer picks a function from another asset, the editor adds the GUID (same bake-on-wire pattern as BP-12c/BP-68). Keep the declaration as a compiler-level fact for build ordering; never surface it. **Then unify the two node kinds behind one picker** that lists local + peer functions together and resolves whichever applies — *raised 2026-08-08*
 - [ ] **[BP-96](Blueprint_Issues_Detail.md#bp-96)** · `RW-M` — **Narrowing conversions have no path: `float`→`int` is a hard error and there is no Truncate node.** ⚠ **Corrects a user assumption in their favour: `int`→`float` ALREADY works** — `Stage3_Normalize:275-292` auto-inserts a synthesized `CastNode` whenever `TryGetCoercion` succeeds, and `Int32→Single` is in the table, so the wire just works with no node and no ceremony. The reverse is not: `Single→Int32` is absent (the table is a documented *"Slice 1 conservative set"* — widening only), so it raises **BP1501** *"no coercion"*. ✅ **Unreal does exactly what the user proposed** — implicit widening on the wire, and an explicit **`Truncate`** node (rounds toward zero) for `float`→`int`. **Work:** add a `Truncate`/`Round`/`Floor`/`Ceil` node family for the lossy direction (round-out per the build-general rule), plus **fixed-string coercions** (`String`→`FixedString32/64`, `FixedString64`→`FixedString32`) which the user has explicitly approved as **silently truncating** — ⚠ record that as a deliberate data-loss default, since it is the one place this programme accepts silence. ⚠ **The editor has NO link type-check at all** (no `CanCoerce`/`CanConnect` anywhere in `Hrot.Blueprints.Editor` or `NodeEditor.Core`), so every bad wire is drawable and fails only at compile — worth fixing alongside, or the new nodes will not be discoverable — *raised 2026-08-08*
+- [ ] **[BP-97](Blueprint_Issues_Detail.md#bp-97)** · `RW-M` — **The canvas gives no wire-time type feedback at all — every invalid wire is drawable and fails at build time in another project.** Grepping `Hrot.Blueprints.Editor` **and** `NodeEditor.Core` for `CanCoerce`/`CanConnect`/`IsCompatible` returns **nothing**: there is no link type-check anywhere in the editor. A `float`→`int` wire draws happily and surfaces as **BP1501** during an MSBuild run. ✅ **Unreal's behaviour is the spec:** compatible-but-different types **auto-insert a conversion (autocast) node** with a tooltip naming the conversion; genuinely incompatible pins show **an icon plus the reason** and the connection is **refused**. ⭐ **We already have the first half server-side** — `Stage3_Normalize:275-292` auto-inserts a `CastNode` on any coercible link — so this is largely *surfacing an existing decision at wire time*: expose `ITypeRegistry.TryGetCoercion` to the canvas, show the conversion on hover, refuse + explain when it returns false. ⚠ **Gates [BP-96](Blueprint_Issues_Detail.md#bp-96)** — shipping Truncate/Round nodes without this leaves them undiscoverable, the same trap as BP-89 — *raised 2026-08-08*
 - [ ] **[BP-14](Blueprint_Issues_Detail.md#bp-14)** · `RW-L` — `Return.Status` uneditable (always Success); a `NodeStatus` combo, ~20-30 lines
 - [ ] **[BP-22](Blueprint_Issues_Detail.md#bp-22)** · `RW-L` — `GetParameter` cannot be placed; asset-specific, so needs a picker not a baked entry
 - [ ] **[BP-21](Blueprint_Issues_Detail.md#bp-21)** · `RW-L` — `When` → ValueChanged form stubbed; reuse `ComponentFieldReflector` + component pickers
@@ -428,6 +429,57 @@ architect decision first).
 > **These are the fifth and sixth overturned "nothing exists" claims, every one of them caused by a
 > search that covered `Hrot/` but not `FDP/`.** The lesson recorded at the bottom of this file was
 > already there; it was not applied. Now tracked as **BP-74** and **BP-78** (+ Q25).
+
+## 🎮 Unreal parity reference
+
+> **Why this table exists.** The user: *"we want to support most of what Unreal can, as this is a cheap
+> source of 'is that a good approach' responses."* Unreal is the yardstick this programme already used
+> for BP-71/BP-73/BP-75; this makes it explicit and checkable instead of recalled from memory.
+>
+> ⚠ **Use it as evidence, not authority.** Verify against the linked docs before a claim justifies a
+> design — this programme has overturned ten audit claims and two architect statements. Two entries
+> below were checked and came back *"we already have it"* (`Library` dispatch, implicit widening),
+> which is exactly the failure mode to guard against.
+
+### Authoring surface
+
+| Unreal | Here | Item |
+|---|---|---|
+| Functions created from **My Blueprint → Functions +** | ✅ shipped (BP-24) | — |
+| Inputs/Outputs edited in the **Details panel of the entry *or* result node**, or the My Blueprint item — **three** entry points | ❌ one place only, a separate **Graph Signature** window the designer never connects to the Return node in front of them | **BP-89** |
+| Input params = data-**out** pins on the entry node; outputs = data-**in** pins on the return node | ✅ exactly our shape | — (BP-71/BP-73 got this right) |
+| **Function-local variables** | ❌ `Graph` has no `LocalVariables` field | **BP-57** |
+| **Collapse selection → Function / Macro** | ❌ commands declared, no sink case, no menu item | **BP-74** |
+| Functions appear in the palette and can be **dragged** onto a graph | ❌ catalog never iterates `asset.Graphs` | **BP-75** |
+| **Go to Definition** on a call node | ❌ gate tests demo kind-ids that never match | **BP-76** |
+| **Event Graph** always exists, and more can be added | ❌ no "Graphs +"; a functions-only Instance asset has none | **BP-88** |
+| Rename via **F2 / right-click**, everywhere | ❌ double-click only, no affordance, no hint — **third instance of this pattern** | **BP-90** |
+| **Blueprint Function Library** — separate asset, callable project-wide | ⭐ `Dispatch: Library` **already exists end-to-end**; the editor just can't create one | **BP-92** |
+| **Blueprint Macro Library** | 📐 designed ([Q25](Architect_Question_25_Macros.md)); asset-local macros first | **BP-79**…**BP-83** |
+| Library functions callable with **no declaration** | ❌ hand-maintained `CallablePeers` per consumer | **BP-95** |
+
+### Wiring and types
+
+| Unreal | Here | Item |
+|---|---|---|
+| **Implicit widening** on the wire (`int`→`float`) | ⭐ **already works** — `Stage3_Normalize:275-292` auto-inserts a `CastNode` | — |
+| **`Truncate`** node for the lossy direction (`float`→`int`) | ❌ `Single→Int32` absent from the coercion table ⇒ BP1501 with no remedy | **BP-96** |
+| Wire-time feedback: autocast **tooltip**; incompatible ⇒ **icon + reason, refused** | ❌ **no link type-check anywhere in the editor** — every bad wire draws and fails at build | **BP-97** |
+| Type picker offers only usable types | ❌ 8 of 15 offered types don't resolve; **no string type offered at all** though three are registered | **BP-87** |
+
+### Deliberately *not* pursued
+
+| Unreal | Why not |
+|---|---|
+| **Event Dispatchers** | Superseded here and removed in BP-09; nothing consumes `EventDispatchers` and no shipped asset declares one |
+| **Blueprint Interfaces** | Not raised by any user report; note it exists rather than building speculatively |
+| Macro Library scoped by **parent class** | A good idea, but downstream of macros existing at all — revisit after BP-79…BP-83 |
+
+**Sources:** [Functions in UE](https://dev.epicgames.com/documentation/en-us/unreal-engine/functions-in-unreal-engine) ·
+[Connecting Nodes](https://dev.epicgames.com/documentation/en-us/unreal-engine/connecting-nodes-in-unreal-engine) ·
+[Blueprint Function Libraries](https://dev.epicgames.com/documentation/en-us/unreal-engine/blueprint-function-libraries-in-unreal-engine) ·
+[Blueprint Macro Library](https://dev.epicgames.com/documentation/en-us/unreal-engine/blueprint-macro-library-in-unreal-engine) ·
+[Truncate](https://dev.epicgames.com/documentation/en-us/unreal-engine/BlueprintAPI/Math/Float/Truncate)
 
 ## Needs an architect decision before scoping
 
