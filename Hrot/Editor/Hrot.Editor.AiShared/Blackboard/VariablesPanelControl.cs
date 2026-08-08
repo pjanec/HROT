@@ -558,8 +558,8 @@ public sealed class VariablesPanelControl
 
             if (ImGui.Button("Add") && _addPopupSchema != null)
             {
-                 string name = System.Text.Encoding.UTF8.GetString(_addNameBuf).TrimEnd('\0').Trim();
-                 string comment = System.Text.Encoding.UTF8.GetString(_addCommentBuf).TrimEnd('\0').Trim();
+                 string name = Fdp.Presentation.Utils.ImGuiBufferText.DecodeTrimmed(_addNameBuf);
+                 string comment = Fdp.Presentation.Utils.ImGuiBufferText.DecodeTrimmed(_addCommentBuf);
                  var existing = _addPopupSchema.Variables.Select(x => new BlackboardVariableEntry(x.Name, x.FieldType, x.Comment)).ToList();
                  _addValidationError = BlackboardNameValidator.Validate(name, existing);
                  if (_addValidationError == null)
@@ -637,7 +637,7 @@ public sealed class VariablesPanelControl
 
     private void CommitRename(IVariablesSchemaSource schema, string oldName)
     {
-        string newName = System.Text.Encoding.UTF8.GetString(_renameBuf).TrimEnd('\0').Trim();
+        string newName = Fdp.Presentation.Utils.ImGuiBufferText.DecodeTrimmed(_renameBuf);
         _renameActiveVarName = null;
         if (string.IsNullOrEmpty(newName) || newName == oldName) return;
 

@@ -902,6 +902,60 @@ reopen. It serialises either way (pins are stripped on save and re-projected on 
 almost certainly heals it — which would downgrade the *data-loss* framing above to a
 render-until-reopen defect. Confirm rather than assume.
 
+#### ✅ DONE 2026-08-08 — **both hypotheses were wrong; the real cause is node-type substitution**
+
+**Hypothesis 1 is also refuted.** Nothing about the view model is at fault: the *asset* is wrong after
+the undo. What actually happens:
+
+The canvas does **not** undo a delete by calling `DeleteNodeCommand.Undo`. `EditCommands.BuildDeleteSelection`
+(`NodeEditor.UI/Action/EditCommands.cs:108-126`) records the gesture on the editor's `UndoStack` as a
+forward/inverse **command pair**:
+
+| | command |
+|---|---|
+| forward | `GraphCommand.RemoveNodes(nodes)` |
+| inverse | `GraphCommand.AddNode(n.Id, n.Kind, n.Position, { "PinIds": … })` |
+
+So Ctrl+Z arrives at the sink as an **`AddNode`**, and the node is **rebuilt from its kind string**.
+That string is `BlueprintNodeModel.Kind` = **`node.GetType().Name`** (`BlueprintNodeModel.cs:105`) —
+i.e. `"GetVariableNode"`. But `BlueprintCommandSink.IsGetVariableKind` accepted only the *palette* ids
+(`Util.GetVar` / `Variable.Get` / `Blueprint.GetVariable` / `GetVariable`), and no `NodeKindRegistry`
+entry is keyed by the type name either. The reconstruction therefore fell through to the generic
+fallback:
+
+```
+FunctionCallNode { MethodName = "GetVariableNode" }   // exec in/out, NO data pin
+```
+
+which is exactly the reported symptom — and answers the open question above: this is **not**
+render-until-reopen. `_markDirty` runs, so **saving persists a node of the wrong type**. The
+*data-loss* framing was right, for a different reason than anyone guessed.
+
+It also explains the sibling experiment cleanly: only the node that goes through reconstruction is
+damaged, because only it is rebuilt.
+
+⚠ **Second, independent loss on the same path:** the inverse carries **no node properties at all**,
+only `PinIds`. Even a correctly typed reconstruction would lose `VariableId` / `ValueJson` / `EventId`
+/ `MethodName` / pin defaults. A kind-matching fix alone would give back a `GetVariableNode` bound to
+nothing.
+
+**Fix (both halves).** `BlueprintCommandSink` now keeps a bounded, id-keyed **tombstone** of the nodes
+`ApplyRemoveNodes` removed, and `CreateAssetNode` restores the *original object* when an `AddNode`
+names one and the requested kind still denotes that node's type. That preserves every property for
+every node kind, not just Get/Set-variable. `IsGetVariableKind` / `IsSetVariableKind` additionally
+accept the type-name form, so a reconstruction that misses its tombstone still yields the right node
+*type*.
+
+**Tests** — `Hrot.Blueprints.Tests/Host/UndoRestoresNodeWithPinsTests.cs`, driving the real
+forward/inverse pair through the sink. One test pins the kind string the canvas emits, so a change to
+`BlueprintNodeModel.Kind` cannot silently re-open this. **3 of 4 go red on revert** (the fourth is the
+kind-string documentation test, which is supposed to hold either way).
+
+⚠ **Design note worth an architect nod:** the tombstone is a Blueprint-side workaround for a
+**generic** gap — `INodeModel` exposes no property bag, so `EditCommands` (shared FDP UI) *cannot*
+build a lossless inverse for any host. The BTree and HSM sinks have the same exposure. The principled
+fix is a node-state snapshot on the command pair; that is a shared-layer change and was not taken here.
+
 <a id="bp-86"></a>
 ### BP-86 — Function input parameters render with **corrupted names** on the entry node 🔴
 **Complexity:** RW-L · **Confidence:** ✔✔ *(observed; four layers eliminated, culprit not yet pinned)*
@@ -978,6 +1032,33 @@ Sites 4–6 add `.Trim()`, which does **not** help — `Trim()` does not remove 
 Fix all seven behind one shared helper rather than patching site 1 alone; this is trap #5's lesson in a
 different costume (an idiom that looks defensive and isn't).
 
+#### ✅ DONE 2026-08-08
+
+Re-derived the site list from source rather than trusting the table: an independent sweep for
+`TrimEnd('\0')` across **both** trees returns exactly these seven — no more, no less.
+
+**One helper serves all seven, contrary to the handoff's guidance.** The handoff suggested
+`Hrot.Editor.AiShared` for sites 1–6 with a separate copy for site 7, reasoning that the dependency
+runs Hrot → FDP. It runs that way — which is *why* a single helper works: put it in **FDP**, the lower
+layer, and Hrot can use it. Confirmed by inspection that all three Hrot editor assemblies
+(`Hrot.Blueprints.Editor`, `Hrot.Editor.AiShared`, `Hrot.Hsm.Editor`) already reference
+`Fdp.Presentation`, and site 7 lives there. No duplication was needed.
+
+New: `Fdp.Presentation/ImGui/Utils/ImGuiBufferText.cs` — `Decode(byte[]?)` / `Decode(ReadOnlySpan<byte>)`
+stop at the **first** NUL; `DecodeTrimmed` exists as a distinct method so the whitespace trim that
+sites 4–6 wanted cannot be copied without the NUL handling coming along.
+
+**Tests** — `Fdp.Presentation.Tests/ImGui/ImGuiBufferTextTests.cs` (13, one per *behaviour* not per
+site: shorter / longer / equal-length, empty, null, all-zero, unterminated, multi-byte UTF-8, and two
+that assert the **old idiom is still wrong** on the same input so a future "simplification" back to
+`TrimEnd` cannot pass) plus `Hrot.Blueprints.Tests/Editor/GraphSignatureNulCorruptionTests.cs` (4,
+the designer's gesture end-to-end through `RenameParameter`, asserting the stored `ParameterDecl.Name`
+carries no NUL). **8 of 17 go red on revert**, including **all four** round-trip tests.
+
+✅ **Confirmed in the running editor (2026-08-08):** three inputs added to `Count4`'s `Tick` graph,
+renamed `Param0` → `P1`. The row reads exactly `P1`. Persistence is covered by the round-trip test
+rather than by saving, so no tracked demo asset was dirtied.
+
 <a id="bp-85"></a>
 ### BP-85 — The canvas never says which graph you are editing
 **Complexity:** RW-L · **Confidence:** ✔✔
@@ -1002,6 +1083,42 @@ outputs** gives its `Return` node no value pin — correct behaviour, but the us
 input pins — nowhere to connect the return value"*. There is no hint that outputs are declared in the
 **Graph Signature** window first. Surfacing the active graph's signature summary on the canvas would
 answer both complaints at once.
+
+#### ✅ DONE 2026-08-08
+
+A breadcrumb line now sits directly under the canvas tab:
+
+```
+Count4 · Instance  >  Tick (Function)
+```
+
+Three parts, three changes:
+
+1. **`BlueprintGraphModel.Kind` was a lie.** It was a `{ get; } =` initialised **once** to
+   `("EventGraph", "Event Graph", …)`, so *every* graph reported itself as an event graph regardless of
+   `Graph.Kind` — a Function graph included. Now computed from `_graph.Kind`. It has to be computed
+   rather than stored because BP-24's `Retarget` swaps `_graph` in place on a canvas switch, so a
+   captured descriptor would keep describing the graph the model was constructed with.
+   ⚠ `AllowsLatent` / `RequiresEntryNode` deliberately left unchanged for every kind — those carry
+   editor *semantics*, and varying them per graph kind is a behaviour decision, not this display fix.
+2. **Dispatch**: new optional `IAssetSubtitleProvider` in `Hrot.Editor.AiShared/Identity`, mirroring
+   the existing `IAssetIconKeyProvider`. `BlueprintFileAsset` implements it from the `Dispatch` field
+   the header reader **already parses** for the icon, so no extra I/O. Kind-agnostic: BTree/HSM assets
+   don't implement it and simply get no dispatch segment.
+3. **`AiGraphCanvasWindow.BuildBreadcrumb`** — a pure static so the format is testable headlessly.
+
+⚠ **Caught only by running the editor:** the first version used `▸` (U+25B8) as the separator and it
+rendered as **`?`** — that glyph is not in the ImGui font atlas (the same reason `? EDIT` and
+`? Enter Preview` show elsewhere in this UI). Switched to ASCII `>`; `·` does render and was kept. A
+test now asserts every character stays below U+2000, so the next person cannot reintroduce it. This is
+precisely the class of bug no headless test in this repo can see — the argument for the visual check,
+made again.
+
+**Tests** — `Hrot.Editor.AiShared.Tests/Windows/CanvasBreadcrumbTests.cs` (9, driving the real
+`BlueprintGraphModel` so the kind label is the one the canvas actually shows). **3 go red on revert.**
+
+✅ **Confirmed in the running editor (2026-08-08)** — screenshot evidence; `Tick` is correctly labelled
+`(Function)`, which the pre-fix build would have called `Event Graph`.
 
 <a id="bp-10"></a>
 ### BP-10 — `When` → EventFired form is a stub
@@ -1700,6 +1817,56 @@ Cheap, and currently actively misleading.
 
 ---
 
+<a id="bp-87"></a>
+### BP-87 — The parameter/variable **type dropdown offers 8 types the compiler cannot resolve** 🔴
+**Complexity:** RW-H *(the work is small; the **scope** needs an architect call)* · **Confidence:** ✔✔✔ *(reproduced from a build failure)*
+
+> 🔎 Found 2026-08-08 while fixing BP-84/85/86 — not by the audit. The user's own
+> `SquadState1.bp.json`, authored during the visual check, **fails the build**:
+> `CSC : error BP1500: Pin type 'Vector3' does not resolve. [Hrot.AI.Behaviors.csproj]`
+
+**Reproduce:** Graph Signature → add an input → set its type to `Vector3` from the dropdown → build.
+
+**Root cause — two lists that were never reconciled.**
+
+The Graph Signature type combo is populated from
+`BlackboardTypeHelper.DefaultKnownTypeNames` (`BlackboardTypeHelper.cs:48-52`) and persists the
+**bare display name** as the `TypeId` (`GraphSignatureWindow.cs:361` — `model.RetypeParameter(param.Name, typeNames[currentIdx])`).
+
+The compiler resolves a `TypeId` in `StaticTypeRegistry.TryResolve` by exact `TypeTable` hit, plus one
+escape hatch for a `global::`-prefixed FQN. Its alias entries are only
+`bool, byte, short, int, long, float, double` (`StaticTypeRegistry.cs:83-89`). Vector types **are**
+registered — but under their **FQNs** (`System.Numerics.Vector3`, `:38-42`), which the bare alias never matches.
+
+| Offered by the editor | Resolves? | Why |
+|---|---|---|
+| `bool` `byte` `short` `int` `long` `float` `double` | ✅ | in the alias table |
+| `sbyte` `ushort` `uint` `ulong` | ❌ | no entry under **either** name |
+| `Vector2` `Vector3` `Vector4` `Quaternion` | ❌ | registered as FQN only; bare alias unmapped |
+
+⇒ **8 of the 15 types the dropdown offers produce BP1500.** Nothing warns at author time; the failure
+lands at *build* time, in a different project, naming a type the designer picked from a supported-looking list.
+
+Visible in the user's asset: the recipe-authored parts carry FQNs (`System.Single`, `System.Int32`,
+`System.Byte`) while the three parameters they added by hand carry `int`, `float`, `Vector3` — the
+first two happen to be in the alias table, the third is not.
+
+**Why this is not just "add 8 aliases".** Two separate questions, and the second is the architect's:
+
+1. *Mechanical* — the vector four need alias→FQN entries (or the editor should persist FQNs). Low risk.
+2. *Scope* — should `sbyte`/`ushort`/`uint`/`ulong` be legal blueprint types **at all**? They are absent
+   from the compiler under any name, which may be deliberate (blackboard tier sizing, coercion table
+   completeness — `CoercionTable:96-103` has no unsigned entries). Either register them or **remove them
+   from the dropdown**; silently offering them is the one option that is certainly wrong.
+
+⚠ Whichever way it goes, the durable fix is to stop having **two hand-maintained lists** — the
+dropdown should be derived from what the compiler can resolve, so this cannot drift again.
+
+⚠ **Practical note for the next session:** while this asset is present, `dotnet build` of the solution
+**fails**, because the blueprint compile runs as a build step of `Hrot.AI.Behaviors`. The BP-84/85/86
+work was built and gated with the file temporarily moved aside and restored afterwards; it is
+untracked and was left in place.
+
 ## Explicitly out of scope
 
 | Item | Why |
@@ -1713,6 +1880,19 @@ Cheap, and currently actively misleading.
 `BP-40` (Library-dispatch breakpoints) · `BP-38` (pause-on-exception, already LOCKED as deferred) ·
 `BP-52` (UX-1/UX-2) · `BP-27` *if* the StructEdit re-check confirms no reusable picker · plus macros
 and collapse-to-function if ever brought back into scope.
+
+**Added 2026-08-08:**
+
+- **[BP-87](#bp-87)** — *which* types may a blueprint parameter/variable declare? The vector four
+  (`Vector2/3/4`, `Quaternion`) are plainly an alias-mapping oversight, but whether
+  `sbyte`/`ushort`/`uint`/`ulong` should be legal at all is a real design question (they exist in no
+  compiler table and have no coercion entries). Register or remove — the status quo offers them and
+  then fails the build.
+- **[BP-84](#bp-84) follow-on** — undo-of-delete rebuilds a node from its *kind string alone*, because
+  `INodeModel` exposes no property bag and so the shared `EditCommands` cannot build a lossless
+  inverse. BP-84 fixed this Blueprint-side with a removed-node tombstone; **the BTree and HSM sinks
+  have the same exposure.** Whether to lift a node-state snapshot into the shared command pair is a
+  cross-editor decision.
 
 <a id="bp-65"></a>
 ### BP-65 — Placing a node was silently non-undoable 🔴

@@ -3,6 +3,7 @@ using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Core.Compiler.Emit;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Catalog;
+using Hrot.Editor.AiShared.Identity;
 using Hrot.Editor.AiShared.References;
 
 namespace Hrot.Blueprints.Editor.Catalog;
@@ -87,7 +88,9 @@ public sealed class BlueprintAssetContributor : IAssetCatalogContributor
                         ? iEl.GetString() : null;
                     var iconKey = BlueprintIconKeys.ForHeader(dispatch, intent);
 
-                    found.Add(new BlueprintFileAsset(assetId, name, filePath, iconKey));
+                    // BP-85: the same header Dispatch also answers "is this an Instance blueprint?"
+                    // in the canvas breadcrumb — previously nothing on screen did.
+                    found.Add(new BlueprintFileAsset(assetId, name, filePath, iconKey, dispatch));
                 }
                 catch
                 {
@@ -107,16 +110,19 @@ public sealed class BlueprintAssetContributor : IAssetCatalogContributor
 /// Only the header is read on construction; the full <see cref="Hrot.Blueprints.Core.Assets.BlueprintAsset"/>
 /// is loaded on demand by the editor host when the document is opened.
 /// </summary>
-internal sealed class BlueprintFileAsset : IEditableAsset, IComposedBlueprintIdentity, IAssetIconKeyProvider
+internal sealed class BlueprintFileAsset
+    : IEditableAsset, IComposedBlueprintIdentity, IAssetIconKeyProvider, IAssetSubtitleProvider
 {
     private bool _isDirty;
 
-    public BlueprintFileAsset(Guid assetId, string name, string sourceFilePath, string? iconKey = null)
+    public BlueprintFileAsset(
+        Guid assetId, string name, string sourceFilePath, string? iconKey = null, string? dispatch = null)
     {
         AssetId = assetId;
         Name = name;
         SourceFilePath = sourceFilePath;
         IconKey = iconKey;
+        Subtitle = string.IsNullOrWhiteSpace(dispatch) ? null : dispatch;
 
         // Phase C (AIE-053): precompute the generated AiPrimitive class name HERE, on the
         // blueprint-editor side which legitimately references the compiler. The shared
@@ -136,6 +142,10 @@ internal sealed class BlueprintFileAsset : IEditableAsset, IComposedBlueprintIde
 
     /// <inheritdoc/>
     public string? IconKey { get; }
+
+    /// <inheritdoc/>
+    /// <remarks>BP-85: the asset's dispatch ("Instance" / "Library" / "AiPrimitive").</remarks>
+    public string? Subtitle { get; }
 
     public bool IsDirty => _isDirty;
     public bool IsEditorOwned => false;

@@ -5,6 +5,7 @@ using System.Numerics;
 using Fdp.Presentation.Fonts;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Documents;
+using Hrot.Editor.AiShared.Identity;
 using NodeEditor.Core.Action;
 using NodeEditor.Core.Bookmarks;
 using NodeEditor.Core.Interfaces;
@@ -328,6 +329,13 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
 
         var context = ActiveContext;
 
+        // BP-85: name the graph the canvas is showing. Without this the tab shows only the asset
+        // name, so switching to a freshly created (empty) function graph read as "my graph has been
+        // emptied" — a false data-loss scare — and nothing on screen answered "is this an Instance
+        // blueprint?".
+        if (ImGuiAvailable())
+            DrawBreadcrumb(BuildBreadcrumb(doc, context.View.Model));
+
         // Render the cached GraphView via the seam, threading FindBar and Commands when present.
         _renderer.Render(context.View, context.FindBar, context.Commands);
 
@@ -382,6 +390,51 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         if (ReferenceEquals(doc, _titleDoc)) return;
         _titleDoc = doc;
         Title = _baseTitle;
+    }
+
+    // ── BP-85: canvas breadcrumb ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Builds the one-line breadcrumb naming what the canvas is currently editing:
+    /// <c>{asset} · {dispatch}  ▸  {graph} ({graph kind})</c>.
+    ///
+    /// <para>
+    /// Kind-agnostic: the dispatch segment appears only for assets implementing
+    /// <see cref="IAssetSubtitleProvider"/>, and the graph-kind segment is dropped when it would
+    /// merely repeat the graph's name. Pure and static so the format is testable headlessly.
+    /// </para>
+    /// </summary>
+    internal static string BuildBreadcrumb(AiDocument? doc, IGraphModel? model)
+    {
+        if (doc == null) return string.Empty;
+
+        var sb = new System.Text.StringBuilder(doc.Asset.Name);
+
+        if (doc.Asset is IAssetSubtitleProvider s && !string.IsNullOrWhiteSpace(s.Subtitle))
+            sb.Append(" · ").Append(s.Subtitle);
+
+        var graphName = model?.DisplayName;
+        if (!string.IsNullOrWhiteSpace(graphName))
+        {
+            // ASCII separator on purpose: the editor's ImGui font atlas has no glyph for "▸"
+            // (U+25B8) and renders it as "?" — the same reason "? EDIT" shows elsewhere in the UI.
+            sb.Append("  >  ").Append(graphName);
+
+            var kindName = model!.Kind?.DisplayName;
+            if (!string.IsNullOrWhiteSpace(kindName) &&
+                !string.Equals(kindName, graphName, StringComparison.OrdinalIgnoreCase))
+                sb.Append(" (").Append(kindName).Append(')');
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>Renders <paramref name="text"/> as a dimmed breadcrumb line above the canvas.</summary>
+    private static void DrawBreadcrumb(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+        ImGuiNET.ImGui.TextDisabled(text);
+        ImGuiNET.ImGui.Separator();
     }
 
     // ── MULTI-TAB: tab bar ────────────────────────────────────────────────────

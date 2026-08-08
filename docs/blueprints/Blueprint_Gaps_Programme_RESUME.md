@@ -103,8 +103,21 @@ green. Three themes worth carrying forward:
 ## Next up
 
 **Shipped and closed:** BP-24 (Batch 15) → BP-71 🔴 + BP-72 (Batch 16) → BP-69 🔴 (Batch 17)
-→ BP-73 (Batch 18) → **Q25 answered, `BP-78` design closed** (2026-08-07, docs only).
-⚠ **Visual check still pending for batches 9–18** — the largest outstanding risk in the programme.
+→ BP-73 (Batch 18) → **Q25 answered, `BP-78` design closed** (2026-08-07, docs only)
+→ **Batch 19 (2026-08-08, Windows): [BP-86](Blueprint_Issues_Detail.md#bp-86) 🔴 +
+[BP-84](Blueprint_Issues_Detail.md#bp-84) 🔴 + [BP-85](Blueprint_Issues_Detail.md#bp-85)** — the three
+defects the visual check found in its first ten minutes.
+
+⚠ **Visual check still only partly done for batches 9–18** — the T-series (T1–T7,
+[BP-73](Blueprint_Issues_Detail.md#bp-73) N function outputs) remains the biggest unverified item, and
+it is the *reason* to keep going: batch 19 shipped a defect (`▸` rendering as `?`) that **no headless
+test in this repo could see**, caught only by looking at the running editor.
+
+> 🔴 **New, and it blocks `dotnet build`:** [BP-87](Blueprint_Issues_Detail.md#bp-87) — the parameter
+> type dropdown offers **8 types the compiler cannot resolve**. The untracked `SquadState1.bp.json`
+> from the visual check fails the build with `BP1500: Pin type 'Vector3' does not resolve`. Batch 19
+> was built and gated with that file temporarily moved aside; it is untracked and was left in place.
+> **Needs an architect call on scope before fixing** — see the item.
 
 Three independent fronts; pick by appetite, not by order.
 

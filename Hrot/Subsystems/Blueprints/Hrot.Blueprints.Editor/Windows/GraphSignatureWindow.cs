@@ -340,9 +340,7 @@ public sealed class GraphSignatureWindow : ManagedWindow
                 ImGuiNET.ImGui.PushID($"name_{tableId}_{i}");
                 if (ImGuiNET.ImGui.InputText("##n", nameBuf, (uint)nameBuf.Length))
                 {
-                    var newName = System.Text.Encoding.UTF8
-                        .GetString(nameBuf)
-                        .TrimEnd('\0');
+                    var newName = Fdp.Presentation.Utils.ImGuiBufferText.Decode(nameBuf);
                     if (newName != param.Name)
                         model.RenameParameter(param.Name, newName);
                 }

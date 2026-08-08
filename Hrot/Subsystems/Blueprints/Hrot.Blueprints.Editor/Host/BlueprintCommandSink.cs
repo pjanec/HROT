@@ -51,6 +51,44 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
     private readonly ActionCatalog.IBehaviorActionCatalog? _behaviorActions;
 
     /// <summary>
+    /// BP-84 — nodes removed by <see cref="ApplyRemoveNodes"/>, kept by id so the paired undo can
+    /// restore the ORIGINAL object rather than reconstruct an approximation of it.
+    ///
+    /// <para>
+    /// Why this is needed: the canvas does not undo a delete by calling
+    /// <c>DeleteNodeCommand.Undo</c>. <c>EditCommands.BuildDeleteSelection</c> records the gesture on
+    /// the editor's <c>UndoStack</c> as a forward/inverse command pair — forward
+    /// <c>RemoveNodes</c>, inverse <c>AddNode(id, kind, position, {PinIds})</c> — so undo arrives
+    /// here as an <b>AddNode</b> and the node is rebuilt from its kind string alone. That string is
+    /// <c>BlueprintNodeModel.Kind</c> = <c>node.GetType().Name</c> ("GetVariableNode"), which
+    /// matches neither <see cref="IsGetVariableKind"/>'s palette ids nor any
+    /// <c>NodeKindRegistry</c> entry — so every such node came back as a generic
+    /// <c>FunctionCallNode{ MethodName = "GetVariableNode" }</c>: exec pins, no Value pin, not
+    /// rewireable, and PERSISTED that way on the next save.
+    /// </para>
+    ///
+    /// <para>
+    /// The inverse also carries no node properties at all (only <c>PinIds</c>), so even a correctly
+    /// typed reconstruction would lose <c>VariableId</c> / <c>ValueJson</c> / <c>EventId</c> / … .
+    /// Restoring the object we removed is the only thing that preserves all of it, and it is what
+    /// the sink — as the applier — is uniquely able to do.
+    /// </para>
+    ///
+    /// <para>
+    /// Entries are consumed on restore and bounded by <see cref="MaxRemovedNodeTombstones"/>
+    /// (oldest dropped first) so a long editing session cannot grow this without limit; dropping a
+    /// tombstone only costs the pre-BP-84 reconstruct behaviour, never a crash.
+    /// </para>
+    /// </summary>
+    private readonly Dictionary<Guid, Node> _removedNodes = new();
+
+    /// <summary>Insertion order for <see cref="_removedNodes"/>, oldest first.</summary>
+    private readonly Queue<Guid> _removedNodeOrder = new();
+
+    /// <summary>Upper bound on retained tombstones — far above any plausible undo depth.</summary>
+    private const int MaxRemovedNodeTombstones = 512;
+
+    /// <summary>
     /// Constructs a command sink bound to the given asset graph.
     /// </summary>
     /// <param name="asset">The owning Blueprint asset.</param>
@@ -211,6 +249,12 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         Vector2 position,
         IReadOnlyDictionary<string, object?>? props)
     {
+        // BP-84: undo-of-delete arrives here as AddNode. If this id names a node we removed and the
+        // requested kind still denotes the same node type, restore the ORIGINAL object — that is the
+        // only path that preserves VariableId / ValueJson / EventId / MethodName / pin defaults.
+        if (TryTakeRemovedNode(assignedId, kind) is { } restored)
+            return FinishNode(restored, assignedId, position, props);
+
         // BCP-BATCH-02-FIX Task 3: the My-Blueprint variable-drag create-path
         // (CanvasRenderer.PlaceVariableNode) emits the kind ids "Util.GetVar" / "Util.SetVar".
         // These are not in the Blueprint palette registry, so without this mapping they fell
@@ -339,15 +383,63 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
     private static Guid ResolveNodeId(NodeId assignedId)
         => assignedId.Value == Guid.Empty ? Guid.NewGuid() : assignedId.Value;
 
+    // BP-84: "GetVariableNode" is the type-name form BlueprintNodeModel.Kind exposes, and therefore
+    // the form the canvas puts in a delete's inverse AddNode. Without it that inverse fell through
+    // to the generic FunctionCallNode fallback. Kept as a matcher (not only as a tombstone lookup)
+    // so a reconstruct that misses its tombstone still produces the right node TYPE.
     private static bool IsGetVariableKind(string kindId) =>
-        kindId is "Util.GetVar" or "Variable.Get" or "Blueprint.GetVariable" or "GetVariable";
+        kindId is "Util.GetVar" or "Variable.Get" or "Blueprint.GetVariable" or "GetVariable"
+               or "GetVariableNode";
 
     /// <summary>
     /// True when <paramref name="kindId"/> denotes a "set variable" node create request
     /// (the My-Blueprint drag-to-canvas / context-menu "Set" path).
     /// </summary>
     private static bool IsSetVariableKind(string kindId) =>
-        kindId is "Util.SetVar" or "Variable.Set" or "Blueprint.SetVariable" or "SetVariable";
+        kindId is "Util.SetVar" or "Variable.Set" or "Blueprint.SetVariable" or "SetVariable"
+               or "SetVariableNode";   // BP-84: type-name form — see IsGetVariableKind
+
+    // ── BP-84: removed-node tombstones ───────────────────────────────────────
+
+    /// <summary>Records <paramref name="node"/> as restorable by id, evicting the oldest when full.</summary>
+    private void RememberRemovedNode(Node node)
+    {
+        _removedNodeOrder.Enqueue(node.Id);
+        _removedNodes[node.Id] = node;
+
+        while (_removedNodeOrder.Count > MaxRemovedNodeTombstones)
+        {
+            var oldest = _removedNodeOrder.Dequeue();
+            // Only drop it if no newer enqueue still refers to it.
+            if (!_removedNodeOrder.Contains(oldest))
+                _removedNodes.Remove(oldest);
+        }
+    }
+
+    /// <summary>
+    /// Returns and consumes the node previously removed under <paramref name="assignedId"/> when
+    /// <paramref name="kind"/> still denotes that node's type; otherwise <see langword="null"/>.
+    ///
+    /// <para>
+    /// The kind check is what keeps this from hijacking an unrelated create that happens to reuse a
+    /// GUID: a restore only happens when the caller is asking for the same node type we removed.
+    /// </para>
+    /// </summary>
+    private Node? TryTakeRemovedNode(NodeId assignedId, NodeKindKey kind)
+    {
+        if (assignedId.Value == Guid.Empty) return null;
+        if (!_removedNodes.TryGetValue(assignedId.Value, out var node)) return null;
+        if (!KindDenotesNodeType(kind.Id, node)) return null;
+
+        _removedNodes.Remove(assignedId.Value);
+        return node;
+    }
+
+    /// <summary>True when <paramref name="kindId"/> names the runtime type of <paramref name="node"/>.</summary>
+    private static bool KindDenotesNodeType(string kindId, Node node) =>
+        string.Equals(kindId, node.GetType().Name, StringComparison.Ordinal)
+        || (IsGetVariableKind(kindId) && node is GetVariableNode)
+        || (IsSetVariableKind(kindId) && node is SetVariableNode);
 
     /// <summary>
     /// Stamps id, position, initial properties and caller-supplied pin GUIDs onto a freshly
@@ -524,6 +616,10 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         {
             var assetNode = _graph.Nodes.FirstOrDefault(n => n.Id == nodeId.Value);
             if (assetNode == null) continue;
+
+            // BP-84: remember the exact object so the paired undo (which arrives as an AddNode
+            // carrying only kind + PinIds) can restore it instead of reconstructing a lossy stand-in.
+            RememberRemovedNode(assetNode);
 
             // Remove the node AND its incident links through CommandHistory as one step
             // (DeleteNodeCommand captures the incident links so Undo restores node + wires together).

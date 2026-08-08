@@ -107,7 +107,7 @@ public sealed class HsmEventsWindow
                 ImGui.InputText("##evname", _renameBuf, (uint)_renameBuf.Length);
                 if (ImGui.Button("Preview"))
                 {
-                    var newName = Encoding.UTF8.GetString(_renameBuf).TrimEnd('\0');
+                    var newName = Fdp.Presentation.Utils.ImGuiBufferText.Decode(_renameBuf);
                     if (!string.IsNullOrWhiteSpace(newName))
                     {
                         // Machine-scoped rename: only IncludeHsm

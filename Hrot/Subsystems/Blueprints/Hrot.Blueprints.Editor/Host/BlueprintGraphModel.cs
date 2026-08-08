@@ -118,8 +118,29 @@ public sealed class BlueprintGraphModel : IGraphModel
 
     public GraphId Id          => new(IdGenerator.Deterministic($"graph:{_asset.AssetId}:{_graph.Id}"));
     public string  DisplayName => _graph.Name;
-    public GraphKindDescriptor Kind { get; } =
-        new("EventGraph", "Event Graph", AllowsLatent: true, RequiresEntryNode: true);
+    /// <summary>
+    /// BP-85 — describes the graph the canvas is CURRENTLY showing. This used to be a fixed
+    /// "Event Graph" descriptor initialised once, so a Function graph reported itself as an event
+    /// graph and the canvas had no way to tell the designer which graph they were editing.
+    ///
+    /// <para>
+    /// Computed (not initialised once) because <see cref="Retarget"/> swaps <c>_graph</c> in place
+    /// on a canvas graph switch — a stored descriptor would keep describing the graph the model was
+    /// constructed with.
+    /// </para>
+    ///
+    /// <para>
+    /// <c>AllowsLatent</c> / <c>RequiresEntryNode</c> are deliberately left as they were for every
+    /// kind: they carry editor SEMANTICS (what may be placed / what must exist), and changing them
+    /// per graph kind is a behaviour decision, not the display fix BP-85 asks for.
+    /// </para>
+    /// </summary>
+    public GraphKindDescriptor Kind => _graph.Kind switch
+    {
+        GraphKind.Function     => new("FunctionGraph",     "Function",            AllowsLatent: true, RequiresEntryNode: true),
+        GraphKind.Construction => new("ConstructionGraph", "Construction Script", AllowsLatent: true, RequiresEntryNode: true),
+        _                      => new("EventGraph",        "Event Graph",         AllowsLatent: true, RequiresEntryNode: true),
+    };
 
     public IReadOnlyCollection<INodeModel>    Nodes    => _nodes.Values;
     public IReadOnlyCollection<ILinkModel>    Links    => _links.Values;

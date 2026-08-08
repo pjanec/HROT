@@ -228,7 +228,7 @@ public sealed class InspectorWindow : ManagedWindow
                 ImGuiNET.ImGui.InputText("##rname_insp", _renameBuf, (uint)_renameBuf.Length);
                 if (ImGuiNET.ImGui.Button("OK"))
                 {
-                    var newKey = System.Text.Encoding.UTF8.GetString(_renameBuf).TrimEnd('\0');
+                    var newKey = Fdp.Presentation.Utils.ImGuiBufferText.Decode(_renameBuf);
                     if (!string.IsNullOrWhiteSpace(newKey))
                     {
                         var preview = _refactorService.PreviewRename(
