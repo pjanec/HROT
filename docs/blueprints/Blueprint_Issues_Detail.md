@@ -1862,6 +1862,50 @@ first two happen to be in the alias table, the third is not.
 ⚠ Whichever way it goes, the durable fix is to stop having **two hand-maintained lists** — the
 dropdown should be derived from what the compiler can resolve, so this cannot drift again.
 
+#### ✅ Scope settled by the user 2026-08-08 — **register and support, do not remove**
+
+> *"uint data type is maybe unnecessary … but the same argument can be taken for FixedString32 vs 64
+> ('why not just string?') — the technical limitations justify both fixed variants. Uint/ushort is not
+> an issue **as long as it can be seamlessly converted to ints** (wiring possible between
+> uint ↔ ushort ↔ int pins). So no issue with a large selection of data types, they just need to be
+> supported properly."*
+
+That resolves question 2 and adds a third the entry had missed entirely.
+
+**⭐ Strings are the bigger gap, and they are already supported by the compiler.** `StaticTypeRegistry`
+registers **`System.String`** (`:35`) and **`Fdp.Core.FixedString32` / `FixedString64`** (`:62-63`,
+commented *"preferred over System.String in state"*). No Stage 2 validator rejects a managed or
+fixed-string type for a graph parameter — grepping `Stage2_Validate.cs` for `IsUnmanaged` returns
+**nothing**. ⇒ **A function already can take a string parameter; the dropdown simply never offers one.**
+`BlackboardTypeHelper.DefaultKnownTypeNames` lists 15 numeric/vector types and **zero** string types.
+
+**⚠ The user's condition on the unsigned types is NOT met today.** `CoercionTable` (`:96-103`) has
+exactly 8 entries and **every one is signed**:
+
+```
+Byte→Int32, Byte→Single, Int16→Int32, Int16→Single,
+Int32→Int64, Int32→Single, Int32→Double, Single→Double
+```
+
+There is **no** `UInt16→Int32`, no `UInt32→Int64` — nothing unsigned at all. So a `uint` pin cannot wire
+to an `int` pin, which is precisely the condition attached to keeping them. **Registering the aliases
+alone would produce types that resolve but cannot be connected** — a worse failure than BP1500, because
+it fails later and less legibly.
+
+#### Revised work (the architect question is closed)
+
+| # | Item | Note |
+|---|---|---|
+| 1 | Add `Fdp.Core.FixedString32` / `FixedString64` to the dropdown | Already registered; pure UX. **Do this first** — it is the one the user actually asked for |
+| 2 | Map the bare vector aliases → FQNs (or persist FQNs from the editor) | `Vector2/3/4`, `Quaternion` |
+| 3 | Register `sbyte`/`ushort`/`uint`/`ulong` in the alias table | Mechanical |
+| 4 | **Add unsigned coercion entries** | The gate on item 3 — without it the types resolve but will not wire |
+| 5 | Derive the dropdown from the registry | The durable fix; kills the two-list drift |
+| 6 | Decide `System.String` separately | It is registered, but it is **managed** (`IsUnmanaged=false`), so it cannot live in a `State` struct — fine as a *parameter*, not as a variable. That asymmetry needs a deliberate call, and is exactly why the FixedString variants exist |
+
+⇒ Reclassify from `RW-H` + 📐 to **`RW-M`, no architect round**. Items 1–2 are `RW-L` and independently
+shippable.
+
 ⚠ **Practical note for the next session:** while this asset is present, `dotnet build` of the solution
 **fails**, because the blueprint compile runs as a build step of `Hrot.AI.Behaviors`. The BP-84/85/86
 work was built and gated with the file temporarily moved aside and restored afterwards; it is
@@ -1979,19 +2023,64 @@ the owning asset's `.bp.json`**, alongside that asset's Event graphs, and cross-
 the peer mechanism (`CallPeer.{guid}`, see [BP-68](#bp-68)) rather than through any notion of a shared
 function library.
 
-**Questions for the architect** (not for Claude to settle):
-1. Is an asset-private Function the intended model, with the peer-call mechanism as the *only* sharing
-   route — or should there be a first-class shared function library asset?
-2. If functions stay asset-private, what does `Dispatch: Instance` mean for a functions-only asset like
-   `SquadState`? (See [BP-88](#bp-88) — that combination is what triggered the question.)
-3. Unreal parity is being used as the yardstick across this programme (BP-71, BP-73, BP-75). Unreal
-   distinguishes per-Blueprint functions from **Blueprint Function Libraries** — a separate asset type
-   whose static functions any Blueprint may call. ⚠ Claude cannot verify Unreal's current semantics
-   from this repo; **confirm the parity target before it is used to justify a design**, given the
-   programme's record of overturned assumptions.
+#### ✅ Answered 2026-08-08 — **mostly NOT an architect question. The model already matches Unreal; the editor cannot reach it.**
 
-⚠ This is upstream of [BP-88](#bp-88) and touches [BP-75](#bp-75) (function palette entries) — settle
-it before building either.
+The previous revision said *"Claude cannot verify Unreal's semantics from this repo"* and left all three
+questions open. That was a cop-out — the user pointed out the web was available. Verified against both
+the Unreal docs and this codebase:
+
+**1. Are our functions local to the owning blueprint? Yes — and Unreal is the same.**
+A Function graph compiles to a `private static Func_X` inside that asset's generated class
+(`InstanceEmitter.EmitInstanceFunctionMethod:270-298`). Unreal's per-Blueprint functions are likewise
+members of that Blueprint class. **This part is already at parity and needs no change.**
+
+**2. "Why not function-only blueprints?" — ⭐ WE ALREADY HAVE THEM.**
+`BlueprintDispatchKind { Library, AiPrimitive, Instance }` (`BlueprintAsset.cs:34`). **`Library` *is*
+the function-only blueprint**, and it is real end to end:
+
+| Layer | Evidence |
+|---|---|
+| Data model | `BlueprintDispatchKind.Library` |
+| Compiler | `LibraryEmitter.cs:20` emits **every** `Function` graph as a static method; `LibraryLowering` handles the dispatch |
+| Editor pin projection | `NodePinSchema.cs:574,598` already has a Library-specific branch (no self/view context params) |
+| Shipped assets | `LibraryMath.bp.json` (graph `Add`), `with-callable-peer.bp.json` (graph `Execute`) |
+
+**3. ⭐ The actual root cause — one line.** `BlueprintNewAssetService.cs:96` hardcodes:
+
+```csharp
+Dispatch = BlueprintDispatchKind.Instance,
+```
+
+There is **no dispatch choice anywhere in the editor UI**. Every blueprint the editor creates is an
+Instance blueprint, always. `SquadState` is a functions-only asset wearing `Dispatch: Instance` **because
+that is the only thing the editor can produce** — not because anyone designed it that way.
+
+⇒ This dissolves the confusion in [BP-88](#bp-88) too: *"an Instance blueprint with no Event graph"* is
+not a design puzzle, it is a Library blueprint that could not declare itself one.
+
+#### Unreal comparison — where we actually stand
+
+| Unreal | Here | Gap |
+|---|---|---|
+| Per-Blueprint **Functions** — members of that class, created from My Blueprint → Functions **+** | Function graph in the owning asset; **Functions +** shipped in BP-24 | ✅ at parity |
+| **Blueprint Function Library** — separate asset of static functions callable project-wide, created via Content Browser → *Create Advanced Asset → Blueprints → Blueprint Function Library* | `Dispatch: Library`, fully supported by the compiler | ❌ **cannot be created from the editor** |
+| **Blueprint Macro Library** — separate asset of macros | No macros at all yet | 📐 [Q25](Architect_Question_25_Macros.md) answered; `BP-79`…`BP-83`. ⚠ Q25-C chose **asset-local macros now**, libraries later — worth revisiting given Library dispatch already exists |
+| **Local variables** per function | None | [BP-57](#bp-57) |
+
+#### What actually remains for the architect
+
+Only one real question, and it is narrow: **is `Library` dispatch intended to be author-facing, or is it
+a compiler-internal kind** (e.g. reserved for generated/AI-primitive support code)? If author-facing —
+which the shipped `LibraryMath` recipe suggests — then this is a **`RW-L` wiring item**, not `RW-H`
+design: expose dispatch at create time and show it in the UI ([BP-85](#bp-85) already adds the
+breadcrumb slot for it).
+
+⚠ **Cross-asset *calling* is a separate axis and already works** — `CallPeerBlueprint` + `CallablePeers`
+(BP-66/BP-68). Unreal's library functions need no such declaration, so a follow-up question is whether
+Library-dispatch calls should skip the `CallablePeers` opt-in. That one *is* worth an architect round;
+the create-time dispatch choice is not.
+
+⚠ Upstream of [BP-88](#bp-88); touches [BP-75](#bp-75).
 
 <a id="bp-93"></a>
 ### BP-93 — The editor **writes tracked assets to disk without an explicit Save** 🔴
