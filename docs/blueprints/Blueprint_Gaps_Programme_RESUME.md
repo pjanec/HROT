@@ -330,6 +330,24 @@ data-loss framing to render-until-reopen. Confirm rather than assume.
 
 Ordered **newest-first**, because newest is least verified.
 
+### 🔴 Batch 20+21 visual check — results so far (2026-08-08)
+
+⚠ **The run stopped at section B. Sections C–F, including the T-series, are STILL unperformed** — the
+T-series is now unverified for a **sixth** batch.
+
+| Section | Result |
+|---|---|
+| **A1–A3** | ✅ `Function Library` template exists; `FuncLib1` **created and opened without throwing** ⇒ [BP-103](Blueprint_Issues_Detail.md#bp-103) confirmed fixed, [BP-92](Blueprint_Issues_Detail.md#bp-92) confirmed re-tickable |
+| in-memory hot reload | ✅ OK |
+| **A4** | 🔴 **FULL BUILD FAILS — `CS9191`** in the generated adapter of an otherwise-empty library ⇒ **[BP-110](Blueprint_Issues_Detail.md#bp-110)** |
+| **B1** (`ushort` output) | 🔴 **`BP1500: Pin type 'ushort' does not resolve`** ⇒ **[BP-87](Blueprint_Issues_Detail.md#bp-87) confirmed live**, from the dropdown, at build time, with no author-time warning |
+| peer call, multi-output | 🔴 `CallPeerBlueprint` shows **one** output pin regardless ⇒ **[BP-111](Blueprint_Issues_Detail.md#bp-111)** |
+| **C · D · E · F** | ⬜ **not reached** |
+
+⇒ **Two of the three failures are on the *generator/MSBuild* path, which no test covers for `Library`
+dispatch** (see BP-110). The user's question — *"why can't the implementation session exercise this
+headless?"* — is answered: **it can**; the gate simply has no Library fixture.
+
 ### 🎯 Batches 20+21 — DO THIS FIRST · **rewritten 2026-08-08 for the post-Batch-21 state**
 
 > ⚠ **The previous revision of this section is STALE and two of its rows would have produced false
@@ -733,6 +751,15 @@ anything that does not need Opus-level reasoning. Tokens are the constraint; thi
 ⚠ **State the split per item in the handoff**, not as a general aspiration — "use Sonnet where
 possible" gets ignored; *"BP-89's drawer is a Sonnet slice, the pin-projection parity check is Opus"*
 does not.
+
+⚠⚠ **Subagents share ONE working tree** — a constraint this rule itself created, reported by the
+Batch-20/21 session as the trap that cost it the most time. Two failure modes, both real:
+a **concurrent `dotnet build` corrupts state** (a phantom "missing method" that vanished on retry),
+and an agent doing **revert-and-watch-it-go-red leaves the tree intentionally broken for minutes** —
+which nearly produced six phantom regressions read off a stale test DLL.
+⇒ **Run agents strictly sequentially**, wait for `ps aux | grep -c "[d]otnet build\|[d]otnet test"`
+to reach `0` *and* the expected files to be present, and **gate every commit on the fix actually being
+in the tree** (`git status` shows the source modified) — never on an agent reporting success.
 
 ⚠ **Delegation never transfers the verification duty.** Opus re-runs the gates and applies the
 revert-and-watch-it-go-red discipline on Sonnet's work exactly as on its own. Trap #9 exists because a
