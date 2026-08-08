@@ -132,6 +132,17 @@ programme's largest unverified item.
 > ⚠ **BP-90 and BP-91 also left [BP-86](Blueprint_Issues_Detail.md#bp-86) sites 2 and 4–6 unverified by
 > hand** — those panels could not be reached. Headless coverage stands; the editor confirmation does not.
 
+> 🔴 **Two persistence defects surfaced by the same session — read before touching assets:**
+> [BP-93](Blueprint_Issues_Detail.md#bp-93) — **the editor saves tracked assets without an explicit
+> Save.** The user opened a BTree and an HSM, never invoked Save, and both files came back modified
+> *and* fully reformatted. There is currently **no safe way to explore an asset in the editor** —
+> assume anything you open may be written. ·
+> [BP-94](Blueprint_Issues_Detail.md#bp-94) — the load→save round-trip **changes fields nobody
+> touched** (`IsAutoManaged: false → absent`, `Blackboard.Managed: false → true`).
+>
+> ⇒ **Check `git status` after every editor session** until these are fixed. The one test that would
+> guard both: load every shipped asset, save untouched, assert deep equality.
+
 ⚠ The visual check remains the highest-value activity in this programme: batch 19 shipped a defect
 (`▸` rendering as `?`) that **no headless test in this repo could see**.
 

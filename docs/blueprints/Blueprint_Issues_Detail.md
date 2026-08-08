@@ -1993,6 +1993,77 @@ function library.
 ⚠ This is upstream of [BP-88](#bp-88) and touches [BP-75](#bp-75) (function palette entries) — settle
 it before building either.
 
+<a id="bp-93"></a>
+### BP-93 — The editor **writes tracked assets to disk without an explicit Save** 🔴
+**Complexity:** RW-L · **Confidence:** ✔✔✔ *(reproduced by `git status` after a session with no Save)*
+
+> User: *"I never saved the BTree and HSM so it is very weird they got saved automatically — this is
+> undesired."*
+
+After a batch-19 verification session in which the user opened a BTree and an HSM, poked at the
+variables panels, and **never invoked Save**, `git status` showed **two modified tracked assets**:
+
+```
+ M Hrot/Subsystems/Hrot.AI.Behaviors/Assets/BTrees/Authoring/PlatoonHillAttack2.btree.json
+ M Hrot/Subsystems/Hrot.AI.Behaviors/Assets/HSMs/SampleGuard.hsm.json
+```
+
+Exploratory edits were **persisted to disk anyway**:
+
+| Asset | Written |
+|---|---|
+| `PlatoonHillAttack2.btree.json` | variable **`NewVar1`** added |
+| `SampleGuard.hsm.json` | variable **`halo1`** added; **two new states** (both named `State`); `__Root` lost child `aa010000-…-0001`; `__Root` moved `X 0→395, Y 0→130` |
+
+Both files were also **entirely reformatted** — hand-authored compact JSON (`"EditorMetadata": { … }`
+on one line) rewritten as fully expanded multi-line JSON, so the real change is buried in ~160 lines of
+noise and the diff is near-unreviewable.
+
+**Why this matters more than the nuisance:**
+- Scratch experiments silently become **committed-asset changes**. A designer exploring the editor
+  dirties the repo without knowing it.
+- Combined with the reformat, an unwanted semantic edit is **easy to miss in review**.
+- It defeats the whole "try it and discard" workflow — there is no safe way to explore an asset.
+
+**Investigate:** what triggers the write — asset close, perspective/document switch, application exit,
+or a timer? Is it `AiDocumentManager` / `saveDocument`, or an autosave elsewhere? Decide the intended
+policy (explicit Save only, with a dirty marker + prompt on close, is the conventional answer) and make
+the serializer **round-trip-stable** so any legitimate save produces a minimal diff.
+
+⚠ See [BP-94](#bp-94) — the same round-trip *also* changes values the user never touched, which is a
+separate and arguably worse defect.
+
+<a id="bp-94"></a>
+### BP-94 — A load→save round-trip **changes fields the user never touched** 🔴
+**Complexity:** RW-L · **Confidence:** ✔✔ *(observed in the BP-93 diffs; cause not yet traced)*
+
+Independent of *when* the editor saves ([BP-93](#bp-93)), *what* it writes is not value-preserving.
+Two fields moved with no corresponding user action:
+
+| Asset | Field | Before | After |
+|---|---|---|---|
+| `PlatoonHillAttack2.btree.json` | `Blackboard.Variables["state"].IsAutoManaged` | `false` | **absent / null** |
+| `SampleGuard.hsm.json` | `Blackboard.Managed` | `false` | **`true`** |
+
+The `state` variable was not edited at all — only an unrelated variable was added — yet its
+`IsAutoManaged` flag was dropped. `IsAutoManaged` is load-bearing for the shared-state wiring the
+HillAssault2 integration depends on (see [BP-83](#bp-83) and the tree-integration work), so silently
+turning `false` into "unspecified" is not cosmetic.
+
+**Two candidate causes, both worth checking:**
+1. The writer **omits default-valued properties** (`false` → omitted), and the reader then defaults the
+   absent key to something other than `false` — a classic asymmetric-default round-trip bug.
+2. `Blackboard.Managed` is **inferred on save** from whether variables exist, rather than round-tripped
+   — which would flip it the moment any variable is added.
+
+⚠ Cause 2 may be *intended* behaviour (adding a managed variable arguably implies `Managed: true`); the
+user adding `halo1` is a plausible trigger. **Confirm before treating it as a bug** — but
+`IsAutoManaged` has no such excuse.
+
+**Test to add regardless:** load every shipped `.btree.json` / `.hsm.json` / `.bp.json`, save it
+untouched, and assert the parsed result is **deeply equal** to the original. That single test would
+have caught both fields, and is the durable guard for [BP-93](#bp-93)'s reformatting too.
+
 ---
 
 ## Explicitly out of scope
