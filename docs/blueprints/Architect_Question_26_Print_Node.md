@@ -1,3 +1,42 @@
+# Architect Question #26 — the Print String node
+
+## ✅ ANSWERED 2026-08-09 by the user — recorded before the architect saw it
+
+| Q | Answer |
+|---|---|
+| **A** helper layer | **A1** — `Fdp.Core.Logging` |
+| **B** Library dispatch | **B1** — allow, no entity context |
+| **C** format literal vs pin | **Resolved differently, and better** — see F below. A separate **`Format String`** node writes a formatted result to an **output pin**, so Print String needs no string-input special case: a `FixedString` output is already a legal arg type |
+| **D** arity | ⭐ **Overturned by the Unreal check — see F.** `ArgCount` is dropped |
+| **E** name | **`Print String`** — match Unreal |
+
+### ⭐ F · New, and it corrects my own D1 lean
+
+The user guessed Unreal has a non-printing format node. It does — **`Format Text`** — and checking it
+overturned my recommendation: *"an input parameter is created for each `{}` delimiter found in the
+Format parameter."* **Unreal derives the pin set by parsing the format string**, with **named**
+placeholders (`{Threat}`), and has no arity property at all.
+
+That is better than my `ArgCount : 0..4` on every axis — one control instead of two, self-documenting
+pin names, no cap — **and it satisfies F1 (no unwired pins ⇒ no spurious `BP4001`) more cleanly.**
+⇒ **Adopted.** The one place we cannot follow Unreal is its wildcard arg pins; each placeholder still
+carries a declared `TypeId`.
+
+### G · `FixedString128` — new work the answer implies
+
+⚠ **It does not exist** — `Fdp.Core` has 32 and 64 only. A mirror of `FixedString64.cs`, but ~10
+production sites reference the family. And **truncation is silent** (the constructor cuts), so a
+formatted result longer than the chosen width is lost **at runtime with no diagnostic** — Stage 2 cannot
+know the length. Stated in the node tooltip; flagged here in case the architect wants a different answer.
+
+> **Still open for the architect:** whether the named-placeholder parse (F) and silent truncation (G)
+> are acceptable, and whether `Format String` should be pure (as designed, matching Unreal) or exec.
+> **Nothing below blocks** — the leans were built on because each is the reversible direction.
+
+---
+
+<details><summary>Original question as sent (A–E)</summary>
+
 # Architect Question #26 — the Debug Print node
 
 > **For the architect.** Design note: [PrintString_Node_Design.md](PrintString_Node_Design.md) (rev 2).
@@ -103,3 +142,5 @@ shipping-gameplay output. Say if you would rather match Unreal exactly.
 | Level probe before formatting | `FdpLog`'s own doc prescribes it |
 | Per-arg `TypeId` from `BlueprintTypeChoices` | Mirrors `ArrayMakeNode.ElementTypeId`; picker shipped in Batch 23 |
 | Test asserts a **captured log line**, registering the NLog rule itself | `Program.cs` never runs headless |
+
+</details>
