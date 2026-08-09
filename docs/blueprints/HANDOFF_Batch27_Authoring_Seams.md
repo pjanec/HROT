@@ -1,7 +1,15 @@
-# HANDOFF — Batch 27: the authoring seams the matrix cannot see
+# HANDOFF — Batch 27: make the string nodes and functions actually correct
 
-> 📌 **Not yet dispatched.** Follows Batch 26. IDs are **BP-201+** per the in-flight rule.
-> ⭐ **Rule 4 is yours:** before your final commit, pull the coordinator branch again.
+> 📌 **Dispatched — see the stamp line appended at commit time.** Frozen per `.claude/CLAUDE.md` →
+> *Two-session protocol* rule 1. ⭐ **Rule 4 is yours:** pull the coordinator branch again before your
+> final commit. ⭐ **Rule 3: the coordinator allocates no ids** — every `BP-2xx` below is a **placeholder**;
+> renumber freely when you create the rows and say what you chose (rule 5).
+>
+> 📄 **Read [DECISIONS_Authoring_UX.md](DECISIONS_Authoring_UX.md) first.** All architect questions are
+> now closed — **nothing in this batch is blocked**.
+>
+> ⭐ **The user has very limited visual-testing capacity right now. Everything here is chosen to be
+> provable headlessly.** If an item cannot be proven by a test, say so rather than shipping it unproven.
 
 ---
 
@@ -138,3 +146,20 @@ merge; Batch 25's were build 0 errors · Blueprints **2999 / 0 / 10**).
 
 Per-suite numbers · revert-goes-red per item · **every BP id you allocated** · what the extended matrix
 found · anything here wrong against the code.
+
+---
+
+## 9. 🆕 Newly unblocked by the decisions doc — same batch if there is room
+
+| | |
+|---|---|
+| **Graph rename** *(was BP-127)* | ⭐ **No longer blocked.** It goes in **My Blueprint's context menu**, where Unreal puts it — not an empty-canvas panel. Small, and headless-testable through the authoring API |
+| **`Return.Status` → `Success : bool`** *(was BP-131)* | Settled — see D3. AiPrimitive Return gets one `Success : bool` data-in pin; `Running` comes only from the latent lowering; no status surface anywhere else. ⚠ **The ABI does not change** — the method still returns `NodeStatus`. ⚠ Zero-output Library should become `void`; that is the one genuinely test-locked piece |
+| **Retire `Graph Signature`** *(was BP-128)* | ⭐ **Much smaller than the design note assumed.** With rename in My Blueprint and Inputs/Outputs already on the entry/Return nodes, this is mostly deletion. **Do it only after the matrix's edit-sequence axis exists**, so the removal is covered |
+
+⚠ **Deferred, recorded, do not start:** Unreal's `Class Defaults` bulk-defaults view (D2), and the
+34-warning triage (D6 — wait for diagnostic names, and separate compiler-synthesized orphans from
+authored ones).
+
+⭐ **After this batch: macros.** BP-77 / BP-79 and the Q25 answers are the next feature arc; this batch
+is the last of the correctness sweep.
