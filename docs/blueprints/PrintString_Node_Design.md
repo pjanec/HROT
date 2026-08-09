@@ -74,11 +74,50 @@ message. **No "optional string pin" on Print String is needed**, which is what k
 | Placeholder | `{Name}` — letters/digits/underscore. **First-appearance order** fixes pin order |
 | Repeats | `{Name}` twice ⇒ **one** pin, used twice |
 | Escape | `{{` and `}}` emit a literal brace |
-| Emit | named → positional at emit time: `"{Threat}"` ⇒ `string.Format("{0}", …)` |
+| Emit | ⭐ **a compile-time C# interpolated string**, not `string.Format` — see §3b |
 | Malformed | unclosed `{`, empty `{}`, or an invalid name ⇒ **a Stage 2 diagnostic naming the node**, never a silent drop |
 
 ⚠ **Renaming a placeholder renames a pin**, which can drop a link. Same class BP-113 hit. Acceptable —
 but the drawer should make the pin set visibly follow the text so it is never a surprise.
+
+---
+
+## 3b. ⭐ Allocation — raised by the implementation session, and they were right
+
+> Them: *"Format String is pure, so unlike Print String it has no level probe to hide behind, and a pure
+> node in a Tick graph would allocate a managed string every tick for every entity. The design note does
+> not address it."*
+
+**Correct, and rev 3 as first written would have shipped that.** `Print String` hides its allocation
+behind `if (IsInfoEnabled)`; `Format String` is pure and always runs. `string.Format` allocates, and
+`new FixedString128(string)` needs a managed string to convert **from** — so the naive emit allocates
+**twice per node per entity per tick.**
+
+### The fix — and it is available only because the format is known at generation time
+
+⭐ **The format literal is a compile-time constant of the generated C#.** So emit a **real interpolated
+string**, not a runtime `string.Format` call. That unlocks the zero-allocation path:
+
+```csharp
+// Format String — no managed allocation at all
+Span<char> __b = stackalloc char[128];
+__b.TryWrite($"threat={__t3} squad={__t4}", out int __n);
+__result = new global::Fdp.Core.FixedString128(__b[..__n]);
+```
+
+```csharp
+// Print String — allocates only when the level is on, which is the point of the probe
+if (BlueprintLog.IsInfoEnabled) BlueprintLog.Info($"threat={__t3} squad={__t4}");
+```
+
+| Requirement | Status |
+|---|---|
+| `MemoryExtensions.TryWrite` + interpolated handler | ✅ .NET 6+; `Hrot.AI.Behaviors` and `Fdp.Core` are both **net8.0** (verified) |
+| ⚠ **`FixedString` needs a `ReadOnlySpan<char>` constructor** | 🔴 **It has only `(string)`** (verified). **Add span ctors to 32/64/128** as part of item 2 — without it the whole exercise still allocates |
+| Stack buffer size | Match the declared `ResultType` (32/64/128). Truncate on overflow, same as the string ctor |
+
+⇒ **Named → positional mapping disappears too.** `{Threat}` becomes `{__t3}` directly in the
+interpolated string; there is no `"{0}"` intermediate to build.
 
 ---
 

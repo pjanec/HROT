@@ -45,6 +45,43 @@ Known flakes: `PdbEmbeddedSourceTests`, `WhenNodePerfTests.WhenNode_ValueChanged
 
 ---
 
+## 0. ✅ Batch 24 part 1 VERIFIED (BP-114 only) — and ⚠ **they never saw Item 0**
+
+Gates on the merged tree, **all eight green**: build **0 errors** · Blueprints **2937 / 0 / 10 skipped**
+(2947 total, **+12**) · AiShared **1213 / 0** · BTree **612 / 0** · Breakpoints **130 / 0** ·
+NodeEdit Core **208 / 0** · UI **131 / 0** · Generators **193 / 0**. The BP-111 flake did not fire.
+
+⚠ *Minor: they reported "2936 passed, +11 net". Actual is 2937 / +12, which matches the 12 tests in
+`BP114_TypeComboIndexTests` exactly. Off by one in their tally, not in the tree.*
+
+**BP-114 shipped, and their fix is better than the handoff specified.** I said "match on the resolved
+type". They found **the alias/FQN mismatch was only half the defect**: types that resolve but are
+deliberately *not offered* (`Fdp.Core.Entity`, `System.String`, the curated structs) also displayed
+`bool`, and **for those no offered entry could ever be right**. Their answer — fallback to **-1**, a
+legal Dear ImGui "no selection", rendering a blank preview instead of a false one — is the honest
+result and one I did not consider. They also moved resolution out of the ImGui draw loop into a pure
+`BlueprintTypeChoices.IndexOfTypeId` (testable; 17 resolves per row per frame removed).
+
+### 🔴 FIRST ACTION — Item 0 was added to the handoff **after** they branched
+
+Verified with `git merge-base --is-ancestor`: **they never saw it.** The next session must start there:
+**BP-116 · BP-117 · BP-118 + the authoring-path compile matrix** — §0b of
+[HANDOFF_Batch24_DebugPrint.md](HANDOFF_Batch24_DebugPrint.md). Items 1–3 (Print String etc.) stay
+second priority.
+
+### ⭐ They found a real defect in my design, unprompted
+
+> *"Format String is pure, so unlike Print String it has no level probe to hide behind, and a pure node
+> in a Tick graph would allocate a managed string every tick for every entity."*
+
+**Correct.** rev 3 as first written would have shipped **two allocations per node, per entity, per
+tick** — `string.Format` allocates, and `new FixedString128(string)` needs a managed string to convert
+from. Answered in design §3b: **the format literal is a compile-time constant of the generated C#**, so
+emit a real interpolated string and `Span<char>.TryWrite` into a stack buffer. ⚠ **This requires
+`ReadOnlySpan<char>` ctors on `FixedString` — verified it has only `(string)`** — folded into item 2.
+
+---
+
 ## 0a. ✅ Batch 23 VERIFIED — gates run 2026-08-09 on the merged tree
 
 | Suite | Result |

@@ -194,9 +194,37 @@ better than an `ArgCount` property on every axis, and it satisfies F1 more clean
 | Placeholder | `{Name}` — letters/digits/underscore. **First-appearance order** fixes pin order |
 | Repeats | `{Name}` twice ⇒ **one** pin, used twice |
 | Escape | `{{` / `}}` ⇒ literal brace |
-| Emit | named → positional: `"{Threat}"` ⇒ `string.Format("{0}", …)` |
+| Emit | ⭐ **a compile-time C# interpolated string** — `{Threat}` ⇒ `{__t3}` directly. **Not `string.Format`.** See the allocation note below |
 | Malformed | unclosed `{`, empty `{}`, bad name ⇒ **a Stage 2 diagnostic naming the node.** Never a silent drop — that is trap #5 |
 | Arg types | declared per placeholder (`name → TypeId`), from `BlueprintTypeChoices`. **We have no wildcard mechanism; do not invent one** |
+
+### ⭐ Allocation — **you raised this and you were right.** Answer, so you do not have to re-derive it
+
+Your note: *"Format String is pure … a pure node in a Tick graph would allocate a managed string every
+tick for every entity."* **Correct — rev 3 as first written would have shipped that.** `string.Format`
+allocates, and `new FixedString128(string)` needs a managed string to convert *from*: **two allocations
+per node, per entity, per tick.**
+
+⭐ **The format literal is a compile-time constant of the generated C#**, so emit a **real interpolated
+string** and the zero-alloc path opens up:
+
+```csharp
+// Format String — no managed allocation
+Span<char> __b = stackalloc char[128];
+__b.TryWrite($"threat={__t3} squad={__t4}", out int __n);
+__result = new global::Fdp.Core.FixedString128(__b[..__n]);
+
+// Print String — allocates only when the level is on; that is what the probe is for
+if (BlueprintLog.IsInfoEnabled) BlueprintLog.Info($"threat={__t3} squad={__t4}");
+```
+
+| | |
+|---|---|
+| `MemoryExtensions.TryWrite` + interpolated handler | ✅ .NET 6+; `Hrot.AI.Behaviors` and `Fdp.Core` are both **net8.0** — verified |
+| ⚠ **`FixedString` has only a `(string)` ctor** — verified | 🔴 **Add `ReadOnlySpan<char>` ctors to 32/64/128 in item 2.** Without it this still allocates and the whole exercise is pointless |
+| Stack buffer | size = the declared `ResultType`; truncate on overflow, same as the string ctor |
+
+⇒ The named→positional mapping disappears: `{Threat}` becomes `{__t3}` directly, with no `"{0}"` step.
 
 ⭐ **The two nodes compose with no new mechanism:** a `Format String` result is a `FixedString`, and
 `FixedString` is a legal arg type ⇒ wiring one into a `Print String` placeholder prints a computed
