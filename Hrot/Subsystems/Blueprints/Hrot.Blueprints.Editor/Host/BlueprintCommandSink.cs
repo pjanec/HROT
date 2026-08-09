@@ -495,10 +495,12 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             };
 
         if (kindId.StartsWith(CallPeerKindPrefix, StringComparison.Ordinal))
-            return new CallPeerBlueprintNode
-            {
-                PeerBlueprintId = NormalizePeerId(kindId.Substring(CallPeerKindPrefix.Length)),
-            };
+        {
+            var peerId = NormalizePeerId(kindId.Substring(CallPeerKindPrefix.Length));
+            // BP-116: the compiler requires the peer to be declared on the asset.
+            CallablePeerDeclarations.Declare(_asset, peerId);
+            return new CallPeerBlueprintNode { PeerBlueprintId = peerId };
+        }
 
         return null;
     }
@@ -586,7 +588,11 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         else if (node is CallPeerBlueprintNode cpb)
         {
             if (props.TryGetValue("PeerBlueprintId", out var pid) && pid is string pids)
+            {
                 cpb.PeerBlueprintId = NormalizePeerId(pids);
+                // BP-116: the compiler requires the peer to be declared on the asset.
+                CallablePeerDeclarations.Declare(_asset, cpb.PeerBlueprintId);
+            }
             if (props.TryGetValue("FunctionRef", out var fr) && fr is string frs)
                 cpb.FunctionRef = frs;
         }
@@ -625,6 +631,13 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             // (DeleteNodeCommand captures the incident links so Undo restores node + wires together).
             var delCmd = new DeleteNodeCommand(_graph, assetNode);
             _history.Execute(delCmd);
+
+            // BP-116: a removed CallPeerBlueprintNode may have been the last reference to a peer
+            // declaration — retract it so CallablePeers doesn't accumulate stale entries (Stage2
+            // errors on a declared peer that is no longer part of the compilation). Deliberately not
+            // undoable — see the class docs on why undo-of-delete is out of scope here.
+            if (assetNode is CallPeerBlueprintNode cpb)
+                CallablePeerDeclarations.RetractIfUnreferenced(_asset, cpb.PeerBlueprintId);
         }
 
         _markDirty(_asset);

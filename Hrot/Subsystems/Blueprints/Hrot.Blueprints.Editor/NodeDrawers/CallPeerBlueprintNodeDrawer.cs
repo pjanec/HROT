@@ -1,6 +1,7 @@
 using System.Linq;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Editor.Host;
 
 namespace Hrot.Blueprints.Editor.NodeDrawers;
 
@@ -136,18 +137,28 @@ internal sealed class CallPeerBlueprintNodeSession : INodeEditSession
             && peer.ExportedFunctions.Contains(beforeFunc, StringComparer.Ordinal);
         var afterFunc = keepFunction ? beforeFunc : "";
 
+        // BP-116: tracks whether THIS edit's apply is what added the peer to CallablePeers, so undo
+        // retracts only what it added (and repeated undo/redo cycles stay correct rather than
+        // drifting toward always-declared or always-retracted).
+        bool declaredByThisEdit = false;
+
         _editService.RecordPropertyEdit(
             _parent, $"Set Peer Blueprint '{(peer is null ? newId : PeerLabel(peer))}'",
             apply: () =>
             {
                 _node.PeerBlueprintId = newId;
                 _node.FunctionRef     = afterFunc;
+                // BP-116: the compiler requires the peer to be declared on the asset.
+                declaredByThisEdit = CallablePeerDeclarations.Declare(_parent, newId);
                 AfterChange();
             },
             undo: () =>
             {
                 _node.PeerBlueprintId = beforePeer;
                 _node.FunctionRef     = beforeFunc;
+                if (declaredByThisEdit)
+                    CallablePeerDeclarations.RetractIfUnreferenced(_parent, newId);
+                declaredByThisEdit = false;
                 AfterChange();
             });
     }

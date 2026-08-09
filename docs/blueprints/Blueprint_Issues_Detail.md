@@ -2361,6 +2361,29 @@ where `return;` is CS0126 — reported against generated code the author never w
 
 *— found by the user, Batch 24*
 
+<a id="bp-119"></a>
+### BP-119 — undoing the *creation* of a CallPeerBlueprint node leaves the peer declared
+**Complexity:** RW-L · **Confidence:** ✔✔✔ *(known consequence of the BP-116 fix, by construction)*
+
+[BP-116](#bp-116) declares the peer from `BlueprintCommandSink.CreateDynamicNode` and
+`ApplyInitialProperties`. Both run inside the `CommandHistory` add-node path, but the declaration is
+**not part of the undo record** — so undoing the node creation removes the node and leaves the
+`CallablePeers` entry behind.
+
+⚠ **Asymmetric with explicit deletion**, which *does* retract via `RetractIfUnreferenced`.
+
+**Severity is genuinely low:** a declared-but-unused peer only becomes an error when that peer is not
+part of the compilation, and in the normal case it is. But it is real state drift, and the asymmetry
+(delete cleans up, undo-of-add does not) is exactly the kind of thing that misleads a later reader.
+
+**Fix:** either route the declaration through the same undoable command as the node add, or
+retract-if-unreferenced on undo of the add.
+
+⚠ **Deliberately scoped out of BP-116.** Reconstructing declaration state through the node-add undo
+record is a wider change than the compile-blocking defect required, and BP-116 was blocking the user's
+visual check. Registered as its own row rather than buried in a `DONE` note (BP-102's lesson).
+*— found while fixing BP-116, Batch 24*
+
 <a id="bp-118"></a>
 ### BP-118 — the shipped sample blueprints are not openable
 **Complexity:** WIRING · 🟠 · **Confidence:** ✔✔✔
