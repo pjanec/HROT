@@ -64,10 +64,15 @@ public sealed class AuthoringPathCompileMatrixTests
         for (int i = 0; i < outputCount; i++)
             AuthoringPath.AddOutput(graph, $"Out{i}", "System.Int32");
 
-        if (withReturnNode)
+        // ⚠ BP-126 seeds every new Function graph with a Return node, exec-wired from Entry. That is
+        // correct authoring behaviour, but it means `withReturnNode: false` would otherwise be a LIE —
+        // the graph would still contain a Return and these cells would quietly stop covering the
+        // fall-off-the-end shape BP-117 fixed, while continuing to pass. Strip the seeded node so the
+        // cell tests what its name says.
+        if (!withReturnNode)
         {
-            var sink = AuthoringPath.Sink(asset, graph);
-            AuthoringPath.AddNode(sink, graph, ReturnKind);
+            graph.Nodes.RemoveAll(n => n is ReturnNode);
+            graph.Links.Clear();
         }
 
         var result = AuthoringPath.Generate(asset);
@@ -95,10 +100,12 @@ public sealed class AuthoringPathCompileMatrixTests
     [Fact]
     public void PeerCall_PeerChosenThroughThePicker_CompilesAcrossTheAssetBoundary()
     {
+        // ⚠ BP-126 seeds the Return node now, so this must NOT add a second one — two Returns in one
+        // graph is a real (if self-inflicted) authoring error and would mask what this test is for.
+        // The peer function declares NO outputs deliberately: a declared-but-unwired output is BP1655
+        // (an Error), which would fail this test for a reason that has nothing to do with peer calls.
+        // Crossing the asset boundary is what BP-116 is about, and a zero-output function crosses it.
         var peer = AuthoringPath.NewAsset("MatrixPeerLib", BlueprintDispatchKind.Library);
-        AuthoringPath.AddOutput(peer.Graphs[0], "Result", "System.Int32");
-        var peerSink = AuthoringPath.Sink(peer, peer.Graphs[0]);
-        AuthoringPath.AddNode(peerSink, peer.Graphs[0], ReturnKind);
 
         var caller      = AuthoringPath.NewAsset("MatrixPeerCaller", BlueprintDispatchKind.Instance);
         var callerGraph = caller.Graphs[0];
@@ -121,6 +128,49 @@ public sealed class AuthoringPathCompileMatrixTests
         Assert.True(result.Clean,
             "A peer call authored through the picker did not compile. Before BP-116 this failed with "
             + $"BP1300 because the editor never declared the peer:{Environment.NewLine}{result.Report()}");
+    }
+
+    /// <summary>
+    /// ⭐ <b>BP-121 — the warning must actually reach the build.</b> A Library graph declaring outputs
+    /// with no <c>Return</c> node compiles (BP1657 is a Warning, per the user's ruling) <b>and must
+    /// emit that warning</b>.
+    ///
+    /// <para>
+    /// ⚠ <b>Why this belongs in the matrix and not in a unit test.</b> The generator drained its
+    /// diagnostic sink only on the failure path, so on a successful compile every warning was computed
+    /// and then discarded. A unit test over the sink would have passed the whole time — the bug was in
+    /// the generator's plumbing, which only the real generator exercises. This asserts the end the
+    /// designer actually sees.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ It also closes the loop on BP-117: BP1657 was downgraded to a Warning precisely so it would
+    /// warn rather than block, and until BP-121 it did neither.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void LibraryFallingOffTheEnd_CompilesAndEmitsTheBP1657Warning()
+    {
+        var asset = AuthoringPath.NewAsset("MatrixWarnsBP1657", BlueprintDispatchKind.Library);
+        var graph = asset.Graphs[0];
+
+        // BP-126: NewAsset's seed graph now ships with a Return node exec-wired from Entry (every
+        // newly created Function graph does, to close the "missing Return" authoring gap). This
+        // test specifically wants the shape BP-117 fixed — an exec chain that falls off the end
+        // with NO Return node anywhere in the graph — so strip the auto-seeded one back out before
+        // declaring the output. Without this the Return node IS reached (with an unconnected value
+        // pin), which is a different, already-covered code path (BP4001), not BP1657.
+        graph.Nodes.RemoveAll(n => n is ReturnNode);
+        graph.Links.Clear();
+
+        AuthoringPath.AddOutput(graph, "Out0", "System.Int32");
+
+        var result = AuthoringPath.Generate(asset);
+
+        Assert.True(result.Clean,
+            $"Expected a warning, not a failure:{Environment.NewLine}{result.Report()}");
+        Assert.Contains(result.GeneratorDiagnostics,
+            d => d.Id == "BP1657" && d.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Warning);
     }
 
     /// <summary>

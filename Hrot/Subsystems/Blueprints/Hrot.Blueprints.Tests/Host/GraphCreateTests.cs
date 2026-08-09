@@ -72,8 +72,12 @@ public sealed class GraphCreateTests
 
         // The explicit entry indicator Stage2_Validate.FindEntryNode looks for — the same shape
         // the shipped Function graphs use (an EventEntryNode with an empty EventTypeId).
-        var entry = Assert.IsType<EventEntryNode>(Assert.Single(graph.Nodes));
+        // BP-126: the graph is also born with a wired Return node (see
+        // BP126_NewFunctionGraphSeedingTests for the full seeding + wiring assertions).
+        var entry = Assert.IsType<EventEntryNode>(
+            Assert.Single(graph.Nodes.OfType<EventEntryNode>()));
         Assert.Equal("", entry.EventTypeId);
+        Assert.Single(graph.Nodes.OfType<ReturnNode>());
     }
 
     [Theory]

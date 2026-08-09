@@ -339,8 +339,14 @@ public sealed class NewAssetServiceTests
         Assert.Equal(GraphKind.Function, graph.Kind);
         Assert.Equal(expectedGraphName, graph.Name);
 
-        var entry = Assert.IsType<EventEntryNode>(Assert.Single(graph.Nodes));
+        // BP-126: the seed graph is also born with a wired Return node — exactly one, not two
+        // (BlueprintNewAssetService seeds the asset's first graph through the SAME
+        // CreateFunctionGraph path a designer's "+Function" uses, so this is the anti-double-seed
+        // guard: see BP126_NewFunctionGraphSeedingTests for the full assertion).
+        var entry = Assert.IsType<EventEntryNode>(
+            Assert.Single(graph.Nodes.OfType<EventEntryNode>()));
         Assert.Equal("", entry.EventTypeId);
+        Assert.Single(graph.Nodes.OfType<ReturnNode>());
     }
 
     [Theory]

@@ -6,7 +6,17 @@
          mid-edit/invalid (e.g. an unbound Action/Condition) must NOT break the assembly build;
          it is skipped + surfaced as a warning so the editor still launches (JSON-DD §1). Keep TWAE
          for everything else. Mirror for BTREE HSM equivalent if/when added. -->
-    <WarningsNotAsErrors>BTREE0002</WarningsNotAsErrors>
+    <!-- BP-121: the blueprint generator used to report diagnostics ONLY when a compile failed, so on a
+         successful compile every warning it produced was silently discarded — a designer got no
+         warnings from a real build, ever. The drain is now unconditional, which makes these visible.
+         They must stay WARNINGS rather than build errors: an unwired pin or an orphan node is a normal
+         intermediate authoring state (Unreal simply ignores an orphan), and 34 already exist in the
+         shipped assets under Assets/Blueprints/, which had never been warning-checked.
+         ⭐ This is the right lever: the warnings remain VISIBLE in build output — the whole point of
+         BP-121 — while TreatWarningsAsErrors keeps protecting against C# warnings, which is why it is
+         set. ⚠ Do NOT instead lower these to Info severity: that hides them in normal builds and
+         re-creates the swallowing bug one level down. -->
+    <WarningsNotAsErrors>BTREE0002;BP1657;BP3010;BP3011;BP4001;BP4004</WarningsNotAsErrors>
     <OutputType>Library</OutputType>
     <!-- Editor punch-list #4: emit the companion XML doc file next to the DLL so the
          Blueprint editor can surface curated-helper <summary> prose in function-node

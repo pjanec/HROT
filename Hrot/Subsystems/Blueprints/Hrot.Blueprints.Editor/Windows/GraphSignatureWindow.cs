@@ -68,11 +68,20 @@ public sealed class GraphSignatureWindow : ManagedWindow
     ///   Stable ImGui window id; defaults to <c>"ai_graph_signature_blueprint"</c>.
     /// </param>
     /// <param name="owningPerspective">Perspective name; defaults to <c>"Blueprint"</c>.</param>
+    /// <param name="editServiceAccessor">
+    /// BP-125: resolves the shared <see cref="NodeDrawers.IEditService"/>. ⭐ Without it this window's
+    /// edits only marked the asset dirty — the graph model was never rebuilt, so a declared output
+    /// NEVER became a pin on the Return node, and the edit was not undoable
+    /// (<c>BP-102</c>). A <b>delegate</b> rather than the service itself because the editor host
+    /// constructs this window before the edit service exists; resolving lazily avoids that ordering
+    /// coupling. Null (the default) preserves the pre-BP-125 behaviour for tests that do not care.
+    /// </param>
     public GraphSignatureWindow(
         EditorSelectionStore selectionStore,
         DirtyTracker         dirtyTracker,
         string?              idOverride        = null,
-        string?              owningPerspective = null)
+        string?              owningPerspective = null,
+        Func<NodeDrawers.IEditService?>? editServiceAccessor = null)
         : base(idOverride        ?? "ai_graph_signature_blueprint",
                "Graph Signature",
                owningPerspective ?? "Blueprint",
@@ -80,6 +89,36 @@ public sealed class GraphSignatureWindow : ManagedWindow
     {
         _selectionStore = selectionStore ?? throw new ArgumentNullException(nameof(selectionStore));
         _dirtyTracker   = dirtyTracker   ?? throw new ArgumentNullException(nameof(dirtyTracker));
+        _editServiceAccessor = editServiceAccessor;
+    }
+
+    private readonly Func<NodeDrawers.IEditService?>? _editServiceAccessor;
+
+    /// <summary>
+    /// BP-125 — records one signature edit exactly as <c>ReturnNodeDrawer.RecordOutputsChange</c> does.
+    ///
+    /// <para>
+    /// ⭐ <b>`NotifyStructureChanged` is the missing half.</b> It reaches
+    /// <c>BlueprintDocumentFactory</c> ⇒ <c>graphModel.RebuildAndNotify()</c> ⇒ pins re-project. Marking
+    /// the asset dirty (all this window used to do) changes the model and leaves the canvas showing the
+    /// old pin set — which is why adding an output here appeared to do nothing at all.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>Deliberately byte-identical to the Return-node path.</b> The two surfaces edit the same
+    /// state, so they must produce indistinguishable undo entries; a second, subtly different writer is
+    /// what created this divergence in the first place.
+    /// </para>
+    /// </summary>
+    private void RecordSignatureChange(string label, Action apply, Action undo, BlueprintAsset asset)
+    {
+        var edit = _editServiceAccessor?.Invoke();
+        if (edit is null) { apply(); return; }
+
+        edit.RecordPropertyEdit(
+            asset, label,
+            apply: () => { apply(); edit.NotifyStructureChanged(asset); },
+            undo:  () => { undo();  edit.NotifyStructureChanged(asset); });
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -299,8 +338,14 @@ public sealed class GraphSignatureWindow : ManagedWindow
             _dirtyTracker.MarkDirty(assetId);
         }
 
-        var inputs  = new GraphSignatureEditModel(graph, false, OnInputsChanged);
-        var outputs = new GraphSignatureEditModel(graph, true,  () => _dirtyTracker.MarkDirty(assetId));
+        // BP-125: route BOTH tables through the edit service, so the pins re-project and the edit is
+        // undoable — the two things this window never did.
+        var inputs  = new GraphSignatureEditModel(
+            graph, false, OnInputsChanged,
+            record: (label, apply, undo) => RecordSignatureChange(label, apply, undo, asset));
+        var outputs = new GraphSignatureEditModel(
+            graph, true, () => _dirtyTracker.MarkDirty(assetId),
+            record: (label, apply, undo) => RecordSignatureChange(label, apply, undo, asset));
         return (inputs, outputs);
     }
 

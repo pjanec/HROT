@@ -2970,7 +2970,11 @@ namespace Hrot.Editor
             // Uses the same legacy selection store bridge (SelectAsset is called in ActiveChanged).
             _blueprintSignatureWindow = new Hrot.Blueprints.Editor.Windows.GraphSignatureWindow(
                 selectionStore: _blueprintLegacySelectionStore,
-                dirtyTracker:   _blueprintSaveDirtyTracker);
+                dirtyTracker:   _blueprintSaveDirtyTracker,
+                // BP-125: without this the window only marked the asset dirty — a declared output never
+                // became a pin on the Return node, and the edit was not undoable (BP-102). Passed as an
+                // accessor because the edit service is created after this window.
+                editServiceAccessor: () => _blueprintEditService);
             _blueprintRegistrar!.RegisterExtraWindow(windowManager, _blueprintSignatureWindow);
 
             // BATCH-03C2: blueprint asset catalog used by BlueprintDocumentFactory to build the
