@@ -2354,10 +2354,10 @@ where `return;` is CS0126 — reported against generated code the author never w
 |---|---|
 | **IR** | `IrTerm_Return` gained `ReturnsDefault`. ⭐ **A flag, not a new `IrTerm_ReturnDefault` type:** both switches over `IrTerminator` end in a catch-all, so a new kind could have been silently mis-emitted — trap #5's shape, and the class this batch exists to close. `Value == null` genuinely cannot distinguish void from default, so the IR must carry it |
 | **Emit** | `return default;` — valid for a scalar and a `ValueTuple` alike, so the emitter needs no return-type string at a point where it does not have one |
-| **Diagnostic** | **`BP1657` (Error)** naming the graph — C#'s *"not all code paths return a value"*. A silently-defaulted return value is how the next invisible wrong-value bug ships |
-| ⚠ **Open judgement call** | Unreal silently returns defaults on such a path, so `Error` is stricter than a designer coming from Unreal expects. `Warning` + `return default;` is the fallback if it proves obstructive in the visual check |
+| **Diagnostic** | **`BP1657` (⚖️ Warning since Batch 25 — user: *"warning+return default is a perfect solution"*)** naming the graph — C#'s *"not all code paths return a value"*. A silently-defaulted return value is how the next invisible wrong-value bug ships |
+| ✅ **Settled Batch 25** | Shipped as `Error`; the implementation session flagged that Unreal silently returns defaults on such a path, and the user ruled for **Warning**. ⭐ **Not merely ergonomics:** as an Error the pipeline aborted before Stage 7/8, so `return default;` could never be exercised by any test. As a Warning it is reachable — and now proven |
 | **Tests** | `BP117_LibraryFallThroughTests`, 5 tests. **3 go red on revert**; the 2 that do not are exactly the additivity guards (zero-output Library → still `ReturnStatus`; Instance → still void) |
-| ⚠ **Coverage note** | Because BP1657 is an Error the pipeline never reaches emit, so `return default;` is defense-in-depth only. **The Roslyn-level proof belongs to the Item-0 authoring-path matrix**, which asserts 0 diagnostics rather than `Succeeded` — the same gap that let BP-104 and BP-110 hide |
+| ⭐ **Roslyn proof (Batch 25)** | `BP117_ReturnDefaultRoslynTests` compiles the fixture through **real Roslyn**. Forcing `ReturnsDefault: false` reproduces the field error verbatim — `CS0126 An object of a type convertible to 'int' is required` and `…to '(bool, bool)' is required`, the exact message from the user's report — so the emit path is demonstrably reached and `return default;` is what makes it compile, for a scalar **and** a tuple |
 
 *— found by the user, Batch 24*
 

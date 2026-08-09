@@ -90,7 +90,10 @@ public static class DiagnosticCodes
     // declares outputs but whose exec chain runs off the end with no Return node used to emit a bare
     // `return;` -- CS0126 from Roslyn, attributed to generated code the author never wrote. The
     // terminator now emits `return default;` so the generated C# is valid, and THIS says why.
-    public const string BP1657 = "BP1657";  // Library graph declares outputs but an exec path ends with no Return node
+    // ⚖️ WARNING, not Error (user ruling, Batch 25): Unreal silently returns defaults on such a path.
+    // Warning also keeps the pipeline reaching emit, which is what lets the authoring-path matrix
+    // prove `return default;` through Roslyn -- as an Error that code path was unprovable.
+    public const string BP1657 = "BP1657";  // [Warning] Library graph declares outputs but an exec path ends with no Return node
 
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch

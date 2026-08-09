@@ -864,7 +864,13 @@ internal sealed class GraphScheduler
 
             if (libraryOwesAValue)
             {
-                _ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1657,
+                // ⚖️ Warning, not Error (user ruling, Batch 25: "warning+return default is a perfect
+                // solution"). Unreal silently returns defaults on such a path, so an Error is stricter
+                // than a designer arriving from Unreal expects. ⭐ It also matters structurally: as an
+                // Error the pipeline never reaches emit, so `return default;` below could never be
+                // proven by any test. As a Warning the authoring-path matrix compiles it through
+                // Roslyn and proves it is valid for both a scalar and a ValueTuple.
+                _ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP1657,
                     $"Library graph \"{_graph.Name}\" declares {_graph.Outputs.Count} output(s) but an "
                     + "execution path ends without a Return node; the generated function would return "
                     + "an unspecified default. Add a Return node on every path (C#: \"not all code "
