@@ -64,3 +64,36 @@ mcp_codebase-memo_get_architecture({ "project": "<display_name>" })
 - **Architect-questioning discipline (engine-rules gate):** no non-trivial capability / node / slice starts without a design, and no non-trivial design ships without an **architect pass**. The "architect" is the user's NotebookLM system holding the engine design docs — Claude CANNOT reach it; the user relays. For each non-trivial task, draft an `docs/blueprints/Architect_Question_N_*.md` mirroring the existing Q#2–Q#5 docs (decision-shaped sub-questions A/B/C/D + Claude's recommended lean + the reuse-vs-build tradeoff for each), the user runs it through the architect, record the answers in that doc, **then** build. Prior sessions' architect answers repeatedly redirected the approach — treat this as load-bearing, not ceremony. Trivial mirror-pattern nodes (a documented recipe already exists) may proceed on a short in-repo design note without a full architect round.
 - **Diagrams: prefer hand-authored SVG for anything non-trivial.** Mermaid is acceptable only for simple flowcharts; for richer pictures (memory layouts, timelines, architecture overviews) author SVG — it renders more reliably (Mermaid sometimes clips labels / lays out awkwardly) and looks better. Keep Mermaid box labels short so text is not clipped.
 - **Keep documentation prose short.** Lead with visuals and terse tables; no long prose walls — they go unread.
+
+## Two-session protocol (coordinator ⇄ implementation) — **binding on both sessions**
+
+Both sessions share this repo, so **both load this file**. A *coordinator* session owns the tracker,
+writes handoffs and verifies returned diffs; an *implementation* session writes the code. Neither writes
+in the other's lane.
+
+⭐ **The mechanic that causes every failure so far:** the implementation session does **not merge** the
+coordinator branch — it **builds linearly on top of whatever exists when it starts**. Anything the
+coordinator pushes after that moment is invisible for that whole run. Two ID collisions and one wasted
+document came from ignoring this.
+
+| # | Rule | Owner |
+|---|---|---|
+| 1 | ⭐ **Never amend a handoff after dispatch.** New findings go in the *next* handoff, never back into the live one. This is the root cause of both collisions | coordinator |
+| 2 | **Stamp `Dispatched at <sha>` in every handoff header**, so an edit after that point is visibly illegal | coordinator |
+| 3 | **While a batch is in flight, allocate new IDs from `BP-200+`** and renumber on merge. Rule 1 makes this rare; it is the backstop when a finding cannot wait | coordinator |
+| 4 | ⭐ **Before your final commit, pull the coordinator branch again** and read any handoff/design file that changed. This is the cheap half of the fix — it catches late additions rule 1 cannot prevent | implementation |
+| 5 | **State the IDs you allocated** in your report, so a collision is caught at merge, not three batches later | implementation |
+| 6 | ⭐ **The tracker + detail docs belong to the implementation session for the batch's duration.** The coordinator records findings in conversation and in the next handoff, not as rows | both |
+
+### Checking "did they see X?" — do it correctly, and name the run
+
+Never say *"they never saw it"* — that reads as a property of the session when it is a property of one
+commit. Test against **what they branched from**, not their head:
+
+```bash
+git log -1 --format='%p' <their-first-commit-of-that-run>   # the commit they built on
+git merge-base --is-ancestor <my-commit> <that-parent>
+```
+
+Report *"not in the commit they built from (run starting `<sha>`)"*. The same document is routinely
+absent for one run and present for the next — both statements true, about different runs.
