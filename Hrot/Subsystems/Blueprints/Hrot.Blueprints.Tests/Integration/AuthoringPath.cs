@@ -10,6 +10,7 @@ using Hrot.Blueprints.Editor.Variables;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using NodeEditor.Core.Commands;
+using Hrot.Blueprints.Core.Compiler.Catalogs;
 using NodeEditor.Primitives;
 
 namespace Hrot.Blueprints.Tests.Integration;
@@ -88,24 +89,151 @@ internal static class AuthoringPath
     }
 
     /// <summary>
-    /// Builds a <see cref="BlueprintCommandSink"/> over <paramref name="asset"/>/<paramref name="graph"/>
-    /// with the same collaborators the editor host wires up. Mirrors
-    /// <c>BlueprintCommandSinkTests.MakeSut</c>.
+    /// An open document: every collaborator the editor host wires up, kept together so a test can
+    /// author a wire, count undo entries, or re-project pins without rebuilding the world.
+    ///
+    /// <para>
+    /// ⭐ <b>Batch 27, axes 2 and 3.</b> The Batch-25 matrix could only reach <see cref="Sink"/>, which
+    /// is enough to place nodes and therefore enough to test <i>final states</i>. Wiring acceptance and
+    /// edit sequences both need the model (to name a pin), the history (to undo) and the edit service
+    /// (to drive a Details session) as well — and every defect in Batch 27 lived in one of those two.
+    /// </para>
     /// </summary>
-    public static BlueprintCommandSink Sink(BlueprintAsset asset, Graph graph)
+    public sealed record Document(
+        BlueprintAsset        Asset,
+        Graph                 Graph,
+        BlueprintGraphModel   Model,
+        BlueprintCommandSink  Sink,
+        CommandHistory        History,
+        EditService           Edit,
+        BlueprintTypeSystem   TypeSystem);
+
+    /// <summary>
+    /// Opens <paramref name="asset"/>'s graph with the collaborators the editor host wires up.
+    ///
+    /// <para>
+    /// ⚠ <c>OnStructureChanged</c> is wired to <c>Model.RebuildAndNotify</c> exactly as
+    /// <c>BlueprintDocumentFactory</c> does. Without it a Details edit changes the model and the
+    /// projection never re-derives — which is BP-125, and a harness that omitted it could not see it.
+    /// </para>
+    /// </summary>
+    public static Document Open(BlueprintAsset asset, Graph? graph = null)
     {
+        var g          = graph ?? asset.Graphs[0];
         var typeSystem = new BlueprintTypeSystem(NullPinDefaultValueEditorRegistry.Instance);
-        var model      = new BlueprintGraphModel(asset, graph);
+        var model      = new BlueprintGraphModel(asset, g);
         // ⭐ The REAL palette registry, not an empty one. With `new NodeKindRegistry()` the sink's
         // CreateAssetNode falls through to a generic FunctionCallNode for every unknown kind id, so the
         // matrix would silently author the wrong nodes and prove nothing.
         var catalog    = new BlueprintNodeCatalog(BlueprintEditorBootstrap.CreatePaletteRegistry());
         var validator  = new BlueprintLinkValidator(model, typeSystem);
         var history    = new CommandHistory();
-        var edit       = new EditService { Context = new EditServiceContext(history, _ => { }) };
+        var edit       = new EditService
+        {
+            Context = new EditServiceContext(
+                history,
+                markDirty: _ => { },
+                onStructureChanged: _ => model.RebuildAndNotify()),
+        };
 
-        return new BlueprintCommandSink(
-            asset, graph, model, catalog, validator, history, edit, markDirty: _ => { });
+        var sink = new BlueprintCommandSink(
+            asset, g, model, catalog, validator, history, edit, markDirty: _ => { });
+
+        return new Document(asset, g, model, sink, history, edit, typeSystem);
+    }
+
+    /// <summary>
+    /// Builds a <see cref="BlueprintCommandSink"/> over <paramref name="asset"/>/<paramref name="graph"/>
+    /// with the same collaborators the editor host wires up. Mirrors
+    /// <c>BlueprintCommandSinkTests.MakeSut</c>.
+    /// </summary>
+    public static BlueprintCommandSink Sink(BlueprintAsset asset, Graph graph)
+        => Open(asset, graph).Sink;
+
+    // ── Axis 2: wiring acceptance ─────────────────────────────────────────────────────────────────
+
+    /// <summary>The projected pin named <paramref name="pinName"/> on <paramref name="node"/>.</summary>
+    /// <remarks>
+    /// ⚠ Reads the <b>model's</b> pins, not <c>node.Pins</c>. The asset node is projection-only for
+    /// most kinds, so its own list is usually empty; the model is where a pin acquires the GUID a link
+    /// must name.
+    /// </remarks>
+    public static NodeEditor.Core.Interfaces.IPinModel Pin(Document doc, Node node, string pinName)
+    {
+        var model = doc.Model.FindNode(new NodeId(node.Id))
+            ?? throw new InvalidOperationException($"Node {node.Id} is not in the graph model.");
+
+        foreach (var pin in model.Pins)
+            if (string.Equals(pin.Label, pinName, StringComparison.OrdinalIgnoreCase))
+                return pin;
+
+        throw new InvalidOperationException(
+            $"No pin '{pinName}' on {node.GetType().Name}. Projected: "
+            + string.Join(", ", model.Pins.Select(p => $"{p.Label}({p.Direction})")));
+    }
+
+    /// <summary>
+    /// Attempts a wire <b>through the editor's own command path</b> — the validator, the sink, the
+    /// undo history and the wire-time bakes, exactly as dropping a wire on the canvas does. Returns
+    /// the sink's verdict rather than throwing: whether the editor <i>accepts</i> a wire is the thing
+    /// under test.
+    /// </summary>
+    public static NodeEditor.Core.Interfaces.GraphCommandResult TryLink(
+        Document doc, Node fromNode, string fromPin, Node toNode, string toPin)
+        => doc.Sink.Apply(new GraphCommand.AddLink(
+            IdGenerator.NewLinkId(), Pin(doc, fromNode, fromPin).Id, Pin(doc, toNode, toPin).Id));
+
+    /// <summary>As <see cref="TryLink"/>, but fails the test when the editor refuses the wire.</summary>
+    public static void Link(Document doc, Node fromNode, string fromPin, Node toNode, string toPin)
+    {
+        var result = TryLink(doc, fromNode, fromPin, toNode, toPin);
+        if (!result.Success)
+            throw new InvalidOperationException(
+                $"The editor refused {fromNode.GetType().Name}.{fromPin} -> "
+                + $"{toNode.GetType().Name}.{toPin}: {result.Message}");
+    }
+
+    // ── Axis 3: edit sequences ────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Opens the Details session for <paramref name="node"/> through the <b>real drawer registry</b> —
+    /// the same resolution <c>BlueprintDetailsWindow</c> performs when the designer selects a node.
+    ///
+    /// <para>
+    /// ⚠ Constructing a drawer directly would skip the registry, and a node kind whose drawer was never
+    /// registered would then be testable while being unreachable in the editor.
+    /// </para>
+    /// </summary>
+    public static INodeEditSession Details(Document doc, Node node)
+    {
+        var registry = BlueprintEditorBootstrap.CreateNodeDrawerRegistry(
+            BuiltInChannelCommandCatalog.Instance,
+            BuiltInEngineEventCatalog.Instance,
+            doc.Edit,
+            new NoopPredicateCompiler(),
+            new EqsTemplateRegistry());
+
+        var drawer = registry.GetDrawerFor(node)
+            ?? throw new InvalidOperationException(
+                $"No Details drawer is registered for {node.GetType().Name} — the designer cannot edit it.");
+        return drawer.CreateSession(node, doc.Asset);
+    }
+
+    /// <summary>
+    /// Stands in for the replay-browser predicate compiler, which only the <c>When</c> drawer consults
+    /// and which no test here exercises. Present solely so the <b>real</b> registry factory can be used
+    /// rather than a hand-assembled subset of it.
+    /// </summary>
+    private sealed class NoopPredicateCompiler : Fdp.Toolkit.ReplayBrowser.Search.IPredicateCompiler
+    {
+        public Func<Fdp.Core.EntityRepository, Fdp.Core.Entity, bool> CompileComponentPredicate(
+            Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto predicate) => (_, _) => true;
+
+        public Func<Fdp.Core.EntityRepository, Fdp.Core.Entity, bool> CompileEntityPredicate(
+            Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto predicate) => (_, _) => true;
+
+        public IReadOnlyList<Type> ExtractMandatoryComponents(
+            Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto predicate) => Array.Empty<Type>();
     }
 
     /// <summary>
@@ -178,7 +306,7 @@ internal static class AuthoringPath
     {
         var texts = assets
             .Select(a => (AdditionalText)new InMemoryAdditionalText(
-                $"/authoring/{a.Name}.bp.json", BlueprintJsonServices.Serialize(a)))
+                $"/authoring/{a.Name}.bp.json", SaveToText(a)))
             .ToImmutableArray();
 
         var references = Hrot.Blueprints.Core.Compiler.Roslyn.MetadataReferenceResolver
@@ -224,6 +352,41 @@ internal static class AuthoringPath
         }
 
         return new MatrixResult(run.Diagnostics, roslyn, sources);
+    }
+
+    /// <summary>
+    /// Serializes through the editor's <b>real save command</b> and reads the bytes back.
+    ///
+    /// <para>
+    /// ⭐ <b>Batch 27 — this used to call <c>BlueprintJsonServices.Serialize</c> directly, and that was
+    /// a hole in the harness.</b> The editor never saves that way:
+    /// <see cref="SaveActiveBlueprintCommand.Save"/> first <b>canonicalizes every link endpoint</b> to
+    /// its pin's deterministic GUID and only then strips the projection-only pin lists. A test that
+    /// skips that step compiles a JSON shape the editor never writes — so a defect in the
+    /// canonicalization, or in what it can and cannot rewrite, is invisible. BP-202's dangling link is
+    /// exactly such a defect: a link whose pin no longer exists is not in the rewrite map and survives
+    /// verbatim into the file.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ Round-trips through a real temp file because <c>Save</c> is the entry point the editor uses;
+    /// exposing an in-memory sibling would be a second save path, which is the shape of defect this
+    /// whole harness exists to catch.
+    /// </para>
+    /// </summary>
+    private static string SaveToText(BlueprintAsset asset)
+    {
+        var path = Path.Combine(Path.GetTempPath(),
+            $"authoring-path-{Guid.NewGuid():N}.bp.json");
+        try
+        {
+            SaveActiveBlueprintCommand.Save(asset, path);
+            return File.ReadAllText(path);
+        }
+        finally
+        {
+            try { File.Delete(path); } catch (IOException) { /* best effort */ }
+        }
     }
 
     /// <summary><see cref="AdditionalText"/> over an in-memory string — the generator's only input channel.</summary>

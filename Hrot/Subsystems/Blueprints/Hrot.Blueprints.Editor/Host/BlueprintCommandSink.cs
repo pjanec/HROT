@@ -700,6 +700,10 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         // consumer's now-element-typed pins from the freshly-baked FQNs.
         TryBakeCollectionConsumer(fromPin, toPin);
 
+        // BP-201: a format placeholder's declared type defaults to whatever the designer wired into
+        // it -- same author-time bake shape, same reason it sits outside CommandHistory.
+        TryBakeFormatArgType(fromPin, toPin);
+
         // Undoable: drop any replaced link(s) + add the new one as one history step.
         _history.Execute(new LinkEditCommand(_graph, toRemove, new[] { assetLink }, "Add Link"));
         _markDirty(_asset);
@@ -760,6 +764,53 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
     /// see the call site's doc comment for why that's acceptable here.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// BP-201 — when a wire lands on a <c>Print String</c>/<c>Format String</c> argument pin and that
+    /// placeholder has <b>no declared type</b>, record the source pin's type as the default.
+    ///
+    /// <para>
+    /// ⭐ <b>Why the wire is the right moment.</b> <c>ArgTypes</c> is what types the derived pin, and
+    /// an undeclared entry leaves it <c>System.Object</c>. Requiring the designer to also open Details
+    /// and pick a type they have just expressed by dragging a wire is exactly the kind of second
+    /// gesture nobody performs — and forgetting it produced no error, only a wrong printed value.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>Only fills a blank.</b> An explicitly chosen type is never overwritten by a later wire:
+    /// the designer's choice outranks an inference, and silently retyping a pin under a wire would be
+    /// a wrong-values change they never made.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ Mutates the node directly, outside <see cref="_history"/> — same rationale as
+    /// <see cref="TryBakeCollectionConsumer"/>: a bake surviving an undo-of-link is harmless, because
+    /// the type is only consulted for a pin the format still declares.
+    /// </para>
+    /// </summary>
+    private void TryBakeFormatArgType(IPinModel fromPin, IPinModel toPin)
+    {
+        var targetNode = _graph.Nodes.FirstOrDefault(n => n.Id == toPin.OwnerNodeId.Value);
+        var argTypes = targetNode switch
+        {
+            PrintStringNode ps  => ps.ArgTypes,
+            FormatStringNode fs => fs.ArgTypes,
+            _                   => null,
+        };
+        if (argTypes == null) return;
+
+        // The pin's Label is the placeholder name verbatim (BuiltInNodeRegistry.AppendArgPins names
+        // the pin after the placeholder), and only argument pins are data-In on these two kinds.
+        var name = toPin.Label;
+        if (string.IsNullOrEmpty(name)) return;
+        if (argTypes.TryGetValue(name, out var existing) && !string.IsNullOrEmpty(existing)) return;
+
+        var sourceTypeId = fromPin.Type?.Id;
+        if (string.IsNullOrEmpty(sourceTypeId) || sourceTypeId == "System.Object") return;
+
+        argTypes[name] = sourceTypeId;
+        DerivedPinMaintenance.ResyncPins(targetNode!);
+    }
+
     private void TryBakeCollectionConsumer(IPinModel fromPin, IPinModel toPin)
     {
         if (!string.Equals(toPin.Label, "Collection", StringComparison.OrdinalIgnoreCase))

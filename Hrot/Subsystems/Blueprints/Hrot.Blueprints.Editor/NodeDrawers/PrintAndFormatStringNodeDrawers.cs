@@ -1,5 +1,6 @@
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Editor.Host;
 
 namespace Hrot.Blueprints.Editor.NodeDrawers;
 
@@ -43,6 +44,9 @@ internal sealed class PrintStringNodeSession : INodeEditSession
     private readonly BlueprintAsset  _parent;
     private readonly IEditService    _editService;
 
+    /// <summary>BP-204 — one undo entry per typing gesture, not per keystroke.</summary>
+    private readonly ContinuousEditCoalescer<string> _formatCoalescer = new();
+
     public bool IsDirty { get; private set; }
 
     public PrintStringNodeSession(PrintStringNode node, BlueprintAsset parentAsset, IEditService editService)
@@ -54,26 +58,126 @@ internal sealed class PrintStringNodeSession : INodeEditSession
 
     // ── Internal test hooks (InternalsVisibleTo Hrot.Blueprints.Tests) ──────────
 
-    /// <summary>Test hook: simulates the designer editing the "Format" text field.</summary>
-    internal void SetFormatForTest(string format) => ApplyFormat(format);
+    /// <summary>
+    /// Test hook: simulates the designer typing into the "Format" field and finishing the gesture --
+    /// i.e. the whole edit, recorded as ONE undo entry, exactly as <see cref="Draw"/> produces it.
+    /// </summary>
+    internal void SetFormatForTest(string format)
+    {
+        var before = _node.Format;
+        LiveFormat(format);
+        CommitFormat(before);
+    }
+
+    /// <summary>
+    /// Test hook: the live half only -- the per-keystroke mutation, with no undo entry and no link
+    /// pruning. Pair it with <see cref="CommitFormatForTest"/> to reproduce a multi-keystroke gesture.
+    /// </summary>
+    internal void LiveFormatForTest(string format) => LiveFormat(format);
+
+    /// <summary>Test hook: the commit half -- see <see cref="CommitFormat"/>.</summary>
+    internal void CommitFormatForTest(string beforeGesture) => CommitFormat(beforeGesture);
 
     /// <summary>Test hook: simulates the designer picking a "Level" combo entry.</summary>
     internal void SetLevelForTest(BlueprintLogLevel level) => ApplyLevel(level);
 
+    /// <summary>Test hook: simulates the designer typing a placeholder's declared type.</summary>
+    internal void SetArgTypeForTest(string name, string typeId) => ApplyArgType(name, typeId);
+
     // ── Private mutation helpers (called by both Draw() and test hooks) ──────────
 
     /// <summary>
-    /// <c>Format</c> drives <c>BuiltInNodeRegistry.PrintStringPins</c>'s derived arg-pin set, so
-    /// this edit is structural (mirrors <c>GetSharedNodeSession.ApplySharedTypeId</c>).
+    /// BP-204, the live half: mutates <c>Format</c> and re-projects, once per keystroke, with
+    /// <b>no undo entry</b>. Pins appearing as the designer types is confirmed behaviour and is kept.
     /// </summary>
-    private void ApplyFormat(string format)
+    private void LiveFormat(string format)
     {
         if (format == _node.Format) return;
-        var before = _node.Format;
+        _node.Format = format;
+        AfterFormatChange();
+    }
+
+    /// <summary>
+    /// BP-204/BP-202, the commit half: records the <b>whole</b> gesture as one undo entry, and this is
+    /// the only place links are pruned.
+    ///
+    /// <para>
+    /// ⚠ <b>Pruning per keystroke would be catastrophic, which is why these two fixes are one fix.</b>
+    /// Typing <c>{Threat}</c> passes through <c>{T</c>, <c>{Th</c>, <c>{Thr</c> … — each a different
+    /// placeholder, so each a different derived pin. A prune on every keystroke would delete the wire
+    /// on the first character of an edit that ends up restoring the very same pin. The pin set is
+    /// allowed to churn freely during the gesture; only the endpoints are reconciled at the end.
+    /// </para>
+    /// </summary>
+    private void CommitFormat(string beforeGesture)
+    {
+        var afterGesture = _node.Format;
+        if (afterGesture == beforeGesture) return;
+
+        var graph = DerivedPinMaintenance.FindOwningGraph(_parent, _node);
+
+        // Links pruned when moving before -> after, and the reverse. Both directions can orphan a
+        // link (a wire made to a pin that only exists under the NEW format dangles once undone), so
+        // the transition is symmetric: restore what the opposite direction pruned, then prune.
+        List<Link>? prunedForward = null;
+        List<Link>? prunedBack    = null;
+
         _editService.RecordPropertyEdit(
             _parent, "Set Print Format",
-            apply: () => { _node.Format = format; AfterFormatChange(); },
-            undo:  () => { _node.Format = before; AfterFormatChange(); });
+            apply: () =>
+            {
+                // ⚠ Format is ALREADY the post-gesture value here: the widget mutated it live and
+                // RecordPropertyEdit runs `apply` once at record time. So the "before" pin set has to
+                // be reconstructed from beforeGesture rather than read off the node, or validBefore
+                // would be the after-set and nothing would ever look vanished.
+                _node.Format = beforeGesture;
+                var validBefore = graph != null ? DerivedPinMaintenance.PinIds(_node) : null;
+                _node.Format = afterGesture;
+                DerivedPinMaintenance.ResyncPins(_node);
+                if (graph != null)
+                {
+                    DerivedPinMaintenance.Restore(graph, prunedBack);
+                    prunedForward = DerivedPinMaintenance.PruneVanished(graph, _node, validBefore!);
+                }
+                AfterFormatChange();
+            },
+            undo: () =>
+            {
+                _node.Format = afterGesture;
+                var validBefore = graph != null ? DerivedPinMaintenance.PinIds(_node) : null;
+                _node.Format = beforeGesture;
+                DerivedPinMaintenance.ResyncPins(_node);
+                if (graph != null)
+                {
+                    DerivedPinMaintenance.Restore(graph, prunedForward);
+                    prunedBack = DerivedPinMaintenance.PruneVanished(graph, _node, validBefore!);
+                }
+                AfterFormatChange();
+            });
+    }
+
+    /// <summary>
+    /// BP-201: records a placeholder's declared type in <c>ArgTypes</c>, which is what types the
+    /// derived data-in pin. Structural (the pin is retyped) but <b>never</b> pin-destroying, since a
+    /// pin's identity comes from its name and direction — so no link can dangle and no prune is needed.
+    /// </summary>
+    private void ApplyArgType(string name, string typeId)
+    {
+        if (string.IsNullOrEmpty(name)) return;
+        _node.ArgTypes.TryGetValue(name, out var before);
+        if (string.Equals(before, typeId, StringComparison.Ordinal)) return;
+
+        _editService.RecordPropertyEdit(
+            _parent, $"Set Print Arg Type '{name}'",
+            apply: () => { SetArg(name, typeId); AfterFormatChange(); },
+            undo:  () => { SetArg(name, before); AfterFormatChange(); });
+    }
+
+    private void SetArg(string name, string? typeId)
+    {
+        if (string.IsNullOrEmpty(typeId)) _node.ArgTypes.Remove(name);
+        else                              _node.ArgTypes[name] = typeId;
+        DerivedPinMaintenance.ResyncPins(_node);
     }
 
     private void AfterFormatChange()
@@ -107,8 +211,19 @@ internal sealed class PrintStringNodeSession : INodeEditSession
 
         var format = _node.Format ?? "";
         if (ImGui.InputText("Format", ref format, 512))
-            ApplyFormat(format);
+            LiveFormat(format);
+
+        // BP-204: the widget above mutates Format live (pins appear as you type -- confirmed
+        // behaviour, kept), but undo is recorded once per gesture. The baseline is captured on
+        // IsItemActivated because IsItemDeactivatedAfterEdit fires only after the value has changed.
+        // Mirrors LiteralNodeDrawer's identical shape.
+        _formatCoalescer.BeginIfNeeded(ImGui.IsItemActivated(), _node.Format ?? "");
+        if (_formatCoalescer.TryCommit(ImGui.IsItemDeactivatedAfterEdit(), out var beforeGesture))
+            CommitFormat(beforeGesture);
+
         ImGui.TextDisabled("{Name} placeholders become data-in pins, in first-appearance order.");
+
+        FormatArgTypeRows.Draw(_node.Format, _node.ArgTypes, ApplyArgType);
 
         DrawLevelCombo();
 
@@ -194,6 +309,9 @@ internal sealed class FormatStringNodeSession : INodeEditSession
     private readonly BlueprintAsset   _parent;
     private readonly IEditService     _editService;
 
+    /// <summary>BP-204 — one undo entry per typing gesture, not per keystroke.</summary>
+    private readonly ContinuousEditCoalescer<string> _formatCoalescer = new();
+
     public bool IsDirty { get; private set; }
 
     public FormatStringNodeSession(FormatStringNode node, BlueprintAsset parentAsset, IEditService editService)
@@ -205,26 +323,111 @@ internal sealed class FormatStringNodeSession : INodeEditSession
 
     // ── Internal test hooks (InternalsVisibleTo Hrot.Blueprints.Tests) ──────────
 
-    /// <summary>Test hook: simulates the designer editing the "Format" text field.</summary>
-    internal void SetFormatForTest(string format) => ApplyFormat(format);
+    /// <summary>
+    /// Test hook: the designer typing into "Format" and finishing the gesture — the whole edit as ONE
+    /// undo entry, exactly as <see cref="Draw"/> produces it.
+    /// </summary>
+    internal void SetFormatForTest(string format)
+    {
+        var before = _node.Format;
+        LiveFormat(format);
+        CommitFormat(before);
+    }
+
+    /// <summary>Test hook: the live (per-keystroke) half only — no undo entry, no pruning.</summary>
+    internal void LiveFormatForTest(string format) => LiveFormat(format);
+
+    /// <summary>Test hook: the commit half — see <see cref="CommitFormat"/>.</summary>
+    internal void CommitFormatForTest(string beforeGesture) => CommitFormat(beforeGesture);
 
     /// <summary>Test hook: simulates the designer picking a "Result Type" combo entry.</summary>
     internal void SetResultTypeIdForTest(string resultTypeId) => ApplyResultTypeId(resultTypeId);
 
+    /// <summary>Test hook: simulates the designer declaring a placeholder's type.</summary>
+    internal void SetArgTypeForTest(string name, string typeId) => ApplyArgType(name, typeId);
+
     // ── Private mutation helpers (called by both Draw() and test hooks) ──────────
 
     /// <summary>
-    /// <c>Format</c> drives <c>BuiltInNodeRegistry.FormatStringPins</c>'s derived arg-pin set (plus
-    /// the fixed "Result" out-pin), so this edit is structural.
+    /// BP-204, the live half: mutates <c>Format</c> and re-projects once per keystroke, with no undo
+    /// entry. <c>Format</c> drives <c>BuiltInNodeRegistry.FormatStringPins</c>'s derived arg-pin set
+    /// (plus the fixed "Result" out-pin), so it is structural.
     /// </summary>
-    private void ApplyFormat(string format)
+    private void LiveFormat(string format)
     {
         if (format == _node.Format) return;
-        var before = _node.Format;
+        _node.Format = format;
+        AfterStructuralChange();
+    }
+
+    /// <summary>
+    /// BP-204/BP-202, the commit half — see <c>PrintStringNodeSession.CommitFormat</c> for why the
+    /// link prune must happen here and never per keystroke.
+    /// </summary>
+    private void CommitFormat(string beforeGesture)
+    {
+        var afterGesture = _node.Format;
+        if (afterGesture == beforeGesture) return;
+
+        var graph = DerivedPinMaintenance.FindOwningGraph(_parent, _node);
+        List<Link>? prunedForward = null;
+        List<Link>? prunedBack    = null;
+
         _editService.RecordPropertyEdit(
             _parent, "Set Format Template",
-            apply: () => { _node.Format = format; AfterStructuralChange(); },
-            undo:  () => { _node.Format = before; AfterStructuralChange(); });
+            apply: () =>
+            {
+                // ⚠ Format is ALREADY the post-gesture value here: the widget mutated it live and
+                // RecordPropertyEdit runs `apply` once at record time. So the "before" pin set has to
+                // be reconstructed from beforeGesture rather than read off the node, or validBefore
+                // would be the after-set and nothing would ever look vanished.
+                _node.Format = beforeGesture;
+                var validBefore = graph != null ? DerivedPinMaintenance.PinIds(_node) : null;
+                _node.Format = afterGesture;
+                DerivedPinMaintenance.ResyncPins(_node);
+                if (graph != null)
+                {
+                    DerivedPinMaintenance.Restore(graph, prunedBack);
+                    prunedForward = DerivedPinMaintenance.PruneVanished(graph, _node, validBefore!);
+                }
+                AfterStructuralChange();
+            },
+            undo: () =>
+            {
+                _node.Format = afterGesture;
+                var validBefore = graph != null ? DerivedPinMaintenance.PinIds(_node) : null;
+                _node.Format = beforeGesture;
+                DerivedPinMaintenance.ResyncPins(_node);
+                if (graph != null)
+                {
+                    DerivedPinMaintenance.Restore(graph, prunedForward);
+                    prunedBack = DerivedPinMaintenance.PruneVanished(graph, _node, validBefore!);
+                }
+                AfterStructuralChange();
+            });
+    }
+
+    /// <summary>
+    /// BP-201: records a placeholder's declared type. Retypes the derived pin without changing its
+    /// identity (a pin id is a function of name + direction), so no link can dangle.
+    /// </summary>
+    private void ApplyArgType(string name, string typeId)
+    {
+        if (string.IsNullOrEmpty(name)) return;
+        _node.ArgTypes.TryGetValue(name, out var before);
+        if (string.Equals(before, typeId, StringComparison.Ordinal)) return;
+
+        _editService.RecordPropertyEdit(
+            _parent, $"Set Format Arg Type '{name}'",
+            apply: () => { SetArg(name, typeId); AfterStructuralChange(); },
+            undo:  () => { SetArg(name, before); AfterStructuralChange(); });
+    }
+
+    private void SetArg(string name, string? typeId)
+    {
+        if (string.IsNullOrEmpty(typeId)) _node.ArgTypes.Remove(name);
+        else                              _node.ArgTypes[name] = typeId;
+        DerivedPinMaintenance.ResyncPins(_node);
     }
 
     /// <summary>
@@ -256,8 +459,16 @@ internal sealed class FormatStringNodeSession : INodeEditSession
 
         var format = _node.Format ?? "";
         if (ImGui.InputText("Format", ref format, 512))
-            ApplyFormat(format);
+            LiveFormat(format);
+
+        // BP-204: live per keystroke, one undo entry per gesture -- see PrintStringNodeSession.Draw.
+        _formatCoalescer.BeginIfNeeded(ImGui.IsItemActivated(), _node.Format ?? "");
+        if (_formatCoalescer.TryCommit(ImGui.IsItemDeactivatedAfterEdit(), out var beforeGesture))
+            CommitFormat(beforeGesture);
+
         ImGui.TextDisabled("{Name} placeholders become data-in pins, in first-appearance order.");
+
+        FormatArgTypeRows.Draw(_node.Format, _node.ArgTypes, ApplyArgType);
 
         DrawResultTypeCombo();
 
