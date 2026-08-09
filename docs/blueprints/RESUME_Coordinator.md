@@ -75,7 +75,15 @@ My sequencing put **BP-118** second. They deferred it, correctly: `SmokePatrol` 
 sample, so moving it under `Assets/Blueprints/` makes it generator-compiled and **it cannot compile
 until BP-116 and BP-117 land**. Registered with that dependency stated. **My ordering was wrong.**
 
-### Two judgement calls they surfaced — worth a user decision
+### ✅ Both judgement calls now settled by the user (2026-08-09)
+
+1. **`BP1657` → `Warning` + `return default;`.** *"warning+return default is a perfect solution."*
+   ⭐ **This also unblocks the matrix:** as an `Error` the pipeline never reaches emit, so the
+   `return default;` path could never be proven. As a `Warning` it can be.
+2. **The zero-alloc attribution is confirmed** — the user ruled it directly to the implementation
+   session. §3b of the design note is binding.
+
+<details><summary>How they were raised</summary>
 
 1. **`BP1657` severity.** They chose **Error** (C#'s *"not all code paths return a value"*), flagging
    that **Unreal silently returns defaults** on such a path, so Error is stricter than a designer
@@ -86,11 +94,20 @@ until BP-116 and BP-117 land**. Registered with that dependency stated. **My ord
    matches the coordinator's own independent recommendation, so nothing is at risk; **but confirm the
    attribution before it is treated as binding.**
 
+</details>
+
 ### 🆕 BP-119 registered (not buried)
 
 Undoing the *creation* of a peer-call node leaves the peer declared, because the declaration is not part
 of the node-add undo record; explicit deletion *does* retract. Correctly scoped out of BP-116 and filed
 as a row.
+
+---
+
+## 0-next. 📤 **Batch 25 issued** — [HANDOFF_Batch25_Matrix_And_Nodes.md](HANDOFF_Batch25_Matrix_And_Nodes.md)
+
+`BP1657`→Warning (first; it unblocks the matrix) → ⭐ **the authoring-path matrix** → BP-118 (now
+unblocked) → `FixedString128` + span ctors → Print/Format String → fillers (BP-119, BP-111, BP-115).
 
 ---
 
