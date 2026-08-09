@@ -580,6 +580,9 @@ public sealed class NodeCoverageTests
         yield return ("Inline/BinaryOp", new[] { BuildBinaryOpMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/BooleanOp", new[] { BuildBooleanOpMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/Not", new[] { BuildNotMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
+        // BP-108: Print String / Format String -- both compile as pure C# (Fdp.Core.Logging.BlueprintLog +
+        // Fdp.Core.FixedString32), no game-assembly deps, so this is FULL Roslyn coverage.
+        yield return ("Inline/PrintAndFormatString", new[] { BuildPrintAndFormatStringMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         // PublishEvent (P4 -- GAP-3): ValidateOnlyStage1To7 (not FullRoslynPipeline) because the
         // generated C# references Fdp.Toolkit.Behavior.Events.ClearBehaviorEvent AND
         // EntityRepository.Bus, neither of which the deliberately dependency-light coverage-Roslyn
@@ -1608,6 +1611,72 @@ public sealed class NodeCoverageTests
             Dispatch  = BlueprintDispatchKind.Instance,
             Variables = { boolVar },
             Graphs    = { graph },
+        };
+    }
+
+    /// <summary>
+    /// BP-108 -- EventEntry -&gt; PrintString(Format="hello {Msg}") -&gt; Return, where the "Msg"
+    /// arg pin is fed by a FormatString(Format="n={N}") pure node -- the documented BP-108
+    /// composition (a FixedString "Result" is a legal Print String argument). Compiles BOTH kinds
+    /// through the real Roslyn pipeline in one fixture: FormatString's stackalloc/TryWrite emit and
+    /// PrintString's level-guarded log call.
+    /// </summary>
+    private static BlueprintAsset BuildPrintAndFormatStringMinimalAsset()
+    {
+        var litOut = DataPin("Value", "Out", "System.Int32");
+        var lit = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Int32", ValueJson = "3" };
+        lit.Pins.Add(litOut);
+
+        var fmtN   = DataPin("N",      "In",  "System.Int32");
+        var fmtOut = DataPin("Result", "Out", "Fdp.Core.FixedString32");
+        var fmt = new FormatStringNode
+        {
+            Id           = Guid.NewGuid(),
+            Format       = "n={N}",
+            ResultTypeId = "Fdp.Core.FixedString32",
+        };
+        fmt.Pins.AddRange(new[] { fmtN, fmtOut });
+
+        var printIn  = ExecPin("In",  "In");
+        var printOut = ExecPin("Out", "Out");
+        var printMsg = DataPin("Msg", "In", "Fdp.Core.FixedString32");
+        var print = new PrintStringNode
+        {
+            Id     = Guid.NewGuid(),
+            Format = "hello {Msg}",
+            Level  = BlueprintLogLevel.Info,
+        };
+        print.Pins.AddRange(new[] { printIn, printOut, printMsg });
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecPin("ExecIn", "In");
+        ret.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, lit, fmt, print, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id, FromPinId = entryOut.Id, ToNodeId = print.Id, ToPinId = printIn.Id },
+                new Link { FromNodeId = print.Id, FromPinId = printOut.Id, ToNodeId = ret.Id,   ToPinId = retIn.Id },
+                new Link { FromNodeId = lit.Id,   FromPinId = litOut.Id,   ToNodeId = fmt.Id,    ToPinId = fmtN.Id },
+                new Link { FromNodeId = fmt.Id,   FromPinId = fmtOut.Id,   ToNodeId = print.Id,  ToPinId = printMsg.Id },
+            },
+        };
+
+        return new BlueprintAsset
+        {
+            AssetId  = Guid.NewGuid(),
+            Name     = "PrintAndFormatStringCoverage",
+            Dispatch = BlueprintDispatchKind.Instance,
+            Graphs   = { graph },
         };
     }
 

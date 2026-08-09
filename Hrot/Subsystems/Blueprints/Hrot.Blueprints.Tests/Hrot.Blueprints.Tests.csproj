@@ -26,6 +26,11 @@
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Blueprints.Core\Hrot.Blueprints.Core.csproj" />
     <ProjectReference Include="..\Hrot.Blueprints.Editor\Hrot.Blueprints.Editor.csproj" />
+    <!-- BP-120 (Batch 25): the authoring-path compile matrix drives the REAL source generator, not
+         BlueprintTestFixture.CompileAndLoad. Referenced as an ordinary library (not OutputItemType=
+         Analyzer) because the test constructs BlueprintIncrementalGenerator directly and runs it
+         through CSharpGeneratorDriver. -->
+    <ProjectReference Include="..\Hrot.Blueprints.Generators\Hrot.Blueprints.Generators.csproj" />
     <ProjectReference Include="..\..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <!-- WHEN-M11-T4: Reference Hrot.AI.Behaviors to enable production recipe discovery in tests -->
     <ProjectReference Include="..\..\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj" />

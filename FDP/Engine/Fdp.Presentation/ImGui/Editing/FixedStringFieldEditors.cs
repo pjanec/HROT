@@ -108,3 +108,55 @@ public sealed class FixedString64FieldEditor : ICustomFieldEditor
         }
     }
 }
+
+public sealed class FixedString128FieldEditor : ICustomFieldEditor
+{
+    public Type TargetType => typeof(FixedString128);
+
+    public EditNode? CreateNode(
+        EditNodeId id,
+        string name,
+        string jsonPath,
+        IValueBinding binding,
+        EditNodeMetadata metadata)
+    {
+        return new EditNode(
+            id,
+            name,
+            jsonPath,
+            EditNodeKind.String,
+            typeof(string),
+            new FixedString128BindingAdapter(binding),
+            null,
+            metadata);
+    }
+
+    private sealed class FixedString128BindingAdapter : IValueBinding
+    {
+        private readonly IValueBinding _inner;
+
+        public FixedString128BindingAdapter(IValueBinding inner)
+        {
+            _inner = inner;
+        }
+
+        public Type ValueType => typeof(string);
+
+        public object? GetBoxed()
+        {
+            var raw = _inner.GetBoxed();
+            return raw?.ToString();
+        }
+
+        public void SetBoxed(object? value)
+        {
+            var str = value as string ?? string.Empty;
+            _inner.SetBoxed(new FixedString128(str));
+        }
+
+        public bool TryGetSpan(out Span<byte> bytes)
+        {
+            return _inner.TryGetSpan(out bytes);
+        }
+    }
+}

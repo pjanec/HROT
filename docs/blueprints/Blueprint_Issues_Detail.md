@@ -2354,12 +2354,101 @@ where `return;` is CS0126 — reported against generated code the author never w
 |---|---|
 | **IR** | `IrTerm_Return` gained `ReturnsDefault`. ⭐ **A flag, not a new `IrTerm_ReturnDefault` type:** both switches over `IrTerminator` end in a catch-all, so a new kind could have been silently mis-emitted — trap #5's shape, and the class this batch exists to close. `Value == null` genuinely cannot distinguish void from default, so the IR must carry it |
 | **Emit** | `return default;` — valid for a scalar and a `ValueTuple` alike, so the emitter needs no return-type string at a point where it does not have one |
-| **Diagnostic** | **`BP1657` (Error)** naming the graph — C#'s *"not all code paths return a value"*. A silently-defaulted return value is how the next invisible wrong-value bug ships |
-| ⚠ **Open judgement call** | Unreal silently returns defaults on such a path, so `Error` is stricter than a designer coming from Unreal expects. `Warning` + `return default;` is the fallback if it proves obstructive in the visual check |
+| **Diagnostic** | **`BP1657` (⚖️ Warning since Batch 25 — user: *"warning+return default is a perfect solution"*)** naming the graph — C#'s *"not all code paths return a value"*. A silently-defaulted return value is how the next invisible wrong-value bug ships |
+| ✅ **Settled Batch 25** | Shipped as `Error`; the implementation session flagged that Unreal silently returns defaults on such a path, and the user ruled for **Warning**. ⭐ **Not merely ergonomics:** as an Error the pipeline aborted before Stage 7/8, so `return default;` could never be exercised by any test. As a Warning it is reachable — and now proven |
 | **Tests** | `BP117_LibraryFallThroughTests`, 5 tests. **3 go red on revert**; the 2 that do not are exactly the additivity guards (zero-output Library → still `ReturnStatus`; Instance → still void) |
-| ⚠ **Coverage note** | Because BP1657 is an Error the pipeline never reaches emit, so `return default;` is defense-in-depth only. **The Roslyn-level proof belongs to the Item-0 authoring-path matrix**, which asserts 0 diagnostics rather than `Succeeded` — the same gap that let BP-104 and BP-110 hide |
+| ⭐ **Roslyn proof (Batch 25)** | `BP117_ReturnDefaultRoslynTests` compiles the fixture through **real Roslyn**. Forcing `ReturnsDefault: false` reproduces the field error verbatim — `CS0126 An object of a type convertible to 'int' is required` and `…to '(bool, bool)' is required`, the exact message from the user's report — so the emit path is demonstrably reached and `return default;` is what makes it compile, for a scalar **and** a tuple |
 
 *— found by the user, Batch 24*
+
+<a id="bp-120"></a>
+### BP-120 — nothing composed a blueprint the way the EDITOR composes one
+**Complexity:** RW-M · 🔴 · **Confidence:** ✔✔✔ *(built and proven by revert)*
+
+> User, four batches running: *"i still dont understand why i need to test the stuff that can be tested
+> headlessly — like if a blueprint calling a function can be compiled — the AI agent should be able to
+> compose such a blueprint set and compile it automatically."*
+
+Every fixture in the repo **hand-writes the asset JSON**. So anything the editor fails to *write* is
+structurally invisible. BP-116 is the proof: the editor never wrote `CallablePeers`, and even
+`BP109_SmokeTestEndToEndTests` — which composes an entire multi-asset set — missed it, because it
+composed the **JSON**, not the **authoring path**.
+
+🛠 **FIXED — Batch 25.** `Integration/AuthoringPath.cs` (harness) + `AuthoringPathCompileMatrixTests`.
+
+| Rule | How it is honoured |
+|---|---|
+| Compose through the editor | `BlueprintNewAssetService` — ⭐ dispatch is chosen by picking the **blank template**, never `asset.Dispatch = …` · `BlueprintCommandSink` for nodes · `GraphSignatureEditModel` for outputs · the **peer-picker session** for peers |
+| ⭐ **Real palette registry** | `BlueprintEditorBootstrap.CreatePaletteRegistry()`. An empty `NodeKindRegistry` makes the sink fall through to a generic `FunctionCallNode` for every unknown kind — the matrix would have authored the wrong nodes and proven nothing |
+| Real generator | `BlueprintIncrementalGenerator` via `CSharpGeneratorDriver`, fed the editor's own `BlueprintJsonServices.Serialize` output as `AdditionalText` |
+| Real Roslyn | Generated trees are **emitted**, not just produced. `CompileResult.Succeeded` never invokes Roslyn — how BP-104 and BP-110 both hid |
+| Not vacuous | `Generate_ActuallyProducesGeneratedSource` pins that code is really generated, so `Clean` cannot pass on an empty result |
+
+⭐ **The verification that makes it worth something.** With **BP-116 and BP-117 reverted**, the matrix
+goes red on **exactly 4 of 9 cells**, reproducing the field errors verbatim:
+
+```
+[generator] BP1300: CallPeerBlueprintNode targets asset …, which is not in CallablePeers list.
+[roslyn]    CS0126: An object of a type convertible to 'int' is required
+[roslyn]    CS0126: An object of a type convertible to '(int, int)' is required
+[roslyn]    CS0126: An object of a type convertible to '(int, int, int)' is required
+```
+
+The 5 unaffected cells (Instance, zero-output Library, the non-vacuous guard) stay green. ⚠ **If these
+cells ever pass on a tree with those fixes reverted, this suite has stopped composing through the
+authoring path and is worth nothing until repaired.**
+
+⚠ **Found immediately, and left as rows:** [BP-121](#bp-121) (the generator swallows warnings on
+success) and [BP-122](#bp-122) (axes not yet swept).
+*— the deliverable the user asked for across four batches*
+
+<a id="bp-121"></a>
+### BP-121 — the generator swallows every warning on a successful compile
+**Complexity:** RW-L · 🔴 · **Confidence:** ✔✔✔ *(read from source)*
+
+`BlueprintIncrementalGenerator.RegisterSourceOutput`:
+
+```csharp
+if (result.GeneratedSource == null || !result.Succeeded)
+{
+    foreach (var diag in result.Diagnostics) spc.ReportDiagnostic(ToRoslynDiagnostic(diag));
+    return;
+}
+spc.AddSource(result.GeneratedFileName ?? "Blueprint.g.cs", result.GeneratedSource);
+```
+
+The success path adds the source and returns **without reporting anything**. `ToRoslynDiagnostic` even
+maps non-errors to `DiagnosticSeverity.Warning` — a severity that can never reach the build.
+
+⚠ **This directly defeats [BP-117](#bp-117)/BP1657.** Batch 25 flipped that code to a Warning *so that
+it would warn instead of blocking*. In the real build it does neither: the graph compiles and the
+designer is told nothing about the implicit `default` being returned. Every non-fatal blueprint
+diagnostic is in the same position.
+
+**Fix:** report diagnostics on the success path as well, before `AddSource`. ⚠ **Check first** which
+warning-severity codes shipped assets already emit — under `TreatWarningsAsErrors` a newly-visible
+warning fails the solution build, so this may need to land with the offending assets cleaned up.
+*— found by BP-120's matrix, Batch 25*
+
+<a id="bp-122"></a>
+### BP-122 — the authoring-path matrix does not yet sweep all planned axes
+**Complexity:** RW-M · **Confidence:** ✔✔✔
+
+[BP-120](#bp-120) shipped the harness plus dispatch × outputs × {explicit Return | chain ends} ×
+{no call | peer call}. Not yet swept:
+
+| Axis | |
+|---|---|
+| **Arg types** | {int, float, bool, ushort, FixedString32} on graph inputs/outputs |
+| **Local calls** | `FunctionCallNode` within a single asset — distinct from the peer call already covered |
+| **AiPrimitive** | the third dispatch kind |
+
+⚠ **Expect new red cells — that is the harness succeeding.** Each should be registered as its own row
+rather than fixed inline, exactly as BP-120 did with BP-121.
+
+The harness (`AuthoringPath`) is built and proven; this is case-table work on top of it, and is
+well-suited to delegation.
+*— scoped out of BP-120 deliberately, Batch 25*
 
 <a id="bp-119"></a>
 ### BP-119 — undoing the *creation* of a CallPeerBlueprint node leaves the peer declared

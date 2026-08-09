@@ -1,0 +1,167 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
+  "AssetId": "00000099-0000-0000-0000-0000000000f1",
+  "Name": "SmokeMathLib",
+  "Dispatch": "Library",
+  "Primitive": null,
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "10000099-0000-0000-0000-0000000000f1",
+      "Name": "Combine",
+      "Kind": "Function",
+      "Inputs": [
+        {
+          "Id": "a0000099-0000-0000-0000-0000000000f1",
+          "Name": "A",
+          "Type": { "TypeId": "System.Int32" }
+        },
+        {
+          "Id": "a0000099-0000-0000-0000-0000000000f2",
+          "Name": "B",
+          "Type": { "TypeId": "System.Int32" }
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "a0000099-0000-0000-0000-0000000000f3",
+          "Name": "Result",
+          "Type": { "TypeId": "System.Int32" }
+        }
+      ],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "20000099-0000-0000-0000-0000000000f1",
+          "Pins": [
+            {
+              "Id": "ee0000f1-0000-0000-0000-000000000001",
+              "Name": "ExecOut",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "dd0000f1-0000-0000-0000-000000000001",
+              "Name": "A",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": { "TypeId": "System.Int32" }
+            },
+            {
+              "Id": "dd0000f1-0000-0000-0000-000000000002",
+              "Name": "B",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": { "TypeId": "System.Int32" }
+            }
+          ],
+          "EditorMetadata": { "X": 80.0, "Y": 160.0 }
+        },
+        {
+          "kind": "BinaryOp",
+          "Id": "20000099-0000-0000-0000-0000000000f2",
+          "Operator": "Add",
+          "Pins": [
+            {
+              "Id": "dd0000f1-0000-0000-0000-000000000003",
+              "Name": "A",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": { "TypeId": "System.Int32" }
+            },
+            {
+              "Id": "dd0000f1-0000-0000-0000-000000000004",
+              "Name": "B",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": { "TypeId": "System.Int32" }
+            },
+            {
+              "Id": "dd0000f1-0000-0000-0000-000000000005",
+              "Name": "Result",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": { "TypeId": "System.Int32" }
+            }
+          ],
+          "EditorMetadata": { "X": 360.0, "Y": 160.0 }
+        },
+        {
+          "kind": "Return",
+          "Id": "20000099-0000-0000-0000-0000000000f3",
+          "Pins": [
+            {
+              "Id": "ee0000f1-0000-0000-0000-000000000002",
+              "Name": "ExecIn",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "dd0000f1-0000-0000-0000-000000000006",
+              "Name": "Result",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": { "TypeId": "System.Int32" }
+            }
+          ],
+          "EditorMetadata": { "X": 640.0, "Y": 160.0 }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "20000099-0000-0000-0000-0000000000f1",
+          "FromPinId": "ee0000f1-0000-0000-0000-000000000001",
+          "ToNodeId": "20000099-0000-0000-0000-0000000000f3",
+          "ToPinId": "ee0000f1-0000-0000-0000-000000000002"
+        },
+        {
+          "FromNodeId": "20000099-0000-0000-0000-0000000000f1",
+          "FromPinId": "dd0000f1-0000-0000-0000-000000000001",
+          "ToNodeId": "20000099-0000-0000-0000-0000000000f2",
+          "ToPinId": "dd0000f1-0000-0000-0000-000000000003"
+        },
+        {
+          "FromNodeId": "20000099-0000-0000-0000-0000000000f1",
+          "FromPinId": "dd0000f1-0000-0000-0000-000000000002",
+          "ToNodeId": "20000099-0000-0000-0000-0000000000f2",
+          "ToPinId": "dd0000f1-0000-0000-0000-000000000004"
+        },
+        {
+          "FromNodeId": "20000099-0000-0000-0000-0000000000f2",
+          "FromPinId": "dd0000f1-0000-0000-0000-000000000005",
+          "ToNodeId": "20000099-0000-0000-0000-0000000000f3",
+          "ToPinId": "dd0000f1-0000-0000-0000-000000000006"
+        }
+      ],
+      "EditorMetadata": {}
+    }
+  ],
+  "EditorMetadata": {
+    "Recipe": {
+      "DisplayName": "Smoke Math Lib  (BP-109 smoke test peer)",
+      "Category": "Tutorial",
+      "Description": "Function Library shared by SmokePatrol and SmokeGuard for the BP-109 end-to-end smoke test. Exports one function, Combine(A,B) = A + B, called cross-asset via CallPeerBlueprint from two different Instance blueprints.",
+      "Difficulty": "Intermediate",
+      "ConceptsTaught": [
+        "Library-dispatch blueprint exporting a callable Function graph",
+        "Function graph Inputs projected onto EventEntry's data-out pins",
+        "BinaryOp (Add) combining two arguments into a Result output",
+        "Being called as a peer (CallPeerBlueprint) from multiple unrelated Instance blueprints"
+      ]
+    }
+  }
+}

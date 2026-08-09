@@ -805,6 +805,44 @@ internal sealed class GraphScheduler
             _fallThroughTarget[branchBlocks[branchBlocks.Count - 1].Value] = outerFt;
     }
 
+    /// <summary>
+    /// BP-108 — resolves each derived argument pin and rewrites the node's <c>Format</c> into the body of
+    /// a C# interpolated string, with every <c>{Name}</c> replaced by the temp that carries that pin's
+    /// value.
+    ///
+    /// <para>
+    /// ⭐ The pin set was DERIVED from this same format by <c>BuiltInNodeRegistry</c> via the same
+    /// parser, so names and pins correspond by construction — there is no separate mapping to drift.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ A malformed format is reported by Stage 2; here it simply yields no placeholders, so the node
+    /// still lowers to valid code rather than throwing mid-schedule.
+    /// </para>
+    /// </summary>
+    private string BuildInterpolatedBody(
+        Guid nodeId, string format, List<Pin> pins, List<IrStatement> stmts)
+    {
+        var parsed = Hrot.Blueprints.Core.Compiler.Format.BlueprintFormatString.Parse(format);
+        var exprByName = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var name in parsed.Names)
+        {
+            var pin = pins.FirstOrDefault(p =>
+                !p.IsExec && p.Direction == "In"
+                && string.Equals(p.Name, name, StringComparison.Ordinal));
+
+            var val = pin is not null
+                ? ResolveDataPin(nodeId, pin.Id, stmts)
+                : AllocValue(Stage5_Schedule.UnknownType);
+
+            exprByName[name] = "__t" + val.Index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        return Hrot.Blueprints.Core.Compiler.Format.BlueprintFormatString
+            .ToInterpolatedBody(format, exprByName);
+    }
+
     // -----------------------------------------------------------------------
     // Fall-through sealing helper
     // -----------------------------------------------------------------------
@@ -864,7 +902,13 @@ internal sealed class GraphScheduler
 
             if (libraryOwesAValue)
             {
-                _ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1657,
+                // ⚖️ Warning, not Error (user ruling, Batch 25: "warning+return default is a perfect
+                // solution"). Unreal silently returns defaults on such a path, so an Error is stricter
+                // than a designer arriving from Unreal expects. ⭐ It also matters structurally: as an
+                // Error the pipeline never reaches emit, so `return default;` below could never be
+                // proven by any test. As a Warning the authoring-path matrix compiles it through
+                // Roslyn and proves it is valid for both a scalar and a ValueTuple.
+                _ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP1657,
                     $"Library graph \"{_graph.Name}\" declares {_graph.Outputs.Count} output(s) but an "
                     + "execution path ends without a Return node; the generated function would return "
                     + "an unspecified default. Add a Return node on every path (C#: \"not all code "
@@ -1312,6 +1356,20 @@ internal sealed class GraphScheduler
                     && string.Equals(p.Name, "Written", StringComparison.OrdinalIgnoreCase));
                 if (writtenPinC is not null)
                     _pinValueCache[writtenPinC.Id] = writtenResultC;
+                break;
+            }
+
+            case PrintStringNode psn:
+            {
+                // BP-108. Pins were DERIVED from the format by BuiltInNodeRegistry, so the arg pins and
+                // the placeholder names are the same list in the same order by construction -- resolve
+                // each by name and hand the emitter an already-rewritten interpolated body.
+                var psBody = BuildInterpolatedBody(psn.Id, psn.Format, psn.Pins, stmts);
+                stmts.Add(new IrStatement
+                {
+                    Operation = new IrOp_PrintString(psBody, psn.Level.ToString()),
+                    Debug     = DebugOf(psn),
+                });
                 break;
             }
 
@@ -3204,6 +3262,31 @@ internal sealed class GraphScheduler
                 if (resultPin is not null) _pinValueCache[resultPin.Id] = boolOpResult;
 
                 result = boolOpResult;
+                break;
+            }
+
+            case FormatStringNode fsn:
+            {
+                // BP-108. Pure node: no exec pins, one value out. Buffer is sized from the declared
+                // result type so the stackalloc matches the FixedString capacity exactly.
+                var fsBody   = BuildInterpolatedBody(fsn.Id, fsn.Format, fsn.Pins, stmts);
+                var typeFqn  = string.IsNullOrEmpty(fsn.ResultTypeId)
+                    ? "Fdp.Core.FixedString128" : fsn.ResultTypeId;
+                if (!typeFqn.StartsWith("Fdp.Core.", StringComparison.Ordinal))
+                    typeFqn = "Fdp.Core." + typeFqn;
+                int bufChars = typeFqn.EndsWith("32", StringComparison.Ordinal) ? 32
+                             : typeFqn.EndsWith("64", StringComparison.Ordinal) ? 64
+                             : 128;
+
+                result = AllocValue(new IrTypeRef { FullName = typeFqn, IsUnmanaged = true, SizeBytes = bufChars });
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = result,
+                    Operation   = new IrOp_FormatString(fsBody, typeFqn, bufChars),
+                    Debug       = DebugOf(fsn),
+                });
+                // ResolveDataPin's own `_pinValueCache[sourcePinId] = result` below caches this, so
+                // the value is computed once no matter how many consumers read the Result pin.
                 break;
             }
 

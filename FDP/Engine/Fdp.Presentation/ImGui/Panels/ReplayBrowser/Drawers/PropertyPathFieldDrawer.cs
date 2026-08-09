@@ -220,7 +220,8 @@ internal sealed class PropertyPathFieldDrawer : IImGuiFieldDrawer
             || type == typeof(decimal)
             || type == typeof(Guid)
             || type == typeof(Fdp.Core.FixedString32)
-            || type == typeof(Fdp.Core.FixedString64));
+            || type == typeof(Fdp.Core.FixedString64)
+            || type == typeof(Fdp.Core.FixedString128));
     }
 
     private static bool IsCollectionType(Type type)

@@ -78,6 +78,7 @@ public sealed class BP87_TypePickerTests
     [Theory]
     [InlineData("FixedString32", "Fdp.Core.FixedString32")]
     [InlineData("FixedString64", "Fdp.Core.FixedString64")]
+    [InlineData("FixedString128", "Fdp.Core.FixedString128")]
     public void FixedStrings_AreOfferedAndResolve(string alias, string expected)
     {
         // The one the user actually asked for: a blittable string usable in a State struct, unlike

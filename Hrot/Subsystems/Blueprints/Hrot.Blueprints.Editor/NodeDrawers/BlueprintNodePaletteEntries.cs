@@ -283,6 +283,18 @@ public static class BlueprintNodePaletteEntries
             "Delay", "Delay", Categories.Latent,
             "Latent: pause execution for a duration.");
 
+        // ── Utility (BP-108: Print String / Format String) ─────────────────
+        // Both default-construct with an empty Format (⭐ Pins EMPTY -- NodePinSchema.GetCanonicalPins
+        // would otherwise shadow the format-derived pins with this default, pin-less instance).
+        // Post-placement editing (Format/Level/ResultTypeId) is via PrintStringNodeDrawer /
+        // FormatStringNodeDrawer (registered in BlueprintEditorBootstrap).
+        yield return Make<PrintStringNode>(
+            "PrintString", "Print String", Categories.Utility,
+            "Format a message and write it to the AI Behaviors log at the chosen level.");
+        yield return Make<FormatStringNode>(
+            "FormatString", "Format String", Categories.Utility,
+            "Format a message into a FixedString result (pure) -- Unreal's Format Text.");
+
         // ── Peers / channels ───────────────────────────────────────────────
         yield return Make<CallPeerBlueprintNode>(
             "CallPeerBlueprint", "Call Peer Blueprint", Categories.Function,

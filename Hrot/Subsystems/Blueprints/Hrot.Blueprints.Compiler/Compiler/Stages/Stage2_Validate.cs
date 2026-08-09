@@ -49,6 +49,7 @@ internal static class Stage2_Validate
         new V_FunctionGraphCallRules(),
         new V_FunctionGraphReturnValue(),   // BP-71 (BP1655) + BP-73 gate (BP1656)
         new V_ExecOutFanOut(),
+        new V_FormatStringRules(),   // BP-108 (BP2072)
     };
 
     public static void Run(BlueprintAsset asset, ValidationContext ctx)
@@ -2472,5 +2473,54 @@ internal sealed class V_FlowForEachRules : IValidator
             if (link.FromNodeId == fromNode && link.FromPinId == fromPin
                 && nodeById.TryGetValue(link.ToNodeId, out var target))
                 yield return target;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// V_FormatStringRules (BP-108 -- BP2072)
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// BP-108 -- BP2072: a <see cref="PrintStringNode"/> or <see cref="FormatStringNode"/> whose
+/// <c>Format</c> fails <see cref="Hrot.Blueprints.Core.Compiler.Format.BlueprintFormatString.Parse"/>
+/// (unclosed <c>'{'</c>, empty <c>'{}'</c>, invalid placeholder name, or a stray <c>'}'</c>).
+/// <para>
+/// ⚠ <b>Error, not Warning.</b> A malformed format yields NO derived arg pins --
+/// <see cref="Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInNodeRegistry"/>'s <c>AppendArgPins</c>
+/// bails out on <c>!parsed.IsValid</c> -- so the node still "compiles" (exec pins only, or a lone
+/// "Result" pin for Format String) and silently prints/formats the wrong thing at runtime. That is
+/// exactly trap #5's shape: a wrong value is worse than a build failure, so this is an Error.
+/// </para>
+/// <para>
+/// One parser, three consumers (this validator, the registry's pin derivation, and the emitter's
+/// interpolated-body rewrite) -- see <c>BlueprintFormatString</c>'s own doc comment. This validator
+/// never re-implements the grammar; it only reports what <c>Parse</c> already decided.
+/// </para>
+/// </summary>
+internal sealed class V_FormatStringRules : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        foreach (var graph in asset.Graphs)
+        {
+            foreach (var node in graph.Nodes)
+            {
+                string? format = node switch
+                {
+                    PrintStringNode ps  => ps.Format,
+                    FormatStringNode fs => fs.Format,
+                    _                   => null,
+                };
+                if (format is null) continue;
+
+                var parsed = Hrot.Blueprints.Core.Compiler.Format.BlueprintFormatString.Parse(format);
+                if (!parsed.IsValid)
+                {
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2072,
+                        $"{node.GetType().Name}: malformed Format -- {parsed.Error}",
+                        asset.AssetId, graph.Id, node.Id));
+                }
+            }
+        }
     }
 }

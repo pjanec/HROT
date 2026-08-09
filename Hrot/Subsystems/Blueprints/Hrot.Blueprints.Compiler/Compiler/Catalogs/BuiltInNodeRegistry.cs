@@ -179,6 +179,13 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         // ListWrite (FC-2/LV-3, Q#19-C): exec node -- same skeleton/enricher split.
         ListWriteNode             => new[] { ExecIn(), ExecOut() },
 
+        // BP-108: pin COUNT is derived from the node's own Format property. ⭐ Registry-only -- no
+        // Stage0_Rehydrate case: NodePinSchema's switch ends `_ => FromRegistry(node)` and Stage0 builds
+        // its skeleton from GetStaticPins, so registering here covers BOTH projections. (CollectionWrite
+        // needs an enricher only because PinSchema has no IsArray field; these need no array pins.)
+        PrintStringNode ps        => PrintStringPins(ps),
+        FormatStringNode fs       => FormatStringPins(fs),
+
         ArrayMakeNode am          => ArrayMakePins(am),
         ArrayGetNode              => ArrayGetPins(),
 
@@ -294,6 +301,55 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
             new PinSchema("Entity",  "Out", false, "System.Int64"),
             new PinSchema("Score",   "Out", false, "System.Single"),
         };
+
+    /// <summary>
+    /// BP-108 Print String: exec In/Out plus <b>one data-In per <c>{Name}</c> placeholder</b>, in
+    /// first-appearance order. A malformed format yields exec pins only -- Stage 2 reports it; emitting
+    /// guessed pins on top of a diagnostic would only add noise.
+    /// </summary>
+    private static IReadOnlyList<PinSchema> PrintStringPins(PrintStringNode ps)
+    {
+        var pins = new List<PinSchema>
+        {
+            new PinSchema("In",  "In",  true, ""),
+            new PinSchema("Out", "Out", true, ""),
+        };
+        AppendArgPins(pins, ps.Format, ps.ArgTypes);
+        return pins;
+    }
+
+    /// <summary>
+    /// BP-108 Format String: <b>pure</b> (no exec pins) -- one data-In per placeholder plus the
+    /// "Result" data-Out typed by <c>ResultTypeId</c>. Mirrors Unreal's Format Text.
+    /// </summary>
+    private static IReadOnlyList<PinSchema> FormatStringPins(FormatStringNode fs)
+    {
+        var pins = new List<PinSchema>();
+        AppendArgPins(pins, fs.Format, fs.ArgTypes);
+        pins.Add(new PinSchema("Result", "Out", false,
+            string.IsNullOrEmpty(fs.ResultTypeId) ? "Fdp.Core.FixedString128" : fs.ResultTypeId));
+        return pins;
+    }
+
+    /// <summary>
+    /// Shared derivation for both string nodes -- ⭐ one parser, one pin-derivation function. A repeated
+    /// placeholder is ONE pin used at several sites, and an undeclared arg type falls back to
+    /// <c>System.Object</c> (the established convention for an untyped pin here).
+    /// </summary>
+    private static void AppendArgPins(
+        List<PinSchema> pins, string format, Dictionary<string, string> argTypes)
+    {
+        var parsed = Hrot.Blueprints.Core.Compiler.Format.BlueprintFormatString.Parse(format);
+        if (!parsed.IsValid) return;
+
+        foreach (var name in parsed.Names)
+        {
+            string? typeId;
+            if (argTypes == null || !argTypes.TryGetValue(name, out typeId) || string.IsNullOrEmpty(typeId))
+                typeId = "System.Object";
+            pins.Add(new PinSchema(name, "In", false, typeId));
+        }
+    }
 
     /// <summary>ArrayMake: exec In/Out + two data-In element pins + data-Out "Array".</summary>
     private static IReadOnlyList<PinSchema> ArrayMakePins(ArrayMakeNode am)

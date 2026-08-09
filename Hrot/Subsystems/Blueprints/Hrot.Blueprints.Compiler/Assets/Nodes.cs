@@ -51,6 +51,8 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(BinaryOpNode),           "BinaryOp")]
 [JsonDerivedType(typeof(BooleanOpNode),          "BooleanOp")]
 [JsonDerivedType(typeof(NotNode),                "Not")]
+[JsonDerivedType(typeof(PrintStringNode),        "PrintString")]
+[JsonDerivedType(typeof(FormatStringNode),       "FormatString")]
 [JsonDerivedType(typeof(MakeStructNode),         "MakeStruct")]
 [JsonDerivedType(typeof(BreakStructNode),        "BreakStruct")]
 [JsonDerivedType(typeof(SetMembersNode),         "SetMembers")]
@@ -819,6 +821,92 @@ public sealed class BooleanOpNode : Node
 /// </summary>
 public sealed class NotNode : Node
 {
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// BP-108 -- Print String / Format String (Unreal's Print String + Format Text)
+//
+
+/// <summary>
+/// BP-108 -- the log level a <see cref="PrintStringNode"/> writes at. Mirrors the NLog levels the
+/// AI.Behavior logger family exposes, so each maps to one level probe on the sink helper.
+/// </summary>
+public enum BlueprintLogLevel
+{
+    Trace,
+    Debug,
+    Info,
+    Warn,
+    Error,
+}
+
+/// <summary>
+/// BP-108 -- <b>Print String</b>: formats <see cref="Format"/> and writes it to the <c>AI.Behavior</c>
+/// logger family, which the editor surfaces in its "AI Behaviors" message-log tab.
+///
+/// <para>
+/// ⭐ <b>The pins are derived from <see cref="Format"/>, not declared.</b> One data-in pin per
+/// <c>{Name}</c> placeholder, in first-appearance order -- see
+/// <see cref="Hrot.Blueprints.Core.Compiler.Format.BlueprintFormatString"/>. There is deliberately no
+/// <c>ArgCount</c> property: an unwired data-in pin is a guaranteed <c>BP4001</c>, so a speculative pin
+/// is never harmless.
+/// </para>
+///
+/// <para>
+/// ⚠ Renaming a placeholder renames a pin, which can drop a link (the class BP-113 hit). Acceptable, but
+/// the drawer must make the pin set visibly follow the text so it is never a surprise.
+/// </para>
+/// </summary>
+public sealed class PrintStringNode : Node
+{
+    /// <summary>
+    /// The message template. <c>{Name}</c> placeholders become data-in pins; <c>{{</c>/<c>}}</c> are
+    /// literal braces. A malformed format is a Stage 2 diagnostic, never a silent drop.
+    /// </summary>
+    public string Format { get; set; } = "";
+
+    /// <summary>
+    /// Level to log at. Emitted behind the matching level probe, so a disabled level costs nothing --
+    /// the formatting is never evaluated.
+    /// </summary>
+    public BlueprintLogLevel Level { get; set; } = BlueprintLogLevel.Info;
+
+    /// <summary>
+    /// Per-placeholder declared type, keyed by placeholder name (values are <c>TypeId</c> strings from
+    /// the editor's type picker). ⚠ We have no wildcard-pin mechanism, so each placeholder must carry a
+    /// declared type; a name missing here falls back to <c>System.Object</c>.
+    /// </summary>
+    public Dictionary<string, string> ArgTypes { get; set; } = new();
+}
+
+/// <summary>
+/// BP-108 -- <b>Format String</b>: the same formatting as <see cref="PrintStringNode"/>, but the result
+/// goes to a data-out pin instead of the log. Unreal's <c>Format Text</c>. <b>Pure</b> -- no exec pins.
+///
+/// <para>
+/// ⭐ The two nodes compose with no new mechanism: the result is a <c>FixedString</c>, and a
+/// <c>FixedString</c> is a legal argument type, so wiring one into a Print String placeholder prints a
+/// computed message. That is why Print String needs no special string-input case.
+/// </para>
+///
+/// <para>
+/// ⚠ <b>Truncation is silent.</b> A formatted result longer than <see cref="ResultTypeId"/> is cut at
+/// runtime with no diagnostic -- Stage 2 cannot know a runtime length. Say so in the node's tooltip.
+/// </para>
+/// </summary>
+public sealed class FormatStringNode : Node
+{
+    /// <summary>Message template; same grammar as <see cref="PrintStringNode.Format"/>.</summary>
+    public string Format { get; set; } = "";
+
+    /// <summary>
+    /// Type of the "Result" data-out pin -- one of the <c>Fdp.Core.FixedString32/64/128</c> family.
+    /// Sizes the <c>stackalloc</c> buffer the formatted text is written into.
+    /// </summary>
+    public string ResultTypeId { get; set; } = "Fdp.Core.FixedString128";
+
+    /// <summary>Per-placeholder declared type. See <see cref="PrintStringNode.ArgTypes"/>.</summary>
+    public Dictionary<string, string> ArgTypes { get; set; } = new();
 }
 
 // ──────────────────────────────────────────────────────────────────────────

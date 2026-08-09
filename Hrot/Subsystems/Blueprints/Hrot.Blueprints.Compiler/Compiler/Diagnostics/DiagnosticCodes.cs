@@ -90,7 +90,10 @@ public static class DiagnosticCodes
     // declares outputs but whose exec chain runs off the end with no Return node used to emit a bare
     // `return;` -- CS0126 from Roslyn, attributed to generated code the author never wrote. The
     // terminator now emits `return default;` so the generated C# is valid, and THIS says why.
-    public const string BP1657 = "BP1657";  // Library graph declares outputs but an exec path ends with no Return node
+    // ⚖️ WARNING, not Error (user ruling, Batch 25): Unreal silently returns defaults on such a path.
+    // Warning also keeps the pipeline reaching emit, which is what lets the authoring-path matrix
+    // prove `return default;` through Roslyn -- as an Error that code path was unprovable.
+    public const string BP1657 = "BP1657";  // [Warning] Library graph declares outputs but an exec path ends with no Return node
 
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch
@@ -148,6 +151,12 @@ public static class DiagnosticCodes
     public const string BP2069 = "BP2069";  // CollectionWriteNode carries a "Target" pin -- writes are self-only (Q#16/Q#20)
     public const string BP2070 = "BP2070";  // CollectionWriteNode's producer GetComponent has "Target" wired -- cross-entity collection write is not permitted (G4)
     public const string BP2071 = "BP2071";  // WARNING: CollectionWriteNode mutates the collection a surrounding ComponentForEach is iterating (G3 -- wire-dependent semantics)
+
+    // Stage 2 -- Validate (BP-108 -- Print String / Format String)
+    // ERROR, not Warning: a malformed Format yields NO derived arg pins (BuiltInNodeRegistry's
+    // AppendArgPins bails out on !parsed.IsValid), so the node still "compiles" and silently prints
+    // or formats the wrong thing -- trap #5's shape, worse than a build failure.
+    public const string BP2072 = "BP2072";  // PrintStringNode/FormatStringNode.Format fails BlueprintFormatString.Parse
 
     // Stage 3 -- Normalize
     public const string BP3010 = "BP3010";

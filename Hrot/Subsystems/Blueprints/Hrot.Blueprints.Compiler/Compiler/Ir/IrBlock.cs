@@ -19,8 +19,8 @@ public sealed record IrTerm_Branch(IrValue Condition, IrBlockId IfTrue, IrBlockI
 /// this point, so the distinction is carried here: <c>ReturnsDefault</c> ⇒ <c>return default;</c>, which
 /// is valid for a scalar and a tuple alike. Set only by
 /// <c>Stage5_Schedule.SealFallThrough</c> for a Library graph that declares outputs and whose exec chain
-/// ran off the end with no <c>Return</c> node — and always alongside <c>BP1657</c>, so the implicit
-/// default is reported rather than silently returned.
+/// ran off the end with no <c>Return</c> node — and always alongside <c>BP1657</c> (a <b>Warning</b>),
+/// so the implicit default is reported rather than silently returned while the graph still compiles.
 /// </para>
 ///
 /// <para>

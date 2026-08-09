@@ -87,6 +87,10 @@ public static class BlueprintEditorBootstrap
         registry.Register(typeof(CallCustomEventNode),  new CallCustomEventNodeDrawer(editService));
         registry.Register(typeof(CallPeerBlueprintNode), new CallPeerBlueprintNodeDrawer(editService, peerProvider));
 
+        // BP-108: Print String / Format String -- Format (text) + Level/ResultTypeId (combo).
+        registry.Register(typeof(PrintStringNode), new PrintStringNodeDrawer(editService));
+        registry.Register(typeof(FormatStringNode), new FormatStringNodeDrawer(editService));
+
         // ANC-P5-08a: Register PlayMontageChainNode drawer (if animation queries available)
         if (animationQueries != null && currentClassProvider != null)
         {
