@@ -228,6 +228,44 @@ The two that took real research:
 
 ---
 
+## 0z. ⚠ PROCESS — why "they never saw it" keeps happening. **It is my fault, not a comms failure.**
+
+**They do not merge the coordinator branch — they build LINEARLY ON TOP of it**, snapshotting whatever
+exists the moment they start. Verified from the commit graph: `78ffe225`'s parent is `124a6a0a`, mine.
+
+**Batch 25, exact timeline:**
+
+| | |
+|---|---|
+| 13:08 | I push the Batch 25 handoff (`124a6a0a`) |
+| 13:15 | ⭐ **They start, from that commit** (`78ffe225`) |
+| 13:42–14:22 | They allocate **BP-120…BP-124** |
+| 14:27 | I push the addendum allocating **BP-120…BP-126** (`3d00c058`) |
+| 14:27 | **They finish** (`a7eb6249`) — *the same minute* |
+
+⇒ **They could not have seen it.** No comms failure; **I amended a handoff after dispatch.**
+
+**Both earlier statements were true, about different runs.** Batch 24: Item 0 landed 10:42; their
+BP-114 commit predated it ⇒ "never saw it" was correct *for that run*. They then continued from 10:50
+and did have it ⇒ the user's correction was correct *for the next run*. Both right; I reported it
+without naming which run.
+
+### The rules that follow
+
+1. ⭐ **Never amend a dispatched handoff. Write the next one instead.** Amending is the root cause of
+   both ID collisions — I allocated BP-110/111 and BP-120…126 into live batches.
+2. **Stamp the dispatch SHA** in every handoff header, so an amendment is visibly illegal.
+3. **IDs BP-200+ while a batch is in flight** — the standing rule I keep breaking *because* I amend.
+4. ⭐ **Check correctly, and say which run.** The valid test is against the commit they *branched from*,
+   not their head:
+   ```bash
+   git log -1 --format='%p' <their-first-commit>        # what they built on
+   git merge-base --is-ancestor <my-commit> <that-parent>
+   ```
+   Report "not in the commit they built from", never "they never saw it".
+
+---
+
 ## 1. Branches
 
 | | |
