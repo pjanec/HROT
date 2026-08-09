@@ -12,10 +12,10 @@ architect decision first).
 | Complexity | Open | Done |
 |---|---:|---:|
 | `WIRING` | 5 | 25 |
-| `RW-L` | 30 | 37 |
-| `RW-M` | 30 | 14 |
+| `RW-L` | 29 | 37 |
+| `RW-M` | 31 | 13 |
 | `RW-H` | 3 | 1 |
-| **Total** | **68** | **77** |
+| **Total** | **68** | **76** |
 | *(refuted on verification)* | | *1* |
 
 > ✅ **Reconciling these counts (three ways, and they now agree EXACTLY).** The checkbox tally used to run
@@ -28,6 +28,12 @@ architect decision first).
 > grep '^- \[ \]' Blueprint_Issues_Tracker.md | grep -vc '~~'   # open -> must equal the Total row
 > grep '^- \[x\]' Blueprint_Issues_Tracker.md | grep -vc '~~'   # done -> must equal the Total row
 > ```
+>
+> ⚠ **Per-complexity rows need the FIRST tag on a line, not every tag on it.** Some rows discuss other
+> complexity classes in their prose (BP-87 names three), so `grep -c '`RW-H`'` over-counts and the
+> per-tag columns stop summing to the total. Take the first `` `WIRING|RW-L|RW-M|RW-H` `` match per row —
+> that is the row's own classification. *(Found Batch 27, when the columns summed to 69 against a
+> checkbox tally of 68.)*
 >
 > ⚠ **Do not reintroduce a "known offset."** A reconciliation check with a standing discrepancy is a
 > weaker check — it cannot tell a real miscount from the expected slack. *(Tightened Batch 25.)*
