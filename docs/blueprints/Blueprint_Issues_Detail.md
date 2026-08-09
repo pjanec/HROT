@@ -2285,6 +2285,17 @@ for real.
 `Hrot.Editor.AiShared`; BP-87 only made it visible by putting a correct list in front of it.
 *— found while fixing BP-87, Batch 23*
 
+🛠 **FIXED — Batch 24.**
+
+| | |
+|---|---|
+| **Where** | `BlueprintTypeChoices.IndexOfTypeId(string?)` (new, pure/testable) · `ParameterRowsView.Draw` now calls it |
+| **How** | exact-alias match first, then resolve via `StaticTypeRegistry.Instance.TryResolve` and compare canonical `IrTypeRef.FullName`. Offered entries' FullNames are resolved **once** into a `static readonly` array — this runs in an ImGui draw loop, once per parameter row per frame |
+| ⭐ **Fallback** | **`-1`, not `0`.** Returning 0 *was* the defect. `-1` is a legal Dear ImGui "no selection" index — `ImGui::Combo` only invokes the item getter when the index is in range — so an unrecognised type renders a **blank** preview. Blank is honest; `bool` is a lie the designer can act on. The `RetypeParameter` call is range-guarded, so a blank can never write |
+| ⚠ **Wider than reported** | The alias↔FQN mismatch was only half of it. Types that **resolve but are deliberately not offered** — `Fdp.Core.Entity`, `System.String`, `Hrot.AI.Behaviors.Brains.*` — displayed `bool` too, and for those **no offered entry could ever be correct**, so the old clamp had no honest form at all |
+| **Tests** | `BP114_TypeComboIndexTests`, 12 tests. **10 of 12 go red on revert**; the 2 survivors are precisely the exact-alias cases, which matched before the fix as well |
+
+
 <a id="bp-88"></a>
 ### BP-88 — An Instance blueprint can contain **no Event graph, and none can be created**
 **Complexity:** RW-L · **Confidence:** ✔✔✔ *(grounded in the asset JSON)*
