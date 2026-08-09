@@ -127,6 +127,17 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
     /// Graphs section everything else (Event bodies, Construction). Both row kinds share the
     /// <c>graph:{id}</c> item-id form, which <c>editor.go-to-graph</c> resolves on double-click.
     /// </summary>
+    /// <summary>
+    /// BP-127 — whether <c>BlueprintDocumentFactory.RenameItem</c> would accept a rename for this
+    /// graph. ⚠ Kept in agreement with that method deliberately: offering a Rename menu item that
+    /// silently does nothing is worse than not offering it, and an Event graph paired with a
+    /// declaration is exactly that case.
+    /// </summary>
+    private bool IsRenamableGraph(Graph graph)
+        => graph.Kind != GraphKind.Event
+           || !_asset!.CustomEvents.Any(e =>
+                  string.Equals(e.Name, graph.Name, StringComparison.Ordinal));
+
     private IReadOnlyList<MyBlueprintItem> BuildGraphItems(string sectionId, bool functionGraphs)
     {
         var result = new List<MyBlueprintItem>(_asset!.Graphs.Count);
@@ -142,10 +153,18 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
                 BadgeText:    null,
                 AccentColor:  null,
                 Children:     null,
-                IsRenamable:  false,
+                // BP-127: graphs are renamable from here -- this is where Unreal puts rename, and it
+                // is why the item never needed the empty-canvas Details panel it was blocked on.
+                // ⚠ An Event graph PAIRED with a declaration is not: the pairing is by name, so
+                // renaming that graph alone desyncs it into a BP1407. Rename the event instead.
+                IsRenamable:  IsRenamableGraph(g),
                 IsDeletable:  false,
                 IsHostDefined: true,
-                Tooltip:      null));
+                // BP-207: the rows look like buttons but open on DOUBLE-click. ⭐ Unreal uses the same
+                // gesture (single-click selects, double-click opens), so the defect is the missing
+                // AFFORDANCE, not the gesture -- changing the gesture would break parity to fix a
+                // discoverability problem. Third instance of this pattern (BP-75, BP-90).
+                Tooltip:      $"Double-click to open '{g.Name}'."));
         }
         return result;
     }

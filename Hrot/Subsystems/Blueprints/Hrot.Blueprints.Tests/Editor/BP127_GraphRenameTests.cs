@@ -1,5 +1,6 @@
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.Host;
+using Hrot.Blueprints.Editor.Windows;
 
 namespace Hrot.Blueprints.Tests.Editor;
 
@@ -145,6 +146,68 @@ public sealed class BP127_GraphRenameTests
 
         Assert.False(BlueprintDocumentFactory.RenameItem(asset, $"graph:{Guid.NewGuid()}", "Whatever"));
     }
+
+    // ── the panel half: the menu item has to be OFFERED ───────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ <b>The half that would have shipped broken.</b> <c>RenameItem</c> resolving a graph id is
+    /// useless while the panel marks graph rows <c>IsRenamable: false</c> — the context menu simply
+    /// never draws the Rename item, and the feature is unreachable while every unit test passes.
+    /// </summary>
+    [Fact]
+    public void MyBlueprint_MarksFunctionGraphsRenamable()
+    {
+        var (asset, function) = AssetWithFunctionGraph("Combine");
+        var model = new BlueprintMyBlueprintModel();
+        model.Retarget(null, asset);
+
+        var item = AllItems(model).First(i => i.ItemId == $"graph:{function.Id}");
+
+        Assert.True(item.IsRenamable);
+    }
+
+    /// <summary>
+    /// ⚠ …and NOT for an Event graph paired with a declaration, which <c>RenameItem</c> refuses.
+    /// Offering a menu item that silently does nothing is worse than not offering it.
+    /// </summary>
+    [Fact]
+    public void MyBlueprint_DoesNotMarkAPairedEventGraphRenamable()
+    {
+        var asset = new BlueprintAsset
+        {
+            AssetId = Guid.NewGuid(), Name = "Peer", Dispatch = BlueprintDispatchKind.Instance,
+        };
+        var eventGraph = new Graph { Id = Guid.NewGuid(), Name = "OnSpotted", Kind = GraphKind.Event };
+        asset.Graphs.Add(eventGraph);
+        asset.CustomEvents.Add(new CustomEventDecl { Id = Guid.NewGuid(), Name = "OnSpotted" });
+
+        var model = new BlueprintMyBlueprintModel();
+        model.Retarget(null, asset);
+
+        var item = AllItems(model).First(i => i.ItemId == $"graph:{eventGraph.Id}");
+
+        Assert.False(item.IsRenamable);
+    }
+
+    /// <summary>
+    /// <b>BP-207</b> — the rows look like buttons but open on double-click. ⭐ Unreal uses the same
+    /// gesture, so the fix is the missing affordance, not the gesture: a hover tooltip that says so.
+    /// </summary>
+    [Fact]
+    public void MyBlueprint_TellsTheDesignerThatAGraphRowOpensOnDoubleClick()
+    {
+        var (asset, function) = AssetWithFunctionGraph("Combine");
+        var model = new BlueprintMyBlueprintModel();
+        model.Retarget(null, asset);
+
+        var item = AllItems(model).First(i => i.ItemId == $"graph:{function.Id}");
+
+        Assert.Contains("Double-click", item.Tooltip ?? "");
+    }
+
+    private static IEnumerable<NodeEditor.Core.Interfaces.MyBlueprintItem> AllItems(
+        BlueprintMyBlueprintModel model)
+        => model.Sections.SelectMany(sec => model.GetItems(sec.Id));
 
     // ── fixture ───────────────────────────────────────────────────────────────────────────────────
 
