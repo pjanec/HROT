@@ -57,15 +57,19 @@ public static class ParameterRowsView
 
                 // ── Type column ───────────────────────────────────────────────
                 ImGuiNET.ImGui.TableSetColumnIndex(1);
-                var typeNames  = BlueprintTypeChoices.TypeIds;
-                var typeId     = param.Type?.TypeId ?? "";
-                var currentIdx = Enumerable.Range(0, typeNames.Count)
-                    .FirstOrDefault(j => typeNames[j] == typeId, -1);
-                if (currentIdx < 0) currentIdx = 0;
+                var typeNames = BlueprintTypeChoices.TypeIds;
+                var typeId    = param.Type?.TypeId ?? "";
+                // BP-114: resolve through the compiler's type registry rather than exact string
+                // match, so a stored canonical FQN (e.g. "System.Int32") lands on its alias entry
+                // ("int") instead of falling back to index 0 ("bool"). -1 is a legal ImGui Combo
+                // "no selection" value -- it renders a blank preview instead of a false one -- so it
+                // is deliberately NOT clamped to 0 here.
+                var currentIdx = BlueprintTypeChoices.IndexOfTypeId(typeId);
 
                 ImGuiNET.ImGui.PushID($"type_{tableId}_{i}");
                 if (ImGuiNET.ImGui.Combo("##t", ref currentIdx,
-                    typeNames.ToArray(), typeNames.Count))
+                    typeNames.ToArray(), typeNames.Count) &&
+                    currentIdx >= 0 && currentIdx < typeNames.Count)
                 {
                     model.RetypeParameter(param.Name, typeNames[currentIdx]);
                 }
