@@ -542,7 +542,9 @@ public static class BlueprintDocumentFactory
 
         void Restore(
             List<VariableDecl> variables, List<CustomEventDecl> events,
-            (Dictionary<Guid, string> GraphNames, Dictionary<Guid, string> CallEventIds) naming)
+            (Dictionary<Guid, string> GraphNames,
+             Dictionary<Guid, string> CallEventIds,
+             Dictionary<Guid, string> PeerFunctionRefs) naming)
         {
             asset.Variables.Clear();
             asset.Variables.AddRange(variables);
@@ -558,6 +560,8 @@ public static class BlueprintDocumentFactory
                 if (naming.GraphNames.TryGetValue(g.Id, out var n)) g.Name = n;
             foreach (var call in asset.Graphs.SelectMany(g => g.Nodes).OfType<CallCustomEventNode>())
                 if (naming.CallEventIds.TryGetValue(call.Id, out var id)) call.EventId = id;
+            foreach (var peer in asset.Graphs.SelectMany(g => g.Nodes).OfType<CallPeerBlueprintNode>())
+                if (naming.PeerFunctionRefs.TryGetValue(peer.Id, out var fn)) peer.FunctionRef = fn;
         }
 
         // The forward has already been applied above, so its Mutate re-applies the same end state
@@ -572,11 +576,19 @@ public static class BlueprintDocumentFactory
 
     /// <summary>Graph names + CallCustomEvent EventIds — the two things RenameItem mutates
     /// outside the declaration lists. Strings only; cheap for any asset size.</summary>
-    private static (Dictionary<Guid, string> GraphNames, Dictionary<Guid, string> CallEventIds)
+    private static (Dictionary<Guid, string> GraphNames,
+                    Dictionary<Guid, string> CallEventIds,
+                    Dictionary<Guid, string> PeerFunctionRefs)
         SnapshotEventNaming(BlueprintAsset asset)
         => (asset.Graphs.ToDictionary(g => g.Id, g => g.Name),
             asset.Graphs.SelectMany(g => g.Nodes).OfType<CallCustomEventNode>()
-                 .ToDictionary(c => c.Id, c => c.EventId));
+                 .ToDictionary(c => c.Id, c => c.EventId),
+            // BP-127: a graph rename also rewrites name-keyed CallPeerBlueprint.FunctionRef, so undo
+            // must restore those too. ⚠ Exactly the gap BP-24 closed for CallCustomEvent, one node
+            // kind over: restoring the graph name while leaving the refs renamed desyncs them into a
+            // silent BP1302 "no function graph named …".
+            asset.Graphs.SelectMany(g => g.Nodes).OfType<CallPeerBlueprintNode>()
+                 .ToDictionary(c => c.Id, c => c.FunctionRef));
 
     /// <summary>
     /// A <b>deep</b> copy of the declaration list. A shallow one would be wrong for rename: the
@@ -624,7 +636,9 @@ public static class BlueprintDocumentFactory
     internal static string? ItemDisplayName(BlueprintAsset asset, string itemId)
     {
         ArgumentNullException.ThrowIfNull(asset);
-        return FindVariable(asset, itemId)?.Name ?? FindCustomEvent(asset, itemId)?.Name;
+        return FindVariable(asset, itemId)?.Name
+               ?? FindCustomEvent(asset, itemId)?.Name
+               ?? FindGraph(asset, itemId)?.Name;
     }
 
     /// <summary>
@@ -672,6 +686,43 @@ public static class BlueprintDocumentFactory
             foreach (var call in asset.Graphs.SelectMany(g => g.Nodes).OfType<CallCustomEventNode>())
                 if (string.Equals(call.EventId, oldName, StringComparison.Ordinal))
                     call.EventId = trimmed;
+
+            return true;
+        }
+
+        // BP-127 -- renaming a graph. Settled by the authoring-UX decisions round: this lives in My
+        // Blueprint's context menu, where Unreal puts it, NOT on an empty-canvas Details surface.
+        if (FindGraph(asset, itemId) is { } target)
+        {
+            if (string.Equals(target.Name, trimmed, StringComparison.Ordinal)) return false;
+
+            // The compiler emits a method per Function graph and Event_{Name} per Event graph, so the
+            // name has to be a legal identifier -- the same rule the custom-event create path applies.
+            if (!IsValidDeclarationName(trimmed)) return false;
+            if (asset.Graphs.Any(g => g != target
+                    && string.Equals(g.Name, trimmed, StringComparison.OrdinalIgnoreCase)))
+                return false;
+
+            // ⚠ An Event graph is PAIRED with its declaration by name (see the custom-event branch
+            // above, which renames the graph when the decl is renamed). Renaming that graph directly
+            // would break the pairing into a BP1407, so it is refused -- rename the event instead.
+            if (target.Kind == GraphKind.Event
+                && asset.CustomEvents.Any(e =>
+                    string.Equals(e.Name, target.Name, StringComparison.Ordinal)))
+                return false;
+
+            var previousName = target.Name;
+            target.Name = trimmed;
+
+            // ⚠ A peer/local FunctionCall addresses a Function graph BY NAME as well as by id, and
+            // Stage5 accepts either -- so a rename that left those behind would turn into a silent
+            // BP1302 "no function graph named …". Same class of miss BP-24 fixed for custom events.
+            foreach (var call in asset.Graphs.SelectMany(g => g.Nodes))
+            {
+                if (call is CallPeerBlueprintNode peer
+                    && string.Equals(peer.FunctionRef, previousName, StringComparison.Ordinal))
+                    peer.FunctionRef = trimmed;
+            }
 
             return true;
         }
@@ -765,6 +816,15 @@ public static class BlueprintDocumentFactory
     private static CustomEventDecl? FindCustomEvent(BlueprintAsset asset, string itemId)
         => TryItemGuid(itemId, "evt:", out var id)
             ? asset.CustomEvents.FirstOrDefault(e => e.Id == id)
+            : null;
+
+    /// <summary>
+    /// BP-127 — resolves a <c>graph:{guid}</c> item id, the form the My Blueprint panel gives its
+    /// Graphs / Functions rows (<c>BlueprintMyBlueprintModel</c>).
+    /// </summary>
+    private static Graph? FindGraph(BlueprintAsset asset, string itemId)
+        => TryItemGuid(itemId, "graph:", out var id)
+            ? asset.Graphs.FirstOrDefault(g => g.Id == id)
             : null;
 
     private static bool TryItemGuid(string itemId, string prefix, out Guid id)
