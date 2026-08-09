@@ -18,6 +18,20 @@ architect decision first).
 | **Total** | **64** | **58** |
 | *(refuted on verification)* | | *1* |
 
+> ✅ **Reconciling these counts (three ways, and they now agree EXACTLY).** The checkbox tally used to run
+> **+1 open / +1 done** against this table, and that standing offset was carried for several batches as
+> "permanent". It was not a real offset — it was a **loose regex**. Two rows are struck through
+> (`~~BP-46~~`, refuted; `~~Squad-quartet~~`, abandoned by design), one `[x]` and one `[ ]`, and a bare
+> checkbox count includes them. **Skip struck-through rows and the tally is exact:**
+>
+> ```bash
+> grep '^- \[ \]' Blueprint_Issues_Tracker.md | grep -vc '~~'   # open -> must equal the Total row
+> grep '^- \[x\]' Blueprint_Issues_Tracker.md | grep -vc '~~'   # done -> must equal the Total row
+> ```
+>
+> ⚠ **Do not reintroduce a "known offset."** A reconciliation check with a standing discrepancy is a
+> weaker check — it cannot tell a real miscount from the expected slack. *(Tightened Batch 25.)*
+
 > 📌 **Resuming this programme?** Start with [Blueprint_Gaps_Programme_RESUME.md](Blueprint_Gaps_Programme_RESUME.md) — branch, batches
 > shipped, next items, and the traps that cost real time. This tracker stays the source of truth.
 
