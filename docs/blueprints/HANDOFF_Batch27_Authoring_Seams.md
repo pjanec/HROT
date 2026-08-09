@@ -1,6 +1,6 @@
 # HANDOFF — Batch 27: the authoring seams the matrix cannot see
 
-> 📌 **Not yet dispatched.** Follows Batch 26. IDs are **BP-200+** per the in-flight rule.
+> 📌 **Not yet dispatched.** Follows Batch 26. IDs are **BP-201+** per the in-flight rule.
 > ⭐ **Rule 4 is yours:** before your final commit, pull the coordinator branch again.
 
 ---
@@ -12,9 +12,9 @@ reachable without a UI, and here is exactly what is missing:
 
 | Gap | What it would have caught |
 |---|---|
-| **1 · The matrix never RUNS the result** | It compiles and asserts 0 diagnostics. It never ticks the blueprint and checks a **value**. ⇒ **BP-200**: `Print String` printed `0` forever while the variable rose. It compiled perfectly |
-| **2 · The matrix never tests WIRING ACCEPTANCE** | It authors nodes but never asks *"does the editor let me connect these two pins?"* ⇒ **BP-202**: an editor-authored `int` output cannot be wired to a `System.Int32` literal |
-| **3 · ⭐ The matrix tests FINAL STATES, never EDIT SEQUENCES** | Every single defect this round came from a *sequence*: type a format, change it, reload. A static matrix cannot see those. ⇒ **BP-201**, **BP-203**, **BP-204** |
+| **1 · The matrix never RUNS the result** | It compiles and asserts 0 diagnostics. It never ticks the blueprint and checks a **value**. ⇒ **BP-201**: `Print String` printed `0` forever while the variable rose. It compiled perfectly |
+| **2 · The matrix never tests WIRING ACCEPTANCE** | It authors nodes but never asks *"does the editor let me connect these two pins?"* ⇒ **BP-203**: an editor-authored `int` output cannot be wired to a `System.Int32` literal |
+| **3 · ⭐ The matrix tests FINAL STATES, never EDIT SEQUENCES** | Every single defect this round came from a *sequence*: type a format, change it, reload. A static matrix cannot see those. ⇒ **BP-202**, **BP-204**, **BP-205** |
 
 ⇒ **Item 4 below extends the matrix along all three axes.** That is the systemic deliverable; the rest
 are the specific bugs it should have found.
@@ -25,7 +25,7 @@ classes, and they were never covered.
 
 ---
 
-## 1. 🔴 BP-200 — the editor never writes `ArgTypes`, so `Print String` prints `default`
+## 1. 🔴 BP-201 — the editor never writes `ArgTypes`, so `Print String` prints `default`
 
 > User: *"every second I got `[AI.Behavior.Blueprint] 0` — the value NOT following the Count variable
 > (which rises in the Runtime inspector), so the blueprint works but the value is not printed properly."*
@@ -50,7 +50,7 @@ A test asserting "a line was printed" passes today.
 
 ---
 
-## 2. 🔴 BP-201 — changing a format leaves a dangling link and an unattributable build break
+## 2. 🔴 BP-202 — changing a format leaves a dangling link and an unattributable build break
 
 > `CSC : error BP1602: Link references unknown ToPinId 2f2db7d9… on node 8a6eb895…`
 > User: *"I don't know what blueprint it was"* · *"removing the unwired Format String did NOT resolve
@@ -69,7 +69,7 @@ the graph rebuild almost certainly aborts on the dangling link; verify that.
 
 ---
 
-## 3. 🔴 BP-202 — the editor refuses wires the compiler would accept. **BP-114's sibling.**
+## 3. 🔴 BP-203 — the editor refuses wires the compiler would accept. **BP-114's sibling.**
 
 > E5: *"Return node pins (shown properly) could not be wired to int and string literals."*
 
@@ -100,7 +100,7 @@ BP-114: stop maintaining a second list.** This is the third instance.
 | Axis | What to add |
 |---|---|
 | **1 · Run and assert VALUES** | Tick the compiled blueprint; assert the **printed line's substituted value** and the **returned value**, not that it compiled. Reuses `BlueprintRunHarness` + `AiBehaviorLogTarget` (BP-124's test is the seed) |
-| **2 · Wiring acceptance** | For each (output type × literal type) pair, author both, attempt the link, assert accepted/refused **and that the answer matches `CoercionTable`**. ⭐ This single axis catches BP-202 and every future editor/compiler drift |
+| **2 · Wiring acceptance** | For each (output type × literal type) pair, author both, attempt the link, assert accepted/refused **and that the answer matches `CoercionTable`**. ⭐ This single axis catches BP-203 and every future editor/compiler drift |
 | **3 · ⭐ Edit SEQUENCES, not final states** | place → set format → **change** format → assert pins re-derived **and no dangling links**; add output → reload → assert pins survive. **Every defect this round lived in a sequence** |
 
 ⚠ **Expect it to go red beyond the three bugs above. Register each as a row; do not fix them all here.**
@@ -111,10 +111,10 @@ BP-114: stop maintaining a second list.** This is the third instance.
 
 | ID | |
 |---|---|
-| **BP-203** | The `Format` field records **one undo entry per keystroke** (*"undo was going back each typed char"*). Wrap the edit, as Batch 26 item 3 requires for Graph Signature — **same fix shape, do them together** |
-| **BP-204** | Selecting a different node **does not re-seed the Details text buffer** — the user saw `Format String` keep `Print String`'s text. ⚠ **BP-86's family** (`ImGuiBufferText`); re-seed on selection change |
-| **BP-205** | ⭐ **Diagnostics carry GUIDs only.** `BP1602` named a node id and nothing else. **Every diagnostic must carry blueprint name + graph name + node display name.** ⚠ The user could not tell *which asset* failed — with 40 assets that is a search, not a fix. Cheap and it pays back on every future bug report |
-| **BP-206** | My Blueprint items open on **double-click** but look like buttons. ⚠ **Check Unreal before changing behaviour** — it also uses double-click to open and single-click to select, so the fix is likely the **affordance**, not the gesture. Third instance of the double-click-with-no-hint pattern (BP-75, BP-90) |
+| **BP-204** | The `Format` field records **one undo entry per keystroke** (*"undo was going back each typed char"*). Wrap the edit, as Batch 26 item 3 requires for Graph Signature — **same fix shape, do them together** |
+| **BP-205** | Selecting a different node **does not re-seed the Details text buffer** — the user saw `Format String` keep `Print String`'s text. ⚠ **BP-86's family** (`ImGuiBufferText`); re-seed on selection change |
+| **BP-206** | ⭐ **Diagnostics carry GUIDs only.** `BP1602` named a node id and nothing else. **Every diagnostic must carry blueprint name + graph name + node display name.** ⚠ The user could not tell *which asset* failed — with 40 assets that is a search, not a fix. Cheap and it pays back on every future bug report |
+| **BP-207** | My Blueprint items open on **double-click** but look like buttons. ⚠ **Check Unreal before changing behaviour** — it also uses double-click to open and single-click to select, so the fix is likely the **affordance**, not the gesture. Third instance of the double-click-with-no-hint pattern (BP-75, BP-90) |
 
 ---
 

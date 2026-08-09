@@ -80,7 +80,7 @@ document came from ignoring this.
 |---|---|---|
 | 1 | ⭐ **Never amend a handoff after dispatch.** New findings go in the *next* handoff, never back into the live one. This is the root cause of both collisions | coordinator |
 | 2 | **Stamp `Dispatched at <sha>` in every handoff header**, so an edit after that point is visibly illegal | coordinator |
-| 3 | **While a batch is in flight, allocate new IDs from `BP-200+`** and renumber on merge. Rule 1 makes this rare; it is the backstop when a finding cannot wait | coordinator |
+| 3 | ⭐ **The coordinator allocates NO ids.** `BP-200+` failed too — both sessions reached into the same block (three collisions now). Describe findings; **the implementation session numbers them** when it creates the rows. Any number in a handoff is a placeholder the implementation session may change | coordinator |
 | 4 | ⭐ **Before your final commit, pull the coordinator branch again** and read any handoff/design file that changed. This is the cheap half of the fix — it catches late additions rule 1 cannot prevent | implementation |
 | 5 | **State the IDs you allocated** in your report, so a collision is caught at merge, not three batches later | implementation |
 | 6 | ⭐ **The tracker + detail docs belong to the implementation session for the batch's duration.** The coordinator records findings in conversation and in the next handoff, not as rows | both |
