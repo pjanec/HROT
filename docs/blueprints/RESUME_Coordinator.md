@@ -45,7 +45,56 @@ Known flakes: `PdbEmbeddedSourceTests`, `WhenNodePerfTests.WhenNode_ValueChanged
 
 ---
 
-## 0. ✅ Batch 24 part 1 VERIFIED (BP-114 only) — and ⚠ **they never saw Item 0**
+## 0. ✅ Batch 24 part 2 VERIFIED (BP-116 + BP-117) — ⚠ **the matrix is still not built**
+
+Gates on the merged tree, **all eight green**: build **0 errors** · Blueprints **2958 / 0 / 10 skipped**
+(2968 total, **+21** = 16 BP-116 + 5 BP-117, reconciles exactly) · AiShared **1213 / 0** ·
+BTree **612 / 0** · Breakpoints **130 / 0** · NodeEdit Core **208 / 0** · UI **131 / 0** ·
+Generators **193 / 0**. Flake did not fire.
+
+**Counts: 64 open / 58 done, header and checkbox tally exact, no duplicate ids.**
+✅ **Their "+1/+1 permanent offset" is real** — I checked it suspecting sloppiness and was wrong. A
+looser regex catches two **struck-through** rows (`~~BP-46~~` refuted, `~~Squad-quartet~~` abandoned),
+one `[x]` and one `[ ]`, giving exactly +1/+1. 💡 **Tighten the check to exclude `~~` rows** so it is
+exact again — a reconciliation check with a standing known offset is a weaker check.
+
+### 🔴 STILL OUTSTANDING — the authoring-path matrix (Item 0's main deliverable)
+
+They fixed the three defects the matrix was meant to find, but **did not build the matrix.** It is now
+**more** important, not less, by their own admission:
+
+> BP-117's `return default;` emit *"is currently defense-in-depth only: BP1657 being an Error means the
+> pipeline never reaches emit — the Roslyn-level proof belongs to the Item-0 matrix."*
+
+⇒ **A code path shipped this batch has no Roslyn-level proof at all.** That is precisely the shape
+(BP-104, BP-110, BP-112) the matrix exists to close. **Next batch starts here.**
+
+### ⭐ They were right to reorder, and found a dependency I missed
+
+My sequencing put **BP-118** second. They deferred it, correctly: `SmokePatrol` is the *peer-call*
+sample, so moving it under `Assets/Blueprints/` makes it generator-compiled and **it cannot compile
+until BP-116 and BP-117 land**. Registered with that dependency stated. **My ordering was wrong.**
+
+### Two judgement calls they surfaced — worth a user decision
+
+1. **`BP1657` severity.** They chose **Error** (C#'s *"not all code paths return a value"*), flagging
+   that **Unreal silently returns defaults** on such a path, so Error is stricter than a designer
+   arriving from Unreal expects. `Warning` + `return default;` is the alternative.
+2. ⚠ **`PrintString_Node_Design.md` §3b now records a zero-alloc ruling attributed to the user**
+   ("favor zero alloc path, it is always better"). **That exchange is not in the coordinator's
+   transcript** — presumably the user spoke to the implementation session directly. The *conclusion*
+   matches the coordinator's own independent recommendation, so nothing is at risk; **but confirm the
+   attribution before it is treated as binding.**
+
+### 🆕 BP-119 registered (not buried)
+
+Undoing the *creation* of a peer-call node leaves the peer declared, because the declaration is not part
+of the node-add undo record; explicit deletion *does* retract. Correctly scoped out of BP-116 and filed
+as a row.
+
+---
+
+## 0-prev. ✅ Batch 24 part 1 VERIFIED (BP-114 only) — ⚠ they never saw Item 0
 
 Gates on the merged tree, **all eight green**: build **0 errors** · Blueprints **2937 / 0 / 10 skipped**
 (2947 total, **+12**) · AiShared **1213 / 0** · BTree **612 / 0** · Breakpoints **130 / 0** ·
