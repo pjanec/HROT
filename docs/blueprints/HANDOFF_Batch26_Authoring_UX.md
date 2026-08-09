@@ -1,5 +1,10 @@
 # HANDOFF — Batch 26: make authoring actually work
 
+> 📌 **Dispatched at `611fdbfd`.** Per `.claude/CLAUDE.md` → *Two-session protocol* rule 1, **this file is
+> frozen from here.** Anything found later goes in the next handoff, never back into this one.
+> ⭐ **Rule 4 is yours:** before your final commit, pull the coordinator branch again and read any
+> handoff or design file that changed.
+>
 > **Read in full. Self-contained.** You are an implementation session; a coordinator session owns the
 > plan and reviews your diff.
 >
