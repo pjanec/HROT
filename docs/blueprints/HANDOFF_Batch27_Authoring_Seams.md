@@ -13,6 +13,33 @@
 
 ---
 
+## 0a. ⚡ How to work — the standing rules
+
+**You are on Opus. Delegate to Sonnet everything that does not need Opus-level reasoning.**
+
+| Item | 🔴 Opus keeps | 🟢 Sonnet takes |
+|---|---|---|
+| **1** `ArgTypes` | deciding the default-from-connected-pin rule | the detail-panel write + tests |
+| **2** dangling link | the prune-inside-the-undo-record shape | tests |
+| **3** wiring/type system | delegating coercion to `CoercionTable` without changing its meaning | the alias→FQN resolution + tests |
+| **4** matrix axes | ⭐ **all three axes — not delegable.** Getting the harness wrong reproduces the blind spot it exists to close | the case tables once each axis's shape is settled |
+| **5** undo wrap · buffer re-seed | — | ⭐ **both, entirely** |
+| **6** diagnostic names | choosing what identity every diagnostic carries | threading it through the call sites |
+| **9** rename · `Success` pin · retire window | the `Success`-pin emit and the zero-output-Library `void` change | the rename menu item, the window deletion |
+
+⚠ **Sub-agents share ONE working tree** — sequential only:
+```bash
+while [ "$(ps aux | grep -c '[d]otnet build\|[d]otnet test')" != "0" ]; do sleep 5; done
+```
+⚠ **Gate every commit on the fix being in the tree**, not on an agent reporting success.
+
+| | |
+|---|---|
+| **Push to** | `claude/blueprint-macro-feature-sdmspn`, built on the coordinator branch as usual |
+| **Rule 6** | The **tracker + detail docs are yours** for this batch; the coordinator will not touch them |
+| **Revert-goes-red** | Every fix, **never delegated** |
+| **Commit per item** · **stop cleanly at a boundary** · **no PR** | |
+
 ## 0. ⭐ Answering the user's question: *"why could this not be done headlessly?"*
 
 **It can. The matrix you built is right — it just stops three steps short.** Every defect below is
@@ -138,8 +165,21 @@ confirmed fixed in the field.
 
 ## 7. Gates
 
-Same eight, `--logger "console;verbosity=normal"`. **Baseline: Batch 26's numbers** (measure them on
-merge; Batch 25's were build 0 errors · Blueprints **2999 / 0 / 10**).
+Same eight, `--logger "console;verbosity=normal"`.
+
+**Baseline — coordinator-measured on the merged Batch-26 tree, 2026-08-09:**
+
+| | |
+|---|---|
+| Solution build | **0 errors**, ⚠ **plus 34 BP warnings** (32×`BP3010`, 2×`BP3011`) |
+| Blueprints | **3017 / 0 / 10 skipped** |
+| AiShared · BTree · Breakpoints | **1213 / 0** · **612 / 0** · **130 / 0** |
+| NodeEdit Core · UI · Generators | **208 / 0** · **131 / 0** · **193 / 0** |
+
+⚠ ⭐ **The 34 warnings are EXPECTED, not a regression** — BP-121 made them visible for the first time.
+**Do not fix or silence them** (D6: triage waits for item 6's diagnostic names, and some orphan GUIDs
+appear in no asset file, so they were compiler-synthesized rather than authored). **A change in the
+count is a signal; report it.**
 ⚠ Items here touch the editor **and** the type system — run all eight.
 
 ## 8. Reporting
