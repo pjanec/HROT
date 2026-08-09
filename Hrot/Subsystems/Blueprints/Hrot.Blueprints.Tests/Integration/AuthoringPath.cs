@@ -389,6 +389,25 @@ internal static class AuthoringPath
         }
     }
 
+    // ── Axis 1: run the result and assert VALUES ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Round-trips <paramref name="asset"/> through the editor's <b>save</b> and the loader's
+    /// <b>deserialize</b>, returning the asset a designer would actually have after saving and
+    /// reopening.
+    ///
+    /// <para>
+    /// ⭐ <b>Required before ticking, not a nicety.</b> An in-memory authored asset can carry state the
+    /// saved file never does — most importantly a populated <c>Node.Pins</c> list (BP-208). Ticking the
+    /// in-memory object would run a shape that never reaches disk, and would hide exactly the
+    /// save-shaped defects this harness exists for.
+    /// </para>
+    /// </summary>
+    public static BlueprintAsset SaveAndReload(BlueprintAsset asset)
+        => BlueprintJsonServices.Deserialize(SaveToText(asset))
+           ?? throw new InvalidOperationException(
+               $"The editor's own save output for '{asset.Name}' did not deserialize.");
+
     /// <summary><see cref="AdditionalText"/> over an in-memory string — the generator's only input channel.</summary>
     private sealed class InMemoryAdditionalText : AdditionalText
     {
