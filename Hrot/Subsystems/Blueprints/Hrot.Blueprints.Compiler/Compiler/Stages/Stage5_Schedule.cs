@@ -815,8 +815,15 @@ internal sealed class GraphScheduler
     /// otherwise synthesizes the dispatch-appropriate implicit return
     /// (<see cref="IrTerm_ReturnStatus"/>(Success) for AiPrimitive, and for Library only
     /// while <see cref="_graph"/> declares no outputs; void <see cref="IrTerm_Return"/>
-    /// otherwise -- Instance, or an outputs-declaring Library graph whose chain fell off the
-    /// end with no explicit Return, matching <see cref="BuildReturnTerminator"/>'s rule -- BP-104).
+    /// otherwise -- Instance, matching <see cref="BuildReturnTerminator"/>'s rule -- BP-104).
+    ///
+    /// <para>
+    /// BP-117: the one case BP-104 got wrong is an outputs-declaring <b>Library</b> graph whose chain
+    /// fell off the end. Its method returns <c>T</c> or a <c>ValueTuple</c>, so the void return BP-104
+    /// chose is <b>CS0126</b>. That case now emits <c>return default;</c>
+    /// (<see cref="IrTerm_Return.ReturnsDefault"/>) <b>and</b> <c>BP1657</c> -- valid C#, plus a
+    /// diagnostic, because a silently-defaulted return value is worse than a compile error.
+    /// </para>
     /// Centralizes the decision so that branch chaining (Sequence) is honoured
     /// wherever a block's exec chain naturally ends.
     /// </summary>
@@ -845,7 +852,27 @@ internal sealed class GraphScheduler
         }
         else
         {
-            var term = new IrTerm_Return(null /* void */);
+            // BP-117: BP-104 correctly stopped emitting a NodeStatus here, but the void return it put
+            // in its place is only right for Instance (a void method). A Library graph DECLARING
+            // outputs compiles to a method returning T or a ValueTuple, and `return;` there is CS0126
+            // -- reported by Roslyn against generated code the author never wrote. Emit
+            // `return default;` so the generated C# is valid, and report BP1657 so the implicit
+            // default is never silently returned: this is exactly C#'s "not all code paths return a
+            // value", and a wrong VALUE is worse than a compile error.
+            bool libraryOwesAValue =
+                _typed.Asset.Dispatch == AssetDispatchKind.Library && _graph.Outputs.Count > 0;
+
+            if (libraryOwesAValue)
+            {
+                _ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1657,
+                    $"Library graph \"{_graph.Name}\" declares {_graph.Outputs.Count} output(s) but an "
+                    + "execution path ends without a Return node; the generated function would return "
+                    + "an unspecified default. Add a Return node on every path (C#: \"not all code "
+                    + "paths return a value\").",
+                    _typed.Asset.AssetId, _graph.Id));
+            }
+
+            var term = new IrTerm_Return(null /* void */, ReturnsDefault: libraryOwesAValue);
             if (debug is not null) term = term with { Debug = debug };
             bb.Terminator = term;
         }

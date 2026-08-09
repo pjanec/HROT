@@ -59,7 +59,9 @@ internal static class IrPrinter
 
     private static string PrintTerminator(IrTerminator term) => term switch
     {
-        IrTerm_Return r      => r.Value.HasValue ? $"return t{r.Value.Value.Index}" : "return",
+        IrTerm_Return r      => r.Value.HasValue ? $"return t{r.Value.Value.Index}"
+                                : r.ReturnsDefault ? "return default"   // BP-117
+                                : "return",
         IrTerm_ReturnStatus s => $"return_status {s.Status}",
         IrTerm_Goto g        => $"goto block_{g.Target.Value}",
         IrTerm_Branch b      => $"branch t{b.Condition.Index} ? block_{b.IfTrue.Value} : block_{b.IfFalse.Value}",

@@ -86,6 +86,11 @@ public static class DiagnosticCodes
     // RETIRED by BP-73 (N outputs now compile to a ValueTuple carrier). Kept so the number is
     // never reused; no longer emitted anywhere.
     public const string BP1656 = "BP1656";  // [retired] Function graph declares more than one output
+    // BP-117: C#'s own "not all code paths return a value", in blueprint terms. A Library graph that
+    // declares outputs but whose exec chain runs off the end with no Return node used to emit a bare
+    // `return;` -- CS0126 from Roslyn, attributed to generated code the author never wrote. The
+    // terminator now emits `return default;` so the generated C# is valid, and THIS says why.
+    public const string BP1657 = "BP1657";  // Library graph declares outputs but an exec path ends with no Return node
 
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch

@@ -2296,6 +2296,84 @@ for real.
 | **Tests** | `BP114_TypeComboIndexTests`, 12 tests. **10 of 12 go red on revert**; the 2 survivors are precisely the exact-alias cases, which matched before the fix as well |
 
 
+<a id="bp-116"></a>
+### BP-116 — the editor never writes `CallablePeers`; every editor-authored peer call fails to compile
+**Complexity:** RW-L · 🔴 · **Confidence:** ✔✔✔ *(grep of the whole editor assembly)*
+
+```
+CSC : error BP1300: CallPeerBlueprintNode targets asset 68c3…, which is not in CallablePeers list.
+```
+
+`Stage2_Validate:935` requires `asset.CallablePeers.Contains(targetId)`. In `Hrot.Blueprints.Editor`
+that list is **only ever read**:
+
+| Site | |
+|---|---|
+| `BlueprintNodeCatalog:148` | projects it into the peer palette |
+| `BlueprintSignatureBuilder:42` | passes it to the compiler |
+
+**Nothing anywhere in the editor adds to it.** The three writers of `CallPeerBlueprintNode.PeerBlueprintId`
+— `BlueprintCommandSink.CreateDynamicNode:500` (palette kind `CallPeer.{guid}`),
+`BlueprintCommandSink.ApplyInitialProperties:589` (drag-drop) and
+`CallPeerBlueprintNodeSession.ApplyPeer` (the Details combo) — all record the node's peer id and
+nothing else.
+
+⚠ **Second-order effect that makes it total rather than intermittent:** the peer palette entries are
+themselves projected *from* `CallablePeers`, so that palette is permanently empty and the Details combo
+is the only reachable route to a peer call.
+
+⚠ **Why every test missed it.** Every fixture hand-writes `CallablePeers` — `SmokePatrol.bp.json` carries
+`"CallablePeers": ["00000099-…-f1"]` literally. **BP-109 composed a multi-asset set and still missed
+this, because it composed the JSON, not the authoring path.** Trap #9 one layer further out than we had
+been looking: not two halves of the *compiler*, but the **editor and the compiler**.
+
+**Fix:** maintain the list wherever `PeerBlueprintId` is set. ⭐ In the picker it must happen **inside the
+existing `RecordPropertyEdit`**, so one designer gesture stays one undo entry. The session already holds
+the owning asset as `_parent`, so the list is reachable. ⚠ A stale entry is not harmless —
+`Stage2_Validate` also errors on a declared peer that is not in the compilation — so undo must remove an
+entry it added once nothing references it.
+*— found by the user, Batch 24*
+
+<a id="bp-117"></a>
+### BP-117 — a Library graph with declared outputs and no `Return` node emitted a bare `return;` (CS0126)
+**Complexity:** RW-L · 🔴 · **Confidence:** ✔✔✔ *(reproduced; fixed)*
+
+```
+FuncLib1_35E21E12_Bp.g.cs(23,9): error CS0126: An object of a type convertible to '(bool, bool)' is required
+```
+
+`Stage5_Schedule.SealFallThrough` synthesizes the implicit terminator when an exec chain runs off the end
+with no `Return` node. **BP-104 traded one mismatch for another:** it correctly stopped emitting a
+`NodeStatus` there, but the void return it substituted is right only for **Instance**, which compiles to a
+void method. A **Library** graph declaring outputs compiles to a method returning `T` or a `ValueTuple`,
+where `return;` is CS0126 — reported against generated code the author never wrote.
+
+🛠 **FIXED — Batch 24.**
+
+| | |
+|---|---|
+| **IR** | `IrTerm_Return` gained `ReturnsDefault`. ⭐ **A flag, not a new `IrTerm_ReturnDefault` type:** both switches over `IrTerminator` end in a catch-all, so a new kind could have been silently mis-emitted — trap #5's shape, and the class this batch exists to close. `Value == null` genuinely cannot distinguish void from default, so the IR must carry it |
+| **Emit** | `return default;` — valid for a scalar and a `ValueTuple` alike, so the emitter needs no return-type string at a point where it does not have one |
+| **Diagnostic** | **`BP1657` (Error)** naming the graph — C#'s *"not all code paths return a value"*. A silently-defaulted return value is how the next invisible wrong-value bug ships |
+| ⚠ **Open judgement call** | Unreal silently returns defaults on such a path, so `Error` is stricter than a designer coming from Unreal expects. `Warning` + `return default;` is the fallback if it proves obstructive in the visual check |
+| **Tests** | `BP117_LibraryFallThroughTests`, 5 tests. **3 go red on revert**; the 2 that do not are exactly the additivity guards (zero-output Library → still `ReturnStatus`; Instance → still void) |
+| ⚠ **Coverage note** | Because BP1657 is an Error the pipeline never reaches emit, so `return default;` is defense-in-depth only. **The Roslyn-level proof belongs to the Item-0 authoring-path matrix**, which asserts 0 diagnostics rather than `Succeeded` — the same gap that let BP-104 and BP-110 hide |
+
+*— found by the user, Batch 24*
+
+<a id="bp-118"></a>
+### BP-118 — the shipped sample blueprints are not openable
+**Complexity:** WIRING · 🟠 · **Confidence:** ✔✔✔
+
+`SmokePatrol` / `SmokeGuard` / `SmokeMathLib` exist **only** under `Recipes/Blueprints/`. Recipes are
+templates to *instantiate*, never files to *open*, and `Assets/Blueprints/` has no copy — so the user
+looking for the samples could not find them at all.
+
+**Fix:** also ship them under `Assets/Blueprints/`. ⚠ That makes them `<AdditionalFiles>` and therefore
+**generator-compiled, so they must be clean** — which is the point of doing it. ⚠ **Depends on BP-116 and
+BP-117**: `SmokePatrol` is the peer-call sample, so it cannot compile until those land.
+*— found by the user, Batch 24*
+
 <a id="bp-88"></a>
 ### BP-88 — An Instance blueprint can contain **no Event graph, and none can be created**
 **Complexity:** RW-L · **Confidence:** ✔✔✔ *(grounded in the asset JSON)*

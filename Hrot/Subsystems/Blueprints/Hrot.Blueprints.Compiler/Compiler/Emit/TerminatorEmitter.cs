@@ -22,6 +22,11 @@ internal static class TerminatorEmitter
             case IrTerm_Return t:
                 if (t.Value.HasValue)
                     e.WriteLine($"return __t{t.Value.Value.Index};");
+                // BP-117: a value-returning method (Library with declared outputs) whose exec chain
+                // fell off the end. `return;` here is CS0126; `return default;` is valid for both a
+                // scalar and a ValueTuple, so no return-type string is needed at this point.
+                else if (t.ReturnsDefault)
+                    e.WriteLine("return default;");
                 else
                     e.WriteLine("return;");
                 break;
