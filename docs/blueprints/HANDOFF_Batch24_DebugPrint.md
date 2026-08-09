@@ -87,6 +87,22 @@ Silently returning a default is how the next invisible wrong-value bug ships.
 fixed.)* Cheapest fix: also ship them under `Assets/Blueprints/` — ⚠ which makes them
 generator-compiled, so they must be **clean**, which is the point.
 
+### 🔄 Ordering — the user is doing a visual check **right now**, and two of these unblock them
+
+**Two sections of their guide are marked SKIP because of these bugs.** Sequence accordingly:
+
+| Order | | Why here |
+|---|---|---|
+| **1** | ⭐ **Build the matrix harness first — as the repro** | It is the fastest *honest* reproduction of all three, and it becomes their regression test for free. **Do not hand-write three one-off repros you then throw away** |
+| **2** | **BP-118** (assets openable) | Trivial, and it unblocks the user's section E immediately |
+| **3** | **BP-116** (CallablePeers) | Unblocks their section D — the peer-call check they cannot run at all today |
+| **4** | **BP-117** (bare `return;`) | Unblocks 2-output library functions |
+| **5** | Report everything **else** the matrix found | Rows, not fixes |
+
+⭐ **The matrix's first red cells should be exactly BP-116/117/118.** If it goes green on those, the
+harness is not composing through the authoring path and needs fixing before it is worth anything —
+that is the single most important check in this batch.
+
 ### ⭐ The actual deliverable — an authoring-path compile matrix
 
 **Do not just fix the three.** Build the test that makes this class of defect impossible to ship:
@@ -266,6 +282,24 @@ A test that exercises just the generator path would miss the entire reason the a
 **Delegation:** 🔴 **Opus** — the format parser, the registry shapes, Stage5, emit, and the `Fdp.Core`
 helper's layering. 🟢 **Sonnet** — the node models, palette entries, drawers + detail-panel UI, and the
 test bodies once the shapes are fixed.
+
+---
+
+## 3b. 🟢 Filler — safe to pick up if you are blocked or have room
+
+Both are **invisible to the user's visual check**, so they cannot confuse a test in flight.
+
+**BP-111 — the wall-clock perf flake.** It has now polluted three consecutive gate runs and the failing
+member differs each time, so the "two named tests" in the flake list is wrong: it is the **whole
+wall-clock perf class**. Either give the class a deterministic budget (iteration-count or
+`Stopwatch`-calibrated baseline rather than a fixed nanosecond wall-clock target), or move it to an
+explicitly-opt-in category so a normal gate run is clean. ⚠ **Do not simply delete the assertions** —
+"fix, don't disable". A perf test nobody trusts is worse than none, which is the actual complaint.
+
+**BP-115 — no test covers a peer whose name needs sanitizing.** Four fixtures pass `SanitizedName:
+peer.Name` raw and only work because every fixture name is already sanitizer-clean. One fixture with a
+space or dash in the name closes it. ⚠ **The matrix (Item 0) may cover this for free** — check before
+writing it separately.
 
 ---
 
