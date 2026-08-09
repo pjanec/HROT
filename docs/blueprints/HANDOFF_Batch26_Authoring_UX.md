@@ -25,10 +25,16 @@ while [ "$(ps aux | grep -c '[d]otnet build\|[d]otnet test')" != "0" ]; do sleep
 
 | | |
 |---|---|
-| **Push to** | `claude/blueprint-macro-feature-sdmspn`; merge the coordinator branch first |
-| **New IDs** | **BP-200+** while this batch is in flight *(the coordinator will renumber on merge — this is the rule that keeps failing)* |
+| **Push to** | `claude/blueprint-macro-feature-sdmspn`, built on the coordinator branch as usual |
+| ⭐ **Rule 4 — before your FINAL commit** | **Pull the coordinator branch again** and read any handoff/design file that changed. You build linearly on whatever existed when you started, so late coordinator changes are invisible to you otherwise. **This is what the last two ID collisions cost us** |
+| ⭐ **Rule 5 — in your report** | **List every BP id you allocated**, so a collision surfaces at merge |
+| **New IDs** | **BP-200+** while this batch is in flight; the coordinator renumbers on merge |
+| **Rule 6** | The **tracker + detail docs are yours** for this batch. The coordinator will not touch them |
 | **Revert-goes-red** | Every fix, **never delegated** |
 | **Commit per item** · **stop cleanly at a boundary** · **no PR** | |
+
+⚠ ⭐ **BP-125…131 do not exist as rows yet.** The coordinator could not add them without violating
+rule 6. **Create them from the descriptions below as your first act**, keeping these numbers.
 
 ---
 
@@ -71,13 +77,30 @@ the diagnostic drain currently sits inside the `if (!result.Succeeded)` branch; 
 drained **unconditionally**, before the success/failure decision, and map severity through to Roslyn
 (`DiagnosticSeverity.Warning` for our Warnings, `Error` for Errors).
 
-⚠ **Two things to get right:**
-1. **Do not let a warning fail the build.** `Hrot.AI.Behaviors` does **not** set
-   `TreatWarningsAsErrors`, but verify that before you ship — if it did, hoisting the drain would turn
-   every unwired pin in the repo into a build break.
-2. ⭐ **Assert it in the matrix, not just in a unit test.** The matrix already compiles through the real
-   generator; add a case whose expected result is *"compiles, and emits exactly this warning"*. A unit
-   test on the drain would have passed all along.
+🔴 ⚠ **CORRECTION — the coordinator had this backwards, verified 2026-08-09.**
+`Hrot/Subsystems/Hrot.AI.Behaviors/Hrot.AI.Behaviors.csproj:4` **does set
+`<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`.**
+
+⇒ **A naive unconditional hoist turns every `BP4001` (unwired data pin) and every `BP3010` (orphan
+node) in the repo into a hard build error.** That is a repo-wide break, and it is the exact opposite of
+the intent — the goal is that designers *see* warnings, not that the build stops.
+
+**Do it in this order:**
+
+1. **Hoist the drain**, mapping our Warning → `DiagnosticSeverity.Warning`.
+2. ⭐ **Measure before you commit.** Build the solution and **count what surfaces**, by diagnostic id.
+   The shipped assets under `Assets/Blueprints/` have never been warning-checked, so assume non-zero.
+3. **Add `<WarningsNotAsErrors>` for the BP warning ids** to `Hrot.AI.Behaviors.csproj` — `BP1657`,
+   `BP4001`, `BP3010` and any others step 2 surfaces. ⭐ **This is the right lever:** the warnings stay
+   **visible in build output**, which is the whole point, while `TreatWarningsAsErrors` keeps protecting
+   against *C#* warnings, which is why it is set.
+   ⚠ **Do NOT lower our severities to `Info` to dodge this** — that hides them in normal builds and
+   re-creates the bug one level down.
+4. ⭐ **Report the counts from step 2.** Every one is a real authoring defect nobody has ever seen. **Do
+   not fix them in this batch** — register what is interesting as rows and move on.
+5. ⭐ **Assert it in the matrix, not just a unit test.** The matrix already compiles through the real
+   generator; add a case whose expected result is *"compiles, **and** emits exactly this warning"*. A
+   unit test on the drain would have passed all along.
 
 **Delegation:** 🔴 Opus for the hoist and the severity mapping. 🟢 Sonnet for the matrix case + tests.
 
@@ -264,7 +287,10 @@ existing asset starts warning, that is the fix working; **register what it finds
    logger-name change** — anything else does not test the seam.
 3. ⭐ **What Item 1 surfaced repo-wide** once warnings stopped being swallowed.
 4. What you delegated to Sonnet, what you kept.
-5. Anything here wrong against the code. **You have been right against these handoffs five times now.**
+5. ⭐ **Every BP id you allocated** (rule 5) — including the BP-125…131 rows you create.
+6. Anything here wrong against the code. **You have been right against these handoffs five times now** —
+   and the coordinator got `TreatWarningsAsErrors` backwards in this very document before catching it,
+   so keep checking.
 
 **Done =** gates green vs baseline · rows `[x]` with `DONE` notes · counts reconciled · commit per item ·
 pushed. **No PR.**
