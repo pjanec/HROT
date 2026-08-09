@@ -181,3 +181,5 @@ AiPrimitive contract depend on the current shape. 📐 **Design note first; do n
 
 ⚠ **BP-123 and BP-126 are design items — write notes, do not build.** The coordinator runs them past the
 architect.
+
+> ⛔ **SUPERSEDED by [HANDOFF_Batch26_Authoring_UX.md](HANDOFF_Batch26_Authoring_UX.md)** — the BP-120..126 IDs below collided with Batch 25 and are renumbered **BP-125..131** there. Kept only for the root-cause analysis.
