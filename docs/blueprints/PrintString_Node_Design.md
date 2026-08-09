@@ -84,6 +84,15 @@ but the drawer should make the pin set visibly follow the text so it is never a 
 
 ## 3b. ⭐ Allocation — raised by the implementation session, and they were right
 
+> ✅ **SETTLED BY THE USER (2026-08-09), and this is the binding ruling.** The user was first asked
+> whether a per-tick managed allocation was acceptable and replied that `Format String` calling
+> `string.Format` *"is OK"*. When the zero-alloc alternative below was put to them explicitly they
+> ruled: **"favor zero alloc path, it is always better."**
+> ⇒ **Build the `stackalloc` + `TryWrite` path below. The permission to allocate is superseded — do not
+> fall back to `string.Format` on the grounds that the user once allowed it.**
+> 🔴 **This makes the `ReadOnlySpan<char>` ctors in item 2 load-bearing, not optional:** without them
+> `new FixedString128(...)` still needs a managed string and the whole exercise buys nothing.
+
 > Them: *"Format String is pure, so unlike Print String it has no level probe to hide behind, and a pure
 > node in a Tick graph would allocate a managed string every tick for every entity. The design note does
 > not address it."*
