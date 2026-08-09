@@ -96,3 +96,32 @@ would trade a projection bug for a missing feature.
 ⭐ **Recommendation:** ship **BP-125** now (done this batch), then take **Q1/Q2** to the architect before
 building, since both are about *ownership of state* rather than layout — and ownership is precisely what
 went wrong the first time.
+
+
+---
+
+# ✅ SETTLED — precondition now met
+
+> Appended Batch 27 by the implementation session.
+
+`DECISIONS_Authoring_UX.md` §D2 settled the shape, and **it is much smaller than this note assumed**:
+
+- ⭐ **The empty-canvas Details surface is NOT needed.** The note assumed Unreal shows graph/asset
+  properties on an empty-canvas click. **It does not** — Unreal clears Details, and function properties
+  live on the entry node. So the panel this note proposed building does not need to exist.
+- **Graph rename** — the one thing that was waiting on that surface — went to **My Blueprint's context
+  menu** instead and **shipped in Batch 27** ([BP-127](Blueprint_Issues_Detail.md#bp-127)).
+- Inputs (entry node) and Outputs (Return node) already work.
+
+⇒ **What remains is mostly deletion**, not design.
+
+⚠ **The stated precondition — *"do it only after the matrix's edit-sequence axis exists, so the removal
+is covered"* — is now MET**: `AuthoringPathEditSequenceTests` shipped in Batch 27
+([BP-210](Blueprint_Issues_Detail.md#bp-210)).
+
+⚠ **One thing to check before deleting**, because Batch 26 spent a whole item on it: `GraphSignatureWindow`
+is where [BP-125](Blueprint_Issues_Detail.md#bp-125) routed signature edits through `IEditService`, and
+`BP125_SignatureEditsReprojectTests` includes a **parity test asserting the two writers are observably
+indistinguishable**. Deleting one writer makes that parity test vacuous rather than red — ⭐ **the
+failure mode this programme keeps hitting.** Re-point it at the surviving writer, or delete it with the
+window and say so.
