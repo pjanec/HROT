@@ -520,6 +520,33 @@ public sealed record IrOp_BooleanOp(
 /// </summary>
 public sealed record IrOp_Not(IrValue Operand) : IrOperation;
 
+/// <summary>
+/// BP-108 — <c>Print String</c>. <paramref name="Format"/> is the ALREADY-REWRITTEN body of a C#
+/// interpolated string (placeholders replaced with <c>{__tN}</c> temp references by Stage 5), so emit is
+/// a pure string paste with no runtime formatting machinery.
+///
+/// <para>
+/// ⭐ Emitted <b>inside a level probe</b>: <c>if (BlueprintLog.IsInfoEnabled) BlueprintLog.Info($"…")</c>.
+/// The interpolation — and therefore every allocation — is skipped entirely when the level is off.
+/// </para>
+/// </summary>
+public sealed record IrOp_PrintString(string InterpolatedBody, string Level) : IrOperation;
+
+/// <summary>
+/// BP-108 — <c>Format String</c>. Same rewritten interpolated body as <see cref="IrOp_PrintString"/>,
+/// but the result is written into a <c>stackalloc</c> buffer and converted to a <c>FixedString</c>.
+///
+/// <para>
+/// ⚖️ <b>Zero-allocation by user ruling</b> (<i>"favor zero alloc path, it is always better"</i>). Unlike
+/// Print String this node is <b>pure</b>, so it has no level probe to hide behind — a naive
+/// <c>string.Format</c> here would allocate every tick for every entity. Emitting
+/// <c>MemoryExtensions.TryWrite</c> into a stack buffer and then the <c>ReadOnlySpan&lt;char&gt;</c>
+/// FixedString constructor keeps it allocation-free.
+/// </para>
+/// </summary>
+public sealed record IrOp_FormatString(
+    string InterpolatedBody, string ResultTypeFqn, int BufferChars) : IrOperation;
+
 // Debug probes (Debug/Trace modes)
 public sealed record IrOp_DebugProbe_NodeEnter(Guid NodeId, string NodeKind) : IrOperation;
 public sealed record IrOp_DebugProbe_PinValue(Guid PinId, IrValue Value, string PinName) : IrOperation;

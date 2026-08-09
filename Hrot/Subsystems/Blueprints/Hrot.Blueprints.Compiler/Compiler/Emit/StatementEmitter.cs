@@ -971,6 +971,37 @@ internal static class StatementEmitter
                 break;
 
             // ------------------------------------------------------------------
+            // BP-108 -- Print String / Format String
+            // ------------------------------------------------------------------
+
+            case IrOp_PrintString op:
+            {
+                // ⭐ The level probe is the whole performance story: when the level is off, the
+                // interpolated string is never constructed, so the node costs one bool read.
+                // The helper lives in Fdp.Core.Logging (NOT Hrot.AI.Behaviors.BehaviorLog): that
+                // assembly is not guaranteed loaded when MetadataReferenceResolver snapshots the
+                // AppDomain, which would be a CS0246 on hot reload only -- BP-62's shape.
+                var probe = $"global::Fdp.Core.Logging.BlueprintLog.Is{op.Level}Enabled";
+                var call  = $"global::Fdp.Core.Logging.BlueprintLog.{op.Level}";
+                e.WriteLine($"if ({probe})");
+                e.WriteLine($"    {call}($\"{op.InterpolatedBody}\");");
+                break;
+            }
+
+            case IrOp_FormatString op:
+            {
+                // ⚖️ Zero-alloc by user ruling. TryWrite formats straight into a stack buffer and the
+                // ReadOnlySpan<char> FixedString ctor (added alongside this node) consumes it without
+                // ever materialising a managed string.
+                if (idx < 0) break;
+                e.WriteLine($"global::System.Span<char> __fb{idx} = stackalloc char[{op.BufferChars}];");
+                e.WriteLine($"__fb{idx}.TryWrite($\"{op.InterpolatedBody}\", out int __fn{idx});");
+                e.WriteLine(
+                    $"var __t{idx} = new global::{op.ResultTypeFqn}(__fb{idx}.Slice(0, __fn{idx}));");
+                break;
+            }
+
+            // ------------------------------------------------------------------
             // Debug probes (Debug/Trace modes only)
             // ------------------------------------------------------------------
 
