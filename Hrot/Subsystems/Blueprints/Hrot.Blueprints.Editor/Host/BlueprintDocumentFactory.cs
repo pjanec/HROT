@@ -1675,6 +1675,18 @@ public static class BlueprintDocumentFactory
     /// </para>
     ///
     /// <para>
+    /// BP-126 — Unreal's "New Function" hands the author an already-wired entry + return; this one
+    /// used to hand back just the entry, so every new function needed a trip to the palette to find
+    /// Return, place it, and wire it — miss the wire and the compiler reports BP3010 (orphan) +
+    /// BP1657. The graph is now born with a <see cref="ReturnNode"/> too, exec-linked from the
+    /// entry's <c>Out</c> pin to the return's <c>In</c> pin, positioned apart on the canvas so the
+    /// wire is visible rather than a same-point overlap. Both nodes' pins are not yet materialised
+    /// (projection-only asset), so the link addresses them by <see cref="DeterministicIds.PinId"/> —
+    /// the same deterministic scheme Stage0_Rehydrate/<c>BlueprintGraphModel.Rebuild</c> use to
+    /// reconstruct pin GUIDs on load, so the link resolves correctly the moment pins materialise.
+    /// </para>
+    ///
+    /// <para>
     /// <b>Rejects</b> (returns <see langword="null"/>) a name that is not a C# identifier or that
     /// collides with any existing graph name (case-insensitive). When <paramref name="view"/> is
     /// supplied the append is one undoable entry on the document stack.
@@ -1692,6 +1704,9 @@ public static class BlueprintDocumentFactory
         var trimmed = name.Trim();
         if (IsDuplicateGraphName(asset, trimmed)) return null;
 
+        var entryId  = Guid.NewGuid();
+        var returnId = Guid.NewGuid();
+
         var graph = new Graph
         {
             Id   = Guid.NewGuid(),
@@ -1701,9 +1716,24 @@ public static class BlueprintDocumentFactory
             {
                 new EventEntryNode
                 {
-                    Id             = Guid.NewGuid(),
+                    Id             = entryId,
                     EventTypeId    = "",
                     EditorMetadata = new NodeMetadata { X = 120f, Y = 120f },
+                },
+                new ReturnNode
+                {
+                    Id             = returnId,
+                    EditorMetadata = new NodeMetadata { X = 420f, Y = 120f },
+                },
+            },
+            Links =
+            {
+                new Link
+                {
+                    FromNodeId = entryId,
+                    FromPinId  = DeterministicIds.PinId(entryId, "Out", "Out"),
+                    ToNodeId   = returnId,
+                    ToPinId    = DeterministicIds.PinId(returnId, "In", "In"),
                 },
             },
         };
