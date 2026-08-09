@@ -119,7 +119,16 @@ public sealed class BlueprintIncrementalGenerator : IIncrementalGenerator
 
         try
         {
-            return compiler.Compile(asset, options);
+            var result = compiler.Compile(asset, options);
+
+            // BP-206: resolve the ids every diagnostic already carries into names, HERE, where the
+            // asset is in hand. The alternative -- threading blueprint/graph/node names through every
+            // Diagnostic.Error(...) call site -- is a hundred edits that a new call site can forget;
+            // this one cannot drift.
+            return result with
+            {
+                Diagnostics = DiagnosticIdentity.Attribute(result.Diagnostics, asset),
+            };
         }
         catch (Exception ex)
         {
@@ -162,10 +171,17 @@ public sealed class BlueprintIncrementalGenerator : IIncrementalGenerator
     private static Microsoft.CodeAnalysis.Diagnostic ToRoslynDiagnostic(
         BpDiagnostic diag)
     {
+        // BP-206: "SmokePatrol ▸ Tick ▸ Print String: Orphan node … was eliminated." A designer reading
+        // the build output can now go straight to the node; before this the message named a GUID and
+        // finding it meant grepping every asset file.
+        var message = string.IsNullOrEmpty(diag.Origin)
+            ? diag.Message
+            : diag.Origin + ": " + diag.Message;
+
         var descriptor = new DiagnosticDescriptor(
             id:                 diag.Code,
             title:              diag.Code,
-            messageFormat:      diag.Message,
+            messageFormat:      message,
             category:           "Blueprints",
             defaultSeverity:    diag.IsError
                                     ? Microsoft.CodeAnalysis.DiagnosticSeverity.Error

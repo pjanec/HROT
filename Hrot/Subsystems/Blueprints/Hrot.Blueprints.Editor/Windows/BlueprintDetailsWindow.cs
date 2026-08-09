@@ -32,6 +32,8 @@ public sealed class BlueprintDetailsWindow : ManagedWindow
     private INodeEditSession? _session;
     private Guid _sessionNodeId;
     private Guid _sessionGraphId;
+    /// <summary>BP-205 — the node the cached session belongs to, for its ImGui id scope.</summary>
+    private Node? _sessionNode;
 
     // Active asset supplied by Retarget; needed to create sessions.
     private BlueprintAsset? _asset;
@@ -108,6 +110,7 @@ public sealed class BlueprintDetailsWindow : ManagedWindow
 
         ResolvedDrawerKind = drawer.GetType();
         _session       = drawer.CreateSession(node, _asset);
+        _sessionNode    = node;
         _sessionNodeId  = sub.NodeId;
         _sessionGraphId = sub.GraphId;
         return _session;
@@ -120,8 +123,22 @@ public sealed class BlueprintDetailsWindow : ManagedWindow
         var session = ResolveSession();
         if (session != null)
         {
-            // Delegate all rendering to the session (which may call ImGui freely).
-            session.Draw();
+            // BP-205: scope every widget the drawer creates to the selected node. Drawers label their
+            // widgets by role ("Format", "Level", …) and ImGui derives a widget's identity from its
+            // label within the current id stack -- so without this a Print String's "Format" field and
+            // a Format String's "Format" field are the SAME widget, and selecting the second hands it
+            // the first's live input buffer. See DetailsIdScope for why this belongs here rather than
+            // in each drawer.
+            ImGuiNET.ImGui.PushID(DetailsIdScope.For(_sessionNode!));
+            try
+            {
+                // Delegate all rendering to the session (which may call ImGui freely).
+                session.Draw();
+            }
+            finally
+            {
+                ImGuiNET.ImGui.PopID();
+            }
             return;
         }
 
@@ -196,6 +213,7 @@ public sealed class BlueprintDetailsWindow : ManagedWindow
     {
         _session?.Dispose();
         _session        = null;
+        _sessionNode    = null;
         _sessionNodeId  = Guid.Empty;
         _sessionGraphId = Guid.Empty;
         ResolvedDrawerKind = null;

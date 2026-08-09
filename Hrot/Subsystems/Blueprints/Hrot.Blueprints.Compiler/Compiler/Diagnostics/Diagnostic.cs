@@ -13,6 +13,23 @@ public sealed record Diagnostic(
     public Guid? NodeId  { get; init; }
     public Guid? PinId   { get; init; }
 
+    /// <summary>
+    /// BP-206 — the human-readable location this diagnostic came from, <c>"asset ▸ graph ▸ node"</c>,
+    /// resolved from the ids above by <see cref="DiagnosticIdentity"/>.
+    ///
+    /// <para>
+    /// ⚠ <b>Kept out of <see cref="Message"/> deliberately.</b> A large number of tests assert exact
+    /// message text; splicing the location in would redden them all for no behavioural reason. Whoever
+    /// renders the diagnostic composes the two — see <c>BlueprintIncrementalGenerator</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// Null until attributed, and null forever for a diagnostic with no asset to resolve against (a
+    /// JSON parse failure has no node to name).
+    /// </para>
+    /// </summary>
+    public string? Origin { get; init; }
+
     public bool IsError => Severity == DiagnosticSeverity.Error;
 
     public static Diagnostic Error(string code, string message)

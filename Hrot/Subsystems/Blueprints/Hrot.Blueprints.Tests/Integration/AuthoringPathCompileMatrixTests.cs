@@ -189,6 +189,37 @@ public sealed class AuthoringPathCompileMatrixTests
         Assert.Contains(result.GeneratedSources, src => src.Contains("_Bp"));
     }
 
+    /// <summary>
+    /// ⭐ <b>BP-206 — the seam, not the halves.</b> <c>DiagnosticIdentity</c> resolves ids to names and
+    /// <c>BlueprintIncrementalGenerator</c> renders them; each is unit-tested alone, and trap #9 is
+    /// exactly that shape — two halves of a contract, each green, the seam never crossed. This asserts
+    /// what a designer actually reads in the build output.
+    ///
+    /// <para>
+    /// ⚠ The diagnostic used is <c>BP3010</c> from a deliberately unwired node, because that is one of
+    /// the 34 warnings the shipped assets already emit — the exact population the user could not
+    /// attribute to a file.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void ADiagnosticFromTheRealGenerator_NamesTheAssetGraphAndNode()
+    {
+        var asset = AuthoringPath.NewAsset("MatrixNamesTheNode", BlueprintDispatchKind.Instance);
+        var doc   = AuthoringPath.Open(asset);
+
+        // An unwired Print String is eliminated as an orphan ⇒ BP3010, naming a GUID before BP-206.
+        AuthoringPath.AddNode(doc.Sink, doc.Graph, "PrintString");
+
+        var result = AuthoringPath.Generate(asset);
+
+        var orphan = result.GeneratorDiagnostics.FirstOrDefault(d => d.Id == "BP3010");
+        Assert.True(orphan != null, "Expected a BP3010; the fixture no longer produces an orphan node.");
+
+        var message = orphan!.GetMessage();
+        Assert.Contains("MatrixNamesTheNode", message);
+        Assert.Contains("Print String", message);
+    }
+
     // ── test doubles ──────────────────────────────────────────────────────────────────────────────
 
     /// <summary>Applies edits immediately; the undo stack is not what this suite is testing.</summary>
