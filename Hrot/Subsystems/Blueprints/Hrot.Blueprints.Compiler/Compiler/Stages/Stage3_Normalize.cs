@@ -213,6 +213,11 @@ internal static class Stage3_Normalize
                 var esc = rawValue.Replace("\\", "\\\\").Replace("\"", "\\\"");
                 return $"new global::Fdp.Core.FixedString64(\"{esc}\")";
             }
+            case "Fdp.Core.FixedString128":
+            {
+                var esc = rawValue.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                return $"new global::Fdp.Core.FixedString128(\"{esc}\")";
+            }
 
             // --- Fallback: unknown / unresolved types ---
             // When CLR reflection fails in the netstandard2.0 MSBuild sandbox (Full Rebuild),

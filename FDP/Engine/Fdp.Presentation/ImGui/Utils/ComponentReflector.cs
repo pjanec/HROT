@@ -119,6 +119,7 @@ public class ComponentReflector
         var builder = new ComponentEditServiceBuilder()
             .RegisterFieldEditor<FixedString32>(new FixedString32FieldEditor())
             .RegisterFieldEditor<FixedString64>(new FixedString64FieldEditor())
+            .RegisterFieldEditor<FixedString128>(new FixedString128FieldEditor())
             .RegisterFieldEditor<Quaternion>(new QuaternionEulerFieldEditor())
             .RegisterFieldEditor<Guid>(new StructEdit.Reflection.Editors.GuidFieldEditor());
         foreach (var p in _bufferViewProviders)

@@ -61,6 +61,7 @@ public sealed class StaticTypeRegistry : ITypeRegistry
             // Fdp.Core fixed-length string value types (unmanaged, blittable; preferred over System.String in state)
             ["Fdp.Core.FixedString32"] = Unmanaged("Fdp.Core.FixedString32", 32),
             ["Fdp.Core.FixedString64"] = Unmanaged("Fdp.Core.FixedString64", 64),
+            ["Fdp.Core.FixedString128"] = Unmanaged("Fdp.Core.FixedString128", 128),
 
             // Curated blittable structs used as Blueprint WorkingState vars (reflection-free compiler ->
             // FQN + size declared here, exactly like Entity/EqsSensorHandle/FixedString above; the
@@ -106,6 +107,7 @@ public sealed class StaticTypeRegistry : ITypeRegistry
             // aliases for symmetry with the vectors above.
             ["FixedString32"] = Unmanaged("Fdp.Core.FixedString32", 32),
             ["FixedString64"] = Unmanaged("Fdp.Core.FixedString64", 64),
+            ["FixedString128"] = Unmanaged("Fdp.Core.FixedString128", 128),
         };
 
     /// <summary>
@@ -132,7 +134,7 @@ public sealed class StaticTypeRegistry : ITypeRegistry
         "bool", "byte", "sbyte", "short", "ushort", "int", "uint", "long", "ulong",
         "float", "double",
         "Vector2", "Vector3", "Vector4", "Quaternion",
-        "FixedString32", "FixedString64",
+        "FixedString32", "FixedString64", "FixedString128",
     };
 
     // Coercion table: (fromFullName, toFullName) --> C# expression template

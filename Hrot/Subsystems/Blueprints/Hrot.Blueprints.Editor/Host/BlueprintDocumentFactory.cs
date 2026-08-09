@@ -159,9 +159,10 @@ public static class BlueprintDocumentFactory
         // type-zero Default values on unset In-data pins (FIX-A: BF-BATCH-0607).
         Func<Guid, BlueprintSignature?>? peerLookup = BuildPeerSignatureLookup(peerAssetCatalog);
         var builtinRegistry = PinDefaultValueEditorRegistry.CreateWithBuiltins();
-        // Register FixedString32/64 as string-editor types (unmanaged; authored as plain text).
+        // Register FixedString32/64/128 as string-editor types (unmanaged; authored as plain text).
         builtinRegistry.Register(new TypeKey(BlueprintTypeSystem.FixedString32), new StringPinEditor());
         builtinRegistry.Register(new TypeKey(BlueprintTypeSystem.FixedString64), new StringPinEditor());
+        builtinRegistry.Register(new TypeKey(BlueprintTypeSystem.FixedString128), new StringPinEditor());
         // Wrap with the enum-sentinel interceptor so any TypeKey starting with "global::" returns
         // an EnumPinEditor backed by BlueprintEnumValueProvider (AN6).
         // The inner registry handles all non-enum (primitive / FixedString) TypeKeys.

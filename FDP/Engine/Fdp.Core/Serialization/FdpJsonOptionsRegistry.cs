@@ -40,7 +40,8 @@ namespace Fdp.Core.Serialization
         ///         files.</item>
         ///   <item><c>DefaultIgnoreCondition = WhenWritingNull</c> — keeps output concise.</item>
         ///   <item>Custom converters: <see cref="FixedString32Converter"/>,
-        ///         <see cref="FixedString64Converter"/>, <see cref="Vector2ArrayConverter"/>,
+        ///         <see cref="FixedString64Converter"/>, <see cref="FixedString128Converter"/>,
+        ///         <see cref="Vector2ArrayConverter"/>,
         ///         <see cref="Vector3ArrayConverter"/>, <see cref="Vector4ArrayConverter"/>,
         ///         <see cref="QuaternionArrayConverter"/>, <see cref="StrictStringEnumConverter"/>.
         ///         <see cref="StrictStringEnumConverter"/> is used instead of the standard
@@ -68,6 +69,7 @@ namespace Fdp.Core.Serialization
             };
             relaxed.Converters.Add(new FixedString32Converter());
             relaxed.Converters.Add(new FixedString64Converter());
+            relaxed.Converters.Add(new FixedString128Converter());
             relaxed.Converters.Add(new Vector2ArrayConverter());
             relaxed.Converters.Add(new Vector3ArrayConverter());
             relaxed.Converters.Add(new Vector4ArrayConverter());

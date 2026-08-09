@@ -32,6 +32,7 @@ public sealed class BlueprintTypeSystem : ITypeSystem
     public const string Entity       = "Fdp.Core.Entity";
     public const string FixedString32 = "Fdp.Core.FixedString32";
     public const string FixedString64 = "Fdp.Core.FixedString64";
+    public const string FixedString128 = "Fdp.Core.FixedString128";
 
     // ── colour palette (mirrors FakeTypeSystem conventions; Blueprint-specific palette) ─
 
@@ -52,6 +53,7 @@ public sealed class BlueprintTypeSystem : ITypeSystem
         // Fdp.Core fixed-length string types (unmanaged, blittable; teal-green, string-ish)
         [FixedString32] = (new Vector4(0.25f, 0.75f, 0.55f, 1f), "FixedString32"),
         [FixedString64] = (new Vector4(0.25f, 0.65f, 0.50f, 1f), "FixedString64"),
+        [FixedString128] = (new Vector4(0.25f, 0.55f, 0.45f, 1f), "FixedString128"),
     };
 
     private readonly IPinDefaultValueEditorRegistry _editors;
@@ -158,7 +160,7 @@ public sealed class BlueprintTypeSystem : ITypeSystem
     {
         Bool, Int32, Single, Float64, String, Byte, UInt32,
         Vector2, Vector3, Entity,
-        FixedString32, FixedString64,
+        FixedString32, FixedString64, FixedString128,
     };
 
     // ── Static helpers ────────────────────────────────────────────────────────

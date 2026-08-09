@@ -200,6 +200,7 @@ public sealed class VariableCreateModal
         BlueprintTypeSystem.Entity  => 8,
         BlueprintTypeSystem.FixedString32 => 32,
         BlueprintTypeSystem.FixedString64 => 64,
+        BlueprintTypeSystem.FixedString128 => 128,
         _ => 0,
     };
 }
