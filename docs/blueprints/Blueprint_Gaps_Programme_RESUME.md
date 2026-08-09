@@ -357,7 +357,14 @@ T-series is now unverified for a **sixth** batch.
 dispatch** (see BP-110). The user's question — *"why can't the implementation session exercise this
 headless?"* — is answered: **it can**; the gate simply has no Library fixture.
 
-### 🎯 Batches 20+21 — DO THIS FIRST · **rewritten 2026-08-08 for the post-Batch-21 state**
+### 🛑 SUPERSEDED — use **[VISUAL_CHECK_Batches20-23.md](VISUAL_CHECK_Batches20-23.md)** instead
+
+> The section below covers **batches 20+21 only** and predates Batch 22 (BP-109, BP-110) and Batch 23
+> (BP-112, BP-87, BP-113, and the new **BP-114 hazard — do not touch the Type combo on an existing
+> parameter**). Sections C–F below are still valid and are carried into the new guide verbatim; sections
+> A and B are already done. **Start from the new guide.**
+
+### 🎯 Batches 20+21 — superseded · *kept for the T-series pointer and section history*
 
 > ⚠ **The previous revision of this section is STALE and two of its rows would have produced false
 > regression reports.** Batch 21 changed what you should expect:

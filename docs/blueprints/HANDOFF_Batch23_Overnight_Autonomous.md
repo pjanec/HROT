@@ -259,7 +259,7 @@ whose every piece **reuses existing machinery** — that is what makes it defens
 
 | Aspect | ⚖️ Decision | Grounding |
 |---|---|---|
-| **Sink** | **NLog via `FdpLog<T>`**, logger name in the **`AI.Behavior*`** family | ⭐ `FDP/Engine/Fdp.Core/Logging/AiBehaviorLogTarget.cs` already exists: an NLog `Target` **and** an `IMessageLogSource`, with a **shared singleton** and an `OnMessageAdded` event, already wired to the editor's **"AI Behaviors" MessageLog tab**. **Do not invent `IBlueprintLogSink`.** |
+| **Sink** | ~~**NLog via `FdpLog<T>`**~~ ⛔ **WRONG — see the correction box below. Use `Hrot.AI.Behaviors.Logging.BehaviorLog`.** The *sink* (`AiBehaviorLogTarget`, `AI.Behavior*`) is right; only this accessor was wrong | ⭐ `FDP/Engine/Fdp.Core/Logging/AiBehaviorLogTarget.cs` already exists: an NLog `Target` **and** an `IMessageLogSource`, with a **shared singleton** and an `OnMessageAdded` event, already wired to the editor's **"AI Behaviors" MessageLog tab**. **Do not invent `IBlueprintLogSink`.** |
 | **Test interception** | Read `AiBehaviorLogTarget.SharedInstance` entries (or subscribe `OnMessageAdded`) | The detail entry's design point 1 — *"the log sink must be interceptable"* — **is already satisfied by shipped code.** ⚠ Verify the target is registered under a headless test run; if not, **the test registers it**. That is fine and is *not* a reason to invent a new sink. |
 | **Format** | A **literal string property on the node**, not a pin | Sidesteps the managed-`System.String` problem (BP1503) entirely: a literal is fine, a string *variable* is not. Matches Unreal's Print String, whose `In String` is a literal in practice. |
 | **Arity** | ⭐ **Fixed: `Arg0..Arg2`**, optional data-in pins. **No variadic/wildcard mechanism.** | No node in the repo has a variadic pin shape, and inventing one is exactly the "new pin mechanism" that would need the architect (⚖️ D6). |
@@ -268,9 +268,21 @@ whose every piece **reuses existing machinery** — that is what makes it defens
 | **Verbosity** | ⭐ **All five levels** — Trace/Debug/Info/Warn/Error — as a node property | The **round-out rule**: an enum-keyed node ships the whole enum, not just the one value the task needs. |
 | **Hot path** | Guard with `FdpLog<T>.Is{Level}Enabled` before formatting | `FdpLog.cs` exposes these flags **precisely for this** — its own doc comment says to use them to avoid allocating interpolated strings. |
 
+> ### ⛔ D5 correction — verified 2026-08-09. **The handoff named the wrong accessor.**
+> `FdpLog<T>` derives its logger name from `typeof(T).FullName` (`FdpLog.cs:15`). Generated blueprint
+> classes emit into `namespace Hrot.AI.Behaviors.Generated`, and the NLog rule
+> (`Hrot.ClusterRunner/Program.cs:124`) is the prefix-anchored `"AI.Behavior*"` — which
+> `Hrot.AI.Behaviors.…` **does not match**. Printing through `FdpLog<T>` would compile, reach the
+> rolling file via the catch-all rule, and **never reach the AI Behaviors tab or the test.**
+> ⇒ **Use `Hrot.AI.Behaviors.Logging.BehaviorLog`** — `GetLogger("AI.Behavior")`, an exact family hit,
+> and it carries `Entity:[…] Behavior:[…] Node:[…]` context for free. It lacks an `Info` tier; the
+> five-level round-out adds one mirroring the existing four.
+> **The sink decision (D5) stands. Only the accessor was wrong.** Full reasoning:
+> [PrintString_Node_Design.md](PrintString_Node_Design.md) §3.
+
 ### Deliverables
 
-1. `docs/blueprints/PrintString_Node_Design.md` — record the table above, **plus anything you had to
+1. `docs/blueprints/PrintString_Node_Design.md` — ✅ **already written in Batch 23.** Record the table above, **plus anything you had to
    change and why**. Mark it *coordinator-decided; architect to confirm before any widening.*
 2. The node itself, both pin projections in agreement (`NodePinSchema` **and** `Stage0_Rehydrate`).
 3. A test that **asserts on a captured log line**, not that the graph ticked.

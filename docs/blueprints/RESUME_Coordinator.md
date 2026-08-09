@@ -45,13 +45,65 @@ Known flakes: `PdbEmbeddedSourceTests`, `WhenNodePerfTests.WhenNode_ValueChanged
 
 ---
 
-## 0b. 🌙 Batch 23 is an **overnight autonomous** batch — in flight
+## 0a. ✅ Batch 23 VERIFIED — gates run 2026-08-09 on the merged tree
+
+| Suite | Result |
+|---|---|
+| **Solution build** | ✅ **0 errors** — ⭐ *including `LibraryFunctionsDemo.bp.json` through the real generator* |
+| Blueprints | ✅ **2925 passed / 0 failed / 10 skipped** (2935 total, **+18**) |
+| AiShared | ✅ **1213 / 0** — ⭐ *unchanged, confirming BP-87 stayed blueprint-local* |
+| BTree · Breakpoints | ✅ **612 / 0** · **130 / 0** |
+| NodeEdit Core · UI | ✅ **208 / 0** · **131 / 0** |
+| Generators | ✅ **193 / 0** (was 189; +4) |
+
+⭐ **The BP-111 perf flake did NOT fire on this run.** They saw 2 failures; I saw 0. Totals reconcile
+exactly (their 2923 passed + 2 failed + 10 skipped = my 2935 total), which **confirms the 2 were the
+flake and not a real regression.**
+
+### Independent checks I ran on their claims — all three hold
+
+| Claim | Verdict |
+|---|---|
+| `FdpLog<T>` cannot reach the `AI.Behavior*` rule ⇒ **my D5 was wrong** | ✅ **Confirmed.** `FdpLog.cs:15` uses `LogManager.GetLogger(typeof(T).FullName)`; generated classes emit into `namespace Hrot.AI.Behaviors.Generated` (`LibraryEmitter:11`, `InstanceEmitter:11`, `AiPrimitiveEmitter:12`); the rule at `Hrot.ClusterRunner/Program.cs:124` is prefix-anchored `"AI.Behavior*"`, which `Hrot.AI.Behaviors.…` does not match. Their replacement `BehaviorLog` uses `GetLogger("AI.Behavior")` — exact family hit, **and better than my proposal**, since its structured format carries entity context for free |
+| The coercion table is "C#'s implicit ladder minus decimal: **35 rungs**" | ✅ **Confirmed against the spec** — recomputed independently, exactly 35 |
+| Stage5 reuses the validated sibling map | ✅ `SiblingSignaturesById` pre-existed on `ValidationContext` and is the same map Stage 2's `V_PeerReferences` checks — same discipline as their BP-110 fix |
+
+⚠ **Reviewed the Stage5 lowering by hand** (novel scheduler surface). The `EmitCarrierFanOut` overload
+split is right: the `Graph` overload forwards to the type-list one, so **the same-asset `FunctionCall`
+path is byte-identical** and only the cross-asset call is new. `Outputs.Count > 1` gates the carrier
+branch; 1 and 0 outputs fall through to the historic single-pin path unchanged.
+
+---
+
+## 0b. 🌙 Batch 23 was an **overnight autonomous** batch — ✅ delivered, 3 of 4 items
 
 📄 **[HANDOFF_Batch23_Overnight_Autonomous.md](HANDOFF_Batch23_Overnight_Autonomous.md)**
 
-Four items, ordered, independently committable: **BP-112** (CS9191 + the missing `Dispatch: Library`
-generator fixture) → **BP-87** (type picker / registry / coercions) → **BP-113** (peer call N outputs) →
-**BP-108** (Print/Log node). Expect it to stop at an item boundary; that is the designed outcome.
+**Items 1–3 shipped; item 4 (BP-108) left open at the boundary — the designed outcome, correctly taken.**
+`c5f30c47` BP-112 · `0f7eaa23` BP-87 items 1–5 · `68d8d540` BP-113. **Counts reconcile three ways:
+63 open · 55 done.** *(Open stayed at 63 because BP-87 keeps item 6 open per D3, while BP-112 and BP-113
+closed and BP-114/BP-115 opened.)*
+
+⭐ **They found a third site I had missed on BP-113.** My handoff named the two pin projections;
+Stage5's `CallPeerBlueprintNode` lowering still took `FirstOrDefault()` on the data-OUT pins. Fixing
+only the projections would have **advertised N pins that the compiler silently collapsed to one** —
+the same defect a layer down, and *harder* to see because the editor would now look right.
+
+### 🆕 Left behind — both are for the next batch
+
+- **[BP-114](Blueprint_Issues_Detail.md#bp-114)** `RW-L` 🔴 **user-visible right now.** The Type combo
+  matches by exact string; the list offers aliases (`int`) but most shipped assets store the FQN
+  (`System.Int32`), so it falls back to index 0 and **displays `bool` for an `int` parameter**.
+  ⚠ Mis-display only *until touched* — but "correcting" it **silently retypes the parameter for real**.
+  ✅ Verified pre-existing, not introduced by BP-87. **Flagged as hazard #1 in the visual-check guide.**
+- **[BP-115](Blueprint_Issues_Detail.md#bp-115)** — no test covers a peer whose name needs sanitizing
+  (the row I asked for; they registered it rather than dropping it).
+
+### ⚠ What the next batch must not undo
+
+**BP-108's sink accessor.** My handoff's D5 named `FdpLog<T>`; it **cannot work** (see §0a). The design
+note `PrintString_Node_Design.md` records the correction. **The sink decision itself was right — only
+the accessor was wrong.** Anyone re-reading the Batch-23 handoff will find the wrong name in §6.
 
 **Six ⚖️ decisions were pre-made so the session never has to ask overnight** — §2 of the handoff.
 The two that took real research:
