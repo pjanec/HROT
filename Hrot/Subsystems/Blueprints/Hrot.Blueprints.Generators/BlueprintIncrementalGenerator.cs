@@ -53,12 +53,29 @@ public sealed class BlueprintIncrementalGenerator : IIncrementalGenerator
         // Register source output
         context.RegisterSourceOutput(compileResults, static (spc, result) =>
         {
+            // BP-121: drain the diagnostic sink UNCONDITIONALLY, before deciding success/failure.
+            //
+            // ⚠ This used to sit inside the failure branch, so a compile that SUCCEEDED reported
+            // nothing at all. Every warning the blueprint compiler produced -- BP1657 (implicit
+            // default return), BP4001 (unwired data pin), BP3010 (orphan node eliminated) -- was
+            // computed, mapped to a Roslyn severity by ToRoslynDiagnostic, and then thrown away.
+            // A designer authoring in the editor got NO warnings from a real build, ever.
+            //
+            // ⭐ It also silently neutered BP-117: BP1657 was deliberately downgraded to a Warning so
+            // that it would warn instead of blocking, and in the real build it then did neither.
+            //
+            // ⚠ Hrot.AI.Behaviors sets TreatWarningsAsErrors, so making these visible would turn every
+            // pre-existing BP4001/BP3010 into a hard build error. The BP ids are therefore listed in
+            // that project's <WarningsNotAsErrors>, which is the correct lever: the warnings stay
+            // VISIBLE in build output (the entire point) while TreatWarningsAsErrors keeps protecting
+            // against C# warnings. Lowering our severities to Info instead would hide them in normal
+            // builds and re-create this very bug one level down.
+            foreach (var diag in result.Diagnostics)
+                spc.ReportDiagnostic(ToRoslynDiagnostic(diag));
+
             if (result.GeneratedSource == null || !result.Succeeded)
-            {
-                foreach (var diag in result.Diagnostics)
-                    spc.ReportDiagnostic(ToRoslynDiagnostic(diag));
                 return;
-            }
+
             spc.AddSource(result.GeneratedFileName ?? "Blueprint.g.cs", result.GeneratedSource);
         });
     }

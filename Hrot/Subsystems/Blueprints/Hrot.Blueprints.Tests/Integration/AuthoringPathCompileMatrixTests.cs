@@ -124,6 +124,38 @@ public sealed class AuthoringPathCompileMatrixTests
     }
 
     /// <summary>
+    /// ⭐ <b>BP-121 — the warning must actually reach the build.</b> A Library graph declaring outputs
+    /// with no <c>Return</c> node compiles (BP1657 is a Warning, per the user's ruling) <b>and must
+    /// emit that warning</b>.
+    ///
+    /// <para>
+    /// ⚠ <b>Why this belongs in the matrix and not in a unit test.</b> The generator drained its
+    /// diagnostic sink only on the failure path, so on a successful compile every warning was computed
+    /// and then discarded. A unit test over the sink would have passed the whole time — the bug was in
+    /// the generator's plumbing, which only the real generator exercises. This asserts the end the
+    /// designer actually sees.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ It also closes the loop on BP-117: BP1657 was downgraded to a Warning precisely so it would
+    /// warn rather than block, and until BP-121 it did neither.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void LibraryFallingOffTheEnd_CompilesAndEmitsTheBP1657Warning()
+    {
+        var asset = AuthoringPath.NewAsset("MatrixWarnsBP1657", BlueprintDispatchKind.Library);
+        AuthoringPath.AddOutput(asset.Graphs[0], "Out0", "System.Int32");
+
+        var result = AuthoringPath.Generate(asset);
+
+        Assert.True(result.Clean,
+            $"Expected a warning, not a failure:{Environment.NewLine}{result.Report()}");
+        Assert.Contains(result.GeneratorDiagnostics,
+            d => d.Id == "BP1657" && d.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Warning);
+    }
+
+    /// <summary>
     /// The harness's own guard. If <see cref="AuthoringPath.Generate"/> ever stops actually producing
     /// code, every <c>Clean</c> assertion above would pass vacuously — no source, no errors. This pins
     /// that the generator really ran.
