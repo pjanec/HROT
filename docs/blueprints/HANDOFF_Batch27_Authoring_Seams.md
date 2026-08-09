@@ -1,6 +1,6 @@
 # HANDOFF — Batch 27: make the string nodes and functions actually correct
 
-> 📌 **Dispatched — see the stamp line appended at commit time.** Frozen per `.claude/CLAUDE.md` →
+> 📌 **Dispatched at `9f33b411`.** Frozen per `.claude/CLAUDE.md` →
 > *Two-session protocol* rule 1. ⭐ **Rule 4 is yours:** pull the coordinator branch again before your
 > final commit. ⭐ **Rule 3: the coordinator allocates no ids** — every `BP-2xx` below is a **placeholder**;
 > renumber freely when you create the rows and say what you chose (rule 5).
