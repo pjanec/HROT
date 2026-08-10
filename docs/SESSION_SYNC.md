@@ -10,7 +10,7 @@
 
 | # | Programme | Entry doc | Branch | Runs on |
 |---|---|---|---|---|
-| 1 | **Scenario-authoring UX** (outer loop — the editor shell) | [UX/UX_RESUME.md](UX/UX_RESUME.md) | `claude/reset-working-branch-qd1qpv` | Linux cloud (coordinator) + Windows implementers |
+| 1 | **Scenario-authoring UX** (outer loop — the editor shell) | [UX/UX_RESUME.md](UX/UX_RESUME.md) | `claude/ux-session-resume-i2le7f` ⚠ **renamed 2026-08-10** — fast-forwarded from `claude/reset-working-branch-qd1qpv` (`ab2c91a`), same history. Merge from **this** one; the old branch is stale but not force-moved | Linux cloud (coordinator) + Windows implementers |
 | 2 | **AI Debug API + MCP port** (infrastructure) | [mcp-port/MCP_PORT_RESUME.md](mcp-port/MCP_PORT_RESUME.md) | ⚠ **TBD — the user will supply it. Record it here in your first commit.** | ✅ Linux cloud — **no Windows needed** |
 | 3 | **Blueprint gaps & QoL** (inner loop — graph canvases) | [blueprints/Blueprint_Gaps_Programme_RESUME.md](blueprints/Blueprint_Gaps_Programme_RESUME.md) | `claude/blueprint-authoring-status-6sr5ld` | Windows, **active in parallel** |
 
@@ -96,7 +96,10 @@ wrong ten times.
 | Fact | Evidence |
 |---|---|
 | The editor is **networkless by design and in code** — it discards the injected network factory | `EditorSubsystem.cs:180` hardcodes `OfflineNetworkFactory`; `:557` takes `INetworkFactory _` and ignores it |
+| ⚡ **Sharpened 2026-08-10 (UX session):** it consumes **no** `INetworkFactory` — `_networkFactory` is declared and **never read**, so `:180` is a *dead field*, not a used offline default. ⇒ the editor preset can omit network composition entirely | `EditorSubsystem.cs:180` is the sole occurrence in the file; `:165` is `sealed` and not `partial`, so the file is the whole class |
+| ⚠ …but **"networkless" ≠ "no sockets"**: session 2's port gives the editor a loopback `HttpListener` (`DebugApiHost`). It means no DDS / no cluster transport | `MCP_PORT_PLAN.md`; `feat/ai-debug-api` tip `d7b2a6e1` |
 | ⇒ the DDS participant the host builds for the editor is **created and thrown away** | `Program.cs:194` inside `ScanForSubsystems`, which runs for *every* discovered subsystem before filtering |
+| 🔴 **The shell silently drops a restored `BTree`/`HSM`/`Blueprint` perspective** — it validates the persisted id against *subsystem names*, which those are not. Only `"Editor"` survives, coincidentally. ⚠ code-derived, unconfirmed | `WindowManager.cs:368-382`/`:388-411` → `LocalWindowController.cs:83-84`; `EditorSubsystem.cs:172`. Session 3 touches these perspectives daily — see [Q25-F-ii](UX/Architect_Question_25_Scenario_Authoring_Golden_Path.md#f-ii-perspective-restore) |
 | The **construction kit must survive** — distributed `--mode` variants keep working | user constraint, 2026-08-06 |
 | 🔒 **`ClusterRunner` must stay fully operational** — session 3 works against it | user constraint, 2026-08-06 |
 | The editor's UI is produced by a **generic cluster-node window aggregator**, not a designed shell | `LocalWindowController.OpenLocalWindow()`, ~60 lines; default perspective = `_subsystems.Skip(1).FirstOrDefault()?.Name` |
@@ -131,3 +134,4 @@ statement: [UX/UX_Programme_Briefing.md §5](UX/UX_Programme_Briefing.md#5-work-
 | Date | Change |
 |---|---|
 | 2026-08-06 | Created when the MCP port was split into its own session. Branch for session 2 is **TBD**. Session 2 confirmed as **Linux-capable, no Windows needed**; added the map/viewport facts |
+| 2026-08-10 | Session 1 ran the pre-seam check. Sharpened the networkless fact (dead field, not a used default), added the "networkless ≠ no sockets" rider, and added the 🔴 perspective-restore defect — **relevant to session 3**, which lives in the `Blueprint` perspective |

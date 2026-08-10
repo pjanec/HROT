@@ -1,6 +1,11 @@
 # RESUME / HANDOFF — Scenario-Authoring UX programme
 
-> **rev 8 · 2026-08-06 · branch `claude/reset-working-branch-qd1qpv`**
+> **rev 9 · 2026-08-10 · branch `claude/ux-session-resume-i2le7f`**
+>
+> ⚠ **The branch changed.** This session was started on `claude/ux-session-resume-i2le7f`, which was
+> fast-forwarded from `claude/reset-working-branch-qd1qpv` (tip `ab2c91a`) — same history, new name.
+> The old branch is still on origin and is **not** being force-moved. Registry:
+> [SESSION_SYNC.md](../SESSION_SYNC.md#the-sessions).
 >
 > 📌 **This is the entry document for this programme.** A fresh session — or one that has lost its
 > context to compaction — reads §0 and §1, then §3 for the single next action. Nothing else is required.
@@ -17,7 +22,7 @@
 
 ```
 Read docs/UX/UX_RESUME.md and continue the scenario-authoring UX programme.
-Branch: claude/reset-working-branch-qd1qpv
+Branch: claude/ux-session-resume-i2le7f
 First: git fetch origin, then follow docs/SESSION_SYNC.md — merge the MCP session's
 branch if it has moved. Then §3 "Next up".
 ```
@@ -158,6 +163,15 @@ preset can drop network composition entirely. ⚠ But note `EditorSubsystem( INe
 **dependency that looks injected and is not** — do not let a future session "helpfully" wire it and give
 the editor a network.
 
+⚡ **Sharpened 2026-08-10** — `_networkFactory` is declared at `:180` and **never read**. The class is
+`sealed` and not `partial` (`:165`), so that is the whole story: the editor consumes **no**
+`INetworkFactory`, and `:180` is a **dead field** rather than a used offline default. ⇒ the seam question
+in [Q25-F-i](Architect_Question_25_Scenario_Authoring_Golden_Path.md#f-i--where-does-the-seam-between-shared-init-and-new-shell-go)
+is answered: shared init keeps **zero** network composition for the editor preset.
+
+⚠ **"Networkless" means no DDS / no cluster transport — not "no sockets".** The MCP port (below) gives
+the editor a **loopback `HttpListener`**. Do not architect the shell so that hosting it later reopens it.
+
 ⚠ **CORRECTED 2026-08-06 — the MCP server exists, on a stranded branch.** An earlier note in this file
 said it "does not exist yet"; that was true of *our line* only. It was **developed on
 `origin/feat/ai-debug-api`** (tip `d7b2a6e1`) in **34 commits over two days, 2026-06-14 → 15** — 16
@@ -295,6 +309,7 @@ needed knowledge it did not carry, that is a coordinator defect.
 | [SHARED_SURFACES.md](SHARED_SURFACES.md) | ✅ **new** — co-ownership list (9 shared surfaces), consult-before-touch rule, consult log, and the re-sequencing this constraint forces. ⚠ **The blueprint programme's RESUME does not link to it yet** (that edit is itself a co-owned change) |
 | [handoffs/](handoffs/) | ▣ template only |
 | **Golden-path walk** | ☐ **not performed** — needs a Windows session. Every prediction is unverified |
+| **Milestone 0 pre-seam check** | ✅ **done 2026-08-10** (Linux, code only) — both questions answered; found one 🔴. See [above](#added-2026-08-10--the-pre-seam-check-is-done) |
 
 **The opening audit is done** and its findings are recorded in two places: the `Now` column of each
 requirement, and the [baseline evidence index](UX_Tasks_Detail.md#baseline-evidence-index). The
@@ -318,6 +333,27 @@ headline verified findings:
   [Q25-C](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-c--where-does-an-asset-authored-behavior-declare-its-affinity-and-its-parameters);
 - ✅ one genuinely good bone: `EditorPreviewAdapter` does correct ECS snapshot-on-play /
   rewind-on-stop. Build on it.
+
+### Added 2026-08-10 — the pre-seam check is done
+
+[§3.5](#next-up) flagged two things to *establish before cutting the seam*. Both are now answered from
+code (no Windows needed), and the second turned up a defect. Full citations:
+[baseline evidence index](UX_Tasks_Detail.md#baseline-evidence-index).
+
+1. **Does `--mode editor` use the injected DDS factory or its own offline one? Neither.**
+   `_networkFactory` is a **dead field** — declared at `EditorSubsystem.cs:180`, never read, in a
+   `sealed` non-`partial` class. ⇒ shared init keeps **zero** network composition for the editor preset.
+   The host still builds a participant for it, because `Program.cs:184-207` runs for *every* discovered
+   subsystem **before** the requested-subsystem filter at `:213`.
+2. 🔴 **Code assuming cluster-role perspectives: found, and it is already biting.** The shell validates a
+   restored perspective id against **subsystem names** (`LocalWindowController.cs:83`), but
+   `"BTree"`/`"HSM"`/`"Blueprint"` are perspective ids registered by `EditorSubsystem`. They fail the
+   check and are **silently discarded**; only `"Editor"` survives, and only because
+   `EditorSubsystem.Name => "Editor"`. **Predicted effect: quit inside a blueprint graph, relaunch, and
+   you are in Scenario — with no message.** ⚠ code-derived; confirm on the walk.
+   🔒 **Shell-level ⇒ do not repair `LocalWindowController`** — it is a *"the new shell must not
+   reproduce this"* entry ([§3.3](#next-up)), and it is now evidence for
+   [Q25-F-ii](Architect_Question_25_Scenario_Authoring_Golden_Path.md#f-ii-perspective-restore) `G2`.
 
 ---
 
@@ -377,10 +413,12 @@ Gated on [Q25-F](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-f--
 the default-layout mechanism. Deliberately near-empty: surfaces arrive only as golden-path steps earn
 them.
 
-⚠ **Establish before cutting the seam:** whether `--mode editor` actually uses the DDS-backed
-`NedNetworkFactory` injected by `Program.cs`, or the editor's own `OfflineNetworkFactory`. It decides how
-much network composition the shared init must keep. Also find any code assuming *cluster-role*
-perspectives exist — the new app has only the editor's own Editor/BTree/HSM/Blueprint perspectives.
+✅ **The two pre-seam checks are done (2026-08-10)** — see
+[§2](#added-2026-08-10--the-pre-seam-check-is-done). Answers: shared init keeps **zero** network
+composition for the editor preset (the editor reads no `INetworkFactory` at all), and the cluster-role
+perspective assumption **was found** — `LocalWindowController.cs:83` — where it is already silently
+discarding the author's `BTree`/`HSM`/`Blueprint` perspective on restart. Nothing further blocks this
+milestone from the coordinator's side; it is gated only on **Q25-F**.
 
 ### 6. Milestone 1 — make the editor honest
 

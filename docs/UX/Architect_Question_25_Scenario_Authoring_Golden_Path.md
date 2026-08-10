@@ -361,6 +361,20 @@ already enforced in code, and the DDS participant `Program.cs` creates for the e
 (`Program.cs:194`) is **built and thrown away**. A dedicated editor app can drop network composition
 entirely for its own preset.
 
+> #### ⚡ Sharpened 2026-08-10 — it is stronger than "discards the injected one"
+>
+> `_networkFactory` is **declared at `:180` and never read anywhere**. `EditorSubsystem` is
+> `sealed` and **not `partial`** (`:165`), so the file is the whole class — one grep settles it.
+>
+> ⇒ **The editor consumes no `INetworkFactory` at all**, not even the offline one. `:180` is a **dead
+> field**. So the answer F-i needs is not "how little network composition must shared init keep for the
+> editor preset" but **none** — the editor preset can omit network composition entirely, and doing so
+> removes nothing the editor reads.
+>
+> Confirmed on the host side too: the participant and factory are built inside the `Select` at
+> `Program.cs:184-207`, which runs for **every discovered subsystem**, *before* the requested-subsystem
+> filter at `:213`. So `--mode editor` still pays for a DDS participant it never touches.
+
 ⚠ Two riders:
 
 1. `EditorSubsystem( INetworkFactory _ )` is a **dependency that looks injected and is not** — trap #8's
@@ -371,11 +385,18 @@ entirely for its own preset.
    *generic* subsystem composition with real network factories — **the editor app is one preset of the
    kit, not a replacement for it.** See [F-i](#f-i--where-does-the-seam-between-shared-init-and-new-shell-go).
 
-⚠ **The MCP server does not exist yet.** The user notes the editor's MCP server may become one of its few
-network interfaces. Today the repo contains only MCP *client* config (`.mcp.json`, `.cursor/mcp.json`)
-for the codebase-memory tooling — **no editor-side MCP server**. Treat it as intent, not as a
-constraint to design against yet, but do not architect the app so that adding one later requires
-reopening the shell.
+🔴 **CORRECTED — the MCP server does exist.** *(Established 2026-08-06 and recorded in the RESUME that
+day; **this doc lagged until 2026-08-10** and asserted the opposite in the meantime — logged in
+[Corrections](UX_Tasks_Detail.md#corrections).)* An earlier revision of this section said it
+"does not exist yet"; that was true only of *our line* of history. It was built on
+`origin/feat/ai-debug-api` (tip `d7b2a6e1`) — a loopback `HttpListener` control plane (`DebugApiHost`,
+`DebugApiService`) hosted **inside `Hrot.Editor`**, plus an external Node MCP proxy. A **parallel session
+is porting it forward** ([MCP_PORT_PLAN.md](MCP_PORT_PLAN.md), [MCP_PORT_RESUME.md](../mcp-port/MCP_PORT_RESUME.md)).
+
+⇒ This is **a constraint to design against, not intent**: the editor app acquires a loopback HTTP
+interface, so "networkless" means **no DDS / no cluster transport** — it was never a claim about
+sockets. Do not architect the shell so that hosting the API later requires reopening it. See the
+🔴 [sequencing rule](../SESSION_SYNC.md#sequencing-rule) — the port wires `EditorSubsystem.cs` first.
 
 ### F-i — Where does the seam between shared init and new shell go?
 
@@ -451,6 +472,38 @@ to share, but where to cut.
 > perspectives (which collapse to a single one in this app) and the editor's internal
 > Editor/BTree/HSM/Blueprint perspectives (which stay). Code that assumes the former exists must be
 > found before the shell is cut.
+
+#### 🔴 Found it — and the collision is already a live defect
+
+<a id="f-ii-perspective-restore"></a>
+
+**Searched 2026-08-10 as the pre-seam check the [RESUME §3.5](UX_RESUME.md#next-up) asks for.** The
+collision is not latent. It costs the author their place on every restart today:
+
+| Step | Code |
+|---|---|
+| `SaveSettings` persists the **active perspective id** — `"BTree"`, `"HSM"`, `"Blueprint"` included | `WindowManager.cs:368-382` (`CurrentPerspective` into `WindowManagerSettings`) |
+| `LoadSettings` returns it verbatim | `WindowManager.cs:388-411` |
+| The shell then accepts it **only if it names a subsystem** | `LocalWindowController.cs:83` — `_subsystems.Any(s => s.Name == persisted)` |
+| …otherwise silently falls back | `:84` → `defaultPersp` = `_subsystems.Skip(1).FirstOrDefault()?.Name` (`:81-82`) |
+
+`"BTree"`, `"HSM"` and `"Blueprint"` are **perspective ids registered by `EditorSubsystem`**, not
+subsystem names — so `valid` is `false` and the restore is **silently discarded**. Only `"Editor"`
+survives, and only by coincidence: `EditorSubsystem.Name => "Editor"` (`:172`).
+
+⇒ **Prediction: quit while editing a blueprint graph, relaunch, and you are back in Scenario.** Nothing
+is lost but your place — and nothing tells you it happened. ⚠ **Code-derived; the coordinator cannot run
+the editor.** Put it on the [walk](UX_Golden_Path.md#deviation-log) to confirm.
+
+**Three things follow for this sub-question:**
+
+1. It is **evidence for G1's "curate what enters"** over inheriting the aggregator: the bug exists
+   because the shell validates perspectives against a list that was never the perspective list.
+2. It is **evidence for G2 specifically** — a shell that owns an explicit perspective set can validate
+   against *that set*, which is the one-line fix. G1 alone does not force the question.
+3. 🔒 **Do not fix it in `LocalWindowController`.** Per [RESUME §3.3](UX_RESUME.md#next-up) this is
+   shell-level, the shell is being replaced, and `ClusterRunner` must stay operational — so it is a
+   *"the new shell must not reproduce this"* entry, **not** a repair task.
 
 ### F-iii — How do we combine the content of existing windows into new composite panels?
 

@@ -93,7 +93,8 @@ the pattern of failure is more useful than a clean record.
 
 | # | Claim | Reality | Found by |
 |---|---|---|---|
-| — | *(none yet)* | | |
+| 1 | *"The MCP server does not exist yet"* — [Q25](Architect_Question_25_Scenario_Authoring_Golden_Path.md), pre-F-i riders | It exists on `origin/feat/ai-debug-api` (`d7b2a6e1`). **The claim was corrected in `UX_RESUME.md` on 2026-08-06 but Q25 was not updated with it**, so the architect question contradicted its own programme's entry doc for four days. ⚠ *The failure was not the wrong claim — it was correcting it in one doc only.* Grepping the old wording found **a second stale copy** in `UX_Design.md` §5 that the first correction also missed. When a fact flips, grep the programme folder for the old wording before committing | 2026-08-10 pre-seam check |
+| 2 | *"The editor discards the injected factory and hardcodes `OfflineNetworkFactory`"* — [SESSION_SYNC](../SESSION_SYNC.md), Q25, RESUME | True but **understated**: `_networkFactory` is never read either, so the editor uses **no** `INetworkFactory`. Not a refutation — but "hardcodes X" reads as "uses X", and the seam answer differs (`omit network composition` vs `keep the offline path`) | 2026-08-10 pre-seam check |
 
 ## Baseline evidence index
 
@@ -119,3 +120,17 @@ the task register; each is restated in the `Now` column of the relevant
 | Transport controls exist in the status bar | `Hrot/Subsystems/Hrot.Editor/UI/TimeControlStatusBarSection.cs` → `ClusterTimeControlStatusBarSection` |
 | Silent-failure house style | Blueprint audit: `BlueprintCommandSink.Apply` `default:` returns success; `MyBlueprintPanel.InvokeCreate` discards `EditorCommandResult`; `EditorCommandsImpl.Invoke` returns an unread `"Unknown command"` |
 | README overstates the editor's ORBAT | README §11.4 claims "ORBAT drag-and-drop unit hierarchy"; that is ExCon's `OrbatPanel` (434 lines), not the editor's 27-line stub |
+
+### Added 2026-08-10 — the pre-seam check for Milestone 0
+
+Run from Linux (code only) to answer the two questions [RESUME §3.5](UX_RESUME.md#next-up) flags as
+*establish before cutting the seam*. Both are answered; one turned up a defect.
+
+| Finding | Evidence |
+|---|---|
+| ⚡ The editor consumes **no `INetworkFactory` at all** — `_networkFactory` is a **dead field**, declared and never read. Stronger than "discards the injected one": the offline one is unused too. Class is `sealed`, not `partial`, so the file is the whole class | `EditorSubsystem.cs:180` (sole occurrence in the file), `:165` (`sealed class`), `:557` (ctor ignores the parameter) |
+| ⇒ **Shared init can omit network composition entirely for the editor preset** — it removes nothing the editor reads. Answers the F-i rider | as above + `Program.cs:202-207` |
+| The DDS participant + factory are built for **every discovered subsystem** *before* the requested-subsystem filter, so `--mode editor` pays for a participant it never touches | `Program.cs:184-207` (inside the `Select`) vs `:213` (the `RequestedSubsystems` loop) |
+| Default perspective = **first *requested* subsystem**. `Skip(1)` skips the runner's own `PerspectiveUpdateSubsystem`, prepended at `:212` — incidental, but less arbitrary than "skip one" reads | `LocalWindowController.cs:81-82`; `Program.cs:177`, `:212-213` |
+| 🔴 **Persisted perspective is silently discarded for `BTree`/`HSM`/`Blueprint`.** The shell validates the restored id against **subsystem names**, but those are perspective ids registered by `EditorSubsystem`. Only `"Editor"` survives, coincidentally (`EditorSubsystem.Name => "Editor"`). ⚠ code-derived — confirm on the walk | `WindowManager.cs:368-382` (save) / `:388-411` (load) → `LocalWindowController.cs:83-84`; `EditorSubsystem.cs:172` |
+| This is the code F-ii asked us to find before cutting the shell — and it is **shell-level**, so it is a *"the new shell must not reproduce this"* entry, not a repair task | [Q25-F-ii](Architect_Question_25_Scenario_Authoring_Golden_Path.md#f-ii-perspective-restore) |
