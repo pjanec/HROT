@@ -1,6 +1,6 @@
 # HANDOFF — Batch 30: `Stage2_5_ExpandMacros` — the pass that makes macros real
 
-> 📌 **Dispatched at `<pending>`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
+> 📌 **Dispatched at `9af3c78e`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
 > ⭐ **Rule 7 is yours:** branch from this branch, and re-sync from it at the **start** of your run.
 > ⭐ **Rule 4 is yours:** pull it again before your final commit.
 > ⭐ **Rule 3: the coordinator allocates no ids.** **No new `BP-2xx` number appears below.** `BP-81`,
