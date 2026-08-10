@@ -114,7 +114,7 @@ missed tick, which is exactly what went wrong in Batch 28 bookkeeping.
 |---|---|
 | **27** | ✅ verified — authoring seams, the three matrix axes, diagnostic identity |
 | **28** | ✅ verified — the silent `default:` arm family + `GraphKind.Macro` and both fail-loud nets |
-| **29** | 📤 **written and dispatched** — [HANDOFF_Batch29_Macro_Surface_Triage_ReturnStatus.md](HANDOFF_Batch29_Macro_Surface_Triage_ReturnStatus.md). Three headless halves: **BP-80** macro surface · the **warning triage** · **BP-131** `Return.Success`. ⛔ Frozen (rule 1) — new findings go in Batch 30 |
+| **29** | ✅ **verified and merged** (`da13a6a`, ff-only) — **BP-80** macro surface · the **warning triage** (`BP-217`/`BP-218`, `BP-219` open) · **BP-131** `Return.Success`. See below |
 
 ### The macro capability
 
@@ -182,7 +182,47 @@ evidence, not noise.
 
 ---
 
-## 7 · Batch 29 — ✅ written and dispatched
+## 7 · Batch 29 — ✅ VERIFIED AND MERGED at `da13a6a`
+
+Implementation ran on **`claude/hrot-implementation-j1jvin`** (⚠ *not* the `sdmspn` branch the lane
+table names — the user moved the lane). ✅ **Rule 7 followed exactly:** they branched from `1af9bea`,
+this branch's head, so the handoff, its stamp and the lane correction were all in view.
+
+**Gates, coordinator-run on their tree:** build **0 errors**, warnings **77 → 69** · BP diagnostics
+⭐ **18 → 10 distinct**, and the *right* 10 remain (all 6 synthesized + both `BP3011` gone, the 10
+authored orphans correctly untouched) · Blueprints **3128**/0/10 · AiShared 1213 · BTree 612 ·
+Breakpoints 130 · Generators 193 · NodeEdit Core 208 · UI 131.
+
+⚠ **One red on the first run, and it is *not* theirs:**
+`WhenNodePerfTests.ReadEqsResultNode_Under80ns_perInvocation` — a wall-clock perf assertion that
+measured **25 µs against an 80 ns budget** on this shared cloud VM. Green on three subsequent runs.
+⭐ **This is exactly [BP-111](Blueprint_Issues_Tracker.md)** (*"wall-clock perf assertions flake under
+full-suite load, and the known-flake list is incomplete"*) — **and BP-111 predicted the wrong sibling**:
+its row names `WhenNode_EqsResult_Under150ns_perTick`, but the one that actually flaked here is
+`ReadEqsResultNode_Under80ns_perInvocation`. 📌 **Feed that to Batch 30** — it is evidence for BP-111,
+not a Batch 29 defect.
+
+### What they got right that is worth keeping
+
+| ⭐ | |
+|---|---|
+| **`BP-217` is a one-line reorder with a real proof** | `EliminateOrphanNodes` now runs **before** `MaterializeDefaultPinLiterals`. The compiler was synthesizing literals for nodes it was about to delete, then warning about its own scaffolding. They argue — correctly — that reordering **cannot change which authored nodes are eliminated**, because a synthesized literal's only link is into the pin it was made for and `CollectReachable` walks both directions, so it can never bridge two components |
+| **They caught a miss I did not flag** | `EnrichReturnPins`' early return would have silently **stopped `BP1655` firing** on an AiPrimitive that declares Outputs. They made the Success pin additive-and-last instead. *"Losing a diagnostic is the same class of defect as emitting a wrong value."* |
+| **H2 done as defence in depth** | projection gate **and** name exclusion, with the right reason: the two mechanisms fail independently, and a **hand-authored** asset can carry pins no projection produced |
+| **`BP1668` added as asked** | an unexpanded `MacroCallNode` is now an **Error**, not `BP4004`'s warning-and-walk-on |
+| **`IrPrinter` updated too** | so an IR dump distinguishes the constant form from the runtime-condition form. Not asked for |
+| **§1.4 ruled** | they split BP-80 from BP-81 and said so — BP-80's row stays **open** for the two visual gestures |
+
+### ⚠ The one thing the coordinator got wrong, and fixed
+
+The tracker's **`RW-L` done column was 43 and the Total 88; both were one short** — and the drift
+**predates Batch 29** (present at `1af9bea`, and back at the 41/85 figures). Batch 29's own delta was
+exactly right. Corrected to **44 / 89** after merge. It reconciles three ways now; the note in the
+tracker records the method, including that the *refuted* row sits **outside** the Total.
+
+---
+
+## 7a · Batch 29 as dispatched — the handoff
 
 📄 **[HANDOFF_Batch29_Macro_Surface_Triage_ReturnStatus.md](HANDOFF_Batch29_Macro_Surface_Triage_ReturnStatus.md)**
 — ⛔ **frozen** (rule 1). Three headless halves; every coordinate in it verified against this tree.

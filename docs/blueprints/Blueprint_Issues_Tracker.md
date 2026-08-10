@@ -12,11 +12,19 @@ architect decision first).
 | Complexity | Open | Done |
 |---|---:|---:|
 | `WIRING` | 5 | 26 |
-| `RW-L` | 28 | 43 |
+| `RW-L` | 28 | 44 |
 | `RW-M` | 29 | 18 |
 | `RW-H` | 3 | 1 |
-| **Total** | **65** | **88** |
+| **Total** | **65** | **89** |
 | *(refuted on verification)* | | *1* |
+
+> ⚠ **`RW-L` done was 43 and the Total 88 — an off-by-one that predates Batch 29** (present at
+> `1af9bea`, and at least as far back as the 41/85 figures). Corrected by the coordinator after
+> Batch 29 merged. ⭐ **Batch 29's own delta was exactly right**; the drift was inherited.
+>
+> **Reconciles three ways at `da13a6a`:** checkbox tally **65 open / 90 done** · columns
+> `5+28+29+3 = 65` open, `26+44+18+1 = 89` done · **89 done + 1 refuted = 90** = the tally.
+> ⚠ The *refuted* row sits outside the Total, which is why the tally is one higher than it.
 
 > ✅ **Reconciling these counts (three ways, and they now agree EXACTLY).** The checkbox tally used to run
 > **+1 open / +1 done** against this table, and that standing offset was carried for several batches as
