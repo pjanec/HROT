@@ -89,7 +89,7 @@ figure.* **The true current figure is 18: 16×`BP3010` + 2×`BP3011`.**
 
 ## 4 · Where the programme stands
 
-**Tracker: open 66 · done 84** ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
+**Tracker: open 65 · done 85** ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
 three ways — checkbox tally, per-complexity columns (⚠ take the **first** tag on a row), and the total
 row. ⚠ **The count check verifies arithmetic, not semantics** — it cannot catch a duplicate row or a
 missed tick, which is exactly what went wrong in Batch 28 bookkeeping.
@@ -191,6 +191,16 @@ asset file; every kind-bearing one appears in its asset.
 
 ⭐ **Add a fifth question to the data-out audit check** (BP-213/214's lesson): *projects a data-out? ·
 resolver case? · `_statementPinCache`? · only `_pinValueCache`? · ⭐ **inside an inline body?***
+
+**C · `BP-131` is also shovel-ready** — design settled (`Success : bool`, AiPrimitive only, ABI
+unchanged), and **BP-107 dissolved into it** 2026-08-10. ⚠ The pin is the easy half; the work is
+**H1** (`IrTerm_ReturnStatus` must carry an optional `IrValue` condition and `TerminatorEmitter` render
+`return cond ? Success : Failure;`) and **H2** (`BuildReturnTerminator` treats *every* non-exec pin as
+a value pin, so a `Success` pin silently breaks the zero-output-Library branch and tuple packing unless
+excluded by name). Headless, and it closes the last of the user's Return-node complaints.
+
+⚠ **Stale doc in the other lane:** `RESUME_Impl_Session.md:211` still lists BP-107 as *"architect round
+required"*. Not yours to edit — flag it in the next handoff.
 
 ---
 
