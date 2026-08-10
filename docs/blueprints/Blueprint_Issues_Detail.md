@@ -753,8 +753,33 @@ Under the flag design a macro *could become the tick graph*. The 40 existing
 `== GraphKind.Function` filters in the compiler then fail correctly and by default.
 
 <a id="bp-80"></a>
-### BP-80 — Macro authoring surface **[from Q25 · closes BP-77]**
+### BP-80 — Macro authoring surface **[from Q25 · ⛔ does NOT close BP-77]**
 **Complexity:** RW-M · **Confidence:** ✔✔
+
+> 🛠 **Batch 29 — model + all four projection halves landed; the row stays OPEN.**
+>
+> ⛔ **The heading's old claim "closes BP-77" was wrong to carry, and is corrected here.** The `+`
+> button needs the `editor.create-macro` **handler**, which is a visual gesture and was deliberately
+> out of Batch 29's headless scope. BP-77 is untouched.
+>
+> | Landed | Still open |
+> |---|---|
+> | `ExecOutDecl` + `Graph.ExecOutputs` (a **new** list — F5) | palette entry + drag |
+> | `MacroCallNode` carrying only `TargetGraphId` (F4) | real `editor.create-macro` handler ⇒ BP-77 |
+> | `Macro` admitted to all four Entry/Return projection halves | an ExecOutputs **editing** UI |
+> | ⭐ the **N exec-in** projection on `ReturnNode` from `ExecOutputs` | |
+> | `MacroCallPins` / `EnrichMacroCallPins` (beyond the four halves — a call node with no pins cannot be wired) | |
+> | `Return.Status` hidden + `Outputs` forced visible for Macro | |
+> | `BP1655` admits Macro; ⭐ **`BP1668`** makes an unexpanded call an **Error** | |
+>
+> ⚠ **`ExecOutDecl` uses PROPERTIES, not the fields the design note wrote.** `System.Text.Json` does
+> not serialise fields without `IncludeFields` (unset here — the same trap already documented on
+> `GraphComment` and `LinkWaypoint`), so the literal shape in §2 of the design would have round-tripped
+> as `{}` and silently dropped every declared exec-out.
+>
+> ⚠ **`Graph.ExecOutputs` had to be copied at both `new Graph{…}` reconstruction sites in
+> `Stage3_Normalize`.** Neither copies `Comments` either — harmless today because the compiler never
+> reads it, but a latent loss if a post-Stage-3 asset is ever serialised back.
 
 Create / rename / delete a macro graph, plus:
 

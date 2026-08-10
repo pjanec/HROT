@@ -1,5 +1,23 @@
 # The Return node's `Status`: combo vs. data pin — design note
 
+> ## ✅ SHIPPED — Batch 29 (BP-131). This document is now history; the code is the reference.
+> Landed exactly as §7 settled: one `Success : bool` data-in pin, **AiPrimitive only**, ABI unchanged.
+>
+> | Hazard | How it landed |
+> |---|---|
+> | **H1** | `IrTerm_ReturnStatus` gained an optional `IrValue Condition`; `TerminatorEmitter` renders `return cond ? NodeStatus.Success : NodeStatus.Failure;` when set, the old constant otherwise |
+> | **H2** | Handled **twice**, because the two mechanisms fail independently: the projection gate (AiPrimitive only) is primary containment, and `BuildReturnTerminator` also drops the pin **by name** from `valuePins` — a hand-authored asset can carry pins no projection wrote |
+> | **H3** | `EnrichReturnPins` gained an `asset` parameter (the editor half already had it in scope) |
+> | **unwired** | Falls back to `rn.Status` — §8's preferred option. `default(bool)` is `false` = Failure and would have flipped every shipped AiPrimitive Return |
+>
+> ⭐ **Proved at runtime, not on the IR:** `BP131_ReturnSuccessPinTests` compiles through the real
+> Roslyn generator and ticks one assembly twice across a component change — **Failure then Success**.
+> An IR assertion cannot distinguish *"the status is computed"* from *"the constant happened to match"*.
+>
+> 📌 **Still separate and NOT done:** D3's zero-output-`Library`-returns-`void` change (§9's last
+> paragraph). 📌 **BP-200's unwired-pin question is untouched.**
+
+
 > **BP-131.** Written Batch 26 by the implementation session, for the architect round.
 > ⚠ **Design only — options are laid out, none is picked.** That was the instruction, and it is also the
 > right call: one of the options changes a contract that reaches outside the blueprint subsystem.
