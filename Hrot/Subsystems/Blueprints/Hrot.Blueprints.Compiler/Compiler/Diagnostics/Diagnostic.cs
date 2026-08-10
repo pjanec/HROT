@@ -49,4 +49,21 @@ public sealed record Diagnostic(
         Guid? assetId, Guid? graphId = null, Guid? nodeId = null, Guid? pinId = null)
         => new(DiagnosticSeverity.Warning, code, message)
            { AssetId = assetId, GraphId = graphId, NodeId = nodeId, PinId = pinId };
+
+    /// <summary>
+    /// BP-219 — the location-carrying <see cref="DiagnosticSeverity.Info"/> factory. Its absence was
+    /// half of why <c>Info</c> was unusable: every validator reports with a location, so the only
+    /// available overload produced a diagnostic <see cref="DiagnosticIdentity"/> could not attribute.
+    /// The other half was <c>BlueprintIncrementalGenerator.ToRoslynDiagnostic</c> mapping Info to a
+    /// build WARNING, now fixed.
+    /// <para>
+    /// ⚠ <b>Info is for a diagnostic with nothing for the designer to act on</b> — not a quieter way to
+    /// ship a real warning. BP-121 deliberately refused to demote BP1657/BP4001/BP3010, and BP-218
+    /// shows the preferred treatment when a code genuinely has no content: retire it, do not demote it.
+    /// </para>
+    /// </summary>
+    public static Diagnostic Info(string code, string message,
+        Guid? assetId, Guid? graphId = null, Guid? nodeId = null, Guid? pinId = null)
+        => new(DiagnosticSeverity.Info, code, message)
+           { AssetId = assetId, GraphId = graphId, NodeId = nodeId, PinId = pinId };
 }

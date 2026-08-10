@@ -8,6 +8,9 @@ using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Core.Compiler.Diagnostics;
 using Hrot.Blueprints.Core.Assets;
 using BpDiagnostic = Hrot.Blueprints.Core.Compiler.Diagnostics.Diagnostic;
+// Aliased because `Microsoft.CodeAnalysis` is also imported and declares DiagnosticSeverity too;
+// an unqualified reference in ToRoslynDiagnostic would be CS0104.
+using BpDiagnosticSeverity = Hrot.Blueprints.Core.Compiler.Diagnostics.DiagnosticSeverity;
 using BpCompiler = Hrot.Blueprints.Core.Compiler.BlueprintCompiler;
 
 namespace Hrot.Blueprints.Generators;
@@ -183,9 +186,31 @@ public sealed class BlueprintIncrementalGenerator : IIncrementalGenerator
             title:              diag.Code,
             messageFormat:      message,
             category:           "Blueprints",
-            defaultSeverity:    diag.IsError
-                                    ? Microsoft.CodeAnalysis.DiagnosticSeverity.Error
-                                    : Microsoft.CodeAnalysis.DiagnosticSeverity.Warning,
+            // ⭐ BP-219. This was `diag.IsError ? Error : Warning` — a TWO-way branch over a
+            // THREE-member enum, so a BpDiagnosticSeverity.Info would have surfaced as a build
+            // WARNING, and under Hrot.AI.Behaviors' TreatWarningsAsErrors as a build BREAK. Latent
+            // (nothing emits Info today) but it is the same missing-arm shape as BP-215/BP-216, one
+            // layer out.
+            //
+            // ⚠⚠ Adding this arm makes something newly dangerous, and BP-121's ruling above still
+            // stands: do NOT lower a designer-actionable warning (BP1657/BP4001/BP3010) to Info to
+            // quieten it. Before this change that would merely have been ineffective; now it would
+            // genuinely hide the diagnostic in normal builds — which is the exact bug BP-121 fixed.
+            // Info is for diagnostics with nothing for the designer to act on, and BP-218 shows the
+            // preferred treatment for those: retire the code, do not demote it.
+            //
+            // No catch-all: a future fourth member must fail loudly rather than be mis-mapped
+            // (the Stage5_Schedule.MapGraphKind idiom).
+            defaultSeverity:    diag.Severity switch
+                                {
+                                    BpDiagnosticSeverity.Error   => Microsoft.CodeAnalysis.DiagnosticSeverity.Error,
+                                    BpDiagnosticSeverity.Warning => Microsoft.CodeAnalysis.DiagnosticSeverity.Warning,
+                                    BpDiagnosticSeverity.Info    => Microsoft.CodeAnalysis.DiagnosticSeverity.Info,
+                                    _ => throw new NotSupportedException(
+                                             $"BpDiagnosticSeverity.{diag.Severity} has no Roslyn mapping. "
+                                             + "Add one rather than letting it default -- a mis-mapped "
+                                             + "severity either hides a real problem or breaks a build."),
+                                },
             isEnabledByDefault: true);
         return Microsoft.CodeAnalysis.Diagnostic.Create(descriptor, Location.None);
     }
