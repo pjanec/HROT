@@ -45,25 +45,67 @@ called graphs for latent node types. The macro version is the same two passes ov
 
 ### 🔴 F2 — multi-exec-out **+ a data output** is a definite-assignment hazard, not merely a wart
 
-Data pins are **pull-based**: `ResolveDataPin` / `ResolveNodeOutput` walk back from the consumer.
-Impure producers are materialised once as a real C# local and cached in `_statementPinCache`, which
-is **never cleared**, resting on this stated premise (`Stage5_Schedule.cs:178-190`):
+> ✅ **ACCEPTED 2026-08-10.** Expanded after the user asked *"why pure producers?"* — the mechanism
+> below is the answer, and the emitted-local form is now verified rather than assumed.
+
+**A data wire is not a value pushed along a wire — it is *"compute this at the point of use"*.**
+`ResolveDataPin` / `ResolveNodeOutput` walk **backwards** from the consumer to the producer and emit
+there. Pure and impure producers therefore resolve completely differently:
+
+| Producer | How it resolves | Safe from any exec path? |
+|---|---|---|
+| **Pure** (`Add`, `Compare`, `GetVariable`) | recomputable — the expression is **re-emitted at each point of use** | ✅ yes, it is computed wherever it is read |
+| **Impure** (non-pure `FunctionCall`, `CallPeerBlueprint`) | side-effecting, so it runs **exactly once**, pinned where its exec pin sits; materialised as `var __tN = …;` and cached in `_statementPinCache` (**never cleared**) — every later reader reuses that local | ⚠ **only under the premise below** |
+
+Reusing the local is the *only* correct option for an impure producer — re-emitting would repeat the
+side effect. But it rests on one stated premise (`Stage5_Schedule.cs:178-190`):
 
 > *"the emitted TickCore body is flat (goto-based, no nested scopes), so that local remains in scope
 > and definitely-assigned for any later block **reachable only through the block that declared it**."*
 
-**Two exec-outs break exactly that premise.** If macro output `R` is fed by an **impure** node sitting
-on the `Then0` path, a host consumer reached via `Then1` reads a local that was never assigned ⇒
-`CS0165` in *generated* code, attributed to nothing the designer can see. Unreal tolerates the
-equivalent and yields garbage; here it is a build break with no explicable source — the precise shape
-BP-69/71/73 each ended in.
+✅ **Verified:** `StatementEmitter` emits `var __t{idx} = <expr>;` — **declaration and assignment
+together**, at the scheduling point. There is no hoisted declaration to fall back on.
+
+**Two exec-outs break the premise exactly.** With one exec-out, everything downstream of the macro is
+reachable only through the macro's body. With two:
+
+```csharp
+goto L_Then1;
+L_Then0: var __t5 = SomeImpureCall();   // assigned only on this path
+         goto L_Use;
+L_Then1: goto L_Use;                    // __t5 never assigned
+L_Use:   Log($"{__t5}");                // CS0165
+```
+
+`__t5` is **in scope** at `L_Use` (flat body, one block) but not **definitely assigned** on all paths
+⇒ **`CS0165` — a hard build error in generated code.** ⚠ Loud, but it names `__t5` and points at the
+**consumer**, not at the impure producer on the other path, so the designer has no route back to the
+cause. Unreal tolerates the equivalent and yields a stale value; we would break the build instead.
 
 ⇒ **Rule:** when a macro declares **≥ 2 exec-outs**, every data output must be fed by a **pure**
 producer chain. One exec-out keeps today's reasoning and may be impure. Checkable in Stage 2 by a
 backward walk over data links from the `ReturnNode`'s data-in pins.
 
-⭐ Cheap now, and it is the difference between "N exec-outs cost the scheduler nothing" (Q25
-verification #6, still true) and "N exec-outs cost the *emitter* nothing", which was never checked.
+⭐ It is the difference between *"N exec-outs cost the **scheduler** nothing"* (Q25 verification #6,
+still true) and *"N exec-outs cost the **emitter** nothing"*, which was never checked.
+
+#### Two caveats, recorded deliberately
+
+⚠ **The rule is conservative — it rejects safe cases.** An impure producer placed *before* the macro's
+internal branch dominates both exits and **is** definitely assigned. A precise check would be
+**dominance**-based, not purity-based — but dominance exists only at Stage 5, **after** expansion, so
+the diagnostic would name synthesized nodes. Purity is checkable at Stage 2 on authored nodes.
+⇒ **Conservative wins: a false rejection is explainable, a `CS0165` about `__t5` is not.** Same
+attributability tradeoff as F1.
+
+⭐ **The canonical case passes anyway.** Unreal's **`ForEachLoop` is exactly this D3 shape** — one
+exec-in, two exec-outs (`Loop Body`, `Completed`), plus data outputs (`Array Element`, `Array Index`).
+Those are fed by **pure** array reads, so the purity rule admits it.
+
+📌 **Held in reserve, not built:** associating each data output with the exec-out it is valid on
+(`Array Element` belongs to `Loop Body`) is more expressive and more faithful to real usage — but the
+consumers live in the **host** graph, so *"was this read reached via exec-out k"* is again a Stage 5
+reachability question. Revisit with the **D3 → D1** extension.
 
 ### ⭐ F3 — reuse the boundary nodes; only one pin group is new
 
@@ -243,15 +285,14 @@ once.
 
 ---
 
-## 7 · Needs a nod before BP-79 starts
+## 7 · ✅ All three restrictions ACCEPTED by the user, 2026-08-10
 
-1. **F2's rule** — *"≥ 2 exec-outs ⇒ data outputs must be pure-fed"*. The alternative is Unreal's:
-   allow it and accept a `CS0165` in generated code. **Lean: take the rule.**
-2. **F3's reuse** — `EventEntryNode`/`ReturnNode` as boundary nodes, accepting that ~5 existing
-   Return/Entry rules must each decide about `Macro`. **Lean: reuse** — it buys the Details-panel
-   signature editing for free and every cost is a loud one.
-3. **F1's placement** — the latent-in-called-function rule as a **Stage 2 call-site** check rather
-   than a Stage 2.5 post-pass. **Lean: Stage 2**, so the error names a node the designer placed.
+| | Decision | |
+|---|---|---|
+| **F2** | *"≥ 2 exec-outs ⇒ data outputs must be pure-fed"* | ✅ accepted — mechanism and both caveats recorded in §1·F2 |
+| **F3** | `EventEntryNode`/`ReturnNode` reused as boundary nodes | ✅ accepted — ~5 existing Entry/Return rules must each **explicitly** decide about `Macro` |
+| **F1** | latent-in-called-function checked at the **Stage 2 call site** | ✅ accepted — the error names a node the designer placed |
 
-All three are Claude-decidable against code in the Q23/Q24/Q25 pattern; none needs NotebookLM. Flagged
-because each one *adds a restriction*, and restrictions are the expensive kind to reverse.
+⇒ **Nothing in BP-79…BP-83 is blocked.** All three were decided against code in the Q23/Q24/Q25
+pattern; none needed NotebookLM. They were raised for a nod because each *adds a restriction*, and
+restrictions are the expensive kind to reverse.
