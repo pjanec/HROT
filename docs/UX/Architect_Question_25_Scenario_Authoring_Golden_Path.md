@@ -548,6 +548,74 @@ would have collided continuously.
 > survives compaction and both programmes' sessions can read it — **but only the user can confirm that
 > the blueprint sessions will actually read it.**
 
+### F-vi — The effective map viewport
+
+<a id="f-vi--the-effective-map-viewport"></a>
+
+**The architecture (user, 2026-08-06, confirmed in code):** the 2D symbolic map is **Raylib, rendered
+across the whole OS window, behind ImGui** — for **speed**. ImGui runs a dockspace with
+`PassthruCentralNode` (`Program.cs:347-349`) so the central node is transparent and the map shows
+through; ImGui windows dock along the **screen edges**; the map is visible only where they are not. The
+BTree/HSM/Blueprint perspectives show no map at all — their central window is the graph.
+🔒 **The map stays Raylib. Hosting it in an ImGui window is a [non-goal](UX_Requirements.md#non-goals).**
+
+**The user's question:** *where is the map centre for a command like "centre map on this entity"?* The
+map's screen extent is the window; its **visible** extent is the central node. They are different
+rectangles.
+
+#### What is already true
+
+| Fact | Evidence |
+|---|---|
+| **The anchor already exists.** `Camera.Offset` is the screen point that `Camera.Target` maps to — set it and `FocusOn()` centres there | `MapCamera.cs:23-33`; `ScreenToWorld = Target + (screen − Offset)/Zoom` |
+| `CenterOnEntityCommand` is handled by `_camera.FocusOn(entityWorldPos)` | `EditorSubsystem.cs:3898-3914` |
+| 🔴 **The editor never sets `Offset`.** The ctor leaves it `Vector2.Zero` | no `Camera.Offset` assignment anywhere in `Hrot.Editor`; `MapCamera.cs:62` |
+| ⇒ **prediction: centre-on-entity puts the entity at the window's top-left, under the docked panels** | ⚠ code-derived; the coordinator cannot run the editor. **Confirm on the walk** |
+| Other hosts anchor to a full-window or **hardcoded** centre | `IgApplication.cs:617` (`WindowWidth/2, WindowHeight/2`); `CgfSubsystem.cs:577` and `SimHostVisualization.cs:226` both hardcode `1280/2, 720/2` |
+| **Nothing anywhere is occlusion-aware** | no `ViewportRect`/`VisibleRect`/dock-inset concept in the presentation layer |
+| Culling uses the **whole window**, which is correct for culling | `EditorSubsystem.cs:1598-1607` — `ScreenToWorld(0,0)` → `ScreenToWorld(GetScreenWidth(), GetScreenHeight())` into `MapCameraViewport` (a *world-space AABB*, so that name is taken) |
+| There is precedent for headless inset math | `DockspaceLayout.CentralSize(work, toolbar, statusBar)` — pure, unit-tested, no ImGui dependency |
+
+> **So the fix is one assignment, not a rewrite:** give the map an *effective viewport rect* and set
+> `Camera.Offset` to its centre. Zero rendering change, zero perf cost, and `FocusOn`/frame/fit all become
+> correct at once. The question is only **where that rect comes from**.
+
+#### How is the effective viewport determined?
+
+- **K1 — Ask ImGui for the dockspace central node** each frame (`DockBuilderGetCentralNode(dockspaceId)`
+  → `Pos`/`Size`).
+  *Reuse:* ImGui already computes exactly this rectangle — it is *the* definition of "not covered by
+  docked windows", and it stays correct when the user drags a splitter or floats a panel.
+  *Build:* one call + plumbing to the camera.
+  ⚠ **Unverified:** no `DockBuilder*` API is used anywhere in this repo, so availability in this ImGui.NET
+  binding must be checked first. If it is missing, K1 dies and K2 becomes the answer.
+- **K2 — Derive it from the shell's declared layout insets** — the new shell knows its own edge docks, so
+  it publishes `left/right/top/bottom` insets and the rect is window-minus-insets.
+  *Reuse:* `DockspaceLayout` is the existing precedent, and this composes with
+  [F-ii](#f-ii--what-does-the-new-shell-keep-of-the-window-machinery)'s **G2** lean (default layout as
+  *data*): the same data that defines the layout defines the viewport.
+  *Build:* an inset model + a per-perspective value.
+  *Cost:* goes stale if the user drags a splitter, unless the shell tracks resizes.
+- **K3 — Subtract the registered window rects** each frame (union of docked ImGui window rectangles).
+  *Cost:* fragile and order-dependent; reinvents what ImGui already knows. Rejected unless K1 and K2 both
+  fail.
+- **K4 — Leave it window-centred and accept the offset.**
+  *Cost:* this is today's behaviour, and it is why [UXR-18](UX_Requirements.md#uxr-18) is filed 🔴.
+
+> **Claude's lean: K1 if the binding exposes the central node, else K2 — and expose the result as one
+> named concept** (`IMapViewportProvider` or similar) that the camera, hit-testing, frame-all,
+> edge-panning and gizmo placement all consult, rather than each recomputing it.
+>
+> **Also worth deciding here:** the map is meaningless in the graph perspectives, so the provider should
+> report *no viewport* there rather than a stale rect — that makes "is there a map right now?" a single
+> answerable question instead of an assumption spread across features.
+>
+> **Sub-question F⁗:** should this land as part of the new shell (clean, but waits on Q25-F-i) or as a
+> **standalone fix to the current editor** (⚠ it touches `EditorSubsystem.cs`, which
+> [SESSION_SYNC](../SESSION_SYNC.md#sequencing-rule) currently reserves for the MCP port)? It is a 🔴
+> correctness defect that is cheap to fix, so the sequencing is a genuine question rather than an obvious
+> "wait for the shell".
+
 ### F-iv — Does `--mode editor` survive?
 
 - **I1 — Retire it once the new app reaches parity.** One editor, one walk, one answer to "what did you
@@ -575,6 +643,8 @@ reframes rather than answers.*
 | **Q25-F-iii — how existing window content is combined** | — | *lean revised to H0-first by the parallel-development constraint* |
 | **Q25-F″ — do the graph canvases move into the new shell?** | — | |
 | **Q25-F-iv — does `--mode editor` survive?** | — | |
+| **Q25-F-vi — how the effective map viewport is determined** | — | *lean K1 (ImGui central node) else K2 (declared insets)* |
+| **Q25-F⁗ — fix the viewport now, or with the new shell?** | — | *🔴 correctness defect, cheap; but it touches `EditorSubsystem.cs`* |
 | **Q25-F-v — staying out of the parallel blueprint work** | — | *lean J1 + J2* |
 | **Q25-F‴ — what is the consultation channel in practice?** | — | *only the user can confirm the blueprint sessions will read it* |
 | Q25-A — recoverability budget | — | |

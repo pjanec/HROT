@@ -1,6 +1,6 @@
 # RESUME / HANDOFF — Scenario-Authoring UX programme
 
-> **rev 7 · 2026-08-06 · branch `claude/reset-working-branch-qd1qpv`**
+> **rev 8 · 2026-08-06 · branch `claude/reset-working-branch-qd1qpv`**
 >
 > 📌 **This is the entry document for this programme.** A fresh session — or one that has lost its
 > context to compaction — reads §0 and §1, then §3 for the single next action. Nothing else is required.
@@ -106,6 +106,41 @@ things overall.
 **The upside that makes this workable:** the new shell is a **greenfield project** — new files, new
 `.csproj` — so it is **collision-free by construction**. This is an additional argument for the new app
 over repairing the old shell in place, which would have collided continuously.
+
+### 🗺 The map — architecture, and a 🔴 defect it implies
+
+**User, 2026-08-06, confirmed in code:** the 2D symbolic map is **Raylib, rendered across the whole OS
+window, behind ImGui** — kept that way **for speed**. ImGui runs a `PassthruCentralNode` dockspace
+(`Program.cs:347-349`) so the central node is transparent and the map shows through; **ImGui windows dock
+along the screen edges**; the map is visible only where they are not. The BTree/HSM/Blueprint perspectives
+show **no map** — their central window is the graph. 🔒 **Moving the map into ImGui is a
+[non-goal](UX_Requirements.md#non-goals)** — the new shell is designed around this.
+
+⇒ **The map's screen extent and its visible extent are two different rectangles**, and everything that
+reasons about "where the map is" — centre-on-entity, frame-all, fit-selection, zoom-to-cursor, hit-testing,
+gizmo placement — must use the **effective viewport**. New [UXR-18](UX_Requirements.md#uxr-18) 🔴 +
+[UXD-30](UX_Design.md#uxd-30) + [Q25-F-vi](Architect_Question_25_Scenario_Authoring_Golden_Path.md#f-vi--the-effective-map-viewport).
+
+**The good news: the mechanism already exists and the fix is one assignment.** `MapCamera.Offset` is the
+screen point that `Camera.Target` maps to (`MapCamera.cs:23-33`) — set it to the centre of the effective
+viewport and `FocusOn()` becomes correct, with **zero** rendering change and no perf cost.
+
+🔴 **The bad news, and a prediction to confirm on the walk:** the editor **never sets `Offset`**, and the
+ctor leaves it `Vector2.Zero` (`MapCamera.cs:62`) — so *centre on entity* should be putting the entity at
+the window's **top-left, under a docked panel**. Other hosts use full-window or **hardcoded** centres
+(`IgApplication.cs:617`; `CgfSubsystem.cs:577` and `SimHostVisualization.cs:226` both hardcode 1280×720).
+**Nothing anywhere is occlusion-aware.** ⚠ Code-derived — the coordinator cannot run the editor.
+
+⚠ **Correction recorded:** an earlier revision of the target layout in
+[UX_Design §2](UX_Design.md#2-the-five-questions--the-target-layout) drew the map as a **docked centre
+panel**. That was wrong and is fixed. Do not reintroduce it.
+
+⚠ **Also corrected:** there is **no "Home" perspective**. The id is `"Editor"` and it is **already
+relabelled "Scenario"** in the Perspective menu (`EditorSubsystem.cs:3449`,
+`RegisterPerspectiveLabel("Editor", "Scenario")`). The *id* is load-bearing — `CurrentPerspective ==
+"Editor"` gates `isScenarioContext` (`:2592`, `:2598`) and every window registration uses it as
+`owningPerspective` — so renaming the id is a wide mechanical change in a co-owned file, and the display
+name is already right.
 
 ### The editor's architectural identity — verified
 

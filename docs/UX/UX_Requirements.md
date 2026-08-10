@@ -1,6 +1,6 @@
 # Scenario-Authoring UX — Requirements (`UXR`)
 
-> **Status:** **v2**, 2026-08-06. **Source of truth for scope.**
+> **Status:** **v3**, 2026-08-06. **Source of truth for scope.**
 > A task that does not trace to a `UXR-nn` does not belong in this programme.
 > Journey spec: [UX_Golden_Path.md](UX_Golden_Path.md) · Design: [UX_Design.md](UX_Design.md) ·
 > Tasks: [UX_Task_Tracker.md](UX_Task_Tracker.md) · Orientation: [UX_Programme_Briefing.md](UX_Programme_Briefing.md)
@@ -82,6 +82,19 @@ OQ-2); this split governs the whole programme.
 | <a id="uxr-15"></a>**UXR-15** | **No authoring gesture can silently destroy work.** Destructive actions confirm; the scenario autosaves; *Revert to Saved* always exists — see the rationale note below | Delete a platoon → confirmed first. Kill the editor mid-session → reopen and lose ≤1 autosave interval. *Revert to Saved* restores the last save exactly | **Nothing exists.** Zero `Undo` references in `Hrot.Editor` / `Hrot.Presentation`; ⚠ autosave and confirm-on-destructive not traced | P0 🔴 |
 | <a id="uxr-16"></a>**UXR-16** | **Reusable entity templates** — save a configured unit (or group) as a template, place instances, override per instance | Configure a tank, save as template, place 3, change one without affecting the others | No scenario-level template/prefab concept. TKB types are the only reuse unit; a scenario entity is a verbatim ~20-component bag — **which is also why this may be cheap: the saved form already is the template** | P1 |
 | <a id="uxr-17"></a>**UXR-17** | **Ctrl+Z works for the last authoring gesture where it is semantically sound** — single-step undo of placement, drag, rotate and delete, as a bounded scope | Place a unit, press Ctrl+Z → it is gone. Drag it, Ctrl+Z → it is back at the previous position | Absent. **Deliberately scoped to single-step; see the rationale note** | P1 |
+
+| <a id="uxr-18"></a>**UXR-18** | **Map commands operate on the part of the map the user can see.** Centre-on-entity, frame-all, fit-selection, zoom-to-cursor and hit-testing all use the **effective viewport** — the un-occluded central region — not the whole OS window | Dock panels on the left and right, then *Centre on this entity* → the entity ends up in the **middle of the visible map**, not behind a panel | 🔴 **Nothing is occlusion-aware.** `MapCamera.Offset` is the anchor that would fix this, and the editor **never sets it** — the ctor leaves it `Vector2.Zero` (`MapCamera.cs:62`), so `FocusOn` should place the target at the window's top-left, under the docked panels. Other hosts use full-window or hardcoded centres (`IgApplication.cs:617`, `CgfSubsystem.cs:577`, `SimHostVisualization.cs:226`). ⚠ Code-derived — **confirm on the walk** | P0 🔴 |
+
+> ### 📌 The map is a full-window Raylib layer, not a panel
+>
+> The 2D symbolic map is rendered by **Raylib across the whole OS window, behind ImGui**, which runs a
+> dockspace with `PassthruCentralNode` (`Program.cs:347-349`) so the central node is transparent and the
+> map shows through. **ImGui windows dock along the screen edges; the map is visible only where they are
+> not.** In the BTree/HSM/Blueprint perspectives the map is not visible at all.
+>
+> 🔒 **It stays Raylib, for speed** — see [non-goal 5](#non-goals). Therefore the map's *screen* extent
+> and its *visible* extent are two different rectangles, and [UXR-18](#uxr-18) exists because everything
+> that reasons about "where the map is" must use the second one.
 
 > ### 📌 Why there is no full undo requirement
 >
@@ -200,13 +213,16 @@ Explicitly **out of scope** for this programme, to keep it finishable:
 3. **Reworking the distributed protocol.** [UXR-73](#uxr-73) asks that OCC be *handled and hidden* from
    an SME — not that it be removed. [UXR-26](#uxr-26) likewise asks only that offline authoring not
    *show* it.
-4. **Forking shared panels per audience.** The two paths differ by presentation and defaults, not by
+4. **Moving the map into an ImGui window.** No render-to-texture, no image blit, no ImGui-hosted canvas.
+   The map is Raylib for speed and stays that way; the new shell is designed around that
+   ([UXD-30](UX_Design.md#uxd-30)).
+5. **Forking shared panels per audience.** The two paths differ by presentation and defaults, not by
    duplicated panels ([consequence 4](#who-we-are-building-for)).
-5. **Runtime/compiler capability.** New node kinds, scheduler work, EQS, waves — all belong to the
+6. **Runtime/compiler capability.** New node kinds, scheduler work, EQS, waves — all belong to the
    blueprint programme's register.
-6. **Rendering/terrain quality**, map projection, and 3D presentation.
-7. **Multi-user concurrent authoring.**
-8. **Localisation** and accessibility beyond keyboard-reachability.
+7. **Rendering/terrain quality**, map projection, and 3D presentation.
+8. **Multi-user concurrent authoring.**
+9. **Localisation** and accessibility beyond keyboard-reachability.
 
 ## Answered questions
 

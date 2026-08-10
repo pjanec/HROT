@@ -1,6 +1,6 @@
 # Scenario-Authoring UX — Design (`UXD`)
 
-> **Status: BASE — v0.3, 2026-08-06.** Structure and decision register are in place. The four opening
+> **Status: BASE — v0.4, 2026-08-06.** Structure and decision register are in place. The four opening
 > questions are **answered** ([OQ-1…OQ-4](UX_Requirements.md#answered-questions)); the remaining
 > structural decisions are in the architect round
 > **[Q25](Architect_Question_25_Scenario_Authoring_Golden_Path.md)**.
@@ -89,23 +89,42 @@ layout must own one of the five questions; a panel that owns none does not belon
 | 4. What can I do now? | Toolbar + object context menu + palette | weak / absent |
 | 5. Did it work? | **Problems panel** + status pill + toasts | absent |
 
-Target default layout for the **Editor** perspective — *proposed, see [UXD-01](#uxd-01)*:
+### 🔴 The map is not a panel — corrected 2026-08-06
+
+**An earlier revision of this section drew the map as a docked centre panel. That was wrong, and it
+mattered.** The real model, confirmed in code:
+
+- The **2D symbolic map is rendered by Raylib across the whole OS window**, *underneath* ImGui.
+- ImGui runs a **dockspace with `PassthruCentralNode`** (`Program.cs:347-349`), so the central node is
+  transparent and the Raylib map shows through it.
+- **ImGui windows dock along the screen edges.** The map is visible only where no ImGui window covers it.
+- In the **BTree / HSM / Blueprint** perspectives the map is not visible at all — their central window is
+  the graph canvas.
+- 🔒 **The map stays Raylib, for speed.** Hosting it in an ImGui window (render-to-texture + image blit)
+  is a [non-goal](UX_Requirements.md#non-goals). The new shell must be designed around this, not against it.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ menu bar · scenario name* · [PLAY ▶] [⏸] [⏭] [⏹] · mode chrome      │
+│ menu bar · scenario name* · [PLAY ▶] [⏸] [⏭] [⏹] · mode chrome       │  ImGui
 ├────────────┬────────────────────────────────────────┬────────────────┤
-│            │                                        │                │
-│ OUTLINER   │              MAP / VIEWPORT            │   INSPECTOR    │
-│ (Q2)       │                                        │   (Q3)         │
-│            │           tool overlay (Q4)            │   ├ Identity   │
-│ ORBAT tree │                                        │   ├ Transform  │
-│ names+icons│                                        │   ├ Behaviors  │
-│            │                                        │   └ Components │
+│ OUTLINER   │ ← ── ── ── ── ── ── ── ── ── ── ── ── →│   INSPECTOR    │
+│ (Q2)       │ ┊   the dockspace CENTRAL NODE is    ┊ │   (Q3)         │  ImGui docked
+│            │ ┊   transparent — this is the        ┊ │   ├ Identity   │  at the EDGES
+│ ORBAT tree │ ┊   EFFECTIVE MAP VIEWPORT           ┊ │   ├ Transform  │
+│ names+icons│ ┊                                    ┊ │   ├ Behaviors  │
+│            │ ← ── ── ── ── ── ── ── ── ── ── ── ── →│   └ Components │
 ├────────────┴────────────────────────────────────────┴────────────────┤
 │ PROBLEMS (Q5)  │  Asset Browser  │  Hot Reload Log                   │
 └──────────────────────────────────────────────────────────────────────┘
+   ▲                                                                ▲
+   └──── the RAYLIB MAP spans this ENTIRE rectangle, behind it all ──┘
 ```
+
+**The consequence, and it is a real defect class:** the map's screen extent (the OS window) and its
+*visible* extent (the central node) are different rectangles. Anything that reasons about "where the map
+is" — centre-on-entity, frame-all, fit-selection, zoom-to-cursor, edge-panning, hit-testing, gizmo
+placement — must use the **effective viewport**, not the window. See [UXD-30](#uxd-30) and
+[UXR-18](UX_Requirements.md#uxr-18).
 
 The graph canvases (BTree/HSM/Blueprint) keep their own perspectives — they are already good. What
 changes is that **entering and leaving them is driven from the entity**, not from the Perspective menu.
@@ -158,6 +177,7 @@ user has set the direction, shape still in the architect round · `DECIDED` = ru
 | <a id="uxd-21"></a>**UXD-21** | **Param authoring coverage** — extend `BehaviorUiCompiler`'s attribute vocabulary so map-pick/entity-pick are declarative, retiring the 3 special-cased behaviors and the raw-JSON fallback | `LEAN` | [UXR-23](UX_Requirements.md#uxr-23). Existing infra is good; the gap is vocabulary + a "no DTO ⇒ loud diagnostic" rule instead of a silent JSON textbox |
 | <a id="uxd-22"></a>**UXD-22** | **Params storage** — structural JSON vs the current escaped string | `OPEN` | [UXR-24](UX_Requirements.md#uxr-24), [UXR-63](UX_Requirements.md#uxr-63). Migration cost: existing scenarios + `MissionPlanTranslator` + the DDS wire form. **Check the wire form before assuming this is editor-local** |
 | <a id="uxd-23"></a>**UXD-23** | **Command palette** — new, or extend the existing command registry + `FindResultsWindow` pattern | `LEAN` | [UXR-05](UX_Requirements.md#uxr-05). Commands already carry `Id`/`DisplayName`/`Category`/`IsEnabled` (`EditorCommandDescriptor`) — a palette is largely a view over what exists |
+| <a id="uxd-30"></a>**UXD-30** | **The effective map viewport** — how the shell tells the map where its *visible* rectangle is, so centre/frame/fit/pick operate on what the user can actually see | `LEAN` → [Q25-F-vi](Architect_Question_25_Scenario_Authoring_Golden_Path.md#f-vi--the-effective-map-viewport) | Required by [UXR-18](UX_Requirements.md#uxr-18). ⚡ **The mechanism already exists and is one assignment:** `MapCamera.Offset` is the screen point that `Camera.Target` maps to (`MapCamera.cs:29-33`) — set it to the centre of the effective viewport and `FocusOn()` centres in the visible area, with **zero** rendering change and no perf cost. 🔴 **Verified: the editor never sets `Offset` at all** (no `Camera.Offset` assignment anywhere in `Hrot.Editor`), and `MapCamera`'s ctor leaves it `Vector2.Zero` (`:62`) — so `FocusOn` should be putting the target at the window's **top-left corner, under the docked panels**. Other hosts set it to a full-window or hardcoded centre (`IgApplication.cs:617`; `CgfSubsystem.cs:577` and `SimHostVisualization.cs:226` both hardcode `1280/2, 720/2`). **Nothing anywhere is occlusion-aware.** Options + lean in Q25-F-vi |
 | <a id="uxd-24"></a>**UXD-24** | **Object context menus** as the primary discovery path | `LEAN` | [UXR-25](UX_Requirements.md#uxr-25), [UXR-43](UX_Requirements.md#uxr-43), [UXR-50](UX_Requirements.md#uxr-50). Seams exist (`JsonEntityContextMenuHandler`, `ContextMenuLogic`, gizmo context menus with icon resolver) |
 
 ## 4. Sequencing principle
@@ -199,6 +219,8 @@ Milestones are not yet cut into tasks — that follows the reconnaissance walk (
 | **The editor is networkless, all-in-one, in-process — by design, and already enforced in code** | `EditorSubsystem` discards the injected `INetworkFactory` and hardcodes `OfflineNetworkFactory` (`:180`, `:557`). The editor preset drops network composition entirely. ⚠ Make the intent explicit rather than a discarded positional parameter, so nobody "helpfully" wires it |
 | **An editor MCP server may become one of its few network interfaces** — *intent, does not exist yet* | Only MCP *client* config exists today (`.mcp.json`). Don't design for it, but don't make adding an agent-facing interface later require reopening the shell |
 | ⚠ **Shared panels have parallel owners** ([UXD-10b](#uxd-10b)) | **Place, do not edit.** Additive at the shell boundary; in-window and shared-menu changes go through [SHARED_SURFACES.md](SHARED_SURFACES.md) first |
+| 🔒 **The 2D symbolic map is Raylib, full-OS-window, rendered BEHIND ImGui** — for speed. ImGui docks at the edges over a `PassthruCentralNode` dockspace | The map is **not** a panel and must not become one. Its *visible* rect is the dockspace central node, not the window — every centre/frame/fit/pick must use the effective viewport ([UXD-30](#uxd-30)). Render-to-texture into an ImGui window is a [non-goal](UX_Requirements.md#non-goals) |
+| **The map is absent from the BTree/HSM/Blueprint perspectives** — their central window is the graph | Map-dependent affordances belong to the Scenario perspective only. Do not put map-reading UI where there is no map |
 | **ImGui** (immediate-mode) via `Fdp.Presentation.WindowManager` | No retained widget tree; panel state is explicit. Layout is docking + perspectives — work with that machinery, do not fork it |
 | Editor is **one subsystem among many** (`--mode editor`), co-locating Brain + Muscle | Author-facing changes must not regress the ExCon/IG/CGF surfaces that share these panels |
 | Panels are **shared across subsystems** (`MissionPanel`, `FdpEntityInspectorWindow`, ORBAT) | Prefer additive composition over editing shared panels in place; verify the other hosts |

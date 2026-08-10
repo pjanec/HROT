@@ -96,6 +96,7 @@ Condensed here so a compacted session recovers immediately:
 |---|---|
 | [../UX/MCP_PORT_PLAN.md](../UX/MCP_PORT_PLAN.md) | ✅ Full inventory, topology analysis, 8-step plan, rejected alternatives, 5 open questions |
 | This file | ✅ rev 1 |
+| Runs on | ✅ **Linux cloud is sufficient** — no Windows needed (user, 2026-08-06) |
 | Branch for this session | ⚠ **not created / not recorded.** Record it in [../SESSION_SYNC.md](../SESSION_SYNC.md#the-sessions) in your first commit |
 | Port | ☐ not begun |
 
@@ -104,11 +105,14 @@ Condensed here so a compacted session recovers immediately:
 **Answer the [open questions](#4-open-questions) with the user**, in particular *which branch receives
 the port*. Then:
 
-**Step 1 — establish whether this can be done without Windows.** ⚠ Unverified and it changes everything
-about how the session runs. Evidence that it *might* be Linux-friendly: `HttpListener` runs on .NET on
-Linux, the suite includes `DebugApiHeadlessSmokeTests`, and `--headless` is a supported runner mode. If a
-cloud session can build and run the ADA integration tests, the whole port is doable here and only the
-final GUI sanity check needs Windows. **Determine this first — do not assume either way.**
+✅ **Windows is not required — confirmed by the user 2026-08-06: "mcp does not need windows at all."**
+That is consistent with the code: `HttpListener` runs on .NET on Linux, the suite ships
+`DebugApiHeadlessSmokeTests`, and `--headless` is a supported runner mode. **A Linux cloud session can do
+this port end to end** — build, run the ADA integration tests, and drive the MCP tools against the
+headless runner. No GUI is involved in the API's own verification.
+
+⚠ Still verify early rather than assuming: that the solution builds on Linux in this container, and that
+the headless runner starts. If either fails, say so rather than silently degrading the plan.
 
 Then work [the 8-step plan](../UX/MCP_PORT_PLAN.md#the-port-plan). The judgement is concentrated in three
 of those steps:

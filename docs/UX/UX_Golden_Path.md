@@ -1,6 +1,6 @@
 # The Golden Path — executable specification
 
-> **Status: v0.2, 2026-08-06. LIVING DOCUMENT — expected to change.**
+> **Status: v0.3, 2026-08-06. LIVING DOCUMENT — expected to change.**
 > This is the programme's **specification**: the journey is the requirement, panels are implementation
 > detail. It will be revised as the walk digs deeper and the requirements adjust. **Revise it rather
 > than working around it** — a step that turns out to be wrong is a finding, not an obstacle.
@@ -89,6 +89,23 @@ walk is performed by a **Windows implementation session or the user**. See
 **Do not fix anything during the walk** — and in particular **do not fix the old shell**, which is being
 replaced. A walk that stops to fix things produces neither a clean result nor a complete list.
 
+### 🗺 How the map works — read before walking A3–A7
+
+The **2D symbolic map is Raylib, drawn across the whole OS window, behind ImGui** (for speed). ImGui runs
+a `PassthruCentralNode` dockspace, so the transparent central node is where you see the map; ImGui windows
+dock along the **screen edges**. The **Scenario** perspective shows the map; the BTree/HSM/Blueprint
+perspectives do not — their central window is the graph.
+
+⇒ **The map's visible rectangle is not the window.** When walking any map gesture, record **where on
+screen the result landed**, not just whether it happened — that distinction is the whole of
+[UXR-18](UX_Requirements.md#uxr-18).
+
+**Specific check, worth doing early:** dock panels left and right, select a unit, invoke *centre on
+entity*. **Prediction: the entity lands at or near the window's top-left corner, hidden under a docked
+panel** — because the editor never sets `MapCamera.Offset` and the ctor leaves it `Vector2.Zero`. If that
+is what you see, [UXR-18](UX_Requirements.md#uxr-18) is confirmed 🔴 and
+[UXD-30](UX_Design.md#uxd-30) is the fix.
+
 ### Prediction columns are predictions
 
 Each step carries a **Prediction** — a code-derived guess at what will happen, from the opening audit.
@@ -141,6 +158,7 @@ Where the walk contradicts a prediction, the walk wins: record it in
 | **Required outcome** | Every entity by **name and type**, in ORBAT hierarchy. Selection agrees in all three of outliner / map / inspector |
 | **Requirements** | [UXR-10](UX_Requirements.md#uxr-10), [UXR-11](UX_Requirements.md#uxr-11) |
 | **Prediction** | 🔴 **The single worst step.** `EditorOrbatPanel.DrawContent` is 27 lines printing `• [entityId]` — no names, no hierarchy, no selection, no interaction. Also check *whether it is even in the default layout* |
+| **Also record** | 🗺 When selecting from the map, note **where in the visible map area** the selected unit sits, and whether docked panels cover part of the map. Feeds [UXR-18](UX_Requirements.md#uxr-18) |
 
 ## A5 — Inspect and adjust
 
@@ -315,5 +333,6 @@ serves it, and whether the new shell can compose that logic without its current 
 
 | Rev | Date | Change |
 |---|---|---|
+| v0.3 | 2026-08-06 | 🗺 Added the **map architecture** section — the map is a full-OS-window **Raylib** layer behind ImGui, visible only through the `PassthruCentralNode` central node, absent from the graph perspectives. Walkers must record *where on screen* a map gesture landed, and there is a specific early check for the centre-on-entity prediction ([UXR-18](UX_Requirements.md#uxr-18)) |
 | v0.2 | 2026-08-06 | ⭐ **The editor is getting a new shell** ([UXD-08](UX_Design.md#uxd-08)), so this doc gains a third job: it is now the **build order** — the new shell starts near-empty and each step earns its surface. The first walk is reframed as **reconnaissance** (capability inventory + corrected predictions + build order), not a repair list for a shell being discarded. Added the capability-inventory table and a walk step for recording whether each panel's logic is reachable without its ImGui |
 | v0.1 | 2026-08-06 | Created. Path A (A1–A12) and Path B (B1–B5) from the user's stated journey, with code-derived predictions from the opening audit. **No walk performed** — every prediction is unverified |

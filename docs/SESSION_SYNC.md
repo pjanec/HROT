@@ -11,7 +11,7 @@
 | # | Programme | Entry doc | Branch | Runs on |
 |---|---|---|---|---|
 | 1 | **Scenario-authoring UX** (outer loop — the editor shell) | [UX/UX_RESUME.md](UX/UX_RESUME.md) | `claude/reset-working-branch-qd1qpv` | Linux cloud (coordinator) + Windows implementers |
-| 2 | **AI Debug API + MCP port** (infrastructure) | [mcp-port/MCP_PORT_RESUME.md](mcp-port/MCP_PORT_RESUME.md) | ⚠ **TBD — the user will supply it. Record it here in your first commit.** | TBD |
+| 2 | **AI Debug API + MCP port** (infrastructure) | [mcp-port/MCP_PORT_RESUME.md](mcp-port/MCP_PORT_RESUME.md) | ⚠ **TBD — the user will supply it. Record it here in your first commit.** | ✅ Linux cloud — **no Windows needed** |
 | 3 | **Blueprint gaps & QoL** (inner loop — graph canvases) | [blueprints/Blueprint_Gaps_Programme_RESUME.md](blueprints/Blueprint_Gaps_Programme_RESUME.md) | `claude/blueprint-authoring-status-6sr5ld` | Windows, **active in parallel** |
 
 ⚠ **Session 3 does not know this file exists.** Nobody has added a pointer from its RESUME, because that
@@ -101,6 +101,8 @@ wrong ten times.
 | 🔒 **`ClusterRunner` must stay fully operational** — session 3 works against it | user constraint, 2026-08-06 |
 | The editor's UI is produced by a **generic cluster-node window aggregator**, not a designed shell | `LocalWindowController.OpenLocalWindow()`, ~60 lines; default perspective = `_subsystems.Skip(1).FirstOrDefault()?.Name` |
 | `feat/ai-debug-api` has **no common ancestor** with `main` or either session branch | `git merge-base` returns empty both ways |
+| 🗺 The **2D symbolic map is Raylib across the whole OS window, behind ImGui**, visible only through the `PassthruCentralNode` central node; it stays Raylib for speed | `Program.cs:347-349`; user constraint 2026-08-06. Its *visible* rect ≠ the window — see [UXR-18](UX/UX_Requirements.md#uxr-18) |
+| 🔴 The editor **never sets `MapCamera.Offset`**, so centre-on-entity should land at the window's top-left | no `Camera.Offset` assignment in `Hrot.Editor`; `MapCamera.cs:62`. ⚠ code-derived, unconfirmed |
 
 ## Shared work habits
 
@@ -128,4 +130,4 @@ statement: [UX/UX_Programme_Briefing.md §5](UX/UX_Programme_Briefing.md#5-work-
 
 | Date | Change |
 |---|---|
-| 2026-08-06 | Created when the MCP port was split into its own session. Branch for session 2 is **TBD** |
+| 2026-08-06 | Created when the MCP port was split into its own session. Branch for session 2 is **TBD**. Session 2 confirmed as **Linux-capable, no Windows needed**; added the map/viewport facts |
