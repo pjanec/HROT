@@ -7,11 +7,39 @@ namespace Hrot.Blueprints.Core.Compiler.Stages;
 
 internal static class Stage3_Normalize
 {
+    /// <summary>
+    /// ⚠⚠ <b>Orphan elimination runs FIRST, and the order is the fix — not a preference.</b>
+    ///
+    /// <para>
+    /// It used to run last, after literal materialization. Pass 1 walks <b>every</b> node — including
+    /// ones already unreachable — and synthesizes a <see cref="LiteralNode"/> for each unconnected
+    /// data-IN pin carrying a default. Pass 3 then found those brand-new literals unreachable too and
+    /// warned about each one. ⭐ <b>The compiler was building scaffolding for nodes it was about to
+    /// delete, then reporting its own scaffolding as a defect.</b>
+    /// </para>
+    ///
+    /// <para>
+    /// The resulting <c>BP3010</c> named a GUID that appears in <b>no asset file</b>, so a designer had
+    /// nothing to act on: measured on this tree it was 6 of 16 <c>BP3010</c>s — 3 in <c>InlineEd1 ▸
+    /// Tick</c> (the orphans carry 4 <c>PinDefaults</c>, one a vector that
+    /// <see cref="FormatDefaultLiteral"/> declines) and 3 in <c>EnumDemo ▸ Main</c> (one orphan, 3
+    /// scalar defaults). Every synthesized warning was an authored orphan counted a second time.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>Reordering cannot change WHICH authored nodes are eliminated.</b> A synthesized literal is
+    /// a fresh node whose only link is one outgoing data wire into the pin it was made for, and
+    /// <see cref="CollectReachable"/> walks links in both directions — so it is reachable exactly when
+    /// its consumer is, and can never bridge two otherwise-disconnected components. A cast node is
+    /// spliced into an existing link and likewise adds no reachability. The authored orphan set is
+    /// therefore identical either way; only the redundant warnings go.
+    /// </para>
+    /// </summary>
     public static BlueprintAsset Run(BlueprintAsset asset, ValidationContext ctx)
     {
+        asset = EliminateOrphanNodes(asset, ctx);
         asset = MaterializeDefaultPinLiterals(asset, ctx);
         asset = InsertImplicitCasts(asset, ctx);
-        asset = EliminateOrphanNodes(asset, ctx);
         return asset;
     }
 
@@ -113,6 +141,7 @@ internal static class Stage3_Normalize
             Kind           = graph.Kind,
             Inputs         = graph.Inputs,
             Outputs        = graph.Outputs,
+            ExecOutputs    = graph.ExecOutputs,
             EditorMetadata = graph.EditorMetadata,
             Nodes          = graph.Nodes.Concat(extraNodes).ToList(),
             Links          = graph.Links.Concat(extraLinks).ToList(),
@@ -322,9 +351,24 @@ internal static class Stage3_Normalize
                 ToNodeId   = link.ToNodeId, ToPinId  = link.ToPinId,
             });
 
-            ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP3011,
-                $"Implicit cast inserted from '{fromIr.FullName}' to '{toIr.FullName}'.",
-                asset.AssetId, graph.Id));
+            // ⭐ BP3011 RETIRED HERE (Batch 29). It used to warn "Implicit cast inserted from X to Y"
+            // on every cast this pass inserts.
+            //
+            // ⚠ The retirement is grounded in an invariant of the table above it, not in a preference
+            // about noise. `StaticTypeRegistry.CoercionTable` IS C#'s own implicit-numeric-conversion
+            // table and nothing more -- widening only, with a written refusal to add lossy rungs
+            // ("there is deliberately no Int32->UInt32 or Int64->Int32 rung, because ... a silent lossy
+            // coercion in a visual graph is a wrong-VALUES bug the designer cannot see"). TryGetCoercion
+            // is the ONLY way to reach this line, so every cast it could ever report is a conversion
+            // the C# language performs silently anyway: lossless, behaviour-preserving, and with no
+            // action available to the designer. A warning naming no risk and no fix is not a weak
+            // warning -- it is one with nothing behind it, and it trains people to skim BP diagnostics.
+            //
+            // 📌 Retired the BP1656 way: the CODE stays defined so the number is never reused, listed
+            // in V_AllValidatorsCoverageTests.KnownNotYetEmittedCodes. The invariant it rests on is
+            // locked by Stage3_NormalizationTests.CoercionTable_ContainsOnlyLosslessWidenings, so a
+            // future lossy rung turns that test red and forces this decision to be revisited rather
+            // than silently invalidated.
         }
 
         if (extraNodes.Count == 0) return graph;
@@ -391,6 +435,7 @@ internal static class Stage3_Normalize
             Kind          = graph.Kind,
             Inputs        = graph.Inputs,
             Outputs       = graph.Outputs,
+            ExecOutputs   = graph.ExecOutputs,
             EditorMetadata = graph.EditorMetadata,
             Nodes = graph.Nodes.Where(n => !orphanIds.Contains(n.Id)).ToList(),
             Links = graph.Links

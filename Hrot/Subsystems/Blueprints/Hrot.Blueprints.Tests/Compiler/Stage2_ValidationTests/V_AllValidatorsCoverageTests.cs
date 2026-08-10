@@ -27,6 +27,15 @@ public sealed class V_AllValidatorsCoverageTests
         // unimplemented. BP-73 shipped N-output, so the gate is gone and the code is deliberately
         // never emitted again -- kept in DiagnosticCodes only so the number is not reused.
         "BP1656",
+        // RETIRED, not reserved (Batch 29): BP3011 warned "Implicit cast inserted from X to Y" on
+        // every rung of StaticTypeRegistry.CoercionTable -- which IS C#'s implicit-numeric-conversion
+        // table, widening only, with a written refusal to carry lossy rungs. Every cast it could
+        // report was therefore lossless and behaviour-preserving, leaving the designer nothing to act
+        // on. Kept defined so the number is not reused; the invariant it rested on is locked by
+        // Stage3_NormalizationTests.CoercionTable_ContainsOnlyLosslessWidenings.
+        "BP3011",
+        // BP-80: allocated and emitted, but only reachable once MacroCallNode can be AUTHORED into a
+        // compiled graph. It IS covered -- see MacroSurfaceTests -- so it is NOT listed here.
     };
 
     [Fact]

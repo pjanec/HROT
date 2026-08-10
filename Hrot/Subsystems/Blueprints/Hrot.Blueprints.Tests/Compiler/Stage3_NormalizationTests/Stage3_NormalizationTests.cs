@@ -77,11 +77,67 @@ public sealed class Stage3_NormalizationTests
         Assert.Equal(asset.Graphs[0].Nodes.Count, normalized.Graphs[0].Nodes.Count);
     }
 
-    // ---- BP3011: Implicit cast insertion --------------------------------
+    /// <summary>
+    /// ⭐ Batch 29 — the pass-order defect behind 6 of the tree's 16 <c>BP3010</c>s.
+    ///
+    /// <para>
+    /// An orphan node carrying pin defaults used to produce <b>two</b> warnings: one for itself, and
+    /// one for the <c>LiteralNode</c> the compiler synthesized for its unconnected defaulted pin
+    /// moments before deleting both. The second named a GUID present in no asset file, so a designer
+    /// had nothing to act on. Elimination now runs before materialization.
+    /// </para>
+    ///
+    /// <para>
+    /// Locked as a COUNT, deliberately: "at least one BP3010" passed before the fix too.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Normalize_OrphanWithPinDefaults_WarnsOnce_NotAlsoForItsSynthesizedLiteral()
+    {
+        var asset = BlueprintAssetBuilder
+            .Library("OrphanDefaultsLib")
+            .WithGraph("Main", g => g.Entry().Return())
+            .Build();
+
+        var graph    = asset.Graphs[0];
+        var orphanId = Guid.NewGuid();
+
+        // One orphan carrying THREE defaulted, unconnected data-IN pins. Before the reorder this
+        // produced 1 + 3 = 4 BP3010s; the three extras were the compiler's own scaffolding.
+        graph.Nodes.Add(new PrintStringNode
+        {
+            Id   = orphanId,
+            Pins = new List<Pin>
+            {
+                new Pin { Id = Guid.NewGuid(), Name = "ExecIn", Direction = "In", IsExec = true, TypeRef = new() },
+                new Pin { Id = Guid.NewGuid(), Name = "A", Direction = "In", IsExec = false,
+                          TypeRef = new BlueprintTypeRef { TypeId = "System.Int32" }, DefaultValue = "1" },
+                new Pin { Id = Guid.NewGuid(), Name = "B", Direction = "In", IsExec = false,
+                          TypeRef = new BlueprintTypeRef { TypeId = "System.Int32" }, DefaultValue = "2" },
+                new Pin { Id = Guid.NewGuid(), Name = "C", Direction = "In", IsExec = false,
+                          TypeRef = new BlueprintTypeRef { TypeId = "System.Single" }, DefaultValue = "3.5" },
+            },
+        });
+
+        var sink       = new DiagnosticSink();
+        var normalized = Stage3_Normalize.Run(asset, new ValidationContext(sink, DefaultOptions()));
+
+        var orphanWarnings = sink.All.Where(d => d.Code == DiagnosticCodes.BP3010).ToList();
+
+        Assert.Single(orphanWarnings);
+
+        // And the one warning names the AUTHORED node — the thing the designer can actually find.
+        Assert.Equal(orphanId, orphanWarnings[0].NodeId);
+
+        // No synthesized literal survives for the deleted node either.
+        Assert.DoesNotContain(normalized.Graphs[0].Nodes, n => n.Id == orphanId);
+        Assert.Empty(normalized.Graphs[0].Nodes.OfType<LiteralNode>());
+    }
+
+    // ---- Implicit cast insertion (BP3011 RETIRED -- Batch 29) ------------
 
     [Fact]
-    [CoversDiagnosticCode("BP3011")]
-    public void Normalize_ImplicitCastNeeded_EmitsBP2002AndInsertsCastNode()
+    public void Normalize_ImplicitCastNeeded_InsertsCastNode_AndDoesNotWarn()
     {
         // Create a graph where an int output is wired to a float input.
         // StaticTypeRegistry must support int->float coercion for this to emit BP3011.
@@ -149,18 +205,78 @@ public sealed class Stage3_NormalizationTests
         var sink = new DiagnosticSink();
         var normalized = Stage3_Normalize.Run(asset, new ValidationContext(sink, DefaultOptions()));
 
-        // If the TypeRegistry supports int->float coercion, BP3011 is emitted and
-        // a CastNode is inserted. If the registry does not support this coercion,
-        // we simply verify no crash occurs (this test still demonstrates the path).
-        var hasCast = sink.All.Any(d => d.Code == DiagnosticCodes.BP3011);
-        var nodeCount = normalized.Graphs[0].Nodes.Count;
+        // int -> float is a rung of StaticTypeRegistry.CoercionTable, so a CastNode IS inserted:
+        // 2 original + 1 cast = 3 nodes. Asserted directly rather than conditionally -- the old
+        // form branched on whether the diagnostic fired and so would have passed even if the pass
+        // had stopped inserting casts altogether.
+        Assert.Single(normalized.Graphs[0].Nodes.OfType<CastNode>());
+        Assert.Equal(3, normalized.Graphs[0].Nodes.Count);
 
-        if (hasCast)
-            // A CastNode was inserted: 2 original + 1 cast = 3 nodes.
-            Assert.Equal(3, nodeCount);
-        else
-            // TypeRegistry does not coerce int->float; no cast node inserted.
-            Assert.Equal(2, nodeCount);
+        // ⭐ Batch 29: and it does so SILENTLY. BP3011 is retired -- every rung of the coercion
+        // table is a lossless C# implicit conversion, so there was never anything for the designer
+        // to act on. See CoercionTable_ContainsOnlyLosslessWidenings for the invariant this rests on.
+        Assert.DoesNotContain(sink.All, d => d.Code == DiagnosticCodes.BP3011);
+    }
+
+    /// <summary>
+    /// ⭐ The invariant BP3011's retirement rests on: <c>StaticTypeRegistry.CoercionTable</c> carries
+    /// ONLY lossless widening conversions — exactly C#'s implicit-numeric-conversion set. If a lossy
+    /// rung is ever added, silent insertion stops being safe and the retired diagnostic must come
+    /// back; this test is what forces that decision to be made rather than skipped.
+    /// </summary>
+    [Fact]
+    public void CoercionTable_ContainsOnlyLosslessWidenings()
+    {
+        // Rank within each conversion family. A conversion is lossless iff C# defines it as an
+        // IMPLICIT numeric conversion; the pairs below are that set, transcribed from the C#
+        // specification (§10.2.3) minus decimal, which the registry does not carry.
+        var implicitNumeric = new HashSet<(string From, string To)>
+        {
+            ("System.SByte",  "System.Int16"),  ("System.SByte",  "System.Int32"),
+            ("System.SByte",  "System.Int64"),  ("System.SByte",  "System.Single"),
+            ("System.SByte",  "System.Double"),
+            ("System.Byte",   "System.Int16"),  ("System.Byte",   "System.UInt16"),
+            ("System.Byte",   "System.Int32"),  ("System.Byte",   "System.UInt32"),
+            ("System.Byte",   "System.Int64"),  ("System.Byte",   "System.UInt64"),
+            ("System.Byte",   "System.Single"), ("System.Byte",   "System.Double"),
+            ("System.Int16",  "System.Int32"),  ("System.Int16",  "System.Int64"),
+            ("System.Int16",  "System.Single"), ("System.Int16",  "System.Double"),
+            ("System.UInt16", "System.Int32"),  ("System.UInt16", "System.UInt32"),
+            ("System.UInt16", "System.Int64"),  ("System.UInt16", "System.UInt64"),
+            ("System.UInt16", "System.Single"), ("System.UInt16", "System.Double"),
+            ("System.Int32",  "System.Int64"),  ("System.Int32",  "System.Single"),
+            ("System.Int32",  "System.Double"),
+            ("System.UInt32", "System.Int64"),  ("System.UInt32", "System.UInt64"),
+            ("System.UInt32", "System.Single"), ("System.UInt32", "System.Double"),
+            ("System.Int64",  "System.Single"), ("System.Int64",  "System.Double"),
+            ("System.UInt64", "System.Single"), ("System.UInt64", "System.Double"),
+            ("System.Single", "System.Double"),
+        };
+
+        var table = typeof(StaticTypeRegistry)
+            .GetField("CoercionTable", System.Reflection.BindingFlags.NonPublic
+                                     | System.Reflection.BindingFlags.Static)
+            ?.GetValue(null) as System.Collections.IEnumerable;
+
+        Assert.NotNull(table);
+
+        var offenders = new List<string>();
+        foreach (var entry in table!)
+        {
+            var keyProp = entry.GetType().GetProperty("Key")!;
+            var key     = keyProp.GetValue(entry)!;
+            var from    = (string)key.GetType().GetField("Item1")!.GetValue(key)!;
+            var to      = (string)key.GetType().GetField("Item2")!.GetValue(key)!;
+            if (!implicitNumeric.Contains((from, to)))
+                offenders.Add($"{from} -> {to}");
+        }
+
+        Assert.True(offenders.Count == 0,
+            "CoercionTable gained a rung that is NOT a lossless C# implicit numeric conversion:\n  "
+            + string.Join("\n  ", offenders)
+            + "\n\nStage3 inserts these casts SILENTLY (BP3011 was retired in Batch 29 precisely "
+            + "because every rung was lossless). A lossy rung means a wrong-VALUES change the "
+            + "designer cannot see. Either drop the rung, or restore a diagnostic for it.");
     }
 
     // ---- Return value preservation -------------------------------------
