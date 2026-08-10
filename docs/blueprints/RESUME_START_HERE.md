@@ -1,7 +1,7 @@
 # ⭐ START HERE — coordinator session, blueprint gaps & QoL programme
 
 > **Point a fresh session at this file. It is self-contained.** Last updated **2026-08-10** at
-> coordinator head **`2cc84d0e`**; both branches in sync at Batch 28.
+> coordinator head **`0bef2f2`**; both branches in sync at Batch 28. **Batch 29 is dispatched** (§7).
 >
 > 📌 Supersedes [RESUME_Coordinator.md](RESUME_Coordinator.md), which is now the **historical log**
 > (Batches 22-28, plus the §0z process root-cause). Read it only for backstory.
@@ -58,16 +58,25 @@ dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Hrot.Blueprints.Tes
 dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests/Hrot.Editor.AiShared.Tests.csproj           --no-build -v q --nologo
 dotnet test Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests/Hrot.BTree.Editor.Tests.csproj          --no-build -v q --nologo
 dotnet test Hrot/Diagnostics/Hrot.Diagnostics.Breakpoints.Tests/*.csproj                       --no-build -v q --nologo
-dotnet test FDP/ExtDeps/NodeEdit/tests/NodeEditor.Core.Tests/NodeEditor.Core.Tests.csproj      --no-build -v q --nologo
-dotnet test FDP/ExtDeps/NodeEdit/tests/NodeEditor.UI.Tests/NodeEditor.UI.Tests.csproj          --no-build -v q --nologo
+# ⚠⚠ the two NodeEdit gates take NO --no-build -- see the warning below
+dotnet test FDP/ExtDeps/NodeEdit/tests/NodeEditor.Core.Tests/NodeEditor.Core.Tests.csproj                -v q --nologo
+dotnet test FDP/ExtDeps/NodeEdit/tests/NodeEditor.UI.Tests/NodeEditor.UI.Tests.csproj                    -v q --nologo
 dotnet test Hrot/Subsystems/AI/Hrot.AiEditor.Generators.Tests/*.csproj                         --no-build -v q --nologo
 ```
 
-**Baseline at `a0961ae1` (Batch 28), coordinator-measured:**
+### ⚠⚠ The two NodeEdit gates silently do not run under `--no-build`
+
+Corrected 2026-08-10 after actually running them. Those projects are **not in `IOS-IG-SimHost.sln`**,
+so the solution build never produces their assemblies and the runner exits with *"The argument
+…`NodeEditor.Core.Tests.dll` is invalid"* — ⭐ **no test output at all**, which reads as *"nothing to
+report"* rather than *"the gate did not run."* Trap #5, in the gate script itself.
+
+**Baseline at `0bef2f2` — ⭐ all eight gates re-RUN 2026-08-10; every figure reproduces Batch 28's:**
 
 | | |
 |---|---|
 | Solution build | **0 errors**, 77 warnings |
+| BP diagnostics | **18 distinct** — 16×`BP3010` + 2×`BP3011` |
 | Blueprints | **3101** / 0 failed / 10 skipped |
 | AiShared **1213** · BTree **612** · Breakpoints **130** | 0 failed |
 | NodeEdit Core **208** · UI **131** · Generators **193** | 0 failed |
@@ -98,7 +107,7 @@ missed tick, which is exactly what went wrong in Batch 28 bookkeeping.
 |---|---|
 | **27** | ✅ verified — authoring seams, the three matrix axes, diagnostic identity |
 | **28** | ✅ verified — the silent `default:` arm family + `GraphKind.Macro` and both fail-loud nets |
-| **29** | ⛔ **not written yet** — see §7 |
+| **29** | 📤 **written and dispatched** — [HANDOFF_Batch29_Macro_Surface_Triage_ReturnStatus.md](HANDOFF_Batch29_Macro_Surface_Triage_ReturnStatus.md). Three headless halves: **BP-80** macro surface · the **warning triage** · **BP-131** `Return.Success`. ⛔ Frozen (rule 1) — new findings go in Batch 30 |
 
 ### The macro capability
 
@@ -166,41 +175,34 @@ evidence, not noise.
 
 ---
 
-## 7 · Next batch (29) — proposed, not yet written
+## 7 · Batch 29 — ✅ written and dispatched
 
-Two coherent halves, both **headless** (the user's visual-testing capacity is limited — respect this):
+📄 **[HANDOFF_Batch29_Macro_Surface_Triage_ReturnStatus.md](HANDOFF_Batch29_Macro_Surface_Triage_ReturnStatus.md)**
+— ⛔ **frozen** (rule 1). Three headless halves; every coordinate in it verified against this tree.
 
-**A · `BP-80` — the macro authoring surface, model + projection half.** `ExecOutDecl` +
-`Graph.ExecOutputs` (⚠ a **new** list — `Graph.Outputs.Count` is load-bearing arithmetic in four
-places, design F5) · `MacroCallNode` with **exactly one field** (F4, which structurally prevents the
-`CallablePeers`/`ArgTypes` defect that has bitten twice) · extend `EventEntryNodePins` **and**
-`Stage0_Rehydrate` together for `Macro` (F3), with `ReturnNode`'s **N exec-in** pins the only new
-projection · `ReturnNode.Status` hidden for `Macro`. ⚠ The editor gestures (palette, the dead
-*"Macros +"* button = **BP-77**) are the visual part — scope them separately.
+| | Item | Shape |
+|---|---|---|
+| **1** | **`BP-80`** macro surface | `ExecOutDecl` + `Graph.ExecOutputs` · `MacroCallNode` (one field) · admit `Macro` to **four** projection halves · `ReturnNode`'s **N exec-in** pins |
+| **2** | the **warning triage** | 10 authored orphans · **6 synthesized** (🔴 the real item) · the `BP3011` rung |
+| **3** | **`BP-131`** `Return.Success` | H1 (`IrTerm_ReturnStatus` gains a condition) is the work; H2/H3 are the traps |
 
-**B · The warning triage — D6's blockers are now BOTH cleared.** `BP-206` gave diagnostics an
-`Asset ▸ Graph ▸ NodeKind` prefix, and ⭐ **its *absent* third segment turned out to be the
-synthesized-node marker** D6 was waiting for. Verified: every kindless `BP3010` GUID appears in **no**
-asset file; every kind-bearing one appears in its asset.
+### What this session added beyond §7's earlier proposal
 
-| | Count | Nature |
-|---|---:|---|
-| authored orphans | **10** | 2 assets (`InlineEd1 ▸ Tick`, `EnumDemo ▸ Main`) — 🟢 Sonnet, ⚠ but they are *demo/test fixtures*, so deleting a node can change what the fixture asserts |
-| **compiler-synthesized** orphans | **6** | 🔴 **not a content fix** — the compiler creates nodes, eliminates them, warns about its own work. Expect a real defect under it |
-| `BP3011` Byte→Int32 | **2** | 🟠 judgement call: a always-safe widening arguably should not warn at all ⇒ one rung, not two assets |
+| ⭐ | |
+|---|---|
+| **F5 is understated** | `Graph.Outputs.Count` is load-bearing at **20 executable sites across 8 files**, not "four" — four of them in `ReturnNodeDrawer` itself |
+| 🔴 **`BP4004` is not a net** | `Stage5:2020-2025` is a **Warning that emits no IR and walks on**. So an unexpanded `MacroCallNode` would *silently vanish from the exec chain* in any consumer without `TreatWarningsAsErrors`. F4 calls it "a second diagnostic"; it is trap #5 again ⇒ the handoff requires an explicit **Error** |
+| 📐 **A design-doc tension, flagged not ruled** | `Macro_Implementation_Design §5` says *"BP-80 and BP-81 must not be split"*, but its justification (two assemblies must agree) is entirely **inside** BP-80. Implementation session decides |
+| 🔴 **`EnumDemo` is the T32 gate asset** | composed into `T32_ComposedGeneratedBlueprint`, named at `BTreeJsonGeneratorTests:2553`. Its 5 orphans are **not** a free 🟢 edit |
+| ✅ **`InlineEd1` is referenced by no test** | genuinely safe — ⚠ but it is a divergent fork of the **test-locked** `EditorTypesDemo.bp.json` and shares node GUIDs. ⛔ do not sync the copies |
+| ⚠ **H2 is sharper than written** | `AiPrimitive` is **unconditional** in `wantsStatusReturn`, so the zero-output-Library branch is only at risk if the pin is projected beyond AiPrimitive ⇒ the projection gate is the primary containment |
+| ⚠ **The gate script itself had trap #5** | the two NodeEdit gates silently did not run under `--no-build` — corrected in §3 |
 
 ⭐ **Add a fifth question to the data-out audit check** (BP-213/214's lesson): *projects a data-out? ·
 resolver case? · `_statementPinCache`? · only `_pinValueCache`? · ⭐ **inside an inline body?***
 
-**C · `BP-131` is also shovel-ready** — design settled (`Success : bool`, AiPrimitive only, ABI
-unchanged), and **BP-107 dissolved into it** 2026-08-10. ⚠ The pin is the easy half; the work is
-**H1** (`IrTerm_ReturnStatus` must carry an optional `IrValue` condition and `TerminatorEmitter` render
-`return cond ? Success : Failure;`) and **H2** (`BuildReturnTerminator` treats *every* non-exec pin as
-a value pin, so a `Success` pin silently breaks the zero-output-Library branch and tuple packing unless
-excluded by name). Headless, and it closes the last of the user's Return-node complaints.
-
 ⚠ **Stale doc in the other lane:** `RESUME_Impl_Session.md:211` still lists BP-107 as *"architect round
-required"*. Not yours to edit — flag it in the next handoff.
+required"* (verified still present). Not yours to edit — **flagged in the Batch 29 handoff §5.**
 
 ---
 
