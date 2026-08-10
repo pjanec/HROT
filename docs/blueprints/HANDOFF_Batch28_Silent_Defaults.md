@@ -210,19 +210,35 @@ Same eight, `--logger "console;verbosity=normal"`.
 | | |
 |---|---|
 | Solution build | **0 errors**, **77 total warnings** |
-| ⚠ of which **BP diagnostics** | **36** — measured by `-t:Rebuild` on `Hrot.AI.Behaviors`: **32×`BP3010`**, **4×`BP3011`** |
+| ⚠ of which **BP diagnostics** | ⭐ **18 distinct** — **16×`BP3010`**, **2×`BP3011`** |
 | Blueprints | **3091 / 0 / 10 skipped** |
 | AiShared · BTree · Breakpoints | **1213 / 0** · **612 / 0** · **130 / 0** |
 | NodeEdit Core · UI · Generators | **208 / 0** · **131 / 0** · **193 / 0** |
 
-⚠ **The 36 are EXPECTED, not a regression.** Batch 27's baseline said 34; the BP-211 fix stopped
-MSBuild merging byte-identical warnings, so `BP3011` unmerged 2 → 4. **Do not fix or silence them**
-(D6: triage still waits, and some orphan GUIDs appear in no asset file, so those were
-compiler-synthesized rather than authored).
+⚠⚠ ⭐ **Count them with `sort -u`, or you will double every number.** MSBuild prints each warning
+**twice** — once in the build (`1>CSC : warning …`) and once in the end-of-build **summary block**. A
+plain `grep -c` over the log therefore reports **36** where there are **18**. *Every warning count in
+this programme's history — 34, then 36 — has been the doubled figure.* The relative movement was
+still real; the absolute number was not.
 
-⚠ ⭐ **Item 2 will move this count.** That is the point — **report the new number and its composition**,
-do not silence it. A total-warning count is *not* a substitute: BP-211 proved that measure hides
-merges.
+⚠ **The 18 are EXPECTED, not a regression.** ✅ **BP-211's finding survives this correction**: before
+BP-206 both `BP3011` messages were byte-identical so MSBuild merged them to one (×2 echo = the old
+"2"); afterwards they name two different assets, so two distinct (×2 echo = the reported "4"). The
+merge was real; the echo is separate and was hiding inside both figures.
+
+**Do not fix or silence them** — triage is **Batch 29's**, deliberately not this batch's (D6, and see
+below).
+
+⚠ ⭐ **Item 2 will move this count.** That is the point — **report the new distinct number and its
+composition**, do not silence it. A total-warning count is *not* a substitute: BP-211 proved that
+measure hides merges, and the summary echo proves it also inflates.
+
+📌 **Context for Batch 29, not work for this batch.** D6's two blockers are now both **cleared**, so
+the triage is unblocked but deliberately out of scope here:
+> `BP-206`'s `Asset ▸ Graph ▸ NodeKind` prefix fixed attribution — **and its *absent* third segment
+> turned out to be the synthesized-node marker D6 was waiting for.** Verified: every kindless
+> `BP3010` GUID appears in **no** asset file; every kind-bearing one appears in its asset.
+> ⇒ **10 authored** orphans (2 assets: `InlineEd1 ▸ Tick`, `EnumDemo ▸ Main`) · **6 compiler-synthesized**.
 
 ⚠ Items here touch the compiler, the emitter **and** the editor projections — run all eight.
 
