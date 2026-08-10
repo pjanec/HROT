@@ -1,6 +1,7 @@
 # HANDOFF — Batch 29: the macro authoring surface · the warning triage · `Return.Success`
 
-> 📌 **Dispatched at `<pending>`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
+> 📌 **Dispatched at `fef5fee0`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
+> ⛔ Any edit to this file after that sha is illegal — new findings go in the Batch 30 handoff.
 > ⭐ **Rule 4 is yours:** pull the coordinator branch again before your final commit.
 > ⭐ **Rule 3: the coordinator allocates no ids.** **No new `BP-2xx` number appears below.** Existing
 > rows are *referenced* (`BP-80`, `BP-131`, `BP-77`, `BP-200`); number every new finding yourself and
