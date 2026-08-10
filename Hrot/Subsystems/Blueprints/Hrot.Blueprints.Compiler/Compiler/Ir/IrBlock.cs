@@ -30,7 +30,39 @@ public sealed record IrTerm_Branch(IrValue Condition, IrBlockId IfTrue, IrBlockI
 /// </para>
 /// </summary>
 public sealed record IrTerm_Return(IrValue? Value, bool ReturnsDefault = false) : IrTerminator;
-public sealed record IrTerm_ReturnStatus(NodeStatus Status) : IrTerminator;
+/// <summary>
+/// Returns a <c>NodeStatus</c> from the generated method — an AiPrimitive's BTree/HSM hosting
+/// contract, and a Library function that declares no outputs.
+///
+/// <para>
+/// ⭐ <b>BP-131.</b> <see cref="Status"/> alone is a <b>compile-time constant</b>, which is why the
+/// Return node's Status combo could never express an outcome that depends on execution — a node whose
+/// whole job is to report how execution went could report nothing execution decided.
+/// <see cref="Condition"/> is the fix: when set, it is a runtime <c>bool</c> and the emitter renders
+/// <c>return cond ? NodeStatus.Success : NodeStatus.Failure;</c> instead of a constant.
+/// </para>
+///
+/// <para>
+/// ⚠ <b>The ABI does not change</b> (DECISIONS_Authoring_UX §D3/Q2): the method still returns
+/// <c>NodeStatus</c>; the <c>bool</c> maps to Success/Failure at the return statement. Nothing outside
+/// the blueprint subsystem sees a difference.
+/// </para>
+///
+/// <para>
+/// <see cref="Status"/> stays meaningful when <see cref="Condition"/> is null, and that is the
+/// back-compatible path every shipped asset takes: an unwired <c>Success</c> pin falls back to the
+/// authored <c>rn.Status</c> rather than to <c>default(bool)</c> — which is <c>false</c>, i.e.
+/// Failure, and would have flipped every AiPrimitive Return in the repo.
+/// </para>
+///
+/// <para>
+/// ⚠ Deliberately a field on this record rather than a new terminator type, for the reason given on
+/// <see cref="IrTerm_Return.ReturnsDefault"/>: both switches over <see cref="IrTerminator"/>
+/// (<c>TerminatorEmitter</c>, <c>IrPrinter</c>) end in a catch-all, so a new kind could be silently
+/// mis-emitted rather than failing loudly.
+/// </para>
+/// </summary>
+public sealed record IrTerm_ReturnStatus(NodeStatus Status, IrValue? Condition = null) : IrTerminator;
 // FailureBlock (Q#13): when set, the WaitForChannel latent lowering routes a channel-Failure
 // resume to this block (the wired OnFailure exec chain) instead of returning NodeStatus.Failure.
 // Null for LatentDelay / WaitForEvent / WaitForChannel-with-unwired-OnFailure (unchanged behavior).

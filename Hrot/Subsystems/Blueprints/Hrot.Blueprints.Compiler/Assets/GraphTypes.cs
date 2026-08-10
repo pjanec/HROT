@@ -9,6 +9,28 @@ public sealed class Graph
     public GraphKind Kind { get; set; }
     public List<ParameterDecl> Inputs { get; set; } = new();
     public List<ParameterDecl> Outputs { get; set; } = new();
+
+    /// <summary>
+    /// BP-80 / Macro_Implementation_Design F5 — the exec continuations a <see cref="GraphKind.Macro"/>
+    /// graph offers its call sites. Empty (and meaningless) for every other kind.
+    ///
+    /// <para>
+    /// ⚠⚠ <b>A separate list, deliberately — exec entries must NEVER go in <see cref="Outputs"/>.</b>
+    /// <c>Outputs.Count</c> is load-bearing <em>arithmetic</em> at 20 executable sites across 8 files
+    /// (<c>Stage5_Schedule</c> ×7, <c>ReturnNodeDrawer</c> ×4, <c>CSharpEmitter</c>, <c>NodePinSchema</c>,
+    /// <c>GraphSignatureWindow</c>, <c>LibraryEmitter</c>, <c>Stage0_Rehydrate</c>, <c>Stage2_Validate</c>)
+    /// — <c>Outputs.Count == 0</c> selects a NodeStatus return, <c>&gt; 1</c> selects tuple packing, and
+    /// <c>ReturnNodePins</c> pairs them positionally. Injecting exec entries there would move every one
+    /// of those counts <b>silently</b>.
+    /// </para>
+    ///
+    /// <para>
+    /// The exec <em>input</em> stays implicit: Q25-D3 declares exactly one exec-in per macro, so there
+    /// is no input-side model change at all.
+    /// </para>
+    /// </summary>
+    public List<ExecOutDecl> ExecOutputs { get; set; } = new();
+
     public List<Node> Nodes { get; set; } = new();
     public List<Link> Links { get; set; } = new();
 
@@ -19,6 +41,29 @@ public sealed class Graph
     /// </summary>
     public List<GraphComment> Comments { get; set; } = new();
     public GraphMetadata EditorMetadata { get; set; } = new();
+}
+
+/// <summary>
+/// BP-80 — one declared exec continuation of a <see cref="GraphKind.Macro"/> graph. Projects to an
+/// exec-<b>In</b> pin on the macro's <c>ReturnNode</c> (the output boundary) and to an exec-<b>Out</b>
+/// pin on every <see cref="MacroCallNode"/> targeting it, paired <b>positionally</b> in declaration
+/// order — <c>Stage2_5_ExpandMacros</c>' splice rule 2 rewires <c>execIn[k]</c> to <c>execOut[k]</c>,
+/// so the order is load-bearing on both sides.
+///
+/// <para>
+/// ⚠ <b>Properties, not fields.</b> The design note wrote this as a field-only record; System.Text.Json
+/// does not serialise fields unless <c>IncludeFields</c> is set (it is not — see the same trap called
+/// out on <see cref="GraphComment"/> and <see cref="LinkWaypoint"/>), so a field-based shape would
+/// round-trip as <c>{}</c> and every declared exec-out would vanish on save/reload.
+/// </para>
+/// </summary>
+public sealed class ExecOutDecl
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = "";
+
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? Tooltip { get; set; }
 }
 
 /// <summary>

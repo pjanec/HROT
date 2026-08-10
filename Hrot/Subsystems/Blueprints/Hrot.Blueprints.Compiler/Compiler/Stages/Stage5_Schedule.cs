@@ -2017,6 +2017,23 @@ internal sealed class GraphScheduler
                 break;
             }
 
+            case MacroCallNode mcn:
+            {
+                // BP-80 / BP1668: an unexpanded macro call reached Stage 5 as a compilation target.
+                //
+                // ⚠⚠ This arm exists to keep the node OUT of the default: arm below. That arm emits
+                // BP4004 -- a Warning that emits no IR and lets the exec chain walk on -- so without
+                // this case a macro call would compile away to nothing in any consumer that does not
+                // set TreatWarningsAsErrors. Silently doing less than the graph says is exactly the
+                // failure mode BP-216 and BP4005 were opened for; an Error here is the net.
+                _ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1668,
+                    $"Macro call node '{mcn.Id}' (target graph '{mcn.TargetGraphId}') reached Stage 5 "
+                    + "as a compilation target -- it survived macro expansion. A macro call must be "
+                    + "spliced into its host graph before scheduling; it is never lowered on its own.",
+                    _ctx.AssetId, _graph.Id, node.Id));
+                break;
+            }
+
             default:
                 // Unknown impure node kind -- emit BP4004 and skip.
                 _ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP4004,
@@ -2111,8 +2128,18 @@ internal sealed class GraphScheduler
         // hand-authored JSON may still carry the legacy "Out" form, which this method has always
         // resolved as an input anyway. Accepting both means there is nothing to migrate and no
         // silently-void return for an asset written against the old shape.
+        //
+        // ⚠⚠ BP-131: the `Success` pin is EXCLUDED BY NAME, and this is defence in depth rather than
+        // bookkeeping. `valuePins` is "every non-exec pin on the Return node", and two unrelated
+        // shapes branch on its COUNT: `== 0` selects the zero-output-Library NodeStatus return
+        // (test-locked by BPC_ImplicitReturnTests.Library_NoReturn_EmitsImplicitSuccessReturn), and
+        // `> 1` selects BP-73's tuple packing. Left in the list, one new pin would silently move both.
+        // Primary containment is the projection gate (the pin exists for AiPrimitive only) -- but the
+        // two mechanisms fail independently, and a hand-authored asset can carry pins no projection
+        // produced, so the name exclusion stands on its own.
         var valuePins = rn.Pins
             .Where(p => !p.IsExec && (p.Direction == "In" || p.Direction == "Out"))
+            .Where(p => !string.Equals(p.Name, ReturnNode.SuccessPinName, StringComparison.Ordinal))
             .ToList();
 
         // BP-104: three OTHER halves already derive the method shape from graph.Outputs --
@@ -2137,6 +2164,30 @@ internal sealed class GraphScheduler
         if (wantsStatusReturn)
         {
             // AiPrimitive returns a NodeStatus. So does a Library function with zero outputs.
+            //
+            // BP-131: when a `Success : bool` pin is present AND WIRED, the status becomes a runtime
+            // value -- `return cond ? Success : Failure;`. The ABI is untouched (still a NodeStatus).
+            //
+            // ⚠⚠ UNWIRED falls back to the authored rn.Status, NOT to default(bool). This is the
+            // whole migration story: default(bool) is `false` = Failure, so a silent default would
+            // have flipped every AiPrimitive Return already shipped from Success to Failure -- a
+            // wrong-VALUES regression across the repo that a green suite would not have caught. The
+            // fallback is back-compatible with every existing asset and needs no migration.
+            // (An inline `true` default was the alternative; the fallback is preferred because it
+            // also honours a Return node whose author deliberately picked Failure.)
+            var successPin = rn.Pins.FirstOrDefault(
+                p => !p.IsExec
+                     && string.Equals(p.Name, ReturnNode.SuccessPinName, StringComparison.Ordinal));
+
+            bool successWired = successPin is not null && _graph.Links.Any(
+                l => l.ToNodeId == rn.Id && l.ToPinId == successPin.Id);
+
+            if (successWired)
+            {
+                var cond = ResolveDataPin(rn.Id, successPin!.Id, currentBlock.Statements);
+                return new IrTerm_ReturnStatus(rn.Status, cond) { Debug = DebugOf(rn) };
+            }
+
             return new IrTerm_ReturnStatus(rn.Status) { Debug = DebugOf(rn) };
         }
 

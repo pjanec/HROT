@@ -130,8 +130,9 @@ internal static class NodePinSchema
         {
             // ── Dynamic kinds: editor-side computation required ───────────────────
             EventEntryNode      => EventEntryNodePins(containingGraph),
-            ReturnNode          => ReturnNodePins(containingGraph),
+            ReturnNode          => ReturnNodePins(containingGraph, asset),
             FunctionCallNode fc => FunctionCallPinsDispatch(fc, asset, containingGraph),
+            MacroCallNode mc    => MacroCallPins(mc, asset),
             GetVariableNode gv  => GetVariablePins(gv, asset),
             SetVariableNode sv  => SetVariablePins(sv, ResolveVariableTypeId(sv.VariableId, asset)),
             // GetParameter: pin-less assets (e.g. the integrated HillAssault2I_* blueprints) carry no
@@ -265,7 +266,14 @@ internal static class NodePinSchema
         // expose the event PAYLOAD fields the same way — one data-Out per Graph.Inputs entry — so the
         // designer can wire the payload downstream. Must stay in parity with the compiler's
         // Stage0_Rehydrate.EnrichEventEntryPins (which enriches both kinds).
-        if ((containingGraph?.Kind == GraphKind.Function || containingGraph?.Kind == GraphKind.Event)
+        //
+        // BP-80 / F3: Macro joins them unchanged. A macro's INPUT boundary is exactly this shape —
+        // one exec-out plus one data-out per declared input — which is why the design reuses
+        // EventEntryNode rather than inventing a boundary node that would miss every existing rule.
+        // The exec-in side needs no model at all (Q25-D3: exactly one, implicit).
+        if ((containingGraph?.Kind == GraphKind.Function
+             || containingGraph?.Kind == GraphKind.Event
+             || containingGraph?.Kind == GraphKind.Macro)
             && containingGraph.Inputs.Count > 0)
         {
             var pins = new List<Pin>(1 + containingGraph.Inputs.Count);
@@ -336,7 +344,7 @@ internal static class NodePinSchema
     /// </para>
     /// Fallback to exec-only for non-Function graphs and Function graphs with no outputs.
     /// </summary>
-    private static IReadOnlyList<Pin> ReturnNodePins(Graph? containingGraph)
+    private static IReadOnlyList<Pin> ReturnNodePins(Graph? containingGraph, BlueprintAsset? asset)
     {
         if (containingGraph is null)
             return ExecOnly("In");
@@ -344,18 +352,144 @@ internal static class NodePinSchema
         // BP-73: one data-In per declared output, in declaration order (Stage 5 pairs them
         // positionally with Graph.Outputs, so the order is load-bearing — mirrors
         // Stage0_Rehydrate.EnrichReturnPins).
-        if (containingGraph?.Kind == GraphKind.Function && containingGraph.Outputs.Count > 0)
+        //
+        // BP-80 / F3: Macro reuses this node as its OUTPUT boundary, so it takes the same data-in
+        // projection — and additionally replaces the single exec-in with N, one per declared
+        // ExecOutDecl. That exec group is the one genuinely new projection in the macro surface.
+        //
+        // BP-131: an AiPrimitive's Return then gains a `Success : bool` data-IN pin, so the status it
+        // reports to its BTree/HSM host can depend on execution instead of being an author-time
+        // constant. AiPrimitive ONLY — see the gate note on WantsSuccessPin below. Appended LAST and
+        // ADDITIVELY, exactly as in the compiler twin, so it cannot perturb the Outputs' positional
+        // order or suppress the data pins BP1655 inspects.
+        bool isMacro   = containingGraph.Kind == GraphKind.Macro;
+        bool wantsData = (containingGraph.Kind == GraphKind.Function || isMacro)
+                         && containingGraph.Outputs.Count > 0;
+        bool wantsSuccess = WantsSuccessPin(containingGraph, asset);
+
+        if (!isMacro && !wantsData && !wantsSuccess)
+            return ExecOnly("In");
+
+        var pins = isMacro
+            ? MacroReturnExecPins(containingGraph)
+            : new List<Pin> { MakeExec("In", "In") };
+
+        if (wantsData)
         {
-            var pins = new List<Pin>(1 + containingGraph.Outputs.Count) { MakeExec("In", "In") };
             foreach (var output in containingGraph.Outputs)
             {
                 var typeId = string.IsNullOrEmpty(output.Type?.TypeId)
                     ? "System.Object" : output.Type.TypeId;
                 pins.Add(MakeData(output.Name, "In", typeId));
             }
-            return pins;
         }
-        return ExecOnly("In");
+
+        if (wantsSuccess)
+            pins.Add(ReturnSuccessPin());
+
+        return pins;
+    }
+
+    /// <summary>
+    /// BP-131 — does this Return node get the <c>Success : bool</c> pin?
+    /// <para>
+    /// ⚠⚠ <b>AiPrimitive only, and that gate is the PRIMARY containment</b>, not a scoping preference.
+    /// <c>Stage5_Schedule.BuildReturnTerminator</c> takes <c>wantsStatusReturn</c> when the dispatch is
+    /// AiPrimitive (unconditional) <b>or</b> when it is Library with <c>valuePins.Count == 0</c>. The
+    /// second arm is a COUNT of non-exec pins, so projecting <c>Success</c> beyond AiPrimitive would
+    /// silently flip a zero-output Library function off its (test-locked) NodeStatus return and onto
+    /// the value-return path. Excluding the pin by name at that site is the second line of defence;
+    /// this gate is the first.
+    /// </para>
+    /// <para>
+    /// ⛔ Macro is excluded too — a macro never returns anything, so it has no status to report.
+    /// </para>
+    /// </summary>
+    private static bool WantsSuccessPin(Graph containingGraph, BlueprintAsset? asset)
+        => asset?.Dispatch == BlueprintDispatchKind.AiPrimitive
+           && containingGraph.Kind != GraphKind.Macro;
+
+    /// <summary>
+    /// BP-131 — the <c>Success : bool</c> data-IN pin. Must stay in exact parity (name, direction,
+    /// type) with <c>Stage0_Rehydrate</c>'s twin, or the pin exists on one side only and a graph the
+    /// designer wired compiles as though it were unwired.
+    /// </summary>
+    private static Pin ReturnSuccessPin()
+        => MakeData(ReturnNode.SuccessPinName, "In", "System.Boolean");
+
+    /// <summary>
+    /// BP-80 — the macro Return node's exec-IN group: one pin per <see cref="Graph.ExecOutputs"/>
+    /// entry, in declaration order. <c>Stage2_5_ExpandMacros</c>' splice rule 2 pairs
+    /// <c>Out′.execIn[k]</c> with <c>C.execOut[k]</c> <b>positionally</b>, so the order is
+    /// load-bearing here exactly as <see cref="Graph.Outputs"/>' order is for the data pins.
+    /// <para>
+    /// ⚠ <b>Zero declared exec-outs keeps the default single <c>"In"</c> pin.</b> A freshly created
+    /// macro graph has <c>ExecOutputs == []</c>; projecting nothing would leave its Return node with
+    /// no exec pin at all — unwireable, and therefore unauthorable before the designer has declared
+    /// anything. The degenerate N=0 case (a macro whose body simply ends, offering the host no
+    /// continuation) is also legitimate under Q25-D3's "N ≥ 0", and reads the same way.
+    /// </para>
+    /// Must stay in parity with <c>Stage0_Rehydrate.EnrichReturnPins</c>.
+    /// </summary>
+    private static List<Pin> MacroReturnExecPins(Graph macroGraph)
+    {
+        if (macroGraph.ExecOutputs.Count == 0)
+            return new List<Pin> { MakeExec("In", "In") };
+
+        var pins = new List<Pin>(macroGraph.ExecOutputs.Count);
+        foreach (var execOut in macroGraph.ExecOutputs)
+            pins.Add(MakeExec(execOut.Name, "In"));
+        return pins;
+    }
+
+    /// <summary>
+    /// BP-80 — a <see cref="MacroCallNode"/>'s pins, derived ENTIRELY by projection from the target
+    /// macro graph (F4: the node itself carries only <c>TargetGraphId</c>):
+    /// one exec-In, then one exec-Out per <see cref="Graph.ExecOutputs"/> entry, then one data-In per
+    /// <c>Inputs</c> entry, then one data-Out per <c>Outputs</c> entry — each group in declaration
+    /// order, because <c>Stage2_5_ExpandMacros</c> pairs them positionally with the boundary nodes'
+    /// pins (splice rules 1-4).
+    /// <para>
+    /// Mirrors <see cref="FunctionGraphCallPins"/>, and — like it — falls back gracefully to exec-only
+    /// when the target cannot be resolved, rather than throwing. An unresolvable target is BP-82's
+    /// diagnostic (<c>BP1660</c>) to report, not this projection's.
+    /// </para>
+    /// Must stay in parity with <c>Stage0_Rehydrate.EnrichMacroCallPins</c>.
+    /// </summary>
+    private static IReadOnlyList<Pin> MacroCallPins(MacroCallNode mc, BlueprintAsset? asset)
+    {
+        var target = ResolveMacroTarget(mc.TargetGraphId, asset);
+        if (target is null)
+            return new[] { MakeExec("In", "In"), MakeExec("Out", "Out") };
+
+        var pins = new List<Pin> { MakeExec("In", "In") };
+
+        if (target.ExecOutputs.Count == 0)
+            pins.Add(MakeExec("Out", "Out"));
+        else
+            foreach (var execOut in target.ExecOutputs)
+                pins.Add(MakeExec(execOut.Name, "Out"));
+
+        foreach (var inp in target.Inputs)
+        {
+            var typeId = string.IsNullOrEmpty(inp.Type?.TypeId) ? "System.Object" : inp.Type.TypeId;
+            pins.Add(MakeData(inp.Name, "In", typeId));
+        }
+        foreach (var output in target.Outputs)
+        {
+            var typeId = string.IsNullOrEmpty(output.Type?.TypeId) ? "System.Object" : output.Type.TypeId;
+            pins.Add(MakeData(output.Name, "Out", typeId));
+        }
+        return pins;
+    }
+
+    /// <summary>BP-80 — resolves a <c>TargetGraphId</c> to a <see cref="GraphKind.Macro"/> graph in the
+    /// same asset (Q25-C1: asset-local for now). Null when unset, unparseable, or not a macro.</summary>
+    internal static Graph? ResolveMacroTarget(string targetGraphId, BlueprintAsset? asset)
+    {
+        if (string.IsNullOrEmpty(targetGraphId) || asset is null) return null;
+        if (!Guid.TryParse(targetGraphId, out var targetGuid)) return null;
+        return asset.Graphs.FirstOrDefault(g => g.Id == targetGuid && g.Kind == GraphKind.Macro);
     }
 
     /// <summary>

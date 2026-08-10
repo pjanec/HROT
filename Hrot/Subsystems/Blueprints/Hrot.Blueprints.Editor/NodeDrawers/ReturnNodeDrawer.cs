@@ -89,13 +89,26 @@ internal sealed class ReturnNodeSession : INodeEditSession
     // Both are false when the containing graph could not be resolved: Draw() renders the warning
     // and nothing else in that case, so neither control is actually on screen.
 
+    // ── BP-80: Macro overrides BOTH, and does so on GRAPH KIND rather than dispatch ─────
+    //
+    // A macro is a source-level template spliced into its call sites; it never becomes a method, so
+    // the asset's dispatch says nothing about its Return node.
+    //   Outputs -> ALWAYS shown. A macro declares data outputs exactly like a Function graph does
+    //              (F3 reuses ReturnNode as the output boundary), including inside an AiPrimitive
+    //              asset -- where the dispatch rule below would otherwise hide the table and print
+    //              the "this AiPrimitive returns a node Status" line, which is false for a macro.
+    //   Status  -> NEVER shown. There is no NodeStatus to report: nothing returns from a macro, the
+    //              body is spliced into the host's exec chain. Same shape as the BP-105 precedent.
+    private bool IsMacroGraph => _graph?.Kind == GraphKind.Macro;
+
     private bool ShowOutputs =>
         _graph != null &&
-        (_parent.Dispatch == BlueprintDispatchKind.Instance
+        (IsMacroGraph
+         || _parent.Dispatch == BlueprintDispatchKind.Instance
          || _parent.Dispatch == BlueprintDispatchKind.Library);
 
     private bool ShowStatus =>
-        _graph != null &&
+        _graph != null && !IsMacroGraph &&
         (_parent.Dispatch == BlueprintDispatchKind.AiPrimitive
          || (_parent.Dispatch == BlueprintDispatchKind.Library && _graph.Outputs.Count == 0));
 
@@ -225,6 +238,18 @@ internal sealed class ReturnNodeSession : INodeEditSession
                   + "status instead. Declaring an output above hides this control."
                 : "Status — the node status returned to this AiPrimitive's BTree/HSM host.");
             DrawStatusCombo();
+
+            // BP-131: for AiPrimitive the combo is now the FALLBACK, not the only writer. Say so
+            // here, on the control itself — the original complaint was that a fixed set of combo
+            // values is meaningless for a value that depends on execution, and a designer who
+            // cannot see that the pin overrides the combo is left with the same confusion one
+            // level down (two writers for one value is the BP-125 shape).
+            if (_parent.Dispatch == BlueprintDispatchKind.AiPrimitive)
+            {
+                ImGui.TextDisabled(
+                    "Wire the 'Success' pin to decide the status at runtime — true → Success, "
+                    + "false → Failure. This combo applies only while that pin is unwired.");
+            }
         }
         else if (_parent.Dispatch == BlueprintDispatchKind.Instance)
         {

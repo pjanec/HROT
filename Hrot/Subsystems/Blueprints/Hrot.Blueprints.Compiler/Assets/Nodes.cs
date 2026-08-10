@@ -56,6 +56,7 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(MakeStructNode),         "MakeStruct")]
 [JsonDerivedType(typeof(BreakStructNode),        "BreakStruct")]
 [JsonDerivedType(typeof(SetMembersNode),         "SetMembers")]
+[JsonDerivedType(typeof(MacroCallNode),          "MacroCall")]
 public abstract class Node
 {
     public Guid Id { get; set; }
@@ -69,6 +70,32 @@ public abstract class Node
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, string>? PinDefaults { get; set; }
+}
+
+/// <summary>
+/// BP-80 — a call site for a <see cref="GraphKind.Macro"/> graph. <c>Stage2_5_ExpandMacros</c> splices
+/// the target's body in here and deletes this node; it is never lowered.
+///
+/// <para>
+/// ⚠⚠ <b>Exactly one field, and that is a structural decision, not minimalism.</b> Pin names, types,
+/// counts and arity are ALL derived by projection from the target graph
+/// (<c>NodePinSchema.MacroCallPins</c> / <c>Stage0_Rehydrate.EnrichMacroCallPins</c>). Baking any of
+/// them onto the node reproduces <c>CallablePeers</c> (BP-116) and <c>ArgTypes</c> (BP-201) — the same
+/// shape twice already: <em>a property the compiler needs that the editor never writes</em>, invisible
+/// because every fixture hand-writes the JSON. A call node with no baked metadata cannot have that bug.
+/// </para>
+///
+/// <para>
+/// ⚠ <b>A distinct type, not <see cref="FunctionCallNode"/> with a macro target</b>, so that every
+/// <c>OfType&lt;FunctionCallNode&gt;()</c> site (the Stage 5 lowering switch, BP1650-54) cannot see a
+/// macro call — and so an unexpanded one hits its own fail-loud arm (<c>BP1668</c>) rather than the
+/// generic unknown-kind path.
+/// </para>
+/// </summary>
+public sealed class MacroCallNode : Node
+{
+    /// <summary>GUID string of the <see cref="GraphKind.Macro"/> graph this node calls.</summary>
+    public string TargetGraphId { get; set; } = "";
 }
 
 public sealed class FunctionCallNode : Node
@@ -181,6 +208,35 @@ public sealed class EventEntryNode : Node
 
 public sealed class ReturnNode : Node
 {
+    /// <summary>
+    /// BP-131 — the name of the <c>bool</c> data-IN pin that drives an <b>AiPrimitive</b>'s returned
+    /// <c>NodeStatus</c> at runtime. Projected by <c>NodePinSchema.ReturnNodePins</c> (editor) and
+    /// <c>Stage0_Rehydrate.EnrichReturnPins</c> (compiler), and excluded BY NAME from
+    /// <c>Stage5_Schedule.BuildReturnTerminator</c>'s <c>valuePins</c>.
+    ///
+    /// <para>
+    /// ⚠⚠ <b>The exclusion is not tidiness.</b> <c>valuePins</c> is "every non-exec pin on the Return
+    /// node", and two unrelated shapes branch on its COUNT: <c>== 0</c> selects the zero-output-Library
+    /// NodeStatus return, and <c>&gt; 1</c> selects BP-73 tuple packing. A <c>Success</c> pin counted
+    /// among them silently moves both. Containment is primarily the projection gate (the pin exists
+    /// for AiPrimitive only); excluding it by name here is defence in depth, because the two
+    /// mechanisms fail independently.
+    /// </para>
+    ///
+    /// <para>
+    /// One shared constant rather than two string literals: the projections live in two assemblies
+    /// that must agree, and every past divergence between them (BP-69, BP-116, BP-201) was two copies
+    /// of one fact drifting apart.
+    /// </para>
+    /// </summary>
+    public const string SuccessPinName = "Success";
+
+    /// <summary>
+    /// The author-time status. ⭐ BP-131: still the fallback, and deliberately so — an unwired
+    /// <see cref="SuccessPinName"/> pin resolves to this rather than to <c>default(bool)</c>, which is
+    /// <c>false</c> = Failure and would have flipped every AiPrimitive Return already shipped. That is
+    /// what makes the feature need no asset migration.
+    /// </summary>
     public NodeStatus Status { get; set; } = NodeStatus.Success;
 }
 

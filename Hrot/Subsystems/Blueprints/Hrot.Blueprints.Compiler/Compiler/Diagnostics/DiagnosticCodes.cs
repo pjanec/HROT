@@ -95,6 +95,23 @@ public static class DiagnosticCodes
     // prove `return default;` through Roslyn -- as an Error that code path was unprovable.
     public const string BP1657 = "BP1657";  // [Warning] Library graph declares outputs but an exec path ends with no Return node
 
+    // BP-80 / Macro_Implementation_Design §4. BP1660-BP1667 are RESERVED for the macro rails
+    // (BP-81/BP-82) and are deliberately not defined yet — the implementing slice defines them.
+    // BP1668 is allocated here, outside that reserved block, for the ONE macro diagnostic BP-80
+    // itself needs.
+    //
+    // ⚠⚠ Why this is an Error and why it must exist before the expansion pass does. Without it a
+    // MacroCallNode reaching Stage 5 falls into the "unknown impure node kind" arm, which emits
+    // BP4004 -- a WARNING that emits no IR and walks on. Under Hrot.AI.Behaviors' TreatWarningsAsErrors
+    // that breaks the build, but in ANY consumer without that flag the macro call would silently
+    // vanish from the exec chain: the graph compiles, runs, and quietly does less than it says.
+    // That single Error is what makes shipping BP-80 ahead of BP-81 safe.
+    //
+    // ⚠ Wording is load-bearing, mirroring the GraphKind.Macro decision: the error is about a call
+    // reaching Stage 5 *as a compilation target* -- i.e. surviving expansion. A macro-library asset
+    // (Q25-C2) that merely DECLARES macros with no call sites must stay compilable.
+    public const string BP1668 = "BP1668";  // MacroCallNode reached Stage 5 unexpanded
+
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch
     public const string BP2002 = "BP2002";  // WhenNode missing required payload

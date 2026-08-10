@@ -32,7 +32,14 @@ internal static class TerminatorEmitter
                 break;
 
             case IrTerm_ReturnStatus t:
-                e.WriteLine($"return global::Fbt.NodeStatus.{t.Status};");
+                // BP-131: a wired `Success : bool` pin makes the status a RUNTIME value. The ABI is
+                // unchanged -- still a NodeStatus return; the bool maps to Success/Failure here, at
+                // the return statement, which is the whole reason this needed no cross-subsystem work.
+                if (t.Condition.HasValue)
+                    e.WriteLine($"return __t{t.Condition.Value.Index} "
+                                + "? global::Fbt.NodeStatus.Success : global::Fbt.NodeStatus.Failure;");
+                else
+                    e.WriteLine($"return global::Fbt.NodeStatus.{t.Status};");
                 break;
 
             case IrTerm_Suspend:

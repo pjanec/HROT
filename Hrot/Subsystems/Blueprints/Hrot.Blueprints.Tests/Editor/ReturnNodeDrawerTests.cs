@@ -516,6 +516,50 @@ public sealed class ReturnNodeDrawerTests
         Assert.False(session.ShowsStatusForTest);
     }
 
+    // ── BP-80: Macro overrides BOTH dispatch-driven defaults, keyed on GRAPH KIND ────
+    //
+    // AiPrimitive is the dispatch specifically named in the task write-up: it is the ONE dispatch
+    // whose pre-BP-80 rule (AiPrimitive_ShowsStatus_NotOutputs above) would otherwise apply to a
+    // Macro graph too and get it backwards -- hiding Outputs (a macro's declared data outputs,
+    // authored exactly like a Function graph's) and showing Status (there is no NodeStatus to
+    // report; the macro body is spliced into its host's exec chain, nothing "returns" from it).
+
+    [Fact]
+    public void AiPrimitiveAsset_MacroGraph_ShowsOutputs_NotStatus()
+    {
+        var graph = new Graph { Id = Guid.NewGuid(), Kind = GraphKind.Macro, Name = "MyMacro" };
+        var node  = MakeNode();
+        graph.Nodes.Add(node);
+        var asset = MakeAsset(graph);
+        asset.Dispatch = BlueprintDispatchKind.AiPrimitive;
+
+        var drawer  = new ReturnNodeDrawer(new SpyEditService());
+        var session = (ReturnNodeSession)drawer.CreateSession(node, asset);
+
+        Assert.True(session.ShowsOutputsForTest);
+        Assert.False(session.ShowsStatusForTest);
+    }
+
+    [Fact]
+    public void AiPrimitiveAsset_FunctionGraph_StillShowsStatus_NotOutputs_Regression()
+    {
+        // Regression guard for the Macro override above: an ORDINARY Function graph inside the
+        // SAME AiPrimitive asset must keep the pre-BP-80 behavior unchanged (AiPrimitive_ShowsStatus_
+        // NotOutputs, restated here with a Macro sibling graph present, so a future bug that keys the
+        // override off dispatch/asset instead of the node's own containing graph would be caught).
+        var graph = MakeFunctionGraph();
+        var node  = MakeNode();
+        graph.Nodes.Add(node);
+        var asset = MakeAsset(graph);
+        asset.Dispatch = BlueprintDispatchKind.AiPrimitive;
+
+        var drawer  = new ReturnNodeDrawer(new SpyEditService());
+        var session = (ReturnNodeSession)drawer.CreateSession(node, asset);
+
+        Assert.False(session.ShowsOutputsForTest);
+        Assert.True(session.ShowsStatusForTest);
+    }
+
     [Fact]
     public void ContainingGraphNotFound_ShowsNeitherSection()
     {

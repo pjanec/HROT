@@ -124,7 +124,10 @@ internal static class Stage0_Rehydrate
                 break;
 
             case ReturnNode:
-                EnrichReturnPins(pins, graph, staticShapes);
+                // BP-131/H3: `asset` is threaded in because the Success pin is AiPrimitive-only and
+                // Dispatch lives on the ASSET, not the graph. The editor's twin already had it in
+                // scope; this half needed the signature change.
+                EnrichReturnPins(pins, graph, asset, staticShapes);
                 break;
 
             case GetVariableNode gv:
@@ -195,6 +198,10 @@ internal static class Stage0_Rehydrate
                 EnrichFunctionCallPins(pins, fc, asset, graph, options, staticShapes, outL, inL);
                 break;
 
+            case MacroCallNode mc:
+                EnrichMacroCallPins(pins, mc, asset);
+                break;
+
             case PublishEventNode pen:
                 EnrichPublishEventPins(pins, pen, options);
                 break;
@@ -240,7 +247,13 @@ internal static class Stage0_Rehydrate
         // Stage5's EventEntryNode resolution (IrOp_ReadInputArg, name-matched against Graph.Inputs)
         // and the InstanceEmitter thunk (which passes each __ev.{field}) already handle both kinds;
         // this early-return was the sole gate keeping subscribers from reading their payload.
-        if ((graph.Kind != GraphKind.Function && graph.Kind != GraphKind.Event) || graph.Inputs.Count == 0)
+        //
+        // BP-80 / F3: Macro joins them — a macro's INPUT boundary is this exact shape. Must stay in
+        // parity with the editor's NodePinSchema.EventEntryNodePins.
+        if ((graph.Kind != GraphKind.Function
+             && graph.Kind != GraphKind.Event
+             && graph.Kind != GraphKind.Macro)
+            || graph.Inputs.Count == 0)
             return;
 
         // Ensure we have the exec-Out from static; then add data-Out pins.
@@ -274,8 +287,23 @@ internal static class Stage0_Rehydrate
     }
 
     private static void EnrichReturnPins(
-        List<Pin> pins, Graph graph, IReadOnlyList<PinSchema> staticShapes)
+        List<Pin> pins, Graph graph, BlueprintAsset asset, IReadOnlyList<PinSchema> staticShapes)
     {
+        // BP-131: an AiPrimitive's Return gains a `Success : bool` data-IN pin, so the NodeStatus it
+        // reports to its BTree/HSM host can be decided at runtime rather than picked from a combo at
+        // author time. AiPrimitive ONLY -- projecting it wider would silently change
+        // BuildReturnTerminator's valuePins COUNT, which selects the zero-output-Library NodeStatus
+        // return and BP-73 tuple packing. Exact parity with NodePinSchema.ReturnSuccessPin.
+        //
+        // ⚠ ADDITIVE, and appended LAST -- deliberately not an early return. An AiPrimitive whose
+        // graph happens to declare Outputs is odd (the drawer hides the Outputs table for that
+        // dispatch) but hand-authorable, and short-circuiting here would have dropped its declared
+        // data-in pins -- which changes nothing about the emit (AiPrimitive takes wantsStatusReturn
+        // unconditionally) but would silently STOP BP1655 firing on an unwired one. Losing a
+        // diagnostic is the same class of defect as emitting a wrong value.
+        bool wantsSuccessPin =
+            asset?.Dispatch == BlueprintDispatchKind.AiPrimitive && graph.Kind != GraphKind.Macro;
+
         // Static skeleton: exec-In "In" already added from registry.
         // Enrich: add data-In from Graph.Outputs[0] for Function graphs.
         //
@@ -289,15 +317,72 @@ internal static class Stage0_Rehydrate
         //
         // BP-73: one data-In per declared output, in declaration order. Stage5.BuildReturnTerminator
         // pairs them POSITIONALLY with Graph.Outputs, so order here is load-bearing.
-        if (graph.Kind != GraphKind.Function || graph.Outputs.Count == 0)
-            return;
-
-        foreach (var output in graph.Outputs)
+        //
+        // BP-80 / F3: Macro reuses this node as its OUTPUT boundary. It takes the same data-in
+        // projection AND replaces the single static exec-In with one pin per declared ExecOutDecl.
+        // Must stay in parity with the editor's NodePinSchema.ReturnNodePins / MacroReturnExecPins.
+        if (graph.Kind == GraphKind.Macro && graph.ExecOutputs.Count > 0)
         {
-            var typeId = GetTypeId(output.Type);
-            // Data pins are not in the static shape (static is exec-In only) — just add them.
-            pins.Add(MakePin(output.Name, "In", isExec: false, typeId: typeId));
+            // The static skeleton contributed exec-In "In"; the declared exec-outs replace it.
+            pins.RemoveAll(p => p.IsExec);
+            foreach (var execOut in graph.ExecOutputs)
+                pins.Add(MakePin(execOut.Name, "In", isExec: true, typeId: ""));
         }
+
+        if ((graph.Kind == GraphKind.Function || graph.Kind == GraphKind.Macro)
+            && graph.Outputs.Count > 0)
+        {
+            foreach (var output in graph.Outputs)
+            {
+                var typeId = GetTypeId(output.Type);
+                // Data pins are not in the static shape (static is exec-In only) — just add them.
+                pins.Add(MakePin(output.Name, "In", isExec: false, typeId: typeId));
+            }
+        }
+
+        // Last, so the Outputs above keep their positional order intact (Stage 5 pairs valuePins[i]
+        // with Graph.Outputs[i]). Success is excluded from valuePins by name, so it never takes part
+        // in that pairing -- appending it last means it cannot perturb it either way.
+        if (wantsSuccessPin)
+            pins.Add(MakePin(ReturnNode.SuccessPinName, "In", isExec: false, typeId: "System.Boolean"));
+    }
+
+    /// <summary>
+    /// BP-80 — compiler half of <c>NodePinSchema.MacroCallPins</c>. Everything is derived from the
+    /// target macro graph (F4: the node carries only <c>TargetGraphId</c>): exec-In, one exec-Out per
+    /// <c>ExecOutputs</c> entry, one data-In per <c>Inputs</c> entry, one data-Out per <c>Outputs</c>
+    /// entry — each group in declaration order, paired positionally by the splice rules.
+    /// <para>
+    /// Falls back to plain exec In/Out when the target does not resolve; reporting that is BP-82's
+    /// <c>BP1660</c>, not this projection's job. An unexpanded call reaching Stage 5 is caught by
+    /// <c>BP1668</c> regardless.
+    /// </para>
+    /// </summary>
+    private static void EnrichMacroCallPins(List<Pin> pins, MacroCallNode mc, BlueprintAsset asset)
+    {
+        pins.Clear();
+        pins.Add(MakePin("In", "In", isExec: true, typeId: ""));
+
+        Graph? target = null;
+        if (!string.IsNullOrEmpty(mc.TargetGraphId) && asset != null
+            && Guid.TryParse(mc.TargetGraphId, out var targetGuid))
+        {
+            target = asset.Graphs.FirstOrDefault(
+                g => g.Id == targetGuid && g.Kind == GraphKind.Macro);
+        }
+
+        if (target is null || target.ExecOutputs.Count == 0)
+            pins.Add(MakePin("Out", "Out", isExec: true, typeId: ""));
+        else
+            foreach (var execOut in target.ExecOutputs)
+                pins.Add(MakePin(execOut.Name, "Out", isExec: true, typeId: ""));
+
+        if (target is null) return;
+
+        foreach (var inp in target.Inputs)
+            pins.Add(MakePin(inp.Name, "In", isExec: false, typeId: GetTypeId(inp.Type)));
+        foreach (var output in target.Outputs)
+            pins.Add(MakePin(output.Name, "Out", isExec: false, typeId: GetTypeId(output.Type)));
     }
 
     private static void EnrichGetVariablePins(

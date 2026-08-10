@@ -2323,7 +2323,13 @@ internal sealed class V_FunctionGraphReturnValue : IValidator
     {
         foreach (var graph in asset.Graphs)
         {
-            if (graph.Kind != GraphKind.Function) continue;
+            // BP-80 / F3: Macro is admitted DELIBERATELY, not by omission. A macro reuses ReturnNode
+            // as its output boundary, so "declares an output but nothing is wired into it" is the
+            // identical defect with the identical consequence -- and Macro_Implementation_Design §3's
+            // splice rule 4 names this rule as the one that already covers an unwired Out′.dataIn[q].
+            // Every Entry/Return rule must decide about Macro explicitly (F3's stated cost); this is
+            // that decision for BP1655.
+            if (graph.Kind != GraphKind.Function && graph.Kind != GraphKind.Macro) continue;
             if (graph.Outputs.Count == 0) continue;
 
             // ----- BP1656 RETIRED by BP-73 -----
@@ -2349,11 +2355,14 @@ internal sealed class V_FunctionGraphReturnValue : IValidator
                     l => l.ToNodeId == rn.Id && l.ToPinId == valuePin.Id);
                 if (wired) continue;
 
+                bool isMacro = graph.Kind == GraphKind.Macro;
+                var kindWord   = isMacro ? "Macro" : "Function";
+                var yieldsWord = isMacro ? "every call site of this macro yields" : "the function returns";
                 ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1655,
-                    $"Function graph '{graph.Name}' declares output '{graph.Outputs[0].Name}' " +
+                    $"{kindWord} graph '{graph.Name}' declares output '{graph.Outputs[0].Name}' " +
                     $"({graph.Outputs[0].Type?.TypeId}), but the Return node (id={rn.Id}) has " +
                     $"nothing wired into its '{valuePin.Name}' pin. Wire a value into it, or set " +
-                    $"the pin's inline default. Without this the function returns " +
+                    $"the pin's inline default. Without this {yieldsWord} " +
                     $"default({graph.Outputs[0].Type?.TypeId}).",
                     asset.AssetId, graph.Id, rn.Id));
             }

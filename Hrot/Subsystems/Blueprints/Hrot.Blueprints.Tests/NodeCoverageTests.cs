@@ -124,6 +124,19 @@ public sealed class NodeCoverageTests
             [typeof(BindEventDispatcherNode)] =
                 "No Stage5_Schedule case for BindEventDispatcherNode -- falls through to the " +
                 "generic `default:` branch (BP4004 warning), no IR emitted.",
+            [typeof(MacroCallNode)] =
+                "No compiling fixture BY DESIGN, not a gap -- a MacroCallNode's pins are derived " +
+                "ENTIRELY by projection from its target macro graph (NodePinSchema.MacroCallPins / " +
+                "Stage0_Rehydrate.EnrichMacroCallPins), and the node is never itself lowered: " +
+                "Stage2_5_ExpandMacros (BP-81) is supposed to splice the target's body in and delete " +
+                "the call node before Stage 5 ever sees it. That expansion pass does not exist yet, " +
+                "so ANY graph containing a MacroCallNode deliberately FAILS to compile today, with a " +
+                "BP1668 error naming the unexpanded call -- see Stage5_Schedule's `case MacroCallNode " +
+                "mcn:` arm. That fail-loud net (not a silent BP4004-and-skip) is what makes shipping " +
+                "the authoring surface (BP-80) ahead of the expansion pass (BP-81) safe: a designer " +
+                "can place a macro call today and the build refuses it instead of quietly dropping it " +
+                "from the exec chain. See MacroSurfaceTests for full characterization (BP1668 fires, " +
+                "BP4004 does NOT, and a Macro graph containing no call site still compiles clean).",
             [typeof(WaitForEventNode)] =
                 "DIFFERENT bug from the eight kinds above (no BP4004 involved -- this one has a " +
                 "real Stage5_Schedule case). Stage2_Validate's V_WaitNodeReferences (BP1402) only " +
@@ -163,11 +176,15 @@ public sealed class NodeCoverageTests
     //   - WaitForEventNode          -> WaitForEventNode_ShortEventTypeId_ValidatesButFailsRoslynCompile_BUG
     //   - ArrayMakeNode/ArrayGetNode -> UnloweredNodeKinds_AreRejectedAtStage2 (BP-16; BP1420 error,
     //                                   so the compile now FAILS and never reaches Stage5's BP4004)
+    //   - MacroCallNode             -> MacroSurfaceTests (BP-80; BP1668 error via its OWN Stage5 arm,
+    //                                   so -- like the two Array kinds -- the compile FAILS and never
+    //                                   falls into the generic default: branch that emits BP4004)
     private static readonly HashSet<Type> SeparatelyCharacterizedExceptions = new()
     {
         typeof(WaitForEventNode),
         typeof(ArrayMakeNode),
         typeof(ArrayGetNode),
+        typeof(MacroCallNode),
     };
 
     public static IEnumerable<object[]> CompileCoverageExceptionTheoryData() =>

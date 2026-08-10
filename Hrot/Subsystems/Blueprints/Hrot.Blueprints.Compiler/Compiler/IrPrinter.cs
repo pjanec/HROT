@@ -62,7 +62,11 @@ internal static class IrPrinter
         IrTerm_Return r      => r.Value.HasValue ? $"return t{r.Value.Value.Index}"
                                 : r.ReturnsDefault ? "return default"   // BP-117
                                 : "return",
-        IrTerm_ReturnStatus s => $"return_status {s.Status}",
+        // BP-131: a wired Success pin makes the status a runtime value; print the driving value
+        // rather than the (now-unused) constant, so an IR dump distinguishes the two forms.
+        IrTerm_ReturnStatus s => s.Condition.HasValue
+                                ? $"return_status t{s.Condition.Value.Index} ? Success : Failure"
+                                : $"return_status {s.Status}",
         IrTerm_Goto g        => $"goto block_{g.Target.Value}",
         IrTerm_Branch b      => $"branch t{b.Condition.Index} ? block_{b.IfTrue.Value} : block_{b.IfFalse.Value}",
         IrTerm_Suspend s     => $"suspend resume_pt=t{s.ResumePoint.Index} resume=block_{s.ResumeBlock.Value}",
