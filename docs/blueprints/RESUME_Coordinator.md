@@ -6,7 +6,64 @@
 
 ---
 
-## 0. ✅ Batch 27 VERIFIED — all eight gates green on the merged tree, 2026-08-10
+## 0. ✅ Batch 28 VERIFIED — eight gates green, 2026-08-10. Head `a0961ae1`.
+
+Merged **fast-forward**; rule 4 held (my head `9271b766` is in their history).
+**IDs allocated: `BP-212`…`BP-216`** — no collision (I allocated none).
+
+| Gate | |
+|---|---|
+| Solution build | ✅ **0 errors**, 77 warnings |
+| ⭐ **distinct BP diagnostics** | **18** (16×`BP3010`, 2×`BP3011`) — **unchanged**, i.e. `BP4005` fires **zero** times on real assets |
+| Blueprints | ✅ **3101** passed (+10 = exactly the 10 new `[Fact]`s), 0 failed |
+| AiShared 1213 · BTree 612 · Breakpoints 130 | ✅ |
+| NodeEdit Core 208 · UI 131 · Generators 193 | ✅ |
+
+⭐ **`BP4005` firing zero times is the headline.** They did not merely make the trap loud — they closed
+every case it would have caught, so the new `Error` is silent on the real corpus.
+
+### ⭐ Three things they got right that I got wrong or missed
+
+1. ⭐ **They refused my `ResultValue` instruction, correctly.** I said *"allocate a `ResultValue` for
+   the `Value`-Out pin, mirror `SetSharedNode`"*. They allocated **none** — `IrOp_WriteVariable` emits
+   `state.Field = __t{val.Index};`, so the written value **already exists** as a materialised local and
+   the pass-through *is* `val`. Allocating would emit a redundant second local. `SetShared` allocates
+   because its result is a **different** value (a bool flag), not the value written. My "mirror it"
+   instruction was wrong for this case; only my `_statementPinCache` half was right.
+2. ⭐ **The audit came out at eight, not six.** Beyond my table they found `SetComponent` (both arms),
+   `CollectionWrite`/`ListWrite` `Ok`, `SetShared` `Handle`, `ScoreDecision` `WinningOptionId` — and
+   ⭐ **`FunctionCall`'s two arms disagreeing with each other**: the impure-CLR arm cached into both
+   caches, the local-graph-call arm into one. Same node type, two behaviours across a `Branch`.
+3. 🔴 ⭐ **BP-214 — a hazard the fix itself introduced, which I never flagged.** `_statementPinCache`'s
+   justification is that the body is *"flat (goto-based, no nested scopes)"*. **Inline bodies are the
+   one place that fails** — `IrOp_ForEach` emits its body inside **braces**, so a local declared by a
+   statement-scheduled node in there is out of scope once the loop closes. Moving values into the
+   never-cleared cache would hand a later block a reference to a **dead local**. They added
+   save/restore isolation at all three inline-body sites (ForEach, ComponentForEach, When arms).
+   ⚠ **My four-step check does not ask about this.** It needs a fifth question: *is the producer inside
+   an inline body?*
+
+### 🧹 Two bookkeeping defects I fixed (code was clean; the tracker was not)
+
+⚠ **The three-way count check cannot catch this class — it verifies arithmetic, not semantics.** Both
+rows were consistently counted, just wrong.
+
+| | |
+|---|---|
+| **BP-209** | left `[ ]` although BP-212 says *"Closes BP-209"*. Its text still read *"still unexplained"* / *"needs the actual `.bp.json`"* / *"cannot be settled headlessly"* — all **spent**. Ticked, with the resolution and a note that the three candidate causes were refuted by the pin-GUID computation |
+| **BP-79** | left `[ ]` while **BP-216 delivered exactly its content**, without referencing it. Two rows, one item — and the macro plan's *"BP-79 lands FIRST"* pointed at work already done under another number. Ticked as delivered-as-BP-216; ⭐ **BP-80 is now next in the macro sequence** |
+
+Counts after the fix, reconciling three ways: **open 66 · done 84**.
+
+### Still open from the batch
+
+**Item 6 (macro model + projections) was correctly skipped** — it was marked *"only if there is
+room"*, and they stopped at a clean boundary rather than half-landing it. ⇒ **BP-80 is the next macro
+slice**, and `ExecOutDecl` / `MacroCallNode` / the boundary projections are still unbuilt.
+
+---
+
+## 0-prev. ✅ Batch 27 VERIFIED — all eight gates green on the merged tree, 2026-08-10
 
 Merged **fast-forward** (they merged my branch first — rule 4 followed), head `31d40bf3`.
 
