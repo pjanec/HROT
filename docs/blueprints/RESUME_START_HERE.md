@@ -15,8 +15,15 @@ the next batch. ⛔ **You do not write feature code** — a separate *implementa
 
 | Lane | Branch |
 |---|---|
-| **You** (push here, always) | `claude/blueprint-authoring-status-6sr5ld` |
+| **You** (push here, always) | ⭐ **`claude/blueprint-authoring-status-gm0akp`** |
 | Implementation session | `claude/blueprint-macro-feature-sdmspn` |
+
+⚠ **Changed 2026-08-10 by the user.** The coordinator lane used to be
+`claude/blueprint-authoring-status-6sr5ld` — that was a **different, now-retired session**, and the
+programme continues here. ⛔ **Anything still naming `6sr5ld` as the coordinator branch is stale.**
+
+⭐ **The implementation session branches from — and re-syncs from — YOUR branch**, at the start of every
+run (`.claude/CLAUDE.md` rule 7) and again before its final commit (rule 4). Say so in every handoff.
 
 ⚠ **Both sessions share this repo and both load `.claude/CLAUDE.md`** — that file is the only memory
 between you. Its *Two-session protocol* table is binding; **re-read it before writing any handoff.**

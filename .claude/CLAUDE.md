@@ -71,6 +71,25 @@ Both sessions share this repo, so **both load this file**. A *coordinator* sessi
 writes handoffs and verifies returned diffs; an *implementation* session writes the code. Neither writes
 in the other's lane.
 
+### ⭐ The lanes — branch names, authoritative
+
+| Lane | Branch |
+|---|---|
+| **Coordinator** (handoffs, tracker, gates) | ⭐ **`claude/blueprint-authoring-status-gm0akp`** |
+| **Implementation** (all feature code) | `claude/blueprint-macro-feature-sdmspn` |
+
+⚠ **Updated 2026-08-10 by the user.** The coordinator lane was previously
+`claude/blueprint-authoring-status-6sr5ld`; that was a **different, now-retired session**. Any document
+still naming `6sr5ld` as the coordinator branch is **stale** — this table wins.
+
+⭐ **The implementation session ALWAYS branches from, and updates from, the coordinator branch.** Never
+from `main`, never from a previous implementation head that has drifted. Start every run with:
+
+```bash
+git fetch origin claude/blueprint-authoring-status-gm0akp
+git merge --ff-only origin/claude/blueprint-authoring-status-gm0akp   # or branch fresh from it
+```
+
 ⭐ **The mechanic that causes every failure so far:** the implementation session does **not merge** the
 coordinator branch — it **builds linearly on top of whatever exists when it starts**. Anything the
 coordinator pushes after that moment is invisible for that whole run. Two ID collisions and one wasted
@@ -84,6 +103,7 @@ document came from ignoring this.
 | 4 | ⭐ **Before your final commit, pull the coordinator branch again** and read any handoff/design file that changed. This is the cheap half of the fix — it catches late additions rule 1 cannot prevent | implementation |
 | 5 | **State the IDs you allocated** in your report, so a collision is caught at merge, not three batches later | implementation |
 | 6 | ⭐ **The tracker + detail docs belong to the implementation session for the batch's duration.** The coordinator records findings in conversation and in the next handoff, not as rows | both |
+| 7 | ⭐ **Branch from the coordinator branch, and re-sync from it at the START of every run** (lane table above). This is the *other* half of rule 4: rule 4 catches what landed **during** your run, rule 7 catches what landed **before** it. Together they close the mechanic described above | implementation |
 
 ### Checking "did they see X?" — do it correctly, and name the run
 
