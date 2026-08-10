@@ -1,8 +1,12 @@
-# RESUME — Coordinator session (2026-08-08)
+# RESUME — Coordinator session (2026-08-08) — ⛔ **HISTORICAL LOG**
 
-> **Read this first on resume. Self-contained.** You are the **coordinator**: you own the tracker,
-> write handoffs, review returned diffs, re-run gates, and pick the next batch. You do **not** write
-> feature code.
+> ⭐ **On a fresh session, read [RESUME_START_HERE.md](RESUME_START_HERE.md) instead.** It is the
+> current, self-contained entry point. **This file is now the historical log** — per-batch verification
+> records for Batches 22-28 and the §0z process root-cause. Useful for backstory; **do not treat its
+> "next steps" or baselines as current.**
+>
+> You are the **coordinator**: you own the tracker, write handoffs, review returned diffs, re-run
+> gates, and pick the next batch. You do **not** write feature code.
 
 ---
 
