@@ -35,7 +35,7 @@ DDS/cluster sense; it gains a **loopback HTTP control plane**. That is consisten
 "maybe just its MCP server is one of few network interfaces" — the listener is the interface, the MCP
 server is an out-of-process client of it.
 
-## 🔴 The blocking fact: unrelated histories
+## <a id="the-blocking-fact-unrelated-histories"></a>🔴 The blocking fact: unrelated histories
 
 | Comparison | Merge base | Meaning |
 |---|---|---|

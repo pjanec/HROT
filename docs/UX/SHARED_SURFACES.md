@@ -7,8 +7,13 @@
 > 🔒 **`Hrot.ClusterRunner` must stay fully operational at all times.** Blueprint work runs against it.
 > Nothing in the UX programme may leave it broken, degraded, or "fixed after the refactor".
 >
-> **This file is the consultation channel.** It survives context compaction, and sessions from either
-> programme can read it. Proposed changes to a co-owned surface get written here **before** they are made.
+> **This file is the consultation channel** for *semantic* co-ownership — who may change what. It
+> survives context compaction, and sessions from either programme can read it. Proposed changes to a
+> co-owned surface get written here **before** they are made.
+>
+> 🔀 **For the git-level protocol** — branch registry, when to merge, how to resolve `EditorSubsystem.cs` —
+> see **[../SESSION_SYNC.md](../SESSION_SYNC.md)**. A third programme, the **MCP port**
+> ([entry](../mcp-port/MCP_PORT_RESUME.md)), is now also in play and shares that file with the UX side.
 
 ## The rule
 
@@ -72,7 +77,7 @@ Status values: `PROPOSED` · `ACKED` (other programme has seen it) · `DONE` · 
 Rationale and options: [Q25-F-iii](Architect_Question_25_Scenario_Authoring_Golden_Path.md#f-iii--how-do-we-combine-the-content-of-existing-windows-into-new-composite-panels)
 and [Q25-F-v](Architect_Question_25_Scenario_Authoring_Golden_Path.md#f-v--how-do-we-stay-out-of-the-parallel-blueprint-work).
 
-## ⚠ Open: does the other side read this?
+## <a id="open-does-the-other-side-read-this"></a>⚠ Open: does the other side read this?
 
 **Claude cannot reach the parallel sessions.** This file only works if the blueprint programme's sessions
 actually consult it, which requires either the user relaying, or a link from

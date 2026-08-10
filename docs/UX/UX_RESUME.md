@@ -1,13 +1,26 @@
 # RESUME / HANDOFF — Scenario-Authoring UX programme
 
-> **rev 6 · 2026-08-06 · branch `claude/reset-working-branch-qd1qpv` · HEAD at write `764b06c`**
+> **rev 7 · 2026-08-06 · branch `claude/reset-working-branch-qd1qpv`**
 >
-> 📌 **This file exists so a session that has lost its context can resume without re-deriving
-> anything.** Read §0 and §1 before doing anything else. If this file and
-> [UX_Task_Tracker.md](UX_Task_Tracker.md) disagree about status, **the tracker wins**.
+> 📌 **This is the entry document for this programme.** A fresh session — or one that has lost its
+> context to compaction — reads §0 and §1, then §3 for the single next action. Nothing else is required.
+> If this file and [UX_Task_Tracker.md](UX_Task_Tracker.md) disagree about status, **the tracker wins**.
 >
 > **This session is the COORDINATOR** (Linux cloud). Implementation and testing happen in **separate
 > Windows sessions**. The coordinator cannot run the editor — see [§1.10](#110-session-topology).
+>
+> 🔀 **A parallel session is porting the MCP server** ([mcp-port/MCP_PORT_RESUME.md](../mcp-port/MCP_PORT_RESUME.md)).
+> You share one file with it and exchange updates both ways — **read
+> [SESSION_SYNC.md](../SESSION_SYNC.md) before starting work**, and see [§1.11](#111-the-parallel-mcp-session).
+
+## Starting a fresh session? Paste this
+
+```
+Read docs/UX/UX_RESUME.md and continue the scenario-authoring UX programme.
+Branch: claude/reset-working-branch-qd1qpv
+First: git fetch origin, then follow docs/SESSION_SYNC.md — merge the MCP session's
+branch if it has moved. Then §3 "Next up".
+```
 
 ---
 
@@ -190,6 +203,41 @@ Therefore **every coordinator statement about running behaviour is a code-derive
 be labelled as one.** The golden-path predictions in [UX_Golden_Path.md](UX_Golden_Path.md) are exactly
 that. Where a walk contradicts a prediction, **the walk wins** — record it in
 [UX_Tasks_Detail.md](UX_Tasks_Detail.md#corrections).
+
+### 1.11 The parallel MCP session
+
+<a id="111-the-parallel-mcp-session"></a>
+
+**Protocol: [SESSION_SYNC.md](../SESSION_SYNC.md) — canonical, owned by neither side. Read it before
+starting work and before pushing.** Condensed:
+
+| | |
+|---|---|
+| **Its entry doc** | [mcp-port/MCP_PORT_RESUME.md](../mcp-port/MCP_PORT_RESUME.md) |
+| **Its branch** | ⚠ **TBD — the user will supply it.** Record it in [SESSION_SYNC.md](../SESSION_SYNC.md#the-sessions) when you learn it |
+| **What it is doing** | Porting the AI Debug API + MCP server forward from `feat/ai-debug-api` — see [MCP_PORT_PLAN.md](MCP_PORT_PLAN.md) |
+| **The one shared file** | 🔴 **`EditorSubsystem.cs`.** It adds ~10 lines of `DebugApiHost` wiring; we eventually add the new shell's composition |
+
+> ### 🔴 Sequencing rule — treat `EditorSubsystem.cs` as read-only until the port lands
+>
+> The MCP port's wiring is small, known and already designed. It goes in **first**. Doing it after our
+> shell work means resolving it against a moving target and wiring it twice. **Until the port has landed,
+> the UX programme does not touch that file.**
+
+**On every session start:** `git fetch origin`, check whether the MCP branch moved, and merge it *before*
+doing your own work. The two branches share history (both descend from `main`), so it is an ordinary
+merge — unlike `feat/ai-debug-api`, which shares no ancestor with anything.
+
+**On a conflict in `EditorSubsystem.cs`: keep both additions.** Two features are being wired into one
+composition root; if the merge looks like a choice between them, you have misread it.
+
+**After you push:** say in your final message that the MCP session should pull. Claude cannot notify it.
+
+**Why this programme cares about the outcome** (detail in
+[MCP_PORT_PLAN.md](MCP_PORT_PLAN.md#why-the-ux-programme-cares)): the API is a headless harness for most
+of Path A's mechanics — partly lifting the coordinator's cannot-run-the-editor limit — and
+`DebugApiService.cs` has *already answered* much of the "is this logic reachable without ImGui?" question
+that [UXD-09](UX_Design.md#uxd-09) needs.
 
 Handoffs are the interface: an implementer receives the
 [Briefing](UX_Programme_Briefing.md) + its handoff + the task entry, and nothing else. If a handoff

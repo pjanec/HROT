@@ -22,8 +22,9 @@
 | 6 | [UX_Task_Tracker.md](UX_Task_Tracker.md) | `UXT-nn` checklist. Live status. |
 | 7 | [UX_Tasks_Detail.md](UX_Tasks_Detail.md) | Per-task evidence, scope, acceptance, `DONE` notes. |
 | 8 | [SHARED_SURFACES.md](SHARED_SURFACES.md) | 🔒 **Co-ownership + consult-before-touch.** Two programmes edit this repo; the blueprint one is active. Read before touching any shared panel or menu. |
-| 9 | [MCP_PORT_PLAN.md](MCP_PORT_PLAN.md) | Description of the stranded **AI Debug API + MCP server** on `feat/ai-debug-api` and how to port it. Infrastructure, not UX — but it is a headless harness for the golden path and evidence for the shell's seams. |
-| 10 | [handoffs/](handoffs/) | One doc per implementation session. Template: [HANDOFF_TEMPLATE.md](handoffs/HANDOFF_TEMPLATE.md). |
+| 9 | [../SESSION_SYNC.md](../SESSION_SYNC.md) | 🔀 **Cross-session branch registry + merge protocol.** Read before starting work or pushing — a parallel MCP session shares `EditorSubsystem.cs` with this one. |
+| 10 | [MCP_PORT_PLAN.md](MCP_PORT_PLAN.md) | Description of the stranded **AI Debug API + MCP server** on `feat/ai-debug-api` and how to port it. Infrastructure, not UX — but it is a headless harness for the golden path and evidence for the shell's seams. |
+| 11 | [handoffs/](handoffs/) | One doc per implementation session. Template: [HANDOFF_TEMPLATE.md](handoffs/HANDOFF_TEMPLATE.md). |
 
 ## Two audiences
 
@@ -50,6 +51,12 @@ Full statement: [Who we are building for](UX_Requirements.md#who-we-are-building
 **Coordinator** = one Linux cloud session (design, docs, task cutting, review) — **cannot run the
 editor**. **Implementers** = Windows local sessions (build, run, walk, verify). Every coordinator claim
 about running behaviour is a labelled prediction until a walk confirms it.
+
+🔀 **Two other long-running programmes touch the same code.** The **MCP port**
+([entry](../mcp-port/MCP_PORT_RESUME.md)) shares `EditorSubsystem.cs` with us and exchanges updates both
+ways; the **blueprint programme** ([entry](../blueprints/Blueprint_Gaps_Programme_RESUME.md)) is active in
+parallel and must be treated as unreachable. Protocol:
+[SESSION_SYNC.md](../SESSION_SYNC.md).
 
 ## Source of truth
 
