@@ -114,7 +114,8 @@ missed tick, which is exactly what went wrong in Batch 28 bookkeeping.
 |---|---|
 | **27** | ✅ verified — authoring seams, the three matrix axes, diagnostic identity |
 | **28** | ✅ verified — the silent `default:` arm family + `GraphKind.Macro` and both fail-loud nets |
-| **29** | ✅ **verified and merged** (`da13a6a`, ff-only) — **BP-80** macro surface · the **warning triage** (`BP-217`/`BP-218`, `BP-219` open) · **BP-131** `Return.Success`. See below |
+| **29** | ✅ **verified and merged** (`da13a6a`, ff-only) — **BP-80** macro surface · the **warning triage** (`BP-217`/`BP-218`, `BP-219` open) · **BP-131** `Return.Success`. See §7 |
+| **30** | 📤 **written and dispatched** — [HANDOFF_Batch30_Macro_Expansion.md](HANDOFF_Batch30_Macro_Expansion.md). **`BP-81`** the expansion pass (🔴 Opus) + the rails it presupposes. ⛔ Frozen (rule 1) |
 
 ### The macro capability
 
@@ -125,8 +126,9 @@ Design is **closed and complete**; implementation has just started.
 | [Architect_Question_25_Macros.md](Architect_Question_25_Macros.md) | *what* a macro is — **A1**, **B1**, **C1 now**, **D3** (1 exec-in, **N ≥ 0** exec-out), **E** six rails |
 | [Macro_Implementation_Design.md](Macro_Implementation_Design.md) | *how each slice is built* — findings **F1-F5**, the splice algorithm, diagnostics, ⭐ **§7: all three restrictions ACCEPTED by the user** |
 | ✅ **BP-79 landed** (as BP-216) | `GraphKind.Macro` + the Stage 5 skip + `MapGraphKind` now **throws** |
-| ⏭ **BP-80 is next** | `ExecOutDecl`, `Graph.ExecOutputs`, `MacroCallNode`, the boundary projections |
-| Then | **BP-81** expansion pass (🔴 Opus, hands-on) · **BP-82** rails · **BP-83** debug provenance |
+| ✅ **BP-80 landed** (Batch 29) | `ExecOutDecl`, `Graph.ExecOutputs`, `MacroCallNode`, all four projection halves, `BP1668`. ⚠ Row stays **open** for the two visual gestures (palette drag, `BP-77`'s *"Macros +"*) |
+| 📤 **BP-81 dispatched** (Batch 30) | `Stage2_5_ExpandMacros` — ⭐ **two design defects found while scoping it**: the algorithm assumes BP-82's cycle rail exists (it does not), and `Node` has **no field** to carry `OriginNodeId` |
+| Then | **BP-82**'s remaining rails · **BP-83** debug provenance · BP-80's visual half |
 
 ---
 
