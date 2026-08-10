@@ -13,7 +13,7 @@
 | ⚠ | |
 |---|---|
 | **1** | **Everything you reported last round is registered.** Nothing below re-tests it. If you hit a *known* bug mid-step the step says so. |
-| **2** | ⚠ **The `Graph Signature` window is still broken** — [BP-125](Blueprint_Issues_Detail.md#bp-102), not yet fixed. **Add outputs from the `Return` node's `Details`, never from `Graph Signature`.** That path works; the other silently does nothing. This is the root cause of your *"could not wire"* reports. |
+| **2** | ⚠ **The `Graph Signature` window is still broken** — BP-125, not yet fixed. **Add outputs from the `Return` node's `Details`, never from `Graph Signature`.** That path works; the other silently does nothing. This is the root cause of your *"could not wire"* reports. |
 | **3** | ⚠ **A new function graph still has no `Return` node** (BP-126, not yet fixed). You will keep having to add one from the palette **and wire it** — an unwired one gives `BP3010`. |
 | **4** | Delete scratch `.bp.json` from `Assets/` when done. |
 
@@ -34,7 +34,7 @@
 | **A9** | Type a broken format: `threat={Threat` (no closing brace) | ⭐ **An error naming this node** (`BP2072`), not a silent drop |
 | **A10** | Fix it, set each arg's type in `Details`, wire values in, set **Level** | Level offers **all five**: Trace / Debug / Info / Warn / Error |
 | **A11** | Build the solution | ✅ 0 errors |
-| **A12** | ⭐ Run and look at the **"AI Behaviors"** tab of the message log | ⭐ **Your line appears, with the values substituted.** ⚠ If it does **not**, that is [BP-124](Blueprint_Issues_Detail.md#bp-124) — already registered as untested. **Tell me either way; this is the single most valuable answer in this guide** |
+| **A12** | ⭐ Run and look at the **"AI Behaviors"** tab of the message log | ⭐ **Your line appears, with the values substituted.** ⚠ If it does **not**, that is BP-124 — already registered as untested. **Tell me either way; this is the single most valuable answer in this guide** |
 
 ## B · 🆕 The `Format String` node (~4 min)
 

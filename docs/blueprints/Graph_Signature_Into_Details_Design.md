@@ -1,7 +1,7 @@
 # Folding `Graph Signature` into a context-sensitive `Details` — design note
 
 > **BP-128.** Written Batch 26 by the implementation session, for the architect round.
-> ⚠ **Design only — nothing was built.** [BP-125](Blueprint_Issues_Detail.md#bp-125) is the tactical fix
+> ⚠ **Design only — nothing was built.** BP-125 is the tactical fix
 > and ships in this batch; this is the structural one.
 
 ---
@@ -53,7 +53,7 @@ retirement, not a rebuild.
 
 | | |
 |---|---|
-| **Graph name** | ⭐ this is where **[BP-127](Blueprint_Issues_Detail.md#bp-127)** (graph rename) belongs — it has no home until this panel exists, which is why it is blocked on this note |
+| **Graph name** | ⭐ this is where **BP-127** (graph rename) belongs — it has no home until this panel exists, which is why it is blocked on this note |
 | Graph kind | read-only (`Function` / `Event` / `Construction`) |
 | Asset dispatch | read-only — changing it mid-life is a separate question |
 | Asset name / id | read-only |
@@ -110,17 +110,17 @@ went wrong the first time.
   properties on an empty-canvas click. **It does not** — Unreal clears Details, and function properties
   live on the entry node. So the panel this note proposed building does not need to exist.
 - **Graph rename** — the one thing that was waiting on that surface — went to **My Blueprint's context
-  menu** instead and **shipped in Batch 27** ([BP-127](Blueprint_Issues_Detail.md#bp-127)).
+  menu** instead and **shipped in Batch 27** (BP-127).
 - Inputs (entry node) and Outputs (Return node) already work.
 
 ⇒ **What remains is mostly deletion**, not design.
 
 ⚠ **The stated precondition — *"do it only after the matrix's edit-sequence axis exists, so the removal
 is covered"* — is now MET**: `AuthoringPathEditSequenceTests` shipped in Batch 27
-([BP-210](Blueprint_Issues_Detail.md#bp-210)).
+(BP-210).
 
 ⚠ **One thing to check before deleting**, because Batch 26 spent a whole item on it: `GraphSignatureWindow`
-is where [BP-125](Blueprint_Issues_Detail.md#bp-125) routed signature edits through `IEditService`, and
+is where BP-125 routed signature edits through `IEditService`, and
 `BP125_SignatureEditsReprojectTests` includes a **parity test asserting the two writers are observably
 indistinguishable**. Deleting one writer makes that parity test vacuous rather than red — ⭐ **the
 failure mode this programme keeps hitting.** Re-point it at the surviving writer, or delete it with the
