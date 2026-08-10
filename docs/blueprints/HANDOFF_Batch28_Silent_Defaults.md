@@ -27,7 +27,7 @@
 |---|---|---|
 | **1** `SetVariable.Value`-Out | the `_statementPinCache` placement — get it wrong and the value goes stale across blocks | the emit + the run-value test |
 | **2** make `default:` report | ⭐ **the diagnostic's severity and wording — not delegable.** It decides whether item 3 is a build break or a warning sweep | threading it to call sites |
-| **3** the audit | the per-row verdict (a projected pin may be legitimately served elsewhere) | running the three-step check and writing it up |
+| **3** the audit | the per-row verdict (a projected pin may be legitimately served elsewhere) | running the ⭐ **four**-step check (see item 3 — a three-step one passes `SetShared`) and writing it up |
 | **4** `GraphKind.Macro` + net | the guard's **wording** (see item 4) | the enum member, the map arm, the tick-eligibility test |
 | **5** dead anchors | — | ⭐ **entirely** |
 | **6** *(only if room)* macro model + projections | the N-exec-in projection | the model delta + the parity test |
