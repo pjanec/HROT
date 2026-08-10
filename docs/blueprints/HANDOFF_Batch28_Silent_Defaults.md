@@ -1,6 +1,6 @@
 # HANDOFF — Batch 28: silent `default:` arms, and the macro net that closes the same trap
 
-> 📌 **Dispatched at `a7051eea`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
+> 📌 **Dispatched at `af472497`.** *(re-stamped after the pre-dispatch baseline fix.)* Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
 > ⭐ **Rule 4 is yours:** pull the coordinator branch again before your final commit.
 > ⭐ **Rule 3: the coordinator allocates no ids** — **no new `BP-2xx` numbers appear below.** The only
 > one cited (`BP-211`) is an existing Batch 27 row, referenced not allocated. Number every finding
