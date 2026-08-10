@@ -110,6 +110,14 @@ public static class DiagnosticCodes
     // ⚠ Wording is load-bearing, mirroring the GraphKind.Macro decision: the error is about a call
     // reaching Stage 5 *as a compilation target* -- i.e. surviving expansion. A macro-library asset
     // (Q25-C2) that merely DECLARES macros with no call sites must stay compilable.
+    // ── The macro rails. BP-82's BP1664 is still unallocated and stays reserved. ──────────────
+    public const string BP1660 = "BP1660";  // MacroCallNode.TargetGraphId does not resolve to a Macro graph
+    public const string BP1661 = "BP1661";  // macro with a transitively latent body called from a Function graph
+    public const string BP1662 = "BP1662";  // macro call cycle, direct or mutual
+    public const string BP1663 = "BP1663";  // macro with >=2 exec-outs has a data output fed by an impure producer
+    public const string BP1665 = "BP1665";  // macro expansion exceeded the depth cap
+    public const string BP1667 = "BP1667";  // [Warning] macro body is empty -- the call is a no-op
+
     public const string BP1668 = "BP1668";  // MacroCallNode reached Stage 5 unexpanded
 
     // Stage 2 -- Validate (WhenNode rules)

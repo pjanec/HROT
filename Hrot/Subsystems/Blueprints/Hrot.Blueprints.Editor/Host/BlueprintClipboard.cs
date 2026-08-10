@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Core.Compiler.Transform;
 
 namespace Hrot.Blueprints.Editor.Host;
 
@@ -130,57 +131,23 @@ public static class BlueprintClipboard
     {
         ArgumentNullException.ThrowIfNull(payload);
 
-        // Deep-copy through JSON: the caller may paste the same payload repeatedly, and the nodes
-        // must not be shared between pastes (or with the clipboard's own copy).
-        var clone = JsonSerializer.Deserialize<Payload>(
-            JsonSerializer.Serialize(payload, Options), Options)!;
+        // ⭐ BP-81: the deep-copy-and-remap core now lives in .Compiler as GraphFragmentCloner,
+        // because Stage2_5_ExpandMacros needs exactly the same transform and the assembly dependency
+        // runs Editor → Compiler. It was MOVED DOWN rather than copied: BP-69 duplicated
+        // ResolveCustomEventDecl across this same boundary and the two copies drifted.
+        //
+        // What stays here is the one genuinely editor-side concern — the paste offset. The compiler
+        // has no notion of canvas coordinates and should not acquire one.
+        var cloned = GraphFragmentCloner.Clone(payload.Nodes, payload.Links);
 
-        var nodeMap = new Dictionary<Guid, Guid>();
-        var pinMap  = new Dictionary<Guid, Guid>();
-
-        foreach (var node in clone.Nodes)
+        foreach (var node in cloned.Nodes)
         {
-            nodeMap[node.Id] = Guid.NewGuid();
-            node.Id = nodeMap[node.Id];
-
-            foreach (var pin in node.Pins)
-            {
-                pinMap[pin.Id] = Guid.NewGuid();
-                pin.Id = pinMap[pin.Id];
-            }
-
             node.EditorMetadata ??= new NodeMetadata();
             node.EditorMetadata.X += offset.X;
             node.EditorMetadata.Y += offset.Y;
         }
 
-        // Pin.LinkedToIds is a denormalised mirror of the link list; leaving stale ids in it would
-        // make a pasted node claim wires it does not have.
-        foreach (var node in clone.Nodes)
-            foreach (var pin in node.Pins)
-                pin.LinkedToIds = pin.LinkedToIds
-                    .Select(id => pinMap.TryGetValue(id, out var mapped) ? mapped : id)
-                    .Where(id => pinMap.ContainsValue(id))
-                    .ToList();
-
-        var links = new List<Link>(clone.Links.Count);
-        foreach (var link in clone.Links)
-        {
-            // Both endpoints were required to be inside the selection at copy time; anything that
-            // does not remap now came from a hand-edited payload and is dropped rather than trusted.
-            if (!nodeMap.TryGetValue(link.FromNodeId, out var fromNode)) continue;
-            if (!nodeMap.TryGetValue(link.ToNodeId,   out var toNode))   continue;
-            if (!pinMap.TryGetValue(link.FromPinId,   out var fromPin))  continue;
-            if (!pinMap.TryGetValue(link.ToPinId,     out var toPin))    continue;
-
-            link.FromNodeId = fromNode;
-            link.ToNodeId   = toNode;
-            link.FromPinId  = fromPin;
-            link.ToPinId    = toPin;
-            links.Add(link);
-        }
-
-        return new Fragment(clone.Nodes, links);
+        return new Fragment(cloned.Nodes, cloned.Links);
     }
 
     /// <summary>

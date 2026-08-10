@@ -57,6 +57,15 @@ public sealed class BlueprintCompiler : IBlueprintCompiler
         Stage2_Validate.Run(asset, ctx);
         if (sink.HasErrors) return FailResult(sink, asset);
 
+        // Stage 2.5 -- Expand macros (BP-81).
+        //
+        // ⭐ Deliberately AFTER Stage 2's error gate above. That ordering is what lets the splice
+        // rules assume a resolvable, acyclic macro target: BP1660 (unresolvable) and BP1662 (cycle)
+        // are Stage 2 validators, so a graph that fails either never reaches expansion at all. Moving
+        // this above the gate would turn both into defensive null-checks on every rule.
+        asset = Stage2_5_ExpandMacros.Run(asset, ctx);
+        if (sink.HasErrors) return FailResult(sink, asset);
+
         // Stage 3 -- Normalize
         asset = Stage3_Normalize.Run(asset, ctx);
         if (sink.HasErrors) return FailResult(sink, asset);

@@ -4658,8 +4658,18 @@ internal sealed class GraphScheduler
     private IrValue AllocValue(IrTypeRef type)
         => new IrValue(_nextValueIndex++, type);
 
+    /// <summary>
+    /// BP-81: <c>OriginNodeId</c> carries a macro-expanded node back to the AUTHORED node in the macro
+    /// body it was cloned from; it is null for every authored node.
+    /// <para>
+    /// ⚠ <c>NodeId</c> still wins downstream (<c>CSharpEmitter:45,53</c> read
+    /// <c>debug?.NodeId ?? debug?.OriginNodeId</c>), so each expansion site keeps its own
+    /// <c>DebugMapEntry</c>. That is deliberate: <b>line→node stays 1:1 while node→line becomes
+    /// one-to-many</b>, which is what lets BP-83 arm a breakpoint at every site rather than one.
+    /// </para>
+    /// </summary>
     private static IrDebugAnnotation DebugOf(Node node) =>
-        new IrDebugAnnotation { GraphId = default, NodeId = node.Id };
+        new IrDebugAnnotation { GraphId = default, NodeId = node.Id, OriginNodeId = node.OriginNodeId };
 
     /// <summary>
     /// ⚠ <b>The catch-all no longer defaults to <see cref="IrGraphKind.Function"/>.</b> It did, and

@@ -70,6 +70,37 @@ public abstract class Node
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, string>? PinDefaults { get; set; }
+
+    /// <summary>
+    /// BP-81 — for a node synthesized by <c>Stage2_5_ExpandMacros</c>, the id of the AUTHORED node in
+    /// the macro body it was cloned from. Null on every authored node.
+    ///
+    /// <para>
+    /// ⚠⚠ <b><c>[JsonIgnore]</c> is the whole point, not a detail.</b> This is a compile-time-only
+    /// annotation: it is set after the clone, consumed by <c>Stage5_Schedule.DebugOf</c>, and must
+    /// never reach disk. Persisting it would break the macro design's central claim that
+    /// <c>ExecOutDecl</c> + <c>Graph.ExecOutputs</c> + <c>MacroCallNode</c> are "the entire on-disk
+    /// change", and would make every existing asset's round-trip move. <c>MacroCloningTests</c> locks
+    /// that it does not serialise.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>Why a field on <see cref="Node"/> rather than a side map in the compile context.</b>
+    /// <c>DebugOf(Node)</c> is <c>static</c> and called at <b>55</b> sites in <c>Stage5_Schedule</c>
+    /// alone; a side map forces it to become an instance method or grow a parameter at every one of
+    /// them — a large mechanical diff whose only purpose is to avoid one nullable Guid.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>The precedence downstream is deliberate and must not be "fixed".</b>
+    /// <c>CSharpEmitter:45,53</c> read <c>debug?.NodeId ?? debug?.OriginNodeId</c>, so the CLONE's own
+    /// id wins and each expansion site gets its own <c>DebugMapEntry</c>. That is what makes one
+    /// authored node yield two rows at two call sites: <b>line→node stays 1:1, node→line becomes
+    /// one-to-many.</b> That asymmetry is BP-83's subject.
+    /// </para>
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Guid? OriginNodeId { get; set; }
 }
 
 /// <summary>

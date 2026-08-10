@@ -449,15 +449,50 @@ public sealed class MacroSurfaceTests
     [CoversDiagnosticCode("BP1668")]
     public void UnexpandedMacroCall_ReachingStage5_EmitsBP1668Error()
     {
+        // ⭐ REWRITTEN in Batch 30, and the reason matters. This used to drive the FULL compiler:
+        // before BP-81 there was no expansion pass, so a MacroCallNode reached Stage 5 simply by
+        // compiling the asset. Now Stage 2.5 splices every call away, so the full pipeline can no
+        // longer produce the condition BP1668 describes -- which is the point of BP1668, not a
+        // reason to delete it. It is the last-ditch net for a call that SURVIVED expansion, so the
+        // test now drives Stage 5 directly, which is the only way that state can still arise.
+        var (ir, sink) = RunScheduleDirectly(MakeUnexpandedMacroCallAsset());
+        _ = ir;
+
+        var bp1668 = Assert.Single(sink.All, d => d.Code == DiagnosticCodes.BP1668);
+        Assert.Equal(DiagnosticSeverity.Error, bp1668.Severity);
+    }
+
+    /// <summary>
+    /// The complement, and the reason the rails had to land in the same batch as the pass: driven
+    /// through the FULL compiler, the same asset never reaches Stage 5 at all. Its dangling
+    /// TargetGraphId is rejected by <c>BP1660</c> at Stage 2, before expansion — so the designer gets
+    /// "this call does not resolve", not "something survived expansion".
+    /// </summary>
+    [Fact]
+    [CoversDiagnosticCode("BP1660")]
+    public void MacroCallWithDanglingTarget_IsRejectedByBP1660_BeforeExpansion()
+    {
         var result = new BlueprintCompiler().Compile(MakeUnexpandedMacroCallAsset(), DefaultOptions());
 
-        Assert.False(result.Succeeded,
-            "A graph containing an unexpanded MacroCallNode must NOT compile -- BP-81's expansion "
-            + "pass does not exist yet, so a 'successful' build here would mean the call quietly "
-            + "vanished from the exec chain.");
+        Assert.False(result.Succeeded);
+        var bp1660 = Assert.Single(result.Diagnostics, d => d.Code == DiagnosticCodes.BP1660);
+        Assert.Equal(DiagnosticSeverity.Error, bp1660.Severity);
 
-        var bp1668 = Assert.Single(result.Diagnostics, d => d.Code == DiagnosticCodes.BP1668);
-        Assert.Equal(DiagnosticSeverity.Error, bp1668.Severity);
+        // And it stops there: expansion never ran, so BP1668 has nothing to report.
+        Assert.DoesNotContain(result.Diagnostics, d => d.Code == DiagnosticCodes.BP1668);
+    }
+
+    /// <summary>Stage 5 in isolation — mirrors <c>BPC_ImplicitReturnTests.RunSchedule</c>.</summary>
+    private static (Hrot.Blueprints.Core.Compiler.Ir.IrAsset ir, DiagnosticSink sink)
+        RunScheduleDirectly(BlueprintAsset asset)
+    {
+        var sink  = new DiagnosticSink();
+        var ctx   = new ValidationContext(sink, DefaultOptions());
+        var typed = new TypedAsset(
+            asset,
+            PinTypes:   new Dictionary<Guid, Hrot.Blueprints.Core.Compiler.Ir.IrTypeRef>(),
+            FieldTypes: new Dictionary<Guid, Hrot.Blueprints.Core.Compiler.Ir.IrTypeRef>());
+        return (Stage5_Schedule.Run(typed, ctx), sink);
     }
 
     /// <summary>
@@ -471,9 +506,10 @@ public sealed class MacroSurfaceTests
     [Fact]
     public void UnexpandedMacroCall_DoesNotAlsoEmitBP4004_TheWarningItWouldHaveFallenInto()
     {
-        var result = new BlueprintCompiler().Compile(MakeUnexpandedMacroCallAsset(), DefaultOptions());
+        // Same Stage-5-direct drive as above, for the same reason.
+        var (_, sink) = RunScheduleDirectly(MakeUnexpandedMacroCallAsset());
 
-        Assert.DoesNotContain(result.Diagnostics, d => d.Code == DiagnosticCodes.BP4004);
+        Assert.DoesNotContain(sink.All, d => d.Code == DiagnosticCodes.BP4004);
     }
 
     // ═════════════════════════════════════════════════════════════════════════
