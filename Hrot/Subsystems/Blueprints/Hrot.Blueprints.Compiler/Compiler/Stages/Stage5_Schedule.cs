@@ -46,6 +46,19 @@ internal static class Stage5_Schedule
         var irGraphs = new List<IrGraph>();
         foreach (var graph in typedAsset.Asset.Graphs)
         {
+            // ⭐ A macro is a source-level template: it is spliced into its call sites and is NEVER a
+            // compilation target of its own. Skipping it here is what stops it becoming a Func_X
+            // method -- before this, MapGraphKind's catch-all mapped any unrecognised kind to
+            // Function and emitted one, with no diagnostic.
+            //
+            // ⚠⚠ SKIPPED, not errored, and the distinction is load-bearing. A macro-library asset
+            // (Q25-C2) legitimately DECLARES macros with no call sites in itself; erroring on "a
+            // Macro graph exists" would make that asset uncompilable. The error case is a macro
+            // reaching Stage 5 *as a compilation target* -- i.e. surviving expansion -- which cannot
+            // happen until the expansion pass and MacroCallNode exist. Free to word right today,
+            // expensive to unpick later.
+            if (graph.Kind == GraphKind.Macro) continue;
+
             var scheduler = new GraphScheduler(graph, typedAsset, ctx);
             irGraphs.Add(scheduler.Schedule());
         }
@@ -1194,6 +1207,34 @@ internal sealed class GraphScheduler
                     Operation = new IrOp_WriteVariable(idx, val),
                     Debug     = DebugOf(node),
                 });
+
+                // ⭐ The "Value" data-OUT pin -- a pass-through of what was just written, exactly as
+                // Unreal's Set node ships. Both projection halves emit this pin and type it, so it is
+                // wirable and the build is clean; NOTHING read it. A consumer pulling it found no case
+                // in ResolveNodeOutput and landed in the `default:` arm, which emitted
+                // IrOp_Const("default") -- so it printed 0 every tick, silently, forever.
+                //
+                // ⚠ No ResultValue is allocated, deliberately. IrOp_WriteVariable emits
+                // `state.Field = __t{val.Index};` -- the written value ALREADY exists as a materialized
+                // local, so the pass-through IS `val`. Mirroring SetSharedNode's writtenResult shape
+                // here would emit a redundant second local; that op allocates one because its result is
+                // a DIFFERENT value (a bool success flag), not the value written.
+                //
+                // ⚠⚠ _statementPinCache, NOT _pinValueCache. The per-block cache is cleared at every
+                // block boundary, so a consumer on the far side of a Branch would fall through to the
+                // same `default:` arm and read 0 again -- the defect would look fixed in every test
+                // whose producer and consumer sit in one block. SetVariable is statement-scheduled, so
+                // its value is materialized exactly once as a real local and stays in scope across the
+                // flat goto-based body -- which is precisely what _statementPinCache is for.
+                //
+                // ⚠ Pinning the value AS WRITTEN is the correct semantics, not a limitation: this pin
+                // means "the value I wrote", not "the variable's value now". A later write through
+                // another SetVariable must not retroactively change what this pin reported.
+                var valueOutPin = node.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, "Value", StringComparison.OrdinalIgnoreCase));
+                if (valueOutPin is not null)
+                    _statementPinCache[valueOutPin.Id] = val;
                 break;
             }
 
@@ -1250,7 +1291,15 @@ internal sealed class GraphScheduler
                 });
 
                 if (writtenPin is not null && writtenResult.HasValue)
-                    _pinValueCache[writtenPin.Id] = writtenResult.Value;
+                {
+                    // ⚠ BOTH caches. This node is STATEMENT-scheduled, so its result is materialized
+                    // once as a real local; a consumer on the far side of a Branch reads it from
+                    // _statementPinCache. _pinValueCache alone is cleared at every block boundary, so
+                    // that consumer fell through to ResolveNodeOutput's `default:` arm and silently
+                    // read a default -- correct in the declaring block, wrong across any branch.
+                    _pinValueCache[writtenPin.Id]     = writtenResult.Value;
+                    _statementPinCache[writtenPin.Id] = writtenResult.Value;
+                }
                 break;
             }
 
@@ -1301,7 +1350,10 @@ internal sealed class GraphScheduler
                     !p.IsExec && p.Direction == "Out"
                     && string.Equals(p.Name, "Written", StringComparison.OrdinalIgnoreCase));
                 if (writtenPinM is not null)
-                    _pinValueCache[writtenPinM.Id] = writtenResultM;
+                {
+                    _pinValueCache[writtenPinM.Id]     = writtenResultM;   // see the SetShared note
+                    _statementPinCache[writtenPinM.Id] = writtenResultM;
+                }
                 break;
             }
 
@@ -1355,7 +1407,10 @@ internal sealed class GraphScheduler
                     !p.IsExec && p.Direction == "Out"
                     && string.Equals(p.Name, "Written", StringComparison.OrdinalIgnoreCase));
                 if (writtenPinC is not null)
-                    _pinValueCache[writtenPinC.Id] = writtenResultC;
+                {
+                    _pinValueCache[writtenPinC.Id]     = writtenResultC;   // see the SetShared note
+                    _statementPinCache[writtenPinC.Id] = writtenResultC;
+                }
                 break;
             }
 
@@ -1382,7 +1437,11 @@ internal sealed class GraphScheduler
                 var okPin = node.Pins.FirstOrDefault(p =>
                     !p.IsExec && p.Direction == "Out"
                     && string.Equals(p.Name, "Ok", StringComparison.OrdinalIgnoreCase));
-                if (okPin is not null) _pinValueCache[okPin.Id] = okResult;
+                if (okPin is not null)
+                {
+                    _pinValueCache[okPin.Id]     = okResult;   // see the SetShared note
+                    _statementPinCache[okPin.Id] = okResult;
+                }
 
                 // Author-time binding check -- mirrors the CA-07 consumers' unwired/unbaked safe
                 // default (Stage2's BP2067 catches the wired-but-unbaked half at validation time;
@@ -1482,7 +1541,11 @@ internal sealed class GraphScheduler
                     var lwOkPin = node.Pins.FirstOrDefault(p =>
                         !p.IsExec && p.Direction == "Out"
                         && string.Equals(p.Name, "Ok", StringComparison.OrdinalIgnoreCase));
-                    if (lwOkPin is not null) _pinValueCache[lwOkPin.Id] = lwOk.Value;
+                    if (lwOkPin is not null)
+                    {
+                        _pinValueCache[lwOkPin.Id]     = lwOk.Value;   // see the SetShared note
+                        _statementPinCache[lwOkPin.Id] = lwOk.Value;
+                    }
                 }
 
                 bool lwNeedsInt   = lwn.Op is CollectionWriteOp.SetAt or CollectionWriteOp.InsertAt
@@ -1603,7 +1666,12 @@ internal sealed class GraphScheduler
                     Debug       = DebugOf(node),
                 });
                 if (gcOutPin is not null)
-                    _pinValueCache[gcOutPin.Id] = gcResult;
+                {
+                    // ⚠ The IMPURE-CLR FunctionCall case below caches into BOTH; this local-graph-call
+                    // arm cached into one. Same node type, two arms, two behaviours across a Branch.
+                    _pinValueCache[gcOutPin.Id]     = gcResult;
+                    _statementPinCache[gcOutPin.Id] = gcResult;
+                }
                 break;
             }
 
@@ -1915,7 +1983,10 @@ internal sealed class GraphScheduler
                 var handleOutPin = ssn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out"
                                         && string.Equals(p.Name, "Handle", StringComparison.OrdinalIgnoreCase));
                 if (handleOutPin is not null)
-                    _pinValueCache[handleOutPin.Id] = handleResult;
+                {
+                    _pinValueCache[handleOutPin.Id]     = handleResult;   // see the SetShared note
+                    _statementPinCache[handleOutPin.Id] = handleResult;
+                }
 
                 break;
             }
@@ -1939,7 +2010,10 @@ internal sealed class GraphScheduler
                 var outPin = sdn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out"
                                  && string.Equals(p.Name, "WinningOptionId", StringComparison.OrdinalIgnoreCase));
                 if (outPin is not null)
-                    _pinValueCache[outPin.Id] = optionResult;
+                {
+                    _pinValueCache[outPin.Id]     = optionResult;   // see the SetShared note
+                    _statementPinCache[outPin.Id] = optionResult;
+                }
                 break;
             }
 
@@ -3588,7 +3662,24 @@ internal sealed class GraphScheduler
 
             default:
             {
-                // Unknown pure source -- dummy value.
+                // ⭐ Trap #5 in its purest form, now closed. This arm returned a plausible value
+                // instead of reporting: a consumer pulling a data-out pin whose producer has no case
+                // here got IrOp_Const("default") -- 0, or false -- silently, every tick, with a clean
+                // build. That is exactly how SetVariable's "Value" pin printed 0 for three batches.
+                //
+                // ⚠ The message was ALREADY being computed and thrown away: the Synthesized
+                // annotation below has said "unknown-source-{kind}" all along. It only ever reached a
+                // debug map nobody reads during a build.
+                var unknownPin = sourceNode.Pins.FirstOrDefault(p => p.Id == sourcePinId);
+                _ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP4005,
+                    $"The '{unknownPin?.Name ?? sourcePinId.ToString()}' output of "
+                    + $"'{sourceNode.GetType().Name}' produces no value: nothing in the compiler "
+                    + $"implements reading it, so a consumer reads default({pinType.FullName}) every "
+                    + "tick. ⚠ This is a missing compiler case, not a mistake in the graph -- the "
+                    + "editor projects this pin and accepts the wire. Removing the wire compiles; the "
+                    + "node kind needs reporting.",
+                    _ctx.AssetId, _graph.Id, sourceNode.Id, sourcePinId));
+
                 result = AllocValue(pinType);
                 stmts.Add(new IrStatement
                 {
@@ -3900,6 +3991,14 @@ internal sealed class GraphScheduler
 
         var bodyStmts = new List<IrStatement>();
         var savedKeys = new HashSet<Guid>(_pinValueCache.Keys);
+        // ⚠⚠ The STATEMENT cache needs the same isolation, and for a sharper reason. Its whole
+        // justification is that "the emitted TickCore body is flat (goto-based, no nested scopes)", so
+        // a materialized local stays in scope for any later block. An inline body is the ONE place
+        // that premise fails: IrOp_ForEach emits its body inside braces, so a local declared by a
+        // statement-scheduled node in there (a SetVariable's written value, a SetShared's Written
+        // flag) is out of scope the moment the loop closes. Leaking it into the never-cleared cache
+        // would hand a later block a reference to a local that no longer exists.
+        var savedStmtKeys = new HashSet<Guid>(_statementPinCache.Keys);
         if (currentItemPin is not null)
             _pinValueCache[currentItemPin.Id] = itemVar;
         IrValue? indexVar = null;
@@ -3915,6 +4014,8 @@ internal sealed class GraphScheduler
         // span blocks. Latent nodes remain forbidden in the body (Stage2 BP2050).
         ScheduleInlineBodyChain(GetExecSuccessorByPinName(fe, "Body"), null, bodyStmts, bb.Id.Value);
 
+        foreach (var k in _statementPinCache.Keys.Where(k => !savedStmtKeys.Contains(k)).ToList())
+            _statementPinCache.Remove(k);
         foreach (var k in _pinValueCache.Keys.Where(k => !savedKeys.Contains(k)).ToList())
             _pinValueCache.Remove(k);
 
@@ -4088,6 +4189,14 @@ internal sealed class GraphScheduler
 
         var bodyStmts = new List<IrStatement>();
         var savedKeys = new HashSet<Guid>(_pinValueCache.Keys);
+        // ⚠⚠ The STATEMENT cache needs the same isolation, and for a sharper reason. Its whole
+        // justification is that "the emitted TickCore body is flat (goto-based, no nested scopes)", so
+        // a materialized local stays in scope for any later block. An inline body is the ONE place
+        // that premise fails: IrOp_ForEach emits its body inside braces, so a local declared by a
+        // statement-scheduled node in there (a SetVariable's written value, a SetShared's Written
+        // flag) is out of scope the moment the loop closes. Leaking it into the never-cleared cache
+        // would hand a later block a reference to a local that no longer exists.
+        var savedStmtKeys = new HashSet<Guid>(_statementPinCache.Keys);
         if (currentItemPin is not null)
             _pinValueCache[currentItemPin.Id] = itemVar;
         IrValue? indexVar = null;
@@ -4100,6 +4209,8 @@ internal sealed class GraphScheduler
 
         ScheduleInlineBodyChain(GetExecSuccessorByPinName(cfe, "Body"), null, bodyStmts, bb.Id.Value);
 
+        foreach (var k in _statementPinCache.Keys.Where(k => !savedStmtKeys.Contains(k)).ToList())
+            _statementPinCache.Remove(k);
         foreach (var k in _pinValueCache.Keys.Where(k => !savedKeys.Contains(k)).ToList())
             _pinValueCache.Remove(k);
 
@@ -4187,7 +4298,17 @@ internal sealed class GraphScheduler
     {
         var armStmts  = new List<IrStatement>();
         var savedKeys = new HashSet<Guid>(_pinValueCache.Keys);
+        // ⚠⚠ The STATEMENT cache needs the same isolation, and for a sharper reason. Its whole
+        // justification is that "the emitted TickCore body is flat (goto-based, no nested scopes)", so
+        // a materialized local stays in scope for any later block. An inline body is the ONE place
+        // that premise fails: IrOp_ForEach emits its body inside braces, so a local declared by a
+        // statement-scheduled node in there (a SetVariable's written value, a SetShared's Written
+        // flag) is out of scope the moment the loop closes. Leaking it into the never-cleared cache
+        // would hand a later block a reference to a local that no longer exists.
+        var savedStmtKeys = new HashSet<Guid>(_statementPinCache.Keys);
         ScheduleInlineBodyChain(armStart, joinId, armStmts, blockId);
+        foreach (var k in _statementPinCache.Keys.Where(k => !savedStmtKeys.Contains(k)).ToList())
+            _statementPinCache.Remove(k);
         foreach (var k in _pinValueCache.Keys.Where(k => !savedKeys.Contains(k)).ToList())
             _pinValueCache.Remove(k);
         return armStmts;
@@ -4489,12 +4610,23 @@ internal sealed class GraphScheduler
     private static IrDebugAnnotation DebugOf(Node node) =>
         new IrDebugAnnotation { GraphId = default, NodeId = node.Id };
 
+    /// <summary>
+    /// ⚠ <b>The catch-all no longer defaults to <see cref="IrGraphKind.Function"/>.</b> It did, and
+    /// that made a new <see cref="GraphKind"/> member silently compile as an ordinary function --
+    /// the graph-kind floor of the very trap <c>BP4005</c> closes for data pins. A kind with no
+    /// mapping is a compiler bug, not a graph the designer can fix, so it throws rather than
+    /// guessing. <see cref="GraphKind.Macro"/> never reaches here: Stage 5 skips macro graphs before
+    /// scheduling them (see <c>Run</c>).
+    /// </summary>
     private static IrGraphKind MapGraphKind(GraphKind kind) => kind switch
     {
         GraphKind.Function     => IrGraphKind.Function,
         GraphKind.Event        => IrGraphKind.Event,
         GraphKind.Construction => IrGraphKind.Construction,
-        _                       => IrGraphKind.Function,
+        _ => throw new InvalidOperationException(
+                 $"GraphKind.{kind} has no IrGraphKind mapping. Add one rather than letting it "
+                 + "compile as a Function -- a mis-mapped graph kind emits working-looking code for "
+                 + "the wrong thing."),
     };
 
     // -----------------------------------------------------------------------

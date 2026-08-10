@@ -172,6 +172,26 @@ public static class DiagnosticCodes
     public const string BP4003 = "BP4003";
     public const string BP4004 = "BP4004";
 
+    /// <summary>
+    /// Batch 28 — a data-OUT pin was pulled from a node kind that has no case in
+    /// <c>ResolveNodeOutput</c>, so nothing in the compiler can produce its value.
+    ///
+    /// <para>
+    /// ⭐ <b>Error, not Warning, and the reasoning matters.</b> This is not an authoring-in-progress
+    /// state like <c>BP4001</c> (a pin the designer has not wired yet) or <c>BP3010</c> (a node they
+    /// left disconnected) — both of which the user ruled should warn rather than block. It is a wire
+    /// the designer <b>did</b> draw, between two pins the editor offered, that <b>cannot ever work</b>:
+    /// the value read is <c>default(T)</c>, every tick, forever. A silent wrong value is the worst
+    /// outcome in this subsystem and the whole reason this programme exists.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ It is also a <b>compiler gap, not a user error</b> — the editor projected the pin and accepted
+    /// the wire — so the message says so and the fix is ours, not theirs.
+    /// </para>
+    /// </summary>
+    public const string BP4005 = "BP4005";
+
     // Stage 6 -- Lower
     public const string BP5001 = "BP5001";
     public const string BP5001_LibraryHasNoFunctions = "BP5001";

@@ -21,7 +21,23 @@ public sealed class Graph
     public GraphMetadata EditorMetadata { get; set; } = new();
 }
 
-public enum GraphKind { Function, Event, Construction }
+/// <summary>
+/// ⚠ Serialised as a <b>string</b> (<c>BlueprintJsonServices</c>), so adding a member is additive on
+/// disk -- no existing asset changes and no migration is needed.
+/// </summary>
+public enum GraphKind
+{
+    Function,
+    Event,
+    Construction,
+
+    /// <summary>
+    /// A reusable exec/data template spliced into its call sites. ⚠ <b>Never a compilation target:</b>
+    /// Stage 5 skips it, and it is deliberately not tick-eligible -- <c>InstanceEmitter</c> picks a
+    /// tick graph from <c>IrGraphKind.Function</c> graphs only, and a macro produces no IrGraph at all.
+    /// </summary>
+    Macro,
+}
 
 public sealed class Pin
 {
