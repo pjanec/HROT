@@ -6,7 +6,55 @@
 
 ---
 
-## 0. ✅ Batch 22 is VERIFIED — gates run 2026-08-08 on the merged tree
+## 0. ✅ Batch 27 VERIFIED — all eight gates green on the merged tree, 2026-08-10
+
+Merged **fast-forward** (they merged my branch first — rule 4 followed), head `31d40bf3`.
+
+| Gate | Result |
+|---|---|
+| Solution build | ✅ **0 errors**, 77 warnings |
+| Blueprints | ✅ 3091 passed, 0 failed, 10 skipped |
+| AiShared | ✅ 1213 · BTree editor ✅ 612 · Generators ✅ 193 |
+| Breakpoints | ✅ 130 · NodeEditor.Core ✅ 208 · NodeEditor.UI ✅ 131 |
+
+**Tracker reconciles three ways:** done **77**, open **68** — both match the table. ✅ **No ID
+collision** — they allocated `BP-201`…`BP-211`; I allocated none (rule 3 held for the first time).
+
+### ⭐ The three things worth carrying forward
+
+1. **BP-210 closed the gap I named but had not scoped.** The matrix now has all three missing axes —
+   **run-and-assert-a-value**, wiring acceptance, and *edit sequences* rather than final states.
+   `AuthoringPathRunValueTests` asserts the logged value, not just a clean compile.
+2. ⭐ **BP-209: they refused to close my diagnosis, and they were right.** My handoff reasoned
+   *"empty `ArgTypes` ⇒ pin stays `System.Object` ⇒ emit falls back to a default ⇒ prints `0`."*
+   Measured on the real runtime, all three shapes contradict it: an untyped **wired** pin formats
+   **correctly** (`ResolveDataPin` resolves the *source*; the pin's declared type never enters the
+   interpolation); an untyped **unwired** pin prints **nothing** + `BP4001`; only a **numerically
+   typed AND unwired** pin can print `0` — and typing it requires the `ArgTypes` entry the user's
+   asset did not have. ⇒ **No path from the reported asset to the reported output exists.** All three
+   behaviours are now test-locked. ⚠ **Do not treat BP-201 as having fixed the printed `0`.**
+   ⭐ **This one genuinely needs the user's actual `.bp.json`** — the only item in the batch that
+   cannot be settled headlessly, because the input is not reproducible from the report.
+3. **BP-208 — a root cause deeper than the reported bug.** `NodePinSchema.GetCanonicalPins` opens
+   with `if (node.Pins.Count > 0) return node.Pins;`, so a node placed by **dragging a wire** carries
+   an in-memory pin list that **shadows** the derived one for the whole session. That is why editing
+   `Format` worked from the palette and not from a drag — the intermittency in the user's report.
+
+### 🆕 BP-211 — MSBuild was silently merging two distinct blueprint warnings
+
+Byte-identical message text ⇒ one row. Surfaced only because BP-206 changed the count **34 → 36**.
+⚠ Any past reasoning that treated the warning count as a measurement is suspect.
+
+### 🧹 Housekeeping found while verifying — **not** a Batch 27 regression
+
+`Blueprint_Issues_Detail.md` stops at **BP-122**, so every row from **BP-123 onward** (Batches 26–27,
+~20 rows) links to a **dead anchor**. The tracker rows have absorbed the analysis in practice — they
+now run 1000+ chars each. ⇒ Next batch: either backfill the anchors or drop the links. Cheap either
+way, and it is a live wrong-link in a document the user reads.
+
+---
+
+## 0-old. ✅ Batch 22 is VERIFIED — gates run 2026-08-08 on the merged tree
 
 | Suite | Result |
 |---|---|
