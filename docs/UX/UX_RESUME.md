@@ -81,8 +81,13 @@ Consequences that must not be lost:
 - **The first walk is reconnaissance**, not a repair list — we are replacing the shell, so do **not**
   spend effort fixing the old one.
 - ⚠ **"Standalone" ≠ "no cluster machinery".** Scenario load publishes a `TransitionStateIntent` and
-  waits for `ClusterState.Idle`; Play/Stop goes through `PreviewClusterOpHandler`. The new app hosts the
-  orchestrator too — which is exactly why the shared-init constraint is right.
+  waits for `ClusterState.Idle`; Play/Stop goes through `PreviewClusterOpHandler`.
+  ⚡ **CORRECTED 2026-08-10 — but none of that comes from the host.** It lives inside `Hrot.Editor`,
+  which builds its **own in-process `ClusterMaster`** on its own bus (`EditorSubsystem.cs:1352`,
+  `Mandatory = Array.Empty<string>()`) and ticks it per frame; the intents are published from
+  `EditorApplication.cs`. `Program.cs` contributes only **generic hosting** — logging, CLI, the
+  orchestrator driver, window, render loop. So the machinery is real and must keep running, but
+  **it is not an argument for sharing init** — the editor already carries it.
 - The host is only **2,217 lines** and **no subsystem project depends on it** (only `InternalsVisibleTo`
   test attributes), so this is cheap. The seam is [Q25-F](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-f--a-dedicated-editor-application-with-a-purpose-built-shell).
 
@@ -381,9 +386,24 @@ unblock in [UX_Task_Tracker.md](UX_Task_Tracker.md).
 
 ### 3. Walk Path A as reconnaissance
 
-**Needs a Windows session** ([§1.10](#110-session-topology)). Delete/rename `imgui.ini` first — a walk
-against a hand-tuned layout proves nothing about a new user's experience. Walk A1–A12 in order and fill
-both tables in [UX_Golden_Path.md](UX_Golden_Path.md#deviation-log):
+**Needs a Windows session** ([§1.10](#110-session-topology)). Delete/rename the layout state first — a
+walk against a hand-tuned layout proves nothing about a new user's experience. Walk A1–A12 in order and
+fill both tables in [UX_Golden_Path.md](UX_Golden_Path.md#deviation-log):
+
+> 🔴 **Delete the RIGHT files — corrected 2026-08-10.** There are **two**, and neither is the `imgui.ini`
+> in the repo root (that one is committed, and the app never reads it — deleting it does nothing and
+> invalidates the walk):
+>
+> | File | Path | Overridable? |
+> |---|---|---|
+> | ImGui docking layout | `%LocalAppData%\HROT\imgui.ini` | ❌ hardcoded in `RaylibPresentationShell.SetupImGui()` — no parameter, no DI seam |
+> | Window/perspective state | `fdp_windows.json` **next to the exe** | ✅ `Save/LoadSettings(path)` — but `LocalWindowController.cs:75,94` always call it with no argument |
+>
+> ⇒ 🔴 **This also blocks [UXR-04](UX_Requirements.md#uxr-04)** ("delete the layout profile, launch, walk
+> the path"). `imgui.ini` is keyed to `%LocalAppData%`, **not** to the executable — so the editor app and
+> `ClusterRunner` collide on one machine-wide file *no matter which option F′ takes*. Giving
+> `SetupImGui()` a path seam is a **prerequisite for the new shell under every option**, not a
+> nice-to-have.
 
 - the **deviation log** — clicks used / windows opened / what the UI said / what happened, screenshot
   every `FAIL`;

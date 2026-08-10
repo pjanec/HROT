@@ -72,9 +72,17 @@ Applied to **every** step, on top of each step's own criterion
 walk is performed by a **Windows implementation session or the user**. See
 [Briefing §5.10](UX_Programme_Briefing.md#510-session-topology).
 
-1. `run_Editor.bat` (or `Hrot.ClusterRunner.exe --mode editor`). **Delete or rename the layout profile
-   first** (`imgui.ini`) — a walk against a hand-tuned layout proves nothing about a new user's
-   experience.
+1. `run_Editor.bat` (or `Hrot.ClusterRunner.exe --mode editor`). **Delete or rename the layout state
+   first** — a walk against a hand-tuned layout proves nothing about a new user's experience.
+
+   > 🔴 **Corrected 2026-08-10 — there are two files, and neither is the repo-root `imgui.ini`.** That
+   > one is committed and never read by the app; deleting it does nothing and silently invalidates the
+   > walk. Delete both of:
+   >
+   > - **`%LocalAppData%\HROT\imgui.ini`** — the ImGui docking layout. Path is hardcoded in
+   >   `RaylibPresentationShell.SetupImGui()` with no override seam.
+   > - **`fdp_windows.json`**, next to the executable — window open/pinned state, active perspective and
+   >   UI scale (`WindowManager.cs:437-438`).
 2. Walk the steps **in order**, without using knowledge not present in the UI. When you must consult
    the codebase or ask someone to continue, **that is a deviation** — record it and then continue with
    whatever knowledge you need.

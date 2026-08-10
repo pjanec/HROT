@@ -450,6 +450,56 @@ to share, but where to cut.
 > for product/delivery reasons (installer, branding, separate release cadence)? If the latter, go
 > straight to F1.
 
+#### ⚠ 2026-08-10 — the lean above was measured, and it does not survive
+
+<a id="f-prime-measured"></a>
+
+**Claude's F3→F1 lean rested on one premise: that the extraction is risky enough to defer.** That premise
+was never measured. It has now been, and it is false. **Read the lean above as superseded by this block.**
+
+**F3 and F1 bundle three decisions that are independent:**
+
+| Decision | Real cost |
+|---|---|
+| Where does the curated shell's code live? | Its own project — **either way**. The shell code is *identical* under F3 and F1; only the entry point differs |
+| When is the new exe cut? | Near-free once the shell is a library. A `Main` is small |
+| How much host composition is extracted, and when? | **The only expensive decision** — and it can be staged under *either* option |
+
+⇒ F3 does not de-risk the *shell* at all. It defers only the *extraction* — and the extraction turns out
+to be small enough that deferring it buys nothing.
+
+**F5 — the option this question did not offer: cut the exe on day one, stage the *extraction*.**
+New shell project + thin exe immediately; extract composition into a shared library incrementally, each
+step gated on `ClusterRunner`'s suites. The host keeps running throughout, because it gains a library it
+also consumes rather than having its behaviour rewired.
+
+**Measured 2026-08-10** (evidence: [baseline index](UX_Tasks_Detail.md#baseline-evidence-index)):
+
+| Measurement | Value |
+|---|---|
+| Production projects referencing `Hrot.ClusterRunner` | **Zero.** Only its 2 test projects — it is a leaf |
+| `internal` types blocking a separate exe | **7 total, but only 2 are needed**: `IPresentationShell` + `RaylibPresentationShell`. `LocalWindowController` is *the generic aggregator we are replacing*, and `PerspectiveUpdateSubsystem` is multi-subsystem cluster coordination a single-subsystem editor does not want |
+| ⇒ **The minimum extraction** | **Two types** — the Raylib/ImGui/font/icon bootstrap. Already seam-tested: `LocalWindowControllerTests` drives it through a fake `IPresentationShell` |
+| `Program.cs` droppable for an editor-only exe | ~200 of 484 lines — CI mode, migrate mode, DDS participant + factory selection, the perspective/gizmo cluster map, node-id offsets, and the whole reflection scan (→ one `new EditorSubsystem()`) |
+| F3's blast radius **inside the working host** | 3 files; `Program.cs:236-370` (135 lines) plus conditionals through most of `OpenLocalWindow`'s 53-line body — then deleted again at F1 |
+
+**Claude's revised lean: F5 — go straight to the dedicated exe, stage the extraction.** F3 spends changes
+*inside the host that constraint #1 exists to protect*, to host an experiment, and throws the plumbing away
+afterwards. F5 touches `ClusterRunner` only to make two bootstrap types reachable.
+
+> **F′ is therefore re-put to the architect as a three-way choice:** staged **F3→F1**, straight **F1**
+> (big-bang extraction), or **F5** (exe now, extraction staged). Claude leans **F5**; the honest residual
+> risk is that F5 must guess the shared-library boundary up front, where F3 discovers it empirically —
+> but guessing wrong under F5 means refactoring *our own new library*, while guessing wrong under F3
+> means having built against host internals that may not extract cleanly.
+
+⚡ **A finding that removes the main argument for "very much shared init":** the scenario-load and
+Play/Stop machinery — `TransitionStateIntent`, the wait for `ClusterState.Idle`, `PreviewClusterOpHandler`
+— is **not in `Program.cs` at all**. It lives inside `Hrot.Editor`, which builds its **own in-process
+`ClusterMaster`** on its own bus (`EditorSubsystem.cs:1352`, with `Mandatory = Array.Empty<string>()`),
+ticked per frame. `Program.cs` contributes only *generic hosting*: logging, CLI, orchestrator driver,
+window, render loop. **The cluster machinery the editor needs, the editor already builds itself.**
+
 ### F-ii — What does the new shell keep of the window machinery?
 
 - **G1 — Keep `WindowManager` and curate what enters it**: an explicit registration list, an explicit
@@ -691,7 +741,7 @@ reframes rather than answers.*
 | Question | Decision | Notes |
 |---|---|---|
 | **Q25-F-i — shared-init / new-shell seam** | — | *answer first; reframes D* |
-| **Q25-F′ — staged (F3→F1), or dedicated exe from day one?** | — | |
+| **Q25-F′ — staged F3→F1, straight F1, or F5?** | — | ⚠ **now a three-way choice** — the F3→F1 lean was measured and withdrawn; Claude leans **F5** (exe now, stage the extraction). [Why](#f-prime-measured) |
 | **Q25-F-ii — what the shell keeps of the window machinery** | — | |
 | **Q25-F-iii — how existing window content is combined** | — | *lean revised to H0-first by the parallel-development constraint* |
 | **Q25-F″ — do the graph canvases move into the new shell?** | — | |
