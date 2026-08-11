@@ -37,11 +37,33 @@ which no `.csproj` check can see.
 
 | Axis | Decided | Mechanism | Example |
 |---|---|---|---|
-| **Mode** | composition time | which registrations the host performs | SimHost has no place-entity tool |
+| **Mode** | composition time | ⚠ **revised below** — a host-supplied *rule*, no longer set membership | a host rule may forbid spawning mid-exercise |
 | **Perspective** | runtime, switchable | a condition on the registration | a graph perspective hides map actions |
-| ⭐ **Component availability** | **per entity, emergent from the data** | `[GizmoProjector(…)]` keys · `isApplicable: e => world.HasComponent<X>(e)` | a health bar needs a health component; absent ⇒ never drawn |
+| ⭐ **Data availability** | **per entity, emergent from the data** | `[GizmoProjector(…)]` keys · `isApplicable: e => world.HasComponent<X>(e)` | a health bar needs a health component; absent ⇒ never drawn |
 
-### ✅ The good news: the third axis needs no new mechanism
+### 🔒 RULED 2026-08-10 — the set is uniform; only the *rules* differ
+
+> *"There is no clear replication config, it is encoded in ECS component translators. And it does not
+> matter, because SimHost, CGF and Editor should really **share the same and full set of gizmos and
+> tools** and decide based on **data availability or host-specific rules**."*
+
+⇒ **UXI-23 is not "work out each host's subset". It is "register the full shared set everywhere."**
+
+**This changes the mode axis.** Mode-dependence was going to be expressed by *which registrations a host
+performs*. It is now expressed by **the predicates and handlers a host binds** — the registration **set**
+becomes uniform:
+
+| Axis | Now expressed as |
+|---|---|
+| **Mode** | a host-supplied `isApplicable` rule + its handler binding |
+| **Perspective** | a condition on the registration |
+| **Data** | component presence, per entity |
+
+⭐ **This is cleaner, not merely simpler:** the shared set lives entirely in shared code, and a host
+contributes *only* rules and implementations — which is exactly the descriptor/binding split, and it
+tightens rather than weakens the no-leakage constraint.
+
+### ✅ The good news: the data axis needs no new mechanism
 
 Applicability is **already** component-keyed — that is exactly what `[GizmoProjector(TypeA, TypeB)]` and
 the `HasComponent<T>` guards in every context-menu lambda do. A gizmo whose components are absent simply
@@ -51,24 +73,26 @@ never fires; an action whose predicate fails simply never appears.
 allow-list for entity-data gizmos. It also explains the earlier structural finding from the data side:
 **the Editor composes the most because it has every component.**
 
-### 🔴 …and the hazard that follows, which the acceptance must handle
+### 🔴 The hazard — and how the ruling defuses it
 
-**Component absence and a wiring mistake look identical: nothing appears.**
+**Component absence and a wiring mistake look identical: nothing appears.** Register `HealthBarGizmo` in
+CGF where no entity carries a health component and you see exactly what a broken wiring looks like. That
+is *"assert the effect, never the report"* in a new form.
 
-Register `HealthBarGizmo` in CGF where no entity carries a health component and you see exactly what you
-would see if you had wired it wrong. That is the codebase's own *"assert the effect, never the report"*
-trap in a new form.
+⚠ **An earlier version of this section demanded positive evidence that a component is absent before a
+capability could be marked "not applicable here". The ruling above removes that burden** — and with it
+the need for the per-host data inventory I was about to scan for.
 
-⇒ **[UXI-23](UX_Issues.md#uxi-23)'s acceptance must distinguish the two**, per capability:
-
-| Verdict | How it is established |
-|---|---|
-| ✅ **wired and applicable** | the visual appears on an entity that carries the components |
-| ⚪ **wired, not applicable here** | the components are **confirmed absent** in that host — not merely unobserved |
-| ❌ **not wired** | the components are present and it still does not appear |
-
-⚠ **A "⚪" claim requires positive evidence that the component is absent.** Without it the row is
-untested, not passing.
+> ### ⇒ Verify the wiring **statically**, not the visual outcome
+>
+> The visual outcome is data-dependent and **legitimately empty**, so it cannot be the gate. The gate is
+> that **the registration call exists** — greppable, cheap, and true regardless of what data is loaded.
+>
+> | | |
+> |---|---|
+> | **Gate** | the shared registrar / system / gizmo **is registered** in that host — checked in code |
+> | **Visual check** | still performed, but as *evidence of life*, not as a pass/fail per capability |
+> | **Never** | conclude "not applicable" from an empty screen |
 
 ## The gap, classified
 
@@ -78,7 +102,7 @@ untested, not passing.
 |---|---|---|
 | **(i) not wired** | the shared class exists and works in the Editor; the host simply never calls it | **effectively all of it** |
 | **(ii) blocked** | an **assembly/service** dependency the host lacks | **zero identified** — `MissionPresentationGizmo` (needs `IGeographicTransform`) and `EntityEditorLabelGizmo` (needs `BehaviorRegistry`) are fine; both hosts hold those |
-| **(ii-b) data-gated** ⭐ | the **components are not on the entity** in that host | ⚠ **not measured — added by the user 2026-08-10.** Applies to every *entity-data* gizmo below. See the third axis above |
+| **(ii-b) data-gated** ⭐ | the **components are not on the entity** in that host | **Deliberately not measured.** Per the ruling above, we register the full set and let the data decide — so this column never needs filling in |
 | **(iii) not applicable** | genuinely outside the host's domain | SimHost's road/trajectory layers only |
 
 ## What SimHost lacks vs the Editor
@@ -156,7 +180,8 @@ below before treating every one as a one-liner.
 | **Interaction machinery** — selection system, drag gizmo, rubber band, action registry, layer assignment | ❌ no — keyed on `SimTransform`/`SelectionState`, which every map host has | expect these to *work* once wired |
 | **Entity-data gizmos** — health bar, line-of-sight, visibility cone, navigation target | ✅ **yes** — need domain components that may not be replicated to that host | wiring them may correctly produce **nothing** |
 
-⇒ **Wire the first kind expecting a visible result; wire the second expecting to have to check the data.**
+⇒ **Wire the first kind expecting a visible result; wire the second expecting that an empty screen may be
+the correct answer.** Both are gated on *the call existing*, not on what appears.
 
 ## <a id="needs-a-hand-check"></a>Needs a hand-check
 

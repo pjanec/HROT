@@ -148,9 +148,13 @@ surface legitimately cannot offer.
 
 ### Stage 3 — Perspective enters the context
 
-- **Two axes, each at its own layer** — **mode** is expressed by *which registrations a host performs*
-  (composition time, never visible to a generic panel); **perspective** is a *condition carried by the
-  registration* (runtime). Both affect the menu, as the user requires, with no concept leaking downward.
+- **Two axes, each at its own layer** — **mode** is expressed by *the predicates and handlers a host
+  binds* (composition time, never visible to a generic panel); **perspective** is a *condition carried by
+  the registration* (runtime). Both affect the menu, as the user requires, with no concept leaking down.
+  ⚠ **Revised 2026-08-10:** mode was going to be *which registrations a host performs*, but the user
+  ruled the registration **set uniform** across Editor/SimHost/CGF — so mode moved into the rules. A
+  third decider, **data availability** (component presence per entity), needs no mechanism: it is already
+  how `[GizmoProjector]` keys and `HasComponent<T>` guards work.
 - Apply the same idea to the **main menu**: give `GlobalMenuRegistry.RegisterItem` the `perspective:`
   filter that `MainToolbarManager.RegisterEntry` **already has**.
 - 🔴 **Fix the perspective vocabulary bug here** — validate a restored perspective against

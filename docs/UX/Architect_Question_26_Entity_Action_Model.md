@@ -319,7 +319,7 @@ either/or. The design question becomes **which mechanism carries each**, and con
 >
 > | Axis | When it is decided | Mechanism | Who knows about it |
 > |---|---|---|---|
-> | **Mode** (editor / simhost / cgf / ig) | **composition time** — a process is only ever one mode | **which registrations the host performs at all** | only the subsystem's composition root |
+> | **Mode** (editor / simhost / cgf / ig) | **composition time** — a process is only ever one mode | ⚠ **revised 2026-08-10: the host-supplied `isApplicable` rule and handler binding.** It was *"which registrations the host performs"*, but the user ruled the registration **set uniform** — all map hosts share the full set of gizmos and tools and decide by data availability or host rules | only the subsystem's composition root |
 > | **Perspective** (Scenario / BTree / HSM / Blueprint / …) | **runtime** — switchable | a **condition carried by the registration**, evaluated against the context | the host's predicate; the generic panel just passes the context through |
 >
 > **Why this is clean:** `CurrentPerspective` is already a `Fdp.Presentation` (`WindowManager`) concept,
