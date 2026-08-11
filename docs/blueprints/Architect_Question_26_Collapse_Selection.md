@@ -181,17 +181,99 @@ function-local variables (**BP-57**) · cross-asset collapse (Q25-C1 keeps macro
 
 ---
 
+## ⭐ How Unreal resolves these — researched 2026-08-11
+
+Sources at the foot of this section. ⚠ **Where Unreal and this codebase differ, the difference is
+called out explicitly — including one place Unreal is weaker and we should beat it.**
+
+### The shape of Unreal's feature
+
+Unreal ships **three** collapse commands, all always present on the selection context menu:
+
+| Command | Produces | Reusable? |
+|---|---|---|
+| **Collapse Nodes** | a *collapsed graph* — organisational only. ⚠ **It inherits the limits of the graph containing it**: a collapsed graph inside a Function still cannot hold latent nodes | ❌ no |
+| **Collapse to Function** | a real Function | ✅ yes, and callable from other Blueprints |
+| **Collapse to Macro** | a real Macro | ✅ yes |
+
+Every one of them has **`Expand Node`** to revert — ⭐ **the inverse gesture is native in Unreal, not an
+afterthought.** *"Execute is added by default when collapsing."*
+
+📌 We have no equivalent of **Collapse Nodes** (our third command is `CollapseToComment`, which is
+cosmetic). Out of scope here, but worth knowing the gap exists.
+
+### Per question
+
+| Q | Unreal | vs. our lean |
+|---|---|---|
+| **A** exec entries | ⭐ **Unreal macros support N exec-INs.** A macro's `Inputs` tunnel takes *"any number of execution or data pins"*; the docs' own example has one exec-in `Test` and two exec-outs `Win`/`Lose` | ⚠ **Unreal is more permissive than our D3** (exactly one exec-in). See the reframing below |
+| **B** who chooses | **Unreal offers all three and fails afterwards with a message** — e.g. *"Macros cannot have latent functions (\"Delay\")"*. It does **not** grey out the illegal choice | ⇒ our **B1 is better than Unreal.** Same outcome, told earlier |
+| **C** variables | Functions have local variables; macros do not — same split as ours (`BP-57`/`BP1664`) | ✅ already at parity |
+| **E** round-trip | `Expand Node` exists for all three forms, so collapse↔expand is a supported workflow — but Unreal **does not guarantee or verify** structural identity | ⇒ our **E1 is better than Unreal**, and cheap because our expansion is already proven by execution |
+
+### 🔴 Q26-F (new) — the place Unreal is **weaker**, and we should not copy it
+
+**Unreal's macros *can* contain latent nodes** (that is why the standard macro library's loops exist,
+and why the exit-and-re-enter pattern is idiomatic). ⚠ **But `Collapse to Macro` refuses a selection
+containing one**, with *"Macros cannot have latent functions"*.
+
+⭐ **That refusal is an Unreal wart, not a rule.** The capability allows it; only the gesture forbids it.
+⚠ **And it is precisely backwards for us:** `BP-78` records that **a macro is the only construct that
+can factor out a reusable *latent* sequence** — that is the whole reason macros were built here — and
+Batch 31 **proved it by execution** (aim → `Delay 0.4` → fire, spliced, compiled through real Roslyn,
+ticked across frames). ⇒ **Refusing to collapse a latent selection would throw away our single biggest
+advantage over the thing we are copying.**
+
+📐 **Claude's lean: allow it, and make it a headline test** — collapse a latent sequence to a macro,
+expand it, run it across frames. ⭐ **This is the "same or better" case: same gesture, strictly better
+behaviour, and we already have the machinery to prove it.**
+
+⚠ **The legality rule stays**, and we already have it: a latent macro may not be *called from* a graph
+that compiles to a synchronous method — `BP1661`, corrected in Batch 31 to gate on *"is this graph a
+`FunctionCall` target"* rather than graph kind. **Collapse should reuse `BP1661`, not invent a rule.**
+
+### ⚠ Reframing Q26-A now that Unreal's answer is known
+
+Unreal's macro model has **N exec-ins**; our **D3** settled on exactly one. So:
+
+- **A3** (*extend D3 to N exec-in*) is the **Unreal-parity** answer — ⛔ but it reopens a settled
+  architect decision and changes the splice rules, so it is the architect's call, not ours.
+- **A1** (*refuse, and name the entry nodes*) is **more restrictive than Unreal**, but it is
+  **forward-compatible**: nothing about refusing today prevents A3 later, and the refusal message can
+  say so.
+- **A2** (*silently insert a merge*) stays wrong under any reading.
+
+📐 **Revised lean: A1 now, A3 as the stated parity target.** ⚠ **Note honestly that this is the one
+question where I am recommending we ship *less* than Unreal** — on the grounds that a settled decision
+should be reopened deliberately rather than as a side effect of building a gesture.
+
+### Sources
+
+- [Macros in Unreal Engine — official docs](https://dev.epicgames.com/documentation/unreal-engine/macros-in-unreal-engine?lang=en-US) (tunnel nodes, *"any number of execution or data pins"*, `Win`/`Lose` example)
+- [Collapsing Graphs in Unreal Engine — official docs](https://dev.epicgames.com/documentation/en-us/unreal-engine/collapsing-graphs-in-unreal-engine) (the three commands, `Expand Node`, *"Execute is added by default"*)
+- [Blueprint Macro Library — official docs](https://dev.epicgames.com/documentation/en-us/unreal-engine/blueprint-macro-library-in-unreal-engine)
+- [Delay and other latent actions inside a Macro — Epic forums](https://forums.unrealengine.com/t/delay-and-other-latent-actions-inside-a-macro/9024) (latent-in-macro status over time; the *"Macros cannot have latent functions"* collapse refusal)
+- [Managing complexity in Blueprints — Epic](https://www.unrealengine.com/blog/managing-complexity-in-blueprints) (a collapsed graph inherits its container's limits; functions may not hold latent actions)
+
+⚠ **Confidence:** the official-docs rows are solid. The *collapse-refuses-latent* behaviour comes from
+forum/answers threads spanning 2014→2025 with shifting engine behaviour, so **treat it as "Unreal has
+historically refused this" rather than a precise statement about 5.6**. It does not change the
+recommendation — we should allow it either way.
+
+---
+
 ## Answers
 
 > ⏳ **Awaiting the architect.** Record them here, then build.
 
 | Q | Answer |
 |---|---|
-| **A** — multiple exec entries | |
+| **A** — multiple exec entries (⚠ Unreal allows N; D3 says one) | |
 | **B** — who chooses Function vs Macro | |
 | **C** — variables and state | |
 | **D** — where the analysis lives | |
 | **E** — round-trip invariant | |
+| **F** — ⭐ collapse a selection containing a **latent** node (Unreal refuses; we can allow) | |
 
 📌 **If the architect has no opinion on D**, treat it as self-researched against code in the
 Q23/Q24/Q25 pattern and take **D1** — the assembly argument is a code fact (the inverse lives in
