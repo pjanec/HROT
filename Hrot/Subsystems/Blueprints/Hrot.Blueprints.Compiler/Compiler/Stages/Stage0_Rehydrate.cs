@@ -250,16 +250,34 @@ internal static class Stage0_Rehydrate
         //
         // BP-80 / F3: Macro joins them — a macro's INPUT boundary is this exact shape. Must stay in
         // parity with the editor's NodePinSchema.EventEntryNodePins.
-        if ((graph.Kind != GraphKind.Function
-             && graph.Kind != GraphKind.Event
-             && graph.Kind != GraphKind.Macro)
-            || graph.Inputs.Count == 0)
-            return;
+        //
+        // ⚠⚠ BP-74 / Q26-A3: the `Inputs.Count == 0` half of this gate is now WRONG for a Macro, and
+        // the parity test is what caught it. A macro can declare exec ENTRIES while declaring no data
+        // inputs at all — that is the ordinary shape of a collapsed selection — and the old gate
+        // short-circuited such a graph, leaving the static skeleton's single "Out" in place while the
+        // editor half projected N. Precisely the two-halves-drift this projection pair keeps hitting.
+        bool isMacro   = graph.Kind == GraphKind.Macro;
+        bool wantsData = (graph.Kind == GraphKind.Function || graph.Kind == GraphKind.Event || isMacro)
+                         && graph.Inputs.Count > 0;
+
+        if (!isMacro && !wantsData) return;
+        if (isMacro && !wantsData && graph.ExecInputs.Count == 0) return;   // nothing to change
 
         // Ensure we have the exec-Out from static; then add data-Out pins.
         // (Clear and rebuild to avoid duplicates when static already added exec-Out.)
         pins.Clear();
-        pins.Add(MakePin("Out", "Out", isExec: true, typeId: ""));
+
+        // ⭐ BP-74 / Q26-A3: a Macro projects N exec-OUT pins, one per Graph.ExecInputs entry,
+        // replacing the single "Out". Empty ExecInputs keeps today's single implicit entry.
+        // Exact parity with NodePinSchema.MacroEntryExecPins.
+        if (graph.Kind == GraphKind.Macro && graph.ExecInputs.Count > 0)
+            foreach (var execIn in graph.ExecInputs)
+                pins.Add(MakePin(execIn.Name, "Out", isExec: true, typeId: ""));
+        else
+            pins.Add(MakePin("Out", "Out", isExec: true, typeId: ""));
+
+        if (!wantsData) return;
+
         foreach (var inp in graph.Inputs)
         {
             var inpTypeId = GetTypeId(inp.Type);
@@ -361,7 +379,6 @@ internal static class Stage0_Rehydrate
     private static void EnrichMacroCallPins(List<Pin> pins, MacroCallNode mc, BlueprintAsset asset)
     {
         pins.Clear();
-        pins.Add(MakePin("In", "In", isExec: true, typeId: ""));
 
         Graph? target = null;
         if (!string.IsNullOrEmpty(mc.TargetGraphId) && asset != null
@@ -370,6 +387,13 @@ internal static class Stage0_Rehydrate
             target = asset.Graphs.FirstOrDefault(
                 g => g.Id == targetGuid && g.Kind == GraphKind.Macro);
         }
+
+        // ⭐ BP-74 / Q26-A3: N exec-IN pins from the target's ExecInputs, replacing the single "In".
+        if (target is null || target.ExecInputs.Count == 0)
+            pins.Add(MakePin("In", "In", isExec: true, typeId: ""));
+        else
+            foreach (var execIn in target.ExecInputs)
+                pins.Add(MakePin(execIn.Name, "In", isExec: true, typeId: ""));
 
         if (target is null || target.ExecOutputs.Count == 0)
             pins.Add(MakePin("Out", "Out", isExec: true, typeId: ""));

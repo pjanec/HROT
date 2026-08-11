@@ -190,6 +190,142 @@ public sealed class MacroSurfaceTests
     /// IDENTICALLY on both halves: exec-Out "Out" + one data-Out pin per declared <c>Graph.Inputs</c>
     /// entry, in declaration order.
     /// </summary>
+    // ── BP-74 / Q26-A3: N exec-ins, the entry side ──────────────────────────
+
+    private static Graph BuildMacroWithEntries(Node entry, params string[] entryNames) => new()
+    {
+        Id      = Guid.NewGuid(),
+        Name    = "MyMacro",
+        Kind    = GraphKind.Macro,
+        Inputs  = new(),
+        Outputs = new(),
+        ExecInputs = entryNames
+            .Select(n => new ExecInDecl { Id = Guid.NewGuid(), Name = n })
+            .ToList(),
+        Nodes   = new List<Node> { entry },
+        Links   = new(),
+    };
+
+    /// <summary>
+    /// ⭐ Q26-A3: the macro entry node projects one exec-OUT per declared entry, replacing the single
+    /// "Out". Both halves must agree — every batch that moved one and not the other produced a silent
+    /// shape mismatch.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]   // no declaration ⇒ today's single implicit entry
+    [InlineData(1)]
+    [InlineData(3)]
+    public void MacroEntry_NExecInputs_EditorAndCompilerProjection_Agree(int entryCount)
+    {
+        var names = Enumerable.Range(0, entryCount).Select(i => $"Enter{i}").ToArray();
+
+        var stage0Entry = new EventEntryNode { Id = Guid.NewGuid() };
+        var stage0Asset = MakeAsset(BuildMacroWithEntries(stage0Entry, names));
+        Stage0_Rehydrate.Run(stage0Asset, DefaultOptions());
+        var fromStage0 = PinShape(stage0Entry.Pins);
+
+        var editorEntry = new EventEntryNode { Id = Guid.NewGuid() };
+        var editorGraph = BuildMacroWithEntries(editorEntry, names);
+        var fromEditor  = PinShape(NodePinSchema.GetCanonicalPins(editorEntry, containingGraph: editorGraph));
+
+        Assert.Equal(fromStage0, fromEditor);
+
+        var expectedNames = entryCount == 0 ? new[] { "Out" } : names;
+        Assert.Equal(expectedNames, fromEditor.Select(t => t.Item1).ToArray());
+        Assert.All(fromEditor, t => Assert.Equal("Out", t.Item2));
+        Assert.All(fromEditor, t => Assert.True(t.Item3));
+    }
+
+    /// <summary>The call node's mirror: one exec-IN per the TARGET's declared entries.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(3)]
+    public void MacroCall_NExecInputs_EditorAndCompilerProjection_Agree(int entryCount)
+    {
+        var names = Enumerable.Range(0, entryCount).Select(i => $"Enter{i}").ToArray();
+
+        Graph BuildTarget() => BuildMacroWithEntries(new EventEntryNode { Id = Guid.NewGuid() }, names);
+
+        var s0Target = BuildTarget();
+        var s0Call   = new MacroCallNode { Id = Guid.NewGuid(), TargetGraphId = s0Target.Id.ToString() };
+        var s0Host   = new Graph { Id = Guid.NewGuid(), Name = "Host", Kind = GraphKind.Function,
+                                   Nodes = new List<Node> { s0Call } };
+        var s0Asset  = MakeAsset(s0Target, s0Host);
+        Stage0_Rehydrate.Run(s0Asset, DefaultOptions());
+        var fromStage0 = PinShape(s0Call.Pins);
+
+        var edTarget = BuildTarget();
+        var edCall   = new MacroCallNode { Id = Guid.NewGuid(), TargetGraphId = edTarget.Id.ToString() };
+        var edHost   = new Graph { Id = Guid.NewGuid(), Name = "Host", Kind = GraphKind.Function,
+                                   Nodes = new List<Node> { edCall } };
+        var edAsset  = MakeAsset(edTarget, edHost);
+        var fromEditor = PinShape(
+            NodePinSchema.GetCanonicalPins(edCall, asset: edAsset, containingGraph: edHost));
+
+        Assert.Equal(fromStage0, fromEditor);
+
+        var expectedNames = entryCount == 0 ? new[] { "In" } : names;
+        var actualExecIns = fromEditor.Where(t => t.Item3 && t.Item2 == "In").ToArray();
+        Assert.Equal(expectedNames, actualExecIns.Select(t => t.Item1).ToArray());
+    }
+
+    /// <summary>
+    /// ⚠⚠ <b>Additive, but NOT byte-identical — and the distinction is worth stating.</b>
+    ///
+    /// <para>
+    /// <c>ExecInputs</c> is a non-nullable list defaulting to <c>new()</c>, so it serialises as
+    /// <c>"ExecInputs":[]</c> on every graph — exactly as <c>ExecOutputs</c> has since Batch 29. A
+    /// re-saved asset therefore gains a field. What actually matters, and is asserted here, is that the
+    /// change is <b>semantically inert and compatible in both directions</b>: an asset with no declared
+    /// entries reloads with an empty list, and — the load-bearing half — JSON written BEFORE this field
+    /// existed still loads, because System.Text.Json ignores unknown/missing members.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void ExecInputs_IsSemanticallyInert_AndOlderJsonWithoutItStillLoads()
+    {
+        var asset = MakeAsset(new Graph
+        {
+            Id = Guid.NewGuid(), Name = "Plain", Kind = GraphKind.Function,
+            Nodes = new List<Node> { new ReturnNode { Id = Guid.NewGuid() } },
+        });
+
+        var json     = BlueprintJsonServices.Serialize(asset);
+        var reloaded = BlueprintJsonServices.Deserialize(json)!;
+        Assert.Empty(reloaded.Graphs.Single().ExecInputs);
+
+        // A pre-Q26 document: the member simply is not there.
+        var legacy = json.Replace("\"ExecInputs\":[],", "");
+        Assert.DoesNotContain("\"ExecInputs\"", legacy);
+
+        var fromLegacy = BlueprintJsonServices.Deserialize(legacy)!;
+        Assert.Empty(fromLegacy.Graphs.Single().ExecInputs);
+        Assert.Equal(asset.Graphs.Single().Id, fromLegacy.Graphs.Single().Id);
+    }
+
+    /// <summary>And when they ARE declared, they survive as real content — the fields-vs-properties trap.</summary>
+    [Fact]
+    public void ExecInputs_RoundTripAsRealContent_WhenDeclared()
+    {
+        var decl  = new ExecInDecl { Id = Guid.NewGuid(), Name = "EnterA", Tooltip = "the first door" };
+        var asset = MakeAsset(new Graph
+        {
+            Id = Guid.NewGuid(), Name = "M", Kind = GraphKind.Macro,
+            ExecInputs = new List<ExecInDecl> { decl },
+            Nodes = new List<Node> { new ReturnNode { Id = Guid.NewGuid() } },
+        });
+
+        var json = BlueprintJsonServices.Serialize(asset);
+        Assert.Contains("EnterA", json);
+        Assert.Contains("the first door", json);
+
+        var back = BlueprintJsonServices.Deserialize(json)!.Graphs.Single().ExecInputs.Single();
+        Assert.Equal(decl.Id, back.Id);
+        Assert.Equal("EnterA", back.Name);
+        Assert.Equal("the first door", back.Tooltip);
+    }
+
     [Fact]
     public void MacroEntry_TwoInputs_EditorAndCompilerProjection_Agree()
     {

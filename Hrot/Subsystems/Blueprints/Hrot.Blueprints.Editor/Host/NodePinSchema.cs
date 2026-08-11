@@ -267,25 +267,36 @@ internal static class NodePinSchema
         // designer can wire the payload downstream. Must stay in parity with the compiler's
         // Stage0_Rehydrate.EnrichEventEntryPins (which enriches both kinds).
         //
-        // BP-80 / F3: Macro joins them unchanged. A macro's INPUT boundary is exactly this shape —
-        // one exec-out plus one data-out per declared input — which is why the design reuses
-        // EventEntryNode rather than inventing a boundary node that would miss every existing rule.
-        // The exec-in side needs no model at all (Q25-D3: exactly one, implicit).
-        if ((containingGraph?.Kind == GraphKind.Function
-             || containingGraph?.Kind == GraphKind.Event
-             || containingGraph?.Kind == GraphKind.Macro)
-            && containingGraph.Inputs.Count > 0)
+        // BP-80 / F3: Macro joins them. A macro's INPUT boundary is this shape — exec-out(s) plus one
+        // data-out per declared input — which is why the design reuses EventEntryNode rather than
+        // inventing a boundary node that would miss every existing rule.
+        //
+        // ⭐ BP-74 / Q26-A3: a Macro now projects N exec-OUT pins, one per Graph.ExecInputs entry,
+        // REPLACING the single "Out". That is the mirror of what ReturnNodePins already does with
+        // ExecOutputs, and it is what lets a selection entered from two places collapse into a
+        // two-entry macro instead of being refused.
+        bool isMacro   = containingGraph.Kind == GraphKind.Macro;
+        bool wantsData = (containingGraph.Kind == GraphKind.Function
+                          || containingGraph.Kind == GraphKind.Event
+                          || isMacro)
+                         && containingGraph.Inputs.Count > 0;
+
+        if (!isMacro && !wantsData)
+            return ExecOnly("Out");
+
+        var pins = isMacro
+            ? MacroEntryExecPins(containingGraph)
+            : new List<Pin> { MakeExec("Out", "Out") };
+
+        if (wantsData)
         {
-            var pins = new List<Pin>(1 + containingGraph.Inputs.Count);
-            pins.Add(MakeExec("Out", "Out"));
             foreach (var inp in containingGraph.Inputs)
             {
                 var typeId = string.IsNullOrEmpty(inp.Type?.TypeId) ? "System.Object" : inp.Type.TypeId;
                 pins.Add(MakeData(inp.Name, "Out", typeId));
             }
-            return pins;
         }
-        return ExecOnly("Out");
+        return pins;
     }
 
     /// <summary>
@@ -418,6 +429,29 @@ internal static class NodePinSchema
         => MakeData(ReturnNode.SuccessPinName, "In", "System.Boolean");
 
     /// <summary>
+    /// BP-74 / Q26-A3 — the macro entry node's exec-OUT group: one pin per <see cref="Graph.ExecInputs"/>
+    /// entry, in declaration order. <c>Stage2_5_ExpandMacros</c>' splice rule 1 pairs
+    /// <c>C.execIn[k]</c> with the successor of <c>In′.execOut[k]</c> <b>positionally</b>, so the order
+    /// is load-bearing — exactly as it is for <see cref="MacroReturnExecPins"/> on the other side.
+    /// <para>
+    /// ⚠ <b>Zero declared entries keeps the single default <c>"Out"</c> pin</b>, which is what makes
+    /// every pre-Q26 macro behave exactly as before: one implicit entry. A freshly created macro also
+    /// starts here, so it is wireable before the designer has declared anything.
+    /// </para>
+    /// Must stay in parity with <c>Stage0_Rehydrate.EnrichEventEntryPins</c>.
+    /// </summary>
+    private static List<Pin> MacroEntryExecPins(Graph macroGraph)
+    {
+        if (macroGraph.ExecInputs.Count == 0)
+            return new List<Pin> { MakeExec("Out", "Out") };
+
+        var pins = new List<Pin>(macroGraph.ExecInputs.Count);
+        foreach (var execIn in macroGraph.ExecInputs)
+            pins.Add(MakeExec(execIn.Name, "Out"));
+        return pins;
+    }
+
+    /// <summary>
     /// BP-80 — the macro Return node's exec-IN group: one pin per <see cref="Graph.ExecOutputs"/>
     /// entry, in declaration order. <c>Stage2_5_ExpandMacros</c>' splice rule 2 pairs
     /// <c>Out′.execIn[k]</c> with <c>C.execOut[k]</c> <b>positionally</b>, so the order is
@@ -462,7 +496,13 @@ internal static class NodePinSchema
         if (target is null)
             return new[] { MakeExec("In", "In"), MakeExec("Out", "Out") };
 
-        var pins = new List<Pin> { MakeExec("In", "In") };
+        // ⭐ BP-74 / Q26-A3: N exec-IN pins from the target's ExecInputs, replacing the single "In".
+        var pins = new List<Pin>();
+        if (target.ExecInputs.Count == 0)
+            pins.Add(MakeExec("In", "In"));
+        else
+            foreach (var execIn in target.ExecInputs)
+                pins.Add(MakeExec(execIn.Name, "In"));
 
         if (target.ExecOutputs.Count == 0)
             pins.Add(MakeExec("Out", "Out"));

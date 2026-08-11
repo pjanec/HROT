@@ -25,11 +25,38 @@ public sealed class Graph
     /// </para>
     ///
     /// <para>
-    /// The exec <em>input</em> stays implicit: Q25-D3 declares exactly one exec-in per macro, so there
-    /// is no input-side model change at all.
+    /// ⛔ <b>Superseded note.</b> This used to say the exec <em>input</em> stays implicit because
+    /// Q25-D3 declared exactly one per macro. <b>Q26-A3 replaced that</b>: see
+    /// <see cref="ExecInputs"/>, the symmetric list on the entry side.
     /// </para>
     /// </summary>
     public List<ExecOutDecl> ExecOutputs { get; set; } = new();
+
+    /// <summary>
+    /// BP-74 / Q26-A3 — the exec <b>entries</b> a <see cref="GraphKind.Macro"/> graph offers its call
+    /// sites. Empty (and meaningless) for every other kind.
+    ///
+    /// <para>
+    /// ⛔ <b>Q26-A3 supersedes Q25-D3.</b> A macro used to declare exactly one, implicit, exec-in.
+    /// It now declares <c>N</c> — precisely so that a selection entered from two places can be
+    /// COLLAPSED into a two-entry macro instead of being refused.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠⚠ <b>A new list, for exactly the reason <see cref="ExecOutputs"/> is one.</b>
+    /// <c>Inputs.Count</c> is load-bearing arithmetic at 16 executable sites across 7 files —
+    /// <c>InstanceEmitter</c> ×5, <c>Stage2_Validate</c> ×4 (including <c>BP1652</c>'s arity check),
+    /// <c>CSharpEmitter</c> ×2, <c>NodePinSchema</c> ×2, <c>Stage0_Rehydrate</c>,
+    /// <c>Stage5_Schedule</c>, and <c>Stage2_5_ExpandMacros</c> itself. Putting exec entries in
+    /// <see cref="Inputs"/> would move every one of them silently, including the splice.
+    /// </para>
+    ///
+    /// <para>
+    /// 📌 <b>Empty means today's behaviour</b>: <c>ExecInputs.Count == 0</c> ⇒ the single implicit
+    /// entry, exactly as before, so every existing asset round-trips byte-identically.
+    /// </para>
+    /// </summary>
+    public List<ExecInDecl> ExecInputs { get; set; } = new();
 
     public List<Node> Nodes { get; set; } = new();
     public List<Link> Links { get; set; } = new();
@@ -61,6 +88,7 @@ public sealed class Graph
         Inputs         = Inputs,
         Outputs        = Outputs,
         ExecOutputs    = ExecOutputs,
+        ExecInputs     = ExecInputs,
         Comments       = Comments,
         EditorMetadata = EditorMetadata,
         Nodes          = nodes,
@@ -74,6 +102,27 @@ public sealed class Graph
     /// </summary>
     public List<GraphComment> Comments { get; set; } = new();
     public GraphMetadata EditorMetadata { get; set; } = new();
+}
+
+/// <summary>
+/// BP-74 / Q26-A3 — one declared exec <b>entry</b> of a <see cref="GraphKind.Macro"/> graph. Projects
+/// to an exec-<b>Out</b> pin on the macro's <c>EventEntryNode</c> (the input boundary) and to an
+/// exec-<b>In</b> pin on every <see cref="MacroCallNode"/> targeting it, paired <b>positionally</b> in
+/// declaration order — <c>Stage2_5_ExpandMacros</c>' splice rule 1 rewires <c>execIn[k]</c> to the
+/// successor of <c>execOut[k]</c>, so the order is load-bearing on both sides.
+///
+/// <para>
+/// ⚠ <b>Properties, not fields</b> — same trap as <see cref="ExecOutDecl"/>: System.Text.Json does not
+/// serialise fields without <c>IncludeFields</c>, so a field-based shape would round-trip as <c>{}</c>.
+/// </para>
+/// </summary>
+public sealed class ExecInDecl
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = "";
+
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? Tooltip { get; set; }
 }
 
 /// <summary>
