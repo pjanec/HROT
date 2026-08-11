@@ -1,225 +1,183 @@
-# RESUME — implementation session · **Batch 24 (Print String + Format String) is next**
+# RESUME — implementation session · **Batch 34 (finish `BP-74`) is next**
 
 > **Written immediately before a context compaction. Self-contained; assumes no prior conversation.**
-> **You are an *implementation* session**; a coordinator session owns the tracker and writes handoffs.
-
-## 0. Start here
-
-1. Read **[HANDOFF_Batch24_DebugPrint.md](HANDOFF_Batch24_DebugPrint.md)** (205 lines) in full.
-2. Read **[PrintString_Node_Design.md](PrintString_Node_Design.md) rev 3** — *the handoff says before any
-   code, and it means it: rev 2/rev 3 overturned three things rev 1 got wrong.*
-3. Skim **[Architect_Question_26_Print_Node.md](Architect_Question_26_Print_Node.md)** for what is still open.
+> **You are the *implementation* session.** A separate *coordinator* session owns the tracker and
+> writes the handoffs. Last updated **2026-08-11**, at `3446b6d`.
+>
+> ⭐ **Batches 29–33 are all delivered, coordinator-verified and merged.** Macros work end to end —
+> authored, called, expanded, compiled through real Roslyn, ticked across frames, and debuggable.
+> Collapse-a-selection works **headlessly** and its round-trip property is proven.
+> ⛔ **Collapse is NOT reachable from the canvas.** That is Batch 34. §2 is the whole story.
 
 | | |
 |---|---|
 | **Repo** | `pjanec/HROT` |
-| **Implementation branch (PUSH HERE)** | `claude/blueprint-macro-feature-sdmspn` |
-| **Coordinator branch (do NOT push)** | `claude/blueprint-authoring-status-6sr5ld` · at `e77fa473` |
-| **HEAD** | already reset onto `e77fa473`; **Batch 23 is merged and coordinator-verified** |
-| **Counts** | **63 open · 55 fixed · 1 refuted**, reconciled three ways |
-| **New finding IDs** | **BP-116+** (tracker/detail docs are yours for the batch) |
+| **Implementation branch — PUSH HERE** | ⭐ **`claude/hrot-implementation-j1jvin`** |
+| **Coordinator branch — do NOT push** | ⭐ **`claude/blueprint-authoring-status-gm0akp`** · at `3446b6d` |
+| **HEAD** | fast-forwarded onto `3446b6d`; **Batch 33 merged and verified** |
+| **Counts** | **63 open · 94 done** — ⚠ *derive them, never hand-count:* `python3 scripts/tracker-counts.py --check` |
+| **New finding IDs** | **BP-223+** · diagnostics **BP1669+** (⚠ `BP1664` is *reserved and unbuildable* — see §5) |
 
-⚠ **Do not create a pull request.** None in any batch so far.
+⛔ **No PR unless the user explicitly asks.** There has never been one in this programme.
+⛔ **Never put a model identifier** in a commit message, code comment, or anything else pushed.
 
 ---
 
-## 1. Batch 24 — three items, in this order
+## 0 · First actions, in this order
 
-| # | Item | Model | Note |
+```bash
+git fetch origin claude/blueprint-authoring-status-gm0akp
+git merge --ff-only origin/claude/blueprint-authoring-status-gm0akp     # rule 7 — ALWAYS
+export PATH="$HOME/.dotnet:$PATH"                                       # see §4
+```
+
+1. ⭐ **Re-sync from the coordinator branch first** (`.claude/CLAUDE.md` **rule 7**) and **again before
+   your final commit** (**rule 4**). Skipping this caused three ID collisions in past batches.
+2. Read the **Batch 34 handoff** if one exists (`docs/blueprints/HANDOFF_Batch34_*.md`). At the time of
+   writing it was **not yet authored** — §2 below is what it will cover.
+3. Read **[HANDOFF_Batch33_Collapse_Selection.md](HANDOFF_Batch33_Collapse_Selection.md) §3 and §4** —
+   those two items are the unfinished half and the handoff text still stands verbatim.
+4. Skim **[RESUME_START_HERE.md](RESUME_START_HERE.md)** §3 (gates) and §5 (verified facts —
+   **do not re-derive them**).
+
+---
+
+## 1 · ⛔ Read this before touching collapse — what Batch 33 did *not* do
+
+Quoting the Batch 33 report, unchanged because it is still true:
+
+> **Collapse is not reachable from the canvas.** The sink cases, the single undo entry, and the
+> context-menu items are absent. `BlueprintCommandSink` still has **no case** for either command, so a
+> dispatched collapse **still falls to `default:` and reports success while doing nothing** — the
+> **trap #5** the handoff flagged is unchanged and still sitting there.
+
+This was a **deliberate clean stop at a boundary**, permitted by the handoff and accepted by the
+coordinator. It is not a defect to re-litigate; it is Batch 34's scope.
+
+---
+
+## 2 · Batch 34 — finish `BP-74`
+
+| # | Item | Model | Source |
 |---|---|---|---|
-| 1 | 🟢 **BP-114** — Type combo shows `bool` for any asset storing an FQN `TypeId` | 🟢 **Sonnet, entirely** | **Do it first.** The user is mid-visual-check with this as hazard #1. Match on resolved `IrTypeRef.FullName` so `int` and `System.Int32` collapse to one entry. *I registered this row in Batch 23* |
-| 2 | 🟢 **`FixedString128`** | 🟢 **Sonnet, entirely** | Straight mirror of `FixedString64.cs` (`Size = 128`, `MaxLength = 127`) — but **~10 production sites** reference the family; handoff §2 lists every one. ⚠ **`FDP/ExtDeps/GizmoMap` has its own separate `FixedString32` — leave it alone** |
-| 3 | 🔴 **`Print String` + `Format String`** (BP-108) | 🔴 **Opus** for the parser, registry shapes, Stage5, emit and the `Fdp.Core` layering; 🟢 Sonnet for node models, palette, drawers, test bodies | The batch. Item 3 **needs item 2** (`Format String`'s `ResultType`) |
+| 1 | 🟠 **Sink cases** for both collapse commands in `BlueprintCommandSink` | 🟠 Sonnet under review | Batch 33 handoff **§3** |
+| 2 | 🔴 **One** undo entry for the whole gesture | 🔴 Opus | §3 |
+| 3 | 🟢 **Context menu** via `CommandCatalog` + `_editorCommands?.Invoke(...)` | 🟢 Sonnet | §4 + **§4a** |
+| 4 | 🟢 **Refusal on invoke** through `IEditorIndicators.Notify` | 🟢 Sonnet | §4 |
+| 5 | 🔴 **BP-221** afterwards, if the batch has room | 🔴 Opus | §5 below |
 
----
+### The three traps, restated so they are not re-derived
 
-## 2. 🔴 The three things that changed since rev 1 — do not re-derive them wrongly
-
-### F2 ⭐ **NO `Stage0_Rehydrate` case. This removes work.**
-
-`BuiltInNodeRegistry` is the **single source**: `NodePinSchema` delegates to it (`FromRegistry:226-228`),
-and Stage0 builds the canonical list *from static registry shapes*, enriching **only** kinds whose pins
-depend on data **outside** the node. Both new nodes derive their pins purely from their own `Format`
-property ⇒ **register once.**
-
-⚠ **The Batch-23 handoff's "both projections must move together" was right for `CallPeerBlueprint`
-(whose pins come from a *sibling's* signature) and is WRONG for these nodes.** Do not cargo-cult my
-BP-113 fix here. `ArrayMakePins:299` is the shape to mirror — it already reads a node property — except
-you derive the pin **count**, which is new.
-
-### F3 ⭐ **The sink helper goes in `Fdp.Core.Logging`. Two accessors are ruled out.**
-
-| Ruled out | Why |
+| ⛔ | |
 |---|---|
-| `FdpLog<T>` | logger name is `typeof(T).FullName` ⇒ `Hrot.AI.Behaviors.Generated.…`, which the prefix-anchored `"AI.Behavior*"` rule does not match. **This was my Batch-23 finding and it stands** |
-| `BehaviorLog` | right logger name, **wrong assembly** — `Hrot.AI.Behaviors` is not guaranteed loaded when `MetadataReferenceResolver.ForRuntimeAssemblies` snapshots the AppDomain ⇒ `CS0246` on hot reload, unattributable. **[BP-62](Blueprint_Issues_Detail.md#bp-62)'s shape recurring** |
+| **`default:` reports success** | `BlueprintCommandSink:218-220` — *"unknown commands are silently accepted (forward-compat)"* → `new GraphCommandResult(true, null)`. ⭐ **Write the test that would have caught this** — a dispatched collapse asserting the graph actually changed |
+| **Undo must be ONE entry** | `view.Execute(fwd, inv, "label")` (BP-60 precedent, see *"Add Return"* in `DrawContextMenu`). ⚠ Collapse creates a graph, moves N nodes and re-ties many links. **Test: collapse → undo → host structurally identical AND the created graph gone.** A half-undo leaving an orphan macro graph is the defect to watch |
+| **Do NOT grey the menu items out** | Q26-B2: *offer whenever there is a selection; refuse on invoke, naming the offending nodes.* ⚠ `CanvasRenderer`/`CanvasCommands` live in **`NodeEditor.UI`**, shared with the BTree and HSM editors — **`BP-76` is that exact mistake sitting in the file you are about to edit** (`:740-753` matches on `node.Title == "ScaleBy"` and on kind ids that never occur, so both items render permanently greyed). Go through the `CommandCatalog` seam, as `Paste` (`editor.paste`) does, and register handlers **host-side** |
 
-✅ The **sink itself is unchanged and verified**: `Fdp.Core/Logging/AiBehaviorLogTarget.cs` — an NLog
-`Target` *and* `IMessageLogSource`, with `SharedInstance` / `GetMessages()` / `OnMessageAdded`, wired to
-the editor's "AI Behaviors" tab by `Hrot.ClusterRunner/Program.cs:124`. **Do not invent an
-`IBlueprintLogSink`.** `CSharpEmitter.EmitUsings:133` emits `using Fdp.Core;` unconditionally, so a
-helper there is always reachable from generated code.
+⭐ **The UX ruling and the architecture agree**: because the item is always offered and refuses on
+invoke, the shared component needs **no knowledge of blueprint legality** — enablement reduces to
+*"is anything selected"*, which is kind-agnostic and legitimate in shared UI.
 
-### Arity ⭐ **Derived by parsing the format string. There is no `ArgCount` property.**
+### What already exists and must be *used*, not rebuilt
 
-Unreal's `Format Text` creates one input per `{}` found in the format text, with **named** placeholders.
-Adopted — it beats an `ArgCount` property on every axis and satisfies **F1** (there is no such thing as
-an optional data-in pin: `Stage5.ResolveDataPin:2126-2159` emits **`BP4001` + `default(T)`** for every
-unwired one, so a speculative pin is a guaranteed diagnostic).
-
-```
-[ Print String ]  exec In --> --> exec Out      [ Format String ]  (pure -- no exec)
-   Threat : float   <- derived                     Threat : float  <- derived
-   Squad  : int     <- derived                     Result : FixedString64  <- declared
- props: Format, Level (all five)                 props: Format, ResultType (32|64|128)
-```
-
-`{Name}` letters/digits/underscore · **first-appearance order fixes pin order** · a repeat is **one**
-pin used twice · `{{`/`}}` escape · named→positional at emit (`"{Threat}"` ⇒ `string.Format("{0}", …)`) ·
-malformed ⇒ **a Stage 2 diagnostic naming the node, never a silent drop**.
-
-⭐ **One parser, one pin-derivation function, one emit path, shared by both nodes. Do not write it twice.**
-⭐ They compose with no new mechanism: a `Format String` result is a `FixedString`, which is a legal arg
-type ⇒ **`Print String` needs no string-input special case.**
-⚠ **No wildcard mechanism exists — each placeholder carries a declared `TypeId`. Do not invent one.**
+| Piece | Where |
+|---|---|
+| `CollapseAnalysis.Analyse(host, selection, target, macrosById)` → `CollapsePlan` **or** a refusal | `.Compiler/Compiler/Transform/CollapseSelection.cs` |
+| `CollapseEmitter` → `CollapseEdit(Extracted, CallNode, RewrittenHost)` | `.Compiler/Compiler/Transform/CollapseEmitter.cs` |
+| Refusal reasons | `BoundaryNodeSelected` · `CyclicBoundary` · `FunctionLatent` · `FunctionMultipleExits` · `FunctionMultipleEntries` · `EmptySelection` |
+| Notification surface | `IEditorIndicators.Notify(EditorNotification)` → `ToastQueue.Enqueue`, wired at `BlueprintDocumentFactory:346`. ⛔ **Do not invent a second path** |
 
 ---
 
-## 3. ⚠ Raise these before/while building — I have NOT verified them
+## 3 · What Batches 29–33 built — the map
 
-1. 🔴 **`Format String` is *pure*, so nothing guards its allocation.** `Print String` wraps
-   `string.Format` in a level probe, so it costs nothing when the level is off. **`Format String` has no
-   level to probe** — a pure node in a `Tick` graph would allocate a managed string *every tick, for
-   every entity*, forever. The design note does not address this. Worth a
-   `⏸ COORDINATOR DECISION NEEDED` row rather than silently shipping a per-tick allocation into a hot
-   path. (Options: accept and document it; format straight into the `FixedString`'s bytes; or restrict
-   where the node may appear.)
-2. **Verify F2 against `BuiltInNodeRegistry` before relying on it.** The handoff explicitly invites this
-   ("anything in F1–F6 that turns out wrong against the code — say it plainly"). The coordinator has
-   been wrong three times and each time pushing back was correct.
-3. ⚠ **F5 is a live trap:** `BuiltInNodeRegistry:194` ends `_ => Array.Empty<PinSchema>()`, so a kind
-   missing from that switch gets **zero pins and no diagnostic** (trap #5's shape). The registry entry
-   *is* the node existing.
-4. **Silent truncation:** `FixedString64(string)` cuts in its constructor and Stage 2 cannot know a
-   runtime length ⇒ **say so in the `Format String` tooltip.**
-5. **Renaming a placeholder renames a pin, which can drop a link** — the same class BP-113 hit. The
-   drawer should make the pin set visibly follow the text so it is never a surprise.
+⭐ **All merged.** Do not rebuild any of it; grep before you assume something is missing.
 
----
+| Batch | Landed |
+|---|---|
+| **29** | `BP-80` macro surface — `ExecOutDecl`, `Graph.ExecOutputs`, `MacroCallNode`, **all four projection halves**, `BP1668` · warning triage (`BP-217`/`BP-218`/`BP-219`) · `BP-131` `Return.Success` |
+| **30** | ⭐ `Stage2_5_ExpandMacros` + `GraphFragmentCloner` + four Stage-2 rails (`BP1660`–`BP1663`), `BP1665`/`BP1667`, `[JsonIgnore] Node.OriginNodeId` |
+| **31** | ⭐ the macro payoff **executed** (latent body in a macro, real Roslyn, ticked across frames) · `BP-83` debug provenance (`DebugMapEntry.OriginNodeId/OriginGraphId`, schema `1.0`→`1.1`) · `BP-220` · `BP-111` |
+| **32** | **Q26-A3 N exec-ins** — `ExecInDecl`, `Graph.ExecInputs`, indexed splice rule 1, `BP1666` |
+| **33** | ⭐ collapse's **headless core** + the **round-trip property** (`CanonicalGraphShape`) · `MacroLatency` shared predicate · `BP-221`/`BP-222` opened |
 
-## 4. Gates + baseline
+### The files that matter
 
-```bash
-dotnet build IOS-IG-SimHost.sln -v q --nologo
-dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Hrot.Blueprints.Tests.csproj --nologo --logger "console;verbosity=normal"
-dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests/Hrot.Editor.AiShared.Tests.csproj --nologo --logger "console;verbosity=normal"
-dotnet test Hrot/Subsystems/AI/Hrot.BTree.Editor.Tests/Hrot.BTree.Editor.Tests.csproj --nologo --logger "console;verbosity=normal"
-dotnet test Hrot/Diagnostics/Hrot.Diagnostics.Breakpoints.Tests/Hrot.Diagnostics.Breakpoints.Tests.csproj --nologo --logger "console;verbosity=normal"
-dotnet test FDP/ExtDeps/NodeEdit/tests/NodeEditor.Core.Tests/NodeEditor.Core.Tests.csproj --nologo --logger "console;verbosity=normal"
-dotnet test FDP/ExtDeps/NodeEdit/tests/NodeEditor.UI.Tests/NodeEditor.UI.Tests.csproj --nologo --logger "console;verbosity=normal"
-dotnet test Hrot/Subsystems/AI/Hrot.AiEditor.Generators.Tests/Hrot.AiEditor.Generators.Tests.csproj --nologo --logger "console;verbosity=normal"
+```
+Hrot.Blueprints.Compiler/Compiler/
+  Stages/Stage2_5_ExpandMacros.cs    fixpoint (MaxRounds=16 → BP1665), five splice rules
+  Stages/V_MacroCallRules.cs         BP1660 BP1661 BP1663 BP1666 BP1662
+  Transform/GraphFragmentCloner.cs   ⭐ NodeMap+PinMap are the deliverable, not the nodes
+  Transform/CollapseSelection.cs     boundary analysis — pure function, selection → plan | refusal
+  Transform/CollapseEmitter.cs       the two emitters (Macro / Function)
+  Transform/CanonicalGraphShape.cs   Describe / AreEquivalent — id-free structural equality
+  Transform/MacroLatency.cs          the ONE latent predicate (BP1661 + collapse share it)
 ```
 
-**Baseline (coordinator, merged Batch-23 tree):** build **0 errors** · Blueprints **2925 / 0 / 10 skipped**
-(2935 total) · AiShared **1213 / 0** · BTree **612 / 0** · Breakpoints **130 / 0** ·
-NodeEditor.Core **208 / 0** · NodeEditor.UI **131 / 0** · Generators **193 / 0**.
+### Design decisions you must not re-derive
 
-⚠ ⚠ **Items 2 and 3 both touch `FDP/Engine/Fdp.Core`** — that rebuilds nearly everything and can break
-suites far from blueprints. **Run all eight, plus `Fdp.Core.Tests` for item 2.**
-
-⚠ **`-v q` prints counts but NOT the failing test's name** — always pass
-`--logger "console;verbosity=normal"`. That is what BP-111 is half about, and it cost time twice.
-
-### 🔴 BP-111 flake tax — it fired on me in Batch 23
-
-**It is the whole wall-clock perf class, not the two names on the documented list.** In a full run
-`WhenNode_EqsResult_Under150ns_perTick` *and* `ReadEqsResultNode_Under80ns_perInvocation` failed; both
-then passed 3/3 in isolation, and a fourth isolated run failed a *different* member
-(`WhenNode_ConditionMet_Under200ns_perTick`). **A different test failing on each run is timing, not
-logic.** Classify by isolation or `git stash` → re-run → `git stash pop`; do not chase it.
+| ⭐ | |
+|---|---|
+| **Q26-A3 supersedes Q25-D3** | a macro has **N exec-ins**, not one |
+| **Structural purity** | a producer is impure **iff it carries exec pins** (`BP1663`/`BP1666`) |
+| **Denormalised mirror** | `Pin.LinkedToIds` mirrors the link list — **rebuild it wholesale**, never patch per-rewire |
+| **Four projection halves** | editor `NodePinSchema` ⇄ compiler `Stage0_Rehydrate`, for Entry **and** Return |
+| **Dedup keys differ per set** | entries/exits by *interior pin* · inputs by *outside producer pin* · outputs by *interior producer pin*. Getting this wrong silently merges boundary pins |
+| **`.Succeeded` never invokes Roslyn** | only the real generator path proves a blueprint compiles |
 
 ---
 
-## 5. What Batch 23 shipped (all merged + coordinator-verified)
+## 4 · ⚠ Environment — this container, every time
 
 | | |
 |---|---|
-| **BP-112** 🔴 | `MemoryMarshal.Write<T>` takes `in`; the emitter passed `ref` ⇒ CS9191 broke the **build** for every Library asset. ⭐ Durable half: `Assets/Blueprints/LibraryFunctionsDemo.bp.json`, the **first Library asset ever compiled by the real generator** — an `AdditionalFiles` entry, so a regression fails the build before any test runs |
-| **BP-87** items 1–5 | Blueprint-local picker list projected from `StaticTypeRegistry.EditorOfferableTypeIds`; **AiShared untouched**. Coercion table is now C#'s full implicit ladder, 35 rungs, **widening only**. ⚠ **Batch 24 item 2 must add `FixedString128` to `EditorOfferableTypeIds` too**, or the picker will not offer it |
-| **BP-113** 🟠 | `CallPeerBlueprint` projected only `Outputs[0]`. ⚠ **THREE** sites, not the two the handoff named — Stage5's lowering also collapsed to the first pin |
+| ⭐ **`dotnet` is not on `PATH`** | fresh cloud VM. `export PATH="$HOME/.dotnet:$PATH"` **in every Bash call**. If missing entirely: `bash scripts/cloud-bootstrap.sh` |
+| ⭐ **The two NodeEdit gates take NO `--no-build`** | those projects are **not in `IOS-IG-SimHost.sln`** ⇒ under `--no-build` the runner prints **no output at all**, which reads as *"nothing to report"*. Trap #5 in the gate script itself |
+| ⭐ **Warning counts need `-t:Rebuild`** | an incremental build once showed 69→30 and it was pure artefact. Also `sort -u` — **MSBuild prints every warning twice** |
+| **Solution** | `IOS-IG-SimHost.sln` (⚠ *not* `Hrot.sln`) |
+| **`ClusterRunner.Integration.Tests`** | ⚠ **46/150 red on a clean tree in this container** (`Fatal error. Failed to create RW mapping for RX memory`). Pre-existing, **not a gate** — establish the baseline before blaming your diff |
+| **`BP-111`** | 7 host-timing tests are filtered out of the default run (`Category=HostTimingSensitive`) ⇒ **3178 of 3188** |
 
-**Registered by me:** **BP-114** (item 1 of this batch), **BP-115** (no test covers a peer whose *name*
-needs sanitizing).
-
-### Lessons that keep paying
-
-- ⚠ **The in-memory suites cannot catch a warnings-as-errors defect** — `CompileAndLoad` does not treat
-  warnings as errors. That is why BP-112's fixture had to go into the **build**, not into a test.
-  **Batch 24's F3 is the same shape**: a hot-reload-only defect the generator path would miss — which is
-  exactly why the handoff insists the test cover the hot-reload path.
-- ⚠ **Test-locked defects exist.** `CallPeerBlueprint_WithLookup_…_ProjectsTypedPins` asserted the
-  one-pin-called-`Return` shape *that was the bug*. Updating such an assertion is correct — but do it
-  deliberately and say so.
-- **Every test that hands the compiler explicit pins bypasses `Stage0` entirely.** To cover Stage0, give
-  the node **no** pins and address them via `DeterministicIds.PinId(nodeId, name, direction)`.
-  *(Not needed in Batch 24 — F2 — but this is how you would prove it if F2 turns out wrong.)*
-
----
-
-## 6. ⚠ Sub-agent hazards — these cost the most time across four batches
-
-**One shared working tree. Run agents strictly sequentially:**
-```bash
-while [ "$(ps aux | grep -c '[d]otnet build\|[d]otnet test')" != "0" ]; do sleep 5; done
-```
-
-1. 🔴 **An agent can DIE SILENTLY mid-edit**, leaving code that will not compile. **Detect it:** its
-   transcript under `/tmp/claude-*/…/tasks/<id>.output` stops growing *and* no `dotnet` is running.
-   **Do not read that file — it will blow up your context. Only `stat` its size.**
-2. **Concurrent `dotnet build` corrupts obj/bin** — it once produced a phantom "missing method".
-3. **Gate every commit on the fix being in the diff, never on the agent's report.** Reading the Batch-23
-   agent's diff myself is how I found the `Stage0` coverage gap it could not have known to cover.
-4. **Agents misreport git history** — three have claimed my commits were "harness automation". Do not let
-   that reach a doc.
-5. `codebase-memory-mcp` is **not connected** and cannot be connected mid-session. CLAUDE.md's fallback
-   applies: Grep/Glob/Read, and say so.
-
----
-
-## 7. Working agreement
-
-- **Delegate to Sonnet** anything not needing Opus. **Never delegate verification** — gate runs and
-  revert-to-red are yours.
-- **Revert-goes-red on every fix.** ⚠ For item 3 the handoff names the required one:
-  **move the helper's logger name outside `AI.Behavior*` and confirm the test fails.** A test that
-  survives that is not testing the thing that matters.
-- **Commit per item**; stop cleanly **between** items if running out of room — three finished beat four
-  half-finished. *(That is why Batch 23 stopped at its item 3.)*
-- **Fix, don't disable.** **Never widen** — register adjacent defects as rows.
-- **Anything left behind gets a tracker ROW**, not a note inside a `DONE` block (BP-102's lesson).
-- **Reconcile counts three ways**: checkbox tally, complexity-column sums, header total. ⚠ The checkbox
-  tally runs **+1 open / +1 done** against the header — refuted **BP-46** and an abandoned
-  *"Squad-quartet"* row. **That offset is permanent; do not "fix" it.**
-- Report **actual per-suite numbers**, what went red under revert, and what was delegated.
-
----
-
-## 8. Still open, and the largest risk
+### The eight gates — baseline at `a8deb89`, coordinator-run
 
 | | |
 |---|---|
-| **BP-107** 📐 | `Return.Status` is a compile-time constant ⇒ `Running` inexpressible. **Architect round required** |
-| **BP-106** | An `AiPrimitive` graph's declared Outputs are silently dropped — the last silent case in that family |
-| **BP-102** | Graph Signature window edits still not undoable |
-| **BP-111** | The perf-flake tax above — cheap, and it taxes every session |
-| **BP-115** | No test covers a peer whose name needs sanitizing |
-| **BP-87** item 6 | `System.String` as a *variable* — ⚖️ D3, deliberately open |
+| Solution build | **0 errors · 69 warnings** |
+| BP diagnostics | **10 distinct**, all `BP3010`, all **authored** |
+| Blueprints | **3178** / 0 failed / 10 skipped |
+| AiShared **1213** · BTree **612** · Breakpoints **130** | 0 failed |
+| NodeEdit Core **208** · UI **131** · Generators **193** | 0 failed |
+| `python3 scripts/tracker-counts.py --check` | clean — **63 open · 94 done** |
 
-🔴 **The T-series (T1–T7, [BP-73](Blueprint_Issues_Detail.md#bp-73)) is performable but STILL
-UNPERFORMED** — unchanged for seven batches.
+Commands: **[RESUME_START_HERE.md](RESUME_START_HERE.md) §3.** Copy them; do not retype from memory.
 
-⭐ **And the pattern that keeps repeating: every defect in Batches 21–23 came from running the thing, not
-from the suite.** Batch 21's three came from the user at the UI after Batch 20's gates were green and its
-code reviewed clean; BP-110 came from the first test that ever executed the feature; BP-112 came from the
-first Library asset ever put through the real generator. **A green suite has repeatedly failed to find
-what one real execution found immediately.**
+---
+
+## 5 · Open findings you already own
+
+| ID | |
+|---|---|
+| **BP-74** | ⏭ **open, partial** — the headless core landed; sink + undo + menu are Batch 34 (§2) |
+| **BP-221** | 🔴 `AiPrimitiveEmitter` has **no `Func_*` helper loop** while `StatementEmitter` emits the call ⇒ `CS0103`. Found by collapse-to-Function. **Pre-existing**, not caused by collapse |
+| **BP-222** | `CS0815` — a zero-output function call. ⭐ **Deliberately filed unattributed**; do not guess a cause into the row |
+| **BP-80** | ⏭ row stays **open** for the two *visual* gestures (palette drag, `BP-77`'s *"Macros +"*) — the only part needing the user's eyes |
+| **BP-82** | ⏭ two library rails |
+| **BP1664** | ⛔ **RESERVED AND UNBUILDABLE — do not attempt it.** `Graph` has no `LocalVariables` field (**BP-57**), so a macro cannot declare a local |
+| **BP-76 / BP-77** | ⏭ explicitly **out of scope** for collapse — it gives macro creation a second, better entry point but closes neither row |
+
+---
+
+## 6 · Process lessons — paid for, do not re-learn
+
+| ⚠ | |
+|---|---|
+| ⭐ **Revert-goes-red is never delegated** | Opus writes every revert patch and runs it. It is the only evidence a test actually tests something |
+| ⭐ **Guard every revert with `timeout`** | a revert patch that inserted `k = 0;` inside a `for` loop produced an infinite loop and burned a 10-minute timeout. `timeout 300` on the build, `timeout 400` on the test run. Keep a `.bak` and restore from it |
+| **Avoid constant conditions in revert patches** | `CS0162` *"unreachable code detected"* is an **error** here. Use a non-constant equivalent — `producer.Pins.Count > 100000`, an inverted comparison, a swapped emitter branch |
+| ⭐ **Gate commits on the tree, not on an agent's report** | a Sonnet subagent once stalled ~19 minutes having written **no files** while reporting progress. Diff before you believe |
+| **Sub-agents share ONE working tree** | builds must be **sequential**. Two parallel `dotnet build`s corrupt each other's obj/ |
+| ⭐ **Establish the baseline BEFORE the change** | the ungated consumers are red on a clean tree; without a before-measurement every one of them looks like your regression |
+| **Rules 4 + 7 together** | rule 7 catches what landed **before** your run, rule 4 what landed **during** it. Three ID collisions came from having neither |
+| **Rule 5** | ⭐ **state every id and diagnostic code you allocated** in your report, so a collision is caught at merge, not three batches later |
+| **Rule 6** | the tracker and detail docs are **yours** for the batch's duration; the coordinator records findings in prose, not rows |
+| **Report what you did NOT do, first and loudly** | Batch 33's partial delivery was accepted because the boundary was stated in the commit subject, the body **and** the tracker row |
