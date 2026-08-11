@@ -3,6 +3,7 @@ using Hrot.Blueprints.Core;   // BlueprintJsonServices (in Hrot.Blueprints.Core 
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Core.Compiler.Catalogs;   // IChannelCommandCatalog
+using Hrot.Blueprints.Core.Compiler.Transform;   // CollapseTarget (BP-74)
 using Hrot.Blueprints.Core.Debug;
 using Hrot.Blueprints.Editor.Catalog;
 using Hrot.Blueprints.Editor.Debug;
@@ -343,22 +344,32 @@ public static class BlueprintDocumentFactory
         // draw the off-screen edge-marker overlay (BlueprintEditorBootstrap.DrawBookmarkEdgeMarkers)
         // and, optionally, a Bookmarks panel window.
         var bookmarkStore = new BookmarkStore();
-        var bookmarkIndicators = new EditorIndicatorsImpl(new ToastQueue());
+        // BP-74 / BP-223: ONE indicators instance per document, shared by bookmarks and collapse and
+        // exposed on AiCanvasContext so the composition root can actually draw what is queued. It
+        // used to be a local built solely for BookmarkCommands, over a ToastQueue nothing ever
+        // drained — every bookmark notification since BP-24 has been enqueued and discarded.
+        var indicators = new EditorIndicatorsImpl(new ToastQueue());
         BookmarkCommands.RegisterAll(
-            commands, view, bookmarkStore, bookmarkIndicators,
+            commands, view, bookmarkStore, indicators,
             // BP-24: a bookmark set in another of this asset's graphs first switches the canvas
             // there (Bookmark.TargetGraph stores the view-level id, hence the mapping call).
             // This was `_ => { }` for as long as the canvas couldn't switch.
             navigateToGraph: viewId => switcher.SwitchToViewId(viewId));
 
+        // BP-74: collapse a selection into a new Macro/Function graph. Registered last because it
+        // is the only command here that both reads the selection and appends a graph.
+        RegisterCollapseCommands(
+            commands, view, bpAsset, () => switcher.CurrentGraph, indicators, () => bpFile.MarkDirty());
+
         // Store the BlueprintAsset in AssetRef so the composition root can retarget
         // My Blueprint / Details / Variables windows without a kind-specific dependency.
         return new AiCanvasContext(view, AssetKind.Blueprint.ToString())
         {
-            AssetRef  = bpAsset,
-            FindBar   = findBar,
-            Commands  = commands,
-            Bookmarks = bookmarkStore,
+            AssetRef   = bpAsset,
+            FindBar    = findBar,
+            Commands   = commands,
+            Bookmarks  = bookmarkStore,
+            Indicators = indicators,
             // BP-72: graph-scoped windows must follow the switched canvas. Read through the
             // switcher, never a captured `graph` — that is the same staleness trap the five
             // build-time capture sites hit in BP-24.
@@ -981,6 +992,68 @@ public static class BlueprintDocumentFactory
 
     private static IReadOnlyCollection<Guid> SelectedNodeIds(GraphView view)
         => view.Selection.Nodes.Select(n => n.Value).ToList();
+
+    // ── Collapse selection: to Macro / to Function (BP-74) ────────────────────
+
+    /// <summary>
+    /// BP-74 — registers <c>editor.collapse-to-macro</c> and <c>editor.collapse-to-function</c>.
+    /// Both ids were already declared in <c>CommandCatalog</c> with no handler anywhere in the repo,
+    /// the same starting state <c>BP-23a</c>'s clipboard commands were in.
+    ///
+    /// <para>
+    /// ⭐⭐ <b><c>isEnabled</c> tests the selection and NOTHING else</b> — not latency, not the
+    /// exec-entry count, not the graph kind. Q26-B2: the item is offered whenever there is a
+    /// selection and <b>refuses on invoke</b>, naming the offending nodes. A greyed item does not say
+    /// why, and this repo already files greyed-with-no-explanation as a defect (<c>BP-76</c>,
+    /// <c>BP-77</c>). ⚠ Do not "help" by adding legality to this predicate: doing so would also drag
+    /// blueprint rules into the shared <c>NodeEditor.UI</c> menu, which is <c>BP-76</c>'s actual
+    /// mistake.
+    /// </para>
+    ///
+    /// <para>
+    /// Host-side rather than through <c>GraphCommand</c>, for <c>BP-60</c>'s reason: collapse
+    /// <b>creates a graph</b>, and <c>GraphCommand</c>'s vocabulary is node/link-only. The gesture
+    /// travels as a <see cref="BlueprintEditCommand"/> pair so it is one undo entry.
+    /// </para>
+    ///
+    /// <para>Exposed <c>internal</c> so tests can drive both without ImGui.</para>
+    /// </summary>
+    /// <param name="currentGraph">
+    /// BP-24 — resolved per invocation, not captured: after a canvas graph switch a captured graph
+    /// would collapse a selection out of a graph the designer is no longer looking at.
+    /// </param>
+    /// <param name="indicators">Refusal surface (toast). Null in headless tests that read the result.</param>
+    internal static void RegisterCollapseCommands(
+        EditorCommandsImpl  commands,
+        GraphView           view,
+        BlueprintAsset      asset,
+        Func<Graph>         currentGraph,
+        IEditorIndicators?  indicators = null,
+        Action?             markDirty  = null)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(asset);
+        ArgumentNullException.ThrowIfNull(currentGraph);
+
+        var reg = new CommandRegistration(commands);
+
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.CollapseToMacro, "Collapse to Macro", "Refactor",
+            _ => BlueprintCollapse.Run(
+                    view, asset, currentGraph(), SelectedNodeIds(view),
+                    CollapseTarget.Macro, markDirty, indicators),
+            isEnabled: () => view.Selection.Nodes.Any(),
+            description: "Moves the selected nodes into a new macro and calls it.");
+
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.CollapseToFunction, "Collapse to Function", "Refactor",
+            _ => BlueprintCollapse.Run(
+                    view, asset, currentGraph(), SelectedNodeIds(view),
+                    CollapseTarget.Function, markDirty, indicators),
+            isEnabled: () => view.Selection.Nodes.Any(),
+            description: "Moves the selected nodes into a new function and calls it.");
+    }
 
     /// <summary>Writes the selection to the clipboard; false when there was nothing to write.</summary>
     private static bool CopySelection(GraphView view, Graph graph, IClipboard? clipboard)

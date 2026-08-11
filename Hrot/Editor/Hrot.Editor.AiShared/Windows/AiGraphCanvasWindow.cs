@@ -62,6 +62,21 @@ public sealed class AiCanvasContext
     public BookmarkStore? Bookmarks { get; set; }
 
     /// <summary>
+    /// Optional per-document notification surface built by the document factory. Commands report
+    /// refusals through <see cref="IEditorIndicators.Notify"/>; the composition root drains the
+    /// queue and draws the toasts.
+    ///
+    /// <para>
+    /// ⚠ BP-223 — before BP-74 this was a local inside the Blueprint document factory, over a
+    /// <c>ToastQueue</c> <b>nothing drained</b>: the only <c>TryDequeue</c> in the repo was
+    /// <c>NodeEditor.Demo</c>'s shell, so every bookmark notification was enqueued and discarded.
+    /// Exposing it here is what makes "refuse on invoke, and say why" (Q26-B2) reach the designer
+    /// rather than a queue nobody reads.
+    /// </para>
+    /// </summary>
+    public IEditorIndicators? Indicators { get; set; }
+
+    /// <summary>
     /// Optional provider for the id of the graph the canvas is currently showing, set by document
     /// factories whose asset holds more than one graph (Blueprint, since BP-24's graph switching).
     /// <para>

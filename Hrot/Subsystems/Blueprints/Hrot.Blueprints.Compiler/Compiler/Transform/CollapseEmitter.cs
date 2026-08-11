@@ -304,8 +304,17 @@ public static class CollapseEmitter
         TypeRef = type ?? new BlueprintTypeRef(),
     };
 
-    /// <summary>Same wholesale rebuild <c>Stage2_5_ExpandMacros</c> uses, and for the same reason.</summary>
-    internal static void RebuildLinkedToIds(Graph graph)
+    /// <summary>
+    /// Same wholesale rebuild <c>Stage2_5_ExpandMacros</c> uses, and for the same reason.
+    ///
+    /// <para>
+    /// ⚠ <b>Public because undo needs it</b> (BP-74, Batch 34): the editor restores a pre-collapse
+    /// node/link snapshot onto the same <see cref="Graph"/> object, and <c>Pin.LinkedToIds</c> is a
+    /// denormalised mirror the forward already rewrote on those very node objects. Restoring the
+    /// lists without this leaves the mirror pointing at a call node that no longer exists.
+    /// </para>
+    /// </summary>
+    public static void RebuildLinkedToIds(Graph graph)
     {
         var byPin = new Dictionary<Guid, List<Guid>>();
         foreach (var link in graph.Links)

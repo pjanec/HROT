@@ -586,6 +586,25 @@ public sealed class CanvasRenderer
                     CanvasCommands.AddCommentAroundSelection(view);
                 }
 
+                // BP-74 — refactor a selection into a new graph.
+                //
+                // ⭐ Enablement is "is anything selected", and NOTHING else. Whether the selection is
+                // legal to collapse is a host concern (latency, exec-entry count, graph kind), it is
+                // decided when the command is invoked, and the host reports it with a message naming
+                // the offending nodes. Q26-B2.
+                //
+                // ⛔ Do NOT grey these for illegality "to be helpful". A greyed item does not say
+                // why, and doing so would require blueprint rules HERE — in a component the BTree
+                // and HSM editors also render. That is exactly BP-76, which is still visible a few
+                // hundred lines below (`node.Title == "ScaleBy"`), rendering two items permanently
+                // greyed for every host.
+                //
+                // The items are hidden outright for a host that registered no handler, rather than
+                // shown-and-greyed, for the same reason: a permanently dead item is a defect this
+                // tracker has filed twice (BP-76, BP-77).
+                DrawRefactorItem(CommandCatalog.CollapseToFunction, "Collapse to Function", hasSelection);
+                DrawRefactorItem(CommandCatalog.CollapseToMacro,    "Collapse to Macro",    hasSelection);
+
                 ImGui.Separator();
                 // BP-23a: Paste was hard-disabled (the trailing `false, false` = unselected,
                 // DISABLED) because no host implemented it. It is live whenever a host registers
@@ -1093,6 +1112,19 @@ public sealed class CanvasRenderer
     /// </summary>
     private bool IsCommandEnabled(string commandId)
         => _editorCommands?.Get(commandId)?.IsEnabled() == true;
+
+    /// <summary>
+    /// BP-74 — draws one refactor menu item, or nothing at all when the host has not registered a
+    /// handler for it. <paramref name="enabled"/> carries the <b>kind-agnostic</b> precondition
+    /// (something is selected); legality is the host's to decide on invoke.
+    /// </summary>
+    private void DrawRefactorItem(string commandId, string label, bool enabled)
+    {
+        if (_editorCommands?.Get(commandId) is null) return;
+
+        if (ImGui.MenuItem(label, null, false, enabled))
+            _editorCommands.Invoke(commandId);
+    }
 
     private void OpenNodeRenameModal(NodeId nodeId, string currentTitle)
     {

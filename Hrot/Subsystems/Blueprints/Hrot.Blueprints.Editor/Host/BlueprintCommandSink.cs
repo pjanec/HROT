@@ -3,6 +3,7 @@ using System.Linq;
 using System.Numerics;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
+using Hrot.Blueprints.Core.Compiler.Transform;
 using Hrot.Blueprints.Editor.GraphEditor;
 using Hrot.Blueprints.Editor.NodeDrawers;
 using NodeEditor.Core.Commands;
@@ -214,6 +215,16 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             // single UndoStack. MUST stay above the default: arm — see BlueprintEditCommand.
             case BlueprintEditCommand edit:
                 return ApplyBlueprintEdit(edit);
+
+            // BP-74: without these two, a dispatched collapse reached the default: arm below and
+            // reported SUCCESS while doing nothing — the same silent-success shape as BP-18 above.
+            case GraphCommand.CollapseToFunction collapseFn:
+                return ApplyCollapse(
+                    collapseFn.Nodes, collapseFn.FunctionName, CollapseTarget.Function);
+
+            case GraphCommand.CollapseToMacro collapseMacro:
+                return ApplyCollapse(
+                    collapseMacro.Nodes, collapseMacro.MacroName, CollapseTarget.Macro);
 
             default:
                 // Unknown commands are silently accepted (forward-compat).
@@ -1047,6 +1058,48 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         _markDirty(_asset);
         // Drawer edits routinely change a node's projected pin set (component field bakes, struct
         // expansion), so re-project unconditionally — the same refresh NotifyStructureChanged drives.
+        _model.RebuildAndNotify();
+        return new GraphCommandResult(true, null);
+    }
+
+    // ── Collapse (BP-74) ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// BP-74 — moves a selection into a new Macro/Function graph and replaces it with a call.
+    ///
+    /// <para>
+    /// ⭐ <b>A refusal is a FAILED result, not a silent no-op.</b> Both commands used to reach the
+    /// <c>default:</c> arm and return <c>GraphCommandResult(true, null)</c>, so a caller could
+    /// dispatch a collapse, be told it worked, and find the graph untouched. The message names the
+    /// offending nodes because <c>CollapseRefusalReason</c> carries them (Q26-B2).
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>Applies only — it does not record undo</b>, like every other case here: the
+    /// <c>UndoStack</c> is the recorder and has already pushed the pair by the time a sink is
+    /// called. The canvas path does not come through here at all; it goes through
+    /// <c>editor.collapse-to-*</c>, which issues a <see cref="BlueprintEditCommand"/> pair built by
+    /// the same <see cref="BlueprintCollapse.Prepare"/> so the whole gesture is one entry.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <c>CollapseToFunction.Pure</c> and both commands' <c>CategoryPath</c> are <b>not</b> honoured:
+    /// Q26 does not model a pure-function target (purity is structural — a graph is impure exactly
+    /// when it carries exec pins), and <see cref="Graph"/> has no category field. Neither is silently
+    /// lost in a way that matters, but neither is implemented either.
+    /// </para>
+    /// </summary>
+    private GraphCommandResult ApplyCollapse(
+        IReadOnlyList<NodeId> nodes, string name, CollapseTarget target)
+    {
+        var selection = nodes.Select(n => n.Value).ToList();
+
+        var prep = BlueprintCollapse.Prepare(_asset, _graph, selection, target, name);
+        if (prep.IsRefused)
+            return new GraphCommandResult(false, prep.RefusalMessage);
+
+        prep.Forward!();
+        _markDirty(_asset);
         _model.RebuildAndNotify();
         return new GraphCommandResult(true, null);
     }

@@ -2926,12 +2926,18 @@ namespace Hrot.Editor
             var blueprintSelectionAfterDraw =
                 Hrot.Blueprints.Editor.Host.BlueprintSelectionBridgeHelper.BuildAfterDrawAction(
                     _blueprintSelectionStore);
+            // BP-223: the missing consumer. IEditorIndicators.Notify has been enqueueing into a
+            // ToastQueue nothing drained (the only TryDequeue in the repo was NodeEditor.Demo's own
+            // shell), so bookmark notifications were discarded and BP-74's collapse refusal would
+            // have been too. Drawn on the same per-frame hook as the bookmark overlay.
+            var blueprintToasts = new Hrot.Blueprints.Editor.NotificationOverlay();
             blueprintCanvasWindow.AfterDraw = ctx =>
             {
                 blueprintSelectionAfterDraw(ctx);
                 if (ctx.Bookmarks != null)
                     Hrot.Blueprints.Editor.BlueprintEditorBootstrap.DrawBookmarkEdgeMarkers(
                         ctx.View, ctx.Bookmarks, adapterBundle.EditorTheme);
+                blueprintToasts.Draw(ctx.Indicators, ImGuiNET.ImGui.GetIO().DeltaTime);
             };
             // FIX-A: wire per-frame canvas selection→Inspector bridges for BTree and HSM.
             // Each AfterDraw reads ctx.AssetRef (set by the document factory) and maps
