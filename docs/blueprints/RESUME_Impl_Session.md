@@ -1,22 +1,24 @@
-# RESUME — implementation session · **Batch 34 (finish `BP-74`) is next**
+# RESUME — implementation session · **Batch 34 delivered; awaiting the next handoff**
 
 > **Written immediately before a context compaction. Self-contained; assumes no prior conversation.**
 > **You are the *implementation* session.** A separate *coordinator* session owns the tracker and
-> writes the handoffs. Last updated **2026-08-11**, at `3446b6d`.
+> writes the handoffs. Last updated **2026-08-11**, at `5e347f6`.
 >
-> ⭐ **Batches 29–33 are all delivered, coordinator-verified and merged.** Macros work end to end —
-> authored, called, expanded, compiled through real Roslyn, ticked across frames, and debuggable.
-> Collapse-a-selection works **headlessly** and its round-trip property is proven.
-> ⛔ **Collapse is NOT reachable from the canvas.** That is Batch 34. §2 is the whole story.
+> ⭐ **Batches 29–34 are delivered; 29–33 are coordinator-verified and merged, 34 is pushed.**
+> Macros work end to end — authored, called, expanded, compiled through real Roslyn, ticked across
+> frames, and debuggable. ⭐ **`BP-74` is CLOSED**: collapse is reachable from the canvas, is one
+> undo entry, refuses on invoke with a message naming the offending nodes, and both targets are
+> proven by execution — the Macro path by the round-trip property plus a latent run, the Function
+> path (which has **no inverse**) by compiling through real Roslyn and asserting the value.
 
 | | |
 |---|---|
 | **Repo** | `pjanec/HROT` |
 | **Implementation branch — PUSH HERE** | ⭐ **`claude/hrot-implementation-j1jvin`** |
-| **Coordinator branch — do NOT push** | ⭐ **`claude/blueprint-authoring-status-gm0akp`** · at `3446b6d` |
-| **HEAD** | fast-forwarded onto `3446b6d`; **Batch 33 merged and verified** |
-| **Counts** | **63 open · 94 done** — ⚠ *derive them, never hand-count:* `python3 scripts/tracker-counts.py --check` |
-| **New finding IDs** | **BP-223+** · diagnostics **BP1669+** (⚠ `BP1664` is *reserved and unbuildable* — see §5) |
+| **Coordinator branch — do NOT push** | ⭐ **`claude/blueprint-authoring-status-gm0akp`** · at `5e347f6` |
+| **HEAD** | Batch 34 pushed on top of `5e347f6`; **awaiting coordinator verification** |
+| **Counts** | **60 open · 98 done** — ⚠ *derive them, never hand-count:* `python3 scripts/tracker-counts.py --check` |
+| **New finding IDs** | **BP-224+** (`BP-223` allocated in Batch 34) · diagnostics **BP1669+** (⚠ `BP1664` is *reserved and unbuildable* — see §5) |
 
 ⛔ **No PR unless the user explicitly asks.** There has never been one in this programme.
 ⛔ **Never put a model identifier** in a commit message, code comment, or anything else pushed.
@@ -42,54 +44,31 @@ export PATH="$HOME/.dotnet:$PATH"                                       # see §
 
 ---
 
-## 1 · ⛔ Read this before touching collapse — what Batch 33 did *not* do
+## 1 · ✅ `BP-74` is closed — what Batch 34 added
 
-Quoting the Batch 33 report, unchanged because it is still true:
+| | |
+|---|---|
+| **Sink** | `BlueprintCommandSink` cases for `GraphCommand.CollapseToFunction`/`CollapseToMacro`. ⭐ A refusal is a **failed** result carrying the reason — the `default:` arm's silent `(true, null)` is gone. The regression test asserts on the **graph**, because asserting `Success` alone would have been green on the defect |
+| **Undo** | **One** entry, via a `BlueprintEditCommand` forward/inverse pair built once in `BlueprintCollapse.Prepare`. ⭐ Restores **identity**, not shape: the emitter clones rather than moves, so the inverse puts the original node objects back with their original pin GUIDs |
+| **Menu** | `CanvasRenderer` items dispatched through `CommandCatalog` + `_editorCommands`. ⛔ **Never greyed for illegality** (Q26-B2); hidden outright when the host registered no handler, so shared UI never renders a dead blueprint item |
+| **`BP-221`** | Was **two** holes: the missing `Func_*` loop **and** an Instance-shaped context-arg list passed into an AiPrimitive `TickCore`. Five `CS0103`s, not one |
+| **`BP-222`** | The call-site emitter assigning a `void` helper. Same class as BP-221 — declaration and call site deciding independently; now one shared `LibraryEmitter.HelperReturnType` |
+| **`BP-223`** ⭐ | **New.** `IEditorIndicators.Notify` enqueued into a `ToastQueue` nothing drained — every notification the editor raised since BP-24 was discarded. The handoff's claim that the surface was "already wired" was wrong against the code. Fixed with `NotificationOverlay` on the canvas `AfterDraw` hook |
 
-> **Collapse is not reachable from the canvas.** The sink cases, the single undo entry, and the
-> context-menu items are absent. `BlueprintCommandSink` still has **no case** for either command, so a
-> dispatched collapse **still falls to `default:` and reports success while doing nothing** — the
-> **trap #5** the handoff flagged is unchanged and still sitting there.
-
-This was a **deliberate clean stop at a boundary**, permitted by the handoff and accepted by the
-coordinator. It is not a defect to re-litigate; it is Batch 34's scope.
+⚠ **Still open elsewhere:** `BP-77`'s *"Macros +"* button and `BP-76`'s own kind-id gating. Collapse
+gives macro creation a second entry point but closes neither row.
 
 ---
 
-## 2 · Batch 34 — finish `BP-74`
+## 2 · What is next
 
-| # | Item | Model | Source |
-|---|---|---|---|
-| 1 | 🟠 **Sink cases** for both collapse commands in `BlueprintCommandSink` | 🟠 Sonnet under review | Batch 33 handoff **§3** |
-| 2 | 🔴 **One** undo entry for the whole gesture | 🔴 Opus | §3 |
-| 3 | 🟢 **Context menu** via `CommandCatalog` + `_editorCommands?.Invoke(...)` | 🟢 Sonnet | §4 + **§4a** |
-| 4 | 🟢 **Refusal on invoke** through `IEditorIndicators.Notify` | 🟢 Sonnet | §4 |
-| 5 | 🔴 **BP-221** afterwards, if the batch has room | 🔴 Opus | §5 below |
-
-### The three traps, restated so they are not re-derived
-
-| ⛔ | |
-|---|---|
-| **`default:` reports success** | `BlueprintCommandSink:218-220` — *"unknown commands are silently accepted (forward-compat)"* → `new GraphCommandResult(true, null)`. ⭐ **Write the test that would have caught this** — a dispatched collapse asserting the graph actually changed |
-| **Undo must be ONE entry** | `view.Execute(fwd, inv, "label")` (BP-60 precedent, see *"Add Return"* in `DrawContextMenu`). ⚠ Collapse creates a graph, moves N nodes and re-ties many links. **Test: collapse → undo → host structurally identical AND the created graph gone.** A half-undo leaving an orphan macro graph is the defect to watch |
-| **Do NOT grey the menu items out** | Q26-B2: *offer whenever there is a selection; refuse on invoke, naming the offending nodes.* ⚠ `CanvasRenderer`/`CanvasCommands` live in **`NodeEditor.UI`**, shared with the BTree and HSM editors — **`BP-76` is that exact mistake sitting in the file you are about to edit** (`:740-753` matches on `node.Title == "ScaleBy"` and on kind ids that never occur, so both items render permanently greyed). Go through the `CommandCatalog` seam, as `Paste` (`editor.paste`) does, and register handlers **host-side** |
-
-⭐ **The UX ruling and the architecture agree**: because the item is always offered and refuses on
-invoke, the shared component needs **no knowledge of blueprint legality** — enablement reduces to
-*"is anything selected"*, which is kind-agnostic and legitimate in shared UI.
-
-### What already exists and must be *used*, not rebuilt
-
-| Piece | Where |
-|---|---|
-| `CollapseAnalysis.Analyse(host, selection, target, macrosById)` → `CollapsePlan` **or** a refusal | `.Compiler/Compiler/Transform/CollapseSelection.cs` |
-| `CollapseEmitter` → `CollapseEdit(Extracted, CallNode, RewrittenHost)` | `.Compiler/Compiler/Transform/CollapseEmitter.cs` |
-| Refusal reasons | `BoundaryNodeSelected` · `CyclicBoundary` · `FunctionLatent` · `FunctionMultipleExits` · `FunctionMultipleEntries` · `EmptySelection` |
-| Notification surface | `IEditorIndicators.Notify(EditorNotification)` → `ToastQueue.Enqueue`, wired at `BlueprintDocumentFactory:346`. ⛔ **Do not invent a second path** |
+⛔ **No handoff for Batch 35 exists yet.** Re-sync from the coordinator branch and read whatever
+`docs/blueprints/HANDOFF_Batch35_*.md` says. If you are picking work up without one, the open rows
+with the most leverage are in §5.
 
 ---
 
-## 3 · What Batches 29–33 built — the map
+## 3 · What Batches 29–34 built — the map
 
 ⭐ **All merged.** Do not rebuild any of it; grep before you assume something is missing.
 
@@ -100,6 +79,7 @@ invoke, the shared component needs **no knowledge of blueprint legality** — en
 | **31** | ⭐ the macro payoff **executed** (latent body in a macro, real Roslyn, ticked across frames) · `BP-83` debug provenance (`DebugMapEntry.OriginNodeId/OriginGraphId`, schema `1.0`→`1.1`) · `BP-220` · `BP-111` |
 | **32** | **Q26-A3 N exec-ins** — `ExecInDecl`, `Graph.ExecInputs`, indexed splice rule 1, `BP1666` |
 | **33** | ⭐ collapse's **headless core** + the **round-trip property** (`CanonicalGraphShape`) · `MacroLatency` shared predicate · `BP-221`/`BP-222` opened |
+| **34** | ⭐ **`BP-74` closed** — sink cases, one undo entry, the menu · `BP-221`/`BP-222` fixed ⇒ the **Function-path Roslyn proof** Batch 33 could not write · `BP-223` found and fixed |
 
 ### The files that matter
 
@@ -157,9 +137,9 @@ Commands: **[RESUME_START_HERE.md](RESUME_START_HERE.md) §3.** Copy them; do no
 
 | ID | |
 |---|---|
-| **BP-74** | ⏭ **open, partial** — the headless core landed; sink + undo + menu are Batch 34 (§2) |
-| **BP-221** | 🔴 `AiPrimitiveEmitter` has **no `Func_*` helper loop** while `StatementEmitter` emits the call ⇒ `CS0103`. Found by collapse-to-Function. **Pre-existing**, not caused by collapse |
-| **BP-222** | `CS0815` — a zero-output function call. ⭐ **Deliberately filed unattributed**; do not guess a cause into the row |
+| ~~**BP-74**~~ | ✅ closed Batch 34 |
+| ~~**BP-221** / **BP-222**~~ | ✅ fixed Batch 34 |
+| ~~**BP-223**~~ | ✅ found and fixed Batch 34 |
 | **BP-80** | ⏭ row stays **open** for the two *visual* gestures (palette drag, `BP-77`'s *"Macros +"*) — the only part needing the user's eyes |
 | **BP-82** | ⏭ two library rails |
 | **BP1664** | ⛔ **RESERVED AND UNBUILDABLE — do not attempt it.** `Graph` has no `LocalVariables` field (**BP-57**), so a macro cannot declare a local |
@@ -172,6 +152,7 @@ Commands: **[RESUME_START_HERE.md](RESUME_START_HERE.md) §3.** Copy them; do no
 | ⚠ | |
 |---|---|
 | ⭐ **Revert-goes-red is never delegated** | Opus writes every revert patch and runs it. It is the only evidence a test actually tests something |
+| ⭐⭐ **After restoring from `.bak`, `touch` the file** | `mv $F.bak $F` restores the **old mtime**, so MSBuild's up-to-date check skips the recompile and the **reverted binary survives**. Batch 34 lost half an hour to two tests that "failed in the full run and passed in isolation" — they were running against a DLL still carrying the last revert. ⚠ Compilation is per-project all-or-nothing, so an unrelated edit in the same project masks this and it only bites on the **last** revert of a series |
 | ⭐ **Guard every revert with `timeout`** | a revert patch that inserted `k = 0;` inside a `for` loop produced an infinite loop and burned a 10-minute timeout. `timeout 300` on the build, `timeout 400` on the test run. Keep a `.bak` and restore from it |
 | **Avoid constant conditions in revert patches** | `CS0162` *"unreachable code detected"* is an **error** here. Use a non-constant equivalent — `producer.Pins.Count > 100000`, an inverted comparison, a swapped emitter branch |
 | ⭐ **Gate commits on the tree, not on an agent's report** | a Sonnet subagent once stalled ~19 minutes having written **no files** while reporting progress. Diff before you believe |
