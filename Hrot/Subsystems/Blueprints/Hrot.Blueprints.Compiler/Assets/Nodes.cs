@@ -101,6 +101,20 @@ public abstract class Node
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public Guid? OriginNodeId { get; set; }
+
+    /// <summary>
+    /// BP-83 — the id of the MACRO GRAPH <see cref="OriginNodeId"/> lives in. Compile-time only, same
+    /// as its partner.
+    /// <para>
+    /// ⚠ <b>Both ids are needed, and the second is not redundant.</b> A <c>DebugMapEntry</c>'s
+    /// <c>GraphId</c> is the HOST graph the clone was spliced into, while the authored node the
+    /// designer sees lives in the macro. Without the graph id, an authored node id is ambiguous the
+    /// moment two macros are involved — the debugger could not tell which macro a back-reference
+    /// points into.
+    /// </para>
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Guid? OriginGraphId { get; set; }
 }
 
 /// <summary>

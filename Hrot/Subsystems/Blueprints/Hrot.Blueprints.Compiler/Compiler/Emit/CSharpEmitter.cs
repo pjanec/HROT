@@ -44,8 +44,11 @@ internal sealed class CSharpEmitter
     {
         var effectiveNodeId = debug?.NodeId ?? debug?.OriginNodeId;
         if (effectiveNodeId is null) return;
+        // ⚠ The `NodeId ?? OriginNodeId` precedence above is unchanged and must stay: the clone's own
+        // id keeps line→node 1:1. OriginNodeId is passed ALONGSIDE as a back-reference, which is what
+        // makes node→line one-to-many and lets one breakpoint in a macro body arm every call site.
         _debugMap.RecordNodeStart(effectiveNodeId.Value, debug!.GraphId, _currentLine,
-            debug.NodeKind, debug.DisplayName);
+            debug.NodeKind, debug.DisplayName, debug.OriginNodeId, debug.OriginGraphId);
     }
 
     public void EmitNodeEnd(IrDebugAnnotation? debug)

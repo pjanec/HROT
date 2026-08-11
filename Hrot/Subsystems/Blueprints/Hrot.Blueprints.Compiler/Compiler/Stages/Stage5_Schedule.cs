@@ -4669,7 +4669,13 @@ internal sealed class GraphScheduler
     /// </para>
     /// </summary>
     private static IrDebugAnnotation DebugOf(Node node) =>
-        new IrDebugAnnotation { GraphId = default, NodeId = node.Id, OriginNodeId = node.OriginNodeId };
+        new IrDebugAnnotation
+        {
+            GraphId       = default,
+            NodeId        = node.Id,
+            OriginNodeId  = node.OriginNodeId,
+            OriginGraphId = node.OriginGraphId,
+        };
 
     /// <summary>
     /// ⚠ <b>The catch-all no longer defaults to <see cref="IrGraphKind.Function"/>.</b> It did, and

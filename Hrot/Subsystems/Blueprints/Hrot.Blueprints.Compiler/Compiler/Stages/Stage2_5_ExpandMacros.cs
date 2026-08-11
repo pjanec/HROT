@@ -116,7 +116,8 @@ internal static class Stage2_5_ExpandMacros
             var clone = fragment.Nodes.First(n => n.Id == kv.Value);
             // A clone of a clone (nested expansion) keeps the ORIGINAL authored id, not the
             // intermediate one -- provenance should name something a designer can open.
-            clone.OriginNodeId = authoredById[kv.Key].OriginNodeId ?? kv.Key;
+            clone.OriginNodeId  = authoredById[kv.Key].OriginNodeId  ?? kv.Key;
+            clone.OriginGraphId = authoredById[kv.Key].OriginGraphId ?? macro.Id;
         }
 
         var entryClone  = FindClone<EventEntryNode>(macro, fragment);
@@ -275,6 +276,9 @@ internal static class Stage2_5_ExpandMacros
                 continue;
             }
 
+            // OriginGraphId is stamped here rather than in the helper: the synthesized literal
+            // stands in for an argument at the CALL SITE, so its origin graph is the host.
+            literal.Node.OriginGraphId = host.Id;
             host.Nodes.Add(literal.Node);
             foreach (var consumer in consumers)
             {
@@ -367,7 +371,7 @@ internal static class Stage2_5_ExpandMacros
             TypeId       = typeRef.TypeId ?? "",
             ValueJson    = raw!,
             Pins         = new List<Pin> { outPin },
-            OriginNodeId = call.Id,   // attributable to the call site that defaulted the argument
+            OriginNodeId  = call.Id,   // attributable to the call site that defaulted the argument
         };
         return new SynthesizedLiteral(node, outPin);
     }

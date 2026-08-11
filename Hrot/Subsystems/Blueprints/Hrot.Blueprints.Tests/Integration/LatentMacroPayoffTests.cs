@@ -3,6 +3,7 @@ using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Core.Compiler.Diagnostics;
+using Hrot.Blueprints.Core.Compiler.Emit;
 using Hrot.Blueprints.Core.Compiler.Stages;
 using BlueprintDispatchKind = Hrot.Blueprints.Core.Assets.BlueprintDispatchKind;
 using BlueprintTypeRef      = Hrot.Blueprints.Core.Assets.BlueprintTypeRef;
@@ -34,6 +35,15 @@ public sealed class LatentMacroPayoffTests
 
     private static BlueprintTestFixtureOptions NoAlcCheck { get; } =
         new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false };
+
+    private static CompileOptions DefaultOptions() => new(
+        Mode:              CompilerMode.Debug,
+        NodeRegistry:      BuiltInNodeRegistry.Instance,
+        TypeRegistry:      StaticTypeRegistry.Instance,
+        EngineEvents:      BuiltInEngineEventCatalog.Instance,
+        ChannelCommands:   BuiltInChannelCommandCatalog.Instance,
+        WaitPrimitives:    BuiltInWaitPrimitiveCatalog.Instance,
+        SiblingSignatures: Array.Empty<BlueprintSignature>());
 
     // ── fixture helpers ─────────────────────────────────────────────────────
 
@@ -231,6 +241,128 @@ public sealed class LatentMacroPayoffTests
 
         Assert.Equal(NodeStatus.Success, tick3);
         Assert.Equal(42, ReadAmmo(fixture, entity));  // ⭐ the resumed path really ran
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // BP-83 — debug provenance reaches the debug map
+    // ────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ <b>BP-83's payoff: one breakpoint in a macro body arms EVERY expansion site.</b>
+    ///
+    /// <para>
+    /// The designer sets a breakpoint on a node in the MACRO graph — that is where they can see it.
+    /// But every emitted <c>DebugMapEntry</c> carries a CLONE id that exists in no asset file, so
+    /// before this the breakpoint matched no entry and silently never armed. Resolution is
+    /// authored-node → N entries, which is why <c>OriginNodeId</c> had to reach the map and not stop
+    /// at the IR.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <c>NodeId</c> still holds the clone id, deliberately: <b>line→node stays 1:1</b> while
+    /// <b>node→line becomes one-to-many</b>. Both halves are asserted here, because a "fix" that
+    /// redirected NodeId instead of adding a back-reference would satisfy the first assertion and
+    /// break the debugger's line lookup.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void OneAuthoredMacroNode_MapsToAnEntryPerExpansionSite()
+    {
+        var macro = MakeAimDelayFireMacro("SharedBody", ammoValue: 5, out var authoredFire);
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = NewPin("Out", "Out", isExec: true); entry.Pins.Add(entryOut);
+        var c1       = MakeCall(macro, out var c1In, out var c1Out);
+        var c2       = MakeCall(macro, out var c2In, out var c2Out);
+        var ret      = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn    = NewPin("In", "In", isExec: true); ret.Pins.Add(retIn);
+
+        var tick = new Graph
+        {
+            Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function,
+            Nodes = { entry, c1, c2, ret },
+            Links =
+            {
+                Wire(entry, entryOut, c1, c1In),
+                Wire(c1, c1Out, c2, c2In),
+                Wire(c2, c2Out, ret, retIn),
+            },
+        };
+
+        var asset  = MakeAiPrimitiveAsset("MacroDebugMap", macro, tick);
+        var result = new BlueprintCompiler().Compile(asset, DefaultOptions());
+
+        Assert.True(result.Succeeded, string.Join("\n", result.Diagnostics.Select(d => d.Code + ": " + d.Message)));
+        Assert.NotNull(result.DebugMap);
+
+        // ⭐ The authored "fire" node resolves to TWO entries — one per call site.
+        var armed = result.DebugMap!.Entries
+            .Where(e => e.OriginNodeId == authoredFire.Id)
+            .ToList();
+
+        // ⚠ Asserted as DISTINCT CLONE IDS, not as an entry count. The emitter can record more than
+        // one line region per node (a latent split puts the post-Delay half in the resume block), so
+        // "2 entries" would have been an assertion about emitter granularity rather than about
+        // provenance. What BP-83 needs is that the authored node reaches BOTH expansion sites.
+        Assert.Equal(2, armed.Select(e => e.NodeId).Distinct().Count());
+        Assert.NotEmpty(armed);
+
+        // …each pointing back into the MACRO graph, not the host. Without OriginGraphId this id would
+        // be ambiguous the moment a second macro were involved.
+        Assert.All(armed, e => Assert.Equal(macro.Id, e.OriginGraphId));
+
+        // …while their own NodeIds stay clone ids, so line→node remains 1:1.
+        Assert.DoesNotContain(armed, e => e.NodeId == authoredFire.Id);
+
+        // And an ordinary authored node (the host's own) carries no provenance at all.
+        Assert.Contains(result.DebugMap.Entries, e => e.OriginNodeId is null);
+    }
+
+    /// <summary>
+    /// §2.3 ruling, locked: the schema is <b>1.1</b>, and a <b>1.0</b> map must still load. The two new
+    /// fields are additive and omitted when null, so a macro-free asset's map is byte-identical to the
+    /// 1.0 output it replaces — the bump costs no churn while keeping the version honest about shape.
+    /// </summary>
+    [Fact]
+    public void DebugMap_RoundTripsProvenance_AndStillReadsA10Map()
+    {
+        var macro = MakeAimDelayFireMacro("SharedBody", ammoValue: 5, out var authoredFire);
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = NewPin("Out", "Out", isExec: true); entry.Pins.Add(entryOut);
+        var call     = MakeCall(macro, out var callIn, out var callOut);
+        var ret      = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn    = NewPin("In", "In", isExec: true); ret.Pins.Add(retIn);
+
+        var tick = new Graph
+        {
+            Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function,
+            Nodes = { entry, call, ret },
+            Links = { Wire(entry, entryOut, call, callIn), Wire(call, callOut, ret, retIn) },
+        };
+
+        var result = new BlueprintCompiler().Compile(
+            MakeAiPrimitiveAsset("MacroDebugMapRoundTrip", macro, tick), DefaultOptions());
+        Assert.True(result.Succeeded);
+
+        var json = DebugMapSerializer.Serialize(result.DebugMap!);
+        Assert.Contains("\"1.1\"", json);
+
+        var reloaded = DebugMapSerializer.Deserialize(json)!;
+        var armed = reloaded.Entries.Where(e => e.OriginNodeId == authoredFire.Id).ToList();
+        Assert.NotEmpty(armed);
+        Assert.All(armed, e => Assert.Equal(macro.Id, e.OriginGraphId));
+
+        // A 1.0 map — no origin fields at all — still loads, with null provenance. That is the right
+        // read, not a degraded one: a map written before macros existed has no expanded nodes.
+        var legacy = json.Replace("\"1.1\"", "\"1.0\"")
+                         .Replace("\"originNodeId\"", "\"ignoredNodeId\"")
+                         .Replace("\"originGraphId\"", "\"ignoredGraphId\"")
+                         .Replace("\"OriginNodeId\"", "\"IgnoredNodeId\"")
+                         .Replace("\"OriginGraphId\"", "\"IgnoredGraphId\"");
+        var legacyMap = DebugMapSerializer.Deserialize(legacy)!;
+        Assert.NotEmpty(legacyMap.Entries);
+        Assert.All(legacyMap.Entries, e => Assert.Null(e.OriginNodeId));
     }
 
     /// <summary>
