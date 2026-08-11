@@ -1795,6 +1795,55 @@ public static class BlueprintDocumentFactory
     }
 
     /// <summary>
+    /// BP-77 — registers <c>editor.create-macro</c> as a <b>quick-add</b>: one click appends a macro
+    /// with a free name. Mirrors <see cref="RegisterCreateFunctionCommand(EditorCommandsImpl, BlueprintAsset, Action, GraphView)"/>
+    /// and exists for the same reason — so the create path is drivable headlessly, without ImGui.
+    ///
+    /// <para>Production wiring uses the modal overload below.</para>
+    /// </summary>
+    internal static void RegisterCreateMacroCommand(
+        EditorCommandsImpl commands,
+        BlueprintAsset     asset,
+        Action?            markDirty = null,
+        GraphView?         view      = null)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(asset);
+
+        var reg = new CommandRegistration(commands);
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.CreateMacro,
+            "Create Macro", "Add",
+            _ =>
+            {
+                var name = MakeUniqueName(asset.Graphs.Select(g => g.Name), "NewMacro");
+                CreateMacroGraph(asset, name, markDirty, view);
+            },
+            description: "Adds a new Macro graph to this blueprint.");
+    }
+
+    /// <summary>
+    /// BP-77 — registers <c>editor.create-macro</c> so the My Blueprint panel's <i>"Macros +"</i>
+    /// opens the name modal. ⭐ The id and the button have both existed since BP-12e; <b>only the
+    /// handler was missing</b>, so the item rendered permanently greyed — the same
+    /// declared-with-no-handler shape as BP-23a's clipboard commands and BP-74's collapse.
+    /// </summary>
+    public static void RegisterCreateMacroCommand(
+        EditorCommandsImpl commands,
+        Action             openModal)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(openModal);
+
+        var reg = new CommandRegistration(commands);
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.CreateMacro,
+            "Create Macro", "Add",
+            _ => openModal(),
+            description: "Adds a new Macro graph to this blueprint.");
+    }
+
+    /// <summary>
     /// BP-24 — appends a new, empty <b>Function</b> graph to the asset. Until this, nothing in the
     /// editor ever appended to <see cref="BlueprintAsset.Graphs"/>; Function graphs could only be
     /// hand-written in JSON.
@@ -1830,6 +1879,37 @@ public static class BlueprintDocumentFactory
         string         name,
         Action?        markDirty = null,
         GraphView?     view      = null)
+        => CreateGraph(asset, name, GraphKind.Function, "Create Function Graph", markDirty, view);
+
+    /// <summary>
+    /// BP-77 — appends a new, empty <b>Macro</b> graph. Same shape as
+    /// <see cref="CreateFunctionGraph"/>, and deliberately the same code: a macro graph's boundary
+    /// is an <see cref="EventEntryNode"/> and a <see cref="ReturnNode"/> exactly as a function's is,
+    /// and BP-126's reason for wiring them together (a bare entry costs a palette trip and then
+    /// reports BP3010 + BP1657) applies unchanged.
+    ///
+    /// <para>
+    /// ⚠ The new macro declares <b>no</b> <c>ExecInputs</c>/<c>ExecOutputs</c>. That is the
+    /// wireable degenerate case, not an omission: <c>NodePinSchema</c> projects the single default
+    /// <c>Out</c>/<c>In</c> pin when either list is empty (Q26-A3's N=0), so the macro can be wired
+    /// and called immediately, and the designer declares extra entries/exits in the Graph Signature
+    /// window when they want them.
+    /// </para>
+    /// </summary>
+    internal static Graph? CreateMacroGraph(
+        BlueprintAsset asset,
+        string         name,
+        Action?        markDirty = null,
+        GraphView?     view      = null)
+        => CreateGraph(asset, name, GraphKind.Macro, "Create Macro Graph", markDirty, view);
+
+    private static Graph? CreateGraph(
+        BlueprintAsset asset,
+        string         name,
+        GraphKind      kind,
+        string         undoLabel,
+        Action?        markDirty,
+        GraphView?     view)
     {
         ArgumentNullException.ThrowIfNull(asset);
 
@@ -1844,7 +1924,7 @@ public static class BlueprintDocumentFactory
         {
             Id   = Guid.NewGuid(),
             Name = trimmed,
-            Kind = GraphKind.Function,
+            Kind = kind,
             Nodes =
             {
                 new EventEntryNode
@@ -1871,7 +1951,7 @@ public static class BlueprintDocumentFactory
             },
         };
 
-        AppendGraph(asset, graph, "Create Function Graph", markDirty, view);
+        AppendGraph(asset, graph, undoLabel, markDirty, view);
         return graph;
     }
 

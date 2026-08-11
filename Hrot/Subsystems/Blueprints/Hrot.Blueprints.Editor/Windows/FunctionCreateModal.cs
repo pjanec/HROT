@@ -5,7 +5,13 @@ using ImGuiNET;
 namespace Hrot.Blueprints.Editor.Windows;
 
 /// <summary>
-/// BP-24 — ImGui modal for creating a Function graph: a single name field.
+/// BP-24 — ImGui modal for creating a graph: a single name field.
+///
+/// <para>
+/// ⭐ BP-77: parameterised by <b>noun</b> rather than copied for Macro. The two dialogs differ only
+/// in a title and a default name; a second class would be two hand-maintained copies of the same
+/// validation, which is exactly what <see cref="ParameterRowsView"/> was extracted to stop.
+/// </para>
 ///
 /// <para>
 /// Name-only on purpose: a function's signature lives on the graph and is edited in the Graph
@@ -19,13 +25,13 @@ namespace Hrot.Blueprints.Editor.Windows;
 /// </summary>
 public sealed class FunctionCreateModal
 {
-    private const string PopupId = "Create Function##bp_create_fn";
-
+    private readonly string          _popupId;
+    private readonly string          _defaultName;
     private readonly Action<string>  _onConfirm;
     private readonly BlueprintAsset? _asset;
 
     private bool   _openRequested;
-    private string _name = "NewFunction";
+    private string _name;
     private bool   _focusPending;
 
     /// <param name="onConfirm">
@@ -36,16 +42,24 @@ public sealed class FunctionCreateModal
     /// The owning asset, used to reject a name an existing graph already holds. May be
     /// <see langword="null"/> in tests, in which case duplicate-checking is skipped.
     /// </param>
-    public FunctionCreateModal(Action<string> onConfirm, BlueprintAsset? asset = null)
+    /// <param name="noun">
+    /// BP-77 — what is being created: <c>"Function"</c> (the default, so every existing caller is
+    /// unchanged) or <c>"Macro"</c>. Drives the window title, the popup id and the default name.
+    /// </param>
+    public FunctionCreateModal(
+        Action<string> onConfirm, BlueprintAsset? asset = null, string noun = "Function")
     {
-        _onConfirm = onConfirm ?? throw new ArgumentNullException(nameof(onConfirm));
-        _asset     = asset;
+        _onConfirm   = onConfirm ?? throw new ArgumentNullException(nameof(onConfirm));
+        _asset       = asset;
+        _popupId     = $"Create {noun}##bp_create_{noun.ToLowerInvariant()}";
+        _defaultName = "New" + noun;
+        _name        = _defaultName;
     }
 
     /// <summary>Requests the modal on the next <see cref="Draw"/>, with a fresh default name.</summary>
     public void Open()
     {
-        _name          = "NewFunction";
+        _name          = _defaultName;
         _openRequested = true;
         _focusPending  = true;
     }
@@ -58,12 +72,12 @@ public sealed class FunctionCreateModal
 
         if (_openRequested)
         {
-            ImGui.OpenPopup(PopupId);
+            ImGui.OpenPopup(_popupId);
             _openRequested = false;
         }
 
         bool open = true;
-        if (!ImGui.BeginPopupModal(PopupId, ref open, ImGuiWindowFlags.AlwaysAutoResize))
+        if (!ImGui.BeginPopupModal(_popupId, ref open, ImGuiWindowFlags.AlwaysAutoResize))
             return;
 
         ImGui.TextUnformatted("Name");

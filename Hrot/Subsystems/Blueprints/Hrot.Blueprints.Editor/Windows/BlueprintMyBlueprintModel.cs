@@ -21,7 +21,7 @@ namespace Hrot.Blueprints.Editor.Windows;
 /// <para><b>Faked/empty sections</b> (no data model yet in v1):</para>
 /// <list type="bullet">
 ///   <item>Functions — always empty list; section header still present in fixed order</item>
-///   <item>Macros — always empty list; section header still present in fixed order</item>
+///   <item>Macros — the asset's <c>GraphKind.Macro</c> graphs (BP-77/BP-224; was always empty)</item>
 /// </list>
 ///
 /// <para>
@@ -99,8 +99,7 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
 
     /// <summary>
     /// Returns the items for the requested section, projected from the current asset.
-    /// Returns an empty list when there is no active asset, or for the faked
-    /// Functions/Macros sections.
+    /// Returns an empty list when there is no active asset.
     /// </summary>
     public IReadOnlyList<MyBlueprintItem> GetItems(string sectionId)
     {
@@ -109,11 +108,15 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
 
         return sectionId switch
         {
-            SectionGraphs       => BuildGraphItems(SectionGraphs,    functionGraphs: false),
+            // BP-224: the three graph sections are a three-way split on GraphKind, not two
+            // booleans. Graphs keeps everything that is not a Function and not a Macro — Event
+            // bodies and Construction.
+            SectionGraphs       => BuildGraphItems(SectionGraphs,    g => g.Kind is not (GraphKind.Function or GraphKind.Macro)),
             // BP-24: real — lists the asset's Function graphs (was faked/empty while nothing
             // could create one and the canvas could not switch to one anyway).
-            SectionFunctions    => BuildGraphItems(SectionFunctions, functionGraphs: true),
-            SectionMacros       => Array.Empty<MyBlueprintItem>(),   // faked/empty v1
+            SectionFunctions    => BuildGraphItems(SectionFunctions, g => g.Kind == GraphKind.Function),
+            // BP-77 / BP-224: real, now that collapse and editor.create-macro both produce macros.
+            SectionMacros       => BuildGraphItems(SectionMacros,    g => g.Kind == GraphKind.Macro),
             SectionCustomEvents => BuildCustomEventItems(),
             SectionVariables    => BuildVariableItems(),
             _                   => Array.Empty<MyBlueprintItem>(),
@@ -123,9 +126,19 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
     // ── Private builders ──────────────────────────────────────────────────────
 
     /// <summary>
-    /// Graph rows, split Unreal-style: the Functions section carries the Function graphs, the
-    /// Graphs section everything else (Event bodies, Construction). Both row kinds share the
+    /// Graph rows, split Unreal-style: Functions carries the Function graphs, Macros the Macro
+    /// graphs, and Graphs everything else — Event bodies and Construction. All three share the
     /// <c>graph:{id}</c> item-id form, which <c>editor.go-to-graph</c> resolves on double-click.
+    ///
+    /// <para>
+    /// ⚠ <b>BP-224.</b> This took a <c>bool functionGraphs</c> and filtered
+    /// <c>(g.Kind == GraphKind.Function) != functionGraphs</c> — so the Graphs section kept every
+    /// graph that was not a Function, <b>including Macros</b>, while the Macros section was
+    /// hardcoded empty. A boolean cannot express a three-way choice, and the moment collapse
+    /// shipped (Batches 33-34) the third kind started appearing in ordinary assets and landing in
+    /// the wrong section. The predicate is passed in so adding a fourth kind cannot silently fall
+    /// into a catch-all again.
+    /// </para>
     /// </summary>
     /// <summary>
     /// BP-127 — whether <c>BlueprintDocumentFactory.RenameItem</c> would accept a rename for this
@@ -138,12 +151,12 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
            || !_asset!.CustomEvents.Any(e =>
                   string.Equals(e.Name, graph.Name, StringComparison.Ordinal));
 
-    private IReadOnlyList<MyBlueprintItem> BuildGraphItems(string sectionId, bool functionGraphs)
+    private IReadOnlyList<MyBlueprintItem> BuildGraphItems(string sectionId, Func<Graph, bool> belongsHere)
     {
         var result = new List<MyBlueprintItem>(_asset!.Graphs.Count);
         foreach (var g in _asset.Graphs)
         {
-            if ((g.Kind == GraphKind.Function) != functionGraphs) continue;
+            if (!belongsHere(g)) continue;
             result.Add(new MyBlueprintItem(
                 ItemId:       $"graph:{g.Id}",
                 SectionId:    sectionId,

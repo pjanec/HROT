@@ -40,6 +40,7 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
     // BP-24: function-create modal (name only; the signature is edited in the Graph Signature
     // window). Rebuilt per active asset like its siblings.
     private FunctionCreateModal? _createFunctionModal;
+    private FunctionCreateModal? _createMacroModal;
 
     // BP-12b: the rename prompt for My Blueprint items. Shared by variables and custom events —
     // the per-kind validity rules live in BlueprintDocumentFactory.RenameItem, not here.
@@ -136,6 +137,23 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
             BlueprintDocumentFactory.RegisterCreateFunctionCommand(
                 cmdImpl, _createFunctionModal.Open);
 
+            // BP-77: "Macros +". The command id and the button have existed since BP-12e and the
+            // section header has always been drawn — only the handler was missing, so the item was
+            // permanently greyed. It became worth having the moment collapse could produce macros.
+            _createMacroModal = new FunctionCreateModal(
+                name =>
+                {
+                    var graph = BlueprintDocumentFactory.CreateMacroGraph(
+                        blueprintAsset, name, markDirty, view);
+                    if (graph is not null)
+                        NavigateToGraphOf($"graph:{graph.Id}");
+                },
+                blueprintAsset,
+                noun: "Macro");
+
+            BlueprintDocumentFactory.RegisterCreateMacroCommand(
+                cmdImpl, _createMacroModal.Open);
+
             // BP-12b: rename / delete / duplicate. The context menu has always invoked these three
             // and nothing ever handled them, so a variable could be created but never renamed or
             // removed.
@@ -148,6 +166,7 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
             _createVariableModal    = null;
             _createCustomEventModal = null;
             _createFunctionModal    = null;
+            _createMacroModal       = null;
         }
     }
 
@@ -206,6 +225,7 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
         _createVariableModal?.Draw();
         _createCustomEventModal?.Draw();
         _createFunctionModal?.Draw();
+        _createMacroModal?.Draw();
         _renameItemModal.Draw();
     }
 }
