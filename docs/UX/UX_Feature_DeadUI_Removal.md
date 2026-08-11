@@ -23,6 +23,23 @@ assets are not covered — confirm the build after the delete, as the design alr
 `Menus/SharedContextMenuPopulator.cs` and `Facades/IEntityActionController.cs`. In both pairs the
 `Hrot.Presentation` file is the live one. See the trap below.
 
+## 0b. ⭐ Two more dead files, found 2026-08-10 — **outside** the `Hrot.UI.Common` sweep
+
+| File | Evidence |
+|---|---|
+| `Hrot.Editor/UI/EditorOrbatPanel.cs` (27 L) | constructed at `EditorSubsystem.cs:1559`, **field read nowhere** (not even nulled in teardown) |
+| `Hrot.Editor/Windows/EditorWindows.cs` — `EditorOrbatWindow` | **never registered**; `new EditorOrbatWindow` has **0 hits** repo-wide |
+
+The Editor's live ORBAT is `SharedOrbatPanel` + `EditorOrbatAdapter`, registered at `:3580`.
+
+> 🔴 **This is the file [Correction 5](UX_Tasks_Detail.md#corrections) was generalised from.** The
+> programme's stated root cause — *"no right-click affordances on objects"* — came from
+> `EditorOrbatPanel`, which **never reaches the screen**. Not merely over-generalised from one file:
+> generalised from a **dead** one.
+
+⇒ Add both to the delete list. They live in `Hrot.Editor`, so the 20-file `Hrot.UI.Common` sweep above
+does not reach them. Found by [UXI-04](UX_Feature_Cross_Surface_Actions.md)'s prior-art pass.
+
 ## 1. What we are changing, and why
 
 **Not "tidying up".** One specific hazard: a developer told to *"fix the shared ORBAT panel"* has even

@@ -60,7 +60,7 @@ Narrowed to **seam-shaped names** (`I*`, `*Registry`, `*Provider`, `*Descriptor`
 | Type | prod / ext / test | What it is | Bearing |
 |---|:--:|---|---|
 | **`MapContextActionController`** `Hrot.Presentation/Menus/` | **0 / 0 / 0** | *"Minimal `IEntityActionController` for **inline map context menus**"* — centre / delete / rotate via caller callbacks; the other four deliberately no-op | ⭐ **the map half of [UXI-04](UX_Issues.md#uxi-04), already written, never wired** |
-| **`IHierarchyAdapter`** `Fdp.Presentation/Vis2D/` | **0 / 0 / 0** | *"hierarchy traversal… generic hierarchy rendering without coupling to specific component types"*, zero-alloc child enumerator | ⭐ **the ORBAT half of UXI-04** |
+| **`IHierarchyAdapter`** `Fdp.Presentation/Vis2D/` | **0 / 0 / 0** | *"hierarchy traversal… generic hierarchy rendering"*. ⚠ **Re-verified: 0 implementers, 0 references** — the name occurs only in its own file | 🔴 **NOT the ORBAT seam** — `IOrbatDataProvider` already is, and is adopted by Editor **and** ExCon. File as dead code ([UXI-04](UX_Feature_Cross_Surface_Actions.md)) |
 | `SharedContextMenuPopulator` `Hrot.Presentation/Menus/` | 1 / 1 / 1 | the shared entity-menu declaration | [UXI-03](UX_Feature_Entity_Action_Vocabulary.md) — **found the hard way; this table reproduces it** |
 | `IEntityActionController` `Hrot.Presentation/Facades/` | 3 / 1 / 1 | its host-binding port | UXI-03 |
 | `IEntityShapeLibrary` `GizmoMap` | 4 / **0** / 1 | map symbology seam; every host passes the default | [UXI-10](UX_Issues.md#uxi-10) — independently confirmed |
@@ -120,7 +120,7 @@ so it does hops a textual count cannot:
 |---|---|
 | *Who implements `IEntityContextMenuHandler`?* | ✅ `LambdaEntityContextMenuHandler` + `JsonEntityContextMenuHandler` — **the wrapper hop this script gets wrong** |
 | *Which `SharedContextMenuPopulator`?* | ✅ separates the twins **by `file_path`** — would have prevented [Correction 14](UX_Tasks_Detail.md#corrections) |
-| *Unadopted interfaces?* | ✅ independently surfaced `IHierarchyAdapter` at 1 implementer |
+| *Unadopted interfaces?* | ⚠ **ranks them, but see the second trap** — its "1 implementer" for `IHierarchyAdapter` was an artefact; the true count is **0** |
 
 ### 🔴 TRAP — `is_test` is unreliable in this index
 
@@ -132,6 +132,20 @@ so it does hops a textual count cannot:
 > would have erased the entire [UXI-03](UX_Feature_Entity_Action_Vocabulary.md) finding.
 >
 > 🔒 **Filter by `file_path`, never by `is_test`.**
+
+### 🔴 TRAP 2 — `count()` after `OPTIONAL MATCH` counts **rows, not bindings**
+
+```cypher
+MATCH (i:Interface) OPTIONAL MATCH (c)-[:IMPLEMENTS]->(i) RETURN i.name, count(c)   -- ❌ floor is 1
+MATCH (c)-[r:IMPLEMENTS]->(i:Interface)  RETURN i.name, count(r)                    -- ✅ zeros absent, honestly
+```
+
+A non-matching `OPTIONAL MATCH` still yields a row, so **`count(c)` never returns 0** — and *zero
+implementers* is exactly what a seam hunt is looking for. It cost this programme
+[Correction 15](UX_Tasks_Detail.md#corrections): `IHierarchyAdapter` was published at "1 implementer"
+when it has **none**.
+
+🔒 **Confirm every zero with a plain text search before publishing it.**
 
 ### Division of labour from here
 
