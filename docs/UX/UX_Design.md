@@ -51,30 +51,45 @@ for the author", not "which fits the current window layout".
 
 ### A new shell, not a repaired one ⭐
 
-**Ruled by the user 2026-08-06 ([UXD-08](#uxd-08)):** the editor becomes its **own application with a
+> ### 🔒 WITHDRAWN 2026-08-10 — no new editor executable
+>
+> The user withdrew this plan: *"this all strengthens my guess that we should not start building a new
+> editor exe but rather cleaning up inside the existing."* Two reasons, both established here:
+> maintaining **two test paths** during any staged period, and the finding that every difference the
+> requirement names is a **seam problem inside shared code**, not a hosting problem.
+>
+> ⇒ **[UX_Cleanup_Path.md](UX_Cleanup_Path.md) replaces it.** The paragraph below is kept as the record
+> of what was ruled on 2026-08-06 and why it no longer applies. **Do not restore it as a plan.**
+
+~~**Ruled by the user 2026-08-06 ([UXD-08](#uxd-08)):** the editor becomes its **own application with a
 purpose-built shell** — fully-fledged feature-wise, **init path shared** with the cluster host so all
 the internal machinery still runs, and the UI grown **step by step** by composing what mostly already
-exists.
+exists.~~
 
-This is not cosmetic. The current shell is `LocalWindowController.OpenLocalWindow()` — ~60 lines that
-loop over subsystems asking each to dump its windows into one manager, and pick the default perspective
-as *"the name of the second subsystem"*. **The bag-of-windows is not a defect in the editor; it is the
-correct output of a generic cluster-node window aggregator.** Panel work cannot fix that. A curated
-shell can.
+**The diagnosis still stands, and it is what survives the withdrawal.** The current shell is
+`LocalWindowController.OpenLocalWindow()` — ~60 lines that loop over subsystems asking each to dump its
+windows into one manager, and pick the default perspective as *"the name of the second subsystem"*.
+**The bag-of-windows is not a defect in the editor; it is the correct output of a generic cluster-node
+window aggregator.**
+
+**What changed on 2026-08-10 is the remedy, not the diagnosis.** The five-scan assessment showed the
+symptoms are not caused by the *host* but by **missing seams inside shared code** — the main menu has no
+perspective filter, ORBAT has no item provider, a tool is not a thing, and the entity menu is built three
+different ways depending on the surface. A new executable would have inherited every one of those.
 
 Two consequences for everything below:
 
-1. **The golden path becomes the build order, not only the acceptance test.** Step *N* ships exactly the
-   surface step *N* needs. Nothing enters the shell without a step that earns it.
-2. **[UXR-04](UX_Requirements.md#uxr-04) stops being a fight.** A greenfield shell has no legacy layout
-   to argue with, so "the default layout is a working layout" becomes a design choice instead of a
-   migration.
+1. **Fix the seams, in place.** Ordered stages in [UX_Cleanup_Path.md](UX_Cleanup_Path.md); the structural
+   choices are [Q26](Architect_Question_26_Entity_Action_Model.md).
+2. **[UXR-04](UX_Requirements.md#uxr-04) is still winnable**, but as a *default-layout* mechanism rather
+   than as a greenfield privilege — and it needs a path seam on `SetupImGui()` first, since `imgui.ini`
+   is machine-wide rather than per-exe.
 
-The seam between shared init and new shell is [Q25-F](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-f--a-dedicated-editor-application-with-a-purpose-built-shell)
-(Claude's lean: prove the shell behind a selector in the existing exe, then extract the shared
-composition and split the exe). ⚠ **"Standalone" does not mean "no cluster machinery"** — scenario load
-still publishes a `TransitionStateIntent` and Play/Stop still goes through `PreviewClusterOpHandler`, so
-the new app hosts the orchestrator too. That is precisely why the shared-init constraint is right.
+⚠ **Two facts from the withdrawn plan that remain true and load-bearing:** the editor consumes **no**
+`INetworkFactory` at all (`:180` is a dead field), and *"standalone" never meant "no cluster machinery"* —
+scenario load publishes a `TransitionStateIntent` and Play/Stop goes through `PreviewClusterOpHandler`.
+⚡ But that machinery is built **by `Hrot.Editor` itself** (`EditorSubsystem.cs:1352`), not by the host, so
+it was never an argument about hosting.
 
 ## 2. The five questions → the target layout
 
@@ -156,7 +171,7 @@ user has set the direction, shape still in the architect round · `DECIDED` = ru
 | <a id="uxd-05"></a>**UXD-05** | **Where the Behaviors section lives** — inside the unified Inspector, or a dedicated docked panel the Inspector links to | `OPEN` | Blocks [UXR-14](UX_Requirements.md#uxr-14), [UXR-20](UX_Requirements.md#uxr-20). Not in Q25 — decide after the walk shows how the author actually moves between map and behavior |
 | <a id="uxd-06"></a>**UXD-06** | **Two audiences over one shared panel set** — how Path A and Path B differ without forking panels or inventing a global mode | `OPEN` → [Q25-D](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-d--two-audiences-one-set-of-shared-panels-what-is-the-mechanism) | Blocks [UXR-26](UX_Requirements.md#uxr-26), [UXR-73](UX_Requirements.md#uxr-73), [UXR-75](UX_Requirements.md#uxr-75). Claude's lean: **per-host composition** (the codebase's existing pattern) + disclosure within a panel; reject a global mode. ⚡ Verified: **no role/mode/expert-mode concept exists anywhere today** — this is new either way. Separately, Claude's lean is that OCC conflict handling belongs in the **service**, so no host renders a version modal |
 | <a id="uxd-07"></a>**UXD-07** | **Path B gesture set** — the minimum walk-up-usable surface for runtime intervention (add entity, retask, verify) | `OPEN` | Blocks [G7](UX_Requirements.md#g7--runtime-intervention-excon). ⚠ **All of Path B is code-inferred** — what an ExCon operator sees today is untraced. Needs its own walk before design |
-| <a id="uxd-08"></a>**UXD-08** | **A dedicated editor application with a purpose-built shell** — features and init path shared with the cluster host; only the UI composition is new, grown step by step along the golden path | `RULED` ⭐ → [Q25-F](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-f--a-dedicated-editor-application-with-a-purpose-built-shell) | **User ruling (2026-08-06): do it.** ⚡ **This is the cause behind the cause.** `LocalWindowController.OpenLocalWindow()` *is* the editor shell, in ~60 lines: every subsystem dumps its windows into one manager, the default perspective is literally `_subsystems.Skip(1).FirstOrDefault()?.Name`, perspectives are hardcoded cluster roles, the title is "HROT Cluster Runner", and `ScanForSubsystems` builds a DDS participant for **every** subsystem before filtering. The bag-of-windows is what this host is *for*. Cheap: the host is 2,217 lines and **no subsystem project depends on it** (only `InternalsVisibleTo`). Q25-F decides the seam (Claude's lean: **F3 → F1** staged), what the shell keeps (**G2**), how window content is combined (**H1**), and whether `--mode editor` survives (**I1**) |
+| <a id="uxd-08"></a>**UXD-08** | 🔒 **WITHDRAWN 2026-08-10** — superseded by [UX_Cleanup_Path.md](UX_Cleanup_Path.md); cleanup happens **inside the existing exe**. Kept for the record. ~~A dedicated editor application with a purpose-built shell~~ — features and init path shared with the cluster host; only the UI composition is new, grown step by step along the golden path | ⊘ `WITHDRAWN` (was `RULED`) | **User ruling (2026-08-06): do it.** ⚡ **This is the cause behind the cause.** `LocalWindowController.OpenLocalWindow()` *is* the editor shell, in ~60 lines: every subsystem dumps its windows into one manager, the default perspective is literally `_subsystems.Skip(1).FirstOrDefault()?.Name`, perspectives are hardcoded cluster roles, the title is "HROT Cluster Runner", and `ScanForSubsystems` builds a DDS participant for **every** subsystem before filtering. The bag-of-windows is what this host is *for*. Cheap: the host is 2,217 lines and **no subsystem project depends on it** (only `InternalsVisibleTo`). Q25-F decides the seam (Claude's lean: **F3 → F1** staged), what the shell keeps (**G2**), how window content is combined (**H1**), and whether `--mode editor` survives (**I1**) |
 | <a id="uxd-09"></a>**UXD-09** | **Panel composition rule** — how content from several existing windows becomes one new panel without forking them | `LEAN` → [Q25-F-iii](Architect_Question_25_Scenario_Authoring_Golden_Path.md#f-iii--how-do-we-combine-the-content-of-existing-windows-into-new-composite-panels) | Required by [UXR-14](UX_Requirements.md#uxr-14) and [UXR-20](UX_Requirements.md#uxr-20), which both merge ~4 windows. ⚠ **Lean revised 2026-08-06 by the parallel-development constraint** ([UXD-10b](#uxd-10b)): **place, do not edit** — H0 first for everything layout can satisfy; re-host a view-model only where the seam already exists (read-only reuse); defer section-extraction until consulted. UXR-14/UXR-20 are therefore **re-sequenced behind the consult protocol**, not dropped. ⚠ **The missing view-model seams are where an estimate will be wrong** |
 | <a id="uxd-10b"></a>**UXD-10b** | **Parallel-programme safety** — how the UX programme avoids disrupting active blueprint work on shared surfaces | `RULED` 🔒 → [Q25-F-v](Architect_Question_25_Scenario_Authoring_Golden_Path.md#f-v--how-do-we-stay-out-of-the-parallel-blueprint-work) | **User constraint 2026-08-06:** `ClusterRunner` stays fully operational; blueprint development continues in parallel sessions; the new UI must be careful about changing window *content* — prefer **placing** windows — and any in-window or shared-menu change must be **synchronised/consulted** with the other sessions. Mechanism: [SHARED_SURFACES.md](SHARED_SURFACES.md) (co-ownership list + consult-before-touch + additive-only at the shell boundary). Claude's lean: **J1 + J2**. ⚠ **Open ([Q25-F‴](Architect_Question_25_Scenario_Authoring_Golden_Path.md#f-v--how-do-we-stay-out-of-the-parallel-blueprint-work)): only the user can confirm the blueprint sessions will read that file** |
 

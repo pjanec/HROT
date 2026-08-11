@@ -387,7 +387,28 @@ code (no Windows needed), and the second turned up a defect. Full citations:
 
 <a id="next-up"></a>
 
-> ### 🔄 RE-SEQUENCED 2026-08-10 — read this before the numbered list below
+> ### 🔒 RULED 2026-08-10 — NO new editor executable
+>
+> *"This all strengthens my guess that we should not start building a new editor exe but rather cleaning
+> up inside the existing."* — the user. **[UXD-08](UX_Design.md#uxd-08) is `WITHDRAWN`; Milestone 0 is
+> closed, not deferred; Q25-F/F′ are moot and must not be relayed.**
+>
+> ⇒ **The plan is now [UX_Cleanup_Path.md](UX_Cleanup_Path.md)** — six ordered stages, with the
+> structural choices put to the architect as
+> **[Q26](Architect_Question_26_Entity_Action_Model.md)**. Stage 0 (delete ~1,800 lines of dead UI,
+> including the `Hrot.UI.Common` namespace trap) needs no architect round and should go first.
+>
+> **Three constraints the user added at the same time**, now [G8](UX_Requirements.md#g8--shared-surfaces-per-mode-difference):
+> an entity offers the **same actions in an inspector as on the map** ([UXR-85](UX_Requirements.md#uxr-85));
+> the action set **varies by perspective** ([UXR-86](UX_Requirements.md#uxr-86)); and IG's menu stays
+> **configurable over the network** ([UXR-87](UX_Requirements.md#uxr-87)) — a requirement, not legacy.
+>
+> **Mode corrections from the user:** ExCon is **natively mapless by design**, and IG is *"a bit of a
+> fake"* — a stand-in for a 3D IG showing entities replicated from **SimHost and CGF**. **The focus is
+> the Editor plus SimHost and CGF**, which should share most capabilities and *inherit optionally only
+> what is necessary*.
+
+> ### 🔄 RE-SEQUENCED 2026-08-10 — superseded in part by the ruling above
 >
 > The user challenged the dedicated-exe plan (*"requires maintaining two test paths"*) and redirected to
 > **understand the current UI architecture first**. That was done — [the assessment](UX_Current_UI_Architecture.md)

@@ -39,29 +39,34 @@ items, map composition and camera without forking. Established by
 **[UX_Current_UI_Architecture.md](UX_Current_UI_Architecture.md)**: every surface with a seam is shared
 successfully, every surface without one has been forked — no counter-example in five scans.*
 
-**Why this precedes Milestone 0:** it is smaller than a new exe, benefits **all five modes** instead of
-one, and needs **no second test path** (the user's objection to the exe plan, 2026-08-10).
+**This replaced Milestone 0** (user ruling, 2026-08-10 — no new editor executable): it is smaller,
+benefits **all five modes** instead of one, and needs **no second test path**, which was the objection
+that sank the exe plan.
 
-| ☐ | ID | Task | Cmplx | Pattern to mirror |
-|:-:|---|---|:--:|---|
-| ☐ | | Delete `Hrot.UI.Common` (1,171 L, builds nowhere) + ~600 L of other dead UI — 🔴 **do this first**, it is a live editing trap ([U3](UX_RESUME.md#5-traps)) | `RW-L` | — |
-| ☐ | | Perspective filter on `GlobalMenuRegistry.RegisterItem` | `RW-L` | `MainToolbarManager.RegisterEntry(…, perspective:)` |
-| ☐ | | Item-provider seam on `SharedOrbatPanel` → lets ExCon's 434 L fork collapse | `RW-M` | `IEntityContextMenuHandler` |
-| ☐ | | One camera path reading the **effective** viewport (fixes 4 stale copies + the occlusion defect) | `RW-M` | `MapCamera.Offset` is already the mechanism |
+**Staged in [UX_Cleanup_Path.md](UX_Cleanup_Path.md):**
 
-⚠ **Not yet cut into `UXT-nn` entries** — awaiting the user's go-ahead on the re-sequencing.
+| Stage | What | Gated on |
+|---|---|---|
+| **0** | Delete ~1,800 L of dead UI incl. the `Hrot.UI.Common` namespace trap | nothing — [Q26-E](Architect_Question_26_Entity_Action_Model.md) lean is *ship it alone* |
+| **1** | Name the vocabulary — `IEntityAction` / provider / context; one core provider replaces the 3 copies of `Delete` | [Q26-A](Architect_Question_26_Entity_Action_Model.md), [Q26-C](Architect_Question_26_Entity_Action_Model.md) |
+| **2** | One menu on every surface — map, inspector, ORBAT ([UXR-85](UX_Requirements.md#uxr-85)) | Q26-A, Q26-A′ |
+| **3** | Perspective enters the context ([UXR-86](UX_Requirements.md#uxr-86)); menu perspective filter; fix the restore bug | [Q26-B](Architect_Question_26_Entity_Action_Model.md), [Q26-D](Architect_Question_26_Entity_Action_Model.md) |
+| **4** | Tools become first-class ([UXR-81](UX_Requirements.md#uxr-81), [UXR-84](UX_Requirements.md#uxr-84)) | Q26-B |
+| **5** | Camera + effective viewport — **independent, can run in parallel** | nothing |
+| **6** | Consolidate spawn UI ×4, gizmo menu bar ×4, `PanelConstants` | 1–4 |
 
-## Milestone 0 — Stand up the new shell ⏸
+⚠ **Not yet cut into `UXT-nn` entries.** Stage 0 is ready to cut on the user's word; stages 1–4 wait on Q26.
 
-*⏸ **DEFERRED 2026-08-10, possibly moot.** Every difference the requirement names — layout, menu, map
-layers, context menus — is a **seam problem inside shared code**, not a hosting problem. After
-Milestone S the exe is a packaging decision, not an architectural one.
-[Why](Architect_Question_25_Scenario_Authoring_Golden_Path.md#f-prime-measured) · [UXD-08](UX_Design.md#uxd-08)
-remains `RULED` as a direction.*
+## Milestone 0 — Stand up the new shell ⊘ CLOSED
+
+*⊘ **CLOSED 2026-08-10 — the user withdrew the plan.** No new editor executable; cleanup happens inside
+the existing one. [UXD-08](UX_Design.md#uxd-08) is `WITHDRAWN`, Q25-F/F′ are moot. Kept as a heading so
+the closure is visible rather than the milestone silently vanishing.
+Replacement: **[UX_Cleanup_Path.md](UX_Cleanup_Path.md)**.*
 
 | ☐ | ID | Task | Cmplx | Req | Design |
 |:-:|---|---|:--:|---|---|
-| ⏸ | | *deferred behind Milestone S; also still gated on [Q25-F](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-f--a-dedicated-editor-application-with-a-purpose-built-shell), which must not be relayed until F′ and D absorb the seam findings* | `RW-M` | | |
+| ⊘ | | *closed — superseded by the staged cleanup* | — | | |
 
 ## Milestone 1 — Make the editor honest
 
