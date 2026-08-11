@@ -25,6 +25,7 @@
 | | <a id="uxi-20"></a>**UXI-20** `P2` | **The `Hrot.UI.Common` namespace outlives its project.** After [UXI-01](#uxi-01) the name is inaccurate rather than hazardous — ~87 files, 4 test projects, one co-owned file. Never on the critical path | `RW-L` | — | [UXI-01 §2](UX_Feature_DeadUI_Removal.md#2--the-design-decision-delete-now-rename-later-or-never) | ☐ |
 | | <a id="uxi-21"></a>**UXI-21** `P2` | **The Workspace document switcher has a model and ~15 tests but no renderer.** `WorkspaceMenuBuilder` builds open-asset entries with active/dirty markers that nothing draws | `RW-L` | — | — | ☐ |
 | | <a id="uxi-22"></a>**UXI-22** | **SimHost and CGF may have no selection highlight at all** — neither registers `Hrot.Common.Diagnostics.Gizmos.GizmoRegistrar`, which owns `SelectionHighlightGizmo`. ⚠ confirm before treating as a defect | `RW-L` | — | — | ☐ |
+| **H** | | **Cross-host parity** | | | | |
 | | <a id="uxi-23"></a>**UXI-23** 🔴 | **SimHost and CGF lack the common map-interaction set.** No rubber-band visual, no measure, no centre-on-selected, no delete-selected, and **CGF has no `SelectionInteractionSystem` at all**. Absorbs [UXI-22](#uxi-22). Delivered by the mechanisms in B and C plus per-host wiring | `RW-M` | [UXR-90](UX_Requirements.md#uxr-90) | — | ☐ |
 | | <a id="uxi-24"></a>**UXI-24** 🔴 | **Multi-select is not supported anywhere.** The multi-entity handler overload is a default no-op no host overrides; items act on the clicked entity only. Needs AND-over-selection visibility and fan-out execution | `RW-M` | [UXR-91](UX_Requirements.md#uxr-91) | — | ☐ |
 | **B** | | **Entity actions** | | | | |
@@ -73,7 +74,7 @@ UXI-12..15 ───────────────────────
 2. **No tasks are cut before the design is agreed.** That is the gate this layer exists to enforce.
 3. **Evidence is code**, cited `file.cs:line`, and **re-derived before building** — the
    [Corrections table](UX_Tasks_Detail.md#corrections) has 11 rows, five of them our own claims.
-5. ⚠ **A code comment describing future work is not evidence the work is pending.** Correction 11 came
+4. ⚠ **A code comment describing future work is not evidence the work is pending.** Correction 11 came
    from reading `"populated in PACK2-E002"` as a live plan when that migration had already completed in
    a different shape. Check whether the work landed before planning around the comment.
-4. **One design per session prompt**, summarised before moving on (user, 2026-08-10).
+5. **One design per session prompt**, summarised before moving on (user, 2026-08-10).
