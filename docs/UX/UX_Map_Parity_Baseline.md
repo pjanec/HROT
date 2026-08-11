@@ -23,6 +23,53 @@ That single registrar owns **13 files**, and its absence is why SimHost and CGF 
 ⇒ **One line per host.** Neither needs a new project reference — both already consume types from
 `Hrot.Common`.
 
+## 🔒 A third axis, added by the user 2026-08-10 — component availability
+
+> *"Not all map stuff is usable by all subsystems. SimHost and CGF differ a lot in what ECS components
+> are available per entity — some are network-replicated, some are specific — so not all entity-data
+> related gizmos are applicable everywhere. **The editor has all ECS components.**"*
+
+⚠ **This corrects the classification below.** I measured *assembly* dependencies and concluded "zero gaps
+are blocked". The real constraint is **which components exist on an entity in that host at runtime** —
+which no `.csproj` check can see.
+
+**So capability differences come from three places, not two:**
+
+| Axis | Decided | Mechanism | Example |
+|---|---|---|---|
+| **Mode** | composition time | which registrations the host performs | SimHost has no place-entity tool |
+| **Perspective** | runtime, switchable | a condition on the registration | a graph perspective hides map actions |
+| ⭐ **Component availability** | **per entity, emergent from the data** | `[GizmoProjector(…)]` keys · `isApplicable: e => world.HasComponent<X>(e)` | a health bar needs a health component; absent ⇒ never drawn |
+
+### ✅ The good news: the third axis needs no new mechanism
+
+Applicability is **already** component-keyed — that is exactly what `[GizmoProjector(TypeA, TypeB)]` and
+the `HasComponent<T>` guards in every context-menu lambda do. A gizmo whose components are absent simply
+never fires; an action whose predicate fails simply never appears.
+
+⇒ **"Register the shared set and let component presence decide" is safe**, and needs no per-host
+allow-list for entity-data gizmos. It also explains the earlier structural finding from the data side:
+**the Editor composes the most because it has every component.**
+
+### 🔴 …and the hazard that follows, which the acceptance must handle
+
+**Component absence and a wiring mistake look identical: nothing appears.**
+
+Register `HealthBarGizmo` in CGF where no entity carries a health component and you see exactly what you
+would see if you had wired it wrong. That is the codebase's own *"assert the effect, never the report"*
+trap in a new form.
+
+⇒ **[UXI-23](UX_Issues.md#uxi-23)'s acceptance must distinguish the two**, per capability:
+
+| Verdict | How it is established |
+|---|---|
+| ✅ **wired and applicable** | the visual appears on an entity that carries the components |
+| ⚪ **wired, not applicable here** | the components are **confirmed absent** in that host — not merely unobserved |
+| ❌ **not wired** | the components are present and it still does not appear |
+
+⚠ **A "⚪" claim requires positive evidence that the component is absent.** Without it the row is
+untested, not passing.
+
 ## The gap, classified
 
 **The important column is *why*.** Almost everything is category (i):
@@ -30,7 +77,8 @@ That single registrar owns **13 files**, and its absence is why SimHost and CGF 
 | | Meaning | Count |
 |---|---|---|
 | **(i) not wired** | the shared class exists and works in the Editor; the host simply never calls it | **effectively all of it** |
-| **(ii) blocked** | a dependency the host lacks | **zero identified** — even `MissionPresentationGizmo` (needs `IGeographicTransform`) and `EntityEditorLabelGizmo` (needs `BehaviorRegistry`) are fine, since both hosts already hold those |
+| **(ii) blocked** | an **assembly/service** dependency the host lacks | **zero identified** — `MissionPresentationGizmo` (needs `IGeographicTransform`) and `EntityEditorLabelGizmo` (needs `BehaviorRegistry`) are fine; both hosts hold those |
+| **(ii-b) data-gated** ⭐ | the **components are not on the entity** in that host | ⚠ **not measured — added by the user 2026-08-10.** Applies to every *entity-data* gizmo below. See the third axis above |
 | **(iii) not applicable** | genuinely outside the host's domain | SimHost's road/trajectory layers only |
 
 ## What SimHost lacks vs the Editor
@@ -100,6 +148,15 @@ presentation, labels, health bars · rename.
 
 ⚠ These are **additive registrations against classes the host already links** — but see the hand-check
 below before treating every one as a one-liner.
+
+⚠ **And they divide into two kinds, which the third axis makes important:**
+
+| Kind | Data-gated? | Rows |
+|---|---|---|
+| **Interaction machinery** — selection system, drag gizmo, rubber band, action registry, layer assignment | ❌ no — keyed on `SimTransform`/`SelectionState`, which every map host has | expect these to *work* once wired |
+| **Entity-data gizmos** — health bar, line-of-sight, visibility cone, navigation target | ✅ **yes** — need domain components that may not be replicated to that host | wiring them may correctly produce **nothing** |
+
+⇒ **Wire the first kind expecting a visible result; wire the second expecting to have to check the data.**
 
 ## <a id="needs-a-hand-check"></a>Needs a hand-check
 
