@@ -1,6 +1,6 @@
 # RESUME / HANDOFF — Scenario-Authoring UX programme
 
-> **rev 9 · 2026-08-10 · branch `claude/ux-session-resume-i2le7f`**
+> **rev 10 · 2026-08-10 · branch `claude/ux-session-resume-i2le7f`**
 >
 > ⚠ **The branch changed.** This session was started on `claude/ux-session-resume-i2le7f`, which was
 > fast-forwarded from `claude/reset-working-branch-qd1qpv` (tip `ab2c91a`) — same history, new name.
@@ -55,9 +55,29 @@ assumed. **ExCon runtime intervention must be usable by ordinary SME people**: a
 *higher* bar. Both run on the **same shared panels**; differences are presentation and defaults, never
 forked panels. Full statement: [UX_Requirements.md](UX_Requirements.md#who-we-are-building-for).
 
-**The core insight that must not be lost:** with no outliner and no right-click affordances on
-objects, *choosing a window becomes the interaction model*. That is the root cause of the user's
-complaint — it is not a documentation gap, and it will not be fixed by adding features.
+> ### ⚠ CORRECTED 2026-08-10 — the old "core insight" was refuted by code
+>
+> This file used to say: *"with no outliner and no right-click affordances on objects, choosing a
+> window becomes the interaction model — that is the root cause."* **The second half is false.**
+> A repo-wide scan found **~26 production context-menu sites**; the Editor alone registers **5**
+> `IEntityContextMenuHandler`s (Center / Rename / Edit Shape / Edit Route / Rotate / Delete / Mark
+> Target / AI-trace / Inspect…) plus map menus that vary by entity state, and the graph canvases have
+> the richest context-menu system in the repo.
+>
+> **True only of `EditorOrbatPanel`** — the 27-line stub the claim was generalised from.
+>
+> ⇒ **Restated:** the affordances *exist and are attached to the wrong surfaces*. That is a
+> **discoverability and placement** problem, not an absent-feature problem — and it is far cheaper than
+> what this document previously assumed. Do not re-derive the old version.
+
+**The core insight that replaced it — [the seam law](UX_Current_UI_Architecture.md):**
+
+> **Every UI surface that exposes a contribution seam is shared successfully across modes.
+> Every surface that does not has been forked.** Five scans, no counter-example.
+
+⇒ The question is never *"share or duplicate?"* but *"does this surface have a seam?"* `SharedOrbatPanel`
+has one hardcoded item and no extension point — so ExCon forked a **434-line** replacement. Over-sharing
+without a seam is what *causes* the duplication.
 
 ### ⭐ And the cause behind that cause
 
@@ -315,6 +335,7 @@ needed knowledge it did not carry, that is a coordinator defect.
 | [handoffs/](handoffs/) | ▣ template only |
 | **Golden-path walk** | ☐ **not performed** — needs a Windows session. Every prediction is unverified |
 | **Milestone 0 pre-seam check** | ✅ **done 2026-08-10** (Linux, code only) — both questions answered; found one 🔴. See [above](#added-2026-08-10--the-pre-seam-check-is-done) |
+| ⭐ [UX_Current_UI_Architecture.md](UX_Current_UI_Architecture.md) | ✅ **new 2026-08-10 — read this before any UI work.** Five-scan assessment of what is shared across the 5 modes, what was forked, and why. Establishes [the seam law](#0-why-this-programme-exists--never-forget-this), the full seam inventory, the duplication/rigidity registers, ~1.8k lines of dead UI, and the 3-tier gap plan. **Re-sequences the programme** — see §3 |
 
 **The opening audit is done** and its findings are recorded in two places: the `Now` column of each
 requirement, and the [baseline evidence index](UX_Tasks_Detail.md#baseline-evidence-index). The
@@ -366,11 +387,41 @@ code (no Windows needed), and the second turned up a defect. Full citations:
 
 <a id="next-up"></a>
 
-> ⏸ **The user is reading the golden-path spec and Q25 before anything starts. Do not begin
-> implementation work until they come back.** *(Their instruction, 2026-08-06: "let me read it before we
-> start doing anything.")*
+> ### 🔄 RE-SEQUENCED 2026-08-10 — read this before the numbered list below
+>
+> The user challenged the dedicated-exe plan (*"requires maintaining two test paths"*) and redirected to
+> **understand the current UI architecture first**. That was done — [the assessment](UX_Current_UI_Architecture.md)
+> — and it changed the order of work:
+>
+> | | Then | Now |
+> |---|---|---|
+> | **First** | Stand up a new editor exe (Milestone 0) | **Tier-1 seam work** — [§8 of the assessment](UX_Current_UI_Architecture.md#8-the-gap--what-it-takes) |
+> | **The exe** | The plan | ⏸ **Deferred, possibly moot.** Every difference the requirement names — layout, menu, map layers, context menus — is a *seam problem inside shared code*, not a hosting problem |
+> | **Q25** | Ready to relay | 🔒 **Do not relay yet** — F′ and D must absorb the seam findings first |
+>
+> **Why Tier 1 wins:** it is smaller than the exe, it benefits **all five modes** rather than one, and it
+> needs **no second test path** — which was the user's objection. Afterwards the exe is a packaging
+> decision, not an architectural one.
+>
+> 🔴 **Before any shared-panel work: delete `Hrot.UI.Common`.** It is in no `.csproj` and no `.sln`, yet
+> the panels that *do* compile declare its namespace — so navigating by namespace lands in a file that
+> builds into nothing, and the copies have already drifted. See [Trap U3](#5-traps).
 
-### 1. User review — the current gate
+### 0. Tier-1 seam work — the current recommendation
+
+Each item mirrors a pattern that **already exists in this repo**, so all four are low-risk:
+
+| Work | Pattern to copy | Fixes |
+|---|---|---|
+| Perspective filter on `GlobalMenuRegistry.RegisterItem` | `MainToolbarManager.RegisterEntry(…, perspective:)` — the toolbar already has it | per-mode main menus |
+| Item-provider seam on `SharedOrbatPanel` | `IEntityContextMenuHandler` | lets ExCon's 434-line fork collapse back |
+| One camera path reading the effective viewport | `MapCamera.Offset` already *is* the mechanism | 4 stale copies **and** the occlusion defect together |
+| Delete `Hrot.UI.Common` + ~600 L of other dead UI | — | removes the namespace trap |
+
+⚠ **Not yet cut into `UXT-nn` tasks** — needs the user's go-ahead on the re-sequencing first, since it
+replaces Milestone 0 as the opening move.
+
+### 1. User review — the earlier gate (superseded in part)
 
 The user reads [UX_Golden_Path.md](UX_Golden_Path.md) and
 [Q25](Architect_Question_25_Scenario_Authoring_Golden_Path.md). Expect the golden path to change — it is
@@ -496,6 +547,10 @@ Inherited from the blueprint programme — each one cost real time there. Full h
 |:--:|---|
 | U1 | **Shared panels have multiple hosts.** `MissionPanel`, the entity inspector and the ORBAT panel are consumed by ExCon / IG / CGF as well as the editor. Enumerate every host before editing one, and gate on their suites |
 | U2 | **README overstates the editor.** §11.4 claims "ORBAT drag-and-drop unit hierarchy" — that is ExCon's 434-line `OrbatPanel`, not the editor's 27-line stub. Treat the README as marketing, not as status |
+| U3 | 🔴 **The namespace lies.** `Hrot.UI.Common` is in **no `.csproj` and no `.sln`** — it never builds — yet the panels that *do* compile (in `Hrot.Presentation/Panels/`) declare `namespace Hrot.UI.Common.Panels`. Navigating by namespace lands in dead code, and the two copies have **drifted**. *"Fix the shared ORBAT panel"* has even odds of editing a file that compiles into nothing. **Check which project a file belongs to before editing any shared panel** |
+| U4 | **Absence claims generalised from one file.** The programme asserted "no right-click affordances" from a single 27-line stub; there are ~26 context-menu sites. Before writing *"X does not exist"*, grep the whole repo — and say which surfaces you checked |
+| U5 | **A lean argued from plausibility, then written into an architect question as a recommendation.** The F3→F1 staging lean rested on "the extraction is risky", never measured. Measured: 2 types. **Measure before leaning, not after the architect answers** |
+| U6 | **Dead code that looks live.** `EditorOrbatPanel` is *constructed* (`EditorSubsystem.cs:1559`) but its window is never registered; `EntityPropertyInspector`, ExCon's `[Obsolete]` inspector pair, and `WorkspaceMenuBuilder` are all reachable-looking and unreachable. **Grep for the registration, not the construction** |
 
 ---
 
@@ -503,12 +558,19 @@ Inherited from the blueprint programme — each one cost real time there. Full h
 
 If you are a compacted session picking this up:
 
-1. Read **§0** (why) and **§1** (how) above — that is the irreducible context.
-2. Read **§2 Status** and **§3 Next up** — where the programme is and the single next action.
-3. Open [UX_Task_Tracker.md](UX_Task_Tracker.md) for live status. **It wins over this file.**
-4. For a specific task, open its [UX_Tasks_Detail.md](UX_Tasks_Detail.md) entry and
-   **re-derive its evidence from code before building** (§1.4).
-5. Check `git log --oneline -15` on `claude/reset-working-branch-qd1qpv` against the batch log in the
+1. Read **§0** (why) and **§1** (how) above — that is the irreducible context. ⚠ §0 contains a
+   **corrected** root cause; do not restore the pre-2026-08-10 wording you may find quoted elsewhere.
+2. Read **§2 Status** and **§3 Next up** — where the programme is and the single next action. §3 opens
+   with a **re-sequencing box**; read it before the numbered list, which is partly superseded.
+3. ⭐ **Read [UX_Current_UI_Architecture.md](UX_Current_UI_Architecture.md) before touching any UI code.**
+   It carries the seam law, the seam inventory, the duplication/rigidity registers, and 🔴 the dead
+   `Hrot.UI.Common` editing trap. Skipping it is how the old, refuted claims get re-derived.
+4. Open [UX_Task_Tracker.md](UX_Task_Tracker.md) for live status. **It wins over this file.**
+5. For a specific task, open its [UX_Tasks_Detail.md](UX_Tasks_Detail.md) entry and
+   **re-derive its evidence from code before building** (§1.4). Read its
+   [Corrections](UX_Tasks_Detail.md#corrections) table too — **7 rows**, each a claim this programme
+   asserted and had to withdraw. Assume the next one is in whatever you are about to build on.
+6. Check `git log --oneline -15` on `claude/ux-session-resume-i2le7f` against the batch log in the
    tracker — if commits exist that the batch log does not mention, the docs are stale: reconcile them
    first, in their own commit.
 

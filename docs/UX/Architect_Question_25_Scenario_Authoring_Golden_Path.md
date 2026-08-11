@@ -732,6 +732,20 @@ rectangles.
 
 ---
 
+## 🔒 Do not relay yet — 2026-08-10
+
+**Two of this document's questions were overtaken by
+[UX_Current_UI_Architecture.md](UX_Current_UI_Architecture.md)** and must absorb it before the architect
+sees them. Relaying as-is would have them rule on a question that no longer exists.
+
+| Question | What changed |
+|---|---|
+| **F′ / F-i** — the exe seam | ⏸ **The exe question largely dissolves.** Every difference the requirement names — layout, main menu, map layers, context menus — is a **seam problem inside shared code**, not a hosting problem. Seams are exercised by whoever composes the panels; a second executable adds nothing a host profile could not express. The user also raised a cost this doc never weighed: **two parallel test paths** during any staged period |
+| **D** — *"two audiences, one set of shared panels: what is the mechanism?"* | **Largely answered by measurement.** The mechanism already exists for some surfaces (`IEntityContextMenuHandler`, `MapCanvas.AddLayer`, `ITimeTransportFacade`, the inspector's seams) and is **absent** for others (main menu, ORBAT rows, camera, spawn, selection). D is no longer *"what mechanism?"* but *"do we make the existing contribution-seam pattern mandatory, and who owns the profile?"* — and it generalises from 2 audiences to **5 modes** |
+
+**The finding both rest on:** every UI surface with a contribution seam is shared successfully; every
+surface without one has been forked. No counter-example in five scans.
+
 ## Answers
 
 *To be filled in by the user after the architect round. Record the chosen option per sub-question,

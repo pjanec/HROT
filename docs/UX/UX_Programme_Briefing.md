@@ -64,9 +64,15 @@ found, verified against code:
 - there is **no problems/error-list panel** — the editor's default answer to "why isn't my unit
   moving?" is silence.
 
-**The corollary that shapes every design choice here:** with no outliner and no right-click
-affordances, *choosing a window becomes the interaction model*. That is the root cause of "requires
-lots of knowledge of what panel to open in what sequence" — not a documentation gap.
+**The corollary that shapes every design choice here:** with no usable outliner, *choosing a window
+becomes the interaction model*. That is the root cause of "requires lots of knowledge of what panel to
+open in what sequence" — not a documentation gap.
+
+> ⚠ **CORRECTED 2026-08-10.** This paragraph used to add *"and no right-click affordances"*. **That was
+> false** — a repo scan found ~26 production context-menu sites, including 5 handlers registered by the
+> Editor. It held only for the 27-line `EditorOrbatPanel`. The affordances exist and are **attached to
+> the wrong surfaces**; treat this as placement/discoverability, not absence. Full evidence:
+> [UX_Current_UI_Architecture.md](UX_Current_UI_Architecture.md). Do not reintroduce the old wording.
 
 ## 3. The frame we design against
 

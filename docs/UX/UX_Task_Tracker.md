@@ -32,15 +32,36 @@ subsystem or architect decision first). 🔴 = correctness / data-loss / trust d
 
 ---
 
-## Milestone 0 — Stand up the new shell ⭐
+## Milestone S — Seam work ⭐ *(new 2026-08-10, now the opening move)*
 
-*A curated editor shell over the **shared** init path, plus the default-layout mechanism — deliberately
-near-empty; surfaces arrive only as golden-path steps earn them. Closes
-[UXR-04](UX_Requirements.md#uxr-04), [UXR-06](UX_Requirements.md#uxr-06); enables every milestone below.*
+*Give the shared surfaces that lack one a **contribution seam**, so each mode can differ in menu, ORBAT
+items, map composition and camera without forking. Established by
+**[UX_Current_UI_Architecture.md](UX_Current_UI_Architecture.md)**: every surface with a seam is shared
+successfully, every surface without one has been forked — no counter-example in five scans.*
+
+**Why this precedes Milestone 0:** it is smaller than a new exe, benefits **all five modes** instead of
+one, and needs **no second test path** (the user's objection to the exe plan, 2026-08-10).
+
+| ☐ | ID | Task | Cmplx | Pattern to mirror |
+|:-:|---|---|:--:|---|
+| ☐ | | Delete `Hrot.UI.Common` (1,171 L, builds nowhere) + ~600 L of other dead UI — 🔴 **do this first**, it is a live editing trap ([U3](UX_RESUME.md#5-traps)) | `RW-L` | — |
+| ☐ | | Perspective filter on `GlobalMenuRegistry.RegisterItem` | `RW-L` | `MainToolbarManager.RegisterEntry(…, perspective:)` |
+| ☐ | | Item-provider seam on `SharedOrbatPanel` → lets ExCon's 434 L fork collapse | `RW-M` | `IEntityContextMenuHandler` |
+| ☐ | | One camera path reading the **effective** viewport (fixes 4 stale copies + the occlusion defect) | `RW-M` | `MapCamera.Offset` is already the mechanism |
+
+⚠ **Not yet cut into `UXT-nn` entries** — awaiting the user's go-ahead on the re-sequencing.
+
+## Milestone 0 — Stand up the new shell ⏸
+
+*⏸ **DEFERRED 2026-08-10, possibly moot.** Every difference the requirement names — layout, menu, map
+layers, context menus — is a **seam problem inside shared code**, not a hosting problem. After
+Milestone S the exe is a packaging decision, not an architectural one.
+[Why](Architect_Question_25_Scenario_Authoring_Golden_Path.md#f-prime-measured) · [UXD-08](UX_Design.md#uxd-08)
+remains `RULED` as a direction.*
 
 | ☐ | ID | Task | Cmplx | Req | Design |
 |:-:|---|---|:--:|---|---|
-| 🔒 | | *blocked on [Q25-F](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-f--a-dedicated-editor-application-with-a-purpose-built-shell) — the shared-init / new-shell seam ([UXD-08](UX_Design.md#uxd-08) `RULED`, shape pending)* | `RW-M` | | |
+| ⏸ | | *deferred behind Milestone S; also still gated on [Q25-F](Architect_Question_25_Scenario_Authoring_Golden_Path.md#q25-f--a-dedicated-editor-application-with-a-purpose-built-shell), which must not be relayed until F′ and D absorb the seam findings* | `RW-M` | | |
 
 ## Milestone 1 — Make the editor honest
 
