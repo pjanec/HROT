@@ -33,7 +33,7 @@
 | | <a id="uxi-24"></a>**UXI-24** 🔴 | **Multi-select is not supported anywhere.** The multi-entity handler overload is a default no-op no host overrides; items act on the clicked entity only. Needs AND-over-selection visibility and fan-out execution. 🔴 **Prerequisite found: no ctrl/shift additive click-select exists anywhere** — rubber-band is the only route to a multi-selection | `RW-M` | [UXR-91](UX_Requirements.md#uxr-91) | [UX_Map_Parity_Baseline.md](UX_Map_Parity_Baseline.md) | ☐ |
 | **B** | | **Entity actions** | | | | |
 | | <a id="uxi-03"></a>**UXI-03** | **No shared action vocabulary.** Identity, label and ordering are re-declared per host — **`Center` 9×, `Delete` 10×** (one cased `"DELETE"`). ⭐ **Re-scoped 2026-08-10: the mechanism already exists** (`SharedContextMenuPopulator` + `IEntityActionController`, unit-tested) and **one** subsystem uses it — the mapless one. Four measured blockers stop the rest; all four are what Q26-B's per-item registration removes | `RW-M` | [UXR-89](UX_Requirements.md#uxr-89) | [UX_Feature_Entity_Action_Vocabulary.md](UX_Feature_Entity_Action_Vocabulary.md) | ✅ |
-| | <a id="uxi-04"></a>**UXI-04** | **The same entity offers different actions per surface** — inspector lambdas vs map JSON vs hardcoded ORBAT rows. Includes the ORBAT item seam, which lets ExCon's 434-line fork collapse | `RW-M` | [UXR-85](UX_Requirements.md#uxr-85) | — | ☐ |
+| | <a id="uxi-04"></a>**UXI-04** | **The same entity offers different actions per surface** — inspector lambdas vs map JSON vs hardcoded ORBAT rows. Includes the ORBAT item seam, which lets ExCon's 434-line fork collapse. ⭐ **Prior art found 2026-08-10 before designing:** `MapContextActionController` (*"minimal `IEntityActionController` for inline map context menus"*) and `IHierarchyAdapter` (*"generic hierarchy rendering"*) — **both halves already written, both at 0 consumers** | `RW-M` | [UXR-85](UX_Requirements.md#uxr-85) | — · prior art: [Seam Inventory](UX_Seam_Inventory.md#-verified--read-and-confirmed) | ☐ |
 | | <a id="uxi-05"></a>**UXI-05** | **The main menu is the only surface that does not follow focus.** Windows filter by `WindowScope.{Global,PerspectiveBound}` and the map follows `SwitchMapOwner` — the menu is a flat union. ⭐ **Not "invent a filter": apply the `WindowScope` model to menu items**, keyed on perspective | `RW-L` | [UXR-86](UX_Requirements.md#uxr-86) | [Glossary](UX_Glossary_Host_Mode_Subsystem.md#-co-running-subsystems-independent-and-focus-follows-perspective) | ☐ |
 | | <a id="uxi-06"></a>**UXI-06** | **Perspective restore speaks the wrong vocabulary** — validated against subsystem names, so a saved `BTree`/`HSM`/`Blueprint` is dropped. ⚠ minor: you lose your place only | `RW-L` | — | — | ☐ |
 | **C** | | **Tools** | | | | |
@@ -81,3 +81,8 @@ UXI-12..15 ───────────────────────
    from reading `"populated in PACK2-E002"` as a live plan when that migration had already completed in
    a different shape. Check whether the work landed before planning around the comment.
 5. **One design per session prompt**, summarised before moving on (user, 2026-08-10).
+6. ⭐ **Every design opens with a "Prior art" section** citing a row of the
+   [Seam Inventory](UX_Seam_Inventory.md) — **including when the answer is "nothing exists"**. The prior
+   is that the seam *already exists and is under-adopted*: eight instances this session, no
+   counter-example. ⚠ A call-site scan cannot find an unadopted seam — that is what the inventory is for.
+   Check the wrapper (`LambdaFoo`/`DefaultFoo`) before calling an `IFoo` unadopted.
