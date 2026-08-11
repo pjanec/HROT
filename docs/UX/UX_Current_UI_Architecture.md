@@ -195,16 +195,131 @@ break the restore check, the default-perspective pick, and the `isScenarioContex
 also the [Q25-F-ii](Architect_Question_25_Scenario_Authoring_Golden_Path.md#f-ii-perspective-restore) `G2`
 argument: a shell that owns an explicit perspective set can validate against *that set*.
 
-## 6. Selection is fragmented three ways
+## 6. Selection — one shared mechanism, two hosts outside it
 
-| Representation | Used by | Kind |
+> ⚠ **CORRECTED 2026-08-10.** An earlier revision of this section said selection was *"fragmented three
+> ways"* and put SimHost outside the shared mechanism. **That overstated it** — SimHost runs the same
+> `SelectionInteractionSystem` as the Editor and IG. Logged as [Corrections row 8](UX_Tasks_Detail.md#corrections).
+
+| Host | Mechanism | Verdict |
 |---|---|---|
-| ECS `SelectionState` component + `SelectionInteractionSystem` | Editor **and** IG | genuinely shared state |
-| `ISelectionState` instance | CGF, SimHost, Editor — **one object each** | same interface, separate objects |
-| entity-id list over the wire | ExCon | not ECS at all; its ORBAT menu captures the clicked row directly |
+| Editor · SimHost · IG | **One shared class** — `SelectionInteractionSystem` mutating the ECS `SelectionState` component (`EditorSubsystem.cs:1287`, `SimHostVisualization.cs:250`, `IgApplication.cs:767`) | ✅ genuinely shared, hit-testing included |
+| CGF | **None** — no `SelectionInteractionSystem`; selection is a manual *"Select entity"* context-menu item (`CgfSubsystem.cs:593-597`) | ❌ outside the mechanism |
+| ExCon | entity-id list over the wire; its ORBAT menu captures the clicked row directly | ❌ no ECS at all (and no map) |
 
-⇒ **A shared panel cannot act on a consistent "what is selected" across modes today.** Any target
-architecture that shares panels must fix this first — it is the precondition, not a nicety.
+**The per-host mirrors are not competing mechanisms.** `DefaultSelectionState` (Editor) and
+`SimHostSelectionManager` (a `HashSet<Entity>` synced from `_selectionSystem.OnSelectionChanged`,
+`SimHostVisualization.cs:253-260`) are read-side caches for local UI panels, layered *on top of* the
+shared ECS selection.
+
+⭐ **And the seam is already there:** `SelectionInteractionSystem`'s optional `RubberBandState` ctor
+parameter. The Editor passes one and gets a visible rubber-band rectangle; SimHost and IG use the 2-arg
+overload, so box-select logic runs identically with no visual. **That is exactly the shape UXR-80 asks
+for** — one implementation, an opt-in difference — and it already works.
+
+⇒ The remaining gap is narrower than previously stated: **CGF and ExCon sit outside**, not "three
+competing models".
+
+## 6b. Map tools and the Editor ↔ SimHost relationship
+
+*Added 2026-08-10, answering: how do Editor and SimHost share map tooling, and how customizable is it?*
+
+### The relationship, corrected
+
+**Editor ≈ SimHost ∪ IG, plus authoring extras.** It is not "the Editor's real sibling is IG" — an
+earlier framing of mine that was **directionally right but overstated** (logged as
+[Corrections row 9](UX_Tasks_Detail.md#corrections)). The truth splits by layer:
+
+| Layer | Editor | SimHost | IG |
+|---|:--:|:--:|:--:|
+| **Interaction core** — `SelectionInteractionSystem`, `EntityDragGizmoDefinition`, `DataDrivenGizmoSystem`, `GlobalGizmoManager`, `StatelessGizmoSystem`, `DebugGizmoLayer` | ✅ | ✅ | ✅ |
+| **Authoring gizmos** — Mission / Route / Vertex / Waypoint / Placement / Label | ✅ | ❌ | ✅ |
+| **Domain layers** | grid | road + trajectory | — |
+
+The Editor explicitly imports **SimHost's whole gizmo registrar** (`EditorSubsystem.cs:1097-1098`)
+alongside IG's, so it composes both worlds. The **interaction core is shared three ways**; only the
+*authoring* slice is Editor+IG, which is correct — SimHost runs an exercise and has no authoring
+operator UI.
+
+⇒ **Your premise holds for the core and correctly fails for the tools.** Grid vs road/trajectory layers
+are a *legitimate* difference: prep-time aid vs live physics.
+
+### 🔴 …but there is no tool abstraction at all
+
+**No `ITool` / `IMapTool` interface, no tool registry, no "current tool" state.** "Which tool is active"
+is inferred from *whichever gizmo instance happens to be registered* in `GlobalGizmoManager` /
+`DataDrivenGizmoSystem`. Four uncoordinated activation idioms coexist:
+
+| # | Idiom | Where |
+|--:|---|---|
+| 1 | **enum + switch** — `EditorTool` → `ActivateEditorToolEvent` → `DrainToolActivationEvents` switch → `new SomeGizmo(...)` | Editor toolbar |
+| 2 | **int action-id dictionary** — `GlobalActionRegistry.Register(id, handler)` | all hosts — ⭐ **the one real seam** |
+| 3 | **polled boolean setting** | IG's Measure (`MeasureToolGizmoAdapter.Update`) |
+| 4 | **direct network-command dispatch** | IG placement (`MapCommandController`) |
+
+⚠ **The Editor implements idioms 1 and 2 for the same tools, in the same class** — the
+`DrainToolActivationEvents` switch *and* `actionRegistry.Register(...)` handlers at
+`EditorSubsystem.cs:1152-1197` both activate Measure / PlaceEntity / EditOverlay / EditRoute.
+
+**Per-host tool sets** — the answer to *"can each mode have its own tools?"* is *yes, but only by not
+writing the wiring*:
+
+| Tool | Editor | SimHost | IG | CGF |
+|---|:--:|:--:|:--:|:--:|
+| Select · Drag · Pan/zoom | ✅ | ✅ | ✅ | drag ❌, select via menu |
+| Rotate | ✅ | ✅ | via DDS → SimHost | ✅ |
+| Spawn · Area/Route authoring · Vertex edit · Waypoint edit · Measure | ✅ | ❌ | ✅ | ❌ |
+| Rubber-band **visual** | ✅ | ❌ | ❌ | ❌ |
+
+⇒ **SimHost has three tools: Select, Drag, Rotate.** Every other tool is absent because nobody wrote its
+activation code — not because a seam let it opt out.
+
+### What is and is not customizable today
+
+| Concern | State |
+|---|---|
+| `GlobalActionRegistry` — per-host `Register(id, handler)`, unregistered ids silently unsupported | ✅ **a real seam**, but only for *discrete menu-triggered actions*; the handler still `new`s a gizmo by hand |
+| Rendering-only gizmos — `[GizmoProjector]` + a Roslyn source generator auto-discovers them into per-namespace registrars | ✅ **declarative**, and the best mechanism in the area — **but not used for interactive tools** |
+| Layer ordering — a host adding an `IMapLayer` above `DebugGizmoLayer` consumes clicks first | ✅ real |
+| **Defining a new continuous-interaction tool** | ❌ hardcoded in each host's composition root |
+| **A toolbar that shows which tool is active** | ❌ **not implementable today** — `EditorToolbarPanel` is stateless `ImGui.Button` calls and `IEditorLogic` exposes no current-tool property |
+
+🔴 **`EditorTool.Select` is a no-op** — `case EditorTool.Select: break;` (`EditorSubsystem.cs:3814-3816`).
+The toolbar's "Select" button therefore does nothing; selection works because the ECS gizmo path is
+always on. **A dead control in the literal sense** ([UXR-X1](UX_Requirements.md#uxr-x1)).
+
+### Context menus: the seam is used, the content is not shared
+
+Editor registers **4** `IEntityContextMenuHandler`s, SimHost **1**, IG **1** — each a hand-written
+lambda. *"Center on entity"* and *"Delete"* exist in all three and are **reimplemented three times with
+different behaviour**: the Editor publishes `DestroyEntityCommand`; SimHost branches on `NetworkIdentity`,
+falls back to `_repo.DestroyEntity`, and clears its selection and inspector state.
+
+⇒ **Exactly [UXR-82](UX_Requirements.md#uxr-82).** The mechanism is shared; the *common items* are not.
+Having a seam is not the same as using it well — and three copies of "Delete" is where behaviour drifts.
+
+### Two more findings
+
+- ⚠ **Two presentation gizmos may both match one entity.** `IgEntityPresentationGizmo` is keyed
+  `[GizmoProjector(SimTransform, NetworkIdentity, CullingState)]`; `SimHostEntityPresentationGizmo` is
+  keyed `[GizmoProjector(SimTransform, NetworkIdentity)]` — and **the Editor registers both**. An Editor
+  entity carrying `CullingState` satisfies both projectors. *Whether the dispatcher then draws it twice
+  is unverified* — confirm before treating it as a defect.
+- `SelectionRenderSystem` + `SelectionRenderConstants` sit in the shared `ScenarioEditor/Rendering/`
+  subtree and are **instantiated by no host** — only by a test. More dead weight in a "shared" home.
+  `ScenarioEditorModule` is likewise a stub with empty `RegisterSystems`/`Tick`.
+
+### ⇒ What UXR-81 actually costs
+
+The map is **not** the ORBAT situation. The interaction core is genuinely shared three ways and the
+domain differences are legitimate. What is missing is one level up: **a tool is not a thing in this
+codebase**, so "the Editor's preparation tools and SimHost's exercise tools drawn from one pool" has no
+pool to draw from.
+
+**The Tier-1 shape:** introduce a tool descriptor (id, label, icon, activation, the gizmo it installs)
+plus a per-host tool set, and route all four idioms through it. `GlobalActionRegistry` is the closest
+existing pattern and `[GizmoProjector]` proves declarative registration already works here. That also
+delivers the active-tool state the toolbar needs, and kills the duplicated activation paths.
 
 ## 7. What an ideal looks like — for the stated requirement
 
