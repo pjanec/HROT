@@ -1,8 +1,9 @@
 # ⭐ START HERE — coordinator session, blueprint gaps & QoL programme
 
-> **Point a fresh session at this file. It is self-contained.** Last updated **2026-08-11** at
-> coordinator head **`f136b911`**. Batches 29 and 30 are **merged**; **Batch 31 is dispatched** (§4).
-> ⭐ **Macros work end to end** — authoring surface, expansion pass and all four rails have landed.
+> **Point a fresh session at this file. It is self-contained.** Last updated **2026-08-11**.
+> Batches 29-31 are **merged**; **no batch is in flight** — pick the next one (§4).
+> ⭐ **Macros are DONE end to end and proven by execution** — authored, called, expanded, compiled
+> through real Roslyn, **ticked across frames**, and debuggable. Only the two visual gestures remain.
 >
 > 📌 Supersedes [RESUME_Coordinator.md](RESUME_Coordinator.md), which is now the **historical log**
 > (Batches 22-28, plus the §0z process root-cause). Read it only for backstory.
@@ -48,9 +49,9 @@ for b in $(git ls-remote --heads origin | awk '{print $2}' | sed 's|refs/heads/|
 
 | Situation | Do |
 |---|---|
-| **No batch in flight** | pick the next batch — see §4 |
+| **No batch in flight** (**today's state**) | pick the next batch — see §4 |
 | **Implementation reported done** | run **all eight gates** (§3), review the diff, reconcile the tracker three ways, **then** merge `--ff-only` and record it |
-| A batch **is** in flight (**today's state — Batch 31**) | ⛔ **rule 6: the tracker and detail docs are theirs.** Put findings in the *next* handoff, never in a live one |
+| A batch **is** in flight | ⛔ **rule 6: the tracker and detail docs are theirs.** Put findings in the *next* handoff, never in a live one |
 
 ⭐ **Never say "they never saw X."** It is a property of one commit, not the session. Test against what
 they *branched from*:
@@ -85,13 +86,13 @@ so the solution build never produces their assemblies and the runner exits with 
 …`NodeEditor.Core.Tests.dll` is invalid"* — ⭐ **no test output at all**, which reads as *"nothing to
 report"* rather than *"the gate did not run."* Trap #5, in the gate script itself.
 
-**Baseline at `f136b911` — ⭐ all eight gates coordinator-RUN 2026-08-11, post-Batch-30:**
+**Baseline at `119305e7` — ⭐ all eight gates coordinator-RUN 2026-08-11, post-Batch-31:**
 
 | | |
 |---|---|
 | Solution build | **0 errors**, 69 warnings |
 | BP diagnostics | **10 distinct** — all `BP3010`, all **authored** orphans in 2 assets |
-| Blueprints | **3145** / 0 failed / 10 skipped |
+| Blueprints | **3145** / 0 failed / 10 skipped ⚠ *(total 3155; BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
 | AiShared **1213** · BTree **612** · Breakpoints **130** | 0 failed |
 | NodeEdit Core **208** · UI **131** · Generators **193** | 0 failed |
 
@@ -113,12 +114,22 @@ retired `BP3011`; the 10 that remain are authored and deliberate.)
 
 ## 4 · Where the programme stands
 
-**Tracker: open 64 · done 91** ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
+**Tracker: open 61 · done 94** ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
 three ways — checkbox tally, per-complexity columns (⚠ take the **first** tag on a row), and the total
 row. ⚠⚠ **Reconcile all three EVERY time.** The columns can agree with the Total and both still be
 wrong: a missed tick is invisible to arithmetic and only shows against the checkbox tally.
-⭐ **It has caught a real error in each of the last three batches** — inherited drift in 29, a missed
-`BP-219` tick in 30. ⚠ The *refuted* row sits **outside** the Total, so the tally is one higher.
+⭐⭐ **STOP HAND-MAINTAINING THIS TABLE — derive it:**
+
+```bash
+python3 scripts/tracker-counts.py            # print the correct table
+python3 scripts/tracker-counts.py --check    # exit 1 if the file disagrees with its rows
+```
+
+**The done column has been wrong in three consecutive batches, by a different mechanism each time,
+and the open column was right every time** — 29 inherited drift · 30 a tick never added to its column ·
+31 open decremented by 2 while done rose by 1. ⇒ **the error is hand-maintaining two representations of
+one fact**, so the script exists. Run `--check` as part of verifying any returned batch.
+⚠ The *refuted* row sits **outside** the Total, so the done tally is one higher. The script knows.
 
 | Batch | State |
 |---|---|
@@ -126,7 +137,8 @@ wrong: a missed tick is invisible to arithmetic and only shows against the check
 | **28** | ✅ verified — the silent `default:` arm family + `GraphKind.Macro` and both fail-loud nets |
 | **29** | ✅ **verified and merged** (`da13a6a`, ff-only) — **BP-80** macro surface · the **warning triage** (`BP-217`/`BP-218`, `BP-219` open) · **BP-131** `Return.Success`. See §7 |
 | **30** | ✅ **verified and merged** (`4fe3538a`, ff-only) — ⭐ **macros work end to end.** `Stage2_5_ExpandMacros` + **all four** Stage 2 rails + `BP-219`; `BP-220` opened. See §7b |
-| **31** | 📤 **written and dispatched** — [HANDOFF_Batch31_Macro_Debug_And_Closeout.md](HANDOFF_Batch31_Macro_Debug_And_Closeout.md). Prove the macro payoff (run it across frames) · **BP-83** debug provenance · **BP-220** · **BP-111**. ⛔ Frozen (rule 1) |
+| **31** | ✅ **verified and merged** (`119305e7`, ff-only) — ⭐ **the macro payoff is executed, and building it exposed a real defect in Batch 30's `BP1661`.** Plus **BP-83** · **BP-220** · **BP-111**. See §7c |
+| **32** | ⛔ **not written yet.** Remaining: **BP-80's visual half** (`BP-77`) · BP-82's two library rails · `BP1664` only after **BP-57** |
 
 ### The macro capability
 
@@ -233,6 +245,62 @@ The tracker's **`RW-L` done column was 43 and the Total 88; both were one short*
 **predates Batch 29** (present at `1af9bea`, and back at the 41/85 figures). Batch 29's own delta was
 exactly right. Corrected to **44 / 89** after merge. It reconciles three ways now; the note in the
 tracker records the method, including that the *refuted* row sits **outside** the Total.
+
+---
+
+## 7c · Batch 31 — ✅ VERIFIED AND MERGED at `119305e7`
+
+⭐⭐ **The headline is not what was built — it is what building it found.**
+
+### 🔴 `BP1661` was gated on the wrong thing, and it forbade the macro payoff
+
+Batch 30 shipped `BP1661` as *"caller `Kind != GraphKind.Function` ⇒ skip"*. ⚠ **A tick graph is also
+`GraphKind.Function`** — `InstanceEmitter:81-82` picks the tick graph from among the Function graphs
+(coordinator-verified). ⇒ **the rail rejected a latent macro called from a tick graph: exactly where
+latent macros are legal, and per BP-78 the single capability macros exist to provide.**
+
+⭐ **It passed Batch 30's entire suite**, because every negative fixture built a Function caller that was
+never a call target — so *"Function graph"* and *"synchronous method"* were indistinguishable in the
+tests. **Only executing the payoff separated them.** The gate now mirrors how `BP1650` words its own
+rule: membership in the set of `FunctionCall` targets, not graph kind.
+
+⚠ **And the coordinator reviewed that rail in Batch 30 and called it good.** What was checked was that
+the diagnostic *blamed the right node*; what was not checked was whether it *fired on the right
+condition*. ⇒ **Diff review cannot see this class of defect. Running the feature can.** That is the
+argument for item 1.2 in general, not just here.
+
+### The payoff, executed
+
+Coordinator-run explicitly — all five pass:
+
+| Test | Proves |
+|---|---|
+| `LatentMacro_SuspendsAndResumesAcrossFrames_AndFiresOnlyAfterTheDelay` | aim → `Delay(0.4)` → fire, spliced into a tick graph, through **real Roslyn**, loaded and **ticked**: Running/0 → Running/0 → Success/**42**. ⭐ the *value* is the point — a splice that dropped the post-delay half would still read Running→Success |
+| `TwoLatentCallSites_EachSuspendIndependently_AndBothBodiesRun` | 0 → 7 → 99. Batch 30 proved two *clones* exist; this proves two *suspensions* coexist |
+| `..._CompilesThroughTheRealGenerator` | ⭐ **body fixed, name kept** — now actually invokes the generator and Roslyn |
+| `OneAuthoredMacroNode_MapsToAnEntryPerExpansionSite` · `DebugMap_RoundTripsProvenance_AndStillReadsA10Map` | BP-83 |
+
+### Gates
+
+Build **0 errors / 69 warnings** · BP diagnostics **10**, unchanged · Blueprints **3145** · AiShared 1213 ·
+BTree 612 · Breakpoints 130 · Generators 193 · NodeEdit Core 208 · UI 131. **Zero failures.**
+
+⚠ **The suite total is unchanged at 3155 and that is correct, not suspicious**: BP-111 filtered **7**
+host-timing tests out of the default run and the batch added **7**. They documented the drop.
+📌 **`Category=HostTimingSensitive`** runs the perf family explicitly; the assertions were filtered, not
+deleted.
+
+⚠ **The ungated consumer** (`Hrot.ClusterRunner.Integration.Tests`) — they baselined it **before**
+changing anything at 4 failed / 1 passed for `BlueprintObserveTests`, and identical after. The suite as
+a whole is heavily red in this container with *"Failed to create RW mapping for RX memory"* (a JIT/W^X
+sandbox limit). ⚠ Coordinator measured **45 failed / 135 total** against their **46 / 150** — run-to-run
+variance from a fatal error killing test hosts non-deterministically. **Environmental, not the change.**
+
+### `BP-220` — fixed as a shape, not a field
+
+`Graph.WithNodesAndLinks` replaces both hand-rolled copies, **and a reflection test enumerates `Graph`'s
+properties and fails when any member is not carried across.** ⇒ the next `Graph` member cannot be
+silently dropped. That is the right reading of *"fix the shape, not the field."*
 
 ---
 
