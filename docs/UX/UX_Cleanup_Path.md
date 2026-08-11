@@ -86,18 +86,36 @@ Each stage stands alone and is separately shippable. **No stage leaves `ClusterR
 
 ### Stage 0 — Remove the traps ⭐ *no design risk, do first*
 
-| Item | Size |
-|---|--:|
-| Delete `Hrot.UI.Common` — builds nowhere, and its **namespace lies** | 1,171 L |
-| Delete ExCon's `[Obsolete]` `InspectorPanel` + `DataMonitorPanel` | 435 L |
-| Delete `EditorOrbatPanel` + `EditorOrbatWindow` + `EntityPropertyInspector` | ~90 L |
-| Delete orphaned `SelectionRenderSystem` + `SelectionRenderConstants`, stub `ScenarioEditorModule` | — |
-| Resolve `WorkspaceMenuBuilder` — wire it or delete it | 126 L |
-| Resolve `EditorTool.Select` — a button that runs `case Select: break;` | — |
+> ⚠ **Corrected 2026-08-10.** An earlier version of this list lumped **superseded** code together with
+> **half-built** code. They are not the same thing and must not share a batch: one is safe to delete, the
+> other encodes a decision somebody already made.
 
-**Why first:** every later stage edits these files or their live twins. Doing it first means no work is
-done twice, or done in the copy that never compiles.
+#### A — Superseded. Safe to delete (~1,700 L)
+
+| Item | Size | Character |
+|---|--:|---|
+| `Hrot.UI.Common` | 1,171 L | **An abandoned extraction.** Someone began moving shared UI into a neutral project and renamed the namespace on the *originals* to match the planned destination — then stopped. The live twin in `Hrot.Presentation` is the **newer** side (it carries an extra `vehicleId` local and reworded docs). What is left behind is the stale copy |
+| ExCon `InspectorPanel` + `DataMonitorPanel` | 435 L | **Explicitly `[Obsolete]`**, doc says *"retained only for reference"*. Superseded by `DerEntityInspectorPanel`, which ExCon actually uses |
+| `EditorOrbatPanel` + `EditorOrbatWindow` | ~40 L | Superseded by `EditorSharedOrbatWindow` / `SharedOrbatPanel`. Constructed at `EditorSubsystem.cs:1559`, **never registered** |
+| `EntityPropertyInspector` | 48 L | Superseded by the FDP inspector. Never instantiated |
+
+⚠ **Deleting `Hrot.UI.Common` is not a verdict on the idea it encodes.** A neutral shared-UI project may
+well be the right destination — see [§1's layering rule](#1-the-one-idea). We are deleting a **stale
+copy**, not rejecting the intent.
+
+#### B — Half-built, mid-migration. 🔒 **Do NOT delete — each needs a decision**
+
+| Item | Why it is not dead |
+|---|---|
+| `ScenarioEditorModule` | An explicit stub: *"populated in **PACK2-E002** (tool migration) and **PACK2-E003** (render layer migration)"*. ⚠ **PACK2-E002 is tool migration — which is exactly [Stage 4](#stage-4--tools-become-first-class).** Somebody already decided where that work should live; deleting the stub discards the decision |
+| `SelectionRenderSystem` + `SelectionRenderConstants` | **Fully implemented** `IMapLayer` drawing selection rings, deliberately **moved** into `Hrot.ScenarioEditor` by the *"GZ059 legacy-layer cleanup"* — with `RenderLayerPresenceTests` asserting it stayed. No host wires it. ⚠ **Ambiguous:** either the migration's last step was never taken, or a gizmo-based highlight superseded it and the test is now stale. **Establish which before touching it** |
+| `WorkspaceMenuBuilder` | A complete, documented model with **no renderer**. The repo's own report says *"Workspace submenu has no ImGui rendering yet."* A pending feature, not dead code |
+| `EditorTool.Select` | `case Select: break;` — but selection genuinely works via the always-on ECS gizmo path. So the **button** is dead, the **capability** is not. Remove the button, or give it real state in [Stage 4](#stage-4--tools-become-first-class) |
+
+**Why A goes first:** every later stage edits these files or their live twins. Doing it first means no
+work is done twice, or done in the copy that never compiles.
 **Gate:** build + all suites green, **zero** behaviour change.
+⚠ Note `RenderLayerPresenceTests` will constrain any move of the B-list items.
 
 ### Stage 1 — Name the vocabulary *(no surface changes yet)*
 

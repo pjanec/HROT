@@ -47,7 +47,7 @@ that sank the exe plan.
 
 | Stage | What | Gated on |
 |---|---|---|
-| **0** | Delete ~1,800 L of dead UI incl. the `Hrot.UI.Common` namespace trap | nothing — [Q26-E](Architect_Question_26_Entity_Action_Model.md) lean is *ship it alone* |
+| **0** | Delete ~1,700 L of **superseded** UI incl. the `Hrot.UI.Common` namespace trap. ⚠ **Half-built code is a separate B-list that must NOT be deleted** — `ScenarioEditorModule` (stub for PACK2-E002 *tool migration* = stage 4), `SelectionRenderSystem` (migrated, unwired, test-locked), `WorkspaceMenuBuilder` (model, no renderer) | nothing — [Q26-E](Architect_Question_26_Entity_Action_Model.md) lean is *ship it alone* |
 | **1** | Name the vocabulary — `IEntityAction` / provider / context; one core provider replaces the 3 copies of `Delete` | [Q26-A](Architect_Question_26_Entity_Action_Model.md), [Q26-C](Architect_Question_26_Entity_Action_Model.md) |
 | **2** | One menu on every surface — map, inspector, ORBAT ([UXR-85](UX_Requirements.md#uxr-85)) | Q26-A, Q26-A′ |
 | **3** | Perspective enters the context ([UXR-86](UX_Requirements.md#uxr-86)); menu perspective filter; fix the restore bug | [Q26-B](Architect_Question_26_Entity_Action_Model.md), [Q26-D](Architect_Question_26_Entity_Action_Model.md) |
