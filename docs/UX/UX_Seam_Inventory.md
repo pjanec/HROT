@@ -79,6 +79,21 @@ Cited only after reading. Grouped by the issue they would touch.
 | **Other** | `SimulationViewAdapter` (0/0/0) · `IResourceProvider` (2/0/0) · `IRouteWaypointEditorState` (2/1/1) · `BehaviorUiRegistry` (4/1/3) · `EditorFontRegistry` (2/1/1) |
 | ⚠ **Odd — declared `class` with an `I` prefix** | `INetworkTopologyRenderer`, `ISerializationRegistryRenderer`, `ITkbDatabaseRenderer` — all in `SingletonRenderers.cs`, all 0/0/0. Naming defect or parse artefact; check before citing |
 
+## ✅ Back-check — the three finished designs, run through this table
+
+User, 2026-08-10: *"please run the previous designs through this. Let's be sure."* Done with
+`scripts/type_index.py` (3,804 public types, repo-wide, **including** `Hrot.UI.Common`).
+
+| Design | Result |
+|---|---|
+| **[UXI-01](UX_Feature_DeadUI_Removal.md)** delete dead UI | ✅ **clears.** All **20** public types in `Hrot.UI.Common` have a twin — 19 in `Hrot.Presentation`, `MissionCommitResult` in **`Hrot.Core`**. **0 would break on delete** |
+| **[UXI-02](UX_Feature_HalfBuilt_Decisions.md)** four half-built items | ✅ **all four hold**, ⚠ **plus one new task.** `SelectionRenderSystem` read as 2 consumers vs the design's *"nothing instantiates it"* — verified as three `<see cref>` doc links in `Hrot.Core/…/SelectionState.cs:11,27,48`, which name a namespace the type **already left**. Dangling today; the delete must fix them |
+| **[UXI-03](UX_Feature_Entity_Action_Vocabulary.md)** action vocabulary | ✅ **stands.** No `EntityActionDescriptor`/`Registry`/`Context` exists. ⚠ One refinement: the map already has a **shared rendering path** (`ContextMenuAdapter` 9p across CGF/IG/SimHost), so UXI-04's map half is *emit into the existing binding*, not *build a path* |
+| **[UXI-07](UX_Issues.md#uxi-07)** tools *(not yet designed)* | ⭐ **prior art genuinely empty** — zero `ITool` / `ToolDescriptor` / `ToolRegistry` / `ToolState` / `ActiveTool` types repo-wide. Confirms *"a tool is not a thing in this codebase"*. **An empty result is a valid, recordable answer** |
+
+⇒ **One correction and one new task across three designs** — the check pays for itself without
+invalidating anything already agreed.
+
 ## What this does not fix
 
 Only **one** of the recent misses was this failure mode. Logging them apart, so the checklist stays

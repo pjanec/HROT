@@ -7,6 +7,31 @@
 > [Q26](Architect_Question_26_Entity_Action_Model.md) (A2 · B2 · C1 · D). This is
 > [Stage 1](UX_Cleanup_Path.md#stage-1--name-the-vocabulary-no-surface-changes-yet).
 
+## 0. Prior art — ✅ re-verified 2026-08-10 against the [Seam Inventory](UX_Seam_Inventory.md)
+
+| Proposed type | Does it already exist? |
+|---|---|
+| `EntityActionDescriptor` · `EntityActionGroup` · `EntityActionExecution` · `EntityActionRegistry` · `EntityActionContext` | ❌ **nothing.** The only `ActionDescriptor` in the repo is FastBTree's behaviour-tree record (`Fbt.Compiler/BTreeSchema.cs`), unrelated |
+| The declaration + binding split | ✅ **exists** — `SharedContextMenuPopulator` + `IEntityActionController`. This whole design. See below |
+| The **execution** backbone | ✅ **exists** — `GlobalActionRegistry` (4 prod; Editor · SimHost · ReplayBrowser). Built on, per Q26-C1 |
+
+> ### ⚠ Refinement the re-check produced — the map already has a shared *rendering* path
+>
+> This design says no map surface uses `IEntityContextMenuHandler`. **Still true.** But the map is not
+> path-less: menu content is emitted as JSON into a gizmo binding and rendered by a **shared** adapter.
+>
+> | | prod | Adopted by |
+> |---|--:|---|
+> | `ContextMenuAdapter` (GizmoMap) | 9 | CGF · IG · SimHost |
+> | `CanvasContextMenuGizmo` — `[GizmoProjector]`, empty-canvas menu | 6 | CGF · Editor · IG · SimHost |
+>
+> Its own doc comment: *"`DebugGizmoLayer` … resolves the JSON from the intern map and opens the popup via
+> `ContextMenuAdapter` — **identical to how entity menus are resolved**."*
+>
+> ⇒ **No change to this design** — the map stays [UXI-04](UX_Issues.md#uxi-04)'s scope. But UXI-04's map
+> half is now *"emit the registry's items into the existing `ContextMenuBinding`"*, **not** *"build a map
+> menu path"* — which is exactly what the unadopted `MapContextActionController` (0 consumers) was for.
+
 ## ⭐ The finding that rewrites this issue
 
 **The mechanism already exists, was built deliberately, is unit-tested — and exactly one subsystem uses

@@ -4,6 +4,25 @@
 > Evidence: [UX_Current_UI_Architecture.md §5](UX_Current_UI_Architecture.md#5-dead-weight-inflating-the-apparent-shared-surface).
 > **Status: ✅ designed — ready to break into `UXT` tasks.**
 
+## 0. Prior art — ✅ re-verified 2026-08-10 against the [Seam Inventory](UX_Seam_Inventory.md)
+
+**This design deletes, so the prior-art question runs backwards: is anything being deleted load-bearing?**
+
+> ### ✅ **All 20 public types declared in `Hrot.UI.Common` have a twin. Zero would break on delete.**
+>
+> | | |
+> |---|--:|
+> | Twin in `Hrot.Presentation` | **19** |
+> | Twin in **`Hrot.Core`** — ⚠ `MissionCommitResult`, *not* where the rest live | **1** |
+> | **No twin, and has production consumers** | **0** |
+
+⚠ **Scope of the check:** `public` types only. Non-public types, partial-class members and non-code
+assets are not covered — confirm the build after the delete, as the design already requires.
+
+⚠ **Two twins are now load-bearing for [UXI-03](UX_Feature_Entity_Action_Vocabulary.md)** —
+`Menus/SharedContextMenuPopulator.cs` and `Facades/IEntityActionController.cs`. In both pairs the
+`Hrot.Presentation` file is the live one. See the trap below.
+
 ## 1. What we are changing, and why
 
 **Not "tidying up".** One specific hazard: a developer told to *"fix the shared ORBAT panel"* has even

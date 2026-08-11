@@ -6,6 +6,29 @@
 > These four were deliberately held out of [UXI-01](UX_Feature_DeadUI_Removal.md) because they are
 > **half-built, not superseded** — each encodes an intent. This design decides each one.
 
+## 0. Prior art — ✅ re-verified 2026-08-10 against the [Seam Inventory](UX_Seam_Inventory.md)
+
+**All four decisions hold.** One addition to the work list:
+
+| Item | Index says | Verdict |
+|---|---|---|
+| `ScenarioEditorModule` | 2 prod consumers, 5 tests, adopter `Hrot.Editor` | ✅ **KEEP** confirmed — a live, registered module |
+| `SelectionHighlightGizmo` | 1 prod consumer (`Hrot.Editor`) | ✅ the surviving implementation, as designed |
+| `WorkspaceMenuBuilder` + `WorkspaceMenuEntry` | **0 prod consumers**, 1 test | ✅ model-and-tests-without-a-renderer confirmed ([UXI-21](UX_Issues.md#uxi-21)) |
+| `SelectionInteractionSystem` | 5 prod, adopters **Editor · IG · ReplayBrowser · SimHost** | context: the shared mechanism CGF sits outside ([UXI-11](UX_Issues.md#uxi-11)) |
+
+> ### ⚠ New task — the delete has a loose end nobody listed
+>
+> The index reported `SelectionRenderSystem` and `SelectionRenderConstants` at **2 production consumers**,
+> against this design's *"nothing instantiates it"*. Verified: both are `<see cref>` **doc links** in
+> `Hrot/Engine/Hrot.Core/Components/Map/SelectionState.cs:11,27,48` — **not** instantiations. The claim
+> holds.
+>
+> 🔴 **But those crefs name `Hrot.IG.Systems.SelectionRenderSystem` — a namespace the type already left**
+> (it now lives in `Hrot.ScenarioEditor.Rendering`). They are **dangling today** and deleting the type
+> makes them permanently so. ⇒ **`UXT` task: fix all three `<see cref>` links in `SelectionState.cs`**,
+> pointing them at `SelectionHighlightGizmo`.
+
 ## ⭐ The finding that decides two of the four
 
 Investigating produced a single coherent story that my earlier reading got wrong:
