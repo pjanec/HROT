@@ -186,6 +186,33 @@ Path A uses (see [Who we are building for](#who-we-are-building-for), consequenc
 | <a id="uxr-74"></a>**UXR-74** | **The consequence of a live change is visible** — the SME sees the unit accept the new task, or sees it fail | Retask a unit → observe within seconds that it took effect | Task-state glyphs exist in `MissionPanel` (`GetTaskIcon`); ⚠ end-to-end legibility not traced | P1 |
 | <a id="uxr-75"></a>**UXR-75** | **An SME cannot reach authoring-only or developer surfaces** from the ExCon console | Survey every reachable control in ExCon → none opens a graph canvas, allocator or cluster control | ⚠ not traced | P1 |
 
+## G8 — Shared surfaces, per-mode difference
+
+<a id="g8--shared-surfaces-per-mode-difference"></a>
+
+*User statement, 2026-08-10.* **The same UI surfaces serve several ClusterRunner modes and must stay
+mostly shared while letting each mode differ.** Stated concretely for the pair that matters most:
+
+> *"SimHost and Editor share the map layer and many map tools. They are supposed to be **mostly shared
+> but allowing for differences**. The Editor might need different tooling and a different entity context
+> menu (although mostly shared), as it supports **scenario preparation** while SimHost supports a
+> **running exercise**."*
+
+**Why this is a requirement and not a preference:** the difference is a difference in *task*, not in
+taste. Preparation edits a scenario that is not running; a running exercise cannot be edited the same
+way. A surface that cannot express that difference will be forked — which is exactly what already
+happened to ORBAT. See [the seam law](UX_Current_UI_Architecture.md).
+
+⚠ **The main-menu, map-tool and context-menu surfaces are the ones that most define what a user can do**,
+so they are the ones that most need to differ per mode (user, 2026-08-10).
+
+| ID | Requirement | Acceptance | Now | Pri |
+|---|---|---|---|:--:|
+| <a id="uxr-80"></a>**UXR-80** | **A shared panel exposes a contribution seam.** A host adds, removes or replaces items without editing the panel | Add a mode-specific item to a shared surface with **zero** edits to shared code | Exists for entity context menus, map draw layers, the inspector, time transport; **absent** for the main menu, ORBAT rows, map camera, spawn | P0 |
+| <a id="uxr-81"></a>**UXR-81** | **The map tool set is per mode.** The Editor's preparation tools and SimHost's exercise tools are drawn from one implementation pool, each host choosing its own set | Editor and SimHost show different tool sets over the same map code | ⚠ under investigation 2026-08-10 | P0 |
+| <a id="uxr-82"></a>**UXR-82** | **The entity context menu is mostly shared, partly per mode** — common items declared once, mode-specific items contributed by the host | Compare Editor and SimHost menus: common items come from one place, differences from host registration | ✅ mechanism exists (`IEntityContextMenuHandler`); ⚠ but each host writes its own lambda, so the *common* items are not actually shared | P1 |
+| <a id="uxr-83"></a>**UXR-83** | **Forking a shared panel is a last resort, and visible when it happens.** A mode that cannot express its difference through a seam is a defect in the seam | No shared UI role has two implementations | 🔴 ORBAT has three; spawn UI has four | P1 |
+
 ## Cross-cutting
 
 <a id="cross-cutting"></a>
