@@ -188,6 +188,70 @@ closures into a plugin-id indirection nobody asked for, or drop the runtime-comp
 > them. **Recommend also dropping the word "profile" from the programme's vocabulary** — it named
 > something that turned out to be the composition root.
 
+### ✅ INVESTIGATED 2026-08-10 — what a registration must carry, derived from every real call site
+
+**Surveyed:** ~33 entity-menu items across Editor / SimHost / CGF / IG / ExCon, the graph-canvas
+providers, the JSON DTO path, and all 6 tool activations. *(Verified: `IContextMenuBuilder`'s surface,
+`Priority`'s inertness, and `EditorCommandDescriptor`'s shape were each re-derived by the orchestrating
+session.)*
+
+⭐ **The codebase already contains both a primitive answer and a mature one — converge on the mature one.**
+
+| | Surface |
+|---|---|
+| **Primitive** — `IContextMenuBuilder` (the entity path) | `AddItem(label, callback, enabled)` · `BeginSubmenu` · `EndSubmenu` · `AddSeparator`. **That is all.** Static `bool` for enabled |
+| **Mature** — `EditorCommandDescriptor` (graph canvases) | `Id, DisplayName, Category, Description, IconKey, DefaultKey, Func<bool> IsEnabled, Func<bool>? IsChecked, Func<string>? DynamicDisplayName` |
+
+**The pattern that matters: every mature API in this repo uses `Func<>` predicates, re-evaluated per
+frame — because ImGui is immediate-mode.** `MenuItemNode` does it, `EditorCommandDescriptor` does it.
+A static `bool enabled` cannot express *"greyed out because a Repeater already exists"*.
+
+#### ✅ Carry these — each used by ≥1 real item
+
+| Field | Evidence |
+|---|---|
+| **Id** | maps to the existing `GlobalActionIds`; already the dispatch key |
+| **Label, and it must be dynamic-capable** (`Func<string>`) | `$"Mark Target for {perceiverCount} Units..."` recomputes from live selection. `EditorCommandDescriptor.DynamicDisplayName` already exists for this |
+| **Visibility predicate** (item **hidden**) | ⭐ **the single most load-bearing conditional** — 10+ items: Rename, Edit Shape, Edit Route, Mark Target ×2, Toggle AI Trace ×2, Rotate ×3 hosts, Edit overlay |
+| **Enabled predicate** (`Func<bool>`), **distinct from visibility**, with an optional **reason** | `BTreeNodeContextMenuProvider` `enabled: !hasRepeater`; the DTO path pairs `Enabled=false` with `Tooltip = "Cannot move: Unit is heavily damaged"`. Hiding an item you *could* explain is worse UX |
+| **Group** — a small closed set, **not** a number | see the ordering finding below |
+| **Children** (submenu) | BTree's "Add Decorator →" with 7 children; the JSON `children` field |
+| **Execute**, receiving a context | universal |
+| **The context must carry the selection, not only the clicked entity** | `INodeContextMenuProvider.GetItemsFor(node, **selection**)` takes it natively. The entity path's multi-entity overload is a **default no-op that no host overrides**, so multi-target items fake it by closing over `_selectionState` |
+
+#### ❌ Do NOT carry these — measured as speculative surface
+
+| Field | Why not |
+|---|---|
+| **Icon** | Declared in **three** separate types (`ContextMenuItemDto.Icon`, `MenuItemNode.Icon`, `EditorCommandDescriptor.IconKey`) and set by **zero** real entity- or node-menu call sites. A proven track record of going unused |
+| **Numeric priority / sort order** | The one DTO that has it documents it as *"Ignored for context-menu and submenu entries"* (`ContextMenuItemDto.cs:84-89`). Ordering is call order everywhere else |
+| **Checked state** | Exists in three places, used only for **main-menu window toggles** and the View→minimap toggle. Even the two genuine toggles here — *Toggle AI Trace Buffer/Log* — don't use it. ⇒ belongs on the **main-menu** API, not this one |
+| **Confirm-before-act** | **Zero** real uses. Do not invent it from this evidence |
+| **Style / "destructive"** | Set only in the wire DTO, and the real consumer (`JsonEntityContextMenuHandler`) discards it |
+| **`NetworkId`, TKB type, ECS plumbing** | Appears inline in nearly every handler. It belongs **in the closure**, never in a generic descriptor — [constraint 1](#-constraints-added-by-the-user-2026-08-10--these-bound-every-answer-below) |
+
+#### ⚠ Ordering — Claude's earlier position was wrong, and the evidence corrects it
+
+Claude said *"ordering must be explicit — this is the one thing I'd insist on."* The measurement says
+otherwise: `Priority` is **inert**, and call order works today.
+
+**But** the survey also found the sequence **view → edit → destructive** repeated *identically in all five
+hosts*, with **nothing enforcing it**. It holds today only because each host writes its whole menu inside
+one closure — and it stops holding the moment several providers contribute, since call order then becomes
+*subsystem composition order*.
+
+> ⇒ **Resolution: a small closed `Group` enum (view / edit / destructive), fixed group order, call order
+> within a group.** It encodes the convention that already exists five times over, adds no per-item
+> number (which the evidence shows goes unused), and survives multi-provider composition.
+
+#### Three findings that are not API questions but were measured here
+
+| | |
+|---|---|
+| 🔴 **No `Delete` anywhere confirms** — Editor, SimHost, CGF, IG and ExCon all fire immediately | [UXR-15](UX_Requirements.md#uxr-15), data loss |
+| ⚠ **Two handlers are `async void`** (Mark Target / Mark Area Targets) | unobserved exceptions. If the execute signature is being designed anyway, let it return a `Task` so the host can observe failure |
+| **The graph canvases have a per-item undo hook** (`BTreeNodeContextMenuProvider.Recorder`); **no entity-menu item is undoable** | consistent with [OQ-3](UX_Requirements.md#answered-questions) ruling out general undo — flag, don't build |
+
 ## Q26-C — Replace or wrap the int action ids?
 
 `GlobalActionIds` are `int` and **cross DDS** (ExCon → IG).
@@ -280,7 +344,7 @@ namespace the live panels declare**.
 | **Q26-A** — one vocabulary, how far | ✅ **A2** | **ruled by the user 2026-08-10** — local surfaces unify; IG's network pipeline stays separate |
 | **Q26-A′** — ORBAT in stage 2? | ✅ **yes, stage 2** | **user 2026-08-10** — *"ORBAT can wait to stage 2"*. Collapses a 434-line fork through the same mechanism |
 | **Q26-A″** — is JSON-defined menu content generic? | ✅ **investigated** | **The format is not unified today** (3 look-alike schemas), and the blocker is that items are **closures, not data** — SimHost 4/5, CGF 4/5. ⇒ resolves into the descriptor/binding split; "unify the format" = "share the descriptors" = Stage 1 |
-| **Q26-B** — what a registration carries | — | *lean B2 — handler **plus** declarative conditions. ⚠ the original "where does a profile live" was malformed; see the block* |
+| **Q26-B** — what a registration carries | ✅ **investigated** | **Carry:** id · dynamic-capable label · visibility predicate · enabled predicate + reason · group · children · execute · **selection in the context**. **Omit:** icon, numeric priority, checked, confirm, style, ECS plumbing. Converge on `EditorCommandDescriptor`'s `Func<>`-predicate shape — the repo's mature API |
 | **Q26-C** — replace or wrap int ids | ✅ **C1** | **ruled by the user 2026-08-10** — build **on** `GlobalActionRegistry`; invent nothing parallel |
 | **Q26-D** — perspective or mode as key | ✅ **both, ordered** | **user 2026-08-10:** mode *enables*, perspective *further customizes*. The "is running" alternative is withdrawn — the editor runs too |
 | **Q26-E** — delete-only batch | — | *lean E1* |
