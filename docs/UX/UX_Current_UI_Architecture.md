@@ -190,7 +190,34 @@ subsystem name, **and** the main perspective id (`:172`, `:3446`). The display n
 (`RegisterPerspectiveLabel("Editor", "Scenario")`, `:3449`), but renaming the **id** to `Scenario` would
 break the restore check, the default-perspective pick, and the `isScenarioContext` gate at once.
 
-⇒ **The fix for the seam work is one line of vocabulary**: validate the restored perspective against
+> ### ⚠ Scope corrected 2026-08-10 — the user reports no loss, and both can be true
+>
+> *"In editor mode I did not experience any perspective settings being lost (layout, windows opened); it
+> is remembered and correctly switched on perspective change."*
+>
+> **Each thing in that sentence is restored by a different mechanism, and none of them is this one:**
+>
+> | What is remembered | By what | Affected? |
+> |---|---|:--:|
+> | Docking layout | `%LocalAppData%\HROT\imgui.ini` | ❌ |
+> | Which windows are open / pinned, UI scale | the `Windows` dict of `fdp_windows.json` — applied **regardless** of the perspective check | ❌ |
+> | Runtime perspective switching | mechanism 1, a pure window filter | ❌ |
+> | **Which perspective is active at startup** | `LocalWindowController.cs:83-84` | ✅ **only this** |
+>
+> ⇒ **It shows only if you quit from a graph perspective.** Quitting from Scenario restores Scenario,
+> because `"Editor"` *is* a subsystem name and passes the check — so normal use never reveals it.
+>
+> **Verified there is no second restore path:** `LocalWindowController.cs:84` is the only startup
+> `SwitchPerspective` call in the repo, and nothing reopens documents at launch (`AiDocumentManager`
+> switches perspective on document *activation*, not at startup).
+>
+> ⚠ **Severity downgraded** 🔴 → minor: you lose your *place*, nothing else. The earlier wording
+> *"silently drops your saved perspective"* overstated it.
+>
+> **One-step test:** switch to Blueprint → quit normally → relaunch. Blueprint (claim wrong) or Scenario
+> (claim right)?
+
+⇒ **The fix for the seam work is still one line of vocabulary**: validate the restored perspective against
 `GetPerspectives()` — the registry that already exists — instead of against the subsystem list. That is
 also the [Q25-F-ii](Architect_Question_25_Scenario_Authoring_Golden_Path.md#f-ii-perspective-restore) `G2`
 argument: a shell that owns an explicit perspective set can validate against *that set*.

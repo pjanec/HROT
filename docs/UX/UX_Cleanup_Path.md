@@ -170,6 +170,29 @@ perspective and relaunch → you return to it.
 the perspective narrowing it — and the active tool is visible. ⚠ *Not* a prep-vs-live split: the Editor
 runs too, so "is running" is an applicability condition, not a tool-set axis.
 
+### Stage 4b — The layout default becomes an artifact *(user direction, 2026-08-10)*
+
+**The problem is not where `imgui.ini` lives — it is that there is no shipped default.** The user:
+*"It fails to install a good proven default for a new user. Also the whole project is under development
+so the default is evolving. I would rather have one `imgui.ini` in the source tree, not per-user."*
+
+⚠ **Do not point ImGui directly at a tracked file.** ImGui **writes** the ini on exit and periodically,
+so every run by every developer would dirty a tracked file and produce merge conflicts over window
+coordinates.
+
+**The shape that gives what the user wants without that cost — seed, don't share:**
+
+| # | |
+|--:|---|
+| 1 | Give `SetupImGui()` a **path parameter** — the seam that must exist anyway (`RaylibPresentationShell.cs:128-136` hardcodes it today) |
+| 2 | Ship a curated **`imgui.<preset>.default.ini` in the source tree** — tracked, reviewed, evolving with the project |
+| 3 | On launch, if the user's live ini is **missing**, copy the default into place. New user gets the proven layout |
+| 4 | **Reset Layout** command = delete + re-seed + reload. Also the cheap answer to [UXR-04](UX_Requirements.md#uxr-04), which becomes testable rather than aspirational |
+| 5 | A dev flag (`--layout-file <path>`) to point the live ini **at** the tracked default, so one person can arrange windows and deliberately commit the new default |
+| 6 | Name the file **per preset**, which also ends the editor↔ClusterRunner collision on one machine-wide file |
+
+⇒ The default is a **reviewed artifact**; per-user customisation still works; git stays clean.
+
 ### Stage 5 — Camera and viewport *(independent — can run in parallel)*
 
 One camera-setup path reading the **effective** (unoccluded) viewport. Fixes four stale copies *and* the

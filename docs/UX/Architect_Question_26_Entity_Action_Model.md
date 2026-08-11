@@ -87,8 +87,10 @@ delegate the host owns, so the generic panel carries neither behaviour nor knowl
 > provider in the unified chain — it consumes the JSON payload for the Editor's own surfaces. Only IG's
 > `ContextMenuSystem` (the DDS round-trip) stays out.
 
-> **Sub-question A′:** should **ORBAT rows** be in scope for stage 2, or follow later? Including them
-> collapses ExCon's 434-line fork via the same mechanism; excluding them keeps the stage smaller.
+> ### ✅ A′ ANSWERED by the user, 2026-08-10 — *"ORBAT can wait to stage 2."*
+>
+> ⇒ **ORBAT is in scope for Stage 2**, not earlier and not later. So Stage 2 delivers the cross-surface
+> consistency requirement **and** collapses ExCon's 434-line fork through one mechanism.
 
 ### <a id="a2-json-as-a-generic-mechanism"></a>Sub-question A″ — is JSON-defined menu content a *generic* mechanism? ✅ investigated 2026-08-10
 
@@ -276,7 +278,7 @@ namespace the live panels declare**.
 | Question | Decision | Notes |
 |---|---|---|
 | **Q26-A** — one vocabulary, how far | ✅ **A2** | **ruled by the user 2026-08-10** — local surfaces unify; IG's network pipeline stays separate |
-| **Q26-A′** — ORBAT in stage 2? | — | *including it collapses a 434-line fork* |
+| **Q26-A′** — ORBAT in stage 2? | ✅ **yes, stage 2** | **user 2026-08-10** — *"ORBAT can wait to stage 2"*. Collapses a 434-line fork through the same mechanism |
 | **Q26-A″** — is JSON-defined menu content generic? | ✅ **investigated** | **The format is not unified today** (3 look-alike schemas), and the blocker is that items are **closures, not data** — SimHost 4/5, CGF 4/5. ⇒ resolves into the descriptor/binding split; "unify the format" = "share the descriptors" = Stage 1 |
 | **Q26-B** — what a registration carries | — | *lean B2 — handler **plus** declarative conditions. ⚠ the original "where does a profile live" was malformed; see the block* |
 | **Q26-C** — replace or wrap int ids | ✅ **C1** | **ruled by the user 2026-08-10** — build **on** `GlobalActionRegistry`; invent nothing parallel |
