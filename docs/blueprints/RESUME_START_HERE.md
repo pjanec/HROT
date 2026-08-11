@@ -5,7 +5,8 @@
 > ⭐ **Macros are DONE end to end and proven by execution** — authored, called, expanded, compiled
 > through real Roslyn, **ticked across frames**, and debuggable.
 > ⏭ **Next: [Q26](Architect_Question_26_Collapse_Selection.md) — collapse a selection into a
-> Function/Macro (BP-74).** Awaiting the architect; that gesture is how macros actually get made.
+> Function/Macro (BP-74). ✅ Design settled 2026-08-11; the handoff is the next artifact.**
+> ⛔ **Q26-A supersedes Q25-D3:** a macro now has **N exec-ins**, not one.
 >
 > 📌 Supersedes [RESUME_Coordinator.md](RESUME_Coordinator.md), which is now the **historical log**
 > (Batches 22-28, plus the §0z process root-cause). Read it only for backstory.
@@ -140,7 +141,7 @@ one fact**, so the script exists. Run `--check` as part of verifying any returne
 | **29** | ✅ **verified and merged** (`da13a6a`, ff-only) — **BP-80** macro surface · the **warning triage** (`BP-217`/`BP-218`, `BP-219` open) · **BP-131** `Return.Success`. See §7 |
 | **30** | ✅ **verified and merged** (`4fe3538a`, ff-only) — ⭐ **macros work end to end.** `Stage2_5_ExpandMacros` + **all four** Stage 2 rails + `BP-219`; `BP-220` opened. See §7b |
 | **31** | ✅ **verified and merged** (`119305e7`, ff-only) — ⭐ **the macro payoff is executed, and building it exposed a real defect in Batch 30's `BP1661`.** Plus **BP-83** · **BP-220** · **BP-111**. See §7c |
-| **32** | 📐 **gated on an architect round** — [Architect_Question_26_Collapse_Selection.md](Architect_Question_26_Collapse_Selection.md) (**BP-74**, *collapse a selection into a Function/Macro*), raised by the user 2026-08-11. ⛔ **Do not build before the answers are recorded** |
+| **32** | ✅ **design SETTLED 2026-08-11** — [Q26](Architect_Question_26_Collapse_Selection.md) (**BP-74**, *collapse a selection into a Function/Macro*). **A3** N exec-ins (⛔ supersedes Q25-D3) · **B2** refuse-on-invoke, no greyed items · **D1** analysis in `.Compiler` · **E1** round-trip test-locked · **F** latent selections ALLOWED. ⏭ **ready to write the handoff** |
 
 ### The macro capability
 

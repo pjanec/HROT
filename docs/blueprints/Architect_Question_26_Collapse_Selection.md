@@ -339,18 +339,67 @@ recommendation — we should allow it either way.
 
 ---
 
-## Answers
+## ✅ Answers — **SETTLED 2026-08-11**
 
-> ⏳ **Awaiting the architect.** Record them here, then build.
+⚠ **Provenance, stated precisely:** **A, B and F are user rulings**, given directly in conversation.
+**C and E** are the user accepting Claude's leans. **D** was delegated to Claude to investigate and is
+answered against code below, in the Q23/Q24/Q25 self-research pattern. **NotebookLM was not consulted
+on this round** — say so if it is ever cited as an architect ruling.
 
-| Q | Answer |
+| Q | Answer | Source |
+|---|---|---|
+| **A** | ⭐ **A3 — N exec-ins. Unreal parity.** ⚠ **This supersedes [Q25](Architect_Question_25_Macros.md)-D3** (*"exactly one exec-in"*) | user |
+| **B** | **B2 — offer all forms; refuse on invoke with a message naming the offending nodes.** ⛔ No greyed-out menu items | user |
+| **C** | Nothing to do today; **re-decide when BP-57 lands** | lean accepted |
+| **D** | ⭐ **D1 — the analysis lives in `.Compiler`.** Investigated below | Claude |
+| **E** | **E1 — collapse ∘ expand is a required, test-locked structural invariant** | lean accepted |
+| **F** | ⭐ **ALLOW latent nodes in a collapsed selection.** Unreal's refusal makes no sense — its macros *may* hold latent nodes, so the gesture forbids what the capability permits | user |
+
+### A3 — what it actually costs, and the one thing it drags in
+
+⛔ **A3 reverses a settled architect decision (Q25-D3), deliberately.** Anyone reading Q25 must land
+here. The mechanism section above is the justification: the model work is symmetric to Batch 29/30, and
+the real blocker is C#'s definite-assignment analysis, which Unreal's bytecode VM does not have.
+
+⚠ **A3 is not free: it drags in the mirror of F2.** With ≥ 2 exec-**ins**, a data **input** fed by an
+**impure** producer is definitely-assigned only on the entering path ⇒ `CS0165`. ⇒ **a new Stage 2
+rule is required: when a macro declares ≥ 2 exec-ins, every data input must be fed by a pure producer
+chain.** Same shape as `BP1663`, pointed the other way; ⚠ inherits the same recorded caveat (purity is
+conservative and rejects impure producers that genuinely dominate every entry — dominance exists only
+at Stage 5, after expansion, where the diagnostic would name synthesized nodes).
+
+📌 `BP1664` and `BP1666` are the unused codes in the reserved macro block. **The implementation session
+allocates** (rule 3).
+
+### D1 — investigated, and the answer is not what the directory names suggest
+
+⚠ **`.Editor` does *not* reference `.Compiler` directly**, which initially looks like it rules D1 out.
+It does not. The real chain, verified from the `.csproj` files:
+
+```
+Hrot.Blueprints.Editor  →  Hrot.Blueprints.Core  →  Hrot.Blueprints.Compiler
+```
+
+`Hrot.Blueprints.Core.csproj` carries `<ProjectReference Include="..\Hrot.Blueprints.Compiler\…" />`,
+and `.Editor` references `.Core`. ⭐ **So `.Compiler` is reachable from the sink transitively — and this
+is not a theory: `BlueprintClipboard` (in `.Editor`) already calls `GraphFragmentCloner` (in
+`.Compiler`) exactly this way, shipped in Batch 30.** A working precedent beats an inference.
+
+Three further checks, all clean:
+
+| | |
 |---|---|
-| **A** — multiple exec entries (⚠ Unreal allows N; D3 says one) | |
-| **B** — who chooses Function vs Macro | |
-| **C** — variables and state | |
-| **D** — where the analysis lives | |
-| **E** — round-trip invariant | |
-| **F** — ⭐ collapse a selection containing a **latent** node (Unreal refuses; we can allow) | |
+| `.Compiler` has **no** NodeEdit or editor reference | only `Fdp.Toolkits`, `Hrot.Common`, and NuGet ⇒ the analysis stays **headlessly testable** |
+| the sink already maps the editor's `NodeId` → `Guid` | `BlueprintCommandSink.ResolveNodeId` (`:383`) — the boundary is one existing helper |
+| crossing pins carry their own type | `Pin.TypeRef` (`GraphTypes.cs:125`) ⇒ building `ParameterDecl`s needs **no type registry**, so no editor-side resolution leaks in |
+
+⇒ **D1 with no caveats.** ⭐ And it keeps an operation and its exact inverse in one assembly:
+`Stage2_5_ExpandMacros` is already there.
+
+⚠ **One oddity noticed while investigating, not a blocker:** `Hrot.Blueprints.Core.csproj` `<Compile
+Include>`s some `.Compiler` **source files** by path (`Compiler/Roslyn/**`, `Stage8_RoslynFinalize.cs`)
+rather than consuming them from the referenced assembly. Do not add to that arrangement; put new files
+in `.Compiler` and let the project reference carry them.
 
 📌 **If the architect has no opinion on D**, treat it as self-researched against code in the
 Q23/Q24/Q25 pattern and take **D1** — the assembly argument is a code fact (the inverse lives in

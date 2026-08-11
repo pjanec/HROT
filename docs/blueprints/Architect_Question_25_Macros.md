@@ -1,5 +1,12 @@
 # Architect question #25 — Macros
 
+> ⛔⛔ **SUPERSEDED IN PART, 2026-08-11 — read this before acting on D3.**
+> **D3 said a macro has exactly ONE exec-in.** That is no longer the decision: the user ruled for
+> **N exec-ins** (Unreal parity — a macro's `Inputs` tunnel takes any number of exec pins). See
+> **[Q26-A](Architect_Question_26_Collapse_Selection.md)**, which also records what it costs: the
+> mirror of finding F2, i.e. a Stage 2 rule that data **inputs** must be pure-fed when a macro
+> declares ≥ 2 exec-ins. **Everything else in D3 — N ≥ 0 exec-outs — stands unchanged.**
+
 > **Status: ANSWERED 2026-08-07** — self-researched round (see [Answers](#answers) for provenance).
 > All five sub-questions decided: **A1 · B1 · C1-now · D3 (N ≥ 0 exec-out) · E + 2 added rails**.
 > Implementation split into `BP-79`…`BP-83`. Raised 2026-08-06 after the functions audit
