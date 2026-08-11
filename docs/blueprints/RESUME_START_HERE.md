@@ -4,8 +4,9 @@
 > Batches 29-31 are **merged**; **no batch is in flight** — pick the next one (§4).
 > ⭐ **Macros are DONE end to end and proven by execution** — authored, called, expanded, compiled
 > through real Roslyn, **ticked across frames**, and debuggable.
-> ⏭ **Next: [Q26](Architect_Question_26_Collapse_Selection.md) — collapse a selection into a
-> Function/Macro (BP-74). ✅ Design settled 2026-08-11; the handoff is the next artifact.**
+> ⏭ **In flight: Batch 32** — `N` exec-ins (Q26-A3), the **prerequisite** for collapse.
+> **Batch 33 is collapse itself** (`BP-74`); its design is settled in
+> [Q26](Architect_Question_26_Collapse_Selection.md).
 > ⛔ **Q26-A supersedes Q25-D3:** a macro now has **N exec-ins**, not one.
 >
 > 📌 Supersedes [RESUME_Coordinator.md](RESUME_Coordinator.md), which is now the **historical log**
@@ -52,9 +53,9 @@ for b in $(git ls-remote --heads origin | awk '{print $2}' | sed 's|refs/heads/|
 
 | Situation | Do |
 |---|---|
-| **No batch in flight** (**today's state**) | pick the next batch — see §4 |
+| **No batch in flight** | pick the next batch — see §4 |
 | **Implementation reported done** | run **all eight gates** (§3), review the diff, reconcile the tracker three ways, **then** merge `--ff-only` and record it |
-| A batch **is** in flight | ⛔ **rule 6: the tracker and detail docs are theirs.** Put findings in the *next* handoff, never in a live one |
+| A batch **is** in flight (**today's state — Batch 32**) | ⛔ **rule 6: the tracker and detail docs are theirs.** Put findings in the *next* handoff, never in a live one |
 
 ⭐ **Never say "they never saw X."** It is a property of one commit, not the session. Test against what
 they *branched from*:
@@ -141,7 +142,8 @@ one fact**, so the script exists. Run `--check` as part of verifying any returne
 | **29** | ✅ **verified and merged** (`da13a6a`, ff-only) — **BP-80** macro surface · the **warning triage** (`BP-217`/`BP-218`, `BP-219` open) · **BP-131** `Return.Success`. See §7 |
 | **30** | ✅ **verified and merged** (`4fe3538a`, ff-only) — ⭐ **macros work end to end.** `Stage2_5_ExpandMacros` + **all four** Stage 2 rails + `BP-219`; `BP-220` opened. See §7b |
 | **31** | ✅ **verified and merged** (`119305e7`, ff-only) — ⭐ **the macro payoff is executed, and building it exposed a real defect in Batch 30's `BP1661`.** Plus **BP-83** · **BP-220** · **BP-111**. See §7c |
-| **32** | ✅ **design SETTLED 2026-08-11** — [Q26](Architect_Question_26_Collapse_Selection.md) (**BP-74**, *collapse a selection into a Function/Macro*). **A3** N exec-ins (⛔ supersedes Q25-D3) · **B2** refuse-on-invoke, no greyed items · **D1** analysis in `.Compiler` · **E1** round-trip test-locked · **F** latent selections ALLOWED. ⏭ **ready to write the handoff** |
+| **32** | 📤 **written and dispatched** — [HANDOFF_Batch32_Macro_N_ExecIns.md](HANDOFF_Batch32_Macro_N_ExecIns.md). **Q26-A3: N exec-ins** — the model, not the gesture. ⛔ Frozen (rule 1) |
+| **33** | ⛔ **not written yet — collapse itself** (`BP-74`), on the model Batch 32 lands. Design settled in [Q26](Architect_Question_26_Collapse_Selection.md): **B2** refuse-on-invoke (no greyed items) · **D1** analysis in `.Compiler` · **E1** round-trip test-locked · **F** latent selections ALLOWED |
 
 ### The macro capability
 
