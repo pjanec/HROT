@@ -117,9 +117,9 @@ is agreed.* Expect **four**, one per §3 row, each independently revertible, in 
 ⚠ Task 3 touches `EditorSubsystem.cs`, which is **co-owned** — a one-line deletion, but it goes through
 [SHARED_SURFACES](SHARED_SURFACES.md) like any other edit there.
 
-## 8. Open questions
+## 8. Open questions — ✅ both resolved by the user, 2026-08-10
 
-| | |
+| | Decision |
 |---|---|
-| Should the namespace rename be filed now as its own `UXI`, or left as a note? | Claude's lean: **file it**, marked `P2`, so it is not rediscovered as a surprise |
-| Do we delete the tests for deleted types, or keep them as executable documentation? | Claude's lean: **delete** — a test for a type nobody constructs asserts nothing about the product |
+| File the namespace rename as its own `UXI`? | ✅ **Filed as [UXI-20](UX_Issues.md#uxi-20), `P2`** — so it is not rediscovered as a surprise, and never blocks anything |
+| Delete the tests for deleted types? | ✅ **Delete them.** A test for a type nobody constructs asserts nothing about the product. They go in the same commit as their subject |

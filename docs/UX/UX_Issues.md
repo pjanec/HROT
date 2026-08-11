@@ -21,7 +21,10 @@
 |---|---|---|:--:|---|---|:--:|
 | **A** | | **Foundation & hygiene** | | | | |
 | | <a id="uxi-01"></a>**UXI-01** 🔴 | **Superseded UI, and the namespace that lies.** `Hrot.UI.Common` builds nowhere yet owns the namespace the live panels declare | `RW-L` | — | [UX_Feature_DeadUI_Removal.md](UX_Feature_DeadUI_Removal.md) | ✅ |
-| | <a id="uxi-02"></a>**UXI-02** | **Half-built items need a decision each** — `ScenarioEditorModule`, `SelectionRenderSystem`, `WorkspaceMenuBuilder`, `EditorTool.Select`. Not dead; each encodes an intent | `RW-L` | — | — | ☐ |
+| | <a id="uxi-02"></a>**UXI-02** | **Half-built items need a decision each** — `ScenarioEditorModule`, `SelectionRenderSystem`, `WorkspaceMenuBuilder`, `EditorTool.Select`. Not dead; each encodes an intent | `RW-L` | — | [UX_Feature_HalfBuilt_Decisions.md](UX_Feature_HalfBuilt_Decisions.md) | ✅ |
+| | <a id="uxi-20"></a>**UXI-20** `P2` | **The `Hrot.UI.Common` namespace outlives its project.** After [UXI-01](#uxi-01) the name is inaccurate rather than hazardous — ~87 files, 4 test projects, one co-owned file. Never on the critical path | `RW-L` | — | [UXI-01 §2](UX_Feature_DeadUI_Removal.md#2--the-design-decision-delete-now-rename-later-or-never) | ☐ |
+| | <a id="uxi-21"></a>**UXI-21** `P2` | **The Workspace document switcher has a model and ~15 tests but no renderer.** `WorkspaceMenuBuilder` builds open-asset entries with active/dirty markers that nothing draws | `RW-L` | — | — | ☐ |
+| | <a id="uxi-22"></a>**UXI-22** | **SimHost and CGF may have no selection highlight at all** — neither registers `Hrot.Common.Diagnostics.Gizmos.GizmoRegistrar`, which owns `SelectionHighlightGizmo`. ⚠ confirm before treating as a defect | `RW-L` | — | — | ☐ |
 | **B** | | **Entity actions** | | | | |
 | | <a id="uxi-03"></a>**UXI-03** | **No shared action vocabulary.** Identity, label and ordering are re-declared per host; `Center`/`Delete` exist 3× | `RW-M` | [UXR-89](UX_Requirements.md#uxr-89) | — | ☐ |
 | | <a id="uxi-04"></a>**UXI-04** | **The same entity offers different actions per surface** — inspector lambdas vs map JSON vs hardcoded ORBAT rows. Includes the ORBAT item seam, which lets ExCon's 434-line fork collapse | `RW-M` | [UXR-85](UX_Requirements.md#uxr-85) | — | ☐ |
@@ -46,7 +49,7 @@
 | | <a id="uxi-18"></a>**UXI-18** | **Editor's JSON parser reads `children` without a `ValueKind` guard** — a non-array throws `InvalidOperationException`, which its `catch (JsonException)` does not catch | `RW-L` | — | — | ☐ |
 | | <a id="uxi-19"></a>**UXI-19** ⚠ | **Two presentation gizmos may match one entity** — Editor registers both; overlapping projector keys. **Unverified** — establish before treating as a defect | — | — | — | ☐ |
 
-**Counts:** 19 open · 1 designed · 4 🔴 · 1 unverified.
+**Counts:** 22 issues · **2 designed** · 4 🔴 · 2 unverified (UXI-19, UXI-22).
 
 ## Dependency order
 
