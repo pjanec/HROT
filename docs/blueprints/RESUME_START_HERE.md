@@ -4,9 +4,8 @@
 > Batches 29-31 are **merged**; **no batch is in flight** — pick the next one (§4).
 > ⭐ **Macros are DONE end to end and proven by execution** — authored, called, expanded, compiled
 > through real Roslyn, **ticked across frames**, and debuggable.
-> ⏭ **In flight: Batch 32** — `N` exec-ins (Q26-A3), the **prerequisite** for collapse.
-> **Batch 33 is collapse itself** (`BP-74`); its design is settled in
-> [Q26](Architect_Question_26_Collapse_Selection.md).
+> ⏭ **Next: Batch 33 — collapse itself** (`BP-74`). Its prerequisite (N exec-ins) is **merged**, and
+> the design is settled in [Q26](Architect_Question_26_Collapse_Selection.md).
 > ⛔ **Q26-A supersedes Q25-D3:** a macro now has **N exec-ins**, not one.
 >
 > 📌 Supersedes [RESUME_Coordinator.md](RESUME_Coordinator.md), which is now the **historical log**
@@ -53,9 +52,9 @@ for b in $(git ls-remote --heads origin | awk '{print $2}' | sed 's|refs/heads/|
 
 | Situation | Do |
 |---|---|
-| **No batch in flight** | pick the next batch — see §4 |
+| **No batch in flight** (**today's state**) | pick the next batch — see §4 |
 | **Implementation reported done** | run **all eight gates** (§3), review the diff, reconcile the tracker three ways, **then** merge `--ff-only` and record it |
-| A batch **is** in flight (**today's state — Batch 32**) | ⛔ **rule 6: the tracker and detail docs are theirs.** Put findings in the *next* handoff, never in a live one |
+| A batch **is** in flight | ⛔ **rule 6: the tracker and detail docs are theirs.** Put findings in the *next* handoff, never in a live one |
 
 ⭐ **Never say "they never saw X."** It is a property of one commit, not the session. Test against what
 they *branched from*:
@@ -90,13 +89,13 @@ so the solution build never produces their assemblies and the runner exits with 
 …`NodeEditor.Core.Tests.dll` is invalid"* — ⭐ **no test output at all**, which reads as *"nothing to
 report"* rather than *"the gate did not run."* Trap #5, in the gate script itself.
 
-**Baseline at `119305e7` — ⭐ all eight gates coordinator-RUN 2026-08-11, post-Batch-31:**
+**Baseline at `fbc100cd` — ⭐ all eight gates coordinator-RUN 2026-08-11, post-Batch-32:**
 
 | | |
 |---|---|
 | Solution build | **0 errors**, 69 warnings |
 | BP diagnostics | **10 distinct** — all `BP3010`, all **authored** orphans in 2 assets |
-| Blueprints | **3145** / 0 failed / 10 skipped ⚠ *(total 3155; BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
+| Blueprints | **3161** / 0 failed / 10 skipped ⚠ *(total 3171; BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
 | AiShared **1213** · BTree **612** · Breakpoints **130** | 0 failed |
 | NodeEdit Core **208** · UI **131** · Generators **193** | 0 failed |
 
@@ -142,7 +141,7 @@ one fact**, so the script exists. Run `--check` as part of verifying any returne
 | **29** | ✅ **verified and merged** (`da13a6a`, ff-only) — **BP-80** macro surface · the **warning triage** (`BP-217`/`BP-218`, `BP-219` open) · **BP-131** `Return.Success`. See §7 |
 | **30** | ✅ **verified and merged** (`4fe3538a`, ff-only) — ⭐ **macros work end to end.** `Stage2_5_ExpandMacros` + **all four** Stage 2 rails + `BP-219`; `BP-220` opened. See §7b |
 | **31** | ✅ **verified and merged** (`119305e7`, ff-only) — ⭐ **the macro payoff is executed, and building it exposed a real defect in Batch 30's `BP1661`.** Plus **BP-83** · **BP-220** · **BP-111**. See §7c |
-| **32** | 📤 **written and dispatched** — [HANDOFF_Batch32_Macro_N_ExecIns.md](HANDOFF_Batch32_Macro_N_ExecIns.md). **Q26-A3: N exec-ins** — the model, not the gesture. ⛔ Frozen (rule 1) |
+| **32** | ✅ **verified and merged** (`fbc100cd`, ff-only) — **Q26-A3 N exec-ins** landed clean; ⭐ **first batch where the tracker counts were right on arrival**. See §7d |
 | **33** | ⛔ **not written yet — collapse itself** (`BP-74`), on the model Batch 32 lands. Design settled in [Q26](Architect_Question_26_Collapse_Selection.md): **B2** refuse-on-invoke (no greyed items) · **D1** analysis in `.Compiler` · **E1** round-trip test-locked · **F** latent selections ALLOWED |
 
 ### The macro capability
@@ -250,6 +249,31 @@ The tracker's **`RW-L` done column was 43 and the Total 88; both were one short*
 **predates Batch 29** (present at `1af9bea`, and back at the 41/85 figures). Batch 29's own delta was
 exactly right. Corrected to **44 / 89** after merge. It reconciles three ways now; the note in the
 tracker records the method, including that the *refuted* row sits **outside** the Total.
+
+---
+
+## 7d · Batch 32 — ✅ VERIFIED AND MERGED at `fbc100cd`
+
+**Q26-A3 landed: macros now take `N` execution inputs.** The prerequisite for collapse; the gesture
+itself is Batch 33. Rule 7 followed again (branched from `df2bf437`).
+
+**Gates:** build **0 errors / 69 warnings** · BP diagnostics **10**, unchanged · Blueprints **3161**
+(+16) · AiShared 1213 · BTree 612 · Breakpoints 130 · Generators 193 · NodeEdit Core 208 · UI 131.
+**Zero failures.** ⭐ The two-entry macro was run explicitly and passes.
+
+⭐⭐ **First batch where the tracker counts were correct on arrival** — `tracker-counts.py --check`
+passed with no coordinator fix. That is three consecutive wrong done-columns ended by deriving the
+table instead of maintaining it.
+
+| ⭐ Got right | |
+|---|---|
+| **The purity mirror, which was the whole risk** | walks the **host** graph from the `MacroCallNode`'s data-ins — not a copy of `BP1663`, which walks *inside* the macro. **Per call site**, names the **call node**, and gates on ⭐ **wired** entries, so `TwoDeclaredButOneWiredEntry_WithAnImpureProducer_IsAccepted` passes — a site using one door is provably safe and is not rejected |
+| **`BP1667` generalised, not patched** | *"empty body"* now means **no exec-out of the boundary node is wired**, rather than *"entry 0 is unwired"*. An unwired entry is one unused door and is deliberately **not** a warning. The handoff only asked them to check the old test |
+| **The mirror rebuilt wholesale** | `RebuildLinkedToIds(host)` once after splice, rather than patched at each rewire — simpler and harder to get wrong than what the design asked for |
+| **The regression guard** | `SingleEntryMacro_WithAnImpureProducer_StillCompiles` — today's legal case is not swept up by the new rule |
+| **Back-compat proven** | `ExecInputs_IsSemanticallyInert_AndOlderJsonWithoutItStillLoads`; `ExecInputs` carried in `Graph.WithNodesAndLinks:91` |
+
+📌 **Nothing was found wrong in this batch.** First time in the run of batches this session.
 
 ---
 
