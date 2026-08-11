@@ -92,6 +92,109 @@ And **ExCon has no map at all** (`ExConSubsystem.cs:44`: *"no 3-D world visuals;
 > ⇒ *"Fix the shared ORBAT panel"* has even odds of editing a file that compiles into nothing.
 > **Delete `Hrot.UI.Common` before any shared-panel work starts.**
 
+## 5b. How perspective switching actually works
+
+*Added 2026-08-10, answering: how does the original cluster-role meaning coexist with the editor's
+internal Scenario / BTree / HSM / Blueprint layouts?*
+
+**There are two independent mechanisms keyed by the same string.**
+
+### Mechanism 1 — a window visibility filter (pure UI, general)
+
+`ManagedWindow.Render(currentPerspective, atlas)` (`ManagedWindow.cs:154-165`):
+
+```csharp
+var isVisible = Scope == WindowScope.Global      // always visible
+             || _isPinned                         // user pinned it across perspectives
+             || OwningPerspective == currentPerspective;
+if (!isVisible) return;
+```
+
+That is the whole concept: **a perspective is a tag, and switching filters the registered windows by
+it.** `WindowManager` knows nothing about subsystems, modes or the cluster. `GetPerspectives()` simply
+returns the distinct `OwningPerspective` values of the registered `PerspectiveBound` windows
+(`WindowManager.cs:178-186`), so **the perspective list is emergent from what got registered** — never
+declared.
+
+### Mechanism 2 — a map-ownership handover (cluster-specific side effect)
+
+`WindowManager.OnPerspectiveChanged` → `LocalWindowController.cs:61-65` enqueues a
+`TogglePerspectiveEvent` → drained every frame by `PerspectiveUpdateSubsystem.Update`
+(`PerspectiveUpdateSubsystem.cs:28`, deliberately the **first** subsystem so it runs before any other)
+→ `PerspectiveCoordinatorSystem.ProcessPendingEvents` (`:69-86`):
+
+```csharp
+if (_perspectiveToSubsystemName.TryGetValue(evt.NewPerspective, out var subsystemName))
+{
+    outgoing.GizmoController?.RemoveListener();   // hand off gizmo input
+    incoming.GizmoController?.AddListener();
+    _orchestrator.SwitchMapOwner(subsystemName);
+}
+_currentPerspective = evt.NewPerspective;         // ← outside the if, always runs
+```
+
+`SwitchMapOwner` (`SubsystemOrchestrator.cs:164-179`) swaps `_activeMapOwner` and **copies the camera
+view across** so the operator does not jump. It matters because only the owner draws the world:
+
+```csharp
+private bool IsMapOwner(ISubsystem s)
+    => !(s is IMapCameraProvider)      // non-map subsystems always draw
+       || s == _activeMapOwner;        // map-capable ones only when they own it
+```
+
+### ⭐ The bridge is a 5-entry hardcoded allow-list
+
+`Program.cs:244-251`:
+
+| In the map | Not in the map |
+|---|---|
+| `IG`, `SimHost`, `ExCon`, `CGF`, `StrideMock` | `Editor`, `BTree`, `HSM`, `Blueprint`, `ReplayBrowser` |
+
+⇒ **Cluster-role perspectives** fire *both* mechanisms — filter the windows **and** hand over the map,
+the gizmo listener and the camera.
+⇒ **The editor's internal perspectives are absent from the table, so the `if` falls through.** Only
+mechanism 1 runs. `_currentPerspective` still updates, because that assignment sits outside the branch.
+
+**So the editor's use is not a second concept bolted on — it is mechanism 1 alone.** The cluster use is
+*mechanism 1 plus a side effect*. One is a superset of the other, which is why they do not fight. The
+coordinator's own doc comment states the design intent: *"Unknown perspective names are silently ignored
+by the orchestrator."*
+
+In `--mode editor` the map owner is fixed for the process: `Initialize` sets
+`_activeMapOwner = _subsystems.FirstOrDefault(s => s is IMapCameraProvider)`
+(`SubsystemOrchestrator.cs:78`) — the `EditorSubsystem` — and no switch ever fires afterwards. Toggling
+Scenario → Blueprint therefore cannot disturb map ownership. Correct behaviour, reached by a lookup miss.
+
+### 🔑 …and the two vocabularies never actually meet
+
+**`editor` is validated as standalone** — it cannot be combined with `ig`, `excon`, `orchestrator` or
+`cgf` (`HrotRunnerConfiguration.cs:127-134`), and `replaybrowser` likewise (`:136-141`). So a process
+**never** contains both cluster-role perspectives and editor-internal ones.
+
+⇒ The coexistence is safe **because of a config constraint in a different file**, not because the
+mechanism distinguishes the two kinds. Nothing in `WindowManager` or the coordinator knows there are two
+kinds at all.
+
+### 🔴 Where the ambiguity does bite — the two places that speak the wrong vocabulary
+
+Both live in `LocalWindowController.OpenLocalWindow()`, and both use **subsystem names** where the
+persisted value is a **perspective id**:
+
+| Line | Code | Problem |
+|---|---|---|
+| `:83` | `_subsystems.Any(s => s.Name == persisted)` | Restore validation. `BTree`/`HSM`/`Blueprint` are not subsystem names ⇒ **silently discarded**, back to the default |
+| `:81-82` | `defaultPersp = _subsystems.Skip(1).FirstOrDefault()?.Name` | Default pick. A *subsystem name* used as a *perspective name* — works only because cluster subsystems name their perspective after themselves |
+
+⚠ **`EditorSubsystem.Name == "Editor"` is load-bearing three times over** — it is the mode token, the
+subsystem name, **and** the main perspective id (`:172`, `:3446`). The display name is already decoupled
+(`RegisterPerspectiveLabel("Editor", "Scenario")`, `:3449`), but renaming the **id** to `Scenario` would
+break the restore check, the default-perspective pick, and the `isScenarioContext` gate at once.
+
+⇒ **The fix for the seam work is one line of vocabulary**: validate the restored perspective against
+`GetPerspectives()` — the registry that already exists — instead of against the subsystem list. That is
+also the [Q25-F-ii](Architect_Question_25_Scenario_Authoring_Golden_Path.md#f-ii-perspective-restore) `G2`
+argument: a shell that owns an explicit perspective set can validate against *that set*.
+
 ## 6. Selection is fragmented three ways
 
 | Representation | Used by | Kind |
