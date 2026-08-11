@@ -21,9 +21,43 @@
 | The interaction core (selection, drag, gizmo execution) is **already shared** by Editor, SimHost and IG | `EditorSubsystem.cs:1287`, `SimHostVisualization.cs:250`, `IgApplication.cs:767` |
 
 **User brief, 2026-08-10:** Editor, SimHost and CGF *"should share most capabilities — capability to
-share, but inheriting optionally only what is necessary."* ⇒ **share by default, opt out by profile.**
-IG's menu must remain **configurable over the network**; ExCon is **natively mapless** and is the source
-of those remote menus.
+share, but inheriting optionally only what is necessary."* ⇒ **share the declaration, bind the
+implementation per host.** IG's menu must remain **configurable over the network**; ExCon is **natively
+mapless** and is the source of those remote menus.
+
+## 🔒 Constraints added by the user, 2026-08-10 — these bound every answer below
+
+| # | Constraint | Consequence |
+|--:|---|---|
+| 1 | **No higher-level concept leaks into a generic component.** The inspectors and other `Fdp.Presentation` panels must stay ignorant of editor / simhost / cgf concepts. Everything through a clean API | The generic side may know `IEntityActionProvider` and an **opaque context**. It must never know what a *mode* is, nor what any specific action *does* |
+| 2 | **The three `Delete` implementations are probably not wrong.** The same action legitimately needs different handling per subsystem — *"the editor is networkless while all the other ClusterRunner subsystems use the network"* | ⇒ **Unifying the handlers is not the goal.** Handlers must stay **register-time parametrizable**. Unify the *declaration*, never force one implementation |
+| 3 | **The same applies to tools** | A tool descriptor is shared; its activation is host-bound |
+| 4 | **The network-defined JSON menu is IG's speciality — keep it a completely separate pipeline** | ⇒ **Q26-A resolves to A2**, not Claude's A1 lean. See below |
+| 5 | ⚠ *"But a JSON-defined context menu might be a generic idea reused by many subsystems — needs more investigation"* | Recorded as an **open investigation**, not a decision → [A″](#a2-json-as-a-generic-mechanism) |
+| 6 | **Perspective and mode may *both* affect the context menu** | ⇒ Q26-D is not either/or. See the two-axis resolution |
+
+### ⭐ What constraint 2 changes — declaration vs binding
+
+Claude's Stage-1 framing said unifying `Delete` *"forces a decision about which behaviour is correct."*
+**That was wrong.** The divergence is structural — the editor is networkless by construction — so the
+correct model separates **what an action is** from **how a host performs it**:
+
+```
+// Shared, declarative — identity and presentation only. Neutral project.
+EntityActionDescriptor { Id, Label, Icon, Group, Order }
+
+// Host-supplied at registration — the implementation, and any condition.
+host.RegisterAction(EntityActions.Delete,
+                    isApplicable: (e, ctx) => …,      // host's rule
+                    execute:      (e, ctx) => …);     // host's handler
+```
+
+⇒ **One identity, label, icon and ordering** — so a user sees a consistent menu across modes and
+surfaces ([UXR-85](UX_Requirements.md#uxr-85)). **N implementations**, each correct for its subsystem.
+The three `Delete`s stay three handlers; only the *declaration* is shared.
+
+⇒ **It also satisfies constraint 1 for free:** the descriptor is inert data and the handler is a
+delegate the host owns, so the generic panel carries neither behaviour nor knowledge.
 
 ## Q26-A — Is one action vocabulary right, and how far does it reach?
 
@@ -39,30 +73,73 @@ of those remote menus.
   *Reuse:* maximal. *Build:* minimal. *Cost:* solves the triplicated `Delete` but not the
   cross-surface-consistency requirement.
 
-> **Claude's lean: A1.** The consistency requirement is cross-surface by definition, and A2 leaves the
-> exact seam that would have to be reopened. A1 is also the smaller change than it appears, because the
-> execution backend already unifies — only the *list-building* moves.
+> ### ✅ RULED A2 by the user, 2026-08-10 — Claude's A1 lean is withdrawn
 >
+> *"The network-defined JSON menu is the IG speciality and has little to do with other subsystems — I
+> would keep that a completely separated pipeline."*
+>
+> ⇒ Unify the **local** surfaces (map, inspector, ORBAT). **IG's network pipeline stays as it is.**
+> The reasoning behind A1 — that leaving it separate keeps a seam we would reopen — does not apply once
+> the two are recognised as *different features*, not two implementations of one. IG is a network
+> terminal whose menu is authored remotely by ExCon; that is a distinct capability, not a variant.
+>
+> **Still true and still worth doing:** the Editor's `JsonEntityContextMenuHandler` remains a *local*
+> provider in the unified chain — it consumes the JSON payload for the Editor's own surfaces. Only IG's
+> `ContextMenuSystem` (the DDS round-trip) stays out.
+
 > **Sub-question A′:** should **ORBAT rows** be in scope for stage 2, or follow later? Including them
 > collapses ExCon's 434-line fork via the same mechanism; excluding them keeps the stage smaller.
 
-## Q26-B — Where does a profile live?
+### <a id="a2-json-as-a-generic-mechanism"></a>Sub-question A″ — is JSON-defined menu content a *generic* mechanism? ⚠ open investigation
 
-A profile answers *"which actions/tools/menu items does this mode present?"*
+The user, same session: *"a JSON-defined context menu might be a generic idea reused by many
+subsystems — needs more investigation."*
 
-- **B1 — Code, per composition root.** Each host declares its set where it composes today.
-  *Reuse:* matches the current idiom exactly. *Build:* nearly none. *Cost:* not inspectable, not
-  diffable, and a designer cannot change it.
-- **B2 — Data (a profile file per mode/perspective)**, loaded at startup.
-  *Reuse:* the scenario/asset loading already in place. *Build:* a schema + loader + validation.
-  *Cost:* a new asset kind; drift between code ids and data ids must be caught.
-- **B3 — Declarative attributes**, like `[GizmoProjector]`, discovered by the existing Roslyn generator.
-  *Reuse:* ⭐ a mechanism **already proven in this repo** for gizmos. *Build:* extend the generator.
-  *Cost:* compile-time only — no runtime/per-deployment variation.
+**Distinguish two things that are currently conflated:**
 
-> **Claude's lean: B1 now, B2 later** — with the ids designed so the move is mechanical. The requirement
-> today is *per-mode*, and modes are compile-time. B3 is tempting because the generator exists, but a
-> profile is a *host* concern, not a *type* concern, and attributes put it on the wrong object.
+| | |
+|---|---|
+| **The transport** — a remote party defines the menu over DDS | 🔒 **IG-specific. Ruled out of scope above.** |
+| **The format** — menu content expressed as data rather than code | ⚠ **Possibly generic.** Would let any subsystem declare items without a rebuild, and is a plausible answer to Q26-B |
+
+⚠ **Not a question for this round.** It needs an investigation first: who would author such a file,
+whether items can carry a handler binding (constraint 2) or only reference a registered action id, and
+whether it duplicates what the descriptor+binding split already gives. **Do not design for it now** —
+but do not choose an action-id scheme that would prevent it.
+
+## Q26-B — Where does a "profile" live? — ⚠ the question was malformed
+
+> ### The user asked what "profile" means and where it lives. Answering honestly: **it should not exist.**
+>
+> Claude introduced the term loosely, meaning *"the per-mode declaration of which windows, menu items,
+> map layers, tools and actions are present."* Under
+> [constraint 1](#-constraints-added-by-the-user-2026-08-10--these-bound-every-answer-below) that is the
+> wrong shape — a profile object is a **higher-level concept that would have to be understood by the
+> generic components** in order to be applied by them. That is precisely the leak the user ruled out.
+>
+> **The profile already exists, and it is not an artifact: it is the set of registrations a host
+> performs in its own composition root.** Every subsystem already has one. Nothing new is required to
+> "hold" it.
+>
+> ⇒ **The real question is not where a profile lives, but what a registration carries.** Today a
+> registration carries a handler. It should also carry the *conditions* under which the item applies —
+> which is what makes it register-time parametrizable per constraint 2.
+
+**So B is restated: what does a registration carry?**
+
+- **B1 — Handler only** (today). Conditions are hardcoded inside the handler's body.
+  *Cost:* a host cannot vary applicability without editing the lambda; nothing is inspectable.
+- **B2 — Handler + declarative conditions** — `RegisterAction(descriptor, isApplicable, isEnabled, execute)`,
+  where the predicates receive the opaque context.
+  *Reuse:* exactly today's `LambdaEntityContextMenuHandler` shape, plus parameters.
+  *Build:* small. *Cost:* conditions are code, so still not designer-editable.
+- **B3 — Data-declared sets** (a file per mode listing action ids).
+  *Cost:* the drift problem, and it collides with A″ — do not decide this before that investigation.
+
+> **Claude's lean: B2.** It is the minimum that satisfies constraints 1 and 2 together, it introduces no
+> new concept for a generic component to understand, and it leaves B3/A″ open rather than pre-empting
+> them. **Recommend also dropping the word "profile" from the programme's vocabulary** — it named
+> something that turned out to be the composition root.
 
 ## Q26-C — Replace or wrap the int action ids?
 
@@ -90,19 +167,33 @@ But the two concepts are not the same thing — see
 | Today | 10 exist; 5 are cluster roles, 4 are the editor's internal graphs | 5 UI modes |
 | Note | the editor's BTree/HSM/Blueprint perspectives are **not** subsystems | `editor` cannot combine with the others |
 
-- **D1 — Key on perspective.** Matches the user's words; lets the editor's graph perspectives present
-  different actions too.
-  *Cost:* perspectives are emergent from window registration, not declared — keying on an emergent set is
-  fragile. **Fix by declaring the perspective set** (also fixes the restore bug).
-- **D2 — Key on mode.** Stable and declared.
-  *Cost:* cannot vary within the editor between Scenario and Blueprint — probably wanted eventually.
-- **D3 — Key on both**: mode selects the profile, perspective refines it.
-  *Cost:* two axes to reason about.
+**User input, 2026-08-10:** *"perspective vs mode — both might affect the context menus."* ⇒ not
+either/or. The design question becomes **which mechanism carries each**, and constraint 1 answers it:
 
-> **Claude's lean: D3, implemented as D1 over a *declared* perspective set.** In practice mode and
-> perspective coincide for the cluster roles, and the editor's internal perspectives are exactly the case
-> D2 cannot express. ⚠ **This requires making the perspective set explicit rather than emergent** — which
-> Stage 3 needs anyway to fix the silent restore bug.
+> ### ⭐ The two-axis resolution — each axis at its own layer
+>
+> | Axis | When it is decided | Mechanism | Who knows about it |
+> |---|---|---|---|
+> | **Mode** (editor / simhost / cgf / ig) | **composition time** — a process is only ever one mode | **which registrations the host performs at all** | only the subsystem's composition root |
+> | **Perspective** (Scenario / BTree / HSM / Blueprint / …) | **runtime** — switchable | a **condition carried by the registration**, evaluated against the context | the host's predicate; the generic panel just passes the context through |
+>
+> **Why this is clean:** `CurrentPerspective` is already a `Fdp.Presentation` (`WindowManager`) concept,
+> so a generic panel may carry it in an opaque context **without learning anything new**. `Mode` is a
+> `ClusterRunner` concept and therefore **must never appear in a generic API** — and it does not need
+> to, because a host that exists only in one mode expresses mode-dependence simply by what it registers.
+>
+> ⇒ Both axes affect the menu, as the user requires, but **no generic component learns a
+> higher-level concept.**
+
+⚠ **One prerequisite:** keying on perspective requires the perspective set to be **declared** rather
+than emergent from window registration. Stage 3 needs that anyway to fix the silent restore bug
+([§5b](UX_Current_UI_Architecture.md#5b-how-perspective-switching-actually-works)).
+
+> **Claude's lean: the two-axis split above.** Remaining question for the architect: is *perspective* the
+> right runtime axis, or should the condition receive something broader (e.g. "is the world running") so
+> that preparation-vs-live differences — the Editor/SimHost distinction the user described — are
+> expressible without naming a perspective? **Claude leans: pass an opaque context with both, and let
+> hosts decide.**
 
 ## Q26-E — Is Stage 0 acceptable as a delete-only batch?
 
@@ -124,9 +215,18 @@ namespace the live panels declare**.
 
 | Question | Decision | Notes |
 |---|---|---|
-| **Q26-A** — one vocabulary, how far | — | *lean A1* |
+| **Q26-A** — one vocabulary, how far | ✅ **A2** | **ruled by the user 2026-08-10** — local surfaces unify; IG's network pipeline stays separate |
 | **Q26-A′** — ORBAT in stage 2? | — | *including it collapses a 434-line fork* |
-| **Q26-B** — where a profile lives | — | *lean B1 now, B2 later* |
+| **Q26-A″** — is JSON-defined menu content generic? | — | ⚠ **investigation, not this round.** Separate the *transport* (IG-only) from the *format* (maybe generic) |
+| **Q26-B** — what a registration carries | — | *lean B2 — handler **plus** declarative conditions. ⚠ the original "where does a profile live" was malformed; see the block* |
 | **Q26-C** — replace or wrap int ids | — | *lean C1; the ids cross DDS* |
-| **Q26-D** — perspective or mode as key | — | *lean D3 over a declared perspective set* |
+| **Q26-D** — perspective or mode as key | ✅ **both** (user) | *mechanism: mode at composition time, perspective as a registration condition. Architect input wanted on whether the runtime axis should be broader than perspective* |
 | **Q26-E** — delete-only batch | — | *lean E1* |
+
+### Settled by the user before the round — do not re-ask
+
+| | |
+|---|---|
+| **Handlers stay per-subsystem** | The three `Delete`s are **not** a defect. Unify the *declaration*; keep implementations **register-time parametrizable**. Same for tools |
+| **Why they legitimately differ** | The editor is **networkless**; every other ClusterRunner subsystem uses the network |
+| **No leaking into generic components** | Inspectors and other `Fdp.Presentation` panels stay ignorant of editor/simhost/cgf concepts — clean API only |
