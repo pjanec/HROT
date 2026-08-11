@@ -76,11 +76,15 @@ in the other's lane.
 | Lane | Branch |
 |---|---|
 | **Coordinator** (handoffs, tracker, gates) | ⭐ **`claude/blueprint-authoring-status-gm0akp`** |
-| **Implementation** (all feature code) | `claude/blueprint-macro-feature-sdmspn` |
+| **Implementation** (all feature code) | ⭐ **`claude/hrot-implementation-j1jvin`** |
 
 ⚠ **Updated 2026-08-10 by the user.** The coordinator lane was previously
 `claude/blueprint-authoring-status-6sr5ld`; that was a **different, now-retired session**. Any document
 still naming `6sr5ld` as the coordinator branch is **stale** — this table wins.
+
+⚠ **The implementation lane moved too** (Batch 29, from `claude/blueprint-macro-feature-sdmspn`).
+⭐ **The coordinator must not assume the name** — locate their branch by which one's first commit
+descends from a coordinator commit, not by the name in this table.
 
 ⭐ **The implementation session ALWAYS branches from, and updates from, the coordinator branch.** Never
 from `main`, never from a previous implementation head that has drifted. Start every run with:

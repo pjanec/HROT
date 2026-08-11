@@ -1,7 +1,8 @@
 # ⭐ START HERE — coordinator session, blueprint gaps & QoL programme
 
-> **Point a fresh session at this file. It is self-contained.** Last updated **2026-08-10** at
-> coordinator head **`0bef2f2`**; both branches in sync at Batch 28. **Batch 29 is dispatched** (§7).
+> **Point a fresh session at this file. It is self-contained.** Last updated **2026-08-11** at
+> coordinator head **`f136b911`**. Batches 29 and 30 are **merged**; **Batch 31 is dispatched** (§4).
+> ⭐ **Macros work end to end** — authoring surface, expansion pass and all four rails have landed.
 >
 > 📌 Supersedes [RESUME_Coordinator.md](RESUME_Coordinator.md), which is now the **historical log**
 > (Batches 22-28, plus the §0z process root-cause). Read it only for backstory.
@@ -16,7 +17,7 @@ the next batch. ⛔ **You do not write feature code** — a separate *implementa
 | Lane | Branch |
 |---|---|
 | **You** (push here, always) | ⭐ **`claude/blueprint-authoring-status-gm0akp`** |
-| Implementation session | `claude/blueprint-macro-feature-sdmspn` |
+| Implementation session | ⭐ **`claude/hrot-implementation-j1jvin`** (was `…-sdmspn`; they moved, Batch 29) |
 
 ⚠ **Changed 2026-08-10 by the user.** The coordinator lane used to be
 `claude/blueprint-authoring-status-6sr5ld` — that was a **different, now-retired session**, and the
@@ -35,15 +36,21 @@ between you. Its *Two-session protocol* table is binding; **re-read it before wr
 ## 2 · First actions on resume
 
 ```bash
-git fetch origin claude/blueprint-macro-feature-sdmspn
-git log --oneline <last-dispatch-sha>..origin/claude/blueprint-macro-feature-sdmspn
+git fetch origin                       # ⚠ they have changed branch once; do not assume the name
+git log --oneline HEAD..origin/claude/hrot-implementation-j1jvin
+```
+⚠ **If that branch is empty, find theirs** — any `claude/*` branch whose first commit's parent is one
+of your commits:
+```bash
+for b in $(git ls-remote --heads origin | awk '{print $2}' | sed 's|refs/heads/||' | grep claude); do
+  n=$(git log --oneline HEAD..origin/$b 2>/dev/null | wc -l); [ "$n" -gt 0 ] && echo "$b +$n"; done
 ```
 
 | Situation | Do |
 |---|---|
-| **No batch in flight** (today's state) | pick the next batch — see §7 |
+| **No batch in flight** | pick the next batch — see §4 |
 | **Implementation reported done** | run **all eight gates** (§3), review the diff, reconcile the tracker three ways, **then** merge `--ff-only` and record it |
-| A batch **is** in flight | ⛔ **rule 6: the tracker and detail docs are theirs.** Put findings in the *next* handoff, never in a live one |
+| A batch **is** in flight (**today's state — Batch 31**) | ⛔ **rule 6: the tracker and detail docs are theirs.** Put findings in the *next* handoff, never in a live one |
 
 ⭐ **Never say "they never saw X."** It is a property of one commit, not the session. Test against what
 they *branched from*:
@@ -78,13 +85,13 @@ so the solution build never produces their assemblies and the runner exits with 
 …`NodeEditor.Core.Tests.dll` is invalid"* — ⭐ **no test output at all**, which reads as *"nothing to
 report"* rather than *"the gate did not run."* Trap #5, in the gate script itself.
 
-**Baseline at `0bef2f2` — ⭐ all eight gates re-RUN 2026-08-10; every figure reproduces Batch 28's:**
+**Baseline at `f136b911` — ⭐ all eight gates coordinator-RUN 2026-08-11, post-Batch-30:**
 
 | | |
 |---|---|
-| Solution build | **0 errors**, 77 warnings |
-| BP diagnostics | **18 distinct** — 16×`BP3010` + 2×`BP3011` |
-| Blueprints | **3101** / 0 failed / 10 skipped |
+| Solution build | **0 errors**, 69 warnings |
+| BP diagnostics | **10 distinct** — all `BP3010`, all **authored** orphans in 2 assets |
+| Blueprints | **3145** / 0 failed / 10 skipped |
 | AiShared **1213** · BTree **612** · Breakpoints **130** | 0 failed |
 | NodeEdit Core **208** · UI **131** · Generators **193** | 0 failed |
 
@@ -97,7 +104,8 @@ dotnet build Hrot/Subsystems/Hrot.AI.Behaviors/Hrot.AI.Behaviors.csproj -t:Rebui
 
 **MSBuild prints every warning twice** — once in the build, once in the end-of-build summary block. A
 plain `grep -c` doubles it. *Every count in this programme's history (34, then 36) was the doubled
-figure.* **The true current figure is 18: 16×`BP3010` + 2×`BP3011`.**
+figure.* ⭐ **Current: 10, all `BP3010`.** (Batch 29 fixed the 6 compiler-synthesized orphans and
+retired `BP3011`; the 10 that remain are authored and deliberate.)
 
 ⚠ `.Succeeded` **never invokes Roslyn.** Only the real generator path proves a blueprint compiles.
 
@@ -105,10 +113,12 @@ figure.* **The true current figure is 18: 16×`BP3010` + 2×`BP3011`.**
 
 ## 4 · Where the programme stands
 
-**Tracker: open 65 · done 85** ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
+**Tracker: open 64 · done 91** ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
 three ways — checkbox tally, per-complexity columns (⚠ take the **first** tag on a row), and the total
-row. ⚠ **The count check verifies arithmetic, not semantics** — it cannot catch a duplicate row or a
-missed tick, which is exactly what went wrong in Batch 28 bookkeeping.
+row. ⚠⚠ **Reconcile all three EVERY time.** The columns can agree with the Total and both still be
+wrong: a missed tick is invisible to arithmetic and only shows against the checkbox tally.
+⭐ **It has caught a real error in each of the last three batches** — inherited drift in 29, a missed
+`BP-219` tick in 30. ⚠ The *refuted* row sits **outside** the Total, so the tally is one higher.
 
 | Batch | State |
 |---|---|
@@ -120,7 +130,7 @@ missed tick, which is exactly what went wrong in Batch 28 bookkeeping.
 
 ### The macro capability
 
-Design is **closed and complete**; implementation has just started.
+⭐ **Design closed; the compiler half is DONE.** A macro can be authored, called, expanded, and run.
 
 | | |
 |---|---|
@@ -128,14 +138,15 @@ Design is **closed and complete**; implementation has just started.
 | [Macro_Implementation_Design.md](Macro_Implementation_Design.md) | *how each slice is built* — findings **F1-F5**, the splice algorithm, diagnostics, ⭐ **§7: all three restrictions ACCEPTED by the user** |
 | ✅ **BP-79 landed** (as BP-216) | `GraphKind.Macro` + the Stage 5 skip + `MapGraphKind` now **throws** |
 | ✅ **BP-80 landed** (Batch 29) | `ExecOutDecl`, `Graph.ExecOutputs`, `MacroCallNode`, all four projection halves, `BP1668`. ⚠ Row stays **open** for the two visual gestures (palette drag, `BP-77`'s *"Macros +"*) |
-| 📤 **BP-81 dispatched** (Batch 30) | `Stage2_5_ExpandMacros` — ⭐ **two design defects found while scoping it**: the algorithm assumes BP-82's cycle rail exists (it does not), and `Node` has **no field** to carry `OriginNodeId` |
-| Then | **BP-82**'s remaining rails · **BP-83** debug provenance · BP-80's visual half |
+| ✅ **BP-81 landed** (Batch 30) | `Stage2_5_ExpandMacros` + `GraphFragmentCloner` + **four** rails (`BP1660`-`BP1663`), `BP1665`/`BP1667`, `[JsonIgnore] Node.OriginNodeId` |
+| 📤 **BP-83 dispatched** (Batch 31) | debug provenance. ⭐ **Its "shape decision" is answered**: `CSharpEmitter:43-56` drops `OriginNodeId`, and `DebugMapEntry` has nowhere to put it |
+| ⏭ Remaining | ⚠ **`BP1664` is UNBUILDABLE — do not attempt it.** `Graph` has no `LocalVariables` field (**BP-57**), so a macro cannot declare a local · BP-82's two library rails · **BP-80's visual half** (palette drag, `BP-77`) — the only part needing the user's eyes |
 
 ---
 
 ## 5 · Verified facts — do NOT re-derive these
 
-Every line below was checked against code in Batches 27-28. Coordinates are current as of `a0961ae1`.
+⚠ Checked in Batches 27-28 against `a0961ae1`. **Coordinates drift** — Batch 30 found the design's `ComputeMergePoints:4269` had moved to `:4624`. **Re-grep any line number before trusting it.**
 
 | Fact | Where |
 |---|---|
