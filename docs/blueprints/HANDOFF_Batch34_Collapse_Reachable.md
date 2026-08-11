@@ -1,6 +1,6 @@
 # HANDOFF — Batch 34: make collapse reachable, and close `BP-221`
 
-> 📌 **Dispatched at `<pending>`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
+> 📌 **Dispatched at `6087fc80`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
 > ⭐ **Rule 7 is yours:** branch from this branch, and re-sync from it at the **start** of your run.
 > ⭐ **Rule 4 is yours:** pull it again before your final commit.
 > ⭐ **Rule 3: the coordinator allocates no ids.** `BP-74`, `BP-76`, `BP-77`, `BP-221`, `BP-222` are
