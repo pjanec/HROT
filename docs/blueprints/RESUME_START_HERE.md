@@ -6,6 +6,8 @@
 > through real Roslyn, **ticked across frames**, and debuggable.
 > ⭐⭐ **`BP-74` is CLOSED — collapse a selection into a Function or Macro works end to end**: reachable
 > from the canvas, one undo entry that restores identity, refuses out loud, round-trip test-locked.
+> ⏭ **In flight: Batch 35** — hand-*authoring* a macro (exec-pin declarations, `BP-77`, the palette).
+> ⚠ **`BP-83` is DONE** (Batch 31) — it is not remaining work, despite reading like it.
 > ⛔ **Q26-A supersedes Q25-D3:** a macro now has **N exec-ins**, not one.
 >
 > 📌 Supersedes [RESUME_Coordinator.md](RESUME_Coordinator.md), which is now the **historical log**
@@ -52,9 +54,9 @@ for b in $(git ls-remote --heads origin | awk '{print $2}' | sed 's|refs/heads/|
 
 | Situation | Do |
 |---|---|
-| **No batch in flight** (**today's state**) | pick the next batch — see §4 |
+| **No batch in flight** | pick the next batch — see §4 |
 | **Implementation reported done** | run **all eight gates** (§3), review the diff, reconcile the tracker three ways, **then** merge `--ff-only` and record it |
-| A batch **is** in flight | ⛔ **rule 6: the tracker and detail docs are theirs.** Put findings in the *next* handoff, never in a live one |
+| A batch **is** in flight (**today's state — Batch 35**) | ⛔ **rule 6: the tracker and detail docs are theirs.** Put findings in the *next* handoff, never in a live one |
 
 ⭐ **Never say "they never saw X."** It is a property of one commit, not the session. Test against what
 they *branched from*:
@@ -144,7 +146,8 @@ one fact**, so the script exists. Run `--check` as part of verifying any returne
 | **32** | ✅ **verified and merged** (`fbc100cd`, ff-only) — **Q26-A3 N exec-ins** landed clean; ⭐ **first batch where the tracker counts were right on arrival**. See §7d |
 | **33** | ✅ **verified and merged** (`a8deb89f`, ff-only) — ⭐ **collapse works headlessly and the round-trip property holds.** ⚠ **PARTIAL by design**: the sink, undo and menu are **not** done, so it is not reachable from the canvas. `BP-221`/`BP-222` opened. See §7e |
 | **34** | ✅ **verified and merged** (`53c407f1`, ff-only) — ⭐ **`BP-74` CLOSED: collapse is reachable, undoable, and refuses out loud.** `BP-221`/`BP-222` fixed; **`BP-223`** found and fixed. See §7f |
-| **35** | ⛔ **not written yet.** Candidates: **`BP-76`** (its greyed gate is now the odd one out) · **`BP-77`** *"Macros +"* · **`BP-83`** debug provenance · BP-82's two library rails |
+| **35** | 📤 **written and dispatched** — [HANDOFF_Batch35_Macro_Authoring_UI.md](HANDOFF_Batch35_Macro_Authoring_UI.md). ⭐ **Author a macro by hand**: exec-pin declarations + **`BP-77`** + the palette (**`BP-75`** jointly). ⛔ Frozen (rule 1) |
+| **36+** | ⛔ **the last of the macro programme**: **`BP-76`** (*Expand Node* — Unreal ships it, our `Stage2_5` machinery exists) · **`BP-82`**'s `BP1664` (moot until **`BP-57`**) + two library rails |
 
 ### The macro capability
 
