@@ -4,8 +4,8 @@
 > Batches 29-31 are **merged**; **no batch is in flight** — pick the next one (§4).
 > ⭐ **Macros are DONE end to end and proven by execution** — authored, called, expanded, compiled
 > through real Roslyn, **ticked across frames**, and debuggable.
-> ⭐ **Collapse's headless core is IN and the collapse ∘ expand round-trip holds** across five shapes.
-> ⏭ **In flight: Batch 34** — making it reachable from the canvas, plus `BP-221` 🔴.
+> ⭐⭐ **`BP-74` is CLOSED — collapse a selection into a Function or Macro works end to end**: reachable
+> from the canvas, one undo entry that restores identity, refuses out loud, round-trip test-locked.
 > ⛔ **Q26-A supersedes Q25-D3:** a macro now has **N exec-ins**, not one.
 >
 > 📌 Supersedes [RESUME_Coordinator.md](RESUME_Coordinator.md), which is now the **historical log**
@@ -52,9 +52,9 @@ for b in $(git ls-remote --heads origin | awk '{print $2}' | sed 's|refs/heads/|
 
 | Situation | Do |
 |---|---|
-| **No batch in flight** | pick the next batch — see §4 |
+| **No batch in flight** (**today's state**) | pick the next batch — see §4 |
 | **Implementation reported done** | run **all eight gates** (§3), review the diff, reconcile the tracker three ways, **then** merge `--ff-only` and record it |
-| A batch **is** in flight (**today's state — Batch 34**) | ⛔ **rule 6: the tracker and detail docs are theirs.** Put findings in the *next* handoff, never in a live one |
+| A batch **is** in flight | ⛔ **rule 6: the tracker and detail docs are theirs.** Put findings in the *next* handoff, never in a live one |
 
 ⭐ **Never say "they never saw X."** It is a property of one commit, not the session. Test against what
 they *branched from*:
@@ -89,13 +89,13 @@ so the solution build never produces their assemblies and the runner exits with 
 …`NodeEditor.Core.Tests.dll` is invalid"* — ⭐ **no test output at all**, which reads as *"nothing to
 report"* rather than *"the gate did not run."* Trap #5, in the gate script itself.
 
-**Baseline at `a8deb89f` — ⭐ all eight gates coordinator-RUN 2026-08-11, post-Batch-33:**
+**Baseline at `53c407f1` — ⭐ all eight gates coordinator-RUN 2026-08-11, post-Batch-34:**
 
 | | |
 |---|---|
 | Solution build | **0 errors**, 69 warnings |
 | BP diagnostics | **10 distinct** — all `BP3010`, all **authored** orphans in 2 assets |
-| Blueprints | **3178** / 0 failed / 10 skipped ⚠ *(total 3188; BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
+| Blueprints | **3192** / 0 failed / 10 skipped ⚠ *(total 3202; BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
 | AiShared **1213** · BTree **612** · Breakpoints **130** | 0 failed |
 | NodeEdit Core **208** · UI **131** · Generators **193** | 0 failed |
 
@@ -117,7 +117,7 @@ retired `BP3011`; the 10 that remain are authored and deliberate.)
 
 ## 4 · Where the programme stands
 
-**Tracker: open 63 · done 94** ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
+**Tracker: open 60 · done 98** ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
 three ways — checkbox tally, per-complexity columns (⚠ take the **first** tag on a row), and the total
 row. ⚠⚠ **Reconcile all three EVERY time.** The columns can agree with the Total and both still be
 wrong: a missed tick is invisible to arithmetic and only shows against the checkbox tally.
@@ -143,7 +143,8 @@ one fact**, so the script exists. Run `--check` as part of verifying any returne
 | **31** | ✅ **verified and merged** (`119305e7`, ff-only) — ⭐ **the macro payoff is executed, and building it exposed a real defect in Batch 30's `BP1661`.** Plus **BP-83** · **BP-220** · **BP-111**. See §7c |
 | **32** | ✅ **verified and merged** (`fbc100cd`, ff-only) — **Q26-A3 N exec-ins** landed clean; ⭐ **first batch where the tracker counts were right on arrival**. See §7d |
 | **33** | ✅ **verified and merged** (`a8deb89f`, ff-only) — ⭐ **collapse works headlessly and the round-trip property holds.** ⚠ **PARTIAL by design**: the sink, undo and menu are **not** done, so it is not reachable from the canvas. `BP-221`/`BP-222` opened. See §7e |
-| **34** | 📤 **written and dispatched** — [HANDOFF_Batch34_Collapse_Reachable.md](HANDOFF_Batch34_Collapse_Reachable.md). Sink + **one undo entry** + host commands + menu, then **`BP-221`** 🔴. ⛔ Frozen (rule 1) |
+| **34** | ✅ **verified and merged** (`53c407f1`, ff-only) — ⭐ **`BP-74` CLOSED: collapse is reachable, undoable, and refuses out loud.** `BP-221`/`BP-222` fixed; **`BP-223`** found and fixed. See §7f |
+| **35** | ⛔ **not written yet.** Candidates: **`BP-76`** (its greyed gate is now the odd one out) · **`BP-77`** *"Macros +"* · **`BP-83`** debug provenance · BP-82's two library rails |
 
 ### The macro capability
 
@@ -250,6 +251,64 @@ The tracker's **`RW-L` done column was 43 and the Total 88; both were one short*
 **predates Batch 29** (present at `1af9bea`, and back at the 41/85 figures). Batch 29's own delta was
 exactly right. Corrected to **44 / 89** after merge. It reconciles three ways now; the note in the
 tracker records the method, including that the *refuted* row sits **outside** the Total.
+
+---
+
+## 7f · Batch 34 — ✅ VERIFIED AND MERGED at `53c407f1` — ⭐ **`BP-74` CLOSED**
+
+**Collapse works end to end.** Reachable from the canvas, **one undo entry that restores identity**,
+refuses out loud naming the offending nodes, and the round-trip property still holds.
+
+**Gates:** build **0 errors / 69 warnings** · BP diagnostics **10** · Blueprints **3192** (+14) ·
+AiShared 1213 · BTree 612 · Breakpoints 130 · Generators 193 · NodeEdit Core 208 · UI 131. **Zero
+failures.** `tracker-counts.py --check` clean on arrival — third batch running. **60 open / 98 done.**
+
+### ⚠⚠ `BP-223` — **the coordinator's handoff was wrong, and this is the correction**
+
+Batch 34's handoff said the refusal surface *"exists … wired at `BlueprintDocumentFactory:346`"* and
+asked them to confirm its shape. ⭐ **Confirming it is what found the defect.**
+
+✅ **Coordinator-verified at the dispatch commit `5e347f67`:** the **only** `EditorNotification`
+`TryDequeue` in the entire repository was **`NodeEditor.Demo/DemoShell.cs:456`**, against a queue *that
+shell builds for itself*. **The Hrot editor's queue had no reader at all.** ⇒ every notification since
+bookmarks landed (BP-24) was enqueued and silently discarded, and **a collapse refusal would have gone
+the same way** — B2 implemented right up to the point where it says nothing.
+
+⭐ **The coordinator checked that the enqueue half existed and never checked that anything read it.**
+That is **trap #5 exactly** — a mechanism that looks present and does nothing — walked into while
+writing a handoff that warns about trap #5. ⇒ ⭐ **"Confirm its shape" earned its keep; keep asking for
+it.** `NotificationOverlay` supplies the missing consumer, and bookmarks get their notifications back.
+
+### `BP-221` was two holes, not one — the coordinator found one of them
+
+I verified the missing helper loop (`InstanceEmitter:83` has it, `AiPrimitiveEmitter` does not) and
+stopped there. ⚠ **Reproduction found a second:** the call site emitted the **Instance-shaped** context
+args (`view, ecb, deltaTime, instanceVersion`) into an AiPrimitive `TickCore` whose signature is
+`(ref Params, ref WorkingState, self, world, time)` ⇒ **five `CS0103`s, not one.**
+⭐ **Reading the emitter showed the missing loop; running it showed the wrong call shape.**
+
+**`BP-222`** reproduced on the **Instance** path from a zero-output function graph ⇒ **never a collapse
+artefact**, and the row's description was right. Cause is `BP-221`'s class: two emitters deciding
+independently whether a call yields a value, disagreeing **in both directions** (`CS0815` void
+assigned; later `CS0127` value returned from void). ⭐ **One shared predicate**
+(`LibraryEmitter.HelperReturnType`) now answers it for the declaration and the call site together.
+
+⇒ **This unblocked the proof Batch 33 could not write**: `CollapsingToAFunction_CompilesThroughRoslynAndRuns`.
+⚠ A Function has **no inverse** — nothing expands a `FunctionCall` back — so the round-trip property is
+unavailable to it and **execution is the only evidence**.
+
+### The tests that lock the rulings
+
+| | |
+|---|---|
+| `Command_IsEnabled_ForAnIllegalButNonEmptySelection` | ⭐ **locks Q26-B2** against a future "helpful" `isEnabled` reintroducing greying |
+| `Command_IllegalSelection_NotifiesNamingTheOffendingNode_AndMutatesNothing` | asserts the **notification**, not merely the absence of change — the test `BP-223` would have failed |
+| `Sink_CollapseToMacro_ActuallyMutatesTheGraph` | ⭐ asserts **the graph, not the result flag** — asserting `Success` alone would have been **green on the silent-success defect** |
+| `Command_Undo_IsOneEntry_AndRestoresHostAndDropsTheCreatedGraph` | identity, not shape |
+| `Instance_CallingItsOwnFunctionGraph_StillCompiles` | the other dispatch, guarded |
+
+📌 **Process note they recorded, worth keeping:** restoring a revert patch with `mv` **back-dates the
+file**, MSBuild skips the recompile, and the reverted binary survives into every measurement after it.
 
 ---
 
