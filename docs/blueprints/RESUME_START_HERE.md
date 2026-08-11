@@ -4,8 +4,8 @@
 > Batches 29-31 are **merged**; **no batch is in flight** — pick the next one (§4).
 > ⭐ **Macros are DONE end to end and proven by execution** — authored, called, expanded, compiled
 > through real Roslyn, **ticked across frames**, and debuggable.
-> ⏭ **In flight: Batch 33 — collapse a selection into a Function/Macro** (`BP-74`), the feature the
-> macro programme was building toward. Design settled in [Q26](Architect_Question_26_Collapse_Selection.md).
+> ⭐ **Collapse's headless core is IN and the collapse ∘ expand round-trip holds** across five shapes.
+> ⚠ **It is not reachable from the canvas yet** — sink, undo and menu are Batch 34.
 > ⛔ **Q26-A supersedes Q25-D3:** a macro now has **N exec-ins**, not one.
 >
 > 📌 Supersedes [RESUME_Coordinator.md](RESUME_Coordinator.md), which is now the **historical log**
@@ -52,9 +52,9 @@ for b in $(git ls-remote --heads origin | awk '{print $2}' | sed 's|refs/heads/|
 
 | Situation | Do |
 |---|---|
-| **No batch in flight** | pick the next batch — see §4 |
+| **No batch in flight** (**today's state**) | pick the next batch — see §4 |
 | **Implementation reported done** | run **all eight gates** (§3), review the diff, reconcile the tracker three ways, **then** merge `--ff-only` and record it |
-| A batch **is** in flight (**today's state — Batch 33**) | ⛔ **rule 6: the tracker and detail docs are theirs.** Put findings in the *next* handoff, never in a live one |
+| A batch **is** in flight | ⛔ **rule 6: the tracker and detail docs are theirs.** Put findings in the *next* handoff, never in a live one |
 
 ⭐ **Never say "they never saw X."** It is a property of one commit, not the session. Test against what
 they *branched from*:
@@ -89,13 +89,13 @@ so the solution build never produces their assemblies and the runner exits with 
 …`NodeEditor.Core.Tests.dll` is invalid"* — ⭐ **no test output at all**, which reads as *"nothing to
 report"* rather than *"the gate did not run."* Trap #5, in the gate script itself.
 
-**Baseline at `fbc100cd` — ⭐ all eight gates coordinator-RUN 2026-08-11, post-Batch-32:**
+**Baseline at `a8deb89f` — ⭐ all eight gates coordinator-RUN 2026-08-11, post-Batch-33:**
 
 | | |
 |---|---|
 | Solution build | **0 errors**, 69 warnings |
 | BP diagnostics | **10 distinct** — all `BP3010`, all **authored** orphans in 2 assets |
-| Blueprints | **3161** / 0 failed / 10 skipped ⚠ *(total 3171; BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
+| Blueprints | **3178** / 0 failed / 10 skipped ⚠ *(total 3188; BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
 | AiShared **1213** · BTree **612** · Breakpoints **130** | 0 failed |
 | NodeEdit Core **208** · UI **131** · Generators **193** | 0 failed |
 
@@ -117,7 +117,7 @@ retired `BP3011`; the 10 that remain are authored and deliberate.)
 
 ## 4 · Where the programme stands
 
-**Tracker: open 61 · done 94** ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
+**Tracker: open 63 · done 94** ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
 three ways — checkbox tally, per-complexity columns (⚠ take the **first** tag on a row), and the total
 row. ⚠⚠ **Reconcile all three EVERY time.** The columns can agree with the Total and both still be
 wrong: a missed tick is invisible to arithmetic and only shows against the checkbox tally.
@@ -142,7 +142,8 @@ one fact**, so the script exists. Run `--check` as part of verifying any returne
 | **30** | ✅ **verified and merged** (`4fe3538a`, ff-only) — ⭐ **macros work end to end.** `Stage2_5_ExpandMacros` + **all four** Stage 2 rails + `BP-219`; `BP-220` opened. See §7b |
 | **31** | ✅ **verified and merged** (`119305e7`, ff-only) — ⭐ **the macro payoff is executed, and building it exposed a real defect in Batch 30's `BP1661`.** Plus **BP-83** · **BP-220** · **BP-111**. See §7c |
 | **32** | ✅ **verified and merged** (`fbc100cd`, ff-only) — **Q26-A3 N exec-ins** landed clean; ⭐ **first batch where the tracker counts were right on arrival**. See §7d |
-| **33** | 📤 **written and dispatched** — [HANDOFF_Batch33_Collapse_Selection.md](HANDOFF_Batch33_Collapse_Selection.md). ⭐ **Collapse itself** (`BP-74`) — the feature the user asked for. ⛔ Frozen (rule 1) |
+| **33** | ✅ **verified and merged** (`a8deb89f`, ff-only) — ⭐ **collapse works headlessly and the round-trip property holds.** ⚠ **PARTIAL by design**: the sink, undo and menu are **not** done, so it is not reachable from the canvas. `BP-221`/`BP-222` opened. See §7e |
+| **34** | ⛔ **not written yet** — ⭐ **finish `BP-74`**: sink cases + one undo entry + the context menu via `CommandCatalog` (⚠ **not** hardcoded into shared `NodeEditor.UI` — that is `BP-76`'s mistake). Then `BP-221` 🔴 |
 
 ### The macro capability
 
@@ -249,6 +250,46 @@ The tracker's **`RW-L` done column was 43 and the Total 88; both were one short*
 **predates Batch 29** (present at `1af9bea`, and back at the 41/85 figures). Batch 29's own delta was
 exactly right. Corrected to **44 / 89** after merge. It reconciles three ways now; the note in the
 tracker records the method, including that the *refuted* row sits **outside** the Total.
+
+---
+
+## 7e · Batch 33 — ✅ VERIFIED AND MERGED at `a8deb89f` — ⚠ **partial by design**
+
+⭐ **Collapse works, and the property the user asked for holds:** `collapse → expand → structurally
+equivalent`, across **five shapes** (linear · two entries · two exits · shared input · fan-out output).
+⭐ **Q26-F executed**: a latent selection collapsed to a macro, compiled through **real Roslyn**, loaded
+and **ticked** — Running/Ammo 0 → Success/Ammo 42. **Unreal refuses that collapse; we do it and run it.**
+
+**Gates:** build **0 errors / 69 warnings** · BP diagnostics **10** · Blueprints **3178** (+17) ·
+AiShared 1213 · BTree 612 · Breakpoints 130 · Generators 193 · NodeEdit Core 208 · UI 131. **Zero
+failures.** `tracker-counts.py --check` clean on arrival again — **63 open / 94 done**.
+
+### ⛔ What is NOT done — stated by them, up front
+
+**Items 3 and 4: the sink cases, undo, and the context menu.** ⇒ **collapse is not reachable from the
+canvas**, and `BlueprintCommandSink`'s `default:` arm still reports success while doing nothing.
+⭐ **They said so in the commit subject, the body and the `BP-74` row** rather than letting it be
+discovered. That is a clean stop at a boundary, which the handoff permits. **Batch 34 finishes it.**
+
+### ⭐ What they did beyond the handoff
+
+| | |
+|---|---|
+| **A refusal I did not specify** | a **Function** target now also refuses **≥ 2 exec ENTRIES** — a `FunctionCallNode` has one exec-in, so a Function built from a two-entry selection would silently lose every path but the first. Same class of hole as the exits rule I *did* specify |
+| **Latent detection de-duplicated** | moved to a shared `MacroLatency` used by both collapse and `BP1661`, rather than copied — the **BP-69 lesson** applied unprompted |
+| ⭐ **The comparator is proven non-vacuous** | `CanonicalGraphShape_DistinguishesADifferentTopology` + `..._IgnoresIdsAndPositions`. **Without those the five round-trip tests could all pass on a comparator that says yes to everything** |
+| **Per-set dedup keys** | entries/exits keyed by the **interior** pin, inputs by the **outside producer**, outputs by the **interior producer** — §1.3's (a) and (b) are exactly getting these wrong |
+| **The cycle check is structural** | contract the selection to one node, ask if it lies on a cycle. ⭐ The four-set table describes a cyclic boundary *happily* — as one input and one output — which is why it needs its own check |
+
+### 🔴 Two pre-existing defects collapse walked into
+
+| | |
+|---|---|
+| **`BP-221`** 🔴 | an **AiPrimitive** asset never emits `Func_*` helpers for its non-tick Function graphs, while the **call site is emitted regardless** ⇒ `CS0103` against a method that does not exist. ✅ **Coordinator-verified:** `InstanceEmitter:83` has the loop; `AiPrimitiveEmitter:157` picks a tick graph the same way but has **no equivalent loop**. ⚠ **Pre-existing and reachable by ordinary hand-authoring** — collapse merely walked into it |
+| **`BP-222`** | a zero-output Function-graph call assigns a **void** helper (`CS0815`). ⭐ **Deliberately filed UNATTRIBUTED** — it may be the BP-104 family or the call-site emitter, and they said it should be reproduced from a hand-authored graph before anyone fixes the half collapse happened to reach |
+
+⭐ **This is Batch 31's pattern again**: building the *proof* is what found the defects. The Function
+path has no compile proof yet **because these two block it**, and that is stated rather than papered over.
 
 ---
 
