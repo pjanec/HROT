@@ -180,18 +180,66 @@ so the default is evolving. I would rather have one `imgui.ini` in the source tr
 so every run by every developer would dirty a tracked file and produce merge conflicts over window
 coordinates.
 
-**The shape that gives what the user wants without that cost — seed, don't share:**
+### The design — refined by the user, 2026-08-10
+
+The user accepted the seed-for-new-users mechanism and added the two parts that matter:
+
+> *"What I actually want is the option to have a main menu item to **save the current setting as the
+> default**; and during the development stage (i.e. practically always now) to **auto-revert the user
+> setting to the repo-committed default on each new run** — copy the default to the user folder, force
+> overwriting whatever was there, so ImGui loads the user copy as usual but reset to default, and on
+> exit save to the user folder as now."*
+
+**The flow, confirmed workable against the code:**
+
+| When | What happens |
+|---|---|
+| **Startup**, revert mode ON | Force-copy repo default → user path, **before** `IniFilename` is assigned (`RaylibPresentationShell.cs:128-136`). ImGui then loads the user copy exactly as it does today |
+| **Startup**, revert mode OFF | Copy **only if the user file is missing** — the new-user seed |
+| **During the session** | Unchanged. ImGui owns the user copy |
+| **Exit** | Unchanged — ImGui writes the user copy. In revert mode it is simply discarded next run |
+| **`Save Current Layout as Default`** | Copy user path → **source-tree** default, ready to commit |
+
+⭐ **A consequence worth naming:** with revert-on-start ON, **every launch is the fresh-profile test**.
+[UXR-04](UX_Requirements.md#uxr-04) (*"delete the layout profile, launch, walk the path — no window
+opened manually"*) stops being an occasional audit and becomes something the team dogfoods continuously.
+That is a stronger argument for this design than the convenience.
+
+#### ⚠ The half that is missing from the plan: a layout is **two** files
+
+| File | Holds |
+|---|---|
+| `imgui.ini` | docking tree, window positions and sizes |
+| **`fdp_windows.json`** | which windows are **open / pinned**, UI scale, active perspective (`WindowManager.cs:368-382`) |
+
+Reverting only `imgui.ini` yields **default docking with the user's open/closed window set** — an
+inconsistent hybrid, and *"Save as default"* would capture only half the layout.
+
+⇒ **Treat the default as a pair.** Both revert together; both are written by *Save as Default*.
+
+#### 🔴 The read/write asymmetry — and the failure mode to avoid
+
+**Reading** the default can use the build-output copy (`Content` + `CopyToOutputDirectory`).
+**Writing** it must target the **source tree** — otherwise the commit never happens and the next build
+overwrites the file.
+
+⭐ **Use the pattern this repo already proved:** `ResolveAiBehaviorsDir` (`EditorSubsystem.cs:693-708`)
+walks up from **both** `Environment.CurrentDirectory` and `AppDomain.CurrentDomain.BaseDirectory`
+looking for a known relative path — with a comment recording *why* a hardcoded `../../../` was rejected
+(*"fragile and breaks when the editor runs from a different bin depth"*).
+
+🔴 **When the source tree cannot be resolved, disable the menu item — do not silently write to `bin`.**
+That is [Trap #5](UX_RESUME.md#5-traps), the `default:`-returns-success shape that has killed four
+features here.
+
+#### The remaining details
 
 | # | |
 |--:|---|
-| 1 | Give `SetupImGui()` a **path parameter** — the seam that must exist anyway (`RaylibPresentationShell.cs:128-136` hardcodes it today) |
-| 2 | Ship a curated **`imgui.<preset>.default.ini` in the source tree** — tracked, reviewed, evolving with the project |
-| 3 | On launch, if the user's live ini is **missing**, copy the default into place. New user gets the proven layout |
-| 4 | **Reset Layout** command = delete + re-seed + reload. Also the cheap answer to [UXR-04](UX_Requirements.md#uxr-04), which becomes testable rather than aspirational |
-| 5 | A dev flag (`--layout-file <path>`) to point the live ini **at** the tracked default, so one person can arrange windows and deliberately commit the new default |
-| 6 | Name the file **per preset**, which also ends the editor↔ClusterRunner collision on one machine-wide file |
-
-⇒ The default is a **reviewed artifact**; per-user customisation still works; git stays clean.
+| 1 | Give `SetupImGui()` a **path parameter** — the seam that must exist regardless |
+| 2 | **Revert-on-start is a setting, not a rebuild** — a `[Option]` on `HrotRunnerConfiguration` beside `AiBehaviorsProjectPath`. ON during development, OFF for release |
+| 3 | Name both files **per preset**, ending the editor↔`ClusterRunner` collision on one machine-wide file |
+| 4 | Menu home: **`Window ▸ Layout`** — *Reset to Default* (always) · *Save Current as Default* (dev only, greyed when the source tree is unresolvable). Keeps a developer action out of the author's face, per [UXR-06](UX_Requirements.md#uxr-06) |
 
 ### Stage 5 — Camera and viewport *(independent — can run in parallel)*
 
