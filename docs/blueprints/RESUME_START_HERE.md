@@ -3,7 +3,9 @@
 > **Point a fresh session at this file. It is self-contained.** Last updated **2026-08-11**.
 > Batches 29-31 are **merged**; **no batch is in flight** — pick the next one (§4).
 > ⭐ **Macros are DONE end to end and proven by execution** — authored, called, expanded, compiled
-> through real Roslyn, **ticked across frames**, and debuggable. Only the two visual gestures remain.
+> through real Roslyn, **ticked across frames**, and debuggable.
+> ⏭ **Next: [Q26](Architect_Question_26_Collapse_Selection.md) — collapse a selection into a
+> Function/Macro (BP-74).** Awaiting the architect; that gesture is how macros actually get made.
 >
 > 📌 Supersedes [RESUME_Coordinator.md](RESUME_Coordinator.md), which is now the **historical log**
 > (Batches 22-28, plus the §0z process root-cause). Read it only for backstory.
@@ -138,7 +140,7 @@ one fact**, so the script exists. Run `--check` as part of verifying any returne
 | **29** | ✅ **verified and merged** (`da13a6a`, ff-only) — **BP-80** macro surface · the **warning triage** (`BP-217`/`BP-218`, `BP-219` open) · **BP-131** `Return.Success`. See §7 |
 | **30** | ✅ **verified and merged** (`4fe3538a`, ff-only) — ⭐ **macros work end to end.** `Stage2_5_ExpandMacros` + **all four** Stage 2 rails + `BP-219`; `BP-220` opened. See §7b |
 | **31** | ✅ **verified and merged** (`119305e7`, ff-only) — ⭐ **the macro payoff is executed, and building it exposed a real defect in Batch 30's `BP1661`.** Plus **BP-83** · **BP-220** · **BP-111**. See §7c |
-| **32** | ⛔ **not written yet.** Remaining: **BP-80's visual half** (`BP-77`) · BP-82's two library rails · `BP1664` only after **BP-57** |
+| **32** | 📐 **gated on an architect round** — [Architect_Question_26_Collapse_Selection.md](Architect_Question_26_Collapse_Selection.md) (**BP-74**, *collapse a selection into a Function/Macro*), raised by the user 2026-08-11. ⛔ **Do not build before the answers are recorded** |
 
 ### The macro capability
 
