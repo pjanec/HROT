@@ -107,6 +107,43 @@ aimed:
 | [Correction 11](UX_Tasks_Detail.md#corrections) — PACK2-E002 | a stale code comment read as a live plan | check whether the work landed |
 | [Correction 14](UX_Tasks_Detail.md#corrections) — the wrong twin | duplicate type resolved by **namespace** | resolve by **project reference** |
 
+## ✅ The graph MCP is live — and it is **complementary**, not a replacement
+
+Connected 2026-08-10: **163,526 nodes / 519,797 edges** on this branch. Tested against the findings above.
+
+### Where it beats this script
+
+Real semantic edges (`IMPLEMENTS` 2,065 · `CALLS` 110,955 · `USAGE` 127,153 · `INHERITS` · `OVERRIDE`),
+so it does hops a textual count cannot:
+
+| Question | Result |
+|---|---|
+| *Who implements `IEntityContextMenuHandler`?* | ✅ `LambdaEntityContextMenuHandler` + `JsonEntityContextMenuHandler` — **the wrapper hop this script gets wrong** |
+| *Which `SharedContextMenuPopulator`?* | ✅ separates the twins **by `file_path`** — would have prevented [Correction 14](UX_Tasks_Detail.md#corrections) |
+| *Unadopted interfaces?* | ✅ independently surfaced `IHierarchyAdapter` at 1 implementer |
+
+### 🔴 TRAP — `is_test` is unreliable in this index
+
+**`is_test` is set on `Module` nodes only.** Every `Class`/`Method` in a `*.Tests` project reports
+`is_test = "false"` — verified: `StandaloneIosTests` in `Hrot.ExCon.Tests` returns `"false"`.
+
+> **Consequence, measured:** ranking seams by raw inbound edges gives `SharedContextMenuPopulator`
+> **12 inbound** — which reads as *well adopted*. Truth: **1 production caller + 11 tests.** Trusting it
+> would have erased the entire [UXI-03](UX_Feature_Entity_Action_Vocabulary.md) finding.
+>
+> 🔒 **Filter by `file_path`, never by `is_test`.**
+
+### Division of labour from here
+
+| Tool | Use for |
+|---|---|
+| **Graph** | *what connects to what* — implementers, callers, transitive reach. **Structure.** |
+| **`seam_inventory.py` / `type_index.py`** | *how widely adopted* — a census with **production and test counted separately**, the distinction the graph gets wrong |
+
+⚠ Also: the graph indexes `docs/**.md`, so name matches include documentation. And per its own tool
+docs, **coverage is best-effort and never proof of completeness** — negative claims ("nothing uses
+this") still need a second source. Cross-check before publishing.
+
 ## Next session gets a better tool than this
 
 `scripts/cloud-bootstrap.sh` has been run: .NET and `codebase-memory-mcp 0.10.2` are installed and the
