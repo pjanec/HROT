@@ -107,6 +107,12 @@ whether items can carry a handler binding (constraint 2) or only reference a reg
 whether it duplicates what the descriptor+binding split already gives. **Do not design for it now** —
 but do not choose an action-id scheme that would prevent it.
 
+⭐ **A lead worth following, from the user (2026-08-10):** *"I forgot how unified the menu definition is —
+I guess quite a lot."* If the JSON menu **schema** is already common between the Editor's
+`JsonEntityContextMenuHandler` and IG's `ContextMenuSystem`, then the format is *already* the generic
+part and only the transport differs — which would make this investigation cheap and its answer likely
+yes. **First step: diff the two parsers' accepted schema.**
+
 ## Q26-B — Where does a "profile" live? — ⚠ the question was malformed
 
 > ### The user asked what "profile" means and where it lives. Answering honestly: **it should not exist.**
@@ -152,8 +158,15 @@ but do not choose an action-id scheme that would prevent it.
 - **C3 — Replace outright**, changing the wire format.
   *Cost:* breaks ExCon↔IG compatibility. Rejected unless the architect sees a reason.
 
-> **Claude's lean: C1.** The int ids are working infrastructure with a network contract; the problem
-> being solved is authoring ergonomics, which does not require touching the wire.
+> ### ✅ RULED C1 by the user, 2026-08-10
+>
+> *"New action and menu infrastructure needs to be **compatible with the global action registry** rather
+> than inventing something completely different."*
+>
+> ⇒ `GlobalActionRegistry` + `GlobalActionDispatchSystem` + the `int` `GlobalActionIds` are the
+> **backbone to build on**, not a legacy layer to route around. The descriptor/binding split sits *above*
+> them: a descriptor carries an action id, and registering a handler is registering with the existing
+> registry. **No parallel dispatch mechanism.** C2 and C3 are closed.
 
 ## Q26-D — Is *perspective* the right profile key?
 
@@ -189,11 +202,19 @@ either/or. The design question becomes **which mechanism carries each**, and con
 than emergent from window registration. Stage 3 needs that anyway to fix the silent restore bug
 ([§5b](UX_Current_UI_Architecture.md#5b-how-perspective-switching-actually-works)).
 
-> **Claude's lean: the two-axis split above.** Remaining question for the architect: is *perspective* the
-> right runtime axis, or should the condition receive something broader (e.g. "is the world running") so
-> that preparation-vs-live differences — the Editor/SimHost distinction the user described — are
-> expressible without naming a perspective? **Claude leans: pass an opaque context with both, and let
-> hosts decide.**
+> ### ✅ ANSWERED by the user, 2026-08-10 — and the alternative is withdrawn
+>
+> *"The perspective seems to be the factor that further customizes the mode-defined/enabled
+> capabilities."*
+>
+> ⇒ **Mode enables; perspective refines.** The two do not cross-cut, and a perspective can never add a
+> capability the mode did not enable. That ordering is what makes the layering hold.
+>
+> ⚠ **Claude's suggested alternative — a broader "is the world running" axis — is withdrawn**, because
+> its premise was wrong: *"the editor fully supports running, not just preparation"* (same session). The
+> Editor plays, pauses and rewinds, so running is a state the Editor **has**, not a thing that
+> distinguishes it from SimHost. ⇒ **"Is running" is an ordinary `isApplicable` condition on an action or
+> tool, not a capability axis.** Two axes only.
 
 ## Q26-E — Is Stage 0 acceptable as a delete-only batch?
 
@@ -219,8 +240,8 @@ namespace the live panels declare**.
 | **Q26-A′** — ORBAT in stage 2? | — | *including it collapses a 434-line fork* |
 | **Q26-A″** — is JSON-defined menu content generic? | — | ⚠ **investigation, not this round.** Separate the *transport* (IG-only) from the *format* (maybe generic) |
 | **Q26-B** — what a registration carries | — | *lean B2 — handler **plus** declarative conditions. ⚠ the original "where does a profile live" was malformed; see the block* |
-| **Q26-C** — replace or wrap int ids | — | *lean C1; the ids cross DDS* |
-| **Q26-D** — perspective or mode as key | ✅ **both** (user) | *mechanism: mode at composition time, perspective as a registration condition. Architect input wanted on whether the runtime axis should be broader than perspective* |
+| **Q26-C** — replace or wrap int ids | ✅ **C1** | **ruled by the user 2026-08-10** — build **on** `GlobalActionRegistry`; invent nothing parallel |
+| **Q26-D** — perspective or mode as key | ✅ **both, ordered** | **user 2026-08-10:** mode *enables*, perspective *further customizes*. The "is running" alternative is withdrawn — the editor runs too |
 | **Q26-E** — delete-only batch | — | *lean E1* |
 
 ### Settled by the user before the round — do not re-ask
@@ -230,3 +251,5 @@ namespace the live panels declare**.
 | **Handlers stay per-subsystem** | The three `Delete`s are **not** a defect. Unify the *declaration*; keep implementations **register-time parametrizable**. Same for tools |
 | **Why they legitimately differ** | The editor is **networkless**; every other ClusterRunner subsystem uses the network |
 | **No leaking into generic components** | Inspectors and other `Fdp.Presentation` panels stay ignorant of editor/simhost/cgf concepts — clean API only |
+| **The editor is not preparation-only** | It *fully supports running*. So prep-vs-live is **not** the Editor/SimHost axis, and "is running" is a per-action condition rather than a capability axis |
+| **Build on the existing registry** | `GlobalActionRegistry` is the backbone. No parallel dispatch mechanism |

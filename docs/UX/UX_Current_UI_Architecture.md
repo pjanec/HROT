@@ -242,7 +242,8 @@ alongside IG's, so it composes both worlds. The **interaction core is shared thr
 operator UI.
 
 ⇒ **Your premise holds for the core and correctly fails for the tools.** Grid vs road/trajectory layers
-are a *legitimate* difference: prep-time aid vs live physics.
+are a *legitimate* difference — a navigation aid vs live physics data. ⚠ **Not** prep-vs-live: the
+Editor runs too (user, 2026-08-10), so it needs both kinds.
 
 ### 🔴 …but there is no tool abstraction at all
 
@@ -313,8 +314,8 @@ Having a seam is not the same as using it well — and three copies of "Delete" 
 
 The map is **not** the ORBAT situation. The interaction core is genuinely shared three ways and the
 domain differences are legitimate. What is missing is one level up: **a tool is not a thing in this
-codebase**, so "the Editor's preparation tools and SimHost's exercise tools drawn from one pool" has no
-pool to draw from.
+codebase**, so "one pool of tools, each mode drawing its own set" has no pool to draw from.
+⚠ The Editor is **not** preparation-only — it runs too, and composes the largest tool set of any host.
 
 **The Tier-1 shape:** introduce a tool descriptor (id, label, icon, activation, the gizmo it installs)
 plus a per-host tool set, and route all four idioms through it. `GlobalActionRegistry` is the closest

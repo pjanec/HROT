@@ -148,8 +148,9 @@ perspective and relaunch → you return to it.
 - Collapse the **four** activation idioms into one; remove the Editor's duplicated activation path.
 - The toolbar gains active-tool state ([UXR-84](UX_Requirements.md#uxr-84)) — free once the state exists.
 
-**Gate:** Editor shows preparation tools, SimHost shows exercise tools, both from one pool; the active
-tool is visible.
+**Gate:** Editor and SimHost show different tool sets drawn from one pool — the mode enabling a set and
+the perspective narrowing it — and the active tool is visible. ⚠ *Not* a prep-vs-live split: the Editor
+runs too, so "is running" is an applicability condition, not a tool-set axis.
 
 ### Stage 5 — Camera and viewport *(independent — can run in parallel)*
 

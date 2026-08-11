@@ -198,10 +198,37 @@ mostly shared while letting each mode differ.** Stated concretely for the pair t
 > menu (although mostly shared), as it supports **scenario preparation** while SimHost supports a
 > **running exercise**."*
 
+> ### ⚠ CORRECTED 2026-08-10 — the editor is **not** preparation-only
+>
+> *"The editor fully supports running, not just preparation."* — the user, same session. The quote above
+> is kept verbatim, but **do not read prep-vs-live as the Editor-vs-SimHost axis.** The Editor plays,
+> pauses and rewinds (`EditorPreviewAdapter`, `PreviewClusterOpHandler`), so *running* is a state the
+> **Editor** has too.
+>
+> ⇒ This matches what the code already showed: **Editor ≈ SimHost ∪ IG + authoring extras**. The Editor
+> composes the most because it does the most. SimHost's smaller set is not "the exercise half of a
+> split" — it is a node that is not an authoring station.
+>
+> ⇒ **"Is the world running" is therefore an ordinary applicability condition on an action or tool
+> (`isApplicable: ctx => …`), not a capability axis.** The two axes stay mode and perspective.
+
+> ### ⭐ The relationship between the two axes — settled by the user, 2026-08-10
+>
+> *"The perspective seems to be the factor that further customizes the mode-defined/enabled
+> capabilities."*
+>
+> | | |
+> |---|---|
+> | **Mode** | **defines and enables** the capability set — composition time, one per process |
+> | **Perspective** | **further customizes** that set — runtime, switchable |
+>
+> So perspective **refines** mode; the two do not cross-cut. A perspective can never add a capability the
+> mode did not enable. That ordering is what keeps the layering clean: mode-dependence is expressed by
+> *what a host registers at all*, perspective-dependence by *a condition on that registration*.
+
 **Why this is a requirement and not a preference:** the difference is a difference in *task*, not in
-taste. Preparation edits a scenario that is not running; a running exercise cannot be edited the same
-way. A surface that cannot express that difference will be forked — which is exactly what already
-happened to ORBAT. See [the seam law](UX_Current_UI_Architecture.md).
+taste. A surface that cannot express it will be forked — which is exactly what already happened to
+ORBAT. See [the seam law](UX_Current_UI_Architecture.md).
 
 ⚠ **The main-menu, map-tool and context-menu surfaces are the ones that most define what a user can do**,
 so they are the ones that most need to differ per mode (user, 2026-08-10).
@@ -209,7 +236,7 @@ so they are the ones that most need to differ per mode (user, 2026-08-10).
 | ID | Requirement | Acceptance | Now | Pri |
 |---|---|---|---|:--:|
 | <a id="uxr-80"></a>**UXR-80** | **A shared panel exposes a contribution seam.** A host adds, removes or replaces items without editing the panel | Add a mode-specific item to a shared surface with **zero** edits to shared code | Exists for entity context menus, map draw layers, the inspector, time transport; **absent** for the main menu, ORBAT rows, map camera, spawn | P0 |
-| <a id="uxr-81"></a>**UXR-81** | **The map tool set is per mode.** The Editor's preparation tools and SimHost's exercise tools are drawn from one implementation pool, each host choosing its own set | Editor and SimHost show different tool sets over the same map code | 🔴 **No pool exists — "a tool" is not a thing in this codebase.** No `ITool`/registry/current-tool state; the active tool *is* whichever gizmo happens to be registered. **Four** uncoordinated activation idioms, two of them used for the same tools inside one class. SimHost has 3 tools (Select/Drag/Rotate); the rest are absent because nobody wrote the wiring, not because it opted out. The interaction core *is* shared 3 ways, so the gap is one level up. [Detail](UX_Current_UI_Architecture.md#6b-map-tools-and-the-editor--simhost-relationship) | P0 |
+| <a id="uxr-81"></a>**UXR-81** | **The map tool set is per mode, refined by perspective.** Tools come from one implementation pool; the **mode enables** a set and the **perspective narrows** it. ⚠ Not a prep-vs-live split — the Editor runs too, and composes the largest set | Editor and SimHost show different tool sets over the same map code; switching perspective narrows the Editor's | 🔴 **No pool exists — "a tool" is not a thing in this codebase.** No `ITool`/registry/current-tool state; the active tool *is* whichever gizmo happens to be registered. **Four** uncoordinated activation idioms, two of them used for the same tools inside one class. SimHost has 3 tools (Select/Drag/Rotate); the rest are absent because nobody wrote the wiring, not because it opted out. The interaction core *is* shared 3 ways, so the gap is one level up. [Detail](UX_Current_UI_Architecture.md#6b-map-tools-and-the-editor--simhost-relationship) | P0 |
 | <a id="uxr-82"></a>**UXR-82** | **The entity context menu is mostly shared, partly per mode** — common items declared once, mode-specific items contributed by the host | Compare Editor and SimHost menus: common items come from one place, differences from host registration | ⚠ **Half met.** The seam exists and is used (Editor 4 handlers, SimHost 1, IG 1) — but every item is a hand-written lambda, so *"Center on entity"* and *"Delete"* are **reimplemented three times with different behaviour** (Editor publishes `DestroyEntityCommand`; SimHost branches on `NetworkIdentity`, falls back to `_repo.DestroyEntity`, clears selection + inspector state). **Having a seam ≠ using it well** | P1 |
 | <a id="uxr-88"></a>**UXR-88** | 🔒 **No higher-level concept leaks into a generic component.** `Fdp.Presentation` panels — inspectors above all — stay ignorant of editor / simhost / cgf concepts. Contribution happens through a clean API carrying an **opaque** context | Grep a generic panel for any subsystem or mode name → none. A new mode is added with **zero** edits below the composition root | ⚠ mostly holds today (`IEntityContextMenuHandler` is clean); the risk is introduced by *fixing* the sharing gaps carelessly. User constraint, 2026-08-10 | P0 |
 | <a id="uxr-89"></a>**UXR-89** | **A shared action or tool is one declaration with per-host implementations.** Identity, label, icon and ordering are shared; the handler is bound at **registration time** by each subsystem | Editor and SimHost show the same `Delete` item and run different code for it, with no shared-class edit | ⚠ the divergence exists and is **correct** — the editor is networkless, the others are not — but is expressed as three unrelated lambdas with no shared declaration. User constraint, 2026-08-10 | P0 |
