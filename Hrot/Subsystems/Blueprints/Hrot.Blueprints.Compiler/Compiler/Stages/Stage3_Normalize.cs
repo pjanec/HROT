@@ -134,18 +134,11 @@ internal static class Stage3_Normalize
         if (extraNodes.Count == 0) return graph;
 
         // Return a new graph with the synthesized nodes and links appended.
-        return new Graph
-        {
-            Id             = graph.Id,
-            Name           = graph.Name,
-            Kind           = graph.Kind,
-            Inputs         = graph.Inputs,
-            Outputs        = graph.Outputs,
-            ExecOutputs    = graph.ExecOutputs,
-            EditorMetadata = graph.EditorMetadata,
-            Nodes          = graph.Nodes.Concat(extraNodes).ToList(),
-            Links          = graph.Links.Concat(extraLinks).ToList(),
-        };
+        // BP-220: one copy helper rather than a field-by-field rebuild here. This site used to drop
+        // Graph.Comments, and had to have ExecOutputs hand-added in Batch 29.
+        return graph.WithNodesAndLinks(
+            graph.Nodes.Concat(extraNodes).ToList(),
+            graph.Links.Concat(extraLinks).ToList());
     }
 
     /// <summary>
@@ -428,21 +421,12 @@ internal static class Stage3_Normalize
         // original Graph object (which may be referenced by the caller's asset variable).
         // Mutating in place would cause subsequent compiles of the same asset object to
         // see a pruned graph (e.g. hot-reload re-compiling an identical asset twice).
-        var newGraph = new Graph
-        {
-            Id            = graph.Id,
-            Name          = graph.Name,
-            Kind          = graph.Kind,
-            Inputs        = graph.Inputs,
-            Outputs       = graph.Outputs,
-            ExecOutputs   = graph.ExecOutputs,
-            EditorMetadata = graph.EditorMetadata,
-            Nodes = graph.Nodes.Where(n => !orphanIds.Contains(n.Id)).ToList(),
-            Links = graph.Links
+        // BP-220: see the note at the other call site.
+        return graph.WithNodesAndLinks(
+            graph.Nodes.Where(n => !orphanIds.Contains(n.Id)).ToList(),
+            graph.Links
                 .Where(l => !orphanIds.Contains(l.FromNodeId) && !orphanIds.Contains(l.ToNodeId))
-                .ToList(),
-        };
-        return newGraph;
+                .ToList());
     }
 
     private static void CollectReachable(Graph graph, Guid startId, HashSet<Guid> visited)

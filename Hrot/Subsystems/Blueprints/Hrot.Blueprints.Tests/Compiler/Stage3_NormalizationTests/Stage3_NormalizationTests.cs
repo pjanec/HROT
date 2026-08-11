@@ -134,6 +134,94 @@ public sealed class Stage3_NormalizationTests
         Assert.Empty(normalized.Graphs[0].Nodes.OfType<LiteralNode>());
     }
 
+    // ---- BP-220: the Graph copy shape ------------------------------------
+
+    /// <summary>
+    /// ⭐ <b>The guard the copy could not have without reflection.</b> <c>Graph.WithNodesAndLinks</c>
+    /// must preserve EVERY member except the two it replaces. A hand-written copy cannot be checked by
+    /// the compiler, which is how <c>Comments</c> came to be dropped at both Stage 3 sites and how
+    /// <c>ExecOutputs</c> came to need hand-adding at both in Batch 29.
+    ///
+    /// <para>
+    /// This walks the type's properties, so it fails on the NEXT member added without being handled —
+    /// at the moment the knowledge exists, rather than several batches later when a value has already
+    /// gone missing somewhere downstream.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Graph_CopyShape_PreservesEveryMember()
+    {
+        var source = new Graph
+        {
+            Id             = Guid.NewGuid(),
+            Name           = "Original",
+            Kind           = GraphKind.Macro,
+            Inputs         = { new ParameterDecl { Id = Guid.NewGuid(), Name = "In0" } },
+            Outputs        = { new ParameterDecl { Id = Guid.NewGuid(), Name = "Out0" } },
+            ExecOutputs    = { new ExecOutDecl { Id = Guid.NewGuid(), Name = "Then" } },
+            Comments       = { new GraphComment { Id = Guid.NewGuid(), Text = "keep me" } },
+            EditorMetadata = new GraphMetadata(),
+            Nodes          = { new ReturnNode { Id = Guid.NewGuid() } },
+            Links          = { new Link { FromNodeId = Guid.NewGuid() } },
+        };
+
+        var copy = source.WithNodesAndLinks(new List<Node>(), new List<Link>());
+
+        var replaced = new HashSet<string> { nameof(Graph.Nodes), nameof(Graph.Links) };
+        var dropped  = new List<string>();
+
+        foreach (var prop in typeof(Graph).GetProperties(
+                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+        {
+            if (replaced.Contains(prop.Name)) continue;
+
+            var before = prop.GetValue(source);
+            var after  = prop.GetValue(copy);
+
+            // Reference equality for the collections, value equality for the scalars — either way the
+            // question is "did the copy carry it across at all".
+            bool preserved = ReferenceEquals(before, after) || Equals(before, after);
+            if (!preserved) dropped.Add(prop.Name);
+        }
+
+        Assert.True(dropped.Count == 0,
+            "Graph.WithNodesAndLinks dropped these members:\n  " + string.Join("\n  ", dropped)
+            + "\n\nAdd them to the copy. A Graph member that is not copied is silently lost every "
+            + "time Stage3_Normalize rebuilds a graph — which is exactly how Comments was lost.");
+
+        // And the two it IS meant to replace really were replaced.
+        Assert.Empty(copy.Nodes);
+        Assert.Empty(copy.Links);
+    }
+
+    /// <summary>The end-to-end statement of the same thing: comments survive Stage 3.</summary>
+    [Fact]
+    public void Normalize_PreservesGraphComments()
+    {
+        var asset = BlueprintAssetBuilder
+            .Library("CommentsLib")
+            .WithGraph("Main", g => g.Entry().Return())
+            .Build();
+
+        asset.Graphs[0].Comments.Add(new GraphComment { Id = Guid.NewGuid(), Text = "designer note" });
+
+        // Force BOTH reconstruction sites to run: an orphan (elimination) with a defaulted pin
+        // (materialization).
+        asset.Graphs[0].Nodes.Add(new PrintStringNode
+        {
+            Id   = Guid.NewGuid(),
+            Pins = { new Pin { Id = Guid.NewGuid(), Name = "A", Direction = "In", IsExec = false,
+                               TypeRef = new BlueprintTypeRef { TypeId = "System.Int32" },
+                               DefaultValue = "1" } },
+        });
+
+        var sink       = new DiagnosticSink();
+        var normalized = Stage3_Normalize.Run(asset, new ValidationContext(sink, DefaultOptions()));
+
+        var comment = Assert.Single(normalized.Graphs[0].Comments);
+        Assert.Equal("designer note", comment.Text);
+    }
+
     // ---- Implicit cast insertion (BP3011 RETIRED -- Batch 29) ------------
 
     [Fact]

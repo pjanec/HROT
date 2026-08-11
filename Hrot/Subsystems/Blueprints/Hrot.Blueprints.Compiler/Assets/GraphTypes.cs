@@ -35,6 +35,39 @@ public sealed class Graph
     public List<Link> Links { get; set; } = new();
 
     /// <summary>
+    /// BP-220 — a copy of this graph carrying new <see cref="Nodes"/>/<see cref="Links"/> and
+    /// <b>every other member preserved</b>.
+    ///
+    /// <para>
+    /// ⚠⚠ <b>The point is that the copy is written ONCE, here, instead of at each call site.</b>
+    /// <c>Stage3_Normalize</c> rebuilt <c>Graph</c> field-by-field at two places and both copied 9 of
+    /// 10 members — silently dropping <see cref="Comments"/>. Batch 29 then had to remember
+    /// <see cref="ExecOutputs"/> at both sites by hand, and nothing would have failed if it had been
+    /// missed at one. A copy that must be REMEMBERED is a copy that will be forgotten; this is the
+    /// same class of defect as the denormalised <c>Pin.LinkedToIds</c> mirror, one level up.
+    /// </para>
+    ///
+    /// <para>
+    /// <c>Graph_CopyShape_PreservesEveryMember</c> walks this type's properties by reflection and
+    /// fails on the NEXT member added without being handled here — which is exactly when the
+    /// knowledge is needed, rather than several batches later.
+    /// </para>
+    /// </summary>
+    public Graph WithNodesAndLinks(List<Node> nodes, List<Link> links) => new()
+    {
+        Id             = Id,
+        Name           = Name,
+        Kind           = Kind,
+        Inputs         = Inputs,
+        Outputs        = Outputs,
+        ExecOutputs    = ExecOutputs,
+        Comments       = Comments,
+        EditorMetadata = EditorMetadata,
+        Nodes          = nodes,
+        Links          = links,
+    };
+
+    /// <summary>
     /// Unreal-style comment boxes ("Add Comment" on the canvas). Pure editor annotation —
     /// the compiler never reads this list; it exists only so comments round-trip through
     /// save/reload. See <see cref="GraphComment"/>.
