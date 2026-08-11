@@ -5,6 +5,7 @@ using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Core.Compiler.Diagnostics;
 using Hrot.Blueprints.Core.Compiler.Emit;
 using Hrot.Blueprints.Core.Compiler.Stages;
+using Hrot.Blueprints.Core.Compiler.Transform;
 using BlueprintDispatchKind = Hrot.Blueprints.Core.Assets.BlueprintDispatchKind;
 using BlueprintTypeRef      = Hrot.Blueprints.Core.Assets.BlueprintTypeRef;
 
@@ -386,6 +387,137 @@ public sealed class LatentMacroPayoffTests
         n.Pins.AddRange(new[] { execIn, execOut, ammo, written });
         n.PinDefaults = new Dictionary<string, string> { ["Ammo"] = value.ToString() };
         return n;
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // BP-74 / Q26-F — collapse a LATENT selection, then run it
+    // ────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ <b>Q26-F, executed.</b> Unreal refuses to collapse a selection containing a latent node; Q26
+    /// deliberately allows it, because BP-78 records that factoring out a reusable LATENT sequence is
+    /// the one thing a macro can do that nothing else can — refusing it would forbid by gesture what
+    /// the capability permits.
+    ///
+    /// <para>
+    /// So: take a tick graph with <c>Delay → fire</c> inline, COLLAPSE that selection into a macro,
+    /// and then compile the result through <b>real Roslyn</b> and tick it across frames. The value
+    /// assertion is the proof — a collapse that dropped the post-delay half would still compile and
+    /// still report Running then Success.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void CollapsingALatentSelectionToAMacro_StillSuspendsAndFiresWhenRun()
+    {
+        using var fixture = new BlueprintTestFixture(NoAlcCheck);
+
+        // ── an INLINE tick graph: Entry → Delay(0.4) → SetComponent(Ammo=42) → Return ──
+        var entry  = new EventEntryNode { Id = Guid.NewGuid() };
+        var eOut   = NewPin("Out", "Out", isExec: true); entry.Pins.Add(eOut);
+
+        var delay  = new LatentDelayNode { Id = Guid.NewGuid() };
+        var dIn    = NewPin("In", "In", isExec: true);
+        var dOut   = NewPin("Out", "Out", isExec: true);
+        var dSecs  = NewPin("Seconds", "In", isExec: false, typeId: "System.Single");
+        delay.Pins.AddRange(new[] { dIn, dOut, dSecs });
+        delay.PinDefaults = new Dictionary<string, string> { ["Seconds"] = "0.4" };
+
+        var fire   = MakeAmmoWriter(42, out var fIn, out var fOut);
+
+        var ret    = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn  = NewPin("In", "In", isExec: true); ret.Pins.Add(retIn);
+
+        var tick = new Graph
+        {
+            Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function,
+            Nodes = { entry, delay, fire, ret },
+            Links = { Wire(entry, eOut, delay, dIn), Wire(delay, dOut, fire, fIn),
+                      Wire(fire, fOut, ret, retIn) },
+        };
+
+        // ── collapse {delay, fire} into a macro ────────────────────────────
+        var analysis = CollapseAnalysis.Analyse(
+            tick, new[] { delay.Id, fire.Id }, CollapseTarget.Macro);
+        Assert.False(analysis.IsRefused,
+            "Q26-F allows a latent selection to be collapsed to a Macro: "
+            + string.Join("; ", analysis.Refusals.Select(r => r.Code)));
+
+        var edit  = CollapseEmitter.Emit(tick, analysis.Plan!, CollapseTarget.Macro, "AimAndFire");
+        var asset = MakeAiPrimitiveAsset("CollapsedLatent", edit.RewrittenHost, edit.Extracted);
+
+        fixture.CompileAndLoad(asset);      // real Roslyn, on the COLLAPSED asset
+
+        fixture.World.RegisterComponent<Hrot.AI.Behaviors.BpComponentDemo>();
+        var entity = fixture.CreateEntity();
+        fixture.World.AddComponent(entity, new Hrot.AI.Behaviors.BpComponentDemo { Ammo = 0 });
+
+        Assert.Equal(NodeStatus.Running, fixture.InvokeBTreeAction(asset, entity));
+        Assert.Equal(0, ReadAmmo(fixture, entity));      // suspended inside the collapsed macro
+
+        fixture.View.AdvanceTime(0.5f);
+        Assert.Equal(NodeStatus.Success, fixture.InvokeBTreeAction(asset, entity));
+        Assert.Equal(42, ReadAmmo(fixture, entity));     // ⭐ the collapsed body really ran
+    }
+
+    /// <summary>
+    /// The Function path — ⚠ <b>scoped honestly, and the scoping is a finding, not a shortcut.</b>
+    ///
+    /// <para>
+    /// The ANALYSIS and the EMIT are asserted here: a one-node selection becomes a Function graph with
+    /// the right boundary, and the host gets a <see cref="FunctionCallNode"/> pointing at it. That much
+    /// is collapse's own work and it is correct.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠⚠ <b>What is NOT asserted is that the result compiles</b>, because two pre-existing holes in
+    /// the FunctionCall EMIT path — both reachable by an ordinary hand-authored FunctionCall, neither
+    /// caused by collapse — stop it. See <b>BP-221</b> and <b>BP-222</b> in the tracker for the
+    /// evidence. Claiming a compile proof here would be the overclaiming test Batch 31 had to fix.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ The MACRO path has the full proof — collapse → expand → canonical-equal (Q26-E1), plus the
+    /// latent case compiled through real Roslyn and ticked across frames above.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void CollapsingToAFunction_ProducesTheRightGraphAndCallSite()
+    {
+        var entry = new EventEntryNode { Id = Guid.NewGuid() };
+        var eOut  = NewPin("Out", "Out", isExec: true); entry.Pins.Add(eOut);
+        var body  = MakeAmmoWriter(13, out var fIn, out var fOut);
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = NewPin("In", "In", isExec: true); ret.Pins.Add(retIn);
+
+        var tick = new Graph
+        {
+            Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function,
+            Nodes = { entry, body, ret },
+            Links = { Wire(entry, eOut, body, fIn), Wire(body, fOut, ret, retIn) },
+        };
+
+        var analysis = CollapseAnalysis.Analyse(tick, new[] { body.Id }, CollapseTarget.Function);
+        Assert.False(analysis.IsRefused, string.Join("; ", analysis.Refusals.Select(r => r.Code)));
+
+        var edit = CollapseEmitter.Emit(tick, analysis.Plan!, CollapseTarget.Function, "DoFire");
+
+        // The extracted graph is a Function with the body and a fresh boundary…
+        Assert.Equal(GraphKind.Function, edit.Extracted.Kind);
+        Assert.Single(edit.Extracted.Nodes.OfType<SetComponentNode>());
+        Assert.Single(edit.Extracted.Nodes.OfType<EventEntryNode>());
+        Assert.Single(edit.Extracted.Nodes.OfType<ReturnNode>());
+        // …and a Function declares no exec entry/exit lists — those are the Macro shape.
+        Assert.Empty(edit.Extracted.ExecInputs);
+        Assert.Empty(edit.Extracted.ExecOutputs);
+
+        // …while the host now calls it, and no longer contains the body.
+        var call = Assert.Single(edit.RewrittenHost.Nodes.OfType<FunctionCallNode>());
+        Assert.Equal(edit.Extracted.Id.ToString(), call.TargetGraphId);
+        Assert.Empty(edit.RewrittenHost.Nodes.OfType<SetComponentNode>());
+
+        // The exec chain is continuous through the call: entry → call → return.
+        Assert.Contains(edit.RewrittenHost.Links, l => l.FromNodeId == entry.Id && l.ToNodeId == call.Id);
+        Assert.Contains(edit.RewrittenHost.Links, l => l.FromNodeId == call.Id  && l.ToNodeId == ret.Id);
     }
 
     // ────────────────────────────────────────────────────────────────────────

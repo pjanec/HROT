@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Diagnostics;
+using Hrot.Blueprints.Core.Compiler.Transform;
 
 namespace Hrot.Blueprints.Core.Compiler.Stages;
 
@@ -94,7 +95,7 @@ internal sealed class V_MacroCallRules : IValidator
 
             foreach (var targetId in kv.Value)
             {
-                var latent = FindTransitivelyLatentNode(targetId, macroById, new HashSet<Guid>());
+                var latent = MacroLatency.FindTransitivelyLatentNode(targetId, macroById, new HashSet<Guid>());
                 if (latent is null) continue;
 
                 var (latentMacro, latentNode) = latent.Value;
@@ -143,30 +144,6 @@ internal sealed class V_MacroCallRules : IValidator
     // ────────────────────────────────────────────────────────────────────────
     // BP1661 — transitive latency
     // ────────────────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Walks a macro's body and the bodies of every macro it calls, returning the first latent node
-    /// found. <paramref name="seen"/> makes it cycle-safe on its own so it does not depend on BP1662
-    /// having already fired.
-    /// </summary>
-    private static (Graph Macro, Node Node)? FindTransitivelyLatentNode(
-        Guid macroId, Dictionary<Guid, Graph> macroById, HashSet<Guid> seen)
-    {
-        if (!seen.Add(macroId)) return null;
-        if (!macroById.TryGetValue(macroId, out var macro)) return null;
-
-        foreach (var node in macro.Nodes)
-            if (node is LatentDelayNode or WaitForChannelNode or WaitForEventNode)
-                return (macro, node);
-
-        foreach (var inner in macro.Nodes.OfType<MacroCallNode>())
-        {
-            if (!Guid.TryParse(inner.TargetGraphId, out var innerId)) continue;
-            var found = FindTransitivelyLatentNode(innerId, macroById, seen);
-            if (found is not null) return found;
-        }
-        return null;
-    }
 
     // ────────────────────────────────────────────────────────────────────────
     // BP1663 — the F2 purity rule
