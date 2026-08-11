@@ -754,4 +754,128 @@ public sealed class LatentMacroPayoffTests
         Assert.Equal(NodeStatus.Success, fixture.InvokeBTreeAction(asset, entity));
         Assert.Equal(99, ReadAmmo(fixture, entity));  // ⭐ both suspensions resolved, in order
     }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // BP-80 / BP-225 — the AUTHORING path, end to end
+    // ────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐ <b>A macro authored entirely through the editor's own seams, then executed.</b>
+    /// <c>TwoEntryMacro_EnteredFromEachDoor_WritesThatDoorsValue</c> proves the splice pairs
+    /// hand-written declarations correctly; this proves the <b>editor</b> can produce those
+    /// declarations at all. Until Batch 35 it could not — nothing in <c>.Editor</c> wrote
+    /// <c>ExecInputs</c>, so a multi-entry macro came only from collapse or from hand-edited JSON.
+    ///
+    /// <para>
+    /// ⚠ The value assertion carries it: the host enters through the <b>second</b> declared entry, so
+    /// any code that paired declaration order against pin order wrongly — or that dropped the second
+    /// declaration — writes 7 instead of 99 while still compiling and still returning Success.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ Then the entry is <b>renamed</b> and it runs again. That is the destructive-edit policy
+    /// stated as behaviour rather than as a claim about pin ids: renaming an entry moves a pin, and
+    /// the wire must arrive at the same body path afterwards — through the real compiler, not just in
+    /// the editor's object graph.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void MacroAuthoredThroughTheEditModel_RoutesTheDeclaredEntry_AndSurvivesARename()
+    {
+        using var fixture = new BlueprintTestFixture(NoAlcCheck);
+
+        var asset = MakeAiPrimitiveAsset("AuthoredMacro");
+
+        // ── the macro, created the way "Macros +" creates one ──────────────
+        var macro = Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory.CreateMacroGraph(asset, "AimFire");
+        Assert.NotNull(macro);
+
+        // ── two entries, declared through the edit model ───────────────────
+        var entries = new Hrot.Blueprints.Editor.Variables.ExecSignatureEditModel(
+            asset, macro!, isEntry: true, onChanged: () => { });
+        Assert.True(entries.AddDeclaration("EnterA"));
+        Assert.True(entries.AddDeclaration("EnterB"));
+
+        var mEntry = macro!.Nodes.OfType<EventEntryNode>().Single();
+        var mRet   = macro.Nodes.OfType<ReturnNode>().Single();
+
+        // The body: EnterA → Ammo = 7, EnterB → Ammo = 99. Addressed by deterministic pin id,
+        // exactly as CreateFunctionGraph's own entry→return wire is.
+        var fireA = MakeAmmoWriter(7,  out var aIn, out var aOut);
+        var fireB = MakeAmmoWriter(99, out var bIn, out var bOut);
+        macro.Nodes.Add(fireA);
+        macro.Nodes.Add(fireB);
+        macro.Links.Clear();   // drop the born-wired entry→return link; the body replaces it
+        macro.Links.Add(new Link
+        {
+            FromNodeId = mEntry.Id, FromPinId = DeterministicIds.PinId(mEntry.Id, "EnterA", "Out"),
+            ToNodeId   = fireA.Id,  ToPinId   = aIn.Id,
+        });
+        macro.Links.Add(new Link
+        {
+            FromNodeId = mEntry.Id, FromPinId = DeterministicIds.PinId(mEntry.Id, "EnterB", "Out"),
+            ToNodeId   = fireB.Id,  ToPinId   = bIn.Id,
+        });
+        macro.Links.Add(new Link
+        {
+            FromNodeId = fireA.Id, FromPinId = aOut.Id,
+            ToNodeId   = mRet.Id,  ToPinId   = DeterministicIds.PinId(mRet.Id, "In", "In"),
+        });
+        macro.Links.Add(new Link
+        {
+            FromNodeId = fireB.Id, FromPinId = bOut.Id,
+            ToNodeId   = mRet.Id,  ToPinId   = DeterministicIds.PinId(mRet.Id, "In", "In"),
+        });
+
+        // ── the host: Entry → call.EnterB → Return ─────────────────────────
+        var hEntry = new EventEntryNode { Id = Guid.NewGuid() };
+        var hOut   = NewPin("Out", "Out", isExec: true); hEntry.Pins.Add(hOut);
+        var call   = new MacroCallNode { Id = Guid.NewGuid(), TargetGraphId = macro.Id.ToString() };
+        var hRet   = new ReturnNode { Id = Guid.NewGuid() };
+        var hRetIn = NewPin("In", "In", isExec: true); hRet.Pins.Add(hRetIn);
+
+        var tick = new Graph
+        {
+            Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function,
+            Nodes = { hEntry, call, hRet },
+            Links =
+            {
+                // ⭐ the SECOND declared entry
+                new Link
+                {
+                    FromNodeId = hEntry.Id, FromPinId = hOut.Id,
+                    ToNodeId   = call.Id,   ToPinId   = DeterministicIds.PinId(call.Id, "EnterB", "In"),
+                },
+                new Link
+                {
+                    FromNodeId = call.Id, FromPinId = DeterministicIds.PinId(call.Id, "Out", "Out"),
+                    ToNodeId   = hRet.Id, ToPinId   = hRetIn.Id,
+                },
+            },
+        };
+        asset.Graphs.Add(tick);
+
+        fixture.CompileAndLoad(asset);      // real Roslyn
+
+        fixture.World.RegisterComponent<Hrot.AI.Behaviors.BpComponentDemo>();
+        var entity = fixture.CreateEntity();
+        fixture.World.AddComponent(entity, new Hrot.AI.Behaviors.BpComponentDemo { Ammo = 0 });
+
+        Assert.Equal(NodeStatus.Success, fixture.InvokeBTreeAction(asset, entity));
+        Assert.Equal(99, ReadAmmo(fixture, entity));    // ⭐ EnterB's body, not EnterA's
+
+        // ── rename EnterB, and run the whole pipeline again ────────────────
+        Assert.True(entries.RenameDeclaration("EnterB", "Fire"));
+
+        using var renamed = new BlueprintTestFixture(NoAlcCheck);
+        renamed.CompileAndLoad(asset);
+
+        renamed.World.RegisterComponent<Hrot.AI.Behaviors.BpComponentDemo>();
+        var entity2 = renamed.CreateEntity();
+        renamed.World.AddComponent(entity2, new Hrot.AI.Behaviors.BpComponentDemo { Ammo = 0 });
+
+        Assert.Equal(NodeStatus.Success, renamed.InvokeBTreeAction(asset, entity2));
+        // ⭐ The rename moved a pin on the entry node AND on the call site; the wire came with it.
+        Assert.Equal(99, ReadAmmo(renamed, entity2));
+    }
 }

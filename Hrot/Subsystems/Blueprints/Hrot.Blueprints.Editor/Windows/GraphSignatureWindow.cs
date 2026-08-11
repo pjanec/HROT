@@ -166,6 +166,22 @@ public sealed class GraphSignatureWindow : ManagedWindow
         return BuildEditModels(graph, asset);
     }
 
+    /// <summary>
+    /// BP-80 — headless seam for the macro exec-declaration tables, mirroring
+    /// <see cref="ResolveEditModels"/>. Returns <c>null</c> when the selected graph is not a Macro,
+    /// since nothing else has exec declarations.
+    /// </summary>
+    public (ExecSignatureEditModel Entries, ExecSignatureEditModel Exits)? ResolveExecEditModels()
+    {
+        var asset = _asset ?? _selectionStore.SelectedAsset;
+        if (asset == null) return null;
+
+        var graph = ResolveSelectedGraph(asset);
+        if (graph is not { Kind: GraphKind.Macro }) return null;
+
+        return BuildExecEditModels(graph, asset);
+    }
+
     // ── ManagedWindow ─────────────────────────────────────────────────────────
 
     protected override void DrawClientArea()
@@ -181,7 +197,7 @@ public sealed class GraphSignatureWindow : ManagedWindow
 
         if (graphs.Count == 0)
         {
-            ImGuiNET.ImGui.TextDisabled("No Function or Event graphs in this blueprint.");
+            ImGuiNET.ImGui.TextDisabled("No Function, Event or Macro graphs in this blueprint.");
             return;
         }
 
@@ -234,6 +250,34 @@ public sealed class GraphSignatureWindow : ManagedWindow
         ImGuiNET.ImGui.TextUnformatted("Outputs");
         ParameterRowsView.Draw("##outputs", selectedGraph.Outputs, outputsModel);
 
+        // ── Macro exec entries / exits (BP-80, Q26-A3) ────────────────────────
+        // ⭐ Until this, NOTHING in the editor declared ExecInputs/ExecOutputs — every reference in
+        // .Editor was projection (NodePinSchema). The only ways to get a macro with more than one
+        // entry or exit were collapse, or editing JSON by hand.
+        if (selectedGraph.Kind == GraphKind.Macro)
+        {
+            var (entriesModel, exitsModel) = BuildExecEditModels(selectedGraph, asset);
+
+            ImGuiNET.ImGui.Spacing();
+            ImGuiNET.ImGui.TextUnformatted("Exec entries");
+            ImGuiNET.ImGui.TextDisabled(
+                "Each entry is an exec pin on this macro's entry node and on every call site.");
+            ExecRowsView.Draw("##execin", entriesModel, "Entry");
+
+            ImGuiNET.ImGui.Spacing();
+            ImGuiNET.ImGui.TextUnformatted("Exec exits");
+            ImGuiNET.ImGui.TextDisabled(
+                "Each exit is an exec pin on this macro's Return node and on every call site.");
+            ExecRowsView.Draw("##execout", exitsModel, "Exit");
+
+            // ⚠ N=0 is legitimate, not a missing step — say so, or the empty tables read as broken.
+            if (selectedGraph.ExecInputs.Count == 0 && selectedGraph.ExecOutputs.Count == 0)
+            {
+                ImGuiNET.ImGui.TextDisabled(
+                    "None declared — the macro has one implicit entry and one implicit exit.");
+            }
+        }
+
         // BP-73 shipped: N outputs compile. The old BP1656 gate warning here is gone; what remains
         // is a plain statement of the resulting shape, because the Return node and every call site
         // grow a pin per output and the designer should know that before adding a third.
@@ -262,11 +306,17 @@ public sealed class GraphSignatureWindow : ManagedWindow
     /// BP-24 — had its <c>Inputs</c> editable <em>nowhere</em>: the create modal sets the parameters
     /// once and BP-12b only covers rename, so adding one afterwards meant hand-editing JSON.
     /// </para>
+    /// <para>
+    /// ⚠ <b>BP-80: Macro graphs were excluded too</b>, which meant a macro's <c>Inputs</c>/<c>Outputs</c>
+    /// were editable nowhere either — not just its exec declarations. The picker simply never listed
+    /// one, so a macro produced by collapse could not have its signature touched without hand-editing
+    /// JSON. They are in now, and carry two extra sections nothing else has (§Entries/§Exits).
+    /// </para>
     /// Construction graphs stay out: nothing in the runtime consumes them yet (Q23 scope guard).
     /// </summary>
     private static List<Graph> EditableGraphs(BlueprintAsset asset)
         => asset.Graphs
-            .Where(g => g.Kind == GraphKind.Function || g.Kind == GraphKind.Event)
+            .Where(g => g.Kind is GraphKind.Function or GraphKind.Event or GraphKind.Macro)
             .ToList();
 
     /// <summary>
@@ -347,6 +397,26 @@ public sealed class GraphSignatureWindow : ManagedWindow
             graph, true, () => _dirtyTracker.MarkDirty(assetId),
             record: (label, apply, undo) => RecordSignatureChange(label, apply, undo, asset));
         return (inputs, outputs);
+    }
+
+    /// <summary>
+    /// BP-80 — the macro's two exec tables. Routed through the same recorder as the parameter
+    /// tables, so an exec edit is one undo entry and re-projects the pins exactly as a signature
+    /// edit does.
+    /// </summary>
+    private (ExecSignatureEditModel Entries, ExecSignatureEditModel Exits)
+        BuildExecEditModels(Graph graph, BlueprintAsset asset)
+    {
+        var assetId = asset.AssetId;
+        void OnChanged() => _dirtyTracker.MarkDirty(assetId);
+
+        var entries = new ExecSignatureEditModel(
+            asset, graph, isEntry: true, OnChanged,
+            record: (label, apply, undo) => RecordSignatureChange(label, apply, undo, asset));
+        var exits = new ExecSignatureEditModel(
+            asset, graph, isEntry: false, OnChanged,
+            record: (label, apply, undo) => RecordSignatureChange(label, apply, undo, asset));
+        return (entries, exits);
     }
 
 }
