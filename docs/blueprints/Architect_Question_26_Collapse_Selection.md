@@ -83,6 +83,70 @@ restructure silently*. A2 is exactly the "plausible value instead of reporting" 
 28-31 spent four rounds removing. **Reuse:** the diagnostic machinery already exists; A1 is a check, not
 a feature.
 
+### ⭐ Why N exec-ins works for Unreal and not (yet) for us — the actual mechanism
+
+⚠ **It is not the graph model.** Almost everything is symmetric work we have already done once:
+
+| Piece | Status |
+|---|---|
+| a declaration list for entries | mirror of `ExecOutDecl` / `Graph.ExecOutputs` (Batch 29) |
+| entry node projects **N exec-outs** | exact mirror of `ReturnNode` gaining **N exec-ins** (Batch 29). Today `EventEntryNodePins` emits one, `MakeExec("Out","Out")` |
+| splice rule 1 becomes indexed | exact mirror of rule 2 |
+| several predecessors converging | ✅ already handled — `ComputeMergePoints` allocates one shared block for in-degree ≥ 2 |
+
+**The whole difficulty is one thing, and it is a property of our *backend*, not our design.**
+
+Data pins here are **pull-based**: `ResolveDataPin` walks *backwards* from the consumer to the producer
+and emits **at the point of use**. That splits producers in two:
+
+| Producer | How it resolves | Safe from any path? |
+|---|---|---|
+| **pure** (`Add`, `Compare`, `GetVariable`) | recomputable — re-emitted at each point of use | ✅ yes |
+| **impure** (non-pure `FunctionCall`, `CallPeerBlueprint`) | side-effecting ⇒ runs **once**, pinned where its exec pin sits, materialised as a local and cached in `_statementPinCache` | ⚠ only under the premise below |
+
+✅ **Verified:** `StatementEmitter` emits `var __t{idx} = <expr>;` — **declaration and assignment
+together**. There is no hoisted declaration to fall back on, so the local exists *only on the path that
+ran it*.
+
+**One exec-in is safe for a structural reason:** everything inside the body is reachable **only**
+through that single entry, which sits downstream of the call node — so an impure producer feeding a
+data-in dominates the entire body.
+
+**Two exec-ins break exactly that.** Entry #2 can be reached by a path that never ran the producer:
+
+```csharp
+goto L_Entry2;
+L_Entry1: var __t5 = SomeImpureCall();   // assigned only on this path
+          goto L_Body;
+L_Entry2: goto L_Body;                   // __t5 never assigned
+L_Body:   Log($"{__t5}");                // ⇒ CS0165
+```
+
+⇒ **`CS0165` — a hard error in generated code**, naming a synthesized local, pointing at the
+**consumer** rather than at the producer on the other path. ⭐ **This is design finding F2 exactly,
+mirrored onto the input side.** F2 already rules for ≥ 2 exec-**outs** (*data outputs must be
+pure-fed*); N exec-**ins** needs the same rule for data **inputs**.
+
+### ⚠ So why is Unreal fine?
+
+**Because Unreal does not emit C#.** Blueprints compile to bytecode for Unreal's own VM, with a flat,
+zero-initialised local frame — **reading a never-assigned local yields the default value, not an
+error.** So Unreal silently tolerates the case and hands you a stale or zero value. We hand the graph
+to **Roslyn**, which performs definite-assignment analysis and refuses.
+
+⭐ **The design already recorded this exact asymmetry** for the exec-out side: *"Unreal tolerates the
+equivalent and yields a stale value; we would break the build instead."* Same trade, other direction.
+
+⇒ **N exec-ins is not hard — our backend is stricter than the one we are copying.** The cost is the
+symmetric work above **plus one more Stage 2 purity validator**, not a redesign. ⚠ And it inherits F2's
+recorded caveat: a purity rule is **conservative**, rejecting impure producers that genuinely dominate
+every entry. The precise check is dominance-based, but dominance exists only at Stage 5 — *after*
+expansion — where the diagnostic would name synthesized nodes nobody placed.
+
+📌 **This is why A1 is "not yet" rather than "no".** The blocker is a known-shaped validator, not a
+model limitation. **If the architect wants Unreal parity, A3 is affordable** — it is F2 again, and F2
+already shipped.
+
 ---
 
 ## Q26-B — Function or Macro: does the **editor choose**, or the **designer**?
@@ -98,9 +162,22 @@ Two legality rules already exist and are not negotiable:
 | **B2** | Offer both; let the illegal choice fail with a diagnostic afterwards | ✅ trivial menu · ⚠ the designer has already named the thing before being told no |
 | **B3** | Editor picks silently — Macro when latent or multi-exit, else Function | 🔴 **silent**, and the difference matters downstream |
 
-📐 **Claude's lean: B1.** ⚠ **Note the cost honestly:** B1 means the boundary analysis must be a **pure,
-side-effect-free function** that the menu can call speculatively. That is a design constraint worth
-accepting anyway — it is what makes the analysis testable headlessly, independent of any gesture.
+📐 ⭐ **Claude's lean: B2 — revised 2026-08-11, the user is right and I was wrong.**
+
+A greyed item **does not say why**. The reason has to be discovered by hovering something that looks
+disabled, which is exactly the interaction a designer skips. **An error the moment you ask for the
+thing actually teaches the rule.** Unreal does B2, and here it is not a wart — it is the better design.
+
+⭐ **This codebase's own history is the strongest argument**, and it points the same way: the tracker
+treats *"greyed with no explanation"* as a **defect**, not a UX pattern —
+**[BP-76](Blueprint_Issues_Tracker.md)** (*Go to Definition and Expand render **permanently greyed***,
+filed 🔴) and **[BP-77](Blueprint_Issues_Tracker.md)** (*a live button with no handler*). ⇒ **shipping a
+new permanently-greyed menu item would be filing the next BP-76 ourselves.**
+
+⚠ **Keep one piece of B1 anyway:** the boundary analysis should still be a **pure, side-effect-free
+function**, because that is what makes it testable headlessly, independent of any gesture. B2 just
+means we call it **on invoke** rather than on menu-open, and render its refusal as a **message naming
+the offending nodes** — not a silent disable.
 
 ---
 
@@ -206,8 +283,8 @@ cosmetic). Out of scope here, but worth knowing the gap exists.
 
 | Q | Unreal | vs. our lean |
 |---|---|---|
-| **A** exec entries | ⭐ **Unreal macros support N exec-INs.** A macro's `Inputs` tunnel takes *"any number of execution or data pins"*; the docs' own example has one exec-in `Test` and two exec-outs `Win`/`Lose` | ⚠ **Unreal is more permissive than our D3** (exactly one exec-in). See the reframing below |
-| **B** who chooses | **Unreal offers all three and fails afterwards with a message** — e.g. *"Macros cannot have latent functions (\"Delay\")"*. It does **not** grey out the illegal choice | ⇒ our **B1 is better than Unreal.** Same outcome, told earlier |
+| **A** exec entries | ⭐ **Unreal macros support N exec-INs.** A macro's `Inputs` tunnel takes *"any number of execution or data pins"*; the docs' own example has one exec-in `Test` and two exec-outs `Win`/`Lose` | ⚠ **Unreal is more permissive than our D3** (exactly one exec-in) — **because it emits bytecode, not C#.** Mechanism in Q26-A; reframing below |
+| **B** who chooses | **Unreal offers all three and fails afterwards with a message** — e.g. *"Macros cannot have latent functions (\"Delay\")"*. It does **not** grey out the illegal choice | ⭐ **Unreal is right and my first lean was wrong** — a greyed item does not say why. Lean revised to **B2**; see Q26-B |
 | **C** variables | Functions have local variables; macros do not — same split as ours (`BP-57`/`BP1664`) | ✅ already at parity |
 | **E** round-trip | `Expand Node` exists for all three forms, so collapse↔expand is a supported workflow — but Unreal **does not guarantee or verify** structural identity | ⇒ our **E1 is better than Unreal**, and cheap because our expansion is already proven by execution |
 
