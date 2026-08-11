@@ -18,6 +18,19 @@ odds of editing a file that **compiles into nothing**.
 ⇒ Navigating by namespace lands you in the dead copy. **This is the trap, and it is the whole point of
 doing this first** — every later stage edits these files or their live twins.
 
+> ### 🔴 The trap fired, on this programme, before the deletion landed — 2026-08-10
+>
+> A scan reported that ExCon uses the **`Hrot.UI.Common`** copy of `SharedContextMenuPopulator` and that
+> the `Hrot.Presentation` copy has no caller. **Backwards.** Both files declare
+> `namespace Hrot.UI.Common.Menus`, so the namespace cannot disambiguate them — only
+> `Hrot.ExCon.csproj:15`, which references **`Hrot.Presentation` alone**, can. Acting on the report would
+> have deleted the **live** file. [Corrections 14](UX_Tasks_Detail.md#corrections).
+>
+> 🔒 **Rule while the twins exist: resolve a duplicated type by *project reference*, never by namespace.**
+> Two of the twins are now load-bearing for [UXI-03](UX_Feature_Entity_Action_Vocabulary.md) —
+> `Menus/SharedContextMenuPopulator.cs` and `Facades/IEntityActionController.cs`. In both pairs the
+> **`Hrot.Presentation` file is the live one** and the `Hrot.UI.Common` file is among the 20 being deleted.
+
 ## 2. ⭐ The design decision: delete now, rename later (or never)
 
 The obvious instinct is *"delete the dead project **and** rename the namespace so it stops lying."*

@@ -202,6 +202,21 @@ session.)*
 | **Primitive** — `IContextMenuBuilder` (the entity path) | `AddItem(label, callback, enabled)` · `BeginSubmenu` · `EndSubmenu` · `AddSeparator`. **That is all.** Static `bool` for enabled |
 | **Mature** — `EditorCommandDescriptor` (graph canvases) | `Id, DisplayName, Category, Description, IconKey, DefaultKey, Func<bool> IsEnabled, Func<bool>? IsChecked, Func<string>? DynamicDisplayName` |
 
+> ⚠ **Corrected 2026-08-10 ([Corrections 12](UX_Tasks_Detail.md#corrections)):** `EditorCommandDescriptor`
+> is **vendored** (`FDP/ExtDeps/NodeEdit/…/IEditorCommands.cs:26`), **shell/toolbar/hotkey scoped** — it
+> carries no entity or target — and is registered **by the Editor only** (16 sites). ⇒ borrow its
+> `Func<>`-predicate **shape**; it is not a repo-owned entity API to converge onto.
+
+> ### ⭐ ADDENDUM 2026-08-10 — the answer to B is already **implemented**, and adopted 1 of 5
+>
+> `SharedContextMenuPopulator` (shared declaration) + `IEntityActionController` (host binding) +
+> `JsonContextMenuBuilder` is the descriptor/binding split, **built, unit-tested (11 tests), and used by
+> ExCon alone** — the subsystem with no map. Its item list is byte-identical to the Editor's. The four
+> measured reasons the others cannot adopt it — network-id-typed API, fat fixed port (ExCon's adapter is
+> 3 no-ops of 7), positional condition parameters, flattened submenus — **are exactly what B2 removes.**
+> ⇒ B is no longer a choice between shapes; it is a migration. See
+> [UX_Feature_Entity_Action_Vocabulary.md](UX_Feature_Entity_Action_Vocabulary.md).
+
 **The pattern that matters: every mature API in this repo uses `Func<>` predicates, re-evaluated per
 frame — because ImGui is immediate-mode.** `MenuItemNode` does it, `EditorCommandDescriptor` does it.
 A static `bool enabled` cannot express *"greyed out because a Repeater already exists"*.
