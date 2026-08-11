@@ -35,7 +35,26 @@ reason is better.** Compare what each ORBAT actually offers on right-click:
 
 ⚠ **All four ORBAT panels use raw ImGui** — none uses `IContextMenuBuilder`. That is the seam to insert.
 
-## 🔴 The constraint that shapes everything: ORBAT is `int`, not `Entity`
+## 🔒 ExCon is a different world by design — and the ORBAT seam is **half-adopted**
+
+> **User ruling, 2026-08-10:** *"ExCon is built to use **DDS interfaces only. No ECS data, a different
+> world from all the others.** It is supposed to **reuse the ORBAT UI but provide its own data model
+> built from DDS network comm.**"*
+
+⇒ **This is not a constraint to work around; it is the stated architecture, and it is already
+implemented on the data side.** `ExConOrbatAdapter` implements `IOrbatDataProvider` +
+`IOrbatController` over `IDerRepo`, with **no `Fdp.Core` import at all**.
+
+| Half of the ORBAT seam | State |
+|---|---|
+| **Data** — hierarchy, names, flags | ✅ **shared and working as intended.** Both adapters project to `OrbatNodeViewModel` |
+| **Actions** — the right-click menu | ❌ **not shared at all.** Both panels hand-roll raw ImGui |
+
+🔒 **So `int EntityId` in `OrbatNodeViewModel` is not a defect to be fixed — it is the correct
+surface-neutral currency**, and it is correct *because* ExCon has no `Entity`. **Do not "improve" the
+ORBAT view model to carry `Entity`**: that would exclude ExCon from the UI it exists to reuse.
+
+## The consequence for the action layer: ORBAT is `int`, not `Entity`
 
 | Layer | Identity |
 |---|---|
@@ -44,8 +63,9 @@ reason is better.** Compare what each ORBAT actually offers on right-click:
 | `EditorOrbatAdapter` | holds `Dictionary<int, Entity> _indexCache` internally, **projects `int` outward** |
 
 **This is the same shape that blocked UXI-03's existing seam** (`IEntityActionController`'s `long
-entityId`). It is not an accident: 🔒 **ExCon has no ECS world**, so it can never produce an
-`EntityActionContext` carrying an `Entity`.
+entityId`) — and now it reads differently. That signature was **not** a design mistake; it was the only
+currency ExCon could speak. UXI-03's blocker was that the port was **fat and fixed**, not that it was
+id-typed.
 
 > ### The resolution — the descriptor/binding split, working across a bigger gap than it was designed for
 >
@@ -57,6 +77,11 @@ entityId`). It is not an accident: 🔒 **ExCon has no ECS world**, so it can ne
 >
 > ⇒ ExCon consumes the shared *vocabulary* without ever seeing an `Entity`. **The split earns its keep
 > here** — this is the case that would have forced a rewrite under any single-implementation design.
+>
+> ⭐ **ExCon is the proof, not the exception.** A DDS-only subsystem with no ECS world is the hardest
+> possible consumer of a shared action set, and the descriptor/binding split serves it **without a
+> single conditional**. Had [UXI-03](UX_Feature_Entity_Action_Vocabulary.md) unified implementations
+> instead of declarations — the thing the user ruled out on 2026-08-10 — ExCon would be unservable.
 
 ## The map half — the path exists; two hosts are simply not on it
 
