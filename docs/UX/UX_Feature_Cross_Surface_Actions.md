@@ -134,18 +134,53 @@ action set, **minus any a surface genuinely cannot offer**"*.
 🔒 **This makes the `GlobalActionIds` binding the price of map presence** — a clean, checkable rule, and
 it is why Q26-C1 (build **on** the registry) was the load-bearing ruling.
 
+> ### ✅ ACCEPTED by the user, 2026-08-10
+>
+> The rule stands as designed — no architect round needed. ⚠ **It carries a cost that lands on
+> [UXI-23](UX_Issues.md#uxi-23)**: see [the bill](#-the-bill-for-the-id-rule--why-simhostcgf-activation-is-not-a-flag-flip).
+
 ## Migration
+
+**Scoped by the user, 2026-08-10 — three steps, all behaviour-preserving.**
 
 | Step | Change | Gate |
 |--:|---|---|
 | 1 | `IContextMenuBuilder` adapter for the ORBAT row — replaces raw `ImGui.MenuItem` in `SharedOrbatPanel` | menu unchanged (still Disembark) |
 | 2 | Back the shared ORBAT menu with the registry via an `int → Entity` resolver; **Editor first** | Editor ORBAT gains Center/Select/Delete/Rotate |
-| 3 | Bind ExCon's descriptors to `IOrbatController`; retire `OrbatPanel` | ExCon ORBAT items **identical** before/after |
-| 4 | Registry-backed map gizmo, replacing `ContextMenuProjectorGizmo`'s static JSON — **Editor first** | Editor map menu unchanged |
-| 5 | Register it in SimHost and CGF | ⭐ first per-entity map menu those hosts have ever had |
+| 3 | Registry-backed map gizmo, replacing `ContextMenuProjectorGizmo`'s static JSON — **Editor first**. ⚠ **Serialise on right-click, not per `Draw`** (user, 2026-08-10) | Editor map menu unchanged |
 
 **Cross-surface gate:** right-click one entity on the map, in the inspector, and in ORBAT — the item sets
 match except for map-only exclusions, which must be *explainable by the id rule*, not by omission.
+
+### 🔒 Two steps moved out, and why
+
+| Moved | To | Reason |
+|---|---|---|
+| Bind ExCon's descriptors; retire `OrbatPanel` (434 L) | **[UXI-25](UX_Issues.md#uxi-25)** | user, 2026-08-10 — *"own issue"*. UXI-04 proves the shared menu; UXI-25 spends it |
+| Register the map gizmo in **SimHost and CGF** | **[UXI-23](UX_Issues.md#uxi-23)** | 🔴 **it has a hard prerequisite, measured below** — it is not a scope preference |
+
+## 🔴 The bill for the id rule — why SimHost/CGF activation is not a flag flip
+
+The [id rule](#-the-principled-exception--the-map-cannot-carry-every-action) means a map item needs a
+`GlobalActionRegistry` binding. Measured today:
+
+| Host | Registry | `Register(...)` calls |
+|---|:--:|--:|
+| Editor | ✅ `EditorSubsystem.cs:1135` | **11** |
+| SimHost | ✅ `SimHostApp.cs:359` | **4** — `OpenLayerControl`, `Rotate`, `ToggleAiTrace`, `ToggleAiTraceLog` |
+| ReplayBrowser | ✅ `:204` | 2 |
+| **CGF** | ❌ **none constructed** | **0** |
+| IG | ❌ none | 0 — dispatches via its own `HandleContextMenuActionById` |
+
+> ⇒ **Enabling the map menu on CGF today yields a menu where *every item is inert*** — dispatch finds no
+> handler and the click silently does nothing. Worse than no menu.
+>
+> ⇒ **SimHost would show `Rotate` + the AI-trace toggles and *not* Center/Select/Delete** — its inspector
+> has those three, but as **closures**, which the id rule excludes from the map.
+
+🔒 **So activation requires each host to first bind the descriptors it wants on the map** — and CGF needs
+a registry built from nothing. That is [UXI-23](UX_Issues.md#uxi-23)'s work. **UXI-04 delivers the
+mechanism; UXI-23 delivers the bindings and turns it on.**
 
 ## 🔒 Out of scope
 
