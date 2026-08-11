@@ -178,9 +178,27 @@ The [id rule](#-the-principled-exception--the-map-cannot-carry-every-action) mea
 > ⇒ **SimHost would show `Rotate` + the AI-trace toggles and *not* Center/Select/Delete** — its inspector
 > has those three, but as **closures**, which the id rule excludes from the map.
 
-🔒 **So activation requires each host to first bind the descriptors it wants on the map** — and CGF needs
-a registry built from nothing. That is [UXI-23](UX_Issues.md#uxi-23)'s work. **UXI-04 delivers the
-mechanism; UXI-23 delivers the bindings and turns it on.**
+🔒 **So activation requires each host to first bind the descriptors it wants on the map.** That is
+[UXI-23](UX_Issues.md#uxi-23)'s work. **UXI-04 delivers the mechanism; UXI-23 delivers the bindings and
+turns it on.**
+
+### ✅ But the CGF gap is two constructor arguments, not scaffolding
+
+⚠ **Corrected 2026-08-10** — an earlier revision said CGF *"needs a registry built from nothing"*. **It
+does not.** CGF already registers `GizmoInteractionModule` with its own interaction bus; it simply omits
+the two dispatch arguments:
+
+| | SimHost `SimHostApp.cs:428-437` | CGF `CgfSubsystem.cs:534-541` |
+|---|---|---|
+| `GizmoInteractionModule` registered | ✅ | ✅ |
+| interaction bus | `_interactionBus` | `_cgfInteractionBus` ✅ |
+| `contextIngress:` | `new ContextActionIngressSystem(ctx.EntityMap!, …)` | ❌ **`null`** |
+| `interactionSystems:` | `GlobalActionDispatchSystem(actionRegistry, …)` + gizmoGroup | ❌ gizmoGroup only |
+| `NetworkEntityMap` for the ingress | ✅ | ✅ `_entityMap`, singleton at `CgfSubsystem.cs:243` |
+
+⇒ **Delta: construct a `GlobalActionRegistry`, pass those two arguments, then register handlers.** The
+handlers are the *binding* half of the descriptor/binding split — expected per-host work, not scaffolding.
+**This makes UXI-23 smaller here than first stated, not larger.**
 
 ## 🔒 Out of scope
 
