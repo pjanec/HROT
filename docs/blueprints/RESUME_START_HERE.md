@@ -116,7 +116,7 @@ missed tick, which is exactly what went wrong in Batch 28 bookkeeping.
 | **28** | ✅ verified — the silent `default:` arm family + `GraphKind.Macro` and both fail-loud nets |
 | **29** | ✅ **verified and merged** (`da13a6a`, ff-only) — **BP-80** macro surface · the **warning triage** (`BP-217`/`BP-218`, `BP-219` open) · **BP-131** `Return.Success`. See §7 |
 | **30** | ✅ **verified and merged** (`4fe3538a`, ff-only) — ⭐ **macros work end to end.** `Stage2_5_ExpandMacros` + **all four** Stage 2 rails + `BP-219`; `BP-220` opened. See §7b |
-| **31** | ⛔ **not written yet** — the two carry-forwards in §7b, then BP-83 / BP-80's visual half |
+| **31** | 📤 **written and dispatched** — [HANDOFF_Batch31_Macro_Debug_And_Closeout.md](HANDOFF_Batch31_Macro_Debug_And_Closeout.md). Prove the macro payoff (run it across frames) · **BP-83** debug provenance · **BP-220** · **BP-111**. ⛔ Frozen (rule 1) |
 
 ### The macro capability
 
