@@ -1,6 +1,25 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <!--
+      BP-111 (host-timing-sensitive tests) are excluded from the DEFAULT run.
+
+      Every assertion in Benchmarks/WhenNodePerfTests.cs is a wall-clock nanosecond budget or an
+      allocation count. On a shared/virtualised machine those measure the host, not the code:
+      ReadEqsResultNode_Under80ns_perInvocation has been seen at 25us against an 80ns budget, plus
+      Spawn_ZeroAllocation at 7696 bytes against an expected 0. Both were green on the next run. Three
+      separate names were added to the known-flake list across three batches before it was clear the
+      FAMILY was the problem rather than its members.
+
+      The assertions are deliberately NOT deleted; they are meaningful on a quiet machine, and a
+      deleted perf budget is a regression nobody notices. Run them explicitly with:
+
+          dotnet test [this project] with filter: Category=HostTimingSensitive
+
+      A command-line filter argument overrides this property, so that command works unchanged.
+      NOTE: this lowers the default suite total by 7. That drop is expected, not a regression.
+    -->
+    <VSTestTestCaseFilter Condition="'$(VSTestTestCaseFilter)' == ''">Category!=HostTimingSensitive</VSTestTestCaseFilter>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
