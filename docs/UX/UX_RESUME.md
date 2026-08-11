@@ -583,15 +583,18 @@ If you are a compacted session picking this up:
    **corrected** root cause; do not restore the pre-2026-08-10 wording you may find quoted elsewhere.
 2. Read **§2 Status** and **§3 Next up** — where the programme is and the single next action. §3 opens
    with a **re-sequencing box**; read it before the numbered list, which is partly superseded.
-3. ⭐ **Read [UX_Current_UI_Architecture.md](UX_Current_UI_Architecture.md) before touching any UI code.**
+3. 📖 **Read [UX_Glossary_Host_Mode_Subsystem.md](UX_Glossary_Host_Mode_Subsystem.md)** — *process*,
+   *mode* and *subsystem* are **not** equal, and these docs use "host" loosely for *subsystem*. Two
+   minutes, and it prevents misreading every capability statement in the programme.
+4. ⭐ **Read [UX_Current_UI_Architecture.md](UX_Current_UI_Architecture.md) before touching any UI code.**
    It carries the seam law, the seam inventory, the duplication/rigidity registers, and 🔴 the dead
    `Hrot.UI.Common` editing trap. Skipping it is how the old, refuted claims get re-derived.
-4. Open [UX_Task_Tracker.md](UX_Task_Tracker.md) for live status. **It wins over this file.**
-5. For a specific task, open its [UX_Tasks_Detail.md](UX_Tasks_Detail.md) entry and
+5. Open [UX_Task_Tracker.md](UX_Task_Tracker.md) for live status. **It wins over this file.**
+6. For a specific task, open its [UX_Tasks_Detail.md](UX_Tasks_Detail.md) entry and
    **re-derive its evidence from code before building** (§1.4). Read its
    [Corrections](UX_Tasks_Detail.md#corrections) table too — **7 rows**, each a claim this programme
    asserted and had to withdraw. Assume the next one is in whatever you are about to build on.
-6. Check `git log --oneline -15` on `claude/ux-session-resume-i2le7f` against the batch log in the
+7. Check `git log --oneline -15` on `claude/ux-session-resume-i2le7f` against the batch log in the
    tracker — if commits exist that the batch log does not mention, the docs are stale: reconcile them
    first, in their own commit.
 

@@ -6,6 +6,9 @@
 > **Flow:** `UXI-nn` (an issue) → **a feature design doc** → `UXT-nn` (implementation tasks).
 > **An issue is not ready to break into tasks until its design doc exists and is agreed.**
 >
+> 📖 **Vocabulary:** [UX_Glossary_Host_Mode_Subsystem.md](UX_Glossary_Host_Mode_Subsystem.md) — *process*,
+> *mode* and *subsystem* are not equal, and "host" here means **subsystem**.
+>
 > Evidence for every issue: [UX_Current_UI_Architecture.md](UX_Current_UI_Architecture.md) ·
 > Scope: [UX_Requirements.md](UX_Requirements.md) · Order: [UX_Cleanup_Path.md](UX_Cleanup_Path.md)
 
