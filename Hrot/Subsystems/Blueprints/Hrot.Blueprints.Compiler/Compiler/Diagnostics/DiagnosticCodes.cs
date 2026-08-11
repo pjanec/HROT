@@ -116,6 +116,12 @@ public static class DiagnosticCodes
     public const string BP1662 = "BP1662";  // macro call cycle, direct or mutual
     public const string BP1663 = "BP1663";  // macro with >=2 exec-outs has a data output fed by an impure producer
     public const string BP1665 = "BP1665";  // macro expansion exceeded the depth cap
+
+    // BP-74 / Q26-A3. ⚠ The design's §4 table earmarked BP1666 for "a GraphKind.Macro graph reached
+    // Stage 5 as a compilation target". That case was settled differently in Batch 28 -- Stage 5 SKIPS
+    // macro graphs, so it can never error -- and the surviving unexpanded-CALL case took BP1668 in
+    // Batch 80. BP1666 was therefore vacant, and is reused here rather than reserved forever.
+    public const string BP1666 = "BP1666";  // macro entered through >=2 wired exec-ins has a data input fed by an impure producer
     public const string BP1667 = "BP1667";  // [Warning] macro body is empty -- the call is a no-op
 
     public const string BP1668 = "BP1668";  // MacroCallNode reached Stage 5 unexpanded

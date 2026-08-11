@@ -607,6 +607,365 @@ public sealed class MacroExpansionTests
     }
 
     // ────────────────────────────────────────────────────────────────────────
+    // BP-74 / Q26-A3 — N exec-ins
+    // ────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// A two-entry macro: <c>Entry[A,B]</c>, each entry wired to its own body node, both converging on
+    /// the Return. <paramref name="aNode"/>/<paramref name="bNode"/> are the per-entry bodies.
+    /// </summary>
+    private static Graph MakeTwoEntryMacro(string name, out Node aNode, out Node bNode)
+    {
+        var execA = new ExecInDecl { Id = Guid.NewGuid(), Name = "EnterA" };
+        var execB = new ExecInDecl { Id = Guid.NewGuid(), Name = "EnterB" };
+
+        var entry  = new EventEntryNode { Id = Guid.NewGuid() };
+        var outA   = ExecOut("EnterA");
+        var outB   = ExecOut("EnterB");
+        entry.Pins.AddRange(new[] { outA, outB });
+
+        var bodyA = new PrintStringNode { Id = Guid.NewGuid() };
+        var aIn = ExecIn(); var aOut = ExecOut(); bodyA.Pins.AddRange(new[] { aIn, aOut });
+
+        var bodyB = new PrintStringNode { Id = Guid.NewGuid() };
+        var bIn = ExecIn(); var bOut = ExecOut(); bodyB.Pins.AddRange(new[] { bIn, bOut });
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecIn(); ret.Pins.Add(retIn);
+
+        aNode = bodyA; bNode = bodyB;
+        return new Graph
+        {
+            Id = Guid.NewGuid(), Name = name, Kind = GraphKind.Macro,
+            ExecInputs = { execA, execB },
+            Nodes = { entry, bodyA, bodyB, ret },
+            Links =
+            {
+                Wire(entry, outA, bodyA, aIn),
+                Wire(entry, outB, bodyB, bIn),
+                Wire(bodyA, aOut, ret, retIn),
+                Wire(bodyB, bOut, ret, retIn),
+            },
+        };
+    }
+
+    /// <summary>A call node with N exec-ins matching the target's ExecInputs, plus one exec-out.</summary>
+    private static MacroCallNode MakeMultiEntryCall(Graph macro, out List<Pin> execIns, out Pin execOut)
+    {
+        var call = new MacroCallNode { Id = Guid.NewGuid(), TargetGraphId = macro.Id.ToString() };
+        execIns = macro.ExecInputs.Select(d => ExecIn(d.Name)).ToList();
+        execOut = ExecOut();
+        call.Pins.AddRange(execIns);
+        call.Pins.Add(execOut);
+        return call;
+    }
+
+    /// <summary>
+    /// ⭐ Splice rule 1 is now INDEXED: entry <c>k</c> of the call reaches the body behind entry
+    /// <c>k</c> of the macro. A wrong pairing is exactly what an unindexed rule 1 would produce, and it
+    /// would be invisible in a one-entry test — which is every test before this batch.
+    /// </summary>
+    [Fact]
+    public void Splice_TwoEntries_EachHostPathReachesItsOwnBody()
+    {
+        var macro = MakeTwoEntryMacro("TwoDoors", out var authoredA, out var authoredB);
+
+        // Host: Branch-like shape — two distinct producers, each entering a different door.
+        var entry   = new EventEntryNode { Id = Guid.NewGuid() };
+        var eOut    = ExecOut(); entry.Pins.Add(eOut);
+        var seq     = new SequenceNode { Id = Guid.NewGuid() };
+        var sIn     = ExecIn(); var then0 = ExecOut("Then0"); var then1 = ExecOut("Then1");
+        seq.Pins.AddRange(new[] { sIn, then0, then1 });
+
+        var call    = MakeMultiEntryCall(macro, out var callExecIns, out var callExecOut);
+        var ret     = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn   = ExecIn(); ret.Pins.Add(retIn);
+
+        var host = new Graph
+        {
+            Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function,
+            Nodes = { entry, seq, call, ret },
+            Links =
+            {
+                Wire(entry, eOut, seq, sIn),
+                Wire(seq, then0, call, callExecIns[0]),
+                Wire(seq, then1, call, callExecIns[1]),
+                Wire(call, callExecOut, ret, retIn),
+            },
+        };
+
+        var (asset, sink) = Expand(MakeAsset(macro, host));
+        var expanded = asset.Graphs.Single(g => g.Id == host.Id);
+
+        Assert.Empty(expanded.Nodes.OfType<MacroCallNode>());
+        Assert.DoesNotContain(sink.All, d => d.IsError);
+
+        var cloneA = expanded.Nodes.Single(n => n.OriginNodeId == authoredA.Id);
+        var cloneB = expanded.Nodes.Single(n => n.OriginNodeId == authoredB.Id);
+
+        // ⭐ Then0 reaches A's body and Then1 reaches B's — not crossed, and not both to the same one.
+        Assert.Contains(expanded.Links, l => l.FromNodeId == seq.Id && l.FromPinId == then0.Id
+                                          && l.ToNodeId == cloneA.Id);
+        Assert.Contains(expanded.Links, l => l.FromNodeId == seq.Id && l.FromPinId == then1.Id
+                                          && l.ToNodeId == cloneB.Id);
+
+        AssertLinkedToIdsMirrorsLinks(expanded);
+    }
+
+    /// <summary>
+    /// An entry with nothing arriving is simply an unused door — ⛔ <b>not</b> <c>BP1667</c>. The body
+    /// is not empty; one of its entrances is unused, which is a legitimate thing to author.
+    /// </summary>
+    [Fact]
+    public void Splice_UnwiredEntry_IsNotReportedAsAnEmptyBody()
+    {
+        var macro = MakeTwoEntryMacro("TwoDoors", out var authoredA, out _);
+
+        var entry = new EventEntryNode { Id = Guid.NewGuid() };
+        var eOut  = ExecOut(); entry.Pins.Add(eOut);
+        var call  = MakeMultiEntryCall(macro, out var callExecIns, out var callExecOut);
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecIn(); ret.Pins.Add(retIn);
+
+        var host = new Graph
+        {
+            Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function,
+            Nodes = { entry, call, ret },
+            Links =
+            {
+                Wire(entry, eOut, call, callExecIns[0]),   // only door A is wired
+                Wire(call, callExecOut, ret, retIn),
+            },
+        };
+
+        var (asset, sink) = Expand(MakeAsset(macro, host));
+        var expanded = asset.Graphs.Single(g => g.Id == host.Id);
+
+        Assert.DoesNotContain(sink.All, d => d.Code == DiagnosticCodes.BP1667);
+        Assert.Contains(expanded.Links,
+            l => l.FromNodeId == entry.Id && l.ToNodeId == expanded.Nodes.Single(n => n.OriginNodeId == authoredA.Id).Id);
+        AssertLinkedToIdsMirrorsLinks(expanded);
+    }
+
+    /// <summary>
+    /// ⚠ <c>BP1667</c> must still fire on a genuinely empty body — and with N entries "empty" means
+    /// NO exec-out of the boundary node is wired, not "entry 0 is unwired". The previous single-entry
+    /// formulation would have got this wrong.
+    /// </summary>
+    [Fact]
+    public void Splice_TwoEntriesButNoBodyAtAll_StillWarnsBP1667()
+    {
+        var entry = new EventEntryNode { Id = Guid.NewGuid() };
+        entry.Pins.AddRange(new[] { ExecOut("EnterA"), ExecOut("EnterB") });   // both unwired
+        var ret = new ReturnNode { Id = Guid.NewGuid() };
+        ret.Pins.Add(ExecIn());
+
+        var macro = new Graph
+        {
+            Id = Guid.NewGuid(), Name = "NoBody", Kind = GraphKind.Macro,
+            ExecInputs =
+            {
+                new ExecInDecl { Id = Guid.NewGuid(), Name = "EnterA" },
+                new ExecInDecl { Id = Guid.NewGuid(), Name = "EnterB" },
+            },
+            Nodes = { entry, ret },
+        };
+
+        var hEntry = new EventEntryNode { Id = Guid.NewGuid() };
+        var hOut   = ExecOut(); hEntry.Pins.Add(hOut);
+        var call   = MakeMultiEntryCall(macro, out var callExecIns, out _);
+        var host = new Graph
+        {
+            Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function,
+            Nodes = { hEntry, call },
+            Links = { Wire(hEntry, hOut, call, callExecIns[0]) },
+        };
+
+        var (_, sink) = Expand(MakeAsset(macro, host));
+
+        var bp1667 = Assert.Single(sink.All, d => d.Code == DiagnosticCodes.BP1667);
+        Assert.Equal(DiagnosticSeverity.Warning, bp1667.Severity);
+    }
+
+    /// <summary>
+    /// ⭐ <c>BP1666</c> — the exec-IN purity mirror. ⚠ It is NOT a copy of <c>BP1663</c>: it walks the
+    /// HOST graph backwards from the CALL NODE's data-in pins, because a macro's inputs are supplied at
+    /// the call site. So it is per call site, and it names the call the designer placed.
+    /// </summary>
+    [Fact]
+    [CoversDiagnosticCode("BP1666")]
+    public void TwoWiredEntries_WithAnImpureHostProducer_IsRefusedByBP1666()
+    {
+        var (asset, call) = MakeTwoEntryCallSite(impureProducer: true, wireBothEntries: true);
+        var result = new BlueprintCompiler().Compile(asset, DefaultOptions());
+
+        var bp1666 = Assert.Single(result.Diagnostics, d => d.Code == DiagnosticCodes.BP1666);
+        Assert.Equal(DiagnosticSeverity.Error, bp1666.Severity);
+        Assert.Equal(call.Id, bp1666.NodeId);      // ⭐ names the call, not something synthesized
+    }
+
+    /// <summary>The positive control: the same shape with a PURE producer is accepted.</summary>
+    [Fact]
+    public void TwoWiredEntries_WithAPureHostProducer_IsAccepted()
+    {
+        var (asset, _) = MakeTwoEntryCallSite(impureProducer: false, wireBothEntries: true);
+        var result = new BlueprintCompiler().Compile(asset, DefaultOptions());
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Code == DiagnosticCodes.BP1666);
+    }
+
+    /// <summary>
+    /// ⭐ <b>The ruling, locked.</b> The gate is WIRED entries, not DECLARED ones. This macro declares
+    /// two entries and the call wires only one, so there is a single entering path, the host producer
+    /// dominates it, and the impure producer is provably safe. Gating on "declared" would refuse code
+    /// that cannot fail.
+    /// </summary>
+    [Fact]
+    public void TwoDeclaredButOneWiredEntry_WithAnImpureProducer_IsAccepted()
+    {
+        var (asset, _) = MakeTwoEntryCallSite(impureProducer: true, wireBothEntries: false);
+        var result = new BlueprintCompiler().Compile(asset, DefaultOptions());
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Code == DiagnosticCodes.BP1666);
+    }
+
+    /// <summary>
+    /// ⭐ Regression: a ONE-entry macro with an impure data-in producer is today's ordinary legal case
+    /// and must not be swept up by the new rule.
+    /// </summary>
+    [Fact]
+    public void SingleEntryMacro_WithAnImpureProducer_StillCompiles()
+    {
+        var (asset, _) = MakeSingleEntryImpureCallSite();
+        var result = new BlueprintCompiler().Compile(asset, DefaultOptions());
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Code == DiagnosticCodes.BP1666);
+    }
+
+    // ── shared fixture for the BP1666 cases ─────────────────────────────────
+
+    private static (BlueprintAsset asset, MacroCallNode call) MakeTwoEntryCallSite(
+        bool impureProducer, bool wireBothEntries)
+    {
+        var macro = MakeTwoEntryMacroTakingAnArg("TwoDoorsWithArg");
+
+        var entry = new EventEntryNode { Id = Guid.NewGuid() };
+        var eOut  = ExecOut(); entry.Pins.Add(eOut);
+
+        var seq   = new SequenceNode { Id = Guid.NewGuid() };
+        var sIn   = ExecIn(); var then0 = ExecOut("Then0"); var then1 = ExecOut("Then1");
+        seq.Pins.AddRange(new[] { sIn, then0, then1 });
+
+        Node producer; Pin producerOut;
+        var producerLinks = new List<Link>();
+        if (impureProducer)
+        {
+            var fc = new FunctionCallNode { Id = Guid.NewGuid(), IsPure = false, MethodName = "SideEffect" };
+            var fcIn = ExecIn(); var fcOut = ExecOut();
+            producerOut = NewPin("Result", "Out", isExec: false, typeId: "System.Int32");
+            fc.Pins.AddRange(new[] { fcIn, fcOut, producerOut });
+            producer = fc;
+        }
+        else
+        {
+            var lit = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Int32", ValueJson = "1" };
+            producerOut = NewPin("Value", "Out", isExec: false, typeId: "System.Int32");
+            lit.Pins.Add(producerOut);
+            producer = lit;
+        }
+
+        var call = new MacroCallNode { Id = Guid.NewGuid(), TargetGraphId = macro.Id.ToString() };
+        var cA = ExecIn("EnterA"); var cB = ExecIn("EnterB"); var cOut = ExecOut();
+        var cArg = NewPin("Value", "In", isExec: false, typeId: "System.Int32");
+        call.Pins.AddRange(new[] { cA, cB, cOut, cArg });
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecIn(); ret.Pins.Add(retIn);
+
+        var host = new Graph
+        {
+            Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function,
+            Nodes = { entry, seq, producer, call, ret },
+            Links =
+            {
+                Wire(entry, eOut, seq, sIn),
+                Wire(seq, then0, call, cA),
+                Wire(call, cOut, ret, retIn),
+                Wire(producer, producerOut, call, cArg),
+            },
+        };
+        if (wireBothEntries) host.Links.Add(Wire(seq, then1, call, cB));
+
+        return (MakeAsset(macro, host), call);
+    }
+
+    private static Graph MakeTwoEntryMacroTakingAnArg(string name)
+    {
+        var entry = new EventEntryNode { Id = Guid.NewGuid() };
+        var outA  = ExecOut("EnterA"); var outB = ExecOut("EnterB");
+        var dOut  = NewPin("Value", "Out", isExec: false, typeId: "System.Int32");
+        entry.Pins.AddRange(new[] { outA, outB, dOut });
+
+        var body = new PrintStringNode { Id = Guid.NewGuid() };
+        var bIn = ExecIn(); var bOut = ExecOut();
+        var bArg = NewPin("A", "In", isExec: false, typeId: "System.Int32");
+        body.Pins.AddRange(new[] { bIn, bOut, bArg });
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecIn(); ret.Pins.Add(retIn);
+
+        return new Graph
+        {
+            Id = Guid.NewGuid(), Name = name, Kind = GraphKind.Macro,
+            ExecInputs =
+            {
+                new ExecInDecl { Id = Guid.NewGuid(), Name = "EnterA" },
+                new ExecInDecl { Id = Guid.NewGuid(), Name = "EnterB" },
+            },
+            Inputs = { new ParameterDecl { Id = Guid.NewGuid(), Name = "Value",
+                                           Type = new BlueprintTypeRef { TypeId = "System.Int32" } } },
+            Nodes = { entry, body, ret },
+            Links = { Wire(entry, outA, body, bIn), Wire(entry, outB, body, bIn),
+                      Wire(body, bOut, ret, retIn), Wire(entry, dOut, body, bArg) },
+        };
+    }
+
+    private static (BlueprintAsset asset, MacroCallNode call) MakeSingleEntryImpureCallSite()
+    {
+        var macro = MakeSimpleMacro("OneDoor", out _);   // no ExecInputs => one implicit entry
+
+        var entry = new EventEntryNode { Id = Guid.NewGuid() };
+        var eOut  = ExecOut(); entry.Pins.Add(eOut);
+
+        var fc = new FunctionCallNode { Id = Guid.NewGuid(), IsPure = false, MethodName = "SideEffect" };
+        var fcIn = ExecIn(); var fcOut = ExecOut();
+        var fcVal = NewPin("Result", "Out", isExec: false, typeId: "System.Int32");
+        fc.Pins.AddRange(new[] { fcIn, fcOut, fcVal });
+
+        var call = new MacroCallNode { Id = Guid.NewGuid(), TargetGraphId = macro.Id.ToString() };
+        var cIn = ExecIn(); var cOut = ExecOut();
+        var cArg = NewPin("Value", "In", isExec: false, typeId: "System.Int32");
+        call.Pins.AddRange(new[] { cIn, cOut, cArg });
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecIn(); ret.Pins.Add(retIn);
+
+        var host = new Graph
+        {
+            Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function,
+            Nodes = { entry, fc, call, ret },
+            Links =
+            {
+                Wire(entry, eOut, fc, fcIn),
+                Wire(fc, fcOut, call, cIn),
+                Wire(call, cOut, ret, retIn),
+                Wire(fc, fcVal, call, cArg),
+            },
+        };
+        return (MakeAsset(macro, host), call);
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
     // Provenance is compile-time only
     // ────────────────────────────────────────────────────────────────────────
 

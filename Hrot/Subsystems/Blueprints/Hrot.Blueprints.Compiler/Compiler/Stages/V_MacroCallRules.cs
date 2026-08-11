@@ -119,7 +119,11 @@ internal sealed class V_MacroCallRules : IValidator
         foreach (var macro in macroById.Values)
             ValidateMultiExecOutPurity(asset, macro, ctx);
 
-        // ── Pass 4: BP1662 — cycle detection, three-colour DFS over macro-call edges ────
+        // ── Pass 4: BP1666 — the exec-IN mirror of BP1663 (Q26-A3's recorded cost) ──────
+        foreach (var callerGraph in asset.Graphs)
+            ValidateMultiExecInPurity(asset, callerGraph, macroById, ctx);
+
+        // ── Pass 5: BP1662 — cycle detection, three-colour DFS over macro-call edges ────
         if (callEdges.Count == 0) return;
 
         var colour        = new Dictionary<Guid, int>();   // 0 white, 1 grey, 2 black
@@ -246,10 +250,10 @@ internal sealed class V_MacroCallRules : IValidator
     /// </para>
     /// </summary>
     private static Node? FindImpureProducer(
-        Graph macro, Dictionary<Guid, Node> nodeById,
+        Graph graph, Dictionary<Guid, Node> nodeById,
         Guid consumerNodeId, Guid consumerPinId, HashSet<Guid> visited)
     {
-        var link = macro.Links.FirstOrDefault(
+        var link = graph.Links.FirstOrDefault(
             l => l.ToNodeId == consumerNodeId && l.ToPinId == consumerPinId);
         if (link is null) return null;
 
@@ -262,10 +266,90 @@ internal sealed class V_MacroCallRules : IValidator
 
         foreach (var pin in producer.Pins.Where(p => !p.IsExec && p.Direction == "In"))
         {
-            var deeper = FindImpureProducer(macro, nodeById, producer.Id, pin.Id, visited);
+            var deeper = FindImpureProducer(graph, nodeById, producer.Id, pin.Id, visited);
             if (deeper is not null) return deeper;
         }
         return null;
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // BP1666 — the exec-IN purity mirror
+    // ────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Q26-A3's recorded cost, and the mirror of <see cref="ValidateMultiExecOutPurity"/> — but
+    /// ⚠⚠ <b>NOT a copy of it, because it walks a different graph.</b>
+    ///
+    /// <para>
+    /// <c>BP1663</c> walks backwards from the <c>ReturnNode</c>'s data-in pins <b>inside the macro
+    /// body</b>, because a macro's OUTPUTS are produced there. A macro's INPUTS are supplied
+    /// <b>at the call site</b>, so this walks the <b>HOST</b> graph backwards from the
+    /// <see cref="MacroCallNode"/>'s data-in pins. <see cref="FindImpureProducer"/> is reusable; the
+    /// graph handed to it is the whole difference.
+    /// </para>
+    ///
+    /// <para>
+    /// ⇒ Two consequences that are not cosmetic. It is <b>per call site, not per declaration</b> — the
+    /// same macro can be safe at one call site and unsafe at another — and the diagnostic
+    /// <b>names the call node</b>, a node the designer placed, which is the same reasoning that fixed
+    /// <c>BP1661</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// 📐 <b>Gated on WIRED entries, not DECLARED ones.</b> A call site that declares two entries but
+    /// wires only one has exactly one entering path, so the host-side producer dominates it and the
+    /// generated local is definitely assigned — rejecting that would refuse code that cannot fail.
+    /// Both gates cost the same at Stage 2, so precision is free.
+    /// ⚠ This does not claim a single wired entry is dominance-safe in general: a producer sitting on
+    /// a sibling branch that does not reach the call is the ordinary, pre-existing hazard every graph
+    /// has, not a macro-specific one, and it is the same question only Stage 5 could answer.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ Inherits F2's caveat verbatim: purity is <b>conservative</b> and rejects impure producers that
+    /// genuinely dominate every entry. The precise check is dominance-based, but dominance exists only
+    /// at Stage 5 — after expansion — where the diagnostic would name synthesized nodes nobody placed.
+    /// A false rejection is explainable; a <c>CS0165</c> about <c>__t5</c> is not.
+    /// </para>
+    /// </summary>
+    private static void ValidateMultiExecInPurity(
+        BlueprintAsset asset, Graph host, Dictionary<Guid, Graph> macroById, ValidationContext ctx)
+    {
+        var calls = host.Nodes.OfType<MacroCallNode>().ToList();
+        if (calls.Count == 0) return;
+
+        var nodeById = host.Nodes.ToDictionary(n => n.Id);
+
+        foreach (var call in calls)
+        {
+            if (!Guid.TryParse(call.TargetGraphId, out var targetId)
+                || !macroById.TryGetValue(targetId, out var macro))
+                continue;                       // BP1660's business
+
+            // WIRED, not declared -- see the gate note above.
+            int wiredEntries = call.Pins
+                .Where(p => p.IsExec && p.Direction == "In")
+                .Count(p => host.Links.Any(l => l.ToNodeId == call.Id && l.ToPinId == p.Id));
+
+            if (wiredEntries < 2) continue;
+
+            foreach (var dataIn in call.Pins.Where(p => !p.IsExec && p.Direction == "In"))
+            {
+                var impure = FindImpureProducer(host, nodeById, call.Id, dataIn.Id, new HashSet<Guid>());
+                if (impure is null) continue;
+
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1666,
+                    $"MacroCallNode (id={call.Id}) in graph '{host.Name}' calls macro "
+                    + $"'{macro.Name}' through {wiredEntries} wired exec entries, so its data input "
+                    + $"'{dataIn.Name}' must be fed by pure nodes only -- but it is produced by "
+                    + $"'{impure.GetType().Name}' (id={impure.Id}), which sits on the exec chain and "
+                    + "therefore runs on only one of the entering paths. After expansion the generated "
+                    + "C# would read a local that is not assigned on every path (CS0165), reported "
+                    + "against the reader rather than this call. Feed this input from pure nodes, or "
+                    + "enter the macro through a single exec input.",
+                    asset.AssetId, host.Id, call.Id));
+            }
+        }
     }
 
     // ────────────────────────────────────────────────────────────────────────

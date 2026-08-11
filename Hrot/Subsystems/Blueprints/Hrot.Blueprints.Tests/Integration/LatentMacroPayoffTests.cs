@@ -244,6 +244,151 @@ public sealed class LatentMacroPayoffTests
     }
 
     // ────────────────────────────────────────────────────────────────────────
+    // BP-74 / Q26-A3 — a TWO-ENTRY macro, entered from each door, executed
+    // ────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ <b>The Q26-A3 payoff, executed.</b> One macro with two exec entries, each door writing a
+    /// DIFFERENT value, entered from a different host path on different ticks.
+    ///
+    /// <para>
+    /// The value assertion is what makes this meaningful: splice rule 1 became indexed this batch, and
+    /// a wrong pairing — door A reaching B's body, or both doors reaching the same one — produces a
+    /// graph that still compiles and still returns Success. Only the written value distinguishes a
+    /// correct pairing from a plausible one.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ Compiled through <b>real Roslyn</b> and loaded; <c>CompileResult.Succeeded</c> never invokes it.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void TwoEntryMacro_EnteredFromEachDoor_WritesThatDoorsValue()
+    {
+        using var fixture = new BlueprintTestFixture(NoAlcCheck);
+
+        // ── the macro: EnterA → Ammo = 7 ; EnterB → Ammo = 99 ──────────────
+        var mEntry = new EventEntryNode { Id = Guid.NewGuid() };
+        var outA   = NewPin("EnterA", "Out", isExec: true);
+        var outB   = NewPin("EnterB", "Out", isExec: true);
+        mEntry.Pins.AddRange(new[] { outA, outB });
+
+        var fireA = MakeAmmoWriter(7,  out var aIn, out var aOut);
+        var fireB = MakeAmmoWriter(99, out var bIn, out var bOut);
+
+        var mRet   = new ReturnNode { Id = Guid.NewGuid() };
+        var mRetIn = NewPin("In", "In", isExec: true); mRet.Pins.Add(mRetIn);
+
+        var macro = new Graph
+        {
+            Id = Guid.NewGuid(), Name = "TwoDoors", Kind = GraphKind.Macro,
+            ExecInputs =
+            {
+                new ExecInDecl { Id = Guid.NewGuid(), Name = "EnterA" },
+                new ExecInDecl { Id = Guid.NewGuid(), Name = "EnterB" },
+            },
+            Nodes = { mEntry, fireA, fireB, mRet },
+            Links =
+            {
+                Wire(mEntry, outA, fireA, aIn),
+                Wire(mEntry, outB, fireB, bIn),
+                Wire(fireA, aOut, mRet, mRetIn),
+                Wire(fireB, bOut, mRet, mRetIn),
+            },
+        };
+
+        // ── host tick: Branch on Health >= 50 → door B when true, door A when false ──
+        var hEntry = new EventEntryNode { Id = Guid.NewGuid() };
+        var hOut   = NewPin("Out", "Out", isExec: true); hEntry.Pins.Add(hOut);
+
+        var getHealth = new GetComponentNode
+        {
+            Id = Guid.NewGuid(), ComponentTypeFqn = DemoComponentFqn,
+            FieldName = "Health", FieldTypeFqn = "System.Int32",
+        };
+        var ghOut = NewPin("Value", "Out", isExec: false, typeId: "System.Int32");
+        getHealth.Pins.Add(ghOut);
+
+        var lit    = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Int32", ValueJson = "50" };
+        var litOut = NewPin("Value", "Out", isExec: false, typeId: "System.Int32");
+        lit.Pins.Add(litOut);
+
+        var cmp = new CompareNode { Id = Guid.NewGuid(), Operator = ComparisonOperator.GreaterThanOrEqual };
+        var cmpA = NewPin("A", "In", isExec: false);
+        var cmpB = NewPin("B", "In", isExec: false);
+        var cmpR = NewPin("Result", "Out", isExec: false, typeId: "System.Boolean");
+        cmp.Pins.AddRange(new[] { cmpA, cmpB, cmpR });
+
+        var branch = new BranchNode { Id = Guid.NewGuid() };
+        var brIn   = NewPin("In",        "In",  isExec: true);
+        var brT    = NewPin("True",      "Out", isExec: true);
+        var brF    = NewPin("False",     "Out", isExec: true);
+        var brCond = NewPin("Condition", "In",  isExec: false, typeId: "System.Boolean");
+        branch.Pins.AddRange(new[] { brIn, brT, brF, brCond });
+
+        var call = new MacroCallNode { Id = Guid.NewGuid(), TargetGraphId = macro.Id.ToString() };
+        var cA   = NewPin("EnterA", "In",  isExec: true);
+        var cB   = NewPin("EnterB", "In",  isExec: true);
+        var cOut = NewPin("Out",    "Out", isExec: true);
+        call.Pins.AddRange(new[] { cA, cB, cOut });
+
+        var hRet   = new ReturnNode { Id = Guid.NewGuid() };
+        var hRetIn = NewPin("In", "In", isExec: true); hRet.Pins.Add(hRetIn);
+
+        var tick = new Graph
+        {
+            Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function,
+            Nodes = { hEntry, getHealth, lit, cmp, branch, call, hRet },
+            Links =
+            {
+                Wire(hEntry, hOut, branch, brIn),
+                Wire(getHealth, ghOut, cmp, cmpA),
+                Wire(lit, litOut, cmp, cmpB),
+                Wire(cmp, cmpR, branch, brCond),
+                Wire(branch, brF, call, cA),      // low health  → door A → 7
+                Wire(branch, brT, call, cB),      // high health → door B → 99
+                Wire(call, cOut, hRet, hRetIn),
+            },
+        };
+
+        var asset = MakeAiPrimitiveAsset("TwoEntryMacroRun", macro, tick);
+        fixture.CompileAndLoad(asset);            // real Roslyn
+
+        fixture.World.RegisterComponent<Hrot.AI.Behaviors.BpComponentDemo>();
+        var entity = fixture.CreateEntity();
+        fixture.World.AddComponent(entity, new Hrot.AI.Behaviors.BpComponentDemo { Health = 10, Ammo = 0 });
+
+        // ── Tick 1: Health 10 < 50 → False → door A ────────────────────────
+        Assert.Equal(NodeStatus.Success, fixture.InvokeBTreeAction(asset, entity));
+        Assert.Equal(7, ReadAmmo(fixture, entity));      // ⭐ door A's value
+
+        // ── Tick 2: Health 100 >= 50 → True → door B ───────────────────────
+        ref var demo = ref fixture.World.GetComponentRW<Hrot.AI.Behaviors.BpComponentDemo>(entity);
+        demo.Health = 100;
+
+        Assert.Equal(NodeStatus.Success, fixture.InvokeBTreeAction(asset, entity));
+        Assert.Equal(99, ReadAmmo(fixture, entity));     // ⭐ door B's value — the pairing is right
+    }
+
+    /// <summary>A SetComponent writing a constant into <c>BpComponentDemo.Ammo</c>.</summary>
+    private static SetComponentNode MakeAmmoWriter(int value, out Pin execIn, out Pin execOut)
+    {
+        var n = new SetComponentNode
+        {
+            Id = Guid.NewGuid(),
+            ComponentTypeFqn = DemoComponentFqn,
+            Fields = new List<ComponentFieldDecl> { new() { Name = "Ammo", TypeId = "System.Int32" } },
+        };
+        execIn  = NewPin("In",  "In",  isExec: true);
+        execOut = NewPin("Out", "Out", isExec: true);
+        var ammo    = NewPin("Ammo",    "In",  isExec: false, typeId: "System.Int32");
+        var written = NewPin("Written", "Out", isExec: false, typeId: "System.Boolean");
+        n.Pins.AddRange(new[] { execIn, execOut, ammo, written });
+        n.PinDefaults = new Dictionary<string, string> { ["Ammo"] = value.ToString() };
+        return n;
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
     // BP-83 — debug provenance reaches the debug map
     // ────────────────────────────────────────────────────────────────────────
 

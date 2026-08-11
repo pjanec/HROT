@@ -155,33 +155,56 @@ internal static class Stage2_5_ExpandMacros
         Graph host, MacroCallNode call, MacroCallPinView callPins, EventEntryNode? entryClone,
         ValidationContext ctx, BlueprintAsset asset, Graph macro)
     {
-        var incoming = callPins.ExecInPin is null
-            ? new List<Link>()
-            : host.Links.Where(l => l.ToNodeId == call.Id && l.ToPinId == callPins.ExecInPin.Id).ToList();
+        var entryExecOuts = entryClone is null
+            ? new List<Pin>()
+            : entryClone.Pins.Where(p => p.IsExec && p.Direction == "Out").ToList();
 
-        var entryExecOut = entryClone?.Pins.FirstOrDefault(p => p.IsExec && p.Direction == "Out");
-        var firstBodyLink = entryExecOut is null
-            ? null
-            : host.Links.FirstOrDefault(
-                l => l.FromNodeId == entryClone!.Id && l.FromPinId == entryExecOut.Id);
+        // ⭐ BP-74 / Q26-A3: INDEXED, the exact mirror of rule 2. Entry k of the call re-ties to the
+        // successor of entry k of the macro's boundary node, paired positionally with ExecInputs.
+        bool anyIncoming = false;
+        bool anyBodyLink = false;
 
-        if (firstBodyLink is null)
+        for (int k = 0; k < callPins.ExecInPins.Count; k++)
         {
-            if (incoming.Count > 0)
+            // Stale-asset guard, mirroring rule 2's `if (k >= returnExecIns.Count) break;`. An asset
+            // saved against an older declaration list can carry more call pins than the macro now
+            // declares; that is a shape mismatch to survive, not to throw on.
+            if (k >= entryExecOuts.Count) break;
+
+            var incoming = host.Links
+                .Where(l => l.ToNodeId == call.Id && l.ToPinId == callPins.ExecInPins[k].Id)
+                .ToList();
+            if (incoming.Count > 0) anyIncoming = true;
+
+            var firstBodyLink = host.Links.FirstOrDefault(
+                l => l.FromNodeId == entryClone!.Id && l.FromPinId == entryExecOuts[k].Id);
+
+            if (firstBodyLink is null)
             {
-                ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP1667,
-                    $"Macro '{macro.Name}' has an empty body (its entry node's exec output is not "
-                    + $"wired), so the call in graph '{host.Name}' (node id={call.Id}) does nothing "
-                    + "and every one of its exec outputs is unreachable.",
-                    asset.AssetId, host.Id, call.Id));
+                // ⚠ NOT BP1667. This entry simply has no body wired behind it -- one unused door, not
+                // an empty macro. Teardown drops the incoming links and that host path ends here.
+                continue;
             }
-            return;   // teardown drops `incoming`; the host's exec chain simply ends here
+            anyBodyLink = true;
+
+            // Several X may feed one entry; in-degree >= 2 at the body block is fine, exactly as in
+            // rule 2 -- ComputeMergePoints allocates one shared block for that shape.
+            foreach (var link in incoming)
+            {
+                link.ToNodeId = firstBodyLink.ToNodeId;
+                link.ToPinId  = firstBodyLink.ToPinId;
+            }
         }
 
-        foreach (var link in incoming)
+        // BP1667 is about a genuinely EMPTY body: no entry leads anywhere. With N entries that is
+        // "no exec-out of the boundary node is wired", not "entry 0 is unwired".
+        if (!anyBodyLink && anyIncoming)
         {
-            link.ToNodeId = firstBodyLink.ToNodeId;
-            link.ToPinId  = firstBodyLink.ToPinId;
+            ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP1667,
+                $"Macro '{macro.Name}' has an empty body (no exec output of its entry node is "
+                + $"wired), so the call in graph '{host.Name}' (node id={call.Id}) does nothing "
+                + "and every one of its exec outputs is unreachable.",
+                asset.AssetId, host.Id, call.Id));
         }
     }
 
@@ -418,13 +441,14 @@ internal static class Stage2_5_ExpandMacros
     {
         public MacroCallPinView(MacroCallNode call, Graph macro)
         {
-            ExecInPin   = call.Pins.FirstOrDefault(p => p.IsExec && p.Direction == "In");
+            ExecInPins  = call.Pins.Where(p => p.IsExec && p.Direction == "In").ToList();
             ExecOutPins = call.Pins.Where(p => p.IsExec && p.Direction == "Out").ToList();
             DataInPins  = call.Pins.Where(p => !p.IsExec && p.Direction == "In").ToList();
             DataOutPins = call.Pins.Where(p => !p.IsExec && p.Direction == "Out").ToList();
         }
 
-        public Pin? ExecInPin { get; }
+        /// <summary>BP-74/Q26-A3: N, one per target ExecInputs entry (or one implicit).</summary>
+        public IReadOnlyList<Pin> ExecInPins { get; }
         public IReadOnlyList<Pin> ExecOutPins { get; }
         public IReadOnlyList<Pin> DataInPins { get; }
         public IReadOnlyList<Pin> DataOutPins { get; }
