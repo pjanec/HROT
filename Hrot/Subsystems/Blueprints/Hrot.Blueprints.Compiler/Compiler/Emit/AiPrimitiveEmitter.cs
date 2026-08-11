@@ -31,6 +31,19 @@ internal static class AiPrimitiveEmitter
         EmitTickCore(e, asset);
         e.WriteLine();
 
+        // BP-221 — a helper per non-main Function graph. InstanceEmitter has had this loop since
+        // BATCH-03A; this emitter picked its main graph the same way and had no equivalent, while
+        // StatementEmitter emitted `Func_<name>(...)` regardless — so an AiPrimitive that called one
+        // of its own Function graphs produced CS0103 against a method nobody wrote. Reachable by
+        // ordinary hand-authoring (place a second Function graph, place a FunctionCall); collapse
+        // merely walked into it.
+        var mainGraph = MainGraphOf(asset);
+        foreach (var fg in asset.Graphs.Where(g => g.Kind == IrGraphKind.Function && g != mainGraph))
+        {
+            EmitPrimitiveFunctionMethod(e, asset, fg);
+            e.WriteLine();
+        }
+
         EmitThunks(e, asset, className);
 
         e.Outdent();
@@ -153,12 +166,64 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("{");
         e.Indent();
 
-        var mainGraph = asset.Graphs.FirstOrDefault(g => g.Kind == IrGraphKind.AiPrimitiveMain)
-            ?? asset.Graphs.FirstOrDefault(g => g.Kind == IrGraphKind.Function);
+        var mainGraph = MainGraphOf(asset);
 
         if (mainGraph != null)
             LibraryEmitter.EmitGraphBody(e, asset, mainGraph);
 
+        e.Outdent();
+        e.WriteLine("}");
+    }
+
+    /// <summary>
+    /// BP-221 — the graph <c>TickCore</c> runs, and therefore the one graph that must NOT also be
+    /// emitted as a helper. Factored out so <see cref="EmitTickCore"/> and the helper loop cannot
+    /// disagree about which graph is the main one; they used to pick it with two copies of the same
+    /// expression, which is how the loop came to be missing without anything noticing.
+    /// </summary>
+    private static IrGraph? MainGraphOf(IrAsset asset)
+        => asset.Graphs.FirstOrDefault(g => g.Kind == IrGraphKind.AiPrimitiveMain)
+           ?? asset.Graphs.FirstOrDefault(g => g.Kind == IrGraphKind.Function);
+
+    /// <summary>
+    /// BP-221 — an in-blueprint Function graph, as a private helper.
+    ///
+    /// <para>
+    /// ⚠ <b>The signature is NOT <c>InstanceEmitter</c>'s.</b> An Instance helper takes
+    /// <c>(ref State, view, ecb, self, time, deltaTime, instanceVersion)</c> because that is what an
+    /// Instance body has in scope. <c>TickCore</c> has <c>(ref Params, ref WorkingState, self,
+    /// world, time)</c> — no view, no ecb, no deltaTime, no instanceVersion — so the helper takes
+    /// what the caller can actually pass, and <c>StatementEmitter</c>'s <c>IrOp_GraphCall</c> arm
+    /// picks the matching argument list off the same dispatch.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <c>Params</c> is deliberately not threaded through: a helper graph's inputs arrive as real
+    /// parameters, and <c>ws</c> carries everything stateful. Adding <c>ref Params</c> would make
+    /// every helper depend on the primitive's DTO for no reader.
+    /// </para>
+    /// </summary>
+    private static void EmitPrimitiveFunctionMethod(CSharpEmitter e, IrAsset asset, IrGraph graph)
+    {
+        // ⚠ Derived from the body, not assumed: an AiPrimitive graph lowers to NodeStatus
+        // terminators, so declaring `void` here produced CS0127 the moment the body returned one.
+        var retType   = LibraryEmitter.HelperReturnType(graph);
+        var sanitized = Sanitizer.SanitizeName(graph.Name);
+
+        var extraParams = graph.Inputs.Count > 0
+            ? ", " + string.Join(", ", graph.Inputs.Select(f => LibraryEmitter.CSharpType(f.Type) + " " + f.Name))
+            : "";
+
+        e.WriteLine($"private static {retType} Func_{sanitized}(");
+        e.Indent();
+        e.WriteLine("ref WorkingState ws,");
+        e.WriteLine("global::Fdp.Core.Entity self,");
+        e.WriteLine("global::Fdp.Core.EntityRepository world,");
+        e.WriteLine($"float time{extraParams})");
+        e.Outdent();
+        e.WriteLine("{");
+        e.Indent();
+        LibraryEmitter.EmitGraphBody(e, asset, graph);
         e.Outdent();
         e.WriteLine("}");
     }

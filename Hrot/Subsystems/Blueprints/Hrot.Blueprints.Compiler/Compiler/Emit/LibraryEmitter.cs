@@ -51,6 +51,28 @@ internal static class LibraryEmitter
             _ => "(" + string.Join(", ", graph.Outputs.Select(o => CSharpType(o.Type))) + ")",
         };
 
+    /// <summary>
+    /// BP-221 / BP-222 — the return type of an in-blueprint <c>Func_*</c> helper, for BOTH the
+    /// declaration and the call site.
+    ///
+    /// <para>
+    /// ⭐ <b>One function, called from three places, on purpose.</b> The two emitters declared the
+    /// helper and <c>StatementEmitter</c> emitted the call, each deciding independently whether the
+    /// call produces a value — and they disagreed in both directions: a zero-output graph was
+    /// declared <c>void</c> and assigned anyway (<c>CS0815</c>, BP-222), and an AiPrimitive graph
+    /// whose body ends in a status return was declared <c>void</c> and then returned a value
+    /// (<c>CS0127</c>). Whichever way the rule moves next, it moves here.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ The status return is DERIVED from the body, not assumed per dispatch. An Instance function
+    /// graph has never carried one, so this is a no-op there; an AiPrimitive graph lowers to
+    /// <c>NodeStatus</c> terminators and does.
+    /// </para>
+    /// </summary>
+    internal static string HelperReturnType(IrGraph graph)
+        => CSharpReturnType(graph, graph.Blocks.Any(b => b.Terminator is IrTerm_ReturnStatus));
+
     private static void EmitFunctionGraph(CSharpEmitter e, IrAsset asset, IrGraph graph)
     {
         bool hasStatusReturn = graph.Blocks.Any(b => b.Terminator is IrTerm_ReturnStatus);

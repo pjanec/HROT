@@ -389,11 +389,28 @@ internal static class StatementEmitter
                     break;
                 }
                 var sanitized = Sanitizer.SanitizeName(fg.Name);
-                var contextArgs = new[] { $"ref {sv}", "view", "ecb", "self", "time", "deltaTime", "instanceVersion" };
+
+                // BP-221: the context parameters differ per dispatch because the ENCLOSING method
+                // differs. An Instance body runs inside a method that has view/ecb/deltaTime/
+                // instanceVersion in scope; an AiPrimitive's TickCore has (ref Params, ref
+                // WorkingState, self, world, time) and none of those four. Emitting the Instance
+                // shape unconditionally produced four CS0103s on top of the missing helper.
+                var contextArgs = ctx.Asset.Dispatch == BlueprintDispatchKind.AiPrimitive
+                    ? new[] { $"ref {sv}", "self", "world", "time" }
+                    : new[] { $"ref {sv}", "view", "ecb", "self", "time", "deltaTime", "instanceVersion" };
+
                 var dataArgs = op.Args.Select(a => $"__t{a.Index}");
                 var allArgs = string.Join(", ", contextArgs.Concat(dataArgs));
                 var gcCall = $"Func_{sanitized}({allArgs})";
-                if (idx >= 0)
+
+                // ⚠ BP-222: a Function graph with no outputs emits a `void` helper (see
+                // LibraryEmitter.CSharpReturnType), so assigning its result is CS0815. Stage 5 still
+                // allocates a result slot for the op — harmless, because with no outputs nothing
+                // reads it — but the emitter must not pretend the call produces a value. Keyed off
+                // the SAME predicate that chose the helper's return type, so the two cannot drift.
+                bool returnsAValue = LibraryEmitter.HelperReturnType(fg) != "void";
+
+                if (idx >= 0 && returnsAValue)
                     e.WriteLine($"var __t{idx} = {gcCall};");
                 else
                     e.WriteLine($"{gcCall};");

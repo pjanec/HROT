@@ -270,8 +270,10 @@ internal static class InstanceEmitter
     private static void EmitInstanceFunctionMethod(CSharpEmitter e, IrAsset asset, IrGraph graph)
     {
         // BP-73: N outputs come back as a ValueTuple carrier; 1 output is unchanged.
-        // An Instance function graph has no NodeStatus return, hence hasStatusReturn: false.
-        var retType = LibraryEmitter.CSharpReturnType(graph, hasStatusReturn: false);
+        // BP-221: shared with the call site so the two cannot disagree about whether this helper
+        // produces a value. An Instance function graph carries no NodeStatus terminator, so the
+        // shared predicate yields exactly the old `hasStatusReturn: false` answer here.
+        var retType = LibraryEmitter.HelperReturnType(graph);
 
         var sanitized = Sanitizer.SanitizeName(graph.Name);
 

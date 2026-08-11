@@ -161,7 +161,7 @@ public sealed class CollapseCommandTests
         Assert.Single(sut.Graph.Nodes.OfType<MacroCallNode>());
 
         // …and the macro they moved into exists.
-        var macro = Assert.Single(sut.Asset.Graphs.Where(g => g.Kind == GraphKind.Macro));
+        var macro = Assert.Single(sut.Asset.Graphs, g => g.Kind == GraphKind.Macro);
         Assert.Equal("Lifted", macro.Name);
     }
 
@@ -209,7 +209,7 @@ public sealed class CollapseCommandTests
         sut.Commands.Invoke(NodeEditor.Core.CommandCatalog.CollapseToMacro);
 
         Assert.Single(sut.Graph.Nodes.OfType<MacroCallNode>());
-        Assert.Single(sut.Asset.Graphs.Where(g => g.Kind == GraphKind.Macro));
+        Assert.Single(sut.Asset.Graphs, g => g.Kind == GraphKind.Macro);
     }
 
     /// <summary>
@@ -275,7 +275,7 @@ public sealed class CollapseCommandTests
         Assert.True(sut.View.Undo.Redo());
 
         Assert.Equal(collapsedShape, CanonicalGraphShape.Describe(sut.Graph));
-        var macro = Assert.Single(sut.Asset.Graphs.Where(g => g.Kind == GraphKind.Macro));
+        var macro = Assert.Single(sut.Asset.Graphs, g => g.Kind == GraphKind.Macro);
         Assert.Equal(macroShape, CanonicalGraphShape.Describe(macro));
     }
 

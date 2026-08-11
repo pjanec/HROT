@@ -469,10 +469,12 @@ public sealed class LatentMacroPayoffTests
     /// </para>
     ///
     /// <para>
-    /// ⚠⚠ <b>What is NOT asserted is that the result compiles</b>, because two pre-existing holes in
-    /// the FunctionCall EMIT path — both reachable by an ordinary hand-authored FunctionCall, neither
-    /// caused by collapse — stop it. See <b>BP-221</b> and <b>BP-222</b> in the tracker for the
-    /// evidence. Claiming a compile proof here would be the overclaiming test Batch 31 had to fix.
+    /// ✅ <b>Batch 34 update.</b> The compile proof used to be impossible here: two pre-existing holes
+    /// in the FunctionCall emit path — <b>BP-221</b> (an AiPrimitive never emitted the <c>Func_*</c>
+    /// helper, and the call site passed Instance-shaped context args) and <b>BP-222</b> (a zero-output
+    /// call assigned a <c>void</c> helper) — stopped it, and this test said so rather than claiming
+    /// more than it checked. Both are fixed, and
+    /// <see cref="CollapsingToAFunction_CompilesThroughRoslynAndRuns"/> now carries the proof.
     /// </para>
     ///
     /// <para>
@@ -518,6 +520,58 @@ public sealed class LatentMacroPayoffTests
         // The exec chain is continuous through the call: entry → call → return.
         Assert.Contains(edit.RewrittenHost.Links, l => l.FromNodeId == entry.Id && l.ToNodeId == call.Id);
         Assert.Contains(edit.RewrittenHost.Links, l => l.FromNodeId == call.Id  && l.ToNodeId == ret.Id);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The Function path's proof, and it has to be execution.</b> The Macro path can lean on
+    /// the round-trip property (collapse → expand → canonically equal), because expansion is its
+    /// inverse and is itself proven by execution. <b>A Function has no inverse</b> — nothing expands
+    /// a <c>FunctionCall</c> back — so the only evidence that collapsing to a Function preserves
+    /// behaviour is to run the collapsed asset and read the value it wrote.
+    ///
+    /// <para>
+    /// ⚠ Through <b>real Roslyn</b> and then ticked: <c>CompileResult.Succeeded</c> never invokes
+    /// Roslyn, and a collapse that dropped the extracted body would compile clean and return Success
+    /// while writing nothing. The <c>Ammo == 13</c> assertion is the whole point.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ This test could not be written before Batch 34: <c>BP-221</c> and <c>BP-222</c> made every
+    /// in-blueprint <c>FunctionCall</c> uncompilable, from collapse and from hand-authoring alike.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void CollapsingToAFunction_CompilesThroughRoslynAndRuns()
+    {
+        using var fixture = new BlueprintTestFixture(NoAlcCheck);
+
+        var entry = new EventEntryNode { Id = Guid.NewGuid() };
+        var eOut  = NewPin("Out", "Out", isExec: true); entry.Pins.Add(eOut);
+        var body  = MakeAmmoWriter(13, out var fIn, out var fOut);
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = NewPin("In", "In", isExec: true); ret.Pins.Add(retIn);
+
+        var tick = new Graph
+        {
+            Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function,
+            Nodes = { entry, body, ret },
+            Links = { Wire(entry, eOut, body, fIn), Wire(body, fOut, ret, retIn) },
+        };
+
+        var analysis = CollapseAnalysis.Analyse(tick, new[] { body.Id }, CollapseTarget.Function);
+        Assert.False(analysis.IsRefused, string.Join("; ", analysis.Refusals.Select(r => r.Code)));
+
+        var edit  = CollapseEmitter.Emit(tick, analysis.Plan!, CollapseTarget.Function, "DoFire");
+        var asset = MakeAiPrimitiveAsset("CollapsedFunction", edit.RewrittenHost, edit.Extracted);
+
+        fixture.CompileAndLoad(asset);      // real Roslyn, on the COLLAPSED asset
+
+        fixture.World.RegisterComponent<Hrot.AI.Behaviors.BpComponentDemo>();
+        var entity = fixture.CreateEntity();
+        fixture.World.AddComponent(entity, new Hrot.AI.Behaviors.BpComponentDemo { Ammo = 0 });
+
+        Assert.Equal(NodeStatus.Success, fixture.InvokeBTreeAction(asset, entity));
+        Assert.Equal(13, ReadAmmo(fixture, entity));    // ⭐ the extracted function really ran
     }
 
     // ────────────────────────────────────────────────────────────────────────
