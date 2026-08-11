@@ -244,6 +244,33 @@ one closure — and it stops holding the moment several providers contribute, si
 > within a group.** It encodes the convention that already exists five times over, adds no per-item
 > number (which the evidence shows goes unused), and survives multi-provider composition.
 
+#### ⭐ Refinement 2026-08-10 — multi-select changes the execute signature
+
+**User requirement:** *"context menu showing only items applicable to **all** selected entities, and
+issuing the selected action to **each** selected entity"* ([UXR-91](UX_Requirements.md#uxr-91)).
+
+That is two precise semantics, and the second one **adds to the registration surface**:
+
+| | Semantics |
+|---|---|
+| **Visibility** | **AND over the selection** — an item appears only if it is applicable to *every* selected entity. A mixed selection therefore shows `Delete` but not `Edit Route` |
+| **Execution** | **fan-out** — the handler runs **once per selected entity** |
+
+⚠ **But fan-out cannot be the only mode.** `Mark Target for {N} Units` takes the **whole selection** as
+its perceivers and picks *one* target — running it per-entity would be wrong. So the descriptor must
+declare which it is:
+
+| Mode | Signature | Example |
+|---|---|---|
+| **`PerEntity`** (default) | `execute(entity, ctx)`, invoked once per selected entity | Delete · Centre · Rotate |
+| **`Selection`** | `execute(IReadOnlyList<Entity>, ctx)`, invoked once | Mark Target · Mark Area Targets |
+
+⇒ **One more field on the descriptor, and it is evidence-backed** — the two existing selection-wide
+items are exactly the case a pure fan-out API would get wrong.
+
+⚠ **The alternative the user's wording rules out:** *show the item and apply it to the applicable
+subset.* AND-visibility was stated explicitly; record it so it is not "helpfully" relaxed later.
+
 #### Three findings that are not API questions but were measured here
 
 | | |
@@ -344,7 +371,7 @@ namespace the live panels declare**.
 | **Q26-A** — one vocabulary, how far | ✅ **A2** | **ruled by the user 2026-08-10** — local surfaces unify; IG's network pipeline stays separate |
 | **Q26-A′** — ORBAT in stage 2? | ✅ **yes, stage 2** | **user 2026-08-10** — *"ORBAT can wait to stage 2"*. Collapses a 434-line fork through the same mechanism |
 | **Q26-A″** — is JSON-defined menu content generic? | ✅ **investigated** | **The format is not unified today** (3 look-alike schemas), and the blocker is that items are **closures, not data** — SimHost 4/5, CGF 4/5. ⇒ resolves into the descriptor/binding split; "unify the format" = "share the descriptors" = Stage 1 |
-| **Q26-B** — what a registration carries | ✅ **investigated** | **Carry:** id · dynamic-capable label · visibility predicate · enabled predicate + reason · group · children · execute · **selection in the context**. **Omit:** icon, numeric priority, checked, confirm, style, ECS plumbing. Converge on `EditorCommandDescriptor`'s `Func<>`-predicate shape — the repo's mature API |
+| **Q26-B** — what a registration carries | ✅ **investigated** | **Carry:** id · dynamic-capable label · visibility predicate · enabled predicate + reason · group · children · execute · **selection in the context** · **execution mode (`PerEntity` \| `Selection`)**. **Omit:** icon, numeric priority, checked, confirm, style, ECS plumbing. Converge on `EditorCommandDescriptor`'s `Func<>`-predicate shape — the repo's mature API |
 | **Q26-C** — replace or wrap int ids | ✅ **C1** | **ruled by the user 2026-08-10** — build **on** `GlobalActionRegistry`; invent nothing parallel |
 | **Q26-D** — perspective or mode as key | ✅ **both, ordered** | **user 2026-08-10:** mode *enables*, perspective *further customizes*. The "is running" alternative is withdrawn — the editor runs too |
 | **Q26-E** — delete-only batch | — | *lean E1* |
