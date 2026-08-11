@@ -208,6 +208,31 @@ ceremony. Do it every time, against the rules *and* against the code.
 | 🔴 **Carrying a baseline number forward instead of measuring it** | the warning count, doubled for the entire programme |
 | 🔴 **Self-contradicting instructions** | Batch 28 said *"use `_statementPinCache`"* **and** *"mirror `SetShared`"* — which uses the other cache |
 | ⚠ **Instructions that are wrong in substance** | told them to allocate a `ResultValue`; correct answer was none, because the written value already exists as a local. **They were right, I was wrong** |
+| 🔴🔴 **Verifying that a thing EXISTS without verifying anything USES it** | ⭐ **`BP-223`.** Batch 34's handoff said the refusal surface was *"wired at `BlueprintDocumentFactory:346`"*. The enqueue half was real; **nothing read the queue** — the only reader in the repo was the NodeEdit demo shell's, so every notification since BP-24 was discarded. ⚠ **Written into a handoff that warns about trap #5** |
+| ⚠ **Reading an emitter instead of running it** | `BP-221` was **two** holes. Reading found the missing helper loop; only *reproduction* found the call site passing Instance-shaped context args into an AiPrimitive `TickCore` — **five `CS0103`s, not one** |
+
+### ⭐⭐ The rule that would have caught most of the above — ask the REVERSE question
+
+**Existence is not wiring.** For every claim of the form *"X exists / is already wired / is handled"*,
+**verify the consumer side before it goes in a handoff**:
+
+| Claim | ⛔ Not enough | ✅ Also check |
+|---|---|---|
+| *"the notification surface exists"* | the `Enqueue` | ⭐ **who dequeues it** |
+| *"the helper is emitted"* | the emit site | **what the call site passes** |
+| *"the command is handled"* | the `case` | **that it mutates, not just returns `true`** |
+| *"the pin is projected"* | one half | **both halves, and who reads the projection** |
+
+### ⚠ Use the Codebase Memory graph — and know what it is bad at
+
+`.claude/CLAUDE.md` makes the graph tools **mandatory before reading files**. Use them.
+⚠ **But measured on this repo, 2026-08-11: they are a supplement, not a substitute.** An inbound
+`trace_path` on `ToastQueue.TryDequeue` returned the true reader **plus six false positives** from
+plain **method-name collision** across unrelated queue types (`BatchListPool.Get`,
+`HitFlashSystem.OnUpdate`), **and missed a real reader** that a `git grep` finds instantly.
+
+⇒ ⭐ **Graph first for discovery and call chains; `grep` to confirm before asserting anything in a
+handoff.** ⛔ Never state a coordinate in a handoff on the graph's word alone.
 
 ⭐ **The implementation session has repeatedly corrected you and been right.** Read their pushback as
 evidence, not noise.
