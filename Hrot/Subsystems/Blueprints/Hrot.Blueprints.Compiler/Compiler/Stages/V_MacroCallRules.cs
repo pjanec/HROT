@@ -62,13 +62,35 @@ internal sealed class V_MacroCallRules : IValidator
         //
         // ⚠ BP1650 forbids a latent node inside a called FUNCTION graph, and it is a STAGE 2 rule.
         // Expansion runs at Stage 2.5, AFTER it. So a macro containing Delay/WaitFor*, called from a
-        // Function graph, drops a latent node into a function body after the only check that forbids
-        // it has already run -- producing the Func_X-that-suspends breakage with no diagnostic at all.
-        // The check belongs at the CALL SITE, where it names a node the designer actually placed.
+        // function body, drops a latent node in after the only check that forbids it has already run
+        // -- producing the Func_X-that-suspends breakage with no diagnostic at all. The check belongs
+        // at the CALL SITE, where it names a node the designer actually placed.
+        //
+        // ⚠⚠ THE GATE IS "IS THIS GRAPH A FunctionCall TARGET", **NOT** "IS ITS KIND Function".
+        //
+        // Batch 30 shipped it as `Kind != Function → skip`, and that was WRONG in the most damaging
+        // possible direction: a **tick graph is also GraphKind.Function** (InstanceEmitter picks the
+        // tick graph from among the Function graphs), so the rule rejected latent macros in exactly
+        // the place they are legal -- and BP-78 records that factoring out a reusable LATENT sequence
+        // is the single capability macros exist to provide. The rail forbade the payoff.
+        //
+        // It survived Batch 30's whole suite because every negative test built a Function caller that
+        // was never a call target, so "Function" and "synchronous method" looked like the same thing.
+        // Only executing the payoff case (LatentMacroPayoffTests) separated them. What actually makes
+        // a body synchronous is being INVOKED by a FunctionCallNode -- which is precisely how BP1650
+        // words its own rule ("a function graph invoked by FunctionCall"), and mirroring that wording
+        // is what fixes this.
+        var functionCallTargets = new HashSet<Guid>(
+            asset.Graphs
+                .SelectMany(g => g.Nodes.OfType<FunctionCallNode>())
+                .Select(fc => Guid.TryParse(fc.TargetGraphId, out var t) ? t : Guid.Empty)
+                .Where(t => t != Guid.Empty));
+
         foreach (var kv in callEdges)
         {
             if (!graphById.TryGetValue(kv.Key, out var callerGraph)) continue;
             if (callerGraph.Kind != GraphKind.Function) continue;
+            if (!functionCallTargets.Contains(callerGraph.Id)) continue;   // top-level graph ⇒ resumable
 
             foreach (var targetId in kv.Value)
             {
@@ -80,12 +102,14 @@ internal sealed class V_MacroCallRules : IValidator
                              .Where(n => Guid.TryParse(n.TargetGraphId, out var t) && t == targetId))
                 {
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1661,
-                        $"MacroCallNode (id={call.Id}) in Function graph '{callerGraph.Name}' calls "
-                        + $"macro '{macroById[targetId].Name}', whose body transitively contains "
-                        + $"latent node '{latentNode.GetType().Name}' (id={latentNode.Id}, in macro "
+                        $"MacroCallNode (id={call.Id}) in Function graph '{callerGraph.Name}' -- which "
+                        + "is itself called via a FunctionCall -- calls macro "
+                        + $"'{macroById[targetId].Name}', whose body transitively contains latent node "
+                        + $"'{latentNode.GetType().Name}' (id={latentNode.Id}, in macro "
                         + $"'{latentMacro.Name}'). Expanding it would place a latent node inside a "
-                        + "Function graph, which compiles to a synchronous method and cannot suspend. "
-                        + "Call this macro from a Tick or event graph instead.",
+                        + "function body, which compiles to a synchronous method and cannot suspend. "
+                        + "Call this macro from a Tick or event graph instead (where latent nodes are "
+                        + "supported), or stop calling this graph via FunctionCall.",
                         asset.AssetId, callerGraph.Id, call.Id));
                 }
             }

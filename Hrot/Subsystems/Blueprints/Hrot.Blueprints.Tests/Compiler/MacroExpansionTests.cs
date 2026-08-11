@@ -483,6 +483,34 @@ public sealed class MacroExpansionTests
 
     // ── fixture helpers for the rails ───────────────────────────────────────
 
+    /// <summary>
+    /// A Tick graph that invokes <paramref name="callee"/> via a <see cref="FunctionCallNode"/> — which
+    /// is what makes the callee compile to a synchronous method, and therefore what BP1661 keys on.
+    /// </summary>
+    private static Graph MakeCallerInvoking(Graph callee)
+    {
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecOut(); entry.Pins.Add(entryOut);
+
+        var fc = new FunctionCallNode
+        {
+            Id = Guid.NewGuid(), IsPure = false, TargetGraphId = callee.Id.ToString(),
+        };
+        var fcIn = ExecIn(); var fcOut = ExecOut();
+        fc.Pins.AddRange(new[] { fcIn, fcOut });
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecIn(); ret.Pins.Add(retIn);
+
+        return new Graph
+        {
+            Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function,
+            Nodes = { entry, fc, ret },
+            Links = { Wire(entry, entryOut, fc, fcIn), Wire(fc, fcOut, ret, retIn) },
+        };
+    }
+
+
     /// <summary>Splices a MacroCallNode targeting <paramref name="target"/> into <paramref name="caller"/>'s chain.</summary>
     private static void AddCallTo(Graph caller, Graph target)
     {
@@ -682,9 +710,19 @@ public sealed class MacroExpansionTests
             Links = { Wire(mEntry, mEntryOut, delay, delayIn), Wire(delay, delayOut, mRet, mRetIn) },
         };
 
-        // MakeHostCalling builds a GraphKind.Function graph — which is precisely the illegal caller.
-        var host = MakeHostCalling(macro, out var call);
-        var result = new BlueprintCompiler().Compile(MakeAsset(macro, host), DefaultOptions());
+        // ⚠⚠ The caller must be a genuine FunctionCall TARGET, not merely GraphKind.Function.
+        //
+        // Batch 30's version of this test built a plain Function graph and passed — which hid a real
+        // defect, because a TICK graph is also GraphKind.Function. The rule as shipped therefore
+        // rejected latent macros in a tick graph, i.e. in the one place BP-78 says they exist to be
+        // used. Executing the payoff case (LatentMacroPayoffTests) is what exposed it. The rule now
+        // gates on "is this graph invoked by a FunctionCall", mirroring BP1650's own wording, so this
+        // fixture has to construct that shape rather than assume it.
+        var callee = MakeHostCalling(macro, out var call);
+        callee.Name = "Helper";
+
+        var caller = MakeCallerInvoking(callee);
+        var result = new BlueprintCompiler().Compile(MakeAsset(macro, callee, caller), DefaultOptions());
 
         Assert.False(result.Succeeded);
         var bp1661 = Assert.Single(result.Diagnostics, d => d.Code == DiagnosticCodes.BP1661);

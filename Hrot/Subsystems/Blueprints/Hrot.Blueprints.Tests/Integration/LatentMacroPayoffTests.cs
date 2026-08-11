@@ -1,0 +1,294 @@
+using Fdp.Toolkit.Blueprints;
+using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Core.Compiler;
+using Hrot.Blueprints.Core.Compiler.Catalogs;
+using Hrot.Blueprints.Core.Compiler.Diagnostics;
+using Hrot.Blueprints.Core.Compiler.Stages;
+using BlueprintDispatchKind = Hrot.Blueprints.Core.Assets.BlueprintDispatchKind;
+using BlueprintTypeRef      = Hrot.Blueprints.Core.Assets.BlueprintTypeRef;
+
+namespace Hrot.Blueprints.Tests.Integration;
+
+/// <summary>
+/// ⭐ <b>BP-81's payoff case — the scenario macros were built for, executed.</b>
+///
+/// <para>
+/// <b>Why this specific test and not another integration test.</b> BP-78 is on record that a macro is
+/// the <b>only</b> construct that can factor out a reusable <b>latent</b> sequence: <c>BP1650</c>
+/// forbids latent nodes inside a Function graph, because a Function graph compiles to a synchronous C#
+/// method with no way to suspend. Batch 30 proved the splice SHAPE — clones, provenance, the mirror —
+/// but never executed the result, so the one capability the feature exists to deliver was still
+/// unevidenced.
+/// </para>
+///
+/// <para>
+/// ⚠ <c>CompileResult.Succeeded</c> never invokes Roslyn, and expansion assertions never invoke the
+/// emitter. These tests go all the way: <b>expand → generate → compile with real Roslyn → load →
+/// execute across frames → assert a value.</b>
+/// </para>
+/// </summary>
+[Collection("DebugProbe")]
+public sealed class LatentMacroPayoffTests
+{
+    private const string DemoComponentFqn = "Hrot.AI.Behaviors.BpComponentDemo";
+
+    private static BlueprintTestFixtureOptions NoAlcCheck { get; } =
+        new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false };
+
+    // ── fixture helpers ─────────────────────────────────────────────────────
+
+    private static Pin NewPin(string name, string dir, bool isExec, string typeId = "") => new()
+    {
+        Id = Guid.NewGuid(), Name = name, Direction = dir,
+        IsExec = isExec, TypeRef = new BlueprintTypeRef { TypeId = typeId },
+    };
+
+    private static Link Wire(Node f, Pin fp, Node t, Pin tp) => new()
+    {
+        FromNodeId = f.Id, FromPinId = fp.Id, ToNodeId = t.Id, ToPinId = tp.Id,
+    };
+
+    /// <summary>
+    /// The reusable latent sequence: <c>Entry → Delay(0.4) → SetComponent(Ammo = ammoValue) → Return</c>.
+    /// "aim, wait, fire" — the <c>SetComponent</c> is the observable "fire", and it must not happen
+    /// until the delay has elapsed.
+    /// </summary>
+    private static Graph MakeAimDelayFireMacro(string name, int ammoValue, out Node fireNode)
+    {
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = NewPin("Out", "Out", isExec: true);
+        entry.Pins.Add(entryOut);
+
+        var delay   = new LatentDelayNode { Id = Guid.NewGuid() };
+        var dIn     = NewPin("In", "In", isExec: true);
+        var dOut    = NewPin("Out", "Out", isExec: true);
+        var dSecs   = NewPin("Seconds", "In", isExec: false, typeId: "System.Single");
+        delay.Pins.AddRange(new[] { dIn, dOut, dSecs });
+        delay.PinDefaults = new Dictionary<string, string> { ["Seconds"] = "0.4" };
+
+        var fire = new SetComponentNode
+        {
+            Id = Guid.NewGuid(),
+            ComponentTypeFqn = DemoComponentFqn,
+            Fields = new List<ComponentFieldDecl>
+            {
+                new() { Name = "Ammo", TypeId = "System.Int32" },
+            },
+        };
+        var fIn      = NewPin("In", "In", isExec: true);
+        var fOut     = NewPin("Out", "Out", isExec: true);
+        var fAmmo    = NewPin("Ammo", "In", isExec: false, typeId: "System.Int32");
+        var fWritten = NewPin("Written", "Out", isExec: false, typeId: "System.Boolean");
+        fire.Pins.AddRange(new[] { fIn, fOut, fAmmo, fWritten });
+        fire.PinDefaults = new Dictionary<string, string> { ["Ammo"] = ammoValue.ToString() };
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = NewPin("In", "In", isExec: true);
+        ret.Pins.Add(retIn);
+
+        fireNode = fire;
+        return new Graph
+        {
+            Id = Guid.NewGuid(), Name = name, Kind = GraphKind.Macro,
+            Nodes = { entry, delay, fire, ret },
+            Links =
+            {
+                Wire(entry, entryOut, delay, dIn),
+                Wire(delay, dOut,     fire,  fIn),
+                Wire(fire,  fOut,     ret,   retIn),
+            },
+        };
+    }
+
+    private static MacroCallNode MakeCall(Graph macro, out Pin execIn, out Pin execOut)
+    {
+        var call = new MacroCallNode { Id = Guid.NewGuid(), TargetGraphId = macro.Id.ToString() };
+        execIn  = NewPin("In",  "In",  isExec: true);
+        execOut = NewPin("Out", "Out", isExec: true);
+        call.Pins.AddRange(new[] { execIn, execOut });
+        return call;
+    }
+
+    private static BlueprintAsset MakeAiPrimitiveAsset(string name, params Graph[] graphs) => new()
+    {
+        AssetId   = Guid.NewGuid(),
+        Name      = name,
+        Dispatch  = BlueprintDispatchKind.AiPrimitive,
+        Primitive = new AiPrimitiveDecl
+        {
+            Intent   = AiPrimitiveIntent.Action,
+            Hostings = new List<AiPrimitiveHosting> { AiPrimitiveHosting.BTreeAction },
+        },
+        Graphs = graphs.ToList(),
+        Header = new Header(),
+    };
+
+    private static int ReadAmmo(BlueprintTestFixture fixture, Fdp.Core.Entity e)
+        => fixture.World.GetComponentRO<Hrot.AI.Behaviors.BpComponentDemo>(e).Ammo;
+
+    // ────────────────────────────────────────────────────────────────────────
+    // 1.1 — the test whose name overclaimed, now carrying its own name
+    // ────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ Batch 30 shipped a test with this name whose body only called <c>Expand(...)</c> and asserted
+    /// splice shape — it never touched <c>CSharpCompilation</c>. The name was fixed rather than the
+    /// body being renamed to match, deliberately: <b>a test that claims more than it checks is worse
+    /// than no test, because it retires the question.</b>
+    ///
+    /// <para>
+    /// This runs the REAL incremental generator over the asset and then compiles the emitted C# with
+    /// real Roslyn — the step that caught BP-117 (CS0126) and BP-112 (CS9191).
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void LatentMacro_SplicedIntoATickGraph_CompilesThroughTheRealGenerator()
+    {
+        var macro = MakeAimDelayFireMacro("AimDelayFire", ammoValue: 42, out _);
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = NewPin("Out", "Out", isExec: true); entry.Pins.Add(entryOut);
+        var call     = MakeCall(macro, out var callIn, out var callOut);
+        var ret      = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn    = NewPin("In", "In", isExec: true); ret.Pins.Add(retIn);
+
+        var tick = new Graph
+        {
+            Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function,
+            Nodes = { entry, call, ret },
+            Links = { Wire(entry, entryOut, call, callIn), Wire(call, callOut, ret, retIn) },
+        };
+
+        var asset  = MakeAiPrimitiveAsset("LatentMacroRoslyn", macro, tick);
+        var result = AuthoringPath.Generate(asset);
+
+        Assert.True(result.Clean,
+            "A latent macro spliced into a tick graph must produce C# that really compiles.\n"
+            + result.Report());
+
+        // And the latent lowering genuinely landed in the emitted source — a macro that expanded to
+        // nothing would also "compile clean".
+        Assert.Contains(result.GeneratedSources, src => src.Contains("NodeStatus.Running"));
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // 1.2 — ⭐ the payoff: run it across frames
+    // ────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ <b>The scenario the whole macro feature exists to serve, executed.</b> The macro suspends on
+    /// its <c>Delay</c>, the tick returns <c>Running</c>, and the "fire" writes NOTHING yet. After time
+    /// passes the next tick resumes mid-body, performs the write, and reports <c>Success</c>.
+    ///
+    /// <para>
+    /// ⚠ The <b>value</b> assertion is what makes this more than a status check: a splice that dropped
+    /// the post-delay half of the body would still return Running then Success, and only the component
+    /// write proves the resumed path actually ran.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void LatentMacro_SuspendsAndResumesAcrossFrames_AndFiresOnlyAfterTheDelay()
+    {
+        using var fixture = new BlueprintTestFixture(NoAlcCheck);
+
+        var macro = MakeAimDelayFireMacro("AimDelayFire", ammoValue: 42, out _);
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = NewPin("Out", "Out", isExec: true); entry.Pins.Add(entryOut);
+        var call     = MakeCall(macro, out var callIn, out var callOut);
+        var ret      = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn    = NewPin("In", "In", isExec: true); ret.Pins.Add(retIn);
+
+        var tick = new Graph
+        {
+            Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function,
+            Nodes = { entry, call, ret },
+            Links = { Wire(entry, entryOut, call, callIn), Wire(call, callOut, ret, retIn) },
+        };
+
+        var asset = MakeAiPrimitiveAsset("LatentMacroRun", macro, tick);
+
+        fixture.CompileAndLoad(asset);   // real Roslyn, then loaded into an ALC
+
+        fixture.World.RegisterComponent<Hrot.AI.Behaviors.BpComponentDemo>();
+        var entity = fixture.CreateEntity();
+        fixture.World.AddComponent(entity, new Hrot.AI.Behaviors.BpComponentDemo { Ammo = 0 });
+
+        // ── Frame 1: enters the macro body, hits the Delay, suspends ────────
+        var tick1 = fixture.InvokeBTreeAction(asset, entity);
+        Assert.Equal(NodeStatus.Running, tick1);
+        Assert.Equal(0, ReadAmmo(fixture, entity));   // ⭐ has NOT fired yet
+
+        // ── Frame 2, still inside the 0.4s window: still waiting ────────────
+        fixture.View.AdvanceTime(0.1f);
+        var tick2 = fixture.InvokeBTreeAction(asset, entity);
+        Assert.Equal(NodeStatus.Running, tick2);
+        Assert.Equal(0, ReadAmmo(fixture, entity));
+
+        // ── Frame 3, past the delay: resumes mid-body and completes ─────────
+        fixture.View.AdvanceTime(0.5f);
+        var tick3 = fixture.InvokeBTreeAction(asset, entity);
+
+        Assert.Equal(NodeStatus.Success, tick3);
+        Assert.Equal(42, ReadAmmo(fixture, entity));  // ⭐ the resumed path really ran
+    }
+
+    /// <summary>
+    /// ⚠ <b>Two call sites, one graph — where a shared resume cursor would show up.</b> Batch 30 proved
+    /// two CLONES exist; it did not prove two SUSPENSIONS coexist. Each spliced body must own its
+    /// resume point, or the second call would resume into the first's continuation (or skip its delay
+    /// entirely).
+    /// <para>
+    /// The two macros write different values, so a crossed cursor is visible as a wrong VALUE and not
+    /// merely as a wrong status.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void TwoLatentCallSites_EachSuspendIndependently_AndBothBodiesRun()
+    {
+        using var fixture = new BlueprintTestFixture(NoAlcCheck);
+
+        var first  = MakeAimDelayFireMacro("FireFirst",  ammoValue: 7,  out _);
+        var second = MakeAimDelayFireMacro("FireSecond", ammoValue: 99, out _);
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = NewPin("Out", "Out", isExec: true); entry.Pins.Add(entryOut);
+        var c1       = MakeCall(first,  out var c1In, out var c1Out);
+        var c2       = MakeCall(second, out var c2In, out var c2Out);
+        var ret      = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn    = NewPin("In", "In", isExec: true); ret.Pins.Add(retIn);
+
+        var tick = new Graph
+        {
+            Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function,
+            Nodes = { entry, c1, c2, ret },
+            Links =
+            {
+                Wire(entry, entryOut, c1, c1In),
+                Wire(c1, c1Out, c2, c2In),
+                Wire(c2, c2Out, ret, retIn),
+            },
+        };
+
+        var asset = MakeAiPrimitiveAsset("TwoLatentSites", first, second, tick);
+        fixture.CompileAndLoad(asset);
+
+        fixture.World.RegisterComponent<Hrot.AI.Behaviors.BpComponentDemo>();
+        var entity = fixture.CreateEntity();
+        fixture.World.AddComponent(entity, new Hrot.AI.Behaviors.BpComponentDemo { Ammo = 0 });
+
+        // First delay.
+        Assert.Equal(NodeStatus.Running, fixture.InvokeBTreeAction(asset, entity));
+        Assert.Equal(0, ReadAmmo(fixture, entity));
+
+        // Past the FIRST delay: the first body fires, then the second suspends on its own delay.
+        fixture.View.AdvanceTime(0.5f);
+        Assert.Equal(NodeStatus.Running, fixture.InvokeBTreeAction(asset, entity));
+        Assert.Equal(7, ReadAmmo(fixture, entity));   // ⭐ first site fired, second has not
+
+        // Past the SECOND delay: the second body fires and the graph completes.
+        fixture.View.AdvanceTime(0.5f);
+        Assert.Equal(NodeStatus.Success, fixture.InvokeBTreeAction(asset, entity));
+        Assert.Equal(99, ReadAmmo(fixture, entity));  // ⭐ both suspensions resolved, in order
+    }
+}
