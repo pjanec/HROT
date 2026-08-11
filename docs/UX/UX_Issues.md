@@ -55,9 +55,9 @@
 
 ```
 UXI-01 ──────────────────────────────────────  first, always: removes an editing trap
-UXI-02 ──┐
-         ├── UXI-07 tools        (UXI-02 decides ScenarioEditorModule = the tool home)
-UXI-03 ──┴── UXI-04 ── UXI-05 ── UXI-06
+UXI-02 ──────────────────────────────────────  independent of UXI-07 after all
+UXI-03 ───── UXI-04 ── UXI-05 ── UXI-06
+UXI-07 ──────────────────────────────────────  no pre-existing home: PACK2-E002 is DONE
 UXI-08, UXI-09, UXI-10, UXI-16, UXI-17, UXI-18  independent — any order
 UXI-11 ────────────────────────────────────── before UXI-04 lands multi-select
 UXI-12..15 ────────────────────────────────── after the seams exist
@@ -69,5 +69,8 @@ UXI-12..15 ───────────────────────
    stays a register.
 2. **No tasks are cut before the design is agreed.** That is the gate this layer exists to enforce.
 3. **Evidence is code**, cited `file.cs:line`, and **re-derived before building** — the
-   [Corrections table](UX_Tasks_Detail.md#corrections) has 10 rows, four of them our own claims.
+   [Corrections table](UX_Tasks_Detail.md#corrections) has 11 rows, five of them our own claims.
+5. ⚠ **A code comment describing future work is not evidence the work is pending.** Correction 11 came
+   from reading `"populated in PACK2-E002"` as a live plan when that migration had already completed in
+   a different shape. Check whether the work landed before planning around the comment.
 4. **One design per session prompt**, summarised before moving on (user, 2026-08-10).
