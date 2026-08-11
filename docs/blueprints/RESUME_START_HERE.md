@@ -115,7 +115,8 @@ missed tick, which is exactly what went wrong in Batch 28 bookkeeping.
 | **27** | ✅ verified — authoring seams, the three matrix axes, diagnostic identity |
 | **28** | ✅ verified — the silent `default:` arm family + `GraphKind.Macro` and both fail-loud nets |
 | **29** | ✅ **verified and merged** (`da13a6a`, ff-only) — **BP-80** macro surface · the **warning triage** (`BP-217`/`BP-218`, `BP-219` open) · **BP-131** `Return.Success`. See §7 |
-| **30** | 📤 **written and dispatched** — [HANDOFF_Batch30_Macro_Expansion.md](HANDOFF_Batch30_Macro_Expansion.md). **`BP-81`** the expansion pass (🔴 Opus) + the rails it presupposes. ⛔ Frozen (rule 1) |
+| **30** | ✅ **verified and merged** (`4fe3538a`, ff-only) — ⭐ **macros work end to end.** `Stage2_5_ExpandMacros` + **all four** Stage 2 rails + `BP-219`; `BP-220` opened. See §7b |
+| **31** | ⛔ **not written yet** — the two carry-forwards in §7b, then BP-83 / BP-80's visual half |
 
 ### The macro capability
 
@@ -221,6 +222,43 @@ The tracker's **`RW-L` done column was 43 and the Total 88; both were one short*
 **predates Batch 29** (present at `1af9bea`, and back at the 41/85 figures). Batch 29's own delta was
 exactly right. Corrected to **44 / 89** after merge. It reconciles three ways now; the note in the
 tracker records the method, including that the *refuted* row sits **outside** the Total.
+
+---
+
+## 7b · Batch 30 — ✅ VERIFIED AND MERGED at `4fe3538a`
+
+⭐ **Macros work end to end.** `Stage2_5_ExpandMacros` lands with **all four** Stage 2 rails, so the
+item-3 gate was met by the real `BP1663` purity check rather than the fallback refusal.
+
+Same branch as Batch 29 (`claude/hrot-implementation-j1jvin`); ✅ **rule 7 followed again** — branched
+from `199d1298`, this branch's head, so the handoff and its stamp were both in view.
+
+**Gates, coordinator-run:** build **0 errors / 69 warnings** · BP diagnostics **10**, unchanged and all
+authored · Blueprints **3145** (+17) · AiShared 1213 · BTree 612 · Breakpoints 130 · Generators 193 ·
+NodeEdit Core 208 · UI 131. **Zero failures**; the BP-111 perf flake did not fire this run.
+
+| ⭐ Got right | |
+|---|---|
+| **Both design defects handled as flagged** | `BP1660`/`BP1662` pulled forward, and the pipeline comment states *why* the pass sits after Stage 2's error gate — so the splice may assume a resolvable, acyclic target instead of null-checking every rule |
+| **Provenance ruled as recommended** | `[JsonIgnore] Guid? OriginNodeId` on `Node`, with the on-disk-invariance argument and the `NodeId ?? OriginNodeId` precedence both written down, plus a test locking that it never serialises |
+| **The cloner was MOVED down, not copied** | `GraphFragmentCloner` in `.Compiler`; `BlueprintClipboard` delegates and keeps only its paste offset. ⭐ **`ClonedFragment` exposes `NodeMap`/`PinMap`** — the coordinator's finding that `Rehydrate` built the maps and threw them away |
+| **`BP1665` names `BP1662`** | so a depth-cap error points at the cycle rail rather than leaving the designer chasing depth |
+| **`BP1661` names the call site** | test asserts `bp1661.NodeId == call.Id` — the designer's node, not a latent node inside somebody else's macro |
+
+### ⚠ Two carry-forwards for Batch 31 — **neither is a defect in the code**
+
+| | |
+|---|---|
+| 🔴 **A test name overclaims** | `MacroExpansionTests.LatentMacro_SplicedIntoATickGraph_`**`CompilesThroughTheRealGenerator`** does **not** compile through the real generator. Its body calls `Expand(...)` and asserts splice shape only; the file contains **no `CSharpCompilation`** (real Roslyn = `CSharpCompilation.Create`, per `Stage8Tests:168` / `AuthoringPath:316,340`). ⭐ Its own doc-comment cites the *"`.Succeeded` never invokes Roslyn"* rule — **the intent was right, the body does not do it.** A green test whose name claims more than it checks is worse than no test |
+| ⚠ **The payoff case is still unproven** | the handoff asked the latent macro be **ticked to completion across frames**. Splice shape is proven; *running* it is not. **BP-78's whole justification for macros is factoring out a reusable latent sequence** — that scenario should execute and assert, not just expand |
+
+### ⚠ Bookkeeping — a missed tick, and this one WAS introduced here
+
+`BP-219` was ticked done but **not added to the `RW-L` done column**: `RW-L` read 44 (should be 45) and
+the Total 90 (should be 91). `BP-81`'s `RW-H` move was counted correctly; only the second item was
+missed. Corrected by the coordinator after merge. ⭐ **This is exactly the case §4 warns the count check
+cannot catch by arithmetic alone** — it only surfaces when you reconcile **three ways**, which is why
+that step is not optional.
 
 ---
 

@@ -12,10 +12,10 @@ architect decision first).
 | Complexity | Open | Done |
 |---|---:|---:|
 | `WIRING` | 5 | 26 |
-| `RW-L` | 28 | 44 |
+| `RW-L` | 28 | 45 |
 | `RW-M` | 29 | 18 |
 | `RW-H` | 2 | 2 |
-| **Total** | **64** | **90** |
+| **Total** | **64** | **91** |
 | *(refuted on verification)* | | *1* |
 
 > ⚠ **`RW-L` done was 43 and the Total 88 — an off-by-one that predates Batch 29** (present at
