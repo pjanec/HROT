@@ -505,6 +505,21 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
                 EventId = ResolveCustomEventId(kindId.Substring(CustomEventKindPrefix.Length)),
             };
 
+        // BP-75 / BP-77: the asset's own callable graphs. ⚠ TargetGraphId and NOTHING else —
+        // every pin is re-projected from the target by NodePinSchema, so baking a pin shape here
+        // would be the CallablePeers/ArgTypes mistake a third time.
+        if (kindId.StartsWith(BlueprintNodeCatalog.FunctionGraphKindPrefix, StringComparison.Ordinal))
+            return new FunctionCallNode
+            {
+                TargetGraphId = ParseGraphId(kindId.Substring(BlueprintNodeCatalog.FunctionGraphKindPrefix.Length)),
+            };
+
+        if (kindId.StartsWith(BlueprintNodeCatalog.MacroGraphKindPrefix, StringComparison.Ordinal))
+            return new MacroCallNode
+            {
+                TargetGraphId = ParseGraphId(kindId.Substring(BlueprintNodeCatalog.MacroGraphKindPrefix.Length)),
+            };
+
         if (kindId.StartsWith(CallPeerKindPrefix, StringComparison.Ordinal))
         {
             var peerId = NormalizePeerId(kindId.Substring(CallPeerKindPrefix.Length));
@@ -515,6 +530,14 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
 
         return null;
     }
+
+    /// <summary>
+    /// BP-75 / BP-77 — the palette mints the id in "N" form; <c>TargetGraphId</c> is compared against
+    /// <c>Graph.Id.ToString()</c> ("D" form) by both projections and by the expansion pass, so the
+    /// round-trip through <see cref="Guid"/> is doing real work rather than tidying.
+    /// </summary>
+    private static string ParseGraphId(string raw)
+        => Guid.TryParse(raw, out var id) ? id.ToString() : raw;
 
     /// <summary>
     /// Normalises whatever a create-path knows about a custom event into the canonical form the

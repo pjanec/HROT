@@ -149,6 +149,19 @@ public sealed class BlueprintNodeCatalog : INodeCatalog
             {
                 entries.Add(MakeCallablePeerEntry(peerId));
             }
+
+            // ⭐ BP-75 + BP-77 — the asset's own callable graphs. ONE loop serves both: a Function
+            // graph mints a FunctionCall entry, a Macro graph a MacroCall entry. Doing macros alone
+            // would leave BP-75 half-open and guarantee a second visit to this method.
+            //
+            // ⚠ Nothing here iterated asset.Graphs at all, which is why a Function graph has had no
+            // palette entry since BP-24 made Function graphs creatable — the only ways to place a
+            // call were the generic FunctionCall node plus hand-typing a target, or collapse.
+            foreach (var graph in _asset.Graphs)
+            {
+                if (graph.Kind == GraphKind.Function) entries.Add(MakeGraphCallEntry(graph, isMacro: false));
+                else if (graph.Kind == GraphKind.Macro) entries.Add(MakeGraphCallEntry(graph, isMacro: true));
+            }
         }
 
         _all = entries;
@@ -252,6 +265,73 @@ public sealed class BlueprintNodeCatalog : INodeCatalog
             Inputs:       inputs,
             Outputs:      outputs);
     }
+
+    /// <summary>
+    /// BP-75 / BP-77 — a palette entry for calling one of this asset's own graphs.
+    ///
+    /// <para>
+    /// ⚠ <b>The pin signatures here are a PREVIEW, not a bake.</b> They are projected from the target
+    /// graph so the palette can filter by pin context and the entry reads correctly, but the node
+    /// that gets dropped carries <b>only</b> <c>TargetGraphId</c> (F4) — its real pins come from
+    /// <c>NodePinSchema</c> re-projecting the target every rebuild. Baking names, types or counts
+    /// onto the dropped node is the <c>CallablePeers</c>/<c>ArgTypes</c> mistake, which has bitten
+    /// twice.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ A Macro's exec pins come from its <c>ExecInputs</c>/<c>ExecOutputs</c> (Q26-A3), falling back
+    /// to the single implicit In/Out when neither is declared — the same N=0 rule
+    /// <c>NodePinSchema.MacroCallPins</c> applies, because a preview that disagreed with the node
+    /// would be worse than no preview.
+    /// </para>
+    /// </summary>
+    private static NodeCatalogEntry MakeGraphCallEntry(Graph graph, bool isMacro)
+    {
+        var inputs  = new List<PinSignature>();
+        var outputs = new List<PinSignature>();
+
+        if (isMacro && graph.ExecInputs.Count > 0)
+            foreach (var e in graph.ExecInputs) inputs.Add(new PinSignature(e.Name, PinKind.Exec, null, false));
+        else
+            inputs.Add(new PinSignature("In", PinKind.Exec, null, false));
+
+        if (isMacro && graph.ExecOutputs.Count > 0)
+            foreach (var e in graph.ExecOutputs) outputs.Add(new PinSignature(e.Name, PinKind.Exec, null, false));
+        else
+            outputs.Add(new PinSignature("Out", PinKind.Exec, null, false));
+
+        foreach (var i in graph.Inputs)
+            inputs.Add(new PinSignature(
+                i.Name, PinKind.Data,
+                string.IsNullOrEmpty(i.Type?.TypeId) ? null : new TypeKey(i.Type!.TypeId), false));
+
+        foreach (var o in graph.Outputs)
+            outputs.Add(new PinSignature(
+                o.Name, PinKind.Data,
+                string.IsNullOrEmpty(o.Type?.TypeId) ? null : new TypeKey(o.Type!.TypeId), false));
+
+        var prefix = isMacro ? MacroGraphKindPrefix : FunctionGraphKindPrefix;
+        return new NodeCatalogEntry(
+            Kind:         new NodeKindKey($"{prefix}{graph.Id:N}"),
+            DisplayName:  $"Call {graph.Name}",
+            Description:  isMacro
+                              ? $"Expand macro '{graph.Name}' at this call site"
+                              : $"Call function graph '{graph.Name}'",
+            CategoryPath: isMacro ? "Macros" : "Functions",
+            Keywords:     new[] { graph.Name },
+            IconKey:      null,
+            IsPure:       false,
+            IsLatent:     false,
+            IsDeprecated: false,
+            Inputs:       inputs,
+            Outputs:      outputs);
+    }
+
+    /// <summary>Prefix of the per-asset Function-graph call entry (BP-75).</summary>
+    public const string FunctionGraphKindPrefix = "FunctionGraph.";
+
+    /// <summary>Prefix of the per-asset Macro-graph call entry (BP-77).</summary>
+    public const string MacroGraphKindPrefix = "MacroGraph.";
 
     private static NodeCatalogEntry MakeCallablePeerEntry(Guid peerId)
     {
