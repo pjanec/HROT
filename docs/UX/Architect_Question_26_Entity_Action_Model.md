@@ -16,7 +16,7 @@
 | **The authoring layer is fragmented three ways** — inspector lambdas, map JSON, hardcoded ORBAT items | `EditorSubsystem.cs:1425-1516` · `ContextMenuProjectorGizmo.cs` · `OrbatPanel.cs:290-314` |
 | `IEntityContextMenuHandler` works and is used per host: Editor **4** providers, SimHost **1**, IG **1**, CGF **1**, ExCon **0** | `EntityInspectorPanel.cs:136`, `LambdaEntityContextMenuHandler.cs:21` |
 | **`Center` and `Delete` are reimplemented three times with different behaviour** | Editor publishes `DestroyEntityCommand`; SimHost branches on `NetworkIdentity`, falls back to `_repo.DestroyEntity`, clears selection + inspector state |
-| **Two independent parsers of the same JSON payload** | Editor's `JsonEntityContextMenuHandler.cs:74-120` vs IG's `ContextMenuSystem.cs:44` |
+| **Two independent parsers of the same JSON payload** | Editor's `JsonEntityContextMenuHandler.cs:74-120` vs `GizmoMap.Presentation/UI/ContextMenuAdapter.cs:106-156`. ⚠ **Corrected 2026-08-10:** `Hrot.IG.Systems.ContextMenuSystem` does **not** parse the JSON — it only stores the raw string on `ContextMenuState.MenuJson` |
 | **No perspective filter exists on any menu**; the toolbar has one, the menu registry does not | `WindowManager.cs:569-636` vs `MainToolbarManager.cs:129-134` |
 | The interaction core (selection, drag, gizmo execution) is **already shared** by Editor, SimHost and IG | `EditorSubsystem.cs:1287`, `SimHostVisualization.cs:250`, `IgApplication.cs:767` |
 
@@ -33,7 +33,7 @@ mapless** and is the source of those remote menus.
 | 2 | **The three `Delete` implementations are probably not wrong.** The same action legitimately needs different handling per subsystem — *"the editor is networkless while all the other ClusterRunner subsystems use the network"* | ⇒ **Unifying the handlers is not the goal.** Handlers must stay **register-time parametrizable**. Unify the *declaration*, never force one implementation |
 | 3 | **The same applies to tools** | A tool descriptor is shared; its activation is host-bound |
 | 4 | **The network-defined JSON menu is IG's speciality — keep it a completely separate pipeline** | ⇒ **Q26-A resolves to A2**, not Claude's A1 lean. See below |
-| 5 | ⚠ *"But a JSON-defined context menu might be a generic idea reused by many subsystems — needs more investigation"* | Recorded as an **open investigation**, not a decision → [A″](#a2-json-as-a-generic-mechanism) |
+| 5 | ⚠ *"But a JSON-defined context menu might be a generic idea reused by many subsystems — needs more investigation"* | ✅ **Investigated** → [A″](#a2-json-as-a-generic-mechanism). Not unified today (3 look-alike schemas), and the blocker is that items are **closures, not data**. Resolves into the descriptor/binding split |
 | 6 | **Perspective and mode may *both* affect the context menu** | ⇒ Q26-D is not either/or. See the two-axis resolution |
 
 ### ⭐ What constraint 2 changes — declaration vs binding
@@ -90,7 +90,7 @@ delegate the host owns, so the generic panel carries neither behaviour nor knowl
 > **Sub-question A′:** should **ORBAT rows** be in scope for stage 2, or follow later? Including them
 > collapses ExCon's 434-line fork via the same mechanism; excluding them keeps the stage smaller.
 
-### <a id="a2-json-as-a-generic-mechanism"></a>Sub-question A″ — is JSON-defined menu content a *generic* mechanism? ⚠ open investigation
+### <a id="a2-json-as-a-generic-mechanism"></a>Sub-question A″ — is JSON-defined menu content a *generic* mechanism? ✅ investigated 2026-08-10
 
 The user, same session: *"a JSON-defined context menu might be a generic idea reused by many
 subsystems — needs more investigation."*
@@ -107,11 +107,50 @@ whether items can carry a handler binding (constraint 2) or only reference a reg
 whether it duplicates what the descriptor+binding split already gives. **Do not design for it now** —
 but do not choose an action-id scheme that would prevent it.
 
-⭐ **A lead worth following, from the user (2026-08-10):** *"I forgot how unified the menu definition is —
-I guess quite a lot."* If the JSON menu **schema** is already common between the Editor's
-`JsonEntityContextMenuHandler` and IG's `ContextMenuSystem`, then the format is *already* the generic
-part and only the transport differs — which would make this investigation cheap and its answer likely
-yes. **First step: diff the two parsers' accepted schema.**
+### ✅ INVESTIGATED 2026-08-10 — and the answer resolves *into* the descriptor/binding split
+
+The user's lead was *"I forgot how unified the menu definition is — I guess quite a lot."*
+**Measured: it is not unified at all.** Three independently-defined, look-alike schemas exist:
+
+| | Serializer | Fields |
+|---|---|---|
+| ExCon `ContextMenuItem` | Newtonsoft | `id · label · icon · enabled · style · shortcut · separator` — **7** |
+| `ContextMenuItemDto` (gizmo emitters) | System.Text.Json | the same 7 **plus** `tooltip · children · priority · checked` — **11** |
+| `CanvasMenuUpdateSystem` | none — a **hand-typed string literal** | `[{"id":200,"label":"Measurement Tool"}]` |
+
+They overlap only because one renderer happens to consume both. **No shared type, no shared serializer,
+no contract** — `style` is silently dropped by every parser today, and ExCon **cannot express a submenu
+at all** (`BeginSubmenu` is a no-op that flattens).
+
+#### 🔴 The blocker is not the schema — it is that menu items are **closures, not data**
+
+| Host | Items that close over host-local state |
+|---|--:|
+| SimHost | **4 of 5** — camera, `_selection`, `_gizmoSystem`, `_map` |
+| CGF | **4 of 5** — same pattern |
+| Editor | most, plus two that data **cannot** express at all |
+
+The clearest case: the Editor's `$"Mark Target for {perceiverCount} Units..."` — the **label itself is
+recomputed at menu-open time** from the live selection count, and the handler is an `async void` closure
+awaiting an interactive map pick. No `id`/`label`/`enabled` schema can carry that.
+
+#### ⇒ The resolution: this question is already answered by [constraint 2](#-constraints-added-by-the-user-2026-08-10--these-bound-every-answer-below)
+
+**The declarative half can be data; the behavioural half cannot.** That is precisely the
+descriptor-vs-binding split:
+
+| | Can it be data? |
+|---|---|
+| `Id`, `Label`, `Icon`, `Group`, `Order` — the **descriptor** | ✅ yes |
+| `isApplicable`, `execute` — the **binding** | ❌ no, and the user already ruled it must stay register-time parametrizable |
+
+⇒ **"Unify the menu format among SimHost, CGF and Editor" = "share the descriptors"** — which is
+[Stage 1](UX_Cleanup_Path.md#stage-1--name-the-vocabulary-no-surface-changes-yet), already the plan.
+Whether descriptors later live in a **file** rather than in code is Q26-B's B3, and can be decided
+afterwards without redoing anything.
+
+⚠ **A pure JSON menu is the wrong target for these three hosts.** Chasing it would either force the
+closures into a plugin-id indirection nobody asked for, or drop the runtime-computed items.
 
 ## Q26-B — Where does a "profile" live? — ⚠ the question was malformed
 
@@ -238,7 +277,7 @@ namespace the live panels declare**.
 |---|---|---|
 | **Q26-A** — one vocabulary, how far | ✅ **A2** | **ruled by the user 2026-08-10** — local surfaces unify; IG's network pipeline stays separate |
 | **Q26-A′** — ORBAT in stage 2? | — | *including it collapses a 434-line fork* |
-| **Q26-A″** — is JSON-defined menu content generic? | — | ⚠ **investigation, not this round.** Separate the *transport* (IG-only) from the *format* (maybe generic) |
+| **Q26-A″** — is JSON-defined menu content generic? | ✅ **investigated** | **The format is not unified today** (3 look-alike schemas), and the blocker is that items are **closures, not data** — SimHost 4/5, CGF 4/5. ⇒ resolves into the descriptor/binding split; "unify the format" = "share the descriptors" = Stage 1 |
 | **Q26-B** — what a registration carries | — | *lean B2 — handler **plus** declarative conditions. ⚠ the original "where does a profile live" was malformed; see the block* |
 | **Q26-C** — replace or wrap int ids | ✅ **C1** | **ruled by the user 2026-08-10** — build **on** `GlobalActionRegistry`; invent nothing parallel |
 | **Q26-D** — perspective or mode as key | ✅ **both, ordered** | **user 2026-08-10:** mode *enables*, perspective *further customizes*. The "is running" alternative is withdrawn — the editor runs too |
