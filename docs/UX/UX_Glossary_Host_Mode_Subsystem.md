@@ -83,13 +83,52 @@ into their own registries.
 | **Perspective** | a condition on the registration | runtime, per process |
 | **Data** | component presence, per entity | the world |
 
-**Two consequences worth carrying:**
+**One consequence worth carrying:** [UXR-90](UX_Requirements.md#uxr-90) parity is between *subsystems* —
+Editor, SimHost, CGF — which happen to be single-subsystem modes in normal use. Stating it as "modes" is
+the shorthand, not the mechanism.
 
-1. **[UXR-90](UX_Requirements.md#uxr-90) parity is between *subsystems*** — Editor, SimHost, CGF — which
-   happen to be single-subsystem modes in normal use. Stating it as "modes" is the shorthand, not the
-   mechanism.
-2. ⚠ **Actions and gizmos are per-subsystem, but the menu is per-process.** Two subsystems in one process
-   register into **separate** action registries and gizmo registries — no collision — but into **one**
-   `GlobalMenuRegistry` and one menu bar, where their items **merge**. That asymmetry is the root of the
-   flat-union menu problem ([UXI-05](UX_Issues.md#uxi-05)), and it is why a per-subsystem filter is not
-   enough on its own for the menu.
+## ⭐ Co-running subsystems: independent, and **focus follows perspective**
+
+> **User, 2026-08-10:** *"When we run multiple subsystems at once they are each **independent, as if
+> running in its own process**. They are switched visually using perspectives — just one subsystem
+> 'focused'. Main-menu subsystem-dependent parts, context menus and map display need to respect which
+> subsystem is currently focused. So technically menu and map are process-related, but need to be
+> **reconfigured based on the current perspective**."*
+
+**Two invariants follow, and they are testable:**
+
+1. 🔒 **Co-running subsystems never couple.** Separate worlds, registries, selection, canvases. Anything
+   that assumes otherwise is a bug — this is why per-subsystem registries are correct, not accidental.
+2. 🔒 **The process-level singletons must present only the *focused* subsystem's contributions**, with
+   the focus derived from the current perspective.
+
+### ✅ Two of the three surfaces already do this
+
+| Surface | Focus follows perspective? | Mechanism |
+|---|:--:|---|
+| **Windows** | ✅ | `WindowScope.{Global, PerspectiveBound}` + `OwningPerspective == CurrentPerspective` (`ManagedWindow.cs:154-165`) |
+| **Map** | ✅ | `perspectiveMap` (perspective → subsystem, `Program.cs:244-251`) → `SwitchMapOwner` → **only the active owner's `DrawWorld` runs** |
+| **Context menus** | ✅ effectively | drawn by the focused subsystem's own gizmo layer / panels, from its own registries |
+| **Main menu** | ❌ **no filter of any kind** | flat union of everything every composed subsystem registered |
+
+> ### ⇒ The menu is the only surface that does not implement the model
+>
+> **So [UXI-05](UX_Issues.md#uxi-05) is not "invent a perspective filter" — it is "give menu items the
+> `WindowScope` treatment that windows already have".** Same two-tier rule, same key, already proven in
+> production one layer over:
+>
+> | Tier | Menu items |
+> |---|---|
+> | **Global** | File, Settings, Help, Window — always shown |
+> | **PerspectiveBound** | subsystem-dependent items — shown only when their perspective is focused |
+
+⚠ **Key on the *perspective*, not the subsystem.** Perspective is the finer key and degenerates to
+subsystem for the cluster roles, while also covering the Editor's internal Scenario/BTree/HSM/Blueprint
+perspectives — which the subsystem-keyed `perspectiveMap` deliberately does not list.
+
+> ### ⚠ Correction to the previous revision of this document
+>
+> An earlier version said the per-process menu vs per-subsystem registries was *"an asymmetry… why a
+> per-subsystem filter is not enough on its own"*. **That was confused.** The menu being per-process is
+> **correct by design**; what is missing is simply that its contents are never filtered by focus. There
+> is no asymmetry to resolve — only a filter to add.
