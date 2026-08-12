@@ -9,24 +9,40 @@
 >
 > 🔒 **Built from established models, not invented** — see [§7](#7-where-each-piece-comes-from).
 
-## 1. 🔴 The finding that sets the centre of gravity
+## 1. ⚠ Retracted — and what the engine actually mandates
 
-**The two async handlers that exist today already race the simulation tick.** Verified chain:
+> **User, 2026-08-10:** *"No, two async handlers should not write to ECS. There are command buffers for
+> that. All ECS access is well documented. Please, no assumptions, no surprise discoveries — do your
+> homework first."*
 
-| Link | Evidence |
+**An earlier revision of this document claimed a data race.** It was wrong, and the retraction is
+[Corrections 21](UX_Tasks_Detail.md#corrections).
+
+| My claim | Reality, from the docs and the code |
 |---|---|
-| The pick `TaskCompletionSource` is created `RunContinuationsAsynchronously` | `EditorMapPickAdapter` — the continuation is *forbidden* from running inline on the completing thread |
-| **No `SynchronizationContext` is installed anywhere in the repo** | 2 mentions total, both `useSynchronizationContext: false` (`ExConLogic.cs:447,499`) |
-| ⇒ `await` resumes on the **thread pool** | default `TaskScheduler`, no captured context |
-| The continuation reads and writes the ECS world | `EditorSubsystem.cs:1463-1471` — `_world.IsAlive(...)`, `_world.Bus.Publish(...)` |
-| `FdpEventBus` has **no synchronization at all** | zero `lock` / `Interlocked` / `ConcurrentQueue` / `volatile`; `Dictionary` lookup + stream write |
+| *"`FdpEventBus` has zero synchronization"* | ❌ **False.** `NativeEventStream<T>.Write` is documented *"Thread-safe: multiple threads can write concurrently"* and implemented with `Interlocked.Increment` atomic reservation, locking only to resize (`NativeEventStream.cs:83-101`). README §2.6 states it outright. ⚠ *I grepped `FdpEventBus.cs` — the dispatcher — not the stream one call deeper* |
+| *"⇒ publishing from a continuation is a race"* | ❌ **False.** Lock-free concurrent publish is the **designed** path, and the bus is double-buffered so writes and tick-reads target different buffers |
 
-> ⇒ ***Mark Target* and *Mark Area Targets* mutate a single-threaded ECS bus from a thread-pool thread
-> while the tick is running.** 🔴 A data race, live today, in **100 %** of the async handlers that exist.
+### 🔒 The documented rules — which existed all along
 
-**This is why "long-running actions" is a threading question before it is a UI question.** Progress bars
-and cancel buttons are the visible part; **thread affinity is the part that corrupts state if it is
-wrong.**
+| # | Rule | Source |
+|--:|---|---|
+| **7** | **Background ≠ main thread.** Background/async code runs on a **read-only snapshot** (`ISimulationView`); it **never touches the live `EntityRepository`**. Structural changes go through an **`IEntityCommandBuffer`**, played back on the main thread. `GetComponentRW` is *intentionally absent* from `ISimulationView` | [Programmer's Guide](../HROT-PROGRAMMERS-GUIDE.md) §Part 0, rule 7 |
+| **8.1** | All ImGui/Raylib draw calls on the main thread; **cross-thread notification only via `volatile` flags** | ibid. §8.1 |
+| **2.4 / 2.6** | ECB for structural mutation from parallel threads; Tier-1 events are lock-free | README §2.4, §2.6 |
+
+### What is actually left, stated as a question rather than a finding
+
+The two handlers (`EditorSubsystem.cs:1462`, `:1479`) resume off-tick and then:
+
+| Statement | Against the rules |
+|---|---|
+| `_world.Bus.Publish(new SeedTargetCommand{…})` | ✅ **correct** — the thread-safe, designed channel |
+| `_world.IsAlive(target)`, `FindEntityByNetworkId(…)` | ⚠ reads the **live `EntityRepository`** (`_world` is `EntityRepository?`, `:184`) — not an `ISimulationView`. Rule 7 addresses background/async **modules**; whether it binds a UI async continuation is **a question for the architect, not my call** |
+
+🔒 **And the user has already given the design answer regardless:** *async handlers should not write to
+ECS; command buffers exist for that.* So the API's job is to make the documented path the **only**
+reachable one — see §6.
 
 ## 2. The shape: split declarations, unified runtime
 
@@ -152,30 +168,51 @@ Evaluated by `Dispatch` **before** the handler runs:
 🔒 **Focus is the only currency.** A modal tool holds it; whatever takes it displaces it; a transparent
 action never asks for it.
 
-## 6. ⭐ Thread affinity — the proven fix, and it is small
+## 6. ⭐ Make the documented path the only reachable one
 
-**Install a `SynchronizationContext` bound to the subsystem's tick.** This is exactly what WinForms, WPF
-and Unity do; it is the reason `await` "just works" on a UI thread in those frameworks.
+**⚠ The `SynchronizationContext` proposal is withdrawn.** It would have invented a parallel threading
+mechanism alongside a documented one (snapshot + ECB + volatile flags) — precisely the mistake this
+programme keeps warning itself about. **The engine already has an answer; the API's job is to make it
+unbypassable.**
+
+### The root cause is *reachability*, not threading
+
+Today's handler is a closure over `EditorSubsystem`'s fields, so `_world` — the **live repository** — is
+simply in scope. Nothing had to go wrong for the wrong thing to be easy.
 
 ```csharp
-// pumped once per frame in the subsystem's Update
-sealed class TickSynchronizationContext : SynchronizationContext
+// today: the handler can reach anything the subsystem can
+async void () => { … _world.IsAlive(target) … }        // live EntityRepository, in scope by accident
+```
+
+⇒ **Give the handler a context that exposes only what rule 7 permits, and the whole error class
+disappears by construction:**
+
+```csharp
+public sealed class EntityActionContext
 {
-    private readonly ConcurrentQueue<(SendOrPostCallback, object?)> _queue = new();
-    public override void Post(SendOrPostCallback d, object? state) => _queue.Enqueue((d, state));
-    public void Pump() { while (_queue.TryDequeue(out var w)) w.Item1(w.Item2); }
+    public Entity                Entity        { get; }   // clicked / fan-out target
+    public IReadOnlyList<Entity> Selection     { get; }
+    public ISimulationView       View          { get; }   // 🔒 READ-ONLY snapshot — no GetComponentRW
+    public IEntityCommandBuffer  Commands      { get; }   // 🔒 structural writes, played back on the tick
+    public FdpEventBus           Bus           { get; }   // ✅ lock-free event publish
+    public IInteractionHost      Tools         { get; }   // PushModal etc.
+    public string                CurrentPerspective { get; }
+    public CancellationToken     Cancellation  { get; }
 }
 ```
 
-| | |
+| Exposed | Why |
 |---|---|
-| **Where** | set on the UI/tick thread at subsystem start; `Pump()` once per `Update` |
-| **Effect** | every `await` in a handler resumes **on the tick** — 🔴 **the race in §1 disappears with no handler edited** |
-| **CPU-bound work** | `await Task.Run(...)` explicitly leaves the tick, and the continuation comes back to it automatically |
-| **Cost** | one class, one `Pump()` call, one `SetSynchronizationContext` |
+| `ISimulationView` | rule 7's read side; `GetComponentRW` is *intentionally absent*, so a handler **cannot** write components even by mistake |
+| `IEntityCommandBuffer` | rule 7's write side — structural changes recorded, played back on the main thread |
+| `FdpEventBus` | documented thread-safe; `SeedTargetCommand` already uses it correctly |
+| ❌ **not** `EntityRepository` | the live repo is never handed to a handler. **This is the entire fix** |
 
-⚠ **This is the single highest-value item in this document.** It is small, it is proven, and without it
-*every* long-running action added in future inherits a live data race.
+⚠ **Confirm the ECB acquisition path against `FDP/Engine/Fdp.Core/EntityCommandBuffer.cs` before
+implementing** — the guide notes `Playback` is main-thread-only (`:9-10,291`) and that managed payloads
+are stored by reference, not copied (`:151-156`). Those are constraints on how the host hands one out,
+and I have **not** verified the intended per-frame lifecycle.
 
 ## 7. Where each piece comes from
 
