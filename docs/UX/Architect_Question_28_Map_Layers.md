@@ -65,7 +65,7 @@ set of tag-combinations actually in use this frame**, not as a layer id:
 
 | | |
 |---|---|
-| **256-combination ceiling** | 64 layers ⇒ up to 2⁶⁴ combinations, but only *observed* ones get ids. In practice entities cluster into few distinct tag sets. 🔴 **Overflow must be explicit** — on the 257th, degrade to "always visible" **and log**, never silently drop |
+| **256-combination ceiling** | 64 layers ⇒ up to 2⁶⁴ combinations, but only *observed* ones get ids; entities cluster into few distinct tag sets. 🔒 **RULED (user, 2026-08-12): on the 257th, degrade to always-visible and log.** Never silently drop — an unfilterable symbol is a nuisance, a missing one is a lie. ⚠ The log must fire **once per overflow episode**, not per primitive per frame |
 | **Interning cost per primitive** | ⇒ **cache the id, don't intern per primitive**: store it next to the mask in `MapDisplayComponent` (recomputed by the system that already recomputes the mask), then combine with the gizmo's kind via a small `[entityCombination × gizmoKind] → id` table |
 
 ### 🔴 B′ — the blocker: `DebugLayer` has **three** jobs, not one
@@ -99,7 +99,7 @@ before/after check on IG, and a golden-image or ordering test.
 Z-order key"* — while `:447` uses it to choose the pick winner and `:178` sorts by it. Whatever is decided,
 that comment must stop lying.
 
-### B″ — 🔴 ANY or ALL? (new, and it decides operator behaviour)
+### B″ — 🔒 **RULED: ALL** (user, 2026-08-12)
 
 A primitive tagged `{ground, hostile}`; the operator hides `hostile`.
 
@@ -108,11 +108,15 @@ A primitive tagged `{ground, hostile}`; the operator hides `hostile`.
 | **ANY** | visible if **any** of its tags is visible | ⛔ still shown — it is still `ground`. *"Hide all hostiles"* silently fails |
 | **ALL** | hidden if **any** of its tags is hidden | ✅ hidden |
 
-**Lean: ALL.** It makes *"hide hostiles"* and *"hide perception overlays"* both behave as an operator
-expects, and it makes the two axes compose — a perception cone on a hostile unit tagged
-`{perception, hostile, ground}` disappears when *either* `perception` or `hostile` is switched off.
-⚠ **The asymmetry to accept:** the more tags an entity carries, the easier it is to hide. An untagged
-primitive (combination 0, empty set) is **always visible** — which preserves today's permissive default.
+🔒 **ALL.** *"Hide hostiles"* and *"hide perception overlays"* both behave as an operator expects, and the
+two axes compose — a perception cone on a hostile unit tagged `{perception, hostile, ground}` disappears
+when *either* `perception` or `hostile` is switched off.
+
+| Accepted consequence | |
+|---|---|
+| **More tags ⇒ easier to hide** | an entity in four layers is hidden if any one of the four is off |
+| **Empty set is always visible** | combination 0 (no tags) preserves today's permissive default |
+| ⭐ **The rule lives in exactly one place** | the backend's per-frame *"is this combination visible?"* evaluation. Changing it later touches no wire format, no renderer, no gizmo |
 
 ## C. The two axes — 🔒 collapsed by the tags ruling
 
@@ -168,14 +172,12 @@ and the Editor; **CGF registers no `LayerControlGizmo` at all**, so it is silent
 
 ## Open, needing your ruling
 
-✅ **Settled:** A = tags (entities *and* gizmos) · B = combination-id byte, no wire change · C = one tag
-space.
+✅ **Settled:** A = **tags** (entities *and* gizmos) · B = **combination-id byte**, no wire change ·
+B″ = **ALL** semantics · overflow = **degrade to visible + log** · C = **one tag space**.
 
 | # | Question |
 |--:|---|
-| **1** | 🔴 **B′ — draw order.** The combination-id trick requires taking sort **and** hit-test priority off `DebugLayer`. Move both to `ZIndex` (my lean), and accept a **visible change to IG's draw order** that needs an ordering test? |
-| **2** | 🔴 **B″ — ANY or ALL?** My lean is **ALL** (hidden if any tag is hidden), so *"hide hostiles"* works and the axes compose |
-| **3** | **Overflow policy** — on the 257th distinct combination: degrade to always-visible + log (my lean), or evict least-recently-used? |
-| **4** | **E — `MapCanvas.ActiveLayerMask` survives** as the whole-layer-object switch? Or should everything collapse into one mechanism? |
-| **5** | Should **selection/highlight** and **search results** become tags too? With one tag space they *can* be — *"dim everything except my search hits"* becomes free. Your phrase was *"defining, entity filtering and controlling map layers"*, so filtering may be wider than layers |
-| **6** | **How many layers may be defined?** My lean caps the tag space at **64** (a `ulong` interns cheaply); today's total is 8 |
+| **1** | 🔴 **B′ — draw order. The last blocker.** The combination-id trick requires taking sort **and** hit-test priority off `DebugLayer`. Move both to `ZIndex` (my lean), and accept a **visible change to IG's draw order** that needs an ordering test? |
+| **2** | **E — `MapCanvas.ActiveLayerMask` survives** as the whole-layer-object switch? Or should everything collapse into one mechanism? |
+| **3** | Should **selection/highlight** and **search results** become tags too? With one tag space they *can* be — *"dim everything except my search hits"* becomes free. Your phrase was *"defining, entity filtering and controlling map layers"*, so filtering may be wider than layers |
+| **4** | **How many layers may be defined?** My lean caps the tag space at **64** (a `ulong` interns cheaply); today's total is 8 |
