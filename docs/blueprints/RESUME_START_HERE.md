@@ -10,7 +10,9 @@
 > the signature window, dragged from the palette. **`BP-74`/`BP-75`/`BP-77`/`BP-80`/`BP-81`/`BP-83` all closed.**
 > ⭐⭐⭐ **THE MACRO PROGRAMME IS COMPLETE** — `BP-74`…`BP-83` **all closed**. Authored, collapsed,
 > expanded (both directions, round-trip locked), run across frames, debuggable, navigable.
-> 📌 Only `BP1664` remains, and it is **unbuildable until `BP-57`** (function-local variables).
+> ⏭ **Next: [Q27](Architect_Question_27_Local_Variables.md) — function-local variables (`BP-57`)**,
+> which is also what unblocks `BP1664`. ⏳ **Awaiting the architect; do not build yet.**
+> ⚠ It lands on a **latent index-space defect** that is `BP-224`'s shape — see Q27's ground truth.
 > ⛔ **Q26-A supersedes Q25-D3:** a macro now has **N exec-ins**, not one.
 >
 > 📌 Supersedes [RESUME_Coordinator.md](RESUME_Coordinator.md), which is now the **historical log**
