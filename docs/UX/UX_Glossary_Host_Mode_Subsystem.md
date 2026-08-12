@@ -123,8 +123,8 @@ the shorthand, not the mechanism.
 > | **PerspectiveBound** | subsystem-dependent items — shown only when their perspective is focused |
 
 ⚠ **Key on the *perspective*, not the subsystem.** Perspective is the finer key and degenerates to
-subsystem for the cluster roles, while also covering the Editor's internal Scenario/BTree/HSM/Blueprint
-perspectives — which the subsystem-keyed `perspectiveMap` deliberately does not list.
+subsystem for the cluster roles, while also covering the Editor's internal BTree/HSM/Blueprint
+perspectives (⚠ *"Scenario" is a display **label** over the `Editor` id, not a fourth perspective*) — which the subsystem-keyed `perspectiveMap` deliberately does not list.
 
 > ### ⚠ Correction to the previous revision of this document
 >

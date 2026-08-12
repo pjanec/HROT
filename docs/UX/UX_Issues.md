@@ -36,7 +36,7 @@
 | | <a id="uxi-04"></a>**UXI-04** | **The same entity offers different actions per surface** — inspector lambdas vs map JSON vs raw-ImGui ORBAT rows (all four ORBAT panels use raw ImGui). ⭐ **The ORBAT seam is already adopted by BOTH Editor and ExCon** (`IOrbatController`+`IOrbatDataProvider`); ExCon keeps its fork because `SharedOrbatPanel`'s whole menu is **one item**. 🔴 **SimHost and CGF emit no per-entity map menu at all** — one missing registrar call, but the fix is a registry-backed gizmo, not that call | `RW-M` | [UXR-85](UX_Requirements.md#uxr-85) | [UX_Feature_Cross_Surface_Actions.md](UX_Feature_Cross_Surface_Actions.md) | ✅ |
 | | <a id="uxi-25"></a>**UXI-25** | **ExCon's 434-line ORBAT fork.** Split out of [UXI-04](#uxi-04) by the user, 2026-08-10. ⚠ **Not redundant — the shared panel is impoverished** (its whole menu is *Disembark*), so this is blocked until UXI-04 gives `SharedOrbatPanel` the shared menu. Then: bind ExCon's descriptors to `IOrbatController` and retire `OrbatPanel`. 🔒 ExCon is **DDS-only, no ECS world** — bind via the facade, never via `Entity` | `RW-M` | [UXR-85](UX_Requirements.md#uxr-85) | [UXI-04 §migration](UX_Feature_Cross_Surface_Actions.md#migration) | 🔒 |
 | | <a id="uxi-05"></a>**UXI-05** | **The main menu is the only surface that does not follow focus.** Windows filter by `WindowScope.{Global,PerspectiveBound}` and the map follows `SwitchMapOwner` — the menu is a flat union. ⭐ **Copy `MainToolbarManager`'s filter, not `WindowScope`** — `string? Perspective`, `null` = global. 🔴 **The union is not the registry** (Editor is its only writer, 10 items) **but four copy-pasted `BeginMainMenuBar` blocks that never check focus** — so this **is [UXI-13](#uxi-13)** seen from the other side | `RW-L` | [UXR-86](UX_Requirements.md#uxr-86) | [UX_Feature_Menu_Follows_Focus.md](UX_Feature_Menu_Follows_Focus.md) | ✅ |
-| | <a id="uxi-06"></a>**UXI-06** | **Perspective restore speaks the wrong vocabulary** — validated against subsystem names, so a saved `BTree`/`HSM`/`Blueprint` is dropped. ⚠ minor: you lose your place only | `RW-L` | — | — | ☐ |
+| | <a id="uxi-06"></a>**UXI-06** | **Perspective restore tests the wrong set — in both directions.** Validated against `ISubsystem.Name`: **false negatives** (`BTree`/`HSM`/`Blueprint` silently dropped) **and false positives** (`Orchestrator`/`PerspectiveCoordinator` would pass, then hide *every* perspective-bound window). ⭐ **`WindowManager.GetPerspectives()` exists, is doc-commented as "the testable seam for perspective enumeration", and the restore path does not call it.** 🔷 One policy question open | `RW-L` | — | [UX_Feature_Perspective_Restore.md](UX_Feature_Perspective_Restore.md) | ✅ |
 | **C** | | **Tools** | | | | |
 | | <a id="uxi-07"></a>**UXI-07** | **A tool is not a thing.** No abstraction, no current-tool state, 4 activation idioms — 2 of them for the same tools in one class. Toolbar cannot show active state; `EditorTool.Select` is a dead button | `RW-M` | [UXR-81](UX_Requirements.md#uxr-81), [UXR-84](UX_Requirements.md#uxr-84) | — | ☐ |
 | **D** | | **Layout** | | | | |
@@ -56,14 +56,14 @@
 | | <a id="uxi-18"></a>**UXI-18** | **Editor's JSON parser reads `children` without a `ValueKind` guard** — a non-array throws `InvalidOperationException`, which its `catch (JsonException)` does not catch | `RW-L` | — | — | ☐ |
 | | <a id="uxi-19"></a>**UXI-19** ⚠ | **Two presentation gizmos may match one entity** — Editor registers both; overlapping projector keys. **Unverified** — establish before treating as a defect | — | — | — | ☐ |
 
-**Counts:** **25 issues** · **5 designed** · 6 🔴 · 1 unverified (UXI-19) · UXI-22 folded into UXI-23 · UXI-25 split out of UXI-04 (user, 2026-08-10).
+**Counts:** **25 issues** · **6 designed** · 6 🔴 · 1 unverified (UXI-19) · UXI-22 folded into UXI-23 · UXI-25 split out of UXI-04 (user, 2026-08-10).
 
 ## Dependency order
 
 ```
 UXI-01 ──────────────────────────────────────  first, always: removes an editing trap
 UXI-02 ──────────────────────────────────────  independent of UXI-07 after all
-UXI-03 ───── UXI-04 ── UXI-05 ── UXI-06
+UXI-03 ───── UXI-04 ── UXI-06 ── UXI-05   ⚠ 06 BEFORE 05: menu items key on perspective ids
 UXI-07 ──────────────────────────────────────  no pre-existing home: PACK2-E002 is DONE
 UXI-08, UXI-09, UXI-10, UXI-16, UXI-17, UXI-18  independent — any order
 UXI-24 multi-select ── shapes UXI-03's API; UXI-11 (shared selection) precedes it
