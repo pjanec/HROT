@@ -280,6 +280,14 @@ is the mechanism, not an obstacle.
 two levels", and the honest reading is that the action asserts the whole interaction context is stale —
 resuming a route editor beneath a popped picker, on an entity the action just deleted, would be worse.
 
+### 🔗 Action concurrency lives in [UXI-03](UX_Feature_Entity_Action_Vocabulary.md#1b-concurrency--borrowed-not-invented)
+
+Async actions can overlap each other, which is a **dispatch** question, not a tool question. Resolved
+there by borrowing established models — AutoCAD transparent commands, Blender modal operators, Qt
+modality levels, the reactive merge/switch/exhaust/concat set — rather than inventing flags. ⭐ Notably,
+an action with `CancelsModalTool = false` **is** AutoCAD's *transparent command*, arrived at
+independently.
+
 ### ⭐ A second, independent reason `execute` must return `Task`
 
 [Q26-B](Architect_Question_26_Entity_Action_Model.md) already wanted it so the host can observe failure,

@@ -118,6 +118,61 @@ already written identically in `SharedContextMenuPopulator:37-51` **and** `Edito
 menu in one closure, and it breaks the moment two providers contribute. The enum encodes what is already
 true. ❌ **No numeric priority** — `ContextMenuItemDto.Priority` is documented inert (Q26-B).
 
+### 1b. Concurrency — ⭐ **borrowed, not invented**
+
+> **User, 2026-08-10:** *"If actions are async, more can run in parallel. They need similar machinery —
+> a flag to force-cancel other running actions, or an action marked exclusive… this must have some usual
+> already proven UI resolution; let's take inspiration from other editors and avoid reinventing the
+> wheel."*
+
+#### The prior art, and what each one settles
+
+| Product | Mechanism | What it settles for us |
+|---|---|---|
+| **AutoCAD** *(since the 1980s)* | **Transparent commands** — a command prefixed `'` (`'zoom`, `'pan`) runs **inside** a running command and returns to it. Declared at command definition | ⭐ **Exactly the user's *"recenter the map mid-tool"* case, solved decades ago** — and solved with a **registration-time flag on the command**, which is the shape we already reached |
+| **Blender** | **Modal operators** return `RUNNING_MODAL` and keep receiving events until `FINISHED`/`CANCELLED`; the app keeps a **modal handler stack**; operators carry flags (blocking, cursor-grab, undo) | ✅ independently validates **both** the [modal stack](UX_Feature_Tool_Model.md#-the-modal-tool-stack--user-requirement-2026-08-10) **and** registration-time flags |
+| **Qt** | Modality is a **three-level enum** — non-modal / window-modal / application-modal — never a bool | ✅ validates `ToolModality` as an enum, and gives the shape for action exclusivity |
+| **Reactive streams** (RxJS et al.) | The canonical **named** answer to *"another arrives while one is running"*: **merge** (concurrent) · **switch** (cancel previous, latest wins) · **exhaust** (ignore the new, first wins) · **concat** (queue) | ⭐ **The user's two proposed flags are two of these four.** Adopting the named set costs the same and stops us inventing terms |
+| **VS Code** | Long operations run with **progress + a cancel affordance**, not a lock | 🔒 the *obligation* that comes with blocking: if you block, you must show why and offer a way out |
+
+#### ⇒ Two axes, both with established names
+
+```csharp
+public enum ActionConcurrency { Concurrent, Restart, Drop, Queue }  // same action dispatched again
+public enum ActionExclusivity { None, Exclusive }                   // blocks OTHER actions while running
+```
+
+| | Reactive name | Meaning here |
+|---|---|---|
+| `Concurrent` | merge | default — several may run |
+| `Restart` | switch | the new dispatch cancels the running one (latest wins) |
+| `Drop` | exhaust | ignored while one is running — the user's *"exclusive"*, per-action |
+| `Queue` | concat | serialised |
+
+⚠ **The two axes are not the same question.** `Drop` is *"don't re-enter **me**"*; `Exclusive` is
+*"nothing else runs until I finish"*. The user's phrasing merged them; keeping them apart is what lets
+*Mark Target* be `Drop` without freezing the whole app.
+
+🔒 **`Exclusive` carries a UX obligation** (the VS Code lesson): it must surface progress and a cancel
+affordance, or the app simply looks hung. **Do not ship `Exclusive` without a status-bar presence.**
+
+#### ⚠ Sized to the evidence — and one live bug it fixes
+
+**There are exactly two async handlers in the Editor** — `EditorSubsystem.cs:1462` and `:1479`
+(*Mark Target*, *Mark Area Targets*), both `async void`, both the same pick-then-apply kind. So:
+
+| | |
+|---|---|
+| **Defaults `Concurrent` + `None`** | preserve today's behaviour exactly — additive, non-breaking |
+| ⭐ **`Drop` on those two fixes a real defect** | today, invoking *Mark Target* twice starts **two** concurrent picks with no guard. `Drop` is the one policy actually needed now |
+| `Restart` / `Queue` | no current consumer. **Implement anyway** — they are one `switch` arm each over the same machinery, and the set is closed and proven rather than speculative |
+
+#### 🔗 And it renames a concept we already had
+
+An action with `CancelsModalTool = false` is **transparent** in AutoCAD's exact sense — it runs without
+disturbing the modal tool underneath. **Use that word**: it gives the team a 40-year-old reference point
+instead of a bespoke term, and it makes the default (`false` = transparent) self-explanatory.
+
 ### 2. Registry — one per subsystem, carries the binding
 
 ```csharp
