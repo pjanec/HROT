@@ -170,10 +170,32 @@ first**, because until then a bypassing picker can still fight the controller fo
 tools that opted in via `ShowOnToolbar`. ⇒ **`Select` becomes the null modal tool** (a real state, not a
 dead case), and `Measure`/`Rotate` may stay button-less by choice rather than by omission.
 
-## Sequencing
+## Migration
 
-⚠ **Not on the critical path.** [UXI-01](UX_Feature_DeadUI_Removal.md)/[UXI-02](UX_Feature_HalfBuilt_Decisions.md)/
-[UXI-06](UX_Feature_Perspective_Restore.md) are unblocked and cheap; UXI-07 waits for the architect.
+| Step | Change | Gate |
+|--:|---|---|
+| 1 | `ToolDescriptor` + `IToolController`; **Editor only**; register the 6 existing tools with their real modality (`Select` = null modal tool) | nothing calls it yet |
+| 2 | Route the **toolbar event path** (`ActivateEditorToolEvent` switch) through `Activate()` | every tool behaves as today |
+| 3 | Route the **action path** (`GlobalActionIds.Rotate/EditOverlay/EditRoute`) through `Activate()` — 🔴 **deletes the duplicated toggle logic**, the D′ idiom | context-menu activation identical |
+| 4 | Convert the three bypassing adapters (`EditorMapPickAdapter`, `EditorZoneAdapter`, `EditorSpawnAdapter`) | ⭐ **completes A1 — the 🔴 two-arbiter defect closes here** |
+| 5 | Toolbar binds `ActiveModalChanged`; opt tools in via `ShowOnToolbar` | [UXR-84](UX_Requirements.md#uxr-84): active tool visibly active |
+| 6 | Central Escape → `Cancel()`; gizmos keep their own cleanup | Escape cancels the modal tool from anywhere |
+| 7 | Repeat for SimHost / CGF | same descriptors, host-bound activation |
 
-⭐ **But 🔴 the two-arbiter defect is separable** and worth fixing on its own, ahead of the abstraction —
-it is a correctness bug today, independent of whichever tool model is chosen.
+⚠ **Steps 1-4 are behaviour-preserving except for the bug fix.** Step 5 is the first visible change.
+
+🔒 **Step 4 is not optional.** Until those three adapters route through the controller, a picker can still
+fight the controller for the same drag — that is precisely the condition under which
+[Q27-A](Architect_Question_27_Tool_Model.md#answers) says A3 would be needed first.
+
+## Sequencing against the rest
+
+⚠ **Not on the critical path.** [UXI-01](UX_Feature_DeadUI_Removal.md) /
+[UXI-02](UX_Feature_HalfBuilt_Decisions.md) / [UXI-06](UX_Feature_Perspective_Restore.md) are cheaper and
+independent.
+
+⭐ **But steps 1-4 close a 🔴 correctness defect**, which argues for doing them earlier than the toolbar
+work they enable.
+
+⚠ **Touches [UXI-02](UX_Feature_HalfBuilt_Decisions.md):** that design proposed deleting the dead
+`EditorTool.Select` button. **Supersede it** — `Select` becomes the *null modal tool*, a real state.
