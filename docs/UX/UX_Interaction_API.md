@@ -122,6 +122,19 @@ public interface IActivity
 }
 ```
 
+> ### 🔒 The tool owns its own suspended presentation — user ruling, 2026-08-10
+>
+> *"Hiding a suspended tool could be considered an internal property of the tool itself — the tool should
+> be able to read its own suspension state and suppress drawing if it wants to."*
+>
+> ⇒ **The controller never suppresses drawing.** A suspended tool keeps receiving `Draw` and simply reads
+> `Activity.State == Suspended` to decide for itself. Default: **keep drawing** (today's behaviour).
+>
+> ⚠ **Why the activity handle rather than a new gizmo method:** `IGizmoInteractionHandler` lives in
+> `GizmoMap.Contracts`, shared by every subsystem — adding `OnSuspended(bool)` there is a wide blast
+> radius for a presentation choice. Handing the tool its `IActivity` at activation costs no shared
+> interface change. ⇒ [UC-16](UX_Interaction_UseCases.md#3-the-modal-stack--interrupt-and-return).
+
 **What this buys, each traceable to an existing defect or a stated need:**
 
 | | |

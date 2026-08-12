@@ -44,7 +44,7 @@ if a case below is V-only, that is a signal the API is missing a seam, not that 
 | **UC-13** | Dispose pops and resumes | as above → dispose the scope → route editor `Running` again, **still 3 waypoints**, `ModalStack.Count == 1` | H |
 | **UC-14** | 🔒 Escape pops **one** level | stack = [route editor, picker] → Escape → picker cancelled, **route editor resumes**; stack == 1 | H |
 | **UC-15** | Escape again cancels the base | continue UC-14 → Escape → route editor cancelled, `ActiveModal == null` | H |
-| **UC-16** | A suspended tool still draws | route editor suspended → its primitives are still emitted, but it receives **no** input events | H |
+| **UC-16** | 🔒 **Suspension is visible to the tool; drawing is the tool's own call** | route editor suspended → it **still receives `Draw`**, `Activity.State == Suspended`, and it receives **no input**. A tool that opts to suppress emits nothing; one that does not keeps drawing. *The controller never decides this* | H |
 | **UC-17** | Async handler interrupt round-trip | *Mark Target* handler runs → pushes picker → `await` completes → pops → whatever was active beneath is restored | I |
 | **UC-18** | Cancelling the picker cancels the awaiting handler | picker pushed → Escape → the handler's `await` observes cancellation; **no `SeedTargetCommand` recorded** | I |
 
@@ -67,7 +67,7 @@ if a case below is V-only, that is a signal the API is missing a seam, not that 
 | # | Case | Given → When → Then | Cls |
 |---|---|---|:--:|
 | **UC-28** | Same entity, same set on every surface | one entity → collect items from map, inspector and ORBAT → sets are equal **except** map-only exclusions | H |
-| **UC-29** | 🔒 Map exclusions are explainable by the id rule | any item present in the inspector but absent on the map → **it has no `GlobalActionIds` binding**. Assert the rule, not a hard-coded list | H |
+| **UC-29** | 🔒 **Map exclusions are explainable by the id rule** — assert the invariant, never a list | for one entity, take `inspectorSet` and `mapSet` → **every item in `inspectorSet \ mapSet` has no `GlobalActionRegistry` binding**. Catches both directions: an id-bound action silently dropped from the map, **and** an action reaching the map *without* a binding (⇒ an **inert item**, the CGF failure mode of [UXI-23](UX_Issues.md#uxi-23)) | H |
 | **UC-30** | `Selection`-mode items never appear on the map | *Mark Target* (`Selection`) → absent from the map menu, present in the inspector | H |
 | **UC-31** | Multi-select: **AND over the selection** | select a unit + a tac-graphic → `Delete` shown, `Edit Route` **hidden** | H |
 | **UC-32** | Multi-select: `PerEntity` fans out | 3 selected → invoke `Delete` → handler runs **3 times**, once per entity | H |
@@ -127,7 +127,7 @@ Every element of the API mapped to at least one case. **A design element with no
 | `PushModal` / dispose | UC-12, 13, 17 |
 | `ModalStack` depth | UC-12, 14, 20 |
 | `Cancel()` / Escape | UC-14, 15, 18 |
-| Suspend keeps state + draws | UC-12, 13, 16 |
+| Suspend keeps state; tool owns its drawing | UC-12, 13, 16 |
 | Single arbiter across engines | **UC-11** |
 | `CancelsModalTool` (transparency) | UC-19, 20 |
 | `ActionConcurrency` ×4 | UC-21, 22, 23, 24 |
