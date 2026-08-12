@@ -1,6 +1,6 @@
 # HANDOFF — Batch 36: `Expand Node` — ⚠ **not a greyed menu item, a corrupting one**
 
-> 📌 **Dispatched at `<pending>`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
+> 📌 **Dispatched at `a4986bed`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
 > ⭐ **Rule 7 is yours:** branch from this branch, and re-sync from it at the **start** of your run.
 > ⭐ **Rule 4 is yours:** pull it again before your final commit.
 > ⭐ **Rule 3: the coordinator allocates no ids.** `BP-76`, `BP-82` are *referenced*. **You allocate**

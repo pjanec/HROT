@@ -8,7 +8,9 @@
 > from the canvas, one undo entry that restores identity, refuses out loud, round-trip test-locked.
 > ⭐⭐ **A macro can now be AUTHORED by hand** — created from "Macros +", exec entries/exits declared in
 > the signature window, dragged from the palette. **`BP-74`/`BP-75`/`BP-77`/`BP-80`/`BP-81`/`BP-83` all closed.**
-> ⏭ **Remaining, and it is small:** **`BP-76`** (*Expand Node*) · `BP-82`'s `BP1664` (moot until `BP-57`) + two library rails.
+> ⏭ **In flight: Batch 36 — the last one.** *Expand Node* + `BP-82`'s two library rails.
+> ⚠⚠ **`BP-76` is a latent corruption, not a wiring nuisance** — see the handoff §1.
+> 📌 After it, only `BP1664` remains, and it is **unbuildable until `BP-57`**.
 > ⛔ **Q26-A supersedes Q25-D3:** a macro now has **N exec-ins**, not one.
 >
 > 📌 Supersedes [RESUME_Coordinator.md](RESUME_Coordinator.md), which is now the **historical log**
@@ -55,9 +57,9 @@ for b in $(git ls-remote --heads origin | awk '{print $2}' | sed 's|refs/heads/|
 
 | Situation | Do |
 |---|---|
-| **No batch in flight** (**today's state**) | pick the next batch — see §4 |
+| **No batch in flight** | pick the next batch — see §4 |
 | **Implementation reported done** | run **all eight gates** (§3), review the diff, reconcile the tracker three ways, **then** merge `--ff-only` and record it |
-| A batch **is** in flight | ⛔ **rule 6: the tracker and detail docs are theirs.** Put findings in the *next* handoff, never in a live one |
+| A batch **is** in flight (**today's state — Batch 36**) | ⛔ **rule 6: the tracker and detail docs are theirs.** Put findings in the *next* handoff, never in a live one |
 
 ⭐ **Never say "they never saw X."** It is a property of one commit, not the session. Test against what
 they *branched from*:
@@ -148,7 +150,7 @@ one fact**, so the script exists. Run `--check` as part of verifying any returne
 | **33** | ✅ **verified and merged** (`a8deb89f`, ff-only) — ⭐ **collapse works headlessly and the round-trip property holds.** ⚠ **PARTIAL by design**: the sink, undo and menu are **not** done, so it is not reachable from the canvas. `BP-221`/`BP-222` opened. See §7e |
 | **34** | ✅ **verified and merged** (`53c407f1`, ff-only) — ⭐ **`BP-74` CLOSED: collapse is reachable, undoable, and refuses out loud.** `BP-221`/`BP-222` fixed; **`BP-223`** found and fixed. See §7f |
 | **35** | ✅ **verified and merged** (`8b56367b`, ff-only) — ⭐ **`BP-75`/`BP-77`/`BP-80` all CLOSED.** A macro can now be authored by hand end to end. `BP-224`/`BP-225` filed. See §7g |
-| **36+** | ⛔ **the last of the macro programme**: **`BP-76`** (*Expand Node* — Unreal ships it, our `Stage2_5` machinery exists) · **`BP-82`**'s `BP1664` (moot until **`BP-57`**) + two library rails |
+| **36** | 📤 **written and dispatched** — [HANDOFF_Batch36_Expand_Node.md](HANDOFF_Batch36_Expand_Node.md). ⭐ **Closes the macro programme.** ⚠⚠ **`BP-76` is NOT a greyed item** — shared UI predicts the *demo backend's* node ids and the sink has no `ExpandNode` case, so the gate is **accidentally load-bearing**. ⛔ Frozen (rule 1) |
 
 ### The macro capability
 
