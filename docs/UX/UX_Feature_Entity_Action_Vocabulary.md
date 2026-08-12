@@ -1,6 +1,8 @@
 # Feature design — the shared entity-action vocabulary
 
 > **Design for [UXI-03](UX_Issues.md#uxi-03) · drafted 2026-08-10.**
+> 📐 **The API contract now lives in [UX_Interaction_API.md](UX_Interaction_API.md)** — this doc keeps the
+> evidence and the rulings; that one holds the types, the arbitration order and the threading model.
 > **Status: ✅ designed — ready to break into `UXT` tasks.**
 >
 > Implements [UXR-89](UX_Requirements.md#uxr-89) and the descriptor/binding split ruled in

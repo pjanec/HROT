@@ -1,6 +1,8 @@
 # Feature design — making a tool a thing
 
 > **Design for [UXI-07](UX_Issues.md#uxi-07) 🔴 · drafted 2026-08-10.**
+> 📐 **The API contract now lives in [UX_Interaction_API.md](UX_Interaction_API.md)** — this doc keeps the
+> evidence and the rulings; that one holds the types, the arbitration order and the threading model.
 > **Status: ✅ designed — [Q27](Architect_Question_27_Tool_Model.md) answered by the user, 2026-08-10.**
 > This is the first issue in the programme that is **genuinely new architecture**, not adoption of an
 > existing seam. Implements [UXR-81](UX_Requirements.md#uxr-81), [UXR-84](UX_Requirements.md#uxr-84).
