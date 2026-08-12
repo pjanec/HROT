@@ -175,9 +175,10 @@ declares a `LayerBitIndex`; `MapCanvas.Draw` skips the object entirely when its 
 ⇒ It is the *"which renderers run"* switch — coarse, cheap, and it never inspects a primitive. The
 `ConfigPanel` checkboxes (Satellite / Roads / Grid) drive it, and they are the right UI for it.
 
-**Lean: keep it, and stop calling it a layer mask in the UI.** It answers *"draw the road network at
-all?"*, while §B answers *"is this hostile air unit visible?"*. Folding them together would mean walking
-every primitive to decide something that is currently one bit test per renderer.
+🔒 **RULED (user, 2026-08-12): `ActiveLayerMask` survives.** It answers *"draw the road network at all?"*,
+while §B answers *"is this hostile air unit visible?"*. Folding them together would mean walking every
+primitive to decide something that is currently one bit test per renderer. ⚠ **Stop calling it a layer
+mask in the UI** — that name is why the two concepts got conflated.
 
 🔴 **But one real collision must be fixed**: `MapLayerBits`' five constants (`GroundUnitsBit` = `1<<0` …)
 are used for **both** `ActiveLayerMask` (layer objects — `RoadMapLayer` is bit 0) **and**
@@ -218,8 +219,21 @@ that colour — naturally an `IStyleSource` ([ruling 20](UX_RESUME_INTERACTION.m
 |---|---|
 | ✅ **The renderer stays dumb** | colour already travels in the primitive; the remote IG terminal dims correctly with no protocol change |
 | ✅ **Composable** | dim-because-not-a-search-hit and dim-because-out-of-perspective stack as sources |
-| 🔒 **Search results should therefore be a *style* concern, not a tag** | ⚠ unless you also want *"hide everything except hits"*, which **is** a tag. Both are cheap; they are just different questions |
+| 🔒 **Search is a *style* concern. Full stop** | user, 2026-08-12: *"**dimming is style, tag is layer filter**"* ⇒ search dims; it does **not** become a tag |
 | ⚠ **Selection stays its own gizmo** | the ring is a separate primitive, unaffected either way |
+
+### 🔒 The dividing line, stated once
+
+| | **Tag** | **Style** |
+|---|---|---|
+| Answers | *"is this thing on a layer I am showing?"* | *"how does this thing look?"* |
+| Effect | **filter** — present or absent | **appearance** — colour, alpha, emphasis |
+| Carried by | the combination-id byte + mask (§B) | the primitive's resolved colour (§H) |
+| Examples | ground units, air units, perception overlays, roads | affiliation tint, damage, **search dim** |
+
+⚠ **Withdrawn: my open question "should search also get a hide mode?"** It conflated the two columns —
+exactly the confusion this section exists to end. If *"hide everything except hits"* is ever wanted, it is
+a new **tag** and needs no redesign; it is not a variant of dimming.
 
 ## F. One layer UI, or two?
 
@@ -238,14 +252,28 @@ and the Editor; **CGF registers no `LayerControlGizmo` at all**, so it is silent
 
 ---
 
-## Open, needing your ruling
+## ✅ All decisions settled — 2026-08-12
 
-✅ **Settled:** A = **tags** (entities *and* gizmos) · B = **combination-id byte**, no wire change ·
-B′ = **`ZIndex` becomes the sort and pick key** · B″ = **ALL** semantics · overflow = **degrade to
-visible + log** · C = **one tag space** · H = **dim is a colour concern, hide is a mask concern**.
+| | Decision |
+|---|---|
+| **A** | Layers are **tags**; an entity *or gizmo* may be in several |
+| **B** | `DebugLayer` becomes an **interned combination id** — **no wire-format change** |
+| **B′** | **`ZIndex`** becomes the sole draw order and pick priority — the field exists and was dead |
+| **B″** | **ALL** semantics — hidden if any tag is hidden; untagged is always visible |
+| **overflow** | 257th combination ⇒ **degrade to visible + log once per episode**, never drop |
+| **C** | **One tag space** — entity classes and visual kinds are bits in the same mask |
+| **E′** | **`MapCanvas.ActiveLayerMask` survives** as the *"which renderers run"* switch |
+| **H** | 🔒 **Dim is style, tag is filter** — search dims and is never a tag |
+| **width** | **`uint` (32 tags)** — `MapDisplayComponent.LayerMask` already is one; no change |
 
-| # | Question |
-|--:|---|
-| **1** | **E′ — confirm `MapCanvas.ActiveLayerMask` survives** as the *"which renderers run"* switch (my lean), with the `MapLayerBits` bit-number collision fixed |
-| **2** | **Search: dim only, or also a "hide non-matches" mode?** Dimming is a style source and needs no tag; hiding needs one. Both are cheap |
+⇒ **Ready to become a design.** Remaining work is mechanical, not decisional:
+
+| | |
+|---|---|
+| 1 | Fix the `MapLayerBits` bit-number collision (layer objects vs entity classes) + the hand-synced copy — folds in [UXI-14](UX_Issues.md#uxi-14) |
+| 2 | `SetLayerMask` — delete or implement, never leave |
+| 3 | One layer UI generated from the registered set (§F); delete the duplicate `ConfigPanel` |
+| 4 | Register the control gizmo in **CGF**, which has none and is silently all-visible |
+| 5 | Delete `GlobalDebugSettings.DebugLayerMask` (deferred-dead since GZ015) |
+| 6 | Correct the stale doc comment claiming `DebugLayer` is not a Z-order key |
 | **4** | **How wide is the tag space?** ⚠ **Lean revised — keep `uint` (32).** `MapDisplayComponent.LayerMask` is **already a `uint`**, and its doc comment already says *"entity can appear on multiple layers"* — ⭐ **tags were the original intent**. Today 8 ids are in use; even with affiliation, selection and search added it is ~15. **32 needs no change at all**; widen to 64 only when a concrete need appears |
