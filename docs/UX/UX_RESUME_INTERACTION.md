@@ -13,9 +13,9 @@ Designed **7 of 27** issues, then consolidated three of them into one API and on
 | ✅ **[UX_Interaction_UseCases.md](UX_Interaction_UseCases.md)** | **57 cases**, 46 headless / 11 integration / **0 visual-only** + coverage check |
 | [UX_Issues.md](UX_Issues.md) | the register — 27 issues |
 | [UX_Seam_Inventory.md](UX_Seam_Inventory.md) | prior-art table + `scripts/seam_inventory.py`, `scripts/type_index.py` |
-| [UX_Tasks_Detail.md](UX_Tasks_Detail.md#corrections) | **23 corrections** — read before trusting any claim |
+| [UX_Tasks_Detail.md](UX_Tasks_Detail.md#corrections) | **25 corrections** — read before trusting any claim |
 
-**Designed:** UXI-01, 02, 03, 04, 05, 06, 07, 08, **09**. **Refuted:** UXI-26. **Split out:** UXI-25 (ExCon ORBAT),
+**Designed:** UXI-01..08, **09**, **10** (+ **19**, verified and absorbed into 10). **Refuted:** UXI-26. **Split out:** UXI-25 (ExCon ORBAT),
 UXI-27 (progress surface).
 
 ## 2. 🔒 Every user ruling, in force
@@ -89,13 +89,17 @@ review rule (UC-44c).
 | Editor + ReplayBrowser never set `MapCamera.Offset` ⇒ *Center on Entity* lands at the **top-left pixel** | `EditorSubsystem.cs:1395`, `ReplayBrowserSubsystem.cs:134` · [UXI-09](UX_Feature_Map_Viewport.md) |
 | `Offset` is written **once at construction** in all 5 hosts ⇒ **resize decentres every map** | one `Offset` write per site; none in any resize path |
 | **Perspective switch transports `Offset` between subsystems** — a screen-space value treated as portable camera state | `MapCameraView.cs:10-18` → `MapCamera.cs:253` → `SubsystemOrchestrator.cs:175-177` |
+| 🔴 **`ResolvedStyle` (tint/affiliation/damage, 3-layer merge) is read by no renderer** — the map hardcodes `Rgba32(100,220,255)`, so friend and hostile look identical | `EntityPresentationGizmoShared.cs:92` · [UXI-10](UX_Feature_Entity_Symbology.md) |
+| **CGF's semantic shapes are `alpha 0`** (bypasses the shared helper) and it emits **no pick box** ⇒ unselectable | `CgfEntityPresentationGizmo.cs:45-49` |
+| **`VisualData.MapShapeName`** is authored, translated, and **read nowhere**; `GetShape`'s `shapeName` is always `null` | `VisualData.cs:33`, `PresentationTkbTranslator.cs:41`, `DebugPrimitiveRenderer2D.cs:410` |
+| ✅ **UXI-19 verified** — the Editor emits **two** of every presentation primitive, and the second ignores culling | `StatelessGizmoSystem.cs:104`, `EditorSubsystem.cs:1094-1097` |
 
 ## 6. Next steps, in order
 
 1. ✅ **RESOLVED — host pump + playback goes immediately before `_kernel.Update()`** (`EditorSubsystem.cs:1618`). The kernel flush is *before* `Bus.SwapBuffers()` (`ModuleHostKernel.cs:523-534`), so ops land visible **in the same frame**. Precedent: `_aiCoordinator.DrainPendingCallbacks()` (`:1620-1624`) is the same pattern already in production. ⚠ *Unpinned:* where ImGui panel drawing sits relative to `EditorSubsystem.Update()` — affects only which frame a synchronous handler commits in. See [API §6d](UX_Interaction_API.md#6d--where-the-hosts-playback-sits--resolved-2026-08-10)
-2. ⏭ **Designing continues** — user, 2026-08-10: *"keep designing now rather than rewriting tasks later because we find new unexpected stuff"*. ✅ **UXI-09 designed** → [UX_Feature_Map_Viewport.md](UX_Feature_Map_Viewport.md). **Next: UXI-10** (symbology seam, zero hosts).
+2. ⏭ **Designing continues** — user, 2026-08-10: *"keep designing now rather than rewriting tasks later because we find new unexpected stuff"*. ✅ **UXI-09** → [Map Viewport](UX_Feature_Map_Viewport.md); ✅ **UXI-10 + UXI-19** → [Entity Symbology](UX_Feature_Entity_Symbology.md). **Next: UXI-11** (CGF/ExCon outside the selection mechanism — ⭐ UXI-10 already found its mechanism: CGF emits no pick box).
 3. Cut `UXT` tasks — **none cut yet**, deliberately deferred.
-4. Remaining undesigned: UXI-10..24 (symbology, duplication, robustness) + 23, 24, 25, 27.
+4. Remaining undesigned: UXI-11..18, 20..25, 27.
 5. The golden-path walk still needs a **Windows** session. ✅ **The UXI-09 ImGui question is closed** — verified against the real package: managed `ImGui.NET.dll` exposes **no** `DockBuilder*`, but `cimgui.dll` (already loaded) exports `igDockBuilderGetCentralNode` **and `ImGuiDockNode_Rect`** ⇒ tier T2 needs two `DllImport`s and no struct-offset arithmetic.
 
 ## 7. ⚠ Process rules earned the hard way
@@ -103,7 +107,8 @@ review rule (UC-44c).
 | | |
 |---|---|
 | **Rule 6** | every design opens with a **Prior art** section citing the [Seam Inventory](UX_Seam_Inventory.md) — the seam usually **already exists and is under-adopted**. ⭐ **9 instances so far**; the newest two are `MapCameraViewport` (a shared type stranded in `Hrot.IG`, reached by the Editor through a **project reference**) and `DockspaceLayout` (built and tested for the dockspace, never extended to the camera) |
-| **Rule 6c** | ⚠ **never read a reference *count* as adoption — open the call sites.** [Correction 22](UX_Tasks_Detail.md#corrections): 8 tests vs 3 real calls, and I reported "zero consumers" from the ratio |
+| **Rule 6c** | ⚠ **never read a reference *count* as adoption — open the call sites.** [Correction 22](UX_Tasks_Detail.md#corrections): 8 tests vs 3 real calls, and I reported "zero consumers" from the ratio. ⚠ **And counting *constructions* misses hosts that default silently** — CGF omits the shape-library argument entirely ([Correction 24](UX_Tasks_Detail.md#corrections)) |
+| **Rule 6d** | ⚠ **"the seam is unused" has two very different meanings** — an interface nobody *calls*, vs one called every frame with a dead parameter and no second implementation. UXI-10 was the second kind; the fix differs completely |
 | **Rule 6b** | before claiming an **engine-level defect**, read `README.md` + the Programmer's Guide |
 | ⚠ | **follow the call one level deeper** — I read a dispatcher and missed synchronization in the stream |
 | ⚠ | subagent reports have failed verification **6+ times** — re-derive every delegated claim |
