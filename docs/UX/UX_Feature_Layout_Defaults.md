@@ -33,14 +33,47 @@ file that looks like a default is worse than having none.
 
 ## 🔴 The finding that widens the issue: layout state lives in **two** files, in **two** roots
 
-| File | Holds | Root |
+| File | Holds | Root **today** |
 |---|---|---|
 | `imgui.ini` | docking geometry, window positions/sizes | `%LocalAppData%\HROT\` (`RaylibPresentationShell.cs:128-131`) |
-| `fdp_windows.json` | **open/closed state, active perspective, UI scale** | `AppDomain.BaseDirectory` — *next to the exe* (`WindowManager.cs:437-438`) |
+| `fdp_windows.json` | **open/closed state, active perspective, UI scale** | ⚠ `AppDomain.BaseDirectory` — *next to the exe* (`WindowManager.cs:437-438`) |
 
 > ⇒ **Resetting one without the other gives a half-reset**: default geometry with your old windows open,
 > or vice versa. 🔒 **The two must be treated as one unit — "the layout".** The issue as filed named only
 > `imgui.ini`.
+
+### 🔒 RULED by the user, 2026-08-10 — one directory, both files, both places
+
+> *"The json must live next to the `imgui.ini` — **both places** (user and default)."*
+
+| | Location |
+|---|---|
+| **User** | `%LocalAppData%\HROT\` — `imgui.ini` **+ `fdp_windows.json`** |
+| **Default** | the shipped asset directory — both files, side by side |
+
+⇒ The split root disappears, and with it the *"a clean rebuild wipes your layout"* hazard that this design
+previously only flagged.
+
+### ⭐ And the seam for it **already exists, unused**
+
+```csharp
+public void    SaveSettings(string? filePath = null)   // WindowManager.cs:368
+public string? LoadSettings(string? filePath = null)   // :388
+       filePath ??= DefaultSettingsPath;               // :370, :390
+```
+
+**Both already take a path. Nobody passes one** — `LocalWindowController.cs:75,94` call them bare, so the
+`BaseDirectory` fallback wins by default.
+
+| | |
+|---|---|
+| ✅ **No `WindowManager` change** | pass the path at the two existing call sites |
+| ✅ **Constraint 1 satisfied for free** | `Fdp.Presentation` never learns what "HROT" is — the **ClusterRunner** owns the directory and injects it |
+| ⚠ `DefaultSettingsPath` becomes production-dead | it stays as the parameterless fallback; note it, do not chase it |
+
+⚠ **One-time migration:** on first run, if the new path has no `fdp_windows.json` **and** the old
+exe-adjacent one exists, copy it across. Cheap, and it stops existing users silently losing their
+arrangement.
 
 ⚠ **And the ini path is duplicated** — `RaylibPresentationShell.cs:131` and `FdpApplication.cs:93` compute
 it independently. Two apps, one convention, no shared helper.
@@ -50,9 +83,12 @@ it independently. Two apps, one convention, no shared helper.
 ### 1. One shipped asset pair, authored in the source tree
 
 ```
-layout/default.imgui.ini          ← committed, copied to output  (CopyToOutputDirectory)
-layout/default.fdp_windows.json   ← committed, copied to output
+layout/default/imgui.ini          ← committed, copied to output (CopyToOutputDirectory)
+layout/default/fdp_windows.json   ← committed, copied to output
 ```
+
+🔒 **Same filenames, different directory** — so "the layout" is *a directory*, and reset is a directory
+copy rather than two special-cased files. Adding a third layout file later needs no design change.
 
 ### 2. Startup — the user's own mechanism, unchanged load path
 
@@ -101,7 +137,9 @@ parameter is what makes the whole feature testable.
 | 4 | *Save current as default* → the **source-tree** files change; relaunch with reset ON → the new default appears | I |
 | 5 | Running outside the repo → the menu item is **disabled with a reason** | H |
 | 6 | 🔒 Reset restores **both** files — geometry *and* open/closed/perspective/scale | I |
-| 7 | The default asset **reaches the output directory** on build | H |
+| 7 | The default assets **reach the output directory** on build | H |
+| 8 | 🔒 `fdp_windows.json` is written **next to `imgui.ini`**, not beside the exe | I |
+| 9 | Migration: an old exe-adjacent `fdp_windows.json` is copied across **once**, then left alone | I |
 
 ⚠ Cases 1-4, 6 are **I** rather than **H** because they are file-system round-trips; none needs a human
 eye, so they still run in CI.
@@ -120,4 +158,4 @@ eye, so they still run in CI.
 |---|---|
 | ⚠ **Writing into the source tree from a running app** | only in a dev checkout; guarded by the walk-up probe and disabled otherwise |
 | ⚠ **Reset ON is destructive by design** | the user loses their arrangement every run — hence the discoverable indicator in §5 |
-| ⚠ `fdp_windows.json` lives **next to the exe** | a clean rebuild may wipe it. Worth asking whether it should move to `%LocalAppData%` alongside `imgui.ini` — **out of scope here, flagged** |
+| ⚠ Moving `fdp_windows.json` changes where an existing user's file is looked for | mitigated by the one-time migration; ⚠ **a user who downgrades afterwards silently gets the old file back** — acceptable, worth one line in the changelog |
