@@ -39,6 +39,7 @@ UXI-27 (progress surface).
 | 15 | 🔒 **Single-threaded async** — handlers stay on the tick thread and yield; **per-action ECB**, real API, no wrapper |
 | 16 | **ExCon is DDS-only, no ECS** — reuses the ORBAT UI with its own data model. `int EntityId` is correct, not a defect |
 | 17 | **No assumptions.** Read `README.md` + `docs/HROT-PROGRAMMERS-GUIDE.md` before claiming an engine defect |
+| 18 | **Layout = one directory.** `fdp_windows.json` lives **next to `imgui.ini`** in *both* places (user `%LocalAppData%\HROT\` and the shipped default). Reset = a directory copy |
 
 ## 3. The threading/ECB solution (ruling 15) — the shape
 
@@ -88,15 +89,16 @@ review rule (UC-44c).
 ## 6. Next steps, in order
 
 1. ✅ **RESOLVED — host pump + playback goes immediately before `_kernel.Update()`** (`EditorSubsystem.cs:1618`). The kernel flush is *before* `Bus.SwapBuffers()` (`ModuleHostKernel.cs:523-534`), so ops land visible **in the same frame**. Precedent: `_aiCoordinator.DrainPendingCallbacks()` (`:1620-1624`) is the same pattern already in production. ⚠ *Unpinned:* where ImGui panel drawing sits relative to `EditorSubsystem.Update()` — affects only which frame a synchronous handler commits in. See [API §6d](UX_Interaction_API.md#6d--where-the-hosts-playback-sits--resolved-2026-08-10)
-2. Cut `UXT` tasks from the designs (none cut yet).
-3. Remaining undesigned: UXI-09..24 (layout, camera, symbology, duplication, robustness).
-4. The golden-path walk still needs a **Windows** session.
+2. ⏭ **Designing continues** — user, 2026-08-10: *"keep designing now rather than rewriting tasks later because we find new unexpected stuff"*. **Next: UXI-09** (camera ×4, occlusion).
+3. Cut `UXT` tasks — **none cut yet**, deliberately deferred.
+4. Remaining undesigned: UXI-09..24 (camera, symbology, duplication, robustness) + 23, 24, 25, 27.
+5. The golden-path walk still needs a **Windows** session.
 
 ## 7. ⚠ Process rules earned the hard way
 
 | | |
 |---|---|
-| **Rule 6** | every design opens with a **Prior art** section citing the [Seam Inventory](UX_Seam_Inventory.md) — the seam usually **already exists and is under-adopted** |
+| **Rule 6** | every design opens with a **Prior art** section citing the [Seam Inventory](UX_Seam_Inventory.md) — the seam usually **already exists and is under-adopted**. ⭐ **7 instances so far**, most recently `SaveSettings(path)` / `LoadSettings(path)`, which already take a path that **nobody passes** |
 | **Rule 6b** | before claiming an **engine-level defect**, read `README.md` + the Programmer's Guide |
 | ⚠ | **follow the call one level deeper** — I read a dispatcher and missed synchronization in the stream |
 | ⚠ | subagent reports have failed verification **6+ times** — re-derive every delegated claim |
