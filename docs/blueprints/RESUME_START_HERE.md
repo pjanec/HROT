@@ -8,9 +8,9 @@
 > from the canvas, one undo entry that restores identity, refuses out loud, round-trip test-locked.
 > ⭐⭐ **A macro can now be AUTHORED by hand** — created from "Macros +", exec entries/exits declared in
 > the signature window, dragged from the palette. **`BP-74`/`BP-75`/`BP-77`/`BP-80`/`BP-81`/`BP-83` all closed.**
-> ⏭ **In flight: Batch 36 — the last one.** *Expand Node* + `BP-82`'s two library rails.
-> ⚠⚠ **`BP-76` is a latent corruption, not a wiring nuisance** — see the handoff §1.
-> 📌 After it, only `BP1664` remains, and it is **unbuildable until `BP-57`**.
+> ⭐⭐⭐ **THE MACRO PROGRAMME IS COMPLETE** — `BP-74`…`BP-83` **all closed**. Authored, collapsed,
+> expanded (both directions, round-trip locked), run across frames, debuggable, navigable.
+> 📌 Only `BP1664` remains, and it is **unbuildable until `BP-57`** (function-local variables).
 > ⛔ **Q26-A supersedes Q25-D3:** a macro now has **N exec-ins**, not one.
 >
 > 📌 Supersedes [RESUME_Coordinator.md](RESUME_Coordinator.md), which is now the **historical log**
@@ -57,9 +57,9 @@ for b in $(git ls-remote --heads origin | awk '{print $2}' | sed 's|refs/heads/|
 
 | Situation | Do |
 |---|---|
-| **No batch in flight** | pick the next batch — see §4 |
+| **No batch in flight** (**today's state**) | pick the next batch — see §4 |
 | **Implementation reported done** | run **all eight gates** (§3), review the diff, reconcile the tracker three ways, **then** merge `--ff-only` and record it |
-| A batch **is** in flight (**today's state — Batch 36**) | ⛔ **rule 6: the tracker and detail docs are theirs.** Put findings in the *next* handoff, never in a live one |
+| A batch **is** in flight | ⛔ **rule 6: the tracker and detail docs are theirs.** Put findings in the *next* handoff, never in a live one |
 
 ⭐ **Never say "they never saw X."** It is a property of one commit, not the session. Test against what
 they *branched from*:
@@ -94,13 +94,13 @@ so the solution build never produces their assemblies and the runner exits with 
 …`NodeEditor.Core.Tests.dll` is invalid"* — ⭐ **no test output at all**, which reads as *"nothing to
 report"* rather than *"the gate did not run."* Trap #5, in the gate script itself.
 
-**Baseline at `8b56367b` — ⭐ all eight gates coordinator-RUN 2026-08-11, post-Batch-35:**
+**Baseline at `4242f304` — ⭐ all eight gates coordinator-RUN 2026-08-11, post-Batch-36:**
 
 | | |
 |---|---|
 | Solution build | **0 errors**, 69 warnings |
 | BP diagnostics | **10 distinct** — all `BP3010`, all **authored** orphans in 2 assets |
-| Blueprints | **3217** / 0 failed / 10 skipped ⚠ *(total 3227; BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
+| Blueprints | **3234** / 0 failed / 10 skipped ⚠ *(total 3244; BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
 | AiShared **1213** · BTree **612** · Breakpoints **130** | 0 failed |
 | NodeEdit Core **208** · UI **131** · Generators **193** | 0 failed |
 
@@ -122,7 +122,7 @@ retired `BP3011`; the 10 that remain are authored and deliberate.)
 
 ## 4 · Where the programme stands
 
-**Tracker: open 57 · done 103** ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
+**Tracker: open 55 · done 105** ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
 three ways — checkbox tally, per-complexity columns (⚠ take the **first** tag on a row), and the total
 row. ⚠⚠ **Reconcile all three EVERY time.** The columns can agree with the Total and both still be
 wrong: a missed tick is invisible to arithmetic and only shows against the checkbox tally.
@@ -150,7 +150,7 @@ one fact**, so the script exists. Run `--check` as part of verifying any returne
 | **33** | ✅ **verified and merged** (`a8deb89f`, ff-only) — ⭐ **collapse works headlessly and the round-trip property holds.** ⚠ **PARTIAL by design**: the sink, undo and menu are **not** done, so it is not reachable from the canvas. `BP-221`/`BP-222` opened. See §7e |
 | **34** | ✅ **verified and merged** (`53c407f1`, ff-only) — ⭐ **`BP-74` CLOSED: collapse is reachable, undoable, and refuses out loud.** `BP-221`/`BP-222` fixed; **`BP-223`** found and fixed. See §7f |
 | **35** | ✅ **verified and merged** (`8b56367b`, ff-only) — ⭐ **`BP-75`/`BP-77`/`BP-80` all CLOSED.** A macro can now be authored by hand end to end. `BP-224`/`BP-225` filed. See §7g |
-| **36** | 📤 **written and dispatched** — [HANDOFF_Batch36_Expand_Node.md](HANDOFF_Batch36_Expand_Node.md). ⭐ **Closes the macro programme.** ⚠⚠ **`BP-76` is NOT a greyed item** — shared UI predicts the *demo backend's* node ids and the sink has no `ExpandNode` case, so the gate is **accidentally load-bearing**. ⛔ Frozen (rule 1) |
+| **36** | ✅ **verified and merged** (`4242f304`, ff-only) — ⭐⭐ **THE MACRO PROGRAMME IS COMPLETE.** `BP-76` + `BP-82` closed. See §7h |
 
 ### The macro capability
 
@@ -282,6 +282,44 @@ The tracker's **`RW-L` done column was 43 and the Total 88; both were one short*
 **predates Batch 29** (present at `1af9bea`, and back at the 41/85 figures). Batch 29's own delta was
 exactly right. Corrected to **44 / 89** after merge. It reconciles three ways now; the note in the
 tracker records the method, including that the *refuted* row sits **outside** the Total.
+
+---
+
+## 7h · Batch 36 — ✅ VERIFIED AND MERGED at `4242f304` — ⭐⭐ **the macro programme is COMPLETE**
+
+**Gates:** build **0 / 69** · BP diagnostics **10** · Blueprints **3234** (+17) · rest unchanged ·
+**zero failures** · counts clean on arrival (fifth batch running).
+
+### ✅ `BP-76` was what the handoff said, and they said so in the row
+
+The greyed gate was the only thing keeping a corrupting path unreachable. `MacroExpander` is now public
+in `Compiler/Transform/` beside `CollapseEmitter`, its exact inverse; **`Stage2_5_ExpandMacros` keeps
+the pass and calls the shared splice** — one algorithm, two callers, which is the reuse the handoff
+asked for. ⭐ **They checked the premise rather than assuming it**: the rules turned out identical
+because every call addresses pins through `MacroCallPinView` and the boundary clones. The one real
+difference is *what may be missing* — the editor can be handed an unresolvable target where `BP1660`
+guarantees the pass one, so the entry point **returns a refusal rather than assuming**.
+
+### ⭐ The bug they found doing it — worth remembering beyond macros
+
+**`Link` is a mutable class and the splice rewrites endpoints in place**, so the "before" snapshot was
+made of *the very objects the splice then rewrote* — quietly corrupting the state undo restores.
+⇒ **Links are copied into the probe; nodes deliberately are not**, since sharing them is exactly what
+preserves node and pin identity across an expand/undo cycle. ⭐ **A snapshot of mutable objects is not
+a snapshot.**
+
+### ⚠ `BP-82` — only ONE of the two rails was real, and my handoff implied both
+
+I wrote *"`BP-82`'s last two library rails."* ⭐ **Same fact killed one and fixed the other: macro
+graphs never reach the IR** (Stage 5 skips them; `IrGraphKind` has no `Macro`).
+
+| | |
+|---|---|
+| **`BP5001`** ✅ real | it was rejecting **exactly the Q25-C2 shape** — a macro library declares macros and no functions, which by lowering time is indistinguishable from an *empty* library. `IrAsset` now carries the declared macro count, the smallest thing that tells them apart |
+| **`BP9001`** ❌ needed no narrowing | the library-latency loop **cannot see** a latent node inside a macro declaration, because that declaration reaches no IR graph. The latent node is flagged where it actually lands — spliced into the calling function graph. ⭐ **They wrote a test saying why, so nobody later adds a filter that silences a real error** |
+
+📌 **`BP1664` stays reserved** — `Graph` has no `LocalVariables` (**`BP-57`**), so a macro cannot declare
+a local and the rail has nothing to check.
 
 ---
 
