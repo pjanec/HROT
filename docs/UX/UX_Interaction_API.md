@@ -176,7 +176,7 @@ Evaluated by `Dispatch` **before** the handler runs:
 
 | Order | Rule |
 |--:|---|
-| 1 | **Exclusivity gate** — if any running activity is `Exclusive`, reject and surface *why*. If **this** action is `Exclusive` and anything else is running, reject or queue |
+| 1 | **Exclusivity gate** — while an `Exclusive` activity runs, other items **grey out in advance**, with the blocker's label as the `disabledReason` (reusing the existing `isEnabled`/`disabledReason` machinery). 🔒 **Never a silent rejection on click** — not offering the click beats refusing it. If **this** action is `Exclusive` and anything else is running, reject or queue |
 | 2 | **Concurrency policy** for the same action id — `Concurrent` / `Restart` (cancel the previous) / `Drop` (ignore) / `Queue` |
 | 3 | **Modal-tool interaction** — if `CancelsModalTool`, clear the modal stack. Otherwise the action is **transparent** and the stack is untouched |
 | 4 | Run the handler, which may `PushModal(...)` for a scoped interruption |
@@ -236,17 +236,33 @@ The previously-unverified ECB lifecycle, traced:
 | 3 | The kernel flushes **every** thread's buffer, **on the main thread**, each frame | `ModuleHostKernel.cs:519-532` — BeforeSync phase iterates `_liveWorld._perThreadCommandBuffer.Values` and plays back any with `HasCommands` |
 | 4 | The Editor runs that kernel | `EditorSubsystem.cs:585` — `new ModuleHostKernel(_world, accumulator)`; `Kernel.Update()` drives it (`:1617`) |
 
-> ⇒ **A continuation on *any* thread can call `view.GetCommandBuffer()`, record, and be flushed correctly
-> on the main thread at the next BeforeSync.** `EntityActionContext.Commands` is simply that buffer.
-> **Nothing new is built** — this is the mechanism rule 7 points at, already wired.
+> ⇒ **The engine's deferred-write path is complete and already wired.** Facts 2-4 are load-bearing for
+> this design and are cited throughout.
 
-⚠ **Three notes from the trace, none blocking:**
+> ### 🔴 ⚠ **But this design does NOT use `GetCommandBuffer()`** — superseded by [§6b](#6b--threading-the-ecb-and-progress--ruled-2026-08-10)
+>
+> Fact 1 (the per-thread buffer) describes how *background modules* defer writes. **Action handlers are
+> not background modules** — ruling 15 keeps them on the tick thread, and each dispatch gets **its own**
+> `EntityCommandBuffer`, played back by the host.
+>
+> | | Per-thread (`GetCommandBuffer()`) | ⭐ Per-action (this design) |
+> |---|---|---|
+> | Who flushes | the kernel, at BeforeSync | **the host**, just before `Kernel.Update()` ([§6d](#6d--where-the-hosts-playback-sits--resolved-2026-08-10)) |
+> | Cancel mid-way | ❌ **cannot un-record** ⇒ partial commit | ✅ **buffer dropped** ⇒ atomic |
+> | Thread safety | needs one buffer per thread | ✅ moot — one thread |
+>
+> ⇒ **Facts 2-4 stay true and still matter** (the ECB records events; playback is main-thread; the Editor
+> runs the kernel). Only fact 1's *usage* is superseded.
+
+⚠ **Two incidental findings from the trace, neither blocking:**
 
 | | |
 |---|---|
 | `EntityRepository.FlushCommandBuffers()` is **dead public API** | **0 production callers**, yet its doc says *"In production the scheduler calls this"*. The scheduler in fact **inlines the same loop** (`ModuleHostKernel.cs:523-531`). A doc/API inconsistency worth a one-line fix, not a defect |
-| **`ThreadLocal` + thread-pool threads** | a continuation may land on any pool thread and gets its own tracked buffer. Correct for flush; buffers accumulate per *distinct* pool thread over a long session. Worth watching, not fixing blind |
-| **Timing** | ECB ops land at the next BeforeSync. ⚠ But a direct `Bus.Publish` is *also* only readable after `SwapBuffers`, so deferring to the ECB is **no regression** in latency |
+| **Timing** | ECB ops land when played back. ⚠ A direct `Bus.Publish` is *also* only readable after `SwapBuffers`, so deferring to the ECB is **no regression** in latency |
+
+⚠ *A third note — `ThreadLocal` buffers accumulating across pool threads — **no longer applies**, because
+ruling 15 removes the pool threads.*
 
 ## 6b. 🔒 Threading, the ECB, and progress — ruled 2026-08-10
 
@@ -291,6 +307,16 @@ that withdrawal stands. **This is a different, narrower thing:**
 The host pumps queued continuations once per `Update()`. `RunContinuationsAsynchronously` on the pick
 `TaskCompletionSource` then works *for* us: the continuation is posted to the host's queue rather than
 running inline.
+
+### 🔴 The one way single-threading breaks silently
+
+**`ConfigureAwait(false)` anywhere in the awaited chain.** It tells the runtime *not* to resume on the
+captured context, so the remainder of the handler runs off-thread — holding a buffer that is no longer
+its thread's, and free to touch the live world.
+
+🔒 **Contract rule: no `ConfigureAwait(false)` in an action/tool handler, or in anything a handler
+awaits.** Nothing in the current pick path does this; a future async API could, and the failure would be
+quiet. ⇒ enforce with an analyzer or a standing review rule — [UC-44c](UX_Interaction_UseCases.md).
 
 ### ⇒ The ECB decision
 
@@ -418,7 +444,8 @@ a more complex editor — not because anything needs them this month.
 
 | Priority | Item | Justification | Status of the claim |
 |---|---|---|---|
-| 🔴 **1** | `IActivity` with a `Completion` **task** | the two live handlers are `async void`, so faults are unobserved ([UXI-17](UX_Issues.md#uxi-17)) | ✅ verified — `EditorSubsystem.cs:1462`, `:1479` |
+| 🔴 **1** | **The single-thread pump + per-action ECB** ([§6b](#6b--threading-the-ecb-and-progress--ruled-2026-08-10), [§6d](#6d--where-the-hosts-playback-sits--resolved-2026-08-10)) | everything else assumes it: it is what makes the per-action buffer legal, the handler main-thread code, and the tests deterministic | ✅ frame position verified — `EditorSubsystem.cs:1615-1618`, `ModuleHostKernel.cs:523-534` |
+| 🔴 **1b** | `IActivity` with a `Completion` **task** | the two live handlers are `async void`, so faults are unobserved ([UXI-17](UX_Issues.md#uxi-17)) | ✅ verified — `EditorSubsystem.cs:1462`, `:1479` |
 | **2** | `EntityActionContext` exposing **only** `ISimulationView` + `IEntityCommandBuffer` + `FdpEventBus` | makes the [documented ECS path](../HROT-PROGRAMMERS-GUIDE.md) the only reachable one; today `_world` is in scope by closure accident | ✅ verified — `_world` is `EntityRepository?` (`:184`) |
 | **3** | `IInteractionHost` modal focus stack | two `_focusedGizmo` arbiters on one bus, each guarding only itself | ✅ verified in code; ⚠ **and no documented invariant covers cross-engine gizmo focus** — §7.2 of the guide documents gizmos extensively but not this, so it reads as an unnoticed gap rather than a design |
 | **4** | `Drop` on the two pick actions | double-invoking *Mark Target* starts two concurrent picks | ✅ verified — no guard exists |
