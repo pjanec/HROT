@@ -40,6 +40,7 @@ UXI-27 (progress surface).
 | 16 | **ExCon is DDS-only, no ECS** — reuses the ORBAT UI with its own data model. `int EntityId` is correct, not a defect |
 | 17 | **No assumptions.** Read `README.md` + `docs/HROT-PROGRAMMERS-GUIDE.md` before claiming an engine defect |
 | 18 | **Layout = one directory.** `fdp_windows.json` lives **next to `imgui.ini`** in *both* places (user `%LocalAppData%\HROT\` and the shipped default). Reset = a directory copy |
+| 20 | 🔒 **Two classes of map** (user, 2026-08-12). **IG = the production 2D map, remotely controlled via the DDS API**; `StyleResolutionSystem` was written *for it*, DDS-provided styles being its point. **Editor · CGF · SimHost · ReplayBrowser = service-level maps** — sources are **local/user input + ECS, no remote DDS control**. ⇒ **Share the infrastructure where it is generic, reusable and helpful; never make a service map depend on the DDS layer.** [UXI-10](UX_Feature_Entity_Symbology.md) §2.5 |
 | 19 | ✅ **The CGF / SimHost initial-view shift is approved** (user, 2026-08-12). Removing the hardcoded `(640, 360)` offset changes what those two subsystems show on first launch — accepted as the correct behaviour arriving. [UXI-09](UX_Feature_Map_Viewport.md) §5 |
 
 ## 3. The threading/ECB solution (ruling 15) — the shape

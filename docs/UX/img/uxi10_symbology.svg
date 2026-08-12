@@ -24,8 +24,10 @@
   <rect x="16" y="32"  width="150" height="34" class="box"/>
   <text x="26" y="52"  class="t">TKB default</text><text x="26" y="63" class="ts">VisualData at spawn</text>
 
-  <rect x="16" y="76"  width="150" height="34" class="box"/>
-  <text x="26" y="96"  class="t">DDS override</text><text x="26" y="107" class="ts">IgSymbolOverride (ExCon)</text>
+  <rect x="16" y="76"  width="150" height="34" class="box" stroke-dasharray="4 3"/>
+  <text x="26" y="96"  class="t">DDS override</text><text x="26" y="107" class="ts">IgSymbolOverride — IG only</text>
+  <text x="172" y="97" class="ts">← production map only;</text>
+  <text x="172" y="109" class="ts">service maps skip this layer</text>
 
   <rect x="16" y="120" width="150" height="34" class="box"/>
   <text x="26" y="140" class="t">Operator config</text><text x="26" y="151" class="ts">MapUserConfig</text>
