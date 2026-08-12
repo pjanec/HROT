@@ -1,6 +1,7 @@
 # Architect question #27 — what is a "tool"?
 
-> **Drafted 2026-08-10 · awaiting the architect.** Claude cannot reach the architect; the user relays.
+> **Drafted 2026-08-10 · ✅ ANSWERED THE SAME DAY — by the user directly, not relayed to the architect.**
+> All five sub-questions are ruled; see [Answers](#answers). UXI-07 is **unblocked**.
 >
 > **Evidence:** [UX_Feature_Tool_Model.md](UX_Feature_Tool_Model.md) — every claim below is cited there.
 > **Gates:** [UXI-07](UX_Issues.md#uxi-07), and [UXR-81](UX_Requirements.md#uxr-81) /
@@ -108,8 +109,22 @@ injected per-entity today.
 
 | Question | Decision | Notes |
 |---|---|---|
-| **A** — where the arbiter lives | | *lean A3 then A1* |
-| **B** — per subsystem or per process | | *lean B1, with the switch-back case flagged* |
-| **C** — modal vs entity-bound | | *lean C3* |
-| **D** — `EditorTool` vs shared ids | | *lean D2 — least confident* |
-| **E** — Escape | | *lean E1* |
+| **A** — where the arbiter lives | ✅ **A1**, A3 optional | *"A1 if doable without the A3 intermezzo, but no problem with A3 first if it helps."* ⇒ **A1 alone suffices iff every modal activation routes through the controller** — including the picker adapters (`EditorMapPickAdapter`, `EditorZoneAdapter`, `EditorSpawnAdapter`), which today call `GlobalGizmoManager.Register` directly and whose gizmos are `RequiresExclusiveFocus => true`. If those cannot be converted in the same change, **do A3 first** |
+| **B** — per subsystem or per process | ✅ **B1 — per subsystem** | *"perspective switch often means focus switch to another subsystem."* ⇒ 🔒 **new invariant: an unfocused subsystem's modal tool stays armed but must not consume input** |
+| **C** — modal vs entity-bound | ✅ **restated by the user, and it is two axes, not one taxonomy** | **Modality**: *modal* = at most one active interactive tool per subsystem (Rotate); *modeless* = permanent until turned off, several may coexist (an info box with its own buttons). **Target**: entity or none — an activation argument (the old C3). ⚠ **And `gizmo ≠ tool`: stateless gizmos (health bars) are not tools at all and many are active per entity** |
+| **D** — `EditorTool` vs shared ids | ✅ **D2, with the relationship pinned** | *"A tool is not an action. **An action is what activates a tool.**"* ⇒ two vocabularies, one relationship; `GlobalActionIds.Measure` is the *action* that activates the *Measure tool*. ⭐ **This vindicates rejecting D3.** Also: *"some tools might survive another action fired mid-execution"* and *"tool handling should be defined by **registration-time flags** — no less flexibility than now"* |
+| **E** — Escape | ✅ **E2 for modal, E1 where local** | *"Centralize for modal tools for sure, avoid code duplication; keep local where necessary."* |
+
+### ⭐ Factual answer to the user's question inside D — *"has any tool been left as an `EditorTool`?"*
+
+**No. The conversion completed.** `CreationTool`, `EditTool`, `RouteEditTool` and `MeasureTool` have
+**zero declarations** — PACK2-E002 deleted them. `EditorTool` survives as **only a 6-member enum**, a
+command vocabulary; every member dispatches to a gizmo except `Select`, which is the no-op null tool.
+⚠ Its doc comments still name the four deleted classes, which is why it reads as if tool classes remain.
+
+### 🔷 One sub-decision the rulings surface, with a lean
+
+`SurvivesActions` needs a **default**. Today nothing cancels anything (there is no central state), so
+*survive* preserves current behaviour, while *cancel* is the safer UX. **Lean: default `false`
+(an action cancels the active modal tool), opt out per tool** — it is the behaviour a user expects, and
+the flag preserves *"no less flexibility than now"* for the exceptions.

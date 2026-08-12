@@ -1,7 +1,7 @@
 # Feature design — making a tool a thing
 
 > **Design for [UXI-07](UX_Issues.md#uxi-07) 🔴 · drafted 2026-08-10.**
-> **Status: 🔒 BLOCKED — needs the [Q27](Architect_Question_27_Tool_Model.md) architect round.**
+> **Status: ✅ designed — [Q27](Architect_Question_27_Tool_Model.md) answered by the user, 2026-08-10.**
 > This is the first issue in the programme that is **genuinely new architecture**, not adoption of an
 > existing seam. Implements [UXR-81](UX_Requirements.md#uxr-81), [UXR-84](UX_Requirements.md#uxr-84).
 
@@ -88,51 +88,87 @@ architecture, and it is still the toolbar's contract.
 
 ⇒ Editor and CGF depend on a tool that lives **inside the SimHost subsystem**.
 
-## Recommended shape — for the architect to confirm, not to rubber-stamp
+## The resolved shape — ✅ all five Q27 questions ruled by the user, 2026-08-10
 
-Mirrors the [Q26 constraint 3](Architect_Question_26_Entity_Action_Model.md#-constraints-added-by-the-user-2026-08-10--these-bound-every-answer-below) ruling —
-*"a tool descriptor is shared; its activation is host-bound"* — i.e. the same descriptor/binding split
-that [UXI-03](UX_Feature_Entity_Action_Vocabulary.md) uses for actions.
+### ⭐ `gizmo ≠ tool` — and the distinction is **already encoded**, just not enforced
+
+> **User:** *"Many tools are modal per subsystem, i.e. up to one currently active tool requiring focus —
+> like rotate entity. But a tool can be modeless, i.e. permanent until turned off — for example one that
+> renders an info box for a given entity with its own buttons. Note a gizmo is not equal to a tool: some
+> gizmos are stateless, showing status per entity (health bar); many such can be active per entity."*
+
+| Category | Existing encoding | Live examples | How many active |
+|---|---|---|---|
+| **Not a tool** — status draw | `IStatelessGizmo { void Draw(); }` | `RouteGizmo`, `RubberBandGizmo`, health bars | many, per entity |
+| **Modeless tool** | `IEntityStatefulGizmo`, `RequiresExclusiveFocus => false` | `LayerControlGizmo`, `EntityDragGizmo` | several, concurrently |
+| **Modal tool** | `IEntityStatefulGizmo`, `RequiresExclusiveFocus => true` | `EntityRotatorGizmo`, `EntityPickerGizmo`, `PointSequenceGizmo`, `MeasureGizmo` | 🔒 **at most one per subsystem** |
+
+`RequiresExclusiveFocus` is declared on `IGizmoInteractionHandler:19`. ⇒ **The taxonomy exists; the
+enforcement does not** — each engine consults the flag only within itself, which is the 🔴 defect above.
+
+### The descriptor — registration-time flags, per the ruling
+
+> **User:** *"Tool handling should be defined by registration-time flags. No less flexibility than now."*
+> And: *"Tools do not necessarily need to be shown on the toolbar — this must be optional."*
 
 ```csharp
-// Shared, inert
-public sealed record ToolDescriptor(string Id, string Label, ToolScope Scope);
-public enum ToolScope { Modal, EntityBound }   // Measure/Spawn vs Edit/Route/Rotate
+public enum ToolModality { Modal, Modeless }
 
-// Per subsystem — one arbiter, owning "current"
+public sealed record ToolDescriptor(
+    string       Id,                        // its own vocabulary — NOT a GlobalActionId
+    string       Label,
+    ToolModality Modality,
+    bool         ShowOnToolbar   = false,   // 🔒 optional by default (user ruling)
+    bool         SurvivesActions = false);  // 🔷 default open — see below
+```
+
+### The controller — one per subsystem (B1)
+
+```csharp
 public interface IToolController
 {
-    ToolDescriptor? Current { get; }
-    void Activate(string toolId, Entity? target = null);   // re-activating Current cancels it
-    void Cancel();                                          // Escape routes here
-    event Action<ToolDescriptor?> CurrentChanged;
+    ToolDescriptor?                     ActiveModal    { get; }   // at most one
+    IReadOnlyCollection<ToolDescriptor> ActiveModeless { get; }   // several
+    void Activate(string toolId, Entity? target = null);          // target is an argument, not a taxonomy
+    void Cancel();                                                // Escape → cancels ActiveModal
+    event Action<ToolDescriptor?> ActiveModalChanged;             // toolbar/status bind here
 }
 ```
 
-**What it buys, mapped to the evidence:**
+**Rules, each traceable to a ruling:**
 
-| Defect | Closed by |
+| Rule | Source |
 |---|---|
-| 🔴 two arbiters, one bus | the controller is the **single** owner of exclusivity; both gizmo systems become implementations it drives |
-| two tools alive on two entities | `Current` is singular by construction |
-| toolbar cannot show state | `Current` + `CurrentChanged` ⇒ [UXR-84](UX_Requirements.md#uxr-84) falls out |
-| 6 idioms, 2 pipelines | one entry point; the context-menu action handler calls `Activate` instead of duplicating |
-| inconsistent repeat-click | one rule, stated once |
-| 8 Escape handlers | `Cancel()` — gizmos keep their own cleanup, the *policy* moves up |
-| dead `Select` | `Select` becomes the **null tool** — a real state, not a no-op case |
+| Activating a modal tool cancels the current modal tool | C — *"up to one currently active tool requiring focus"* |
+| Re-activating the current modal tool cancels it (toggle) | resolves today's `Edit`/`Route` vs `Measure`/`Rotate` inconsistency |
+| Modeless tools coexist and toggle independently | C — *"permanent until turned off"* |
+| Stateless gizmos are untouched | C — *"a gizmo is not equal to a tool"* |
+| **An action activates a tool; a tool is not an action** | D — two vocabularies, one relationship |
+| A fired action cancels the active modal tool **unless** `SurvivesActions` | D — *"some tools might survive another action being fired mid-execution"* |
+| Escape is centralised **for modal tools**; gizmos keep their own cleanup | E — *"centralize for modal tools, keep local where necessary"* |
+| 🔒 An **unfocused** subsystem's modal tool stays armed but consumes no input | B — *"perspective switch often means focus switch to another subsystem"* |
 
-## 🔒 What this design does **not** decide — see [Q27](Architect_Question_27_Tool_Model.md)
+### 🔷 The one sub-decision left
 
-Five questions are genuinely open and materially change the shape. Listing them here so the design is not
-mistaken for settled:
+`SurvivesActions` needs a default. Today nothing cancels anything, so *survive* preserves current
+behaviour while *cancel* is the safer UX. **Lean: default `false`** — an action cancels the active modal
+tool, with per-tool opt-out preserving *"no less flexibility than now"*.
 
-| | |
-|---|---|
-| **A** | Where the single arbiter lives — a new controller **above** both gizmo systems, or fold `GlobalGizmoManager` into `DataDrivenGizmoSystem` |
-| **B** | Is `Current` per-subsystem or per-perspective? (co-running subsystems each have their own map) |
-| **C** | Are `Modal` and `EntityBound` one concept or two? |
-| **D** | Does `EditorTool` (Editor-only enum) survive, or become shared string ids like `GlobalActionIds`? |
-| **E** | Do the 8 self-handled Escapes centralise, or does `Cancel()` merely delegate to them? |
+### A1 without A3 — the condition
+
+> **User:** *"A1 if doable without the A3 intermezzo, but no problem with A3 first if it helps."*
+
+**A1 alone fixes the 🔴 defect *iff* every modal activation routes through the controller.** The bypass
+routes are `EditorMapPickAdapter`, `EditorZoneAdapter` and `EditorSpawnAdapter`, which call
+`GlobalGizmoManager.Register` directly — and their gizmos are `RequiresExclusiveFocus => true`, i.e.
+genuinely modal. ⇒ **Convert those in the same change and A3 is unnecessary. If they cannot be, do A3
+first**, because until then a bypassing picker can still fight the controller for the same drag.
+
+### What the toolbar becomes
+
+`ActiveModal` + `ActiveModalChanged` make [UXR-84](UX_Requirements.md#uxr-84) fall out — but only for
+tools that opted in via `ShowOnToolbar`. ⇒ **`Select` becomes the null modal tool** (a real state, not a
+dead case), and `Measure`/`Rotate` may stay button-less by choice rather than by omission.
 
 ## Sequencing
 
