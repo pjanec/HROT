@@ -222,6 +222,13 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
                 return ApplyCollapse(
                     collapseFn.Nodes, collapseFn.FunctionName, CollapseTarget.Function);
 
+            // BP-76: without this, ExpandNode reached the default: arm and reported success while
+            // doing nothing — the third member of that family after the clipboard commands and
+            // collapse. ⛔ Worse here than there: the shared menu item paired that no-op forward with
+            // an "exact inverse" that removed two predicted ids, so undo could delete real nodes.
+            case GraphCommand.ExpandNode expand:
+                return ApplyExpand(expand);
+
             case GraphCommand.CollapseToMacro collapseMacro:
                 return ApplyCollapse(
                     collapseMacro.Nodes, collapseMacro.MacroName, CollapseTarget.Macro);
@@ -1120,6 +1127,39 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         var prep = BlueprintCollapse.Prepare(_asset, _graph, selection, target, name);
         if (prep.IsRefused)
             return new GraphCommandResult(false, prep.RefusalMessage);
+
+        prep.Forward!();
+        _markDirty(_asset);
+        _model.RebuildAndNotify();
+        return new GraphCommandResult(true, null);
+    }
+
+    // ── Expand (BP-76) ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// BP-76 — inlines a macro call's body at the call site.
+    ///
+    /// <para>
+    /// ⚠ <b>A refusal is a FAILED result carrying the reason</b>, exactly as for collapse. Anything
+    /// that is not an expandable macro call — a function call, an unresolvable target, a plain node —
+    /// says so rather than reporting a success that changed nothing.
+    /// </para>
+    ///
+    /// <para>
+    /// Applies only; the <c>UndoStack</c> is the recorder. The canvas path goes through
+    /// <c>editor.expand-node</c>, which issues a <see cref="BlueprintEditCommand"/> pair built by the
+    /// same <see cref="BlueprintExpand.Prepare"/>, so the whole gesture is one entry.
+    /// </para>
+    /// </summary>
+    private GraphCommandResult ApplyExpand(GraphCommand.ExpandNode expand)
+    {
+        var node = _graph.Nodes.FirstOrDefault(n => n.Id == expand.Node.Value);
+        if (node is null)
+            return new GraphCommandResult(false, "No such node in this graph.");
+
+        var prep = BlueprintExpand.Prepare(_asset, _graph, node);
+        if (prep.IsRefused)
+            return new GraphCommandResult(false, prep.Refusal?.Message);
 
         prep.Forward!();
         _markDirty(_asset);

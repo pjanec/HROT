@@ -878,4 +878,67 @@ public sealed class LatentMacroPayoffTests
         // ⭐ The rename moved a pin on the entry node AND on the call site; the wire came with it.
         Assert.Equal(99, ReadAmmo(renamed, entity2));
     }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // BP-76 — the editor's Expand Node, executed
+    // ────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐ <b>Expand from the editor, then run — and the expanded graph must behave exactly as the
+    /// un-expanded one did.</b> That equivalence is the entire promise of the gesture: a designer
+    /// inlines a macro to edit its body in place, and nothing about the behaviour may shift.
+    ///
+    /// <para>
+    /// ⚠ The macro is <b>latent</b> deliberately. A `Delay` is the hardest thing for a splice to
+    /// preserve — the suspend/resume cursor has to survive being spliced into a different graph — and
+    /// it is exactly what Q26-F says macros exist for. Status alone would not catch a dropped
+    /// post-delay half, so the <c>Ammo</c> value carries it.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ Both halves go through <b>real Roslyn</b>. <c>CompileResult.Succeeded</c> never invokes it,
+    /// and an expansion that produced uncompilable C# would otherwise pass silently.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void ExpandingALatentMacroFromTheEditor_RunsIdenticallyToTheUnexpandedGraph()
+    {
+        var macro = MakeAimDelayFireMacro("AimDelayFire", ammoValue: 42, out _);
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = NewPin("Out", "Out", isExec: true); entry.Pins.Add(entryOut);
+        var call     = MakeCall(macro, out var callIn, out var callOut);
+        var ret      = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn    = NewPin("In", "In", isExec: true); ret.Pins.Add(retIn);
+
+        var tick = new Graph
+        {
+            Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function,
+            Nodes = { entry, call, ret },
+            Links = { Wire(entry, entryOut, call, callIn), Wire(call, callOut, ret, retIn) },
+        };
+
+        var asset = MakeAiPrimitiveAsset("ExpandedLatent", macro, tick);
+
+        // ⭐ The editor's gesture, not the compile-time pass.
+        var refusal = MacroExpander.TryExpand(asset, tick, call);
+        Assert.Null(refusal);
+        Assert.Empty(tick.Nodes.OfType<MacroCallNode>());          // really spliced
+        Assert.Contains(tick.Nodes, n => n is LatentDelayNode);    // …including the latent half
+
+        using var fixture = new BlueprintTestFixture(NoAlcCheck);
+        fixture.CompileAndLoad(asset);      // real Roslyn, on the EXPANDED asset
+
+        fixture.World.RegisterComponent<Hrot.AI.Behaviors.BpComponentDemo>();
+        var entity = fixture.CreateEntity();
+        fixture.World.AddComponent(entity, new Hrot.AI.Behaviors.BpComponentDemo { Ammo = 0 });
+
+        // Identical to TwoEntryMacro/CollapsedLatent's behaviour: suspend, then fire.
+        Assert.Equal(NodeStatus.Running, fixture.InvokeBTreeAction(asset, entity));
+        Assert.Equal(0, ReadAmmo(fixture, entity));
+
+        fixture.View.AdvanceTime(0.5f);
+        Assert.Equal(NodeStatus.Success, fixture.InvokeBTreeAction(asset, entity));
+        Assert.Equal(42, ReadAmmo(fixture, entity));   // ⭐ the spliced body really ran
+    }
 }

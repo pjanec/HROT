@@ -756,57 +756,29 @@ public sealed class CanvasRenderer
                 var targetNodes = isHoveredSelected ? selectedNodes : new List<NodeId> { target.Node };
                 var node = view.Model.FindNode(target.Node);
 
-                bool canNavigate = node != null &&
-                                   (node.Kind.Id == "Function.Call" ||
-                                    node.Kind.Id == "Macro.Call" ||
-                                    node.Kind.Id == "Event.CallCustom");
-
-                if (ImGui.MenuItem("Go to Definition", "F12", false, canNavigate))
-                {
-                    if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
-                    _editorCommands?.Invoke(CommandCatalog.GoToDefinition);
-                }
-
-                bool canExpand = node != null &&
-                                 (node.Kind.Id == "Function.Call" ||
-                                  node.Kind.Id == "Macro.Call" ||
-                                  node.Title == "ScaleBy");
-
-                if (ImGui.MenuItem("Expand Node", null, false, canExpand))
-                {
-                    if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
-
-                    var callNode = view.Model.FindNode(target.Node);
-                    if (callNode != null)
-                    {
-                        // 1. Snapshot the external links attached to the call node before destruction.
-                        var externalLinks = view.Model.Links
-                            .Where(l => view.Model.FindPin(l.FromPin)?.OwnerNodeId == target.Node ||
-                                        view.Model.FindPin(l.ToPin)?.OwnerNodeId == target.Node)
-                            .ToList();
-
-                        var invs = new List<Core.Commands.GraphCommand>();
-
-                        // 2. Predict IDs of internal nodes the backend will spawn.
-                        var n1Id = IdGenerator.DeterministicNodeId(target.Node.Value.ToString() + "_exp1");
-                        var n2Id = IdGenerator.DeterministicNodeId(target.Node.Value.ToString() + "_exp2");
-                        invs.Add(new Core.Commands.GraphCommand.RemoveNodes(new[] { n1Id, n2Id }));
-
-                        // 3. Restore the original call node with precise pin IDs.
-                        var props = new Dictionary<string, object?> { ["PinIds"] = callNode.Pins.Select(p => p.Id).ToList() };
-                        invs.Add(new Core.Commands.GraphCommand.AddNode(callNode.Id, callNode.Kind, callNode.Position, props));
-
-                        // 4. Restore external wires.
-                        foreach (var l in externalLinks)
-                        {
-                            invs.Add(new Core.Commands.GraphCommand.AddLink(l.Id, l.FromPin, l.ToPin));
-                        }
-
-                        // 5. Dispatch command with exact inverse.
-                        var fwd = new Core.Commands.GraphCommand.ExpandNode(target.Node);
-                        view.Execute(fwd, new Core.Commands.GraphCommand.Batch("Undo Expand", invs), "Expand Node");
-                    }
-                }
+                // ⭐⭐ BP-76 — both items go through the host command seam, gated ONLY on "a node is
+                // selected". What was here instead:
+                //
+                //   bool canNavigate = node.Kind.Id == "Function.Call" || "Macro.Call" || "Event.CallCustom";
+                //   bool canExpand   = … || node.Title == "ScaleBy";
+                //
+                // Blueprint kind ids are "FunctionCall"/"CallCustomEvent", so nothing ever matched and
+                // both items rendered permanently greyed for the one host that has these concepts —
+                // and `Title == "ScaleBy"` matched a DEMO node by its display title. Shared UI cannot
+                // know one host's vocabulary; Q26-B2 says offer the item and let the host refuse on
+                // invoke, naming what it refused. Collapse proved that out in Batch 34.
+                //
+                // ⛔⛔ The Expand item additionally built its own "exact inverse" here, predicting the
+                // ids the backend would mint as `{node}_exp1`/`{node}_exp2` — a scheme that exists
+                // ONLY in NodeEditor.Demo's FakeCommandSink. For any real backend, expansion produces
+                // N nodes with entirely different ids, so undo removed two nodes that never existed
+                // and left the spliced body in place. The forward, meanwhile, reached the blueprint
+                // sink's `default:` arm and reported success while doing nothing. ⭐ The undo belongs
+                // to whoever performs the expansion, because only it knows what it created.
+                DrawHostCommandItem(CommandCatalog.GoToDefinition, "Go to Definition", "F12",
+                                    view, target.Node, isHoveredSelected);
+                DrawHostCommandItem(CommandCatalog.ExpandNode, "Expand Node", null,
+                                    view, target.Node, isHoveredSelected);
 
                 ImGui.Separator();
 
@@ -1112,6 +1084,24 @@ public sealed class CanvasRenderer
     /// </summary>
     private bool IsCommandEnabled(string commandId)
         => _editorCommands?.Get(commandId)?.IsEnabled() == true;
+
+    /// <summary>
+    /// BP-76 — draws a node-scoped item that a HOST command implements, selecting the node first so
+    /// the handler sees it. Hidden entirely when no host registered a handler, so a host without the
+    /// concept shows no dead item; enabled purely on the host's own predicate, which for these two is
+    /// "exactly one node selected" — no vocabulary from any host appears here.
+    /// </summary>
+    private void DrawHostCommandItem(
+        string commandId, string label, string? shortcut,
+        GraphView view, NodeId node, bool isHoveredSelected)
+    {
+        if (_editorCommands?.Get(commandId) is null) return;
+
+        if (!ImGui.MenuItem(label, shortcut, false, IsCommandEnabled(commandId))) return;
+
+        if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(node));
+        _editorCommands.Invoke(commandId);
+    }
 
     /// <summary>
     /// BP-74 — draws one refactor menu item, or nothing at all when the host has not registered a

@@ -361,6 +361,12 @@ public static class BlueprintDocumentFactory
         RegisterCollapseCommands(
             commands, view, bpAsset, () => switcher.CurrentGraph, indicators, () => bpFile.MarkDirty());
 
+        // BP-76: expand + go-to-definition. Both ids were declared with no handler, and the Expand
+        // item was gated in shared UI on kind ids no blueprint node carries.
+        RegisterExpandCommands(
+            commands, view, bpAsset, () => switcher.CurrentGraph,
+            goToGraph: id => switcher.SwitchTo(id), indicators, () => bpFile.MarkDirty());
+
         // Store the BlueprintAsset in AssetRef so the composition root can retarget
         // My Blueprint / Details / Variables windows without a kind-specific dependency.
         return new AiCanvasContext(view, AssetKind.Blueprint.ToString())
@@ -992,6 +998,115 @@ public static class BlueprintDocumentFactory
 
     private static IReadOnlyCollection<Guid> SelectedNodeIds(GraphView view)
         => view.Selection.Nodes.Select(n => n.Value).ToList();
+
+    // ── Expand Node + Go to Definition (BP-76) ────────────────────────────────
+
+    /// <summary>
+    /// BP-76 — registers <c>editor.expand-node</c> and <c>editor.go-to-definition</c>. Both ids were
+    /// declared in <c>CommandCatalog</c> with no handler; the Expand item was additionally gated in
+    /// shared UI on kind ids no blueprint node carries, which is what kept a <b>corrupting</b> path
+    /// unreachable rather than merely inert (see <see cref="BlueprintExpand"/>).
+    ///
+    /// <para>
+    /// ⭐⭐ <c>isEnabled</c> is <b>"is exactly one node selected"</b>, and nothing else — Q26-B2, the
+    /// rule Batch 34 proved out on collapse. Whether that node is an expandable macro call is decided
+    /// on invoke and reported by name. Putting it in the predicate would drag blueprint vocabulary
+    /// back into <c>NodeEditor.UI</c>, which is the whole defect being removed here.
+    /// </para>
+    /// </summary>
+    /// <param name="goToGraph">
+    /// ⭐ Go to Definition delegates to the already-registered <c>editor.go-to-graph</c> rather than
+    /// re-resolving anything: that handler owns every id form the panel and the canvas use, and a
+    /// second navigation path would be a second thing to keep in step.
+    /// </param>
+    internal static void RegisterExpandCommands(
+        EditorCommandsImpl  commands,
+        GraphView           view,
+        BlueprintAsset      asset,
+        Func<Graph>         currentGraph,
+        Action<Guid>        goToGraph,
+        IEditorIndicators?  indicators = null,
+        Action?             markDirty  = null)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(asset);
+        ArgumentNullException.ThrowIfNull(currentGraph);
+        ArgumentNullException.ThrowIfNull(goToGraph);
+
+        var reg = new CommandRegistration(commands);
+
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.ExpandNode, "Expand Node", "Refactor",
+            _ =>
+            {
+                var graph = currentGraph();
+                var id    = SelectedNodeIds(view).FirstOrDefault();
+                var node  = graph.Nodes.FirstOrDefault(n => n.Id == id);
+                if (node is null) return;
+                BlueprintExpand.Run(view, asset, graph, node, markDirty, indicators);
+            },
+            isEnabled: () => view.Selection.Nodes.Count() == 1,
+            description: "Replaces a macro call with a copy of the macro's body.");
+
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.GoToDefinition, "Go to Definition", "Navigate",
+            _ =>
+            {
+                var graph = currentGraph();
+                var id    = SelectedNodeIds(view).FirstOrDefault();
+                var node  = graph.Nodes.FirstOrDefault(n => n.Id == id);
+
+                var targetId = TargetGraphIdOf(node);
+                if (targetId is null)
+                {
+                    indicators?.Notify(new EditorNotification(
+                        Id:          "goto-definition.no-target",
+                        Severity:    NotificationSeverity.Warning,
+                        Title:       "No definition to go to",
+                        Body:        DescribeNoTarget(node),
+                        AutoDismiss: TimeSpan.FromSeconds(6),
+                        Actions:     null));
+                    return;
+                }
+
+                goToGraph(targetId.Value);
+            },
+            isEnabled: () => view.Selection.Nodes.Count() == 1,
+            description: "Opens the graph this call node targets.");
+    }
+
+    /// <summary>
+    /// BP-76 — the in-blueprint graph a call node points at, or null when it points outside the asset
+    /// or nowhere.
+    ///
+    /// <para>
+    /// ⚠ <b><c>CallCustomEventNode</c> deliberately returns null here.</b> It resolves by <i>name</i>
+    /// to an Event graph, not by <c>TargetGraphId</c> — and My Blueprint already navigates to a custom
+    /// event's body by double-clicking it, through <c>editor.go-to-graph</c>'s <c>evt:</c> arm. Making
+    /// this command re-derive that pairing would be a second copy of a rule the compiler also holds
+    /// (<c>Event_{Name}</c>), so it refuses and says where to go instead.
+    /// </para>
+    /// </summary>
+    private static Guid? TargetGraphIdOf(Node? node)
+    {
+        var raw = node switch
+        {
+            MacroCallNode m    => m.TargetGraphId,
+            FunctionCallNode f => f.TargetGraphId,
+            _                  => null,
+        };
+        return Guid.TryParse(raw, out var id) && id != Guid.Empty ? id : null;
+    }
+
+    private static string DescribeNoTarget(Node? node) => node switch
+    {
+        null                  => "Select a call node first.",
+        CallCustomEventNode   => "A custom event is opened from the My Blueprint panel — double-click "
+                                 + "it under Custom Events. It resolves by name, not by a graph id.",
+        FunctionCallNode      => "This node calls a library method, not a graph in this blueprint.",
+        _                     => "This node has no definition inside this blueprint.",
+    };
 
     // ── Collapse selection: to Macro / to Function (BP-74) ────────────────────
 
