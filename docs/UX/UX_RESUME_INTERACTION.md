@@ -15,7 +15,7 @@ Designed **7 of 27** issues, then consolidated three of them into one API and on
 | [UX_Seam_Inventory.md](UX_Seam_Inventory.md) | prior-art table + `scripts/seam_inventory.py`, `scripts/type_index.py` |
 | [UX_Tasks_Detail.md](UX_Tasks_Detail.md#corrections) | **21 corrections** — read before trusting any claim |
 
-**Designed:** UXI-01, 02, 03, 04, 05, 06, 07. **Refuted:** UXI-26. **Split out:** UXI-25 (ExCon ORBAT),
+**Designed:** UXI-01, 02, 03, 04, 05, 06, 07, **08**. **Refuted:** UXI-26. **Split out:** UXI-25 (ExCon ORBAT),
 UXI-27 (progress surface).
 
 ## 2. 🔒 Every user ruling, in force
@@ -89,7 +89,7 @@ review rule (UC-44c).
 
 1. ✅ **RESOLVED — host pump + playback goes immediately before `_kernel.Update()`** (`EditorSubsystem.cs:1618`). The kernel flush is *before* `Bus.SwapBuffers()` (`ModuleHostKernel.cs:523-534`), so ops land visible **in the same frame**. Precedent: `_aiCoordinator.DrainPendingCallbacks()` (`:1620-1624`) is the same pattern already in production. ⚠ *Unpinned:* where ImGui panel drawing sits relative to `EditorSubsystem.Update()` — affects only which frame a synchronous handler commits in. See [API §6d](UX_Interaction_API.md#6d--where-the-hosts-playback-sits--resolved-2026-08-10)
 2. Cut `UXT` tasks from the designs (none cut yet).
-3. Remaining undesigned: UXI-08..24 (layout, camera, symbology, duplication, robustness).
+3. Remaining undesigned: UXI-09..24 (layout, camera, symbology, duplication, robustness).
 4. The golden-path walk still needs a **Windows** session.
 
 ## 7. ⚠ Process rules earned the hard way
