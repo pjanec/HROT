@@ -133,8 +133,12 @@ public sealed record ToolDescriptor(
 >
 > ```csharp
 > // EntityActionDescriptor — UXI-03. Additive.
-> bool StealsFocus = false;   // true ⇒ dispatching it cancels the active modal tool
+> bool CancelsModalTool = false;   // true ⇒ dispatching it clears the modal stack
 > ```
+>
+> ⚠ **Renamed from `StealsFocus` 2026-08-10** — *"`StealsFocus` is now a misleading name; the flag should
+> actually mean **cancel any running modal tool**"* (user). It never described focus acquisition; it
+> described a consequence.
 >
 > 🔒 **Cross-issue:** this adds one field to
 > [UXI-03](UX_Feature_Entity_Action_Vocabulary.md)'s descriptor. Recorded there too.
@@ -230,15 +234,58 @@ tool to stay armed but consume no input. That is *suspension* — of the whole s
 frame. 🔒 **One implementation serves both**, which is the strongest argument that suspend/resume belongs
 in the controller rather than in each gizmo.
 
-### 🔷 Open — and it may simplify a ruling you just made
+### ✅ Resolved — cancel is declarable, **suspend is not**
 
-With a stack, **focus transfer becomes observable**: the controller learns of it when a handler calls
-`Activate` or `PushModal`. A *recenter map* shortcut never calls either, so it disturbs nothing —
-**without needing `StealsFocus` at all.**
+> **User:** *"Maybe another flag to just suspend the tool? But when to resume the tool again? The action
+> handler would need to be async and resume on finish."*
 
-⇒ `StealsFocus` may be **redundant as a declaration**. It still has two possible uses: presenting the
-consequence in a menu, and letting the controller suspend *before* the handler runs. ⚠ **Flagging rather
-than changing it** — it was ruled in one turn ago, and the redundancy is an inference, not a measurement.
+**That question answers itself, and the asymmetry is the design:**
+
+| | Expressible as a flag? | Why |
+|---|:--:|---|
+| **Cancel** | ✅ yes | a **point event**. Dispatch happens, the stack clears, nothing is owed afterwards |
+| **Suspend** | ❌ **no** | it needs a matching **resume**, and only the handler knows when its work is done. A flag has no end |
+
+🔒 **So there is no suspend flag.** Suspension is **scoped, not declared** — the handler takes it and
+gives it back:
+
+```csharp
+// declarative: the descriptor says so, the handler need not touch the controller
+new EntityActionDescriptor(..., CancelsModalTool: true)
+
+// scoped: no flag; the handler owns the suspension for exactly as long as it needs it
+async Task Execute(EntityActionContext ctx) {
+    using var _ = ctx.Tools.PushModal(ToolIds.LocationPicker);
+    var pt = await ctx.Pick.PickLocationAsync(ctx.Cancellation);
+    ...
+}   // dispose → pop → the suspended tool resumes
+```
+
+⇒ **`await` *is* the resume point.** The user's own objection — *"the handler would need to be async"* —
+is the mechanism, not an obstacle.
+
+> ### ⭐ And this settles the "is the flag redundant?" question I raised last turn — **it is not**
+>
+> I suggested `StealsFocus` might be redundant because focus transfer is observable when a handler calls
+> `PushModal`. **Wrong for the cancel case:** *Delete entity* fired while a route editor runs must cancel
+> that editor, yet its handler **never touches the controller** — it just deletes. Only a declaration can
+> express that. ⇒ the two mechanisms are **complementary, not alternatives**:
+>
+> | | Handler touches the controller? |
+> |---|---|
+> | `CancelsModalTool` | **no** — the action invalidates the interaction from outside |
+> | `PushModal` scope | **yes** — the handler takes over the interaction and returns it |
+
+⚠ **`CancelsModalTool` clears the *whole* modal stack**, not just the top. A flag cannot express "cancel
+two levels", and the honest reading is that the action asserts the whole interaction context is stale —
+resuming a route editor beneath a popped picker, on an entity the action just deleted, would be worse.
+
+### ⭐ A second, independent reason `execute` must return `Task`
+
+[Q26-B](Architect_Question_26_Entity_Action_Model.md) already wanted it so the host can observe failure,
+closing [UXI-17](UX_Issues.md#uxi-17)'s two `async void` handlers. **The stack adds a second reason:
+without `await`, there is no resume point.** Two unrelated arguments converging on one signature is the
+strongest case in this design.
 
 ### ⚠ Two sub-questions the stack raises
 

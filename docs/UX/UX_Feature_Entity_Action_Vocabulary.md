@@ -92,20 +92,25 @@ public sealed record EntityActionDescriptor(
     string                Label,
     EntityActionGroup     Group,
     EntityActionExecution Execution   = EntityActionExecution.PerEntity,
-    bool                  StealsFocus = false);   // ⬅ added by UXI-07, 2026-08-10
+    bool                  CancelsModalTool = false); // ⬅ added by UXI-07, 2026-08-10
 ```
 
-> ### ⬅ `StealsFocus` — added by [UXI-07](UX_Feature_Tool_Model.md), 2026-08-10
+> ### ⬅ `CancelsModalTool` — added by [UXI-07](UX_Feature_Tool_Model.md), 2026-08-10
 >
-> **User ruling:** cancelling a modal tool is *"driven by **focus changes only**. Actions might need
-> flagging if they steal focus."*
->
-> ⇒ dispatching an action with `StealsFocus = true` cancels the subsystem's active modal tool; a
+> Dispatching an action with `CancelsModalTool = true` **clears the subsystem's modal tool stack**; a
 > `false` action (e.g. a *recenter map* shortcut fired mid-drag) **leaves the tool armed**. The flag
-> belongs to the action because the action is what *causes* the effect — an earlier draft put the
-> inverse flag on the tool ([Corrections 20](UX_Tasks_Detail.md#corrections)).
+> belongs to the action because the action *causes* the effect — an earlier draft put the inverse flag on
+> the tool ([Corrections 20](UX_Tasks_Detail.md#corrections)).
 >
-> ⚠ **Default `false`** — which is also today's behaviour, so it is additive and non-breaking.
+> ⚠ **Renamed from `StealsFocus`** the same day — it named a mechanism, not the consequence, and the
+> consequence is what a registration needs to declare.
+>
+> 🔒 **There is no `SuspendsModalTool` counterpart, and cannot be.** Suspension needs a matching resume
+> point that only the handler knows, so it is **scoped, not declared** — the handler calls
+> `ctx.Tools.PushModal(...)` and disposes it. See
+> [UXI-07](UX_Feature_Tool_Model.md#-resolved--cancel-is-declarable-suspend-is-not).
+>
+> ⚠ **Default `false`** — also today's behaviour, so it is additive and non-breaking.
 
 **`Group` is evidence, not taste.** The sequence *view → edit → destructive, separator before Delete* is
 already written identically in `SharedContextMenuPopulator:37-51` **and** `EditorSubsystem.cs:1427-1450`
