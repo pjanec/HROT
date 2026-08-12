@@ -1,5 +1,10 @@
 # RESUME / HANDOFF — Scenario-Authoring UX programme
 
+> 🔴 **2026-08-10 — the interaction-design thread has its own resume doc:**
+> **[UX_RESUME_INTERACTION.md](UX_RESUME_INTERACTION.md)** — 17 user rulings, the API contract, 57
+> acceptance cases, verified engine facts and 6 verified defects. **Read that first** if you are picking
+> up tools / actions / menus / perspectives.
+
 > **rev 10 · 2026-08-10 · branch `claude/ux-session-resume-i2le7f`**
 >
 > ⚠ **The branch changed.** This session was started on `claude/ux-session-resume-i2le7f`, which was

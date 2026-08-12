@@ -58,9 +58,11 @@ if a case below is V-only, that is a signal the API is missing a seam, not that 
 | **UC-22** | `Restart` cancels the previous | action declared `Restart`, running → dispatch again → first `Cancelled`, second `Running` | H |
 | **UC-23** | `Queue` serialises | action declared `Queue`, running → dispatch ×2 → they run in order, never overlapping | H |
 | **UC-24** | `Concurrent` allows overlap | default action → dispatch ×2 → two activities `Running` | H |
-| **UC-25** | `Exclusive` blocks others, **and is visible** | `Exclusive` action running → dispatch any other → rejected **with a reason**, and the status bar shows the blocker + a cancel | H |
+| **UC-25** | `Exclusive` blocks others, **and is visible** | `Exclusive` action running → other items **grey out in advance** with the blocker's label as the reason; a **modal dialog with a progress bar + cancel** is shown. *Never a silent rejection on click* | H |
 | **UC-26** | 🛡 **A faulting handler surfaces** | handler throws → `activity.Completion` is `Faulted`, exception observable, app alive. *Guards the two `async void` handlers (`:1462`, `:1479`)* | H |
-| **UC-27** | Cancellation is observable | long action → `Cancel()` → `Completion` reports cancelled; no partial commit | I |
+| **UC-27** | Cancellation is observable | long action → `Cancel()` → `Completion` reports cancelled | I |
+| **UC-27b** | 🔒 **Cancellation is atomic — the buffer is dropped** | handler records 3 ops → cancelled before completing → **the ECB is never played back**; the world shows **none** of the 3. *Only a per-action buffer can do this — you cannot un-record a shared one* | I |
+| **UC-27c** | A faulted handler's buffer is dropped too | handler records, then throws → buffer discarded, `Completion` `Faulted`, world unchanged | I |
 
 ## 5. Cross-surface consistency
 
@@ -91,14 +93,18 @@ if a case below is V-only, that is a signal the API is missing a seam, not that 
 |---|---|---|:--:|
 | **UC-41** | 🔒 **A handler cannot reach the live world** | `EntityActionContext` exposes `ISimulationView` + `IEntityCommandBuffer` + `FdpEventBus` only → **compile-time**: no member returns `EntityRepository` | H |
 | **UC-42** | 🔒 A handler cannot write components | `ISimulationView` has **no** `GetComponentRW` → compile-time | H |
-| **UC-43** | Background recording is flushed on the tick | continuation on a **non-main thread** records into `ctx.Commands` → after one `Kernel.Update()`, the ops are applied. *Verified path: `EntityRepository.View.cs:13,33-35` → `ModuleHostKernel.cs:519-532`* | I |
-| **UC-44** | Deferred events arrive | handler records `PublishUnmanagedEvent(SeedTargetCommand)` → readable by systems after the next swap | I |
+| **UC-43** | 🔒 **The handler never leaves the tick thread** | capture `Thread.CurrentThread.ManagedThreadId` before an `await` and after it → **identical**, and equal to the tick thread. *This is what makes the per-action ECB legal* | I |
+| **UC-44** | Deferred ops apply after playback | handler records `PublishEvent(SeedTargetCommand)` + a structural op → after the host plays the buffer back, both are visible | I |
+| **UC-44b** | 🔒 The handler holds a **real** `IEntityCommandBuffer` | `ctx.Commands` is the engine type, full API — **no forwarding wrapper**. *The user's elegance objection, asserted* | H |
+| **UC-44c** | ⚠ **`ConfigureAwait(false)` breaks the guarantee** | a handler awaiting with `ConfigureAwait(false)` resumes off-context → **the analyzer/review rule must reject it**. Assert the rule exists, since the failure is otherwise silent | H |
 | **UC-45** | Architecture test: no UI handler touches `EntityRepository` | scan registered action/tool handlers → none references `EntityRepository`. *Keeps UC-41 true as code is added* | H |
 
 ## 8. Long-running work
 
 | # | Case | Given → When → Then | Cls |
 |---|---|---|:--:|
+| **UC-45b** | 🔒 Registration **throws** without a visible surface | register a long-running action with `Visibility: Never`, or `Exclusive` with no progress surface → **`InvalidOperationException` at composition**. *Same stance as `GlobalActionRegistry.Register` on duplicate ids* | H |
+| **UC-45c** | 🔒 Surface is chosen by exclusivity, not by the handler | `Exclusive` → **modal dialog + progress bar**; `None` → **status-bar progress + cancel icon**. The handler never picks | H |
 | **UC-46** | Progress is reported and surfaced | long action reports 0.0→1.0 → status bar shows label + fraction; `Auto` visibility appears only if it outlives a frame | H |
 | **UC-47** | Indeterminate work still shows | action reports `Fraction: null` with a message → status bar shows the message, no bar | H |
 | **UC-48** | Cancel from the status bar | long action running → click cancel → `Cancellation` fires, `Completion` cancelled, activity leaves the list | H |
@@ -133,7 +139,10 @@ Every element of the API mapped to at least one case. **A design element with no
 | `ActionConcurrency` ×4 | UC-21, 22, 23, 24 |
 | `ActionExclusivity` | UC-25 |
 | `IActivity.Completion` (faults) | UC-26, 27 |
-| `ActivityProgress` | UC-46, 47 |
+| `ActivityProgress` / `IProgressSink` | UC-46, 47, 45c |
+| Per-action ECB + atomic drop | UC-27b, 27c, 44, 44b |
+| Single-thread guarantee | UC-43, 44c |
+| Registration-time throws | UC-45b |
 | `ActivityVisibility.Auto` | UC-46 |
 | `Activities` list | UC-49, 50 |
 | `EntityActionExecution` ×2 | UC-32, 33 |
@@ -146,7 +155,7 @@ Every element of the API mapped to at least one case. **A design element with no
 | Context exposes only the legal surface | UC-41, 42, 45 |
 | ECB record → tick playback | UC-43, 44 |
 
-**Counts:** 50 cases — **41 H · 9 I · 0 V.**
+**Counts:** **57 cases** — **46 H · 11 I · 0 V.**
 
 > ⭐ **Zero V is the headline.** Every rule in this design is assertable without the Windows editor, which
 > matters because this programme cannot run it. ⚠ *Visual confirmation is still required for the
@@ -162,3 +171,4 @@ Every element of the API mapped to at least one case. **A design element with no
 | **UC-26** | `async void` swallows handler faults | `:1462`, `:1479` ([UXI-17](UX_Issues.md#uxi-17)) |
 | **UC-40** | `--mode all` first run hides 22 windows | [UXI-06](UX_Feature_Perspective_Restore.md) |
 | **UC-03** | inconsistent repeat-click (`Edit`/`Route` toggle, `Measure`/`Rotate` do not) | `:3823-3893` |
+| **UC-43** | handler resuming off-tick and reading the live repository | `:1463-1471` |
