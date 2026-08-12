@@ -13,6 +13,8 @@
 > ⏭ **In flight: Batch 37 — function-local variables (`BP-57`), compiler half.**
 > [Q27](Architect_Question_27_Local_Variables.md) is **settled**; the authoring UI is **Batch 38**.
 > ⭐ `BP1664` finally becomes buildable, closing the last macro code.
+> ⚠ **[FINDING_Variable_Index_Space.md](FINDING_Variable_Index_Space.md) corrects Q27 and Batch 37 §6:**
+> the variable index space is an **unenforced invariant**, *not* a latent defect — input to Batch 38.
 > ⛔ **Q26-A supersedes Q25-D3:** a macro now has **N exec-ins**, not one.
 >
 > 📌 Supersedes [RESUME_Coordinator.md](RESUME_Coordinator.md), which is now the **historical log**

@@ -24,6 +24,14 @@ local is *per-invocation*. **They are different storage classes, not different s
 
 ### 🔴 A latent defect you will land on top of — `BP-224`'s shape again
 
+> ⚠⚠ **CORRECTED 2026-08-11 — see [FINDING_Variable_Index_Space.md](FINDING_Variable_Index_Space.md).**
+> The mechanism below is real, but *"latent defect, `BP-224`'s shape"* is **the wrong
+> characterization**. It cannot fire, for two **structural** reasons rather than coincidence:
+> `Variables` and `WorkingState` are the storage of **different dispatch kinds** and never coexist, and
+> the Get/SetVariable picker offers **only `Variables`**. ⇒ It is an **unenforced invariant**, not a
+> latent defect, and the fix is to make the invariant unexpressible rather than to rewrite the index
+> space. **Read the finding before acting on this section.**
+
 `Stage5.FindVariableIndex` (`:4498`) searches **three** lists and returns the index **within whichever
 list matched**:
 
