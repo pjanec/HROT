@@ -12,11 +12,12 @@ Designed **7 of 27** issues, then consolidated three of them into one API and on
 | 📐 **[UX_Interaction_API.md](UX_Interaction_API.md)** | ⭐ **the contract** — types, arbitration order, threading, ECB, progress |
 | ✅ **[UX_Interaction_UseCases.md](UX_Interaction_UseCases.md)** | **57 cases**, 46 headless / 11 integration / **0 visual-only** + coverage check |
 | [UX_Issues.md](UX_Issues.md) | the register — **29 issues** |
-| ✅ **[Architect_Question_28_Map_Layers.md](Architect_Question_28_Map_Layers.md)** | **UXI-28 decisions — ALL SETTLED** 2026-08-12. Ready to become a design |
+| ✅ **[Architect_Question_28_Map_Layers.md](Architect_Question_28_Map_Layers.md)** | **UXI-28 decisions — ALL SETTLED** 2026-08-12 |
+| ✅ **[UX_Feature_Map_Layers.md](UX_Feature_Map_Layers.md)** | **UXI-28 design** — 17 cases. 🔴 **Gated on a Windows check**: the layer panel round-trip is complete in source but reported non-working |
 | [UX_Seam_Inventory.md](UX_Seam_Inventory.md) | prior-art table + `scripts/seam_inventory.py`, `scripts/type_index.py` |
 | [UX_Tasks_Detail.md](UX_Tasks_Detail.md#corrections) | **26 corrections** — read before trusting any claim |
 
-**Designed:** UXI-01..08, **09**, **10** (+ **19**, verified and absorbed into 10). **Refuted:** UXI-26. **Split out:** UXI-25 (ExCon ORBAT),
+**Designed:** UXI-01..08, **09**, **10**, **28** (+ **19**, verified and absorbed into 10). **Refuted:** UXI-26. **Split out:** UXI-25 (ExCon ORBAT),
 UXI-27 (progress surface).
 
 ## 2. 🔒 Every user ruling, in force
@@ -108,9 +109,9 @@ review rule (UC-44c).
 ## 6. Next steps, in order
 
 1. ✅ **RESOLVED — host pump + playback goes immediately before `_kernel.Update()`** (`EditorSubsystem.cs:1618`). The kernel flush is *before* `Bus.SwapBuffers()` (`ModuleHostKernel.cs:523-534`), so ops land visible **in the same frame**. Precedent: `_aiCoordinator.DrainPendingCallbacks()` (`:1620-1624`) is the same pattern already in production. ⚠ *Unpinned:* where ImGui panel drawing sits relative to `EditorSubsystem.Update()` — affects only which frame a synchronous handler commits in. See [API §6d](UX_Interaction_API.md#6d--where-the-hosts-playback-sits--resolved-2026-08-10)
-2. ⏭ **Designing continues** — user, 2026-08-10: *"keep designing now rather than rewriting tasks later because we find new unexpected stuff"*. ✅ **UXI-09** → [Map Viewport](UX_Feature_Map_Viewport.md); ✅ **UXI-10 + UXI-19** → [Entity Symbology](UX_Feature_Entity_Symbology.md). ⏸ **UXI-28 open** — [decision doc](Architect_Question_28_Map_Layers.md) filed, awaiting rulings on partition-vs-tags, widening `DebugPrimitive`, and the two-axis split. **Next: UXI-11** (CGF/ExCon outside the selection mechanism — ⭐ UXI-10 already found its mechanism: CGF emits no pick box).
+2. ⏭ **Designing continues** — user, 2026-08-10: *"keep designing now rather than rewriting tasks later because we find new unexpected stuff"*. ✅ **UXI-09** → [Map Viewport](UX_Feature_Map_Viewport.md); ✅ **UXI-10 + UXI-19** → [Entity Symbology](UX_Feature_Entity_Symbology.md). ✅ **UXI-28 designed** → [Map Layers](UX_Feature_Map_Layers.md). **Next: UXI-11** (CGF/ExCon outside the selection mechanism — ⭐ UXI-10 already found its mechanism: CGF emits no pick box).
 3. Cut `UXT` tasks — **none cut yet**, deliberately deferred.
-4. Remaining undesigned: UXI-11..18, 20..25, 27, **28** (decisions open), **29**.
+4. Remaining undesigned: UXI-11..18, 20..25, 27, **29**.
 5. The golden-path walk still needs a **Windows** session. ✅ **The UXI-09 ImGui question is closed** — verified against the real package: managed `ImGui.NET.dll` exposes **no** `DockBuilder*`, but `cimgui.dll` (already loaded) exports `igDockBuilderGetCentralNode` **and `ImGuiDockNode_Rect`** ⇒ tier T2 needs two `DllImport`s and no struct-offset arithmetic.
 
 ## 7. ⚠ Process rules earned the hard way
