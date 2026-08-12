@@ -6,8 +6,9 @@
 > through real Roslyn, **ticked across frames**, and debuggable.
 > ⭐⭐ **`BP-74` is CLOSED — collapse a selection into a Function or Macro works end to end**: reachable
 > from the canvas, one undo entry that restores identity, refuses out loud, round-trip test-locked.
-> ⏭ **In flight: Batch 35** — hand-*authoring* a macro (exec-pin declarations, `BP-77`, the palette).
-> ⚠ **`BP-83` is DONE** (Batch 31) — it is not remaining work, despite reading like it.
+> ⭐⭐ **A macro can now be AUTHORED by hand** — created from "Macros +", exec entries/exits declared in
+> the signature window, dragged from the palette. **`BP-74`/`BP-75`/`BP-77`/`BP-80`/`BP-81`/`BP-83` all closed.**
+> ⏭ **Remaining, and it is small:** **`BP-76`** (*Expand Node*) · `BP-82`'s `BP1664` (moot until `BP-57`) + two library rails.
 > ⛔ **Q26-A supersedes Q25-D3:** a macro now has **N exec-ins**, not one.
 >
 > 📌 Supersedes [RESUME_Coordinator.md](RESUME_Coordinator.md), which is now the **historical log**
@@ -54,9 +55,9 @@ for b in $(git ls-remote --heads origin | awk '{print $2}' | sed 's|refs/heads/|
 
 | Situation | Do |
 |---|---|
-| **No batch in flight** | pick the next batch — see §4 |
+| **No batch in flight** (**today's state**) | pick the next batch — see §4 |
 | **Implementation reported done** | run **all eight gates** (§3), review the diff, reconcile the tracker three ways, **then** merge `--ff-only` and record it |
-| A batch **is** in flight (**today's state — Batch 35**) | ⛔ **rule 6: the tracker and detail docs are theirs.** Put findings in the *next* handoff, never in a live one |
+| A batch **is** in flight | ⛔ **rule 6: the tracker and detail docs are theirs.** Put findings in the *next* handoff, never in a live one |
 
 ⭐ **Never say "they never saw X."** It is a property of one commit, not the session. Test against what
 they *branched from*:
@@ -91,13 +92,13 @@ so the solution build never produces their assemblies and the runner exits with 
 …`NodeEditor.Core.Tests.dll` is invalid"* — ⭐ **no test output at all**, which reads as *"nothing to
 report"* rather than *"the gate did not run."* Trap #5, in the gate script itself.
 
-**Baseline at `53c407f1` — ⭐ all eight gates coordinator-RUN 2026-08-11, post-Batch-34:**
+**Baseline at `8b56367b` — ⭐ all eight gates coordinator-RUN 2026-08-11, post-Batch-35:**
 
 | | |
 |---|---|
 | Solution build | **0 errors**, 69 warnings |
 | BP diagnostics | **10 distinct** — all `BP3010`, all **authored** orphans in 2 assets |
-| Blueprints | **3192** / 0 failed / 10 skipped ⚠ *(total 3202; BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
+| Blueprints | **3217** / 0 failed / 10 skipped ⚠ *(total 3227; BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
 | AiShared **1213** · BTree **612** · Breakpoints **130** | 0 failed |
 | NodeEdit Core **208** · UI **131** · Generators **193** | 0 failed |
 
@@ -119,7 +120,7 @@ retired `BP3011`; the 10 that remain are authored and deliberate.)
 
 ## 4 · Where the programme stands
 
-**Tracker: open 60 · done 98** ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
+**Tracker: open 57 · done 103** ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
 three ways — checkbox tally, per-complexity columns (⚠ take the **first** tag on a row), and the total
 row. ⚠⚠ **Reconcile all three EVERY time.** The columns can agree with the Total and both still be
 wrong: a missed tick is invisible to arithmetic and only shows against the checkbox tally.
@@ -146,7 +147,7 @@ one fact**, so the script exists. Run `--check` as part of verifying any returne
 | **32** | ✅ **verified and merged** (`fbc100cd`, ff-only) — **Q26-A3 N exec-ins** landed clean; ⭐ **first batch where the tracker counts were right on arrival**. See §7d |
 | **33** | ✅ **verified and merged** (`a8deb89f`, ff-only) — ⭐ **collapse works headlessly and the round-trip property holds.** ⚠ **PARTIAL by design**: the sink, undo and menu are **not** done, so it is not reachable from the canvas. `BP-221`/`BP-222` opened. See §7e |
 | **34** | ✅ **verified and merged** (`53c407f1`, ff-only) — ⭐ **`BP-74` CLOSED: collapse is reachable, undoable, and refuses out loud.** `BP-221`/`BP-222` fixed; **`BP-223`** found and fixed. See §7f |
-| **35** | 📤 **written and dispatched** — [HANDOFF_Batch35_Macro_Authoring_UI.md](HANDOFF_Batch35_Macro_Authoring_UI.md). ⭐ **Author a macro by hand**: exec-pin declarations + **`BP-77`** + the palette (**`BP-75`** jointly). ⛔ Frozen (rule 1) |
+| **35** | ✅ **verified and merged** (`8b56367b`, ff-only) — ⭐ **`BP-75`/`BP-77`/`BP-80` all CLOSED.** A macro can now be authored by hand end to end. `BP-224`/`BP-225` filed. See §7g |
 | **36+** | ⛔ **the last of the macro programme**: **`BP-76`** (*Expand Node* — Unreal ships it, our `Stage2_5` machinery exists) · **`BP-82`**'s `BP1664` (moot until **`BP-57`**) + two library rails |
 
 ### The macro capability
@@ -279,6 +280,53 @@ The tracker's **`RW-L` done column was 43 and the Total 88; both were one short*
 **predates Batch 29** (present at `1af9bea`, and back at the 41/85 figures). Batch 29's own delta was
 exactly right. Corrected to **44 / 89** after merge. It reconciles three ways now; the note in the
 tracker records the method, including that the *refuted* row sits **outside** the Total.
+
+---
+
+## 7g · Batch 35 — ✅ VERIFIED AND MERGED at `8b56367b` — ⭐ **a macro can be authored by hand**
+
+`BP-75`, `BP-77` and `BP-80` all closed. Created from *"Macros +"*, exec entries and exits declared in
+the signature window, dragged from the palette. **Gates:** build **0 / 69** · BP diagnostics **10** ·
+Blueprints **3217** (+25) · rest unchanged · **zero failures** · counts clean on arrival (fourth batch).
+
+### ⚠⚠ The handoff's central premise was WRONG — and the correction is better than the fear
+
+I wrote that **reordering** an exec declaration silently re-targets wires, called it *"the one way this
+feature can corrupt a working graph"*, and said not to ship without a test proving otherwise.
+
+⭐ **They proved the opposite, and I verified it:** `DeterministicIds.PinId(nodeId, name, direction)` has
+**no index component** (§5). A wire follows the **name**; both the boundary node's pins and every call
+site's pins project from the **same list in the same order**, so index *k* names the same declaration on
+both sides and a permutation moves both together. **Reorder is safe.**
+
+⭐⭐ **And the genuinely corrupting edit was one nobody had named — including me:** **two declarations
+sharing a name project to the same pin id**, so the second silently collapses onto the first. That falls
+straight out of the same formula I have quoted in §5 all along. **Refused now on add and on rename.**
+
+The two edits that *do* destroy are **rename** and **delete** — `BP-202`'s shape one level up. A rename
+destroys one pin and creates another, dangling every incident link and breaking the solution build with
+`BP1602` **from a graph that looks fine on screen**; rename now repoints the wires, which is possible
+here because it hands over the old→new mapping outright where BP-202's Format edit could only prune.
+
+📌 ⭐ **The instruction was still worth giving.** *"Do not ship without a test proving reorder is safe"*
+is what produced the investigation that refuted it. **Demanding the proof was right even though my
+reason was wrong.**
+
+### What else they found that the handoff missed
+
+| | |
+|---|---|
+| **The signature window excluded `Macro` from its graph picker entirely** | ⇒ a macro's **data** `Inputs`/`Outputs` were editable nowhere either. I only looked for exec sections |
+| ⭐ **A separate rows view, for a better reason than the missing type** | `ParameterRowsView` renames **on every keystroke** — for an exec declaration that is a **pin migration per character**. The new view commits on deactivate |
+| **The palette guid form** | entries mint the guid in `"N"` form while every consumer compares `Graph.Id.ToString()` ⇒ a dropped node whose target **resolved nowhere** and reported `BP1660` — right-looking and non-functional |
+| **Preview vs bake** | the entry previews the target's pins for palette filtering, but **re-projects every rebuild** rather than baking — staying out of the `CallablePeers`/`ArgTypes` trap (F4) |
+
+### The two rows filed
+
+| | |
+|---|---|
+| **`BP-224`** | the section-filter boolean (coordinator-found). ⭐ Recorded as a **shape**: *a discriminator that is correct only because one of its cases never occurs* — it had been wrong since it was written and became reachable the moment collapse shipped |
+| **`BP-225`** | records the destructive-edit reasoning **so nobody re-derives it wrongly** — including the refutation above |
 
 ---
 
