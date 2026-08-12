@@ -38,7 +38,7 @@
 | | <a id="uxi-05"></a>**UXI-05** | **The main menu is the only surface that does not follow focus.** Windows filter by `WindowScope.{Global,PerspectiveBound}` and the map follows `SwitchMapOwner` — the menu is a flat union. ⭐ **Copy `MainToolbarManager`'s filter, not `WindowScope`** — `string? Perspective`, `null` = global. 🔴 **The union is not the registry** (Editor is its only writer, 10 items) **but four copy-pasted `BeginMainMenuBar` blocks that never check focus** — so this **is [UXI-13](#uxi-13)** seen from the other side | `RW-L` | [UXR-86](UX_Requirements.md#uxr-86) | [UX_Feature_Menu_Follows_Focus.md](UX_Feature_Menu_Follows_Focus.md) | ✅ |
 | | <a id="uxi-06"></a>**UXI-06** 🔴 | **The default perspective can be a non-perspective.** `defaultPersp` is an `ISubsystem.Name`; for `--mode all` that is **`Orchestrator`**, whose windows are all `Global`/empty-perspective — so **first launch hides all 22 perspective-bound windows** (SimHost 5 · IG 8 · ExCon 6 · CGF 3) and no `fdp_windows.json` ships to mask it. ⚠ **Re-scoped after user review: dropping `BTree`/`HSM`/`Blueprint` on restore is DESIRED** (document-driven, documents not persisted) — the design now makes that deliberate | `RW-L` | — | [UX_Feature_Perspective_Restore.md](UX_Feature_Perspective_Restore.md) | ✅ |
 | **C** | | **Tools** | | | | |
-| | <a id="uxi-07"></a>**UXI-07** | **A tool is not a thing.** No abstraction, no current-tool state, 4 activation idioms — 2 of them for the same tools in one class. Toolbar cannot show active state; `EditorTool.Select` is a dead button | `RW-M` | [UXR-81](UX_Requirements.md#uxr-81), [UXR-84](UX_Requirements.md#uxr-84) | — | ☐ |
+| | <a id="uxi-07"></a>**UXI-07** 🔴 | **A tool is not a thing.** No abstraction, no current-tool state, **six** activation idioms — `Edit`/`Route`/`Rotate` each reachable by **two pipelines in one class**. 🔴 **Two exclusive-focus arbiters share one event bus with no arbitration**, so two "exclusive" tools can act on the same drag; exclusivity is also only per-entity. Toolbar cannot show active state *even in principle*; `Select` is dead; the enum names **four deleted classes**. ⚠ **The programme's first genuinely new abstraction — prior art is empty** | `RW-M` | [UXR-81](UX_Requirements.md#uxr-81), [UXR-84](UX_Requirements.md#uxr-84) | [UX_Feature_Tool_Model.md](UX_Feature_Tool_Model.md) · [Q27](Architect_Question_27_Tool_Model.md) | 🔒 |
 | **D** | | **Layout** | | | | |
 | | <a id="uxi-08"></a>**UXI-08** | **No shipped default layout.** `imgui.ini` is machine-wide with no path seam; nothing seeds a new user; the default cannot be authored or committed | `RW-M` | [UXR-04](UX_Requirements.md#uxr-04) | — | ☐ |
 | **E** | | **Map** | | | | |
@@ -56,7 +56,7 @@
 | | <a id="uxi-18"></a>**UXI-18** | **Editor's JSON parser reads `children` without a `ValueKind` guard** — a non-array throws `InvalidOperationException`, which its `catch (JsonException)` does not catch | `RW-L` | — | — | ☐ |
 | | <a id="uxi-19"></a>**UXI-19** ⚠ | **Two presentation gizmos may match one entity** — Editor registers both; overlapping projector keys. **Unverified** — establish before treating as a defect | — | — | — | ☐ |
 
-**Counts:** **25 issues** · **6 designed** · 7 🔴 · 1 unverified (UXI-19) · UXI-22 folded into UXI-23 · UXI-25 split out of UXI-04 (user, 2026-08-10).
+**Counts:** **25 issues** · **7 designed** (1 🔒 on the architect) · 8 🔴 · 1 unverified (UXI-19) · UXI-22 folded into UXI-23 · UXI-25 split out of UXI-04 (user, 2026-08-10).
 
 ## Dependency order
 
@@ -64,7 +64,7 @@
 UXI-01 ──────────────────────────────────────  first, always: removes an editing trap
 UXI-02 ──────────────────────────────────────  independent of UXI-07 after all
 UXI-03 ───── UXI-04 ── UXI-06 ── UXI-05   ⚠ 06 BEFORE 05: menu items key on perspective ids
-UXI-07 ──────────────────────────────────────  no pre-existing home: PACK2-E002 is DONE
+UXI-07 ──────────────────────────────────────  🔒 architect round Q27; the 🔴 two-arbiter fix is separable and can ship first
 UXI-08, UXI-09, UXI-10, UXI-16, UXI-17, UXI-18  independent — any order
 UXI-24 multi-select ── shapes UXI-03's API; UXI-11 (shared selection) precedes it
 UXI-23 parity ──────── delivered BY UXI-03/04/07/11 + owns UXI-04's step 5 and its binding prerequisite
