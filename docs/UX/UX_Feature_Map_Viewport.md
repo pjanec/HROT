@@ -150,10 +150,33 @@ call. ⚠ **On promotion, break the IG dependency**: `MapCameraViewport.Zoom` cu
 |:--:|---|---|---|
 | **T0** | the whole window | nothing | today's behaviour; the fallback when no host supplies a rect |
 | **T1** | **work area − status bar** = `DockspaceLayout.CentralPos/CentralSize` | ⭐ **already computed** in `Program.cs:325-326` — it only needs **publishing** to the subsystems | 🎯 **ship this** |
-| **T2** | the **central dock node** rect (docked panels subtracted) — the dashed rect in the diagram | either `DockBuilderGetCentralNode` (**imgui_internal**) or a no-background placeholder window docked centrally reporting its own rect via public API | ⚠ **feasibility unverified — see risks** |
+| **T2** | the **central dock node** rect (docked panels subtracted) — the dashed rect in the diagram | **two `DllImport` declarations** — see below | ✅ **verified feasible, 2026-08-12** |
 
 🔒 **The seam is the same for all three.** `MapViewport.Set` does not care who computed the rect, so T2
 is later a one-line change at the host, with no subsystem churn.
+
+#### ✅ T2 is reachable — verified against the actual package
+
+Downloaded `ImGui.NET 1.91.6.1` from nuget.org and inspected both halves:
+
+| | Finding |
+|---|---|
+| **Managed** `lib/net8.0/ImGui.NET.dll` | ❌ **exposes no `DockBuilder*` at all** — the only dock-node symbols are the two enum members `PassthruCentralNode`, `NoDockingOverCentralNode` |
+| **Native** `runtimes/win-x64/native/cimgui.dll` | ✅ exports **`igDockBuilderGetCentralNode`** — and, crucially, **`ImGuiDockNode_Rect`** |
+| Deployment | ✅ **nothing new to ship** — `cimgui` is the same native library ImGui.NET already `DllImport`s |
+
+⭐ **`ImGuiDockNode_Rect` is what makes this safe.** Without it, T2 would mean reading `Pos`/`Size` at a
+hardcoded offset inside an internal struct — the kind of thing that breaks *silently* on an ImGui bump.
+With it, there is **no struct-layout dependency at all**:
+
+```csharp
+[DllImport("cimgui")] static extern IntPtr igDockBuilderGetCentralNode(uint dockspaceId);
+[DllImport("cimgui")] static extern void   ImGuiDockNode_Rect(out ImRect pOut, IntPtr node);
+// ImRect = { Vector2 Min; Vector2 Max; } — two ImVec2, 16 bytes, stable
+```
+
+⚠ **The pointer may be null** — a dockspace has no central node once something is docked over it. `null`
+⇒ **fall back to T1**, never throw. That is the only branch T2 adds.
 
 ### 2.7 Frame order — and the one-frame staleness
 
@@ -209,7 +232,7 @@ before five call sites are rewritten.
 
 | | |
 |---|---|
-| ⚠ **T2 feasibility unverified** | `DockBuilderGetCentralNode` is **imgui_internal**; whether ImGui.NET **1.91.6.1** exposes it could not be checked here (no package restore in this container). **Determine on a Windows session.** T1 ships the resize, centring and transport fixes without it |
+| ⚠ **T2 crosses into `imgui_internal` by P/Invoke** | ✅ feasibility **verified** (§2.6) — but it is still internal API. Mitigations: `ImGuiDockNode_Rect` removes the struct-layout risk; null-check falls back to T1; and ⭐ **one startup self-check** — on the first frame, with nothing docked, the central node rect must equal the dockspace rect. If it does not, log and stay on T1. That turns an ImGui-bump breakage into a logged downgrade instead of a wrong viewport |
 | ⚠ **Removing the hardcoded `1280×720`** changes CGF's and SimHost's initial view | expected and correct — but it is a **visible** change to two subsystems; call it out in the task |
 | ⚠ **Narrowing the cull rect culls more** | entities behind panels stop being processed. That is the point, but it changes LOD/culling load in IG — measure, and keep `CullMarginPx` as the escape hatch |
 | ⚠ **Promoting `MapCameraViewport`** touches IG culling and the Editor's reference to it | mechanical, but it is engine-layer movement — 09.12 is the guard |

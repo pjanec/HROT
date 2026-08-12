@@ -95,7 +95,7 @@ review rule (UC-44c).
 2. ⏭ **Designing continues** — user, 2026-08-10: *"keep designing now rather than rewriting tasks later because we find new unexpected stuff"*. ✅ **UXI-09 designed** → [UX_Feature_Map_Viewport.md](UX_Feature_Map_Viewport.md). **Next: UXI-10** (symbology seam, zero hosts).
 3. Cut `UXT` tasks — **none cut yet**, deliberately deferred.
 4. Remaining undesigned: UXI-10..24 (symbology, duplication, robustness) + 23, 24, 25, 27.
-5. The golden-path walk still needs a **Windows** session — ⚠ **and so does one UXI-09 question**: whether ImGui.NET **1.91.6.1** exposes `DockBuilderGetCentralNode` (imgui_internal). It gates tier T2 only; T1 ships without it.
+5. The golden-path walk still needs a **Windows** session. ✅ **The UXI-09 ImGui question is closed** — verified against the real package: managed `ImGui.NET.dll` exposes **no** `DockBuilder*`, but `cimgui.dll` (already loaded) exports `igDockBuilderGetCentralNode` **and `ImGuiDockNode_Rect`** ⇒ tier T2 needs two `DllImport`s and no struct-offset arithmetic.
 
 ## 7. ⚠ Process rules earned the hard way
 
