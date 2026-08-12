@@ -242,13 +242,16 @@ a more complex editor — not because anything needs them this month.
 
 ## 9. What is actually needed now
 
-| Priority | Item | Justification |
-|---|---|---|
-| 🔴 **1** | `TickSynchronizationContext` | fixes a **live data race** in 100 % of existing async handlers |
-| 🔴 **2** | `IActivity` + `Completion` task | kills `async void`; closes [UXI-17](UX_Issues.md#uxi-17) |
-| **3** | `IInteractionHost` focus stack | closes the [two-arbiter defect](UX_Feature_Tool_Model.md#-the-defect-that-changes-this-issues-severity) |
-| **4** | `Drop` on the two pick actions | double-invoking *Mark Target* today starts **two** concurrent picks |
-| **5** | Status-bar activity list | makes 1-4 visible; the `StatusBar.RegisterSection` seam already exists (`LocalWindowController.cs:70-75`) |
+⚠ **Re-ranked after [Correction 21](UX_Tasks_Detail.md#corrections)** — the previous #1 (a
+`SynchronizationContext`) is withdrawn, and the "live data race" that justified it did not exist.
 
-⚠ **Items 1 and 2 are worth doing even if the tool model is deferred** — they are correctness, not
-architecture.
+| Priority | Item | Justification | Status of the claim |
+|---|---|---|---|
+| 🔴 **1** | `IActivity` with a `Completion` **task** | the two live handlers are `async void`, so faults are unobserved ([UXI-17](UX_Issues.md#uxi-17)) | ✅ verified — `EditorSubsystem.cs:1462`, `:1479` |
+| **2** | `EntityActionContext` exposing **only** `ISimulationView` + `IEntityCommandBuffer` + `FdpEventBus` | makes the [documented ECS path](../HROT-PROGRAMMERS-GUIDE.md) the only reachable one; today `_world` is in scope by closure accident | ✅ verified — `_world` is `EntityRepository?` (`:184`) |
+| **3** | `IInteractionHost` modal focus stack | two `_focusedGizmo` arbiters on one bus, each guarding only itself | ✅ verified in code; ⚠ **and no documented invariant covers cross-engine gizmo focus** — §7.2 of the guide documents gizmos extensively but not this, so it reads as an unnoticed gap rather than a design |
+| **4** | `Drop` on the two pick actions | double-invoking *Mark Target* starts two concurrent picks | ✅ verified — no guard exists |
+| **5** | Status-bar activity list | makes 1-4 visible; `StatusBar.RegisterSection` already exists (`LocalWindowController.cs:70-75`) | ✅ seam verified |
+
+🔒 **Nothing on this list now rests on an unread invariant.** Each row states whether the claim is
+code-verified, and #3 explicitly records that the documentation is *silent* rather than supportive.
