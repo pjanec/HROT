@@ -145,13 +145,108 @@ public sealed record ToolDescriptor(
 ```csharp
 public interface IToolController
 {
-    ToolDescriptor?                     ActiveModal    { get; }   // at most one
-    IReadOnlyCollection<ToolDescriptor> ActiveModeless { get; }   // several
-    void Activate(string toolId, Entity? target = null);          // target is an argument, not a taxonomy
-    void Cancel();                                                // Escape → cancels ActiveModal
+    ToolDescriptor?                     ActiveModal    { get; }   // = top of the stack, or null
+    IReadOnlyList<ToolDescriptor>       ModalStack     { get; }   // bottom → top
+    IReadOnlyCollection<ToolDescriptor> ActiveModeless { get; }   // several, unaffected by the stack
+
+    void        Activate (string toolId, Entity? target = null);  // REPLACES the top
+    IDisposable PushModal(string toolId, Entity? target = null);  // SUSPENDS the top; dispose pops & resumes
+    void        Cancel();                                         // pops ONE level
+
     event Action<ToolDescriptor?> ActiveModalChanged;             // toolbar/status bind here
 }
 ```
+
+## ⭐ The modal tool **stack** — user requirement, 2026-08-10
+
+> **User:** *"Sometimes in the middle of editing one thing we might need to temporarily jump to another
+> and then back. A tool stack. I bet it was implemented."*
+
+### ✅ It was — and it was deleted with the rest of the tool model
+
+| Fossil | Evidence |
+|---|---|
+| `<see cref="MapCanvas.PopTool"/>` in a live doc comment — **a broken cref**; the member does not exist | `EditorMapPickAdapter.cs:26` |
+| *"Uses an optional exit callback instead of `MapCanvas.PopTool()`"* | `GizmoInteractionProxyTool.cs:16` |
+| `MapCanvas.KeyboardConsumedByTool` — a property named for the deleted model | `MapCanvas.cs:69` |
+| *"tool-emitted primitives (written during `canvas.Update → ActiveTool.Draw`)"* | `EditorSubsystem.cs:1613` |
+
+⚠ **Not recoverable from git** — `PopTool` appears only in comments even at the squashed import commit
+(`e999566`), so the implementation lived in an ancestor repo. **The comments are the only survivors**, and
+they are the fourth fossil of the same deleted architecture ([Correction 11](UX_Tasks_Detail.md#corrections)).
+
+### 🔴 What replaced it is flat — and the "come back" is only half-implemented
+
+`EditorMapPickAdapter`'s own comment still describes the old model — *"push tool → wire callbacks →
+return `tcs.Task`; the cancellation handler calls `MapCanvas.PopTool`"* — but all three pick methods now
+just call `_globalGizmoManager.Register(id, gizmo)`. **No LIFO, nothing saved, nothing restored.**
+
+| Half of "jump away and back" | State |
+|---|---|
+| The **caller's control flow** resumes | ✅ `TaskCompletionSource` + `ct.Register` — works today |
+| The **previous tool** resumes | ❌ **nothing restores it.** Interrupt a half-drawn route to pick a point and the route editor is not brought back |
+
+### 🔑 Suspend ≠ deactivate — and the mechanism already exists
+
+Both teardown paths **destroy** the gizmo:
+
+```csharp
+DataDrivenGizmoSystem.DeactivateGizmo(e)   // :102-114 → SetFocus(false); gizmo.Dispose();
+GlobalGizmoManager.Unregister(id)          // :78-90   → SetFocus(false); gizmo.Dispose();
+```
+
+⭐ **But `SetFocus(false)` is a separate call that already precedes the `Dispose()`.** So *suspend* needs
+no new gizmo API — it is **`SetFocus(false)` without the `Dispose()`**. Nothing calls it that way today;
+that is the entire missing capability.
+
+### Semantics
+
+| | `Activate` | `PushModal` |
+|---|---|---|
+| **Current top** | cancelled and **disposed** | **suspended** — alive, unfocused, state intact |
+| **On completion** | — | popped; the tool beneath **resumes with its state** |
+| **Intent** | a deliberate switch — toolbar, menu | an **interruption** — pick a point, pick an entity |
+| **Escape** | cancels it | pops **one** level, revealing the tool beneath |
+
+⇒ **The caller chooses**, because only the caller knows whether it is switching or interrupting. The
+descriptor cannot express that.
+
+### It fits the existing async pattern exactly
+
+```csharp
+using var _ = tools.PushModal(ToolIds.EntityPicker);
+int netId = await _pick.PickEntityAsync(ct);
+// dispose → pop → the route editor beneath resumes, half-drawn route intact
+```
+
+That is today's `ct.Register(… Unregister …)` cleanup **plus the restore it is missing** — and it is what
+*Mark Target for N Units* (`async void`, awaits an interactive pick) needs to stop stranding whatever was
+running.
+
+### ⭐ The stack and the focus rule are the same mechanism
+
+The [B ruling](Architect_Question_27_Tool_Model.md#answers) requires an **unfocused subsystem's** modal
+tool to stay armed but consume no input. That is *suspension* — of the whole stack rather than one
+frame. 🔒 **One implementation serves both**, which is the strongest argument that suspend/resume belongs
+in the controller rather than in each gizmo.
+
+### 🔷 Open — and it may simplify a ruling you just made
+
+With a stack, **focus transfer becomes observable**: the controller learns of it when a handler calls
+`Activate` or `PushModal`. A *recenter map* shortcut never calls either, so it disturbs nothing —
+**without needing `StealsFocus` at all.**
+
+⇒ `StealsFocus` may be **redundant as a declaration**. It still has two possible uses: presenting the
+consequence in a menu, and letting the controller suspend *before* the handler runs. ⚠ **Flagging rather
+than changing it** — it was ruled in one turn ago, and the redundancy is an inference, not a measurement.
+
+### ⚠ Two sub-questions the stack raises
+
+| | |
+|---|---|
+| **Does a suspended tool still draw?** | Lean **yes — draw, do not interact.** A half-drawn route that vanishes while you pick a point, then reappears, reads as a bug; leaving it visible is what makes "come back" legible |
+| **Is depth bounded?** | Nothing needs more than 2 today (tool → picker). Lean: no hard limit, but **log** beyond 3 — an unbounded stack is a leak, not a feature |
+
 
 **Rules, each traceable to a ruling:**
 
