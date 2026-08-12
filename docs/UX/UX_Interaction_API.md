@@ -209,10 +209,28 @@ public sealed class EntityActionContext
 | `FdpEventBus` | documented thread-safe; `SeedTargetCommand` already uses it correctly |
 | ❌ **not** `EntityRepository` | the live repo is never handed to a handler. **This is the entire fix** |
 
-⚠ **Confirm the ECB acquisition path against `FDP/Engine/Fdp.Core/EntityCommandBuffer.cs` before
-implementing** — the guide notes `Playback` is main-thread-only (`:9-10,291`) and that managed payloads
-are stored by reference, not copied (`:151-156`). Those are constraints on how the host hands one out,
-and I have **not** verified the intended per-frame lifecycle.
+### ✅ Verified 2026-08-10 — the path exists end to end and needs **no new machinery**
+
+The previously-unverified ECB lifecycle, traced:
+
+| # | Link | Evidence |
+|--:|---|---|
+| 1 | `ISimulationView.GetCommandBuffer()` returns a **per-thread** ECB | `EntityRepository.View.cs:33-35`, backed by `ThreadLocal<EntityCommandBuffer>` with **`trackAllValues: true`** (`:13`) |
+| 2 | An ECB records **events as well as structural ops** | `OpCode.PublishUnmanagedEvent = 8`, `PublishManagedEvent = 9` (`EntityCommandBuffer.cs:24-25`) |
+| 3 | The kernel flushes **every** thread's buffer, **on the main thread**, each frame | `ModuleHostKernel.cs:519-532` — BeforeSync phase iterates `_liveWorld._perThreadCommandBuffer.Values` and plays back any with `HasCommands` |
+| 4 | The Editor runs that kernel | `EditorSubsystem.cs:585` — `new ModuleHostKernel(_world, accumulator)`; `Kernel.Update()` drives it (`:1617`) |
+
+> ⇒ **A continuation on *any* thread can call `view.GetCommandBuffer()`, record, and be flushed correctly
+> on the main thread at the next BeforeSync.** `EntityActionContext.Commands` is simply that buffer.
+> **Nothing new is built** — this is the mechanism rule 7 points at, already wired.
+
+⚠ **Three notes from the trace, none blocking:**
+
+| | |
+|---|---|
+| `EntityRepository.FlushCommandBuffers()` is **dead public API** | **0 production callers**, yet its doc says *"In production the scheduler calls this"*. The scheduler in fact **inlines the same loop** (`ModuleHostKernel.cs:523-531`). A doc/API inconsistency worth a one-line fix, not a defect |
+| **`ThreadLocal` + thread-pool threads** | a continuation may land on any pool thread and gets its own tracked buffer. Correct for flush; buffers accumulate per *distinct* pool thread over a long session. Worth watching, not fixing blind |
+| **Timing** | ECB ops land at the next BeforeSync. ⚠ But a direct `Bus.Publish` is *also* only readable after `SwapBuffers`, so deferring to the ECB is **no regression** in latency |
 
 ## 7. Where each piece comes from
 
