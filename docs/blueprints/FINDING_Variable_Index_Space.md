@@ -3,10 +3,11 @@
 > **Coordinator, 2026-08-11**, at the user's request to think it through before implementing.
 >
 > ⚠ **This corrects [Q27](Architect_Question_27_Local_Variables.md)'s ground-truth section and
-> [Batch 37](HANDOFF_Batch37_Local_Variables.md) §6**, both of which call it *"a latent defect,
-> `BP-224`'s shape."* ⛔ **Batch 37 is dispatched and frozen (rule 1) — it is NOT amended.** Its
-> instruction *"file it, do not fix it here"* **remains correct**; only the row's content and severity
-> change. This note is the input to Batch 38.
+> [Batch 37](HANDOFF_Batch37_Local_Variables.md) §6**, both of which called it *"a latent defect,
+> `BP-224`'s shape."* ⭐ **Batch 37 §6 has since been amended** — the user confirmed on `2026-08-12`
+> that no implementation run had picked the handoff up, so rule 1 did not bite. Its instruction *"file
+> it, do not fix it here"* is unchanged; the row's content and severity are what moved. This note is
+> also the input to Batch 38's fix.
 
 ---
 
@@ -90,9 +91,9 @@ should say.
 
 ---
 
-## 📌 One instruction in Batch 37 §6 is now answered
+## 📌 One instruction in Batch 37 §6 is now answered — and the handoff now says so
 
-It asks: *"check whether `Parameters` already makes it live."* ⭐ **It does not** — the picker cannot
-author such a node and there are zero in the corpus. ⚠ **The handoff is frozen and stays as written**;
-independent confirmation is worth having, and if the implementation session finds otherwise, **their
-measurement wins over this note.**
+It asked: *"check whether `Parameters` already makes it live."* ⭐ **It does not** — the picker cannot
+author such a node and there are zero in the corpus. ⭐ **§6 has been amended to state the answer rather
+than pose the question**, and to ask for independent confirmation instead. ⚠ **If the implementation
+session measures otherwise, their measurement wins over this note.**

@@ -15,6 +15,8 @@
 > ⭐ `BP1664` finally becomes buildable, closing the last macro code.
 > ⚠ **[FINDING_Variable_Index_Space.md](FINDING_Variable_Index_Space.md) corrects Q27 and Batch 37 §6:**
 > the variable index space is an **unenforced invariant**, *not* a latent defect — input to Batch 38.
+> ⭐ **Batch 37 §6 was amended to match** (`2026-08-12`, user-confirmed unread ⇒ rule 1 did not bite);
+> **§§0–5 and §7 unchanged**, and the handoff is **frozen again** from its new stamp.
 > ⛔ **Q26-A supersedes Q25-D3:** a macro now has **N exec-ins**, not one.
 >
 > 📌 Supersedes [RESUME_Coordinator.md](RESUME_Coordinator.md), which is now the **historical log**

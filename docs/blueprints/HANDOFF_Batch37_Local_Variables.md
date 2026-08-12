@@ -1,6 +1,9 @@
 # HANDOFF — Batch 37: `BP-57` — function-local variables, the compiler half
 
-> 📌 **Dispatched at `1b759b48`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
+> 📌 **Dispatched at `1b759b48`** · ⚠ **§6 AMENDED and RE-DISPATCHED at `PENDING`** — the user
+> confirmed on `2026-08-12` that no implementation run had picked this up yet, so rule 1's *never amend
+> after dispatch* does not bite. ⭐ **Only §6 and one line of §8 changed**; §§0–5 and §7 are byte-identical
+> to the original dispatch. **Frozen again from this stamp on.**
 > ⭐ **Rule 7 is yours:** branch from this branch, and re-sync from it at the **start** of your run.
 > ⭐ **Rule 4 is yours:** pull it again before your final commit.
 > ⭐ **Rule 3: the coordinator allocates no ids.** `BP-57`, `BP-82`, `BP-224` are *referenced*.
@@ -159,23 +162,51 @@ nobody can predict. **Do not build a cross-host name resolver just because it is
 
 ---
 
-## 6. 📌 The index-space defect — **file it, do NOT fix it here**
+## 6. 📌 The index space — **file it, do NOT fix it here**
+
+> ⚠ **Amended `2026-08-12`, pre-read** — the user confirmed this handoff had not yet been picked up, so
+> this section is replaced rather than left wrong. 📄 **Full working:
+> [`FINDING_Variable_Index_Space.md`](FINDING_Variable_Index_Space.md).** ⭐ **The instruction is
+> unchanged — file it, do not fix it here.** What changed is *what the row should say*, and one
+> question below is now **answered**, not asked.
 
 `Stage5.FindVariableIndex` returns an index **within whichever of three lists matched**;
 `EmissionContext.VarFieldName` (`:55`) reads that integer as a **priority-ordered union** of
-`Variables` then `WorkingState`. ⭐ **They disagree about what the integer means.**
+`Variables` then `WorkingState`, with `Parameters` absent entirely. ⭐ **They disagree about what the
+integer means.**
 
-⚠ **Coordinator-measured: no shipped asset has both `Variables` and `WorkingState` non-empty**, so it
-is **latent** — ⭐ **`BP-224`'s exact shape**, which sat harmless until collapse made its empty case
-occur.
+### ⛔ It is **not** `BP-224`'s shape. Do not file it as one
 
-⇒ **File it as its own row.** ⛔ **Do not fix it in this batch** — locals never enter that space
-(§2), so it is off this path, and folding an unrelated index refactor in would muddy revert-goes-red on
-both.
+| | |
+|---|---|
+| **`BP-224` was** | a discriminator **wrong from the day it was written**, harmless only because one case had never occurred yet |
+| ⭐ **This is** | code that is **correct under an invariant that holds** — ⚠ **and that nothing enforces** |
 
-⚠⚠ **But check one thing before calling it latent:** ⭐ **`Parameters` is in `FindVariableIndex` and
-absent from `VarFieldName` entirely.** A `GetVariable` resolving to a Parameter may **already** be
-mis-resolving today. **Report what you find** — that changes the row's severity.
+Two independent structural facts hold it up, both coordinator-measured across
+`Hrot.AI.Behaviors/Assets/Blueprints/*.bp.json`:
+
+| | |
+|---|---|
+| **1. The lists are disjoint by dispatch kind** | **Instance** uses `Variables` only (13 assets); **AiPrimitive** uses `WorkingState`+`Parameters` and **never** `Variables` (23). ⇒ where `WorkingState` is populated, `Variables.Count == 0`, so `VarFieldName`'s first branch **cannot** fire |
+| **2. The editor cannot author the other target** | `BlueprintPickerSources:148-152` queries **`_asset.Variables` and nothing else** ⇒ a Get/SetVariable aimed at a `WorkingState` field or a `Parameter` **is not authorable** |
+| ⭐ **Someone was already bitten** | `AiPrimitiveLowering:42-66` **appends** `__phase` rather than prepending, commented *"would shift every real field by +1, so `VarFieldName` would emit the WRONG field."* **The workaround is the evidence** |
+
+⇒ **The row is: nothing enforces the disjointness, and `Parameters` has no correct branch at all.**
+
+### ⭐ The question this section used to ask is answered
+
+It asked whether `Parameters` **already** makes it live. ⭐ **It does not** — the picker cannot author
+such a node, and there are **zero** `Get`/`SetVariable` nodes in the corpus targeting a `Parameters` id.
+⚠ **Independent confirmation is still worth having: if you measure otherwise, your measurement wins over
+this note** — say so and raise the severity.
+
+⇒ **File it as its own row** (⭐ **your id**, rule 3). ⛔ **Do not fix it in this batch** — locals never
+enter that space (§2), so it is off this path, and folding an index refactor in would muddy
+revert-goes-red on both. 📌 **The fix is Batch 38's**, and the finding's lean is *return a
+`(storage-kind, index)` pair from `FindVariableIndex`* so the ambiguity becomes unexpressible.
+
+📌 **One unrelated observation worth its own row:** ⚠ **four assets carry a numeric `Dispatch: 1`**
+where every other asset has a string. Nothing to do with this; just noticed while measuring.
 
 ---
 
@@ -213,9 +244,9 @@ The eight, `--logger "console;verbosity=normal"`. Solution is **`IOS-IG-SimHost.
 
 Per-suite numbers · **BP-warning count and composition** · `tracker-counts.py --check` clean ·
 revert-goes-red per item · ⭐ **every id and diagnostic code you allocated** (rule 5) · **your decl
-reuse call** (§1) · **your §5 ruling** and where the rail fires · ⭐ **what you found about
-`Parameters`** (§6) · **whether the `Graph` reflection guard went red** · anything here **wrong against
-the code**.
+reuse call** (§1) · **your §5 ruling** and where the rail fires · ⭐ **whether your own measurement
+agrees that no authorable node targets `Parameters`** (§6) · **whether the `Graph` reflection guard went
+red** · anything here **wrong against the code**.
 
 ⭐ **You have corrected this coordinator in five consecutive batches.** The last was Batch 35, where my
 "reorder is destructive" premise was **wrong in the opposite direction from the real hazard** —
