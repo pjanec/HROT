@@ -115,12 +115,30 @@ enforcement does not** — each engine consults the flag only within itself, whi
 public enum ToolModality { Modal, Modeless }
 
 public sealed record ToolDescriptor(
-    string       Id,                        // its own vocabulary — NOT a GlobalActionId
+    string       Id,                          // its own vocabulary — NOT a GlobalActionId
     string       Label,
     ToolModality Modality,
-    bool         ShowOnToolbar   = false,   // 🔒 optional by default (user ruling)
-    bool         SurvivesActions = false);  // 🔷 default open — see below
+    bool         ShowOnToolbar       = false, // 🔒 optional by default (user ruling)
+    bool         ToggleOnReactivate  = false);// 🔒 re-activating does NOT cancel unless flagged
 ```
+
+> ### ⚠ Corrected 2026-08-10 — `SurvivesActions` was on the wrong object
+>
+> An earlier revision put `SurvivesActions` on the **tool**. **Wrong.**
+>
+> > **User:** *"`SurvivesActions` can't be a tool property — it must be driven by **focus changes only**.
+> > Actions might need flagging if they **steal focus**."*
+>
+> ⇒ the flag moves to the **action**, because the action is what causes the effect:
+>
+> ```csharp
+> // EntityActionDescriptor — UXI-03. Additive.
+> bool StealsFocus = false;   // true ⇒ dispatching it cancels the active modal tool
+> ```
+>
+> 🔒 **Cross-issue:** this adds one field to
+> [UXI-03](UX_Feature_Entity_Action_Vocabulary.md)'s descriptor. Recorded there too.
+> [Corrections 20](UX_Tasks_Detail.md#corrections).
 
 ### The controller — one per subsystem (B1)
 
@@ -139,20 +157,21 @@ public interface IToolController
 
 | Rule | Source |
 |---|---|
-| Activating a modal tool cancels the current modal tool | C — *"up to one currently active tool requiring focus"* |
-| Re-activating the current modal tool cancels it (toggle) | resolves today's `Edit`/`Route` vs `Measure`/`Rotate` inconsistency |
+| ⭐ **Focus is the only currency.** A modal tool holds focus; whatever takes focus displaces it | user, 2026-08-10 — *"driven by focus changes only"* |
+| Activating a modal tool takes focus ⇒ cancels the current modal tool | C — *"up to one currently active tool requiring focus"* |
+| **Re-activating the current modal tool does NOT cancel it** — no-op, or re-target when a different target is supplied. Toggle only if `ToggleOnReactivate` | 🔒 user, 2026-08-10 — *"if toggle behaviour is required it must be set via flag"* |
+| An action cancels the modal tool **only if it is marked `StealsFocus`** — a *"recenter map"* shortcut fired mid-tool must leave the tool armed | 🔒 user, 2026-08-10 |
 | Modeless tools coexist and toggle independently | C — *"permanent until turned off"* |
 | Stateless gizmos are untouched | C — *"a gizmo is not equal to a tool"* |
 | **An action activates a tool; a tool is not an action** | D — two vocabularies, one relationship |
-| A fired action cancels the active modal tool **unless** `SurvivesActions` | D — *"some tools might survive another action being fired mid-execution"* |
 | Escape is centralised **for modal tools**; gizmos keep their own cleanup | E — *"centralize for modal tools, keep local where necessary"* |
 | 🔒 An **unfocused** subsystem's modal tool stays armed but consumes no input | B — *"perspective switch often means focus switch to another subsystem"* |
 
-### 🔷 The one sub-decision left
+### ✅ No sub-decisions left
 
-`SurvivesActions` needs a default. Today nothing cancels anything, so *survive* preserves current
-behaviour while *cancel* is the safer UX. **Lean: default `false`** — an action cancels the active modal
-tool, with per-tool opt-out preserving *"no less flexibility than now"*.
+The previous open item (`SurvivesActions`'s default) is **void** — the flag moved to the action and its
+default is `false`: an action leaves the active modal tool alone unless it declares that it steals focus.
+That is both the safe default and the one that preserves today's behaviour, so the dilemma disappears.
 
 ### A1 without A3 — the condition
 

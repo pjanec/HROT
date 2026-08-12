@@ -91,8 +91,21 @@ public sealed record EntityActionDescriptor(
     int                   Id,          // a GlobalActionIds value — the existing dispatch key (Q26-C1)
     string                Label,
     EntityActionGroup     Group,
-    EntityActionExecution Execution = EntityActionExecution.PerEntity);
+    EntityActionExecution Execution   = EntityActionExecution.PerEntity,
+    bool                  StealsFocus = false);   // ⬅ added by UXI-07, 2026-08-10
 ```
+
+> ### ⬅ `StealsFocus` — added by [UXI-07](UX_Feature_Tool_Model.md), 2026-08-10
+>
+> **User ruling:** cancelling a modal tool is *"driven by **focus changes only**. Actions might need
+> flagging if they steal focus."*
+>
+> ⇒ dispatching an action with `StealsFocus = true` cancels the subsystem's active modal tool; a
+> `false` action (e.g. a *recenter map* shortcut fired mid-drag) **leaves the tool armed**. The flag
+> belongs to the action because the action is what *causes* the effect — an earlier draft put the
+> inverse flag on the tool ([Corrections 20](UX_Tasks_Detail.md#corrections)).
+>
+> ⚠ **Default `false`** — which is also today's behaviour, so it is additive and non-breaking.
 
 **`Group` is evidence, not taste.** The sequence *view → edit → destructive, separator before Delete* is
 already written identically in `SharedContextMenuPopulator:37-51` **and** `EditorSubsystem.cs:1427-1450`
