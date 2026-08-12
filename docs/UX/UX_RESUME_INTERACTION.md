@@ -14,10 +14,11 @@ Designed **7 of 27** issues, then consolidated three of them into one API and on
 | [UX_Issues.md](UX_Issues.md) | the register — **29 issues** |
 | ✅ **[Architect_Question_28_Map_Layers.md](Architect_Question_28_Map_Layers.md)** | **UXI-28 decisions — ALL SETTLED** 2026-08-12 |
 | ✅ **[UX_Feature_Map_Layers.md](UX_Feature_Map_Layers.md)** | **UXI-28 design** — 17 cases. 🔴 **Gated on a Windows check**: the layer panel round-trip is complete in source but reported non-working |
+| ✅ **[UX_Feature_Selection.md](UX_Feature_Selection.md)** | **UXI-11 design** — 17 cases. One store, `ISelectionState` becomes a view; CGF gets the full chain |
 | [UX_Seam_Inventory.md](UX_Seam_Inventory.md) | prior-art table + `scripts/seam_inventory.py`, `scripts/type_index.py` |
 | [UX_Tasks_Detail.md](UX_Tasks_Detail.md#corrections) | **27 corrections** — read before trusting any claim |
 
-**Designed:** UXI-01..08, **09**, **10**, **28** (+ **19**, verified and absorbed into 10). **Refuted:** UXI-26. **Split out:** UXI-25 (ExCon ORBAT),
+**Designed:** UXI-01..**11**, **28** (+ **19**, verified and absorbed into 10). **Refuted:** UXI-26. **Split out:** UXI-25 (ExCon ORBAT),
 UXI-27 (progress surface).
 
 ## 2. 🔒 Every user ruling, in force
@@ -42,6 +43,7 @@ UXI-27 (progress surface).
 | 16 | **ExCon is DDS-only, no ECS** — reuses the ORBAT UI with its own data model. `int EntityId` is correct, not a defect |
 | 17 | **No assumptions.** Read `README.md` + `docs/HROT-PROGRAMMERS-GUIDE.md` before claiming an engine defect |
 | 18 | **Layout = one directory.** `fdp_windows.json` lives **next to `imgui.ini`** in *both* places (user `%LocalAppData%\HROT\` and the shipped default). Reset = a directory copy |
+| 28 | 🔒 **Click semantics** (user, 2026-08-12). **Right-click selects.** On an **already-selected** entity ⇒ selection **unchanged**, menu shows items applicable to **all** selected. On a **non-selected** entity ⇒ **clear, then select just it**. **Empty click clears; reload clears.** ⇒ file-manager convention. [UXI-11](UX_Feature_Selection.md) §2.3 |
 | 27 | 🔒 **Selection: CGF is identical to SimHost/Editor; ExCon is correctly different** (user, 2026-08-12). *"CGF should be no different from SimHost nor even Editor regarding selection — same visuals, same interaction, same ECS component. **Selection is subsystem-local.** ExCon has no map, it is an ImGui-panel-only subsystem whose role is to control the IG map and CGF and SimHost over DDS; selection is controlled remotely and stored on ExCon in a completely separated way."* ⇒ [UXI-11](UX_Issues.md#uxi-11)'s ExCon half is **refuted** ([Correction 27](UX_Tasks_Detail.md#corrections)); the CGF half stands |
 | 26 | 🔒 **Dim is style, tag is filter** (user, 2026-08-12), verbatim: *"dimming is style, tag is layer filter"*. ⇒ **search dims and never becomes a tag**; my open question *"should search also get a hide mode?"* is **withdrawn as ill-posed** — it conflated the two. If *hide-non-matches* is ever wanted it is simply a new tag, no redesign. **`MapCanvas.ActiveLayerMask` survives** as the *"which renderers run"* switch. **Tag width stays `uint`/32** — no change needed |
 | 25 | 🔒 **`ZIndex` becomes the draw order and pick priority; dim ≠ hide** (user, 2026-08-12). *"Is there a dedicated sorter field? If yes then of course it should be made working."* ⭐ **There is — and it is dead**: `ZIndex` is set by **no production code** (only 3 lines in `GizmoMap.Example`), so every production primitive is `ZIndex = 0` and sorting collapses to `DebugLayer`. ⇒ the migration is cheap — reproduce only `Entities`→`Perception`→`AiHelpers` as `ZIndex` 0/1/2. **Seam-law instance 12.** ⭐ **Dimming is a *colour* concern**, applied at emit via an `IStyleSource` — no mask, no renderer change, works on the remote terminal |
@@ -112,9 +114,9 @@ review rule (UC-44c).
 ## 6. Next steps, in order
 
 1. ✅ **RESOLVED — host pump + playback goes immediately before `_kernel.Update()`** (`EditorSubsystem.cs:1618`). The kernel flush is *before* `Bus.SwapBuffers()` (`ModuleHostKernel.cs:523-534`), so ops land visible **in the same frame**. Precedent: `_aiCoordinator.DrainPendingCallbacks()` (`:1620-1624`) is the same pattern already in production. ⚠ *Unpinned:* where ImGui panel drawing sits relative to `EditorSubsystem.Update()` — affects only which frame a synchronous handler commits in. See [API §6d](UX_Interaction_API.md#6d--where-the-hosts-playback-sits--resolved-2026-08-10)
-2. ⏭ **Designing continues** — user, 2026-08-10: *"keep designing now rather than rewriting tasks later because we find new unexpected stuff"*. ✅ **UXI-09** → [Map Viewport](UX_Feature_Map_Viewport.md); ✅ **UXI-10 + UXI-19** → [Entity Symbology](UX_Feature_Entity_Symbology.md). ✅ **UXI-28 designed** → [Map Layers](UX_Feature_Map_Layers.md). **Next: UXI-11** (CGF/ExCon outside the selection mechanism — ⭐ UXI-10 already found its mechanism: CGF emits no pick box).
+2. ⏭ **Designing continues** — user, 2026-08-10: *"keep designing now rather than rewriting tasks later because we find new unexpected stuff"*. ✅ **UXI-09** → [Map Viewport](UX_Feature_Map_Viewport.md); ✅ **UXI-10 + UXI-19** → [Entity Symbology](UX_Feature_Entity_Symbology.md). ✅ **UXI-28 designed** → [Map Layers](UX_Feature_Map_Layers.md). ✅ **UXI-11 designed** → [Selection](UX_Feature_Selection.md). **Next: UXI-12** (spawn UI ×4) or **UXI-23** (map parity, now the natural sequel).
 3. Cut `UXT` tasks — **none cut yet**, deliberately deferred.
-4. Remaining undesigned: UXI-11..18, 20..25, 27, **29**.
+4. Remaining undesigned: UXI-12..18, 20..25, 27, **29**.
 5. The golden-path walk still needs a **Windows** session. ✅ **The UXI-09 ImGui question is closed** — verified against the real package: managed `ImGui.NET.dll` exposes **no** `DockBuilder*`, but `cimgui.dll` (already loaded) exports `igDockBuilderGetCentralNode` **and `ImGuiDockNode_Rect`** ⇒ tier T2 needs two `DllImport`s and no struct-offset arithmetic.
 
 ## 7. ⚠ Process rules earned the hard way
