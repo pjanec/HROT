@@ -32,58 +32,98 @@ It is the same default→override sequence as IG's DDS style layer, and it is gi
 
 ---
 
-## A. Are layers a **partition** or **tags**?
+## A. Partition or tags — 🔒 **RULED: tags**
 
-🔴 **Answer this first — B, C and E all follow from it.**
+> **User, 2026-08-12:** *"I would like one entity **or gizmo** to belong to more than one layer."*
 
-| | Option | Consequence |
-|--:|---|---|
-| **A1** | **Partition** — every entity is in exactly one layer | `DebugLayer` byte is sufficient as-is; `MapDisplayComponent.LayerMask` becomes an index, not a mask |
-| **A2** | **Tags** — an entity may belong to several ("ground unit" *and* "friendly" *and* "selected") | the byte cannot express it; needs B2 or B3 |
-| **A3** | **Partition for drawing, tags for querying** | the symbol draws in one bucket; picking/search filters on many |
+⇒ **A2.** Multi-membership, and it applies to **both axes** — an entity carries classes, a gizmo carries
+kinds, and a primitive belongs to the union. C below collapses accordingly.
 
-**Lean: A3.** It is what the code already half-does — `MapDisplayComponent.LayerMask` is consumed by the
-**pick filter** (`LayerMaskFilter`), never by the renderer. ⚠ But it needs your confirmation, because A2
-is the more natural operator model ("hide all hostiles", "hide all air") and would force B2.
+## B. 🔒 **RULED: the byte becomes a combination id** — and it costs nothing on the wire
 
-**Reuse vs build:** A3 reuses both existing mechanisms unchanged in role. A2 requires widening the
-primitive (B2) — a fixed-layout struct change.
+> **User, 2026-08-12:** *"Maybe the `DebugLayer` byte for the gizmo needs to be dynamically calculated out
+> of the bitmasks?"*
 
-## B. `DebugLayer` **byte** vs `LayerMask` **bitmask** — the conflict you flagged
+⭐ **This works, and it is better than widening the struct.** Reinterpret the byte as an **index into the
+set of tag-combinations actually in use this frame**, not as a layer id:
 
-| | Option | Cost |
-|--:|---|---|
-| **B1** | Primitive keeps the **byte** = one primary layer index; multi-membership resolved at emit time | free; loses "hide by any membership" |
-| **B2** | **Widen the primitive** to carry a mask | ⚠ `DebugPrimitive` is a fixed 64-byte explicit-layout struct — a mask costs 32 bytes at 256 bits, or 4/8 at 32/64. **Needs a spare-offset audit before it can be costed** |
-| **B3** | Emit one primitive per layer membership | ⛔ multiplies primitive count per entity — rejected on cost |
-| **B4** | Keep the byte, but make it an index into a **256-entry layer table** whose entries are themselves compound | free; expressive; ⚠ indirection nobody can read at a glance |
+| Stage | What it does | Change |
+|---|---|---|
+| **Backend, per entity** | tags → 64-bit mask (already computed by `MapLayerAssignmentSystem`) | reuse |
+| **Backend, at emit** | `id = intern(entityMask \| gizmoKindMask)` → a byte | **new, small** |
+| **Backend, once per frame** | for each interned combination, evaluate *"is this combination visible?"* → set bit *id* in the `LayerMask256` it already emits as `LayerControlMask` | **new, small** |
+| **Renderer** | `if (!activeLayers.IsSet(prim.DebugLayer)) continue;` | 🔒 **unchanged, byte for byte** |
 
-**Lean: B1 if A3, B2-narrow (a 32- or 64-bit mask, not 256) if A2.** ⚠ **I have not audited the
-primitive's spare bytes** — that is the first task if B2 is chosen, and it decides whether A2 is even
-affordable.
+| | |
+|---|---|
+| ✅ **No wire-format change** | `DebugPrimitive` stays 64 bytes; no spare-offset audit needed; the DDS terminal path is untouched |
+| ✅ **The renderer stays a dumb terminal** | it never learns what a layer *is* — exactly the architecture the gizmo pipeline was built for |
+| ✅ **Combination ids never leave the frame** | the primitives *and* the mask come from the same backend frame, so they cannot disagree |
+| ✅ **The visibility policy lives in one place** | ANY/ALL (see B′) is a backend decision, changeable without touching the renderer or the wire |
 
-**Reuse vs build:** B1 is pure reuse. B2 changes a wire-format struct shared with the DDS/terminal path —
-the most expensive option on this page, and it touches IG (the production map).
+⚠ **Two costs, both real:**
 
-## C. Two orthogonal axes, currently conflated into one byte
+| | |
+|---|---|
+| **256-combination ceiling** | 64 layers ⇒ up to 2⁶⁴ combinations, but only *observed* ones get ids. In practice entities cluster into few distinct tag sets. 🔴 **Overflow must be explicit** — on the 257th, degrade to "always visible" **and log**, never silently drop |
+| **Interning cost per primitive** | ⇒ **cache the id, don't intern per primitive**: store it next to the mask in `MapDisplayComponent` (recomputed by the system that already recomputes the mask), then combine with the gizmo's kind via a small `[entityCombination × gizmoKind] → id` table |
 
-⭐ **This is the finding that reframes the issue.** The three *working* bits are **visual kinds** —
-`Entities` / `Perception` / `AiHelpers`, set at each gizmo's emit site. The five *registry* layers are
-**entity classes** — ground units, air units, vehicles, tactical graphics, road graphs, computed per
-entity. **These are different questions**, and both are legitimate:
+### 🔴 B′ — the blocker: `DebugLayer` has **three** jobs, not one
 
-> *"Show me perception overlays"* is not the same request as *"show me air units"*.
+Verified — the byte is also:
+
+| Job | Evidence |
+|---|---|
+| 1. visibility filter | `DebugPrimitiveRenderer2D.cs:96` |
+| 2. 🔴 **primary painter's-algorithm sort key** — `DebugLayer` ascending, `ZIndex` as tie-break | `:175-180` |
+| 3. 🔴 **hit-test priority** — highest `DebugLayer` wins the pick | `DebugGizmoLayer.cs:447` |
+
+⇒ **An interned combination id would scramble draw order and make pick priority arbitrary.** Today
+`Perception`(1) and `AiHelpers`(2) deliberately draw *above* `Entities`(0), and that ordering is a side
+effect of the layer numbering.
+
+**The separation is available**: `DebugPrimitive.ZIndex` already exists — *"intra-layer sort;
+0=background"*. So:
 
 | | Option |
 |--:|---|
-| **C1** | One axis — fold entity classes into the same 256-bit space as visual kinds (bits 0-2 kinds, 8+ classes) |
-| **C2** | Two axes — a primitive carries **both** a visual-kind index and an entity-class index; both must pass |
-| **C3** | One axis, entity classes only; visual kinds move to `IGizmoVisibilityPolicy` (per gizmo type) |
+| **B′1** | **Sort and hit-test by `ZIndex` alone**; `DebugLayer` becomes purely the visibility key. ⚠ Requires assigning meaningful `ZIndex` values to reproduce today's ordering |
+| **B′2** | Keep an ordering byte separate from the combination id — ⚠ needs a spare byte after all |
+| **B′3** | Make interning **order-preserving** (allocate ids in ascending primary-layer order) — ⚠ fragile: ids shift as combinations appear |
 
-**Lean: C3.** ⭐ It uses two seams that already exist for exactly these two jobs — the layer mask for
-*what the entity is*, the visibility policy for *what the gizmo is* — and UXI-10 §3.4 already starts
-using the policy for culling. C2 doubles the per-primitive cost of a decision that C3 makes once per
-gizmo type.
+**Lean: B′1.** It uses a field built for exactly this, and it makes draw order *declared* rather than an
+accident of layer numbering. ⚠ It is a **visible change to the production map's draw order** — needs a
+before/after check on IG, and a golden-image or ordering test.
+
+⚠ **Also note a stale doc comment**: `DebugGizmoLayer.cs:91` claims *"`DebugLayer` is **NOT** used as a
+Z-order key"* — while `:447` uses it to choose the pick winner and `:178` sorts by it. Whatever is decided,
+that comment must stop lying.
+
+### B″ — 🔴 ANY or ALL? (new, and it decides operator behaviour)
+
+A primitive tagged `{ground, hostile}`; the operator hides `hostile`.
+
+| | Rule | Result |
+|--:|---|---|
+| **ANY** | visible if **any** of its tags is visible | ⛔ still shown — it is still `ground`. *"Hide all hostiles"* silently fails |
+| **ALL** | hidden if **any** of its tags is hidden | ✅ hidden |
+
+**Lean: ALL.** It makes *"hide hostiles"* and *"hide perception overlays"* both behave as an operator
+expects, and it makes the two axes compose — a perception cone on a hostile unit tagged
+`{perception, hostile, ground}` disappears when *either* `perception` or `hostile` is switched off.
+⚠ **The asymmetry to accept:** the more tags an entity carries, the easier it is to hide. An untagged
+primitive (combination 0, empty set) is **always visible** — which preserves today's permissive default.
+
+## C. The two axes — 🔒 collapsed by the tags ruling
+
+Ruling A2 covers *"entity **or gizmo**"*, so **one tag space serves both**: entity classes (ground, air,
+vehicles, graphics, roads) and visual kinds (entities, perception, ai-helpers) are bits in the same 64-bit
+space, and a primitive's combination is the union of the two.
+
+⇒ My earlier lean (C3 — move visual kinds to `IGizmoVisibilityPolicy`) is **withdrawn**: it cannot express
+*"hide perception overlays **on hostiles only**"*, which one tag space with ALL semantics gets for free.
+⚠ The policy seam still earns its keep for **culling** ([UXI-10](UX_Feature_Entity_Symbology.md) §3.4) —
+a different job, per gizmo type, not per tag.
 
 ## D. Where do layer definitions come from?
 
@@ -128,10 +168,14 @@ and the Editor; **CGF registers no `LayerControlGizmo` at all**, so it is silent
 
 ## Open, needing your ruling
 
+✅ **Settled:** A = tags (entities *and* gizmos) · B = combination-id byte, no wire change · C = one tag
+space.
+
 | # | Question |
 |--:|---|
-| **1** | **A — partition, tags, or split?** Everything else hangs on this |
-| **2** | **B — if tags, may we widen `DebugPrimitive`?** It is a wire-format struct shared with the DDS terminal path. I have **not** audited spare bytes yet |
-| **3** | **C — do you agree visual-kind and entity-class are separate axes**, with the gizmo-type axis moving to the visibility policy? |
+| **1** | 🔴 **B′ — draw order.** The combination-id trick requires taking sort **and** hit-test priority off `DebugLayer`. Move both to `ZIndex` (my lean), and accept a **visible change to IG's draw order** that needs an ordering test? |
+| **2** | 🔴 **B″ — ANY or ALL?** My lean is **ALL** (hidden if any tag is hidden), so *"hide hostiles"* works and the axes compose |
+| **3** | **Overflow policy** — on the 257th distinct combination: degrade to always-visible + log (my lean), or evict least-recently-used? |
 | **4** | **E — `MapCanvas.ActiveLayerMask` survives** as the whole-layer-object switch? Or should everything collapse into one mechanism? |
-| **5** | Should **selection/highlight** and **search results** become layers too, or stay separate? The user's phrase was *"defining, entity filtering and controlling map layers"* — filtering may be wider than layers |
+| **5** | Should **selection/highlight** and **search results** become tags too? With one tag space they *can* be — *"dim everything except my search hits"* becomes free. Your phrase was *"defining, entity filtering and controlling map layers"*, so filtering may be wider than layers |
+| **6** | **How many layers may be defined?** My lean caps the tag space at **64** (a `ulong` interns cheaply); today's total is 8 |
