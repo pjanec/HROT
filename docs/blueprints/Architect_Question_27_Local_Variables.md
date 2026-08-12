@@ -159,14 +159,90 @@ which case it falls out.
 
 ---
 
-## Answers
+## ✅ Answers — **SETTLED 2026-08-11**
 
-> ⏳ **Awaiting the architect.** Record here, then build.
+⚠ **Provenance:** **A, C, E** are user rulings. **B** was **reframed by the user** and is better for it.
+**D** was **delegated to Claude to rule on**. **NotebookLM was not consulted** — do not cite this as an
+architect ruling.
 
 | Q | Answer |
 |---|---|
-| **A** — what a local *is* in emitted C# | |
-| **B** — which graph kinds may declare them | |
-| **C** — shadowing | |
-| **D** — ⭐ fix the index space first? | |
-| **E** — initialisation | |
+| **A** | ⭐ **A1 — a C# local in the emitted method.** Per-invocation, no `State` growth |
+| **B** | ⭐ **Reframed — see below.** *"Which graphs can suspend"* is **not a graph-kind property**, and **macros do not have locals because they have no scope to own them** |
+| **C** | **C1 — the local wins inside its graph** |
+| **D** | ⭐ **Claude's ruling: locals get their OWN op. The index-space defect is filed separately and does NOT block this** — see below |
+| **E** | **Reset to `DefaultValueJson` on entry** |
+
+### ⭐ B, reframed — the user's correction, and it is the better model
+
+> *"What graphs can suspend? Don't macros always inherit the vars from their host, not having any local
+> ones themselves?"*
+
+✅ **Both halves verified against code.**
+
+**On suspension — it is not a kind property.** `InstanceLowering:16-21` applies `WaitLowering_Instance`
+to **any `IrGraph` that contains a latent op**:
+
+```csharp
+bool hasLatent = graph.Blocks.SelectMany(b => b.Statements)
+    .Any(s => s.Operation is IrOp_LatentDelay or IrOp_WaitForChannel
+                           or IrOp_WaitForEvent or IrOp_InlineActionCall);
+```
+
+⇒ ⭐ **A Function graph cannot suspend not because it is a Function, but because `BP1650`/`BP1661`
+keep latent nodes out of it.** The suspension property is *"contains a latent op"*, and the rails are
+what make it false for functions. **State the rule that way** — a kind-based test would be a
+`BP-224`-shaped discriminator, correct only by coincidence.
+
+**On macros — the user is right, and it dissolves the question.** A macro is **spliced**: after
+expansion it does not exist as a graph, its nodes are in the host. ⇒ ⭐ **A macro-local has nothing to
+be scoped to.** `BP1664` is therefore **not a policy we impose but an incoherence we report** — and
+⭐ **that is precisely why Unreal's macro locals are broken**: they allowed the incoherent construct,
+and it landed in the host's scope and stopped resetting.
+
+⇒ **A macro's nodes see the HOST's locals**, automatically, because after splicing they *are* host
+nodes. **A macro does get locals — the host's.**
+
+⚠⚠ **And that produces a hazard nobody has named yet, which the build must handle:** a macro body
+referencing a local **resolves against whichever host it is spliced into**. The same macro can expand
+cleanly in one graph and reference a non-existent local in another. ⇒ **the reference must fail loud at
+the call site, naming the macro and the missing local** — `BP1661`'s attribution lesson, one level
+along. 📌 **This is new since the questions were written; treat it as part of the answer.**
+
+⇒ **Permitted:** `Function`, and `Construction` (neither can suspend). **Not `Macro`** — no scope.
+**Event/tick graphs: deferred**, because A1 cannot survive a suspension and nothing yet needs them.
+
+### ⭐ D — Claude ruling, as asked
+
+**Locals get their own IR op (`IrOp_ReadLocal`/`IrOp_WriteLocal` or equivalent), and the existing
+index-space defect is filed as its own row and NOT fixed in the locals batch.**
+
+**Why this is forced rather than chosen:** ⭐ **A1 decides it.** `IrOp_Read/WriteVariable` emit
+`{sv}.{VarFieldName(idx)}` — **a field access on the `State` struct**. A C# local is not a `State`
+field, so **the existing op cannot represent it at all.** Locals therefore never enter that index
+space, and the question *"do we add a fourth source"* does not arise.
+
+**Why not fix the union first anyway (my earlier D1 lean):**
+
+| | |
+|---|---|
+| ⭐ **It is no longer on this path** | A1 routes locals around it entirely. Fixing it first would be a preparatory batch for a hazard this feature does not touch |
+| ⚠ **Mixing them makes both harder to verify** | the locals batch would carry an unrelated index-space refactor, and a revert-goes-red on either would be muddied |
+| 🔴 **But it is real and must not be lost** | `FindVariableIndex` returns a per-list index; `VarFieldName` reads a priority union; they agree only because **no shipped asset has both `Variables` and `WorkingState`** populated. ⭐ **`BP-224`'s exact shape** — and `BP-224` sat harmless for months until collapse made its empty case occur |
+
+⇒ **File it now, fix it on its own.** ⚠ **And say in that row what would make it live**: an asset with
+both lists populated — which `Parameters` (absent from `VarFieldName` entirely) may already achieve.
+**Check that before assuming it is still latent.**
+
+### 📌 On C1 — the user's argument is stronger than the doc's
+
+> *"Can't imagine how to restrict shadowing in a generic shared function."*
+
+⭐ **Right, and it makes C2 not merely unattractive but unenforceable.** A `Library` function is
+compiled **once** and called from assets it has never seen; refusing a name that collides with *any*
+consumer's variables is not a check that can be written. ⇒ **C1 by necessity, not only by preference.**
+
+⚠ **The lookup hazard stands and is the build's problem:** `FindVariableDecl`/`FindVariableIndex` are
+asset-scoped **with a name fallback**, so an id miss silently resolves to the asset variable of the
+same name. ⇒ **local lookup must be id-first and must never fall through to a name match in another
+scope.**
