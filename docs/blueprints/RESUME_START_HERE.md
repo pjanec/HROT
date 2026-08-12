@@ -10,13 +10,15 @@
 > the signature window, dragged from the palette. **`BP-74`/`BP-75`/`BP-77`/`BP-80`/`BP-81`/`BP-83` all closed.**
 > ⭐⭐⭐ **THE MACRO PROGRAMME IS COMPLETE** — `BP-74`…`BP-83` **all closed**. Authored, collapsed,
 > expanded (both directions, round-trip locked), run across frames, debuggable, navigable.
-> ⏭ **In flight: Batch 37 — function-local variables (`BP-57`), compiler half.**
-> [Q27](Architect_Question_27_Local_Variables.md) is **settled**; the authoring UI is **Batch 38**.
-> ⭐ `BP1664` finally becomes buildable, closing the last macro code.
-> ⚠ **[FINDING_Variable_Index_Space.md](FINDING_Variable_Index_Space.md) corrects Q27 and Batch 37 §6:**
-> the variable index space is an **unenforced invariant**, *not* a latent defect — input to Batch 38.
-> ⭐ **Batch 37 §6 was amended to match** (`2026-08-12`, user-confirmed unread ⇒ rule 1 did not bite);
-> **§§0–5 and §7 unchanged**, and the handoff is **frozen again** from its new stamp.
+> ✅ **Batch 37 VERIFIED AND MERGED at `68cff233`** (§7i) — **`BP-57`'s compiler half**: locals are
+> plain C# locals in a **per-graph** index space, id-only resolution with **no name fallback**,
+> `BP1664` finally built and **`BP1669`** allocated. ⛔ **`BP-57` stays OPEN** — a local is declarable
+> **in JSON only**; the authoring UI is **Batch 38**.
+> ⚠ **[FINDING_Variable_Index_Space.md](FINDING_Variable_Index_Space.md) corrected Q27 and Batch 37 §6:**
+> the variable index space is an **unenforced invariant**, *not* a latent defect.
+> ⭐⭐ **The implementation session then raised its severity by measuring what I asserted** — my
+> *"not authorable"* leg was wrong: **57 live `WorkingState` references** ride the invariant today.
+> Filed as **`BP-226`**; **`BP-227`** records the four numeric-`Dispatch` assets. **Both are Batch 38.**
 > ⛔ **Q26-A supersedes Q25-D3:** a macro now has **N exec-ins**, not one.
 >
 > 📌 Supersedes [RESUME_Coordinator.md](RESUME_Coordinator.md), which is now the **historical log**
@@ -288,6 +290,69 @@ The tracker's **`RW-L` done column was 43 and the Total 88; both were one short*
 **predates Batch 29** (present at `1af9bea`, and back at the 41/85 figures). Batch 29's own delta was
 exactly right. Corrected to **44 / 89** after merge. It reconciles three ways now; the note in the
 tracker records the method, including that the *refuted* row sits **outside** the Total.
+
+---
+
+## 7i · Batch 37 — ✅ VERIFIED AND MERGED at `68cff233` — ⭐ **`BP-57`'s compiler half**
+
+**Gates, coordinator-run on the merged tree — all eight, all at baseline:** build **0 errors / 69
+warnings** · BP diagnostics **10 distinct**, all `BP3010`, all authored · Blueprints **3243** / 0 / 10
+skipped *(3234 → 3243, **+9**: 8 `LocalVariableTests` + 1 execution test — every new test accounted
+for)* · AiShared 1213 · BTree 612 · Breakpoints 130 · Generators 193 · NodeEdit Core 208 · UI 131.
+**Zero failures.** `tracker-counts.py --check` **clean on arrival — sixth batch running.**
+
+✅ **Rule 7 followed:** they branched from `cf26c24d` ⇒ ⭐ **the §6 amendment WAS in view**, and their
+row acts on it rather than on the superseded text. The amend-at-no-risk call was correct.
+
+### ⭐⭐ They raised the severity of my own finding — by measuring what I asserted
+
+| | |
+|---|---|
+| **My finding claimed** | the picker offers only `Variables` ⇒ *"a designer cannot produce a `GetVariable` aimed at a `WorkingState` field"* — one of the **two legs** holding the invariant up |
+| ⚠ **They measured** | **57** such references exist in the shipped corpus |
+| ✅ **Coordinator re-measured independently** | 42 assets · **152** `VariableId` refs · **0 → Parameters** *(my one empirical claim, confirmed)* · **57 → WorkingState** · 32 → `Variables` · 63 → none *(their split was 34/61 — a different extraction, immaterial)* |
+
+⇒ ⭐ **The leg I leaned on was the weaker of the two.** The invariant is not guarding a theoretical
+case: **57 live references resolve correctly only because those AiPrimitive assets happen to have
+`Variables.Count == 0`.** Filed as **`BP-226`** at raised severity, correctly.
+
+📌 **Two workarounds exist, not one.** Their row cites `AiPrimitiveLowering:42-66` (append `__phase`,
+never prepend). ⭐ **Coordinator found a second while verifying:** `Stage5.FindParameterIndex`'s doc
+says using the combined index *"would silently emit the wrong field … whenever Variables/WorkingState
+are non-empty"* — a **params-only** lookup written to dodge the same space. **Two independent authors
+routed around this. Feed both to Batch 38.**
+
+### ⭐ Where they diverged from the handoff, and were right
+
+| | |
+|---|---|
+| **§5 rail placement** | My lean: fire at the **call site**, like `BP1661`. ⭐ **They fire on the macro's own node** — and the reason is better than mine: `BP1661`'s body is *fine* and only the call is wrong, so the call is the only actionable thing; here the body is wrong **in every host**, so reporting once at the macro beats once per call site for a defect that is not the call's fault |
+| **§5 refuse-vs-resolve** | ⭐ Refused, as the handoff hoped but did not require. The argument is the one that matters: cross-host reference can only work by **name**, which is exactly the fallback the resolution design exists to refuse — *"building a cross-host name resolver would re-open, as a feature, the hazard the design closes"* |
+| **Emit site** | ⭐ **`LibraryEmitter.EmitGraphBody`, not the four per-emitter methods** the handoff pointed at. Every graph passes through it; four copies is how `BP-221`'s helper loop came to be missed. **Better than what I asked for** |
+
+### ⭐⭐ The revert-goes-red that did NOT go red — and what it exposed
+
+They report the name-fallback revert **passed** on the first attempt. ⚠ **The shadowing test targets the
+local by id, so it is green whether or not local lookup also matches on name.** The hazard runs the
+other way: a node carrying a **NAME** must not be captured by a same-named local. That test
+(`ANodeNamingAnAssetVariable_IsNotCapturedByASameNamedLocal`) was **missing**, and only a failed
+revert found it. ⭐ **This is the discipline working as designed** — the gap was in the test, and the
+revert is what named it.
+
+### ✅ The two things they did not report, verified by the coordinator
+
+| | |
+|---|---|
+| ⭐ **The `Graph` reflection guard** | §8 asked whether it went red; the report is silent. **Probed it directly** — removed `LocalVariables = LocalVariables` from `WithNodesAndLinks`, ran the single test: `Graph.WithNodesAndLinks dropped these members` ⇒ **red**, restored. ⭐ **The guard bites, and it bites on an UNPOPULATED member** (the fixture never sets `LocalVariables`) — so it will catch the next member too |
+| **Round-trip** | No serializer change, and `BlueprintJsonServices` sets no `DefaultIgnoreCondition` ⇒ `LocalVariables:[]` is written for every graph. ⚠ **Not a regression:** shipped assets carry no `ExecInputs`/`ExecOutputs`/`Comments` either — **the exact `ExecInputs` precedent from Batch 32.** "Byte-identical" here means load→save stability, not file-on-disk equality |
+
+### 📌 One real nit for Batch 38 — a misplaced doc comment
+
+`GraphTypes.cs:64-82` — the **`BP-220` doc block explaining `WithNodesAndLinks` and the reflection
+guard** is now attached to **`LocalVariables`**, because the new field was inserted between the comment
+and the method it documents. ⇒ `LocalVariables` carries **two consecutive `<summary>` blocks**, and
+`WithNodesAndLinks` — the method whose contract is load-bearing — is **undocumented**. ⚠ Silent (doc
+generation is off), cosmetic, one-line fix. **Not worth a row; put it in the next handoff.**
 
 ---
 

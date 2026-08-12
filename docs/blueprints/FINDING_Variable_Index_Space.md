@@ -42,13 +42,25 @@ different dispatch kinds** — Instance keeps state in `Variables`; AiPrimitive 
 `WorkingState` + `Parameters`. ⭐ **Where `Variables.Count == 0`, `VarFieldName`'s first branch cannot
 fire, so `WorkingState` resolves correctly.**
 
-### 2. The editor can only author a `Variables` target
+### 2. ⛔ The editor can only author a `Variables` target — ⚠ **THIS LEG IS WRONG, see below**
 
 `BlueprintPickerSources` (`:148-152`) — the Get/SetVariable picker — queries **`_asset.Variables` and
-nothing else**. ⇒ **A designer cannot produce a `GetVariable` aimed at a `WorkingState` field or a
-`Parameter`.**
+nothing else**, so *today's picker* cannot aim a node at a `WorkingState` field or a `Parameter`.
 
-✅ **Confirmed empirically:** **zero** `Get`/`SetVariable` nodes in the corpus target a `Parameters` id.
+⛔⛔ **But "the picker cannot author it" is not "none exist", and I wrote it as though it were.**
+⭐ **Corrected `2026-08-12` by the implementation session's measurement, re-verified by me:**
+
+| | 152 `VariableId` refs across 42 assets |
+|---|---:|
+| → `Parameters` | **0** ✅ *the one claim that held* |
+| → `WorkingState` | ⚠⚠ **57** |
+| → `Variables` | 32 |
+| → neither *(mostly `"state"`, a different mechanism)* | 63 |
+
+⇒ ⭐ **Leg 2 does not hold. Only leg 1 does.** Those 57 references resolve correctly **only** because
+their AiPrimitive assets happen to have `Variables.Count == 0` — one `Variables` entry added to any of
+them silently mis-resolves every `WorkingState` read in that asset. **The severity below is written
+against the old, wrong picture; `BP-226` carries the corrected one.**
 
 ---
 
@@ -67,7 +79,7 @@ The code is not accidentally right; it is right **under an invariant that happen
 | ⛔ Nothing asserts an **Instance** asset has no `WorkingState`, or an **AiPrimitive** none in `Variables` | the model permits both |
 | ⛔ Nothing stops a future picker from offering `WorkingState` or `Parameters` | it is one `Query` away |
 | ⚠ `Parameters` is **absent from `VarFieldName` entirely** | so that path has **no** correct answer, only unreachable ones |
-| ⭐ **Someone has already been bitten by the shape** | `AiPrimitiveLowering:42-66` **appends** `__phase` rather than prepending, with a comment saying prepending *"would shift every real field by +1, so `VarFieldName` would emit the WRONG field for every WorkingState access."* **The workaround is the evidence** |
+| ⭐ **Someone has already been bitten by the shape — TWICE** | (1) `AiPrimitiveLowering:42-66` **appends** `__phase` rather than prepending, commented *"would shift every real field by +1, so `VarFieldName` would emit the WRONG field for every WorkingState access."* (2) ⭐ **`Stage5.FindParameterIndex` is a params-ONLY lookup**, existing because the combined index *"would silently emit the wrong field … whenever Variables/WorkingState are non-empty."* **Two independent authors routed around this. The workarounds are the evidence** |
 
 ---
 
