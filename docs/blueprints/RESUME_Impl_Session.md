@@ -1,4 +1,4 @@
-# RESUME — implementation session · **Batch 36 delivered — the macro programme is closed**
+# RESUME — implementation session · **Batch 37 delivered — `BP-57`'s compiler half**
 
 > **Written immediately before a context compaction. Self-contained; assumes no prior conversation.**
 > **You are the *implementation* session.** A separate *coordinator* session owns the tracker and
@@ -16,9 +16,9 @@
 | **Repo** | `pjanec/HROT` |
 | **Implementation branch — PUSH HERE** | ⭐ **`claude/hrot-implementation-j1jvin`** |
 | **Coordinator branch — do NOT push** | ⭐ **`claude/blueprint-authoring-status-gm0akp`** · at `5e347f6` |
-| **HEAD** | Batch 36 pushed on top of `7fb7263`; **awaiting coordinator verification** |
-| **Counts** | **55 open · 105 done** — ⚠ *derive them, never hand-count:* `python3 scripts/tracker-counts.py --check` |
-| **New finding IDs** | **BP-226+** (`BP-223` Batch 34; `BP-224`/`BP-225` Batch 35; Batch 36 allocated none) · diagnostics **BP1669+** (⚠ `BP1664` is *reserved and unbuildable* — see §5) |
+| **HEAD** | Batch 37 pushed on top of `cf26c24`; **awaiting coordinator verification** |
+| **Counts** | **57 open · 105 done** — ⚠ *derive them, never hand-count:* `python3 scripts/tracker-counts.py --check` |
+| **New finding IDs** | **BP-228+** (`BP-223` B34; `BP-224`/`BP-225` B35; `BP-226`/`BP-227` B37) · diagnostics **BP1670+** · diagnostics **BP1669+** (⚠ `BP1664` is *reserved and unbuildable* — see §5) |
 
 ⛔ **No PR unless the user explicitly asks.** There has never been one in this programme.
 ⛔ **Never put a model identifier** in a commit message, code comment, or anything else pushed.
@@ -68,7 +68,7 @@ with the most leverage are in §5.
 
 ---
 
-## 3 · What Batches 29–36 built — the map
+## 3 · What Batches 29–37 built — the map
 
 ⭐ **All merged.** Do not rebuild any of it; grep before you assume something is missing.
 
@@ -79,6 +79,7 @@ with the most leverage are in §5.
 | **31** | ⭐ the macro payoff **executed** (latent body in a macro, real Roslyn, ticked across frames) · `BP-83` debug provenance (`DebugMapEntry.OriginNodeId/OriginGraphId`, schema `1.0`→`1.1`) · `BP-220` · `BP-111` |
 | **32** | **Q26-A3 N exec-ins** — `ExecInDecl`, `Graph.ExecInputs`, indexed splice rule 1, `BP1666` |
 | **33** | ⭐ collapse's **headless core** + the **round-trip property** (`CanonicalGraphShape`) · `MacroLatency` shared predicate · `BP-221`/`BP-222` opened |
+| **37** | ⭐ **`BP-57` compiler half** — locals as plain C# locals, per-graph index space, id-only resolution · `BP1664` finally built, `BP1669` allocated · `BP-226`/`BP-227` filed. ⛔ **No authoring UI — Batch 38** |
 | **36** | ⭐ **`BP-76`/`BP-82` closed — the macro programme is done.** `Expand Node` (the greyed gate was hiding a corrupting path), the splice extracted to a public `MacroExpander`, `Go to Definition`, a macro library no longer "exposes nothing" |
 | **35** | ⭐ **`BP-75`/`BP-77`/`BP-80` closed** — a macro is authorable by hand: create, list, declare N entries/exits, drag from the palette · `BP-224`/`BP-225` found and fixed |
 | **34** | ⭐ **`BP-74` closed** — sink cases, one undo entry, the menu · `BP-221`/`BP-222` fixed ⇒ the **Function-path Roslyn proof** Batch 33 could not write · `BP-223` found and fixed |
