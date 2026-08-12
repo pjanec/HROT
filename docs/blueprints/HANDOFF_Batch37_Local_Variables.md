@@ -1,6 +1,6 @@
 # HANDOFF — Batch 37: `BP-57` — function-local variables, the compiler half
 
-> 📌 **Dispatched at `<pending>`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
+> 📌 **Dispatched at `1b759b48`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
 > ⭐ **Rule 7 is yours:** branch from this branch, and re-sync from it at the **start** of your run.
 > ⭐ **Rule 4 is yours:** pull it again before your final commit.
 > ⭐ **Rule 3: the coordinator allocates no ids.** `BP-57`, `BP-82`, `BP-224` are *referenced*.

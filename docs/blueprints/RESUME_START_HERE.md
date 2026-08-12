@@ -10,9 +10,9 @@
 > the signature window, dragged from the palette. **`BP-74`/`BP-75`/`BP-77`/`BP-80`/`BP-81`/`BP-83` all closed.**
 > ⭐⭐⭐ **THE MACRO PROGRAMME IS COMPLETE** — `BP-74`…`BP-83` **all closed**. Authored, collapsed,
 > expanded (both directions, round-trip locked), run across frames, debuggable, navigable.
-> ⏭ **Next: [Q27](Architect_Question_27_Local_Variables.md) — function-local variables (`BP-57`)**,
-> which is also what unblocks `BP1664`. ⏳ **Awaiting the architect; do not build yet.**
-> ⚠ It lands on a **latent index-space defect** that is `BP-224`'s shape — see Q27's ground truth.
+> ⏭ **In flight: Batch 37 — function-local variables (`BP-57`), compiler half.**
+> [Q27](Architect_Question_27_Local_Variables.md) is **settled**; the authoring UI is **Batch 38**.
+> ⭐ `BP1664` finally becomes buildable, closing the last macro code.
 > ⛔ **Q26-A supersedes Q25-D3:** a macro now has **N exec-ins**, not one.
 >
 > 📌 Supersedes [RESUME_Coordinator.md](RESUME_Coordinator.md), which is now the **historical log**
@@ -59,9 +59,9 @@ for b in $(git ls-remote --heads origin | awk '{print $2}' | sed 's|refs/heads/|
 
 | Situation | Do |
 |---|---|
-| **No batch in flight** (**today's state**) | pick the next batch — see §4 |
+| **No batch in flight** | pick the next batch — see §4 |
 | **Implementation reported done** | run **all eight gates** (§3), review the diff, reconcile the tracker three ways, **then** merge `--ff-only` and record it |
-| A batch **is** in flight | ⛔ **rule 6: the tracker and detail docs are theirs.** Put findings in the *next* handoff, never in a live one |
+| A batch **is** in flight (**today's state — Batch 37**) | ⛔ **rule 6: the tracker and detail docs are theirs.** Put findings in the *next* handoff, never in a live one |
 
 ⭐ **Never say "they never saw X."** It is a property of one commit, not the session. Test against what
 they *branched from*:
