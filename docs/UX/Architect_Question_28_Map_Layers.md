@@ -91,9 +91,25 @@ effect of the layer numbering.
 | **B′2** | Keep an ordering byte separate from the combination id — ⚠ needs a spare byte after all |
 | **B′3** | Make interning **order-preserving** (allocate ids in ascending primary-layer order) — ⚠ fragile: ids shift as combinations appear |
 
-**Lean: B′1.** It uses a field built for exactly this, and it makes draw order *declared* rather than an
-accident of layer numbering. ⚠ It is a **visible change to the production map's draw order** — needs a
-before/after check on IG, and a golden-image or ordering test.
+🔒 **RULED: B′1** (user, 2026-08-12) — *"is there a dedicated sorter field in the gizmo? if yes then of
+course it should be made working."*
+
+⭐ **There is, and it is dead.** `ZIndex` — `[FieldOffset(15)] public byte ZIndex; // intra-layer sort;
+0=background` — is set by **no production code at all**. The only writers in the repo are three lines in
+`GizmoMap.Example/Scenarios/DemoSceneGenerator.cs`. **Every production primitive has `ZIndex = 0`**, so
+the sort collapses to `DebugLayer` ascending, then emit order. ⭐ **Seam-law instance 12.**
+
+⇒ **The migration is far cheaper than feared:**
+
+| | |
+|---|---|
+| ✅ **Nothing depends on `ZIndex` today** | it is uniformly 0 — no existing ordering can break by starting to use it |
+| ✅ **Only *one* ordering must be reproduced** | today's cross-layer order is `Entities`(0) → `Perception`(1) → `AiHelpers`(2). Give those gizmos `ZIndex` 0/1/2 and the picture is unchanged |
+| ✅ **Within a layer, order is currently *arbitrary*** (stable sort over emit order) ⇒ assigning `ZIndex` can only make it **more** defined |
+| ⚠ **Hit-test priority still needs a rule** | `DebugGizmoLayer.cs:447` picks the highest `DebugLayer`. It becomes highest `ZIndex` — ⚠ verify the pick box still wins over the symbol it sits under |
+
+⇒ 🔒 **`DebugLayer` becomes purely the visibility key; `ZIndex` becomes the sole draw order and pick
+priority.** Both fields then do exactly what their names and doc comments already claim.
 
 ⚠ **Also note a stale doc comment**: `DebugGizmoLayer.cs:91` claims *"`DebugLayer` is **NOT** used as a
 Z-order key"* — while `:447` uses it to choose the pick winner and `:178` sorts by it. Whatever is decided,
@@ -143,6 +159,32 @@ source layering exactly:
 `LayerTreeJson` stops being a mirror of a constant and becomes the actual override channel. ⚠ **Note it is
 currently published and consumed by nobody** — ExCon has no reader.
 
+## E′. What `MapCanvas.ActiveLayerMask` actually is — and why it is a *different* question
+
+It is **not** an entity filter. It switches **whole drawing objects** on and off. Each `IMapLayer`
+declares a `LayerBitIndex`; `MapCanvas.Draw` skips the object entirely when its bit is clear
+(`MapCanvas.cs:142-149`), and `-1` means *always draw*.
+
+| Layer object | Bit |
+|---|---|
+| `GridMapLayer`, `SelectionRenderSystem`, `SimHostTrajectoryLayer` | `-1` — always |
+| `RoadMapLayer` / `SimHostRoadLayer` | 0 |
+| `PerceptionMapLayer` | 9 |
+| **`DebugGizmoLayer`** — *the entire gizmo pipeline* | **31** |
+
+⇒ It is the *"which renderers run"* switch — coarse, cheap, and it never inspects a primitive. The
+`ConfigPanel` checkboxes (Satellite / Roads / Grid) drive it, and they are the right UI for it.
+
+**Lean: keep it, and stop calling it a layer mask in the UI.** It answers *"draw the road network at
+all?"*, while §B answers *"is this hostile air unit visible?"*. Folding them together would mean walking
+every primitive to decide something that is currently one bit test per renderer.
+
+🔴 **But one real collision must be fixed**: `MapLayerBits`' five constants (`GroundUnitsBit` = `1<<0` …)
+are used for **both** `ActiveLayerMask` (layer objects — `RoadMapLayer` is bit 0) **and**
+`MapDisplayComponent.LayerMask` (entity classes — `GroundUnitsBit` is bit 0). **Same bit numbers, two
+unrelated meanings, one constants file** — and a second hand-synced copy in `MapLayerRegistry`. That is
+the actual mess behind [UXI-14](UX_Issues.md#uxi-14).
+
 ## E. What gets deleted?
 
 | | Verdict |
@@ -152,6 +194,32 @@ currently published and consumed by nobody** — ExCon has no reader.
 | `MapCanvas.ActiveLayerMask` + `IMapLayer.LayerBitIndex` | **keep** — genuinely different granularity (whole layer objects: grid, roads, trajectories) |
 | The duplicate `ConfigPanel` / `MapLayerState` / `IMapConfigController` (byte-identical in two projects) | **delete one** — folds in [UXI-14](UX_Issues.md#uxi-14) |
 | `MapLayerRegistry`'s copy of `MapLayerBits`' constants | **delete** — the file's own comment admits they are hand-synced |
+
+## H. 🔒 **Dim ≠ hide** — and dimming needs none of this machinery
+
+> **User, 2026-08-12:** *"Dimming everything else but search hits sounds great **if it really means
+> dimming, not completely hiding**."*
+
+🔒 **It does — and they are deliberately two different mechanisms:**
+
+| | Hide | Dim |
+|---|---|---|
+| Mechanism | the combination mask (§B) | the **resolved colour** |
+| Nature | binary — the primitive is skipped | continuous — alpha / desaturation |
+| Where decided | backend, per frame, per combination | backend, at emit, per primitive |
+| Renderer change | none | ⭐ **none** |
+
+⭐ **Dimming costs nothing extra**, because [UXI-10](UX_Feature_Entity_Symbology.md) already makes the
+backend compute each primitive's colour from `ResolvedStyle`. A *dim* state is one more contribution to
+that colour — naturally an `IStyleSource` ([ruling 20](UX_RESUME_INTERACTION.md)), e.g. a
+`SearchHighlightStyleSource` that desaturates everything not in the current result set.
+
+| | |
+|---|---|
+| ✅ **The renderer stays dumb** | colour already travels in the primitive; the remote IG terminal dims correctly with no protocol change |
+| ✅ **Composable** | dim-because-not-a-search-hit and dim-because-out-of-perspective stack as sources |
+| 🔒 **Search results should therefore be a *style* concern, not a tag** | ⚠ unless you also want *"hide everything except hits"*, which **is** a tag. Both are cheap; they are just different questions |
+| ⚠ **Selection stays its own gizmo** | the ring is a separate primitive, unaffected either way |
 
 ## F. One layer UI, or two?
 
@@ -173,11 +241,11 @@ and the Editor; **CGF registers no `LayerControlGizmo` at all**, so it is silent
 ## Open, needing your ruling
 
 ✅ **Settled:** A = **tags** (entities *and* gizmos) · B = **combination-id byte**, no wire change ·
-B″ = **ALL** semantics · overflow = **degrade to visible + log** · C = **one tag space**.
+B′ = **`ZIndex` becomes the sort and pick key** · B″ = **ALL** semantics · overflow = **degrade to
+visible + log** · C = **one tag space** · H = **dim is a colour concern, hide is a mask concern**.
 
 | # | Question |
 |--:|---|
-| **1** | 🔴 **B′ — draw order. The last blocker.** The combination-id trick requires taking sort **and** hit-test priority off `DebugLayer`. Move both to `ZIndex` (my lean), and accept a **visible change to IG's draw order** that needs an ordering test? |
-| **2** | **E — `MapCanvas.ActiveLayerMask` survives** as the whole-layer-object switch? Or should everything collapse into one mechanism? |
-| **3** | Should **selection/highlight** and **search results** become tags too? With one tag space they *can* be — *"dim everything except my search hits"* becomes free. Your phrase was *"defining, entity filtering and controlling map layers"*, so filtering may be wider than layers |
-| **4** | **How many layers may be defined?** My lean caps the tag space at **64** (a `ulong` interns cheaply); today's total is 8 |
+| **1** | **E′ — confirm `MapCanvas.ActiveLayerMask` survives** as the *"which renderers run"* switch (my lean), with the `MapLayerBits` bit-number collision fixed |
+| **2** | **Search: dim only, or also a "hide non-matches" mode?** Dimming is a style source and needs no tag; hiding needs one. Both are cheap |
+| **4** | **How wide is the tag space?** ⚠ **Lean revised — keep `uint` (32).** `MapDisplayComponent.LayerMask` is **already a `uint`**, and its doc comment already says *"entity can appear on multiple layers"* — ⭐ **tags were the original intent**. Today 8 ids are in use; even with affiliation, selection and search added it is ~15. **32 needs no change at all**; widen to 64 only when a concrete need appears |
