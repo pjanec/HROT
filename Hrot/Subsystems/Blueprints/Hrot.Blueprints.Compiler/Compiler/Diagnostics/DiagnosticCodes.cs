@@ -110,11 +110,14 @@ public static class DiagnosticCodes
     // ⚠ Wording is load-bearing, mirroring the GraphKind.Macro decision: the error is about a call
     // reaching Stage 5 *as a compilation target* -- i.e. surviving expansion. A macro-library asset
     // (Q25-C2) that merely DECLARES macros with no call sites must stay compilable.
-    // ── The macro rails. BP-82's BP1664 is still unallocated and stays reserved. ──────────────
+    // ── The macro rails. ⭐ BP1664 became buildable in Batch 37: BP-57 gave Graph.LocalVariables,
+    // so "a macro declares a local" is finally a condition that can exist and be checked. It had been
+    // reserved-and-unbuildable since BP-82 was written. ──────────────
     public const string BP1660 = "BP1660";  // MacroCallNode.TargetGraphId does not resolve to a Macro graph
     public const string BP1661 = "BP1661";  // macro with a transitively latent body called from a Function graph
     public const string BP1662 = "BP1662";  // macro call cycle, direct or mutual
     public const string BP1663 = "BP1663";  // macro with >=2 exec-outs has a data output fed by an impure producer
+    public const string BP1664 = "BP1664";  // a Macro graph declares a function-local (BP-57 / Q27-B)
     public const string BP1665 = "BP1665";  // macro expansion exceeded the depth cap
 
     // BP-74 / Q26-A3. ⚠ The design's §4 table earmarked BP1666 for "a GraphKind.Macro graph reached
@@ -125,6 +128,11 @@ public static class DiagnosticCodes
     public const string BP1667 = "BP1667";  // [Warning] macro body is empty -- the call is a no-op
 
     public const string BP1668 = "BP1668";  // MacroCallNode reached Stage 5 unexpanded
+
+    // BP-57 / Q27 §5 — the rail nobody had named until Batch 37: a macro BODY referencing a local.
+    // ⚠ Distinct from BP1664, which is about a macro DECLARING one. Both follow from the same fact —
+    // a macro is not a graph after expansion — approached from opposite ends.
+    public const string BP1669 = "BP1669";  // a Macro body reads/writes a graph-local variable
 
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch

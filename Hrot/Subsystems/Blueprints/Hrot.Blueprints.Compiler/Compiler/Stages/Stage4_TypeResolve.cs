@@ -16,6 +16,13 @@ internal static class Stage4_TypeResolve
         ResolveFieldTypes(asset.Parameters,   resolvedFieldTypes, ctx, asset.AssetId);
         ResolveFieldTypes(asset.WorkingState, resolvedFieldTypes, ctx, asset.AssetId);
 
+        // BP-57: function-locals are typed the same way and into the same dictionary — the dictionary
+        // is keyed by DECL ID, so a per-graph list sharing it costs nothing and cannot collide.
+        // ⚠ This is the only place locals touch anything asset-scoped; their INDEX space stays
+        // per-graph (IrGraph.Locals), which is what keeps them out of FindVariableIndex's union.
+        foreach (var graph in asset.Graphs)
+            ResolveFieldTypes(graph.LocalVariables, resolvedFieldTypes, ctx, asset.AssetId);
+
         // Check unmanaged constraint on state fields
         CheckUnmanagedConstraint(asset.Variables,    ctx, asset.AssetId, "Instance state");
         CheckUnmanagedConstraint(asset.WorkingState, ctx, asset.AssetId, "AiPrimitive WorkingState");

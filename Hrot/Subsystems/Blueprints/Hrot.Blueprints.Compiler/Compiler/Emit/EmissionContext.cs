@@ -63,6 +63,33 @@ internal sealed class EmissionContext
         return $"__var_{index}";
     }
 
+    /// <summary>
+    /// BP-57 — the emitted C# identifier for a function-local.
+    ///
+    /// <para>
+    /// ⚠ Prefixed so a designer's local cannot collide with a method parameter (a graph's inputs
+    /// become parameters), a C# keyword, or any other emitted symbol.
+    /// </para>
+    /// </summary>
+    public static string LocalName(string declaredName) => "__loc_" + declaredName;
+
+    /// <summary>
+    /// BP-57 — the emitted identifier for the local at <paramref name="index"/> in the CURRENT graph.
+    ///
+    /// <para>
+    /// ⛔ Reads <c>CurrentGraph.Locals</c>, never the asset's variable lists. That separation is the
+    /// point of the op: see <c>IrGraph.Locals</c> and <c>FINDING_Variable_Index_Space.md</c> for what
+    /// sharing an index space with them costs.
+    /// </para>
+    /// </summary>
+    public string LocalFieldName(int index)
+    {
+        var locals = CurrentGraph?.Locals;
+        return locals != null && index >= 0 && index < locals.Count
+            ? LocalName(locals[index].Name)
+            : $"__loc_unknown_{index}";
+    }
+
     /// <summary>C# field name for a Parameters entry by index.</summary>
     public string ParamFieldName(int index)
     {

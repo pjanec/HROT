@@ -31,6 +31,22 @@ public sealed record IrGraph
 
     public IReadOnlyList<IrField> Inputs { get; init; } = Array.Empty<IrField>();
     public IReadOnlyList<IrField> Outputs { get; init; } = Array.Empty<IrField>();
+    /// <summary>
+    /// BP-57 / Q27-A1 — this graph's function-local variables, in declaration order.
+    ///
+    /// <para>
+    /// ⭐⭐ <b>A per-graph index space, and that is the load-bearing part.</b>
+    /// <c>IrOp_ReadLocal</c>/<c>IrOp_WriteLocal</c> index into <b>this list</b>, never into
+    /// <c>Stage5.FindVariableIndex</c>'s asset-level union of Variables/WorkingState/Parameters. That
+    /// union is a priority-ordered space whose meaning <c>EmissionContext.VarFieldName</c> and
+    /// <c>FindVariableIndex</c> already disagree about (see <c>FINDING_Variable_Index_Space.md</c>);
+    /// putting locals into it would add a fourth list to a space that cannot express three.
+    /// </para>
+    ///
+    /// <para>⚠ Locals are emitted as plain C# locals, so <c>State</c> does not grow.</para>
+    /// </summary>
+    public IReadOnlyList<IrField> Locals { get; init; } = Array.Empty<IrField>();
+
     public IReadOnlyList<IrBlock> Blocks { get; init; } = Array.Empty<IrBlock>();
     public IrBlockId Entry { get; init; }
     /// <summary>

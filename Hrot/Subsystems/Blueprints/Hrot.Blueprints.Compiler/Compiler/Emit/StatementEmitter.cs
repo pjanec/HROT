@@ -63,6 +63,18 @@ internal static class StatementEmitter
                 e.WriteLine($"{sv}.{ctx.VarFieldName(op.VariableIndex)} = __t{op.Value.Index};");
                 break;
 
+            // BP-57 — a function-local: a BARE local, with no `{sv}.` prefix. ⭐ That absence is the
+            // whole feature: the State struct does not grow by one field per scratch value, and the
+            // local is re-initialised on entry (see LibraryEmitter.EmitLocalDeclarations) so it cannot
+            // carry a value from one call into the next.
+            case IrOp_ReadLocal op:
+                if (idx >= 0) e.WriteLine($"var __t{idx} = {ctx.LocalFieldName(op.LocalIndex)};");
+                break;
+
+            case IrOp_WriteLocal op:
+                e.WriteLine($"{ctx.LocalFieldName(op.LocalIndex)} = __t{op.Value.Index};");
+                break;
+
             case IrOp_StateFieldRef op:
                 // FC-2/LV-2 -- writable ref-bind onto the state field (see the op's doc comment).
                 if (idx >= 0) e.WriteLine($"ref var __t{idx} = ref {sv}.{op.FieldName};");

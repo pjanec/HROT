@@ -80,6 +80,38 @@ public sealed class Graph
     /// knowledge is needed, rather than several batches later.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// BP-57 / Q27 — variables scoped to <b>this graph</b> and reset on every invocation.
+    ///
+    /// <para>
+    /// ⭐ <b>Q27-A1: a local is NOT a <c>State</c> field.</b> It compiles to a plain C# local in the
+    /// emitted method, so the instance's state struct does not grow by one field per scratch value —
+    /// which is the whole reason the feature exists rather than "just add an instance variable".
+    /// Q27-E makes that literal: the local is re-initialised from <see cref="VariableDecl.DefaultValueJson"/>
+    /// on entry, so call N+1 never sees call N's value.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b><see cref="VariableDecl"/> is reused wholesale, and two of its members are meaningless
+    /// here.</b> <c>IsEditable</c> and <c>IsExposedOnSpawn</c> describe an instance's inspector surface;
+    /// a local has no instance to be exposed on. They are ignored rather than a narrower decl being
+    /// introduced, because the narrower type would duplicate <c>Id</c>/<c>Name</c>/<c>Type</c>/
+    /// <c>DefaultValueJson</c>/<c>Category</c>/<c>Tooltip</c> — six of eight members — and would cost
+    /// Batch 38 the type picker and every existing row view, which are written against
+    /// <see cref="VariableDecl"/>.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ <b>A <see cref="GraphKind.Macro"/> graph may not declare one</b> (<c>BP1664</c>). A macro is
+    /// spliced, so after expansion it does not exist as a graph and its nodes are the host's — there is
+    /// nothing for a macro-local to be scoped to. Unreal ships macro locals and they leak into the
+    /// host's scope without resetting; this refuses the construct rather than reproducing it.
+    /// </para>
+    ///
+    /// <para>📌 Empty is today's behaviour, and an asset without the field round-trips unchanged.</para>
+    /// </summary>
+    public List<VariableDecl> LocalVariables { get; set; } = new();
+
     public Graph WithNodesAndLinks(List<Node> nodes, List<Link> links) => new()
     {
         Id             = Id,
@@ -89,6 +121,7 @@ public sealed class Graph
         Outputs        = Outputs,
         ExecOutputs    = ExecOutputs,
         ExecInputs     = ExecInputs,
+        LocalVariables = LocalVariables,
         Comments       = Comments,
         EditorMetadata = EditorMetadata,
         Nodes          = nodes,

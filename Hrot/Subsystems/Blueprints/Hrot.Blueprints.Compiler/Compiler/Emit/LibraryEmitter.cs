@@ -73,6 +73,45 @@ internal static class LibraryEmitter
     internal static string HelperReturnType(IrGraph graph)
         => CSharpReturnType(graph, graph.Blocks.Any(b => b.Terminator is IrTerm_ReturnStatus));
 
+    /// <summary>
+    /// BP-57 / Q27-A1+E — declares this graph's function-locals as plain C# locals, initialised from
+    /// their declared defaults, at the top of the emitted body.
+    ///
+    /// <para>
+    /// ⭐⭐ <b>Emitted HERE, in the one body-emitter every graph goes through</b> — the Instance
+    /// function helper, the AiPrimitive helper, the Library static method and <c>TickCore</c> all call
+    /// <see cref="EmitGraphBody"/>. Declaring at each of those sites instead would have been four
+    /// copies of one rule, and the fourth would have been missed exactly as <c>BP-221</c>'s helper
+    /// loop was.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>The initialiser is what makes "local" mean what it says.</b> Q27-E: reset on entry, so
+    /// call N+1 cannot see call N's value. A field written early would behave identically on the first
+    /// call and differently on the second — which is precisely the Unreal macro-local wart Q27 exists
+    /// to avoid, and why the test for this calls the function TWICE.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ Names are prefixed <c>__loc_</c>. A designer's local may share a name with a method parameter
+    /// (the graph's own inputs are parameters), a C# keyword, or another emitted symbol; the prefix
+    /// makes the collision unrepresentable rather than making it someone's later bug report.
+    /// </para>
+    /// </summary>
+    internal static void EmitLocalDeclarations(CSharpEmitter e, IrGraph graph)
+    {
+        if (graph.Locals.Count == 0) return;
+
+        foreach (var local in graph.Locals)
+        {
+            var init = string.IsNullOrWhiteSpace(local.DefaultValueCSharp)
+                ? "default"
+                : local.DefaultValueCSharp;
+            e.WriteLine($"{CSharpType(local.Type)} {EmissionContext.LocalName(local.Name)} = {init};");
+        }
+        e.WriteLine();
+    }
+
     private static void EmitFunctionGraph(CSharpEmitter e, IrAsset asset, IrGraph graph)
     {
         bool hasStatusReturn = graph.Blocks.Any(b => b.Terminator is IrTerm_ReturnStatus);
@@ -95,6 +134,7 @@ internal static class LibraryEmitter
     internal static void EmitGraphBody(CSharpEmitter e, IrAsset asset, IrGraph graph)
     {
         e.Ctx.CurrentGraph = graph;
+        EmitLocalDeclarations(e, graph);
         for (int i = 0; i < graph.Blocks.Count; i++)
         {
             var block = graph.Blocks[i];

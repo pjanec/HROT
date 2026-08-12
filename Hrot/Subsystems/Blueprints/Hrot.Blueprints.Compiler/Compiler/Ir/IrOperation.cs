@@ -7,6 +7,26 @@ public sealed record IrOp_Const(string CSharpLiteral, IrTypeRef Type) : IrOperat
 public sealed record IrOp_ReadParam(int ParamIndex) : IrOperation;
 public sealed record IrOp_ReadVariable(int VariableIndex) : IrOperation;
 public sealed record IrOp_WriteVariable(int VariableIndex, IrValue Value) : IrOperation;
+
+/// <summary>
+/// BP-57 / Q27-A1 — reads a <b>function-local</b> variable: a plain C# local, not a
+/// <c>State</c> field.
+///
+/// <para>
+/// ⭐ <b>Why this is not <see cref="IrOp_ReadVariable"/> with a flag.</b> That op emits
+/// <c>{stateVar}.{VarFieldName(index)}</c> — a field access on the state struct — and its index lives
+/// in an asset-level union of Variables/WorkingState/Parameters. A local is neither a field nor a
+/// member of that union, so representing one there would mean teaching every reader of that index
+/// space about a fourth list whose entries are not fields at all. Q27-D ruled for a separate op, and
+/// this is what forces it.
+/// </para>
+///
+/// <para>⚠ <see cref="LocalIndex"/> indexes <c>IrGraph.Locals</c> — <b>per graph</b>, never the asset union.</para>
+/// </summary>
+public sealed record IrOp_ReadLocal(int LocalIndex) : IrOperation;
+
+/// <summary>BP-57 — writes a function-local variable. See <see cref="IrOp_ReadLocal"/>.</summary>
+public sealed record IrOp_WriteLocal(int LocalIndex, IrValue Value) : IrOperation;
 public sealed record IrOp_ReadInputArg(int ArgIndex) : IrOperation;
 public sealed record IrOp_Self : IrOperation;
 public sealed record IrOp_Time : IrOperation;

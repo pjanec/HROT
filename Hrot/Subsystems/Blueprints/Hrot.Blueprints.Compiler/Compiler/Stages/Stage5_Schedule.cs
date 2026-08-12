@@ -106,6 +106,15 @@ internal static class Stage5_Schedule
         return GetOrdered(result, order);
     }
 
+    /// <summary>
+    /// BP-57 — the graph-locals overload. ⭐ Delegates to the same builder the asset-level lists use,
+    /// so a local's type resolution, default literal and comment cannot drift from a variable's.
+    /// Only the index space differs, and that is deliberate.
+    /// </summary>
+    internal static IReadOnlyList<IrField> BuildLocalIrFields(
+        IEnumerable<VariableDecl> decls, TypedAsset typed)
+        => BuildIrFields(decls, typed, order: null);
+
     private static IReadOnlyList<IrField> BuildIrFields(
         IEnumerable<VariableDecl> decls, TypedAsset typed, List<Guid>? order)
     {
@@ -251,6 +260,7 @@ internal sealed class GraphScheduler
                 Id    = _graph.Id,
                 Name  = _graph.Name,
                 Kind  = MapGraphKind(_graph.Kind),
+                Locals = BuildLocalFields(),
                 Entry = new IrBlockId(0),
             };
         }
@@ -309,6 +319,8 @@ internal sealed class GraphScheduler
             Id      = _graph.Id,
             Name    = _graph.Name,
             Kind    = MapGraphKind(_graph.Kind),
+            // BP-57: the graph's own locals, in declaration order — IrOp_Read/WriteLocal index here.
+            Locals  = BuildLocalFields(),
             // Q#14: for an Event graph, carry the event identity from its EventEntry so the emitter can key
             // EventHandlers by it (the graph name is a method-name suffix and can't be the FQN).
             EventTypeFqn = _graph.Kind == GraphKind.Event
@@ -1201,13 +1213,18 @@ internal sealed class GraphScheduler
         {
             case SetVariableNode sv:
             {
-                int idx = FindVariableIndex(sv.VariableId);
+                int localIdx = FindLocalIndex(sv.VariableId);
+                int idx = localIdx >= 0 ? -1 : FindVariableIndex(sv.VariableId);
                 var dataPin = node.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "In");
                 if (dataPin is null) break;
                 var val = ResolveDataPin(node.Id, dataPin.Id, stmts);
                 stmts.Add(new IrStatement
                 {
-                    Operation = new IrOp_WriteVariable(idx, val),
+                    // BP-57: a local wins inside its own graph (Q27-C1), and the two spaces are
+                    // disjoint ops so nothing downstream has to disambiguate an integer.
+                    Operation = localIdx >= 0
+                        ? new IrOp_WriteLocal(localIdx, val)
+                        : (IrOperation)new IrOp_WriteVariable(idx, val),
                     Debug     = DebugOf(node),
                 });
 
@@ -2527,12 +2544,15 @@ internal sealed class GraphScheduler
             }
 
             case GetVariableNode gv:
-                int varIdx = FindVariableIndex(gv.VariableId);
+                int gvLocal = FindLocalIndex(gv.VariableId);
+                int varIdx  = gvLocal >= 0 ? -1 : FindVariableIndex(gv.VariableId);
                 result = AllocValue(pinType);
                 stmts.Add(new IrStatement
                 {
                     ResultValue = result,
-                    Operation   = new IrOp_ReadVariable(varIdx),
+                    Operation   = gvLocal >= 0
+                        ? new IrOp_ReadLocal(gvLocal)
+                        : (IrOperation)new IrOp_ReadVariable(varIdx),
                     Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gv.Id, PinId = sourcePinId },
                 });
                 break;
@@ -4493,6 +4513,60 @@ internal sealed class GraphScheduler
             ? sharedTypeId.Substring("global::".Length)
             : sharedTypeId;
         return fqn.Replace('+', '.');
+    }
+
+    /// <summary>
+    /// BP-57 — the graph's locals as <see cref="IrField"/>s, in declaration order.
+    ///
+    /// <para>
+    /// ⚠ <c>DefaultValueCSharp</c> is what makes Q27-E true: the emitter re-initialises from it on
+    /// entry, so a local is genuinely per-invocation rather than "a field that happens to be written
+    /// early". A decl with no default gets <c>default</c>, which is still a reset.
+    /// </para>
+    /// </summary>
+    private IReadOnlyList<IrField> BuildLocalFields()
+    {
+        if (_graph.LocalVariables.Count == 0) return Array.Empty<IrField>();
+
+        // ⭐ The SAME builder the asset-level lists use, so a local's type resolution, default and
+        // ordering cannot drift from a variable's. Only the index space differs, and that is the point.
+        return Stage5_Schedule.BuildLocalIrFields(_graph.LocalVariables, _typed);
+    }
+
+    /// <summary>
+    /// BP-57 / Q27-C1 — the index of a <b>function-local</b> in THIS graph, or -1.
+    ///
+    /// <para>
+    /// ⛔⛔ <b>By id, in this graph, with NO name fallback — and the omission is the whole design.</b>
+    /// <see cref="FindVariableIndex"/> deliberately falls back to a NAME match across the asset's
+    /// Variables/WorkingState/Parameters when the id misses. Extending that habit here would mean an
+    /// id typo, a stale reference, or a local deleted from another graph silently resolving to the
+    /// asset variable of the same name — and with shadowing that is not a nuisance, it is <b>the
+    /// wrong storage, silently</b>: the persistent instance field instead of the per-call local,
+    /// reading a value the designer never wrote and writing one they never intended to persist.
+    /// </para>
+    ///
+    /// <para>
+    /// ⇒ A miss returns -1 and the caller falls through to the asset lookup, which is correct: a
+    /// Get/Set that names an asset variable is exactly what it looks like. What must not happen is a
+    /// LOCAL reference degrading into an asset one, which is why nothing here matches on name.
+    /// </para>
+    /// </summary>
+    private int FindLocalIndex(string variableId)
+    {
+        var locals = _graph.LocalVariables;
+        if (locals.Count == 0) return -1;
+
+        var idStr = variableId != null && variableId.StartsWith("var:", StringComparison.OrdinalIgnoreCase)
+            ? variableId.Substring(4)
+            : variableId ?? "";
+
+        if (!Guid.TryParse(idStr, out var guid)) return -1;
+
+        for (int i = 0; i < locals.Count; i++)
+            if (locals[i].Id == guid) return i;
+
+        return -1;
     }
 
     private int FindVariableIndex(string variableId)

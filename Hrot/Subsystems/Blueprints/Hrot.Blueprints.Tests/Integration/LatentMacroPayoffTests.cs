@@ -941,4 +941,102 @@ public sealed class LatentMacroPayoffTests
         Assert.Equal(NodeStatus.Success, fixture.InvokeBTreeAction(asset, entity));
         Assert.Equal(42, ReadAmmo(fixture, entity));   // ⭐ the spliced body really ran
     }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // BP-57 / Q27 — a local, executed
+    // ────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐ <b>The test that proves "local" means what it says, and the second call is the whole
+    /// point.</b> A local declared with default 0 is written to a component, then set to 7. If it is
+    /// genuinely per-invocation (Q27-E), <b>every</b> call writes 0 — the 7 from the previous call is
+    /// gone. If it had quietly become a <c>State</c> field, call 2 would write 7, and call 1 would look
+    /// identical either way.
+    ///
+    /// <para>
+    /// ⚠ <b>Calling once would pass on the defect.</b> That is why this calls twice and asserts the
+    /// second result, and it is exactly the Unreal macro-local wart Q27 exists to avoid — theirs land
+    /// in the host's scope and never reset.
+    /// </para>
+    ///
+    /// <para>⛔ Through <b>real Roslyn</b>: <c>.Succeeded</c> never invokes it.</para>
+    /// </summary>
+    [Fact]
+    public void AFunctionLocal_IsResetOnEveryInvocation_NotCarriedBetweenCalls()
+    {
+        using var fixture = new BlueprintTestFixture(NoAlcCheck);
+
+        var local = new VariableDecl
+        {
+            Id = Guid.NewGuid(), Name = "Counter",
+            Type = new Hrot.Blueprints.Core.Assets.BlueprintTypeRef { TypeId = "System.Int32" },
+            DefaultValueJson = "0",
+        };
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = NewPin("Out", "Out", isExec: true); entry.Pins.Add(entryOut);
+
+        // read the local …
+        var get    = new GetVariableNode { Id = Guid.NewGuid(), VariableId = local.Id.ToString() };
+        var getOut = NewPin("Value", "Out", isExec: false, typeId: "System.Int32");
+        get.Pins.Add(getOut);
+
+        // … write it to the component …
+        var writer = new SetComponentNode
+        {
+            Id = Guid.NewGuid(),
+            ComponentTypeFqn = DemoComponentFqn,
+            Fields = new List<ComponentFieldDecl> { new() { Name = "Ammo", TypeId = "System.Int32" } },
+        };
+        var wIn   = NewPin("In",  "In",  isExec: true);
+        var wOut  = NewPin("Out", "Out", isExec: true);
+        var wAmmo = NewPin("Ammo", "In", isExec: false, typeId: "System.Int32");
+        writer.Pins.AddRange(new[] { wIn, wOut, wAmmo,
+            NewPin("Written", "Out", isExec: false, typeId: "System.Boolean") });
+
+        // … then set the local to 7, which the NEXT call must not see.
+        var lit    = new LiteralNode { Id = Guid.NewGuid(), ValueJson = "7" };
+        var litOut = NewPin("Value", "Out", isExec: false, typeId: "System.Int32");
+        lit.Pins.Add(litOut);
+
+        var set    = new SetVariableNode { Id = Guid.NewGuid(), VariableId = local.Id.ToString() };
+        var sIn    = NewPin("In",  "In",  isExec: true);
+        var sOut   = NewPin("Out", "Out", isExec: true);
+        var sVal   = NewPin("Value", "In", isExec: false, typeId: "System.Int32");
+        set.Pins.AddRange(new[] { sIn, sOut, sVal });
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = NewPin("In", "In", isExec: true); ret.Pins.Add(retIn);
+
+        var tick = new Graph
+        {
+            Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function,
+            Nodes = { entry, get, writer, lit, set, ret },
+            Links =
+            {
+                Wire(entry, entryOut, writer, wIn),
+                Wire(get,   getOut,   writer, wAmmo),
+                Wire(writer, wOut,    set,    sIn),
+                Wire(lit,   litOut,   set,    sVal),
+                Wire(set,   sOut,     ret,    retIn),
+            },
+        };
+        tick.LocalVariables.Add(local);
+
+        var asset = MakeAiPrimitiveAsset("LocalPerCall", tick);
+
+        fixture.CompileAndLoad(asset);      // real Roslyn
+
+        fixture.World.RegisterComponent<Hrot.AI.Behaviors.BpComponentDemo>();
+        var entity = fixture.CreateEntity();
+        fixture.World.AddComponent(entity, new Hrot.AI.Behaviors.BpComponentDemo { Ammo = -1 });
+
+        fixture.InvokeBTreeAction(asset, entity);
+        Assert.Equal(0, ReadAmmo(fixture, entity));   // the declared default
+
+        // ⭐ The second call. A State field would report 7 here.
+        fixture.World.AddComponent(entity, new Hrot.AI.Behaviors.BpComponentDemo { Ammo = -1 });
+        fixture.InvokeBTreeAction(asset, entity);
+        Assert.Equal(0, ReadAmmo(fixture, entity));
+    }
 }
