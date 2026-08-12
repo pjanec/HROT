@@ -1,6 +1,6 @@
 # HANDOFF — Batch 37: `BP-57` — function-local variables, the compiler half
 
-> 📌 **Dispatched at `1b759b48`** · ⚠ **§6 AMENDED and RE-DISPATCHED at `PENDING`** — the user
+> 📌 **Dispatched at `1b759b48`** · ⚠ **§6 AMENDED and RE-DISPATCHED at `ba8382d7`** — the user
 > confirmed on `2026-08-12` that no implementation run had picked this up yet, so rule 1's *never amend
 > after dispatch* does not bite. ⭐ **Only §6 and one line of §8 changed**; §§0–5 and §7 are byte-identical
 > to the original dispatch. **Frozen again from this stamp on.**
