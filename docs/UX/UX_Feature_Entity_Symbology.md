@@ -67,6 +67,7 @@ interface**: it fires every frame at `DebugPrimitiveRenderer2D.cs:410`. What is 
 | **F** | **`ResolveProfileId` returns 0 off a snapshot** — `if (view is not EntityRepository repo) return 0UL;` ⇒ `_fallback` ⇒ a grey rectangle, silently | `EntityPresentationGizmoShared.cs:48` |
 | **G** | **The shape vocabulary is 4 hardcoded profiles** selected by a DIS bit-decode; the named half is unreachable. ⚠ `rotary_wing` reuses the `fixed_wing` geometry verbatim | `DefaultEntityShapeLibrary.cs:15-42,106-107` |
 | **H** | **Zero test coverage of shape selection.** No test constructs `DefaultEntityShapeLibrary` or calls `GetShape`; the one test renderer overrides `DispatchShape` and never calls `base`, so it cannot reach the library | `GizmoPresentationTests.cs:23-34` |
+| **J** | 🔴 **Rotating an entity in CGF does not visibly rotate it** — the rotator writes `SimTransform.Rotation`, the gizmo draws `NetworkTransform.LastRotation` | `EntityRotatorGizmo.cs:118-122` + `CgfSubsystem.cs:605` vs `CgfEntityPresentationGizmo.cs:27-35` |
 | **I** | **`SelectionHighlightGizmo` is not registered in SimHost or CGF** — neither calls `Hrot.Common.Diagnostics.Gizmos.GizmoRegistrar.RegisterAll` ⇒ no selection ring, and no `HealthBarGizmo` either | `SimHostApp.cs:337-345`, `CgfSubsystem.cs:498-500` vs `EditorSubsystem.cs:1100` |
 
 ### 🔴 UXI-19 verified — the Editor draws every entity twice
@@ -186,10 +187,46 @@ prim.Color = tint;
 `IgEntityPresentationGizmo` + `SimHostEntityPresentationGizmo` + `CgfEntityPresentationGizmo` →
 **`EntityPresentationGizmo`**, projector key `(SimTransform, NetworkIdentity)`.
 
-⚠ **CGF's one genuine difference survives**: it prefers `NetworkTransform` over `SimTransform` when
-populated (`CgfEntityPresentationGizmo.cs:26-42`). That becomes a **pose-source rule** inside the shared
-gizmo — *prefer `NetworkTransform` when non-default* — which is correct for the others too, since they
-have no `NetworkTransform` to prefer.
+🔒 **RULED by the user, 2026-08-12:** *"CGF's `NetworkTransform` does not make sense to me. CGF is not
+different from the others — all should use the same source (`SimTransform`) and the same rendering path for
+the symbol (same gizmo, same DIS-type / TKB-derived shape, maybe just IG can override via DDS)."*
+
+⚠ **This corrects an earlier draft of this very section** ([Correction 26](UX_Tasks_Detail.md#corrections)),
+which kept CGF's preference as a "pose-source rule" on the false premise that the other hosts have no
+`NetworkTransform` to prefer. **They do** — `SharedTranslatorPack` is created for **every** role
+(`NedReplicationModule.cs:215-216`), so IG, SimHost and CGF worlds all carry it. That rule would have
+**silently changed the production map's pose source**.
+
+⇒ 🔒 **One pose source: `SimTransform`.** The preference is deleted, not migrated. Evidence it is
+vestigial *and* harmful:
+
+| | |
+|---|---|
+| **Both are written from the same decode** | `GeoSpatialIngressTranslator.Decode` sets `NetworkTransform` at `:75` and `SimTransform` at `:89` from the *same* `position`/`rotation` ⇒ numerically identical after ingress |
+| **`SimTransform` is deliberately the local authority** | the `:85` guard — *"do NOT override `SimTransform` for locally-owned entities"* — exists precisely so local edits survive DDS loopback |
+| 🔴 **The preference breaks CGF's own Rotate** | `EntityRotatorGizmo.CommitRotation` writes **`SimTransform.Rotation` only** (`EntityRotatorGizmo.cs:118-122`), and CGF wires that gizmo to its *Rotate* menu item (`CgfSubsystem.cs:605-608`) — while its gizmo draws `NetworkTransform.LastRotation`. ⇒ **rotating an entity in CGF does not visibly rotate it** |
+| **The stated rationale points at deleted code** | the comment cites `CgfDebugVisualizerAdapter`, which was **removed** in the gizmo migration. The only recorded justification is a task instruction hedged with *"Optionally… CGF nodes **may** use `NetworkTransform` as a more current position source"* — a hypothesis, never verified |
+
+#### ⭐ Is there already one gizmo that serves all hosts? — analysed, **no**
+
+A repo-wide census of every gizmo emitting a per-entity visual: **the three presentation gizmos are the
+only candidates, and none is a superset** — `Ig` adds culling + damage, `SimHost` adds the pick box,
+`CGF` adds the (wrong) pose preference and loses both. ⇒ **merging them is correct and is this design's
+§3.3**; there is nothing to adopt instead.
+
+⚠ **But the merge does not close the real gap**, which is *registration*, not implementation:
+
+| Subsystem | Per-entity gizmos registered |
+|---|---|
+| **IG · Editor** | full set — health bar, selection ring, rotation, vision cone, nav target, LOS, routes, areas, overlays, effects, … |
+| **ReplayBrowser** | broad read-only set |
+| **SimHost** | presentation + canvas menu + drag — **nothing else** |
+| **CGF** | presentation + canvas menu — **nothing else** |
+
+⇒ 🔒 **Out of scope here, worth its own issue**: SimHost and CGF get **no** health bars, selection rings,
+headings, routes or overlays — and nothing records whether that is a deliberate capability choice or
+drift. ⚠ It is the same shape as [UXI-13](UX_Issues.md#uxi-13) (four hand-maintained gizmo menu blocks):
+**per-subsystem registration lists with no declared rationale.**
 
 ### 3.4 Culling moves to a visibility policy — ⭐ the seam already exists
 
@@ -271,7 +308,8 @@ gizmo already runs where the repo is available, so resolve early and pass the va
 | 10.6 | `DamageLevel` 0 / 50 / 90 → condition mask `0` / `Damaged` / `Damaged\|Immobile`, in **all three** subsystems | H |
 | 10.7 | 🔴 An entity with `(SimTransform, NetworkIdentity, CullingState)` in an Editor-style registry emits **exactly one** semantic shape — the UXI-19 regression guard | H |
 | 10.8 | An invisible (`CullingState.IsVisible = false`) entity emits **nothing**, via the visibility policy | H |
-| 10.9 | Entity with `NetworkTransform` populated → the shared gizmo uses it; unpopulated → `SimTransform` | H |
+| 10.9 | 🔒 **Pose comes from `SimTransform` in every host**, even when `NetworkTransform` is populated and differs — the one-source guard | H |
+| 10.23 | 🔴 Rotating an entity in CGF **moves the drawn symbol in the same frame** (defect J) | I |
 | 10.10 | `HrotEntityShapeLibrary` returns a registered profile by name; by DIS id; and **delegates to the default** when unregistered | H |
 | 10.11 | 🔴 **`VisualData.MapShapeName` reaches the library** — a scenario naming `mapShapeName` resolves the **named** profile, not the DIS fallback. The field's own doc comment becomes true | H |
 | 10.12 | 🔒 **A service map resolves style with no DDS source registered** — `IgSymbolOverride` present on an entity is **ignored** when `DdsOverrideStyleSource` is absent | H |
@@ -286,7 +324,7 @@ gizmo already runs where the repo is available, so resolve early and pass the va
 | 10.15 | Two entities, opposing `ForceId` → visibly different colours on the map in every subsystem | I |
 | 10.16 | Editor: an entity is drawn **once**, and off-screen entities are not drawn | I |
 
-**20 H · 3 I · 0 V.** ⚠ Note 10.10-10.11, 10.17: **there is currently no test anywhere that calls
+**20 H · 4 I · 0 V.** ⚠ Note 10.10-10.11, 10.17: **there is currently no test anywhere that calls
 `GetShape`** (defect H), so these are the first coverage this logic has ever had. 🔒 **10.20 is the
 load-bearing one** — IG is the production map, and this design must be provably invisible to it.
 

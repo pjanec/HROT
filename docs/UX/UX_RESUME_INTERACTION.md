@@ -13,7 +13,7 @@ Designed **7 of 27** issues, then consolidated three of them into one API and on
 | ✅ **[UX_Interaction_UseCases.md](UX_Interaction_UseCases.md)** | **57 cases**, 46 headless / 11 integration / **0 visual-only** + coverage check |
 | [UX_Issues.md](UX_Issues.md) | the register — 27 issues |
 | [UX_Seam_Inventory.md](UX_Seam_Inventory.md) | prior-art table + `scripts/seam_inventory.py`, `scripts/type_index.py` |
-| [UX_Tasks_Detail.md](UX_Tasks_Detail.md#corrections) | **25 corrections** — read before trusting any claim |
+| [UX_Tasks_Detail.md](UX_Tasks_Detail.md#corrections) | **26 corrections** — read before trusting any claim |
 
 **Designed:** UXI-01..08, **09**, **10** (+ **19**, verified and absorbed into 10). **Refuted:** UXI-26. **Split out:** UXI-25 (ExCon ORBAT),
 UXI-27 (progress surface).
@@ -40,6 +40,7 @@ UXI-27 (progress surface).
 | 16 | **ExCon is DDS-only, no ECS** — reuses the ORBAT UI with its own data model. `int EntityId` is correct, not a defect |
 | 17 | **No assumptions.** Read `README.md` + `docs/HROT-PROGRAMMERS-GUIDE.md` before claiming an engine defect |
 | 18 | **Layout = one directory.** `fdp_windows.json` lives **next to `imgui.ini`** in *both* places (user `%LocalAppData%\HROT\` and the shipped default). Reset = a directory copy |
+| 21 | 🔒 **One pose source, one symbol path** (user, 2026-08-12). *"CGF is not different from the others — all should use `SimTransform`, the same gizmo, the same DIS-type/TKB-derived shape; maybe just IG can override via DDS."* CGF's `NetworkTransform` preference is **deleted, not migrated** ([Correction 26](UX_Tasks_Detail.md#corrections)). ⭐ **Colour overrides may still be subsystem-specific** — via the same modification-layer mechanism as IG's DDS layer (`IStyleSource`) |
 | 20 | 🔒 **Two classes of map** (user, 2026-08-12). **IG = the production 2D map, remotely controlled via the DDS API**; `StyleResolutionSystem` was written *for it*, DDS-provided styles being its point. **Editor · CGF · SimHost · ReplayBrowser = service-level maps** — sources are **local/user input + ECS, no remote DDS control**. ⇒ **Share the infrastructure where it is generic, reusable and helpful; never make a service map depend on the DDS layer.** [UXI-10](UX_Feature_Entity_Symbology.md) §2.5 |
 | 19 | ✅ **The CGF / SimHost initial-view shift is approved** (user, 2026-08-12). Removing the hardcoded `(640, 360)` offset changes what those two subsystems show on first launch — accepted as the correct behaviour arriving. [UXI-09](UX_Feature_Map_Viewport.md) §5 |
 
@@ -94,6 +95,9 @@ review rule (UC-44c).
 | **CGF's semantic shapes are `alpha 0`** (bypasses the shared helper) and it emits **no pick box** ⇒ unselectable | `CgfEntityPresentationGizmo.cs:45-49` |
 | **`VisualData.MapShapeName`** is authored, translated, and **read nowhere**; `GetShape`'s `shapeName` is always `null` | `VisualData.cs:33`, `PresentationTkbTranslator.cs:41`, `DebugPrimitiveRenderer2D.cs:410` |
 | ✅ **UXI-19 verified** — the Editor emits **two** of every presentation primitive, and the second ignores culling | `StatelessGizmoSystem.cs:104`, `EditorSubsystem.cs:1094-1097` |
+| 🔴 **Rotating an entity in CGF does not visibly rotate it** — rotator writes `SimTransform`, gizmo draws `NetworkTransform` | `EntityRotatorGizmo.cs:118-122`, `CgfSubsystem.cs:605` |
+| **`SetLayerMask(ushort) { }` is empty** — `MapCanvas.ActiveLayerMask` has **zero** effect on individual primitives; only `LayerControlGizmo`'s 256-bit mask filters, and only 3 bits are used | `Fdp.Presentation/Vis2D/Gizmos/DebugPrimitiveRenderer2D.cs:23`, called `DebugGizmoLayer.cs:100` |
+| **`MapLayerAssignmentSystem` classifies every entity into 5 layers → `MapDisplayComponent.LayerMask`, and the symbol emitter never reads it** (always `layer: 0`) — ⭐ *the same resolve-then-discard failure as the tint* | `MapLayerAssignmentSystem.cs:97-127` vs `EntityPresentationGizmoShared.cs` |
 
 ## 6. Next steps, in order
 
