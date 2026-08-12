@@ -44,7 +44,7 @@
 | **D** | | **Layout** | | | | |
 | | <a id="uxi-08"></a>**UXI-08** | **No shipped default layout.** ⭐ **Wider than filed: layout state lives in TWO files in TWO roots** — `imgui.ini` in `%LocalAppData%\HROT\` and `fdp_windows.json` **next to the exe** (open/closed, perspective, UI scale). Resetting one gives a **half-reset**. 🔴 The repo-root `imgui.ini` is **tracked *and* `.gitignore`d, never copied to output, never read** — an accident, not a default. Path logic duplicated in 2 shells | `RW-M` | [UXR-04](UX_Requirements.md#uxr-04) | [UX_Feature_Layout_Defaults.md](UX_Feature_Layout_Defaults.md) | ✅ |
 | **E** | | **Map** | | | | |
-| | <a id="uxi-09"></a>**UXI-09** 🔴 | **Camera setup copy-pasted 4×, every copy stale**, and nothing is occlusion-aware — `DockspaceLayout.CentralSize` exists and no camera reads it | `RW-M` | [UXR-18](UX_Requirements.md#uxr-18) | — | ☐ |
+| | <a id="uxi-09"></a>**UXI-09** 🔴 | **Camera setup copy-pasted 5×** ([Correction 23](UX_Tasks_Detail.md#corrections) — ReplayBrowser is the fifth), **every copy stale**, and nothing is occlusion-aware. 🔴 **Wider than filed:** two hosts centre on the **top-left pixel** (`Offset` never set); `Offset` is written **once at construction** in all five ⇒ resize decentres every map; and **perspective switch copies one subsystem's `Offset` into another** via `MapCameraView`. `DockspaceLayout` exists but sizes the dockspace *host* — no camera reads it | `RW-M` | [UXR-18](UX_Requirements.md#uxr-18) | [design](UX_Feature_Map_Viewport.md) | ☑ |
 | | <a id="uxi-10"></a>**UXI-10** | **Map symbology seam exists and no host uses it** — every host passes `DefaultEntityShapeLibrary` | `RW-L` | — | — | ☐ |
 | | <a id="uxi-11"></a>**UXI-11** | **CGF and ExCon sit outside the shared selection mechanism** — CGF has no `SelectionInteractionSystem`; ExCon uses an id list over the wire | `RW-M` | — | — | ☐ |
 | **F** | | **Duplication** | | | | |
@@ -58,7 +58,7 @@
 | | <a id="uxi-18"></a>**UXI-18** | **Editor's JSON parser reads `children` without a `ValueKind` guard** — a non-array throws `InvalidOperationException`, which its `catch (JsonException)` does not catch | `RW-L` | — | — | ☐ |
 | | <a id="uxi-19"></a>**UXI-19** ⚠ | **Two presentation gizmos may match one entity** — Editor registers both; overlapping projector keys. **Unverified** — establish before treating as a defect | — | — | — | ☐ |
 
-**Counts:** **27 issues** · **8 designed** · 8 🔴 · UXI-26 ⊘ refuted · 1 unverified (UXI-19) · UXI-22 folded into UXI-23 · UXI-25 split out of UXI-04 (user, 2026-08-10).
+**Counts:** **27 issues** · **9 designed** · 8 🔴 · UXI-26 ⊘ refuted · 1 unverified (UXI-19) · UXI-22 folded into UXI-23 · UXI-25 split out of UXI-04 (user, 2026-08-10).
 
 ## Dependency order
 

@@ -13,9 +13,9 @@ Designed **7 of 27** issues, then consolidated three of them into one API and on
 | ✅ **[UX_Interaction_UseCases.md](UX_Interaction_UseCases.md)** | **57 cases**, 46 headless / 11 integration / **0 visual-only** + coverage check |
 | [UX_Issues.md](UX_Issues.md) | the register — 27 issues |
 | [UX_Seam_Inventory.md](UX_Seam_Inventory.md) | prior-art table + `scripts/seam_inventory.py`, `scripts/type_index.py` |
-| [UX_Tasks_Detail.md](UX_Tasks_Detail.md#corrections) | **21 corrections** — read before trusting any claim |
+| [UX_Tasks_Detail.md](UX_Tasks_Detail.md#corrections) | **23 corrections** — read before trusting any claim |
 
-**Designed:** UXI-01, 02, 03, 04, 05, 06, 07, **08**. **Refuted:** UXI-26. **Split out:** UXI-25 (ExCon ORBAT),
+**Designed:** UXI-01, 02, 03, 04, 05, 06, 07, 08, **09**. **Refuted:** UXI-26. **Split out:** UXI-25 (ExCon ORBAT),
 UXI-27 (progress surface).
 
 ## 2. 🔒 Every user ruling, in force
@@ -85,20 +85,24 @@ review rule (UC-44c).
 | Two `async void` handlers swallow faults | `:1462`, `:1479` |
 | `--mode all` first run hides **22** perspective-bound windows | [UXI-06](UX_Feature_Perspective_Restore.md) |
 | SimHost/CGF emit **no** per-entity map menu | `SimHostApp.cs:337-345`, `CgfSubsystem.cs:497-500` |
+| Editor + ReplayBrowser never set `MapCamera.Offset` ⇒ *Center on Entity* lands at the **top-left pixel** | `EditorSubsystem.cs:1395`, `ReplayBrowserSubsystem.cs:134` · [UXI-09](UX_Feature_Map_Viewport.md) |
+| `Offset` is written **once at construction** in all 5 hosts ⇒ **resize decentres every map** | one `Offset` write per site; none in any resize path |
+| **Perspective switch transports `Offset` between subsystems** — a screen-space value treated as portable camera state | `MapCameraView.cs:10-18` → `MapCamera.cs:253` → `SubsystemOrchestrator.cs:175-177` |
 
 ## 6. Next steps, in order
 
 1. ✅ **RESOLVED — host pump + playback goes immediately before `_kernel.Update()`** (`EditorSubsystem.cs:1618`). The kernel flush is *before* `Bus.SwapBuffers()` (`ModuleHostKernel.cs:523-534`), so ops land visible **in the same frame**. Precedent: `_aiCoordinator.DrainPendingCallbacks()` (`:1620-1624`) is the same pattern already in production. ⚠ *Unpinned:* where ImGui panel drawing sits relative to `EditorSubsystem.Update()` — affects only which frame a synchronous handler commits in. See [API §6d](UX_Interaction_API.md#6d--where-the-hosts-playback-sits--resolved-2026-08-10)
-2. ⏭ **Designing continues** — user, 2026-08-10: *"keep designing now rather than rewriting tasks later because we find new unexpected stuff"*. **Next: UXI-09** (camera ×4, occlusion).
+2. ⏭ **Designing continues** — user, 2026-08-10: *"keep designing now rather than rewriting tasks later because we find new unexpected stuff"*. ✅ **UXI-09 designed** → [UX_Feature_Map_Viewport.md](UX_Feature_Map_Viewport.md). **Next: UXI-10** (symbology seam, zero hosts).
 3. Cut `UXT` tasks — **none cut yet**, deliberately deferred.
-4. Remaining undesigned: UXI-09..24 (camera, symbology, duplication, robustness) + 23, 24, 25, 27.
-5. The golden-path walk still needs a **Windows** session.
+4. Remaining undesigned: UXI-10..24 (symbology, duplication, robustness) + 23, 24, 25, 27.
+5. The golden-path walk still needs a **Windows** session — ⚠ **and so does one UXI-09 question**: whether ImGui.NET **1.91.6.1** exposes `DockBuilderGetCentralNode` (imgui_internal). It gates tier T2 only; T1 ships without it.
 
 ## 7. ⚠ Process rules earned the hard way
 
 | | |
 |---|---|
-| **Rule 6** | every design opens with a **Prior art** section citing the [Seam Inventory](UX_Seam_Inventory.md) — the seam usually **already exists and is under-adopted**. ⭐ **7 instances so far**, most recently `SaveSettings(path)` / `LoadSettings(path)`, which already take a path that **nobody passes** |
+| **Rule 6** | every design opens with a **Prior art** section citing the [Seam Inventory](UX_Seam_Inventory.md) — the seam usually **already exists and is under-adopted**. ⭐ **9 instances so far**; the newest two are `MapCameraViewport` (a shared type stranded in `Hrot.IG`, reached by the Editor through a **project reference**) and `DockspaceLayout` (built and tested for the dockspace, never extended to the camera) |
+| **Rule 6c** | ⚠ **never read a reference *count* as adoption — open the call sites.** [Correction 22](UX_Tasks_Detail.md#corrections): 8 tests vs 3 real calls, and I reported "zero consumers" from the ratio |
 | **Rule 6b** | before claiming an **engine-level defect**, read `README.md` + the Programmer's Guide |
 | ⚠ | **follow the call one level deeper** — I read a dispatcher and missed synchronization in the stream |
 | ⚠ | subagent reports have failed verification **6+ times** — re-derive every delegated claim |
