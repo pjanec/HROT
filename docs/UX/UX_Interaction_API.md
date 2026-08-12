@@ -303,6 +303,56 @@ nothing duplicated.
 | ⭐ **Cancellation becomes atomic** | a cancelled action's buffer is **dropped, never played back** ⇒ no partial commit ([UC-27](UX_Interaction_UseCases.md)). The shared per-thread buffer cannot do this — you cannot un-record |
 | Playback | the host plays it back on the main thread at a known point; single-threading makes that trivially legal |
 
+## 6d. ✅ Where the host's playback sits — resolved 2026-08-10
+
+### The frame, as it actually runs
+
+```
+EditorSubsystem.Update()                                    EditorSubsystem.cs
+  … canvas.Update()          ← tool/UI input, menu clicks → handler STARTS here
+  _gizmoBuffer.EndFrame()                                   :1615
+  ┌─────────────────────────────────────────────────────┐
+  │ ⭐ HOST PUMP + PLAYBACK GOES HERE                    │   ← the ruling
+  └─────────────────────────────────────────────────────┘
+  _kernel.Update()                                          :1618
+      ├ ExecutePhase(BeforeSync)                            ModuleHostKernel.cs:520
+      ├ FLUSH all per-thread ECBs   ← main thread           :523-531
+      └ Bus.SwapBuffers()           ← events become visible :534
+  _aiCoordinator.DrainPendingCallbacks()   ← ⭐ precedent    :1624
+  _regenerationScheduler.Tick() … _orchestrationBus.SwapBuffers() …
+```
+
+### 🔒 Ruling: drain the pump and play back **immediately before `_kernel.Update()`**
+
+| Why | |
+|---|---|
+| ⭐ **Same-frame commit** | the kernel flush is **before** `SwapBuffers()` (`:523-534`), so ops played back just before `Update()` are visible to systems **in the same frame's Simulation** |
+| ⭐ **A handler that never awaits commits in the frame it was clicked** | it starts during `canvas.Update()`, which is earlier in the same method |
+| **Safest window** | no ECS phase is executing — the kernel's own flush likewise runs *after* `ExecutePhase` returns, so playback outside a phase is the established pattern, not a novelty |
+| **Deterministic ordering** | multiple actions completing in one frame play back in completion order |
+
+### ⭐ The precedent to copy, including its comment style
+
+`_aiCoordinator?.DrainPendingCallbacks()` (`:1620-1624`) is **exactly this pattern already in production** —
+a main-thread drain of work queued by a background worker, placed deliberately in the frame with a
+documented reason:
+
+> *"Any `BTreeInterpreter` pointer swaps queued by the background ALC worker are applied here, between
+> kernel ticks, so no active simulation tick can observe a half-swapped pointer."*
+
+⇒ **The interaction host's pump is the same shape** and belongs beside it in the frame narrative, with an
+equally explicit comment.
+
+⚠ **Placed *before* `Kernel.Update()` rather than beside `DrainPendingCallbacks` (after it)** — the
+after-position would push every action's commands to the **next** frame, for no gain.
+
+### ⚠ One thing not pinned
+
+Exactly where **ImGui panel drawing** sits relative to `EditorSubsystem.Update()` — i.e. whether a menu
+click is dispatched before or after this method runs in the same frame. It changes only *which* frame a
+synchronous handler commits in, never correctness. **Confirm during implementation** by logging the frame
+index at dispatch and at playback.
+
 ## 6c. Progress reporting — part of the design, per the ruling
 
 > **User:** *"A long-living cancellable **must** have a visible indication and cancellation. If it is an

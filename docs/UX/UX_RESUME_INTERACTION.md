@@ -87,7 +87,7 @@ review rule (UC-44c).
 
 ## 6. Next steps, in order
 
-1. 🔷 **Where the host's ECB playback sits** relative to the kernel's BeforeSync flush — *in progress when this was written*.
+1. ✅ **RESOLVED — host pump + playback goes immediately before `_kernel.Update()`** (`EditorSubsystem.cs:1618`). The kernel flush is *before* `Bus.SwapBuffers()` (`ModuleHostKernel.cs:523-534`), so ops land visible **in the same frame**. Precedent: `_aiCoordinator.DrainPendingCallbacks()` (`:1620-1624`) is the same pattern already in production. ⚠ *Unpinned:* where ImGui panel drawing sits relative to `EditorSubsystem.Update()` — affects only which frame a synchronous handler commits in. See [API §6d](UX_Interaction_API.md#6d--where-the-hosts-playback-sits--resolved-2026-08-10)
 2. Cut `UXT` tasks from the designs (none cut yet).
 3. Remaining undesigned: UXI-08..24 (layout, camera, symbology, duplication, robustness).
 4. The golden-path walk still needs a **Windows** session.
