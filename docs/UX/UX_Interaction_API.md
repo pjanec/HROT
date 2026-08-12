@@ -248,6 +248,93 @@ The previously-unverified ECB lifecycle, traced:
 | **`ThreadLocal` + thread-pool threads** | a continuation may land on any pool thread and gets its own tracked buffer. Correct for flush; buffers accumulate per *distinct* pool thread over a long session. Worth watching, not fixing blind |
 | **Timing** | ECB ops land at the next BeforeSync. ⚠ But a direct `Bus.Publish` is *also* only readable after `SwapBuffers`, so deferring to the ECB is **no regression** in latency |
 
+## 6b. 🔒 Threading, the ECB, and progress — ruled 2026-08-10
+
+> **User:** *"Running an action on different threads is problematic. The command buffer already has a
+> full API we would duplicate in the context — that does not seem elegant. Actions are likely not heavy
+> on command-buffer usage; creating a new one per action is fine **providing the action is always kept on
+> the same thread**. Alternatively assess pros/cons of keeping async but restricted to a single thread and
+> letting handlers yield."*
+
+### ⭐ The two options are not alternatives — one is the other's precondition
+
+**A per-action ECB is safe only if the handler never hops threads**, and with free-threaded `async` that
+cannot be guaranteed — a continuation resumes wherever the pool puts it. ⇒ **single-threaded async is not
+the alternative to the per-action buffer; it is what makes it legal.**
+
+### Assessment
+
+| | **Free-threaded async** *(today)* | **Single-threaded async — handlers yield** ✅ |
+|---|---|---|
+| Handler may read the live world | ❌ rule 7 exposure; **today's code violates it** (`_world.IsAlive` off-tick) | ✅ it *is* main-thread code — no exposure at all |
+| Per-action ECB | ❌ unsafe — `EntityCommandBuffer` requires one buffer per thread | ✅ **safe**, which is the shape you asked for |
+| Duplicating the ECB API in the context | forced, to hide the thread problem | ✅ **not needed** — hand the handler the real `IEntityCommandBuffer` |
+| Determinism / headless tests | ❌ timing-dependent | ✅ pump N times and assert |
+| Reasoning burden per handler | every author must know rule 7 | ~none |
+| CPU-heavy work | ✅ never blocks the frame | ⚠ **blocks the frame** unless the handler explicitly `Task.Run`s and marshals back |
+
+⚠ **The one real cost is the last row**, and it is narrow: heavy work becomes an explicit opt-out
+(`await Task.Run(...)`, then resume on the tick) instead of the implicit default. The discipline still
+exists — it just applies to the rare case rather than every handler.
+
+### 🔒 Implement it **narrowly** — not as an ambient process-wide context
+
+⚠ [Correction 21](UX_Tasks_Detail.md#corrections) withdrew a process-wide `SynchronizationContext`, and
+that withdrawal stands. **This is a different, narrower thing:**
+
+| | Withdrawn | Ruled |
+|---|---|---|
+| Scope | **ambient, whole process** — changes every `await` in the app, including DDS, file IO, orchestrator `Task.Run` paths | **only the handler invocation** — set around the call so the state machine captures it, then restored |
+| Motive | to "fix" a race that did not exist | to keep handlers on the tick thread **by choice** |
+| Relation to the docs | invented a mechanism parallel to snapshot + ECB | **uses no background mechanism at all** — main-thread code is the most conservative option |
+
+The host pumps queued continuations once per `Update()`. `RunContinuationsAsynchronously` on the pick
+`TaskCompletionSource` then works *for* us: the continuation is posted to the host's queue rather than
+running inline.
+
+### ⇒ The ECB decision
+
+**One `EntityCommandBuffer` per action dispatch**, handed to the handler as-is — the full existing API,
+nothing duplicated.
+
+| | |
+|---|---|
+| ✅ **No API duplication** | the context carries `IEntityCommandBuffer`, not forwarding methods |
+| ⭐ **Cancellation becomes atomic** | a cancelled action's buffer is **dropped, never played back** ⇒ no partial commit ([UC-27](UX_Interaction_UseCases.md)). The shared per-thread buffer cannot do this — you cannot un-record |
+| Playback | the host plays it back on the main thread at a known point; single-threading makes that trivially legal |
+
+## 6c. Progress reporting — part of the design, per the ruling
+
+> **User:** *"A long-living cancellable **must** have a visible indication and cancellation. If it is an
+> exclusive modal operation it should be a **modal dialog with a progress bar**. If non-exclusive, it must
+> have a **progress bar and a cancel icon in the status bar**. The progress-reporting API must be part of
+> the design."*
+
+```csharp
+// Handed to the handler; the only way to report progress.
+public interface IProgressSink
+{
+    void Report(float? fraction, string? message);   // null fraction ⇒ indeterminate
+}
+// ctx.Progress.Report(0.4f, "Resolving 120 entities…");
+```
+
+**Surface is chosen by exclusivity, not by the handler:**
+
+| Exclusivity | Surface | Cancel affordance |
+|---|---|---|
+| `Exclusive` | 🔒 **modal dialog with a progress bar** — it blocks everything, so it must say so | button in the dialog |
+| `None` | 🔒 **status bar: progress bar + cancel icon** | the icon |
+
+🔒 **Registration throws** when a long-running action declares `Visibility: Never`, or when `Exclusive`
+has no progress surface — the same *fail-at-composition* stance `GlobalActionRegistry.Register` already
+takes on duplicate ids.
+
+⚠ **The status-bar surface is deferred to its own design** ([UXI-27](UX_Issues.md#uxi-27)) — it is a
+shared shell component with its own concerns (ordering, multiple concurrent activities, overflow), and
+`StatusBar.RegisterSection` already exists (`LocalWindowController.cs:70-75`). **This design owns the
+`IProgressSink` contract and the two-surface rule; that one owns the widget.**
+
 ## 7. Where each piece comes from
 
 | Piece | Borrowed from |
