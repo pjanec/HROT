@@ -29,6 +29,19 @@ public sealed record IrAsset
     public ulong StructureHash { get; init; }
     public BlueprintDispatchKind Dispatch { get; init; }
 
+    /// <summary>
+    /// BP-82 / Q25-C2 — how many <c>GraphKind.Macro</c> graphs the SOURCE asset declared.
+    ///
+    /// <para>
+    /// ⚠ <b>Carried forward because macros do not survive into the IR at all.</b> Stage 5 skips them
+    /// (they are declarations, never compilation targets) and <see cref="IrGraphKind"/> has no Macro
+    /// member, so by lowering time a macro-library asset and an empty one are indistinguishable —
+    /// which made <c>BP5001</c> reject the very asset shape Q25-C2 describes. This one integer is the
+    /// smallest thing that tells them apart.
+    /// </para>
+    /// </summary>
+    public int DeclaredMacroCount { get; init; }
+
     // For AiPrimitive only
     public AiPrimitiveIntent? Intent { get; init; }
     public IReadOnlyList<AiPrimitiveHosting> Hostings { get; init; } = Array.Empty<AiPrimitiveHosting>();
