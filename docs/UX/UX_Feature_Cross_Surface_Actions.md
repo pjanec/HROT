@@ -7,6 +7,8 @@
 > [UXI-03](UX_Feature_Entity_Action_Vocabulary.md) — the registry it extends to two more surfaces.
 > Stage 2 of the [Cleanup Path](UX_Cleanup_Path.md); ORBAT is in scope here by architect answer Q26-A′.
 
+> ✅ **Acceptance cases:** [UX_Interaction_UseCases.md](UX_Interaction_UseCases.md)
+
 ## 0. Prior art — ✅ checked before designing ([rule 6](UX_Issues.md#rules))
 
 | Exists? | What | Verdict |

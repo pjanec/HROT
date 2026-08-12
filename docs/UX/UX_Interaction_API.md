@@ -8,6 +8,9 @@
 > have now, including long-running actions. Integrate the old knowledge, design the proper API."*
 >
 > 🔒 **Built from established models, not invented** — see [§7](#7-where-each-piece-comes-from).
+>
+> ✅ **Acceptance:** [UX_Interaction_UseCases.md](UX_Interaction_UseCases.md) — **50 cases, 41 headless /
+> 9 integration / 0 visual-only**, with a coverage check mapping every API element to a case.
 
 ## 1. ⚠ Retracted — and what the engine actually mandates
 
