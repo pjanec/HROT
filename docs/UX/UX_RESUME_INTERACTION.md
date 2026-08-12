@@ -40,6 +40,7 @@ UXI-27 (progress surface).
 | 16 | **ExCon is DDS-only, no ECS** — reuses the ORBAT UI with its own data model. `int EntityId` is correct, not a defect |
 | 17 | **No assumptions.** Read `README.md` + `docs/HROT-PROGRAMMERS-GUIDE.md` before claiming an engine defect |
 | 18 | **Layout = one directory.** `fdp_windows.json` lives **next to `imgui.ini`** in *both* places (user `%LocalAppData%\HROT\` and the shipped default). Reset = a directory copy |
+| 19 | ✅ **The CGF / SimHost initial-view shift is approved** (user, 2026-08-12). Removing the hardcoded `(640, 360)` offset changes what those two subsystems show on first launch — accepted as the correct behaviour arriving. [UXI-09](UX_Feature_Map_Viewport.md) §5 |
 
 ## 3. The threading/ECB solution (ruling 15) — the shape
 
