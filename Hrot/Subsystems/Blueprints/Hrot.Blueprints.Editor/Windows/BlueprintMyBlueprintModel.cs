@@ -16,6 +16,11 @@ namespace Hrot.Blueprints.Editor.Windows;
 ///   <item>Graphs — from <see cref="BlueprintAsset.Graphs"/></item>
 ///   <item>Custom Events — from <see cref="BlueprintAsset.CustomEvents"/></item>
 ///   <item>Variables — from <see cref="BlueprintAsset.Variables"/> (name/type/category/accent)</item>
+///   <item>
+///     Local Variables — from the <b>current graph</b>'s <see cref="Graph.LocalVariables"/> (BP-57).
+///     ⭐ The only <b>graph</b>-scoped section: it follows the canvas through the
+///     <c>currentGraphId</c> provider rather than the asset.
+///   </item>
 /// </list>
 ///
 /// <para><b>Faked/empty sections</b> (no data model yet in v1):</para>
@@ -33,7 +38,8 @@ namespace Hrot.Blueprints.Editor.Windows;
 /// hand-authored JSON still round-trips.
 /// </para>
 ///
-/// Fixed section order per D.6.2 spec: Graphs, Functions, Macros, Custom Events, Variables.
+/// Fixed section order per D.6.2 spec: Graphs, Functions, Macros, Custom Events, Variables —
+/// then Local Variables (BP-57), appended so the five keep the sort order the spec fixed for them.
 ///
 /// Fire <see cref="Changed"/> when the model should be refreshed (e.g. after
 /// <see cref="Retarget"/> is called with a new asset, or when the subscribed
@@ -49,6 +55,21 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
     public const string SectionCustomEvents = "customevents";
     public const string SectionVariables   = "variables";
 
+    /// <summary>
+    /// BP-57 — the graph-scoped locals section. ⚠ Deliberately <b>last</b>, immediately below
+    /// <see cref="SectionVariables"/>: a local is the graph-scoped narrowing of the same concept, so
+    /// it reads as a sub-case of the section above it, and appending keeps every existing section on
+    /// the sort order D.6.2 fixed for it.
+    /// </summary>
+    public const string SectionLocalVariables = "localvariables";
+
+    /// <summary>
+    /// The locals section's create command. ⚠ A literal rather than a <c>CommandCatalog</c> constant:
+    /// the catalog lives in <c>NodeEditor.Core</c>, and locals are a Blueprint concept no other host
+    /// kind has. Adding a member there would move the two NodeEdit gates for a string.
+    /// </summary>
+    public const string CommandCreateLocalVariable = "editor.create-local-variable";
+
     // ── Fixed section descriptors (D.6.2 order) ────────────────────────────
 
     private static readonly IReadOnlyList<MyBlueprintSectionDescriptor> _sections =
@@ -59,12 +80,28 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
             new(SectionMacros,       "Macros",           2, null, true,  true,  "editor.create-macro"),
             new(SectionCustomEvents, "Custom Events",    3, null, true,  true,  "editor.create-custom-event"),
             new(SectionVariables,    "Variables",        4, null, true,  true,  "editor.create-variable"),
+            // BP-57. ⭐ CanCreateItems is TRUE even for a Macro graph, which cannot own a local: the
+            // descriptor list is static (one instance for every asset and every graph), so the flag
+            // cannot vary per graph, and Q26-B2 rules that direction anyway — the "+" stays and
+            // REFUSES OUT LOUD, naming the reason, rather than vanishing and teaching nothing.
+            new(SectionLocalVariables, "Local Variables", 5, null, true, true, CommandCreateLocalVariable),
         };
 
     // ── State ─────────────────────────────────────────────────────────────────
 
     private BlueprintAsset? _asset;
     private IEditableAsset? _editableAsset;
+
+    /// <summary>
+    /// BP-57/BP-72 — the id of the graph the canvas is showing. ⭐ A <b>provider</b>, not a captured
+    /// <c>Graph</c>: the locals section must follow the canvas, and a captured graph goes stale on the
+    /// first BP-24 switch. Same type and same source as
+    /// <c>GraphSignatureWindow.Retarget</c>'s — <c>AiCanvasContext.CurrentGraphId</c>.
+    /// </summary>
+    private Func<Guid>? _currentGraphId;
+
+    /// <summary>Last id <see cref="SyncCurrentGraph"/> reported. See that method.</summary>
+    private Guid _lastSnappedGraphId;
 
     // ── IMyBlueprintModel ─────────────────────────────────────────────────────
 
@@ -81,20 +118,88 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
     /// Unsubscribes from the previous asset's <c>Changed</c> event and subscribes
     /// to the new one.  Fires <see cref="Changed"/> after retargeting.
     /// </summary>
-    public void Retarget(IEditableAsset? editableAsset, BlueprintAsset? blueprintAsset)
+    /// <param name="currentGraphId">
+    /// BP-57/BP-72 — provider for the graph the canvas is showing; pass
+    /// <c>AiCanvasContext.CurrentGraphId</c>. Only the Local Variables section reads it; the other
+    /// five are asset-scoped. When null that section is simply empty, which is the correct
+    /// projection of "no canvas is open".
+    /// <para>
+    /// ⚠ Refreshed even when the asset instance is unchanged — the provider is per-<i>document</i>,
+    /// so the same asset reopened into a new document needs the new one. (Same reasoning, and the
+    /// same bug avoided, as <c>GraphSignatureWindow.Retarget</c>.)
+    /// </para>
+    /// </param>
+    public void Retarget(
+        IEditableAsset? editableAsset,
+        BlueprintAsset? blueprintAsset,
+        Func<Guid>?     currentGraphId = null)
     {
         // Unsubscribe old
         if (_editableAsset != null)
             _editableAsset.Changed -= OnAssetChanged;
 
-        _editableAsset = editableAsset;
-        _asset         = blueprintAsset;
+        _editableAsset  = editableAsset;
+        _asset          = blueprintAsset;
+        _currentGraphId = currentGraphId;
+
+        // A new document starts unsnapped, so the first SyncCurrentGraph after a retarget reports
+        // the switch rather than swallowing it as "same as last time".
+        _lastSnappedGraphId = Guid.Empty;
 
         // Subscribe new
         if (_editableAsset != null)
             _editableAsset.Changed += OnAssetChanged;
 
         Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// BP-57/BP-72 — fires <see cref="Changed"/> when the canvas has switched to a different graph
+    /// since the last call. Idempotent: repeated calls on the same graph fire nothing.
+    ///
+    /// <para>
+    /// ⭐ <b>Polled, not pushed, and that is deliberate.</b> The switcher
+    /// (<c>BlueprintGraphSwitcher</c>) is built per document by <c>BlueprintDocumentFactory</c>; this
+    /// model is owned by a perspective-bound window built by the composition root. Neither holds a
+    /// reference to the other, and giving the switcher one would be a new document-factory →
+    /// perspective-window edge. <c>BP-72</c> met exactly this and chose a provider polled from the
+    /// owning window's draw — see <c>GraphSignatureWindow</c>'s snap. Do not invent a second
+    /// mechanism.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>The section does not depend on this to be correct.</b> <see cref="GetItems"/> resolves the
+    /// graph through the provider at call time, and <c>MyBlueprintPanel.DrawSections</c> calls
+    /// <c>GetItems</c> every frame — its <c>Changed</c> subscription is an empty lambda whose comment
+    /// reads <i>"re-renders automatically next frame"</i>. So the panel follows the canvas because of
+    /// the delegate, not because of this event. This exists because <see cref="Changed"/> is part of
+    /// <see cref="IMyBlueprintModel"/>'s contract and a consumer that DOES cache would otherwise show
+    /// the previous graph's locals.
+    /// </para>
+    /// </summary>
+    /// <returns>True when a switch was observed and <see cref="Changed"/> fired.</returns>
+    public bool SyncCurrentGraph()
+    {
+        var id = _currentGraphId?.Invoke() ?? Guid.Empty;
+        if (id == _lastSnappedGraphId) return false;
+
+        _lastSnappedGraphId = id;
+        Changed?.Invoke();
+        return true;
+    }
+
+    /// <summary>
+    /// The graph the locals section projects — the canvas's, resolved through the provider against
+    /// the current asset. Null when there is no provider, no asset, or the id names no graph of it.
+    /// </summary>
+    public Graph? CurrentGraph
+    {
+        get
+        {
+            if (_asset is null || _currentGraphId is null) return null;
+            var id = _currentGraphId();
+            return _asset.Graphs.FirstOrDefault(g => g.Id == id);
+        }
     }
 
     /// <summary>
@@ -119,6 +224,10 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
             SectionMacros       => BuildGraphItems(SectionMacros,    g => g.Kind == GraphKind.Macro),
             SectionCustomEvents => BuildCustomEventItems(),
             SectionVariables    => BuildVariableItems(),
+            // BP-57: the one GRAPH-scoped section. ⭐ Empty rather than absent when the canvas has no
+            // graph or the graph has no locals — a section that appears and disappears reads as a
+            // broken feature, and BP1664's macro case is a refusal, not a vanishing.
+            SectionLocalVariables => BuildLocalVariableItems(),
             _                   => Array.Empty<MyBlueprintItem>(),
         };
     }
@@ -226,6 +335,52 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
                 IsDeletable:  true,
                 IsHostDefined: false,
                 Tooltip:      v.Tooltip));
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// BP-57 — the current graph's locals, mirroring <see cref="BuildVariableItems"/> row for row so
+    /// the two variable kinds look and behave alike in the tree.
+    ///
+    /// <para>
+    /// ⚠ <b>Read from the CURRENT GRAPH, not the asset</b> — that is the whole difference, and the
+    /// reason this section needed the provider the other five did not.
+    /// </para>
+    ///
+    /// <para>
+    /// 📌 The <c>local:{id}</c> id form is what <c>editor.rename-item</c> / <c>editor.delete-item</c>
+    /// dispatch on to route a locals gesture to <c>BlueprintLocalVariableSchemaSource</c> rather than
+    /// to the asset-variable path — the declarations live in different lists and have different
+    /// delete rules, so one prefix per kind is what keeps them apart.
+    /// </para>
+    /// </summary>
+    private IReadOnlyList<MyBlueprintItem> BuildLocalVariableItems()
+    {
+        var graph = CurrentGraph;
+        if (graph is null) return Array.Empty<MyBlueprintItem>();
+
+        var result = new List<MyBlueprintItem>(graph.LocalVariables.Count);
+        foreach (var v in graph.LocalVariables)
+        {
+            var accent = GetVariableAccentColor(v.Type?.TypeId ?? "");
+            var badge  = v.Type is { Capacity: > 0 } ? $"[{v.Type.Capacity}]" : null;
+            result.Add(new MyBlueprintItem(
+                ItemId:       $"local:{v.Id}",
+                SectionId:    SectionLocalVariables,
+                DisplayName:  v.Name,
+                CategoryPath: v.Category,
+                IconKey:      null,
+                BadgeText:    badge,
+                AccentColor:  accent,
+                Children:     null,
+                IsRenamable:  true,
+                IsDeletable:  true,
+                IsHostDefined: false,
+                // ⚠ The tooltip carries the scope because the canvas does not: a local `Scratch` and
+                // an asset `Scratch` render identically on a node (the badge that would fix THAT is
+                // a NodeEditor.Core change, deliberately not in this batch).
+                Tooltip:      v.Tooltip ?? $"Local to '{graph.Name}'. Not visible from other graphs."));
         }
         return result;
     }

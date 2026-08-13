@@ -2264,7 +2264,13 @@ namespace Hrot.Editor
                         hostServices:   ctx?.View.Host,
                         commands:       ctx?.Commands ?? new NodeEditor.Core.Action.EditorCommandsImpl(),
                         // BP-12b: item rename/delete/duplicate record onto this document's undo stack.
-                        view:           ctx?.View);
+                        view:           ctx?.View,
+                        // BP-57/BP-72: the Local Variables section is GRAPH-scoped — it follows the
+                        // canvas through this provider, the same one the signature window below
+                        // takes. The other five sections are asset-scoped and ignore it.
+                        currentGraphId: ctx?.CurrentGraphId,
+                        // BP-223: where the locals "+" refusal on a macro graph is drawn.
+                        indicators:     ctx?.Indicators);
 
                     // Retarget Details window (just needs the BlueprintAsset).
                     _blueprintDetailsWindow?.Retarget(bpAsset);

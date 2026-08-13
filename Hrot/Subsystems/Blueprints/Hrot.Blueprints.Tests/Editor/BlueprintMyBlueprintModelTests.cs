@@ -37,17 +37,19 @@ public sealed class BlueprintMyBlueprintModelTests
 
         var sections = model.Sections;
 
-        // BP-12c: five, not six — the Event Dispatchers section is gone. Dispatchers were
-        // superseded by PublishEvent/EventEntry (BP-09 deleted their node kinds); the section was
-        // display-only over a field nothing consumes and no shipped asset populates.
-        Assert.Equal(5, sections.Count);
+        // BP-12c: the Event Dispatchers section is gone. Dispatchers were superseded by
+        // PublishEvent/EventEntry (BP-09 deleted their node kinds); the section was display-only
+        // over a field nothing consumes and no shipped asset populates.
+        // BP-57: six — Local Variables appended, so the five above keep the D.6.2 sort order.
+        Assert.Equal(6, sections.Count);
 
-        // Fixed order: Graphs, Functions, Macros, Custom Events, Variables.
-        Assert.Equal(BlueprintMyBlueprintModel.SectionGraphs,       sections[0].Id);
-        Assert.Equal(BlueprintMyBlueprintModel.SectionFunctions,    sections[1].Id);
-        Assert.Equal(BlueprintMyBlueprintModel.SectionMacros,       sections[2].Id);
-        Assert.Equal(BlueprintMyBlueprintModel.SectionCustomEvents, sections[3].Id);
-        Assert.Equal(BlueprintMyBlueprintModel.SectionVariables,    sections[4].Id);
+        // Fixed order: Graphs, Functions, Macros, Custom Events, Variables, Local Variables.
+        Assert.Equal(BlueprintMyBlueprintModel.SectionGraphs,         sections[0].Id);
+        Assert.Equal(BlueprintMyBlueprintModel.SectionFunctions,      sections[1].Id);
+        Assert.Equal(BlueprintMyBlueprintModel.SectionMacros,         sections[2].Id);
+        Assert.Equal(BlueprintMyBlueprintModel.SectionCustomEvents,   sections[3].Id);
+        Assert.Equal(BlueprintMyBlueprintModel.SectionVariables,      sections[4].Id);
+        Assert.Equal(BlueprintMyBlueprintModel.SectionLocalVariables, sections[5].Id);
         Assert.DoesNotContain(sections, s => s.Id == "dispatchers");
 
         // SortOrder must match position.
@@ -248,7 +250,9 @@ public sealed class BlueprintMyBlueprintModelTests
         var sectionsB = model.Sections;
 
         Assert.Same(sectionsA, sectionsB);
-        Assert.Equal(5, sectionsB.Count);
+        // BP-57: six. ⚠ Still ONE static list — the Local Variables section is graph-scoped in its
+        // CONTENTS, not in its existence, so the descriptor list stays shared and constant.
+        Assert.Equal(6, sectionsB.Count);
     }
 
     // ── Inner fake ────────────────────────────────────────────────────────────

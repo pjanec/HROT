@@ -9,6 +9,7 @@ using Hrot.Blueprints.Editor.Catalog;
 using Hrot.Blueprints.Editor.Debug;
 using Hrot.Blueprints.Editor.GraphEditor;
 using Hrot.Blueprints.Editor.NodeDrawers;
+using Hrot.Blueprints.Editor.Variables;   // BlueprintLocalVariableSchemaSource (BP-57)
 using Hrot.Blueprints.Editor.Visuals;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Adapters;
@@ -477,12 +478,22 @@ public static class BlueprintDocumentFactory
     /// Opens the rename prompt: <c>(currentName, onConfirm)</c>. Null makes rename require an
     /// explicit <c>Args["newName"]</c>, which is how tests drive it.
     /// </param>
+    /// <param name="locals">
+    /// BP-57 — the locals schema source, when the document has one. ⭐ <b>A <c>local:</c> item is
+    /// routed here and never to <see cref="RenameItem"/>/<see cref="DeleteItem"/>.</b> Two reasons,
+    /// both load-bearing: the source's delete <b>refuses while referenced</b> (which the asset-variable
+    /// path deliberately does not), and it records its own undo entry over
+    /// <see cref="Graph.LocalVariables"/> — the snapshot <see cref="RecordItemEdit"/> takes covers the
+    /// asset's declaration lists only, so putting locals through it would produce an undo that
+    /// restores nothing.
+    /// </param>
     internal static void RegisterMyBlueprintItemCommands(
         EditorCommandsImpl        commands,
         BlueprintAsset            asset,
         GraphView?                view          = null,
         Action?                   markDirty     = null,
-        Action<string, Action<string>>? promptForName = null)
+        Action<string, Action<string>>? promptForName = null,
+        BlueprintLocalVariableSchemaSource? locals = null)
     {
         ArgumentNullException.ThrowIfNull(commands);
         ArgumentNullException.ThrowIfNull(asset);
@@ -495,6 +506,21 @@ public static class BlueprintDocumentFactory
             {
                 var itemId = ReadArg(ctx, "itemId") as string;
                 if (string.IsNullOrEmpty(itemId)) return;
+
+                // BP-57: locals first — same gesture, different list, different undo.
+                if (TryFindLocal(asset, itemId!) is { } local)
+                {
+                    if (locals is null) return;
+                    if (ReadArg(ctx, "newName") is string suppliedLocal)
+                    {
+                        locals.RenameVariable(local.Name, suppliedLocal);
+                        return;
+                    }
+                    if (promptForName is null) return;
+                    var currentLocal = local.Name;
+                    promptForName(currentLocal, entered => locals.RenameVariable(currentLocal, entered));
+                    return;
+                }
 
                 if (ReadArg(ctx, "newName") is string supplied)
                 {
@@ -515,6 +541,15 @@ public static class BlueprintDocumentFactory
             ctx =>
             {
                 if (ReadArg(ctx, "itemId") is not string itemId || itemId.Length == 0) return;
+
+                // BP-57: the source refuses while referenced and says so, naming the count and the
+                // graphs — including graphs the designer cannot see from this canvas.
+                if (TryFindLocal(asset, itemId) is { } local)
+                {
+                    locals?.RemoveVariable(local.Name);
+                    return;
+                }
+
                 RecordItemEdit(view, asset, markDirty, "Delete", () => DeleteItem(asset, itemId));
             },
             description: "Deletes the selected item from this Blueprint.");
@@ -524,6 +559,16 @@ public static class BlueprintDocumentFactory
             ctx =>
             {
                 if (ReadArg(ctx, "itemId") is not string itemId || itemId.Length == 0) return;
+
+                // BP-57. ⚠ NOT optional: MyBlueprintContextMenu offers "Duplicate" for every
+                // IsRenamable item, so without this arm a local would show the menu entry and
+                // silently do nothing — trap #5, and the exact shape BP-12b was filed for.
+                if (TryFindLocal(asset, itemId) is { } local)
+                {
+                    DuplicateLocal(view, asset, markDirty, local);
+                    return;
+                }
+
                 RecordItemEdit(view, asset, markDirty, "Duplicate",
                     () => DuplicateItem(asset, itemId));
             },
@@ -648,25 +693,89 @@ public static class BlueprintDocumentFactory
     private static Dictionary<Guid, List<VariableDecl>> SnapshotLocals(BlueprintAsset asset)
         => asset.Graphs.ToDictionary(
             g => g.Id,
-            g => g.LocalVariables.Select(v => new VariableDecl
-            {
-                Id   = v.Id,
-                Name = v.Name,
-                Type = new BlueprintTypeRef
-                {
-                    TypeId        = v.Type.TypeId,
-                    IsArray       = v.Type.IsArray,
-                    Capacity      = v.Type.Capacity,
-                    InitialLength = v.Type.InitialLength,
-                    GenericArgs   = v.Type.GenericArgs.ToList(),
-                },
-                DefaultValueJson = v.DefaultValueJson,
-                IsEditable       = v.IsEditable,
-                IsExposedOnSpawn = v.IsExposedOnSpawn,
-                Category         = v.Category,
-                Tooltip          = v.Tooltip,
-                Comment          = v.Comment,
-            }).ToList());
+            g => g.LocalVariables.Select(v => CloneLocal(v, v.Id, v.Name)).ToList());
+
+    /// <summary>
+    /// A deep copy of one local declaration, optionally re-identified. ⚠ Deep because the snapshot
+    /// undo depends on it: a shallow copy would share the <see cref="VariableDecl"/> with the live
+    /// list, so undoing a rename would "restore" the new name.
+    /// </summary>
+    private static VariableDecl CloneLocal(VariableDecl v, Guid id, string name) => new()
+    {
+        Id   = id,
+        Name = name,
+        Type = new BlueprintTypeRef
+        {
+            TypeId        = v.Type.TypeId,
+            IsArray       = v.Type.IsArray,
+            Capacity      = v.Type.Capacity,
+            InitialLength = v.Type.InitialLength,
+            GenericArgs   = v.Type.GenericArgs.ToList(),
+        },
+        DefaultValueJson = v.DefaultValueJson,
+        IsEditable       = v.IsEditable,
+        IsExposedOnSpawn = v.IsExposedOnSpawn,
+        Category         = v.Category,
+        Tooltip          = v.Tooltip,
+        Comment          = v.Comment,
+    };
+
+    /// <summary>
+    /// BP-57 — resolves a <c>local:{guid}</c> My Blueprint item id to its declaration, searched across
+    /// every graph. ⚠ Across the asset rather than only the current graph: the id form is what tells
+    /// the item commands which list a gesture belongs to, and that question has one answer regardless
+    /// of which graph the canvas happens to be showing. Returns null for any other id form.
+    /// </summary>
+    internal static VariableDecl? TryFindLocal(BlueprintAsset asset, string itemId)
+    {
+        const string prefix = "local:";
+        if (!itemId.StartsWith(prefix, StringComparison.Ordinal)) return null;
+        if (!Guid.TryParse(itemId.AsSpan(prefix.Length), out var id)) return null;
+
+        return asset.Graphs.SelectMany(g => g.LocalVariables).FirstOrDefault(v => v.Id == id);
+    }
+
+    /// <summary>The graph that declares <paramref name="local"/>, or null when none does.</summary>
+    internal static Graph? OwningGraphOfLocal(BlueprintAsset asset, VariableDecl local)
+        => asset.Graphs.FirstOrDefault(g => g.LocalVariables.Any(v => v.Id == local.Id));
+
+    /// <summary>
+    /// BP-57 — a free name among <paramref name="graph"/>'s locals. ⭐ Scoped to the GRAPH, not the
+    /// asset: <c>Q27-C1</c> lets a local shadow an asset variable of the same name deliberately, so
+    /// checking against <see cref="BlueprintAsset.Variables"/> here would forbid a legal declaration.
+    /// </summary>
+    internal static string MakeUniqueLocalName(Graph graph, string baseName)
+    {
+        if (!graph.LocalVariables.Any(v => string.Equals(v.Name, baseName, StringComparison.OrdinalIgnoreCase)))
+            return baseName;
+
+        for (var i = 1; ; i++)
+        {
+            var candidate = $"{baseName}{i}";
+            if (!graph.LocalVariables.Any(v => string.Equals(v.Name, candidate, StringComparison.OrdinalIgnoreCase)))
+                return candidate;
+        }
+    }
+
+    /// <summary>
+    /// BP-57 — appends a copy of <paramref name="local"/> to its own graph under a free name, as one
+    /// undo entry. Type, category, tooltip, comment and default come along; the id does not — mirroring
+    /// <see cref="DuplicateItem"/>'s contract for asset variables.
+    /// </summary>
+    private static void DuplicateLocal(
+        GraphView? view, BlueprintAsset asset, Action? markDirty, VariableDecl local)
+    {
+        var graph = OwningGraphOfLocal(asset, local);
+        if (graph is null) return;
+
+        var record = LocalVariableUndoRecorder(view, asset, markDirty);
+        record($"Duplicate Local Variable '{local.Name}'", () =>
+        {
+            graph.LocalVariables.Add(
+                CloneLocal(local, Guid.NewGuid(), MakeUniqueLocalName(graph, local.Name)));
+            return true;
+        });
+    }
 
     private static void RestoreLocals(
         BlueprintAsset asset, Dictionary<Guid, List<VariableDecl>> snapshot)
@@ -743,7 +852,8 @@ public static class BlueprintDocumentFactory
         ArgumentNullException.ThrowIfNull(asset);
         return FindVariable(asset, itemId)?.Name
                ?? FindCustomEvent(asset, itemId)?.Name
-               ?? FindGraph(asset, itemId)?.Name;
+               ?? FindGraph(asset, itemId)?.Name
+               ?? TryFindLocal(asset, itemId)?.Name;   // BP-57
     }
 
     /// <summary>
@@ -1543,6 +1653,37 @@ public static class BlueprintDocumentFactory
             "Create Variable", "Add",
             _ => openModal(),
             description: "Add a new variable to this blueprint.");
+    }
+
+    /// <summary>
+    /// BP-57 — registers <c>editor.create-local-variable</c>, the Local Variables section's "+".
+    ///
+    /// <para>
+    /// ⭐ <b>Mirrors the <c>editor.create-variable</c> modal overload deliberately.</b> The two
+    /// sections offer the same gesture over two different lists, so a designer should not have to
+    /// learn that one opens a name/type dialog and the other appends a <c>NewVar</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b><c>BP-12c</c>: a section that declares a create command nothing registers is an INERT
+    /// BUTTON.</b> That defect shipped twice (Custom Events, Macros) before it was caught, which is
+    /// why the section's test asserts <c>Invoke(...).Success</c> rather than that the descriptor
+    /// carries the id.
+    /// </para>
+    /// </summary>
+    /// <param name="openModal">Opens the local-variable create modal (e.g. <c>modal.Open</c>).</param>
+    public static void RegisterCreateLocalVariableCommand(
+        EditorCommandsImpl commands,
+        Action             openModal)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(openModal);
+        var reg = new CommandRegistration(commands);
+        reg.Add(
+            Windows.BlueprintMyBlueprintModel.CommandCreateLocalVariable,
+            "Create Local Variable", "Add",
+            _ => openModal(),
+            description: "Add a variable scoped to the graph the canvas is showing.");
     }
 
     /// <summary>

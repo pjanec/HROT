@@ -42,6 +42,18 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
     private FunctionCreateModal? _createFunctionModal;
     private FunctionCreateModal? _createMacroModal;
 
+    // BP-57: the Local Variables section's "+". Same modal type as the asset-variable create —
+    // the two sections offer the same gesture over two different lists, so they should not feel
+    // like two different features.
+    private VariableCreateModal? _createLocalVariableModal;
+
+    // BP-57: the locals schema source for the active document. Rebuilt per asset like the modals,
+    // and for the same reason — it closes over the asset and the document's undo recorder.
+    private Variables.BlueprintLocalVariableSchemaSource? _locals;
+
+    // BP-223: where a refusal goes. Null in headless tests, which read _lastRefusal instead.
+    private IEditorIndicators? _indicators;
+
     // BP-12b: the rename prompt for My Blueprint items. Shared by variables and custom events —
     // the per-kind validity rules live in BlueprintDocumentFactory.RenameItem, not here.
     private readonly ItemRenameModal _renameItemModal = new();
@@ -70,14 +82,26 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
     /// BP-12b — the document's canvas view, when one is open. Item rename/delete/duplicate are
     /// recorded on its undo stack; without it they still work, just unrecorded.
     /// </param>
+    /// <param name="currentGraphId">
+    /// BP-57/BP-72 — provider for the graph the canvas is showing; pass
+    /// <c>AiCanvasContext.CurrentGraphId</c>. The Local Variables section reads it; the other five
+    /// sections are asset-scoped and ignore it.
+    /// </param>
+    /// <param name="indicators">
+    /// BP-223 — where a refusal reaches the designer. ⛔ Without it, the locals "+" on a macro graph
+    /// would fail silently, which is the one outcome Q26-B2 rules out.
+    /// </param>
     public void Retarget(
         IEditableAsset?      editableAsset,
         BlueprintAsset?      blueprintAsset,
         IEditorHostServices? hostServices,
         IEditorCommands?     commands,
-        NodeEditor.Core.View.GraphView? view = null)
+        NodeEditor.Core.View.GraphView? view = null,
+        Func<Guid>?          currentGraphId = null,
+        IEditorIndicators?   indicators = null)
     {
-        _model.Retarget(editableAsset, blueprintAsset);
+        _model.Retarget(editableAsset, blueprintAsset, currentGraphId);
+        _indicators = indicators;
 
         // If host services changed (or panel not yet built), rebuild the panel.
         if (!ReferenceEquals(_hostServices, hostServices) || _panel == null)
@@ -154,21 +178,110 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
             BlueprintDocumentFactory.RegisterCreateMacroCommand(
                 cmdImpl, _createMacroModal.Open);
 
+            // BP-57: the Local Variables section. ⭐ The source reads the graph through a DELEGATE
+            // (_model.CurrentGraph, itself resolved through the canvas's provider), so it follows a
+            // BP-24 graph switch with no further wiring — a captured Graph would go stale on the
+            // first switch.
+            _locals = new Variables.BlueprintLocalVariableSchemaSource(
+                asset:        blueprintAsset,
+                currentGraph: () => _model.CurrentGraph,
+                onChanged:    () => { },   // the panel re-reads GetItems every frame
+                record:       BlueprintDocumentFactory.LocalVariableUndoRecorder(
+                                  view, blueprintAsset, markDirty),
+                refuse:       Refuse);
+
+            _createLocalVariableModal = new VariableCreateModal(
+                (name, typeId, _, _) => CreateLocalVariable(name, typeId),
+                // ⚠ Deliberately NOT passed the asset. The modal's duplicate check is against
+                // BlueprintAsset.Variables, and Q27-C1 makes a local that SHADOWS an asset variable
+                // legal on purpose — handing it the asset would refuse a legal declaration. The
+                // same-graph collision that IS an error is checked in CreateLocalVariable instead.
+                asset: null);
+
+            BlueprintDocumentFactory.RegisterCreateLocalVariableCommand(
+                cmdImpl, _createLocalVariableModal.Open);
+
             // BP-12b: rename / delete / duplicate. The context menu has always invoked these three
             // and nothing ever handled them, so a variable could be created but never renamed or
             // removed.
+            // BP-57: `locals` is what routes a `local:` item to the schema source — whose delete
+            // refuses while referenced and whose undo covers Graph.LocalVariables.
             BlueprintDocumentFactory.RegisterMyBlueprintItemCommands(
                 cmdImpl, blueprintAsset, view, markDirty,
-                promptForName: (current, onConfirm) => _renameItemModal.Open(current, onConfirm));
+                promptForName: (current, onConfirm) => _renameItemModal.Open(current, onConfirm),
+                locals: _locals);
         }
         else
         {
-            _createVariableModal    = null;
-            _createCustomEventModal = null;
-            _createFunctionModal    = null;
-            _createMacroModal       = null;
+            _createVariableModal      = null;
+            _createCustomEventModal   = null;
+            _createFunctionModal      = null;
+            _createMacroModal         = null;
+            _createLocalVariableModal = null;
+            _locals                   = null;
         }
     }
+
+    /// <summary>
+    /// BP-57 — the locals "+" confirm path. ⭐ Guards the one collision the modal cannot: two locals
+    /// of the same name in the same graph.
+    ///
+    /// <para>
+    /// ⚠ <b>This is the section proving the schema source incomplete, and it is reported as such
+    /// rather than patched there.</b> <c>BlueprintLocalVariableSchemaSource.AddVariable</c> appends
+    /// unconditionally — correct for the drag-and-drop blackboard surface it was written against,
+    /// where names are generated — but a modal takes a typed name, so the collision becomes
+    /// reachable. Refusing here keeps the source's contract unchanged for <c>U-6</c> to absorb.
+    /// </para>
+    /// </summary>
+    private void CreateLocalVariable(string name, string typeId)
+    {
+        if (_locals is null) return;
+
+        var graph = _model.CurrentGraph;
+        if (graph is not null &&
+            graph.LocalVariables.Any(v => string.Equals(v.Name, name, StringComparison.OrdinalIgnoreCase)))
+        {
+            Refuse($"'{graph.Name}' already declares a local variable named '{name}'. "
+                   + "Pick another name, or edit the existing declaration.");
+            return;
+        }
+
+        // The source stores the CLR type's full name back as the TypeId, so this round-trips the
+        // selectable id the modal handed us.
+        var clrType = Type.GetType(typeId) ?? typeof(int);
+        _locals.AddVariable(new Hrot.Editor.AiShared.Blackboard.BlackboardVariableEntry(
+            Name: name, FieldType: clrType, Comment: null));
+    }
+
+    /// <summary>
+    /// BP-223/Q26-B2 — a refusal reaches the designer as a toast. ⛔ Never a silent return: BP-76 and
+    /// BP-77 were both filed because a gesture did nothing and explained nothing.
+    /// </summary>
+    private void Refuse(string message)
+    {
+        LastRefusal = message;
+        _indicators?.Notify(new EditorNotification(
+            Id:          "local-variable.refused",
+            Severity:    NotificationSeverity.Warning,
+            Title:       "Cannot do that here",
+            Body:        message,
+            AutoDismiss: TimeSpan.FromSeconds(10),
+            Actions:     null));
+    }
+
+    /// <summary>
+    /// Headless seam — the last refusal message, so a test can assert the gesture said WHY rather
+    /// than merely that it changed nothing. ⚠ A test asserting only "nothing changed" would pass
+    /// just as well against the silent failure this replaced.
+    /// </summary>
+    internal string? LastRefusal { get; private set; }
+
+    /// <summary>
+    /// BP-57 — the locals schema source for the active document, exposed for tests that drive the
+    /// gestures without ImGui.
+    /// </summary>
+    internal Variables.BlueprintLocalVariableSchemaSource? Locals => _locals;
 
     /// <summary>
     /// Routes a My Blueprint item id to <c>editor.go-to-graph</c>, which owns all id resolution
@@ -219,10 +332,17 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
                 });
         }
 
+        // BP-57/BP-72: notice a canvas graph switch and fire Changed. ⚠ The panel itself re-reads
+        // GetItems every frame, so the section already follows the canvas without this; the poll is
+        // here because Changed is part of IMyBlueprintModel's contract. Mirrors GraphSignatureWindow's
+        // snap — the same provider, polled from the same place in the same way.
+        _model.SyncCurrentGraph();
+
         _panel.Draw();
 
         // Draw the create modals (opened by the section "+" commands). No-op when closed.
         _createVariableModal?.Draw();
+        _createLocalVariableModal?.Draw();
         _createCustomEventModal?.Draw();
         _createFunctionModal?.Draw();
         _createMacroModal?.Draw();
