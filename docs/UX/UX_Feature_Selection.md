@@ -122,6 +122,33 @@ hidden*), but scaled so it does not become noise:
 | **some** selected | 🔒 **shown, disabled, with a reason** — *"3 of 12 selected support this"* |
 | **none** selected | hidden |
 
+### 2.4b 🔒 One pick box, one ring — shared everywhere
+
+> **User, 2026-08-12:** *"CGF pick box and ring appearance should be the same in all map subsystems,
+> shared and reused."*
+
+⭐ **They already are single implementations — the gap is adoption, not variants.** Verified:
+
+| | What | Where | Adopted by |
+|---|---|---|---|
+| **Pick box** | `EntityPresentationGizmoShared.EmitPickBox` — 8 px box, fully transparent, `PipelineTarget.Map2D` | one shared static (`:21-32`) | IG · SimHost — ⚠ **not CGF** |
+| **Ring** | `SelectionHighlightGizmo` — 20 px radius, 2 px thickness, **green** primary / **yellow** secondary, `SizeMode.ScreenPixels` | one shared class (`:26-51`) | Editor · IG · ReplayBrowser — ⚠ **not SimHost, not CGF** |
+
+🔒 **No host may have its own.** Neither type takes a per-host parameter today, and none is to be added —
+the pick box comes from the merged presentation gizmo ([UXI-10](UX_Feature_Entity_Symbology.md) §3.3), so
+adopting that gizmo *is* adopting the pick box. ⇒ **CGF and SimHost need registration, not code.**
+
+#### ⚠ And a mismatch worth fixing once, centrally
+
+| | Size |
+|---|---|
+| pick box | **8 px** |
+| selection ring | **20 px** radius |
+
+⇒ **The visible affordance is larger than the clickable one** — the ring you see is more than twice the
+target you can hit. ⚠ Both are screen-space, so this is zoom-independent and identical in every host.
+🔒 **Fix it in the shared constants**, so all five agree by construction; do not tune per host.
+
 ### 2.5 🔒 Structural changes go through the command buffer
 
 > **User, 2026-08-12:** *"So why not modify ECS using command buffers, which is safe always?"*
@@ -179,8 +206,11 @@ applies to **callers outside the tick**, which is where the view's setter lives.
 | 11.17 | Rubber-band over 5 entities → 5 selected, 1 primary, ring on all | I |
 | 11.18 | 🔒 **Multi-delete raises a modal confirmation** naming the count; Cancel deletes **nothing** | H |
 | 11.19 | A view-driven selection change is **recorded on the command buffer**, not written directly, and is visible after the next flush | H |
+| 11.20 | 🔒 **Every map subsystem emits the identical pick box** — same size, same transparency, same pipeline target — from the one shared helper | H |
+| 11.21 | 🔒 **Every map subsystem registers the identical ring** — same radius, thickness and colours; **no host-specific override exists** | H |
+| 11.22 | The pick target is **not smaller than the ring** — what is visible is clickable | H |
 
-**16 H · 3 I · 0 V.**
+**19 H · 3 I · 0 V.**
 
 ## 4. 🔒 Out of scope
 
@@ -190,7 +220,7 @@ applies to **callers outside the tick**, which is where the view's setter lives.
 | CGF's pick box | [UXI-10](UX_Feature_Entity_Symbology.md) — this design **depends** on it |
 | The rest of CGF/SimHost map parity | [UXI-23](UX_Issues.md#uxi-23) |
 | Selection over the wire for ExCon | its transport already exists; only the interface binding is in scope |
-| Ring appearance | unchanged |
+| **Re-designing** how the ring or pick box *looks* | 🔒 but their **sharing is in scope** (§2.4b) — one implementation, registered everywhere, no per-host variants |
 
 ## 5. Risks
 
