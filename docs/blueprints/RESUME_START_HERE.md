@@ -13,12 +13,13 @@
 > ✅ **Batch 37 VERIFIED AND MERGED at `68cff233`** (§7i) — **`BP-57`'s compiler half**: locals are
 > plain C# locals in a **per-graph** index space, id-only resolution with **no name fallback**,
 > `BP1664` finally built and **`BP1669`** allocated. ⛔ **`BP-57` stays OPEN** — a local is declarable
-> **in JSON only**; the authoring UI is **Batch 38**.
+> **in JSON only**; the authoring UI is **[Batch 39](HANDOFF_Batch39_Finish_Local_Variables.md)**, postponed.
 > ⚠ **[FINDING_Variable_Index_Space.md](FINDING_Variable_Index_Space.md) corrected Q27 and Batch 37 §6:**
 > the variable index space is an **unenforced invariant**, *not* a latent defect.
 > ⭐⭐ **The implementation session then raised its severity by measuring what I asserted** — my
 > *"not authorable"* leg was wrong: **57 live `WorkingState` references** ride the invariant today.
-> Filed as **`BP-226`**; **`BP-227`** records the four numeric-`Dispatch` assets. **Both are Batch 39.**
+> Filed as **`BP-226`**; **`BP-227`** records the four numeric-`Dispatch` assets.
+> ⭐ **`BP-226` is now expected to DISSOLVE into the unification** rather than be patched — stage C.
 >
 > ⏭⏭ **Batch 38 is a DESIGN REVIEW — no feature code.**
 > 📄 [HANDOFF_Batch38_Unified_Variable_Design_Review.md](HANDOFF_Batch38_Unified_Variable_Design_Review.md)
@@ -86,7 +87,7 @@ for b in $(git ls-remote --heads origin | awk '{print $2}' | sed 's|refs/heads/|
 |---|---|
 | **No batch in flight** | pick the next batch — see §4 |
 | **Implementation reported done** | run **all eight gates** (§3), review the diff, reconcile the tracker three ways, **then** merge `--ff-only` and record it |
-| A batch **is** in flight (**today's state — Batch 37**) | ⛔ **rule 6: the tracker and detail docs are theirs.** Put findings in the *next* handoff, never in a live one |
+| A batch **is** in flight (**today's state — Batch 38, the design review**) | ⛔ **rule 6: the tracker and detail docs are theirs.** Put findings in the *next* handoff, never in a live one |
 
 ⭐ **Never say "they never saw X."** It is a property of one commit, not the session. Test against what
 they *branched from*:
