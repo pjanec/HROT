@@ -1,7 +1,13 @@
 # ⭐ START HERE — coordinator session, blueprint gaps & QoL programme
 
-> **Point a fresh session at this file. It is self-contained.** Last updated **2026-08-11**.
-> Batches 29-31 are **merged**; **no batch is in flight** — pick the next one (§4).
+> **Point a fresh session at this file. It is self-contained.** Last updated **2026-08-13**.
+> ⭐⭐ **Batch 43 verified and merged at `3583acd4` (§7p) — `BP-57` is CLOSED.** The Local Variables
+> section landed; a designer can declare, rename, delete, duplicate and undo a graph local from the
+> editor, and it follows the canvas. **No batch is in flight** — ⏭ **next is Batch 44, which opens the
+> `U-` sequence** (`U-1` golden-corpus harness + `U-2` `BP-229`) — see
+> [PLAN_Variable_Unification_Tasks.md](PLAN_Variable_Unification_Tasks.md).
+> ⚠⚠ **The VISUAL CHECK has not run for NINE batches**, and Batch 43's whole deliverable is a panel
+> surface no headless test can see drawn. ⭐ **Ask the user for it before the `U-` sequence buries it.**
 > ⭐ **Macros are DONE end to end and proven by execution** — authored, called, expanded, compiled
 > through real Roslyn, **ticked across frames**, and debuggable.
 > ⭐⭐ **`BP-74` is CLOSED — collapse a selection into a Function or Macro works end to end**: reachable
@@ -12,8 +18,8 @@
 > expanded (both directions, round-trip locked), run across frames, debuggable, navigable.
 > ✅ **Batch 37 VERIFIED AND MERGED at `68cff233`** (§7i) — **`BP-57`'s compiler half**: locals are
 > plain C# locals in a **per-graph** index space, id-only resolution with **no name fallback**,
-> `BP1664` finally built and **`BP1669`** allocated. ⛔ **`BP-57` stays OPEN** — a local is declarable
-> **in JSON only**; the authoring UI is **[Batch 39](HANDOFF_Batch39_Finish_Local_Variables.md)**, postponed.
+> `BP1664` finally built and **`BP1669`** allocated. ✅ **Corrected and completed Batch 39** (Q27-A3
+> storage; **`BP1670`** for the dangling rail); ✅ **authoring UI Batches 41–43 ⇒ `BP-57` CLOSED (§7p).**
 > ⚠ **[FINDING_Variable_Index_Space.md](FINDING_Variable_Index_Space.md) corrected Q27 and Batch 37 §6:**
 > the variable index space is an **unenforced invariant**, *not* a latent defect.
 > ⭐⭐ **The implementation session then raised its severity by measuring what I asserted** — my
@@ -53,12 +59,12 @@
 > the emitted structs and the blackboard allocation are **unchanged**; `D`'s acceptance test is
 > *"`StructureHash` byte-identical across the whole corpus."*
 >
-> ⛔ **`BP-57`'s remaining work was Batch 38 and is now
-> [Batch 39](HANDOFF_Batch39_Finish_Local_Variables.md) — POSTPONED**, because its authoring half sits
-> on the surfaces the unification changes. ⭐ **Its §1/§2 (suspension storage, dangling rail) are
-> independent and may be pulled forward if the review says so.**
-> 🔴🔴 Still true and unfixed: **a local silently reverts to its default across a suspension**
-> (coordinator-probed, zero diagnostics) · 🔴 a dangling reference emits `s.__var_-1`.
+> ✅ **`BP-57` is DONE — nothing of it remains.** Batch 39 landed the suspension storage and the
+> dangling rail; Batches 41–43 landed the authoring UI. ⭐ **The two 🔴🔴 defects listed here for six
+> batches — a local reverting to its default across a suspension, and a dangling reference emitting
+> `s.__var_-1` — are BOTH FIXED** (Q27-A3 entry-block reset; `BP1670`).
+> ⚠ **One residue, recorded not patched:** `BlueprintLocalVariableSchemaSource.AddVariable` does not
+> reject a duplicate name; the guard sits in the window. ⭐ **`U-6` absorbs the source — put it there.**
 > ⭐⭐ **[Q27-A was REVISED A1 → A3 by user ruling `2026-08-13`](Architect_Question_27_Local_Variables.md):**
 > a suspendable graph's locals are **blackboard-allocated and reset in the entry block**, because a C#
 > stack local cannot cross a suspension and ⛔ **the designer must never see which storage they got.**
@@ -112,7 +118,7 @@ for b in $(git ls-remote --heads origin | awk '{print $2}' | sed 's|refs/heads/|
 |---|---|
 | **No batch in flight** | pick the next batch — see §4 |
 | **Implementation reported done** | run **all eight gates** (§3), review the diff, reconcile the tracker three ways, **then** merge `--ff-only` and record it |
-| A batch **is** in flight (**today's state — Batch 38, the design review**) | ⛔ **rule 6: the tracker and detail docs are theirs.** Put findings in the *next* handoff, never in a live one |
+| A batch **is** in flight (⚠ **not today — Batch 43 is merged and nothing is dispatched**) | ⛔ **rule 6: the tracker and detail docs are theirs.** Put findings in the *next* handoff, never in a live one |
 
 ⭐ **Never say "they never saw X."** It is a property of one commit, not the session. Test against what
 they *branched from*:
@@ -147,13 +153,17 @@ so the solution build never produces their assemblies and the runner exits with 
 …`NodeEditor.Core.Tests.dll` is invalid"* — ⭐ **no test output at all**, which reads as *"nothing to
 report"* rather than *"the gate did not run."* Trap #5, in the gate script itself.
 
-**Baseline at `4242f304` — ⭐ all eight gates coordinator-RUN 2026-08-11, post-Batch-36:**
+⭐ **Run the five `--no-build` suites in PARALLEL** (`&` + `wait`, one log file each) — measured
+**3m40s → 2m05s**. ⚠ **And always include `\[FAIL\]` in the result grep**: a `Passed!`/`Failed!`-only
+grep is why Batch 42's flake could not be named.
+
+**Baseline at `3583acd4` — ⭐ all eight gates coordinator-RUN 2026-08-13, post-Batch-43:**
 
 | | |
 |---|---|
-| Solution build | **0 errors**, 69 warnings |
+| Solution build | **0 errors**, **69 warnings** ⚠ *(an incremental build under-reports — record honestly)* |
 | BP diagnostics | **10 distinct** — all `BP3010`, all **authored** orphans in 2 assets |
-| Blueprints | **3234** / 0 failed / 10 skipped ⚠ *(total 3244; BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
+| Blueprints | **3313 total / 3303 passed / 0 failed / 10 skipped** ⚠ *(BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
 | AiShared **1213** · BTree **612** · Breakpoints **130** | 0 failed |
 | NodeEdit Core **208** · UI **131** · Generators **193** | 0 failed |
 
@@ -175,7 +185,7 @@ retired `BP3011`; the 10 that remain are authored and deliberate.)
 
 ## 4 · Where the programme stands
 
-**Tracker: open 55 · done 105** ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
+**Tracker: open 63 · done 106** (+1 refuted) ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
 three ways — checkbox tally, per-complexity columns (⚠ take the **first** tag on a row), and the total
 row. ⚠⚠ **Reconcile all three EVERY time.** The columns can agree with the Total and both still be
 wrong: a missed tick is invisible to arithmetic and only shows against the checkbox tally.
@@ -349,6 +359,64 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > the section wiring"* both times. ⇒ ⭐ **one item, on Opus, delegated to nobody, nothing else in the
 > batch.** ⭐⭐ **It is the last thing between `BP-57` and closed** — source, count, refusal and undo
 > are all built; there is simply nowhere to declare a local.
+
+## 7p · Batch 43 — ✅ VERIFIED AND MERGED at `3583acd4` — ⭐⭐ **THE SECTION LANDED. `BP-57` is CLOSED**
+
+**Gates — all eight, coordinator-run on the merged tree:**
+
+| | |
+|---|---|
+| Solution build | **0 errors**, **69 warnings** — unmoved |
+| Blueprints | **3313 total / 3303 passed / 0 failed / 10 skipped** (**+15**) |
+| ⭐ **AiShared 1213 — unmoved**, third batch running | BTree **612** · Breakpoints **130** · Generators **193** |
+| ⚠ NodeEdit Core **208** · UI **131** — run **without** `--no-build` | unmoved (the badge was correctly not built) |
+| `tracker-counts.py --check` | **clean — twelve batches running.** open **63** / done **106** (+1 refuted) |
+
+⭐ **`BlueprintMyBlueprintModel.cs` is touched for the first time in three batches**, and the tracker
+was updated — both of the things 41 and 42 skipped.
+
+### ⭐ What landed, and the four decisions inside it
+
+| | |
+|---|---|
+| ⭐⭐ **The section follows the canvas through `Func<Guid>`** — `AiCanvasContext.CurrentGraphId` | 📐 **shape (a), and they justified it structurally, not by preference:** the switcher is built **per document** by the factory; the model is owned by a **perspective-bound** window. Neither holds a reference to the other, so shape (b) would have been a **new document-factory → perspective-window edge.** ⭐ `BP-72` met this exact wall and chose a polled provider — **they followed it instead of inventing a second mechanism**, which is what the handoff asked |
+| ⭐ **`Changed` fires on switch — and the section does not depend on it** | `SyncCurrentGraph()` is polled from the window's draw (`:339`), idempotent, and `Retarget` resets the snap so a reopened document is not swallowed as *"same as last time."* ⚠ **But they measured that `MyBlueprintPanel.DrawSections` calls `GetItems` every frame** ⇒ the panel follows the canvas through the **delegate**; the event exists because `IMyBlueprintModel`'s contract has it and **a consumer that caches would show the previous graph's locals.** ⭐ Correct for the reason, not for the ritual |
+| ⭐ **`Macro`: section AND `[+]` present, refusing out loud** through `IEditorIndicators` | 📐 their call, and ⭐ **they reported that it was FORCED anyway** — `_sections` is `static readonly`, so `CanCreateItems` cannot vary per graph. ⚠ **Naming a constraint as a constraint rather than dressing it as a choice** is the honest report the handoff wanted |
+| ⭐⭐ **`local:{id}` routes rename/delete/duplicate to the SOURCE, not to `RenameItem`/`DeleteItem`** | because `RecordItemEdit`'s snapshot covers the **asset's** declaration lists only ⇒ routing locals through it would have produced ⛔ **an undo that restores nothing** — trap #5, arrived at from the code rather than from the handoff |
+| ⭐ **Duplicate was not optional, and they found that themselves** | `MyBlueprintContextMenu` offers duplicate for **every `IsRenamable` item** ⇒ without an arm the entry appears and does nothing. ⭐ Exactly `BP-12b`'s shape, **not asked for in the handoff** |
+| ✅ **`BP1671+` untouched** — no new diagnostic was needed | ➕ **`BP-234`** is the only id allocated |
+
+### ⭐ The inert-button rail was asserted, not assumed
+
+`BP-12c` shipped twice (Custom Events, Macros). ⭐ **`TheCreateCommandIsRegisteredByTheProductionRetarget`
+drives the real `BlueprintDocumentFactory` path** (`:1683`) rather than the descriptor's string.
+✅ **Coordinator-verified independently:** the command exists at exactly one production site, and
+`EditorSubsystem:2264` feeds both `currentGraphId` and `indicators` from `ctx`.
+
+### ⚠ One gap they found in their own work and RECORDED rather than patched
+
+⛔ **`BlueprintLocalVariableSchemaSource.AddVariable` appends unconditionally** — right for the
+generated-name blackboard surface it was written against, ⚠ **wrong for a modal**, which can now create
+two locals of one name. ⭐ **The guard lives in the window's confirm path** (`:245`) so the **source's
+contract stays as `U-6` will find it.** 📌 **Flag for `U-6`:** the unification absorbs this source, and
+the duplicate-name rule belongs in the absorbed one — not left in a window.
+
+### 📌 `BP-234` — filed, and the handoff's framing of it was wrong
+
+I asked for a **reorder** warning. ⭐ **They refused it and were right:** add and delete change
+`StructureHash` by the **same mechanism**, so a warning on the drag gesture would **imply the other two
+are safe** — the misleading half of a half-truth. ⚖️ Ruling: one statement in the **hot-reload** story,
+covering add/remove/reorder alike. **`RW-L`, open.**
+
+### ⛔ Not covered headlessly — and it is the thing this batch is
+
+⛔ **That the panel actually DRAWS the section.** ⚠ **The visual check has not run for NINE batches**,
+and *"present and empty"* / *"follows the canvas"* are precisely what a headless test passes while the
+panel shows nothing. ⭐ **This needs the user at a screen before the `U-` sequence buries it.**
+
+📌 **Housekeeping:** `claude/batch39-locals-preserved` is fully merged and can be deleted.
+
+---
 
 ## 7o · Batch 42 — ✅ VERIFIED AND MERGED at `57cd6161` — 🔴 **§1 SKIPPED AGAIN. `BP-57` still not closed**
 
