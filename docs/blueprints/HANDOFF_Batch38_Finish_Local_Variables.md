@@ -218,28 +218,51 @@ the rail must exclude them and the row must say why. 📌 `Count5.bp.json` also 
 ⭐ **Coordinator-verified: `grep LocalVariables` outside `Compiler/` and `Tests/` returns ZERO hits.**
 Nothing in the editor touches the field.
 
-### 3.1 🟢 Declare — ⭐ **a SCOPE on the existing Variables surface, not a new section**
+### 3.1 ⭐⭐ Declare — **a "Local Variables" section that follows the canvas.** USER-RULED, not open
 
-⚠⚠ **Rewritten `2026-08-13` with §1.3 — the earlier lean was the opposite and was wrong.** It argued
-for a separate "Locals" section *"because it makes this is different storage visible"*. ⛔ **Q27-A3
-rules that storage must NOT be visible.** Keep these two apart:
+⚠⚠ **Rewritten TWICE on `2026-08-13`. Read this version only.** The first draft asked for a separate
+section *"because it makes this is different storage visible"* — ⛔ wrong reason, `Q27-A3` rules
+storage invisible. The second over-corrected into *"a scope column, no new section"* — ⛔ **also
+wrong**, and the user named exactly why:
+
+> *"Adding a scope cannot express to what graph they are local to."*
+
+⭐ **Correct. The section is right; my justification for it was the wrong one.** These are two
+different things and only the first is hidden:
 
 | | designer-visible? |
 |---|---|
-| **stack local vs blackboard slot** | ⛔ **No.** Pure compiler choice (§1.3). Hide it completely |
-| ⭐ **graph-scoped vs asset-scoped** | ✅ **Yes** — one resets per invocation, one persists. **That difference IS the feature** |
+| **stack local vs blackboard slot** | ⛔ **No.** Pure compiler choice (§1.3) |
+| ⭐ **which GRAPH a variable belongs to** | ✅ **Yes**, and a flat scope column **cannot say it** |
 
-⇒ ⭐ **No new concept and no fifth section: a scope on a variable**, in the surface that already
-exists. `BlueprintMyBlueprintModel:46-61` has `Graphs · Functions · Macros · Variables`, with
-`editor.create-variable`.
+#### ⭐ The ruling — build this
 
-⚠ **The one hard constraint:** a graph-scoped variable belongs to the **CURRENT GRAPH**, so the panel
-must retarget with the canvas — `BP-24`'s graph switch, and `BP-72`'s lesson that *a panel editing the
-graph you are not looking at is a defect*.
+| | |
+|---|---|
+| **A new `Local Variables` section** | in `BlueprintMyBlueprintModel`, alongside `Graphs · Functions · Macros · Custom Events · Variables` |
+| ⭐ **Filled from the CURRENT GRAPH** | ⇒ *"which graph"* is answered by **which graph is open**, not by a column. This is Unreal's model and it is the only thing that answers the user's objection |
+| ⭐ **Always present, empty when the graph has none** | ⛔ **Do not hide it.** A section that appears and disappears reads as a broken feature |
+| **`[+]` where applicable** | see the note below — ⚠ *applicable* must not become *silently absent* |
 
-📐 **Yours:** a scope column/dropdown on the row, a graph-owned group inside the Variables section, or
-another shape that reads as *one concept with a scope*. ⛔ **Not a parallel section that advertises a
-storage class.** **Say which and why.**
+#### ⚠ What this costs, measured — the model has no idea what graph is open
+
+| | |
+|---|---|
+| ⛔ `_sections` is `static readonly` | a fixed list of five descriptors. **A sixth is trivial; a CONTEXT-SENSITIVE one is the actual work** |
+| ⛔ `Retarget(IEditableAsset?, BlueprintAsset?)` | **asset only — the model has no current-graph concept at all** |
+| ✅ ⭐ **But the wiring already exists** | `AiCanvasContext.CurrentGraphId` (fed by `BlueprintGraphSwitcher.CurrentGraphId`), and **`GraphSignatureWindow` already consumes it** — that is `BP-72`, whose whole lesson was *a panel editing the graph you are not looking at is a defect*. **Follow that precedent; do not invent a second mechanism** |
+
+#### ⚠⚠ On "where applicable" — ⛔ silence is not an option
+
+`MyBlueprintSectionDescriptor.CanCreateItems` is a **static bool**, so a per-graph `[+]` needs either a
+dynamic `Sections` or a create command that refuses. ⭐ **A `Macro` graph cannot declare a local
+(`BP1664`)** — that is the case "where applicable" excludes.
+
+⛔ **Whichever you pick, the designer must learn WHY**, per the user's standing ruling that decided
+Q26-B2 — *"grey out does not educate the user"* — and `BP-76`/`BP-77`, both filed **because** something
+was greyed with no explanation. ⇒ either `[+]` is absent **and the empty section says why**, or it is
+present **and refuses out loud** through the `IEditorIndicators` surface `BP-223` repaired. 📐 **Your
+call which; ⛔ a silently missing button is not one of the options.**
 
 ### 3.2 🟢 Target — ⛔ **the blocker**
 
@@ -258,6 +281,35 @@ and the compiler resolves it silently and correctly — ⛔ **a picker showing t
 ⛔⛔ **Do NOT add `WorkingState` or `Parameters` to this picker.** They are `BP-226`'s space and it is
 unfixed; widening the picker is precisely what makes that row live. **One line in your report
 confirming you did not.**
+
+### 3.2a ⭐⭐ The node itself — **a BADGE. USER-RULED, not open**
+
+⛔ **First, a bug that exists regardless of styling.** `BlueprintNodeModel.ResolveVariableName`
+(`:425-448`) resolves a Get/SetVariable's title through **`Variables` then `WorkingState`** and
+**nothing else** ⇒ ⚠ **a local-targeting node displays a RAW GUID as its title.** Add the
+`LocalVariables` branch. 📌 Keep the existing fallback shape — an unresolvable id is returned as-is
+*"so a dangling reference stays visible on the node rather than reading as a valid"* reference.
+
+**Then the distinction.** ⚠ `Q27-C1` permits shadowing, so a local `Scratch` and an asset `Scratch`
+produce **two pixel-identical nodes that read different storage**. Unreal has this ambiguity and it is
+a known annoyance; ⭐ **we are asked to do better.**
+
+⇒ ⭐ **A badge on the node. User-ruled.** ⛔ **NOT colour** — colour is already spent on **type**
+(`BlueprintTypeSystem.GetAccentColorForTypeId`), Unreal's convention, and overloading it would make
+two meanings share one channel.
+
+⚠⚠ **Where this lands, measured — it is NOT purely Hrot-side:**
+
+| | |
+|---|---|
+| ✅ `MyBlueprintItem` | **already has `BadgeText` and `IconKey`** ⇒ the **panel** side is free |
+| ⛔ `INodeModel` | **has no badge.** `Title` · `Subtitle` · `Category` · `StatusTooltip` — ⇒ the **canvas** side needs a new member on `NodeEditor.Core` **and** rendering in `NodeEditor.UI`'s `CanvasRenderer` |
+| ⛔ **`Subtitle` is NOT free** | `BP-17` owns it: when a node carries a custom title, the generated title becomes the subtitle. **Putting the badge there would collide with every renamed node** |
+| ⚠ **Two gates move** | **NodeEdit Core 208** and **UI 131** are shared-library suites. Adding to `INodeModel` touches both — ⭐ **and they take NO `--no-build`** (§5) |
+
+📐 **Yours: the badge's shape** (glyph, short text, tooltip) and whether the panel item carries the
+matching badge too. ⚖️ **Both surfaces is the lean** — the panel already supports it for free, and the
+two views disagreeing is its own defect.
 
 ### 3.3 🔴 Rename and delete — `BP-225`'s shape, one level along
 
@@ -302,7 +354,9 @@ The eight, `--logger "console;verbosity=normal"`. Solution is **`IOS-IG-SimHost.
 | ⭐ **§1.3 storage** | a suspending graph's slot is **not** positionally reachable through `VarFieldName`, and **two graphs' same-named locals do not collide** |
 | ⭐ **§1.2** | whichever way you rule — **a test proving `ChannelCommandNode`-with-`ActionFqn` does or does not suspend.** That claim is the batch's one piece of unverified coordinator reasoning |
 | **§2** | a dangling reference ⇒ a diagnostic, **not** `__var_-1` in the output · ⭐ **and the shipped corpus still compiles** — the `"state"` references must not be caught |
-| **§3.2** | a `Get` node targeting a local, authored **through the picker path**, compiles to `__loc_` ⚠ *(pin-level, if the picker is not directly testable — say which)* |
+| **§3.2** | a `Get` node targeting a local, authored **through the picker path**, compiles to a local ⚠ *(pin-level, if the picker is not directly testable — say which)* |
+| ⭐ **§3.1** | the Local Variables section **follows the canvas** — switch graphs, the contents change · and it is **present when the graph has none** |
+| ⭐ **§3.2a** | a local-targeting Get/Set shows **its NAME, not a GUID** (the `ResolveVariableName` bug) · and a local `Scratch` beside an asset `Scratch` is **distinguishable** |
 | **§3.3** | delete a referenced local ⇒ your ruling, **and undo restores decl AND references** · rename ⇒ references still resolve |
 | **Round-trip** | existing assets unchanged; a graph with locals survives save/load |
 
@@ -314,8 +368,9 @@ Per-suite numbers · **BP-warning count and composition** · `tracker-counts.py 
 revert-goes-red per item · ⭐ **every id and diagnostic code you allocated** (rule 5) · ⭐ **your §1.2
 ruling and whether `MacroLatency` was incomplete** · ⭐ **what the 63 unresolved corpus references
 actually are** (§2) · **your §3.1 and §3.3 rulings** · ⭐ **confirmation you did not widen the picker to
-`WorkingState`/`Parameters`** · **where you stopped if you stopped** · anything here **wrong against the
-code**.
+`WorkingState`/`Parameters`** · ⭐ **your `[+]`-where-applicable choice and how the designer learns why**
+(§3.1) · ⭐ **the badge's shape, and whether `INodeModel` changed** (§3.2a) · **where you stopped if you
+stopped** · anything here **wrong against the code**.
 
 ⭐ **Two of this batch's four items exist because the coordinator's Batch 37 handoff did not ask for
 them**, and ⛔ **§1 was then written the WRONG WAY ROUND** — as a refusal, until the user pointed out
