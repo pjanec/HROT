@@ -344,6 +344,52 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > a delete that uses the reference count Batch 41 built and left unused, and ⛔ **undo, which no
 > locals gesture has at all today.** §4 (the badge) moves the two NodeEdit gates and is the stop point.
 
+> ⏭ **Batch 43 dispatched — [ONE ITEM: the Local Variables section](HANDOFF_Batch43_Local_Variables_Section.md).**
+> ⛔⛔ **Asked for twice, skipped twice — and the common factor is mine:** I marked it *"🟢 Sonnet takes
+> the section wiring"* both times. ⇒ ⭐ **one item, on Opus, delegated to nobody, nothing else in the
+> batch.** ⭐⭐ **It is the last thing between `BP-57` and closed** — source, count, refusal and undo
+> are all built; there is simply nowhere to declare a local.
+
+## 7o · Batch 42 — ✅ VERIFIED AND MERGED at `57cd6161` — 🔴 **§1 SKIPPED AGAIN. `BP-57` still not closed**
+
+**Gates:** build **0 errors** · Blueprints **3298 total / 3288 passed / 0 failed / 10 skipped** (**+9**) ·
+⭐ **AiShared 1213 — unmoved** · counts clean.
+
+### 🔴🔴 The pattern worth naming — **two batches, same omission**
+
+⛔ **`BlueprintMyBlueprintModel` is STILL untouched.** ⇒ ⭐⭐ **A designer still cannot declare a local
+from the editor.** `BP-57` cannot be ticked.
+
+| batch | asked for | delivered |
+|---|---|---|
+| **41** | §1 source · **§2 section** · §3 picker · §4 delete · §5 badge · §6 nit | §1 · §3 |
+| **42** | **§1 section** · §2 delete · §3 undo · §4 badge · §5 nit | §2 · §3 |
+
+⚠ **The section was item §2 in one handoff and item §1 in the next — listed FIRST both times — and was
+skipped both times.** ⭐ **In both handoffs I marked it *"🟢 Sonnet takes the section wiring."***
+⇒ 📐 **That is the common factor, and it is mine: the one item I delegated is the one that never
+lands.** ⛔ **Batch 43 must keep it on Opus and make it the ONLY item.**
+
+📌 **Also skipped twice:** the tracker (`BP-57`'s row records **none** of 41 or 42), the doc-comment nit,
+and the badge. ⚠ **Neither batch said where it stopped**, which both handoffs asked for.
+
+### ⭐ But the model layer is now genuinely finished, and finished well
+
+| | |
+|---|---|
+| ⭐⭐ **Delete: ruling (b), refuse while referenced** — ⭐ **and they found the repo had already ruled this way** | `DeleteItem`'s own comment says deleting a designer's nodes because a declaration went away *"is not recoverable."* **They matched existing policy instead of inventing one** |
+| ⭐ **And diverged from it deliberately, in one direction, with a reason** | an asset variable's references are visible where it is declared; ⚠ **a LOCAL's can sit in another graph the designer cannot see from the current canvas.** ⇒ refusing **with a count** tells them something they could not otherwise learn; `BP1670` tells them only after a build |
+| ⭐ **Refusals gathered BEFORE any mutation** | a batch containing one referenced entry **deletes nothing**, rather than half-deleting and then complaining |
+| ⭐⭐ **The ruling makes `BP-225`'s trap UNREACHABLE rather than merely avoided** | because no nodes are ever removed, the undo entry has only declarations to restore ⇒ *"it cannot restore a declaration and forget its references"* |
+| ⭐ **Undo: snapshot, never prediction** | mirrors `RecordItemEdit` · **all graphs, not the current one**, so a graph switch between edit and undo cannot silently restore nothing · **deep copies, because rename mutates in place** |
+| ⭐ **A gesture that changes nothing records no entry** | `BP-204`'s degenerate case — *"an undo stack full of no-ops is its own defect."* **Not asked for** |
+| ✅ **Revert-goes-red** | restoring the naive `RemoveAll` and bypassing the record seam reddens **5 of 9** |
+
+⇒ ⭐ **Everything behind the surface is done: source · honest count · refusal · undo.** ⛔ **The surface
+is the whole of what remains.**
+
+---
+
 ## 7n · Batch 41 — ✅ VERIFIED AND MERGED at `748f1f79` — ⚠ **PARTIAL: §1 and §3 only. `BP-57` is NOT closed**
 
 **Gates:** build **0 errors** · Blueprints **3289 total / 3279 passed / 0 failed / 10 skipped** (**+20**) ·
