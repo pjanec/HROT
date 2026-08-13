@@ -15,15 +15,29 @@
 | 🔴 | `SelectionInteractionSystem.ClearAll()` — *"call before a world reset"* | **0 callers** | ⇒ **reload does not clear selection today** (ruling 28 ②) |
 | ⚠ | `IEntityActionController` | duplicated in 2 projects | **single-entity only** (`long entityId` per method) ⇒ fan-out belongs on the descriptor layer ([UXI-03](UX_Feature_Entity_Action_Vocabulary.md)), not this facade |
 
-## 1. 🔴 The defect: selection is stored twice, and nothing syncs it
+## 1. The defect: two stores and **three** writers, synchronised by hand
 
-| Store | Written by | Read by |
-|---|---|---|
-| **ECS `SelectionState`** | `SelectionInteractionSystem:170-172` — **exclusively** | the ring gizmo, `SelectionRenderSystem` |
-| **`ISelectionState`** (HashSet) | **menu handlers, directly** — `EditorSubsystem.cs:1297`, `CgfSubsystem.cs:595` | inspector, delete paths |
+⚠ **Corrected 2026-08-12** ([Correction 28](UX_Tasks_Detail.md#corrections)) — an earlier draft of this
+section claimed the two stores are *desynchronised in the Editor*. **They are not.** The audit below is
+what the code actually does.
 
-⇒ In the Editor, **clicking** an entity moves the ring; a **context-menu action** moves the inspector but
-not the ring. Two truths, no reconciliation. ⚠ **This is in the reference host, not just CGF.**
+| # | Writer | Writes | |
+|--:|---|---|---|
+| 1 | `SelectionInteractionSystem:170-172` — click, rubber-band | **component** | |
+| 2 | `EditorSubsystem.cs:1226-1230` — the *Select* action handler | **component *and* object** | ⚠ **re-implements `SetSelected` by hand**, including the clear-previous loop |
+| 3 | `EditorSubsystem.cs:1292-1297` — `OnSelectionChanged` callback | **object** | deliberate propagation *from* writer 1 |
+
+⇒ 🔒 **The Editor is consistent — by manual effort.** The cost is not a live bug but **duplicated
+selection logic in two places and a sync that must be remembered at every new call site.**
+
+| Host | Reality |
+|---|---|
+| **Editor** | both stores, hand-synced by writers 2 and 3 |
+| **CGF** | 🔴 **object only** — no `SelectionState` component exists at all, so nothing to desync and **no ring possible** |
+| **SimHost** | component written; `ISelectionState` via `SimHostInspectorAdapter`; ⚠ no ring registered |
+
+⭐ **This strengthens the case for one store rather than weakening it**: writer 2 exists *only* because
+there are two stores. A view deletes it.
 
 ## 2. The design
 
@@ -108,6 +122,37 @@ hidden*), but scaled so it does not become noise:
 | **some** selected | 🔒 **shown, disabled, with a reason** — *"3 of 12 selected support this"* |
 | **none** selected | hidden |
 
+### 2.5 ✅ The structural-mutation audit — and how the hazard is designed out
+
+**The hazard.** Today `PrimarySelected` sets a `HashSet` — inert, safe anywhere. As a view it mutates
+ECS, and `SetSelected` **adds the component when absent** (`:170-171`). The Programmer's Guide is
+explicit: *"Never add/remove ECS components inside … chunk iteration; **structural mutation corrupts the
+chunk arrays**"* (`HROT-PROGRAMMERS-GUIDE.md:483-484`), and structural changes belong on the command
+buffer (`:64`).
+
+**The audit** — every writer of `PrimarySelected`, repo-wide:
+
+| Site | Context | Safe? |
+|---|---|---|
+| `EditorSubsystem.cs:1230` | action-registry handler | ✅ not iterating |
+| `EditorSubsystem.cs:1292, 1297` | `OnSelectionChanged` callback | ✅ |
+| `CgfSubsystem.cs:595, 603` | context-menu item lambdas | ✅ |
+| `CgfSubsystem.cs:789` | `DeleteEntity` | ✅ |
+
+⇒ **All six are event/menu callbacks. None runs inside a query loop, so nothing breaks today.** ⚠ But
+that is an accident of the current call sites, not a property of the design — the next panel that sets
+selection while looping entities would corrupt chunks, and the failure would be memory corruption, not an
+exception.
+
+🔒 **So design the hazard out rather than policing callers:**
+
+| | Option | |
+|--:|---|---|
+| **A** | 🎯 **Pre-add `SelectionState` to every selectable entity** — then every write is `SetComponent`, which is **non-structural and safe inside iteration** | ⭐ **the lean.** Precedent: `MapCullingSystem` already stamps `CullingState` on every `SimTransform` entity. Cost: 2 bytes per entity |
+| **B** | Route the setter through the **command buffer** | ✅ also safe; ⚠ adds a one-frame latency to the ring (*"one-frame latencies are structural, not bugs"* — guide `:114`), and selection is the one thing a user expects to be instant |
+
+⇒ **A**, with B as the fallback if pre-adding proves awkward for entities that are never selectable.
+
 ## 3. Acceptance
 
 | # | Case | Cls |
@@ -129,8 +174,10 @@ hidden*), but scaled so it does not become noise:
 | 11.15 | **CGF**: click an entity → ring appears, inspector follows — the full chain | I |
 | 11.16 | **SimHost**: the ring is visible (today it selects invisibly) | I |
 | 11.17 | Rubber-band over 5 entities → 5 selected, 1 primary, ring on all | I |
+| 11.18 | 🔒 **Multi-delete raises a modal confirmation** naming the count; Cancel deletes **nothing** | H |
+| 11.19 | Setting selection **from inside a query loop** performs no structural change (option A) — the corruption guard | H |
 
-**14 H · 3 I · 0 V.**
+**16 H · 3 I · 0 V.**
 
 ## 4. 🔒 Out of scope
 
@@ -146,8 +193,8 @@ hidden*), but scaled so it does not become noise:
 
 | | |
 |---|---|
-| ⚠ **`ISelectionState` becomes a view — writes now have side effects** | setting `PrimarySelected` used to touch a HashSet; it now mutates ECS. ⚠ Check no caller sets it inside a query loop |
+| ⚠ **`ISelectionState` becomes a view — writes now have side effects** | ✅ **audited, §2.5** — all 6 call sites are event/menu callbacks, none inside a query loop. Closed by pre-adding the component |
 | ⚠ **Same-frame ordering (§2.3)** is invisible when wrong | 11.7 is the guard; prefer an explicit "selection settled" point over relying on call order |
 | ⚠ **Right-click-selects changes Editor behaviour** for anyone who relied on right-click *not* disturbing a selection | it is the ruling, and it matches file-manager convention; note it in the changelog |
-| ⚠ **Fan-out multiplies side effects** — *Delete* on 12 entities is 12 deletes | ⭐ intersects [UXI-16](UX_Issues.md#uxi-16) (no `Delete` confirms anywhere): confirmation matters far more once one click can remove twelve things |
+| 🔒 **Fan-out multiplies side effects** — *Delete* on 12 entities is 12 deletes | 🔒 **RULED (user, 2026-08-12): multi-delete gets a modal confirmation dialog.** ⭐ Intersects [UXI-16](UX_Issues.md#uxi-16) (no `Delete` confirms anywhere, in any host) — that issue now has a hard requirement rather than a preference, and [ruling 13](UX_RESUME_INTERACTION.md)'s modal-dialog machinery is the vehicle |
 | ⚠ **CGF depends on UXI-10 landing first** | strict order: pick box → interaction system → component → ring |
