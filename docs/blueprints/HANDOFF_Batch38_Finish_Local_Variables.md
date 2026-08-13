@@ -1,6 +1,9 @@
 # HANDOFF — Batch 38: finish `BP-57` — the rail Batch 37 was never asked for, and the authoring half
 
-> 📌 **Dispatched at `eb89ebaf`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
+> 📌 **Dispatched at `eb89ebaf`** · ⚠⚠ **§1.3 and §3.1 REWRITTEN and RE-DISPATCHED at `PENDING`.**
+> ⭐ **Q27-A was revised from A1 to A3 by user ruling on `2026-08-13`** — verified not present in the
+> tree your last run built from (run starting `02fb66db`), so rule 1 does not bite.
+> ⛔⛔ **The earlier §1.3 asked for a REFUSAL RAIL. There is none — build the storage.**
 > ⭐ **Rule 7 is yours:** branch from this branch, and re-sync from it at the **start** of your run.
 > ⭐ **Rule 4 is yours:** pull it again before your final commit.
 > ⭐ **Rule 3: the coordinator allocates no ids.** `BP-57` is *referenced*; `BP1670+` is the next free
@@ -18,7 +21,7 @@
 
 | | |
 |---|---|
-| **§1** 🔴🔴 | the **latency rail** — Q27-B settled it, **Batch 37's handoff omitted it**. A local silently does not survive a suspension **today, on the merged tree** |
+| **§1** 🔴🔴 | ⭐ **suspension-surviving storage** — a local silently reverts to its default across a suspension **today, on the merged tree**. ⚠ **Q27-A was revised to A3 on `2026-08-13`: implement, do not refuse** |
 | **§2** 🔴 | a **dangling** local/variable reference emits `s.__var_-1` — **invalid C#**, no diagnostic |
 | **§3** ⭐ | the **authoring half** — declare, target, rename, delete. Without it a local is JSON-only |
 | **§4** 📌 | one misplaced doc comment |
@@ -38,7 +41,7 @@ a silent wrong value outranks an authoring gesture. **Say where you stopped.**
 
 | Item | 🔴 Opus keeps | 🟢 Sonnet takes |
 |---|---|---|
-| **1** latency rail | ⭐ **the predicate question (§1.2) — that is the whole risk** | the fixtures |
+| **1** suspension storage | ⭐ **all of it** — the predicate (§1.2) **and** the entry-block reset (§1.3) | the fixtures |
 | **2** dangling ref | ⭐ **where it fires** | the tests |
 | **3** authoring UI | the delete/rename maintenance (§3.3) | ⭐ **declare + picker — mirror-pattern, entirely Sonnet** |
 | **4** doc comment | — | 🟢 trivial |
@@ -58,7 +61,7 @@ while [ "$(ps aux | grep -c '[d]otnet build\|[d]otnet test')" != "0" ]; do sleep
 
 ---
 
-## 1. 🔴🔴 A local does not survive a suspension — **and nothing says so**
+## 1. 🔴🔴 A local does not survive a suspension — ⭐ **make it survive**
 
 ### 1.1 The evidence — coordinator-probed on the merged tree, not reasoned
 
@@ -101,26 +104,54 @@ same case today** — a macro whose only latent node is an inline action reads a
 
 | | |
 |---|---|
-| **A** | Fix `MacroLatency` to match the lowering, and build the new rail on it ⇒ ⭐ **one definition, three call sites corrected at once.** ⚠ **May turn existing `BP1661`/collapse tests red** — if it does, **that is the finding**, not a regression to paper over |
-| **B** | Build the rail on its own check and file the divergence ⇒ ⛔ **this is writing the second rule the file forbids.** Do not choose it without saying why |
+| **A** | Fix `MacroLatency` to match the lowering, and dispatch §1.3's storage choice on it ⇒ ⭐ **one definition, three call sites corrected at once.** ⚠ **May turn existing `BP1661`/collapse tests red** — if it does, **that is the finding**, not a regression to paper over |
+| **B** | Dispatch on a check of your own and file the divergence ⇒ ⛔ **this is writing the second rule the file forbids.** Do not choose it without saying why |
 
 ⭐ **The lean is A.** ⚠ **Confirm the `ChannelCommandNode` claim with a test before acting on it** — it
 is coordinator reasoning from doc comments and one grep, and **five consecutive batches have corrected
 this coordinator's reasoning about the code.** If it is wrong, say so and A shrinks to a no-op.
 
-### 1.3 The rule to build
+### 1.3 ⭐⭐ The rule to build — **implement, do NOT refuse**
 
-**A graph that declares a local and can suspend is an error**, naming the graph, the local **and the
-latent node**. ⭐ **`BP1661`'s attribution lesson**: point at the node the designer placed.
+⚠⚠ **This section was rewritten `2026-08-13` before you read it.** ⭐ **[Q27-A was revised from A1 to
+A3 by user ruling](Architect_Question_27_Local_Variables.md).** An earlier draft of this handoff asked
+for a refusal rail. ⛔ **There is no refusal rail. Build the storage.**
 
-⛔ **NOT a `GraphKind` test.** Q27-B is explicit: the property is *"contains a latent op"*, and a
-kind-based test would be *"a `BP-224`-shaped discriminator, correct only by coincidence"* — its words.
-📌 Follow `MacroCallNode`s transitively (`FindLatentInNodes` already does).
+> *"In a suspendable graph there can't be true C# stack locals, so all must be blackboard-allocated
+> vars. From the user's perspective these both are just graph vars, aren't they?"*
 
-⚖️ **Why refuse rather than promote the local into `WorkingState`:** Q27-B **deferred** suspending-graph
-locals — *"nothing yet needs them"*. Promotion also makes the storage class invisible to the designer,
-which is Q27-A3, the option A1 was chosen over. ⭐ **Refusing is the settled direction.** If you think
-promotion is now right, **say so and file it — do not build it.**
+⇒ **Two storage classes, one designer-visible meaning:**
+
+| graph | storage | initialised |
+|---|---|---|
+| **cannot suspend** | a C# local | top of the body — ⭐ **today's behaviour, do not touch it** |
+| ⭐ **can suspend** | a **graph-scoped blackboard slot** | ⭐⭐ **in the ENTRY BLOCK, not at the top of the method** |
+
+⭐⭐ **The entry block is the correct reset point and this is the crux of the whole item.** It is
+reached **only when `__phase == 0`** — a fresh logical invocation — and the phase is cleared before the
+final block, so the next invocation lands there again. ⇒ *"reset once per invocation, survives
+suspension within it"* — **the same rule as the stack case**, where an invocation happens to be one
+frame. ⭐ **"Per-invocation" was never "per-frame"; A1 conflated them because in a non-suspending graph
+they coincide.**
+
+⚠ **Verify that claim against the emitted code before building on it** — it is coordinator reading of
+one probe's output (§1.1), and the phase-clear in particular (`ws.__phase = 0` before the resume
+block) is what makes the reset repeat. **If the phase is not cleared on every exit path, the reset is
+wrong on the second invocation and you must say so.**
+
+⛔⛔ **The trap: do NOT append the slot to `WorkingState` and index it through the old path.**
+`FindVariableIndex`/`VarFieldName` read that list **positionally** (`BP-226`), and
+`AiPrimitiveLowering:42-66` already appends `__phase` rather than prepending **for exactly this
+reason**. 📐 **Yours: separate storage, or an append that is never positionally indexed by
+`VarFieldName`.** ⚖️ **Separate is the lean** — `BP-226` is unfixed, and adding a fourth source to a
+space that cannot express three is the direction Q27-D ruled against.
+
+⚠ **Two graphs may each declare a local named `Scratch`.** The slot names must be graph-qualified;
+`__loc_` alone is not enough once they share storage.
+
+📌 **The latency predicate still decides which branch a graph takes** — so §1.2 remains live and is
+now the *dispatch* question rather than the *refusal* question. **Getting it wrong now silently picks
+stack storage for a suspending graph, which is the bug this item exists to fix.**
 
 ### 1.4 📌 Then answer the question this raises
 
@@ -164,17 +195,28 @@ the rail must exclude them and the row must say why. 📌 `Count5.bp.json` also 
 ⭐ **Coordinator-verified: `grep LocalVariables` outside `Compiler/` and `Tests/` returns ZERO hits.**
 Nothing in the editor touches the field.
 
-### 3.1 🟢 Declare — mirror "Variables"
+### 3.1 🟢 Declare — ⭐ **a SCOPE on the existing Variables surface, not a new section**
 
-`BlueprintMyBlueprintModel:46-61` has `Graphs · Functions · Macros · Variables`, each a row with a
-create command (`editor.create-variable`). ⭐ **A locals section is that pattern again**, with one
-difference that is the whole point: ⚠ **locals belong to the CURRENT GRAPH, not the asset.** It must
-retarget with the canvas (`BP-24`'s graph switch, `BP-72`'s lesson — *a panel that edits the graph you
-are not looking at is a defect*).
+⚠⚠ **Rewritten `2026-08-13` with §1.3 — the earlier lean was the opposite and was wrong.** It argued
+for a separate "Locals" section *"because it makes this is different storage visible"*. ⛔ **Q27-A3
+rules that storage must NOT be visible.** Keep these two apart:
 
-📐 **Yours:** a fifth section that follows the canvas, or a per-graph group under the existing
-Variables section. ⚖️ **The section is the lean** — it makes "this is different storage" visible, which
-is the feature's entire justification.
+| | designer-visible? |
+|---|---|
+| **stack local vs blackboard slot** | ⛔ **No.** Pure compiler choice (§1.3). Hide it completely |
+| ⭐ **graph-scoped vs asset-scoped** | ✅ **Yes** — one resets per invocation, one persists. **That difference IS the feature** |
+
+⇒ ⭐ **No new concept and no fifth section: a scope on a variable**, in the surface that already
+exists. `BlueprintMyBlueprintModel:46-61` has `Graphs · Functions · Macros · Variables`, with
+`editor.create-variable`.
+
+⚠ **The one hard constraint:** a graph-scoped variable belongs to the **CURRENT GRAPH**, so the panel
+must retarget with the canvas — `BP-24`'s graph switch, and `BP-72`'s lesson that *a panel editing the
+graph you are not looking at is a defect*.
+
+📐 **Yours:** a scope column/dropdown on the row, a graph-owned group inside the Variables section, or
+another shape that reads as *one concept with a scope*. ⛔ **Not a parallel section that advertises a
+storage class.** **Say which and why.**
 
 ### 3.2 🟢 Target — ⛔ **the blocker**
 
@@ -233,7 +275,8 @@ The eight, `--logger "console;verbosity=normal"`. Solution is **`IOS-IG-SimHost.
 
 | | |
 |---|---|
-| ⭐⭐ **§1, executed** | a local written before a suspension, read after ⇒ **the refusal**, asserting the **code**. ⚠ **And keep a positive twin**: the same graph with the latent node removed still compiles and still resets per call |
+| ⭐⭐ **§1, executed** | ⭐ **through real Roslyn** (`.Succeeded` never invokes it): a local written **before** a suspension reads **the value it was given** after resume — the case that returns `0` today · ⚠⚠ **and the invocation AFTER that one sees the default again**, which is the half a single call would pass on · ⭐ **plus the non-suspending twin still emits a plain C# local and still resets per call** |
+| ⭐ **§1.3 storage** | a suspending graph's slot is **not** positionally reachable through `VarFieldName`, and **two graphs' same-named locals do not collide** |
 | ⭐ **§1.2** | whichever way you rule — **a test proving `ChannelCommandNode`-with-`ActionFqn` does or does not suspend.** That claim is the batch's one piece of unverified coordinator reasoning |
 | **§2** | a dangling reference ⇒ a diagnostic, **not** `__var_-1` in the output · ⭐ **and the shipped corpus still compiles** — the `"state"` references must not be caught |
 | **§3.2** | a `Get` node targeting a local, authored **through the picker path**, compiles to `__loc_` ⚠ *(pin-level, if the picker is not directly testable — say which)* |
@@ -252,6 +295,7 @@ actually are** (§2) · **your §3.1 and §3.3 rulings** · ⭐ **confirmation y
 code**.
 
 ⭐ **Two of this batch's four items exist because the coordinator's Batch 37 handoff did not ask for
-them** — §1 is Q27-B's own ruling, dropped; §2 is a hazard the same handoff walked past. ⚠ **§1.2's
-`ChannelCommandNode` claim and §2's blast-radius estimate are coordinator reasoning, not measurement.
-Treat them accordingly.**
+them**, and ⛔ **§1 was then written the WRONG WAY ROUND** — as a refusal, until the user pointed out
+that a suspendable graph simply has different storage and the designer should never see the
+difference. ⚠ **§1.2's `ChannelCommandNode` claim, §1.3's entry-block reset and §2's blast-radius
+estimate are coordinator reasoning from one probe, not measurement. Treat all three accordingly.**

@@ -37,8 +37,10 @@ local is *per-invocation*. **They are different storage classes, not different s
 > and **no latency rail at all**. ⛔ **The handoff never asked for it.** ⇒ a local written before a
 > suspension reads its **default** after resume, silently, with no diagnostic.
 >
-> ⭐ **This is not a reopened question — B already answered it.** It is an unbuilt half, and it is
-> **Batch 38 §1**. The rule stands as B stated it: *"contains a latent op"*, **never a kind test**.
+> ⛔⛔ **SUPERSEDED SAME DAY — do not build a refusal.** ⭐ **A was revised to A3 by user ruling**
+> (below): a suspendable graph's locals are **blackboard-allocated and initialised in the entry
+> block**, so the deferral B rested on **dissolves** — there is nothing left to refuse. ⚠ **The defect
+> above is still real and still unguarded today**; only the fix changed, from *refuse* to *implement*.
 
 ### 🔴 A latent defect you will land on top of — `BP-224`'s shape again
 
@@ -195,11 +197,49 @@ architect ruling.
 
 | Q | Answer |
 |---|---|
-| **A** | ⭐ **A1 — a C# local in the emitted method.** Per-invocation, no `State` growth |
+| **A** | ⛔ **REVISED `2026-08-13` to A3 — see below.** ~~A1 — a C# local in the emitted method~~ |
 | **B** | ⭐ **Reframed — see below.** *"Which graphs can suspend"* is **not a graph-kind property**, and **macros do not have locals because they have no scope to own them** |
 | **C** | **C1 — the local wins inside its graph** |
 | **D** | ⭐ **Claude's ruling: locals get their OWN op. The index-space defect is filed separately and does NOT block this** — see below |
 | **E** | **Reset to `DefaultValueJson` on entry** |
+
+### ⭐⭐ A — REVISED `2026-08-13` from A1 to **A3**, by user ruling
+
+> *"In a suspendable graph there can't be true C# stack locals, so all must be blueprint
+> blackboard-allocated vars. From the user's perspective these both are just graph vars, aren't they?"*
+
+✅ **Both halves verified against emitted code.** A suspension is `return NodeStatus.Running`; the C#
+frame dies and a stack local with it — **coordinator-probed, and the value silently reverts to its
+default.** `WorkingState` is literally blackboard memory (`Blackboard1024.Memory` + 8), so
+*"blackboard-allocated"* is the emitted reality, not an analogy.
+
+⭐ **A3 was rejected on 2026-08-11 for one reason — *"the storage class becomes a derived property, and
+a designer cannot see which they got."* The user has now ruled that this is not a cost**, and the
+reasoning is the same one that decided Q26-B: ⛔ **a designer must not be taught about C# stack
+frames.** Refusing a variable in a suspendable graph is an implementation detail leaking into the
+authoring surface.
+
+⚠⚠ **This is legitimate only because the SEMANTICS can be made identical, and they can:**
+
+| | |
+|---|---|
+| **No suspension** | a C# local, initialised at the top of the body — **today's behaviour, unchanged** |
+| **Can suspend** | a graph-scoped slot in blackboard storage, ⭐ **initialised in the ENTRY BLOCK, not at the top of the method** |
+| ⭐ **Why the entry block is the correct reset point** | it is reached **only when `__phase == 0`** — a fresh logical invocation — and the phase is cleared before the final block, so the next invocation lands there again. ⇒ *"reset once per invocation, survives suspension within it"*, which is **the same rule** as the stack case where an invocation happens to be one frame |
+
+⇒ ⭐ **"Per-invocation" was never "per-frame".** A1 conflated them because in a non-suspending graph
+they coincide. **A3 states the rule that actually holds.**
+
+⚖️ **What it costs, stated rather than hidden:** blackboard storage grows for suspending graphs —
+unavoidable, it is the price of surviving a suspension — and Batch 37's
+`AGraphWithALocal_EmitsNoExtraStateField` becomes true **only for non-suspending graphs**. ⚠ **And a
+graph-scoped slot must NOT enter `FindVariableIndex`/`VarFieldName`'s positional space** (`BP-226`,
+and `AiPrimitiveLowering`'s append-not-prepend workaround) — separate storage, or an append never
+indexed through that path.
+
+⛔ **The refusal rail this document previously implied is therefore NOT built.** The `2026-08-13`
+correction banner above still stands on its facts — the hazard is real and unguarded **today** — but
+the fix is **implement A3**, not refuse.
 
 ### ⭐ B, reframed — the user's correction, and it is the better model
 
