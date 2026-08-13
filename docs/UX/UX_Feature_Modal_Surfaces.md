@@ -37,6 +37,67 @@ only real mechanism to build — and it serves both issues.
 
 ## 2. The design
 
+### 2.0 🔴 Who is allowed to ask — the layering that everything else depends on
+
+> **User, 2026-08-13:** *"Confirmations are allowed for interactive sessions only. The infrastructure must
+> by default allow for headless operations. Requests coming from an interactive session should be marked
+> as such and need to be resolved on the interactive node where the user is sitting **before** the
+> headless and unconfirmable request is sent to the infrastructure. Note we are building a distributed
+> system — ExCon might live on a different node than SimHost and CGF who actually perform the
+> operations."*
+
+⇒ [Ruling 53](UX_RESUME_INTERACTION.md). ⚠ **An earlier draft of this design put the gate on the
+executing side** — *"`Destructive` ⇒ confirmation, by construction"*, evaluated where the handler runs.
+**In a cluster that is wrong twice over** ([Correction 41](UX_Tasks_Detail.md#corrections)): it would try
+to raise a modal on **SimHost or CGF**, where no operator is sitting, and it would **block every
+MCP-driven operation** on a dialog nobody can answer.
+
+🔒 **The gate belongs to the dispatcher, not the handler.**
+
+```
+interactive node (ExCon / Editor / IG operator)        executing node (SimHost / CGF)
+──────────────────────────────────────────────         ──────────────────────────────
+ intent to act
+   → descriptor says Destructive
+   → confirmation modal          ← the ONLY place a human is asked
+   → confirmed
+   → emit request  ──────────DDS──────────▶  apply unconditionally
+                                             (never asks · never blocks)
+```
+
+| | |
+|---|---|
+| 🔒 **What crosses the wire is already authorized** | a receiver has no confirmation code path at all — not a suppressed one |
+| 🔒 **Headless is the default, not a mode** | MCP, scripts, replay and tests dispatch through a context with **no confirmation host**, so nothing can prompt. Unconfirmable **by construction** |
+| ⭐ **This is why the marker matters** | the *same* descriptor is dispatched from a UI and from MCP. The **dispatch context** — not the action, not the request — decides whether a human is asked |
+
+```csharp
+public interface IActionDispatchContext
+{
+    bool                IsInteractive { get; }   // false ⇒ headless: never prompt, never block
+    IConfirmationHost?  Confirmation  { get; }   // null when headless
+    IProgressSink       Progress      { get; }   // log sink when headless
+}
+```
+
+| Dispatcher | `IsInteractive` | Confirmation | Progress |
+|---|:--:|---|---|
+| ExCon / Editor / IG operator UI | ✅ | `ModalManager` | modal or status bar (§2.3) |
+| **MCP / Debug API** (`DebugApiHost`, ~49 tools on `feat/ai-debug-api`) | ❌ | **none** — proceeds | **log sink** |
+| Scenario script · replay · tests | ❌ | none | log sink |
+
+| | |
+|---|---|
+| 🔒 **Headless proceeds; it does not refuse** | *"the infrastructure must by default allow for headless operations"*. ⚠ A stricter policy (refuse destructive ops without an explicit `--force`) is **deliberately not built** — note it as a future option, not a default |
+| 🔒 **But it is recorded** | a headless destructive dispatch **logs what it would have asked**, at the origin. That is the audit trail replacing the dialog |
+| 🔴 **`Destructive` therefore declares a *requirement*, not a behaviour** | the interactive dispatcher honours it with a modal; the headless dispatcher honours it with a log line. **Neither the descriptor nor the handler knows which** |
+| ⚠ **This generalises past deletes** | [ruling 53](UX_RESUME_INTERACTION.md) names *"`ClearsPriorIntent`… and so deletes and others"* — every confirmation in the programme routes through this gate, including [UXI-32](UX_Feature_Entity_Commanding.md)'s plan-destroying order |
+
+⚠ **Verified gap:** requests carry a `RequestId` (Guid) but **no origin or interactivity marker**
+(`Hrot.Core/Network/Commands.cs`). ⭐ **None is needed on the wire** — the resolution happens before
+emission, so the marker is a property of the *local dispatch path*, not of the message. **Do not add a
+field to the DDS contracts for this.**
+
 ### 2.1 🔒 `ModalManager` — mirror `StatusBarManager`, do not invent
 
 Same file neighbourhood (`Fdp.Presentation/ImGui/WindowManager/`), same registry idiom, same test shape.
@@ -77,7 +138,7 @@ removed**; **Cancel removes nothing**.
 
 | | |
 |---|---|
-| **Declared, not hand-written** | `EntityActionDescriptor` ([UXI-03](UX_Feature_Entity_Action_Vocabulary.md)) already carries `EntityActionGroup.Destructive`. ⇒ 🔒 **`Destructive` ⇒ confirmation, by construction** — no host writes a dialog, and none can forget one |
+| **Declared, not hand-written** | `EntityActionDescriptor` ([UXI-03](UX_Feature_Entity_Action_Vocabulary.md)) already carries `EntityActionGroup.Destructive`. ⇒ 🔒 **`Destructive` ⇒ the *interactive* dispatcher confirms** (§2.0) — no host writes a dialog, and none can forget one. ⚠ **Headless dispatchers proceed and log** |
 | **Naming, bounded** | ⚠ [UXI-24 §6](UX_Feature_Multi_Select.md) warns about a 40 000-entity `Select All` → `Delete`. 🔒 **The count is exact; the naming is capped** — *"Delete 12 entities? Alpha-1, Alpha-2, Bravo-1 … and 9 more"* |
 | **Cancel is total** | ⭐ **free, and already guaranteed**: [ruling 15](UX_RESUME_INTERACTION.md) gives every action a per-action ECB that is **dropped, never played back** on cancel. Cancel deletes nothing **because the buffer never flushes** — not because the handler remembered to check |
 | ⚠ **The `Delete` key path must reach it** | [UXI-24 §3.6](UX_Feature_Multi_Select.md) converges the raw key and the menu item on one handler. **Without that convergence the key still deletes silently** — a hard dependency, not a nicety |
@@ -134,17 +195,23 @@ wm.StatusBar.RegisterSection("activity_progress", sortOrder: 50, section.Render)
 | 27.3 | 🔒 The handler calls only `IProgressSink.Report` and **cannot tell which surface** it got | H |
 | 27.4 | `fraction == null` renders **indeterminate**, not 0 % | H |
 | 27.5 | Cancelling from either surface **cancels the activity and clears the surface** | H |
-| 27.6 | 🔒 Registering an `Exclusive` action with **no progress surface throws at composition** | H |
+| 27.6 | 🔒 Registering an `Exclusive` action with no progress surface throws at composition — ⚠ **only in an INTERACTIVE composition**; a headless node must not throw at startup | H |
 | 27.7 | Two concurrent non-exclusive activities → most recent shown, **exact** *"+N more"* | H |
 | 27.8 | A completed activity **removes its surface**; no dead progress bar survives | H |
 | M.1 | 🔒 **One modal at a time** — a second `Show` **queues**, and is neither dropped nor nested | H |
 | M.2 | The queued modal opens when the first resolves, in request order | H |
 | M.3 | 🔒 `ModalManager` is **headless-safe** — every case above runs with no ImGui context | H |
 | M.4 | `Modals.Render()` runs **outside `BeginMainMenuBar`** — the ImGui constraint guard | H |
+| O.1 | 🔒 **A headless dispatch of a `Destructive` action proceeds without prompting** and completes | H |
+| O.2 | 🔒 It **logs what it would have asked**, at the origin — the audit trail replacing the dialog | H |
+| O.3 | 🔒 An **executing node never confirms**: applying a received request raises no modal and blocks on nothing, even when the action is `Destructive` | H |
+| O.4 | 🔒 A headless context binds `IProgressSink` to a **log sink** — no modal, no status-bar section | H |
+| O.5 | 🔒 **No DDS contract gains an origin field** — the wire message is identical whether the operation began interactively or headlessly | H |
+| O.6 | An interactive dispatch that is **cancelled emits nothing** — verified on the receiving node, not just locally | H |
 | 16.10 | **Editor**: delete a unit → confirm → it disappears; repeat with Cancel → it does not | I |
 | 27.9 | **Editor**: *Mark Area Targets* shows real progress and can be cancelled mid-run | I |
 
-**21 H · 2 I · 0 V.**
+**27 H · 2 I · 0 V.**
 
 ## 4. Build order
 
@@ -170,6 +237,8 @@ wm.StatusBar.RegisterSection("activity_progress", sortOrder: 50, section.Render)
 
 | | |
 |---|---|
+| 🔴 **A modal on the wrong node** | ✅ **closed by §2.0** — the gate is at the origin, so an executing node has no confirmation path at all. ⚠ **This is the risk that would have shipped**: in a single-process test everything passes, and it only fails once ExCon and SimHost are on different machines |
+| ⚠ **Headless proceeds silently on destructive work** | deliberate ([ruling 53](UX_RESUME_INTERACTION.md)) — but it means an MCP agent can delete 12 entities with no prompt. **O.2's origin-side log is the whole safety net**, so it is a requirement, not a nicety |
 | 🔴 **Confirmation fatigue** | if every delete confirms, operators click through blindly and the guard is worse than useless. ⚠ **Scope is `Destructive` actions only** — and 16.8 deliberately keeps single-delete confirming, because [UXI-16](UX_Issues.md#uxi-16) is about *no host confirming at all* |
 | ⚠ **A modal in a real-time simulation does not pause it** | the world keeps running behind the dialog. ⭐ For `Exclusive` progress that is the point; for a **confirmation** it means the named entities can die before Confirm is clicked ⇒ **the handler must tolerate a stale target set** — the ECB already drops cleanly, but the count shown may be wrong by then |
 | ⚠ **One modal at a time is a real constraint** | a confirmation raised while an `Exclusive` progress modal runs will **queue**, which may read as a lost click. ⚠ Mitigated because `Exclusive` already blocks other actions ([API §5](UX_Interaction_API.md)) — so the case should not arise, and M.1 pins the behaviour if it does |
