@@ -106,6 +106,35 @@ change"* has a single wire form.
 ⇒ This also **generalises the design past pose by construction**: any gizmo that changes an attribute
 publishes an intent, and the egress translator encodes whichever `AttributeRecord`s it owns.
 
+#### 🔒 Which gizmos this covers — and which it does not
+
+`AttributeRecord` is `{ AttributeId, SubIndex1, SubIndex2, Value }` and `AttributeValueKind` is
+**scalar only** — `Int32 · Int64 · Float32 · Float64 · Bool · String`. The two sub-indices carry *"list
+position"* and *"nested list position"*, so indexed elements are expressible; **list structure is not.**
+
+| Gizmo | Change | Records | Same mechanism? |
+|---|---|---|:--:|
+| **Drag** | position | `GeoLat` + `GeoLon` + `GeoAlt` | ✅ **yes** |
+| **Rotate** | heading | `GeoHeading` (new) | ✅ **yes** |
+| Inspector field edits (name, affiliation) | scalar | `Name` / `Affiliation` | ✅ yes — already have IDs |
+| **Vertex edit** · **Route waypoints** | insert/delete/move **list elements** | — | ❌ **no** |
+
+🔒 **Vertex and route gizmos keep their existing channel.** *Setting a value at an index* cannot express
+*inserting* or *deleting* a vertex — there is no list-length attribute, and a 40-vertex polyline would
+become ~80-120 records per commit. They already use `UpdateEntityCommand` →
+`UpdateEntityDescriptorRequest(dtMapVisualOverlay)`, which replaces the **whole descriptor** and is the
+right shape for structural edits. ⭐ This matches the ruling's own wording — *"entity **attribute**
+changing gizmos"*; a polyline edit changes geometry, not an attribute.
+
+⚠ **But they still need §3.1 and §3.2**: they must stop writing ECS directly (§1 rows 3-4) and publish an
+intent whose *remote half targets the descriptor request instead*. **The routing shape is universal; only
+the wire form differs per intent kind.**
+
+⚠ **Drag migrates off a working path.** IG's drag today sends `UpdateEntityDescriptorCommand(dtWorldPos)`
+(`IgApplication.cs:2164-2198`) — acked and functioning. Ruling 32 moves it to attribute records. 🔒 That
+is a deliberate consolidation, not an accident, but it is a **change to a live IG path** and needs the
+same before/after care as any production-map change ([ruling 20](UX_RESUME_INTERACTION.md)).
+
 #### 🔴 Two gaps must be closed first — both verified
 
 | # | Gap | Evidence |
@@ -171,9 +200,11 @@ simply moves one level down.
 | 29.14 | 🔴 **The binary path honours authority** — a record for a component this node does not own is **skipped, not applied**. ⇒ [UXI-30](UX_Issues.md#uxi-30)'s acceptance, restated here because this design depends on it | H |
 | 29.15 | An unknown attribute ID is skipped without error — forward compatibility preserved | H |
 | 29.16 | A rotation intent encodes to a **`GeoHeading`** `AttributeRecord` and decodes to the same rotation within tolerance | H |
+| 29.18 | A **drag** intent encodes to `GeoLat`/`GeoLon`/`GeoAlt` records and round-trips within tolerance | H |
+| 29.19 | 🔒 A **vertex/route** intent routes to the **descriptor** request, not attribute records — the wire form is chosen per intent kind, and the routing shape is unchanged | H |
 | 29.17 | The intent is one **local `Fdp` bus event**; the translator is the only component that knows the wire form | H |
 
-**15 H · 2 I · 0 V.**
+**17 H · 2 I · 0 V.**
 
 ## 5. 🔒 Out of scope
 
