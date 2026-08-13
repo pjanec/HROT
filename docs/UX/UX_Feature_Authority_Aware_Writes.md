@@ -178,8 +178,12 @@ replication working as designed.
 would invert a replication translator and break ghost updates repo-wide. ⇒ **the rule must be stated as a
 pair**, and the audit must classify each site before touching it.
 
-⚠ **Recommendation beyond this design:** this belongs in `docs/HROT-PROGRAMMERS-GUIDE.md` next to rule 7,
-not only in a UX feature doc — it is an engine invariant that UI work merely happened to surface.
+✅ **Recorded where it belongs, 2026-08-12** — this is now **Part 0 rule 8** of
+`docs/HROT-PROGRAMMERS-GUIDE.md`, beside rule 6 (*single-writer authority*) and rule 7
+(*background ≠ main thread*), with a cross-reference from §1.5's loopback guard. It is an engine
+invariant that UI work merely happened to surface, so it lives where a translator author would look —
+not only in a UX feature doc. The known non-conformances are listed there too, pointing at
+[UXI-30](UX_Issues.md#uxi-30).
 
 🔒 **Vertex and route gizmos keep their existing channel.** *Setting a value at an index* cannot express
 *inserting* or *deleting* a vertex — there is no list-length attribute, and a 40-vertex polyline would
