@@ -62,33 +62,21 @@ public sealed class Graph
     public List<Link> Links { get; set; } = new();
 
     /// <summary>
-    /// BP-220 — a copy of this graph carrying new <see cref="Nodes"/>/<see cref="Links"/> and
-    /// <b>every other member preserved</b>.
-    ///
-    /// <para>
-    /// ⚠⚠ <b>The point is that the copy is written ONCE, here, instead of at each call site.</b>
-    /// <c>Stage3_Normalize</c> rebuilt <c>Graph</c> field-by-field at two places and both copied 9 of
-    /// 10 members — silently dropping <see cref="Comments"/>. Batch 29 then had to remember
-    /// <see cref="ExecOutputs"/> at both sites by hand, and nothing would have failed if it had been
-    /// missed at one. A copy that must be REMEMBERED is a copy that will be forgotten; this is the
-    /// same class of defect as the denormalised <c>Pin.LinkedToIds</c> mirror, one level up.
-    /// </para>
-    ///
-    /// <para>
-    /// <c>Graph_CopyShape_PreservesEveryMember</c> walks this type's properties by reflection and
-    /// fails on the NEXT member added without being handled here — which is exactly when the
-    /// knowledge is needed, rather than several batches later.
-    /// </para>
-    /// </summary>
-    /// <summary>
     /// BP-57 / Q27 — variables scoped to <b>this graph</b> and reset on every invocation.
     ///
     /// <para>
-    /// ⭐ <b>Q27-A1: a local is NOT a <c>State</c> field.</b> It compiles to a plain C# local in the
-    /// emitted method, so the instance's state struct does not grow by one field per scratch value —
-    /// which is the whole reason the feature exists rather than "just add an instance variable".
-    /// Q27-E makes that literal: the local is re-initialised from <see cref="VariableDecl.DefaultValueJson"/>
-    /// on entry, so call N+1 never sees call N's value.
+    /// ⭐ <b>A local is NOT a <c>State</c> field.</b> Q27-E makes the scoping literal: the local is
+    /// re-initialised from <see cref="VariableDecl.DefaultValueJson"/> on entry, so invocation N+1
+    /// never sees invocation N's value — which is the whole reason the feature exists rather than
+    /// "just add an instance variable".
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠⚠ <b>Q27-A3: the STORAGE is a compiler choice and is deliberately invisible here.</b> A graph
+    /// that cannot suspend gets a plain C# local; one that CAN gets a graph-scoped blackboard slot
+    /// reset in the entry block, because a suspension returns out of the method and a stack local
+    /// would not survive it. Both mean the same thing to a designer, and neither is spelled on this
+    /// declaration. See <c>LocalStorage</c>.
     /// </para>
     ///
     /// <para>
@@ -112,6 +100,25 @@ public sealed class Graph
     /// </summary>
     public List<VariableDecl> LocalVariables { get; set; } = new();
 
+    /// <summary>
+    /// BP-220 — a copy of this graph carrying new <see cref="Nodes"/>/<see cref="Links"/> and
+    /// <b>every other member preserved</b>.
+    ///
+    /// <para>
+    /// ⚠⚠ <b>The point is that the copy is written ONCE, here, instead of at each call site.</b>
+    /// <c>Stage3_Normalize</c> rebuilt <c>Graph</c> field-by-field at two places and both copied 9 of
+    /// 10 members — silently dropping <see cref="Comments"/>. Batch 29 then had to remember
+    /// <see cref="ExecOutputs"/> at both sites by hand, and nothing would have failed if it had been
+    /// missed at one. A copy that must be REMEMBERED is a copy that will be forgotten; this is the
+    /// same class of defect as the denormalised <c>Pin.LinkedToIds</c> mirror, one level up.
+    /// </para>
+    ///
+    /// <para>
+    /// <c>Graph_CopyShape_PreservesEveryMember</c> walks this type's properties by reflection and
+    /// fails on the NEXT member added without being handled here — which is exactly when the
+    /// knowledge is needed, rather than several batches later.
+    /// </para>
+    /// </summary>
     public Graph WithNodesAndLinks(List<Node> nodes, List<Link> links) => new()
     {
         Id             = Id,
