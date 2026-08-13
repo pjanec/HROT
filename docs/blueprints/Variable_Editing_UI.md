@@ -130,11 +130,73 @@ an adapter. **The designer sees the unified picture before the risky migration, 
 
 ---
 
-## 7. 📐 Open, for the architect
+## 7. ✅ ANSWERED — architect ruling, `2026-08-13`
+
+> ⚠ **Provenance: Claude ruling, delegated by the user** — same standing as `Q27-D`.
+> ⛔ **NotebookLM was not consulted.** ⭐ **Both measurable questions were measured.**
+
+### Q-e · Does the Details panel host non-node content? → ⭐⭐ **It is already designed for exactly this**
+
+`NodeEditor.Core/Interfaces/IDetailsViewProvider.cs` — `DetailsTarget` is an open hierarchy:
+
+```csharp
+SingleNode · MultipleNodes · Comment · Asset · Function · Macro · CustomEvent · EventDispatcher
+Variable(string VariableId)
+LocalVariable(string FunctionId, string LocalId)     // ⭐ already there
+```
+
+⭐⭐ **`LocalVariable` is keyed by `(FunctionId, LocalId)`** — the contract already models a local as
+*belonging to a graph*, which is precisely the canvas-following section §3 proposes. **The routing key
+does not need inventing; it was designed in.**
+
+⚠ **What is actually missing:** ⛔ **no Blueprint type implements `IDetailsViewProvider` at all.** The
+only implementations in the repo are NodeEdit's own `DemoNodeDetailsProvider`, `DetailsPanel` and
+`DetailsViewRegistry`. ⇒ ⭐ **The work is "register a provider", not "extend the contract"** — and none
+of it moves the two NodeEdit gates.
+
+### Q-f · One table, or one per scope? → ⭐ **One**, with `Scope` as a column
+
+And the reason is now stronger than taste: ⭐ **`DetailsTarget` already distinguishes `Variable` from
+`LocalVariable`, so the *selection* is scope-aware before the table sees it.** The table does not need
+splitting to know what was clicked — it needs a column and grouping. ⛔ A table per scope would
+re-create exactly the panel sprawl this work exists to remove.
+
+### Q-g · Does the modal gain `Role`/`Scope`? → ✅ **Yes, defaulted, and shown only where meaningful**
+
+⭐ **The precedent already exists in the shared control:**
+`VariableViewModel.ShowScopeSelector => Role == BlackboardVariableRole.State` — Scope is **hidden for
+Inputs** because it has no meaning there. **Mirror that rule in the modal** rather than inventing a
+second one. Creating an `Input` must not require creating a `State` and flipping it afterwards.
+
+### Q-h · Does a struct-typed blueprint variable compile? → ⭐⭐ **VERIFIED: YES, and it already works**
+
+**Coordinator-probed on the merged tree:**
+
+```
+TryResolve('Hrot.AI.Behaviors.StructDemoData') = False      ← NOT via the registry
+TryResolve('StructDemoData')                   = False
+
+Compile, Instance asset, Variables += { Threat : Hrot.AI.Behaviors.StructDemoData }
+  SUCCEEDED = True   DIAGS = []
+  public global::Hrot.AI.Behaviors.StructDemoData Threat;
+  new BlueprintFieldDescriptor("Threat", typeof(...StructDemoData),
+      Marshal.OffsetOf<State>("Threat"), Unsafe.SizeOf<...StructDemoData>(), "")
+
+Compile, same but TypeId = "StructDemoData"  (short name)
+  SUCCEEDED = False  DIAGS = [BP1500]
+```
+
+⇒ ⭐ **Struct-typed variables are a solved compiler problem** — resolved by **fully-qualified name**
+through a path that is not `EditorOfferableTypeIds`, complete with correct offset and size in the field
+descriptor. **The gap is picker-only.**
+
+⇒ ⭐ **The fix is a list union and nothing else:**
+`BlueprintTypeChoices` ∪ `ISharedStructTypeProvider.GetSharedStructTypeFqns()` — and the latter
+**already returns FQNs**, which is exactly the form that works.
+
+⚠⚠ **Two conditions, both load-bearing:**
 
 | | |
 |---|---|
-| **Does the Details panel host arbitrary content?** | If it routes by node kind only, a "variables" details view may need a second routing key |
-| **One table or one per scope?** | ⚖️ **Lean: one**, with `Scope` as a column and grouping — a table per scope re-creates the panel sprawl this is meant to remove |
-| **Does the modal gain `Role`/`Scope` fields?** | ⚖️ **Lean: yes, defaulted** — creating an `Input` should not require creating a `State` and flipping it |
-| **Does a struct-typed blueprint variable actually compile?** | ⛔ **Unverified.** Measure before promising it — `BP-87`'s lock exists precisely because a picker once offered eight types the compiler could not resolve |
+| ⛔ **The picker must offer the FQN, never the short name** | a short name compiles to **`BP1500`**, and a picker that offers an uncompilable type is `BP-87`'s original defect verbatim |
+| ⭐ **Extend `BP87_TypePickerTests`' resolvability lock over the struct half** | its whole purpose is *"every offered id resolves"*. ⚠ **Note the lock must assert END-TO-END COMPILATION, not `TryResolve`** — `TryResolve` returns **False** for a type that compiles fine, so a lock written against the registry would reject every struct |

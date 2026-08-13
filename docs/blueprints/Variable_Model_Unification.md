@@ -116,11 +116,49 @@ this document exists to prevent. ⇒ **One instruction:**
 
 ---
 
-## 6. 📐 Open, for the architect
+## 6. ✅ ANSWERED — architect ruling, `2026-08-13`
 
-| | |
+> ⚠ **Provenance: Claude ruling, delegated by the user** — the same standing as `Q27-D`.
+> ⛔ **NotebookLM was not consulted; do not cite this as an engine-architect ruling.**
+> ⭐ **Every answer below that could be measured, was.**
+
+### Q-a · Is `Graph.Inputs` in or out? → ⛔ **OUT**
+
+**Verified reason, not a preference:** `Graph.Inputs` is `ParameterDecl`, and it emits as **method
+parameters** — *passed*, not *stored*. It has no byte budget, no default value, no storage class, and
+no per-entity lifetime. ⇒ **Folding it in would put a non-storage thing into a storage model** and make
+`Scope = Graph` mean two different things depending on `Role`.
+
+⭐ **Keep the 2×2 as the conceptual map; implement only the three storage cells.** The fourth cell is
+real and is where function parameters *conceptually* sit — that is worth knowing and not worth building.
+
+### Q-b · Does `Scope` need more than two values? → ⛔ **No. `Asset` and `Graph`, and stop there**
+
+The BTree side's `WorkingStateScope { Node, Behavior, Entity }` is about **blackboard slot sharing
+across nodes** — a different axis from *"who can name this variable."* ⚠ **Reusing the enum would
+import three values with no blueprint meaning.** ⇒ a **separate two-valued scope**, named so it cannot
+be confused with the blackboard one.
+
+### Q-c · Does `Instance` get an `Input` channel? → ⛔ **Not now — represent the gap, do not fill it**
+
+✅ **Measured:** `IsExposedOnSpawn` and `IsEditable` have **no compiler-side reader** — the only hits in
+`Hrot.Blueprints.Compiler` are the property declarations and one doc comment. They are inert.
+
+⇒ ⭐ **Unification should make the hole visible — Instance simply has no `(Input, Asset)` cell
+populated — and stop.** Filling it is a *spawn-parameter feature* with its own runtime work
+(who supplies the values, when, and through what). ⛔ **Do not smuggle it in as a side effect of a
+model refactor.**
+
+### Q-d · Where does stage D's migration run? → ✅ **The hook already exists and has been used**
+
+| | verified |
 |---|---|
-| **Is `Graph.Inputs` in or out?** | Conceptually it is `(Input, Graph)` and the cell is already populated. ⚠ But it is a different decl type (`ParameterDecl`) and function parameters are genuinely passed-not-stored. ⚖️ **Lean: leave it out** — lower payoff, real risk |
-| **Does `Scope` need more than two values?** | The BTree side has `Node`/`Behavior`/`Entity`. ⚖️ **Lean: `Asset`/`Graph` only** until something needs more |
-| **Does `Instance` get an `Input` channel?** | ⚠ `IsExposedOnSpawn`/`IsEditable` exist on `VariableDecl` and have **no compiler-side reader** — editor-only flags today. Unification makes the gap explicit; **filling it is a separate feature** |
-| **Where does stage D's migration run?** | every `.bp.json` round-trips through `BlueprintJsonServices`; a reader that accepts both shapes and a writer that emits the new one is the usual answer. **Not designed here** |
+| `BlueprintJsonServices.Serialize` | already stamps `JsonEnvelope.Write(dom, new DocumentMeta(HrotDocumentTypes.Blueprint, 1))` ⇒ ⭐ **blueprints are already versioned documents, at v1** |
+| `Fdp.Core/Serialization/Migrations/` | `IJsonDocumentMigrator`, `MigrationContext`, `MigrationRegistry`, read-only + persistent adapters |
+| `ScenarioMigrationModule` | the registration pattern to copy — `CurrentVersion = 2`, `RegisterDocType`, and ⚠ **migrator PAIRS**: `V1ToV2_EntityInfo_AddTags` **and** `V2ToV1_EntityInfo_RemoveTags` |
+| `Hrot.Orchestrator` | already ships `DocumentMeta(OrchestratorContext, 2)` ⇒ **a version bump has precedent in this repo** |
+| `Hrot.ClusterRunner/Migration/MigrateMode.cs` | a migrate CLI mode exists, using `JsonEnvelope.Peek`/`Read` |
+
+⇒ ⭐ **Stage D bumps the Blueprint envelope 1 → 2 and registers a migrator pair, mirroring
+`ScenarioMigrationModule`.** ⚠ **The repo's convention is BOTH directions** — write the down-migrator
+too, or stage D is the first document type that cannot be rolled back.
