@@ -51,27 +51,70 @@ internal sealed class EmissionContext
     public string LabelForBlock(IrBlockId id)
         => _blockLabels.TryGetValue(id.Value, out var lbl) ? lbl : $"block_{id.Value}";
 
-    /// <summary>C# field name for a WorkingState or Variable by index.</summary>
-    public string VarFieldName(int index)
+    /// <summary>
+    /// U-3 / <c>BP-226</c> — the C# field name for a resolved variable reference.
+    ///
+    /// <para>
+    /// ⛔ <b>This took a bare <c>int</c> and guessed.</b> It read the index as a priority-ordered
+    /// union — <c>Variables</c> first, then <c>WorkingState</c> — while Stage 5 had produced a
+    /// <b>list-relative</b> index. ⇒ a <c>WorkingState</c> reference at position 1 emitted
+    /// <c>Variables[1]</c> whenever <c>Variables.Count &gt; 1</c>: a different struct at a different
+    /// offset. And <c>Parameters</c> had <b>no arm at all</b>, so a parameter reference fell through
+    /// to <c>__var_{index}</c> — not valid C#, with no BP diagnostic.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>The old <c>VarFieldName(int)</c> no longer exists, and that is the point.</b> The wrong
+    /// call is now <b>unwritable</b> rather than merely unwritten — a
+    /// <see cref="VariableRef"/> cannot be produced from an integer by accident, so the next refactor
+    /// cannot re-introduce the ambiguity. (<c>BP1670</c>'s throw is the precedent: it turned a
+    /// fall-through into an assertion.)
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b><c>BP1670</c>'s assertion survives, restated.</b> It was <i>"index &lt; 0"</i>; it is now
+    /// <i>"no kind resolved"</i> — the same condition, named for what it actually means. Stage 5
+    /// returns <see cref="VariableRef.Unresolved"/> where it used to return <c>-1</c>.
+    /// </para>
+    /// </summary>
+    public string VarFieldName(VariableRef target)
     {
-        // ⭐ BP1670's other half: a negative index means Stage 5 resolved NOTHING, and the old
-        // `__var_-1` fall-through emitted it as an identifier — invalid C#, surfacing as a CS error in
-        // a generated file with no BP diagnostic naming the node. The rail is the diagnostic; this is
-        // the assertion that the rail is complete. ⚠ Deliberately narrower than "out of range": a
-        // positive-but-oversized index is BP-226's index-space ambiguity, which is not this batch's.
-        if (index < 0)
+        if (!target.IsResolved)
             throw new InvalidOperationException(
-                $"Unresolvable variable reference reached Emit (index {index}); "
+                "Unresolvable variable reference reached Emit (no kind resolved); "
                 + "Stage 2's BP1670 rail should have refused it.");
 
-        var fields = Asset.Variables;
-        if (index < fields.Count)
-            return fields[index].Name;
-        var ws = Asset.WorkingState;
-        if (index < ws.Count)
-            return ws[index].Name;
-        return $"__var_{index}";
+        int count = target.Kind switch
+        {
+            VariableKind.Variable     => Asset.Variables.Count,
+            VariableKind.WorkingState => Asset.WorkingState.Count,
+            _                         => Asset.Parameters.Count,
+        };
+
+        // ⚠ An out-of-range index is now a THROW rather than the old `__var_{index}` fall-through.
+        // With the kind carried there is no legitimate way to reach it, so silence would only hide a
+        // Stage 5 / declaration-list disagreement until Roslyn named a generated file.
+        if (target.Index < 0 || target.Index >= count)
+            throw new InvalidOperationException(
+                $"Variable reference {target} is out of range ({count} entries). "
+                + "Stage 5 and the asset's declaration lists disagree.");
+
+        return target.Kind switch
+        {
+            VariableKind.Variable     => Asset.Variables[target.Index].Name,
+            VariableKind.WorkingState => Asset.WorkingState[target.Index].Name,
+            _                         => Asset.Parameters[target.Index].Name,
+        };
     }
+
+    /// <summary>
+    /// U-3 — the struct the reference lives on. ⭐ <b>Parameters are a different struct</b>
+    /// (<c>p</c>), which the bare-<c>int</c> shape could not express at all: a parameter-targeting
+    /// <c>GetVariable</c> emitted <c>{state}.…</c> even when it resolved a name.
+    /// </summary>
+    public string ContainerVarFor(VariableKind kind)
+        => kind == VariableKind.Parameter ? "p" : StateVar;
+
 
     /// <summary>
     /// BP-57 — the emitted C# identifier for a function-local.

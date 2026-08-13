@@ -1214,7 +1214,7 @@ internal sealed class GraphScheduler
             case SetVariableNode sv:
             {
                 int localIdx = FindLocalIndex(sv.VariableId);
-                int idx = localIdx >= 0 ? -1 : FindVariableIndex(sv.VariableId);
+                var target = localIdx >= 0 ? VariableRef.Unresolved : FindVariableRef(sv.VariableId);
                 var dataPin = node.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "In");
                 if (dataPin is null) break;
                 var val = ResolveDataPin(node.Id, dataPin.Id, stmts);
@@ -1224,7 +1224,7 @@ internal sealed class GraphScheduler
                     // disjoint ops so nothing downstream has to disambiguate an integer.
                     Operation = localIdx >= 0
                         ? new IrOp_WriteLocal(localIdx, val)
-                        : (IrOperation)new IrOp_WriteVariable(idx, val),
+                        : (IrOperation)new IrOp_WriteVariable(target, val),
                     Debug     = DebugOf(node),
                 });
 
@@ -2545,14 +2545,14 @@ internal sealed class GraphScheduler
 
             case GetVariableNode gv:
                 int gvLocal = FindLocalIndex(gv.VariableId);
-                int varIdx  = gvLocal >= 0 ? -1 : FindVariableIndex(gv.VariableId);
+                var gvTarget = gvLocal >= 0 ? VariableRef.Unresolved : FindVariableRef(gv.VariableId);
                 result = AllocValue(pinType);
                 stmts.Add(new IrStatement
                 {
                     ResultValue = result,
                     Operation   = gvLocal >= 0
                         ? new IrOp_ReadLocal(gvLocal)
-                        : (IrOperation)new IrOp_ReadVariable(varIdx),
+                        : (IrOperation)new IrOp_ReadVariable(gvTarget),
                     Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gv.Id, PinId = sourcePinId },
                 });
                 break;
@@ -4569,7 +4569,25 @@ internal sealed class GraphScheduler
         return -1;
     }
 
-    private int FindVariableIndex(string variableId)
+    /// <summary>
+    /// U-3 / <c>BP-226</c> — resolves a <c>GetVariable</c>/<c>SetVariable</c> target to
+    /// <b>(kind, list-relative index)</b>.
+    ///
+    /// <para>
+    /// ⛔ <b>This returned a bare <c>int</c>.</b> The search order is unchanged and the index is the
+    /// same one it always was — the position <b>within whichever list matched</b>. What is new is that
+    /// the <b>list travels with it</b>, so <c>EmissionContext.VarFieldName</c> no longer has to guess,
+    /// and can no longer guess differently (it read the integer as a priority-ordered union with no
+    /// <c>Parameters</c> arm at all).
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ The <b>name fallback</b> is kept deliberately: <c>VariableId</c> is not always a GUID —
+    /// hand-authored assets use a bare name, and <c>BP1670</c>'s rail was scoped around that. It loses
+    /// the kind exactly as the id path did, so it gains the same fix.
+    /// </para>
+    /// </summary>
+    private VariableRef FindVariableRef(string variableId)
     {
         // Search Instance variables first, then AiPrimitive working-state and parameters.
         var variables  = _typed.Asset.Variables;
@@ -4584,15 +4602,15 @@ internal sealed class GraphScheduler
 
         if (Guid.TryParse(idStr, out var guid))
         {
-            for (int i = 0; i < variables.Count;  i++) if (variables[i].Id  == guid) return i;
-            for (int i = 0; i < workState.Count;  i++) if (workState[i].Id  == guid) return i;
-            for (int i = 0; i < parameters.Count; i++) if (parameters[i].Id == guid) return i;
+            for (int i = 0; i < variables.Count;  i++) if (variables[i].Id  == guid) return new(VariableKind.Variable, i);
+            for (int i = 0; i < workState.Count;  i++) if (workState[i].Id  == guid) return new(VariableKind.WorkingState, i);
+            for (int i = 0; i < parameters.Count; i++) if (parameters[i].Id == guid) return new(VariableKind.Parameter, i);
         }
         // Name fallback
-        for (int i = 0; i < variables.Count;  i++) if (variables[i].Name  == idStr) return i;
-        for (int i = 0; i < workState.Count;  i++) if (workState[i].Name  == idStr) return i;
-        for (int i = 0; i < parameters.Count; i++) if (parameters[i].Name == idStr) return i;
-        return -1;
+        for (int i = 0; i < variables.Count;  i++) if (variables[i].Name  == idStr) return new(VariableKind.Variable, i);
+        for (int i = 0; i < workState.Count;  i++) if (workState[i].Name  == idStr) return new(VariableKind.WorkingState, i);
+        for (int i = 0; i < parameters.Count; i++) if (parameters[i].Name == idStr) return new(VariableKind.Parameter, i);
+        return VariableRef.Unresolved;
     }
 
     /// <summary>

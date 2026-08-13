@@ -38,8 +38,8 @@ internal static class IrPrinter
     private static string PrintOperation(IrOperation op) => op switch
     {
         IrOp_Const c          => $"const {c.Type.FullName} {c.CSharpLiteral}",
-        IrOp_ReadVariable r   => $"read_var[{r.VariableIndex}]",
-        IrOp_WriteVariable w  => $"write_var[{w.VariableIndex}] <- t{w.Value.Index}",
+        IrOp_ReadVariable r   => $"read_var[{r.Target}]",
+        IrOp_WriteVariable w  => $"write_var[{w.Target}] <- t{w.Value.Index}",
         IrOp_ReadParam r      => $"read_param[{r.ParamIndex}]",
         IrOp_PureCall p       => $"pure_call {p.MethodFqn}({FormatArgs(p.Args)})",
         IrOp_LibraryCall l    => $"lib_call {l.MethodName}({FormatArgs(l.Args)})",

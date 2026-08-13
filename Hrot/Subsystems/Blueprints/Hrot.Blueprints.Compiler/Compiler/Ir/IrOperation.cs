@@ -5,8 +5,10 @@ public abstract record IrOperation;
 // Constants and references
 public sealed record IrOp_Const(string CSharpLiteral, IrTypeRef Type) : IrOperation;
 public sealed record IrOp_ReadParam(int ParamIndex) : IrOperation;
-public sealed record IrOp_ReadVariable(int VariableIndex) : IrOperation;
-public sealed record IrOp_WriteVariable(int VariableIndex, IrValue Value) : IrOperation;
+// U-3 / BP-226: the target carries its KIND. ⛔ It used to be a bare `int` whose meaning Stage 5 and
+// Stage 7 disagreed about — see VariableRef for what that cost.
+public sealed record IrOp_ReadVariable(VariableRef Target) : IrOperation;
+public sealed record IrOp_WriteVariable(VariableRef Target, IrValue Value) : IrOperation;
 
 /// <summary>
 /// BP-57 / Q27-A1 — reads a <b>function-local</b> variable: a plain C# local, not a

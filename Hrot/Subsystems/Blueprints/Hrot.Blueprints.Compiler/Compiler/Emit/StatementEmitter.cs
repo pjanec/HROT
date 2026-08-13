@@ -56,11 +56,13 @@ internal static class StatementEmitter
                 break;
 
             case IrOp_ReadVariable op:
-                if (idx >= 0) e.WriteLine($"var __t{idx} = {sv}.{ctx.VarFieldName(op.VariableIndex)};");
+                // U-3: the container comes from the KIND — Parameters live on `p`, not on the
+                // state struct, which the bare-int shape could not express.
+                if (idx >= 0) e.WriteLine($"var __t{idx} = {ctx.ContainerVarFor(op.Target.Kind)}.{ctx.VarFieldName(op.Target)};");
                 break;
 
             case IrOp_WriteVariable op:
-                e.WriteLine($"{sv}.{ctx.VarFieldName(op.VariableIndex)} = __t{op.Value.Index};");
+                e.WriteLine($"{ctx.ContainerVarFor(op.Target.Kind)}.{ctx.VarFieldName(op.Target)} = __t{op.Value.Index};");
                 break;
 
             // BP-57 — a function-local: a BARE local, with no `{sv}.` prefix. ⭐ That absence is the
