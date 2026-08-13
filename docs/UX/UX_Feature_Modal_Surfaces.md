@@ -195,6 +195,52 @@ are different questions** — a gizmo write may apply on SimHost, but *what to w
 
 🔒 **(c) interactively, proceed-and-log headlessly.** ⚠ **Fails toward asking, never toward silence.**
 
+### 2.0d 🔒 How pre-flight **travels** — bus event + translator, never a network call in the handler
+
+> **User, 2026-08-13:** *"on CGF the pre-flight network request should be translated to a local FDP bus
+> event, this one handled by the dispatcher, response sent back as a local FDP bus event, this translated
+> to a network response and sent to the origin. Pre-flight query sent on a networkless Editor goes via FDP
+> bus event only. On origin nodes, where the FDP event bus and translator infrastructure exist, this is
+> similar… **this is a proven concept widely used.**"*
+
+⇒ [Ruling 57](UX_RESUME_INTERACTION.md). ⚠ **§2.0b showed `PreflightAsync` on `ICommandGateway` as though
+that were the transport** ([Correction 43](UX_Tasks_Detail.md#corrections)). It is a **caller-facing
+façade**; the transport is four hops through the bus.
+
+**The template is verified, not proposed** — mission control already does exactly this:
+
+| Hop | Proven at |
+|---|---|
+| DDS → **bus** | `MissionControlIngressTranslator.cs:77-83` — `repo.Bus.PublishManaged(MissionControlIntent)`. Doc: *"the only class that reads DDS wire messages for mission control"* |
+| bus → **handler on the tick thread** | `MissionControlExecutionSystem` |
+| handler → **bus** | publishes `MissionControlAckEvent` — *"without any DDS dependency"* |
+| bus → **DDS** | `MissionControlAckEgressTranslator.cs:53` — `view.ReadEvents<MissionControlAckEvent>()` → writes the ack |
+| correlation | `RequestId` (Guid) on both messages; origin side correlates via `DdsCommandClient<Req,Ack>` (`NedCommandGateway.cs:60-75`) |
+
+⭐ **Second instance, and it is already two-phase**: entity lifecycle — `DeleteEntityRequestSystem.cs:70-74`
+drains a neutral `IEntityDeletionRequestSource`, answers through `IEntityAckSink`, emits **`InProgress`
+immediately**, then registers with `EntityRequestFinalizationSystem` for the final ack. All
+`[UpdateInPhase(SystemPhase.Input)]`.
+
+```
+ORIGIN (ExCon / IG / Editor)                    CGF
+────────────────────────────                    ───
+ UI publishes PreflightRequested ──▶ egress xlat ──DDS──▶ ingress xlat
+                                                            │ publishes PreflightIntent
+                                                   tick ▼   ▼
+                                            dispatcher system runs IIntentAspectProvider
+                                                            │ over LIVE ECS state
+ UI ◀── bus event ◀── ingress xlat ◀──DDS── egress xlat ◀────┘ publishes PreflightResultEvent
+```
+
+| | |
+|---|---|
+| 🔴 **The hard reason, not just consistency** | the providers read **live ECS state**, and only the tick thread may. A DDS callback resolving pre-flight inline is exactly the **async-handler-touching-ECS** violation the engine rules forbid — the standing *"no two async handlers write to ECS; there are command buffers for that"* constraint |
+| ⭐ **The Editor drops the two outer hops** | networkless ⇒ **no translator is registered**, the request and result events never leave the bus, and the **dispatcher system is byte-identical**. This is what makes [§2.0b](#20b)'s *"one code path, not two"* literally true rather than aspirational |
+| ✅ **ExCon qualifies as a bus origin** | `ExConSubsystem.cs:182,186` constructs an `FdpEventBus` (plus an observer bus). ⚠ [Ruling 16](UX_RESUME_INTERACTION.md)'s *"ExCon is DDS-only, no ECS"* is about **components**, not the bus — do not read it as excluding ExCon from this pattern |
+| ⚠ **The façade may stay awaitable** | [ruling 15](UX_RESUME_INTERACTION.md) already has handlers on the tick thread that **yield**, so a `Task`-shaped `PreflightAsync` over a bus round trip is consistent. 🔒 **But it must be a bus-level correlation helper, not `DdsCommandClient`** — otherwise the Editor path drags in DDS |
+| ⚠ **Seam-law watch — do not copy a third time** | the request→bus→system→bus→ack chain is **hand-rolled per command family**: mission control and entity lifecycle each declare their own source/sink/events/translators. ⚠ *I verified two families; I did not enumerate all of them.* Pre-flight would be the **third** ⇒ prefer generalising the pair over adding a third copy |
+
 ### 2.1 🔒 `ModalManager` — mirror `StatusBarManager`, do not invent
 
 Same file neighbourhood (`Fdp.Presentation/ImGui/WindowManager/`), same registry idiom, same test shape.
@@ -267,6 +313,33 @@ wm.StatusBar.RegisterSection("activity_progress", sortOrder: 50, section.Render)
 | 🔒 **Registration throws** when an `Exclusive` action declares no progress surface | API §6c; same fail-at-composition stance as `GlobalActionRegistry.Register` on duplicate ids |
 | ⚠ **A cancelled activity must clear its surface** | otherwise a dead progress bar persists — the failure mode that makes progress UI worse than none |
 
+### 2.3b 🔴 Progress across nodes — the gap §2.3 had, and its fix
+
+⚠ **Asked by the user, 2026-08-13: *"is the progress notification designed to travel over a network from
+the knowing node to the origin node?"*** — **it was not** ([Correction 44](UX_Tasks_Detail.md#corrections)).
+§2.3's *"`Report()` is a plain field write; the surface reads it next frame"* is only true when handler and
+surface share a node. For work running on CGF, **the origin's bar never moves**.
+
+🔒 **Fix: the sink is the same interface on both nodes — only its binding differs.** That is [§2.3](#23)'s
+own property (*"the handler never knows which surface it got"*, case 27.3) extended one hop:
+
+| Node | `IProgressSink` binds to |
+|---|---|
+| **executing (CGF)** | a **status-egress sink** — `Report()` publishes a bus event; the egress translator writes it to DDS ([§2.0d](#20d)) |
+| **origin, interactive** | the ingress translator turns it back into a bus event that drives the **modal or status-bar** section |
+| **origin, headless** | **log sink**, unchanged ([ruling 53](UX_RESUME_INTERACTION.md), case O.4) |
+| **Editor** | bus only, **no translators** — the existing single-node path, unchanged |
+
+⭐ **Again, not a new mechanism**: `DeleteEntityRequestSystem.cs:70-74`'s **`InProgress` → final** ack is the
+degenerate case of this stream — one intermediate sample, correlated by `RequestId`,
+tracked by `EntityRequestFinalizationSystem`. **Widen the cadence, keep the shape.**
+
+| 🔴 Three things the wire forces that a local field write never did | |
+|---|---|
+| ⚠ **Rate** | a per-frame `Report()` is **60 Hz of DDS traffic per activity**. 🔒 **Coalesce at the egress: latest-sample-wins, capped cadence (~10 Hz), and the terminal sample is ALWAYS sent** — a dropped 100 % leaves a bar stuck at 97 % forever |
+| ⚠ **Cancel travels the other way** | the cancel button is at the origin, the work is on CGF ⇒ 🔒 **cancel is a second request correlated by the same `RequestId`**, not a local flag. Case 27.5 (*"cancelling clears the surface"*) must not clear the surface until the executing node **confirms** |
+| ⚠ **Liveness** | if the executing node dies mid-activity the origin's bar hangs forever. 🔒 **Timeout ⇒ surface *"lost contact with the owning node"*** — the same fail-toward-telling-the-user stance as [§2.0b](#20b)'s case D.6, never a silent spinner |
+
 ### 2.4 ⚠ Where this sits in the frame
 
 | | |
@@ -312,6 +385,16 @@ wm.StatusBar.RegisterSection("activity_progress", sortOrder: 50, section.Render)
 | D.6 | 🔒 **Pre-flight timeout ⇒ a generic confirmation** interactively; proceed-and-log headlessly. Never silent | H |
 | D.7 | 🔒 **The Editor resolves pre-flight in-process** — same call, no network hop, one code path | H |
 | D.8 | A non-destructive action **never pre-flights** — the latency guard | H |
+| T.1 | 🔒 The pre-flight request reaches the dispatcher **as a bus event**, published by an ingress translator — the handler holds **no DDS type** | H |
+| T.2 | 🔒 The result leaves as a **bus event**; the egress translator is the only class writing the wire message | H |
+| T.3 | 🔒 **Editor**: with **no translators registered**, request and result never leave the bus and the dispatcher system is **byte-identical** | H |
+| T.4 | 🔒 The dispatcher runs **on the tick thread** (Input phase) — no provider is invoked from a network callback | H |
+| T.5 | Request and result correlate by `RequestId`; a late or duplicate result for a resolved id is **dropped, not rendered** | H |
+| P.1 | 🔴 **Progress from a remote activity reaches the origin's surface** — the cross-node case §2.3 originally missed | H |
+| P.2 | 🔒 The handler calls only `Report()` and **cannot tell** it is being surfaced one node away (27.3, across the wire) | H |
+| P.3 | 🔒 **Egress coalesces**: a 60 Hz `Report()` produces a capped sample rate, **and the terminal sample is always sent** | H |
+| P.4 | 🔒 **Cancel travels back** and the surface clears only on the executing node's confirmation — not optimistically | H |
+| P.5 | 🔒 A remote activity that goes silent **times out into *"lost contact"***, never an eternal spinner | H |
 | O.6 | An interactive dispatch that is **cancelled emits nothing** — verified on the receiving node, not just locally | H |
 | 16.10 | **Editor**: delete a unit → confirm → it disappears; repeat with Cancel → it does not | I |
 | 27.9 | **Editor**: *Mark Area Targets* shows real progress and can be cancelled mid-run | I |
