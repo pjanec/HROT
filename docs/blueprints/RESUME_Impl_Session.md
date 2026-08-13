@@ -1,20 +1,21 @@
-# RESUME — implementation session · ⭐⭐ **`BP-57` is CLOSED**
+# RESUME — implementation session · ⭐⭐ **the `U-` sequence has started**
 
 > **Written for a fresh session. Self-contained; assumes no prior conversation.**
 > **You are the *implementation* session.** A separate *coordinator* session owns the tracker and
 > writes the handoffs. Last updated **2026-08-13**.
 >
-> ✅ **Batch 43 is COMPLETE and reported.** The Local Variables section landed, all eight gates are
-> green, and **`BP-57` is ticked** — the locals feature is done end to end, compiler and editor.
+> ✅ **Batch 44 is COMPLETE and reported.** `U-1` (the golden-corpus harness) and `U-2` (`BP-229`,
+> the compiler owns its graphs) both landed; all eight gates green.
+> ⭐ **`BP-57` closed in Batch 43**; the locals feature is done end to end, compiler and editor.
 
 | | |
 |---|---|
 | **Repo** | `pjanec/HROT` |
 | **Implementation branch — PUSH HERE** | ⭐ **`claude/hrot-implementation-j1jvin`** |
 | **Coordinator branch — do NOT push** | ⭐ **`claude/blueprint-authoring-status-gm0akp`** (was at `93152d7`, merged into mine) |
-| **Last handoff** | 📄 **[HANDOFF_Batch43_Local_Variables_Section.md](HANDOFF_Batch43_Local_Variables_Section.md)** — delivered in full |
-| **Counts** | **63 open · 106 done** — ⚠ *derive, never hand-count:* `python3 scripts/tracker-counts.py --check` |
-| **Next free ids** | rows **BP-235+** · diagnostics **BP1671+** |
+| **Last handoff** | 📄 **[HANDOFF_Batch44_Golden_Harness_And_Compiler_Ownership.md](HANDOFF_Batch44_Golden_Harness_And_Compiler_Ownership.md)** — delivered in full |
+| **Counts** | **62 open · 107 done** — ⚠ *derive, never hand-count:* `python3 scripts/tracker-counts.py --check` |
+| **Next free ids** | rows **BP-235+** · diagnostics **BP1671+** *(Batch 44 allocated none)* |
 
 ⛔ **No PR unless the user explicitly asks.** There has never been one in this programme.
 ⛔ **Never put a model identifier** in a commit message, code comment, or anything else pushed.
@@ -26,14 +27,40 @@
 ```bash
 git fetch origin claude/blueprint-authoring-status-gm0akp
 git merge origin/claude/blueprint-authoring-status-gm0akp --no-edit   # rule 7
-python3 scripts/tracker-counts.py --check                              # expect 63 / 106
+python3 scripts/tracker-counts.py --check                              # expect 62 / 107
 ```
 
 Then read whatever handoff is newest on that branch. **No batch is in flight.**
 
 ---
 
-## 1 · What Batches 41–43 shipped — `BP-57` end to end
+## 1 · Batch 44 — the `U-` sequence opened
+
+| commit | |
+|---|---|
+| `2275c29` | ⭐⭐ **`U-1` the golden-corpus harness · `U-2` the compiler owns its graphs (`BP-229` closed)** |
+
+### ⭐ Decisions and findings — do not re-derive
+
+| | |
+|---|---|
+| ⭐⭐ **The corpus compiles as a SET, not asset by asset** | ⛔ `SmokeGuard`/`SmokePatrol` fail **`BP1301`** with empty `SiblingSignatures` — they **call each other**. Production has always parsed every `AdditionalFiles` entry into a sibling catalog. ⚠ **The plan's *"one `typeof(...).Assembly` touch ⇒ 42/42"* is 40/42**: the preload and the catalog are two independent prerequisites and only the first was written down |
+| ⭐⭐ **The baseline is `CompilerMode.Release`** | the generator **hardcodes** it — not derived from the MSBuild configuration — so a Debug-mode harness would have baselined output that **never ships** (~40 extra `DebugProbe` lines/asset). 📌 Not a defect: `EditorMetadata.CompilerMode` + `QuickReloadService` are the debugger's **live re-instrumentation** path. 📌 **Known gap: Debug-mode emit is NOT covered** |
+| ⭐⭐ **§1.5 parity answer: 42/42 byte-identical** | in-process reflection resolver vs production's `RoslynClrSignatureResolver`, compared via `EmitCompilerGeneratedFiles`. ⚠ The two things that DID differ first time were mine — mode and sibling catalog — not the resolver |
+| ⭐ **Two tiers, and the split earns its keep** | Tier 1 = `StructureHash` + field name/type/offset/size + diagnostic **multiset**; Tier 2 = full source as **files, not hashed**. 📌 `StructureHashComputation` hashes `Dispatch` + `name\|type\|offset\|size` and nothing else ⇒ **Tier 1 ⊇ the hash's inputs**, so a hash move is always explicable from Tier 1 |
+| ⚠ **The harness MIRRORS `Compile`'s stage sequence** | it must: Tier 1 needs the laid-out `IrAsset` and `CompileResult` exposes only hash/source/diagnostics. ⭐ **So the copy is pinned, not trusted** — `HarnessPipelineMatchesTheRealCompiler` asserts byte-identical source + hash against the real compiler for all 42 |
+| ⭐ **`U-2`'s copy sits AFTER Stage 0** | Stage 0's pin rehydration is **contractually visible** to the caller; a copy taken earlier hides it. Fresh containers + fresh **`Link` objects** (⚠ `MacroExpander` rewires links **in place**, `:205`/`:258`), **shared `Node` objects** (nothing mutates one post-Stage-0, and cloning would have to preserve the ids the `DebugMap` is keyed by) |
+
+### 🔴 Two defects found in the test infrastructure itself
+
+| | |
+|---|---|
+| ⛔⛔ **`ResolveSnapshotsDir` walked up from `bin/`** | so `BLUEPRINT_REGENERATE_SNAPSHOTS=1` wrote baselines **into `bin/`, never into git**. Harmless for existing snapshots (`PreserveNewest` keeps them in step); ⚠ **silently fatal for a NEW one** — green locally, *"snapshot not found"* on a clean checkout. Now anchored on the test project's `.csproj` |
+| ⛔ **A bite test must never target a committed baseline path** | under regenerate mode the helper **writes**, so the first run overwrote `ManagedCollectionDemo`'s Tier 1 with the **mutated** layout. Bite tests now compare against a scratch copy |
+
+---
+
+## 2 · What Batches 41–43 shipped — `BP-57` end to end
 
 | commit | |
 |---|---|
@@ -58,7 +85,7 @@ Then read whatever handoff is newest on that branch. **No batch is in flight.**
 
 ---
 
-## 2 · Where the code is
+## 3 · Where the code is
 
 | file | |
 |---|---|
@@ -68,18 +95,22 @@ Then read whatever handoff is newest on that branch. **No batch is in flight.**
 | `Hrot.Blueprints.Editor/Host/BlueprintDocumentFactory.cs` | `LocalVariableUndoRecorder` · `TryFindLocal` · `DuplicateLocal` · `MakeUniqueLocalName` · `RegisterCreateLocalVariableCommand` |
 | `Hrot.Blueprints.Editor/Host/BlueprintPickerSources.cs` | `RowLabel` is the headless seam for the `(local)` suffix |
 | `Hrot.Subsystems/Hrot.Editor/EditorSubsystem.cs` `~:2261` | passes `ctx?.CurrentGraphId` and `ctx?.Indicators` to the My Blueprint window |
+| `Hrot.Blueprints.Tests/Golden/GoldenCorpus.cs` | ⭐ **the harness** — corpus glob, sibling catalog, preload, both tiers |
+| `Hrot.Blueprints.Tests/Golden/GoldenCorpusTests.cs` | the sweep (42×3) + the three `Bite_*` proofs + the pipeline-equivalence pin |
+| `Hrot.Blueprints.Tests/Snapshots/Golden/` | ⭐ **the baseline — 42 Tier 1 + 42 Tier 2 files, 532 KB.** Regenerate with `BLUEPRINT_REGENERATE_SNAPSHOTS=1` |
+| `Hrot.Blueprints.Compiler/Compiler/BlueprintCompiler.cs` | `U-2`'s copy + `CloneGraphForCompilation` |
 | **tests** | `Tests/Editor/LocalVariableAuthoringTests.cs` (11) · `LocalVariablePickerAndTitleTests.cs` (9) · `LocalVariableDeleteAndUndoTests.cs` (9) · `LocalVariableSectionTests.cs` (15). **44 locals tests, all green** |
 
 ---
 
-## 3 · Gates
+## 4 · Gates
 
 The eight, solution **`IOS-IG-SimHost.sln`** (⚠ **not** `Hrot.sln`).
 ⚠⚠ **The two NodeEdit gates take NO `--no-build`** — they silently do not run with it.
 
-**Post-Batch-43, all eight run:** build **0 errors / 69 warnings** · Blueprints **3313 total / 3303
-passed / 0 failed / 10 skipped** · ⭐ **AiShared 1213 — unmoved** · BTree **612** · Breakpoints **130** ·
-Generators **193** · NodeEdit Core **208** · UI **131**.
+**Post-Batch-44, all eight run:** build **0 errors / 69 warnings** · Blueprints **3448 total / 3438
+passed / 0 failed / 10 skipped** *(+135: the golden sweep is 42×3 theories)* · ⭐ **AiShared 1213 —
+unmoved** · BTree **612** · Breakpoints **130** · Generators **193** · NodeEdit Core **208** · UI **131**.
 
 ### ⭐ Run the five `--no-build` suites in PARALLEL
 
@@ -101,12 +132,12 @@ are exactly what a headless test can pass while the panel draws nothing. **Say s
 
 ---
 
-## 4 · Open findings that are mine
+## 5 · Open findings that are mine
 
 | | |
 |---|---|
 | **BP-228** 🔴 | struct type ids are **unvalidated pass-through** — `Totally.Made.Up.Type` compiles clean. Blocks `U-8` |
-| **BP-229** 🔴 | `Compile` **mutates the caller's `Graph` objects** (the macro splice). Not reachable in production only because `QuickReloadService` has no caller |
+| ~~**BP-229**~~ ✅ | ✅ **CLOSED Batch 44 as `U-2`** — `Compile` now owns the graphs it rewrites |
 | **BP-230** 🔴 | the **asset-variable** source's `Role`/`Scope`/reference-count members are stubs. ⭐ The locals source does not copy them; fixing the old one is `U-5` |
 | **BP-231** 🟠 | `RemoveVariable`/`RenameVariable` don't maintain the order lists. ⭐ **Locals are immune** — the declaration list IS the order |
 | **BP-232** 🟠 | `MakeUniqueName` checks `Variables` only ⇒ a `Parameter` and a `Variable` may share a name |
@@ -121,7 +152,7 @@ will find it. ⚠ Reported rather than changed, per the handoff's instruction.
 
 ---
 
-## 5 · ⚠ Process lessons — paid for, do not re-learn
+## 6 · ⚠ Process lessons — paid for, do not re-learn
 
 | | |
 |---|---|
@@ -135,13 +166,15 @@ will find it. ⚠ Reported rather than changed, per the handoff's instruction.
 
 ---
 
-## 6 · The wider programme
+## 7 · The wider programme
 
-⏭ **`BP-57` is closed, so the unification begins** —
-📄 [PLAN_Variable_Unification_Tasks.md](PLAN_Variable_Unification_Tasks.md), reviewed by
-📄 [REVIEW_Unification_Plan.md](REVIEW_Unification_Plan.md) (**run it, with five named changes**).
-⭐ The two headline review findings: **`U-3` should go first** (four call sites, closes `BP-226`), and
-**`U-10`'s byte-identity gate needs a corpus canonicalisation pre-step** or it is unwritable.
+⏭ **The unification is under way** — 📄 [PLAN_Variable_Unification_Tasks.md](PLAN_Variable_Unification_Tasks.md),
+reviewed by 📄 [REVIEW_Unification_Plan.md](REVIEW_Unification_Plan.md) (**run it, with five named changes**).
+✅ **`U-1` and `U-2` done (Batch 44).** ⏭ **`U-3` is next** — the review's headline: it should go first of
+the remaining work (four call sites, closes `BP-226`), and it **declares no golden change**, which the
+harness can now actually check.
+⚠ **`U-10`'s byte-identity gate still needs `U-15`'s corpus canonicalisation** or it is unwritable.
+⭐ **Every later `U-` task's *"the output did not change"* is now falsifiable** — that was the point of `U-1`.
 
 📌 **Still unbuilt from the locals programme, deliberately deferred:** the **node badge** distinguishing
 a local from an asset variable on the canvas. It needs a new member on `INodeModel` (`NodeEditor.Core`)
