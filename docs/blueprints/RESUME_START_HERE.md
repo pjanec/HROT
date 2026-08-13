@@ -344,6 +344,12 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > a delete that uses the reference count Batch 41 built and left unused, and ⛔ **undo, which no
 > locals gesture has at all today.** §4 (the badge) moves the two NodeEdit gates and is the stop point.
 
+> ⏭ **Batch 43 dispatched — [ONE ITEM: the Local Variables section](HANDOFF_Batch43_Local_Variables_Section.md).**
+> ⛔⛔ **Asked for twice, skipped twice — and the common factor is mine:** I marked it *"🟢 Sonnet takes
+> the section wiring"* both times. ⇒ ⭐ **one item, on Opus, delegated to nobody, nothing else in the
+> batch.** ⭐⭐ **It is the last thing between `BP-57` and closed** — source, count, refusal and undo
+> are all built; there is simply nowhere to declare a local.
+
 ## 7o · Batch 42 — ✅ VERIFIED AND MERGED at `57cd6161` — 🔴 **§1 SKIPPED AGAIN. `BP-57` still not closed**
 
 **Gates:** build **0 errors** · Blueprints **3298 total / 3288 passed / 0 failed / 10 skipped** (**+9**) ·
