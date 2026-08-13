@@ -151,9 +151,35 @@ geo one carries a **`FIXME` saying exactly that** — *"Check native ECS compone
 descriptor key"* (`:139-141`).
 
 ⇒ 🔒 **[UXI-30](UX_Issues.md#uxi-30) widens accordingly**: it is not *"the binary path is missing a check"*
-but *"**every** applier must gate, and on **one** notion of authority."* ⚠ Descriptor-key gating is not
-self-evidently wrong — a descriptor maps to a set of components and `DescriptorOwnershipMap` exists — so
-the work is to **choose one notion and apply it consistently**, not to assume the FIXME's preference.
+but *"**every** applier must gate, and on **one** notion of authority."*
+
+### 3.3c 🔒 RULED — the notion is **native component ownership**, and there are exactly two classes of writer
+
+> **User, 2026-08-12:** *"The descriptor applier needs anyway to check component ownership. Writing to
+> unowned components is reserved for network replication ingress translators, never for change requests
+> like attrib/descriptors. These must be received by any node and applied only to owned ECS components."*
+
+🔒 **This settles the open question** I had left deliberately unresolved — descriptor appliers gate on
+**native component authority**, not the descriptor key. The `FIXME` at
+`UpdateEntityDescriptorRequestSystem:139-141` was right.
+
+⭐ **And the rule has a second half that must be written down, because it inverts the gate:**
+
+| Writer class | Purpose | Gate | Writes unowned? |
+|---|---|---|:--:|
+| **Replication ingress translator** | apply the **owner's state** to a local **ghost** | `if (HasAuthority) skip` | ✅ **yes — by definition.** A ghost *is* an unowned copy |
+| **Change request applier** (attribute · descriptor · command) | apply a **request** from any node | `if (!HasAuthority) skip` | ❌ **never** |
+
+⚠ **The two gates are exact inverses, and both are correct.** `GeoSpatialIngressTranslator:85-89` writes
+`SimTransform` **only when `!isLocallyOwned`** — that is not a bug to be "fixed" by a sweep; it is
+replication working as designed.
+
+🔴 **This is the trap in UXI-30.** Someone applying *"everything must gate on ownership"* mechanically
+would invert a replication translator and break ghost updates repo-wide. ⇒ **the rule must be stated as a
+pair**, and the audit must classify each site before touching it.
+
+⚠ **Recommendation beyond this design:** this belongs in `docs/HROT-PROGRAMMERS-GUIDE.md` next to rule 7,
+not only in a UX feature doc — it is an engine invariant that UI work merely happened to surface.
 
 🔒 **Vertex and route gizmos keep their existing channel.** *Setting a value at an index* cannot express
 *inserting* or *deleting* a vertex — there is no list-length attribute, and a 40-vertex polyline would
@@ -240,9 +266,11 @@ simply moves one level down.
 | 29.19 | 🔒 A **vertex/route** intent routes to the **descriptor** request, not attribute records — the wire form is chosen per intent kind, and the routing shape is unchanged | H |
 | 29.20 | 🔒 **Every applier gates on ownership** — attribute (JSON + binary) *and* descriptor (geo + overlay) *and* the local `UpdateEntityCommand` consumer. Parameterised over all five; none may pass by omission | H |
 | 29.21 | The **same** entity/component decision yields the **same** verdict on every channel — one notion of authority, not two | H |
+| 29.22 | 🔒 A **descriptor** request for a component this node does not own is **ignored**, even when the node owns the *descriptor key* — the two notions must not diverge | H |
+| 29.23 | 🔴 **Replication ingress still writes unowned components** — the inverse gate is preserved; a ghost keeps receiving owner state. The anti-regression guard for UXI-30's sweep | H |
 | 29.17 | The intent is one **local `Fdp` bus event**; the translator is the only component that knows the wire form | H |
 
-**19 H · 2 I · 0 V.**
+**21 H · 2 I · 0 V.**
 
 ## 5. 🔒 Out of scope
 
