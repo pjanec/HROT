@@ -398,21 +398,41 @@ greenfield** — a schema-driven behavior-parameter form already ships inside `M
 > to hardcoded stuff. **Shared code, reused.** Network replication might come later. **TKB access should
 > be hidden behind some provider API** to allow for switching implementations (disk/network) later."*
 
-⭐ **Both halves of the provider API are already in the repo, at two distinct levels:**
+⭐ **TKB access is a FIVE-level stack, and all five levels already exist.**
+🔒 **The storage strategy is only level 1** — *"just the raw data provider"*, as the user put it. The
+**tkbId lookup is level 3**, and it is used everywhere already.
 
-| Level | Interface | Shape | Implementations |
-|---|---|---|---|
-| **Source** — where bytes come from | **`ITkbStorageStrategy : IDisposable`** (`Tkb/Vfs/ITkbStorageStrategy.cs:10`) — *"Abstraction over a TKB storage medium"* | `EnumerateEntityFiles()` · `WriteEntityFile` · `DeleteEntityFile` | `RawDirectoryTkbProvider`, `ZipTkbProvider` |
-| **Consumption** — what callers use | **`ITkbDatabase`** (`Fdp.Core/Abstractions/ITkbDatabase.cs`) | `GetByType` · `TryGetByType` · `GetByName` · `GetAll` · `Register` · `Clear` · `ActiveTkbName` | `TkbDatabase` |
+| L | Layer | Interface / type | Answers |
+|--:|---|---|---|
+| **1** | **Storage** | `ITkbStorageStrategy : IDisposable` (`Tkb/Vfs/ITkbStorageStrategy.cs:10`) + `TkbUnifiedLoader` facade | *where do the bytes come from* — raw dir or `.zip` |
+| **2** | **Parse** | `TkbDeserializer.ParseAndRegister` + source-generated `[TkbDescriptor]` thunks | JSON → typed descriptor DTOs |
+| **3** | ⭐ **Lookup — the access class** | **`ITkbDatabase.TryGetByType(long tkbType, out TkbTemplate)`** (+ `GetByType` · `GetByName` · `GetAll` · `Register` · `Clear` · `ActiveTkbName`) | *what is entity type N* |
+| **4** | **Typed field access** | `TkbTemplate.GetDescriptor<T>()` · `TryGetDescriptor<T>()` · `HasDescriptor<T>()` · `GetAllDescriptors()` (`TkbTemplate.cs:97-138`) | *read one descriptor off a template* |
+| **5** | **Projection into ECS** | `ITkbEntityTranslator.Inject(repo, entity, template)` + `GetConsumedDescriptors()` — e.g. `BehaviorTkbTranslator`, `CombatTkbTranslator`, `PerceptionTkbTranslator` | *descriptor → ECS components at spawn* |
+
+**Level 3 is in production use across every host** — `NetworkSpawningSystem.cs:88` ·
+`GhostPromotionSystem.cs:103` · `BlueprintApplicationSystem.cs:36` · `CreateEntityRequestSystem.cs:170,249,361`
+· `IgApplication.cs:3338` · `EditorSpawnAdapter.cs:95` · `EntityPresentationGizmoShared.cs:64` ·
+`DisEntityTypeTranslator.cs:42`.
 
 | | |
 |---|---|
-| ✅ **Consumers already never touch files** — every host reads through `ITkbDatabase` | the *"hidden behind a provider API"* requirement is **already met on the read side** |
-| ✅ **`TkbUnifiedLoader` is already the switching facade** — it auto-detects `.zip` vs directory and picks the strategy (`:27-44`) | ⇒ **a network strategy slots in beside `ZipTkbProvider`**, exactly as ruled |
-| ✅ **Read-only mediums are already modelled** — `ZipTkbProvider` throws `NotSupportedException` from `WriteEntityFile`/`DeleteEntityFile` | a network provider does the same; no interface change |
+| ✅ **The *"hidden behind a provider API"* requirement is already met at L3** — no consumer touches files, and every one asks *"give me type N"* | ⇒ **`ITkbDatabase` is the switchable seam from the consumer's side** |
+| ✅ **`TkbUnifiedLoader` already switches L1 implementations** by auto-detecting `.zip` vs directory (`:27-44`); `ZipTkbProvider` throws `NotSupportedException` on write | ⇒ a network **corpus** provider slots in at L1 with no interface change |
+| ⭐ **L5 is ECS-only** — the translators are injected into spawn systems | ⇒ **ExCon, having no ECS world, needs L3 + L4 and nothing else.** Its command-set read is `TryGetByType` then `GetDescriptor<CommandSetDto>()` — no translator, no component |
 
 ⇒ ⭐ **Seam-law instance 23.** The provider abstraction is not to be designed — it is to be **composed and
 adopted**.
+
+### ⇒ Where a network implementation would go — L1 or L3, and they are different products
+
+| | Level | Model | Fits the current interface? |
+|--:|---|---|---|
+| **N1** | **L1** — a network `ITkbStorageStrategy` | **fetch the whole corpus**, then populate a local `TkbDatabase` exactly as disk does | ✅ **yes, unchanged** — `EnumerateEntityFiles()` is corpus-shaped and that is what this model needs |
+| **N2** | **L3** — a remote `ITkbDatabase` | **query one type on demand** over the wire | ✅ **the interface already has the right shape** (`TryGetByType`) — ⚠ but its callers assume a **synchronous, always-available, local** lookup inside spawn systems, so a remote L3 would need caching and a miss policy |
+
+🔒 **Ruled *later* either way** — but worth knowing the two are different commitments, and that **L1 is the
+cheap one**: it changes nothing above it.
 
 #### 🔴 What is actually missing: the composition, and it is ~6 lines written in the wrong place
 
@@ -461,8 +481,9 @@ public static TkbDatabase CreateTkb(string? sourcePath = null)
 
 | | |
 |---|---|
-| ⚠ **`ITkbStorageStrategy` is corpus-shaped, not query-shaped** | `EnumerateEntityFiles()` streams *every* entity file; there is **no by-id accessor**. That fits *"fetch the corpus over the network"* and does **not** fit *"query one type on demand"*. 🔒 Fine for the ruled scope — but decide which model network means **before** implementing, or the interface will need widening then |
+| ⚠ **Decide whether "network" means N1 or N2** (above) | ⚠ **[Corrected 2026-08-13](UX_Tasks_Detail.md#corrections):** an earlier draft said *"the interface is corpus-shaped, not query-shaped"* without saying **which** interface. L1 is corpus-shaped and that is correct for it; the **by-id query already exists at L3**. Nothing needs widening — but N1 and N2 are different products |
 | ⚠ **`RouteTkbExtensions.ApplyRoutePlanToBlueprint` is a no-op stub today** (`:34-35`, *"until Phase 6"*) yet documented as *"call once, after `NedTkbCatalog.RegisterAll()`, from **every** host"* | ⇒ it runs in `CreateTkb()` and **not** on SimHost's disk path. Harmless while it is empty; **the moment it does something, the disk path silently skips it.** That is why the sketch above has a `TkbPostLoad.Apply` step on **both** branches |
+| 🔴 **`TkbTemplate.ApplyTo` does not exist** — but **three** doc comments describe it | `EntityBlueprints.cs:14` (*"Use `tkb.GetByType(id)` + `template.ApplyTo(world, entity)`"*), `StrideNodeBootstrapper.cs:209`, and — worst — `RouteTkbExtensions.cs:28`, which makes a **correctness claim** about it: *"the `preserveExisting` flag on `TkbTemplate.ApplyTo` ensures a second factory invocation cannot overwrite an already-set component."* `TkbTemplate`'s entire public surface is `AddMandatoryComponent` · `AddDescriptor` · `GetDescriptor` · `TryGetDescriptor` · `HasDescriptor` · `GetAllDescriptors` (`:83-138`); **projection is `ITkbEntityTranslator.Inject`**. ⚠ **Whoever implements that Phase-6 stub must not trust its own idempotence guarantee** — the mechanism it names is not there |
 
 #### ⇒ The command-set descriptor
 
