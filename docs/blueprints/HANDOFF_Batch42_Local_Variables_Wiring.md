@@ -1,6 +1,6 @@
 # HANDOFF — Batch 42: ⭐ **finish `BP-57` — wire what Batch 41 built**
 
-> 📌 **Dispatched at `PENDING`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
+> 📌 **Dispatched at `dd88a610`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
 > ⭐ **Rule 7:** branch from this branch, re-sync at the **start** of your run.
 > ⭐ **Rule 4:** pull it again before your final commit.
 > ⭐ **Rule 3: the coordinator allocates no ids.** `BP1671+` is the next free diagnostic.
