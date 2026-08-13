@@ -79,7 +79,7 @@ All four sites in §1 stop calling `GetComponentRW`/`SetManagedComponent` and pu
 | System | Gate | Action |
 |---|---|---|
 | **`PoseIntentApplySystem`** | `if (!HasAuthority<SimTransform>) continue` | apply **via the ECB** ([ruling 30](UX_RESUME_INTERACTION.md)) |
-| **`PoseIntentEgressTranslator`** | `if (HasAuthority<SimTransform>) continue` | send `UpdateEntityDescriptorRequest(dtWorldPos)` — **the existing acked channel** |
+| **`PoseIntentEgressTranslator`** | `if (HasAuthority<SimTransform>) continue` | 🔒 send `UpdateEntityAttributeRequest` carrying **binary `AttributeRecords`** (ATTR2) |
 
 🔒 **Identical registration in every subsystem.** No host-specific wiring, no callbacks, no opt-in:
 
@@ -93,13 +93,38 @@ All four sites in §1 stop calling `GetComponentRW`/`SetManagedComponent` and pu
 ⭐ **That is the whole point**: CGF's *Rotate* becomes correct without CGF containing a single line about
 ownership.
 
-### 3.3 Beyond pose — the same shape, the generic channel
+### 3.3 🔒 RULED — the wire form is the **binary attribute change request**
 
-For components with no dedicated descriptor, the remote half targets **`UpdateEntityAttributeRequest`**,
-whose compiler already enforces authority **per field** (`JsonAttributeCompiler.cs:37-41`). ⇒ the pattern
-extends to any component without inventing a channel per component.
+> **User, 2026-08-12:** *"If intent is a local FDP event translated to a network binary attribute change
+> request message, then OK — let's use intents in entity-attribute-changing gizmos."*
 
-⚠ **Do not generalise speculatively.** Pose is the demonstrated need; the second adopter proves the shape.
+🔒 **Adopted.** A local `Fdp` bus event in, `UpdateEntityAttributeRequest.AttributeRecords` out — the
+strongly-typed **ATTR2 binary** list keyed by 16-bit attribute IDs, *not* the JSON patch and *not* the
+`dtWorldPos` descriptor path. ⭐ One channel for every attribute-changing gizmo, so *"entity attribute
+change"* has a single wire form.
+
+⇒ This also **generalises the design past pose by construction**: any gizmo that changes an attribute
+publishes an intent, and the egress translator encodes whichever `AttributeRecord`s it owns.
+
+#### 🔴 Two gaps must be closed first — both verified
+
+| # | Gap | Evidence |
+|--:|---|---|
+| **1** | 🔴 **The binary path has NO authority gate.** `CanWrite<T>()` / `CanWriteManaged<T>()` are called **only** from `JsonAttributeCompiler` (`:40`, `:58`). `BinaryInterpreter.Apply` dispatches every record to its handler with no check — *"Unknown IDs: silently skipped"* is the only filter | `BinaryInterpreter.cs:102-128`; `grep CanWrite` over `Replication/Patching/*.cs` returns JSON only |
+| **2** | 🔴 **No rotation attribute ID exists.** `AttributeIds` declares **five** constants total — `Name=1`, `Affiliation=2`, `GeoLat=10`, `GeoLon=11`, `GeoAlt=12`. There is **no heading / pitch / roll / quaternion**, so **CGF's *Rotate* — the motivating case — cannot be expressed on this channel today** | `AttributeIds.cs:36-69` |
+
+🔒 **Gap 1 is the design's safety property**, not a nicety: without it, an unowned node's patch is applied
+verbatim on the receiver. ⇒ **add the gate in the dispatch loop** (the handler knows its component type),
+mirroring the JSON path's *skip-without-touching-memory* behaviour.
+
+⚠ **Gap 2 is cheap but real** — the file documents an extension pattern (a companion `static class` in the
+domain assembly). ⚠ **Also fix the range comment while there**: the section is headed *"Range 100-199:
+Geo-spatial / positional"* and then declares `10`, `11`, `12` — the declared range and the actual values
+disagree, which will mis-allocate the next ID somebody adds.
+
+⚠ **Consolidation question, not decided here:** pose can now travel **two** ways — `dtWorldPos`
+(descriptor, acked, used by IG today) and attribute records. Ruling 32 chooses the latter for gizmo
+intents; whether `dtWorldPos` is later retired is a separate call.
 
 ### 3.4 🔒 Preview is visual, not a write
 
@@ -132,8 +157,12 @@ simply moves one level down.
 | 29.11 | No gizmo calls `GetComponentRW`/`SetManagedComponent` on a live repo — the regression guard | H |
 | 29.12 | CGF: rotate an entity → SimHost applies it → the rotation appears in CGF via ingress | I |
 | 29.13 | The owner's ack is observed; a rejected request leaves both nodes consistent | I |
+| 29.14 | 🔴 **The binary path honours authority** — a record for a component this node does not own is **skipped, not applied** (the gap-1 guard) | H |
+| 29.15 | An unknown attribute ID is skipped without error — forward compatibility preserved | H |
+| 29.16 | A rotation intent encodes to `AttributeRecord`s and decodes to the same rotation within tolerance | H |
+| 29.17 | The intent is one **local `Fdp` bus event**; the translator is the only component that knows the wire form | H |
 
-**11 H · 2 I · 0 V.**
+**15 H · 2 I · 0 V.**
 
 ## 5. 🔒 Out of scope
 
@@ -152,4 +181,5 @@ simply moves one level down.
 | ⚠ **Two authority concepts exist** — `NetworkAuthority` vs `NetworkOwnership` | pick `NetworkAuthority` (what `HasAuthority` reads) and say so; do not merge them here |
 | ⚠ **Entities with no `NetworkAuthority` component are treated as owned** (`AuthorityExtensions.cs:33-40`) | correct for the offline Editor; ⚠ means a missing component silently grants authority — assert it in tests rather than trusting it |
 | ⚠ **Latency changes the feel** — a remote rotate now completes on the owner's tick + round trip | it is the correct behaviour and matches *Delete*; ⭐ but the user sees a delay where they previously saw an instant (wrong) result. Consider a *pending* affordance — [UXI-27](UX_Issues.md#uxi-27)'s progress surface is the natural home |
-| ⚠ **Fire-and-forget vs acked** | tactical intent is unacked; the descriptor path **is** acked. Prefer acked for pose so 29.13 is testable |
+| ⚠ **Fire-and-forget vs acked** | tactical intent is unacked; `UpdateEntityAttributeRequest` has an opt-in `RequireAck`. 🔒 **Set it** for gizmo intents so 29.13 is testable and a rejection is observable |
+| 🔴 **Adding the binary authority gate touches a shared engine path** | every existing `AttributeRecords` sender starts being filtered. ⚠ **Check what already sends them** before switching the gate on — a sender that today relies on unchecked application would silently stop working |
