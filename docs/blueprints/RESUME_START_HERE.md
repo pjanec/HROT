@@ -338,6 +338,51 @@ tracker records the method, including that the *refuted* row sits **outside** th
 
 ---
 
+## 7l · Batch 39 — ✅ VERIFIED AND MERGED at `8a687c0e` — ⭐ **the compiler half is COMPLETE.** §3 is NOT built
+
+**All eight gates, coordinator-run on the merged tree:** build **0 errors** · Blueprints **3269 total /
+3259 passed / 0 failed / 10 skipped** (**+16**) · AiShared **1213** · BTree **612** · Breakpoints
+**130** · Generators **193** · NodeEdit Core **208** · UI **131** — **zero failures** · counts clean on
+arrival (**eighth** batch running).
+
+### ⛔ What was NOT delivered — and it matters for sequencing
+
+⚠ **Only §0b.** The recovered work is merged, re-gated on the merged tree and finally documented.
+⛔ **§3 — the authoring half — was not built**, and their own `BP-57` row says so: *"STILL NOT done —
+a local is declarable in JSON only."* ⇒ ⭐ **`BP-57` stays open and the authoring UI needs a batch.**
+📌 The handoff sanctioned stopping there (*"if the batch must stop early, stop after §0b"*), so this is
+a clean boundary rather than a miss — **but it is not the whole batch, and the plan must make room.**
+
+### ⭐ What they did beyond the merge
+
+| | |
+|---|---|
+| ⭐⭐ **`StructureHash` done right** | the handoff warned a blackboard-resident local must enter the hash. They put the slots in **their own `IrAsset.GraphLocalSlots` list**, appended **after** the existing three ⇒ ⭐ **assets without locals hash identically**, and `FindVariableIndex`/`VarFieldName`'s positional space is untouched. **Exactly the "separate storage" lean, correctly executed** |
+| ⭐ **Revert-goes-red, attributable** | disabling the promotion reddens **three** suspension tests; unregistering `BP1670` and restoring the `__var_-1` fall-through reddens **both** dangling tests. **Five red, restored green** |
+| ⭐ **`BP-226`'s wording corrected** | as asked — *"an invariant nothing enforces"* was wrong and inherited from my finding |
+| **`BP-233` half-closed** | `MacroLatency.IsLatent` fixed **with a test asserting the node-level and op-level predicates agree**; `BP1650` still carries its own copy, left open deliberately because *"fixing it widens a refusal, which wants its own slice"* |
+
+### ⚠⚠ They corrected my corpus numbers — again, and the correction is load-bearing
+
+| | mine (§7j / Batch 39 §2) | theirs |
+|---|---|---|
+| shipped assets | **42** | ⭐ **58** |
+| `Get`/`SetVariable` references | 152 *"`VariableId` refs"* | ⭐ **103** — and **all resolve**, **0 dangling** |
+| the *"63 unresolved, mostly `state`"* | I warned a naive rail *"would fail 6+ shipped assets"* | ⭐ **those are `GetShared`/`SetShared` — a DIFFERENT node kind**, name-keyed and runtime-resolved, never passed to `FindVariableIndex` |
+
+⇒ ⭐ **My blast-radius warning was right for the wrong reason**, and they measured the right one before
+building: scoping `BP1670` to `Get`/`SetVariableNode` refuses nothing that ships, where the generalised
+*"any node with a `VariableId`"* rail I implied **would have rejected six assets.**
+
+### 📌 Two carry-forwards
+
+| | |
+|---|---|
+| ⚠ **`claude/batch39-locals-preserved` still exists** | the handoff asked for it to be deleted once merged. **Harmless; the content is in the mainline.** Delete when convenient |
+| 🔴 **The task plan is now stale in one place** | ⭐ **`IrAsset` has a FOURTH list — `GraphLocalSlots` — and it is in `StructureHash`.** [`PLAN`](PLAN_Variable_Unification_Tasks.md)'s `U-9`/`U-10`/`U-11` are scoped against **three**. ⛔ **Not amended: the plan is the artifact [Batch 40](HANDOFF_Batch40_Unification_Plan_Review.md) reviews, and that handoff is dispatched and seen.** Its §3.6 points straight at it |
+
+---
+
 ## 7k · Batch 38 follow-up — ⭐ **the lost work is recovered, and the design docs are updated**
 
 **Merged at `406fbb3e`** (a `--no-ff` merge: their fix and my §7j record landed on the same base, an
