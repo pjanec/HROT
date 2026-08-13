@@ -122,36 +122,39 @@ hidden*), but scaled so it does not become noise:
 | **some** selected | 🔒 **shown, disabled, with a reason** — *"3 of 12 selected support this"* |
 | **none** selected | hidden |
 
-### 2.5 ✅ The structural-mutation audit — and how the hazard is designed out
+### 2.5 🔒 Structural changes go through the command buffer
 
-**The hazard.** Today `PrimarySelected` sets a `HashSet` — inert, safe anywhere. As a view it mutates
-ECS, and `SetSelected` **adds the component when absent** (`:170-171`). The Programmer's Guide is
-explicit: *"Never add/remove ECS components inside … chunk iteration; **structural mutation corrupts the
-chunk arrays**"* (`HROT-PROGRAMMERS-GUIDE.md:483-484`), and structural changes belong on the command
-buffer (`:64`).
+> **User, 2026-08-12:** *"So why not modify ECS using command buffers, which is safe always?"*
 
-**The audit** — every writer of `PrimarySelected`, repo-wide:
+🔒 **Adopted — and the objection I raised against it does not survive checking**
+([Correction 29](UX_Tasks_Detail.md#corrections)).
 
-| Site | Context | Safe? |
-|---|---|---|
-| `EditorSubsystem.cs:1230` | action-registry handler | ✅ not iterating |
-| `EditorSubsystem.cs:1292, 1297` | `OnSelectionChanged` callback | ✅ |
-| `CgfSubsystem.cs:595, 603` | context-menu item lambdas | ✅ |
-| `CgfSubsystem.cs:789` | `DeleteEntity` | ✅ |
+**What I claimed:** that a view-backed `PrimarySelected` risks corrupting chunk arrays, because
+`SetSelected` adds the component when absent (`:170-171`) and the guide says *"Never add/remove ECS
+components inside … chunk iteration"*.
 
-⇒ **All six are event/menu callbacks. None runs inside a query loop, so nothing breaks today.** ⚠ But
-that is an accident of the current call sites, not a property of the design — the next panel that sets
-selection while looping entities would corrupt chunks, and the failure would be memory corruption, not an
-exception.
+**What the code says:**
 
-🔒 **So design the hazard out rather than policing callers:**
+| | |
+|---|---|
+| The guide's rule is **scoped** | it reads *"Never add/remove ECS components inside **HSM/BTree `SharedAi` thunks** — they write directly during chunk iteration"* (`HROT-PROGRAMMERS-GUIDE.md:483-484`). It is about a **different iteration mechanism** |
+| `EntityQuery` does **not** walk chunks | `EntityEnumerator` is an **index scan** — `_currentIndex` from `-1` to a `_maxIndex` **snapshotted at construction** (`EntityQuery.cs:106-123`), testing masks per entity |
+| ⇒ adding a component mid-iteration **does not invalidate it** | and `SelectionState` is not in any live filter, so it cannot change which entities match |
+| ⇒ the **existing** rubber-band code is fine | `SetSelected` inside `foreach (var e in q)` (`:205-217`) is safe, not a latent defect |
 
-| | Option | |
-|--:|---|---|
-| **A** | 🎯 **Pre-add `SelectionState` to every selectable entity** — then every write is `SetComponent`, which is **non-structural and safe inside iteration** | ⭐ **the lean.** Precedent: `MapCullingSystem` already stamps `CullingState` on every `SimTransform` entity. Cost: 2 bytes per entity |
-| **B** | Route the setter through the **command buffer** | ✅ also safe; ⚠ adds a one-frame latency to the ring (*"one-frame latencies are structural, not bugs"* — guide `:114`), and selection is the one thing a user expects to be instant |
+⇒ **The "pre-add the component" option loses its justification, and the command buffer wins on its own
+merits:**
 
-⇒ **A**, with B as the fallback if pre-adding proves awkward for entities that are never selectable.
+| | |
+|---|---|
+| ✅ **The documented path** for structural changes (`HROT-PROGRAMMERS-GUIDE.md:64`) — no new convention |
+| ✅ **Uniform** — no call site needs to know whether it is inside an iteration; the question stops existing |
+| ✅ **Already the rule for action handlers** — [ruling 15](UX_RESUME_INTERACTION.md) gives every action a per-action ECB, and a menu item that changes selection **is** an action handler. Selection stops being a special case |
+| ⚠ **Cost: one frame** before the ring moves — *"one-frame latencies are structural, not bugs"* (guide `:114`), and 16 ms is below notice |
+
+🔒 **The one exception stays as-is:** `SelectionInteractionSystem` writes the repository directly during
+its own main-thread `Tick`. That is correct today, immediate, and has no reason to change — the ECB rule
+applies to **callers outside the tick**, which is where the view's setter lives.
 
 ## 3. Acceptance
 
@@ -175,7 +178,7 @@ exception.
 | 11.16 | **SimHost**: the ring is visible (today it selects invisibly) | I |
 | 11.17 | Rubber-band over 5 entities → 5 selected, 1 primary, ring on all | I |
 | 11.18 | 🔒 **Multi-delete raises a modal confirmation** naming the count; Cancel deletes **nothing** | H |
-| 11.19 | Setting selection **from inside a query loop** performs no structural change (option A) — the corruption guard | H |
+| 11.19 | A view-driven selection change is **recorded on the command buffer**, not written directly, and is visible after the next flush | H |
 
 **16 H · 3 I · 0 V.**
 
@@ -193,7 +196,7 @@ exception.
 
 | | |
 |---|---|
-| ⚠ **`ISelectionState` becomes a view — writes now have side effects** | ✅ **audited, §2.5** — all 6 call sites are event/menu callbacks, none inside a query loop. Closed by pre-adding the component |
+| ⚠ **`ISelectionState` becomes a view — writes now have side effects** | ✅ **closed, §2.5** — writes go through the command buffer, so no call site can be wrong. ⚠ Callers that read back the selection **in the same frame** will see the old value |
 | ⚠ **Same-frame ordering (§2.3)** is invisible when wrong | 11.7 is the guard; prefer an explicit "selection settled" point over relying on call order |
 | ⚠ **Right-click-selects changes Editor behaviour** for anyone who relied on right-click *not* disturbing a selection | it is the ruling, and it matches file-manager convention; note it in the changelog |
 | 🔒 **Fan-out multiplies side effects** — *Delete* on 12 entities is 12 deletes | 🔒 **RULED (user, 2026-08-12): multi-delete gets a modal confirmation dialog.** ⭐ Intersects [UXI-16](UX_Issues.md#uxi-16) (no `Delete` confirms anywhere, in any host) — that issue now has a hard requirement rather than a preference, and [ruling 13](UX_RESUME_INTERACTION.md)'s modal-dialog machinery is the vehicle |

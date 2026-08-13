@@ -16,7 +16,7 @@ Designed **7 of 27** issues, then consolidated three of them into one API and on
 | ✅ **[UX_Feature_Map_Layers.md](UX_Feature_Map_Layers.md)** | **UXI-28 design** — 17 cases. 🔴 **Gated on a Windows check**: the layer panel round-trip is complete in source but reported non-working |
 | ✅ **[UX_Feature_Selection.md](UX_Feature_Selection.md)** | **UXI-11 design** — 17 cases. One store, `ISelectionState` becomes a view; CGF gets the full chain |
 | [UX_Seam_Inventory.md](UX_Seam_Inventory.md) | prior-art table + `scripts/seam_inventory.py`, `scripts/type_index.py` |
-| [UX_Tasks_Detail.md](UX_Tasks_Detail.md#corrections) | **28 corrections** — read before trusting any claim |
+| [UX_Tasks_Detail.md](UX_Tasks_Detail.md#corrections) | **29 corrections** — read before trusting any claim |
 
 **Designed:** UXI-01..**11**, **28** (+ **19**, verified and absorbed into 10). **Refuted:** UXI-26. **Split out:** UXI-25 (ExCon ORBAT),
 UXI-27 (progress surface).
@@ -43,6 +43,7 @@ UXI-27 (progress surface).
 | 16 | **ExCon is DDS-only, no ECS** — reuses the ORBAT UI with its own data model. `int EntityId` is correct, not a defect |
 | 17 | **No assumptions.** Read `README.md` + `docs/HROT-PROGRAMMERS-GUIDE.md` before claiming an engine defect |
 | 18 | **Layout = one directory.** `fdp_windows.json` lives **next to `imgui.ini`** in *both* places (user `%LocalAppData%\HROT\` and the shipped default). Reset = a directory copy |
+| 30 | 🔒 **Structural ECS changes go through the command buffer** (user, 2026-08-12): *"why not modify ECS using command buffers, which is safe always?"* ⇒ the `ISelectionState` view records on the ECB rather than writing the repo. ⭐ Already consistent with [ruling 15](#) — a menu item that changes selection **is** an action handler, so it already has a per-action ECB. ⚠ **`EntityQuery` iteration was never at risk** ([Correction 29](UX_Tasks_Detail.md#corrections)) — it is an index scan, not a chunk walk |
 | 29 | 🔒 **Multi-delete requires a modal confirmation** (user, 2026-08-12) naming what will be removed; Cancel deletes nothing. ⇒ [UXI-16](UX_Issues.md#uxi-16) gains a hard requirement, delivered via [ruling 13](#)'s modal machinery |
 | 28 | 🔒 **Click semantics** (user, 2026-08-12). **Right-click selects.** On an **already-selected** entity ⇒ selection **unchanged**, menu shows items applicable to **all** selected. On a **non-selected** entity ⇒ **clear, then select just it**. **Empty click clears; reload clears.** ⇒ file-manager convention. [UXI-11](UX_Feature_Selection.md) §2.3 |
 | 27 | 🔒 **Selection: CGF is identical to SimHost/Editor; ExCon is correctly different** (user, 2026-08-12). *"CGF should be no different from SimHost nor even Editor regarding selection — same visuals, same interaction, same ECS component. **Selection is subsystem-local.** ExCon has no map, it is an ImGui-panel-only subsystem whose role is to control the IG map and CGF and SimHost over DDS; selection is controlled remotely and stored on ExCon in a completely separated way."* ⇒ [UXI-11](UX_Issues.md#uxi-11)'s ExCon half is **refuted** ([Correction 27](UX_Tasks_Detail.md#corrections)); the CGF half stands |
@@ -88,6 +89,7 @@ review rule (UC-44c).
 | The Editor runs that kernel | `EditorSubsystem.cs:585`, driven `:1617` |
 | `EntityRepository.FlushCommandBuffers()` is **dead API** (0 production callers) | `EntityRepository.View.cs:43` |
 | Rule 7: background code uses `ISimulationView` + ECB, never the live repo | `HROT-PROGRAMMERS-GUIDE.md` Part 0 |
+| ⚠ **`EntityQuery` iteration is an INDEX SCAN, not a chunk walk** — `_maxIndex` snapshotted at construction ⇒ Add/RemoveComponent mid-iteration does **not** invalidate it. The guide's chunk-iteration ban is scoped to **HSM/BTree `SharedAi` thunks** | `EntityQuery.cs:106-123`, guide `:483-484` |
 
 ## 5. 🔴 Verified defects the design closes
 
