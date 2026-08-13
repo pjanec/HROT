@@ -151,19 +151,29 @@ entirely.
 
 **9 H · 3 I · 0 V.**
 
-## 5. 🔴 One decision open — the nine orphan ids
+## 5. ✅ CLOSED — the nine orphan ids are a **capability gap**, not a binding choice
 
-`MoveHere · Engage · Stop · Properties · Teleport · Repair · Reinforce · Resupply · Transfer` have **no
-handler in any ECS host**; only ExCon consumes them.
+> 🔒 **User, 2026-08-13:** *"the actions like MoveHere, Engage, Stop, Properties, Teleport, Repair,
+> Reinforce, Resupply, Transfer are unresolved and need a dedicated design pass. **The only supported way
+> of commanding entities now is via a mission having a list of conditional behaviors to perform.** This is
+> not ExCon-only, must be equally supported by the CGF subsystem (who owns the entity brain)."*
 
-| | Option | Consequence |
-|--:|---|---|
-| **A** | **Bind them** in the pack | 9 new behaviours to specify — *"Engage"* is a real command, not a menu label |
-| **B** | 🎯 **Keep them ExCon-only, and stop the ECS hosts emitting them** | menus shrink to what works; ⚠ the ids stay in the shared file, correctly, because ExCon is a legitimate consumer |
-| **C** | Bind them as **disabled-with-reason** | honest, discoverable, no behaviour to write; ⚠ nine permanently greyed items is clutter |
+🔴 **The A/B/C options below were ill-posed** and my lean B was wrong on both halves — see
+[Correction 33](UX_Tasks_Detail.md#corrections). They are **not** ordinary actions with missing handlers:
+commanding enters the cognitive tier through `AssignTacticalIntentEvent` and ends at
+`BehaviorIngressSystem`, the sole `BehaviorState` writer. And ExCon is not their home — **CGF** is the
+Brain node and the only host running the mission→behavior pipeline.
 
-**Lean: B**, with C for any id that *should* eventually work locally. ⚠ **This needs your ruling** — it is
-the difference between a map menu that offers 21 things and one that offers 12.
+⇒ 🔒 **Moved to [UXI-32](UX_Issues.md#uxi-32) / [Q29](Architect_Question_29_Entity_Commanding.md)**,
+`RW-H`, **architect pass required before any binding**.
+
+**What this design still owes**, once Q29 is answered:
+
+| | |
+|---|---|
+| ✅ **`Properties` and `Teleport` are unblocked now** | neither is a command — `Properties` is *open the inspector*, `Teleport` is a pose write already owned by [UXI-29](UX_Feature_Authority_Aware_Writes.md). Bind both in the pack |
+| ⚠ **The other seven stay unbound** until Q29 rules | ⭐ **and four of them cost nothing today**: `Repair · Reinforce · Resupply · Transfer` sit behind ExCon menu strategies whose `SetStrategy` has **zero callers**, so they are **never emitted** ([Q29 §A](Architect_Question_29_Entity_Commanding.md)). Only `MoveHere · Engage · Stop` are actually on screen — emitted by `ContextMenuProjectorGizmo` |
+| 🔒 **Case 23.2 still binds** | *no registered id is inert* — so the seven must be **absent or disabled-with-reason**, never present-and-dead |
 
 ## 6. 🔒 Out of scope
 

@@ -5,8 +5,12 @@
 
 ## 1. What this session did
 
-Designed **16 of 31** issues. Three were consolidated into one API + one acceptance catalogue; the rest
-have their own feature docs. **36 rulings · 32 corrections**, all contiguous and linked below.
+Designed **16 of 32** issues. Three were consolidated into one API + one acceptance catalogue; the rest
+have their own feature docs. **37 rulings · 34 corrections**, all contiguous and linked below.
+
+🔒 **One issue is blocked on the architect, not on me:**
+**[UXI-32 / Q29 — entity commanding](Architect_Question_29_Entity_Commanding.md)**. Do not bind any of the
+nine "order" ids before it is answered.
 
 | Doc | Holds |
 |---|---|
@@ -19,6 +23,7 @@ have their own feature docs. **36 rulings · 32 corrections**, all contiguous an
 | ✅ **[UX_Feature_Map_Parity.md](UX_Feature_Map_Parity.md)** | **UXI-23 design** — 12 cases. One `MapInteractionPack`; IG's forked `switch` retires. 🔴 **§5 decision open: the 9 orphan action ids** |
 | ✅ **[UX_Feature_Authority_Aware_Writes.md](UX_Feature_Authority_Aware_Writes.md)** | **UXI-29 design** — **26 cases**. Gizmos publish intent; complementary authority gates route local-vs-remote. 🔴 **Blocked on UXI-30** |
 | ✅ **[UX_Feature_Multi_Select.md](UX_Feature_Multi_Select.md)** | **UXI-24 design** — 29 cases. Multi-select is **built on the inspector list and nowhere on the map**; **4 dead seams** (16-19). 🔴 **§2 decision open: the partial-applicability rule** |
+| 🔒 **[Architect_Question_29_Entity_Commanding.md](Architect_Question_29_Entity_Commanding.md)** | **UXI-32 — 8 decisions, ALL OPEN, awaiting the architect.** Commanding = missions of conditional behaviors; the nine "order" ids reach nothing. ⭐ Chain, panel and choke point all exist (**seam-law 20-21**) |
 | [UX_Seam_Inventory.md](UX_Seam_Inventory.md) | prior-art table + `scripts/seam_inventory.py`, `scripts/type_index.py` |
 | [UX_Tasks_Detail.md](UX_Tasks_Detail.md#corrections) | **32 corrections** — read before trusting any claim |
 
@@ -52,6 +57,7 @@ file, is the complete index. Every one of the 15 is reachable from there.
 | 16 | **ExCon is DDS-only, no ECS** — reuses the ORBAT UI with its own data model. `int EntityId` is correct, not a defect |
 | 17 | **No assumptions.** Read `README.md` + `docs/HROT-PROGRAMMERS-GUIDE.md` before claiming an engine defect |
 | 18 | **Layout = one directory.** `fdp_windows.json` lives **next to `imgui.ini`** in *both* places (user `%LocalAppData%\HROT\` and the shipped default). Reset = a directory copy |
+| 37 | 🔒 **Commanding is missions, and CGF is a first-class commander** (user, 2026-08-13), verbatim: *"the actions like MoveHere, Engage, Stop, Properties, Teleport, Repair, Reinforce, Resupply, Transfer are unresolved and need a dedicated design pass. **The only supported way of commanding entities now is via a mission having a list of conditional behaviors to perform.** This is not ExCon-only, must be equally supported by the CGF subsystem (who owns the entity brain)."* ⇒ 🔴 **[UXI-23 §5](UX_Feature_Map_Parity.md)'s open decision is CLOSED as ill-posed** — all three options assumed the nine ids were ordinary actions with missing handlers ([Correction 33](UX_Tasks_Detail.md#corrections)); they are not, and my lean B (*"keep them ExCon-only"*) was wrong on both halves. ⇒ **[UXI-32](UX_Issues.md#uxi-32)** + **[Q29](Architect_Question_29_Entity_Commanding.md)**, `RW-H`, **architect pass required before any binding**. ⭐ **Verified: the mechanism exists and is under-adopted** — `AssignTacticalIntentEvent` is a single choke point any node may publish to, already routed by complementary `HasAuthority<BehaviorState>` gates (**seam-law instance 20**); the whole production order vocabulary is **two** mappers, and **none of the nine ids** is one |
 | 36 | 🔒 **Drag is unified — one registration, no callbacks** (user, 2026-08-12): *"drag handling needs unification, sharing same implem in all map subsystems."* Today it is wired **5 different ways**; the `onDragCommitted` hook has **exactly one caller** (IG). ⇒ `new EntityDragGizmoDefinition()` everywhere; IG's `onDragCommitted`/`OnEntityDragEnded`/`SendGeoSpatialUpdate` **retire**. ⭐ **Continuous-drag and shift-immediate are reachable only from a TEST HOOK** (`IgApplication.cs:2291-2305`); production is already commit-only, so unification is behaviour-preserving. **Seam-law instance 14**: `MapUserConfig.ContinuousDragUpdates` has no production reader |
 | 35 | 🔒 **Two classes of inbound writer, with INVERSE gates** (user, 2026-08-12): *"writing to unowned components is reserved for network replication ingress translators, never for change requests like attrib/descriptors — these must be received by any node and applied only to owned ECS components."* ⇒ **replication ingress**: `if (HasAuthority) skip` — writes **unowned** ghosts **by design**. **Change-request appliers**: `if (!HasAuthority) skip` — **never** write unowned. 🔒 The notion is **native component ownership**, so the descriptor `FIXME` was right. 🔴 **UXI-30's sweep must classify each site first** — inverting a replication translator breaks ghost updates repo-wide |
 | 34 | 🔒 **Wire form is economics; the ownership gate is the invariant** (user, 2026-08-12): *"whether to update whole descriptor or just single attrib is the network bandwidth/performance decision, otherwise both should be applied with the ownership gate on the receiver."* ⇒ **one architecture, two encodings** — attribute records for scalars, whole descriptor for structure-changing lists. 🔴 **The invariant does not hold today**: of five appliers, **2 gate on nothing**, **2 gate on the descriptor key**, **1 on native component authority**. [UXI-30](UX_Issues.md#uxi-30) widened to cover all five |
@@ -108,6 +114,11 @@ review rule (UC-44c).
 | **`HasAuthority<T>` is PER-COMPONENT** — a bit in a per-entity `AuthorityMask`; a Brain can own `BehaviorState` while a Muscle owns `SimTransform` on the same entity | `EntityRepository.cs:1060-1063,1120-1127` |
 | ⭐ **The authority-routing precedent**: two systems read the same event with **complementary** gates — `if (!HasAuthority) continue` applies locally, `if (HasAuthority) continue` forwards to the owner | `TacticalIntentResolutionSystem.cs:95`, `TacticalIntentEgressTranslator.cs:72` |
 | **A generic inbound patch channel exists** — `UpdateEntityAttributeRequest`, authority-gated **per field** inside the compiler | `JsonAttributeCompiler.cs:37-41` (`CanWrite<T>()` → `reader.Skip()`) |
+| 🔒 **Commanding chain (UXI-32)** — `MissionControlCommand` → `MissionControlExecutionSystem` (**live repo only**; 10-frame entity wait then NAK) → writes **both** `MissionPlanQueue` (≤8 phases, ints) **and** `ActiveMissionPlan` (managed, unbounded, strings) → `MissionDirectorSystem` → `MissionAdapterSystem` → ⭐ **`AssignTacticalIntentEvent`** → complementary `HasAuthority<BehaviorState>` gates → `ITacticalOrderMapper` → `AssignBehaviorEvent` → `BehaviorIngressSystem` | `MissionControlExecutionSystem.cs:145-149,182-186` · `MissionAdapterSystem.cs` · `TacticalIntentResolutionSystem.cs:95` |
+| **`MissionPanel` is a shared 815-line authoring panel** in `Hrot.Presentation`, hosted by **ExCon and the Editor only** — ⚠ **not CGF**, the node that owns the brain. The Editor already syncs map selection into it | `Panels/MissionPanel.cs` · `ExConSubsystem.cs:357` · `EditorSubsystem.cs:1582,1651` |
+| 🔴 **Of five imperative mission verbs, two are dead** — `CMD_APPEND_TASK` and `CMD_INSERT_TASK` have **no producer and no handler**, falling to `default: NotSupported`. ⇒ **there is no "add one task" operation**; every editor rewrites the whole plan | `MissionControlExecutionSystem.cs:243-245` |
+| **Mission commits are optimistically versioned** — `BaseVersion != currentVersion` ⇒ `VersionConflict` NAK ⇒ a multi-entity order **can partially fail** | `MissionControlExecutionSystem.cs:145-149` |
+| 🔒 **`BehaviorId`s are stable forever and never reused; NEVER `string.GetHashCode()`** — use `BehaviorIds` + `TryGetId`. `BehaviorIngressSystem` (Input) is the **sole `BehaviorState` writer**; transitions carry ≥1-frame latency | guide `:469-474` |
 | ⚠ **`EntityQuery` iteration is an INDEX SCAN, not a chunk walk** — `_maxIndex` snapshotted at construction ⇒ Add/RemoveComponent mid-iteration does **not** invalidate it. The guide's chunk-iteration ban is scoped to **HSM/BTree `SharedAi` thunks** | `EntityQuery.cs:106-123`, guide `:483-484` |
 
 ## 5. 🔴 Verified defects the design closes
@@ -143,7 +154,7 @@ review rule (UC-44c).
 
 | # | Question | Where |
 |--:|---|---|
-| **1** | **The 9 orphan action ids** — `MoveHere · Engage · Stop · Properties · Teleport · Repair · Reinforce · Resupply · Transfer` have **no handler in any ECS host**; only ExCon consumes them. **A** bind them · **B** 🎯 keep ExCon-only and stop ECS hosts emitting them · **C** bind disabled-with-reason. **Lean B** | [UXI-23 §5](UX_Feature_Map_Parity.md) |
+| ~~1~~ | ✅ **CLOSED 2026-08-13 by [ruling 37](#)** — the 9 orphan ids are a **capability gap**, not a binding choice. Moved to [UXI-32](UX_Issues.md#uxi-32) / [Q29](Architect_Question_29_Entity_Commanding.md) 🔒 **awaiting the architect** | [UXI-23 §5](UX_Feature_Map_Parity.md) |
 | **2** | 🔴 **Partial applicability in a multi-selection — two of our own designs disagree.** [UXR-91](UX_Requirements.md#uxr-91) (P0) and [UXI-03 §4](UX_Feature_Entity_Action_Vocabulary.md) say an item applicable to only *some* selected entities is **hidden**; [UXI-11 §2.4](UX_Feature_Selection.md) says **shown, disabled, with a reason** — it relaxed a P0 requirement without flagging it. 🎯 **Proposed reconciliation: AND each of the registry's two predicates separately** — `isVisible` fails ⇒ hidden, `isEnabled` fails ⇒ disabled-with-reason, so the registrar chooses per action at declaration | [UXI-24 §2](UX_Feature_Multi_Select.md) |
 
 ## 6b. Needs a **Windows** session (cannot be done here)
@@ -158,7 +169,7 @@ review rule (UC-44c).
 
 1. ⏭ **Designing continues** — user, 2026-08-10: *"keep designing now rather than rewriting tasks later because we find new unexpected stuff"*. ✅ **09 · 10+19 · 11 · 23 · 24 · 28 · 29** all designed this session. **Next candidate: UXI-12** (spawn UI ×4).
 2. Cut `UXT` tasks — **none cut yet**, deliberately deferred by the user.
-3. Remaining undesigned: **UXI-12..18, 20, 21, 27, 31** · **UXI-25** 🔒 blocked on UXI-04 · **UXI-30** specified in [UXI-29 §3.3b-c](UX_Feature_Authority_Aware_Writes.md), needs no separate design doc.
+3. Remaining undesigned: **UXI-12..18, 20, 21, 27, 31** · **UXI-25** 🔒 blocked on UXI-04 · **UXI-32** 🔒 blocked on the architect ([Q29](Architect_Question_29_Entity_Commanding.md)) · **UXI-30** specified in [UXI-29 §3.3b-c](UX_Feature_Authority_Aware_Writes.md), needs no separate design doc.
 4. ✅ **RESOLVED — host pump + playback sits immediately before `_kernel.Update()`** (`EditorSubsystem.cs:1618`); the kernel flush precedes `Bus.SwapBuffers()` (`ModuleHostKernel.cs:523-534`), so ops land visible **in the same frame**. Precedent: `_aiCoordinator.DrainPendingCallbacks()` (`:1620-1624`). ⚠ *Unpinned:* where ImGui panel drawing sits relative to `EditorSubsystem.Update()` — affects only which frame a synchronous handler commits in. [API §6d](UX_Interaction_API.md#6d--where-the-hosts-playback-sits--resolved-2026-08-10)
 
 ## 6d. 🔴 Dependency order — designs now constrain each other
@@ -169,6 +180,7 @@ review rule (UC-44c).
 | **UXI-10 → UXI-11 → UXI-29 → UXI-23** | CGF needs the pick box, then the selection chain, then **legal edits**, then parity. Binding *Rotate* in CGF before UXI-29 gives it an action that writes a component it does not own |
 | **UXI-29 → CGF *Rotate*** | [UXI-11 case 10.23](UX_Feature_Selection.md) explicitly does **not** claim to fix it |
 | **UXI-04 → UXI-25** | the shared ORBAT panel is impoverished until UXI-04 lands |
+| 🔒 **Q29 → any order binding** | [ruling 37](#). `Properties` and `Teleport` are **not** orders and may be bound now; the other seven wait. ⚠ Binding an order before Q29 means guessing whether it is a mission mutation or a direct intent — and `CMD_APPEND_TASK`, the obvious verb, **does not exist** |
 | **UXI-24 ← ruling 29** | the multi-delete confirmation must sit on the **raw `Delete` key** path, which bypasses the action vocabulary entirely ([UXI-23 §3.4](UX_Feature_Map_Parity.md)) |
 | **UXI-11 → UXI-03 → UXI-24** | one store, then the descriptor that carries `Execution`, then the fan-out. ⚠ **UXI-24 amends UXI-11**: `ISelectionState` must gain `Add`/`Remove`/`SetMultiple`/`Clear` — its only mutator today (`PrimarySelected`) **collapses the selection to one**, so UXI-11's *"handlers need no change"* cannot deliver multi-select |
 
@@ -176,7 +188,7 @@ review rule (UC-44c).
 
 | | |
 |---|---|
-| **Rule 6** | every design opens with a **Prior art** section citing the [Seam Inventory](UX_Seam_Inventory.md) — the seam usually **already exists and is under-adopted**. ⭐ **19 instances so far**; the newest four all came out of [UXI-24](UX_Feature_Multi_Select.md) — **16** the `stateFlags` modifier byte (bits 1-6 free, documented *"always 0"* for clicks), **17** `Vis2DInputMap.MultiSelectMod`/`BoxSelectMod` (zero readers, two owners), **18** `IgApplication.OnCanvasWorldClick` (a complete fan-out reachable only from test hooks — the ruling-36 shape again), **19** `PushContextActions(…, forSelection, …)` (fed the whole id list while the menu beside it is built from `[0]`) |
+| **Rule 6** | every design opens with a **Prior art** section citing the [Seam Inventory](UX_Seam_Inventory.md) — the seam usually **already exists and is under-adopted**. ⭐ **21 instances so far.** From [UXI-24](UX_Feature_Multi_Select.md): **16** the `stateFlags` modifier byte (bits 1-6 free, documented *"always 0"* for clicks), **17** `Vis2DInputMap.MultiSelectMod`/`BoxSelectMod` (zero readers, two owners), **18** `IgApplication.OnCanvasWorldClick` (a complete fan-out reachable only from test hooks — the ruling-36 shape again), **19** `PushContextActions(…, forSelection, …)` (fed the whole id list while the menu beside it is built from `[0]`). From [Q29](Architect_Question_29_Entity_Commanding.md): **20** `AssignTacticalIntentEvent` (a network-transparent, authority-routed choke point any node may publish to — **two** mappers registered), **21** `MissionPanel` (815 shared lines, hosted everywhere except the node that owns the brain) |
 | **Rule 6c** | ⚠ **never read a reference *count* as adoption — open the call sites.** [Correction 22](UX_Tasks_Detail.md#corrections): 8 tests vs 3 real calls, and I reported "zero consumers" from the ratio. ⚠ **And counting *constructions* misses hosts that default silently** — CGF omits the shape-library argument entirely ([Correction 24](UX_Tasks_Detail.md#corrections)) |
 | **Rule 6d** | ⚠ **"the seam is unused" has two very different meanings** — an interface nobody *calls*, vs one called every frame with a dead parameter and no second implementation. UXI-10 was the second kind; the fix differs completely |
 | **Rule 6b** | before claiming an **engine-level defect**, read `README.md` + the Programmer's Guide |
