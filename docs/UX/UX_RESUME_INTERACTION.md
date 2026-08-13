@@ -5,8 +5,8 @@
 
 ## 1. What this session did
 
-Designed **15 of 30** issues. Three were consolidated into one API + one acceptance catalogue; the rest
-have their own feature docs. **36 rulings · 30 corrections**, all contiguous and linked below.
+Designed **16 of 31** issues. Three were consolidated into one API + one acceptance catalogue; the rest
+have their own feature docs. **36 rulings · 32 corrections**, all contiguous and linked below.
 
 | Doc | Holds |
 |---|---|
@@ -18,11 +18,12 @@ have their own feature docs. **36 rulings · 30 corrections**, all contiguous an
 | ✅ **[UX_Feature_Selection.md](UX_Feature_Selection.md)** | **UXI-11 design** — 22 cases. One store, `ISelectionState` becomes a view; CGF gets the full chain |
 | ✅ **[UX_Feature_Map_Parity.md](UX_Feature_Map_Parity.md)** | **UXI-23 design** — 12 cases. One `MapInteractionPack`; IG's forked `switch` retires. 🔴 **§5 decision open: the 9 orphan action ids** |
 | ✅ **[UX_Feature_Authority_Aware_Writes.md](UX_Feature_Authority_Aware_Writes.md)** | **UXI-29 design** — **26 cases**. Gizmos publish intent; complementary authority gates route local-vs-remote. 🔴 **Blocked on UXI-30** |
+| ✅ **[UX_Feature_Multi_Select.md](UX_Feature_Multi_Select.md)** | **UXI-24 design** — 29 cases. Multi-select is **built on the inspector list and nowhere on the map**; **4 dead seams** (16-19). 🔴 **§2 decision open: the partial-applicability rule** |
 | [UX_Seam_Inventory.md](UX_Seam_Inventory.md) | prior-art table + `scripts/seam_inventory.py`, `scripts/type_index.py` |
-| [UX_Tasks_Detail.md](UX_Tasks_Detail.md#corrections) | **30 corrections** — read before trusting any claim |
+| [UX_Tasks_Detail.md](UX_Tasks_Detail.md#corrections) | **32 corrections** — read before trusting any claim |
 
-**Designed:** UXI-01..**11**, **23**, **28**, **29** (+ **19**, verified and absorbed into 10). **Refuted:** UXI-26. **Split out:** UXI-25 (ExCon ORBAT),
-UXI-27 (progress surface).
+**Designed:** UXI-01..**11**, **23**, **24**, **28**, **29** (+ **19**, verified and absorbed into 10). **Refuted:** UXI-26. **Split out:** UXI-25 (ExCon ORBAT),
+UXI-27 (progress surface), **UXI-31** (IG's test-hook-only waypoint fan-out).
 
 ⚠ **The table above lists only *this session's* docs.** The designs for **UXI-01..08** (dead UI, half-built
 decisions, action vocabulary, cross-surface actions, menu-follows-focus, perspective restore, tool model,
@@ -130,6 +131,12 @@ review rule (UC-44c).
 | **CGF runs no `SelectionInteractionSystem`** ⇒ no entity ever gets `SelectionState` ⇒ the ring gizmo cannot match | registered by IG/ReplayBrowser/SimHost/Editor only |
 | 🔴 **Rotating an entity in CGF does not visibly rotate it** — rotator writes `SimTransform`, gizmo draws `NetworkTransform` | `EntityRotatorGizmo.cs:118-122`, `CgfSubsystem.cs:605` |
 | **`SetLayerMask(ushort) { }` is empty** — `MapCanvas.ActiveLayerMask` has **zero** effect on individual primitives; only `LayerControlGizmo`'s 256-bit mask filters, and only 3 bits are used | `Fdp.Presentation/Vis2D/Gizmos/DebugPrimitiveRenderer2D.cs:23`, called `DebugGizmoLayer.cs:100` |
+| 🔴 **`ISelectionState` has NO additive operation** — its only mutator is `PrimarySelected`, whose setter is commented *"resets selection to just that one"*. `AddSelection`/`ClearSelection` exist on `DefaultSelectionState` only, are **not on the interface**, and have **zero callers** ⇒ multi-select is unreachable through the shared seam | `DefaultSelectionState.cs:19-53` · [UXI-24 §1.4](UX_Feature_Multi_Select.md) |
+| 🔴 **Rubber-band selection never notifies `OnSelectionChanged`** (`ExecuteBoxSelection:202-218`), unlike click (`:84`) and tiny-drag (`:193`) ⇒ the object store and the component **do** desync, in the multi path only | [Correction 32](UX_Tasks_Detail.md#corrections) |
+| 🔴 ***"Mark Target for N Units"* can never show N > 1** — registered via `LambdaEntityContextMenuHandler`, which implements only the **single**-entity overload, so the panel hides it at `selCount > 1`; and its count reads the collapsing store | `EditorSubsystem.cs:1452-1495` vs `EntityInspectorPanel.cs:370-398` |
+| **The map context menu is a PROJECTION, not a query** — `ContextMenuProjectorGizmo` runs per entity per frame and picks one of 4 pre-serialized JSON constants ⇒ the menu is decided **before** the click and is selection-blind | `ContextMenuProjectorGizmo.cs:97-127`, consumed at `GizmoMap.Presentation/Layers/DebugGizmoLayer.cs:227-235` |
+| **Right-click already publishes `GizmoInteractionStartedEvent`** (`:221`) **before** the menu is scheduled (`:227`) ⇒ [ruling 28](#) and [case 11.7](UX_Feature_Selection.md) hold by construction, not by new ordering work | `GizmoMap.Presentation/Layers/DebugGizmoLayer.cs:221` |
+| **`GlobalActionRequestedEvent` carries ONE `Entity Target`**; the dispatch loop is one handler call per event ⇒ a `PerEntity` fan-out publishes **N events** and needs **no change** to either | `GlobalActionRequestedEvent.cs:12-18`, `GlobalActionDispatchSystem.cs:26-30` |
 | **`MapLayerAssignmentSystem` classifies every entity into 5 layers → `MapDisplayComponent.LayerMask`, and the symbol emitter never reads it** (always `layer: 0`) — ⭐ *the same resolve-then-discard failure as the tint* | `MapLayerAssignmentSystem.cs:97-127` vs `EntityPresentationGizmoShared.cs` |
 
 ## 6. 🔴 OPEN — awaiting the user's ruling
@@ -137,6 +144,7 @@ review rule (UC-44c).
 | # | Question | Where |
 |--:|---|---|
 | **1** | **The 9 orphan action ids** — `MoveHere · Engage · Stop · Properties · Teleport · Repair · Reinforce · Resupply · Transfer` have **no handler in any ECS host**; only ExCon consumes them. **A** bind them · **B** 🎯 keep ExCon-only and stop ECS hosts emitting them · **C** bind disabled-with-reason. **Lean B** | [UXI-23 §5](UX_Feature_Map_Parity.md) |
+| **2** | 🔴 **Partial applicability in a multi-selection — two of our own designs disagree.** [UXR-91](UX_Requirements.md#uxr-91) (P0) and [UXI-03 §4](UX_Feature_Entity_Action_Vocabulary.md) say an item applicable to only *some* selected entities is **hidden**; [UXI-11 §2.4](UX_Feature_Selection.md) says **shown, disabled, with a reason** — it relaxed a P0 requirement without flagging it. 🎯 **Proposed reconciliation: AND each of the registry's two predicates separately** — `isVisible` fails ⇒ hidden, `isEnabled` fails ⇒ disabled-with-reason, so the registrar chooses per action at declaration | [UXI-24 §2](UX_Feature_Multi_Select.md) |
 
 ## 6b. Needs a **Windows** session (cannot be done here)
 
@@ -148,9 +156,9 @@ review rule (UC-44c).
 
 ## 6c. Next steps, in order
 
-1. ⏭ **Designing continues** — user, 2026-08-10: *"keep designing now rather than rewriting tasks later because we find new unexpected stuff"*. ✅ **09 · 10+19 · 11 · 23 · 28 · 29** all designed this session. **Next candidates: UXI-24** (multi-select — the natural sequel to 11 and 23) or **UXI-12** (spawn UI ×4).
+1. ⏭ **Designing continues** — user, 2026-08-10: *"keep designing now rather than rewriting tasks later because we find new unexpected stuff"*. ✅ **09 · 10+19 · 11 · 23 · 24 · 28 · 29** all designed this session. **Next candidate: UXI-12** (spawn UI ×4).
 2. Cut `UXT` tasks — **none cut yet**, deliberately deferred by the user.
-3. Remaining undesigned: **UXI-12..18, 20, 21, 24, 27** · **UXI-25** 🔒 blocked on UXI-04 · **UXI-30** specified in [UXI-29 §3.3b-c](UX_Feature_Authority_Aware_Writes.md), needs no separate design doc.
+3. Remaining undesigned: **UXI-12..18, 20, 21, 27, 31** · **UXI-25** 🔒 blocked on UXI-04 · **UXI-30** specified in [UXI-29 §3.3b-c](UX_Feature_Authority_Aware_Writes.md), needs no separate design doc.
 4. ✅ **RESOLVED — host pump + playback sits immediately before `_kernel.Update()`** (`EditorSubsystem.cs:1618`); the kernel flush precedes `Bus.SwapBuffers()` (`ModuleHostKernel.cs:523-534`), so ops land visible **in the same frame**. Precedent: `_aiCoordinator.DrainPendingCallbacks()` (`:1620-1624`). ⚠ *Unpinned:* where ImGui panel drawing sits relative to `EditorSubsystem.Update()` — affects only which frame a synchronous handler commits in. [API §6d](UX_Interaction_API.md#6d--where-the-hosts-playback-sits--resolved-2026-08-10)
 
 ## 6d. 🔴 Dependency order — designs now constrain each other
@@ -162,12 +170,13 @@ review rule (UC-44c).
 | **UXI-29 → CGF *Rotate*** | [UXI-11 case 10.23](UX_Feature_Selection.md) explicitly does **not** claim to fix it |
 | **UXI-04 → UXI-25** | the shared ORBAT panel is impoverished until UXI-04 lands |
 | **UXI-24 ← ruling 29** | the multi-delete confirmation must sit on the **raw `Delete` key** path, which bypasses the action vocabulary entirely ([UXI-23 §3.4](UX_Feature_Map_Parity.md)) |
+| **UXI-11 → UXI-03 → UXI-24** | one store, then the descriptor that carries `Execution`, then the fan-out. ⚠ **UXI-24 amends UXI-11**: `ISelectionState` must gain `Add`/`Remove`/`SetMultiple`/`Clear` — its only mutator today (`PrimarySelected`) **collapses the selection to one**, so UXI-11's *"handlers need no change"* cannot deliver multi-select |
 
 ## 7. ⚠ Process rules earned the hard way
 
 | | |
 |---|---|
-| **Rule 6** | every design opens with a **Prior art** section citing the [Seam Inventory](UX_Seam_Inventory.md) — the seam usually **already exists and is under-adopted**. ⭐ **9 instances so far**; the newest two are `MapCameraViewport` (a shared type stranded in `Hrot.IG`, reached by the Editor through a **project reference**) and `DockspaceLayout` (built and tested for the dockspace, never extended to the camera) |
+| **Rule 6** | every design opens with a **Prior art** section citing the [Seam Inventory](UX_Seam_Inventory.md) — the seam usually **already exists and is under-adopted**. ⭐ **19 instances so far**; the newest four all came out of [UXI-24](UX_Feature_Multi_Select.md) — **16** the `stateFlags` modifier byte (bits 1-6 free, documented *"always 0"* for clicks), **17** `Vis2DInputMap.MultiSelectMod`/`BoxSelectMod` (zero readers, two owners), **18** `IgApplication.OnCanvasWorldClick` (a complete fan-out reachable only from test hooks — the ruling-36 shape again), **19** `PushContextActions(…, forSelection, …)` (fed the whole id list while the menu beside it is built from `[0]`) |
 | **Rule 6c** | ⚠ **never read a reference *count* as adoption — open the call sites.** [Correction 22](UX_Tasks_Detail.md#corrections): 8 tests vs 3 real calls, and I reported "zero consumers" from the ratio. ⚠ **And counting *constructions* misses hosts that default silently** — CGF omits the shape-library argument entirely ([Correction 24](UX_Tasks_Detail.md#corrections)) |
 | **Rule 6d** | ⚠ **"the seam is unused" has two very different meanings** — an interface nobody *calls*, vs one called every frame with a dead parameter and no second implementation. UXI-10 was the second kind; the fix differs completely |
 | **Rule 6b** | before claiming an **engine-level defect**, read `README.md` + the Programmer's Guide |

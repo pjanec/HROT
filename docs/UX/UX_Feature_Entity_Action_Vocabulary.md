@@ -278,7 +278,7 @@ separator. Screenshot Editor / SimHost / CGF.
 | IG's DDS-authored JSON menu | ruled a separate pipeline (Q26-A2) |
 | Adding a confirm on `Delete` | real ([UXI-16](UX_Issues.md#uxi-16)) but a separate issue — **zero** existing items confirm |
 | Icons, numeric priority, checked, style | measured speculative (Q26-B) |
-| Multi-select *acquisition* | no ctrl/shift additive click exists anywhere — [UXI-24](UX_Issues.md#uxi-24) is a prerequisite for exercising UXR-91, not for building this |
+| Multi-select *acquisition* | ⚠ **[corrected 2026-08-13](UX_Tasks_Detail.md#corrections)** — ctrl/shift additive click **does** exist, in the **inspector list** (`EntityInspectorPanel.cs:410-437`); it is the **map** that has none. [UXI-24](UX_Feature_Multi_Select.md) is still a prerequisite for exercising UXR-91, not for building this |
 
 ## Risks
 

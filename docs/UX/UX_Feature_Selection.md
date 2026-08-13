@@ -58,7 +58,7 @@ sealed class EcsSelectionState : ISelectionState      // replaces DefaultSelecti
 | | |
 |---|---|
 | ✅ **The desync cannot recur** | there is only one place to write |
-| ✅ **Menu handlers need no change** | they still set `PrimarySelected`; it now reaches the component |
+| ⚠ **Menu handlers need no change** — 🔴 **amended 2026-08-13 by [UXI-24 §1.4](UX_Feature_Multi_Select.md)** | true for *single* selection only. `PrimarySelected` is the interface's **only** mutator and its setter **collapses the selection to one** (`DefaultSelectionState.cs:24-34`); `AddSelection`/`ClearSelection` are off the interface with **zero callers**. ⇒ `ISelectionState` must gain `Add`/`Remove`/`SetMultiple`/`Clear` |
 | ⭐ **ExCon fits without an exception** | 🔒 [ruling 27](UX_RESUME_INTERACTION.md) — **same interface, DDS-backed implementation**, no ECS. The interface is the seam; the store is the binding |
 
 ### 2.2 One pipeline, identical in every map subsystem
@@ -108,7 +108,7 @@ The component already models it; what is missing is input and menu policy.
 
 | | |
 |---|---|
-| ⚠ **Ctrl/Shift additive click does not exist** | verified — click is unconditionally `SetSelected(entity, isPrimary: true)` (`:83`). Rubber-band is the only route to a multi-selection today |
+| ⚠ **Ctrl/Shift additive click does not exist — 🔴 [corrected 2026-08-13](UX_Tasks_Detail.md#corrections)** | true **on the map** — click is unconditionally `SetSelected(entity, isPrimary: true)` (`:83`), and rubber-band is the only route there. **False as written**: the *inspector list* has ctrl-toggle **and** shift-range (`EntityInspectorPanel.cs:410-437`). [UXI-24](UX_Feature_Multi_Select.md) owns the reconciliation |
 | 🔒 **Menu = items applicable to *all* selected** | the AND/intersection rule, per the ruling |
 | **Execution fans out** over the selection — [UXI-03](UX_Feature_Entity_Action_Vocabulary.md)'s `EntityActionDescriptor` is the layer that carries it | ⚠ **not** `IEntityActionController`, which is single-entity by signature |
 
@@ -119,8 +119,14 @@ hidden*), but scaled so it does not become noise:
 | Applicable to… | Treatment |
 |---|---|
 | **all** selected | shown, enabled |
-| **some** selected | 🔒 **shown, disabled, with a reason** — *"3 of 12 selected support this"* |
+| **some** selected | ⚠ **shown, disabled, with a reason** — *"3 of 12 selected support this"* |
 | **none** selected | hidden |
+
+> 🔴 **Contested, 2026-08-13.** The middle row **relaxes [UXR-91](UX_Requirements.md#uxr-91)** (P0:
+> *"shows **only** items applicable to every selected entity"*) and contradicts
+> [UXI-03 §4](UX_Feature_Entity_Action_Vocabulary.md) — and this doc did not flag that it was doing so.
+> **[UXI-24 §2](UX_Feature_Multi_Select.md) carries the proposed reconciliation and awaits the user's
+> ruling.** Do not implement this table until that is settled.
 
 ### 2.4b 🔒 One pick box, one ring — shared everywhere
 
