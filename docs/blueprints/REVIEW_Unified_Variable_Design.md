@@ -344,8 +344,16 @@ printing "69".
 ## 11. 📌 Note for whoever picks up Batch 39
 
 Its **§1 (Q27-A3 suspension-surviving storage)** and **§2 (the dangling-reference rail)** were built,
-tested and gate-green before this batch replaced them, then reset off the branch when the review took
-Batch 38's slot. ⭐ **They are recoverable rather than lost** — `git cherry-pick 2c1638b bec149d`
-(tag `batch38-locals-work-preserved`). Both are compiler-only and touch **none** of the surfaces this
-review says are in flux, so `RESUME_START_HERE`'s *"may be pulled forward"* holds: ⭐ **pull them
-forward.** `BP-233` came out of that work.
+tested and gate-green before this batch replaced them (**3259** / 0 / 10, +16 tests), then reset off
+the branch when the review took Batch 38's slot.
+
+⚠⚠ **CORRECTION — the coordinator caught this and was right.** An earlier draft of this section said
+*"cherry-pick `2c1638b bec149d`"*. ⛔ **Those commits are NOT on the remote**: the force-push left them
+unreferenced, the remote will not serve them by sha, and pushing a preservation **tag was refused with
+HTTP 403** (this session's credentials push branches, not tags). They survived only in one ephemeral
+container.
+
+⇒ ⭐ **They are checked in as patches instead: [`patches/`](patches/README.md)** — `git am` them, and
+delete that directory once the work is back on a branch. Both are compiler-only and touch **none** of
+the surfaces this review says are in flux, so `RESUME_START_HERE`'s *"may be pulled forward"* holds:
+⭐ **pull them forward.** `BP-233` came out of that work.
