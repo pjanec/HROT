@@ -31,11 +31,22 @@
 > ⚠ **Read the review before touching [model](Variable_Model_Unification.md) /
 > [UI](Variable_Editing_UI.md)** — several of their claims are now known wrong.
 >
-> 🔴🔴 **WORK WAS LOST.** Batch 39's §1/§2 were built and gate-green, then force-pushed away.
-> ⛔ **`2c1638b`/`bec149d` are NOT recoverable from the remote** (verified: cat-file, rev-parse,
-> fetch-by-sha, ls-remote, fsck — all negative). ⭐ **Only the implementation session's local clone can
-> still have them; it must push them to a ref before that container is reclaimed.**
-> ⚠ **Until then Batch 39 §1/§2 are UNBUILT.**
+> ✅ **The lost work is RECOVERED** — on **`claude/batch39-locals-preserved`** (`7e0b11b0`), pushed by
+> the coordinator from the patches the implementation session checked in. ⭐ **Coordinator-gated on
+> that branch: build 0 errors · Blueprints 3269 total / 3259 passed / 0 failed / 10 skipped** (+16).
+>
+> ⏭ **Batch 39 dispatched (`ade79865`) — RE-SCOPED:** merge and close out that work, then build the
+> authoring half. ⛔ **Not a rebuild.**
+> ⭐⭐ **Three blockers RESOLVED as architect rulings** —
+> **[`Q-j`](Variable_Editing_UI.md)** the struct validator is an existing seam (the generator already
+> holds Roslyn's `Compilation`) · **[`Q-k`](Variable_Editing_UI.md)** `Role`/`Scope` are **read-only**
+> for blueprints, a move not a toggle, so `R3` dissolves ·
+> **[`Q-i`](Variable_Model_Unification.md)** shared state is **another document's storage**, excluded.
+> ⭐ **And a MEMBERSHIP RULE that replaces the case-by-case answers:** *a declaration belongs in the
+> model iff it has a byte offset in a struct this asset emits.*
+> ⭐ **The merge stops at the IR boundary** — `IrAsset` keeps three lists, so `TickCore`'s signature,
+> the emitted structs and the blackboard allocation are **unchanged**; `D`'s acceptance test is
+> *"`StructureHash` byte-identical across the whole corpus."*
 >
 > ⛔ **`BP-57`'s remaining work was Batch 38 and is now
 > [Batch 39](HANDOFF_Batch39_Finish_Local_Variables.md) — POSTPONED**, because its authoring half sits

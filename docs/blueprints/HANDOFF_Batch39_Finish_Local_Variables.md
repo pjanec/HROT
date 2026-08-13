@@ -1,6 +1,6 @@
 # HANDOFF — Batch 39: finish `BP-57` — ⭐ **merge the recovered work, then build the authoring half**
 
-> 📌 **RE-SCOPED `2026-08-13` after the Batch 38 design review. Dispatched at `PENDING`.**
+> 📌 **RE-SCOPED `2026-08-13` after the Batch 38 design review. Dispatched at `ade79865`.**
 > Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
 > ⭐ **Rule 7:** branch from this branch, re-sync at the **start** of your run.
 > ⭐ **Rule 4:** pull it again before your final commit.
