@@ -22,6 +22,24 @@
 ⇒ **A local is not a small addition to this.** Everything above is *persistent instance storage*; a
 local is *per-invocation*. **They are different storage classes, not different scopes of one thing.**
 
+### ⛔⛔ CORRECTION 2026-08-13 — **`BP1650` is narrower than this document claims, and B's ruling was only half-built**
+
+> ⚠⚠ **Two errors, both the coordinator's, both load-bearing for B.**
+>
+> **1. *"A Function graph cannot suspend … because `BP1650`/`BP1661` keep latent nodes out of it"* is
+> only true for CALLED functions.** `BP1650` fires on a latent node inside a Function graph **reached
+> through `FunctionCallNode.TargetGraphId`** (`Stage2_Validate:2169`). ⭐ **A Function graph that is the
+> asset's own body has no such rail** — coordinator-probed: a `Function` graph containing a
+> `LatentDelayNode` compiles with **zero diagnostics** and becomes a phase-dispatched `TickCore`.
+>
+> **2. B's answer — *"Permitted: `Function` and `Construction`; Event/tick DEFERRED, because A1 cannot
+> survive a suspension"* — was NOT built.** Batch 37 shipped `BP1664` and `BP1669` (both macro rails)
+> and **no latency rail at all**. ⛔ **The handoff never asked for it.** ⇒ a local written before a
+> suspension reads its **default** after resume, silently, with no diagnostic.
+>
+> ⭐ **This is not a reopened question — B already answered it.** It is an unbuilt half, and it is
+> **Batch 38 §1**. The rule stands as B stated it: *"contains a latent op"*, **never a kind test**.
+
 ### 🔴 A latent defect you will land on top of — `BP-224`'s shape again
 
 > ⚠⚠ **CORRECTED 2026-08-11 — see [FINDING_Variable_Index_Space.md](FINDING_Variable_Index_Space.md).**
@@ -31,6 +49,8 @@ local is *per-invocation*. **They are different storage classes, not different s
 > the Get/SetVariable picker offers **only `Variables`**. ⇒ It is an **unenforced invariant**, not a
 > latent defect, and the fix is to make the invariant unexpressible rather than to rewrite the index
 > space. **Read the finding before acting on this section.**
+> ⚠ **Its second leg — *"the picker offers only `Variables`"* — was ALSO wrong**, corrected
+> `2026-08-12`: **57 live `WorkingState` references** exist in the corpus. See the finding.
 
 `Stage5.FindVariableIndex` (`:4498`) searches **three** lists and returns the index **within whichever
 list matched**:
