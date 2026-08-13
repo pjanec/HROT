@@ -195,12 +195,29 @@ not touch these:**
 | **HSM instance reset**, rebound to the new topology's `StructureHash` |
 | ⭐ **And it is transactional**: params are parsed into a *shadow* first, so a parse failure leaves the entity **100% on the old behavior** (`:70-73`) |
 
-**Survives an assign — this is the flag's actual job:**
+**Survives an assign — this is the flag's actual job, and it is exactly one thing:**
 
 | # | State | Why it leaks |
 |--:|---|---|
 | **①** | **`MissionPlanQueue` + `ActiveMissionPlan`** | nothing in the behavior path touches them ⇒ the plan resumes at its next phase transition ([ruling 50](UX_RESUME_INTERACTION.md)) |
-| **②** | 🔴 **`BrainBlackboard` residue** | the shadow is copied **from the live blackboard** (`:82-88`), so any byte the new behavior's `ParseParams` does not write **keeps the previous behavior's value**. ⚠ **Unclear whether this is deliberate shared scratch or a latent leak** — flagged, not assumed |
+
+> ⚠ **A second item — zeroing `BrainBlackboard` — was proposed here and is WITHDRAWN**
+> ([Correction 40](UX_Tasks_Detail.md#corrections)). It is unnecessary **and would have been a bug.**
+>
+> `BrainBlackboard` is `[StructLayout(LayoutKind.Explicit, Size = 128)]` and is **co-owned**:
+>
+> | Bytes | Owner |
+> |---|---|
+> | **0-99** | `BehaviorParameters` — a **polymorphic per-behavior region**, projected via `Unsafe.As` (`MaxBehaviorParamByteSize = 100`, analyzer-enforced) |
+> | **120** | `ExpectedThreatLevel` — 🔴 written by **`RouteContextSystem`** (`:190`), on its own cadence |
+> | **126 / 127** | `Interrupt_MobilityLost` / reserved — 🔴 `CognitiveInterruptSystem` sets, `CognitiveCleanupSystem` clears |
+>
+> ⇒ **The new behavior redefines the params region completely**; anything past its DTO is outside its
+> layout and **unreachable**. And zeroing would have **wiped route-danger context and a live interrupt** —
+> cross-system state unrelated to the transition.
+>
+> ⭐ **Cross-behavior data passing therefore has exactly one route: ECS components** — *"just another big
+> blackboard"* — and the scope guard below deliberately leaves those alone.
 
 **🔴 Must NOT be cleared — the reason the flag is scoped rather than general:**
 
@@ -210,13 +227,10 @@ not touch these:**
 | 🔴 **Nav status / physics / `SimTransform`** | muscle tier. A brain-level order must not teleport or halt physics |
 | ⚠ Interrupt bytes | already edge-triggered and cleared end-of-frame by `CognitiveCleanupSystem` — nothing to do |
 
-⇒ 🔒 **`ClearsPriorIntent` clears the *intent stack*: ① always, ② zeroed before the parse.** Name and
-document it that way — *"general behavior clear"* would invite someone to add `TargetMemory` to it later.
-
-⚠ **② is a design decision, not an obvious win**: zeroing the blackboard makes a new order fully
-deterministic, but if any behavior relies on carried-over scratch, it changes existing behaviour.
-**Gate it behind the flag only** — the unflagged `AssignBehaviorEvent` path keeps today's semantics
-exactly.
+⇒ 🔒 **`ClearsPriorIntent` clears exactly one thing: the mission plan.** Everything else that "starting
+clean" implies is either already done by the assign, or must not be done at all. ⚠ **Keep the narrow
+name** — *"general behavior clear"* would invite someone to add `TargetMemory` or the blackboard to it
+later, and both would be defects.
 
 `TacticalIntentResolutionSystem` — already the owner-side choke point, already authority-gated — does
 both in one place when the flag is set:
@@ -259,7 +273,7 @@ both in one place when the flag is set:
 | 32.8b | 🔒 **No `ClearBehaviorEvent` is published** by that path — the `:53`/`:172` ordering guard | H |
 | 32.8c | 🔒 After the order, `MissionAdapterSystem` publishes **nothing** — the plan cannot resume | H |
 | 32.8d | The cancel + assign are **atomic from the operator's view**: the entity is never left brain-dead | H |
-| 32.8e | 🔒 `ClearsPriorIntent` **zeroes `BrainBlackboard` before the parse** — no residue from the previous behavior | H |
+| 32.8e | 🔒 `ClearsPriorIntent` **does NOT touch `BrainBlackboard`** — `ExpectedThreatLevel` and the interrupt bytes survive an order ([Correction 40](UX_Tasks_Detail.md#corrections)) | H |
 | 32.8f | 🔴 It leaves **`TargetMemory` untouched** — the unit does not go blind. The scope guard | H |
 | 32.8g | An assign **without** the flag behaves exactly as today — blackboard residue and plan both preserved | H |
 | 32.8h | A `ParseParams` failure still leaves the entity **100% on the old behavior**, flag or not | H |
