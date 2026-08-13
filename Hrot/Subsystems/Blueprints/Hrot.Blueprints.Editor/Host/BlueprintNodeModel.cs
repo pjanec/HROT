@@ -438,11 +438,25 @@ internal sealed class BlueprintNodeModel : INodeModel
             // are VariableDecl lists (the cross-entity / shared-state demos declare their mirrored
             // slots in WorkingState). Without the WorkingState fallback the title showed the raw GUID.
             var decl = asset.Variables.FirstOrDefault(v => v.Id == guid)
-                    ?? asset.WorkingState.FirstOrDefault(v => v.Id == guid);
+                    ?? asset.WorkingState.FirstOrDefault(v => v.Id == guid)
+                    // BP-57 — and a graph LOCAL, which had the same symptom for the same reason: a
+                    // local-targeting node showed its raw GUID, because this resolver knew only the
+                    // two asset-level lists.
+                    //
+                    // ⭐ Searched across EVERY graph rather than the one that owns the node, because
+                    // this resolver is handed the asset and not the graph — and it is correct: a
+                    // local's id is a Guid, so it resolves to exactly one declaration wherever it was
+                    // declared. ⚠ A node in ANOTHER graph carrying the id is a dangling reference
+                    // (Stage5.FindLocalIndex is per-graph and BP1670 refuses it) — showing the name
+                    // there is still better than showing a GUID, because the name is what the
+                    // designer must recognise to fix it.
+                    ?? asset.Graphs.SelectMany(g => g.LocalVariables).FirstOrDefault(v => v.Id == guid);
             if (decl != null && !string.IsNullOrEmpty(decl.Name))
                 return decl.Name;
         }
 
+        // ⭐ Deliberately returns the id unchanged: an unresolvable reference stays visible on the
+        // node rather than reading as a valid one.
         return variableId;
     }
 

@@ -276,7 +276,11 @@ public static class BlueprintDocumentFactory
         BlueprintGraphViewMemory.SetLastViewed(bpAsset.AssetId, graph.Id);
 
         // ── 8. Picker sources (BCP-E) ─────────────────────────────────────────
-        BlueprintPickerSources.Register(bundle.PickerRegistry, nodeCatalog, bpAsset);
+        // BP-57: the last argument is what lets `variables.all` offer the current graph's LOCALS.
+        // ⚠ Read through `switcher`, never the captured `graph` — the same staleness trap BP-24 hit
+        // at five build-time capture sites.
+        BlueprintPickerSources.Register(
+            bundle.PickerRegistry, nodeCatalog, bpAsset, () => switcher.CurrentGraph);
 
         // ── 9. FindBar + IEditorCommands (BCP-F) ─────────────────────────────
         var commands = new EditorCommandsImpl();
