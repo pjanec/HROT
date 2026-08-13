@@ -409,6 +409,26 @@ greenfield** — a schema-driven behavior-parameter form already ships inside `M
 | **3** | ⭐ **Lookup — the access class** | **`ITkbDatabase.TryGetByType(long tkbType, out TkbTemplate)`** (+ `GetByType` · `GetByName` · `GetAll` · `Register` · `Clear` · `ActiveTkbName`) | *what is entity type N* |
 | **4** | **Typed field access** | `TkbTemplate.GetDescriptor<T>()` · `TryGetDescriptor<T>()` · `HasDescriptor<T>()` · `GetAllDescriptors()` (`TkbTemplate.cs:97-138`) | *read one descriptor off a template* |
 | **5** | **Projection into ECS** | `ITkbEntityTranslator.Inject(repo, entity, template)` + `GetConsumedDescriptors()` — e.g. `BehaviorTkbTranslator`, `CombatTkbTranslator`, `PerceptionTkbTranslator` | *descriptor → ECS components at spawn* |
+| **↺** | **Reload notification** | 🔴 **`ITkbHotReloadEvents.Subscribe(Action<TkbDescriptorChangedEvent>)`** (`Fdp.Core/Abstractions/ITkbHotReloadEvents.cs:27`) — *"allows translators and caches to subscribe to descriptor changes and invalidate cached data when descriptors are reloaded"* | *who must drop caches when TKB reloads* |
+
+> ⚠ **[Correction 37](UX_Tasks_Detail.md#corrections): I missed the reload interface for three rounds of
+> grepping.** `search_graph(name_pattern=".*Tkb.*", label="Interface")` returns **all five** in one call —
+> `ITkbDatabase` · `ITkbEntityTranslator` · `ITkbStorageStrategy` · `ITkbHotReloadEvents` ·
+> `IAnimationTkbQueries`.
+
+### 🔴 And the reload contract has subscribers but **no publisher**
+
+| | |
+|---|---|
+| **Consumers** | `AnimationTkbTranslator` → `BakedAnimationCache`, which subscribes and invalidates on `TkbDescriptorChangedEvent` (`BakedAnimationCache.cs:24-35,76`) |
+| **Implementations** | 🔴 **one — a test fake** (`TranslatorAndCacheTests.cs:233`). **Zero in production**, and both consumers take it as `ITkbHotReloadEvents?` so they run with `null` |
+
+⇒ ⭐ **Seam-law instance 24** — and it lands directly on [ruling 46](UX_RESUME_INTERACTION.md):
+**a shared disk loader is exactly the missing publisher.** `TkbDatabase.Clear()` + reload is the moment
+caches must be invalidated, and the contract for saying so already exists with a subscriber waiting.
+🔒 **The shared loader must raise these events, or the design must state why not** — otherwise a
+disk-backed TKB reload silently leaves stale baked caches, which is the failure the interface was written
+to prevent.
 
 **Level 3 is in production use across every host** — `NetworkSpawningSystem.cs:88` ·
 `GhostPromotionSystem.cs:103` · `BlueprintApplicationSystem.cs:36` · `CreateEntityRequestSystem.cs:170,249,361`
