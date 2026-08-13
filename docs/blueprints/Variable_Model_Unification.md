@@ -26,6 +26,23 @@
 parameter blob vs. blackboard), so `Params` and `State`/`WorkingState` stay separate structs. What goes
 away is the *model* pretending they are unrelated.
 
+### ⭐⭐ The membership rule — added `2026-08-13`, and it replaces three ad-hoc answers
+
+> **A declaration belongs in the model iff it has a byte offset in a struct THIS ASSET emits.**
+
+| | offset? | |
+|---|---|---|
+| `Parameters` · `WorkingState` · `Variables` | ✅ | **in** |
+| graph locals **when the graph can suspend** | ✅ | **in** |
+| graph locals when it cannot | ⚠ | **in** — a C# local is the *degenerate* case, offset elided |
+| `Graph.Inputs` | ⛔ method parameters | **out** — answers `Q-a` |
+| **shared state** (`GetShared`/`SetShared`) | ⛔ **another document's storage** | **out** — answers `Q-i` |
+| `__phase` · `__waitUntilTime` · `_when_*_prev` | ✅ | **in, marked `Synthesized`** |
+
+⭐ **One rule, six answers, no special cases — and it is CHECKABLE**, which the previous case-by-case
+reasoning was not. ⚠ **It also gates the next candidate before anyone argues about it:** *show me the
+offset.*
+
 ---
 
 ## 2. The mapping — today → unified
@@ -67,6 +84,57 @@ public enum WorkingStateScope      { Node = 0, Behavior = 1, Entity = 2 }
 
 ⇒ **This is not designing a model. It is Blueprints keeping a bespoke three-list shape while the
 shared side already carries role + scope.**
+
+---
+
+## 2b. ⭐⭐ What happens to the generated code and the blackboard? → **NOTHING.** `2026-08-13`
+
+> **User's question:** *"What will happen to the generated AiPrimitive methods that were previously
+> taking the `WorkingState` struct, now that we have just a variable struct? What changes in the
+> blackboard allocation regarding WorkingState/Variables?"*
+
+⭐⭐ **The merge stops at the IR boundary. `IrAsset` is unchanged — and everything downstream of it
+therefore is too.** Verified:
+
+```csharp
+// IrAsset.cs — THREE lists, unchanged by this work
+public IReadOnlyList<IrField> Parameters   { get; init; }
+public IReadOnlyList<IrField> WorkingState { get; init; }
+public IReadOnlyList<IrField> Variables    { get; init; }
+
+// FieldLayout.cs — and each keeps its OWN offset space
+Parameters   = LayoutFields(asset.Parameters,   startOffset: 0),
+WorkingState = LayoutFields(asset.WorkingState, startOffset: 8),
+Variables    = LayoutFields(asset.Variables,    startOffset: 16),
+```
+
+| | |
+|---|---|
+| `TickCore(ref Params p, ref WorkingState ws, Entity self, …)` | ✅ **byte-for-byte the same signature** |
+| `struct WorkingState` @ `Blackboard1024` + 8 · `__phase` · `__waitUntilTime` | ✅ **unchanged** |
+| `struct State` with `BlueprintLatentCursor Cursor` in its first 16 bytes | ✅ **unchanged** |
+| `InitDefaultWorkingState` · `BTreeTick`'s `fixed`/`AsRef` projection | ✅ **unchanged** |
+| **Blackboard allocation and field offsets** | ✅ **unchanged** |
+
+⇒ ⭐ **What changes is only where Stage 4/5 READ the declarations from.** Today: three asset lists.
+After **D**: one tagged list, **partitioned back into the same three `IrAsset` lists** —
+`(Input, Asset)` → `Parameters`, `(State, Asset)` → `WorkingState` **or** `Variables`.
+
+⚠ **And that last choice needs no new information:** `BP1024`/`BP1031` already make it a function of
+`Dispatch` — AiPrimitive ⇒ `WorkingState`, Instance ⇒ `Variables` — enforced at Stage 2. ⭐ **The
+emitter's rule is not changing; only its input list is.**
+
+### 🔴 The one thing that MUST hold — and it is `D`'s acceptance test
+
+`StructureHashComputation` hashes `Parameters` + `WorkingState` + `Variables` by **name · type ·
+offset · size**, and the emitted `BTreeTick` **wipes the blackboard whenever the stored hash differs**.
+
+⇒ ⭐⭐ **If the partition reproduces the same order within each group, `StructureHash` is IDENTICAL and
+no deployed entity loses its state.** ⛔ **If it does not, every deployed blackboard is wiped.**
+
+📐 **So `D`'s acceptance test writes itself:** ⭐ **compile every shipped asset before and after, and
+assert the `StructureHash` and the emitted struct layouts are byte-identical.** That is a far stronger
+and far cheaper gate than reasoning about consumers — and it is the answer to *"what breaks?"*
 
 ---
 
@@ -229,6 +297,23 @@ be confused with the blackboard one.
 populated — and stop.** Filling it is a *spawn-parameter feature* with its own runtime work
 (who supplies the values, when, and through what). ⛔ **Do not smuggle it in as a side effect of a
 model refactor.**
+
+### Q-i · Does shared state join the model? → ⛔ **No — it is another document's storage.** `2026-08-13`
+
+> ⚠ **Raised by the [Batch 38 review](REVIEW_Unified_Variable_Design.md) `R5`: 61 references across 8
+> shipped assets, and neither design document mentioned it once.**
+
+`GetSharedNode`/`SetSharedNode` carry an *"entity-scoped slot name (**matches the manifest-provisioned
+variable name**)"*, resolved at runtime through `BlueprintSharedState.TryGetShared<T>`.
+
+⇒ ⭐ **It is not undeclared — it is declared in a DIFFERENT DOCUMENT.** The manifest owns the slot;
+the blueprint is a **consumer**. ⛔ **Folding it into the blueprint's variable list would claim
+ownership the blueprint does not have** — and it fails the membership rule (§1): no offset in any
+struct this asset emits.
+
+⇒ 📐 **Excluded from the storage model, and given a read-only *"Shared State (consumed)"* view** —
+the slot names the graphs actually use, ideally naming the manifest as owner. ⭐ **To a designer it is
+still a variable; it is just not THIS asset's variable, and the UI should say which.**
 
 ### Q-d · Where does stage D's migration run? → ✅ **The hook already exists and has been used**
 

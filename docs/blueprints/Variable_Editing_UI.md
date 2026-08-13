@@ -13,8 +13,13 @@
 > ⛔⛔ **Two claims here were WRONG, and both were load-bearing for this document:**
 > 🔴 **`BP-230`** — the shared table's `Role`/`Scope` editors and its reference counter are **stubs**
 > on the Blueprint side ⇒ **stage B as written ships a picture, not an editor** ·
-> 🔴 **`BP-228`** — a struct type id is **unvalidated pass-through**, so **§4's answer was wrong and
-> `B′` is blocked.** ⚠ **Corrections are inline; §7 Q-h is rewritten.**
+> 🔴 **`BP-228`** — a struct type id is **unvalidated pass-through**, so **§4's answer was wrong.**
+> ⚠ **Corrections are inline; §7 Q-h is rewritten.**
+>
+> ✅ **BOTH BLOCKERS RESOLVED `2026-08-13` — see `Q-j` and `Q-k`.** `B′` needs a member on an existing
+> seam (the generator already holds Roslyn's `Compilation`); `B` needs a capability flag, because
+> `Role`/`Scope` turn out to be **read-only** for blueprints — a move, not a toggle. **Neither needs a
+> new subsystem.**
 
 ![Unified variable editing](diagrams/variable_editing_ui.svg)
 
@@ -123,9 +128,37 @@ structs.
 > type** — compilation succeeds. Only Roslyn catches it, as `CS0246` in generated code **naming no
 > variable**: ⭐ **the `__var_-1` shape again.**
 >
-> ⇒ 📐 **`B′` needs a COMPILER-SIDE RAIL before it needs a picker.** *What validates a struct type id*
-> — a registry entry, a generator-side Roslyn check, or an allow-list from `[BlackboardDtoStruct]`
-> discovery — **is the first thing to decide** (review §7).
+> ⇒ 📐 **`B′` needs a COMPILER-SIDE RAIL before it needs a picker.**
+
+### ✅ Q-j · What validates a struct type id? → ⭐ **The seam already exists and is already wired.** `2026-08-13`
+
+⛔ **This is not "invent a validator."** `CompileOptions` already carries an **optional, host-supplied**
+oracle for exactly this class of problem, and the generator already threads Roslyn's `Compilation` in:
+
+```csharp
+// CompileOptions.cs — nullable: the editor supplies none
+IClrSignatureResolver? ClrSignatureResolver = null;
+
+// BlueprintIncrementalGenerator — the build path always has one
+ClrSignatureResolver: new RoslynClrSignatureResolver(compilation)
+```
+
+⇒ ⭐ **Type existence is the same question as signature resolution, one notch simpler.** Add
+`TryResolveType(fqn)` to that interface (or a sibling of it); each host answers from the type knowledge
+it actually has — the generator from the `Compilation`, the editor from loaded assemblies, which
+`ISharedStructTypeProvider` **already scans**.
+
+⭐⭐ **The nullable-with-fallback shape answers the hard sub-question:** *what if no oracle is supplied?*
+**Then no diagnostic — today's behaviour** — exactly as `Stage0` already falls back for signatures.
+⇒ **the rail binds where the shipped artifact is built, and degrades quietly in the editor** instead
+of forcing the editor to carry a compiler's knowledge.
+
+⇒ ✅ **`B′` is UNBLOCKED.** It needs a member on an existing seam, not a new subsystem. ⚠ **`BP-228`
+stays open on its own merits** — the rail is worth having whether or not the picker ever offers structs.
+
+📐 **Still genuinely open, and narrower:** whether the **editor-side** oracle is worth building at all,
+given the generator is where correctness is decided. ⚖️ **Lean: not at first** — ship the generator
+rail, and let the editor stay permissive until someone is actually bitten in the editor.
 
 ---
 
@@ -218,6 +251,45 @@ second one. Creating an `Input` must not require creating a `State` and flipping
 > right *shape*; it cannot ship without something to validate against. **What that validator is —
 > registry entry · generator-side Roslyn check · allow-list from `[BlackboardDtoStruct]` discovery —
 > is an open decision, and it is the first one** (review §7).
+
+---
+
+### ✅ Q-k · Do blueprints edit `Role`/`Scope` through the shared table? → ⛔ **No — and `R3` dissolves.** `2026-08-13`
+
+⚠ **I framed this as *"the contract's enum does not fit, so widen it or opt out."* That is the wrong
+frame.** Ask what the edit **means**:
+
+| | |
+|---|---|
+| `Asset` → `Graph` scope | the variable **stops existing for every other graph**, and starts resetting per invocation |
+| `Input` → `State` role | it leaves the caller's contract and **moves to a different emitted struct** |
+
+⛔ **Neither is a property you toggle. Both are MOVES with reference consequences** — the same class of
+thing as *"extract this field into a local"* in an IDE: a refactoring, not a checkbox.
+
+⇒ ⭐ **`Role` and `Scope` are READ-ONLY columns for blueprints**, and the change is an **explicit
+command that checks references first** — which is exactly what `CountNodesReferencingVariable` is for,
+once `BP-230` makes it real.
+
+### ⭐ And the contract agrees — the mismatch was a signal, not an obstacle
+
+```csharp
+// VariablesPanelControl.cs — S3-1: default no-op so existing mock implementations continue to compile
+void UpdateVariableRole (string name, BlackboardVariableRole role) { }
+void UpdateVariableScope(string name, WorkingStateScope       scope) { }
+```
+
+⭐ **These are DEFAULT interface implementations — not implementing them is the contract's intended
+shape.** ⇒ ⛔ **The defect was never the enum.** It was a **UI offering an editor over a no-op**, and a
+counter returning `0` while looking authoritative. **That is `BP-230`, and it is the whole of it.**
+
+⇒ ✅ **`R3` dissolves: `WorkingStateScope` never needs a blueprint variant, because blueprints never
+call the setter.** 📐 **What IS missing is one capability flag on the source** — *does this source
+support role/scope authoring* — so the table renders those columns read-only instead of pretending.
+**Small, and honest about what it can do.**
+
+⇒ ✅ **Stage `B` is UNBLOCKED**, with its claim corrected: it ships a **read-only** unified view plus a
+**working** reference count. ⛔ **Not an inert one.**
 
 ---
 

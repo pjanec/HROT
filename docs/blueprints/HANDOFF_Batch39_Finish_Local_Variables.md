@@ -1,47 +1,55 @@
-# HANDOFF — Batch 39: finish `BP-57` — suspension-surviving storage, and the authoring half
+# HANDOFF — Batch 39: finish `BP-57` — ⭐ **merge the recovered work, then build the authoring half**
 
-> ⛔⛔ **POSTPONED `2026-08-13`. Was Batch 38; renumbered 39 and NOT the next batch.**
-> ⭐ **Batch 38 is now a DESIGN REVIEW** — see
-> [`HANDOFF_Batch38_Unified_Variable_Design_Review.md`](HANDOFF_Batch38_Unified_Variable_Design_Review.md).
-> ⚠ **Do not start this handoff until that review has returned and been acted on.**
+> 📌 **RE-SCOPED `2026-08-13` after the Batch 38 design review. Dispatched at `PENDING`.**
+> Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
+> ⭐ **Rule 7:** branch from this branch, re-sync at the **start** of your run.
+> ⭐ **Rule 4:** pull it again before your final commit.
+> ⭐ **Rule 3: the coordinator allocates no ids.** `BP1670` is **already allocated** by the recovered
+> work; `BP1671+` is next. **You allocate everything else** (rule 5).
 >
-> **Why:** the variable *model* is being unified
-> ([Variable_Model_Unification.md](Variable_Model_Unification.md) ·
-> [Variable_Editing_UI.md](Variable_Editing_UI.md)), and **§3's authoring half sits directly on top of
-> the surfaces that change.** Building it first would mean building it twice. ⭐ **§1 and §2 —
-> suspension-surviving storage and the dangling-reference rail — are independent of the unification
-> and may be pulled forward if the review says so.**
+> ## ⭐⭐ §1 and §2 ARE ALREADY BUILT — they are on a branch, not in this handoff
 >
-> 📌 **Originally dispatched at `eb89ebaf`**, §1.3/§3.1 rewritten at `d5899d9e`, §3.2a added at
-> `784901e2`. ⚠ **Never picked up** — verified absent from every tree the implementation session has
-> built from. It is a **draft**, not a frozen handoff, until re-dispatched.
->
-> ⭐ **Rule 7 is yours:** branch from this branch, and re-sync from it at the **start** of your run.
-> ⭐ **Rule 4 is yours:** pull it again before your final commit.
-> ⭐ **Rule 3: the coordinator allocates no ids.** `BP-57` is *referenced*; `BP1670+` is the next free
-> diagnostic. **You allocate everything new** (rule 5).
->
-> 📄 **[Q27](Architect_Question_27_Local_Variables.md)** — ⚠⚠ **read its `2026-08-13` sections FIRST**:
-> a correction banner recording two coordinator errors, **and A's revision from A1 to A3**, which is
-> what §1.3 builds. ⛔ **B, C, D, E are unchanged and NOT reopened.**
+> **`claude/batch39-locals-preserved`** (`7e0b11b0`) — the Q27-A3 suspension storage **and** the
+> dangling-reference rail, recovered after a force-push lost them.
+> ✅ **Coordinator-gated on that branch: build 0 errors · Blueprints 3269 total, 3259 passed, 0 failed,
+> 10 skipped** — `+16` over the 3243 baseline, exactly as reported.
+> ⇒ ⛔ **DO NOT REBUILD THEM.** §1/§2 below are kept **only as the specification they were built to**;
+> your job is to **merge, re-verify and close them out** (§0b).
 
 ---
 
-## 0. Scope — and an apology that is load-bearing
+## 0. Scope — re-scoped by the review
 
 | | |
 |---|---|
-| **§1** 🔴🔴 | ⭐ **suspension-surviving storage** — a local silently reverts to its default across a suspension **today, on the merged tree**. ⚠ **Q27-A was revised to A3 on `2026-08-13`: implement, do not refuse** |
-| **§2** 🔴 | a **dangling** local/variable reference emits `s.__var_-1` — **invalid C#**, no diagnostic |
-| **§3** ⭐ | the **authoring half** — declare, target, rename, delete. Without it a local is JSON-only |
-| **§4** 📌 | one misplaced doc comment |
+| **§0b** ⭐⭐ | **merge and close out the recovered §1/§2** — already built and gate-green |
+| **§3** ⭐ | the **authoring half** — ⚠ **substantially changed by the review; read §3.0 first** |
+| **§4** 📌 | the misplaced doc comment |
 
-⛔ **`BP-226`/`BP-227` are NOT in this batch** — they are about the *asset* index space, which locals
-never enter. **Batch 39.** Folding them in would muddy revert-goes-red on both, exactly as Batch 37
-correctly refused to.
+⛔ **The unification (`Role` × `Scope`) is NOT this batch.** Its blockers are resolved
+([`Q-j`](Variable_Editing_UI.md), [`Q-k`](Variable_Editing_UI.md), [`Q-i`](Variable_Model_Unification.md))
+but it is a programme of its own. ⭐ **This batch closes `BP-57` and nothing else.**
 
-⚠ **§1 and §2 are correctness; §3 is volume.** ⭐ **If the batch has to stop early, stop after §2** —
-a silent wrong value outranks an authoring gesture. **Say where you stopped.**
+⚠ **If the batch must stop early, stop after §0b** — that closes the correctness half.
+
+---
+
+## 0b. ⭐⭐ Merge and close out the recovered work
+
+```bash
+git fetch origin claude/batch39-locals-preserved
+```
+
+| | |
+|---|---|
+| **1** | Merge it into your branch. ⚠ **It was cut from `de742e6e`** — expect to reconcile with everything since |
+| **2** | ⭐ **Re-run all eight gates yourself.** Coordinator saw 3259/0/10 on that branch **in isolation**; after the merge is a different tree |
+| **3** | ⭐ **Revert-goes-red on both items** — they were verified before the reset, but not on this tree |
+| **4** | 📌 **It allocated `BP1670` and filed NO tracker rows.** ⇒ **write the rows now** — `BP-57`'s two halves and `BP1670` are undocumented in the tracker |
+| **5** | ⚠ **`BP-233`** (the fourth latency-predicate copy) came out of that work. **Confirm whether the merged code fixes it**; close it or leave it open, and say which |
+
+⭐ **Then delete the `claude/batch39-locals-preserved` branch** — it exists only because the commits
+were unreachable. **Say that you did.**
 
 ---
 
@@ -72,6 +80,10 @@ while [ "$(ps aux | grep -c '[d]otnet build\|[d]otnet test')" != "0" ]; do sleep
 ---
 
 ## 1. 🔴🔴 A local does not survive a suspension — ⭐ **make it survive**
+
+> ✅ **BUILT — see §0b.** This section is kept as **the specification it was built to**, for review
+> against the merged diff. ⛔ **Do not rebuild it.**
+
 
 ### 1.1 The evidence — coordinator-probed on the merged tree, not reasoned
 
@@ -197,6 +209,9 @@ built a ruling on it. **Report what you find; file it if it is a hole. Do not fi
 
 ## 2. 🔴 A dangling reference emits invalid C#
 
+> ✅ **BUILT — see §0b**, as `BP1670`. Kept as specification. ⛔ **Do not rebuild it.**
+
+
 Coordinator-probed — a `SetVariable` whose `VariableId` matches nothing:
 
 ```
@@ -223,7 +238,24 @@ the rail must exclude them and the row must say why. 📌 `Count5.bp.json` also 
 
 ---
 
-## 3. ⭐ The authoring half — three gaps, not one
+## 3. ⭐ The authoring half — ⚠ **changed by the review. Read §3.0 first**
+
+### 3.0 ⛔⛔ What the Batch 38 review changed here
+
+| | |
+|---|---|
+| 🔴 **`BP-230` — `CountNodesReferencingVariable` returns a hardcoded `0`** | ⛔ **§3.3 told you to reuse it for delete-while-referenced. It would report "0 references" for EVERY variable and delete anyway.** ⇒ ⭐ **implement it before §3.3 leans on it** — it is the one member that makes a safe delete possible |
+| 🔴 **`Role`/`Scope` are no-op stubs too** | ⭐ **[`Q-k`](Variable_Editing_UI.md) ruled they stay READ-ONLY for blueprints** — the change is a *move*, not a toggle. **Do not implement the setters; make the table honest about not supporting them** |
+| ⭐ **Build the locals source as an `IVariablesSchemaSource`** | so the later unification absorbs it instead of undoing it. **Same UI as ruled** — canvas-following section, always present, `[+]` where applicable |
+| ⛔ **Do NOT widen the type picker to structs** | [`Q-j`](Variable_Editing_UI.md): the compiler validates **nothing** — `a.b` compiles clean (`BP-228`). **That is the unification's stage `B′`, not this batch** |
+| ⛔ **Do NOT touch `WorkingState`/`Parameters` in the picker** | `BP-226` is still open |
+
+⚠ **`BP-231`** — `RemoveVariable`/`RenameVariable` do not maintain the order lists. **Benign today; if
+your delete path touches them, fix it and say so.**
+
+---
+
+### 3.1 The three gaps
 
 ⭐ **Coordinator-verified: `grep LocalVariables` outside `Compiler/` and `Tests/` returns ZERO hits.**
 Nothing in the editor touches the field.
@@ -346,7 +378,10 @@ The eight, `--logger "console;verbosity=normal"`. Solution is **`IOS-IG-SimHost.
 ⚠⚠ **The two NodeEdit gates take NO `--no-build`** (`RESUME_START_HERE.md` §3).
 ⭐ **Run `python3 scripts/tracker-counts.py --check`** — clean on arrival six batches running.
 
-**Baseline — coordinator-RUN on this tree, all eight:**
+⚠⚠ **The baseline below is the tree BEFORE the recovered work is merged.** ⭐ **After §0b it should be
+3259 passed / 0 / 10** — the `+16` those two commits bring. **Report both numbers.**
+
+**Baseline — coordinator-RUN, all eight, pre-merge:**
 
 | | |
 |---|---|
