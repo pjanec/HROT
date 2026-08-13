@@ -177,9 +177,10 @@ review rule (UC-44c).
 
 ## 6c. Next steps, in order
 
-1. ⏭ **Designing continues** — user, 2026-08-10: *"keep designing now rather than rewriting tasks later because we find new unexpected stuff"*. ✅ **09 · 10+19 · 11 · 23 · 24 · 28 · 29** all designed this session. **Next candidate: UXI-12** (spawn UI ×4).
+1. ⏭ **Designing continues** — user, 2026-08-10: *"keep designing now rather than rewriting tasks later because we find new unexpected stuff"*. ✅ **09 · 10+19 · 11 · 23 · 24 · 28 · 29** all designed this session. 🎯 **Next: [UXI-32](UX_Issues.md#uxi-32)** — every decision is ruled and it is the only issue whose design is *specified but unwritten*; then **UXI-12** (spawn UI ×4).
 2. Cut `UXT` tasks — **none cut yet**, deliberately deferred by the user.
-3. Remaining undesigned: **UXI-12..18, 20, 21, 27, 31** · **UXI-25** 🔒 blocked on UXI-04 · **UXI-32** 🔒 blocked on the architect ([Q29](Architect_Question_29_Entity_Commanding.md)) · **UXI-30** specified in [UXI-29 §3.3b-c](UX_Feature_Authority_Aware_Writes.md), needs no separate design doc.
+3. Remaining undesigned: **UXI-12..18, 20, 21, 27, 31, 33** · **UXI-25** 🔒 blocked on UXI-04 · **UXI-30** specified in [UXI-29 §3.3b-c](UX_Feature_Authority_Aware_Writes.md), needs no separate design doc.
+   ⚠ **[UXI-32](UX_Issues.md#uxi-32) is a special case: fully specified, no design doc yet.** [Q29](Architect_Question_29_Entity_Commanding.md) answers every decision (rulings 38-46) but is an *architect question*, not a feature design — the `UX_Feature_Entity_Commanding.md` that turns it into acceptance cases has **not been written**. That is the one piece of design work this session left unfinished.
 4. ✅ **RESOLVED — host pump + playback sits immediately before `_kernel.Update()`** (`EditorSubsystem.cs:1618`); the kernel flush precedes `Bus.SwapBuffers()` (`ModuleHostKernel.cs:523-534`), so ops land visible **in the same frame**. Precedent: `_aiCoordinator.DrainPendingCallbacks()` (`:1620-1624`). ⚠ *Unpinned:* where ImGui panel drawing sits relative to `EditorSubsystem.Update()` — affects only which frame a synchronous handler commits in. [API §6d](UX_Interaction_API.md#6d--where-the-hosts-playback-sits--resolved-2026-08-10)
 
 ## 6d. 🔴 Dependency order — designs now constrain each other
@@ -190,7 +191,7 @@ review rule (UC-44c).
 | **UXI-10 → UXI-11 → UXI-29 → UXI-23** | CGF needs the pick box, then the selection chain, then **legal edits**, then parity. Binding *Rotate* in CGF before UXI-29 gives it an action that writes a component it does not own |
 | **UXI-29 → CGF *Rotate*** | [UXI-11 case 10.23](UX_Feature_Selection.md) explicitly does **not** claim to fix it |
 | **UXI-04 → UXI-25** | the shared ORBAT panel is impoverished until UXI-04 lands |
-| 🔒 **Q29 → any order binding** | [ruling 37](#). `Properties` and `Teleport` are **not** orders and may be bound now; the other seven wait. ⚠ Binding an order before Q29 means guessing whether it is a mission mutation or a direct intent — and `CMD_APPEND_TASK`, the obvious verb, **does not exist** |
+| ✅ **Q29 → any order binding — UNBLOCKED** | rulings 38-46 answer it. `Properties` and `Teleport` are **not** orders and may be bound immediately; the other seven are **immediate tactical intents** (never mission edits), each needing an intent DTO + mapper + behavior (placeholder bodies allowed, [ruling 39](#)) |
 | **UXI-24 ← ruling 29** | the multi-delete confirmation must sit on the **raw `Delete` key** path, which bypasses the action vocabulary entirely ([UXI-23 §3.4](UX_Feature_Map_Parity.md)) |
 | **UXI-11 → UXI-03 → UXI-24** | one store, then the descriptor that carries `Execution`, then the fan-out. ⚠ **UXI-24 amends UXI-11**: `ISelectionState` must gain `Add`/`Remove`/`SetMultiple`/`Clear` — its only mutator today (`PrimarySelected`) **collapses the selection to one**, so UXI-11's *"handlers need no change"* cannot deliver multi-select |
 
