@@ -338,6 +338,66 @@ tracker records the method, including that the *refuted* row sits **outside** th
 
 ---
 
+## 7m · Batch 40 — ✅ VERIFIED AND MERGED at `58123d2e` — ⭐⭐ **the plan review killed one gate and added two tasks**
+
+**Docs only** (`REVIEW_Unification_Plan.md` + the tracker) ⇒ gates cannot have moved. Confirmed: build
+**0 errors** · Blueprints **3259** / 0 / 10 · counts clean on arrival (**ninth** batch running).
+**Verdict: run it, with five named changes. No re-cut — the task boundaries are right.**
+
+### 🔴 V1 — my `U-10` gate was UNWRITABLE, and I verified it myself
+
+*"v1 → v2 → v1 is the identity, byte-for-byte"* ⛔ **cannot pass.** ✅ **Coordinator-confirmed
+independently: 41 of 42 shipped assets are hand-authored 2-space-indented, and
+`BlueprintJsonServices` sets `WriteIndented = false`.** ⇒ **the gate would fail on indentation before
+the migration logic ran once.**
+
+⭐ **Their fix is better than a weaker gate:** a **canonicalisation pre-step** (new **`U-15`**) that
+re-serializes the corpus once as a semantic no-op **the golden harness proves** — after which
+byte-identity is meaningful *and* is the strongest possible gate. 📌 **It also settles `BP-227`
+deliberately** rather than as a migration side effect.
+
+### 🟠 V3 — a task I had missed entirely
+
+⛔ **Nothing retired the standalone `BlueprintVariablesWindow`.** After `U-6` puts the same table in
+Details, **both live** ⇒ my *"stop after 45 and everything is coherent"* claim was **false**: it would
+ship **two ways to edit a variable — the exact sprawl the programme exists to remove.** New **`U-16`**.
+
+### ⭐ What the review cleared, and it cleared the two things I feared most
+
+| | |
+|---|---|
+| ⭐ **The harness is cheap** | **634 ms for all 42**, ~5 ms warm, against a Blueprints gate already ~95 s ⇒ **a gate, not a nightly** |
+| ⭐ **Stage `C`'s seam exists** | shipped tests already drive Stage 3→7 directly, bypassing Stage 2. **No `InternalsVisibleTo` change** |
+| ⭐⭐ **The entrenchment worry is DEAD** | I feared the golden set would entrench `BP-226`'s bug. ⛔ **It cannot: `BP1024`/`BP1031` mean no shipped asset has both lists populated, so the wrong resolution never fires inside the corpus.** `U-3` declares **no** golden change |
+| ✅ **`U-11` is one batch, two sub-steps** | the buckets separate because the views survive to `U-12` |
+
+### ⚠ Two corrections to my numbers, both mine to own
+
+| | |
+|---|---|
+| **"42 shipped assets"** | ✅ **right number, wrong definition.** The corpus is **the generator's `AdditionalFiles`** — `Assets/Blueprints` only. ⛔ **Globbing `Recipes/` too THROWS**: assets exist in both roots sharing an `AssetId` |
+| **`BP-227`: "four" numeric-`Dispatch`** | **7 files** — 4 golden + 3 recipes |
+
+### 🔴 V2 — and this one changes a batch's shape
+
+`UpdateVariableRole`/`UpdateVariableScope` are **default-bodied members of the SHARED interface** — the
+silent no-op is the *interface's* contract, not the blueprint override's. ⇒ ⭐ **`U-5`'s capability flag
+is an `Hrot.Editor.AiShared` addition: the AiShared gate moves and BTree/HSM implementers are touched.**
+My *"one file, one lane"* description of that batch was wrong.
+
+### ⭐ The plan is updated; and Batch 41 is NOT a `U-` task
+
+⛔ **`BP-57`'s authoring half is still unbuilt** (Batch 39 stopped after §0b) and was **not** in the
+plan. ⇒ **it takes batch 41**, before the `U-` sequence, because it is `BP-57`'s last mile **and it sits
+on the very surfaces `U-4`…`U-6` then change.** Everything else shifts by one: **42–46** independent,
+**47–50** the model half.
+
+📌 **Still not established, third batch running:** whether anything **outside this repository** reads
+`.bp.json`. ⛔ **And the visual check has now not run for SIX batches** — `U-6`/`U-13`/`U-16` are
+exactly what it would catch, and it needs the user.
+
+---
+
 ## 7l · Batch 39 — ✅ VERIFIED AND MERGED at `8a687c0e` — ⭐ **the compiler half is COMPLETE.** §3 is NOT built
 
 **All eight gates, coordinator-run on the merged tree:** build **0 errors** · Blueprints **3269 total /
