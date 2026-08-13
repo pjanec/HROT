@@ -3,9 +3,11 @@
 > **Point a fresh session at this file. It is self-contained.** Last updated **2026-08-13**.
 > ⭐⭐ **Batch 43 verified and merged at `3583acd4` (§7p) — `BP-57` is CLOSED.** The Local Variables
 > section landed; a designer can declare, rename, delete, duplicate and undo a graph local from the
-> editor, and it follows the canvas. **No batch is in flight** — ⏭ **next is Batch 44, which opens the
-> `U-` sequence** (`U-1` golden-corpus harness + `U-2` `BP-229`) — see
-> [PLAN_Variable_Unification_Tasks.md](PLAN_Variable_Unification_Tasks.md).
+> editor, and it follows the canvas.
+> ⏭ **Batch 44 is DISPATCHED — the `U-` sequence opens** ([`U-1` + `U-2`](HANDOFF_Batch44_Golden_Harness_And_Compiler_Ownership.md)).
+> ⚠ **[PLAN_Variable_Unification_Tasks.md](PLAN_Variable_Unification_Tasks.md)'s batch table was
+> RENUMBERED (+2)** — `BP-57`'s authoring half took three batches, not two. ⭐ **Only 47 hard-requires
+> the visual check; 44 · 45 · 46 · 48 all run headless, and 48 may be pulled ahead of 47.**
 > ⚠⚠ **The VISUAL CHECK has not run for NINE batches**, and Batch 43's whole deliverable is a panel
 > surface no headless test can see drawn. ⭐ **Ask the user for it before the `U-` sequence buries it.**
 > ⭐ **Macros are DONE end to end and proven by execution** — authored, called, expanded, compiled
@@ -359,6 +361,16 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > the section wiring"* both times. ⇒ ⭐ **one item, on Opus, delegated to nobody, nothing else in the
 > batch.** ⭐⭐ **It is the last thing between `BP-57` and closed** — source, count, refusal and undo
 > are all built; there is simply nowhere to declare a local.
+
+> ⏭ **Batch 44 dispatched — [`U-1` the golden harness, then `U-2` the first thing it protects](HANDOFF_Batch44_Golden_Harness_And_Compiler_Ownership.md).**
+> ⭐⭐ **The `U-` sequence opens.** `U-1` ships **no product change**: it records `StructureHash`, every
+> emitted struct field and the diagnostic multiset across the 42-asset corpus, plus the generated source
+> **as files**, because *"a hash names the asset; a stored file names the LINE."* ⭐ **Every later `U-`
+> task's success condition is "the output did not change" and is unfalsifiable without it.**
+> ⭐ **`U-2` is the smallest real change in the programme** and its second gate is *"golden unchanged"* ⇒
+> **it is how we learn whether the net holds a fish.** ✅ **Both compiler-only — chosen because the
+> visual check is unavailable.** ⭐ **Reuses `TestData.ReadOrRegenerateSnapshot`; the three existing
+> `*EmitGoldenTests` are the precedent, so `U-1` is the sweep they imply, not a new concept.**
 
 ## 7p · Batch 43 — ✅ VERIFIED AND MERGED at `3583acd4` — ⭐⭐ **THE SECTION LANDED. `BP-57` is CLOSED**
 

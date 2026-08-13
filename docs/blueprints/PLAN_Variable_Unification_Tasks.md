@@ -215,23 +215,35 @@ headless-testable it is called out as such rather than papered over.
 
 ⭐ **Grouped so each batch is one lane and one revert story.**
 
+⚠⚠ **RENUMBERED `2026-08-13` (+2).** `BP-57`'s authoring half took **three** batches, not two — the
+Local Variables section was skipped in 41 and 42 and landed in 43. ⭐ **Every `U-` batch below shifted
+by two. The task groupings and their reasons are unchanged;** only the numbers moved.
+
 | batch | tasks | why together |
 |---|---|---|
 | ~~40~~ | ✅ **plan review — DONE** | [`REVIEW_Unification_Plan.md`](REVIEW_Unification_Plan.md) |
-| **41–42** | ⛔ **`BP-57`'s authoring half** — [41](HANDOFF_Batch41_Local_Variables_Authoring.md) *(§1+§3, merged)* · [42](HANDOFF_Batch42_Local_Variables_Wiring.md) *(the wiring)* | ⚠ **Batch 39 stopped after §0b** — the locals UI is still unbuilt and is **not** in this plan. ⭐ **It comes first: it is `BP-57`'s last mile and it sits on the surfaces `U-4`…`U-6` then change.** ⭐⭐ **Its §1 builds the locals model as an `IVariablesSchemaSource` so `U-4`…`U-6` ABSORB it** |
-| **42** | `U-1` · `U-2` | ⭐ **the net, then the first thing it protects.** Both compiler-only, both small |
-| **43** | `U-3` | ⭐ **closes `BP-226` alone** — the highest-value single task, kept unmixed |
-| **44** | `U-4` · `U-5` | ⚠ **V2: this is NOT one lane** — `U-5` reaches into `Hrot.Editor.AiShared` and **moves that gate**. Kept together anyway because `U-5` is what makes `U-6` honest |
-| **45** | `U-6` · `U-13` · ⭐ **`U-16`** | Details/panel work ⚠ **all three need the visual check** · ⭐ **`U-16` is what makes the exit point real** |
-| **46** | `U-7` · `U-8` | rail then picker — `U-8` is meaningless without `U-7` |
-| **47** | `U-9` | ⭐ **the model change, alone.** Golden must not move · ⚠ **its serializer must keep writing the OLD three-list shape** — the tag must not reach JSON until `U-10`, or `U-9` and `U-10` collapse into one |
-| **48** | ⭐ **`U-15`** · `U-10` | ⭐ **canonicalise, then migrate.** ⚠ **the only batch whose revert is code it ships** |
-| **49** | `U-11` · `U-14` | ⭐ **one batch, TWO sub-steps** (compiler buckets · editor remainder) — the review's ruling; `U-4`/`U-5` already rewrote most of the scary file |
-| **50** | `U-12` | the rails, once nothing reads the old views |
+| ~~41–43~~ | ✅ **`BP-57`'s authoring half — DONE, `BP-57` CLOSED** — [41](HANDOFF_Batch41_Local_Variables_Authoring.md) *(source + picker)* · [42](HANDOFF_Batch42_Local_Variables_Wiring.md) *(delete + undo)* · [43](HANDOFF_Batch43_Local_Variables_Section.md) *(the section)* | ⭐⭐ **Its schema source is an `IVariablesSchemaSource`, so `U-4`…`U-6` ABSORB it** ⚠ **and `U-6` inherits one known gap: `AddVariable` does not reject a duplicate name — the guard currently sits in the window** |
+| **44** ⏭ | `U-1` · `U-2` | ⭐ **the net, then the first thing it protects.** Both compiler-only, both small |
+| **45** | `U-3` | ⭐ **closes `BP-226` alone** — the highest-value single task, kept unmixed |
+| **46** | `U-4` · `U-5` | ⚠ **V2: this is NOT one lane** — `U-5` reaches into `Hrot.Editor.AiShared` and **moves that gate**. Kept together anyway because `U-5` is what makes `U-6` honest |
+| **47** 👁 | `U-6` · `U-13` · ⭐ **`U-16`** | Details/panel work ⚠ **all three need the visual check** · ⭐ **`U-16` is what makes the exit point real** |
+| **48** | `U-7` · `U-8` | rail then picker — `U-8` is meaningless without `U-7` |
+| **49** | `U-9` | ⭐ **the model change, alone.** Golden must not move · ⚠ **its serializer must keep writing the OLD three-list shape** — the tag must not reach JSON until `U-10`, or `U-9` and `U-10` collapse into one |
+| **50** | ⭐ **`U-15`** · `U-10` | ⭐ **canonicalise, then migrate.** ⚠ **the only batch whose revert is code it ships** |
+| **51** | `U-11` · `U-14` | ⭐ **one batch, TWO sub-steps** (compiler buckets · editor remainder) — the review's ruling; `U-4`/`U-5` already rewrote most of the scary file |
+| **52** | `U-12` | the rails, once nothing reads the old views |
 
-⚠ **42–46 are independent of 47–50.** ⭐ **Stop after 46 and everything shipped is coherent** — three
+⚠ **44–48 are independent of 49–52.** ⭐ **Stop after 48 and everything shipped is coherent** — three
 defects closed, **ONE editing surface** (`U-16`), and the model untouched. ⭐ **That exit point is only
-honest WITH `U-16`**; without it, 46 leaves a designer meeting two editors for one concept.
+honest WITH `U-16`**; without it, 48 leaves a designer meeting two editors for one concept.
+
+### 👁 Ordering when the visual check is unavailable
+
+⭐ **Only ONE batch hard-requires it: 47.** ⇒ **44 · 45 · 46 · 48 can all run headless**, and **48 may
+be pulled ahead of 47** — `U-7` is compiler-only and `U-8`'s gate is *"every offered type compiles"*,
+which is a headless assertion about the picker's **contents**, not its appearance.
+⛔ **47 must not be run blind:** its three tasks are a Details table, a read-only view and the deletion
+of a whole window — *"the panel draws it"* is the entire deliverable, exactly as in Batch 43.
 
 ---
 
@@ -242,4 +254,4 @@ honest WITH `U-16`**; without it, 46 leaves a designer meeting two editors for o
 | ✅ ~~Is `U-11` one batch or three?~~ | **RULED: one batch, two sub-steps** — the buckets separate because the old views survive until `U-12`, and `U-4`/`U-5` shrink the editor share first |
 | ⚠ **Does the editor get a type oracle at all?** | `Q-j`'s lean was *not at first*. ⭐ **The review pushes back:** `IClrSignatureResolver` is already semantic-model-backed in the generator **and reflection-backed in-process** — mirror it, and *"no oracle"* becomes a unit-test corner instead of the editor's reality. 📐 **Still open** |
 | **Does `U-13` earn a batch?** | it is small and independent; it is in 44 for lane affinity, not need |
-| ⛔ **The visual check** | ⚠ **has not run for FIVE batches**, and `U-6`/`U-13` are exactly what it would catch. **Not a task here because the coordinator cannot specify it headlessly — it needs the user** |
+| ⛔ **The visual check** | ⚠ **has not run for NINE batches** *(as of `2026-08-13`)*, and `U-6`/`U-13`/`U-16` — **plus Batch 43's Local Variables section, which is entirely a panel surface** — are exactly what it would catch. **Not a task here because the coordinator cannot specify it headlessly — it needs the user.** ⭐ **See the 👁 note under §3: only batch 47 hard-requires it** |
