@@ -345,7 +345,18 @@ printing "69".
 
 Its **§1 (Q27-A3 suspension-surviving storage)** and **§2 (the dangling-reference rail)** were built,
 tested and gate-green before this batch replaced them, then reset off the branch when the review took
-Batch 38's slot. ⭐ **They are recoverable rather than lost** — `git cherry-pick 2c1638b bec149d`
-(tag `batch38-locals-work-preserved`). Both are compiler-only and touch **none** of the surfaces this
-review says are in flux, so `RESUME_START_HERE`'s *"may be pulled forward"* holds: ⭐ **pull them
-forward.** `BP-233` came out of that work.
+Batch 38's slot.
+
+> ⛔⛔ **COORDINATOR CORRECTION `2026-08-13` — `2c1638b` and `bec149d` ARE NOT RECOVERABLE FROM THE
+> REMOTE, and the cherry-pick recipe below does not work.** Verified after the force-push:
+> `git cat-file -t` fails for both · `git rev-parse` fails for both · `git fetch origin <sha>` fails
+> for both · `git ls-remote origin` shows **one** implementation ref (the force-pushed one) and
+> **zero tags** · `git fsck` finds one dangling commit, `02fb66db`, which is neither of them.
+> ⇒ ⭐ **The only place they can still exist is the implementation session's own local clone
+> (reflog / object store). They must be pushed to a ref from there before that container is
+> reclaimed.** ⚠ **Until that happens, treat this work as LOST and Batch 39 §1/§2 as unbuilt.**
+
+⭐ **The assessment itself stands:** both are compiler-only and touch **none** of the surfaces this
+review says are in flux, so `RESUME_START_HERE`'s *"may be pulled forward"* holds — ⭐ **pull them
+forward, rebuilt if necessary.** `BP-233` came out of that work and **is recorded**, so the finding
+survived even though the commits did not.

@@ -21,12 +21,21 @@
 > Filed as **`BP-226`**; **`BP-227`** records the four numeric-`Dispatch` assets.
 > ⭐ **`BP-226` is now expected to DISSOLVE into the unification** rather than be patched — stage C.
 >
-> ⏭⏭ **Batch 38 is a DESIGN REVIEW — no feature code.**
-> 📄 [HANDOFF_Batch38_Unified_Variable_Design_Review.md](HANDOFF_Batch38_Unified_Variable_Design_Review.md)
-> ⭐ **The variable model is being unified** ([model](Variable_Model_Unification.md) ·
-> [UI](Variable_Editing_UI.md)): four bespoke lists → **`Role` × `Scope`**, in four stages A→D.
-> ⚠ **The implementation session must assess feasibility, find gaps and test the staging BEFORE any of
-> it is broken into tasks.** ⛔ **Everything in those documents is a hypothesis until they confirm it.**
+> ✅ **Batch 38 VERIFIED AND MERGED at `27ebe8dc`** (§7j) — ⭐⭐ **the design review, and it changed
+> the design.** 📄 **[REVIEW_Unified_Variable_Design.md](REVIEW_Unified_Variable_Design.md)** —
+> verdict **build it, with four named changes and a re-ordered plan**.
+> ⭐⭐ **`C` moves to FIRST** (4 call sites, needs nothing from D, closes `BP-226`).
+> 🔴 **`BP-228`** any dotted string compiles ⇒ **stage B′ blocked** · 🔴 **`BP-230`** the shared table's
+> role/scope/reference-count members are **stubs** ⇒ stage B would ship an inert editor ·
+> 🔴 **`BP-229`** `Compile` writes through into the caller's `Graph` · **`D` is a programme, not a stage**.
+> ⚠ **Read the review before touching [model](Variable_Model_Unification.md) /
+> [UI](Variable_Editing_UI.md)** — several of their claims are now known wrong.
+>
+> 🔴🔴 **WORK WAS LOST.** Batch 39's §1/§2 were built and gate-green, then force-pushed away.
+> ⛔ **`2c1638b`/`bec149d` are NOT recoverable from the remote** (verified: cat-file, rev-parse,
+> fetch-by-sha, ls-remote, fsck — all negative). ⭐ **Only the implementation session's local clone can
+> still have them; it must push them to a ref before that container is reclaimed.**
+> ⚠ **Until then Batch 39 §1/§2 are UNBUILT.**
 >
 > ⛔ **`BP-57`'s remaining work was Batch 38 and is now
 > [Batch 39](HANDOFF_Batch39_Finish_Local_Variables.md) — POSTPONED**, because its authoring half sits
@@ -310,6 +319,53 @@ The tracker's **`RW-L` done column was 43 and the Total 88; both were one short*
 **predates Batch 29** (present at `1af9bea`, and back at the 41/85 figures). Batch 29's own delta was
 exactly right. Corrected to **44 / 89** after merge. It reconciles three ways now; the note in the
 tracker records the method, including that the *refuted* row sits **outside** the Total.
+
+---
+
+## 7j · Batch 38 — ✅ VERIFIED AND MERGED at `27ebe8dc` — ⭐⭐ **a design review that changed the design**
+
+**Docs only** — `git diff --name-only` returns the review, its diagram and the tracker. ⇒ the eight
+gates **cannot** have moved. Confirmed: build **0 errors** · Blueprints **3243** / 0 / 10 skipped ·
+counts clean on arrival (**seventh** batch running) · **6 rows filed** (`BP-228`…`BP-233`), 57 → 63 open.
+
+📄 **[REVIEW_Unified_Variable_Design.md](REVIEW_Unified_Variable_Design.md)** · verdict:
+⭐ **build it — with four named changes and a re-ordered plan.**
+
+### ⭐⭐ The two findings that change the plan
+
+| | |
+|---|---|
+| 🔴🔴 **`BP-228` — my `C1` was a half-truth, and the false half is a blocker** | I probed a struct FQN, saw it compile, and concluded *"resolved by fully-qualified name."* ⛔ **The real rule is purely syntactic: contains a dot ⇒ trusted verbatim.** ✅ **Coordinator re-verified, and worse than their example:** `Totally.Made.Up.Type` **and `a.b`** both compile with **zero diagnostics**, emitting `public global::a.b Threat;`. ⇒ **`BP-87`'s *"every offered type is guaranteed resolvable"* has nothing to check against**, and the end-to-end-compilation lock I specified **would pass on a fabricated type**. Only Roslyn catches it, as `CS0246` naming no variable — ⭐ **the `__var_-1` shape again**. **Stage B′ is blocked until something validates a type id** |
+| 🔴 **`BP-230` — stage B would ship an inert editor** | `BlueprintVariableSchemaSource` implements `UpdateVariableRole`/`UpdateVariableScope` as **empty bodies** and `CountNodesReferencingVariable(name) => 0`, commented *"Blueprint variables do not use role/scope; no-op implementations."* ⭐ **Trap #5 in the surface both design docs told Batch 39 to reuse for delete-while-referenced** — it would report *"0 references"* for every variable and delete anyway. ⚠ **My `C5` said the columns render; I never checked whether anything was behind them** |
+
+### ⭐ Where they beat the handoff
+
+| | |
+|---|---|
+| ⭐⭐ **`C` moves to FIRST** | I put the compiler fix third. They measured its blast radius — **`FindVariableIndex` 2 real callers, `VarFieldName` 2** — and observed the kind needs no tag because **the search already knows which list matched**. ⇒ C is the *smallest* stage, needs nothing from D, and closes `BP-226` — the live ambiguity that makes D dangerous. **Leaving it last carries that ambiguity under every other stage** |
+| ⭐ **`BP-229` — my `C7` was understated** | I said the compiler *aliases* the caller's lists. They proved it **writes through**: after `Compile`, the caller's own `Graph` no longer contains its `MacroCallNode`. ⭐ **And they closed the gap I could not** — no production path hands `Compile` a live document, because `QuickReloadService.TriggerAsync` **has no production caller at all**. A loaded gun, not a live defect |
+| ⭐ **`BP-233` — a FOURTH latency predicate** | `BP1650` omits `ChannelCommandNode`-with-`ActionFqn` too ⇒ a called Function graph with an inline action reaches Emit with an unlowered `IrTerm_Suspend` and **`TerminatorEmitter` throws** — a compiler crash where a diagnostic was intended |
+| ⭐ **`R5` — shared state fits no cell** | `GetShared`/`SetShared` is entity-scoped, **name-keyed, resolved at runtime, declared nowhere** — **61 references across 8 shipped assets.** ⛔ **Neither design document mentions it once.** To a designer it is a variable |
+| ⭐ **Round-trip is NOT a barrier** | all seven tests assert `Serialize(Deserialize(j1)) == j1` — **serializer idempotence, not identity with any file on disk.** ⇒ **D2 can be scheduled on its merits rather than as a test-fixing exercise** |
+| ⭐ **`D` is not a stage** | it is D1–D4, and **only D1 reverts cheaply** — once D2 has written v2 files, *the down-migrator IS the revert* |
+
+### ⚠ What they could not establish, and said so
+
+Whether the shared table's `Role`/`Scope` columns are **drawn-but-dead or hidden** for a blueprint
+asset — *"it needs the UI on screen, and there is no ImGui in this container."*
+⛔ **The visual check has now not been done for FIVE batches.** 📌 That is a standing gap, not theirs.
+
+### 🔴🔴 The one thing that went wrong — **work was lost, and the recipe to recover it does not work**
+
+Batch 39's §1/§2 (suspension storage + the dangling rail) were **built and gate-green**, then reset off
+the branch by the force-push. §11 says *"recoverable — `git cherry-pick 2c1638b bec149d`."*
+⛔ **Coordinator-verified: they are not.** `cat-file` ✗ · `rev-parse` ✗ · `fetch origin <sha>` ✗ ·
+`ls-remote` shows **one** implementation ref and **zero tags** · `fsck`'s only dangling commit is
+`02fb66db`, neither of them.
+
+⇒ ⭐ **The only surviving copy is in the implementation session's own local clone.** It must push them
+to a ref **before that container is reclaimed**. ⚠ **Until then, Batch 39 §1/§2 are UNBUILT.**
+📌 `BP-233` came out of that work and is recorded, so the finding survived even though the code did not.
 
 ---
 
