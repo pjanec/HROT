@@ -1,6 +1,7 @@
 # Architect Question 29 — entity commanding: what a map "order" actually is
 
-> **For [UXI-32](UX_Issues.md#uxi-32) · opened 2026-08-13. Status: ◐ open — decisions pending.**
+> **For [UXI-32](UX_Issues.md#uxi-32) · opened 2026-08-13. Status: ✅ **ANSWERED by the user, 2026-08-13** —
+> rulings 38-45. §B, §C, §D, §E, §F, §H are settled; the remainder is scoped out to a later design.**
 > Raised by the user, 2026-08-13: *"the actions like MoveHere, Engage, Stop, Properties, Teleport, Repair,
 > Reinforce, Resupply, Transfer are unresolved and need a dedicated design pass. **The only supported way
 > of commanding entities now is via a mission having a list of conditional behaviors to perform.** This is
@@ -108,7 +109,21 @@ can converge on it. **The work is to feed it, not to invent a path.** ⇒ **seam
 | **A1** | 🎯 **Split into the three kinds and route each to its own existing mechanism** | `Properties`/`Teleport` bind **immediately** under [UXI-23](UX_Feature_Map_Parity.md)/[UXI-29](UX_Feature_Authority_Aware_Writes.md) — they were never blocked. Only the first two kinds wait for this design |
 | **A2** | Treat all nine uniformly as "orders" | forces `Properties` through the cognitive tier, which is absurd, and hides that two of the nine are already solvable |
 
-**Lean: A1.** ⭐ It shrinks the open question from nine ids to **seven**, and unblocks two today.
+**Lean: A1 — ✅ consistent with the rulings.** It shrinks the open question from nine ids to **seven**,
+and unblocks two today.
+
+> 🔒 **User, 2026-08-13:** *"There will need to be a behavior created for each of them (**full
+> implementation out of scope of this — maybe just empty placeholder behaviors for now**)."*
+
+⇒ 🔒 **[Ruling 39](UX_RESUME_INTERACTION.md): each order gets a real `BehaviorId` and a registered
+behavior, but the behavior body may be an empty placeholder.** ⭐ That is what makes this slice
+shippable — the *plumbing* is provable end to end (menu → intent → mapper → `BehaviorState`) without
+anyone having to specify what *Resupply* means tactically.
+
+⚠ **The engine constraint applies from day one, placeholder or not**: `BehaviorId`s are *"stable forever,
+never reused"*, civilian 1001-1999 / military 2001-2999, project convention 3000+, and the registry must
+be **fully written before the first frame** (guide `:469-471`, overview §8.3). ⇒ **allocate the ids
+deliberately now**; a placeholder body can be replaced later, an id cannot.
 
 ### ⚠ And five of the nine are never even **emitted**
 
@@ -122,9 +137,27 @@ and it dead-ends at `GlobalActionDispatchSystem`'s silent no-op like the rest.
 it**: five of those ids are not merely unhandled, they are **unreachable UI**. Deciding their fate costs
 nothing today because nothing shows them.
 
-## B. Does an operator right-click produce a **mission** or an **intent**?
+## B. Does an operator right-click produce a **mission** or an **intent**? — 🔒 **RULED: intent**
 
-Stage 6 accepts both; the question is which one a menu click should build.
+> **User, 2026-08-13:** *"Mission plan exists both for saving to scenario (and being applied on scenario
+> start) as well as for runtime modification (only whole-plan replace implemented now). **The right-click
+> commands make sense at exercise runtime as immediate orders replacing any previously active behavior**…
+> the right-click menu should issue the **tactical intent** (and replace any previous behavior)."*
+
+⇒ **B1.** ⚠ **My lean B2 was wrong** ([Correction 35](UX_Tasks_Detail.md#corrections)) — I reasoned from
+*"the only supported way of commanding is a mission"* to *"therefore a click edits the mission"*, but the
+mission is the **planned** form and a right-click is an **immediate** one. They are different lifecycles,
+not competing encodings.
+
+| | |
+|---|---|
+| ✅ **`AssignTacticalIntentEvent` is published directly** — no plan round-trip, no `BaseVersion` conflict, no 8-phase cap |
+| ✅ **§G's partial-failure problem disappears** — a fan-out is N intent publishes, not N versioned plan commits, so [UXI-24 §3.5](UX_Feature_Multi_Select.md)'s one-ECB atomicity **does** hold |
+| ✅ **`CMD_APPEND_TASK` being dead stops mattering** — nothing needs it |
+| 🔒 **The order replaces any previously active behavior** — which is already what `BehaviorIngressSystem` does on `AssignBehaviorEvent` (it resets `BrainBTreeState` and HSM instance state) |
+| ⚠ **The mission will overwrite the operator's order** at the next phase transition | inherent to B1, and correct: the plan resumes control. ⚠ **Worth surfacing in the UI** — an operator who orders *Stop* and sees the unit move again 20 s later will call it a bug |
+
+### The original options, kept for the record
 
 | | Option | Consequence |
 |--:|---|---|
@@ -137,21 +170,90 @@ Stage 6 accepts both; the question is which one a menu click should build.
 ⚠ **But B1 is what `Stop` most naturally is** (`CMD_ABORT_ALL` is a plan verb, so even `Stop` has a B2
 form) — 🔴 **this is the central question of the whole design and I do not want to guess it.**
 
-## C. Where does the **order vocabulary** live?
+## C. 🔒 **RULED: one action id + a JSON argument** — and the investigation says yes
 
-Today an intent id is a bare `string` matched against a per-node `TacticalIntentMapperRegistry`.
+> **User, 2026-08-13:** *"Can our menu actions now carry parameters? **One action id with json argument
+> could handle any behavior in a generic way.** Please investigate — I think this is the most elegant
+> solution (I do not want to alloc a global action id for each possible behavior)."*
 
-| | Option | Consequence |
-|--:|---|---|
-| **C1** | 🎯 **Reuse `GlobalActionIds` + a declared id → `IntentId` binding** | ✅ the menu already speaks `GlobalActionIds`; ✅ [UXI-03](UX_Feature_Entity_Action_Vocabulary.md)'s `EntityActionDescriptor` is exactly where such a binding belongs. ⚠ Needs one mapper per order |
-| **C2** | Make the menu emit intent **strings** directly and drop the int ids for orders | ✅ no binding layer. 🔴 loses `GlobalActionIds`' compile-time safety and splits the menu into two id spaces |
-| **C3** | Derive the vocabulary from the **registered mappers** — the menu shows what the node can actually do | ⭐ **self-consistent by construction; an order can never be inert** (the failure [UXI-23 §1](UX_Feature_Map_Parity.md) found). ⚠ Menu content becomes node-dependent, which may surprise |
+### ✅ The answer: not today — but the destination and the wire **already have the exact shape**
 
-**Lean: C1 for the binding, plus C3 as the *enablement* rule** — declare centrally, but grey out an order
-whose mapper is not registered on the owning node. That is exactly
-[UXI-24 §2](UX_Feature_Multi_Select.md)'s `isEnabled` axis, if that reconciliation is accepted.
+| Endpoint | Shape today | |
+|---|---|:--:|
+| 🎯 **`AssignTacticalIntentEvent`** — the destination | **`{ Entity, string IntentId, string JsonParams }`** | ⭐ **already *is* "one id + a JSON argument"** |
+| 🎯 **`GizmoInteractionBatch`** — the DDS record | `int ActionId` **and** `[DdsManaged] string? PayloadJson` | ⭐ **both fields already on the same record** |
 
-## D. Authored vs executable — which one is the truth?
+`PayloadJson` is commented *"JSON payload for `StructUpdate` events. **Null for other kinds.**"*
+(`GizmoInteractionBatch.cs:40-41`), and `WriteMenuAction` (`GizmoInteractionEgressTranslator.cs:93-105`)
+sets `ActionId` and leaves it unset — while `WriteStructUpdate`, ten lines below, fills it.
+
+⇒ ⭐ **Seam-law instance 22, and the cleanest of the whole programme: the proposal needs one existing
+field filled, not a protocol change.** No DDS schema edit, no id-space growth.
+
+### 🔴 The gaps are in the middle of the chain
+
+| # | Hop | Carries an argument? |
+|--:|---|:--:|
+| 1 | `ContextMenuItemDto` — the menu schema (`id · label · icon · enabled · style · shortcut · tooltip · separator · children · priority · checked`) | ❌ **no args field** |
+| 2 | `ImGuiMenuRenderer` — 🔴 **holds the whole DTO and calls `onAction?.Invoke(item.Id)`** (`:83,:89`) | ❌ **discards it at the click** |
+| 3 | `GizmoMenuActionEvent { AnchorId, ActionId, GizmoTypeId }` | ❌ |
+| 4 | **`GizmoInteractionBatch`** | ✅ **`PayloadJson` exists, unset for `MenuAction`** |
+| 5 | `ContextActionTriggered { EntityNetworkId, string ActionName }` — managed class | ⚠ a string, but it holds *the id as text* |
+| 6 | `ContextActionInvokedDto { MapId, ActionId, EntityId }` — the ExCon DTO | ❌ |
+| 7 | `GlobalActionRequestedEvent { int ActionId; Entity Target }` — **blittable**, `Pack = 1` | ❌ **and cannot simply gain a string** |
+| 8 | `GlobalActionHandler(ISimulationView, Entity)` | ❌ |
+
+⚠ **Hop 2 is the sharpest**: the parameters would be **in scope at the click**, in the very object being
+rendered. The callback signature is what throws them away.
+
+⚠ **Hop 7 is the only real design choice.** `GlobalActionRequestedEvent` is a blittable struct with
+`[DataPolicy(NoRecord)]`; adding a `string` breaks that. Options:
+
+| | | |
+|---|---|---|
+| **7a** | 🎯 **A managed sibling event** carrying `{ ActionId, Target, ArgsJson }` | ⭐ the bus already supports managed events, the ECB already records them (`OpCode.PublishManagedEvent = 9`), and `ContextActionTriggered` is **already** a managed class with a string. Blittable path untouched for parameterless actions |
+| **7b** | Intern the JSON and carry a `uint` hash | ⭐ direct precedent — the menu JSON itself travels as an interned hash (`internMap.TryResolve(menuHash)`). ⚠ but interning is **backwards** here: the argument travels terminal → host, so the host cannot pre-intern it |
+| **7c** | Widen the handler signature to take the args | needed regardless of 7a/7b — hop 8 must receive them |
+
+**Lean: 7a + 7c.**
+
+### ⇒ One id, and the vocabulary moves into the payload
+
+```jsonc
+// menu item
+{ "id": 300, "label": "Move Here", "args": "{\"intent\":\"MoveHere\",\"speed\":\"normal\"}" }
+```
+
+| | |
+|---|---|
+| 🔒 **One `GlobalActionIds` value** — e.g. `IssueTacticalIntent = 300` | 🔒 **no id per behavior**, exactly as ruled |
+| ✅ **The handler is a two-liner** — deserialize, publish `AssignTacticalIntentEvent { IntentId, JsonParams }` | the destination shape needs no adaptation at all |
+| ✅ **`ITacticalOrderMapper` already takes `jsonParams` verbatim** (`ITacticalOrderMapper.cs:53`) | the parameter channel is end-to-end once the middle is filled |
+| ⚠ **The click-time parameters (§F) merge into the same payload** | a `MoveHere` needs the clicked world point, which the menu could not know at build time |
+
+⚠ **Two hand-rolled parsers of the same JSON exist** — `ContextMenuItemDto` (the schema) and
+`JsonEntityContextMenuHandler.AddElement`, which reads only `id`/`label`/`enabled`/`separator`/`children`
+(`:74-119`). **Both must learn `args`, or the inspector menu silently drops parameters.**
+
+## D. Authored vs executable — 🔒 **mostly moot under B1**
+
+> **User, 2026-08-13:** *"Mission plan exists both for saving to scenario (and being applied on scenario
+> start) as well as for runtime modification (only whole-plan replace implemented now)… **the mission
+> panel is the right place where missions are edited, it likely needs no urgent changes as it works well
+> enough now** (redesign for better UX needs a dedicated design session — just please note it so we do not
+> forget)."*
+
+⇒ 🔒 **Whole-plan replace is the accepted runtime model**; `CMD_APPEND_TASK`/`CMD_INSERT_TASK` being dead
+is **known and accepted**, not a defect to fix here. And since a right-click produces an **intent**, not a
+plan edit, D no longer gates this design.
+
+⚠ **Noted so it is not forgotten:** a `MissionPanel` **UX redesign needs its own design session** —
+filed as [UXI-33](UX_Issues.md#uxi-33). Not urgent; the panel works.
+
+The questions below remain open as **runtime-semantics** matters for whoever next touches the mission
+tier — they no longer block UXI-32.
+
+### The original questions, retained
 
 Both live on the entity (§0). An unbounded authored plan projects into **8** phases, and a task's
 **list** of JSON-parameterised triggers projects into **one enum + one float**.
@@ -170,7 +272,16 @@ alone unless the architect says it is under-specified.
 🔴 **D3 is a runtime-semantics ruling, not a UI one, and I will not guess it** — it decides whether the
 authoring panel should even offer a second trigger.
 
-## E. Who may issue an order — and does the map need to know?
+## E. Who may issue an order — 🔒 **RULED: any subsystem with TKB data**
+
+> **User, 2026-08-13:** *"Any subsystem can issue as long as the TKB data is available (**it needs to be
+> for ExCon as well — probably a gap**)."*
+
+⇒ 🔒 **[Ruling 44](UX_RESUME_INTERACTION.md).** Issuing is already unconstrained by §E's gates; the real
+precondition is **TKB availability**, because the menu content comes from TKB (§I). ⇒ **the eligibility
+question becomes a data question**, and ExCon — being DDS-only with no ECS world — is the one at risk.
+
+
 
 🔒 **Stage 7's complementary gates already answer this**, and the answer is *"any node"*:
 the owner resolves, a non-owner forwards as `TacticalIntentRequest`. ⇒ **CGF, SimHost, Editor, IG and
@@ -184,6 +295,10 @@ ExCon are peers on this channel by construction** — which is precisely the use
 | **E3** | Does the map surface need per-node knowledge of who owns the brain? | 🎯 **No.** ⭐ This is the same conclusion [UXI-29](UX_Feature_Authority_Aware_Writes.md) reached for attribute writes: publish the event, let the gates route it |
 
 ## F. Parameter capture — an order is not complete at the click
+
+🔒 **Ruled 2026-08-13:** the **behavior set and its default params come from TKB** ([ruling 43](UX_RESUME_INTERACTION.md)),
+so a menu item arrives pre-populated. What remains is the *click-time* half — the parameters TKB cannot
+know.
 
 | Order | Needs |
 |---|---|
@@ -216,29 +331,105 @@ who reads it. **Flagging rather than guessing.**
 distributed transaction, and the cluster already has one (`2PC`, `CreateUpdateDeleteEntityAck`) — 🔴 but
 reusing it for orders is a significant claim I will not make without a ruling.
 
-## H. Formation / hierarchy orders — in or out?
+## H. Formation / hierarchy orders — 🔒 **RULED: no special handling needed**
 
-`UnitRoster` (**≤16 subordinates**), `JoinFormationExecutor` (*"null while the executor is a stub"*,
-`CgfLogicPack.cs:106-107`) and the unregistered `ForceManeuverMapper` suggest a squad-level command layer
-that is partly built.
+> **User, 2026-08-13:** *"Formations now solved by issuing entity-specific command/intent to the
+> **commander entity** — no special handling needed. TKB should be solving this case as also the commander
+> entity should have its own specific TKB id."*
 
-**Lean: out of scope for the first pass** — but 🔴 **`Transfer` and `Reinforce` sit exactly on this line**,
-so the architect should say whether they are entity orders or hierarchy edits before either is bound.
+⇒ ⭐ **The question dissolves.** A formation order is an ordinary intent addressed to the commander
+entity; the commander's **own TKB id** supplies its own command set, so *"order the platoon"* is
+*"right-click the platoon commander"* and needs no group concept in the UI at all.
+
+| | |
+|---|---|
+| ✅ **No group-addressing mechanism** — no fan-out to subordinates from the UI, no roster walk at the menu layer |
+| ✅ **`UnitRoster`'s 16-subordinate cap stops being a UI concern** — it is the commander behavior's business, not the menu's |
+| ⭐ **It also validates §I's TKB-driven menu**: different entity kinds get different command sets *because they have different TKB ids*, and a commander is simply another kind |
+| ⚠ `JoinFormationExecutor` is still *"null while the executor is a stub"* (`CgfLogicPack.cs:106-107`) | ⇒ the commander-side behavior is placeholder work, consistent with [ruling 39](UX_RESUME_INTERACTION.md) |
 
 ---
 
-## Summary — what I need ruled
+## I. 🔒 **RULED: the command set comes from TKB** — and the pattern already exists once
+
+> **User, 2026-08-13:** *"For now the right-click command behavs and their default params should be
+> **loaded from tkb (new fields needed)**. Any subsystem can issue as long as the tkb data available (it
+> needs to be for ExCon as well — probably a gap)."*
+
+### ⭐ The recipe is already proven end to end — for exactly **two** orders
+
+`DefendArea` is the worked example, and every piece the user described is present:
+
+| # | Piece | Where |
+|--:|---|---|
+| 1 | **Typed params DTO** — `DefendAreaIntentDto { CenterLat, CenterLon, RadiusMeters }`, tagged `[BehaviorContract("DefendArea", BehaviorCategory.AllMilitary)]` | `MapDefinitions/Behavior/Intents/DefendAreaIntentDto.cs` |
+| 2 | **Auto-discovery** into a per-entity-type list — `BehaviorCatalog.GetValidBehaviors(long tkbType)`, built by `[BehaviorContract]` reflection | `MapDefinitions/Tkb/BehaviorCatalog.cs:23,72-83` |
+| 3 | **Matching mapper**, keyed on the same string — *"this string must match the `TargetIntentId` of `DefendAreaMapper`"* | the DTO's own doc comment |
+| 4 | **Schema-driven parameter UI** — `BehaviorSchemaDiscovery.AutoRegister` → `BehaviorUiRegistry`, which is what `MissionPanel` is constructed with | `BehaviorUiSetup.cs:24` · `EditorSubsystem.cs:1582` |
+
+⇒ **Adding an order = one intent DTO + one mapper + one behavior.** ⭐ And [ruling 39](UX_RESUME_INTERACTION.md)'s
+placeholder bodies make step 3's behavior trivial.
+
+⇒ ⚠ **This also means [ruling 42](UX_RESUME_INTERACTION.md)'s deferred parameter-authoring work is not
+greenfield** — a schema-driven behavior-parameter form already ships inside `MissionPanel`. Noted on
+[UXI-33](UX_Issues.md#uxi-33).
+
+### ⭐ And `BehaviorCatalog` is already **per-TKB-type**, already used by **ExCon**
+
+| | |
+|---|---|
+| `ExCon/Services/MissionEditorService.cs:73` | `return BehaviorCatalog.GetValidBehaviors(entity.TkbType);` |
+| `Editor/Adapters/EditorMissionService.cs:76` | the same call |
+| ⭐ **Commander entities already have their own list** — `Unit_TankPlatoon`, `Unit_TankPlatoon_Auto`, `Unit_InfantrySquad` → `s_commanderBehaviors` | 🔒 **[ruling 45](UX_RESUME_INTERACTION.md)'s formation mechanism is already implemented at the catalog layer** |
+
+### 🔴 So the "ExCon gap" is real — but narrower and sharper than expected
+
+| | |
+|---|---|
+| ✅ **ExCon already resolves a per-`TkbType` behavior list** — via `BehaviorCatalog`, a **compiled static catalog** needing no database |
+| 🔴 **ExCon has no `ITkbDatabase` at all** — zero references to it, `TkbTemplate`, or any loader. Its entity catalogue is a **hand-written array** of `(id, name)` pairs (`ExConSubsystem.cs:337-348`) |
+| 🔴 **And TKB content is not replicated anywhere.** `EntityMasterTopic` carries only `long TkbTypeValue` — a bare id (`EntityMasterTopic.cs:35`). **No DDS topic carries descriptor content or a digest**; TKB moves as **staged `.zip` files on local disk** (`TkbLoadClusterStateHandler.cs:79`) |
+| ⚠ **And only SimHost actually loads them** — CGF, IG and the Editor run on the **compiled-in `NedTkbCatalog`** (`HrotEnvironment.CreateTkb()`), not on authored data |
+
+⇒ 🔴 **The user's *"loaded from TKB (new fields)"* has a real cost that a descriptor DTO alone does not
+pay: ExCon needs a TKB source it does not have, and there is no wire to give it one.** Two shapes:
+
+| | Option | Consequence |
+|--:|---|---|
+| **I1** | 🎯 **New `[TkbDescriptor("AI.CommandSet")]` DTO** beside `BehaviorProfileDto`, plus a **TKB delivery path for ExCon** | ✅ data-driven as ruled; ⭐ the descriptor bag makes it **backward-compatible by construction** — unknown keys are silently skipped and missing fields fall to declared defaults (`FdpJsonOptionsRegistry.DefaultRelaxed`, no `UnmappedMemberHandling`). 🔴 the delivery path is the real work |
+| **I2** | Extend **`BehaviorCatalog`** instead | ✅ **zero gap — works in ExCon today**; 🔴 **compiled-in, not data**, which is what the ruling explicitly moves away from |
+| **I3** | I1 for the data, **I2 as the fallback** when no TKB is available | 🎯 honest about the four hosts that run the hardcoded catalog today; the menu degrades to the static list rather than emptying |
+
+**Lean: I1, with I3's fallback.** ⚠ **The delivery decision is the one to make deliberately** — a new DDS
+topic for TKB content is a much larger commitment than a descriptor field, and it is the only part of
+this ruling that is not already half-built.
+
+⭐ **Precedent for the new descriptor is directly adjacent:** `BehaviorProfileDto`
+(`[TkbDescriptor("AI.BehaviorProfile")]`) already carries `DefaultBehaviorHash`, `BrainTier`, `CanMove`,
+`CanShoot`, `CanInteract` — **TKB already references behaviors**, so a command set sits naturally beside
+it rather than introducing a new concern.
+
+## Summary — the rulings, and the one thing still to decide
 
 | # | Question | My lean |
 |--:|---|---|
-| **A** | Split the nine into orders / sustainment / not-commands? | **A1 — yes**, and bind `Properties` + `Teleport` now. ⚠ Five of the nine are currently **unreachable UI**, so the decision is cheap |
-| **B** | 🔴 Does a right-click order produce a **mission mutation** or a **direct intent**? | **B2**, per the user's statement — 🔴 **the load-bearing question**, and it needs **B2′** because `CMD_APPEND_TASK` is unimplemented |
-| **C** | Where does the order vocabulary live? | **C1** binding + **C3** enablement |
-| **D** | 🔴 Authored plan vs executable queue — which is the truth, and what happens to the surplus? | **D1(b)** authored is truth · **D2(b)** reject user-authored overflow · 🔴 **D3 (multi-trigger semantics) I will not guess** |
-| **E** | Who may issue? | the gates already answer it — **any node**. 🎯 **CGF must host `MissionPanel`**, which is a shared component two hosts already construct |
-| **F** | Parameter capture | **F1** — reuse the interactive-pick tool |
-| **G** | 🔴 Multi-entity orders: partial or atomic? | **partial, precisely reported** — the version-conflict NAK is verified, so partial failure is not hypothetical |
-| **H** | Formation / hierarchy orders | **out**, but rule on `Transfer` / `Reinforce` |
+| **A** | Split the nine into orders / sustainment / not-commands? | ✅ **A1**. `Properties` + `Teleport` bind now; the rest become TKB-driven behaviors |
+| **B** | Mission mutation or direct intent? | 🔒 **RULED: direct intent**, replacing the active behavior ([ruling 38](UX_RESUME_INTERACTION.md)) |
+| **C** | Where does the order vocabulary live? | 🔒 **RULED: one action id + a JSON argument** ([ruling 41](UX_RESUME_INTERACTION.md)). ✅ **Investigated — feasible; the destination and the DDS record already have the shape**, 8 hops need the middle filled |
+| **D** | Authored plan vs executable queue | 🔒 **Moot here** — whole-plan replace is accepted; `MissionPanel` needs no urgent change ([ruling 40](UX_RESUME_INTERACTION.md)). UX redesign deferred to [UXI-33](UX_Issues.md#uxi-33) |
+| **E** | Who may issue? | 🔒 **RULED: any subsystem**, provided TKB data is available — **ExCon included** ([ruling 44](UX_RESUME_INTERACTION.md)) |
+| **F** | Parameter capture | **F1** for the click-time half; **TKB supplies the defaults** ([ruling 43](UX_RESUME_INTERACTION.md)) |
+| **G** | Multi-entity orders: partial or atomic? | ✅ **Dissolved by B** — N intent publishes, not N versioned plan commits, so the one-ECB rule holds |
+| **H** | Formation / hierarchy orders | 🔒 **RULED: no special handling** — order the **commander entity**, whose own TKB id carries its command set ([ruling 45](UX_RESUME_INTERACTION.md)) |
+| **I** | Where the command set comes from | 🔒 **RULED: TKB, new fields** ([ruling 43](UX_RESUME_INTERACTION.md)). Menu-generated-from-behaviors and full parameter authoring are **explicitly deferred** ([ruling 42](UX_RESUME_INTERACTION.md)) |
+
+### 🔴 The one open decision — how TKB data reaches ExCon
+
+Everything else is ruled or scoped out. ⚠ **TKB content is not replicated on any topic today**, only the
+`long` id, and ExCon holds no TKB database — so *"any subsystem can issue as long as the TKB data is
+available"* requires choosing a delivery mechanism (§I). **A new DDS topic for TKB content is a far larger
+commitment than the descriptor field itself**, and it deserves its own decision rather than being smuggled
+in with this slice.
 
 ⚠ **Unverified, flagged rather than guessed:** `MissionTask.ExecutingEngine`'s value space and consumer;
 whether `Repair`/`Resupply`/`Reinforce` have any runtime meaning at all in the current combat/health
