@@ -1,7 +1,8 @@
 # Architect Question 29 — entity commanding: what a map "order" actually is
 
-> **For [UXI-32](UX_Issues.md#uxi-32) · opened 2026-08-13. Status: ✅ **ANSWERED by the user, 2026-08-13** —
-> rulings 38-45. §B, §C, §D, §E, §F, §H are settled; the remainder is scoped out to a later design.**
+> **For [UXI-32](UX_Issues.md#uxi-32) · opened 2026-08-13. Status: ✅ **FULLY ANSWERED, 2026-08-13** —
+> rulings 38-46, **no open decisions**. §B, §C, §E, §F, §H, §I and §J are settled; §D and the
+> parameter-authoring work are deliberately scoped out to a later design.**
 > Raised by the user, 2026-08-13: *"the actions like MoveHere, Engage, Stop, Properties, Teleport, Repair,
 > Reinforce, Resupply, Transfer are unresolved and need a dedicated design pass. **The only supported way
 > of commanding entities now is via a mission having a list of conditional behaviors to perform.** This is
@@ -391,25 +392,95 @@ greenfield** — a schema-driven behavior-parameter form already ships inside `M
 | 🔴 **And TKB content is not replicated anywhere.** `EntityMasterTopic` carries only `long TkbTypeValue` — a bare id (`EntityMasterTopic.cs:35`). **No DDS topic carries descriptor content or a digest**; TKB moves as **staged `.zip` files on local disk** (`TkbLoadClusterStateHandler.cs:79`) |
 | ⚠ **And only SimHost actually loads them** — CGF, IG and the Editor run on the **compiled-in `NedTkbCatalog`** (`HrotEnvironment.CreateTkb()`), not on authored data |
 
-⇒ 🔴 **The user's *"loaded from TKB (new fields)"* has a real cost that a descriptor DTO alone does not
-pay: ExCon needs a TKB source it does not have, and there is no wire to give it one.** Two shapes:
+### 🔒 **RULED: disk, with a hardcoded fallback, behind a provider API** — and both seams already exist
+
+> **User, 2026-08-13:** *"TKB data should be read from disk by the subsystems needing TKB, with fallback
+> to hardcoded stuff. **Shared code, reused.** Network replication might come later. **TKB access should
+> be hidden behind some provider API** to allow for switching implementations (disk/network) later."*
+
+⭐ **Both halves of the provider API are already in the repo, at two distinct levels:**
+
+| Level | Interface | Shape | Implementations |
+|---|---|---|---|
+| **Source** — where bytes come from | **`ITkbStorageStrategy : IDisposable`** (`Tkb/Vfs/ITkbStorageStrategy.cs:10`) — *"Abstraction over a TKB storage medium"* | `EnumerateEntityFiles()` · `WriteEntityFile` · `DeleteEntityFile` | `RawDirectoryTkbProvider`, `ZipTkbProvider` |
+| **Consumption** — what callers use | **`ITkbDatabase`** (`Fdp.Core/Abstractions/ITkbDatabase.cs`) | `GetByType` · `TryGetByType` · `GetByName` · `GetAll` · `Register` · `Clear` · `ActiveTkbName` | `TkbDatabase` |
+
+| | |
+|---|---|
+| ✅ **Consumers already never touch files** — every host reads through `ITkbDatabase` | the *"hidden behind a provider API"* requirement is **already met on the read side** |
+| ✅ **`TkbUnifiedLoader` is already the switching facade** — it auto-detects `.zip` vs directory and picks the strategy (`:27-44`) | ⇒ **a network strategy slots in beside `ZipTkbProvider`**, exactly as ruled |
+| ✅ **Read-only mediums are already modelled** — `ZipTkbProvider` throws `NotSupportedException` from `WriteEntityFile`/`DeleteEntityFile` | a network provider does the same; no interface change |
+
+⇒ ⭐ **Seam-law instance 23.** The provider abstraction is not to be designed — it is to be **composed and
+adopted**.
+
+#### 🔴 What is actually missing: the composition, and it is ~6 lines written in the wrong place
+
+The whole disk-load recipe exists **once**, buried in SimHost's cluster-state handler
+(`TkbLoadClusterStateHandler.cs:96-103`):
+
+```csharp
+_tkbDb.Clear();
+using var loader = new TkbUnifiedLoader(localPath);
+var deserializer = new TkbDeserializer();
+foreach (var entityFile in loader.EnumerateEntityFiles())
+    deserializer.ParseAndRegister(entityFile, _tkbDb);
+_tkbDb.ActiveTkbName = requestedTkb;
+```
+
+| | |
+|---|---|
+| 🔴 **No fallback** — a missing file throws `FileNotFoundException` (`:89-93`) | the ruling requires degrading to the hardcoded catalog |
+| ⭐ **It has a differential cache worth keeping** — reload is skipped when name + file mtime are unchanged (`:83-87`) | ⇒ extract **with** the cache, do not reinvent |
+| 🔴 **Only SimHost has any of it** | CGF, IG and the Editor call `HrotEnvironment.CreateTkb()`, which only does `NedTkbCatalog.RegisterAll` |
+
+#### 🎯 The shape — one shared entry point that four hosts already call
+
+⭐ **`HrotEnvironment.CreateTkb()` is the single shared construction point** (`HrotEnvironment.cs:17-23`),
+reached by CGF via `HrotNodeBuilder`, and directly by IG and the Editor. **One change there reaches four
+hosts** — that is the *"shared code, reused"* hook, already in place.
+
+```csharp
+public static TkbDatabase CreateTkb(string? sourcePath = null)
+{
+    var tkb = new TkbDatabase();
+    if (!TkbBootstrap.TryLoadFromDisk(tkb, sourcePath))   // ← ITkbStorageStrategy via TkbUnifiedLoader
+        NedTkbCatalog.RegisterAll(tkb);                    // ← fallback, logged, never silent
+    TkbPostLoad.Apply(tkb);                                // ← hooks that must run either way
+    return tkb;
+}
+```
+
+| | |
+|---|---|
+| 🔒 **Log which source won** | a host silently running the hardcoded catalog when it was meant to read disk is exactly the class of bug this programme keeps finding |
+| ⭐ **SimHost's handler becomes a caller**, keeping its mtime cache and its *strict* mode | a cluster transition **should** fail loudly on a missing staged TKB; a desktop Editor should not |
+| 🔴 **ExCon gets a `TkbDatabase` for the first time** — it has none today | the descriptor read then works there like anywhere else |
+
+#### ⚠ Two things to check before declaring the seam adequate for network
+
+| | |
+|---|---|
+| ⚠ **`ITkbStorageStrategy` is corpus-shaped, not query-shaped** | `EnumerateEntityFiles()` streams *every* entity file; there is **no by-id accessor**. That fits *"fetch the corpus over the network"* and does **not** fit *"query one type on demand"*. 🔒 Fine for the ruled scope — but decide which model network means **before** implementing, or the interface will need widening then |
+| ⚠ **`RouteTkbExtensions.ApplyRoutePlanToBlueprint` is a no-op stub today** (`:34-35`, *"until Phase 6"*) yet documented as *"call once, after `NedTkbCatalog.RegisterAll()`, from **every** host"* | ⇒ it runs in `CreateTkb()` and **not** on SimHost's disk path. Harmless while it is empty; **the moment it does something, the disk path silently skips it.** That is why the sketch above has a `TkbPostLoad.Apply` step on **both** branches |
+
+#### ⇒ The command-set descriptor
 
 | | Option | Consequence |
 |--:|---|---|
-| **I1** | 🎯 **New `[TkbDescriptor("AI.CommandSet")]` DTO** beside `BehaviorProfileDto`, plus a **TKB delivery path for ExCon** | ✅ data-driven as ruled; ⭐ the descriptor bag makes it **backward-compatible by construction** — unknown keys are silently skipped and missing fields fall to declared defaults (`FdpJsonOptionsRegistry.DefaultRelaxed`, no `UnmappedMemberHandling`). 🔴 the delivery path is the real work |
-| **I2** | Extend **`BehaviorCatalog`** instead | ✅ **zero gap — works in ExCon today**; 🔴 **compiled-in, not data**, which is what the ruling explicitly moves away from |
-| **I3** | I1 for the data, **I2 as the fallback** when no TKB is available | 🎯 honest about the four hosts that run the hardcoded catalog today; the menu degrades to the static list rather than emptying |
+| **I1** | 🎯 **New `[TkbDescriptor("AI.CommandSet")]` DTO** beside `BehaviorProfileDto` | ✅ data-driven as ruled; ⭐ **backward-compatible by construction** — unknown keys are silently skipped and missing fields fall to declared defaults (`FdpJsonOptionsRegistry.DefaultRelaxed`, no `UnmappedMemberHandling` set) |
+| **I2** | Extend the compiled **`BehaviorCatalog`** instead | 🔴 compiled-in, not data — what the ruling moves away from |
+| **I3** | 🔒 **I1, with the hardcoded catalog as the fallback source** | ⭐ **this is exactly ruling 46's disk-with-fallback, applied to the command set specifically** — the menu degrades to the static list rather than emptying |
 
-**Lean: I1, with I3's fallback.** ⚠ **The delivery decision is the one to make deliberately** — a new DDS
-topic for TKB content is a much larger commitment than a descriptor field, and it is the only part of
-this ruling that is not already half-built.
+🔒 **Settled: I1 + I3.** ⚠ **Network replication is explicitly *later*** — no DDS topic for TKB content is
+in scope, and the `ITkbStorageStrategy` seam is what keeps that a later, local decision.
 
 ⭐ **Precedent for the new descriptor is directly adjacent:** `BehaviorProfileDto`
 (`[TkbDescriptor("AI.BehaviorProfile")]`) already carries `DefaultBehaviorHash`, `BrainTier`, `CanMove`,
 `CanShoot`, `CanInteract` — **TKB already references behaviors**, so a command set sits naturally beside
 it rather than introducing a new concern.
 
-## Summary — the rulings, and the one thing still to decide
+## Summary — the rulings
 
 | # | Question | My lean |
 |--:|---|---|
@@ -422,14 +493,18 @@ it rather than introducing a new concern.
 | **G** | Multi-entity orders: partial or atomic? | ✅ **Dissolved by B** — N intent publishes, not N versioned plan commits, so the one-ECB rule holds |
 | **H** | Formation / hierarchy orders | 🔒 **RULED: no special handling** — order the **commander entity**, whose own TKB id carries its command set ([ruling 45](UX_RESUME_INTERACTION.md)) |
 | **I** | Where the command set comes from | 🔒 **RULED: TKB, new fields** ([ruling 43](UX_RESUME_INTERACTION.md)). Menu-generated-from-behaviors and full parameter authoring are **explicitly deferred** ([ruling 42](UX_RESUME_INTERACTION.md)) |
+| **J** | How TKB data reaches each subsystem | 🔒 **RULED: disk-first + hardcoded fallback, shared code, behind the existing provider seam** ([ruling 46](UX_RESUME_INTERACTION.md)). Network **later** |
 
-### 🔴 The one open decision — how TKB data reaches ExCon
+### ✅ No open decisions — [ruling 46](UX_RESUME_INTERACTION.md) closed the last one
 
-Everything else is ruled or scoped out. ⚠ **TKB content is not replicated on any topic today**, only the
-`long` id, and ExCon holds no TKB database — so *"any subsystem can issue as long as the TKB data is
-available"* requires choosing a delivery mechanism (§I). **A new DDS topic for TKB content is a far larger
-commitment than the descriptor field itself**, and it deserves its own decision rather than being smuggled
-in with this slice.
+TKB reaches every subsystem that needs it **from disk, with a hardcoded fallback, through the existing
+`ITkbStorageStrategy` / `ITkbDatabase` seams**, composed once in `HrotEnvironment.CreateTkb()`.
+**Network replication is explicitly later** — and the storage seam is what keeps that a local decision
+rather than a protocol commitment.
+
+| Row | Ruling |
+|--:|---|
+| **J** | 🔒 **TKB source: disk-first, hardcoded fallback, shared, provider-backed** ([ruling 46](UX_RESUME_INTERACTION.md)). ⭐ Both seams exist; the work is composition. ⚠ Decide what *"network"* means (corpus fetch vs per-id query) before implementing — the current interface only supports the former |
 
 ⚠ **Unverified, flagged rather than guessed:** `MissionTask.ExecutingEngine`'s value space and consumer;
 whether `Repair`/`Resupply`/`Reinforce` have any runtime meaning at all in the current combat/health
