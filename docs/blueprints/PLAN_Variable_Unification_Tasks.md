@@ -218,7 +218,7 @@ headless-testable it is called out as such rather than papered over.
 | batch | tasks | why together |
 |---|---|---|
 | ~~40~~ | ✅ **plan review — DONE** | [`REVIEW_Unification_Plan.md`](REVIEW_Unification_Plan.md) |
-| **41** | ⛔ **[`BP-57`'s authoring half](HANDOFF_Batch41_Local_Variables_Authoring.md)** — dispatched | ⚠ **Batch 39 stopped after §0b** — the locals UI is still unbuilt and is **not** in this plan. ⭐ **It comes first: it is `BP-57`'s last mile and it sits on the surfaces `U-4`…`U-6` then change.** ⭐⭐ **Its §1 builds the locals model as an `IVariablesSchemaSource` so `U-4`…`U-6` ABSORB it** |
+| **41–42** | ⛔ **`BP-57`'s authoring half** — [41](HANDOFF_Batch41_Local_Variables_Authoring.md) *(§1+§3, merged)* · [42](HANDOFF_Batch42_Local_Variables_Wiring.md) *(the wiring)* | ⚠ **Batch 39 stopped after §0b** — the locals UI is still unbuilt and is **not** in this plan. ⭐ **It comes first: it is `BP-57`'s last mile and it sits on the surfaces `U-4`…`U-6` then change.** ⭐⭐ **Its §1 builds the locals model as an `IVariablesSchemaSource` so `U-4`…`U-6` ABSORB it** |
 | **42** | `U-1` · `U-2` | ⭐ **the net, then the first thing it protects.** Both compiler-only, both small |
 | **43** | `U-3` | ⭐ **closes `BP-226` alone** — the highest-value single task, kept unmixed |
 | **44** | `U-4` · `U-5` | ⚠ **V2: this is NOT one lane** — `U-5` reaches into `Hrot.Editor.AiShared` and **moves that gate**. Kept together anyway because `U-5` is what makes `U-6` honest |

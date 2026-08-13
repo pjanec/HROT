@@ -338,6 +338,12 @@ tracker records the method, including that the *refuted* row sits **outside** th
 
 ---
 
+> ⏭ **Batch 42 dispatched — [finish `BP-57`, wiring what Batch 41 built](HANDOFF_Batch42_Local_Variables_Wiring.md).**
+> ⭐⭐ **`BlueprintLocalVariableSchemaSource` is complete and ORPHANED** — `grep` finds nothing that
+> constructs it outside its tests. ⇒ **this batch is mostly WIRING**: the section that projects it,
+> a delete that uses the reference count Batch 41 built and left unused, and ⛔ **undo, which no
+> locals gesture has at all today.** §4 (the badge) moves the two NodeEdit gates and is the stop point.
+
 ## 7n · Batch 41 — ✅ VERIFIED AND MERGED at `748f1f79` — ⚠ **PARTIAL: §1 and §3 only. `BP-57` is NOT closed**
 
 **Gates:** build **0 errors** · Blueprints **3289 total / 3279 passed / 0 failed / 10 skipped** (**+20**) ·
