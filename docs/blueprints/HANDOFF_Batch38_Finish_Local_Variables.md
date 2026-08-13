@@ -1,6 +1,6 @@
 # HANDOFF — Batch 38: finish `BP-57` — the rail Batch 37 was never asked for, and the authoring half
 
-> 📌 **Dispatched at `eb89ebaf`** · ⚠⚠ **§1.3 and §3.1 REWRITTEN and RE-DISPATCHED at `PENDING`.**
+> 📌 **Dispatched at `eb89ebaf`** · ⚠⚠ **§1.3 and §3.1 REWRITTEN and RE-DISPATCHED at `d5899d9e`.**
 > ⭐ **Q27-A was revised from A1 to A3 by user ruling on `2026-08-13`** — verified not present in the
 > tree your last run built from (run starting `02fb66db`), so rule 1 does not bite.
 > ⛔⛔ **The earlier §1.3 asked for a REFUSAL RAIL. There is none — build the storage.**
