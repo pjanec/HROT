@@ -37,6 +37,11 @@
 >
 > ⏭ **Batch 39 dispatched (`ade79865`) — RE-SCOPED:** merge and close out that work, then build the
 > authoring half. ⛔ **Not a rebuild.**
+> ⏭ **Batch 40 dispatched — [review the unification TASK PLAN](HANDOFF_Batch40_Unification_Plan_Review.md).**
+> 📄 **[PLAN_Variable_Unification_Tasks.md](PLAN_Variable_Unification_Tasks.md)** — **14 tasks with
+> headless gates**, batches **41–49**. ⭐ **`U-1` builds a golden-corpus harness FIRST**, because every
+> later task's success condition is *"the output did not change"* and that is unfalsifiable without
+> a recorded baseline. ⚠ **Nothing starts until the plan review returns.**
 > ⭐⭐ **Three blockers RESOLVED as architect rulings** —
 > **[`Q-j`](Variable_Editing_UI.md)** the struct validator is an existing seam (the generator already
 > holds Roslyn's `Compilation`) · **[`Q-k`](Variable_Editing_UI.md)** `Role`/`Scope` are **read-only**
