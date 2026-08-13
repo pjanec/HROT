@@ -4,8 +4,9 @@
 > **You are the *implementation* session.** A separate *coordinator* session owns the tracker and
 > writes the handoffs. Last updated **2026-08-13**.
 >
-> ✅ **Batch 44 is COMPLETE and reported.** `U-1` (the golden-corpus harness) and `U-2` (`BP-229`,
-> the compiler owns its graphs) both landed; all eight gates green.
+> ✅ **Batch 45 is COMPLETE and reported.** `U-3` landed — the variable index carries its **kind**,
+> closing **`BP-226`**. ⭐ **Golden Pass 1 held with no regeneration**, which is what `U-1` was for.
+> ✅ Batch 44: `U-1` (the golden-corpus harness) + `U-2` (`BP-229`). All eight gates green.
 > ⭐ **`BP-57` closed in Batch 43**; the locals feature is done end to end, compiler and editor.
 
 | | |
@@ -13,9 +14,9 @@
 | **Repo** | `pjanec/HROT` |
 | **Implementation branch — PUSH HERE** | ⭐ **`claude/hrot-implementation-j1jvin`** |
 | **Coordinator branch — do NOT push** | ⭐ **`claude/blueprint-authoring-status-gm0akp`** (was at `93152d7`, merged into mine) |
-| **Last handoff** | 📄 **[HANDOFF_Batch44_Golden_Harness_And_Compiler_Ownership.md](HANDOFF_Batch44_Golden_Harness_And_Compiler_Ownership.md)** — delivered in full |
-| **Counts** | **62 open · 107 done** — ⚠ *derive, never hand-count:* `python3 scripts/tracker-counts.py --check` |
-| **Next free ids** | rows **BP-235+** · diagnostics **BP1671+** *(Batch 44 allocated none)* |
+| **Last handoff** | 📄 **[HANDOFF_Batch45_Kind_Index.md](HANDOFF_Batch45_Kind_Index.md)** — delivered in full |
+| **Counts** | **61 open · 108 done** — ⚠ *derive, never hand-count:* `python3 scripts/tracker-counts.py --check` |
+| **Next free ids** | rows **BP-235+** · diagnostics **BP1671+** *(Batches 44–45 allocated none)* |
 
 ⛔ **No PR unless the user explicitly asks.** There has never been one in this programme.
 ⛔ **Never put a model identifier** in a commit message, code comment, or anything else pushed.
@@ -27,14 +28,38 @@
 ```bash
 git fetch origin claude/blueprint-authoring-status-gm0akp
 git merge origin/claude/blueprint-authoring-status-gm0akp --no-edit   # rule 7
-python3 scripts/tracker-counts.py --check                              # expect 62 / 107
+python3 scripts/tracker-counts.py --check                              # expect 61 / 108
 ```
 
 Then read whatever handoff is newest on that branch. **No batch is in flight.**
 
 ---
 
-## 1 · Batch 44 — the `U-` sequence opened
+## 1 · Batch 45 — `U-3`, the kind-carrying index (`BP-226` closed)
+
+| commit | |
+|---|---|
+| `189ad05` | ⭐⭐ **`VariableRef(VariableKind, int)` threaded Stage 5 → IR → Stage 7** |
+
+| | |
+|---|---|
+| ⭐⭐ **`Index` stays LIST-RELATIVE** | nothing rebases it. ⛔ **Do not "fix" it into a combined index** — see the correction below |
+| ⭐⭐ **`VarFieldName(int)` no longer exists** | the wrong call is **unwritable**, not merely unwritten |
+| ⭐ **`VariableKind.Unresolved` is the DEFAULT (0)** | a zero-initialised ref means *"nobody set this"* and throws. `Variable = 0` would have silently meant `Variables[0]` |
+| ⚠ **`BP1670`'s throw survives, restated** | *"index < 0"* → *"no kind resolved"*. Same condition, named for what it means |
+| ➕ **The emitter now picks the CONTAINER** | `p.` for a Parameter, state var otherwise. The bare int could not say a parameter lives on a **different struct** |
+| ➕ **Out-of-range now THROWS** | was `__var_{index}` — invalid C#, no diagnostic. With the kind carried there is no legitimate way to reach it |
+
+### ⚠⚠ Two corrections worth keeping
+
+| | |
+|---|---|
+| ⛔ **The handoff's *"the WorkingState arm is not offset"* is WRONG against the code** | it read the arm as needing `ws[index - fields.Count]`. ⛔ **It does not.** The index was **list-relative**, so the un-rebased read was **correct whenever `Variables` was empty** — every shipped AiPrimitive. Subtracting would have **introduced** a defect in the one case that worked. 📌 Source of the belief: `FindParameterIndex`'s doc comment called the result *"a COMBINED index"* — **that comment was wrong**, and is gone with the method |
+| ⛔⛔ **My first draft of the Pass 2/3 tests PASSED before the fix** | the fixture used an **Event** graph, which is eliminated whole ⇒ `TickCore` emitted an **empty body**, and every assertion was satisfied by the **struct declarations**. ⭐ Shipped assets use a **`Function` graph named `Tick` (Instance) / `Main` (AiPrimitive)**. ⚠ *"Assert the test is red first"* is what caught it — a `Contains`-only assertion on a name that also appears in a declaration proves nothing |
+
+---
+
+## 2 · Batch 44 — the `U-` sequence opened
 
 | commit | |
 |---|---|
@@ -60,7 +85,7 @@ Then read whatever handoff is newest on that branch. **No batch is in flight.**
 
 ---
 
-## 2 · What Batches 41–43 shipped — `BP-57` end to end
+## 3 · What Batches 41–43 shipped — `BP-57` end to end
 
 | commit | |
 |---|---|
@@ -85,7 +110,7 @@ Then read whatever handoff is newest on that branch. **No batch is in flight.**
 
 ---
 
-## 3 · Where the code is
+## 4 · Where the code is
 
 | file | |
 |---|---|
@@ -103,13 +128,13 @@ Then read whatever handoff is newest on that branch. **No batch is in flight.**
 
 ---
 
-## 4 · Gates
+## 5 · Gates
 
 The eight, solution **`IOS-IG-SimHost.sln`** (⚠ **not** `Hrot.sln`).
 ⚠⚠ **The two NodeEdit gates take NO `--no-build`** — they silently do not run with it.
 
-**Post-Batch-44, all eight run:** build **0 errors / 69 warnings** · Blueprints **3448 total / 3438
-passed / 0 failed / 10 skipped** *(+135: the golden sweep is 42×3 theories)* · ⭐ **AiShared 1213 —
+**Post-Batch-45, all eight run** *(build was a full `-t:Rebuild`, so 69 is honest)*: build **0 errors /
+69 warnings** · Blueprints **3451 total / 3441 passed / 0 failed / 10 skipped** · ⭐ **AiShared 1213 —
 unmoved** · BTree **612** · Breakpoints **130** · Generators **193** · NodeEdit Core **208** · UI **131**.
 
 ### ⭐ Run the five `--no-build` suites in PARALLEL
@@ -132,7 +157,7 @@ are exactly what a headless test can pass while the panel draws nothing. **Say s
 
 ---
 
-## 5 · Open findings that are mine
+## 6 · Open findings that are mine
 
 | | |
 |---|---|
@@ -143,7 +168,8 @@ are exactly what a headless test can pass while the panel draws nothing. **Say s
 | **BP-232** 🟠 | `MakeUniqueName` checks `Variables` only ⇒ a `Parameter` and a `Variable` may share a name |
 | **BP-233** 🟠 | `BP1650` carries a **fourth** copy of the latency predicate, still missing the inline-action case. Half-closed |
 | **BP-234** 🟠 | ⭐ **new, Batch 43** — editing a suspending graph's locals silently re-initialises its blackboard. ⚖️ **Ruled: no per-gesture warning** — add/delete change the same hash by the same mechanism, so warning on the drag would imply the other two are safe |
-| **BP-226 / BP-227** | the index space · the numeric `Dispatch` (**7** files) |
+| ~~**BP-226**~~ ✅ | ✅ **CLOSED Batch 45 as `U-3`** |
+| **BP-227** | the numeric `Dispatch` (**7** files) — settled by `U-15`, not yet done |
 
 📌 **One thing the section proved and did NOT patch:** `BlueprintLocalVariableSchemaSource.AddVariable`
 appends unconditionally, so a **modal** can create two locals of one name. The guard lives in
@@ -152,7 +178,7 @@ will find it. ⚠ Reported rather than changed, per the handoff's instruction.
 
 ---
 
-## 6 · ⚠ Process lessons — paid for, do not re-learn
+## 7 · ⚠ Process lessons — paid for, do not re-learn
 
 | | |
 |---|---|
@@ -166,13 +192,12 @@ will find it. ⚠ Reported rather than changed, per the handoff's instruction.
 
 ---
 
-## 7 · The wider programme
+## 8 · The wider programme
 
 ⏭ **The unification is under way** — 📄 [PLAN_Variable_Unification_Tasks.md](PLAN_Variable_Unification_Tasks.md),
 reviewed by 📄 [REVIEW_Unification_Plan.md](REVIEW_Unification_Plan.md) (**run it, with five named changes**).
-✅ **`U-1` and `U-2` done (Batch 44).** ⏭ **`U-3` is next** — the review's headline: it should go first of
-the remaining work (four call sites, closes `BP-226`), and it **declares no golden change**, which the
-harness can now actually check.
+✅ **`U-1`, `U-2` (Batch 44) and `U-3` (Batch 45) are done.** ⭐ `U-3` declared no golden change and
+**delivered none** — the harness checked it rather than anyone hoping. ⏭ **`U-4` is next** in the plan's order.
 ⚠ **`U-10`'s byte-identity gate still needs `U-15`'s corpus canonicalisation** or it is unwritable.
 ⭐ **Every later `U-` task's *"the output did not change"* is now falsifiable** — that was the point of `U-1`.
 
