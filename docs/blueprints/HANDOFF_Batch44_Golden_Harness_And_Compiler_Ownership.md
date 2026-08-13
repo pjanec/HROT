@@ -1,6 +1,6 @@
 # HANDOFF — Batch 44: ⭐⭐ **`U-1` the golden harness, then `U-2` the first thing it protects**
 
-> 📌 **Dispatched at `<STAMP>`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
+> 📌 **Dispatched at `c9866b37`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
 > ⭐ **Rule 7:** branch from this branch, re-sync at the **start** of your run.
 > ⭐ **Rule 4:** pull it again before your final commit.
 > ⭐ **Rule 3: the coordinator allocates no ids.** `BP1671+` is the next free diagnostic *(coordinator-verified: `BP1670` is the highest in the tree)*.
