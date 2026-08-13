@@ -15,7 +15,7 @@
 | ✅ | **The complementary-gate precedent** — tactical intent (§2) | ⭐ **the shape to copy**, verbatim |
 | ✅ | **`UpdateEntityDescriptorRequest(dtWorldPos)`** — a pose request, owner-side authority-gated, **acked** | ⭐ **the pose channel already exists**, and IG already uses it |
 | ✅ | **`UpdateEntityAttributeRequest`** — generic inbound patch (JSON or ATTR2 binary), per-field authority-gated **inside the compiler** | ⭐ generalises beyond pose. `JsonAttributeCompiler.cs:37-41`: `if (!context.CanWrite<T>()) { reader.Skip(); return; }` |
-| ✅ | `AttributeIds` — reserved ranges, **100-199 already allocated to geo-spatial/orientation** | no schema work for pose |
+| ⚠ | `AttributeIds` — **five constants total**; `SimTransformAttributeInstaller` registers Lat/Lon/Alt with a flush bit (`:81-86`) | ⇒ **`GeoHeading` is one constant + one handler**, mirroring the existing three |
 | ✅ | `DestroyEntityCommand` → `DeleteEntityRequest` → owner → two-phase ack | the request/ack template CGF's *Delete* already follows correctly |
 | 🔴 | **Four gizmos write `SimTransform`/managed components with no authority check** | **the gap** — §1 |
 | 🔴 | `NetworkSpawningSystem.ProcessUpdate` applies `UpdateEntityCommand` **unconditionally** | `:162-175` — no authority check before `SetComponent` |
@@ -113,11 +113,22 @@ publishes an intent, and the egress translator encodes whichever `AttributeRecor
 | **1** | 🔴 **The binary path has NO authority gate.** `CanWrite<T>()` / `CanWriteManaged<T>()` are called **only** from `JsonAttributeCompiler` (`:40`, `:58`). `BinaryInterpreter.Apply` dispatches every record to its handler with no check — *"Unknown IDs: silently skipped"* is the only filter | `BinaryInterpreter.cs:102-128`; `grep CanWrite` over `Replication/Patching/*.cs` returns JSON only |
 | **2** | 🔴 **No rotation attribute ID exists.** `AttributeIds` declares **five** constants total — `Name=1`, `Affiliation=2`, `GeoLat=10`, `GeoLon=11`, `GeoAlt=12`. There is **no heading / pitch / roll / quaternion**, so **CGF's *Rotate* — the motivating case — cannot be expressed on this channel today** | `AttributeIds.cs:36-69` |
 
-🔒 **Gap 1 is the design's safety property**, not a nicety: without it, an unowned node's patch is applied
-verbatim on the receiver. ⇒ **add the gate in the dispatch loop** (the handler knows its component type),
-mirroring the JSON path's *skip-without-touching-memory* behaviour.
+🔒 **RULED 2026-08-12 — gap 1 is a severe error and is now [UXI-30](UX_Issues.md#uxi-30)**, a prerequisite
+for this design: *"if the binary attrib request applier does not check ownership, it looks like a severe
+error that needs fixing — no reason why the binary path should be different from the JSON path in this
+aspect."*
 
-⚠ **Gap 2 is cheap but real** — the file documents an extension pattern (a companion `static class` in the
+⭐ **And the census makes the fix free: there are ZERO production senders of `AttributeRecords` today.**
+The only references are on the **receiving** side (`UpdateEntityAttributeRequestSystem.cs:168-182`); no
+production code constructs the list. ⇒ **the risk I raised — that switching the gate on would silently
+break existing senders — does not exist.** ⚠ It also means the binary path is **receive-only with no
+producers** (⭐ **seam-law instance 13**), and this design would be its **first**.
+
+🔒 **Gap 2 — RULED: add `GeoHeading`.** ⭐ It mirrors an existing pattern exactly: `SimTransformAttributeInstaller`
+already registers `GeoLat`/`GeoLon`/`GeoAlt` with a pre-apply handler and a flush bit (`:81-86`), so
+heading is **one constant + one handler + one line in the flush**.
+
+⚠ **Gap 2's remaining wrinkle is cheap but real** — the file documents an extension pattern (a companion `static class` in the
 domain assembly). ⚠ **Also fix the range comment while there**: the section is headed *"Range 100-199:
 Geo-spatial / positional"* and then declares `10`, `11`, `12` — the declared range and the actual values
 disagree, which will mis-allocate the next ID somebody adds.
@@ -157,9 +168,9 @@ simply moves one level down.
 | 29.11 | No gizmo calls `GetComponentRW`/`SetManagedComponent` on a live repo — the regression guard | H |
 | 29.12 | CGF: rotate an entity → SimHost applies it → the rotation appears in CGF via ingress | I |
 | 29.13 | The owner's ack is observed; a rejected request leaves both nodes consistent | I |
-| 29.14 | 🔴 **The binary path honours authority** — a record for a component this node does not own is **skipped, not applied** (the gap-1 guard) | H |
+| 29.14 | 🔴 **The binary path honours authority** — a record for a component this node does not own is **skipped, not applied**. ⇒ [UXI-30](UX_Issues.md#uxi-30)'s acceptance, restated here because this design depends on it | H |
 | 29.15 | An unknown attribute ID is skipped without error — forward compatibility preserved | H |
-| 29.16 | A rotation intent encodes to `AttributeRecord`s and decodes to the same rotation within tolerance | H |
+| 29.16 | A rotation intent encodes to a **`GeoHeading`** `AttributeRecord` and decodes to the same rotation within tolerance | H |
 | 29.17 | The intent is one **local `Fdp` bus event**; the translator is the only component that knows the wire form | H |
 
 **15 H · 2 I · 0 V.**
@@ -182,4 +193,5 @@ simply moves one level down.
 | ⚠ **Entities with no `NetworkAuthority` component are treated as owned** (`AuthorityExtensions.cs:33-40`) | correct for the offline Editor; ⚠ means a missing component silently grants authority — assert it in tests rather than trusting it |
 | ⚠ **Latency changes the feel** — a remote rotate now completes on the owner's tick + round trip | it is the correct behaviour and matches *Delete*; ⭐ but the user sees a delay where they previously saw an instant (wrong) result. Consider a *pending* affordance — [UXI-27](UX_Issues.md#uxi-27)'s progress surface is the natural home |
 | ⚠ **Fire-and-forget vs acked** | tactical intent is unacked; `UpdateEntityAttributeRequest` has an opt-in `RequireAck`. 🔒 **Set it** for gizmo intents so 29.13 is testable and a rejection is observable |
-| 🔴 **Adding the binary authority gate touches a shared engine path** | every existing `AttributeRecords` sender starts being filtered. ⚠ **Check what already sends them** before switching the gate on — a sender that today relies on unchecked application would silently stop working |
+| ✅ ~~Adding the binary authority gate could break existing senders~~ | **Withdrawn — census done: zero production senders exist.** The gate can go in ahead of this design with no compatibility surface. Tracked as [UXI-30](UX_Issues.md#uxi-30) |
+| ⚠ **This design is blocked on [UXI-30](UX_Issues.md#uxi-30)** | shipping the intent path onto an ungated channel would move the unguarded write from the gizmo to the receiver — **no net safety gain**. Order matters: gate first, then intents |
