@@ -56,7 +56,7 @@ MCP-driven operation** on a dialog nobody can answer.
 
 ```
 interactive node (ExCon / Editor / IG operator)        executing node (SimHost / CGF)
-──────────────────────────────────────────────         ──────────────────────────────
+──────────────────────────────────────────────         ── applies; §2.0c decides ─────
  intent to act
    → descriptor says Destructive
    → confirmation modal          ← the ONLY place a human is asked
@@ -110,8 +110,8 @@ origin-side *describers* reading replicated state** — which made the origin sm
 residual constraints. **Replaced** ([Correction 42](UX_Tasks_Detail.md#corrections)); all three vanish.
 
 ```
-interactive node (dumb)                     executing node (knows)
-───────────────────────                     ──────────────────────
+interactive node (dumb)                     CGF — the knowing node (§2.0c)
+───────────────────────                     ──────────────────────────────
  user picks a destructive action
    → Preflight(action, target) ──DDS──▶   run aspect providers over LIVE state
                                             build ConfirmationSpec, or null
@@ -162,6 +162,28 @@ public sealed record ConfirmationSpec(          // neutral DTO, beside the other
 | ⭐ **The Editor is not a special case** | it owns everything in-process, so the same call resolves locally with no network hop. **One code path, not two** |
 | 🔒 **Headless never pre-flights** | MCP/script/replay dispatch the authorized request directly ([ruling 53](UX_RESUME_INTERACTION.md)). ⚠ The origin still **logs** what it skipped |
 | ⚠ **Latency is hidden** | only actions that declare they may need confirmation pre-flight, and the round trip happens exactly when a dialog is about to appear. **Non-destructive right-clicks never pay it** |
+
+### 2.0c 🔒 The knowing node is **CGF** — one endpoint, not "whoever executes"
+
+> **User, 2026-08-13:** *"the central node that decides on whether/what to confirm is the CGF subsystem."*
+
+⇒ [Ruling 56](UX_RESUME_INTERACTION.md). ⚠ **§2.0's diagram said *"executing node (SimHost / CGF)"***, which
+reads as though pre-flight could land on either. **It cannot.** 🔒 **The applying node and the deciding node
+are different questions** — a gizmo write may apply on SimHost, but *what to warn about* is CGF knowledge.
+
+| Verified | |
+|---|---|
+| ⭐ **The transport already says so** | `ICommandGateway.cs:6` — *"Neutral interface for mission-control commands from **ExCon/Editor to CGF**"*. **All four existing methods target CGF**, so `PreflightAsync` adds a method to a seam that already has exactly one peer |
+| ⭐ **The whole intent stack is one pack** | `CgfLogicPack.cs:123-127,149-154` composes `MissionControlExecutionSystem`, `MissionAdapterSystem`, `TacticalIntentResolutionSystem`, `MissionControlModule`, `CognitiveRuntimeModule` ⇒ `MissionPlanQueue`, `ActiveMissionPlan` and `BehaviorState` are **all CGF-side** |
+| ✅ **Two production composition roots** | `CgfSubsystem.cs:324` and `EditorSubsystem.cs:866`. SimHost builds the pack **only in test harnesses** (`SimHostInstance.cs:294`, `CgfLogicPackTests`) |
+| ✅ **Delete is CGF-served too** | `Hrot.Network.NED/CGF/NedCgfEntityLifecycleAdapters.cs:91-98` consumes `DeleteEntityRequest` ⇒ the **other** confirmable action ([§2.2](#22-confirmation--uxi-16)) resolves against the same node |
+
+| ⇒ what this settles | |
+|---|---|
+| 🔒 **One pre-flight endpoint** | no routing table, no "which node owns this aspect" lookup, no fan-out/merge of several `ConfirmationSpec`s |
+| 🔒 **`IIntentAspectProvider` is registered on CGF only** | it is not a cross-host interface. A host without CGF registers nothing and pre-flights nothing |
+| ⭐ **The Editor stays one code path** | it composes `CgfLogicPack` in-process, so the same call resolves locally with **no network hop** — confirmed by the two roots above |
+| ⚠ **The one thing to watch** | an aspect owned by **neither** CGF nor the origin (a future SimHost-only or ExCon-only warning) has no home under this rule. **Do not pre-emptively generalise** — when such an aspect appears, it either registers on CGF or the rule gets revisited then |
 
 #### ⚠ One decision this forces: what if pre-flight fails or times out?
 
