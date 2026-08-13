@@ -111,16 +111,20 @@ and reports why**, rather than omitting it:
 | ✅ **Absence becomes impossible** | there is no "forgot to call registrar #3" |
 | ⭐ **Applicability stays per-host** | via [UXI-03](UX_Feature_Entity_Action_Vocabulary.md)'s descriptor predicates |
 
-> 🔴 **Open — one question for the user, raised by [ruling 47](UX_RESUME_INTERACTION.md).** That ruling
-> settled the *multi-selection* case: items incompatible with some of the selection are **absent**, not
-> greyed, because a per-entity reason does not aggregate. **This section's case is a different axis** —
-> an action a *host* structurally cannot service (CGF gaining an item it has no pipeline for). There the
-> reason **is** single and stable (*"not available in CGF"*), which is why the original design chose
-> *disabled with a reason, never silently missing*.
+> 🔒 **RULED 2026-08-13 ([ruling 49](UX_RESUME_INTERACTION.md)):** *"permanently grayed item is useless."*
+> ⇒ an action this host **structurally cannot service is not shown at all**. This design originally said
+> *disabled with a reason, never silently missing* — **inverted**
+> ([Correction 39](UX_Tasks_Detail.md#corrections)).
 >
-> ⚠ **But the user's stated objection — *"we do not need a huge menu full of grayed items"* — applies here
-> too, and more permanently**: a host-capability gap is greyed **forever**, not just for one selection.
-> ⇒ **Is 23.5 kept, or do host-unserviceable ids also become absent?** I am not assuming either way.
+> ⭐ **The distinction that survives, and it is a good one:** grey means *"not now, try later"*. That is
+> honest only for a **transient** blocker — the [API §5](UX_Interaction_API.md) exclusivity gate, or
+> [UXI-08](UX_Feature_Layout_Defaults.md) case 5's *running outside the repo*. A blocker that can never
+> clear in this host is **not a state, it is a fact about the host**, so the item does not belong in its
+> menu at all.
+>
+> ⚠ **§3.2's uniform-membership rule still holds** — the **pack** registers the full set; the *menu* then
+> shows what this host can actually do. Membership is uniform, **visibility is earned**. That keeps the
+> "forgot to call registrar #3" failure impossible without producing dead rows.
 
 ### 3.3 Binding the unbound
 
@@ -151,7 +155,7 @@ entirely.
 | 23.2 | 🔴 **No registered id is inert**: every id a host binds has a handler that runs | H |
 | 23.3 | 🔴 **No menu item is emitted without a handler** — the *Measurement Tool* dead-click guard, per host | H |
 | 23.4 | IG's six forked behaviours are reachable **through the shared registry**; the `switch` is gone | H |
-| 23.5 | ⚠ An id a host cannot service is **disabled with a reason**, never absent — 🔴 **needs confirming against [ruling 47](UX_RESUME_INTERACTION.md)**, see §3.2 | H |
+| 23.5 | 🔒 An id a host **structurally cannot service is not shown at all** — never permanently greyed ([ruling 49](UX_RESUME_INTERACTION.md)). ⚠ **Inverted from this design's original wording** ([Correction 39](UX_Tasks_Detail.md#corrections)) | H |
 | 23.6 | Unhandled ids still forward to ExCon from IG — the fallback survives the migration | H |
 | 23.7 | `SelectionInteractionSystem` is constructed **with** a `RubberBandState` in every host | H |
 | 23.8 | CGF registers `Hrot.Common.Diagnostics.Gizmos.GizmoRegistrar` — ring, health bars, menus, layer control all present | H |
