@@ -4,7 +4,13 @@
 > ⭐⭐ **Batch 43 verified and merged at `3583acd4` (§7p) — `BP-57` is CLOSED.** The Local Variables
 > section landed; a designer can declare, rename, delete, duplicate and undo a graph local from the
 > editor, and it follows the canvas.
-> ⏭ **Batch 44 is DISPATCHED — the `U-` sequence opens** ([`U-1` + `U-2`](HANDOFF_Batch44_Golden_Harness_And_Compiler_Ownership.md)).
+> ⭐⭐ **Batch 44 verified and merged at `ba337568` (§7q) — THE GOLDEN NET IS BUILT AND IT BITES.**
+> 42 assets × two tiers, three proof-it-bites tests one per tier, and ⭐ **the in-process vs
+> semantic-model resolver parity question is ANSWERED: 42/42 byte-identical.** ⭐ **`BP-229` closed.**
+> ⇒ ⭐⭐ **Every later `U-` task's *"the output did not change"* is now falsifiable.**
+> ⚠ **Two prerequisites the plan did not have, both measured:** the corpus compiles **as a set**
+> (sibling catalog, not just the preload — 40/42 without it), and the generator **hardcodes
+> `CompilerMode.Release`** ⇒ 📌 **Debug-mode emit is NOT covered by the baseline.**
 > ⚠ **[PLAN_Variable_Unification_Tasks.md](PLAN_Variable_Unification_Tasks.md)'s batch table was
 > RENUMBERED (+2)** — `BP-57`'s authoring half took three batches, not two. ⭐ **Only 47 hard-requires
 > the visual check; 44 · 45 · 46 · 48 all run headless, and 48 may be pulled ahead of 47.**
@@ -159,13 +165,14 @@ report"* rather than *"the gate did not run."* Trap #5, in the gate script itsel
 **3m40s → 2m05s**. ⚠ **And always include `\[FAIL\]` in the result grep**: a `Passed!`/`Failed!`-only
 grep is why Batch 42's flake could not be named.
 
-**Baseline at `3583acd4` — ⭐ all eight gates coordinator-RUN 2026-08-13, post-Batch-43:**
+**Baseline at `ba337568` — ⭐ all eight gates coordinator-RUN 2026-08-13, post-Batch-44:**
 
 | | |
 |---|---|
 | Solution build | **0 errors**, **69 warnings** ⚠ *(an incremental build under-reports — record honestly)* |
 | BP diagnostics | **10 distinct** — all `BP3010`, all **authored** orphans in 2 assets |
-| Blueprints | **3313 total / 3303 passed / 0 failed / 10 skipped** ⚠ *(BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
+| Blueprints | **3448 total / 3438 passed / 0 failed / 10 skipped** ⚠ *(BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
+| ⭐⭐ **Golden corpus** *(new, Batch 44)* | **42 assets × Tier 1 + Tier 2**, `Snapshots/Golden/`. ⛔ **Tier 1 moving is a FAILURE, not a rebase.** Regenerate Tier 2 with `BLUEPRINT_REGENERATE_SNAPSHOTS=1` and **review the diff** |
 | AiShared **1213** · BTree **612** · Breakpoints **130** | 0 failed |
 | NodeEdit Core **208** · UI **131** · Generators **193** | 0 failed |
 
@@ -187,7 +194,7 @@ retired `BP3011`; the 10 that remain are authored and deliberate.)
 
 ## 4 · Where the programme stands
 
-**Tracker: open 63 · done 106** (+1 refuted) ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
+**Tracker: open 62 · done 107** (+1 refuted) ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
 three ways — checkbox tally, per-complexity columns (⚠ take the **first** tag on a row), and the total
 row. ⚠⚠ **Reconcile all three EVERY time.** The columns can agree with the Total and both still be
 wrong: a missed tick is invisible to arithmetic and only shows against the checkbox tally.
@@ -372,16 +379,94 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > visual check is unavailable.** ⭐ **Reuses `TestData.ReadOrRegenerateSnapshot`; the three existing
 > `*EmitGoldenTests` are the precedent, so `U-1` is the sweep they imply, not a new concept.**
 
-## 7p · Batch 43 — ✅ VERIFIED AND MERGED at `3583acd4` — ⭐⭐ **THE SECTION LANDED. `BP-57` is CLOSED**
+> ⏭ **Batch 45 dispatched — [`U-3`: `(kind, index)`, and it closes `BP-226`](HANDOFF_Batch45_Kind_Index.md).**
+> ⭐⭐ **The first task the net was built for** — its Pass 1 is *"golden unchanged"*, which only became
+> a real assertion yesterday. ⭐ **Coordinator finding added to the handoff and NOT in `BP-226`'s row:**
+> `VarFieldName`'s `WorkingState` branch tests `index < ws.Count` and reads **`ws[index]`** — ⛔ **the
+> index is never rebased**, so even reaching that branch resolves the wrong field; and **`Parameters`
+> is never consulted at all.** ⭐ **The entrenchment worry is dead** — `BP1024`/`BP1031` mean no shipped
+> asset has both lists populated, so the corpus cannot depend on the broken behaviour ⚠ **and therefore
+> "golden unchanged" alone would also pass a refactor that fixed nothing.** ⇒ ⭐ **Pass 2 and Pass 3
+> must be asserted RED before the change.**
+
+## 7q · Batch 44 — ✅ VERIFIED AND MERGED at `ba337568` — ⭐⭐ **THE NET IS BUILT, AND IT BITES**
 
 **Gates — all eight, coordinator-run on the merged tree:**
 
 | | |
 |---|---|
 | Solution build | **0 errors**, **69 warnings** — unmoved |
+| Blueprints | **3448 total / 3438 passed / 0 failed / 10 skipped** (**+135**) |
+| ⭐ **AiShared 1213** · BTree **612** · Breakpoints **130** · Generators **193** | unmoved |
+| NodeEdit Core **208** · UI **131** *(no `--no-build`)* | unmoved |
+| `tracker-counts.py --check` | **clean — thirteen batches running.** open **62** / done **107** ⇒ ⭐ **`BP-229` moved across** |
+
+✅ **Rule 7 verified mechanically:** their first commit's parent **is** the dispatch commit `3b1dba8e6`.
+
+### ⭐⭐ Three corrections to the plan — all measured, all mine to have missed
+
+| | |
+|---|---|
+| 🔴⭐ **The corpus compiles as a SET** | ⛔ `SmokeGuard` and `SmokePatrol` fail `BP1301` with `SiblingSignatures: Array.Empty<>` — **they call each other.** ⭐ **Production has always built a catalog**: `BlueprintIncrementalGenerator` parses **every** `AdditionalFiles` entry through `BlueprintSignatureParser` and hands the whole thing to every compile. ⇒ **the preload and the catalog are two independent prerequisites, and the plan had only the first** — ⚠ **so "one `typeof` touch ⇒ 42/42" was wrong; it gives 40/42** |
+| 🔴⭐ **`CompilerMode.Release`, hardcoded** | ⛔ `CompileOneAsset` pins Release ⚠ **regardless of MSBuild configuration** ⇒ a Debug-mode harness would have baselined **~40 extra `DebugProbe.NodeEnter` lines per asset — output that never ships.** 📌 **Not a defect:** `EditorMetadata.CompilerMode` + `QuickReloadService` are the debugger's live re-instrumentation path. 📌 **Known gap recorded: Debug-mode emit is NOT covered by the baseline** |
+| ✅ **Cost** | **849 ms** for 131 tests / ~170 compilations — **~4× the work the 634 ms figure covered.** ⭐ A gate, comfortably |
+
+### ⭐⭐ §1.5 — the parity question is ANSWERED, and the answer is clean
+
+**42/42 byte-identical**, in-process reflection resolver vs production's `RoslynClrSignatureResolver`,
+compared through `EmitCompilerGeneratedFiles`. ⭐⭐ **The two things that differed on the first attempt
+were the MODE and the SIBLING CATALOG — my two errors above, not the resolver.** ⇒ **the harness
+measures what production ships**, which is the assumption every later `U-` task rests on.
+
+### 🔴🔴 Two test-infrastructure defects this batch paid for — both are trap #5
+
+| | |
+|---|---|
+| ⛔⛔ **`ResolveSnapshotsDir` walked up from `bin/`** | ⇒ regeneration wrote baselines **into `bin/` and never into git.** ⚠ **Harmless for the existing snapshots** — `PreserveNewest` kept them in step — ⭐ **silently fatal for a NEW one**: the baseline appears to exist, the suite is green, and nothing is committed. Now anchored on the test project directory |
+| ⛔⛔ **A bite test pointed at a committed baseline path** | under `BLUEPRINT_REGENERATE_SNAPSHOTS=1` the helper **writes** ⇒ the first run **overwrote `ManagedCollectionDemo`'s Tier 1 with the MUTATED layout.** ⭐⭐ **The proof-it-bites test corrupted the very net it exists to prove.** Bite tests now compare against a scratch copy |
+
+⭐ **Both were found by doing §1.4 rather than by reasoning about it.** ⚠ **Neither is visible from a
+green suite** — which is exactly why *"a harness that has never failed is not a harness"* was the item
+that mattered.
+
+### ⭐ The bites, one per tier, exactly as asked
+
+| mutation | reddened |
+|---|---|
+| swap two of `ManagedCollectionDemo`'s six variables | ⭐ **Tier 1 + Tier 2 + `StructureHash`** — and the report **names the moved field** |
+| change emitted text without moving a field | ⭐ **Tier 2 only** — which is the whole reason for two tiers |
+| introduce one extra diagnostic | **Tier 1** (multiset) |
+
+📌 **The 250 KB failure-message wart (§1.3) was fixed, not waved through:** the message now leads with
+the **first differing line and context**, inlining both files only under a **4 KB budget**.
+
+### ⭐ `U-2` — the placement decision is the whole task, and they reasoned it out
+
+| | |
+|---|---|
+| ⭐ **Copy taken immediately after Stage 0** | Stage 0's pin rehydration is **contractually visible** (`Compile`'s own comment: *"intentional rehydration"*) ⇒ **an earlier copy would have silently changed documented behaviour.** Stage 2 in between is a pure validator |
+| ⭐⭐ **Fresh `Link` OBJECTS, not just fresh lists** | ⚠ **and this is not belt-and-braces:** `MacroExpander` assigns `link.ToNodeId`/`ToPinId` **in place** (`:205`, `:258`) ⇒ **a list-only copy leaves the caller's own wires rewired while passing a node-count test** |
+| ⭐ **Nodes stay SHARED, deliberately** | nothing mutates a node after Stage 0 (checked across 2.5/3/4), and cloning would have to preserve node ids — **the `DebugMap` and every diagnostic are keyed by them** |
+| ⭐ **Built on `Graph.WithNodesAndLinks`** (`BP-220`) | ⇒ **`LocalVariables` comes across without anyone having to remember it** — the exact hazard the handoff flagged |
+| ⭐ **Four gates, including the anti-vacuity one** | the macro **still expands** in the compiler's copy — ⛔ otherwise *"nothing changed"* is also satisfied by a compiler that skipped the splice |
+| 🔴 **Revert-goes-red** | removing the copy reddens exactly the ownership test ⭐ **and the golden corpus stays green with and without it — which IS `U-2`'s Pass 2** |
+
+### 📌 Coordinator's own correction to §7p
+
+⚠ **§7p said "all eight, coordinator-run"; I ran six.** The two NodeEdit gates were **inferred** from
+Batch 43's diffstat (it touches no `FDP/` file), not measured. ✅ **Measured now at `ba337568`:
+208 / 131 — the recorded values were right, the method claimed was not.**
+
+## 7p · Batch 43 — ✅ VERIFIED AND MERGED at `3583acd4` — ⭐⭐ **THE SECTION LANDED. `BP-57` is CLOSED**
+
+**Gates — coordinator-run on the merged tree** ⚠ *(six measured here; see the correction at the end of §7q)*:
+
+| | |
+|---|---|
+| Solution build | **0 errors**, **69 warnings** — unmoved |
 | Blueprints | **3313 total / 3303 passed / 0 failed / 10 skipped** (**+15**) |
 | ⭐ **AiShared 1213 — unmoved**, third batch running | BTree **612** · Breakpoints **130** · Generators **193** |
-| ⚠ NodeEdit Core **208** · UI **131** — run **without** `--no-build` | unmoved (the badge was correctly not built) |
+| ⚠ NodeEdit Core **208** · UI **131** | ⚠ **inferred from the diffstat here, MEASURED at Batch 44** — unmoved either way (the badge was correctly not built) |
 | `tracker-counts.py --check` | **clean — twelve batches running.** open **63** / done **106** (+1 refuted) |
 
 ⭐ **`BlueprintMyBlueprintModel.cs` is touched for the first time in three batches**, and the tracker
