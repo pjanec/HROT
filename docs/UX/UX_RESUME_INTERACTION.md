@@ -8,10 +8,17 @@
 Designed **19 of 34** issues. Three were consolidated into one API + one acceptance catalogue; the rest
 have their own feature docs. **55 rulings · 42 corrections**, all contiguous and linked below.
 
-✅ **[Q29 — entity commanding](Architect_Question_29_Entity_Commanding.md) is ANSWERED AND ARCHITECT-ACCEPTED**
-(rulings 38-46, accepted by [ruling 48](#) — **no further architect round**). A right-click order is an **immediate tactical intent**, carried
-by **one action id + a JSON argument**, with the command set and default params from **TKB — disk-first,
-hardcoded fallback, behind the existing provider seam**. ✅ **[UXI-32 is now designed](UX_Feature_Entity_Commanding.md)** — 37 cases.
+🔒 **NO OPEN DECISIONS.** Rulings **47-55** closed every question this thread had, and added two
+cross-cutting architecture rules that constrain everything built later:
+
+| | |
+|---|---|
+| 🔒 **[Ruling 53](#) — confirmation is resolved at the ORIGIN node** | the infrastructure is **headless by default**; MCP/script/replay dispatch through a context with no confirmation host, and **receivers never ask and never block**. What crosses the wire is pre-authorized |
+| 🔒 **[Ruling 55](#) — the KNOWING node decides what to ask** | the origin is **dumb**: it pre-flights over `ICommandGateway`, gets a neutral `ConfirmationSpec?` back, and **renders it verbatim**. `null` ⇒ no dialog. ⚠ **[Ruling 54](#) is superseded** — it made the origin smart |
+
+⚠ **These two are not UI details.** They govern every request this programme emits, and they were both
+reached by the user correcting a design that worked in-process and would have failed in a cluster
+([Corrections 41-42](UX_Tasks_Detail.md#corrections)).
 
 | Doc | Holds |
 |---|---|
@@ -171,20 +178,15 @@ review rule (UC-44c).
 | **`GlobalActionRequestedEvent` carries ONE `Entity Target`**; the dispatch loop is one handler call per event ⇒ a `PerEntity` fan-out publishes **N events** and needs **no change** to either | `GlobalActionRequestedEvent.cs:12-18`, `GlobalActionDispatchSystem.cs:26-30` |
 | **`MapLayerAssignmentSystem` classifies every entity into 5 layers → `MapDisplayComponent.LayerMask`, and the symbol emitter never reads it** (always `layer: 0`) — ⭐ *the same resolve-then-discard failure as the tint* | `MapLayerAssignmentSystem.cs:97-127` vs `EntityPresentationGizmoShared.cs` |
 
-## 6. ✅ OPEN decisions — none
+## 6. ✅ OPEN decisions — NONE
 
-Both are closed.
+All three questions this thread raised are closed.
 
 | # | Question | Outcome |
 |--:|---|---|
-| ~~1~~ | The 9 orphan action ids | ✅ **CLOSED by [ruling 37](#)** — a **capability gap**, not a binding choice. Moved to [UXI-32](UX_Issues.md#uxi-32) / [Q29](Architect_Question_29_Entity_Commanding.md), which is now **answered and architect-accepted** ([ruling 48](#)) |
-| ~~2~~ | Partial applicability in a multi-selection | ✅ **CLOSED by [ruling 47](#)** — items incompatible with *any* selected entity are **absent**: not greyed, no reason. [UXR-91](UX_Requirements.md#uxr-91) stands as written; [UXI-11 §2.4](UX_Feature_Selection.md) is refuted ([Correction 38](UX_Tasks_Detail.md#corrections)) |
-
-🔴 **One new question raised, not yet answered** — [UXI-23 case 23.5](UX_Feature_Map_Parity.md): ruling 47
-settled *incompatible with the selection*. A different axis is **an action a host structurally cannot
-service**, which today is specified as *disabled with a reason, never absent*. That reason **is** single
-and stable, but such an item is greyed **permanently** — so the user's *"no huge menu full of grayed
-items"* may apply there too. **Not assumed either way; flagged in the design.**
+| ~~1~~ | The 9 orphan action ids | ✅ **[Ruling 37](#)** — a **capability gap**, not a binding choice ⇒ [UXI-32](UX_Issues.md#uxi-32) / [Q29](Architect_Question_29_Entity_Commanding.md), now answered, architect-accepted ([ruling 48](#)) **and designed** |
+| ~~2~~ | Partial applicability in a multi-selection | ✅ **[Ruling 47](#)** — incompatible items are **absent**: not greyed, no reason |
+| ~~3~~ | Host-unserviceable actions — greyed or absent? | ✅ **[Ruling 49](#)** — *"a permanently grayed item is useless"* ⇒ **absent**. [UXI-23 case 23.5](UX_Feature_Map_Parity.md) inverted ([Correction 39](UX_Tasks_Detail.md#corrections)) |
 
 ## 6b. Needs a **Windows** session (cannot be done here)
 
@@ -196,10 +198,9 @@ items"* may apply there too. **Not assumed either way; flagged in the design.**
 
 ## 6c. Next steps, in order
 
-1. ⏭ **Designing continues** — user, 2026-08-10: *"keep designing now rather than rewriting tasks later because we find new unexpected stuff"*. ✅ **09 · 10+19 · 11 · 23 · 24 · 28 · 29** all designed this session. 🎯 **Next: [UXI-32](UX_Issues.md#uxi-32)** — every decision is ruled and it is the only issue whose design is *specified but unwritten*; then **UXI-12** (spawn UI ×4).
+1. ⏭ **Designing continues** — user, 2026-08-10: *"keep designing now rather than rewriting tasks later because we find new unexpected stuff"*. ✅ **09 · 10+19 · 11 · 16 · 23 · 24 · 27 · 28 · 29 · 32** all designed this session. 🎯 **Next: UXI-12** (spawn UI ×4), or **UXI-13** (gizmo main-menu block copy-pasted ×4 — a cheap seam-law one).
 2. Cut `UXT` tasks — **none cut yet**, deliberately deferred by the user.
 3. Remaining undesigned: **UXI-12..15, 17, 18, 20, 21, 31, 33, 34** · **UXI-25** 🔒 blocked on UXI-04 · **UXI-30** specified in [UXI-29 §3.3b-c](UX_Feature_Authority_Aware_Writes.md), needs no separate design doc.
-   ⚠ **[UXI-32](UX_Issues.md#uxi-32) is a special case: fully specified, no design doc yet.** [Q29](Architect_Question_29_Entity_Commanding.md) answers every decision (rulings 38-46) but is an *architect question*, not a feature design — the `UX_Feature_Entity_Commanding.md` that turns it into acceptance cases has **not been written**. That is the one piece of design work this session left unfinished.
 4. ✅ **RESOLVED — host pump + playback sits immediately before `_kernel.Update()`** (`EditorSubsystem.cs:1618`); the kernel flush precedes `Bus.SwapBuffers()` (`ModuleHostKernel.cs:523-534`), so ops land visible **in the same frame**. Precedent: `_aiCoordinator.DrainPendingCallbacks()` (`:1620-1624`). ⚠ *Unpinned:* where ImGui panel drawing sits relative to `EditorSubsystem.Update()` — affects only which frame a synchronous handler commits in. [API §6d](UX_Interaction_API.md#6d--where-the-hosts-playback-sits--resolved-2026-08-10)
 
 ## 6d. 🔴 Dependency order — designs now constrain each other
@@ -212,6 +213,8 @@ items"* may apply there too. **Not assumed either way; flagged in the design.**
 | **UXI-04 → UXI-25** | the shared ORBAT panel is impoverished until UXI-04 lands |
 | ✅ **Q29 → any order binding — UNBLOCKED** | rulings 38-46 answer it. `Properties` and `Teleport` are **not** orders and may be bound immediately; the other seven are **immediate tactical intents** (never mission edits), each needing an intent DTO + mapper + behavior (placeholder bodies allowed, [ruling 39](#)) |
 | **UXI-24 ← ruling 29** | the multi-delete confirmation must sit on the **raw `Delete` key** path, which bypasses the action vocabulary entirely ([UXI-23 §3.4](UX_Feature_Map_Parity.md)) |
+| **UXI-03 + UXI-24 → UXI-16/27** | the confirmation is driven by `EntityActionGroup.Destructive`, and case 16.7 (the raw `Delete` **key** confirms too) needs UXI-24 §3.6's key/menu convergence — **without it the key still deletes silently** |
+| **UXI-32 ↔ UXI-16/27** | ⭐ **mutual**: UXI-32's `ClearsPriorIntent` is a confirmation consumer, and its `IIntentAspectProvider` is what UXI-16/27's pre-flight calls to build the `ConfirmationSpec` ([ruling 55](#)) |
 | **UXI-11 → UXI-03 → UXI-24** | one store, then the descriptor that carries `Execution`, then the fan-out. ⚠ **UXI-24 amends UXI-11**: `ISelectionState` must gain `Add`/`Remove`/`SetMultiple`/`Clear` — its only mutator today (`PrimarySelected`) **collapses the selection to one**, so UXI-11's *"handlers need no change"* cannot deliver multi-select |
 
 ## 7. ⚠ Process rules earned the hard way
@@ -224,5 +227,5 @@ items"* may apply there too. **Not assumed either way; flagged in the design.**
 | **Rule 6e** | 🔴 **Inventory claims go through the graph index, not grep** (user, 2026-08-13: *"be more thorough in what is easy to read from the existing sources — it is difficult to believe your conclusions otherwise"*). ⚠ **Grep answers *"does X exist"*; it cannot answer *"what is the complete set of X"*** — and almost every claim this programme makes is the second kind. [Correction 37](UX_Tasks_Detail.md#corrections): three rounds of grep produced a four-interface TKB inventory; **one `search_graph(name_pattern=".*Tkb.*", label="Interface")` returned five**, and the missing one was load-bearing. ⇒ **Any sentence of the form "there are N of these" / "nothing implements this" / "these are the levels" starts with `search_graph`.** ⚠ **But measured the other way too**: `trace_path` on `ITkbDatabase.TryGetByType` found **3 callers** (all tests/examples) where grep found **9+ production sites** — C# **interface dispatch defeats the call resolver**. ⇒ 🔒 **graph for inventory and structure, grep for call sites, and never trust either alone for an exhaustive claim** |
 | **Rule 6b** | before claiming an **engine-level defect**, read `README.md` + the Programmer's Guide |
 | ⚠ | **follow the call one level deeper** — I read a dispatcher and missed synchronization in the stream |
-| ⚠ | subagent reports have failed verification **6+ times** — re-derive every delegated claim |
+| ⚠ | subagent reports have failed verification **7 times** — re-derive every delegated claim. ⚠ The newest ([Correction 34](UX_Tasks_Detail.md#corrections)) reported a wired *consumer* whose *producer* had zero production callers, and would have had me contradict the user on a point where the user was right |
 | ⚠ | resolve a duplicated type by **project reference**, never by namespace |
