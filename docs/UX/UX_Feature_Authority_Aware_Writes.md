@@ -241,6 +241,47 @@ local write would be reverted by the next ingress sample (visible snap-back).
 **on commit only**. ⚠ This also removes the per-frame network question: one request per gesture, not per
 frame.
 
+### 3.4b 🔒 RULED — drag is unified: **one registration, no callbacks, no per-host code**
+
+> **User, 2026-08-12:** *"Drag handling needs unification, sharing the same implementation in all map
+> subsystems."*
+
+**Today it is registered five different ways:**
+
+| Subsystem | Registration | Send on drag |
+|---|---|---|
+| **IG** (network on) | `new EntityDragGizmoDefinition(onDragCommitted: …)` `:749` | ✅ → `OnEntityDragEnded` → `SendGeoSpatialUpdate` |
+| **IG** (network off) | `new EntityDragGizmoDefinition()` `:757` | ❌ |
+| **SimHost** | `new EntityDragGizmoDefinition()` `SimHostApp.cs:347` | ❌ |
+| **Editor** | `new EntityDragGizmoDefinition()` `EditorSubsystem.cs:1120` — ⚠ the comment says *"has an optional callback constructor → register manually"*, and then passes none | ❌ |
+| **CGF** · **ReplayBrowser** | **not registered at all** | — |
+
+⭐ **The `onDragCommitted` hook has exactly one caller.** Seam-law again: an optional callback added for
+one host, which then becomes the only host that behaves correctly.
+
+⇒ 🔒 **After this design there is one form everywhere** — `new EntityDragGizmoDefinition()`, no callback,
+because §3.2's egress translator does that job for **every** host. IG's `onDragCommitted`,
+`OnEntityDragEnded` and `SendGeoSpatialUpdate` all **retire**.
+
+#### ⭐ And the cadence question answers itself — continuous drag is **not production behaviour**
+
+I expected IG's continuous-drag and shift-immediate modes to conflict with §3.4's *publish-on-commit*.
+They do not, because **they are only reachable from a test hook**:
+
+| Fact | Evidence |
+|---|---|
+| `_continuousDragTimer` is **incremented** only inside `TestHook_SimulateEntityMoved` | `IgApplication.cs:2291-2297` |
+| In production it is only ever **reset** | `:2147`, `:2155` |
+| `MapUserConfig.ContinuousDragUpdates` has **no production reader** | its only reads are the test hook and a test-only property `:2274-2275` |
+| The shift-immediate path (`BUG2-I001`) is in the **same** test hook | `:2300-2303` |
+
+⇒ 🔒 **Production drag is already commit-only in every host**, so §3.4 loses nothing and unification is
+behaviour-preserving. ⭐ **Seam-law instance 14** — a config flag whose only reader is a test.
+
+⚠ **If continuous cadence is wanted for real**, it becomes a **shared publisher policy** — how often the
+gizmo publishes an intent — and *not* IG-specific network code. The routing below is unaffected either
+way, which is the point of separating cadence from delivery.
+
 ### 3.5 Fix the unconditional local applier
 
 `NetworkSpawningSystem.ProcessUpdate` (`:162-175`) must gate on authority too, or #3/#4's local write
@@ -272,9 +313,12 @@ simply moves one level down.
 | 29.21 | The **same** entity/component decision yields the **same** verdict on every channel — one notion of authority, not two | H |
 | 29.22 | 🔒 A **descriptor** request for a component this node does not own is **ignored**, even when the node owns the *descriptor key* — the two notions must not diverge | H |
 | 29.23 | 🔴 **Replication ingress still writes unowned components** — the inverse gate is preserved; a ghost keeps receiving owner state. The anti-regression guard for UXI-30's sweep | H |
+| 29.24 | 🔒 **Every map subsystem registers drag identically** — same constructor, **no callback**; no host passes `onDragCommitted` | H |
+| 29.25 | Drag in **CGF** works at all (it registers no drag gizmo today) | I |
+| 29.26 | Production drag emits **one** intent per gesture in every host — the commit-only behaviour is preserved, not newly imposed | H |
 | 29.17 | The intent is one **local `Fdp` bus event**; the translator is the only component that knows the wire form | H |
 
-**21 H · 2 I · 0 V.**
+**23 H · 3 I · 0 V.**
 
 ## 5. 🔒 Out of scope
 
