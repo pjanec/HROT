@@ -149,6 +149,14 @@ space that cannot express three is the direction Q27-D ruled against.
 ⚠ **Two graphs may each declare a local named `Scratch`.** The slot names must be graph-qualified;
 `__loc_` alone is not enough once they share storage.
 
+⚠⚠ **And the one that will bite silently: `StructureHash`.** `StructureHashComputation.Compute`
+(`Stage6_Lower:27`) hashes **`Parameters` + `WorkingState` + `Variables`** — name, type, offset, size
+— and **nothing else.** The emitted `BTreeTick` wipes and re-initialises the blackboard **only** when
+`storedHash != StructureHash`. ⇒ ⛔ **A blackboard-resident local that is not in that hash means
+changing its type or layout leaves the old bytes in place and reinterprets them** — stale memory read
+as a new type, with nothing reporting it. **If the slot lives in blackboard memory, it belongs in the
+hash. Say explicitly what you did about this.**
+
 📌 **The latency predicate still decides which branch a graph takes** — so §1.2 remains live and is
 now the *dispatch* question rather than the *refusal* question. **Getting it wrong now silently picks
 stack storage for a suspending graph, which is the bug this item exists to fix.**
