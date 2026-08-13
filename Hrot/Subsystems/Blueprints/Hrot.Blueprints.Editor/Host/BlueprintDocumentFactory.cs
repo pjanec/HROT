@@ -595,6 +595,90 @@ public static class BlueprintDocumentFactory
         markDirty?.Invoke();
     }
 
+    /// <summary>
+    /// BP-57 — the undo recorder for <c>BlueprintLocalVariableSchemaSource</c>: one entry per gesture,
+    /// snapshot-and-restore over <b>every</b> graph's <see cref="Graph.LocalVariables"/>.
+    ///
+    /// <para>
+    /// ⭐ <b>Snapshot, never prediction</b> — the same shape as <see cref="RecordItemEdit"/> and for the
+    /// same reason: an inverse computed from the forward has to be kept in step with it forever, and
+    /// this programme has already paid for that twice (<c>BP-225</c>, <c>BP-74</c>).
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>All graphs, not just the current one.</b> The gesture is scoped to the open graph, but the
+    /// snapshot is not: scoping it would make undo depend on which graph happens to be open when
+    /// Ctrl+Z is pressed, and a BP-24 graph switch between the edit and the undo would silently
+    /// restore nothing.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>Deep copies, because rename mutates in place.</b> A shallow snapshot would hold the same
+    /// <see cref="VariableDecl"/> objects on both sides, so undoing a rename would restore the new
+    /// name — exactly the subtlety <see cref="SnapshotVariables"/> documents one list over.
+    /// </para>
+    ///
+    /// <para>
+    /// 📌 Delete needs nothing extra here <b>because the delete refuses while referenced</b>: no nodes
+    /// are ever removed, so there are no references for an undo to forget. Had the other ruling been
+    /// taken, this snapshot would have had to cover nodes and links too — <c>BP-225</c>'s trap.
+    /// </para>
+    /// </summary>
+    internal static Action<string, Func<bool>> LocalVariableUndoRecorder(
+        GraphView? view, BlueprintAsset asset, Action? markDirty)
+    {
+        return (label, mutate) =>
+        {
+            var before = SnapshotLocals(asset);
+            if (!mutate()) return;
+            var after = SnapshotLocals(asset);
+
+            if (view is null) { markDirty?.Invoke(); return; }
+
+            view.Execute(
+                new BlueprintEditCommand(label, () => RestoreLocals(asset, after)),
+                new BlueprintEditCommand(label, () => RestoreLocals(asset, before)),
+                label);
+
+            markDirty?.Invoke();
+        };
+    }
+
+    /// <summary>A deep per-graph copy of every locals list. See <see cref="LocalVariableUndoRecorder"/>.</summary>
+    private static Dictionary<Guid, List<VariableDecl>> SnapshotLocals(BlueprintAsset asset)
+        => asset.Graphs.ToDictionary(
+            g => g.Id,
+            g => g.LocalVariables.Select(v => new VariableDecl
+            {
+                Id   = v.Id,
+                Name = v.Name,
+                Type = new BlueprintTypeRef
+                {
+                    TypeId        = v.Type.TypeId,
+                    IsArray       = v.Type.IsArray,
+                    Capacity      = v.Type.Capacity,
+                    InitialLength = v.Type.InitialLength,
+                    GenericArgs   = v.Type.GenericArgs.ToList(),
+                },
+                DefaultValueJson = v.DefaultValueJson,
+                IsEditable       = v.IsEditable,
+                IsExposedOnSpawn = v.IsExposedOnSpawn,
+                Category         = v.Category,
+                Tooltip          = v.Tooltip,
+                Comment          = v.Comment,
+            }).ToList());
+
+    private static void RestoreLocals(
+        BlueprintAsset asset, Dictionary<Guid, List<VariableDecl>> snapshot)
+    {
+        foreach (var g in asset.Graphs)
+        {
+            if (!snapshot.TryGetValue(g.Id, out var decls)) continue;
+            g.LocalVariables.Clear();
+            g.LocalVariables.AddRange(decls);
+        }
+    }
+
     /// <summary>Graph names + CallCustomEvent EventIds — the two things RenameItem mutates
     /// outside the declaration lists. Strings only; cheap for any asset size.</summary>
     private static (Dictionary<Guid, string> GraphNames,

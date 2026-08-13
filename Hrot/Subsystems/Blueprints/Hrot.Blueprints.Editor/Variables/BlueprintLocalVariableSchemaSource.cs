@@ -42,13 +42,36 @@ public sealed class BlueprintLocalVariableSchemaSource : IVariablesSchemaSource
     private readonly BlueprintAsset _asset;
     private readonly Func<Graph?> _currentGraph;
     private readonly Action _onChanged;
+    private readonly Action<string, Func<bool>> _record;
+    private readonly Action<string>? _refuse;
 
+    /// <param name="record">
+    /// ⭐⭐ <b>The undo seam.</b> Runs one gesture's mutation inside one undo entry —
+    /// <c>record(label, mutate)</c>, where <c>mutate</c> returns false when it changed nothing so no
+    /// empty entry is pushed. ⚠ <b>One entry per GESTURE, not per keystroke</b> (<c>BP-204</c>).
+    /// <para>
+    /// Defaults to running the mutation bare so a headless caller with no canvas still works — but a
+    /// host that HAS a view must supply one, or every locals gesture is unundoable.
+    /// <c>BlueprintDocumentFactory.LocalVariableUndoRecorder</c> is that host implementation.
+    /// </para>
+    /// </param>
+    /// <param name="refuse">
+    /// How a refusal reaches the designer. ⛔ <b>Never silence</b> — the standing <c>Q26-B2</c> ruling
+    /// is that a gesture which cannot proceed must SAY so; <c>BP-76</c>/<c>BP-77</c> were both filed
+    /// because something was greyed out with no explanation.
+    /// </param>
     public BlueprintLocalVariableSchemaSource(
-        BlueprintAsset asset, Func<Graph?> currentGraph, Action onChanged)
+        BlueprintAsset asset,
+        Func<Graph?> currentGraph,
+        Action onChanged,
+        Action<string, Func<bool>>? record = null,
+        Action<string>? refuse = null)
     {
         _asset        = asset        ?? throw new ArgumentNullException(nameof(asset));
         _currentGraph = currentGraph ?? throw new ArgumentNullException(nameof(currentGraph));
         _onChanged    = onChanged    ?? throw new ArgumentNullException(nameof(onChanged));
+        _record       = record ?? ((_, mutate) => mutate());
+        _refuse       = refuse;
     }
 
     /// <summary>
@@ -171,29 +194,104 @@ public sealed class BlueprintLocalVariableSchemaSource : IVariablesSchemaSource
     public void AddVariable(BlackboardVariableEntry entry)
     {
         var g = EditableGraph;
-        if (g is null) return;
-
-        g.LocalVariables.Add(new VariableDecl
+        if (g is null)
         {
-            Id   = Guid.NewGuid(),
-            Name = entry.Name,
-            Type = new BlueprintTypeRef { TypeId = entry.FieldType.FullName ?? entry.FieldType.Name },
-            DefaultValueJson = entry.DefaultValueJson ?? "",
-            Comment = entry.Comment,
+            _refuse?.Invoke(
+                "A macro graph cannot declare a local variable. A macro is spliced into every call "
+                + "site, so after expansion it is not a graph and its nodes belong to the host — "
+                + "there is nothing for a macro-local to be scoped to. Declare it on the graph that "
+                + "CALLS this macro, or use an asset variable.");
+            return;
+        }
+
+        _record($"Add Local Variable '{entry.Name}'", () =>
+        {
+            g.LocalVariables.Add(new VariableDecl
+            {
+                Id   = Guid.NewGuid(),
+                Name = entry.Name,
+                Type = new BlueprintTypeRef { TypeId = entry.FieldType.FullName ?? entry.FieldType.Name },
+                DefaultValueJson = entry.DefaultValueJson ?? "",
+                Comment = entry.Comment,
+            });
+            _onChanged();
+            return true;
         });
-        _onChanged();
     }
 
     public void RemoveVariable(string name) => RemoveVariables(new[] { name });
 
+    /// <summary>
+    /// ⭐⭐ <b>Refuses while referenced, naming the count and where.</b>
+    ///
+    /// <para>
+    /// ⛔ <b>What it replaces was a naive <c>RemoveAll</c></b> that dropped the declaration and left
+    /// every <c>Get</c>/<c>Set</c> pointing at nothing. Not merely untidy: <c>BP1670</c> then refuses
+    /// the asset at Stage 2, so a one-click gesture reliably made the blueprint uncompilable.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚖️ <b>Why refusing beats taking the nodes along.</b> A delete that silently removes the
+    /// designer's wired-up nodes is the bigger surprise — the repo already ruled that way for asset
+    /// variables (<c>BlueprintDocumentFactory.DeleteItem</c>: <i>"silently deleting a designer's
+    /// wired-up nodes because a declaration went away is not [recoverable]"</i>).
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>But it diverges from that policy in one direction, deliberately.</b> Asset variables are
+    /// deleted and their nodes left dangling for the compiler to name; a LOCAL's references can sit in
+    /// <b>another graph</b> — the cross-graph case <c>CountNodesReferencingVariable</c> counts — which
+    /// the designer cannot see from the current canvas. ⭐ Refusing with a count tells them something
+    /// they could not otherwise learn; leaving it to <c>BP1670</c> tells them only after a build.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>It also keeps the undo honest for free</b> (<c>BP-225</c>): because no nodes are ever
+    /// removed, the undo entry has only declarations to restore — there is no way for it to restore a
+    /// declaration and forget its references, which is exactly the trap <c>BP-225</c> recorded.
+    /// </para>
+    /// </summary>
     public void RemoveVariables(IReadOnlyList<string> names)
     {
         var g = EditableGraph;
         if (g is null) return;
 
-        var set = new HashSet<string>(names, StringComparer.Ordinal);
-        if (g.LocalVariables.RemoveAll(v => set.Contains(v.Name)) > 0)
-            _onChanged();
+        var doomed = g.LocalVariables
+            .Where(v => names.Contains(v.Name, StringComparer.Ordinal))
+            .ToList();
+        if (doomed.Count == 0) return;
+
+        // ⭐ Gather refusals BEFORE mutating anything — a partial delete followed by a refusal would
+        // be the worst of both.
+        var blocked = doomed
+            .Select(v => (Decl: v, Refs: ReferencesTo(v.Id)))
+            .Where(x => x.Refs.Count > 0)
+            .ToList();
+
+        if (blocked.Count > 0)
+        {
+            foreach (var (decl, refs) in blocked)
+            {
+                var graphs = refs.Select(r => r.Graph.Name).Distinct(StringComparer.Ordinal).ToList();
+                _refuse?.Invoke(
+                    $"'{decl.Name}' is still used by {refs.Count} node(s) in "
+                    + $"{string.Join(", ", graphs.Select(n => $"'{n}'"))}. "
+                    + "Delete or retarget them first — removing the declaration on its own would "
+                    + "leave those nodes pointing at nothing, and the blueprint would stop compiling.");
+            }
+            return;
+        }
+
+        _record(
+            doomed.Count == 1
+                ? $"Delete Local Variable '{doomed[0].Name}'"
+                : $"Delete {doomed.Count} Local Variables",
+            () =>
+            {
+                foreach (var v in doomed) g.LocalVariables.Remove(v);
+                _onChanged();
+                return true;
+            });
     }
 
     /// <summary>
@@ -217,8 +315,12 @@ public sealed class BlueprintLocalVariableSchemaSource : IVariablesSchemaSource
         var match = g.LocalVariables.FirstOrDefault(v => string.Equals(v.Name, oldName, StringComparison.Ordinal));
         if (match is null || string.Equals(match.Name, trimmed, StringComparison.Ordinal)) return;
 
-        match.Name = trimmed;
-        _onChanged();
+        _record($"Rename Local Variable '{oldName}' to '{trimmed}'", () =>
+        {
+            match.Name = trimmed;
+            _onChanged();
+            return true;
+        });
     }
 
     /// <summary>
@@ -238,10 +340,14 @@ public sealed class BlueprintLocalVariableSchemaSource : IVariablesSchemaSource
         if (destIndex   < 0 || destIndex   >= list.Count) return;
         if (sourceIndex == destIndex) return;
 
-        var item = list[sourceIndex];
-        list.RemoveAt(sourceIndex);
-        list.Insert(destIndex, item);
-        _onChanged();
+        _record($"Reorder Local Variable '{list[sourceIndex].Name}'", () =>
+        {
+            var item = list[sourceIndex];
+            list.RemoveAt(sourceIndex);
+            list.Insert(destIndex, item);
+            _onChanged();
+            return true;
+        });
     }
 
     // ── aliasing: not a blueprint concept ───────────────────────────────────
