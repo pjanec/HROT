@@ -2,7 +2,7 @@
 
 > **Design for [UXI-32](UX_Issues.md#uxi-32) · drafted 2026-08-13.** Implements
 > [Q29](Architect_Question_29_Entity_Commanding.md), **architect-accepted** by
-> [ruling 48](UX_RESUME_INTERACTION.md). Rulings **37-51** are binding here.
+> [ruling 48](UX_RESUME_INTERACTION.md). Rulings **37-52** are binding here.
 > **Status: ✅ designed — no open decisions.**
 
 ![the commanding chain](img/uxi32_commanding.svg)
@@ -227,10 +227,62 @@ not touch these:**
 | 🔴 **Nav status / physics / `SimTransform`** | muscle tier. A brain-level order must not teleport or halt physics |
 | ⚠ Interrupt bytes | already edge-triggered and cleared end-of-frame by `CognitiveCleanupSystem` — nothing to do |
 
-⇒ 🔒 **`ClearsPriorIntent` clears exactly one thing: the mission plan.** Everything else that "starting
-clean" implies is either already done by the assign, or must not be done at all. ⚠ **Keep the narrow
-name** — *"general behavior clear"* would invite someone to add `TargetMemory` or the blackboard to it
-later, and both would be defects.
+⇒ 🔒 **`ClearsPriorIntent` clears exactly one thing today: the mission plan.** Everything else that
+"starting clean" implies is either already done by the assign, or must not be done at all.
+
+### 2.5d 🔒 …but the flag must not **know** that — providers register a clear delegate
+
+> **User, 2026-08-13:** *"the intent flag should not inherently KNOW what all behaviour queues and
+> planners exist in the system… it should call some internal API where different planners register their
+> clear delegate. Mission plan is such a provider that needs decoupling from the clearing flag."*
+
+⇒ [Ruling 52](UX_RESUME_INTERACTION.md). ⭐ **The pattern is already in this subsystem** —
+`TacticalIntentMapperRegistry` is the same shape, injected into the same system by the same composition
+root. This mirrors a proven seam rather than inventing one.
+
+```csharp
+public interface IIntentClearProvider
+{
+    string Name { get; }                                  // diagnostics: log which providers ran
+    void ClearFor(Entity entity, EntityRepository repo);  // synchronous · idempotent
+}
+
+public sealed class IntentClearRegistry            // mirrors TacticalIntentMapperRegistry
+{
+    public void Register(IIntentClearProvider provider);
+    public IReadOnlyList<IIntentClearProvider> Providers { get; }
+}
+```
+
+`TacticalIntentResolutionSystem` — which already holds the mapper registry — gains this one too:
+
+```
+if (evt.ClearsPriorIntent)
+    foreach (var p in _clearRegistry.Providers) p.ClearFor(evt.Entity, repo);   // synchronous
+… then publish AssignBehaviorEvent as usual
+```
+
+| | |
+|---|---|
+| 🔒 **Synchronous, not an event** | a provider *event* would re-open exactly the frame-ordering hazard §2.5b forbids. Ruling 50's atomicity is preserved because everything happens inside one system call |
+| ✅ **The resolution system knows nothing about missions** | `MissionPlanClearProvider` lives in CGF beside `MissionAdapterSystem` and is registered by `CgfLogicPack` |
+| ⭐ **The scope guard moves to the right place** | §2.5c's *"never clear `TargetMemory`"* stops being a fact the caller must remember and becomes a **contract on the interface** — the rule now sits where a future provider author will read it |
+| ✅ **Registered at startup, immutable at runtime** | same discipline as `BehaviorRegistry`, which must be complete before frame 1 |
+| ✅ **Empty registry ⇒ no clearing** | hosts without CGF's logic pack degrade safely instead of throwing |
+| ✅ **Providers only ever run on the owning node** | the invocation sits **after** the authority gate, so this is correct by construction with no extra rule |
+
+**The one provider this design ships:**
+
+| Provider | Clears |
+|---|---|
+| `MissionPlanClearProvider` | `MissionPlanQueue` → `PhaseCount = 0`; `ActiveMissionPlan` → null; `SmartEgressUtil.MarkDirty` |
+
+⚠ **Candidates for later providers — evidence, not a commitment.** Each is a per-entity store some system
+owns, and **whether it should be cleared by an operator order is a question for its owner, not for this
+design**: `MissionAdapterState` (CGF's phase-change shadow) · `IPathRegistry` / `BrainPathRegistry`
+(navigation paths) · `BTreeTickSystem` and `HsmTickSystem` terminal-tracking dictionaries · in-flight EQS
+results. 🔒 **The registry is what makes adding any of them a local change** — which is the whole point of
+the ruling.
 
 `TacticalIntentResolutionSystem` — already the owner-side choke point, already authority-gated — does
 both in one place when the flag is set:
@@ -274,6 +326,9 @@ both in one place when the flag is set:
 | 32.8c | 🔒 After the order, `MissionAdapterSystem` publishes **nothing** — the plan cannot resume | H |
 | 32.8d | The cancel + assign are **atomic from the operator's view**: the entity is never left brain-dead | H |
 | 32.8e | 🔒 `ClearsPriorIntent` **does NOT touch `BrainBlackboard`** — `ExpectedThreatLevel` and the interrupt bytes survive an order ([Correction 40](UX_Tasks_Detail.md#corrections)) | H |
+| 32.8e2 | 🔒 The clear runs through **`IntentClearRegistry`** — `TacticalIntentResolutionSystem` contains **no reference to `MissionPlanQueue`** | H |
+| 32.8e3 | 🔒 Providers are invoked **synchronously before** the assign; an **empty registry** is a safe no-op | H |
+| 32.8e4 | A provider is **idempotent** — clearing an already-clear entity changes nothing and does not throw | H |
 | 32.8f | 🔴 It leaves **`TargetMemory` untouched** — the unit does not go blind. The scope guard | H |
 | 32.8g | An assign **without** the flag behaves exactly as today — blackboard residue and plan both preserved | H |
 | 32.8h | A `ParseParams` failure still leaves the entity **100% on the old behavior**, flag or not | H |
@@ -297,7 +352,7 @@ both in one place when the flag is set:
 | 32.26 | **IG terminal**: the same order issued remotely reaches the CGF brain | I |
 | 32.27 | Mixed selection (tank + civilian) → only universally-valid orders appear | I |
 
-**31 H · 3 I · 0 V.**
+**34 H · 3 I · 0 V.**
 
 ## 4. Build order
 
