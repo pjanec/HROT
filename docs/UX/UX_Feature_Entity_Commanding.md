@@ -2,7 +2,7 @@
 
 > **Design for [UXI-32](UX_Issues.md#uxi-32) · drafted 2026-08-13.** Implements
 > [Q29](Architect_Question_29_Entity_Commanding.md), **architect-accepted** by
-> [ruling 48](UX_RESUME_INTERACTION.md). Rulings **37-50** are binding here.
+> [ruling 48](UX_RESUME_INTERACTION.md). Rulings **37-51** are binding here.
 > **Status: ✅ designed — no open decisions.**
 
 ![the commanding chain](img/uxi32_commanding.svg)
@@ -169,11 +169,54 @@ a guarantee.
 ```csharp
 public sealed class AssignTacticalIntentEvent {
     public Entity Entity;
-    public string IntentId   = "";
-    public string JsonParams = "";
-    public bool   CancelsMission;      // ⬅ new
+    public string IntentId    = "";
+    public string JsonParams  = "";
+    public bool   ClearsPriorIntent;   // ⬅ new — see 2.5c for exactly what it clears
 }
 ```
+
+### 2.5c 🔒 What "start clean" actually means — the inventory
+
+> **User, 2026-08-13:** *"the entity needs a clean way of cancelling any behaviors and mission plans and
+> whatever so the newly issued behavior starts clear. Probably the intent needs to carry this
+> general-behav-clear flag?"* ⇒ [Ruling 51](UX_RESUME_INTERACTION.md).
+
+⭐ **Yes — one flag. But most of the clean start already happens**, so the flag must be scoped or it will
+re-do work and clear things that must survive.
+
+**Already done by every `AssignBehaviorEvent`** (`BehaviorIngressSystem.cs:122-166`) — 🔒 **the flag must
+not touch these:**
+
+| | |
+|---|---|
+| `BehaviorState.ActiveBehaviorHash` ← new · `InstanceId++` (preemption token) · `BrainTier` ← new |
+| **Stateful working slots** — previous behavior's **detached**, new behavior's **provisioned** |
+| `BrainBTreeState.State = default` — the tree restarts from its root |
+| **HSM instance reset**, rebound to the new topology's `StructureHash` |
+| ⭐ **And it is transactional**: params are parsed into a *shadow* first, so a parse failure leaves the entity **100% on the old behavior** (`:70-73`) |
+
+**Survives an assign — this is the flag's actual job:**
+
+| # | State | Why it leaks |
+|--:|---|---|
+| **①** | **`MissionPlanQueue` + `ActiveMissionPlan`** | nothing in the behavior path touches them ⇒ the plan resumes at its next phase transition ([ruling 50](UX_RESUME_INTERACTION.md)) |
+| **②** | 🔴 **`BrainBlackboard` residue** | the shadow is copied **from the live blackboard** (`:82-88`), so any byte the new behavior's `ParseParams` does not write **keeps the previous behavior's value**. ⚠ **Unclear whether this is deliberate shared scratch or a latent leak** — flagged, not assumed |
+
+**🔴 Must NOT be cleared — the reason the flag is scoped rather than general:**
+
+| | |
+|---|---|
+| 🔴 **`TargetMemory`** | perception is **sensory truth, not intent**. Clearing it **blinds the unit** — it would forget contacts it can currently see, and re-acquire them seconds later |
+| 🔴 **Nav status / physics / `SimTransform`** | muscle tier. A brain-level order must not teleport or halt physics |
+| ⚠ Interrupt bytes | already edge-triggered and cleared end-of-frame by `CognitiveCleanupSystem` — nothing to do |
+
+⇒ 🔒 **`ClearsPriorIntent` clears the *intent stack*: ① always, ② zeroed before the parse.** Name and
+document it that way — *"general behavior clear"* would invite someone to add `TargetMemory` to it later.
+
+⚠ **② is a design decision, not an obvious win**: zeroing the blackboard makes a new order fully
+deterministic, but if any behavior relies on carried-over scratch, it changes existing behaviour.
+**Gate it behind the flag only** — the unflagged `AssignBehaviorEvent` path keeps today's semantics
+exactly.
 
 `TacticalIntentResolutionSystem` — already the owner-side choke point, already authority-gated — does
 both in one place when the flag is set:
@@ -212,10 +255,14 @@ both in one place when the flag is set:
 | 32.5 | The **blittable** `GlobalActionRequestedEvent` path is unchanged for parameterless actions | H |
 | 32.6 | `JsonEntityContextMenuHandler` passes `args` through — the second-parser guard | H |
 | 32.7 | Issuing an order publishes **`AssignTacticalIntentEvent`** and **writes no ECS component** | H |
-| 32.8 | 🔒 An order with `CancelsMission` **empties `MissionPlanQueue`** (`PhaseCount = 0`) and **nulls `ActiveMissionPlan`** | H |
+| 32.8 | 🔒 An order with `ClearsPriorIntent` **empties `MissionPlanQueue`** (`PhaseCount = 0`) and **nulls `ActiveMissionPlan`** | H |
 | 32.8b | 🔒 **No `ClearBehaviorEvent` is published** by that path — the `:53`/`:172` ordering guard | H |
 | 32.8c | 🔒 After the order, `MissionAdapterSystem` publishes **nothing** — the plan cannot resume | H |
 | 32.8d | The cancel + assign are **atomic from the operator's view**: the entity is never left brain-dead | H |
+| 32.8e | 🔒 `ClearsPriorIntent` **zeroes `BrainBlackboard` before the parse** — no residue from the previous behavior | H |
+| 32.8f | 🔴 It leaves **`TargetMemory` untouched** — the unit does not go blind. The scope guard | H |
+| 32.8g | An assign **without** the flag behaves exactly as today — blackboard residue and plan both preserved | H |
+| 32.8h | A `ParseParams` failure still leaves the entity **100% on the old behavior**, flag or not | H |
 | 32.9 | On the **owning** node the intent resolves locally; on a **non-owner** it leaves as `TacticalIntentRequest` — one publish, two routings | H |
 | 32.10 | An order **replaces** the active behavior (`BrainBTreeState`/HSM reset) | H |
 | 32.11 | `MoveHere → MoveToLocation`, `Engage → FireAtTarget`, `Stop → Idle` reach their **registered** behaviors | H |
@@ -236,7 +283,7 @@ both in one place when the flag is set:
 | 32.26 | **IG terminal**: the same order issued remotely reaches the CGF brain | I |
 | 32.27 | Mixed selection (tank + civilian) → only universally-valid orders appear | I |
 
-**27 H · 3 I · 0 V.**
+**31 H · 3 I · 0 V.**
 
 ## 4. Build order
 
