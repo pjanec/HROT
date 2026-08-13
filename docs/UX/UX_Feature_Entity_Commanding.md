@@ -2,7 +2,7 @@
 
 > **Design for [UXI-32](UX_Issues.md#uxi-32) · drafted 2026-08-13.** Implements
 > [Q29](Architect_Question_29_Entity_Commanding.md), **architect-accepted** by
-> [ruling 48](UX_RESUME_INTERACTION.md). Rulings **37-49** are binding here.
+> [ruling 48](UX_RESUME_INTERACTION.md). Rulings **37-50** are binding here.
 > **Status: ✅ designed — no open decisions.**
 
 ![the commanding chain](img/uxi32_commanding.svg)
@@ -143,8 +143,53 @@ bus.PublishManaged(new AssignTacticalIntentEvent {
 | 🔒 **Never write `BehaviorState`** — `BehaviorIngressSystem` is its sole writer |
 | 🔒 **Never touch `MissionPlanQueue`** — [ruling 38](UX_RESUME_INTERACTION.md): a right-click is an *immediate* order, not a plan edit |
 | ✅ **Routing is free** — owner resolves, non-owner forwards. **CGF resolves locally** (it holds `BehaviorState`); everyone else forwards |
-| ⚠ **The order is transient by design** — the mission resumes control at its next phase transition. **Surface this**, or *Stop* followed by movement 20 s later reads as a bug |
 | ⚠ **Two-frame latency**, documented and accepted by the prior design |
+
+### 2.5b 🔒 The order cancels the mission plan — as **one** operation
+
+> **User, 2026-08-13:** *"immediate order should cancel the mission plan first."*
+
+⇒ [Ruling 50](UX_RESUME_INTERACTION.md). This removes the transient-order risk entirely: the plan cannot
+resume control because it no longer exists.
+
+🔴 **But it must not be built as *abort, then order*.** Verified ordering hazard:
+
+| `BehaviorIngressSystem.Execute()` | reads |
+|---|---|
+| `:53` | `AssignBehaviorEvent` ← the order |
+| `:172` | **`ClearBehaviorEvent`** ← `CMD_ABORT_ALL` |
+
+⇒ **the clear runs LAST within a frame.** An abort and an order arriving together would leave the entity
+**brain-dead** (`ActiveBehaviorHash = None`) with the operator's order **silently discarded**. It happens
+to work today only because the abort is **1 hop** and the intent is **2** — an accident of hop counts, not
+a guarantee.
+
+🔒 **So: one operation, not two.**
+
+```csharp
+public sealed class AssignTacticalIntentEvent {
+    public Entity Entity;
+    public string IntentId   = "";
+    public string JsonParams = "";
+    public bool   CancelsMission;      // ⬅ new
+}
+```
+
+`TacticalIntentResolutionSystem` — already the owner-side choke point, already authority-gated — does
+both in one place when the flag is set:
+
+| | |
+|---|---|
+| 1 | `MissionPlanQueue` → `PhaseCount = 0, CurrentPhase = 0, PhaseElapsedSeconds = 0` (the exact `CMD_ABORT_ALL` shape, `MissionControlExecutionSystem.cs:222-228`) |
+| 2 | `ActiveMissionPlan` → null, and `SmartEgressUtil.MarkDirty` so the change replicates |
+| 3 | publish the `AssignBehaviorEvent` **as usual** |
+| 🔒 | **No `ClearBehaviorEvent` is published** ⇒ the `:53`/`:172` hazard cannot arise |
+
+| | |
+|---|---|
+| ✅ **`MissionAdapterSystem` will not fight it** — it fires on *phase change*, and `PhaseCount = 0` means there are no phases |
+| ⚠ **Non-owning nodes need nothing extra** — the flag rides the event, and `TacticalIntentRequest` carries it to the owner, where the same one-operation path runs |
+| 🔴 **The plan is DISCARDED, not paused** — there is no resume. Restoring it means re-committing from `MissionPanel` or reloading the scenario. ⚠ **This is the consequence to surface in the UI**, and it is a stronger warning than the transient-order one it replaces: ordering one unit **destroys its authored plan** |
 
 ### 2.6 Parameters — defaults from TKB, the rest from the click
 
@@ -167,7 +212,10 @@ bus.PublishManaged(new AssignTacticalIntentEvent {
 | 32.5 | The **blittable** `GlobalActionRequestedEvent` path is unchanged for parameterless actions | H |
 | 32.6 | `JsonEntityContextMenuHandler` passes `args` through — the second-parser guard | H |
 | 32.7 | Issuing an order publishes **`AssignTacticalIntentEvent`** and **writes no ECS component** | H |
-| 32.8 | 🔒 It does **not** modify `MissionPlanQueue` | H |
+| 32.8 | 🔒 An order with `CancelsMission` **empties `MissionPlanQueue`** (`PhaseCount = 0`) and **nulls `ActiveMissionPlan`** | H |
+| 32.8b | 🔒 **No `ClearBehaviorEvent` is published** by that path — the `:53`/`:172` ordering guard | H |
+| 32.8c | 🔒 After the order, `MissionAdapterSystem` publishes **nothing** — the plan cannot resume | H |
+| 32.8d | The cancel + assign are **atomic from the operator's view**: the entity is never left brain-dead | H |
 | 32.9 | On the **owning** node the intent resolves locally; on a **non-owner** it leaves as `TacticalIntentRequest` — one publish, two routings | H |
 | 32.10 | An order **replaces** the active behavior (`BrainBTreeState`/HSM reset) | H |
 | 32.11 | `MoveHere → MoveToLocation`, `Engage → FireAtTarget`, `Stop → Idle` reach their **registered** behaviors | H |
@@ -188,7 +236,7 @@ bus.PublishManaged(new AssignTacticalIntentEvent {
 | 32.26 | **IG terminal**: the same order issued remotely reaches the CGF brain | I |
 | 32.27 | Mixed selection (tank + civilian) → only universally-valid orders appear | I |
 
-**24 H · 3 I · 0 V.**
+**27 H · 3 I · 0 V.**
 
 ## 4. Build order
 
@@ -221,6 +269,6 @@ bus.PublishManaged(new AssignTacticalIntentEvent {
 | 🔴 **Order** | UXI-24 (fan-out) and [UXI-23](UX_Feature_Map_Parity.md) (one dispatch path) precede binding. ⚠ **Step 1 before everything** — a menu that reads TKB before TKB loads shows the fallback and looks correct |
 | ⚠ **Touching `GizmoMap.Presentation` touches the IG production terminal** | [ruling 20](UX_RESUME_INTERACTION.md); the change is additive (a previously-null field) and 32.3 is the guard |
 | ⚠ **`PayloadJson` becomes dual-purpose** — `StructUpdate` **and** `MenuAction` | disambiguated by `Kind`, which the reader already switches on. **Document it beside the bit7/bit0 comment** |
-| 🔴 **A transient order looks like a bug** | §2.5 — the mission overrides it at the next phase transition. **This is the one UX risk that is not a code risk**, and it needs a visible cue |
+| 🔴 **An order DESTROYS the entity's authored plan** | §2.5b, [ruling 50](UX_RESUME_INTERACTION.md). Replaces the milder transient-order risk with a sharper one: there is **no resume**. **This is the one UX risk that is not a code risk** — it needs a visible cue, and arguably a confirmation when the entity has a non-empty plan |
 | ⚠ **`BehaviorId`s are stable forever and the registry must be complete before frame 1** | ⇒ allocate ids deliberately even for placeholders (guide `:469-471`) |
 | ⚠ **ExCon has no `ITkbDatabase` today** | step 1 gives it one; until then 32.23 fails and its menu falls back |
