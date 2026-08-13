@@ -98,61 +98,80 @@ public interface IActionDispatchContext
 emission, so the marker is a property of the *local dispatch path*, not of the message. **Do not add a
 field to the DDS contracts for this.**
 
-### 2.0b 🔴 How the origin knows **what** to ask — without knowing what it is asking about
+### 2.0b 🔒 How the origin knows **what** to ask — it does not. The knowing node tells it.
 
-> **User, 2026-08-13:** *"How will it work? If a user issues a new tactical intent via right-click from
-> ExCon, how does ExCon know what to ask — and whether at all — if the mission plan is existing at all?
-> ExCon (or any interactive node) should not inherently know there is a mission planner. It is decoupled
-> even on the target executing node. This might need some more complicated approach."*
+> **User, 2026-08-13:** *"ExCon can see the mission state, but it should not need to be able to in order
+> to handle the confirmations. **ExCon needs to be dumb in this aspect.** The checks need to run on the
+> node which 'knows'. The confirmation type etc. needs to come from there — ExCon is just the one who
+> shows it to the user."*
 
-⇒ [Ruling 54](UX_RESUME_INTERACTION.md). **It does need one, and it is the mirror of what
-[ruling 52](UX_RESUME_INTERACTION.md) already built.**
+⇒ [Ruling 55](UX_RESUME_INTERACTION.md). ⚠ **An earlier draft mirrored the clear providers with
+origin-side *describers* reading replicated state** — which made the origin smart and carried three
+residual constraints. **Replaced** ([Correction 42](UX_Tasks_Detail.md#corrections)); all three vanish.
 
-| Node | Registry | Role |
-|---|---|---|
-| **executing** (CGF) | `IIntentClearProvider` ([UXI-32 §2.5d](UX_Feature_Entity_Commanding.md)) | **performs** the clear |
-| **interactive** (ExCon / Editor / IG) | 🆕 **`IIntentImpactDescriber`** — *same `AspectId`* | **describes** what would be lost |
+```
+interactive node (dumb)                     executing node (knows)
+───────────────────────                     ──────────────────────
+ user picks a destructive action
+   → Preflight(action, target) ──DDS──▶   run aspect providers over LIVE state
+                                            build ConfirmationSpec, or null
+   ◀────────── ConfirmationSpec? ──────
+   → null ⇒ dispatch straight through
+   → else render it VERBATIM, ask the human
+   → confirmed → emit request ──DDS──▶    apply unconditionally
+```
+
+#### One registry, on one node
+
+🔒 [Ruling 52](UX_RESUME_INTERACTION.md)'s provider gains a second capability instead of acquiring a
+mirror image:
 
 ```csharp
-public interface IIntentImpactDescriber
+public interface IIntentAspectProvider          // registered ONLY where the feature runs
 {
-    string      AspectId { get; }                     // pairs with the clear provider
-    ImpactNote? Describe(IDerEntity entity);          // null ⇒ nothing to warn about
+    string       AspectId { get; }
+    ImpactNote?  DescribeImpact(Entity e, ISimulationView view);  // null ⇒ nothing to warn about
+    void         ClearFor(Entity e, EntityRepository repo);       // ruling 52
 }
-public sealed record ImpactNote(string Summary, int Severity);   // "Discards a 4-phase mission plan"
 ```
 
-**The dispatcher's rule is one line, and it names nothing:**
+| ⇒ every constraint [ruling 54](UX_RESUME_INTERACTION.md) had to accept | now |
+|---|---|
+| warnings could be **stale** (replicated state) | ✅ **gone** — computed on the authoritative node at the moment of asking |
+| an aspect whose state is **not replicated** could not warn | ✅ **gone** — the origin never reads aspect state at all |
+| **cross-node id drift** was unverifiable | ✅ **gone** — describe and clear are the same object, on the same node |
 
-```
-notes = describers.Select(d => d.Describe(entity)).Where(n => n != null)
-if (notes.Any() && ctx.IsInteractive)  → confirm, listing notes
-else                                   → proceed  (headless, or nothing to lose)
+#### The transport already exists
+
+⭐ **`ICommandGateway`** is already a *neutral* async request/response seam from ExCon/Editor to CGF —
+`Task<int> CreateEntityAsync`, `Task<MissionCommitResult> SendMissionControlRequestAsync`. Pre-flight is
+**one more method on it**, not a new mechanism:
+
+```csharp
+Task<ConfirmationSpec?> PreflightAsync(ActionPreflightCommand cmd, CancellationToken ct = default);
+
+public sealed record ConfirmationSpec(          // neutral DTO, beside the other commands
+    string Title, IReadOnlyList<string> Lines, int Severity,
+    IReadOnlyList<ConfirmButtonSpec> Buttons);
 ```
 
 | | |
 |---|---|
-| ✅ **"Whether to ask at all" is answered by the notes being empty** | an entity with **no** mission plan produces no note ⇒ **no dialog**. This is exactly the *"should not always ask"* the user asked for |
-| ✅ **ExCon the subsystem stays ignorant** | ⭐ **the mission *module* is already hosted there** — `MissionPanel`, `ExConMissionWindow`, `MissionEditorService`. **It** registers the describer, as it already registers its window |
-| ⭐ **And the state is already replicated** | `EntityMissionDescriptor` is set on ExCon's DER entity by `NedExConIngressTranslators.cs:322`; `MissionEditorService.cs:83` already reads it with `HasDescriptor<EntityMissionDescriptor>()`. **The describer is ~5 lines over data ExCon already receives** |
-| ⭐ **`IDerEntity` is the right parameter** | it has the **same descriptor-bag API** as the ECS side (`HasDescriptor<T>` · `GetDescriptor<T>` · `GetAllDescriptorTypes`), so a describer compiles against a facade both an ECS host and a DDS-only host satisfy — 🔒 no `Entity`, honouring [ruling 16](UX_RESUME_INTERACTION.md) |
+| 🔒 **The origin renders it verbatim and names nothing** | no aspect vocabulary, no mission vocabulary, no branching on content |
+| ✅ **`null` ⇒ no dialog** — the *"should not always ask"* answer, decided by the node that can actually tell |
+| ⭐ **The Editor is not a special case** | it owns everything in-process, so the same call resolves locally with no network hop. **One code path, not two** |
+| 🔒 **Headless never pre-flights** | MCP/script/replay dispatch the authorized request directly ([ruling 53](UX_RESUME_INTERACTION.md)). ⚠ The origin still **logs** what it skipped |
+| ⚠ **Latency is hidden** | only actions that declare they may need confirmation pre-flight, and the round trip happens exactly when a dialog is about to appear. **Non-destructive right-clicks never pay it** |
 
-#### 🔴 Three residual constraints — named, not hidden
+#### ⚠ One decision this forces: what if pre-flight fails or times out?
 
-| | |
-|---|---|
-| ⚠ **A warning can be stale** | describers read **replicated** state, so the plan may change between the prompt and the apply. 🔒 **Acceptable because the confirmation is advisory** — the executor applies unconditionally either way, and [§6](#6-risks) already records that a modal does not pause the simulation. ⚠ **It must never become a precondition** |
-| 🔴 **An aspect whose state is not replicated to the origin cannot warn** | ⇒ 🔒 **its owner must replicate a summary flag, or accept silent destruction.** That is a deliberate, stated cost — the alternative is a pre-flight probe round trip (below), which this design does **not** take |
-| 🔴 **The two halves live on different nodes, so id drift cannot be statically checked** | a clear provider with no describer destroys silently; a describer with no clear provider cries wolf. ⇒ 🔒 **both sides reference one shared `AspectIds` constant class**, and each node gets a test asserting its registrations are drawn from it. ⚠ **This is a mitigation, not a proof** — cross-node pairing is unverifiable at compile time |
+| | Option | |
+|--:|---|---|
+| **a** | proceed silently | 🔴 no — a destructive act would lose its guard precisely when the cluster is unhealthy |
+| **b** | refuse | ⚠ blocks legitimate work over a transport hiccup |
+| **c** | 🎯 **ask a generic confirmation** — *"Cannot verify the impact of this action (no response from the owning node). Proceed?"* | ✅ honest, and we were already about to interrupt the user |
 
-#### ⚖ The alternative I did **not** take
-
-**A pre-flight probe** — origin sends *"what would this destroy?"*, executor answers, origin confirms, origin sends the real request. ⭐ Authoritative and needs no replication.
-
-| | |
-|---|---|
-| 🔴 **Rejected**: a round trip on every right-click, a new message pair, timeout and retry handling — and **still racy**, because state can change between probe and apply |
-| ⚠ **But it is the right escape hatch** if an aspect ever genuinely cannot replicate a summary. Recorded so the option is not lost |
+🔒 **(c) interactively, proceed-and-log headlessly.** ⚠ **Fails toward asking, never toward silence.**
 
 ### 2.1 🔒 `ModalManager` — mirror `StatusBarManager`, do not invent
 
@@ -263,23 +282,25 @@ wm.StatusBar.RegisterSection("activity_progress", sortOrder: 50, section.Render)
 | O.3 | 🔒 An **executing node never confirms**: applying a received request raises no modal and blocks on nothing, even when the action is `Destructive` | H |
 | O.4 | 🔒 A headless context binds `IProgressSink` to a **log sink** — no modal, no status-bar section | H |
 | O.5 | 🔒 **No DDS contract gains an origin field** — the wire message is identical whether the operation began interactively or headlessly | H |
-| D.1 | 🔒 An entity with **no** mission plan produces **no note** ⇒ **no dialog** — the "should not always ask" guard | H |
-| D.2 | 🔒 An entity **with** a plan produces a note, and the dialog lists it | H |
-| D.3 | 🔒 The dispatcher **names no aspect** — it renders whatever notes come back; adding an aspect needs **no dispatcher change** | H |
-| D.4 | 🔒 A describer compiles and runs against **`IDerEntity`** — proven by ExCon, which has no ECS world | H |
-| D.5 | ⚠ **Zero describers registered ⇒ no dialog and no error** — a host that ships none degrades to silent-proceed | H |
-| D.6 | 🔒 Every registration on both sides draws its id from the shared **`AspectIds`** constants — the drift mitigation | H |
+| D.1 | 🔒 An entity with **nothing to lose** returns `null` ⇒ **no dialog** — the "should not always ask" guard | H |
+| D.2 | 🔒 An entity **with** a mission plan returns a spec, and the dialog shows its lines **verbatim** | H |
+| D.3 | 🔒 The origin **names no aspect and no feature** — it renders the spec blind; adding an aspect needs **no origin change** | H |
+| D.4 | 🔒 The origin reads **no aspect state** — the describer runs on the executing node over **live** state | H |
+| D.5 | 🔒 **Headless never pre-flights** — the authorized request goes straight out, and the skip is logged | H |
+| D.6 | 🔒 **Pre-flight timeout ⇒ a generic confirmation** interactively; proceed-and-log headlessly. Never silent | H |
+| D.7 | 🔒 **The Editor resolves pre-flight in-process** — same call, no network hop, one code path | H |
+| D.8 | A non-destructive action **never pre-flights** — the latency guard | H |
 | O.6 | An interactive dispatch that is **cancelled emits nothing** — verified on the receiving node, not just locally | H |
 | 16.10 | **Editor**: delete a unit → confirm → it disappears; repeat with Cancel → it does not | I |
 | 27.9 | **Editor**: *Mark Area Targets* shows real progress and can be cancelled mid-run | I |
 
-**33 H · 2 I · 0 V.**
+**35 H · 2 I · 0 V.**
 
 ## 4. Build order
 
 | # | Step |
 |--:|---|
-| 0 | **`IIntentImpactDescriber` + `AspectIds`** and the dispatcher rule (§2.0b) — testable headlessly with a fake describer, before any UI exists |
+| 0 | **`IIntentAspectProvider.DescribeImpact` + `ConfirmationSpec` + `ICommandGateway.PreflightAsync`** (§2.0b) — testable headlessly with a fake provider, before any UI exists |
 | 1 | **`ModalManager`** + `WindowManager.Modals` property, mirroring `StatusBarManager`/`.StatusBar`, with its own test file |
 | 2 | **Confirmation** driven by `EntityActionGroup.Destructive` — closes UXI-16 for every host at once |
 | 3 | **`IProgressSink`** implementation + the two surfaces; register the status-bar section |
