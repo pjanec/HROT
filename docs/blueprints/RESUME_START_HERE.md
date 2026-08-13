@@ -385,7 +385,15 @@ silent no-op is the *interface's* contract, not the blueprint override's. ⇒ �
 is an `Hrot.Editor.AiShared` addition: the AiShared gate moves and BTree/HSM implementers are touched.**
 My *"one file, one lane"* description of that batch was wrong.
 
-### ⭐ The plan is updated; and Batch 41 is NOT a `U-` task
+### ⏭ Batch 41 is dispatched — and it is NOT a `U-` task
+
+📄 **[HANDOFF_Batch41_Local_Variables_Authoring.md](HANDOFF_Batch41_Local_Variables_Authoring.md)** —
+⭐⭐ **its §1 is the load-bearing instruction: build the locals model as an `IVariablesSchemaSource`
+so the unification ABSORBS it instead of undoing it**, while ⛔ **NOT adding a member to that
+interface** (that is `U-5`'s `V2`, and it would move the AiShared gate).
+⚠ **§5 (the node badge) moves the two NodeEdit gates** and is the clean stop point if it runs long.
+
+### ⭐ The plan is updated
 
 ⛔ **`BP-57`'s authoring half is still unbuilt** (Batch 39 stopped after §0b) and was **not** in the
 plan. ⇒ **it takes batch 41**, before the `U-` sequence, because it is `BP-57`'s last mile **and it sits
