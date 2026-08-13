@@ -72,13 +72,29 @@ wrong from the day it was written, harmless until collapse made macros real.
 ⭐ **This is not that.** Here the cases **cannot** occur given the storage model and the picker's scope.
 The code is not accidentally right; it is right **under an invariant that happens to hold**.
 
-⇒ **The defect is that nothing enforces the invariant:**
+### ⛔⛔ CORRECTION `2026-08-13` — **the invariant IS enforced. This note said it was not, and that was wrong**
+
+> ⚠⚠ **Third correction to this note, and the biggest.** It claimed *"nothing asserts an Instance asset
+> has no `WorkingState`, or an AiPrimitive none in `Variables`."* ⭐ **`Stage2_Validate` asserts exactly
+> that, in both directions, and has all along:**
+>
+> | | |
+> |---|---|
+> | **`BP1024`** | *"AiPrimitive uses 'parameters' and 'workingState', **not 'variables'**."* |
+> | **`BP1031`** | *"Instance uses 'variables', **not 'parameters'/'workingState'**."* |
+> | **`BP1011`** | *"Library asset must not declare member variables."* |
+>
+> ⇒ ⭐ **`Variables` and `WorkingState` cannot both be populated in an authored asset — that is a rail,
+> not a coincidence.** ⛔ **`BP-226`'s row repeats the wrong claim** (it was written from this note) and
+> **needs the same correction.**
+
+⇒ **What actually remains, now that the disjointness is accounted for:**
 
 | | |
 |---|---|
-| ⛔ Nothing asserts an **Instance** asset has no `WorkingState`, or an **AiPrimitive** none in `Variables` | the model permits both |
-| ⛔ Nothing stops a future picker from offering `WorkingState` or `Parameters` | it is one `Query` away |
-| ⚠ `Parameters` is **absent from `VarFieldName` entirely** | so that path has **no** correct answer, only unreachable ones |
+| 🔴 ⭐ **`Parameters` is the real hole, and it is NOT covered by those rails** | An AiPrimitive legitimately populates **`WorkingState` AND `Parameters` together** — `BP1024` only excludes `Variables`. ⚠ **That pair is not disjoint and never was**, and `Parameters` is **absent from `VarFieldName` entirely**, so that path has **no** correct answer. **This is the row's real content** |
+| ⚠ ⭐ **The rails run at STAGE 2 — lowering runs after them** | `AiPrimitiveLowering` appends `__phase` at Stage 6, unchecked. ⇒ **anything that adds storage during lowering bypasses `BP1024`/`BP1031` entirely.** 📌 **This is precisely the Batch 38 trap**: parking graph locals in `WorkingState` during lowering would not exploit a gap, it would **go around a rail** |
+| ⛔ Nothing stops a future picker from offering `WorkingState` or `Parameters` | it is one `Query` away — and `BP1024`/`BP1031` would **not** catch it, because the lists would still be legal for that dispatch kind |
 | ⭐ **Someone has already been bitten by the shape — TWICE** | (1) `AiPrimitiveLowering:42-66` **appends** `__phase` rather than prepending, commented *"would shift every real field by +1, so `VarFieldName` would emit the WRONG field for every WorkingState access."* (2) ⭐ **`Stage5.FindParameterIndex` is a params-ONLY lookup**, existing because the combined index *"would silently emit the wrong field … whenever Variables/WorkingState are non-empty."* **Two independent authors routed around this. The workarounds are the evidence** |
 
 ---
@@ -93,8 +109,8 @@ carries more risk than the invariant does.
 | | |
 |---|---|
 | **1** | ⭐ **Return a `(storage-kind, index)` pair from `FindVariableIndex`** instead of a bare `int`, and have `VarFieldName` switch on the kind. **The ambiguity then cannot be expressed** — the cheapest permanent fix, and it is a type change, not a logic change |
-| **2** | If (1) is judged too broad: **assert the disjointness** where the asset is validated, so an asset with both populated fails loud instead of mis-resolving |
-| **3** | ⭐ **Give `Parameters` a correct branch in `VarFieldName`, or make that path throw.** Today it silently returns `__var_{index}` — ⚠ a name that exists nowhere, i.e. a `CS0103` in generated code rather than a diagnostic |
+| **2** | ⛔ ~~assert the disjointness where the asset is validated~~ — **`BP1024`/`BP1031`/`BP1011` already do.** ⭐ **Struck `2026-08-13`; the item was written from the wrong premise.** ⚠ What is missing is that the rails are **Stage 2** and lowering runs later, so a Stage 6 append is unchecked |
+| **3** | 🔴 ⭐ **Give `Parameters` a correct branch in `VarFieldName`, or make that path throw** — ⭐ **now the FIRST item, not the third.** `WorkingState` + `Parameters` coexist legally in every AiPrimitive, so this is the one pair no rail separates. Today it silently returns `__var_{index}` — ⚠ a name that exists nowhere, i.e. a `CS0103` in generated code rather than a diagnostic |
 | **4** | 📌 Note the four `Dispatch: 1` assets — a **numeric** dispatch where every other asset has a string. Unrelated to this, worth its own look |
 
 ⚠ **Locals do not touch any of this** (Q27-D: they get their own op), so this is **not** a prerequisite

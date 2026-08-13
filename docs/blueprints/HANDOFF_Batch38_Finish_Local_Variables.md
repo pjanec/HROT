@@ -142,9 +142,24 @@ wrong on the second invocation and you must say so.**
 ⛔⛔ **The trap: do NOT append the slot to `WorkingState` and index it through the old path.**
 `FindVariableIndex`/`VarFieldName` read that list **positionally** (`BP-226`), and
 `AiPrimitiveLowering:42-66` already appends `__phase` rather than prepending **for exactly this
-reason**. 📐 **Yours: separate storage, or an append that is never positionally indexed by
-`VarFieldName`.** ⚖️ **Separate is the lean** — `BP-226` is unfixed, and adding a fourth source to a
-space that cannot express three is the direction Q27-D ruled against.
+reason**.
+
+⚠⚠ **And the precise reason is worse than "an unguarded gap" — corrected `2026-08-13`.**
+`Stage2_Validate` **already enforces** the disjointness: **`BP1024`** (*"AiPrimitive uses parameters
+and workingState, not variables"*), **`BP1031`** (*"Instance uses variables, not
+parameters/workingState"*), **`BP1011`** (Library). ⭐ **But those are STAGE 2 rules, and lowering
+runs at Stage 6 — after they have passed.** ⇒ ⛔ **Parking locals in `WorkingState` during lowering
+does not exploit a missing rail, it goes AROUND an existing one**, producing a storage combination
+Stage 2 exists to refuse and would have refused if authored.
+
+📐 **Yours: separate storage, or an append that is never positionally indexed by `VarFieldName`.**
+⚖️ **Separate is the lean** — `BP-226` is unfixed, and adding a fourth source to a space that cannot
+express three is the direction Q27-D ruled against.
+
+📌 **`BP-226`'s row says *"nothing enforces the invariant"* — that is wrong and is the coordinator's
+error, inherited from the finding.** ⭐ **Correct the row when you touch it in Batch 39.** What
+survives is sharper: **`WorkingState` + `Parameters` coexist legally in every AiPrimitive**, no rail
+separates *that* pair, and `Parameters` has no branch in `VarFieldName` at all.
 
 ⚠ **Two graphs may each declare a local named `Scratch`.** The slot names must be graph-qualified;
 `__loc_` alone is not enough once they share storage.
