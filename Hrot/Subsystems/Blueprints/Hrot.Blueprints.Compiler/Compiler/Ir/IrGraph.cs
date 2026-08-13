@@ -43,9 +43,32 @@ public sealed record IrGraph
     /// putting locals into it would add a fourth list to a space that cannot express three.
     /// </para>
     ///
-    /// <para>⚠ Locals are emitted as plain C# locals, so <c>State</c> does not grow.</para>
+    /// <para>
+    /// ⚠ Locals are emitted as plain C# locals — <b>unless <see cref="LocalSlotPrefix"/> is set</b>,
+    /// which is Q27-A3's second storage class for graphs that can suspend.
+    /// </para>
     /// </summary>
     public IReadOnlyList<IrField> Locals { get; init; } = Array.Empty<IrField>();
+
+    /// <summary>
+    /// BP-57 / ⭐⭐ <b>Q27-A3</b> — non-null when this graph's locals are <b>blackboard slots</b> rather
+    /// than C# locals, carrying the graph-qualifying prefix their emitted field names share
+    /// (<c>__loc_{Graph}_</c>).
+    ///
+    /// <para>
+    /// ⭐ <b>Set for exactly the graphs that can suspend</b> (<c>LocalStorage.CanSuspend</c>). A
+    /// suspension is <c>return NodeStatus.Running</c>: the C# frame dies and a stack local with it, so
+    /// a value written before a <c>Delay</c> would read back as its default after the resume. The slot
+    /// lives in the same struct as <c>__phase</c>, for the same reason.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ <see cref="Locals"/> keeps the DESIGNER's names either way; the prefix is applied at the two
+    /// places that emit an identifier (<c>EmissionContext.LocalFieldName</c> and the slot list in
+    /// <c>IrAsset.GraphLocalSlots</c>), both through <c>LocalStorage.SlotName</c>.
+    /// </para>
+    /// </summary>
+    public string? LocalSlotPrefix { get; init; }
 
     public IReadOnlyList<IrBlock> Blocks { get; init; } = Array.Empty<IrBlock>();
     public IrBlockId Entry { get; init; }

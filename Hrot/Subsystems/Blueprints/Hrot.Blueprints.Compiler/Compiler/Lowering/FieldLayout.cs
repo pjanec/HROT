@@ -1,3 +1,4 @@
+using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Ir;
 
 namespace Hrot.Blueprints.Core.Compiler.Lowering;
@@ -6,16 +7,27 @@ internal static class FieldLayout
 {
     public static IrAsset ComputeFieldLayouts(IrAsset asset)
     {
+        var parameters   = LayoutFields(asset.Parameters,   startOffset: 0,  out _);
+        var workingState = LayoutFields(asset.WorkingState, startOffset: 8,  out int afterWs);
+        var variables    = LayoutFields(asset.Variables,    startOffset: 16, out int afterVars);
+
+        // BP-57 / Q27-A3 — the blackboard slots backing suspending graphs' locals are emitted as
+        // fields on the SAME struct as the asset's own storage, immediately after it, so their offsets
+        // continue that struct's layout: WorkingState for an AiPrimitive, State (Variables) otherwise.
+        // ⚠ They are laid out but NOT merged into those lists — see IrAsset.GraphLocalSlots.
+        int slotStart = asset.Dispatch == BlueprintDispatchKind.AiPrimitive ? afterWs : afterVars;
+
         return asset with
         {
-            Parameters   = LayoutFields(asset.Parameters,   startOffset: 0),
-            WorkingState = LayoutFields(asset.WorkingState, startOffset: 8),
-            Variables    = LayoutFields(asset.Variables,    startOffset: 16),
+            Parameters      = parameters,
+            WorkingState    = workingState,
+            Variables       = variables,
+            GraphLocalSlots = LayoutFields(asset.GraphLocalSlots, slotStart, out _),
         };
     }
 
     private static IReadOnlyList<IrField> LayoutFields(
-        IReadOnlyList<IrField> fields, int startOffset)
+        IReadOnlyList<IrField> fields, int startOffset, out int endOffset)
     {
         var result = new List<IrField>(fields.Count);
         int offset = startOffset;
@@ -26,6 +38,7 @@ internal static class FieldLayout
             result.Add(f with { Offset = offset, Size = f.Type.SizeBytes });
             offset += f.Type.SizeBytes;
         }
+        endOffset = offset;
         return result;
     }
 

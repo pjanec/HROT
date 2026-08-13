@@ -55,6 +55,25 @@ public sealed record IrAsset
     public bool IsWorldSingleton { get; init; }
     public Hrot.Blueprints.Core.Compiler.BlackboardTier? SelectedTier { get; init; }
 
+    /// <summary>
+    /// BP-57 / ⭐⭐ <b>Q27-A3</b> — the blackboard slots backing suspending graphs' function-locals,
+    /// with graph-qualified names, in graph declaration order.
+    ///
+    /// <para>
+    /// ⭐ These are emitted as fields on the SAME struct as the asset's own storage — <c>WorkingState</c>
+    /// for an AiPrimitive, <c>State</c> for an Instance — and they enter <c>StructureHash</c>, so
+    /// changing a local's type re-initialises the blackboard instead of reinterpreting stale bytes.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔⛔ <b>They are deliberately NOT in <see cref="Variables"/>/<see cref="WorkingState"/>/<see cref="Parameters"/>.</b>
+    /// Those three are a positional index space that <c>Stage5.FindVariableIndex</c> and
+    /// <c>EmissionContext.VarFieldName</c> already disagree about (<c>BP-226</c>); a fourth source
+    /// would make that ambiguity live. Slots are addressed by NAME only and no index ever reaches them.
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<IrField> GraphLocalSlots { get; init; } = Array.Empty<IrField>();
+
     // All dispatch kinds
     public IReadOnlyList<IrGraph> Graphs { get; init; } = Array.Empty<IrGraph>();
 }

@@ -109,6 +109,10 @@ internal static class InstanceEmitter
         e.WriteLine("public global::Fdp.Toolkit.Blueprints.BlueprintLatentCursor Cursor;  // first 16 bytes");
         foreach (var f in asset.Variables)
             e.WriteLine($"public {CSharpType(f.Type)} {f.Name};");
+        // BP-57 / Q27-A3 — suspending graphs' locals, appended AFTER the real fields so their offsets
+        // continue the struct's layout (FieldLayout does the same arithmetic). Addressed by name only.
+        foreach (var f in asset.GraphLocalSlots)
+            e.WriteLine($"public {CSharpType(f.Type)} {f.Name};");
         e.Outdent();
         e.WriteLine("}");
     }

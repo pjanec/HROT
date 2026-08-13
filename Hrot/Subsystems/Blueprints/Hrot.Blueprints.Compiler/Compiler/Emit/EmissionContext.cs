@@ -85,9 +85,14 @@ internal sealed class EmissionContext
     public string LocalFieldName(int index)
     {
         var locals = CurrentGraph?.Locals;
-        return locals != null && index >= 0 && index < locals.Count
+        if (locals is null || index < 0 || index >= locals.Count) return $"__loc_unknown_{index}";
+
+        // BP-57 / ⭐⭐ Q27-A3 — a suspending graph's locals are blackboard slots, not C# locals: the
+        // frame they would otherwise live in dies at every `return NodeStatus.Running`.
+        var prefix = CurrentGraph!.LocalSlotPrefix;
+        return prefix is null
             ? LocalName(locals[index].Name)
-            : $"__loc_unknown_{index}";
+            : $"{StateVar}.{Lowering.LocalStorage.SlotName(prefix, locals[index].Name)}";
     }
 
     /// <summary>C# field name for a Parameters entry by index.</summary>
