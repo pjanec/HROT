@@ -6,7 +6,12 @@
 > Variables section, selection following the click — is endorsed**; this records it, the reasons, and
 > what has to change.
 >
-> 📌 **Input to Q28.** ⛔ **Not Batch 38** — Batch 38 needs only the one instruction in §5.
+> 📌 **Input to Q28.** ⛔ **Not an implementation task yet** — see the banner below.
+
+> ⏳ **AWAITING INDEPENDENT REVIEW — [Batch 38](HANDOFF_Batch38_Unified_Variable_Design_Review.md).**
+> ⚠ **Nothing here is actionable yet.** The implementation session is assessing feasibility, hunting
+> gaps and testing the staging. ⭐ **Every measured claim in this document is a hypothesis until they
+> confirm it** — and they have corrected this coordinator in every batch since 29.
 
 ![Unified variable editing](diagrams/variable_editing_ui.svg)
 
@@ -101,16 +106,16 @@ unverified and is the first thing to measure.**
 
 ---
 
-## 5. 📌 The one thing Batch 38 must do differently
+## 5. 📌 The one thing [Batch 39](HANDOFF_Batch39_Finish_Local_Variables.md) must do differently
 
-⚠ As dispatched, Batch 38's Local Variables section is a **third** implementation. ⇒ **One instruction:**
+⚠ As drafted, its Local Variables section is a **third** implementation. ⇒ **One instruction:**
 
 > ⭐ **Implement the locals source as an `IVariablesSchemaSource`**, and have the My Blueprint section
 > project it. **Same UI as ruled** — canvas-following section, always present, `[+]` where applicable
 > — but it lands *inside* the unified path instead of beside it.
 
-📌 It also gets `CountNodesReferencingVariable` for free, which is exactly what §3.3's
-delete-while-referenced needs.
+📌 It also gets `CountNodesReferencingVariable` for free, which is exactly what its §3.3
+delete-while-referenced needs. ⛔ **Batch 39 is postponed** until Batch 38's review returns.
 
 ---
 

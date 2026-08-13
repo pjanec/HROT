@@ -1,19 +1,29 @@
-# HANDOFF — Batch 38: finish `BP-57` — suspension-surviving storage, and the authoring half
+# HANDOFF — Batch 39: finish `BP-57` — suspension-surviving storage, and the authoring half
 
-> 📌 **Dispatched at `eb89ebaf`** · ⚠⚠ **§1.3 and §3.1 REWRITTEN and RE-DISPATCHED at `d5899d9e`.**
-> ⭐ **Q27-A was revised from A1 to A3 by user ruling on `2026-08-13`** — verified not present in the
-> tree your last run built from (run starting `02fb66db`), so rule 1 does not bite.
-> ⛔⛔ **The earlier §1.3 asked for a REFUSAL RAIL. There is none — build the storage.**
+> ⛔⛔ **POSTPONED `2026-08-13`. Was Batch 38; renumbered 39 and NOT the next batch.**
+> ⭐ **Batch 38 is now a DESIGN REVIEW** — see
+> [`HANDOFF_Batch38_Unified_Variable_Design_Review.md`](HANDOFF_Batch38_Unified_Variable_Design_Review.md).
+> ⚠ **Do not start this handoff until that review has returned and been acted on.**
+>
+> **Why:** the variable *model* is being unified
+> ([Variable_Model_Unification.md](Variable_Model_Unification.md) ·
+> [Variable_Editing_UI.md](Variable_Editing_UI.md)), and **§3's authoring half sits directly on top of
+> the surfaces that change.** Building it first would mean building it twice. ⭐ **§1 and §2 —
+> suspension-surviving storage and the dangling-reference rail — are independent of the unification
+> and may be pulled forward if the review says so.**
+>
+> 📌 **Originally dispatched at `eb89ebaf`**, §1.3/§3.1 rewritten at `d5899d9e`, §3.2a added at
+> `784901e2`. ⚠ **Never picked up** — verified absent from every tree the implementation session has
+> built from. It is a **draft**, not a frozen handoff, until re-dispatched.
+>
 > ⭐ **Rule 7 is yours:** branch from this branch, and re-sync from it at the **start** of your run.
 > ⭐ **Rule 4 is yours:** pull it again before your final commit.
 > ⭐ **Rule 3: the coordinator allocates no ids.** `BP-57` is *referenced*; `BP1670+` is the next free
 > diagnostic. **You allocate everything new** (rule 5).
 >
-> 📄 **[Q27](Architect_Question_27_Local_Variables.md) — ⚠⚠ **read its `2026-08-13` sections FIRST**:
+> 📄 **[Q27](Architect_Question_27_Local_Variables.md)** — ⚠⚠ **read its `2026-08-13` sections FIRST**:
 > a correction banner recording two coordinator errors, **and A's revision from A1 to A3**, which is
 > what §1.3 builds. ⛔ **B, C, D, E are unchanged and NOT reopened.**
->
-> ⭐ **After this batch `BP-57` closes.**
 
 ---
 

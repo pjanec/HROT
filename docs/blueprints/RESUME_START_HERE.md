@@ -20,14 +20,24 @@
 > *"not authorable"* leg was wrong: **57 live `WorkingState` references** ride the invariant today.
 > Filed as **`BP-226`**; **`BP-227`** records the four numeric-`Dispatch` assets. **Both are Batch 39.**
 >
-> ⏭ **Batch 38 dispatched (`eb89ebaf`), §1.3+§3.1 re-dispatched (`d5899d9e`) — finish `BP-57`.**
-> 🔴🔴 **A local silently reverts to its default across a suspension** (coordinator-probed, zero
-> diagnostics) · 🔴 a dangling reference emits `s.__var_-1` · the authoring half.
+> ⏭⏭ **Batch 38 is a DESIGN REVIEW — no feature code.**
+> 📄 [HANDOFF_Batch38_Unified_Variable_Design_Review.md](HANDOFF_Batch38_Unified_Variable_Design_Review.md)
+> ⭐ **The variable model is being unified** ([model](Variable_Model_Unification.md) ·
+> [UI](Variable_Editing_UI.md)): four bespoke lists → **`Role` × `Scope`**, in four stages A→D.
+> ⚠ **The implementation session must assess feasibility, find gaps and test the staging BEFORE any of
+> it is broken into tasks.** ⛔ **Everything in those documents is a hypothesis until they confirm it.**
+>
+> ⛔ **`BP-57`'s remaining work was Batch 38 and is now
+> [Batch 39](HANDOFF_Batch39_Finish_Local_Variables.md) — POSTPONED**, because its authoring half sits
+> on the surfaces the unification changes. ⭐ **Its §1/§2 (suspension storage, dangling rail) are
+> independent and may be pulled forward if the review says so.**
+> 🔴🔴 Still true and unfixed: **a local silently reverts to its default across a suspension**
+> (coordinator-probed, zero diagnostics) · 🔴 a dangling reference emits `s.__var_-1`.
 > ⭐⭐ **[Q27-A was REVISED A1 → A3 by user ruling `2026-08-13`](Architect_Question_27_Local_Variables.md):**
 > a suspendable graph's locals are **blackboard-allocated and reset in the entry block**, because a C#
 > stack local cannot cross a suspension and ⛔ **the designer must never see which storage they got.**
-> ⚠ **My first draft of §1 asked for a REFUSAL rail — the wrong way round**, and §3.1 argued for a
-> separate "Locals" section *to make storage visible*, which is the opposite of the ruling.
+> ⚠ **My first draft asked for a REFUSAL rail — the wrong way round**, and argued for a separate
+> "Locals" section *to make storage visible*, which is the opposite of the ruling.
 > ⛔ **Q26-A supersedes Q25-D3:** a macro now has **N exec-ins**, not one.
 >
 > 📌 Supersedes [RESUME_Coordinator.md](RESUME_Coordinator.md), which is now the **historical log**

@@ -4,8 +4,12 @@
 > that is ruled — but *how* to do it without breaking things.** Everything below is verified against
 > code; the one speculative item is marked.
 >
-> 📌 **Input to Q28.** ⛔ **Not a Batch 38 change** — Batch 38 finishes `BP-57` and only needs the
-> one instruction in §5.
+> 📌 **Input to Q28.** ⛔ **Not an implementation task yet** — see the banner below.
+
+> ⏳ **AWAITING INDEPENDENT REVIEW — [Batch 38](HANDOFF_Batch38_Unified_Variable_Design_Review.md).**
+> ⚠ **Nothing here is actionable yet.** The implementation session is assessing feasibility, hunting
+> gaps and testing the staging. ⭐ **Every measured claim in this document is a hypothesis until they
+> confirm it** — and they have corrected this coordinator in every batch since 29.
 
 ![Blueprint variables — four bespoke lists, two orthogonal axes](diagrams/variable_model_unification.svg)
 
@@ -105,14 +109,16 @@ the bespoke one.
 
 ---
 
-## 5. 📌 The one thing Batch 38 must do differently
+## 5. 📌 The one thing [Batch 39](HANDOFF_Batch39_Finish_Local_Variables.md) must do differently
 
-⚠ As dispatched, Batch 38's **Local Variables** section is a **third** implementation — precisely what
-this document exists to prevent. ⇒ **One instruction:**
+⚠ As drafted, its **Local Variables** section is a **third** implementation — precisely what this
+document exists to prevent. ⇒ **One instruction:**
 
 > ⭐ **Implement the locals source as an `IVariablesSchemaSource`**, and have the My Blueprint section
 > project it. **Same UI as ruled** — a canvas-following section with `[+]` — but **stage B absorbs it
 > for free** instead of stage B having to undo it.
+
+⛔ **Batch 39 is postponed** until [Batch 38's review](HANDOFF_Batch38_Unified_Variable_Design_Review.md) returns.
 
 ---
 
