@@ -119,6 +119,42 @@ position"* and *"nested list position"*, so indexed elements are expressible; **
 | Inspector field edits (name, affiliation) | scalar | `Name` / `Affiliation` | ✅ yes — already have IDs |
 | **Vertex edit** · **Route waypoints** | insert/delete/move **list elements** | — | ❌ **no** |
 
+### 3.3b 🔒 RULED — the wire form is an **economics** decision; the gate is an **invariant**
+
+> **User, 2026-08-12:** *"Whether to update the whole descriptor or just a single attribute is the network
+> bandwidth / performance decision. Otherwise both should be applied with the ownership gate on the
+> receiver."*
+
+🔒 **This is the organising principle, and it is stronger than the split I drew above.** There are not
+*"two architectures"* — there is **one architecture with two encodings**, chosen per payload:
+
+| Payload | Cheaper encoding | Why |
+|---|---|---|
+| a scalar or three (position, heading, name) | **attribute records** | 3 records beat a whole descriptor |
+| a list whose *structure* changes (polyline, route) | **whole descriptor** | ~80-120 records vs one payload; and set-at-index cannot express insert/delete |
+
+⇒ **Expressiveness and bandwidth point the same way here**, which is why the split looks architectural. It
+is not: it is an encoding choice, and a future payload could switch sides without touching the design.
+
+#### 🔴 The invariant is not currently held — the applier census
+
+| Applier | Gate | |
+|---|---|:--:|
+| **JSON attribute patch** — `JsonAttributeCompiler:40,58` | `CanWrite<T>()` → **native component authority** | ✅ |
+| **Binary attribute records** — `BinaryInterpreter.Apply:102-128` | 🔴 **none** | 🔴 |
+| **Descriptor — geo** `UpdateEntityDescriptorRequestSystem:142` | `HasAuthority(entity, packedKey)` → **descriptor key** | ⚠ |
+| **Descriptor — overlay** `:190` | same | ⚠ |
+| **`UpdateEntityCommand` local applier** — `NetworkSpawningSystem.ProcessUpdate:162-175` | 🔴 **none** | 🔴 |
+
+🔴 **Two appliers gate on nothing; two gate on a *different notion of authority* than the fourth.** The
+geo one carries a **`FIXME` saying exactly that** — *"Check native ECS component authority instead of the
+descriptor key"* (`:139-141`).
+
+⇒ 🔒 **[UXI-30](UX_Issues.md#uxi-30) widens accordingly**: it is not *"the binary path is missing a check"*
+but *"**every** applier must gate, and on **one** notion of authority."* ⚠ Descriptor-key gating is not
+self-evidently wrong — a descriptor maps to a set of components and `DescriptorOwnershipMap` exists — so
+the work is to **choose one notion and apply it consistently**, not to assume the FIXME's preference.
+
 🔒 **Vertex and route gizmos keep their existing channel.** *Setting a value at an index* cannot express
 *inserting* or *deleting* a vertex — there is no list-length attribute, and a 40-vertex polyline would
 become ~80-120 records per commit. They already use `UpdateEntityCommand` →
@@ -202,9 +238,11 @@ simply moves one level down.
 | 29.16 | A rotation intent encodes to a **`GeoHeading`** `AttributeRecord` and decodes to the same rotation within tolerance | H |
 | 29.18 | A **drag** intent encodes to `GeoLat`/`GeoLon`/`GeoAlt` records and round-trips within tolerance | H |
 | 29.19 | 🔒 A **vertex/route** intent routes to the **descriptor** request, not attribute records — the wire form is chosen per intent kind, and the routing shape is unchanged | H |
+| 29.20 | 🔒 **Every applier gates on ownership** — attribute (JSON + binary) *and* descriptor (geo + overlay) *and* the local `UpdateEntityCommand` consumer. Parameterised over all five; none may pass by omission | H |
+| 29.21 | The **same** entity/component decision yields the **same** verdict on every channel — one notion of authority, not two | H |
 | 29.17 | The intent is one **local `Fdp` bus event**; the translator is the only component that knows the wire form | H |
 
-**17 H · 2 I · 0 V.**
+**19 H · 2 I · 0 V.**
 
 ## 5. 🔒 Out of scope
 
