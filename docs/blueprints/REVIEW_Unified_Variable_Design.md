@@ -344,19 +344,23 @@ printing "69".
 ## 11. 📌 Note for whoever picks up Batch 39
 
 Its **§1 (Q27-A3 suspension-surviving storage)** and **§2 (the dangling-reference rail)** were built,
-tested and gate-green before this batch replaced them, then reset off the branch when the review took
-Batch 38's slot.
+tested and gate-green before this batch replaced them (**3259** / 0 / 10, +16 tests), then reset off
+the branch when the review took Batch 38's slot.
 
-> ⛔⛔ **COORDINATOR CORRECTION `2026-08-13` — `2c1638b` and `bec149d` ARE NOT RECOVERABLE FROM THE
-> REMOTE, and the cherry-pick recipe below does not work.** Verified after the force-push:
-> `git cat-file -t` fails for both · `git rev-parse` fails for both · `git fetch origin <sha>` fails
-> for both · `git ls-remote origin` shows **one** implementation ref (the force-pushed one) and
-> **zero tags** · `git fsck` finds one dangling commit, `02fb66db`, which is neither of them.
-> ⇒ ⭐ **The only place they can still exist is the implementation session's own local clone
-> (reflog / object store). They must be pushed to a ref from there before that container is
-> reclaimed.** ⚠ **Until that happens, treat this work as LOST and Batch 39 §1/§2 as unbuilt.**
+⚠⚠ **CORRECTION — the coordinator caught this and was right.** An earlier draft of this section said
+*"cherry-pick `2c1638b bec149d`"*. ⛔ **Those commits are NOT on the remote**: the force-push left them
+unreferenced, the remote will not serve them by sha, and pushing a preservation **tag was refused with
+HTTP 403** (this session's credentials push branches, not tags). They survived only in one ephemeral
+container.
 
-⭐ **The assessment itself stands:** both are compiler-only and touch **none** of the surfaces this
-review says are in flux, so `RESUME_START_HERE`'s *"may be pulled forward"* holds — ⭐ **pull them
-forward, rebuilt if necessary.** `BP-233` came out of that work and **is recorded**, so the finding
-survived even though the commits did not.
+⇒ ⭐ **They are checked in as patches instead: [`patches/`](patches/README.md)** — `git am` them, and
+delete that directory once the work is back on a branch. Both are compiler-only and touch **none** of
+the surfaces this review says are in flux, so `RESUME_START_HERE`'s *"may be pulled forward"* holds:
+⭐ **pull them forward.** `BP-233` came out of that work.
+
+> ✅ **Coordinator-verified `2026-08-13`, independently and before the patches existed:**
+> `git cat-file -t` ✗ · `git rev-parse` ✗ · `git fetch origin <sha>` ✗ · `git ls-remote origin` showed
+> **one** implementation ref and **zero tags** · `git fsck`'s only dangling commit was `02fb66db`,
+> neither of them. ⇒ **the unreachability was real, and the patch route was the right call.**
+> ⭐ **Now recovered as a branch as well** — see `RESUME_START_HERE` §7k.
+

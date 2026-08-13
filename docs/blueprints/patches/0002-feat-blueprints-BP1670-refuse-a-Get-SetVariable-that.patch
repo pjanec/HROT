@@ -1,0 +1,491 @@
+From bec149d3d00401c20c5115fed81d61a0fbb96118 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 13 Aug 2026 05:36:25 +0000
+Subject: [PATCH 2/2] =?UTF-8?q?feat(blueprints):=20BP1670=20=E2=80=94=20re?=
+ =?UTF-8?q?fuse=20a=20Get/SetVariable=20that=20targets=20nothing?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+An unresolvable VariableId missed both index lookups, returned -1, and the
+emitter wrote `s.__var_-1 = __t0;` — not a C# identifier. The blueprint
+compile reported NO diagnostic; the solution build then failed with a CS error
+pointing at a generated file, naming neither the graph nor the node.
+
+Pre-existing, but BP-57 makes it reachable: deleting a local leaves every
+Get/Set that targeted it dangling, and BP-225 established that delete/rename
+maintenance is exactly where this lands. The rail comes before the gesture.
+
+Both halves, as the design allows: the Stage-2 rail is the diagnostic and
+names the node; VarFieldName now throws on a negative index, which is the
+assertion that the rail is complete. The throw is deliberately narrower than
+"out of range" — a positive-but-oversized index is BP-226's index-space
+ambiguity and is not touched here.
+
+Scope measured before it was built, and the measurement corrected the premise:
+the ~60 literal "state"/"rally" references in the shipped corpus are on
+GetShared/SetShared, a different node kind whose VariableId is a name-keyed
+slot resolved at runtime and never passed to FindVariableIndex. Across the 58
+shipped assets all 103 Get/SetVariable references resolve (46 Variables, 57
+WorkingState, 0 Parameters, 0 dangling), so this refuses nothing that ships.
+A rail generalised to "any node with a VariableId" would have rejected six.
+
+Also §4: the BP-220 block documenting WithNodesAndLinks had been orphaned onto
+LocalVariables when Batch 37 inserted the field between the comment and its
+method, leaving LocalVariables with two summaries and the method with none.
+Moved back, and its own summary updated from A1 to A3.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_018A6b3V2pAUU7h7gX44hUPF
+---
+ .../Assets/GraphTypes.cs                      |  51 ++---
+ .../Compiler/Diagnostics/DiagnosticCodes.cs   |   5 +
+ .../Compiler/Emit/EmissionContext.cs          |  14 +-
+ .../Compiler/Stages/Stage2_Validate.cs        |   1 +
+ .../Stages/V_VariableReferenceRules.cs        | 110 +++++++++++
+ .../DanglingVariableReferenceTests.cs         | 186 ++++++++++++++++++
+ 6 files changed, 343 insertions(+), 24 deletions(-)
+ create mode 100644 Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Stages/V_VariableReferenceRules.cs
+ create mode 100644 Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Compiler/DanglingVariableReferenceTests.cs
+
+diff --git a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Assets/GraphTypes.cs b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Assets/GraphTypes.cs
+index 405c6cc..ed54a94 100644
+--- a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Assets/GraphTypes.cs
++++ b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Assets/GraphTypes.cs
+@@ -62,33 +62,21 @@ public sealed class Graph
+     public List<Link> Links { get; set; } = new();
+ 
+     /// <summary>
+-    /// BP-220 — a copy of this graph carrying new <see cref="Nodes"/>/<see cref="Links"/> and
+-    /// <b>every other member preserved</b>.
+-    ///
+-    /// <para>
+-    /// ⚠⚠ <b>The point is that the copy is written ONCE, here, instead of at each call site.</b>
+-    /// <c>Stage3_Normalize</c> rebuilt <c>Graph</c> field-by-field at two places and both copied 9 of
+-    /// 10 members — silently dropping <see cref="Comments"/>. Batch 29 then had to remember
+-    /// <see cref="ExecOutputs"/> at both sites by hand, and nothing would have failed if it had been
+-    /// missed at one. A copy that must be REMEMBERED is a copy that will be forgotten; this is the
+-    /// same class of defect as the denormalised <c>Pin.LinkedToIds</c> mirror, one level up.
+-    /// </para>
++    /// BP-57 / Q27 — variables scoped to <b>this graph</b> and reset on every invocation.
+     ///
+     /// <para>
+-    /// <c>Graph_CopyShape_PreservesEveryMember</c> walks this type's properties by reflection and
+-    /// fails on the NEXT member added without being handled here — which is exactly when the
+-    /// knowledge is needed, rather than several batches later.
++    /// ⭐ <b>A local is NOT a <c>State</c> field.</b> Q27-E makes the scoping literal: the local is
++    /// re-initialised from <see cref="VariableDecl.DefaultValueJson"/> on entry, so invocation N+1
++    /// never sees invocation N's value — which is the whole reason the feature exists rather than
++    /// "just add an instance variable".
+     /// </para>
+-    /// </summary>
+-    /// <summary>
+-    /// BP-57 / Q27 — variables scoped to <b>this graph</b> and reset on every invocation.
+     ///
+     /// <para>
+-    /// ⭐ <b>Q27-A1: a local is NOT a <c>State</c> field.</b> It compiles to a plain C# local in the
+-    /// emitted method, so the instance's state struct does not grow by one field per scratch value —
+-    /// which is the whole reason the feature exists rather than "just add an instance variable".
+-    /// Q27-E makes that literal: the local is re-initialised from <see cref="VariableDecl.DefaultValueJson"/>
+-    /// on entry, so call N+1 never sees call N's value.
++    /// ⚠⚠ <b>Q27-A3: the STORAGE is a compiler choice and is deliberately invisible here.</b> A graph
++    /// that cannot suspend gets a plain C# local; one that CAN gets a graph-scoped blackboard slot
++    /// reset in the entry block, because a suspension returns out of the method and a stack local
++    /// would not survive it. Both mean the same thing to a designer, and neither is spelled on this
++    /// declaration. See <c>LocalStorage</c>.
+     /// </para>
+     ///
+     /// <para>
+@@ -112,6 +100,25 @@ public sealed class Graph
+     /// </summary>
+     public List<VariableDecl> LocalVariables { get; set; } = new();
+ 
++    /// <summary>
++    /// BP-220 — a copy of this graph carrying new <see cref="Nodes"/>/<see cref="Links"/> and
++    /// <b>every other member preserved</b>.
++    ///
++    /// <para>
++    /// ⚠⚠ <b>The point is that the copy is written ONCE, here, instead of at each call site.</b>
++    /// <c>Stage3_Normalize</c> rebuilt <c>Graph</c> field-by-field at two places and both copied 9 of
++    /// 10 members — silently dropping <see cref="Comments"/>. Batch 29 then had to remember
++    /// <see cref="ExecOutputs"/> at both sites by hand, and nothing would have failed if it had been
++    /// missed at one. A copy that must be REMEMBERED is a copy that will be forgotten; this is the
++    /// same class of defect as the denormalised <c>Pin.LinkedToIds</c> mirror, one level up.
++    /// </para>
++    ///
++    /// <para>
++    /// <c>Graph_CopyShape_PreservesEveryMember</c> walks this type's properties by reflection and
++    /// fails on the NEXT member added without being handled here — which is exactly when the
++    /// knowledge is needed, rather than several batches later.
++    /// </para>
++    /// </summary>
+     public Graph WithNodesAndLinks(List<Node> nodes, List<Link> links) => new()
+     {
+         Id             = Id,
+diff --git a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Diagnostics/DiagnosticCodes.cs b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Diagnostics/DiagnosticCodes.cs
+index e0ced17..5127ef7 100644
+--- a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Diagnostics/DiagnosticCodes.cs
++++ b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Diagnostics/DiagnosticCodes.cs
+@@ -134,6 +134,11 @@ public static class DiagnosticCodes
+     // a macro is not a graph after expansion — approached from opposite ends.
+     public const string BP1669 = "BP1669";  // a Macro body reads/writes a graph-local variable
+ 
++    // BP-57 / Batch 38 §2 — pre-existing, but BP-57's delete gesture makes it reachable: an
++    // unresolvable Get/SetVariable emitted `s.__var_-1`, which is not a C# identifier, so the SOLUTION
++    // build broke with a CS error naming a generated file and no BP diagnostic named the node.
++    public const string BP1670 = "BP1670";  // Get/SetVariable targets a variable that does not exist
++
+     // Stage 2 -- Validate (WhenNode rules)
+     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch
+     public const string BP2002 = "BP2002";  // WhenNode missing required payload
+diff --git a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/EmissionContext.cs b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/EmissionContext.cs
+index 1418e43..201a094 100644
+--- a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/EmissionContext.cs
++++ b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/EmissionContext.cs
+@@ -54,11 +54,21 @@ internal sealed class EmissionContext
+     /// <summary>C# field name for a WorkingState or Variable by index.</summary>
+     public string VarFieldName(int index)
+     {
++        // ⭐ BP1670's other half: a negative index means Stage 5 resolved NOTHING, and the old
++        // `__var_-1` fall-through emitted it as an identifier — invalid C#, surfacing as a CS error in
++        // a generated file with no BP diagnostic naming the node. The rail is the diagnostic; this is
++        // the assertion that the rail is complete. ⚠ Deliberately narrower than "out of range": a
++        // positive-but-oversized index is BP-226's index-space ambiguity, which is not this batch's.
++        if (index < 0)
++            throw new InvalidOperationException(
++                $"Unresolvable variable reference reached Emit (index {index}); "
++                + "Stage 2's BP1670 rail should have refused it.");
++
+         var fields = Asset.Variables;
+-        if (index >= 0 && index < fields.Count)
++        if (index < fields.Count)
+             return fields[index].Name;
+         var ws = Asset.WorkingState;
+-        if (index >= 0 && index < ws.Count)
++        if (index < ws.Count)
+             return ws[index].Name;
+         return $"__var_{index}";
+     }
+diff --git a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Stages/Stage2_Validate.cs b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Stages/Stage2_Validate.cs
+index 351f16b..2662af0 100644
+--- a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Stages/Stage2_Validate.cs
++++ b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Stages/Stage2_Validate.cs
+@@ -49,6 +49,7 @@ internal static class Stage2_Validate
+         new V_FunctionGraphCallRules(),
+         new V_MacroCallRules(),             // BP-81/BP-82: BP1660/BP1661/BP1662/BP1663
+         new V_LocalVariableRules(),         // BP-57/Q27: BP1664/BP1669
++        new V_VariableReferenceRules(),     // BP-57 §2: BP1670
+         new V_FunctionGraphReturnValue(),   // BP-71 (BP1655) + BP-73 gate (BP1656)
+         new V_ExecOutFanOut(),
+         new V_FormatStringRules(),   // BP-108 (BP2072)
+diff --git a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Stages/V_VariableReferenceRules.cs b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Stages/V_VariableReferenceRules.cs
+new file mode 100644
+index 0000000..387ae27
+--- /dev/null
++++ b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Stages/V_VariableReferenceRules.cs
+@@ -0,0 +1,110 @@
++using System;
++using System.Collections.Generic;
++using System.Linq;
++using Hrot.Blueprints.Core.Assets;
++using Hrot.Blueprints.Core.Compiler.Diagnostics;
++
++namespace Hrot.Blueprints.Core.Compiler.Stages;
++
++/// <summary>
++/// <c>BP1670</c> — a <see cref="GetVariableNode"/>/<see cref="SetVariableNode"/> whose
++/// <c>VariableId</c> resolves to nothing.
++///
++/// <para>
++/// ⚠⚠ <b>Today this compiles clean and emits invalid C#.</b> <c>Stage5.FindLocalIndex</c> misses,
++/// <c>FindVariableIndex</c> misses, both return -1, and <c>EmissionContext.VarFieldName(-1)</c> falls
++/// through to <c>$"__var_{index}"</c> — literally <c>s.__var_-1 = …</c>. The solution build then breaks
++/// with an unintelligible <c>CS</c> error naming a generated file, and no BP diagnostic names the node.
++/// </para>
++///
++/// <para>
++/// ⭐ <b>Pre-existing, but BP-57 makes it reachable.</b> Deleting a local leaves every Get/Set that
++/// targeted it dangling — <c>BP-225</c> established that delete/rename maintenance is exactly where
++/// this lands — so the rail has to exist before the delete gesture does.
++/// </para>
++///
++/// <para>
++/// ⛔⛔ <b>Scoped to Get/SetVariableNode, and the scope is load-bearing.</b>
++/// <c>GetSharedNode</c>/<c>SetSharedNode</c> also carry a <c>VariableId</c>, but it is a name-keyed
++/// shared-state slot resolved at RUNTIME (<c>BlueprintSharedState.TryGetShared</c>) and never passed to
++/// <c>FindVariableIndex</c> at all. The shipped corpus holds <b>61</b> such references — the literals
++/// <c>"state"</c> and <c>"rally"</c> — and a rail generalised to "any node with a VariableId" would
++/// reject six shipped assets on a mechanism that works correctly.
++/// </para>
++///
++/// <para>
++/// 📌 <b>Measured before it was built.</b> Across the 58 shipped <c>.bp.json</c> assets, all 103
++/// Get/SetVariable references resolve (46 to <c>Variables</c>, 57 to <c>WorkingState</c>, 0 to
++/// <c>Parameters</c>); there are no dangling GUIDs and no bare literals on those two node kinds. This
++/// rail refuses nothing that ships today.
++/// </para>
++/// </summary>
++internal sealed class V_VariableReferenceRules : IValidator
++{
++    public void Validate(BlueprintAsset asset, ValidationContext ctx)
++    {
++        foreach (var graph in asset.Graphs)
++        {
++            // ⚠ A Macro graph's Get/Set nodes are validated where they are SPLICED, against the host's
++            // scope — the macro's own graph has none. BP1669 already refuses a macro body that reaches
++            // for a local; reporting an unresolvable asset reference twice (here and at each call site)
++            // would name the same defect once per caller.
++            if (graph.Kind == GraphKind.Macro) continue;
++
++            foreach (var node in graph.Nodes)
++            {
++                var rawId = node switch
++                {
++                    GetVariableNode gv => gv.VariableId,
++                    SetVariableNode sv => sv.VariableId,
++                    _                  => null,
++                };
++                if (rawId is null) continue;
++                if (Resolves(rawId, asset, graph)) continue;
++
++                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1670,
++                    $"Graph '{graph.Name}' reads or writes a variable '{rawId}' that does not exist. "
++                    + "It matches no asset variable, working-state field or parameter, and no local "
++                    + "declared by this graph — most often because the variable it pointed at was "
++                    + "deleted or renamed away. Retarget the node at an existing variable, or delete "
++                    + "it.",
++                    asset.AssetId, graph.Id, node.Id));
++            }
++        }
++    }
++
++    /// <summary>
++    /// ⭐ <b>Mirrors <c>Stage5</c>'s resolution exactly, in its order</b>: this graph's locals by id
++    /// (<c>FindLocalIndex</c> — id only, deliberately), then the asset's three lists by id, then the
++    /// same three by NAME.
++    ///
++    /// <para>
++    /// ⚠ The name fallback is not a nicety to drop here: a <c>VariableId</c> is not always a GUID, and
++    /// <c>FindVariableIndex</c> resolves a bare name against the asset lists. A rail that only accepted
++    /// GUIDs would refuse graphs that compile correctly today.
++    /// </para>
++    /// </summary>
++    private static bool Resolves(string rawId, BlueprintAsset asset, Graph graph)
++    {
++        var idStr = rawId.StartsWith("var:", StringComparison.OrdinalIgnoreCase)
++            ? rawId.Substring(4)
++            : rawId;
++
++        if (Guid.TryParse(idStr, out var guid))
++        {
++            if (graph.LocalVariables.Any(v => v.Id == guid)) return true;
++            if (AssetDecls(asset).Any(v => v.Id == guid))    return true;
++        }
++
++        return AssetDecls(asset).Any(v => v.Name == idStr);
++    }
++
++    /// <summary>
++    /// The asset's three declaration lists as (id, name) pairs. ⚠ <c>Parameters</c> is a different
++    /// declaration TYPE from the other two, which is why this projects rather than concatenating.
++    /// </summary>
++    private static IEnumerable<(Guid Id, string Name)> AssetDecls(BlueprintAsset asset)
++        => asset.Variables.Select(v => (v.Id, v.Name))
++            .Concat(asset.WorkingState.Select(v => (v.Id, v.Name)))
++            .Concat(asset.Parameters.Select(p => (p.Id, p.Name)));
++}
+diff --git a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Compiler/DanglingVariableReferenceTests.cs b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Compiler/DanglingVariableReferenceTests.cs
+new file mode 100644
+index 0000000..cd75e49
+--- /dev/null
++++ b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Compiler/DanglingVariableReferenceTests.cs
+@@ -0,0 +1,186 @@
++using Hrot.Blueprints.Core.Assets;
++using Hrot.Blueprints.Core.Compiler;
++using Hrot.Blueprints.Core.Compiler.Catalogs;
++using Hrot.Blueprints.Core.Compiler.Diagnostics;
++using BlueprintDispatchKind = Hrot.Blueprints.Core.Assets.BlueprintDispatchKind;
++using BlueprintTypeRef      = Hrot.Blueprints.Core.Assets.BlueprintTypeRef;
++
++namespace Hrot.Blueprints.Tests.Compiler;
++
++/// <summary>
++/// <c>BP1670</c> — a Get/SetVariable that targets nothing.
++///
++/// <para>
++/// ⚠⚠ <b>The failure this replaces was silent at the blueprint level and loud in the wrong place.</b>
++/// Both index lookups missed, returned -1, and the emitter wrote <c>s.__var_-1 = __t0;</c> — not a C#
++/// identifier. The blueprint compile reported <b>no</b> diagnostic; the SOLUTION build then failed with
++/// a <c>CS</c> error pointing at a generated file, naming neither the graph nor the node.
++/// </para>
++/// </summary>
++public sealed class DanglingVariableReferenceTests
++{
++    private static CompileOptions DefaultOptions() => new(
++        Mode:              CompilerMode.Debug,
++        NodeRegistry:      BuiltInNodeRegistry.Instance,
++        TypeRegistry:      StaticTypeRegistry.Instance,
++        EngineEvents:      BuiltInEngineEventCatalog.Instance,
++        ChannelCommands:   BuiltInChannelCommandCatalog.Instance,
++        WaitPrimitives:    BuiltInWaitPrimitiveCatalog.Instance,
++        SiblingSignatures: Array.Empty<BlueprintSignature>());
++
++    private static Pin P(string name, string dir, bool isExec, string typeId = "") => new()
++    {
++        Id = Guid.NewGuid(), Name = name, Direction = dir, IsExec = isExec,
++        TypeRef = new BlueprintTypeRef { TypeId = typeId },
++    };
++
++    private static Link W(Node f, Pin fp, Node t, Pin tp) => new()
++    {
++        FromNodeId = f.Id, FromPinId = fp.Id, ToNodeId = t.Id, ToPinId = tp.Id,
++    };
++
++    /// <summary>Entry → Set(<paramref name="variableId"/>, 7) → Return.</summary>
++    private static Graph GraphWriting(string variableId)
++    {
++        var entry = new EventEntryNode { Id = Guid.NewGuid(), EventTypeId = "" };
++        var eOut  = P("Out", "Out", true); entry.Pins.Add(eOut);
++
++        var lit  = new LiteralNode { Id = Guid.NewGuid(), ValueJson = "7" };
++        var lOut = P("Value", "Out", false, "System.Int32"); lit.Pins.Add(lOut);
++
++        var set  = new SetVariableNode { Id = Guid.NewGuid(), VariableId = variableId };
++        var sIn  = P("In",  "In",  true);
++        var sOut = P("Out", "Out", true);
++        var sVal = P("Value", "In", false, "System.Int32");
++        set.Pins.AddRange(new[] { sIn, sOut, sVal });
++
++        var ret = new ReturnNode { Id = Guid.NewGuid() };
++        var rIn = P("In", "In", true); ret.Pins.Add(rIn);
++
++        return new Graph
++        {
++            Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function,
++            Nodes = { entry, lit, set, ret },
++            Links = { W(entry, eOut, set, sIn), W(lit, lOut, set, sVal), W(set, sOut, ret, rIn) },
++        };
++    }
++
++    private static BlueprintAsset Instance(string name, params Graph[] graphs) => new()
++    {
++        AssetId  = Guid.NewGuid(), Name = name,
++        Dispatch = BlueprintDispatchKind.Instance,
++        Graphs   = graphs.ToList(), Header = new Header(),
++    };
++
++    private static CompileResult Compile(BlueprintAsset asset)
++        => new BlueprintCompiler().Compile(asset, DefaultOptions());
++
++    /// <summary>
++    /// ⭐ A well-formed GUID matching nothing — the shape a deleted variable leaves behind.
++    /// </summary>
++    [Fact]
++    [CoversDiagnosticCode("BP1670")]
++    public void AGetSetTargetingNothing_IsRefused()
++    {
++        var result = Compile(Instance("Dangling", GraphWriting(Guid.NewGuid().ToString())));
++
++        Assert.Contains(DiagnosticCodes.BP1670, result.Diagnostics.Select(d => d.Code));
++        Assert.False(result.Succeeded);
++    }
++
++    /// <summary>
++    /// ⭐⭐ <b>The assertion that matters more than the diagnostic's presence: the invalid identifier
++    /// is gone.</b> A rail that fired but still emitted <c>__var_-1</c> would leave the solution build
++    /// broken for anyone who compiled past the error.
++    /// </summary>
++    [Fact]
++    public void ADanglingReference_NoLongerEmitsAnInvalidIdentifier()
++    {
++        var result = Compile(Instance("DanglingEmit", GraphWriting(Guid.NewGuid().ToString())));
++        Assert.DoesNotContain("__var_-1", result.GeneratedSource ?? "");
++    }
++
++    /// <summary>
++    /// ⭐ <b>A local IS a resolution target.</b> The rail mirrors Stage 5's order — this graph's locals
++    /// by id first — so a node aimed at a local must not be refused as dangling.
++    /// </summary>
++    [Fact]
++    public void AReferenceToThisGraphsLocal_IsNotRefused()
++    {
++        var local = new VariableDecl
++        {
++            Id = Guid.NewGuid(), Name = "Scratch",
++            Type = new BlueprintTypeRef { TypeId = "System.Int32" },
++            DefaultValueJson = "0",
++        };
++        var graph = GraphWriting(local.Id.ToString());
++        graph.LocalVariables.Add(local);
++
++        var result = Compile(Instance("LocalTarget", graph));
++
++        Assert.DoesNotContain(DiagnosticCodes.BP1670, result.Diagnostics.Select(d => d.Code));
++        Assert.True(result.Succeeded, string.Join("; ", result.Diagnostics.Select(d => d.Code)));
++    }
++
++    /// <summary>
++    /// ⭐⭐ <b>The false-positive guard, and it is not hypothetical.</b> A <c>VariableId</c> is not
++    /// always a GUID — <c>Stage5.FindVariableIndex</c> resolves a bare NAME against the asset's lists,
++    /// and Batch 37's shadowing guard depends on that path. A rail that accepted only GUIDs would
++    /// refuse graphs that compile correctly today.
++    /// </summary>
++    [Fact]
++    public void AReferenceByNameToAnAssetVariable_IsNotRefused()
++    {
++        var assetVar = new VariableDecl
++        {
++            Id = Guid.NewGuid(), Name = "Ammo",
++            Type = new BlueprintTypeRef { TypeId = "System.Int32" },
++        };
++        var asset = Instance("NameRef", GraphWriting("Ammo"));
++        asset.Variables.Add(assetVar);
++
++        var result = Compile(asset);
++
++        Assert.DoesNotContain(DiagnosticCodes.BP1670, result.Diagnostics.Select(d => d.Code));
++    }
++
++    /// <summary>
++    /// ⭐⭐ <b>The scope guard — the one that would have failed six shipped assets.</b>
++    /// <c>GetShared</c>/<c>SetShared</c> also carry a <c>VariableId</c>, but it is a name-keyed
++    /// shared-state slot resolved at runtime, never through <c>FindVariableIndex</c>. The shipped
++    /// corpus holds 61 such references (the literals <c>"state"</c> and <c>"rally"</c>), and a rail
++    /// generalised to "any node with a VariableId" would reject every one of them.
++    /// </summary>
++    [Fact]
++    public void ASharedStateReference_IsNotTouchedByThisRail()
++    {
++        var entry = new EventEntryNode { Id = Guid.NewGuid(), EventTypeId = "" };
++        var eOut  = P("Out", "Out", true); entry.Pins.Add(eOut);
++
++        var lit  = new LiteralNode { Id = Guid.NewGuid(), ValueJson = "7" };
++        var lOut = P("Value", "Out", false, "System.Int32"); lit.Pins.Add(lOut);
++
++        var set = new SetSharedNode
++        {
++            Id = Guid.NewGuid(), VariableId = "state", SharedTypeId = "System.Int32",
++        };
++        var sIn  = P("In",  "In",  true);
++        var sOut = P("Out", "Out", true);
++        var sVal = P("Value", "In", false, "System.Int32");
++        set.Pins.AddRange(new[] { sIn, sOut, sVal });
++
++        var ret = new ReturnNode { Id = Guid.NewGuid() };
++        var rIn = P("In", "In", true); ret.Pins.Add(rIn);
++
++        var graph = new Graph
++        {
++            Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function,
++            Nodes = { entry, lit, set, ret },
++            Links = { W(entry, eOut, set, sIn), W(lit, lOut, set, sVal), W(set, sOut, ret, rIn) },
++        };
++
++        var result = Compile(Instance("SharedRef", graph));
++
++        Assert.DoesNotContain(DiagnosticCodes.BP1670, result.Diagnostics.Select(d => d.Code));
++    }
++}
+-- 
+2.43.0
+

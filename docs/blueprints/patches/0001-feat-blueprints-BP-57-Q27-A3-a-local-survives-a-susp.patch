@@ -1,0 +1,1115 @@
+From 2c1638b87d522c9bedad3a49d1fe2034ca84fe95 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 13 Aug 2026 05:28:02 +0000
+Subject: [PATCH 1/2] =?UTF-8?q?feat(blueprints):=20BP-57=20/=20Q27-A3=20?=
+ =?UTF-8?q?=E2=80=94=20a=20local=20survives=20a=20suspension?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+A suspension is `return NodeStatus.Running`: the C# frame dies and a stack
+local with it, so a value written before a Delay read back as its DEFAULT
+after the resume — clean compile, no diagnostic, wrong number.
+
+Q27-A3: a graph that can suspend gets a graph-scoped blackboard slot instead,
+reset in the ENTRY block rather than at the top of the method. The entry block
+is reached only when `__phase == 0`, and the phase is cleared before control
+reaches the resume block, so the reset fires once per INVOCATION and survives
+every suspension inside it. "Per-invocation" was never "per-frame" — A1
+conflated them because in a non-suspending graph they coincide. A graph that
+cannot suspend keeps today's plain C# local, untouched.
+
+The slots live in their own IrAsset list, never appended to
+Variables/WorkingState/Parameters: those three are a positional index space
+FindVariableIndex and VarFieldName already disagree about (BP-226), and a
+fourth source would make that ambiguity live. Slots are addressed by name
+only. They DO enter StructureHash — they occupy real blackboard bytes, and
+the emitted BTreeTick re-initialises that memory only on a hash mismatch, so
+a slot outside the hash would let a changed type reinterpret stale bytes.
+
+Also closes a six-batch gap the storage choice depends on: MacroLatency.IsLatent
+listed three node kinds and omitted ChannelCommandNode with ActionFqn set, which
+Stage5.ScheduleInlineActionNode turns into IrOp_InlineActionCall and the wait
+lowering splits into a suspend/resume state machine. BP1661 and collapse
+legality both read such a macro as synchronous. The node-level and op-level
+predicates are now one list each with a test asserting they agree.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_018A6b3V2pAUU7h7gX44hUPF
+---
+ .../Compiler/Emit/AiPrimitiveEmitter.cs       |   4 +
+ .../Compiler/Emit/EmissionContext.cs          |   9 +-
+ .../Compiler/Emit/InstanceEmitter.cs          |   4 +
+ .../Compiler/Emit/LibraryEmitter.cs           |   5 +
+ .../Compiler/Emit/StatementEmitter.cs         |  16 +
+ .../Compiler/Ir/IrAsset.cs                    |  19 +
+ .../Compiler/Ir/IrGraph.cs                    |  25 +-
+ .../Compiler/Ir/IrOperation.cs                |  18 +
+ .../Compiler/Lowering/AiPrimitiveLowering.cs  |  12 +-
+ .../Compiler/Lowering/FieldLayout.cs          |  21 +-
+ .../Compiler/Lowering/InstanceLowering.cs     |  13 +-
+ .../Compiler/Lowering/LocalStorage.cs         | 159 +++++++
+ .../Lowering/StructureHashComputation.cs      |   5 +
+ .../Compiler/Transform/MacroLatency.cs        |  22 +-
+ .../Compiler/MacroLatencyCoverageTests.cs     | 131 ++++++
+ .../LocalVariableSuspensionTests.cs           | 398 ++++++++++++++++++
+ 16 files changed, 839 insertions(+), 22 deletions(-)
+ create mode 100644 Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Lowering/LocalStorage.cs
+ create mode 100644 Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Compiler/MacroLatencyCoverageTests.cs
+ create mode 100644 Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Integration/LocalVariableSuspensionTests.cs
+
+diff --git a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/AiPrimitiveEmitter.cs b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/AiPrimitiveEmitter.cs
+index ffc289f..0abf20f 100644
+--- a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/AiPrimitiveEmitter.cs
++++ b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/AiPrimitiveEmitter.cs
+@@ -82,6 +82,10 @@ internal static class AiPrimitiveEmitter
+             EmitComment(e, f.Comment);
+             EmitStructField(e, CSharpType(f.Type), f.Name);
+         }
++        // BP-57 / Q27-A3 — suspending graphs' locals, appended AFTER the real fields so their offsets
++        // continue the struct's layout (FieldLayout does the same arithmetic). Addressed by name only.
++        foreach (var f in asset.GraphLocalSlots)
++            EmitStructField(e, CSharpType(f.Type), f.Name);
+         e.Outdent();
+         e.WriteLine("}");
+     }
+diff --git a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/EmissionContext.cs b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/EmissionContext.cs
+index 55d1755..1418e43 100644
+--- a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/EmissionContext.cs
++++ b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/EmissionContext.cs
+@@ -85,9 +85,14 @@ internal sealed class EmissionContext
+     public string LocalFieldName(int index)
+     {
+         var locals = CurrentGraph?.Locals;
+-        return locals != null && index >= 0 && index < locals.Count
++        if (locals is null || index < 0 || index >= locals.Count) return $"__loc_unknown_{index}";
++
++        // BP-57 / ⭐⭐ Q27-A3 — a suspending graph's locals are blackboard slots, not C# locals: the
++        // frame they would otherwise live in dies at every `return NodeStatus.Running`.
++        var prefix = CurrentGraph!.LocalSlotPrefix;
++        return prefix is null
+             ? LocalName(locals[index].Name)
+-            : $"__loc_unknown_{index}";
++            : $"{StateVar}.{Lowering.LocalStorage.SlotName(prefix, locals[index].Name)}";
+     }
+ 
+     /// <summary>C# field name for a Parameters entry by index.</summary>
+diff --git a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/InstanceEmitter.cs b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/InstanceEmitter.cs
+index 56391e0..2ca8175 100644
+--- a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/InstanceEmitter.cs
++++ b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/InstanceEmitter.cs
+@@ -109,6 +109,10 @@ internal static class InstanceEmitter
+         e.WriteLine("public global::Fdp.Toolkit.Blueprints.BlueprintLatentCursor Cursor;  // first 16 bytes");
+         foreach (var f in asset.Variables)
+             e.WriteLine($"public {CSharpType(f.Type)} {f.Name};");
++        // BP-57 / Q27-A3 — suspending graphs' locals, appended AFTER the real fields so their offsets
++        // continue the struct's layout (FieldLayout does the same arithmetic). Addressed by name only.
++        foreach (var f in asset.GraphLocalSlots)
++            e.WriteLine($"public {CSharpType(f.Type)} {f.Name};");
+         e.Outdent();
+         e.WriteLine("}");
+     }
+diff --git a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/LibraryEmitter.cs b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/LibraryEmitter.cs
+index 88907bd..50248f6 100644
+--- a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/LibraryEmitter.cs
++++ b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/LibraryEmitter.cs
+@@ -102,6 +102,11 @@ internal static class LibraryEmitter
+     {
+         if (graph.Locals.Count == 0) return;
+ 
++        // BP-57 / Q27-A3 — a suspending graph's locals are struct fields, initialised by
++        // IrOp_ResetLocals in the entry block instead. Declaring them here would both fail to compile
++        // and reset them once per FRAME rather than once per invocation.
++        if (graph.LocalSlotPrefix is not null) return;
++
+         foreach (var local in graph.Locals)
+         {
+             var init = string.IsNullOrWhiteSpace(local.DefaultValueCSharp)
+diff --git a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/StatementEmitter.cs b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/StatementEmitter.cs
+index 5a97151..8a90a82 100644
+--- a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/StatementEmitter.cs
++++ b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/StatementEmitter.cs
+@@ -75,6 +75,22 @@ internal static class StatementEmitter
+                 e.WriteLine($"{ctx.LocalFieldName(op.LocalIndex)} = __t{op.Value.Index};");
+                 break;
+ 
++            // BP-57 / ⭐⭐ Q27-A3 — Q27-E's "reset from the declared default on entry", for the
++            // blackboard-slot storage class. This lands in the entry block, which a suspending graph
++            // reaches only when `__phase == 0` — once per INVOCATION, not once per frame.
++            case IrOp_ResetLocals:
++            {
++                var locals = ctx.CurrentGraph?.Locals ?? Array.Empty<IrField>();
++                for (int i = 0; i < locals.Count; i++)
++                {
++                    var init = string.IsNullOrWhiteSpace(locals[i].DefaultValueCSharp)
++                        ? "default"
++                        : locals[i].DefaultValueCSharp;
++                    e.WriteLine($"{ctx.LocalFieldName(i)} = {init};");
++                }
++                break;
++            }
++
+             case IrOp_StateFieldRef op:
+                 // FC-2/LV-2 -- writable ref-bind onto the state field (see the op's doc comment).
+                 if (idx >= 0) e.WriteLine($"ref var __t{idx} = ref {sv}.{op.FieldName};");
+diff --git a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Ir/IrAsset.cs b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Ir/IrAsset.cs
+index b234c7e..fba10bc 100644
+--- a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Ir/IrAsset.cs
++++ b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Ir/IrAsset.cs
+@@ -55,6 +55,25 @@ public sealed record IrAsset
+     public bool IsWorldSingleton { get; init; }
+     public Hrot.Blueprints.Core.Compiler.BlackboardTier? SelectedTier { get; init; }
+ 
++    /// <summary>
++    /// BP-57 / ⭐⭐ <b>Q27-A3</b> — the blackboard slots backing suspending graphs' function-locals,
++    /// with graph-qualified names, in graph declaration order.
++    ///
++    /// <para>
++    /// ⭐ These are emitted as fields on the SAME struct as the asset's own storage — <c>WorkingState</c>
++    /// for an AiPrimitive, <c>State</c> for an Instance — and they enter <c>StructureHash</c>, so
++    /// changing a local's type re-initialises the blackboard instead of reinterpreting stale bytes.
++    /// </para>
++    ///
++    /// <para>
++    /// ⛔⛔ <b>They are deliberately NOT in <see cref="Variables"/>/<see cref="WorkingState"/>/<see cref="Parameters"/>.</b>
++    /// Those three are a positional index space that <c>Stage5.FindVariableIndex</c> and
++    /// <c>EmissionContext.VarFieldName</c> already disagree about (<c>BP-226</c>); a fourth source
++    /// would make that ambiguity live. Slots are addressed by NAME only and no index ever reaches them.
++    /// </para>
++    /// </summary>
++    public IReadOnlyList<IrField> GraphLocalSlots { get; init; } = Array.Empty<IrField>();
++
+     // All dispatch kinds
+     public IReadOnlyList<IrGraph> Graphs { get; init; } = Array.Empty<IrGraph>();
+ }
+diff --git a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Ir/IrGraph.cs b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Ir/IrGraph.cs
+index e9b8edc..6fa8c0f 100644
+--- a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Ir/IrGraph.cs
++++ b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Ir/IrGraph.cs
+@@ -43,10 +43,33 @@ public sealed record IrGraph
+     /// putting locals into it would add a fourth list to a space that cannot express three.
+     /// </para>
+     ///
+-    /// <para>⚠ Locals are emitted as plain C# locals, so <c>State</c> does not grow.</para>
++    /// <para>
++    /// ⚠ Locals are emitted as plain C# locals — <b>unless <see cref="LocalSlotPrefix"/> is set</b>,
++    /// which is Q27-A3's second storage class for graphs that can suspend.
++    /// </para>
+     /// </summary>
+     public IReadOnlyList<IrField> Locals { get; init; } = Array.Empty<IrField>();
+ 
++    /// <summary>
++    /// BP-57 / ⭐⭐ <b>Q27-A3</b> — non-null when this graph's locals are <b>blackboard slots</b> rather
++    /// than C# locals, carrying the graph-qualifying prefix their emitted field names share
++    /// (<c>__loc_{Graph}_</c>).
++    ///
++    /// <para>
++    /// ⭐ <b>Set for exactly the graphs that can suspend</b> (<c>LocalStorage.CanSuspend</c>). A
++    /// suspension is <c>return NodeStatus.Running</c>: the C# frame dies and a stack local with it, so
++    /// a value written before a <c>Delay</c> would read back as its default after the resume. The slot
++    /// lives in the same struct as <c>__phase</c>, for the same reason.
++    /// </para>
++    ///
++    /// <para>
++    /// ⛔ <see cref="Locals"/> keeps the DESIGNER's names either way; the prefix is applied at the two
++    /// places that emit an identifier (<c>EmissionContext.LocalFieldName</c> and the slot list in
++    /// <c>IrAsset.GraphLocalSlots</c>), both through <c>LocalStorage.SlotName</c>.
++    /// </para>
++    /// </summary>
++    public string? LocalSlotPrefix { get; init; }
++
+     public IReadOnlyList<IrBlock> Blocks { get; init; } = Array.Empty<IrBlock>();
+     public IrBlockId Entry { get; init; }
+     /// <summary>
+diff --git a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Ir/IrOperation.cs b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Ir/IrOperation.cs
+index 10c5fe4..8c40954 100644
+--- a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Ir/IrOperation.cs
++++ b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Ir/IrOperation.cs
+@@ -27,6 +27,24 @@ public sealed record IrOp_ReadLocal(int LocalIndex) : IrOperation;
+ 
+ /// <summary>BP-57 — writes a function-local variable. See <see cref="IrOp_ReadLocal"/>.</summary>
+ public sealed record IrOp_WriteLocal(int LocalIndex, IrValue Value) : IrOperation;
++
++/// <summary>
++/// BP-57 / ⭐⭐ <b>Q27-A3</b> — resets every local of the current graph to its declared default.
++///
++/// <para>
++/// ⭐ <b>Only ever appears in a suspending graph's ENTRY block</b>, injected by
++/// <c>LocalStorage.PromoteSuspendingGraphLocals</c>. There the locals are blackboard slots that
++/// outlive the method frame, so the "reset on entry" half of Q27-E has to be an explicit statement
++/// rather than a C# initialiser — and it has to sit in the one block reached only when
++/// <c>__phase == 0</c>, so it fires once per invocation and not once per frame.
++/// </para>
++///
++/// <para>
++/// ⚠ Carries no payload: the fields, their defaults and the slot prefix all come from
++/// <c>EmissionContext.CurrentGraph</c>, so a local added or renamed cannot leave a stale copy here.
++/// </para>
++/// </summary>
++public sealed record IrOp_ResetLocals : IrOperation;
+ public sealed record IrOp_ReadInputArg(int ArgIndex) : IrOperation;
+ public sealed record IrOp_Self : IrOperation;
+ public sealed record IrOp_Time : IrOperation;
+diff --git a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Lowering/AiPrimitiveLowering.cs b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Lowering/AiPrimitiveLowering.cs
+index e46a74b..9c6d2d2 100644
+--- a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Lowering/AiPrimitiveLowering.cs
++++ b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Lowering/AiPrimitiveLowering.cs
+@@ -12,6 +12,10 @@ internal static class AiPrimitiveLowering
+ 
+     public static IrAsset Apply(IrAsset asset, DiagnosticSink sink)
+     {
++        // BP-57 / Q27-A3 — BEFORE the wait lowering, because the reset statement goes into the
++        // graph's CURRENT entry block and WaitLowering repoints Entry at its dispatch block.
++        asset = LocalStorage.PromoteSuspendingGraphLocals(asset);
++
+         for (int i = 0; i < asset.Graphs.Count; i++)
+         {
+             var graph = asset.Graphs[i];
+@@ -84,10 +88,8 @@ internal static class AiPrimitiveLowering
+         };
+     }
+ 
+-    private static bool HasAnyLatentOp(IrGraph graph)
+-        => graph.Blocks
+-            .SelectMany(b => b.Statements)
+-            .Any(s => s.Operation is IrOp_LatentDelay or IrOp_WaitForChannel or IrOp_WaitForEvent
+-                                  or IrOp_InlineActionCall);
++    // ⭐ One predicate, three call sites — see LocalStorage.CanSuspend for why a second copy of this
++    // list is the defect shape this programme keeps finding.
++    private static bool HasAnyLatentOp(IrGraph graph) => LocalStorage.CanSuspend(graph);
+ }
+ 
+diff --git a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Lowering/FieldLayout.cs b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Lowering/FieldLayout.cs
+index b60edef..0691044 100644
+--- a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Lowering/FieldLayout.cs
++++ b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Lowering/FieldLayout.cs
+@@ -1,3 +1,4 @@
++using Hrot.Blueprints.Core.Assets;
+ using Hrot.Blueprints.Core.Compiler.Ir;
+ 
+ namespace Hrot.Blueprints.Core.Compiler.Lowering;
+@@ -6,16 +7,27 @@ internal static class FieldLayout
+ {
+     public static IrAsset ComputeFieldLayouts(IrAsset asset)
+     {
++        var parameters   = LayoutFields(asset.Parameters,   startOffset: 0,  out _);
++        var workingState = LayoutFields(asset.WorkingState, startOffset: 8,  out int afterWs);
++        var variables    = LayoutFields(asset.Variables,    startOffset: 16, out int afterVars);
++
++        // BP-57 / Q27-A3 — the blackboard slots backing suspending graphs' locals are emitted as
++        // fields on the SAME struct as the asset's own storage, immediately after it, so their offsets
++        // continue that struct's layout: WorkingState for an AiPrimitive, State (Variables) otherwise.
++        // ⚠ They are laid out but NOT merged into those lists — see IrAsset.GraphLocalSlots.
++        int slotStart = asset.Dispatch == BlueprintDispatchKind.AiPrimitive ? afterWs : afterVars;
++
+         return asset with
+         {
+-            Parameters   = LayoutFields(asset.Parameters,   startOffset: 0),
+-            WorkingState = LayoutFields(asset.WorkingState, startOffset: 8),
+-            Variables    = LayoutFields(asset.Variables,    startOffset: 16),
++            Parameters      = parameters,
++            WorkingState    = workingState,
++            Variables       = variables,
++            GraphLocalSlots = LayoutFields(asset.GraphLocalSlots, slotStart, out _),
+         };
+     }
+ 
+     private static IReadOnlyList<IrField> LayoutFields(
+-        IReadOnlyList<IrField> fields, int startOffset)
++        IReadOnlyList<IrField> fields, int startOffset, out int endOffset)
+     {
+         var result = new List<IrField>(fields.Count);
+         int offset = startOffset;
+@@ -26,6 +38,7 @@ internal static class FieldLayout
+             result.Add(f with { Offset = offset, Size = f.Type.SizeBytes });
+             offset += f.Type.SizeBytes;
+         }
++        endOffset = offset;
+         return result;
+     }
+ 
+diff --git a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Lowering/InstanceLowering.cs b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Lowering/InstanceLowering.cs
+index 8b8ab84..73b5302 100644
+--- a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Lowering/InstanceLowering.cs
++++ b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Lowering/InstanceLowering.cs
+@@ -10,16 +10,13 @@ internal static class InstanceLowering
+         // Add synthesized _when_xxx_prev fields for ValueChanged WhenNodes.
+         asset = WhenLowering_Instance.Apply(asset);
+ 
++        // BP-57 / Q27-A3 — BEFORE the wait lowering, because the reset statement goes into the
++        // graph's CURRENT entry block and WaitLowering repoints Entry at its dispatch block.
++        asset = LocalStorage.PromoteSuspendingGraphLocals(asset);
++
+         var newGraphs = new List<IrGraph>(asset.Graphs.Count);
+         foreach (var graph in asset.Graphs)
+-        {
+-            bool hasLatent = graph.Blocks
+-                .SelectMany(b => b.Statements)
+-                .Any(s => s.Operation is IrOp_LatentDelay or IrOp_WaitForChannel or IrOp_WaitForEvent
+-                                       or IrOp_InlineActionCall);
+-
+-            newGraphs.Add(hasLatent ? WaitLowering_Instance.Apply(graph) : graph);
+-        }
++            newGraphs.Add(LocalStorage.CanSuspend(graph) ? WaitLowering_Instance.Apply(graph) : graph);
+         return asset with { Graphs = newGraphs };
+     }
+ }
+diff --git a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Lowering/LocalStorage.cs b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Lowering/LocalStorage.cs
+new file mode 100644
+index 0000000..cc871b8
+--- /dev/null
++++ b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Lowering/LocalStorage.cs
+@@ -0,0 +1,159 @@
++using Hrot.Blueprints.Core.Compiler.Emit;
++using Hrot.Blueprints.Core.Compiler.Ir;
++
++namespace Hrot.Blueprints.Core.Compiler.Lowering;
++
++/// <summary>
++/// BP-57 / ⭐⭐ <b>Q27-A3</b> — which storage a graph's function-locals get, and the one predicate that
++/// decides it.
++///
++/// <para>
++/// ⭐ <b>Two storage classes, one designer-visible meaning.</b> A graph that cannot suspend keeps its
++/// locals as plain C# locals initialised at the top of the emitted method — Q27-A1, unchanged. A graph
++/// that <i>can</i> suspend gets a <b>graph-scoped blackboard slot</b> instead, reset in the ENTRY
++/// BLOCK. The designer sees no difference: a local is a local, it resets once per invocation, and it
++/// keeps its value across a suspension inside that invocation.
++/// </para>
++///
++/// <para>
++/// ⚠⚠ <b>Why A1 alone was wrong.</b> A suspension is <c>return NodeStatus.Running</c> — the C# frame
++/// dies, and a stack local with it. A value written before a <c>Delay</c> read back as its
++/// <b>default</b> after the resume, silently, with no diagnostic. <c>__phase</c> and
++/// <c>__waitUntilTime</c> live in blackboard memory for precisely this reason; a local that must cross
++/// the same boundary has to live there too.
++/// </para>
++///
++/// <para>
++/// ⭐ <b>"Per-invocation" was never "per-frame."</b> The entry block is reached only when
++/// <c>__phase == 0</c> — a fresh logical invocation — and the phase is cleared before control reaches
++/// the resume block, so the next invocation lands there again. That is the SAME rule as the stack
++/// case, where an invocation happens to be one frame. A1 conflated the two because in a
++/// non-suspending graph they coincide.
++/// </para>
++/// </summary>
++internal static class LocalStorage
++{
++    /// <summary>
++    /// ⭐⭐ <b>The one IR-level "can this suspend?" predicate.</b> <c>InstanceLowering</c>,
++    /// <c>AiPrimitiveLowering</c> and the storage choice below all ask it here, so they cannot drift.
++    ///
++    /// <para>
++    /// ⚠ <c>IrOp_InlineActionCall</c> is a member of this set and is the one everything else keeps
++    /// forgetting — it comes from a <c>ChannelCommandNode</c> with <c>ActionFqn</c> set
++    /// (<c>Stage5.ScheduleInlineActionNode</c>), and <c>WaitLowering</c> gives it the same
++    /// suspend/resume block split as a <c>Delay</c>. See <c>MacroLatency.IsLatent</c> for the
++    /// node-level mirror of this list and why the two must agree.
++    /// </para>
++    /// </summary>
++    public static bool CanSuspend(IrGraph graph)
++        => graph.Blocks
++            .SelectMany(b => b.Statements)
++            .Any(s => s.Operation is IrOp_LatentDelay or IrOp_WaitForChannel or IrOp_WaitForEvent
++                                  or IrOp_InlineActionCall);
++
++    /// <summary>
++    /// The emitted identifier for one blackboard-resident local. ⭐ <b>Graph-qualified</b>: two graphs
++    /// may each declare a local named <c>Scratch</c>, and once they share one struct <c>__loc_</c>
++    /// alone no longer separates them.
++    /// </summary>
++    public static string SlotName(string prefix, string localName) => prefix + localName;
++
++    /// <summary>
++    /// Promotes every suspending graph's locals to blackboard slots, returning the rewritten asset.
++    ///
++    /// <para>
++    /// ⛔⛔ <b>The slots go in their OWN list, never appended to <c>Variables</c>/<c>WorkingState</c>.</b>
++    /// <c>Stage5.FindVariableIndex</c> and <c>EmissionContext.VarFieldName</c> read those three lists
++    /// <b>positionally</b> and already disagree about what the integer means
++    /// (<c>FINDING_Variable_Index_Space.md</c> / <c>BP-226</c>) —
++    /// <c>AiPrimitiveLowering.EnsurePhaseByteInWorkingState</c> appends rather than prepends for
++    /// exactly that reason. Adding a fourth source to a space that cannot express three is the
++    /// direction Q27-D ruled against, so these slots are emitted into the same struct but are
++    /// unreachable through that index space: they are addressed by NAME only.
++    /// </para>
++    ///
++    /// <para>
++    /// ⚠ <b>Call this BEFORE the wait lowering.</b> The reset statement is injected into the graph's
++    /// <see cref="IrGraph.Entry"/> block, and <c>WaitLowering</c> repoints <c>Entry</c> at the
++    /// synthesized dispatch block — after which the original entry is no longer nameable from here.
++    /// </para>
++    /// </summary>
++    public static IrAsset PromoteSuspendingGraphLocals(IrAsset asset)
++    {
++        if (asset.Graphs.All(g => g.Locals.Count == 0)) return asset;
++
++        var slots     = new List<IrField>();
++        var usedNames = new HashSet<string>(StringComparer.Ordinal);
++        var newGraphs = new List<IrGraph>(asset.Graphs.Count);
++
++        foreach (var graph in asset.Graphs)
++        {
++            if (graph.Locals.Count == 0 || !CanSuspend(graph))
++            {
++                newGraphs.Add(graph);
++                continue;
++            }
++
++            var prefix = UniquePrefix(graph, usedNames);
++            foreach (var local in graph.Locals)
++                slots.Add(local with { Name = SlotName(prefix, local.Name) });
++
++            newGraphs.Add(InjectEntryReset(graph with { LocalSlotPrefix = prefix }));
++        }
++
++        return slots.Count == 0
++            ? asset
++            : asset with { Graphs = newGraphs, GraphLocalSlots = slots };
++    }
++
++    /// <summary>
++    /// <c>__loc_{Graph}_</c>, disambiguated when two graph names sanitize to the same identifier.
++    /// Deterministic in graph order, which is the asset's declaration order.
++    /// </summary>
++    private static string UniquePrefix(IrGraph graph, HashSet<string> used)
++    {
++        var basePrefix = "__loc_" + Sanitizer.SanitizeName(graph.Name) + "_";
++        if (used.Add(basePrefix)) return basePrefix;
++
++        for (int n = 2; ; n++)
++        {
++            var candidate = $"__loc_{Sanitizer.SanitizeName(graph.Name)}{n}_";
++            if (used.Add(candidate)) return candidate;
++        }
++    }
++
++    /// <summary>
++    /// Prepends <see cref="IrOp_ResetLocals"/> to the entry block — Q27-E's "reset from the declared
++    /// default on entry", relocated from the top of the method to the one block a fresh invocation
++    /// enters through.
++    /// </summary>
++    private static IrGraph InjectEntryReset(IrGraph graph)
++    {
++        var blocks = new List<IrBlock>(graph.Blocks.Count);
++        foreach (var block in graph.Blocks)
++        {
++            if (block.Id.Value != graph.Entry.Value)
++            {
++                blocks.Add(block);
++                continue;
++            }
++
++            var stmts = new List<IrStatement>(block.Statements.Count + 1)
++            {
++                new IrStatement
++                {
++                    ResultValue = null,
++                    Operation   = new IrOp_ResetLocals(),
++                    Debug       = new IrDebugAnnotation
++                    {
++                        GraphId     = graph.Id,
++                        Synthesized = "stage6-local-slot-reset",
++                    },
++                },
++            };
++            stmts.AddRange(block.Statements);
++            blocks.Add(block with { Statements = stmts });
++        }
++        return graph with { Blocks = blocks };
++    }
++}
+diff --git a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Lowering/StructureHashComputation.cs b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Lowering/StructureHashComputation.cs
+index f7caa62..975e7e2 100644
+--- a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Lowering/StructureHashComputation.cs
++++ b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Lowering/StructureHashComputation.cs
+@@ -13,6 +13,11 @@ internal static class StructureHashComputation
+         AppendFields(sb, asset.Parameters);
+         AppendFields(sb, asset.WorkingState);
+         AppendFields(sb, asset.Variables);
++        // BP-57 / ⭐⭐ Q27-A3 — a blackboard-resident local occupies real blackboard bytes, so it MUST
++        // be here. The emitted BTreeTick wipes and re-initialises that memory only when
++        // `storedHash != StructureHash`; a slot outside the hash would let a changed type or layout
++        // reinterpret the previous run's bytes, with nothing reporting it.
++        AppendFields(sb, asset.GraphLocalSlots);
+         return FnvHasher.Hash64(Encoding.UTF8.GetBytes(sb.ToString()));
+     }
+ 
+diff --git a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Transform/MacroLatency.cs b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Transform/MacroLatency.cs
+index 62bf7ad..34eda95 100644
+--- a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Transform/MacroLatency.cs
++++ b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Transform/MacroLatency.cs
+@@ -17,9 +17,27 @@ namespace Hrot.Blueprints.Core.Compiler.Transform;
+ /// </summary>
+ internal static class MacroLatency
+ {
+-    /// <summary>The node kinds that suspend. The single source of truth for that list.</summary>
++    /// <summary>
++    /// The node kinds that suspend. The single source of truth for that list.
++    ///
++    /// <para>
++    /// ⚠⚠ <b><c>ChannelCommandNode</c> with <c>ActionFqn</c> set belongs here and was missing for six
++    /// batches.</b> <c>Stage5.ScheduleInlineActionNode</c> turns exactly that shape into
++    /// <c>IrOp_InlineActionCall</c>, and <c>WaitLowering</c> gives it the same suspend/resume block
++    /// split as a <c>Delay</c> — so <c>BP1661</c> and collapse legality (Q26-F) both read a macro whose
++    /// only latent node is an inline action as synchronous. The <b>op</b>-level mirror of this list is
++    /// <c>LocalStorage.CanSuspend</c>; the two must agree, and
++    /// <c>MacroLatencyMatchesLoweringTests</c> is what makes them.
++    /// </para>
++    ///
++    /// <para>
++    /// ⚠ A <c>ChannelCommandNode</c> WITHOUT <c>ActionFqn</c> is a fire-and-forget channel write and
++    /// does not suspend — the same discrimination Stage 5 makes.
++    /// </para>
++    /// </summary>
+     public static bool IsLatent(Node node) =>
+-        node is LatentDelayNode or WaitForChannelNode or WaitForEventNode;
++        node is LatentDelayNode or WaitForChannelNode or WaitForEventNode
++             || node is ChannelCommandNode { ActionFqn: { } fqn } && !string.IsNullOrEmpty(fqn);
+ 
+     /// <summary>
+     /// The first latent node reachable from <paramref name="nodes"/>, following
+diff --git a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Compiler/MacroLatencyCoverageTests.cs b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Compiler/MacroLatencyCoverageTests.cs
+new file mode 100644
+index 0000000..eda9186
+--- /dev/null
++++ b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Compiler/MacroLatencyCoverageTests.cs
+@@ -0,0 +1,131 @@
++using Hrot.Blueprints.Core.Assets;
++using Hrot.Blueprints.Core.Compiler;
++using Hrot.Blueprints.Core.Compiler.Catalogs;
++using Hrot.Blueprints.Core.Compiler.Diagnostics;
++using Hrot.Blueprints.Core.Compiler.Ir;
++using Hrot.Blueprints.Core.Compiler.Lowering;
++using Hrot.Blueprints.Core.Compiler.Stages;
++using Hrot.Blueprints.Core.Compiler.Transform;
++using Hrot.Blueprints.Tests.Builders;
++
++namespace Hrot.Blueprints.Tests.Compiler;
++
++/// <summary>
++/// ⭐⭐ <b>The node-level and op-level "can this suspend?" predicates must agree.</b>
++///
++/// <para>
++/// <c>MacroLatency.IsLatent</c> answers the question for an authored <see cref="Node"/> — it is what
++/// <c>BP1661</c> (a latent macro called from a Function graph) and collapse legality (Q26-F) consult.
++/// <c>LocalStorage.CanSuspend</c> answers it for a scheduled <see cref="IrGraph"/> — it is what the
++/// wait lowering and Q27-A3's storage choice consult. They are two views of one fact, and its own doc
++/// comment says so: <i>"Do not write a second latent-detection rule."</i>
++/// </para>
++///
++/// <para>
++/// ⚠⚠ <b>There were two, and they disagreed.</b> <c>IsLatent</c> listed three node kinds;
++/// <c>ChannelCommandNode</c> with <c>ActionFqn</c> set was missing, even though
++/// <c>Stage5.ScheduleInlineActionNode</c> turns exactly that shape into <c>IrOp_InlineActionCall</c>
++/// and the wait lowering gives it a full suspend/resume block split. ⇒ a macro whose only latent node
++/// was an inline action read as <b>synchronous</b> to <c>BP1661</c> and to collapse.
++/// </para>
++///
++/// <para>
++/// ⭐ <b>This test is the agreement, not a restatement of either list.</b> It schedules each node
++/// shape and compares what the IR actually did against what <c>IsLatent</c> claims — so a future node
++/// kind that suspends cannot be added to one side alone.
++/// </para>
++/// </summary>
++public sealed class MacroLatencyCoverageTests
++{
++    private const string FakeActionFqn = "Hrot.AI.Behaviors.Generated.MoveToTarget_AABBCCDD_Bp.Call";
++    private const string FakeParamsFqn = "Hrot.AI.Behaviors.Generated.MoveToTarget_AABBCCDD_Bp+Params";
++
++    private static CompileOptions DefaultOptions() => new(
++        Mode:              CompilerMode.Debug,
++        NodeRegistry:      BuiltInNodeRegistry.Instance,
++        TypeRegistry:      StaticTypeRegistry.Instance,
++        EngineEvents:      BuiltInEngineEventCatalog.Instance,
++        ChannelCommands:   BuiltInChannelCommandCatalog.Instance,
++        WaitPrimitives:    BuiltInWaitPrimitiveCatalog.Instance,
++        SiblingSignatures: Array.Empty<BlueprintSignature>());
++
++    private static IrAsset RunSchedule(BlueprintAsset asset)
++    {
++        var sink  = new DiagnosticSink();
++        var ctx   = new ValidationContext(sink, DefaultOptions());
++        var typed = new TypedAsset(
++            asset,
++            PinTypes:   new Dictionary<Guid, IrTypeRef>(),
++            FieldTypes: new Dictionary<Guid, IrTypeRef>());
++        return Stage5_Schedule.Run(typed, ctx);
++    }
++
++    /// <summary>
++    /// ⭐ <b>The claim the whole §1.2 ruling rests on, tested rather than reasoned from doc comments.</b>
++    /// An <c>ActionInvocation</c> really does become a suspending op — so a predicate that omits it is
++    /// wrong, not merely conservative.
++    /// </summary>
++    [Fact]
++    public void AnActionInvocation_ReallyDoesSuspend()
++    {
++        var asset = BlueprintAssetBuilder
++            .AiPrimitive("InlineActionOnly")
++            .WithHostings(AiPrimitiveHosting.BTreeAction)
++            .WithGraph("Main", g => g
++                .Entry()
++                .ActionInvocation(FakeActionFqn, FakeParamsFqn)
++                .Return())
++            .Build();
++
++        var ir = RunSchedule(asset);
++        Assert.All(ir.Graphs, g => Assert.True(LocalStorage.CanSuspend(g),
++            "A ChannelCommandNode with ActionFqn set schedules IrOp_InlineActionCall, which the wait "
++            + "lowering splits into a suspend/resume state machine."));
++    }
++
++    /// <summary>
++    /// ⭐⭐ <b>The agreement.</b> For every shape, what <c>MacroLatency.IsLatent</c> says about the
++    /// authored node must match what the scheduled IR actually contains.
++    ///
++    /// <para>
++    /// ⚠ The negative case matters as much as the positives: a <c>ChannelCommandNode</c> WITHOUT
++    /// <c>ActionFqn</c> is a fire-and-forget channel write and does <b>not</b> suspend, so a predicate
++    /// that simply matched the node type would be wrong in the other direction — and would make
++    /// <c>BP1661</c> refuse macros that are perfectly legal.
++    /// </para>
++    /// </summary>
++    [Theory]
++    [InlineData("delay",   true)]
++    [InlineData("channel", true)]
++    [InlineData("action",  true)]
++    [InlineData("command", false)]
++    [InlineData("none",    false)]
++    public void IsLatent_AgreesWithWhatTheIrActuallyDid(string shape, bool expected)
++    {
++        var asset = BlueprintAssetBuilder
++            .AiPrimitive("LatencyShape_" + shape)
++            .WithHostings(AiPrimitiveHosting.BTreeAction)
++            .WithGraph("Main", g =>
++            {
++                g.Entry();
++                switch (shape)
++                {
++                    case "delay":   g.Delay(0.4f); break;
++                    case "channel": g.WaitForChannel("Hrot.AI.Behaviors.BpChannelDemo"); break;
++                    case "action":  g.ActionInvocation(FakeActionFqn, FakeParamsFqn); break;
++                    case "command": g.ChannelCommand("Hrot.AI.Behaviors.BpChannelDemo", "Go"); break;
++                    case "none":    break;
++                    default: throw new ArgumentOutOfRangeException(nameof(shape));
++                }
++                g.Return();
++            })
++            .Build();
++
++        var nodes = asset.Graphs.SelectMany(g => g.Nodes).ToList();
++        bool nodeLevel = nodes.Any(MacroLatency.IsLatent);
++        bool irLevel   = RunSchedule(asset).Graphs.Any(LocalStorage.CanSuspend);
++
++        Assert.Equal(expected, irLevel);       // what the compiler really does
++        Assert.Equal(irLevel, nodeLevel);      // ⭐ and what the shared predicate claims about it
++    }
++}
+diff --git a/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Integration/LocalVariableSuspensionTests.cs b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Integration/LocalVariableSuspensionTests.cs
+new file mode 100644
+index 0000000..810212e
+--- /dev/null
++++ b/Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Integration/LocalVariableSuspensionTests.cs
+@@ -0,0 +1,398 @@
++using Fdp.Toolkit.Blueprints;
++using Hrot.Blueprints.Core.Assets;
++using Hrot.Blueprints.Core.Compiler;
++using Hrot.Blueprints.Core.Compiler.Catalogs;
++using Hrot.Blueprints.Core.Compiler.Diagnostics;
++using BlueprintDispatchKind = Hrot.Blueprints.Core.Assets.BlueprintDispatchKind;
++using BlueprintTypeRef      = Hrot.Blueprints.Core.Assets.BlueprintTypeRef;
++
++namespace Hrot.Blueprints.Tests.Integration;
++
++/// <summary>
++/// BP-57 / ⭐ <b>Q27-A3</b> — a local must survive a suspension.
++///
++/// <para>
++/// ⚠⚠ Batch 37 shipped locals as plain C# locals (A1). A suspension is <c>return NodeStatus.Running</c>
++/// — the C# frame dies, and a stack local with it — so a value written before a <c>Delay</c> read back
++/// as its <b>default</b> after the resume, silently and with no diagnostic. A3 rules that a suspendable
++/// graph's locals are blackboard-allocated instead, reset in the ENTRY block rather than at the top of
++/// the method.
++/// </para>
++///
++/// <para>
++/// ⭐ These execute across real frames through real Roslyn. <c>CompileResult.Succeeded</c> never invokes
++/// Roslyn and never runs anything, so nothing short of this could have caught the defect — and Batch
++/// 37's own per-invocation test called the graph twice <b>from the top</b>, never suspending mid-graph.
++/// </para>
++/// </summary>
++[Collection("DebugProbe")]
++public sealed class LocalVariableSuspensionTests
++{
++    private const string DemoComponentFqn = "Hrot.AI.Behaviors.BpComponentDemo";
++
++    private static BlueprintTestFixtureOptions NoAlcCheck { get; } =
++        new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false };
++
++    private static CompileOptions DefaultOptions() => new(
++        Mode:              CompilerMode.Debug,
++        NodeRegistry:      BuiltInNodeRegistry.Instance,
++        TypeRegistry:      StaticTypeRegistry.Instance,
++        EngineEvents:      BuiltInEngineEventCatalog.Instance,
++        ChannelCommands:   BuiltInChannelCommandCatalog.Instance,
++        WaitPrimitives:    BuiltInWaitPrimitiveCatalog.Instance,
++        SiblingSignatures: Array.Empty<BlueprintSignature>());
++
++    private static Pin NewPin(string name, string dir, bool isExec, string typeId = "") => new()
++    {
++        Id = Guid.NewGuid(), Name = name, Direction = dir,
++        IsExec = isExec, TypeRef = new BlueprintTypeRef { TypeId = typeId },
++    };
++
++    private static Link Wire(Node f, Pin fp, Node t, Pin tp) => new()
++    {
++        FromNodeId = f.Id, FromPinId = fp.Id, ToNodeId = t.Id, ToPinId = tp.Id,
++    };
++
++    private static VariableDecl Decl(string name, string typeId, string? defaultJson = null) => new()
++    {
++        Id = Guid.NewGuid(), Name = name,
++        Type = new BlueprintTypeRef { TypeId = typeId },
++        DefaultValueJson = defaultJson ?? "",
++    };
++
++    private static BlueprintAsset MakeAiPrimitiveAsset(string name, params Graph[] graphs) => new()
++    {
++        AssetId   = Guid.NewGuid(),
++        Name      = name,
++        Dispatch  = BlueprintDispatchKind.AiPrimitive,
++        Primitive = new AiPrimitiveDecl
++        {
++            Intent   = AiPrimitiveIntent.Action,
++            Hostings = new List<AiPrimitiveHosting> { AiPrimitiveHosting.BTreeAction },
++        },
++        Graphs = graphs.ToList(),
++        Header = new Header(),
++    };
++
++    private static int ReadAmmo(BlueprintTestFixture fixture, Fdp.Core.Entity e)
++        => fixture.World.GetComponentRO<Hrot.AI.Behaviors.BpComponentDemo>(e).Ammo;
++
++    /// <summary>
++    /// <c>Entry → Set(local = 7) → Delay(0.4) → SetComponent(Ammo = Get(local)) → Return</c>.
++    ///
++    /// <para>
++    /// ⭐ The write is <b>before</b> the suspension and the read <b>after</b> it, which is the only
++    /// shape that distinguishes storage that survives a resume from storage that does not. The
++    /// component write is the observable: the local's value has to cross the frame boundary to reach
++    /// it.
++    /// </para>
++    /// </summary>
++    private static Graph MakeSetDelayReadGraph(
++        VariableDecl local, float seconds = 0.4f, string graphName = "Tick")
++    {
++        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
++        var entryOut = NewPin("Out", "Out", isExec: true); entry.Pins.Add(entryOut);
++
++        var lit  = new LiteralNode { Id = Guid.NewGuid(), ValueJson = "7" };
++        var lOut = NewPin("Value", "Out", isExec: false, typeId: "System.Int32"); lit.Pins.Add(lOut);
++
++        var set  = new SetVariableNode { Id = Guid.NewGuid(), VariableId = local.Id.ToString() };
++        var setIn  = NewPin("In",  "In",  isExec: true);
++        var setOut = NewPin("Out", "Out", isExec: true);
++        var setVal = NewPin("Value", "In", isExec: false, typeId: "System.Int32");
++        set.Pins.AddRange(new[] { setIn, setOut, setVal });
++
++        var delay = new LatentDelayNode { Id = Guid.NewGuid() };
++        var dIn   = NewPin("In",  "In",  isExec: true);
++        var dOut  = NewPin("Out", "Out", isExec: true);
++        var dSecs = NewPin("Seconds", "In", isExec: false, typeId: "System.Single");
++        delay.Pins.AddRange(new[] { dIn, dOut, dSecs });
++        delay.PinDefaults = new Dictionary<string, string>
++        {
++            ["Seconds"] = seconds.ToString(System.Globalization.CultureInfo.InvariantCulture),
++        };
++
++        var get  = new GetVariableNode { Id = Guid.NewGuid(), VariableId = local.Id.ToString() };
++        var gOut = NewPin("Value", "Out", isExec: false, typeId: "System.Int32"); get.Pins.Add(gOut);
++
++        var fire = new SetComponentNode
++        {
++            Id = Guid.NewGuid(),
++            ComponentTypeFqn = DemoComponentFqn,
++            Fields = new List<ComponentFieldDecl> { new() { Name = "Ammo", TypeId = "System.Int32" } },
++        };
++        var fIn      = NewPin("In",  "In",  isExec: true);
++        var fOut     = NewPin("Out", "Out", isExec: true);
++        var fAmmo    = NewPin("Ammo", "In", isExec: false, typeId: "System.Int32");
++        var fWritten = NewPin("Written", "Out", isExec: false, typeId: "System.Boolean");
++        fire.Pins.AddRange(new[] { fIn, fOut, fAmmo, fWritten });
++
++        var ret   = new ReturnNode { Id = Guid.NewGuid() };
++        var retIn = NewPin("In", "In", isExec: true); ret.Pins.Add(retIn);
++
++        var graph = new Graph
++        {
++            Id = Guid.NewGuid(), Name = graphName, Kind = GraphKind.Function,
++            Nodes = { entry, lit, set, delay, get, fire, ret },
++            Links =
++            {
++                Wire(entry, entryOut, set,  setIn),
++                Wire(lit,   lOut,     set,  setVal),
++                Wire(set,   setOut,   delay, dIn),
++                Wire(delay, dOut,     fire, fIn),
++                Wire(get,   gOut,     fire, fAmmo),
++                Wire(fire,  fOut,     ret,  retIn),
++            },
++        };
++        graph.LocalVariables.Add(local);
++        return graph;
++    }
++
++    /// <summary>
++    /// <c>Entry → SetComponent(Ammo = Get(local)) → Set(local = 7) → Delay → Return</c>.
++    ///
++    /// <para>
++    /// ⭐ The read happens <b>first</b>, so the component records what the local held on ENTRY. Run it
++    /// twice and the second invocation's entry value distinguishes "reset once per invocation" (0)
++    /// from "persisted like a State field" (7) — the wart Q27 exists to avoid, which a blackboard slot
++    /// would otherwise reintroduce.
++    /// </para>
++    /// </summary>
++    private static Graph MakeReadThenSetGraph(VariableDecl local)
++    {
++        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
++        var entryOut = NewPin("Out", "Out", isExec: true); entry.Pins.Add(entryOut);
++
++        var get  = new GetVariableNode { Id = Guid.NewGuid(), VariableId = local.Id.ToString() };
++        var gOut = NewPin("Value", "Out", isExec: false, typeId: "System.Int32"); get.Pins.Add(gOut);
++
++        var record = new SetComponentNode
++        {
++            Id = Guid.NewGuid(),
++            ComponentTypeFqn = DemoComponentFqn,
++            Fields = new List<ComponentFieldDecl> { new() { Name = "Ammo", TypeId = "System.Int32" } },
++        };
++        var rIn      = NewPin("In",  "In",  isExec: true);
++        var rOut     = NewPin("Out", "Out", isExec: true);
++        var rAmmo    = NewPin("Ammo", "In", isExec: false, typeId: "System.Int32");
++        var rWritten = NewPin("Written", "Out", isExec: false, typeId: "System.Boolean");
++        record.Pins.AddRange(new[] { rIn, rOut, rAmmo, rWritten });
++
++        var lit  = new LiteralNode { Id = Guid.NewGuid(), ValueJson = "7" };
++        var lOut = NewPin("Value", "Out", isExec: false, typeId: "System.Int32"); lit.Pins.Add(lOut);
++
++        var set    = new SetVariableNode { Id = Guid.NewGuid(), VariableId = local.Id.ToString() };
++        var setIn  = NewPin("In",  "In",  isExec: true);
++        var setOut = NewPin("Out", "Out", isExec: true);
++        var setVal = NewPin("Value", "In", isExec: false, typeId: "System.Int32");
++        set.Pins.AddRange(new[] { setIn, setOut, setVal });
++
++        var delay = new LatentDelayNode { Id = Guid.NewGuid() };
++        var dIn   = NewPin("In",  "In",  isExec: true);
++        var dOut  = NewPin("Out", "Out", isExec: true);
++        var dSecs = NewPin("Seconds", "In", isExec: false, typeId: "System.Single");
++        delay.Pins.AddRange(new[] { dIn, dOut, dSecs });
++        delay.PinDefaults = new Dictionary<string, string> { ["Seconds"] = "0.4" };
++
++        var ret   = new ReturnNode { Id = Guid.NewGuid() };
++        var retIn = NewPin("In", "In", isExec: true); ret.Pins.Add(retIn);
++
++        var graph = new Graph
++        {
++            Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function,
++            Nodes = { entry, get, record, lit, set, delay, ret },
++            Links =
++            {
++                Wire(entry,  entryOut, record, rIn),
++                Wire(get,    gOut,     record, rAmmo),
++                Wire(record, rOut,     set,    setIn),
++                Wire(lit,    lOut,     set,    setVal),
++                Wire(set,    setOut,   delay,  dIn),
++                Wire(delay,  dOut,     ret,    retIn),
++            },
++        };
++        graph.LocalVariables.Add(local);
++        return graph;
++    }
++
++    // ────────────────────────────────────────────────────────────────────────
++    // ⭐⭐ The defect: a local written before a suspension
++    // ────────────────────────────────────────────────────────────────────────
++
++    /// <summary>
++    /// ⭐⭐ <b>The value has to cross the frame boundary.</b> Set to 7, suspend on a <c>Delay</c>, and
++    /// read it back after the resume into a component field.
++    ///
++    /// <para>
++    /// ⚠ Before Q27-A3 this read <b>0</b> — the local was a C# local, the suspension returned out of
++    /// the method, and the frame took the value with it. It compiled clean and produced a wrong number:
++    /// no diagnostic, no crash, nothing to notice.
++    /// </para>
++    /// </summary>
++    [Fact]
++    public void ALocalWrittenBeforeASuspension_StillHoldsItsValueAfterTheResume()
++    {
++        using var fixture = new BlueprintTestFixture(NoAlcCheck);
++
++        var local = Decl("Carry", "System.Int32", "0");
++        var asset = MakeAiPrimitiveAsset("SuspendLocalSurvives", MakeSetDelayReadGraph(local));
++
++        fixture.CompileAndLoad(asset);   // real Roslyn — .Succeeded never invokes it
++        fixture.World.RegisterComponent<Hrot.AI.Behaviors.BpComponentDemo>();
++        var entity = fixture.CreateEntity();
++        fixture.World.AddComponent(entity, new Hrot.AI.Behaviors.BpComponentDemo { Ammo = -1 });
++
++        Assert.Equal(NodeStatus.Running, fixture.InvokeBTreeAction(asset, entity));
++        Assert.Equal(-1, ReadAmmo(fixture, entity));   // has not reached the write yet
++
++        fixture.View.AdvanceTime(0.5f);
++        Assert.Equal(NodeStatus.Success, fixture.InvokeBTreeAction(asset, entity));
++
++        // ⭐ 7, not 0. 0 is the defect this item exists to fix.
++        Assert.Equal(7, ReadAmmo(fixture, entity));
++    }
++
++    /// <summary>
++    /// ⭐⭐ <b>The other half, and the one a single call would pass on.</b> Surviving a suspension must
++    /// not turn a local into a persistent field: the NEXT invocation has to see the declared default
++    /// again.
++    ///
++    /// <para>
++    /// ⚠ "Per-invocation" is not "per-frame" — that conflation is what Q27-A1 got wrong. The reset
++    /// lives in the entry block, which is reached only when <c>__phase == 0</c>, so it fires once per
++    /// logical invocation and survives every suspension inside it.
++    /// </para>
++    ///
++    /// <para>
++    /// ⭐ <b>This one stays green under a revert, and that is correct rather than a gap</b> — the revert
++    /// removes the storage class it guards, and a stack local trivially resets. It is the OTHER half of
++    /// a pair: put the reset back at the top of the method (per-frame) and
++    /// <c>ALocalWrittenBeforeASuspension_StillHoldsItsValueAfterTheResume</c> goes red instead. Neither
++    /// misplacement survives both.
++    /// </para>
++    /// </summary>
++    [Fact]
++    public void ANewInvocation_SeesTheDeclaredDefaultAgain()
++    {
++        using var fixture = new BlueprintTestFixture(NoAlcCheck);
++
++        var local = Decl("Carry", "System.Int32", "0");
++        var asset = MakeAiPrimitiveAsset("SuspendLocalResets", MakeReadThenSetGraph(local));
++
++        fixture.CompileAndLoad(asset);
++        fixture.World.RegisterComponent<Hrot.AI.Behaviors.BpComponentDemo>();
++        var entity = fixture.CreateEntity();
++        fixture.World.AddComponent(entity, new Hrot.AI.Behaviors.BpComponentDemo { Ammo = -1 });
++
++        // ── Invocation 1: records the entry value (0), sets 7, suspends ─────
++        Assert.Equal(NodeStatus.Running, fixture.InvokeBTreeAction(asset, entity));
++        Assert.Equal(0, ReadAmmo(fixture, entity));
++
++        fixture.View.AdvanceTime(0.5f);
++        Assert.Equal(NodeStatus.Success, fixture.InvokeBTreeAction(asset, entity));
++
++        // ── Invocation 2: enters again and records the entry value ─────────
++        Assert.Equal(NodeStatus.Running, fixture.InvokeBTreeAction(asset, entity));
++
++        // ⭐ 0, not 7. A slot that kept invocation 1's value would be a State field wearing a local's
++        // name — exactly the wart Q27-A1 was written to avoid, reintroduced by the fix for A3.
++        Assert.Equal(0, ReadAmmo(fixture, entity));
++    }
++
++    // ────────────────────────────────────────────────────────────────────────
++    // ⭐ The other storage class must be untouched
++    // ────────────────────────────────────────────────────────────────────────
++
++    /// <summary>
++    /// ⭐ <b>A graph that cannot suspend still gets a plain C# local.</b> The blackboard slot is the
++    /// price of surviving a resume; a graph that never resumes must not pay it, or every scratch value
++    /// in the asset grows the blackboard.
++    /// </summary>
++    [Fact]
++    public void ANonSuspendingGraph_StillEmitsAPlainCSharpLocal()
++    {
++        var local = Decl("Carry", "System.Int32", "0");
++
++        // The same fixture WITHOUT the Delay: entry → Set → Return.
++        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
++        var entryOut = NewPin("Out", "Out", isExec: true); entry.Pins.Add(entryOut);
++        var lit  = new LiteralNode { Id = Guid.NewGuid(), ValueJson = "7" };
++        var lOut = NewPin("Value", "Out", isExec: false, typeId: "System.Int32"); lit.Pins.Add(lOut);
++        var set    = new SetVariableNode { Id = Guid.NewGuid(), VariableId = local.Id.ToString() };
++        var setIn  = NewPin("In",  "In",  isExec: true);
++        var setOut = NewPin("Out", "Out", isExec: true);
++        var setVal = NewPin("Value", "In", isExec: false, typeId: "System.Int32");
++        set.Pins.AddRange(new[] { setIn, setOut, setVal });
++        var ret   = new ReturnNode { Id = Guid.NewGuid() };
++        var retIn = NewPin("In", "In", isExec: true); ret.Pins.Add(retIn);
++
++        var graph = new Graph
++        {
++            Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function,
++            Nodes = { entry, lit, set, ret },
++            Links = { Wire(entry, entryOut, set, setIn), Wire(lit, lOut, set, setVal), Wire(set, setOut, ret, retIn) },
++        };
++        graph.LocalVariables.Add(local);
++
++        var result = new BlueprintCompiler().Compile(MakeAiPrimitiveAsset("NoSuspend", graph), DefaultOptions());
++        Assert.True(result.Succeeded, string.Join("; ", result.Diagnostics.Select(d => d.Code)));
++
++        var src = result.GeneratedSource ?? "";
++        Assert.Contains("int __loc_Carry = 0;", src);   // declared at the top of the body
++        Assert.DoesNotContain("ws.__loc_", src);        // ⛔ no blackboard slot
++        Assert.DoesNotContain("__loc_Carry;", src.Replace("int __loc_Carry = 0;", ""));
++    }
++
++    /// <summary>
++    /// ⭐⭐ <b>The slot must stay out of <c>FindVariableIndex</c>/<c>VarFieldName</c>'s positional
++    /// space.</b> Those three lists already disagree about what their integer means (<c>BP-226</c>);
++    /// an asset carrying BOTH a real <c>WorkingState</c> variable and a suspending graph's local is the
++    /// shape where a slot appended to that list would shift a real field's index.
++    /// </summary>
++    [Fact]
++    public void ASlotDoesNotShiftARealWorkingStateFieldsIndex()
++    {
++        var stateVar = Decl("Rounds", "System.Int32", "5");
++        var local    = Decl("Carry",  "System.Int32", "0");
++
++        var asset = MakeAiPrimitiveAsset("SlotAndVariable", MakeSetDelayReadGraph(local));
++        asset.WorkingState.Add(stateVar);
++
++        var result = new BlueprintCompiler().Compile(asset, DefaultOptions());
++        Assert.True(result.Succeeded, string.Join("; ", result.Diagnostics.Select(d => d.Code)));
++
++        var src = result.GeneratedSource ?? "";
++        Assert.Contains("public int Rounds;", src);              // the real field, unshifted
++        Assert.Contains("public int __loc_Tick_Carry;", src);    // the slot, alongside it
++        Assert.DoesNotContain("__var_", src);                    // ⛔ nothing fell through to the union
++    }
++
++    /// <summary>
++    /// ⭐ <b>Two graphs may each declare a local named <c>Scratch</c>.</b> Once they share one struct,
++    /// <c>__loc_</c> alone no longer separates them — the names must be graph-qualified, or one graph's
++    /// scratch value silently becomes the other's.
++    /// </summary>
++    [Fact]
++    public void TwoGraphsWithSameNamedLocals_GetDistinctSlots()
++    {
++        var first  = Decl("Scratch", "System.Int32", "0");
++        var second = Decl("Scratch", "System.Int32", "0");
++
++        var g1 = MakeSetDelayReadGraph(first);
++        var g2 = MakeSetDelayReadGraph(second, graphName: "Other");
++
++        var asset = new BlueprintAsset
++        {
++            AssetId = Guid.NewGuid(), Name = "TwoScratches",
++            Dispatch = BlueprintDispatchKind.Instance,
++            Graphs = { g1, g2 }, Header = new Header(),
++        };
++
++        var result = new BlueprintCompiler().Compile(asset, DefaultOptions());
++        Assert.True(result.Succeeded, string.Join("; ", result.Diagnostics.Select(d => d.Code)));
++
++        var src = result.GeneratedSource ?? "";
++        Assert.Contains("__loc_Tick_Scratch", src);
++        Assert.Contains("__loc_Other_Scratch", src);
++    }
++}
+-- 
+2.43.0
+
