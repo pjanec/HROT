@@ -102,6 +102,11 @@ internal static class LibraryEmitter
     {
         if (graph.Locals.Count == 0) return;
 
+        // BP-57 / Q27-A3 — a suspending graph's locals are struct fields, initialised by
+        // IrOp_ResetLocals in the entry block instead. Declaring them here would both fail to compile
+        // and reset them once per FRAME rather than once per invocation.
+        if (graph.LocalSlotPrefix is not null) return;
+
         foreach (var local in graph.Locals)
         {
             var init = string.IsNullOrWhiteSpace(local.DefaultValueCSharp)

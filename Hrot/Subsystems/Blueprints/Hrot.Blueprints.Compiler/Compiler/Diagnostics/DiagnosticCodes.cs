@@ -134,6 +134,11 @@ public static class DiagnosticCodes
     // a macro is not a graph after expansion — approached from opposite ends.
     public const string BP1669 = "BP1669";  // a Macro body reads/writes a graph-local variable
 
+    // BP-57 / Batch 38 §2 — pre-existing, but BP-57's delete gesture makes it reachable: an
+    // unresolvable Get/SetVariable emitted `s.__var_-1`, which is not a C# identifier, so the SOLUTION
+    // build broke with a CS error naming a generated file and no BP diagnostic named the node.
+    public const string BP1670 = "BP1670";  // Get/SetVariable targets a variable that does not exist
+
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch
     public const string BP2002 = "BP2002";  // WhenNode missing required payload

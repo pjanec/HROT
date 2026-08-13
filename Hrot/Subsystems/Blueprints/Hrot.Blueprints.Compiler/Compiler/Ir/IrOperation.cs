@@ -27,6 +27,24 @@ public sealed record IrOp_ReadLocal(int LocalIndex) : IrOperation;
 
 /// <summary>BP-57 — writes a function-local variable. See <see cref="IrOp_ReadLocal"/>.</summary>
 public sealed record IrOp_WriteLocal(int LocalIndex, IrValue Value) : IrOperation;
+
+/// <summary>
+/// BP-57 / ⭐⭐ <b>Q27-A3</b> — resets every local of the current graph to its declared default.
+///
+/// <para>
+/// ⭐ <b>Only ever appears in a suspending graph's ENTRY block</b>, injected by
+/// <c>LocalStorage.PromoteSuspendingGraphLocals</c>. There the locals are blackboard slots that
+/// outlive the method frame, so the "reset on entry" half of Q27-E has to be an explicit statement
+/// rather than a C# initialiser — and it has to sit in the one block reached only when
+/// <c>__phase == 0</c>, so it fires once per invocation and not once per frame.
+/// </para>
+///
+/// <para>
+/// ⚠ Carries no payload: the fields, their defaults and the slot prefix all come from
+/// <c>EmissionContext.CurrentGraph</c>, so a local added or renamed cannot leave a stale copy here.
+/// </para>
+/// </summary>
+public sealed record IrOp_ResetLocals : IrOperation;
 public sealed record IrOp_ReadInputArg(int ArgIndex) : IrOperation;
 public sealed record IrOp_Self : IrOperation;
 public sealed record IrOp_Time : IrOperation;

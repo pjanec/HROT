@@ -17,9 +17,27 @@ namespace Hrot.Blueprints.Core.Compiler.Transform;
 /// </summary>
 internal static class MacroLatency
 {
-    /// <summary>The node kinds that suspend. The single source of truth for that list.</summary>
+    /// <summary>
+    /// The node kinds that suspend. The single source of truth for that list.
+    ///
+    /// <para>
+    /// ⚠⚠ <b><c>ChannelCommandNode</c> with <c>ActionFqn</c> set belongs here and was missing for six
+    /// batches.</b> <c>Stage5.ScheduleInlineActionNode</c> turns exactly that shape into
+    /// <c>IrOp_InlineActionCall</c>, and <c>WaitLowering</c> gives it the same suspend/resume block
+    /// split as a <c>Delay</c> — so <c>BP1661</c> and collapse legality (Q26-F) both read a macro whose
+    /// only latent node is an inline action as synchronous. The <b>op</b>-level mirror of this list is
+    /// <c>LocalStorage.CanSuspend</c>; the two must agree, and
+    /// <c>MacroLatencyMatchesLoweringTests</c> is what makes them.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ A <c>ChannelCommandNode</c> WITHOUT <c>ActionFqn</c> is a fire-and-forget channel write and
+    /// does not suspend — the same discrimination Stage 5 makes.
+    /// </para>
+    /// </summary>
     public static bool IsLatent(Node node) =>
-        node is LatentDelayNode or WaitForChannelNode or WaitForEventNode;
+        node is LatentDelayNode or WaitForChannelNode or WaitForEventNode
+             || node is ChannelCommandNode { ActionFqn: { } fqn } && !string.IsNullOrEmpty(fqn);
 
     /// <summary>
     /// The first latent node reachable from <paramref name="nodes"/>, following

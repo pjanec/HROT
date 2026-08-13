@@ -13,6 +13,11 @@ internal static class StructureHashComputation
         AppendFields(sb, asset.Parameters);
         AppendFields(sb, asset.WorkingState);
         AppendFields(sb, asset.Variables);
+        // BP-57 / ⭐⭐ Q27-A3 — a blackboard-resident local occupies real blackboard bytes, so it MUST
+        // be here. The emitted BTreeTick wipes and re-initialises that memory only when
+        // `storedHash != StructureHash`; a slot outside the hash would let a changed type or layout
+        // reinterpret the previous run's bytes, with nothing reporting it.
+        AppendFields(sb, asset.GraphLocalSlots);
         return FnvHasher.Hash64(Encoding.UTF8.GetBytes(sb.ToString()));
     }
 

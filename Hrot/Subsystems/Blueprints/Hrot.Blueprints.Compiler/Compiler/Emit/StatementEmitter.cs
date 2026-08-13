@@ -75,6 +75,22 @@ internal static class StatementEmitter
                 e.WriteLine($"{ctx.LocalFieldName(op.LocalIndex)} = __t{op.Value.Index};");
                 break;
 
+            // BP-57 / ⭐⭐ Q27-A3 — Q27-E's "reset from the declared default on entry", for the
+            // blackboard-slot storage class. This lands in the entry block, which a suspending graph
+            // reaches only when `__phase == 0` — once per INVOCATION, not once per frame.
+            case IrOp_ResetLocals:
+            {
+                var locals = ctx.CurrentGraph?.Locals ?? Array.Empty<IrField>();
+                for (int i = 0; i < locals.Count; i++)
+                {
+                    var init = string.IsNullOrWhiteSpace(locals[i].DefaultValueCSharp)
+                        ? "default"
+                        : locals[i].DefaultValueCSharp;
+                    e.WriteLine($"{ctx.LocalFieldName(i)} = {init};");
+                }
+                break;
+            }
+
             case IrOp_StateFieldRef op:
                 // FC-2/LV-2 -- writable ref-bind onto the state field (see the op's doc comment).
                 if (idx >= 0) e.WriteLine($"ref var __t{idx} = ref {sv}.{op.FieldName};");

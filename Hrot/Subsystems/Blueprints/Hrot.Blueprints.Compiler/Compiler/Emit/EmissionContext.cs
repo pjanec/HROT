@@ -54,11 +54,21 @@ internal sealed class EmissionContext
     /// <summary>C# field name for a WorkingState or Variable by index.</summary>
     public string VarFieldName(int index)
     {
+        // ⭐ BP1670's other half: a negative index means Stage 5 resolved NOTHING, and the old
+        // `__var_-1` fall-through emitted it as an identifier — invalid C#, surfacing as a CS error in
+        // a generated file with no BP diagnostic naming the node. The rail is the diagnostic; this is
+        // the assertion that the rail is complete. ⚠ Deliberately narrower than "out of range": a
+        // positive-but-oversized index is BP-226's index-space ambiguity, which is not this batch's.
+        if (index < 0)
+            throw new InvalidOperationException(
+                $"Unresolvable variable reference reached Emit (index {index}); "
+                + "Stage 2's BP1670 rail should have refused it.");
+
         var fields = Asset.Variables;
-        if (index >= 0 && index < fields.Count)
+        if (index < fields.Count)
             return fields[index].Name;
         var ws = Asset.WorkingState;
-        if (index >= 0 && index < ws.Count)
+        if (index < ws.Count)
             return ws[index].Name;
         return $"__var_{index}";
     }
@@ -85,9 +95,14 @@ internal sealed class EmissionContext
     public string LocalFieldName(int index)
     {
         var locals = CurrentGraph?.Locals;
-        return locals != null && index >= 0 && index < locals.Count
+        if (locals is null || index < 0 || index >= locals.Count) return $"__loc_unknown_{index}";
+
+        // BP-57 / ⭐⭐ Q27-A3 — a suspending graph's locals are blackboard slots, not C# locals: the
+        // frame they would otherwise live in dies at every `return NodeStatus.Running`.
+        var prefix = CurrentGraph!.LocalSlotPrefix;
+        return prefix is null
             ? LocalName(locals[index].Name)
-            : $"__loc_unknown_{index}";
+            : $"{StateVar}.{Lowering.LocalStorage.SlotName(prefix, locals[index].Name)}";
     }
 
     /// <summary>C# field name for a Parameters entry by index.</summary>

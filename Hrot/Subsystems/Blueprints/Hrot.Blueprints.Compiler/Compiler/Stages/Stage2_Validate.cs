@@ -49,6 +49,7 @@ internal static class Stage2_Validate
         new V_FunctionGraphCallRules(),
         new V_MacroCallRules(),             // BP-81/BP-82: BP1660/BP1661/BP1662/BP1663
         new V_LocalVariableRules(),         // BP-57/Q27: BP1664/BP1669
+        new V_VariableReferenceRules(),     // BP-57 §2: BP1670
         new V_FunctionGraphReturnValue(),   // BP-71 (BP1655) + BP-73 gate (BP1656)
         new V_ExecOutFanOut(),
         new V_FormatStringRules(),   // BP-108 (BP2072)

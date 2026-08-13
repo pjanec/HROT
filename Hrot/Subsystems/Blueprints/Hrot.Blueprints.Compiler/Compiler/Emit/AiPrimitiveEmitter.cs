@@ -82,6 +82,10 @@ internal static class AiPrimitiveEmitter
             EmitComment(e, f.Comment);
             EmitStructField(e, CSharpType(f.Type), f.Name);
         }
+        // BP-57 / Q27-A3 — suspending graphs' locals, appended AFTER the real fields so their offsets
+        // continue the struct's layout (FieldLayout does the same arithmetic). Addressed by name only.
+        foreach (var f in asset.GraphLocalSlots)
+            EmitStructField(e, CSharpType(f.Type), f.Name);
         e.Outdent();
         e.WriteLine("}");
     }
