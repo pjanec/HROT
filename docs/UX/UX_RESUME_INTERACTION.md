@@ -6,7 +6,7 @@
 ## 1. What this session did
 
 Designed **15 of 30** issues. Three were consolidated into one API + one acceptance catalogue; the rest
-have their own feature docs. **36 rulings · 29 corrections**, all contiguous and linked below.
+have their own feature docs. **36 rulings · 30 corrections**, all contiguous and linked below.
 
 | Doc | Holds |
 |---|---|
@@ -21,8 +21,13 @@ have their own feature docs. **36 rulings · 29 corrections**, all contiguous an
 | [UX_Seam_Inventory.md](UX_Seam_Inventory.md) | prior-art table + `scripts/seam_inventory.py`, `scripts/type_index.py` |
 | [UX_Tasks_Detail.md](UX_Tasks_Detail.md#corrections) | **30 corrections** — read before trusting any claim |
 
-**Designed:** UXI-01..**11**, **28**, **29** (+ **19**, verified and absorbed into 10). **Refuted:** UXI-26. **Split out:** UXI-25 (ExCon ORBAT),
+**Designed:** UXI-01..**11**, **23**, **28**, **29** (+ **19**, verified and absorbed into 10). **Refuted:** UXI-26. **Split out:** UXI-25 (ExCon ORBAT),
 UXI-27 (progress surface).
+
+⚠ **The table above lists only *this session's* docs.** The designs for **UXI-01..08** (dead UI, half-built
+decisions, action vocabulary, cross-surface actions, menu-follows-focus, perspective restore, tool model,
+layout defaults) are linked from their rows in **[UX_Issues.md](UX_Issues.md)** — that register, not this
+file, is the complete index. Every one of the 15 is reachable from there.
 
 ## 2. 🔒 Every user ruling, in force
 
@@ -127,18 +132,36 @@ review rule (UC-44c).
 | **`SetLayerMask(ushort) { }` is empty** — `MapCanvas.ActiveLayerMask` has **zero** effect on individual primitives; only `LayerControlGizmo`'s 256-bit mask filters, and only 3 bits are used | `Fdp.Presentation/Vis2D/Gizmos/DebugPrimitiveRenderer2D.cs:23`, called `DebugGizmoLayer.cs:100` |
 | **`MapLayerAssignmentSystem` classifies every entity into 5 layers → `MapDisplayComponent.LayerMask`, and the symbol emitter never reads it** (always `layer: 0`) — ⭐ *the same resolve-then-discard failure as the tint* | `MapLayerAssignmentSystem.cs:97-127` vs `EntityPresentationGizmoShared.cs` |
 
-## 6. Next steps, in order
+## 6. 🔴 OPEN — awaiting the user's ruling
 
-1. ✅ **RESOLVED — host pump + playback goes immediately before `_kernel.Update()`** (`EditorSubsystem.cs:1618`). The kernel flush is *before* `Bus.SwapBuffers()` (`ModuleHostKernel.cs:523-534`), so ops land visible **in the same frame**. Precedent: `_aiCoordinator.DrainPendingCallbacks()` (`:1620-1624`) is the same pattern already in production. ⚠ *Unpinned:* where ImGui panel drawing sits relative to `EditorSubsystem.Update()` — affects only which frame a synchronous handler commits in. See [API §6d](UX_Interaction_API.md#6d--where-the-hosts-playback-sits--resolved-2026-08-10)
-2. ⏭ **Designing continues** — user, 2026-08-10: *"keep designing now rather than rewriting tasks later because we find new unexpected stuff"*. ✅ **UXI-09** → [Map Viewport](UX_Feature_Map_Viewport.md); ✅ **UXI-10 + UXI-19** → [Entity Symbology](UX_Feature_Entity_Symbology.md). ✅ **UXI-28 designed** → [Map Layers](UX_Feature_Map_Layers.md). ✅ **UXI-11 designed** → [Selection](UX_Feature_Selection.md). **Next: UXI-12** (spawn UI ×4) or **UXI-23** (map parity, now the natural sequel).
-3. Cut `UXT` tasks — **none cut yet**, deliberately deferred.
-4. Remaining undesigned: **UXI-12..18, 20, 21, 24, 27** · **UXI-25** 🔒 blocked on UXI-04 · **UXI-30** specified in [UXI-29 §3.3b-c](UX_Feature_Authority_Aware_Writes.md), needs no separate design doc.
-5. 🔴 **Dependency order that now matters:**
-   - **UXI-30 → UXI-29** — gate the appliers before routing intents onto them.
-   - **UXI-10 → UXI-11 → UXI-29 → UXI-23** — CGF needs the pick box, the selection chain, **legal edits**, then parity. Binding *Rotate* in CGF before UXI-29 gives it an action that writes a component it does not own.
-   - **UXI-29 → CGF *Rotate*** — [UXI-11 case 10.23](UX_Feature_Selection.md) does **not** claim to fix it.
-   - **UXI-28** 🔴 gated on a **Windows** check of the layer-panel round-trip.
-5. The golden-path walk still needs a **Windows** session. ✅ **The UXI-09 ImGui question is closed** — verified against the real package: managed `ImGui.NET.dll` exposes **no** `DockBuilder*`, but `cimgui.dll` (already loaded) exports `igDockBuilderGetCentralNode` **and `ImGuiDockNode_Rect`** ⇒ tier T2 needs two `DllImport`s and no struct-offset arithmetic.
+| # | Question | Where |
+|--:|---|---|
+| **1** | **The 9 orphan action ids** — `MoveHere · Engage · Stop · Properties · Teleport · Repair · Reinforce · Resupply · Transfer` have **no handler in any ECS host**; only ExCon consumes them. **A** bind them · **B** 🎯 keep ExCon-only and stop ECS hosts emitting them · **C** bind disabled-with-reason. **Lean B** | [UXI-23 §5](UX_Feature_Map_Parity.md) |
+
+## 6b. Needs a **Windows** session (cannot be done here)
+
+| | |
+|---|---|
+| 🔴 **UXI-28 is gated on it** | the layer-panel round-trip is **complete in source** (every link cited in [§5](UX_Feature_Map_Layers.md)) yet reported non-working. Determine the break **before** building — the same break would swallow the generated panel |
+| The golden-path walk | never performed; `UXT` tasks are cut from it |
+| ✅ **Closed** | the UXI-09 ImGui question — `cimgui.dll` exports `igDockBuilderGetCentralNode` **and `ImGuiDockNode_Rect`**, so tier T2 is two `DllImport`s with no struct-offset arithmetic |
+
+## 6c. Next steps, in order
+
+1. ⏭ **Designing continues** — user, 2026-08-10: *"keep designing now rather than rewriting tasks later because we find new unexpected stuff"*. ✅ **09 · 10+19 · 11 · 23 · 28 · 29** all designed this session. **Next candidates: UXI-24** (multi-select — the natural sequel to 11 and 23) or **UXI-12** (spawn UI ×4).
+2. Cut `UXT` tasks — **none cut yet**, deliberately deferred by the user.
+3. Remaining undesigned: **UXI-12..18, 20, 21, 24, 27** · **UXI-25** 🔒 blocked on UXI-04 · **UXI-30** specified in [UXI-29 §3.3b-c](UX_Feature_Authority_Aware_Writes.md), needs no separate design doc.
+4. ✅ **RESOLVED — host pump + playback sits immediately before `_kernel.Update()`** (`EditorSubsystem.cs:1618`); the kernel flush precedes `Bus.SwapBuffers()` (`ModuleHostKernel.cs:523-534`), so ops land visible **in the same frame**. Precedent: `_aiCoordinator.DrainPendingCallbacks()` (`:1620-1624`). ⚠ *Unpinned:* where ImGui panel drawing sits relative to `EditorSubsystem.Update()` — affects only which frame a synchronous handler commits in. [API §6d](UX_Interaction_API.md#6d--where-the-hosts-playback-sits--resolved-2026-08-10)
+
+## 6d. 🔴 Dependency order — designs now constrain each other
+
+| Order | Why |
+|---|---|
+| **UXI-30 → UXI-29** | gate the appliers **before** routing intents onto them, or the unguarded write just moves from the gizmo to the receiver |
+| **UXI-10 → UXI-11 → UXI-29 → UXI-23** | CGF needs the pick box, then the selection chain, then **legal edits**, then parity. Binding *Rotate* in CGF before UXI-29 gives it an action that writes a component it does not own |
+| **UXI-29 → CGF *Rotate*** | [UXI-11 case 10.23](UX_Feature_Selection.md) explicitly does **not** claim to fix it |
+| **UXI-04 → UXI-25** | the shared ORBAT panel is impoverished until UXI-04 lands |
+| **UXI-24 ← ruling 29** | the multi-delete confirmation must sit on the **raw `Delete` key** path, which bypasses the action vocabulary entirely ([UXI-23 §3.4](UX_Feature_Map_Parity.md)) |
 
 ## 7. ⚠ Process rules earned the hard way
 
