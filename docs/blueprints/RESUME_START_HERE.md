@@ -18,7 +18,16 @@
 > the variable index space is an **unenforced invariant**, *not* a latent defect.
 > ⭐⭐ **The implementation session then raised its severity by measuring what I asserted** — my
 > *"not authorable"* leg was wrong: **57 live `WorkingState` references** ride the invariant today.
-> Filed as **`BP-226`**; **`BP-227`** records the four numeric-`Dispatch` assets. **Both are Batch 38.**
+> Filed as **`BP-226`**; **`BP-227`** records the four numeric-`Dispatch` assets. **Both are Batch 39.**
+>
+> ⏭ **Batch 38 dispatched (`eb89ebaf`), §1.3+§3.1 re-dispatched (`d5899d9e`) — finish `BP-57`.**
+> 🔴🔴 **A local silently reverts to its default across a suspension** (coordinator-probed, zero
+> diagnostics) · 🔴 a dangling reference emits `s.__var_-1` · the authoring half.
+> ⭐⭐ **[Q27-A was REVISED A1 → A3 by user ruling `2026-08-13`](Architect_Question_27_Local_Variables.md):**
+> a suspendable graph's locals are **blackboard-allocated and reset in the entry block**, because a C#
+> stack local cannot cross a suspension and ⛔ **the designer must never see which storage they got.**
+> ⚠ **My first draft of §1 asked for a REFUSAL rail — the wrong way round**, and §3.1 argued for a
+> separate "Locals" section *to make storage visible*, which is the opposite of the ruling.
 > ⛔ **Q26-A supersedes Q25-D3:** a macro now has **N exec-ins**, not one.
 >
 > 📌 Supersedes [RESUME_Coordinator.md](RESUME_Coordinator.md), which is now the **historical log**

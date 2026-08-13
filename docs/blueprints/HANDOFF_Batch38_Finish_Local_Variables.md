@@ -1,4 +1,4 @@
-# HANDOFF — Batch 38: finish `BP-57` — the rail Batch 37 was never asked for, and the authoring half
+# HANDOFF — Batch 38: finish `BP-57` — suspension-surviving storage, and the authoring half
 
 > 📌 **Dispatched at `eb89ebaf`** · ⚠⚠ **§1.3 and §3.1 REWRITTEN and RE-DISPATCHED at `d5899d9e`.**
 > ⭐ **Q27-A was revised from A1 to A3 by user ruling on `2026-08-13`** — verified not present in the
@@ -9,9 +9,9 @@
 > ⭐ **Rule 3: the coordinator allocates no ids.** `BP-57` is *referenced*; `BP1670+` is the next free
 > diagnostic. **You allocate everything new** (rule 5).
 >
-> 📄 **[Q27](Architect_Question_27_Local_Variables.md) is SETTLED and NOT reopened.** ⚠⚠ **Read its new
-> `2026-08-13` correction banner first** — it records two coordinator errors, and **§1 below is Q27-B's
-> own ruling, which Batch 37 was never asked to build.**
+> 📄 **[Q27](Architect_Question_27_Local_Variables.md) — ⚠⚠ **read its `2026-08-13` sections FIRST**:
+> a correction banner recording two coordinator errors, **and A's revision from A1 to A3**, which is
+> what §1.3 builds. ⛔ **B, C, D, E are unchanged and NOT reopened.**
 >
 > ⭐ **After this batch `BP-57` closes.**
 
