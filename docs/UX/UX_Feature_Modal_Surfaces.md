@@ -98,6 +98,62 @@ public interface IActionDispatchContext
 emission, so the marker is a property of the *local dispatch path*, not of the message. **Do not add a
 field to the DDS contracts for this.**
 
+### 2.0b 🔴 How the origin knows **what** to ask — without knowing what it is asking about
+
+> **User, 2026-08-13:** *"How will it work? If a user issues a new tactical intent via right-click from
+> ExCon, how does ExCon know what to ask — and whether at all — if the mission plan is existing at all?
+> ExCon (or any interactive node) should not inherently know there is a mission planner. It is decoupled
+> even on the target executing node. This might need some more complicated approach."*
+
+⇒ [Ruling 54](UX_RESUME_INTERACTION.md). **It does need one, and it is the mirror of what
+[ruling 52](UX_RESUME_INTERACTION.md) already built.**
+
+| Node | Registry | Role |
+|---|---|---|
+| **executing** (CGF) | `IIntentClearProvider` ([UXI-32 §2.5d](UX_Feature_Entity_Commanding.md)) | **performs** the clear |
+| **interactive** (ExCon / Editor / IG) | 🆕 **`IIntentImpactDescriber`** — *same `AspectId`* | **describes** what would be lost |
+
+```csharp
+public interface IIntentImpactDescriber
+{
+    string      AspectId { get; }                     // pairs with the clear provider
+    ImpactNote? Describe(IDerEntity entity);          // null ⇒ nothing to warn about
+}
+public sealed record ImpactNote(string Summary, int Severity);   // "Discards a 4-phase mission plan"
+```
+
+**The dispatcher's rule is one line, and it names nothing:**
+
+```
+notes = describers.Select(d => d.Describe(entity)).Where(n => n != null)
+if (notes.Any() && ctx.IsInteractive)  → confirm, listing notes
+else                                   → proceed  (headless, or nothing to lose)
+```
+
+| | |
+|---|---|
+| ✅ **"Whether to ask at all" is answered by the notes being empty** | an entity with **no** mission plan produces no note ⇒ **no dialog**. This is exactly the *"should not always ask"* the user asked for |
+| ✅ **ExCon the subsystem stays ignorant** | ⭐ **the mission *module* is already hosted there** — `MissionPanel`, `ExConMissionWindow`, `MissionEditorService`. **It** registers the describer, as it already registers its window |
+| ⭐ **And the state is already replicated** | `EntityMissionDescriptor` is set on ExCon's DER entity by `NedExConIngressTranslators.cs:322`; `MissionEditorService.cs:83` already reads it with `HasDescriptor<EntityMissionDescriptor>()`. **The describer is ~5 lines over data ExCon already receives** |
+| ⭐ **`IDerEntity` is the right parameter** | it has the **same descriptor-bag API** as the ECS side (`HasDescriptor<T>` · `GetDescriptor<T>` · `GetAllDescriptorTypes`), so a describer compiles against a facade both an ECS host and a DDS-only host satisfy — 🔒 no `Entity`, honouring [ruling 16](UX_RESUME_INTERACTION.md) |
+
+#### 🔴 Three residual constraints — named, not hidden
+
+| | |
+|---|---|
+| ⚠ **A warning can be stale** | describers read **replicated** state, so the plan may change between the prompt and the apply. 🔒 **Acceptable because the confirmation is advisory** — the executor applies unconditionally either way, and [§6](#6-risks) already records that a modal does not pause the simulation. ⚠ **It must never become a precondition** |
+| 🔴 **An aspect whose state is not replicated to the origin cannot warn** | ⇒ 🔒 **its owner must replicate a summary flag, or accept silent destruction.** That is a deliberate, stated cost — the alternative is a pre-flight probe round trip (below), which this design does **not** take |
+| 🔴 **The two halves live on different nodes, so id drift cannot be statically checked** | a clear provider with no describer destroys silently; a describer with no clear provider cries wolf. ⇒ 🔒 **both sides reference one shared `AspectIds` constant class**, and each node gets a test asserting its registrations are drawn from it. ⚠ **This is a mitigation, not a proof** — cross-node pairing is unverifiable at compile time |
+
+#### ⚖ The alternative I did **not** take
+
+**A pre-flight probe** — origin sends *"what would this destroy?"*, executor answers, origin confirms, origin sends the real request. ⭐ Authoritative and needs no replication.
+
+| | |
+|---|---|
+| 🔴 **Rejected**: a round trip on every right-click, a new message pair, timeout and retry handling — and **still racy**, because state can change between probe and apply |
+| ⚠ **But it is the right escape hatch** if an aspect ever genuinely cannot replicate a summary. Recorded so the option is not lost |
+
 ### 2.1 🔒 `ModalManager` — mirror `StatusBarManager`, do not invent
 
 Same file neighbourhood (`Fdp.Presentation/ImGui/WindowManager/`), same registry idiom, same test shape.
@@ -207,16 +263,23 @@ wm.StatusBar.RegisterSection("activity_progress", sortOrder: 50, section.Render)
 | O.3 | 🔒 An **executing node never confirms**: applying a received request raises no modal and blocks on nothing, even when the action is `Destructive` | H |
 | O.4 | 🔒 A headless context binds `IProgressSink` to a **log sink** — no modal, no status-bar section | H |
 | O.5 | 🔒 **No DDS contract gains an origin field** — the wire message is identical whether the operation began interactively or headlessly | H |
+| D.1 | 🔒 An entity with **no** mission plan produces **no note** ⇒ **no dialog** — the "should not always ask" guard | H |
+| D.2 | 🔒 An entity **with** a plan produces a note, and the dialog lists it | H |
+| D.3 | 🔒 The dispatcher **names no aspect** — it renders whatever notes come back; adding an aspect needs **no dispatcher change** | H |
+| D.4 | 🔒 A describer compiles and runs against **`IDerEntity`** — proven by ExCon, which has no ECS world | H |
+| D.5 | ⚠ **Zero describers registered ⇒ no dialog and no error** — a host that ships none degrades to silent-proceed | H |
+| D.6 | 🔒 Every registration on both sides draws its id from the shared **`AspectIds`** constants — the drift mitigation | H |
 | O.6 | An interactive dispatch that is **cancelled emits nothing** — verified on the receiving node, not just locally | H |
 | 16.10 | **Editor**: delete a unit → confirm → it disappears; repeat with Cancel → it does not | I |
 | 27.9 | **Editor**: *Mark Area Targets* shows real progress and can be cancelled mid-run | I |
 
-**27 H · 2 I · 0 V.**
+**33 H · 2 I · 0 V.**
 
 ## 4. Build order
 
 | # | Step |
 |--:|---|
+| 0 | **`IIntentImpactDescriber` + `AspectIds`** and the dispatcher rule (§2.0b) — testable headlessly with a fake describer, before any UI exists |
 | 1 | **`ModalManager`** + `WindowManager.Modals` property, mirroring `StatusBarManager`/`.StatusBar`, with its own test file |
 | 2 | **Confirmation** driven by `EntityActionGroup.Destructive` — closes UXI-16 for every host at once |
 | 3 | **`IProgressSink`** implementation + the two surfaces; register the status-bar section |
