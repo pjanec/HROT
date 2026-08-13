@@ -338,6 +338,41 @@ tracker records the method, including that the *refuted* row sits **outside** th
 
 ---
 
+## 7n · Batch 41 — ✅ VERIFIED AND MERGED at `748f1f79` — ⚠ **PARTIAL: §1 and §3 only. `BP-57` is NOT closed**
+
+**Gates:** build **0 errors** · Blueprints **3289 total / 3279 passed / 0 failed / 10 skipped** (**+20**) ·
+⭐ **AiShared 1213 — UNMOVED**, which was §1's explicit gate · counts clean.
+
+### ⛔ What is NOT built — and this is the headline
+
+| | |
+|---|---|
+| ⛔ **§2 — the Local Variables SECTION** | `BlueprintMyBlueprintModel` is **untouched**. ⭐ **There is still nowhere to DECLARE a local from the editor** |
+| ⛔ **§4 — rename / delete** | no command, no undo entry, no delete-while-referenced gesture |
+| ⛔ **§5 — the node badge** · ⛔ **§6 — the doc comment** | `INodeModel` has no badge; `GraphTypes.cs:64-82` still misplaced |
+| ⛔ **The tracker was not touched** | rule 6 gave it to them for the batch; `BP-57`'s row **does not record §1 or §3** |
+
+⚠ **They stopped EARLIER than the sanctioned boundary** (*"stop cleanly before §5"*) and **did not say
+where they stopped**, which §8 asked for. ⇒ ⭐ **`BP-57` needs one more batch: §2 + §4 (+ §5/§6).**
+
+### ⭐ But what landed is the load-bearing half, and it landed well
+
+| | |
+|---|---|
+| ⭐⭐ **§1 obeyed the hard constraint exactly** | `IVariablesSchemaSource` **implemented, not changed** — `UpdateVariableRole`/`Scope` left as the default-bodied no-ops `Q-k` intends. ✅ **AiShared stayed at 1213**, so `U-5`'s `V2` is untouched |
+| ⭐ **`CountNodesReferencingVariable` is REAL** | ⛔ not the hardcoded `0` (`BP-230`). ⭐ **And they reasoned past the handoff:** counted **by id, never by name** (`FindLocalIndex` has no name fallback) and **across the whole asset, not the owning graph** — because a node in another graph carrying the id is exactly `BP1670`'s dangling case, and *"a delete that could not see it would leave the asset uncompilable while reporting itself clean"* |
+| ⭐ **`IsUnused` now follows that count** | it was hardcoded `false`. **Not asked for** |
+| ⭐ **The graph is read through a DELEGATE, never captured** | `BP-72`'s lesson applied unprompted, so the projection follows the canvas rather than the graph open at construction |
+| ⭐ **A `Macro` graph projects READ-ONLY rather than vanishing** | ⛔ *"a surface that disappears teaches nothing"* — the `Q26-B2` ruling, applied at the source layer without being told |
+| ⭐ **Shadowed picker rows are labelled `(local)`** | ⚠ **and membership is decided by IDENTITY, not name** — *"a name test would mislabel exactly the shadowed pair the suffix exists to disambiguate"* |
+| ✅ **Picker widened to locals and nothing else** | with a test asserting it — `WorkingState`/`Parameters` stay out (`BP-226`), struct FQNs stay out (`BP-228`) |
+| ✅ **Revert-goes-red** | restoring the hardcoded `0` reddens **3**; removing the locals branch + picker reddens **7 of 9** |
+
+📌 **The raw-GUID bug is fixed** — `ResolveVariableName` now searches every graph's `LocalVariables`,
+and **the deliberate as-is fallback is preserved** so a dangling reference stays visible.
+
+---
+
 ## 7m · Batch 40 — ✅ VERIFIED AND MERGED at `58123d2e` — ⭐⭐ **the plan review killed one gate and added two tasks**
 
 **Docs only** (`REVIEW_Unification_Plan.md` + the tracker) ⇒ gates cannot have moved. Confirmed: build
