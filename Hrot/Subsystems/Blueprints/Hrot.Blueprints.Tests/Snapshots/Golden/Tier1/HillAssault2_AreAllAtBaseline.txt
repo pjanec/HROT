@@ -1,0 +1,11 @@
+StructureHash: 0x4C4E5A5FC3D79017
+Parameters:
+  (empty)
+WorkingState:
+  AllAtBaseline : System.Boolean @8 size=1
+Variables:
+  (empty)
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

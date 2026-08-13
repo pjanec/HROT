@@ -65,9 +65,51 @@ public static class TestData
             var expectedNormalized = expected.Replace("\r\n", "\n");
             var actualNormalized   = actual.Replace("\r\n", "\n");
             if (expectedNormalized != actualNormalized)
-                throw new Exception(
-                    $"Snapshot mismatch for '{relativePath}'.\n--- expected ---\n{expected}\n--- actual ---\n{actual}");
+                throw new Exception(DescribeMismatch(relativePath, expectedNormalized, actualNormalized));
         }
+    }
+
+    /// <summary>
+    /// U-1 — the mismatch report. ⭐ <b>Leads with the FIRST DIFFERING LINE and its context</b>, then
+    /// inlines both files only when they are small enough to read.
+    ///
+    /// <para>
+    /// ⚠ <b>Why this changed.</b> It used to inline both files unconditionally. Fine for a 3 KB
+    /// emit snapshot; ⛔ for the 42-asset golden sweep (~250 KB of baseline) a single failure floods
+    /// the test output and buries the one line that moved. <i>A failure message nobody can read is a
+    /// harness that reports its finding to nobody.</i>
+    /// </para>
+    /// </summary>
+    private static string DescribeMismatch(string relativePath, string expected, string actual)
+    {
+        var e = expected.Split('\n');
+        var a = actual.Split('\n');
+
+        int i = 0;
+        while (i < e.Length && i < a.Length && e[i] == a[i]) i++;
+
+        var sb = new System.Text.StringBuilder();
+        sb.Append("Snapshot mismatch for '").Append(relativePath).Append("'.\n");
+        sb.Append("First difference at line ").Append(i + 1)
+          .Append(" (expected ").Append(e.Length).Append(" lines, actual ").Append(a.Length).Append(").\n");
+
+        for (int c = Math.Max(0, i - 3); c < Math.Min(Math.Max(e.Length, a.Length), i + 4); c++)
+        {
+            var marker = c == i ? ">>" : "  ";
+            if (c < e.Length) sb.Append(marker).Append(" expected[").Append(c + 1).Append("]: ").Append(e[c]).Append('\n');
+            if (c < a.Length) sb.Append(marker).Append(" actual  [").Append(c + 1).Append("]: ").Append(a[c]).Append('\n');
+        }
+
+        // Small snapshots keep the old behaviour — for a 3 KB file the whole text IS the useful report.
+        const int InlineBudget = 4000;
+        if (expected.Length + actual.Length <= InlineBudget)
+            sb.Append("--- expected ---\n").Append(expected).Append("\n--- actual ---\n").Append(actual);
+        else
+            sb.Append("(both files elided: ").Append(expected.Length + actual.Length)
+              .Append(" chars exceeds the ").Append(InlineBudget)
+              .Append("-char inline budget. Set BLUEPRINT_REGENERATE_SNAPSHOTS=1 and diff with git.)");
+
+        return sb.ToString();
     }
 
     /// <summary>
@@ -88,9 +130,43 @@ public static class TestData
             "TestAssets directory not found. Ensure CopyToOutputDirectory=PreserveNewest in .csproj.");
     }
 
-    private static string ResolveSnapshotsDir()
+    /// <summary>
+    /// The committed <c>Snapshots/</c> directory — ⭐ <b>the one in the SOURCE tree, not the copy in
+    /// <c>bin/</c></b>.
+    ///
+    /// <para>
+    /// ⛔ <b>The defect this fixes, found while building U-1.</b> This walked up from
+    /// <see cref="AppContext.BaseDirectory"/> and stopped at the first <c>Snapshots</c> it found —
+    /// which is always <c>bin/Debug/net8.0/Snapshots</c>, the build's own copy. Reading from it was
+    /// harmless (<c>PreserveNewest</c> keeps it in step), but <b>regenerating wrote there</b>: a
+    /// baseline created with <c>BLUEPRINT_REGENERATE_SNAPSHOTS=1</c> landed in <c>bin/</c>, the
+    /// subsequent test run compared against it and passed, and <b>nothing was ever added to git</b>.
+    /// ⚠ For a NEW baseline the failure mode is silent and total — green locally, *"snapshot not
+    /// found"* on a clean checkout, which reads as a missing file rather than a broken path. A
+    /// 42-asset sweep is exactly the size at which nobody notices by eye.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ Resolved by finding the test project's own directory (the <c>.csproj</c> is the anchor) and
+    /// falling back to the historical bin-walk if that is ever not on the path.
+    /// </para>
+    /// </summary>
+    public static string ResolveSnapshotsDir()
     {
         var dir = AppContext.BaseDirectory;
+        while (dir != null)
+        {
+            if (File.Exists(Path.Combine(dir, "Hrot.Blueprints.Tests.csproj")))
+            {
+                var source = Path.Combine(dir, "Snapshots");
+                if (Directory.Exists(source))
+                    return source;
+            }
+            dir = Path.GetDirectoryName(dir);
+        }
+
+        // Fallback: the pre-existing behaviour, for a layout where the project dir is not an ancestor.
+        dir = AppContext.BaseDirectory;
         while (dir != null)
         {
             var candidate = Path.Combine(dir, "Snapshots");

@@ -1,0 +1,14 @@
+StructureHash: 0xF5A3A9C73B8B8CD2
+Parameters:
+  BaselineStartX : System.Single @0 size=4
+  BaselineStartY : System.Single @4 size=4
+  BaselineEndX : System.Single @8 size=4
+  BaselineEndY : System.Single @12 size=4
+WorkingState:
+  BaselineReservedMask : System.UInt16 @8 size=2
+Variables:
+  (empty)
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

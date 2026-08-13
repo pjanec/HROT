@@ -1,0 +1,11 @@
+StructureHash: 0x164F155FDAE89ADF
+Parameters:
+  (empty)
+WorkingState:
+  Wave : Hrot.AI.Behaviors.Brains.WaveState @8 size=104
+Variables:
+  (empty)
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

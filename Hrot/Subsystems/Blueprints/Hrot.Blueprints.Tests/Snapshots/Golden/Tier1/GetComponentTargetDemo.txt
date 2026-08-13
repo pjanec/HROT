@@ -1,0 +1,14 @@
+StructureHash: 0x9F6637BC40194297
+Parameters:
+  (empty)
+WorkingState:
+  (empty)
+Variables:
+  TargetEntity : Fdp.Core.Entity @16 size=8
+  OutHealth : System.Int32 @24 size=4
+  OutAmmo : System.Int32 @28 size=4
+  OutFound : System.Boolean @32 size=1
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

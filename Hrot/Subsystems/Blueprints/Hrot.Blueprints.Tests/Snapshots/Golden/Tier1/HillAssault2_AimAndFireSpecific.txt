@@ -1,0 +1,14 @@
+StructureHash: 0x592EDA7B73BA5E4C
+Parameters:
+  TargetNetworkId : System.Int64 @0 size=8
+  MaxRounds : System.Int32 @8 size=4
+WorkingState:
+  RoundsFired : System.Int32 @8 size=4
+  LastObservedAmmo : System.Int32 @12 size=4
+  __phase : System.Byte @16 size=1
+Variables:
+  (empty)
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

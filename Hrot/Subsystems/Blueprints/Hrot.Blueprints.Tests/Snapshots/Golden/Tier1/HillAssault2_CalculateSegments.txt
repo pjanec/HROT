@@ -1,0 +1,23 @@
+StructureHash: 0x80FBBC7F4C2C661D
+Parameters:
+  StartX : System.Single @0 size=4
+  StartY : System.Single @4 size=4
+  EndX : System.Single @8 size=4
+  EndY : System.Single @12 size=4
+  TankSpacing : System.Single @16 size=4
+WorkingState:
+  TotalSlots : System.Int32 @8 size=4
+  BurnedSlotsMask : System.UInt16 @12 size=2
+  WaveUsedSlotsMask : System.UInt16 @14 size=2
+  BaselineReservedMask : System.UInt16 @16 size=2
+  ActiveAttackerCount : System.Int32 @20 size=4
+  CurrentWave : System.Byte @24 size=1
+  CachedEqsRequestId : System.Int64 @32 size=8
+  CachedTargetGroupHandle : System.Int32 @40 size=4
+  EqsRequestTime : System.Single @44 size=4
+Variables:
+  (empty)
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

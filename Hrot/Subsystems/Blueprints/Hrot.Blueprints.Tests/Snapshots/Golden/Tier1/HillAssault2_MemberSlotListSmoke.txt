@@ -1,0 +1,11 @@
+StructureHash: 0xB773CB5AF698E2AC
+Parameters:
+  (empty)
+WorkingState:
+  Tracker : Hrot.AI.Behaviors.Brains.MemberSlotList @8 size=96
+Variables:
+  (empty)
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

@@ -53,6 +53,29 @@ public sealed class BlueprintCompiler : IBlueprintCompiler
 
         Stage0_Rehydrate.Run(asset, options);
 
+        // U-2 / BP-229 -- the compiler takes ownership of the graphs it is about to rewrite.
+        //
+        // ⛔ The defect: the shallow copy above gives this method its own Graphs LIST but the SAME
+        // Graph objects, and Stage2_5_ExpandMacros then edits them in place — it removes the caller's
+        // MacroCallNode from host.Nodes and rewires host Link objects (MacroExpander:205, :258).
+        // ⇒ compiling an asset EDITED it: the designer's macro call node vanished from the graph they
+        // were looking at and the macro body appeared spliced into it.
+        //
+        // ⭐ Placed HERE, after Stage 0 and before the first mutating stage, because Stage 0's pin
+        // rehydration is INTENTIONALLY visible to the caller (see the note above) — a copy taken any
+        // earlier would hide it and change documented behaviour. Stage 2 in between is a pure
+        // validator.
+        //
+        // ⚠ Node OBJECTS stay shared on purpose. Nothing mutates a node in place after Stage 0
+        // (verified across Stage 2.5/3/4; MacroExpander's only node write is to a literal node it just
+        // created), and their one intended mutation is exactly the rehydration above. Cloning them
+        // would also have to preserve node ids — the DebugMap and every diagnostic are keyed by them —
+        // so it would buy nothing and risk that.
+        // (`asset` is already this method's private shallow copy, so replacing entries in its own
+        // Graphs list touches nothing the caller can see.)
+        for (int i = 0; i < asset.Graphs.Count; i++)
+            asset.Graphs[i] = CloneGraphForCompilation(asset.Graphs[i]);
+
         // Stage 2 -- Validate
         Stage2_Validate.Run(asset, ctx);
         if (sink.HasErrors) return FailResult(sink, asset);
@@ -114,6 +137,36 @@ public sealed class BlueprintCompiler : IBlueprintCompiler
             PortablePdb:       pdb,
             PortablePe:        pe);
     }
+
+    /// <summary>
+    /// U-2 / BP-229 — the per-graph copy the compiler works on.
+    ///
+    /// <para>
+    /// ⭐ <b>Fresh containers and fresh <see cref="Link"/> objects; shared <see cref="Node"/>
+    /// objects.</b> The lists because Stage 2.5 adds and removes entries, and the links because it
+    /// <b>rewires them in place</b> — <c>MacroExpander</c> assigns <c>link.ToNodeId</c>/<c>ToPinId</c>
+    /// when it stitches a spliced body onto the call site's continuation, which is the write the
+    /// caller must not see.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>Built on <see cref="Graph.WithNodesAndLinks"/> rather than field-by-field</b> — BP-220
+    /// exists because two hand-written copies both dropped a member, and <c>LocalVariables</c> (BP-57)
+    /// is the newest member that a hand-written copy here would have had to remember.
+    /// </para>
+    /// </summary>
+    private static Graph CloneGraphForCompilation(Graph g)
+        => g.WithNodesAndLinks(
+            new List<Node>(g.Nodes),
+            g.Links.Select(l => new Link
+            {
+                FromNodeId = l.FromNodeId,
+                FromPinId  = l.FromPinId,
+                ToNodeId   = l.ToNodeId,
+                ToPinId    = l.ToPinId,
+                // Waypoints are editor-only and never rewritten by a stage; the list may be shared.
+                Waypoints  = l.Waypoints,
+            }).ToList());
 
     public ValidationResult Validate(BlueprintAsset asset, ValidationOptions? options = null)
     {
