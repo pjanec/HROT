@@ -135,5 +135,5 @@
   <text x="78" y="701" font-size="12.5" fill="#334155">The finding asked for <tspan font-family="ui-monospace, monospace" fill="#0f766e">FindVariableIndex</tspan> to return a <tspan font-family="ui-monospace, monospace" fill="#0f766e">(storage-kind, index)</tspan> pair. With the tags on the declaration, the kind is what the declaration SAYS — the pair falls out instead of being bolted on.</text>
 
   <text x="640" y="748" text-anchor="middle" font-size="12.5" fill="#6b7280">⚠ The <tspan font-weight="700" fill="#374151">emission stays split</tspan> — the memory really is in two places (BTree parameter blob vs. blackboard). What goes away is the model pretending they are unrelated lists.</text>
-  <text x="640" y="772" text-anchor="middle" font-size="12.5" fill="#6b7280">Staged A → B → C → D · every stage that does not touch the asset format lands first, so the JSON migration is the last and only variable.</text>
+  <text x="640" y="772" text-anchor="middle" font-size="12.5" fill="#b45309">⚠ The A → B → C → D staging shown here was REVISED by the Batch 38 review: C moves first, a stage 0 is added, and D splits into D1–D4. See the review's staging diagram.</text>
 </svg>

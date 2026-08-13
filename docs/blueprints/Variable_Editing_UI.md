@@ -8,10 +8,13 @@
 >
 > 📌 **Input to Q28.** ⛔ **Not an implementation task yet** — see the banner below.
 
-> ⏳ **AWAITING INDEPENDENT REVIEW — [Batch 38](HANDOFF_Batch38_Unified_Variable_Design_Review.md).**
-> ⚠ **Nothing here is actionable yet.** The implementation session is assessing feasibility, hunting
-> gaps and testing the staging. ⭐ **Every measured claim in this document is a hypothesis until they
-> confirm it** — and they have corrected this coordinator in every batch since 29.
+> ✅ **REVIEWED — [Batch 38](REVIEW_Unified_Variable_Design.md), `2026-08-13`.** ⭐ **Updated to match.**
+>
+> ⛔⛔ **Two claims here were WRONG, and both were load-bearing for this document:**
+> 🔴 **`BP-230`** — the shared table's `Role`/`Scope` editors and its reference counter are **stubs**
+> on the Blueprint side ⇒ **stage B as written ships a picture, not an editor** ·
+> 🔴 **`BP-228`** — a struct type id is **unvalidated pass-through**, so **§4's answer was wrong and
+> `B′` is blocked.** ⚠ **Corrections are inline; §7 Q-h is rewritten.**
 
 ![Unified variable editing](diagrams/variable_editing_ui.svg)
 
@@ -38,8 +41,8 @@ keeps this from becoming a third parallel implementation.
 | the whole set at once | one guided decision, nothing else on screen |
 | **byte budget** per row and in total | name validated *before* the variable exists |
 | reorder (`MoveVariable`) | **capacity / initial length** for collections |
-| flip `Role` / `Scope` in place | no chance to edit the wrong row |
-| ⭐ **reference count before deleting** (`CountNodesReferencingVariable`) | |
+| ⛔ ~~flip `Role` / `Scope` in place~~ — 🔴 **empty method bodies** (`BP-230`) | no chance to edit the wrong row |
+| ⛔ ~~reference count before deleting~~ — 🔴 **`CountNodesReferencingVariable` returns a hardcoded `0`** (`BP-230`). **Must be implemented first** | |
 | unused marking, alias bindings | |
 
 ⇒ ⭐ **Replacing the modal with the table would lose guided creation; replacing the table with the
@@ -100,9 +103,29 @@ offered type is guaranteed resolvable — a property a merged list must not lose
 
 ⇒ ⛔ **Do not merge the two lists.** ⭐ **Merge the *shape*:** one choice record, two contributors —
 `StaticTypeRegistry.EditorOfferableTypeIds` for primitives, `[BlackboardDtoStruct]` discovery for
-structs — with **the resolvability lock (`BP87_TypePickerTests`) extended to cover the struct half.**
-📐 A struct offered to a blueprint variable must resolve in the compiler; **whether it does today is
-unverified and is the first thing to measure.**
+structs.
+
+### ⛔⛔ CORRECTED `2026-08-13` — **`B′` IS BLOCKED. There is nothing to validate against**
+
+> This section originally ended *"extend the resolvability lock to cover the struct half."*
+> 🔴 **`BP-228`: that lock cannot be written, because the compiler validates nothing.**
+>
+> ```
+> 'Hrot.AI.Behaviors.StructDemoData'   SUCCEEDED=True  DIAGS=[]
+> 'Hrot.AI.Behaviors.NoSuchStructAtAll' SUCCEEDED=True DIAGS=[]
+> 'Totally.Made.Up.Type'                SUCCEEDED=True DIAGS=[]  → public global::Totally.Made.Up.Type Threat;
+> 'a.b'                                 SUCCEEDED=True DIAGS=[]  → public global::a.b Threat;
+> ```
+>
+> ⭐ **The rule is purely syntactic: contains a dot ⇒ trusted verbatim; no dot ⇒ `BP1500`.**
+> ⇒ ⛔ **`BP-87`'s *"every offered type is guaranteed resolvable"* has nothing to check against**, and
+> the *"assert end-to-end compilation"* lock this document asked for **would pass on a fabricated
+> type** — compilation succeeds. Only Roslyn catches it, as `CS0246` in generated code **naming no
+> variable**: ⭐ **the `__var_-1` shape again.**
+>
+> ⇒ 📐 **`B′` needs a COMPILER-SIDE RAIL before it needs a picker.** *What validates a struct type id*
+> — a registry entry, a generator-side Roslyn check, or an allow-list from `[BlackboardDtoStruct]`
+> discovery — **is the first thing to decide** (review §7).
 
 ---
 
@@ -114,24 +137,29 @@ unverified and is the first thing to measure.**
 > project it. **Same UI as ruled** — canvas-following section, always present, `[+]` where applicable
 > — but it lands *inside* the unified path instead of beside it.
 
-📌 It also gets `CountNodesReferencingVariable` for free, which is exactly what its §3.3
-delete-while-referenced needs. ⛔ **Batch 39 is postponed** until Batch 38's review returns.
+⛔⛔ **CORRECTED `2026-08-13`:** this originally said it *"gets `CountNodesReferencingVariable` for
+free."* 🔴 **`BP-230` — it returns a hardcoded `0`**, so delete-while-referenced would report *"0
+references"* for every variable **and delete anyway.** ⇒ **it must be implemented, not reused.**
 
 ---
 
 ## 6. Where this sits in the staged plan
 
-| stage *(from [the model doc](Variable_Model_Unification.md) §4)* | what the designer notices |
-|---|---|
-| **A** — `Variables` becomes a third `IVariablesSchemaSource` | nothing yet |
-| **B** — Details shows the table; My Blueprint routes selection into it | ⭐ **this document's picture** |
-| **B′** — unify the type-choice record so structs are offerable | ⭐ **struct-typed variables** |
-| **C** — `(kind, index)` in the compiler | nothing |
-| **D** — one declaration list with `Role`/`Scope` | the `Role`/`Scope` columns become authoritative |
+⚠ **Re-ordered by the review — [see the model doc §4](Variable_Model_Unification.md).**
 
-⭐ **The UI lands at B, before the model change** — and that is deliberate: the table already renders
-`Role` and `Scope` columns, so the unified *view* can ship while the model still has four lists behind
-an adapter. **The designer sees the unified picture before the risky migration, not after.**
+| stage | what the designer notices |
+|---|---|
+| **0** · **C** — compiler-only, `C` first | nothing |
+| **A** — `Variables` becomes a third `IVariablesSchemaSource` | nothing yet |
+| **B** — Details shows the table; My Blueprint routes selection into it | ⭐ **this document's picture** ⚠ **inert until `BP-230`** |
+| **B′** — the type-choice union | ⛔ **BLOCKED on `BP-228`** |
+| **D1…D4** — the model, the migration, the consumers, the rails | `Role`/`Scope` become authoritative |
+
+⭐ **The UI still lands before the model change** — the table's columns exist, so the unified *view* can
+ship while the model still has four lists behind an adapter. ⚠⚠ **But "the view" is the honest word:
+until `BP-230` is fixed those columns edit nothing, and `R3` means a blueprint `Scope` may not be
+expressible through the shared contract at all.** **Fix `BP-230` inside B, or ship B as read-only and
+say so.**
 
 ---
 
@@ -173,35 +201,29 @@ re-create exactly the panel sprawl this work exists to remove.
 Inputs** because it has no meaning there. **Mirror that rule in the modal** rather than inventing a
 second one. Creating an `Input` must not require creating a `State` and flipping it afterwards.
 
-### Q-h · Does a struct-typed blueprint variable compile? → ⭐⭐ **VERIFIED: YES, and it already works**
+### Q-h · Does a struct-typed blueprint variable compile? → ⛔⛔ **RULING OVERTURNED `2026-08-13`**
 
-**Coordinator-probed on the merged tree:**
+> **The answer was "yes, and it already works." That was half right, and the wrong half is a blocker.**
+> 🔴 **`BP-228`.** It compiles — but so does **`Totally.Made.Up.Type`**, and so does **`a.b`**, both
+> with **zero diagnostics**. ⭐ **The rule is syntactic — contains a dot ⇒ emitted verbatim as
+> `global::{whatever}`.** There is no resolution and therefore nothing to lock against.
+>
+> | what I said | what is true |
+> |---|---|
+> | *"resolved by fully-qualified name"* | ⛔ **not resolved at all** — `TryResolve` is `False` even for the FQN that works |
+> | *"the fix is a list union and nothing else"* | ⛔ **the union offers types nothing validates** |
+> | *"extend the lock to assert end-to-end compilation"* | ⛔ **that lock passes on a fabricated type** |
+>
+> ⇒ ⭐ **Revised ruling: `B′` is blocked until a compiler-side rail exists.** The union remains the
+> right *shape*; it cannot ship without something to validate against. **What that validator is —
+> registry entry · generator-side Roslyn check · allow-list from `[BlackboardDtoStruct]` discovery —
+> is an open decision, and it is the first one** (review §7).
 
-```
-TryResolve('Hrot.AI.Behaviors.StructDemoData') = False      ← NOT via the registry
-TryResolve('StructDemoData')                   = False
+---
 
-Compile, Instance asset, Variables += { Threat : Hrot.AI.Behaviors.StructDemoData }
-  SUCCEEDED = True   DIAGS = []
-  public global::Hrot.AI.Behaviors.StructDemoData Threat;
-  new BlueprintFieldDescriptor("Threat", typeof(...StructDemoData),
-      Marshal.OffsetOf<State>("Threat"), Unsafe.SizeOf<...StructDemoData>(), "")
+## 8. 📌 Standing gap — the visual check
 
-Compile, same but TypeId = "StructDemoData"  (short name)
-  SUCCEEDED = False  DIAGS = [BP1500]
-```
-
-⇒ ⭐ **Struct-typed variables are a solved compiler problem** — resolved by **fully-qualified name**
-through a path that is not `EditorOfferableTypeIds`, complete with correct offset and size in the field
-descriptor. **The gap is picker-only.**
-
-⇒ ⭐ **The fix is a list union and nothing else:**
-`BlueprintTypeChoices` ∪ `ISharedStructTypeProvider.GetSharedStructTypeFqns()` — and the latter
-**already returns FQNs**, which is exactly the form that works.
-
-⚠⚠ **Two conditions, both load-bearing:**
-
-| | |
-|---|---|
-| ⛔ **The picker must offer the FQN, never the short name** | a short name compiles to **`BP1500`**, and a picker that offers an uncompilable type is `BP-87`'s original defect verbatim |
-| ⭐ **Extend `BP87_TypePickerTests`' resolvability lock over the struct half** | its whole purpose is *"every offered id resolves"*. ⚠ **Note the lock must assert END-TO-END COMPILATION, not `TryResolve`** — `TryResolve` returns **False** for a type that compiles fine, so a lock written against the registry would reject every struct |
+⚠ The review could not establish whether the table's `Role`/`Scope` columns are **drawn-but-dead or
+hidden** for a blueprint asset: *"it needs the UI on screen, and there is no ImGui in this container."*
+⛔ **That check has now not been done for FIVE batches.** It is a programme-level gap, not one
+batch's — and this document's central picture is the kind of thing it would catch.

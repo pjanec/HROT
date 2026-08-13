@@ -322,6 +322,45 @@ tracker records the method, including that the *refuted* row sits **outside** th
 
 ---
 
+## 7k · Batch 38 follow-up — ⭐ **the lost work is recovered, and the design docs are updated**
+
+**Merged at `406fbb3e`** (a `--no-ff` merge: their fix and my §7j record landed on the same base, an
+ordinary divergence — merged rather than cherry-picked so their commit identity survives the
+protocol's *branched-from* ancestry checks).
+
+### ✅ The lost work is on the remote
+
+| | |
+|---|---|
+| **What they did** | checked the two commits in as `git format-patch` output, because ⛔ **pushing a preservation TAG was refused with HTTP 403** — that session's credentials push branches, not tags |
+| ⭐ **What the coordinator did** | `git am`'d them onto `de742e6e`, verified they apply **clean**, and pushed them as ⭐ **`claude/batch39-locals-preserved`** (`7e0b11b0`). ✅ **Confirmed on the remote via `ls-remote`** |
+| **Then** | removed `docs/blueprints/patches/` — their README's own condition (*"delete it once the work is on a branch"*) is now met |
+
+**What was recovered** — 21 files, **+1182 / −46**: `LocalStorage.cs` (159), `V_VariableReferenceRules.cs`
+(110), `FieldLayout`/`StructureHash`/`MacroLatency` changes, and **715 lines of tests** across three
+files. **`BP1670`** allocated; **no tracker rows**, so nothing collides on re-application.
+
+⭐ **Their judgement call — checking in patches without asking — was right.** The container being
+reclaimed would have destroyed it irreversibly; a checked-in patch is trivially reversible. **That is
+the correct trade, and the escalation was the right shape: act, then flag it.**
+
+### ⭐ The design documents are updated — what changed
+
+| | |
+|---|---|
+| ⭐⭐ **Staging re-ordered** | **`C` first**, a new **stage 0** (`BP-229`), **`D` split into D1–D4**. The old A→B→C→D plan is kept in a collapsed `<details>` block **with the reason it was wrong**, not deleted |
+| 🔴 **`CountNodesReferencingVariable`** | struck in **both** documents — it returns a hardcoded `0` (`BP-230`), and both had told Batch 39 to *reuse* it for delete-while-referenced |
+| 🔴 **`Q-h` OVERTURNED** | my *"struct variables already work"* ruling. They compile — **so does `a.b`.** `B′` is blocked until a compiler-side rail exists |
+| ⭐ **Shared state recorded** | `GetShared`/`SetShared` fits no cell — **61 references, 8 shipped assets** — now an **explicit exclusion to be decided**, not an omission |
+| ⭐ **The bijection caveat** | `Variables`↔`WorkingState` is a function of `Dispatch`, so the down-migration is writable — ⚠ **but the tag carries no information `Dispatch` did not.** D's benefit is *one list*, not *the tag tells you the storage*; the document had implied the second |
+| ✅ **Cleared** | round-trip is idempotence-only, the inspector is insulated, comparison fixtures are generic, and **nothing outside `Hrot.Blueprints.*` reads these lists** |
+| 🔴 **Newly flagged** | order → `FieldLayout` → **`StructureHash`** → the tick **wipes the blackboard on mismatch** ⇒ **a migration that reorders fields resets every deployed entity's state** |
+| ⚠ **`R3` recorded** | `UpdateVariableScope(string, WorkingStateScope)` **cannot carry a blueprint two-valued scope** — the two documents assumed both sides of that |
+
+📌 The mapping SVG's footer now says the staging it shows was superseded, rather than contradicting §4.
+
+---
+
 ## 7j · Batch 38 — ✅ VERIFIED AND MERGED at `27ebe8dc` — ⭐⭐ **a design review that changed the design**
 
 **Docs only** — `git diff --name-only` returns the review, its diagram and the tracker. ⇒ the eight

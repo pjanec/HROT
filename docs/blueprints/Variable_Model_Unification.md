@@ -6,10 +6,13 @@
 >
 > 📌 **Input to Q28.** ⛔ **Not an implementation task yet** — see the banner below.
 
-> ⏳ **AWAITING INDEPENDENT REVIEW — [Batch 38](HANDOFF_Batch38_Unified_Variable_Design_Review.md).**
-> ⚠ **Nothing here is actionable yet.** The implementation session is assessing feasibility, hunting
-> gaps and testing the staging. ⭐ **Every measured claim in this document is a hypothesis until they
-> confirm it** — and they have corrected this coordinator in every batch since 29.
+> ✅ **REVIEWED — [Batch 38](REVIEW_Unified_Variable_Design.md), `2026-08-13`. Verdict: build it, with
+> four named changes and a re-ordered plan.** ⭐ **This document has been updated to match.**
+>
+> ⛔⛔ **Two of its measured claims were WRONG and the corrections are inline below:**
+> **`C1`** — a struct type id is *unvalidated pass-through*, not FQN resolution (**`BP-228`**) ·
+> **`C5`** — the shared table's `Role`/`Scope` editors and its reference counter are **stubs** on the
+> Blueprint side (**`BP-230`**). ⚠ **Anything quoting this document from before `2026-08-13` is stale.**
 
 ![Blueprint variables — four bespoke lists, two orthogonal axes](diagrams/variable_model_unification.svg)
 
@@ -38,6 +41,21 @@ away is the *model* pretending they are unrelated.
 ⇒ ⭐ **`WorkingState` and `Variables` occupy the SAME cell.** Both are private, persistent, per-entity
 storage carrying the suspension bookkeeping (`Cursor` / `__phase`) plus the designer's fields. **Two
 names, one concept**, held apart only by a diagnostic.
+
+### ⚠ Two things fit NO cell — added `2026-08-13` from the review
+
+| | |
+|---|---|
+| 🟠 **Shared state** (`GetShared`/`SetShared`) | entity-scoped, **name-keyed, resolved at RUNTIME, declared nowhere in the asset** — and **61 references across 8 shipped assets**. ⛔ **This document originally did not mention it once.** To a designer it *is* a variable. 📐 **It is a DELIBERATE EXCLUSION, not an oversight — but the decision must be taken explicitly** (review §7) |
+| 📌 **Synthesized fields** — `__phase`, `__waitUntilTime`, `_when_*_prev` | injected into `WorkingState` **during lowering**, after Stage 2's gate. They are `(State, Asset)` but were never declared ⇒ under **D** they need a `Synthesized` marker or they surface in the authoring UI |
+
+### ⚠ And the collision is a bijection — which limits what the tag buys
+
+`BP1024`/`BP1031` make the `Variables`-vs-`WorkingState` choice a **function of `Dispatch`**, enforced
+at Stage 2. ⇒ ✅ **the down-migrator `Q-d` demands is writable** — the pair is reversible, not lossy.
+⚠ **But for that cell the tag carries no information `Dispatch` did not already carry.** ⭐ **D's
+benefit is *one list*, not *the tag tells you the storage*** — this document originally implied the
+second.
 
 ### ⭐ `Role` is not a new abstraction — it already ships
 
@@ -72,11 +90,61 @@ declaration, the kind is what the declaration SAYS.** The pair falls out; it is 
 
 ---
 
-## 4. How to do it safely — four stages, risk ascending
+## 4. How to do it safely — ⭐ **RE-ORDERED by the review**
+
+> ⛔ **The A → B → C → D order below the line is SUPERSEDED.** The review measured C's blast radius
+> and found the ordering principle backwards for it. **This is the plan.**
+
+| | stage | touches | revert |
+|---|---|---|---|
+| **0** 🆕 | ⭐ **give `Compile` an owned copy of the graphs it rewrites** — `BP-229`: the macro splice writes **through** into the caller's `Graph`. Not reachable in production *today*, and only because `QuickReloadService` has no caller | compiler only | ✅ |
+| **C** ⬆️ | ⭐⭐ **MOVED TO FIRST.** `FindVariableIndex` → `(kind, index)`; `VarFieldName` switches — **closes `BP-226`** | compiler only · ⭐ **4 real call sites** | ✅ type change |
+| **A** | `Variables` becomes a third `IVariablesSchemaSource`; ⚠ **kill the `bool isParams`** | editor only · **2 construction sites** | ✅ trivial |
+| **B** | Details hosts the table; My Blueprint routes selection into it | editor only | ✅ |
+| **B′** | the type-choice union so structs are offerable | ⛔ **BLOCKED on `BP-228`** | — |
+| **D1** | the tagged declaration type + both projections; **old lists become computed views, no consumer moved** | model only | ✅ |
+| **D2** | migrator **pair** + envelope bump 1 → 2 | ⚠ **persisted format** | ⛔ **the down-migrator IS the revert** |
+| **D3** | consumers moved off the old views, in dependency order | ~34 semantic sites | ⚠ |
+| **D4** | rails restated, old views deleted | compiler | ✅ |
+
+### ⭐⭐ Why C moves first — the review's strongest finding
+
+**The kind needs no tag on the declaration: `FindVariableIndex` already knows which list matched.**
+Returning `(kind, index)` is a *return-type change at a search that already has the answer.*
+
+| C's entire blast radius | |
+|---|---|
+| `FindVariableIndex` real callers | **2** — `Stage5:1217`, `:2548` |
+| `VarFieldName` real callers | **2** — `StatementEmitter:59`, `:63` |
+
+⇒ **C is the smallest stage, is compiler-only, and is a prerequisite for nothing.** Leaving it third
+kept `BP-226`'s live ambiguity underneath every other stage — **including under any picker that widens
+what can be targeted.**
+
+### ⛔ D was never one stage
+
+One list + a tag + a migrator pair + three rails + ~34 semantic consumers. ⚠ **Only `D1` reverts
+cheaply**: once `D2` has written v2 files, reverting the code leaves files the reverted reader cannot
+open — ⭐ **which is exactly why `Q-d`'s insistence on a migrator PAIR is load-bearing, not a nicety.**
+
+### 📌 What the review cleared
+
+| | |
+|---|---|
+| ✅ **Round-trip is NOT a barrier** | all seven tests assert `Serialize(Deserialize(j1)) == j1` — **serializer idempotence, not identity with any file on disk.** ⇒ **`D2` can be scheduled on its merits, not as a test-fixing exercise** |
+| ✅ **Debug / inspector is insulated** | `BlueprintFieldDescriptor` and `StateLayoutField` are keyed by name+offset, built downstream of the flatten step. **`D` needs no change there** |
+| ✅ **Comparison fixtures are safe** | the sanitizer walks the DOM generically and never names the three lists |
+| ✅ **The blast radius is ONE subsystem** | ⛔ nothing outside `Hrot.Blueprints.*` reads these lists — **generators: zero** |
+| 🔴 **But order is load-bearing for MEMORY** | order → `FieldLayout` offsets → **`StructureHash`** → the emitted tick **wipes the blackboard on mismatch.** ⇒ **any migration that changes relative field order resets every deployed entity's persisted state.** `D2` must preserve order within each group, or accept a global wipe |
+
+---
+
+<details>
+<summary>⛔ Superseded — the original A → B → C → D plan, kept for the record</summary>
 
 ⭐ **The ordering principle: everything that does not touch the asset format lands first**, so by the
 time the migration runs, the machinery is already unified and test-locked and the migration is the
-**only** variable.
+**only** variable. ⚠ **True in general; wrong for C, which needs nothing from D and closes a live row.**
 
 | | stage | touches | revert |
 |---|---|---|---|
@@ -84,6 +152,8 @@ time the migration runs, the machinery is already unified and test-locked and th
 | **B** | My Blueprint's Variables section projects **that** source instead of its own | editor only | ✅ |
 | **C** | `FindVariableIndex` → `(kind, index)`; `VarFieldName` switches on it — ⭐ **closes `BP-226`** | compiler only | ✅ type change, not logic |
 | **D** | one declaration list with `Role`/`Scope`; `BP1024`/`BP1031` restated | model + ⚠ **JSON migration** | ⚠ the only risky stage |
+
+</details>
 
 ### The machinery to reuse — it exists and is already multi-consumer
 
@@ -101,11 +171,16 @@ Hrot.Editor.AiShared/Blackboard/VariablesPanelControl.cs
 | ✅ **Blueprint already plugs in** | `Parameters` **and** `WorkingState` flow through it today |
 | ⛔ **`Variables` does NOT** | it has a separate path via `BlueprintMyBlueprintModel` → `MyBlueprintItem`. ⭐ **That is the parallel implementation to remove** |
 | ⚠ **`bool isParams`** | a **two-way flag for a three-way choice** — ⭐ **`BP-224`'s exact shape**, which already has a row. Fix it in stage A |
-| ⭐ **`CountNodesReferencingVariable`** | **exactly** what Batch 38 §3.3's delete-while-referenced needs. **Reuse; do not write a second one** |
+| ⛔ ~~**`CountNodesReferencingVariable`** — exactly what delete-while-referenced needs~~ | 🔴 **FALSE, corrected `2026-08-13` (`BP-230`).** The Blueprint implementation is `CountNodesReferencingVariable(name) => 0`, and both `Update…` methods are **empty bodies**, commented *"Blueprint variables do not use role/scope; no-op implementations."* ⭐ **Trap #5.** ⇒ **it must be IMPLEMENTED before anything leans on it** |
 
 ⇒ ⭐ **The direction is to make `Variables` a third schema source — NOT to teach My Blueprint about
 `WorkingState`.** The shared control is the richer, already-shared machinery; the My Blueprint path is
 the bespoke one.
+
+⚠⚠ **But stage B cannot ship an EDITOR until `BP-230` is fixed** — only a picture. And ⭐ **`R3`: the
+shared contract's `UpdateVariableScope(string, WorkingStateScope)` cannot carry a blueprint two-valued
+scope.** ⇒ either the shared interface gains a second scope concept **or blueprints do not edit scope
+through that table** — 📐 **decide before B, because the two design documents assumed both.**
 
 ---
 
