@@ -1,6 +1,6 @@
 # HANDOFF — Batch 38: finish `BP-57` — the rail Batch 37 was never asked for, and the authoring half
 
-> 📌 **Dispatched at `PENDING`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
+> 📌 **Dispatched at `eb89ebaf`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
 > ⭐ **Rule 7 is yours:** branch from this branch, and re-sync from it at the **start** of your run.
 > ⭐ **Rule 4 is yours:** pull it again before your final commit.
 > ⭐ **Rule 3: the coordinator allocates no ids.** `BP-57` is *referenced*; `BP1670+` is the next free
