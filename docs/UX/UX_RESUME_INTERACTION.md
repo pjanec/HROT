@@ -6,10 +6,10 @@
 ## 1. What this session did
 
 Designed **16 of 33** issues. Three were consolidated into one API + one acceptance catalogue; the rest
-have their own feature docs. **46 rulings · 37 corrections**, all contiguous and linked below.
+have their own feature docs. **48 rulings · 38 corrections**, all contiguous and linked below.
 
-✅ **[Q29 — entity commanding](Architect_Question_29_Entity_Commanding.md) is FULLY ANSWERED**
-(rulings 38-46, **no open decisions**). A right-click order is an **immediate tactical intent**, carried
+✅ **[Q29 — entity commanding](Architect_Question_29_Entity_Commanding.md) is ANSWERED AND ARCHITECT-ACCEPTED**
+(rulings 38-46, accepted by [ruling 48](#) — **no further architect round**). A right-click order is an **immediate tactical intent**, carried
 by **one action id + a JSON argument**, with the command set and default params from **TKB — disk-first,
 hardcoded fallback, behind the existing provider seam**. [UXI-32](UX_Issues.md#uxi-32) is ready to design.
 
@@ -23,10 +23,10 @@ hardcoded fallback, behind the existing provider seam**. [UXI-32](UX_Issues.md#u
 | ✅ **[UX_Feature_Selection.md](UX_Feature_Selection.md)** | **UXI-11 design** — 22 cases. One store, `ISelectionState` becomes a view; CGF gets the full chain |
 | ✅ **[UX_Feature_Map_Parity.md](UX_Feature_Map_Parity.md)** | **UXI-23 design** — 12 cases. One `MapInteractionPack`; IG's forked `switch` retires. ✅ **§5 closed by [ruling 37](#)** — the 9 orphan ids moved to UXI-32 |
 | ✅ **[UX_Feature_Authority_Aware_Writes.md](UX_Feature_Authority_Aware_Writes.md)** | **UXI-29 design** — **26 cases**. Gizmos publish intent; complementary authority gates route local-vs-remote. 🔴 **Blocked on UXI-30** |
-| ✅ **[UX_Feature_Multi_Select.md](UX_Feature_Multi_Select.md)** | **UXI-24 design** — 29 cases. Multi-select is **built on the inspector list and nowhere on the map**; **4 dead seams** (16-19). 🔴 **§2 decision open: the partial-applicability rule** |
+| ✅ **[UX_Feature_Multi_Select.md](UX_Feature_Multi_Select.md)** | **UXI-24 design** — 29 cases. Multi-select is **built on the inspector list and nowhere on the map**; **4 dead seams** (16-19). ✅ **§2 ruled**: incompatible items are **absent**, not greyed |
 | ✅ **[Architect_Question_29_Entity_Commanding.md](Architect_Question_29_Entity_Commanding.md)** | **UXI-32 — FULLY ANSWERED, rulings 38-46, no open decisions.** Right-click = **immediate tactical intent**; **one action id + JSON arg**; command set from **TKB**; formations = order the commander. ⭐ **Seam-law 20-24** — chain, panel, choke point, the wire's JSON field, the TKB provider stack and the reload contract all already exist |
 | [UX_Seam_Inventory.md](UX_Seam_Inventory.md) | prior-art table + `scripts/seam_inventory.py`, `scripts/type_index.py` |
-| [UX_Tasks_Detail.md](UX_Tasks_Detail.md#corrections) | **37 corrections** — read before trusting any claim |
+| [UX_Tasks_Detail.md](UX_Tasks_Detail.md#corrections) | **38 corrections** — read before trusting any claim |
 
 **Designed:** UXI-01..**11**, **23**, **24**, **28**, **29** (+ **19**, verified and absorbed into 10). **Refuted:** UXI-26. **Split out:** UXI-25 (ExCon ORBAT),
 UXI-27 (progress surface), **UXI-31** (IG's test-hook-only waypoint fan-out).
@@ -58,6 +58,8 @@ file, is the complete index. Every one of the 15 is reachable from there.
 | 16 | **ExCon is DDS-only, no ECS** — reuses the ORBAT UI with its own data model. `int EntityId` is correct, not a defect |
 | 17 | **No assumptions.** Read `README.md` + `docs/HROT-PROGRAMMERS-GUIDE.md` before claiming an engine defect |
 | 18 | **Layout = one directory.** `fdp_windows.json` lives **next to `imgui.ini`** in *both* places (user `%LocalAppData%\HROT\` and the shipped default). Reset = a directory copy |
+| 48 | 🔒 **Q29's answers ARE the architect's answers** (user, 2026-08-13): *"if all Q29 are answered, take it as accepted by architect and project to designs."* ⇒ [Q29](Architect_Question_29_Entity_Commanding.md) is **closed and accepted**; rulings 38-46 are binding, and [UXI-32](UX_Issues.md#uxi-32) proceeds to a feature design without a further architect round |
+| 47 | 🔒 **Incompatible menu items are ABSENT, not greyed — and carry no reason** (user, 2026-08-13), verbatim: *"I see no reason for showing the reason for items not compatible with all selected items. They don't even need to be grayed. Incompatible ones should simply not be present. In context menu this is fully ok (we do not need huge menu full of grayed items, each with different reasoning for different incompatible entity)."* ⇒ ✅ **confirms [UXR-91](UX_Requirements.md#uxr-91) and [UXI-03 §4](UX_Feature_Entity_Action_Vocabulary.md)**; 🔴 **refutes [UXI-11 §2.4](UX_Feature_Selection.md)'s *"shown, disabled, with a reason"*** ([Correction 38](UX_Tasks_Detail.md#corrections)) and withdraws my two-predicate reconciliation as unnecessary. ⭐ **The reasoning is the part to keep**: per-entity reasons do not aggregate — twelve entities can be incompatible for twelve different reasons, so there is no sentence to show. **Simplifies the design**: one AND over the selection, no `disabledReason` aggregation, no count strings |
 | 46 | 🔒 **TKB: disk first, hardcoded fallback, shared code, behind a provider API** (user, 2026-08-13): *"tkb data should be read from disk by the subsystems needing tkb, with fallback to hardcoded stuff. **Shared code, reused.** Network replication might come later. **TKB access should be hidden behind some provider api** to allow for switching implementations (disk/network) later."* ⭐ **The whole stack already exists — FIVE levels** (**seam-law instance 23**), and the storage strategy is only level 1 (user, 2026-08-13: *"loader (storage strategy interface) is just the raw data provider, maybe there is another level of access class?"* — **yes**, [Correction 36](UX_Tasks_Detail.md#corrections)): **L1** `ITkbStorageStrategy` (+ `TkbUnifiedLoader` auto-detecting `.zip` vs dir) · **L2** `TkbDeserializer` + source-gen `[TkbDescriptor]` · **L3** ⭐ **`ITkbDatabase.TryGetByType(long, out TkbTemplate)` — the tkbId lookup, in production at 9+ sites** · **L4** `TkbTemplate.GetDescriptor<T>/TryGetDescriptor<T>` · **L5** `ITkbEntityTranslator.Inject(repo, entity, template)` → ECS · **↺** `ITkbHotReloadEvents` (reload notification). 🔒 **The "hidden behind a provider API" requirement is already met at L3.** 🔴 **The reload contract has subscribers and NO publisher** — `BakedAnimationCache` subscribes and invalidates; the only implementation is a **test fake** (**seam-law instance 24**) ⇒ **the shared loader is the missing publisher**, or a disk reload silently leaves stale baked caches | ⭐ **L5 is ECS-only ⇒ ExCon needs L3 + L4 and no translator.** 🔴 **What is missing is the composition**: the ~6-line load recipe exists **once**, inside `TkbLoadClusterStateHandler.cs:96-103`, with **no fallback** (`FileNotFoundException`) and a differential mtime cache worth keeping; CGF/IG/Editor call `HrotEnvironment.CreateTkb()`, which only registers the hardcoded catalog. ⭐ **That factory is the shared hook — one change reaches four hosts.** 🔒 Log which source won. ⚠ **Network later means one of two different products**: **N1** a network `ITkbStorageStrategy` (fetch the corpus — ✅ fits the interface unchanged, and changes nothing above it) or **N2** a remote `ITkbDatabase` (query per id — the shape fits, but callers assume a synchronous local lookup inside spawn systems). ⚠ **And `RouteTkbExtensions.ApplyRoutePlanToBlueprint` is a no-op stub today** but documented as *"call from every host"* — it runs in `CreateTkb()` and **not** on the disk path, so a post-load step must exist on **both** branches |
 | 45 | 🔒 **Formations need no special handling** (user, 2026-08-13): *"formations now solved by issuing entity-specific command/intent to the **commander entity** — no special handling needed. TKB should be solving this case as also the commander entity should have its own specific TKB id."* ⇒ ⭐ **the group-addressing question dissolves** — *"order the platoon"* is *"right-click the platoon commander"*. No roster walk at the menu layer, no fan-out to subordinates, and `UnitRoster`'s 16-cap stops being a UI concern. [Q29 §H](Architect_Question_29_Entity_Commanding.md) |
 | 44 | 🔒 **Any subsystem may issue an order, gated on TKB availability** (user, 2026-08-13): *"any subsystem can issue as long as the TKB data available (**it needs to be for ExCon as well — probably a gap**)."* ⇒ eligibility is a **data** question, not an authority one — the gates already permit any node ([ruling 35](#)). ✅ **Gap confirmed and characterised**: ExCon has **zero** `ITkbDatabase` references and a **hand-written** `(id, name)` array (`ExConSubsystem.cs:337-348`) — but it **already resolves per-`TkbType` behavior lists** via the compiled `BehaviorCatalog` (`MissionEditorService.cs:73`). 🔴 **The real blocker is transport: TKB content is replicated NOWHERE** — `EntityMasterTopic` carries only `long TkbTypeValue`; TKB moves as staged `.zip` files, and **only SimHost loads them** (CGF/IG/Editor run the compiled-in `NedTkbCatalog`). ⇒ ✅ **closed by [ruling 46](#)**: disk-first with a hardcoded fallback, so ExCon gets a `TkbDatabase` like everyone else and no wire is needed yet |
@@ -160,12 +162,20 @@ review rule (UC-44c).
 | **`GlobalActionRequestedEvent` carries ONE `Entity Target`**; the dispatch loop is one handler call per event ⇒ a `PerEntity` fan-out publishes **N events** and needs **no change** to either | `GlobalActionRequestedEvent.cs:12-18`, `GlobalActionDispatchSystem.cs:26-30` |
 | **`MapLayerAssignmentSystem` classifies every entity into 5 layers → `MapDisplayComponent.LayerMask`, and the symbol emitter never reads it** (always `layer: 0`) — ⭐ *the same resolve-then-discard failure as the tint* | `MapLayerAssignmentSystem.cs:97-127` vs `EntityPresentationGizmoShared.cs` |
 
-## 6. 🔴 OPEN — awaiting the user's ruling
+## 6. ✅ OPEN decisions — none
 
-| # | Question | Where |
+Both are closed.
+
+| # | Question | Outcome |
 |--:|---|---|
-| ~~1~~ | ✅ **CLOSED 2026-08-13 by [ruling 37](#)** — the 9 orphan ids are a **capability gap**, not a binding choice. Moved to [UXI-32](UX_Issues.md#uxi-32) / [Q29](Architect_Question_29_Entity_Commanding.md) 🔒 **awaiting the architect** | [UXI-23 §5](UX_Feature_Map_Parity.md) |
-| **2** | 🔴 **Partial applicability in a multi-selection — two of our own designs disagree.** [UXR-91](UX_Requirements.md#uxr-91) (P0) and [UXI-03 §4](UX_Feature_Entity_Action_Vocabulary.md) say an item applicable to only *some* selected entities is **hidden**; [UXI-11 §2.4](UX_Feature_Selection.md) says **shown, disabled, with a reason** — it relaxed a P0 requirement without flagging it. 🎯 **Proposed reconciliation: AND each of the registry's two predicates separately** — `isVisible` fails ⇒ hidden, `isEnabled` fails ⇒ disabled-with-reason, so the registrar chooses per action at declaration | [UXI-24 §2](UX_Feature_Multi_Select.md) |
+| ~~1~~ | The 9 orphan action ids | ✅ **CLOSED by [ruling 37](#)** — a **capability gap**, not a binding choice. Moved to [UXI-32](UX_Issues.md#uxi-32) / [Q29](Architect_Question_29_Entity_Commanding.md), which is now **answered and architect-accepted** ([ruling 48](#)) |
+| ~~2~~ | Partial applicability in a multi-selection | ✅ **CLOSED by [ruling 47](#)** — items incompatible with *any* selected entity are **absent**: not greyed, no reason. [UXR-91](UX_Requirements.md#uxr-91) stands as written; [UXI-11 §2.4](UX_Feature_Selection.md) is refuted ([Correction 38](UX_Tasks_Detail.md#corrections)) |
+
+🔴 **One new question raised, not yet answered** — [UXI-23 case 23.5](UX_Feature_Map_Parity.md): ruling 47
+settled *incompatible with the selection*. A different axis is **an action a host structurally cannot
+service**, which today is specified as *disabled with a reason, never absent*. That reason **is** single
+and stable, but such an item is greyed **permanently** — so the user's *"no huge menu full of grayed
+items"* may apply there too. **Not assumed either way; flagged in the design.**
 
 ## 6b. Needs a **Windows** session (cannot be done here)
 

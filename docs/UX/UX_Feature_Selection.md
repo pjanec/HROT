@@ -112,21 +112,24 @@ The component already models it; what is missing is input and menu policy.
 | 🔒 **Menu = items applicable to *all* selected** | the AND/intersection rule, per the ruling |
 | **Execution fans out** over the selection — [UXI-03](UX_Feature_Entity_Action_Vocabulary.md)'s `EntityActionDescriptor` is the layer that carries it | ⚠ **not** `IEntityActionController`, which is single-entity by signature |
 
-⚠ **A heterogeneous selection can empty the menu**, which reads as broken. Reuse the programme's
-established principle ([UXI-08](UX_Feature_Layout_Defaults.md) case 5 — *disabled with a reason, not
-hidden*), but scaled so it does not become noise:
-
 | Applicable to… | Treatment |
 |---|---|
 | **all** selected | shown, enabled |
-| **some** selected | ⚠ **shown, disabled, with a reason** — *"3 of 12 selected support this"* |
-| **none** selected | hidden |
+| **some** selected | 🔒 **absent** |
+| **none** selected | 🔒 **absent** |
 
-> 🔴 **Contested, 2026-08-13.** The middle row **relaxes [UXR-91](UX_Requirements.md#uxr-91)** (P0:
-> *"shows **only** items applicable to every selected entity"*) and contradicts
-> [UXI-03 §4](UX_Feature_Entity_Action_Vocabulary.md) — and this doc did not flag that it was doing so.
-> **[UXI-24 §2](UX_Feature_Multi_Select.md) carries the proposed reconciliation and awaits the user's
-> ruling.** Do not implement this table until that is settled.
+> ✅ **RULED 2026-08-13 ([ruling 47](UX_RESUME_INTERACTION.md))** — *"incompatible ones should simply not
+> be present… we do not need a huge menu full of grayed items, each with different reasoning for a
+> different incompatible entity."*
+>
+> ⚠ **An earlier draft of this section said the middle row was *"shown, disabled, with a reason —
+> 3 of 12 selected support this"***, borrowing [UXI-08](UX_Feature_Layout_Defaults.md) case 5's
+> *disabled-with-a-reason* principle. That **relaxed a P0 requirement** ([UXR-91](UX_Requirements.md#uxr-91))
+> without flagging it, and it is now **refuted** — [Correction 38](UX_Tasks_Detail.md#corrections).
+>
+> ⭐ **Why hiding is right, not merely simpler:** a reason does not aggregate. Twelve selected entities can
+> be incompatible for twelve different reasons, so there is no single sentence to display — which is
+> exactly why the greyed-item design produced no usable text.
 
 ### 2.4b 🔒 One pick box, one ring — shared everywhere
 
@@ -202,7 +205,7 @@ applies to **callers outside the tick**, which is where the view's setter lives.
 | 11.7 | The menu is populated **after** the selection mutation, same frame | H |
 | 11.8 | 🔒 **Reload clears the selection** — `ClearAll()` is actually called (it never is today) | H |
 | 11.9 | Despawning the primary leaves **no stale primary** in the view | H |
-| 11.10 | Multi-selection menu = items applicable to **all**; partial ⇒ **disabled with a reason**; none ⇒ hidden | H |
+| 11.10 | 🔒 Multi-selection menu = items applicable to **all**; anything applicable to only *some* is **absent** — not greyed, no reason ([ruling 47](UX_RESUME_INTERACTION.md)) | H |
 | 11.11 | An action on a 12-entity selection executes **12 times**, once per entity | H |
 | 11.12 | Ctrl/Shift click **adds to** the selection instead of replacing it | H |
 | 11.13 | Selection in one subsystem does not appear in another (subsystem-local) | H |

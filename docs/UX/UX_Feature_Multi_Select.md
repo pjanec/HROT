@@ -121,7 +121,7 @@ frame**, picks one of four pre-serialized JSON constants from that entity's own 
 `$"{evt.SelectedEntityIds?.Count ?? 0} entities"` (`:774`). It then passes the **full list** onward as
 `forSelection`.
 
-## 2. 🔴 One decision open — two of our own designs disagree
+## 2. ✅ RULED — incompatible items are **absent**
 
 | Source | Partial applicability (only *some* selected support it) |
 |---|---|
@@ -129,27 +129,29 @@ frame**, picks one of four pre-serialized JSON constants from that entity's own 
 | **[UXI-03 §4](UX_Feature_Entity_Action_Vocabulary.md)** | *"shown only if `isVisible` holds for every selected entity"* ⇒ **hidden** |
 | **[UXI-11 §2.4](UX_Feature_Selection.md)** | *"shown, **disabled**, with a reason — *3 of 12 selected support this*"* |
 
-⚠ **UXI-11 relaxed a P0 requirement without flagging that it was doing so.** That is mine to own.
+⚠ **UXI-11 relaxed a P0 requirement without flagging that it was doing so.** That was mine to own, and it
+is now **refuted** — [Correction 38](UX_Tasks_Detail.md#corrections).
 
-### 🎯 The reconciliation I recommend — the registry already has two predicates
+### 🔒 RULED (user, 2026-08-13) — hidden, not greyed, no reason
 
-[UXI-03 §2](UX_Feature_Entity_Action_Vocabulary.md) registers `isVisible` **and** `isEnabled` separately.
-Apply **AND over the selection to each, independently**:
+> *"I see no reason for showing the reason for items not compatible with all selected items. **They don't
+> even need to be grayed. Incompatible ones should simply not be present.** In context menu this is fully
+> ok (we do not need huge menu full of grayed items, each with different reasoning for different
+> incompatible entity)."*
 
-| Predicate | AND fails ⇒ | The registrar uses it for |
-|---|---|---|
-| `isVisible` | **hidden** | *"meaningless for that kind of thing"* — `Edit Route` on a building |
-| `isEnabled` | **shown, disabled, `disabledReason`** | *"applicable in principle, not right now"* — `Delete` on a locked entity |
+| Applicable to… | Treatment |
+|---|---|
+| **every** selected entity | shown, enabled |
+| only **some** | 🔒 **absent** |
+| **none** | 🔒 **absent** |
 
 | | |
 |---|---|
-| ✅ **UXR-91 is honoured literally** | an item whose *visibility* predicate fails on any selected entity does not appear |
-| ✅ **UXI-11's concern is answered** | the menu cannot silently empty, because *explicable* mismatches gray out instead |
-| 🔒 **The registrar decides per action, at declaration** | no global policy switch, nothing to tune later |
-| ⚠ **Still ruled out** | showing an item and **applying it to the applicable subset** |
-
-🔴 **This needs your nod** — it is the difference between a mixed selection showing a 2-item menu and a
-12-item menu that is mostly gray.
+| ⭐ **The reason does not aggregate — that is the real argument** | twelve entities can be incompatible for twelve different reasons, so there is **no sentence to show**. The greyed design could not produce usable text, which is why it was the wrong shape rather than merely a heavier one |
+| ✅ **One rule, one predicate** | `isVisible` ANDed over the selection. **No `disabledReason` aggregation, no *"3 of 12"* count strings, no second policy axis** |
+| ✅ **[UXR-91](UX_Requirements.md#uxr-91) is honoured literally** | as originally written |
+| 🔒 **Still ruled out** | showing an item and **applying it to the applicable subset** |
+| ⚠ **Scope of this ruling** | *incompatibility with the selection*. It does **not** by itself overturn *disabled-with-a-reason* where the blocker is **app state with a single shared explanation** — [UXI-08](UX_Feature_Layout_Defaults.md) case 5 (*running outside the repo*) or the [API §5](UX_Interaction_API.md) exclusivity gate. Those have exactly one reason to show. 🔴 **But [UXI-23 case 23.5](UX_Feature_Map_Parity.md) is genuinely adjacent** and is flagged there |
 
 ## 3. The design
 
@@ -319,9 +321,9 @@ obvious set** — all three are the same loop over the same view, and the first 
 | 24.11 | 🔴 **Rubber-band selecting N updates `ISelectionState`** — the §1.3b desync guard | H |
 | 24.12 | `ISelectionState.Add`/`Remove`/`SetMultiple`/`Clear` behave identically across **every** implementation, ECS-backed and DDS-backed | H |
 | 24.13 | `PrimarySelected =` still **collapses** the selection — the additive API did not change it | H |
-| 24.14 | `isVisible` failing on **any** selected entity hides the item | H |
-| 24.15 | `isEnabled` failing on **some** shows it disabled with a reason naming the count | H |
-| 24.16 | Both failing on **all** hides it | H |
+| 24.14 | 🔒 `isVisible` failing on **any** selected entity **removes** the item — not greyed, no reason ([ruling 47](UX_RESUME_INTERACTION.md)) | H |
+| 24.15 | 🔒 A mixed selection shows **only** the universal items; the menu may legitimately be **short or empty** | H |
+| 24.16 | 🔒 **No `disabledReason` is computed for a multi-selection at all** — the regression guard against reintroducing count strings | H |
 | 24.17 | 🔴 *"Mark Target for N Units"* is **visible and correct for N > 1** — both §1.3 causes closed | H |
 | 24.18 | A `PerEntity` action on a 12-entity selection executes **12 times** | H |
 | 24.19 | A `Selection` action on the same executes **once**, seeing all 12 | H |
