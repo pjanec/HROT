@@ -2,6 +2,7 @@ using Fdp.Toolkit.Blueprints;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
+using Hrot.Blueprints.Core.Compiler.Diagnostics;
 using Hrot.Blueprints.Tests.Builders;
 
 namespace Hrot.Blueprints.Tests.Compiler;
@@ -91,13 +92,14 @@ public sealed class TypeExistenceRailTests
     /// type.</b> ⛔ Compiled clean before this rail.
     /// </summary>
     [Fact]
+    [CoversDiagnosticCode(DiagnosticCodes.BP1671)]
     public void WithAnOracle_AFabricatedTypeIsRefused_NamingTheVariableAndTheType()
     {
         var result = new BlueprintCompiler().Compile(
             AssetTypedAs("Totally.Made.Up.Type"), Options(new OnlyKnowsOne(Known)));
 
         Assert.False(result.Succeeded);
-        var d = Assert.Single(result.Diagnostics.Where(x => x.IsError));
+        var d = Assert.Single(result.Diagnostics, x => x.IsError);
         Assert.Contains("Threat", d.Message);                 // the variable
         Assert.Contains("Totally.Made.Up.Type", d.Message);   // and the type
     }

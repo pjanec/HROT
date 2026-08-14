@@ -201,6 +201,34 @@ public sealed class VariableCreateModal
         BlueprintTypeSystem.FixedString32 => 32,
         BlueprintTypeSystem.FixedString64 => 64,
         BlueprintTypeSystem.FixedString128 => 128,
-        _ => 0,
+        // U-8: a discovered [BlackboardDtoStruct] is now selectable, so the list budget must be able
+        // to size one. ⭐ The type was FOUND by reflection, so its size is available the same way —
+        // this is not a second source of truth, it is the same one asked a second question.
+        _ => StructByteSize(typeId),
     };
+
+    /// <summary>
+    /// U-8 — the marshalled size of a discovered <c>[BlackboardDtoStruct]</c>, or 0 when the id names
+    /// no such struct.
+    ///
+    /// <para>
+    /// ⚠ <b>Found by widening <c>SelectableTypeIds</c>, not predicted.</b> That list feeds the
+    /// <b>list-element</b> picker as well as the scalar one, and the budget line needs a byte size per
+    /// element — so adding structs to it silently produced a budget of *"≈ 4 bytes"* for every struct
+    /// list. A repo test (<c>Modal_BudgetHelper_KnowsEverySelectableUnmanagedElementSize</c>) caught it
+    /// on the same run.
+    /// </para>
+    /// </summary>
+    internal static int StructByteSize(string typeId)
+    {
+        if (string.IsNullOrEmpty(typeId)) return 0;
+        foreach (var t in Hrot.Editor.AiShared.Blackboard.BlackboardTypeChoiceBuilder
+                     .DiscoverBlackboardDtoStructTypes())
+        {
+            if (!string.Equals(t.FullName, typeId, StringComparison.Ordinal)) continue;
+            try { return System.Runtime.InteropServices.Marshal.SizeOf(t); }
+            catch { return 0; }   // non-blittable ⇒ not a valid list element; 0 hides the budget line
+        }
+        return 0;
+    }
 }

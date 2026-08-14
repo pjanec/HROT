@@ -4,8 +4,9 @@
 > **You are the *implementation* session.** A separate *coordinator* session owns the tracker and
 > writes the handoffs. Last updated **2026-08-13**.
 >
-> ✅ **Batch 46 is COMPLETE and reported.** `U-4` (three kinds, no `bool`) + `U-5` (a real count,
-> honest `Role`/`Scope`, order lists) — **`BP-230`** and **`BP-231`** closed.
+> ✅ **Batch 47 is COMPLETE and reported.** `U-7` (the type-existence rail, **`BP1671`**) + `U-8`
+> (the type-choice union) — **`BP-228`** closed and stage B′ unblocked.
+> ✅ Batch 46: `U-4` + `U-5` — **`BP-230`**, **`BP-231`** closed.
 > ✅ Batch 45: `U-3` — the variable index carries its **kind**, closing **`BP-226`**.
 > ⭐ **Golden Pass 1 has now held unchanged across `U-2`, `U-3`, `U-4` and `U-5`** — what `U-1` was for.
 > ✅ Batch 44: `U-1` (the golden-corpus harness) + `U-2` (`BP-229`). All eight gates green.
@@ -16,9 +17,9 @@
 | **Repo** | `pjanec/HROT` |
 | **Implementation branch — PUSH HERE** | ⭐ **`claude/hrot-implementation-j1jvin`** |
 | **Coordinator branch — do NOT push** | ⭐ **`claude/blueprint-authoring-status-gm0akp`** (was at `93152d7`, merged into mine) |
-| **Last handoff** | 📄 **[HANDOFF_Batch46_Third_Source_And_Honesty.md](HANDOFF_Batch46_Third_Source_And_Honesty.md)** — delivered in full |
-| **Counts** | **59 open · 110 done** — ⚠ *derive, never hand-count:* `python3 scripts/tracker-counts.py --check` |
-| **Next free ids** | rows **BP-235+** · diagnostics **BP1671+** *(Batches 44–46 allocated none)* |
+| **Last handoff** | 📄 **[HANDOFF_Batch47_Type_Existence_Rail.md](HANDOFF_Batch47_Type_Existence_Rail.md)** — delivered in full |
+| **Counts** | **58 open · 111 done** — ⚠ *derive, never hand-count:* `python3 scripts/tracker-counts.py --check` |
+| **Next free ids** | rows **BP-235+** · diagnostics **BP1672+** *(Batch 47 allocated `BP1671`)* |
 
 ⛔ **No PR unless the user explicitly asks.** There has never been one in this programme.
 ⛔ **Never put a model identifier** in a commit message, code comment, or anything else pushed.
@@ -30,14 +31,32 @@
 ```bash
 git fetch origin claude/blueprint-authoring-status-gm0akp
 git merge origin/claude/blueprint-authoring-status-gm0akp --no-edit   # rule 7
-python3 scripts/tracker-counts.py --check                              # expect 59 / 110
+python3 scripts/tracker-counts.py --check                              # expect 58 / 111
 ```
 
 Then read whatever handoff is newest on that branch. **No batch is in flight.**
 
 ---
 
-## 1 · Batch 46 — `U-4` + `U-5` (`BP-230`, `BP-231` closed)
+## 1 · Batch 47 — `U-7` + `U-8` (`BP-228` closed)
+
+| commit | |
+|---|---|
+| `8997d91` | ⭐⭐ **`BP1671` the type-existence rail · the picker's type list is now a real union** |
+
+| | |
+|---|---|
+| ⛔ **The handoff's *"the seam already exists"* is true for METHODS, not type existence** | `TryResolve` takes a type AND a method and returns one `bool` ⇒ a `false` cannot say which was missing. ➕ one member, `TypeExists`, **no default body** |
+| ⭐⭐ **No oracle ⇒ NO OPINION, and that is load-bearing** | measured: **exactly ONE production site supplies a resolver** (`BlueprintIncrementalGenerator`). Of the three `CompileOptions` sites, the editor's (`QuickReloadService`) has **no production caller** ⇒ the rail guards the **build**, where the defect bit |
+| ⭐ **`U-8` needs no editor oracle — that is the answer to the open question** | there is no editor compile path to attach one to. Instead the picker is safe **by construction**: primitives ∪ **discovered** `[BlackboardDtoStruct]` FQNs — *discovery IS the existence proof* |
+| 🔴🔴 **`BP-87`'s restored lock found a live defect immediately** | **`System.String` was OFFERED and can never compile as a variable** (`BP1503`). Removed; `FixedString32/64/128` were always the supported ones |
+| ⚠ **`SelectableTypeIds` is now `Lazy`, not a static initializer** | it reflects over **loaded** assemblies, so a static ctor freezes whatever was loaded at type-load time — nothing, in a test host |
+| ⚠ **The picker list is ALSO the list-ELEMENT list** | adding structs silently gave every struct list a *"≈ 4 bytes"* budget. `ElementByteSize` now sizes a discovered struct via `Marshal.SizeOf`. **A repo test caught it the same run** |
+| 📌 **`BP1671` needed `[CoversDiagnosticCode]`** | the repo's own coverage rail refused a new code with no test naming it |
+
+---
+
+## 2 · Batch 46 — `U-4` + `U-5` (`BP-230`, `BP-231` closed)
 
 | commit | |
 |---|---|
@@ -61,7 +80,7 @@ through its consumers is a contract change nobody is watching.*
 
 ---
 
-## 2 · Batch 45 — `U-3`, the kind-carrying index (`BP-226` closed)
+## 3 · Batch 45 — `U-3`, the kind-carrying index (`BP-226` closed)
 
 | commit | |
 |---|---|
@@ -85,7 +104,7 @@ through its consumers is a contract change nobody is watching.*
 
 ---
 
-## 3 · Batch 44 — the `U-` sequence opened
+## 4 · Batch 44 — the `U-` sequence opened
 
 | commit | |
 |---|---|
@@ -111,7 +130,7 @@ through its consumers is a contract change nobody is watching.*
 
 ---
 
-## 4 · What Batches 41–43 shipped — `BP-57` end to end
+## 5 · What Batches 41–43 shipped — `BP-57` end to end
 
 | commit | |
 |---|---|
@@ -136,7 +155,7 @@ through its consumers is a contract change nobody is watching.*
 
 ---
 
-## 5 · Where the code is
+## 6 · Where the code is
 
 | file | |
 |---|---|
@@ -154,14 +173,14 @@ through its consumers is a contract change nobody is watching.*
 
 ---
 
-## 6 · Gates
+## 7 · Gates
 
 The eight, solution **`IOS-IG-SimHost.sln`** (⚠ **not** `Hrot.sln`).
 ⚠⚠ **The two NodeEdit gates take NO `--no-build`** — they silently do not run with it.
 
-**Post-Batch-46, all eight run** *(build was a full `-t:Rebuild`, so 69 is honest)*: build **0 errors /
-69 warnings** · Blueprints **3465 total / 3455 passed / 0 failed / 10 skipped** · ⚠ **AiShared 1216** *(moved by
-design this batch — `U-5` changed the shared interface)* · BTree **612** · Breakpoints **130** · Generators **193** · NodeEdit Core **208** · UI **131**.
+**Post-Batch-47, all eight run** *(full `-t:Rebuild`, so 69 is honest — an incremental build reports
+24)*: build **0 errors / 69 warnings** · Blueprints **3474 total / 3464 passed / 0 failed / 10 skipped** ·
+**AiShared 1216** · BTree **612** · Breakpoints **130** · Generators **193** · NodeEdit Core **208** · UI **131**.
 
 ### ⭐ Run the five `--no-build` suites in PARALLEL
 
@@ -183,11 +202,11 @@ are exactly what a headless test can pass while the panel draws nothing. **Say s
 
 ---
 
-## 7 · Open findings that are mine
+## 8 · Open findings that are mine
 
 | | |
 |---|---|
-| **BP-228** 🔴 | struct type ids are **unvalidated pass-through** — `Totally.Made.Up.Type` compiles clean. Blocks `U-8` |
+| ~~**BP-228**~~ ✅ | ✅ **CLOSED Batch 47 as `U-7`** |
 | ~~**BP-229**~~ ✅ | ✅ **CLOSED Batch 44 as `U-2`** — `Compile` now owns the graphs it rewrites |
 | ~~**BP-230**~~ ✅ | ✅ **CLOSED Batch 46 as `U-5`** |
 | ~~**BP-231**~~ ✅ | ✅ **CLOSED Batch 46 as `U-5`** |
@@ -204,7 +223,7 @@ will find it. ⚠ Reported rather than changed, per the handoff's instruction.
 
 ---
 
-## 8 · ⚠ Process lessons — paid for, do not re-learn
+## 9 · ⚠ Process lessons — paid for, do not re-learn
 
 | | |
 |---|---|
@@ -218,11 +237,11 @@ will find it. ⚠ Reported rather than changed, per the handoff's instruction.
 
 ---
 
-## 9 · The wider programme
+## 10 · The wider programme
 
 ⏭ **The unification is under way** — 📄 [PLAN_Variable_Unification_Tasks.md](PLAN_Variable_Unification_Tasks.md),
 reviewed by 📄 [REVIEW_Unification_Plan.md](REVIEW_Unification_Plan.md) (**run it, with five named changes**).
-✅ **`U-1`, `U-2` (44), `U-3` (45), `U-4` + `U-5` (46) are done.** ⏭ **`U-6` is next — and it is the
+✅ **`U-1`, `U-2` (44), `U-3` (45), `U-4`/`U-5` (46), `U-7`/`U-8` (47) are done.** ⏭ **`U-6` is next — and it is the
 first task that is NOT headless-provable**: that the Details table renders, and renders read-only, needs
 the visual check that has not run for twelve batches. ⭐ `U-3` declared no golden change and
 **delivered none** — the harness checked it rather than anyone hoping. 
