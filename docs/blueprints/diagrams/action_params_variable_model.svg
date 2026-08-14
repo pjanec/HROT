@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" width="1200" height="900" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <rect width="1200" height="900" fill="#ffffff"/>
+
+  <text x="20" y="30" font-size="19" font-weight="700" fill="#1a1a1a">Action parameters and asset variables — one model, three questions</text>
+  <text x="20" y="52" font-size="13" fill="#666">The action does not own its params. The VARIABLE is the storage; the action's DTO is a lens onto it.</text>
+
+  <!-- ================= BAND 1: AUTHORED ================= -->
+  <rect x="20" y="70" width="1160" height="176" rx="8" fill="#f5f8fd" stroke="#2471a3" stroke-width="2"/>
+  <text x="38" y="94" font-size="15" font-weight="700" fill="#2471a3">1 · AUTHORED — the asset declares variables</text>
+  <text x="38" y="113" font-size="12" fill="#555">Each variable has a <tspan font-weight="700">Role</tspan> and, when Role = State, a <tspan font-weight="700">Scope</tspan>. Those two answer "where does it live" and "who shares it".</text>
+
+  <rect x="38" y="126" width="250" height="104" rx="5" fill="#ffffff" stroke="#2471a3"/>
+  <text x="50" y="146" font-size="12" font-weight="700" fill="#2471a3">MoveToParams  · Role = Input</text>
+  <text x="50" y="166" font-size="11.5" font-family="Consolas, monospace" fill="#444">Destination : Vector3</text>
+  <text x="50" y="183" font-size="11.5" font-family="Consolas, monospace" fill="#444">Speed       : float</text>
+  <text x="50" y="205" font-size="11" fill="#777">DefaultValueJson → applied once at</text>
+  <text x="50" y="221" font-size="11" fill="#777">behaviour assignment (ParseParams)</text>
+
+  <rect x="304" y="126" width="250" height="104" rx="5" fill="#ffffff" stroke="#7d3c98"/>
+  <text x="316" y="146" font-size="12" font-weight="700" fill="#7d3c98">CursorState · Role = State</text>
+  <text x="316" y="166" font-size="11.5" font-family="Consolas, monospace" fill="#444">Index   : int</text>
+  <text x="316" y="183" font-size="11.5" font-family="Consolas, monospace" fill="#444">Elapsed : float</text>
+  <text x="316" y="205" font-size="11" font-weight="700" fill="#7d3c98">Scope = Node | Behavior | Entity</text>
+  <text x="316" y="221" font-size="11" fill="#777">no default — provisioned, then owned</text>
+
+  <rect x="580" y="126" width="600" height="104" rx="5" fill="#fdf9ec" stroke="#b7950b"/>
+  <text x="592" y="146" font-size="12" font-weight="700" fill="#7d6608">⭐ Role answers ONE question, Scope answers a DIFFERENT one</text>
+  <text x="592" y="168" font-size="12" fill="#444"><tspan font-weight="700">Role</tspan>  → <tspan font-weight="700">which tier</tspan> the bytes live in. Input → the 100-byte inline region. State → the partition tier.</text>
+  <text x="592" y="190" font-size="12" fill="#444"><tspan font-weight="700">Scope</tspan> → <tspan font-weight="700">who else sees the same bytes</tspan>. It is meaningless for Input, because Input is per-behaviour by construction.</text>
+  <text x="592" y="215" font-size="11.5" fill="#777">This is why they are two fields and not one enum — they are orthogonal, not a hierarchy.</text>
+
+  <!-- ================= BAND 2: BOUND ================= -->
+  <rect x="20" y="262" width="1160" height="222" rx="8" fill="#f2f8f4" stroke="#1e8449" stroke-width="2"/>
+  <text x="38" y="286" font-size="15" font-weight="700" fill="#1e8449">2 · BOUND — a call site picks variables. It does not declare them.</text>
+  <text x="38" y="305" font-size="12" fill="#555">A BTree node, or an HSM state-slot, names <tspan font-weight="700">up to two</tspan> variables. Whole-variable binding only — never a field of one.</text>
+
+  <rect x="38" y="318" width="330" height="150" rx="5" fill="#ffffff" stroke="#1e8449"/>
+  <text x="50" y="338" font-size="12.5" font-weight="700" fill="#1e8449">BTree — today</text>
+  <text x="50" y="360" font-size="11.5" font-family="Consolas, monospace" fill="#444">ExpressionTargetField</text>
+  <text x="62" y="377" font-size="11" fill="#777">→ the Input variable (params)</text>
+  <text x="50" y="399" font-size="11.5" font-family="Consolas, monospace" fill="#444">WorkingStateTargetField</text>
+  <text x="62" y="416" font-size="11" fill="#777">→ the State variable (working state)</text>
+  <text x="50" y="440" font-size="11" fill="#555">Both optional. When only one is set it</text>
+  <text x="50" y="456" font-size="11" fill="#555">serves both roles (the legacy shape).</text>
+
+  <rect x="384" y="318" width="330" height="150" rx="5" fill="#ffffff" stroke="#c0392b" stroke-dasharray="4 3"/>
+  <text x="396" y="338" font-size="12.5" font-weight="700" fill="#c0392b">HSM — the gap</text>
+  <text x="396" y="360" font-size="11.5" fill="#444">A state has <tspan font-weight="700">FOUR</tspan> call sites:</text>
+  <text x="408" y="379" font-size="11.5" font-family="Consolas, monospace" fill="#444">OnEntry · OnExit · Activity · Timer</text>
+  <text x="396" y="400" font-size="11.5" fill="#444">a transition has <tspan font-weight="700">TWO</tspan>: guard · effect</text>
+  <text x="396" y="424" font-size="11.5" font-weight="700" fill="#c0392b">⛔ StateNode has NO target field.</text>
+  <text x="396" y="442" font-size="11" fill="#777">It stores four action-name strings and</text>
+  <text x="396" y="458" font-size="11" fill="#777">nothing to bind them to. (DEBT-BF-04)</text>
+
+  <rect x="730" y="318" width="450" height="150" rx="5" fill="#eef7f1" stroke="#1e8449"/>
+  <text x="742" y="338" font-size="12.5" font-weight="700" fill="#1e8449">⭐ What unification means, concretely</text>
+  <text x="742" y="360" font-size="12" fill="#444">The carrier stops being "a field on a node" and becomes</text>
+  <text x="742" y="378" font-size="12" fill="#444">a <tspan font-weight="700">binding keyed by a call site</tspan>:</text>
+  <text x="742" y="402" font-size="11.5" font-family="Consolas, monospace" fill="#1e8449">BTree :  (AssetId, NodeVisualId)</text>
+  <text x="742" y="421" font-size="11.5" font-family="Consolas, monospace" fill="#1e8449">HSM   :  (AssetId, StableId, SlotKind)</text>
+  <text x="742" y="446" font-size="11.5" fill="#555">⭐ Same tuple, one term wider. Everything downstream</text>
+  <text x="742" y="462" font-size="11.5" fill="#555">— offsets, keys, thunks, scope — is unchanged.</text>
+
+  <!-- ================= BAND 3: RUNTIME ================= -->
+  <rect x="20" y="500" width="1160" height="232" rx="8" fill="#faf5fb" stroke="#6c3483" stroke-width="2"/>
+  <text x="38" y="524" font-size="15" font-weight="700" fill="#6c3483">3 · RUNTIME — two tiers, and the Role picked which</text>
+
+  <!-- inline tier -->
+  <rect x="38" y="538" width="540" height="180" rx="5" fill="#ffffff" stroke="#2471a3"/>
+  <text x="50" y="558" font-size="12.5" font-weight="700" fill="#2471a3">Role = Input → BrainBlackboard.BehaviorParameters</text>
+  <text x="50" y="576" font-size="11" fill="#777">fixed byte[100], bin-packed in declaration order</text>
+
+  <rect x="50" y="588" width="80" height="34" fill="#d6eaf8" stroke="#2471a3"/>
+  <text x="90" y="609" font-size="11" text-anchor="middle" fill="#1a5276">Speed</text>
+  <rect x="130" y="588" width="150" height="34" fill="#aed6f1" stroke="#2471a3"/>
+  <text x="205" y="609" font-size="11" text-anchor="middle" fill="#1a5276">Destination</text>
+  <rect x="280" y="588" width="228" height="34" fill="#f4f6f7" stroke="#aaa" stroke-dasharray="3 2"/>
+  <text x="394" y="609" font-size="11" text-anchor="middle" fill="#888">…free…</text>
+  <text x="50" y="638" font-size="10.5" fill="#777">0</text>
+  <text x="126" y="638" font-size="10.5" fill="#777">4</text>
+  <text x="276" y="638" font-size="10.5" fill="#777">16</text>
+  <text x="498" y="638" font-size="10.5" fill="#777">100</text>
+
+  <text x="50" y="664" font-size="11.5" fill="#444">The action's DTO is <tspan font-weight="700">Unsafe.As</tspan> over the slice at the packed offset.</text>
+  <text x="50" y="682" font-size="11.5" font-weight="700" fill="#2471a3">⇒ a write through the ref IS a write to the variable. No copy-back step.</text>
+  <text x="50" y="704" font-size="11.5" fill="#555">Two nodes binding the same variable get the same offset ⇒ true zero-copy sharing.</text>
+
+  <!-- partition tier -->
+  <rect x="594" y="538" width="586" height="180" rx="5" fill="#ffffff" stroke="#7d3c98"/>
+  <text x="606" y="558" font-size="12.5" font-weight="700" fill="#7d3c98">Role = State → the partitioned working-state tier</text>
+  <text x="606" y="576" font-size="11" fill="#777">Blackboard1024+; slots provisioned at behaviour assignment, detached on switch</text>
+
+  <text x="606" y="600" font-size="12" font-weight="700" fill="#6c3483">⭐ Scope decides the slot key — i.e. who shares the bytes</text>
+
+  <rect x="606" y="610" width="560" height="26" fill="#f4ecf7" stroke="#7d3c98"/>
+  <text x="616" y="628" font-size="11" fill="#4a235a"><tspan font-weight="700">Node</tspan>     FNV(assetId ++ nodeVisualId)      → private to this call site</text>
+  <rect x="606" y="638" width="560" height="26" fill="#f4ecf7" stroke="#7d3c98"/>
+  <text x="616" y="656" font-size="11" fill="#4a235a"><tspan font-weight="700">Behavior</tspan> FNV(assetId ++ variableId)        → every node in the asset that binds it</text>
+  <rect x="606" y="666" width="560" height="26" fill="#f4ecf7" stroke="#7d3c98"/>
+  <text x="616" y="684" font-size="11" fill="#4a235a"><tspan font-weight="700">Entity</tspan>   FNV(variableId)                   → survives a behaviour switch</text>
+
+  <text x="606" y="710" font-size="11.5" fill="#555">⭐ Sharing is not a flag. It is <tspan font-weight="700">what the key omits</tspan> — drop the node, share across nodes.</text>
+
+  <!-- ================= BAND 4: the key ================= -->
+  <rect x="20" y="748" width="1160" height="134" rx="8" fill="#fffbea" stroke="#b7950b" stroke-width="2"/>
+  <text x="38" y="772" font-size="14" font-weight="700" fill="#7d6608">The registry key ties all three bands together — and it is the thing HSM must reach</text>
+
+  <text x="38" y="800" font-size="13" font-family="Consolas, monospace" fill="#7d6608">"{MethodFqn}@{paramOffset}@{slotKey}"</text>
+  <text x="400" y="800" font-size="12" fill="#444">↑ band 1 chose the offset · band 2 chose the call site · band 3's scope chose the slotKey</text>
+
+  <text x="38" y="828" font-size="12" fill="#444">⭐ The generator emits <tspan font-weight="700">one thunk per distinct key</tspan>, with the offset and slot key baked in as constants. The kernel never</text>
+  <text x="38" y="847" font-size="12" fill="#444">computes an offset — it looks up a key. That is why the same mechanism serves BTree and HSM: <tspan font-weight="700">only the key's middle term differs.</tspan></text>
+  <text x="38" y="871" font-size="12" fill="#c0392b"><tspan font-weight="700">⛔ HSM's gap is exactly this:</tspan> its thunks are emitted from source attributes, so the editor cannot request a key that no attribute already declared.</text>
+</svg>
