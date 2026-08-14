@@ -4,6 +4,12 @@
 > ⭐⭐ **Batch 43 verified and merged at `3583acd4` (§7p) — `BP-57` is CLOSED.** The Local Variables
 > section landed; a designer can declare, rename, delete, duplicate and undo a graph local from the
 > editor, and it follows the canvas.
+> ⭐⭐ **Batch 45 verified and merged at `74526bf0` (§7r) — `BP-226` is CLOSED.** `VariableRef(kind,
+> index)` travels Stage 5 → IR → Stage 7; `VarFieldName(int)` **no longer exists**, so the wrong call is
+> unwritable. ⭐ **Golden 42/42 both tiers with no regeneration** ⇒ behaviour-preserving, measured.
+> ⚠ **A coordinator finding was REFUTED and correctly** — the index was always list-relative; my
+> "rebase it" would have broken every shipped AiPrimitive. ⏭ **Batch 46 dispatched (`U-4` + `U-5`).**
+>
 > ⭐⭐ **Batch 44 verified and merged at `ba337568` (§7q) — THE GOLDEN NET IS BUILT AND IT BITES.**
 > 42 assets × two tiers, three proof-it-bites tests one per tier, and ⭐ **the in-process vs
 > semantic-model resolver parity question is ANSWERED: 42/42 byte-identical.** ⭐ **`BP-229` closed.**
@@ -165,13 +171,13 @@ report"* rather than *"the gate did not run."* Trap #5, in the gate script itsel
 **3m40s → 2m05s**. ⚠ **And always include `\[FAIL\]` in the result grep**: a `Passed!`/`Failed!`-only
 grep is why Batch 42's flake could not be named.
 
-**Baseline at `ba337568` — ⭐ all eight gates coordinator-RUN 2026-08-13, post-Batch-44:**
+**Baseline at `74526bf0` — ⭐ all eight gates coordinator-RUN 2026-08-14, post-Batch-45:**
 
 | | |
 |---|---|
 | Solution build | **0 errors**, **69 warnings** ⚠ *(an incremental build under-reports — record honestly)* |
 | BP diagnostics | **10 distinct** — all `BP3010`, all **authored** orphans in 2 assets |
-| Blueprints | **3448 total / 3438 passed / 0 failed / 10 skipped** ⚠ *(BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
+| Blueprints | **3451 total / 3441 passed / 0 failed / 10 skipped** ⚠ *(BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
 | ⭐⭐ **Golden corpus** *(new, Batch 44)* | **42 assets × Tier 1 + Tier 2**, `Snapshots/Golden/`. ⛔ **Tier 1 moving is a FAILURE, not a rebase.** Regenerate Tier 2 with `BLUEPRINT_REGENERATE_SNAPSHOTS=1` and **review the diff** |
 | AiShared **1213** · BTree **612** · Breakpoints **130** | 0 failed |
 | NodeEdit Core **208** · UI **131** · Generators **193** | 0 failed |
@@ -194,7 +200,7 @@ retired `BP3011`; the 10 that remain are authored and deliberate.)
 
 ## 4 · Where the programme stands
 
-**Tracker: open 62 · done 107** (+1 refuted) ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
+**Tracker: open 61 · done 108** (+1 refuted) ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
 three ways — checkbox tally, per-complexity columns (⚠ take the **first** tag on a row), and the total
 row. ⚠⚠ **Reconcile all three EVERY time.** The columns can agree with the Total and both still be
 wrong: a missed tick is invisible to arithmetic and only shows against the checkbox tally.
@@ -388,6 +394,77 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > asset has both lists populated, so the corpus cannot depend on the broken behaviour ⚠ **and therefore
 > "golden unchanged" alone would also pass a refactor that fixed nothing.** ⇒ ⭐ **Pass 2 and Pass 3
 > must be asserted RED before the change.**
+
+> ⏭ **Batch 46 dispatched — [`U-4` + `U-5`: the editor's turn at the same defect](HANDOFF_Batch46_Third_Source_And_Honesty.md).**
+> ⭐⭐ **`U-3` killed an untagged `int` in the compiler; `U-4` kills a two-valued `bool` over the same
+> three-list model in the editor** — `BlueprintVariableSchemaSource(asset, bool isParams, …)`, with ten
+> branches riding it and ⛔ **`Variables` not representable at all.**
+> ⭐ **`U-5`'s `BP-230` is trap #5 built into an INTERFACE:** `UpdateVariableRole`/`UpdateVariableScope`
+> have **default bodies `{ }`** ⇒ a source that never implements them compiles silently and does
+> nothing. ⭐ **`Q-k` already ruled the semantics — read-only, a move not a toggle** — so "honest" means
+> the surface must **say so**, not implement a setter.
+> ⚠ **This is the one batch since 38 that SHOULD move the AiShared gate (1213).**
+
+## 7r · Batch 45 — ✅ VERIFIED AND MERGED at `74526bf0` — ⭐⭐ **`BP-226` CLOSED, and my finding was REFUTED**
+
+**Gates — all eight, coordinator-run on the merged tree** *(NodeEdit measured, not inferred, this time)*:
+
+| | |
+|---|---|
+| Solution build | **0 errors** · BP diagnostics **10 distinct**, all `BP3010` — ⛔ **unmoved** *(`-t:Rebuild`, `sort -u`)* |
+| Blueprints | **3451 total / 3441 passed / 0 failed / 10 skipped** (**+3**) |
+| ⭐ **AiShared 1213** · BTree **612** · Breakpoints **130** · Generators **193** | unmoved |
+| NodeEdit Core **208** · UI **131** | unmoved |
+| `tracker-counts.py --check` | **clean — fourteen batches.** open **61** / done **108** ⇒ ⭐ **`BP-226` moved across** |
+| ⭐⭐ **Golden: 42/42, BOTH tiers, no regeneration** | ⇒ **the refactor is behaviour-preserving for every shipped asset, and that is now a measurement rather than a hope** |
+
+✅ **Rule 7 verified mechanically:** their first commit's parent **is** the dispatch commit `fdd2e90b9`.
+
+### 🔴🔴 My §1 finding was WRONG, and they were right to refuse it
+
+⛔ **I claimed `VarFieldName`'s `WorkingState` arm "never rebases the index" and should read
+`ws[index - fields.Count]`.** ⭐⭐ **False — and building it would have introduced a defect in the one
+case that worked.**
+
+⭐ **The mechanic, from the code I quoted myself:** `FindVariableIndex` returns `i` from **inside**
+whichever loop matched ⇒ **the index is LIST-RELATIVE, never combined.** ⇒ `ws[index]` is correct for a
+WorkingState-sourced index; subtracting would have broken **every shipped AiPrimitive**, where
+`Variables` is empty. ⛔ **The bug was only ever "which list", never "which offset."**
+
+📐 **I imposed a combined-index model the producer never used.** ⭐ **They named the likely source:**
+`FindParameterIndex`'s doc comment describes `FindVariableIndex` as returning *"a **COMBINED**
+index"* — ⚠ **a wrong comment that misled a reader within one batch of being written down.**
+
+### 📌⚠ The one thing still outstanding — that comment is NOT gone
+
+⛔ **Their commit says the comment *"is gone with the method."* It is not.**
+✅ **Coordinator-verified on the merged tree: `Stage5_Schedule.cs:4619` still says it**, because
+`FindParameterIndex` **survives** (`IrOp_ReadParam` still needs it) — only `FindVariableIndex`'s
+**shape** changed. ⇒ ⚠ **the comment is now doubly wrong**: the combined-index claim was always false,
+and the return type it describes no longer exists.
+⇒ 📌 **Carried into Batch 46 as a one-line nit.** ⭐ **It is the single highest-value comment in the
+file to fix — it has a demonstrated victim.**
+
+### ⭐ Three decisions they made that the handoff did not ask for
+
+| | |
+|---|---|
+| ⭐⭐ **`VariableKind.Unresolved = 0`, deliberately the default** | ⇒ a zero-initialised `VariableRef` means *"nobody set this"* **and throws.** ⛔ **Had `Variable` been 0, a forgotten assignment would have silently meant `Variables[0]`** — the exact defect class the task exists to remove, re-created in the fix |
+| ⭐ **The emitter now picks the CONTAINER, not just the field** | forced by carrying the kind: **a `Parameter` lives on a different struct**, and the bare `int` could not say so |
+| ⭐ **Out-of-range now THROWS** | the old `__var_{index}` fall-through is gone: ⭐ **with the kind carried there is no legitimate way to reach it**, so silence would only hide a Stage 5 / declaration-list disagreement until Roslyn named a generated file |
+
+✅ **`VarFieldName(int)` no longer exists** ⇒ ⭐ **the wrong call is UNWRITABLE, not merely unwritten** —
+which is what the handoff asked for and is the difference between a fix and a patch.
+✅ **`BP1670`'s assertion survives, restated** from *"index < 0"* to *"no kind resolved"*.
+
+### ⭐⭐ And they caught their own vacuous test — which is exactly why §3 asked for red-first
+
+⛔ **The first draft of the new tests PASSED before the fix** — an `Event`-graph fixture is eliminated
+whole, so `TickCore` emits an **empty body** and the assertions had nothing to be wrong about.
+⇒ ⭐ **A test that cannot fail is `BP-230`'s shape in test form.** ⚠ **Only running it red-first found
+it.** *(Batch 44 found two defects the same way. Third batch running.)*
+
+---
 
 ## 7q · Batch 44 — ✅ VERIFIED AND MERGED at `ba337568` — ⭐⭐ **THE NET IS BUILT, AND IT BITES**
 
