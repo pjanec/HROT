@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
   "Header": {},
   "AssetId": "c4f1a2b6-9d3e-4a70-8f21-6b5e0a7c2d94",
@@ -15,10 +15,9 @@
       "BTreeCondition"
     ]
   },
-  "Parameters": [],
-  "ParameterOrder": null,
-  "WorkingState": [
+  "Declarations": [
     {
+      "Kind": "WorkingState",
       "Id": "a1100000-0000-0000-0000-000000000001",
       "Name": "AllAtBaseline",
       "Type": {
@@ -34,8 +33,8 @@
       "Comment": null
     }
   ],
+  "ParameterOrder": null,
   "WorkingStateOrder": null,
-  "Variables": [],
   "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],

@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
   "Header": {},
   "AssetId": "8ded9090-035c-59aa-8e2c-cc6c9ca9a130",
@@ -15,10 +15,9 @@
       "BTreeAction"
     ]
   },
-  "Parameters": [],
-  "ParameterOrder": null,
-  "WorkingState": [
+  "Declarations": [
     {
+      "Kind": "WorkingState",
       "Id": "3fa5d964-4adf-54cc-9e9b-be8bf76c6320",
       "Name": "CachedEqsRequestId",
       "Type": {
@@ -34,6 +33,7 @@
       "Comment": null
     },
     {
+      "Kind": "WorkingState",
       "Id": "12b12e8f-7c42-58a2-a1f5-af83678b9680",
       "Name": "CachedTargetGroupHandle",
       "Type": {
@@ -49,6 +49,7 @@
       "Comment": null
     },
     {
+      "Kind": "WorkingState",
       "Id": "68f68618-a063-5c37-83e6-b450af9f9227",
       "Name": "EqsRequestTime",
       "Type": {
@@ -64,8 +65,8 @@
       "Comment": null
     }
   ],
+  "ParameterOrder": null,
   "WorkingStateOrder": null,
-  "Variables": [],
   "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],

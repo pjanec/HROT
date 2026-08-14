@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
   "Header": {},
   "AssetId": "8f1a2c93-4d5e-4a1b-9c3d-1e2f3a4b5c65",
@@ -15,8 +15,9 @@
       "BTreeAction"
     ]
   },
-  "Parameters": [
+  "Declarations": [
     {
+      "Kind": "Parameter",
       "Id": "4fc24425-b17e-44b5-a632-9565209e5256",
       "Name": "StartX",
       "Type": {
@@ -29,6 +30,7 @@
       "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "d66fa53e-23e8-4be2-92f3-1a9e71e89980",
       "Name": "StartY",
       "Type": {
@@ -41,6 +43,7 @@
       "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "2d64f749-9590-435e-8276-0a21dbccc682",
       "Name": "EndX",
       "Type": {
@@ -53,6 +56,7 @@
       "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "d9b2b6da-100f-43f5-9890-6fe345afa7e5",
       "Name": "EndY",
       "Type": {
@@ -65,6 +69,7 @@
       "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "1425efdb-2729-4c2a-a18d-f4515926183d",
       "Name": "BaselineStartX",
       "Type": {
@@ -77,6 +82,7 @@
       "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "f1696682-e63d-4648-b655-ca7627a94dc5",
       "Name": "BaselineStartY",
       "Type": {
@@ -89,6 +95,7 @@
       "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "89b97e14-a487-45d4-b9cb-24aab291bf4e",
       "Name": "BaselineEndX",
       "Type": {
@@ -101,6 +108,7 @@
       "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "19cedfd4-94e0-4f9e-9622-870d444f9f2a",
       "Name": "BaselineEndY",
       "Type": {
@@ -113,6 +121,7 @@
       "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "a051c08d-06ca-4862-a147-f56f26336cb1",
       "Name": "AttackDirX",
       "Type": {
@@ -125,6 +134,7 @@
       "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "fb0753c0-d9b5-4409-94a5-07e93fd31eac",
       "Name": "AttackDirY",
       "Type": {
@@ -138,9 +148,7 @@
     }
   ],
   "ParameterOrder": null,
-  "WorkingState": [],
   "WorkingStateOrder": null,
-  "Variables": [],
   "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],

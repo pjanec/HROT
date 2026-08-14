@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
   "Header": {},
   "AssetId": "d06f6a14-3e77-4473-962f-36a5d10dc316",
@@ -15,11 +15,9 @@
       "BTreeAction"
     ]
   },
-  "Parameters": [],
+  "Declarations": [],
   "ParameterOrder": null,
-  "WorkingState": [],
   "WorkingStateOrder": null,
-  "Variables": [],
   "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],

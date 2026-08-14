@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
   "Header": {},
   "AssetId": "7d4f2c81-3e9a-4b56-9c0d-1a2b3c4d5ea1",
@@ -15,8 +15,9 @@
       "BTreeAction"
     ]
   },
-  "Parameters": [
+  "Declarations": [
     {
+      "Kind": "Parameter",
       "Id": "d7e55a84-723f-4037-b132-4f437a1320ff",
       "Name": "StartX",
       "Type": {
@@ -29,6 +30,7 @@
       "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "7281bfdc-f823-41a1-91e1-e617cd0a2e90",
       "Name": "StartY",
       "Type": {
@@ -41,6 +43,7 @@
       "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "2ae1da69-6d27-462a-8c8d-38246945d5a0",
       "Name": "EndX",
       "Type": {
@@ -53,6 +56,7 @@
       "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "871a8b73-0f40-4152-9100-32f345f0b1cb",
       "Name": "EndY",
       "Type": {
@@ -65,6 +69,7 @@
       "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "ffe5647a-84b7-4529-8820-f70a7d74d979",
       "Name": "TankSpacing",
       "Type": {
@@ -78,9 +83,7 @@
     }
   ],
   "ParameterOrder": null,
-  "WorkingState": [],
   "WorkingStateOrder": null,
-  "Variables": [],
   "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],

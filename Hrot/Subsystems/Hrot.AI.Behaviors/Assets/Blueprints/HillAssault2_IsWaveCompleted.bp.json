@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
   "Header": {},
   "AssetId": "1f8c294f-768b-4348-9916-3bb110c92bb9",
@@ -15,10 +15,9 @@
       "BTreeAction"
     ]
   },
-  "Parameters": [],
-  "ParameterOrder": null,
-  "WorkingState": [
+  "Declarations": [
     {
+      "Kind": "WorkingState",
       "Id": "aa3c68bb-e1cc-4a82-9896-08aa86175adb",
       "Name": "Wave",
       "Type": {
@@ -34,8 +33,8 @@
       "Comment": null
     }
   ],
+  "ParameterOrder": null,
   "WorkingStateOrder": null,
-  "Variables": [],
   "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],

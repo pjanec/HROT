@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
   "Header": {},
   "AssetId": "8f1a2c93-4d5e-4a1b-9c3d-1e2f3a4b5c62",
@@ -15,8 +15,9 @@
       "BTreeAction"
     ]
   },
-  "Parameters": [
+  "Declarations": [
     {
+      "Kind": "Parameter",
       "Id": "ac6ab462-b028-5cfa-9d41-96fa37aa1bd5",
       "Name": "TargetAreaEntity",
       "Type": {
@@ -30,9 +31,7 @@
     }
   ],
   "ParameterOrder": null,
-  "WorkingState": [],
   "WorkingStateOrder": null,
-  "Variables": [],
   "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],

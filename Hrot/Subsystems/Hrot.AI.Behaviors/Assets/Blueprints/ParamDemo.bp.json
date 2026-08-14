@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
   "Header": {},
   "AssetId": "00000000-aaaa-0002-0000-0000000000d0",
@@ -15,8 +15,9 @@
       "BTreeAction"
     ]
   },
-  "Parameters": [
+  "Declarations": [
     {
+      "Kind": "Parameter",
       "Id": "d0000001-0001-0001-0001-000000000001",
       "Name": "Threshold",
       "Type": {
@@ -29,6 +30,7 @@
       "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "d0000002-0002-0002-0002-000000000002",
       "Name": "FlagA",
       "Type": {
@@ -41,6 +43,7 @@
       "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "d0000003-0003-0003-0003-000000000003",
       "Name": "FlagB",
       "Type": {
@@ -54,9 +57,7 @@
     }
   ],
   "ParameterOrder": null,
-  "WorkingState": [],
   "WorkingStateOrder": null,
-  "Variables": [],
   "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],

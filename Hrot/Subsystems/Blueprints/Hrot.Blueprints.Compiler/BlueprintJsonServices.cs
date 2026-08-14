@@ -63,15 +63,37 @@ public static class BlueprintJsonServices
     /// </summary>
     public static string Serialize(BlueprintAsset asset)
     {
+        // ⭐⭐ U-10 step 3 — the canonical on-disk form is v2: one tagged `Declarations` array in place
+        // of the three lists, which is the shape the model has actually had since U-12's store flip.
+        //
+        // ⚠ The model still serializes as v1 — `Parameters`/`WorkingState`/`Variables` are the
+        // serializer-facing windows onto the store — so the v1 DOM below is produced first and lifted.
+        // ⭐ That is deliberate rather than lazy: `Up` is the transform the migration registry runs, so
+        // the writer and `--mode migrate` cannot disagree about what v2 means.
+        //
+        // ⭐ `Up` requires CANONICAL v1 (all three lists present, as arrays, in model order, no
+        // declaration carrying its own `Kind`). A DOM straight from the serializer is canonical by
+        // construction, which is why this is safe here and refuses elsewhere.
+        var v1  = JsonSerializer.SerializeToNode(asset, _options)!.AsObject();
+        var dom = BlueprintSchemaV2.Up(v1);
+
 #if NET8_0_OR_GREATER
-        // Serialize the asset to a DOM, then stamp $meta as the first property.
-        var dom = JsonSerializer.SerializeToNode(asset, _options)!.AsObject();
-        JsonEnvelope.Write(dom, new DocumentMeta(HrotDocumentTypes.Blueprint, 1));
+        // Stamp $meta LAST so it lands first in the document. ⛔ The version must equal
+        // BlueprintMigrationModule.CurrentVersion — a disk version AHEAD of the registry reaches
+        // PersistentMigrationAdapter's Case D, which throws. V2ReaderTests pins the two together.
+        JsonEnvelope.Write(dom, new DocumentMeta(HrotDocumentTypes.Blueprint, BlueprintSchemaV2.V2));
         return dom.ToJsonString(_domWriteOptions);
 #else
-        return JsonSerializer.Serialize(asset, _options);
+        // 📌 The netstandard2.0 branch still writes no envelope (see the tracker). ⚠ It now writes the
+        // v2 BODY without the v2 stamp — but nothing on this target writes assets; the generator only
+        // reads. Kept in step with the net8 branch so the two shapes cannot diverge further.
+        return dom.ToJsonString(_ns20WriteOptions);
 #endif
     }
+
+#if !NET8_0_OR_GREATER
+    private static readonly JsonSerializerOptions _ns20WriteOptions = new() { WriteIndented = true };
+#endif
 
 #if NET8_0_OR_GREATER
     /// <summary>⚠ <c>JsonNode.ToJsonString</c> reads formatting from ITS options, not the ones the DOM was built with.</summary>

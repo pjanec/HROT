@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
   "Header": {},
   "AssetId": "683ec005-3013-4f22-9b2a-98c0a942080e",
@@ -15,8 +15,9 @@
       "BTreeAction"
     ]
   },
-  "Parameters": [
+  "Declarations": [
     {
+      "Kind": "Parameter",
       "Id": "93428fb0-b4af-4c79-8270-f3578e925a66",
       "Name": "BaselineX",
       "Type": {
@@ -29,6 +30,7 @@
       "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "c64e7b26-4b01-426c-9021-df66cedd65cd",
       "Name": "BaselineY",
       "Type": {
@@ -42,9 +44,7 @@
     }
   ],
   "ParameterOrder": null,
-  "WorkingState": [],
   "WorkingStateOrder": null,
-  "Variables": [],
   "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],

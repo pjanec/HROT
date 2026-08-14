@@ -4,13 +4,14 @@ using Hrot.Blueprints.Core;
 namespace Hrot.Blueprints.Tests.Golden;
 
 /// <summary>
-/// ⭐⭐ <b><c>U-10</c> — the reader understands v2, and nothing writes it yet.</b>
+/// ⭐⭐ <b><c>U-10</c> — reader, then registry, then writer. All three have landed.</b>
 ///
 /// <para>
-/// ⭐ <b>Reader before writer is not a half-measure, it is the safe order.</b> A v2 file is unreadable
-/// by any build that predates <c>Deserialize</c>'s v2 arm, so every reader has to ship first. ⇒ this
-/// half is reversible by <c>git revert</c>; ⛔ the writer bump is not, because a migrated file stays
-/// migrated.
+/// ⭐ <b>Reader before writer was never a half-measure, it was the safe order.</b> A v2 file is
+/// unreadable by any build predating <c>Deserialize</c>'s v2 arm, so readers had to ship first
+/// (Batch 54), then a real migrator on the registry (Batch 55 step 2), then the writer (step 3).
+/// ⛔ Only the last is irreversible — a migrated file stays migrated, and the down-migrator, not
+/// <c>git revert</c>, is what undoes it for anything outside this repo.
 /// </para>
 /// </summary>
 public sealed class V2ReaderTests
@@ -31,10 +32,11 @@ public sealed class V2ReaderTests
 
         foreach (var file in Files())
         {
-            var text = File.ReadAllText(file);
-            var fromV1 = BlueprintJsonServices.Deserialize(text);
-            var fromV2 = BlueprintJsonServices.Deserialize(
-                BlueprintSchemaV2.Up(Load(file)).ToJsonString());
+            // ⭐ Since step 3 the file on disk IS v2; the v1 form is the derived one.
+            var onDisk = Load(file);
+            var fromV2 = BlueprintJsonServices.Deserialize(onDisk.ToJsonString());
+            var fromV1 = BlueprintJsonServices.Deserialize(
+                BlueprintSchemaV2.Down(onDisk).ToJsonString());
 
             if (fromV1 is null || fromV2 is null)
             {
@@ -83,21 +85,39 @@ public sealed class V2ReaderTests
     }
 
     /// <summary>
-    /// ⛔⛔ <b>Nothing writes v2 — asserted, not assumed.</b> ⭐ This is the gate that makes the batch's
-    /// stop point auditable: the moment <see cref="BlueprintJsonServices.Serialize"/> starts emitting
-    /// the v2 shape, or <c>$meta.schemaVersion</c> moves off 1, this reddens and whoever did it has to
-    /// say so. See <c>BP-235</c> for why it cannot move yet.
+    /// ⭐⭐ <b>Batch 55 step 3 — the writer now emits v2. This test is <c>TheWriterStillEmitsV1</c>,
+    /// INVERTED rather than deleted.</b>
+    ///
+    /// <para>
+    /// ⛔ <b>Deleting it would have erased the record that Batch 54's stop was deliberate.</b> That
+    /// test existed to make a *decision not to bump* auditable — it asserted `Serialize` emitted v1
+    /// and `$meta.schemaVersion` was 1, so the moment anyone flipped the writer it reddened and they
+    /// had to say so. ⭐ It duly reddened, here, on purpose. Flipping it in the same commit leaves the
+    /// history reading as a decision instead of a disappearance.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>Both halves of "v2" are asserted:</b> the tagged body <b>and</b> the stamp. A document
+    /// carrying one without the other is the inconsistency this whole sequence exists to avoid.
+    /// </para>
     /// </summary>
     [Fact]
-    public void TheWriterStillEmitsV1()
+    public void TheWriterNowEmitsV2()
     {
         var asset = BlueprintJsonServices.Deserialize(File.ReadAllText(Files().First()))!;
         var json  = BlueprintJsonServices.Serialize(asset);
         var dom   = JsonNode.Parse(json)!.AsObject();
 
-        Assert.False(BlueprintSchemaV2.IsV2(dom));
-        Assert.Equal(BlueprintSchemaV2.V1,
-            dom["$meta"]!["schemaVersion"]!.GetValue<int>());
+        Assert.True(BlueprintSchemaV2.IsV2(dom),
+            "Serialize no longer emits the v1 three-list shape, but it did not emit the v2 tagged "
+            + "array either.");
+        Assert.Equal(BlueprintSchemaV2.V2, dom["$meta"]!["schemaVersion"]!.GetValue<int>());
+
+        // ⛔ And the three v1 lists are GONE, not merely accompanied.
+        foreach (var list in new[] { "Parameters", "WorkingState", "Variables" })
+            Assert.False(dom.ContainsKey(list),
+                $"the v2 document still carries the v1 list '{list}' — every declaration would be "
+                + "written twice and read back doubled.");
     }
 
     /// <summary>
@@ -105,11 +125,10 @@ public sealed class V2ReaderTests
     /// so rather than being deleted.</b>
     ///
     /// <para>
-    /// It previously asserted the two numbers were equal at <b>1</b>. Step 2 moves
-    /// <c>BlueprintMigrationModule.CurrentVersion</c> to <b>2</b> while <see cref="Serialize"/> still
-    /// stamps 1, and that gap is <b>the ordering working</b>, not a defect: a real 1→2 migrator has to
-    /// be registered <i>before</i> anything writes v2, or the bump would land with nothing able to
-    /// migrate what is already on disk.
+    /// It first asserted the two numbers were equal at <b>1</b>; step 2 opened a deliberate gap by
+    /// moving the registry to <b>2</b> ahead of the writer, and step 3 closed it by moving the writer
+    /// up to meet it. ⭐ <b>The assertion is stated as an INEQUALITY on purpose</b> — it held through
+    /// the window and holds now, so it never had to be weakened and then re-tightened.
     /// </para>
     ///
     /// <para>

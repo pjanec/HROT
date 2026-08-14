@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
   "Header": {},
   "AssetId": "9d2e4c81-7a3f-4e56-b9c0-2a4d6e8f1b53",
@@ -15,8 +15,9 @@
       "BTreeAction"
     ]
   },
-  "Parameters": [
+  "Declarations": [
     {
+      "Kind": "Parameter",
       "Id": "a2000000-0000-0000-0000-000000000001",
       "Name": "BaselineStartX",
       "Type": {
@@ -29,6 +30,7 @@
       "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "a2000000-0000-0000-0000-000000000002",
       "Name": "BaselineStartY",
       "Type": {
@@ -41,6 +43,7 @@
       "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "a2000000-0000-0000-0000-000000000003",
       "Name": "BaselineEndX",
       "Type": {
@@ -53,6 +56,7 @@
       "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "a2000000-0000-0000-0000-000000000004",
       "Name": "BaselineEndY",
       "Type": {
@@ -63,11 +67,9 @@
       "DefaultValueJson": "0",
       "Tooltip": null,
       "Comment": null
-    }
-  ],
-  "ParameterOrder": null,
-  "WorkingState": [
+    },
     {
+      "Kind": "WorkingState",
       "Id": "b3000000-0000-0000-0000-000000000001",
       "Name": "BaselineReservedMask",
       "Type": {
@@ -83,8 +85,8 @@
       "Comment": null
     }
   ],
+  "ParameterOrder": null,
   "WorkingStateOrder": null,
-  "Variables": [],
   "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],

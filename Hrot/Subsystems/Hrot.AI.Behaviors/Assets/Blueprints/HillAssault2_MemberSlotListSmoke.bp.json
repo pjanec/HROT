@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
   "Header": {},
   "AssetId": "e782b7df-f157-4fd6-8cb5-ae6853f9d5bd",
@@ -15,10 +15,9 @@
       "BTreeAction"
     ]
   },
-  "Parameters": [],
-  "ParameterOrder": null,
-  "WorkingState": [
+  "Declarations": [
     {
+      "Kind": "WorkingState",
       "Id": "c3000000-0000-0000-0000-000000000001",
       "Name": "Tracker",
       "Type": {
@@ -34,8 +33,8 @@
       "Comment": null
     }
   ],
+  "ParameterOrder": null,
   "WorkingStateOrder": null,
-  "Variables": [],
   "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],

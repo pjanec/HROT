@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
   "Header": {},
   "AssetId": "00000000-aaaa-0001-0000-000000000005",
@@ -10,12 +10,9 @@
   "TierHint": "Auto",
   "IsWorldSingleton": false,
   "Primitive": null,
-  "Parameters": [],
-  "ParameterOrder": null,
-  "WorkingState": [],
-  "WorkingStateOrder": null,
-  "Variables": [
+  "Declarations": [
     {
+      "Kind": "Variable",
       "Id": "a5000001-0001-0001-0001-000000000001",
       "Name": "ThreatLevel",
       "Type": {
@@ -31,6 +28,7 @@
       "Comment": null
     },
     {
+      "Kind": "Variable",
       "Id": "a5000001-0002-0002-0002-000000000002",
       "Name": "SquadSize",
       "Type": {
@@ -46,6 +44,7 @@
       "Comment": null
     },
     {
+      "Kind": "Variable",
       "Id": "a5000001-0003-0003-0003-000000000003",
       "Name": "Formation",
       "Type": {
@@ -61,6 +60,8 @@
       "Comment": null
     }
   ],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
   "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],

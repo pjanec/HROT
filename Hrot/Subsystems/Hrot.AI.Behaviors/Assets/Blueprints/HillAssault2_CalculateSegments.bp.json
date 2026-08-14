@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
   "Header": {},
   "AssetId": "7d4f2c81-3e9a-4b56-9c0d-1a2b3c4d5e6f",
@@ -15,8 +15,9 @@
       "BTreeAction"
     ]
   },
-  "Parameters": [
+  "Declarations": [
     {
+      "Kind": "Parameter",
       "Id": "a1000000-0000-0000-0000-000000000001",
       "Name": "StartX",
       "Type": {
@@ -29,6 +30,7 @@
       "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "a1000000-0000-0000-0000-000000000002",
       "Name": "StartY",
       "Type": {
@@ -41,6 +43,7 @@
       "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "a1000000-0000-0000-0000-000000000003",
       "Name": "EndX",
       "Type": {
@@ -53,6 +56,7 @@
       "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "a1000000-0000-0000-0000-000000000004",
       "Name": "EndY",
       "Type": {
@@ -65,6 +69,7 @@
       "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "a1000000-0000-0000-0000-000000000005",
       "Name": "TankSpacing",
       "Type": {
@@ -75,11 +80,9 @@
       "DefaultValueJson": "0",
       "Tooltip": null,
       "Comment": null
-    }
-  ],
-  "ParameterOrder": null,
-  "WorkingState": [
+    },
     {
+      "Kind": "WorkingState",
       "Id": "b2000000-0000-0000-0000-000000000001",
       "Name": "TotalSlots",
       "Type": {
@@ -95,6 +98,7 @@
       "Comment": null
     },
     {
+      "Kind": "WorkingState",
       "Id": "b2000000-0000-0000-0000-000000000002",
       "Name": "BurnedSlotsMask",
       "Type": {
@@ -110,6 +114,7 @@
       "Comment": null
     },
     {
+      "Kind": "WorkingState",
       "Id": "b2000000-0000-0000-0000-000000000003",
       "Name": "WaveUsedSlotsMask",
       "Type": {
@@ -125,6 +130,7 @@
       "Comment": null
     },
     {
+      "Kind": "WorkingState",
       "Id": "b2000000-0000-0000-0000-000000000004",
       "Name": "BaselineReservedMask",
       "Type": {
@@ -140,6 +146,7 @@
       "Comment": null
     },
     {
+      "Kind": "WorkingState",
       "Id": "b2000000-0000-0000-0000-000000000005",
       "Name": "ActiveAttackerCount",
       "Type": {
@@ -155,6 +162,7 @@
       "Comment": null
     },
     {
+      "Kind": "WorkingState",
       "Id": "b2000000-0000-0000-0000-000000000006",
       "Name": "CurrentWave",
       "Type": {
@@ -170,6 +178,7 @@
       "Comment": null
     },
     {
+      "Kind": "WorkingState",
       "Id": "b2000000-0000-0000-0000-000000000007",
       "Name": "CachedEqsRequestId",
       "Type": {
@@ -185,6 +194,7 @@
       "Comment": null
     },
     {
+      "Kind": "WorkingState",
       "Id": "b2000000-0000-0000-0000-000000000008",
       "Name": "CachedTargetGroupHandle",
       "Type": {
@@ -200,6 +210,7 @@
       "Comment": null
     },
     {
+      "Kind": "WorkingState",
       "Id": "b2000000-0000-0000-0000-000000000009",
       "Name": "EqsRequestTime",
       "Type": {
@@ -215,8 +226,8 @@
       "Comment": null
     }
   ],
+  "ParameterOrder": null,
   "WorkingStateOrder": null,
-  "Variables": [],
   "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],

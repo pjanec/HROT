@@ -61,11 +61,15 @@ public sealed class BlueprintMigrationRegistryTests
         return root;
     }
 
+    /// <summary>
+    /// The asset's v1 body, envelope stripped. ⭐ Since step 3 the shipped files are v2, so this
+    /// down-migrates — which also means every assertion below exercises both directions.
+    /// </summary>
     private static JsonObject Body(string file)
     {
         var dom = JsonNode.Parse(File.ReadAllText(file))!.AsObject();
         dom.Remove("$meta");
-        return dom;
+        return BlueprintSchemaV2.IsV2(dom) ? BlueprintSchemaV2.Down(dom) : dom;
     }
 
     private static IEnumerable<string> Files() => CorpusCanonicalisationTests.AllManagedFiles();

@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
   "Header": {},
   "AssetId": "47fe9c55-c6ca-4c69-9c5a-d46de25745de",
@@ -10,12 +10,9 @@
   "TierHint": "Auto",
   "IsWorldSingleton": false,
   "Primitive": null,
-  "Parameters": [],
-  "ParameterOrder": null,
-  "WorkingState": [],
-  "WorkingStateOrder": null,
-  "Variables": [
+  "Declarations": [
     {
+      "Kind": "Variable",
       "Id": "a0000006-0000-0000-0000-000000000001",
       "Name": "Count",
       "Type": {
@@ -31,6 +28,8 @@
       "Comment": null
     }
   ],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
   "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],

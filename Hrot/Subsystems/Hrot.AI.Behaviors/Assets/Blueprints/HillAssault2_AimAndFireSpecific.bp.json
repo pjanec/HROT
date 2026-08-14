@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
   "Header": {},
   "AssetId": "484e3dff-c548-422e-a1e2-13dd0a607343",
@@ -15,8 +15,9 @@
       "BTreeAction"
     ]
   },
-  "Parameters": [
+  "Declarations": [
     {
+      "Kind": "Parameter",
       "Id": "a27fabf3-32cb-425a-a626-32c2a3e201b1",
       "Name": "TargetNetworkId",
       "Type": {
@@ -29,6 +30,7 @@
       "Comment": null
     },
     {
+      "Kind": "Parameter",
       "Id": "ea91ccf4-a56c-4737-8a5a-2be4ebdfaa3b",
       "Name": "MaxRounds",
       "Type": {
@@ -39,11 +41,9 @@
       "DefaultValueJson": "0",
       "Tooltip": null,
       "Comment": null
-    }
-  ],
-  "ParameterOrder": null,
-  "WorkingState": [
+    },
     {
+      "Kind": "WorkingState",
       "Id": "dee92abe-a3f1-4cea-b16a-5e069166bb03",
       "Name": "RoundsFired",
       "Type": {
@@ -59,6 +59,7 @@
       "Comment": null
     },
     {
+      "Kind": "WorkingState",
       "Id": "57d91566-da07-4058-b997-1c16aef8aa3d",
       "Name": "LastObservedAmmo",
       "Type": {
@@ -74,8 +75,8 @@
       "Comment": null
     }
   ],
+  "ParameterOrder": null,
   "WorkingStateOrder": null,
-  "Variables": [],
   "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],

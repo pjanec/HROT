@@ -119,33 +119,54 @@ public sealed class PersistenceShapeTests
     }
 
     /// <summary>
-    /// ⭐ <b>The direct question, asked directly.</b> The union view is a projection over the three
-    /// stored lists; if the serializer can see it, every declaration is written twice and the v1 shape
-    /// is gone. ⚠ Asserted on the attribute rather than by eyeballing the JSON, so it fails at the
-    /// moment the attribute is dropped rather than whenever a corpus hash next happens to move.
+    /// ⭐⭐ <b>Batch 55 step 3 — <c>TheTagIsNotSerializable</c>, INVERTED. The tag IS the format now.</b>
+    ///
+    /// <para>
+    /// ⛔ <b>This is the second stop marker this batch turned over, and it is worth reading as a pair
+    /// with <c>V2ReaderTests.TheWriterNowEmitsV2</c>.</b> Under <c>U-9</c> the tagged view was an
+    /// in-memory projection and letting it reach JSON would have collapsed <c>U-9</c> and <c>U-10</c>
+    /// into one task, costing the migrator its own revert. So this asserted the opposite of what it
+    /// asserts today — and it is flipped rather than deleted so the history reads as a decision.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>The <c>[JsonIgnore]</c> half did NOT flip, and still matters.</b>
+    /// <c>BlueprintAsset.Declarations</c> is the model's union VIEW over the store; the v2
+    /// <c>Declarations</c> array is produced by <see cref="BlueprintSchemaV2.Up"/> from the serialized
+    /// v1 body. ⛔ If the view were serializable, <c>Serialize</c>'s intermediate v1 DOM would already
+    /// contain a <c>Declarations</c> key, <c>IsV2</c> would report true, and <c>Up</c> would <b>throw</b>
+    /// — so the attribute is now load-bearing in a second, louder way.
+    /// </para>
     /// </summary>
     [Fact]
-    public void TheTagIsNotSerializable()
+    public void TheTagIsTheFormatNowAndTheModelsViewIsStillNotSerialized()
     {
         var prop = typeof(BlueprintAsset).GetProperty(nameof(BlueprintAsset.Declarations));
         Assert.NotNull(prop);
         Assert.NotEmpty(prop!.GetCustomAttributes(
             typeof(System.Text.Json.Serialization.JsonIgnoreAttribute), inherit: false));
 
-        // And the end-to-end form: an asset carrying all three kinds writes none of the union's names.
         var asset = new BlueprintAsset
         {
-            AssetId = Guid.NewGuid(), Name = "TagLeakProbe", Dispatch = BlueprintDispatchKind.Instance,
+            AssetId = Guid.NewGuid(), Name = "TagShapeProbe", Dispatch = BlueprintDispatchKind.Instance,
             Parameters   = { new ParameterDecl { Id = Guid.NewGuid(), Name = "P" } },
             WorkingState = { new VariableDecl  { Id = Guid.NewGuid(), Name = "W" } },
             Variables    = { new VariableDecl  { Id = Guid.NewGuid(), Name = "V" } },
         };
 
         var json = BlueprintJsonServices.Serialize(asset);
-        Assert.DoesNotContain("\"" + nameof(BlueprintAsset.Declarations) + "\"", json);
-        Assert.DoesNotContain("\"" + nameof(BlueprintDeclaration.Kind) + "\"", json);
+        var dom  = System.Text.Json.Nodes.JsonNode.Parse(json)!.AsObject();
 
-        // ⭐ And it still round-trips into the same three lists — the tag is absent, not lossy.
+        // ⭐ The tag is written — once, as the v2 array — and the three v1 lists are gone.
+        Assert.True(BlueprintSchemaV2.IsV2(dom));
+        var declarations = dom[BlueprintSchemaV2.DeclarationsProperty]!.AsArray();
+        Assert.Equal(3, declarations.Count);
+        Assert.Equal(new[] { "Parameter", "WorkingState", "Variable" },
+            declarations.Select(d => d![BlueprintSchemaV2.KindProperty]!.GetValue<string>()));
+        foreach (var list in new[] { "Parameters", "WorkingState", "Variables" })
+            Assert.False(dom.ContainsKey(list));
+
+        // ⭐ And it still round-trips into the same three kinds — the tag is the shape, not a loss.
         var back = BlueprintJsonServices.Deserialize(json)!;
         Assert.Single(back.Parameters);
         Assert.Single(back.WorkingState);

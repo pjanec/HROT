@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
   "Header": {},
   "AssetId": "e2b00001-0000-0000-0000-0000000000e2",
@@ -15,10 +15,9 @@
       "BTreeAction"
     ]
   },
-  "Parameters": [],
-  "ParameterOrder": null,
-  "WorkingState": [
+  "Declarations": [
     {
+      "Kind": "WorkingState",
       "Id": "e2b00002-0000-0000-0000-000000000001",
       "Name": "Commander",
       "Type": {
@@ -34,6 +33,7 @@
       "Comment": null
     },
     {
+      "Kind": "WorkingState",
       "Id": "e2b00002-0000-0000-0000-000000000002",
       "Name": "RallyCountMirror",
       "Type": {
@@ -49,6 +49,7 @@
       "Comment": null
     },
     {
+      "Kind": "WorkingState",
       "Id": "e2b00002-0000-0000-0000-000000000003",
       "Name": "FoundMirror",
       "Type": {
@@ -64,8 +65,8 @@
       "Comment": null
     }
   ],
+  "ParameterOrder": null,
   "WorkingStateOrder": null,
-  "Variables": [],
   "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],

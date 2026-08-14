@@ -15,15 +15,26 @@ namespace Hrot.Blueprints.Tests.Golden;
 /// </para>
 ///
 /// <para>
-/// ⚠ <b>The pair is not wired into anything.</b> Nothing writes v2 and nothing reads it — see the
-/// batch 49 report for why that sequencing changed after <c>U-9</c> landed inverse. What is proved
-/// here is the part that does not depend on the sequencing: that the translation itself loses
-/// nothing, measured against real data rather than fixtures.
+/// ⭐⭐ <b>Batch 55: the pair IS wired now — and the corpus is v2, so this file's inputs inverted.</b>
+/// The reader (Batch 54), the migration registry (step 2) and the writer (step 3) all use it, and the
+/// 58 shipped assets are v2 on disk. ⇒ <see cref="LoadAsV1"/> produces the v1 form these v1-oriented
+/// assertions need, which exercises the DOWN-migrator on all 58 as a side effect.
+/// ⚠ <b>Registry-path coverage lives in <c>BlueprintMigrationRegistryTests</c></b> — this file still
+/// proves the transform called directly, and the two are deliberately not the same test.
 /// </para>
 /// </summary>
 public sealed class BlueprintSchemaV2Tests
 {
     private static JsonObject Load(string file) => JsonNode.Parse(File.ReadAllText(file))!.AsObject();
+
+    /// <summary>
+    /// ⭐⭐ <b>Batch 55 step 3 — the shipped files are v2 now, so the v1 form has to be produced.</b>
+    /// ⚠ Every v1-oriented assertion below used to read the file directly; since the bump that would
+    /// hand <c>Up</c> a v2 document, which it refuses. ⛔ Down-migrating first is not a workaround —
+    /// it is the honest statement that v1 is now a derived form, and it exercises the down-migrator
+    /// on every one of the 58 as a side effect.
+    /// </summary>
+    private static JsonObject LoadAsV1(string file) => BlueprintSchemaV2.Down(Load(file));
 
     private static IEnumerable<string> Files() => CorpusCanonicalisationTests.AllManagedFiles();
 
@@ -39,9 +50,9 @@ public sealed class BlueprintSchemaV2Tests
 
         foreach (var file in Files())
         {
-            var original = File.ReadAllText(file).Replace("\r\n", "\n");
-            var back     = BlueprintSchemaV2.Down(BlueprintSchemaV2.Up(Load(file)))
-                                            .ToJsonString(Indented);
+            var v1       = LoadAsV1(file);
+            var original = v1.ToJsonString(Indented);
+            var back     = BlueprintSchemaV2.Down(BlueprintSchemaV2.Up(v1)).ToJsonString(Indented);
 
             if (!string.Equals(original.TrimEnd('\n'), back.TrimEnd('\n'), StringComparison.Ordinal))
                 broken.Add(Path.GetFileName(file) + FirstDifference(original, back));
@@ -49,6 +60,35 @@ public sealed class BlueprintSchemaV2Tests
 
         Assert.True(broken.Count == 0,
             "v1 -> v2 -> v1 is not the identity for:\n  " + string.Join("\n  ", broken));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The direction the tree now has: <c>v2 → v1 → v2</c>, byte-identical on all 58.</b>
+    ///
+    /// <para>
+    /// ⚠ <b>Not a restatement of the gate above — it starts from the shipped BYTES.</b>
+    /// <c>V1ToV2ToV1</c> begins at a v1 form this test suite computed, so a systematic error in
+    /// <c>Down</c> would cancel out of it. This one begins at what is actually on disk, so it is the
+    /// half that would catch the corpus and the transform disagreeing.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void V2ToV1ToV2IsTheIdentity_ForEveryShippedAsset()
+    {
+        var broken = new List<string>();
+
+        foreach (var file in Files())
+        {
+            var onDisk = Load(file);
+            var back   = BlueprintSchemaV2.Up(BlueprintSchemaV2.Down(onDisk));
+
+            if (!string.Equals(onDisk.ToJsonString(Indented), back.ToJsonString(Indented),
+                               StringComparison.Ordinal))
+                broken.Add(Path.GetFileName(file));
+        }
+
+        Assert.True(broken.Count == 0,
+            "v2 -> v1 -> v2 is not the identity for:\n  " + string.Join("\n  ", broken));
     }
 
     private static readonly System.Text.Json.JsonSerializerOptions Indented = new() { WriteIndented = true };
@@ -75,7 +115,7 @@ public sealed class BlueprintSchemaV2Tests
 
         foreach (var file in Files())
         {
-            var v1 = Load(file);
+            var v1 = LoadAsV1(file);
             var expected = new[] { "Parameters", "WorkingState", "Variables" }
                 .Sum(p => v1[p] is JsonArray a ? a.Count : 0);
 
@@ -168,7 +208,7 @@ public sealed class BlueprintSchemaV2Tests
         {
             var before = BlueprintJsonServices.Deserialize(File.ReadAllText(file))!;
             var after  = BlueprintJsonServices.Deserialize(
-                BlueprintSchemaV2.Down(BlueprintSchemaV2.Up(Load(file))).ToJsonString(Indented))!;
+                BlueprintSchemaV2.Down(BlueprintSchemaV2.Up(LoadAsV1(file))).ToJsonString(Indented))!;
 
             Assert.Equal(
                 before.Declarations.Select(d => $"{d.Kind}:{d.Id}:{d.Name}:{d.Type.TypeId}"),

@@ -41,10 +41,10 @@
 |---|---|
 | **Repo** | `pjanec/HROT` |
 | **Implementation branch — PUSH HERE** | ⭐ **`claude/hrot-implementation-j1jvin`** |
-| **Coordinator branch — do NOT push** | ⭐ **`claude/blueprint-authoring-status-gm0akp`** (was at `9c0cd2d`, merged into mine) |
-| **Last handoff** | 📄 **[HANDOFF_Batch54_Migrator_Wiring.md](HANDOFF_Batch54_Migrator_Wiring.md)** — ⚠ **reader half delivered; writer half BLOCKED and reported** |
-| **Counts** | **60 open · 116 done** — ⚠ *derive, never hand-count:* `python3 scripts/tracker-counts.py --check` |
-| **Next free ids** | rows **BP-242+** · diagnostics **BP1674+** — ⭐ **Batch 54 allocated `BP-241` and NO diagnostic** |
+| **Coordinator branch — do NOT push** | ⭐ **`claude/blueprint-authoring-status-gm0akp`** (was at `a4842db`, merged into mine) |
+| **Last handoff** | 📄 **[HANDOFF_Batch55_Schema_Assembly_And_Registry.md](HANDOFF_Batch55_Schema_Assembly_And_Registry.md)** — all three steps delivered; ⚖️ **`--canonicalise` split out per §3.5.2** |
+| **Counts** | **60 open · 117 done** — ⚠ *derive, never hand-count:* `python3 scripts/tracker-counts.py --check` |
+| **Next free ids** | rows **BP-243+** · diagnostics **BP1674+** — ⭐ **Batch 55 allocated `BP-242` and NO diagnostic** |
 
 ⛔ **No PR unless the user explicitly asks.** There has never been one in this programme.
 ⛔ **Never put a model identifier** in a commit message, code comment, or anything else pushed.
@@ -72,6 +72,77 @@ store flip**; ⚠ two very different revert stories, so consider splitting them.
 ⛔⛔ **`U-6` / `U-13` / `U-16` still hard-require the VISUAL CHECK**, which has now not run for
 **fourteen batches**. They are a Details table, a read-only view and deleting a whole window — exactly
 the shape a headless test passes while the panel draws nothing. **Say so; never imply coverage.**
+
+---
+
+## 0 · Batch 55 — the seam, the migrator, and THE BUMP · ⭐⭐ `U-10` closed
+
+### 0.1 🔴🔴 `StructureHash` unchanged for all 42 — stated first
+
+Golden **131/131**, Tier 1 **and** Tier 2 unchanged. ⭐ **The on-disk shape moved and the compiled
+output did not — that separation is the whole claim of the bump**, and Tier 1 records `StructureHash`
+per asset, so this is a measurement rather than an inference.
+
+### 0.2 ⭐ The `persistence-shape.txt` diff, reviewed
+
+| | |
+|---|---|
+| **42 assets, same set** | ⛔ an asset appearing or vanishing would be a different defect; asserted |
+| **all 42 hashes moved** | 21 grew · 21 shrank · **0** unchanged in size |
+| **total +1 443 bytes (+0.19 %)** | 771 936 → 773 379 |
+| ⭐ **the sign correlates with declaration count** | **0 declarations ⇒ always −39** (three empty lists + two order lines collapse into one empty array); **≥6 ⇒ always grows** (~28 B per `"Kind"` line). Extremes check arithmetically: 19 declarations ⇒ +499 ≈ 19×28 − 39 |
+
+⇒ 📌 **That correlation is what makes it *reviewed* rather than regenerated.**
+
+### 0.3 ⛔⛔ `BP-242` — a SEVENTH reader, and a Batch 54 claim of mine was wrong
+
+⭐ **The Generators gate dropped 193 → 192.** `GeneratedBlueprintSchemaCatalog`
+(`Hrot.AiEditor.Generators`) parses `*.bp.json` with **its own `JsonDocument` code**, not
+`BlueprintJsonServices`.
+
+⛔ **And it does not fail — it returns a WRONG answer.** Its own doc says *"malformed files are
+silently skipped (never throws)"*; in fact it looked for a top-level `parameters` array, did not find
+one in a v2 file, and returned a schema with **zero parameters**. `StructSizeResolver` then sized the
+`Params` struct wrong and a composed BTree wrote shared state with the wrong slot count —
+`TotalSlots` **3 instead of 10**.
+
+⚠⚠ **It invalidates what I asserted in Batch 54:** *"all six production read sites funnel through
+`BlueprintJsonServices.Deserialize`."* ⭐ **That was measured by grepping for that method — which by
+construction cannot find a reader that does not call it.** A search for *callers of X* answers a
+different question from *who reads this file*.
+
+✅ v2 blindness fixed (the catalog reads `Declarations` filtered by `Kind`, using the schema
+assembly's own constants — ⭐ **exactly what step 1's BCL-only leaf makes possible from a
+netstandard2.0 generator**). ⛔ The silent-wrong-answer behaviour is filed, not fixed.
+
+### 0.4 ⭐ Two stop markers INVERTED, not deleted
+
+| test | was | now |
+|---|---|---|
+| `V2ReaderTests.TheWriterStillEmitsV1` | Batch 54's proof that the stop was deliberate | ⭐ **`TheWriterNowEmitsV2`** |
+| `PersistenceShapeTests.TheTagIsNotSerializable` | `U-9`'s proof the tag never reached JSON | ⭐ **`TheTagIsTheFormatNowAndTheModelsViewIsStillNotSerialized`** |
+
+⭐⭐ **The second one's `[JsonIgnore]` half did NOT flip and is now load-bearing in a louder way:**
+`Serialize` builds a v1 DOM first, so if the model's union view were serializable that DOM would
+already contain `Declarations`, `IsV2` would report true, and **`Up` would throw**.
+
+### 0.5 📌 Corrections and what was left out
+
+| | |
+|---|---|
+| ⛔ **`JM-P3-003` carries no acceptance criteria for this** | the handoff hoped it might. Measured: it is **closed**, it was **Scenario's** bump, and it mentions Blueprint **zero times**. `BlueprintMigrationModule`'s comment was a stale forward-reference |
+| ⚖️ **Is the Scenario precedent as close as it reads?** | ⛔ **No — and the handoff was right to ask.** Scenario's bump added **one optional field to one type** and its down-migrator is **lossy by design**. This moves **every declaration in every asset** and is **lossless both ways**. ⭐ The precedent is real for the *mechanism* — `RegisterDocType`, the migrator layout, the three named tests — and says nothing about the *blast radius* |
+| ⚖️ **`--canonicalise` (`Q31-C2`) SPLIT OUT** | per §3.5.2's own option. A doc-type-agnostic tool needs a per-doc-type repair seam; hardcoding blueprint knowledge into `MigrateMode` is the half-doing the handoff warned against. ⭐ `C1` is pinned by a new test instead |
+| ⭐ **Three suites joined the gate set with PRE-EXISTING failures** | measured at `70c2a87` in a worktree and unchanged after: Hrot.Common **53/3 failed**, ClusterRunner **249/2 failed** (252/2 with mine). ⛔ **Recording them as clean would have been wrong** |
+| ⛔⛔ **And SimHost is not merely failing — it is FLAKY** | **1, 3 and 8 failures across runs of the same binaries**, worst under parallel load. ⚠ **My own baseline number for it was a single sample**, which is the same mistake in miniature that `BP-240` warns about. The constant failure is `BranchedRecording_CapturesHistoricalStateAsKeyframe`; the variable ones are an `Extract_*` family sharing state. ⭐ **None touch blueprints** — worth a row of its own before this suite is trusted as a gate |
+
+### 0.6 ⚠ The analyzer-asset trap, which failed loudly
+
+A `ProjectReference` to the new assembly was **not** enough: the generator runs inside Roslyn's
+analyzer load context, which resolves only what is shipped as an `Analyzer` item. Every asset failed
+`BP0002 — Could not load file or assembly 'Hrot.Blueprints.Schema'`. ⭐ **Fixed by listing it beside
+`.Compiler` in `Hrot.AI.Behaviors`, the one project that ships it that way** — and that the generator
+then parsed all 42 corpus assets is the proof the netstandard2.0 target genuinely resolves it.
 
 ---
 
@@ -599,7 +670,18 @@ through its consumers is a contract change nobody is watching.*
 The eight, solution **`IOS-IG-SimHost.sln`** (⚠ **not** `Hrot.sln`).
 ⚠⚠ **The two NodeEdit gates take NO `--no-build`** — they silently do not run with it.
 
-**Post-Batch-54, all eight run** *(full `-t:Rebuild`)*: build **0 errors / 69 warnings** ·
+**Post-Batch-55** *(full `-t:Rebuild`)*: build **0 errors / 69 warnings** ·
+Blueprints **3569 / 3559 passed / 0 failed / 10 skipped** · **AiShared 1216** · BTree **612** ·
+Breakpoints **130** · Generators **193** · NodeEdit Core **208** · UI **131** ·
+⭐⭐ **golden 42/42 both tiers unchanged** · ⭐ **`persistence-shape.txt` MOVED, once, reviewed** (§0.2).
+⚠ **Three further suites, with PRE-EXISTING failures** (§0.5): Hrot.Common **53 passed / 3 failed** ·
+ClusterRunner **252 passed / 2 failed** · ⛔⛔ **SimHost is FLAKY and load-sensitive — 1, 3 and 8
+failures across runs of identical binaries** (8 when eight suites run in parallel). Its baseline
+"1 failed" was a single sample of a flaky suite. ⭐ The constant one is
+`BranchedRecording_CapturesHistoricalStateAsKeyframe`; the rest are an `Extract_*` family that shares
+state. **None touch blueprints.**
+
+**Post-Batch-54, all eight ran** *(full `-t:Rebuild`)*: build **0 errors / 69 warnings** ·
 Blueprints **3551 total / 3541 passed / 0 failed / 10 skipped** · **AiShared 1216** · BTree **612** ·
 Breakpoints **130** · Generators **193** · NodeEdit Core **208** · UI **131** ·
 ⭐⭐ **golden 42/42 both tiers unchanged — so `StructureHash` is unchanged for every shipped asset** ·

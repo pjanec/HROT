@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.Blueprints",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
   "Header": {},
   "AssetId": "00000000-aaaa-0002-0000-0000000000d1",
@@ -15,8 +15,9 @@
       "BTreeCondition"
     ]
   },
-  "Parameters": [
+  "Declarations": [
     {
+      "Kind": "Parameter",
       "Id": "d1010001-0001-0001-0001-000000000001",
       "Name": "Threshold",
       "Type": {
@@ -27,11 +28,9 @@
       "DefaultValueJson": null,
       "Tooltip": null,
       "Comment": null
-    }
-  ],
-  "ParameterOrder": null,
-  "WorkingState": [
+    },
     {
+      "Kind": "WorkingState",
       "Id": "d1010002-0002-0002-0002-000000000002",
       "Name": "LastEvaluated",
       "Type": {
@@ -47,8 +46,8 @@
       "Comment": null
     }
   ],
+  "ParameterOrder": null,
   "WorkingStateOrder": null,
-  "Variables": [],
   "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
