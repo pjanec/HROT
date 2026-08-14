@@ -1,7 +1,7 @@
 # Feature design — shell parity: every subsystem gets a menu and a toolbar
 
 > **Design for [UXI-35](UX_Issues.md#uxi-35) (+ [UXI-36](UX_Issues.md#uxi-36)) · drafted 2026-08-14.**
-> Direction from [ruling 58](UX_RESUME_INTERACTION.md). **Status: 🟡 drafted — 3 open questions in §6.**
+> Direction from [ruling 58](UX_RESUME_INTERACTION.md). **Status: ✅ designed — [ruling 59](UX_RESUME_INTERACTION.md) closed all three questions.**
 
 ## 0. Prior art — the mechanism is built; the registration is not
 
@@ -38,7 +38,7 @@
 | **Rich authoring** | **Editor** | everything — the reference implementation |
 | **Rich, distributed** | **CGF** | *"almost like the Editor, just in network distributed mode"* ⇒ the same surfaces, resolved over the cluster instead of in-process |
 | **Runtime participants** | **SimHost · ExCon · IG** | the common core (§3), **narrowed by ECS component ownership** |
-| **Cluster control** | **Orchestrator** | ⚠ not named in the ruling — see [Q1](#6-open-questions) |
+| **Infrastructure** | **Orchestrator** | 🔒 **no requirements of its own** ([ruling 59](UX_RESUME_INTERACTION.md)) — it gets whatever the shared core gives it, and nothing is written for it. ⭐ **The falsifiability test for §2**: if it needs bespoke menu code, the derivation is wrong |
 | **Separate beast** | **ReplayBrowser** | *"completely separate, its own specific stuff"* — its own windows exist already (`ReplaySearchWindow`, `ReplayTimelineWindow`, `ComponentDiffWindow`, `FdpEventBrowserWindow`, `FdpEntityInspectorWindow`). 🔒 **Common core does NOT apply**; it gets a menu/toolbar of its own vocabulary |
 
 ## 2. ⭐ The item set is **derived**, not authored per host
@@ -63,7 +63,7 @@
 
 | Capability | Mechanism (exists) | Missing |
 |---|---|---|
-| **Open an existing scenario** | per-host load handlers + `ClusterMaster` fan-out | 🔴 **a picker + a command** in each host. ⭐ `AssetPickerModal` + `AssetPickActionRouter` are the Editor's, and are **kind-generic** already |
+| **Open an existing scenario** | per-host load handlers + `ClusterMaster` fan-out | 🔴 **a picker + a command** in each host. ⭐ `AssetPickerModal` + `AssetPickActionRouter` are the Editor's, and are **kind-generic** already. 🔒 **On every host but the Editor this is a CLUSTER-WIDE request to the master** ([ruling 59](UX_RESUME_INTERACTION.md)) — never a local load |
 | **Sim time control** | `ClusterSlave` (all hosts) + `TimeControllerFactory` + `ClusterTimeTransportAdapter` | 🔴 registration in 4 hosts, and 🔒 **one surface, not two** (§4) |
 | **Interactive runtime changes** | [UXI-32](UX_Feature_Entity_Commanding.md) commanding · [UXI-29](UX_Feature_Authority_Aware_Writes.md) authority-gated writes | the §2 derivation |
 | **Window / perspective / help** | `WindowManager` shell menus | already global — no work |
@@ -77,10 +77,11 @@ bar for *activity progress*. The two CGF/SimHost status-bar registrations are th
 
 | | Editor | CGF | SimHost | ExCon | IG | Orchestrator | ReplayBrowser |
 |---|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
-| Open scenario | ✅ local | ✅ cluster | ✅ | ✅ | ✅ | ✅ master | ⊘ own (open **recording**) |
-| Time control | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ **master** | ⊘ own (replay transport) |
+| Open scenario | ✅ **local (only single-node host)** | ✅ cluster | ✅ cluster | ✅ cluster | ✅ cluster | ✅ (free) | ⊘ own (open **recording**) |
+| Time control | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ **master** (free) | ⊘ own (replay transport) |
 | Entity commanding ([UXI-32](UX_Feature_Entity_Commanding.md)) | ✅ | ✅ | ⚠ by authority | ⚠ by authority | ⚠ by authority | ❌ | ⊘ |
-| Authoring / asset edit | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ⊘ |
+| Authoring / asset edit | ✅ | ⚠ **bonus, not required** | ❌ | ❌ | ❌ | ❌ | ⊘ |
+| Brain runtime diagnostics | ✅ | 🔴 **required — [UXI-37](UX_Issues.md#uxi-37)** | ❌ | ❌ | ❌ | ❌ | ⊘ |
 | Tools ([UXI-07](UX_Feature_Tool_Model.md)) | ✅ | ✅ | ⚠ | ⚠ | ⚠ | ❌ | ⊘ |
 | Cluster state / node health | — | — | — | — | — | ✅ | ⊘ |
 
@@ -100,13 +101,13 @@ bar for *activity progress*. The two CGF/SimHost status-bar registrations are th
 ⚠ **Sequencing:** #4 depends on [UXI-03](UX_Feature_Entity_Action_Vocabulary.md) landing, and #1 depends on
 [UXI-05](UX_Feature_Menu_Follows_Focus.md) (a shared registry is useless while four hosts draw their own bar).
 
-## 6. Open questions
+## 6. ✅ Questions — all answered ([ruling 59](UX_RESUME_INTERACTION.md), 2026-08-14)
 
-| | Question |
+| | Answer |
 |--:|---|
-| **Q1** | **Orchestrator** was not named in the ruling. It is the cluster **master**, has 4 `WindowManager` files and **zero** registrations, and owns `ClusterScenarioPanel` + `ClusterMaster`. Does it take the common core (as the master authority), or is it a control-plane host with its own vocabulary like ReplayBrowser? |
-| **Q2** | *"All should allow opening existing scenarios."* On a **slave** node, opening one is necessarily a **cluster-wide** operation the master fans out. Does *"open"* on SimHost/ExCon/IG mean **request the master to load it cluster-wide**, or **load locally** for single-node work? The first is the only one the mechanism supports today |
-| **Q3** | **CGF as "almost the Editor"** — does that include **asset authoring** (blueprints/BTree/HSM editing, the `AiDocumentManager` stack), or scenario + entity work only? The authoring stack is large and Editor-shaped |
+| **Q1 · Orchestrator** | 🔒 **Infrastructure, mostly invisible — no menu/toolbar requirements of its own.** *"It probably does not need either, or just a minimalistic one as a result of using the same shared infrastructure."* ⇒ **do not design for it**: it receives whatever the common core gives it for free, and nothing is added on its behalf. ⭐ **This is a stronger outcome than a tier** — it makes the shared-infrastructure claim falsifiable: if the Orchestrator needs bespoke menu code, the derivation in §2 is wrong |
+| **Q2 · open = cluster-wide** | 🔒 **Yes — cluster-wide, from any node, for convenience.** *"To make the simulation startable and basically controllable (sim time, replay) from any node."* 🔒 **The Editor is the ONLY single-node host.** ⇒ every other host's *Open scenario* / transport command is a **request to the master**, never a local load — which is exactly what `ClusterMaster` fan-out already does. ⚠ **So "open" on a runtime host must be worded as what it is** — it restarts the exercise **cluster-wide** — and it is [ruling 53](UX_RESUME_INTERACTION.md)-confirmable **at the origin**, with the spec computed by the node that knows ([ruling 55/56](UX_RESUME_INTERACTION.md)) |
+| **Q3 · CGF** | ⚠ **Split into two, with different priorities.** ① **Asset authoring on CGF = a *nice bonus* of shared infrastructure, NOT required.** ② 🔴 **Required instead: full runtime diagnostics of the brain stack** — load and show BTree/HSM/blueprint **asset graphs**, monitor **runtime activity**, runtime inspectors and **watch windows**, to debug a suspected misbehaviour **at exercise runtime**. ③ **Bonus:** breakpoints (*"could be destructive — breaking/stopping the running simulation"*) and possibly stepping. ⇒ ② and ③ are **not shell parity at all** — filed as **[UXI-37](UX_Issues.md#uxi-37)** |
 
 ## 7. Acceptance
 
