@@ -4,6 +4,17 @@
 > ⭐⭐ **Batch 43 verified and merged at `3583acd4` (§7p) — `BP-57` is CLOSED.** The Local Variables
 > section landed; a designer can declare, rename, delete, duplicate and undo a graph local from the
 > editor, and it follows the canvas.
+> ⚠🔴 **Batch 51 merged at `d2cde7cd` (§7x) — `U-11` is COMPLETE, but the Blueprints gate is RED.**
+> ⭐⭐ **`ViewsAreUnreadTests` makes *"nothing reads the views"* a CHECKED FACT** — proved to fail, and
+> it asserts the pattern still matches a known read, *"because a grep that matches nothing looks exactly
+> like a grep that is green."* ⇒ **`U-12` is unblocked.**
+> 🔴🔴 **But two `PdbEmbeddedSourceTests` fail — and coordinator-bisection says NOT this batch:** they
+> fail on the pre-Batch-51 tree in isolation while that same tree ran the full suite green at Batch 50.
+> ⭐⭐ **An order-dependent green I missed**, and ⛔ **the compiler is complicit: `RoslynFinalizer` is set
+> by a `[ModuleInitializer]` and the guard is SILENT**, so a requested PDB can vanish with no diagnostic
+> and `Succeeded == true`. ⚠ **Third order-dependent green in three batches — treat it as a class.**
+> ⏭ **Batch 52 dispatched — §1 the red gate, THEN `U-12`.**
+>
 > ⭐⭐ **Batch 50 verified and merged at `2a8188dd` (§7w) — `BP-232` + `BP-236` CLOSED, and `U-11` was
 > RE-SHAPED by measurement.** ⛔ **The plan's *"~34 semantic sites"* is 135 across 24 files** — and
 > ⭐⭐ **~31 of those are on `IrAsset`, a DIFFERENT type whose same-named lists set struct offsets and
@@ -219,13 +230,13 @@ report"* rather than *"the gate did not run."* Trap #5, in the gate script itsel
 **3m40s → 2m05s**. ⚠ **And always include `\[FAIL\]` in the result grep**: a `Passed!`/`Failed!`-only
 grep is why Batch 42's flake could not be named.
 
-**Baseline at `2a8188dd` — ⭐ all eight gates coordinator-RUN 2026-08-14, post-Batch-50:**
+**Baseline at `d2cde7cd` — ⭐ all eight gates coordinator-RUN 2026-08-14, post-Batch-51 — 🔴 NOT ALL GREEN:**
 
 | | |
 |---|---|
 | Solution build | **0 errors**, **69 warnings** ⚠ *(an incremental build under-reports — record honestly)* |
 | BP diagnostics | **10 distinct** — all `BP3010`, all **authored** orphans in 2 assets |
-| Blueprints | **3515 total / 3505 passed / 0 failed / 10 skipped** ⚠ *(BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
+| 🔴 **Blueprints** | **3518 total / 3506 passed / ⛔ 2 FAILED / 10 skipped** — ⭐ **`PdbEmbeddedSourceTests`, order-dependent, §7x** ⚠ *(BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
 | ⭐⭐ **Golden corpus** *(Batch 44)* | **42 assets × Tier 1 + Tier 2**, `Snapshots/Golden/`. ⛔ **Tier 1 moving is a FAILURE, not a rebase.** Regenerate Tier 2 with `BLUEPRINT_REGENERATE_SNAPSHOTS=1` and **review the diff** |
 | ⭐⭐ **Persistence shape** *(Batch 48)* | `Snapshots/Golden/persistence-shape.txt` — **SHA-256 + byte length of each asset's canonical serialization**, recorded on the **pre-`U-9`** tree. ⭐ **This is what a round-trip test CANNOT do:** a leaked tag is written *and read back*, so `Serialize(Deserialize(x)) == x` holds either way |
 | ⭐ **AiShared 1216** *(+3, Batch 46)* · BTree **612** · Breakpoints **130** | 0 failed |
@@ -504,6 +515,89 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > three lists** — ⛔ **`U-12` deletes the views on the strength of that, so it must be a checked fact,
 > not a belief.** ⚖️ **`U-12` deliberately NOT paired** — it carries three rail restatements **and** the
 > store flip; two revert stories in one batch.
+
+> ⏭ **Batch 52 dispatched — [§1 the RED gate, then `U-12`](HANDOFF_Batch52_Red_Gate_And_Rails.md).**
+> ⛔⛔ **`U-12` does not start until the suite is green** — a store flip cannot be verified against two
+> known failures. ⭐ **Two decisions handed over:** the test's preload *(the `BP-236` precedent)*, and
+> ⭐⭐ **the compiler's silent guard, which is the real defect.** ⚖️ **Lean: both.**
+> ⭐ **Plus a sweep, because three-in-three is a class:** what else passes only because something else
+> ran first?
+
+## 7x · Batch 51 — ⚠ MERGED at `d2cde7cd` — ⭐⭐ **`U-11` COMPLETE**, 🔴 **but the Blueprints gate is RED and it is not theirs**
+
+**Gates — all eight, coordinator-run on the merged tree:**
+
+| | |
+|---|---|
+| Solution build | **0 errors**, **69 warnings** — unmoved |
+| 🔴 **Blueprints** | **3518 total / 3506 passed / ⛔ 2 FAILED / 10 skipped** — ⭐ **see §🔴 below; NOT caused by this batch** |
+| ⭐ **AiShared 1216** · BTree **612** · Breakpoints **130** · Generators **193** · NodeEdit **208 / 131** | unmoved |
+| ⭐⭐ **Golden + `persistence-shape`** | ✅ **ZERO snapshot files changed** |
+| `tracker-counts.py --check` | clean — **twenty** batches. open **57** / done **114** |
+
+✅ **Rule 7 verified mechanically:** their first commit's parent **is** the dispatch commit `9c3a707b9`.
+
+### 🔴🔴 The two failures — `BP-236`'s shape again, ONE BATCH LATER, and this time the compiler is complicit
+
+⛔ **`PdbEmbeddedSourceTests.WithPdbOption_PdbIsNonNull` and `.PdbContainsEmbeddedSourceSignature` —
+`Assert.NotNull(result.PortablePdb)` fails.**
+
+⭐⭐ **Coordinator-bisected: NOT caused by Batch 51.** ✅ **Reproduced on the pre-Batch-51 tree
+(`2a8188dd9`, fresh worktree, full build): the same two tests fail there in isolation** —
+⛔ **while at Batch 50 the SAME tree ran the full suite 3505/3505 green.**
+
+⇒ ⭐⭐ **It was already an order-dependent green at Batch 50 and I did not see it.** Batch 51 added
+`ViewsAreUnreadTests`, which changed the suite's composition enough to break the accident.
+
+**The mechanism, coordinator-verified:**
+
+```csharp
+// BlueprintsCore.cs:14 — [ModuleInitializer], fires only when THIS ASSEMBLY is first loaded
+BlueprintCompiler.RoslynFinalizer = (source, virtualPath, assemblyName, sink) => …
+
+// BlueprintCompiler.cs:116 — and the guard is SILENT
+if (options.EmitPdbWithEmbeddedSource && RoslynFinalizer is not null)
+```
+
+⇒ 🔴 **`EmitPdbWithEmbeddedSource: true` with no finalizer loaded produces NO pdb, NO diagnostic, and a
+`Succeeded == true` result.** ⭐⭐ **That is trap #5 in the compiler, not merely in the test:** the test
+is the only thing that notices, and it only notices when it runs in the wrong order.
+
+📌 **Handed to Batch 52 as its FIRST item.** ⛔ **`U-12` cannot be verified against a red suite.**
+⚠ **And this is the third order-dependent green in three batches** — `BP-236`, this, and the near-miss
+`ViewsAreUnreadTests` was written to prevent. ⭐ **Worth treating as a class, not three incidents.**
+
+### ⭐⭐ `U-11` is COMPLETE, and *"nothing reads the views"* is now a CHECKED FACT
+
+⭐ **`ViewsAreUnreadTests` is the grep**: no site under `Hrot.Blueprints.Editor`, and none in the
+compiler stages, reads a declaration list directly. ✅ **Proved to fail** by reintroducing one read,
+**reported by file and line.**
+
+⭐⭐ **And it asserts the pattern still matches a KNOWN read** — `DeclarationList` itself — because
+⛔ *"a grep that matches nothing looks exactly like a grep that is green."* ⚠ **That is the same
+instinct three batches running, applied here to the gate rather than the code.**
+
+📌 **Scoped deliberately:** the `*Order` lists are **display metadata that survive the store flip**, and
+`IrAsset`'s same-named lists are the **emitted fields**. Neither is in the assertion.
+
+### ⚠ They corrected my §2, and the correction inverts it
+
+⛔ **I called `BlueprintVariablesWindow.cs` *"the biggest count and the one to touch least."***
+⭐⭐ **Measured: the WINDOW has ZERO references to the three lists.** All **24** belonged to
+`BlueprintVariableSchemaSource` — ⭐ **the half that survives `U-16`.** ⇒ **the file's big count was
+never the window's, and nothing slated for deletion was rewritten.**
+
+### ⭐ What the move bought in the source
+
+| | |
+|---|---|
+| ⭐⭐ **Every `_kind == VariableKind.Parameter` branch is GONE** | they existed **purely because `ParameterDecl` and `VariableDecl` were different types** |
+| 🔴 **`GetOrdered`'s type-sniffing `GetId`** | returned `Guid.Empty` for anything that was neither decl type ⇒ ⛔ **would have collapsed every row onto ONE dictionary key** |
+| ⭐⭐ **`Resolve`'s six hand-written arms** | now read their priority from `DeclarationList.ResolutionOrder` instead of restating an ordering that must agree with the compiler's — ⛔ **two copies of that ordering is how `BP-226` happened** |
+| ⭐ **`ReplaceAll(kind, items)` deliberately does NOT touch the display-order list** | ⚠ unlike `Remove`: **a snapshot restore puts back a state captured whole**, and dropping ids there would make undo **lose the designer's ordering** |
+| ⭐ **One behaviour change, DECLARED** | `BlueprintPickerSources.Query`'s no-filter branch returned the **live** `_asset.Variables` and now returns a copy — **matching what its other two branches always returned** |
+
+---
 
 ## 7w · Batch 50 — ✅ VERIFIED AND MERGED at `2a8188dd` — ⭐⭐ **`BP-232` + `BP-236` CLOSED, and `U-11` was RE-SHAPED by measurement**
 
