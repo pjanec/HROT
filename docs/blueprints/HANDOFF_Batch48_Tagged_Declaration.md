@@ -1,6 +1,6 @@
 # HANDOFF — Batch 48: ⭐⭐ **`U-9` — the tagged declaration. ONE task, and it is the model change**
 
-> 📌 **Dispatched at `<STAMP>`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
+> 📌 **Dispatched at `d003f673`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
 > ⭐ **Rule 7:** branch from this branch, re-sync at the **start** of your run.
 > ⭐ **Rule 4:** pull it again before your final commit.
 > ⭐ **Rule 3: the coordinator allocates no ids.** `BP1672+` is the next free diagnostic
