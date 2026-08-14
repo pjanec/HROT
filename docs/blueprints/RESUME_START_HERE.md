@@ -602,12 +602,34 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > ids too**, wording agreed by both sessions. ⚠ **Rule 3 named coordinator/implementation; this
 > collision was between two DESIGN sessions, which the old framing did not cover.**
 >
-> ⛔⛔ **NO BATCH IS DISPATCHED.** ⭐ **This is deliberate: the `U-` programme has run out of unblocked
-> headless work.** What remains needs the user —
-> **(1)** ⭐ **relay [Architect_Question_31](Architect_Question_31_Migration_Seam.md)** — the migration
-> seam, which blocks `U-10`'s writer and carries `BP-241`'s operator question with it;
+> ⭐⭐⭐ **`Q31` IS ANSWERED** *(`2026-08-14`)* — 📄
+> **[Architect_Question_31_Migration_Seam_ANSWERS.md](Architect_Question_31_Migration_Seam_ANSWERS.md)**,
+> merged at **`d30fbb125`**. ⚠ **Answered by the implementation session acting as architect from the
+> code — NOT relayed from the NotebookLM architect**, and they said so in their own header.
+> ⭐⭐ **It corrected the QUESTION four times, and all six claims are coordinator-verified:**
+> ⛔ **"six host profiles" was MINE and wrong by three** — there are **five**, Blueprint is registered
+> in exactly **two** (`BuildEditor:54`, `BuildClusterRunnerMigrate:71`), and `BuildClusterRunnerCi:83`
+> deliberately does not. ⇒ **blast radius 2, not 6.** ⭐ **`M-2` is POLICY, not optimisation** —
+> `HrotMigrationBootstrap:10` *"Enforces M-2"*, and `NodeBootstrapperMigrationTests` **T04** makes it
+> **fail-loud** ⇒ their `A2` rejection holds and their own check-back #1 is settled.
+> ⭐ **`ScenarioMigrationModule` has walked this exact path** (`CurrentVersion = 2` + a real
+> `RegisterDocType` chain) ⇒ **`A1` · `B1` · `C2` · `D1`** — ⚠ **`D1` overrules my `D2` lean, on
+> measured grounds, and I accept it.**
+> ⭐⭐ **One datum NEITHER of us cited:** `BlueprintMigrationModule` says *"a migration chain will be
+> added in **`JM-P3-003`** when the Blueprint format is bumped to version 2"* ⇒ **the bump is a
+> pre-existing planned work item, not this programme's invention.**
+>
+> ⏭ **Batch 55 dispatched — [`Q31`'s steps 1 and 2](HANDOFF_Batch55_Schema_Assembly_And_Registry.md).**
+> ⛔⛔ **STEP 3 — the bump — IS HELD**, and §5 says why: it rewrites all 58 assets and moves
+> `persistence-shape.txt`, and the ruling authorising it is **engineering, not architect**.
+> ⭐ **Steps 1-2 revert with `git revert`; step 3 does not.**
+>
+> ⛔ **TWO THINGS STILL NEED THE USER:**
+> **(1)** ⚠ **Release step 3, or not** — two sub-questions: *is a new assembly acceptable at all*
+> (their check-back #2, ⛔ **nothing in the repo answers it**), and *does the engineering ruling stand
+> in for the architect on the one irreversible act in the programme?*
 > **(2)** ⚠ **the visual check**, which gates `U-6`/`U-13`/`U-16` and would also finally verify Batch
-> 43's Local Variables section.
+> 43's Local Variables section. ⛔ **Seventeen batches out.**
 > 📌 **`U-13`'s CONTENTS gate is headless** *(exact slot names across 8 assets, 58 `"state"` + 3
 > `"rally"`)* ⇒ ⭐ **it could run blind if the user wants momentum** — ⚠ **but it would add a SECOND
 > unverified panel surface, and that is the coordinator's reason for not dispatching it unasked.**
