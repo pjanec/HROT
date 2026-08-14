@@ -4,6 +4,15 @@
 > ⭐⭐ **Batch 43 verified and merged at `3583acd4` (§7p) — `BP-57` is CLOSED.** The Local Variables
 > section landed; a designer can declare, rename, delete, duplicate and undo a graph local from the
 > editor, and it follows the canvas.
+> ⭐⭐ **Batch 50 verified and merged at `2a8188dd` (§7w) — `BP-232` + `BP-236` CLOSED, and `U-11` was
+> RE-SHAPED by measurement.** ⛔ **The plan's *"~34 semantic sites"* is 135 across 24 files** — and
+> ⭐⭐ **~31 of those are on `IrAsset`, a DIFFERENT type whose same-named lists set struct offsets and
+> feed `StructureHash`** ⇒ **the plan's *lowering* and *emit* buckets do not exist for this task.**
+> ✅ **Compiler bucket done, golden unchanged after each of four sub-steps.** ⏭ **editor bucket remains.**
+> 🔴 **`BP-236`: `RecipeIntegrityTests` passed only when another test had already loaded
+> `Hrot.AI.Behaviors`** — ⭐ **an order-dependent green, reproduced both ways.**
+> ⏭ **Batch 51 dispatched — `U-11`'s editor bucket, alone.**
+>
 > ⭐⭐⭐ **Batch 49 verified and merged at `3f8ad7b6` (§7v) — 58 ASSET FILES REWRITTEN AND THE GOLDEN SET
 > DID NOT MOVE ONE BYTE.** `U-15` canonicalised all 58 (42 corpus + 16 recipes); ⭐ **Tier 1 AND Tier 2
 > zero files changed** — the payoff for Batch 44, since before it this batch would have been
@@ -210,13 +219,13 @@ report"* rather than *"the gate did not run."* Trap #5, in the gate script itsel
 **3m40s → 2m05s**. ⚠ **And always include `\[FAIL\]` in the result grep**: a `Passed!`/`Failed!`-only
 grep is why Batch 42's flake could not be named.
 
-**Baseline at `3f8ad7b6` — ⭐ all eight gates coordinator-RUN 2026-08-14, post-Batch-49:**
+**Baseline at `2a8188dd` — ⭐ all eight gates coordinator-RUN 2026-08-14, post-Batch-50:**
 
 | | |
 |---|---|
 | Solution build | **0 errors**, **69 warnings** ⚠ *(an incremental build under-reports — record honestly)* |
 | BP diagnostics | **10 distinct** — all `BP3010`, all **authored** orphans in 2 assets |
-| Blueprints | **3505 total / 3495 passed / 0 failed / 10 skipped** ⚠ *(BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
+| Blueprints | **3515 total / 3505 passed / 0 failed / 10 skipped** ⚠ *(BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
 | ⭐⭐ **Golden corpus** *(Batch 44)* | **42 assets × Tier 1 + Tier 2**, `Snapshots/Golden/`. ⛔ **Tier 1 moving is a FAILURE, not a rebase.** Regenerate Tier 2 with `BLUEPRINT_REGENERATE_SNAPSHOTS=1` and **review the diff** |
 | ⭐⭐ **Persistence shape** *(Batch 48)* | `Snapshots/Golden/persistence-shape.txt` — **SHA-256 + byte length of each asset's canonical serialization**, recorded on the **pre-`U-9`** tree. ⭐ **This is what a round-trip test CANNOT do:** a leaked tag is written *and read back*, so `Serialize(Deserialize(x)) == x` holds either way |
 | ⭐ **AiShared 1216** *(+3, Batch 46)* · BTree **612** · Breakpoints **130** | 0 failed |
@@ -240,7 +249,7 @@ retired `BP3011`; the 10 that remain are authored and deliberate.)
 
 ## 4 · Where the programme stands
 
-**Tracker: open 58 · done 112** (+1 refuted) ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
+**Tracker: open 57 · done 114** (+1 refuted) ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
 three ways — checkbox tally, per-complexity columns (⚠ take the **first** tag on a row), and the total
 row. ⚠⚠ **Reconcile all three EVERY time.** The columns can agree with the Total and both still be
 wrong: a missed tick is invisible to arithmetic and only shows against the checkbox tally.
@@ -487,6 +496,79 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > ⚠ **And the blast radius is up to 46 non-test files, not "~34 sites"** — many incidental
 > (`EventDispatcherDecl.Parameters` is a different `Parameters`), so **46 is an upper bound**; the real
 > semantic count is theirs to report before sweeping.
+
+> ⏭ **Batch 51 dispatched — [`U-11`'s editor bucket](HANDOFF_Batch51_Editor_Bucket.md), alone.**
+> ⭐ **~50 refs across 8 files**, coordinator-counted; ⚠ **`BlueprintVariablesWindow.cs` has the most
+> (18) and should be touched LEAST** — the source at `:45` survives `U-16`, the window at `:377` does
+> not. ⭐⭐ **The gate that matters is a GREP ASSERTION: nothing under `Hrot.Blueprints.Editor` reads the
+> three lists** — ⛔ **`U-12` deletes the views on the strength of that, so it must be a checked fact,
+> not a belief.** ⚖️ **`U-12` deliberately NOT paired** — it carries three rail restatements **and** the
+> store flip; two revert stories in one batch.
+
+## 7w · Batch 50 — ✅ VERIFIED AND MERGED at `2a8188dd` — ⭐⭐ **`BP-232` + `BP-236` CLOSED, and `U-11` was RE-SHAPED by measurement**
+
+**Gates — all eight, coordinator-run on the merged tree:**
+
+| | |
+|---|---|
+| Solution build | **0 errors**, **69 warnings** — unmoved |
+| Blueprints | **3515 total / 3505 passed / 0 failed / 10 skipped** (**+10**) |
+| ⭐ **AiShared 1216** · BTree **612** · Breakpoints **130** · Generators **193** · NodeEdit **208 / 131** | unmoved |
+| ⭐⭐ **Golden Tier 1 + Tier 2 · `persistence-shape.txt`** | ✅ **ZERO snapshot files changed** — coordinator-verified by name |
+| `tracker-counts.py --check` | clean — **nineteen** batches. open **57** / done **114** ⇒ ⭐ **`BP-232` closed, `BP-236` filed AND closed** |
+
+✅ **Rule 7 verified mechanically:** their first commit's parent **is** the dispatch commit `a12dbc310`.
+
+### ⭐⭐ The plan's *"~34 semantic sites"* was wrong by ~4×, and the correction DELETES two buckets
+
+**Measured: 233 raw references ⇒ 135 semantic across 24 files.** The rest are doc comments and
+**incidental same-name members** — `EventDispatcherDecl.Parameters`, the
+`Blueprints.Editor.Variables` **namespace**, `VariableKind.WorkingState`, palette
+`Categories.Variables`. ⭐ **My own "up to 46 files, an upper bound" was the right instinct and still
+an undercount.**
+
+⛔⛔ **And ~31 of the 135 are NOT `U-11` sites at all: they are on `IrAsset`** — ⭐ **a different type
+whose same-named three lists are the EMITTED field lists.** They set the struct offsets and feed
+`StructureHash` ⇒ **sweeping them would move the hash.**
+
+⇒ ⭐⭐ **The plan's *"lowering"* and *"emit"* buckets DO NOT EXIST for this task.** `FieldLayout`,
+`StructureHashComputation`, `AiPrimitiveLowering`, `CSharpEmitter`, `EmissionContext`,
+`WhenLowering_Instance` and both emitters **all stay.**
+
+### ⭐ What the compiler bucket bought, beyond the move
+
+| | |
+|---|---|
+| ⭐⭐ **Two pairs of near-duplicate overloads collapsed** | `Stage5.BuildIrFields`' two overloads had **byte-identical bodies**, split only because `ParameterDecl` and `VariableDecl` were different types |
+| ⭐⭐ **And one had already cost something concrete** | `Stage4.ResolveFieldTypes` — ⚠ **`U-7`'s `BP1671` rail landed on ONE half first and had to be applied to the other BY HAND.** ⭐ **That is the duplication tax, paid in a previous batch and only visible now** |
+| ⭐ **One declared widening, justified upstream** | merging `Stage4`'s overloads applies `BP1504`'s fixed-list check to **every** kind. ✅ **Safe because `Stage2`'s `BP1507` already refuses a fixed-list `Parameter`** ⇒ the widened arm is unreachable — ⭐ **and measured a corpus no-op first** (`Capacity > 0`: Parameters 0, WorkingState 0, Variables 1) |
+| ⚠ **Three sites read `Variables ∪ WorkingState` ONLY** | ⛔ **`Declarations.ById()` also searches `Parameters`** ⇒ using it would resolve a parameter id where the site never did. ⭐ **Written out explicitly at each, rather than taking the tidier call** |
+| ✅ **Golden unchanged after EACH of the four sub-steps** | not only at the end — which is what the handoff asked for |
+
+### 🔴🔴 `BP-236` — a test whose result depended on which OTHER tests ran first
+
+⛔ **`RecipeIntegrityTests` passed only when something else had already loaded `Hrot.AI.Behaviors`.**
+`LoadRecipe` falls back to `TestAssets/Recipes` *"if assembly not loaded"* — ⚠ **but that directory
+holds 9 of the 16 recipes, and has since long before this programme.**
+
+⭐ **Reproduced BOTH ways:** alone it fails two recipes; alongside `GoldenCorpusTests` all 16 pass.
+📌 **Exposed rather than caused by this batch.** ⇒ ⭐⭐ **an order-dependent green — the gate reports
+the suite's composition, not the code.** Fixed with the same one-line preload `GoldenCorpus` uses.
+
+### ⭐ `U-14` — and the two things they added around the rule
+
+✅ **`IsDuplicateVariableName` is the single chokepoint** for create and rename, and the predicate the
+modal gates `Confirm` on. ⭐ **The fix is the RECEIVER — `asset.Declarations`, one collection instead of
+three.** ⭐⭐ *"Trivial after `U-9`, awkward before"*, borne out.
+
+| | |
+|---|---|
+| ⭐ **The uniquifier moved WITH it** | ⛔ *"a refusal enforced on create but ignored by auto-naming would hand back a name the same rule rejects"* |
+| ⭐ **Graph locals stay out — ASSERTED, not commented** | `Q27-C1`: disjoint spaces resolving to disjoint IR ops |
+| ⭐ **`At(kind, local)` / `CountIn(kind)` — O(1), allocation-free** | ⛔ `Of(kind).ElementAt(i)` in the emit path would turn a field lookup into **a walk with an iterator allocation per call** |
+| ⭐⭐ **`ById()` follows RESOLUTION order, deliberately not storage order** | *"the two answer different questions — and `BP-226` is what happened when one integer answered both"* |
+
+---
 
 ## 7v · Batch 49 — ✅ VERIFIED AND MERGED at `3f8ad7b6` — ⭐⭐ **58 ASSET FILES REWRITTEN, AND THE GOLDEN SET DID NOT MOVE ONE BYTE**
 
