@@ -20,8 +20,12 @@ decision first.
 | `WIRING` | 1 | 0 |
 | `RW-L` | 5 | 0 |
 | `RW-M` | 6 | 0 |
-| `RW-H` | 2 | 0 |
-| **Total** | **14** | **0** |
+| `RW-H` | 3 | 0 |
+| **Total** | **15** | **0** |
+
+📌 **Resuming this session?** Start with
+[Hsm_Design_Session_RESUME.md](Hsm_Design_Session_RESUME.md) — established facts, open rulings, and
+the verification discipline. This tracker stays the source of truth for the rows themselves.
 
 📘 **New to HSM concepts?** [Hsm_Concepts_For_Game_AI.md](Hsm_Concepts_For_Game_AI.md) explains what
 history / parallel / hierarchy / actions actually mean here, grounded in the FastHSM kernel rather
@@ -259,6 +263,39 @@ registration; `Stage2_Validate.V_DispatchKindCompatibility` pairs `BTreeAction�
   **Fix direction** (needs a ruling): register the thunk under `ComputeHash(<canonical name>)` as
   well as / instead of the GUID hash, and agree what the canonical name *is* — this is the same
   "one identity for a bound action" question BTree answers with FQN keys.
+
+- [ ] **HSM-015** 🔴📐 · `RW-H` — **The generated HSM thunk reads its parameters out of the live HSM
+  instance memory. There is nowhere else for them to live.**
+  `AiPrimitiveEmitter.EmitHsmActivityThunk` / `EmitHsmGuardThunk` both emit:
+  ```csharp
+  ref var p = ref *(Params*)instance;
+  ```
+  but `instance` is the pointer the kernel passes —
+  `HsmActionDispatcher.ExecuteAction(actionId, instancePtr, contextPtr, writerPtr)`
+  (`HsmKernelCore.cs:763`), i.e. the **`HsmInstance64/128/256` runtime memory**: `InstanceHeader`
+  (MachineId, Flags, Phase, Generation), `ActiveLeafIds`, `TimerDeadlines`, `HistorySlots`,
+  `EventQueue`. The primitive's `Params` struct is reinterpreted over that.
+  ⇒ every parameter reads bytes of state-machine bookkeeping. And because it is a **`ref`**, any
+  write `TickCore` performs through `p` lands in the live instance — active leaf ids, phase and the
+  event queue are within the first bytes.
+  **Contrast the BTree sibling, which is correct:**
+  ```csharp
+  ref var p = ref Unsafe.As<byte, Params>(ref bb.BehaviorParameters[paramIndex * sizeof(Params)]);
+  ```
+  — params come from the `BrainBlackboard` param region, indexed by a per-node `paramIndex`.
+  **The HSM side has no equivalent, and cannot without a ROM change.** `StateDef` is a full 32 bytes
+  with only `Reserved29` (1 byte) spare and no param field; `TransitionDef` is a full 16 bytes with
+  none either. So *"which parameter block does this binding use"* is unrepresentable in the HSM blob
+  today — this is a **design gap, not a typo**, and it is the reason HSM-013's naming question is
+  really a broader "how is a parameterised action bound to a state slot" question.
+  ✅ **Not currently live:** no shipped `.bp.json` declares `HsmAction`/`HsmGuard` hosting, so
+  nothing is corrupting an instance today. ⚠ **And the existing test cannot catch it** —
+  `BuildHsmAiPrimitive` uses `.WithGraph("Main", g => g.Entry().Return())` with **no parameters**, so
+  `Params` is empty and the bad cast is harmless. The first parameterised primitive hosted on an HSM
+  is the one that bites.
+  Also worth noting (**not** a defect): the generated thunk ignores the `HsmCommandWriter* writer`
+  argument — but so does the shipped hand-written `ApcHsmActions`, which writes channel components
+  directly through the repo. Writer-less actions are the house pattern.
 
 - [ ] **HSM-014** 🔴 · `RW-M` — **The HSM action/guard picker is circular: it can only offer names
   the asset already uses.** `HsmActionPickerDrawer.GetItems()` walks `_asset.AllTransitions` /
