@@ -619,17 +619,24 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > added in **`JM-P3-003`** when the Blueprint format is bumped to version 2"* ⇒ **the bump is a
 > pre-existing planned work item, not this programme's invention.**
 >
-> ⏭ **Batch 55 dispatched — [`Q31`'s steps 1 and 2](HANDOFF_Batch55_Schema_Assembly_And_Registry.md).**
-> ⛔⛔ **STEP 3 — the bump — IS HELD**, and §5 says why: it rewrites all 58 assets and moves
-> `persistence-shape.txt`, and the ruling authorising it is **engineering, not architect**.
-> ⭐ **Steps 1-2 revert with `git revert`; step 3 does not.**
+> ⏭ **Batch 55 dispatched — [ALL THREE of `Q31`'s steps](HANDOFF_Batch55_Schema_Assembly_And_Registry.md).**
+> ⭐⭐⭐ **THE BUMP IS RELEASED — user ruling `2026-08-14`:** *"new assembly is fine, go ahead with step
+> 3, assets saved in git so all is reversible."* ⇒ **`U-10` closes in this batch**, and with it the
+> last task in the `D` programme.
+> ⚠ **The handoff was AMENDED after its first dispatch (`1449d25cc` → re-stamped), which rule 1
+> forbids** — ⭐ **done deliberately and with the premise CHECKED, not assumed:**
+> `origin/claude/hrot-implementation-j1jvin` was still at `70c2a87ee` when the amendment was written,
+> so **no run had started against the old text.** 📌 **Recorded in the handoff's own header**, and the
+> handoff tells them to stop and say so if they had already branched.
+> 📌 **All three of their check-backs are answered:** `M-2` is **policy** (settled from code),
+> the new assembly is **approved** (user), `--canonicalise` is **opt-in** (their call, taken).
+> ⚠ **One caveat recorded and NOT blocking:** git covers the repo's 58 assets, ⛔ **but not a
+> `.bp.json` outside it** — a designer's working file or a deployed asset written as v2 and read by an
+> older build. ⭐ **The down-migrator is that revert**, and step 2 puts it on the registry chain.
 >
-> ⛔ **TWO THINGS STILL NEED THE USER:**
-> **(1)** ⚠ **Release step 3, or not** — two sub-questions: *is a new assembly acceptable at all*
-> (their check-back #2, ⛔ **nothing in the repo answers it**), and *does the engineering ruling stand
-> in for the architect on the one irreversible act in the programme?*
-> **(2)** ⚠ **the visual check**, which gates `U-6`/`U-13`/`U-16` and would also finally verify Batch
-> 43's Local Variables section. ⛔ **Seventeen batches out.**
+> ⛔ **ONE THING STILL NEEDS THE USER:** ⚠ **the visual check**, which gates `U-6`/`U-13`/`U-16` and
+> would also finally verify Batch 43's Local Variables section. ⛔ **Seventeen batches out** — and
+> after Batch 55 it is **the only thing left in the programme.**
 > 📌 **`U-13`'s CONTENTS gate is headless** *(exact slot names across 8 assets, 58 `"state"` + 3
 > `"rally"`)* ⇒ ⭐ **it could run blind if the user wants momentum** — ⚠ **but it would add a SECOND
 > unverified panel surface, and that is the coordinator's reason for not dispatching it unasked.**

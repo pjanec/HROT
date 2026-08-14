@@ -1,12 +1,22 @@
-# HANDOFF — Batch 55: ⭐⭐ **`Q31`'s steps 1 and 2 — the seam, and the real migrator**
+# HANDOFF — Batch 55: ⭐⭐⭐ **`Q31`'s THREE steps — the seam, the migrator, and the BUMP**
 
-> 📌 **Dispatched at `1449d25cc`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
+> 📌 **Dispatched at `RESTAMP`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
 > ⭐ **Rule 7:** branch from this branch, re-sync at the **start** of your run.
 > ⭐ **Rule 4:** pull it again before your final commit.
 > ⭐ **Rule 3: the coordinator allocates no ids.** `BP1674+` is the next free diagnostic.
 >
-> ⛔⛔ **STEP 3 IS NOT IN THIS BATCH.** ⭐ **Steps 1 and 2 only** — both fully revertable by
-> `git revert`. The bump is held; §5 says why and what would release it.
+> ## ⚠⚠ AMENDED AFTER FIRST DISPATCH — read this before anything else
+>
+> ⛔ **This document was first dispatched at `1449d25cc` with step 3 HELD.** ⭐⭐ **The user then
+> released it** *(`2026-08-14`)*: **"new assembly is fine, go ahead with step 3, assets saved in git so
+> all is reversible."** ⇒ **all three steps are in this batch.**
+>
+> ⚠ **Rule 1 says never amend after dispatch. This is a deliberate, recorded exception, and the
+> premise was CHECKED, not assumed:** `origin/claude/hrot-implementation-j1jvin` was still at
+> **`70c2a87ee`** — your `Q31` answer, unchanged — when the amendment was written, so **no run had
+> started against the `1449d25cc` text.** ⭐ **Re-stamped above**, so this is the dispatch point.
+> 📌 **If you had already branched from `1449d25cc`, say so and stop** — that would mean the check was
+> wrong, and the collision it exists to prevent is live.
 
 ---
 
@@ -81,6 +91,39 @@ the distinction matters to anyone later reading why the ordering is load-bearing
 
 ---
 
+## 3.5 ⛔⛔ Step 3 — **THE BUMP.** The irreversible one
+
+⭐ **Released by the user.** 📌 **Their reasoning, recorded verbatim so a later reader can weigh it:**
+*"assets saved in git so all is reversible."* ⚠ **True for the repo's 58 — and the coordinator's one
+caveat, which does not block you:** git does not cover a `.bp.json` **outside** this repo — a
+designer's working file, or a deployed asset — written as v2 by a newer editor and then read by an
+older build. ⭐ **That is exactly what the down-migrator is for, and step 2 puts it on the registry
+chain** ⇒ covered, but by different machinery than git. 📐 **Say in your report that you exercised it.**
+
+| | |
+|---|---|
+| **The change** | `BlueprintJsonServices.Serialize` stamps `$meta.schemaVersion = 2` and emits the v2 shape |
+| **The sweep** | rewrite all **58** (42 corpus + 16 recipes) — ⭐ **`U-15`'s canonicalisation pass is the precedent and the tool** |
+| ⭐⭐ **Invert the stop marker, do NOT delete it** | `V2ReaderTests.TheWriterStillEmitsV1` is the test that made Batch 54's deliberate stop **auditable**. ⛔ **Quietly deleting it erases the record that the stop was deliberate.** 📐 **Flip it to `TheWriterNowEmitsV2` in the same commit**, so the history reads as a decision rather than a disappearance |
+| **`CurrentVersion` ⇄ `$meta`** | the two numbers must **agree** at the end — Batch 54's live inconsistency closes here |
+
+### 3.5.1 ⭐ Order within step 3 — the one thing that must not be flipped
+
+⛔ **Steps 1 → 2 → 3, in that order, as separate commits.** ⭐ **Step 2 is safe *only because* step 1
+makes a real migrator writable** — a `RegisterPassthroughDocType(…, 2)` at step 2 would leave every v1
+file **never visited** (§1.2). ⇒ **if step 1 does not land clean, stop; do not proceed to 2 or 3.**
+
+### 3.5.2 `BP-241` — the operator's way forward, per `Q31-C2`
+
+⭐ **The bump is what makes a refusal reachable in production**, so shipping it without an answer is
+the gap `BP-241` names. 📐 **Add `--canonicalise` to `--mode migrate` as an OPT-IN** — pipe the
+offending file through `Deserialize → Serialize` and retry. ⛔ **Not the default** — Batch 54's
+`Kind`-carrying declaration is a repair whose failure mode is a **blackboard wipe**.
+⚖️ **If this makes the batch too large, it is the one item to split out** — say so rather than
+half-doing it. ⛔ **The other three steps are not separable.**
+
+---
+
 ## 4. Gates
 
 **Baseline — coordinator-run at `c5550ff9`, ⭐ green both ways:**
@@ -90,8 +133,12 @@ the distinction matters to anyone later reading why the ordering is load-bearing
 | Solution build | **0 errors**, **69 warnings** |
 | Blueprints | **3551 / 3541 passed / 0 failed / 10 skipped** |
 | AiShared **1216** · BTree **612** · Breakpoints **130** · Generators **193** · NodeEdit **208 / 131** | ⛔ **none should move** |
-| ⭐⭐ **Golden Tier 1 + Tier 2** | ⛔ **UNCHANGED** — steps 1-2 are not a compile change |
-| ⭐⭐ **`persistence-shape.txt`** | ⛔⛔ **UNCHANGED. It moves in step 3 and only in step 3** — if it moves here, step 3 leaked |
+| 🔴🔴 **`StructureHash` unchanged for EVERY shipped asset** | ⛔⛔ **the no-blackboard-wipe gate. A failure here re-initialises every deployed entity's state.** ⭐ **State it FIRST in the report** |
+| ⭐⭐ **Golden Tier 1 + Tier 2** | ⛔ **UNCHANGED, through all three steps.** ⚠ **The on-disk shape changes; the compiled output must not — that separation is the whole claim** |
+| ⭐⭐ **`persistence-shape.txt`** | ⛔ **unchanged after steps 1-2** *(if it moves there, step 3 leaked early)*; 📌 **it MOVES at step 3 — once, deliberately, with the diff REVIEWED and described in the commit.** ⭐ **This is the one gate in the programme that guards persistence; a silent regeneration is unauditable later** |
+| ⭐⭐ **`v1 → v2 → v1` byte-identical on all 58** | ⭐ **re-run through the REGISTRY chain**, not the transform called directly — Batch 49 proved the transform, step 2 changes what invokes it |
+| ⭐ **`--mode migrate` end to end** | on a real v1 file, through `BuildClusterRunnerMigrate`. ⛔ **"The migrator is registered" is not "the migrator runs"** — trap #5, and §3's *existence is not wiring* |
+| 🔴 **The revert story** | ⛔ **`git revert` alone does not undo step 3 for anything outside this repo — the DOWN-migrator is that revert.** ⭐ **Prove it works through the registry chain, not against Batch 49's direct call** |
 | ⚠ **New:** `Hrot.ClusterRunner.Tests` + `Hrot.SimHost.Tests` | ⭐ **this batch is the first to touch either — record their numbers, they join the baseline** |
 | `tracker-counts.py --check` | clean **twenty-three** batches running |
 
@@ -99,26 +146,25 @@ the distinction matters to anyone later reading why the ordering is load-bearing
 
 ---
 
-## 5. ⛔⛔ The stop point, and it is not arbitrary
-
-**Step 3 rewrites all 58 assets and moves `persistence-shape.txt`. It is the one irreversible act in
-the programme, and two things about the ruling that authorises it are still open:**
+## 5. ✅ Your three check-backs — all answered
 
 | | |
 |---|---|
-| ⚠ **The ruling is engineering, not architect** | you said so yourself, plainly, in your own header. ⭐ **For steps 1-2 that is plenty** — they revert with `git revert`. ⛔ **For an irreversible rewrite of every shipped asset, the user decides whether the engineering ruling stands in for the architect** |
-| ⚠ **Your check-back #2 is a solution-policy question I cannot settle from code** | *"is a new assembly acceptable at all"* — ⛔ **nothing in the repo answers it.** 📌 **Your #1 IS settled: M-2 is policy, not optimisation** — `:10` says *"Enforces"*, and T04 makes it fail-loud. Your `A2` rejection holds |
+| ✅ **#1 — is `M-2` policy or optimisation?** | ⭐ **POLICY, settled from the code by the coordinator.** `HrotMigrationBootstrap:10` says *"**Enforces** M-2"*, and `NodeBootstrapperMigrationTests` **T04** makes it **fail-loud**. ⇒ **your `A2` rejection holds** |
+| ✅ **#2 — is a new assembly acceptable at all?** | ⭐⭐ **YES — user ruling, `2026-08-14`: *"new assembly is fine."*** ⇒ **`A1` proceeds; the `A3`-plus-multi-target fallback is dead** |
+| ✅ **#3 — `--canonicalise` default** | ⭐ **your call taken: OPT-IN.** See §3.5.2 |
 
-⇒ ⭐ **Build steps 1 and 2. Stop. Report.** The user is being asked both questions in parallel; if the
-answers land while you are still running, **they arrive in Batch 56, never in this document** (rule 1).
+⇒ ⛔ **There is no stop point in this batch.** ⭐ **The only thing that stops you is a RED gate** —
+and §3.5.1's ordering: **if step 1 does not land clean, do not proceed to 2 or 3.**
 
 ---
 
 ## 6. ⚡ How to work
 
-**Opus for step 2's fixture carry-across and the `.csproj` multi-targeting** — ⭐ **a reference that
-resolves on one target and not the other is exactly the silent-half class this programme keeps
-finding.** 🟢 Step 1's file move and the tag-pinning test are mirror-pattern work.
+**Opus for step 2's fixture carry-across, the `.csproj` multi-targeting, and ⛔ all of step 3** —
+⭐ **a reference that resolves on one target and not the other is exactly the silent-half class this
+programme keeps finding**, and 🔴🔴 **step 3's failure mode is every deployed entity's blackboard.**
+🟢 Step 1's file move and the tag-pinning test are mirror-pattern work.
 
 ⚠ **Sub-agents share ONE working tree** — sequential only:
 ```bash
@@ -128,17 +174,20 @@ while [ "$(ps aux | grep -c '[d]otnet build\|[d]otnet test')" != "0" ]; do sleep
 | | |
 |---|---|
 | **Push to** | your implementation branch, **branched from this one** (rule 7 — see §0) |
-| **Rule 6** | the tracker is yours — ⭐ **`BP-235` closes here**; `U-10`'s row moves to *writer held, reason recorded* |
+| **Rule 6** | the tracker is yours — ⭐⭐ **`BP-235` closes · `U-10` CLOSES · `BP-241` closes with §3.5.2** |
 
 ---
 
 ## 7. Reporting
 
-⭐⭐ **`persistence-shape.txt` unchanged, stated FIRST** · **golden 42/42 both tiers unchanged** ·
-⭐ **the ns2.0 target genuinely resolves the new assembly, and how you proved it** · ⭐⭐ **Batch 54's
-nine fixtures behaving identically through the REGISTRY path** · **M-2's assertions still green** ·
-the two new suites' numbers · ⭐ **whether `JM-P3-003` exists as a written work item** · per-suite
-numbers **full and filtered** · `tracker-counts.py --check` · ⭐ **every id you allocated**.
+🔴🔴 **`StructureHash` unchanged for all 42, stated FIRST** · ⭐⭐ **the `persistence-shape.txt` diff —
+what changed and why** · **golden 42/42 both tiers unchanged** · ⭐ **the ns2.0 target genuinely
+resolves the new assembly, and how you proved it** · ⭐⭐ **Batch 54's nine fixtures behaving
+identically through the REGISTRY path** · ⭐ **`v1→v2→v1` byte identity through the registry chain** ·
+⭐ **that `--mode migrate` actually RAN on a real v1 file** · **M-2's assertions still green** ·
+⭐ **the `$meta.schemaVersion` / `CurrentVersion` agreement** · the two new suites' numbers ·
+⭐ **whether `JM-P3-003` exists as a written work item** · per-suite numbers **full and filtered** ·
+`tracker-counts.py --check` · ⭐ **every id you allocated**.
 
 ⭐⭐⭐ **The best thing in your `Q31` answer was refusing the question's framing four times over and
 measuring instead** — *"six host profiles"* was mine and it was wrong by three. ⛔ **The same
