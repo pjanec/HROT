@@ -29,6 +29,13 @@ public sealed class RecipeIntegrityTests
     /// reporting on the recipes; it is reporting on the schedule.
     /// </para>
     /// </summary>
+    /// <remarks>
+    /// ⭐ <b>Batch 52: superseded by <c>TestAssemblyModuleInit</c></b>, which force-runs this
+    /// assembly's module constructor before any test in the suite. ⚠ <b>Kept anyway, and a new test
+    /// class needs nothing of its own.</b> Removing a guard because a broader one exists is only safe
+    /// when the broader one fails LOUDLY — this class of defect fails silently, which is the property
+    /// the whole batch is about.
+    /// </remarks>
     public RecipeIntegrityTests() => _ = typeof(Hrot.AI.Behaviors.BpComponentDemo).Assembly;
 
     // ---- loading helpers -----------------------------------------------

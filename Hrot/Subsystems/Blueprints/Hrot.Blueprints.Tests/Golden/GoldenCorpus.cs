@@ -52,6 +52,8 @@ public static class GoldenCorpus
     /// ⚠ <b>The preload.</b> Three <c>HillAssault2I_*</c> assets fail <c>BP1602</c> under a bare
     /// compile: a null <see cref="IClrSignatureResolver"/> makes Stage 0 reflect over <b>loaded</b>
     /// assemblies, and nothing has loaded <c>Hrot.AI.Behaviors</c> yet. ⭐ One type touch ⇒ 42/42.
+    /// ⭐ <b>Batch 52: superseded by <c>TestAssemblyModuleInit</c></b>; kept as a local guard because
+    /// the central one fails silently. A new test class needs nothing of its own.
     /// </summary>
     public static void EnsureBehaviorAssemblyLoaded()
         => _ = typeof(Hrot.AI.Behaviors.BpComponentDemo).Assembly;

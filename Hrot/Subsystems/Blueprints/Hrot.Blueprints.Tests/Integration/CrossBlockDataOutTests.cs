@@ -51,6 +51,8 @@ public sealed class CrossBlockDataOutTests
     /// <c>ComponentPaletteEntries.GetComponentEntries</c>) only discovers already-loaded assemblies,
     /// and a <c>ProjectReference</c> alone does not force the CLR to load it — mirrors
     /// <c>CollectionWritePinParityTests</c>' identical static-ctor trick.
+    /// ⭐ Batch 52: superseded by <c>TestAssemblyModuleInit</c>; kept as a local guard because the
+    /// central one fails silently. A new test class needs nothing of its own.
     /// </summary>
     static CrossBlockDataOutTests()
     {

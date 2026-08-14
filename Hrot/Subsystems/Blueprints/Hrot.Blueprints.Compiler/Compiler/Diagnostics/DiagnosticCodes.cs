@@ -146,6 +146,16 @@ public static class DiagnosticCodes
     // there". ⚠ Fires only when an IClrSignatureResolver is supplied; see Stage4_TypeResolve.
     public const string BP1671 = "BP1671";  // declared field type does not exist (oracle-checked)
 
+    // Batch 52 §1 — trap #5 in the COMPILER, not merely in a test. `EmitPdbWithEmbeddedSource: true`
+    // with no RoslynFinalizer installed produced NO pdb, NO pe, NO diagnostic and `Succeeded == true`:
+    // the caller asked for an artefact, did not get it, and was told nothing. The finalizer is injected
+    // by Hrot.Blueprints.Core's [ModuleInitializer], so its absence is a HOST-CONFIGURATION fact (this
+    // process never loaded that assembly) rather than anything the blueprint author can fix — hence a
+    // precondition checked before any stage runs, and reported alone.
+    // ⚠ Not a throw. `.Compiler` multi-targets netstandard2.0 and references Roslyn only under net8.0,
+    // so "cannot produce a PDB here" is a reachable, legitimate configuration, not an impossible state.
+    public const string BP1672 = "BP1672";  // a PDB was requested but no Roslyn finalizer is installed
+
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch
     public const string BP2002 = "BP2002";  // WhenNode missing required payload

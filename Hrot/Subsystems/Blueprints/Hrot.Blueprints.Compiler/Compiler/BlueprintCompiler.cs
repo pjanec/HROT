@@ -24,6 +24,33 @@ public sealed class BlueprintCompiler : IBlueprintCompiler
         var sink = new DiagnosticSink();
         var ctx  = new ValidationContext(sink, options);
 
+        // BP1672 -- a PRECONDITION on the options, checked before any stage runs.
+        //
+        // ⛔ What this replaces: `if (options.EmitPdbWithEmbeddedSource && RoslynFinalizer is not null)`
+        // -- a guard whose false arm was SILENT. Asking for an embedded-source PDB in a process that
+        // never loaded Hrot.Blueprints.Core returned `Succeeded: true` with `PortablePdb == null`,
+        // `PortablePe == null` and an empty diagnostic list. That is trap #5 in the compiler: a member
+        // reporting success while doing nothing the caller asked for.
+        //
+        // ⭐ Reported ALONE, before Stage 0, for two reasons. It is a fact about the HOST PROCESS, not
+        // about the asset -- no author edit can fix it, so it does not belong interleaved with content
+        // diagnostics. And failing fast avoids running seven stages to emit a source file the caller
+        // will discard anyway.
+        //
+        // ⚠ An error rather than a warning because `CompileResult` has no other channel: a warning
+        // leaves `Succeeded == true`, and the one production caller branches on exactly that. Silence
+        // one notch quieter is still silence.
+        if (options.EmitPdbWithEmbeddedSource && RoslynFinalizer is null)
+        {
+            sink.Add(Diagnostic.Error(DiagnosticCodes.BP1672,
+                "EmitPdbWithEmbeddedSource was requested but no Roslyn finalizer is installed, so no "
+                + "PE/PDB can be produced. The finalizer is wired by Hrot.Blueprints.Core's module "
+                + "initializer -- load that assembly in this process, or compile with "
+                + "EmitPdbWithEmbeddedSource: false.",
+                assetId: asset.AssetId));
+            return FailResult(sink, asset);
+        }
+
         // Stage 0 -- Rehydrate pin-less nodes (saved projection-only assets have Pins:[]).
         // NOTE: Stage0 mutates node.Pins in place; later stages (Stage3) may also replace
         // asset.Graphs.  To prevent mutations from leaking back to the caller we work on a
@@ -113,16 +140,26 @@ public sealed class BlueprintCompiler : IBlueprintCompiler
         byte[]? pe = null;
         byte[]? pdb = null;
 
-        if (options.EmitPdbWithEmbeddedSource && RoslynFinalizer is not null)
+        if (options.EmitPdbWithEmbeddedSource)
         {
+            // ⭐ Non-null by BP1672's precondition above. Captured once so the field cannot be swapped
+            // out between the check and the call; the `!` documents the precondition rather than
+            // hoping about it.
+            var finalize = RoslynFinalizer!;
+
             var fileName = $"{lowered.SanitizedName}_{lowered.BlueprintId:X8}_Bp.g.cs";
-            var (compiledPe, compiledPdb) = RoslynFinalizer(
+            var (compiledPe, compiledPdb) = finalize(
                 generatedSource, fileName, $"Blueprint.{lowered.SanitizedName}", sink);
-            if (!sink.HasErrors)
-            {
-                pe  = compiledPe;
-                pdb = compiledPdb;
-            }
+
+            // ⛔ The SAME trap one step further in, and it survived BP1672's fix: when the finalizer
+            // reports Roslyn errors into the sink, `pe`/`pdb` stay null and this method used to fall
+            // through to `Succeeded: true`. Every other stage above ends `if (sink.HasErrors) return
+            // FailResult(...)`; this one alone did not. ⭐ It now does — a Roslyn failure is a compile
+            // failure, told the same way as every other one.
+            if (sink.HasErrors) return FailResult(sink, typed.Asset);
+
+            pe  = compiledPe;
+            pdb = compiledPdb;
         }
 
         return new CompileResult(

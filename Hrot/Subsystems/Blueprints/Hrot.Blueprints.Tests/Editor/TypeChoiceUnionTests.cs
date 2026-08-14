@@ -35,6 +35,8 @@ public sealed class TypeChoiceUnionTests
     /// ⚠ The struct half is discovered over <b>loaded</b> assemblies, and nothing in a bare test host
     /// has loaded <c>Hrot.AI.Behaviors</c> — the same preload the golden corpus needs for `BP1602`.
     /// </summary>
+    /// <remarks>⭐ Batch 52: superseded by <c>TestAssemblyModuleInit</c>; kept as a local guard
+    /// because the central one fails silently. A new test class needs nothing of its own.</remarks>
     public TypeChoiceUnionTests() => _ = typeof(Hrot.AI.Behaviors.BpComponentDemo).Assembly;
 
     private static CompileOptions Options() => new(
