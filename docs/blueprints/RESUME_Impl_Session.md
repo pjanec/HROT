@@ -146,9 +146,16 @@ assignment and interleaved `Add`. It reddens under that probe.
 
 📌 **A green revert probe is a finding about the tests. Never evidence the code was fine.**
 
+### 0.5 ⭐ The order-dependency sweep, re-run after the flip
+
+**370 classes, each run alone: 0 findings.** ⭐ Batch 52's `TestAssemblyModuleInit` still holds, and the
+store flip introduced no new order dependence — down from **2** at the Batch-52 baseline.
+⚠ **Still class granularity, which under-reports** (`Stage8Tests` was green per-class and red
+per-test). Not extended to per-test this batch: ~5 h for 3538 tests. `scripts/order-dependency-sweep.sh`.
+
 ---
 
-## 0 · Batch 52 — the red gate, and `U-12`'s rails
+## 0′ · Batch 52 — the red gate, and `U-12`'s rails
 
 ### 0.1 ⛔ The handoff's headline was wrong, and the correction matters
 
