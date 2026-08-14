@@ -5,7 +5,7 @@
 
 ## 1. What this session did
 
-Designed **19 of 34** issues. Three were consolidated into one API + one acceptance catalogue; the rest
+Designed **19 of 36** issues. Three were consolidated into one API + one acceptance catalogue; the rest
 have their own feature docs. **57 rulings · 44 corrections**, all contiguous and linked below.
 
 🔒 **NO OPEN DECISIONS.** Rulings **47-57** closed every question this thread had, and added four
@@ -26,7 +26,7 @@ reached by the user correcting a design that worked in-process and would have fa
 |---|---|
 | 📐 **[UX_Interaction_API.md](UX_Interaction_API.md)** | ⭐ **the contract** — types, arbitration order, threading, ECB, progress |
 | ✅ **[UX_Interaction_UseCases.md](UX_Interaction_UseCases.md)** | **57 cases**, 46 headless / 11 integration / **0 visual-only** + coverage check |
-| [UX_Issues.md](UX_Issues.md) | the register — **34 issues** |
+| [UX_Issues.md](UX_Issues.md) | the register — **36 issues** (**UXI-35, UXI-36** filed 2026-08-14 from the menu/toolbar review) |
 | ✅ **[Architect_Question_28_Map_Layers.md](Architect_Question_28_Map_Layers.md)** | **UXI-28 decisions — ALL SETTLED** 2026-08-12 |
 | ✅ **[UX_Feature_Map_Layers.md](UX_Feature_Map_Layers.md)** | **UXI-28 design** — 17 cases. 🔴 **Gated on a Windows check**: the layer panel round-trip is complete in source but reported non-working |
 | ✅ **[UX_Feature_Selection.md](UX_Feature_Selection.md)** | **UXI-11 design** — 22 cases. One store, `ISelectionState` becomes a view; CGF gets the full chain |
