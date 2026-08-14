@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 740" width="1180" height="740" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <rect width="1180" height="740" fill="#ffffff"/>
+
+  <text x="20" y="30" font-size="19" font-weight="700" fill="#1a1a1a">How a parameter reaches an action — three live paths, measured 2026-08-14</text>
+  <text x="20" y="52" font-size="13" fill="#666">Each column is a real emitter. The boxed formula is what it actually writes into generated code.</text>
+
+  <!-- ============ COLUMN 1: BTree standalone ============ -->
+  <rect x="20" y="72" width="360" height="480" rx="8" fill="#fdf4f4" stroke="#c0392b" stroke-width="2"/>
+  <text x="40" y="98" font-size="15" font-weight="700" fill="#c0392b">1 · BTree standalone (blueprint)</text>
+  <text x="40" y="118" font-size="12" fill="#7b241c">AiPrimitiveEmitter.cs:267–277</text>
+
+  <rect x="40" y="134" width="320" height="52" rx="5" fill="#ffffff" stroke="#c0392b"/>
+  <text x="52" y="154" font-size="12" fill="#333">registry key, CSharpEmitter.cs:342</text>
+  <text x="52" y="174" font-size="12.5" font-family="Consolas, monospace" fill="#c0392b">"{Ns}.{Class}.BTreeTick@0"</text>
+
+  <text x="196" y="204" font-size="20" fill="#c0392b" text-anchor="middle">↓</text>
+  <text x="206" y="204" font-size="11" fill="#7b241c">offset in key is always 0</text>
+
+  <rect x="40" y="212" width="320" height="70" rx="5" fill="#ffffff" stroke="#c0392b"/>
+  <text x="52" y="232" font-size="12" fill="#333">Interpreter.cs:655 passes</text>
+  <text x="52" y="252" font-size="12.5" font-family="Consolas, monospace" fill="#c0392b">node.PayloadIndex</text>
+  <text x="52" y="270" font-size="11" fill="#7b241c">= index into blob.MethodNames[], deduped</text>
+
+  <text x="196" y="300" font-size="20" fill="#c0392b" text-anchor="middle">↓</text>
+
+  <rect x="40" y="308" width="320" height="76" rx="5" fill="#fbe9e7" stroke="#c0392b" stroke-width="1.5"/>
+  <text x="52" y="328" font-size="12" font-weight="600" fill="#333">projection — STRIDE</text>
+  <text x="52" y="349" font-size="11.5" font-family="Consolas, monospace" fill="#c0392b">bb.BehaviorParameters[</text>
+  <text x="52" y="366" font-size="11.5" font-family="Consolas, monospace" fill="#c0392b">  paramIndex * SizeOf&lt;Params&gt;()]</text>
+
+  <rect x="40" y="398" width="320" height="136" rx="5" fill="#ffffff" stroke="#c0392b" stroke-dasharray="4 3"/>
+  <text x="52" y="418" font-size="12" font-weight="700" fill="#c0392b">⚠ the multiplier is a NAME-TABLE index</text>
+  <text x="52" y="438" font-size="11.5" fill="#555">No allocator reserves these regions.</text>
+  <text x="52" y="456" font-size="11.5" fill="#555">Each generated class multiplies by its</text>
+  <text x="52" y="474" font-size="11.5" fill="#555">OWN sizeof(Params) — two classes can</text>
+  <text x="52" y="492" font-size="11.5" fill="#555">land on overlapping bytes.</text>
+  <text x="52" y="516" font-size="11.5" font-weight="600" fill="#7b241c">Safe today only because @0 / one action.</text>
+
+  <!-- ============ COLUMN 2: BTree managed ============ -->
+  <rect x="400" y="72" width="360" height="480" rx="8" fill="#f2f8f4" stroke="#1e8449" stroke-width="2"/>
+  <text x="420" y="98" font-size="15" font-weight="700" fill="#1e8449">2 · BTree managed blackboard</text>
+  <text x="420" y="118" font-size="12" fill="#145a32">BTreeBridgeEmitCore.cs:~490–512</text>
+
+  <rect x="420" y="134" width="320" height="52" rx="5" fill="#ffffff" stroke="#1e8449"/>
+  <text x="432" y="154" font-size="12" fill="#333">registry key</text>
+  <text x="432" y="174" font-size="12.5" font-family="Consolas, monospace" fill="#1e8449">"{MethodFqn}@{field.ByteOffset}"</text>
+
+  <text x="576" y="204" font-size="20" fill="#1e8449" text-anchor="middle">↓</text>
+  <text x="586" y="204" font-size="11" fill="#145a32">offset from the editor's packer</text>
+
+  <rect x="420" y="212" width="320" height="70" rx="5" fill="#ffffff" stroke="#1e8449"/>
+  <text x="432" y="232" font-size="12" fill="#333">thunk emitted PER (method, offset)</text>
+  <text x="432" y="252" font-size="12" fill="#333">pair found IN THE ASSET</text>
+  <text x="432" y="270" font-size="11" font-weight="600" fill="#145a32">⭐ asset-driven</text>
+
+  <text x="576" y="300" font-size="20" fill="#1e8449" text-anchor="middle">↓</text>
+
+  <rect x="420" y="308" width="320" height="76" rx="5" fill="#e8f6ec" stroke="#1e8449" stroke-width="1.5"/>
+  <text x="432" y="328" font-size="12" font-weight="600" fill="#333">projection — BIN-PACKED OFFSET</text>
+  <text x="432" y="349" font-size="11.5" font-family="Consolas, monospace" fill="#1e8449">Unsafe.AddByteOffset(</text>
+  <text x="432" y="366" font-size="11.5" font-family="Consolas, monospace" fill="#1e8449">  ref bb.BehaviorParameters[0], offset)</text>
+
+  <rect x="420" y="398" width="320" height="136" rx="5" fill="#ffffff" stroke="#1e8449" stroke-dasharray="4 3"/>
+  <text x="432" y="418" font-size="12" font-weight="700" fill="#1e8449">the shape that generalises</text>
+  <text x="432" y="438" font-size="11.5" fill="#555">The `pi` argument is IGNORED — the</text>
+  <text x="432" y="456" font-size="11.5" fill="#555">offset is baked into the thunk body.</text>
+  <text x="432" y="480" font-size="11.5" fill="#555">Key and thunk come from the SAME</text>
+  <text x="432" y="498" font-size="11.5" fill="#555">Pack() call, so they cannot disagree</text>
+  <text x="432" y="516" font-size="11.5" fill="#555">with each other.</text>
+
+  <!-- ============ COLUMN 3: HSM SharedAi ============ -->
+  <rect x="780" y="72" width="380" height="480" rx="8" fill="#f4f2fb" stroke="#6c3483" stroke-width="2"/>
+  <text x="800" y="98" font-size="15" font-weight="700" fill="#6c3483">3 · HSM SharedAi — ALREADY SHIPS</text>
+  <text x="800" y="118" font-size="12" fill="#4a235a">Fdp.Toolkits.Analyzers/HsmActionGenerator.cs</text>
+
+  <rect x="800" y="134" width="340" height="52" rx="5" fill="#ffffff" stroke="#6c3483"/>
+  <text x="812" y="154" font-size="12" fill="#333">compound key, then hashed to the id</text>
+  <text x="812" y="174" font-size="12.5" font-family="Consolas, monospace" fill="#6c3483">ComputeHash("{MethodName}@{offset}")</text>
+
+  <text x="970" y="204" font-size="20" fill="#6c3483" text-anchor="middle">↓</text>
+  <text x="980" y="204" font-size="11" fill="#4a235a">FNV-1a → truncated to ushort</text>
+
+  <rect x="800" y="212" width="340" height="70" rx="5" fill="#ffffff" stroke="#6c3483"/>
+  <text x="812" y="232" font-size="12" fill="#333">offset from the ATTRIBUTE in source:</text>
+  <text x="812" y="252" font-size="11.5" font-family="Consolas, monospace" fill="#6c3483">[SharedAiAction(typeof(Dto), "Field")]</text>
+  <text x="812" y="270" font-size="11" font-weight="600" fill="#7d3c98">⚠ source-driven, NOT asset-driven</text>
+
+  <text x="970" y="300" font-size="20" fill="#6c3483" text-anchor="middle">↓</text>
+
+  <rect x="800" y="308" width="340" height="76" rx="5" fill="#f0e8f7" stroke="#6c3483" stroke-width="1.5"/>
+  <text x="812" y="328" font-size="12" font-weight="600" fill="#333">projection — BIN-PACKED OFFSET (same as 2)</text>
+  <text x="812" y="349" font-size="11.5" font-family="Consolas, monospace" fill="#6c3483">Unsafe.AddByteOffset(</text>
+  <text x="812" y="366" font-size="11.5" font-family="Consolas, monospace" fill="#6c3483">  ref bb.BehaviorParameters[0], offset)</text>
+
+  <rect x="800" y="398" width="340" height="136" rx="5" fill="#ffffff" stroke="#6c3483" stroke-dasharray="4 3"/>
+  <text x="812" y="418" font-size="12" font-weight="700" fill="#6c3483">Q-A is already implemented</text>
+  <text x="812" y="438" font-size="11.5" fill="#555">Guard thunks fetch BrainBlackboard from</text>
+  <text x="812" y="456" font-size="11.5" fill="#555">the entity via HsmKernelBridge → repo.</text>
+  <text x="812" y="480" font-size="11.5" fill="#555">Missing piece is not the convention —</text>
+  <text x="812" y="498" font-size="11.5" font-weight="600" fill="#4a235a">it is asset-driven thunk emission,</text>
+  <text x="812" y="516" font-size="11.5" font-weight="600" fill="#4a235a">the HSM twin of column 2.</text>
+
+  <!-- ============ bottom band ============ -->
+  <rect x="20" y="572" width="1140" height="148" rx="8" fill="#fffbea" stroke="#b7950b" stroke-width="2"/>
+  <text x="40" y="598" font-size="14" font-weight="700" fill="#7d6608">Two hazards that sit underneath all three</text>
+
+  <text x="40" y="624" font-size="12.5" fill="#333"><tspan font-weight="700">16-bit id space, no collision gate.</tspan>  ComputeHash truncates FNV-1a to a ushort. RegisterAction does ActionTable[id] = ptr — a silent</text>
+  <text x="40" y="642" font-size="12.5" fill="#333">overwrite; the static-initialiser path uses Add and throws instead. Putting offsets in the key multiplies the key population. UtilityInputGenerator</text>
+  <text x="40" y="660" font-size="12.5" fill="#333">already ships exactly this gate (UT0103) for FNV-1a-16 — it can be mirrored rather than invented.</text>
+
+  <text x="40" y="686" font-size="12.5" fill="#333"><tspan font-weight="700">The packers disagree with the compiled struct.</tspan>  All three packers use align = min(size, 8). Measured: Marshal.OffsetOf for a Vector3</text>
+  <text x="40" y="704" font-size="12.5" fill="#333">after a byte is <tspan font-family="Consolas, monospace" font-weight="700">4</tspan>; the packers say <tspan font-family="Consolas, monospace" font-weight="700">8</tspan>. The DD names Marshal.OffsetOf authoritative. No shipped asset appears to hit it — yet.</text>
+</svg>
