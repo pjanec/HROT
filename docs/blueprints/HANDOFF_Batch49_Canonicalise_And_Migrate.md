@@ -1,6 +1,6 @@
 # HANDOFF — Batch 49: ⚠⚠ **`U-15` + `U-10` — the risky one. Canonicalise, then migrate**
 
-> 📌 **Dispatched at `<STAMP>`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
+> 📌 **Dispatched at `e8625d36`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
 > ⭐ **Rule 7:** branch from this branch, re-sync at the **start** of your run.
 > ⭐ **Rule 4:** pull it again before your final commit.
 > ⭐ **Rule 3: the coordinator allocates no ids.** `BP1672+` is the next free diagnostic.
