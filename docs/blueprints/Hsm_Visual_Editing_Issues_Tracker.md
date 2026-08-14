@@ -19,9 +19,9 @@ decision first.
 |---|---:|---:|
 | `WIRING` | 1 | 0 |
 | `RW-L` | 5 | 0 |
-| `RW-M` | 4 | 0 |
+| `RW-M` | 6 | 0 |
 | `RW-H` | 2 | 0 |
-| **Total** | **12** | **0** |
+| **Total** | **14** | **0** |
 
 📘 **New to HSM concepts?** [Hsm_Concepts_For_Game_AI.md](Hsm_Concepts_For_Game_AI.md) explains what
 history / parallel / hierarchy / actions actually mean here, grounded in the FastHSM kernel rather
@@ -220,6 +220,61 @@ callers** — the pipe is wired, nothing fills it.
   `hsm.history_glyphs` rendering bypass for the H/H\* case), versus keeping the UML pseudo-state as
   an *editor-side sugar* that lowers onto the parent flag at emit. ⚠ Migration: `HsmShowcase`'s
   `HistoryPseudo` node has to be rewritten either way.
+
+---
+
+## Area G — Blueprint AiPrimitives as HSM actions / guards
+
+The whole path is built: `AiPrimitiveHosting` has `HsmAction` and `HsmGuard`;
+`AiPrimitiveEmitter` emits `HsmActivity` / `HsmGuard` thunks; `CSharpEmitter:353-356` emits the
+registration; `Stage2_Validate.V_DispatchKindCompatibility` pairs `BTreeAction↔HsmAction` and
+`BTreeCondition↔HsmGuard`. Two things break it in practice.
+
+- [ ] **HSM-013** 🔴 · `RW-M` — **The id an AiPrimitive registers under can never equal the id the
+  machine looks up — two hashes over different inputs.**
+  Registration (`CSharpEmitter.cs:354`):
+  `HsmActionDispatcher.RegisterAction(unchecked((ushort)ClassName.BlueprintId), &HsmActivity)`, where
+  `BlueprintId = FNV-1a-32 over the asset GUID's 16 bytes` (`BlueprintIdHash.Compute`).
+  Lookup: the machine's `StateDef.ActivityActionId` comes from
+  `HsmFlattener.BuildActionTable` → `ComputeHash(actionName)` = **FNV-1a-32 over the UTF-16 chars of
+  the action-name string**, truncated to 16 bits (`HsmFlattener.cs:385-394`).
+  A GUID hash and a name hash coincide only by accident (~1/65536).
+  ✅ **reproduced** — registrar key for asset `a3f2c5d8-…` is **62025**; flattening a machine whose
+  state carries that primitive in its Activity slot gives:
+  ```
+  .Activity("HsmTestAction")                            -> 50045   no
+  .Activity("Hrot.AI.Behaviors.Blueprints.HsmTestAction")-> 46437   no
+  .Activity("HsmTestAction_A3F2C5D8_Bp.HsmActivity")     -> 22562   no
+  .Activity("a3f2c5d8-9c01-4b2e-8d7a-1f6e5c4b3a29")      -> 38138   no
+  ```
+  **No spelling of the name can reach the thunk.**
+  ⚠ **Both failure modes are silent, and the guard one is dangerous:**
+  `HsmActionDispatcher.ExecuteAction` does nothing when the id is absent, and `EvaluateGuard`
+  **returns `true`** (`// No guard = always pass`). So a blueprint-backed HSM action never runs, and
+  a blueprint-backed HSM *guard* is treated as permanently satisfied — the transition always fires.
+  ⚠ **The existing tests do not cover this.** `HsmInvokeHelpersTests` proves the thunk is registered
+  and invocable, but `BlueprintTestFixture.InvokeHsmAction` computes the id as
+  `(ushort)BlueprintIdHash.Compute(asset.AssetId)` (`:565`) — the same key the registrar used. It
+  never goes through a machine's name → `ComputeHash` path, which is the only path an author has.
+  **Fix direction** (needs a ruling): register the thunk under `ComputeHash(<canonical name>)` as
+  well as / instead of the GUID hash, and agree what the canonical name *is* — this is the same
+  "one identity for a bound action" question BTree answers with FQN keys.
+
+- [ ] **HSM-014** 🔴 · `RW-M` — **The HSM action/guard picker is circular: it can only offer names
+  the asset already uses.** `HsmActionPickerDrawer.GetItems()` walks `_asset.AllTransitions` /
+  `AllStates` / `AllGlobalTransitions` and returns the distinct `OnEntry/OnExit/Activity/Timer/
+  ActionFunction` strings **already stored in this machine**. It never queries `HsmActionDispatcher`,
+  `IActionSchemaExporter`, or `IBehaviorActionCatalog`. ⇒ **on a fresh machine the picker is empty**,
+  and no hand-written `[HsmAction]` or blueprint AiPrimitive can ever be selected — the only way to
+  populate it is to have already typed the name somewhere else.
+  This directly contradicts the design (`HSM_Editor_NodeEditor_Host_Design.md` §10.1): *"a dropdown
+  over `HsmActionDispatcher.AllActions`, grouped by declaring type; fuzzy search"*, and §5.1's
+  dynamic action/guard catalog entries.
+  ⭐ **This is the HSM twin of the BTree `EB-C` gap** (static node catalog / no specific actions in
+  the palette) recorded in `BTree_HSM_Editor_State_And_Forward_Plan.md` §2.2 — and
+  `BehaviorActionCatalog` **already maps `ActionHosting.Hsm → BehaviorActionHosts.Hsm`** (`:200`),
+  so the catalog side is built and just not consumed here. Likely `WIRING`-sized once HSM-013 settles
+  what identity the picker should write.
 
 ---
 
