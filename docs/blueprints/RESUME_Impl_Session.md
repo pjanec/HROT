@@ -2,9 +2,13 @@
 
 > **Written for a fresh session. Self-contained; assumes no prior conversation.**
 > **You are the *implementation* session.** A separate *coordinator* session owns the tracker and
-> writes the handoffs. Last updated **2026-08-14**.
+> writes the handoffs. Last updated **2026-08-14** (Batch 49).
 >
-> ✅ **Batch 48 is COMPLETE and reported.** `U-9` — the **tagged declaration** (`D1`), the model change
+> ✅ **Batch 49 is COMPLETE and reported.** `U-15` (**the corpus is canonicalised** — `BP-227` closed)
+> **+ the `U-10` transform pair**, with ⭐⭐ **`v1 → v2 → v1` byte-identical on all 58** — the gate the
+> plan had recorded as *unwritable*. ⛔ **`U-10`'s WIRING is deferred and re-sequenced after
+> `U-11`/`U-12`** — see §1. `BP-235` filed.
+> ✅ Batch 48: `U-9` — the **tagged declaration** (`D1`), the model change
 > the whole `D` programme rests on. ⭐ Built **inverse** to the plan's wording: the tagged type is the
 > **view**, the three lists stay the **storage**, so `U-9` is entirely internal and its revert is cheap.
 > ✅ Batch 47: `U-7` (the type-existence rail, **`BP1671`**) + `U-8`
@@ -19,10 +23,10 @@
 |---|---|
 | **Repo** | `pjanec/HROT` |
 | **Implementation branch — PUSH HERE** | ⭐ **`claude/hrot-implementation-j1jvin`** |
-| **Coordinator branch — do NOT push** | ⭐ **`claude/blueprint-authoring-status-gm0akp`** (was at `af5c2b3`, merged into mine) |
-| **Last handoff** | 📄 **[HANDOFF_Batch48_Tagged_Declaration.md](HANDOFF_Batch48_Tagged_Declaration.md)** — delivered in full |
-| **Counts** | **58 open · 111 done** — ⚠ *derive, never hand-count:* `python3 scripts/tracker-counts.py --check` |
-| **Next free ids** | rows **BP-235+** · diagnostics **BP1672+** — ⭐ **Batch 48 allocated NEITHER** (`U-9` is a model change with no new rail and no new finding) |
+| **Coordinator branch — do NOT push** | ⭐ **`claude/blueprint-authoring-status-gm0akp`** (was at `2d4b10f`, merged into mine) |
+| **Last handoff** | 📄 **[HANDOFF_Batch49_Canonicalise_And_Migrate.md](HANDOFF_Batch49_Canonicalise_And_Migrate.md)** — ⭐ **`U-15` in full; `U-10` half, deliberately** |
+| **Counts** | **58 open · 112 done** — ⚠ *derive, never hand-count:* `python3 scripts/tracker-counts.py --check` |
+| **Next free ids** | rows **BP-236+** · diagnostics **BP1672+** — *(Batch 49 allocated `BP-235`; no new diagnostic)* |
 
 ⛔ **No PR unless the user explicitly asks.** There has never been one in this programme.
 ⛔ **Never put a model identifier** in a commit message, code comment, or anything else pushed.
@@ -34,23 +38,60 @@
 ```bash
 git fetch origin claude/blueprint-authoring-status-gm0akp
 git merge origin/claude/blueprint-authoring-status-gm0akp --no-edit   # rule 7
-python3 scripts/tracker-counts.py --check                              # expect 58 / 111
+python3 scripts/tracker-counts.py --check                              # expect 58 / 112
 ```
 
 Then read whatever handoff is newest on that branch. **No batch is in flight.**
 
-### ⏭ What the plan says comes next
+### ⏭ What comes next
 
-⭐ **`U-15` and `U-11` both unblock now** (`U-9` was the only thing either waited on), and **`U-14`**
-(`BP-232`) is the cheap one — the tracker row already records that its enabler landed.
+⭐⭐ **`U-11` is the natural next batch** — ~34 consumers move onto `BlueprintAsset.Declarations`,
+one bucket per commit (compiler stages · lowering · emit · editor), golden unchanged **at every
+sub-step**. ⭐ It is also now on `U-10`'s critical path: Batch 49 re-sequenced `U-10` to run
+**after** `U-11`/`U-12`, so that the on-disk v2 shape mirrors an in-memory shape that exists.
+🟢 **`U-14`** (`BP-232`) stays the cheap one and is independent.
 
 ⛔⛔ **`U-6` / `U-13` / `U-16` still hard-require the VISUAL CHECK**, which has now not run for
-**thirteen batches**. They are a Details table, a read-only view and deleting a whole window — exactly
+**fourteen batches**. They are a Details table, a read-only view and deleting a whole window — exactly
 the shape a headless test passes while the panel draws nothing. **Say so; never imply coverage.**
 
 ---
 
-## 1 · Batch 48 — `U-9`, the tagged declaration (`D1`)
+## 1 · Batch 49 — `U-15` landed; `U-10` half landed, half re-sequenced
+
+| commit | |
+|---|---|
+| `a03a02c` | ⭐⭐ **`U-15` — all 58 managed assets canonicalised; the canonical form is now INDENTED.** `BP-227` closed |
+| *(this batch)* | ⭐ **`BlueprintSchemaV2.Up`/`.Down` + `v1→v2→v1` byte identity on all 58** |
+
+### ⭐ `U-15` — what it actually took
+
+| | |
+|---|---|
+| ⭐⭐ **Run BEFORE rewriting anything** | canonicalising round-trips 58 files through the model at once, so **anything the model does not carry is deleted**. Measured first: **exactly two paths** — `Header.SubsystemType`, `Header.SchemaVersion`, in 44 files — both removed from the model by `D-021` and superseded by the `$meta` envelope **all 58 files already carry**. Declared as exceptions so any *other* path still reddens |
+| 📐 **Canonical = INDENTED** | ⛔ compact makes each asset one 3–12 KB line. 57/58 were already indented; and it was **already a live defect** — `SaveActiveBlueprintCommand` writes through `Serialize`, so opening a hand-authored asset and saving it **collapsed the file**. `Loco1.bp.json` is what that looks like |
+| ⚠⚠ **`ToJsonString()` ignores `WriteIndented`** | it takes its **own** options. The flag had been set on `_options` and had **no effect on net8** — the only target that writes files. Both halves are set now |
+| ⚠ **Cost** | 57 test cases / **5** methods asserted **compact** JSON substrings. ⭐ Fixed by reading the discriminator from the DOM, not by re-coupling to the new spelling. One test deleted a property by string-replacing its compact spelling — it would have deleted **nothing** and asserted about an unmodified document |
+| ⛔ **`BP-227`'s count was wrong twice** | **ELEVEN**, not 7 — 4 corpus + **7** recipes. The recipes carry both `1` and `2`; only `1` was ever counted. ⚠ The undercount happened **by the same mechanism as the defect** |
+
+### ⛔⛔ `U-10` — why only half shipped
+
+⭐ **What DID ship:** `BlueprintSchemaV2.Up`/`.Down`, a plain `System.Text.Json` DOM pair, with
+⭐⭐ **`v1 → v2 → v1` byte-identical for all 58** — *the gate `V1` had declared unwritable.* `U-15` is
+what made it writable. **`Down` IS the revert**, so it ships with `Up` as the handoff demanded.
+🔴 **Proved to bite:** dropping the order lists in `Down`, and silently skipping one declaration.
+
+⛔ **What did NOT ship: any wiring.** Nothing writes v2, nothing reads it. Three measured reasons:
+
+| | |
+|---|---|
+| 1️⃣ ⭐⭐ **`U-9` was built inverse, so `U-10`-before-`U-11` translates into a shape nothing uses** | the three lists are still the **storage**. Writing v2 today converts three lists → one array on save and back on load, into a shape **no code in the process consumes**, for zero present benefit — while carrying `Pass 3`, whose failure **resets every deployed entity's blackboard**. ⇒ 📐 **`U-11` → `U-12` → `U-10`** |
+| 2️⃣ ⛔ **The migration framework cannot reach the reader that must not break** | `BlueprintIncrementalGenerator` targets **`netstandard2.0`**; the `Fdp.Core`/`Hrot.Common` references are **net8-only** ⇒ `IJsonDocumentMigrator`, `JsonEnvelope`, `MigrationRegistry` are **unreachable from the one production reader of every shipped asset**. And `BlueprintMigrationModule` lives in `Hrot.Common`, which must not reference the compiler ⇒ transform and registration cannot meet without a duplicate or a new seam through a bootstrap shared by **six** host profiles. **Filed as `BP-235`** |
+| 3️⃣ ⚠ **There IS a production consumer** *(contrary to a first reading)* | `Hrot.ClusterRunner --mode migrate` walks **every `*.json`**, and `BuildClusterRunnerMigrate` registers the blueprint doc type ⇒ bumping `$meta.schemaVersion` to 2 while `BlueprintMigrationModule.CurrentVersion` stays **1-passthrough** is a **live inconsistency**, not a cosmetic one |
+
+---
+
+## 2 · Batch 48 — `U-9`, the tagged declaration (`D1`)
 
 | commit | |
 |---|---|
@@ -104,7 +145,7 @@ work. Un-apply with the inverse edit.
 
 ---
 
-## 2 · Batch 47 — `U-7` + `U-8` (`BP-228` closed)
+## 3 · Batch 47 — `U-7` + `U-8` (`BP-228` closed)
 
 | commit | |
 |---|---|
@@ -122,7 +163,7 @@ work. Un-apply with the inverse edit.
 
 ---
 
-## 3 · Batch 46 — `U-4` + `U-5` (`BP-230`, `BP-231` closed)
+## 4 · Batch 46 — `U-4` + `U-5` (`BP-230`, `BP-231` closed)
 
 | commit | |
 |---|---|
@@ -146,7 +187,7 @@ through its consumers is a contract change nobody is watching.*
 
 ---
 
-## 4 · Batch 45 — `U-3`, the kind-carrying index (`BP-226` closed)
+## 5 · Batch 45 — `U-3`, the kind-carrying index (`BP-226` closed)
 
 | commit | |
 |---|---|
@@ -170,7 +211,7 @@ through its consumers is a contract change nobody is watching.*
 
 ---
 
-## 5 · Batch 44 — the `U-` sequence opened
+## 6 · Batch 44 — the `U-` sequence opened
 
 | commit | |
 |---|---|
@@ -196,7 +237,7 @@ through its consumers is a contract change nobody is watching.*
 
 ---
 
-## 6 · What Batches 41–43 shipped — `BP-57` end to end
+## 7 · What Batches 41–43 shipped — `BP-57` end to end
 
 | commit | |
 |---|---|
@@ -221,7 +262,7 @@ through its consumers is a contract change nobody is watching.*
 
 ---
 
-## 7 · Where the code is
+## 8 · Where the code is
 
 | file | |
 |---|---|
@@ -239,16 +280,16 @@ through its consumers is a contract change nobody is watching.*
 
 ---
 
-## 8 · Gates
+## 9 · Gates
 
 The eight, solution **`IOS-IG-SimHost.sln`** (⚠ **not** `Hrot.sln`).
 ⚠⚠ **The two NodeEdit gates take NO `--no-build`** — they silently do not run with it.
 
-**Post-Batch-48, all eight run** *(full `-t:Rebuild`, so 69 is honest — an incremental build reports
-24, and a partial one 48)*: build **0 errors / 69 warnings** · BP diagnostics **10 distinct, all
-`BP3010`** · Blueprints **3491 total / 3481 passed / 0 failed / 10 skipped** *(+17 = Batch 48's own
-tests)* · **AiShared 1216** · BTree **612** · Breakpoints **130** · Generators **193** ·
-NodeEdit Core **208** · UI **131** · ⭐⭐ **golden 42/42 both tiers, unchanged**.
+**Post-Batch-49, all eight run** *(full `-t:Rebuild`, so 69 is honest — an incremental build reports
+24, and a partial one 48)*: build **0 errors / 69 warnings** · Blueprints **3505 total / 3495 passed /
+0 failed / 10 skipped** *(+14 = Batch 49's own tests)* · **AiShared 1216** · BTree **612** ·
+Breakpoints **130** · Generators **193** · NodeEdit Core **208** · UI **131** ·
+⭐⭐ **golden 42/42 both tiers, unchanged — across a batch that rewrote all 58 shipped assets.**
 
 ### ⭐ Run the five `--no-build` suites in PARALLEL
 
@@ -265,12 +306,12 @@ Blueprints. They only read the tree. The two NodeEdit gates must stay sequential
 ⚠ **A closing INCREMENTAL build under-reports warnings.** Record honestly rather than printing `69`
 from memory.
 
-⛔ **The visual check has not run for THIRTEEN batches.** *"Present and empty"* and *"follows the canvas"*
+⛔ **The visual check has not run for FOURTEEN batches.** *"Present and empty"* and *"follows the canvas"*
 are exactly what a headless test can pass while the panel draws nothing. **Say so; never imply coverage.**
 
 ---
 
-## 9 · Open findings that are mine
+## 10 · Open findings that are mine
 
 | | |
 |---|---|
@@ -291,7 +332,7 @@ will find it. ⚠ Reported rather than changed, per the handoff's instruction.
 
 ---
 
-## 10 · ⚠ Process lessons — paid for, do not re-learn
+## 11 · ⚠ Process lessons — paid for, do not re-learn
 
 | | |
 |---|---|
@@ -305,7 +346,7 @@ will find it. ⚠ Reported rather than changed, per the handoff's instruction.
 
 ---
 
-## 11 · The wider programme
+## 12 · The wider programme
 
 ⏭ **The unification is under way** — 📄 [PLAN_Variable_Unification_Tasks.md](PLAN_Variable_Unification_Tasks.md),
 reviewed by 📄 [REVIEW_Unification_Plan.md](REVIEW_Unification_Plan.md) (**run it, with five named changes**).

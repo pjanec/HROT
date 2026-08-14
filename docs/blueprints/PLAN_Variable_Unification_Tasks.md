@@ -49,8 +49,8 @@ assertions. ⛔ **Without `U-1` the whole programme is unfalsifiable.**
 | **U-7** | ⭐ **type-existence rail** (`Q-j`, `BP-228`) | compiler | `Totally.Made.Up.Type` is **refused**; no oracle ⇒ unchanged | U-1 |
 | **U-8** | type-choice union — stage **B′** | editor | **every offered type compiles** | U-7 |
 | ~~**U-9**~~ ✅ | tagged declaration + projections — **D1** | model | ✅ **LANDED B48** — ⚠ built inverse: the **tagged type is the view**, the lists stay the storage; **golden unchanged** | U-3 |
-| **U-15** 🆕 | ⭐ **canonicalise the corpus** — re-serialize every asset through `BlueprintJsonServices` | assets | ⭐ **a semantic no-op the golden harness proves**; settles `BP-227` | U-1, U-9 |
-| **U-10** | migrator **pair** + envelope 1→2 — **D2** | persistence | ⭐ **v1→v2→v1 is the identity**, `StructureHash` unmoved ⚠ **only meaningful AFTER `U-15`** | U-15 |
+| ~~**U-15**~~ ✅ | ⭐ **canonicalise the corpus** | assets | ✅ **LANDED B49** — all 58 (42 corpus + 16 recipes); Tier 1 **and** Tier 2 unchanged; `BP-227` closed. ⭐ **Canonical form is INDENTED** | U-1, U-9 |
+| **U-10** 🟠 | migrator **pair** + envelope 1→2 — **D2** | persistence | ⭐ **transform pair LANDED B49 and `v1→v2→v1` byte identity is PROVED on all 58.** ⛔ **Wiring DEFERRED — re-sequenced after `U-11`/`U-12`, see §U-10** | U-15, ⭐ **U-12** |
 | **U-11** | consumers moved off the views — **D3** | ~34 sites | golden unchanged **at every sub-step** | U-9 |
 | **U-12** | rails restated; views deleted — **D4** | compiler | `BP1024` gone · `BP1031` split · `BP1011` restated | U-11 |
 | **U-13** | shared-state read-only view (`Q-i`) | editor | lists exactly the referenced slot names | U-4 |
@@ -154,15 +154,53 @@ headless-testable it is called out as such rather than papered over.
 | 📐 **§1 asymmetry** | ⭐ **ruled (a)** — the three `ParameterDecl` lacks are editor-presentation, the drop is enumerated in `MembersAParameterDoesNotCarry`, reads return the documented default and **writes throw** |
 | 📌 **Direction** | ⚠ built the **inverse** of *"old lists become views"*: the **tagged type is the view**, the three lists remain the storage. That is what keeps `U-9` internal — a new store would have needed write-through views anyway to survive `U-11`, and flipping the store is `U-10`/`U-12`'s job. ⭐ **`U-11` is unaffected:** consumers move onto `Declarations` either way |
 
-### U-10 · Migrator pair + envelope 1→2 — D2 ⚠ *the risky one*
+### U-10 · Migrator pair + envelope 1→2 — D2 ⚠ *the risky one* — 🟠 **HALF LANDED, HALF RE-SEQUENCED (Batch 49)**
 
 | | |
 |---|---|
-| ⛔⛔ **Pass 1 — REWRITTEN by V1** | ⭐ **Measured: 0 of 58 shipped files survive even `Deserialize→Serialize` byte-identically** — **41 of 42** are hand-authored 2-space-indented and `BlueprintJsonServices` sets `WriteIndented = false`. ⇒ **the gate would fail on indentation before the migration logic ran once.** ⭐ **`U-15` canonicalises first; THEN v1→v2→v1 byte-identity is meaningful and is the strongest possible gate** |
-| ✅ **Pass 2** | a v1 file loads through the v2 reader |
-| 🔴 **Pass 3** | ⭐⭐ **`StructureHash` is unchanged for every shipped asset.** ⛔ **This is the no-blackboard-wipe gate — a failure here resets every deployed entity's state** |
-| ✅ **Pass 4** | ⭐ **answered by `U-15`:** the numeric `Dispatch` normalises to the string, **asserted there**. 📌 `BP-227`'s count corrected by the review: **7 files** — 4 golden + 3 recipes |
-| 🔴 **Revert** | ⛔ **`git revert` does not work — the down-migrator IS the revert.** It must ship and be tested **in this task** |
+| ✅ **The transform pair SHIPPED** | `BlueprintSchemaV2.Up` / `.Down`, and ⭐⭐ **`v1 → v2 → v1` is byte-identical for all 58 shipped assets** — *the gate `V1` recorded as unwritable, now written and run.* `U-15` is what made it writable |
+| ⛔ **The WIRING is deferred** | nothing writes v2 and nothing reads it. **Two measured reasons, both discovered after the plan was written** |
+
+#### ⛔⛔ Reason 1 — with `U-9` built inverse, `U-10`-before-`U-11` translates into a shape nothing uses
+
+⭐ **Batch 48 built the tagged declaration as a VIEW; the three lists are still the storage.** ⇒ writing v2
+today means converting three lists → one array on every save and one array → three lists on every load,
+into a shape **no code in the process consumes**, for **zero present benefit** — while carrying
+`Pass 3`, the highest-blast-radius gate in the programme (*a failure resets every deployed entity's
+blackboard*).
+
+⇒ 📐 **Ruling: `U-11` → `U-12` → `U-10`.** After `U-12` the storage **is** one tagged list, the on-disk
+shape mirrors the in-memory shape, and the migrator becomes a thin mapping instead of a bidirectional
+translation layer. ⚠ **This is the sequencing question §2 of the Batch 49 handoff invited** — *"this is
+the one place in the plan where the sequencing was written before `U-9`'s direction was known."*
+
+#### ⛔⛔ Reason 2 — the migration framework cannot reach the reader that must not break
+
+📌 **Measured:** `BlueprintIncrementalGenerator` targets **`netstandard2.0`**, and
+`Hrot.Blueprints.Compiler`'s `Fdp.Core` / `Hrot.Common` project references are **`net8.0`-only**.
+⇒ `IJsonDocumentMigrator`, `JsonEnvelope` and `MigrationRegistry` are **unreachable from the one
+production reader of every shipped asset**. ⚠ And the registry module (`BlueprintMigrationModule`)
+lives in `Hrot.Common`, which **must not** reference the blueprint compiler — so the transform and the
+registration cannot meet without either a duplicated transform or a new seam threaded through a
+bootstrap shared by six host profiles.
+
+⭐ **So the transform is a plain `System.Text.Json` DOM pair**, shared by both targets, and the registry
+question is a decision for whoever cuts the seam — recorded as **`BP-235`**.
+
+📌 ⚠ **There IS a production consumer**, contrary to a first reading: `Hrot.ClusterRunner --mode migrate`
+walks **every `*.json`** and `BuildClusterRunnerMigrate` registers the blueprint doc type. ⇒ bumping
+`$meta.schemaVersion` to 2 while `BlueprintMigrationModule.CurrentVersion` stays 1-passthrough would be
+a **live inconsistency**, not a cosmetic one. That is the third reason the envelope bump waits.
+
+#### The gates, restated against what landed
+
+| | |
+|---|---|
+| ✅ **Pass 1 — DONE** | ⭐⭐ **`v1 → v2 → v1` is byte-identical for all 58.** *(`V1` had rewritten this as unwritable: 0 of 58 files survived even `Deserialize→Serialize`, because 41 of 42 were hand-authored 2-space-indented against `WriteIndented = false`. `U-15` fixed the premise.)* ⭐ **Proved to bite:** dropping the order lists in `Down`, and silently skipping one declaration, each redden it |
+| ⛔ **Pass 2 — waits on the wiring** | a v1 file loads through the v2 reader. There is no v2 reader yet, deliberately |
+| ⛔ **Pass 3 — waits on the wiring** | ⭐⭐ **`StructureHash` unchanged for every shipped asset** — the no-blackboard-wipe gate. Vacuous until something writes v2 |
+| ✅ **Pass 4 — DONE in `U-15`** | the numeric `Dispatch` normalises to the string, asserted by `CorpusCanonicalisationTests`. ⛔ **`BP-227`'s count was wrong TWICE: ELEVEN files, not 7** — 4 corpus + **7** recipes; the recipes carry both `1` and `2` and only `1` was ever counted |
+| ✅ **Revert — DONE** | ⛔ `git revert` does not undo a migration. ⭐ **`BlueprintSchemaV2.Down` IS the revert, and it shipped and is tested with `Up`** — which is the half of this task that was safe to land ahead of the wiring |
 
 ### U-11 · Consumers moved — D3
 
@@ -194,15 +232,20 @@ headless-testable it is called out as such rather than papered over.
 | ✅ **Pass** | creating a `Variable` named `Health` when a `Parameter` `Health` exists is refused |
 | 📌 | trivial **after** `U-9`; awkward before, which is why it is sequenced there |
 
-### U-15 🆕 · Canonicalise the corpus — ⭐ **V1's fix, and it must land BEFORE `U-10`**
+### U-15 🆕 · Canonicalise the corpus — ✅ **LANDED, Batch 49**
 
 | | |
 |---|---|
-| **Do** | re-serialize every asset in the corpus through `BlueprintJsonServices`, once, as its own commit |
-| ⭐ **Pass 1** | ⭐⭐ **a semantic NO-OP, proved by the golden harness** — `StructureHash`, every struct layout and the diagnostic multiset **unchanged for all 42** |
-| ✅ **Pass 2** | re-running it is idempotent — the second pass changes nothing |
-| ✅ **Pass 3** | ⭐ **`BP-227` settled deliberately**: the numeric `Dispatch` normalises to the string, **asserted** |
-| ⚠ **Cost** | every asset file churns in one commit. ⭐ **That is the point** — it happens once, visibly, with the harness proving nothing semantic moved, instead of leaking through a migration |
+| ✅ **Done** | all **58** managed assets re-serialized through `BlueprintJsonServices` in one commit |
+| ⭐ **Pass 1 — ✅** | ⭐⭐ **a semantic NO-OP, proved by the golden harness** — Tier 1 **and** Tier 2 unchanged for all 42 |
+| ✅ **Pass 2 — ✅** | idempotent, and now a **standing gate**: `EveryManagedAssetIsAlreadyCanonical` keeps the corpus from drifting back |
+| ✅ **Pass 3 — ✅** | `BP-227` closed. ⛔ **The count was wrong TWICE — ELEVEN, not 7** (4 corpus + **7** recipes; only `Dispatch: 1` was ever counted, and the recipes also carry `2`) |
+| 📐 **Scope — ruled 42 + 16** | the corpus **and** the recipes. ⛔ **Not the 41 fixtures** — several are deliberately malformed and a fixture's bytes are frequently the thing under test. ⭐ **What proves the 16 unguarded recipes safe:** the same pre-flight that proved the 42, plus `RecipeIntegrityTests` and `DiscoverRecipesTests`, which are the recipes' own gates |
+| ⭐⭐ **Run BEFORE rewriting: what would be DELETED** | canonicalising round-trips through the model, so anything the model does not carry dies in 58 files at once. **Measured: exactly two paths, `Header.SubsystemType` and `Header.SchemaVersion`, in 44 files** — both deliberately removed from the model by `D-021` and superseded by the `$meta` envelope, which **all 58 files already carry** (asserted, not assumed). Listed as declared exceptions so any *other* path still reddens |
+| 📐 **The canonical form is INDENTED** | ⛔ **the compact form makes each asset a single 3–12 KB line.** 57 of 58 files were already indented; the corpus is this programme's baseline and every future change would be a whole-file diff; and it was **already a live defect** — `SaveActiveBlueprintCommand` writes through `Serialize`, so opening a hand-authored asset and saving it **collapsed the file**. `Loco1.bp.json` — the one compact corpus asset — is what that looks like |
+| ⚠⚠ **`ToJsonString()` was ignoring `WriteIndented` entirely** | it takes **its own** options. The flag has been set on `_options` since the envelope landed and has had **no effect on net8**, the only target that writes files in production. Both halves are set now |
+| 📌 **All properties stay explicit** | omitting nulls/defaults would shrink files a further ~30%, but a global `WhenWritingDefault` **drops `Dispatch` from every `Library` asset** (it is enum 0), and each ignore condition is a new way for a value to vanish. **+20% on disk** is the price of not adding one |
+| ⚠ **Cost paid** | 57 test cases across **5** methods asserted **compact** JSON substrings (`"kind":"When"`). ⭐ Fixed by reading the discriminator from the **DOM**, not by re-coupling them to the new spelling. ⛔ One test deleted a property by string-replacing its compact spelling — it would have silently deleted **nothing** and then asserted about an unmodified document |
 
 ### U-16 🆕 · Retire the standalone Variables window — ⭐ **V3: what makes stop-after-45 honest**
 
