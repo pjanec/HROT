@@ -102,16 +102,30 @@ public sealed class ViewsAreUnreadTests
 
     /// <summary>
     /// ⛔⛔ <b>The test must be able to FAIL.</b> A grep assertion that matches nothing looks identical
-    /// to a grep assertion that is green — so the pattern is pointed at the one place a direct read is
-    /// still correct and expected: <c>DeclarationList</c> itself, which IS the view over those lists.
+    /// to a grep assertion that is green, so the pattern is pointed somewhere a direct read genuinely
+    /// still exists.
+    ///
+    /// <para>
+    /// ⚠⚠ <b><c>U-12</c> moved the canary, and the move is itself the finding.</b> It used to point at
+    /// <c>DeclarationList</c>, which read <c>_asset.Parameters</c> because the three lists were the
+    /// storage. ⭐ <b>After the store flip <c>DeclarationList</c> reads the store instead, so the old
+    /// canary went silent</b> — and this test is what noticed, which is exactly what it is for.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>It now points at the TEST tree, and that is the honest place for it.</b> The three
+    /// properties survive the flip as public members because ~431 measured call sites — almost all of
+    /// them assertions in this suite — read and write them. ⇒ the sentence this whole class states is
+    /// *"the PRODUCT tree is clean, and the pattern still finds nearly two hundred reads next door."*
+    /// ⛔ Not <c>Emit/</c>, which would match for the wrong reason: those receivers are <c>IrAsset</c>.
+    /// </para>
     /// </summary>
     [Fact]
     public void ThePatternActuallyMatchesAKnownRead()
     {
-        var root  = ResolveDir("Hrot", "Subsystems", "Blueprints", "Hrot.Blueprints.Compiler", "Assets");
+        var root  = ResolveDir("Hrot", "Subsystems", "Blueprints", "Hrot.Blueprints.Tests");
         var found = Offenders(root).ToList();
 
         Assert.NotEmpty(found);
-        Assert.Contains(found, o => o.File == "DeclarationList.cs");
     }
 }

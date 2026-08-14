@@ -56,6 +56,7 @@ public sealed class BlueprintCompiler : IBlueprintCompiler
         // asset.Graphs.  To prevent mutations from leaking back to the caller we work on a
         // shallow copy of the asset that owns a new Graphs list (graphs themselves are shared
         // and stage0 pin mutation IS visible to caller — that is intentional rehydration).
+        var callerAsset = asset;
         asset = new BlueprintAsset
         {
             Header             = asset.Header,
@@ -65,11 +66,8 @@ public sealed class BlueprintCompiler : IBlueprintCompiler
             TierHint           = asset.TierHint,
             IsWorldSingleton   = asset.IsWorldSingleton,
             Primitive          = asset.Primitive,
-            Parameters         = asset.Parameters,
             ParameterOrder     = asset.ParameterOrder,
-            WorkingState       = asset.WorkingState,
             WorkingStateOrder  = asset.WorkingStateOrder,
-            Variables          = asset.Variables,
             VariableOrder      = asset.VariableOrder,
             EventDispatchers   = asset.EventDispatchers,
             CustomEvents       = asset.CustomEvents,
@@ -77,6 +75,22 @@ public sealed class BlueprintCompiler : IBlueprintCompiler
             Graphs             = new List<Graph>(asset.Graphs),  // new list, same graph objects
             EditorMetadata     = asset.EditorMetadata,
         };
+
+        // U-12 — the six-line storage copy, after the flip.
+        //
+        // ⭐ It used to assign the three declaration LISTS across, which shared the caller's actual
+        // List objects. There is now one store, so the copy is one line — and it copies the store's
+        // ENTRIES, giving this method its own container over the caller's own declaration objects.
+        //
+        // ⭐⭐ That quietly extends U-2/BP-229's guarantee from graphs to declarations: a stage that
+        // added or removed a declaration can no longer reach back into the asset the designer is
+        // looking at. ⚠ Measured Batch 53 before relying on it — no compiler stage structurally mutates
+        // declarations; the only Add/Remove/ReplaceAll sites are in the editor (BlueprintDocumentFactory,
+        // BlueprintVariablesWindow) and they operate on the caller's asset, never on this copy.
+        //
+        // ⚠ The declaration OBJECTS stay shared, exactly as node objects do above. Stage 4 writes
+        // resolved types back through them and the caller is meant to see that.
+        asset.DeclarationStore.AddRange(callerAsset.DeclarationStore);
 
         Stage0_Rehydrate.Run(asset, options);
 

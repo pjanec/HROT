@@ -47,21 +47,38 @@ public sealed class DeclarationList : IList<BlueprintDeclaration>
         DeclarationKind.Parameter, DeclarationKind.WorkingState, DeclarationKind.Variable,
     };
 
-    private int CountOf(DeclarationKind kind) => kind switch
+    /// <summary>
+    /// ⭐ <b>U-12 — reads the store directly.</b> ⚠ The store is kept grouped in <see cref="KindOrder"/>,
+    /// so one kind is one contiguous run: a start plus a count.
+    /// </summary>
+    private int StartOf(DeclarationKind kind)
     {
-        DeclarationKind.Parameter    => _asset.Parameters.Count,
-        DeclarationKind.WorkingState => _asset.WorkingState.Count,
-        DeclarationKind.Variable     => _asset.Variables.Count,
-        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
-    };
+        var start = 0;
+        foreach (var k in KindOrder)
+        {
+            if (k == kind) return start;
+            start += CountOf(k);
+        }
+        throw new ArgumentOutOfRangeException(nameof(kind), kind, null);
+    }
 
-    private BlueprintDeclaration AtLocal(DeclarationKind kind, int i) => kind switch
+    private int CountOf(DeclarationKind kind)
     {
-        DeclarationKind.Parameter    => BlueprintDeclaration.For(_asset.Parameters[i]),
-        DeclarationKind.WorkingState => BlueprintDeclaration.For(kind, _asset.WorkingState[i]),
-        DeclarationKind.Variable     => BlueprintDeclaration.For(kind, _asset.Variables[i]),
-        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
-    };
+        var n = 0;
+        foreach (var d in _asset.DeclarationStore) if (d.Kind == kind) n++;
+        return n;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Since <c>U-12</c> this returns the STORED declaration, not a fresh facade.</b> Under
+    /// <c>U-9</c> every read allocated a new <see cref="BlueprintDeclaration"/> wrapping the same decl,
+    /// which is why identity had to be defined on <see cref="BlueprintDeclaration.Backing"/>. That rule
+    /// still holds and is still the one to rely on — ⚠ <b>reference equality of the wrapper is now
+    /// accidentally true, and code that starts depending on it would break the moment anything
+    /// re-wraps.</b>
+    /// </summary>
+    private BlueprintDeclaration AtLocal(DeclarationKind kind, int i)
+        => _asset.DeclarationStore[StartOf(kind) + i];
 
     /// <summary>Splits a union index into (which list, position within it).</summary>
     private (DeclarationKind Kind, int Local) Locate(int index)
@@ -183,24 +200,14 @@ public sealed class DeclarationList : IList<BlueprintDeclaration>
                     + "moving a declaration between lists changes the struct it is laid out in. "
                     + "Remove it and Add it to the target kind instead.", nameof(value));
 
-            switch (kind)
-            {
-                case DeclarationKind.Parameter:    _asset.Parameters[local]   = value.AsParameterDecl!; break;
-                case DeclarationKind.WorkingState: _asset.WorkingState[local] = value.AsVariableDecl!;  break;
-                default:                           _asset.Variables[local]    = value.AsVariableDecl!;  break;
-            }
+            _asset.DeclarationStore[StartOf(kind) + local] = value;
         }
     }
 
     public void Add(BlueprintDeclaration item)
     {
         if (item is null) throw new ArgumentNullException(nameof(item));
-        switch (item.Kind)
-        {
-            case DeclarationKind.Parameter:    _asset.Parameters.Add(item.AsParameterDecl!);   break;
-            case DeclarationKind.WorkingState: _asset.WorkingState.Add(item.AsVariableDecl!);  break;
-            default:                           _asset.Variables.Add(item.AsVariableDecl!);     break;
-        }
+        _asset.DeclarationStore.Insert(StartOf(item.Kind) + CountOf(item.Kind), item);
     }
 
     /// <summary>
@@ -218,12 +225,7 @@ public sealed class DeclarationList : IList<BlueprintDeclaration>
         // ⚠ Not Math.Clamp — this project also targets netstandard2.0, which does not have it.
         var local = Math.Max(0, Math.Min(index - start, CountOf(item.Kind)));
 
-        switch (item.Kind)
-        {
-            case DeclarationKind.Parameter:    _asset.Parameters.Insert(local, item.AsParameterDecl!);   break;
-            case DeclarationKind.WorkingState: _asset.WorkingState.Insert(local, item.AsVariableDecl!);  break;
-            default:                           _asset.Variables.Insert(local, item.AsVariableDecl!);     break;
-        }
+        _asset.DeclarationStore.Insert(StartOf(item.Kind) + local, item);
     }
 
     public bool Remove(BlueprintDeclaration item)
@@ -243,12 +245,7 @@ public sealed class DeclarationList : IList<BlueprintDeclaration>
     private void RemoveLocal(DeclarationKind kind, int local)
     {
         var id = AtLocal(kind, local).Id;
-        switch (kind)
-        {
-            case DeclarationKind.Parameter:    _asset.Parameters.RemoveAt(local);   break;
-            case DeclarationKind.WorkingState: _asset.WorkingState.RemoveAt(local); break;
-            default:                           _asset.Variables.RemoveAt(local);    break;
-        }
+        _asset.DeclarationStore.RemoveAt(StartOf(kind) + local);
         OrderOf(kind)?.Remove(id);
     }
 
@@ -280,28 +277,14 @@ public sealed class DeclarationList : IList<BlueprintDeclaration>
                     $"Cannot put a {d.Kind} declaration into the {kind} list — moving a declaration "
                     + "between lists changes the struct it is laid out in.", nameof(declarations));
 
-        switch (kind)
-        {
-            case DeclarationKind.Parameter:
-                _asset.Parameters.Clear();
-                _asset.Parameters.AddRange(items.Select(d => d.AsParameterDecl!));
-                break;
-            case DeclarationKind.WorkingState:
-                _asset.WorkingState.Clear();
-                _asset.WorkingState.AddRange(items.Select(d => d.AsVariableDecl!));
-                break;
-            default:
-                _asset.Variables.Clear();
-                _asset.Variables.AddRange(items.Select(d => d.AsVariableDecl!));
-                break;
-        }
+        var start = StartOf(kind);
+        _asset.DeclarationStore.RemoveRange(start, CountOf(kind));
+        _asset.DeclarationStore.InsertRange(start, items);
     }
 
     public void Clear()
     {
-        _asset.Parameters.Clear();
-        _asset.WorkingState.Clear();
-        _asset.Variables.Clear();
+        _asset.DeclarationStore.Clear();
         _asset.ParameterOrder?.Clear();
         _asset.WorkingStateOrder?.Clear();
         _asset.VariableOrder?.Clear();

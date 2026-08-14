@@ -52,7 +52,7 @@ assertions. ⛔ **Without `U-1` the whole programme is unfalsifiable.**
 | ~~**U-15**~~ ✅ | ⭐ **canonicalise the corpus** | assets | ✅ **LANDED B49** — all 58 (42 corpus + 16 recipes); Tier 1 **and** Tier 2 unchanged; `BP-227` closed. ⭐ **Canonical form is INDENTED** | U-1, U-9 |
 | **U-10** 🟠 | migrator **pair** + envelope 1→2 — **D2** | persistence | ⭐ **transform pair LANDED B49 and `v1→v2→v1` byte identity is PROVED on all 58.** ⛔ **Wiring DEFERRED — re-sequenced after `U-11`/`U-12`, see §U-10** | U-15, ⭐ **U-12** |
 | ~~**U-11**~~ ✅ | consumers moved off the views — **D3** | ⛔ **135 refs / 24 files, not ~34** | ✅ **DONE B50 (compiler) + B51 (editor).** ⭐⭐ **`ViewsAreUnreadTests` asserts nothing reads the three lists — `U-12` is unblocked as a CHECKED FACT** | U-9 |
-| **U-12** 🟠 | rails restated; views deleted — **D4** | compiler | ⭐ **RAILS LANDED B52** — `BP1024` retired · `BP1031` split · `BP1011` restated · 🆕 **`BP1673`**. ⛔ **The STORE FLIP is not done** — see §U-12 | U-11 |
+| ~~**U-12**~~ ✅ | rails restated; store flipped — **D4** | compiler | ✅ **DONE** — rails B52 (`BP1024` retired · `BP1031` split · `BP1011` restated · 🆕 `BP1673`), ⭐⭐ **store flipped B53 with `persistence-shape.txt` unchanged**. ⚠ The three properties **survive** as live windows — see §U-12 | U-11 |
 | **U-13** | shared-state read-only view (`Q-i`) | editor | lists exactly the referenced slot names | U-4 |
 | **U-14** | `MakeUniqueName` across all kinds (`BP-232`) | editor | a `Parameter` and a `Variable` cannot share a name | U-9 |
 | **U-16** 🆕 | 🟠 ⭐ **retire the standalone `BlueprintVariablesWindow`** | editor | ⛔ **exactly ONE editing surface remains** for the model | U-6 |
@@ -240,7 +240,17 @@ a **live inconsistency**, not a cosmetic one. That is the third reason the envel
 | ⭐⭐ **Measured, not assumed** | across **all 58** shipped assets: **0** AiPrimitives carry a `Variable`, **0** Instances carry a `Parameter` or `WorkingState`, and the **3** Library assets declare **nothing**. ⇒ all three restatements are **corpus-neutral by construction**, which is why golden Tier 1 + Tier 2 are unchanged |
 | ⭐ **"Asset scope" needed no new vocabulary** | all three of `BlueprintAsset`'s lists ARE the `Asset` scope; graph locals live on `Graph`. So *"any `Asset`-scope entry"* is `Declarations.Count > 0` and *"an `Input` entry"* is `CountIn(Parameter) > 0` |
 | ⚠ **One reading to confirm** | *"`BP1031` **split**"* is implemented as **one surviving arm**, not two codes — the gate names a single condition, and a code whose only other arm is deleted is a narrowing, not a split |
-| ⛔ **The STORE FLIP is NOT done** | `Pass 5`'s *"`persistence-shape.txt` unchanged"* means the three properties must stop being **storage** while remaining **the serialized shape** — serialization-only projections over the tagged store. Different work, different revert story, and the one gate whose failure re-initialises every deployed entity's blackboard. **Left for its own batch** |
+| ✅ **The STORE FLIP landed — Batch 53** | `BlueprintAsset.DeclarationStore` is one `List<BlueprintDeclaration>`, kept grouped in `KindOrder`; the three properties are **live `DeclarationView<T>` windows** onto its runs. ⭐⭐ **`persistence-shape.txt` unchanged** — the store moved, the bytes did not |
+
+#### ⭐ Batch 53 — the flip
+
+| | |
+|---|---|
+| ⚖️ **§1's ruling: the three properties SURVIVE as public members** | ⛔ **the handoff's premise is true only of the two directories `ViewsAreUnreadTests` scans.** Measured with the compiler as oracle: **431** sites, ~100 files, **~400 in the test tree**. ⭐ Keeping them is also what makes the flip verifiable — those ~400 assertions were written by earlier batches against the old storage and are untouched by this one |
+| ⭐⭐ **Zero call-site churn** | the property type is a concrete `DeclarationView<T>` with a parameterless ctor (**112** sites write `= new()`, which an interface cannot satisfy), an implicit conversion from `List<T>` (**~7** sites), and `AddRange` (**3** sites). **83** mutation sites forced the window to be **live** — three `List<T>` snapshots would have made `asset.Variables.Add(v)` a silent no-op |
+| ⭐ **What the old arrangement was holding shut** | **reference identity of a list.** `BlueprintCompiler`'s copy shared the caller's actual `List` objects; it now copies the store's entries ⇒ **`U-2`/`BP-229`'s guarantee extends from graphs to declarations**. ⚠ Verified safe first: no compiler stage structurally mutates declarations |
+| 🔴🔴 **The probe that mattered** | making the store `public` ⇒ **`persistence-shape` RED, golden green 131/131** — the handoff's point proved: golden cannot see a persistence-only regression |
+| ⛔⛔ **The probe that LIED, and the finding** | breaking the grouping invariant (`ReplaceWith` appending instead of inserting at the kind's run) left **both** gates green — because deserialization sets the properties in `Parameters, WorkingState, Variables`, which is already `KindOrder`. ⇒ the invariant the whole design rests on was **unguarded**. ⭐ `StoreFlipTests` now drives the paths the corpus cannot (reverse-order assignment, interleaved `Add`) and reddens under it |
 
 ### U-13 · Shared-state read-only view — `Q-i`
 

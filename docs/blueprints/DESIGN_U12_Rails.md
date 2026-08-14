@@ -1,7 +1,8 @@
-# `U-12` — the three rails, restated · **the store flip is NOT here**
+# `U-12` — the three rails, restated · **and the store flip**
 
-> 📌 **Batch 52 §2.** Implementation-session design note. ⭐ The four passes are the plan's; ⛔ **the
-> fifth rail below is not in the plan** and is this batch's measurement.
+> 📌 **Batches 52 (§0–§3) and 53 (§4).** Implementation-session design note. ⭐ The four passes are
+> the plan's; ⛔ **the fifth rail (§3) is not in the plan** and is Batch 52's measurement, as §4.4's
+> unguarded invariant is Batch 53's.
 
 ---
 
@@ -13,7 +14,7 @@
 | **`BP1031`** | Instance with **`Parameter` OR `WorkingState`** ⇒ error | ⭐ **`Parameter` only** — the `(Input, Asset)` half. `WorkingState` becomes legal |
 | **`BP1011`** | Library with any **`Variable`** ⇒ error | ⭐ **any asset-scope declaration** — i.e. `Declarations.Count > 0` |
 | 🆕 **`BP1673`** | *(did not exist — it could not be reached)* | ⛔ **two declarations sharing a name across kinds ⇒ error** |
-| **the store** | three lists on `BlueprintAsset` | ⛔ **unchanged this batch** — see §4 |
+| **the store** | three lists on `BlueprintAsset` | ⭐⭐ **FLIPPED (Batch 53)** — one tagged list; the three are live windows. See §4 |
 
 ---
 
@@ -111,7 +112,81 @@ error (chosen) versus warning — and whether the same-kind case deserves its ow
 
 ---
 
-## 4. ⛔ Why the store flip is not in this batch
+## 4. ✅ The store flip — Batch 53
+
+> ⚠ §4 was written in Batch 52 as *"why the flip is not in this batch"*. It landed in Batch 53; the
+> original reasoning is kept below it because it is still the correct statement of the constraint.
+
+### 4.1 ⭐⭐ The design turned on one measurement
+
+⛔ **The obvious flip is a lie.** Three `List<T>` snapshots rebuilt on every `get` would satisfy the
+serializer and break nothing that compiles — and `asset.Variables.Add(v)` would report success and
+write to a list nobody reads. **Trap #5, on the model type this whole programme is about.**
+
+⇒ ⭐ **The three properties must stay LIVE**, which means their type cannot be `List<T>`. So the
+question became: what type keeps ~431 existing call sites compiling?
+
+📌 **Measured with the compiler as the oracle** (`[Obsolete]` on all three, one full solution build —
+⚠ and the `.Compiler` project's `TreatWarningsAsErrors` had to be relaxed first, or the build stops
+there and every downstream site stays invisible):
+
+| | |
+|---|---|
+| **431** distinct sites, ~100 files | **~400 of them in the test tree** |
+| **172** object-initializer sites (`Parameters = …`) | ⇒ the property must be **settable** |
+| **112** of those are `= new()` | ⛔ **rules out `IList<T>`** — you cannot `new()` an interface |
+| **83** mutation sites (`.Add`, `.Remove`, …) | ⇒ the getter must be **live** |
+| **~7** `= new List<VariableDecl> { … }` | ⇒ needs an implicit conversion |
+| **3** `List<T>`-only calls — all `AddRange` | ⇒ the view provides it |
+| **0** sites assigning the property to a `List<T>` local | ⭐ nothing pins the concrete type |
+
+⇒ 📐 **`DeclarationView<T>`**: a concrete `IList<T>` with a parameterless constructor, an implicit
+conversion from `List<T>`, and `AddRange`. ⭐⭐ **The flip landed with ZERO call-site churn.**
+
+### 4.2 ⚖️ §1's ruling — the three properties SURVIVE as public members
+
+⛔ **The handoff's premise — *"`ViewsAreUnreadTests` says nothing reads them, so deleting them is
+possible"* — is true only of the two directories that test scans** (`Hrot.Blueprints.Editor` and
+`Compiler/Stages`). ⭐ **~400 test-tree sites read them.**
+
+⭐⭐ **And keeping them is what makes the flip verifiable.** Those ~400 assertions become the strongest
+regression suite the change could have — written by earlier batches, against the old storage, and
+untouched by this one. ⛔ Rewriting ~100 test files in the same commit as the store flip would have
+destroyed exactly the independence that makes them evidence.
+
+### 4.3 ⛔⛔ What the old arrangement was silently holding shut (§3.1's question)
+
+| candidate | measured |
+|---|---|
+| **separately assignable lists** | ✅ 172 + 5 sites — handled by the setter, no churn |
+| ⭐⭐ **reference identity of a list** | ⛔ **This one was real.** `BlueprintCompiler`'s copy shared the caller's actual `List` objects, so a stage that added a declaration would have written into the designer's asset. ⭐ The flip copies the store's *entries* instead ⇒ **`U-2`/`BP-229`'s guarantee extends from graphs to declarations for free.** ⚠ Verified safe first: **no compiler stage structurally mutates declarations** — every `Add`/`Remove`/`ReplaceAll` is in the editor |
+| **null vs empty** | ✅ never null before or after; the windows are non-null for the asset's lifetime |
+| **insertion order within a kind** | ⭐ preserved by the **grouping invariant** — see 4.4 |
+| 📌 **fresh facade per read** | ⚠ `AtLocal` used to allocate a new `BlueprintDeclaration` per read; it now returns the stored one. `TaggedDeclarationTests` asserted `NotSame` on two reads — a test of the *mechanism*, not the rule — and was restated against the rule's one live production caller (`BlueprintDocumentFactory` removing by a facade it built itself) |
+
+### 4.4 🔴🔴 The revert probe that mattered — and the one that lied
+
+⭐ **The handoff's question: which gate catches the mistake you are most likely to make?**
+
+| probe | Pass 1 `persistence-shape` | Pass 2 golden |
+|---|---|---|
+| ⭐⭐ **the store made `public`** *(the likely mistake: "it's the model now")* | 🔴 **RED** — 2 of 3 | ✅ **green, 131/131** |
+| ⛔ **grouping invariant broken** (`ReplaceWith` appends instead of inserting at the kind's run) | ✅ **green** | ✅ **green** |
+
+⭐ **Row 1 is the handoff's point proved:** golden cannot see a persistence-only regression; the
+baseline can, and it is the only thing that can.
+
+⛔⛔ **Row 2 is the finding.** The invariant the entire design rests on was **unguarded** — because
+deserialization happens to set the three properties in the order `Parameters, WorkingState,
+Variables`, which is already `KindOrder`. ⇒ appending and inserting agree on exactly the path the
+42-asset corpus exercises, **and on no other**. ⭐ `StoreFlipTests` now drives the paths the corpus
+cannot (reverse-order assignment, interleaved `Add`), and reddens under that probe.
+
+📌 **A green revert probe is a finding about the tests. Never evidence the code was fine.**
+
+---
+
+## 4′. *(Batch 52)* ⛔ Why the store flip was not in that batch
 
 ⭐ **The handoff's own stop points:** *"§1 alone is a complete, valuable batch. §1 + the rails, without
 the store flip, is another. ⛔ The store flip is the last thing in, never the only thing."*

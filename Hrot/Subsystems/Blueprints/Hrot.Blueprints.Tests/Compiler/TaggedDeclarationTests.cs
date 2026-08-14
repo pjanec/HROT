@@ -238,22 +238,42 @@ public sealed class TaggedDeclarationTests
     }
 
     /// <summary>
-    /// ⭐ <b>Identity is the stored object.</b> The view builds a fresh facade per read, so
-    /// <c>Contains</c>/<c>IndexOf</c>/<c>Remove</c> would all be silent no-ops without this.
+    /// ⭐ <b>Identity is the stored declaration, not the facade wrapping it</b> — so
+    /// <c>Contains</c>/<c>IndexOf</c>/<c>Remove</c> match a facade the caller built for itself.
+    ///
+    /// <para>
+    /// ⚠⚠ <b><c>U-12</c> changed what makes this necessary, and the test had to change with it.</b> It
+    /// used to read the same index twice and assert <c>NotSame</c>: under <c>U-9</c> the view allocated
+    /// a fresh facade per read, so two reads genuinely produced two objects. Since the store flip the
+    /// facades <b>are</b> the stored elements, so two reads return the same instance and that
+    /// assertion became vacuously false — ⛔ <b>a test asserting a mechanism rather than the rule.</b>
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>The rule still has a live production caller, and it is now the only thing keeping it
+    /// necessary:</b> <c>BlueprintDocumentFactory</c> deletes a variable with
+    /// <c>Declarations.Remove(BlueprintDeclaration.For(kind, decl))</c> — a facade constructed on the
+    /// spot around a decl it already holds. So that is what this test constructs, which is a stronger
+    /// statement than the one it replaces.
+    /// </para>
     /// </summary>
     [Fact]
-    public void TwoFacadesOverTheSameStoredDeclarationAreEqual()
+    public void AFreshFacadeOverAStoredDeclarationEqualsTheStoredOne()
     {
         var asset = ThreeKinds();
 
-        var a = asset.Declarations[3];
-        var b = asset.Declarations[3];
+        var stored = asset.Declarations[3];
+        // Exactly BlueprintDocumentFactory's shape: wrap a decl the caller is already holding.
+        var fresh  = BlueprintDeclaration.For(stored.Kind, stored.AsVariableDecl!);
 
-        Assert.NotSame(a, b);
-        Assert.Equal(a, b);
-        Assert.Equal(a.GetHashCode(), b.GetHashCode());
-        Assert.Contains(a, asset.Declarations);
-        Assert.Equal(3, asset.Declarations.IndexOf(b));
+        Assert.NotSame(stored, fresh);
+        Assert.Equal(stored, fresh);
+        Assert.Equal(stored.GetHashCode(), fresh.GetHashCode());
+        Assert.Contains(fresh, asset.Declarations);
+        Assert.Equal(3, asset.Declarations.IndexOf(fresh));
+
+        // ⭐ And the operation that would silently no-op without it.
+        Assert.True(asset.Declarations.Remove(fresh));
     }
 
     /// <summary>

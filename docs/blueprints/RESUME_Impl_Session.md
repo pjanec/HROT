@@ -2,7 +2,13 @@
 
 > **Written for a fresh session. Self-contained; assumes no prior conversation.**
 > **You are the *implementation* session.** A separate *coordinator* session owns the tracker and
-> writes the handoffs. Last updated **2026-08-14** (Batch 52).
+> writes the handoffs. Last updated **2026-08-14** (Batch 53).
+>
+> ✅ **Batch 53 is COMPLETE. ⭐⭐ `U-12` IS DONE — the store is flipped.** `BlueprintAsset` holds ONE
+> `List<BlueprintDeclaration>`; `Parameters`/`WorkingState`/`Variables` are **live windows** onto its
+> runs. ⭐⭐ **`persistence-shape.txt` unchanged: the store moved, the bytes did not.**
+> ⚖️ **Ruled: the three properties SURVIVE as public members** — ~400 of the 431 measured call sites
+> are test assertions, and they are what makes the flip verifiable. See §0.
 >
 > ✅ **Batch 52 is COMPLETE.** ⭐⭐ **§1 — the compiler stopped lying about the PDB (`BP1672`) and the
 > suite stopped depending on assembly load order.** ⛔ **The handoff's headline was wrong against the
@@ -35,10 +41,10 @@
 |---|---|
 | **Repo** | `pjanec/HROT` |
 | **Implementation branch — PUSH HERE** | ⭐ **`claude/hrot-implementation-j1jvin`** |
-| **Coordinator branch — do NOT push** | ⭐ **`claude/blueprint-authoring-status-gm0akp`** (was at `db4e4f0`, merged into mine) |
-| **Last handoff** | 📄 **[HANDOFF_Batch52_Red_Gate_And_Rails.md](HANDOFF_Batch52_Red_Gate_And_Rails.md)** — §1 in full, §2's rails in full, ⛔ **store flip deliberately stopped short of** |
-| **Counts** | **58 open · 116 done** — ⚠ *derive, never hand-count:* `python3 scripts/tracker-counts.py --check` |
-| **Next free ids** | rows **BP-240+** · diagnostics **BP1674+** — ⭐ **Batch 52 allocated `BP-237`/`BP-238`/`BP-239` and `BP1672`/`BP1673`** |
+| **Coordinator branch — do NOT push** | ⭐ **`claude/blueprint-authoring-status-gm0akp`** (was at `9078ccd`, merged into mine) |
+| **Last handoff** | 📄 **[HANDOFF_Batch53_Store_Flip.md](HANDOFF_Batch53_Store_Flip.md)** — delivered in full |
+| **Counts** | **59 open · 116 done** — ⚠ *derive, never hand-count:* `python3 scripts/tracker-counts.py --check` |
+| **Next free ids** | rows **BP-241+** · diagnostics **BP1674+** — ⭐ **Batch 53 allocated `BP-240` and NO diagnostic** |
 
 ⛔ **No PR unless the user explicitly asks.** There has never been one in this programme.
 ⛔ **Never put a model identifier** in a commit message, code comment, or anything else pushed.
@@ -66,6 +72,79 @@ store flip**; ⚠ two very different revert stories, so consider splitting them.
 ⛔⛔ **`U-6` / `U-13` / `U-16` still hard-require the VISUAL CHECK**, which has now not run for
 **fourteen batches**. They are a Details table, a read-only view and deleting a whole window — exactly
 the shape a headless test passes while the panel draws nothing. **Say so; never imply coverage.**
+
+---
+
+## 0 · Batch 53 — the store flip · ⭐⭐ `U-12` closed
+
+### 0.1 What the model looks like now
+
+```
+BlueprintAsset
+ └─ internal List<BlueprintDeclaration> DeclarationStore    ⭐ THE STORE — one list
+      grouped in KindOrder:  [ Parameter… | WorkingState… | Variable… ]
+                                  ↑             ↑              ↑
+        Parameters ───────────────┘             │              │      each a LIVE
+        WorkingState ───────────────────────────┘              │      DeclarationView<T>
+        Variables ─────────────────────────────────────────────┘      onto its own run
+```
+
+⭐ **`Declarations` (`DeclarationList`) is unchanged from the caller's side** — under `U-9` it was a
+view over three lists, it is now a view over the store. ⚠ **That symmetry is why `U-9` could be built
+inverse in Batch 48 and paid for here.**
+
+### 0.2 ⚖️ §1's ruling — the three properties SURVIVE, and why
+
+⛔ **The handoff's premise was that `ViewsAreUnreadTests` licenses deleting them.** That test scans
+`Hrot.Blueprints.Editor` and `Compiler/Stages` **only**.
+
+📌 **Measured with the compiler as the oracle** — `[Obsolete]` on all three, one solution build:
+
+| | |
+|---|---|
+| **431** distinct sites, ~100 files | ⭐ **~400 of them are test assertions** |
+| **172** object-initializers · **112** of them `= new()` | ⛔ **rules out `IList<T>`** |
+| **83** mutation sites | ⇒ the window must be **LIVE**, not a snapshot |
+| **3** `List<T>`-only calls (all `AddRange`) · **0** `List<T>` locals | ⭐ nothing pins the concrete type |
+
+⇒ 📐 **`DeclarationView<T>`** — concrete, parameterless ctor, implicit conversion from `List<T>`,
+`AddRange`. ⭐⭐ **ZERO call-site churn**, which is what leaves those ~400 assertions free to act as an
+independent check on the change rather than being rewritten by it.
+
+⚠⚠ **The tempting cheap flip is trap #5:** three `List<T>` snapshots rebuilt per `get` compile fine
+everywhere and make `asset.Variables.Add(v)` a silent no-op.
+
+### 0.3 ⭐ What the old arrangement was silently holding shut
+
+⭐⭐ **Reference identity of a list.** `BlueprintCompiler`'s copy shared the caller's actual `List`
+objects; it now copies the store's **entries**. ⇒ **`U-2`/`BP-229`'s guarantee extends from graphs to
+declarations** — a stage that added one can no longer reach the designer's asset.
+⚠ **Verified before relying on it:** no compiler stage structurally mutates declarations; every
+`Add`/`Remove`/`ReplaceAll` is in the editor. ⚠ The declaration **objects** stay shared on purpose —
+Stage 4 writes resolved types back through them.
+
+📌 Also moved, and restated rather than patched: `AtLocal` used to allocate a **fresh facade per
+read**. `TaggedDeclarationTests` asserted `NotSame` on two reads — a test of the *mechanism*. It now
+asserts the *rule* against its one live production caller (`BlueprintDocumentFactory` removing by a
+facade it constructs itself).
+
+### 0.4 🔴🔴 The two revert probes — and the one that lied
+
+| probe | `persistence-shape` | golden |
+|---|---|---|
+| ⭐⭐ **store made `public`** *(the likely mistake: "it's the model now")* | 🔴 **RED** | ✅ green **131/131** |
+| ⛔ **grouping invariant broken** | ✅ green | ✅ green |
+
+⭐ **Row 1 answers the handoff's question** — *which gate catches the mistake you are most likely to
+make?* Golden cannot see a persistence-only regression; the baseline can, and only it can.
+
+⛔⛔ **Row 2 is the finding, filed as `BP-240`.** The invariant the entire design rests on was
+**unguarded**, because deserialization sets the three properties in `Parameters, WorkingState,
+Variables` — which *is* `KindOrder`. ⇒ appending and inserting agree on exactly the path the 42-asset
+corpus exercises **and on no other**. ⭐ `StoreFlipTests` drives what the corpus cannot: reverse-order
+assignment and interleaved `Add`. It reddens under that probe.
+
+📌 **A green revert probe is a finding about the tests. Never evidence the code was fine.**
 
 ---
 
@@ -462,7 +541,13 @@ through its consumers is a contract change nobody is watching.*
 The eight, solution **`IOS-IG-SimHost.sln`** (⚠ **not** `Hrot.sln`).
 ⚠⚠ **The two NodeEdit gates take NO `--no-build`** — they silently do not run with it.
 
-**Post-Batch-52, all eight run** *(full `-t:Rebuild`)*: build **0 errors / 69 warnings** ·
+**Post-Batch-53, all eight run** *(full `-t:Rebuild`)*: build **0 errors / 69 warnings** ·
+Blueprints **3538 total / 3528 passed / 0 failed / 10 skipped** · **AiShared 1216** · BTree **612** ·
+Breakpoints **130** · Generators **193** · NodeEdit Core **208** · UI **131** ·
+⭐⭐ **golden 42/42 both tiers unchanged** · `persistence-shape.txt` **unchanged** ·
+⭐ **run BOTH ways** — every class the flip touched also green under its own isolated filter.
+
+**Post-Batch-52, all eight ran** *(full `-t:Rebuild`)*: build **0 errors / 69 warnings** ·
 Blueprints **3532 total / 3522 passed / 0 failed / 10 skipped** · **AiShared 1216** · BTree **612** ·
 Breakpoints **130** · Generators **193** · NodeEdit Core **208** · UI **131** ·
 ⭐⭐ **golden 42/42 both tiers unchanged** · `persistence-shape.txt` **unchanged**.
