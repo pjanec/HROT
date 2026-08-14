@@ -171,6 +171,84 @@ invention, and the places it would differ are places where BTree simply never ha
 
 ---
 
+## 6b. ⭐⭐ "How do I parametrize an asset from a scenario?" — the two worlds
+
+> **The question:** *"I write JSON params into the blackboard component. But that is input to the whole
+> asset instance. If a node/state calls an action needing its OWN params, where is the code that copies
+> asset params into the action's params?"*
+>
+> ⭐⭐ **Short answer: that code does not exist, and it SHOULD not — but the code that should exist
+> instead is NOT BUILT. You are not overcomplicating; you have hit a real, named gap.**
+
+### ⭐ Why no copy step should exist
+
+Per §1: **the action's params ARE an asset variable.** Same bytes, same address. ⇒ **binding a node to
+a variable and then writing that variable IS filling the action's params.** There is nothing to
+transfer. A copy step would be the bug, not the feature.
+
+### 🔴 But there are TWO worlds, and only one of them can be parametrized today
+
+| | **World A — curated behaviours** | **World B — editor-authored managed assets** |
+|---|---|---|
+| example | `MoveToLocation` · `FireAtTarget` · `PlatoonHillAttack` | a BTree/HSM asset with a managed blackboard |
+| params region | ⭐ **ONE DTO at offset 0** | ⭐ **N variables bin-packed at 0, 4, 16 …** |
+| who fills it | ⭐ **a HAND-WRITTEN resolver** — `CgfCuratedBehaviorRegistrar.cs:124` registers `CgfNodes.ResolveMoveToParams`, which deserializes the JSON and does `Unsafe.Write(ptr, p)` at **offset 0** | the **generated** `ParseParams` (`BTreeBridgeEmitCore.EmitParseParamsLocal:1195`) |
+| runtime JSON honoured? | ✅ **yes** | ⛔⛔ **NO — the generated lambda IGNORES its `json` argument** and writes only baked `DefaultValueJson` |
+
+**The generated code says so in as many words:**
+
+```csharp
+__parseParams = static (string json, byte* memory, EntityRepository world, Entity self) =>
+{
+    // NOTE: runtime per-assignment JSON override of individual managed variables
+    // is not yet supported — only baked defaults are written. DEBT-AIB-021.
+    { var __v = JsonSerializer.Deserialize<Threshold>("5", …); Unsafe.Write(memory + 0,  __v); }
+    { var __v = JsonSerializer.Deserialize<Step>("7", …);      Unsafe.Write(memory + 4,  __v); }
+};
+```
+
+⇒ ⭐⭐ **`DEBT-AIB-021` is exactly the missing piece you are looking for**, and the debt row already
+sketches the fix: *"deserialize a wrapper JSON object keyed by variable name and dispatch to each
+variable's deserializer."* ⭐ **That is ~30 lines in `EmitParseParamsLocal` — the offsets are already
+in `packedFields`.**
+
+### 📌 Why it was never noticed
+
+⭐ **Every shipped scenario uses a World-A behaviour.** `scenarios/*/scenario.json` reference only
+`MoveToLocation`, `FireAtTarget`, `PlatoonHillAttack` — all three hand-registered in
+`CgfCuratedBehaviorRegistrar`. ⇒ **the managed-asset path has never been driven from a scenario**,
+which is why the debt row could reasonably say *"the typical use-case for managed assets is authoring
+fixed defaults, not per-assignment JSON."*
+
+### 🔴 And HSM is a step worse
+
+⛔ **`HsmBridgeEmitCore` emits NO `ParseParams` at all** — not even baked defaults.
+⇒ **an HSM asset cannot be parametrized from a scenario by any route today.**
+
+### What "instance override" means today
+
+| level | mechanism | status |
+|---|---|---|
+| **asset default** | `DefaultValueJson` per variable | ✅ works (World B, baked) |
+| **per-assignment override** | `behaviorParams` on the mission task → `AssignBehaviorEvent` → `ParseParams` | ⚠ **World A only** |
+| **spawn-time exposure** | `IsExposedOnSpawn` on a blueprint variable | ⛔ **declared but never read at spawn** — editor-surface only |
+
+### ⭐ What you would write, once `DEBT-AIB-021` is closed
+
+```jsonc
+// today (World A): one flat DTO, implicitly offset 0
+"behaviorParams": "{\"speed\":5,\"arrivalRadius\":5}"
+
+// after the fix (World B): keyed BY VARIABLE NAME — each dispatched to its packed offset
+"behaviorParams": "{\"PatrolParams\":{\"Speed\":5},\"EngageParams\":{\"Range\":100}}"
+```
+
+⇒ ⭐⭐ **and that is the whole answer to "how do asset instance params drive a node/state":** you do
+not route params *to a node*. **You write a variable, and the node that bound it sees the write** —
+because they are the same bytes.
+
+---
+
 ## 7. 📌 The one thing to keep in mind
 
 ⭐⭐ **"Parameters", "working state" and "asset variables" are not three things. They are one thing

@@ -114,6 +114,22 @@ explicitly what it is instead.
 | **PA-11** | ⚠ **`HsmFlattener` has a third id path and it is asymmetric.** `:172–173` allow an explicit `EntryActionId`/`ExitActionId` override; `:174–175` (**Activity**, **Timer**) have none. `actionTable[name]` is a **raw indexer** — `KeyNotFoundException` on an uncollected name. 📐 relevant to `Q-B` |
 | **PA-12** | ⚠ **`Q-F` confirmed: the budget assumes one-at-a-time.** `BP1200` sizes **one asset's** `Parameter` set ≤ 100; `BehaviorRegistry.cs:200` and `BehaviorParameterSizeAnalyzer.cs:64` each size **one DTO** ≤ 100 — and the analyzer **re-declares the constant locally** (`:26`) instead of referencing `BehaviorConstants`. **Nothing sums across simultaneously-live bindings.** Fine for one BTree leaf; not for orthogonal HSM regions |
 
+### PA-13 — 🔴 the most user-facing gap: a managed asset CANNOT be parametrized per instance
+
+| | |
+|---|---|
+| ⛔ **the generated `ParseParams` ignores its `json` argument** | `BTreeBridgeEmitCore.EmitParseParamsLocal:1195` emits a lambda that writes **only** baked `DefaultValueJson` values, at their packed offsets. The emitted comment says so: *"runtime per-assignment JSON override of individual managed variables is not yet supported … `DEBT-AIB-021`"* |
+| ✅ **curated behaviours DO honour it** | `CgfCuratedBehaviorRegistrar.cs:124` registers hand-written resolvers (`CgfNodes.ResolveMoveToParams`) that deserialize the JSON and `Unsafe.Write(ptr, p)` — ⚠ **at offset 0, one DTO per behaviour** |
+| 🔴 **HSM has no `ParseParams` at all** | `HsmBridgeEmitCore` emits none — **not even baked defaults** ⇒ an HSM asset cannot be parametrized from a scenario by any route |
+| 📌 **why it was never noticed** | ⭐ **every shipped scenario uses a curated behaviour** — `scenarios/*/scenario.json` name only `MoveToLocation`, `FireAtTarget`, `PlatoonHillAttack`. **The managed-asset path has never been driven from a scenario** |
+| ⚠ **`IsExposedOnSpawn`** | declared on blueprint variables; ⛔ **never read at spawn** — editor-surface only |
+
+⭐⭐ **The fix is small and already sketched in the debt row:** deserialize a wrapper JSON object keyed
+by **variable name** and dispatch each to its packed offset — **the offsets are already in
+`packedFields`.** ⇒ **~30 lines in `EmitParseParamsLocal`.**
+
+⛔ **Lane: blueprint/BTree** (`Hrot.AiEditor.Persistence`), plus an HSM-side twin that does not exist.
+
 ### PA-10 — the measurement
 
 ```
@@ -144,6 +160,7 @@ blueprint/BTree lane regardless of what the HSM session decides.**
 | **PA-10** `Vector3` layout drift | ⭐ **`BlackboardBinPacker.cs`** | ⭐⭐ **`Hrot.Editor.AiShared` — shared by ALL THREE hosts** | ⭐ **blueprint/BTree** | latent |
 | **PA-12** budget is per-DTO | `Stage2_Validate` · `BehaviorRegistry` · `BehaviorParameterSizeAnalyzer` | three assemblies | ⭐ **blueprint** | 🔴 **yes — BTree parallel composites have this NOW** |
 | **PA-11** flattener slot asymmetry | `HsmFlattener.cs` | `Fhsm.Compiler` | ⭐ **HSM** | yes |
+| 🔴 **PA-13** managed assets ignore per-assignment JSON | `BTreeBridgeEmitCore.cs` (+ absent in `HsmBridgeEmitCore`) | `Hrot.AiEditor.Persistence` | ⭐ **blueprint/BTree** | 🔴 **yes — blocks scenario-driven authoring outright** |
 
 ⇒ ⭐⭐ **Three of the eight are live defects in the blueprint/BTree lane that the HSM session merely
 surfaced.** ⛔ **PA-12 in particular is not hypothetical and not HSM-specific:** a BTree parallel
