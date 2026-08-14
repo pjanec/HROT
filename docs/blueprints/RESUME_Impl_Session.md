@@ -2,11 +2,13 @@
 
 > **Written for a fresh session. Self-contained; assumes no prior conversation.**
 > **You are the *implementation* session.** A separate *coordinator* session owns the tracker and
-> writes the handoffs. Last updated **2026-08-14** (Batch 50).
+> writes the handoffs. Last updated **2026-08-14** (Batch 51).
 >
-> ✅ **Batch 50 is COMPLETE and reported.** `U-14` (**`BP-232` closed** — one name space across all
-> three kinds) **+ `U-11`'s COMPILER bucket**. ⛔ **The editor bucket remains** — and `U-11`'s size was
-> wrong by ~4× (see §1). `BP-236` found and fixed while running the gates.
+> ✅ **Batch 51 is COMPLETE and reported.** ⭐⭐ **`U-11` IS DONE** — the editor bucket landed, and
+> `ViewsAreUnreadTests` turns *"nothing reads the views"* from a belief into a **checked fact**.
+> ⇒ ⭐ **`U-12` is unblocked.**
+> ✅ Batch 50: `U-14` (**`BP-232` closed**) **+ `U-11`'s COMPILER bucket**; `U-11`'s size was
+> wrong by ~4× (see §2). `BP-236` found and fixed while running the gates.
 > ✅ Batch 49: `U-15` (**the corpus is canonicalised** — `BP-227` closed)
 > **+ the `U-10` transform pair**, with ⭐⭐ **`v1 → v2 → v1` byte-identical on all 58** — the gate the
 > plan had recorded as *unwritable*. ⛔ **`U-10`'s WIRING is deferred and re-sequenced after
@@ -26,10 +28,10 @@
 |---|---|
 | **Repo** | `pjanec/HROT` |
 | **Implementation branch — PUSH HERE** | ⭐ **`claude/hrot-implementation-j1jvin`** |
-| **Coordinator branch — do NOT push** | ⭐ **`claude/blueprint-authoring-status-gm0akp`** (was at `a12dbc3`, merged into mine) |
-| **Last handoff** | 📄 **[HANDOFF_Batch50_Consumers_And_Uniqueness.md](HANDOFF_Batch50_Consumers_And_Uniqueness.md)** — ⭐ **`U-14` in full; `U-11`'s compiler bucket** |
+| **Coordinator branch — do NOT push** | ⭐ **`claude/blueprint-authoring-status-gm0akp`** (was at `9c3a707`, merged into mine) |
+| **Last handoff** | 📄 **[HANDOFF_Batch51_Editor_Bucket.md](HANDOFF_Batch51_Editor_Bucket.md)** — delivered in full |
 | **Counts** | **57 open · 114 done** — ⚠ *derive, never hand-count:* `python3 scripts/tracker-counts.py --check` |
-| **Next free ids** | rows **BP-237+** · diagnostics **BP1672+** — *(Batch 50 allocated `BP-236`; no new diagnostic)* |
+| **Next free ids** | rows **BP-237+** · diagnostics **BP1672+** — ⭐ **Batch 51 allocated NEITHER** (a mechanical sweep with no new rail and no new finding) |
 
 ⛔ **No PR unless the user explicitly asks.** There has never been one in this programme.
 ⛔ **Never put a model identifier** in a commit message, code comment, or anything else pushed.
@@ -48,11 +50,11 @@ Then read whatever handoff is newest on that branch. **No batch is in flight.**
 
 ### ⏭ What comes next
 
-⭐⭐ **`U-11`'s EDITOR bucket** — the one thing between here and `U-12`, and therefore `U-10`'s wiring.
-📌 **The remaining files are listed in §1**; ⛔ **`BlueprintVariablesWindow` is not among them** —
-`U-16` deletes it, so only the **schema source** in that file moves.
-⚠ **Take §1's two traps with you:** `ById()` searches `Parameters` too, and `IrAsset`'s same-named
-lists are not `U-11` sites.
+⭐⭐ **`U-12`** — and it is **unblocked as a checked fact**, not an assumption (`ViewsAreUnreadTests`).
+It carries **three rail restatements** (`BP1024` gone · `BP1031` split · `BP1011` restated) **and the
+store flip**; ⚠ two very different revert stories, so consider splitting them.
+📌 **Then `U-10`'s wiring**, which Batch 49 re-sequenced to run after `U-12`.
+🟢 **`U-13`** is independent — but it needs the visual check, like `U-6`/`U-16`.
 
 ⛔⛔ **`U-6` / `U-13` / `U-16` still hard-require the VISUAL CHECK**, which has now not run for
 **fourteen batches**. They are a Details table, a read-only view and deleting a whole window — exactly
@@ -60,7 +62,49 @@ the shape a headless test passes while the panel draws nothing. **Say so; never 
 
 ---
 
-## 1 · Batch 50 — `U-14` closed; `U-11`'s compiler bucket landed
+## 1 · Batch 51 — `U-11` is DONE; `U-12` is unblocked
+
+| commit | |
+|---|---|
+| `825556d` | ⭐⭐ **the editor bucket + `ViewsAreUnreadTests`** |
+
+### ⭐⭐ The gate `U-12` bets on — now a test, not a belief
+
+`ViewsAreUnreadTests`: **no site under `Hrot.Blueprints.Editor`, and none in the compiler stages,
+reads `asset.Parameters` / `.WorkingState` / `.Variables`.**
+🔴 **Proved to fail** by reintroducing one read — it reported it by file and line.
+⭐ **And it asserts the pattern still matches a KNOWN read** (`DeclarationList` itself), because
+⛔ **a grep that matches nothing looks exactly like a grep that is green.**
+
+⚠ **Scope, deliberately:** the three **`*Order`** lists are out (display metadata; they survive the
+store flip — `U-12`'s call), and so is **`IrAsset`**'s same-named trio (the *emitted* fields — they set
+struct offsets and feed `StructureHash`).
+
+### ⛔ The window needed NOTHING — a correction to the handoff
+
+`BlueprintVariablesWindow` (line 377 on) has **zero** references to the three lists. **All 24 in that
+file belonged to `BlueprintVariableSchemaSource`** — the half that survives `U-16`. ⇒ the file's big
+count was never the window's, and nothing slated for deletion was rewritten.
+
+### ⭐ What the source's move actually bought
+
+| | |
+|---|---|
+| ✅ | every `_kind == VariableKind.Parameter` branch — gone |
+| ⭐⭐ | `GetOrdered`'s **type-sniffing `GetId`** local, which returned `Guid.Empty` for anything that was neither decl type and **would have collapsed every row onto one dictionary key** |
+| ⭐⭐ | `Resolve`'s **six hand-written arms** now read priority from `DeclarationList.ResolutionOrder` — ⛔ **two copies of an ordering that must match the compiler's is how `BP-226` happened** |
+
+### 📌 Three things worth carrying forward
+
+| | |
+|---|---|
+| **`ReplaceAll(kind, items)`** added | for the undo snapshot restore. ⚠ **Deliberately does not touch the order list**, unlike `Remove` — a snapshot restore puts back a state captured whole, and dropping ids would make undo lose the designer's ordering |
+| **The create/undo pair is safe on the view** | its `decl` is created by that command ⇒ never in `VariableOrder` ⇒ the Order-maintaining `Remove` is a no-op for it, and the pair stays an exact inverse |
+| ⚠ **One declared behaviour change** | `BlueprintPickerSources.Query`'s no-filter branch returned the **live** list; it is a materialised copy now, matching its other two branches |
+
+---
+
+## 2 · Batch 50 — `U-14` closed; `U-11`'s compiler bucket landed
 
 | commit | |
 |---|---|
@@ -103,7 +147,7 @@ batch's added tests. Fixed with the same one-line preload.
 
 ---
 
-## 2 · Batch 49 — `U-15` landed; `U-10` half landed, half re-sequenced
+## 3 · Batch 49 — `U-15` landed; `U-10` half landed, half re-sequenced
 
 | commit | |
 |---|---|
@@ -137,7 +181,7 @@ what made it writable. **`Down` IS the revert**, so it ships with `Up` as the ha
 
 ---
 
-## 3 · Batch 48 — `U-9`, the tagged declaration (`D1`)
+## 4 · Batch 48 — `U-9`, the tagged declaration (`D1`)
 
 | commit | |
 |---|---|
@@ -191,7 +235,7 @@ work. Un-apply with the inverse edit.
 
 ---
 
-## 4 · Batch 47 — `U-7` + `U-8` (`BP-228` closed)
+## 5 · Batch 47 — `U-7` + `U-8` (`BP-228` closed)
 
 | commit | |
 |---|---|
@@ -209,7 +253,7 @@ work. Un-apply with the inverse edit.
 
 ---
 
-## 5 · Batch 46 — `U-4` + `U-5` (`BP-230`, `BP-231` closed)
+## 6 · Batch 46 — `U-4` + `U-5` (`BP-230`, `BP-231` closed)
 
 | commit | |
 |---|---|
@@ -233,7 +277,7 @@ through its consumers is a contract change nobody is watching.*
 
 ---
 
-## 6 · Batch 45 — `U-3`, the kind-carrying index (`BP-226` closed)
+## 7 · Batch 45 — `U-3`, the kind-carrying index (`BP-226` closed)
 
 | commit | |
 |---|---|
@@ -257,7 +301,7 @@ through its consumers is a contract change nobody is watching.*
 
 ---
 
-## 7 · Batch 44 — the `U-` sequence opened
+## 8 · Batch 44 — the `U-` sequence opened
 
 | commit | |
 |---|---|
@@ -283,7 +327,7 @@ through its consumers is a contract change nobody is watching.*
 
 ---
 
-## 8 · What Batches 41–43 shipped — `BP-57` end to end
+## 9 · What Batches 41–43 shipped — `BP-57` end to end
 
 | commit | |
 |---|---|
@@ -308,7 +352,7 @@ through its consumers is a contract change nobody is watching.*
 
 ---
 
-## 9 · Where the code is
+## 10 · Where the code is
 
 | file | |
 |---|---|
@@ -326,14 +370,14 @@ through its consumers is a contract change nobody is watching.*
 
 ---
 
-## 10 · Gates
+## 11 · Gates
 
 The eight, solution **`IOS-IG-SimHost.sln`** (⚠ **not** `Hrot.sln`).
 ⚠⚠ **The two NodeEdit gates take NO `--no-build`** — they silently do not run with it.
 
-**Post-Batch-50, all eight run** *(full `-t:Rebuild`, so 69 is honest — an incremental build reports
-24, and a partial one 48)*: build **0 errors / 69 warnings** · Blueprints **3515 total / 3505 passed /
-0 failed / 10 skipped** *(+10 = Batch 50's own tests)* · **AiShared 1216** · BTree **612** ·
+**Post-Batch-51, all eight run** *(full `-t:Rebuild`, so 69 is honest — an incremental build reports
+24, and a partial one 48)*: build **0 errors / 69 warnings** · Blueprints **3518 total / 3508 passed /
+0 failed / 10 skipped** *(+3 = Batch 51's own tests)* · **AiShared 1216** · BTree **612** ·
 Breakpoints **130** · Generators **193** · NodeEdit Core **208** · UI **131** ·
 ⭐⭐ **golden 42/42 both tiers, unchanged at EVERY sub-step** · `persistence-shape.txt` **unchanged**.
 
@@ -355,12 +399,12 @@ Blueprints. They only read the tree. The two NodeEdit gates must stay sequential
 ⚠ **A closing INCREMENTAL build under-reports warnings.** Record honestly rather than printing `69`
 from memory.
 
-⛔ **The visual check has not run for FIFTEEN batches.** *"Present and empty"* and *"follows the canvas"*
+⛔ **The visual check has not run for SIXTEEN batches.** *"Present and empty"* and *"follows the canvas"*
 are exactly what a headless test can pass while the panel draws nothing. **Say so; never imply coverage.**
 
 ---
 
-## 11 · Open findings that are mine
+## 12 · Open findings that are mine
 
 | | |
 |---|---|
@@ -381,7 +425,7 @@ will find it. ⚠ Reported rather than changed, per the handoff's instruction.
 
 ---
 
-## 12 · ⚠ Process lessons — paid for, do not re-learn
+## 13 · ⚠ Process lessons — paid for, do not re-learn
 
 | | |
 |---|---|
@@ -395,7 +439,7 @@ will find it. ⚠ Reported rather than changed, per the handoff's instruction.
 
 ---
 
-## 13 · The wider programme
+## 14 · The wider programme
 
 ⏭ **The unification is under way** — 📄 [PLAN_Variable_Unification_Tasks.md](PLAN_Variable_Unification_Tasks.md),
 reviewed by 📄 [REVIEW_Unification_Plan.md](REVIEW_Unification_Plan.md) (**run it, with five named changes**).
