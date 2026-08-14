@@ -4,6 +4,8 @@
 > **Branch:** `claude/hsm-visual-editing-9ngei4`, based on `claude/blueprint-authoring-status-gm0akp`.
 > **Mode:** ⭐ **design session — NO CODE.** The user is asking questions, giving their view on how
 > things should work, and we are settling the way forward together. Do not start implementing rows.
+> ⭐ **Read [Hsm_Integration_Map.md](Hsm_Integration_Map.md) first** — the end-to-end chain, cited.
+> It exists so this file does not have to re-derive the system from code.
 > **Companions:** [Issues tracker](Hsm_Visual_Editing_Issues_Tracker.md) ·
 > [Concepts primer](Hsm_Concepts_For_Game_AI.md)
 
@@ -13,10 +15,10 @@
 
 | | |
 |---|---|
-| Tracker | **15 open rows**, HSM-001…HSM-015, none done |
+| Tracker | **16 open rows**, HSM-001…HSM-016, none done |
 | Build | `IOS-IG-SimHost.sln` — 0 errors (69 pre-existing warnings) |
 | Tests | `Hrot.Hsm.Editor.Tests` **510/510 green** |
-| Committed | tracker, concepts primer, 2 hand-authored SVGs, this file |
+| Committed | integration map, tracker, concepts primer, 3 hand-authored SVGs, this file |
 | Environment | .NET 8.0.424 at `/root/.dotnet`; `codebase-memory-mcp` 0.10.3 at `/opt/codebase-memory-mcp`, project `home-user-HROT` indexed (166k nodes / 537k edges), warm daemon running |
 
 ⚠ **MCP graph tools flap in and out.** When they are disconnected use the CLI, which always works:
@@ -112,8 +114,8 @@ store its params on the HSM side.
 | 1 | Initial state: make `RegionNode.InitialChild` the single source of truth (composite = implicit single region), or keep `IsInitial` and make validator/renderer/persistence region-scoped? | HSM-003 |
 | 2 | History: withdraw the pseudo-state palette entries and expose history as a checkbox on the composite (kernel-faithful), or keep UML sugar that lowers onto the parent flag at emit? | HSM-010 |
 | 3 | Timers: add kernel arming (needs a ROM field + builder param), or stop offering `TimerAction` in the editor until it exists? | HSM-012 |
-| 4 | What is the **canonical name** an HSM binds an action/guard by, and where do a binding's parameters live? | HSM-013, HSM-015 |
-| 5 | Whose lane is HSM-013/015? They are *blueprint compiler* defects surfacing in HSM. | — |
+| 4 | What is the **canonical name** an HSM binds an action/guard by, and where do a binding's parameters live? | HSM-013, HSM-015, HSM-016 |
+| 5 | Whose lane is HSM-013/015/016? They are *compiler / codegen* defects surfacing in HSM. | — |
 | 6 | Does the missing runtime event surface matter now, or is authoring-first acceptable? | — |
 
 ---

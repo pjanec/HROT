@@ -19,13 +19,16 @@ decision first.
 |---|---:|---:|
 | `WIRING` | 1 | 0 |
 | `RW-L` | 5 | 0 |
-| `RW-M` | 6 | 0 |
+| `RW-M` | 7 | 0 |
 | `RW-H` | 3 | 0 |
-| **Total** | **15** | **0** |
+| **Total** | **16** | **0** |
 
-📌 **Resuming this session?** Start with
-[Hsm_Design_Session_RESUME.md](Hsm_Design_Session_RESUME.md) — established facts, open rulings, and
-the verification discipline. This tracker stays the source of truth for the rows themselves.
+⭐ **New here? Read [Hsm_Integration_Map.md](Hsm_Integration_Map.md) first** — how an HSM gets from
+the canvas to a ticking entity, with every stage cited. These rows assume it.
+
+📌 **Resuming this session?** [Hsm_Design_Session_RESUME.md](Hsm_Design_Session_RESUME.md) — established
+facts, open rulings, and the verification discipline. This tracker stays the source of truth for the
+rows themselves.
 
 📘 **New to HSM concepts?** [Hsm_Concepts_For_Game_AI.md](Hsm_Concepts_For_Game_AI.md) explains what
 history / parallel / hierarchy / actions actually mean here, grounded in the FastHSM kernel rather
@@ -263,6 +266,37 @@ registration; `Stage2_Validate.V_DispatchKindCompatibility` pairs `BTreeAction�
   **Fix direction** (needs a ruling): register the thunk under `ComputeHash(<canonical name>)` as
   well as / instead of the GUID hash, and agree what the canonical name *is* — this is the same
   "one identity for a bound action" question BTree answers with FQN keys.
+
+- [ ] **HSM-016** 🔴 · `RW-M` — **The `[BlueprintRegistrar]` bridge emitted for every editor-authored
+  `.hsm.json` registers no-op stubs under placeholder ids.**
+  `HsmBridgeEmitCore.EmitBridge` — the bridge `HsmJsonGenerator` emits for **every** JSON asset
+  (`HsmJsonGenerator.cs:84-97`) — correctly registers the definition
+  (`beh.Register(id, name, new BehaviorDefinition { BrainTier = BrainTierHsm, HsmDefinition = blob })`),
+  then does this for the machine's actions and guards (`:119-126, 138-145`):
+  ```csharp
+  static void __hsActionStub(void* inst, void* ctx, HsmCommandWriter* w) { }
+  static bool __hsGuardStub (void* inst, void* ctx, ushort ev) => true;
+  ushort actionId = 100;   // "placeholder IDs for JSON-owned HSM thunks"
+  ushort guardId  = 200;
+  HsmActionDispatcher.RegisterAction(actionId++, …__hsActionStub);
+  HsmActionDispatcher.RegisterGuard (guardId++,  …__hsGuardStub);
+  ```
+  The blob looks actions up by `ComputeHash(name)` (`HsmFlattener.cs:385`), and the hand-written
+  generator registers under that same hash (`HsmActionGenerator.cs:517,528,630,636`) — so
+  `ComputeHash` is the canonical key and **`100+`/`200+` is a third, invented id space.**
+  Two consequences:
+  **(a)** the stubs are keyed where nothing ever looks, so they achieve nothing — the code comment's
+  rationale (*"merely ensures the IDs are known to the dispatcher after hot reload"*) does not hold,
+  because the ids it makes known are not the ids the blob carries;
+  **(b)** `RegisterAction` is `ActionTable[id] = action` — **last writer wins** — so any real action
+  whose name hashes into `[100,199]`, or guard into `[200,299]`, is **silently clobbered by a stub**,
+  order-dependently. A clobbered action becomes a no-op; a clobbered guard becomes permanently `true`.
+  ~0.15% per name, but silent, non-deterministic across registration order, and undetectable at
+  author time.
+  **Fix direction:** either register the real hand-written thunk under `ComputeHash(fqn)`, or emit
+  nothing at all for actions/guards and let `HsmActionRegistrar.g.cs` own that table exclusively —
+  the latter is probably right, since the bridge has no access to real bodies anyway. Same
+  "one identity for a bound action" ruling as HSM-013/HSM-015.
 
 - [ ] **HSM-015** 🔴📐 · `RW-H` — **The generated HSM thunk reads its parameters out of the live HSM
   instance memory. There is nowhere else for them to live.**
