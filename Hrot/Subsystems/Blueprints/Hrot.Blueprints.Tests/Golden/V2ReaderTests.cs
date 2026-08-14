@@ -101,17 +101,48 @@ public sealed class V2ReaderTests
     }
 
     /// <summary>
-    /// ⭐ <b>The two version numbers agree today, and this is what will catch them disagreeing.</b>
-    /// ⚠ <c>BlueprintMigrationModule.CurrentVersion</c> lives in <c>Hrot.Common</c> and governs what
-    /// <c>ClusterRunner --mode migrate</c> does with a blueprint file; <c>$meta.schemaVersion</c> is
-    /// what this assembly stamps. ⛔ If one moves without the other, a disk version newer than the
-    /// registry's current version reaches <c>PersistentMigrationAdapter</c>'s Case D — which, with no
-    /// down-migration chain registered and no snapshot, <b>throws</b>.
+    /// ⭐⭐ <b>Batch 55 step 2 — the registry is AHEAD of the writer, deliberately, and this test says
+    /// so rather than being deleted.</b>
+    ///
+    /// <para>
+    /// It previously asserted the two numbers were equal at <b>1</b>. Step 2 moves
+    /// <c>BlueprintMigrationModule.CurrentVersion</c> to <b>2</b> while <see cref="Serialize"/> still
+    /// stamps 1, and that gap is <b>the ordering working</b>, not a defect: a real 1→2 migrator has to
+    /// be registered <i>before</i> anything writes v2, or the bump would land with nothing able to
+    /// migrate what is already on disk.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>The window is safe in the direction it opens.</b> Disk is <b>behind</b> the registry, so a
+    /// file reaches <c>PersistentMigrationAdapter</c>'s <b>up</b> path and is migrated losslessly.
+    /// ⛔ The dangerous direction is the reverse — disk ahead of the registry — which is Case D, and
+    /// which is exactly what step 3 must not create: it closes this gap by moving the writer up to
+    /// meet the registry, never by moving the registry down.
+    /// </para>
+    ///
+    /// <para>
+    /// 📌 <b>One live consequence of step 2 on its own:</b> <c>--mode migrate</c> now genuinely
+    /// rewrites blueprints to v2 on disk, before <see cref="Serialize"/> ever emits it. That is the
+    /// tool doing its job, and the reader has understood v2 since Batch 54.
+    /// </para>
     /// </summary>
     [Fact]
-    public void TheStampedVersionAgreesWithTheMigrationRegistry()
+    public void TheRegistryIsAheadOfTheWriterAndNeverBehindIt()
     {
-        Assert.Equal(Hrot.Common.Scenario.Migrations.BlueprintMigrationModule.CurrentVersion,
-                     BlueprintSchemaV2.V1);
+        var registry = Hrot.Common.Scenario.Migrations.BlueprintMigrationModule.CurrentVersion;
+        var stamped  = StampedVersion();
+
+        Assert.Equal(BlueprintSchemaV2.V2, registry);
+        Assert.True(stamped <= registry,
+            $"the writer stamps v{stamped} while the migration registry is at v{registry}. A disk "
+            + "version AHEAD of the registry reaches PersistentMigrationAdapter's Case D, which throws "
+            + "when there is no down-chain and no snapshot.");
+    }
+
+    private static int StampedVersion()
+    {
+        var asset = BlueprintJsonServices.Deserialize(File.ReadAllText(Files().First()))!;
+        var dom   = JsonNode.Parse(BlueprintJsonServices.Serialize(asset))!.AsObject();
+        return dom["$meta"]!["schemaVersion"]!.GetValue<int>();
     }
 }
