@@ -175,18 +175,44 @@ typed signature.**
 | 🔴 **it breaks on rename** | renaming an asset silently unbinds its initializer |
 | ⭐ **the codebase already ruled against this class** | `BP-228` closed *"a made-up type id is refused; the type picker is safe by construction"*. ⛔ **A naming convention is the exact opposite of safe-by-construction.** And `DeriveWorkingStateTypeFromMethod` — the one convention that exists — is explicitly a **legacy fallback**, not a primary mechanism |
 
-📐 **Ruling: E1 and E2, as ONE discriminated field — not two nullable fields.**
+📐 **Ruling: E1 and E2 behind ONE picker — and ⭐⭐ that picker already exists.**
 
-```
-ParamsInitializer = { Kind: None | Method | Graph,  MethodFqn? | (AssetId?, GraphId?) }
-```
+### ⭐⭐ `IBehaviorActionCatalog` is already the pattern — do NOT build a second picker
 
-⭐ **Same reasoning as `Q28-B`'s "a method may not be bound both ways":** *"which initializer"* is **one
-question**, and two nullable fields permit a both-set state nobody can interpret. **`Kind` makes the
-illegal state unrepresentable.**
+Its own doc comment: *"**Unified facade over all behavior-action sources**"* — it merges
+`IChannelCommandCatalog` **and** `IActionSchemaExporter` into one list. `BehaviorActionEntry` already
+carries everything a two-category picker needs:
+
+| field | what it already does |
+|---|---|
+| ⭐ **`Source`** (`BehaviorActionSource`) | `ChannelCommand · Hardcoded · AiPrimitive` — **the provenance discriminator**, i.e. the "two categories" |
+| ⭐ **`Category`** | *"Optional grouping category"*, and `DisplayName` is documented as *"suitable for **palette / picker UI**"* |
+| ⭐ **`ValidHosts`** (`BehaviorActionHosts`) | `Blueprint \| BTree \| Hsm` bit-field, with `GetActions(host)` already filtering |
+| ⭐⭐ **`Id`** | a canonical stable identity **whose FORMAT VARIES BY SOURCE** — `{ChannelTypeFqn}::{ActionId}` for channel commands, an FQN for schema entries |
+| `Changed` | rebuilds the snapshot when the underlying schema changes |
+
+⇒ ⭐⭐ **Adding an initializer source is an ENUM MEMBER plus a contributing catalog, not a new picker.**
+The blueprint node palette (`BlueprintNodeCatalog`, hierarchical `CategoryPath` + text search) is the
+same idea one level richer, and is the model if a tree rather than a flat grouping is wanted.
+
+### ⭐ And this SIMPLIFIES the persisted field — the discriminated union is unnecessary
+
+⛔ **Withdrawn:** `{ Kind, MethodFqn? | (AssetId?, GraphId?) }`.
+
+⭐ **`Id`'s format already varies by source** — so `{assetId}:{graphId}` for a graph initializer is not
+a new idea, it is the **third** instance of an established scheme. ⇒ **persist ONE string: the catalog
+`Id`.** And a chosen action is *already* persisted as a single string today
+(`BTreeActionPayloadDto.MethodFqn`).
+
+| | |
+|---|---|
+| ✅ **one field ⇒ the both-set illegal state cannot exist** — the same property `Kind` was there to buy, for free |
+| ✅ **`Source` becomes DISPLAY-ONLY, always derived by catalog lookup** — ⛔ **never persisted.** Persisting it would be two fields that must agree, which is `BP-226`'s shape |
+| ⚠ **required:** the catalog needs a **`TryGetById`** — it has only `GetActions()` / `GetActions(host)` today. ⭐ **A missing Id must raise a diagnostic, never resolve to "no initializer"** — `BP-228`'s *safe by construction*, and the silent-no-op failure `E3` was rejected for |
 
 ⭐ **Sequence: E1 first.** It is cheap, needs **no new blueprint vocabulary**, and immediately unblocks
-Hill-Attack-class assets in the editor. **E2 follows `Q30-C`.**
+Hill-Attack-class assets in the editor. **E2 follows `Q30-C`** — and by then the picker already has the
+category, so E2 costs an enum member and a contributor.
 
 ---
 
@@ -234,7 +260,7 @@ grow a JSON sub-language nobody designed. **The initializer's inputs are typed v
 | ⛔ **not a general "run a blueprint at assignment" hook** | it is scoped to *initialise this asset's own variables*. A graph that publishes events or mutates other entities at assignment time is stage 2's job, and stage 2 has a tick to run in |
 | ⛔ **not a replacement for hand-written resolvers** | ⭐ **Hill Attack should stay hand-written.** It predates this, it works, and its stage 1 does try/catch, logging and an offline fallback that the vocabulary will not have on day one. **B1 is for NEW editor-authored assets** |
 
-**D → yes, and it supersedes A1. E → E1 + E2 as one discriminated field; E3 rejected. F → F2.**
+**D → yes, and it supersedes A1. E → E1 + E2 behind the EXISTING catalog/picker, persisted as one `Id` string; E3 rejected. F → F2.**
 
 ⭐⭐ **`D` is the ruling that reorganises the rest.** A1 was solving *"how does JSON reach N variables"*;
 `D` observes that **the asset should have ONE input, and the mapping to N is a separate, authored
@@ -270,3 +296,4 @@ after it. **`B1` is a later, larger piece** and should follow `Q28`'s steps 1–
 |---|---|
 | 2026-08-14 | Raised and ruled (`A`–`C`). |
 | 2026-08-14 | ⭐⭐ **`D`/`E`/`F` added from the user's proposal. `A1`'s wrapper-JSON convention WITHDRAWN** — the reserved input variable supersedes it. `E3` (name-derived) rejected as the `BP-224` shape. |
+| 2026-08-14 | ⭐ **`E` refined:** `IBehaviorActionCatalog` is already a unified multi-source facade with `Source`/`Category`/`ValidHosts` and a source-varying `Id` ⇒ **no new picker.** The discriminated-union field is **WITHDRAWN** in favour of persisting the single catalog `Id`; `Source` is display-only. Adds a required `TryGetById` refusal rail. |
