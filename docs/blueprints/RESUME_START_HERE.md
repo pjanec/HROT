@@ -4,6 +4,19 @@
 > ⭐⭐ **Batch 43 verified and merged at `3583acd4` (§7p) — `BP-57` is CLOSED.** The Local Variables
 > section landed; a designer can declare, rename, delete, duplicate and undo a graph local from the
 > editor, and it follows the canvas.
+> ⭐⭐ **Batch 52 verified and merged at `003db0f2` (§7y) — GREEN BOTH WAYS.** The suite is
+> **3532 / 3522 passed / 0 failed**, ⭐ **and `PdbEmbeddedSourceTests` is 3/3 in ISOLATION** (was 0/2).
+> ➕ **`BP1672`** makes a requested-but-impossible PDB a **precondition failure**; 🔴 **and one step
+> deeper, a Roslyn failure reported into the sink used to fall through to `Succeeded: true` — alone
+> among the eight stages.** ⭐⭐ **`QuickReloadService` asked for the PDB and never read it** — measured,
+> `PortablePe`/`PortablePdb` have **no production reader anywhere** ⇒ dropping the request removes a
+> **duplicated full Roslyn compilation** from the editor's hot path.
+> ⭐⭐⭐ **`BP1673` is the finding of the programme so far:** retiring `BP1024`/`BP1031` **uncovered** a
+> defect they were silently holding shut — `Stage5`'s **name fallback**, the path hand-authored assets
+> take. ⛔ **`U-3` fixes emission not selection; `U-14` closes only the editor's auto-namer; Stage 2 had
+> no duplicate-name rule at all.** ⇒ **removing a rail created the need for a different one.**
+> ⛔ **The store flip is NOT done** — ⏭ **Batch 53 dispatched, one item.**
+>
 > ⚠🔴 **Batch 51 merged at `d2cde7cd` (§7x) — `U-11` is COMPLETE, but the Blueprints gate is RED.**
 > ⭐⭐ **`ViewsAreUnreadTests` makes *"nothing reads the views"* a CHECKED FACT** — proved to fail, and
 > it asserts the pattern still matches a known read, *"because a grep that matches nothing looks exactly
@@ -230,13 +243,13 @@ report"* rather than *"the gate did not run."* Trap #5, in the gate script itsel
 **3m40s → 2m05s**. ⚠ **And always include `\[FAIL\]` in the result grep**: a `Passed!`/`Failed!`-only
 grep is why Batch 42's flake could not be named.
 
-**Baseline at `d2cde7cd` — ⭐ all eight gates coordinator-RUN 2026-08-14, post-Batch-51 — 🔴 NOT ALL GREEN:**
+**Baseline at `003db0f2` — ⭐ all eight gates coordinator-RUN 2026-08-14, post-Batch-52 — ✅ green FULL and FILTERED:**
 
 | | |
 |---|---|
 | Solution build | **0 errors**, **69 warnings** ⚠ *(an incremental build under-reports — record honestly)* |
 | BP diagnostics | **10 distinct** — all `BP3010`, all **authored** orphans in 2 assets |
-| 🔴 **Blueprints** | **3518 total / 3506 passed / ⛔ 2 FAILED / 10 skipped** — ⭐ **`PdbEmbeddedSourceTests`, order-dependent, §7x** ⚠ *(BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
+| ✅ **Blueprints** | **3532 total / 3522 passed / 0 failed / 10 skipped** ⚠ *(BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
 | ⭐⭐ **Golden corpus** *(Batch 44)* | **42 assets × Tier 1 + Tier 2**, `Snapshots/Golden/`. ⛔ **Tier 1 moving is a FAILURE, not a rebase.** Regenerate Tier 2 with `BLUEPRINT_REGENERATE_SNAPSHOTS=1` and **review the diff** |
 | ⭐⭐ **Persistence shape** *(Batch 48)* | `Snapshots/Golden/persistence-shape.txt` — **SHA-256 + byte length of each asset's canonical serialization**, recorded on the **pre-`U-9`** tree. ⭐ **This is what a round-trip test CANNOT do:** a leaked tag is written *and read back*, so `Serialize(Deserialize(x)) == x` holds either way |
 | ⭐ **AiShared 1216** *(+3, Batch 46)* · BTree **612** · Breakpoints **130** | 0 failed |
@@ -260,7 +273,7 @@ retired `BP3011`; the 10 that remain are authored and deliberate.)
 
 ## 4 · Where the programme stands
 
-**Tracker: open 57 · done 114** (+1 refuted) ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
+**Tracker: open 58 · done 116** (+1 refuted) ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
 three ways — checkbox tally, per-complexity columns (⚠ take the **first** tag on a row), and the total
 row. ⚠⚠ **Reconcile all three EVERY time.** The columns can agree with the Total and both still be
 wrong: a missed tick is invisible to arithmetic and only shows against the checkbox tally.
@@ -522,6 +535,93 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > ⭐⭐ **the compiler's silent guard, which is the real defect.** ⚖️ **Lean: both.**
 > ⭐ **Plus a sweep, because three-in-three is a class:** what else passes only because something else
 > ran first?
+
+> ⏭ **Batch 53 dispatched — [the STORE FLIP](HANDOFF_Batch53_Store_Flip.md), one item.**
+> ⭐ **Their own framing is the brief:** the three properties must stop being **storage** while
+> remaining **the serialized shape** — serialization-only projections over the tagged store.
+> 🔴🔴 **Pass 1 is `persistence-shape.txt` unchanged**, and ⛔ **its failure mode is not a red test — it
+> is every deployed entity's blackboard re-initialising.**
+> ⭐⭐ **The question carried forward from `BP1673`: what is the three-lists-as-storage arrangement
+> silently holding shut?** ⚠ **And there is no clean mid-flip stop** — if it does not fit, stop before
+> starting it.
+
+## 7y · Batch 52 — ✅ VERIFIED AND MERGED at `003db0f2` — ⭐⭐ **GREEN BOTH WAYS, and `BP1673` is the rail the plan could not have predicted**
+
+**Gates — all eight, coordinator-run on the merged tree, ⭐ and the filtered run too:**
+
+| | |
+|---|---|
+| Solution build | **0 errors**, **69 warnings** — unmoved |
+| ✅ **Blueprints** | **3532 total / 3522 passed / 0 failed / 10 skipped** (**+14**) |
+| ⭐⭐ **`PdbEmbeddedSourceTests` in ISOLATION** | ✅ **3/3 green** — ⛔ **it was 0/2 before** |
+| ⭐ **AiShared 1216** · BTree **612** · Breakpoints **130** · Generators **193** · NodeEdit **208 / 131** | unmoved |
+| ⭐⭐ **Golden + `persistence-shape`** | ✅ **ZERO snapshot files changed** |
+| `tracker-counts.py --check` | clean — **twenty-one** batches. open **58** / done **116** |
+
+✅ **Rule 7 verified mechanically** (`bd797778a`), ✅ **and rule 4** — they merged the coordinator
+branch mid-run. ➕ **`BP1672`** *(PDB precondition)* and **`BP1673`** *(declaration-name uniqueness)*.
+
+### ⚠ One correction to their framing, in the other direction
+
+⛔ **They wrote *"the Blueprints gate was NOT red — the full suite is 3508/0 green at `d2cde7c`. What
+is red is a FILTERED run."*** ⚠ **But the coordinator observed the FULL suite red at that same
+commit** (§7x: 3506 passed / 2 failed / 10 skipped ≡ their 3508 minus the two).
+
+⇒ ⭐⭐ **Both observations are true, which makes the defect WORSE than their framing:** it was
+**non-deterministic in the full run too**, not merely *"green full, red filtered."* 📌 **That
+strengthens the fix rather than weakening it** — and it is why the isolated filter now being green
+matters as much as the full number.
+
+### ⭐⭐ §1b — the compiler stopped lying, and one step deeper than asked
+
+| | |
+|---|---|
+| ➕ **`BP1672`** | `EmitPdbWithEmbeddedSource: true` with no finalizer is now a **precondition failure**, checked **before Stage 0** and reported **alone** — ⭐ *"it is a fact about the host process, not about the asset"* |
+| 🔴🔴 **The same trap ONE STEP DEEPER, not in the handoff** | ⛔ **a Roslyn failure reported into the sink used to fall through to `Succeeded: true` — alone among the eight stages.** It now takes `FailResult` like the rest |
+| ⭐⭐ **And the caller was the real reason it never bit** | `QuickReloadService` asked for the PDB *"for debugger support"* and **never read it**. ⭐ **Measured: `PortablePe`/`PortablePdb` have NO production reader anywhere in the tree**, and `TriggerFromSourcesAsync` Roslyn-compiles the same source again itself ⇒ **dropping the request removes a duplicated full Roslyn compilation from the editor's hot path** |
+
+### ⭐⭐ §1a/§1.4 — the class was attacked, not the incident
+
+| | |
+|---|---|
+| ⭐ **`TestAssemblyModuleInit`** | force-runs the module ctors of `Hrot.Blueprints.Core`, `Hrot.AI.Behaviors` and `Fhsm.Kernel` **before any test.** ⚠ **Five ad-hoc preloads had accumulated, one per class already caught** — kept as annotated local guards **because the central one fails silently** |
+| ⭐ **`scripts/order-dependency-sweep.sh`** | **370 classes run alone** against a green suite ⇒ **two order-dependent classes**, one (`HsmInvokeHelpersTests`) **not previously known** — its generated HSM registrar failed `CS0400` because ⭐ **Roslyn's reference set is built from LOADED assemblies** |
+| ⚠⚠ **And a limit they named themselves** | ⛔ **class granularity UNDER-REPORTS: `Stage8Tests` passes per-class and fails per-test** |
+| 🔴 **Revert-goes-red, and a probe that DIDN'T work** | removing `[ModuleInitializer]` reddens all four isolated filters. ⭐ **Short-circuiting `Initialize()` at runtime does NOT probe it — the `typeof` arguments load their assemblies when the JIT compiles the body** |
+
+### ⭐⭐⭐ §2 — `BP1673`, the rail whose necessity the four planned passes MISS
+
+⭐ **`BP1024` retired** — it refused an AiPrimitive declaring a `Variable`, ⛔ **but `Variable` and
+`WorkingState` are the same cell, `(State, Asset)`.** *"The rule enforced a spelling, not a semantic."*
+Kept defined so the number is never reused.
+⭐ **`BP1031` split** — its `WorkingState` half was that same spelling rule; ✅ **its `Parameter` half is
+real** — `(Input, Asset)` is a spawn-time input the Instance dispatch cannot supply.
+⭐ **`BP1011` restated to `Declarations.Count > 0`** — *"asset scope needed no new vocabulary: all three
+lists ARE that scope, and graph locals live on `Graph`."*
+
+⇒ ⛔⛔ **And retiring them UNCOVERED something they were silently holding shut:**
+
+| | |
+|---|---|
+| 🔴 **`Stage5.FindVariableRef` falls back to matching by NAME** | ⭐ **the path hand-authored assets take** ⇒ once the mixture is legal, **two same-named declarations bind to whichever kind the priority order reaches first, with no diagnostic** |
+| ⛔ **`U-3` does not cover it** | it fixes the **emission** half, not **which declaration Stage 5 picks** |
+| ⛔ **`U-14` does not cover it** | it closes only the **editor's auto-namer** — ⚠ **which a hand-authored `.bp.json` never touches** |
+| ⛔ **Stage 2 had no duplicate-name rule at all** | ⇒ ➕ **`BP1673`**, `OrdinalIgnoreCase`, covering same-kind duplicates too, ⭐ **and deliberately leaving graph locals alone so `Q27-C1` shadowing stays legal** |
+
+⭐⭐ **This is the best single finding of the programme so far:** *removing a rail created the need for
+a different one*, and nothing in the plan's four passes would have caught it.
+
+✅ **Corpus-neutral by construction, measured:** 0 AiPrimitives carry a `Variable`, 0 Instances carry a
+`Parameter`/`WorkingState`, the 3 Library assets declare nothing.
+
+### ⛔ The store flip is NOT done — and their reason is better than the handoff's
+
+⭐ *"`Pass 5` demands `persistence-shape.txt` unchanged, so the three properties must stop being
+**storage** while remaining **the serialized shape** — serialization-only projections over the tagged
+store."* ⇒ ⭐⭐ **a different kind of change from three predicate edits, with a different revert story,
+and the one gate whose failure re-initialises every deployed entity's blackboard.**
+
+---
 
 ## 7x · Batch 51 — ⚠ MERGED at `d2cde7cd` — ⭐⭐ **`U-11` COMPLETE**, 🔴 **but the Blueprints gate is RED and it is not theirs**
 
