@@ -2,9 +2,12 @@
 
 > **Written for a fresh session. Self-contained; assumes no prior conversation.**
 > **You are the *implementation* session.** A separate *coordinator* session owns the tracker and
-> writes the handoffs. Last updated **2026-08-14** (Batch 49).
+> writes the handoffs. Last updated **2026-08-14** (Batch 50).
 >
-> ✅ **Batch 49 is COMPLETE and reported.** `U-15` (**the corpus is canonicalised** — `BP-227` closed)
+> ✅ **Batch 50 is COMPLETE and reported.** `U-14` (**`BP-232` closed** — one name space across all
+> three kinds) **+ `U-11`'s COMPILER bucket**. ⛔ **The editor bucket remains** — and `U-11`'s size was
+> wrong by ~4× (see §1). `BP-236` found and fixed while running the gates.
+> ✅ Batch 49: `U-15` (**the corpus is canonicalised** — `BP-227` closed)
 > **+ the `U-10` transform pair**, with ⭐⭐ **`v1 → v2 → v1` byte-identical on all 58** — the gate the
 > plan had recorded as *unwritable*. ⛔ **`U-10`'s WIRING is deferred and re-sequenced after
 > `U-11`/`U-12`** — see §1. `BP-235` filed.
@@ -23,10 +26,10 @@
 |---|---|
 | **Repo** | `pjanec/HROT` |
 | **Implementation branch — PUSH HERE** | ⭐ **`claude/hrot-implementation-j1jvin`** |
-| **Coordinator branch — do NOT push** | ⭐ **`claude/blueprint-authoring-status-gm0akp`** (was at `2d4b10f`, merged into mine) |
-| **Last handoff** | 📄 **[HANDOFF_Batch49_Canonicalise_And_Migrate.md](HANDOFF_Batch49_Canonicalise_And_Migrate.md)** — ⭐ **`U-15` in full; `U-10` half, deliberately** |
-| **Counts** | **58 open · 112 done** — ⚠ *derive, never hand-count:* `python3 scripts/tracker-counts.py --check` |
-| **Next free ids** | rows **BP-236+** · diagnostics **BP1672+** — *(Batch 49 allocated `BP-235`; no new diagnostic)* |
+| **Coordinator branch — do NOT push** | ⭐ **`claude/blueprint-authoring-status-gm0akp`** (was at `a12dbc3`, merged into mine) |
+| **Last handoff** | 📄 **[HANDOFF_Batch50_Consumers_And_Uniqueness.md](HANDOFF_Batch50_Consumers_And_Uniqueness.md)** — ⭐ **`U-14` in full; `U-11`'s compiler bucket** |
+| **Counts** | **57 open · 114 done** — ⚠ *derive, never hand-count:* `python3 scripts/tracker-counts.py --check` |
+| **Next free ids** | rows **BP-237+** · diagnostics **BP1672+** — *(Batch 50 allocated `BP-236`; no new diagnostic)* |
 
 ⛔ **No PR unless the user explicitly asks.** There has never been one in this programme.
 ⛔ **Never put a model identifier** in a commit message, code comment, or anything else pushed.
@@ -38,18 +41,18 @@
 ```bash
 git fetch origin claude/blueprint-authoring-status-gm0akp
 git merge origin/claude/blueprint-authoring-status-gm0akp --no-edit   # rule 7
-python3 scripts/tracker-counts.py --check                              # expect 58 / 112
+python3 scripts/tracker-counts.py --check                              # expect 57 / 114
 ```
 
 Then read whatever handoff is newest on that branch. **No batch is in flight.**
 
 ### ⏭ What comes next
 
-⭐⭐ **`U-11` is the natural next batch** — ~34 consumers move onto `BlueprintAsset.Declarations`,
-one bucket per commit (compiler stages · lowering · emit · editor), golden unchanged **at every
-sub-step**. ⭐ It is also now on `U-10`'s critical path: Batch 49 re-sequenced `U-10` to run
-**after** `U-11`/`U-12`, so that the on-disk v2 shape mirrors an in-memory shape that exists.
-🟢 **`U-14`** (`BP-232`) stays the cheap one and is independent.
+⭐⭐ **`U-11`'s EDITOR bucket** — the one thing between here and `U-12`, and therefore `U-10`'s wiring.
+📌 **The remaining files are listed in §1**; ⛔ **`BlueprintVariablesWindow` is not among them** —
+`U-16` deletes it, so only the **schema source** in that file moves.
+⚠ **Take §1's two traps with you:** `ById()` searches `Parameters` too, and `IrAsset`'s same-named
+lists are not `U-11` sites.
 
 ⛔⛔ **`U-6` / `U-13` / `U-16` still hard-require the VISUAL CHECK**, which has now not run for
 **fourteen batches**. They are a Details table, a read-only view and deleting a whole window — exactly
@@ -57,7 +60,50 @@ the shape a headless test passes while the panel draws nothing. **Say so; never 
 
 ---
 
-## 1 · Batch 49 — `U-15` landed; `U-10` half landed, half re-sequenced
+## 1 · Batch 50 — `U-14` closed; `U-11`'s compiler bucket landed
+
+| commit | |
+|---|---|
+| `7a45cc1` | ⭐ **`U-14` — one name space across all three kinds (`BP-232` closed)** + the indexed accessors |
+| `e39ba38` | ⭐⭐ **`U-11` compiler bucket** — Stage0 · Stage2 · Stage4 · Stage5 · `V_VariableReferenceRules`. **`BP-236`** fixed |
+
+### ⛔⛔ `U-11` is ~4× the size the plan says — measure before you sweep
+
+| | |
+|---|---|
+| **plan** | *"~34 semantic sites"* · **handoff** | *"46 non-test files"* (upper bound) |
+| ⭐ **measured** | **233 raw refs → 135 semantic CODE refs / 24 files** (+20 in doc comments, 30 incidental: `EventDispatcherDecl.Parameters`, the `Blueprints.Editor.Variables` **namespace**, `VariableKind.WorkingState`, palette `Categories.Variables`) |
+| ⭐⭐ **and ~31 of the 135 are NOT `U-11`** | they are on **`IrAsset`** — a *different type* whose same-named three lists are the **emitted field** lists. ⛔ **They set the struct offsets and feed `StructureHash`; sweeping them moves the hash.** ⇒ **the plan's *"lowering · emit"* buckets do not exist for this task** |
+
+### ✅ What landed · ⏭ what remains
+
+| | |
+|---|---|
+| ✅ **compiler** | `Stage0_Rehydrate` · `Stage2_Validate` · `Stage4_TypeResolve` · `Stage5_Schedule` · `V_VariableReferenceRules`. Golden unchanged after **each** of the four sub-steps |
+| ⏭ **editor** | `BlueprintDocumentFactory` · `NodePinSchema` · `BlueprintNodeModel` · `BlueprintPickerSources` · `BlueprintMyBlueprintModel` · `BlueprintGraphModel` · 2 drawers · **`BlueprintVariableSchemaSource`** |
+| 📌 **stays until `U-12`** | `BlueprintCompiler`'s six-line **storage copy**. It builds an asset's storage — the thing that does not move until the store flips |
+| ⛔ **NOT rewritten** | `BlueprintVariablesWindow` — `U-16` deletes it |
+
+### ⭐ What the move actually bought, and the two traps
+
+| | |
+|---|---|
+| ⭐⭐ **Two pairs of near-duplicate overloads collapsed into ONE each** | `Stage5.BuildIrFields`' two had **byte-identical bodies**, split only because `ParameterDecl` and `VariableDecl` were different types. `Stage4.ResolveFieldTypes`' split had already cost something: **`U-7`'s `BP1671` rail landed on one half and had to be hand-applied to the other** |
+| ⚠⚠ **Trap 1 — `ById()` searches one kind too many** | three sites read **Variables ∪ WorkingState only**. ⛔ `Declarations.ById()` also searches `Parameters` ⇒ using it resolves a parameter id where the site never did. ⭐ Written out explicitly at each, with a comment, rather than taking the tidier call |
+| 📌 **Trap 2 — one declared widening** | merging `Stage4` applies `BP1504` to every kind. ⭐ **Safe for a reason found UPSTREAM: `Stage2`'s `BP1507` already refuses a fixed-list `Parameter`** ⇒ unreachable for a compile that gets to Stage4 — and measured a corpus no-op first (Capacity > 0: **P 0 · W 0 · V 1**) |
+
+### 🔴 `BP-236` — a green suite that was reporting on the SCHEDULE
+
+`RecipeIntegrityTests.LoadRecipe` falls back to `TestAssets/Recipes` *"if assembly not loaded"* —
+⛔ **but that directory holds 9 of the 16 recipes**, and has since long before this programme. So the
+suite passed only when something else in the run had already loaded `Hrot.AI.Behaviors`.
+⚠ **Reproduced both ways:** alone it fails two recipes; alongside `GoldenCorpusTests` (which
+force-loads for the same reason — `BP1602`, Batch 44) all 16 pass. ⭐ **Exposed, not caused** by this
+batch's added tests. Fixed with the same one-line preload.
+
+---
+
+## 2 · Batch 49 — `U-15` landed; `U-10` half landed, half re-sequenced
 
 | commit | |
 |---|---|
@@ -91,7 +137,7 @@ what made it writable. **`Down` IS the revert**, so it ships with `Up` as the ha
 
 ---
 
-## 2 · Batch 48 — `U-9`, the tagged declaration (`D1`)
+## 3 · Batch 48 — `U-9`, the tagged declaration (`D1`)
 
 | commit | |
 |---|---|
@@ -145,7 +191,7 @@ work. Un-apply with the inverse edit.
 
 ---
 
-## 3 · Batch 47 — `U-7` + `U-8` (`BP-228` closed)
+## 4 · Batch 47 — `U-7` + `U-8` (`BP-228` closed)
 
 | commit | |
 |---|---|
@@ -163,7 +209,7 @@ work. Un-apply with the inverse edit.
 
 ---
 
-## 4 · Batch 46 — `U-4` + `U-5` (`BP-230`, `BP-231` closed)
+## 5 · Batch 46 — `U-4` + `U-5` (`BP-230`, `BP-231` closed)
 
 | commit | |
 |---|---|
@@ -187,7 +233,7 @@ through its consumers is a contract change nobody is watching.*
 
 ---
 
-## 5 · Batch 45 — `U-3`, the kind-carrying index (`BP-226` closed)
+## 6 · Batch 45 — `U-3`, the kind-carrying index (`BP-226` closed)
 
 | commit | |
 |---|---|
@@ -211,7 +257,7 @@ through its consumers is a contract change nobody is watching.*
 
 ---
 
-## 6 · Batch 44 — the `U-` sequence opened
+## 7 · Batch 44 — the `U-` sequence opened
 
 | commit | |
 |---|---|
@@ -237,7 +283,7 @@ through its consumers is a contract change nobody is watching.*
 
 ---
 
-## 7 · What Batches 41–43 shipped — `BP-57` end to end
+## 8 · What Batches 41–43 shipped — `BP-57` end to end
 
 | commit | |
 |---|---|
@@ -262,7 +308,7 @@ through its consumers is a contract change nobody is watching.*
 
 ---
 
-## 8 · Where the code is
+## 9 · Where the code is
 
 | file | |
 |---|---|
@@ -280,16 +326,19 @@ through its consumers is a contract change nobody is watching.*
 
 ---
 
-## 9 · Gates
+## 10 · Gates
 
 The eight, solution **`IOS-IG-SimHost.sln`** (⚠ **not** `Hrot.sln`).
 ⚠⚠ **The two NodeEdit gates take NO `--no-build`** — they silently do not run with it.
 
-**Post-Batch-49, all eight run** *(full `-t:Rebuild`, so 69 is honest — an incremental build reports
-24, and a partial one 48)*: build **0 errors / 69 warnings** · Blueprints **3505 total / 3495 passed /
-0 failed / 10 skipped** *(+14 = Batch 49's own tests)* · **AiShared 1216** · BTree **612** ·
+**Post-Batch-50, all eight run** *(full `-t:Rebuild`, so 69 is honest — an incremental build reports
+24, and a partial one 48)*: build **0 errors / 69 warnings** · Blueprints **3515 total / 3505 passed /
+0 failed / 10 skipped** *(+10 = Batch 50's own tests)* · **AiShared 1216** · BTree **612** ·
 Breakpoints **130** · Generators **193** · NodeEdit Core **208** · UI **131** ·
-⭐⭐ **golden 42/42 both tiers, unchanged — across a batch that rewrote all 58 shipped assets.**
+⭐⭐ **golden 42/42 both tiers, unchanged at EVERY sub-step** · `persistence-shape.txt` **unchanged**.
+
+⚠ **`BP-236`:** the Blueprints suite is only order-independent as of this batch. If a suite ever goes
+red only in a particular combination, suspect a **load-order** dependency before suspecting the code.
 
 ### ⭐ Run the five `--no-build` suites in PARALLEL
 
@@ -306,12 +355,12 @@ Blueprints. They only read the tree. The two NodeEdit gates must stay sequential
 ⚠ **A closing INCREMENTAL build under-reports warnings.** Record honestly rather than printing `69`
 from memory.
 
-⛔ **The visual check has not run for FOURTEEN batches.** *"Present and empty"* and *"follows the canvas"*
+⛔ **The visual check has not run for FIFTEEN batches.** *"Present and empty"* and *"follows the canvas"*
 are exactly what a headless test can pass while the panel draws nothing. **Say so; never imply coverage.**
 
 ---
 
-## 10 · Open findings that are mine
+## 11 · Open findings that are mine
 
 | | |
 |---|---|
@@ -332,7 +381,7 @@ will find it. ⚠ Reported rather than changed, per the handoff's instruction.
 
 ---
 
-## 11 · ⚠ Process lessons — paid for, do not re-learn
+## 12 · ⚠ Process lessons — paid for, do not re-learn
 
 | | |
 |---|---|
@@ -346,7 +395,7 @@ will find it. ⚠ Reported rather than changed, per the handoff's instruction.
 
 ---
 
-## 12 · The wider programme
+## 13 · The wider programme
 
 ⏭ **The unification is under way** — 📄 [PLAN_Variable_Unification_Tasks.md](PLAN_Variable_Unification_Tasks.md),
 reviewed by 📄 [REVIEW_Unification_Plan.md](REVIEW_Unification_Plan.md) (**run it, with five named changes**).
