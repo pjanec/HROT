@@ -2,9 +2,12 @@
 
 > **Written for a fresh session. Self-contained; assumes no prior conversation.**
 > **You are the *implementation* session.** A separate *coordinator* session owns the tracker and
-> writes the handoffs. Last updated **2026-08-13**.
+> writes the handoffs. Last updated **2026-08-14**.
 >
-> ✅ **Batch 47 is COMPLETE and reported.** `U-7` (the type-existence rail, **`BP1671`**) + `U-8`
+> ✅ **Batch 48 is COMPLETE and reported.** `U-9` — the **tagged declaration** (`D1`), the model change
+> the whole `D` programme rests on. ⭐ Built **inverse** to the plan's wording: the tagged type is the
+> **view**, the three lists stay the **storage**, so `U-9` is entirely internal and its revert is cheap.
+> ✅ Batch 47: `U-7` (the type-existence rail, **`BP1671`**) + `U-8`
 > (the type-choice union) — **`BP-228`** closed and stage B′ unblocked.
 > ✅ Batch 46: `U-4` + `U-5` — **`BP-230`**, **`BP-231`** closed.
 > ✅ Batch 45: `U-3` — the variable index carries its **kind**, closing **`BP-226`**.
@@ -16,10 +19,10 @@
 |---|---|
 | **Repo** | `pjanec/HROT` |
 | **Implementation branch — PUSH HERE** | ⭐ **`claude/hrot-implementation-j1jvin`** |
-| **Coordinator branch — do NOT push** | ⭐ **`claude/blueprint-authoring-status-gm0akp`** (was at `93152d7`, merged into mine) |
-| **Last handoff** | 📄 **[HANDOFF_Batch47_Type_Existence_Rail.md](HANDOFF_Batch47_Type_Existence_Rail.md)** — delivered in full |
+| **Coordinator branch — do NOT push** | ⭐ **`claude/blueprint-authoring-status-gm0akp`** (was at `af5c2b3`, merged into mine) |
+| **Last handoff** | 📄 **[HANDOFF_Batch48_Tagged_Declaration.md](HANDOFF_Batch48_Tagged_Declaration.md)** — delivered in full |
 | **Counts** | **58 open · 111 done** — ⚠ *derive, never hand-count:* `python3 scripts/tracker-counts.py --check` |
-| **Next free ids** | rows **BP-235+** · diagnostics **BP1672+** *(Batch 47 allocated `BP1671`)* |
+| **Next free ids** | rows **BP-235+** · diagnostics **BP1672+** — ⭐ **Batch 48 allocated NEITHER** (`U-9` is a model change with no new rail and no new finding) |
 
 ⛔ **No PR unless the user explicitly asks.** There has never been one in this programme.
 ⛔ **Never put a model identifier** in a commit message, code comment, or anything else pushed.
@@ -36,9 +39,72 @@ python3 scripts/tracker-counts.py --check                              # expect 
 
 Then read whatever handoff is newest on that branch. **No batch is in flight.**
 
+### ⏭ What the plan says comes next
+
+⭐ **`U-15` and `U-11` both unblock now** (`U-9` was the only thing either waited on), and **`U-14`**
+(`BP-232`) is the cheap one — the tracker row already records that its enabler landed.
+
+⛔⛔ **`U-6` / `U-13` / `U-16` still hard-require the VISUAL CHECK**, which has now not run for
+**thirteen batches**. They are a Details table, a read-only view and deleting a whole window — exactly
+the shape a headless test passes while the panel draws nothing. **Say so; never imply coverage.**
+
 ---
 
-## 1 · Batch 47 — `U-7` + `U-8` (`BP-228` closed)
+## 1 · Batch 48 — `U-9`, the tagged declaration (`D1`)
+
+| commit | |
+|---|---|
+| `171ef2f` | ⭐⭐ **`BlueprintDeclaration` + `DeclarationList` + `BlueprintAsset.Declarations`** |
+
+### What is there now
+
+| | |
+|---|---|
+| `BlueprintDeclaration` | one declaration **carrying its kind** — a **facade**, reading and writing straight through to the backing `VariableDecl` / `ParameterDecl` |
+| `DeclarationList` | a **live write-through** `IList<BlueprintDeclaration>` over all three lists, in **storage order** (Parameter, WorkingState, Variable) |
+| `BlueprintAsset.Declarations` | the view, `[JsonIgnore]`d |
+| `Ir.DeclarationRefs` | the **explicit total** `DeclarationKind ↔ VariableKind` mapping, plus `asset.RefOf(decl)` / `asset.Resolve(ref)` |
+
+### ⭐ The four decisions, and why
+
+| | |
+|---|---|
+| ⚠⚠ **Direction — INVERSE of the plan's wording** | the plan says *"old lists become views"*; the **tagged type is the view** instead. ⭐ **That is what keeps `U-9` internal**: with the lists still the storage, the serializer is untouched and the tag cannot reach JSON *structurally* rather than by discipline. A new store would have needed **write-through** views anyway to survive `U-11` (~34 consumers move one bucket at a time), so it buys nothing `U-10`/`U-12` are not already for. ⭐ **`U-11` is unaffected** — consumers move onto `Declarations` either way |
+| ⭐⭐ **A facade, NOT a value copy** | identity is the **backing object**, so `decl.Name = "x"` lands in the stored list. ⛔ A copy would have accepted the edit, reported success and discarded it for the whole of `U-11` — trap #5 at the scale of the editor |
+| 📐 **§1 asymmetry — ruled (a)** | `ParameterDecl` lacks `IsEditable` / `IsExposedOnSpawn` / `Category`. They are **editor-presentation**; giving `ParameterDecl` three members is a **persisted-shape** change and belongs to `U-10`. ⇒ enumerated in `MembersAParameterDoesNotCarry`; **reads return the documented default** (a parameter genuinely has no category — `null` says so), **writes throw** `NotSupportedException`. ⭐ The test **derives** the same set by reflection over both backing types |
+| 📌 **Graph locals are NOT a kind** | `Q27-C1` makes a local legally **shadow** an asset variable. Folding them in would point `U-14`'s cross-kind uniqueness rule at a space where duplicate names are the rule |
+
+### ⛔⛔ The handoff's Pass 3 was wrong twice — and the second one is the interesting one
+
+`Serialize(Deserialize(j)) == j` for all 42:
+
+1. ⛔ **It does not run on this corpus.** 41 of 42 files are hand-authored 2-space-indented against
+   `WriteIndented = false` — it loses on whitespace before reaching the question. ⭐ `U-10`'s Pass 1
+   already carries this correction; it simply was not carried forward into `U-9`'s.
+2. ⭐⭐ **Even canonicalised it proves nothing about the tag: round-tripping is CLOSED UNDER A LEAK.**
+   A written tag is also read back, so the identity still holds either way.
+   ⚠ **Measured, not argued:** under the deliberate `[JsonIgnore]`-removal probe, `RoundTripIsStable`
+   **passed** while the recorded baseline reddened.
+
+⇒ ⭐ **The gate is a recorded baseline instead** — SHA-256 of all 42 canonical serializations, captured
+**on the pre-`U-9` tree**: `Snapshots/Golden/persistence-shape.txt`. Round-trip **stability** is kept
+for what it does prove, and `U-15`/`U-10` inherit both.
+
+### 🔴 Four inverse-edit probes, each red on the test that names it
+
+| probe | reddened |
+|---|---|
+| drop `[JsonIgnore]` | the 42-asset baseline **and** `TheTagIsNotSerializable` — ⚠ **not** `RoundTripIsStable` |
+| a no-op setter on `Name` | both `EveryMemberIsCarriedBothWays_*` |
+| `Category` removed from the exclusion list | the derived-set assertion, **alone** |
+| the view returns a copy, not a facade | `EditingThroughTheViewMutatesTheStoredDeclaration` + 3 identity/ref tests |
+
+⚠⚠ **`git checkout --` is NEVER how a probe is undone** — it resets to HEAD and discards uncommitted
+work. Un-apply with the inverse edit.
+
+---
+
+## 2 · Batch 47 — `U-7` + `U-8` (`BP-228` closed)
 
 | commit | |
 |---|---|
@@ -56,7 +122,7 @@ Then read whatever handoff is newest on that branch. **No batch is in flight.**
 
 ---
 
-## 2 · Batch 46 — `U-4` + `U-5` (`BP-230`, `BP-231` closed)
+## 3 · Batch 46 — `U-4` + `U-5` (`BP-230`, `BP-231` closed)
 
 | commit | |
 |---|---|
@@ -80,7 +146,7 @@ through its consumers is a contract change nobody is watching.*
 
 ---
 
-## 3 · Batch 45 — `U-3`, the kind-carrying index (`BP-226` closed)
+## 4 · Batch 45 — `U-3`, the kind-carrying index (`BP-226` closed)
 
 | commit | |
 |---|---|
@@ -104,7 +170,7 @@ through its consumers is a contract change nobody is watching.*
 
 ---
 
-## 4 · Batch 44 — the `U-` sequence opened
+## 5 · Batch 44 — the `U-` sequence opened
 
 | commit | |
 |---|---|
@@ -130,7 +196,7 @@ through its consumers is a contract change nobody is watching.*
 
 ---
 
-## 5 · What Batches 41–43 shipped — `BP-57` end to end
+## 6 · What Batches 41–43 shipped — `BP-57` end to end
 
 | commit | |
 |---|---|
@@ -155,7 +221,7 @@ through its consumers is a contract change nobody is watching.*
 
 ---
 
-## 6 · Where the code is
+## 7 · Where the code is
 
 | file | |
 |---|---|
@@ -173,14 +239,16 @@ through its consumers is a contract change nobody is watching.*
 
 ---
 
-## 7 · Gates
+## 8 · Gates
 
 The eight, solution **`IOS-IG-SimHost.sln`** (⚠ **not** `Hrot.sln`).
 ⚠⚠ **The two NodeEdit gates take NO `--no-build`** — they silently do not run with it.
 
-**Post-Batch-47, all eight run** *(full `-t:Rebuild`, so 69 is honest — an incremental build reports
-24)*: build **0 errors / 69 warnings** · Blueprints **3474 total / 3464 passed / 0 failed / 10 skipped** ·
-**AiShared 1216** · BTree **612** · Breakpoints **130** · Generators **193** · NodeEdit Core **208** · UI **131**.
+**Post-Batch-48, all eight run** *(full `-t:Rebuild`, so 69 is honest — an incremental build reports
+24, and a partial one 48)*: build **0 errors / 69 warnings** · BP diagnostics **10 distinct, all
+`BP3010`** · Blueprints **3491 total / 3481 passed / 0 failed / 10 skipped** *(+17 = Batch 48's own
+tests)* · **AiShared 1216** · BTree **612** · Breakpoints **130** · Generators **193** ·
+NodeEdit Core **208** · UI **131** · ⭐⭐ **golden 42/42 both tiers, unchanged**.
 
 ### ⭐ Run the five `--no-build` suites in PARALLEL
 
@@ -197,12 +265,12 @@ Blueprints. They only read the tree. The two NodeEdit gates must stay sequential
 ⚠ **A closing INCREMENTAL build under-reports warnings.** Record honestly rather than printing `69`
 from memory.
 
-⛔ **The visual check has not run for NINE batches.** *"Present and empty"* and *"follows the canvas"*
+⛔ **The visual check has not run for THIRTEEN batches.** *"Present and empty"* and *"follows the canvas"*
 are exactly what a headless test can pass while the panel draws nothing. **Say so; never imply coverage.**
 
 ---
 
-## 8 · Open findings that are mine
+## 9 · Open findings that are mine
 
 | | |
 |---|---|
@@ -223,7 +291,7 @@ will find it. ⚠ Reported rather than changed, per the handoff's instruction.
 
 ---
 
-## 9 · ⚠ Process lessons — paid for, do not re-learn
+## 10 · ⚠ Process lessons — paid for, do not re-learn
 
 | | |
 |---|---|
@@ -237,7 +305,7 @@ will find it. ⚠ Reported rather than changed, per the handoff's instruction.
 
 ---
 
-## 10 · The wider programme
+## 11 · The wider programme
 
 ⏭ **The unification is under way** — 📄 [PLAN_Variable_Unification_Tasks.md](PLAN_Variable_Unification_Tasks.md),
 reviewed by 📄 [REVIEW_Unification_Plan.md](REVIEW_Unification_Plan.md) (**run it, with five named changes**).

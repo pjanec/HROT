@@ -48,7 +48,7 @@ assertions. ⛔ **Without `U-1` the whole programme is unfalsifiable.**
 | **U-6** | Details hosts the table; selection routes — stage **B** | editor | the provider handles `Variable` **and** `LocalVariable` | U-4, U-5 |
 | **U-7** | ⭐ **type-existence rail** (`Q-j`, `BP-228`) | compiler | `Totally.Made.Up.Type` is **refused**; no oracle ⇒ unchanged | U-1 |
 | **U-8** | type-choice union — stage **B′** | editor | **every offered type compiles** | U-7 |
-| **U-9** | tagged declaration + projections — **D1** | model | old lists become views; **golden unchanged** | U-3 |
+| ~~**U-9**~~ ✅ | tagged declaration + projections — **D1** | model | ✅ **LANDED B48** — ⚠ built inverse: the **tagged type is the view**, the lists stay the storage; **golden unchanged** | U-3 |
 | **U-15** 🆕 | ⭐ **canonicalise the corpus** — re-serialize every asset through `BlueprintJsonServices` | assets | ⭐ **a semantic no-op the golden harness proves**; settles `BP-227` | U-1, U-9 |
 | **U-10** | migrator **pair** + envelope 1→2 — **D2** | persistence | ⭐ **v1→v2→v1 is the identity**, `StructureHash` unmoved ⚠ **only meaningful AFTER `U-15`** | U-15 |
 | **U-11** | consumers moved off the views — **D3** | ~34 sites | golden unchanged **at every sub-step** | U-9 |
@@ -143,14 +143,16 @@ headless-testable it is called out as such rather than papered over.
 | ✅ **Pass 3** | ⛔ **no short names are offered** — a short name is `BP1500` |
 | 🔴 **Revert** | drop the struct contributor ⇒ Pass 2's count fails |
 
-### U-9 · Tagged declaration + projections — D1
+### U-9 · Tagged declaration + projections — D1 — ✅ **LANDED, Batch 48**
 
 | | |
 |---|---|
-| ✅ **Pass 1** | ⭐ **golden unchanged — nothing has moved yet** |
+| ✅ **Pass 1** | ⭐ **golden unchanged — nothing has moved yet.** 42/42 both tiers |
 | ✅ **Pass 2** | a **reflection** test asserts every member of the new decl type is carried by **both** projections — the `Graph_CopyShape_PreservesEveryMember` pattern, which has already caught one real miss |
-| ✅ **Pass 3** | round-trip: `Serialize(Deserialize(j)) == j` for all 42 |
-| 🔴 **Revert** | cheap — no persisted change yet |
+| ⛔⛔ **Pass 3 — REWRITTEN by Batch 48** | ~~round-trip: `Serialize(Deserialize(j)) == j` for all 42~~. **Two independent problems, both measured.** ⛔ **(i) It does not run on this corpus** — 41 of 42 files are hand-authored 2-space-indented against `WriteIndented = false`, the same fact `U-10`'s Pass 1 already carries; it fails on whitespace before reaching the question. ⭐⭐ **(ii) Even canonicalised it proves nothing about the tag: round-tripping is CLOSED UNDER A LEAK.** A written tag is also read back, so the identity still holds. ⚠ **Measured, not argued** — under the deliberate `[JsonIgnore]`-removal probe, round-trip **passed** while the recorded baseline reddened. ⇒ replaced by a **SHA-256 baseline of all 42 canonical serializations, captured on the pre-`U-9` tree** (`Snapshots/Golden/persistence-shape.txt`), plus round-trip **stability** kept for what it does prove |
+| 🔴 **Revert** | ✅ cheap — no persisted change. Four inverse-edit probes, each red on the test that names it |
+| 📐 **§1 asymmetry** | ⭐ **ruled (a)** — the three `ParameterDecl` lacks are editor-presentation, the drop is enumerated in `MembersAParameterDoesNotCarry`, reads return the documented default and **writes throw** |
+| 📌 **Direction** | ⚠ built the **inverse** of *"old lists become views"*: the **tagged type is the view**, the three lists remain the storage. That is what keeps `U-9` internal — a new store would have needed write-through views anyway to survive `U-11`, and flipping the store is `U-10`/`U-12`'s job. ⭐ **`U-11` is unaffected:** consumers move onto `Declarations` either way |
 
 ### U-10 · Migrator pair + envelope 1→2 — D2 ⚠ *the risky one*
 
