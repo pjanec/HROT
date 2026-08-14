@@ -18,6 +18,13 @@ internal sealed class ValidationContext
     public IEqsTemplateCatalog? EqsTemplates { get; }
     public ExecutionNodeHint ExecutionNode { get; }
 
+    /// <summary>
+    /// U-7 / <c>BP-228</c> — the compile's type oracle, or null. ⚠ <b>Null is the normal case</b>:
+    /// exactly one production site supplies one (<c>BlueprintIncrementalGenerator</c>). Rails that
+    /// consult it must treat absence as "no opinion", never as "does not exist".
+    /// </summary>
+    public IClrSignatureResolver? ClrSignatureResolver { get; }
+
     // Patch 1: signatures only, NOT full assets.
     public IReadOnlyDictionary<Guid, BlueprintSignature> SiblingSignaturesById { get; }
 
@@ -34,6 +41,7 @@ internal sealed class ValidationContext
         WaitPrimitives   = options.WaitPrimitives;
         EqsTemplates     = options.EqsTemplates;
         ExecutionNode    = options.ExecutionNode;
+        ClrSignatureResolver = options.ClrSignatureResolver;
         SiblingSignaturesById = options.SiblingSignatures
             .ToDictionary(s => s.AssetId);
     }

@@ -102,8 +102,19 @@ internal static class Stage4_TypeResolve
                 continue;
             }
 
-            if (TryResolveFieldType(ctx, f.Type, out var resolved))
+            if (TryResolveFieldType(ctx, f.Type, out var resolved, out bool trustedVerbatim))
+            {
+                // U-7 / BP-228: the AN2 path accepted this id because it CONTAINS A DOT, not because
+                // anything checked it. When an oracle is available, ask.
+                if (trustedVerbatim && !TypeExistsPerOracle(ctx, f.Type.TypeId))
+                {
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1671,
+                        $"Variable '{f.Name}' is declared as type '{f.Type.TypeId}', which does not exist. "
+                        + "Check the fully-qualified name, or the assembly that declares it.", assetId));
+                    continue;
+                }
                 result[f.Id] = resolved;
+            }
             else
                 ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1500,
                     $"Field type '{f.Type.TypeId}' does not resolve.", assetId));
@@ -118,8 +129,19 @@ internal static class Stage4_TypeResolve
     {
         foreach (var f in fields)
         {
-            if (TryResolveFieldType(ctx, f.Type, out var resolved))
+            if (TryResolveFieldType(ctx, f.Type, out var resolved, out bool trustedVerbatim))
+            {
+                // U-7 / BP-228: the AN2 path accepted this id because it CONTAINS A DOT, not because
+                // anything checked it. When an oracle is available, ask.
+                if (trustedVerbatim && !TypeExistsPerOracle(ctx, f.Type.TypeId))
+                {
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1671,
+                        $"Variable '{f.Name}' is declared as type '{f.Type.TypeId}', which does not exist. "
+                        + "Check the fully-qualified name, or the assembly that declares it.", assetId));
+                    continue;
+                }
                 result[f.Id] = resolved;
+            }
             else
                 ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1500,
                     $"Field type '{f.Type.TypeId}' does not resolve.", assetId));
@@ -132,8 +154,16 @@ internal static class Stage4_TypeResolve
     /// though the reflection-less compiler can't verify it. Size is a placeholder (the real State layout +
     /// <c>StateSize => Unsafe.SizeOf&lt;State&gt;()</c> come from the generated struct at compile time).
     /// </summary>
-    private static bool TryResolveFieldType(ValidationContext ctx, BlueprintTypeRef type, out IrTypeRef resolved)
+    /// <param name="trustedVerbatim">
+    /// U-7 — true when the type was accepted by the AN2 <i>"contains a dot ⇒ it must be a project
+    /// type"</i> fallback rather than resolved by the registry. ⭐ Only these ids need an oracle: a
+    /// primitive is known outright, and asking about one would make the rail depend on every oracle
+    /// knowing <c>System.Int32</c>.
+    /// </param>
+    private static bool TryResolveFieldType(
+        ValidationContext ctx, BlueprintTypeRef type, out IrTypeRef resolved, out bool trustedVerbatim)
     {
+        trustedVerbatim = false;
         if (ctx.TypeRegistry.TryResolve(type, out resolved)) return true;
         var id = type.TypeId;
         if (!string.IsNullOrEmpty(id)
@@ -146,11 +176,35 @@ internal static class Stage4_TypeResolve
                 // The AN2 path guesses a 4-byte size; for a real project struct that's a placeholder, so
                 // flag it — StateFields layout must then use runtime offsets, not baked field-size sums.
                 resolved = resolved with { SizeReliable = false };
+                trustedVerbatim = true;   // U-7: accepted on the strength of a dot
                 return true;
             }
         }
         return false;
     }
+
+    /// <summary>
+    /// U-7 / <c>BP-228</c> — asks the compile's type oracle whether <paramref name="typeId"/> names
+    /// anything.
+    ///
+    /// <para>
+    /// ⭐⭐ <b>No oracle ⇒ no opinion.</b> Returning <c>true</c> when
+    /// <c>CompileOptions.ClrSignatureResolver</c> is null is the fallback contract, and it is
+    /// load-bearing: ⚠ <b>exactly one production site supplies a resolver</b>
+    /// (<c>BlueprintIncrementalGenerator</c>). Every unit test, every in-memory <c>.Succeeded</c>
+    /// check and the golden harness pass <c>null</c>, so a rail that fired without an oracle would
+    /// redden them for a reason unrelated to the asset.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>The corollary, stated rather than hidden:</b> this rail protects the BUILD, which is where
+    /// the defect actually bit (a `CS0246` naming a generated file). It does <b>not</b> protect the
+    /// in-editor compile, because that path supplies no oracle — wiring one there is <c>U-8</c>'s
+    /// question, not this rail's.
+    /// </para>
+    /// </summary>
+    private static bool TypeExistsPerOracle(ValidationContext ctx, string typeId)
+        => ctx.ClrSignatureResolver is not { } oracle || oracle.TypeExists(typeId);
 
     private static void CheckUnmanagedConstraint(
         IEnumerable<VariableDecl> fields,

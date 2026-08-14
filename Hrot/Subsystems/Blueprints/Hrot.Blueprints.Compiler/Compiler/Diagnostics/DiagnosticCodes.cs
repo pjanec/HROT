@@ -139,6 +139,13 @@ public static class DiagnosticCodes
     // build broke with a CS error naming a generated file and no BP diagnostic named the node.
     public const string BP1670 = "BP1670";  // Get/SetVariable targets a variable that does not exist
 
+    // U-7 / BP-228 — a declared field type that does not exist. ⛔ Distinct from BP1500 ("does not
+    // resolve"): the type id here RESOLVED, via the AN2 "dotted FQN ⇒ trust the string" fallback, and
+    // only a real type oracle can say it names nothing. Its own code because the cause and the fix
+    // differ — BP1500 means "the compiler does not know this shape", BP1671 means "this type is not
+    // there". ⚠ Fires only when an IClrSignatureResolver is supplied; see Stage4_TypeResolve.
+    public const string BP1671 = "BP1671";  // declared field type does not exist (oracle-checked)
+
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch
     public const string BP2002 = "BP2002";  // WhenNode missing required payload

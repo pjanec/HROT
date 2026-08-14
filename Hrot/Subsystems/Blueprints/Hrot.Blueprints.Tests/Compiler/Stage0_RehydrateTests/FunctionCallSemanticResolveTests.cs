@@ -27,6 +27,10 @@ public sealed class FunctionCallSemanticResolveTests
             sig = null;
             return false;
         }
+
+        // U-7: this stub is about METHOD resolution; every type it is asked about is one its own
+        // fixtures declare, so it answers yes.
+        public bool TypeExists(string typeId) => true;
     }
 
     private static CompileOptions OptionsWith(IClrSignatureResolver resolver) =>
