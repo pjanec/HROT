@@ -4614,15 +4614,18 @@ internal sealed class GraphScheduler
     }
 
     /// <summary>
-    /// Params-ONLY index lookup for <see cref="GetParameterNode"/> (GAP-11). Unlike
-    /// <see cref="FindVariableIndex"/> -- which searches Variables, then WorkingState, then
-    /// Parameters and returns a COMBINED index (correct for GetVariable/SetVariable, which only
-    /// ever emit <c>IrOp_ReadVariable</c>/<c>IrOp_WriteVariable</c> against that same combined
-    /// space) -- this searches ONLY <c>_typed.Asset.Parameters</c>, since <c>IrOp_ReadParam</c>'s
-    /// index is looked up via <c>EmissionContext.ParamFieldName</c> against
-    /// <c>Asset.Parameters</c> alone. Using the combined index here would silently emit the wrong
-    /// field (or an out-of-range <c>__p_{idx}</c> placeholder) whenever Variables/WorkingState are
-    /// non-empty.
+    /// Params-ONLY index lookup for <see cref="GetParameterNode"/> (GAP-11): searches
+    /// <c>_typed.Asset.Parameters</c> alone, because <c>IrOp_ReadParam</c>'s index is resolved by
+    /// <c>EmissionContext.ParamFieldName</c> against that list alone.
+    ///
+    /// <para>
+    /// ⚠ <b>This comment used to claim <c>FindVariableIndex</c> returned "a COMBINED index". It never
+    /// did</b> — it returned the position <b>within whichever list matched</b> — and the false claim
+    /// has a demonstrated victim: it is the likely source of the Batch 45 handoff's wrong reading of
+    /// <c>VarFieldName</c>'s WorkingState arm as needing a rebase, which would have broken every
+    /// shipped AiPrimitive. ⭐ <c>U-3</c> replaced that method with <see cref="FindVariableRef"/>,
+    /// which returns an explicit <c>(kind, list-relative index)</c>, so the distinction this comment
+    /// was drawing no longer needs drawing.
     /// </summary>
     private int FindParameterIndex(string parameterId)
     {
