@@ -225,15 +225,19 @@ by two. The task groupings and their reasons are unchanged;** only the numbers m
 |---|---|---|
 | ~~40~~ | ✅ **plan review — DONE** | [`REVIEW_Unification_Plan.md`](REVIEW_Unification_Plan.md) |
 | ~~41–43~~ | ✅ **`BP-57`'s authoring half — DONE, `BP-57` CLOSED** — [41](HANDOFF_Batch41_Local_Variables_Authoring.md) *(source + picker)* · [42](HANDOFF_Batch42_Local_Variables_Wiring.md) *(delete + undo)* · [43](HANDOFF_Batch43_Local_Variables_Section.md) *(the section)* | ⭐⭐ **Its schema source is an `IVariablesSchemaSource`, so `U-4`…`U-6` ABSORB it** ⚠ **and `U-6` inherits one known gap: `AddVariable` does not reject a duplicate name — the guard currently sits in the window** |
-| **44** ⏭ | `U-1` · `U-2` | ⭐ **the net, then the first thing it protects.** Both compiler-only, both small |
-| **45** | `U-3` | ⭐ **closes `BP-226` alone** — the highest-value single task, kept unmixed |
-| **46** | `U-4` · `U-5` | ⚠ **V2: this is NOT one lane** — `U-5` reaches into `Hrot.Editor.AiShared` and **moves that gate**. Kept together anyway because `U-5` is what makes `U-6` honest |
-| **47** 👁 | `U-6` · `U-13` · ⭐ **`U-16`** | Details/panel work ⚠ **all three need the visual check** · ⭐ **`U-16` is what makes the exit point real** |
-| **48** | `U-7` · `U-8` | rail then picker — `U-8` is meaningless without `U-7` |
+| ~~44~~ | ✅ **`U-1` · `U-2` — DONE.** The golden net is built and bites; `BP-229` closed | ⭐ **the net, then the first thing it protects.** Both compiler-only, both small |
+| ~~45~~ | ✅ **`U-3` — DONE, `BP-226` closed.** Golden 42/42 unchanged | ⭐ **closes `BP-226` alone** — the highest-value single task, kept unmixed |
+| ~~46~~ | ✅ **`U-4` · `U-5` — DONE, `BP-230` + `BP-231` closed.** AiShared 1213 → 1216 | ⚠ **V2: this is NOT one lane** — `U-5` reaches into `Hrot.Editor.AiShared` and **moves that gate**. Kept together anyway because `U-5` is what makes `U-6` honest |
+| **48** 👁 ⚠ **SWAPPED LATER** | `U-6` · `U-13` · ⭐ **`U-16`** | Details/panel work ⚠ **all three need the visual check** · ⭐ **`U-16` is what makes the exit point real** |
+| **47** ⏭ ⚠ **SWAPPED EARLIER** | `U-7` · `U-8` | rail then picker — `U-8` is meaningless without `U-7` |
 | **49** | `U-9` | ⭐ **the model change, alone.** Golden must not move · ⚠ **its serializer must keep writing the OLD three-list shape** — the tag must not reach JSON until `U-10`, or `U-9` and `U-10` collapse into one |
 | **50** | ⭐ **`U-15`** · `U-10` | ⭐ **canonicalise, then migrate.** ⚠ **the only batch whose revert is code it ships** |
 | **51** | `U-11` · `U-14` | ⭐ **one batch, TWO sub-steps** (compiler buckets · editor remainder) — the review's ruling; `U-4`/`U-5` already rewrote most of the scary file |
 | **52** | `U-12` | the rails, once nothing reads the old views |
+
+⚠⚠ **47 ⇄ 48 SWAPPED `2026-08-14`**, because the visual check has not run for eleven batches and
+`U-6`/`U-13`/`U-16` hard-require it while `U-7`/`U-8` do not. ⭐ **Nothing depends on the order:**
+`U-8` needs `U-7`; `U-6` needs `U-4`/`U-5`, which are done.
 
 ⚠ **44–48 are independent of 49–52.** ⭐ **Stop after 48 and everything shipped is coherent** — three
 defects closed, **ONE editing surface** (`U-16`), and the model untouched. ⭐ **That exit point is only

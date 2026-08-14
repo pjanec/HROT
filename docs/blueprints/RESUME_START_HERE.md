@@ -4,6 +4,13 @@
 > ⭐⭐ **Batch 43 verified and merged at `3583acd4` (§7p) — `BP-57` is CLOSED.** The Local Variables
 > section landed; a designer can declare, rename, delete, duplicate and undo a graph local from the
 > editor, and it follows the canvas.
+> ⭐⭐ **Batch 46 verified and merged at `ea53e7e0` (§7s) — `BP-230` + `BP-231` CLOSED.** `isParams`
+> is gone (the editor now uses the compiler's own `VariableKind`), the reference count is real and
+> resolves **exactly as `Stage5.FindVariableRef` does**, and ⭐⭐ **`BP-230`'s eight-batch-old open
+> question was answered from the panel code, not a screenshot: the Role combo was DRAWN, LIVE, and its
+> result DISCARDED.** ⚠ **AiShared 1213 → 1216** — the one gate that was meant to move.
+> ⏭ **Batch 47 dispatched (`U-7` + `U-8`) ⚠ SWAPPED AHEAD of the visual-check batch.**
+>
 > ⭐⭐ **Batch 45 verified and merged at `74526bf0` (§7r) — `BP-226` is CLOSED.** `VariableRef(kind,
 > index)` travels Stage 5 → IR → Stage 7; `VarFieldName(int)` **no longer exists**, so the wrong call is
 > unwritable. ⭐ **Golden 42/42 both tiers with no regeneration** ⇒ behaviour-preserving, measured.
@@ -171,15 +178,15 @@ report"* rather than *"the gate did not run."* Trap #5, in the gate script itsel
 **3m40s → 2m05s**. ⚠ **And always include `\[FAIL\]` in the result grep**: a `Passed!`/`Failed!`-only
 grep is why Batch 42's flake could not be named.
 
-**Baseline at `74526bf0` — ⭐ all eight gates coordinator-RUN 2026-08-14, post-Batch-45:**
+**Baseline at `ea53e7e0` — ⭐ all eight gates coordinator-RUN 2026-08-14, post-Batch-46:**
 
 | | |
 |---|---|
 | Solution build | **0 errors**, **69 warnings** ⚠ *(an incremental build under-reports — record honestly)* |
 | BP diagnostics | **10 distinct** — all `BP3010`, all **authored** orphans in 2 assets |
-| Blueprints | **3451 total / 3441 passed / 0 failed / 10 skipped** ⚠ *(BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
+| Blueprints | **3465 total / 3455 passed / 0 failed / 10 skipped** ⚠ *(BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
 | ⭐⭐ **Golden corpus** *(new, Batch 44)* | **42 assets × Tier 1 + Tier 2**, `Snapshots/Golden/`. ⛔ **Tier 1 moving is a FAILURE, not a rebase.** Regenerate Tier 2 with `BLUEPRINT_REGENERATE_SNAPSHOTS=1` and **review the diff** |
-| AiShared **1213** · BTree **612** · Breakpoints **130** | 0 failed |
+| ⭐ **AiShared 1216** *(+3, Batch 46)* · BTree **612** · Breakpoints **130** | 0 failed |
 | NodeEdit Core **208** · UI **131** · Generators **193** | 0 failed |
 
 ### ⚠⚠ Measuring blueprint warnings — the one that has been wrong all along
@@ -200,7 +207,7 @@ retired `BP3011`; the 10 that remain are authored and deliberate.)
 
 ## 4 · Where the programme stands
 
-**Tracker: open 61 · done 108** (+1 refuted) ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
+**Tracker: open 59 · done 110** (+1 refuted) ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
 three ways — checkbox tally, per-complexity columns (⚠ take the **first** tag on a row), and the total
 row. ⚠⚠ **Reconcile all three EVERY time.** The columns can agree with the Total and both still be
 wrong: a missed tick is invisible to arithmetic and only shows against the checkbox tally.
@@ -404,6 +411,73 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > nothing. ⭐ **`Q-k` already ruled the semantics — read-only, a move not a toggle** — so "honest" means
 > the surface must **say so**, not implement a setter.
 > ⚠ **This is the one batch since 38 that SHOULD move the AiShared gate (1213).**
+
+> ⏭ **Batch 47 dispatched — [`U-7` + `U-8`: the type-existence rail, then the picker](HANDOFF_Batch47_Type_Existence_Rail.md).**
+> ⚠⚠ **ORDER SWAP:** these are the plan's *"batch 48"* tasks, **pulled ahead of `U-6`/`U-13`/`U-16`**,
+> which hard-require the visual check. ⭐ **Nothing depends on the order** — `U-8` needs `U-7`; `U-6`
+> needs `U-4`/`U-5`, which are done.
+> ⭐ **`BP-228`: the dot is doing the work of a type check** — contains a dot ⇒ trusted verbatim.
+> ⭐ **`Q-j`'s seam already exists** (`IClrSignatureResolver` on `CompileOptions`), and ⭐⭐ **Batch 44
+> measured the in-process and semantic-model paths 42/42 byte-identical** ⇒ same oracle at both ends.
+> 📐 **Still open and handed to them: does the EDITOR get an oracle at all?** ⭐ The review's lean is
+> yes; ⛔ **`U-7` alone is shippable if wiring it reaches past `CompileOptions`.**
+
+## 7s · Batch 46 — ✅ VERIFIED AND MERGED at `ea53e7e0` — ⭐⭐ **`BP-230` + `BP-231` CLOSED, and the visual question was answered WITHOUT the visual check**
+
+**Gates — all eight, coordinator-run on the merged tree:**
+
+| | |
+|---|---|
+| Solution build | **0 errors**, **69 warnings** — unmoved |
+| Blueprints | **3465 total / 3455 passed / 0 failed / 10 skipped** (**+14**) |
+| ⭐ **AiShared 1213 → 1216** (**+3**) | ✅ **the one gate this batch was expected to move, and it moved for the stated reason** |
+| BTree **612** · Breakpoints **130** · Generators **193** · NodeEdit Core **208** · UI **131** | unmoved |
+| ⭐⭐ **Golden 42/42 both tiers** | ✅ **no `Snapshots/Golden/` file changed** — editor-only, as declared |
+| `tracker-counts.py --check` | **clean — fifteen batches.** open **59** / done **110** ⇒ ⭐ **`BP-230` and `BP-231` both moved across** |
+
+✅ **Rule 7 verified mechanically:** their first commit's parent **is** the dispatch commit `61fd40b44`.
+
+### ⭐⭐ The finding of the batch — and it did NOT need a screen
+
+⛔ **`BP-230` has carried an open question since Batch 38: are the `Role`/`Scope` columns
+drawn-but-dead, or hidden?** ⭐⭐ **Answered from `VariablesPanelControl` rather than a screenshot:**
+the Role combo is gated on **`!IsReadOnly` alone**, and the blueprint source returns `false` ⇒
+🔴🔴 **the combo was DRAWN, LIVE, and its result DISCARDED.**
+
+⭐ **That is the worst of the three possibilities** — a designer could set a Role, watch it take, and
+have nothing happen — ⚠ **and it was headlessly answerable for eight batches.** 📌 **Lesson worth
+keeping: "needs the visual check" was true of the RENDERING, not of the QUESTION.**
+
+### ⭐ The fix is a capability, not a setter — and the interface stops volunteering to lie
+
+| | |
+|---|---|
+| ⭐⭐ **`SupportsRoleScopeEditing` has NO default body** | ⇒ **every implementer must answer.** The panel gates on it and falls back to read-only **text** rather than a dead control |
+| ⭐ **The two setters keep default bodies — but now THROW** | *"a default body is the interface volunteering to lie on an implementer's behalf."* ⇒ **honest in both directions:** a source that says it cannot edit is never called; one that says it can and forgot **fails loudly** |
+| ✅ **`Q-k` respected exactly** | read-only for blueprints is **a move, not a toggle** — so the surface says so instead of implementing a setter |
+
+### 🔴🔴 They caught a GATE that did not move when it should have
+
+⛔ **The first full run left AiShared at 1213 after changing that very interface** — ⭐ **because the
+contract change had no coverage in the assembly it landed in.** ⇒ three tests added there, **1216**.
+
+⚠⚠ **This is trap #5 at the GATE level, and it is the subtlest instance the programme has hit:** the
+handoff said *"expect 1213 to move"*, the number did not move, ⛔ **and a green suite would have read
+as proof rather than as the absence of one.** ⭐ **They noticed the silence.**
+
+### ⚠ They corrected my §2.1 advice, and were right
+
+⛔ **I wrote *"do not re-derive the count; mirror the locals source."*** ⭐ **It could not.** The locals
+source counts **by id only** — correct there, because `FindLocalIndex` has **no name fallback** —
+⚠ **wrong for asset variables, because the compiler DOES match them by name.** ⇒ the new count
+resolves **exactly as `Stage5.FindVariableRef` does**: id first, then name, both in list-priority
+order. 📐 **Mirroring the shape would have produced a count that disagrees with the compiler.**
+
+✅ **`BP-231`:** remove drops ids from the order list; ⭐ **rename correctly leaves it alone, and that
+is test-locked** so a later name-keyed rewrite cannot creep in.
+✅ **The `COMBINED index` comment is fixed** — and they confirm it was still in the tree, as flagged.
+
+---
 
 ## 7r · Batch 45 — ✅ VERIFIED AND MERGED at `74526bf0` — ⭐⭐ **`BP-226` CLOSED, and my finding was REFUTED**
 
