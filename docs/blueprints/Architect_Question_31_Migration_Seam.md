@@ -1,4 +1,4 @@
-# Architect Question #28 — the migration registration seam (`BP-235`)
+# Architect Question #31 — the migration registration seam (`BP-235`)
 
 > **Coordinator, `2026-08-14`.** ⭐ **Relay to the architect.** Claude cannot reach it.
 > **Blocks:** `U-10`'s writer — the last task in the variable-unification `D` programme.
@@ -49,7 +49,7 @@ envelope.**
 
 ## 2. The sub-questions
 
-### Q28-A — Where does the registration live?
+### Q31-A — Where does the registration live?
 
 | | option | tradeoff |
 |---|---|---|
@@ -64,7 +64,7 @@ is exactly the *"silently does nothing"* shape this programme has spent nine bat
 if A2, it needs a rail that makes a missing registration loud at build or startup, not at first load
 of a v2 file.**
 
-### Q28-B — Does the generator ever need to READ v2?
+### Q31-B — Does the generator ever need to READ v2?
 
 ⭐ **Today it does not have to:** the writer would emit v2, and the generator's `System.Text.Json` DOM
 `Down` could normalise before parsing.
@@ -78,7 +78,7 @@ of a v2 file.**
 already proved the in-process and semantic-model compile paths byte-identical across 42 assets; the
 same technique applies here.**
 
-### Q28-C — ⭐ What should `--mode migrate` do with a v1 file the transform REFUSES? *(`BP-241`)*
+### Q31-C — ⭐ What should `--mode migrate` do with a v1 file the transform REFUSES? *(`BP-241`)*
 
 ⭐⭐ **Batch 54 made `Up` refuse four non-canonical v1 shapes rather than guess** — including 🔴 **a
 declaration carrying its own `Kind` property, which previously overwrote the v2 tag and moved a field
@@ -96,7 +96,7 @@ that is not there.**
 ⚖️ **Lean: C2.** ⭐ **The canonicaliser exists, is proved, and turns "no way forward" into "one extra
 step."** ⛔ **C3 is the option whose failure is a blackboard wipe.**
 
-### Q28-D — Is the bump worth doing at all right now?
+### Q31-D — Is the bump worth doing at all right now?
 
 ⚠ **Worth asking plainly, because everything the unification needed is already delivered without it:**
 
@@ -104,10 +104,10 @@ step."** ⛔ **C3 is the option whose failure is a blackboard wipe.**
 |---|---|
 | ✅ **already shipped** | the tagged store · the rails · the reader · the proved transform pair |
 | ⛔ **the bump adds** | one on-disk format change, ⭐ **and it is the only irreversible step in the programme** |
-| **D1** | ⭐ **bump now** — the model and the file agree, and v1 becomes legacy ⛔ needs Q28-A resolved |
+| **D1** | ⭐ **bump now** — the model and the file agree, and v1 becomes legacy ⛔ needs Q31-A resolved |
 | **D2** | ⭐⭐ **hold the bump indefinitely** — keep writing v1, keep the reader, keep the transform tested. ✅ **Zero risk, and the reader means a v2 file would already load if one ever appeared** ⛔ **the tagged store's on-disk shape stays a fiction, and the transform is dead code that must be maintained** |
 
-⚖️ **Coordinator's lean: D2 until Q28-A is answered**, ⭐ **because the current state is coherent and
+⚖️ **Coordinator's lean: D2 until Q31-A is answered**, ⭐ **because the current state is coherent and
 safe** — ⚠ **but it is a real question whether a proved-but-unused migrator is worth carrying, and the
 architect may prefer to either finish it or delete it.**
 
@@ -115,8 +115,8 @@ architect may prefer to either finish it or delete it.**
 
 ## 3. What would be most useful back
 
-1. ⭐⭐ **Q28-A** — the seam. Everything else waits on it.
-2. **Q28-D** — whether to finish or park; ⚠ **if park, for how long and under what trigger.**
-3. **Q28-C** — `BP-241`'s answer, which is operator-facing and independent of A.
+1. ⭐⭐ **Q31-A** — the seam. Everything else waits on it.
+2. **Q31-D** — whether to finish or park; ⚠ **if park, for how long and under what trigger.**
+3. **Q31-C** — `BP-241`'s answer, which is operator-facing and independent of A.
 4. ⭐ **Any correction to §1.** ⚠ **The cycle and the two-target divergence are measured, but the reason
    `Fdp.Core`/`Hrot.Common` are net8-only is not — if that constraint is soft, B2 changes shape.**

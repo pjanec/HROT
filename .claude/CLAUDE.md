@@ -109,6 +109,19 @@ document came from ignoring this.
 | 6 | ⭐ **The tracker + detail docs belong to the implementation session for the batch's duration.** The coordinator records findings in conversation and in the next handoff, not as rows | both |
 | 7 | ⭐ **Branch from the coordinator branch, and re-sync from it at the START of every run** (lane table above). This is the *other* half of rule 4: rule 4 catches what landed **during** your run, rule 7 catches what landed **before** it. Together they close the mechanic described above | implementation |
 
+### ⭐ Rule 3a — **architect-question numbers are ids too** *(added `2026-08-14`)*
+
+> **Any session creating `Architect_Question_N_*.md` must first `git fetch` every active branch and
+> take the next free `N` ACROSS ALL OF THEM — not the next free `N` on its own branch.**
+
+⚠ **Why this needed saying:** rule 3 names *coordinator* and *implementation*, ⛔ **but the collision
+that happened was between two DESIGN sessions** — the blueprint coordinator and the cross-host
+variable-model session both created an `Architect_Question_28` on `2026-08-14`, independently.
+📌 **Resolved by the coordinator renumbering to `#31`** (theirs was three consecutive with cross-links
+from five documents — the cheaper side to keep, not a principled claim).
+⭐ **Wording agreed by both sessions.** ⇒ **the same rule applies to any other cross-session numbered
+artefact, not just `BP-` rows.**
+
 ### Checking "did they see X?" — do it correctly, and name the run
 
 Never say *"they never saw it"* — that reads as a property of the session when it is a property of one

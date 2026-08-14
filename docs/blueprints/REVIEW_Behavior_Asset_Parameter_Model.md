@@ -152,15 +152,26 @@ the same wall.**
 | branch | file |
 |---|---|
 | `claude/cross-host-variable-model-3k8cfh` | `Architect_Question_28_Cross_Host_Binding_Mechanism.md` |
-| ⭐ `claude/blueprint-authoring-status-gm0akp` | `Architect_Question_28_Migration_Seam.md` |
+| ⭐ `claude/blueprint-authoring-status-gm0akp` | `Architect_Question_31_Migration_Seam.md` |
 
 ⛔ **Both were written `2026-08-14`, independently, and they will collide on merge.**
 📐 **The coordinator has no claim on the number** — 📌 **but one pair has to renumber, and the
 cross-host set is three consecutive (`#28`/`#29`/`#30`) against our one.** ⚖️ **We will move ours to
 `#31` unless you would rather.**
+✅ **RESOLVED `2026-08-14`: ours is now `#31`.** Theirs had cross-links from five documents — ⭐ **the
+cheaper side to keep, not a principled claim.**
 
 ⭐ **`.claude/CLAUDE.md`'s rule 3 exists for exactly this** — *the coordinator allocates no ids* — and
 ⚠ **this shows the rule needs one more clause: architect-question numbers are ids too.**
+
+✅ **ADDED to `.claude/CLAUDE.md` as RULE 3a, wording agreed by both sessions:**
+
+> **Any session creating `Architect_Question_N_*.md` must first `git fetch` every active branch and
+> take the next free `N` ACROSS ALL OF THEM — not the next free `N` on its own branch.**
+
+⭐⭐ **Their observation is the sharper half:** ⛔ **rule 3 names *coordinator* and *implementation*, and
+this collision was between two DESIGN sessions** — so the old framing did not name the right actors at
+all.
 
 ---
 

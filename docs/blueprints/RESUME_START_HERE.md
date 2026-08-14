@@ -13,7 +13,7 @@
 > the deliberate stop AUDITABLE.**
 > ⛔⛔ **THE PROGRAMME IS NOW BLOCKED ON TWO THINGS THAT NEED THE USER:**
 > 🔴 **`BP-235` is a project-reference CYCLE, not a preference** — drafted as
-> **[Architect_Question_28](Architect_Question_28_Migration_Seam.md)**, ⭐ **needs the architect relay**;
+> **[Architect_Question_31](Architect_Question_31_Migration_Seam.md)**, ⭐ **needs the architect relay**;
 > and ⚠ **`U-6`/`U-13`/`U-16` need the visual check, now FIFTEEN batches out.**
 >
 > ⭐⭐⭐ **Batch 53 verified and merged at `7974b3eb` (§7z) — THE STORE FLIPPED AND THE BYTES DID NOT
@@ -578,9 +578,33 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > shipped assets happen to be shaped a certain way?** ⛔ **The corpus cannot answer that. Constructed
 > fixtures can.**
 
+> ⭐⭐ **CROSS-HOST DESIGN REVIEWED AND ACCEPTED IN FULL** *(`2026-08-14`)* —
+> 📄 **[REVIEW_Behavior_Asset_Parameter_Model.md](REVIEW_Behavior_Asset_Parameter_Model.md)**, against
+> `claude/cross-host-variable-model-3k8cfh` @ `24fe008`. **Verdict: build it**, with four corrections;
+> ⭐ **they verified all four independently and applied them at `b02ddb1`.**
+> 🔴🔴 **The one that mattered:** their `[FieldOffset]` step claimed *"byte-stable"* — ⛔ **golden Tier 1
+> records the COMPUTED offset (`GoldenCorpus:268`), so making the struct `Explicit` keeps Tier 1 and
+> `StructureHash` byte-identical WHILE THE ACTUAL FIELD MOVES from 4 to 8.** ⭐⭐ **`BP-240`'s shape a
+> third time, and the nastiest variant: green not because of what the corpus contains, but because of
+> WHICH SIDE THE GATE READS.** ⇒ a runtime `Marshal.OffsetOf<T>(name) == f.Offset` gate is now their
+> **step 3a, ahead of the layout change.**
+> ⭐ **Two things we found that their prior-art sweep missed:** `FieldLayout.cs:46` is a **fifth** layout
+> implementation *(`Vector3` at 12 → align 8; CLR packs at 4)* — recorded by them as **`PA-14`** — and
+> ⛔ **`CSharpEmitter:412`'s escape hatch is keyed on `SizeReliable`**, but a `Vector3` has a **reliable
+> size and an unreliable alignment**, so it cannot fire for that class.
+> ✅ **`E-A` is now scoped to BTree/HSM with the blueprint `DeclarationKind` mapping explicitly OPEN** —
+> they stopped short rather than guessed. 📌 **Our `SlotKind` datum recorded; it stays their
+> lowest-confidence ruling.**
+>
+> ⛔⛔ **ID COLLISION, RESOLVED:** both sessions created an `Architect_Question_28`.
+> ⭐ **Ours renumbered to [`#31`](Architect_Question_31_Migration_Seam.md)** *(theirs had cross-links
+> from five documents)*, and ⭐⭐ **`.claude/CLAUDE.md` gained RULE 3a — architect-question numbers are
+> ids too**, wording agreed by both sessions. ⚠ **Rule 3 named coordinator/implementation; this
+> collision was between two DESIGN sessions, which the old framing did not cover.**
+>
 > ⛔⛔ **NO BATCH IS DISPATCHED.** ⭐ **This is deliberate: the `U-` programme has run out of unblocked
 > headless work.** What remains needs the user —
-> **(1)** ⭐ **relay [Architect_Question_28](Architect_Question_28_Migration_Seam.md)** — the migration
+> **(1)** ⭐ **relay [Architect_Question_31](Architect_Question_31_Migration_Seam.md)** — the migration
 > seam, which blocks `U-10`'s writer and carries `BP-241`'s operator question with it;
 > **(2)** ⚠ **the visual check**, which gates `U-6`/`U-13`/`U-16` and would also finally verify Batch
 > 43's Local Variables section.
@@ -634,7 +658,7 @@ used to fix the assets that do not compile)* · an unknown property on a declara
 
 ⇒ ⭐ **The seam is a third assembly, or an injection point in `HrotMigrationBootstrap` — shared by SIX
 host profiles.** ⭐⭐ **`BP-235` is no longer *"open by choice"*; it is the blocker.**
-📄 **Drafted as [Architect_Question_28_Migration_Seam.md](Architect_Question_28_Migration_Seam.md).**
+📄 **Drafted as [Architect_Question_31_Migration_Seam.md](Architect_Question_31_Migration_Seam.md).**
 
 ### ⭐⭐ Reader-before-writer, and the stop is AUDITABLE
 
