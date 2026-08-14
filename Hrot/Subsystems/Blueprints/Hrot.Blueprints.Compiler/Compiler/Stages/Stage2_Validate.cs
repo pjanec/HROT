@@ -53,6 +53,7 @@ internal static class Stage2_Validate
         new V_FunctionGraphReturnValue(),   // BP-71 (BP1655) + BP-73 gate (BP1656)
         new V_ExecOutFanOut(),
         new V_FormatStringRules(),   // BP-108 (BP2072)
+        new V_DeclarationNameUniqueness(),  // U-12: BP1673
     };
 
     public static void Run(BlueprintAsset asset, ValidationContext ctx)
@@ -104,9 +105,17 @@ internal sealed class V_DispatchKindCompatibility : IValidator
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1010,
                         "Library asset has 'primitive' block, valid only for AiPrimitive.",
                         asset.AssetId));
-                if (asset.Declarations.CountIn(DeclarationKind.Variable) > 0)
+                // U-12 — RESTATED from "must not declare member variables" to "must not declare
+                // anything asset-scope". ⭐ All three of BlueprintAsset's declaration lists are the
+                // `Asset` scope; graph locals live on Graph, a different type. The old wording named
+                // one of the three because the three were separate lists, and a Library carrying
+                // Parameters or WorkingState was quietly legal for no stated reason.
+                // ⚠ Measured over all 58 shipped assets: the 3 Library assets declare NOTHING, so this
+                // widening refuses nothing that ships.
+                if (asset.Declarations.Count > 0)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1011,
-                        "Library asset must not declare member variables.", asset.AssetId));
+                        "Library asset must not declare asset-scope variables "
+                        + "(parameters, working state or variables).", asset.AssetId));
                 if (asset.CustomEvents.Count > 0)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1012,
                         "Library asset must not declare custom events.", asset.AssetId));
@@ -139,10 +148,11 @@ internal sealed class V_DispatchKindCompatibility : IValidator
                             $"Condition intent incompatible with action-shaped hosting '{hosting}'.",
                             asset.AssetId));
                 }
-                if (asset.Declarations.CountIn(DeclarationKind.Variable) > 0)
-                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1024,
-                        "AiPrimitive uses 'parameters' and 'workingState', not 'variables'.",
-                        asset.AssetId));
+                // ⛔ BP1024 RETIRED here (U-12). It refused an AiPrimitive that declared a Variable,
+                // on the reasoning that "AiPrimitive uses parameters and workingState". Under the
+                // unified model `Variable` and `WorkingState` are the SAME cell — (State, Asset) — so
+                // the rule was enforcing a spelling, not a semantic. ⭐ What it was ALSO doing, silently,
+                // is handled by BP1673 below: see DiagnosticCodes.BP1673.
                 if (asset.Graphs.Any(g => g.Kind == GraphKind.Event))
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1025,
                         "AiPrimitive does not subscribe to engine events.", asset.AssetId));
@@ -152,12 +162,77 @@ internal sealed class V_DispatchKindCompatibility : IValidator
                 if (asset.Primitive is not null)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1030,
                         "Instance asset must not have a 'primitive' block.", asset.AssetId));
-                if (asset.Declarations.CountIn(DeclarationKind.Parameter) > 0
-                 || asset.Declarations.CountIn(DeclarationKind.WorkingState) > 0)
+                // U-12 — SPLIT: the `WorkingState` half is gone, the `Parameter` half survives.
+                // ⭐ The two halves were never the same rule. `WorkingState` and `Variable` are one
+                // cell, (State, Asset), so refusing an Instance's WorkingState was a spelling rule
+                // exactly like BP1024. `Parameter` is (Input, Asset) — a genuinely different thing,
+                // a spawn-time input the Instance dispatch has no way to supply — so that half is a
+                // real rail and keeps the code.
+                // ⚠ Measured: 0 of the 23 shipped Instance assets carry either.
+                if (asset.Declarations.CountIn(DeclarationKind.Parameter) > 0)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1031,
-                        "Instance uses 'variables', not 'parameters'/'workingState'.",
+                        "Instance asset must not declare parameters; nothing supplies them at spawn.",
                         asset.AssetId));
                 break;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// V_DeclarationNameUniqueness — U-12 / BP1673
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// ⭐⭐ <b><c>BP1673</c> — two asset-scope declarations must not share a name.</b>
+///
+/// <para>
+/// ⛔ <b>The hole <c>U-12</c> opens.</b> <c>Stage5.FindVariableRef</c> resolves by <b>priority across
+/// kinds</b> — <c>Variables</c> → <c>WorkingState</c> → <c>Parameters</c> — and its <b>name</b>
+/// fallback is the path hand-authored assets take. Two declarations of one name therefore bind to
+/// whichever kind the priority order reaches first, <b>silently</b>. The GUID path is unambiguous;
+/// this rule is about the name path.
+/// </para>
+///
+/// <para>
+/// ⭐ <b>Nothing checked this before, and nothing had to.</b> <c>BP1024</c> kept <c>Variables</c> off
+/// an AiPrimitive and <c>BP1031</c> kept <c>Parameters</c>/<c>WorkingState</c> off an Instance, so at
+/// most one list was ever populated and a cross-kind collision could not be authored.
+/// ⇒ <b>retiring those rules is what makes this one necessary</b>, which is why it lands in the same
+/// batch rather than after one.
+/// </para>
+///
+/// <para>
+/// ⚠ <b><c>OrdinalIgnoreCase</c>, matching <c>U-14</c>'s auto-namer</b>, so the compiler refuses
+/// exactly what the editor refuses to create. ⚠ <b>Same-kind duplicates are covered too</b> — they
+/// were equally undiagnosed, and a designer reading the error does not care which list the twin is in.
+/// </para>
+///
+/// <para>
+/// 📌 <b>Graph locals are deliberately out of scope.</b> A local shadowing an asset declaration is
+/// legal and ruled on (<c>Q27-C1</c>: a local wins inside its own graph), and
+/// <c>CrossKindUniquenessTests</c> asserts that. This rule is asset-scope against asset-scope.
+/// </para>
+/// </summary>
+internal sealed class V_DeclarationNameUniqueness : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        var seen = new Dictionary<string, BlueprintDeclaration>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var decl in asset.Declarations)
+        {
+            var name = decl.Name;
+            if (string.IsNullOrWhiteSpace(name)) continue;   // V_AssetStructure's business, not this rule's
+
+            if (seen.TryGetValue(name, out var first))
+            {
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1673,
+                    $"Declaration '{name}' ({decl.Kind}) collides with '{first.Name}' ({first.Kind}); "
+                    + "a variable reference by name would silently bind to one of them.",
+                    asset.AssetId));
+                continue;   // report each collision once against the first occurrence
+            }
+            seen[name] = decl;
         }
     }
 }

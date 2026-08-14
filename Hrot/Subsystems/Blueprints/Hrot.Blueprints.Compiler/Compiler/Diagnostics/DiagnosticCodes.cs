@@ -156,6 +156,23 @@ public static class DiagnosticCodes
     // so "cannot produce a PDB here" is a reachable, legitimate configuration, not an impossible state.
     public const string BP1672 = "BP1672";  // a PDB was requested but no Roslyn finalizer is installed
 
+    // U-12 / Batch 52 — the rail that BP1024 and BP1031's WorkingState half were silently also
+    // providing, and which their removal takes away.
+    //
+    // ⛔ Stage5.FindVariableRef resolves a reference by PRIORITY ACROSS KINDS -- Variables, then
+    // WorkingState, then Parameters -- and falls back to matching by NAME, which is what
+    // hand-authored assets use. Two declarations sharing a name therefore bind to whichever kind the
+    // priority order reaches first, silently, with no diagnostic anywhere.
+    //
+    // ⭐ That was unreachable only because the mixture itself was illegal: BP1024 kept Variables off
+    // an AiPrimitive, BP1031 kept Parameters/WorkingState off an Instance. U-12 makes the mixture
+    // legal, so the collision becomes reachable and needs its own rail.
+    //
+    // ⚠ Case-INSENSITIVE, matching U-14's OrdinalIgnoreCase namer, so the compiler refuses exactly
+    // what the editor's auto-namer refuses. Covers same-kind duplicates too -- equally undiagnosed
+    // before, and the same defect.
+    public const string BP1673 = "BP1673";  // two asset-scope declarations share a name
+
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch
     public const string BP2002 = "BP2002";  // WhenNode missing required payload

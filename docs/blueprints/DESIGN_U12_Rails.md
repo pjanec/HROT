@@ -97,6 +97,13 @@ exactly what the editor's namer refuses.
 ⭐ **Across any kinds, including within one kind** — a duplicate inside a single list was equally
 undiagnosed and is the same defect.
 
+### 3.4 ✅ Built — `V_DeclarationNameUniqueness`, Batch 52
+
+⭐ **Revert-goes-red, measured:** reverting all three rail edits *and* unregistering the validator
+reddens exactly **seven** tests — one per rail change, plus the three `BP1673` positives — while the
+two `BP1673` negatives (`DistinctNamesAcrossKindsAreFine`, `AGraphLocalMayShadowAnAssetDeclaration`),
+`Library_DeclaringNothing` and `NoShippedAssetCarriesACollision` correctly stay green.
+
 ⚖️ **Flagged for an architect nod, built rather than deferred.** Building it is the conservative move:
 `U-12` knowingly widens what compiles, and shipping the widening without the rail leaves a silent
 mis-resolution reachable from any hand-authored asset. ⚠ **What is worth a ruling is the severity** —

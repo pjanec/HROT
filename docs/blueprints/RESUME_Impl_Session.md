@@ -2,7 +2,14 @@
 
 > **Written for a fresh session. Self-contained; assumes no prior conversation.**
 > **You are the *implementation* session.** A separate *coordinator* session owns the tracker and
-> writes the handoffs. Last updated **2026-08-14** (Batch 51).
+> writes the handoffs. Last updated **2026-08-14** (Batch 52).
+>
+> ✅ **Batch 52 is COMPLETE.** ⭐⭐ **§1 — the compiler stopped lying about the PDB (`BP1672`) and the
+> suite stopped depending on assembly load order.** ⛔ **The handoff's headline was wrong against the
+> code: the Blueprints gate was NOT red** — the full suite is green at `d2cde7c`; a *filtered* run is
+> red, and that difference IS the defect. ✅ **§2 — `U-12`'s three RAILS landed** (`BP1024` retired ·
+> `BP1031` split · `BP1011` restated) **plus `BP1673`**, the rail their removal makes necessary.
+> ⛔ **The STORE FLIP is deliberately NOT done** — see §1.
 >
 > ✅ **Batch 51 is COMPLETE and reported.** ⭐⭐ **`U-11` IS DONE** — the editor bucket landed, and
 > `ViewsAreUnreadTests` turns *"nothing reads the views"* from a belief into a **checked fact**.
@@ -28,10 +35,10 @@
 |---|---|
 | **Repo** | `pjanec/HROT` |
 | **Implementation branch — PUSH HERE** | ⭐ **`claude/hrot-implementation-j1jvin`** |
-| **Coordinator branch — do NOT push** | ⭐ **`claude/blueprint-authoring-status-gm0akp`** (was at `9c3a707`, merged into mine) |
-| **Last handoff** | 📄 **[HANDOFF_Batch51_Editor_Bucket.md](HANDOFF_Batch51_Editor_Bucket.md)** — delivered in full |
-| **Counts** | **57 open · 114 done** — ⚠ *derive, never hand-count:* `python3 scripts/tracker-counts.py --check` |
-| **Next free ids** | rows **BP-237+** · diagnostics **BP1672+** — ⭐ **Batch 51 allocated NEITHER** (a mechanical sweep with no new rail and no new finding) |
+| **Coordinator branch — do NOT push** | ⭐ **`claude/blueprint-authoring-status-gm0akp`** (was at `db4e4f0`, merged into mine) |
+| **Last handoff** | 📄 **[HANDOFF_Batch52_Red_Gate_And_Rails.md](HANDOFF_Batch52_Red_Gate_And_Rails.md)** — §1 in full, §2's rails in full, ⛔ **store flip deliberately stopped short of** |
+| **Counts** | **58 open · 116 done** — ⚠ *derive, never hand-count:* `python3 scripts/tracker-counts.py --check` |
+| **Next free ids** | rows **BP-240+** · diagnostics **BP1674+** — ⭐ **Batch 52 allocated `BP-237`/`BP-238`/`BP-239` and `BP1672`/`BP1673`** |
 
 ⛔ **No PR unless the user explicitly asks.** There has never been one in this programme.
 ⛔ **Never put a model identifier** in a commit message, code comment, or anything else pushed.
@@ -59,6 +66,86 @@ store flip**; ⚠ two very different revert stories, so consider splitting them.
 ⛔⛔ **`U-6` / `U-13` / `U-16` still hard-require the VISUAL CHECK**, which has now not run for
 **fourteen batches**. They are a Details table, a read-only view and deleting a whole window — exactly
 the shape a headless test passes while the panel draws nothing. **Say so; never imply coverage.**
+
+---
+
+## 0 · Batch 52 — the red gate, and `U-12`'s rails
+
+### 0.1 ⛔ The handoff's headline was wrong, and the correction matters
+
+| claim | measured |
+|---|---|
+| *"the Blueprints gate is RED — 3506 passed / 2 FAILED"* | ⛔ **The full suite is GREEN**: 3518 total / 3508 passed / **0 failed** at `d2cde7c`. The coordinator's number is an **isolated `--filter` run** reported as the full-suite figure |
+| *"`ViewsAreUnreadTests` changed the suite's composition enough to break the accident"* | ⛔ **It did not.** Batch 51 changed nothing here; the accident still holds in a full run |
+
+⇒ ⭐⭐ **The real shape is stronger than the reported one:** the suite is green *by accident*, and only
+a filtered run exposes it. That is the §1.4 class, not a regression.
+
+### 0.2 §1b — `BP1672`, and the second trap behind it
+
+⛔ `Compile` with `EmitPdbWithEmbeddedSource: true` and no `RoslynFinalizer` returned
+`Succeeded == true`, both byte arrays null, **diagnostic list empty**. Now a **precondition**, checked
+before Stage 0 and reported alone — the finalizer's absence is a fact about the *host process*, not
+about the asset, so it does not belong interleaved with content diagnostics.
+
+⭐ **And the same trap one step deeper went with it:** when the finalizer reported Roslyn errors into
+the sink, `pe`/`pdb` stayed null and the method **fell through to `Succeeded: true`** — alone among
+the eight stages, every one of which ends `if (sink.HasErrors) return FailResult(...)`.
+
+⭐⭐ **What made an error severity safe:** `QuickReloadService` asked for the PDB *"for debugger
+support"* and **never read it**. Measured tree-wide — `PortablePe`/`PortablePdb` have **no production
+reader at all**; the debugger support comes from `TriggerFromSourcesAsync`, which Roslyn-compiles the
+same source a **second** time. Dropping the request removes a duplicated full Roslyn compilation from
+the editor's hot path *and* leaves `BP1672` with no production caller to break. **`BP-239`** carries
+the open question: is the option a real capability, or a test-only path?
+
+### 0.3 §1a + §1.4 — the load-order class, retired centrally
+
+`TestAssemblyModuleInit` runs the module ctors of **`Hrot.Blueprints.Core`**, **`Hrot.AI.Behaviors`**
+and **`Fhsm.Kernel`** before any test. Five ad-hoc preloads had accumulated, one per class already
+caught; ⭐ **they stay, annotated** — removing a guard because a broader one exists is only safe when
+the broader one fails *loudly*, and this class fails silently.
+
+⭐ **The sweep is now an instrument, not a one-off:** `scripts/order-dependency-sweep.sh` runs all
+**370** classes alone against a green suite. It found **two**: `PdbEmbeddedSourceTests` and
+⭐ **`HsmInvokeHelpersTests`** (`BP-238`, new) — whose generated HSM registrar failed **`CS0400`**
+because Roslyn's *reference set* is built from loaded assemblies.
+
+| ⛔⛔ **Class granularity UNDER-REPORTS** | `Stage8Tests.Stage8_RoslynCompiler_ProducesNonEmptyPeAndPdb` is **green per-class, red per-test** — a sibling in its own class loaded the assembly first. Per-test costs ~5 h for 3518 tests |
+|---|---|
+
+### 0.4 ⛔⛔ The revert probe that lied — twice
+
+| attempt | result |
+|---|---|
+| early `return` inside `Initialize()` | ⭐ **stayed green** |
+| `throw` inside `Initialize()` | ⭐ probe **provably reached**, tests **still green** |
+| remove `[ModuleInitializer]` | ✅ **all four isolated filters go red** |
+
+⇒ ⭐⭐ **The `typeof(...)` arguments load their assemblies when the JIT compiles the method body,
+before a single statement executes.** The body does its work merely by existing. ⛔ **A runtime
+short-circuit is not an inverse for this file** — and a probe that stays green is a finding about the
+probe, not evidence the fix was unnecessary.
+📌 One more: a `python` replace of `[ModuleInitializer]` hit the **doc comment's** first occurrence,
+so an earlier "probe" never applied at all. **Verify a probe took effect before reading its result.**
+
+### 0.5 §2 — `U-12`'s rails (⛔ NOT the store flip)
+
+| | |
+|---|---|
+| **`BP1024`** | ⛔ **retired** — it refused an AiPrimitive declaring a `Variable`, but `Variable` and `WorkingState` are the **same cell**, `(State, Asset)`. It enforced a spelling |
+| **`BP1031`** | ⭐ **split** — the `WorkingState` half was the same spelling rule and is gone; the `Parameter` half is real (`(Input, Asset)`: nothing supplies it at spawn) and keeps the code |
+| **`BP1011`** | ⭐ **restated** to `Declarations.Count > 0`. ⭐ *"Asset scope"* needed **no new vocabulary** — all three lists ARE that scope; graph locals live on `Graph` |
+| 🆕 **`BP1673`** | ⛔⛔ **the rail the plan's four passes miss.** `Stage5.FindVariableRef` resolves by **priority across kinds** with a **name** fallback, so once the mixture is legal two same-named declarations bind silently. `U-3` fixes emission, not selection; `U-14` fixes only the **editor's** namer; Stage 2 had **no** duplicate-name rule (grepped) |
+
+⭐⭐ **Measured across all 58 shipped assets:** 0 AiPrimitives carry a `Variable`, 0 Instances carry a
+`Parameter`/`WorkingState`, and the 3 Library assets declare **nothing** ⇒ **all three restatements
+are corpus-neutral by construction**, which is why golden is unchanged.
+
+⛔ **Why the store flip is left:** `Pass 5` demands `persistence-shape.txt` **unchanged**, so the three
+properties must stop being *storage* while remaining *the serialized shape* — serialization-only
+projections over the tagged store. Different work, different revert story, and the one gate whose
+failure re-initialises every deployed entity's blackboard. 📄 [DESIGN_U12_Rails.md](DESIGN_U12_Rails.md).
 
 ---
 
@@ -375,7 +462,16 @@ through its consumers is a contract change nobody is watching.*
 The eight, solution **`IOS-IG-SimHost.sln`** (⚠ **not** `Hrot.sln`).
 ⚠⚠ **The two NodeEdit gates take NO `--no-build`** — they silently do not run with it.
 
-**Post-Batch-51, all eight run** *(full `-t:Rebuild`, so 69 is honest — an incremental build reports
+**Post-Batch-52, all eight run** *(full `-t:Rebuild`)*: build **0 errors / 69 warnings** ·
+Blueprints **3532 total / 3522 passed / 0 failed / 10 skipped** · **AiShared 1216** · BTree **612** ·
+Breakpoints **130** · Generators **193** · NodeEdit Core **208** · UI **131** ·
+⭐⭐ **golden 42/42 both tiers unchanged** · `persistence-shape.txt` **unchanged**.
+
+⭐ **New standing instrument:** `scripts/order-dependency-sweep.sh` — every test class run **alone**
+against a green suite. ~50 min for 370 classes. ⛔ **Class granularity under-reports** (see §0.3);
+isolate per-test inside anything it names.
+
+**Post-Batch-51, all eight ran** *(full `-t:Rebuild`, so 69 is honest — an incremental build reports
 24, and a partial one 48)*: build **0 errors / 69 warnings** · Blueprints **3518 total / 3508 passed /
 0 failed / 10 skipped** *(+3 = Batch 51's own tests)* · **AiShared 1216** · BTree **612** ·
 Breakpoints **130** · Generators **193** · NodeEdit Core **208** · UI **131** ·

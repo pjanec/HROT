@@ -52,7 +52,7 @@ assertions. ⛔ **Without `U-1` the whole programme is unfalsifiable.**
 | ~~**U-15**~~ ✅ | ⭐ **canonicalise the corpus** | assets | ✅ **LANDED B49** — all 58 (42 corpus + 16 recipes); Tier 1 **and** Tier 2 unchanged; `BP-227` closed. ⭐ **Canonical form is INDENTED** | U-1, U-9 |
 | **U-10** 🟠 | migrator **pair** + envelope 1→2 — **D2** | persistence | ⭐ **transform pair LANDED B49 and `v1→v2→v1` byte identity is PROVED on all 58.** ⛔ **Wiring DEFERRED — re-sequenced after `U-11`/`U-12`, see §U-10** | U-15, ⭐ **U-12** |
 | ~~**U-11**~~ ✅ | consumers moved off the views — **D3** | ⛔ **135 refs / 24 files, not ~34** | ✅ **DONE B50 (compiler) + B51 (editor).** ⭐⭐ **`ViewsAreUnreadTests` asserts nothing reads the three lists — `U-12` is unblocked as a CHECKED FACT** | U-9 |
-| **U-12** | rails restated; views deleted — **D4** | compiler | `BP1024` gone · `BP1031` split · `BP1011` restated | U-11 |
+| **U-12** 🟠 | rails restated; views deleted — **D4** | compiler | ⭐ **RAILS LANDED B52** — `BP1024` retired · `BP1031` split · `BP1011` restated · 🆕 **`BP1673`**. ⛔ **The STORE FLIP is not done** — see §U-12 | U-11 |
 | **U-13** | shared-state read-only view (`Q-i`) | editor | lists exactly the referenced slot names | U-4 |
 | **U-14** | `MakeUniqueName` across all kinds (`BP-232`) | editor | a `Parameter` and a `Variable` cannot share a name | U-9 |
 | **U-16** 🆕 | 🟠 ⭐ **retire the standalone `BlueprintVariablesWindow`** | editor | ⛔ **exactly ONE editing surface remains** for the model | U-6 |
@@ -230,6 +230,17 @@ a **live inconsistency**, not a cosmetic one. That is the third reason the envel
 | ✅ **Pass 2** | `BP1031` split — an Instance with an `Input` entry ⇒ diagnostic |
 | ✅ **Pass 3** | `BP1011` restated — a Library with **any** `Asset`-scope entry ⇒ diagnostic |
 | ✅ **Pass 4** | golden unchanged · **grep asserts the old views are gone** |
+| 🆕 ⭐⭐ **Pass 5 — the rail the four passes missed** | ⛔ **`BP1024` and `BP1031`'s `WorkingState` half were silently ALSO keeping cross-kind name collisions unreachable.** `Stage5.FindVariableRef` resolves by **priority across kinds** and falls back to matching **by name** — the path hand-authored assets take — so once the mixture is legal, two declarations sharing a name bind to whichever kind the order reaches first, **silently**. ⚠ `U-3`/`VariableRef` fixes the *emission* half, not *which declaration Stage 5 picks*; `U-14` closes only the **editor's** auto-namer, which a hand-authored `.bp.json` never touches; and Stage 2 had **no** duplicate-name rule at all (grepped). ⇒ **`BP1673`**, `OrdinalIgnoreCase`, cross-kind **and** same-kind, graph locals deliberately excluded (`Q27-C1` shadowing stays legal) *— Batch 52* |
+
+#### ⭐ Batch 52 — what landed, what did not
+
+| | |
+|---|---|
+| ✅ **Passes 1–3 + the new rail** | `BP1024` retired (kept defined, listed `RETIRED` in the coverage ratchet) · `BP1031` narrowed to the `(Input, Asset)` half · `BP1011` widened to `Declarations.Count > 0` · `BP1673` added |
+| ⭐⭐ **Measured, not assumed** | across **all 58** shipped assets: **0** AiPrimitives carry a `Variable`, **0** Instances carry a `Parameter` or `WorkingState`, and the **3** Library assets declare **nothing**. ⇒ all three restatements are **corpus-neutral by construction**, which is why golden Tier 1 + Tier 2 are unchanged |
+| ⭐ **"Asset scope" needed no new vocabulary** | all three of `BlueprintAsset`'s lists ARE the `Asset` scope; graph locals live on `Graph`. So *"any `Asset`-scope entry"* is `Declarations.Count > 0` and *"an `Input` entry"* is `CountIn(Parameter) > 0` |
+| ⚠ **One reading to confirm** | *"`BP1031` **split**"* is implemented as **one surviving arm**, not two codes — the gate names a single condition, and a code whose only other arm is deleted is a narrowing, not a split |
+| ⛔ **The STORE FLIP is NOT done** | `Pass 5`'s *"`persistence-shape.txt` unchanged"* means the three properties must stop being **storage** while remaining **the serialized shape** — serialization-only projections over the tagged store. Different work, different revert story, and the one gate whose failure re-initialises every deployed entity's blackboard. **Left for its own batch** |
 
 ### U-13 · Shared-state read-only view — `Q-i`
 
