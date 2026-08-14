@@ -35,6 +35,7 @@ public enum DeclarationKind
 
     /// <summary><see cref="BlueprintAsset.Variables"/> — the <c>State</c> struct (offset 16).</summary>
     Variable,
+
 }
 
 /// <summary>

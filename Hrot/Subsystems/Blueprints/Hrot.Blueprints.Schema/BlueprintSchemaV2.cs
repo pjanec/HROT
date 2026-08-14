@@ -1,5 +1,4 @@
 using System.Text.Json.Nodes;
-using Hrot.Blueprints.Core.Assets;
 
 namespace Hrot.Blueprints.Core;
 
@@ -55,14 +54,36 @@ public static class BlueprintSchemaV2
     /// <summary>The tag each v2 declaration carries.</summary>
     public const string KindProperty = "Kind";
 
-    // ⭐ Concatenation order IS DeclarationList.KindOrder — storage order, and the struct layout order
-    //   (Params @0, working state @8, State @16). Reading it from there rather than restating it keeps
-    //   the on-disk order and the in-memory view from drifting apart.
-    private static readonly (DeclarationKind Kind, string List, string Order)[] Lists =
+    /// <summary>
+    /// ⭐⭐ <b>The v2 declaration tags — and since Q31-A this assembly is their AUTHORITY.</b>
+    ///
+    /// <para>
+    /// ⚠ They are also <c>DeclarationKind</c>'s member names, and that type lives in
+    /// <c>Hrot.Blueprints.Compiler</c>, which this assembly must not reference — referencing it is the
+    /// cycle this project exists to avoid. ⛔ <b>So the strings are duplicated, deliberately.</b>
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>Duplicated and PINNED, which is the only honest form of an unavoidable cross-boundary
+    /// constant.</b> <c>DeclarationTagsMatchDeclarationKindTests</c> asserts
+    /// <c>Enum.GetNames(typeof(DeclarationKind))</c> equals <see cref="DeclarationTags"/> <b>in
+    /// order</b> — the same shape as <c>BlueprintDeclaration.MembersAParameterDoesNotCarry</c>, which
+    /// is a hand-written list cross-checked by reflection so it cannot drift in either direction.
+    /// ⚠ <b>Order matters as well as membership:</b> this array's order is the on-disk concatenation
+    /// order, which is the struct layout order (Params @0, working state @8, State @16).
+    /// </para>
+    /// </summary>
+    public static IReadOnlyList<string> DeclarationTags { get; } = new[]
     {
-        (DeclarationKind.Parameter,    "Parameters",   "ParameterOrder"),
-        (DeclarationKind.WorkingState, "WorkingState", "WorkingStateOrder"),
-        (DeclarationKind.Variable,     "Variables",    "VariableOrder"),
+        "Parameter", "WorkingState", "Variable",
+    };
+
+    // ⭐ Concatenation order IS DeclarationList.KindOrder — storage order, and the struct layout order.
+    private static readonly (string Tag, string List, string Order)[] Lists =
+    {
+        ("Parameter",    "Parameters",   "ParameterOrder"),
+        ("WorkingState", "WorkingState", "WorkingStateOrder"),
+        ("Variable",     "Variables",    "VariableOrder"),
     };
 
     /// <summary>True when <paramref name="root"/> is already in the v2 shape.</summary>
@@ -86,13 +107,13 @@ public static class BlueprintSchemaV2
         RequireCanonicalV1(v1);
 
         var declarations = new JsonArray();
-        foreach (var (kind, list, _) in Lists)
+        foreach (var (tag, list, _) in Lists)
         {
             if (v1[list] is not JsonArray items) continue;
             foreach (var item in items)
             {
                 if (item is not JsonObject decl) continue;
-                var tagged = new JsonObject { [KindProperty] = kind.ToString() };
+                var tagged = new JsonObject { [KindProperty] = tag };
                 // ⚠ .Key/.Value, not deconstruction — netstandard2.0's KeyValuePair has no Deconstruct.
                 foreach (var property in decl) tagged[property.Key] = property.Value?.DeepClone();
                 declarations.Add(tagged);
@@ -133,8 +154,8 @@ public static class BlueprintSchemaV2
         if (v2 is null) throw new ArgumentNullException(nameof(v2));
         if (!IsV2(v2)) throw new InvalidOperationException("Document is not v2.");
 
-        var byKind = new Dictionary<DeclarationKind, JsonArray>();
-        foreach (var (kind, _, _) in Lists) byKind[kind] = new JsonArray();
+        var byKind = new Dictionary<string, JsonArray>(StringComparer.Ordinal);
+        foreach (var (tag, _, _) in Lists) byKind[tag] = new JsonArray();
 
         if (v2[DeclarationsProperty] is JsonArray declarations)
         {
@@ -144,7 +165,7 @@ public static class BlueprintSchemaV2
                     throw new InvalidDataException($"{DeclarationsProperty}[{i}] is not an object.");
 
                 var tag = decl[KindProperty]?.GetValue<string>();
-                if (tag is null || !TryParseKind(tag, out var kind))
+                if (tag is null || !IsKnownTag(tag))
                     throw new InvalidDataException(
                         $"{DeclarationsProperty}[{i}] carries {KindProperty}='{tag ?? "<absent>"}', which "
                         + "names no declaration list. Dropping it would silently delete a variable — and a "
@@ -156,7 +177,7 @@ public static class BlueprintSchemaV2
                     if (property.Key == KindProperty) continue;
                     plain[property.Key] = property.Value?.DeepClone();
                 }
-                byKind[kind].Add(plain);
+                byKind[tag].Add(plain);
             }
         }
 
@@ -166,9 +187,9 @@ public static class BlueprintSchemaV2
             var name = property.Key;
             if (name == DeclarationsProperty)
             {
-                foreach (var (kind, list, order) in Lists)
+                foreach (var (tag, list, order) in Lists)
                 {
-                    result[list] = byKind[kind];
+                    result[list] = byKind[tag];
                     // ⚠ The order lists survive v2 untouched, so they are re-emitted in model order —
                     //   List then Order — rather than wherever they happened to sit.
                     if (v2.TryGetPropertyValue(order, out var orderValue))
@@ -261,17 +282,10 @@ public static class BlueprintSchemaV2
         }
     }
 
-    private static bool TryParseKind(string tag, out DeclarationKind kind)
+    private static bool IsKnownTag(string tag)
     {
         foreach (var (candidate, _, _) in Lists)
-        {
-            if (string.Equals(candidate.ToString(), tag, StringComparison.Ordinal))
-            {
-                kind = candidate;
-                return true;
-            }
-        }
-        kind = default;
+            if (string.Equals(candidate, tag, StringComparison.Ordinal)) return true;
         return false;
     }
 }
