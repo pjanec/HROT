@@ -4,8 +4,10 @@
 > **You are the *implementation* session.** A separate *coordinator* session owns the tracker and
 > writes the handoffs. Last updated **2026-08-13**.
 >
-> ✅ **Batch 45 is COMPLETE and reported.** `U-3` landed — the variable index carries its **kind**,
-> closing **`BP-226`**. ⭐ **Golden Pass 1 held with no regeneration**, which is what `U-1` was for.
+> ✅ **Batch 46 is COMPLETE and reported.** `U-4` (three kinds, no `bool`) + `U-5` (a real count,
+> honest `Role`/`Scope`, order lists) — **`BP-230`** and **`BP-231`** closed.
+> ✅ Batch 45: `U-3` — the variable index carries its **kind**, closing **`BP-226`**.
+> ⭐ **Golden Pass 1 has now held unchanged across `U-2`, `U-3`, `U-4` and `U-5`** — what `U-1` was for.
 > ✅ Batch 44: `U-1` (the golden-corpus harness) + `U-2` (`BP-229`). All eight gates green.
 > ⭐ **`BP-57` closed in Batch 43**; the locals feature is done end to end, compiler and editor.
 
@@ -14,9 +16,9 @@
 | **Repo** | `pjanec/HROT` |
 | **Implementation branch — PUSH HERE** | ⭐ **`claude/hrot-implementation-j1jvin`** |
 | **Coordinator branch — do NOT push** | ⭐ **`claude/blueprint-authoring-status-gm0akp`** (was at `93152d7`, merged into mine) |
-| **Last handoff** | 📄 **[HANDOFF_Batch45_Kind_Index.md](HANDOFF_Batch45_Kind_Index.md)** — delivered in full |
-| **Counts** | **61 open · 108 done** — ⚠ *derive, never hand-count:* `python3 scripts/tracker-counts.py --check` |
-| **Next free ids** | rows **BP-235+** · diagnostics **BP1671+** *(Batches 44–45 allocated none)* |
+| **Last handoff** | 📄 **[HANDOFF_Batch46_Third_Source_And_Honesty.md](HANDOFF_Batch46_Third_Source_And_Honesty.md)** — delivered in full |
+| **Counts** | **59 open · 110 done** — ⚠ *derive, never hand-count:* `python3 scripts/tracker-counts.py --check` |
+| **Next free ids** | rows **BP-235+** · diagnostics **BP1671+** *(Batches 44–46 allocated none)* |
 
 ⛔ **No PR unless the user explicitly asks.** There has never been one in this programme.
 ⛔ **Never put a model identifier** in a commit message, code comment, or anything else pushed.
@@ -28,14 +30,38 @@
 ```bash
 git fetch origin claude/blueprint-authoring-status-gm0akp
 git merge origin/claude/blueprint-authoring-status-gm0akp --no-edit   # rule 7
-python3 scripts/tracker-counts.py --check                              # expect 61 / 108
+python3 scripts/tracker-counts.py --check                              # expect 59 / 110
 ```
 
 Then read whatever handoff is newest on that branch. **No batch is in flight.**
 
 ---
 
-## 1 · Batch 45 — `U-3`, the kind-carrying index (`BP-226` closed)
+## 1 · Batch 46 — `U-4` + `U-5` (`BP-230`, `BP-231` closed)
+
+| commit | |
+|---|---|
+| `7f64724` | ⭐⭐ **three kinds instead of a `bool` · a real reference count · `Role`/`Scope` honest** |
+
+| | |
+|---|---|
+| ⭐⭐ **The editor now uses the COMPILER's `VariableKind`** | one vocabulary for one three-list model, both ends of the pipeline. `Unresolved` is refused at construction |
+| ⭐⭐ **`BP-230` answered from the PANEL CODE, no screenshot** | `VariablesPanelControl:402` gates the Role combo on `!IsReadOnly` **alone**, and the blueprint source returns `false` ⇒ the combo was **drawn, live, and discarded**. That question had been open since Batch 38 *pending the visual check* |
+| ⭐ **The fix is a CAPABILITY, not a setter** | `Q-k`: Role/Scope are read-only for blueprints — a MOVE, not a toggle. `SupportsRoleScopeEditing` has ⛔ **no default body** so every implementer must answer; the panel falls back to the existing read-only **text** rendering |
+| ⭐ **The setters' defaults now THROW** | *a default body is the interface volunteering to lie on an implementer's behalf* — trap #5 written into the contract |
+| ⭐⭐ **The count mirrors `Stage5.FindVariableRef`** | id (with `var:` stripped) then the **name fallback**, in list priority order. ⚠ **It could NOT copy the locals source**, which counts by id only — correct there (`FindLocalIndex` has no name fallback), wrong here |
+| ⭐ **`BP-231`: remove drops the id; rename must NOT touch the order list** | it is keyed by id. Test-locked so a later name-keyed "fix" cannot corrupt it |
+
+### ⚠ The gate that did not move, and why that mattered
+
+⛔ **The first full run left `Hrot.Editor.AiShared` at 1213 — unmoved — after changing that very
+interface.** The handoff predicted it would move. ⇒ ⭐ **the contract change had no coverage in the
+assembly it landed in**; three tests were added there (**1213 → 1216**). *A contract change tested only
+through its consumers is a contract change nobody is watching.*
+
+---
+
+## 2 · Batch 45 — `U-3`, the kind-carrying index (`BP-226` closed)
 
 | commit | |
 |---|---|
@@ -59,7 +85,7 @@ Then read whatever handoff is newest on that branch. **No batch is in flight.**
 
 ---
 
-## 2 · Batch 44 — the `U-` sequence opened
+## 3 · Batch 44 — the `U-` sequence opened
 
 | commit | |
 |---|---|
@@ -85,7 +111,7 @@ Then read whatever handoff is newest on that branch. **No batch is in flight.**
 
 ---
 
-## 3 · What Batches 41–43 shipped — `BP-57` end to end
+## 4 · What Batches 41–43 shipped — `BP-57` end to end
 
 | commit | |
 |---|---|
@@ -110,7 +136,7 @@ Then read whatever handoff is newest on that branch. **No batch is in flight.**
 
 ---
 
-## 4 · Where the code is
+## 5 · Where the code is
 
 | file | |
 |---|---|
@@ -128,14 +154,14 @@ Then read whatever handoff is newest on that branch. **No batch is in flight.**
 
 ---
 
-## 5 · Gates
+## 6 · Gates
 
 The eight, solution **`IOS-IG-SimHost.sln`** (⚠ **not** `Hrot.sln`).
 ⚠⚠ **The two NodeEdit gates take NO `--no-build`** — they silently do not run with it.
 
-**Post-Batch-45, all eight run** *(build was a full `-t:Rebuild`, so 69 is honest)*: build **0 errors /
-69 warnings** · Blueprints **3451 total / 3441 passed / 0 failed / 10 skipped** · ⭐ **AiShared 1213 —
-unmoved** · BTree **612** · Breakpoints **130** · Generators **193** · NodeEdit Core **208** · UI **131**.
+**Post-Batch-46, all eight run** *(build was a full `-t:Rebuild`, so 69 is honest)*: build **0 errors /
+69 warnings** · Blueprints **3465 total / 3455 passed / 0 failed / 10 skipped** · ⚠ **AiShared 1216** *(moved by
+design this batch — `U-5` changed the shared interface)* · BTree **612** · Breakpoints **130** · Generators **193** · NodeEdit Core **208** · UI **131**.
 
 ### ⭐ Run the five `--no-build` suites in PARALLEL
 
@@ -157,14 +183,14 @@ are exactly what a headless test can pass while the panel draws nothing. **Say s
 
 ---
 
-## 6 · Open findings that are mine
+## 7 · Open findings that are mine
 
 | | |
 |---|---|
 | **BP-228** 🔴 | struct type ids are **unvalidated pass-through** — `Totally.Made.Up.Type` compiles clean. Blocks `U-8` |
 | ~~**BP-229**~~ ✅ | ✅ **CLOSED Batch 44 as `U-2`** — `Compile` now owns the graphs it rewrites |
-| **BP-230** 🔴 | the **asset-variable** source's `Role`/`Scope`/reference-count members are stubs. ⭐ The locals source does not copy them; fixing the old one is `U-5` |
-| **BP-231** 🟠 | `RemoveVariable`/`RenameVariable` don't maintain the order lists. ⭐ **Locals are immune** — the declaration list IS the order |
+| ~~**BP-230**~~ ✅ | ✅ **CLOSED Batch 46 as `U-5`** |
+| ~~**BP-231**~~ ✅ | ✅ **CLOSED Batch 46 as `U-5`** |
 | **BP-232** 🟠 | `MakeUniqueName` checks `Variables` only ⇒ a `Parameter` and a `Variable` may share a name |
 | **BP-233** 🟠 | `BP1650` carries a **fourth** copy of the latency predicate, still missing the inline-action case. Half-closed |
 | **BP-234** 🟠 | ⭐ **new, Batch 43** — editing a suspending graph's locals silently re-initialises its blackboard. ⚖️ **Ruled: no per-gesture warning** — add/delete change the same hash by the same mechanism, so warning on the drag would imply the other two are safe |
@@ -178,7 +204,7 @@ will find it. ⚠ Reported rather than changed, per the handoff's instruction.
 
 ---
 
-## 7 · ⚠ Process lessons — paid for, do not re-learn
+## 8 · ⚠ Process lessons — paid for, do not re-learn
 
 | | |
 |---|---|
@@ -192,12 +218,14 @@ will find it. ⚠ Reported rather than changed, per the handoff's instruction.
 
 ---
 
-## 8 · The wider programme
+## 9 · The wider programme
 
 ⏭ **The unification is under way** — 📄 [PLAN_Variable_Unification_Tasks.md](PLAN_Variable_Unification_Tasks.md),
 reviewed by 📄 [REVIEW_Unification_Plan.md](REVIEW_Unification_Plan.md) (**run it, with five named changes**).
-✅ **`U-1`, `U-2` (Batch 44) and `U-3` (Batch 45) are done.** ⭐ `U-3` declared no golden change and
-**delivered none** — the harness checked it rather than anyone hoping. ⏭ **`U-4` is next** in the plan's order.
+✅ **`U-1`, `U-2` (44), `U-3` (45), `U-4` + `U-5` (46) are done.** ⏭ **`U-6` is next — and it is the
+first task that is NOT headless-provable**: that the Details table renders, and renders read-only, needs
+the visual check that has not run for twelve batches. ⭐ `U-3` declared no golden change and
+**delivered none** — the harness checked it rather than anyone hoping. 
 ⚠ **`U-10`'s byte-identity gate still needs `U-15`'s corpus canonicalisation** or it is unwritable.
 ⭐ **Every later `U-` task's *"the output did not change"* is now falsifiable** — that was the point of `U-1`.
 
