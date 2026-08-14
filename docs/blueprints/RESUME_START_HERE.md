@@ -4,6 +4,17 @@
 > ⭐⭐ **Batch 43 verified and merged at `3583acd4` (§7p) — `BP-57` is CLOSED.** The Local Variables
 > section landed; a designer can declare, rename, delete, duplicate and undo a graph local from the
 > editor, and it follows the canvas.
+> ⭐⭐⭐ **Batch 49 verified and merged at `3f8ad7b6` (§7v) — 58 ASSET FILES REWRITTEN AND THE GOLDEN SET
+> DID NOT MOVE ONE BYTE.** `U-15` canonicalised all 58 (42 corpus + 16 recipes); ⭐ **Tier 1 AND Tier 2
+> zero files changed** — the payoff for Batch 44, since before it this batch would have been
+> unauditable. ⭐ **The canonical form is now INDENTED, and that was a live defect:** `ToJsonString()`
+> ignored `WriteIndented`, so saving a hand-authored asset in the editor **collapsed it to one line**.
+> ✅ **`BP-227` closed** *(its count was wrong twice — eleven files, not seven)*; 🔴 **`BP-235` filed.**
+> ⭐⭐ **`U-10`'s transform pair SHIPPED and `v1→v2→v1` byte-identity is PROVED on all 58** — the gate the
+> plan called unwritable. ⛔ **The WIRING is deliberately deferred**, for three measured reasons, and
+> ⭐ **re-sequenced: `U-11` → `U-12` → `U-10` wiring.**
+> ⏭ **Batch 50 dispatched (`U-11` + `U-14`) — now on the critical path.**
+>
 > ⭐⭐ **Batch 48 verified and merged at `c890620f` (§7u) — `U-9` landed.** `BlueprintDeclaration`
 > carries the kind; ⚠ **built the INVERSE of the plan — the tagged type is the VIEW and the three lists
 > remain the STORAGE**, which is what keeps `U-9` internal and its revert cheap. ⭐ **A facade, not a
@@ -199,13 +210,13 @@ report"* rather than *"the gate did not run."* Trap #5, in the gate script itsel
 **3m40s → 2m05s**. ⚠ **And always include `\[FAIL\]` in the result grep**: a `Passed!`/`Failed!`-only
 grep is why Batch 42's flake could not be named.
 
-**Baseline at `c890620f` — ⭐ all eight gates coordinator-RUN 2026-08-14, post-Batch-48:**
+**Baseline at `3f8ad7b6` — ⭐ all eight gates coordinator-RUN 2026-08-14, post-Batch-49:**
 
 | | |
 |---|---|
 | Solution build | **0 errors**, **69 warnings** ⚠ *(an incremental build under-reports — record honestly)* |
 | BP diagnostics | **10 distinct** — all `BP3010`, all **authored** orphans in 2 assets |
-| Blueprints | **3491 total / 3481 passed / 0 failed / 10 skipped** ⚠ *(BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
+| Blueprints | **3505 total / 3495 passed / 0 failed / 10 skipped** ⚠ *(BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
 | ⭐⭐ **Golden corpus** *(Batch 44)* | **42 assets × Tier 1 + Tier 2**, `Snapshots/Golden/`. ⛔ **Tier 1 moving is a FAILURE, not a rebase.** Regenerate Tier 2 with `BLUEPRINT_REGENERATE_SNAPSHOTS=1` and **review the diff** |
 | ⭐⭐ **Persistence shape** *(Batch 48)* | `Snapshots/Golden/persistence-shape.txt` — **SHA-256 + byte length of each asset's canonical serialization**, recorded on the **pre-`U-9`** tree. ⭐ **This is what a round-trip test CANNOT do:** a leaked tag is written *and read back*, so `Serialize(Deserialize(x)) == x` holds either way |
 | ⭐ **AiShared 1216** *(+3, Batch 46)* · BTree **612** · Breakpoints **130** | 0 failed |
@@ -229,7 +240,7 @@ retired `BP3011`; the 10 that remain are authored and deliberate.)
 
 ## 4 · Where the programme stands
 
-**Tracker: open 58 · done 111** (+1 refuted) ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
+**Tracker: open 58 · done 112** (+1 refuted) ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
 three ways — checkbox tally, per-complexity columns (⚠ take the **first** tag on a row), and the total
 row. ⚠⚠ **Reconcile all three EVERY time.** The columns can agree with the Total and both still be
 wrong: a missed tick is invisible to arithmetic and only shows against the checkbox tally.
@@ -466,6 +477,89 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > 📐 **And one sequencing question re-opened by `U-9`'s inverted direction:** is `U-10` the store flip
 > **and** the envelope, or just the envelope? ⚖️ **Lean: envelope only** — a store flip belongs after
 > `U-11` has moved the ~34 consumers.
+
+> ⏭ **Batch 50 dispatched — [`U-11` + `U-14`: move the consumers, then the names](HANDOFF_Batch50_Consumers_And_Uniqueness.md).**
+> ⭐⭐ **On the critical path** — `U-10`'s wiring cannot finish until `U-11` → `U-12` land.
+> ⭐ **Two coordinator findings handed over:** ⛔ **`BlueprintVariablesWindow.cs` holds the SOURCE
+> (`:45`, survives `U-16`) and the WINDOW (`:377`, retired BY `U-16`)** — the plan's *"a rewrite, not a
+> line fix"* note predates `U-4`/`U-5`, which already rewrote the source half ⇒ **do the minimum on the
+> window; rewriting code slated for deletion is the one waste this sequencing can still produce.**
+> ⚠ **And the blast radius is up to 46 non-test files, not "~34 sites"** — many incidental
+> (`EventDispatcherDecl.Parameters` is a different `Parameters`), so **46 is an upper bound**; the real
+> semantic count is theirs to report before sweeping.
+
+## 7v · Batch 49 — ✅ VERIFIED AND MERGED at `3f8ad7b6` — ⭐⭐ **58 ASSET FILES REWRITTEN, AND THE GOLDEN SET DID NOT MOVE ONE BYTE**
+
+**Gates — all eight, coordinator-run on the merged tree:**
+
+| | |
+|---|---|
+| Solution build | **0 errors**, **69 warnings** — unmoved |
+| Blueprints | **3505 total / 3495 passed / 0 failed / 10 skipped** (**+14**) |
+| ⭐ **AiShared 1216** · BTree **612** · Breakpoints **130** · Generators **193** · NodeEdit **208 / 131** | unmoved |
+| ⭐⭐⭐ **Golden Tier 1 AND Tier 2** | ✅ **ZERO files changed under `Tier1/` or `Emit/`** — coordinator-verified by name |
+| ⭐ `persistence-shape.txt` | ✅ **regenerated deliberately and declared** — `Serialize` now emits indented |
+| `tracker-counts.py --check` | clean — **eighteen** batches. open **58** / done **112** ⇒ ⭐ **`BP-227` closed, `BP-235` filed — net zero, and it reconciles** |
+
+✅ **Rule 7 verified mechanically:** their first commit's parent **is** the dispatch commit `2d4b10f15`.
+
+⭐⭐⭐ **This is the payoff for Batch 44.** **58 shipped files rewritten in one commit**, and the claim
+*"semantically nothing changed"* is not a promise — it is **the harness reporting zero movement across
+42 assets × two tiers.** ⛔ **Before `U-1` this batch would have been unauditable.**
+
+### ⭐ `U-15` — measured BEFORE rewriting anything, which is the whole discipline
+
+⚠ **Canonicalising round-trips every asset through the model** ⇒ ⛔ **anything the model does not carry
+is deleted in 58 files at once.** ⭐ **So they walked every document against its canonical form first:**
+the only paths that disappear are `Header.SubsystemType` and `Header.SchemaVersion`, in **44 files**,
+**both deliberately removed by `D-021`** into the `$meta` envelope — ⭐ **which all 58 files were
+asserted to already carry, not assumed to.** 📌 **Listed as declared exceptions, so a different path
+still reddens.**
+
+### ⭐⭐ The canonical form is now INDENTED — and that was a live defect, not a preference
+
+⛔ **`ToJsonString()` takes its own options and was ignoring `_options.WriteIndented` entirely** ⇒ the
+flag has had **no effect on net8 — the only target that writes files in production — since the envelope
+landed.** ⇒ 🔴 **`SaveActiveBlueprintCommand` writes through here, so opening a hand-authored asset in
+the editor and saving it COLLAPSED the file to one line.** `Loco1.bp.json` was what that looks like.
+
+📌 **Cost, paid rather than avoided:** indenting reddened **57 test cases across 5 methods**, all
+asserting **compact JSON substrings** like `"kind":"When"`. ⭐ **They re-coupled them to the DOM rather
+than to the new spelling** — *"re-coupling to the new spelling would only move the trap."*
+⭐⭐ **And one of those tests deleted a property by string-replacing its compact form** ⇒ it would have
+**silently deleted nothing and then asserted about an unmodified document.**
+
+📌 **All properties stay explicit.** Omitting nulls/defaults would save ~30%, ⛔ but a global
+`WhenWritingDefault` **would drop `"Dispatch"` from every Library asset** — *"+20% on disk is the price
+of not adding one more way for a value to vanish silently."*
+
+### ⚠ `BP-227`'s count was wrong TWICE — and by its own mechanism
+
+⛔ **Eleven files, not seven** — **4 corpus + 7 recipes.** ⭐ **The recipes carry both `1` and `2`, and
+only `1` was ever counted.** ⚠ *"The undercount happened by the same mechanism as the defect."*
+
+### ⭐⭐ `U-10` — the transform pair SHIPPED and proved; the WIRING deliberately did not
+
+✅ **`BlueprintSchemaV2.Up`/`.Down`, and `v1 → v2 → v1` byte-identical for all 58** — ⭐ **the gate the
+plan recorded as UNWRITABLE, now run.** ✅ **`Down` ships with `Up`, because `git revert` cannot undo a
+migration.** ⭐ **Proved to bite:** dropping the order lists in `Down`, and silently skipping one
+declaration, each redden the identity gate.
+
+⛔ **Nothing writes v2 and nothing reads it — three MEASURED reasons:**
+
+| | |
+|---|---|
+| ⭐ **`U-9` is inverse** | the three lists are still the storage ⇒ writing v2 today converts three lists to one array on save **and back on load, into a shape no code in the process consumes** — for no present benefit, while carrying the gate whose failure **resets every deployed entity's blackboard** |
+| 🔴 **`BP-235` — a framework wall** | `BlueprintIncrementalGenerator` targets **netstandard2.0**; `IJsonDocumentMigrator`/`JsonEnvelope`/`MigrationRegistry` are **net8-only** ⇒ ⛔ **unreachable from the one production reader of every shipped asset.** Hence a plain `System.Text.Json` DOM pair shared by both targets |
+| ⚠⚠ **There IS a production consumer** | ⛔ **contrary to a first reading:** `ClusterRunner --mode migrate` walks every `*.json` and registers the blueprint doc type ⇒ bumping `$meta.schemaVersion` to 2 while `CurrentVersion` stays `1`-passthrough is **a live inconsistency, not a cosmetic one** |
+
+⇒ ⭐⭐ **Re-sequenced: `U-11` → `U-12` → `U-10`'s wiring**, after which the on-disk shape mirrors an
+in-memory shape that exists and the migrator is a thin mapping. ⚠ **This ALSO settles my §2 question**
+— I asked *envelope-only or store-flip too*; the answer is **neither, yet.**
+📌 **The three `*Order` lists stay per-kind in v2:** merging them needs each id's kind to reconstruct,
+which only holds while no id is stale — **that belongs with `U-12`.**
+
+---
 
 ## 7u · Batch 48 — ✅ VERIFIED AND MERGED at `c890620f` — ⭐⭐ **`U-9` landed, and it REWROTE one of my gates**
 
