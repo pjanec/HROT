@@ -19,9 +19,13 @@ decision first.
 |---|---:|---:|
 | `WIRING` | 1 | 0 |
 | `RW-L` | 5 | 0 |
-| `RW-M` | 3 | 0 |
-| `RW-H` | 2 | 0 |
+| `RW-M` | 4 | 0 |
+| `RW-H` | 1 | 0 |
 | **Total** | **11** | **0** |
+
+📘 **New to HSM concepts?** [Hsm_Concepts_For_Game_AI.md](Hsm_Concepts_For_Game_AI.md) explains what
+history / parallel / hierarchy / actions actually mean here, grounded in the FastHSM kernel rather
+than generic UML, and ranks which parts are needed first.
 
 Reconciliation — all three must agree (checkbox tally, column sum, per-tag counts):
 ```bash
@@ -179,16 +183,33 @@ callers** — the pipe is wired, nothing fills it.
 
 ## Area E — Design contradictions
 
-- [ ] **HSM-010** 📐 · `RW-H` — **History pseudo-states can be placed but never wired.**
-  `HsmLinkValidator` blanket-rejects any transition whose target `IsHistory || IsDeepHistory`
-  (*"Transitions into a History pseudo-state are not allowed."*). The host design's own §5.3 sketch
-  carries an `IsExplicitHistoryEntry(sourceState, targetState)` escape hatch that was not
-  implemented. **In UML a transition into a history pseudo-state is precisely how "resume where we
-  left off" is expressed** — so as written, the History / DeepHistory palette entries (HSM-`hsm.state.history`,
-  `…deepHistory`) are placeable, render their `H` / `H*` glyphs, and are unreachable. Needs a
-  ruling: does this editor model history as an *entry target* (UML) or purely as a *flag consulted
-  on parent re-entry* (which is how `Fhsm.Kernel` stores it)? The answer decides whether the
-  validator gains an exception or the palette entries are withdrawn.
+- [ ] **HSM-010** 🔴📐 · `RW-M` — **History is modelled as the wrong kind of thing; the palette
+  produces states the kernel cannot act on.** ⭐ **Upgraded 2026-08-14 after reading the kernel —
+  this is not a validator strictness issue, it is a modelling mismatch.**
+  **What FastHSM actually does:** history is a **flag on the composite that owns the children** —
+  `builder.State("Engaging").History().Child("Chasing"…).Child("Attacking"…)`
+  ([Fhsm.Compiler.md §Example 3](../projects/FDP/ExtDeps/FastHSM/Fhsm.Compiler.md)), backed by
+  `StateDef.HistorySlotIndex` on that composite. **There is no history pseudo-state in this kernel** —
+  nothing to draw as a node, nothing to transition into.
+  **What the editor does:** `HSM_Editor_NodeEditor_Host_Design.md` §8.2 chose UML Option B —
+  *"distinct palette entries that produce small dedicated state nodes"* — so `hsm.state.history` /
+  `hsm.state.deepHistory` create a **separate childless `StateNode` with `IsHistory = true`**.
+  `HsmEmitCore:649` then emits `.History()` on it, i.e. *"a state with no children remembers its
+  last active child"* — semantically null. ✅ **`HsmShowcase.hsm.json` contains exactly this:**
+  `HistoryPseudo`, `ChildStableIds: []`, `IsHistory: true`, sitting as a *sibling* of `Idle` /
+  `Scanning` / `AlertState` inside `GuardComposite` — where the correct modelling is
+  `GuardComposite.History()`.
+  **Second-order symptom** (what this row originally recorded): `HsmLinkValidator` blanket-rejects
+  transitions targeting `IsHistory || IsDeepHistory`, so the nodes are placeable, render their
+  `H` / `H*` glyphs, and are unreachable. The design's own §5.3 sketch had an
+  `IsExplicitHistoryEntry(...)` escape hatch that was never implemented — but under the correct
+  model **no such hatch is needed**, because history stops being a transition target at all.
+  **Ruling needed** (host doc §19 open question #4 asked for exactly this review and never got it —
+  the kernel has since answered it): withdraw the two palette entries and expose history as a
+  **checkbox on the composite's `StateFacet`** (kernel-faithful, one writer, deletes the
+  `hsm.history_glyphs` rendering bypass for the H/H\* case), versus keeping the UML pseudo-state as
+  an *editor-side sugar* that lowers onto the parent flag at emit. ⚠ Migration: `HsmShowcase`'s
+  `HistoryPseudo` node has to be rewritten either way.
 
 ---
 
