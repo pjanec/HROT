@@ -297,7 +297,7 @@ internal static class Stage0_Rehydrate
         List<Pin> pins, BlueprintAsset asset, IReadOnlyList<PinSchema> staticShapes)
     {
         pins.Clear();
-        foreach (var p in asset.Parameters)
+        foreach (var p in asset.Declarations.Of(DeclarationKind.Parameter))
         {
             var typeId = GetTypeId(p.Type);
             pins.Add(MakePin(p.Name, "Out", isExec: false, typeId: typeId));
@@ -435,8 +435,11 @@ internal static class Stage0_Rehydrate
         var vid = variableId ?? "";
         if (vid.StartsWith("var:", StringComparison.Ordinal)) vid = vid.Substring(4);
         if (!Guid.TryParse(vid, out var id)) return null;
-        return asset.Variables.FirstOrDefault(v => v.Id == id)
-            ?? asset.WorkingState.FirstOrDefault(v => v.Id == id);
+        // ⚠ U-11: Variables and WorkingState only — NOT Declarations.ById(), which also searches
+        //   Parameters. Widening the set would resolve a parameter id where this never did.
+        return (asset.Declarations.Of(DeclarationKind.Variable)
+                     .Concat(asset.Declarations.Of(DeclarationKind.WorkingState))
+                     .FirstOrDefault(d => d.Id == id))?.AsVariableDecl;
     }
 
     private static void EnrichSetVariablePins(
@@ -1407,12 +1410,12 @@ internal static class Stage0_Rehydrate
         if (Guid.TryParse(idStr, out var guid))
         {
             // Check instance variables.
-            var varDecl = asset.Variables.FirstOrDefault(v => v.Id == guid);
+            var varDecl = asset.Declarations.Of(DeclarationKind.Variable).FirstOrDefault(d => d.Id == guid);
             if (varDecl != null && varDecl.Type != null && !string.IsNullOrEmpty(varDecl.Type.TypeId))
                 return varDecl.Type.TypeId;
 
             // Check working-state variables (AiPrimitive).
-            var wsDecl = asset.WorkingState.FirstOrDefault(v => v.Id == guid);
+            var wsDecl = asset.Declarations.Of(DeclarationKind.WorkingState).FirstOrDefault(d => d.Id == guid);
             if (wsDecl != null && wsDecl.Type != null && !string.IsNullOrEmpty(wsDecl.Type.TypeId))
                 return wsDecl.Type.TypeId;
         }

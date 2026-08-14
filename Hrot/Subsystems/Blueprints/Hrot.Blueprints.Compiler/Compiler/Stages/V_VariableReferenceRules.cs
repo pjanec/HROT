@@ -100,11 +100,20 @@ internal sealed class V_VariableReferenceRules : IValidator
     }
 
     /// <summary>
-    /// The asset's three declaration lists as (id, name) pairs. ⚠ <c>Parameters</c> is a different
-    /// declaration TYPE from the other two, which is why this projects rather than concatenating.
+    /// The asset's declarations as (id, name) pairs.
+    ///
+    /// <para>
+    /// <b>U-11.</b> This used to concatenate three projections, with the comment *"<c>Parameters</c> is
+    /// a different declaration TYPE from the other two, which is why this projects rather than
+    /// concatenating"* — ⭐ <b>which is exactly the difference <c>BlueprintDeclaration</c> removes.</b>
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <c>Declarations</c> enumerates in STORAGE order rather than the resolution order the three
+    /// concats happened to produce. Safe here, and checked: both callers use <c>.Any(…)</c>, so the
+    /// sequence is a set membership test and its order is not observable.
+    /// </para>
     /// </summary>
     private static IEnumerable<(Guid Id, string Name)> AssetDecls(BlueprintAsset asset)
-        => asset.Variables.Select(v => (v.Id, v.Name))
-            .Concat(asset.WorkingState.Select(v => (v.Id, v.Name)))
-            .Concat(asset.Parameters.Select(p => (p.Id, p.Name)));
+        => asset.Declarations.Select(d => (d.Id, d.Name));
 }

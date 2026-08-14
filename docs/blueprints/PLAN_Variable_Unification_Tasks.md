@@ -51,7 +51,7 @@ assertions. ⛔ **Without `U-1` the whole programme is unfalsifiable.**
 | ~~**U-9**~~ ✅ | tagged declaration + projections — **D1** | model | ✅ **LANDED B48** — ⚠ built inverse: the **tagged type is the view**, the lists stay the storage; **golden unchanged** | U-3 |
 | ~~**U-15**~~ ✅ | ⭐ **canonicalise the corpus** | assets | ✅ **LANDED B49** — all 58 (42 corpus + 16 recipes); Tier 1 **and** Tier 2 unchanged; `BP-227` closed. ⭐ **Canonical form is INDENTED** | U-1, U-9 |
 | **U-10** 🟠 | migrator **pair** + envelope 1→2 — **D2** | persistence | ⭐ **transform pair LANDED B49 and `v1→v2→v1` byte identity is PROVED on all 58.** ⛔ **Wiring DEFERRED — re-sequenced after `U-11`/`U-12`, see §U-10** | U-15, ⭐ **U-12** |
-| **U-11** | consumers moved off the views — **D3** | ~34 sites | golden unchanged **at every sub-step** | U-9 |
+| **U-11** 🟠 | consumers moved off the views — **D3** | ⛔ **135 refs / 24 files, not ~34** | ✅ **COMPILER BUCKET DONE B50** (golden unchanged at each sub-step) · ⏭ editor bucket remains | U-9 |
 | **U-12** | rails restated; views deleted — **D4** | compiler | `BP1024` gone · `BP1031` split · `BP1011` restated | U-11 |
 | **U-13** | shared-state read-only view (`Q-i`) | editor | lists exactly the referenced slot names | U-4 |
 | **U-14** | `MakeUniqueName` across all kinds (`BP-232`) | editor | a `Parameter` and a `Variable` cannot share a name | U-9 |
@@ -202,13 +202,19 @@ a **live inconsistency**, not a cosmetic one. That is the third reason the envel
 | ✅ **Pass 4 — DONE in `U-15`** | the numeric `Dispatch` normalises to the string, asserted by `CorpusCanonicalisationTests`. ⛔ **`BP-227`'s count was wrong TWICE: ELEVEN files, not 7** — 4 corpus + **7** recipes; the recipes carry both `1` and `2` and only `1` was ever counted |
 | ✅ **Revert — DONE** | ⛔ `git revert` does not undo a migration. ⭐ **`BlueprintSchemaV2.Down` IS the revert, and it shipped and is tested with `Up`** — which is the half of this task that was safe to land ahead of the wiring |
 
-### U-11 · Consumers moved — D3
+### U-11 · Consumers moved — D3 — 🟠 **COMPILER BUCKET LANDED (Batch 50)**
 
 | | |
 |---|---|
-| ✅ **Pass** | golden unchanged **at every sub-step**, not only at the end |
-| 📐 **Shape** | one commit per bucket — compiler stages · lowering · emit · editor — so a regression bisects to a bucket |
-| ⚠ | ~34 semantic sites; **`BlueprintVariablesWindow` is a rewrite, not a line fix** |
+| ✅ **Pass** | golden unchanged **at every sub-step** — held after each of Stage4+V_, Stage2, Stage5, Stage0 |
+| ⛔⛔ **The count was wrong, and by ~4×** | the plan says *"~34 semantic sites"*; the Batch 50 handoff's upper bound was *"46 non-test files"*. ⭐ **Measured: 233 raw references → 135 semantic CODE references across 24 files** (+20 in doc comments, 30 incidental — `EventDispatcherDecl.Parameters`, the `Blueprints.Editor.Variables` **namespace**, `VariableKind.WorkingState`, palette `Categories.Variables`) |
+| ⭐⭐ **And ~31 of those 135 are NOT `U-11` at all** | they are on **`IrAsset`**, a *different type* whose same-named three lists are the **emitted field** lists. ⛔ **They set the struct offsets (Params @0, working @8, State @16) and feed `StructureHash`** — sweeping them would move the hash and wipe blackboards. ⇒ 📐 **the plan's *"lowering · emit"* buckets DO NOT EXIST for `U-11`**; `EmissionContext`, both emitters, `FieldLayout`, `StructureHashComputation`, `AiPrimitiveLowering`, `CSharpEmitter` and `WhenLowering_Instance` are all `IrAsset` and stay |
+| ✅ **Bucket landed — the compiler** | `Stage0_Rehydrate` · `Stage2_Validate` · `Stage4_TypeResolve` · `Stage5_Schedule` · `V_VariableReferenceRules`. ⭐ **Two pairs of near-duplicate overloads collapsed into one method each** (`ResolveFieldTypes`, `BuildIrFields` — the latter had *byte-identical* bodies), which is the payoff `U-9` was for |
+| ⏭ **Bucket remaining — the editor** | `BlueprintDocumentFactory` · `NodePinSchema` · `BlueprintNodeModel` · `BlueprintPickerSources` · `BlueprintMyBlueprintModel` · `BlueprintGraphModel` · 2 drawers · **`BlueprintVariableSchemaSource`** |
+| 📌 **Stays until `U-12`** | `BlueprintCompiler`'s six-line **storage copy** of the three lists + three orders. ⭐ It builds an asset's storage, which is exactly what does not move until the store flips |
+| ⚠⚠ **The trap this bucket hit twice** | three sites read **Variables ∪ WorkingState only** (`Stage0.ResolveAnyDecl`, `Stage2.ResolveAnyDecl`, `Stage5`×2). ⛔ **`Declarations.ById()` also searches `Parameters`** — using it would resolve a parameter id where the site never did. ⭐ Written out explicitly with a comment at each, rather than taking the tidier call |
+| 📌 **One declared behaviour widening** | merging `Stage4.ResolveFieldTypes` applies the `BP1504` fixed-list check to every kind, where it was on the `VariableDecl` overload only. ⭐ **Safe for a reason found upstream: `Stage2`'s `BP1507` already refuses a fixed-list `Parameter`**, so the widened arm is unreachable for a compile that gets there — and independently measured as a corpus no-op (Capacity > 0: Parameters **0** · WorkingState **0** · Variables **1**) |
+| ⚠ | **`BlueprintVariablesWindow` was NOT rewritten** — `U-16` deletes it |
 
 ### U-12 · Rails restated; views deleted — D4
 

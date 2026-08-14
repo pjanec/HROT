@@ -77,9 +77,9 @@ internal static class Stage5_Schedule
             DeclaredMacroCount = asset.Graphs.Count(g => g.Kind == GraphKind.Macro),
             Intent        = asset.Primitive?.Intent,
             Hostings      = (IReadOnlyList<AiPrimitiveHosting>?)asset.Primitive?.Hostings ?? Array.Empty<AiPrimitiveHosting>(),
-            Parameters    = BuildIrFields(asset.Parameters, typedAsset, asset.ParameterOrder),
-            WorkingState  = BuildIrFields(asset.WorkingState, typedAsset, asset.WorkingStateOrder),
-            Variables     = BuildIrFields(asset.Variables, typedAsset, asset.VariableOrder),
+            Parameters    = BuildIrFields(asset.Declarations.Of(DeclarationKind.Parameter),    typedAsset, asset.ParameterOrder),
+            WorkingState  = BuildIrFields(asset.Declarations.Of(DeclarationKind.WorkingState), typedAsset, asset.WorkingStateOrder),
+            Variables     = BuildIrFields(asset.Declarations.Of(DeclarationKind.Variable),     typedAsset, asset.VariableOrder),
             CustomEvents  = BuildCustomEvents(asset.CustomEvents, typedAsset),
             CallablePeerBlueprintIds = BuildPeerIds(asset.CallablePeers),
             IsWorldSingleton = asset.IsWorldSingleton,
@@ -87,8 +87,13 @@ internal static class Stage5_Schedule
         };
     }
 
+    /// <summary>
+    /// <b>U-11 — ONE builder over every declaration kind.</b> ⛔ This was two overloads with
+    /// <b>byte-identical bodies</b>, split only because <c>ParameterDecl</c> and <c>VariableDecl</c>
+    /// were different types. ⭐ <c>BlueprintDeclaration</c> is the type they now share.
+    /// </summary>
     private static IReadOnlyList<IrField> BuildIrFields(
-        IEnumerable<ParameterDecl> decls, TypedAsset typed, List<Guid>? order)
+        IEnumerable<BlueprintDeclaration> decls, TypedAsset typed, List<Guid>? order)
     {
         var result = new List<IrField>();
         foreach (var d in decls)
@@ -113,26 +118,8 @@ internal static class Stage5_Schedule
     /// </summary>
     internal static IReadOnlyList<IrField> BuildLocalIrFields(
         IEnumerable<VariableDecl> decls, TypedAsset typed)
-        => BuildIrFields(decls, typed, order: null);
-
-    private static IReadOnlyList<IrField> BuildIrFields(
-        IEnumerable<VariableDecl> decls, TypedAsset typed, List<Guid>? order)
-    {
-        var result = new List<IrField>();
-        foreach (var d in decls)
-        {
-            typed.FieldTypes.TryGetValue(d.Id, out var irType);
-            result.Add(new IrField
-            {
-                Id = d.Id,
-                Name = d.Name,
-                Type = irType ?? UnknownType,
-                DefaultValueCSharp = d.DefaultValueJson ?? "",
-                Comment = d.Comment,
-            });
-        }
-        return GetOrdered(result, order);
-    }
+        => BuildIrFields(
+            decls.Select(v => BlueprintDeclaration.For(DeclarationKind.Variable, v)), typed, order: null);
 
     private static IReadOnlyList<IrCustomEvent> BuildCustomEvents(
         IEnumerable<CustomEventDecl> decls, TypedAsset typed)
@@ -144,7 +131,9 @@ internal static class Stage5_Schedule
             {
                 Id = d.Id,
                 Name = d.Name,
-                Parameters = BuildIrFields(d.Parameters, typed, null),
+                // ⚠ CustomEventDecl.Parameters is a DIFFERENT Parameters — an event signature, not
+                //   an asset declaration list. Wrapped, not projected through asset.Declarations.
+                Parameters = BuildIrFields(d.Parameters.Select(BlueprintDeclaration.For), typed, null),
             });
         }
         return result;
@@ -4143,8 +4132,11 @@ internal sealed class GraphScheduler
         var vid = gv.VariableId ?? "";
         if (vid.StartsWith("var:", StringComparison.Ordinal)) vid = vid.Substring(4);
         if (!Guid.TryParse(vid, out var id)) return null;
-        var decl = _typed.Asset.Variables.FirstOrDefault(v => v.Id == id)
-                ?? _typed.Asset.WorkingState.FirstOrDefault(v => v.Id == id);
+        // ⚠ U-11: Variables and WorkingState only — NOT Declarations.ById(), which also searches
+        //   Parameters. The two-kind set is what this site has always read.
+        var decl = (_typed.Asset.Declarations.Of(DeclarationKind.Variable)
+                        .Concat(_typed.Asset.Declarations.Of(DeclarationKind.WorkingState))
+                        .FirstOrDefault(d => d.Id == id))?.AsVariableDecl;
         return decl is { Type.Capacity: > 0 } ? decl : null;
     }
 
@@ -4157,8 +4149,11 @@ internal sealed class GraphScheduler
         var vid = variableId ?? "";
         if (vid.StartsWith("var:", StringComparison.Ordinal)) vid = vid.Substring(4);
         if (!Guid.TryParse(vid, out var id)) return null;
-        var decl = _typed.Asset.Variables.FirstOrDefault(v => v.Id == id)
-                ?? _typed.Asset.WorkingState.FirstOrDefault(v => v.Id == id);
+        // ⚠ U-11: Variables and WorkingState only — NOT Declarations.ById(), which also searches
+        //   Parameters. The two-kind set is what this site has always read.
+        var decl = (_typed.Asset.Declarations.Of(DeclarationKind.Variable)
+                        .Concat(_typed.Asset.Declarations.Of(DeclarationKind.WorkingState))
+                        .FirstOrDefault(d => d.Id == id))?.AsVariableDecl;
         return decl is { Type.Capacity: > 0 } ? decl : null;
     }
 
@@ -4590,9 +4585,12 @@ internal sealed class GraphScheduler
     private VariableRef FindVariableRef(string variableId)
     {
         // Search Instance variables first, then AiPrimitive working-state and parameters.
-        var variables  = _typed.Asset.Variables;
-        var workState  = _typed.Asset.WorkingState;
-        var parameters = _typed.Asset.Parameters;
+        // U-11: the same three sequences, now one collection projected three ways. ⚠ The SEARCH
+        // ORDER below is resolution priority (Variables -> WorkingState -> Parameters) and is
+        // deliberately NOT DeclarationList.KindOrder — see DeclarationList.ResolutionOrder.
+        var variables  = _typed.Asset.Declarations.Of(DeclarationKind.Variable).ToList();
+        var workState  = _typed.Asset.Declarations.Of(DeclarationKind.WorkingState).ToList();
+        var parameters = _typed.Asset.Declarations.Of(DeclarationKind.Parameter).ToList();
 
         // VariableId may be in the form "var:<Guid>" — strip the prefix before parsing.
         // Mirrors Stage0_Rehydrate.ResolveVariableTypeId (lines 487-490).
@@ -4629,7 +4627,7 @@ internal sealed class GraphScheduler
     /// </summary>
     private int FindParameterIndex(string parameterId)
     {
-        var parameters = _typed.Asset.Parameters;
+        var parameters = _typed.Asset.Declarations.Of(DeclarationKind.Parameter).ToList();
 
         // ParameterId may be in the form "var:<Guid>" or "param:<Guid>" -- strip the prefix before
         // parsing. Mirrors FindVariableIndex's "var:" handling.

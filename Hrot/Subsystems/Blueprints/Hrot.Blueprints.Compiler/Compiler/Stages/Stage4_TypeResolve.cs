@@ -11,21 +11,24 @@ internal static class Stage4_TypeResolve
         var resolvedPinTypes   = new Dictionary<Guid, IrTypeRef>();
         var resolvedFieldTypes = new Dictionary<Guid, IrTypeRef>();
 
-        // Resolve variable/parameter/working-state field types
-        ResolveFieldTypes(asset.Variables,    resolvedFieldTypes, ctx, asset.AssetId);
-        ResolveFieldTypes(asset.Parameters,   resolvedFieldTypes, ctx, asset.AssetId);
-        ResolveFieldTypes(asset.WorkingState, resolvedFieldTypes, ctx, asset.AssetId);
+        // U-11: one call over every declaration, in place of three over two near-identical overloads.
+        ResolveFieldTypes(asset.Declarations, resolvedFieldTypes, ctx, asset.AssetId);
 
         // BP-57: function-locals are typed the same way and into the same dictionary — the dictionary
         // is keyed by DECL ID, so a per-graph list sharing it costs nothing and cannot collide.
         // ⚠ This is the only place locals touch anything asset-scoped; their INDEX space stays
         // per-graph (IrGraph.Locals), which is what keeps them out of FindVariableIndex's union.
         foreach (var graph in asset.Graphs)
-            ResolveFieldTypes(graph.LocalVariables, resolvedFieldTypes, ctx, asset.AssetId);
+            ResolveFieldTypes(
+                graph.LocalVariables.Select(v => BlueprintDeclaration.For(DeclarationKind.Variable, v)),
+                resolvedFieldTypes, ctx, asset.AssetId);
 
         // Check unmanaged constraint on state fields
-        CheckUnmanagedConstraint(asset.Variables,    ctx, asset.AssetId, "Instance state");
-        CheckUnmanagedConstraint(asset.WorkingState, ctx, asset.AssetId, "AiPrimitive WorkingState");
+        // ⚠ Variables and WorkingState only — Parameters are deliberately NOT state-struct fields.
+        CheckUnmanagedConstraint(
+            asset.Declarations.Of(DeclarationKind.Variable),     ctx, asset.AssetId, "Instance state");
+        CheckUnmanagedConstraint(
+            asset.Declarations.Of(DeclarationKind.WorkingState), ctx, asset.AssetId, "AiPrimitive WorkingState");
 
         // Two-pass wildcard resolution
         for (int pass = 0; pass < 2; pass++)
@@ -82,8 +85,28 @@ internal static class Stage4_TypeResolve
         return new TypedAsset(asset, resolvedPinTypes, resolvedFieldTypes);
     }
 
+    /// <summary>
+    /// <b>U-11 — ONE resolver over every declaration kind.</b>
+    ///
+    /// <para>
+    /// ⛔ <b>This was two near-identical overloads</b>, one per backing type, and the duplication had
+    /// already cost something: <c>U-7</c>'s <c>BP1671</c> rail landed on the <c>VariableDecl</c> half
+    /// first and had to be applied to the other by hand. ⭐ <c>BlueprintDeclaration</c> removes the
+    /// type difference that forced the split.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>The <c>BP1504</c> fixed-list check lived on the <c>VariableDecl</c> overload only</b>, and
+    /// the merged method now applies it to every kind. ⭐ <b>That asymmetry was safe for a reason, and
+    /// the reason is upstream:</b> <c>Stage2</c>'s <c>BP1507</c> already refuses a <c>Parameter</c>
+    /// carrying a fixed-list type outright, so the arm this widens is unreachable for parameters in a
+    /// compile that got here. ⚠ Independently measured as a corpus no-op before merging — across all
+    /// 58 shipped assets, declarations with <c>Capacity &gt; 0</c> are <b>Parameters 0 · WorkingState
+    /// 0 · Variables 1</b> — and the golden set confirms it.
+    /// </para>
+    /// </summary>
     private static void ResolveFieldTypes(
-        IEnumerable<VariableDecl> fields,
+        IEnumerable<BlueprintDeclaration> fields,
         Dictionary<Guid, IrTypeRef> result,
         ValidationContext ctx,
         Guid assetId)
@@ -102,33 +125,6 @@ internal static class Stage4_TypeResolve
                 continue;
             }
 
-            if (TryResolveFieldType(ctx, f.Type, out var resolved, out bool trustedVerbatim))
-            {
-                // U-7 / BP-228: the AN2 path accepted this id because it CONTAINS A DOT, not because
-                // anything checked it. When an oracle is available, ask.
-                if (trustedVerbatim && !TypeExistsPerOracle(ctx, f.Type.TypeId))
-                {
-                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1671,
-                        $"Variable '{f.Name}' is declared as type '{f.Type.TypeId}', which does not exist. "
-                        + "Check the fully-qualified name, or the assembly that declares it.", assetId));
-                    continue;
-                }
-                result[f.Id] = resolved;
-            }
-            else
-                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1500,
-                    $"Field type '{f.Type.TypeId}' does not resolve.", assetId));
-        }
-    }
-
-    private static void ResolveFieldTypes(
-        IEnumerable<ParameterDecl> fields,
-        Dictionary<Guid, IrTypeRef> result,
-        ValidationContext ctx,
-        Guid assetId)
-    {
-        foreach (var f in fields)
-        {
             if (TryResolveFieldType(ctx, f.Type, out var resolved, out bool trustedVerbatim))
             {
                 // U-7 / BP-228: the AN2 path accepted this id because it CONTAINS A DOT, not because
@@ -207,7 +203,7 @@ internal static class Stage4_TypeResolve
         => ctx.ClrSignatureResolver is not { } oracle || oracle.TypeExists(typeId);
 
     private static void CheckUnmanagedConstraint(
-        IEnumerable<VariableDecl> fields,
+        IEnumerable<BlueprintDeclaration> fields,
         ValidationContext ctx,
         Guid assetId,
         string context)

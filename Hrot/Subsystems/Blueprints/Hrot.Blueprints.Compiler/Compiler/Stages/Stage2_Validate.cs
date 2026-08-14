@@ -104,7 +104,7 @@ internal sealed class V_DispatchKindCompatibility : IValidator
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1010,
                         "Library asset has 'primitive' block, valid only for AiPrimitive.",
                         asset.AssetId));
-                if (asset.Variables.Count > 0)
+                if (asset.Declarations.CountIn(DeclarationKind.Variable) > 0)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1011,
                         "Library asset must not declare member variables.", asset.AssetId));
                 if (asset.CustomEvents.Count > 0)
@@ -139,7 +139,7 @@ internal sealed class V_DispatchKindCompatibility : IValidator
                             $"Condition intent incompatible with action-shaped hosting '{hosting}'.",
                             asset.AssetId));
                 }
-                if (asset.Variables.Count > 0)
+                if (asset.Declarations.CountIn(DeclarationKind.Variable) > 0)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1024,
                         "AiPrimitive uses 'parameters' and 'workingState', not 'variables'.",
                         asset.AssetId));
@@ -152,7 +152,8 @@ internal sealed class V_DispatchKindCompatibility : IValidator
                 if (asset.Primitive is not null)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1030,
                         "Instance asset must not have a 'primitive' block.", asset.AssetId));
-                if (asset.Parameters.Count > 0 || asset.WorkingState.Count > 0)
+                if (asset.Declarations.CountIn(DeclarationKind.Parameter) > 0
+                 || asset.Declarations.CountIn(DeclarationKind.WorkingState) > 0)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1031,
                         "Instance uses 'variables', not 'parameters'/'workingState'.",
                         asset.AssetId));
@@ -392,13 +393,15 @@ internal sealed class V_VariablesAndState : IValidator
             case BlueprintDispatchKind.AiPrimitive:
                 if (asset.Primitive is null) return;
 
-                int paramsSize = ComputeStructSize(asset.Parameters.Select(p => p.Type), ctx);
+                int paramsSize = ComputeStructSize(
+                    asset.Declarations.Of(DeclarationKind.Parameter).Select(d => d.Type), ctx);
                 if (paramsSize > 100)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1200,
                         $"AiPrimitive Parameters total {paramsSize} bytes; max is 100.",
                         asset.AssetId));
 
-                int workingSize = ComputeStructSize(asset.WorkingState.Select(v => v.Type), ctx);
+                int workingSize = ComputeStructSize(
+                    asset.Declarations.Of(DeclarationKind.WorkingState).Select(d => d.Type), ctx);
                 if (workingSize > 1024 - 8)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1201,
                         $"AiPrimitive WorkingState total {workingSize} bytes; max is {1024 - 8}.",
@@ -406,7 +409,8 @@ internal sealed class V_VariablesAndState : IValidator
                 break;
 
             case BlueprintDispatchKind.Instance:
-                int stateSize = ComputeStructSize(asset.Variables.Select(v => v.Type), ctx);
+                int stateSize = ComputeStructSize(
+                    asset.Declarations.Of(DeclarationKind.Variable).Select(d => d.Type), ctx);
                 int tierBudget = (asset.TierHint, stateSize) switch
                 {
                     (BlackboardTierHint.Force1024,  _)               => 928,
@@ -1263,9 +1267,9 @@ internal sealed class V_WhenNodeRules : IValidator
         EqsResultPayload er, ValidationContext ctx)
     {
         // BP2010 -- sensor variable not declared
-        bool sensorDeclared = asset.Variables.Any(v =>
-            v.Name == er.SensorVariableName
-            && v.Type.TypeId == "FDP.Eqs.EqsSensorHandle");
+        bool sensorDeclared = asset.Declarations.Of(DeclarationKind.Variable).Any(d =>
+            d.Name == er.SensorVariableName
+            && d.Type.TypeId == "FDP.Eqs.EqsSensorHandle");
         if (!sensorDeclared)
             ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2010,
                 $"WhenNode EqsResult: sensor variable '{er.SensorVariableName}' "
@@ -1335,9 +1339,9 @@ internal sealed class V_ReadEqsResultNodeRules : IValidator
                         asset.AssetId, graph.Id, node.Id));
 
                 // BP2021 -- sensor variable not declared
-                bool sensorDeclared = asset.Variables.Any(v =>
-                    v.Name == node.SensorVariableName
-                    && v.Type.TypeId == "FDP.Eqs.EqsSensorHandle");
+                bool sensorDeclared = asset.Declarations.Of(DeclarationKind.Variable).Any(d =>
+                    d.Name == node.SensorVariableName
+                    && d.Type.TypeId == "FDP.Eqs.EqsSensorHandle");
                 if (!sensorDeclared)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2021,
                         $"ReadEqsResultNode: sensor variable '{node.SensorVariableName}' "
@@ -1934,7 +1938,7 @@ internal sealed class V_ListVariableRules : IValidator
         // Variables, AiPrimitive WorkingState, and action DTOs. (The Shared home is fenced at
         // the WIRE level: a list value feeding SetShared/GetShared trips BP1506 -- see
         // CheckListValueWires' allowlist.)
-        foreach (var p in asset.Parameters)
+        foreach (var p in asset.Declarations.Of(DeclarationKind.Parameter))
         {
             if (p.Type is { Capacity: > 0 })
             {
@@ -1975,8 +1979,12 @@ internal sealed class V_ListVariableRules : IValidator
         var vid = variableId ?? "";
         if (vid.StartsWith("var:", StringComparison.Ordinal)) vid = vid.Substring(4);
         if (!Guid.TryParse(vid, out var id)) return null;
-        return asset.Variables.FirstOrDefault(v => v.Id == id)
-            ?? asset.WorkingState.FirstOrDefault(v => v.Id == id);
+        // ⚠⚠ U-11: Variables and WorkingState ONLY, deliberately — NOT Declarations.ById(), which
+        //    also searches Parameters. Widening the set here would make a parameter id resolve where
+        //    it never did, which is the silent behaviour change a projection makes easy.
+        return (asset.Declarations.Of(DeclarationKind.Variable)
+                     .Concat(asset.Declarations.Of(DeclarationKind.WorkingState))
+                     .FirstOrDefault(d => d.Id == id))?.AsVariableDecl;
     }
 
     private static void CheckListWriteTarget(

@@ -9,6 +9,28 @@ namespace Hrot.Blueprints.Tests.Compiler;
 
 public sealed class RecipeIntegrityTests
 {
+    /// <summary>
+    /// ⭐⭐ <b>Force the production assembly loaded — this suite's result used to depend on which
+    /// OTHER tests had run first.</b>
+    ///
+    /// <para>
+    /// ⛔ <b>The defect, measured Batch 50.</b> <see cref="LoadRecipe"/> prefers
+    /// <c>Hrot.AI.Behaviors/Recipes/Blueprints</c> and falls back to <c>TestAssets/Recipes</c> *"if
+    /// assembly not loaded"* — but the fallback directory holds only <b>9 of the 16</b> recipes, and
+    /// has since long before this programme. So the suite passed only when something else in the run
+    /// had already loaded <c>Hrot.AI.Behaviors</c>, and threw <c>FileNotFoundException</c> on
+    /// <c>CollectionWriteDemo</c> and <c>ListVariableDemo</c> when nothing had.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>Reproduced deterministically both ways:</b> the suite run alone fails those two; run
+    /// alongside <c>GoldenCorpusTests</c> — which force-loads the assembly for the same reason
+    /// (<c>BP1602</c>, Batch 44) — all 16 pass. ⭐ A green suite that depends on test ordering is not
+    /// reporting on the recipes; it is reporting on the schedule.
+    /// </para>
+    /// </summary>
+    public RecipeIntegrityTests() => _ = typeof(Hrot.AI.Behaviors.BpComponentDemo).Assembly;
+
     // ---- loading helpers -----------------------------------------------
 
     private static BlueprintAsset LoadRecipe(string name)
