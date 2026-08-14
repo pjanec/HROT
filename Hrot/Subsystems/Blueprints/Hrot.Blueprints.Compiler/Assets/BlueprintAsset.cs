@@ -26,6 +26,25 @@ public sealed class BlueprintAsset
     // Common:
     public List<Graph> Graphs { get; set; } = new();
     public AssetMetadata EditorMetadata { get; set; } = new();
+
+    /// <summary>
+    /// <b>U-9 / D1 — the three declaration lists above, as one tagged sequence.</b>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>A live write-through view, and NOT a fourth place to store anything.</b> The lists
+    /// remain the storage; this projects them. ⛔ <b>The tag must not reach JSON</b> — if it did,
+    /// <c>U-9</c> and <c>U-10</c> would collapse into one task and the migrator would lose its own
+    /// revert — so the property is <c>[JsonIgnore]</c>d and
+    /// <c>PersistenceShapeTests.TheTagIsNotSerializable</c> asserts the attribute is still there.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ Allocates a thin view per access; it holds no state, so equality and identity live on the
+    /// backing declarations rather than on the view or its facades.
+    /// </para>
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public DeclarationList Declarations => new(this);
 }
 
 /// <summary>
