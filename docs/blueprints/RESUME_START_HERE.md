@@ -4,6 +4,18 @@
 > ⭐⭐ **Batch 43 verified and merged at `3583acd4` (§7p) — `BP-57` is CLOSED.** The Local Variables
 > section landed; a designer can declare, rename, delete, duplicate and undo a graph local from the
 > editor, and it follows the canvas.
+> ⭐⭐⭐ **Batch 54 verified and merged at `c5550ff9` (§7aa) — `BP-240`'s QUESTION BIT.** Nine constructed
+> fixtures ⇒ **four shapes mishandled, and the 58-file identity gate could see NONE of them** because
+> every shipped file is canonical by construction. 🔴🔴 **The worst: a v1 declaration carrying its own
+> `Kind` property overwrote the v2 tag, so `Down` partitioned it into the wrong list — a field moving
+> between structs and changing its offset. A blackboard wipe from one stray property.**
+> ✅ **The v2 READER is wired**, all 58 load from v2; ⭐⭐ **`V2ReaderTests.TheWriterStillEmitsV1` makes
+> the deliberate stop AUDITABLE.**
+> ⛔⛔ **THE PROGRAMME IS NOW BLOCKED ON TWO THINGS THAT NEED THE USER:**
+> 🔴 **`BP-235` is a project-reference CYCLE, not a preference** — drafted as
+> **[Architect_Question_28](Architect_Question_28_Migration_Seam.md)**, ⭐ **needs the architect relay**;
+> and ⚠ **`U-6`/`U-13`/`U-16` need the visual check, now FIFTEEN batches out.**
+>
 > ⭐⭐⭐ **Batch 53 verified and merged at `7974b3eb` (§7z) — THE STORE FLIPPED AND THE BYTES DID NOT
 > MOVE. `U-12` is CLOSED.** One tagged `List<BlueprintDeclaration>` is the storage; the three
 > properties are **live windows** onto its contiguous runs. ⭐⭐ **The type was chosen by MEASUREMENT —
@@ -255,13 +267,13 @@ report"* rather than *"the gate did not run."* Trap #5, in the gate script itsel
 **3m40s → 2m05s**. ⚠ **And always include `\[FAIL\]` in the result grep**: a `Passed!`/`Failed!`-only
 grep is why Batch 42's flake could not be named.
 
-**Baseline at `7974b3eb` — ⭐ all eight gates coordinator-RUN 2026-08-14, post-Batch-53 — ✅ green FULL and FILTERED:**
+**Baseline at `c5550ff9` — ⭐ all eight gates coordinator-RUN 2026-08-14, post-Batch-54 — ✅ green FULL and FILTERED:**
 
 | | |
 |---|---|
 | Solution build | **0 errors**, **69 warnings** ⚠ *(an incremental build under-reports — record honestly)* |
 | BP diagnostics | **10 distinct** — all `BP3010`, all **authored** orphans in 2 assets |
-| ✅ **Blueprints** | **3538 total / 3528 passed / 0 failed / 10 skipped** ⚠ *(BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
+| ✅ **Blueprints** | **3551 total / 3541 passed / 0 failed / 10 skipped** ⚠ *(BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
 | ⭐⭐ **Golden corpus** *(Batch 44)* | **42 assets × Tier 1 + Tier 2**, `Snapshots/Golden/`. ⛔ **Tier 1 moving is a FAILURE, not a rebase.** Regenerate Tier 2 with `BLUEPRINT_REGENERATE_SNAPSHOTS=1` and **review the diff** |
 | ⭐⭐ **Persistence shape** *(Batch 48)* | `Snapshots/Golden/persistence-shape.txt` — **SHA-256 + byte length of each asset's canonical serialization**, recorded on the **pre-`U-9`** tree. ⭐ **This is what a round-trip test CANNOT do:** a leaked tag is written *and read back*, so `Serialize(Deserialize(x)) == x` holds either way |
 | ⭐ **AiShared 1216** *(+3, Batch 46)* · BTree **612** · Breakpoints **130** | 0 failed |
@@ -285,7 +297,7 @@ retired `BP3011`; the 10 that remain are authored and deliberate.)
 
 ## 4 · Where the programme stands
 
-**Tracker: open 59 · done 116** (+1 refuted) ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
+**Tracker: open 60 · done 116** (+1 refuted) ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
 three ways — checkbox tally, per-complexity columns (⚠ take the **first** tag on a row), and the total
 row. ⚠⚠ **Reconcile all three EVERY time.** The columns can agree with the Total and both still be
 wrong: a missed tick is invisible to arithmetic and only shows against the checkbox tally.
@@ -565,6 +577,78 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > ⭐⭐ **`BP-240` is the question carried in:** what does the migrator do right **only because all 58
 > shipped assets happen to be shaped a certain way?** ⛔ **The corpus cannot answer that. Constructed
 > fixtures can.**
+
+> ⛔⛔ **NO BATCH IS DISPATCHED.** ⭐ **This is deliberate: the `U-` programme has run out of unblocked
+> headless work.** What remains needs the user —
+> **(1)** ⭐ **relay [Architect_Question_28](Architect_Question_28_Migration_Seam.md)** — the migration
+> seam, which blocks `U-10`'s writer and carries `BP-241`'s operator question with it;
+> **(2)** ⚠ **the visual check**, which gates `U-6`/`U-13`/`U-16` and would also finally verify Batch
+> 43's Local Variables section.
+> 📌 **`U-13`'s CONTENTS gate is headless** *(exact slot names across 8 assets, 58 `"state"` + 3
+> `"rally"`)* ⇒ ⭐ **it could run blind if the user wants momentum** — ⚠ **but it would add a SECOND
+> unverified panel surface, and that is the coordinator's reason for not dispatching it unasked.**
+
+## 7aa · Batch 54 — ✅ VERIFIED AND MERGED at `c5550ff9` — ⭐⭐⭐ **`BP-240`'s QUESTION BIT: four corpus-invisible defects, one of them a blackboard wipe**
+
+**Gates — all eight, coordinator-run, full AND isolated:**
+
+| | |
+|---|---|
+| Solution build | **0 errors**, **69 warnings** — unmoved |
+| ✅ **Blueprints** | **3551 total / 3541 passed / 0 failed / 10 skipped** (**+13**) |
+| ⭐ **Isolated** | `V2ReaderTests` 4/4 · `SchemaV2AdversarialTests` 9/9 · `BlueprintSchemaV2Tests` 8/8 · `PersistenceShapeTests` 3/3 |
+| ⭐ **AiShared 1216** · BTree **612** · Breakpoints **130** · Generators **193** · NodeEdit **208 / 131** | unmoved |
+| ⭐⭐ **`persistence-shape.txt` + Golden Tier 1/2** | ✅ **ZERO snapshot files changed** — ⭐ **deliberately: the writer did not ship** ⇒ **`StructureHash` unchanged for every asset** |
+| `tracker-counts.py --check` | clean — **twenty-three** batches. open **60** / done **116** ⇒ ➕ **`BP-241`** |
+
+✅ **Rule 7 verified mechanically** (`9c0cd2dbd`).
+
+### ⭐⭐⭐ The `BP-240` question was asked of the migration, and it BIT
+
+**Nine constructed fixtures ⇒ FOUR shapes mishandled** — ⛔⛔ **and the 58-file identity gate could see
+NONE of them, because every shipped file is canonical by construction.**
+
+| the four | |
+|---|---|
+| ⭐⭐⭐ **the worst** | ⛔ **a v1 declaration carrying its own `Kind` property OVERWROTE the v2 tag**, so `Down` partitioned it into the wrong list. ⚠ **Measured, not reasoned:** `Parameters` came back non-empty for a declaration authored in `Variables` ⇒ **a field moving between structs and changing its offset.** ⇒ 🔴🔴 **a blackboard wipe from one stray property** |
+| **an ABSENT list** · **a NULL list** | ⛔ both **invented on the way back** |
+| **lists out of model order** | ⛔ **moved the bytes** — ⭐ **exactly `BP-240`'s shape, at the file level** |
+
+⭐ **All four are now REFUSALS naming the reason** — ⛔ *"repairing would mean carrying a v1 layout
+artefact into v2, or guessing at a list that is not there."* ⇒ ➕ **`BP-241`**: the consequence is that
+`--mode migrate` now has **a failure mode with no way forward**, and that is filed rather than papered.
+
+📌 **Four shapes survived already and are now PINNED:** zero declarations of every kind · a stale id in
+an `*Order` list · ⭐ **a cross-kind name collision** *(which the migrator MUST read, or it cannot be
+used to fix the assets that do not compile)* · an unknown property on a declaration.
+
+### ⛔⛔ The writer is BLOCKED — and `BP-235` is a CYCLE, not a preference
+
+⭐ **Bumping `$meta.schemaVersion` forces three things, and the third cannot be done:**
+
+| | |
+|---|---|
+| **1** | `BlueprintMigrationModule.CurrentVersion` must move to **2** — `PersistentMigrationAdapter`'s Case D **throws** when the disk version exceeds the registry's with no down-chain and no snapshot |
+| **2** | a **real** 1→2 migrator must be registered, ⛔ **not a passthrough** — `MigrationPipeline.MigrateTo` returns **immediately** for a passthrough type **before any version comparison**, so a passthrough at 2 would ⛔ **silently treat a genuine v1 file as v2** |
+| 🔴🔴 **3** | ⛔ **that migrator cannot be written.** The registration lives in `Hrot.Common`; the transform in `Hrot.Blueprints.Compiler`, **which already references `Hrot.Common`** ⇒ **the reverse edge is a PROJECT-REFERENCE CYCLE** |
+
+⇒ ⭐ **The seam is a third assembly, or an injection point in `HrotMigrationBootstrap` — shared by SIX
+host profiles.** ⭐⭐ **`BP-235` is no longer *"open by choice"*; it is the blocker.**
+📄 **Drafted as [Architect_Question_28_Migration_Seam.md](Architect_Question_28_Migration_Seam.md).**
+
+### ⭐⭐ Reader-before-writer, and the stop is AUDITABLE
+
+✅ **What landed is the READER:** `Deserialize` detects v2 and `Down`s it; **all 58 shipped assets load
+from their v2 form into the same model as from v1.**
+⭐ *"A v2 file is unreadable by any build predating the reader, so readers ship first"* — ⭐⭐ **and this
+half is revertable while the bump is not.**
+
+⭐⭐ **`V2ReaderTests.TheWriterStillEmitsV1` makes the stop auditable and reddens the moment anyone
+flips the writer**; `TheStampedVersionAgreesWithTheMigrationRegistry` **pins the two version numbers
+together.** ⇒ ⭐ **a test that guards a deliberate incompleteness — the right shape for a batch that
+stops on purpose.**
+
+---
 
 ## 7z · Batch 53 — ✅ VERIFIED AND MERGED at `7974b3eb` — ⭐⭐⭐ **THE STORE FLIPPED AND THE BYTES DID NOT MOVE. `U-12` CLOSED**
 
