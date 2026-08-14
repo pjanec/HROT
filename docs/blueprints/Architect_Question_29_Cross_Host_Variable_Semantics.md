@@ -154,12 +154,15 @@ locally** — that is a third copy of a constant that must agree.
 
 ---
 
-## Answers
+## Answers — ⭐⭐ ARCHITECT RULING, `2026-08-14`
 
-⛔ **Not yet run past the architect.** Below is **Claude simulating the architect** at the user's
-request. ⚠ **NOT a ruling. Do not build from it.**
+> ⭐ **Provenance:** the NotebookLM architect is **unavailable**; the user designated this session as
+> architect of record. ⇒ **rulings, not leans.** ⚠ **Claude-authored** — weaker provenance than the
+> NotebookLM rounds, so **each ruling names the measurement it rests on** and can be overturned on
+> evidence. **Measurements `M1`–`M4` are tabulated in the Answers section of
+> [#28](Architect_Question_28_Cross_Host_Binding_Mechanism.md).**
 
-### ⚠ SIMULATED — Claude-as-architect
+### The rulings
 
 **A → A3, and the reason is the one Claude found rather than the one the HSM session gave.**
 ⭐ Their argument for B3-underneath-B1 was *slot-key uniqueness*. **The stronger argument is that the
@@ -171,24 +174,40 @@ state later gains a fifth slot, A1 needs a persisted-schema change and A3 needs 
 ⇒ **that difference is the actual justification for A3, and it should be written down as the reason** —
 otherwise the next session re-litigates it as "six fields is simpler", which, for four slots, it is.
 
-**B → B2, and the migration is smaller than it looks — but the rule must be stated at the right level.**
-⭐ The rule is not *"guards are read-only"*. It is: ⭐⭐ **a speculative evaluation may not be
-observable.** Guards are the instance of it that exists today; a future scoring/utility hook would be
-another. **State the invariant, implement it for guards.**
-⛔ **B3 rejected for the reason Claude gave and one more:** a validator rule here would have to be
-re-written for every new callee shape, whereas the ref-kind is checked by the C# compiler for free.
+**B → B2. ⭐⭐ And `M3` removes the only argument against it: the migration is essentially FREE.**
+
+⛔ **The draft costed this at *"~3 shipped sites plus test fixtures"*. Measured: `[SharedAiCondition]`
+and `[SharedAiHeavyCondition]` have ZERO production usages** — 4 usages exist, **all test fixtures**
+(`SharedAiAttributeTests`, `SharedAiTestFixtures`, `ActionSchemaExporterTests`).
+⇒ ⭐⭐ **The read-only projection can be made the rule before anyone depends on the mutable one.**
+⚠ **This is the cheapest ruling in either document, and it closes a live footgun** — guard thunks call
+`GetComponentRW` and hand out a mutable `ref` **today**, during speculative evaluation.
+
+⭐ **State the invariant one level up:** the rule is not *"guards are read-only"*, it is
+⭐⭐ **a speculative evaluation may not be observable.** Guards are today's instance; a future
+scoring/utility hook would be another. **State it that way, implement it for guards.**
+
+⛔ **B3 rejected** — a validator rule must be re-written for every new callee shape and cannot see
+through a helper call, whereas the ref-kind is checked by the C# compiler for free.
 ⭐ **Use the type system where the type system already works.**
-**On D3 (concurrent regions):** agreed — **hard-error on concurrent writers, permit concurrent
-readers** — ⚠ **but note this only becomes decidable BECAUSE of B2.** ⇒ **sequence B2 first**; the
-concurrency rule is downstream of it, not parallel to it.
+
+**On `Q-D3` (concurrent regions):** **hard-error on concurrent writers, permit concurrent readers** —
+⚠ **decidable ONLY because of B2.** ⇒ **B2 is a prerequisite, not a peer.**
 
 **C → C2, and Claude's framing is the ruling: `preserved` is the status quo, not a choice.**
 ⭐ Add the part Claude left implicit: **the reason BTree never had to answer this is that a BTree node
 has no "exit".** HSM re-entry does not introduce new *storage* semantics; it introduces the **first
 observation point** for semantics that were always there. ⇒ **Do not model it as an HSM feature.**
-⚠ **One thing to check before building:** `FNV(AssetId, StableId, SlotKind)` widens an existing key
-formula. **If any slot key is persisted or cross-compilation-visible, this is a `Q28-A` re-bake and
-must ride with it, not separately.**
+⛔⛔ **CONFIRMED by `M4` — it IS cross-compilation-visible, so `Q29-C` must ride with `Q28-A`.**
+The stateful key is `{MethodFqn}@{offset}@{slotKey}`, baked as a `const` in the emitted thunk, and the
+source states it *"must stay in lockstep with the topology blob key in `BTreeEmitCore.EmitAction`"*
+(`BTreeBridgeEmitCore.cs:610–622`). ⇒ **widening it to carry `SlotKind` is not a separate change — it
+is part of the `A2` re-bake.**
+
+⭐ **And the mechanism already generalises**, which is the good news `M4` also produced:
+`BTreeBridgeEmitCore.cs:611` — *"Behavior-scoped co-bound nodes bake the same key … so they dispatch
+to one thunk over one shared slot."* ⇒ ⭐⭐ **scope is ALREADY encoded in the key.** The HSM analogue
+adds one term in the same position; **it is not a new idea, it is the existing one with a wider tuple.**
 
 **D → D1, but NOT in this programme, and the budget is the part to build now.**
 ⭐ D1 is right and the reasoning is right — event params *are* `ParameterDecl`, and D2 is a second copy
@@ -202,11 +221,22 @@ not only hypothetically for HSM regions. ⚠ **Claude under-sold this:** the gap
 ⭐ **And fold the duplicate `MaxBehaviorParamByteSize` into it** — a constant with three copies is the
 same defect class as everything else in these two documents.
 
-### 📌 What the simulated answers change
+### 📌 What the ruling changes
 
 | | |
 |---|---|
+| ⭐⭐ **B2 got cheap** | `M3`: **zero production usages.** It went from *"a migration to weigh"* to *"do it now, before anything depends on the mutable ref"* |
 | ⭐ **B2 is a prerequisite, not a peer** | the cross-region concurrency rule is undecidable without it |
-| ⭐ **budget-2 is promoted** | it fixes a live BTree hole, not a speculative HSM one |
-| ⚠ **C2 may be a `Q28-A` re-bake** | check whether slot keys cross a compilation boundary before scheduling separately |
-| ⛔ **D1 is ruled but deliberately unscheduled** | it waits on `U-12`'s storage shape |
+| ⭐ **budget-2 is promoted** | it fixes a **live BTree** hole, not a speculative HSM one |
+| ⛔ **C2 confirmed as part of the `Q28-A` re-bake** | `M4`: slot keys are inside the registry key and baked as consts |
+| ⛔ **D1 ruled but deliberately unscheduled** | it waits on `U-12`'s storage shape |
+
+### ⚠⚠ The one ruling here I hold with least confidence
+
+⭐ **`Q29-A` (slot carrier).** A1-vs-A3 turns on whether `SlotKind` ever grows past the six slots that
+exist today (4 state + 2 transition). ⛔ **I have no evidence either way** — no HSM roadmap says
+whether a seventh slot is plausible. **A3 costs a new persisted collection to buy extensibility nobody
+has asked for**; A1 is genuinely simpler for a fixed six.
+⇒ ⭐ **I rule A3 on the `HsmFlattener` asymmetry argument alone** (four slots that are already not
+peers), **not on extensibility.** ⚠ **If a later architect has roadmap knowledge that six is final,
+A1 is the better answer and this ruling should be overturned.**

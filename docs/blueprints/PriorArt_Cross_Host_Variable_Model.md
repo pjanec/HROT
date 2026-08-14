@@ -129,6 +129,32 @@ off an 8-byte boundary. ⇒ **a `U-1` Tier-1 corpus entry with exactly that shap
 
 ---
 
+## 6b. ⭐⭐ Cross-lane impact — this is NOT an HSM programme
+
+⚠⚠ **The "cross-host" framing hides who actually owns the work.** ⭐ **Most of §6 lands in the
+blueprint/BTree lane regardless of what the HSM session decides.**
+
+| finding | file | assembly | ⭐ owning lane | live today? |
+|---|---|---|---|---|
+| **PA-5** stride path has no allocator | `AiPrimitiveEmitter.cs` · `CSharpEmitter.cs` | `Hrot.Blueprints.Compiler` | ⭐ **blueprint** | latent (`@0` only) |
+| **PA-6** counter-allocated stubs overwrite | `HsmBridgeEmitCore.cs` | `Hrot.AiEditor.Persistence` | ⭐ **blueprint/BTree** — it is `BTreeBridgeEmitCore`'s sibling | 🔴 **yes** |
+| **PA-7** no collision gate | `HsmActionGenerator.cs` · `HsmFlattener.cs` | `Fdp.Toolkits.Analyzers` · `Fhsm.Compiler` | ⛔ **NEITHER — a third assembly with no owner** | 🔴 **yes (~4.5 %)** |
+| **PA-8** dead orchestrators | `HsmOrchestratorEmitter.cs` **and** `BTreeOrchestratorEmitter.cs` | `Hrot.Hsm.Editor` · `Hrot.BTree.Editor` | ⭐ **both lanes** | yes (inert) |
+| **PA-9** orchestrator would not compile | as PA-8 + `HsmActionGenerator` | — | ⭐ **both + the unowned third** | latent |
+| **PA-10** `Vector3` layout drift | ⭐ **`BlackboardBinPacker.cs`** | ⭐⭐ **`Hrot.Editor.AiShared` — shared by ALL THREE hosts** | ⭐ **blueprint/BTree** | latent |
+| **PA-12** budget is per-DTO | `Stage2_Validate` · `BehaviorRegistry` · `BehaviorParameterSizeAnalyzer` | three assemblies | ⭐ **blueprint** | 🔴 **yes — BTree parallel composites have this NOW** |
+| **PA-11** flattener slot asymmetry | `HsmFlattener.cs` | `Fhsm.Compiler` | ⭐ **HSM** | yes |
+
+⇒ ⭐⭐ **Three of the eight are live defects in the blueprint/BTree lane that the HSM session merely
+surfaced.** ⛔ **PA-12 in particular is not hypothetical and not HSM-specific:** a BTree parallel
+composite runs several leaves with params live in the same 100 B, and nothing sums them.
+
+📌 **And `Fdp.Toolkits.Analyzers` has no owning lane at all** — it holds `HsmActionGenerator`
+(the file that answers `Q-A`) and `BehaviorParameterSizeAnalyzer`. ⭐ **Naming its owner is a
+prerequisite, not a detail.**
+
+---
+
 ## 7. What this changes about the agenda
 
 | bootstrap §5 said | prior art says |

@@ -5,11 +5,19 @@
 > **From:** the cross-host variable/call design session, branch `claude/cross-host-variable-model-3k8cfh`.
 > **Date:** `2026-08-14`.
 >
-> ⛔⛔ **DRAFT — HOLD UNTIL THE ARCHITECT ROUND RETURNS.** The corrections in §1–§2 are
-> **measurements** and are safe to act on now. ⚠ **The leans in §3–§5 are pending
-> [#28](Architect_Question_28_Cross_Host_Binding_Mechanism.md) /
-> [#29](Architect_Question_29_Cross_Host_Variable_Semantics.md)** and may be redirected — four of the
-> last nine batches were.
+> ⛔⛔ **DRAFT — STILL HELD, by user instruction, until the cross-lane work is settled.**
+>
+> ⭐ **Status `2026-08-14`:** the architect round **has returned** —
+> [#28](Architect_Question_28_Cross_Host_Binding_Mechanism.md) and
+> [#29](Architect_Question_29_Cross_Host_Variable_Semantics.md) now carry **rulings**, closed by four
+> measurements (`M1`–`M4`). ⚠ **But this reply is not yet sent**, because
+> [`PriorArt` §6b](PriorArt_Cross_Host_Variable_Model.md) shows **three of the eight findings are live
+> defects in the BLUEPRINT/BTREE lane**, not HSM's — ⇒ **the reply should carry what changes on OUR
+> side too, not only answers to their questions.**
+>
+> 📌 **When it is sent, §5's leans must be restated as the rulings they now are** — and two of them
+> moved: **`Q-D2`'s migration is free** (`M3`: zero production usages) and **`Q-E1`'s slot key must
+> ride with the `Q28-A` re-bake** (`M4`), not ship separately.
 >
 > **Full evidence:** [`PriorArt_Cross_Host_Variable_Model.md`](PriorArt_Cross_Host_Variable_Model.md).
 
