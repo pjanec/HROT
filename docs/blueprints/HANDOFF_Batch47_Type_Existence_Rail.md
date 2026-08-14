@@ -1,6 +1,6 @@
 # HANDOFF — Batch 47: ⭐⭐ **`U-7` + `U-8` — the type-existence rail, then the picker that depends on it**
 
-> 📌 **Dispatched at `<STAMP>`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
+> 📌 **Dispatched at `bf5b642e`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
 > ⭐ **Rule 7:** branch from this branch, re-sync at the **start** of your run.
 > ⭐ **Rule 4:** pull it again before your final commit.
 > ⭐ **Rule 3: the coordinator allocates no ids.** `BP1671+` is the next free diagnostic.
