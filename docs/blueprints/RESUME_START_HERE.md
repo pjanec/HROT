@@ -4,6 +4,15 @@
 > ⭐⭐ **Batch 43 verified and merged at `3583acd4` (§7p) — `BP-57` is CLOSED.** The Local Variables
 > section landed; a designer can declare, rename, delete, duplicate and undo a graph local from the
 > editor, and it follows the canvas.
+> ⭐⭐ **Batch 48 verified and merged at `c890620f` (§7u) — `U-9` landed.** `BlueprintDeclaration`
+> carries the kind; ⚠ **built the INVERSE of the plan — the tagged type is the VIEW and the three lists
+> remain the STORAGE**, which is what keeps `U-9` internal and its revert cheap. ⭐ **A facade, not a
+> copy:** identity is the backing object, or a materialised copy would have accepted `decl.Name = "x"`
+> and discarded it for the whole of `U-11`.
+> 🔴🔴 **They REFUTED one of my gates by probe:** the round-trip **cannot see a leaked tag at all** — a
+> written tag is read back too. ⇒ replaced by ⭐ **a SHA-256 baseline of all 42 canonical
+> serializations, recorded on the pre-`U-9` tree.** ⏭ **Batch 49 dispatched (`U-15` + `U-10`).**
+>
 > ⭐⭐ **Batch 47 verified and merged at `d98b98bf` (§7t) — `BP-228` CLOSED.** `BP1671` refuses a
 > made-up type id, naming the variable and the type. ⭐⭐ **The plan's open oracle question is RETIRED,
 > not answered — measured: exactly ONE production site supplies a resolver, and the editor's
@@ -190,14 +199,15 @@ report"* rather than *"the gate did not run."* Trap #5, in the gate script itsel
 **3m40s → 2m05s**. ⚠ **And always include `\[FAIL\]` in the result grep**: a `Passed!`/`Failed!`-only
 grep is why Batch 42's flake could not be named.
 
-**Baseline at `d98b98bf` — ⭐ all eight gates coordinator-RUN 2026-08-14, post-Batch-47:**
+**Baseline at `c890620f` — ⭐ all eight gates coordinator-RUN 2026-08-14, post-Batch-48:**
 
 | | |
 |---|---|
 | Solution build | **0 errors**, **69 warnings** ⚠ *(an incremental build under-reports — record honestly)* |
 | BP diagnostics | **10 distinct** — all `BP3010`, all **authored** orphans in 2 assets |
-| Blueprints | **3474 total / 3464 passed / 0 failed / 10 skipped** ⚠ *(BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
-| ⭐⭐ **Golden corpus** *(new, Batch 44)* | **42 assets × Tier 1 + Tier 2**, `Snapshots/Golden/`. ⛔ **Tier 1 moving is a FAILURE, not a rebase.** Regenerate Tier 2 with `BLUEPRINT_REGENERATE_SNAPSHOTS=1` and **review the diff** |
+| Blueprints | **3491 total / 3481 passed / 0 failed / 10 skipped** ⚠ *(BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
+| ⭐⭐ **Golden corpus** *(Batch 44)* | **42 assets × Tier 1 + Tier 2**, `Snapshots/Golden/`. ⛔ **Tier 1 moving is a FAILURE, not a rebase.** Regenerate Tier 2 with `BLUEPRINT_REGENERATE_SNAPSHOTS=1` and **review the diff** |
+| ⭐⭐ **Persistence shape** *(Batch 48)* | `Snapshots/Golden/persistence-shape.txt` — **SHA-256 + byte length of each asset's canonical serialization**, recorded on the **pre-`U-9`** tree. ⭐ **This is what a round-trip test CANNOT do:** a leaked tag is written *and read back*, so `Serialize(Deserialize(x)) == x` holds either way |
 | ⭐ **AiShared 1216** *(+3, Batch 46)* · BTree **612** · Breakpoints **130** | 0 failed |
 | NodeEdit Core **208** · UI **131** · Generators **193** | 0 failed |
 
@@ -444,6 +454,84 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > ⚠ **Pass 2 (reflection over both projections) is the gate that matters** — ⛔ **a forgotten member
 > reddens NOTHING**: not the golden corpus, not the round-trip, not the build. Same reason `BP-226`
 > hid behind `BP1024`/`BP1031`.
+
+> ⏭ **Batch 49 dispatched — [`U-15` + `U-10`: canonicalise, then migrate](HANDOFF_Batch49_Canonicalise_And_Migrate.md).**
+> ⚠⚠ **The plan calls `U-10` *"the risky one"*, and it is the only batch whose ⛔ REVERT IS CODE IT
+> SHIPS** — `git revert` does not undo a migration; the **down-migrator is the revert**.
+> ⭐⭐ **`U-15` is also the first task since 44 that deliberately CHANGES shipped files**, and the golden
+> harness is what proves the rewrite is a semantic no-op: **Tier 1 must not move.**
+> ⭐ **Coordinator-counted scope, handed over as a ruling to make:** the corpus is **42** (golden-guarded)
+> and `Recipes/Blueprints` is **16** (⛔ **not guarded — `Content`, never compiled**); `42 + 16 = 58`,
+> the review's number. The other **41** are test fixtures, several deliberately malformed.
+> 📐 **And one sequencing question re-opened by `U-9`'s inverted direction:** is `U-10` the store flip
+> **and** the envelope, or just the envelope? ⚖️ **Lean: envelope only** — a store flip belongs after
+> `U-11` has moved the ~34 consumers.
+
+## 7u · Batch 48 — ✅ VERIFIED AND MERGED at `c890620f` — ⭐⭐ **`U-9` landed, and it REWROTE one of my gates**
+
+**Gates — all eight, coordinator-run on the merged tree:**
+
+| | |
+|---|---|
+| Solution build | **0 errors**, **69 warnings** — unmoved |
+| Blueprints | **3491 total / 3481 passed / 0 failed / 10 skipped** (**+17**) |
+| ⭐ **AiShared 1216** · BTree **612** · Breakpoints **130** · Generators **193** · NodeEdit **208 / 131** | unmoved |
+| ⭐⭐ **Golden 42/42 both tiers** | ✅ **no `Tier1/` or `Emit/` file changed** — the only new snapshot is the **new gate's own baseline** |
+| `tracker-counts.py --check` | clean — **seventeen** batches. open **58** / done **111** *(unchanged: `U-9` is a plan label, not a row)* |
+
+✅ **Rule 7 verified mechanically:** their first commit's parent **is** the dispatch commit `af5c2b3f5`.
+
+### 🔴🔴 My Pass 3 was not a gate at all — and they proved it rather than arguing it
+
+⛔ **I called the round-trip *"the tag-must-not-reach-JSON gate in disguise."*** ⭐⭐ **It cannot see a
+leaked tag at ALL: a written tag is also READ BACK, so `Serialize(Deserialize(x)) == x` holds either
+way.**
+
+⭐ **Measured, not reasoned:** under a deliberate `[JsonIgnore]`-removal probe the **round-trip passed**
+while a recorded baseline **reddened.** ⇒ replaced with ⭐ **a SHA-256 baseline of all 42 canonical
+serializations, taken on the PRE-`U-9` tree** — ✅ coordinator-verified: hash **and byte length** per
+asset, compared through the existing snapshot helper. 📌 **`U-15` and `U-10` inherit it.**
+
+⚠ **This is the third handoff claim of mine refuted by measurement** (Batch 45's rebase, Batch 47's
+seam, this). ⭐ **All three were caught because the batch ran the check instead of trusting the prose.**
+
+### ⭐⭐ They inverted the plan's direction, with a reason that holds
+
+⛔ **The plan said *"old lists become views."*** ⭐ **Built the inverse: the tagged type IS the view;
+the three lists remain the storage.** ⇒ **that is what keeps `U-9` internal and its revert cheap.**
+⭐ **And it costs `U-11` nothing** — consumers move onto `Declarations` either way; views over a new
+store would have had to be **write-through anyway** to survive `U-11`'s bucket-at-a-time migration.
+📌 **A store flip is what `U-10`/`U-12` are for.**
+
+### ⭐⭐ A facade, not a copy — and the reason is trap #5 at editor scale
+
+Every member reads and writes **straight through** to the backing decl; ⭐ **identity is the backing
+object, not the wrapper.** ⛔ **A materialised copy would have accepted `decl.Name = "x"`, reported
+success, and discarded it — for the whole of `U-11`.**
+
+### ⭐ The §1 asymmetry — ruled (a), and the drop is enumerated by REFLECTION
+
+| | |
+|---|---|
+| ✅ **`MembersAParameterDoesNotCarry`** | the three dropped members are **declared**, not implicit |
+| ⭐ **Reads return the documented default** | *"a parameter genuinely has no category; `null` says so"* |
+| ⭐ **Writes THROW, naming the member** | ⭐⭐ **the `U-5` capability shape, reused unprompted** |
+| ⭐⭐ **The test DERIVES the same set by reflection over both backing types** | ⇒ **a member added to either side cannot join or leave the exclusion unnoticed** |
+
+### ⭐ Two modelling calls they made that the handoff did not raise
+
+| | |
+|---|---|
+| ⭐ **`DeclarationKind` is deliberately NOT `Ir.VariableKind`** | that enum's `Unresolved` sentinel is **a state no stored declaration can be in.** Bridged by an **explicit total mapping on the IR side**, so ⭐ **the model does not depend on the compiler** |
+| ⭐⭐ **Graph locals are NOT a kind here** | `Q27-C1` makes a local **legally shadow** an asset variable ⇒ folding them in would point `U-14`'s cross-kind uniqueness rule **at a space where duplicate names are the RULE** |
+
+### ✅ Pass 2 was written FIRST, and proved by four inverse-edit probes
+
+dropping `[JsonIgnore]` · a no-op setter · exclusion-list drift · copy-instead-of-facade —
+⭐ **each red on the tests that name it.** ⚠ **Exactly what the handoff asked: the reflection test is
+the only thing that can see this task's failure mode, so it precedes the projections.**
+
+---
 
 ## 7t · Batch 47 — ✅ VERIFIED AND MERGED at `d98b98bf` — ⭐⭐ **`BP-228` CLOSED, and the oracle question was settled by MEASUREMENT**
 
