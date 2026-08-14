@@ -228,20 +228,23 @@ by two. The task groupings and their reasons are unchanged;** only the numbers m
 | ~~44~~ | ✅ **`U-1` · `U-2` — DONE.** The golden net is built and bites; `BP-229` closed | ⭐ **the net, then the first thing it protects.** Both compiler-only, both small |
 | ~~45~~ | ✅ **`U-3` — DONE, `BP-226` closed.** Golden 42/42 unchanged | ⭐ **closes `BP-226` alone** — the highest-value single task, kept unmixed |
 | ~~46~~ | ✅ **`U-4` · `U-5` — DONE, `BP-230` + `BP-231` closed.** AiShared 1213 → 1216 | ⚠ **V2: this is NOT one lane** — `U-5` reaches into `Hrot.Editor.AiShared` and **moves that gate**. Kept together anyway because `U-5` is what makes `U-6` honest |
-| **48** 👁 ⚠ **SWAPPED LATER** | `U-6` · `U-13` · ⭐ **`U-16`** | Details/panel work ⚠ **all three need the visual check** · ⭐ **`U-16` is what makes the exit point real** |
-| **47** ⏭ ⚠ **SWAPPED EARLIER** | `U-7` · `U-8` | rail then picker — `U-8` is meaningless without `U-7` |
-| **49** | `U-9` | ⭐ **the model change, alone.** Golden must not move · ⚠ **its serializer must keep writing the OLD three-list shape** — the tag must not reach JSON until `U-10`, or `U-9` and `U-10` collapse into one |
-| **50** | ⭐ **`U-15`** · `U-10` | ⭐ **canonicalise, then migrate.** ⚠ **the only batch whose revert is code it ships** |
-| **51** | `U-11` · `U-14` | ⭐ **one batch, TWO sub-steps** (compiler buckets · editor remainder) — the review's ruling; `U-4`/`U-5` already rewrote most of the scary file |
-| **52** | `U-12` | the rails, once nothing reads the old views |
+| **👁 UNSCHEDULED** ⚠ | `U-6` · `U-13` · ⭐ **`U-16`** | Details/panel work ⚠ **all three need the visual check** · ⭐ **`U-16` is what makes the exit point real** |
+| ~~47~~ | ✅ **`U-7` · `U-8` — DONE, `BP-228` closed.** ⭐ **The oracle question is RETIRED, not answered: there is no editor compile path to attach one to.** `BP-87`'s restored lock found `System.String` in the picker on its first run | rail then picker — `U-8` is meaningless without `U-7` |
+| **48** ⏭ | `U-9` | ⭐ **the model change, alone.** Golden must not move · ⚠ **its serializer must keep writing the OLD three-list shape** — the tag must not reach JSON until `U-10`, or `U-9` and `U-10` collapse into one |
+| **49** | ⭐ **`U-15`** · `U-10` | ⭐ **canonicalise, then migrate.** ⚠ **the only batch whose revert is code it ships** |
+| **50** | `U-11` · `U-14` | ⭐ **one batch, TWO sub-steps** (compiler buckets · editor remainder) — the review's ruling; `U-4`/`U-5` already rewrote most of the scary file |
+| **51** | `U-12` | the rails, once nothing reads the old views |
 
-⚠⚠ **47 ⇄ 48 SWAPPED `2026-08-14`**, because the visual check has not run for eleven batches and
-`U-6`/`U-13`/`U-16` hard-require it while `U-7`/`U-8` do not. ⭐ **Nothing depends on the order:**
-`U-8` needs `U-7`; `U-6` needs `U-4`/`U-5`, which are done.
+⚠⚠ **RE-ORDERED TWICE, `2026-08-14`, for one reason: the visual check has not run for TWELVE batches.**
+⭐ **`U-6`/`U-13`/`U-16` hard-require it and are now UNSCHEDULED** — they run when the user is at a
+screen. ⭐ **Everything else is headless and unblocked**, so the sequence continues past them:
+`U-8` needs `U-7` ✅ · `U-9` needs `U-3` ✅ · `U-6` needs `U-4`/`U-5` ✅ — **nothing waits on `U-6`.**
 
-⚠ **44–48 are independent of 49–52.** ⭐ **Stop after 48 and everything shipped is coherent** — three
-defects closed, **ONE editing surface** (`U-16`), and the model untouched. ⭐ **That exit point is only
-honest WITH `U-16`**; without it, 48 leaves a designer meeting two editors for one concept.
+⚠⚠ **The exit point moved with them.** ⭐ **The plan's *"stop after the 44–48 block and everything is
+coherent"* rested on `U-16` retiring the second editing surface.** ⛔ **`U-16` is now unscheduled**, so
+the coherent-stop claim is **suspended, not lost**: until it runs, a designer meets **two editors for
+one concept**. 📌 **That is the standing cost of deferring the visual check, and it should be paid
+before the programme is called done.**
 
 ### 👁 Ordering when the visual check is unavailable
 

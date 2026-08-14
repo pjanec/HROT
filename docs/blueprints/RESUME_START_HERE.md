@@ -4,6 +4,18 @@
 > ⭐⭐ **Batch 43 verified and merged at `3583acd4` (§7p) — `BP-57` is CLOSED.** The Local Variables
 > section landed; a designer can declare, rename, delete, duplicate and undo a graph local from the
 > editor, and it follows the canvas.
+> ⭐⭐ **Batch 47 verified and merged at `d98b98bf` (§7t) — `BP-228` CLOSED.** `BP1671` refuses a
+> made-up type id, naming the variable and the type. ⭐⭐ **The plan's open oracle question is RETIRED,
+> not answered — measured: exactly ONE production site supplies a resolver, and the editor's
+> `CompileOptions` site has NO production caller at all**, so there is no editor compile path to attach
+> one to; `U-8` makes the picker safe **by construction** instead. 🔴 **`BP-87`'s restored lock found a
+> live defect on its first run:** `System.String` was offered and can never compile as a variable.
+> ⏭ **Batch 48 dispatched (`U-9` — the tagged declaration, alone).**
+>
+> ⚠⚠ **`U-6`/`U-13`/`U-16` are now UNSCHEDULED** — they hard-require the visual check (twelve batches).
+> ⛔ **The plan's "coherent stop point" is SUSPENDED with them:** until `U-16` runs, a designer meets
+> **two editors for one concept.** ⭐ **Nothing else waits on them; the sequence continues.**
+>
 > ⭐⭐ **Batch 46 verified and merged at `ea53e7e0` (§7s) — `BP-230` + `BP-231` CLOSED.** `isParams`
 > is gone (the editor now uses the compiler's own `VariableKind`), the reference count is real and
 > resolves **exactly as `Stage5.FindVariableRef` does**, and ⭐⭐ **`BP-230`'s eight-batch-old open
@@ -178,13 +190,13 @@ report"* rather than *"the gate did not run."* Trap #5, in the gate script itsel
 **3m40s → 2m05s**. ⚠ **And always include `\[FAIL\]` in the result grep**: a `Passed!`/`Failed!`-only
 grep is why Batch 42's flake could not be named.
 
-**Baseline at `ea53e7e0` — ⭐ all eight gates coordinator-RUN 2026-08-14, post-Batch-46:**
+**Baseline at `d98b98bf` — ⭐ all eight gates coordinator-RUN 2026-08-14, post-Batch-47:**
 
 | | |
 |---|---|
 | Solution build | **0 errors**, **69 warnings** ⚠ *(an incremental build under-reports — record honestly)* |
 | BP diagnostics | **10 distinct** — all `BP3010`, all **authored** orphans in 2 assets |
-| Blueprints | **3465 total / 3455 passed / 0 failed / 10 skipped** ⚠ *(BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
+| Blueprints | **3474 total / 3464 passed / 0 failed / 10 skipped** ⚠ *(BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
 | ⭐⭐ **Golden corpus** *(new, Batch 44)* | **42 assets × Tier 1 + Tier 2**, `Snapshots/Golden/`. ⛔ **Tier 1 moving is a FAILURE, not a rebase.** Regenerate Tier 2 with `BLUEPRINT_REGENERATE_SNAPSHOTS=1` and **review the diff** |
 | ⭐ **AiShared 1216** *(+3, Batch 46)* · BTree **612** · Breakpoints **130** | 0 failed |
 | NodeEdit Core **208** · UI **131** · Generators **193** | 0 failed |
@@ -207,7 +219,7 @@ retired `BP3011`; the 10 that remain are authored and deliberate.)
 
 ## 4 · Where the programme stands
 
-**Tracker: open 59 · done 110** (+1 refuted) ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
+**Tracker: open 58 · done 111** (+1 refuted) ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
 three ways — checkbox tally, per-complexity columns (⚠ take the **first** tag on a row), and the total
 row. ⚠⚠ **Reconcile all three EVERY time.** The columns can agree with the Total and both still be
 wrong: a missed tick is invisible to arithmetic and only shows against the checkbox tally.
@@ -421,6 +433,71 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > measured the in-process and semantic-model paths 42/42 byte-identical** ⇒ same oracle at both ends.
 > 📐 **Still open and handed to them: does the EDITOR get an oracle at all?** ⭐ The review's lean is
 > yes; ⛔ **`U-7` alone is shippable if wiring it reaches past `CompileOptions`.**
+
+> ⏭ **Batch 48 dispatched — [`U-9`: the tagged declaration](HANDOFF_Batch48_Tagged_Declaration.md).**
+> ⛔⛔ **The one rule: the tag must NOT reach JSON.** The serializer keeps writing the old three-list
+> shape byte for byte, or `U-9` and `U-10` collapse and the migrator loses its own revert.
+> ⭐ **Coordinator finding, from `Declarations.cs` and not in the plan:** `ParameterDecl` and
+> `VariableDecl` are **not the same shape** — the parameter type lacks `IsEditable`,
+> `IsExposedOnSpawn` and `Category` ⇒ **the down-projection DROPS three members**, and the drop must be
+> enumerated in code rather than implicit in a mapping that forgot a line.
+> ⚠ **Pass 2 (reflection over both projections) is the gate that matters** — ⛔ **a forgotten member
+> reddens NOTHING**: not the golden corpus, not the round-trip, not the build. Same reason `BP-226`
+> hid behind `BP1024`/`BP1031`.
+
+## 7t · Batch 47 — ✅ VERIFIED AND MERGED at `d98b98bf` — ⭐⭐ **`BP-228` CLOSED, and the oracle question was settled by MEASUREMENT**
+
+**Gates — all eight, coordinator-run on the merged tree:**
+
+| | |
+|---|---|
+| Solution build | **0 errors**, **69 warnings** — unmoved |
+| Blueprints | **3474 total / 3464 passed / 0 failed / 10 skipped** (**+9**) |
+| ⭐ **AiShared 1216** · BTree **612** · Breakpoints **130** · Generators **193** · NodeEdit **208 / 131** | unmoved |
+| ⭐⭐ **Golden 42/42 both tiers** | ✅ **no `Snapshots/Golden/` file changed** |
+| `tracker-counts.py --check` | **clean — sixteen batches.** open **58** / done **111** ⇒ ⭐ **`BP-228` moved across** |
+
+✅ **Rule 7 verified mechanically:** their first commit's parent **is** the dispatch commit `31189dbaa`.
+➕ **`BP1671` allocated** — the rail's diagnostic. ⇒ `BP1672+` is next free.
+
+### ⚠ They corrected my §1.2, and the correction is the interesting part
+
+⛔ **I wrote *"the seam already exists — do not build a resolver."*** ⭐ **True for METHODS, not for
+type existence:** `TryResolve` takes a **type AND a method** and returns **one bool** ⇒ a `false`
+cannot distinguish *"no such type"* from *"no such method."*
+
+⇒ **One member added, `TypeExists`, with ⭐⭐ NO default body** — and their reason cites Batch 46 by
+name: *"a default returning `true` would be the interface asserting a type exists on an implementer's
+behalf, which is the exact shape of the defect this rail closes."* ⭐ **Two batches after the
+`SupportsRoleScopeEditing` ruling, the same principle applied unprompted to a different interface.**
+
+### ⭐⭐ The oracle question — answered by counting call sites, not by arguing
+
+⭐ **Measured: exactly ONE production site supplies a resolver**, and of the three `CompileOptions`
+sites ⛔ **the editor's has NO production caller at all.**
+
+⇒ ⭐⭐ **There is no editor compile path to attach an oracle to** — which retires the plan's §4 open
+question rather than answering it. ⇒ `U-8` makes the picker **safe by construction** instead:
+`SelectableTypeIds` is the primitives **plus every discovered `[BlackboardDtoStruct]` FQN**, and
+⭐ **discovery is itself the existence proof.**
+
+⭐ **The rail therefore guards the BUILD, which is where the defect bit** — and the fallback contract
+(no oracle ⇒ no opinion) is as load-bearing as the rail itself. ⚠ **Exactly what §5 asked them to
+report: not that Pass 2 passes, but how many call sites supply one.**
+
+### 🔴 `BP-87`'s restored lock found a LIVE defect on its first run
+
+⛔ **`System.String` was offered by the picker and can never compile as a variable** (`BP1503`).
+Removed — **the `FixedString` types were always the supported ones.**
+
+⭐ **And a second one behind it:** the picker was **13 hardcoded primitives with no structs**, while
+the Variables panel **did** offer structs ⇒ 🔴 **whether a struct variable could be declared depended
+on which window was open.**
+
+📌 **One more, unprompted:** the list is now `Lazy` rather than a static initializer — ⭐ **reflecting
+over loaded assemblies at type-load time freezes whatever happened to be loaded.**
+
+---
 
 ## 7s · Batch 46 — ✅ VERIFIED AND MERGED at `ea53e7e0` — ⭐⭐ **`BP-230` + `BP-231` CLOSED, and the visual question was answered WITHOUT the visual check**
 
