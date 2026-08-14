@@ -3,7 +3,7 @@
 > **For [UXI-37](UX_Issues.md#uxi-37) · drafted 2026-08-14.** Inputs: [rulings 60, 61, 62](UX_RESUME_INTERACTION.md).
 > ⚠ **No architect round — resolved in-house** (user, 2026-08-14: *"the architect is not available now… we should
 > analyse this ourselves"*). Written primarily so the analysis **survives compaction**.
-> **Status: A-D decided ([rulings 62, 63](UX_RESUME_INTERACTION.md)); E has a lean.**
+> **Status: ✅ ALL DECIDED — A-E closed by [rulings 62-64](UX_RESUME_INTERACTION.md). Ready to design.**
 
 ## 0. What is already settled
 
@@ -140,9 +140,11 @@ resume stops being negligible, and the *"stale by up to k ticks"* note becomes *
 | **b** | 🎯 **halt CGF locally anyway, and say plainly that the cluster is still running** | 
 | **c** | halt locally and **auto-resume** after a timeout | ⚠ surprising: the operator's breakpoint would vanish while they read it |
 
-🔒 **Lean (b), with the offline case handled separately**: when CGF has **no participant at all**, there is no
-cluster to freeze and the local halt **is** the complete and correct behaviour — not a degraded one. ⚠ Do not
-show a warning in that mode; it is normal operation.
+🔒 **DECIDED — (b)** ([ruling 64](UX_RESUME_INTERACTION.md), user 2026-08-14: *"yes to E, halt locally and say
+cluster still running"*). **With the offline case handled separately**: when CGF has **no participant at all**,
+there is no cluster to freeze and the local halt **is** the complete and correct behaviour — not a degraded
+one. ⚠ **Do not show a warning in that mode**; it is normal operation, and a permanent warning in a supported
+mode is [ruling 49](UX_RESUME_INTERACTION.md)'s dead affordance in another costume.
 
 ## 2. Summary of decisions
 
@@ -152,7 +154,7 @@ show a warning in that mode; it is normal operation.
 | **B** | gap closing | **zero-dt snap** — already implemented (`ApplyTimeSnap`) | 🔒 decided |
 | **C** | ingress while paused | **no world-state ingress**; control-plane keeps polling ⇒ **categorize translators**, defaulting to world-state | 🔒 decided |
 | **D** | step granularity | **freeze and step the whole cluster, deterministic mode**; within-tick stepping stays local and free | 🔒 decided |
-| **E** | freeze request unanswered | **halt locally and say the cluster is still running**; in the documented **no-DDS** mode that is normal, not degraded | ⚠ lean |
+| **E** | freeze request unanswered | **halt locally and say the cluster is still running**; in the documented **no-DDS** mode that is normal, not degraded — no warning | 🔒 decided |
 
 ## 3. Risks
 
@@ -160,5 +162,5 @@ show a warning in that mode; it is normal operation.
 |---|---|
 | ⚠ **The toggle groups must not gate time sync or ingress-poll** | if `TogglableSimulationGroup` also stops the systems that drain `SwitchTimeModeEvent`, question A's deadlock returns through the back door. **Verify before building** |
 | ⚠ **`IsPausedByDebugger` is already live on CGF** | the read half works today (`_bpManager?.IsPaused`) — so a half-built state is observable now; do not assume the flag means the clock stopped |
-| ⚠ **k is unmeasured** | every conclusion above treats the freeze-convergence window as "tens of ms". **Nobody has measured it.** If k turns out to be large, C and B both change character |
+| ⚠ **k is expected small, still unmeasured** | 🔒 [Ruling 64](UX_RESUME_INTERACTION.md) — *"k is expected small"*, so [B](#b-how-is-the-sim-time-gap-closed-on-resume--answered-by-the-engine)'s timer discontinuity and [C](#c--decided--no-world-state-ingress-while-frozen-the-translators-must-be-categorized)'s stale window are both accepted on that basis. ⚠ **It is an expectation, not a measurement** — so **measure k once** during implementation and revisit B and C only if it is large. Do not treat "small" as verified |
 | ⚠ **Data breakpoints see only CGF-owned or replicated components** ([ruling 61](UX_RESUME_INTERACTION.md)) | the breakpoint UI must not offer components CGF cannot observe — [ruling 49](UX_RESUME_INTERACTION.md): absent, not greyed |
