@@ -104,6 +104,60 @@ public sealed class DeclarationList : IList<BlueprintDeclaration>
         for (int i = 0; i < n; i++) yield return AtLocal(kind, i);
     }
 
+    /// <summary>
+    /// <b>U-11 — the declaration at <paramref name="local"/> within its OWN list.</b>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>O(1) and allocation-free, and that is the reason it exists.</b> This is the shape
+    /// <c>VariableRef</c> addresses (<c>U-3</c>: kind + <b>list-relative</b> index), and the consumers
+    /// that use it sit in the emit path. ⛔ Writing <c>Of(kind).ElementAt(i)</c> there would turn a
+    /// field lookup into a walk with an iterator allocation per call — a projection that is correct and
+    /// quietly worse is still a regression.
+    /// </para>
+    /// </summary>
+    public BlueprintDeclaration At(DeclarationKind kind, int local)
+    {
+        var n = CountOf(kind);
+        if (local < 0 || local >= n)
+            throw new ArgumentOutOfRangeException(
+                nameof(local), local, $"{kind} has {n} declaration(s).");
+        return AtLocal(kind, local);
+    }
+
+    /// <summary>How many declarations of <paramref name="kind"/> — without walking them.</summary>
+    /// <remarks>⚠ Not an overload of <see cref="Count"/>: <c>IList</c> already defines that as a property.</remarks>
+    public int CountIn(DeclarationKind kind) => CountOf(kind);
+
+    /// <summary>
+    /// The declaration with this id, in <b>resolution priority order</b> — ⚠ <c>Variable</c>, then
+    /// <c>WorkingState</c>, then <c>Parameter</c>, which is <c>Stage5.FindVariableRef</c>'s order and
+    /// ⛔ <b>NOT</b> <see cref="KindOrder"/>. Returns null when nothing matches.
+    /// </summary>
+    public BlueprintDeclaration? ById(Guid id)
+    {
+        foreach (var kind in ResolutionOrder)
+        {
+            var n = CountOf(kind);
+            for (int i = 0; i < n; i++)
+            {
+                var d = AtLocal(kind, i);
+                if (d.Id == id) return d;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// ⚠⚠ <b>Resolution priority — deliberately NOT <see cref="KindOrder"/>.</b> <c>Stage5</c> searches
+    /// <c>Variables</c> → <c>WorkingState</c> → <c>Parameters</c> when disambiguating a name or id;
+    /// storage order is the reverse. ⭐ The two orders are different questions and <c>BP-226</c> was
+    /// what happened when one integer answered both.
+    /// </summary>
+    public static IReadOnlyList<DeclarationKind> ResolutionOrder { get; } = new[]
+    {
+        DeclarationKind.Variable, DeclarationKind.WorkingState, DeclarationKind.Parameter,
+    };
+
     public int Count => CountOf(DeclarationKind.Parameter)
                       + CountOf(DeclarationKind.WorkingState)
                       + CountOf(DeclarationKind.Variable);

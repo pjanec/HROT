@@ -981,7 +981,8 @@ public static class BlueprintDocumentFactory
             asset.Variables.Add(new VariableDecl
             {
                 Id       = Guid.NewGuid(),
-                Name     = MakeUniqueName(asset.Variables.Select(v => v.Name), variable.Name),
+                // U-14: across all kinds, so a duplicate cannot land on a Parameter's name.
+                Name     = MakeUniqueName(asset.Declarations.Select(d => d.Name), variable.Name),
                 Type     = new BlueprintTypeRef
                 {
                     TypeId        = variable.Type.TypeId,
@@ -1507,7 +1508,7 @@ public static class BlueprintDocumentFactory
 
         // Never collide with an existing declaration: the designer asked to promote, not to
         // overwrite, and CreateVariable would reject a duplicate outright.
-        var name     = MakeUniqueName(asset.Variables.Select(v => v.Name), rawName!.Trim());
+        var name     = MakeUniqueName(asset.Declarations.Select(d => d.Name), rawName!.Trim());
         var category = ReadArg(ctx, "categoryPath") as string;
 
         // BP-57: the data model has no per-graph variable scope, so "Promote to Local Variable"
@@ -1779,21 +1780,45 @@ public static class BlueprintDocumentFactory
     }
 
     /// <summary>
-    /// True when <paramref name="name"/> matches an existing variable name (case-insensitive).
+    /// True when <paramref name="name"/> matches an existing declaration name (case-insensitive).
     /// Exposed <c>internal</c> so the variable-create modal can validate the live input and
     /// disable Confirm before invoking <see cref="CreateVariable"/>.
+    ///
+    /// <para>
+    /// <b>U-14 / <c>BP-232</c> — the check is across ALL THREE KINDS.</b> ⛔ It read
+    /// <c>asset.Variables</c> alone, so a <c>Parameter</c> and a <c>Variable</c> could both be
+    /// <c>Health</c>. ⚠ <b>Reachable:</b> <c>Stage5.FindVariableRef</c>'s name fallback searches
+    /// <c>Variables → WorkingState → Parameters</c>, so which one such a name reached was decided by
+    /// list order.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ One collection, not three — this is what <c>U-9</c> bought, and the plan's note that the rule
+    /// is *"trivial after `U-9`, awkward before"* is borne out: the fix is the receiver.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>Graph locals are deliberately NOT consulted.</b> <c>Q27-C1</c> lets a local <b>legally
+    /// shadow</b> an asset variable — they are disjoint spaces resolving to disjoint IR ops — so
+    /// reaching into <c>Graph.LocalVariables</c> here would refuse the feature. Asserted by
+    /// <c>CrossKindUniquenessTests</c>.
+    /// </para>
     /// </summary>
     internal static bool IsDuplicateVariableName(BlueprintAsset asset, string name)
     {
         ArgumentNullException.ThrowIfNull(asset);
         if (string.IsNullOrWhiteSpace(name)) return false;
         var trimmed = name.Trim();
-        return asset.Variables.Any(v =>
-            string.Equals(v.Name, trimmed, StringComparison.OrdinalIgnoreCase));
+        return asset.Declarations.Any(d =>
+            string.Equals(d.Name, trimmed, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>
+    /// U-14: uniquified against <b>every</b> declaration. ⛔ A refusal enforced on create but ignored
+    /// by auto-naming would hand back a name the same rule rejects.
+    /// </summary>
     private static string MakeUniqueVariableName(BlueprintAsset asset, string baseName)
-        => MakeUniqueName(asset.Variables.Select(v => v.Name), baseName);
+        => MakeUniqueName(asset.Declarations.Select(d => d.Name), baseName);
 
     /// <summary>
     /// <paramref name="baseName"/> if free, otherwise the first <c>baseName1</c>, <c>baseName2</c>, …

@@ -293,6 +293,55 @@ public sealed class TaggedDeclarationTests
         Assert.Equal("P0'", asset.Parameters[0].Name);
     }
 
+    /// <summary>
+    /// <b>U-11 — the indexed accessors the consumer sweep needs.</b> ⭐ <c>At(kind, local)</c> is the
+    /// shape <c>VariableRef</c> addresses; ⛔ <c>Of(kind).ElementAt(i)</c> in the emit path would be a
+    /// walk plus an iterator allocation per field lookup.
+    /// </summary>
+    [Fact]
+    public void AtAndCountInAddressTheListRelativePosition()
+    {
+        var asset = ThreeKinds();
+
+        Assert.Equal(2, asset.Declarations.CountIn(DeclarationKind.Parameter));
+        Assert.Equal(1, asset.Declarations.CountIn(DeclarationKind.WorkingState));
+        Assert.Equal(2, asset.Declarations.CountIn(DeclarationKind.Variable));
+
+        Assert.Equal("P1", asset.Declarations.At(DeclarationKind.Parameter, 1).Name);
+        Assert.Equal("W0", asset.Declarations.At(DeclarationKind.WorkingState, 0).Name);
+        Assert.Equal("V1", asset.Declarations.At(DeclarationKind.Variable, 1).Name);
+
+        // ⛔ Out of range throws rather than reaching into the next kind's list — which is precisely
+        //    the confusion BP-226 was.
+        Assert.Throws<ArgumentOutOfRangeException>(() => asset.Declarations.At(DeclarationKind.WorkingState, 1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => asset.Declarations.At(DeclarationKind.Variable, -1));
+    }
+
+    /// <summary>
+    /// ⚠⚠ <b><c>ById</c> uses RESOLUTION order, not storage order</b> — <c>Variable</c> →
+    /// <c>WorkingState</c> → <c>Parameter</c>, mirroring <c>Stage5.FindVariableRef</c>. ⛔ The two
+    /// orders answer different questions, and <c>BP-226</c> is what happened when one integer answered
+    /// both.
+    /// </summary>
+    [Fact]
+    public void ByIdFollowsResolutionOrderNotStorageOrder()
+    {
+        Assert.Equal(
+            new[] { DeclarationKind.Variable, DeclarationKind.WorkingState, DeclarationKind.Parameter },
+            DeclarationList.ResolutionOrder);
+        Assert.NotEqual(DeclarationList.KindOrder, DeclarationList.ResolutionOrder);
+
+        var asset = ThreeKinds();
+        var v1 = asset.Variables[1];
+        Assert.Equal(v1.Name, asset.Declarations.ById(v1.Id)!.Name);
+        Assert.Null(asset.Declarations.ById(Guid.NewGuid()));
+
+        // A shared id across two kinds resolves to the Variable — the priority, stated.
+        var shared = asset.Parameters[0].Id;
+        asset.Variables[0].Id = shared;
+        Assert.Equal(DeclarationKind.Variable, asset.Declarations.ById(shared)!.Kind);
+    }
+
     /// <summary>Clear empties all three lists and all three display orders.</summary>
     [Fact]
     public void ClearEmptiesEveryList()
