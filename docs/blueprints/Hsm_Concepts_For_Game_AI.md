@@ -187,7 +187,7 @@ answered it.** See tracker **HSM-010**.
 | 2 | Events + guards + transition kinds | **yes, immediately** — guards *are* your conditions |
 | 3 | A `Tick` event to pump condition-only transitions | **yes** — without it nothing evaluates |
 | 4 | Hierarchy (nesting + inherited transitions) | soon — the moment you repeat an edge |
-| 5 | Timers | soon — “give up after N seconds” is ubiquitous |
+| 5 | Timers | soon — “give up after N seconds” is ubiquitous — ⚠ **but see §9: not implemented** |
 | 6 | Final states | soon, cheap |
 | 7 | Parallel regions + lane discipline | later — when the state count starts multiplying |
 | 8 | History | later — interruption polish |
@@ -203,7 +203,7 @@ answered it.** See tracker **HSM-010**.
 | 2 — transitions + guards | ⚠ transitions draw and persist; **the event they need cannot be authored** |
 | 3 — a `Tick` event | ❌ **no event authoring exists at all** (`HSM-009`) — hand-edit the JSON |
 | 4 — hierarchy | ✅ containers, reparenting, LCA highlight all real |
-| 5 — timers | ⚠ `TimerAction` is in the facet; no timer-duration authoring surface found |
+| 5 — timers | ❌ `TimerAction` is in the facet, but **the kernel never arms a timer** (`HSM-012`) |
 | 6 — final states | ✅ flag + glyph |
 | 7 — parallel | ⚠ authors, but validation is inert (`HSM-007`) and regions are lossy (`HSM-004/005`) |
 | 8 — history | ❌ modelled as the wrong thing (`HSM-010`) |
@@ -211,10 +211,58 @@ answered it.** See tracker **HSM-010**.
 **The critical path for your stated goal runs straight through `HSM-009`.** States and transitions
 already work; what is missing is the ability to declare the events those transitions fire on.
 
-> ⚠ Also worth knowing: **no HROT runtime code currently drives an HSM instance.** Nothing calls
-> `HsmKernel.Update*` or enqueues an `HsmEvent` outside FastHSM's own tests and the blueprint
-> emitter. Whatever authoring surface we design has no live consumer yet — which is freeing for the
-> design, but means “does it actually run?” stays unanswered until that wiring exists.
+---
+
+## 9. The runtime that already exists — and its one lever
+
+There **is** a real, registered HSM runtime. `HsmTickSystem<T>`
+(`FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/HsmTickSystem.cs`, `[UpdateInPhase(SystemPhase.Simulation)]`)
+queries every entity with `BehaviorState` + `BrainHsm64/128`, and calls `HsmKernel.Update` per entity
+per tick. It is registered in `CognitiveRuntimeModule` (`BrainHsm128` and `BrainHsm64`) and in the
+`UrbanCombatNewScenario` / `BehaviorValidationScenario` system lists. It also handles trace buffers,
+NLog emission, and terminal-state `BehaviorFinishedEvent` publication.
+
+### How events actually reach a machine today
+
+Graph query for every production caller of `HsmEventQueue.TryEnqueue` — excluding tests, demos and
+benchmarks — returns **four**, and only one is an external pump:
+
+| Caller | What it posts | Real? |
+|---|---|---|
+| `HsmTickSystem.Execute` | `MobilityLost` | ✅ **the only external pump in HROT** |
+| `HsmKernelCore.ProcessEventPhase` | re-enqueue of deferred events | internal |
+| `HsmKernelCore.FireTimerEvent` | `TimerEventId` (`0xFFFE`) | ❌ unreachable — see below |
+| `TrafficLightExample.Run` | example events | sample code |
+
+The one working pump is a **blackboard interrupt register**:
+
+```
+gameplay changes ActorCapabilities.CanMove
+  → CognitiveInterruptSystem detects the set→cleared edge
+  → writes BrainBlackboard.Interrupt_MobilityLost = 1
+  → HsmTickSystem reads it and enqueues HsmEvent{ EventId_MobilityLost }
+  → CognitiveCleanupSystem clears the register
+```
+
+`BrainBlackboard` reserves exactly **two** such slots — `Interrupt_MobilityLost` (offset 126) and
+`Interrupt_Reserved` (127). The only shipped HSM brain, `ApcHsmSetup`, uses precisely this one event:
+`cruising.On(EventId_MobilityLost).GoTo(disabled)`.
+
+> **So the pump exists, but it has one lever.** There is no general "post event X to entity E" API
+> and no periodic `Tick`. Designing the authoring surface therefore has to answer *where the events
+> an author declares are going to come from* — that is a runtime question, not an editor question,
+> and it is currently unanswered.
+
+### ⚠ Timers are a hollow shell
+
+`ProcessTimerPhase` decrements `TimerDeadlines[i]` and calls `FireTimerEvent` on expiry — but
+**nothing ever arms a deadline.** Every production write to `TimerDeadlines` sets it to `0`
+(cancellation on state exit, `HsmKernelCore:1126-1138`; hot-reload reset). The only non-zero writes
+in the repo are inside `Fhsm.Tests` fixtures. There is no `SetTimer`/`StartTimer` API, and
+`StateDef.TimerActionId` — populated by the flattener, emitted by `HsmEmitter`, exposed in the
+editor's `StateFacet` — is **never read by `HsmKernelCore`**.
+
+⇒ *"after N seconds"* does not work today at any layer. Tracked as **HSM-012**.
 
 ---
 

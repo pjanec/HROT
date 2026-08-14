@@ -20,8 +20,8 @@ decision first.
 | `WIRING` | 1 | 0 |
 | `RW-L` | 5 | 0 |
 | `RW-M` | 4 | 0 |
-| `RW-H` | 1 | 0 |
-| **Total** | **11** | **0** |
+| `RW-H` | 2 | 0 |
+| **Total** | **12** | **0** |
 
 📘 **New to HSM concepts?** [Hsm_Concepts_For_Game_AI.md](Hsm_Concepts_For_Game_AI.md) explains what
 history / parallel / hierarchy / actions actually mean here, grounded in the FastHSM kernel rather
@@ -50,6 +50,16 @@ Docs read: `HSM_Editor_NodeEditor_Host_Design.md` (feature/UX target),
 Rows marked **✅ reproduced** were confirmed by a throwaway xUnit probe run against the real
 assemblies, quoted inline, then deleted. Baseline at time of audit:
 `Hrot.Hsm.Editor.Tests` **510/510 green**, solution build **0 errors**.
+
+> ⚠ **A "nothing calls X" claim needs the whole repo and the graph, not one grep.** During this
+> session it was asserted that *"no HROT runtime code drives an HSM instance"*. **That was wrong.**
+> `HsmTickSystem<T>` is a real registered ECS system (`SystemPhase.Simulation`, wired in
+> `CognitiveRuntimeModule` for `BrainHsm64` and `BrainHsm128`). The claim came from a grep scoped to
+> `Hrot/` — but the HSM runtime lives in `FDP/Toolkits/` — which additionally piped through
+> `grep -v Editor`, and whose non-empty output was misread as empty.
+> **Rule adopted:** every negative claim in this tracker must be backed by (a) a repo-wide search
+> with no directory filter, and (b) a `codebase-memory-mcp` graph query over `CALLS` edges. Both are
+> cited on the rows that make such claims (HSM-007, HSM-009, HSM-012).
 
 ---
 
@@ -210,6 +220,27 @@ callers** — the pipe is wired, nothing fills it.
   `hsm.history_glyphs` rendering bypass for the H/H\* case), versus keeping the UML pseudo-state as
   an *editor-side sugar* that lowers onto the parent flag at emit. ⚠ Migration: `HsmShowcase`'s
   `HistoryPseudo` node has to be rewritten either way.
+
+---
+
+## Area E2 — Kernel features the editor exposes but the runtime does not implement
+
+- [ ] **HSM-012** 🔴📐 · `RW-H` — **The editor authors timers; the kernel never arms one.**
+  `StateFacet` exposes a `TimerAction` picker, `HsmEmitCore:656` emits `.TimerAction(...)`,
+  `HsmFlattener:175` packs it into `StateDef.TimerActionId`, and `HsmEmitter` writes it into the
+  blob. **`HsmKernelCore` never reads `TimerActionId`, and never writes a non-zero
+  `TimerDeadlines[i]`.** Every production write is `= 0` — timer *cancellation* on state exit
+  (`HsmKernelCore:1126-1138`) and hot-reload reset (`HotReloadManager:139-167`). The only non-zero
+  writes in the repo are `Fhsm.Tests` fixtures arming deadlines by hand
+  (`TimerCancellationTests:43`). There is no `SetTimer`/`StartTimer`/`Arm` API anywhere in
+  `Fhsm.Kernel`. `ProcessTimerPhase` therefore decrements a counter that is always zero, and
+  `FireTimerEvent` (which would post `TimerEventId = 0xFFFE`) is unreachable.
+  ⇒ **an author can wire a timer action in the editor, save it, build it, and it will silently never
+  fire.** Needs a ruling on layering: is arming a *kernel* addition (an `OnEntry`-time arm driven by
+  a per-state duration in `StateDef` — which needs a new ROM field and a builder param), or does the
+  editor stop offering `TimerAction` until the kernel supports it? Until one or the other, the
+  facet field is a trap. ⚠ Related: the design doc's `StateFacet` (§11.1) lists `TimerAction` with
+  no duration field at all, so even the *design* has no way to say "how long".
 
 ---
 
