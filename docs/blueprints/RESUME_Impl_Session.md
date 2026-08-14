@@ -41,10 +41,10 @@
 |---|---|
 | **Repo** | `pjanec/HROT` |
 | **Implementation branch — PUSH HERE** | ⭐ **`claude/hrot-implementation-j1jvin`** |
-| **Coordinator branch — do NOT push** | ⭐ **`claude/blueprint-authoring-status-gm0akp`** (was at `9078ccd`, merged into mine) |
-| **Last handoff** | 📄 **[HANDOFF_Batch53_Store_Flip.md](HANDOFF_Batch53_Store_Flip.md)** — delivered in full |
-| **Counts** | **59 open · 116 done** — ⚠ *derive, never hand-count:* `python3 scripts/tracker-counts.py --check` |
-| **Next free ids** | rows **BP-241+** · diagnostics **BP1674+** — ⭐ **Batch 53 allocated `BP-240` and NO diagnostic** |
+| **Coordinator branch — do NOT push** | ⭐ **`claude/blueprint-authoring-status-gm0akp`** (was at `9c0cd2d`, merged into mine) |
+| **Last handoff** | 📄 **[HANDOFF_Batch54_Migrator_Wiring.md](HANDOFF_Batch54_Migrator_Wiring.md)** — ⚠ **reader half delivered; writer half BLOCKED and reported** |
+| **Counts** | **60 open · 116 done** — ⚠ *derive, never hand-count:* `python3 scripts/tracker-counts.py --check` |
+| **Next free ids** | rows **BP-242+** · diagnostics **BP1674+** — ⭐ **Batch 54 allocated `BP-241` and NO diagnostic** |
 
 ⛔ **No PR unless the user explicitly asks.** There has never been one in this programme.
 ⛔ **Never put a model identifier** in a commit message, code comment, or anything else pushed.
@@ -72,6 +72,57 @@ store flip**; ⚠ two very different revert stories, so consider splitting them.
 ⛔⛔ **`U-6` / `U-13` / `U-16` still hard-require the VISUAL CHECK**, which has now not run for
 **fourteen batches**. They are a Details table, a read-only view and deleting a whole window — exactly
 the shape a headless test passes while the panel draws nothing. **Say so; never imply coverage.**
+
+---
+
+## 0 · Batch 54 — the v2 reader · ⛔ the writer is blocked by a cycle
+
+### 0.1 ⛔⛔ Why `persistence-shape.txt` did NOT move
+
+⭐ **The handoff called this *"the ONLY batch where `persistence-shape` is ALLOWED to move"* and
+offered a choice on `BP-235`. ⛔ Measured: there is no choice.** Bumping `$meta.schemaVersion` forces
+three things, and the third is impossible:
+
+| | |
+|---|---|
+| **1.** `BlueprintMigrationModule.CurrentVersion` must move to 2 | ⛔ `PersistentMigrationAdapter` **Case D throws** when the disk version exceeds the registry's, with no down-chain and no snapshot |
+| **2.** a **real** 1→2 migrator must be registered, not a passthrough | ⛔ `MigrationPipeline.MigrateTo` returns immediately for a passthrough type, **before any version check** ⇒ a passthrough at 2 silently treats a genuine v1 file as v2 |
+| ⛔⛔ **3.** …which cannot be written | registration is in `Hrot.Common`; the transform is in `Hrot.Blueprints.Compiler` — **which already references `Hrot.Common`.** The reverse edge is a **project-reference cycle** |
+
+⇒ ⭐ **The seam is a third assembly, or an injection point in `HrotMigrationBootstrap`** (shared by six
+host profiles). ⚠ **Its own batch.** The stop point the handoff itself named is exactly right.
+
+### 0.2 ⭐⭐ What landed — the reader, and why that is the safe half
+
+`BlueprintJsonServices.Deserialize` detects v2 and `Down`s it. **All 58 shipped assets load from their
+v2 form into the same model as from v1.**
+
+⭐ **Reader-before-writer is not a half-measure, it is the correct order** — a v2 file is unreadable by
+any build predating the reader, so readers must ship first. ⇒ this half is `git revert`-able; the bump
+is not, because a migrated file stays migrated. **That is the whole reason the stop point sits here.**
+
+⭐ `V2ReaderTests.TheWriterStillEmitsV1` makes the stop auditable: it reddens the moment anyone flips
+the writer. `TheStampedVersionAgreesWithTheMigrationRegistry` pins the two numbers together.
+
+### 0.3 ⭐⭐ `BP-240` asked of the migration — and it bit
+
+**9 constructed fixtures; 4 were mishandled, and the 58-file identity gate could see none of them**,
+because every shipped file is canonical *by construction*.
+
+| shape | what happened |
+|---|---|
+| ⛔⛔ **a declaration carrying its own `Kind`** | `Up` writes the tag, then copies the declaration's members **over it** ⇒ the file's value wins, and `Down` partitions into the **wrong list**. ⭐ **Measured, not reasoned: `Parameters` came back non-empty for a declaration authored in `Variables`.** That is a field moving between structs — **a blackboard wipe from one stray property** |
+| **an absent declaration list** | `Up` skips it, `Down` always emits all three ⇒ the round trip **invented** the property |
+| **a `null` declaration list** | same asymmetry — `null` and absent are indistinguishable to `Up` |
+| ⭐ **the three lists out of model order** | `BP-240`'s shape at the file level: `Up` collapses at the **first** list's slot, `Down` restores in **model** order ⇒ the bytes move |
+
+✅ **Survived already**, and worth knowing: zero declarations of every kind · a stale id in an `*Order`
+list · a cross-kind name collision (the shape `BP1673` refuses — ⭐ **the migrator must still read it,
+or it cannot be used to fix the assets that do not compile**) · an unknown property on a declaration.
+
+⚖️ **Ruled REFUSALS, not repairs.** Repairing would mean carrying a v1 layout artefact into v2, or
+guessing at a list that is not there. ⚠ **Consequence filed as `BP-241`:** `--mode migrate` now has a
+failure mode with no way forward and needs a canonicalise-first step.
 
 ---
 
@@ -548,7 +599,13 @@ through its consumers is a contract change nobody is watching.*
 The eight, solution **`IOS-IG-SimHost.sln`** (⚠ **not** `Hrot.sln`).
 ⚠⚠ **The two NodeEdit gates take NO `--no-build`** — they silently do not run with it.
 
-**Post-Batch-53, all eight run** *(full `-t:Rebuild`)*: build **0 errors / 69 warnings** ·
+**Post-Batch-54, all eight run** *(full `-t:Rebuild`)*: build **0 errors / 69 warnings** ·
+Blueprints **3551 total / 3541 passed / 0 failed / 10 skipped** · **AiShared 1216** · BTree **612** ·
+Breakpoints **130** · Generators **193** · NodeEdit Core **208** · UI **131** ·
+⭐⭐ **golden 42/42 both tiers unchanged — so `StructureHash` is unchanged for every shipped asset** ·
+⛔ **`persistence-shape.txt` unchanged, deliberately** (see §0.1).
+
+**Post-Batch-53, all eight ran** *(full `-t:Rebuild`)*: build **0 errors / 69 warnings** ·
 Blueprints **3538 total / 3528 passed / 0 failed / 10 skipped** · **AiShared 1216** · BTree **612** ·
 Breakpoints **130** · Generators **193** · NodeEdit Core **208** · UI **131** ·
 ⭐⭐ **golden 42/42 both tiers unchanged** · `persistence-shape.txt` **unchanged** ·

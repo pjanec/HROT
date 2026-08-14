@@ -180,7 +180,16 @@ public sealed class BlueprintSchemaV2Tests
     [Fact]
     public void EachDirectionRefusesTheWrongShape()
     {
-        var v1 = new JsonObject { ["Parameters"] = new JsonArray() };
+        // ⚠ Batch 54: canonical now, and deliberately. This fixture used to be `{ "Parameters": [] }`
+        // — one of the three lists — which `Up` refuses since it started requiring canonical v1 in.
+        // ⭐ The test is about DIRECTION (v1 vs v2), not canonicality; that is
+        // SchemaV2AdversarialTests' subject, so the fixture is corrected rather than the rule relaxed.
+        var v1 = new JsonObject
+        {
+            ["Parameters"]   = new JsonArray(),
+            ["WorkingState"] = new JsonArray(),
+            ["Variables"]    = new JsonArray(),
+        };
         var v2 = BlueprintSchemaV2.Up(v1);
 
         Assert.Throws<InvalidOperationException>(() => BlueprintSchemaV2.Up(v2));

@@ -50,7 +50,7 @@ assertions. ⛔ **Without `U-1` the whole programme is unfalsifiable.**
 | **U-8** | type-choice union — stage **B′** | editor | **every offered type compiles** | U-7 |
 | ~~**U-9**~~ ✅ | tagged declaration + projections — **D1** | model | ✅ **LANDED B48** — ⚠ built inverse: the **tagged type is the view**, the lists stay the storage; **golden unchanged** | U-3 |
 | ~~**U-15**~~ ✅ | ⭐ **canonicalise the corpus** | assets | ✅ **LANDED B49** — all 58 (42 corpus + 16 recipes); Tier 1 **and** Tier 2 unchanged; `BP-227` closed. ⭐ **Canonical form is INDENTED** | U-1, U-9 |
-| **U-10** 🟠 | migrator **pair** + envelope 1→2 — **D2** | persistence | ⭐ **transform pair LANDED B49 and `v1→v2→v1` byte identity is PROVED on all 58.** ⛔ **Wiring DEFERRED — re-sequenced after `U-11`/`U-12`, see §U-10** | U-15, ⭐ **U-12** |
+| **U-10** 🟠 | migrator **pair** + envelope 1→2 — **D2** | persistence | ⭐ **transform B49 · READER wired B54 (all 58 load from v2) · 4 corpus-invisible defects fixed.** ⛔⛔ **The WRITER is BLOCKED — `BP-235` is a project-reference CYCLE, not a preference. See §U-10** | U-15, U-12, ⛔ **BP-235** |
 | ~~**U-11**~~ ✅ | consumers moved off the views — **D3** | ⛔ **135 refs / 24 files, not ~34** | ✅ **DONE B50 (compiler) + B51 (editor).** ⭐⭐ **`ViewsAreUnreadTests` asserts nothing reads the three lists — `U-12` is unblocked as a CHECKED FACT** | U-9 |
 | ~~**U-12**~~ ✅ | rails restated; store flipped — **D4** | compiler | ✅ **DONE** — rails B52 (`BP1024` retired · `BP1031` split · `BP1011` restated · 🆕 `BP1673`), ⭐⭐ **store flipped B53 with `persistence-shape.txt` unchanged**. ⚠ The three properties **survive** as live windows — see §U-12 | U-11 |
 | **U-13** | shared-state read-only view (`Q-i`) | editor | lists exactly the referenced slot names | U-4 |
@@ -154,7 +154,36 @@ headless-testable it is called out as such rather than papered over.
 | 📐 **§1 asymmetry** | ⭐ **ruled (a)** — the three `ParameterDecl` lacks are editor-presentation, the drop is enumerated in `MembersAParameterDoesNotCarry`, reads return the documented default and **writes throw** |
 | 📌 **Direction** | ⚠ built the **inverse** of *"old lists become views"*: the **tagged type is the view**, the three lists remain the storage. That is what keeps `U-9` internal — a new store would have needed write-through views anyway to survive `U-11`, and flipping the store is `U-10`/`U-12`'s job. ⭐ **`U-11` is unaffected:** consumers move onto `Declarations` either way |
 
-### U-10 · Migrator pair + envelope 1→2 — D2 ⚠ *the risky one* — 🟠 **HALF LANDED, HALF RE-SEQUENCED (Batch 49)**
+### U-10 · Migrator pair + envelope 1→2 — D2 ⚠ *the risky one* — 🟠 **READER LANDED B54; WRITER BLOCKED**
+
+#### ⛔⛔ Batch 54 — the writer cannot ship, and the reason is a build constraint
+
+⭐ **The handoff's §1.1 offered a choice — keep Batch 49's sidestep, or solve `BP-235` here.
+⛔ Measured: there is no choice.** Bumping `$meta.schemaVersion` to 2 forces three things at once:
+
+| | |
+|---|---|
+| **1. `BlueprintMigrationModule.CurrentVersion` must move to 2** | ⛔ `PersistentMigrationAdapter` **Case D throws** when the disk version exceeds the registry's current version with no down-chain and no snapshot. ⭐ The handoff's §1.2 is right, and this is the mechanism |
+| **2. A REAL 1→2 migrator must be registered, not a passthrough** | ⛔ `MigrationPipeline.MigrateTo` returns immediately for a passthrough type — **before any version comparison** — so a passthrough at 2 would silently treat a genuine v1 file as v2 |
+| ⛔⛔ **3. …which cannot be written** | the registration lives in `BlueprintMigrationModule` (`Hrot.Common`) and the transform in `BlueprintSchemaV2` (`Hrot.Blueprints.Compiler`) — **and `Hrot.Blueprints.Compiler` already references `Hrot.Common`.** The reverse edge is a project-reference **cycle** |
+
+⇒ ⭐ **The seam is a third assembly, or an injection point in `HrotMigrationBootstrap` that a host
+supplies the migrator through** — a bootstrap shared by six host profiles. **Its own batch.**
+⇒ ⚠ **`persistence-shape.txt` deliberately did NOT move.** The batch stopped exactly at its own stated
+stop point: *"before bumping `$meta.schemaVersion`."*
+
+#### ⭐ What DID land in Batch 54
+
+| | |
+|---|---|
+| ⭐⭐ **The reader understands v2** | `BlueprintJsonServices.Deserialize` detects v2 and `Down`s it. **All 58 shipped assets load from their v2 form into the same model as from v1.** ⭐ **Reader-before-writer is the safe order and the reason the stop point sits where it does** — a v2 file is unreadable by any build predating this, so readers must ship first. This half is `git revert`-able; the bump is not |
+| ⭐⭐ **`BP-240` asked of the migration — and it bit** | **4 of 9 constructed shapes were mishandled**, and the 58-file identity gate could see none of them, because every shipped file is canonical by construction. ⛔⛔ **The worst: a v1 declaration carrying its own `Kind` property overwrote the v2 tag, so `Down` partitioned it into the wrong list — measured, `Parameters` came back non-empty — moving a field between structs and changing its offset. A blackboard wipe from one stray property.** Also: an absent list and a `null` list were *invented* on the way back; lists out of model order moved the bytes |
+| ⚖️ **Ruled refusals, not repairs** | `Up` now requires canonical v1 and names the reason. Repairing would mean carrying a v1 layout artefact into v2, or guessing at a list that is not there. ⚠ **Consequence filed as `BP-241`:** `--mode migrate` now has a failure mode with no way forward, and needs a canonicalise-first step |
+| ⭐ **The two version numbers agree, and a test now says so** | `$meta.schemaVersion` and `BlueprintMigrationModule.CurrentVersion` are both **1**, asserted by `V2ReaderTests`. ⛔ `TheWriterStillEmitsV1` makes the stop point auditable — it reddens the moment anyone flips the writer |
+
+---
+
+### U-10 *(Batch 49 record)* — Migrator pair + envelope 1→2
 
 | | |
 |---|---|

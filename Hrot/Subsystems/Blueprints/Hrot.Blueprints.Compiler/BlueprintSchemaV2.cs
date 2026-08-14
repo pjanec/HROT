@@ -83,6 +83,8 @@ public static class BlueprintSchemaV2
         if (v1 is null) throw new ArgumentNullException(nameof(v1));
         if (IsV2(v1)) throw new InvalidOperationException("Document is already v2.");
 
+        RequireCanonicalV1(v1);
+
         var declarations = new JsonArray();
         foreach (var (kind, list, _) in Lists)
         {
@@ -179,6 +181,84 @@ public static class BlueprintSchemaV2
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>Up</c> takes CANONICAL v1 in, and says so instead of assuming it.</b>
+    ///
+    /// <para>
+    /// ⛔ <b>Batch 54 measured four constructed shapes the transform mishandled — and the 58-file
+    /// identity gate could see none of them,</b> because every shipped file is written by
+    /// <c>BlueprintJsonServices</c> and is therefore canonical by construction. That is <c>BP-240</c>
+    /// exactly: <i>a gate green because of what the corpus happens to do.</i>
+    /// </para>
+    ///
+    /// <list type="number">
+    ///   <item><b>A missing or <c>null</c> declaration list.</b> <c>Up</c> skipped it and <c>Down</c>
+    ///   always emits all three ⇒ the round trip <b>invented</b> the property. ⚠ Not fixable in
+    ///   <c>Down</c>: v2 has one array, so "absent" and "empty" are the same document.</item>
+    ///   <item><b>The three lists out of model order.</b> <c>Up</c> puts the union where the FIRST of
+    ///   them sat and <c>Down</c> restores all three in model order ⇒ the bytes move.</item>
+    ///   <item>⛔⛔ <b>A declaration carrying its own <c>Kind</c> property.</b> The tag is written first
+    ///   and the declaration's members are copied over it, so the file's value <b>overwrote the
+    ///   tag</b> — and <c>Down</c> then partitions it into the wrong list. ⭐ <b>That moves a variable
+    ///   between structs, which changes its offset: the blackboard-wipe failure Pass 3 exists to
+    ///   prevent, reachable from one stray property.</b></item>
+    /// </list>
+    ///
+    /// <para>
+    /// ⚖️ <b>Refused rather than repaired.</b> Reconstructing an arbitrary property order would mean
+    /// carrying a v1 layout artefact into v2 for a shape no writer emits; inventing a list would mean
+    /// guessing. ⭐ A refusal names the file and the reason — the same ruling as <c>BP1672</c> and
+    /// <see cref="Down"/>'s own throw on an untagged declaration. ⚠ Canonicalise first; the corpus
+    /// already is, and <c>EveryManagedAssetIsAlreadyCanonical</c> keeps it that way.
+    /// </para>
+    /// </summary>
+    private static void RequireCanonicalV1(JsonObject v1)
+    {
+        foreach (var (_, list, _) in Lists)
+        {
+            if (!v1.TryGetPropertyValue(list, out var value))
+                throw new InvalidDataException(
+                    $"v1 document has no '{list}' property. All three declaration lists must be "
+                    + "present: v2 stores one array, so an absent list and an empty one are the same "
+                    + "document and the down-migration would have to invent it.");
+
+            if (value is not JsonArray)
+                throw new InvalidDataException(
+                    $"v1 property '{list}' is {(value is null ? "null" : value.GetType().Name)}, not an "
+                    + "array. Down would write it back as [], so the round trip would not be the "
+                    + "identity.");
+        }
+
+        // ⚠ RELATIVE order of the three, as they appear in the document — other properties may sit
+        //   between them, which the corpus's *Order lists in fact do.
+        var seen = -1;
+        foreach (var property in v1)
+        {
+            var slot = Array.FindIndex(Lists, l => l.List == property.Key);
+            if (slot < 0) continue;
+            if (slot < seen)
+                throw new InvalidDataException(
+                    $"v1 declaration lists are not in model order: '{property.Key}' appears after "
+                    + $"'{Lists[seen].List}'. Up collapses them at the position of the first, and Down "
+                    + "restores them in model order, so a non-canonical order would move the bytes.");
+            seen = slot;
+        }
+
+        foreach (var (_, list, _) in Lists)
+        {
+            var items = (JsonArray)v1[list]!;
+            for (int i = 0; i < items.Count; i++)
+            {
+                if (items[i] is JsonObject decl && decl.ContainsKey(KindProperty))
+                    throw new InvalidDataException(
+                        $"v1 declaration {list}[{i}] already carries a '{KindProperty}' property. Up "
+                        + $"writes the v2 tag under that name, so the file's value would overwrite it "
+                        + "and Down would partition the declaration into the wrong list — moving the "
+                        + "field between structs and changing its offset.");
+            }
+        }
     }
 
     private static bool TryParseKind(string tag, out DeclarationKind kind)

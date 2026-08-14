@@ -78,10 +78,48 @@ public static class BlueprintJsonServices
     private static readonly JsonSerializerOptions _domWriteOptions = new() { WriteIndented = true };
 #endif
 
-    // Note (JM-P2-004): Deserialize needs no change.
+    // Note (JM-P2-004): the $meta envelope needs no handling here.
     // System.Text.Json silently ignores unknown properties (no JsonUnmappedMemberHandling.Disallow
-    // in _options), so a Phase 2 envelope with $meta is already handled transparently.
-    // Both legacy JSON (no $meta) and Phase 2 JSON ($meta first) are deserialized correctly.
+    // in _options), so both legacy JSON (no $meta) and Phase 2 JSON ($meta first) deserialize fine.
+
+    /// <summary>
+    /// <b>U-10 — reads v1 <i>and</i> v2. ⭐ The reader ships before the writer, deliberately.</b>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>That ordering is the whole reason Batch 54's stop point is where it is.</b> A v2 file is
+    /// unreadable by a build that predates this method, so every reader has to understand v2 <b>before</b>
+    /// anything writes it. ⇒ this half is reversible by <c>git revert</c>; flipping
+    /// <see cref="Serialize"/> is not, because a migrated file stays migrated.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ <b>Nothing writes v2 yet, and that is a measured blocker rather than a preference</b> — see
+    /// <c>BP-235</c>: bumping <c>$meta.schemaVersion</c> requires
+    /// <c>BlueprintMigrationModule.CurrentVersion</c> to move with it, a real 1→2 migrator has to be
+    /// registered alongside it (a <b>passthrough</b> at 2 would silently treat a genuine v1 file as v2),
+    /// and the registration lives in <c>Hrot.Common</c> — which <b>this assembly already references</b>,
+    /// so the reverse edge is a project-reference cycle.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>The pre-filter is a fast NEGATIVE only, and the distinction matters.</b> Batch 49's lesson
+    /// was that asserting on a spelling re-couples a test to the serializer; this asserts nothing. A v2
+    /// document must contain that exact quoted property name, so its absence is conclusive, while its
+    /// presence only buys a DOM parse — <see cref="BlueprintSchemaV2.IsV2"/> remains the authority.
+    /// </para>
+    /// </summary>
     public static BlueprintAsset? Deserialize(string json)
-        => JsonSerializer.Deserialize<BlueprintAsset>(json, _options);
+    {
+        if (json is null) return null;
+
+        if (json.IndexOf("\"" + BlueprintSchemaV2.DeclarationsProperty + "\"", StringComparison.Ordinal) >= 0)
+        {
+            var dom = System.Text.Json.Nodes.JsonNode.Parse(json) as System.Text.Json.Nodes.JsonObject;
+            if (dom is not null && BlueprintSchemaV2.IsV2(dom))
+                return JsonSerializer.Deserialize<BlueprintAsset>(
+                    BlueprintSchemaV2.Down(dom).ToJsonString(), _options);
+        }
+
+        return JsonSerializer.Deserialize<BlueprintAsset>(json, _options);
+    }
 }
