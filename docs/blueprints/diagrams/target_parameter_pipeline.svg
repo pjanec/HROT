@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1220 640" width="1220" height="640" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <rect width="1220" height="640" fill="#ffffff"/>
+
+  <text x="20" y="30" font-size="19" font-weight="700" fill="#1a1a1a">Target parameter pipeline — one model, all three hosts</text>
+  <text x="20" y="52" font-size="13" fill="#666">Green = new. Grey = unchanged, as-built today. The asset gains a PUBLIC parameter contract; internal wiring stops leaking into scenarios.</text>
+
+  <!-- Stage 1: scenario -->
+  <rect x="20" y="76" width="212" height="120" rx="7" fill="#f4f6f7" stroke="#888" stroke-width="1.5"/>
+  <text x="34" y="100" font-size="13" font-weight="700" fill="#444">scenario / mission task</text>
+  <text x="34" y="122" font-size="11.5" font-family="Consolas, monospace" fill="#555">behaviorName</text>
+  <text x="34" y="140" font-size="11.5" font-family="Consolas, monospace" fill="#555">behaviorParams : JSON</text>
+  <text x="34" y="166" font-size="11" fill="#777">shape = the input DTO's</text>
+  <text x="34" y="182" font-size="11" fill="#777">OWN shape — nothing invented</text>
+
+  <path d="M232 136 L280 136" stroke="#1e8449" stroke-width="2.5" marker-end="url(#ag)"/>
+  <defs><marker id="ag" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#1e8449"/></marker>
+        <marker id="agr" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#888"/></marker></defs>
+
+  <!-- Stage 2: generated deserialize -->
+  <rect x="282" y="76" width="196" height="120" rx="7" fill="#eef7f1" stroke="#1e8449" stroke-width="2"/>
+  <text x="296" y="100" font-size="13" font-weight="700" fill="#1e8449">generated deserialize</text>
+  <text x="296" y="120" font-size="11" fill="#555">NEW · closes DEBT-AIB-021</text>
+  <text x="296" y="144" font-size="11.5" font-family="Consolas, monospace" fill="#1e8449">Deserialize&lt;TInput&gt;(json)</text>
+  <text x="296" y="162" font-size="11.5" font-family="Consolas, monospace" fill="#1e8449">Unsafe.Write(mem+off, v)</text>
+  <text x="296" y="184" font-size="11" font-weight="700" fill="#145a32">ONE call. Never authored.</text>
+
+  <path d="M478 136 L526 136" stroke="#1e8449" stroke-width="2.5" marker-end="url(#ag)"/>
+
+  <!-- Stage 3: input variable -->
+  <rect x="528" y="76" width="212" height="120" rx="7" fill="#eef7f1" stroke="#1e8449" stroke-width="2"/>
+  <text x="542" y="100" font-size="13" font-weight="700" fill="#1e8449">reserved INPUT variable</text>
+  <text x="542" y="120" font-size="11" fill="#555">NEW · struct-typed, one per asset</text>
+  <text x="542" y="144" font-size="11.5" font-weight="700" fill="#145a32">the asset's PUBLIC contract</text>
+  <text x="542" y="166" font-size="11" fill="#777">lives in the HEAVY tier — read</text>
+  <text x="542" y="182" font-size="11" fill="#777">once, never by the hot path</text>
+
+  <path d="M634 196 L634 244" stroke="#1e8449" stroke-width="2.5" marker-end="url(#ag)"/>
+
+  <!-- Stage 4: initializer -->
+  <rect x="416" y="246" width="436" height="128" rx="7" fill="#eef7f1" stroke="#1e8449" stroke-width="2"/>
+  <text x="432" y="270" font-size="13" font-weight="700" fill="#1e8449">INITIALIZER — runs once at assignment, before tick 1</text>
+  <text x="432" y="290" font-size="11.5" fill="#555">NEW · input is TYPED VARIABLES, never text. ⛔ no `json` input pin, ever.</text>
+
+  <rect x="432" y="300" width="196" height="58" rx="5" fill="#ffffff" stroke="#1e8449"/>
+  <text x="444" y="320" font-size="12" font-weight="700" fill="#1e8449">C# static method</text>
+  <text x="444" y="338" font-size="11" fill="#777">attribute-discovered · ships first</text>
+  <text x="444" y="352" font-size="11" fill="#777">(in TInput, ref TState, world, self)</text>
+
+  <rect x="640" y="300" width="196" height="58" rx="5" fill="#ffffff" stroke="#1e8449" stroke-dasharray="4 3"/>
+  <text x="652" y="320" font-size="12" font-weight="700" fill="#1e8449">Construction graph</text>
+  <text x="652" y="338" font-size="11" fill="#777">authored · needs world-singleton</text>
+  <text x="652" y="352" font-size="11" fill="#777">vocabulary first (Q30-C)</text>
+
+  <text x="868" y="292" font-size="11.5" fill="#555">one picker —</text>
+  <text x="868" y="310" font-size="11.5" font-weight="700" fill="#1e8449">IBehaviorActionCatalog</text>
+  <text x="868" y="328" font-size="11.5" fill="#555">already multi-source.</text>
+  <text x="868" y="346" font-size="11.5" fill="#555">Persist ONE catalog `Id`.</text>
+
+  <path d="M634 374 L634 420" stroke="#1e8449" stroke-width="2.5" marker-end="url(#ag)"/>
+
+  <!-- Stage 5: per-action variables -->
+  <rect x="416" y="422" width="436" height="106" rx="7" fill="#f4f6f7" stroke="#888" stroke-width="1.5"/>
+  <text x="432" y="446" font-size="13" font-weight="700" fill="#444">per-action variables — INTERNAL, bin-packed in the 100-byte inline region</text>
+  <rect x="432" y="458" width="112" height="30" fill="#d6eaf8" stroke="#2471a3"/>
+  <text x="488" y="478" font-size="11" text-anchor="middle" fill="#1a5276">PatrolParams</text>
+  <rect x="544" y="458" width="132" height="30" fill="#aed6f1" stroke="#2471a3"/>
+  <text x="610" y="478" font-size="11" text-anchor="middle" fill="#1a5276">EngageParams</text>
+  <rect x="676" y="458" width="160" height="30" fill="#f4f6f7" stroke="#aaa" stroke-dasharray="3 2"/>
+  <text x="756" y="478" font-size="11" text-anchor="middle" fill="#888">…free…</text>
+  <text x="432" y="512" font-size="11.5" fill="#666">unchanged — same packer, same offsets, same baked-offset thunks</text>
+
+  <!-- call sites -->
+  <path d="M416 474 L360 474" stroke="#888" stroke-width="2" marker-end="url(#agr)"/>
+  <rect x="20" y="422" width="336" height="106" rx="7" fill="#f4f6f7" stroke="#888" stroke-width="1.5"/>
+  <text x="34" y="446" font-size="13" font-weight="700" fill="#444">call sites bind whole variables</text>
+  <text x="34" y="470" font-size="11.5" font-family="Consolas, monospace" fill="#555">BTree : (AssetId, NodeVisualId)</text>
+  <text x="34" y="492" font-size="11.5" font-family="Consolas, monospace" fill="#1e8449">HSM   : (AssetId, StableId, SlotKind)</text>
+  <text x="34" y="516" font-size="11" fill="#777">one term wider — everything downstream unchanged</text>
+
+  <!-- right column: what does NOT change -->
+  <rect x="880" y="76" width="320" height="120" rx="7" fill="#fdf9ec" stroke="#b7950b" stroke-width="1.5"/>
+  <text x="894" y="100" font-size="13" font-weight="700" fill="#7d6608">unchanged foundation</text>
+  <text x="894" y="122" font-size="11.5" fill="#555">Role → tier · Scope → sharing</text>
+  <text x="894" y="140" font-size="11.5" fill="#555">key = {Fqn}@{offset}@{slotKey}</text>
+  <text x="894" y="158" font-size="11.5" fill="#555">one thunk per key, offsets baked</text>
+  <text x="894" y="178" font-size="11.5" font-weight="700" fill="#7d6608">ids stay CONTENT-ADDRESSED</text>
+
+  <rect x="880" y="422" width="320" height="106" rx="7" fill="#fdf4f4" stroke="#c0392b" stroke-width="1.5"/>
+  <text x="894" y="446" font-size="13" font-weight="700" fill="#c0392b">must land BEFORE any of this</text>
+  <text x="894" y="468" font-size="11.5" fill="#555">collision gate (4.5% live today)</text>
+  <text x="894" y="486" font-size="11.5" fill="#555">kill counter-allocated stubs</text>
+  <text x="894" y="504" font-size="11.5" fill="#555">explicit [FieldOffset] layout</text>
+  <text x="894" y="521" font-size="11.5" fill="#555">guard read-only · summed budget</text>
+
+  <!-- bottom note -->
+  <rect x="20" y="552" width="1180" height="70" rx="7" fill="#f5f8fd" stroke="#2471a3" stroke-width="1.5"/>
+  <text x="36" y="576" font-size="12.5" fill="#333"><tspan font-weight="700">The point of the input variable is not saved deserialization — it is decoupling.</tspan>  Without it a scenario writes the asset's INTERNAL</text>
+  <text x="36" y="596" font-size="12.5" fill="#333">per-action variables, so re-wiring a node breaks every scenario that used the asset. With it, the scenario writes the asset's declared input type</text>
+  <text x="36" y="614" font-size="12.5" fill="#333">and the initializer absorbs the change. ⭐ This is the shipped Platoon Hill Attack pattern, generalised — its resolver already does exactly this.</text>
+</svg>

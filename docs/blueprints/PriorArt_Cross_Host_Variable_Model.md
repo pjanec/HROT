@@ -154,7 +154,7 @@ blueprint/BTree lane regardless of what the HSM session decides.**
 |---|---|---|---|---|
 | **PA-5** stride path has no allocator | `AiPrimitiveEmitter.cs` · `CSharpEmitter.cs` | `Hrot.Blueprints.Compiler` | ⭐ **blueprint** | latent (`@0` only) |
 | **PA-6** counter-allocated stubs overwrite | `HsmBridgeEmitCore.cs` | `Hrot.AiEditor.Persistence` | ⭐ **blueprint/BTree** — it is `BTreeBridgeEmitCore`'s sibling | 🔴 **yes** |
-| **PA-7** no collision gate | `HsmActionGenerator.cs` · `HsmFlattener.cs` | `Fdp.Toolkits.Analyzers` · `Fhsm.Compiler` | ⛔ **NEITHER — a third assembly with no owner** | 🔴 **yes (~4.5 %)** |
+| **PA-7** no collision gate | `HsmActionGenerator.cs` · `HsmFlattener.cs` | `Fdp.Toolkits.Analyzers` · `Fhsm.Compiler` | ⭐ **blueprint** — ✅ settled `2026-08-14` | 🔴 **yes (~4.5 %)** |
 | **PA-8** dead orchestrators | `HsmOrchestratorEmitter.cs` **and** `BTreeOrchestratorEmitter.cs` | `Hrot.Hsm.Editor` · `Hrot.BTree.Editor` | ⭐ **both lanes** | yes (inert) |
 | **PA-9** orchestrator would not compile | as PA-8 + `HsmActionGenerator` | — | ⭐ **both + the unowned third** | latent |
 | **PA-10** `Vector3` layout drift | ⭐ **`BlackboardBinPacker.cs`** | ⭐⭐ **`Hrot.Editor.AiShared` — shared by ALL THREE hosts** | ⭐ **blueprint/BTree** | latent |
@@ -166,9 +166,9 @@ blueprint/BTree lane regardless of what the HSM session decides.**
 surfaced.** ⛔ **PA-12 in particular is not hypothetical and not HSM-specific:** a BTree parallel
 composite runs several leaves with params live in the same 100 B, and nothing sums them.
 
-📌 **And `Fdp.Toolkits.Analyzers` has no owning lane at all** — it holds `HsmActionGenerator`
-(the file that answers `Q-A`) and `BehaviorParameterSizeAnalyzer`. ⭐ **Naming its owner is a
-prerequisite, not a detail.**
+✅ **`Fdp.Toolkits.Analyzers` OWNERSHIP SETTLED `2026-08-14`** (user ruling): it **belongs to the
+blueprint lane**. It holds `HsmActionGenerator` — the file that answers `Q-A` — and
+`BehaviorParameterSizeAnalyzer`. ⭐ **The last open ownership question in this document is closed.**
 
 ---
 

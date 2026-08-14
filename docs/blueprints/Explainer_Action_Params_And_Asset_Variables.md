@@ -1,8 +1,23 @@
 # How action parameters work — and what they have to do with asset variables
 
-> **Written `2026-08-14`** by the cross-host design session. ⭐ **Explainer, not a design.**
-> Every mechanism below is **as-built and code-verified**; the HSM sections say plainly which parts
-> exist and which do not. Evidence: [`PriorArt_Cross_Host_Variable_Model.md`](PriorArt_Cross_Host_Variable_Model.md).
+> ## ⏳ AS-BUILT SNAPSHOT — verified against code on **`2026-08-14`**
+>
+> ⭐⭐ **This document describes how the system works TODAY, not what is being built.** It is a
+> **dated snapshot** and **will age**: it is not updated as a matter of course, so ⚠ **re-verify any
+> line you intend to build on** — the whole point of this session was that four inherited claims were
+> refuted by measurement.
+>
+> | | |
+> |---|---|
+> | ⭐ **the TARGET state** | [`Design_Behavior_Asset_Parameter_Model.md`](Design_Behavior_Asset_Parameter_Model.md) — ⛔ **read that before building anything** |
+> | the evidence | [`PriorArt_Cross_Host_Variable_Model.md`](PriorArt_Cross_Host_Variable_Model.md) |
+> | the decisions | [`#28`](Architect_Question_28_Cross_Host_Binding_Mechanism.md) · [`#29`](Architect_Question_29_Cross_Host_Variable_Semantics.md) · [`#30`](Architect_Question_30_Editor_Authored_Param_Preprocessing.md) |
+>
+> ⭐ **What ages fastest here:** §6.2 (the HSM gaps) and §6b (the two worlds) — **both are things the
+> design deliberately changes.** §1–§5 are the durable model and should outlive the delta.
+>
+> ⭐ **Explainer, not a design.** Every mechanism below is code-verified as of the date above; the HSM
+> sections say plainly which parts exist and which do not.
 
 ---
 
