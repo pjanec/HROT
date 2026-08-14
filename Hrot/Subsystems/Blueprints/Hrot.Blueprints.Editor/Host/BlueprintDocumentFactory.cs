@@ -444,8 +444,8 @@ public static class BlueprintDocumentFactory
 
         // Prefer the declaration's own name for the display property; fall back to the id so a
         // variable that has since been renamed still places something meaningful.
-        var variableName = asset.Variables
-            .FirstOrDefault(v => string.Equals(v.Name, variableId, StringComparison.Ordinal))
+        var variableName = asset.Declarations.Of(DeclarationKind.Variable)
+            .FirstOrDefault(d => string.Equals(d.Name, variableId, StringComparison.Ordinal))
             ?.Name ?? variableId!;
 
         var position = ctx.CanvasPos ?? ViewportCentre(view);
@@ -612,8 +612,11 @@ public static class BlueprintDocumentFactory
              Dictionary<Guid, string> CallEventIds,
              Dictionary<Guid, string> PeerFunctionRefs) naming)
         {
-            asset.Variables.Clear();
-            asset.Variables.AddRange(variables);
+            // U-11: a snapshot RESTORE, so ReplaceAll — which deliberately leaves VariableOrder
+            // alone. The order list belongs to the same snapshot and is restored with it; dropping
+            // ids here would make undo lose the designer's ordering.
+            asset.Declarations.ReplaceAll(DeclarationKind.Variable,
+                variables.Select(v => BlueprintDeclaration.For(DeclarationKind.Variable, v)));
             asset.CustomEvents.Clear();
             asset.CustomEvents.AddRange(events);
 
@@ -810,7 +813,7 @@ public static class BlueprintDocumentFactory
     /// would restore the new name.
     /// </summary>
     private static List<VariableDecl> SnapshotVariables(BlueprintAsset asset)
-        => asset.Variables.Select(v => new VariableDecl
+        => asset.Declarations.Of(DeclarationKind.Variable).Select(v => new VariableDecl
         {
             Id   = v.Id,
             Name = v.Name,
@@ -959,7 +962,7 @@ public static class BlueprintDocumentFactory
         ArgumentNullException.ThrowIfNull(asset);
 
         if (FindVariable(asset, itemId) is { } variable)
-            return asset.Variables.Remove(variable);
+            return asset.Declarations.Remove(BlueprintDeclaration.For(DeclarationKind.Variable, variable));
 
         if (FindCustomEvent(asset, itemId) is { } evt)
             return asset.CustomEvents.Remove(evt);
@@ -978,7 +981,7 @@ public static class BlueprintDocumentFactory
 
         if (FindVariable(asset, itemId) is { } variable)
         {
-            asset.Variables.Add(new VariableDecl
+            asset.Declarations.Add(BlueprintDeclaration.For(DeclarationKind.Variable, new VariableDecl
             {
                 Id       = Guid.NewGuid(),
                 // U-14: across all kinds, so a duplicate cannot land on a Parameter's name.
@@ -995,7 +998,7 @@ public static class BlueprintDocumentFactory
                 IsExposedOnSpawn = variable.IsExposedOnSpawn,
                 Category         = variable.Category,
                 Tooltip          = variable.Tooltip,
-            });
+            }));
             return true;
         }
 
@@ -1026,7 +1029,7 @@ public static class BlueprintDocumentFactory
     /// </summary>
     private static VariableDecl? FindVariable(BlueprintAsset asset, string itemId)
         => TryItemGuid(itemId, "var:", out var id)
-            ? asset.Variables.FirstOrDefault(v => v.Id == id)
+            ? asset.Declarations.Of(DeclarationKind.Variable).FirstOrDefault(d => d.Id == id)?.AsVariableDecl
             : null;
 
     private static CustomEventDecl? FindCustomEvent(BlueprintAsset asset, string itemId)
@@ -1576,8 +1579,12 @@ public static class BlueprintDocumentFactory
         // reference at any point.
         var steps = new List<(GraphCommand Forward, GraphCommand Inverse)>
         {
-            (new BlueprintEditCommand("Declare Variable",   () => asset.Variables.Add(decl)),
-             new BlueprintEditCommand("Undeclare Variable", () => asset.Variables.Remove(decl))),
+            // ⚠ U-11: `decl` is created by THIS command, so it is never in VariableOrder — the
+            //   Order-maintaining Remove is a no-op for it, and the pair stays an exact inverse.
+            (new BlueprintEditCommand("Declare Variable",
+                 () => asset.Declarations.Add(BlueprintDeclaration.For(DeclarationKind.Variable, decl))),
+             new BlueprintEditCommand("Undeclare Variable",
+                 () => asset.Declarations.Remove(BlueprintDeclaration.For(DeclarationKind.Variable, decl)))),
 
             (new GraphCommand.AddNode(nodeId, nodeKind, position, props),
              new GraphCommand.RemoveNodes(new[] { nodeId })),
@@ -1774,7 +1781,7 @@ public static class BlueprintDocumentFactory
                 }
                 : new BlueprintTypeRef { TypeId = finalType },
         };
-        asset.Variables.Add(decl);
+        asset.Declarations.Add(BlueprintDeclaration.For(DeclarationKind.Variable, decl));
         markDirty?.Invoke();
         return decl;
     }

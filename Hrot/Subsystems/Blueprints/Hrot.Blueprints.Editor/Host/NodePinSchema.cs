@@ -192,7 +192,7 @@ internal static class NodePinSchema
 
         if (Guid.TryParse(idStr, out var guid))
         {
-            var decl = asset.Variables.FirstOrDefault(v => v.Id == guid);
+            var decl = asset.Declarations.Of(DeclarationKind.Variable).FirstOrDefault(d => d.Id == guid);
             if (decl != null && !string.IsNullOrEmpty(decl.Type?.TypeId))
                 return decl.Type.TypeId;
         }
@@ -874,8 +874,11 @@ internal static class NodePinSchema
         var vid = variableId ?? "";
         if (vid.StartsWith("var:", StringComparison.Ordinal)) vid = vid.Substring(4);
         if (!Guid.TryParse(vid, out var id)) return null;
-        return asset.Variables.FirstOrDefault(v => v.Id == id)
-            ?? asset.WorkingState.FirstOrDefault(v => v.Id == id);
+        // ⚠ U-11: Variables ∪ WorkingState only — NOT Declarations.ById(), which also searches
+        //   Parameters and would resolve a parameter id where this site never did.
+        return (asset.Declarations.Of(DeclarationKind.Variable)
+                     .Concat(asset.Declarations.Of(DeclarationKind.WorkingState))
+                     .FirstOrDefault(d => d.Id == id))?.AsVariableDecl;
     }
 
     /// <summary>
@@ -929,11 +932,11 @@ internal static class NodePinSchema
     /// </summary>
     private static IReadOnlyList<Pin> GetAllParametersPins(BlueprintAsset? asset)
     {
-        if (asset is null || asset.Parameters.Count == 0)
+        if (asset is null || asset.Declarations.CountIn(DeclarationKind.Parameter) == 0)
             return Array.Empty<Pin>();
 
-        var pins = new List<Pin>(asset.Parameters.Count);
-        foreach (var p in asset.Parameters)
+        var pins = new List<Pin>(asset.Declarations.CountIn(DeclarationKind.Parameter));
+        foreach (var p in asset.Declarations.Of(DeclarationKind.Parameter))
         {
             var typeId = string.IsNullOrEmpty(p.Type?.TypeId) ? "System.Object" : p.Type.TypeId;
             pins.Add(MakeData(p.Name, "Out", typeId));
@@ -956,7 +959,7 @@ internal static class NodePinSchema
 
         if (Guid.TryParse(idStr, out var guid))
         {
-            var decl = asset.Parameters.FirstOrDefault(p => p.Id == guid);
+            var decl = asset.Declarations.Of(DeclarationKind.Parameter).FirstOrDefault(d => d.Id == guid);
             if (decl != null && !string.IsNullOrEmpty(decl.Type?.TypeId))
                 return decl.Type.TypeId;
         }

@@ -95,24 +95,21 @@ public sealed class BlueprintVariableSchemaSource : IVariablesSchemaSource
         return $"{_asset.AssetId:D}::{variableName}";
     }
 
-    /// <summary>The declaration list this source projects, in display order.</summary>
-    private IEnumerable<BlackboardVariableEntry> Entries => _kind switch
-    {
-        VariableKind.Parameter => GetOrdered(_asset.Parameters, _asset.ParameterOrder)
-            .Select(p => new BlackboardVariableEntry(p.Name, Type.GetType(p.Type.TypeId) ?? typeof(int), p.Comment ?? "")),
-        VariableKind.WorkingState => GetOrdered(_asset.WorkingState, _asset.WorkingStateOrder)
-            .Select(v => new BlackboardVariableEntry(v.Name, Type.GetType(v.Type.TypeId) ?? typeof(int), v.Comment ?? "")),
-        _ => GetOrdered(_asset.Variables, _asset.VariableOrder)
-            .Select(v => new BlackboardVariableEntry(v.Name, Type.GetType(v.Type.TypeId) ?? typeof(int), v.Comment ?? "")),
-    };
+    /// <summary>
+    /// <b>U-11 — which declaration kind this source projects.</b> ⭐ The whole class used to branch on
+    /// <c>_kind == VariableKind.Parameter</c> at every list access, purely because <c>ParameterDecl</c>
+    /// and <c>VariableDecl</c> were different types; <c>BlueprintDeclaration</c> removes the branch.
+    /// </summary>
+    private DeclarationKind DeclKind => _kind.ToDeclarationKind();
 
-    /// <summary>The <c>VariableDecl</c> list behind this source, or null for Parameters.</summary>
-    private List<VariableDecl>? Decls => _kind switch
-    {
-        VariableKind.WorkingState => _asset.WorkingState,
-        VariableKind.Variable     => _asset.Variables,
-        _                         => null,
-    };
+    /// <summary>The declarations this source projects, in display order.</summary>
+    private IEnumerable<BlueprintDeclaration> Declared
+        => GetOrdered(_asset.Declarations.Of(DeclKind).ToList(), Order);
+
+    /// <summary>The declaration list this source projects, in display order.</summary>
+    private IEnumerable<BlackboardVariableEntry> Entries
+        => Declared.Select(d => new BlackboardVariableEntry(
+               d.Name, Type.GetType(d.Type.TypeId) ?? typeof(int), d.Comment ?? ""));
 
     /// <summary>The order list behind this source. ⚠ Assigned back, so it is a ref-returning property.</summary>
     private List<Guid>? Order
@@ -134,11 +131,17 @@ public sealed class BlueprintVariableSchemaSource : IVariablesSchemaSource
         }
     }
 
-    private IEnumerable<T> GetOrdered<T>(List<T> items, List<Guid>? order)
+    /// <summary>
+    /// ⭐ <b>U-11: the type-sniffing <c>GetId</c> local is gone.</b> It existed only to recover an id
+    /// from one of two unrelated declaration types — and returned <c>Guid.Empty</c> for anything else,
+    /// which would silently have collapsed every row onto one dictionary key.
+    /// </summary>
+    private static IEnumerable<BlueprintDeclaration> GetOrdered(
+        List<BlueprintDeclaration> items, List<Guid>? order)
     {
         if (order == null || order.Count == 0) return items;
-        var dict = items.ToDictionary(GetId);
-        var result = new List<T>();
+        var dict = items.ToDictionary(d => d.Id);
+        var result = new List<BlueprintDeclaration>();
         foreach (var id in order)
         {
             if (dict.TryGetValue(id, out var item))
@@ -149,13 +152,6 @@ public sealed class BlueprintVariableSchemaSource : IVariablesSchemaSource
         }
         result.AddRange(dict.Values);
         return result;
-
-        Guid GetId(T item)
-        {
-            if (item is ParameterDecl p) return p.Id;
-            if (item is VariableDecl v) return v.Id;
-            return Guid.Empty;
-        }
     }
 
     public IReadOnlyList<VariableViewModel> Variables
@@ -182,22 +178,14 @@ public sealed class BlueprintVariableSchemaSource : IVariablesSchemaSource
     public void AddVariable(BlackboardVariableEntry entry)
     {
         var typeRef = new BlueprintTypeRef { TypeId = entry.FieldType.FullName ?? entry.FieldType.Name };
-        Guid id;
-        if (_kind == VariableKind.Parameter)
-        {
-            var p = new ParameterDecl { Id = Guid.NewGuid(), Name = entry.Name, Type = typeRef, Comment = entry.Comment };
-            _asset.Parameters.Add(p);
-            id = p.Id;
-            Order ??= _asset.Parameters.Where(x => x != p).Select(x => x.Id).ToList();
-        }
-        else
-        {
-            var list = Decls!;
-            var v = new VariableDecl { Id = Guid.NewGuid(), Name = entry.Name, Type = typeRef, Comment = entry.Comment };
-            list.Add(v);
-            id = v.Id;
-            Order ??= list.Where(x => x != v).Select(x => x.Id).ToList();
-        }
+        var decl = BlueprintDeclaration.Create(DeclKind, Guid.NewGuid(), entry.Name, typeRef);
+        decl.Comment = entry.Comment;
+
+        // ⚠ Seed the order list from what was there BEFORE the add, exactly as both old branches did —
+        //   the new id is appended below, so seeding after the add would list it twice.
+        var id = decl.Id;
+        Order ??= _asset.Declarations.Of(DeclKind).Select(d => d.Id).ToList();
+        _asset.Declarations.Add(decl);
         Order!.Add(id);
         _onChanged?.Invoke();
     }
@@ -238,38 +226,29 @@ public sealed class BlueprintVariableSchemaSource : IVariablesSchemaSource
     {
         var set = new HashSet<string>(names, StringComparer.Ordinal);
 
-        var doomed = _kind == VariableKind.Parameter
-            ? _asset.Parameters.Where(x => set.Contains(x.Name)).Select(x => x.Id).ToHashSet()
-            : Decls!.Where(x => set.Contains(x.Name)).Select(x => x.Id).ToHashSet();
+        var doomed = _asset.Declarations.Of(DeclKind)
+            .Where(d => set.Contains(d.Name)).Select(d => d.Id).ToHashSet();
         if (doomed.Count == 0) return;
 
-        if (_kind == VariableKind.Parameter) _asset.Parameters.RemoveAll(x => doomed.Contains(x.Id));
-        else                                 Decls!.RemoveAll(x => doomed.Contains(x.Id));
+        _asset.Declarations.ReplaceAll(DeclKind,
+            _asset.Declarations.Of(DeclKind).Where(d => !doomed.Contains(d.Id)).ToList());
 
+        // ⚠ ReplaceAll deliberately leaves the order list alone (a snapshot restore must), so the
+        //   BP-231 cleanup stays explicit here — which is also where it has always been.
         Order?.RemoveAll(doomed.Contains);
         _onChanged?.Invoke();
     }
 
     public void RenameVariable(string oldName, string newName)
     {
-        if (_kind == VariableKind.Parameter)
-        {
-            var match = _asset.Parameters.FirstOrDefault(x => x.Name == oldName);
-            if (match != null) match.Name = newName;
-        }
-        else
-        {
-            var match = Decls!.FirstOrDefault(x => x.Name == oldName);
-            if (match != null) match.Name = newName;
-        }
+        // ⭐ Writes THROUGH the facade to the stored declaration — the property U-9 exists for.
+        var match = _asset.Declarations.Of(DeclKind).FirstOrDefault(d => d.Name == oldName);
+        if (match != null) match.Name = newName;
         // ⚠ The order list is keyed by ID, so a rename must NOT touch it. See RemoveVariables.
         _onChanged?.Invoke();
     }
 
-    private IEnumerable<Guid> CurrentIds()
-        => _kind == VariableKind.Parameter
-            ? _asset.Parameters.Select(p => p.Id)
-            : Decls!.Select(v => v.Id);
+    private IEnumerable<Guid> CurrentIds() => _asset.Declarations.Of(DeclKind).Select(d => d.Id);
 
     /// <summary>
     /// U-5 / <c>BP-230</c> — ⭐⭐ <b>a REAL count.</b>
@@ -297,9 +276,10 @@ public sealed class BlueprintVariableSchemaSource : IVariablesSchemaSource
     /// </summary>
     public int CountNodesReferencingVariable(string name)
     {
-        int index = _kind == VariableKind.Parameter
-            ? _asset.Parameters.FindIndex(x => string.Equals(x.Name, name, StringComparison.Ordinal))
-            : Decls!.FindIndex(x => string.Equals(x.Name, name, StringComparison.Ordinal));
+        // ⚠⚠ The LIST-RELATIVE index, not a union index — VariableRef addresses (kind, position
+        //    within that kind), which is exactly what BP-226 was about.
+        int index = _asset.Declarations.Of(DeclKind).ToList()
+            .FindIndex(d => string.Equals(d.Name, name, StringComparison.Ordinal));
         if (index < 0) return 0;
 
         var self = new VariableRef(_kind, index);
@@ -328,26 +308,32 @@ public sealed class BlueprintVariableSchemaSource : IVariablesSchemaSource
     private static bool ResolvesToLocal(Graph graph, string raw)
         => Guid.TryParse(StripPrefix(raw), out var g) && graph.LocalVariables.Any(v => v.Id == g);
 
-    /// <summary>Mirrors <c>Stage5.FindVariableRef</c> — id first, then name, both in list priority order.</summary>
+    /// <summary>
+    /// Mirrors <c>Stage5.FindVariableRef</c> — id first, then name, both in list priority order.
+    ///
+    /// <para>
+    /// ⭐ <b>U-11: the priority order is READ from <c>DeclarationList.ResolutionOrder</c></b> rather
+    /// than restated as six hand-written arms. ⛔ Two copies of an ordering that must agree with the
+    /// compiler's is how <c>BP-226</c> happened; this one now cannot drift from it silently.
+    /// ⚠ The index stays <b>list-relative</b>, which is what <c>VariableRef</c> addresses.
+    /// </para>
+    /// </summary>
     private VariableRef Resolve(string raw)
     {
         var idStr = StripPrefix(raw);
-        if (Guid.TryParse(idStr, out var guid))
+        var byId  = Guid.TryParse(idStr, out var guid);
+
+        foreach (var match in new Func<BlueprintDeclaration, bool>[]
+                 {
+                     d => byId && d.Id == guid,
+                     d => d.Name == idStr,
+                 })
         {
-            int i = _asset.Variables.FindIndex(x => x.Id == guid);
-            if (i >= 0) return new(VariableKind.Variable, i);
-            i = _asset.WorkingState.FindIndex(x => x.Id == guid);
-            if (i >= 0) return new(VariableKind.WorkingState, i);
-            i = _asset.Parameters.FindIndex(x => x.Id == guid);
-            if (i >= 0) return new(VariableKind.Parameter, i);
-        }
-        {
-            int i = _asset.Variables.FindIndex(x => x.Name == idStr);
-            if (i >= 0) return new(VariableKind.Variable, i);
-            i = _asset.WorkingState.FindIndex(x => x.Name == idStr);
-            if (i >= 0) return new(VariableKind.WorkingState, i);
-            i = _asset.Parameters.FindIndex(x => x.Name == idStr);
-            if (i >= 0) return new(VariableKind.Parameter, i);
+            foreach (var kind in DeclarationList.ResolutionOrder)
+            {
+                int i = _asset.Declarations.Of(kind).ToList().FindIndex(d => match(d));
+                if (i >= 0) return new VariableRef(kind.ToVariableKind(), i);
+            }
         }
         return VariableRef.Unresolved;
     }

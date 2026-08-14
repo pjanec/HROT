@@ -315,8 +315,8 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
 
     private IReadOnlyList<MyBlueprintItem> BuildVariableItems()
     {
-        var result = new List<MyBlueprintItem>(_asset!.Variables.Count);
-        foreach (var v in _asset.Variables)
+        var result = new List<MyBlueprintItem>(_asset!.Declarations.CountIn(DeclarationKind.Variable));
+        foreach (var v in _asset.Declarations.Of(DeclarationKind.Variable))
         {
             var accent = GetVariableAccentColor(v.Type?.TypeId ?? "");
             // FC-2/LV-4: a fixed-list variable shows its capacity as a "[N]" badge so lists are

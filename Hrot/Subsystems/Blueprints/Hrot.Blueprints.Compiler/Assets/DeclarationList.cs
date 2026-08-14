@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Linq;
 
 namespace Hrot.Blueprints.Core.Assets;
 
@@ -257,6 +258,44 @@ public sealed class DeclarationList : IList<BlueprintDeclaration>
         DeclarationKind.WorkingState => _asset.WorkingStateOrder,
         _                            => _asset.VariableOrder,
     };
+
+    /// <summary>
+    /// <b>U-11 — replace ONE kind's list wholesale.</b> The operation an undo snapshot restore needs:
+    /// <c>Clear</c> + <c>AddRange</c> over a single kind.
+    ///
+    /// <para>
+    /// ⚠⚠ <b>Deliberately does NOT touch the display-order list</b>, unlike <see cref="Remove"/>. A
+    /// snapshot restore is putting back a state that was captured whole — the order list belongs to
+    /// that same snapshot and is restored by whoever took it. ⛔ Dropping ids here would make undo
+    /// silently lose the designer's ordering, which is the opposite of what an undo is for.
+    /// </para>
+    /// </summary>
+    public void ReplaceAll(DeclarationKind kind, IEnumerable<BlueprintDeclaration> declarations)
+    {
+        if (declarations is null) throw new ArgumentNullException(nameof(declarations));
+        var items = declarations.ToList();
+        foreach (var d in items)
+            if (d.Kind != kind)
+                throw new ArgumentException(
+                    $"Cannot put a {d.Kind} declaration into the {kind} list — moving a declaration "
+                    + "between lists changes the struct it is laid out in.", nameof(declarations));
+
+        switch (kind)
+        {
+            case DeclarationKind.Parameter:
+                _asset.Parameters.Clear();
+                _asset.Parameters.AddRange(items.Select(d => d.AsParameterDecl!));
+                break;
+            case DeclarationKind.WorkingState:
+                _asset.WorkingState.Clear();
+                _asset.WorkingState.AddRange(items.Select(d => d.AsVariableDecl!));
+                break;
+            default:
+                _asset.Variables.Clear();
+                _asset.Variables.AddRange(items.Select(d => d.AsVariableDecl!));
+                break;
+        }
+    }
 
     public void Clear()
     {
