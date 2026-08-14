@@ -4,6 +4,18 @@
 > ⭐⭐ **Batch 43 verified and merged at `3583acd4` (§7p) — `BP-57` is CLOSED.** The Local Variables
 > section landed; a designer can declare, rename, delete, duplicate and undo a graph local from the
 > editor, and it follows the canvas.
+> ⭐⭐⭐ **Batch 53 verified and merged at `7974b3eb` (§7z) — THE STORE FLIPPED AND THE BYTES DID NOT
+> MOVE. `U-12` is CLOSED.** One tagged `List<BlueprintDeclaration>` is the storage; the three
+> properties are **live windows** onto its contiguous runs. ⭐⭐ **The type was chosen by MEASUREMENT —
+> `[Obsolete]` on all three, one solution build: 431 sites, 172 initializers (112 `= new()`, ruling out
+> `IList<T>`), 83 mutation sites (ruling out snapshots)** ⇒ `DeclarationView<T>`, **zero call-site
+> churn.** ⭐ **The obvious flip would have made `asset.Variables.Add(v)` report success while writing
+> to a list nobody reads.**
+> 🔴🔴 ➕ **`BP-240` — a revert probe that DIDN'T redden, and they chased why:** breaking the grouping
+> invariant left **both** `persistence-shape` and golden green, because the corpus exercises exactly
+> one path. ⭐⭐ *"A gate can be green because of what the corpus happens to do, not because the code is
+> right."* ⏭ **Batch 54 dispatched — `U-10`'s wiring, the last task in the `D` programme.**
+>
 > ⭐⭐ **Batch 52 verified and merged at `003db0f2` (§7y) — GREEN BOTH WAYS.** The suite is
 > **3532 / 3522 passed / 0 failed**, ⭐ **and `PdbEmbeddedSourceTests` is 3/3 in ISOLATION** (was 0/2).
 > ➕ **`BP1672`** makes a requested-but-impossible PDB a **precondition failure**; 🔴 **and one step
@@ -243,13 +255,13 @@ report"* rather than *"the gate did not run."* Trap #5, in the gate script itsel
 **3m40s → 2m05s**. ⚠ **And always include `\[FAIL\]` in the result grep**: a `Passed!`/`Failed!`-only
 grep is why Batch 42's flake could not be named.
 
-**Baseline at `003db0f2` — ⭐ all eight gates coordinator-RUN 2026-08-14, post-Batch-52 — ✅ green FULL and FILTERED:**
+**Baseline at `7974b3eb` — ⭐ all eight gates coordinator-RUN 2026-08-14, post-Batch-53 — ✅ green FULL and FILTERED:**
 
 | | |
 |---|---|
 | Solution build | **0 errors**, **69 warnings** ⚠ *(an incremental build under-reports — record honestly)* |
 | BP diagnostics | **10 distinct** — all `BP3010`, all **authored** orphans in 2 assets |
-| ✅ **Blueprints** | **3532 total / 3522 passed / 0 failed / 10 skipped** ⚠ *(BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
+| ✅ **Blueprints** | **3538 total / 3528 passed / 0 failed / 10 skipped** ⚠ *(BP-111 filters 7 host-timing tests out of the default run — `Category=HostTimingSensitive` runs them)* |
 | ⭐⭐ **Golden corpus** *(Batch 44)* | **42 assets × Tier 1 + Tier 2**, `Snapshots/Golden/`. ⛔ **Tier 1 moving is a FAILURE, not a rebase.** Regenerate Tier 2 with `BLUEPRINT_REGENERATE_SNAPSHOTS=1` and **review the diff** |
 | ⭐⭐ **Persistence shape** *(Batch 48)* | `Snapshots/Golden/persistence-shape.txt` — **SHA-256 + byte length of each asset's canonical serialization**, recorded on the **pre-`U-9`** tree. ⭐ **This is what a round-trip test CANNOT do:** a leaked tag is written *and read back*, so `Serialize(Deserialize(x)) == x` holds either way |
 | ⭐ **AiShared 1216** *(+3, Batch 46)* · BTree **612** · Breakpoints **130** | 0 failed |
@@ -273,7 +285,7 @@ retired `BP3011`; the 10 that remain are authored and deliberate.)
 
 ## 4 · Where the programme stands
 
-**Tracker: open 58 · done 116** (+1 refuted) ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
+**Tracker: open 59 · done 116** (+1 refuted) ([Blueprint_Issues_Tracker.md](Blueprint_Issues_Tracker.md)), reconciling
 three ways — checkbox tally, per-complexity columns (⚠ take the **first** tag on a row), and the total
 row. ⚠⚠ **Reconcile all three EVERY time.** The columns can agree with the Total and both still be
 wrong: a missed tick is invisible to arithmetic and only shows against the checkbox tally.
@@ -544,6 +556,90 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > ⭐⭐ **The question carried forward from `BP1673`: what is the three-lists-as-storage arrangement
 > silently holding shut?** ⚠ **And there is no clean mid-flip stop** — if it does not fit, stop before
 > starting it.
+
+> ⏭ **Batch 54 dispatched — [`U-10`'s WIRING](HANDOFF_Batch54_Migrator_Wiring.md), the LAST task in the
+> `D` programme.** ⭐⭐ **The only batch where `persistence-shape.txt` is ALLOWED to move** — once,
+> deliberately, diff reviewed. ⚠ **Two live obstacles, both theirs:** 🔴 **`BP-235`**, the
+> netstandard2.0 wall between the generator and the migration framework, and ⚠ **`ClusterRunner
+> --mode migrate` is a REAL consumer** — so `$meta.schemaVersion` and `CurrentVersion` must agree.
+> ⭐⭐ **`BP-240` is the question carried in:** what does the migrator do right **only because all 58
+> shipped assets happen to be shaped a certain way?** ⛔ **The corpus cannot answer that. Constructed
+> fixtures can.**
+
+## 7z · Batch 53 — ✅ VERIFIED AND MERGED at `7974b3eb` — ⭐⭐⭐ **THE STORE FLIPPED AND THE BYTES DID NOT MOVE. `U-12` CLOSED**
+
+**Gates — all eight, coordinator-run, ⭐ full AND isolated:**
+
+| | |
+|---|---|
+| Solution build | **0 errors**, **69 warnings** — unmoved |
+| ✅ **Blueprints** | **3538 total / 3528 passed / 0 failed / 10 skipped** (**+6**) |
+| ⭐ **Isolated filters** | `StoreFlipTests` 6/6 · `TaggedDeclarationTests` 16/16 · `ViewsAreUnreadTests` 3/3 · `PersistenceShapeTests` 3/3 · `GoldenCorpusTests` 131/131 |
+| ⭐ **AiShared 1216** · BTree **612** · Breakpoints **130** · Generators **193** · NodeEdit **208 / 131** | unmoved |
+| 🔴🔴 **`persistence-shape.txt` + Golden Tier 1/2** | ✅ **ZERO snapshot files changed** — ⭐ **the whole constraint of the task, verified by name** |
+| `tracker-counts.py --check` | clean — **twenty-two** batches. open **59** / done **116** ⇒ ➕ **`BP-240`** |
+
+✅ **Rule 7 verified mechanically** (`9078ccd2f`).
+
+### ⭐⭐⭐ The design turned on a measurement, and the technique is worth keeping
+
+⛔ **The obvious flip — three `List<T>` snapshots rebuilt on every get — satisfies the serializer,
+compiles everywhere, and makes `asset.Variables.Add(v)` REPORT SUCCESS WHILE WRITING TO A LIST NOBODY
+READS.** ⭐ **Trap #5, in the shape the whole programme has been finding.**
+
+⇒ the windows must be **live** ⇒ the property type cannot be `List<T>` ⇒ **which type keeps 431 call
+sites compiling?** ⭐⭐ **They used the COMPILER as the oracle** — `[Obsolete]` on all three, **one
+solution build**:
+
+| measured | rules out |
+|---|---|
+| **431 distinct sites / ~100 files**, ~400 of them test assertions | — |
+| **172 object-initializers, 112 of them `= new()`** | ⛔ `IList<T>` |
+| **83 mutation sites** | ⛔ snapshots |
+| **3 `List<T>`-only calls, all `AddRange`** · **0 sites binding the concrete type to a local** | ⇒ the required surface |
+
+⇒ **`DeclarationView<T> : IList<T>`** — concrete, parameterless ctor, implicit conversion from
+`List<T>`, `AddRange`. ⭐⭐ **Zero call-site churn across 431 sites.**
+
+### ⭐ §1's ruling, and §3.1's question — both answered
+
+| | |
+|---|---|
+| **The three properties SURVIVE as public members** | ⭐ `ViewsAreUnreadTests` licenses deleting them **only for the two directories it scans**; ~400 test sites read them. ⭐⭐ **And keeping them is what makes the flip verifiable** — those assertions were written by *earlier* batches against the *old* storage and are untouched by this one |
+| ⭐ **What the old arrangement was silently holding shut: REFERENCE IDENTITY of a list** | `BlueprintCompiler`'s copy shared the caller's actual `List` objects; it now copies the store's entries ⇒ **extends `U-2`/`BP-229`'s guarantee from graphs to DECLARATIONS.** ✅ Verified safe first — no stage structurally mutates declarations; the declaration **objects** stay shared because Stage 4 writes resolved types back through them |
+
+### 🔴🔴 `BP-240` — a revert probe that DIDN'T redden, and they chased why
+
+| probe | result |
+|---|---|
+| make the store public | ⭐ **reddens `persistence-shape` while golden stays green 131/131** ⇒ ✅ **the handoff's point proved: golden cannot see a persistence-only regression** |
+| ⛔ **break the grouping invariant** | ⛔⛔ **BOTH gates stayed GREEN** |
+
+⭐⭐ **Why:** deserialization sets the properties in the order `Parameters, WorkingState, Variables` —
+**which is already `KindOrder`** ⇒ **appending and inserting agree on exactly the path the 42-asset
+corpus exercises, and on no other.**
+
+⇒ ➕ **`BP-240` filed:** *a gate can be green because of what the corpus happens to do, not because the
+code is right.* ✅ **Closed for this invariant by `StoreFlipTests`**, which drives **reverse-order
+assignment and interleaved `Add`** and reddens under the probe. ⚠ **The general lesson stays open.**
+
+⭐⭐ **This is the strongest form of the discipline yet:** the batch ran a revert probe, **got green**,
+and treated that as the finding rather than as permission.
+
+### ✅ Two tests changed rather than patched, each with its reason
+
+`TaggedDeclarationTests` asserted `NotSame` on two reads — ⭐ **a test of the mechanism** (the view used
+to allocate a facade per read); it now asserts the rule against its **one live production caller**.
+`ViewsAreUnreadTests`' canary pointed at `DeclarationList`, which no longer reads the three
+properties; ⭐ **it now points at the test tree, where ~194 reads remain — the honest statement of the
+ruling above.**
+
+### ✅ Post-flip order-dependency sweep: **0 of 370**
+
+Down from **2** at the Batch-52 baseline. ⚠ **Still class granularity, which under-reports** — not
+extended to per-test (**~5 h for 3538 tests**), and they said so.
+
+---
 
 ## 7y · Batch 52 — ✅ VERIFIED AND MERGED at `003db0f2` — ⭐⭐ **GREEN BOTH WAYS, and `BP1673` is the rail the plan could not have predicted**
 
