@@ -6,7 +6,7 @@
 > graph `CALLS` queries), and each cites `file:line`. Defects are marked ⚠ with their tracker row —
 > this doc says *how the system works*; the tracker says *what is broken*.
 > **Companions:** [Concepts primer](Hsm_Concepts_For_Game_AI.md) (what HSM ideas mean) ·
-> [Issues tracker](Hsm_Visual_Editing_Issues_Tracker.md) · [Session resume](Hsm_Design_Session_RESUME.md)
+> [Issues tracker](Hsm_Issues_Tracker.md) · [Session resume](Hsm_Design_Session_RESUME.md)
 
 ---
 

@@ -1,10 +1,19 @@
-# HSM Visual Editing — Issue Tracker
+# HSM — Issue Tracker
 
-> **Scope:** the HSM visual editor only (`Hrot.Hsm.Editor` + its wiring in `EditorSubsystem`).
-> BTree has its own gaps; they are not tracked here.
+> **Scope: the whole HSM stack, not just the editor.** ⭐ **Widened 2026-08-14 by user direction** —
+> *"this design session needs to record also HSM infrastructure issues, not just visual editing."*
+> Covers `Hrot.Hsm.Editor` and its `EditorSubsystem` wiring · `Hrot.AiEditor.Persistence` /
+> `.Generators` (HSM codegen) · `Fdp.Toolkits.Behavior` (runtime) · `Fhsm.Kernel` / `Fhsm.Compiler`
+> where a kernel limitation shapes what can be authored.
+> *(Renamed from `Hsm_Visual_Editing_Issues_Tracker.md` at the same time. Row ids are unchanged.)*
+> BTree has its own gaps; they are not tracked here except where a mechanism is shared.
 > **Status:** open design session. **No code is being written against these rows yet** — the
 > tracker exists so findings accumulate while the design is settled.
 > **Branch:** `claude/hsm-visual-editing-9ngei4` (based on `claude/blueprint-authoring-status-gm0akp`).
+
+**Layer** tag on each area: 🎨 authoring/editor · ⚙️ codegen · 🔧 runtime/kernel. A row's cost often
+lives in a different layer from its symptom — HSM-012/013/015/016 all *surface* in the editor and are
+*fixed* below it.
 
 **ID prefix `HSM-nnn`** — deliberately distinct from `BP-nnn`. The blueprint programme's two-session
 protocol has produced three ID collisions from shared blocks; a separate prefix makes that
@@ -36,10 +45,10 @@ than generic UML, and ranks which parts are needed first.
 
 Reconciliation — all three must agree (checkbox tally, column sum, per-tag counts):
 ```bash
-grep -c '^- \[ \]' Hsm_Visual_Editing_Issues_Tracker.md   # open -> Total row
-grep -c '^- \[x\]' Hsm_Visual_Editing_Issues_Tracker.md   # done -> Total row
+grep -c '^- \[ \]' Hsm_Issues_Tracker.md   # open -> Total row
+grep -c '^- \[x\]' Hsm_Issues_Tracker.md   # done -> Total row
 # per-complexity: take the FIRST tag on each row — rows discuss other classes in their prose
-grep '^- \[ \]' Hsm_Visual_Editing_Issues_Tracker.md \
+grep '^- \[ \]' Hsm_Issues_Tracker.md \
   | grep -oPm1 '(?<=`)(WIRING|RW-L|RW-M|RW-H)(?=`)' | sort | uniq -c
 ```
 ⚠ `grep -c` over the whole row over-counts — HSM-009 names both `WIRING` and `RW-M`. First tag wins;
@@ -70,7 +79,7 @@ assemblies, quoted inline, then deleted. Baseline at time of audit:
 
 ---
 
-## Area A — The initial-state model
+## Area A 🎨 — The initial-state model
 
 The single root cause behind HSM-001 and HSM-002: **initial state has two sources of truth.**
 
@@ -111,7 +120,7 @@ validator can disagree about the same machine.
 
 ---
 
-## Area B — Region persistence and editing
+## Area B 🎨 — Region persistence and editing
 
 - [ ] **HSM-004** 🔴 · `RW-M` — **A region with no initial child is silently destroyed on reload.**
   `RegionNodeDto` carries **no owner-state reference** (`StableId, RegionIndex, Name, Priority,
@@ -145,7 +154,7 @@ validator can disagree about the same machine.
 
 ---
 
-## Area C — Identity and emit
+## Area C 🎨⚙️ — Identity and emit
 
 - [ ] **HSM-006** 🔴 · `RW-M` — **Palette-created states all get the same name, and names are load
   bearing.** `ApplyAddNode` hard-codes `"State"` (`"Parallel"`, `"Final"`, … per kind) and nothing
@@ -159,7 +168,7 @@ validator can disagree about the same machine.
 
 ---
 
-## Area D — Built but never fed
+## Area D 🎨 — Built but never fed
 
 Each of these is a component that exists, is tested in isolation, and has **zero production
 callers** — the pipe is wired, nothing fills it.
@@ -198,7 +207,7 @@ callers** — the pipe is wired, nothing fills it.
 
 ---
 
-## Area E — Design contradictions
+## Area E 🎨🔧 — Design contradictions
 
 - [ ] **HSM-010** 🔴📐 · `RW-M` — **History is modelled as the wrong kind of thing; the palette
   produces states the kernel cannot act on.** ⭐ **Upgraded 2026-08-14 after reading the kernel —
@@ -230,7 +239,7 @@ callers** — the pipe is wired, nothing fills it.
 
 ---
 
-## Area G — Blueprint AiPrimitives as HSM actions / guards
+## Area G ⚙️🔧 — Blueprint AiPrimitives as HSM actions / guards
 
 The whole path is built: `AiPrimitiveHosting` has `HsmAction` and `HsmGuard`;
 `AiPrimitiveEmitter` emits `HsmActivity` / `HsmGuard` thunks; `CSharpEmitter:353-356` emits the
@@ -317,11 +326,23 @@ registration; `Stage2_Validate.V_DispatchKindCompatibility` pairs `BTreeAction�
   ref var p = ref Unsafe.As<byte, Params>(ref bb.BehaviorParameters[paramIndex * sizeof(Params)]);
   ```
   — params come from the `BrainBlackboard` param region, indexed by a per-node `paramIndex`.
-  **The HSM side has no equivalent, and cannot without a ROM change.** `StateDef` is a full 32 bytes
-  with only `Reserved29` (1 byte) spare and no param field; `TransitionDef` is a full 16 bytes with
-  none either. So *"which parameter block does this binding use"* is unrepresentable in the HSM blob
-  today — this is a **design gap, not a typo**, and it is the reason HSM-013's naming question is
-  really a broader "how is a parameterised action bound to a state slot" question.
+  **The HSM side has no equivalent *field*.** `StateDef` is a full 32 bytes with only `Reserved29`
+  (1 byte) spare and no param field; `TransitionDef` is a full 16 bytes with none either.
+  ⭐ **REFINED 2026-08-14 — a ROM change is probably NOT required.** BTree does not carry the offset
+  in a ROM field either: it bakes it into the **action key string**,
+  `{MethodFqn}@{offset}` (and `{MethodFqn}@{offset}@{slotKey}` for stateful), per
+  `BTreeBridgeEmitCore.cs:460,488,622`. HSM action ids are `ComputeHash(<arbitrary name string>)`,
+  so the identical trick applies: the editor writes the slot's action name as `Ns.Type.Method@40`,
+  `HsmFlattener` hashes the whole string into `ActivityActionId`, and the generated bridge registers
+  a thunk under `ComputeHash("Ns.Type.Method@40")` that projects the DTO at offset 40.
+  **The offset rides in the hashed identity — no new `StateDef` field, no blob format change.**
+  ⇒ HSM-013 (identity) and HSM-015 (params) are then **one fix**, and it is the fix BTree already
+  shipped. This is the central proposal to put to the blueprint session — see
+  [Hsm_Parameters_And_Variables_OPENING_PROMPT.md](Hsm_Parameters_And_Variables_OPENING_PROMPT.md).
+  What genuinely remains open is *per-slot* granularity: a BTree node has **one** action, an HSM
+  state has **four** (Entry/Exit/Activity/Timer) plus a transition's two — so slot identity must
+  include which slot, and `ExpressionTargetField` must exist per slot (today `StateNode` has none at
+  all; only `TransitionNode`/`GlobalTransitionNode` carry one — this is `DEBT-BF-04`).
   ✅ **Not currently live:** no shipped `.bp.json` declares `HsmAction`/`HsmGuard` hosting, so
   nothing is corrupting an instance today. ⚠ **And the existing test cannot catch it** —
   `BuildHsmAiPrimitive` uses `.WithGraph("Main", g => g.Entry().Return())` with **no parameters**, so
@@ -349,7 +370,7 @@ registration; `Stage2_Validate.V_DispatchKindCompatibility` pairs `BTreeAction�
 
 ---
 
-## Area E2 — Kernel features the editor exposes but the runtime does not implement
+## Area E2 🔧 — Kernel features the editor exposes but the runtime does not implement
 
 - [ ] **HSM-012** 🔴📐 · `RW-H` — **The editor authors timers; the kernel never arms one.**
   `StateFacet` exposes a `TimerAction` picker, `HsmEmitCore:656` emits `.TimerAction(...)`,
@@ -370,7 +391,7 @@ registration; `Stage2_Validate.V_DispatchKindCompatibility` pairs `BTreeAction�
 
 ---
 
-## Area F — Documentation accuracy
+## Area F 📄 — Documentation accuracy
 
 - [ ] **HSM-011** · `RW-L` — **`BTree_HSM_Editor_State_And_Forward_Plan.md` is materially stale and
   will mis-plan the work.** Refreshed 2026-06-12; it states HSM *"cannot author at all"* and that

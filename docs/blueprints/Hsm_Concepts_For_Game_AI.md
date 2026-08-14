@@ -3,7 +3,7 @@
 > **Purpose:** orientation for the HSM visual-editing design session. Everything here is grounded in
 > `FDP/ExtDeps/FastHSM` source, not generic UML — where the two differ, FastHSM wins and the
 > difference is called out.
-> **Companion:** [Hsm_Visual_Editing_Issues_Tracker.md](Hsm_Visual_Editing_Issues_Tracker.md).
+> **Companion:** [Hsm_Issues_Tracker.md](Hsm_Issues_Tracker.md).
 
 ---
 

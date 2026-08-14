@@ -1,4 +1,4 @@
-# HSM Visual Editing — Design Session RESUME
+# HSM Design Session — RESUME
 
 > **Read this first when resuming.** Written to survive context compaction.
 > **Branch:** `claude/hsm-visual-editing-9ngei4`, based on `claude/blueprint-authoring-status-gm0akp`.
@@ -6,8 +6,10 @@
 > things should work, and we are settling the way forward together. Do not start implementing rows.
 > ⭐ **Read [Hsm_Integration_Map.md](Hsm_Integration_Map.md) first** — the end-to-end chain, cited.
 > It exists so this file does not have to re-derive the system from code.
-> **Companions:** [Issues tracker](Hsm_Visual_Editing_Issues_Tracker.md) ·
-> [Concepts primer](Hsm_Concepts_For_Game_AI.md)
+> **Companions:** [Issues tracker](Hsm_Issues_Tracker.md) · [Concepts primer](Hsm_Concepts_For_Game_AI.md) ·
+> [Params/variables opening prompt](Hsm_Parameters_And_Variables_OPENING_PROMPT.md)
+> ⭐ **Scope widened 2026-08-14:** the tracker now covers **the whole HSM stack** — editor, codegen,
+> runtime and kernel — not just visual editing, by user direction. Renamed accordingly.
 
 ---
 
@@ -115,8 +117,20 @@ store its params on the HSM side.
 | 2 | History: withdraw the pseudo-state palette entries and expose history as a checkbox on the composite (kernel-faithful), or keep UML sugar that lowers onto the parent flag at emit? | HSM-010 |
 | 3 | Timers: add kernel arming (needs a ROM field + builder param), or stop offering `TimerAction` in the editor until it exists? | HSM-012 |
 | 4 | What is the **canonical name** an HSM binds an action/guard by, and where do a binding's parameters live? | HSM-013, HSM-015, HSM-016 |
-| 5 | Whose lane is HSM-013/015/016? They are *compiler / codegen* defects surfacing in HSM. | — |
+| 5 | Whose lane is HSM-013/015/016? They are *compiler / codegen* defects surfacing in HSM. | Q-G of the opening prompt |
 | 6 | Does the missing runtime event surface matter now, or is authoring-first acceptable? | — |
+
+---
+
+## 5b. In flight — the parameters/variables consultation
+
+[Hsm_Parameters_And_Variables_OPENING_PROMPT.md](Hsm_Parameters_And_Variables_OPENING_PROMPT.md) is
+drafted and awaiting dispatch to the blueprint session. Its central proposal: **adopt BTree's
+`{MethodFqn}@{offset}` key convention verbatim**, because HSM action ids are `ComputeHash(<arbitrary
+string>)` — so the offset can ride inside the hashed identity and **no `StateDef` ROM change is
+needed**. If that holds, HSM-013 and HSM-015 collapse into one fix. Open questions cover per-slot
+binding on a 4-slot state (`DEBT-BF-04`), where guard params live, write-back via aliasing, working
+state across state re-entry, and the 100-byte budget under genuine region concurrency.
 
 ---
 
