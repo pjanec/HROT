@@ -51,12 +51,28 @@ survives that.**
 | **what** | a **reserved, struct-typed input variable**, one per asset. Generated deserialize = one `Deserialize<TInput>` + one `Unsafe.Write` at its offset. The scenario JSON shape **is the DTO's own shape** |
 | **why** | 🔴 **a managed asset cannot be parametrized per instance at all today** — the generated `ParseParams` ignores its `json` argument (`DEBT-AIB-021`), and HSM emits no `ParseParams` whatsoever (`PA-13`) |
 | ⭐⭐ **the real argument** | **decoupling, not saved deserialization.** Without it a scenario writes the asset's *internal* per-action variables ⇒ **re-wiring a node breaks every scenario that used the asset.** With it, the scenario writes the declared input type and the initializer absorbs the change |
-| **tier** | ⭐ **heavy tier, NOT the inline 100 B** — it is read once by the initializer and never by the hot path. ⭐ `Pack` already skips `Role == State`, so a declared variable outside the inline region is an established pattern |
+| **tier** | ⭐ **heavy tier, NOT the inline 100 B** — read once by the initializer, never by the hot path. ⭐ `Pack` already skips `Role == State`, so a declared variable outside the inline region is an established pattern — ⚠ **but `Pack` must also be taught to skip the reserved input variable**, which it does not today |
+| ⛔ **scope** | ⭐⭐ **BTree/HSM managed-blackboard assets ONLY.** The blueprint mapping is **OPEN — see below** |
 | **type source** | today a C# struct type id, like any struct-DTO variable. ⭐ **Editor-authored later needs no model change** |
 | ⚠ **rails** | the reserved name must be **REFUSED** if a user declares it — ⛔ **not silently renamed by `MakeUniqueName`** |
 
 ⭐ **This makes World A the degenerate case of World B:** a curated behaviour *is* "one input DTO at
 offset 0". The two paths converge instead of staying parallel.
+
+⛔⛔ **Open, raised by the blueprint session's review and NOT answered here.** `FieldLayout` has **no
+`Role` concept at all** — it lays out **by list, at fixed offsets 0/8/16** — so on the blueprint side
+**the `DeclarationKind` IS the tier**, and choosing the kind is not a free choice:
+
+| kind | offset | budget | fit for a reserved input |
+|---|---|---|---|
+| `Parameter` | 0 | ≤ 100 (`BP1200`) | ⭐ **semantically exact** — it *is* the externally-supplied input · 🔴 **but that is the inline region**, contradicting the tier ruling |
+| `WorkingState` | 8 | ≤ 1016 (`BP1201`) | ⛔ not an input |
+| `Variable` | 16 | tiered 928/3936/16096 | ⭐ matches the *tier* ruling · ⚠ semantically odd |
+
+⚠ **And `Parameter`/`WorkingState` vs `Variable` are the storage of DIFFERENT dispatch kinds that never
+coexist** (`FINDING_Variable_Index_Space`) — so the answer may differ per dispatch kind, which is
+itself a reason not to guess. ⇒ ⭐ **`E-A` ships for BTree/HSM first; the blueprint mapping needs its
+own decision.** ⛔ **Do not infer it from this document.**
 
 ### 2.2 `E-B` — the initializer
 
@@ -106,10 +122,32 @@ does not exist at assignment time.
 |---|---|---|
 | **1** | 🔴 **collision gate** — duplicate ids, reserved `0`/`0xFFFF`, and a rail refusing any standalone key but `@0` | `ComputeHash` truncates FNV-1a to `ushort`; `RegisterAction` **silently overwrites**. ⭐ **At today's 78 sites: 4.5 % chance of a live collision; 49.6 % at 300.** ⭐ **Mirror `UT0103`, do not invent** |
 | **2** | 🔴 **kill `HsmBridgeEmitCore`'s counter-allocated stubs** | registers no-ops at `100++`/`200++` while the flattener uses `ComputeHash(name)` ⇒ **a stub can overwrite a real action.** Independent of every ruling here |
-| **3** | **explicit `[FieldOffset]` on the emitted blackboard struct** | packers use `align = min(size,8)`; measured `Marshal.OffsetOf` for a `Vector3` after a `byte` is **4**, packers say **8**. ⭐ Explicit layout makes the packer's number *become* the layout — **no oracle left to disagree with**, and it **subsumes the `bool`/`MarshalAs` rule** |
+| **3a** | 🔴🔴 **a RUNTIME layout gate — `Marshal.OffsetOf<T>(name) == f.Offset` for every corpus asset, every emitted field** | ⛔⛔ **MUST precede 3b.** See the correction below — **the golden corpus cannot see this class of defect at all** |
+| **3b** | **explicit `[FieldOffset]` on the emitted struct** | five layout implementations use a size-keyed alignment rule; measured `Marshal.OffsetOf` for a `Vector3` after a `byte` is **4**, they say **8**. ⭐ Explicit layout makes the computed number *become* the layout — **no oracle left to disagree with**, and it **subsumes the `bool`/`MarshalAs` rule** |
 | **4** | **guard read-only projection** | guard thunks hand out a mutable `ref` during **speculative** evaluation. ⭐ **Measured free: 0 production `[SharedAiCondition]` usages.** State it as *"a speculative evaluation may not be observable"* |
 | **5** | **budget summed over all bindings in an asset** | today per-DTO/per-asset only ⇒ ⭐ **a BTree parallel composite already violates it.** `Pack` already returns `totalBytes`. Fold in `BehaviorParameterSizeAnalyzer:26`'s duplicated constant |
-| **6** | ⭐ **a `Vector3`-after-`byte` corpus asset** | today **no gate can see that class at all** — it is what makes #3 falsifiable |
+| **6** | ⭐ **a `Vector3`-after-`byte` corpus asset** | ⚠ **necessary but NOT sufficient — see below** |
+
+### 🔴🔴 Correction — `2026-08-14`, from the blueprint session's review. **My safety argument for step 3 was wrong.**
+
+⭐ **They were asked to push hardest here, and they broke it.** Verified independently:
+
+| | |
+|---|---|
+| ⛔ **the layout rule has FIVE implementations, not four** | ⭐ **`Hrot.Blueprints.Compiler/Compiler/Lowering/FieldLayout.cs:46`** — `TypeAlignment => t.SizeBytes switch { 1=>1, 2=>2, <=4=>4, _=>8 }`. `Vector3` is registered at **12** (`StaticTypeRegistry:40,102`) ⇒ align **8**; the emitted struct is `Sequential` ⇒ the CLR packs it at **4**. ⭐ **The same defect, in an assembly the prior-art sweep missed** |
+| ⛔ **the existing escape hatch is keyed on the wrong predicate** | `CSharpEmitter.cs:412` falls back to runtime layout only when `asset.Variables.Any(f => !f.Type.SizeReliable)`. ⭐⭐ **A `Vector3` has a RELIABLE SIZE (12) and an UNRELIABLE ALIGNMENT.** `SizeReliable` was separated by Q#14; ⛔ **nobody separated alignment-reliability**, so the hatch cannot fire for exactly this class |
+| 🔴🔴 **and my "byte-stable, the corpus proves it" was FALSE** | `GoldenCorpus.cs:268` records **`f.Offset`** — the **computed** number. ⇒ making the struct `Explicit` at those offsets keeps Tier 1 and `StructureHash` **byte-identical while the ACTUAL field moves from 4 to 8.** ⭐⭐ **The gate reads the wrong side of the equality it is supposed to check** |
+
+⇒ ⛔⛔ **The planned corpus asset makes the shape *present* but not *visible*** — Tier 1 records `@8`
+before and `@8` after. **It cannot redden.**
+
+⇒ ⭐⭐ **Step 3a is therefore not optional and not a nicety.** It compares the two numbers directly, it
+**reddens TODAY on the new corpus asset before anything changes** (the red-first order this programme
+runs on), and it **retires the mis-keyed `SizeReliable` predicate** by checking the property that
+actually matters. ⭐ The seam exists from Batch 44.
+
+📌 **Their framing, and it is the right one:** this is `BP-240`'s shape a third time — ⭐ **green not
+because of what the corpus contains, but because of which side the gate reads.**
 
 ---
 
@@ -159,9 +197,14 @@ does not exist at assignment time.
 | **6** | **`E-B`** authored `Construction` initializer + world-singleton vocabulary | the largest new surface |
 | **7** | **retire the standalone stride path** — ⚠ **after `U-12`** | otherwise touches `AiPrimitiveEmitter` mid store-flip |
 
-⚠ **Live constraints:** `U-12` (the blueprint store flip) is **in flight**; the Blueprints suite is
-**red on 2 pre-existing order-dependent tests** (`RESUME_START_HERE` §7x); the visual check has not run
-for 14 batches ⇒ ⭐ **prefer designs whose acceptance is headless.** Every step above is.
+⚠ **Live constraints — CORRECTED `2026-08-14` from the blueprint session's review; three of mine were stale:**
+
+| | |
+|---|---|
+| ✅ **`U-12` is CLOSED** | rails B52, ⭐ **store flipped B53 with `persistence-shape.txt` unchanged** ⇒ **step 7 is UNBLOCKED**, and the "wait for the store flip" caveat is retired |
+| ✅ **the suite is GREEN** | `3551 / 3541 passed / 0 failed / 10 skipped`; `PdbEmbeddedSourceTests` is **3/3 in isolation** (was 0/2) |
+| ⚠ **the visual check is SIXTEEN batches out**, not 14 | ⇒ the headless preference is **stronger**, not weaker. ⭐ **Every step above is headless** |
+| 🔴 **NEW — one I did not list:** `U-10`'s **writer is BLOCKED** | ⛔ **`BP-235` is a project-reference CYCLE, not a preference.** ⇒ **anything here needing a new `Hrot.Common` → blueprint edge hits the same wall.** Check before designing one in |
 
 ---
 
@@ -169,7 +212,7 @@ for 14 batches ⇒ ⭐ **prefer designs whose acceptance is headless.** Every st
 
 | | |
 |---|---|
-| ⚠ **`SlotKind` open or closed?** | the whole `E-C` carrier ruling turns on it, and **I have no roadmap evidence.** If six slots is final, plain fields are simpler |
+| ⚠ **`SlotKind` open or closed?** | the whole `E-C` carrier ruling turns on it, and **I have no roadmap evidence.** If six slots is final, plain fields are simpler. ⭐ **One datum from the review, and it leans toward the tagged carrier:** *twice* (`BP-226`→`U-3`, then `U-9`) the tagged carrier was worth more than the field count suggested, and **both times the untagged version's cost stayed invisible until something broke.** ⇒ that is not evidence `SlotKind` will grow; it is evidence that *"six fields is simpler"* **undercounts the failure mode** |
 | ⚠ **world-singleton vocabulary is unbudgeted** | `E-B`'s authored provider **cannot express Hill Attack** without it — plus geo→cartesian and entity-from-network-id nodes, and a defined failure contract |
 | ⚠ **both orchestrator emitters are dead** | called only from their own tests; `WriteOrchestratorFile` has **zero** callers, while `CompanionFileDiscovery:194` looks for the sidecar nothing writes. ⭐ **Needs a live-or-dead decision before anyone builds on Approach B** |
 | ⚠ **guard blackboard fetch cost unmeasured** | fetching `BrainBlackboard` per speculative guard evaluation is what ships; **optimising it should follow a measurement, not precede one** |
@@ -181,3 +224,4 @@ for 14 batches ⇒ ⭐ **prefer designs whose acceptance is headless.** Every st
 | Date | Change |
 |---|---|
 | 2026-08-14 | Created — consolidates `#28`/`#29`/`#30` into one cross-host design after the work outgrew the HSM reply. |
+| 2026-08-14 | ⭐⭐ **Blueprint-session review applied** (`REVIEW_Behavior_Asset_Parameter_Model.md`, `800a0fe1b`). 🔴 **My step-3 safety argument was WRONG** — golden Tier 1 records the *computed* offset, so it cannot see a computed-vs-actual divergence; **a runtime `Marshal.OffsetOf` gate (3a) now precedes explicit layout (3b)**. Added `FieldLayout.cs` as a **fifth** layout implementation and the **alignment-reliability** gap in the `SizeReliable` hatch. `E-A` **scoped to BTree/HSM**; the blueprint `DeclarationKind` mapping left **explicitly open**. Three stale constraints corrected (`U-12` closed · suite green · visual check 16) and `U-10`'s `BP-235` cycle added. |

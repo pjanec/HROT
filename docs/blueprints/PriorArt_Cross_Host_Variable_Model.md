@@ -110,7 +110,7 @@ explicitly what it is instead.
 | **PA-7** | 🔴 **no collision gate on a 16-bit id space.** `ComputeHash` = FNV-1a-32 → `(ushort)(hash & 0xFFFF)`, **char-identical** in `HsmFlattener.cs:385` and `HsmActionGenerator.cs:802` (~10 copies repo-wide). `RegisterAction` does `ActionTable[id] = ptr` (**silent overwrite**); the static-initialiser path uses `Add` (**throws**). Two failure modes, one hazard | measured |
 | **PA-8** | 🔴 **both orchestrator emitters are dead outside tests.** `HsmOrchestratorEmitter.Emit` / `BTreeOrchestratorEmitter.Emit` are called **only** from their own test files; `WriteOrchestratorFile` has **zero** callers. ⚠ **`CompanionFileDiscovery.cs:194,208` looks for the sidecar that nothing writes.** ⇒ Approach B is implemented, unit-tested and **never runs** — a green that says nothing | measured |
 | **PA-9** | ⚠ **latent: the orchestrator would not compile if it were ever written.** It emits `[HsmAction(Name=…)]` on a **BTree-shaped** method (`ref bb, ref state, ref ctx, int`). `HsmActionGenerator.GetMethodInfo` does **not filter by signature**, and `GenerateRegistrar` casts every `[HsmAction]` to `delegate*<void*,void*,HsmCommandWriter*,void>`. Masked only by PA-8 | read |
-| **PA-10** | 🔴 **measured layout drift.** All three packers use `align = min(size, 8)` (`BlackboardBinPacker.cs:102`, `BTreeBlackboardPackHelper.cs:22`, `HsmActionGenerator.GetTypeAlign`). For `struct S { byte B; Vector3 V; }` this yields **8**; `Marshal.OffsetOf<S>("V")` returns **4** *(measured on .NET 8)*. The DD names `Marshal.OffsetOf` authoritative and requires the packer to *"replicate C# sequential layout exactly"*. `Vector3` is in every packer's `KnownSizes` — i.e. an expected variable type. ⛔ **`BlackboardBinPackerTests.cs:131,145–151` asserts the 8**, so the convention is deliberate and tested — against the wrong oracle | **measured, see below** |
+| **PA-10** | 🔴 **measured layout drift.** ⚠ **See `PA-14` — it is FIVE implementations, not three, and the golden gate is blind to it.** All three packers use `align = min(size, 8)` (`BlackboardBinPacker.cs:102`, `BTreeBlackboardPackHelper.cs:22`, `HsmActionGenerator.GetTypeAlign`). For `struct S { byte B; Vector3 V; }` this yields **8**; `Marshal.OffsetOf<S>("V")` returns **4** *(measured on .NET 8)*. The DD names `Marshal.OffsetOf` authoritative and requires the packer to *"replicate C# sequential layout exactly"*. `Vector3` is in every packer's `KnownSizes` — i.e. an expected variable type. ⛔ **`BlackboardBinPackerTests.cs:131,145–151` asserts the 8**, so the convention is deliberate and tested — against the wrong oracle | **measured, see below** |
 | **PA-11** | ⚠ **`HsmFlattener` has a third id path and it is asymmetric.** `:172–173` allow an explicit `EntryActionId`/`ExitActionId` override; `:174–175` (**Activity**, **Timer**) have none. `actionTable[name]` is a **raw indexer** — `KeyNotFoundException` on an uncollected name. 📐 relevant to `Q-B` |
 | **PA-12** | ⚠ **`Q-F` confirmed: the budget assumes one-at-a-time.** `BP1200` sizes **one asset's** `Parameter` set ≤ 100; `BehaviorRegistry.cs:200` and `BehaviorParameterSizeAnalyzer.cs:64` each size **one DTO** ≤ 100 — and the analyzer **re-declares the constant locally** (`:26`) instead of referencing `BehaviorConstants`. **Nothing sums across simultaneously-live bindings.** Fine for one BTree leaf; not for orthogonal HSM regions |
 
@@ -129,6 +129,21 @@ by **variable name** and dispatch each to its packed offset — **the offsets ar
 `packedFields`.** ⇒ **~30 lines in `EmitParseParamsLocal`.**
 
 ⛔ **Lane: blueprint/BTree** (`Hrot.AiEditor.Persistence`), plus an HSM-side twin that does not exist.
+
+### PA-14 — 🔴🔴 the layout defect is WIDER than PA-10, and the golden gate is BLIND to it
+
+⭐ **Found by the blueprint session's review `2026-08-14`; verified independently here.**
+
+| | |
+|---|---|
+| ⛔ **a FIFTH layout implementation** | ⭐ **`Hrot.Blueprints.Compiler/Compiler/Lowering/FieldLayout.cs:46`** — `TypeAlignment => t.SizeBytes switch { 1=>1, 2=>2, <=4=>4, _=>8 }`. `Vector3` registered at **12** (`StaticTypeRegistry:40,102`) ⇒ align **8**; emitted `Sequential` ⇒ CLR packs at **4**. ⭐ **PA-8 undercounted — the sweep missed this assembly entirely** |
+| ⛔ **the escape hatch is keyed on the WRONG PREDICATE** | `CSharpEmitter.cs:412` uses runtime layout only when `asset.Variables.Any(f => !f.Type.SizeReliable)`. ⭐⭐ **`Vector3` has a RELIABLE SIZE (12) and an UNRELIABLE ALIGNMENT.** Q#14 separated size-reliability; ⛔ **alignment-reliability was never separated**, so the hatch cannot fire for this class |
+| 🔴🔴 **the golden corpus CANNOT SEE IT** | `GoldenCorpus.cs:268` records **`f.Offset`** — the **computed** number, not the actual one. ⇒ ⭐⭐ **a `Vector3`-after-`byte` corpus asset makes the shape PRESENT but not VISIBLE:** Tier 1 records `@8` before and `@8` after, while the real field sits at `4` |
+
+⇒ ⛔⛔ **This refutes the design's original step-3 safety argument** (*"byte-stable; the corpus asset
+proves it"*). ⭐ **The required gate is a RUNTIME one:** `Marshal.OffsetOf<T>(name) == f.Offset` over
+every corpus asset and every emitted field — it **reddens today, before any change**, and retires the
+mis-keyed predicate. 📌 **`BP-240`'s shape a third time — green because of which SIDE the gate reads.**
 
 ### PA-10 — the measurement
 
