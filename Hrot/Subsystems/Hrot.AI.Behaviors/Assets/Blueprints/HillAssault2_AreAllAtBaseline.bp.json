@@ -3,24 +3,29 @@
     "docType": "Hrot.Blueprints",
     "schemaVersion": 1
   },
-  "Header": {
-    "SubsystemType": "Hrot.Blueprints",
-    "SchemaVersion": "1.0"
-  },
+  "Header": {},
   "AssetId": "c4f1a2b6-9d3e-4a70-8f21-6b5e0a7c2d94",
   "Name": "HillAssault2_AreAllAtBaseline",
   "Dispatch": "AiPrimitive",
   "TierHint": "Auto",
+  "IsWorldSingleton": false,
   "Primitive": {
     "Intent": "Condition",
-    "Hostings": ["BTreeCondition"]
+    "Hostings": [
+      "BTreeCondition"
+    ]
   },
   "Parameters": [],
+  "ParameterOrder": null,
   "WorkingState": [
     {
       "Id": "a1100000-0000-0000-0000-000000000001",
       "Name": "AllAtBaseline",
-      "Type": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] },
+      "Type": {
+        "TypeId": "System.Boolean",
+        "IsArray": false,
+        "GenericArgs": []
+      },
       "DefaultValueJson": "false",
       "IsEditable": false,
       "IsExposedOnSpawn": false,
@@ -29,7 +34,9 @@
       "Comment": null
     }
   ],
+  "WorkingStateOrder": null,
   "Variables": [],
+  "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
   "CallablePeers": [],
@@ -40,226 +47,488 @@
       "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
-          "Id": "e0000000-0000-0000-0000-000000000001",
           "EventTypeId": "",
+          "Id": "e0000000-0000-0000-0000-000000000001",
           "Pins": [],
-          "EditorMetadata": { "X": 60.0, "Y": 260.0 }
+          "EditorMetadata": {
+            "X": 60,
+            "Y": 260,
+            "Comment": null
+          }
         },
         {
           "kind": "Literal",
-          "Id": "11110000-0000-0000-0000-000000000001",
           "TypeId": "System.Boolean",
           "ValueJson": "true",
+          "Id": "11110000-0000-0000-0000-000000000001",
           "Pins": [],
-          "EditorMetadata": { "X": 60.0, "Y": 120.0 }
+          "EditorMetadata": {
+            "X": 60,
+            "Y": 120,
+            "Comment": null
+          }
         },
         {
           "kind": "SetVariable",
-          "Id": "50000000-0000-0000-0000-000000000001",
           "VariableId": "a1100000-0000-0000-0000-000000000001",
+          "Id": "50000000-0000-0000-0000-000000000001",
           "Pins": [],
-          "EditorMetadata": { "X": 280.0, "Y": 260.0 }
+          "EditorMetadata": {
+            "X": 280,
+            "Y": 260,
+            "Comment": null
+          }
         },
         {
           "kind": "FlowForEach",
-          "Id": "fe000000-0000-0000-0000-000000000001",
           "SourceComponentFqn": "Fdp.Core.CommandHierarchy.UnitRoster",
           "CountAccessorFqn": "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count",
           "ItemAccessorFqn": "Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate",
+          "Id": "fe000000-0000-0000-0000-000000000001",
           "Pins": [
-            { "Id": "fe000000-0000-0000-0000-0000000000a1", "Name": "In",          "Direction": "In",  "IsExec": true,  "TypeRef": {} },
-            { "Id": "fe000000-0000-0000-0000-0000000000a2", "Name": "Body",        "Direction": "Out", "IsExec": true,  "TypeRef": {} },
-            { "Id": "fe000000-0000-0000-0000-0000000000a3", "Name": "Completed",   "Direction": "Out", "IsExec": true,  "TypeRef": {} },
-            { "Id": "fe000000-0000-0000-0000-0000000000a4", "Name": "CurrentItem", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "Fdp.Core.Entity" } }
+            {
+              "Id": "fe000000-0000-0000-0000-0000000000a1",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "fe000000-0000-0000-0000-0000000000a2",
+              "Name": "Body",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "fe000000-0000-0000-0000-0000000000a3",
+              "Name": "Completed",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "fe000000-0000-0000-0000-0000000000a4",
+              "Name": "CurrentItem",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "Fdp.Core.Entity",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
           ],
-          "EditorMetadata": { "X": 520.0, "Y": 260.0 }
+          "EditorMetadata": {
+            "X": 520,
+            "Y": 260,
+            "Comment": null
+          }
         },
         {
           "kind": "GetComponent",
-          "Id": "9c000000-0000-0000-0000-000000000001",
           "ComponentTypeFqn": "Fdp.Toolkit.Navigation.NavigationStatus",
           "FieldName": "Result",
           "FieldTypeFqn": "Fdp.Toolkit.Navigation.NavigationResult",
+          "Id": "9c000000-0000-0000-0000-000000000001",
           "Pins": [
-            { "Id": "9c000000-0000-0000-0000-0000000000a1", "Name": "Target", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "Fdp.Core.Entity" } },
-            { "Id": "9c000000-0000-0000-0000-0000000000a2", "Name": "Value",  "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult", "IsArray": false, "GenericArgs": [] } }
+            {
+              "Id": "9c000000-0000-0000-0000-0000000000a1",
+              "Name": "Target",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "Fdp.Core.Entity",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "9c000000-0000-0000-0000-0000000000a2",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
           ],
-          "EditorMetadata": { "X": 560.0, "Y": 80.0 }
+          "EditorMetadata": {
+            "X": 560,
+            "Y": 80,
+            "Comment": null
+          }
         },
         {
           "kind": "Literal",
-          "Id": "11110000-0000-0000-0000-000000000003",
           "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult",
           "ValueJson": "global::Fdp.Toolkit.Navigation.NavigationResult.Arrived",
+          "Id": "11110000-0000-0000-0000-000000000003",
           "Pins": [
-            { "Id": "11110000-0000-0000-0000-0000000000a1", "Name": "Value", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult", "IsArray": false, "GenericArgs": [] } }
+            {
+              "Id": "11110000-0000-0000-0000-0000000000a1",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
           ],
-          "EditorMetadata": { "X": 560.0, "Y": 200.0 }
+          "EditorMetadata": {
+            "X": 560,
+            "Y": 200,
+            "Comment": null
+          }
         },
         {
           "kind": "Compare",
-          "Id": "ca000000-0000-0000-0000-000000000001",
           "Operator": "Equal",
+          "Id": "ca000000-0000-0000-0000-000000000001",
           "Pins": [
-            { "Id": "ca000000-0000-0000-0000-0000000000a1", "Name": "A",      "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "ca000000-0000-0000-0000-0000000000a2", "Name": "B",      "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult", "IsArray": false, "GenericArgs": [] } },
-            { "Id": "ca000000-0000-0000-0000-0000000000a3", "Name": "Result", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] } }
+            {
+              "Id": "ca000000-0000-0000-0000-0000000000a1",
+              "Name": "A",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "ca000000-0000-0000-0000-0000000000a2",
+              "Name": "B",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "global::Fdp.Toolkit.Navigation.NavigationResult",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "ca000000-0000-0000-0000-0000000000a3",
+              "Name": "Result",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
           ],
-          "EditorMetadata": { "X": 800.0, "Y": 80.0 }
+          "EditorMetadata": {
+            "X": 800,
+            "Y": 80,
+            "Comment": null
+          }
         },
         {
           "kind": "Branch",
           "Id": "b1000000-0000-0000-0000-000000000001",
           "Pins": [
-            { "Id": "b1000000-0000-0000-0000-0000000000a1", "Name": "In",        "Direction": "In",  "IsExec": true,  "TypeRef": {} },
-            { "Id": "b1000000-0000-0000-0000-0000000000a2", "Name": "True",      "Direction": "Out", "IsExec": true,  "TypeRef": {} },
-            { "Id": "b1000000-0000-0000-0000-0000000000a3", "Name": "False",     "Direction": "Out", "IsExec": true,  "TypeRef": {} },
-            { "Id": "b1000000-0000-0000-0000-0000000000a4", "Name": "Condition", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Boolean" } }
+            {
+              "Id": "b1000000-0000-0000-0000-0000000000a1",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "b1000000-0000-0000-0000-0000000000a2",
+              "Name": "True",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "b1000000-0000-0000-0000-0000000000a3",
+              "Name": "False",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "b1000000-0000-0000-0000-0000000000a4",
+              "Name": "Condition",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
           ],
-          "EditorMetadata": { "X": 1040.0, "Y": 260.0 }
+          "EditorMetadata": {
+            "X": 1040,
+            "Y": 260,
+            "Comment": null
+          }
         },
         {
           "kind": "Literal",
-          "Id": "11110000-0000-0000-0000-000000000002",
           "TypeId": "System.Boolean",
           "ValueJson": "false",
+          "Id": "11110000-0000-0000-0000-000000000002",
           "Pins": [],
-          "EditorMetadata": { "X": 1040.0, "Y": 440.0 }
+          "EditorMetadata": {
+            "X": 1040,
+            "Y": 440,
+            "Comment": null
+          }
         },
         {
           "kind": "SetVariable",
-          "Id": "50000000-0000-0000-0000-000000000002",
           "VariableId": "a1100000-0000-0000-0000-000000000001",
+          "Id": "50000000-0000-0000-0000-000000000002",
           "Pins": [],
-          "EditorMetadata": { "X": 1280.0, "Y": 380.0 }
+          "EditorMetadata": {
+            "X": 1280,
+            "Y": 380,
+            "Comment": null
+          }
         },
         {
           "kind": "GetVariable",
-          "Id": "67000000-0000-0000-0000-000000000001",
           "VariableId": "a1100000-0000-0000-0000-000000000001",
+          "Id": "67000000-0000-0000-0000-000000000001",
           "Pins": [],
-          "EditorMetadata": { "X": 1040.0, "Y": 620.0 }
+          "EditorMetadata": {
+            "X": 1040,
+            "Y": 620,
+            "Comment": null
+          }
         },
         {
           "kind": "Branch",
           "Id": "b2000000-0000-0000-0000-000000000001",
           "Pins": [
-            { "Id": "b2000000-0000-0000-0000-0000000000a1", "Name": "In",        "Direction": "In",  "IsExec": true,  "TypeRef": {} },
-            { "Id": "b2000000-0000-0000-0000-0000000000a2", "Name": "True",      "Direction": "Out", "IsExec": true,  "TypeRef": {} },
-            { "Id": "b2000000-0000-0000-0000-0000000000a3", "Name": "False",     "Direction": "Out", "IsExec": true,  "TypeRef": {} },
-            { "Id": "b2000000-0000-0000-0000-0000000000a4", "Name": "Condition", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "System.Boolean" } }
+            {
+              "Id": "b2000000-0000-0000-0000-0000000000a1",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "b2000000-0000-0000-0000-0000000000a2",
+              "Name": "True",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "b2000000-0000-0000-0000-0000000000a3",
+              "Name": "False",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "b2000000-0000-0000-0000-0000000000a4",
+              "Name": "Condition",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
           ],
-          "EditorMetadata": { "X": 1320.0, "Y": 620.0 }
+          "EditorMetadata": {
+            "X": 1320,
+            "Y": 620,
+            "Comment": null
+          }
         },
         {
           "kind": "Return",
-          "Id": "8e000000-0000-0000-0000-000000000001",
           "Status": "Success",
+          "Id": "8e000000-0000-0000-0000-000000000001",
           "Pins": [],
-          "EditorMetadata": { "X": 1600.0, "Y": 540.0 }
+          "EditorMetadata": {
+            "X": 1600,
+            "Y": 540,
+            "Comment": null
+          }
         },
         {
           "kind": "Return",
-          "Id": "8e000000-0000-0000-0000-000000000002",
           "Status": "Failure",
+          "Id": "8e000000-0000-0000-0000-000000000002",
           "Pins": [],
-          "EditorMetadata": { "X": 1600.0, "Y": 700.0 }
+          "EditorMetadata": {
+            "X": 1600,
+            "Y": 700,
+            "Comment": null
+          }
         }
       ],
       "Links": [
         {
           "FromNodeId": "e0000000-0000-0000-0000-000000000001",
-          "FromPinId":  "ea000000-0000-0000-0000-0000000000e1",
-          "ToNodeId":   "50000000-0000-0000-0000-000000000001",
-          "ToPinId":    "5a000000-0000-0000-0000-0000000000c1"
+          "FromPinId": "ea000000-0000-0000-0000-0000000000e1",
+          "ToNodeId": "50000000-0000-0000-0000-000000000001",
+          "ToPinId": "5a000000-0000-0000-0000-0000000000c1"
         },
         {
           "FromNodeId": "11110000-0000-0000-0000-000000000001",
-          "FromPinId":  "1a000000-0000-0000-0000-0000000000d1",
-          "ToNodeId":   "50000000-0000-0000-0000-000000000001",
-          "ToPinId":    "5a000000-0000-0000-0000-0000000000c2"
+          "FromPinId": "1a000000-0000-0000-0000-0000000000d1",
+          "ToNodeId": "50000000-0000-0000-0000-000000000001",
+          "ToPinId": "5a000000-0000-0000-0000-0000000000c2"
         },
         {
           "FromNodeId": "50000000-0000-0000-0000-000000000001",
-          "FromPinId":  "5a000000-0000-0000-0000-0000000000c3",
-          "ToNodeId":   "fe000000-0000-0000-0000-000000000001",
-          "ToPinId":    "fe000000-0000-0000-0000-0000000000a1"
+          "FromPinId": "5a000000-0000-0000-0000-0000000000c3",
+          "ToNodeId": "fe000000-0000-0000-0000-000000000001",
+          "ToPinId": "fe000000-0000-0000-0000-0000000000a1"
         },
         {
           "FromNodeId": "fe000000-0000-0000-0000-000000000001",
-          "FromPinId":  "fe000000-0000-0000-0000-0000000000a2",
-          "ToNodeId":   "b1000000-0000-0000-0000-000000000001",
-          "ToPinId":    "b1000000-0000-0000-0000-0000000000a1"
+          "FromPinId": "fe000000-0000-0000-0000-0000000000a2",
+          "ToNodeId": "b1000000-0000-0000-0000-000000000001",
+          "ToPinId": "b1000000-0000-0000-0000-0000000000a1"
         },
         {
           "FromNodeId": "fe000000-0000-0000-0000-000000000001",
-          "FromPinId":  "fe000000-0000-0000-0000-0000000000a4",
-          "ToNodeId":   "9c000000-0000-0000-0000-000000000001",
-          "ToPinId":    "9c000000-0000-0000-0000-0000000000a1"
+          "FromPinId": "fe000000-0000-0000-0000-0000000000a4",
+          "ToNodeId": "9c000000-0000-0000-0000-000000000001",
+          "ToPinId": "9c000000-0000-0000-0000-0000000000a1"
         },
         {
           "FromNodeId": "9c000000-0000-0000-0000-000000000001",
-          "FromPinId":  "9c000000-0000-0000-0000-0000000000a2",
-          "ToNodeId":   "ca000000-0000-0000-0000-000000000001",
-          "ToPinId":    "ca000000-0000-0000-0000-0000000000a1"
+          "FromPinId": "9c000000-0000-0000-0000-0000000000a2",
+          "ToNodeId": "ca000000-0000-0000-0000-000000000001",
+          "ToPinId": "ca000000-0000-0000-0000-0000000000a1"
         },
         {
           "FromNodeId": "11110000-0000-0000-0000-000000000003",
-          "FromPinId":  "11110000-0000-0000-0000-0000000000a1",
-          "ToNodeId":   "ca000000-0000-0000-0000-000000000001",
-          "ToPinId":    "ca000000-0000-0000-0000-0000000000a2"
+          "FromPinId": "11110000-0000-0000-0000-0000000000a1",
+          "ToNodeId": "ca000000-0000-0000-0000-000000000001",
+          "ToPinId": "ca000000-0000-0000-0000-0000000000a2"
         },
         {
           "FromNodeId": "ca000000-0000-0000-0000-000000000001",
-          "FromPinId":  "ca000000-0000-0000-0000-0000000000a3",
-          "ToNodeId":   "b1000000-0000-0000-0000-000000000001",
-          "ToPinId":    "b1000000-0000-0000-0000-0000000000a4"
+          "FromPinId": "ca000000-0000-0000-0000-0000000000a3",
+          "ToNodeId": "b1000000-0000-0000-0000-000000000001",
+          "ToPinId": "b1000000-0000-0000-0000-0000000000a4"
         },
         {
           "FromNodeId": "b1000000-0000-0000-0000-000000000001",
-          "FromPinId":  "b1000000-0000-0000-0000-0000000000a3",
-          "ToNodeId":   "50000000-0000-0000-0000-000000000002",
-          "ToPinId":    "5b000000-0000-0000-0000-0000000000c1"
+          "FromPinId": "b1000000-0000-0000-0000-0000000000a3",
+          "ToNodeId": "50000000-0000-0000-0000-000000000002",
+          "ToPinId": "5b000000-0000-0000-0000-0000000000c1"
         },
         {
           "FromNodeId": "11110000-0000-0000-0000-000000000002",
-          "FromPinId":  "1b000000-0000-0000-0000-0000000000d1",
-          "ToNodeId":   "50000000-0000-0000-0000-000000000002",
-          "ToPinId":    "5b000000-0000-0000-0000-0000000000c2"
+          "FromPinId": "1b000000-0000-0000-0000-0000000000d1",
+          "ToNodeId": "50000000-0000-0000-0000-000000000002",
+          "ToPinId": "5b000000-0000-0000-0000-0000000000c2"
         },
         {
           "FromNodeId": "fe000000-0000-0000-0000-000000000001",
-          "FromPinId":  "fe000000-0000-0000-0000-0000000000a3",
-          "ToNodeId":   "b2000000-0000-0000-0000-000000000001",
-          "ToPinId":    "b2000000-0000-0000-0000-0000000000a1"
+          "FromPinId": "fe000000-0000-0000-0000-0000000000a3",
+          "ToNodeId": "b2000000-0000-0000-0000-000000000001",
+          "ToPinId": "b2000000-0000-0000-0000-0000000000a1"
         },
         {
           "FromNodeId": "67000000-0000-0000-0000-000000000001",
-          "FromPinId":  "6a000000-0000-0000-0000-0000000000f1",
-          "ToNodeId":   "b2000000-0000-0000-0000-000000000001",
-          "ToPinId":    "b2000000-0000-0000-0000-0000000000a4"
+          "FromPinId": "6a000000-0000-0000-0000-0000000000f1",
+          "ToNodeId": "b2000000-0000-0000-0000-000000000001",
+          "ToPinId": "b2000000-0000-0000-0000-0000000000a4"
         },
         {
           "FromNodeId": "b2000000-0000-0000-0000-000000000001",
-          "FromPinId":  "b2000000-0000-0000-0000-0000000000a2",
-          "ToNodeId":   "8e000000-0000-0000-0000-000000000001",
-          "ToPinId":    "8a000000-0000-0000-0000-0000000000b1"
+          "FromPinId": "b2000000-0000-0000-0000-0000000000a2",
+          "ToNodeId": "8e000000-0000-0000-0000-000000000001",
+          "ToPinId": "8a000000-0000-0000-0000-0000000000b1"
         },
         {
           "FromNodeId": "b2000000-0000-0000-0000-000000000001",
-          "FromPinId":  "b2000000-0000-0000-0000-0000000000a3",
-          "ToNodeId":   "8e000000-0000-0000-0000-000000000002",
-          "ToPinId":    "8b000000-0000-0000-0000-0000000000b1"
+          "FromPinId": "b2000000-0000-0000-0000-0000000000a3",
+          "ToNodeId": "8e000000-0000-0000-0000-000000000002",
+          "ToPinId": "8b000000-0000-0000-0000-0000000000b1"
         }
       ],
-      "EditorMetadata": { "ViewportX": 0, "ViewportY": 0, "ViewportZoom": 0 }
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
     }
   ],
   "EditorMetadata": {
-    "Description": "P1b/GAP-12 proof (GAP-1, Hill-attack -> Blueprints slice 4): Condition_AreAllAtBaseline rebuilt as a visually-authored AiPrimitive BTreeCondition, exercising the in-body Branch -> inline if/else scheduler path together with P2 (foreign-entity component read), P1a (FlowForEach loop), and the native Compare node (GAP-12). Graph: init WorkingState bool AllAtBaseline=true (Literal->SetVariable), then FlowForEach over the commander's UnitRoster (curated UnitRosterOps.Count/Subordinate) whose body reads each subordinate's NavigationStatus.Result via GetComponent(Target=CurrentItem), compares it against Literal(NavigationResult.Arrived) via the native Compare node (Operator=Equal, IrOp_Compare emits the infix '==' inline), and BRANCHES on the Compare.Result: on 'not arrived' (Branch.False) it sets AllAtBaseline=false; on 'arrived' (Branch.True, unwired) nothing -- i.e. the AND-reduce `if (!(nav.Result == NavigationResult.Arrived)) AllAtBaseline=false;` emitted as a nested inline if/else INSIDE the for-loop (P1b), not a BFS block split. After the loop, GetVariable(AllAtBaseline)->Branch returns Success/Failure. Proves in-body branch lowering (IrOp_If) AND the native Compare node end-to-end through the real netstandard2.0 generator. GAP-12: the enum-equality check is now fully visual (native Compare node) -- the former HillAssault2NavOps.IsArrived stopgap helper has been retired (deleted). Does not modify the C# oracle (HillAttackCommanderNodes.Condition_AreAllAtBaseline).",
+    "Description": "P1b/GAP-12 proof (GAP-1, Hill-attack -\u003E Blueprints slice 4): Condition_AreAllAtBaseline rebuilt as a visually-authored AiPrimitive BTreeCondition, exercising the in-body Branch -\u003E inline if/else scheduler path together with P2 (foreign-entity component read), P1a (FlowForEach loop), and the native Compare node (GAP-12). Graph: init WorkingState bool AllAtBaseline=true (Literal-\u003ESetVariable), then FlowForEach over the commander\u0027s UnitRoster (curated UnitRosterOps.Count/Subordinate) whose body reads each subordinate\u0027s NavigationStatus.Result via GetComponent(Target=CurrentItem), compares it against Literal(NavigationResult.Arrived) via the native Compare node (Operator=Equal, IrOp_Compare emits the infix \u0027==\u0027 inline), and BRANCHES on the Compare.Result: on \u0027not arrived\u0027 (Branch.False) it sets AllAtBaseline=false; on \u0027arrived\u0027 (Branch.True, unwired) nothing -- i.e. the AND-reduce \u0060if (!(nav.Result == NavigationResult.Arrived)) AllAtBaseline=false;\u0060 emitted as a nested inline if/else INSIDE the for-loop (P1b), not a BFS block split. After the loop, GetVariable(AllAtBaseline)-\u003EBranch returns Success/Failure. Proves in-body branch lowering (IrOp_If) AND the native Compare node end-to-end through the real netstandard2.0 generator. GAP-12: the enum-equality check is now fully visual (native Compare node) -- the former HillAssault2NavOps.IsArrived stopgap helper has been retired (deleted). Does not modify the C# oracle (HillAttackCommanderNodes.Condition_AreAllAtBaseline).",
     "Category": null,
     "Recipe": null
   }

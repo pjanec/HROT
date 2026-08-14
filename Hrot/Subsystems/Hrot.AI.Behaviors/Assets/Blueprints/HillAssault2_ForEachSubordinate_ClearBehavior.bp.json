@@ -3,21 +3,24 @@
     "docType": "Hrot.Blueprints",
     "schemaVersion": 1
   },
-  "Header": {
-    "SubsystemType": "Hrot.Blueprints",
-    "SchemaVersion": "1.0"
-  },
+  "Header": {},
   "AssetId": "ead05968-d6d7-4e2f-8133-6782fd733bb4",
   "Name": "HillAssault2_ForEachSubordinate_ClearBehavior",
   "Dispatch": "AiPrimitive",
   "TierHint": "Auto",
+  "IsWorldSingleton": false,
   "Primitive": {
     "Intent": "Action",
-    "Hostings": ["BTreeAction"]
+    "Hostings": [
+      "BTreeAction"
+    ]
   },
   "Parameters": [],
+  "ParameterOrder": null,
   "WorkingState": [],
+  "WorkingStateOrder": null,
   "Variables": [],
+  "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
   "CallablePeers": [],
@@ -28,49 +31,166 @@
       "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
-          "Id": "3b484333-073e-4aab-ace0-8c15e657bb7b",
           "EventTypeId": "",
+          "Id": "3b484333-073e-4aab-ace0-8c15e657bb7b",
           "Pins": [
-            { "Id": "a2c15581-fe01-4c82-a6b4-15a5a9a86e62", "Name": "Out", "Direction": "Out", "IsExec": true, "TypeRef": {} }
+            {
+              "Id": "a2c15581-fe01-4c82-a6b4-15a5a9a86e62",
+              "Name": "Out",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            }
           ],
-          "EditorMetadata": { "X": 80.0, "Y": 220.0 }
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 220,
+            "Comment": null
+          }
         },
         {
           "kind": "FlowForEach",
-          "Id": "b62472a2-d3f3-43d9-ba9e-fbdb511029aa",
           "SourceComponentFqn": "Fdp.Core.CommandHierarchy.UnitRoster",
           "CountAccessorFqn": "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count",
           "ItemAccessorFqn": "Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate",
+          "Id": "b62472a2-d3f3-43d9-ba9e-fbdb511029aa",
           "Pins": [
-            { "Id": "648076b5-7a28-41ec-91af-abc806f15e49", "Name": "In",          "Direction": "In",  "IsExec": true,  "TypeRef": {} },
-            { "Id": "d326de17-14e7-4363-8c96-5730c4d56ae2", "Name": "Body",        "Direction": "Out", "IsExec": true,  "TypeRef": {} },
-            { "Id": "1fcf464a-8de8-4d11-acfc-c77cf74c18a6", "Name": "Completed",   "Direction": "Out", "IsExec": true,  "TypeRef": {} },
-            { "Id": "97b0f003-c9d2-413c-bb85-909ec952aeed", "Name": "CurrentItem", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "Fdp.Core.Entity" } }
+            {
+              "Id": "648076b5-7a28-41ec-91af-abc806f15e49",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d326de17-14e7-4363-8c96-5730c4d56ae2",
+              "Name": "Body",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "1fcf464a-8de8-4d11-acfc-c77cf74c18a6",
+              "Name": "Completed",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "97b0f003-c9d2-413c-bb85-909ec952aeed",
+              "Name": "CurrentItem",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "Fdp.Core.Entity",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
           ],
-          "EditorMetadata": { "X": 360.0, "Y": 220.0 }
+          "EditorMetadata": {
+            "X": 360,
+            "Y": 220,
+            "Comment": null
+          }
         },
         {
           "kind": "PublishEvent",
-          "Id": "f0a952d4-7937-4c89-999f-77775ff6770a",
           "EventId": "ClearBehaviorEvent",
+          "Id": "f0a952d4-7937-4c89-999f-77775ff6770a",
           "Pins": [
-            { "Id": "6dae73b2-71c6-49d8-aa91-89e76dbcff84", "Name": "In",     "Direction": "In",  "IsExec": true,  "TypeRef": {} },
-            { "Id": "daa16a10-5e3b-4728-845f-427b1721fc93", "Name": "Out",    "Direction": "Out", "IsExec": true,  "TypeRef": {} },
-            { "Id": "f3e0fd8c-5328-4445-be17-e1da846ba76e", "Name": "Target", "Direction": "In",  "IsExec": false, "TypeRef": { "TypeId": "Fdp.Core.Entity" } }
+            {
+              "Id": "6dae73b2-71c6-49d8-aa91-89e76dbcff84",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "daa16a10-5e3b-4728-845f-427b1721fc93",
+              "Name": "Out",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "f3e0fd8c-5328-4445-be17-e1da846ba76e",
+              "Name": "Target",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "Fdp.Core.Entity",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
           ],
-          "EditorMetadata": { "X": 680.0, "Y": 160.0 }
+          "EditorMetadata": {
+            "X": 680,
+            "Y": 160,
+            "Comment": null
+          }
         },
         {
           "kind": "Return",
-          "Id": "a80e08af-1ff8-4e47-8f83-67ce49834770",
           "Status": "Success",
+          "Id": "a80e08af-1ff8-4e47-8f83-67ce49834770",
           "Pins": [
-            { "Id": "87125c12-e1c7-4e15-a6d1-eb0455704196", "Name": "In", "Direction": "In", "IsExec": true, "TypeRef": {} }
+            {
+              "Id": "87125c12-e1c7-4e15-a6d1-eb0455704196",
+              "Name": "In",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            }
           ],
-          "EditorMetadata": { "X": 1000.0, "Y": 220.0 }
+          "EditorMetadata": {
+            "X": 1000,
+            "Y": 220,
+            "Comment": null
+          }
         }
       ],
       "Links": [
@@ -99,11 +219,17 @@
           "ToPinId": "87125c12-e1c7-4e15-a6d1-eb0455704196"
         }
       ],
-      "EditorMetadata": { "ViewportX": 0, "ViewportY": 0, "ViewportZoom": 0 }
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
     }
   ],
   "EditorMetadata": {
-    "Description": "P1a proof (GAP-1): per-subordinate ClearBehaviorEvent via FlowForEach over the commander's UnitRoster -- branch-free, latent-free body; iterates UnitRoster subordinates (curated UnitRosterOps.Count/Subordinate accessors, no raw fixed-array access in the graph) and publishes ClearBehaviorEvent{Entity=subordinate} once per subordinate (reuses P4 PublishEvent, wired from FlowForEach's CurrentItem out-pin -- NOT self). Proves the inline-for loop substrate + curated source + latent-free validation; GAP-1 substrate for P1b's AreAllAtBaseline.",
+    "Description": "P1a proof (GAP-1): per-subordinate ClearBehaviorEvent via FlowForEach over the commander\u0027s UnitRoster -- branch-free, latent-free body; iterates UnitRoster subordinates (curated UnitRosterOps.Count/Subordinate accessors, no raw fixed-array access in the graph) and publishes ClearBehaviorEvent{Entity=subordinate} once per subordinate (reuses P4 PublishEvent, wired from FlowForEach\u0027s CurrentItem out-pin -- NOT self). Proves the inline-for loop substrate \u002B curated source \u002B latent-free validation; GAP-1 substrate for P1b\u0027s AreAllAtBaseline.",
     "Category": null,
     "Recipe": null
   }

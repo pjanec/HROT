@@ -42,6 +42,8 @@
       "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
@@ -71,6 +73,7 @@
           "MethodName": "AddInt",
           "IsPure": true,
           "TargetGraphId": "",
+          "TrailingContext": "Unspecified",
           "Id": "20000006-0000-0000-0000-000000000003",
           "Pins": [],
           "EditorMetadata": {
@@ -155,6 +158,7 @@
           "MethodName": "AddInt",
           "IsPure": true,
           "TargetGraphId": "",
+          "TrailingContext": "Unspecified",
           "Id": "4402a7db-5df8-479f-ab09-8ed6e90ae9ad",
           "Pins": [],
           "EditorMetadata": {
@@ -259,6 +263,8 @@
           "ToPinId": "4d3d381f-2682-4a68-b125-eab5b8f7a2da"
         }
       ],
+      "LocalVariables": [],
+      "Comments": [],
       "EditorMetadata": {
         "ViewportX": 0,
         "ViewportY": 0,

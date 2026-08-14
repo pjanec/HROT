@@ -1,1 +1,106 @@
-{"$meta":{"docType":"Hrot.Blueprints","schemaVersion":1},"Header":{},"AssetId":"d7dedbce-4582-4664-a352-69962a0e0833","Name":"Loco1","Dispatch":"AiPrimitive","TierHint":"Auto","IsWorldSingleton":false,"Primitive":{"Intent":"Action","Hostings":["BTreeAction"]},"Parameters":[],"ParameterOrder":null,"WorkingState":[],"WorkingStateOrder":null,"Variables":[],"VariableOrder":null,"EventDispatchers":[],"CustomEvents":[],"CallablePeers":[],"Graphs":[{"Id":"e5000006-0001-0001-0001-000000000001","Name":"Main","Kind":"Function","Inputs":[],"Outputs":[],"Nodes":[{"kind":"EventEntry","EventTypeId":"","Id":"f5000006-0001-0001-0001-000000000001","Pins":[],"EditorMetadata":{"X":71,"Y":203,"Comment":null}},{"kind":"ChannelCommand","ChannelType":"LocomotionChannel","ActionId":"MoveTo","Id":"f5000006-0002-0002-0002-000000000001","Pins":[],"EditorMetadata":{"X":375,"Y":152,"Comment":null},"PinDefaults":{"ArrivalRadius":"-1.17","Speed":"-0.12344","RouteHandle":"-119","Destination":"\u003C-0,5\u00A0 0\u00A0 0\u003E"}},{"kind":"Return","Status":"Success","Id":"f5000006-0003-0003-0003-000000000001","Pins":[],"EditorMetadata":{"X":899,"Y":238,"Comment":null}}],"Links":[{"FromNodeId":"f5000006-0001-0001-0001-000000000001","FromPinId":"e5ee0006-0001-a001-0001-000000000001","ToNodeId":"f5000006-0002-0002-0002-000000000001","ToPinId":"e5ee0006-0002-b001-0001-000000000001"},{"FromNodeId":"f5000006-0002-0002-0002-000000000001","FromPinId":"02cd8606-b7d8-9952-95f2-a14fc1cdfdee","ToNodeId":"f5000006-0003-0003-0003-000000000001","ToPinId":"b7ef86a9-a737-8d50-8ea1-72cdcf69a69a"}],"EditorMetadata":{"ViewportX":0,"ViewportY":0,"ViewportZoom":0}}],"EditorMetadata":{"Description":null,"Category":null,"Recipe":null}}
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {},
+  "AssetId": "d7dedbce-4582-4664-a352-69962a0e0833",
+  "Name": "Loco1",
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": {
+    "Intent": "Action",
+    "Hostings": [
+      "BTreeAction"
+    ]
+  },
+  "Parameters": [],
+  "ParameterOrder": null,
+  "WorkingState": [],
+  "WorkingStateOrder": null,
+  "Variables": [],
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "e5000006-0001-0001-0001-000000000001",
+      "Name": "Main",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "f5000006-0001-0001-0001-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 71,
+            "Y": 203,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "ChannelCommand",
+          "ChannelType": "LocomotionChannel",
+          "ActionId": "MoveTo",
+          "Id": "f5000006-0002-0002-0002-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 375,
+            "Y": 152,
+            "Comment": null
+          },
+          "PinDefaults": {
+            "ArrivalRadius": "-1.17",
+            "Speed": "-0.12344",
+            "RouteHandle": "-119",
+            "Destination": "\u003C-0,5\u00A0 0\u00A0 0\u003E"
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "f5000006-0003-0003-0003-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 899,
+            "Y": 238,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "f5000006-0001-0001-0001-000000000001",
+          "FromPinId": "e5ee0006-0001-a001-0001-000000000001",
+          "ToNodeId": "f5000006-0002-0002-0002-000000000001",
+          "ToPinId": "e5ee0006-0002-b001-0001-000000000001"
+        },
+        {
+          "FromNodeId": "f5000006-0002-0002-0002-000000000001",
+          "FromPinId": "02cd8606-b7d8-9952-95f2-a14fc1cdfdee",
+          "ToNodeId": "f5000006-0003-0003-0003-000000000001",
+          "ToPinId": "b7ef86a9-a737-8d50-8ea1-72cdcf69a69a"
+        }
+      ],
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": null,
+    "Category": null,
+    "Recipe": null
+  }
+}

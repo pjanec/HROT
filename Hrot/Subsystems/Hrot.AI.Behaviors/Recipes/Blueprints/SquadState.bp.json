@@ -3,46 +3,65 @@
     "docType": "Hrot.Blueprints",
     "schemaVersion": 1
   },
-  "Header": {
-    "SubsystemType": "Hrot.Blueprints",
-    "SchemaVersion": "1.0"
-  },
+  "Header": {},
   "AssetId": "00000000-aaaa-0001-0000-000000000005",
   "Name": "SquadState",
-  "Dispatch": 2,
-  "TierHint": 0,
+  "Dispatch": "Instance",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
   "Primitive": null,
   "Parameters": [],
+  "ParameterOrder": null,
   "WorkingState": [],
+  "WorkingStateOrder": null,
   "Variables": [
     {
       "Id": "a5000001-0001-0001-0001-000000000001",
       "Name": "ThreatLevel",
       "Type": {
-        "TypeId": "System.Single"
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
       },
+      "DefaultValueJson": null,
       "IsEditable": false,
-      "DefaultValueJson": null
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
     },
     {
       "Id": "a5000001-0002-0002-0002-000000000002",
       "Name": "SquadSize",
       "Type": {
-        "TypeId": "System.Int32"
+        "TypeId": "System.Int32",
+        "IsArray": false,
+        "GenericArgs": []
       },
+      "DefaultValueJson": null,
       "IsEditable": false,
-      "DefaultValueJson": null
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
     },
     {
       "Id": "a5000001-0003-0003-0003-000000000003",
       "Name": "Formation",
       "Type": {
-        "TypeId": "System.Byte"
+        "TypeId": "System.Byte",
+        "IsArray": false,
+        "GenericArgs": []
       },
+      "DefaultValueJson": null,
       "IsEditable": false,
-      "DefaultValueJson": null
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
     }
   ],
+  "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
   "CallablePeers": [],
@@ -50,43 +69,67 @@
     {
       "Id": "b5000001-0001-0001-0001-000000000001",
       "Name": "GetThreatLevel",
-      "Kind": 0,
+      "Kind": "Function",
       "Inputs": [],
       "Outputs": [
         {
           "Id": "d5000001-0001-0001-0001-000000000001",
           "Name": "ThreatLevel",
           "Type": {
-            "TypeId": "System.Single"
+            "TypeId": "System.Single",
+            "IsArray": false,
+            "GenericArgs": []
           },
-          "DefaultValueJson": null
+          "DefaultValueJson": null,
+          "Tooltip": null,
+          "Comment": null
         }
       ],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
-          "Id": "c5000001-0001-0001-0001-000000000001",
           "EventTypeId": "",
+          "Id": "c5000001-0001-0001-0001-000000000001",
           "Pins": [],
-          "EditorMetadata": {}
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
         },
         {
           "kind": "GetVariable",
-          "Id": "c5000001-0002-0002-0002-000000000002",
           "VariableId": "a5000001-0001-0001-0001-000000000001",
+          "Id": "c5000001-0002-0002-0002-000000000002",
           "Pins": [],
-          "EditorMetadata": {}
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
         },
         {
           "kind": "Return",
+          "Status": "Success",
           "Id": "c5000001-0003-0003-0003-000000000003",
-          "Status": 0,
           "Pins": [],
-          "EditorMetadata": {}
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
         }
       ],
       "Links": [],
-      "EditorMetadata": {}
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
     }
   ],
   "EditorMetadata": {

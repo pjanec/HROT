@@ -3,14 +3,12 @@
     "docType": "Hrot.Blueprints",
     "schemaVersion": 1
   },
-  "Header": {
-    "SubsystemType": "Hrot.Blueprints",
-    "SchemaVersion": "1.0"
-  },
+  "Header": {},
   "AssetId": "8f1a2c93-4d5e-4a1b-9c3d-1e2f3a4b5c62",
   "Name": "HillAssault2I_RequestAreaQuery",
   "Dispatch": "AiPrimitive",
   "TierHint": "Auto",
+  "IsWorldSingleton": false,
   "Primitive": {
     "Intent": "Action",
     "Hostings": [
@@ -26,11 +24,16 @@
         "IsArray": false,
         "GenericArgs": []
       },
-      "DefaultValueJson": ""
+      "DefaultValueJson": "",
+      "Tooltip": null,
+      "Comment": null
     }
   ],
+  "ParameterOrder": null,
   "WorkingState": [],
+  "WorkingStateOrder": null,
   "Variables": [],
+  "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
   "CallablePeers": [],
@@ -41,61 +44,68 @@
       "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
-          "Id": "647dd64b-9e93-51c2-9bec-137105aab0c2",
           "EventTypeId": "",
+          "Id": "647dd64b-9e93-51c2-9bec-137105aab0c2",
           "Pins": [],
           "EditorMetadata": {
-            "X": 40.0,
-            "Y": 400.0
+            "X": 40,
+            "Y": 400,
+            "Comment": null
           }
         },
         {
           "kind": "GetShared",
-          "Id": "05b7d9d4-c2c8-479a-9bf9-c173aa10ecb9",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "05b7d9d4-c2c8-479a-9bf9-c173aa10ecb9",
           "Pins": [],
           "EditorMetadata": {
-            "X": 40.0,
-            "Y": 40.0
+            "X": 40,
+            "Y": 40,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "3fa52842-fb37-44dc-a9c8-01aed1e8d30a",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
           "MethodName": "GetCachedEqsRequestId",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "3fa52842-fb37-44dc-a9c8-01aed1e8d30a",
           "Pins": [],
           "EditorMetadata": {
-            "X": 40.0,
-            "Y": 40.0
+            "X": 40,
+            "Y": 40,
+            "Comment": null
           }
         },
         {
           "kind": "Literal",
-          "Id": "06877885-5e79-5e3e-a4d5-66ede0b24db8",
           "TypeId": "System.Int64",
           "ValueJson": "-1L",
+          "Id": "06877885-5e79-5e3e-a4d5-66ede0b24db8",
           "Pins": [],
           "EditorMetadata": {
-            "X": 40.0,
-            "Y": 120.0
+            "X": 40,
+            "Y": 120,
+            "Comment": null
           }
         },
         {
           "kind": "Compare",
-          "Id": "5c000c1d-5b91-548c-9381-a51dba1b9e64",
           "Operator": "NotEqual",
+          "Id": "5c000c1d-5b91-548c-9381-a51dba1b9e64",
           "Pins": [],
           "EditorMetadata": {
-            "X": 300.0,
-            "Y": 80.0
+            "X": 300,
+            "Y": 80,
+            "Comment": null
           }
         },
         {
@@ -103,22 +113,24 @@
           "Id": "654fc1f7-c4d8-5c73-a4b8-cb0162b05360",
           "Pins": [],
           "EditorMetadata": {
-            "X": 560.0,
-            "Y": 400.0
+            "X": 560,
+            "Y": 400,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "60be6bfd-1dfa-5add-a511-45f07069adad",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.AreaQueryBatchOps",
           "MethodName": "IsReady",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "View",
+          "Id": "60be6bfd-1dfa-5add-a511-45f07069adad",
           "Pins": [],
           "EditorMetadata": {
-            "X": 820.0,
-            "Y": 120.0
+            "X": 820,
+            "Y": 120,
+            "Comment": null
           }
         },
         {
@@ -126,32 +138,35 @@
           "Id": "4e68a9b7-f05b-5da7-ba7f-23026cd31fe9",
           "Pins": [],
           "EditorMetadata": {
-            "X": 1080.0,
-            "Y": 200.0
+            "X": 1080,
+            "Y": 200,
+            "Comment": null
           }
         },
         {
           "kind": "GetParameter",
-          "Id": "c357c5b3-aea1-5f3b-99f0-a9d164ef2bc6",
           "ParameterId": "ac6ab462-b028-5cfa-9d41-96fa37aa1bd5",
+          "Id": "c357c5b3-aea1-5f3b-99f0-a9d164ef2bc6",
           "Pins": [],
           "EditorMetadata": {
-            "X": 40.0,
-            "Y": 560.0
+            "X": 40,
+            "Y": 560,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "a6b276b5-9274-5f02-804e-5c59580c332b",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.WorldOps",
           "MethodName": "IsAlive",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "View",
+          "Id": "a6b276b5-9274-5f02-804e-5c59580c332b",
           "Pins": [],
           "EditorMetadata": {
-            "X": 820.0,
-            "Y": 560.0
+            "X": 820,
+            "Y": 560,
+            "Comment": null
           }
         },
         {
@@ -159,32 +174,35 @@
           "Id": "1918ee13-43fc-590d-ac81-765079e2af6a",
           "Pins": [],
           "EditorMetadata": {
-            "X": 1080.0,
-            "Y": 660.0
+            "X": 1080,
+            "Y": 660,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "532e4dc4-6e33-501c-95b4-d5251561ea75",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.AreaQueryBatchOps",
           "MethodName": "Request",
           "IsPure": false,
           "TargetGraphId": "",
           "TrailingContext": "SelfAndView",
+          "Id": "532e4dc4-6e33-501c-95b4-d5251561ea75",
           "Pins": [],
           "EditorMetadata": {
-            "X": 1340.0,
-            "Y": 660.0
+            "X": 1340,
+            "Y": 660,
+            "Comment": null
           }
         },
         {
           "kind": "Compare",
-          "Id": "755096f0-2fa2-5eb6-9db5-feba84ab82aa",
           "Operator": "Equal",
+          "Id": "755096f0-2fa2-5eb6-9db5-feba84ab82aa",
           "Pins": [],
           "EditorMetadata": {
-            "X": 1600.0,
-            "Y": 780.0
+            "X": 1600,
+            "Y": 780,
+            "Comment": null
           }
         },
         {
@@ -192,124 +210,135 @@
           "Id": "66eb8af1-05c6-51bc-ae8c-6b17e4b864a7",
           "Pins": [],
           "EditorMetadata": {
-            "X": 1860.0,
-            "Y": 660.0
+            "X": 1860,
+            "Y": 660,
+            "Comment": null
           }
         },
         {
           "kind": "GetShared",
-          "Id": "264c0e74-2a86-4cfb-b9f6-ba8314a35e8d",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "264c0e74-2a86-4cfb-b9f6-ba8314a35e8d",
           "Pins": [],
           "EditorMetadata": {
-            "X": 2120.0,
-            "Y": 560.0
+            "X": 2120,
+            "Y": 560,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "c3cbf82b-81ad-47a9-984c-89aba6c51b7d",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
           "MethodName": "WithCachedEqsRequestId",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "c3cbf82b-81ad-47a9-984c-89aba6c51b7d",
           "Pins": [],
           "EditorMetadata": {
-            "X": 2120.0,
-            "Y": 560.0
+            "X": 2120,
+            "Y": 560,
+            "Comment": null
           }
         },
         {
           "kind": "SetShared",
-          "Id": "bc6c3e0b-8c21-42f3-8a07-54877a00bcc8",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "bc6c3e0b-8c21-42f3-8a07-54877a00bcc8",
           "Pins": [],
           "EditorMetadata": {
-            "X": 2120.0,
-            "Y": 560.0
+            "X": 2120,
+            "Y": 560,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "cab98f45-e3be-516f-8742-a488694c2e36",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.WorldOps",
           "MethodName": "SimTime",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "View",
+          "Id": "cab98f45-e3be-516f-8742-a488694c2e36",
           "Pins": [],
           "EditorMetadata": {
-            "X": 2120.0,
-            "Y": 720.0
+            "X": 2120,
+            "Y": 720,
+            "Comment": null
           }
         },
         {
           "kind": "GetShared",
-          "Id": "9e970b9a-241c-4680-8031-3bb2430637b4",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "9e970b9a-241c-4680-8031-3bb2430637b4",
           "Pins": [],
           "EditorMetadata": {
-            "X": 2380.0,
-            "Y": 560.0
+            "X": 2380,
+            "Y": 560,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "91e4cbc2-49a8-4e76-9af4-24e780a7d06d",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
           "MethodName": "WithEqsRequestTime",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "91e4cbc2-49a8-4e76-9af4-24e780a7d06d",
           "Pins": [],
           "EditorMetadata": {
-            "X": 2380.0,
-            "Y": 560.0
+            "X": 2380,
+            "Y": 560,
+            "Comment": null
           }
         },
         {
           "kind": "SetShared",
-          "Id": "9de0ad1f-d06e-4b88-a160-b1d7c5a75332",
           "VariableId": "state",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.HillAttackSharedState",
+          "Id": "9de0ad1f-d06e-4b88-a160-b1d7c5a75332",
           "Pins": [],
           "EditorMetadata": {
-            "X": 2380.0,
-            "Y": 560.0
+            "X": 2380,
+            "Y": 560,
+            "Comment": null
           }
         },
         {
           "kind": "Return",
-          "Id": "fa325522-3527-5f1b-b4fe-c96ad8268a10",
           "Status": "Success",
+          "Id": "fa325522-3527-5f1b-b4fe-c96ad8268a10",
           "Pins": [],
           "EditorMetadata": {
-            "X": 2640.0,
-            "Y": 400.0
+            "X": 2640,
+            "Y": 400,
+            "Comment": null
           }
         },
         {
           "kind": "Return",
-          "Id": "a2febdaa-9196-5c4b-9e25-0e607796fe05",
           "Status": "Running",
+          "Id": "a2febdaa-9196-5c4b-9e25-0e607796fe05",
           "Pins": [],
           "EditorMetadata": {
-            "X": 1340.0,
-            "Y": 200.0
+            "X": 1340,
+            "Y": 200,
+            "Comment": null
           }
         },
         {
           "kind": "Return",
-          "Id": "1efe394c-5a7d-5e2f-b188-a61584221552",
           "Status": "Failure",
+          "Id": "1efe394c-5a7d-5e2f-b188-a61584221552",
           "Pins": [],
           "EditorMetadata": {
-            "X": 1340.0,
-            "Y": 900.0
+            "X": 1340,
+            "Y": 900,
+            "Comment": null
           }
         }
       ],
@@ -495,6 +524,8 @@
           "ToPinId": "46a4044f-8509-6350-bf38-ce8ee48fb32d"
         }
       ],
+      "LocalVariables": [],
+      "Comments": [],
       "EditorMetadata": {
         "ViewportX": 0,
         "ViewportY": 0,
@@ -503,7 +534,7 @@
     }
   ],
   "EditorMetadata": {
-    "Description": "P1b (Hill-attack -> Blueprints migration), tree-INTEGRATION track (architect Q#9-A): the integrated twin of HillAssault2_RequestAreaQuery.bp.json -- SAME logic/kernels as the isolated twin, but leaves its native WorkingState EMPTY and converses over the standalone entity-scoped HillAttackSharedState struct via GetShared/SetShared(VariableId=\"state\"). Mechanically generated by scripts/hill_attack_integration transform (see PR description): every twin GetVariable(F) node was replaced 1:1 with a [GetShared(\"state\") -> HillAttackSharedStateOps.Get<F>(s)] pair (same fan-out topology preserved); every twin SetVariable(F) node was replaced 1:1 with a [GetShared(\"state\") -> HillAttackSharedStateOps.With<F>(s, v) -> SetShared(\"state\")] triple (fresh full-struct read immediately before each write, so sibling fields are never clobbered; correct inside FlowForEach bodies too, since GetShared/SetShared are ordinary ordered per-occurrence backing-storage accesses and FlowForEach lowers to a real inline-body loop -- confirmed via Hrot.Blueprints.Compiler Stage5 StatementEmitter.cs IrOp_ReadVariable/IrOp_WriteVariable and the GetShared/SetShared TryGetShared/TrySetShared emission). All other nodes (FlowForEach, Branch, Compare, FunctionCall kernels, PublishEvent, Literal, GetParameter) are byte-for-byte identical to the isolated twin. Does not modify the C# oracle, the isolated twin (HillAssault2_RequestAreaQuery.bp.json), any *Ops/*Json/struct .cs file, or the compiler.",
+    "Description": "P1b (Hill-attack -\u003E Blueprints migration), tree-INTEGRATION track (architect Q#9-A): the integrated twin of HillAssault2_RequestAreaQuery.bp.json -- SAME logic/kernels as the isolated twin, but leaves its native WorkingState EMPTY and converses over the standalone entity-scoped HillAttackSharedState struct via GetShared/SetShared(VariableId=\u0022state\u0022). Mechanically generated by scripts/hill_attack_integration transform (see PR description): every twin GetVariable(F) node was replaced 1:1 with a [GetShared(\u0022state\u0022) -\u003E HillAttackSharedStateOps.Get\u003CF\u003E(s)] pair (same fan-out topology preserved); every twin SetVariable(F) node was replaced 1:1 with a [GetShared(\u0022state\u0022) -\u003E HillAttackSharedStateOps.With\u003CF\u003E(s, v) -\u003E SetShared(\u0022state\u0022)] triple (fresh full-struct read immediately before each write, so sibling fields are never clobbered; correct inside FlowForEach bodies too, since GetShared/SetShared are ordinary ordered per-occurrence backing-storage accesses and FlowForEach lowers to a real inline-body loop -- confirmed via Hrot.Blueprints.Compiler Stage5 StatementEmitter.cs IrOp_ReadVariable/IrOp_WriteVariable and the GetShared/SetShared TryGetShared/TrySetShared emission). All other nodes (FlowForEach, Branch, Compare, FunctionCall kernels, PublishEvent, Literal, GetParameter) are byte-for-byte identical to the isolated twin. Does not modify the C# oracle, the isolated twin (HillAssault2_RequestAreaQuery.bp.json), any *Ops/*Json/struct .cs file, or the compiler.",
     "Category": null,
     "Recipe": null
   }

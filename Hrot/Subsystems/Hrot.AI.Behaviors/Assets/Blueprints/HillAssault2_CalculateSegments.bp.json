@@ -3,14 +3,12 @@
     "docType": "Hrot.Blueprints",
     "schemaVersion": 1
   },
-  "Header": {
-    "SubsystemType": "Hrot.Blueprints",
-    "SchemaVersion": "1.0"
-  },
+  "Header": {},
   "AssetId": "7d4f2c81-3e9a-4b56-9c0d-1a2b3c4d5e6f",
   "Name": "HillAssault2_CalculateSegments",
   "Dispatch": "AiPrimitive",
   "TierHint": "Auto",
+  "IsWorldSingleton": false,
   "Primitive": {
     "Intent": "Action",
     "Hostings": [
@@ -26,7 +24,9 @@
         "IsArray": false,
         "GenericArgs": []
       },
-      "DefaultValueJson": "0"
+      "DefaultValueJson": "0",
+      "Tooltip": null,
+      "Comment": null
     },
     {
       "Id": "a1000000-0000-0000-0000-000000000002",
@@ -36,7 +36,9 @@
         "IsArray": false,
         "GenericArgs": []
       },
-      "DefaultValueJson": "0"
+      "DefaultValueJson": "0",
+      "Tooltip": null,
+      "Comment": null
     },
     {
       "Id": "a1000000-0000-0000-0000-000000000003",
@@ -46,7 +48,9 @@
         "IsArray": false,
         "GenericArgs": []
       },
-      "DefaultValueJson": "0"
+      "DefaultValueJson": "0",
+      "Tooltip": null,
+      "Comment": null
     },
     {
       "Id": "a1000000-0000-0000-0000-000000000004",
@@ -56,7 +60,9 @@
         "IsArray": false,
         "GenericArgs": []
       },
-      "DefaultValueJson": "0"
+      "DefaultValueJson": "0",
+      "Tooltip": null,
+      "Comment": null
     },
     {
       "Id": "a1000000-0000-0000-0000-000000000005",
@@ -66,9 +72,12 @@
         "IsArray": false,
         "GenericArgs": []
       },
-      "DefaultValueJson": "0"
+      "DefaultValueJson": "0",
+      "Tooltip": null,
+      "Comment": null
     }
   ],
+  "ParameterOrder": null,
   "WorkingState": [
     {
       "Id": "b2000000-0000-0000-0000-000000000001",
@@ -206,7 +215,9 @@
       "Comment": null
     }
   ],
+  "WorkingStateOrder": null,
   "Variables": [],
+  "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
   "CallablePeers": [],
@@ -217,25 +228,28 @@
       "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
-          "Id": "e0000000-0000-0000-0000-000000000001",
           "EventTypeId": "",
+          "Id": "e0000000-0000-0000-0000-000000000001",
           "Pins": [],
           "EditorMetadata": {
-            "X": 40.0,
-            "Y": 400.0
+            "X": 40,
+            "Y": 400,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "bf000000-0000-0000-0000-000000000001",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.SegmentMath",
           "MethodName": "TotalSlots",
           "IsPure": true,
           "TargetGraphId": "",
           "TrailingContext": "None",
+          "Id": "bf000000-0000-0000-0000-000000000001",
           "Pins": [
             {
               "Id": "bfa00000-0000-0000-0000-000000000001",
@@ -311,196 +325,215 @@
             }
           ],
           "EditorMetadata": {
-            "X": 340.0,
-            "Y": 160.0
+            "X": 340,
+            "Y": 160,
+            "Comment": null
           }
         },
         {
           "kind": "SetVariable",
-          "Id": "50000000-0000-0000-0000-000000000001",
           "VariableId": "b2000000-0000-0000-0000-000000000001",
+          "Id": "50000000-0000-0000-0000-000000000001",
           "Pins": [],
           "EditorMetadata": {
-            "X": 620.0,
-            "Y": 400.0
+            "X": 620,
+            "Y": 400,
+            "Comment": null
           }
         },
         {
           "kind": "Literal",
+          "TypeId": "System.UInt16",
+          "ValueJson": "(ushort)0",
           "Id": "11000000-0000-0000-0000-000000000001",
-          "TypeId": "System.UInt16",
-          "ValueJson": "(ushort)0",
           "Pins": [],
           "EditorMetadata": {
-            "X": 620.0,
-            "Y": 480.0
+            "X": 620,
+            "Y": 480,
+            "Comment": null
           }
         },
         {
           "kind": "SetVariable",
-          "Id": "50000000-0000-0000-0000-000000000002",
           "VariableId": "b2000000-0000-0000-0000-000000000002",
+          "Id": "50000000-0000-0000-0000-000000000002",
           "Pins": [],
           "EditorMetadata": {
-            "X": 860.0,
-            "Y": 400.0
+            "X": 860,
+            "Y": 400,
+            "Comment": null
           }
         },
         {
           "kind": "Literal",
+          "TypeId": "System.UInt16",
+          "ValueJson": "(ushort)0",
           "Id": "11000000-0000-0000-0000-000000000002",
-          "TypeId": "System.UInt16",
-          "ValueJson": "(ushort)0",
           "Pins": [],
           "EditorMetadata": {
-            "X": 860.0,
-            "Y": 480.0
+            "X": 860,
+            "Y": 480,
+            "Comment": null
           }
         },
         {
           "kind": "SetVariable",
-          "Id": "50000000-0000-0000-0000-000000000003",
           "VariableId": "b2000000-0000-0000-0000-000000000003",
+          "Id": "50000000-0000-0000-0000-000000000003",
           "Pins": [],
           "EditorMetadata": {
-            "X": 1100.0,
-            "Y": 400.0
+            "X": 1100,
+            "Y": 400,
+            "Comment": null
           }
         },
         {
           "kind": "Literal",
-          "Id": "11000000-0000-0000-0000-000000000003",
           "TypeId": "System.UInt16",
           "ValueJson": "(ushort)0",
+          "Id": "11000000-0000-0000-0000-000000000003",
           "Pins": [],
           "EditorMetadata": {
-            "X": 1100.0,
-            "Y": 480.0
+            "X": 1100,
+            "Y": 480,
+            "Comment": null
           }
         },
         {
           "kind": "SetVariable",
-          "Id": "50000000-0000-0000-0000-000000000004",
           "VariableId": "b2000000-0000-0000-0000-000000000004",
+          "Id": "50000000-0000-0000-0000-000000000004",
           "Pins": [],
           "EditorMetadata": {
-            "X": 1340.0,
-            "Y": 400.0
+            "X": 1340,
+            "Y": 400,
+            "Comment": null
           }
         },
         {
           "kind": "Literal",
-          "Id": "11000000-0000-0000-0000-000000000004",
           "TypeId": "System.Int32",
           "ValueJson": "0",
+          "Id": "11000000-0000-0000-0000-000000000004",
           "Pins": [],
           "EditorMetadata": {
-            "X": 1340.0,
-            "Y": 480.0
+            "X": 1340,
+            "Y": 480,
+            "Comment": null
           }
         },
         {
           "kind": "SetVariable",
-          "Id": "50000000-0000-0000-0000-000000000005",
           "VariableId": "b2000000-0000-0000-0000-000000000005",
+          "Id": "50000000-0000-0000-0000-000000000005",
           "Pins": [],
           "EditorMetadata": {
-            "X": 1580.0,
-            "Y": 400.0
+            "X": 1580,
+            "Y": 400,
+            "Comment": null
           }
         },
         {
           "kind": "Literal",
-          "Id": "11000000-0000-0000-0000-000000000005",
           "TypeId": "System.Byte",
           "ValueJson": "(byte)0",
+          "Id": "11000000-0000-0000-0000-000000000005",
           "Pins": [],
           "EditorMetadata": {
-            "X": 1580.0,
-            "Y": 480.0
+            "X": 1580,
+            "Y": 480,
+            "Comment": null
           }
         },
         {
           "kind": "SetVariable",
-          "Id": "50000000-0000-0000-0000-000000000006",
           "VariableId": "b2000000-0000-0000-0000-000000000006",
+          "Id": "50000000-0000-0000-0000-000000000006",
           "Pins": [],
           "EditorMetadata": {
-            "X": 1820.0,
-            "Y": 400.0
+            "X": 1820,
+            "Y": 400,
+            "Comment": null
           }
         },
         {
           "kind": "Literal",
-          "Id": "11000000-0000-0000-0000-000000000006",
           "TypeId": "System.Int64",
           "ValueJson": "-1L",
+          "Id": "11000000-0000-0000-0000-000000000006",
           "Pins": [],
           "EditorMetadata": {
-            "X": 1820.0,
-            "Y": 480.0
+            "X": 1820,
+            "Y": 480,
+            "Comment": null
           }
         },
         {
           "kind": "SetVariable",
-          "Id": "50000000-0000-0000-0000-000000000007",
           "VariableId": "b2000000-0000-0000-0000-000000000007",
+          "Id": "50000000-0000-0000-0000-000000000007",
           "Pins": [],
           "EditorMetadata": {
-            "X": 2060.0,
-            "Y": 400.0
+            "X": 2060,
+            "Y": 400,
+            "Comment": null
           }
         },
         {
           "kind": "Literal",
-          "Id": "11000000-0000-0000-0000-000000000007",
           "TypeId": "System.Int32",
           "ValueJson": "-1",
+          "Id": "11000000-0000-0000-0000-000000000007",
           "Pins": [],
           "EditorMetadata": {
-            "X": 2060.0,
-            "Y": 480.0
+            "X": 2060,
+            "Y": 480,
+            "Comment": null
           }
         },
         {
           "kind": "SetVariable",
-          "Id": "50000000-0000-0000-0000-000000000008",
           "VariableId": "b2000000-0000-0000-0000-000000000008",
+          "Id": "50000000-0000-0000-0000-000000000008",
           "Pins": [],
           "EditorMetadata": {
-            "X": 2300.0,
-            "Y": 400.0
+            "X": 2300,
+            "Y": 400,
+            "Comment": null
           }
         },
         {
           "kind": "Literal",
-          "Id": "11000000-0000-0000-0000-000000000008",
           "TypeId": "System.Single",
           "ValueJson": "0f",
+          "Id": "11000000-0000-0000-0000-000000000008",
           "Pins": [],
           "EditorMetadata": {
-            "X": 2300.0,
-            "Y": 480.0
+            "X": 2300,
+            "Y": 480,
+            "Comment": null
           }
         },
         {
           "kind": "SetVariable",
-          "Id": "50000000-0000-0000-0000-000000000009",
           "VariableId": "b2000000-0000-0000-0000-000000000009",
+          "Id": "50000000-0000-0000-0000-000000000009",
           "Pins": [],
           "EditorMetadata": {
-            "X": 2540.0,
-            "Y": 400.0
+            "X": 2540,
+            "Y": 400,
+            "Comment": null
           }
         },
         {
           "kind": "Return",
-          "Id": "8e000000-0000-0000-0000-000000000001",
           "Status": "Success",
+          "Id": "8e000000-0000-0000-0000-000000000001",
           "Pins": [],
           "EditorMetadata": {
-            "X": 2780.0,
-            "Y": 400.0
+            "X": 2780,
+            "Y": 400,
+            "Comment": null
           }
         },
         {
@@ -509,7 +542,8 @@
           "Pins": [],
           "EditorMetadata": {
             "X": 40,
-            "Y": 40
+            "Y": 40,
+            "Comment": null
           }
         }
       ],
@@ -659,6 +693,8 @@
           "ToPinId": "8ea00000-0000-0000-0000-000000000001"
         }
       ],
+      "LocalVariables": [],
+      "Comments": [],
       "EditorMetadata": {
         "ViewportX": 0,
         "ViewportY": 0,
@@ -667,7 +703,7 @@
     }
   ],
   "EditorMetadata": {
-    "Description": "P1b (Hill-attack -> Blueprints migration): Action_CalculateSegments rebuilt as a visually-authored AiPrimitive BTreeAction, exercising GetParameter reads, a pure curated FunctionCall, and a straight-line SetVariable/Literal init chain against nine WorkingState fields. Graph: EventEntry -> SetVariable(TotalSlots) [Value wired from a pure FunctionCall Hrot.AI.Behaviors.Brains.SegmentMath.TotalSlots(startX,startY,endX,endY,rawSpacing), whose five In pins are fed by five GetParameter reads (StartX,StartY,EndX,EndY,TankSpacing)] -> SetVariable(BurnedSlotsMask) <- Literal(System.UInt16 0) -> SetVariable(WaveUsedSlotsMask) <- Literal(System.UInt16 0) -> SetVariable(BaselineReservedMask) <- Literal(System.UInt16 0) -> SetVariable(ActiveAttackerCount) <- Literal(System.Int32 0) -> SetVariable(CurrentWave) <- Literal(System.Byte 0) -> SetVariable(CachedEqsRequestId) <- Literal(System.Int64 -1) -> SetVariable(CachedTargetGroupHandle) <- Literal(System.Int32 -1) -> SetVariable(EqsRequestTime) <- Literal(System.Single 0f) -> Return(Success). New curated helper: Hrot.AI.Behaviors.Brains.SegmentMath.TotalSlots -- bundles the distance/clamp/spacing-default math (Vector2.Distance, the TankSpacing>0 ? TankSpacing : 30 default, Math.Max(1,...) then clamp to 16) that has no visual-node expression (architect Q#6-A: non-trivial math stays in reviewable curated helpers). Does not modify the C# oracle (HillAttackCommanderNodes.Action_CalculateSegments). Not reproduced: the oracle's BehaviorLog.IsDebugEnabled diagnostic logging call, which is a debug-only side channel with no bearing on WorkingState/return-status behavior.",
+    "Description": "P1b (Hill-attack -\u003E Blueprints migration): Action_CalculateSegments rebuilt as a visually-authored AiPrimitive BTreeAction, exercising GetParameter reads, a pure curated FunctionCall, and a straight-line SetVariable/Literal init chain against nine WorkingState fields. Graph: EventEntry -\u003E SetVariable(TotalSlots) [Value wired from a pure FunctionCall Hrot.AI.Behaviors.Brains.SegmentMath.TotalSlots(startX,startY,endX,endY,rawSpacing), whose five In pins are fed by five GetParameter reads (StartX,StartY,EndX,EndY,TankSpacing)] -\u003E SetVariable(BurnedSlotsMask) \u003C- Literal(System.UInt16 0) -\u003E SetVariable(WaveUsedSlotsMask) \u003C- Literal(System.UInt16 0) -\u003E SetVariable(BaselineReservedMask) \u003C- Literal(System.UInt16 0) -\u003E SetVariable(ActiveAttackerCount) \u003C- Literal(System.Int32 0) -\u003E SetVariable(CurrentWave) \u003C- Literal(System.Byte 0) -\u003E SetVariable(CachedEqsRequestId) \u003C- Literal(System.Int64 -1) -\u003E SetVariable(CachedTargetGroupHandle) \u003C- Literal(System.Int32 -1) -\u003E SetVariable(EqsRequestTime) \u003C- Literal(System.Single 0f) -\u003E Return(Success). New curated helper: Hrot.AI.Behaviors.Brains.SegmentMath.TotalSlots -- bundles the distance/clamp/spacing-default math (Vector2.Distance, the TankSpacing\u003E0 ? TankSpacing : 30 default, Math.Max(1,...) then clamp to 16) that has no visual-node expression (architect Q#6-A: non-trivial math stays in reviewable curated helpers). Does not modify the C# oracle (HillAttackCommanderNodes.Action_CalculateSegments). Not reproduced: the oracle\u0027s BehaviorLog.IsDebugEnabled diagnostic logging call, which is a debug-only side channel with no bearing on WorkingState/return-status behavior.",
     "Category": null,
     "Recipe": null
   }

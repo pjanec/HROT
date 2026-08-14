@@ -3,46 +3,65 @@
     "docType": "Hrot.Blueprints",
     "schemaVersion": 1
   },
-  "Header": {
-    "SubsystemType": "Hrot.Blueprints",
-    "SchemaVersion": "1.0"
-  },
+  "Header": {},
   "AssetId": "00000000-aaaa-0001-0000-000000000001",
   "Name": "CoverAwarePatrol",
-  "Dispatch": 2,
-  "TierHint": 0,
+  "Dispatch": "Instance",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
   "Primitive": null,
   "Parameters": [],
+  "ParameterOrder": null,
   "WorkingState": [],
+  "WorkingStateOrder": null,
   "Variables": [
     {
       "Id": "a1000001-0001-0001-0001-000000000001",
       "Name": "CoverQuery",
       "Type": {
-        "TypeId": "FDP.Eqs.EqsSensorHandle"
+        "TypeId": "FDP.Eqs.EqsSensorHandle",
+        "IsArray": false,
+        "GenericArgs": []
       },
+      "DefaultValueJson": null,
       "IsEditable": false,
-      "DefaultValueJson": null
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
     },
     {
       "Id": "a1000001-0002-0002-0002-000000000002",
       "Name": "Initialized",
       "Type": {
-        "TypeId": "System.Boolean"
+        "TypeId": "System.Boolean",
+        "IsArray": false,
+        "GenericArgs": []
       },
+      "DefaultValueJson": null,
       "IsEditable": false,
-      "DefaultValueJson": null
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
     },
     {
       "Id": "a1000001-0003-0003-0003-000000000003",
       "Name": "PatrolTarget",
       "Type": {
-        "TypeId": "System.Numerics.Vector2"
+        "TypeId": "System.Numerics.Vector2",
+        "IsArray": false,
+        "GenericArgs": []
       },
+      "DefaultValueJson": null,
       "IsEditable": false,
-      "DefaultValueJson": null
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
     }
   ],
+  "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
   "CallablePeers": [],
@@ -50,56 +69,87 @@
     {
       "Id": "b1000001-0001-0001-0001-000000000001",
       "Name": "Tick",
-      "Kind": 1,
+      "Kind": "Event",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
-          "Id": "c1000001-0001-0001-0001-000000000001",
           "EventTypeId": "",
+          "Id": "c1000001-0001-0001-0001-000000000001",
           "Pins": [],
-          "EditorMetadata": {}
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
         },
         {
           "kind": "SpawnEqsSensor",
-          "Id": "c1000001-0002-0002-0002-000000000002",
           "TemplateAssetId": "00000000-cccc-0001-0000-000000000001",
+          "Id": "c1000001-0002-0002-0002-000000000002",
           "Pins": [],
-          "EditorMetadata": {}
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
         },
         {
           "kind": "When",
-          "Id": "c1000001-0003-0003-0003-000000000003",
-          "Mode": 3,
-          "Edges": 1,
+          "Mode": "EqsResult",
+          "Edges": "RisingEdge",
+          "ValueChanged": null,
+          "EventFired": null,
+          "ConditionMet": null,
           "EqsResult": {
             "SensorVariableName": "CoverQuery",
-            "Trigger": 1,
-            "ScoreThreshold": 0.0,
-            "MaxAgeSeconds": 0.0
+            "Trigger": "TopChanged",
+            "ScoreThreshold": 0,
+            "MaxAgeSeconds": 0
           },
+          "Id": "c1000001-0003-0003-0003-000000000003",
           "Pins": [],
-          "EditorMetadata": {}
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
         },
         {
           "kind": "ReadEqsResult",
-          "Id": "c1000001-0004-0004-0004-000000000004",
           "SensorVariableName": "CoverQuery",
+          "Id": "c1000001-0004-0004-0004-000000000004",
           "Pins": [],
-          "EditorMetadata": {}
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
         },
         {
           "kind": "ChannelCommand",
-          "Id": "c1000001-0005-0005-0005-000000000005",
           "ChannelType": "LocomotionChannel",
           "ActionId": "MoveTo",
+          "Id": "c1000001-0005-0005-0005-000000000005",
           "Pins": [],
-          "EditorMetadata": {}
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
         }
       ],
       "Links": [],
-      "EditorMetadata": {}
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
     }
   ],
   "EditorMetadata": {

@@ -3,17 +3,19 @@
     "docType": "Hrot.Blueprints",
     "schemaVersion": 1
   },
-  "Header": {
-    "SubsystemType": "Hrot.Blueprints",
-    "SchemaVersion": "1.0"
-  },
+  "Header": {},
   "AssetId": "00000000-aaaa-0001-0000-000000000007",
   "Name": "EditorTypesDemo",
   "Dispatch": "Instance",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
   "Primitive": null,
   "Parameters": [],
+  "ParameterOrder": null,
   "WorkingState": [],
+  "WorkingStateOrder": null,
   "Variables": [],
+  "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
   "CallablePeers": [],
@@ -24,39 +26,55 @@
       "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
+          "EventTypeId": "",
           "Id": "f7000007-0001-0001-0001-000000000001",
           "Pins": [
             {
               "Id": "e7ee0007-0001-aa01-0001-000000000001",
               "Name": "Out",
               "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": true,
-              "TypeRef": {}
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 80.0,
-            "Y": 220.0
+            "X": 80,
+            "Y": 220,
+            "Comment": null
           }
         },
         {
           "kind": "Return",
+          "Status": "Success",
           "Id": "f7000007-0002-0002-0002-000000000001",
           "Pins": [
             {
               "Id": "e7ee0007-0002-aa01-0001-000000000001",
               "Name": "In",
               "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": true,
-              "TypeRef": {}
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 380.0,
-            "Y": 220.0
+            "X": 380,
+            "Y": 220,
+            "Comment": null
           }
         },
         {
@@ -67,161 +85,204 @@
               "Id": "e7dd0007-0010-cc01-0001-000000000001",
               "Name": "Condition",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
-                "TypeId": "System.Boolean"
-              }
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 80.0,
-            "Y": 400.0
+            "X": 80,
+            "Y": 400,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "f7000007-0020-bb20-0020-000000000001",
           "TargetTypeId": "Fdp.Toolkit.Blueprints.BlueprintMath",
           "MethodName": "AddInt",
           "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "Unspecified",
+          "Id": "f7000007-0020-bb20-0020-000000000001",
           "Pins": [],
           "EditorMetadata": {
-            "X": 80.0,
-            "Y": 520.0
+            "X": 80,
+            "Y": 520,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "f7000007-0030-bb30-0030-000000000001",
           "TargetTypeId": "Fdp.Toolkit.Blueprints.BlueprintMath",
           "MethodName": "Add",
           "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "Unspecified",
+          "Id": "f7000007-0030-bb30-0030-000000000001",
           "Pins": [],
           "EditorMetadata": {
-            "X": 80.0,
-            "Y": 640.0
+            "X": 80,
+            "Y": 640,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "f7000007-0040-bb40-0040-000000000001",
           "TargetTypeId": "",
           "MethodName": "",
           "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "Unspecified",
+          "Id": "f7000007-0040-bb40-0040-000000000001",
           "Pins": [
             {
               "Id": "e7dd0007-0040-dd01-0001-000000000001",
               "Name": "Value",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
-                "TypeId": "System.String"
-              }
+                "TypeId": "System.String",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 80.0,
-            "Y": 760.0
+            "X": 80,
+            "Y": 760,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "f7000007-0050-bb50-0050-000000000001",
           "TargetTypeId": "Fdp.Toolkit.Blueprints.BlueprintMath",
           "MethodName": "AddVec",
           "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "Unspecified",
+          "Id": "f7000007-0050-bb50-0050-000000000001",
           "Pins": [],
           "EditorMetadata": {
-            "X": 440.0,
-            "Y": 400.0
+            "X": 440,
+            "Y": 400,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "f7000007-0060-bb60-0060-000000000001",
           "TargetTypeId": "",
           "MethodName": "",
           "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "Unspecified",
+          "Id": "f7000007-0060-bb60-0060-000000000001",
           "Pins": [
             {
               "Id": "e7dd0007-0060-dd01-0001-000000000001",
               "Name": "Value",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
-                "TypeId": "System.Numerics.Vector2"
-              }
+                "TypeId": "System.Numerics.Vector2",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 440.0,
-            "Y": 520.0
+            "X": 440,
+            "Y": 520,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "f7000007-0070-bb70-0070-000000000001",
           "TargetTypeId": "",
           "MethodName": "",
           "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "Unspecified",
+          "Id": "f7000007-0070-bb70-0070-000000000001",
           "Pins": [
             {
               "Id": "e7dd0007-0070-dd01-0001-000000000001",
               "Name": "Value",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
-                "TypeId": "System.Numerics.Vector4"
-              }
+                "TypeId": "System.Numerics.Vector4",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 440.0,
-            "Y": 640.0
+            "X": 440,
+            "Y": 640,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "f7000007-0080-bb80-0080-000000000001",
           "TargetTypeId": "",
           "MethodName": "",
           "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "Unspecified",
+          "Id": "f7000007-0080-bb80-0080-000000000001",
           "Pins": [
             {
               "Id": "e7dd0007-0080-dd01-0001-000000000001",
               "Name": "Value",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
-                "TypeId": "System.Numerics.Quaternion"
-              }
+                "TypeId": "System.Numerics.Quaternion",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 440.0,
-            "Y": 760.0
+            "X": 440,
+            "Y": 760,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "f7000007-0090-bb90-0090-000000000001",
           "TargetTypeId": "",
           "MethodName": "",
           "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "Unspecified",
+          "Id": "f7000007-0090-bb90-0090-000000000001",
           "Pins": [
             {
               "Id": "e7dd0007-0090-dd01-0001-000000000001",
               "Name": "Label",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
-                "TypeId": "Fdp.Core.FixedString32"
-              }
+                "TypeId": "Fdp.Core.FixedString32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 800.0,
-            "Y": 400.0
+            "X": 800,
+            "Y": 400,
+            "Comment": null
           }
         }
       ],
@@ -233,10 +294,18 @@
           "ToPinId": "e7ee0007-0002-aa01-0001-000000000001"
         }
       ],
-      "EditorMetadata": {}
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
     }
   ],
   "EditorMetadata": {
+    "Description": null,
+    "Category": null,
     "Recipe": {
       "DisplayName": "Inline-Editor Types Demo",
       "Category": "Tutorial",

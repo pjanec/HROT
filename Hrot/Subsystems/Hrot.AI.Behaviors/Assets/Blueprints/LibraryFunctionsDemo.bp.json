@@ -3,17 +3,19 @@
     "docType": "Hrot.Blueprints",
     "schemaVersion": 1
   },
-  "Header": {
-    "SubsystemType": "Hrot.Blueprints",
-    "SchemaVersion": "1.0"
-  },
+  "Header": {},
   "AssetId": "00000112-0000-0000-0000-000000000001",
   "Name": "LibraryFunctionsDemo",
   "Dispatch": "Library",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
   "Primitive": null,
   "Parameters": [],
+  "ParameterOrder": null,
   "WorkingState": [],
+  "WorkingStateOrder": null,
   "Variables": [],
+  "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
   "CallablePeers": [],
@@ -23,159 +25,519 @@
       "Name": "Combine",
       "Kind": "Function",
       "Inputs": [
-        { "Id": "a0000112-0000-0000-0000-000000000001", "Name": "A", "Type": { "TypeId": "System.Int32" } },
-        { "Id": "a0000112-0000-0000-0000-000000000002", "Name": "B", "Type": { "TypeId": "System.Int32" } }
+        {
+          "Id": "a0000112-0000-0000-0000-000000000001",
+          "Name": "A",
+          "Type": {
+            "TypeId": "System.Int32",
+            "IsArray": false,
+            "GenericArgs": []
+          },
+          "DefaultValueJson": null,
+          "Tooltip": null,
+          "Comment": null
+        },
+        {
+          "Id": "a0000112-0000-0000-0000-000000000002",
+          "Name": "B",
+          "Type": {
+            "TypeId": "System.Int32",
+            "IsArray": false,
+            "GenericArgs": []
+          },
+          "DefaultValueJson": null,
+          "Tooltip": null,
+          "Comment": null
+        }
       ],
       "Outputs": [
-        { "Id": "a0000112-0000-0000-0000-000000000003", "Name": "Result", "Type": { "TypeId": "System.Int32" } }
+        {
+          "Id": "a0000112-0000-0000-0000-000000000003",
+          "Name": "Result",
+          "Type": {
+            "TypeId": "System.Int32",
+            "IsArray": false,
+            "GenericArgs": []
+          },
+          "DefaultValueJson": null,
+          "Tooltip": null,
+          "Comment": null
+        }
       ],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
+          "EventTypeId": "",
           "Id": "20000112-0000-0000-0000-000000000001",
           "Pins": [
-            { "Id": "ee000112-0000-0000-0000-000000000001", "Name": "ExecOut", "Direction": "Out", "IsExec": true, "TypeRef": {} },
-            { "Id": "dd000112-0000-0000-0000-000000000001", "Name": "A", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Int32" } },
-            { "Id": "dd000112-0000-0000-0000-000000000002", "Name": "B", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Int32" } }
+            {
+              "Id": "ee000112-0000-0000-0000-000000000001",
+              "Name": "ExecOut",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "dd000112-0000-0000-0000-000000000001",
+              "Name": "A",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "dd000112-0000-0000-0000-000000000002",
+              "Name": "B",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
           ],
-          "EditorMetadata": { "X": 80.0, "Y": 160.0 }
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 160,
+            "Comment": null
+          }
         },
         {
           "kind": "BinaryOp",
-          "Id": "20000112-0000-0000-0000-000000000002",
           "Operator": "Add",
+          "Id": "20000112-0000-0000-0000-000000000002",
           "Pins": [
-            { "Id": "dd000112-0000-0000-0000-000000000003", "Name": "A", "Direction": "In", "IsExec": false, "TypeRef": { "TypeId": "System.Int32" } },
-            { "Id": "dd000112-0000-0000-0000-000000000004", "Name": "B", "Direction": "In", "IsExec": false, "TypeRef": { "TypeId": "System.Int32" } },
-            { "Id": "dd000112-0000-0000-0000-000000000005", "Name": "Result", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Int32" } }
+            {
+              "Id": "dd000112-0000-0000-0000-000000000003",
+              "Name": "A",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "dd000112-0000-0000-0000-000000000004",
+              "Name": "B",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "dd000112-0000-0000-0000-000000000005",
+              "Name": "Result",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
           ],
-          "EditorMetadata": { "X": 360.0, "Y": 160.0 }
+          "EditorMetadata": {
+            "X": 360,
+            "Y": 160,
+            "Comment": null
+          }
         },
         {
           "kind": "Return",
+          "Status": "Success",
           "Id": "20000112-0000-0000-0000-000000000003",
           "Pins": [
-            { "Id": "ee000112-0000-0000-0000-000000000002", "Name": "ExecIn", "Direction": "In", "IsExec": true, "TypeRef": {} },
-            { "Id": "dd000112-0000-0000-0000-000000000006", "Name": "Result", "Direction": "In", "IsExec": false, "TypeRef": { "TypeId": "System.Int32" } }
+            {
+              "Id": "ee000112-0000-0000-0000-000000000002",
+              "Name": "ExecIn",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "dd000112-0000-0000-0000-000000000006",
+              "Name": "Result",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
           ],
-          "EditorMetadata": { "X": 640.0, "Y": 160.0 }
+          "EditorMetadata": {
+            "X": 640,
+            "Y": 160,
+            "Comment": null
+          }
         }
       ],
       "Links": [
         {
-          "FromNodeId": "20000112-0000-0000-0000-000000000001", "FromPinId": "ee000112-0000-0000-0000-000000000001",
-          "ToNodeId": "20000112-0000-0000-0000-000000000003", "ToPinId": "ee000112-0000-0000-0000-000000000002"
+          "FromNodeId": "20000112-0000-0000-0000-000000000001",
+          "FromPinId": "ee000112-0000-0000-0000-000000000001",
+          "ToNodeId": "20000112-0000-0000-0000-000000000003",
+          "ToPinId": "ee000112-0000-0000-0000-000000000002"
         },
         {
-          "FromNodeId": "20000112-0000-0000-0000-000000000001", "FromPinId": "dd000112-0000-0000-0000-000000000001",
-          "ToNodeId": "20000112-0000-0000-0000-000000000002", "ToPinId": "dd000112-0000-0000-0000-000000000003"
+          "FromNodeId": "20000112-0000-0000-0000-000000000001",
+          "FromPinId": "dd000112-0000-0000-0000-000000000001",
+          "ToNodeId": "20000112-0000-0000-0000-000000000002",
+          "ToPinId": "dd000112-0000-0000-0000-000000000003"
         },
         {
-          "FromNodeId": "20000112-0000-0000-0000-000000000001", "FromPinId": "dd000112-0000-0000-0000-000000000002",
-          "ToNodeId": "20000112-0000-0000-0000-000000000002", "ToPinId": "dd000112-0000-0000-0000-000000000004"
+          "FromNodeId": "20000112-0000-0000-0000-000000000001",
+          "FromPinId": "dd000112-0000-0000-0000-000000000002",
+          "ToNodeId": "20000112-0000-0000-0000-000000000002",
+          "ToPinId": "dd000112-0000-0000-0000-000000000004"
         },
         {
-          "FromNodeId": "20000112-0000-0000-0000-000000000002", "FromPinId": "dd000112-0000-0000-0000-000000000005",
-          "ToNodeId": "20000112-0000-0000-0000-000000000003", "ToPinId": "dd000112-0000-0000-0000-000000000006"
+          "FromNodeId": "20000112-0000-0000-0000-000000000002",
+          "FromPinId": "dd000112-0000-0000-0000-000000000005",
+          "ToNodeId": "20000112-0000-0000-0000-000000000003",
+          "ToPinId": "dd000112-0000-0000-0000-000000000006"
         }
       ],
-      "EditorMetadata": {}
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
     },
     {
       "Id": "10000112-0000-0000-0000-000000000002",
       "Name": "Offsets",
       "Kind": "Function",
       "Inputs": [
-        { "Id": "a0000112-0000-0000-0000-000000000011", "Name": "V", "Type": { "TypeId": "System.Int32" } }
+        {
+          "Id": "a0000112-0000-0000-0000-000000000011",
+          "Name": "V",
+          "Type": {
+            "TypeId": "System.Int32",
+            "IsArray": false,
+            "GenericArgs": []
+          },
+          "DefaultValueJson": null,
+          "Tooltip": null,
+          "Comment": null
+        }
       ],
       "Outputs": [
-        { "Id": "a0000112-0000-0000-0000-000000000012", "Name": "Plus", "Type": { "TypeId": "System.Int32" } },
-        { "Id": "a0000112-0000-0000-0000-000000000013", "Name": "Minus", "Type": { "TypeId": "System.Int32" } }
+        {
+          "Id": "a0000112-0000-0000-0000-000000000012",
+          "Name": "Plus",
+          "Type": {
+            "TypeId": "System.Int32",
+            "IsArray": false,
+            "GenericArgs": []
+          },
+          "DefaultValueJson": null,
+          "Tooltip": null,
+          "Comment": null
+        },
+        {
+          "Id": "a0000112-0000-0000-0000-000000000013",
+          "Name": "Minus",
+          "Type": {
+            "TypeId": "System.Int32",
+            "IsArray": false,
+            "GenericArgs": []
+          },
+          "DefaultValueJson": null,
+          "Tooltip": null,
+          "Comment": null
+        }
       ],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
+          "EventTypeId": "",
           "Id": "20000112-0000-0000-0000-000000000011",
           "Pins": [
-            { "Id": "ee000112-0000-0000-0000-000000000011", "Name": "ExecOut", "Direction": "Out", "IsExec": true, "TypeRef": {} },
-            { "Id": "dd000112-0000-0000-0000-000000000011", "Name": "V", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Int32" } }
+            {
+              "Id": "ee000112-0000-0000-0000-000000000011",
+              "Name": "ExecOut",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "dd000112-0000-0000-0000-000000000011",
+              "Name": "V",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
           ],
-          "EditorMetadata": { "X": 80.0, "Y": 160.0 }
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 160,
+            "Comment": null
+          }
         },
         {
           "kind": "Literal",
-          "Id": "20000112-0000-0000-0000-000000000012",
           "TypeId": "System.Int32",
           "ValueJson": "1",
+          "Id": "20000112-0000-0000-0000-000000000012",
           "Pins": [
-            { "Id": "dd000112-0000-0000-0000-000000000012", "Name": "Value", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Int32" } }
+            {
+              "Id": "dd000112-0000-0000-0000-000000000012",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
           ],
-          "EditorMetadata": { "X": 80.0, "Y": 340.0 }
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 340,
+            "Comment": null
+          }
         },
         {
           "kind": "BinaryOp",
-          "Id": "20000112-0000-0000-0000-000000000013",
           "Operator": "Add",
+          "Id": "20000112-0000-0000-0000-000000000013",
           "Pins": [
-            { "Id": "dd000112-0000-0000-0000-000000000013", "Name": "A", "Direction": "In", "IsExec": false, "TypeRef": { "TypeId": "System.Int32" } },
-            { "Id": "dd000112-0000-0000-0000-000000000014", "Name": "B", "Direction": "In", "IsExec": false, "TypeRef": { "TypeId": "System.Int32" } },
-            { "Id": "dd000112-0000-0000-0000-000000000015", "Name": "Result", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Int32" } }
+            {
+              "Id": "dd000112-0000-0000-0000-000000000013",
+              "Name": "A",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "dd000112-0000-0000-0000-000000000014",
+              "Name": "B",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "dd000112-0000-0000-0000-000000000015",
+              "Name": "Result",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
           ],
-          "EditorMetadata": { "X": 360.0, "Y": 120.0 }
+          "EditorMetadata": {
+            "X": 360,
+            "Y": 120,
+            "Comment": null
+          }
         },
         {
           "kind": "BinaryOp",
-          "Id": "20000112-0000-0000-0000-000000000014",
           "Operator": "Subtract",
+          "Id": "20000112-0000-0000-0000-000000000014",
           "Pins": [
-            { "Id": "dd000112-0000-0000-0000-000000000016", "Name": "A", "Direction": "In", "IsExec": false, "TypeRef": { "TypeId": "System.Int32" } },
-            { "Id": "dd000112-0000-0000-0000-000000000017", "Name": "B", "Direction": "In", "IsExec": false, "TypeRef": { "TypeId": "System.Int32" } },
-            { "Id": "dd000112-0000-0000-0000-000000000018", "Name": "Result", "Direction": "Out", "IsExec": false, "TypeRef": { "TypeId": "System.Int32" } }
+            {
+              "Id": "dd000112-0000-0000-0000-000000000016",
+              "Name": "A",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "dd000112-0000-0000-0000-000000000017",
+              "Name": "B",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "dd000112-0000-0000-0000-000000000018",
+              "Name": "Result",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
           ],
-          "EditorMetadata": { "X": 360.0, "Y": 360.0 }
+          "EditorMetadata": {
+            "X": 360,
+            "Y": 360,
+            "Comment": null
+          }
         },
         {
           "kind": "Return",
+          "Status": "Success",
           "Id": "20000112-0000-0000-0000-000000000015",
           "Pins": [
-            { "Id": "ee000112-0000-0000-0000-000000000012", "Name": "ExecIn", "Direction": "In", "IsExec": true, "TypeRef": {} },
-            { "Id": "dd000112-0000-0000-0000-000000000019", "Name": "Plus", "Direction": "In", "IsExec": false, "TypeRef": { "TypeId": "System.Int32" } },
-            { "Id": "dd000112-0000-0000-0000-00000000001a", "Name": "Minus", "Direction": "In", "IsExec": false, "TypeRef": { "TypeId": "System.Int32" } }
+            {
+              "Id": "ee000112-0000-0000-0000-000000000012",
+              "Name": "ExecIn",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "dd000112-0000-0000-0000-000000000019",
+              "Name": "Plus",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "dd000112-0000-0000-0000-00000000001a",
+              "Name": "Minus",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
           ],
-          "EditorMetadata": { "X": 640.0, "Y": 240.0 }
+          "EditorMetadata": {
+            "X": 640,
+            "Y": 240,
+            "Comment": null
+          }
         }
       ],
       "Links": [
         {
-          "FromNodeId": "20000112-0000-0000-0000-000000000011", "FromPinId": "ee000112-0000-0000-0000-000000000011",
-          "ToNodeId": "20000112-0000-0000-0000-000000000015", "ToPinId": "ee000112-0000-0000-0000-000000000012"
+          "FromNodeId": "20000112-0000-0000-0000-000000000011",
+          "FromPinId": "ee000112-0000-0000-0000-000000000011",
+          "ToNodeId": "20000112-0000-0000-0000-000000000015",
+          "ToPinId": "ee000112-0000-0000-0000-000000000012"
         },
         {
-          "FromNodeId": "20000112-0000-0000-0000-000000000011", "FromPinId": "dd000112-0000-0000-0000-000000000011",
-          "ToNodeId": "20000112-0000-0000-0000-000000000013", "ToPinId": "dd000112-0000-0000-0000-000000000013"
+          "FromNodeId": "20000112-0000-0000-0000-000000000011",
+          "FromPinId": "dd000112-0000-0000-0000-000000000011",
+          "ToNodeId": "20000112-0000-0000-0000-000000000013",
+          "ToPinId": "dd000112-0000-0000-0000-000000000013"
         },
         {
-          "FromNodeId": "20000112-0000-0000-0000-000000000012", "FromPinId": "dd000112-0000-0000-0000-000000000012",
-          "ToNodeId": "20000112-0000-0000-0000-000000000013", "ToPinId": "dd000112-0000-0000-0000-000000000014"
+          "FromNodeId": "20000112-0000-0000-0000-000000000012",
+          "FromPinId": "dd000112-0000-0000-0000-000000000012",
+          "ToNodeId": "20000112-0000-0000-0000-000000000013",
+          "ToPinId": "dd000112-0000-0000-0000-000000000014"
         },
         {
-          "FromNodeId": "20000112-0000-0000-0000-000000000011", "FromPinId": "dd000112-0000-0000-0000-000000000011",
-          "ToNodeId": "20000112-0000-0000-0000-000000000014", "ToPinId": "dd000112-0000-0000-0000-000000000016"
+          "FromNodeId": "20000112-0000-0000-0000-000000000011",
+          "FromPinId": "dd000112-0000-0000-0000-000000000011",
+          "ToNodeId": "20000112-0000-0000-0000-000000000014",
+          "ToPinId": "dd000112-0000-0000-0000-000000000016"
         },
         {
-          "FromNodeId": "20000112-0000-0000-0000-000000000012", "FromPinId": "dd000112-0000-0000-0000-000000000012",
-          "ToNodeId": "20000112-0000-0000-0000-000000000014", "ToPinId": "dd000112-0000-0000-0000-000000000017"
+          "FromNodeId": "20000112-0000-0000-0000-000000000012",
+          "FromPinId": "dd000112-0000-0000-0000-000000000012",
+          "ToNodeId": "20000112-0000-0000-0000-000000000014",
+          "ToPinId": "dd000112-0000-0000-0000-000000000017"
         },
         {
-          "FromNodeId": "20000112-0000-0000-0000-000000000013", "FromPinId": "dd000112-0000-0000-0000-000000000015",
-          "ToNodeId": "20000112-0000-0000-0000-000000000015", "ToPinId": "dd000112-0000-0000-0000-000000000019"
+          "FromNodeId": "20000112-0000-0000-0000-000000000013",
+          "FromPinId": "dd000112-0000-0000-0000-000000000015",
+          "ToNodeId": "20000112-0000-0000-0000-000000000015",
+          "ToPinId": "dd000112-0000-0000-0000-000000000019"
         },
         {
-          "FromNodeId": "20000112-0000-0000-0000-000000000014", "FromPinId": "dd000112-0000-0000-0000-000000000018",
-          "ToNodeId": "20000112-0000-0000-0000-000000000015", "ToPinId": "dd000112-0000-0000-0000-00000000001a"
+          "FromNodeId": "20000112-0000-0000-0000-000000000014",
+          "FromPinId": "dd000112-0000-0000-0000-000000000018",
+          "ToNodeId": "20000112-0000-0000-0000-000000000015",
+          "ToPinId": "dd000112-0000-0000-0000-00000000001a"
         }
       ],
-      "EditorMetadata": {}
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
     },
     {
       "Id": "10000112-0000-0000-0000-000000000003",
@@ -183,33 +545,78 @@
       "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
+          "EventTypeId": "",
           "Id": "20000112-0000-0000-0000-000000000021",
           "Pins": [
-            { "Id": "ee000112-0000-0000-0000-000000000021", "Name": "ExecOut", "Direction": "Out", "IsExec": true, "TypeRef": {} }
+            {
+              "Id": "ee000112-0000-0000-0000-000000000021",
+              "Name": "ExecOut",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            }
           ],
-          "EditorMetadata": { "X": 80.0, "Y": 160.0 }
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 160,
+            "Comment": null
+          }
         },
         {
           "kind": "Return",
-          "Id": "20000112-0000-0000-0000-000000000022",
           "Status": "Success",
+          "Id": "20000112-0000-0000-0000-000000000022",
           "Pins": [
-            { "Id": "ee000112-0000-0000-0000-000000000022", "Name": "ExecIn", "Direction": "In", "IsExec": true, "TypeRef": {} }
+            {
+              "Id": "ee000112-0000-0000-0000-000000000022",
+              "Name": "ExecIn",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            }
           ],
-          "EditorMetadata": { "X": 360.0, "Y": 160.0 }
+          "EditorMetadata": {
+            "X": 360,
+            "Y": 160,
+            "Comment": null
+          }
         }
       ],
       "Links": [
         {
-          "FromNodeId": "20000112-0000-0000-0000-000000000021", "FromPinId": "ee000112-0000-0000-0000-000000000021",
-          "ToNodeId": "20000112-0000-0000-0000-000000000022", "ToPinId": "ee000112-0000-0000-0000-000000000022"
+          "FromNodeId": "20000112-0000-0000-0000-000000000021",
+          "FromPinId": "ee000112-0000-0000-0000-000000000021",
+          "ToNodeId": "20000112-0000-0000-0000-000000000022",
+          "ToPinId": "ee000112-0000-0000-0000-000000000022"
         }
       ],
-      "EditorMetadata": {}
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
     }
   ],
-  "EditorMetadata": {}
+  "EditorMetadata": {
+    "Description": null,
+    "Category": null,
+    "Recipe": null
+  }
 }

@@ -3,26 +3,35 @@
     "docType": "Hrot.Blueprints",
     "schemaVersion": 1
   },
-  "Header": {
-    "SubsystemType": "Hrot.Blueprints",
-    "SchemaVersion": "1.0"
-  },
+  "Header": {},
   "AssetId": "00000099-0000-0000-0000-0000000000cd",
   "Name": "CountingDemo",
   "Dispatch": "Instance",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
   "Primitive": null,
   "Parameters": [],
+  "ParameterOrder": null,
   "WorkingState": [],
+  "WorkingStateOrder": null,
   "Variables": [
     {
       "Id": "a0000006-0000-0000-0000-000000000001",
       "Name": "Count",
       "Type": {
-        "TypeId": "System.Int32"
+        "TypeId": "System.Int32",
+        "IsArray": false,
+        "GenericArgs": []
       },
-      "DefaultValueJson": "0"
+      "DefaultValueJson": "0",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
     }
   ],
+  "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
   "CallablePeers": [],
@@ -33,154 +42,204 @@
       "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
+          "EventTypeId": "",
           "Id": "20000006-0000-0000-0000-000000000001",
           "Pins": [
             {
               "Id": "ee000006-0000-0000-0000-000000000001",
               "Name": "ExecOut",
               "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": true,
-              "TypeRef": {}
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 80.0,
-            "Y": 220.0
+            "X": 80,
+            "Y": 220,
+            "Comment": null
           }
         },
         {
           "kind": "SetVariable",
-          "Id": "20000006-0000-0000-0000-000000000002",
           "VariableId": "a0000006-0000-0000-0000-000000000001",
+          "Id": "20000006-0000-0000-0000-000000000002",
           "Pins": [
             {
               "Id": "ee000006-0000-0000-0000-000000000002",
               "Name": "ExecIn",
               "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": true,
-              "TypeRef": {}
+              "LinkedToIds": []
             },
             {
               "Id": "ee000006-0000-0000-0000-000000000003",
               "Name": "ExecOut",
               "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": true,
-              "TypeRef": {}
+              "LinkedToIds": []
             },
             {
               "Id": "dd000006-0000-0000-0000-000000000001",
               "Name": "Value",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
-                "TypeId": "System.Int32"
-              }
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 940.0,
-            "Y": 220.0
+            "X": 940,
+            "Y": 220,
+            "Comment": null
           }
         },
         {
           "kind": "FunctionCall",
-          "Id": "20000006-0000-0000-0000-000000000003",
           "TargetTypeId": "Fdp.Toolkit.Blueprints.BlueprintMath",
           "MethodName": "AddInt",
           "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "Unspecified",
+          "Id": "20000006-0000-0000-0000-000000000003",
           "Pins": [
             {
               "Id": "dd000006-0000-0000-0000-000000000002",
               "Name": "A",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
-                "TypeId": "System.Int32"
-              }
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             },
             {
               "Id": "dd000006-0000-0000-0000-000000000003",
               "Name": "B",
               "Direction": "In",
-              "IsExec": false,
               "TypeRef": {
-                "TypeId": "System.Int32"
-              }
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             },
             {
               "Id": "dd000006-0000-0000-0000-000000000004",
               "Name": "Result",
               "Direction": "Out",
-              "IsExec": false,
               "TypeRef": {
-                "TypeId": "System.Int32"
-              }
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 640.0,
-            "Y": 220.0
+            "X": 640,
+            "Y": 220,
+            "Comment": null
           }
         },
         {
           "kind": "GetVariable",
-          "Id": "20000006-0000-0000-0000-000000000004",
           "VariableId": "a0000006-0000-0000-0000-000000000001",
+          "Id": "20000006-0000-0000-0000-000000000004",
           "Pins": [
             {
               "Id": "dd000006-0000-0000-0000-000000000005",
               "Name": "Value",
               "Direction": "Out",
-              "IsExec": false,
               "TypeRef": {
-                "TypeId": "System.Int32"
-              }
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 360.0,
-            "Y": 110.0
+            "X": 360,
+            "Y": 110,
+            "Comment": null
           }
         },
         {
           "kind": "Literal",
-          "Id": "20000006-0000-0000-0000-000000000005",
           "TypeId": "System.Int32",
           "ValueJson": "1",
+          "Id": "20000006-0000-0000-0000-000000000005",
           "Pins": [
             {
               "Id": "dd000006-0000-0000-0000-000000000006",
               "Name": "Value",
               "Direction": "Out",
-              "IsExec": false,
               "TypeRef": {
-                "TypeId": "System.Int32"
-              }
+                "TypeId": "System.Int32",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 360.0,
-            "Y": 340.0
+            "X": 360,
+            "Y": 340,
+            "Comment": null
           }
         },
         {
           "kind": "Return",
+          "Status": "Success",
           "Id": "20000006-0000-0000-0000-000000000006",
           "Pins": [
             {
               "Id": "ee000006-0000-0000-0000-000000000004",
               "Name": "ExecIn",
               "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
               "IsExec": true,
-              "TypeRef": {}
+              "LinkedToIds": []
             }
           ],
           "EditorMetadata": {
-            "X": 1240.0,
-            "Y": 220.0
+            "X": 1240,
+            "Y": 220,
+            "Comment": null
           }
         }
       ],
@@ -216,18 +275,26 @@
           "ToPinId": "dd000006-0000-0000-0000-000000000003"
         }
       ],
-      "EditorMetadata": {}
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
     }
   ],
   "EditorMetadata": {
+    "Description": null,
+    "Category": null,
     "Recipe": {
-      "DisplayName": "Counting Demo  (★ recommended for learning)",
+      "DisplayName": "Counting Demo  (\u2605 recommended for learning)",
       "Category": "Tutorial",
-      "Description": "Minimal, fully-wired Instance blueprint that increments a counter every tick via a FunctionCall (Add). Compiles and runs as-is — ideal for verifying the end-to-end compile → attach → tick cycle.",
+      "Description": "Minimal, fully-wired Instance blueprint that increments a counter every tick via a FunctionCall (Add). Compiles and runs as-is \u2014 ideal for verifying the end-to-end compile \u2192 attach \u2192 tick cycle.",
       "Difficulty": "Beginner",
       "ConceptsTaught": [
-        "EventEntry → SetVariable flow",
-        "FunctionCall (Add) wiring with GetVariable + Literal inputs",
+        "EventEntry \u2192 SetVariable flow",
+        "FunctionCall (Add) wiring with GetVariable \u002B Literal inputs",
         "Returning from an Instance graph",
         "Observing live execution (Count climbs each tick)"
       ]

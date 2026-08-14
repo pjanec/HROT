@@ -3,18 +3,19 @@
     "docType": "Hrot.Blueprints",
     "schemaVersion": 1
   },
-  "Header": {
-    "SubsystemType": "Hrot.Blueprints",
-    "SchemaVersion": "1.0"
-  },
+  "Header": {},
   "AssetId": "00000000-aaaa-0001-0000-000000000003",
   "Name": "SquadAwareEngagement",
-  "Dispatch": 2,
-  "TierHint": 0,
+  "Dispatch": "Instance",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
   "Primitive": null,
   "Parameters": [],
+  "ParameterOrder": null,
   "WorkingState": [],
+  "WorkingStateOrder": null,
   "Variables": [],
+  "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
   "CallablePeers": [
@@ -24,36 +25,56 @@
     {
       "Id": "b3000001-0001-0001-0001-000000000001",
       "Name": "Tick",
-      "Kind": 1,
+      "Kind": "Event",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
-          "Id": "c3000001-0001-0001-0001-000000000001",
           "EventTypeId": "",
+          "Id": "c3000001-0001-0001-0001-000000000001",
           "Pins": [],
-          "EditorMetadata": {}
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
         },
         {
           "kind": "When",
-          "Id": "c3000001-0002-0002-0002-000000000002",
-          "Mode": 0,
-          "Edges": 1,
+          "Mode": "ValueChanged",
+          "Edges": "RisingEdge",
           "ValueChanged": {
             "ComponentTypeId": "",
             "PropertyPath": "",
-            "Epsilon": 0.0,
-            "Source": 1,
+            "Epsilon": 0,
+            "Source": "PeerBlueprintVariable",
             "PeerBlueprintAssetId": "00000000-aaaa-0001-0000-000000000005",
-            "PeerVariableName": "ThreatLevel"
+            "PeerVariableName": "ThreatLevel",
+            "WorkingStateFieldId": null
           },
+          "EventFired": null,
+          "ConditionMet": null,
+          "EqsResult": null,
+          "Id": "c3000001-0002-0002-0002-000000000002",
           "Pins": [],
-          "EditorMetadata": {}
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
         }
       ],
       "Links": [],
-      "EditorMetadata": {}
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
     }
   ],
   "EditorMetadata": {
@@ -62,7 +83,7 @@
     "Recipe": {
       "DisplayName": "Squad-aware Engagement",
       "Category": "Combat",
-      "Description": "Reacts to changes in a peer Blueprint's variable (SquadState.ThreatLevel). Demonstrates WhenNode Value Changed with peer-variable source and callablePeers declaration.",
+      "Description": "Reacts to changes in a peer Blueprint\u0027s variable (SquadState.ThreatLevel). Demonstrates WhenNode Value Changed with peer-variable source and callablePeers declaration.",
       "Difficulty": "Intermediate",
       "ConceptsTaught": [
         "callablePeers declaration",

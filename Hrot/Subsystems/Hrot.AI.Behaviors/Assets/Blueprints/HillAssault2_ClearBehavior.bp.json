@@ -3,21 +3,24 @@
     "docType": "Hrot.Blueprints",
     "schemaVersion": 1
   },
-  "Header": {
-    "SubsystemType": "Hrot.Blueprints",
-    "SchemaVersion": "1.0"
-  },
+  "Header": {},
   "AssetId": "607f14d9-7450-47d2-907b-fa8d85b6f1df",
   "Name": "HillAssault2_ClearBehavior",
   "Dispatch": "AiPrimitive",
   "TierHint": "Auto",
+  "IsWorldSingleton": false,
   "Primitive": {
     "Intent": "Action",
-    "Hostings": ["BTreeAction"]
+    "Hostings": [
+      "BTreeAction"
+    ]
   },
   "Parameters": [],
+  "ParameterOrder": null,
   "WorkingState": [],
+  "WorkingStateOrder": null,
   "Variables": [],
+  "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
   "CallablePeers": [],
@@ -28,27 +31,41 @@
       "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
-          "Id": "b103b554-c779-4410-816b-0832f429cf84",
           "EventTypeId": "",
+          "Id": "b103b554-c779-4410-816b-0832f429cf84",
           "Pins": [],
-          "EditorMetadata": { "X": 80.0, "Y": 220.0 }
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 220,
+            "Comment": null
+          }
         },
         {
           "kind": "PublishEvent",
-          "Id": "954dcfd1-3c3c-45e7-afea-cafcb10d5c23",
           "EventId": "ClearBehaviorEvent",
+          "Id": "954dcfd1-3c3c-45e7-afea-cafcb10d5c23",
           "Pins": [],
-          "EditorMetadata": { "X": 400.0, "Y": 220.0 }
+          "EditorMetadata": {
+            "X": 400,
+            "Y": 220,
+            "Comment": null
+          }
         },
         {
           "kind": "Return",
-          "Id": "cbba088b-68b6-4060-9997-fe4bc1087a3f",
           "Status": "Success",
+          "Id": "cbba088b-68b6-4060-9997-fe4bc1087a3f",
           "Pins": [],
-          "EditorMetadata": { "X": 720.0, "Y": 220.0 }
+          "EditorMetadata": {
+            "X": 720,
+            "Y": 220,
+            "Comment": null
+          }
         }
       ],
       "Links": [
@@ -65,11 +82,17 @@
           "ToPinId": "0287c828-5cbf-4330-9ba6-4c64043cdc7e"
         }
       ],
-      "EditorMetadata": { "ViewportX": 0, "ViewportY": 0, "ViewportZoom": 0 }
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
     }
   ],
   "EditorMetadata": {
-    "Description": "P4 proof: publishes ClearBehaviorEvent{Entity=self} on world.Bus (GAP-3 closed, architect Q#5-A); building block for slice 2 ReverseToBaseline's terminal cleanup.",
+    "Description": "P4 proof: publishes ClearBehaviorEvent{Entity=self} on world.Bus (GAP-3 closed, architect Q#5-A); building block for slice 2 ReverseToBaseline\u0027s terminal cleanup.",
     "Category": null,
     "Recipe": null
   }

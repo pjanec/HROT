@@ -3,37 +3,70 @@
     "docType": "Hrot.Blueprints",
     "schemaVersion": 1
   },
-  "Header": {
-    "SubsystemType": "Hrot.Blueprints",
-    "SchemaVersion": "1.0"
-  },
+  "Header": {},
   "AssetId": "e2b00001-0000-0000-0000-0000000000e2",
   "Name": "SharedStateCrossEntityDemo",
-  "Dispatch": 1,
-  "TierHint": 0,
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
   "Primitive": {
-    "Intent": 0,
-    "Hostings": [0]
+    "Intent": "Action",
+    "Hostings": [
+      "BTreeAction"
+    ]
   },
   "Parameters": [],
+  "ParameterOrder": null,
   "WorkingState": [
     {
       "Id": "e2b00002-0000-0000-0000-000000000001",
       "Name": "Commander",
-      "Type": { "TypeId": "Fdp.Core.Entity", "IsArray": false, "GenericArgs": [] }
+      "Type": {
+        "TypeId": "Fdp.Core.Entity",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
     },
     {
       "Id": "e2b00002-0000-0000-0000-000000000002",
       "Name": "RallyCountMirror",
-      "Type": { "TypeId": "System.Int32", "IsArray": false, "GenericArgs": [] }
+      "Type": {
+        "TypeId": "System.Int32",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
     },
     {
       "Id": "e2b00002-0000-0000-0000-000000000003",
       "Name": "FoundMirror",
-      "Type": { "TypeId": "System.Boolean", "IsArray": false, "GenericArgs": [] }
+      "Type": {
+        "TypeId": "System.Boolean",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
     }
   ],
+  "WorkingStateOrder": null,
   "Variables": [],
+  "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
   "CallablePeers": [],
@@ -41,62 +74,93 @@
     {
       "Id": "e2b00003-0000-0000-0000-000000000001",
       "Name": "Main",
-      "Kind": 0,
+      "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
-          "Id": "e2b00004-0000-0000-0000-000000000001",
           "EventTypeId": "",
+          "Id": "e2b00004-0000-0000-0000-000000000001",
           "Pins": [],
-          "EditorMetadata": { "X": 80.0, "Y": 220.0 }
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 220,
+            "Comment": null
+          }
         },
         {
           "kind": "GetVariable",
-          "Id": "e2b00004-0000-0000-0000-000000000002",
           "VariableId": "e2b00002-0000-0000-0000-000000000001",
+          "Id": "e2b00004-0000-0000-0000-000000000002",
           "Pins": [],
-          "EditorMetadata": { "X": 80.0, "Y": 40.0 }
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 40,
+            "Comment": null
+          }
         },
         {
           "kind": "GetShared",
-          "Id": "e2b00004-0000-0000-0000-000000000003",
           "VariableId": "rally",
           "SharedTypeId": "Hrot.AI.Behaviors.Brains.SquadRallyState",
+          "Id": "e2b00004-0000-0000-0000-000000000003",
           "Pins": [],
-          "EditorMetadata": { "X": 300.0, "Y": 60.0 }
+          "EditorMetadata": {
+            "X": 300,
+            "Y": 60,
+            "Comment": null
+          }
         },
         {
           "kind": "FunctionCall",
-          "Id": "e2b00004-0000-0000-0000-000000000004",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.SquadRallyStateOps",
           "MethodName": "ReadRallyCount",
           "IsPure": true,
           "TargetGraphId": "",
+          "TrailingContext": "Unspecified",
+          "Id": "e2b00004-0000-0000-0000-000000000004",
           "Pins": [],
-          "EditorMetadata": { "X": 540.0, "Y": 60.0 }
+          "EditorMetadata": {
+            "X": 540,
+            "Y": 60,
+            "Comment": null
+          }
         },
         {
           "kind": "SetVariable",
-          "Id": "e2b00004-0000-0000-0000-000000000005",
           "VariableId": "e2b00002-0000-0000-0000-000000000002",
+          "Id": "e2b00004-0000-0000-0000-000000000005",
           "Pins": [],
-          "EditorMetadata": { "X": 380.0, "Y": 220.0 }
+          "EditorMetadata": {
+            "X": 380,
+            "Y": 220,
+            "Comment": null
+          }
         },
         {
           "kind": "SetVariable",
-          "Id": "e2b00004-0000-0000-0000-000000000006",
           "VariableId": "e2b00002-0000-0000-0000-000000000003",
+          "Id": "e2b00004-0000-0000-0000-000000000006",
           "Pins": [],
-          "EditorMetadata": { "X": 620.0, "Y": 220.0 }
+          "EditorMetadata": {
+            "X": 620,
+            "Y": 220,
+            "Comment": null
+          }
         },
         {
           "kind": "Return",
+          "Status": "Success",
           "Id": "e2b00004-0000-0000-0000-000000000007",
-          "Status": 0,
           "Pins": [],
-          "EditorMetadata": { "X": 860.0, "Y": 220.0 }
+          "EditorMetadata": {
+            "X": 860,
+            "Y": 220,
+            "Comment": null
+          }
         }
       ],
       "Links": [
@@ -143,11 +207,17 @@
           "ToPinId": "e2b00005-0000-0000-0000-000000000013"
         }
       ],
-      "EditorMetadata": { "ViewportX": 0, "ViewportY": 0, "ViewportZoom": 0 }
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
     }
   ],
   "EditorMetadata": {
-    "Description": "Slice 2b real-interpreter proof demo (member/subordinate side): reads WorkingState.Commander (an Entity set by the host before ticking), passes it as the GetShared node's 'Target' pin to read the COORDINATOR entity's Entity-scoped 'rally' shared slot (SquadRallyState) cross-entity, mirrors RallyCount into WorkingState.RallyCountMirror via a pure FunctionCall + SetVariable, and mirrors the 'Found' flag into WorkingState.FoundMirror. Proves GetShared's optional Target pin compiles to BlueprintSharedState.TryGetShared<T>(world, <resolved target entity>, variableId, out value) instead of self, and that TryGetShared returns false (FoundMirror stays false, RallyCountMirror stays 0) when the coordinator hasn't provisioned the slot -- never throws.",
+    "Description": "Slice 2b real-interpreter proof demo (member/subordinate side): reads WorkingState.Commander (an Entity set by the host before ticking), passes it as the GetShared node\u0027s \u0027Target\u0027 pin to read the COORDINATOR entity\u0027s Entity-scoped \u0027rally\u0027 shared slot (SquadRallyState) cross-entity, mirrors RallyCount into WorkingState.RallyCountMirror via a pure FunctionCall \u002B SetVariable, and mirrors the \u0027Found\u0027 flag into WorkingState.FoundMirror. Proves GetShared\u0027s optional Target pin compiles to BlueprintSharedState.TryGetShared\u003CT\u003E(world, \u003Cresolved target entity\u003E, variableId, out value) instead of self, and that TryGetShared returns false (FoundMirror stays false, RallyCountMirror stays 0) when the coordinator hasn\u0027t provisioned the slot -- never throws.",
     "Category": null,
     "Recipe": null
   }
