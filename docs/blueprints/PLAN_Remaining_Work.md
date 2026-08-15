@@ -1,129 +1,104 @@
-# PLAN — what is left, with the parameter-as-variable model folded in
+# PLAN — what is left *(revised `2026-08-15` after the design-record sweep)*
 
-> **Coordinator, `2026-08-15`.** ⭐ **Supersedes the task lists in
-> [`DESIGN_Variable_Details_And_Live_Values.md`](DESIGN_Variable_Details_And_Live_Values.md) §8 and
-> [`PLAN_Cross_Host_Sequencing.md`](PLAN_Cross_Host_Sequencing.md) §6** — those were two lists for one
-> programme. ⛔ **This is the single list.**
+> ⭐⭐⭐ **REVISION 2.** The first version was written from **code alone**. Three coordinator subagent
+> scans over `.dev/` (~2887 files) + the implementation session's sweep have now been folded in.
+> ⛔ **Nine items changed. Two of my own conclusions were WRONG. Three decisions need the user.**
+> 📄 Sources: [`REPORT_Batch64_Dev_Sweep.md`](REPORT_Batch64_Dev_Sweep.md) + the three coordinator scans.
 
-![remaining work](PLAN_Remaining_Work.svg)
+![remaining work](PLAN_Remaining_Work.svg) *(diagram predates this revision — tracks still hold, contents changed)*
 
 ---
 
-## 1. ⭐⭐⭐ The model the plan is now organised around
+## 0. ⛔⛔ **I repeated the Batch-63 mistake. Twice, in this plan.**
 
-⭐⭐ **The cross-host design and the Q32 design reached the same model independently** — `Explainer:269`
-*"Parameters, working state and asset variables are not three things"* over axes **`Role` × `Scope`**,
-which is our one cell in different words:
-
-| cell | what it is | where it lives |
+| my v1 claim | the design record | verdict |
 |---|---|---|
-| **`Parameter` = (Input, Asset)** | scenario-writable, **packed at offset 0**, `Pack`, 100 B budget | the inline params region |
-| ⭐⭐ **`Variable` ∪ `WorkingState` = (State, Asset)** | **ONE cell.** Batch 56 made the emitters agree | `State` (Instance) / `WorkingState` (AiPrimitive) |
-| **graph locals = (State, Graph)** | same `DeclarationKind` tag as asset variables | appended after the asset's own storage |
+| *"delete the dead `IStructEditDrawer`/`DrawerRegistry` chain"* (`C6`) | `_DONE/blueprints-1` DD §7.1/§7.8 + `BATCH-22-INSTRUCTIONS:297-380` **specify it verbatim**; still referenced by `InspectorWindow.cs:10,17` and `BlueprintWindowRegistrar.cs:21,29`; `MVE-BATCH-04-REPORT.md:194` frames removal as **part of retiring the legacy `BlueprintEditorModule`**, not an isolated deletion | 🔴 **WRONG — "designed, pending a larger retirement", not dead code** |
+| *"`BlueprintVariablesWindow` is redundant, retire it"* (`C6`) | migrated onto `VariablesPanelControl` (`BATCH-15`), carries the `{DtoTypeFqn}::{FieldName}` rename context (`BATCH-16`); a deliberate *"wrapper instead of modifying it"* decision exists **to avoid rewriting a working, tested class** | 🔴 **WRONG — a re-host, not a retirement** |
 
-⇒ ⭐⭐⭐ **What this buys the plan: the remaining tasks split by WHICH LAYER they touch — not by host,
-and not by which word the old three-list model used.** ⛔ **And the standing constraint over all of it
-is ruling 9: never two implementations of one concept.**
-
-⚠ **One sentence in the cross-host design is now false and its `D2` hedge rests on it** —
-`Design_Behavior_Asset_Parameter_Model.md:72` calls the kinds *"storage of different dispatch kinds
-**that never coexist**."* ⭐ **True of the corpus, false of the model** since `U-12`. **Retire the hedge.**
+⇒ ⭐⭐ **Same shape both times: a grep answered *"is it used?"* and I read it as *"is it wanted?"***
 
 ---
 
-## 2. ✅ Done — merged at `bc79be664`, all eight gates coordinator-run
+## 1. ✅ Done — merged through `9edf13fdf`
 
-| batch | item | ⭐ what it actually bought |
+Batches **56 · 58 · 57 · 59 · 60 · 61(1–2) · 63**. Phase A correctness is complete except `W6`/`W7`,
+which the sweep has now **re-specified** (§4).
+
+---
+
+## 2. ⏭ Track B — struct support ⭐ **all three now have design records. Ready to build.**
+
+| | design record | what changed |
 |---|---|---|
-| **56** | one cell, one emit path | the union the whole plan now walks |
-| **58** | `W1` — id collision gate | ⭐ built as an **analyzer**, because a generator cannot see another generator's output |
-| **57** | `S1` — AiPrimitive state metadata | ⭐⭐ a **consumer with no producer** for its entire life; 32 assets were invisible to the debugger |
-| **59** | `W3` — stub registrations deleted | production now registers **exactly one** HSM id |
+| **`S2`** struct size resolution | `.dev/btree-ai-action-binding/reports/BATCH-03-REPORT.md:34` — ⭐⭐ **a stated mandate**: *"`StructSizeResolver` lives in Generators and is **injected via `Func<string,int?>`**; Persistence stays netstandard2.0 / Roslyn-free"*, from a **user decision `2026-06-15`** (`TASK-DETAIL.md:58`) | ✅ **my lean CONFIRMED, with a shipped precedent** (`BTreeBlackboardPackHelper.Pack(vars, Func<string,int?>, out total)`) ⚠ **but `:100` files `DEBT-AIB-012`: the resolver is ALREADY a third copy of `ComputeStructSize`** ⇒ **a naïve `S2` makes a fourth** |
+| **`S3`** `MarshalFromBytes` struct arm | `_DONE/blueprints-1/TASK-DETAIL.md:1840` — *"reflection-based for structs (UI decode only, not on the probe path)"*; `blueprint-dbg-1:193` — *"primitives/**small** structs only"* | ✅ **CONFIRMS** — ⭐ designed in from the start, **never built**. The record also **bounds** it |
+| **`S4`** fixed-list `Capacity` | ⭐ **outside `.dev/`** — `docs/blueprints/Blueprint_List_Variables_Design.md` §3:63–72 **specifies the exact missing branch**: *"`StaticTypeRegistry.TryResolve`: new branch — when `Capacity > 0` and the element resolves unmanaged, return the list `IrTypeRef` (unmanaged, real size)"* | 🔴 **REFINES** — a **designed-but-unbuilt branch**, not a bug. ⚠ Must honour `SizeReliable = false` and the `__List_{Elem}_{N}` wrapper name |
+| **`S5`** one picker | `blueprint-finalize/BF-BATCH-FIXEDSTRING-INSTRUCTIONS.md:33` treats **`SelectableTypeIds`** as *the* picker list; `EditorOfferableTypeIds` is never mentioned | ⭐ **CONFIRMS the defect is real and undocumented** — the second list grew later on the compiler side |
 
 ---
 
-## 3. ⏳ In flight — dispatched, to run back to back
+## 3. ⛔⛔ Track C — the panels. **Do not build yet. Three user decisions first (§6).**
 
-| batch | items | ⭐ note |
+| | design record | verdict |
 |---|---|---|
-| **60** | `W2` + `W4` — runtime layout gate, then the layout it guards | ⭐⭐ **blast radius measured ZERO** (no shipped asset carries a `Vector3`-class variable) ⇒ **cheapest moment this change will ever have.** ⛔ **The corpus cannot witness it — the constructed asset is the only witness** |
-| **61** | `BP-247` · `W5` · `W6` · `W7` · `S2` | five items, **per-item STOP conditions**. ⛔ **`W5` was corrected pre-dispatch — the constant fold is not buildable** |
+| **`C1`** Details hosts the list | `VariablesPanelControl` already extracted to `AiShared` with the configuration axis **already built** — *single-list + aliasing* for BTree/HSM, *dual-list* for Blueprint | ⭐ **a RE-HOST, not a new control.** ⚠ `blueprint-finalize/TASK-DETAIL.md:136` records a **prior REJECTION** of reusing it — *"it carries blackboard byte-budget/pack-warning UI"* — the same objection lands here |
+| **`C2`** the value column | ⭐⭐ **ALREADY SHIPPED** (`BATCH-11`, `ILiveBlackboardValueProvider`, 5th column, `"—"` on no match) | ✅ **largely DONE.** ⚠ gated on a **name-match against the selected entity**; the *"any entity running this behavior"* tier was **explicitly dropped** |
+| **`C3`** StructEdit dialog | ⭐ **the not-running write is ALREADY BUILT** — `UpdateVariableDefaultValueJson` + `DefaultValueAuthoring.OpenSession` — but surfaced as a **"STATIC PARAMETERS" section in `InspectorWindow`**, not a dialog | 🔴 **⛔ NO RECORD of the three-dot or double-click gesture**, and §4.5 enumerates the `⋮` menu **exhaustively with no "Edit value"**; **double-click is already bound to inline rename** ⇒ **§6 decision** |
+| **`C4`** Watch panel | *"nothing before the run"* **already designed AND shipped** — `TextDisabled("… = (pending)")` on `!HasEverBeenWritten` | ⭐⭐ **MY DIAGNOSIS WAS INCOMPLETE:** refresh is gated on **Trace compile mode** — ⛔ **Debug emits no `PinValueChanged` at all**, and `QuickReloadService.cs:64` **hardcodes `CompilerMode.Debug`** ⇒ **a non-empty handler still receives nothing.** ⛔ Editing has **no prior design** — ruling 13 is new law |
+| **`C5`** the write path | 🛑🛑 **CONTRADICTED by three records** — see §6 | 🛑 **BLOCKED on a user ruling** |
+| **`C6`** retire the window / delete the drawers | §0 | 🔴 **both halves wrong — re-scope** |
+| **`C7`** shared outline | ⭐ **already has an owner track and authoritative specs**: `docs/blueprints/NodeEdit/D6-my-blueprint-panel.md` + `D7-details-panel.md`, audit task **BCP-I** unstarted. D6 §D.6.2–3 **already models per-host section sets as DATA** | ⭐ **CONFIRMS the approach; the work is smaller than stated.** ⚠ **D7 routes variables as a per-variable FORM with a `Default` row — not a TABLE.** ⇒ `C1`'s shape must be reconciled with D7 |
 
-⇒ ⭐ **After these two, PHASE A is complete** and layout/size is closed for every type.
+### ⚠ Seven things in this area the plan never mentioned
 
----
-
-## 4. ⏭ Track B — finish struct support *(headless)*
-
-⭐ **Why it comes before Track C: the value column cannot render a struct until `S3` lands.**
-
-| | work | ⭐ why it matters |
-|---|---|---|
-| **`S3`** | `MarshalFromBytes` — **one generic struct arm** (`PtrToStructure`) + **assembly-qualified** `ResolveType` | ⭐⭐ **closes `BP-01`** — `Vector2/3/4`, `Quaternion`, `FixedString32/64/128`, **seven of the eighteen offerable types**, fall through to `return bytes`. *"Watch shows raw hex"* was never a panel bug |
-| **`S4`** | fixed lists: stop dropping `Capacity` in the fallback | ⛔ a declared list **silently degrades to a scalar** |
-| **`S5`** | **ONE picker** — `EditorOfferableTypeIds` ∪ `SelectableTypeIds` | ⛔ **a `Parameter` cannot be given a struct through the picker today — and four ship** ⇒ ruling 9, in the UI |
-| ⭐ **rail** | pin the marshaller against the **closed 18-type set** with a reflection test | ⚠ **would have caught `BP-01` long ago**; extends `U-8` from *"every offered type compiles"* to *"and can be shown and edited"* |
+Trace-vs-Debug compiler mode as the real Watch gate · the **"Make Editable" toggle + confirmation
+banner** · `ParseParams` already consuming `DefaultValueJson` at assignment · **node-owned
+(`IsAutoManaged`) variables filtered into a dimmed read-only group** · **read-only-passthrough (🔒) rows
+with a different interaction set** · a `rowDecoration` hook that already exists · the §4.7 **memory-budget
+indicator** that is part of the shared panel's contract.
 
 ---
 
-## 5. ⏭ Track C — the panels *(the user-visible half; ⛔ gated on the visual check)*
+## 4. ⏭ Track D — ⭐ **the sweep rewrote most of this**
 
-⚠⚠ **Renamed to `C1…C7`.** ⛔ **The design doc's §8 labels `57`–`61` are ITEM labels and now collide
-with real batch numbers 56–61** — that collision would have reached the implementation session.
-
-| | work |
+| | verdict |
 |---|---|
-| **`C1`** | Details hosts the shared variable list + selection routing *(globals ⇄ locals-of-current-graph)* |
-| **`C2`** | the **one Value column** whose meaning switches on run state + blueprint's `ILiveValueProvider` and `UpdateVariableDefaultValueJson` |
-| **`C3`** | **StructEdit dialog** (three-dot **and** double-click) · the **not-running** write ⇒ JSON default |
-| **`C4`** | **Watch panel**: real refresh · editing · **nothing before the run** ⛔ *(none of the three is true today; `HandlePinValueChanged` is an empty body)* |
-| **`C5`** | tier-2 + tier-3 write halves (`MarshalToBytes` · `TrySetFieldRaw`) · ⭐ **write BOTH copies** (snapshot **and** live) |
-| **`C6`** | retire `BlueprintVariablesWindow` (`U-16`) + ⛔ **delete the dead `IStructEditDrawer`/`DrawerRegistry` chain** |
-| **`C7`** | the **shared outline** across HSM / BTree / Blueprint — ⛔ **only after Details works for blueprints** |
-
-### ⚠⚠ Two prerequisites that are NOT panel work — do them before `C5`
-
-| | |
-|---|---|
-| 🔴 **the surgical ECB field-write** | ⛔ every ECB write is **whole-component**, and `Blackboard1024` is **shared across BTree/HSM/Blueprint at disjoint offsets** ⇒ a whole-component write **clobbers other subsystems**. ⭐ **The read side already slices `8 + OffsetBytes`; the write is its mirror.** 📌 `Fdp.Core`, engine-wide, one command |
-| 🔴🔴 **the paused snapshot-vs-live pass** | `DataBreakpointManager:123` — `ActiveView => _isPaused ? _preTickSnapshot : _liveRepo`, and `:470-473` **rewinds `_liveRepo` to start-of-tick** ⇒ a write queued while frozen **would not appear at all**, and the rewind can **discard** a write near a pause boundary. ⚠ **Cited from two code sites, not run — a strong signal, not a proven mechanism.** ⭐ **It is a `Hrot.Diagnostics.Breakpoints` design question, not a panel one** |
+| **`W6`/`W7`** | 🛑 **`W7` CONTRADICTED.** `Blackboard_Authoring_Detailed_Design.md` §7.7/§9.1–9.6 is a **complete design**: a **suppressible WARNING** (not an error) with per-conflict metadata + an *"Allow concurrent writes"* checkbox; writers classified by **whether the action mutates the ref parameter** (optional annotation, conservative read-write default) — **not** by `W6`'s static projection; and §9.1 says **extend the existing `OutputLaneMask` conflict infrastructure**. §9.5 adds an **Approach B Sync-Out** case we omitted. ⇒ ⭐ **`W6` is downstream of a mechanism the design does not use — re-derive `W6` from §9.6 or drop it.** ✅ `[SharedAiCondition]` re-measured at **0 production usages** |
+| **`W8`** | 🔴 **REFINES strongly.** `SLICE1-DESIGN.md:85` is an **architect-CONFIRMED ruling (`2026-06-15`)**: defaults baked into `ParseParamsDelegate`, **overlay scenario JSON (runtime wins)**, heavy tier needs a `StructureHash` init check. **`DEBT-AIB-013` RESOLVED** (defaults shipped); **`DEBT-AIB-021`** *is* the overlay half, **with a prescribed implementation**. ⭐⭐⭐ **And `BlackboardVariableRole { Input=0, State=1 }` + `WorkingStateScope { Node, Behavior, Entity }` ALREADY EXIST** in `Hrot.AiEditor.Persistence` — **the Role × Scope model is already persisted and round-trip-tested** ⇒ **`D2` may be dissolved: the carrier exists** |
+| **`W9`** | ⚠ **premise coordinator-verified as REAL but MIS-LOCATED:** `HsmBridgeEmitCore` bakes **no key at all** (post-Batch-59); the simple-name hash is **`HsmActionGenerator:517/630` — `ComputeHash(action.Name)`**, and `MethodInfo` carries both `Name` and `FullName`. ⛔ **And the re-bake is TWO sites, not one** — blob key + thunk key, reconciled *"in lockstep via shared `ResolveStatefulSlotKey`"* |
+| **`W10`** | ✅ mechanism **CONFIRMED** — `AN7-REPORT.md:73–95` is the **exact precedent** for *"add a source enum member + contributing catalog, not a new picker"*. 🔴 **But *"persist the catalog `Id`"* CONTRADICTS an architect ruling:** `blueprint-finalize/TASK-DETAIL.md:248` — *"Canonical identity = generated **FQN**, **not** AssetId (architect AQ2)"*. ⚠ `BehaviorActionSource.AiPrimitive` exists but is **never assigned** |
+| **`W11`** | 🔴 **NOT a "twin", and not implementable as written.** `FIX-01-REPORT.md:43` — *"the HSM binding model is structurally different: there is **no per-node `ExpressionTargetField`**"*; **`VE-DEBT-001`**: an HSM state hosts **4 action slots** (Entry/Exit/Activity/Timer) so one-DTO-one-variable *"**needs an architect design call — not an autonomous guess**"*; **`VE-DEBT-004`**: **no production `[HsmGuard]` exists** to bind against. ⛔ **`HSM-016` is an UNRESOLVABLE id — zero hits anywhere; nothing defines what it says** |
+| **`W12`** | 🔴 **two of four "new" pieces already exist.** ⭐ **"world-singleton" is shipped runtime API** (`BlueprintRegistry.RegisterWorldSingleton`, `TickWorldSingletons`, `Self = Entity.Null`) ⇒ **adopt, do not coin.** ⭐ **geo→cartesian + entity-from-network-id already exist as hand-written code** — the very programmer `W12` removes — and are **already contested on semantics** (an open lead decision on `AttackDir`) |
+| **`W13`** | ✅ **DONE** (Batch 63) |
 
 ---
 
-## 6. ⏭ Track D — the cross-host extensions *(headless, independent of B and C)*
+## 5. ✅ The two prerequisites — **one is solved, one is a live defect**
 
-⭐ **The natural filler whenever the visual check blocks Track C.**
-
-| | work | state |
-|---|---|---|
-| **`W13`** | retire the standalone stride path — one projection formula repo-wide | ✅ **unblocked** |
-| **`W9`** | FQN key unification + `SlotKind` — **one re-bake, one verification** | ✅ **UNBLOCKED — `D1` ruled OPEN**, so `#29`-A's tagged carrier stands |
-| **`W8`** | reserved input variable + generated deserialize, **both** emitters | ⚠ **needs `D2`** · closes `DEBT-AIB-021` ⇒ **a managed asset parametrized from scenario JSON end to end, today impossible** |
-| **`W10`** | initializer picker — ⭐ **reuse `IBehaviorActionCatalog`**, do not build a picker | needs `W8` |
-| **`W11`** | asset-driven HSM thunk emission (`HSM-016`) | needs `W9` |
-| **`W12`** | authored `Construction` initializer + world-singleton vocabulary | ⛔⛔ **largest new surface, UNBUDGETED — scope it before starting** |
+| | verdict |
+|---|---|
+| ✅ **the paused snapshot-vs-live pass** | ⛔ **STRIKE — my concern was wrong.** `universal-breakpoints-DESIGN.md` §8.4 designs against it and it **shipped**: an edit while paused is **staged, not written**; on Step/Continue the manager **restores `_liveRepo` from `_postTickSnapshot` FIRST, then drains** — coordinator-verified at `DataBreakpointManager:495-498` and `:514-517`. **The rewind cannot discard the edit.** Cost: a named **1-tick latency compromise** |
+| 🔴🔴 **the surgical ECB field write** | ⭐ **Ruling 14 already rules it in and names the signature** — `SetComponentFieldRaw(Entity, int typeId, int byteOffset, void* src, int size)` in `Fdp.Core`. ⭐⭐ **And it is now a FIX, not an improvement:** `StageMutation:530` takes a **whole component**, `DrainPendingMutations:548-575` writes it with `SetComponentRaw` **(no offset)** *after* the restore ⇒ **every other field of that component is reverted post-tick → pre-tick.** On the shared `Blackboard1024`, **editing one blueprint variable reverts a tick of BTree and HSM state.** ⚠ **The payload's exact origin is unverified — that is the red-first test** |
+| ⛔ **correction to v1** | my `MaxComponentSize` argument was **already retracted** in the ANSWERS doc — the check is `>` and the blackboard is exactly 1024, so **it fits**. **The reason is sharing, not size** |
 
 ---
 
-## 7. ⛔ Open — and not one of these is a code question
+## 6. ⛔⛔⛔ THREE DECISIONS FOR THE USER — Track C cannot start without them
 
-| | |
+| | the conflict |
 |---|---|
-| **`D2`** | which `DeclarationKind` is the reserved input variable ⇒ ⚖️ **measured lean `Variable`** *(`Pack` skips it, and offset 0 IS the packed region)*; **Batch 56 dissolved the per-kind half.** ⭐ **Wants a nod, not research** |
-| **`D3`** | the orchestrator emitters are **proven dead** — ⭐ **delete or wire? disposition only** |
-| ⛔ **the visual check** | **still suspended by your ruling.** ⚠ **Track C cannot be finished without it** — its whole deliverable is surfaces no headless test can see drawn |
-| **the held HSM reply** | drafted, not sent. ⚠ **Under the freeze it buys design progress, not code** |
+| **① `C5` — write both copies, or stage?** | 🛑 **Three records rule AGAINST writing the live copy while paused.** `Slice2_Candidates.md:325-360`: the paused edit *"does **not** mutate `_liveRepo`"* — queued, restored-then-drained at the **N+1 boundary** — justified by **Flight Recorder linearity** and **`DataPolicy` divergence**; `BTree_Editor_..._Design.md:869` gates live edit behind a **"Make Editable" toggle + confirmation banner**; `Blackboard_Authoring_DD:1340` calls live-edit *"orthogonal to this DD"*, Slice 3. ⇒ **Rulings 12 (immediacy) and 16 (both copies) contradict this.** ⚠ **Honest caveats:** that file is titled *"Candidates"* (a proposal menu, not a dispatched design) and reasons about **ECS component** breakpoints, whereas `C5` targets **blackboard variables** |
+| **② `C3` — the gesture** | ⛔ **No record of a three-dot or double-click "edit value" gesture**, the `⋮` menu is enumerated **exhaustively without one**, and **double-click is already bound to inline rename**. ⇒ **the requested gestures collide with shipped bindings** |
+| **③ `C1`/`C7` — table or form?** | **D7 (authoritative) routes variables as a per-variable FORM with a `Default` row**; the plan says **one TABLE with a Value column**. ⇒ **which shape wins?** |
 
-### 📌 Filed, not fixed
-
-| | |
-|---|---|
-| **`BP-241`** | `--canonicalise` split out of Batch 55 — a doc-type-agnostic tool needs a per-doc-type repair seam |
-| 🔴 **`BP-242`** | `GeneratedBlueprintSchemaCatalog` — a **second, independent `*.bp.json` parser**. ⛔ **Its v2 blindness is fixed; the underlying behaviour — returning a silently WRONG answer instead of an error — is not** |
+⭐ **Everything else is now ruled.** `D1` answered · `D2` likely **dissolved** by the existing
+`BlackboardVariableRole` carrier · `D3` disposition still open but harmless.
 
 ---
 
-## 8. ⭐ The order, in one line
+## 7. ⭐ Order
 
-**60 → 61 → Track B → Track C**, with **Track D inserted wherever C is blocked.**
-⛔ **The only hard dependency is `S3` before `C2`** — everything else is preference.
+**Track B now** *(all three ruled, all headless)* → **`W7` re-derived from its design** → **Track C after
+§6** → **Track D last** *(`W11` needs an architect call; `W12` needs a scope pass)*.
+📌 Still filed, not fixed: **`BP-241`** · **`BP-242`** · the **`Fdp.Toolkits.Tests` race**.
