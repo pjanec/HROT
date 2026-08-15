@@ -59,9 +59,28 @@ you need to know whether it drifted or was authored wrong. ⚠ **`A1` hides exac
 ⚖️ **Lean: `B1` for scalars, `B3` for the 4 vector types**, decided by type rather than by panel.
 ⛔ **`B2` rejected** — it re-creates the two-surfaces problem `U-16` is closing.
 
-⚠ **Two sub-rulings needed:**
-1. ⭐ **Does an initial value apply to `WorkingState` at all?** Parameters and Variables clearly. ⛔ **Working state is per-run scratch** — offering an editable initial there may be meaningless, or may be exactly the local-reset semantics `Q27-A3` already ruled. 📐 **A ruling, not a guess.**
-2. ⭐ **`Q-k` made Role/Scope read-only for blueprints. Does that extend to the initial value?** ⚖️ **Lean: no** — Role/Scope are structural; a default is authored data. **But it must be said out loud**, because `BP-230` was exactly a surface that let you edit something it then discarded.
+### ⛔⛔ B-corrigendum — **a sub-ruling asked here was WRONG and is withdrawn**
+
+> ⚠ **The first draft of this document asked:** *"does an initial value apply to `WorkingState` at
+> all? Working state is per-run scratch, so an editable initial may be meaningless."*
+> ⛔⛔ **That question should never have been asked. The user challenged it and the code agrees with
+> them.** ⭐ **Measured, not reasoned:**
+
+| | |
+|---|---|
+| **same backing type** | `BlueprintDeclaration.Create` — `kind == Parameter ? new ParameterDecl : new VariableDecl` ⇒ ⭐ **`Variable` and `WorkingState` are the SAME CLASS**, `DefaultValueJson` included |
+| ⭐⭐ **the compiler already emits it** | `AiPrimitiveEmitter:128-133` walks **`asset.WorkingState`** and writes `dst->{f.Name} = {f.DefaultValueCSharp};` — ⭐ **identical code to `InstanceEmitter:178-183` over `asset.Variables`.** ⇒ **working state has had initial values, honoured, in shipped code, all along** |
+| ⭐ **the model says it in words** | `Stage2_Validate:153` — *"under the unified model `Variable` and `WorkingState` are the **SAME cell** — (State, Asset)"*; `:168` — *"`Parameter` is (Input, Asset) — a **genuinely different thing**"* |
+| **the rails agree** | `BP1024` **retired** and `BP1031` **split** by `U-12`, both *"enforcing a spelling, not a semantic"* |
+
+⇒ ⭐ **There is nothing to rule on. The Details panel offers an initial value for `Variable` and
+`WorkingState` on exactly the same terms, because they are one cell.** 📌 **The only kind that is
+genuinely different is `Parameter` — `(Input, Asset)`, supplied at spawn.**
+
+⚠ **One sub-ruling DOES survive:** `Q-k` made Role/Scope read-only for blueprints — **does that extend
+to the initial value?** ⚖️ **Lean: no** — Role/Scope are structural; a default is authored data.
+**But it must be said out loud**, because `BP-230` was exactly a surface that let you edit something it
+then discarded.
 
 ---
 
@@ -80,6 +99,39 @@ a fourth formatter and leave `BP-01` open.**
 
 📐 **One question this cannot answer from code: what is the authoritative "is the exercise running"
 signal** the panel should switch on? ⚠ **Not `IsPaused`** — a paused exercise is running.
+
+---
+
+## ⭐⭐ Q32-E — **a residue the corrigendum uncovered: the EMITTERS still split**
+
+⛔⛔ **Found while checking the withdrawn sub-ruling, and it is a real gap — not a design position.**
+
+`U-12` made the mixture **legal at Stage 2**: `BP1024` retired ⇒ an **AiPrimitive may declare a
+`Variable`**; `BP1031` split ⇒ an **Instance may declare `WorkingState`**. ⭐ **Correct — they are one
+cell.** ⛔ **But the emitters were not unified with the rails:**
+
+| emitter | reads |
+|---|---|
+| `InstanceEmitter` (`:104`, `:110`, `:164`, `:178`, `:188`) | ⛔ **`asset.Variables` ONLY** |
+| `AiPrimitiveEmitter` (`:74`, `:80`, `:128`, `:139`) | ⛔ **`asset.WorkingState` ONLY** (+ `Parameters`) |
+
+⚠ **Meanwhile `Stage5:4137` and `:4154` resolve a reference across `Variable` **concatenated with**
+`WorkingState`** — because they are one cell. ⇒ **the two halves disagree:**
+
+| the declaration is… | what happens |
+|---|---|
+| **referenced** by a node | Stage 5 binds it; the emitter never emits the field ⇒ ⛔ **a Roslyn `CS` error naming a field the designer never wrote** — a diagnostic in the wrong place, `BP-228`'s shape |
+| **unreferenced** | 🔴🔴 ⛔ **silently absent at runtime.** The designer declared it, typed an initial value, and **it does not exist** |
+
+⭐⭐ **The corpus cannot see either** — `Stage2_Validate:172` records it: *"Measured: 0 of the 23
+shipped Instance assets carry either."* ⇒ 📌 **`BP-240`'s shape again**, and the sharpest kind: **a
+rail was relaxed and the code the rail was protecting was not told.**
+
+📐 **The decision: unify the emitters on the cell (both walk `Variable ∪ WorkingState`), or restore a
+rail that refuses the mixture.** ⚖️ **Lean: unify** — the whole point of `U-12` is that the mixture is
+meaningful; ⛔ **restoring a rail would re-assert the spelling rule the unification just removed.**
+⚠ **Not a `U-6` item** — this is a compiler slice, and it should be filed and sized on its own.
+⭐ **Coordinator allocates no id (rule 3).**
 
 ---
 
