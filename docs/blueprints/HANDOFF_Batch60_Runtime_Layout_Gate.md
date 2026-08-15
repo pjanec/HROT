@@ -1,6 +1,6 @@
 # HANDOFF — Batch 60 (`W2` + `W4`): ⭐⭐⭐ **the runtime layout gate, and the layout it exists to guard**
 
-> 📌 **Dispatched at `<stamped below>`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
+> 📌 **Dispatched at `3fef04c22`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
 > ⭐ **Rule 7:** branch from this branch. ⭐ **Rule 4:** pull it again before your final commit.
 > ⛔ **Rule 3: the coordinator allocates no ids.** **You** allocate diagnostics and tracker rows.
 > ✅ **Batches 56 · 58 · 57 · 59 are VERIFIED AND MERGED at `bc79be664`** — all eight gates
