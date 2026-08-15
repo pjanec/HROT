@@ -177,25 +177,86 @@ through the same toggle that owns the halt (§3b), and treat reload-while-paused
 `EditorApplication:179-186` → `ScenarioFileService.SaveScenario` (`:108-143`) → `Serialize` → `File.WriteAllText`.
 `ScenarioFileService` lives in **`Hrot.Presentation`**, which CGF already references.
 
-### 🔴 The ONE real obstacle to authoring on CGF: asset write paths need a source checkout
+### 5b. What CGF must construct for authoring — the verified diff
 
-`EditorSubsystem.ResolveAiBehaviorsDir` (`:693-708`) walks up from `CurrentDirectory` **and**
-`BaseDirectory` looking for **`Hrot.AI.Behaviors.csproj`**, and points the asset write roots at the **source**
-tree when found (`:710-721`).
+⭐ **No assembly work**: `Hrot.Editor.AiShared` is already on CGF's graph (`Hrot.CGF.csproj:43` →
+`Hrot.Blueprints.Editor.csproj:33`), as is `Hrot.Network.Orchestration` (`:37`) and `Hrot.Presentation`.
+**Everything below is a constructor call at CGF's composition root.**
 
-| Found | `_bpRootDir` | `_btreeJsonRootDir` / `_hsmJsonRootDir` |
+| Service | Editor builds it at | CGF |
+|---|---|:--:|
+| `WindowManagerPerspectiveSwitcher` (`IPerspectiveSwitcher`) | `EditorSubsystem.cs:2008` | ❌ |
+| `AiDocumentManager` | `:2161` — **one argument** | ❌ |
+| `PerspectiveWorkspaceRegistrar` ×3 (BTree/HSM/Blueprint) | `:2121, 2137, 2152` | ❌ |
+| `AssetCatalog` | `:2011` | ❌ |
+| `ScenarioFileService` | `EditorApplication.cs:34` | ❌ |
+| `ScenarioNewAssetService` (`INewAssetService`) | `Hrot.Editor/ScenarioNewAssetService.cs` | ❌ |
+| `ComponentEditServiceBuilder().Build()` | `:2120` | ⭐ **already** (`CgfSubsystem.cs:554`) |
+| `WindowManager` | received, not constructed | ⭐ same in CGF (`:665`) |
+| `PreviewClusterOpHandler` | `EditorSubsystem.cs:447` | ❌ (§5d) |
+
+⚠ **`ScenarioNewAssetService` and the Editor's asset services live in `Hrot.Editor`** — a project CGF does
+**not** reference. ⇒ either those services move to a shared project, or CGF references `Hrot.Editor`.
+**This is the only genuine packaging question left**, and it is smaller than it looks: the *windows* and the
+*document manager* are already reachable; it is the **catalog/save service layer** that is Editor-housed.
+
+### 5d. Behavior hot reload on CGF
+
+| Piece | Where | Note |
 |---|---|---|
-| source `.csproj` present | `<sourceDir>/Assets/…` | `<sourceDir>/Assets/…` |
-| **absent** (a deployed node) | falls back to `BaseDirectory/Assets/Blueprints` | 🔴 **`null`** |
+| `QuickReloadService`, `QuickReloadResult` | `Hrot.Blueprints.Editor/Reload/` | ⭐ CGF already references this assembly |
+| `HotReloadLogWindow` / `Model` | `Hrot.Blueprints.Editor/Debug/` | same |
+| `BlueprintDebugSession.OnHotReloadBegin` / `OnHotReloadCompleted` (`:1507-1515`) | the reload↔debug handshake | reusable |
 
-⇒ 🔒 **On a deployed CGF node, blueprint authoring degrades to the output dir and BTree/HSM authoring has no
-root at all.** ⚠ **This — not assemblies, not masks, not components — is what actually blocks authoring on a
-production CGF node.** ⭐ Scenario saving is unaffected: it uses `EditorBootstrap.ScenariosRoot` =
-`ClusterConfiguration.Default.NasBasePath` — **config-driven, not a disk walk**.
+🔒 Behaviors are **CGF-only**, so authoring, reload and execution share one node — the same single-process
+shape the Editor relies on. ⚠ **A reload while frozen must reload and STAY frozen** — route it through the
+halt toggle (§3b) or it silently resumes the exercise.
 
-🔒 **Design consequence**: authoring on CGF needs an **explicit configured asset root**, not a walk-up
-heuristic. ⚠ Note the same heuristic already makes the *Editor* dependent on running beside its checkout —
-so this is a shared defect the CGF work would surface, not a CGF-specific cost.
+### 5c. 🔒 Asset roots come from CONFIG — shared by CGF and the Editor ([ruling 67](UX_RESUME_INTERACTION.md))
+
+> **User, 2026-08-14:** *"We need a **config file provided asset path** for the CGF as well as the Editor
+> (**same shared code**), with **fallback to the repo source** as of now."*
+
+**The problem, verified.** `EditorSubsystem.ResolveAiBehaviorsDir` (`:693-708`) walks up from
+`CurrentDirectory` **and** `BaseDirectory` looking for **`Hrot.AI.Behaviors.csproj`**, then points the asset
+write roots at the **source** tree (`:710-721`):
+
+| `.csproj` found? | `_bpRootDir` | `_btreeJsonRootDir` / `_hsmJsonRootDir` |
+|---|---|---|
+| yes | `<sourceDir>/Assets/…` | `<sourceDir>/Assets/…` |
+| **no** (a deployed node) | `BaseDirectory/Assets/Blueprints` | 🔴 **`null`** |
+
+⇒ on a deployed node **BTree/HSM authoring has no root at all** — and this already binds the **Editor** to
+running beside its checkout. **A shared defect, not a CGF-specific cost.**
+
+#### 🔴 And there are already two competing path authorities
+
+| | |
+|---|---|
+| `AssetRoots` (`Hrot.Editor.AiShared/Identity/AssetRoots.cs`) | doc: ***"Single authority for the two root families"***; resolves from `AppContext.BaseDirectory` (`:94-121`). **30 call sites across 12 production files** |
+| `EditorSubsystem`'s private walk-up (`:693-721`) | **bypasses it entirely** for the write paths |
+
+⇒ ⭐ **The "single authority" is already contradicted next door** — the seam law again. **Adding a config
+file as a third mechanism would make it worse.** 🔒 **Put the config INTO `AssetRoots` and delete the walk-up.**
+
+#### The resolution order — one implementation, both hosts
+
+```
+1. config file value            ← new; authoritative when present
+2. source .csproj walk-up       ← today's behaviour, kept as the dev fallback (user: "as of now")
+3. AppContext.BaseDirectory     ← today's AssetRoots default, last resort
+```
+
+| | |
+|---|---|
+| ⭐ **The config mechanism already exists — do not invent one** | `ClusterConfiguration.LoadFrom(filePath)` (`Hrot.Orchestrator/ClusterConfiguration.cs:50-77`) is **already a JSON config file loader**: returns `Default` when the file is absent, **throws** when it exists but cannot be read or deserialized. It already carries a path — `NasBasePath` (`:29`) — and `EditorBootstrap.ScenariosRoot` already reads it |
+| ⚠ **Placement is the one open call** | `ClusterConfiguration` lives in **`Hrot.Orchestrator`**. Either CGF takes that reference (the Editor already does), or the config type moves somewhere neutral. **Decide at implementation; do not add a second config file** |
+| ⚠ **`AssetRoots` is a `static class`** | so config must arrive via an explicit `Configure(...)` at composition, or the type becomes an injected provider. ⭐ **30 call sites / 12 files** — the static-with-`Configure` form keeps all of them compiling; the provider form is cleaner but ripples. 🔒 **Lean: `Configure` now, provider only if a second root set ever coexists in one process** |
+| 🔒 **Fail loud on a configured-but-missing root** | a configured path that does not exist must **throw at startup**, matching `LoadFrom`'s own stance. Silently falling through to the walk-up would reintroduce *"it worked on the dev box"* |
+| ✅ **Scenario saving is unaffected** | `EditorBootstrap.ScenariosRoot` = `ClusterConfiguration.Default.NasBasePath` — already config-driven, no disk walk |
+
+⇒ 🔒 **This is a shared-infrastructure change, not a CGF feature.** It fixes the Editor's checkout dependency
+in the same stroke, and it is the **prerequisite** for authoring on any deployed node.
 
 ### ✅ Preview — in scope, and it already restores
 
