@@ -1,6 +1,6 @@
 # HANDOFF — Batch 58 (`W1`): ⭐⭐⭐ **the hashed-id collision gate — two silent no-op mechanisms, one rail**
 
-> 📌 **Dispatched at `<stamped below>`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
+> 📌 **Dispatched at `817dfb06e`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
 > ⛔⛔ **RUNS AFTER BATCH 56 LANDS AND IS VERIFIED, AND BEFORE BATCH 57.** ⭐ **User ruling `2026-08-15`
 > (Option A): correctness before the panel.** 📐 **If 56 is not merged when you start, do 56 first.**
 > ⭐ **Rule 7:** branch from this branch. ⭐ **Rule 4:** pull it again before your final commit.
