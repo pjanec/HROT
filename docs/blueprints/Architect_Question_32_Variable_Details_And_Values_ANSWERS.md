@@ -198,6 +198,76 @@ blueprint window alone leaves **two** implementations, not one.
 (`_sections`, a static `List<MyBlueprintSectionDescriptor>` with order + capability flags), ⭐ **so
 per-host section sets are a change of DATA, not of structure.**
 
+## 2.3 ⭐⭐⭐ **How does the UI know the layout?** — the detailed analysis *(`2026-08-15`)*
+
+> **User:** *"how does the ui panel know the offset of variable and its memory layout to write directly?
+> …likely should not spread variable layout and access logic over many places. my instinct is we might
+> need some kind of variable registry with generated setters/getters per variable."*
+
+### ⭐⭐⭐ Answer: **the registry already exists, it is hash-guarded, and it already does the GET half**
+
+```csharp
+// BlueprintDebugSession.CaptureAiPrimitiveState — the shipped READ path
+ref readonly var bb = ref effectiveView.GetComponentRO<Blackboard1024>(self);
+var bytes = MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(in bb, 1));
+
+ulong storedHash = MemoryMarshal.Read<ulong>(bytes);
+if (storedHash != def.StructureHash) return;          // ⭐⭐ THE GUARD
+
+var layoutFields = mapIndex?.StateLayout.Fields;       // OffsetBytes · SizeBytes · Type
+…  bytes.Slice(8 + field.OffsetBytes, field.SizeBytes)
+// fallback: def.StateFields → descriptor.OffsetBytes · SizeBytes · ClrType
+```
+
+| | |
+|---|---|
+| ⭐ **The UI does NOT infer anything** | it **looks the layout up** in `DebugMapIndex.StateLayout.Fields` (or `BlueprintDefinition.StateFields`) — ⭐ **generated/registered data carrying offset, size and CLR type per variable** |
+| ⭐⭐ **And it VALIDATES before trusting it** | ⛔ **the first 8 bytes of the blackboard ARE the `StructureHash`**, and the reader **refuses to decode** when it disagrees with the definition. ⇒ **a stale layout cannot silently misread — the `+8` is the guard, not padding** |
+| ⇒ ⭐⭐⭐ **Your instinct is right in substance — and half of it is already built** | **the registry exists and the GETTER half ships.** ⛔ **What is missing is only the SETTER half** |
+
+### ⚖️ **Generated per-variable setters, or one generic writer? — Coordinator recommends the generic writer**
+
+| | for | against |
+|---|---|---|
+| **generated setter per variable** | type-safe; layout knowledge stays inside generated code | ⛔ **N setters × 458 assets** in output that **golden Tier 2 records line by line**; ⛔⛔ **and it makes reading GENERIC while writing is GENERATED — two mechanisms for one concept, which is ruling 9** |
+| ⭐ **one generic writer over the existing registry** | ⭐⭐ **the exact mirror of a reader that already ships and works** — the existence proof is in the repo; **one layout authority**; no generated bloat | offset arithmetic lives in code ⇒ **must carry the same hash guard and a bounds check** |
+
+⇒ 📐 **Recommendation: ONE `IVariableAccessor` with `Get` and `Set`, over the existing registry,
+carrying the `StructureHash` guard — used by Details, Watch and anything later.** ⭐ **That is exactly
+the *"not spread over many places"* the user asks for, and it is a smaller change than generating
+setters.** ⛔ **The thing to avoid is not "offsets in code" — it is offsets in MORE THAN ONE place.**
+
+### 🔴🔴 `Blackboard1024` — the real reason a whole-component write is wrong
+
+⛔ **The coordinator's earlier claim that a whole-component write *"exceeds `MaxComponentSize` and
+cannot work"* was WRONG. Corrected:** `EntityCommandBuffer:83` is `if (componentSize > MaxComponentSize)
+throw`, and `Blackboard1024.ByteSize == 1024` ⇒ **1024 > 1024 is false. It fits, exactly.**
+
+⭐⭐ **But the true argument is stronger than the size one ever was:**
+
+```csharp
+[ComponentId(GlobalComponentIds.Blackboard1024)]
+public unsafe struct Blackboard1024 { public const int ByteSize = 1024; public fixed byte Memory[1024]; }
+///  "Convention: each subsystem projects at a DISJOINT BYTE OFFSET."
+```
+
+⇒ ⛔⛔ **The blackboard is ONE component SHARED by BTree, HSM and Blueprint, each projecting its own
+disjoint region.** ⇒ **a whole-component write does not merely clobber other fields — it clobbers
+OTHER SUBSYSTEMS' STATE.** ⭐ **Ruling 14 stands, on much firmer ground.**
+
+### ⭐⭐ Ruling 15 — **runtime writes ONLY while paused or deterministic-stepping** *(user)*
+
+> *"the change of runtime var makes sense ONLY if sim is paused on breakpoint or deterministic time
+> step. at that time nothing else changes the blackboard so it might be safe even from the ui directly."*
+
+⭐ **This NARROWS ruling 7 and simplifies the design substantially:**
+
+| | |
+|---|---|
+| ⛔ **Supersedes** | *"running ⇒ writes the live blackboard"*. ⭐ **The write surface is DISABLED unless paused/stepping** — ⇒ **no concurrent mutation to race with, so ruling 2a's whole reason weakens** |
+| 📐 **⇒ the command buffer may be UNNECESSARY** | ⭐ **combined with §2.2's finding that the panels read `ActiveView` (`_preTickSnapshot`) while paused, writing DIRECTLY to that view is arguably the correct design** — it is the object the UI is actually showing, and ruling 12's immediacy falls out for free |
+| 🔴🔴 **The one thing that MUST be measured first** | ⛔ **On pause, `:473` does `_liveRepo.SyncFrom(_preTickSnapshot)`. What happens on RESUME?** ⭐ **If nothing syncs the snapshot back, an edit made while paused is LOST when the sim continues** — ⚠ **which would be the silent-failure shape this programme keeps finding.** 📐 **Measure before designing; the coordinator has NOT run this** |
+
 ### 🔴 Ruling 13 — **the Watch panel must EDIT, and must show nothing before the run** *(user, `2026-08-15`)*
 
 > ⭐⭐ *"watch panel MUST allow for value changes (and show nothing when exercise not running yet) —
@@ -269,6 +339,7 @@ AiPrimitive) — those are ABI, and renaming them is a separate, larger change n
 | ⭐ **59b** | 🔴 **the Watch panel: make `HandlePinValueChanged` real · EDITING through the same dialog · show NOTHING before the run** (rulings 11, 13) | ⛔ **ruling 12's immediacy runs through this handler** |
 | ⭐⭐ **59c** | 🔴 **the ECB SURGICAL FIELD WRITE** (ruling 14) — `Fdp.Core`, additive, bounds-checked — **then** the running write on top of it, ⭐ **gated on "visible in BOTH panels within one frame while frozen"** (rulings 2a, 12) | ⛔ **the whole-component route is not merely unsafe, it exceeds `MaxComponentSize` and cannot work** |
 | **60** | `U-16` — retire `BlueprintVariablesWindow` (ruling 9) | ⛔ **only after Details is proven**, or there is no editing surface at all |
+| ⭐ **61** | 🆕 **the SHARED OUTLINE — `My Blueprint` unified across HSM / BTree / Blueprint**, per-host section sets as DATA | ⭐⭐ **User ruling: SEPARATE, and only AFTER the Details panel works for blueprints.** ⛔ **Not folded into `U-6`** |
 
 
 ---

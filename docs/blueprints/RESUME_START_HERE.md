@@ -735,6 +735,27 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > ⭐ **The Details chameleon is already modular** — `DrawerRegistry`/`IStructEditDrawer<T>` + `BP-205`'s
 > panel-level id scope ⇒ `U-6` is **one more provider**, not a `switch`.
 >
+> ⭐⭐⭐ **THE LAYOUT REGISTRY ALREADY EXISTS AND IS HASH-GUARDED.** The UI does **not** infer offsets:
+> it reads `DebugMapIndex.StateLayout.Fields` / `BlueprintDefinition.StateFields` *(offset · size · CLR
+> type per variable)*, and ⭐⭐ **the first 8 bytes of the blackboard ARE the `StructureHash` — the
+> reader REFUSES to decode when it disagrees.** ⇒ **the user's "we need a variable registry" instinct is
+> right and the GETTER half already ships; only the SETTER half is missing.**
+> ⚖️ **Coordinator recommends ONE generic `IVariableAccessor` (get+set) over that registry, NOT
+> generated per-variable setters** — ⛔ **generic-read + generated-write would itself be two mechanisms
+> for one concept (ruling 9)**, and N setters × 458 assets lands in generated output golden Tier 2
+> records line by line. ⭐ **The thing to avoid is not offsets in code — it is offsets in MORE THAN ONE
+> PLACE.**
+> ⛔⛔ **COORDINATOR ERROR CORRECTED (third):** the claim that a whole-component write *"exceeds
+> `MaxComponentSize` and cannot work"* is **WRONG** — `:83` is `> MaxComponentSize` and
+> `Blackboard1024.ByteSize == 1024`, so **it fits exactly.** ⭐⭐ **But the real argument is stronger:
+> `Blackboard1024` is ONE component SHARED by BTree, HSM and Blueprint — *"each subsystem projects at a
+> disjoint byte offset"* ⇒ a whole-component write clobbers OTHER SUBSYSTEMS' STATE.** Ruling 14 stands.
+> ⭐⭐ **RULING 15 — runtime writes ONLY while paused or deterministic-stepping** *(user)*, superseding
+> *"when running"*. ⇒ **nothing else mutates then, so the ECB may be UNNECESSARY** — ⭐ **writing
+> directly to `ActiveView`, the object the panels actually show, gives ruling 12's immediacy for free.**
+> 🔴🔴 **MEASURE FIRST: on pause `:473` does `_liveRepo.SyncFrom(_preTickSnapshot)` — what happens on
+> RESUME? If nothing syncs back, an edit made while paused is SILENTLY LOST.**
+>
 > ⭐⭐⭐ **RULING 14 — the ECB needs a SURGICAL FIELD WRITE, and the user's case is stronger than they
 > put it.** ⛔ **Every ECB write is whole-component** (`grep offset` over `EntityCommandBuffer.cs`
 > returns nothing) ⇒ queueing one means read-now-write-later, clobbering whatever any system changed
