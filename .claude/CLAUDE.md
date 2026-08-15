@@ -131,7 +131,7 @@ artefact, not just `BP-` rows.**
 |---|---|
 | ⭐ **Who builds** | ⭐ **`claude/hrot-implementation-j1jvin`** — **all hosts**: Blueprint, BTree **and** HSM, including everything in **`Hrot.Editor.AiShared`** |
 | ⛔ **Every other session** | ⛔⛔ **DOES NOT IMPLEMENT until this is done.** ⭐ **Design, questions, review and documents are fine — code is not.** ⚠ **This explicitly includes the cross-host variable-model session and the HSM visual-editing session** |
-| **What "this" is** | the unified variable Details panel + the emitter/access unification — 📄 **[`Architect_Question_32_…_ANSWERS.md`](../docs/blueprints/Architect_Question_32_Variable_Details_And_Values_ANSWERS.md)** |
+| **What "this" is** | the unified variable Details panel + the emitter/access unification — 📄 **[`Architect_Question_32_…_ANSWERS.md`](../docs/blueprints/Architect_Question_32_Variable_Details_And_Values_ANSWERS.md)** ⭐ **EXTENDED `2026-08-15` (user): the CROSS-HOST PARAMETER MODEL (`W1`–`W13`) TOO** — 📄 **[`PLAN_Cross_Host_Sequencing.md`](../docs/blueprints/PLAN_Cross_Host_Sequencing.md)**. ⛔ **Phase A is NOT the design session's to build**; the queue is **56 → 58 → 57 → `W4` → …** |
 | ⭐ **Why** | the ruling over the whole design is *"no keeping two implementations for the same concept."* ⛔ **Two sessions building one shared panel produces exactly two implementations** — the constraint would be broken by the process before any code disagreed |
 
 ⚠ **If you are a session other than the one named above and you are about to write code touching
