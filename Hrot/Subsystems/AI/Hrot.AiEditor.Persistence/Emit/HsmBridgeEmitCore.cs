@@ -104,46 +104,34 @@ public static class HsmBridgeEmitCore
         sb.AppendLine($"{pad2}{Indent}HsmDefinition = blob,");
         sb.AppendLine($"{pad2}}});");
 
-        // HSM action thunks — static HsmActionDispatcher calls (§14 item 4)
-        var actions = CollectActions(dto);
-        if (actions.Count > 0)
-        {
-            sb.AppendLine();
-            sb.AppendLine($"{pad2}// HSM action thunks registered STATICALLY via HsmActionDispatcher.");
-            // Each HSM action is emitted as a stub with a no-op local function; real
-            // action bodies come from the hand-authored [HsmAction] methods in Brains/*.cs.
-            // The bridge merely ensures the IDs are known to the dispatcher after hot reload.
-            sb.AppendLine($"{pad2}unsafe");
-            sb.AppendLine($"{pad2}{{");
-            sb.AppendLine($"{pad2}{Indent}static void __hsActionStub(void* inst, void* ctx, Fhsm.Kernel.Data.HsmCommandWriter* w) {{ }}");
-            ushort actionId = 100; // placeholder IDs for JSON-owned HSM thunks
-            foreach (var fqn in actions)
-            {
-                sb.AppendLine($"{pad2}{Indent}// Action: {fqn}");
-                sb.AppendLine($"{pad2}{Indent}HsmActionDispatcher.RegisterAction({actionId++},");
-                sb.AppendLine($"{pad2}{Indent}{Indent}(System.IntPtr)(delegate*<void*, void*, Fhsm.Kernel.Data.HsmCommandWriter*, void>)&__hsActionStub);");
-            }
-            sb.AppendLine($"{pad2}}}");
-        }
-
-        // HSM guard thunks
-        var guards = CollectGuards(dto);
-        if (guards.Count > 0)
-        {
-            sb.AppendLine();
-            sb.AppendLine($"{pad2}// HSM guard thunks registered STATICALLY via HsmActionDispatcher.");
-            sb.AppendLine($"{pad2}unsafe");
-            sb.AppendLine($"{pad2}{{");
-            sb.AppendLine($"{pad2}{Indent}static bool __hsGuardStub(void* inst, void* ctx, ushort ev) => true;");
-            ushort guardId = 200;
-            foreach (var fqn in guards)
-            {
-                sb.AppendLine($"{pad2}{Indent}// Guard: {fqn}");
-                sb.AppendLine($"{pad2}{Indent}HsmActionDispatcher.RegisterGuard({guardId++},");
-                sb.AppendLine($"{pad2}{Indent}{Indent}(System.IntPtr)(delegate*<void*, void*, ushort, bool>)&__hsGuardStub);");
-            }
-            sb.AppendLine($"{pad2}}}");
-        }
+        // ⛔⛔ W3 (Batch 59) — THE COUNTER-ALLOCATED STUB REGISTRATIONS ARE GONE.
+        //
+        // This used to emit, for each action FQN in the asset:
+        //     static void __hsActionStub(void*, void*, HsmCommandWriter*) { }
+        //     HsmActionDispatcher.RegisterAction(100++, &__hsActionStub);
+        // and the guard twin from 200. ⭐ Two facts, both measured, make that pure hazard:
+        //
+        //   1. 🔴 NOTHING EVER LOOKED THEM UP. `HsmFlattener:111` builds its action table as
+        //      `actionTable[name] = ComputeHash(name)` and `:172-175` / `:233` / `:376` set every
+        //      `OnEntryActionId` / `ActivityActionId` / transition `ActionId` from THAT table. ⇒ the
+        //      blob addresses hashed ids only; 100.. and 200.. were never reachable. (The one bypass,
+        //      a numeric `entryActionId` in the JSON — `JsonStateMachineParser:48` — is used by
+        //      neither shipped asset.)
+        //   2. 🔴🔴 AND THEY COULD OVERWRITE A REAL ACTION. `HsmActionDispatcher.RegisterAction` is
+        //      `ActionTable[id] = a` — last writer wins, silently — while `ComputeHash` ranges over the
+        //      whole `0…65535`, INCLUDING 100.. and 200… A real action whose name hashed into the
+        //      window was replaced by a body that does nothing: no crash, no log, one state that
+        //      quietly did nothing, forever.
+        //
+        // ⚠ Nothing is lost by deleting them. The bodies they registered were empty, so even in the
+        //   hot-reload case the comment invoked ("the bridge ensures the IDs are known to the
+        //   dispatcher"), what was known was a no-op. The real bodies come from the hand-authored
+        //   `[HsmAction]` methods, registered by `HsmActionRegistrar.RegisterAll()` under the hashed
+        //   ids the blob actually uses.
+        //
+        // ⭐ `BHU_020` (Batch 58) is the rail that proves this stays gone: it ranges over the FINAL id
+        //   set, so a reintroduced counter-allocated registration colliding with a hashed one fails
+        //   the build instead of silently winning.
 
         sb.AppendLine($"{pad}}}");
     }
@@ -165,32 +153,11 @@ public static class HsmBridgeEmitCore
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 
-    private static List<string> CollectActions(HsmAssetDto dto)
-    {
-        var set = new SortedSet<string>(StringComparer.Ordinal);
-        foreach (var s in dto.States)
-        {
-            if (s.OnEntryAction  != null) set.Add(s.OnEntryAction);
-            if (s.OnExitAction   != null) set.Add(s.OnExitAction);
-            if (s.ActivityAction != null) set.Add(s.ActivityAction);
-            if (s.TimerAction    != null) set.Add(s.TimerAction);
-        }
-        foreach (var t in dto.Transitions)
-            if (t.ActionFunction != null) set.Add(t.ActionFunction);
-        foreach (var gt in dto.GlobalTransitions)
-            if (gt.ActionFunction != null) set.Add(gt.ActionFunction);
-        return new List<string>(set);
-    }
-
-    private static List<string> CollectGuards(HsmAssetDto dto)
-    {
-        var set = new SortedSet<string>(StringComparer.Ordinal);
-        foreach (var t in dto.Transitions)
-            if (t.GuardFunction != null) set.Add(t.GuardFunction);
-        foreach (var gt in dto.GlobalTransitions)
-            if (gt.GuardFunction != null) set.Add(gt.GuardFunction);
-        return new List<string>(set);
-    }
+    // ⚠ W3 (Batch 59) removed `CollectActions`/`CollectGuards` with the stub registrations they fed.
+    //   ⛔ They are NOT a general "what does this asset call" service — nothing else read them, and the
+    //   authoritative answer already lives in `HsmFlattener`'s action table, which is what the blob is
+    //   addressed by. Keeping an unused collector here would have been a second source for a question
+    //   that already has one.
 
     private static string SanitizeIdentifier(string name)
     {

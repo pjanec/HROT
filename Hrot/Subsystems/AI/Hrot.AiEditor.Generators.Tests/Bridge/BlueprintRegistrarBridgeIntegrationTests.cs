@@ -651,47 +651,51 @@ public sealed class BlueprintRegistrarBridgeIntegrationTests : IDisposable
     }
 
     /// <summary>
-    /// ⭐⭐ <b>W1 / Batch 58 — pins the STUB WINDOW this bridge allocates from.</b>
+    /// ⭐⭐⭐ <b>W3 (Batch 59) — the bridge registers NOTHING with the dispatcher, and must not start again.</b>
     ///
     /// <para>
-    /// ⛔⛔ <c>HsmActionDispatcher.RegisterAction</c> is <c>ActionTable[id] = ptr</c> — last writer
-    /// wins, silently — and this emitter registers <b>no-op stubs</b> at literal counters from
-    /// <b>100</b> (actions) and <b>200</b> (guards), while <c>HsmActionGenerator</c> allocates
-    /// <c>ComputeHash(name)</c> over the <b>whole</b> <c>0…65535</c> range. 🔴 A real action whose name
-    /// hashes into this window is replaced by <c>__hsActionStub { }</c>: no crash, no log, one state
-    /// that quietly does nothing, forever.
+    /// ⛔⛔ <b>What was here.</b> The emitter wrote a no-op local function and registered it at literal
+    /// counters from <b>100</b> (actions) and <b>200</b> (guards):
+    /// <c>HsmActionDispatcher.RegisterAction(100++, &amp;__hsActionStub)</c>. ⚠
+    /// <c>HsmActionDispatcher.RegisterAction</c> is <c>ActionTable[id] = ptr</c> — last writer wins,
+    /// silently — while <c>HsmActionGenerator</c> allocates <c>ComputeHash(name)</c> over the
+    /// <b>whole</b> <c>0…65535</c> range. 🔴🔴 A real action whose name hashed into that window was
+    /// replaced by an empty body: no crash, no log, one state that quietly did nothing, forever.
     /// </para>
     ///
     /// <para>
-    /// ⭐ <b>The gate that catches it is <c>HsmDispatcherIdAnalyzer</c> (BHU_020), and its fixtures
-    /// hard-code 100/200</b> — they live in <c>Fdp.Toolkits.Tests</c>, which sits <b>below</b>
-    /// <c>Hrot.AiEditor.Persistence</c> and cannot reference this emitter. ⚠ So the window is pinned
-    /// from THIS side instead of being assumed from that one: if these constants ever move, this test
-    /// reddens and names the analyzer fixtures that must move with them.
+    /// ⭐ <b>And nothing ever read them.</b> <c>HsmFlattener:111</c> builds
+    /// <c>actionTable[name] = ComputeHash(name)</c> and every <c>…ActionId</c> in the blob comes from
+    /// THAT table ⇒ the counter ids were unreachable as well as dangerous. ⭐ Deleting them costs
+    /// nothing: the bodies registered were empty, so even the hot-reload case the old comment invoked
+    /// was "the id is known, and it does nothing".
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>Stated as an absence, deliberately.</b> A test naming the old constants would pass again
+    /// the moment someone reintroduced the mechanism at 300. ⭐ <c>BHU_020</c> is the other half — it
+    /// ranges over the FINAL id set, so a reintroduced counter colliding with a hashed id fails the
+    /// build rather than silently winning.
     /// </para>
     /// </summary>
     [Fact]
-    public void Hsm_EmitBridge_AllocatesStubIdsFrom100And200()
+    public void Hsm_EmitBridge_RegistersNoCounterAllocatedStubs()
     {
         // ⚠ `HsmShowcase`, not `SampleGuard`: the latter declares no actions or guards at all, so it
-        //   emits no stub registrations and would make this test vacuously green.
+        //   never emitted stubs and would make this test vacuously green.
         var dto = HsmAssetMapper.ToDto(LoadHsm("HsmShowcase"));
+        dto.States.Should().NotBeEmpty("the fixture asset must carry states, or this test checks nothing");
+
         string bridge = HsmBridgeEmitCore.EmitBridge(dto);
 
-        // ⚠ Asserted only when the asset actually has entries of that kind — a SampleGuard with no
-        //   actions would otherwise make this vacuously green, which is the exact failure mode the
-        //   whole W1 batch exists to close.
-        bool hasActions = bridge.Contains("__hsActionStub");
-        bool hasGuards  = bridge.Contains("__hsGuardStub");
-        (hasActions || hasGuards).Should().BeTrue(
-            "the fixture asset must register at least one HSM action or guard, or this test checks nothing");
-
-        if (hasActions)
-            bridge.Should().Contain("RegisterAction(100,",
-                "the action stub window starts at 100 — HsmDispatcherIdAnalyzer's fixtures hard-code it");
-        if (hasGuards)
-            bridge.Should().Contain("RegisterGuard(200,",
-                "the guard stub window starts at 200 — HsmDispatcherIdAnalyzer's fixtures hard-code it");
+        bridge.Should().NotContain("HsmActionDispatcher.RegisterAction",
+            "W3: the bridge must not write into the dispatcher's id space at all");
+        bridge.Should().NotContain("HsmActionDispatcher.RegisterGuard",
+            "W3: the bridge must not write into the dispatcher's id space at all");
+        bridge.Should().NotContain("__hsActionStub",
+            "the no-op stub bodies went with the registrations");
+        bridge.Should().NotContain("__hsGuardStub",
+            "the no-op stub bodies went with the registrations");
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
