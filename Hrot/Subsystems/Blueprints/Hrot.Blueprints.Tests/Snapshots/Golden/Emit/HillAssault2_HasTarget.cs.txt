@@ -25,7 +25,7 @@ public static class HillAssault2HasTarget_E6AFD0B2_Bp
         public uint TargetNetworkId;
     }
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct WorkingState
     {
     }

@@ -19,9 +19,10 @@ public static class InlineEd1_ACE07905_Bp
     public const int BlueprintId = unchecked((int)0xACE07905);
     public const ulong StructureHash = 3409046080660203083UL;
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct State
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public global::Fdp.Toolkit.Blueprints.BlueprintLatentCursor Cursor;  // first 16 bytes
     }
     

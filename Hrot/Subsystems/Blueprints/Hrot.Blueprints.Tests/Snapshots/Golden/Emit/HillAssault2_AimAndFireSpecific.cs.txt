@@ -26,11 +26,14 @@ public static class HillAssault2AimAndFireSpecific_2BA06733_Bp
         public int MaxRounds;
     }
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct WorkingState
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public int RoundsFired;
+        [global::System.Runtime.InteropServices.FieldOffset(4)]
         public int LastObservedAmmo;
+        [global::System.Runtime.InteropServices.FieldOffset(8)]
         public byte __phase;
     }
     

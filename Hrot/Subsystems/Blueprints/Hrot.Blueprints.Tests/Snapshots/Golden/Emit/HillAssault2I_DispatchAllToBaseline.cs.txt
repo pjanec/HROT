@@ -28,7 +28,7 @@ public static class HillAssault2IDispatchAllToBaseline_64F11A6D_Bp
         public float BaselineEndY;
     }
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct WorkingState
     {
     }

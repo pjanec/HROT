@@ -108,17 +108,31 @@ internal static class InstanceEmitter
     private static void EmitStateStruct(CSharpEmitter e, IrAsset asset)
     {
         EmitListWrappers(e, asset.StateDeclarations);
-        e.WriteLine("[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
+
+        // ⭐⭐ W4 (Batch 60) — when every size is exact, the struct is DECLARED at the computed offsets
+        //    rather than left to agree with them. See CSharpEmitter.UseExplicitLayout for why this is
+        //    gated and why alignment reliability is not a second predicate.
+        bool explicitLayout = CSharpEmitter.UseExplicitLayout(asset);
+        e.WriteLine(explicitLayout
+            ? "[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]"
+            : "[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
         e.WriteLine("public struct State");
         e.WriteLine("{");
         e.Indent();
+        if (explicitLayout) e.WriteLine("[global::System.Runtime.InteropServices.FieldOffset(0)]");
         e.WriteLine("public global::Fdp.Toolkit.Blueprints.BlueprintLatentCursor Cursor;  // first 16 bytes");
         foreach (var f in asset.StateDeclarations)
+        {
+            if (explicitLayout) e.WriteLine($"[global::System.Runtime.InteropServices.FieldOffset({CSharpEmitter.FieldOffsetOf(asset, f)})]");
             e.WriteLine($"public {CSharpType(f.Type)} {f.Name};");
+        }
         // BP-57 / Q27-A3 — suspending graphs' locals, appended AFTER the real fields so their offsets
         // continue the struct's layout (FieldLayout does the same arithmetic). Addressed by name only.
         foreach (var f in asset.GraphLocalSlots)
+        {
+            if (explicitLayout) e.WriteLine($"[global::System.Runtime.InteropServices.FieldOffset({CSharpEmitter.FieldOffsetOf(asset, f)})]");
             e.WriteLine($"public {CSharpType(f.Type)} {f.Name};");
+        }
         e.Outdent();
         e.WriteLine("}");
     }

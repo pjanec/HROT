@@ -19,11 +19,14 @@ public static class HealthRegen_9EC49CD9_Bp
     public const int BlueprintId = unchecked((int)0x9EC49CD9);
     public const ulong StructureHash = 14110396460855306383UL;
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct State
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public global::Fdp.Toolkit.Blueprints.BlueprintLatentCursor Cursor;  // first 16 bytes
+        [global::System.Runtime.InteropServices.FieldOffset(16)]
         public float CurrentHealth;
+        [global::System.Runtime.InteropServices.FieldOffset(20)]
         public float MaxHealth;
     }
     

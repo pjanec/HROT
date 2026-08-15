@@ -1,0 +1,15 @@
+StructureHash: 0xEE0CC6075F8E76EF
+Parameters:
+  (empty)
+WorkingState:
+  (empty)
+Variables:
+  Gate : System.Byte @16 size=1
+  Offset : System.Numerics.Vector3 @24 size=12
+  Facing : System.Numerics.Quaternion @40 size=16
+  Label : Fdp.Core.FixedString32 @56 size=32
+  Tail : System.Int32 @88 size=4
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

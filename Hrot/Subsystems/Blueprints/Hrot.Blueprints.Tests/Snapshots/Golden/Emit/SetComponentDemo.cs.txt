@@ -19,10 +19,12 @@ public static class SetComponentDemo_D04431AF_Bp
     public const int BlueprintId = unchecked((int)0xD04431AF);
     public const ulong StructureHash = 17852985886333281802UL;
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct State
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public global::Fdp.Toolkit.Blueprints.BlueprintLatentCursor Cursor;  // first 16 bytes
+        [global::System.Runtime.InteropServices.FieldOffset(16)]
         public bool OutWritten;
     }
     

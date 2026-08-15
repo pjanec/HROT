@@ -19,10 +19,12 @@ public static class Count5_16F4B712_Bp
     public const int BlueprintId = unchecked((int)0x16F4B712);
     public const ulong StructureHash = 668716165952000165UL;
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct State
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public global::Fdp.Toolkit.Blueprints.BlueprintLatentCursor Cursor;  // first 16 bytes
+        [global::System.Runtime.InteropServices.FieldOffset(16)]
         public int Count;
     }
     

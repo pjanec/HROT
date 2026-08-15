@@ -85,7 +85,15 @@ internal static class AiPrimitiveEmitter
         // per-class nested wrapper structs the Instance State path uses (additive: assets without
         // list fields emit byte-identical output).
         InstanceEmitter.EmitListWrappers(e, asset.StateDeclarations);
-        e.WriteLine("[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
+
+        // ⭐⭐ W4 (Batch 60) — see CSharpEmitter.UseExplicitLayout. ⚠ The offsets written here are
+        //    STRUCT-relative: FieldLayout lays an AiPrimitive's state out from 8, which is its position
+        //    inside Blackboard1024 and not a struct offset. FieldOffsetOf does the same -8 rebase the
+        //    descriptors take, so the declaration and the descriptor cannot disagree.
+        bool explicitLayout = CSharpEmitter.UseExplicitLayout(asset);
+        e.WriteLine(explicitLayout
+            ? "[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]"
+            : "[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
         e.WriteLine("public struct WorkingState");
         e.WriteLine("{");
         e.Indent();
@@ -93,12 +101,16 @@ internal static class AiPrimitiveEmitter
         foreach (var f in asset.StateDeclarations)
         {
             EmitComment(e, f.Comment);
+            if (explicitLayout) e.WriteLine($"[global::System.Runtime.InteropServices.FieldOffset({CSharpEmitter.FieldOffsetOf(asset, f)})]");
             EmitStructField(e, CSharpType(f.Type), f.Name);
         }
         // BP-57 / Q27-A3 — suspending graphs' locals, appended AFTER the real fields so their offsets
         // continue the struct's layout (FieldLayout does the same arithmetic). Addressed by name only.
         foreach (var f in asset.GraphLocalSlots)
+        {
+            if (explicitLayout) e.WriteLine($"[global::System.Runtime.InteropServices.FieldOffset({CSharpEmitter.FieldOffsetOf(asset, f)})]");
             EmitStructField(e, CSharpType(f.Type), f.Name);
+        }
         e.Outdent();
         e.WriteLine("}");
     }

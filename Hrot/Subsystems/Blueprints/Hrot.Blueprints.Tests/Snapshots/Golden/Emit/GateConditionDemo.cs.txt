@@ -25,9 +25,10 @@ public static class GateConditionDemo_CDFE149C_Bp
         public float Threshold;
     }
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct WorkingState
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         [global::System.Runtime.InteropServices.MarshalAs(global::System.Runtime.InteropServices.UnmanagedType.I1)]
         public bool LastEvaluated;
     }

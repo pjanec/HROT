@@ -26,9 +26,10 @@ public static class HillAssault2ReverseToBaseline_FF75553A_Bp
         public float BaselineY;
     }
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct WorkingState
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public byte __phase;
     }
     

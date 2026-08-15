@@ -470,9 +470,59 @@ internal sealed class CSharpEmitter
     /// <see cref="Emit"/> needs the same answer <b>before</b> the registrar is written: the debug
     /// map's state layout is a COMPILE-TIME artefact and cannot carry a runtime query, so when this is
     /// true the only honest thing it can contribute is nothing.
+    ///
+    /// <para>
+    /// ⭐ <b>Batch 60 (<c>W4</c>) — it now also decides whether the struct is DECLARED at those offsets</b>
+    /// (<see cref="UseExplicitLayout"/>). ⚠ <c>GraphLocalSlots</c> joined the scan here: they are laid
+    /// out in the SAME struct and an unreliable size among them makes every later offset a guess exactly
+    /// as a state declaration would. Measured no-op on the corpus — <b>no shipped asset has any</b>.
+    /// </para>
     /// </summary>
     private static bool LayoutFromRuntime(IrAsset asset)
-        => asset.StateDeclarations.Any(f => !f.Type.SizeReliable);
+        => asset.StateDeclarations.Any(f => !f.Type.SizeReliable)
+        || asset.GraphLocalSlots.Any(f => !f.Type.SizeReliable);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>W4</c> — emit <c>LayoutKind.Explicit</c> + <c>[FieldOffset]</c> so the struct <b>IS</b>
+    /// the computed layout instead of agreeing with it by luck.</b>
+    ///
+    /// <para>
+    /// 🔴 <b>The luck was running out.</b> <c>FieldLayout.TypeAlignment</c> is
+    /// <c>SizeBytes switch { 1 =&gt; 1, 2 =&gt; 2, &lt;= 4 =&gt; 4, _ =&gt; 8 }</c> — a guess from the size alone.
+    /// It is right for every type the 42 shipped assets declare and <b>wrong for three the editor
+    /// offers</b>: a 12-byte <c>Vector3</c> and a 16-byte <c>Quaternion</c> are 4-aligned in the CLR, a
+    /// 32-byte <c>FixedString32</c> is a <c>fixed byte[32]</c> and 1-aligned. ⇒ a designer picking one
+    /// from the type picker got descriptors pointing 4–8 bytes past the field. <c>U-8</c> promises every
+    /// offered type compiles; this is what makes the promise true.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠⚠ <b>Why it is gated on <see cref="LayoutFromRuntime"/> and MUST stay gated.</b> Explicit layout
+    /// is only safe when every field's SIZE is exact. Under <c>Sequential</c> an under-estimated size
+    /// merely pushes later fields down and the descriptors are recovered at runtime via
+    /// <c>Marshal.OffsetOf</c>; under <c>Explicit</c> the oversized field would <b>overlap its
+    /// neighbour</b> — two variables silently aliasing the same bytes, which is worse than the wrong
+    /// offsets this change exists to fix. ⭐ The same gate also keeps the managed-reference hazard out:
+    /// <c>LayoutKind.Explicit</c> throws <c>TypeLoadException</c> for a misaligned managed reference, and
+    /// the only state types that reach the struct without passing <c>BP1503</c>'s unmanaged check are the
+    /// AN2 "trust the dot" ones — which carry <c>SizeReliable = false</c> and therefore stay Sequential.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>Alignment reliability is deliberately NOT a second predicate.</b> The switch only ever
+    /// over-aligns (it never returns less than a real CLR alignment for any registered type), so a
+    /// declared offset is always properly aligned; and once the offset is <i>declared</i> rather than
+    /// <i>predicted</i>, being able to tell a good prediction from a bad one has no consumer left. What
+    /// remains is padding efficiency, not correctness — filed, not fixed here.
+    /// </para>
+    /// </summary>
+    internal static bool UseExplicitLayout(IrAsset asset) => !LayoutFromRuntime(asset);
+
+    /// <summary>
+    /// The <c>[FieldOffset]</c> value for <paramref name="f"/> — the same struct-relative number the
+    /// descriptors carry, so the declaration and the descriptor cannot drift apart.
+    /// </summary>
+    internal static int FieldOffsetOf(IrAsset asset, IrField f) => StructRelativeOffset(asset, f);
 
     /// <summary>
     /// ⚠⚠ <b>The one asymmetry in the whole state-metadata path, and it bites silently.</b>

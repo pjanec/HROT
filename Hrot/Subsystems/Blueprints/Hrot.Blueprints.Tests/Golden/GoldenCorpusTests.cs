@@ -56,7 +56,11 @@ public sealed class GoldenCorpusTests
 
         Assert.True(failures.Count == 0,
             "Corpus assets failed to compile:\n  " + string.Join("\n  ", failures));
-        Assert.Equal(42, GoldenCorpus.EnumerateFiles().Count);   // 📌 today's count, informational
+        // 📌 today's count, informational. ⭐ 42 → 43 in Batch 60: `LayoutAlignmentWitness` (PA-14) is
+        //    the constructed witness for the runtime layout gate — no shipped asset declares a type
+        //    whose CLR alignment `FieldLayout.TypeAlignment` mispredicts, so the corpus could not
+        //    witness `W2` at all. See EmittedStateLayoutTests.
+        Assert.Equal(43, GoldenCorpus.EnumerateFiles().Count);
     }
 
     // ────────────────────────────────────────────────────────────────────────

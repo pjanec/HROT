@@ -19,11 +19,14 @@ public static class CustomEventSubscriberDemo_87F9061B_Bp
     public const int BlueprintId = unchecked((int)0x87F9061B);
     public const ulong StructureHash = 7955412657511695256UL;
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct State
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public global::Fdp.Toolkit.Blueprints.BlueprintLatentCursor Cursor;  // first 16 bytes
+        [global::System.Runtime.InteropServices.FieldOffset(16)]
         public int LastValue;
+        [global::System.Runtime.InteropServices.FieldOffset(20)]
         public float LastStrength;
     }
     

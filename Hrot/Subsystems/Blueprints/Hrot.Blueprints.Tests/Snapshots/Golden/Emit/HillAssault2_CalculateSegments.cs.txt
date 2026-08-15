@@ -29,17 +29,26 @@ public static class HillAssault2CalculateSegments_FA6F3CC3_Bp
         public float TankSpacing;
     }
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct WorkingState
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public int TotalSlots;
+        [global::System.Runtime.InteropServices.FieldOffset(4)]
         public global::System.UInt16 BurnedSlotsMask;
+        [global::System.Runtime.InteropServices.FieldOffset(6)]
         public global::System.UInt16 WaveUsedSlotsMask;
+        [global::System.Runtime.InteropServices.FieldOffset(8)]
         public global::System.UInt16 BaselineReservedMask;
+        [global::System.Runtime.InteropServices.FieldOffset(12)]
         public int ActiveAttackerCount;
+        [global::System.Runtime.InteropServices.FieldOffset(16)]
         public byte CurrentWave;
+        [global::System.Runtime.InteropServices.FieldOffset(24)]
         public long CachedEqsRequestId;
+        [global::System.Runtime.InteropServices.FieldOffset(32)]
         public int CachedTargetGroupHandle;
+        [global::System.Runtime.InteropServices.FieldOffset(36)]
         public float EqsRequestTime;
     }
     

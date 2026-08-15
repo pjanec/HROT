@@ -25,7 +25,7 @@ public static class HillAssault2IRequestAreaQuery_61F115B4_Bp
         public global::Fdp.Core.Entity TargetAreaEntity;
     }
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct WorkingState
     {
     }

@@ -19,10 +19,12 @@ public static class DoorActor_FFB212F0_Bp
     public const int BlueprintId = unchecked((int)0xFFB212F0);
     public const ulong StructureHash = 7957161204913034587UL;
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct State
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public global::Fdp.Toolkit.Blueprints.BlueprintLatentCursor Cursor;  // first 16 bytes
+        [global::System.Runtime.InteropServices.FieldOffset(16)]
         public bool IsOpen;
     }
     

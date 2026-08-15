@@ -24,11 +24,14 @@ public static class SharedStateCrossEntityDemo_CBF3AB14_Bp
     {
     }
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct WorkingState
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public global::Fdp.Core.Entity Commander;
+        [global::System.Runtime.InteropServices.FieldOffset(8)]
         public int RallyCountMirror;
+        [global::System.Runtime.InteropServices.FieldOffset(12)]
         [global::System.Runtime.InteropServices.MarshalAs(global::System.Runtime.InteropServices.UnmanagedType.I1)]
         public bool FoundMirror;
     }

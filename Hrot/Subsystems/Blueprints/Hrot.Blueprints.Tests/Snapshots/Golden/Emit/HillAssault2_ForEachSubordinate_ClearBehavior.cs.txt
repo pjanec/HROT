@@ -24,7 +24,7 @@ public static class HillAssault2ForEachSubordinateClearBehavior_FE4B7CEE_Bp
     {
     }
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct WorkingState
     {
     }

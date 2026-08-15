@@ -34,17 +34,26 @@ public static class HillAssault2DispatchWaveWithTargets_8CA4BFD9_Bp
         public float AttackDirY;
     }
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct WorkingState
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public global::Hrot.AI.Behaviors.Brains.MemberSlotList Runners;
+        [global::System.Runtime.InteropServices.FieldOffset(96)]
         public global::System.UInt16 WaveUsedSlotsMask;
+        [global::System.Runtime.InteropServices.FieldOffset(98)]
         public global::System.UInt16 BaselineReservedMask;
+        [global::System.Runtime.InteropServices.FieldOffset(100)]
         public global::System.UInt16 BurnedSlotsMask;
+        [global::System.Runtime.InteropServices.FieldOffset(102)]
         public byte CurrentWave;
+        [global::System.Runtime.InteropServices.FieldOffset(104)]
         public int TotalSlots;
+        [global::System.Runtime.InteropServices.FieldOffset(108)]
         public int CachedTargetGroupHandle;
+        [global::System.Runtime.InteropServices.FieldOffset(112)]
         public long CachedEqsRequestId;
+        [global::System.Runtime.InteropServices.FieldOffset(120)]
         public float EqsRequestTime;
     }
     

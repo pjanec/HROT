@@ -34,7 +34,7 @@ public static class HillAssault2IDispatchWaveWithTargets_60F11421_Bp
         public float AttackDirY;
     }
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct WorkingState
     {
     }

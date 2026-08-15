@@ -25,10 +25,12 @@ public static class MoveToAndFire_649F8F53_Bp
         public global::System.UInt64 TargetEntity;
     }
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct WorkingState
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public int Phase;
+        [global::System.Runtime.InteropServices.FieldOffset(4)]
         public byte __phase;
     }
     

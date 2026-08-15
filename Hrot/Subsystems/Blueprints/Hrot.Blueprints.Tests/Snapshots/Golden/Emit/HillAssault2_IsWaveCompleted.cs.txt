@@ -24,9 +24,10 @@ public static class HillAssault2IsWaveCompleted_D4A1CE64_Bp
     {
     }
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct WorkingState
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public global::Hrot.AI.Behaviors.Brains.WaveState Wave;
     }
     

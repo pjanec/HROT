@@ -19,12 +19,16 @@ public static class ComponentCollectionDemo_D9BB8EF6_Bp
     public const int BlueprintId = unchecked((int)0xD9BB8EF6);
     public const ulong StructureHash = 10012552836510451542UL;
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct State
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public global::Fdp.Toolkit.Blueprints.BlueprintLatentCursor Cursor;  // first 16 bytes
+        [global::System.Runtime.InteropServices.FieldOffset(16)]
         public int LoopLastItem;
+        [global::System.Runtime.InteropServices.FieldOffset(20)]
         public int ElementOut;
+        [global::System.Runtime.InteropServices.FieldOffset(24)]
         public int CountOut;
     }
     

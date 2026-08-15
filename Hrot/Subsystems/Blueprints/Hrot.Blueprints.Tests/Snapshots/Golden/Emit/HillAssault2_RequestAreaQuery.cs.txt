@@ -25,10 +25,12 @@ public static class HillAssault2RequestAreaQuery_2F8D984A_Bp
         public global::Fdp.Core.Entity TargetAreaEntity;
     }
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct WorkingState
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public long CachedEqsRequestId;
+        [global::System.Runtime.InteropServices.FieldOffset(8)]
         public float EqsRequestTime;
     }
     

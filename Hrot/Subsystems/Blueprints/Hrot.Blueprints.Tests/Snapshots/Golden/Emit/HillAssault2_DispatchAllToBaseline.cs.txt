@@ -28,9 +28,10 @@ public static class HillAssault2DispatchAllToBaseline_58007911_Bp
         public float BaselineEndY;
     }
     
-    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]
     public struct WorkingState
     {
+        [global::System.Runtime.InteropServices.FieldOffset(0)]
         public global::System.UInt16 BaselineReservedMask;
     }
     
