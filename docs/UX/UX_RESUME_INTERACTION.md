@@ -6,7 +6,7 @@
 ## 1. What this session did
 
 Designed **21 of 37** issues (**UXI-35 and UXI-37 designed** 2026-08-14). Three were consolidated into one API + one acceptance catalogue; the rest
-have their own feature docs. **66 rulings · 47 corrections**, all contiguous and linked below.
+have their own feature docs. **66 rulings · 50 corrections**, all contiguous and linked below.
 
 🔒 **NO OPEN DECISIONS.** Rulings **47-66** closed every question this thread had, and added four
 cross-cutting architecture rules that constrain everything built later:

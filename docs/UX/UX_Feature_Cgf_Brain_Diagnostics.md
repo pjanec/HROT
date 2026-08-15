@@ -1,9 +1,11 @@
-# Feature design — CGF brain diagnostics and runtime debugging
+# Feature design — CGF brain diagnostics **and authoring**
 
 > **Design for [UXI-37](UX_Issues.md#uxi-37) · drafted 2026-08-14.**
 > Scope from [rulings 59-64](UX_RESUME_INTERACTION.md); pause/resume semantics settled in
 > **[Design Question 30](Design_Question_30_Debug_Pause_Resume.md)** (A-E all decided).
-> **Status: ✅ designed — [Q1 closed by ruling 65](UX_RESUME_INTERACTION.md); §5b adds the optional authoring tier.**
+> **Status: ✅ designed — one scope: diagnostics AND authoring ([ruling 65](UX_RESUME_INTERACTION.md)).**
+> ⚠ **Re-scoped 2026-08-14** ([Correction 48](UX_Tasks_Detail.md#corrections)): earlier drafts kept narrowing
+> back to diagnostics and pushing authoring pieces to other issues. **They are the same code on one node.**
 
 ## 0. Prior art — nearly everything exists; almost nothing is wired
 
@@ -15,10 +17,11 @@
 | ✅ | `IDataBreakpointManager` accessor | ⭐ **already exposed** (`:153`) |
 | ✅ | `BehaviorDiagnosticsModule` · `BehaviorTraceLog` · blackboard renderers (`BrainBlackboard`, `Blackboard1024`, `BlueprintBlackboard{1024,4096,16384}`) | ⭐ **already registered** (`:277-326`) |
 | ✅ | `Hrot.Diagnostics.Breakpoints` — **neutral** assembly, incl. `WatchPersistence` | ⭐ **already referenced** by CGF |
-| ✅ | `AiWatchWindow`, `AiBreakpointsWindow`, `AiGraphCanvasWindow`, `InspectorWindow`, `DiagnosticsWindow` | 🔴 in `Hrot.Editor.AiShared` — **not referenced by CGF** |
+| ✅ | `AiWatchWindow`, `AiBreakpointsWindow`, `AiGraphCanvasWindow`, `InspectorWindow`, `DiagnosticsWindow` | ⭐ **`Hrot.Editor.AiShared` is ALREADY on CGF's build graph** — `Hrot.CGF.csproj:43` → `Hrot.Blueprints.Editor.csproj:33` → `Hrot.Editor.AiShared` ([Correction 49](UX_Tasks_Detail.md#corrections)). Nothing constructs them yet |
 | ✅ | `IEngineDebugTimeController` — **neutral** (`Hrot.Blueprints.Core`); Editor drives it via `MasterSyncTimeControllerAdapter` → `MasterSyncController` | 🔴 **`CgfNoOpTimeController` — all three request methods EMPTY** (`:825-834`) |
 | ✅ | Cluster pause/step protocol: `SwitchToDeterministic(roster)` · `Step(dt)` · `SwitchToContinuous()`; slave `BarrierPending`/`Stepping`, `SteppedSlaveController`, lockstep translator | 🔴 unused by CGF's debugger |
-| ✅ | `IWindowRegistrar` | ⭐ **CGF already implements it** |
+| ✅ | `IWindowRegistrar` | ⭐ **CGF already implements it**, and already builds `FdpEntityInspectorWindow`/`FdpEventBrowserWindow`/`ArchitectureDiagnosticsWindow` (`:685,719,724`) |
+| ✅ | **`PreviewClusterOpHandler`** — snapshot/restore of the whole world | ⭐ **neutral assembly `Hrot.Network.Orchestration`, ALREADY referenced by CGF** (`Hrot.CGF.csproj:37`); nothing registers it |
 | ✅ | Brain systems in `TogglableInputGroup` / `TogglableSimulationGroup` | ⭐ **already composed** (`:330-334`) — the halt/step actuator |
 
 ⇒ ⭐ **This is a wiring design, not a capability design.** The one genuinely new artefact is a translator
@@ -47,16 +50,16 @@ would also stall any control-plane traffic registered inside it (orchestration c
 time which translators CGF actually registers into `CycloneIngressSystem`** — the mix decides how much the
 category buys.
 
-### 1b. 🔴 "Show the asset graph" is coupled to the authoring stack
+### 1b. ⭐ The authoring stack is far smaller than "the authoring stack" sounds
 
 | Window | Needs | Verdict |
 |---|---|---|
-| ⭐ **`AiWatchWindow`** | `(id, perspective, IDataBreakpointManager)` — **nothing else** | ✅ **nearly free** — CGF already exposes the manager |
+| ⭐ **`AiWatchWindow`** | `(id, perspective, IDataBreakpointManager)` — **nothing else** | ✅ **nearly free** — CGF already exposes the manager (`:153`) |
 | `AiBreakpointsWindow` | breakpoint manager family | ✅ cheap |
-| 🔴 **`AiGraphCanvasWindow`** | **`AiDocumentManager`** (`:230-232`) — open documents, tab bar, activate/close, dirty tracking | 🔴 **drags in the document/authoring stack** |
+| **`AiGraphCanvasWindow`** | `AiDocumentManager` (`:230-232`) | ⇒ ⭐ **which needs only `IPerspectiveSwitcher`** — or even a plain `Action<string>` (`AiDocumentManager.cs:44-71`), plus an optional focus callback. **That is the whole dependency.** The Editor passes `WindowManagerPerspectiveSwitcher(windowManager)` (`EditorSubsystem.cs:2008,2161`), and CGF is already handed a `WindowManager` (`CgfSubsystem.cs:665`) |
 
-⚠ **[Ruling 59](UX_RESUME_INTERACTION.md) called authoring an optional bonus and graph viewing required** —
-but as built, **the graph canvas cannot be had without the document manager**. See [Q1](#q1--the-graph-canvas-drags-in-the-authoring-stack).
+🔒 **So "the document manager drags in the authoring stack" was overstated.** What authoring actually needs
+beyond it is the **catalog + save** services (§5b) — and those are ordinary classes, not a subsystem.
 
 ## 2. The three capability layers
 
@@ -158,57 +161,69 @@ through the same toggle that owns the halt (§3b), and treat reload-while-paused
 ### ✅ Scenario editing from CGF — cleared ([ruling 66](UX_RESUME_INTERACTION.md))
 
 > **User, 2026-08-14:** *"The components that are missing on the CGF node and present on SimHost are usually
-> **not those carrying the scenario information**. At runtime these are filled from commands coming from CGF.
-> They are important only for taking and restoring a snapshot of current immediate simulation state
-> (**checkpoint**), which is **a different category from scenario authoring**. The system supports also
-> **sending initial state of mandatory ECS components on entity creation** to SimHost, so the scenario loading
-> process is fully covered and possible from the CGF node only."*
+> **not those carrying the scenario information**… they are important only for **checkpoint**, which is a
+> different category from scenario authoring. The system supports also **sending initial state of mandatory
+> ECS components on entity creation**, so scenario loading is fully covered and possible from the CGF node only."*
 
-⚠ **An earlier draft demanded a save-time completeness check and a SimHost-vs-CGF serializer diff as a gate.
-Both are withdrawn** ([Correction 47](UX_Tasks_Detail.md#corrections)) — the premise was wrong twice over:
+⚠ **Two checks I demanded are now BOTH withdrawn** ([Corrections 47](UX_Tasks_Detail.md#corrections),
+[50](UX_Tasks_Detail.md#corrections)):
 
-| The claim | Why it fails |
+| Withdrawn | Why |
 |---|---|
-| *"a naive save emits `VehicleState`/`VehicleParams`/`NavState` as defaults"* | 🔴 **`SerializeEntity(repo, entity, resolver, BitMask512 componentMask)` is MASK-DRIVEN** — the caller states which components are in scope — and `AutoSerializer.TryExtract(repo, entity, bit, resolver)` is **per entity, per bit**. `RegisterComponent<T>()` registers a **type with the world**; it is neither entity-level presence nor serializer scope |
-| *"CGF-unowned components threaten scenario fidelity"* | 🔒 **wrong category.** Those components carry **immediate simulation state**, which matters for **checkpoint** (snapshot/restore), not for scenario authoring. At runtime they are filled from commands originating on **CGF** |
+| *"a naive save emits `VehicleState`/`VehicleParams`/`NavState` as defaults"* | 🔴 wrong category — those are **checkpoint** state; and serialization is mask-driven, not registry-driven |
+| *"confirm CGF passes the same component mask as SimHost"* | 🔴 **there is no caller-supplied mask on this path.** `ScenarioSerializer.Serialize(repo, header)` computes it itself: `repo.GetSaveableMask()` ∧ `repo.GetComponentMask(entity.Index)` (`:134,143-145`). `GetSaveableMask()` reads the **static `ComponentTypeRegistry` saveable tags** (`EntityRepository.Sync.cs:192-199`) ⇒ **the mask is global and identical on every node by construction** |
 
-⭐ **And the load path is already covered**: `CreateEntityRequestSystem` compiles `InitialAttributesJson` into
-components, splitting `SimTransform`/`SimVelocity` into typed spawn fields and the rest into a fallback list
-(`:225-245`) ⇒ **initial ECS component state travels with entity creation**, so a scenario can be loaded
-**from CGF alone**.
+⭐ **And the save path is ordinary**: `ScenarioMenuCommands:126-133` → `IEditorLogic.SaveScenarioAs` →
+`EditorApplication:179-186` → `ScenarioFileService.SaveScenario` (`:108-143`) → `Serialize` → `File.WriteAllText`.
+`ScenarioFileService` lives in **`Hrot.Presentation`**, which CGF already references.
 
-⇒ 🔒 **Scenario editing on CGF is NOT a gated third tier.** It joins the authoring tier. ⚠ **What remains is a
-one-line check, not a programme**: confirm the scenario save passes the **same component mask** on CGF as on
-SimHost — the mask is the contract, and it is chosen by the caller.
+### 🔴 The ONE real obstacle to authoring on CGF: asset write paths need a source checkout
 
-### ⚠ Preview — the one genuinely open item
+`EditorSubsystem.ResolveAiBehaviorsDir` (`:693-708`) walks up from `CurrentDirectory` **and**
+`BaseDirectory` looking for **`Hrot.AI.Behaviors.csproj`**, and points the asset write roots at the **source**
+tree when found (`:710-721`).
 
-> **User:** *"I am not so sure about the **preview** feature, which in the editor is not the same as full
-> scenario loading, but might be also doable if we use **distributed snapshot taking and restoring**. Now in
-> the editor this is probably made just in-process locally, but doing that across a cluster should be very
-> feasible."*
+| Found | `_bpRootDir` | `_btreeJsonRootDir` / `_hsmJsonRootDir` |
+|---|---|---|
+| source `.csproj` present | `<sourceDir>/Assets/…` | `<sourceDir>/Assets/…` |
+| **absent** (a deployed node) | falls back to `BaseDirectory/Assets/Blueprints` | 🔴 **`null`** |
 
-⭐ **Better than expected — preview is ALREADY a cluster operation.** `EditorPreviewController`
-(`EditorSubsystem.cs:439-467`) drives **`PreviewClusterOpHandler`** with `TriggerLoadingPreview()` /
-`TriggerUnloadingPreview()`, and brackets it with `MasterSyncController.SwitchToContinuous()` on enter and
-**`SwitchToDeterministic(new HashSet<int>())`** on exit.
+⇒ 🔒 **On a deployed CGF node, blueprint authoring degrades to the output dir and BTree/HSM authoring has no
+root at all.** ⚠ **This — not assemblies, not masks, not components — is what actually blocks authoring on a
+production CGF node.** ⭐ Scenario saving is unaffected: it uses `EditorBootstrap.ScenariosRoot` =
+`ClusterConfiguration.Default.NasBasePath` — **config-driven, not a disk walk**.
 
-> ### ⭐ The regularity worth naming: **the Editor is a one-node cluster**
->
-> That **empty slave roster** is the same trick `MasterSyncTimeControllerAdapter` uses for the debug pause
-> ([§3a](#3a-cgfclusterdebugtimecontroller--iengine­debugtimecontroller)). **Two independent features already
-> run the cluster protocol with a roster of zero.** ⇒ making either work distributed is **supplying the real
-> roster**, not building a distributed version.
+🔒 **Design consequence**: authoring on CGF needs an **explicit configured asset root**, not a walk-up
+heuristic. ⚠ Note the same heuristic already makes the *Editor* dependent on running beside its checkout —
+so this is a shared defect the CGF work would surface, not a CGF-specific cost.
 
-| ⚠ Still open for preview | |
+### ✅ Preview — in scope, and it already restores
+
+> **User:** *"I am not so sure about the preview feature… might be doable if we use distributed snapshot
+> taking and restoring. Now in the editor this is probably made just in-process locally, but doing that
+> across a cluster should be very feasible."*
+
+⭐ **Verified, and better than the guess on every axis:**
+
+| | |
 |---|---|
-| What `PreviewClusterOpHandler` does to the world on enter/exit | if it clears and repopulates, a distributed preview needs the same on every node — that **is** the snapshot/restore the user names |
-| Whether exit **restores** prior state or just unloads | `TriggerUnloadingPreview` suggests unload; if there is no restore, "preview" is destructive today and distributing it inherits that |
+| ✅ **It restores — it does not merely unload** | `PreviewClusterOpHandler.UnloadingPreviewCommit` calls **`_liveRepo.SyncFrom(_snap, includeTransient: true)`** and logs *"live repo rewound to snapshot"* (`:146-171`). The doc comment says *"effectively rewinding all changes made during the dry-run session"* |
+| ✅ **The snapshot is a full in-memory world** | `new EntityRepository(); snap.SyncFrom(_liveRepo, includeTransient: true)` (`:138-140`) — RAM, not JSON. Loading preview **does not mutate the live world**; it only copies it |
+| ⭐ **Neutral assembly, already referenced by CGF** | `Hrot.Network.Orchestration` — `Hrot.CGF.csproj:37`. **Nothing to move** |
+| ✅ **It is already a cluster-op** | `IClusterOpHandler` with `PrepareAsync`/`Commit`/`Abort` (`:65-97`) — the two-phase shape the orchestrator already drives |
+| 🔴 **But only the Editor registers it** | `EditorSubsystem.cs:447` inside `EditorPreviewController`. Other nodes register a **different** class, `ReferencePreviewHandler` (SimHost `NodeBootstrapper.cs:453`, Orchestrator `:235`, ExCon `:226`, IG `:254`); **CGF registers neither** |
 
-🔒 **Not designed here** — preview is a scenario-authoring feature, not a diagnostics one. Recorded so the
-`PreviewClusterOpHandler` finding is not lost, and left to the [UXI-33](UX_Issues.md#uxi-33) authoring session.
+> ⇒ 🔒 **Distributed preview = register `PreviewClusterOpHandler` on each participating node and let the
+> master drive the existing cluster op.** ⭐ **The snapshot/restore the user worried about is already written
+> and already neutral** — what is missing is registration and a roster, which is [ruling 66](UX_RESUME_INTERACTION.md)'s
+> *"the Editor is a one-node cluster"* in yet another instance.
 
-## 6. Risks## 6. Risks## 6. Risks
+⚠ **Two things to settle when preview is built** (not blockers for this design): the live-repo snapshot is a
+**full world copy in RAM** — cost scales with entity count, so measure before enabling it on a large exercise;
+and `ReferencePreviewHandler` vs `PreviewClusterOpHandler` are two different preview notions on the same
+cluster — **reconcile them rather than adding a third.**
+
+## 6. Risks## 6. Risks## 6. Risks## 6. Risks
 
 | | |
 |---|---|
@@ -217,6 +232,9 @@ SimHost — the mask is the contract, and it is chosen by the caller.
 | ⚠ **k is expected small but unmeasured** ([ruling 64](UX_RESUME_INTERACTION.md)) | the zero-dt timer discontinuity and the stale-view window both rest on it — **measure it once** |
 | ⚠ **DATA breakpoints ≠ NODE breakpoints** | what runs on CGF today fires on component data change; breaking on a BTree/HSM/blueprint **node** is the other kind and is the ② work |
 | ⚠ **Breakpoint UI must not offer unobservable components** | [ruling 61](UX_RESUME_INTERACTION.md) limits CGF to owned-or-replicated components ⇒ [ruling 49](UX_RESUME_INTERACTION.md): **absent, not greyed** |
+| 🔴 **Asset write roots resolve by walking up to a source `.csproj`** | `EditorSubsystem.cs:693-721`; on a deployed node BTree/HSM roots become **`null`**. The real blocker for authoring on CGF — and a **shared** defect the Editor already has |
+| ⚠ **Preview snapshots the whole world into RAM** | `EntityRepository.SyncFrom(includeTransient: true)` — measure the cost before enabling on a large exercise |
+| ⚠ **Two preview notions coexist** | `PreviewClusterOpHandler` (Editor) vs `ReferencePreviewHandler` (every other node) — reconcile, do not add a third |
 | ⚠ **Checkpoint is a separate feature from scenario save** | the CGF-unowned components matter for **snapshot/restore of immediate simulation state**, not for authoring ([ruling 66](UX_RESUME_INTERACTION.md)). Do not let a checkpoint requirement leak into the scenario-save design, or the reverse |
 | ⚠ **Hot reload during a freeze** | must reload and **stay paused** — routing it around the halt toggle would silently resume the exercise |
 | ⚠ **A destructive freeze during a live exercise** | [ruling 59](UX_RESUME_INTERACTION.md) accepts it, but the operator must know: arming a breakpoint on a live cluster is a **cluster-wide stop**. ⇒ confirm at arm time via [UXI-16](UX_Feature_Modal_Surfaces.md), resolved at the origin ([ruling 53](UX_RESUME_INTERACTION.md)) |
@@ -241,5 +259,5 @@ SimHost — the mask is the contract, and it is chosen by the caller.
 | 37.14 | 🔒 CGF's paused remote-entity view is **labelled stale**, not presented as live | I |
 | 37.15 | Behavior **hot reload on CGF** succeeds and the running brains pick up the new asset | I |
 | 37.16 | 🔒 A hot reload **while frozen** leaves the sim **still frozen** — reload must not act as a resume | H |
-| 37.17 | A scenario saved on CGF and one saved on SimHost use the **same component mask** | H |
+| 37.17 | 🔴 Authoring on CGF uses an **explicitly configured asset root** — it does not depend on a source checkout being present | H |
 | 37.18 | 🔒 A scenario authored on CGF **loads correctly** — initial component state travels with entity creation | I |
