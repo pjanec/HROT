@@ -634,9 +634,30 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > `.bp.json` outside it** — a designer's working file or a deployed asset written as v2 and read by an
 > older build. ⭐ **The down-migrator is that revert**, and step 2 puts it on the registry chain.
 >
-> ⛔ **ONE THING STILL NEEDS THE USER:** ⚠ **the visual check**, which gates `U-6`/`U-13`/`U-16` and
-> would also finally verify Batch 43's Local Variables section. ⛔ **Seventeen batches out** — and
-> after Batch 55 it is **the only thing left in the programme.**
+> ⭐⭐⭐ **Batch 55 VERIFIED AND MERGED at `e202dbed5` (§7ab) — `U-10` CLOSED, and with it the `D`
+> PROGRAMME.** ⭐ **All 42 corpus assets are `schemaVersion: 2` on disk, and `StructureHash` did not
+> move for one of them** — coordinator-verified: the **only** snapshot file that changed is
+> `persistence-shape.txt`, **42 lines, one per asset**; ⛔ **golden Tier 1 AND Tier 2 are byte-identical.**
+> ⇒ **the on-disk shape moved and the compiled output did not, which is the whole claim of the bump.**
+> ⭐ **Their persistence diff arithmetic re-derived independently: 21 grew · 21 shrank · 0 unchanged ·
+> `+1443` bytes.**
+> 🔴🔴 ➕ **`BP-242` — a SECOND, independent `*.bp.json` parser they found because the Generators gate
+> dropped 193 → 192:** `GeneratedBlueprintSchemaCatalog` never goes through `BlueprintJsonServices`.
+> ⛔ **It did not fail on v2 — it returned a schema with ZERO parameters**, so a composed BTree wrote
+> shared state with `TotalSlots 3` instead of 10. ⭐⭐ **And it invalidates their own Batch 54 claim
+> that all production reads funnel through `Deserialize`** — *"measured by grepping for callers of a
+> method, which cannot find a reader that does not call it."* 📌 **The v2 blindness is fixed; the
+> silent-wrong-answer behaviour is FILED, not fixed.**
+>
+> ⭐ **`--canonicalise` (`Q31-C2`) was SPLIT OUT**, using the handoff's own escape hatch, with a reason:
+> a doc-type-agnostic tool needs a **per-doc-type repair seam**, and hardcoding blueprint knowledge
+> into `MigrateMode` is the half-doing the handoff warned against. ⚠ **`BP-241` stays open.**
+>
+> ⛔ **ONE THING STILL NEEDS THE USER — and it is now the ONLY thing left in the programme:**
+> ⭐⭐ **the visual check.** 📄 **[VISUAL_CHECK_Guide.md](VISUAL_CHECK_Guide.md)** — a step-by-step
+> pass/fail checklist, written against the real code paths, ⭐ **each step naming the tracker row it
+> reopens if it fails.** ⚠ **Seventeen batches out**, and Batch 43's whole deliverable is a panel
+> surface no headless test can see drawn.
 > 📌 **`U-13`'s CONTENTS gate is headless** *(exact slot names across 8 assets, 58 `"state"` + 3
 > `"rally"`)* ⇒ ⭐ **it could run blind if the user wants momentum** — ⚠ **but it would add a SECOND
 > unverified panel surface, and that is the coordinator's reason for not dispatching it unasked.**
