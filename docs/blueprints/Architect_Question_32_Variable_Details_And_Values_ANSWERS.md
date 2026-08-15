@@ -122,6 +122,82 @@ void SetComponentFieldRaw(Entity entity, int typeId, int byteOffset, void* src, 
 | ⚠ **The residual race, stated honestly** | ⛔ **If a system writes the SAME field between the dialog opening and playback, last-writer-wins on that field.** ⭐ **That is inherent and acceptable** — the goal is not to clobber the **other** fields |
 | ⚠ **Blast radius** | ⛔ **This is `Fdp.Core` — engine-level, every host, every subsystem.** 📌 **The smallest possible addition: one command, additive, no existing behaviour touched** |
 
+## 2.2 ⭐⭐ Three coordinator answers *(`2026-08-15`)* — and one changes the write design
+
+### Q — *"writing must be backed by EMITTED CODE, nothing easily expressed in a command buffer?"*
+
+⚖️ **Half right — and the half that is wrong matters less than the reason you are right.**
+
+| | |
+|---|---|
+| ⛔ **Emitted code is NOT needed for the write itself** | ⭐ **The READ path already works byte-level** — `BlueprintDebugSession:1308` slices `8 + field.OffsetBytes` and `MarshalFromBytes`es it. **No generated accessor, no emitted setter.** ⭐ **All 18 offerable types are blittable**, and the layout metadata the write needs is **already emitted and already consumed** |
+| ⛔ **Data breakpoints do NOT need to be told** | ⭐ **They are SNAPSHOT-based, not write-notified:** `_preTickSnapshot` is *"filled by `DebugSnapshotProvider` every BeforeSync tick"*, and `Evaluate(bus, repo)` compares. ⇒ **a raw byte write is observed like any other state change.** ⛔ **A write-notification hook is NOT required** |
+| 🔴🔴 **BUT YOU ARE RIGHT THAT THE PLAIN ECB PATH FAILS — for a different reason** | see below |
+
+### 🔴🔴 The finding: **while paused, the editor is not looking at the live world**
+
+```csharp
+// DataBreakpointManager.cs:123
+public ISimulationView ActiveView => _isPaused ? (ISimulationView)_preTickSnapshot : _liveRepo;
+
+// :470-473  — on hitting a breakpoint
+_postTickSnapshot.SyncFrom(_liveRepo);     // capture post-execution state
+_liveRepo.SyncFrom(_preTickSnapshot);      // ⛔ REWIND the live world to start-of-tick
+```
+
+⛔⛔ **Two consequences, and both hit ruling 12 head-on:**
+
+| | |
+|---|---|
+| **1** | ⭐ **While paused the panels read `_preTickSnapshot`, a DIFFERENT repository.** ⇒ a write queued to the ECB and played into `_liveRepo` **would not appear at all while frozen** — ⛔ **exactly the failure ruling 12 forbids, arriving by a route neither of us predicted** |
+| **2** | ⚠ **Pausing REWINDS `_liveRepo` from `_preTickSnapshot`.** ⇒ **ordering matters**: a write applied to the live repo around a pause boundary can be **discarded by the rewind** |
+
+📐 **So the write must target whatever `ActiveView` currently is — or the snapshot and the live world
+must both receive it.** ⚖️ **Coordinator lean, offered as a starting point and NOT as a measured
+design:** the edit goes through the command buffer **and** is applied to `ActiveView`, with the paused
+case writing the snapshot that the panels actually read.
+⛔ **This is now the hardest part of the whole feature, and it is a `Hrot.Diagnostics.Breakpoints`
+question, not a panel question.** 📌 **It deserves its own design pass before 59c is built.**
+
+⚠⚠ **Coordinator honesty:** this is cited from two code sites, not from running it. ⭐ **It is a strong
+signal, not a proven mechanism** — 📐 **the implementation session must confirm what the panels read
+while paused before designing around it.**
+
+### Q — *"the Details panel is a chameleon; it must be modular, not a monolith"*
+
+✅ **Agreed, and the pattern already exists — it should be extended, not invented.**
+⭐ **`BlueprintDetailsWindow` already dispatches through `DrawerRegistry` / `IStructEditDrawer<T>`**, and
+`BP-205` already put the **id scope at the panel** — *"scoping at the panel covers every drawer that
+exists and every drawer anyone adds later."* ⇒ ⭐ **`U-6`'s *"the provider handles `Variable` and
+`LocalVariable`"* is exactly one more provider in that registry.** ⛔ **A `switch` in the panel would be
+the monolith the user is warning against.**
+
+### Q — *"do HSM/BTree have a My Blueprint equivalent? Should it be unified?"*
+
+⛔ **No, they do not — and the unification is well-founded.**
+
+| host | what it has |
+|---|---|
+| **Blueprint** | ⭐ **`My Blueprint`** — 6 sections, the only real outline |
+| **HSM** | `HsmEventsWindow` · `HsmGlobalsStrip` — ⛔ **no outline** |
+| **BTree** | `Blackboard/LiveBlackboardPanel` — ⛔ **no outline** |
+| ⭐ **`MyBlueprint` appears NOWHERE outside `Hrot.Blueprints.Editor`** | measured |
+
+⭐⭐ **And the precedent for sharing is already built:** `Hrot.Editor.AiShared/Windows/` holds
+`BlackboardAuthoringWindow` · `InspectorWindow` · `RuntimeInspectorWindow` · `AiWatchWindow` ·
+`AiGraphCanvasWindow` · `SharedAiWindowRegistrar` · `PerspectiveWorkspaceRegistrar`. ⇒ **a shared
+outline belongs beside them; "one shared window, per-host content" is the house pattern already.**
+
+🔴🔴 **And the unification instinct is confirmed by a count — there are THREE surfaces that show
+variables:** `BlueprintVariablesWindow` · `AiShared/BlackboardAuthoringWindow` ·
+`BTree.Editor/Blackboard/LiveBlackboardPanel`. ⚠ **Plus `InspectorWindow` exists in BOTH `AiShared`
+and `Hrot.Blueprints.Editor`.** ⇒ ⭐ **Ruling 9's target is bigger than `U-16` assumed:** retiring the
+blueprint window alone leaves **two** implementations, not one.
+
+📌 **Sections shown per asset type** is the right model — the descriptor list is already data
+(`_sections`, a static `List<MyBlueprintSectionDescriptor>` with order + capability flags), ⭐ **so
+per-host section sets are a change of DATA, not of structure.**
+
 ### 🔴 Ruling 13 — **the Watch panel must EDIT, and must show nothing before the run** *(user, `2026-08-15`)*
 
 > ⭐⭐ *"watch panel MUST allow for value changes (and show nothing when exercise not running yet) —

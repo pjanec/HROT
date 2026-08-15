@@ -706,6 +706,35 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > ⭐ **The write primitive already exists: `IEntityCommandBuffer.SetComponentRaw(entity, typeId, ptr,
 > size)`**, and the interface already knows blackboards are components (`AddEmptyComponent`:
 > *"large components like blackboards"*).
+> 🔴🔴🔴 **THE HARDEST FINDING SO FAR — WHILE PAUSED, THE EDITOR IS NOT LOOKING AT THE LIVE WORLD.**
+> **`DataBreakpointManager:123` — `ActiveView => _isPaused ? _preTickSnapshot : _liveRepo`**, and
+> `:470-473` on a breakpoint hit: `_postTickSnapshot.SyncFrom(_liveRepo)` then ⛔ **`_liveRepo.SyncFrom(
+> _preTickSnapshot)` — the live world is REWOUND to start-of-tick.**
+> ⇒ **(1)** a write queued to the ECB and played into `_liveRepo` **would not appear at all while
+> frozen**, because the panels are reading a *different repository* — ⛔ **exactly ruling 12's failure,
+> by a route neither the user nor the coordinator predicted**; **(2)** ⚠ **the rewind can DISCARD a
+> write applied around a pause boundary.** ⇒ ⭐ **this is a `Hrot.Diagnostics.Breakpoints` design
+> question, not a panel one, and it needs its own pass before 59c.**
+> ⚠ **Cited from two code sites, NOT run — a strong signal, not a proven mechanism.**
+> ⭐ **Conversely, the user's guess that writes need EMITTED CODE is not borne out:** the read path is
+> already byte-level with no generated accessor, and ⭐ **data breakpoints are SNAPSHOT-based
+> (`_preTickSnapshot` filled every BeforeSync tick), not write-notified**, so a raw write is observed
+> like any other state change.
+>
+> ⭐⭐ **MY BLUEPRINT SHOULD BE UNIFIED — measured, and bigger than `U-16` assumed.** ⛔ **HSM has only
+> `HsmEventsWindow`/`HsmGlobalsStrip`; BTree only `LiveBlackboardPanel`; `MyBlueprint` appears NOWHERE
+> outside `Hrot.Blueprints.Editor`.** ⭐ **But the house pattern already exists** —
+> `AiShared/Windows/` holds `BlackboardAuthoringWindow` · `InspectorWindow` · `RuntimeInspectorWindow` ·
+> `AiWatchWindow` · `AiGraphCanvasWindow` · `SharedAiWindowRegistrar` ⇒ **a shared outline belongs
+> beside them.** ⭐ **Per-host section sets are a change of DATA** — `_sections` is already a static
+> descriptor list with order + capability flags.
+> 🔴🔴 **THREE surfaces already show variables** — `BlueprintVariablesWindow` ·
+> `AiShared/BlackboardAuthoringWindow` · `BTree/LiveBlackboardPanel` — ⚠ **plus `InspectorWindow` exists
+> in BOTH `AiShared` and the blueprint editor.** ⇒ ⛔ **retiring the blueprint window alone (`U-16`)
+> leaves TWO implementations, not one. Ruling 9's target is larger than the plan says.**
+> ⭐ **The Details chameleon is already modular** — `DrawerRegistry`/`IStructEditDrawer<T>` + `BP-205`'s
+> panel-level id scope ⇒ `U-6` is **one more provider**, not a `switch`.
+>
 > ⭐⭐⭐ **RULING 14 — the ECB needs a SURGICAL FIELD WRITE, and the user's case is stronger than they
 > put it.** ⛔ **Every ECB write is whole-component** (`grep offset` over `EntityCommandBuffer.cs`
 > returns nothing) ⇒ queueing one means read-now-write-later, clobbering whatever any system changed
