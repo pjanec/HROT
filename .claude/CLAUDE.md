@@ -122,6 +122,21 @@ from five documents — the cheaper side to keep, not a principled claim).
 ⭐ **Wording agreed by both sessions.** ⇒ **the same rule applies to any other cross-session numbered
 artefact, not just `BP-` rows.**
 
+### ⛔⛔ IMPLEMENTATION FREEZE — **one session builds the unified variable model** *(user, `2026-08-15`)*
+
+> ⭐⭐ **User ruling, verbatim:** *"cross host it is. one single implem session (the one we are using)
+> will be implementing for all hosts, no other session will implement until this is all done."*
+
+| | |
+|---|---|
+| ⭐ **Who builds** | ⭐ **`claude/hrot-implementation-j1jvin`** — **all hosts**: Blueprint, BTree **and** HSM, including everything in **`Hrot.Editor.AiShared`** |
+| ⛔ **Every other session** | ⛔⛔ **DOES NOT IMPLEMENT until this is done.** ⭐ **Design, questions, review and documents are fine — code is not.** ⚠ **This explicitly includes the cross-host variable-model session and the HSM visual-editing session** |
+| **What "this" is** | the unified variable Details panel + the emitter/access unification — 📄 **[`Architect_Question_32_…_ANSWERS.md`](../docs/blueprints/Architect_Question_32_Variable_Details_And_Values_ANSWERS.md)** |
+| ⭐ **Why** | the ruling over the whole design is *"no keeping two implementations for the same concept."* ⛔ **Two sessions building one shared panel produces exactly two implementations** — the constraint would be broken by the process before any code disagreed |
+
+⚠ **If you are a session other than the one named above and you are about to write code touching
+variables, working state, the blackboard panel or `Hrot.Editor.AiShared` — STOP and ask the user.**
+
 ### Checking "did they see X?" — do it correctly, and name the run
 
 Never say *"they never saw it"* — that reads as a property of the session when it is a property of one

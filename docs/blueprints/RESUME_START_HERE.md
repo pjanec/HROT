@@ -674,11 +674,22 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > `WorkingState`-has-no-initial-value sub-ruling, ⭐ **which the user caught and the code refuted:
 > `AiPrimitiveEmitter:133` has emitted working-state defaults all along.**
 >
-> 🔴🔴 **ONE PIECE OF THE RULING HAS NO SEAM: writing into a RUNNING blackboard.**
-> `IBlueprintDebugSession` is Attach/breakpoints/**watches**/step — ⛔ **no write.** 📐 **Three
-> sub-questions open: tick-boundary application · ⛔ REFUSE during replay (a write breaks the
-> determinism replay exists for) · ⚠ does an editor write REPLICATE in a clustered exercise?**
-> ⭐ **Everything else in the ruling is unblocked.**
+> ✅ **THE LIVE-WRITE QUESTIONS ARE ALL RULED** *(user, same day)* — ⭐ **queue changes via FDP
+> command buffers** *(`IEntityCommandBuffer` + `EntityRepository.SetCommandBufferOverride` /
+> `FlushCommandBuffers` — the seam exists)*; ⛔ **NO value change during replay** *(coordinator's lean
+> confirmed)*; and ⭐⭐ **the cluster worry was MISINFORMED — the brain and blackboard live on a SINGLE
+> CGF node (and the editor) and are NEVER replicated in distributed mode**, so there is no
+> authoritative-copy problem at all. ➕ **Double-clicking the value cell opens the editor too.**
+> ⇒ ⭐ **Nothing in the ruling is blocked.**
+>
+> ⛔⛔ **IMPLEMENTATION FREEZE — ONE session builds it, for ALL hosts.** ⭐ **User ruling:** the
+> implementation session **`claude/hrot-implementation-j1jvin`** implements Blueprint, BTree **and**
+> HSM, `Hrot.Editor.AiShared` included; ⛔ **no other session writes code until it is done.**
+> ⇒ **the coordinator's proposed cross-host split is OVERRULED**, and rightly: ⭐ **two sessions
+> building one shared panel is how you get exactly the two implementations ruling 9 forbids.**
+> 📌 **Recorded in `.claude/CLAUDE.md`** — the only file every session loads.
+> ⚠ **Batch 56's §5 rationale line (*"AiShared is the cross-host session's territory"*) is superseded;
+> ⭐ its SCOPE stands and the handoff is NOT amended (rule 1).**
 >
 > ⏭ **Batch 56 dispatched — [the EMITTER UNIFICATION](HANDOFF_Batch56_Emitter_Unification.md).**
 > ⭐⭐ **`U-12` made the mixture legal at Stage 2 and nobody told the emitters:** `InstanceEmitter`

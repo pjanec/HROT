@@ -40,22 +40,26 @@
 
 ---
 
-## 2. 🔴🔴 The one gap: writing into a running blackboard
+## 2. ✅ The live write — **all three sub-questions RULED** *(user, `2026-08-14`)*
 
 **`IBlueprintDebugSession` has no write.** Its surface is Attach/Detach · breakpoints · **watches** ·
 entity filter · Continue/StepOver/StepInto. ⚠ **`Watch.WriteValue<T>` is the RUNTIME writing into the
-watch buffer — not the editor writing into the entity.** ⇒ **ruling 7's running half must be built.**
+watch buffer — not the editor writing into the entity.** ⇒ **ruling 7's running half must be built**,
+and now every constraint on it is settled:
 
-📐 **Three sub-questions the coordinator will not answer by guessing:**
-
-| | |
+| | ⭐ **RULED** |
 |---|---|
-| **2a — when?** | a blackboard write mid-tick races the sim. ⚖️ **Lean: queue it and apply at a tick boundary**, the shape `ecb`/command-buffer already uses |
-| **2b — replay?** | ⛔ **A write during REPLAY breaks determinism** — the run diverges from the recording it is replaying. ⚖️ **Lean: SHOW the value in replay (ruling 3 says so) but REFUSE the write, naming the reason.** ⚠ **Ruling 7 says "running"; replay is a different thing wearing the same button** |
-| **2c — cluster?** | ⚠ **This is a distributed sim** — SimHost / IG / ClusterRunner. ⛔ **Does an editor-side write replicate to the authoritative node, or silently change one node's copy?** 📌 **A value that changes locally and nowhere else is worse than a refusal** |
+| **2a — when?** | ⭐⭐ **Queue changes via FDP command buffers.** ✅ **The seam exists:** `IEntityCommandBuffer` / `EntityCommandBuffer` in `Fdp.Core`, with `EntityRepository.SetCommandBufferOverride` and `FlushCommandBuffers` already the playback point. ⇒ ⛔ **no bespoke queue, no mid-tick write** |
+| **2b — replay?** | ⭐⭐ **NO changing value during replay.** ⇒ **show it, refuse the write.** ✅ **Coordinator's lean confirmed** — a write during replay diverges the run from the recording it is replaying |
+| **2c — cluster?** | ⭐⭐ **The concern does not exist. The brain and blackboard live on a SINGLE CGF node (and the editor), and are NEVER replicated in distributed mode.** ⇒ ⛔ **there is no authoritative-copy problem to solve**, and the coordinator's *"changes locally and nowhere else"* worry was **misinformed about the architecture** |
 
-⭐ **Everything else in the ruling can be built while 2a–2c are open** — the read path, the column, the
-tooltip, the StructEdit dialog and the **not-running** write are all unblocked.
+⇒ ⭐ **Nothing in the ruling is blocked any more.**
+
+### ➕ Ruling 5 extended *(same message)*
+
+⭐ **Double-clicking the value cell opens the edit window too** — the three-dot button is an
+*affordance*, not the only route. ⚠ **`BP-207`'s lesson applies: the gesture is fine, but it must be
+DISCOVERABLE** — the three-dot button is what makes the double-click findable, which is why both exist.
 
 ---
 
@@ -96,18 +100,26 @@ AiPrimitive) — those are ABI, and renaming them is a separate, larger change n
 
 ---
 
-## 5. ⚠⚠ Ownership — this is now a CROSS-HOST programme
+## 5. ⭐⭐⭐ Ownership — **RULED: ONE session builds it, for ALL hosts**
 
-⭐ **Ruling 6 makes it explicit: one Details panel for HSM, BTree and Blueprint.**
+> ⭐⭐ **User ruling, `2026-08-14`:** *"cross host it is. one single implem session (the one we are
+> using) will be implementing for all hosts, no other session will implement until this is all done."*
 
-⛔ **`VariablesPanelControl`, `IBlackboardManagedAsset` and `ILiveValueProvider` all live in
-`Hrot.Editor.AiShared` — that is `claude/cross-host-variable-model-3k8cfh`'s territory**, and their
-`E-A` was explicitly scoped to BTree/HSM with the blueprint mapping left **open**.
-
-📐 **Proposed split, for the user to confirm:**
+⛔⛔ **The coordinator's proposed split is OVERRULED and is recorded here only so nobody re-proposes it.**
 
 | | |
 |---|---|
-| **this session (blueprints)** | ⭐ **Batch 56's emitter unification** — pure compiler, no shared surface, nobody's toes |
-| **the cross-host session** | ⭐ **the shared panel, the column, the StructEdit dialog and both write paths** — ⛔ **they own the interfaces all three hosts implement** |
-| ⚠ **must not happen** | two sessions editing `Hrot.Editor.AiShared` in the same window — ⛔ **that is ruling 9's failure mode arriving through the process rather than the code** |
+| ⭐ **`claude/hrot-implementation-j1jvin`** | **builds ALL of it, for HSM, BTree and Blueprint** — including `Hrot.Editor.AiShared` |
+| ⛔ **every other session** | **does not implement until this is done.** ⚠ **Design and questions are fine; code is not** |
+| ⭐ **Why this is the right call, not just a call** | ruling 9 is *"no keeping two implementations for the same concept."* ⛔ **Two sessions building one shared panel is the surest way to produce exactly two implementations** — the constraint would be violated by the process before a line of code disagreed |
+
+⚠ **Recorded in `.claude/CLAUDE.md`** — that file is the only memory shared between sessions, and this
+freeze binds sessions that will never read *this* document.
+
+### ⚠ Consequence for the dispatched Batch 56
+
+📌 **[HANDOFF_Batch56](HANDOFF_Batch56_Emitter_Unification.md) §5 says `Hrot.Editor.AiShared` is
+*"the CROSS-HOST session's territory — do not touch it."* ⛔ **That RATIONALE is superseded by this
+ruling.** ⭐ **Its SCOPE stands unchanged:** Batch 56 is the emitter unification alone, and it has no
+business in `AiShared` either way. ⛔ **The handoff is NOT amended** — rule 1 — and this note is the
+correction.
