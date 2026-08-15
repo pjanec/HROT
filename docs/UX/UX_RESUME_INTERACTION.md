@@ -5,7 +5,7 @@
 
 ## 1. What this session did
 
-Designed **20 of 37** issues (**UXI-35 designed**; **UXI-37** filed, unblocked, re-scoped). Three were consolidated into one API + one acceptance catalogue; the rest
+Designed **21 of 37** issues (**UXI-35 and UXI-37 designed** 2026-08-14). Three were consolidated into one API + one acceptance catalogue; the rest
 have their own feature docs. **64 rulings · 46 corrections**, all contiguous and linked below.
 
 🔒 **NO OPEN DECISIONS.** Rulings **47-64** closed every question this thread had, and added four
