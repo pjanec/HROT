@@ -43,8 +43,8 @@ public static class HealthRegen_9EC49CD9_Bp
         ref var s = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, State>(
             ref global::System.Runtime.InteropServices.MemoryMarshal.GetReference(stateBytes));
         s = default;
-        s.CurrentHealth = 100;
-        s.MaxHealth = 100;
+        s.CurrentHealth = 100F;
+        s.MaxHealth = 100F;
     }
     
     public static void Tick(

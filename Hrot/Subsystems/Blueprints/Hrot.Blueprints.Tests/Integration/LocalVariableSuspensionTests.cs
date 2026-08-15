@@ -338,9 +338,13 @@ public sealed class LocalVariableSuspensionTests
         Assert.True(result.Succeeded, string.Join("; ", result.Diagnostics.Select(d => d.Code)));
 
         var src = result.GeneratedSource ?? "";
-        Assert.Contains("int __loc_Carry = 0;", src);   // declared at the top of the body
-        Assert.DoesNotContain("ws.__loc_", src);        // ⛔ no blackboard slot
-        Assert.DoesNotContain("__loc_Carry;", src.Replace("int __loc_Carry = 0;", ""));
+        // ⭐ BP-247 (Batch 61): a `0` default now yields NO literal at all — `0` is the zeroed value
+        //   for every type, so the local initialises to `default`. ⚠ Strictly better than the old
+        //   `= 0;`: for a struct-typed local the same `0` used to emit `Vector3 x = 0;` — CS0029, in a
+        //   generated file. The emitted local is unchanged in meaning.
+        Assert.Contains("int __loc_Carry = default;", src);   // declared at the top of the body
+        Assert.DoesNotContain("ws.__loc_", src);              // ⛔ no blackboard slot
+        Assert.DoesNotContain("__loc_Carry;", src.Replace("int __loc_Carry = default;", ""));
     }
 
     /// <summary>

@@ -40,7 +40,7 @@ public static class HillAssault2IsAreaQueryResolved_1D3BBCAF_Bp
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
         *dst = default;
-        dst->CachedEqsRequestId = -1;
+        dst->CachedEqsRequestId = -1L;
         dst->CachedTargetGroupHandle = -1;
     }
     

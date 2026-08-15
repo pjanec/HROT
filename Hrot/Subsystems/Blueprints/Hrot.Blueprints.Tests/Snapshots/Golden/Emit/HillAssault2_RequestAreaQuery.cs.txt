@@ -39,7 +39,7 @@ public static class HillAssault2RequestAreaQuery_2F8D984A_Bp
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
         *dst = default;
-        dst->CachedEqsRequestId = -1;
+        dst->CachedEqsRequestId = -1L;
     }
     
     [global::Fbt.Kernel.GeneratedAiPrimitiveAction(bTreeAction: true, bTreeCondition: false, hsmAction: false, hsmGuard: false, blueprintCall: false)]

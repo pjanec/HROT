@@ -154,10 +154,9 @@ internal static class AiPrimitiveEmitter
         // whether working state should have initial values "since it is per-run scratch". It always has —
         // these lines are `InstanceEmitter.EmitInitDefault`'s, over the other list. Reasoning from the
         // NAME instead of the code is what made two kinds look like two concepts for nineteen batches.
+        // ⭐ BP-247 — value-based skip; see InstanceEmitter.EmitInitDefault.
         foreach (var f in asset.StateDeclarations.Where(f =>
-            !string.IsNullOrEmpty(f.DefaultValueCSharp) &&
-            f.DefaultValueCSharp != "0" &&
-            f.DefaultValueCSharp != "default"))
+            !Lowering.DefaultLiteral.IsSkippable(f.DefaultValueCSharp)))
         {
             e.WriteLine($"dst->{f.Name} = {f.DefaultValueCSharp};");
         }

@@ -173,6 +173,15 @@ public static class DiagnosticCodes
     // before, and the same defect.
     public const string BP1673 = "BP1673";  // two asset-scope declarations share a name
 
+    // BP-247 -- a persisted default value that has no C# literal of the declared type.
+    //
+    // ⛔ The alternative was what shipped for the whole programme so far: pass the JSON text through
+    // verbatim and let ROSLYN complain. A float default of `0.5` emitted a `double` literal and came
+    // back as CS0664 naming a generated file the designer has never seen -- the same "diagnostic in
+    // the wrong language" shape as `__var_-1` (BP-228). This says it in the compiler's own language,
+    // against the declaration.
+    public const string BP1674 = "BP1674";  // default value is not a literal of the declared type
+
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch
     public const string BP2002 = "BP2002";  // WhenNode missing required payload

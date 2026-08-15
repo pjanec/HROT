@@ -76,12 +76,11 @@ public sealed class AiPrimitiveStateMetadataTests
             .WithWorkingStateField("Ratio", typeof(float))
             .Build();
         asset.WorkingState.Single(f => f.Name == "Ticks").DefaultValueJson = "42";
-        // ⚠ `1`, not `0.5`: `Stage5:107` assigns `DefaultValueCSharp = DefaultValueJson` VERBATIM, so a
-        //   fractional default emits a bare `0.5` — a C# `double` literal — and the generated assignment
-        //   fails with CS0664. 🔴 A real latent defect (filed separately; no shipped asset has a
-        //   fractional default, which is why it has never fired) and deliberately NOT this batch's.
-        //   An integral literal still exercises the float field end to end.
-        asset.WorkingState.Single(f => f.Name == "Ratio").DefaultValueJson = "1";
+        // ⭐ `0.5` — the value this fixture originally wanted. ⚠ It had to be `1` when S1 was built:
+        //   `Stage5:107` assigned `DefaultValueCSharp` from the JSON VERBATIM, so a fractional default
+        //   emitted a bare `0.5` (a C# `double`) and the generated assignment failed CS0664. That was
+        //   filed as BP-247 and fixed in Batch 61, so the fractional case now reads back for real.
+        asset.WorkingState.Single(f => f.Name == "Ratio").DefaultValueJson = "0.5";
 
         using var fixture = new BlueprintTestFixture(NoAlcCheck);
         fixture.CompileAndLoad(asset, Options());
@@ -101,7 +100,7 @@ public sealed class AiPrimitiveStateMetadataTests
             "the working-state field did not come back at all — StateFields/StateLayout are empty, "
             + "which is exactly the S1 gap: a consumer with no producer.");
         Assert.Equal(42, snapshot.FieldValues["Ticks"]);
-        Assert.Equal(1f, snapshot.FieldValues["Ratio"]);
+        Assert.Equal(0.5f, snapshot.FieldValues["Ratio"]);
     }
 
     /// <summary>

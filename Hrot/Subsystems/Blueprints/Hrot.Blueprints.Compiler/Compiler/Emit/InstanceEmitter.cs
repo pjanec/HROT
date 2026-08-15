@@ -201,10 +201,11 @@ internal static class InstanceEmitter
         // ⭐⭐ Batch 56 — the SILENT half of the defect lives here. An unreferenced wrong-side declaration
         // produced no Roslyn error at all: it simply had no field and no initialiser, so an authored
         // initial value was carried through the JSON, through Stage 5, and then dropped.
+        // ⭐ BP-247 — the skip test is VALUE-based, not text-based. It used to be `!= "0"`, and 45
+        //   shipped `float` fields carry the JSON default `0`, which now renders as `0F`; a text test
+        //   would have started emitting 45 assignments writing a zero over a zero.
         foreach (var v in asset.StateDeclarations.Where(f =>
-            !string.IsNullOrEmpty(f.DefaultValueCSharp) &&
-            f.DefaultValueCSharp != "0" &&
-            f.DefaultValueCSharp != "default"))
+            !Lowering.DefaultLiteral.IsSkippable(f.DefaultValueCSharp)))
         {
             e.WriteLine($"s.{v.Name} = {v.DefaultValueCSharp};");
         }

@@ -77,10 +77,10 @@ internal static class Stage5_Schedule
             DeclaredMacroCount = asset.Graphs.Count(g => g.Kind == GraphKind.Macro),
             Intent        = asset.Primitive?.Intent,
             Hostings      = (IReadOnlyList<AiPrimitiveHosting>?)asset.Primitive?.Hostings ?? Array.Empty<AiPrimitiveHosting>(),
-            Parameters    = BuildIrFields(asset.Declarations.Of(DeclarationKind.Parameter),    typedAsset, asset.ParameterOrder),
-            WorkingState  = BuildIrFields(asset.Declarations.Of(DeclarationKind.WorkingState), typedAsset, asset.WorkingStateOrder),
-            Variables     = BuildIrFields(asset.Declarations.Of(DeclarationKind.Variable),     typedAsset, asset.VariableOrder),
-            CustomEvents  = BuildCustomEvents(asset.CustomEvents, typedAsset),
+            Parameters    = BuildIrFields(asset.Declarations.Of(DeclarationKind.Parameter),    typedAsset, asset.ParameterOrder,     ctx),
+            WorkingState  = BuildIrFields(asset.Declarations.Of(DeclarationKind.WorkingState), typedAsset, asset.WorkingStateOrder, ctx),
+            Variables     = BuildIrFields(asset.Declarations.Of(DeclarationKind.Variable),     typedAsset, asset.VariableOrder,      ctx),
+            CustomEvents  = BuildCustomEvents(asset.CustomEvents, typedAsset, ctx),
             CallablePeerBlueprintIds = BuildPeerIds(asset.CallablePeers),
             IsWorldSingleton = asset.IsWorldSingleton,
             Graphs        = irGraphs,
@@ -93,22 +93,48 @@ internal static class Stage5_Schedule
     /// were different types. ⭐ <c>BlueprintDeclaration</c> is the type they now share.
     /// </summary>
     private static IReadOnlyList<IrField> BuildIrFields(
-        IEnumerable<BlueprintDeclaration> decls, TypedAsset typed, List<Guid>? order)
+        IEnumerable<BlueprintDeclaration> decls, TypedAsset typed, List<Guid>? order,
+        ValidationContext ctx)
     {
         var result = new List<IrField>();
         foreach (var d in decls)
         {
             typed.FieldTypes.TryGetValue(d.Id, out var irType);
+            var type = irType ?? UnknownType;
             result.Add(new IrField
             {
                 Id = d.Id,
                 Name = d.Name,
-                Type = irType ?? UnknownType,
-                DefaultValueCSharp = d.DefaultValueJson ?? "",
+                Type = type,
+                // ⭐⭐ BP-247 — the default becomes a C#-TYPED literal here. ⛔ This used to be
+                //    `d.DefaultValueJson ?? ""`, the JSON text verbatim, so a `float` default of `0.5`
+                //    emitted a `double` literal and Roslyn refused it with CS0664 naming a generated
+                //    file. ⭐ A literal the converter cannot type is REFUSED (BP1674) rather than passed
+                //    through — the refusal is the whole point.
+                DefaultValueCSharp = ConvertDefault(type, d, ctx),
                 Comment = d.Comment,
             });
         }
         return GetOrdered(result, order);
+    }
+
+    /// <summary>
+    /// ⭐ One conversion, one diagnostic — shared by the asset-level lists, the graph locals and the
+    /// graph-parameter path, so a local's default literal cannot drift from a variable's.
+    /// </summary>
+    internal static string ConvertDefault(IrTypeRef type, BlueprintDeclaration d, ValidationContext ctx)
+        => ConvertDefault(type, d.Name, d.DefaultValueJson, ctx);
+
+    internal static string ConvertDefault(
+        IrTypeRef type, string name, string? json, ValidationContext ctx)
+    {
+        if (Lowering.DefaultLiteral.TryToCSharp(type, json, out string csharp, out string reason))
+            return csharp;
+
+        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1674,
+            $"Default value '{json}' for '{name}' is not a valid {type.FullName} literal — {reason}.",
+            Guid.Empty));
+        return "";
     }
 
     /// <summary>
@@ -117,12 +143,12 @@ internal static class Stage5_Schedule
     /// Only the index space differs, and that is deliberate.
     /// </summary>
     internal static IReadOnlyList<IrField> BuildLocalIrFields(
-        IEnumerable<VariableDecl> decls, TypedAsset typed)
+        IEnumerable<VariableDecl> decls, TypedAsset typed, ValidationContext ctx)
         => BuildIrFields(
-            decls.Select(v => BlueprintDeclaration.For(DeclarationKind.Variable, v)), typed, order: null);
+            decls.Select(v => BlueprintDeclaration.For(DeclarationKind.Variable, v)), typed, order: null, ctx);
 
     private static IReadOnlyList<IrCustomEvent> BuildCustomEvents(
-        IEnumerable<CustomEventDecl> decls, TypedAsset typed)
+        IEnumerable<CustomEventDecl> decls, TypedAsset typed, ValidationContext ctx)
     {
         var result = new List<IrCustomEvent>();
         foreach (var d in decls)
@@ -133,7 +159,7 @@ internal static class Stage5_Schedule
                 Name = d.Name,
                 // ⚠ CustomEventDecl.Parameters is a DIFFERENT Parameters — an event signature, not
                 //   an asset declaration list. Wrapped, not projected through asset.Declarations.
-                Parameters = BuildIrFields(d.Parameters.Select(BlueprintDeclaration.For), typed, null),
+                Parameters = BuildIrFields(d.Parameters.Select(BlueprintDeclaration.For), typed, null, ctx),
             });
         }
         return result;
@@ -4525,7 +4551,7 @@ internal sealed class GraphScheduler
 
         // ⭐ The SAME builder the asset-level lists use, so a local's type resolution, default and
         // ordering cannot drift from a variable's. Only the index space differs, and that is the point.
-        return Stage5_Schedule.BuildLocalIrFields(_graph.LocalVariables, _typed);
+        return Stage5_Schedule.BuildLocalIrFields(_graph.LocalVariables, _typed, _ctx);
     }
 
     /// <summary>
@@ -4678,7 +4704,8 @@ internal sealed class GraphScheduler
                 Id   = d.Id,
                 Name = d.Name,
                 Type = irType,
-                DefaultValueCSharp = d.DefaultValueJson ?? "",
+                // ⭐ BP-247 — same converter as the asset-level lists (see BuildIrFields).
+                DefaultValueCSharp = Stage5_Schedule.ConvertDefault(irType, d.Name, d.DefaultValueJson, _ctx),
                 Comment = d.Comment,
             });
         }
