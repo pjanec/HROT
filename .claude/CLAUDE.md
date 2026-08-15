@@ -90,6 +90,39 @@ by construction** instead of true by convention.
    collapses the duplicate mechanism (ruling 9). Deletion is only right when the design record says the
    thing is dead, or nothing claims it.
 
+### ⭐⭐ Where to look, in order *(derived by sweeping the corpus, `2026-08-15`)*
+
+| # | look here | it tells you |
+|---|---|---|
+| ① | the programme's **`*-DESIGN.md` / `*_Detailed_Design.md`** | ⭐ **the INTENT** — what the thing is for |
+| ② | its **`reports/*-REPORT.md`**, especially the *notes / debt* tails | ⭐⭐ **the DEBT** — `DEBT-*` ids are filed here and nowhere else |
+| ③ | **`TASK-DETAIL.md`** | the **user decision** that authorised it, usually dated |
+| ⛔ | `batches/*-INSTRUCTIONS.md`, `reviews/*` | **least useful — they restate the design** |
+
+📌 **Three findings this programme derived the hard way were already written down:** the standalone
+`BTreeTick` hosting path (`SLICE1-DESIGN.md:82`) · the netstandard2.0/net8.0 wall duplicating whole
+algorithms (**`DEBT-AIB-012`**, filed `2026-06`) · the `MarshalFromBytes` struct arm being *designed in
+and never built* (`_DONE/blueprints-1/TASK-DETAIL.md:1840`).
+
+## ⛔⛔ WHO DESIGNS — **the coordinator, never the implementation session** *(user ruling, `2026-08-15`)*
+
+> ⭐⭐⭐ **User, verbatim:** *"you are doing the designs, not them. if you need info, do your own subagent
+> scan."*
+
+📌 **The case that produced this rule:** the coordinator put a `.dev/` design-record sweep into a batch
+as *"item one"*. ⛔ **That is research feeding a design decision — coordinator work.** ⭐ **The
+implementation session builds; it does not source the design it builds from.**
+
+| ⭐ **coordinator** | ⛔ **implementation session** |
+|---|---|
+| sweeps `.dev/`, reads the design corpus, **runs its own subagent scans** | writes code, tests, gates |
+| decides what the design IS, and revises the plan | reports what the code MEASURES |
+| takes contradictions to the user | ⭐ **STOPs and reports** when a premise fails |
+
+⭐ **Subagents are the coordinator's instrument for this** — parallel read-only `Explore` agents over
+`.dev/`, one per topic, each asked for *record → confirms/refines/contradicts → what it did not cover*.
+⛔ **Do not spend an implementation batch on a question a subagent can answer in one pass.**
+
 ## Assistant interaction preferences
 
 - **Ask questions in plain chat text, never with the question/multiple-choice widget** (do not use the `AskUserQuestion` tool). List options as normal prose the user can reply to.
