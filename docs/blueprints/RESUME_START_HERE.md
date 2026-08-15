@@ -979,6 +979,55 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > ⛔ **`W2` adds an asset whose purpose is to make the gate RED and `W4` is what makes it green** ⇒
 > **splitting them merges a knowingly-red suite.** ⭐ **They are one batch.**
 >
+> ⭐⭐⭐ **BATCH 60 + 61 items 1-2 VERIFIED AND MERGED at `f5c1dd7c5`** — ⭐⭐ **AND THE STOP RULE PAID
+> FOR ITSELF ON ITS FIRST OUTING.**
+> ✅ **Build 0/69 · Blueprints 3615/3605/0/10 · AiShared 1216 · BTree 612 · Breakpoints 130 ·
+> Generators 196 · NodeEdit 208/131.** ⭐ **Coordinator-verified independently: golden Tier 1 has ZERO
+> modified files — its one change is an ADDITION (`LayoutAlignmentWitness`, the 43rd asset); no existing
+> `StructureHash` moved; `persistence-shape.txt` gains exactly ONE line with ZERO removals.**
+> ⭐⭐ **`W4` landed BETTER than dispatched, and the deviation is argued:** they did **not** split
+> alignment-reliability out of `SizeReliable` — ⭐⭐⭐ **because `[FieldOffset]` makes the prediction
+> SELF-FULFILLING: once the offset is DECLARED rather than predicted, a good-vs-bad prediction has no
+> consumer left.** ⇒ **the instruction improved the prediction; they removed the need to predict.**
+> ⚠ **And Explicit is gated on sizes being EXACT** — under Sequential an under-estimated size pushes
+> neighbours down and descriptors are recovered at runtime; **under Explicit the oversized field would
+> OVERLAP its neighbour.**
+> ⭐ **`BP-247`'s correction came from the suite, not from reasoning:** a `0` means *"leave it
+> zero-initialised"* for EVERY type, and the first draft special-cased only the no-literal-form types.
+> ⭐ **They also caught their own invalid probe** — `if (true) return …` failed as `CS0162`-as-error, so
+> the run that reported green had used a stale binary; re-probed with a condition Roslyn cannot fold.
+>
+> 🔴🔴🔴 **`BP-251` — THE `W5` STOP FOUND SOMETHING BIGGER THAN `W5`.** ⭐ **`W5` as dispatched was
+> ALREADY BUILT** (`BTreeJsonGenerator:186-206` → `WouldOverflow` + `BTREE0002`) ⇒ ⛔ **the premise
+> *"each binding is checked alone"* was wrong.** ⭐⭐ **The real gap:** `AiPrimitiveEmitter:305/:344`
+> address the DTO as **`BehaviorParameters[paramIndex * Unsafe.SizeOf<Params>()]` with NOTHING bounding
+> the product**, while `FDP_001` bounds **one** DTO at 100 bytes — ⛔ **only the `paramIndex == 0` case.**
+> ⭐⭐⭐ **Coordinator-verified what `paramIndex` IS: the BTree NODE PAYLOAD INDEX** (`NodeLogicDelegate:11`,
+> `NodeDeactivatorDelegate:14`) ⇒ **the multiplier is HOW MANY TIMES THE TREE BINDS THAT PRIMITIVE.**
+> **Largest shipped `Params` is 40 B** ⇒ **the third node reads bytes 80..120 — twenty bytes into
+> `SoftAdvice` and `Interrupt`.** ⛔ **Exactly the corruption `FDP_001`'s own message claims to prevent.**
+> ⭐ **Also: the 100-byte constant is written down FOUR times, not two** (+ a bare `100` in
+> `BlueprintVariablesWindow:414`) — **the mirrors are FORCED by the netstandard2.0 wall, so the DRIFT is
+> the defect**, and it is now pinned by a test plus a second test tying it to the buffer's declared length.
+>
+> ⚠⚠ **A RACE IN `Fdp.Toolkits.Tests`, AND THE COORDINATOR ALMOST MIS-RECORDED IT.**
+> `StatelessGizmoRegistryTests.SC_GZ022_2` — **three consecutive runs of the IDENTICAL binary gave
+> 1 · 1 · 2 failures** ⇒ ⛔ **not order-dependence, a RACE**; it passes in isolation and their diff
+> touches nothing in `Fdp.Toolkits/` or gizmos. ⭐⭐ **I measured this suite green at `bc79be664` in ONE
+> run — and with a race, one green is NOT evidence of "pre-existing."** ⇒ ⭐ **the honest claim is: a
+> race in an assembly their diff does not touch; races do not respect commit boundaries.**
+> ⚠ **FIFTH order-dependent/racy result in this programme** — it undermines every gate.
+>
+> ⏭ **Batch 62 dispatched — [`BP-251`, then the rest of 61](HANDOFF_Batch62_Param_Slot_Bound.md).**
+> ⭐⭐ **Ordered by DEPENDENCY, not severity: step 0 measures `BP-251` reachability** *(cheap, depends on
+> nothing, may change the batch)*, **then `S2`** — ⭐⭐⭐ **moved AHEAD of the fix because `BP-251`'s gate
+> needs the size oracle `S2` builds** — then `BP-251`, then `W6`/`W7`, then the race.
+> ⭐⭐⭐ **Where the bound goes, and the precedent is THEIR OWN:** Batch 58 became an analyzer because
+> *"a generator cannot see another generator's output"* — ⛔ **`BP-251` is that shape exactly** (compiler
+> knows `sizeof(Params)`, BTree generator knows the topology) ⇒ ⚖️ **an analyzer over the FINAL
+> compilation.** ⚠ **A runtime bounds check alone is NOT sufficient — it turns silent corruption into a
+> late crash.**
+>
 > ⭐⭐⭐ **BATCH SIZE RULING `2026-08-15` (user): PUT MORE IN ONE BATCH** — *"it saves time, implem session
 > can run longer autonomously."* ⇒ ⭐ **the limit is INTERACTION RISK, not item count.** ⭐⭐ **The
 > mechanism that makes it safe is a per-item STOP CONDITION** — *"four merged items plus a question beats
