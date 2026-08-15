@@ -56,6 +56,40 @@ mcp_codebase-memo_get_architecture({ "project": "<display_name>" })
 - `manage_adr(action)` — CRUD for Architecture Decision Records
 - `ingest_traces(traces)` — Ingest runtime traces to validate HTTP edges
 
+## ⛔⛔ UNREFERENCED IS NOT UNINTENTIONAL — **search `.dev/` before proposing any deletion** *(user ruling, `2026-08-15`)*
+
+> ⭐⭐⭐ **User, verbatim:** *"what is not used does not mean it is existing without reason — a design doc
+> gives answers."*
+
+📌 **The case that produced this rule.** `CSharpEmitter` emits a standalone `BTreeTick@0` thunk
+projecting at `paramIndex * sizeof(Params)` with no bound. Measured: **registered 20+ times, bound by
+nothing.** ⛔ **The coordinator's lean was DELETE**, on the precedent of `BP-248`/`W3`'s counter stubs.
+🔴 **Wrong.** The design record answers it directly:
+
+| where | what it says |
+|---|---|
+| **`.dev/btree-ai-action-binding/SLICE1-DESIGN.md:82`** | ⭐⭐ **names the expression verbatim**: *"the BTree generator **ignores** the blueprint's standalone `BTreeTick` (with its `paramIndex*sizeof` math)"* — architect ruling *"BTree owns layout, blueprint provides `TickCore`"* |
+| **`.dev/btree-ai-action-binding/SLICE2-DESIGN.md` §6.2** | *"(The blueprint's own `BTreeTick`/`Memory+8` path stays the **standalone** blueprint-as-behavior hosting.)"* |
+
+⇒ ⭐⭐ **It is an opt-in capability** (`AiPrimitiveHosting.BTreeAction`/`BTreeCondition`), **not a
+vestige.** ⛔ **Deleting it removes a capability, not a mistake.** ✅ **The right answer was ROUTE, not
+delete** — project at a literal `0` in the same shape the bridge uses, which makes the `@0` key **true
+by construction** instead of true by convention.
+
+### ⭐ The rules that follow
+
+1. ⛔⛔ **Before proposing to delete anything registered / emitted / exported but unreferenced, search
+   `.dev/` for a design record.** 🔴 **There are ~2900 markdown files there and this programme had never
+   searched them** — the whole design corpus sat outside every session's reading.
+2. ⭐⭐ **"Unreachable" and "dangerous" are TWO properties — do not collapse them.** `W3`'s stubs were
+   unreachable **and harmful** *(last-writer-wins overwrite)* ⇒ delete. This one was **dormant**
+   *(a unique key that overwrites nothing)* ⇒ route. ⚠ **The precedent applied to the wrong half.**
+3. ⭐ **A grep over assets/call sites cannot see intent.** It answers *"is it used?"*, never *"is it
+   meant to exist?"* ⇒ **the second question has a different source, and that source is `.dev/`.**
+4. ⭐ **When in doubt, prefer ROUTING to DELETING** — routing preserves the capability and still
+   collapses the duplicate mechanism (ruling 9). Deletion is only right when the design record says the
+   thing is dead, or nothing claims it.
+
 ## Assistant interaction preferences
 
 - **Ask questions in plain chat text, never with the question/multiple-choice widget** (do not use the `AskUserQuestion` tool). List options as normal prose the user can reply to.

@@ -979,6 +979,44 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > ⛔ **`W2` adds an asset whose purpose is to make the gate RED and `W4` is what makes it green** ⇒
 > **splitting them merges a knowingly-red suite.** ⭐ **They are one batch.**
 >
+> ⭐⭐⭐⭐ **BATCH 63 VERIFIED AND MERGED at `9edf13fdf` — AND IT PRODUCED THE MOST IMPORTANT PROCESS
+> LESSON OF THE PROGRAMME.** ✅ **All eight gates coordinator-run, green:** build 0/69 · Blueprints
+> 3618/3608/0/10 · AiShared 1216 · BTree 612 · Breakpoints 130 · Generators 196 · Toolkits 1942 ·
+> NodeEdit 208/131. ⭐ **Verified independently: golden Tier 1 and `persistence-shape.txt` UNTOUCHED
+> (0 files), and exactly 30 `paramIndex *` projections swapped.**
+>
+> ⛔⛔⛔ **USER RULING `2026-08-15`, VERBATIM: *"what is not used does not mean it is existing without
+> reason — a design doc gives answers."*** 📌 **Now a binding section in `.claude/CLAUDE.md`.**
+> ⛔ **My lean was DELETE. They ROUTED, and they were right** — because they went and found the design
+> record I never looked for:
+> ⭐⭐ **`.dev/btree-ai-action-binding/SLICE1-DESIGN.md:82` NAMES THE EXPRESSION VERBATIM** — *"the BTree
+> generator **ignores** the blueprint's standalone `BTreeTick` (with its `paramIndex*sizeof` math)"*,
+> under the architect ruling *"BTree owns layout, blueprint provides `TickCore`"*; and
+> **`SLICE2-DESIGN.md` §6.2** — *"the blueprint's own `BTreeTick`/`Memory+8` path stays the STANDALONE
+> blueprint-as-behavior hosting."* ⇒ ⭐ **an opt-in capability (`AiPrimitiveHosting.BTreeAction`/
+> `BTreeCondition`), not a vestige. Deleting it removes a capability, not a mistake.**
+> ⭐⭐ **The distinction I collapsed:** `W3`'s stubs were **unreachable AND HARMFUL** *(last-writer-wins
+> overwrite)* ⇒ delete; this was **DORMANT** *(a unique key overwriting nothing)* ⇒ route.
+> ⛔ **"Unreachable" and "dangerous" are TWO properties. I applied the precedent to the wrong half.**
+> ⭐⭐⭐ **Their `@0` insight closes it:** standalone hosting IS the single-method case, so `@0` was true
+> for the case the thunk exists for and a lie only when bound elsewhere — **projecting at a literal `0`
+> makes the key TRUE BY CONSTRUCTION.** ⭐ **That is `W1`'s third rail seen from the other end: the rail
+> states the invariant, the routing removes the way to violate it.**
+> 🔴🔴🔴 **THE SYSTEMIC FINDING: there are ~2900 markdown files under `.dev/` and this programme has
+> NEVER READ THEM.** ⛔ **Every design decision in the remaining plan was derived from CODE ALONE.**
+> ⭐ **Coordinator-grepped already: `.dev/` holds records for `S2` (curated-struct registration /
+> `StructSizeResolver`), for `W6` (`SharedAiCondition`), and for the Track C panels
+> (`Blackboard_Authoring_Detailed_Design.md`).**
+> ⚠ **They also flagged my dispatch expectation as wrong:** I predicted every asset would LOSE a
+> registration line; **under routing no registration is lost** — 30 projections change shape instead.
+>
+> ⏭ **Batch 64 dispatched — [read the design record FIRST](HANDOFF_Batch64_Design_Record_Sweep.md).**
+> ⭐⭐⭐ **Item ONE is a `.dev/` SWEEP of the REMAINING plan** *(`S2`–`S5`, Track C, `W8`–`W12`)*, reported
+> as **item → record → confirms / refines / CONTRADICTS**, ⛔ **with a STOP-and-report if any record
+> contradicts a dispatched design.** ⚠ **Timeboxed, and an honest "I did not cover W" is the
+> deliverable — a claim of completeness is not.** ⭐ **Then `S2` (pointers supplied), `W6`/`W7`
+> (pointers supplied), the race.**
+>
 > ⭐⭐⭐ **BATCH 62 item 0 MERGED at `665bb29b6` — `BP-251` IS NOT LIVE, AND IT IS `W13`.**
 > *(docs-only diff — ⭐ **no gate run, and that is stated rather than implied.**)*
 > ✅ **NOT LIVE.** ⭐ **Two registration paths reach one `ActionRegistry`:** the **bridge lambda**
