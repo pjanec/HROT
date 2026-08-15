@@ -1,6 +1,6 @@
 # HANDOFF — Batch 61: ⭐⭐⭐ **the rest of Phase A — five items, one run**
 
-> 📌 **Dispatched at `<stamped below>`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
+> 📌 **Dispatched at `518c95fb2`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
 > ⭐⭐ **RUN BATCH 60 THEN THIS, BACK TO BACK. Do not return in between.**
 > ⭐ **User ruling `2026-08-15`: bigger batches, longer autonomous runs.** ⇒ **five items here, ordered,
 > each with its own gate and its own STOP condition.**
