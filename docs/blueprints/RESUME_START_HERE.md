@@ -706,6 +706,18 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > ⭐ **The write primitive already exists: `IEntityCommandBuffer.SetComponentRaw(entity, typeId, ptr,
 > size)`**, and the interface already knows blackboards are components (`AddEmptyComponent`:
 > *"large components like blackboards"*).
+> ⭐⭐⭐ **RULING 14 — the ECB needs a SURGICAL FIELD WRITE, and the user's case is stronger than they
+> put it.** ⛔ **Every ECB write is whole-component** (`grep offset` over `EntityCommandBuffer.cs`
+> returns nothing) ⇒ queueing one means read-now-write-later, clobbering whatever any system changed
+> in between. 🔴🔴 **AND IT WOULD NOT FIT: `EntityCommandBuffer:35` — `MaxComponentSize = 1024`**, with
+> the interface's own words that `AddEmptyComponent` exists to bypass that limit *"for large
+> components like blackboards"* ⇒ ⭐⭐ **a whole-component blackboard write CANNOT go through the ECB at
+> all. The surgical command is the only thing that works, not merely the safer option.**
+> ✅ **And the read side already does it** — `BlueprintDebugSession:1308` slices `8 + field.OffsetBytes`
+> by `field.SizeBytes` ⇒ **the write is the mirror of shipped code.** ⚠ **That `+8` header must be
+> owned in ONE place**, and an out-of-range offset is **memory corruption, not a wrong value** ⇒
+> bounds-check and fail loudly. 📌 **`Fdp.Core`, engine-wide — keep it additive: one command.**
+>
 > ⭐⭐ **Ruling 13: the Watch panel MUST allow value changes and MUST show NOTHING before the run** —
 > ⛔ **neither is true today** ⇒ both planned as **59b**. ⚠ **And the Details/Watch asymmetry is
 > DELIBERATE** — Details shows the editable initial value when stopped, Watch shows nothing; ⛔ **do

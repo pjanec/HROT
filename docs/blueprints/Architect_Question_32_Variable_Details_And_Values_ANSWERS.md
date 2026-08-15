@@ -94,6 +94,34 @@ would have been a SECOND write path, which is ruling 9's prohibition.**
 | ⭐ **The freeze signal** | `IEngineDebugTimeController.IsPausedByDebugger` — `MasterSyncTimeControllerAdapter:29` maps it to `TimeMode.Deterministic`; `CgfSubsystem:830` to `_bpManager.IsPaused` |
 | 📐 **Make it a GATE, not an assumption** | ⛔ **Do not assume "next tick" is fast enough — MEASURE it.** ⭐ **Gate: with the sim frozen on a breakpoint, a value change is visible in BOTH panels within one frame.** ⚠ **If it is not, that is a finding, and the fix is in the loop — not a second write path** |
 
+### ⭐⭐⭐ Ruling 14 — **the command buffer needs a SURGICAL field write** *(user, `2026-08-15`)*
+
+> ⭐⭐ *"the command buffer might need a special 'change concrete variable in a concrete blackboard
+> component' because before the command applies another part might have changed other parts of the
+> blackboard. it can not be full component overwrite only, but chirurgical change."*
+
+⛔⛔ **Correct, and MEASURED — and the case is stronger than stated.**
+
+| | |
+|---|---|
+| 🔴 **1 — the lost-update race the user named** | ⛔ **Every ECB write is WHOLE-COMPONENT:** `SetComponent<T>` · `SetComponentRaw(entity, typeId, ptr, size)` · `SetManagedComponentRaw`. ⭐ **`grep offset` over `EntityCommandBuffer.cs` returns NOTHING.** ⇒ queueing a whole-blackboard write means **reading it now and writing it back later**, clobbering every change any system made in between |
+| 🔴🔴 **2 — and it would not even FIT** | ⭐⭐ **`EntityCommandBuffer:35` — `private const int MaxComponentSize = 1024; // Sanity check`**, and the interface's own words on `AddEmptyComponent`: *"Bypasses the 1024-byte ECB payload limit **for large components like blackboards**."* ⇒ ⛔ **a whole-component blackboard write cannot go through the ECB at all.** ⭐ **The surgical command is not the safer option — it is the ONLY one that works** |
+| ✅ **3 — the read side already does exactly this** | `BlueprintDebugSession:1308-1312` — `int start = 8 + field.OffsetBytes; … bytes.Slice(start, field.SizeBytes)`. ⭐ **Offsets and sizes are already known and already used surgically to READ.** ⇒ **the write is the mirror of code that ships** |
+
+📐 **The shape, for the implementation session to size:**
+
+```
+void SetComponentFieldRaw(Entity entity, int typeId, int byteOffset, void* src, int size)
+```
+
+| | |
+|---|---|
+| ⭐ **Offset base** | ⚠ **the read path uses `8 + OffsetBytes`** — there is an **8-byte header** before the fields *(cf. `InitDefaultWorkingState((WorkingState*)(memory + 8))`)*. ⛔ **Whoever computes the offset must own that `+8` in exactly one place, not two** |
+| 🔴 **Bounds** | ⛔ **an out-of-range offset/size is MEMORY CORRUPTION, not a wrong value.** ⭐ **Bounds-check against the registered component size and fail LOUDLY** |
+| **Composition** | ⭐ **N queued field writes to one component must all land, in order** — that is the property a whole-component write destroys |
+| ⚠ **The residual race, stated honestly** | ⛔ **If a system writes the SAME field between the dialog opening and playback, last-writer-wins on that field.** ⭐ **That is inherent and acceptable** — the goal is not to clobber the **other** fields |
+| ⚠ **Blast radius** | ⛔ **This is `Fdp.Core` — engine-level, every host, every subsystem.** 📌 **The smallest possible addition: one command, additive, no existing behaviour touched** |
+
 ### 🔴 Ruling 13 — **the Watch panel must EDIT, and must show nothing before the run** *(user, `2026-08-15`)*
 
 > ⭐⭐ *"watch panel MUST allow for value changes (and show nothing when exercise not running yet) —
@@ -163,7 +191,7 @@ AiPrimitive) — those are ABI, and renaming them is a separate, larger change n
 | **58** | the Value column: mode switch, read-only, pretty-printed tooltip (rulings 3-4) + blueprint's `ILiveValueProvider` and `UpdateVariableDefaultValueJson` | needs 57's host |
 | **59** | the StructEdit dialog — ⭐ **three-dot button AND double-click** (rulings 5, 10) + the **not-running** write (ruling 7, half) | needs 58's column |
 | ⭐ **59b** | 🔴 **the Watch panel: make `HandlePinValueChanged` real · EDITING through the same dialog · show NOTHING before the run** (rulings 11, 13) | ⛔ **ruling 12's immediacy runs through this handler** |
-| **59c** | the **running** write — `SetComponentRaw` via the command buffer, ⭐ **gated on "visible in BOTH panels within one frame while frozen"** (rulings 2a, 12) | ✅ **unblocked — no open questions left** |
+| ⭐⭐ **59c** | 🔴 **the ECB SURGICAL FIELD WRITE** (ruling 14) — `Fdp.Core`, additive, bounds-checked — **then** the running write on top of it, ⭐ **gated on "visible in BOTH panels within one frame while frozen"** (rulings 2a, 12) | ⛔ **the whole-component route is not merely unsafe, it exceeds `MaxComponentSize` and cannot work** |
 | **60** | `U-16` — retire `BlueprintVariablesWindow` (ruling 9) | ⛔ **only after Details is proven**, or there is no editing surface at all |
 
 
