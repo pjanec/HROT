@@ -735,6 +735,12 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > ⭐ **The Details chameleon is already modular** — `DrawerRegistry`/`IStructEditDrawer<T>` + `BP-205`'s
 > panel-level id scope ⇒ `U-6` is **one more provider**, not a `switch`.
 >
+> ⭐⭐⭐ **THE DESIGN IS CONSOLIDATED — 📄 [DESIGN_Variable_Details_And_Live_Values.md](DESIGN_Variable_Details_And_Live_Values.md)**
+> *(+ [the access-stack SVG](DESIGN_Variable_Access_Stack.svg))*. ⭐ **That document is what gets built;**
+> `Q32_…_ANSWERS` keeps the derivations and the coordinator's corrected errors.
+> ⭐⭐⭐ **The rule the whole design turns on: GENERATE THE DATA · HAND-WRITE ONE GENERIC ACCESSOR ·
+> NEVER GENERATE PER-VARIABLE CODE** — which is the convention already in the repo, made explicit.
+>
 > ⭐⭐⭐ **USER-DEFINED STRUCTS — the user is RIGHT and the coordinator's "18 closed types" was too
 > small.** 🔴🔴 **Arbitrary user structs are NOT supported today:** `StaticTypeRegistry:66-81` hardcodes
 > **THREE** (`MemberSlotList` 96 · `WaveState` 104 · `HillAttackSharedState` 136) with sizes **computed
