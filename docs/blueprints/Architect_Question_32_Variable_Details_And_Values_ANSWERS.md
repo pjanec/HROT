@@ -374,6 +374,62 @@ arms.** ⭐ **`EditorOfferableTypeIds` is exactly 18 and CLOSED**, so:
 > years ago, and it closes `BP-01` and `U-8`'s promise (*"every offered type compiles"*) with one rail
 > — now extended to *"and every offered type can be shown and edited."***
 
+## 2.6 ⭐⭐⭐ **User-defined structs** — the user is right, and the gap is REGISTRATION, not accessors
+
+> **User:** *"we need to support any user defined structs not just hardcoded 11 types. with correct
+> layout only the compiler knows. still no need for generated accessors in a variable registry?"*
+
+### 🔴🔴 First, the uncomfortable fact: **arbitrary user structs are NOT supported today**
+
+```csharp
+// StaticTypeRegistry:66-81 — verbatim
+// Curated blittable structs used as Blueprint WorkingState vars (reflection-free compiler ->
+// FQN + size declared here …). MemberSlotList … int Count (4) + 4 pad + long[8] (64) + byte[8]x3 (24) = 96
+// (A general curated-struct registration mechanism -- vs. hardcoding each here -- is FUTURE WORK …)
+["…MemberSlotList"]          = Unmanaged("…", 96),
+["…WaveState"]               = Unmanaged("…", 104),   // "MemberSlotList (96) + 2x ushort (4) -> 8-aligned = 104"
+["…HillAttackSharedState"]   = Unmanaged("…", 136),
+```
+
+⛔⛔ **THREE structs, hardcoded, with sizes computed BY HAND IN A COMMENT.** ⭐ **The file names the gap
+itself** — *"a general curated-struct registration mechanism … is future work."* ⇒ **the user's premise
+is correct and the coordinator's *"18 closed types"* framing was too small.**
+
+### ⭐⭐⭐ And *"only the compiler knows"* — the compiler **doesn't** know. It emits code that ASKS.
+
+```csharp
+// CSharpEmitter:412-427 — the escape hatch, already shipping
+bool layoutFromRuntime = asset.Variables.Any(f => !f.Type.SizeReliable);
+string offset = layoutFromRuntime
+    ? $"(int)Marshal.OffsetOf<{className}.State>(\"{f.Name}\")"   // ⭐ ask the CLR at runtime
+    : f.Offset.ToString();
+```
+
+⭐⭐ **The generator is `netstandard2.0` and cannot load the user's assembly — so it EMITS C# that
+resolves the layout where the type IS loaded.** ⇒ ⭐⭐⭐ **The user's instinct — *"it needs compiled
+code"* — is CORRECT AND ALREADY REALISED. It is just compiled code for LAYOUT, not for accessors.**
+
+### ⚖️ So: still no generated accessors — but **yes** to generated layout registration
+
+| the problem | who solves it | generated? |
+|---|---|---|
+| **A · what size/offset does this user struct occupy in `State`?** | ⛔ **the gap.** Today: 3 hardcoded entries + the `!SizeReliable` runtime hatch | ⭐⭐ **YES — emit `Unsafe.SizeOf<TheUserStruct>()` / `Marshal.OffsetOf<State>(name)`.** ⭐ **Resolved by Roslyn at build time, so the reflection-free generator never needs to reflect** ⇒ **this IS the *"general registration mechanism"* the file calls future work** |
+| **B · how do I turn those bytes into a value and back?** | ⭐ **the CLR, at runtime, where the type IS loaded** — `Marshal.PtrToStructure` / `StructureToPtr`, and StructEdit already edits arbitrary structs by reflection (`ComponentReflector:187` `Marshal.SizeOf(type)`, `:469` `type.GetFields(...)`) | ⛔ **NO. One generic arm covers every blittable struct** — ⭐ **and it replaces the 11-type if-chain AND fixes `BP-01`'s seven missing types AND supports user structs, all at once** |
+
+⇒ ⭐⭐ **The answer to *"still no generated accessors?"* is: correct, none — but the thing you are
+sensing IS missing, and it is A, not B.** ⛔ **A generated `SetWaveState(WaveState v)` would not help B
+(the panel still holds only a `Type`) and would not fix A (the size still has to come from somewhere).**
+
+### 🔴 The danger this exposes — hand-computed sizes are the `Vector3` defect waiting
+
+⚠ **`WaveState = 104` was computed by a human in a comment.** ⭐ **The cross-host review already found
+this class:** `FieldLayout.TypeAlignment` gives `Vector3` (12 B) **align 8** while the **CLR packs it at
+4** ⇒ a size/alignment the compiler believes and the runtime does not.
+⇒ ⭐⭐⭐ **The rail is the one that session already made *step 3a*: assert at runtime that
+`Marshal.OffsetOf<State>(name) == descriptor.OffsetBytes` for every field of every corpus asset.**
+⛔ **Golden Tier 1 CANNOT catch it — it records the COMPUTED offset**, so both sides agree while the
+real field moves. 📌 **That gate belongs with this work, not after it.**
+
 ### 🔴 Ruling 13 — **the Watch panel must EDIT, and must show nothing before the run** *(user, `2026-08-15`)*
 
 > ⭐⭐ *"watch panel MUST allow for value changes (and show nothing when exercise not running yet) —

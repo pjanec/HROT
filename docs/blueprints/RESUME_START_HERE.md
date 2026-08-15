@@ -735,6 +735,26 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > ⭐ **The Details chameleon is already modular** — `DrawerRegistry`/`IStructEditDrawer<T>` + `BP-205`'s
 > panel-level id scope ⇒ `U-6` is **one more provider**, not a `switch`.
 >
+> ⭐⭐⭐ **USER-DEFINED STRUCTS — the user is RIGHT and the coordinator's "18 closed types" was too
+> small.** 🔴🔴 **Arbitrary user structs are NOT supported today:** `StaticTypeRegistry:66-81` hardcodes
+> **THREE** (`MemberSlotList` 96 · `WaveState` 104 · `HillAttackSharedState` 136) with sizes **computed
+> BY HAND IN A COMMENT**, and the file names its own gap — *"a general curated-struct registration
+> mechanism … is future work."*
+> ⭐⭐⭐ **And *"only the compiler knows the layout"* — it does NOT. It EMITS CODE THAT ASKS:**
+> `CSharpEmitter:412` — `layoutFromRuntime = Variables.Any(f => !f.Type.SizeReliable)` ⇒
+> `Marshal.OffsetOf<State>("name")` **emitted into the generated source**, resolved by Roslyn where the
+> type IS loaded. ⇒ ⭐⭐ **the user's *"it needs compiled code"* instinct is CORRECT AND ALREADY
+> REALISED — for LAYOUT, not for accessors.**
+> ⚖️ ⇒ **generated layout REGISTRATION: YES** *(emit `Unsafe.SizeOf<TheStruct>()` — that IS the
+> "general mechanism" the file defers)*; ⛔ **generated ACCESSORS: still NO** — at runtime the CLR type
+> is loaded, so `Marshal.PtrToStructure`/`StructureToPtr` + StructEdit's reflection
+> (`ComponentReflector:187/:469`) cover **any** blittable struct in ONE arm — ⭐ **which replaces the
+> 11-type if-chain, fixes `BP-01`'s seven missing types, and supports user structs simultaneously.**
+> 🔴 **The exposed danger: hand-computed sizes are the `Vector3` defect waiting** *(`TypeAlignment`
+> says align 8, the CLR packs at 4)* ⇒ ⭐⭐ **the rail is the cross-host session's step 3a — assert
+> `Marshal.OffsetOf<State>(name) == descriptor.OffsetBytes` at runtime.** ⛔ **Golden Tier 1 CANNOT
+> catch it: it records the COMPUTED offset, so both sides agree while the field moves.**
+>
 > ⭐⭐⭐ **"HOW DOES THE UI CALL A GENERIC ACCESSOR?" — IT DOES NOT, AND IT NEVER HAS.** `TryGetField<T>`
 > needs `T` at COMPILE time; the UI holds a `Type` at RUN time. ⭐⭐ **The editor already solved this:
 > `MarshalFromBytes(byte[] bytes, Type type)` — non-generic, `(bytes, Type)` is the UI's currency.**
