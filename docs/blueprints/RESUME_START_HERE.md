@@ -692,13 +692,24 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > ⭐ its SCOPE stands and the handoff is NOT amended (rule 1).**
 >
 > ⭐⭐ **RULINGS 10-12 *(`2026-08-15`)* — reuse StructEdit · share the Watch mechanism · ⛔ IMMEDIATE
-> while FROZEN.** 🔴🔴 **Ruling 12 CONFLICTS with ruling 2a and the conflict is real:** a write queued
-> into a command buffer does not flush until a tick runs, and **a frozen sim runs no ticks** ⇒ naively
-> the value would appear only on resume. ⭐⭐ **Resolution that keeps ONE write path: when
-> `IsPausedByDebugger`, submit to the buffer and FLUSH ON THE SPOT** — `FlushCommandBuffers()` is
-> public, and a frozen sim has no tick in flight, so 2a's race cannot occur. ⛔ **A pending-write
-> overlay is REJECTED — it would be a second source of truth for "what is the value", ruling 9's exact
-> prohibition.**
+> while FROZEN.**
+> ⛔⛔ **The coordinator claimed 12 CONFLICTED with 2a. It does NOT — the premise was wrong, and the
+> user corrected it:** *"frozen sim does not mean nothing is ticking — behaviors should not tick and
+> dt==0 so no physics applies."* ⇒ ⭐⭐ **ticks continue, command buffers keep playing back, so a
+> queued write lands within a frame and ruling 12 is satisfied by the PLAIN path.**
+> ⛔ **The proposed "flush on the spot when paused" is WITHDRAWN — it would have been a SECOND write
+> path, ruling 9's own prohibition.**
+> 🔴 **And the API the coordinator called *"the existing playback point"* —
+> `EntityRepository.FlushCommandBuffers()` — has NO CALLERS AT ALL.** Playback is `ecb.Playback(world)`.
+> ⚠⚠ **"Verify the consumer, not just the definition" — broken by the coordinator, in the programme
+> that teaches it.** 📌 **Second unmeasured assertion in three exchanges; the user caught both.**
+> ⭐ **The write primitive already exists: `IEntityCommandBuffer.SetComponentRaw(entity, typeId, ptr,
+> size)`**, and the interface already knows blackboards are components (`AddEmptyComponent`:
+> *"large components like blackboards"*).
+> ⭐⭐ **Ruling 13: the Watch panel MUST allow value changes and MUST show NOTHING before the run** —
+> ⛔ **neither is true today** ⇒ both planned as **59b**. ⚠ **And the Details/Watch asymmetry is
+> DELIBERATE** — Details shows the editable initial value when stopped, Watch shows nothing; ⛔ **do
+> not "unify" it.**
 > ⚠ **Two struct-editing surfaces already exist** — FDP-level `IComponentEditService` +
 > `StructInspectorProjector`, and blueprint-local `IStructEditDrawer`/`DrawerRegistry` *(already an
 > editing interface: `bool Draw(…, ref T value, …)`)*. ⚖️ **Lean: build on the FDP-level one** — ⛔ **but

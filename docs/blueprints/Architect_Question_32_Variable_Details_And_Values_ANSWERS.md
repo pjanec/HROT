@@ -36,7 +36,7 @@
 | initial-value **setter** | ✅ `IBlackboardManagedAsset.UpdateVariableDefaultValueJson` — **HSM and BTree implement it**; ⛔ **blueprint does not** |
 | live-value **read** | ✅ `ILiveValueProvider.GetLiveVariableValues` drives the column; `MarshalFromBytes` formats. ⛔ **blueprints never supply it** |
 | StructEdit editor | ✅ **exists** — `IEditSession` / `EditDocument` / `IComponentEditService`, reflection-driven |
-| 🔴🔴 **live-value WRITE** | ⛔⛔ **NO SEAM EXISTS.** See §2 — **this is the only genuinely new mechanism in the ruling** |
+| 🟠 **live-value WRITE** | ⭐ **The PRIMITIVE exists — `IEntityCommandBuffer.SetComponentRaw`** *(and `AddEmptyComponent` documents blackboards as components)*. ⛔ **What is missing is the editor-side path to it:** `IBlueprintDebugSession` has no write at all. ⇒ **wiring, not invention** |
 
 ---
 
@@ -49,7 +49,7 @@ and now every constraint on it is settled:
 
 | | ⭐ **RULED** |
 |---|---|
-| **2a — when?** | ⭐⭐ **Queue changes via FDP command buffers.** ✅ **The seam exists:** `IEntityCommandBuffer` / `EntityCommandBuffer` in `Fdp.Core`, with `EntityRepository.SetCommandBufferOverride` and `FlushCommandBuffers` already the playback point. ⇒ ⛔ **no bespoke queue, no mid-tick write** |
+| **2a — when?** | ⭐⭐ **Queue changes via FDP command buffers.** ✅ **The seam exists:** `IEntityCommandBuffer` / `EntityCommandBuffer` in `Fdp.Core`, and the write primitive is **`SetComponentRaw(entity, typeId, ptr, size)`**. ⚠ **Playback is `ecb.Playback(world)`** — ⛔ **NOT `EntityRepository.FlushCommandBuffers()`, which has no callers; see §2.1.** ⇒ ⛔ **no bespoke queue, no mid-tick write** |
 | **2b — replay?** | ⭐⭐ **NO changing value during replay.** ⇒ **show it, refuse the write.** ✅ **Coordinator's lean confirmed** — a write during replay diverges the run from the recording it is replaying |
 | **2c — cluster?** | ⭐⭐ **The concern does not exist. The brain and blackboard live on a SINGLE CGF node (and the editor), and are NEVER replicated in distributed mode.** ⇒ ⛔ **there is no authoritative-copy problem to solve**, and the coordinator's *"changes locally and nowhere else"* worry was **misinformed about the architecture** |
 
