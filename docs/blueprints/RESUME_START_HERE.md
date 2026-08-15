@@ -906,6 +906,47 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > 📌 **`U-13`'s CONTENTS gate is headless** *(exact slot names across 8 assets, 58 `"state"` + 3
 > `"rally"`)* ⇒ ⭐ **it could run blind if the user wants momentum** — ⚠ **but it would add a SECOND
 > unverified panel surface, and that is the coordinator's reason for not dispatching it unasked.**
+>
+> ⭐⭐⭐ **THE CROSS-HOST PROGRAMME WAS HANDED TO THIS COORDINATOR** *(`2026-08-15`)* — 📄
+> **[`HANDOFF_Cross_Host_Parameter_Model.md`](HANDOFF_Cross_Host_Parameter_Model.md)** on
+> `claude/cross-host-variable-model-3k8cfh` @ **`a01c583dd`**: **13 work items `W1`–`W13`**, design
+> complete and reviewed, ⛔ **nothing built.** 📄 **Coordinator response:
+> [`PLAN_Cross_Host_Sequencing.md`](PLAN_Cross_Host_Sequencing.md).**
+> ⭐⭐ **The constraint that shapes it: THERE IS ONE QUEUE, NOT TWO.** Under the freeze, `W1`–`W13`
+> enter the *same* serial queue behind Batches 56/57; ⭐ **the handoff's lane column says which CODE
+> each item touches, NOT who builds it.**
+> ⭐⭐⭐ **Two of the three "decisions you must obtain" were MEASURED AWAY, one was not:**
+> ✅ **`D3` — the orchestrator emitters ARE production-dead**, confirmed: `WriteOrchestratorFile` has
+> **zero callers**, `Emit` is called **only from the two test files**, and `CompanionFileDiscovery:194`
+> hunts an `*.Orchestrators.g.cs` **nothing writes** ⇒ ⭐ **the fact is settled; only delete-vs-wire is
+> the user's.** ✅ **`D2` — `FieldLayout:9-13` confirms the three lists at fixed starts 0/8/16, so
+> `DeclarationKind` IS the tier**, and ⛔ **`Pack` skipping the reserved variable rules OUT `Parameter`**
+> *(offset 0 IS the packed region)* ⇒ ⚖️ **measured lean `Variable`**, and ⭐⭐ **Batch 56 dissolves the
+> per-kind half.** ⛔ **`D1` (`SlotKind` open/closed) is genuinely the user's — no code can answer it.**
+> 🔴🔴 **`W3` IS WORSE THAN THE HANDOFF SAYS, AND `W1` AS WRITTEN WOULD NOT CATCH IT.** The stubs are
+> `HsmBridgeEmitCore:119/138` (`actionId = 100++`, `guardId = 200++`, **no-op bodies**); ⛔ **the
+> emitter is LIVE, not dead** (`HsmJsonGenerator:88`, `EditorSubsystem:3298`); **`HsmActionDispatcher:30`
+> is `ActionTable[id] = action` — last writer wins, silently**; and 🔴 **real ids are
+> `ComputeHash(name)` over the whole `ushort` range.** ⇒ **a real action hashing into the stub window is
+> replaced by a body that does nothing — the HSM acts correctly everywhere except one state, forever.**
+> ⭐⭐ **`W1` hashes only, so the counter ids never enter its set** ⇒ **`W1` must range over the FINAL id
+> set (hashed ∪ counter-allocated), or the two ship and the defect stays undetectable. `W1` is `W3`'s
+> DETECTOR — they are not independent.**
+> ⭐⭐ **Two programmes, one line:** `W4` and **Batch 57 both edit `CSharpEmitter:412`'s
+> `layoutFromRuntime`** ⇒ ⛔ **`W4` runs AFTER 57, written against 57's merged text.** And ⭐ **`W2` is
+> the rail the DESIGN doc already names for `S2`** ⇒ **one rail, not two.**
+> ⚖️ **ONE genuine either/or is with the user** — ⭐ **`W2` is the general form of Batch 57's own gate**
+> *(corpus-wide `Marshal.OffsetOf` vs. one read-back)* ⇒ **Option A runs `W1`/`W2`/`W3` BEFORE 57;
+> Option B keeps panel momentum.** ⛔ **Stated honestly: 57 is NOT unsafe without `W2` — `W2` makes its
+> gate GENERAL, not VALID. A preference, not a requirement.**
+> ⭐ **Tiebreaker: the visual check is suspended, so the panel cannot be visually verified either way.**
+> ✅ **The design session's two flagged items are ANSWERED:** the `.claude/CLAUDE.md` clause is
+> ⭐ **already applied as rule 3a**; the held HSM reply ⛔ **stays the user's call** — ⚠ **and under the
+> freeze it buys design progress, not code.**
+> ⚠ **One false alarm CHECKED AND REFUTED BEFORE IT WAS WRITTEN DOWN:** `FieldLayout`'s 0/8/16 starts
+> look like regions that must collide, ⛔ **they do not** — `InstanceEmitter:109` gives `State` a
+> 16-byte `Cursor` first, `WorkingState` sits at `memory + 8`, `Parameters` is the separate packed
+> region. 📌 **Recorded so nobody re-derives it.**
 
 ## 7aa · Batch 54 — ✅ VERIFIED AND MERGED at `c5550ff9` — ⭐⭐⭐ **`BP-240`'s QUESTION BIT: four corpus-invisible defects, one of them a blackboard wipe**
 
