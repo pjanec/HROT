@@ -735,6 +735,26 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > ⭐ **The Details chameleon is already modular** — `DrawerRegistry`/`IStructEditDrawer<T>` + `BP-205`'s
 > panel-level id scope ⇒ `U-6` is **one more provider**, not a `switch`.
 >
+> ⭐⭐⭐ **"LET'S BE CONSISTENT" SETTLED THE DESIGN — and the user's premise was the one thing that
+> was not so.** ⛔ **There is NO generated accessor anywhere.** The convention is **generate the DATA,
+> hand-write ONE generic accessor**: `CSharpEmitter:413` emits `StateFields = new Dictionary<string,
+> BlueprintFieldDescriptor>{…}` and `DebugMapBuilder` emits `StateLayoutField(Name, Type, OffsetBytes,
+> SizeBytes)`; ⭐⭐ **`BlueprintStateView.TryGetField<T>(name, out value)` is the hand-written generic
+> reader over it**, with a size check and the `StructureHash`.
+> ⇒ ⭐⭐⭐ **CONSISTENCY MEANS: add `TrySetField<T>` beside `TryGetField<T>`.** One type, one place,
+> already host-neutral, ~15 lines mirroring shipped code. ⭐ **Same destination the coordinator reached
+> from ruling 9, arrived at independently — two routes, one answer.**
+> ⚠ **Caveat: `BlueprintStateView` is TEST-FACING today** (*"returned by
+> `BlueprintTestFixture.GetBlueprintState` for test assertions"*) ⇒ **promoting it to the production
+> seam is a deliberate decision;** ⛔ a production sibling would be two implementations of one concept.
+>
+> ⭐⭐ **RULING 16 — write BOTH the snapshot and the live component** *(user)*. ⛔ **The coordinator's
+> "write directly to `ActiveView`" is CORRECTED:** the snapshot is what you SEE, `_liveRepo` is what
+> RESUMES. ⭐⭐ **And this DISSOLVES the open question §2.3 flagged** — if both copies are written, the
+> resume-sync direction no longer matters, because they already agree. ⭐ **A design that does not
+> depend on the answer beats one that must measure it first.** ⚠ **Still test it: edit while paused →
+> resume → value survives.**
+>
 > ⭐⭐⭐ **THE LAYOUT REGISTRY ALREADY EXISTS AND IS HASH-GUARDED.** The UI does **not** infer offsets:
 > it reads `DebugMapIndex.StateLayout.Fields` / `BlueprintDefinition.StateFields` *(offset · size · CLR
 > type per variable)*, and ⭐⭐ **the first 8 bytes of the blackboard ARE the `StructureHash` — the

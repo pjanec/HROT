@@ -268,6 +268,56 @@ OTHER SUBSYSTEMS' STATE.** ⭐ **Ruling 14 stands, on much firmer ground.**
 | 📐 **⇒ the command buffer may be UNNECESSARY** | ⭐ **combined with §2.2's finding that the panels read `ActiveView` (`_preTickSnapshot`) while paused, writing DIRECTLY to that view is arguably the correct design** — it is the object the UI is actually showing, and ruling 12's immediacy falls out for free |
 | 🔴🔴 **The one thing that MUST be measured first** | ⛔ **On pause, `:473` does `_liveRepo.SyncFrom(_preTickSnapshot)`. What happens on RESUME?** ⭐ **If nothing syncs the snapshot back, an edit made while paused is LOST when the sim continues** — ⚠ **which would be the silent-failure shape this programme keeps finding.** 📐 **Measure before designing; the coordinator has NOT run this** |
 
+## 2.4 ⭐⭐⭐ **"Let's be consistent"** — measured, and it settles the design *(`2026-08-15`)*
+
+> **User:** *"if we have generated read accessor and we know all the offsets why do we generate the
+> specific accessor? lets be consistent."*
+
+### ⭐⭐⭐ **There is NO generated accessor. The convention is: GENERATE THE DATA, HAND-WRITE ONE GENERIC ACCESSOR.**
+
+| what is **generated** | where |
+|---|---|
+| ⭐ **`StateFields` — a name → descriptor dictionary** | **`CSharpEmitter:413`** emits `StateFields = new Dictionary<string, BlueprintFieldDescriptor>(StringComparer.Ordinal){…}` into the generated class |
+| ⭐ **`BlueprintFieldDescriptor(Name, ClrType, OffsetBytes, SizeBytes, CategoryOrEmpty)`** | pure **data** |
+| ⭐ **`StateLayoutField(Name, Type, OffsetBytes, SizeBytes)`** | `DebugMapBuilder`, fed by `CSharpEmitter:83`, serialized by `DebugMapSerializer` |
+
+| what is **hand-written and generic** | where |
+|---|---|
+| ⭐⭐ **`BlueprintStateView.TryGetField<T>(string name, out T value)`** | `Fdp.Toolkits/Blueprints/BlueprintStateView.cs` — *"reads a field by name **using the definition's StateFields dict**"*, with a **size check** (`fd.SizeBytes != Unsafe.SizeOf<T>()`) and it exposes `StructureHash` |
+| the editor's reader | `BlueprintDebugSession` — same pattern, same data |
+
+⇒ ⛔ **`grep` finds NO per-variable generated getter or setter anywhere.** ⭐⭐ **So the user's premise
+— *"we have a generated read accessor"* — is not the case, and that makes the consistent answer
+unambiguous:**
+
+> ⭐⭐⭐ **CONSISTENCY ⇒ add `TrySetField<T>` beside `TryGetField<T>`.**
+> **One type. One place. Already host-neutral (`Fdp.Toolkit.Blueprints`). Already carrying the
+> `StructureHash` and the size check that make a wrong write impossible.**
+
+⭐ **This is ~15 lines mirroring a method that ships**, not a code-generation feature — and it is the
+*same* answer the coordinator reached from ruling 9, arrived at independently from the user's
+consistency argument. ⭐ **Two routes, one destination, is the strongest signal available here.**
+
+⚠ **One honest caveat:** `BlueprintStateView` is documented *"Returned by
+`BlueprintTestFixture.GetBlueprintState` for test assertions"* ⇒ ⛔ **it is TEST-FACING today.**
+📐 **Promoting it to the production read/write seam is a deliberate decision, not a detail** — the
+alternative is a production sibling, which would be **two implementations of one concept** and is
+therefore the worse option under ruling 9. ⚖️ **Lean: promote it.**
+
+### ⭐⭐ Ruling 16 — **write to BOTH the snapshot and the live component** *(user, `2026-08-15`)*
+
+> *"we can not write just to active view if it is just the historical snapshot we are watching when
+> paused — the value must be written also to the live ecs component so it is used once we resume."*
+
+⛔ **The coordinator's *"write directly to `ActiveView`"* lean is CORRECTED.** ⭐ **Right: the snapshot
+is what you SEE; the live repo is what RESUMES. Both must receive it.**
+
+| | |
+|---|---|
+| **write target while paused** | ⭐ **both `_preTickSnapshot` (so the panels show it at once — ruling 12) and `_liveRepo` (so the sim uses it on resume)** |
+| ⭐⭐ **And this DISSOLVES the open question** | 📌 §2.3 flagged *"measure what syncs back on resume, or a paused edit is silently lost."* ⇒ ⛔ **If both copies are written, the resume-sync DIRECTION NO LONGER MATTERS** — they already agree. ⭐ **A design that does not depend on the answer beats one that has to measure it first** |
+| ⚠ **Still worth one test** | 📐 **assert it directly: edit while paused → resume → the value survives.** ⛔ **"They agree so it must work" is reasoning, not evidence** |
+
 ### 🔴 Ruling 13 — **the Watch panel must EDIT, and must show nothing before the run** *(user, `2026-08-15`)*
 
 > ⭐⭐ *"watch panel MUST allow for value changes (and show nothing when exercise not running yet) —
