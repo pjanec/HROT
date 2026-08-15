@@ -1,6 +1,6 @@
 # HANDOFF — Batch 63: ⭐⭐⭐ **`BP-251` IS `W13`** — retire the standalone stride path, then the rest
 
-> 📌 **Dispatched at `<stamped below>`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
+> 📌 **Dispatched at `a319114cb`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
 > ✅ **Batch 62 item 0 MERGED at `665bb29b6`** *(docs-only — ⭐ **no gate run: the diff is one tracker
 > line**, and saying so is cheaper than implying I re-ran eight suites for a comment)*.
 > ⭐ **Rule 7:** branch from this branch. ⭐ **Rule 4:** pull it again before your final commit.
