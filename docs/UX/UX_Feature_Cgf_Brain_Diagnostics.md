@@ -155,46 +155,60 @@ this is a registration, not a distributed problem.**
 ⚠ **One interaction to honour**: a hot reload during a **freeze** must not silently resume the sim. Route it
 through the same toggle that owns the halt (§3b), and treat reload-while-paused as **reload, stay paused**.
 
-### 🔴 Scenario editing from CGF — the check the user asked for
+### ✅ Scenario editing from CGF — cleared ([ruling 66](UX_RESUME_INTERACTION.md))
 
-> **User:** *"maybe it could include also scenario editing — this would need checking how scenario saving would
-> work for the CGF-unowned components (owned by SimHost). Maybe the only SimHost-owned one needed for scenario
-> saving is the **sim transform**, which is replicated to the CGF node."*
+> **User, 2026-08-14:** *"The components that are missing on the CGF node and present on SimHost are usually
+> **not those carrying the scenario information**. At runtime these are filled from commands coming from CGF.
+> They are important only for taking and restoring a snapshot of current immediate simulation state
+> (**checkpoint**), which is **a different category from scenario authoring**. The system supports also
+> **sending initial state of mandatory ECS components on entity creation** to SimHost, so the scenario loading
+> process is fully covered and possible from the CGF node only."*
 
-**✅ The transform half checks out.** CGF holds position: `CgfSubsystem.cs:600` tests
-`HasComponent<SimTransform>`, and `CgfEntityPresentationGizmo` projects `SimTransform`/`NetworkTransform`.
-⚠ **But the replicated component is `NetworkTransform` (descriptor ordinal 10, written by
-`GeoSpatialIngressTranslator`)**, while the authoritative Muscle-side block registered for the `WorldPos`
-descriptor is **`SimTransform` + `SimVelocity` + `VehicleState` + `VehicleParams` + `NavState`**
-(`NedReplicationModule.cs:381-392`). ⇒ *"the transform"* is **two different components** depending on which
-side you stand.
+⚠ **An earlier draft demanded a save-time completeness check and a SimHost-vs-CGF serializer diff as a gate.
+Both are withdrawn** ([Correction 47](UX_Tasks_Detail.md#corrections)) — the premise was wrong twice over:
 
-**✅ The saving machinery is already on CGF too** — `HrotScenarioSerializerFactory.Build(...)` at
-`CgfSubsystem.cs:432`, already wired into the entity inspector at `:460`.
-
-> ### 🔴 But the risk is NOT "a component is missing" — it is **registered but not populated**
->
-> `CgfComponentRegistry.RegisterAll` calls **`KinematicComponentRegistry.RegisterAll`**, which registers
-> **`VehicleState`, `VehicleParams`, `NavState`** — the very components CGF does **not** author.
-> ⇒ **those types exist on CGF's world.** A serializer walking components would therefore emit them with
-> **default or stale values** instead of visibly omitting them.
->
-> 🔒 **Silent wrong data is worse than a missing field** — a scenario saved from CGF could look complete and
-> quietly reset vehicle parameters on next load.
-
-🔒 **So the required design element is a save-time completeness check**, not a component inventory:
-
-| | |
+| The claim | Why it fails |
 |---|---|
-| 🔒 **Per component the serializer would emit, CGF must be either the owner or a live replication target** | anything else is **refused, or written from a declared authoritative source** — never emitted from an unpopulated local slot |
-| ⭐ **The ownership data already exists** | `_descriptorOwnershipMap` (`NedReplicationModule.cs:375-392`) maps descriptors → component ids, and [UXI-29](UX_Feature_Authority_Aware_Writes.md)'s `HasAuthority<T>` is the per-component test |
-| 🔒 **Fail loud** | a CGF save that cannot vouch for a component **says so and refuses**, in the [ruling 49](UX_RESUME_INTERACTION.md) spirit — do not ship a save that is quietly lossy |
-| ⚠ **Verification task, not a claim** | ⭐ **the honest way to settle it: diff the serializer's emitted component set on SimHost vs on CGF for the same scenario.** That is a test, and it should be written **before** scenario save is enabled on CGF |
+| *"a naive save emits `VehicleState`/`VehicleParams`/`NavState` as defaults"* | 🔴 **`SerializeEntity(repo, entity, resolver, BitMask512 componentMask)` is MASK-DRIVEN** — the caller states which components are in scope — and `AutoSerializer.TryExtract(repo, entity, bit, resolver)` is **per entity, per bit**. `RegisterComponent<T>()` registers a **type with the world**; it is neither entity-level presence nor serializer scope |
+| *"CGF-unowned components threaten scenario fidelity"* | 🔒 **wrong category.** Those components carry **immediate simulation state**, which matters for **checkpoint** (snapshot/restore), not for scenario authoring. At runtime they are filled from commands originating on **CGF** |
 
-⇒ 🔒 **Scenario editing on CGF is therefore a THIRD tier**, gated on that diff — behind ① diagnostics and
-② behavior authoring/reload, both of which are unblocked.
+⭐ **And the load path is already covered**: `CreateEntityRequestSystem` compiles `InitialAttributesJson` into
+components, splitting `SimTransform`/`SimVelocity` into typed spawn fields and the rest into a fallback list
+(`:225-245`) ⇒ **initial ECS component state travels with entity creation**, so a scenario can be loaded
+**from CGF alone**.
 
-## 6. Risks## 6. Risks
+⇒ 🔒 **Scenario editing on CGF is NOT a gated third tier.** It joins the authoring tier. ⚠ **What remains is a
+one-line check, not a programme**: confirm the scenario save passes the **same component mask** on CGF as on
+SimHost — the mask is the contract, and it is chosen by the caller.
+
+### ⚠ Preview — the one genuinely open item
+
+> **User:** *"I am not so sure about the **preview** feature, which in the editor is not the same as full
+> scenario loading, but might be also doable if we use **distributed snapshot taking and restoring**. Now in
+> the editor this is probably made just in-process locally, but doing that across a cluster should be very
+> feasible."*
+
+⭐ **Better than expected — preview is ALREADY a cluster operation.** `EditorPreviewController`
+(`EditorSubsystem.cs:439-467`) drives **`PreviewClusterOpHandler`** with `TriggerLoadingPreview()` /
+`TriggerUnloadingPreview()`, and brackets it with `MasterSyncController.SwitchToContinuous()` on enter and
+**`SwitchToDeterministic(new HashSet<int>())`** on exit.
+
+> ### ⭐ The regularity worth naming: **the Editor is a one-node cluster**
+>
+> That **empty slave roster** is the same trick `MasterSyncTimeControllerAdapter` uses for the debug pause
+> ([§3a](#3a-cgfclusterdebugtimecontroller--iengine­debugtimecontroller)). **Two independent features already
+> run the cluster protocol with a roster of zero.** ⇒ making either work distributed is **supplying the real
+> roster**, not building a distributed version.
+
+| ⚠ Still open for preview | |
+|---|---|
+| What `PreviewClusterOpHandler` does to the world on enter/exit | if it clears and repopulates, a distributed preview needs the same on every node — that **is** the snapshot/restore the user names |
+| Whether exit **restores** prior state or just unloads | `TriggerUnloadingPreview` suggests unload; if there is no restore, "preview" is destructive today and distributing it inherits that |
+
+🔒 **Not designed here** — preview is a scenario-authoring feature, not a diagnostics one. Recorded so the
+`PreviewClusterOpHandler` finding is not lost, and left to the [UXI-33](UX_Issues.md#uxi-33) authoring session.
+
+## 6. Risks## 6. Risks## 6. Risks
 
 | | |
 |---|---|
@@ -203,7 +217,7 @@ side you stand.
 | ⚠ **k is expected small but unmeasured** ([ruling 64](UX_RESUME_INTERACTION.md)) | the zero-dt timer discontinuity and the stale-view window both rest on it — **measure it once** |
 | ⚠ **DATA breakpoints ≠ NODE breakpoints** | what runs on CGF today fires on component data change; breaking on a BTree/HSM/blueprint **node** is the other kind and is the ② work |
 | ⚠ **Breakpoint UI must not offer unobservable components** | [ruling 61](UX_RESUME_INTERACTION.md) limits CGF to owned-or-replicated components ⇒ [ruling 49](UX_RESUME_INTERACTION.md): **absent, not greyed** |
-| 🔴 **Registered-but-unpopulated components on a CGF scenario save** | `VehicleState`/`VehicleParams`/`NavState` are **registered** on CGF's world by the shared kinematic registry but authored on the Muscle side ⇒ a naive save emits defaults. **§5b's completeness check is not optional** |
+| ⚠ **Checkpoint is a separate feature from scenario save** | the CGF-unowned components matter for **snapshot/restore of immediate simulation state**, not for authoring ([ruling 66](UX_RESUME_INTERACTION.md)). Do not let a checkpoint requirement leak into the scenario-save design, or the reverse |
 | ⚠ **Hot reload during a freeze** | must reload and **stay paused** — routing it around the halt toggle would silently resume the exercise |
 | ⚠ **A destructive freeze during a live exercise** | [ruling 59](UX_RESUME_INTERACTION.md) accepts it, but the operator must know: arming a breakpoint on a live cluster is a **cluster-wide stop**. ⇒ confirm at arm time via [UXI-16](UX_Feature_Modal_Surfaces.md), resolved at the origin ([ruling 53](UX_RESUME_INTERACTION.md)) |
 
@@ -227,5 +241,5 @@ side you stand.
 | 37.14 | 🔒 CGF's paused remote-entity view is **labelled stale**, not presented as live | I |
 | 37.15 | Behavior **hot reload on CGF** succeeds and the running brains pick up the new asset | I |
 | 37.16 | 🔒 A hot reload **while frozen** leaves the sim **still frozen** — reload must not act as a resume | H |
-| 37.17 | 🔴 **The serializer's emitted component set is diffed SimHost vs CGF** for the same scenario — the gate on scenario save | H |
-| 37.18 | 🔒 A CGF scenario save that cannot vouch for a component **refuses and says which**, rather than emitting a default | H |
+| 37.17 | A scenario saved on CGF and one saved on SimHost use the **same component mask** | H |
+| 37.18 | 🔒 A scenario authored on CGF **loads correctly** — initial component state travels with entity creation | I |
