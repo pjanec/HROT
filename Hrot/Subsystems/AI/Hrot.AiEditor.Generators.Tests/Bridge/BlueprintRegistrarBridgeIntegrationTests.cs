@@ -650,6 +650,50 @@ public sealed class BlueprintRegistrarBridgeIntegrationTests : IDisposable
         first.Should().Be(second, "HsmBridgeEmitCore.EmitBridge must be deterministic");
     }
 
+    /// <summary>
+    /// ⭐⭐ <b>W1 / Batch 58 — pins the STUB WINDOW this bridge allocates from.</b>
+    ///
+    /// <para>
+    /// ⛔⛔ <c>HsmActionDispatcher.RegisterAction</c> is <c>ActionTable[id] = ptr</c> — last writer
+    /// wins, silently — and this emitter registers <b>no-op stubs</b> at literal counters from
+    /// <b>100</b> (actions) and <b>200</b> (guards), while <c>HsmActionGenerator</c> allocates
+    /// <c>ComputeHash(name)</c> over the <b>whole</b> <c>0…65535</c> range. 🔴 A real action whose name
+    /// hashes into this window is replaced by <c>__hsActionStub { }</c>: no crash, no log, one state
+    /// that quietly does nothing, forever.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>The gate that catches it is <c>HsmDispatcherIdAnalyzer</c> (BHU_020), and its fixtures
+    /// hard-code 100/200</b> — they live in <c>Fdp.Toolkits.Tests</c>, which sits <b>below</b>
+    /// <c>Hrot.AiEditor.Persistence</c> and cannot reference this emitter. ⚠ So the window is pinned
+    /// from THIS side instead of being assumed from that one: if these constants ever move, this test
+    /// reddens and names the analyzer fixtures that must move with them.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Hsm_EmitBridge_AllocatesStubIdsFrom100And200()
+    {
+        // ⚠ `HsmShowcase`, not `SampleGuard`: the latter declares no actions or guards at all, so it
+        //   emits no stub registrations and would make this test vacuously green.
+        var dto = HsmAssetMapper.ToDto(LoadHsm("HsmShowcase"));
+        string bridge = HsmBridgeEmitCore.EmitBridge(dto);
+
+        // ⚠ Asserted only when the asset actually has entries of that kind — a SampleGuard with no
+        //   actions would otherwise make this vacuously green, which is the exact failure mode the
+        //   whole W1 batch exists to close.
+        bool hasActions = bridge.Contains("__hsActionStub");
+        bool hasGuards  = bridge.Contains("__hsGuardStub");
+        (hasActions || hasGuards).Should().BeTrue(
+            "the fixture asset must register at least one HSM action or guard, or this test checks nothing");
+
+        if (hasActions)
+            bridge.Should().Contain("RegisterAction(100,",
+                "the action stub window starts at 100 — HsmDispatcherIdAnalyzer's fixtures hard-code it");
+        if (hasGuards)
+            bridge.Should().Contain("RegisterGuard(200,",
+                "the guard stub window starts at 200 — HsmDispatcherIdAnalyzer's fixtures hard-code it");
+    }
+
     // ─────────────────────────────────────────────────────────────────────────────
     // ALC unload helper (DEBT-009 pattern)
     // ─────────────────────────────────────────────────────────────────────────────
