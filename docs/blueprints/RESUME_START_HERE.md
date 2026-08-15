@@ -653,11 +653,48 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > a doc-type-agnostic tool needs a **per-doc-type repair seam**, and hardcoding blueprint knowledge
 > into `MigrateMode` is the half-doing the handoff warned against. ⚠ **`BP-241` stays open.**
 >
-> ⛔ **ONE THING STILL NEEDS THE USER — and it is now the ONLY thing left in the programme:**
-> ⭐⭐ **the visual check.** 📄 **[VISUAL_CHECK_Guide.md](VISUAL_CHECK_Guide.md)** — a step-by-step
-> pass/fail checklist, written against the real code paths, ⭐ **each step naming the tracker row it
-> reopens if it fails.** ⚠ **Seventeen batches out**, and Batch 43's whole deliverable is a panel
-> surface no headless test can see drawn.
+> ⭐⭐⭐ **THE VISUAL CHECK RAN, FOUND A DEFECT, AND IS NOW SUSPENDED BY USER RULING.**
+> 🔴 **`BP-243` on its FIRST run:** the Local Variables **`+` silently created a GLOBAL variable** —
+> two `VariableCreateModal` instances shared a `const` ImGui popup id, so `BeginPopupModal` **appended
+> into the already-open window** and the first Create button belonged to the asset modal.
+> ⛔ **No headless test could see it** — every test drives the confirm callback, which was always
+> wired correctly. ⭐ **Their fix asserts surface IDENTITY over all SIX of the window's modals**, so a
+> third duplication fails at the gate. 📌 **Merged at `ee4d134ab`.**
+>
+> ⛔⛔ **THE PROGRAMME RE-OPENED — user ruling `2026-08-14`, recorded as
+> [Architect_Question_32 ANSWERS](Architect_Question_32_Variable_Details_And_Values_ANSWERS.md).**
+> ⭐ **Details hosts the variable list; selection routes globals ⇄ locals-of-current-graph; ONE Value
+> column whose meaning switches on run state** *(initial when stopped, current when running/paused,
+> across live/replay/preview)*; **read-only cell with a pretty-printed tooltip**; ⭐ **a three-dot
+> button opening a StructEdit dialog with OK/Cancel**; ⭐⭐ **the same panel REUSED for HSM, BTree and
+> Blueprint**; **writes follow run state** — blackboard when running, JSON default when not.
+> ⛔⛔ **And the standing constraint over all of it: *"no keeping two implementations for the same
+> concept."***
+> ⚠ **Two coordinator leans were OVERRULED** — `Q32-A` (I argued two columns) and the withdrawn
+> `WorkingState`-has-no-initial-value sub-ruling, ⭐ **which the user caught and the code refuted:
+> `AiPrimitiveEmitter:133` has emitted working-state defaults all along.**
+>
+> 🔴🔴 **ONE PIECE OF THE RULING HAS NO SEAM: writing into a RUNNING blackboard.**
+> `IBlueprintDebugSession` is Attach/breakpoints/**watches**/step — ⛔ **no write.** 📐 **Three
+> sub-questions open: tick-boundary application · ⛔ REFUSE during replay (a write breaks the
+> determinism replay exists for) · ⚠ does an editor write REPLICATE in a clustered exercise?**
+> ⭐ **Everything else in the ruling is unblocked.**
+>
+> ⏭ **Batch 56 dispatched — [the EMITTER UNIFICATION](HANDOFF_Batch56_Emitter_Unification.md).**
+> ⭐⭐ **`U-12` made the mixture legal at Stage 2 and nobody told the emitters:** `InstanceEmitter`
+> walks `Variables` only, `AiPrimitiveEmitter` walks `WorkingState` only, while `Stage5:4137`
+> **resolves across both concatenated** ⇒ 🔴🔴 **a wrong-side declaration is either a Roslyn error
+> naming a field the designer never wrote, or — unreferenced — SILENTLY ABSENT AT RUNTIME.**
+> ⭐ **Coordinator-measured and this is the safety argument: of 458 shipped assets, `0` carry BOTH
+> kinds** ⇒ **the union is the single populated list, same order** ⇒ ⛔ **`StructureHash` must be
+> byte-identical.**
+>
+> ⚠⚠ **OWNERSHIP CHANGED — this is a CROSS-HOST programme now.** `VariablesPanelControl`,
+> `IBlackboardManagedAsset` and `ILiveValueProvider` all live in `Hrot.Editor.AiShared` ⇒
+> **`claude/cross-host-variable-model-3k8cfh`'s territory.** 📐 **Proposed split awaiting the user:
+> this session takes Batch 56's compiler work; the cross-host session takes the shared panel and both
+> write paths.** ⛔ **Two sessions editing `AiShared` in one window is ruling 9's failure mode arriving
+> through the process instead of the code.**
 > 📌 **`U-13`'s CONTENTS gate is headless** *(exact slot names across 8 assets, 58 `"state"` + 3
 > `"rally"`)* ⇒ ⭐ **it could run blind if the user wants momentum** — ⚠ **but it would add a SECOND
 > unverified panel surface, and that is the coordinator's reason for not dispatching it unasked.**
