@@ -979,6 +979,31 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > ⛔ **`W2` adds an asset whose purpose is to make the gate RED and `W4` is what makes it green** ⇒
 > **splitting them merges a knowingly-red suite.** ⭐ **They are one batch.**
 >
+> ⭐⭐⭐ **BATCH SIZE RULING `2026-08-15` (user): PUT MORE IN ONE BATCH** — *"it saves time, implem session
+> can run longer autonomously."* ⇒ ⭐ **the limit is INTERACTION RISK, not item count.** ⭐⭐ **The
+> mechanism that makes it safe is a per-item STOP CONDITION** — *"four merged items plus a question beats
+> five items and a guess"* — plus **one commit per item**, which is what made attribution work across
+> 56/58/57/59.
+>
+> ⏭ **Batch 61 dispatched — [the REST OF PHASE A, five items](HANDOFF_Batch61_Phase_A_Remainder.md).**
+> ⭐⭐ **Run 60 THEN 61 back to back, no return in between.** Order: **`BP-247` → `W5` → `W6` → `W7` → `S2`**.
+> ⛔⛔ **TWO PRE-DISPATCH CATCHES, one of which would have wasted their run:**
+> 🔴🔴 **`W5`'s instruction — *"fold in the duplicated constant"* — is NOT BUILDABLE.**
+> `BehaviorParameterSizeAnalyzer:23-26` says it in its own comment: *"Intentionally inlined here because
+> this analyzer targets netstandard2.0 and **cannot reference the net8.0 `Fdp.Toolkits` runtime
+> assembly**."* ⇒ ⭐⭐ **the mirror is FORCED; the defect is that nothing CHECKS it** ⇒ **a constant-agreement
+> test (tests are net8.0 and can see both) replaces the fold.** ⭐ **`BP-235`'s wall, third appearance.**
+> ✅ **`S2` has NO project cycle** — `Hrot.AiEditor.Generators` references `Hrot.Blueprints.Schema` and
+> `Hrot.AiEditor.Persistence`, ⛔ **not the compiler** ⇒ **a Compiler→Generators edge is not `BP-235`.**
+> ⚠ **But it would drag Roslyn into a deliberately reflection-less compiler**, and ⭐ **`IClrSignatureResolver`
+> on `CompileOptions` is already the seam for exactly this** *(Batch 44 measured both paths 42/42
+> byte-identical)* ⇒ ⚖️ **lean: the existing seam, NOT a new project reference** — ⛔ **and if that turns
+> out to be the only workable placement, they STOP: it is an architecture change and it comes to the
+> user, not into a batch.**
+> ⭐ **`BP-247` reframed as urgent-not-cosmetic:** it becomes **user-visible the moment the Details panel
+> ships**, because ruling 5's stopped half writes the initial value to JSON ⇒ a designer typing `0.5`
+> gets `CS0664` naming a generated file they have never seen.
+>
 > ⏭ **Batch 60 dispatched — [`W2` + `W4`, the runtime layout gate and the layout it guards](HANDOFF_Batch60_Runtime_Layout_Gate.md).**
 > ⭐⭐⭐ **Coordinator-measured and it makes the batch cheap: ZERO shipped `.bp.json` declares a
 > `Vector3`/`Vector2`/`Vector4`/`Quaternion` variable** ⇒ ⛔ **no field moves, no `StructureHash` moves,
