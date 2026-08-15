@@ -3,7 +3,7 @@
 > **Design for [UXI-37](UX_Issues.md#uxi-37) · drafted 2026-08-14.**
 > Scope from [rulings 59-64](UX_RESUME_INTERACTION.md); pause/resume semantics settled in
 > **[Design Question 30](Design_Question_30_Debug_Pause_Resume.md)** (A-E all decided).
-> **Status: ✅ designed — one scoping decision surfaced in §5, [Q1](#q1--the-graph-canvas-drags-in-the-authoring-stack).**
+> **Status: ✅ designed — [Q1 closed by ruling 65](UX_RESUME_INTERACTION.md); §5b adds the optional authoring tier.**
 
 ## 0. Prior art — nearly everything exists; almost nothing is wired
 
@@ -129,21 +129,72 @@ public enum TranslatorClass { WorldState = 0, ControlPlane = 1 }   // default = 
 | 3 | Menu + toolbar entries via [UXI-35](UX_Feature_Shell_Parity.md)'s shared registries — **CGF has neither today**, so UXI-35 is a soft prerequisite for discoverability |
 | 4 | The AI-debug transport icons already exist in the Editor toolbar; ⚠ they are **permanently dark** because `IDebugSessionRegistry.ActiveSession` is never set in production (`.dev/toolbar-debug-activate`) — [ruling 49](UX_RESUME_INTERACTION.md) applies: **fix or omit**, never ship them grey |
 
-### Q1 — the graph canvas drags in the authoring stack
+### ✅ Q1 CLOSED — the authoring stack is welcome on CGF ([ruling 65](UX_RESUME_INTERACTION.md))
 
-⚠ **The one scoping decision this design cannot make alone.** `AiGraphCanvasWindow` requires
-`AiDocumentManager`. Three ways out:
+> **User, 2026-08-14:** *"Bringing editing machinery onto a runtime node is perfectly OK. It would not hurt at
+> all if also the **behavior hot reload and save** features could be optionally enabled as well. The behaviors
+> are **CGF only**, so all that happens on a single node, similarly to the editor."*
 
-| | Option | |
-|--:|---|---|
-| **a** | 🎯 **Accept the document manager on CGF** — take the "nice bonus" of [ruling 59](UX_RESUME_INTERACTION.md) because the required feature depends on it | ✅ one reference, no new UI. ⚠ brings editing affordances to a runtime node — mitigated by making CGF's documents **read-only** |
-| **b** | Build a **read-only graph viewer** with no document model | ✅ clean separation. 🔴 a new window duplicating a large existing one — against the seam law |
-| **c** | Ship ① without graphs (watch + inspectors + trace only) first | ✅ immediate value, no decision needed. ⚠ defers the headline ask |
+🔒 **Option (a): reference `AiDocumentManager` and take the graph canvas as built.** No read-only viewer, no
+parallel implementation. ⚠ **And read-only is no longer a constraint** — editing is explicitly welcome.
 
-🔒 **Lean: (a), with documents opened read-only on CGF.** (b) is the kind of parallel implementation this
-programme keeps finding and then having to retire.
+## 5b. The optional authoring tier on CGF
 
-## 6. Risks
+### Behavior hot reload + save — ⭐ cheaper than it sounds
+
+| Piece | Where | On CGF |
+|---|---|---|
+| `QuickReloadService` · `QuickReloadResult` | `Hrot.Blueprints.Editor/Reload/` | ⭐ **CGF already references this assembly** (`CgfSubsystem.cs:54`) |
+| `HotReloadLogWindow` · `HotReloadLogModel` | `Hrot.Blueprints.Editor/Debug/` | same assembly |
+| `BlueprintDebugSession.OnHotReloadBegin` / `OnHotReloadCompleted` (`:1507-1515`) | already the reload↔debug handshake | reusable as-is |
+
+🔒 **The user's reasoning holds and the code agrees**: behaviors are **CGF-only**, so authoring, reload and
+execution are all on **one node** — the same single-process shape the Editor already relies on. ⇒ **enabling
+this is a registration, not a distributed problem.**
+
+⚠ **One interaction to honour**: a hot reload during a **freeze** must not silently resume the sim. Route it
+through the same toggle that owns the halt (§3b), and treat reload-while-paused as **reload, stay paused**.
+
+### 🔴 Scenario editing from CGF — the check the user asked for
+
+> **User:** *"maybe it could include also scenario editing — this would need checking how scenario saving would
+> work for the CGF-unowned components (owned by SimHost). Maybe the only SimHost-owned one needed for scenario
+> saving is the **sim transform**, which is replicated to the CGF node."*
+
+**✅ The transform half checks out.** CGF holds position: `CgfSubsystem.cs:600` tests
+`HasComponent<SimTransform>`, and `CgfEntityPresentationGizmo` projects `SimTransform`/`NetworkTransform`.
+⚠ **But the replicated component is `NetworkTransform` (descriptor ordinal 10, written by
+`GeoSpatialIngressTranslator`)**, while the authoritative Muscle-side block registered for the `WorldPos`
+descriptor is **`SimTransform` + `SimVelocity` + `VehicleState` + `VehicleParams` + `NavState`**
+(`NedReplicationModule.cs:381-392`). ⇒ *"the transform"* is **two different components** depending on which
+side you stand.
+
+**✅ The saving machinery is already on CGF too** — `HrotScenarioSerializerFactory.Build(...)` at
+`CgfSubsystem.cs:432`, already wired into the entity inspector at `:460`.
+
+> ### 🔴 But the risk is NOT "a component is missing" — it is **registered but not populated**
+>
+> `CgfComponentRegistry.RegisterAll` calls **`KinematicComponentRegistry.RegisterAll`**, which registers
+> **`VehicleState`, `VehicleParams`, `NavState`** — the very components CGF does **not** author.
+> ⇒ **those types exist on CGF's world.** A serializer walking components would therefore emit them with
+> **default or stale values** instead of visibly omitting them.
+>
+> 🔒 **Silent wrong data is worse than a missing field** — a scenario saved from CGF could look complete and
+> quietly reset vehicle parameters on next load.
+
+🔒 **So the required design element is a save-time completeness check**, not a component inventory:
+
+| | |
+|---|---|
+| 🔒 **Per component the serializer would emit, CGF must be either the owner or a live replication target** | anything else is **refused, or written from a declared authoritative source** — never emitted from an unpopulated local slot |
+| ⭐ **The ownership data already exists** | `_descriptorOwnershipMap` (`NedReplicationModule.cs:375-392`) maps descriptors → component ids, and [UXI-29](UX_Feature_Authority_Aware_Writes.md)'s `HasAuthority<T>` is the per-component test |
+| 🔒 **Fail loud** | a CGF save that cannot vouch for a component **says so and refuses**, in the [ruling 49](UX_RESUME_INTERACTION.md) spirit — do not ship a save that is quietly lossy |
+| ⚠ **Verification task, not a claim** | ⭐ **the honest way to settle it: diff the serializer's emitted component set on SimHost vs on CGF for the same scenario.** That is a test, and it should be written **before** scenario save is enabled on CGF |
+
+⇒ 🔒 **Scenario editing on CGF is therefore a THIRD tier**, gated on that diff — behind ① diagnostics and
+② behavior authoring/reload, both of which are unblocked.
+
+## 6. Risks## 6. Risks
 
 | | |
 |---|---|
@@ -152,6 +203,8 @@ programme keeps finding and then having to retire.
 | ⚠ **k is expected small but unmeasured** ([ruling 64](UX_RESUME_INTERACTION.md)) | the zero-dt timer discontinuity and the stale-view window both rest on it — **measure it once** |
 | ⚠ **DATA breakpoints ≠ NODE breakpoints** | what runs on CGF today fires on component data change; breaking on a BTree/HSM/blueprint **node** is the other kind and is the ② work |
 | ⚠ **Breakpoint UI must not offer unobservable components** | [ruling 61](UX_RESUME_INTERACTION.md) limits CGF to owned-or-replicated components ⇒ [ruling 49](UX_RESUME_INTERACTION.md): **absent, not greyed** |
+| 🔴 **Registered-but-unpopulated components on a CGF scenario save** | `VehicleState`/`VehicleParams`/`NavState` are **registered** on CGF's world by the shared kinematic registry but authored on the Muscle side ⇒ a naive save emits defaults. **§5b's completeness check is not optional** |
+| ⚠ **Hot reload during a freeze** | must reload and **stay paused** — routing it around the halt toggle would silently resume the exercise |
 | ⚠ **A destructive freeze during a live exercise** | [ruling 59](UX_RESUME_INTERACTION.md) accepts it, but the operator must know: arming a breakpoint on a live cluster is a **cluster-wide stop**. ⇒ confirm at arm time via [UXI-16](UX_Feature_Modal_Surfaces.md), resolved at the origin ([ruling 53](UX_RESUME_INTERACTION.md)) |
 
 ## 7. Acceptance
@@ -172,3 +225,7 @@ programme keeps finding and then having to retire.
 | 37.12 | 🔒 The breakpoint UI offers **only** components CGF owns or receives — others are **absent** | H |
 | 37.13 | Arming a breakpoint on a live cluster **confirms first**, resolved at the origin | H |
 | 37.14 | 🔒 CGF's paused remote-entity view is **labelled stale**, not presented as live | I |
+| 37.15 | Behavior **hot reload on CGF** succeeds and the running brains pick up the new asset | I |
+| 37.16 | 🔒 A hot reload **while frozen** leaves the sim **still frozen** — reload must not act as a resume | H |
+| 37.17 | 🔴 **The serializer's emitted component set is diffed SimHost vs CGF** for the same scenario — the gate on scenario save | H |
+| 37.18 | 🔒 A CGF scenario save that cannot vouch for a component **refuses and says which**, rather than emitting a default | H |
