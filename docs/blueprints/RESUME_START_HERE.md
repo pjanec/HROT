@@ -735,6 +735,26 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > ⭐ **The Details chameleon is already modular** — `DrawerRegistry`/`IStructEditDrawer<T>` + `BP-205`'s
 > panel-level id scope ⇒ `U-6` is **one more provider**, not a `switch`.
 >
+> ⭐⭐⭐ **"HOW DOES THE UI CALL A GENERIC ACCESSOR?" — IT DOES NOT, AND IT NEVER HAS.** `TryGetField<T>`
+> needs `T` at COMPILE time; the UI holds a `Type` at RUN time. ⭐⭐ **The editor already solved this:
+> `MarshalFromBytes(byte[] bytes, Type type)` — non-generic, `(bytes, Type)` is the UI's currency.**
+> ⇒ **three tiers, and only the MIDDLE one is missing:** UI↔object *(StructEdit)* · **object↔bytes
+> (`MarshalFromBytes` ✅ / `MarshalToBytes` 🟠 to write — `Marshal.StructureToPtr` is the established
+> pattern at 4 sites)* · bytes↔blackboard *(offset slice ✅ / `TrySetFieldRaw` ⭐)*.
+> ⭐ **`TryGetField<T>`/`TrySetField<T>` stay as the typed engine face — ONE-LINE WRAPPERS over the raw
+> span pair** ⇒ one implementation, two faces.
+> ⛔⛔ **GENERATED accessors would NOT solve it either** — the UI still has only a `Type`, so a generated
+> `SetHealth(float)` is unreachable from a panel iterating descriptors; it would still need a
+> name→delegate table. ⭐ **Generating setters moves the dynamic dispatch, it does not remove it.**
+>
+> 🔴🔴 **AND THIS EXPLAINS `BP-01`.** `MarshalFromBytes` handles **11 primitives + fixed lists**; ⛔
+> **`Vector2/3/4`, `Quaternion`, `FixedString32/64/128` — SEVEN of the 18 offerable types — fall
+> through to `return bytes;`** ⇒ **raw bytes. *"Watch panel shows raw hex"* is not a panel bug, it is
+> seven missing arms.** ⭐⭐⭐ **`EditorOfferableTypeIds` is exactly 18 and CLOSED ⇒ pin the marshaller
+> against it with a reflection test** *(the `DeclarationTagsMatchDeclarationKindTests` pattern)* —
+> ⚠ **that rail would have caught `BP-01` long ago**, and it extends `U-8`'s promise from *"every
+> offered type compiles"* to ⭐ ***"and every offered type can be SHOWN and EDITED."***
+>
 > ⭐⭐⭐ **"LET'S BE CONSISTENT" SETTLED THE DESIGN — and the user's premise was the one thing that
 > was not so.** ⛔ **There is NO generated accessor anywhere.** The convention is **generate the DATA,
 > hand-write ONE generic accessor**: `CSharpEmitter:413` emits `StateFields = new Dictionary<string,

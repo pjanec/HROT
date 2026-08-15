@@ -318,6 +318,62 @@ is what you SEE; the live repo is what RESUMES. Both must receive it.**
 | ⭐⭐ **And this DISSOLVES the open question** | 📌 §2.3 flagged *"measure what syncs back on resume, or a paused edit is silently lost."* ⇒ ⛔ **If both copies are written, the resume-sync DIRECTION NO LONGER MATTERS** — they already agree. ⭐ **A design that does not depend on the answer beats one that has to measure it first** |
 | ⚠ **Still worth one test** | 📐 **assert it directly: edit while paused → resume → the value survives.** ⛔ **"They agree so it must work" is reasoning, not evidence** |
 
+## 2.5 ⭐⭐⭐ **"How does the UI call a generic accessor?"** — it does not, and it never has
+
+> **User:** *"how do you call generic getter setter from the ui. it needs compiled code calling the
+> generic accessor."*
+
+⭐⭐ **Exactly the right objection.** `TryGetField<T>` needs `T` at **compile time**; the UI holds a
+`Type` at **run time** (`descriptor.ClrType`). ⛔ **The UI can never call it directly.**
+
+### ✅ And the editor already solved this — it uses `(byte[], Type)`, not `T`
+
+```csharp
+// BlueprintDebugSession:1736 — the editor's NON-generic reader, hand-written
+public static object? MarshalFromBytes(byte[] bytes, Type type)
+{
+    if (type == typeof(int))    return MemoryMarshal.Read<int>(bytes);
+    if (type == typeof(float))  return MemoryMarshal.Read<float>(bytes);
+    …  // bool uint long double byte sbyte short ushort ulong
+    if (TryFormatFixedList(bytes, type, out var formatted)) return formatted;
+    return bytes;                                    // ⛔ the fall-through
+}
+```
+
+⇒ ⭐⭐⭐ **The layering is already three-tier, and only the middle tier is missing:**
+
+| tier | read (ships) | write (to build) |
+|---|---|---|
+| **UI ↔ object** | drawers / StructEdit over `descriptor.ClrType` | ⭐ **StructEdit dialog, ruling 5** |
+| **object ↔ bytes** | ✅ **`MarshalFromBytes(byte[], Type)`** | 🟠 **`MarshalToBytes(object, Type)` — must be written.** ⭐ **The pattern is established: `Marshal.StructureToPtr` at 4 sites** (`ComponentReflector:197` · `EntityJsonDumper` · `ImGuiPropertyTree` · `DtoDiagnosticMapper`) |
+| **bytes ↔ blackboard** | ✅ offset slice + hash guard | ⭐ **`TrySetFieldRaw(name, ReadOnlySpan<byte>)`** |
+
+⭐ **`TryGetField<T>`/`TrySetField<T>` stay as the typed engine/test face**, implemented as **one-line
+wrappers over the raw span pair** ⇒ ⛔ **not two implementations — one implementation with two faces.**
+
+### ⭐⭐ Why GENERATED accessors would not solve this either
+
+⛔ **The UI still has only a `Type` at run time.** ⇒ a generated `SetHealth(float)` is **unreachable**
+from a panel iterating a descriptor list; it would still need a **name → delegate table** to dispatch
+through. ⭐⭐ **Generating setters does not remove the dynamic dispatch — it moves it, and adds N
+methods per asset on the way.** 📌 **`MakeGenericMethod` is the third option and is rejected: per-row,
+per-frame reflection on the read path, for a problem `(bytes, Type)` already solves.**
+
+### 🔴🔴 And this **explains `BP-01`** — the marshaller is INCOMPLETE, by exactly 7 types
+
+⭐ **`MarshalFromBytes` handles 11 primitives** — `int float bool uint long double byte sbyte short
+ushort ulong` — plus fixed lists. ⛔⛔ **`Vector2` · `Vector3` · `Vector4` · `Quaternion` ·
+`FixedString32/64/128` fall through to `return bytes;`** ⇒ **raw bytes.**
+
+📌 **`BP-01` — *"Watch panel shows raw hex bytes"* — is not a panel bug. It is these seven missing
+arms.** ⭐ **`EditorOfferableTypeIds` is exactly 18 and CLOSED**, so:
+
+> ⭐⭐⭐ **Pin the marshaller against the offerable list with a reflection test** — the
+> `DeclarationTagsMatchDeclarationKindTests` pattern the programme already uses. ⛔ **A 19th offerable
+> type without a marshaller arm then fails at the gate.** ⚠ **Such a test would have caught `BP-01`
+> years ago, and it closes `BP-01` and `U-8`'s promise (*"every offered type compiles"*) with one rail
+> — now extended to *"and every offered type can be shown and edited."***
+
 ### 🔴 Ruling 13 — **the Watch panel must EDIT, and must show nothing before the run** *(user, `2026-08-15`)*
 
 > ⭐⭐ *"watch panel MUST allow for value changes (and show nothing when exercise not running yet) —
