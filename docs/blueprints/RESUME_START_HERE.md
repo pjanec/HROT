@@ -979,6 +979,43 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > ⛔ **`W2` adds an asset whose purpose is to make the gate RED and `W4` is what makes it green** ⇒
 > **splitting them merges a knowingly-red suite.** ⭐ **They are one batch.**
 >
+> ⭐⭐⭐ **BATCH 62 item 0 MERGED at `665bb29b6` — `BP-251` IS NOT LIVE, AND IT IS `W13`.**
+> *(docs-only diff — ⭐ **no gate run, and that is stated rather than implied.**)*
+> ✅ **NOT LIVE.** ⭐ **Two registration paths reach one `ActionRegistry`:** the **bridge lambda**
+> (`BTreeBridgeEmitCore`) registers `…_Bp.TickCore@<packedOffset>@<slotHash>` and projects at a
+> **bin-packed offset `WouldOverflow` already budget-checks**; the **blueprint's own registrar**
+> (`CSharpEmitter`) registers `…_Bp.BTreeTick@0`, whose body is the unbounded
+> `paramIndex * sizeof(Params)` thunk. ⭐⭐ **Every key bound by every shipped tree is the FIRST form** —
+> coordinator-confirmed: **nothing under `Assets/` binds `BTreeTick`/`BTreeEvaluate`**, while **20+ of
+> the second form are registered and bound by nothing.**
+> ⛔⛔ **COORDINATOR ERROR, AND THE ROUTE MATTERS MORE THAN THE ERROR.** I asserted `paramIndex` is
+> *"the node payload index ⇒ the multiplier is how many times the tree binds that primitive."*
+> ⭐ **Measured truth: `TreeCompiler:155` — `payloadIndex = GetOrAddMethodName(...)` ⇒ the ordinal among
+> DISTINCT Action AND Condition method names in the WHOLE TREE** ⇒ **the multiplier grows with TREE
+> SIZE.** ⚠⚠ **I read the parameter's DOC COMMENT (`NodeLogicDelegate:11`) instead of its ASSIGNMENT —
+> the producer. My own "verify the producer/consumer" rule, broken twice in one session.**
+> ⇒ ⭐ **And their number is worse than mine:** `PlatoonHillAttack2` puts
+> `HillAssault2I_DispatchWaveWithTargets` at method-name index **5** with a 40-byte `Params` ⇒ bytes
+> **200..240** of a **100-byte buffer in a 128-byte component — past the component entirely.**
+> ⭐⭐⭐ **THE SYNTHESIS: `BP-251` IS `W13`.** They reframed it as **ruling 9 — two implementations of one
+> concept**, *"the bridge does it correctly and the raw thunk does it a second way with no bound and a
+> key that ends `@0`, asserting an offset it does not use."* ⭐ **And the cross-host handoff ALREADY has
+> that item, naming the same file:** *"`W13` — retire the standalone stride path, route `BTreeTick`
+> through the offset form; acceptance: ONE PROJECTION FORMULA REPO-WIDE."*
+> ⇒ ⛔ **Not a bound to add — `W13`, found from the other end.** ⭐ **The design session predicted the
+> duplication; they measured why it is dangerous and that nothing binds it. Two routes, one answer.**
+>
+> ⏭ **Batch 63 dispatched — [retire the standalone stride path](HANDOFF_Batch63_Retire_The_Stride_Path.md).**
+> ⚖️ **Lean: DELETE, on `W3`'s precedent** *(unreachable AND dangerous)*, ⭐ **with the rail stated as an
+> ABSENCE** — their own `W3` wording: naming the literal *"would pass again the moment someone
+> reintroduced the mechanism at 300."* 📐 **But answer first: WHY is `BTreeTick@0` emitted at all?** —
+> ⚠ **a vestigial registration and a deliberate standalone entry point look identical from the call
+> graph, and a grep over `Assets/` cannot see a programmatic binder.**
+> ⭐⭐ **The `@0` key is itself a lie, and it is what `W1`'s THIRD RAIL was about** *(the one rail I could
+> not verify)* ⇒ 📐 **does retiring the path make that rail moot, or is the rail what ENFORCES it?**
+> ⭐ **`S2` is back on its own footing** — I had put it first only because `BP-251`'s analyzer needed its
+> size oracle; **a deletion dissolves that dependency.**
+>
 > ⭐⭐⭐ **BATCH 60 + 61 items 1-2 VERIFIED AND MERGED at `f5c1dd7c5`** — ⭐⭐ **AND THE STOP RULE PAID
 > FOR ITSELF ON ITS FIRST OUTING.**
 > ✅ **Build 0/69 · Blueprints 3615/3605/0/10 · AiShared 1216 · BTree 612 · Breakpoints 130 ·
