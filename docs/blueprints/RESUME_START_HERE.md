@@ -847,6 +847,47 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > exactly on the required path** — and the user's *"what the watch panel SHOULD be providing"* reads
 > like they already suspected it.
 >
+> ⭐⭐⭐ **THE OPEN DESIGN ITEMS ARE CLOSED BY MEASUREMENT** *(3 sweeps, `2026-08-15`)* —
+> ✅ **The two struct-editing surfaces are NOT duplicates: the blueprint-local
+> `IStructEditDrawer`/`DrawerRegistry`/`PrimitiveDrawers` chain is DEAD CODE** *(stub bodies,
+> test-only registration, consumer never reads the field, built solely by `BlueprintWindowRegistrar`
+> which is `[Obsolete]`/`=> null` under AIE-015)* ⇒ ⛔ **delete it, do not reconcile it.**
+> ✅ **`BlueprintStateView`: do NOT promote** — zero production callers, `internal` ctor, raw `byte*`
+> with no lifetime guarantee, and 🔴🔴 **a SECOND production reader already exists**
+> (`BlueprintDebugSession.MarshalFromBytes` + hand-rolled slicing `:1308-1322`) ⇒ ⭐ **extract ONE
+> accessor both call.**
+> ✅ **FOUR variable surfaces, not three** — and ⭐ **`BlueprintVariablesWindow` ALREADY renders through
+> the shared `VariablesPanelControl`**, so `U-16`'s redundancy is a **missing live-value wiring**, not
+> duplicate rendering. ⛔ **The two `InspectorWindow` classes are NOT duplicates.** 📌 **`LiveBlackboardPanel`
+> has no `new` call site — likely dead.**
+> ⭐⭐ **`DefaultValueAuthoring` already implements ruling 5's STOPPED half** — `Hydrate` / `OpenSession`
+> / `CommitAndSerialize`, generic over any CLR type, `IncludeFields = true`.
+> ⭐⭐ **A live-value provider already exists and marshals structs generically** —
+> `LiveBlackboardValueProvider` (`BrainBlackboard` at `BehaviorParameters + byteOffset`).
+> ⛔⛔ **COORDINATOR ERROR (4th): *"the chameleon is already modular via `DrawerRegistry`"* was a NAME
+> COLLISION** — `BlueprintDetailsWindow._drawerRegistry` is a `BlueprintNodeDrawerRegistry` for graph
+> NODES ⇒ **the provider dispatch must be BUILT.**
+>
+> ⭐⭐⭐ **STRUCT SUPPORT MEASURED END TO END — 33 struct-typed declarations ship across ALL THREE kinds**
+> (`EqsSensorHandle` ×26 as **`Variable`**, `Entity` ×4 as **`Parameter`**, `MemberSlotList` ×2 +
+> `WaveState` ×1) ⇒ **structs reinforce the one-cell model.** ⛔ **Support is NOT uniform — five named
+> items `S1`-`S5`, see [the DESIGN doc](DESIGN_Variable_Details_And_Live_Values.md) §4.**
+> 🔴🔴 **`S1`/B2 — `EmitAiPrimitiveRegistration` emits NO `StateFields` and `StateSize = 0`, and
+> `CSharpEmitter:77` gates `AddStateLayoutField` on `Instance`** ⇒ **a whole dispatch kind is invisible
+> to the debugger for ANY type.** ⭐⭐ **And `CaptureAiPrimitiveState` — a reader for exactly that data —
+> has shipped green its entire life while reading nothing: a CONSUMER WITH NO PRODUCER.**
+> 🔴 **`S2`/B1 — an unregistered struct resolves at a GUESSED 4 bytes** and `layoutFromRuntime` covers
+> `Variables` only ⇒ ⭐⭐⭐ **but `StructSizeResolver` is a FULLY GENERAL Roslyn-based size computer that
+> already exists in `Hrot.AiEditor.Generators` and the blueprint compiler NEVER CALLS IT** — reuse it.
+>
+> 📄 **THE DESIGN IS [DESIGN_Variable_Details_And_Live_Values.md](DESIGN_Variable_Details_And_Live_Values.md)**
+> *(+ [access-stack SVG](DESIGN_Variable_Access_Stack.svg))* — ⭐ **that is what gets built;**
+> `Q32_…_ANSWERS` keeps the 16 rulings, the derivations and the coordinator's corrected errors.
+>
+> ⏭ **Batch 57 dispatched — [`S1`, AiPrimitive state metadata](HANDOFF_Batch57_AiPrimitive_State_Metadata.md).**
+> ⛔ **RUNS AFTER 56.** ⭐ **User ruling: pulled ahead of the panel work**, because without it the value
+> column is dead for every AiPrimitive asset and it would surface mid-panel-batch as a mystery.
+>
 > ⏭ **Batch 56 dispatched — [the EMITTER UNIFICATION](HANDOFF_Batch56_Emitter_Unification.md).**
 > ⭐⭐ **`U-12` made the mixture legal at Stage 2 and nobody told the emitters:** `InstanceEmitter`
 > walks `Variables` only, `AiPrimitiveEmitter` walks `WorkingState` only, while `Stage5:4137`
