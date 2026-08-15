@@ -1,6 +1,6 @@
 # HANDOFF — Batch 65: **Track B — struct support, all three now design-ruled**
 
-> 📌 **Dispatched at `<stamped below>`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
+> 📌 **Dispatched at `4ce68ba24`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
 > ✅ **Batch 64 item 1 MERGED at `5ef445f7e`.** ⭐ **Your sweep was right to stop on `W7` — it is
 > re-specified and OUT of this batch.**
 > ⭐ **Rule 7 / Rule 4.** ⛔ **Rule 3: the coordinator allocates no ids.**
