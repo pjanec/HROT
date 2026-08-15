@@ -55,6 +55,55 @@ and now every constraint on it is settled:
 
 ⇒ ⭐ **Nothing in the ruling is blocked any more.**
 
+## 2.1 ⭐⭐ Rulings 10-12 *(user, `2026-08-15`)* — reuse, share, and **immediacy**
+
+| # | ruled |
+|---|---|
+| **10** | ⭐ **Reuse the existing StructEdit generic value-editing dialog** — *"used by entity component inspector at least"* |
+| **11** | ⭐⭐ **The runtime value change is the same mechanism the Watch panel should provide — SHARE it** |
+| **12** | 🔴🔴 **It must work when the sim is FROZEN on a breakpoint or in deterministic stepping mode, and the change must appear IMMEDIATELY in both the Details and Watch panels — ⛔ not on the next step or on resume** |
+
+### ⭐ Ruling 10 — what exists, and ⚠ there appear to be TWO of them
+
+| | |
+|---|---|
+| ✅ **the FDP-level service** | **`IComponentEditService`** (StructEdit.Core), driven by **`Fdp.Toolkits/Diagnostics/Gizmos/UI/StructInspectorProjector.cs`** — ⭐ **this looks like the entity component inspector the user means**, and it is also what the ReplayBrowser's predicate/event compilers use |
+| ⚠ **a blueprint-local one** | **`Hrot.Blueprints.Editor/Inspector/`** — `IStructEditDrawer<T>` · `DrawerRegistry` · `PrimitiveDrawers`, consumed by `InspectorWindow` and `BlueprintDetailsWindow`. ⭐ **Already an EDITING interface** — `bool Draw(string label, ref T value, DrawContext ctx)`, *"returns true if the value was modified"* |
+| 📐 **The question, to MEASURE not assume** | ⛔ **Are these two implementations of one concept (ruling 9's target), or two different jobs that look alike?** ⚖️ **Coordinator lean: build the dialog on the FDP-level `IComponentEditService`** — it is the one already shared beyond blueprints, and ruling 6 wants one dialog for three hosts. ⚠ **But the coordinator has NOT proved the blueprint-local registry is redundant, and must not claim it is** |
+
+### 🔴🔴 Ruling 12 vs ruling 2a — **a genuine conflict, and its resolution**
+
+⛔⛔ **These two rulings pull against each other and it must be said plainly:**
+
+> **2a** says *queue the write via FDP command buffers.* **12** says *the change must be visible
+> immediately while the sim is FROZEN.* ⇒ ⛔ **A queued write does not flush until a tick runs, and a
+> frozen sim runs no ticks. Taken naively, the value would appear only on resume — exactly what
+> ruling 12 forbids.**
+
+⚖️ **Coordinator's resolution, and it keeps ONE write path:**
+
+| | |
+|---|---|
+| ⭐⭐ **When `IsPausedByDebugger`** | **submit to the command buffer, then FLUSH IT ON THE SPOT.** ✅ **`EntityRepository.FlushCommandBuffers()` is public and is the existing playback point**, and ⭐ **a frozen sim has no tick in flight, so the race 2a guards against cannot occur** |
+| ⭐ **When running** | submit and let the normal flush happen — **the same call, the same buffer** |
+| ⛔ **Rejected: a pending-write overlay in the read path** | it would show the new value without applying it ⇒ **a second source of truth for "what is the value"** — ⛔ **ruling 9's exact prohibition** |
+
+⭐ **So: one write path, and freezing changes only WHEN the flush happens, never WHETHER it goes
+through the buffer.** ✅ **The freeze signal exists — `IEngineDebugTimeController.IsPausedByDebugger`,
+with `RequestPause`/`RequestResume`/`RequestStepOneTick`.**
+
+### 🔴 Ruling 11/12 — the Watch panel handler that would refresh it is **EMPTY**
+
+```csharp
+// WatchPanelWindow.cs:26
+private void HandlePinValueChanged(PinValueChanged evt) { /* refresh row data */ }
+```
+
+⛔⛔ **A subscribed handler with an empty body and a comment describing what it would do.** ⭐ **Trap #5,
+and it sits precisely on ruling 12's path** — *"the change must be shown immediately in the detail and
+watch panel."* 📐 **The Watch panel cannot honour ruling 12 until this is real**, and ⭐ **the user's
+own words — *"similar to what watch panel SHOULD be providing"* — suggest they already suspect it.**
+
 ### ➕ Ruling 5 extended *(same message)*
 
 ⭐ **Double-clicking the value cell opens the edit window too** — the three-dot button is an

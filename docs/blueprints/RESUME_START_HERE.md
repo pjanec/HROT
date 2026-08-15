@@ -691,6 +691,23 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > ⚠ **Batch 56's §5 rationale line (*"AiShared is the cross-host session's territory"*) is superseded;
 > ⭐ its SCOPE stands and the handoff is NOT amended (rule 1).**
 >
+> ⭐⭐ **RULINGS 10-12 *(`2026-08-15`)* — reuse StructEdit · share the Watch mechanism · ⛔ IMMEDIATE
+> while FROZEN.** 🔴🔴 **Ruling 12 CONFLICTS with ruling 2a and the conflict is real:** a write queued
+> into a command buffer does not flush until a tick runs, and **a frozen sim runs no ticks** ⇒ naively
+> the value would appear only on resume. ⭐⭐ **Resolution that keeps ONE write path: when
+> `IsPausedByDebugger`, submit to the buffer and FLUSH ON THE SPOT** — `FlushCommandBuffers()` is
+> public, and a frozen sim has no tick in flight, so 2a's race cannot occur. ⛔ **A pending-write
+> overlay is REJECTED — it would be a second source of truth for "what is the value", ruling 9's exact
+> prohibition.**
+> ⚠ **Two struct-editing surfaces already exist** — FDP-level `IComponentEditService` +
+> `StructInspectorProjector`, and blueprint-local `IStructEditDrawer`/`DrawerRegistry` *(already an
+> editing interface: `bool Draw(…, ref T value, …)`)*. ⚖️ **Lean: build on the FDP-level one** — ⛔ **but
+> the coordinator has NOT proved the blueprint-local one redundant and does not claim it.**
+> 🔴 **And the handler that would satisfy ruling 12 in the Watch panel is EMPTY:**
+> `WatchPanelWindow:26` — `HandlePinValueChanged(evt) { /* refresh row data */ }`. ⭐ **Trap #5, sitting
+> exactly on the required path** — and the user's *"what the watch panel SHOULD be providing"* reads
+> like they already suspected it.
+>
 > ⏭ **Batch 56 dispatched — [the EMITTER UNIFICATION](HANDOFF_Batch56_Emitter_Unification.md).**
 > ⭐⭐ **`U-12` made the mixture legal at Stage 2 and nobody told the emitters:** `InstanceEmitter`
 > walks `Variables` only, `AiPrimitiveEmitter` walks `WorkingState` only, while `Stage5:4137`
