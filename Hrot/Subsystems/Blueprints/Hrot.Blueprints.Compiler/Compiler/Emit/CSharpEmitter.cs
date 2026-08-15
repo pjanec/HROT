@@ -74,9 +74,12 @@ internal sealed class CSharpEmitter
                     StatementEmitter.TypeRefToCSharp(field.Type), field.Name));
         }
 
+        // ⚠ Batch 56 unified WHAT this walks (the union, not Variables). ⛔ The `Instance` gate itself is
+        // Batch 57's (`S1`): lifting it means also emitting an AiPrimitive's StateFields and the
+        // runtime-derived offsets its working state needs, which is a different change with its own gate.
         if (asset.Dispatch == AssetDispatch.Instance)
         {
-            foreach (var field in asset.Variables)
+            foreach (var field in asset.StateDeclarations)
             {
                 _debugMap.AddPin(new DebugPinInfo(field.Id, Guid.Empty, field.Name, "Output", "Variable",
                     StatementEmitter.TypeRefToCSharp(field.Type), $"s.{field.Name}"));
@@ -382,7 +385,10 @@ internal sealed class CSharpEmitter
             .Where(g => g.Kind == IrGraphKind.Event)
             .ToList();
 
-        var emittableVariables = asset.Variables
+        // Batch 56 — the descriptors describe the State STRUCT, and since ruling 8 that struct holds the
+        // whole state tier. A descriptor set built from Variables alone would name fewer fields than the
+        // struct has, which is the `BP-223` shape: a consumer that resolves nothing and reports nothing.
+        var emittableVariables = asset.StateDeclarations
             .Where(f => IsReferencableStateFieldType(f.Type))
             .ToList();
 
@@ -409,7 +415,7 @@ internal sealed class CSharpEmitter
             // debugger visibility lands in LV-5) but still occupies state bytes with an unreliable
             // computed size, so any SCALAR field declared after it has a wrong baked offset and must
             // take the runtime Marshal.OffsetOf path too.
-            bool layoutFromRuntime = asset.Variables.Any(f => !f.Type.SizeReliable);
+            bool layoutFromRuntime = asset.StateDeclarations.Any(f => !f.Type.SizeReliable);
             WriteLine("StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)");
             WriteLine("{");
             Indent();

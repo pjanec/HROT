@@ -66,18 +66,25 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("}");
     }
 
+    /// <summary>
+    /// ⭐⭐ Batch 56 / ruling 8 — the struct is still <b>called</b> <c>WorkingState</c> (that name is ABI,
+    /// and <c>InlineActionLowering</c> emits it literally), but what it <b>holds</b> is the asset's ONE
+    /// state tier, <see cref="IrAsset.StateDeclarations"/>. ⛔ It used to hold <c>asset.WorkingState</c>
+    /// alone, so a <c>Variable</c> declaration on an AiPrimitive — legal since <c>U-12</c> retired
+    /// <c>BP1024</c> — was bound by Stage 5 and then never emitted.
+    /// </summary>
     private static void EmitWorkingStateStruct(CSharpEmitter e, IrAsset asset)
     {
-        // FC-2/LV-1b (Q#19-E): a WorkingState field may be a fixed-capacity list -- emit the same
+        // FC-2/LV-1b (Q#19-E): a state field may be a fixed-capacity list -- emit the same
         // per-class nested wrapper structs the Instance State path uses (additive: assets without
         // list fields emit byte-identical output).
-        InstanceEmitter.EmitListWrappers(e, asset.WorkingState);
+        InstanceEmitter.EmitListWrappers(e, asset.StateDeclarations);
         e.WriteLine("[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
         e.WriteLine("public struct WorkingState");
         e.WriteLine("{");
         e.Indent();
 
-        foreach (var f in asset.WorkingState)
+        foreach (var f in asset.StateDeclarations)
         {
             EmitComment(e, f.Comment);
             EmitStructField(e, CSharpType(f.Type), f.Name);
@@ -125,7 +132,11 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("{");
         e.Indent();
         e.WriteLine("*dst = default;");
-        foreach (var f in asset.WorkingState.Where(f =>
+        // ⭐⭐ Batch 56 — the SILENT half. ⚠ And a coordinator error worth keeping: the Q32 draft asked
+        // whether working state should have initial values "since it is per-run scratch". It always has —
+        // these lines are `InstanceEmitter.EmitInitDefault`'s, over the other list. Reasoning from the
+        // NAME instead of the code is what made two kinds look like two concepts for nineteen batches.
+        foreach (var f in asset.StateDeclarations.Where(f =>
             !string.IsNullOrEmpty(f.DefaultValueCSharp) &&
             f.DefaultValueCSharp != "0" &&
             f.DefaultValueCSharp != "default"))
@@ -136,7 +147,7 @@ internal static class AiPrimitiveEmitter
         // partial init the whole-field DefaultValueCSharp path cannot express (review F2). Runs on
         // every hash-mismatch (re)init inside the generated thunks; the BlueprintCall host's inline
         // zero path leaves Count=0 (safe empty list; documented LV-1b limitation).
-        foreach (var f in asset.WorkingState.Where(f => f.Type.Capacity > 0 && f.Type.InitialLength > 0))
+        foreach (var f in asset.StateDeclarations.Where(f => f.Type.Capacity > 0 && f.Type.InitialLength > 0))
         {
             e.WriteLine($"dst->{f.Name}.Count = {f.Type.InitialLength};");
         }

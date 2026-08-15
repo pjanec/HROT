@@ -99,15 +99,21 @@ internal static class InstanceEmitter
         e.WriteLine("}");
     }
 
+    /// <summary>
+    /// ⭐⭐ Batch 56 / ruling 8 — <c>State</c> holds the asset's ONE state tier,
+    /// <see cref="IrAsset.StateDeclarations"/>. ⛔ It used to hold <c>Variables</c> alone, so a
+    /// <c>WorkingState</c> declaration on an Instance — legal since <c>U-12</c> split <c>BP1031</c> —
+    /// was bound by Stage 5 and then never emitted.
+    /// </summary>
     private static void EmitStateStruct(CSharpEmitter e, IrAsset asset)
     {
-        EmitListWrappers(e, asset.Variables);
+        EmitListWrappers(e, asset.StateDeclarations);
         e.WriteLine("[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
         e.WriteLine("public struct State");
         e.WriteLine("{");
         e.Indent();
         e.WriteLine("public global::Fdp.Toolkit.Blueprints.BlueprintLatentCursor Cursor;  // first 16 bytes");
-        foreach (var f in asset.Variables)
+        foreach (var f in asset.StateDeclarations)
             e.WriteLine($"public {CSharpType(f.Type)} {f.Name};");
         // BP-57 / Q27-A3 — suspending graphs' locals, appended AFTER the real fields so their offsets
         // continue the struct's layout (FieldLayout does the same arithmetic). Addressed by name only.
@@ -161,7 +167,10 @@ internal static class InstanceEmitter
         e.WriteLine("public static class VarIds");
         e.WriteLine("{");
         e.Indent();
-        foreach (var v in asset.Variables)
+        // Batch 56 — the whole state tier, not just Variables: a name→id constant is exactly as true
+        // for a WorkingState declaration on an Instance, and omitting it would be the same silent gap
+        // one level up.
+        foreach (var v in asset.StateDeclarations)
             e.WriteLine($"public const string {v.Name} = \"{v.Id}\";");
         e.Outdent();
         e.WriteLine("}");
@@ -175,7 +184,10 @@ internal static class InstanceEmitter
         e.WriteLine("ref var s = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, State>(");
         e.WriteLine("    ref global::System.Runtime.InteropServices.MemoryMarshal.GetReference(stateBytes));");
         e.WriteLine("s = default;");
-        foreach (var v in asset.Variables.Where(f =>
+        // ⭐⭐ Batch 56 — the SILENT half of the defect lives here. An unreferenced wrong-side declaration
+        // produced no Roslyn error at all: it simply had no field and no initialiser, so an authored
+        // initial value was carried through the JSON, through Stage 5, and then dropped.
+        foreach (var v in asset.StateDeclarations.Where(f =>
             !string.IsNullOrEmpty(f.DefaultValueCSharp) &&
             f.DefaultValueCSharp != "0" &&
             f.DefaultValueCSharp != "default"))
@@ -185,7 +197,7 @@ internal static class InstanceEmitter
         // FC-2/LV-1 (Q#19-B): declared initial length seeds Count over the already-zeroed slots
         // (preallocation is free for blittable elements -- default(T) is all-zero bytes). This is
         // the PARTIAL init the whole-field DefaultValueCSharp path cannot express (review F2).
-        foreach (var v in asset.Variables.Where(f => f.Type.Capacity > 0 && f.Type.InitialLength > 0))
+        foreach (var v in asset.StateDeclarations.Where(f => f.Type.Capacity > 0 && f.Type.InitialLength > 0))
         {
             e.WriteLine($"s.{v.Name}.Count = {v.Type.InitialLength};");
         }

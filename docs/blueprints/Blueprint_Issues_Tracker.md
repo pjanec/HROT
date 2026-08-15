@@ -13,9 +13,9 @@ architect decision first).
 |---|---:|---:|
 | `WIRING` | 4 | 39 |
 | `RW-L` | 28 | 51 |
-| `RW-M` | 26 | 26 |
+| `RW-M` | 26 | 27 |
 | `RW-H` | 2 | 2 |
-| **Total** | **60** | **118** |
+| **Total** | **60** | **119** |
 | *(refuted on verification)* | | *1* |
 
 > ⚠ **`RW-L` done was 43 and the Total 88 — an off-by-one that predates Batch 29** (present at
@@ -499,6 +499,7 @@ architect decision first).
 - [ ] **[BP-32](Blueprint_Issues_Detail.md#bp-32)** · `RW-L` — `When` FallingEdge deferred for ValueChanged mode (live `// TODO M3`); falling-edge behaviours silently never fire
 - [ ] **[BP-58](Blueprint_Issues_Detail.md#bp-58)** · `RW-L` — `Cast` has no drawer (emit bug itself is **fixed**; July matrix is stale)
 - [ ] **[BP-33](Blueprint_Issues_Detail.md#bp-33)** · `RW-M` — `WaitForEvent` structurally broken: no `EventTypeId` satisfies both Stage2 and Roslyn. **Decide repair vs delete** — superseded by named `EventEntry` handlers
+- [x] **BP-244** · `RW-M` 🔴 — ⭐⭐ **`U-12` made the `Variable`/`WorkingState` mixture legal and nobody told the emitters.** `BP1024` was retired (an AiPrimitive may declare a `Variable`) and `BP1031` split (an Instance may declare `WorkingState`), and `Stage5:4137/:4154` already resolves across the two **concatenated** — ⛔ but `InstanceEmitter` walked `asset.Variables` **only** (`:104 :110 :164 :178 :188`) and `AiPrimitiveEmitter` walked `asset.WorkingState` **only** (`:74 :80 :128 :139`). ⇒ a declaration on the "wrong" side either **(a)** referenced ⇒ Stage 5 bound it, the emitter never emitted the field, and **Roslyn** named a generated file the designer never wrote (`BP-228`'s shape — a diagnostic in the wrong language), or 🔴🔴 **(b)** unreferenced ⇒ **silently absent at runtime**: declared, initial value authored and persisted, and it does not exist. ⭐ **`FieldLayout` carried the same split one level down** — `WorkingState` laid out from `8` and `Variables` from `16` **independently**, two overlapping offset runs describing fields the emitter then wrote out consecutively; ⚠ those offsets are baked into `StructureHash` and into `BlueprintFieldDescriptor`, and **wrong offsets read plausible bytes from the wrong place**. ⛔ **Nothing could have caught it:** measured over all 458 shipped `.bp.json` — 193 `(Variable)`, 32 `(Parameter, WorkingState)`, 7 `(Parameter)`, 5 `(WorkingState)`, 221 none, ⭐ **0 with BOTH** ⇒ the union is a no-op on the entire corpus. `BP-240`'s shape a fifth time: a rail relaxed without telling the code it was protecting. 🛠 **Fixed Batch 56 (ruling 8).** ⭐ **One projection, `IrAsset.StateDeclarations` = `WorkingState ∪ Variables` in `DeclarationList.KindOrder`** — storage order, which is also `StructureHashComputation`'s append order — and **every** reader of the state tier walks it: both struct emitters, both `InitDefault`s, `VarIds`, the debug-map state layout, the `StateFields` descriptors, `layoutFromRuntime`, and `FieldLayout` (now ONE run from one base: `8` for an AiPrimitive, `16` for an Instance). ⚠ **The three lists stay the STORAGE** — `VariableRef` addresses a (kind, list-relative index), so collapsing them would invalidate every baked reference; the IR boundary held. ⛔ **`Parameter` stays out** — `(Input, Asset)` is a genuinely different cell. ⭐ **Byte-identical:** `StructureHash` unchanged for all 42, golden Tier 1 **and** Tier 2 unchanged, `persistence-shape.txt` unchanged. 6 fixtures constructing the assets the corpus does not contain, **5 of 6 red on revert** (the sixth is `BP1673`'s regression guard, declared as such) *— found by the coordinator reading the emitters against `U-12`, closed Batch 56*
 
 ## Area E — Debug & diagnostics
 *Strongest area — several capabilities **exceed** stock Unreal. Universal Breakpoints (Slice-2 D1) is **already built**: 128 unit + 25 integration tests pass.*
