@@ -1,6 +1,6 @@
 # HANDOFF — Batch 57 (**S1**): ⭐⭐⭐ **AiPrimitive emits NO state metadata — a whole dispatch kind is invisible**
 
-> 📌 **Dispatched at `STAMP`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
+> 📌 **Dispatched at `8e642af9e`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
 > ⛔⛔ **RUNS AFTER BATCH 56 LANDS AND IS VERIFIED.** ⭐ **56 unifies what the emitters WALK; this batch
 > depends on that union being in place.** 📐 **If 56 is not merged when you start, do 56 first.**
 > ⭐ **Rule 7:** branch from this branch. ⭐ **Rule 4:** pull it again before your final commit.
