@@ -290,6 +290,50 @@ internal static class AiPrimitiveEmitter
         }
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>W13</c> / <c>BP-251</c> (Batch 63) — the ONE parameter projection formula, repo-wide.</b>
+    ///
+    /// <para>
+    /// 🔴 <b>This used to be a stride:</b> <c>bb.BehaviorParameters[paramIndex * Unsafe.SizeOf&lt;Params&gt;()]</c>.
+    /// ⛔ <c>paramIndex</c> is <b>not</b> a slot the blueprint owns — <c>TreeCompiler:155</c> sets it from
+    /// <c>GetOrAddMethodName(...)</c>, so it is the ordinal among <b>every distinct Action and Condition
+    /// method name in the whole tree</b>. ⇒ the multiplier grows with TREE SIZE. Measured:
+    /// <c>PlatoonHillAttack2</c> would put a 40-byte <c>Params</c> at index 5 ⇒ bytes <b>200…240 of a
+    /// 100-byte buffer inside a 128-byte component</b> — past the component entirely.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>Why this is a ROUTE and not a delete.</b> The thunk is <b>not</b> vestigial: it is the
+    /// architect-confirmed <i>blueprint-as-behavior</i> standalone hosting, opt-in per
+    /// <see cref="AiPrimitiveHosting.BTreeAction"/>/<c>BTreeCondition</c> — <c>SLICE1-DESIGN §82</c>
+    /// records the ruling (<i>"BTree owns layout, blueprint provides TickCore"</i>) and says the
+    /// composition path <b>ignores</b> this thunk, while <c>SLICE2-DESIGN:52</c> says the thunk
+    /// <i>"stays the standalone blueprint-as-behavior hosting."</i> ⇒ deleting it would remove a
+    /// capability, not a mistake.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>What the <c>@0</c> in the registered key always meant.</b> Standalone hosting IS the
+    /// single-method case, where the payload index is 0 — so <c>@0</c> was <b>truthful for the case the
+    /// thunk exists for</b> and a lie only when bound anywhere else. ⛔ Nothing enforced that. Projecting
+    /// at a literal 0 makes the key true <b>by construction</b> instead of by convention, which is the
+    /// same invariant <c>W1</c>'s third rail states from the other end.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ The <c>paramIndex</c> parameter stays in the signature: it is <c>NodeLogicDelegate</c>'s shape,
+    /// not ours to change. ⭐ It is now unread — exactly as the bridge's per-node adapter leaves it.
+    /// </para>
+    /// </summary>
+    private static void EmitParamProjection(CSharpEmitter e)
+    {
+        e.WriteLine("// W13: the offset form — identical in shape to the BTree bridge's per-node adapter.");
+        e.WriteLine("//      Standalone hosting is the single-method case, so the baked offset is 0.");
+        e.WriteLine("ref var p = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(");
+        e.WriteLine("    ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(");
+        e.WriteLine("        ref bb.BehaviorParameters[0], (nint)0));");
+    }
+
     private static void EmitBTreeActionThunk(CSharpEmitter e)
     {
         e.WriteLine("public static unsafe global::Fbt.NodeStatus BTreeTick(");
@@ -301,8 +345,7 @@ internal static class AiPrimitiveEmitter
         e.Outdent();
         e.WriteLine("{");
         e.Indent();
-        e.WriteLine("ref var p = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(");
-        e.WriteLine("    ref bb.BehaviorParameters[paramIndex * global::System.Runtime.CompilerServices.Unsafe.SizeOf<Params>()]);");
+        EmitParamProjection(e);
         e.WriteLine("ref var bb1024 = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>(ctx.Self);");
         e.WriteLine("unsafe");
         e.WriteLine("{");
@@ -340,8 +383,7 @@ internal static class AiPrimitiveEmitter
         e.Outdent();
         e.WriteLine("{");
         e.Indent();
-        e.WriteLine("ref var p = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(");
-        e.WriteLine("    ref bb.BehaviorParameters[paramIndex * global::System.Runtime.CompilerServices.Unsafe.SizeOf<Params>()]);");
+        EmitParamProjection(e);
         e.WriteLine("ref var bb1024 = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>(ctx.Self);");
         e.WriteLine("unsafe");
         e.WriteLine("{");
