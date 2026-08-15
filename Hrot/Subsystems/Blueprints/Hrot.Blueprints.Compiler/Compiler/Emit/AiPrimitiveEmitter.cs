@@ -25,6 +25,12 @@ internal static class AiPrimitiveEmitter
         EmitWorkingStateStruct(e, asset);
         e.WriteLine();
 
+        // ⭐ Batch 57 (S1) — the real size of the working state, mirroring InstanceEmitter's
+        // `StateSize`. ⛔ The registrar used to write a literal `StateSize = 0`, which is not a
+        // placeholder but a wrong answer: this struct occupies real bytes in Blackboard1024.
+        e.WriteLine("public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();");
+        e.WriteLine();
+
         EmitInitDefault(e, asset);
         e.WriteLine();
 

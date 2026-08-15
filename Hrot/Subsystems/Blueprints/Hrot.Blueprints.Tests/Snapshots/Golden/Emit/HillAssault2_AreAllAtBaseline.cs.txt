@@ -31,6 +31,8 @@ public static class HillAssault2AreAllAtBaseline_4CDE3A29_Bp
         public bool AllAtBaseline;
     }
     
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
         *dst = default;
@@ -117,7 +119,13 @@ public static class BlueprintRegistrar_HillAssault2AreAllAtBaseline_4CDE3A29_Bp
             Name = "HillAssault2_AreAllAtBaseline",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2AreAllAtBaseline_4CDE3A29_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = HillAssault2AreAllAtBaseline_4CDE3A29_Bp.StateSize,
+            AssetId = new Guid("c4f1a2b6-9d3e-4a70-8f21-6b5e0a7c2d94"),
+            StateClrType = typeof(HillAssault2AreAllAtBaseline_4CDE3A29_Bp.WorkingState),
+            StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
+            {
+                ["AllAtBaseline"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("AllAtBaseline", typeof(bool), 0, 1, ""),
+            },
         });
         actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Generated.HillAssault2AreAllAtBaseline_4CDE3A29_Bp.BTreeEvaluate@0", static (ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb, ref global::Fbt.BehaviorTreeState st, ref global::Fdp.Toolkit.Behavior.BTreeContext ctx, int pi) => HillAssault2AreAllAtBaseline_4CDE3A29_Bp.BTreeEvaluate(ref bb, ref st, ref ctx, pi) ? global::Fbt.NodeStatus.Success : global::Fbt.NodeStatus.Failure);
     }

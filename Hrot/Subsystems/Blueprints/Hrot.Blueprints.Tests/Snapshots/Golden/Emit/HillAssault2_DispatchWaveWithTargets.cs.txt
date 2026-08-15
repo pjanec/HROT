@@ -48,6 +48,8 @@ public static class HillAssault2DispatchWaveWithTargets_8CA4BFD9_Bp
         public float EqsRequestTime;
     }
     
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
         *dst = default;
@@ -181,7 +183,21 @@ public static class BlueprintRegistrar_HillAssault2DispatchWaveWithTargets_8CA4B
             Name = "HillAssault2_DispatchWaveWithTargets",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2DispatchWaveWithTargets_8CA4BFD9_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = HillAssault2DispatchWaveWithTargets_8CA4BFD9_Bp.StateSize,
+            AssetId = new Guid("6ffc2d3c-41e3-4016-8f2a-5dcb8720fb73"),
+            StateClrType = typeof(HillAssault2DispatchWaveWithTargets_8CA4BFD9_Bp.WorkingState),
+            StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
+            {
+                ["Runners"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("Runners", typeof(global::Hrot.AI.Behaviors.Brains.MemberSlotList), 0, 96, ""),
+                ["WaveUsedSlotsMask"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("WaveUsedSlotsMask", typeof(global::System.UInt16), 96, 2, ""),
+                ["BaselineReservedMask"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("BaselineReservedMask", typeof(global::System.UInt16), 98, 2, ""),
+                ["BurnedSlotsMask"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("BurnedSlotsMask", typeof(global::System.UInt16), 100, 2, ""),
+                ["CurrentWave"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("CurrentWave", typeof(byte), 102, 1, ""),
+                ["TotalSlots"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("TotalSlots", typeof(int), 104, 4, ""),
+                ["CachedTargetGroupHandle"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("CachedTargetGroupHandle", typeof(int), 108, 4, ""),
+                ["CachedEqsRequestId"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("CachedEqsRequestId", typeof(long), 112, 8, ""),
+                ["EqsRequestTime"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("EqsRequestTime", typeof(float), 120, 4, ""),
+            },
         });
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2DispatchWaveWithTargets_8CA4BFD9_Bp.BTreeTick@0", HillAssault2DispatchWaveWithTargets_8CA4BFD9_Bp.BTreeTick);
     }

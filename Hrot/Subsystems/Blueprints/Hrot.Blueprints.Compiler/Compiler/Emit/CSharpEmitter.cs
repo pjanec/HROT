@@ -74,17 +74,32 @@ internal sealed class CSharpEmitter
                     StatementEmitter.TypeRefToCSharp(field.Type), field.Name));
         }
 
-        // ⚠ Batch 56 unified WHAT this walks (the union, not Variables). ⛔ The `Instance` gate itself is
-        // Batch 57's (`S1`): lifting it means also emitting an AiPrimitive's StateFields and the
-        // runtime-derived offsets its working state needs, which is a different change with its own gate.
-        if (asset.Dispatch == AssetDispatch.Instance)
+        // ⭐⭐ Batch 57 (S1) — this was gated on `Instance`, so an AiPrimitive contributed NOTHING to
+        //    DebugMap.StateLayout and nothing to the variable pins: a whole dispatch kind invisible to
+        //    the debugger. Batch 56 unified WHAT it walks; this lifts the gate to every kind that has
+        //    state at all. (Library dispatch has no state struct.)
+        if (asset.Dispatch != AssetDispatch.Library)
         {
+            // ⚠ The container is the emitted local the expression must name — `ws` for TickCore's
+            //   working state, `s` for an Instance's State. Same split as EmissionContext.StateVar.
+            var container = asset.Dispatch == AssetDispatch.AiPrimitive ? "ws" : "s";
+
+            // 🔴🔴 "Do not emit metadata you cannot trust." The debug map is a COMPILE-TIME artefact:
+            //    unlike the registrar it cannot emit `Marshal.OffsetOf<…>`, so when the baked offsets
+            //    are guesses the only honest contribution is none. ⛔ And silence here is not merely
+            //    tidy — it is REQUIRED: both readers (CaptureAiPrimitiveState, ReadInstanceState)
+            //    PREFER StateLayout over StateFields, so a baked-and-wrong layout would SHADOW the
+            //    runtime-derived dictionary that is correct. ⭐ Measured: no shipped asset takes the
+            //    runtime path today, so this is a no-op on the corpus and a rail for what comes next.
+            bool bakedOffsetsUsable = !LayoutFromRuntime(asset);
+
             foreach (var field in asset.StateDeclarations)
             {
                 _debugMap.AddPin(new DebugPinInfo(field.Id, Guid.Empty, field.Name, "Output", "Variable",
-                    StatementEmitter.TypeRefToCSharp(field.Type), $"s.{field.Name}"));
-                _debugMap.AddStateLayoutField(new StateLayoutField(
-                    field.Name, field.Type.FullName, field.Offset, field.Size));
+                    StatementEmitter.TypeRefToCSharp(field.Type), $"{container}.{field.Name}"));
+                if (bakedOffsetsUsable)
+                    _debugMap.AddStateLayoutField(new StateLayoutField(
+                        field.Name, field.Type.FullName, StructRelativeOffset(asset, field), field.Size));
             }
         }
 
@@ -329,7 +344,18 @@ internal sealed class CSharpEmitter
         WriteLine($"Name = \"{asset.Name}\",");
         WriteLine("Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,");
         WriteLine($"StructureHash = {className}.StructureHash,");
-        WriteLine("StateSize = 0,");
+        // ⭐⭐ Batch 57 (S1) — was a literal `0`, and `0` was not a placeholder, it was a wrong answer:
+        // an AiPrimitive's working state is real bytes in Blackboard1024. Same expression the Instance
+        // path uses, over this dispatch kind's own struct.
+        WriteLine($"StateSize = {className}.StateSize,");
+        WriteLine($"AssetId = new Guid(\"{asset.AssetId}\"),");
+        WriteLine($"StateClrType = typeof({className}.WorkingState),");
+        // 🔴🔴 Batch 57 (S1) — the block that was missing ENTIRELY. Without it
+        // `BlueprintDefinition.StateFields` is empty for every AiPrimitive asset, so
+        // `BlueprintDebugSession.CaptureAiPrimitiveState` — written, shipped and named for this exact
+        // case — silently reads nothing and returns. ⚠ A consumer with no producer, green for its whole
+        // life because nothing ever asked it for a value. 32 shipped assets are (Parameter, WorkingState).
+        EmitStateFieldsBlock(className, asset, "WorkingState");
         Outdent();
         WriteLine("});");
 
@@ -379,17 +405,98 @@ internal sealed class CSharpEmitter
         return !underlying.FullName.StartsWith("_");
     }
 
+    /// <summary>
+    /// ⭐⭐ <b>Batch 57 (<c>S1</c>) — ONE <c>StateFields</c> emitter, for both dispatch kinds that carry
+    /// state.</b> Ruling 9 is <i>"no keeping two implementations for the same concept"</i>, and a
+    /// second copy over <c>WorkingState</c> would have been exactly that — the AiPrimitive half was
+    /// missing precisely because there was nothing to add it to.
+    /// </summary>
+    /// <param name="stateStructName">
+    /// ⚠ The struct the descriptors describe, and the ONLY thing that differs: <c>State</c> for an
+    /// Instance, <c>WorkingState</c> for an AiPrimitive. ⛔ Those names are ABI (see
+    /// <c>AiPrimitiveEmitter</c>), so the emitter is parameterised by the name rather than the names
+    /// being unified.
+    /// </param>
+    private void EmitStateFieldsBlock(string className, IrAsset asset, string stateStructName)
+    {
+        // Batch 56 — the descriptors describe the state STRUCT, and since ruling 8 that struct holds the
+        // whole state tier. A descriptor set built from one list would name fewer fields than the struct
+        // has, which is the `BP-223` shape: a consumer that resolves nothing and reports nothing.
+        var emittable = asset.StateDeclarations
+            .Where(f => IsReferencableStateFieldType(f.Type))
+            .ToList();
+
+        if (emittable.Count == 0) return;
+
+        // When every field's size is reliable (all primitives/curated types), the compiler's baked
+        // offsets/sizes are correct → emit them as constants (byte-identical to before). If ANY field is
+        // a project struct accepted via the AN2 fallback (size unknown to the reflection-less compiler),
+        // the baked offsets of later fields are wrong — so emit offset/size via a RUNTIME query against
+        // the real generated struct layout (Marshal.OffsetOf<T> + Unsafe.SizeOf<T>). Q#14 Option B.
+        // FC-2/LV-1: scan ALL declarations, not just the emittable (descriptor-visible) subset -- a
+        // synthesized `__List_…` field is EXCLUDED from StateFields (IsReferencableStateFieldType;
+        // debugger visibility lands in LV-5) but still occupies state bytes with an unreliable
+        // computed size, so any SCALAR field declared after it has a wrong baked offset and must
+        // take the runtime Marshal.OffsetOf path too.
+        bool layoutFromRuntime = LayoutFromRuntime(asset);
+
+        WriteLine("StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)");
+        WriteLine("{");
+        Indent();
+        foreach (var f in emittable)
+        {
+            // FC-2/LV-1: a fixed-list field's type is the PER-CLASS nested wrapper
+            // (`__List_{Elem}_{N}`) -- this registration block runs OUTSIDE the class, so the bare
+            // local name TypeRefToCSharp emits must be qualified here.
+            var csharpType = StatementEmitter.TypeRefToCSharp(f.Type);
+            if (f.Type.Capacity > 0)
+                csharpType = $"{className}.{csharpType}";
+            string offset = layoutFromRuntime
+                ? $"(int)global::System.Runtime.InteropServices.Marshal.OffsetOf<{className}.{stateStructName}>(\"{f.Name}\")"
+                : StructRelativeOffset(asset, f).ToString();
+            string size = layoutFromRuntime
+                ? $"global::System.Runtime.CompilerServices.Unsafe.SizeOf<{csharpType}>()"
+                : f.Size.ToString();
+            WriteLine($"[\"{f.Name}\"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor(\"{f.Name}\", typeof({csharpType}), {offset}, {size}, \"\"),");
+        }
+        Outdent();
+        WriteLine("},");
+    }
+
+    /// <summary>
+    /// ⭐ The asset's baked offsets cannot be trusted when any declared type's size is a compiler
+    /// guess (<c>SizeReliable == false</c> — the AN2 dotted-FQN fallback and the synthesized
+    /// <c>__List_…</c> wrappers). ⚠ Hoisted out of <see cref="EmitStateFieldsBlock"/> because
+    /// <see cref="Emit"/> needs the same answer <b>before</b> the registrar is written: the debug
+    /// map's state layout is a COMPILE-TIME artefact and cannot carry a runtime query, so when this is
+    /// true the only honest thing it can contribute is nothing.
+    /// </summary>
+    private static bool LayoutFromRuntime(IrAsset asset)
+        => asset.StateDeclarations.Any(f => !f.Type.SizeReliable);
+
+    /// <summary>
+    /// ⚠⚠ <b>The one asymmetry in the whole state-metadata path, and it bites silently.</b>
+    /// <c>FieldLayout</c> lays an <b>Instance</b>'s state out from <b>16</b> — which IS a struct
+    /// offset, because <c>State</c> opens with a 16-byte <c>BlueprintLatentCursor</c> — but lays an
+    /// <b>AiPrimitive</b>'s out from <b>8</b>, which is <b>NOT</b> a struct offset: it is where the
+    /// working state sits inside <c>Blackboard1024</c>, past the stored <c>StructureHash</c>. The
+    /// <c>WorkingState</c> struct itself has no header at all.
+    ///
+    /// <para>
+    /// ⛔ <c>BlueprintDebugSession.CaptureAiPrimitiveState</c> already reads at
+    /// <c>8 + descriptor.OffsetBytes</c>, so a descriptor carrying the raw <c>IrField.Offset</c> would
+    /// be off by exactly 8 — <b>plausible bytes from the wrong place</b>, which is worse than none.
+    /// ⚠ The base cannot simply be changed to 0: it is hashed into <c>StructureHash</c> for all 32
+    /// shipped AiPrimitive assets.
+    /// </para>
+    /// </summary>
+    private static int StructRelativeOffset(IrAsset asset, IrField f)
+        => f.Offset - (asset.Dispatch == AssetDispatch.AiPrimitive ? 8 : 0);
+
     private void EmitInstanceRegistration(string className, IrAsset asset)
     {
         var eventHandlers = asset.Graphs
             .Where(g => g.Kind == IrGraphKind.Event)
-            .ToList();
-
-        // Batch 56 — the descriptors describe the State STRUCT, and since ruling 8 that struct holds the
-        // whole state tier. A descriptor set built from Variables alone would name fewer fields than the
-        // struct has, which is the `BP-223` shape: a consumer that resolves nothing and reports nothing.
-        var emittableVariables = asset.StateDeclarations
-            .Where(f => IsReferencableStateFieldType(f.Type))
             .ToList();
 
         WriteLine($"staging.Add({className}.BlueprintId, new global::Fdp.Toolkit.Blueprints.BlueprintDefinition");
@@ -403,42 +510,7 @@ internal sealed class CSharpEmitter
         WriteLine($"StateClrType = typeof({className}.State),");
         WriteLine($"InitDefault = {className}.InitDefault,");
         WriteLine($"Tick = {className}.TickThunk,");
-        if (emittableVariables.Count > 0)
-        {
-            // When every field's size is reliable (all primitives/curated types), the compiler's baked
-            // offsets/sizes are correct → emit them as constants (byte-identical to before). If ANY field is
-            // a project struct accepted via the AN2 fallback (size unknown to the reflection-less compiler),
-            // the baked offsets of later fields are wrong — so emit offset/size via a RUNTIME query against
-            // the real generated State layout (Marshal.OffsetOf<State> + Unsafe.SizeOf<T>). Q#14 Option B.
-            // FC-2/LV-1: scan ALL variables, not just the emittable (descriptor-visible) subset -- a
-            // synthesized `__List_…` field is EXCLUDED from StateFields (IsReferencableStateFieldType;
-            // debugger visibility lands in LV-5) but still occupies state bytes with an unreliable
-            // computed size, so any SCALAR field declared after it has a wrong baked offset and must
-            // take the runtime Marshal.OffsetOf path too.
-            bool layoutFromRuntime = asset.StateDeclarations.Any(f => !f.Type.SizeReliable);
-            WriteLine("StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)");
-            WriteLine("{");
-            Indent();
-            foreach (var f in emittableVariables)
-            {
-                // FC-2/LV-1: a fixed-list field's type is the PER-CLASS nested wrapper
-                // (`__List_{Elem}_{N}`) -- this registration block runs OUTSIDE the class (note the
-                // `typeof({className}.State)` above), so the bare local name TypeRefToCSharp emits
-                // must be qualified here.
-                var csharpType = StatementEmitter.TypeRefToCSharp(f.Type);
-                if (f.Type.Capacity > 0)
-                    csharpType = $"{className}.{csharpType}";
-                string offset = layoutFromRuntime
-                    ? $"(int)global::System.Runtime.InteropServices.Marshal.OffsetOf<{className}.State>(\"{f.Name}\")"
-                    : f.Offset.ToString();
-                string size = layoutFromRuntime
-                    ? $"global::System.Runtime.CompilerServices.Unsafe.SizeOf<{csharpType}>()"
-                    : f.Size.ToString();
-                WriteLine($"[\"{f.Name}\"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor(\"{f.Name}\", typeof({csharpType}), {offset}, {size}, \"\"),");
-            }
-            Outdent();
-            WriteLine("},");
-        }
+        EmitStateFieldsBlock(className, asset, "State");
         if (eventHandlers.Count > 0)
         {
             WriteLine("EventHandlers = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.EventHandlerDelegate>(global::System.StringComparer.Ordinal)");

@@ -30,6 +30,8 @@ public static class HillAssault2IsWaveCompleted_D4A1CE64_Bp
         public global::Hrot.AI.Behaviors.Brains.WaveState Wave;
     }
     
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
         *dst = default;
@@ -100,7 +102,13 @@ public static class BlueprintRegistrar_HillAssault2IsWaveCompleted_D4A1CE64_Bp
             Name = "HillAssault2_IsWaveCompleted",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2IsWaveCompleted_D4A1CE64_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = HillAssault2IsWaveCompleted_D4A1CE64_Bp.StateSize,
+            AssetId = new Guid("1f8c294f-768b-4348-9916-3bb110c92bb9"),
+            StateClrType = typeof(HillAssault2IsWaveCompleted_D4A1CE64_Bp.WorkingState),
+            StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
+            {
+                ["Wave"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("Wave", typeof(global::Hrot.AI.Behaviors.Brains.WaveState), 0, 104, ""),
+            },
         });
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2IsWaveCompleted_D4A1CE64_Bp.BTreeTick@0", HillAssault2IsWaveCompleted_D4A1CE64_Bp.BTreeTick);
     }

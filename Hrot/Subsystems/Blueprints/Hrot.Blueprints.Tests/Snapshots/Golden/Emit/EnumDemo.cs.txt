@@ -29,6 +29,8 @@ public static class EnumDemo_235986DF_Bp
     {
     }
     
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
         *dst = default;
@@ -103,7 +105,9 @@ public static class BlueprintRegistrar_EnumDemo_235986DF_Bp
             Name = "EnumDemo",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = EnumDemo_235986DF_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = EnumDemo_235986DF_Bp.StateSize,
+            AssetId = new Guid("d06f6a14-3e77-4473-962f-36a5d10dc316"),
+            StateClrType = typeof(EnumDemo_235986DF_Bp.WorkingState),
         });
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.EnumDemo_235986DF_Bp.BTreeTick@0", EnumDemo_235986DF_Bp.BTreeTick);
     }

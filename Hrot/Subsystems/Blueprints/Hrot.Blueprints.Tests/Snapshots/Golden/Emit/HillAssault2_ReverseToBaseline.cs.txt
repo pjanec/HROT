@@ -32,6 +32,8 @@ public static class HillAssault2ReverseToBaseline_FF75553A_Bp
         public byte __phase;
     }
     
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
         *dst = default;
@@ -168,7 +170,13 @@ public static class BlueprintRegistrar_HillAssault2ReverseToBaseline_FF75553A_Bp
             Name = "HillAssault2_ReverseToBaseline",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2ReverseToBaseline_FF75553A_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = HillAssault2ReverseToBaseline_FF75553A_Bp.StateSize,
+            AssetId = new Guid("683ec005-3013-4f22-9b2a-98c0a942080e"),
+            StateClrType = typeof(HillAssault2ReverseToBaseline_FF75553A_Bp.WorkingState),
+            StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
+            {
+                ["__phase"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("__phase", typeof(byte), 0, 1, ""),
+            },
         });
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2ReverseToBaseline_FF75553A_Bp.BTreeTick@0", HillAssault2ReverseToBaseline_FF75553A_Bp.BTreeTick);
     }

@@ -34,6 +34,8 @@ public static class HillAssault2AimAndFireSpecific_2BA06733_Bp
         public byte __phase;
     }
     
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
         *dst = default;
@@ -226,7 +228,15 @@ public static class BlueprintRegistrar_HillAssault2AimAndFireSpecific_2BA06733_B
             Name = "HillAssault2_AimAndFireSpecific",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2AimAndFireSpecific_2BA06733_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = HillAssault2AimAndFireSpecific_2BA06733_Bp.StateSize,
+            AssetId = new Guid("484e3dff-c548-422e-a1e2-13dd0a607343"),
+            StateClrType = typeof(HillAssault2AimAndFireSpecific_2BA06733_Bp.WorkingState),
+            StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
+            {
+                ["RoundsFired"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("RoundsFired", typeof(int), 0, 4, ""),
+                ["LastObservedAmmo"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("LastObservedAmmo", typeof(int), 4, 4, ""),
+                ["__phase"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("__phase", typeof(byte), 8, 1, ""),
+            },
         });
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2AimAndFireSpecific_2BA06733_Bp.BTreeTick@0", HillAssault2AimAndFireSpecific_2BA06733_Bp.BTreeTick);
     }

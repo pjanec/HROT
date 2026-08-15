@@ -29,6 +29,8 @@ public static class HillAssault2ClearBehavior_4CC028CB_Bp
     {
     }
     
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
         *dst = default;
@@ -89,7 +91,9 @@ public static class BlueprintRegistrar_HillAssault2ClearBehavior_4CC028CB_Bp
             Name = "HillAssault2_ClearBehavior",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2ClearBehavior_4CC028CB_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = HillAssault2ClearBehavior_4CC028CB_Bp.StateSize,
+            AssetId = new Guid("607f14d9-7450-47d2-907b-fa8d85b6f1df"),
+            StateClrType = typeof(HillAssault2ClearBehavior_4CC028CB_Bp.WorkingState),
         });
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2ClearBehavior_4CC028CB_Bp.BTreeTick@0", HillAssault2ClearBehavior_4CC028CB_Bp.BTreeTick);
     }

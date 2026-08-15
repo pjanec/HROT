@@ -34,6 +34,8 @@ public static class HillAssault2ICalculateSegments_C870810D_Bp
     {
     }
     
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
         *dst = default;
@@ -113,7 +115,9 @@ public static class BlueprintRegistrar_HillAssault2ICalculateSegments_C870810D_B
             Name = "HillAssault2I_CalculateSegments",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2ICalculateSegments_C870810D_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = HillAssault2ICalculateSegments_C870810D_Bp.StateSize,
+            AssetId = new Guid("7d4f2c81-3e9a-4b56-9c0d-1a2b3c4d5ea1"),
+            StateClrType = typeof(HillAssault2ICalculateSegments_C870810D_Bp.WorkingState),
         });
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.BTreeTick@0", HillAssault2ICalculateSegments_C870810D_Bp.BTreeTick);
     }

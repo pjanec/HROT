@@ -29,6 +29,8 @@ public static class HasVisibleTarget_96FB0E6E_Bp
     {
     }
     
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
         *dst = default;
@@ -86,7 +88,9 @@ public static class BlueprintRegistrar_HasVisibleTarget_96FB0E6E_Bp
             Name = "HasVisibleTarget",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HasVisibleTarget_96FB0E6E_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = HasVisibleTarget_96FB0E6E_Bp.StateSize,
+            AssetId = new Guid("00000004-0000-0000-0000-000000000001"),
+            StateClrType = typeof(HasVisibleTarget_96FB0E6E_Bp.WorkingState),
         });
         actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Generated.HasVisibleTarget_96FB0E6E_Bp.BTreeEvaluate@0", static (ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb, ref global::Fbt.BehaviorTreeState st, ref global::Fdp.Toolkit.Behavior.BTreeContext ctx, int pi) => HasVisibleTarget_96FB0E6E_Bp.BTreeEvaluate(ref bb, ref st, ref ctx, pi) ? global::Fbt.NodeStatus.Success : global::Fbt.NodeStatus.Failure);
     }

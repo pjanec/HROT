@@ -43,6 +43,8 @@ public static class HillAssault2CalculateSegments_FA6F3CC3_Bp
         public float EqsRequestTime;
     }
     
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
         *dst = default;
@@ -121,7 +123,21 @@ public static class BlueprintRegistrar_HillAssault2CalculateSegments_FA6F3CC3_Bp
             Name = "HillAssault2_CalculateSegments",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2CalculateSegments_FA6F3CC3_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = HillAssault2CalculateSegments_FA6F3CC3_Bp.StateSize,
+            AssetId = new Guid("7d4f2c81-3e9a-4b56-9c0d-1a2b3c4d5e6f"),
+            StateClrType = typeof(HillAssault2CalculateSegments_FA6F3CC3_Bp.WorkingState),
+            StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
+            {
+                ["TotalSlots"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("TotalSlots", typeof(int), 0, 4, ""),
+                ["BurnedSlotsMask"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("BurnedSlotsMask", typeof(global::System.UInt16), 4, 2, ""),
+                ["WaveUsedSlotsMask"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("WaveUsedSlotsMask", typeof(global::System.UInt16), 6, 2, ""),
+                ["BaselineReservedMask"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("BaselineReservedMask", typeof(global::System.UInt16), 8, 2, ""),
+                ["ActiveAttackerCount"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("ActiveAttackerCount", typeof(int), 12, 4, ""),
+                ["CurrentWave"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("CurrentWave", typeof(byte), 16, 1, ""),
+                ["CachedEqsRequestId"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("CachedEqsRequestId", typeof(long), 24, 8, ""),
+                ["CachedTargetGroupHandle"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("CachedTargetGroupHandle", typeof(int), 32, 4, ""),
+                ["EqsRequestTime"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("EqsRequestTime", typeof(float), 36, 4, ""),
+            },
         });
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2CalculateSegments_FA6F3CC3_Bp.BTreeTick@0", HillAssault2CalculateSegments_FA6F3CC3_Bp.BTreeTick);
     }

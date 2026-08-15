@@ -30,6 +30,8 @@ public static class HillAssault2MemberSlotListSmoke_C10B0564_Bp
         public global::Hrot.AI.Behaviors.Brains.MemberSlotList Tracker;
     }
     
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
         *dst = default;
@@ -91,7 +93,13 @@ public static class BlueprintRegistrar_HillAssault2MemberSlotListSmoke_C10B0564_
             Name = "HillAssault2_MemberSlotListSmoke",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2MemberSlotListSmoke_C10B0564_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = HillAssault2MemberSlotListSmoke_C10B0564_Bp.StateSize,
+            AssetId = new Guid("e782b7df-f157-4fd6-8cb5-ae6853f9d5bd"),
+            StateClrType = typeof(HillAssault2MemberSlotListSmoke_C10B0564_Bp.WorkingState),
+            StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
+            {
+                ["Tracker"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("Tracker", typeof(global::Hrot.AI.Behaviors.Brains.MemberSlotList), 0, 96, ""),
+            },
         });
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2MemberSlotListSmoke_C10B0564_Bp.BTreeTick@0", HillAssault2MemberSlotListSmoke_C10B0564_Bp.BTreeTick);
     }

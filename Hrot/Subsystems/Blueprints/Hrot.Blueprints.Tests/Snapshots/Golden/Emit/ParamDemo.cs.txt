@@ -34,6 +34,8 @@ public static class ParamDemo_CEFE162F_Bp
     {
     }
     
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
         *dst = default;
@@ -95,7 +97,9 @@ public static class BlueprintRegistrar_ParamDemo_CEFE162F_Bp
             Name = "ParamDemo",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = ParamDemo_CEFE162F_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = ParamDemo_CEFE162F_Bp.StateSize,
+            AssetId = new Guid("00000000-aaaa-0002-0000-0000000000d0"),
+            StateClrType = typeof(ParamDemo_CEFE162F_Bp.WorkingState),
         });
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.BTreeTick@0", ParamDemo_CEFE162F_Bp.BTreeTick);
     }

@@ -32,6 +32,8 @@ public static class HillAssault2RequestAreaQuery_2F8D984A_Bp
         public float EqsRequestTime;
     }
     
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
         *dst = default;
@@ -135,7 +137,14 @@ public static class BlueprintRegistrar_HillAssault2RequestAreaQuery_2F8D984A_Bp
             Name = "HillAssault2_RequestAreaQuery",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2RequestAreaQuery_2F8D984A_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = HillAssault2RequestAreaQuery_2F8D984A_Bp.StateSize,
+            AssetId = new Guid("3b6d47d5-74bd-53c3-a79f-58dcdb513b27"),
+            StateClrType = typeof(HillAssault2RequestAreaQuery_2F8D984A_Bp.WorkingState),
+            StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
+            {
+                ["CachedEqsRequestId"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("CachedEqsRequestId", typeof(long), 0, 8, ""),
+                ["EqsRequestTime"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("EqsRequestTime", typeof(float), 8, 4, ""),
+            },
         });
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2RequestAreaQuery_2F8D984A_Bp.BTreeTick@0", HillAssault2RequestAreaQuery_2F8D984A_Bp.BTreeTick);
     }

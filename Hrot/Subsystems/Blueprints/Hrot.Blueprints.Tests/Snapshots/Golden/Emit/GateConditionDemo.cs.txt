@@ -32,6 +32,8 @@ public static class GateConditionDemo_CDFE149C_Bp
         public bool LastEvaluated;
     }
     
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
         *dst = default;
@@ -87,7 +89,13 @@ public static class BlueprintRegistrar_GateConditionDemo_CDFE149C_Bp
             Name = "GateConditionDemo",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = GateConditionDemo_CDFE149C_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = GateConditionDemo_CDFE149C_Bp.StateSize,
+            AssetId = new Guid("00000000-aaaa-0002-0000-0000000000d1"),
+            StateClrType = typeof(GateConditionDemo_CDFE149C_Bp.WorkingState),
+            StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
+            {
+                ["LastEvaluated"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("LastEvaluated", typeof(bool), 0, 1, ""),
+            },
         });
         actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Generated.GateConditionDemo_CDFE149C_Bp.BTreeEvaluate@0", static (ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb, ref global::Fbt.BehaviorTreeState st, ref global::Fdp.Toolkit.Behavior.BTreeContext ctx, int pi) => GateConditionDemo_CDFE149C_Bp.BTreeEvaluate(ref bb, ref st, ref ctx, pi) ? global::Fbt.NodeStatus.Success : global::Fbt.NodeStatus.Failure);
     }

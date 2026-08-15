@@ -34,6 +34,8 @@ public static class HillAssault2DispatchAllToBaseline_58007911_Bp
         public global::System.UInt16 BaselineReservedMask;
     }
     
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
         *dst = default;
@@ -123,7 +125,13 @@ public static class BlueprintRegistrar_HillAssault2DispatchAllToBaseline_5800791
             Name = "HillAssault2_DispatchAllToBaseline",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2DispatchAllToBaseline_58007911_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = HillAssault2DispatchAllToBaseline_58007911_Bp.StateSize,
+            AssetId = new Guid("9d2e4c81-7a3f-4e56-b9c0-2a4d6e8f1b53"),
+            StateClrType = typeof(HillAssault2DispatchAllToBaseline_58007911_Bp.WorkingState),
+            StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
+            {
+                ["BaselineReservedMask"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("BaselineReservedMask", typeof(global::System.UInt16), 0, 2, ""),
+            },
         });
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2DispatchAllToBaseline_58007911_Bp.BTreeTick@0", HillAssault2DispatchAllToBaseline_58007911_Bp.BTreeTick);
     }

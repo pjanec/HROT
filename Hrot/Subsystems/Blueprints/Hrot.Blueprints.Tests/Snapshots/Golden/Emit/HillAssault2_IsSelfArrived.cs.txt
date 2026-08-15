@@ -29,6 +29,8 @@ public static class HillAssault2IsSelfArrived_43D9F894_Bp
     {
     }
     
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
         *dst = default;
@@ -98,7 +100,9 @@ public static class BlueprintRegistrar_HillAssault2IsSelfArrived_43D9F894_Bp
             Name = "HillAssault2_IsSelfArrived",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2IsSelfArrived_43D9F894_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = HillAssault2IsSelfArrived_43D9F894_Bp.StateSize,
+            AssetId = new Guid("7206bd2d-e8ac-48a6-a52e-e575fb9655b0"),
+            StateClrType = typeof(HillAssault2IsSelfArrived_43D9F894_Bp.WorkingState),
         });
         actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Generated.HillAssault2IsSelfArrived_43D9F894_Bp.BTreeEvaluate@0", static (ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb, ref global::Fbt.BehaviorTreeState st, ref global::Fdp.Toolkit.Behavior.BTreeContext ctx, int pi) => HillAssault2IsSelfArrived_43D9F894_Bp.BTreeEvaluate(ref bb, ref st, ref ctx, pi) ? global::Fbt.NodeStatus.Success : global::Fbt.NodeStatus.Failure);
     }

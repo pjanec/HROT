@@ -30,6 +30,8 @@ public static class HillAssault2HasTarget_E6AFD0B2_Bp
     {
     }
     
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
         *dst = default;
@@ -96,7 +98,9 @@ public static class BlueprintRegistrar_HillAssault2HasTarget_E6AFD0B2_Bp
             Name = "HillAssault2_HasTarget",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2HasTarget_E6AFD0B2_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = HillAssault2HasTarget_E6AFD0B2_Bp.StateSize,
+            AssetId = new Guid("7b6ee19e-47c1-4e17-bd5e-68f6712f0887"),
+            StateClrType = typeof(HillAssault2HasTarget_E6AFD0B2_Bp.WorkingState),
         });
         actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Generated.HillAssault2HasTarget_E6AFD0B2_Bp.BTreeEvaluate@0", static (ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb, ref global::Fbt.BehaviorTreeState st, ref global::Fdp.Toolkit.Behavior.BTreeContext ctx, int pi) => HillAssault2HasTarget_E6AFD0B2_Bp.BTreeEvaluate(ref bb, ref st, ref ctx, pi) ? global::Fbt.NodeStatus.Success : global::Fbt.NodeStatus.Failure);
     }

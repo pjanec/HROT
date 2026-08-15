@@ -29,6 +29,8 @@ public static class HillAssault2IIsWaveCompleted_CDAC491D_Bp
     {
     }
     
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
         *dst = default;
@@ -100,7 +102,9 @@ public static class BlueprintRegistrar_HillAssault2IIsWaveCompleted_CDAC491D_Bp
             Name = "HillAssault2I_IsWaveCompleted",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2IIsWaveCompleted_CDAC491D_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = HillAssault2IIsWaveCompleted_CDAC491D_Bp.StateSize,
+            AssetId = new Guid("a8d44fe3-29fc-490a-9b84-33452321bec3"),
+            StateClrType = typeof(HillAssault2IIsWaveCompleted_CDAC491D_Bp.WorkingState),
         });
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_CDAC491D_Bp.BTreeTick@0", HillAssault2IIsWaveCompleted_CDAC491D_Bp.BTreeTick);
     }

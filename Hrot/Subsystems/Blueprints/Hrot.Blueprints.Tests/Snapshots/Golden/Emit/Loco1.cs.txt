@@ -29,6 +29,8 @@ public static class Loco1_A9036715_Bp
     {
     }
     
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
         *dst = default;
@@ -105,7 +107,9 @@ public static class BlueprintRegistrar_Loco1_A9036715_Bp
             Name = "Loco1",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = Loco1_A9036715_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = Loco1_A9036715_Bp.StateSize,
+            AssetId = new Guid("d7dedbce-4582-4664-a352-69962a0e0833"),
+            StateClrType = typeof(Loco1_A9036715_Bp.WorkingState),
         });
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.Loco1_A9036715_Bp.BTreeTick@0", Loco1_A9036715_Bp.BTreeTick);
     }

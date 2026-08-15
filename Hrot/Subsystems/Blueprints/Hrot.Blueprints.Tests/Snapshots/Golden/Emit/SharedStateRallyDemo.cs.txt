@@ -29,6 +29,8 @@ public static class SharedStateRallyDemo_3CBD7255_Bp
     {
     }
     
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
         *dst = default;
@@ -88,7 +90,9 @@ public static class BlueprintRegistrar_SharedStateRallyDemo_3CBD7255_Bp
             Name = "SharedStateRallyDemo",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = SharedStateRallyDemo_3CBD7255_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = SharedStateRallyDemo_3CBD7255_Bp.StateSize,
+            AssetId = new Guid("5ba00002-0000-0000-0000-0000000000e1"),
+            StateClrType = typeof(SharedStateRallyDemo_3CBD7255_Bp.WorkingState),
         });
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.SharedStateRallyDemo_3CBD7255_Bp.BTreeTick@0", SharedStateRallyDemo_3CBD7255_Bp.BTreeTick);
     }

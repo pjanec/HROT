@@ -30,6 +30,8 @@ public static class HillAssault2IRequestAreaQuery_61F115B4_Bp
     {
     }
     
+    public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
         *dst = default;
@@ -142,7 +144,9 @@ public static class BlueprintRegistrar_HillAssault2IRequestAreaQuery_61F115B4_Bp
             Name = "HillAssault2I_RequestAreaQuery",
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2IRequestAreaQuery_61F115B4_Bp.StructureHash,
-            StateSize = 0,
+            StateSize = HillAssault2IRequestAreaQuery_61F115B4_Bp.StateSize,
+            AssetId = new Guid("8f1a2c93-4d5e-4a1b-9c3d-1e2f3a4b5c62"),
+            StateClrType = typeof(HillAssault2IRequestAreaQuery_61F115B4_Bp.WorkingState),
         });
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2IRequestAreaQuery_61F115B4_Bp.BTreeTick@0", HillAssault2IRequestAreaQuery_61F115B4_Bp.BTreeTick);
     }
