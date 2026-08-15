@@ -71,38 +71,56 @@ and now every constraint on it is settled:
 | ⚠ **a blueprint-local one** | **`Hrot.Blueprints.Editor/Inspector/`** — `IStructEditDrawer<T>` · `DrawerRegistry` · `PrimitiveDrawers`, consumed by `InspectorWindow` and `BlueprintDetailsWindow`. ⭐ **Already an EDITING interface** — `bool Draw(string label, ref T value, DrawContext ctx)`, *"returns true if the value was modified"* |
 | 📐 **The question, to MEASURE not assume** | ⛔ **Are these two implementations of one concept (ruling 9's target), or two different jobs that look alike?** ⚖️ **Coordinator lean: build the dialog on the FDP-level `IComponentEditService`** — it is the one already shared beyond blueprints, and ruling 6 wants one dialog for three hosts. ⚠ **But the coordinator has NOT proved the blueprint-local registry is redundant, and must not claim it is** |
 
-### 🔴🔴 Ruling 12 vs ruling 2a — **a genuine conflict, and its resolution**
+### ⛔⛔ Ruling 12 — **the "conflict" was the coordinator's error. WITHDRAWN.**
 
-⛔⛔ **These two rulings pull against each other and it must be said plainly:**
+> ⚠ **The first draft of this section claimed:** *"a frozen sim runs no ticks, so a queued write would
+> only appear on resume; therefore when paused, flush the command buffer on the spot."*
+> ⛔⛔ **Both halves were wrong, and the user corrected the premise:** *"breakpoint or step frozen sim
+> does not mean nothing is ticking — behaviors should not tick and dt==0 so no physics applies."*
 
-> **2a** says *queue the write via FDP command buffers.* **12** says *the change must be visible
-> immediately while the sim is FROZEN.* ⇒ ⛔ **A queued write does not flush until a tick runs, and a
-> frozen sim runs no ticks. Taken naively, the value would appear only on resume — exactly what
-> ruling 12 forbids.**
+| the claim | the truth |
+|---|---|
+| ⛔ *"a frozen sim runs no ticks"* | ⭐⭐ **It ticks.** Freezing means **behaviours do not tick** and **`dt == 0`** so nothing integrates. **The host loop, its systems and command-buffer playback keep running** |
+| ⛔ *"`FlushCommandBuffers()` is the existing playback point"* | 🔴 **`EntityRepository.View:43` has NO CALLERS AT ALL.** ⭐ **Playback is `ecb.Playback(world)`**, called from the systems and host loop. ⚠ **The coordinator named a dead API as "existing"** — the *"verify the consumer, not just the definition"* rule, broken again |
 
-⚖️ **Coordinator's resolution, and it keeps ONE write path:**
+⇒ ⭐⭐ **There is no conflict, and the design gets SIMPLER:** the write is queued to the command buffer
+**always**, and because ticks continue while frozen, it plays back **on the next tick — i.e. within a
+frame** ⇒ **ruling 12 is satisfied by the plain path.** ⛔ **The special-case flush is withdrawn: it
+would have been a SECOND write path, which is ruling 9's prohibition.**
 
 | | |
 |---|---|
-| ⭐⭐ **When `IsPausedByDebugger`** | **submit to the command buffer, then FLUSH IT ON THE SPOT.** ✅ **`EntityRepository.FlushCommandBuffers()` is public and is the existing playback point**, and ⭐ **a frozen sim has no tick in flight, so the race 2a guards against cannot occur** |
-| ⭐ **When running** | submit and let the normal flush happen — **the same call, the same buffer** |
-| ⛔ **Rejected: a pending-write overlay in the read path** | it would show the new value without applying it ⇒ **a second source of truth for "what is the value"** — ⛔ **ruling 9's exact prohibition** |
+| ⭐ **The write primitive already exists** | **`IEntityCommandBuffer.SetComponentRaw(Entity, int typeId, void* ptr, int size)`** — raw bytes into a component. ⭐ **And the interface already knows blackboards are components:** `AddEmptyComponent` is documented as *"bypasses the 1024-byte ECB payload limit for large components like blackboards"* |
+| ⭐ **The freeze signal** | `IEngineDebugTimeController.IsPausedByDebugger` — `MasterSyncTimeControllerAdapter:29` maps it to `TimeMode.Deterministic`; `CgfSubsystem:830` to `_bpManager.IsPaused` |
+| 📐 **Make it a GATE, not an assumption** | ⛔ **Do not assume "next tick" is fast enough — MEASURE it.** ⭐ **Gate: with the sim frozen on a breakpoint, a value change is visible in BOTH panels within one frame.** ⚠ **If it is not, that is a finding, and the fix is in the loop — not a second write path** |
 
-⭐ **So: one write path, and freezing changes only WHEN the flush happens, never WHETHER it goes
-through the buffer.** ✅ **The freeze signal exists — `IEngineDebugTimeController.IsPausedByDebugger`,
-with `RequestPause`/`RequestResume`/`RequestStepOneTick`.**
+### 🔴 Ruling 13 — **the Watch panel must EDIT, and must show nothing before the run** *(user, `2026-08-15`)*
 
-### 🔴 Ruling 11/12 — the Watch panel handler that would refresh it is **EMPTY**
+> ⭐⭐ *"watch panel MUST allow for value changes (and show nothing when exercise not running yet) —
+> add to plan if this is not the case now."*
 
-```csharp
-// WatchPanelWindow.cs:26
-private void HandlePinValueChanged(PinValueChanged evt) { /* refresh row data */ }
-```
+⛔ **It is not the case now. Both halves go in the plan.**
 
-⛔⛔ **A subscribed handler with an empty body and a comment describing what it would do.** ⭐ **Trap #5,
-and it sits precisely on ruling 12's path** — *"the change must be shown immediately in the detail and
-watch panel."* 📐 **The Watch panel cannot honour ruling 12 until this is real**, and ⭐ **the user's
-own words — *"similar to what watch panel SHOULD be providing"* — suggest they already suspect it.**
+| | today | required |
+|---|---|---|
+| **editing** | ⛔ **read-only.** `WatchPanelWindow` exposes `LastRenderedWatches` and draws; ⭐ **`IBlueprintDebugSession` has no write at all** | ⭐ **the same edit path as the Details panel** — same dialog, same command buffer, same `SetComponentRaw` |
+| **refresh** | 🔴🔴 **`WatchPanelWindow.cs:26` — `HandlePinValueChanged(PinValueChanged evt) { /* refresh row data */ }`** — ⛔ **a subscribed handler with an EMPTY BODY and a comment describing what it would do.** ⭐ **Trap #5, sitting exactly on ruling 12's path** | ⭐ **real** — ruling 12's immediacy runs through it |
+| **before the run** | 📐 **unmeasured** | ⭐⭐ **shows NOTHING** |
+
+### ⭐⭐ The asymmetry, stated so nobody "unifies" it by mistake
+
+⛔ **The two panels behave DIFFERENTLY when the exercise is not running, and both are correct:**
+
+| | not running | running / paused |
+|---|---|---|
+| **Details** | ⭐ **the INITIAL value**, editable (ruling 3) | the current value |
+| **Watch** | ⭐⭐ **NOTHING** (ruling 13) | the current value, editable |
+
+📌 **Why they differ:** ⭐ **Details is an AUTHORING surface that also shows runtime; Watch is a
+RUNTIME surface only.** ⚠ **A watch on a value that does not exist yet has nothing to show, and
+showing the JSON default there would be inventing a "current" value for an entity that has not been
+spawned.** ⛔ **Do not "fix" this into consistency — ruling 9 forbids two implementations of one
+concept, not two behaviours of two different concepts.**
 
 ### ➕ Ruling 5 extended *(same message)*
 
@@ -143,9 +161,11 @@ AiPrimitive) — those are ABI, and renaming them is a separate, larger change n
 | ⏭ **56** | ⭐⭐ **the emitter + access-path unification** (ruling 8) | ⛔ **compiler-side, fully headless, gated on `StructureHash`.** ⭐ **The user made it a precondition for the visual check, and it blocks none of the UI** |
 | **57** | `U-6` — Details hosts the **shared** control + ruling 2's selection routing | ⛔ **the shared control, never a blueprint copy** (ruling 9) |
 | **58** | the Value column: mode switch, read-only, pretty-printed tooltip (rulings 3-4) + blueprint's `ILiveValueProvider` and `UpdateVariableDefaultValueJson` | needs 57's host |
-| **59** | the three-dot StructEdit dialog (ruling 5) + the **not-running** write (ruling 7, half) | needs 58's column |
+| **59** | the StructEdit dialog — ⭐ **three-dot button AND double-click** (rulings 5, 10) + the **not-running** write (ruling 7, half) | needs 58's column |
+| ⭐ **59b** | 🔴 **the Watch panel: make `HandlePinValueChanged` real · EDITING through the same dialog · show NOTHING before the run** (rulings 11, 13) | ⛔ **ruling 12's immediacy runs through this handler** |
+| **59c** | the **running** write — `SetComponentRaw` via the command buffer, ⭐ **gated on "visible in BOTH panels within one frame while frozen"** (rulings 2a, 12) | ✅ **unblocked — no open questions left** |
 | **60** | `U-16` — retire `BlueprintVariablesWindow` (ruling 9) | ⛔ **only after Details is proven**, or there is no editing surface at all |
-| **?** | the **running** write (ruling 7, other half) | ⛔ **blocked on §2a-2c** |
+
 
 ---
 
