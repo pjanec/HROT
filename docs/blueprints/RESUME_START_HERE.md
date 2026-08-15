@@ -943,6 +943,52 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > ✅ **The design session's two flagged items are ANSWERED:** the `.claude/CLAUDE.md` clause is
 > ⭐ **already applied as rule 3a**; the held HSM reply ⛔ **stays the user's call** — ⚠ **and under the
 > freeze it buys design progress, not code.**
+> ⭐⭐⭐ **BATCHES 56 · 58 · 57 · 59 ALL VERIFIED AND MERGED at `bc79be664`** *(§7ac)* — **four batches in
+> one run**, all eight gates coordinator-run and **every claim checked, not taken**.
+> ✅ **Build 0/69 · Blueprints 3583/3573/0/10 · AiShared 1216 · BTree 612 · Breakpoints 130 ·
+> Generators 194 · Toolkits 1942/1942/0 · NodeEdit 208/131.** ⭐ **Coordinator-verified independently:
+> golden Tier 1 UNCHANGED · `persistence-shape.txt` UNCHANGED · Tier 2 moved for exactly 27 files,
+> `27 AiPrimitive / 0 Instance / 0 Library`** — and **27 is ALL the AiPrimitive assets**, so the
+> coverage is total, not partial. ⚠ **Batch 58's lone Toolkits failure is GREEN on my run** ⇒ their
+> order-dependent/pre-existing reading holds. **Tracker open 61 / done 122**, reconciles.
+> ⭐⭐⭐ **`BP-244`/`245`/`246`/`248` closed; `BP-247` filed open.**
+> ⭐⭐ **THE FINDING OF THE RUN — and it is the sharper half of a check I got wrong:** I examined
+> `FieldLayout`'s `0/8/16` starts and reported *"they do not collide — not a defect."* ✅ **True, and it
+> missed the point.** ⭐⭐⭐ **They found that for an AiPrimitive the `8` is a DIFFERENT KIND OF NUMBER** —
+> where working state sits inside `Blackboard1024`, past the stored hash — **while an Instance's `16` is
+> a real struct offset** ⇒ **a descriptor carrying the raw `IrField.Offset` reads 8 bytes late: plausible
+> bytes from the wrong place.** ⛔ **The base cannot become 0 — it is hashed into `StructureHash` for all
+> 32 assets** — so the rebase lives in the descriptor emitter and is asserted directly.
+> ⭐⭐ **Batch 58 STRENGTHENED my own correction by measuring WHY it was needed:** I said *"range over
+> the final id set"*; they measured that **a generator cannot see another generator's output**, so the
+> gate had to become an **analyzer over the final compilation** — ⛔ **built inside the generator as `W1`
+> specified, it would have certified exactly the collision it cannot see.** ⭐ **Proven armed in
+> production:** a probe registering at `100` failed the real build on **both** participants.
+> 🔴🔴 **And a guard escalation I did not have — coordinator-verified at `HsmKernelCore:540/583`:**
+> `if (gt.GuardId == 0 || EvaluateGuard(…))` ⇒ **a guard hashing to `0` does not merely fail to run, it
+> OPENS THE GATE IT WAS PROTECTING.**
+> ⭐⭐ **Batch 59 then deflated its own severity honestly:** `HsmFlattener` builds `actionTable[name] =
+> ComputeHash(name)` and every id in the blob comes from it ⇒ **the counter ids were UNREACHABLE as well
+> as dangerous.** ⭐ **The rail is stated as an ABSENCE** *(the bridge emits no `Register*` at all)* rather
+> than naming 100/200, *"which would pass again the moment someone reintroduced the mechanism at 300."*
+> 📌 **Repo-wide, production now registers exactly ONE HSM id: the hashed `32291`.**
+>
+> ⛔⛔ **TWO SEQUENCING ERRORS, BOTH MINE, RECORDED NOT BURIED:** 🔴 **`W2` was never dispatched**, so
+> **57 shipped without the corpus-wide gate my own plan put ahead of it** *(no harm — they caught the
+> rebase by reading)*; and 🔴🔴 **§6 listed `W2` and `W4` as SEPARATE batches, which is impossible** —
+> ⛔ **`W2` adds an asset whose purpose is to make the gate RED and `W4` is what makes it green** ⇒
+> **splitting them merges a knowingly-red suite.** ⭐ **They are one batch.**
+>
+> ⏭ **Batch 60 dispatched — [`W2` + `W4`, the runtime layout gate and the layout it guards](HANDOFF_Batch60_Runtime_Layout_Gate.md).**
+> ⭐⭐⭐ **Coordinator-measured and it makes the batch cheap: ZERO shipped `.bp.json` declares a
+> `Vector3`/`Vector2`/`Vector4`/`Quaternion` variable** ⇒ ⛔ **no field moves, no `StructureHash` moves,
+> NO blackboard re-init hazard — the cheapest moment this change will ever have.** ⚠ **But the types ARE
+> in the 18-member offerable set**, so a designer can declare one today and get a silently wrong layout.
+> 🔴🔴 **And therefore the corpus CANNOT prove the gate — `BP-240`'s lesson a FIFTH time: the constructed
+> `Vector3`-after-`byte` asset is the only witness.** ⛔⛔ **Golden Tier 1 is NOT evidence here — it
+> records the COMPUTED offset, so both sides come from one source and it stays byte-identical while the
+> real field moves.**
+>
 > ✅✅ **USER RULINGS `2026-08-15` — OPTION A, and `D1` IS ANSWERED.** ⭐ **Correctness before the panel.**
 > ⭐⭐⭐ **`SlotKind` is OPEN** — *"hsm is still young not battle proven code so i would expect it might
 > grow rather than being fixed"* ⇒ **`#29`-A's tagged carrier STANDS and `W9`'s `SlotKind` half is
