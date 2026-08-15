@@ -1,6 +1,6 @@
 # HANDOFF — Batch 64: ⭐⭐⭐ **read the design record FIRST**, then `S2` · `W6` · `W7` · the race
 
-> 📌 **Dispatched at `<stamped below>`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
+> 📌 **Dispatched at `a431c429c`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
 > ✅ **Batch 63 VERIFIED AND MERGED at `9edf13fdf`** — all eight gates coordinator-run, **green**;
 > Tier 1 and `persistence-shape.txt` untouched; the 30-occurrence projection swap corroborated.
 > ⭐ **Rule 7 / Rule 4** as always. ⛔ **Rule 3: the coordinator allocates no ids.**
