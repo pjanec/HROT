@@ -943,6 +943,46 @@ tracker records the method, including that the *refuted* row sits **outside** th
 > ✅ **The design session's two flagged items are ANSWERED:** the `.claude/CLAUDE.md` clause is
 > ⭐ **already applied as rule 3a**; the held HSM reply ⛔ **stays the user's call** — ⚠ **and under the
 > freeze it buys design progress, not code.**
+> ✅✅ **USER RULINGS `2026-08-15` — OPTION A, and `D1` IS ANSWERED.** ⭐ **Correctness before the panel.**
+> ⭐⭐⭐ **`SlotKind` is OPEN** — *"hsm is still young not battle proven code so i would expect it might
+> grow rather than being fixed"* ⇒ **`#29`-A's tagged carrier STANDS and `W9`'s `SlotKind` half is
+> UNBLOCKED.** 📌 **Exactly what the design session's own datum predicted** — *"twice the tagged carrier
+> beat its field count, and both times the untagged cost was invisible until something broke."*
+> ⇒ ⭐ **Of the three blocking decisions, `D1` is ruled and `D3` is measured; only `D2`'s nod remains,
+> and it is no longer blind.**
+>
+> ⭐⭐⭐ **UNIFICATION AUDIT — the cross-host design does NOT contradict `Variable ∪ WorkingState`, and
+> the user was right to ask.** ⛔ **Measured: NO commit on their branch has Batch 56 (`42d8e9894`) in its
+> ancestry** — the whole design was authored without it in view.
+> ✅ **Verdict: COMPATIBLE — they reached the same place independently.** `Explainer:269` — *"Parameters,
+> working state and asset variables are not three things"* — over axes **`Role` × `Scope`**
+> (`Explainer:172`), ⭐⭐ **which is the SAME coordinate system as our one cell:
+> `Variable ∪ WorkingState = (State, Asset)` · `Parameter = (Input, Asset)`.** ⇒ **no rival model.**
+> 🔴 **But ONE load-bearing sentence is now false, and `D2` rests on it:** `Design:72` — *"`Parameter`/
+> `WorkingState` vs `Variable` are the storage of DIFFERENT dispatch kinds **that never coexist**."*
+> ⭐⭐ **True of the corpus (0 of 458 carry both — Batch 56's own safety argument); FALSE of what the
+> model permits**, since `U-12` legalised the mixture and `Stage5:4137` already resolves across both.
+> ⇒ ⭐⭐⭐ **`BP-240`'s shape a FOURTH time — a corpus fact written down as a model invariant** ⇒ **retire
+> their per-kind hedge.**
+> ⚠ **Two things that LOOK like drift and are NOT, checked so nobody re-flags them:** `Design:69`
+> *"`WorkingState` not an input"* is ⭐ **CORRECT — it means "not in the packed inline region", NOT "has
+> no initial value"**, so it is *not* the claim the user already refuted *(both are true at once;
+> `AiPrimitiveEmitter:133` still emits the defaults)*; and the three-way `DeclarationKind` enumeration
+> ⭐ **survives as the SERIALIZED shape** after the `U-12` store flip. ⚠ **New code must still target the
+> union** ⇒ **binds `W8`, `W10`, `W13`.**
+>
+> ⏭ **Batch 58 dispatched — [`W1`, the hashed-id collision gate](HANDOFF_Batch58_Hashed_Id_Collision_Gate.md).**
+> ⛔ **AFTER 56, BEFORE 57** (Option A). ⭐ **ONE ITEM, ALONE** — the design session's own condition.
+> ⭐⭐ **TWO silent no-op mechanisms, one rail, both coordinator-verified:** 🔴 **reserved values —
+> `HsmKernelCore` guards FIVE call sites with `!= 0 && != 0xFFFF` and `GlobalTransitionDef:19` says
+> `// Effect action (0 = none)`** ⇒ **an action hashing to either is registered and NEVER INVOKED**;
+> 🔴🔴 **and the counter stubs of `W3`.** ⭐ **`ComputeHash` is FNV-1a-16 — the SAME family `UT0103`
+> already guards**, so *"mirror, do not invent"* is doubly right.
+> ⛔⛔ **THE CORRECTION THAT MAKES THE BATCH: `W1` AS SPECIFIED IS BLIND TO `W3`** — it refuses duplicate
+> **hashed** ids, but the stub ids are **literal counters that never enter the hash set** ⇒ ⭐⭐ **the gate
+> must range over the FINAL id set (hashed ∪ counter-allocated), and fixture (d) — a real action
+> colliding with the `100+`/`200+` window — is the one that proves it.**
+>
 > ⚠ **One false alarm CHECKED AND REFUTED BEFORE IT WAS WRITTEN DOWN:** `FieldLayout`'s 0/8/16 starts
 > look like regions that must collide, ⛔ **they do not** — `InstanceEmitter:109` gives `State` a
 > 16-byte `Cursor` first, `WorkingState` sits at `memory + 8`, `Parameters` is the separate packed

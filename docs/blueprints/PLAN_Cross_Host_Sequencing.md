@@ -114,7 +114,63 @@ stays undetectable after both ship.** ⇒ **`W1` and `W3` are NOT independent: `
 
 ---
 
-## 8. ⚠ Provenance — carry this into every row
+## 8. ✅ USER RULINGS `2026-08-15` — Option A, and `D1` is ANSWERED
+
+| | ruling |
+|---|---|
+| ⭐⭐ **sequencing** | ✅ **Option A — correctness first.** §5's either/or is closed; §6's order is the plan |
+| ⭐⭐⭐ **`D1` — is `SlotKind` open or closed?** | ✅ **OPEN.** User, verbatim: *"hsm is still young not battle proven code so i would expect it might grow rather than being fixed."* ⇒ ⭐ **the tagged carrier of `#29`-A STANDS — do not overturn it**, and **`W9`'s `SlotKind` half is UNBLOCKED.** 📌 **This is the outcome the design session's own datum predicted:** *"twice the tagged carrier beat its field count, and both times the untagged cost was invisible until something broke"* |
+
+⇒ ⭐ **Of the three blocking decisions, `D1` is now ruled and `D3` is measured. Only `D2`'s nod remains,
+and it is no longer blind** — §2's lean plus Batch 56 dissolving the per-kind half.
+
+---
+
+## 9. ⭐⭐⭐ Audit — **does the cross-host design contradict the unified `Variable ∪ WorkingState` model?**
+
+⭐ **User asked for this check directly.** ⛔ **Their branch never saw the unification** — measured:
+**no commit on `claude/cross-host-variable-model-3k8cfh` has Batch 56 (`42d8e9894`) in its ancestry.**
+
+### ✅ The verdict: **compatible at the model level — they reached the same place independently**
+
+⭐⭐ **`Explainer:269` — *"Parameters, working state and asset variables are not three things"*** — and
+their axes are **`Role` × `Scope`** (`Explainer:172`: *a state-slot's params are `Input`; its working
+state is `State`*). ⭐⭐⭐ **That is the SAME coordinate system as our one-cell result:**
+`Variable ∪ WorkingState = (State, Asset)` · `Parameter = (Input, Asset)`.
+⇒ ⛔ **There is no rival model to reconcile. The unified direction is not contradicted anywhere.**
+
+### 🔴 But ONE load-bearing sentence is now false — and it is the one `D2` rests on
+
+> **`Design_Behavior_Asset_Parameter_Model.md:72`** — *"`Parameter`/`WorkingState` vs `Variable` are the
+> storage of **DIFFERENT dispatch kinds that never coexist**."*
+
+⭐⭐ **True of the shipped corpus** *(0 of 458 assets carry both — Batch 56's own safety argument)*;
+⛔ **false of what the model now permits.** `U-12` made the mixture **legal at Stage 2**, `Stage5:4137`
+**resolves across both concatenated**, and **Batch 56 unifies the emitters onto that union.**
+
+⇒ ⭐⭐⭐ **`BP-240`'s shape a fourth time — a corpus fact written down as a model invariant.** And their
+`D2` hedge (*"the answer may differ per dispatch kind"*) is **built on it** ⇒ ⭐ **retire the hedge:
+after 56 there is one state tier, so it cannot differ per kind.**
+
+### ⚠ Two things that LOOK like drift and are NOT — checked, so nobody re-flags them
+
+| | ⭐ **verdict** |
+|---|---|
+| `Design:69` — **`WorkingState` ⛔ *"not an input"*** | ✅ **CORRECT AS WRITTEN.** ⚠ **This is NOT the claim the user already refuted.** They mean *not in the packed inline region* (`#29:60`: *"working state is not in the inline region at all"*) — **not** *"has no initial value."* ⭐ **Working-state defaults are emitted** (`AiPrimitiveEmitter:133`) and both statements are true at once |
+| `#29:29` / `PriorArt:75` — **`DeclarationKind = Parameter · WorkingState · Variable`** | ✅ **correct** — the three-way tag survives as **the serialized shape** after the `U-12` store flip. ⚠ **But any NEW code specified against it must target the union** ⇒ **relevant to `W8` and `W10`** |
+
+### ⭐ Carry-forward: keep the unified direction in the cross-host items
+
+| item | ⭐ **what to hold them to** |
+|---|---|
+| **`W8`** reserved input variable | ⛔ **do not reintroduce a per-dispatch-kind answer** — §2's `Variable` lean over the union |
+| **`W10`** initializer picker | must offer over the **union**, not `Variables` alone |
+| **`W13`** stride path | one projection formula — ⭐ **the same "no two implementations" rule (ruling 9)** |
+| ⭐ **`#28`/`#29`/`#30` generally** | ⚠ **written pre-56.** ⭐ **Re-read each against the merged union before building its item** — not before, since 56 has not landed |
+
+---
+
+## 10. ⚠ Provenance — carry this into every row
 
 ⛔ **The `W1`–`W13` rulings are Claude-authored.** The NotebookLM architect was unavailable and the
 design session was designated architect of record. ⭐ **Weaker than the relayed rounds that redirected
