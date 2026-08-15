@@ -196,7 +196,12 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
                 // BlueprintAsset.Variables, and Q27-C1 makes a local that SHADOWS an asset variable
                 // legal on purpose — handing it the asset would refuse a legal declaration. The
                 // same-graph collision that IS an error is checked in CreateLocalVariable instead.
-                asset: null);
+                asset: null,
+                // ⭐⭐ The noun is LOAD-BEARING, not a label. Both fields of this window are the same
+                // class, and while its popup id was a `const` the two shared ONE ImGui window: the
+                // locals "+" drew both field sets and its first Create button was the ASSET modal's,
+                // so declaring a local silently created a global. See VariableCreateModal.PopupId.
+                noun: "Local Variable");
 
             BlueprintDocumentFactory.RegisterCreateLocalVariableCommand(
                 cmdImpl, _createLocalVariableModal.Open);

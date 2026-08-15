@@ -20,7 +20,32 @@ namespace Hrot.Blueprints.Editor.Windows;
 /// </summary>
 public sealed class VariableCreateModal
 {
-    private const string PopupId = "Create Variable##bp_create_var";
+    /// <summary>
+    /// ⭐⭐ <b>Per-INSTANCE, and that is the whole point.</b> ⛔ This was a <c>const</c>, and
+    /// <see cref="BlueprintMyBlueprintWindow"/> builds <b>two</b> of these — asset variables and
+    /// <c>BP-57</c>'s graph locals. Two instances sharing one ImGui popup id is not two dialogs that
+    /// look alike; it is <b>one window that both of them append into</b>, because
+    /// <c>BeginPopupModal</c> with an already-open id appends rather than opening a second window.
+    ///
+    /// <para>
+    /// ⚠ <b>What that looked like on screen:</b> pressing <c>+</c> on <b>Local Variables</b> drew every
+    /// field twice — the asset-variable modal's set first, the locals set below it — and the
+    /// <b>first</b> Create button belonged to the <i>asset</i> modal. ⇒ the locals <c>+</c> created a
+    /// <b>global</b> variable. ⛔ Not a cosmetic duplicate: the gesture did the wrong thing silently,
+    /// which is the exact failure mode <c>Q26-B2</c> exists to rule out.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b><see cref="FunctionCreateModal"/> already solved this, in <c>BP-77</c>, when it was
+    /// parameterised by <c>noun</c> for Macro</b> — same class, two instances, per-instance id. This
+    /// is that fix applied to the sibling that was duplicated without it. ⇒ the rule for this window
+    /// is now general: <b>a modal class instantiated more than once takes a noun</b>.
+    /// </para>
+    /// </summary>
+    private readonly string _popupId;
+
+    /// <summary>Headless seam — <c>ModalPopupIdTests</c> asserts the ids are pairwise distinct.</summary>
+    internal string PopupId => _popupId;
 
     /// <summary>FC-2/LV-4: UI ceiling for a fixed list's capacity (display/typo guard only).</summary>
     internal const int MaxCapacity = 256;
@@ -30,9 +55,11 @@ public sealed class VariableCreateModal
 
     private readonly ConfirmHandler  _onConfirm;
     private readonly BlueprintAsset? _asset;
+    private readonly string          _title;
+    private readonly string          _defaultName;
 
     private bool   _openRequested;
-    private string _name = "NewVar";
+    private string _name;
     private int    _typeIndex;
     private bool   _isList;
     private int    _capacity      = 4;
@@ -49,10 +76,25 @@ public sealed class VariableCreateModal
     /// and disables Confirm rather than auto-renaming. May be <see langword="null"/> in
     /// tests, in which case duplicate-checking is skipped.
     /// </param>
-    public VariableCreateModal(ConfirmHandler onConfirm, BlueprintAsset? asset = null)
+    /// <param name="noun">
+    /// ⭐ What is being created: <c>"Variable"</c> (the default, so every existing caller is
+    /// unchanged) or <c>"Local Variable"</c>. Drives the window <b>title</b>, the <b>popup id</b> and
+    /// the <b>default name</b> — exactly the three things <see cref="FunctionCreateModal"/>'s
+    /// <c>BP-77</c> noun drives, for exactly the same reason.
+    /// ⚠ <b>The title is not decoration here:</b> the two dialogs are otherwise identical, so it is
+    /// the only thing telling the designer which list they are about to write to.
+    /// </param>
+    public VariableCreateModal(
+        ConfirmHandler onConfirm, BlueprintAsset? asset = null, string noun = "Variable")
     {
-        _onConfirm = onConfirm ?? throw new ArgumentNullException(nameof(onConfirm));
-        _asset     = asset;
+        _onConfirm   = onConfirm ?? throw new ArgumentNullException(nameof(onConfirm));
+        _asset       = asset;
+        _title       = "Create " + noun;
+        // ⭐ "NewVariable" / "NewLocalVariable" — the spelling CanvasRenderer's promote-to-variable
+        // already uses, rather than a third one. (It replaces the old "NewVar", which nothing pins.)
+        _defaultName = "New" + noun.Replace(" ", string.Empty);
+        _popupId     = $"{_title}##bp_create_{_defaultName.ToLowerInvariant()}";
+        _name        = _defaultName;
     }
 
     /// <summary>
@@ -61,7 +103,7 @@ public sealed class VariableCreateModal
     /// </summary>
     public void Open()
     {
-        _name          = "NewVar";
+        _name          = _defaultName;
         _typeIndex     = 0;
         _isList        = false;
         _capacity      = 4;
@@ -80,12 +122,12 @@ public sealed class VariableCreateModal
 
         if (_openRequested)
         {
-            ImGui.OpenPopup(PopupId);
+            ImGui.OpenPopup(_popupId);
             _openRequested = false;
         }
 
         bool open = true;
-        if (!ImGui.BeginPopupModal(PopupId, ref open, ImGuiWindowFlags.AlwaysAutoResize))
+        if (!ImGui.BeginPopupModal(_popupId, ref open, ImGuiWindowFlags.AlwaysAutoResize))
             return;
 
         ImGui.TextUnformatted("Name");
