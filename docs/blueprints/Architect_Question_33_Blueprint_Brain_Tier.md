@@ -1,10 +1,30 @@
 # Architect Question #33 — blueprint as a brain tier, and suspendable sub-behaviours
 
-> **Coordinator, `2026-08-16`.** ⭐ **Relay to the architect.** Claude cannot reach it.
-> **Blocks:** nothing currently dispatched — this is ahead of the queue, raised because the capability
-> is user-requested and touches the behaviour lifecycle.
+> **Coordinator, `2026-08-16`.**
 > ⛔ **`N = 33` taken across ALL active branches** (rule 3a); highest existing is `32`.
 > 📄 Context: [`EXPLAINER_Where_Parameters_And_State_Live.md`](EXPLAINER_Where_Parameters_And_State_Live.md)
+>
+> ---
+>
+> ## ⛔⛔ PARKED `2026-08-16` — and **NOT relayed**
+>
+> ⭐⭐ **User: no architect is available to answer this — *"we need to resolve that ourselves, together."***
+> ⇒ ⛔ **This document is NOT a relay.** It is the agenda for a joint working session.
+> ⚠ **`.claude/CLAUDE.md`'s architect-questioning rule is unchanged pending the user's word on whether
+> the architect is generally unavailable or only for this question.**
+>
+> ⭐ **User: finish the PARAMETER story first.** ⇒ **parked behind it**, with two carve-outs:
+>
+> | | disposition |
+> |---|---|
+> | ⭐⭐ **`Q33-E`'s first slice — *"HSM emitter consumes `Role`/`Scope`"*** | ⛔ **PULLED OUT — it is parameter work.** BTree's `BTreeBridgeEmitCore` has **45** `Role`/`Scope` refs; both HSM emitters have **0** ⇒ *"multi-field editor-authored inputs for BTree **and HSM**"* **cannot work on HSM** until this lands, and it needs none of `A`–`D` |
+> | **`Q33-D`** | ⭐ **answered provisionally: `D1`** *(keep `blueprintId` identity)*. ✅ **Safe to postpone `D2`:** `BlueprintBlackboard*` is `[DataPolicy(NoSave)]` so the slot table **never hits disk**, and `InitialBlueprintsIntent.Blueprints` is already a `List<BlueprintAssignmentDto>` with per-entry `Overrides` ⇒ two entries for one `AssetId` are **already expressible on disk**; only the idempotent attach collapses them. ⇒ **widening later is a RUNTIME change, not a migration** |
+>
+> ⚠ **One carry-forward for Track C:** its row identity `(AssetId, Entity, VariablePath)` gains a
+> **fourth component** if `D2` ever happens. ⭐ **Note it in the design; do not build for it.**
+>
+> ⛔ **Everything else here — `A`, `B`, `C`, `D2`, and `Q33-E`'s other three gaps (subtree hosting, the
+> dead validator guards, parallel-region slot keys) — waits.**
 
 ---
 

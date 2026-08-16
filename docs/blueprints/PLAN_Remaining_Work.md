@@ -167,9 +167,25 @@ action write the same bytes. ⭐ BTree is immune: it provisions per-scope slots 
 **the surgical field write** → **Track C** *(table → dialog → Watch → cross-host outline)*
 ⭐ **now also unblocking the Instance `Overrides` half** →
 **`G1`** *(the split — what `W8` was)* → **`G3`** *(service singletons — what `W12` was)* →
+⭐ **the HSM emitter slice** *(`Role`/`Scope`, without which HSM has no authored inputs at all)* →
 **`W7` re-derived** → **`G7`+`W10` as ONE picker** → **`W9`** →
-**last: `W11`** *(architect call, and weaker than filed)*.
+**last: `W11`** *(needs a joint design call, and weaker than filed)*.
+
+⭐⭐ **`2026-08-16` — the HSM emitter slice enters the queue.** `HsmEmitCore`/`HsmBridgeEmitCore` read
+**0** `Role`/`Scope`; `BTreeBridgeEmitCore` reads **45** ⇒ *"multi-field editor-authored inputs for
+BTree **and HSM**"* — the stated goal — **cannot work on HSM until this lands.** It needs nothing from
+the parked brain-tier work. ⇒ **inserted after `G3`.**
 
 📌 Still filed, not fixed: **`BP-241`** · **`BP-242`** · the **`Fdp.Toolkits.Tests` race**.
-📌 Also open, no longer a code question: the **HSM `Role`/`Scope` wiring** and the **two dead validator
-guards** (§4f) — both want a nod on whether they enter this queue or wait for the HSM session's unfreeze.
+
+### ⛔ Parked — 📄 [`Architect_Question_33_Blueprint_Brain_Tier.md`](Architect_Question_33_Blueprint_Brain_Tier.md)
+
+⭐ **Blueprint as a brain tier + suspendable sub-behaviours.** ⛔ **NOT relayed** — the user ruled there
+is no architect for it: *"we need to resolve that ourselves, together."* **Parked behind the parameter
+story** by user instruction, minus the HSM-emitter slice above.
+
+| | |
+|---|---|
+| ✅ **safe to park** | `Q33-D`'s widening is **runtime-only** — the slot table is `[DataPolicy(NoSave)]` and the scenario format is already a per-assignment list ⇒ **a later change, not a migration** |
+| ⚠ **one carry-forward** | ⭐ **Track C's row identity `(AssetId, Entity, VariablePath)` gains a fourth component if `D2` ever happens.** Note it in the design; **do not build for it** |
+| 🔴 **the finding that drives it** | **latent REQUIRES Instance dispatch** — `StateStructBase` is 8 (AiPrimitive) vs 16 (Instance), and the 16 **is** the `BlueprintLatentCursor` ⇒ **a blueprint hosted as an action node cannot suspend** |
