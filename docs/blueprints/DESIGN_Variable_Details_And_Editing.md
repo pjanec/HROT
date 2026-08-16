@@ -14,14 +14,24 @@
 | surface | shows | filtered by |
 |---|---|---|
 | **My Blueprint** | every variable, **every asset type that has variables** | nothing — it is the tree |
-| **Details** | ⭐⭐ **the TABLE — exactly three columns: `Name` · `Type` · `Value`** | the **section** of the clicked row |
-| **Watch** | the same table | the pinned set |
+| **Details** | ⭐⭐ **the TABLE** | the **section** of the clicked row |
+| **Watch** | the same table | the pinned set, ⭐ **grouped (§1b)** |
 
-⛔⛔ **THREE COLUMNS, NOTHING ELSE.** No Bytes, no Category, no Role/Scope, no flags. ⭐ **Everything
-else lives in the Edit dialog only.** ⇒ **the table is a value monitor, not a property grid** — that is
-what lets it stay readable at a glance and what makes it *"resemble an automatic watch panel"*.
-📌 **Per-variable size is still reachable — in the dialog; the whole-asset total is the planning-mode
-budget indicator (§5).**
+### ⛔⛔ Columns — **`Name` and `Value` always; `Type` is the only optional one**
+
+⚠ **Today the control has SEVEN**: `Name` · `Type` · `Bytes` · `Value` · `Role` · `Scope` · remove.
+⛔ **Bytes, Role and Scope go.** ⭐ **Everything dropped lives in the dialog.**
+
+| column | |
+|---|---|
+| **`Name`** | ⛔ **mandatory** — it is the identity |
+| **`Value`** | ⛔ **mandatory** — it is the point |
+| **`Type`** | ⭐ **one toggle.** Default **hidden in Watch** *(monitoring — the user's own note: "not even the data type is important for monitoring")*, **shown in Details** *(authoring, where you pick types)* |
+
+⛔⛔ **No general column-visibility framework.** ⭐ **Seven columns is what we are escaping; a
+configurable system is how it grows back. One named toggle cannot drift.**
+📌 **Per-variable size stays reachable in the dialog; the whole-asset total is the planning-mode budget
+indicator (§5).**
 
 ⭐⭐ **Selection yields a SECTION, not a variable.** Clicking any row in *Local Variables* routes Details
 to the locals-of-this-graph table with that row highlighted; clicking any row in *Variables* routes it to
@@ -49,7 +59,7 @@ panel never reaches back to "the asset" because in Watch there is no single asse
 ```
 VariableRow
   Origin      : (AssetId, Entity, Section, VariablePath)   ← identity; Entity is part of it
-  DisplayName : string        ← ⭐ the SOURCE decides qualification (below)
+  ShortName   : string        ← ⭐ the CONTROL qualifies it when grouping has not (below)
   TypeText    : string
   ClrType     : Type
   ReadValue   : () -> ReadOnlySpan<byte>   ← raw, for both display and change-diff
@@ -58,17 +68,22 @@ VariableRow
   IsStale     : bool          ← asset closed / entity gone; ⭐ Watch already has this concept
 ```
 
-### ⭐⭐ Name qualification is the SOURCE's job, not the table's
+### ⭐⭐ Qualification — ⚠ **CORRECTED: the CONTROL decides, not the source**
 
-⛔ **In a heterogeneous list `Health` is ambiguous** — two assets can both declare it. ⛔ **But we are
-NOT adding a fourth column.** ⇒ ⭐ **the source supplies `DisplayName`:**
+⛔ **An earlier draft put qualification in the source's `DisplayName`** — so every row would repeat
+`PlatoonHillAttack2.Health`. 🔴 **Grouping (§1b) does it better: it HOISTS the shared part into a
+header instead of rendering it N times.**
 
-| | |
+⇒ ⭐⭐ **The source supplies the SHORT name plus the origin facets. The control qualifies only what
+grouping has not already hoisted** — because only the control knows the active `GroupBy`.
+
+| situation | the `Name` cell shows |
 |---|---|
-| **Details** | the **short** name — unambiguous within one section |
-| **Watch** | a **qualified** name — `Asset.Variable`, plus the entity when the same asset is watched on more than one | ⭐ **full path in the tooltip either way** |
+| grouped by `[Asset, Entity]` | ⭐ **`Health`** — the header already says which asset and entity |
+| ungrouped, heterogeneous | ⭐ **`PlatoonHillAttack2.Health`** — nothing else carries it |
+| ungrouped, one asset | **`Health`** — the facet is uniform, so there is nothing to disambiguate |
 
-⭐⭐ **One column, two contents, zero special-casing inside the control.**
+⭐ **Full path in the tooltip, always.**
 
 ### ⚠ Consequences that fall out of heterogeneity
 
@@ -77,7 +92,29 @@ NOT adding a fourth column.** ⇒ ⭐ **the source supplies `DisplayName`:**
 | ⭐ **entity is part of row identity** | the same asset on two entities has **two different values** ⇒ the key is `(AssetId, Entity, VariablePath)`, ⛔ **not `(asset, variable)`** |
 | ⭐⭐ **the tick is PER ROW** | in Watch, rows tick at **different rates** — each row diffs against **its own** asset tick (§4a) ⇒ ⛔ **no panel-wide tick** |
 | ⭐ **stale rows** | a Watch row outlives its asset or entity. ⭐ **`Watch.IsStale` already exists — reuse it**; a stale row shows its last value, greyed, and its dialog is refused |
-| ✅ **"Edit…" still resolves** | the row knows its own asset and entity, so the dialog needs no ambient context |
+| ✅ **the dialog still resolves** | the row knows its own asset and entity, so it needs no ambient context |
+
+### ⭐⭐⭐ 1b. Grouping and folding *(user ruling)*
+
+⭐ **`GroupBy` is an ORDERED LIST OF FACETS from `Origin`** — ⛔ **not a set of hardcoded modes.**
+
+| the user asked for | it is |
+|---|---|
+| ungrouped | `[]` |
+| by entity | `[Entity]` |
+| by asset | `[Asset]` |
+| by asset then entity | `[Asset, Entity]` |
+
+⇒ ⭐ **All four, plus `[Section]`, plus anything later, with no new code per mode.** ⭐⭐ **Every facet is
+already on the row — grouping needs NO new row data**, which is the sign the abstraction is right.
+
+| rule | |
+|---|---|
+| ⭐⭐ **suppress a header whose facet is UNIFORM** | watching one asset ⇒ **no asset header appears, automatically.** ⛔ **No setting, no special mode, no pointless single group** |
+| ⭐ **folding is `CollapsingHeader`** | ⛔ **not new machinery** — `VariablesPanelControl` already uses it in **three** places *(sections, Node-Owned Allocations, unbound requirements)*. ⇒ **generalise `DrawDual` into `DrawGrouped`** |
+| ⭐⭐⭐ **a COLLAPSED header inherits its children's state** | 🔴 **red if any child changed this tick**, 🟡 **yellow if any is pending** ⇒ ⭐ **fold everything down and you can still see WHERE the activity is, then expand only that group.** ⛔ **Without this, folding only hides — it does not help a monitor** |
+| **defaults** | Watch `[Asset, Entity]` · Details `[]` *(one section is already homogeneous)* |
+| **persistence** | `GroupBy`, per-group fold state and the `Type` toggle live in the editor layout, **per panel** |
 
 ---
 
@@ -107,19 +144,29 @@ the kind, not by one fixed form.**
 
 ---
 
-## 3. ⭐⭐⭐ One dialog, two scopes
+## 3. ⭐⭐⭐ One dialog, two scopes — ⭐ **and the USER picks which, not the run state**
 
 `IComponentEditService.Open(object component, Type componentType, EditScope?, EditContext?)` takes
 **any boxed object** — it is not ECS-specific — and `EditScope` already ships `WholeComponent`,
 `ForField(path)` and `ForFields(...)`.
 
-| run state | passed in | designer edits |
-|---|---|---|
-| **planning** *(not started)* | a **properties object** for that declaration kind + `EditScope.WholeComponent` | all seven, as applicable |
-| **running / paused** | the variable's **own value** + its CLR type | **value only** |
+⭐⭐ **The two menu items ARE the two scopes** *(user proposal — and it simplifies the design)*:
 
-⭐⭐ **The mode is a PARAMETER, not a second implementation** — same dialog, same `IEditSession`
-lifecycle, same OK/Cancel, same validation. ⛔ **This is what keeps it inside ruling 9.**
+| menu item | passed in | scope |
+|---|---|---|
+| ⭐ **"Edit value…"** | the variable's **own value** *(live value when running, `DefaultValueJson` when planning)* + its CLR type | **`ForField`** |
+| ⭐ **"Properties…"** | a **properties object** for that declaration kind | **`WholeComponent`** |
+
+⭐⭐⭐ **This is strictly better than my earlier draft**, where run state chose the scope *implicitly*.
+⇒ **Now the user chooses the ACT, and run state only decides AVAILABILITY:**
+
+| | planning | running / paused | replay |
+|---|---|---|---|
+| **"Edit value…"** | ✔ edits the **initial** value ⇒ JSON | ✔ edits the **live** value ⇒ staged | ⛔ read-only |
+| **"Properties…"** | ✔ **fully editable** | ⚠ **read-only** — ⛔ you cannot retype a variable mid-run | ⛔ read-only |
+
+⭐⭐ **Still ONE dialog implementation** — same `IEditSession` lifecycle, same OK/Cancel, same
+validation, differing only by the `EditScope` argument. ⛔ **Ruling 9 holds.**
 
 ⚠ **The one genuinely new UI work:** `Type` needs a **picker** editor and `Category` a combo.
 StructEdit supports custom editors; they must be registered. ⛔ **`S5` lands first** — the picker needs
@@ -129,15 +176,42 @@ StructEdit supports custom editors; they must be registered. ⛔ **`S5` lands fi
 
 ## 4. ⭐ Gestures — identical on every surface
 
+⭐ **Two items, on BOTH the My Blueprint row and the table row** — identical everywhere.
+
 | gesture | result |
 |---|---|
-| **`⋮` → "Edit…"** | opens the dialog — **on the My Blueprint row AND on the table row** |
-| **double-click a row** | ⭐ **the same dialog**, everywhere |
-| **F2, or `⋮` → "Rename"** | inline rename ⚠ **moved off double-click**, which now belongs to "Edit…" |
+| **`⋮` → "Edit value…"** · ⭐ **double-click the VALUE cell** | the value dialog *(`ForField`)* |
+| **`⋮` → "Properties…"** · ⭐ **double-click the NAME cell / row** | the full attribute set *(`WholeComponent`)* |
+| **F2, or `⋮` → "Rename"** | inline rename — ⭐ **kept**, and the refactor service still runs |
 | single-click | selects; Details re-filters to that row's section |
 
-⭐ **Rename is not lost:** the dialog carries `Name`, and committing it runs the refactor service exactly
-as inline rename does today. ⇒ **one gesture, one meaning, on every surface.**
+⭐⭐ **Double-click disambiguates by CELL**, which is how the existing design already binds it *(name ⇒
+rename, comment row ⇒ comment edit)* ⇒ **we are extending a convention, not overriding one.**
+⭐ **Rename survives on F2 and in the menu**, and `Properties…` also carries `Name`, so both routes run
+the refactor service.
+
+---
+
+## 4b. ⭐⭐ How a value is RENDERED in the cell
+
+⭐ **One line, never wrapping, never growing the row.** ⛔ **The cell is a glance; the tooltip is the
+detail; the dialog is the edit.**
+
+| kind | cell | tooltip |
+|---|---|---|
+| **primitive** | ⭐ **inline, formatted** — `80`, `12.5`, `true` | only if truncated |
+| **struct** | ⭐ **compact one-line summary**, elided to fit — `{X=1.0, Y=2.0, …}` | ⭐⭐ **pretty-printed, multi-line, one field per line** |
+| **fixed list** *(`S4`)* | **`{Count=3: 1, 2, 3}`**, elided | pretty-printed, one element per line |
+| **stale row** | last known value, **greyed** | + *"asset/entity no longer present"* |
+| **before first write** *(Watch)* | ⭐ **`(pending)`** — ✅ **already designed and shipped** via `!HasEverBeenWritten` | — |
+| 🔴 **cannot decode** | ⭐ **`<unreadable>`** | why — the type could not be resolved |
+
+⛔⛔ **NEVER render raw hex as if it were the value.** ⭐ **That was `BP-01`'s user-visible symptom** —
+*"the watch panel shows raw hex"* — and it came from `MarshalFromBytes` falling through to
+`return bytes`. ⇒ **after `S3` the struct arm decodes; anything still undecodable says so in words.**
+
+⭐ **The tooltip and the dialog share ONE formatter** — ⛔ a second pretty-printer for tooltips would be
+ruling 9 in miniature.
 
 ---
 
@@ -245,7 +319,10 @@ the Value column already uses covers it**, and it retires the old objection that
 
 | | |
 |---|---|
-| ⭐⭐ **three columns** | a test asserting the table exposes **exactly** `Name`, `Type`, `Value` — ⛔ **a fourth column fails it**, including for a heterogeneous list |
+| ⭐⭐ **column set** | the visible set is a **subset of `{Name, Type, Value}` with `Name` and `Value` mandatory** — ⛔ **any other column fails it**, including for a heterogeneous list. ⭐ **`Type` toggles; nothing else can be added** |
+| ⭐⭐ **grouping** | ⭐ **headless**: `GroupBy = [Asset, Entity]` over a mixed list ⇒ correct nesting and membership · ⭐⭐ **a uniform facet emits NO header** · **a collapsed group reports red if any child changed, yellow if any is pending** |
+| ⭐ **value rendering** | a struct's cell is **one line and elided**; its tooltip is **multi-line**; ⛔ **an undecodable value renders `<unreadable>`, never hex** |
+| ⭐ **two dialogs, one implementation** | *"Edit value…"* and *"Properties…"* differ **only** by the `EditScope` argument — ⛔ **a second `Open` call site fails the rail** |
 | ⭐⭐⭐ **heterogeneous source** | ⭐ **feed the control rows from TWO DIFFERENT assets AND the same asset on two entities**, and assert: distinct identities · **independent** highlight state · qualified `DisplayName` from the source · a stale row renders and refuses its dialog. ⛔ **This is the test that stops the control from quietly assuming one asset** |
 | ⭐⭐ **change highlight** | ⭐ **headless**: drive `(lastValueBytes, lastChangedAssetTick)` and assert the predicate — **changed ⇒ true for one ASSET tick, false on the next** · **unchanged ⇒ never** · ⛔ **planning ⇒ never** · ⭐ **format-equal but byte-different must be TRUE** *(the float-7th-digit case)* · ⭐⭐ **frozen: N world frames with NO asset tick ⇒ STILL TRUE** *(the ruling's whole point)* · ⭐ **pending and changed must be DISTINGUISHABLE states, not one flag** |
 | ⭐⭐ **one dialog** | a reflection test: exactly **one** call site constructs the variable edit session |
