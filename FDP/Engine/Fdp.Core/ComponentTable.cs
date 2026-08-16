@@ -137,6 +137,31 @@ namespace Fdp.Core
             void* destPtr = Unsafe.AsPointer(ref dest);
             Buffer.MemoryCopy((void*)dataPtr, destPtr, size, size);
         }
+
+        /// <summary>
+        /// Ruling 14 — the surgical write: <paramref name="size"/> bytes at
+        /// <paramref name="byteOffset"/>, and nothing else.
+        ///
+        /// <para>
+        /// ⭐ <b>The bound is checked against the component, not trusted from the caller.</b> The whole
+        /// point of this method is that the bytes it does not name stay untouched, so an offset/size
+        /// pair that runs off the end would corrupt the NEXT entity's component — the failure this
+        /// exists to prevent, one row over.
+        /// </para>
+        /// </summary>
+        public unsafe void SetRawAt(int entityIndex, int byteOffset, IntPtr src, int size, uint version)
+        {
+            int total = Unsafe.SizeOf<T>();
+            if (byteOffset < 0 || size < 0 || byteOffset + size > total)
+                throw new ArgumentOutOfRangeException(nameof(byteOffset),
+                    $"Field write [{byteOffset}, {byteOffset + size}) is outside {typeof(T).Name}, "
+                    + $"which is {total} bytes.");
+            if (size == 0) return;
+
+            ref T dest = ref _data.GetRefRW(entityIndex, version);
+            byte* destPtr = (byte*)Unsafe.AsPointer(ref dest) + byteOffset;
+            Buffer.MemoryCopy((void*)src, destPtr, size, size);
+        }
         
         // ================================================
         // FLIGHT RECORDER SUPPORT
