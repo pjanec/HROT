@@ -305,6 +305,56 @@ the case that actually occurs.
 two suspension mechanisms as part of the slot unification.** ⛔ **No semantic change, no throttling
 regression.**
 
+### 1.5.7 ⭐⭐⭐ THE MECHANISM, END TO END — how a state hosts a BTree / blueprint
+
+![hsm subtree hosting](EXPLAINER_Hsm_Subtree_Hosting.svg)
+
+#### ① How a state is DECLARED a host — ⭐ **the carrier already exists**
+
+```csharp
+public Guid SubtreeAssetId;   // HsmStateDto — "runs an external behavior asset"
+```
+
+⭐ **A state is a subtree host iff `SubtreeAssetId != Guid.Empty`.** ⛔ **Nothing new to invent** — what
+must be extended is only **what it may name**: BTree · nested HSM · ⭐ **blueprint Instance**.
+
+⚠ **Plus a binding record on the state** — and it is ⭐⭐ **the assignment record, authored instead of
+evented**:
+
+| supplied how | carrier |
+|---|---|
+| a **behaviour**, by event | `AssignBehaviorEvent { BehaviorName, JsonParams }` |
+| ⭐ a **hosted subtree**, by its parent asset | `state.Subtree { AssetId, JsonParams, ResolverName? }` |
+
+⇒ ⭐⭐ **Same three fields, one supply pipeline, two carriers.** A hosted subtree is a **static
+binding** — like a call's arguments — not a runtime message.
+
+#### ② Lifecycle — every step reuses something that ships
+
+| when | what | reuse |
+|---|---|---|
+| **behaviour activation** | ⭐ **provision every hosting state's slot up front** — `[Cursor 16][Params N][State M]` | ✅ `BehaviorIngressSystem:149` already calls `ProvisionStatefulSlots` right after commit. ⛔ **allocate at activation, never mid-tick** — BTree's own rule |
+| **state entry** | reset the child *(zero state, `Cursor.ResumeAt = 0`)*, then **run the resolver once into the child's slot** | ⭐⭐ `ParseParams(json, slotPayload + paramsOffset, world, self)` — **the delegate already takes a destination pointer**, so the pipeline is reused **unchanged** |
+| **each tick** | the child resumes from its own cursor / `__phase` | ✅ `ProcessActivityPhase` already runs every active leaf and its ancestors, every tick ⇒ ⭐ **no status return needed — and none is possible** |
+| **state exit** | **cancel** — bump the slot's `InstanceVersion` ⇒ a suspended cursor is stale and refuses to resume | ✅ ships. ⭐ **Exit IS external cancellation** *(ruling 2)*; ⛔ **a hosted child does NOT block the transition** *(ruling `2026-08-16`)* |
+| **child completes** | raises an event; a transition listens | ✅ the `HsmCommandWriter` every action already receives. ⭐ **Idiomatic — a state does not "finish", it transitions** |
+
+#### ③ ⚠ Sizing consequence — **one slot per hosting state**
+
+`MaxSlots` is **4 / 8 / 16** for the 1024 / 4096 / 16384 tiers. ⇒ **an HSM with many hosting states
+drives the tier choice**, and `ChooseTier` must size against the **sum**, exactly as
+`BlueprintMaterializationSystem` already pre-provisions *"from the aggregate slot + byte requirements"*.
+
+#### ⛔ WHAT IS STILL OPEN — **parameters wired from the parent's LIVE variables**
+
+⭐ Everything above works for **authored-constant** params. ⛔ **It does not cover *"pass the parent's
+`TargetPos` to the child"***.
+
+⚠ **BTree solves this with a per-node `ExpressionTargetField`; HSM has no equivalent** —
+`FIX-01-REPORT:43`, *"the HSM binding model is structurally different."* ⇒ ⭐⭐⭐ **that is exactly
+`W11` / `E7`, arriving from another direction**, and it is the one piece of this mechanism that still
+needs a joint design call.
+
 ---
 
 ## 2. The sub-questions
