@@ -4,6 +4,15 @@
 > *(design session, `claude/cross-host-variable-model-3k8cfh` @ `a01c583dd`, dispatched `b02ddb16`)*
 > **Date `2026-08-15`.** ⛔ **No ids allocated here** (rule 3). `W1`–`W13` stay the handoff's placeholders.
 > ⚠ **Nothing in this document amends Batch 56 or 57** (rule 1) — both are dispatched and frozen.
+>
+> ---
+>
+> ⛔⛔ **PARTLY SUPERSEDED `2026-08-16` — read [`PLAN_Remaining_Work.md`](PLAN_Remaining_Work.md) §4 first.**
+> **`W8`** and **`W12`** were **dropped as duplicates** of the resolver design's `G1` / `G3`, and **`W10`**
+> merged with `G7`. ⭐ **`D2` dissolved with `W8`** — the resolver design already rules *"no 'Param' role;
+> `Input` **is** the parameter role."* ⛔ **§2's `D2` row and §6's Phase B row are stale.**
+> ⚠ **§2's *"world-singleton is shipped ⇒ adopt, do not coin"* was a conflation** — see §4a of the plan.
+> ✅ **Still current here:** §9's unification audit, the `D1` ruling, and the `W1`–`W7` sequencing history.
 
 ---
 

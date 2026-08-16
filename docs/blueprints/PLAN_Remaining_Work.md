@@ -1,6 +1,9 @@
-# PLAN — what is left *(revision 3, `2026-08-15`)*
+# PLAN — what is left *(revision 4, `2026-08-16`)*
 
-> ⭐⭐⭐ **REVISION 3.** ✅ **Track C's three decisions are RULED and its design is written** —
+> ⭐⭐⭐ **REVISION 4.** ✅ **Track D reconciled against the resolver design's `G1`–`G7` gap list (§4).**
+> ⛔ **`W8` and `W12` DROPPED as duplicates; `W10` merged with `G7`.** ⭐⭐ **Four of the seven gaps had
+> already closed** — the list was `2026-07-13` and nobody had re-measured it.
+> **Rev 3** ruled Track C's three decisions and wrote its design —
 > 📄 **[`DESIGN_Variable_Details_And_Editing.md`](DESIGN_Variable_Details_And_Editing.md)**.
 > **Rev 2** folded in three coordinator subagent scans over `.dev/` (~2887 files) + the implementation
 > session's sweep; **rev 1** was written from **code alone**.
@@ -68,17 +71,69 @@ can verify. ⭐ **But the change-highlight PREDICATE and the grouping/column rul
 
 ---
 
-## 4. ⏭ Track D — ⭐ **the sweep rewrote most of this**
+## 4. ⏭ Track D — ⭐⭐ **RECONCILED against `G1`–`G7` (`2026-08-16`). Two `W` items dropped as duplicates.**
+
+📄 **[`Behavior_Parameter_Resolver_Detailed_Design.md`](Behavior_Parameter_Resolver_Detailed_Design.md)**
+§7 carries a gap list `G1`–`G7` dated `2026-07-13`. ⭐⭐⭐ **Measured on `HEAD` `2026-08-16`: four of the
+seven have since closed.** The gap list is stale; this table is the current one.
+
+### 4a. ⭐ `G1`–`G7` — measured status
+
+| | gap | status on `HEAD` |
+|---|---|---|
+| **`G1`** | split deserialize from resolve | ⚠ **HALF.** The signature half **landed** — `ParseParamsDelegate(string, byte*, EntityRepository, Entity)` already carries world + self. ⛔ **The split did not**: no generic auto-deserializer keyed by `ParamsDtoType` exists (that field feeds **rendering only** — ReplayBrowser drawers, StructEdit context) |
+| **`G2`** | Library blueprint functions runtime-invocable | ✅ **DONE.** `BlueprintDefinition.Functions` (commented `// For Library dispatch (G2)`), emitted by `CSharpEmitter:256`, guarded by `BP5001_LibraryHasNoFunctions`, covered by `LibraryFunction_InvokeTests` + `LibraryFunctionsDemo_ProofTests` ⇒ ⭐ **a blueprint-authored resolver's runtime seam EXISTS** |
+| **`G3`** | geo transform + entity map as world singletons | 🔴 **OPEN.** ⛔ **And rev-3's *"world-singleton is shipped ⇒ adopt, do not coin"* was a CONFLATION**: `BlueprintRegistry.RegisterWorldSingleton(blueprintId, tier)` registers **a blueprint to tick as a singleton**. It is *not* a service-locator for the geo transform. ⭐ Motive restated: `G6` retired the factory, so a **JSON- or blueprint-authored** resolver has no closure to reach these through |
+| **`G4`** | hard-error on duplicate behavior name | 🔴 **OPEN.** `_definitions[id] = definition; _nameToId[name] = id;` — indexer assignment, **silent overwrite**. ⭐⭐ **This is `W1`'s sibling on the behavior registry** — same defect class, other side of the house |
+| **`G5`** | `ActiveBehaviorHash` name-derived | ✅ **DONE.** The `3013` magic constant is gone: `BehaviorHash.FromName(BehaviorNames.HullDownAttackRun)` |
+| **`G6`** | retire `AiBehaviorFactory` | ✅ **DONE.** `CgfCuratedBehaviorRegistrar` — *"replaces the retired `AiBehaviorFactory`"*; `RegisterResolver` binds by name, order-independent |
+| **`G7`** | editor affordances — detach authored shape, divergence detection, resolver picker | 🔴 **OPEN** — ⚠ **converges with `W10`, see below** |
+
+### 4b. ⛔ Dropped as duplicates
+
+| dropped | absorbed by | why |
+|---|---|---|
+| ⛔ **`W8`** — reserved input variable | ⭐ **`G1`** *(+ `DEBT-AIB-021`, the scenario-overlay half)* | ⭐⭐ **Its model half is already RULED, not open:** the resolver design §3.2 — *"the variable **role** enum is `{ Input, State }` — there is no separate 'Param' role. `Input` **is** the parameter role."* ⇒ **there is no tier to choose**; what remains to BUILD is exactly `G1`'s split. ⭐ **`D2` dissolves with it** |
+| ⛔ **`W12`** — Construction initializer | ⭐ **`G3`** | Same work, and `G3` is the **scope pass** `W12` was blocked on — it names the one missing piece (the geo transform's singleton registration) instead of four vaguely-sized ones. ⚠ Rev 3 called two of `W12`'s pieces "already shipped"; one of those was the conflation corrected in `4a` |
+
+### 4c. ⚠ Merged — do not build two of these
+
+⭐ **`W10` (initializer picker) + `G7` (resolver picker)** are both *"pick a named producer from a
+contributing catalog."* ⛔ **Ruling 9 — no two implementations of one concept.** Specify them together;
+`W10`'s measured constraints carry over: **offer over the union**, and identity is the generated
+**FQN, not the AssetId** (architect `AQ2`).
+
+### 4d. ⏭ Surviving `W` items
 
 | | verdict |
 |---|---|
 | **`W6`/`W7`** | 🛑 **`W7` CONTRADICTED.** `Blackboard_Authoring_Detailed_Design.md` §7.7/§9.1–9.6 is a **complete design**: a **suppressible WARNING** (not an error) with per-conflict metadata + an *"Allow concurrent writes"* checkbox; writers classified by **whether the action mutates the ref parameter** (optional annotation, conservative read-write default) — **not** by `W6`'s static projection; and §9.1 says **extend the existing `OutputLaneMask` conflict infrastructure**. §9.5 adds an **Approach B Sync-Out** case we omitted. ⇒ ⭐ **`W6` is downstream of a mechanism the design does not use — re-derive `W6` from §9.6 or drop it.** ✅ `[SharedAiCondition]` re-measured at **0 production usages** |
-| **`W8`** | 🔴 **REFINES strongly.** `SLICE1-DESIGN.md:85` is an **architect-CONFIRMED ruling (`2026-06-15`)**: defaults baked into `ParseParamsDelegate`, **overlay scenario JSON (runtime wins)**, heavy tier needs a `StructureHash` init check. **`DEBT-AIB-013` RESOLVED** (defaults shipped); **`DEBT-AIB-021`** *is* the overlay half, **with a prescribed implementation**. ⭐⭐⭐ **And `BlackboardVariableRole { Input=0, State=1 }` + `WorkingStateScope { Node, Behavior, Entity }` ALREADY EXIST** in `Hrot.AiEditor.Persistence` — **the Role × Scope model is already persisted and round-trip-tested** ⇒ **`D2` may be dissolved: the carrier exists** |
 | **`W9`** | ⚠ **premise coordinator-verified as REAL but MIS-LOCATED:** `HsmBridgeEmitCore` bakes **no key at all** (post-Batch-59); the simple-name hash is **`HsmActionGenerator:517/630` — `ComputeHash(action.Name)`**, and `MethodInfo` carries both `Name` and `FullName`. ⛔ **And the re-bake is TWO sites, not one** — blob key + thunk key, reconciled *"in lockstep via shared `ResolveStatefulSlotKey`"* |
 | **`W10`** | ✅ mechanism **CONFIRMED** — `AN7-REPORT.md:73–95` is the **exact precedent** for *"add a source enum member + contributing catalog, not a new picker"*. 🔴 **But *"persist the catalog `Id`"* CONTRADICTS an architect ruling:** `blueprint-finalize/TASK-DETAIL.md:248` — *"Canonical identity = generated **FQN**, **not** AssetId (architect AQ2)"*. ⚠ `BehaviorActionSource.AiPrimitive` exists but is **never assigned** |
 | **`W11`** | 🔴 **NOT a "twin", and not implementable as written.** `FIX-01-REPORT.md:43` — *"the HSM binding model is structurally different: there is **no per-node `ExpressionTargetField`**"*; **`VE-DEBT-001`**: an HSM state hosts **4 action slots** (Entry/Exit/Activity/Timer) so one-DTO-one-variable *"**needs an architect design call — not an autonomous guess**"*; **`VE-DEBT-004`**: **no production `[HsmGuard]` exists** to bind against. ⛔ **`HSM-016` is an UNRESOLVABLE id — zero hits anywhere; nothing defines what it says** |
-| **`W12`** | 🔴 **two of four "new" pieces already exist.** ⭐ **"world-singleton" is shipped runtime API** (`BlueprintRegistry.RegisterWorldSingleton`, `TickWorldSingletons`, `Self = Entity.Null`) ⇒ **adopt, do not coin.** ⭐ **geo→cartesian + entity-from-network-id already exist as hand-written code** — the very programmer `W12` removes — and are **already contested on semantics** (an open lead decision on `AttackDir`) |
 | **`W13`** | ✅ **DONE** (Batch 63) |
+
+### 4e. ⭐ Adopted new — no `W` counterpart existed
+
+| | |
+|---|---|
+| **`G4`** duplicate-name guard | 🔴 a live silent-overwrite defect. **Small, isolated, and it is `W1`'s sibling** ⇒ cheapest item on this page |
+| **`G1`** the split | the substance of what `W8` was reaching for |
+| **`G3`** service singletons | what `W12` was reaching for, correctly scoped |
+| **`G7`** + `W10` | one picker, specified once |
+| ⭐⭐ **the Instance override half** | `BlueprintAssignmentDto.Overrides` is **designed and forward-compatible, empty in MVP** — 📄 `.dev/blueprint-scenario/BLUEPRINT-SCENARIO-DESIGN.md` §6, deferred for ONE stated reason: *"the authoring UX ('where is a per-instance override edited?') is unsettled."* ⇒ ⭐⭐⭐ **that UX is Track C.** The two are one work item, and nobody had connected them |
+
+### 4f. ⚠ Two findings from the HSM scan — **described, not numbered** (rule 3)
+
+| | measured |
+|---|---|
+| **HSM `Role`/`Scope` have no runtime wiring** | `HsmEmitCore` + `HsmBridgeEmitCore`: **0** references. `BTreeBridgeEmitCore`: **45**. `HsmBlackboardVariableDto` persists both faithfully ⇒ authoring metadata the HSM runtime never reads. ⭐ **This weakens `W11` further** — the "twin" premise assumes a binding model HSM has not got |
+| **two guards for a real collision never fire** | `HsmValidator` rules **8**/**8b** are correct errors, but their injected resolvers default to `_ => false` / `_ => Empty` and **both production call sites use the default ctor**. The XML doc says *"Production should wire this"* ⇒ **unfinished wiring, not a dead rule** |
+
+🔴 **The collision they guard is real:** the HSM action slot key is `hash(methodName @ compileTimeOffset)`
+through one shared `ActionTable`, projected at a static offset in the **one** `BrainBlackboard` — **no
+region index anywhere in the path** ⇒ two concurrently-active orthogonal regions running the same
+action write the same bytes. ⭐ BTree is immune: it provisions per-scope slots via `ResolveStatefulSlotKey`.
 
 ---
 
@@ -105,9 +160,16 @@ can verify. ⭐ **But the change-highlight PREDICATE and the grouping/column rul
 
 ---
 
-## 7. ⭐ Order
+## 7. ⭐ Order *(revised `2026-08-16`)*
 
 **Track B now** *(Batch 65, dispatched)* → **`S5`** *(the dialog's Type picker needs ONE offerable list)* →
-**the surgical field write** → **Track C** *(table → dialog → Watch → cross-host outline)* →
-**`W7` re-derived from its design** → **Track D last** *(`W11` needs an architect call; `W12` a scope pass)*.
+**`G4`** *(cheapest item on the page — a silent-overwrite guard, `W1`'s sibling)* →
+**the surgical field write** → **Track C** *(table → dialog → Watch → cross-host outline)*
+⭐ **now also unblocking the Instance `Overrides` half** →
+**`G1`** *(the split — what `W8` was)* → **`G3`** *(service singletons — what `W12` was)* →
+**`W7` re-derived** → **`G7`+`W10` as ONE picker** → **`W9`** →
+**last: `W11`** *(architect call, and weaker than filed)*.
+
 📌 Still filed, not fixed: **`BP-241`** · **`BP-242`** · the **`Fdp.Toolkits.Tests` race**.
+📌 Also open, no longer a code question: the **HSM `Role`/`Scope` wiring** and the **two dead validator
+guards** (§4f) — both want a nod on whether they enter this queue or wait for the HSM session's unfreeze.
