@@ -32,8 +32,8 @@
 
   <text x="28" y="140" class="tb">Cap 100 B, enforced 3×</text>
   <text x="176" y="140" class="s">BehaviorParameterSizeAnalyzer · BTreeBuilder · BehaviorRegistry.Register (throws)</text>
-  <text x="28" y="160" class="tb">Shared by ALL actions</text>
-  <text x="176" y="160" class="s">on the entity — not 100 B per node; one region carved into disjoint offsets</text>
+  <text x="28" y="160" class="tb">ONE struct per behavior</text>
+  <text x="176" y="160" class="s">ParamsDtoType is singular; an action BINDS A FIELD of it, it owns no allocation</text>
   <text x="28" y="180" class="tb">Written once</text>
   <text x="176" y="180" class="s">at activation, by BehaviorIngressSystem — see the supply diagram</text>
 

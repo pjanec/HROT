@@ -17,7 +17,7 @@
 
 | region | holds | size | who writes it |
 |---|---|---|---|
-| **`BrainBlackboard.BehaviorParameters`** | ⭐ **every input, every host, every tier** | **100 B**, shared by all actions on the entity | `BehaviorIngressSystem`, once at activation |
+| **`BrainBlackboard.BehaviorParameters`** | ⭐ **every input, every host, every tier** | **100 B** — **ONE params struct for the ACTIVE BEHAVIOUR** | `BehaviorIngressSystem`, once at activation |
 | `Blackboard1024.Memory` | AiPrimitive / shared-AI **state** | 1024 B, `StructureHash` @0, state @8 | the action itself, every tick |
 | `BlueprintBlackboard{1024,4096,16384}` | ⭐ **Instance blueprint state — the allocatable one** | payload **928 / 3936 / 16368 B**, 4 slots | `BlueprintInstanceService.AttachToEntity` |
 | a managed heavy component | `[SharedAiHeavyAction]` managed state | unbounded (a class) | the action itself |
@@ -31,7 +31,7 @@ each activation**, which is why the tier question is about *addressing*, not per
 |---|---|
 | ⛔ *"blueprints keep inputs in allocated space"* | **No.** `asset.Parameters` has **one emitter in the entire compiler** — `AiPrimitiveEmitter.EmitParamsStruct`. `InstanceEmitter` never emits them, and `BP1031` refuses them outright. ⇒ **a blueprint has inputs only when it IS a BTree/HSM action**, and they land in the same 100 bytes |
 | ⛔ *"going heavy moves the params"* | **No.** `EmitHeavySharedAiAdapter` emits **both**: params from `bb.BehaviorParameters`, heavy state from the component. ⭐ **The heavy tier extends STATE, never INPUT** |
-| ⛔ *"the 100 bytes are per node"* | **No.** One region **per entity**, carved into disjoint offsets by every action on it. The cap is enforced three times, the last a runtime `throw` |
+| ⛔ *"the 100 bytes are carved up per action"* | **No — corrected `2026-08-16`.** It holds **ONE params struct belonging to the behaviour** (`BehaviorDefinition.ParamsDtoType`, singular). ⭐ `[SharedAiAction(typeof(Dto),"Field")]` makes an action **bind a FIELD of that struct** — actions reference the behaviour's params, they do not each own an allocation. Per-action scratch lives in the **state** area, not here. The cap is on that one struct, enforced three times, the last a runtime `throw` |
 
 ---
 
@@ -243,6 +243,39 @@ is what `#33` is about.
 |---|---|
 | **should intent install blueprints at all?** | merging the two lifecycles. The shipped design keeps them apart — intent assigns behaviors, scenario attaches blueprints |
 | ⭐ **is a behavior "an Instance limited to one per entity"?** | ⛔ **Not as it stands.** The behavior side carries a **monotonic preemption token** (`InstanceId`, driving `ChannelArbitrationSystem` to invalidate a superseded behavior's in-flight commands), **parse-before-commit atomicity**, brain/`SimTier` coupling, and *"assignment ≡ activation, deactivation is brain death"* — the rule that makes **resolve-once** safe. ⇒ ⭐⭐ **Exclusivity is not a cardinality constraint; it is what preemption is defined against.** A unification runs the other way: **blueprint dispatch would have to GROW a preemption and atomic-swap story**, not intent shrink into it |
+
+---
+
+## 5c. ⭐⭐⭐ The four requirements — is any of this actually solved?
+
+⭐ **User, `2026-08-16`, on HSM:** *"the HSM integration is in bad shape now, for long time not updated
+and not actively used, blueprints and BTrees were favorised. **So if something is not present in HSM, it
+is not because it is not needed, just not implemented yet.**"*
+⇒ ⛔⛔ **For HSM, "absent" NEVER means "unwanted".** This is the `.dev/` rule again, sharpened: on the
+HSM side even a *missing* thing carries intent. ⚠ **Do not read §1.3's four gaps as scope decisions.**
+
+⭐ **And the hill-attack delegation is NOT the composition they want** — that is cross-entity command.
+**Single-entity HSM-over-BTree/blueprint remains a live requirement.**
+
+| # | requirement | designed? | built? |
+|---|---|---|---|
+| **R1** | one UI + mental model for variables across all hosts | ⚠ **partly** — `VariablesPanelControl` + `IVariablesSchemaSource` is the shared surface, and ⭐ **`BlueprintVariableSchemaSource` already implements it** | ⛔ **diverges in two places:** `SupportsRoleScopeEditing` is **false** for blueprints (`Q-k` ruled Role/Scope read-only there) and there are **two type pickers** (`S5`) |
+| **R2** | multi-field authored inputs, hardcoded DTOs still legal | ✅ **YES** — resolver design §4.1: *"declare the variables… `Role=Input` for params"* | ⚠ **BTree yes** (45 refs) · **blueprint-as-AiPrimitive yes** (`EmitParamsStruct`) · ⛔ **HSM no** (0 refs) |
+| **R3** | parameters for blueprint **Instances** | ⚠ **partly** — `Overrides` at the **scenario-load** seam, §6, deferred on UX | ⛔ **NO** — `.Overrides` is **never read** in production, only round-trip tests |
+| **R4** | ⭐ **install a BP Instance at runtime WITH params** *(e.g. from a running master blueprint)* | ⛔⛔ **NOTHING.** `AttachInstanceBlueprintEvent { Entity, BlueprintId }` has **no params field**; `AttachToEntity(repo, registry, blueprintId, entity)` has **no params argument**; the payload boots to `InitDefault` and stops | ⛔ **no** |
+
+### ⛔ So: no, there is no design covering all four. `R4` has none at all.
+
+### ⭐⭐ Three decisions to resolve — these are the blockers, not the code
+
+| | the decision |
+|---|---|
+| ⭐⭐⭐ **①  two supply shapes, one concept** | Behaviours supply inputs as **a params struct written into a byte region by a resolver**; Instances would supply them as **a name→value `Overrides` dict applied after `InitDefault`**. ⛔ **That is ruling 9's prohibition — two implementations of one concept.** ⇒ **unify on which shape?** ⚖️ Lean: **the resolver shape**, because it already carries defaults, scenario overlay (runtime wins) and world-context post-processing; `Overrides` carries none of that |
+| ⭐⭐ **②  `Q-k` vs the unification requirement** | `Q-k` **ruled** `Role`/`Scope` read-only for blueprints — a blueprint's `DeclarationKind` fixes the role. ⚠ **The user now requires the UI and mental model be the same across hosts.** ⇒ either blueprints gain editable Role/Scope, or **the panel stops showing Role/Scope as an editable axis at all** and derives it. ⚖️ Lean: **derive, don't edit** — it is one concept with two spellings, and deriving removes the divergence without overturning `Q-k` |
+| ⭐⭐ **③  what carries params on the runtime attach seam** | `R4` needs a params payload on `AttachInstanceBlueprintEvent` **and** a resolve step in `BlueprintEventIngressSystem`, mirroring `BehaviorIngressSystem`'s parse-before-commit. ⇒ **does the Instance path reuse `ParseParamsDelegate`/the resolver, or get its own?** ⚖️ Lean: **reuse**, which is the same answer as ① |
+
+⇒ ⭐ **① and ③ are the same decision seen twice.** Answer *"Instances use the resolver shape"* and both fall
+out; answer *"Instances use overrides"* and we maintain two input mechanisms forever.
 
 ---
 
