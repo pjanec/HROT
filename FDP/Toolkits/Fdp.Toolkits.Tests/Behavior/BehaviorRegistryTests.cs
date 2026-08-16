@@ -259,7 +259,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             {
                 Name        = "Alpha",
                 BrainTier   = BehaviorConstants.BrainTierBTree,
-                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self) => { },
+                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) => { },
             });
             registry.Register(2, "Bravo", new BehaviorDefinition
             {
@@ -295,7 +295,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             {
                 Name        = "Reloadable",
                 BrainTier   = BehaviorConstants.BrainTierBTree,
-                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self) => { },
+                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) => { },
             };
             staging.Register(BehaviorHash.FromName("Reloadable"), "Reloadable", updated);
 
@@ -352,7 +352,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             // resolver registered BEFORE the topology
             var r1 = new BehaviorRegistry();
-            r1.RegisterResolver("Y", static (string json, byte* mem, EntityRepository world, Entity self) => { },
+            r1.RegisterResolver("Y", static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) => { },
                 typeof(int));
             r1.Register("Y", TopologyOnly());
             Assert.True(r1.TryGetDefinition(BehaviorHash.FromName("Y"), out var d1));
@@ -362,7 +362,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             // resolver registered AFTER the topology
             var r2 = new BehaviorRegistry();
             r2.Register("Y", TopologyOnly());
-            r2.RegisterResolver("Y", static (string json, byte* mem, EntityRepository world, Entity self) => { },
+            r2.RegisterResolver("Y", static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) => { },
                 typeof(int));
             Assert.True(r2.TryGetDefinition(BehaviorHash.FromName("Y"), out var d2));
             Assert.NotNull(d2!.ParseParams);

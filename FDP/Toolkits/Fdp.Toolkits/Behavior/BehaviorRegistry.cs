@@ -21,7 +21,15 @@ namespace Fdp.Toolkit.Behavior
     /// entity map, etc. — reached via <paramref name="world"/> singletons (rather than a
     /// registration-time closure). Runs once at behavior activation (<see cref="Systems.BehaviorIngressSystem"/>).
     /// </summary>
-    public unsafe delegate void ParseParamsDelegate(string json, byte* memory, EntityRepository world, Entity self);
+    /// <param name="host">
+    /// ⭐⭐ <c>G1</c>/<c>E7</c> — the HOSTING occurrence's variables, or <c>null</c> for a root
+    /// behaviour. 📄 <c>DESIGN_Parameter_Model.md</c> §3.4.
+    /// ⛔ <b>Always <c>null</c> today</b>: <see cref="IHostVariableAccess"/> is declared and
+    /// unimplemented on purpose. ⭐ The parameter is here NOW because adding one is a breaking change
+    /// to every resolver, and <c>E7a</c> should populate it without a second such change.
+    /// </param>
+    public unsafe delegate void ParseParamsDelegate(
+        string json, byte* memory, EntityRepository world, Entity self, IHostVariableAccess? host);
 
     /// <summary>Variable metadata for one packed slot in BrainBlackboard.BehaviorParameters.</summary>
     public sealed record ManagedBlackboardVariable(string Name, Type Type, int ByteOffset);

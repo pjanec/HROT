@@ -1226,7 +1226,7 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine($"{pad2}global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams;");
         sb.AppendLine($"{pad2}unsafe");
         sb.AppendLine($"{pad2}{{");
-        sb.AppendLine($"{pad3}__parseParams = static (string json, byte* memory, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) =>");
+        sb.AppendLine($"{pad3}__parseParams = static (string json, byte* memory, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>");
         sb.AppendLine($"{pad3}{{");
         sb.AppendLine($"{pad4}// NOTE: runtime per-assignment JSON override of individual managed variables");
         sb.AppendLine($"{pad4}// is not yet supported — only baked defaults are written. DEBT-AIB-021.");
