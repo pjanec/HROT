@@ -1719,7 +1719,24 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         return entry.SourceStartLine;
     }
 
-    private static Type? ResolveType(string typeFullName) => typeFullName switch
+    /// <summary>
+    /// ⭐⭐ <c>S3</c> — FQN → loaded CLR type, <b>across every loaded assembly</b>.
+    ///
+    /// <para>
+    /// 🔴 <c>Type.GetType(fqn)</c> alone searches only the CALLING assembly and corelib, so it never
+    /// found a game struct — <c>Fdp.Core.FixedString32</c>, <c>Hrot.AI.Behaviors.Brains.MemberSlotList</c>
+    /// — and the field was silently <b>skipped</b>, not shown as undecodable. ⭐ The nine-case switch
+    /// below is kept: it short-circuits the common primitives before any assembly walk, and it is what
+    /// makes the FALLBACK's cost irrelevant.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ Mirrors <c>ComponentFieldReflector.ResolveType</c> deliberately — the same
+    /// <c>EditorTypeResolutionScope</c> (BP-62), so a referenced-but-not-yet-loaded assembly is
+    /// force-loaded rather than silently missing here and present there.
+    /// </para>
+    /// </summary>
+    public static Type? ResolveType(string typeFullName) => typeFullName switch
     {
         "System.Int32"   => typeof(int),
         "System.Single"  => typeof(float),
@@ -1730,7 +1747,8 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         "System.UInt64"  => typeof(ulong),
         "System.Int16"   => typeof(short),
         "System.Byte"    => typeof(byte),
-        _                => Type.GetType(typeFullName),
+        _                => Hrot.Blueprints.Editor.NodeDrawers.ComponentFieldReflector
+                                .ResolveType(typeFullName),
     };
 
     public static object? MarshalFromBytes(byte[] bytes, Type type)
@@ -1749,8 +1767,79 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         if (type == typeof(ushort)) return System.Runtime.InteropServices.MemoryMarshal.Read<ushort>(bytes);
         if (type == typeof(ulong))  return System.Runtime.InteropServices.MemoryMarshal.Read<ulong>(bytes);
         if (TryFormatFixedList(bytes, type, out var formatted)) return formatted;
+        if (TryReadStruct(bytes, type, out var value)) return value;
         return bytes;
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>S3</c> / <c>BP-01</c> — <b>the struct arm.</b> Seven of the editor's eighteen offerable
+    /// types (<c>Vector2/3/4</c>, <c>Quaternion</c>, <c>FixedString32/64/128</c>) reached
+    /// <c>return bytes</c>, so the watch panel showed raw hex for a type the picker itself offers.
+    /// ⛔ <b>That was never a panel bug.</b>
+    ///
+    /// <para>
+    /// ⭐ <b>Reflection is the ruled mechanism</b>, and the ruling bounds it: <i>"reflection-based for
+    /// structs (UI decode only, <b>not on the probe path</b>)"</i>
+    /// (<c>_DONE/blueprints-1/TASK-DETAIL.md:1840</c>). ✅ Honoured by placement — every caller of
+    /// <see cref="MarshalFromBytes"/> is a snapshot/watch read; the probe path never reaches here.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>A structural rule, not an allow-list</b> — an allow-list is the very defect <c>S5</c>
+    /// exists to remove, one layer down. The bound is <b>exactness</b>: an unmanaged value type whose
+    /// managed size is exactly the slice it was handed. ⚠ The design's <i>"small structs only"</i>
+    /// (<c>blueprint-dbg-1:193</c>) is a SCOPE note on what the Debug DD covered, not a byte ceiling;
+    /// inventing a number here would just re-create the silent skip above it.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ <b><see cref="System.Runtime.InteropServices.MemoryMarshal"/>, not
+    /// <c>Marshal.PtrToStructure</c>.</b> The bytes are the MANAGED layout the generated writer stores
+    /// (<c>Unsafe.As</c> onto the blackboard); <c>PtrToStructure</c> reads the MARSHALLED one, and the
+    /// two differ on <c>bool</c>. Reading with the wrong model yields a plausible wrong value, which is
+    /// worse than hex.
+    /// </para>
+    /// </summary>
+    internal static bool TryReadStruct(byte[] bytes, Type type, out object? value)
+    {
+        value = null;
+        if (!type.IsValueType || type.IsEnum || type.IsPrimitive || type.IsGenericTypeDefinition)
+            return false;
+
+        try
+        {
+            if ((bool)IsReferenceOrContainsReferencesMethod.MakeGenericMethod(type).Invoke(null, null)!)
+                return false;                                       // managed => not blittable bytes
+            if ((int)UnsafeSizeOfMethod.MakeGenericMethod(type).Invoke(null, null)! != bytes.Length)
+                return false;                                       // ⛔ exactness IS the bound
+
+            value = ReadManagedMethod.MakeGenericMethod(type).Invoke(null, new object[] { bytes });
+            return true;
+        }
+        catch
+        {
+            // A ref struct, a pointer field, an open generic — unreflectable. ⭐ Fall through to the
+            // raw bytes rather than throwing: the watch panel must never take the session down.
+            return false;
+        }
+    }
+
+    /// <summary>The one generic frame the reflective call above needs, so the span is created INSIDE
+    /// (a <c>Span&lt;byte&gt;</c> cannot be boxed into an <c>object[]</c> argument list).</summary>
+    private static object ReadManaged<T>(byte[] bytes) where T : struct
+        => System.Runtime.InteropServices.MemoryMarshal.Read<T>(bytes)!;
+
+    private static readonly System.Reflection.MethodInfo IsReferenceOrContainsReferencesMethod =
+        typeof(System.Runtime.CompilerServices.RuntimeHelpers)
+            .GetMethod(nameof(System.Runtime.CompilerServices.RuntimeHelpers.IsReferenceOrContainsReferences))!;
+
+    private static readonly System.Reflection.MethodInfo UnsafeSizeOfMethod =
+        typeof(System.Runtime.CompilerServices.Unsafe)
+            .GetMethod(nameof(System.Runtime.CompilerServices.Unsafe.SizeOf))!;
+
+    private static readonly System.Reflection.MethodInfo ReadManagedMethod =
+        typeof(BlueprintDebugSession).GetMethod(nameof(ReadManaged),
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
 
     /// <summary>
     /// FC-2/LV-5 → FC-3c: thin delegate to <see cref="Fdp.Core.FixedListFormatter"/> — THE
