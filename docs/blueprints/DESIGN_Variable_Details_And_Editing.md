@@ -14,8 +14,14 @@
 | surface | shows | filtered by |
 |---|---|---|
 | **My Blueprint** | every variable, **every asset type that has variables** | nothing — it is the tree |
-| **Details** | ⭐⭐ **the TABLE** — Name · Type · Bytes · Value | the **section** of the clicked row |
+| **Details** | ⭐⭐ **the TABLE — exactly three columns: `Name` · `Type` · `Value`** | the **section** of the clicked row |
 | **Watch** | the same table | the pinned set |
+
+⛔⛔ **THREE COLUMNS, NOTHING ELSE.** No Bytes, no Category, no Role/Scope, no flags. ⭐ **Everything
+else lives in the Edit dialog only.** ⇒ **the table is a value monitor, not a property grid** — that is
+what lets it stay readable at a glance and what makes it *"resemble an automatic watch panel"*.
+📌 **Per-variable size is still reachable — in the dialog; the whole-asset total is the planning-mode
+budget indicator (§5).**
 
 ⭐⭐ **Selection yields a SECTION, not a variable.** Clicking any row in *Local Variables* routes Details
 to the locals-of-this-graph table with that row highlighted; clicking any row in *Variables* routes it to
@@ -87,11 +93,36 @@ as inline rename does today. ⇒ **one gesture, one meaning, on every surface.**
 
 ---
 
+## 4a. ⭐⭐⭐ Change highlighting — the value monitor half
+
+⭐ **A value that changed is drawn RED for one step, then returns to normal** — the Visual Studio
+debugger behaviour. ⛔ **Non-planning modes only** *(running · paused · stepping · replay)*.
+
+| | |
+|---|---|
+| ⭐⭐ **the unit is a TICK, not a UI frame** | ⛔ **Never compare per rendered frame** — at 60 fps against a slower tick that flickers meaninglessly. **Compare against the value at the previous tick boundary**; while paused/stepping, "previous step" *is* the previous tick |
+| ⭐⭐ **compare RAW BYTES, not the formatted string** | ⛔ **a formatted value hides change** — a `float` moving in its 7th digit renders identically. **Diff the byte slice** |
+| ⭐ **state to keep** | per row: `(lastValueBytes, lastChangedTick)`. **Render red while `currentTick == lastChangedTick`** ⇒ ⭐ **the rule is a pure predicate and therefore HEADLESSLY TESTABLE**, even though the colour is not |
+| ⭐ **who owns it** | ⛔ **not the breakpoint snapshots** — `_preTickSnapshot`/`_postTickSnapshot` only exist while the debugger is engaged, and the monitor must work when it is not. ⇒ **the shared row renderer owns a small previous-value cache**, keyed by `(asset, variable)`, covering the whole section so scrolling does not reset it |
+| ⭐ **scope** | the cache is **per section**, shared by Details and Watch — one implementation, both hosts |
+| ⚠ **a value that changes every tick stays red** | ⭐ **correct and expected** — VS behaves the same. **Do not add damping**; it would hide genuine churn |
+| ⚠ **struct rows** | diff the whole slice; **the whole cell** goes red. No per-field highlighting in the table — that is the dialog's job |
+
+### ⚖️ One sub-decision, with a lean
+
+⛔ **An optimistic edit (§6) also changes the displayed value.** If it is painted the same red, *"the sim
+changed this"* and *"my edit is pending"* look identical. ⚖️ **Lean: give pending its own marker**
+*(e.g. italic or a trailing `*`)* **and reserve red for sim-driven change.** ⭐ **Small, and it keeps the
+monitor honest.** 📐 **Flagged, not assumed — say so if you want them the same.**
+
+---
+
 ## 5. ⭐ Run state governs everything
 
 | | planning | running / paused | replay |
 |---|---|---|---|
 | Value column | the **initial** value | the **current** value | current, ⛔ **read-only** |
+| ⭐ **change highlight** | ⛔ **none** | ✔ **red for one tick** | ✔ **red for one tick** |
 | dialog scope | whole properties object | value only | ⛔ **no dialog** |
 | **byte-budget indicator** | ⭐ **shown** | ⛔ **hidden** | hidden |
 
@@ -141,6 +172,8 @@ the Value column already uses covers it**, and it retires the old objection that
 
 | | |
 |---|---|
+| ⭐⭐ **three columns** | a test asserting the table exposes **exactly** `Name`, `Type`, `Value` — ⛔ **a fourth column fails it** |
+| ⭐⭐ **change highlight** | ⭐ **headless**: drive `(lastValueBytes, lastChangedTick)` and assert the predicate — **changed ⇒ true for one tick, false on the next** · **unchanged ⇒ never** · ⛔ **planning ⇒ never** · ⭐ **byte-equal-but-format-equal must still be FALSE, and format-equal-but-byte-different must be TRUE** *(the float-7th-digit case)* |
 | ⭐⭐ **one dialog** | a reflection test: exactly **one** call site constructs the variable edit session |
 | ⭐ **one commit path per mode** | planning writes JSON only; running stages only. ⛔ **No path writes both** |
 | ⭐ **kind-driven fields** | a test per declaration kind asserting the dialog exposes **exactly** its storable set — ⛔ **a field with no backing member fails the test** |

@@ -32,7 +32,7 @@
   <rect x="332" y="58" width="300" height="112" class="src"/>
   <rect x="332" y="58" width="300" height="18" fill="#2f6fbf" rx="5"/>
   <text x="340" y="71" class="h2">DETAILS — the table, filtered by SECTION</text>
-  <text x="342" y="96" class="t">Name · Type · Bytes · Value</text>
+  <text x="342" y="96" class="tb">Name · Type · Value — three columns only</text>
   <text x="342" y="116" class="s">globals/working-state, or locals of this graph</text>
   <text x="342" y="140" class="tb">⋮ "Edit…"  ·  double-click row</text>
   <text x="342" y="158" class="s">the only place all vars + values are together</text>
@@ -40,7 +40,7 @@
   <rect x="648" y="58" width="316" height="112" class="src"/>
   <rect x="648" y="58" width="316" height="18" fill="#2f6fbf" rx="5"/>
   <text x="656" y="71" class="h2">WATCH — the same table, filtered by pins</text>
-  <text x="658" y="96" class="t">same row renderer, same value cell</text>
+  <text x="658" y="96" class="t">same three columns, same row renderer</text>
   <text x="658" y="116" class="s">"(pending)" before first write — already built</text>
   <text x="658" y="140" class="tb">⋮ "Edit…"  ·  double-click row</text>
   <text x="658" y="158" class="s">⚠ refresh needs Trace compile mode</text>
@@ -85,6 +85,8 @@
   <rect x="16" y="492" width="948" height="52" class="box"/>
   <text x="26" y="512" class="tb">Editability = run state ∧ row kind.</text>
   <text x="222" y="512" class="t">Read-only-passthrough (🔒) and node-owned rows never get a writable dialog, in either mode.</text>
-  <text x="26" y="532" class="tb">Planning-only chrome:</text>
-  <text x="176" y="532" class="t">the byte-budget indicator answers "will this fit?" — shown when stopped, hidden when running.</text>
+  <text x="26" y="532" class="tb">Non-planning only:</text>
+  <text x="158" y="532" class="t">a value that changed since the previous TICK is drawn</text>
+  <text x="474" y="532" class="tb" fill="#c0392b">red for one step</text>
+  <text x="584" y="532" class="t">(bytes compared, not text). Budget indicator: planning only.</text>
 </svg>
