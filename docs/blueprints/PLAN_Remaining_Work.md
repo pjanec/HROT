@@ -225,14 +225,19 @@ throughout — adopt, do not invent.**
 | **`E4`** | ⚠ **wire `HsmValidator` rules 8 / 8b** | correct errors, but injected resolvers default to `_ => false` / `_ => Empty` and **both production call sites use the default ctor** ⇒ never fire. XML doc says *"Production should wire this"* | ⭐ **do BEFORE `E5`** — the guard should be honest before the runtime makes the hazard real |
 | **`E5`** | ⭐⭐ **subtree hosting runtime** | `SubtreeAssetId` is read **only** by `HsmValidator`; FastHSM kernel **0**, HSM emitters **0**, shipped assets **0**. ⇒ ⭐⭐⭐ **serves TWO rulings at once** — HSM-over-BTree composition **and** the latent sub-behaviour decision *(`#33` §1.5.4: `C`, subtree not action)* | `E3`, `E4` |
 | **`E6`** | **`W9`** — simple-name hash | `HsmActionGenerator:517/630` — `ComputeHash(action.Name)`; `MethodInfo` carries `FullName` too. ⚠ **TWO re-bake sites**, reconciled *"in lockstep via shared `ResolveStatefulSlotKey`"* | independent |
-| **`E7`** | 🔴 **`W11`** — the HSM binding model | **not implementable as filed.** `FIX-01-REPORT:43` — *"no per-node `ExpressionTargetField`"*; **`VE-DEBT-001`** — 4 action slots per state ⇒ *"needs a design call, not an autonomous guess"*; **`VE-DEBT-004`** — **no production `[HsmGuard]` exists**. ⚠ **`HSM-016` is unresolvable — zero hits anywhere** | ⭐ **last**, and needs a joint design call |
+| **`E7a`** | ⭐ **wired params — host context on the resolver** | ⛔ **RE-SCOPED `2026-08-16`; no longer needs a design call.** ⭐⭐ **Neither host has input wiring** — a BTree node binds a **field of the behaviour's params struct**, whose value **the resolver wrote at activation** ⇒ *"resolver fills, nodes read"* is already universal. **A resolver already has `world` + `self` and can reach any component; what is missing is ADDRESSING** — it cannot name *"my parent's `TargetPos`"*. ⇒ **pass a host context (variable accessor) alongside `world, self`**, ⚠ **by NAME, never raw offset** (`StructureHash`-versioned). ⛔ **Not a second supply mechanism** *(ruling 9)* | `E5` |
+| **`E7b`** | **the OUTPUT binding** | ⛔ **`ExpressionTargetField` is an OUTPUT binding** — *"blackboard field that receives the expression **result** of `ActionFunction`"* — and **both hosts already have it** (BTree per node, HSM per transition). `FIX-01-REPORT:43`'s *"no per-node"* meant **per-node**. ⇒ wire it at runtime + fix `CountNodesReferencingVariable` returning `0` ⇒ ⚠ **references through it are UNCOUNTED today** | independent |
+| ~~`E7`~~ | ⛔ **the old "HSM binding model" item is DISSOLVED** | ⭐ **`VE-DEBT-001`'s *"needs an architect design call"* is DISCHARGED** — it was the **four-slot / one-DTO** question, and **the subtree ruling removed it: a subtree is HOSTED, not slotted.** 📌 Still true and unrelated: **`VE-DEBT-004`** — no production `[HsmGuard]` exists; **`HSM-016`** is an unresolvable id, zero hits anywhere | — |
 
 ### ⭐ Sequence within Track E
 
-**`E1`** → **`E2`** → **`E4`** *(guards honest first)* → **`E3`** → **`E5`** → **`E6`** → **`E7`**.
+**`E1`** → **`E2`** → **`E4`** *(guards honest first)* → **`E3`** → **`E5`** → **`E7a`** *(wired params —
+needs `E5`'s host)* → **`E6`** · **`E7b`** *(both independent, any time)*.
 
 ⚠ **`E1` is already in the main order** (after `G3`) because the parameter story needs it. **The rest of
 Track E follows the parameter work**, not interleaved with it.
+⭐⭐ **Nothing in Track E now needs a design call.** `E7` was the one item that did, and
+📄 [`Architect_Question_33`](Architect_Question_33_Blueprint_Brain_Tier.md) §1.5.8 dissolved it.
 
 ### ⛔ Not HSM-only, but discovered here — **the latency rail**
 
@@ -292,8 +297,8 @@ table → dialog → Watch → **`C-outline`** *(BTree/HSM supply their own sect
 ⭐ **blueprint multi-occurrence** *(§4h: `(blueprintId, instanceKey)` — `D2`, now in scope)* →
 ⭐ **`E1` — the HSM emitter slice** *(`Role`/`Scope`, without which HSM has no authored inputs at all)* →
 **`W7` re-derived** → **`G7`+`W10` as ONE picker** →
-⭐⭐ **Track E, the HSM catch-up (§4B)**: `E2` → `E4` → `E3` → `E5` → `E6` → **last `E7`**
-*(`W9` is `E6`; `W11` is `E7`)*.
+⭐⭐ **Track E, the HSM catch-up (§4B)**: `E2` → `E4` → `E3` → `E5` → `E7a` → `E6` · `E7b`
+*(`W9` is `E6`; ⭐ **`W11` re-scoped into `E7a` + `E7b` — no design call needed**)*.
 
 📌 **The latency rail (§4B tail) is independent** — compiler-side, and it guards a **silent wrong
 answer**, so it can land any time after Track B.

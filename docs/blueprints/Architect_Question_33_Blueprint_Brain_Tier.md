@@ -355,6 +355,61 @@ drives the tier choice**, and `ChooseTier` must size against the **sum**, exactl
 `W11` / `E7`, arriving from another direction**, and it is the one piece of this mechanism that still
 needs a joint design call.
 
+### 1.5.8 ✅ RESOLVED — wired params (`W11`/`E7`). ⛔ **`ExpressionTargetField` was described BACKWARDS**
+
+#### ⛔ Correction — it is an **OUTPUT** binding
+
+```csharp
+/// Blackboard field that receives the expression result of ActionFunction.
+public string? ExpressionTargetField;
+```
+
+⇒ ⭐ ***"run this action, write its RESULT into that named blackboard field."*** ⛔ **Not input wiring**,
+which is how §1.5.7 and `W11`'s framing described it.
+
+⚠ **Both hosts have it** — BTree on action/condition **nodes**, HSM on **transitions** and global
+transitions. ⭐ **`FIX-01-REPORT:43`'s *"no per-node `ExpressionTargetField`"* meant PER-NODE
+specifically**; HSM binds per *transition*. And `HsmAsset:199`'s *"HSM does not use it in this phase"*
+is about the editor's **reference counting** (`CountNodesReferencingVariable` returns `0`), not the
+field's existence.
+
+#### ⭐⭐⭐ Which collapses the premise: **neither host has input wiring**
+
+In BTree a node binds a **field of the behaviour's params struct** — statically, at authoring — and the
+**value** there was written by **the resolver at activation**. ⛔ **There is no per-node "pull this from
+a variable at runtime" anywhere.**
+
+⇒ ⭐⭐ ***"The resolver fills the params; nodes read fields of them"* is ALREADY the universal answer.**
+For a hosted subtree, the same mechanism applies **at state entry**.
+
+| tier | covered? |
+|---|---|
+| **authored constants** | ✅ §1.5.7's mechanism, nothing extra |
+| ⭐ **resolve-at-entry from world state** | ✅ **exactly what a resolver is for** |
+| **live binding** *(child sees the parent's variable change mid-run)* | ⛔ **DELIBERATELY OUT** — *resolve once at activation* is a ruled property whose stated payoff is that **the double-conversion trap becomes structurally impossible** |
+
+#### ⚠ What is actually missing: **addressing, not access**
+
+A resolver receives `world` + `self`, so it can already reach any component — including
+`BlueprintBlackboard*`, and `BlueprintBlackboardPartitions.TryGetSlotOffset` is public. ⛔ **But to read
+*"my parent's `TargetPos`"* it needs the parent's slot key, and it is given only the entity.**
+
+⇒ ⭐ **Pass a HOST CONTEXT** *(the parent's slot handle / a variable accessor)* alongside `world, self` —
+the same kind of signature extension already accepted for `ExecuteAction`. ⛔ **Not a second supply
+mechanism** *(ruling 9)*.
+⚠ **By NAME, never raw offset** — cross-asset byte reads are `StructureHash`-versioned.
+
+#### ⇒ `E7` RE-SCOPED — one conflated item becomes two small independent ones
+
+| | |
+|---|---|
+| **`E7a`** ⭐ **wired params** | pass **host context** to the resolver. **Not a new mechanism**; serves every host |
+| **`E7b`** **the output binding** | wire HSM's existing `ExpressionTargetField` at runtime + fix `CountNodesReferencingVariable` returning `0` ⇒ ⚠ **references through it are currently UNCOUNTED** |
+
+⭐ **`VE-DEBT-001`'s *"needs an architect design call, not an autonomous guess"* is DISCHARGED** — it was
+about the **four-slot / one-DTO** question, and ⭐⭐ **the subtree ruling removed it: a subtree is HOSTED,
+not slotted.**
+
 ---
 
 ## 2. The sub-questions
