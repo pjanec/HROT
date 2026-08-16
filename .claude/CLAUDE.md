@@ -193,7 +193,7 @@ reports ONE ROW PER GATE: the exact command, and the result.**
 |---|---|
 | ⭐ **the two NodeEdit gates** | they take **NO `--no-build`** — the known failure mode, and a wrong flag reads as green |
 | **any suite the diff plausibly touches** | judged from the changed files, not from the report |
-| **`Fdp.Toolkits.Tests`** | a **known race** — 1·1·2 failures on an identical binary ⇒ ⭐ **one green is not evidence**; a second sample is the only thing that has ever caught it |
+| **`Fdp.Toolkits.Tests`** | ⭐⭐ **FILED as `DEBT-AIB-030` / `DEBT-AIB-010`** *(`2026-08-16`)* — *"non-deterministic in the FULL unfiltered suite… pass deterministically under `--filter` and in isolation"*, cause = **xUnit cross-collection parallelism over process-global registry state**. 📌 **3 of 6 full runs red across batches 65–66, 3 distinct tests, all registry-shaped.** ⇒ ⛔ **a full-suite red is NOT signal by itself — confirm with `--filter`/isolation; and a full-suite green is not evidence either** |
 | **any claim I cannot otherwise check** | golden Tier 1 · `persistence-shape` · `StructureHash` unchanged |
 
 | ⭐ **accept the report** | why |

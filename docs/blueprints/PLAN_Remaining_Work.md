@@ -1,6 +1,12 @@
-# PLAN — what is left *(revision 9, `2026-08-16`)*
+# PLAN — what is left *(revision 10, `2026-08-16`)*
 
-> ⭐⭐⭐ **REVISION 9 (`2026-08-16`).** ✅ **`W6`/`W7` RE-DERIVED (§4i)** from the design's §9.
+> ⭐⭐⭐ **REVISION 10 (`2026-08-16`).** ✅ **Batch 66 MERGED at `3ed92905a`** — `G4` · **the surgical
+> write (the last live defect)** · `G1` · `C-sections`. ⭐⭐ **`G4` grew correctly** — the name guard was
+> necessary but not sufficient; **two distinct names can hash to one id** (§4A).
+> ✅ **Ruling: the throwing default on `IEntityCommandBuffer` is accepted**, with a reflection rail owed.
+> 🔴 **`Fdp.Toolkits.Tests` full-suite runs are not a reliable gate** — filed as `DEBT-AIB-030`.
+>
+> **REVISION 9 (`2026-08-16`).** ✅ **`W6`/`W7` RE-DERIVED (§4i)** from the design's §9.
 > ⛔ **`W6` DROPPED** — its static projection is superseded by the **shipped** annotation mechanism.
 > ⭐⭐ **Most of §9 is BUILT**; `W7` becomes three gaps, and 🔴 **`W7c` is a COVERAGE HOLE in a shipped
 > rule** — it sees alias bindings only, not the static-offset style, nor Sync-Out.
@@ -51,11 +57,12 @@
 
 ---
 
-## 1. ✅ Done — merged through `8c09d5004`
+## 1. ✅ Done — merged through `3ed92905a`
 
-Batches **56 · 58 · 57 · 59 · 60 · 61(1–2) · 63 · 64(1) · ⭐ 65 (Track B, all four)**.
+Batches **56 · 58 · 57 · 59 · 60 · 61(1–2) · 63 · 64(1) · 65 (Track B, all four) · ⭐ 66 (`G4` · the
+surgical write · `G1` · `C-sections`)**.
 Phase A correctness is complete except `W6`/`W7`, which the sweep has now **re-specified** (§4).
-⭐⭐ **Merged through `8c09d5004`** — all eight gates coordinator-re-run and matching (§1a).
+⭐⭐ **Merged through `3ed92905a`** — gates coordinator-re-run each time. Tracker **open 61 / done 133**.
 
 ---
 
@@ -269,6 +276,50 @@ action write the same bytes. ⭐ BTree is immune: it provisions per-scope slots 
 
 ---
 
+## 4A. ✅ Batch 66 — verified, merged, and **two coordinator rulings it forced**
+
+📄 [`REPORT_Batch66_Defect_Seam_Sections.md`](REPORT_Batch66_Defect_Seam_Sections.md).
+⭐ **`G4` · the surgical write · `G1` · `C-sections`** — all four, gates re-run and matching.
+
+### ⭐⭐ `G4` grew, correctly — **the name guard was necessary but NOT SUFFICIENT**
+
+⛔ **I specified only the design's *"duplicate name = hard error"*.** ⭐ **They found the real silent
+failure underneath it:** `id` is **FNV-1a-32 of the name**, so **two DISTINCT names can hash to one
+id** ⇒ `_nameToId` holds both names → one id, while `_definitions[id]` holds only the second ⇒
+🔴 **the first behaviour silently resolves to the SECOND's topology.** ⭐ **That is `W1`'s hashed-id
+collision, on the behavior registry**, and the shape was **transplanted from
+`BlueprintRegistry.RegisterDirect`** as the design says, not invented.
+
+### ✅ RULING — the throwing default on `IEntityCommandBuffer` is **ACCEPTED**
+
+They flagged rather than assumed: `SetComponentRaw` **is** on an interface with **12 implementers**
+(1 real · 2 production wrappers · 9 test mocks), and the new member got a **default implementation that
+THROWS** so nine mocks need no body. ⭐ **Right call — a silent no-op here is a LOST EDIT, the exact
+defect class the method exists to remove.**
+
+⚠ **Residual risk I am recording, not waving through:** a **future** production wrapper that forgets to
+delegate fails at **runtime**, not compile time. 📐 **Mitigation, cheap, next batch that touches this:**
+a reflection rail asserting **every non-test `IEntityCommandBuffer` implementer overrides it.**
+
+### 🔴 `Fdp.Toolkits.Tests` — **it is not a reliable full-suite gate, and now we know why**
+
+⭐⭐ **The cause is FILED and this programme called it unexplained for three batches:**
+**`DEBT-AIB-030`** — *"non-deterministic in the FULL unfiltered suite… pass deterministically under
+`--filter` and in isolation"*; **`DEBT-AIB-010`** names the cause — *"xUnit cross-collection parallelism
++ process-global ECS/component-id/registry state corrupted by unrelated collections."*
+
+📌 **Independent confirmation, my samples:** two consecutive full runs failed on **two DIFFERENT tests**
+(`GizmoRegistryTests` then `StatelessGizmoRegistryTests`), both **green in isolation (8/8)**.
+⚠ **Across batches 65–66: 3 of 6 full runs red, 3 distinct tests, all registry-shaped.**
+⛔ **I checked the one thing that could have made this ours** — Batch 66 added `IMutationInterceptor.cs`
+under `Diagnostics/Gizmos/`. **It is a pure interface, no static state** ⇒ cannot touch registry state.
+
+⇒ ⭐ **Gate change, from now on: a FULL-suite red in `Fdp.Toolkits.Tests` is not signal by itself.**
+**Confirm with `--filter` / isolation before treating it as a failure** — and ⛔ **never let a green
+full run stand as evidence either**, for the same reason.
+
+---
+
 ## 4B. ⏭ Track E — ⭐⭐⭐ **HSM catch-up** *(the gaps, collected)*
 
 > ⛔⛔ **USER RULING `2026-08-16`:** *"the HSM integration is in bad shape now, for long time not updated
@@ -385,8 +436,7 @@ missing, not the analysis.** 📌 **Filed, not numbered** (rule 3).
 
 ## 7. ⭐ Order *(revised `2026-08-16`)*
 
-⭐⭐ **Track B and `S5` are DONE (Batch 65).** ⇒ next: **`G4`** *(cheapest item on the page — a silent-overwrite guard, `W1`'s sibling)* →
-**the surgical field write** →
+⭐⭐ **DONE: Track B + `S5` (65) · `G4` · the surgical write · `G1` · `C-sections` (66).** ⇒ next:
 ⭐ **Track C**, now leading with **`C-sections`** *(split Variables per kind — §4g's ruling)*, then
 table → dialog → Watch → **`C-outline`** *(BTree/HSM supply their own section list)* →
 **`G1`** *(the split — ⭐ now load-bearing for blueprints too)* → **`G3`** *(service singletons)* →
