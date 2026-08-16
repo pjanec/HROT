@@ -1131,7 +1131,10 @@ public static class BTreeBridgeEmitCore
     /// Computes FNV-1a-32 hash of the UTF-8 bytes of a type name string.
     /// Used as a structural hash proxy for WorkingState types.
     /// </summary>
-    private static uint ComputeTypeNameHash(string typeName)
+    /// <remarks>⭐ <c>E1</c>: <c>internal</c> so <c>HsmBridgeEmitCore</c> emits the SAME structure
+    /// hash. ⛔ A second hash would make an HSM slot and a BTree slot of the same type disagree
+    /// about whether the struct changed — the guard would fire on one tier and not the other.</remarks>
+    internal static uint ComputeTypeNameHash(string typeName)
     {
         unchecked
         {
@@ -1273,7 +1276,8 @@ public static class BTreeBridgeEmitCore
     /// For struct-DTO types, converts nested-type separator <c>+</c> → <c>.</c> so the
     /// emitted C# is valid (e.g. <c>global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams</c>).
     /// </summary>
-    private static string DtoTypeToGlobal(string typeId)
+    /// <remarks>⭐ <c>E1</c>: <c>internal</c> so the HSM emitter renders type names identically.</remarks>
+    internal static string DtoTypeToGlobal(string typeId)
     {
         // For well-known primitives, use keywords. For all others, qualify with global::.
         // S1-2b: nested type separator `+` must be converted to `.` for valid C# syntax.
