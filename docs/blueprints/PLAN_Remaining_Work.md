@@ -1,6 +1,11 @@
-# PLAN — what is left *(revision 8, `2026-08-16`)*
+# PLAN — what is left *(revision 9, `2026-08-16`)*
 
-> ⭐⭐⭐ **REVISION 8 (`2026-08-16`).** ✅ **Batch 65 MERGED at `8c09d5004`** — `S2`·`S4`·`S3`·`S5`, **Track B
+> ⭐⭐⭐ **REVISION 9 (`2026-08-16`).** ✅ **`W6`/`W7` RE-DERIVED (§4i)** from the design's §9.
+> ⛔ **`W6` DROPPED** — its static projection is superseded by the **shipped** annotation mechanism.
+> ⭐⭐ **Most of §9 is BUILT**; `W7` becomes three gaps, and 🔴 **`W7c` is a COVERAGE HOLE in a shipped
+> rule** — it sees alias bindings only, not the static-offset style, nor Sync-Out.
+>
+> **REVISION 8 (`2026-08-16`).** ✅ **Batch 65 MERGED at `8c09d5004`** — `S2`·`S4`·`S3`·`S5`, **Track B
 > complete**, `BP-01` closed, all eight gates coordinator-re-run and matching.
 > ⛔ **`DEBT-AIB-012` corrected everywhere** — the triplication was *described and never filed*; that id
 > belongs to a different, RESOLVED row. ⚠ **I propagated the wrong citation; the impl session caught it.**
@@ -135,7 +140,7 @@ contributing catalog."* ⛔ **Ruling 9 — no two implementations of one concept
 
 | | verdict |
 |---|---|
-| **`W6`/`W7`** | 🛑 **`W7` CONTRADICTED.** `Blackboard_Authoring_Detailed_Design.md` §7.7/§9.1–9.6 is a **complete design**: a **suppressible WARNING** (not an error) with per-conflict metadata + an *"Allow concurrent writes"* checkbox; writers classified by **whether the action mutates the ref parameter** (optional annotation, conservative read-write default) — **not** by `W6`'s static projection; and §9.1 says **extend the existing `OutputLaneMask` conflict infrastructure**. §9.5 adds an **Approach B Sync-Out** case we omitted. ⇒ ⭐ **`W6` is downstream of a mechanism the design does not use — re-derive `W6` from §9.6 or drop it.** ✅ `[SharedAiCondition]` re-measured at **0 production usages** |
+| **`W6`/`W7`** | ✅ **RE-DERIVED `2026-08-16` — see §4i. `W6` DROPPED; `W7` becomes three concrete gaps.** *(original finding below, kept for the reasoning)* 🛑 **`W7` CONTRADICTED.** `Blackboard_Authoring_Detailed_Design.md` §7.7/§9.1–9.6 is a **complete design**: a **suppressible WARNING** (not an error) with per-conflict metadata + an *"Allow concurrent writes"* checkbox; writers classified by **whether the action mutates the ref parameter** (optional annotation, conservative read-write default) — **not** by `W6`'s static projection; and §9.1 says **extend the existing `OutputLaneMask` conflict infrastructure**. §9.5 adds an **Approach B Sync-Out** case we omitted. ⇒ ⭐ **`W6` is downstream of a mechanism the design does not use — re-derive `W6` from §9.6 or drop it.** ✅ `[SharedAiCondition]` re-measured at **0 production usages** |
 | **`W9`** | ⚠ **premise coordinator-verified as REAL but MIS-LOCATED:** `HsmBridgeEmitCore` bakes **no key at all** (post-Batch-59); the simple-name hash is **`HsmActionGenerator:517/630` — `ComputeHash(action.Name)`**, and `MethodInfo` carries both `Name` and `FullName`. ⛔ **And the re-bake is TWO sites, not one** — blob key + thunk key, reconciled *"in lockstep via shared `ResolveStatefulSlotKey`"* |
 | **`W10`** | ✅ mechanism **CONFIRMED** — `AN7-REPORT.md:73–95` is the **exact precedent** for *"add a source enum member + contributing catalog, not a new picker"*. 🔴 **But *"persist the catalog `Id`"* CONTRADICTS an architect ruling:** `blueprint-finalize/TASK-DETAIL.md:248` — *"Canonical identity = generated **FQN**, **not** AssetId (architect AQ2)"*. ⚠ `BehaviorActionSource.AiPrimitive` exists but is **never assigned** |
 | **`W11`** | 🔴 **NOT a "twin", and not implementable as written.** `FIX-01-REPORT.md:43` — *"the HSM binding model is structurally different: there is **no per-node `ExpressionTargetField`**"*; **`VE-DEBT-001`**: an HSM state hosts **4 action slots** (Entry/Exit/Activity/Timer) so one-DTO-one-variable *"**needs an architect design call — not an autonomous guess**"*; **`VE-DEBT-004`**: **no production `[HsmGuard]` exists** to bind against. ⛔ **`HSM-016` is an UNRESOLVABLE id — zero hits anywhere; nothing defines what it says** |
@@ -157,6 +162,39 @@ contributing catalog."* ⛔ **Ruling 9 — no two implementations of one concept
 |---|---|
 | **HSM `Role`/`Scope` have no runtime wiring** | `HsmEmitCore` + `HsmBridgeEmitCore`: **0** references. `BTreeBridgeEmitCore`: **45**. `HsmBlackboardVariableDto` persists both faithfully ⇒ authoring metadata the HSM runtime never reads. ⭐ **This weakens `W11` further** — the "twin" premise assumes a binding model HSM has not got |
 | **two guards for a real collision never fire** | `HsmValidator` rules **8**/**8b** are correct errors, but their injected resolvers default to `_ => false` / `_ => Empty` and **both production call sites use the default ctor**. The XML doc says *"Production should wire this"* ⇒ **unfinished wiring, not a dead rule** |
+
+### 4i. ✅ `W6`/`W7` RE-DERIVED from `Blackboard_Authoring_Detailed_Design.md` §9 *(coordinator, `2026-08-16`)*
+
+⭐⭐⭐ **Most of §9 IS BUILT.** ⛔ **`W7` was never a build-from-scratch item** — it is **one consumption
+fix, one small affordance, and one coverage hole.**
+
+| § | the design says | measured on `HEAD` |
+|---|---|---|
+| **9.2** the rule | walk states, find writer pairs that can be simultaneously active, emit `CrossRegionBlackboardConflict` | ✅ **BUILT** — `HsmValidator` rule 9, and ⭐ **wired at production** (`HsmGraphModel:43` passes the blackboard) — ⛔ unlike rules 8/8b |
+| **9.3** warning + **per-pair** suppression | *"Suppression is per-pair, not per-variable"* | ✅ **BUILT and round-tripped** — `_conflictSuppressions`, `HsmAssetMapper`, `HsmAssetProjector`, emitted as `.SuppressBlackboardConflict(var, writerPair)`. **On BTree assets too** |
+| **9.4** drop-target refusal | red drop target across regions | ✅ **BUILT** — `BlackboardAliasDropValidator` |
+| **9.6** readers are safe + annotations | `[BlackboardReadOnly]` / `[BlackboardReadWrite]`, **conservative when unannotated** | ✅ **BUILT** — the attributes ship in `Fbt.Kernel/BlackboardAnnotations.cs`; `HasWritingAction` returns **writer** on `_schema == null`, on unknown FQN, and on any non-`ReadOnly` access |
+
+### ⛔ `W6` — **DROPPED**
+
+`W6` was a **static projection** to classify writers. ⭐ **§9.6 specifies annotations + a conservative
+default instead, and that is SHIPPED.** ⇒ **`W6`'s mechanism is superseded by a built one.** ⛔ **Do not
+implement it.**
+
+### ⭐ `W7` — the three gaps that actually remain
+
+| | gap | measured |
+|---|---|---|
+| **`W7a`** | ⭐ **rule 9 does not consult the suppression** | `IsConflictSuppressed` is consulted **only** by `BlackboardAliasDropValidator:43` ⇒ **suppressing silences the DROP TARGET while the PANEL WARNING persists.** ⚠ **The affordance half-works, which is worse than absent** — the designer clicks Suppress and nothing appears to happen |
+| **`W7b`** | **"Allow concurrent writes" is absent** | §9.4's explicit-enable path — **0 hits repo-wide** |
+| 🔴 **`W7c`** | ⭐⭐⭐ **COVERAGE HOLE in a shipped rule** | rule 9 iterates **`GetAliasesFor` ⇒ `BlackboardAliasBinding` only**. ⛔ **The `[SharedAiAction(typeof(Dto),"Field")]` static-offset binding style is NOT covered**, and **§9.5's Sync-Out bindings are not enumerated as writers** *(`SubtreeSyncBinding.SyncOut` exists; the validator never reads it)* |
+
+⇒ ⭐⭐ **`W7c` is the one that matters.** A rule that covers one binding style **reads as guarded while
+leaving the other unguarded** — ⚠ **`BP-240`'s shape again: green because of what it happens to look at.**
+
+📌 **Order:** `W7c` *(correctness/coverage)* → `W7a` *(one consumption fix)* → `W7b` *(UX)*.
+📌 **Open, minor:** §9.1 says *"extend the existing `OutputLaneMask` conflict infrastructure"* — rule 9
+is a **separate** walk. ⚠ **Consistency question, not a defect; do not refactor on this alone.**
 
 ### 4g. ⭐⭐⭐ NEW — the unified parameter model *(user rulings `2026-08-16`)*
 
@@ -355,7 +393,7 @@ table → dialog → Watch → **`C-outline`** *(BTree/HSM supply their own sect
 ⭐ **the Instance params seam** *(§4g: params in the slot · attach carries a payload · resolve-before-commit)* →
 ⭐ **blueprint multi-occurrence** *(§4h: `(blueprintId, instanceKey)` — `D2`, now in scope)* →
 ⭐ **`E1` — the HSM emitter slice** *(`Role`/`Scope`, without which HSM has no authored inputs at all)* →
-**`W7` re-derived** → **`G7`+`W10` as ONE picker** →
+⭐ **`W7c` → `W7a` → `W7b`** *(re-derived §4i; **`W6` DROPPED**)* → **`G7`+`W10` as ONE picker** →
 ⭐⭐ **Track E, the HSM catch-up (§4B)**: `E2` → `E4` → `E3` → `E5` → `E7a` → `E6` · `E7b`
 *(`W9` is `E6`; ⭐ **`W11` re-scoped into `E7a` + `E7b` — no design call needed**)*.
 
