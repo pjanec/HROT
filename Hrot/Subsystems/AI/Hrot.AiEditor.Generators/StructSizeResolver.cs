@@ -24,10 +24,18 @@ namespace Hrot.AiEditor.Generators;
 /// </para>
 ///
 /// <para>
-/// 📌 <b><c>DEBT-AIB-012</c> (filed <c>2026-06</c>) is only half-paid.</b> Three OTHER copies of this
-/// algorithm still exist — <c>Fbt.SourceGen.BTreeActionGenerator</c>,
+/// 📌 <b>The triplication is real and was NEVER ACTUALLY FILED.</b>
+/// <c>.dev/btree-ai-action-binding/reports/BATCH-03-REPORT.md:100</c> describes it and proposes the id
+/// <b><i>"DEBT-AIB-012 (suggested)"</i></b> — ⛔ but that number was already taken: the programme's
+/// <c>DEBT-TRACKER.md</c> gives <c>DEBT-AIB-012</c> to <i>"inspector multi-DTO read"</i>, <b>RESOLVED
+/// BATCH-05</b>. ⇒ the debt has a description, a suggestion and no row. ⚠ <b>Do not cite it by that
+/// id</b>; cite the report line.
+/// </para>
+///
+/// <para>
+/// ⭐ Three OTHER copies still exist — <c>Fbt.SourceGen.BTreeActionGenerator</c>,
 /// <c>Fdp.Toolkits.Analyzers.BTreeActionGenerator</c>/<c>HsmActionGenerator</c>, and
-/// <c>BehaviorParameterSizeAnalyzer</c> — held in step by a "keep in sync" comment. ⭐ The same link
+/// <c>BehaviorParameterSizeAnalyzer</c> — held in step by a "keep in sync" comment. The same link
 /// mechanism would absorb them; they are in <c>FDP/</c>, a different ownership tree, so that is not
 /// this batch's to take.
 /// </para>

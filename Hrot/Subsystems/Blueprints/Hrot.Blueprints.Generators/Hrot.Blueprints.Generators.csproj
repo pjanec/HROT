@@ -19,9 +19,11 @@
 
   <ItemGroup>
     <!-- ⭐⭐ S2 — the struct-size algorithm is SHARED BY LINK, not copied.
-         DEBT-AIB-012 (filed 2026-06) records that ComputeStructSize already exists three times, held
-         in step by a "keep in sync" comment. A fourth copy here is exactly what that debt warns
-         against, so this compiles the SAME source file the AiEditor generator does.
+         .dev/btree-ai-action-binding/reports/BATCH-03-REPORT.md:100 records that ComputeStructSize
+         already exists three times, held in step by a "keep in sync" comment. (It proposes the id
+         "DEBT-AIB-012 (suggested)"; that number belongs to a different, resolved item, so the debt
+         has no row — cite the report line, not the id.) A fourth copy here is exactly what that debt
+         warns against, so this compiles the SAME source file the AiEditor generator does.
          ⛔ Why a link and not a ProjectReference: it would make blueprint codegen depend on the
          BTree/HSM JSON generator assembly (and, transitively, Hrot.AiEditor.Persistence) for one
          static method — a layering edge bought for nothing. A linked file adds no assembly edge and
