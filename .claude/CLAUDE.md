@@ -180,6 +180,43 @@ document came from ignoring this.
 | 6 | ⭐ **The tracker + detail docs belong to the implementation session for the batch's duration.** The coordinator records findings in conversation and in the next handoff, not as rows | both |
 | 7 | ⭐ **Branch from the coordinator branch, and re-sync from it at the START of every run** (lane table above). This is the *other* half of rule 4: rule 4 catches what landed **during** your run, rule 7 catches what landed **before** it. Together they close the mechanic described above | implementation |
 
+### ⭐ Rule 8 — **gate verification is PROPORTIONATE, not all-or-nothing** *(user, `2026-08-16`)*
+
+> ⭐ **User:** *"do you always need to rerun all gates? it takes so much time… if told to do it before
+> reporting they will likely do it so maybe you can believe they did if they say so."*
+
+⛔ **Model identity is NOT the reason to trust a report** — *"they're Opus too"* is not evidence.
+⭐⭐ **A STRUCTURED report is**, because an omission becomes visible. ⇒ **the implementation session
+reports ONE ROW PER GATE: the exact command, and the result.**
+
+| the coordinator ⭐ **ALWAYS re-runs** | why |
+|---|---|
+| ⭐ **the two NodeEdit gates** | they take **NO `--no-build`** — the known failure mode, and a wrong flag reads as green |
+| **any suite the diff plausibly touches** | judged from the changed files, not from the report |
+| **`Fdp.Toolkits.Tests`** | a **known race** — 1·1·2 failures on an identical binary ⇒ ⭐ **one green is not evidence**; a second sample is the only thing that has ever caught it |
+| **any claim I cannot otherwise check** | golden Tier 1 · `persistence-shape` · `StructureHash` unchanged |
+
+| ⭐ **accept the report** | why |
+|---|---|
+| suites the diff cannot reach | after `--ff-only` **their tree IS my tree** ⇒ a full re-run is genuinely redundant |
+
+⚠ **The risk is INCOMPLETENESS, not dishonesty** — a skipped suite, a `--no-build` where it does not
+belong, a grep that missed `[FAIL]`. ⇒ ⭐ **the gate table is the control**; if a row is missing, re-run
+that gate rather than the set.
+
+### ⭐ Rule 1a — **an UNSTARTED handoff may be re-dispatched** *(user, `2026-08-16`)*
+
+⭐ **Rule 1 exists because an amendment is invisible to a run ALREADY IN PROGRESS.** ⇒ **if the
+implementation branch does not yet contain the dispatch sha, that mechanism cannot bite.**
+
+⛔ **Then: amend and RE-STAMP** *(never silently edit — rule 2)*, and **check ancestry first**:
+
+```bash
+git merge-base --is-ancestor <dispatch-sha> origin/<impl-branch>   # NO ⇒ safe to re-dispatch
+```
+
+⚠ **If they had already started, the earlier stamp binds** — say so and re-issue as a new batch.
+
 ### ⭐ Rule 3a — **architect-question numbers are ids too** *(added `2026-08-14`)*
 
 > **Any session creating `Architect_Question_N_*.md` must first `git fetch` every active branch and

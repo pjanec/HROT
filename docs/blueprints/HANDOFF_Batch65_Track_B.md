@@ -1,6 +1,16 @@
 # HANDOFF — Batch 65: **Track B — struct support, all three now design-ruled**
 
-> 📌 **Dispatched at `4ce68ba24`.** Frozen per `.claude/CLAUDE.md` → *Two-session protocol* rule 1.
+> 📌 ⭐⭐ **RE-DISPATCHED `2026-08-16` — supersedes the `4ce68ba24` stamp.**
+> ⭐ **Legal, and here is why:** rule 1 exists because an amendment is **invisible to a run already in
+> progress**. ⛔ **This run had not started** — `4ce68ba24` was **not an ancestor of
+> `origin/claude/hrot-implementation-j1jvin` (`5ef445f7e`)** when this was written, so nothing could
+> have been missed. ⭐ **Re-stamped rather than silently edited, per rule 2**, so the change is visible.
+> ⚠ **If you had already started, the earlier stamp is the one that binds — say so and I will re-issue.**
+>
+> ⭐⭐⭐ **NEW SINCE THE FIRST STAMP — read before starting:**
+> 📄 **[`DESIGN_Parameter_Model.md`](DESIGN_Parameter_Model.md)** is now **THE** parameter authority and
+> **supersedes every prior parameter design**. ⛔ **Its §0 is a "do not re-derive" table of ten things
+> this programme got wrong** — several of them mine. ⭐ **`S5` is now IN this batch (§3b).**
 > ✅ **Batch 64 item 1 MERGED at `5ef445f7e`.** ⭐ **Your sweep was right to stop on `W7` — it is
 > re-specified and OUT of this batch.**
 > ⭐ **Rule 7 / Rule 4.** ⛔ **Rule 3: the coordinator allocates no ids.**
@@ -85,6 +95,23 @@ primitives/**small** structs only"*.
 
 ---
 
+## 3b. ⭐ `S5` — ONE offerable type list *(ADDED `2026-08-16`)*
+
+⭐ **Added because it is next in the order anyway, it is small, and it unblocks the Track C dialog.**
+
+| | measured |
+|---|---|
+| **the defect** | the **parameter** combo (`ParameterRowsView`) reads `StaticTypeRegistry.EditorOfferableTypeIds` — **18 hardcoded primitives, NO structs**; the **variable** modal (`VariableCreateModal`) reads `BlueprintTypeSystem.SelectableTypeIds` **plus** `DiscoverBlackboardDtoStructTypes()` |
+| ⇒ **the symptom** | ⭐⭐ **a variable can be struct-typed today; a parameter cannot** |
+| **the precedent** | `U-8`'s own comment names this defect class: *"a designer could declare a struct variable in one window and not the other"* ⭐ *"Discovery IS the existence proof"* |
+| ⚠ **the trap `U-8` already hit** | widening `SelectableTypeIds` fed the **list-element** picker too, producing a budget of *"≈ 4 bytes"* per struct element. 📐 **`Modal_BudgetHelper_KnowsEverySelectableUnmanagedElementSize` caught it — keep that test green** |
+
+⭐ **Rail:** the parameter combo and the variable modal return the **same set, structs included** —
+📄 `DESIGN_Parameter_Model.md` §8, last row. ⛔ **Two lists surviving fails it.**
+📌 **Impact:** editor-side only ⇒ **`StructureHash` and `persistence-shape` MUST NOT move.**
+
+---
+
 ## 4. ⛔ NOT in this batch
 
 `S5` *(one picker — ⚠ it is a **UI** change and Track C is blocked)* · **all of Track C** · `W6`/`W7`
@@ -108,6 +135,22 @@ Toolkits **1942** · NodeEdit **208 / 131**.
 ---
 
 ## 6. Reporting
+
+### ⭐⭐⭐ NEW — **the gate table** *(added `2026-08-16`; it changes how I verify)*
+
+⛔ **Report ONE ROW PER GATE: the exact command you ran, and the result.** ⭐ **This is what lets me
+stop re-running all eight** — an omission or a wrong flag becomes visible instead of invisible.
+
+| gate | command (verbatim) | result |
+|---|---|---|
+| solution build | | errors / warnings |
+| each suite | | total / passed / failed / skipped |
+
+⚠ **The two NodeEdit gates take NO `--no-build`.** ⭐ **State that you honoured it** — that is the known
+failure mode, and it is the one I will always re-run.
+⭐ **Also state: did any suite need a re-run to go green?** 📌 `Fdp.Toolkits.Tests` has a **known race**
+*(1·1·2 failures on an identical binary)* — ⛔ **a flake there is NOT yours to fix**, but **it must be
+reported, not smoothed over.**
 
 ⭐⭐ **Whether `S2` added a fourth `ComputeStructSize` copy or avoided it** · ⭐ **what consolidation
 would take** · ⭐ **any sibling design doc that contradicts `S4`'s §3** · ⭐ **the `BP-01` type count
