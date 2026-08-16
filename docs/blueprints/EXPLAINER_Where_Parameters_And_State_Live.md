@@ -161,9 +161,39 @@ to that question.
 needs a `Parameter` tier to get it. **`BP1031` therefore reads as *"Instances express inputs as
 overridable variables, not as a Parameters list"*** — the cleaner side of the one-cell model, not a wall.
 
-⚠ **Open, and genuinely the architect's:** whether an Instance blueprint should also be installable
-**via tactical intent with params**, merging the two lifecycles. The shipped design keeps them apart —
-intent assigns behaviors, scenario attaches blueprints. No code settles this.
+### ⭐⭐ The concrete blocker on Instance parameters — **identity, not storage**
+
+⛔ **Instances do NOT have the HSM collision.** Every attach takes its own allocated, zeroed payload
+slot from a real allocator (free list + bump, per-slot `StructureHash`) ⇒ **several blueprints running
+at once on one entity is already correct.** ⭐ **Blueprints and BTree are the template HSM is missing** —
+not the other way round.
+
+🔴 **But slot identity is `blueprintId` ALONE**, and attach is **idempotent** on it —
+`TryFindExistingTier` ⇒ `AlreadyAttached`, a no-op:
+
+```csharp
+slot.BlueprintId = blueprintId;     // the whole identity
+```
+
+⇒ ⭐⭐⭐ **Parameterless scripts are fine; parameterised ones are not.** The moment a script takes
+arguments you want **the same script twice with different arguments** — two `Patrol` instances on
+different waypoints — and that is impossible **by construction** today.
+
+⇒ **The real work in "Instance blueprints take parameters" is widening slot identity from
+`blueprintId` to `(blueprintId, instanceKey)`.** ⭐ **That IS the same shape as the HSM defect** —
+*one key where there should be several* — which is why the two feel like one problem. They are one
+problem **at the identity layer**, and two different problems at the storage layer.
+
+⚠ **`InstanceVersion` is not a free hook for this.** It is already load-bearing: bumped on hard reload
+and compared against `BlueprintLatentCursor.InstanceVersion` to invalidate stale latent resumes — the
+blueprint twin of `BehaviorState.InstanceId`.
+
+### ⚠ Open, and genuinely the architect's
+
+| | |
+|---|---|
+| **should intent install blueprints at all?** | merging the two lifecycles. The shipped design keeps them apart — intent assigns behaviors, scenario attaches blueprints |
+| ⭐ **is a behavior "an Instance limited to one per entity"?** | ⛔ **Not as it stands.** The behavior side carries a **monotonic preemption token** (`InstanceId`, driving `ChannelArbitrationSystem` to invalidate a superseded behavior's in-flight commands), **parse-before-commit atomicity**, brain/`SimTier` coupling, and *"assignment ≡ activation, deactivation is brain death"* — the rule that makes **resolve-once** safe. ⇒ ⭐⭐ **Exclusivity is not a cardinality constraint; it is what preemption is defined against.** A unification runs the other way: **blueprint dispatch would have to GROW a preemption and atomic-swap story**, not intent shrink into it |
 
 ---
 
