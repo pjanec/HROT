@@ -6,7 +6,13 @@
 >
 > ---
 >
-> ## ⛔⛔ PARKED `2026-08-16` — and **NOT relayed**
+> ## ⭐ UNPARKED `2026-08-16` — resolved jointly with the user, **NOT relayed**
+>
+> ⭐⭐ **§1.5 added:** `BrainTier` stays a discriminant (not a bitmask), and latent hosting is measured
+> down to **an Activity-slot capability**. ⚠ **The parking note below is kept for its two carve-outs,
+> which still stand.**
+>
+> ### ⛔ Was parked `2026-08-16` behind the parameter story
 >
 > ⭐⭐ **User: no architect is available to answer this — *"we need to resolve that ourselves, together."***
 > ⇒ ⛔ **This document is NOT a relay.** It is the agenda for a joint working session.
@@ -94,6 +100,61 @@ sub-behaviour, **which does not exist in any host.**
 to preempt a superseded behaviour's in-flight commands. Ingress **parses before it commits**, so a
 failed parse leaves the entity wholly on its old behaviour. `BlueprintSlotEntry.InstanceVersion` is
 the blueprint twin — bumped on hard reload, compared against the cursor to invalidate stale resumes.
+
+---
+
+## 1.5 ⭐⭐⭐ UNPARKED `2026-08-16` — two findings that narrow `A` and `B`
+
+### 1.5.1 ⛔ "Should `BrainTier` be a bitmask?" — **no**, and the reason is precise
+
+Values are already bit-distinct (`Hsm = 1`, `BTree = 2`), so a mask would *work*. ⛔ **But every use is
+an equality test** — `BehaviorIngressSystem:162`, `TraceBufferLifecycleSystem:58/64`.
+
+| question | shape |
+|---|---|
+| *"which interpreter does **ingress start**?"* | ⭐ **singular, always** — the **root**; nesting does not change it |
+| *"which interpreters are **present**?"* | a **set**, once nesting exists |
+
+⇒ ⭐⭐ **A mask answers the second and DESTROYS the first**: with two bits set, `BrainTier == Hsm` can no
+longer tell ingress what to start. ⚠ **Same "one field, two meanings" error as `BP-224`'s bool-for-a-
+three-way — too wide instead of too narrow.**
+
+⚖️ **Keep the root as a DISCRIMINANT.** If presence is genuinely needed *(trace-buffer allocation is the
+plausible consumer)*, ⭐ **derive it from the composition** — the root asset's subtree references already
+say which interpreters are involved — **or add a separate mask.** ⛔ **Do not overload one field.**
+📌 `BehaviorState` is `[DataPolicy(NoSave)]` ⇒ **deferring costs nothing.**
+
+### 1.5.2 ⭐⭐⭐ "In what way are latent nodes a problem?" — **not at all for Instance dispatch**
+
+⭐ **Hosted as an Instance they SHIP AND WORK**: `BlueprintTickSystem` re-enters every tick, the cursor
+holds the resume point, `InstanceVersion` rejects a stale resume. ⛔ **Nothing to fix there.**
+
+**They are a problem only when HOSTED, in three specific ways:**
+
+| # | |
+|---|---|
+| **①** | ⛔ **the hosting path has no cursor** — `StateStructBase` 8 (AiPrimitive) vs 16 (Instance), and the 16 **is** the cursor ⇒ a blueprint hosted as an action node **must finish within the tick** |
+| **②** | ⭐⭐ **the host must own re-entry, and the two hosts differ SHARPLY** — see below |
+| **③** | cancellation ✅ **already solved** by `InstanceVersion`; ⚠ **but `WaitUntilTime` is ABSOLUTE sim time**, so a child suspended across a preemption can resume with its deadline **already passed** — a semantic call, not a mechanism gap |
+
+#### ⭐⭐ ② is the decisive one
+
+| | can it express *"not finished"*? |
+|---|---|
+| **BTree** | ✅ **YES, already** — `NodeStatus.Running` = *"Node is still executing (multi-frame)"*. A node returns `Running` while its child waits ⇒ **the concept fits with NOTHING NEW** |
+| **HSM** | ⛔ **NO** — `public static void ExecuteAction(ushort actionId, void* instance, void* context, HsmCommandWriter* writer)` **returns `void`.** An HSM action **cannot** say "not done" |
+
+⭐⭐⭐ **But HSM has a free way out: `Activity` runs EVERY TICK while the state is active**
+(`ProcessActivityPhase`), so a latent child hosted as an **Activity** is naturally re-entered and
+resumes from its cursor — ⭐ **no status needed, no kernel change.**
+
+⛔⛔ **`Entry` / `Exit` / `Timer` are ONE-SHOT** — a latent child there suspends and is **never
+re-entered.**
+
+⇒ ⭐⭐⭐ **THE CONSTRAINT THAT FALLS OUT: a latent sub-behaviour is an ACTIVITY-SLOT capability, not a
+four-slot one.** ⚠ **This narrows `Q33-A` and `Q33-B`** — the hosting question is no longer *"how does a
+host re-enter a suspended child"* in general, but *"do we accept Activity-only, or extend the action
+contract to carry a status?"*
 
 ---
 
