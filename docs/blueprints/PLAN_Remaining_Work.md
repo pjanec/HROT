@@ -171,14 +171,21 @@ generic and the instance arrives **by ref from the caller** (`Interpreter.Tick(r
 `BrainBlackboard` is just a 128-byte struct; and a hand-written DTO's offsets are **relative to the
 struct base**, with `Method@byteOffset` baking only the *field* offset.
 
-⇒ ⭐⭐⭐ **A hosted occurrence gets its own `BrainBlackboard`-shaped region in its slot and is ticked
-against that** — every `[SharedAiAction]` thunk keeps working, **same type, different instance.**
-⭐ **One line in the tick system decides which.** ⇒ **params belong to the OCCURRENCE.**
+⇒ ⭐⭐⭐ **A hosted occurrence gets its own PARAMS REGION in its slot and is ticked against that** —
+every `[SharedAiAction]` thunk keeps working, **same offsets, different instance.**
+⇒ **params belong to the OCCURRENCE.**
 
-⚠ **One decision inside this:** `BrainBlackboard`'s tail (`ExpectedThreatLevel`, the two interrupts) is
-**entity-level**. ⚖️ **Lean: copy the whole struct per occurrence** *(zero generator change)* **with the
-rule that a hosted copy's tail is never read** — interrupts come from the entity's component. ⛔ Defer
-splitting the params region into its own type until something needs it.
+⛔ **Carry the PARAMS AREA only, never the component** *(user correction, `2026-08-16`)*. ⭐ **Measured:
+no generated thunk touches the tail** — `CognitiveInterruptSystem` / `CognitiveCleanupSystem` /
+`HsmTickSystem:168` / `RouteContextSystem:190` are all **systems** — and **actions never see the
+blackboard at all** (`Method(ref field, ctx.Self, ctx.World)`). ⇒ the blackboard ref exists **only** to
+locate the params. Interrupts and soft advice stay on the component.
+
+⭐⭐ **Cheaper than the whole-struct version I first leaned to:** ⭐ **BTree needs NO `ExtDeps` change** —
+`NodeLogicDelegate`/`Interpreter` are generic and never touch the blackboard's members, so the edit is
+`ref bb.BehaviorParameters` → `ref bb` at three generator emit sites, the interpreter's type argument,
+and one line in `BTreeTickSystem`. ⭐ **HSM folds into the `ExecuteAction` signature widening
+occurrence-keying already needs** — one seam, two problems.
 
 📌 **Multiple BTrees/HSMs per entity: ⛔ not as PEERS** *(root exclusivity is what preemption is defined
 against)*, ✅ **yes as NESTED sub-behaviours** — the composition ruling.

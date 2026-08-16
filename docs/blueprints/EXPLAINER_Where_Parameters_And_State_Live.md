@@ -399,9 +399,8 @@ def.BTreeInterpreter!.Tick(ref blackboard, ref btState.State, ref context);   //
 | ⭐ `BrainBlackboard` is **just a 128-byte struct** | it happens to be registered as a component; ⛔ **nothing requires it to be the ENTITY's instance** |
 | ⭐ a hand-written DTO's field offsets are **relative to the struct base** | and `Method@byteOffset` bakes only the **field** offset ⇒ **valid wherever the struct lives** |
 
-⇒ ⭐⭐⭐ **Give a hosted occurrence its own `BrainBlackboard`-shaped region inside its slot and tick it
-against that.** Every `[SharedAiAction]` thunk keeps working **unchanged** — same type, same offsets,
-different instance. ⭐ **One line in the tick system decides which.**
+⇒ ⭐⭐⭐ **Give a hosted occurrence its own params region inside its slot and tick it against that.**
+Every `[SharedAiAction]` thunk keeps working — same offsets, different instance.
 
 | occurrence | its params live in |
 |---|---|
@@ -412,19 +411,33 @@ different instance. ⭐ **One line in the tick system decides which.**
 ⇒ ⭐⭐ **Params belong to the OCCURRENCE.** The 100-byte layout is the **shape of one occurrence's
 params**, not a per-entity singleton.
 
-### ⚠ The one thing to decide — `BrainBlackboard`'s tail is entity-level
+### ⛔ CARRY THE PARAMS AREA ONLY — *(user correction, `2026-08-16`)*
 
-`ExpectedThreatLevel`, `Interrupt_MobilityLost`, `Interrupt_Reserved` are **entity** facts. A hosted copy
-would carry meaningless duplicates.
+> ⭐ **User, verbatim:** *"params area in 128 byte behav blackboard component does not mean we copy whole
+> component, just the param area! interrupts and soft advices have no relation to the params."*
+
+⛔ **My earlier lean — copy the whole 128-byte struct — was WRONG**, and the corrected version is also
+the **cheaper** one. ⭐ **Measured, which is what settles it:**
 
 | | |
 |---|---|
-| ⭐ **copy the whole 128-byte struct per occurrence** | ✅ **zero generator change, thunks untouched** ⛔ 28 wasted bytes + *"which copy do interrupts write?"* |
-| **split the params region into its own type** | ✅ clean ⛔ **a generator + `ExtDeps` change** |
+| ⭐⭐ **NO generated thunk touches the tail** | every production reader/writer is a **system**: `CognitiveInterruptSystem` sets it · `CognitiveCleanupSystem` clears it · `HsmTickSystem:168` reads it · `RouteContextSystem:190` writes `ExpectedThreatLevel` |
+| ⭐⭐⭐ **actions never see the blackboard at all** | the thunk calls `Method(ref field, ctx.Self, ctx.World)` — ⇒ **the blackboard ref exists ONLY so the thunk can locate the params** |
 
-⚖️ **Lean: the first, with a rule** — ⭐ **interrupts and soft advice are read from the ENTITY's component
-only; a hosted copy's tail is never read.** ⇒ keeps the change to allocation + one tick-system line, and
-defers the type split until something needs it.
+⇒ ⭐ **Carry a params-region type, not the component.** `BrainBlackboard` holds one at `[FieldOffset(0)]`;
+interrupts and soft advice stay on the component, reached by systems via the entity, **untouched**.
+
+| occurrence | ticked with |
+|---|---|
+| root behaviour | `ref component.Params` |
+| hosted sub-behaviour / Instance | `ref` its own params region **in its slot** |
+
+### ⭐ And the cost is lower than the whole-struct version
+
+| | |
+|---|---|
+| ⭐⭐ **BTree: no `ExtDeps` change at all** | `NodeLogicDelegate<TBlackboard,…>` and `Interpreter<TBlackboard,…>` are **generic and never touch the blackboard's members** ⇒ **FastBTree needs nothing.** The edit is `ref bb.BehaviorParameters` → `ref bb` at the generator's three emit sites, the interpreter's type argument, and one line in `BTreeTickSystem` |
+| ⭐ **HSM: folds into a change already accepted** | HSM thunks fetch `GetComponentRW<BrainBlackboard>(bridge->Self)` **themselves**, so they need the params base passed in — ⇒ **the same `ExecuteAction` signature widening that occurrence-keying already requires (§5d).** ⭐ **One seam, two problems** |
 
 📌 **Multiple BTrees/HSMs on one entity: ⛔ not as PEERS** *(root exclusivity is load-bearing — it is what
 preemption is defined against)*, ✅ **yes as NESTED sub-behaviours.**
