@@ -1680,6 +1680,74 @@ public static class BlueprintDocumentFactory
     /// </para>
     /// </summary>
     /// <param name="openModal">Opens the local-variable create modal (e.g. <c>modal.Open</c>).</param>
+    /// <summary>
+    /// ⭐⭐⭐ <c>C-sections</c> — the Inputs and Working State sections' <b>"+"</b>.
+    ///
+    /// <para>
+    /// ⛔⛔ <b><c>BP-12c</c>: a section that declares a create command nothing registers is an INERT
+    /// BUTTON</b> — a defect that shipped twice (Custom Events, Macros) before it was caught. ⇒ these
+    /// are registered in the same call the sections are added in, and the rail invokes them rather
+    /// than checking that the descriptor carries an id.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>Quick-add, not a modal</b> — deliberately unlike <c>editor.create-variable</c>. The
+    /// variable modal exists to take a name and a TYPE, and typing is what <c>S5</c> just unified;
+    /// wiring a second modal here would be new UI in a batch whose visual check is suspended. ⚠ Stated
+    /// so it reads as a choice rather than an omission: the created declaration is renamable and
+    /// retypable in place, exactly like <c>AddVariable</c>'s <c>NewVar</c>.
+    /// </para>
+    /// </summary>
+    public static void RegisterCreateDeclarationCommands(
+        EditorCommandsImpl commands,
+        BlueprintAsset     asset,
+        Action?            markDirty)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(asset);
+
+        var reg = new CommandRegistration(commands);
+        reg.Add(
+            Windows.BlueprintMyBlueprintModel.CommandCreateParameter,
+            "Create Input", "Add",
+            _ => AddDeclaration(asset, DeclarationKind.Parameter, "NewInput", markDirty),
+            description: "Add an input parameter to this blueprint.");
+        reg.Add(
+            Windows.BlueprintMyBlueprintModel.CommandCreateWorkingState,
+            "Create Working-State Variable", "Add",
+            _ => AddDeclaration(asset, DeclarationKind.WorkingState, "NewState", markDirty),
+            description: "Add a working-state variable to this AiPrimitive.");
+    }
+
+    /// <summary>
+    /// ⭐ <c>C-sections</c> — the quick-add path for any declaration kind.
+    ///
+    /// <para>
+    /// ⚠ Routed through <c>BlueprintDeclaration.Create</c>, which is <i>"the one way to build one
+    /// without first knowing which concrete type to make"</i> — a <c>Parameter</c> is backed by
+    /// <c>ParameterDecl</c> and the other two by <c>VariableDecl</c>, and picking that here by hand
+    /// would be a fourth place that knows the mapping.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ The unique-name search is across ALL kinds (<c>U-14</c>/<c>BP-232</c>): a <c>Parameter</c>
+    /// and a <c>Variable</c> may not share a name, because <c>Stage5</c>'s name fallback would let
+    /// list order decide which one a reference reached.
+    /// </para>
+    /// </summary>
+    internal static BlueprintDeclaration AddDeclaration(
+        BlueprintAsset asset, DeclarationKind kind, string baseName, Action? markDirty = null)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+
+        var decl = BlueprintDeclaration.Create(
+            kind, Guid.NewGuid(), MakeUniqueVariableName(asset, baseName),
+            new BlueprintTypeRef { TypeId = BlueprintTypeSystem.Bool });
+        asset.Declarations.Add(decl);
+        markDirty?.Invoke();
+        return decl;
+    }
+
     public static void RegisterCreateLocalVariableCommand(
         EditorCommandsImpl commands,
         Action             openModal)

@@ -206,6 +206,12 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
             BlueprintDocumentFactory.RegisterCreateLocalVariableCommand(
                 cmdImpl, _createLocalVariableModal.Open);
 
+            // ⭐⭐ C-sections — the Inputs / Working State sections' "+".
+            // ⛔ BP-12c: registered HERE, beside the sections that declare the ids, so the button
+            //    cannot ship inert the way Custom Events' and Macros' did.
+            BlueprintDocumentFactory.RegisterCreateDeclarationCommands(
+                cmdImpl, blueprintAsset, markDirty);
+
             // BP-12b: rename / delete / duplicate. The context menu has always invoked these three
             // and nothing ever handled them, so a variable could be created but never renamed or
             // removed.

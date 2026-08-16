@@ -70,6 +70,36 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
     /// </summary>
     public const string CommandCreateLocalVariable = "editor.create-local-variable";
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>C-sections</c> — <b>the asset's INPUTS</b> (<c>DeclarationKind.Parameter</c>).
+    ///
+    /// <para>
+    /// 🔴 <b>Parameters and working state were not shown in My Blueprint AT ALL</b>:
+    /// <c>BuildVariableItems()</c> listed only <c>DeclarationKind.Variable</c>, so an AiPrimitive —
+    /// 32 of the shipped assets are <c>(Parameter, WorkingState)</c> — presented a designer with an
+    /// EMPTY Variables section and no way to see, rename or delete anything it actually declares.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>The ruling this implements: a variable's classification is WHERE IT WAS CREATED</b>
+    /// (user, <c>2026-08-16</c>; 📄 <c>DESIGN_Variable_Details_And_Editing.md</c> §1c). ⛔ So each
+    /// section carries its own create command, and NO <c>Role</c>/<c>Scope</c> control is introduced
+    /// anywhere — the section IS the control.
+    /// </para>
+    /// </summary>
+    public const string SectionParameters = "parameters";
+
+    /// <summary>⭐ <c>C-sections</c> — the AiPrimitive's working state (<c>DeclarationKind.WorkingState</c>).</summary>
+    public const string SectionWorkingState = "workingstate";
+
+    /// <summary>The Inputs section's "+". ⚠ A literal for the same reason as
+    /// <see cref="CommandCreateLocalVariable"/>: adding a <c>CommandCatalog</c> member moves the two
+    /// NodeEdit gates for a string.</summary>
+    public const string CommandCreateParameter = "editor.create-parameter";
+
+    /// <summary>The Working State section's "+".</summary>
+    public const string CommandCreateWorkingState = "editor.create-working-state";
+
     // ── Fixed section descriptors (D.6.2 order) ────────────────────────────
 
     private static readonly IReadOnlyList<MyBlueprintSectionDescriptor> _sections =
@@ -85,6 +115,13 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
             // cannot vary per graph, and Q26-B2 rules that direction anyway — the "+" stays and
             // REFUSES OUT LOUD, naming the reason, rather than vanishing and teaching nothing.
             new(SectionLocalVariables, "Local Variables", 5, null, true, true, CommandCreateLocalVariable),
+            // ⭐⭐ C-sections. ⚠ APPENDED at 6/7 rather than slotted in above "Variables", for the
+            //    same reason BP-57 appended the locals: renumbering would move every existing
+            //    section's SortOrder, and the D.6.2 order is asserted position-by-position. ⛔ Reading
+            //    order would prefer Inputs FIRST; that is a presentation change worth making on
+            //    purpose, with the order test rewritten, and not as a side effect of this item.
+            new(SectionParameters,   "Inputs",           6, null, true, true, CommandCreateParameter),
+            new(SectionWorkingState, "Working State",    7, null, true, true, CommandCreateWorkingState),
         };
 
     // ── State ─────────────────────────────────────────────────────────────────
@@ -223,7 +260,9 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
             // BP-77 / BP-224: real, now that collapse and editor.create-macro both produce macros.
             SectionMacros       => BuildGraphItems(SectionMacros,    g => g.Kind == GraphKind.Macro),
             SectionCustomEvents => BuildCustomEventItems(),
-            SectionVariables    => BuildVariableItems(),
+            SectionVariables    => BuildDeclarationItems(DeclarationKind.Variable,     SectionVariables),
+            SectionParameters   => BuildDeclarationItems(DeclarationKind.Parameter,    SectionParameters),
+            SectionWorkingState => BuildDeclarationItems(DeclarationKind.WorkingState, SectionWorkingState),
             // BP-57: the one GRAPH-scoped section. ⭐ Empty rather than absent when the canvas has no
             // graph or the graph has no locals — a section that appears and disappears reads as a
             // broken feature, and BP1664's macro case is a refusal, not a vanishing.
@@ -313,10 +352,27 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
         return result;
     }
 
-    private IReadOnlyList<MyBlueprintItem> BuildVariableItems()
+    /// <summary>
+    /// ⭐⭐ <c>C-sections</c> — <b>ONE projection over every declaration kind</b>, parameterised by the
+    /// kind and the section it lands in.
+    ///
+    /// <para>
+    /// ⛔ This was <c>BuildVariableItems()</c>, hard-wired to <c>DeclarationKind.Variable</c>. ⭐ Three
+    /// copies differing only in an enum value is how the three kinds would drift apart in the tree —
+    /// which is precisely the defect one level up, where a parameter and a variable already looked
+    /// like different concepts because one of them was invisible.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>An empty section stays present.</b> The descriptor list is static, so a section with no
+    /// declarations renders EMPTY rather than vanishing — the subtlety <c>SectionLocalVariables</c>
+    /// already records: <i>"a section that appears and disappears reads as a broken feature."</i>
+    /// </para>
+    /// </summary>
+    private IReadOnlyList<MyBlueprintItem> BuildDeclarationItems(DeclarationKind kind, string sectionId)
     {
-        var result = new List<MyBlueprintItem>(_asset!.Declarations.CountIn(DeclarationKind.Variable));
-        foreach (var v in _asset.Declarations.Of(DeclarationKind.Variable))
+        var result = new List<MyBlueprintItem>(_asset!.Declarations.CountIn(kind));
+        foreach (var v in _asset.Declarations.Of(kind))
         {
             var accent = GetVariableAccentColor(v.Type?.TypeId ?? "");
             // FC-2/LV-4: a fixed-list variable shows its capacity as a "[N]" badge so lists are
@@ -324,7 +380,7 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
             var badge = v.Type is { Capacity: > 0 } ? $"[{v.Type.Capacity}]" : null;
             result.Add(new MyBlueprintItem(
                 ItemId:       $"var:{v.Id}",
-                SectionId:    SectionVariables,
+                SectionId:    sectionId,
                 DisplayName:  v.Name,
                 CategoryPath: v.Category,
                 IconKey:      null,

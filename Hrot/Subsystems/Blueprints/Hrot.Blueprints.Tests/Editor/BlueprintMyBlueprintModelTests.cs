@@ -41,15 +41,23 @@ public sealed class BlueprintMyBlueprintModelTests
         // PublishEvent/EventEntry (BP-09 deleted their node kinds); the section was display-only
         // over a field nothing consumes and no shipped asset populates.
         // BP-57: six — Local Variables appended, so the five above keep the D.6.2 sort order.
-        Assert.Equal(6, sections.Count);
+        // ⭐⭐ C-sections: EIGHT — Inputs and Working State appended for the same reason, and in the
+        //    same way. ⛔ The five D.6.2 sections and Local Variables keep their positions exactly;
+        //    a section split must not silently reorder the ones that were already there.
+        //    ⚠ Reading order would prefer Inputs FIRST. That is a presentation change worth making
+        //    deliberately, with this test rewritten to match — not as a side effect of the split.
+        Assert.Equal(8, sections.Count);
 
-        // Fixed order: Graphs, Functions, Macros, Custom Events, Variables, Local Variables.
+        // Fixed order: Graphs, Functions, Macros, Custom Events, Variables, Local Variables,
+        //              Inputs, Working State.
         Assert.Equal(BlueprintMyBlueprintModel.SectionGraphs,         sections[0].Id);
         Assert.Equal(BlueprintMyBlueprintModel.SectionFunctions,      sections[1].Id);
         Assert.Equal(BlueprintMyBlueprintModel.SectionMacros,         sections[2].Id);
         Assert.Equal(BlueprintMyBlueprintModel.SectionCustomEvents,   sections[3].Id);
         Assert.Equal(BlueprintMyBlueprintModel.SectionVariables,      sections[4].Id);
         Assert.Equal(BlueprintMyBlueprintModel.SectionLocalVariables, sections[5].Id);
+        Assert.Equal(BlueprintMyBlueprintModel.SectionParameters,     sections[6].Id);
+        Assert.Equal(BlueprintMyBlueprintModel.SectionWorkingState,   sections[7].Id);
         Assert.DoesNotContain(sections, s => s.Id == "dispatchers");
 
         // SortOrder must match position.
@@ -250,9 +258,11 @@ public sealed class BlueprintMyBlueprintModelTests
         var sectionsB = model.Sections;
 
         Assert.Same(sectionsA, sectionsB);
-        // BP-57: six. ⚠ Still ONE static list — the Local Variables section is graph-scoped in its
-        // CONTENTS, not in its existence, so the descriptor list stays shared and constant.
-        Assert.Equal(6, sectionsB.Count);
+        // BP-57: six → C-sections: eight. ⚠ Still ONE static list — a section is scoped in its
+        // CONTENTS, not in its existence. ⭐ That is exactly why an Instance asset still shows an
+        // EMPTY "Working State": the descriptor list cannot vary per asset, and a section that
+        // appears and disappears reads as a broken feature.
+        Assert.Equal(8, sectionsB.Count);
     }
 
     // ── Inner fake ────────────────────────────────────────────────────────────
