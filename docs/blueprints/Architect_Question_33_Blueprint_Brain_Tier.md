@@ -156,6 +156,43 @@ four-slot one.** ⚠ **This narrows `Q33-A` and `Q33-B`** — the hosting questi
 host re-enter a suspended child"* in general, but *"do we accept Activity-only, or extend the action
 contract to carry a status?"*
 
+### 1.5.3 ⭐⭐⭐ "Does the AiPrimitive path need to differ from the Instance path?" — **NO, and they have already converged**
+
+> ⭐ **User:** *"isn't a blueprint action running on an entity just another instance of a blueprint?"*
+> ⇒ ✅ **Yes — at the storage layer, and the code already agrees.**
+
+⚠ **There are THREE paths, not two:**
+
+| path | storage | keyed by | cursor | params |
+|---|---|---|---|---|
+| **Instance** | `BlueprintBlackboard` partition slot | `blueprintId` | ✅ **16 B** | ⛔ *(ruled: add)* |
+| ⭐⭐ **AiPrimitive — COMPOSITION** *(bridge, per node)* | ⭐⭐⭐ **the SAME partition allocator** | `FNV-1a(assetId, scope, nodeVisualId, variableId)` | ⛔ | `bb.BehaviorParameters` |
+| **AiPrimitive — STANDALONE hosting** *(`BTreeTick` thunk)* | `Blackboard1024 + 8` | ⛔ **unkeyed — one per entity** | ⛔ | `bb.BehaviorParameters[0]` |
+
+```csharp
+// StatefulBTreeActionBinder — the composition path
+int slotKey = ComputeStatefulSlotKey(manifest.AssetId, scope, keyVisualId, variableId);
+BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int wsOff);
+```
+
+⭐ **That is the exact allocator `BlueprintInstanceService.TryAttach` uses.**
+
+| does it need to differ? | |
+|---|---|
+| **storage** | ⛔ **no — already converged.** Unifying **finishes an 80%-done convergence**, it is not a rewrite |
+| **params** | ⛔ no — the parameter model already rules them **occurrence-scoped** |
+| **cursor** | ⛔ **no — and this is the payoff.** Give the composition path the same **`[Cursor][Params][State]`** slot shape and ⭐⭐ **latent hosting FALLS OUT** |
+| ⭐ **the invoker** | ✅ **YES, genuinely** — a hosted action is called **when the tree reaches that node**; an Instance ticks **unconditionally every frame**. ⭐ **Keep this difference; it is the only real one** |
+
+⇒ ⭐⭐⭐ **`Q33-A` largely ANSWERS ITSELF.** `A2` *("the child gets its own partition slot")* was offered
+as an option with a cost — ⛔ **it is not an option, it is what the composition path already does.**
+⇒ **`A2` is adopt-don't-invent; `A1` stays a trap.** The remaining work is **one slot shape across
+Instance and composition**, plus the invoker distinction, plus §1.5.2's Activity-slot constraint.
+
+⚠ **The standalone hosting path is the OUTLIER** — unkeyed, one per entity. ⭐ That is the documented
+opt-in *blueprint-as-behaviour* case (`SLICE1-DESIGN`), where one-per-entity is arguably **correct**, and
+it is the path `W13` already repaired once. ⇒ **leave it; do not assume it keys like the others.**
+
 ---
 
 ## 2. The sub-questions
