@@ -116,6 +116,66 @@ already on the row — grouping needs NO new row data**, which is the sign the a
 | **defaults** | Watch `[Asset, Entity]` · Details `[]` *(one section is already homogeneous)* |
 | **persistence** | `GroupBy`, per-group fold state and the `Type` toggle live in the editor layout, **per panel** |
 
+### ⭐⭐⭐ 1c. SECTIONS ARE THE CLASSIFICATION *(user ruling, `2026-08-16`)*
+
+> ⭐ **User, verbatim:** *"do we need to move anything at all? can't we have same single panel (an
+> evolution of the MyBlueprint) listing different types of vars in different sections… same for all
+> asset types, showing sections relevant for the asset."*
+
+⇒ ⭐⭐⭐ **A variable's classification is WHERE IT WAS CREATED. There is no `Role`/`Scope` control on any
+asset type.** ⛔ **This deletes a concept rather than unifying two.**
+
+**The machinery already exists — sections are data, each with its own create command:**
+
+```csharp
+public sealed record MyBlueprintSectionDescriptor(
+    string Id, string DisplayName, int SortOrder, string? IconKey,
+    bool CanCreateItems, bool CanHaveCategories, string? CreateCommandId);
+```
+
+⭐ And the panel is **already asset-agnostic**: `MyBlueprintPanel` lives in `NodeEditor.UI`,
+`IMyBlueprintModel` in `NodeEditor.Core`. ⛔ **Nothing about it is blueprint-specific.**
+
+| | status |
+|---|---|
+| section descriptors + per-section create commands | ✅ **shipped** |
+| generic panel + interface, outside the blueprint assembly | ✅ **shipped** |
+| a **graph-scoped** section as precedent | ✅ `SectionLocalVariables` — and it already handles the subtle case: *"Empty rather than absent… a section that appears and disappears reads as a broken feature"* |
+| ⛔ **variables split by kind** | `BuildVariableItems()` lists **only `DeclarationKind.Variable`** ⇒ **Parameters and WorkingState are not shown in My Blueprint at all today** |
+| ⛔ **BTree/HSM models** | only `BlueprintMyBlueprintModel` exists (plus a demo fake) — the AI editors have `VariablesPanelControl`, not this tree |
+
+⇒ **The work is additive: split the one Variables section per kind, and give BTree/HSM their own
+`IMyBlueprintModel` with their own section list.**
+
+⭐ **Sections are the `Role × Scope` product made visible**, plus the graph-scoped one:
+
+| section | is |
+|---|---|
+| **asset input vars** | `Role = Input` |
+| **asset state vars** | `Role = State` |
+| **asset globals** *(shared wider)* | `Role = State`, `Scope = Behavior` / `Entity` |
+| **graph local vars** | ⭐ **graph-scoped** — a different index space (`IrGraph.Locals`), already its own section |
+
+⚠ **ECS component fields are the real *entity* globals** *(user correction, `2026-08-16`)* — they have
+their own model and are **not** a variable section. ⛔ **No new variable owner is needed.**
+
+### ⭐⭐ Why `Q-k` neither needs implementing nor overturning — **it dissolves**
+
+> `Q-k`, verbatim: *"for blueprints `Role`/`Scope` are read-only — **a MOVE between storage classes, not
+> a toggle.** So the honest answer is not to implement the setter but to **say the surface cannot edit
+> them**."*
+
+⭐ `Q-k` describes the **edit operation**, not a semantic difference — blueprints encode the role as
+*which list holds the declaration*, so changing it renumbers list-relative indices and invalidates
+`VariableRef`s. ⇒ **a refactor, like rename.**
+
+⇒ ⭐⭐⭐ **Under the sections model there is no `Role` control to be read-only.** `SupportsRoleScopeEditing`
+stops being a question on every host. **`Q-k` stays true and stops mattering.**
+
+📌 **Reclassifying an existing variable** *(moving it between sections)* remains possible but is
+⭐ **explicitly OUT of the critical path** — it is a rare, deliberate command, and it may start life as
+delete-and-recreate. ⛔ **The renumbering hazard is no longer a prerequisite for anything.**
+
 ---
 
 ## 2. ⭐⭐ The editable properties — **measured, not taken from a spec**
@@ -137,7 +197,7 @@ has nine members, `ParameterDecl` six, `BlackboardVariableEntry` seven, and none
 | `IsExposedOnSpawn` | ✔ | ⛔ | ⛔ | ⚠ **persisted but nothing reads it at spawn.** ⛔ **Keep it — do not "clean it up"**; per the `.dev/` rule, unreferenced ≠ unintentional. 📐 File the gap, do not close it |
 | `Id` | ✔ | ✔ | — | ⛔ identity — references resolve by it |
 | `IsAutoManaged` | — | — | ✔ | ⛔ editor-owned |
-| `Role` / `Scope` | *(is `DeclarationKind`)* | — | ✔ | ⛔ **read-only for blueprints** — `Q-k`: *"a move, not a toggle"* |
+| ⛔ ~~`Role` / `Scope`~~ | — | — | — | ⛔⛔ **NOT A PROPERTY AT ALL** *(ruling `2026-08-16`, §1c)* — ⭐ **the SECTION is the classification.** Not in the dialog, not a column, not editable on any host. ⇒ **`Q-k` dissolves rather than being implemented or overturned** |
 
 ⇒ ⭐⭐ **Seven editable properties, and the set DIFFERS BY DECLARATION KIND** ⇒ **the dialog is driven by
 the kind, not by one fixed form.**
@@ -336,9 +396,14 @@ the Value column already uses covers it**, and it retires the old objection that
 
 ## 10. Sequence
 
-**`S5` (one picker)** → **the surgical field write** → **`C-table`** *(Details hosts the section table)* →
+**`S5` (one picker)** → **the surgical field write** → ⭐ **`C-sections`** *(split the Variables section
+per kind; per-section create commands)* → **`C-table`** *(Details hosts the section table)* →
 **`C-dialog`** *(one dialog, two scopes, kind-driven)* → **`C-watch`** *(share the renderer; fix the
-compile mode)* → **`C-outline`** *(cross-host, per `D6`'s section descriptors)*.
+compile mode)* → ⭐ **`C-outline`** *(BTree/HSM supply their own `IMyBlueprintModel` + section list)*.
 
 ⚠ **Still open, not blocked by this design:** the `InspectorWindow` retirement order, and whether
 `W7`'s suppressible-warning design changes what the table shows for a conflicted variable.
+
+⚠ **One carry-forward from the parameter work:** row identity is `(AssetId, Entity, VariablePath)`.
+⭐ **If Instance slot identity widens to `(blueprintId, instanceKey)`** — likely, once Instances take
+parameters — **the row identity gains a fourth component.** 📐 **Noted, not built for.**

@@ -1,6 +1,12 @@
 # PLAN — what is left *(revision 4, `2026-08-16`)*
 
-> ⭐⭐⭐ **REVISION 4.** ✅ **Track D reconciled against the resolver design's `G1`–`G7` gap list (§4).**
+> ⭐⭐⭐ **REVISION 5 (`2026-08-16`).** ✅ **The parameter model is RULED end to end (§4g)** — Instances use
+> the **resolver** shape, params live **in the Instance's own slot**, runtime attach **carries a payload**,
+> and ⭐⭐ **sections are the classification, so `Role`/`Scope` is not a control on any host** *(`Q-k`
+> dissolves)*. ✅ **Multi-occurrence added (§4h) with the HSM cost accepted.**
+> ⛔ **Nothing in the parameter story is still an open question — only work.**
+>
+> **REVISION 4.** ✅ **Track D reconciled against the resolver design's `G1`–`G7` gap list (§4).**
 > ⛔ **`W8` and `W12` DROPPED as duplicates; `W10` merged with `G7`.** ⭐⭐ **Four of the seven gaps had
 > already closed** — the list was `2026-07-13` and nobody had re-measured it.
 > **Rev 3** ruled Track C's three decisions and wrote its design —
@@ -130,6 +136,34 @@ contributing catalog."* ⛔ **Ruling 9 — no two implementations of one concept
 | **HSM `Role`/`Scope` have no runtime wiring** | `HsmEmitCore` + `HsmBridgeEmitCore`: **0** references. `BTreeBridgeEmitCore`: **45**. `HsmBlackboardVariableDto` persists both faithfully ⇒ authoring metadata the HSM runtime never reads. ⭐ **This weakens `W11` further** — the "twin" premise assumes a binding model HSM has not got |
 | **two guards for a real collision never fire** | `HsmValidator` rules **8**/**8b** are correct errors, but their injected resolvers default to `_ => false` / `_ => Empty` and **both production call sites use the default ctor**. The XML doc says *"Production should wire this"* ⇒ **unfinished wiring, not a dead rule** |
 
+### 4g. ⭐⭐⭐ NEW — the unified parameter model *(user rulings `2026-08-16`)*
+
+📄 **[`EXPLAINER_Where_Parameters_And_State_Live.md`](EXPLAINER_Where_Parameters_And_State_Live.md)** §5c–§5d.
+
+| ruling | what it commits us to build |
+|---|---|
+| ⭐⭐⭐ **Instances use the RESOLVER shape** — *"Instances could and should reuse the param parsing and resolving"* | ⛔ **`Overrides` is not the mechanism.** The resolver pipeline serves every host ⇒ ⭐ **`G1` is now load-bearing for blueprints too** |
+| ⭐⭐ **params live in the Instance's own slot** | slot becomes **`[Cursor 16][Params N][State M]`**; `StateStructBase` shifts by `N`. ⛔ **`FieldLayout`'s `startOffset: 0` for parameters would land on the cursor** — safe today only because Instances have none |
+| ⭐⭐ **runtime attach carries params** | `AttachInstanceBlueprintEvent` gains a payload and `BlueprintEventIngressSystem` gains a resolve step, mirroring **parse-before-commit**. ⭐ **The delegate already takes a destination `byte*`** ⇒ the pipeline is reused **unchanged**, only the pointer differs |
+| ⭐⭐⭐ **sections are the classification** | ⛔ **no `Role`/`Scope` control on any host.** Split the one Variables section per kind; give BTree/HSM their own `IMyBlueprintModel`. ⇒ **`Q-k` dissolves** — 📄 Track C design §1c |
+
+⭐ **`R4` — installing an Instance at runtime WITH params, e.g. from a running master blueprint — had
+NO design anywhere.** These rulings are it.
+
+### 4h. ⭐⭐ NEW — multi-occurrence *(HSM cost ACCEPTED by the user, `2026-08-16`)*
+
+⭐ **One problem in three costumes: *N concurrent occurrences need N slots, keyed by occurrence.***
+⭐⭐ **BTree solved it and is the template — adopt `FNV-1a(assetGuid, nodeVisualId)`'s shape, do not invent.**
+
+| host | work | cost |
+|---|---|---|
+| **BTree** | ✅ **none** — the reference implementation | — |
+| **Blueprint** | widen `slot.BlueprintId` → **`(blueprintId, instanceKey)`**: `BlueprintSlotEntry`, `TryAttach`, `TryGetSlotOffset`, the attach/detach events | ⚠ **moderate**, ⭐ **no kernel change**. ⇒ **`D2` is IN SCOPE** — parameterised scripts make *"the same script twice with different args"* the ordinary case |
+| **HSM** | the action key must carry the occurrence; slots must be provisioned like BTree's; **the emitter must read `Role`/`Scope` at all** *(0 refs today)* | ⚠ **larger — ✅ user accepted.** ⭐⭐ **Sized by measurement: `r` (region) and `current` (state) are ALREADY IN SCOPE at the `ExecuteAction` call site** ⇒ **a signature widening + thunk regeneration, not a data-flow redesign.** ⚠ **But it is a `FastHSM` `ExtDeps` change** |
+
+⇒ ⭐ **Order falls out: blueprint first** *(no kernel change, and `R4` needs it)*, **HSM after** — with the
+HSM emitter slice already queued as its first step.
+
 🔴 **The collision they guard is real:** the HSM action slot key is `hash(methodName @ compileTimeOffset)`
 through one shared `ActionTable`, projected at a static offset in the **one** `BrainBlackboard` — **no
 region index anywhere in the path** ⇒ two concurrently-active orthogonal regions running the same
@@ -164,10 +198,14 @@ action write the same bytes. ⭐ BTree is immune: it provisions per-scope slots 
 
 **Track B now** *(Batch 65, dispatched)* → **`S5`** *(the dialog's Type picker needs ONE offerable list)* →
 **`G4`** *(cheapest item on the page — a silent-overwrite guard, `W1`'s sibling)* →
-**the surgical field write** → **Track C** *(table → dialog → Watch → cross-host outline)*
-⭐ **now also unblocking the Instance `Overrides` half** →
-**`G1`** *(the split — what `W8` was)* → **`G3`** *(service singletons — what `W12` was)* →
+**the surgical field write** →
+⭐ **Track C**, now leading with **`C-sections`** *(split Variables per kind — §4g's ruling)*, then
+table → dialog → Watch → **`C-outline`** *(BTree/HSM supply their own section list)* →
+**`G1`** *(the split — ⭐ now load-bearing for blueprints too)* → **`G3`** *(service singletons)* →
+⭐ **the Instance params seam** *(§4g: params in the slot · attach carries a payload · resolve-before-commit)* →
+⭐ **blueprint multi-occurrence** *(§4h: `(blueprintId, instanceKey)` — `D2`, now in scope)* →
 ⭐ **the HSM emitter slice** *(`Role`/`Scope`, without which HSM has no authored inputs at all)* →
+⭐ **HSM multi-occurrence** *(§4h — user accepted the cost; `ExtDeps` change)* →
 **`W7` re-derived** → **`G7`+`W10` as ONE picker** → **`W9`** →
 **last: `W11`** *(needs a joint design call, and weaker than filed)*.
 
