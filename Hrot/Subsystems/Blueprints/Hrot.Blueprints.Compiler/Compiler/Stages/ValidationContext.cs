@@ -25,6 +25,14 @@ internal sealed class ValidationContext
     /// </summary>
     public IClrSignatureResolver? ClrSignatureResolver { get; }
 
+    /// <summary>
+    /// ⭐⭐ <c>S2</c> — the compile's struct-size oracle (FQN → managed byte size), or null.
+    /// ⚠ <b>Null is the normal case</b>, same as <see cref="ClrSignatureResolver"/>. ⛔ Absence is
+    /// <i>"no opinion"</i>, and a caller must then treat the AN2 4-byte placeholder as UNRELIABLE —
+    /// never as a size it may bake an offset from.
+    /// </summary>
+    public Func<string, int?>? StructSizeOracle { get; }
+
     // Patch 1: signatures only, NOT full assets.
     public IReadOnlyDictionary<Guid, BlueprintSignature> SiblingSignaturesById { get; }
 
@@ -42,6 +50,7 @@ internal sealed class ValidationContext
         EqsTemplates     = options.EqsTemplates;
         ExecutionNode    = options.ExecutionNode;
         ClrSignatureResolver = options.ClrSignatureResolver;
+        StructSizeOracle     = options.StructSizeOracle;
         SiblingSignaturesById = options.SiblingSignatures
             .ToDictionary(s => s.AssetId);
     }

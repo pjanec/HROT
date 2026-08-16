@@ -209,6 +209,115 @@ public sealed class EmittedStateLayoutTests
         Assert.DoesNotContain("FieldOffset", result.GeneratedSource);
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>S2</c> — an UNREGISTERED project struct gets its real size, and the field after it
+    /// is not laid on top of it.</b>
+    ///
+    /// <para>
+    /// 🔴🔴 <b>What this was before.</b> <c>StaticTypeRegistry</c>'s AN2 arm answers any
+    /// <c>global::…</c> id with a guessed <b>4</b> bytes — the right answer for the <c>Int32</c>-backed
+    /// enum it was written for, and wrong for every struct. ⛔ It also left <c>SizeReliable</c> at its
+    /// <c>true</c> default, so since <c>W4</c> the emitter baked <c>[FieldOffset]</c> from the guess:
+    /// <c>Hrot.AI.Behaviors.StructDemoData</c> is <b>12</b> bytes, so <c>Tail</c> landed <b>8 bytes
+    /// inside it</b> — two variables aliasing, silently.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>The overlap assertion is the load-bearing one.</b> The descriptor-vs-field checks pass
+    /// either way: with a wrong size the emitted struct and the descriptors agree with each other
+    /// perfectly — they are two prints of the same wrong number (this file's opening warning, one
+    /// layer down). ⭐ Only <i>"does the next field start after this one ends"</i> can see it.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ The oracle is supplied by hand here rather than by Roslyn: the injected shape is
+    /// <c>Func&lt;string,int?&gt;</c> precisely so the seam is testable without an analyzer host. The real
+    /// delegate (<c>StructSizeResolver.MakeFieldSizeDelegate</c>) is exercised by the
+    /// <c>Hrot.AI.Behaviors</c> build itself.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void AnUnregisteredProjectStruct_IsSizedByTheOracle_AndTheNextFieldClearsIt()
+    {
+        const string StructFqn = "Hrot.AI.Behaviors.StructDemoData";   // 3 × int, unregistered
+        const int    RealSize  = 12;
+
+        var asset = BlueprintAssetBuilder
+            .Instance("OracleSizedStructWitness")
+            .WithGraph("Tick", g => g.Entry().Return())
+            .WithVariable("Head", typeof(int))
+            .Build();
+        asset.Variables.Add(new VariableDecl
+        {
+            Id   = Guid.NewGuid(),
+            Name = "Payload",
+            Type = new BlueprintTypeRef { TypeId = "global::" + StructFqn },
+        });
+        asset.Variables.Add(new VariableDecl
+        {
+            Id   = Guid.NewGuid(),
+            Name = "Tail",
+            Type = new BlueprintTypeRef { TypeId = "int" },
+        });
+
+        var options = GoldenCorpus.Options() with
+        {
+            StructSizeOracle = fqn =>
+                fqn == StructFqn || fqn == "global::" + StructFqn ? RealSize : (int?)null,
+        };
+
+        GoldenCorpus.EnsureBehaviorAssemblyLoaded();
+        using var fixture = new BlueprintTestFixture(NoAlcCheck);
+        fixture.CompileAndLoad(asset, options);
+
+        Assert.True(fixture.Registry.TryGetByName(asset.Name, out var def) && def is not null,
+            $"'{asset.Name}' did not register.");
+
+        var payload = def!.StateFields.Values.Single(d => d.Name == "Payload");
+        var tail    = def.StateFields.Values.Single(d => d.Name == "Tail");
+
+        Assert.Equal(RealSize, payload.SizeBytes);
+        Assert.True(tail.OffsetBytes >= payload.OffsetBytes + RealSize,
+            $"'Tail' starts at @{tail.OffsetBytes} but 'Payload' occupies "
+            + $"[{payload.OffsetBytes},{payload.OffsetBytes + RealSize}) — the two variables alias.");
+
+        // …and the loaded struct agrees, so the size is real rather than merely consistent.
+        Assert.Equal(payload.OffsetBytes, ManagedOffsetOf(def.StateClrType!, "Payload"));
+        Assert.Equal(tail.OffsetBytes,    ManagedOffsetOf(def.StateClrType!, "Tail"));
+    }
+
+    /// <summary>
+    /// ⭐ <b><c>S2</c>, the other half: NO oracle ⇒ no opinion ⇒ no baked offsets.</b> ⛔ The one
+    /// outcome that must never return is a guessed size wearing a reliable flag — so a compile
+    /// without an oracle must fall back to <c>Sequential</c> for the <b><c>global::</c>-prefixed</b>
+    /// spelling too, and not only for the dotted one
+    /// (<see cref="AnAssetWithAGuessedFieldSize_KeepsTheSequentialLayout"/>). ⚠ That prefixed spelling
+    /// is the one the EDITOR persists, so it was the arm that mattered and the arm that lied.
+    /// </summary>
+    [Fact]
+    public void WithoutAnOracle_AGlobalPrefixedStructKeepsTheSequentialLayout()
+    {
+        var asset = BlueprintAssetBuilder
+            .Instance("GlobalPrefixedFallbackWitness")
+            .WithGraph("Tick", g => g.Entry().Return())
+            .WithVariable("Known", typeof(int))
+            .Build();
+        asset.Variables.Add(new VariableDecl
+        {
+            Id   = Guid.NewGuid(),
+            Name = "Guessed",
+            Type = new BlueprintTypeRef { TypeId = "global::Hrot.AI.Behaviors.StructDemoData" },
+        });
+
+        var result = new Hrot.Blueprints.Core.Compiler.BlueprintCompiler()
+            .Compile(asset, GoldenCorpus.Options());
+
+        Assert.True(result.Succeeded,
+            string.Join(", ", result.Diagnostics.Select(d => $"{d.Code}: {d.Message}")));
+        Assert.Contains("LayoutKind.Sequential", result.GeneratedSource);
+        Assert.DoesNotContain("FieldOffset", result.GeneratedSource);
+    }
+
     // ────────────────────────────────────────────────────────────────────────
     // the corpus, compiled and loaded ONCE
     // ────────────────────────────────────────────────────────────────────────

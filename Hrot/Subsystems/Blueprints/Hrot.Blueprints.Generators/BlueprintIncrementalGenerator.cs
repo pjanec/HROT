@@ -118,7 +118,11 @@ public sealed class BlueprintIncrementalGenerator : IIncrementalGenerator
             WaitPrimitives:    BuiltInWaitPrimitiveCatalog.Instance,
             SiblingSignatures: siblings.ToList(),
             EmitPdbWithEmbeddedSource: false,
-            ClrSignatureResolver: new RoslynClrSignatureResolver(compilation));
+            ClrSignatureResolver: new RoslynClrSignatureResolver(compilation),
+            // ⭐⭐ S2 — the struct-size oracle. Same semantic model, same shipped algorithm as the
+            //     BTree blackboard packer; injected as Func<string,int?> per the design mandate.
+            StructSizeOracle: Hrot.AiEditor.Generators.StructSizeResolver
+                .MakeFieldSizeDelegate(compilation));
 
         try
         {

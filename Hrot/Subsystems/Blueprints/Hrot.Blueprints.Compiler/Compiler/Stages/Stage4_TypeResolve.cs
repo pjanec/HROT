@@ -160,8 +160,23 @@ internal static class Stage4_TypeResolve
         ValidationContext ctx, BlueprintTypeRef type, out IrTypeRef resolved, out bool trustedVerbatim)
     {
         trustedVerbatim = false;
-        if (ctx.TypeRegistry.TryResolve(type, out resolved)) return true;
         var id = type.TypeId;
+
+        if (ctx.TypeRegistry.TryResolve(type, out resolved))
+        {
+            // ⭐⭐ S2 — the SAME placeholder, on the arm that never flagged it.
+            //
+            // 🔴 The registry answers a "global::Ns.Foo" id with a GUESSED 4 bytes (its AN2 arm) and
+            //    left SizeReliable at its `true` default, while the dotted fallback below has always
+            //    stamped it false. Same guess, opposite honesty — and the arm that lied is the one the
+            //    EDITOR takes, because the editor persists the "global::" sentinel (ENUM-DESIGN.md
+            //    §RESOLVED). ⛔ Since W4 a reliable size makes CSharpEmitter bake [FieldOffset], so a
+            //    96-byte struct claiming a reliable 4 would have laid the NEXT field on top of it.
+            if (IsTrustedProjectTypeId(id) && !type.IsArray && type.Capacity == 0)
+                resolved = WithOracleSize(ctx, id!, resolved);
+            return true;
+        }
+
         if (!string.IsNullOrEmpty(id)
             && !id.StartsWith("global::", StringComparison.Ordinal)
             && id.IndexOf('.') >= 0)   // looks like a project FQN (netstandard2.0: no string.Contains(char))
@@ -169,14 +184,54 @@ internal static class Stage4_TypeResolve
             if (ctx.TypeRegistry.TryResolve(
                     new BlueprintTypeRef { TypeId = "global::" + id, IsArray = type.IsArray }, out resolved))
             {
-                // The AN2 path guesses a 4-byte size; for a real project struct that's a placeholder, so
-                // flag it — StateFields layout must then use runtime offsets, not baked field-size sums.
-                resolved = resolved with { SizeReliable = false };
+                // The AN2 path guesses a 4-byte size; for a real project struct that's a placeholder —
+                // ask the oracle, and only fall back to "unreliable" when nothing answers.
+                if (!type.IsArray && type.Capacity == 0)
+                    resolved = WithOracleSize(ctx, "global::" + id, resolved);
+                else
+                    resolved = resolved with { SizeReliable = false };
                 trustedVerbatim = true;   // U-7: accepted on the strength of a dot
                 return true;
             }
         }
         return false;
+    }
+
+    /// <summary>⭐ <c>S2</c> — an id the registry only accepted because it looks like a project type.</summary>
+    private static bool IsTrustedProjectTypeId(string? id)
+        => !string.IsNullOrEmpty(id) && id!.StartsWith("global::", StringComparison.Ordinal);
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>S2</c> — replace the AN2 4-byte placeholder with the type's REAL managed size, when
+    /// the compile has an oracle to ask.
+    ///
+    /// <para>
+    /// ⭐ <b>Reliability is EARNED here, not assumed.</b> An answer ⇒ the size is exact ⇒
+    /// <c>SizeReliable = true</c> ⇒ <c>CSharpEmitter</c> may bake <c>[FieldOffset]</c> (<c>W4</c>).
+    /// No answer ⇒ <c>SizeReliable = false</c> ⇒ the runtime <c>Marshal.OffsetOf</c> path. ⛔ <b>The
+    /// one outcome that must never happen is the previous one</b> — a guessed size wearing a reliable
+    /// flag.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>Enums, not just structs.</b> The oracle is asked about every trusted id, so a
+    /// <c>byte</c>- or <c>long</c>-backed enum stops being sized at 4 as well. That is why the
+    /// generator injects <c>MakeFieldSizeDelegate</c> and not <c>MakeDelegate</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ <b>Scalars only.</b> Callers guard on <c>!IsArray &amp;&amp; Capacity == 0</c>: for an array the
+    /// registry returns a managed wrapper whose <c>SizeBytes</c> is meaningfully 0, and for a fixed
+    /// list the wrapper size is computed from the ELEMENT — writing an element size onto either would
+    /// be a wrong number in a new place.
+    /// </para>
+    /// </summary>
+    private static IrTypeRef WithOracleSize(ValidationContext ctx, string typeId, IrTypeRef placeholder)
+    {
+        int? size = ctx.StructSizeOracle?.Invoke(typeId);
+        return size is > 0
+            ? placeholder with { SizeBytes = size.Value, SizeReliable = true }
+            : placeholder with { SizeReliable = false };
     }
 
     /// <summary>
