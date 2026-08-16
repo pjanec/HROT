@@ -277,6 +277,61 @@ HSM side even a *missing* thing carries intent. ⚠ **Do not read §1.3's four g
 ⇒ ⭐ **① and ③ are the same decision seen twice.** Answer *"Instances use the resolver shape"* and both fall
 out; answer *"Instances use overrides"* and we maintain two input mechanisms forever.
 
+### ✅✅ USER RULINGS `2026-08-16` — all three resolved
+
+| | ruling |
+|---|---|
+| ⭐⭐⭐ **① + ③** | ✅ **RESOLVER SHAPE FOR INSTANCES TOO — unify on that.** *"Instances could and should reuse the param parsing and resolving."* ⇒ ⛔ **`Overrides` is NOT the mechanism**; it stays at most a serialized carrier |
+| ⭐⭐ **②  `Q-k`** | ✅ **ONE model, one UI, one implementation** — *"I still don't understand how blueprint vars are different from other asset vars, my guess is they don't."* ⭐ **Correct — they don't** |
+
+### ⭐ Why `Q-k` does NOT need overturning
+
+> `Q-k`, verbatim: *"for blueprints `Role`/`Scope` are read-only — **a MOVE between storage classes, not
+> a toggle.** So the honest answer is not to implement the setter but to **say the surface cannot edit
+> them**, which lets the panel render the value as text instead of a dead control."*
+
+| | how the role is stored | changing it is |
+|---|---|---|
+| **BTree / HSM** | a **field** on one list | a field write |
+| **blueprint** | ⭐ **which list the declaration is in** | ⭐ **a move between lists** |
+
+A move is genuinely harder — `VariableRef` addresses by **(kind + list-relative index)**, so moving one
+declaration renumbers every later one in both lists and invalidates references. ⇒ **a refactor, like a
+rename.**
+
+⇒ ⭐⭐⭐ **`Q-k` described a MISSING IMPLEMENTATION dressed as a capability.** Its own sentence —
+*"the honest answer is **not to implement** the setter"* — is a choice made **because the move was not
+built**, with the alternative on the table being a **dead control that silently discarded the edit**.
+⇒ ⭐ **Implement the move as a command** (the way rename already runs the refactor service),
+`SupportsRoleScopeEditing` becomes `true` for blueprints, and **`Q-k` stays true throughout.**
+
+### 🔴 What the resolver ruling COSTS — and how multiplicity is actually solved
+
+| | multiple Instances at once |
+|---|---|
+| **state** | ✅ **already isolated** — each attach gets its own zeroed partition slot with its own `StructureHash` |
+| **params** | 🔴 **would COLLIDE** — the resolver writes into `BrainBlackboard.BehaviorParameters`, which is **one region for the one active behaviour** |
+
+⭐⭐ **The fix is already in the delegate's shape:**
+
+```csharp
+public unsafe delegate void ParseParamsDelegate(string json, byte* memory, EntityRepository world, Entity self);
+```
+
+`memory` is a **destination pointer**. Behaviours pass `&bb.BehaviorParameters[0]`; ⭐ **an Instance
+passes `slotPayload + paramsOffset` — its own slot.** ⇒ **the pipeline is reusable UNCHANGED; only the
+pointer differs**, and each instance then owns both its params and its state.
+
+⚠ **The concrete consequence:** `FieldLayout` lays parameters at **`startOffset: 0`**, safe today only
+because Instances have none — an Instance payload **starts with the 16-byte `BlueprintLatentCursor`**.
+⇒ **the slot becomes `[Cursor 16][Params N][State M]` and `StateStructBase` shifts by `N`.** ⛔ **Params
+at 0 would land on the cursor.**
+
+⚠ **And this pulls `D2` back toward scope.** Different blueprints are isolated; ⭐ **the same blueprint
+twice on one entity still collapses to one slot** (identity is `blueprintId` alone). Parameterless,
+nobody cared — parameterised, *"install Patrol with these waypoints, and again with those"* is exactly
+the case that wants two. ⇒ **treat `D2` as LIKELY IN SCOPE, not parked.**
+
 ---
 
 ## 6. What this means for `W8` / `D2`
