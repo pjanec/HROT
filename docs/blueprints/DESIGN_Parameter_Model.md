@@ -118,6 +118,38 @@ public unsafe delegate void ParseParamsDelegate(string json, byte* memory, Entit
 | **attach carries a payload** | `AttachInstanceBlueprintEvent` today is `{Entity, BlueprintId}` — **no params field**; `AttachToEntity(...)` — **no params argument** |
 | **resolve-before-commit at attach** | mirroring `BehaviorIngressSystem` |
 
+### 3.4 ⭐⭐ The HOST CONTEXT — wired params *(user ruling, `2026-08-16`)*
+
+⭐ **A hosted occurrence's params may be computed from its HOST's variables.** ⛔ **Not a new supply
+mechanism** — the resolver does it, given one thing it lacks today: **addressing**.
+
+> ⭐ **Ruled:** *"use that interface for host context"* — **a small interface, ONE new resolver argument.**
+
+```csharp
+/// Read-only, NAME-keyed access to the HOSTING occurrence's variables.
+/// Null when the occurrence being resolved is a root behaviour — it has no host.
+public interface IHostVariableAccess
+{
+    bool TryRead<T>(string variableName, out T value) where T : unmanaged;
+    bool TryReadBytes(string variableName, Span<byte> destination, out int written);
+}
+
+public unsafe delegate void ParseParamsDelegate(
+    string json, byte* memory, EntityRepository world, Entity self,
+    IHostVariableAccess? host);          // ⭐ the one new argument
+```
+
+| rule | why |
+|---|---|
+| ⛔ **NAME-keyed, never a raw offset** | cross-asset reads are **`StructureHash`-versioned**; a name can be re-resolved, an offset cannot |
+| ⛔ **READ-ONLY** | a resolver never writes its host. ⚠ **A write path here would be a second supply mechanism** *(ruling 9)* |
+| **`null` for a root behaviour** | ⭐ makes *"do I have a host?"* answerable without a sentinel |
+| ⭐ **fails CLOSED** | hash mismatch / absent name / type mismatch ⇒ `false`, and the resolver decides. ⛔ **Never a silent zero** |
+| ⚠ **resolve-once still holds** | this reads the host **at the child's activation**, not continuously. ⛔ **Live binding stays out** — §3.1 |
+
+📌 **If this signature ever needs a THIRD extension, bundle it into a `ResolveContext` then** — one
+breaking change bought deliberately, rather than churning the delegate a third time. ⛔ **Not now.**
+
 ---
 
 ## 4. Multi-occurrence

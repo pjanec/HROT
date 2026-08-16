@@ -1,6 +1,11 @@
-# PLAN — what is left *(revision 6, `2026-08-16`)*
+# PLAN — what is left *(revision 7, `2026-08-16`)*
 
-> ⭐⭐⭐ **REVISION 6 (`2026-08-16`).** ✅ **Track E added (§4B) — the HSM catch-up**, collecting every
+> ⭐⭐⭐ **REVISION 7 (`2026-08-16`).** ✅ **Track E RAILS added** — 8 rows, *previously undefined*.
+> 🔴 **Golden coverage MEASURED: `persistence-shape.txt` is 43 assets, ALL `.bp.json`, ZERO HSM/BTree**
+> ⇒ `E1`/`E3`/`E6` change emitted output with **no golden gate watching** — `BP-240`'s shape inverted.
+> ✅ **`E7a`'s host context RULED** — one interface argument, 📄 `DESIGN_Parameter_Model.md` §3.4.
+>
+> **REVISION 6 (`2026-08-16`).** ✅ **Track E added (§4B) — the HSM catch-up**, collecting every
 > measured HSM gap as `E1`–`E7`. ⭐ **`Q33-E` answered: PHASED, not abandoned** — user ruling, *"if
 > something is not present in HSM, it is not because it is not needed, just not implemented yet."*
 > ⭐ **Plus the latency rail** — a latent CONDITION currently reads **false** while it waits, silently.
@@ -158,6 +163,15 @@ the *plan view* of it; **it wins on any disagreement.**
 ⭐ **`R4` — installing an Instance at runtime WITH params, e.g. from a running master blueprint — had
 NO design anywhere.** These rulings are it.
 
+⭐⭐ **Wired params — the host context** *(ruled `2026-08-16`)*: a hosted occurrence's params may be
+computed from its **host's** variables, via **one new resolver argument** of interface type —
+📄 **`DESIGN_Parameter_Model.md` §3.4**. ⛔ **Name-keyed, read-only, `null` for a root, fails closed.**
+
+⛔⛔ **RAILS FOR THIS SECTION ARE ALREADY WRITTEN — 📄 [`DESIGN_Parameter_Model.md`](DESIGN_Parameter_Model.md) §8.**
+⚠ **Do not invent new ones.** Seven rails, including the two that stop the old assumptions returning:
+⭐ **"two occurrences of one asset on one entity ⇒ distinct param bytes"** and ⭐ **"the
+`BlueprintLatentCursor` at offset 0 is intact after a resolve"** *(the `startOffset: 0` trap)*.
+
 ### 4h. ⭐⭐ NEW — multi-occurrence *(HSM cost ACCEPTED by the user, `2026-08-16`)*
 
 ⭐ **One problem in three costumes: *N concurrent occurrences need N slots, keyed by occurrence.***
@@ -238,6 +252,40 @@ needs `E5`'s host)* → **`E6`** · **`E7b`** *(both independent, any time)*.
 Track E follows the parameter work**, not interleaved with it.
 ⭐⭐ **Nothing in Track E now needs a design call.** `E7` was the one item that did, and
 📄 [`Architect_Question_33`](Architect_Question_33_Blueprint_Brain_Tier.md) §1.5.8 dissolved it.
+
+### ⛔⛔ Track E RAILS — **"done" was undefined for every row until now**
+
+⚠ **Add these to the batch that builds each item.** ⭐ **`E3`'s is the one that matters most** — it is
+the direct inverse of the defect.
+
+| | rail |
+|---|---|
+| **`E1`** | an HSM asset declaring a `Role=State` variable **emits a slot-manifest entry**; the key matches **BTree's algorithm for the same inputs** ⇒ ⛔ **a second key algorithm fails the rail** |
+| **`E2`** | an HSM behaviour with **N** state variables gets **N slots at activation**, each **zeroed** — assert through the production ingress path, not a hand-built manifest |
+| **`E3`** | ⭐⭐⭐ **two concurrently-active orthogonal regions running the SAME action write DIFFERENT bytes.** ⛔ **Today they write the same ones** — this test fails before the change and passes after |
+| **`E4`** | an asset that trips rule **8** / **8b** produces the error **through the production constructor** (`new HsmValidator()`), ⛔ **not only with hand-injected resolvers** — that is exactly what is wrong today |
+| **`E5`** | a state hosting a subtree: **entry** provisions + resolves · **tick** re-enters · **exit** invalidates the cursor · **completion** raises the event. ⭐ **Plus: a LATENT child suspends and resumes across ticks** |
+| **`E6`** | two actions with the **same simple name in different types** get **distinct ids**, and ⚠ **both re-bake sites agree** *(blob key + thunk key)* |
+| **`E7a`** | a child resolver **reads the host's variable by NAME**; ⭐ **a `StructureHash` mismatch fails CLOSED** *(returns `false`, never a silent zero)* |
+| **`E7b`** | `CountNodesReferencingVariable` is **non-zero** for a field bound through `ExpressionTargetField` |
+
+### 🔴🔴 Track E has **NO golden coverage** — measured `2026-08-16`
+
+⛔ **`persistence-shape.txt` is 43 assets, ALL `.bp.json`. `grep -ci "hsm\|btree"` ⇒ 0.**
+
+⇒ ⭐⭐⭐ **The golden corpus does not cover HSM or BTree at all**, so `E1`, `E3` and `E6` change emitted
+output and **no golden gate would notice.** ⚠ **This is `BP-240`'s shape inverted** — *the gate is green
+because the corpus does not contain the thing*, not because the code is right.
+
+| item | emitted-output impact | guarded by |
+|---|---|---|
+| `E1` · `E3` · `E6` | ⭐ **HSM emitted output CHANGES** *(new manifests / new keys / new ids)* | ⛔ **unit tests only** |
+| `E5` | ⭐ **byte-identical for the corpus** — **0 shipped `.hsm.json` set `SubtreeAssetId`** ⇒ purely additive | additive |
+| **Instance params seam** (§4g) | ⭐ **byte-identical until an asset uses it** — `BP1031` means **0 Instances declare Parameters** today | 📄 **`DESIGN_Parameter_Model.md` §8 rails** |
+| `E7a` · `E7b` | signature / editor only — **no emitted-output change** | unit tests |
+
+⇒ ⚠ **A decision the first Track-E batch must state, not assume:** *extend the corpus to HSM/BTree
+assets, or accept unit-test-only cover and say so in the report.* ⛔ **Do not let it pass silently.**
 
 ### ⛔ Not HSM-only, but discovered here — **the latency rail**
 
