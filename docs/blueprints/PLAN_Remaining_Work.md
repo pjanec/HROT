@@ -164,6 +164,25 @@ NO design anywhere.** These rulings are it.
 ⇒ ⭐ **Order falls out: blueprint first** *(no kernel change, and `R4` needs it)*, **HSM after** — with the
 HSM emitter slice already queued as its first step.
 
+### ⭐⭐ Hand-written DTOs survive all of this **unchanged** — 📄 explainer §5e
+
+⭐ **The 100-byte region is a TYPE, not a per-entity singleton.** `NodeLogicDelegate<TBlackboard,…>` is
+generic and the instance arrives **by ref from the caller** (`Interpreter.Tick(ref blackboard, …)`);
+`BrainBlackboard` is just a 128-byte struct; and a hand-written DTO's offsets are **relative to the
+struct base**, with `Method@byteOffset` baking only the *field* offset.
+
+⇒ ⭐⭐⭐ **A hosted occurrence gets its own `BrainBlackboard`-shaped region in its slot and is ticked
+against that** — every `[SharedAiAction]` thunk keeps working, **same type, different instance.**
+⭐ **One line in the tick system decides which.** ⇒ **params belong to the OCCURRENCE.**
+
+⚠ **One decision inside this:** `BrainBlackboard`'s tail (`ExpectedThreatLevel`, the two interrupts) is
+**entity-level**. ⚖️ **Lean: copy the whole struct per occurrence** *(zero generator change)* **with the
+rule that a hosted copy's tail is never read** — interrupts come from the entity's component. ⛔ Defer
+splitting the params region into its own type until something needs it.
+
+📌 **Multiple BTrees/HSMs per entity: ⛔ not as PEERS** *(root exclusivity is what preemption is defined
+against)*, ✅ **yes as NESTED sub-behaviours** — the composition ruling.
+
 🔴 **The collision they guard is real:** the HSM action slot key is `hash(methodName @ compileTimeOffset)`
 through one shared `ActionTable`, projected at a static offset in the **one** `BrainBlackboard` — **no
 region index anywhere in the path** ⇒ two concurrently-active orthogonal regions running the same

@@ -374,6 +374,61 @@ for (int r = 0; r < regionCount; r++) {          // ⭐ r  — the region
 `ExtDeps` change** (`FastHSM` kernel), which is the most expensive *kind* of change here even when the
 edit is small.
 
+### ⭐⭐⭐ 5e. Do hand-written DTO param structs survive multi-instancing? **Yes — unchanged.**
+
+⭐ **Why they work today:** `BehaviorState.ActiveBehaviorHash` is **singular** — exactly one behaviour is
+active per entity, so the shared 100 bytes has exactly **one consumer**. ⛔ **Not luck** — it is the same
+invariant preemption is defined against. BTree's multi-occurrence is about **nodes within one
+behaviour** *(state)*, never about params.
+
+🔴 **The nesting ruling breaks that invariant** — an HSM hosting a BTree/blueprint subtree means **two
+assets running at once**, each wanting params.
+
+### ⭐⭐ And the hardcoded DTO survives anyway — the region is a TYPE, not a singleton
+
+```csharp
+public delegate NodeStatus NodeLogicDelegate<TBlackboard, TContext>(ref TBlackboard blackboard, …);
+```
+```csharp
+def.BTreeInterpreter!.Tick(ref blackboard, ref btState.State, ref context);   // the CALLER supplies it
+```
+
+| | |
+|---|---|
+| ⭐ the kernel is **generic in the blackboard type** | the instance arrives **by ref from the caller** |
+| ⭐ `BrainBlackboard` is **just a 128-byte struct** | it happens to be registered as a component; ⛔ **nothing requires it to be the ENTITY's instance** |
+| ⭐ a hand-written DTO's field offsets are **relative to the struct base** | and `Method@byteOffset` bakes only the **field** offset ⇒ **valid wherever the struct lives** |
+
+⇒ ⭐⭐⭐ **Give a hosted occurrence its own `BrainBlackboard`-shaped region inside its slot and tick it
+against that.** Every `[SharedAiAction]` thunk keeps working **unchanged** — same type, same offsets,
+different instance. ⭐ **One line in the tick system decides which.**
+
+| occurrence | its params live in |
+|---|---|
+| **root behaviour** | the entity's `BrainBlackboard` component *(as today)* |
+| **hosted sub-behaviour** | its own params region **in its slot** |
+| **blueprint Instance** | its own params region in its slot *(§5c ruling)* |
+
+⇒ ⭐⭐ **Params belong to the OCCURRENCE.** The 100-byte layout is the **shape of one occurrence's
+params**, not a per-entity singleton.
+
+### ⚠ The one thing to decide — `BrainBlackboard`'s tail is entity-level
+
+`ExpectedThreatLevel`, `Interrupt_MobilityLost`, `Interrupt_Reserved` are **entity** facts. A hosted copy
+would carry meaningless duplicates.
+
+| | |
+|---|---|
+| ⭐ **copy the whole 128-byte struct per occurrence** | ✅ **zero generator change, thunks untouched** ⛔ 28 wasted bytes + *"which copy do interrupts write?"* |
+| **split the params region into its own type** | ✅ clean ⛔ **a generator + `ExtDeps` change** |
+
+⚖️ **Lean: the first, with a rule** — ⭐ **interrupts and soft advice are read from the ENTITY's component
+only; a hosted copy's tail is never read.** ⇒ keeps the change to allocation + one tick-system line, and
+defers the type split until something needs it.
+
+📌 **Multiple BTrees/HSMs on one entity: ⛔ not as PEERS** *(root exclusivity is load-bearing — it is what
+preemption is defined against)*, ✅ **yes as NESTED sub-behaviours.**
+
 ---
 
 ## 6. What this means for `W8` / `D2`
