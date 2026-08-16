@@ -1,6 +1,11 @@
-# PLAN — what is left *(revision 4, `2026-08-16`)*
+# PLAN — what is left *(revision 6, `2026-08-16`)*
 
-> ⭐⭐⭐ **REVISION 5 (`2026-08-16`).** ✅ **The parameter model is RULED end to end (§4g)** — Instances use
+> ⭐⭐⭐ **REVISION 6 (`2026-08-16`).** ✅ **Track E added (§4B) — the HSM catch-up**, collecting every
+> measured HSM gap as `E1`–`E7`. ⭐ **`Q33-E` answered: PHASED, not abandoned** — user ruling, *"if
+> something is not present in HSM, it is not because it is not needed, just not implemented yet."*
+> ⭐ **Plus the latency rail** — a latent CONDITION currently reads **false** while it waits, silently.
+>
+> **REVISION 5 (`2026-08-16`).** ✅ **The parameter model is RULED end to end (§4g)** — Instances use
 > the **resolver** shape, params live **in the Instance's own slot**, runtime attach **carries a payload**,
 > and ⭐⭐ **sections are the classification, so `Role`/`Scope` is not a control on any host** *(`Q-k`
 > dissolves)*. ✅ **Multi-occurrence added (§4h) with the HSM cost accepted.**
@@ -200,6 +205,58 @@ action write the same bytes. ⭐ BTree is immune: it provisions per-scope slots 
 
 ---
 
+## 4B. ⏭ Track E — ⭐⭐⭐ **HSM catch-up** *(the gaps, collected)*
+
+> ⛔⛔ **USER RULING `2026-08-16`:** *"the HSM integration is in bad shape now, for long time not updated
+> and not actively used, blueprints and BTrees were favorised. **So if something is not present in HSM,
+> it is not because it is not needed, just not implemented yet.**"*
+> ⇒ ⭐ **Every row below is WORK, not a scope decision.** ⛔ **`Q33-E` is answered: PHASED, not abandoned.**
+> ✅ **User accepted the multi-occurrence cost** *(`2026-08-16`)*.
+
+⭐ **The pattern, stated once:** HSM's **authoring model is ahead of its runtime** in four places. BTree
+and blueprints both provision per-occurrence storage; **HSM alone does not.** ⇒ **BTree is the template
+throughout — adopt, do not invent.**
+
+| | item | measured gap | depends on |
+|---|---|---|---|
+| **`E1`** | ⭐ **emitter consumes `Role`/`Scope`** | `HsmEmitCore` + `HsmBridgeEmitCore`: **0** refs; `BTreeBridgeEmitCore`: **45**. `HsmBlackboardVariableDto` persists both faithfully ⇒ **HSM has NO authored variables at runtime at all** | — ⭐ **the entry point; everything else assumes it** |
+| **`E2`** | **slot provisioning, BTree-style** | adopt `ComputeStatefulSlotKey` + `BlueprintBlackboardPartitions` — ⭐ **the same allocator Instances and the BTree bridge already share** | `E1` |
+| **`E3`** | ⭐⭐ **occurrence in the action key** | `hash(method @ fieldOffset)` has **no region/state in it** ⇒ concurrent regions running one action **write the same bytes**. ⭐ **`r` and `current` are ALREADY IN SCOPE at the `ExecuteAction` call site** ⇒ a signature widening, not a redesign. ⭐ **the params-base change (§4h) folds into this same seam** | `E2` ⚠ **`FastHSM` `ExtDeps` change** |
+| **`E4`** | ⚠ **wire `HsmValidator` rules 8 / 8b** | correct errors, but injected resolvers default to `_ => false` / `_ => Empty` and **both production call sites use the default ctor** ⇒ never fire. XML doc says *"Production should wire this"* | ⭐ **do BEFORE `E5`** — the guard should be honest before the runtime makes the hazard real |
+| **`E5`** | ⭐⭐ **subtree hosting runtime** | `SubtreeAssetId` is read **only** by `HsmValidator`; FastHSM kernel **0**, HSM emitters **0**, shipped assets **0**. ⇒ ⭐⭐⭐ **serves TWO rulings at once** — HSM-over-BTree composition **and** the latent sub-behaviour decision *(`#33` §1.5.4: `C`, subtree not action)* | `E3`, `E4` |
+| **`E6`** | **`W9`** — simple-name hash | `HsmActionGenerator:517/630` — `ComputeHash(action.Name)`; `MethodInfo` carries `FullName` too. ⚠ **TWO re-bake sites**, reconciled *"in lockstep via shared `ResolveStatefulSlotKey`"* | independent |
+| **`E7`** | 🔴 **`W11`** — the HSM binding model | **not implementable as filed.** `FIX-01-REPORT:43` — *"no per-node `ExpressionTargetField`"*; **`VE-DEBT-001`** — 4 action slots per state ⇒ *"needs a design call, not an autonomous guess"*; **`VE-DEBT-004`** — **no production `[HsmGuard]` exists**. ⚠ **`HSM-016` is unresolvable — zero hits anywhere** | ⭐ **last**, and needs a joint design call |
+
+### ⭐ Sequence within Track E
+
+**`E1`** → **`E2`** → **`E4`** *(guards honest first)* → **`E3`** → **`E5`** → **`E6`** → **`E7`**.
+
+⚠ **`E1` is already in the main order** (after `G3`) because the parameter story needs it. **The rest of
+Track E follows the parameter work**, not interleaved with it.
+
+### ⛔ Not HSM-only, but discovered here — **the latency rail**
+
+🔴 **Nothing forbids a latent node in an AiPrimitive.** `V_DispatchKindCompatibility` checks
+intent-vs-hosting (`BP1022`/`BP1023`) and event graphs (`BP1025`) — **nothing about latency** — and
+`BTreeEvaluate` emits `return TickCore(…) == NodeStatus.Success;` ⇒ ⭐⭐ **`Running` maps to `false`**,
+so **a latent CONDITION silently reads false while it waits**, then flips true later with `__phase`
+left mid-sequence. ⛔ **Silent wrong behaviour, not an error.**
+
+⭐ **The rule: latency is legal iff the hosting can RE-ENTER.**
+
+| intent → hosting | |
+|---|---|
+| ⛔ `Condition` → `BTreeCondition`, `HsmGuard` | **never legal** — a condition must answer *this tick* |
+| ✅ `Action` → `BTreeAction` | `NodeStatus.Running` |
+| ✅ `Action` → HSM **Activity / subtree host** | re-entered every tick |
+| ⛔ `Action` → HSM **Entry / Exit / Timer** | one-shot ⇒ **a silent hang** |
+
+⭐⭐ **A third dimension on a validator that already exists**, and ⭐ **the detector is already built** —
+`MacroLatency.IsLatent` / `FindTransitivelyLatentNode`, used today by `BP1661`. ⇒ **the rule is
+missing, not the analysis.** 📌 **Filed, not numbered** (rule 3).
+
+---
+
 ## 5. ✅ The two prerequisites — **one is solved, one is a live defect**
 
 | | verdict |
@@ -233,10 +290,13 @@ table → dialog → Watch → **`C-outline`** *(BTree/HSM supply their own sect
 **`G1`** *(the split — ⭐ now load-bearing for blueprints too)* → **`G3`** *(service singletons)* →
 ⭐ **the Instance params seam** *(§4g: params in the slot · attach carries a payload · resolve-before-commit)* →
 ⭐ **blueprint multi-occurrence** *(§4h: `(blueprintId, instanceKey)` — `D2`, now in scope)* →
-⭐ **the HSM emitter slice** *(`Role`/`Scope`, without which HSM has no authored inputs at all)* →
-⭐ **HSM multi-occurrence** *(§4h — user accepted the cost; `ExtDeps` change)* →
-**`W7` re-derived** → **`G7`+`W10` as ONE picker** → **`W9`** →
-**last: `W11`** *(needs a joint design call, and weaker than filed)*.
+⭐ **`E1` — the HSM emitter slice** *(`Role`/`Scope`, without which HSM has no authored inputs at all)* →
+**`W7` re-derived** → **`G7`+`W10` as ONE picker** →
+⭐⭐ **Track E, the HSM catch-up (§4B)**: `E2` → `E4` → `E3` → `E5` → `E6` → **last `E7`**
+*(`W9` is `E6`; `W11` is `E7`)*.
+
+📌 **The latency rail (§4B tail) is independent** — compiler-side, and it guards a **silent wrong
+answer**, so it can land any time after Track B.
 
 ⭐⭐ **`2026-08-16` — the HSM emitter slice enters the queue.** `HsmEmitCore`/`HsmBridgeEmitCore` read
 **0** `Role`/`Scope`; `BTreeBridgeEmitCore` reads **45** ⇒ *"multi-field editor-authored inputs for
