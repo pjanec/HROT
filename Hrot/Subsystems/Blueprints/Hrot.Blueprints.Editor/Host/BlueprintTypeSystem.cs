@@ -290,19 +290,43 @@ public sealed class BlueprintTypeSystem : ITypeSystem
 
     private static IReadOnlyList<string> BuildSelectableTypeIds()
     {
-        var ids = new List<string>
-        {
-            // ⛔ System.String is deliberately ABSENT. It was offered here and is a managed
-            // reference type, so a variable declared as one fails BP1503 ("state fields must be
-            // unmanaged") — offered by the picker, rejected by the compiler. U-8's "every offered
-            // type compiles" gate caught it on its first run. ⭐ FixedString32/64/128 below ARE the
-            // supported string types, which is what the original entry was reaching for.
-            Bool, Int32, Single, Float64, Byte, UInt32,
-            Vector2, Vector3, Entity,
-            FixedString32, FixedString64, FixedString128,
-        };
+        // ⭐⭐⭐ S5 — ONE offerable set, seeded from the COMPILER's own list.
+        //
+        // 🔴 This used to be twelve hand-written FQNs, and the parameter combo read a DIFFERENT
+        //    hand-written list (StaticTypeRegistry.EditorOfferableTypeIds, 18 primitives, no
+        //    structs). ⇒ a variable could be struct-typed and a parameter could not — U-8's own
+        //    comment names the class: "a designer could declare a struct variable in one window and
+        //    not the other". ⛔ The overlap was not even a superset either way: this list had
+        //    Fdp.Core.Entity and the other had sbyte/short/ushort/uint/long/ulong/Vector4/Quaternion.
+        //
+        // ⭐ EditorOfferableTypeIds SURVIVES as the compiler-side seed — its own doc explains why it
+        //   is not just TypeTable.Keys (curated project structs, System.String/Object, every FQN
+        //   spelling of an alias). What is gone is the second ANSWER, not the second file.
+        //
+        // ⚠ Canonicalised to FullName, because this list's Pass-3 rail forbids short names: a bare
+        //   "int" is a grey unnamed pin in the palette (BP-203). The aliases stay the picker's
+        //   INPUT, never its output.
+        var ids = new List<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
 
-        var seen = new HashSet<string>(ids, StringComparer.Ordinal);
+        foreach (var alias in StaticTypeRegistry.EditorOfferableTypeIds)
+        {
+            if (!StaticTypeRegistry.Instance.TryResolve(
+                    new BlueprintTypeRef { TypeId = alias }, out var ir)) continue;
+            if (seen.Add(ir.FullName)) ids.Add(ir.FullName);
+        }
+
+        // ⭐ Entity is offerable but deliberately NOT in EditorOfferableTypeIds — that list is the
+        //   scalar/numeric picker the coercion table must agree with, and an entity handle coerces to
+        //   nothing. It has always been selectable as a variable; under one set it is selectable as a
+        //   parameter too.
+        if (seen.Add(Entity)) ids.Add(Entity);
+
+        // ⛔ System.String is deliberately ABSENT. It is a managed reference type, so a variable
+        // declared as one fails BP1503 ("state fields must be unmanaged") — offered by the picker,
+        // rejected by the compiler. U-8's "every offered type compiles" gate caught it on its first
+        // run. ⭐ FixedString32/64/128 above ARE the supported string types.
+
         var structs = new List<string>();
         foreach (var t in Hrot.Editor.AiShared.Blackboard.BlackboardTypeChoiceBuilder
                      .DiscoverBlackboardDtoStructTypes())

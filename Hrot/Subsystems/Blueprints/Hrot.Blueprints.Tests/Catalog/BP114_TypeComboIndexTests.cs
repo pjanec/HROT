@@ -23,13 +23,20 @@ public sealed class BP114_TypeComboIndexTests
 {
     // ── the defect itself ──────────────────────────────────────────────────────
 
+    /// <remarks>
+    /// ⚠ <b><c>S5</c> reversed which spelling is OFFERED and which is merely ACCEPTED.</b> The list is
+    /// canonical FQNs now, so <c>"System.Int32"</c> hits on the exact-match pass and <c>"int"</c> is
+    /// the one that has to be resolved. ⭐ <b>The claim under test is unchanged and is the durable
+    /// one:</b> both spellings land on ONE entry, and neither falls back to index 0.
+    /// </remarks>
     [Fact]
-    public void CanonicalFqn_ResolvesToItsAliasEntry_NotToBoolFallback()
+    public void BothSpellingsOfOneType_ResolveToOneEntry_NotToTheBoolFallback()
     {
         var intIdx  = BlueprintTypeChoices.IndexOfTypeId("System.Int32");
-        var boolIdx = BlueprintTypeChoices.IndexOfTypeId("bool");
+        var boolIdx = BlueprintTypeChoices.IndexOfTypeId("System.Boolean");
 
-        Assert.Equal(BlueprintTypeChoices.TypeIds.ToList().IndexOf("int"), intIdx);
+        Assert.Equal(intIdx, BlueprintTypeChoices.IndexOfTypeId("int"));
+        Assert.True(intIdx >= 0);
         Assert.NotEqual(0, intIdx);
         Assert.NotEqual(boolIdx, intIdx);
     }
@@ -39,12 +46,13 @@ public sealed class BP114_TypeComboIndexTests
     [InlineData("System.Boolean",          "bool")]
     [InlineData("System.Numerics.Vector3", "Vector3")]
     [InlineData("Fdp.Core.FixedString64",  "FixedString64")]
-    public void CanonicalFqn_ResolvesToTheMatchingAlias(string fqn, string alias)
+    public void TheAliasAndTheCanonicalFqn_ShareAnIndex(string fqn, string alias)
     {
-        var expected = BlueprintTypeChoices.TypeIds.ToList().IndexOf(alias);
-        Assert.True(expected >= 0, $"'{alias}' must be an offered type id (test setup check)");
+        var expected = BlueprintTypeChoices.TypeIds.ToList().IndexOf(fqn);
+        Assert.True(expected >= 0, $"'{fqn}' must be an offered type id (test setup check)");
 
         Assert.Equal(expected, BlueprintTypeChoices.IndexOfTypeId(fqn));
+        Assert.Equal(expected, BlueprintTypeChoices.IndexOfTypeId(alias));
     }
 
     // ── exact-alias round trip: the anti-drift lock ────────────────────────────
@@ -71,13 +79,20 @@ public sealed class BP114_TypeComboIndexTests
 
     /// <summary>
     /// The case the fallback-to-0 got most wrong: a type the compiler resolves perfectly well but
-    /// that the picker deliberately does not offer (<c>Fdp.Core.Entity</c>, <c>System.String</c>,
-    /// the curated blittable structs). Exact-match missed these too, so an <c>Entity</c> parameter
-    /// also displayed <c>bool</c> — and unlike the alias cases there is no offered entry that could
-    /// ever be right, so a blank preview is the only honest answer.
+    /// that the picker deliberately does not offer (<c>System.String</c>, <c>System.Object</c>).
+    /// Exact-match missed these too, so such a parameter also displayed <c>bool</c> — and unlike the
+    /// alias cases there is no offered entry that could ever be right, so a blank preview is the only
+    /// honest answer.
+    ///
+    /// <para>
+    /// ⚠ <b><c>Fdp.Core.Entity</c> left this list with <c>S5</c>, and that is the fix, not a
+    /// regression.</b> It resolves, it is unmanaged, and it was already offered by the VARIABLE
+    /// modal — <i>"deliberately not offered"</i> was only ever true of the parameter combo, which is
+    /// the asymmetry <c>S5</c> exists to remove. ⭐ The two entries that remain are managed reference
+    /// types, so <c>BP1503</c> means nothing can ever legally offer them.
+    /// </para>
     /// </summary>
     [Theory]
-    [InlineData("Fdp.Core.Entity")]
     [InlineData("System.String")]
     [InlineData("System.Object")]
     public void ResolvableButNotOffered_ReturnsMinusOne_NotZero(string typeId)

@@ -131,6 +131,64 @@ public sealed class TypeChoiceUnionTests
         }
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>S5</c> — ONE offerable set. Two lists surviving is the failure.</b>
+    ///
+    /// <para>
+    /// 🔴 The <b>parameter</b> combo read <c>StaticTypeRegistry.EditorOfferableTypeIds</c> (18
+    /// primitives, no structs) and the <b>variable</b> modal read <c>SelectableTypeIds</c> (12 FQNs +
+    /// discovered structs) ⇒ <b>a variable could be struct-typed and a parameter could not</b>, and
+    /// neither list was a superset of the other. ⛔ Ruling 9, in the UI.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <c>Assert.Same</c>, not <c>Assert.Equal</c> — two lists that happen to hold equal strings
+    /// today is exactly the state this closes.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void TheParameterComboAndTheVariableModalOfferTheSameSet()
+    {
+        Assert.Same(BlueprintTypeSystem.SelectableTypeIds,
+                    Hrot.Blueprints.Editor.Variables.BlueprintTypeChoices.TypeIds);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The symptom, stated directly: a PARAMETER can be given a struct type.</b> ⚠ Asserted
+    /// against discovery rather than a named struct, so it cannot pass by naming the one type that
+    /// happens to work — <i>"discovery IS the existence proof"</i>, one level up.
+    /// </summary>
+    [Fact]
+    public void AStructIsOfferableAsAParameterType()
+    {
+        var offered = Hrot.Blueprints.Editor.Variables.BlueprintTypeChoices.TypeIds
+            .ToHashSet(StringComparer.Ordinal);
+
+        var structs = BlackboardTypeChoiceBuilder.DiscoverBlackboardDtoStructTypes();
+        Assert.NotEmpty(structs);
+        foreach (var t in structs)
+            Assert.Contains(t.FullName!, offered);
+    }
+
+    /// <summary>
+    /// ⭐ <b><c>S5</c>'s widening reaches the LIST-ELEMENT budget too</b> — the trap <c>U-8</c> hit
+    /// once already, when adding structs to this list produced a budget of <i>"≈ 4 bytes"</i> per
+    /// struct element. ⚠ <c>Modal_BudgetHelper_KnowsEverySelectableUnmanagedElementSize</c> is the
+    /// gate; this states the sharper half — the budget agrees with the COMPILER's size, not merely
+    /// with some non-zero number.
+    /// </summary>
+    [Fact]
+    public void TheListBudgetSizesEveryOfferedPrimitiveExactlyAsTheCompilerDoes()
+    {
+        foreach (var id in BlueprintTypeSystem.SelectableTypeIds)
+        {
+            if (!StaticTypeRegistry.Instance.TryResolve(new BlueprintTypeRef { TypeId = id }, out var ir))
+                continue;                       // a discovered struct — sized by reflection, not here
+            Assert.Equal(ir.SizeBytes,
+                Hrot.Blueprints.Editor.Windows.VariableCreateModal.ElementByteSize(id));
+        }
+    }
+
     /// <summary>The list is stable and duplicate-free — the picker must not reshuffle between runs.</summary>
     [Fact]
     public void TheListIsStableAndDuplicateFree()

@@ -14,7 +14,7 @@ namespace Hrot.Blueprints.Tests.Catalog;
 /// <para>
 /// ⭐ These tests are the durable half of the fix. Registering the missing types is a table edit that
 /// the next hand-edit can silently undo; what stops the drift returning is
-/// <see cref="OfferedTypes_AllResolve"/> — the picker's list and the compiler's type table can no
+/// <see cref="OfferedPrimitives_AllResolve"/> — the picker's list and the compiler's type table can no
 /// longer disagree without a red test.
 /// </para>
 /// </summary>
@@ -31,10 +31,21 @@ public sealed class BP87_TypePickerTests
 
     // ── item 5: the anti-drift lock ───────────────────────────────────────────
 
+    /// <summary>
+    /// ⚠ <b><c>S5</c> narrowed what this can claim, and said so rather than deleting it.</b> The
+    /// picker's set now includes discovered <c>[BlackboardDtoStruct]</c> types, which the compiler
+    /// accepts through Stage 4's dotted-FQN path and <b>not</b> through the registry table — so
+    /// <i>"every offered id resolves in the registry"</i> is no longer the right statement of BP-87's
+    /// rule. ⭐ The full-strength version already exists and is stronger: <c>TypeChoiceUnionTests
+    /// .EveryOfferedTypeCompiles</c> drives every offered id through the REAL compiler. This keeps the
+    /// registry half honest for the primitives, which is where BP-87 actually bit.
+    /// </summary>
     [Fact]
-    public void OfferedTypes_AllResolve()
+    public void OfferedPrimitives_AllResolve()
     {
         var unresolvable = BlueprintTypeChoices.TypeIds
+            .Where(id => id.StartsWith("System.", StringComparison.Ordinal)
+                      || id.StartsWith("Fdp.Core.", StringComparison.Ordinal))
             .Where(id => !Resolve(id).Resolved)
             .ToList();
 
@@ -44,11 +55,23 @@ public sealed class BP87_TypePickerTests
             string.Join(", ", unresolvable));
     }
 
+    /// <summary>
+    /// ⭐⭐ <b><c>S5</c> — ONE offerable set.</b> This used to assert <c>Assert.Same</c> against
+    /// <c>EditorOfferableTypeIds</c>, which was true and was also the defect: the VARIABLE modal read
+    /// a different list, so <b>a variable could be struct-typed and a parameter could not</b>. ⭐ The
+    /// seed relationship is what survives — every compiler-offerable id is still offered, canonicalised
+    /// — and ⛔ <b>identity with the other consumer is now the assertion</b>, because two lists
+    /// surviving is the failure.
+    /// </summary>
     [Fact]
-    public void OfferedTypes_ComeFromTheCompilersOwnRegistry()
+    public void OfferedTypes_AreTheOneSetTheVariableModalAlsoOffers()
     {
-        // The projection, not a copy: a second hand-maintained array is how BP-87 happened.
-        Assert.Same(StaticTypeRegistry.EditorOfferableTypeIds, BlueprintTypeChoices.TypeIds);
+        Assert.Same(Hrot.Blueprints.Editor.Host.BlueprintTypeSystem.SelectableTypeIds,
+                    BlueprintTypeChoices.TypeIds);
+
+        // …and it is still a superset of the compiler's own offerable list, spelled canonically.
+        foreach (var alias in StaticTypeRegistry.EditorOfferableTypeIds)
+            Assert.Contains(Resolve(alias).FullName!, BlueprintTypeChoices.TypeIds);
     }
 
     // ── items 1-3: the specific types the user asked for ──────────────────────
@@ -60,8 +83,9 @@ public sealed class BP87_TypePickerTests
     [InlineData("ulong",  "System.UInt64")]
     public void UnsignedAliases_ResolveToTheCanonicalPrimitive(string alias, string expected)
     {
-        Assert.Contains(alias, BlueprintTypeChoices.TypeIds);
+        // ⚠ S5: the picker offers the CANONICAL FQN now, with the alias as accepted input.
         Assert.Equal(expected, Resolve(alias).FullName);
+        Assert.Contains(expected, BlueprintTypeChoices.TypeIds);
     }
 
     [Theory]
@@ -71,8 +95,9 @@ public sealed class BP87_TypePickerTests
     [InlineData("Quaternion", "System.Numerics.Quaternion")]
     public void BareVectorAliases_ResolveToTheirFqn(string alias, string expected)
     {
-        Assert.Contains(alias, BlueprintTypeChoices.TypeIds);
+        // ⚠ S5: the picker offers the CANONICAL FQN now, with the alias as accepted input.
         Assert.Equal(expected, Resolve(alias).FullName);
+        Assert.Contains(expected, BlueprintTypeChoices.TypeIds);
     }
 
     [Theory]
@@ -83,8 +108,9 @@ public sealed class BP87_TypePickerTests
     {
         // The one the user actually asked for: a blittable string usable in a State struct, unlike
         // System.String (BP1503).
-        Assert.Contains(alias, BlueprintTypeChoices.TypeIds);
+        // ⚠ S5: the picker offers the CANONICAL FQN now, with the alias as accepted input.
         Assert.Equal(expected, Resolve(alias).FullName);
+        Assert.Contains(expected, BlueprintTypeChoices.TypeIds);
     }
 
     // ── item 4: the gate on item 3 ────────────────────────────────────────────

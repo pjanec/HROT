@@ -1,4 +1,5 @@
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Editor.Host;
 using ImGuiNET;
 
@@ -227,27 +228,36 @@ public sealed class VariableCreateModal
 
     /// <summary>
     /// FC-2/LV-4: element payload size for the budget line; 0 = unknown (line omitted).
-    /// Mirrors the selectable-type set, not a general sizeof.
+    ///
+    /// <para>
+    /// ⭐⭐ <b><c>S5</c> retired the hand-written switch that used to live here.</b> It listed twelve
+    /// type ids — <i>"mirrors the selectable-type set"</i>, in its own words — so widening that set
+    /// silently produced a budget of <b>0 bytes</b> for the eight primitives it had never heard of, and
+    /// the budget line simply vanished. 🔴 <b>Third mirror of one table</b>, and the same failure the
+    /// <c>U-8</c> struct case already demonstrated once.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ The compiler's registry already holds an exact <c>SizeBytes</c> for every offerable
+    /// primitive — it is the number the state layout is computed from — so ask it, and fall back to
+    /// reflection only for a discovered struct the registry does not carry. ⇒ the budget line can no
+    /// longer disagree with the bytes the variable will actually occupy.
+    /// </para>
     /// </summary>
-    internal static int ElementByteSize(string typeId) => typeId switch
+    internal static int ElementByteSize(string typeId)
     {
-        BlueprintTypeSystem.Bool    => 1,
-        BlueprintTypeSystem.Byte    => 1,
-        BlueprintTypeSystem.Int32   => 4,
-        BlueprintTypeSystem.UInt32  => 4,
-        BlueprintTypeSystem.Single  => 4,
-        BlueprintTypeSystem.Float64 => 8,
-        BlueprintTypeSystem.Vector2 => 8,
-        BlueprintTypeSystem.Vector3 => 12,
-        BlueprintTypeSystem.Entity  => 8,
-        BlueprintTypeSystem.FixedString32 => 32,
-        BlueprintTypeSystem.FixedString64 => 64,
-        BlueprintTypeSystem.FixedString128 => 128,
-        // U-8: a discovered [BlackboardDtoStruct] is now selectable, so the list budget must be able
-        // to size one. ⭐ The type was FOUND by reflection, so its size is available the same way —
-        // this is not a second source of truth, it is the same one asked a second question.
-        _ => StructByteSize(typeId),
-    };
+        if (string.IsNullOrEmpty(typeId)) return 0;
+
+        if (StaticTypeRegistry.Instance.TryResolve(
+                new BlueprintTypeRef { TypeId = typeId }, out var ir)
+            && ir.IsUnmanaged && ir.SizeBytes > 0)
+            return ir.SizeBytes;
+
+        // U-8: a discovered [BlackboardDtoStruct] is selectable, so the list budget must be able to
+        // size one. ⭐ The type was FOUND by reflection, so its size is available the same way — this
+        // is not a second source of truth, it is the same one asked a second question.
+        return StructByteSize(typeId);
+    }
 
     /// <summary>
     /// U-8 — the marshalled size of a discovered <c>[BlackboardDtoStruct]</c>, or 0 when the id names
