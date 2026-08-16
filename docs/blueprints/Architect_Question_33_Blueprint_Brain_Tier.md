@@ -193,6 +193,59 @@ Instance and composition**, plus the invoker distinction, plus §1.5.2's Activit
 opt-in *blueprint-as-behaviour* case (`SLICE1-DESIGN`), where one-per-entity is arguably **correct**, and
 it is the path `W13` already repaired once. ⇒ **leave it; do not assume it keys like the others.**
 
+### 1.5.4 ✅ RESOLVED — `C` over `A`, and latency needs a RAIL that does not exist
+
+> ⭐⭐⭐ **User ruling `2026-08-16`: `C` — SUBTREE HOSTING.** A latent sub-behaviour is hosted via the
+> state's `SubtreeAssetId`, **not** as an action. ⛔ **`B` (extend the action contract) is RULED OUT.**
+> ⭐ **A hosted subtree does NOT block its state's transitions** — *"it could be a configurable state
+> flag if we ever find the need for it."*
+
+⛔ **Why `B` is ruled out is stronger than cost:**
+
+```csharp
+public enum InstancePhase : byte { Idle = 0, Entry = 1, RTC = 2, Activity = 3 }
+```
+
+⭐⭐ **These are stages of ONE tick**, every path ending `header->Phase = InstancePhase.Idle`, and the
+middle one is literally **run-to-completion**. ⇒ **an action returning "Running" leaves a state neither
+entered nor not-entered at end of tick.** ⛔ **That is a different machine, not an extended contract.**
+*(BTree can afford `Running` because its model is "re-tick and resume at the running node" — it has a
+resumption model by construction.)*
+
+⭐ **`C` also serves two requirements with one mechanism** — HSM subtree hosting is what ruling 3's
+HSM-over-BTree composition needs anyway, and ⭐⭐ **`HsmValidator` rules 8/8b already reason about
+concurrent stateful subtrees**, so the *validation* is written; only the runtime is missing.
+📌 **Completion is signalled idiomatically** — a finished subtree raises an event through the
+`HsmCommandWriter` every action already receives, and a transition listens. **Nothing new.**
+
+#### 🔴 THE GAP: *"how is it ensured a CONDITION contains no latent stuff?"* — **it is not**
+
+| | measured |
+|---|---|
+| **no rail** | `V_DispatchKindCompatibility` checks intent-vs-hosting (`BP1022`/`BP1023`) and event graphs (`BP1025`). ⛔ **Nothing about latency** |
+| **no cursor** | `AiPrimitiveEmitter` emits **zero** `Cursor`/`latent` — only `InstanceEmitter` emits `public BlueprintLatentCursor Cursor;` |
+| 🔴 **what actually happens** | `StatementEmitter:844` emits `s.Cursor.ResumeAt = N;` against a `WorkingState` with **no `Cursor` member** ⇒ **a C# compile error in GENERATED code** |
+
+⇒ ⛔⛔ **Caught, but at the worst place** — *Roslyn naming a generated file and a field the designer
+never wrote*, instead of a blueprint diagnostic naming the node. ⚠ **The same failure shape this
+codebase criticises elsewhere.**
+
+#### ⭐⭐ The rule to build — latency is legal **iff the hosting can RE-ENTER**
+
+| intent → hosting | latency |
+|---|---|
+| ⛔ **`Condition`** → `BTreeCondition`, `HsmGuard` | **NEVER legal** — a condition must answer **this tick**; that is what a condition *is* |
+| ✅ `Action` → `BTreeAction` | legal — `NodeStatus.Running` |
+| ✅ `Action` → HSM **Activity / subtree host** | legal — re-entered every tick |
+| ⛔ `Action` → HSM **Entry / Exit / Timer** | **not legal** — one-shot ⇒ **a silent hang** |
+
+⇒ ⭐ **A third dimension on a validator that already exists**, same shape as `BP1022`/`BP1023`.
+⭐⭐ **The detector is already built** — `MacroLatency.IsLatent(Node)` /
+`FindTransitivelyLatentNode(...)`, used today by `BP1661`. ⇒ **the rule is missing, not the analysis.**
+
+📌 **Filed, not numbered** (rule 3): *"a latent node in an AiPrimitive fails as a generated-code compile
+error instead of a Stage 2 diagnostic."*
+
 ---
 
 ## 2. The sub-questions
