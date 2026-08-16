@@ -31,6 +31,54 @@ the asset-scope table. ⇒ **the routing key is `(asset, section)` + a highlight
 its type and its current value are visible together — *"resembles an automatic watch panel"* — and that
 is the reason it exists.
 
+### ⭐⭐⭐ 1a. The control is a GENERIC ROW LIST, fed by sources *(user ruling)*
+
+> ⭐ **"the watch window must allow for selected variables from different assets."**
+
+⛔⛔ **Therefore the table is NOT "the view of one asset".** ⭐ **It renders an
+`IReadOnlyList<VariableRow>` and knows nothing about where the rows came from.**
+
+| source | produces | homogeneous? |
+|---|---|---|
+| **`SectionSource(asset, section)`** — Details | every row of that section | ✔ one asset |
+| **`PinnedSource(rowIds)`** — Watch | ⭐ **rows from ARBITRARY assets and entities, mixed** | ⛔ **no** |
+
+⇒ ⭐⭐ **Every row is SELF-DESCRIBING.** The row carries its own identity and its own accessors; the
+panel never reaches back to "the asset" because in Watch there is no single asset.
+
+```
+VariableRow
+  Origin      : (AssetId, Entity, Section, VariablePath)   ← identity; Entity is part of it
+  DisplayName : string        ← ⭐ the SOURCE decides qualification (below)
+  TypeText    : string
+  ClrType     : Type
+  ReadValue   : () -> ReadOnlySpan<byte>   ← raw, for both display and change-diff
+  AssetTick   : () -> uint    ← ⭐ THIS row's asset tick (§4a)
+  RowKind     : Normal | ReadOnlyPassthrough | NodeOwned
+  IsStale     : bool          ← asset closed / entity gone; ⭐ Watch already has this concept
+```
+
+### ⭐⭐ Name qualification is the SOURCE's job, not the table's
+
+⛔ **In a heterogeneous list `Health` is ambiguous** — two assets can both declare it. ⛔ **But we are
+NOT adding a fourth column.** ⇒ ⭐ **the source supplies `DisplayName`:**
+
+| | |
+|---|---|
+| **Details** | the **short** name — unambiguous within one section |
+| **Watch** | a **qualified** name — `Asset.Variable`, plus the entity when the same asset is watched on more than one | ⭐ **full path in the tooltip either way** |
+
+⭐⭐ **One column, two contents, zero special-casing inside the control.**
+
+### ⚠ Consequences that fall out of heterogeneity
+
+| | |
+|---|---|
+| ⭐ **entity is part of row identity** | the same asset on two entities has **two different values** ⇒ the key is `(AssetId, Entity, VariablePath)`, ⛔ **not `(asset, variable)`** |
+| ⭐⭐ **the tick is PER ROW** | in Watch, rows tick at **different rates** — each row diffs against **its own** asset tick (§4a) ⇒ ⛔ **no panel-wide tick** |
+| ⭐ **stale rows** | a Watch row outlives its asset or entity. ⭐ **`Watch.IsStale` already exists — reuse it**; a stale row shows its last value, greyed, and its dialog is refused |
+| ✅ **"Edit…" still resolves** | the row knows its own asset and entity, so the dialog needs no ambient context |
+
 ---
 
 ## 2. ⭐⭐ The editable properties — **measured, not taken from a spec**
@@ -115,8 +163,8 @@ tick/update actually runs, and only when it is not frozen.**
 |---|---|
 | ⭐⭐ **compare RAW BYTES, not the formatted string** | ⛔ **a formatted value hides change** — a `float` moving in its 7th digit renders identically. **Diff the byte slice** |
 | ⭐ **state to keep** | per row: `(lastValueBytes, lastChangedAssetTick)`. **Highlight while `currentAssetTick == lastChangedAssetTick`** ⇒ ⭐ **a pure predicate, therefore HEADLESSLY TESTABLE** even though the colour is not |
-| ⭐ **who owns it** | ⛔ **not the breakpoint snapshots** — `_preTickSnapshot`/`_postTickSnapshot` exist only while the debugger is engaged, and the monitor must work when it is not. ⇒ **the shared row renderer owns the cache**, keyed by `(asset, variable)`, covering the whole section so scrolling does not reset it |
-| ⭐ **scope** | **per section**, shared by Details and Watch — one implementation, both hosts |
+| ⭐ **who owns it** | ⛔ **not the breakpoint snapshots** — `_preTickSnapshot`/`_postTickSnapshot` exist only while the debugger is engaged, and the monitor must work when it is not. ⇒ **the shared row renderer owns the cache**, keyed by ⭐ **`(AssetId, Entity, VariablePath)`** *(§1a — entity is part of identity)*, covering the whole list so scrolling does not reset it |
+| ⭐⭐ **the tick is PER ROW** | ⛔ **there is no panel-wide tick** — a Watch list mixes assets that tick at different rates ⇒ **each row diffs against `row.AssetTick()`** |
 | ⚠ **a value that changes every tick stays highlighted** | ⭐ **correct** — VS behaves the same. ⛔ **No damping**; it would hide genuine churn |
 | ⚠ **struct rows** | diff the whole slice; **the whole cell** highlights. No per-field highlighting in the table — that is the dialog's job |
 
@@ -197,7 +245,8 @@ the Value column already uses covers it**, and it retires the old objection that
 
 | | |
 |---|---|
-| ⭐⭐ **three columns** | a test asserting the table exposes **exactly** `Name`, `Type`, `Value` — ⛔ **a fourth column fails it** |
+| ⭐⭐ **three columns** | a test asserting the table exposes **exactly** `Name`, `Type`, `Value` — ⛔ **a fourth column fails it**, including for a heterogeneous list |
+| ⭐⭐⭐ **heterogeneous source** | ⭐ **feed the control rows from TWO DIFFERENT assets AND the same asset on two entities**, and assert: distinct identities · **independent** highlight state · qualified `DisplayName` from the source · a stale row renders and refuses its dialog. ⛔ **This is the test that stops the control from quietly assuming one asset** |
 | ⭐⭐ **change highlight** | ⭐ **headless**: drive `(lastValueBytes, lastChangedAssetTick)` and assert the predicate — **changed ⇒ true for one ASSET tick, false on the next** · **unchanged ⇒ never** · ⛔ **planning ⇒ never** · ⭐ **format-equal but byte-different must be TRUE** *(the float-7th-digit case)* · ⭐⭐ **frozen: N world frames with NO asset tick ⇒ STILL TRUE** *(the ruling's whole point)* · ⭐ **pending and changed must be DISTINGUISHABLE states, not one flag** |
 | ⭐⭐ **one dialog** | a reflection test: exactly **one** call site constructs the variable edit session |
 | ⭐ **one commit path per mode** | planning writes JSON only; running stages only. ⛔ **No path writes both** |

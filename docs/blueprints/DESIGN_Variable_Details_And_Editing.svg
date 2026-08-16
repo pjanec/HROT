@@ -18,7 +18,7 @@
   <rect width="980" height="560" fill="#ffffff"/>
 
   <text x="16" y="24" class="h1">Variable details &amp; editing — three surfaces, one table, one dialog</text>
-  <text x="16" y="42" class="s">Consistent for every asset type that has variables: Blueprint, BTree, HSM. Green = already ships.</text>
+  <text x="16" y="42" class="s">One generic row list fed by SOURCES — it renders IReadOnlyList&lt;VariableRow&gt; and knows nothing about where rows came from. Green = already ships.</text>
 
   <!-- SURFACES -->
   <rect x="16" y="58" width="300" height="112" class="src"/>
@@ -33,15 +33,15 @@
   <rect x="332" y="58" width="300" height="18" fill="#2f6fbf" rx="5"/>
   <text x="340" y="71" class="h2">DETAILS — the table, filtered by SECTION</text>
   <text x="342" y="96" class="tb">Name · Type · Value — three columns only</text>
-  <text x="342" y="116" class="s">globals/working-state, or locals of this graph</text>
+  <text x="342" y="116" class="s">one source: SectionSource(asset, section)</text>
   <text x="342" y="140" class="tb">⋮ "Edit…"  ·  double-click row</text>
   <text x="342" y="158" class="s">the only place all vars + values are together</text>
 
   <rect x="648" y="58" width="316" height="112" class="src"/>
   <rect x="648" y="58" width="316" height="18" fill="#2f6fbf" rx="5"/>
-  <text x="656" y="71" class="h2">WATCH — the same table, filtered by pins</text>
-  <text x="658" y="96" class="t">same three columns, same row renderer</text>
-  <text x="658" y="116" class="s">"(pending)" before first write — already built</text>
+  <text x="656" y="71" class="h2">WATCH — the same table, rows from MANY assets</text>
+  <text x="658" y="96" class="tb">heterogeneous: mixed assets + entities</text>
+  <text x="658" y="116" class="s">source qualifies the name; per-ROW asset tick</text>
   <text x="658" y="140" class="tb">⋮ "Edit…"  ·  double-click row</text>
   <text x="658" y="158" class="s">⚠ refresh needs Trace compile mode</text>
 
