@@ -334,6 +334,48 @@ the case that wants two. ⇒ **treat `D2` as LIKELY IN SCOPE, not parked.**
 
 ---
 
+## 5d. ⭐⭐ Multi-occurrence — one problem in three costumes
+
+![multi occurrence](EXPLAINER_Multi_Occurrence.svg)
+
+⭐ **User, `2026-08-16`:** *"my entity globals were actually **asset** globals… **ECS component fields
+are our 'entity globals'**."* ⇒ ⛔ **No new owner is needed.** Every variable section is asset-scoped;
+true entity-wide data is an ECS component and already has its own model.
+
+### The same question, asked three ways
+
+| | what runs >1 at a time | **state** | **params** |
+|---|---|---|---|
+| **Blueprint Instance** | several **assets** on one entity | ◑ **own slot per ASSET** — ⛔ **same asset twice collapses** (identity is `blueprintId`) | ◑ **ruled**: params move **into the slot** ⇒ per-instance |
+| **BTree** | many **nodes** of one action type | ✅ **own slot per NODE** — `FNV-1a(assetGuid, nodeVisualId)`, provisioned at activation | ⛔ per-behaviour only — two nodes of one action bind the **same field** |
+| **HSM** | several **regions**, same tick | ⛔ **none** — `hash(method @ fieldOffset)`, no region in the address | ⛔ per-behaviour only, and here the occurrences are **concurrent** ⇒ a live race |
+
+⇒ ⭐⭐⭐ **It is ONE problem: *N concurrent occurrences of one thing need N slots, keyed by
+occurrence.*** ⭐ **BTree solved it and is the template — adopt its key algorithm, do not invent one.**
+
+### ⭐ Cost, honestly
+
+| | |
+|---|---|
+| **BTree** | ✅ **nothing** — it is the reference implementation |
+| **Blueprint** | ⚠ **moderate** — `BlueprintSlotEntry` + `TryAttach` + `TryGetSlotOffset` + the attach events, plus `FieldLayout` giving params a non-zero base. ⭐ **No kernel change** |
+| **HSM** | ⚠ **larger, but not a redesign** — the emitter must read `Role`/`Scope` (**0** refs today), slots must be provisioned, and the action key must carry the occurrence |
+
+⭐⭐ **The datum that sizes the HSM job:** the discriminator is **already in scope at the call site.**
+
+```csharp
+for (int r = 0; r < regionCount; r++) {          // ⭐ r  — the region
+    ushort current = leafId;
+    while (current != 0xFFFF) {                   // ⭐ current — the state
+        ExecuteAction(state.ActivityActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx);
+```
+
+⇒ ⭐ **A signature widening plus thunk regeneration — not a data-flow redesign.** ⚠ **But it is an
+`ExtDeps` change** (`FastHSM` kernel), which is the most expensive *kind* of change here even when the
+edit is small.
+
+---
+
 ## 6. What this means for `W8` / `D2`
 
 | | |
