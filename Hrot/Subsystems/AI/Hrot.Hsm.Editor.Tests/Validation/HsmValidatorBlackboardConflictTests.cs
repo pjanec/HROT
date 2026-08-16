@@ -407,6 +407,85 @@ public sealed class HsmValidatorBlackboardConflictTests
             d => d.Code == HsmDiagnosticCode.CrossRegionBlackboardConflict);
     }
 
+    // ────────────────────────────────────────────────────────────────────────
+    // ⭐⭐⭐ W7a — the suppression the rule never read
+    // ────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 🔴 <b>RED before <c>W7a</c>.</b> The suppression is authored, persisted, round-tripped and
+    /// emitted — and <c>IsConflictSuppressed</c> was consulted <b>only</b> by
+    /// <c>BlackboardAliasDropValidator</c>. ⇒ clicking <i>Suppress</i> silenced the DROP TARGET while
+    /// the PANEL WARNING stayed. ⚠ An affordance that half-works is worse than one that is absent.
+    /// </summary>
+    [Fact]
+    public void Validate_SuppressedWriterPair_ProducesNoConflict()
+    {
+        var (asset, _, child0, child1) = MakeParallelAsset();
+
+        var bb = new StubBlackboardAsset();
+        bb.AddVariable("speed", typeof(float));
+        bb.AddAlias("speed", MakeBinding(Guid.NewGuid(), child0.StableId));
+        bb.AddAlias("speed", MakeBinding(Guid.NewGuid(), child1.StableId));
+        bb.SetConflictSuppressed(
+            "speed", BlackboardConflictKey.ForWriterPair(child0.StableId, child1.StableId), true);
+
+        Assert.DoesNotContain(new HsmValidator().Validate(asset, bb),
+            d => d.Code == HsmDiagnosticCode.CrossRegionBlackboardConflict);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>§9.3: suppression is PER-PAIR, not per-variable.</b> ⛔ <i>"A new aliasing relationship
+    /// on the same variable would surface a fresh diagnostic."</i> ⚠ This is the test that stops the
+    /// obvious simplification — collapsing the key to the variable name would pass the test above and
+    /// silently disable the rule for that variable forever.
+    /// </summary>
+    [Fact]
+    public void Validate_SuppressingOnePair_LeavesAnotherPairOnTheSameVariableReported()
+    {
+        var (asset, _, child0, child1) = MakeParallelAsset();
+
+        // A third writer, in region 1, bound through the locally-bound style.
+        var t = new TransitionNode
+        {
+            VisualId              = Guid.NewGuid(),
+            Source                = child1,
+            Target                = child1,
+            ActionFunction        = "Some.Action",
+            ExpressionTargetField = "speed",
+        };
+        var withThird = MakeAsset(
+            child0.Parent!.Parent!, new List<StateNode> { child0.Parent!, child0, child1 },
+            new List<RegionNode>(child0.Parent!.RegionNodes),
+            new List<TransitionNode> { t });
+
+        var bb = new StubBlackboardAsset();
+        bb.AddVariable("speed", typeof(float));
+        bb.AddAlias("speed", MakeBinding(Guid.NewGuid(), child0.StableId));
+        bb.AddAlias("speed", MakeBinding(Guid.NewGuid(), child1.StableId));
+        // Suppress only the alias/alias pair; the alias/expression-target pair is untouched.
+        bb.SetConflictSuppressed(
+            "speed", BlackboardConflictKey.ForWriterPair(child0.StableId, child1.StableId), true);
+
+        Assert.Single(new HsmValidator().Validate(withThird, bb),
+            d => d.Code == HsmDiagnosticCode.CrossRegionBlackboardConflict);
+    }
+
+    /// <summary>
+    /// ⭐ <b>The key is ONE function, and both surfaces call it.</b> ⛔ The format was built inline in
+    /// <c>BlackboardAliasDropValidator</c>; a second construction is the sharpest version of this bug —
+    /// one surface goes quiet, the other does not, and nothing fails. ⚠ Order-independence is asserted
+    /// because a pair is unordered and the two callers see the two ids in opposite orders.
+    /// </summary>
+    [Fact]
+    public void TheWriterPairKeyIsOrderIndependent()
+    {
+        var a = Guid.NewGuid();
+        var b = Guid.NewGuid();
+
+        Assert.Equal(BlackboardConflictKey.ForWriterPair(a, b),
+                     BlackboardConflictKey.ForWriterPair(b, a));
+    }
+
     // ---- helpers for the W7c cases -----------------------------------------
 
     private static StateNode RootOf(StateNode parallel) => parallel.Parent!;
@@ -502,6 +581,18 @@ file sealed class StubBlackboardAsset : IBlackboardManagedAsset
         _aliases.TryGetValue(variableName, out var list)
             ? list.AsReadOnly()
             : Array.Empty<BlackboardAliasBinding>();
+
+    // ---- W7a: per-pair conflict suppression --------------------------------
+    private readonly HashSet<(string, string)> _suppressed = new();
+
+    public bool IsConflictSuppressed(string variableName, string writerPairKey) =>
+        _suppressed.Contains((variableName, writerPairKey));
+
+    public void SetConflictSuppressed(string variableName, string writerPairKey, bool suppressed)
+    {
+        if (suppressed) _suppressed.Add((variableName, writerPairKey));
+        else            _suppressed.Remove((variableName, writerPairKey));
+    }
 
     // ---- Required interface members (unused in these tests) ----------------
     public void AddVariable(BlackboardVariableEntry entry) => _vars.Add(entry);

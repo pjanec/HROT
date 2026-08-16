@@ -377,7 +377,8 @@ public sealed class HsmValidator
                 if (!stateById.TryGetValue(binding.RequiringElementId, out var state)) continue;
                 if (!TryRegionOf(state, out var compositeId, out int regionIndex)) continue;
                 writers.Add(new WriterSite(
-                    compositeId, regionIndex, state.Name, "alias", IsWriter: HasWritingAction(state)));
+                    compositeId, regionIndex, state.Name, "alias",
+                    IsWriter: HasWritingAction(state), ElementId: binding.RequiringElementId));
             }
 
             // ── style 2: locally-bound writers — ExpressionTargetField names the variable ──
@@ -391,7 +392,7 @@ public sealed class HsmValidator
                 if (!TryRegionOf(t.Source, out var compositeId, out int regionIndex)) continue;
                 writers.Add(new WriterSite(
                     compositeId, regionIndex, $"{t.Source.Name} → {t.Target?.Name}", "expression target",
-                    IsWriter: IsWritingFqn(t.ActionFunction)));
+                    IsWriter: IsWritingFqn(t.ActionFunction), ElementId: t.VisualId));
             }
 
             // ── the pair check, over the UNION ──────────────────────────────────────────
@@ -413,6 +414,18 @@ public sealed class HsmValidator
                 {
                     if (sites[i].RegionIndex == sites[j].RegionIndex) continue;
 
+                    // ⭐⭐ W7a — the suppression is authored, persisted, emitted… and this rule never
+                    //    read it. `IsConflictSuppressed` was consulted ONLY by
+                    //    BlackboardAliasDropValidator, so clicking Suppress silenced the DROP TARGET
+                    //    while the PANEL WARNING persisted. ⚠ An affordance that half-works is worse
+                    //    than one that is absent: the designer clicks and nothing appears to happen.
+                    // ⛔ PER-PAIR, never per-variable (§9.3) — hence `continue`, not `goto`: another
+                    //    pair on the SAME variable must still be reported.
+                    if (blackboard.IsConflictSuppressed(
+                            variable.Name,
+                            BlackboardConflictKey.ForWriterPair(sites[i].ElementId, sites[j].ElementId)))
+                        continue;
+
                     var composite = stateById[group.Key];
                     out_.Add(new HsmDiagnostic(
                         HsmDiagnosticCode.CrossRegionBlackboardConflict,
@@ -431,7 +444,7 @@ public sealed class HsmValidator
 
     /// <summary>⭐ <c>W7c</c> — one writer of one variable, wherever it came from.</summary>
     private readonly record struct WriterSite(
-        Guid CompositeId, int RegionIndex, string Label, string Style, bool IsWriter);
+        Guid CompositeId, int RegionIndex, string Label, string Style, bool IsWriter, Guid ElementId);
 
     /// <summary>
     /// The parallel composite and region a state sits in, or <c>false</c> when it is not a direct
