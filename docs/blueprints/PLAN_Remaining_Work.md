@@ -138,7 +138,10 @@ contributing catalog."* ⛔ **Ruling 9 — no two implementations of one concept
 
 ### 4g. ⭐⭐⭐ NEW — the unified parameter model *(user rulings `2026-08-16`)*
 
-📄 **[`EXPLAINER_Where_Parameters_And_State_Live.md`](EXPLAINER_Where_Parameters_And_State_Live.md)** §5c–§5d.
+⛔⛔ **THE AUTHORITY IS 📄 [`DESIGN_Parameter_Model.md`](DESIGN_Parameter_Model.md).** ⭐ **One doc, it
+supersedes every prior parameter design, and it carries a "do not re-derive" table.** The rows below are
+the *plan view* of it; **it wins on any disagreement.**
+📄 Measurement record + diagrams: [`EXPLAINER_Where_Parameters_And_State_Live.md`](EXPLAINER_Where_Parameters_And_State_Live.md).
 
 | ruling | what it commits us to build |
 |---|---|

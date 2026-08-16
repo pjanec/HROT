@@ -30,7 +30,8 @@ used?"*, never *"is it wanted?"***
 
 | | |
 |---|---|
-| ⭐⭐⭐ **[`PLAN_Remaining_Work.md`](PLAN_Remaining_Work.md)** *(rev 3)* | **the single task list.** Tracks B · C · D + the open items |
+| ⛔⛔ **[`DESIGN_Parameter_Model.md`](DESIGN_Parameter_Model.md)** *(`2026-08-16`, AUTHORITATIVE)* | ⭐⭐⭐ **THE PARAMETER STORY — read before touching parameters/inputs/variables/blackboard in ANY host.** Supersedes every prior parameter design; carries a **"do not re-derive"** table of the ten things this programme got wrong |
+| ⭐⭐⭐ **[`PLAN_Remaining_Work.md`](PLAN_Remaining_Work.md)** *(rev 5)* | **the single task list.** Tracks B · C · D + the open items |
 | ⭐⭐⭐ **[`DESIGN_Variable_Details_And_Editing.md`](DESIGN_Variable_Details_And_Editing.md)** *(+ SVG)* | **Track C — what gets built.** ⛔ Supersedes `DESIGN_Variable_Details_And_Live_Values.md` §8 |
 | **[`PLAN_Cross_Host_Sequencing.md`](PLAN_Cross_Host_Sequencing.md)** | how `W1`–`W13` entered this queue |
 

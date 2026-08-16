@@ -1,5 +1,9 @@
 # Where parameters and state actually live — all hosts, one picture
 
+> ## ⭐ This is the MEASUREMENT RECORD + the diagrams.
+> ⛔ **The design is [`DESIGN_Parameter_Model.md`](DESIGN_Parameter_Model.md) — it wins on any
+> disagreement.** Read that first; come here for the file:line evidence behind it.
+
 > **Why this exists.** The question *"is every input variable in the 100-byte blackboard?"* has a
 > one-word answer (**yes**) and a five-part explanation. This is the explanation, measured on
 > `HEAD` (`2026-08-16`), not inferred.

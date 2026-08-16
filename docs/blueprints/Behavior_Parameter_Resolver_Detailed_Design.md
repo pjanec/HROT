@@ -1,5 +1,17 @@
 # Behavior Parameters & the Resolver — Detailed Design
 
+> ## ⛔⛔ `2026-08-16` — READ [`DESIGN_Parameter_Model.md`](DESIGN_Parameter_Model.md) FIRST
+>
+> ⭐ **This document's MODEL and PIPELINE still stand** and are quoted there as the authority —
+> especially **§3.2's ruling that the role enum is `{ Input, State }` with no separate "Param" role**,
+> and **§3.4's resolve-once-at-activation sequence**.
+>
+> ⛔ **But §6/§7 (ground truth + the `G1`–`G7` gap list) are STALE.** Re-measured `2026-08-16`:
+> **`G2`, `G5`, `G6` are DONE**, `G1` is half done, and `G3`/`G4`/`G7` remain open.
+> ⭐⭐ **Extended since:** Instance blueprints now use this same pipeline, params belong to the
+> **occurrence** rather than the entity, and **sections replace any `Role`/`Scope` control**.
+> ⇒ **`DESIGN_Parameter_Model.md` wins on any disagreement.**
+
 > **Status:** design draft (2026-07-13) — resolves the "how do JSON-authored behaviors parse/post-process parameters without a curated `AiBehaviorFactory`" question. Describes the **future state**; no code has been written for it yet. Supersedes the ad-hoc, factory-injected `ParseParams` closure model.
 > **Scope:** how a behavior (BTree or HSM, hardcoded or JSON-authored) declares its authored parameters, its runtime-usable parameters, and an optional **resolver** that bridges the two; how the resolver runs exactly once at activation; how behaviors register and are referenced **by name**; and the end-to-end authoring workflow. Does **not** re-specify blackboard bin-packing, variable roles/scopes, or blueprint compilation — those are owned by the docs cited below.
 > **Audience:** AI-behavior authors (editor users), engine/editor engineers implementing the resolver seam, and reviewers.
