@@ -206,7 +206,7 @@ carries what these leave open. ⭐ **Two measured facts drive it:**
 | | |
 |---|---|
 | ⭐⭐ **`BrainTier` is the ROOT interpreter** | composition is **subtree hosting** (`HsmStateDto.SubtreeAssetId`), a separate axis ⇒ *"blueprint as a tier"* and *"blueprint under an HSM state"* are **two mechanisms**, both needed |
-| 🔴 **latent REQUIRES Instance dispatch** | `StateStructBase` is **8** for AiPrimitive, **16** for Instance — and the 16 **is** the `BlueprintLatentCursor` ⇒ ⛔ **a blueprint hosted as an action node cannot suspend.** A latent blueprint under an HSM state needs the **Instance** path hosted as a sub-behaviour, **which exists in no host** |
+| ⛔⛔ ~~latent REQUIRES Instance dispatch~~ | 🔴 **CORRECTED `2026-08-16` — FALSE.** `AiPrimitiveLowering` appends **`__phase` + `__waitUntilTime`** to working state for any latent graph ⇒ ⭐ **AiPrimitives CAN suspend, by a DIFFERENT mechanism** than the Instance cursor. ⚠ **Two implementations of one concept** — converge with the slot unification. 📄 `Architect_Question_33` §1.5.5 |
 
 ### ⚠ HSM's authoring model is ahead of its runtime — four places, one finding
 

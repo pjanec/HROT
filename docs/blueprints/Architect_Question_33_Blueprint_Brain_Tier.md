@@ -246,6 +246,65 @@ codebase criticises elsewhere.**
 📌 **Filed, not numbered** (rule 3): *"a latent node in an AiPrimitive fails as a generated-code compile
 error instead of a Stage 2 diagnostic."*
 
+### 1.5.5 ⛔⛔ TWO CORRECTIONS — **§1.2 and §1.5.4 were WRONG**
+
+#### ⛔ Correction 1 — **AiPrimitives CAN suspend.** There are TWO mechanisms, not one
+
+`AiPrimitiveLowering.Apply` appends **`__phase` (byte)** and **`__waitUntilTime` (float)** to the
+working state whenever a graph has a latent op, then runs `WaitLowering_AiPrimitive`.
+
+| | suspension mechanism |
+|---|---|
+| **Instance** | the 16-byte `BlueprintLatentCursor` — `ResumeAt` + `WaitUntilTime` + `InstanceVersion` |
+| ⭐ **AiPrimitive** | **`ws.__phase` + `ws.__waitUntilTime`** in working state |
+
+⇒ ⛔ **"latent REQUIRES Instance dispatch" (§1.2) is FALSE**, and so is *"a blueprint hosted as an
+action node cannot suspend."* ⚠ **§1.5.3's cursor argument was overstated** — the composition path is
+not missing suspension, it has a **different** one. ⭐ **Two implementations of one concept** *(ruling
+9's shape)* ⇒ **converge them when the slot shape unifies, not before.**
+
+#### 🔴 Correction 2 — a latent CONDITION is **silently wrong**, not a compile error
+
+⛔ **§1.5.4 said it fails as a generated-code compile error. It does not — it compiles.**
+
+```csharp
+public static unsafe bool BTreeEvaluate(…)
+    return TickCore(…) == global::Fbt.NodeStatus.Success;
+```
+
+⇒ 🔴🔴 **`Running` maps to `false`.** A latent condition **reads as FALSE while it waits**, then flips
+true on a later evaluation, with `__phase` left **mid-sequence** in between — resuming on whatever
+unrelated evaluation comes next. ⛔ **No error, no warning, wrong answer.**
+
+⭐⭐ **This STRENGTHENS the rail in §1.5.4** — it is not a poor error message, it is **silent wrong
+behaviour**, and `MacroLatency.IsLatent` already provides the detector.
+
+### 1.5.6 ✅ `WaitUntilTime` semantics — **keep ABSOLUTE**; my concern was unfounded
+
+⚠ **The flagged worry** — *"a child suspended across a preemption resumes with a passed deadline"* —
+⛔ **does not arise.** Measured:
+
+| | |
+|---|---|
+| **global pause** | `if (deltaTime <= 0f) return;` — the tick is skipped **and the time controller holds sim time** ⇒ absolute deadlines do not advance either |
+| **re-activation** | ⭐ **both mechanisms reset** — `InstanceVersion` invalidates a stale cursor; working state is **zero-inited** on re-provision, so `__phase` restarts at 0 |
+| ⭐⭐ **LOD / tier throttling** | **absolute is the CORRECT choice** — *"wait 5 s"* means **5 sim-seconds** regardless of poll rate. ⛔ **A remaining-duration decrement would be WRONG** unless `dt` were true-elapsed-since-that-occurrence's-own-last-tick |
+
+⇒ ⭐⭐ **Keep absolute.** Switching to remaining-duration is a **regression under throttling**, which is
+the case that actually occurs.
+
+**What genuinely remains:**
+
+| | |
+|---|---|
+| ⚠ **float precision at large sim time** | `float` ulp ≈ **8 ms at ~28 h**, ≈ **62 ms at ~11 days** — at 28 h already **half a tick** |
+| ⭐⭐ **and the fix is FREE** | the cursor is `ResumeAt(4) + WaitUntilTime(4) + InstanceVersion(4) + **padding(4)**` ⇒ **a `double` deadline fits in the existing 16 bytes** by reordering |
+| ⚠ **two mechanisms** | cursor vs `__phase`/`__waitUntilTime` ⇒ converge with the slot unification |
+
+⚖️ **Recommendation: absolute, widened to `double` using the padding already there, and converge the
+two suspension mechanisms as part of the slot unification.** ⛔ **No semantic change, no throttling
+regression.**
+
 ---
 
 ## 2. The sub-questions
