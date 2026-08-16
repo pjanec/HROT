@@ -1,5 +1,63 @@
 # ⭐ START HERE — coordinator session, blueprint gaps & QoL programme
 
+## ⭐⭐⭐ STATE AT COMPACTION — `2026-08-15`. **Read this block, then §1–§4. The rest is history.**
+
+| | |
+|---|---|
+| **me** | the **coordinator** — tracker, handoffs, gate verification, merges. ⛔ **I do not write feature code** |
+| **my branch** | `claude/blueprint-authoring-status-gm0akp` |
+| **implementation** | `claude/hrot-implementation-j1jvin` — ⭐ **in sync; nothing in flight but Batch 65** |
+| **tracker** | **open 61 / done 125** (+1 refuted), reconciles |
+
+### ✅ Merged through `9edf13fdf` — Batches 56 · 58 · 57 · 59 · 60 · 61(1–2) · 63 · 64(item 1)
+
+⭐ **Phase A correctness is complete** except `W6`/`W7`, which the `.dev/` sweep **re-specified**.
+⏭ **Batch 65 (Track B: `S2` · `S4` · `S3`) is DISPATCHED at `4ce68ba24` and not yet started.**
+
+### ⭐⭐⭐ The two rules that came out of this run — **both now in `.claude/CLAUDE.md`**
+
+| | |
+|---|---|
+| ⛔⛔ **unreferenced ≠ unintentional** | *"what is not used does not mean it is existing without reason — a design doc gives answers."* ⇒ **search `.dev/` (~2887 files) before proposing ANY deletion.** ⭐ **Look-first order: `*-DESIGN.md` (intent) → `reports/*-REPORT.md` debt tails (`DEBT-*` ids live only there) → `TASK-DETAIL.md` (the dated user decision).** ⛔ Batch instructions and reviews restate the design — least useful |
+| ⛔⛔ **the COORDINATOR designs** | *"you are doing the designs, not them. if you need info, do your own subagent scan."* ⇒ **I sweep `.dev/` with parallel read-only `Explore` agents; the implementation session builds and reports what the code MEASURES** |
+
+⚠⚠ **I made the same mistake THREE times this run** — *"it is unreferenced, delete it"* for the
+standalone `BTreeTick` thunk, the `IStructEditDrawer`/`DrawerRegistry` chain, and
+`BlueprintVariablesWindow`. ⛔ **All three are designed and none is dead.** ⭐ **A grep answers *"is it
+used?"*, never *"is it wanted?"***
+
+### 📄 The three live documents
+
+| | |
+|---|---|
+| ⭐⭐⭐ **[`PLAN_Remaining_Work.md`](PLAN_Remaining_Work.md)** *(rev 3)* | **the single task list.** Tracks B · C · D + the open items |
+| ⭐⭐⭐ **[`DESIGN_Variable_Details_And_Editing.md`](DESIGN_Variable_Details_And_Editing.md)** *(+ SVG)* | **Track C — what gets built.** ⛔ Supersedes `DESIGN_Variable_Details_And_Live_Values.md` §8 |
+| **[`PLAN_Cross_Host_Sequencing.md`](PLAN_Cross_Host_Sequencing.md)** | how `W1`–`W13` entered this queue |
+
+### ⭐ Sequence
+
+**Batch 65 (Track B)** → **`S5`** *(the dialog's Type picker needs ONE offerable list; there are two)* →
+**the surgical field write** → **Track C** *(table → dialog → Watch → cross-host outline)* →
+**`W7` re-derived from its design** → **Track D** *(`W11` needs an architect call; `W12` a scope pass)*.
+
+### ⛔ Open, and none of it is a code question
+
+**`D2`** wants a nod *(lean `Variable`; ⭐ `BlackboardVariableRole {Input,State}` already exists, which
+may dissolve it)* · **`D3`** delete-or-wire the proven-dead orchestrator emitters · ⛔ **the VISUAL
+CHECK is still suspended — Track C cannot be signed off without it** · the held HSM reply ·
+📌 filed-not-fixed: **`BP-241`** · **`BP-242`** · the **`Fdp.Toolkits.Tests` race** *(1·1·2 failures on
+an identical binary — a race, not order-dependence)*.
+
+### 🔴 The one live defect still unfixed
+
+**The staged debug write is WHOLE-COMPONENT** (`StageMutation:530` → `DrainPendingMutations:548-575`,
+`SetComponentRaw`, no offset) and lands **after** the restore ⇒ **every other field reverts a tick.**
+On the shared `Blackboard1024` that reverts **BTree and HSM** state. ⭐ **Ruling 14 already names the
+fix: `SetComponentFieldRaw(entity, typeId, byteOffset, src, size)` in `Fdp.Core`.**
+
+---
+
+
 > **Point a fresh session at this file. It is self-contained.** Last updated **2026-08-13**.
 > ⭐⭐ **Batch 43 verified and merged at `3583acd4` (§7p) — `BP-57` is CLOSED.** The Local Variables
 > section landed; a designer can declare, rename, delete, duplicate and undo a graph local from the

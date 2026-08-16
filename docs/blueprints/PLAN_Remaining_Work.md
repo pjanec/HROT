@@ -1,9 +1,11 @@
-# PLAN — what is left *(revised `2026-08-15` after the design-record sweep)*
+# PLAN — what is left *(revision 3, `2026-08-15`)*
 
-> ⭐⭐⭐ **REVISION 2.** The first version was written from **code alone**. Three coordinator subagent
-> scans over `.dev/` (~2887 files) + the implementation session's sweep have now been folded in.
-> ⛔ **Nine items changed. Two of my own conclusions were WRONG. Three decisions need the user.**
-> 📄 Sources: [`REPORT_Batch64_Dev_Sweep.md`](REPORT_Batch64_Dev_Sweep.md) + the three coordinator scans.
+> ⭐⭐⭐ **REVISION 3.** ✅ **Track C's three decisions are RULED and its design is written** —
+> 📄 **[`DESIGN_Variable_Details_And_Editing.md`](DESIGN_Variable_Details_And_Editing.md)**.
+> **Rev 2** folded in three coordinator subagent scans over `.dev/` (~2887 files) + the implementation
+> session's sweep; **rev 1** was written from **code alone**.
+> ⛔ **Two of my own rev-1 conclusions were WRONG (§0).** 📄 Sources:
+> [`REPORT_Batch64_Dev_Sweep.md`](REPORT_Batch64_Dev_Sweep.md) + the three coordinator scans.
 
 ![remaining work](PLAN_Remaining_Work.svg) *(diagram predates this revision — tracks still hold, contents changed)*
 
@@ -38,25 +40,31 @@ which the sweep has now **re-specified** (§4).
 
 ---
 
-## 3. ⛔⛔ Track C — the panels. **Do not build yet. Three user decisions first (§6).**
+## 3. ✅ Track C — the panels. ⭐⭐ **DESIGNED. The three decisions are all ruled.**
 
-| | design record | verdict |
-|---|---|---|
-| **`C1`** Details hosts the list | `VariablesPanelControl` already extracted to `AiShared` with the configuration axis **already built** — *single-list + aliasing* for BTree/HSM, *dual-list* for Blueprint | ⭐ **a RE-HOST, not a new control.** ⚠ `blueprint-finalize/TASK-DETAIL.md:136` records a **prior REJECTION** of reusing it — *"it carries blackboard byte-budget/pack-warning UI"* — the same objection lands here |
-| **`C2`** the value column | ⭐⭐ **ALREADY SHIPPED** (`BATCH-11`, `ILiveBlackboardValueProvider`, 5th column, `"—"` on no match) | ✅ **largely DONE.** ⚠ gated on a **name-match against the selected entity**; the *"any entity running this behavior"* tier was **explicitly dropped** |
-| **`C3`** StructEdit dialog | ⭐ **the not-running write is ALREADY BUILT** — `UpdateVariableDefaultValueJson` + `DefaultValueAuthoring.OpenSession` — but surfaced as a **"STATIC PARAMETERS" section in `InspectorWindow`**, not a dialog | 🔴 **⛔ NO RECORD of the three-dot or double-click gesture**, and §4.5 enumerates the `⋮` menu **exhaustively with no "Edit value"**; **double-click is already bound to inline rename** ⇒ **§6 decision** |
-| **`C4`** Watch panel | *"nothing before the run"* **already designed AND shipped** — `TextDisabled("… = (pending)")` on `!HasEverBeenWritten` | ⭐⭐ **MY DIAGNOSIS WAS INCOMPLETE:** refresh is gated on **Trace compile mode** — ⛔ **Debug emits no `PinValueChanged` at all**, and `QuickReloadService.cs:64` **hardcodes `CompilerMode.Debug`** ⇒ **a non-empty handler still receives nothing.** ⛔ Editing has **no prior design** — ruling 13 is new law |
-| **`C5`** the write path | 🛑🛑 **CONTRADICTED by three records** — see §6 | 🛑 **BLOCKED on a user ruling** |
-| **`C6`** retire the window / delete the drawers | §0 | 🔴 **both halves wrong — re-scope** |
-| **`C7`** shared outline | ⭐ **already has an owner track and authoritative specs**: `docs/blueprints/NodeEdit/D6-my-blueprint-panel.md` + `D7-details-panel.md`, audit task **BCP-I** unstarted. D6 §D.6.2–3 **already models per-host section sets as DATA** | ⭐ **CONFIRMS the approach; the work is smaller than stated.** ⚠ **D7 routes variables as a per-variable FORM with a `Default` row — not a TABLE.** ⇒ `C1`'s shape must be reconciled with D7 |
+📄 **[`DESIGN_Variable_Details_And_Editing.md`](DESIGN_Variable_Details_And_Editing.md)** *(+ SVG)* —
+⭐ **that is what gets built.** ⛔ **It supersedes this section and `DESIGN_Variable_Details_And_Live_Values.md` §8.**
 
-### ⚠ Seven things in this area the plan never mentioned
+| decision | ruling |
+|---|---|
+| ① **the write path** | ✅ **OPTIMISTIC DISPLAY.** Paint the new value immediately, then **stage** through the existing path. ⛔ **Do NOT write `_liveRepo` while paused** — `Blackboard1024` is `[DataPolicy(NoSave)]`, i.e. **snapshotted AND recorded**, so a non-simulation write breaks Flight Recorder linearity |
+| ② **the gesture** | ✅ **two menu items = the two `EditScope`s.** *"Edit value…"* (`ForField`, double-click the **value** cell) · *"Properties…"* (`WholeComponent`, double-click the **name** cell). ⭐ **Run state decides WRITABILITY, not which dialog** |
+| ③ **table or form** | ✅ **TABLE**, filtered by section — ⛔ **never a single-variable form.** `D7`'s field list becomes **the dialog's** contents |
 
-Trace-vs-Debug compiler mode as the real Watch gate · the **"Make Editable" toggle + confirmation
-banner** · `ParseParams` already consuming `DefaultValueJson` at assignment · **node-owned
-(`IsAutoManaged`) variables filtered into a dimmed read-only group** · **read-only-passthrough (🔒) rows
-with a different interaction set** · a `rowDecoration` hook that already exists · the §4.7 **memory-budget
-indicator** that is part of the shared panel's contract.
+### ⭐ What the design settles beyond those three
+
+| | |
+|---|---|
+| **columns** | `Name` + `Value` **mandatory**, `Type` **one toggle** *(hidden in Watch, shown in Details)*. ⛔ **No general column framework** — the control has **seven** today |
+| ⭐⭐ **generic row list** | the control renders `IReadOnlyList<VariableRow>` and **knows nothing about the source.** `SectionSource` (Details) · `PinnedSource` (Watch, **mixed assets and entities**) |
+| **identity** | `(AssetId, Entity, VariablePath)` — ⛔ **entity is part of it** |
+| ⭐ **grouping** | `GroupBy` = an **ordered facet list** *(`[]`, `[Entity]`, `[Asset]`, `[Asset, Entity]`)* — ⛔ not hardcoded modes. **A uniform facet emits no header.** Folding is `CollapsingHeader` *(already used 3× in that control)*, and ⭐⭐ **a collapsed header inherits its children's red/yellow** |
+| ⭐⭐ **change highlight** | 🔴 **red one tick** = the sim changed it · 🟡 **yellow** = your pending edit. ⭐ **The unit is a NON-FROZEN ASSET TICK** — not a frame, not a world tick ⇒ **paused, the highlight persists until you Step.** ⭐ **Diff RAW BYTES** |
+| **value rendering** | primitives inline · structs = elided one-line summary + **pretty-printed tooltip** · ⛔ **never raw hex** *(`BP-01`'s symptom)*; undecodable says `<unreadable>` |
+| **budget indicator** | ⭐ **planning-only chrome**, on the same run-state switch as the Value column |
+
+⚠ **Track C still needs the VISUAL CHECK** — grouping, folding and colour are surfaces no headless test
+can verify. ⭐ **But the change-highlight PREDICATE and the grouping/column rules are headlessly testable.**
 
 ---
 
@@ -84,7 +92,7 @@ indicator** that is part of the shared panel's contract.
 
 ---
 
-## 6. ⛔⛔⛔ THREE DECISIONS FOR THE USER — Track C cannot start without them
+## 6. ✅ The three Track C decisions — ALL RULED `2026-08-15`. Kept for the reasoning.
 
 | | the conflict |
 |---|---|
@@ -99,6 +107,7 @@ indicator** that is part of the shared panel's contract.
 
 ## 7. ⭐ Order
 
-**Track B now** *(all three ruled, all headless)* → **`W7` re-derived from its design** → **Track C after
-§6** → **Track D last** *(`W11` needs an architect call; `W12` needs a scope pass)*.
+**Track B now** *(Batch 65, dispatched)* → **`S5`** *(the dialog's Type picker needs ONE offerable list)* →
+**the surgical field write** → **Track C** *(table → dialog → Watch → cross-host outline)* →
+**`W7` re-derived from its design** → **Track D last** *(`W11` needs an architect call; `W12` a scope pass)*.
 📌 Still filed, not fixed: **`BP-241`** · **`BP-242`** · the **`Fdp.Toolkits.Tests` race**.
