@@ -98,22 +98,47 @@ as inline rename does today. ⇒ **one gesture, one meaning, on every surface.**
 ⭐ **A value that changed is drawn RED for one step, then returns to normal** — the Visual Studio
 debugger behaviour. ⛔ **Non-planning modes only** *(running · paused · stepping · replay)*.
 
+### ⭐⭐⭐ The unit of change — **the asset's own tick** *(user ruling)*
+
+> ⭐ **"a non-frozen CGF behavior tick, i.e. the asset tick/update call."**
+
+⛔ **NOT the rendered frame. NOT the world tick.** ⭐ **The counter advances only when THAT ASSET's
+tick/update actually runs, and only when it is not frozen.**
+
+| consequence | why it is right |
+|---|---|
+| ⭐⭐ **paused on a breakpoint ⇒ the highlight PERSISTS** | behaviours do not tick while frozen *(`dt == 0`)*, so nothing has happened. **It clears when you actually Step** — which is precisely the VS behaviour |
+| ⭐ **an asset that is not scheduled keeps its highlight** | ⛔ **correct — the value has not had a chance to change.** A world-tick counter would wrongly clear it |
+| ⭐ **the counter is PER ASSET INSTANCE** | ⛔ **not global** — different behaviours tick at different rates and tiers |
+
 | | |
 |---|---|
-| ⭐⭐ **the unit is a TICK, not a UI frame** | ⛔ **Never compare per rendered frame** — at 60 fps against a slower tick that flickers meaninglessly. **Compare against the value at the previous tick boundary**; while paused/stepping, "previous step" *is* the previous tick |
 | ⭐⭐ **compare RAW BYTES, not the formatted string** | ⛔ **a formatted value hides change** — a `float` moving in its 7th digit renders identically. **Diff the byte slice** |
-| ⭐ **state to keep** | per row: `(lastValueBytes, lastChangedTick)`. **Render red while `currentTick == lastChangedTick`** ⇒ ⭐ **the rule is a pure predicate and therefore HEADLESSLY TESTABLE**, even though the colour is not |
-| ⭐ **who owns it** | ⛔ **not the breakpoint snapshots** — `_preTickSnapshot`/`_postTickSnapshot` only exist while the debugger is engaged, and the monitor must work when it is not. ⇒ **the shared row renderer owns a small previous-value cache**, keyed by `(asset, variable)`, covering the whole section so scrolling does not reset it |
-| ⭐ **scope** | the cache is **per section**, shared by Details and Watch — one implementation, both hosts |
-| ⚠ **a value that changes every tick stays red** | ⭐ **correct and expected** — VS behaves the same. **Do not add damping**; it would hide genuine churn |
-| ⚠ **struct rows** | diff the whole slice; **the whole cell** goes red. No per-field highlighting in the table — that is the dialog's job |
+| ⭐ **state to keep** | per row: `(lastValueBytes, lastChangedAssetTick)`. **Highlight while `currentAssetTick == lastChangedAssetTick`** ⇒ ⭐ **a pure predicate, therefore HEADLESSLY TESTABLE** even though the colour is not |
+| ⭐ **who owns it** | ⛔ **not the breakpoint snapshots** — `_preTickSnapshot`/`_postTickSnapshot` exist only while the debugger is engaged, and the monitor must work when it is not. ⇒ **the shared row renderer owns the cache**, keyed by `(asset, variable)`, covering the whole section so scrolling does not reset it |
+| ⭐ **scope** | **per section**, shared by Details and Watch — one implementation, both hosts |
+| ⚠ **a value that changes every tick stays highlighted** | ⭐ **correct** — VS behaves the same. ⛔ **No damping**; it would hide genuine churn |
+| ⚠ **struct rows** | diff the whole slice; **the whole cell** highlights. No per-field highlighting in the table — that is the dialog's job |
 
-### ⚖️ One sub-decision, with a lean
+### ⭐ Colours — two distinct states
 
-⛔ **An optimistic edit (§6) also changes the displayed value.** If it is painted the same red, *"the sim
-changed this"* and *"my edit is pending"* look identical. ⚖️ **Lean: give pending its own marker**
-*(e.g. italic or a trailing `*`)* **and reserve red for sim-driven change.** ⭐ **Small, and it keeps the
-monitor honest.** 📐 **Flagged, not assumed — say so if you want them the same.**
+| state | colour | meaning |
+|---|---|---|
+| **changed** | 🔴 **red**, one asset tick | ⭐ **the SIM changed it** |
+| **pending** | 🟡 **yellow**, until it lands | ⭐ **YOUR optimistic edit has not been applied yet** *(§6)* — clears when the staged write lands at the N+1 boundary |
+| unchanged | normal | |
+
+⛔ **Never the same colour** — otherwise *"the sim changed this"* and *"my edit has not landed"* are
+indistinguishable, which is the one thing a monitor must not do.
+
+### 📐 Carriers — **what exists, and what must be verified**
+
+| | |
+|---|---|
+| ✅ **the Watch row already carries the state** | `IBlueprintDebugSession.Watch` has **`LastValueBytes`** *(raw!)*, **`LastUpdateTick`**, `UpdateCount` and `HasEverBeenWritten`, and `WriteValue<T>(value, self, tick)` already threads a tick in ⇒ ⭐ **on the Watch side the predicate is nearly free** |
+| 🔴 **but the buffer is 64 bytes** | `Watch._valueBuffer = new byte[64]` and `WriteValue` **throws above 64** ⇒ ⛔ **`MemberSlotList` (96), `WaveState` (104), `HillAttackSharedState` (136) cannot go through it.** 📐 **The shared row renderer must not inherit that limit** |
+| ⚠ **`OnNewTick()` exists on the debug session** | 📐 **VERIFY whether it fires per WORLD tick or per ASSET tick** — ⛔ **the ruling needs the asset's own tick, and I have not confirmed which this is** |
+| ⚠ **BTree/HSM need the equivalent** | `BTreeFacets.TickCount` exists **but `BTreeFacetMapper:170/191` sets it to `0`** ⇒ 📐 **trap #5 shape — verify it is populated before relying on it** |
 
 ---
 
@@ -122,7 +147,7 @@ monitor honest.** 📐 **Flagged, not assumed — say so if you want them the sa
 | | planning | running / paused | replay |
 |---|---|---|---|
 | Value column | the **initial** value | the **current** value | current, ⛔ **read-only** |
-| ⭐ **change highlight** | ⛔ **none** | ✔ **red for one tick** | ✔ **red for one tick** |
+| ⭐ **change highlight** | ⛔ **none** | ✔ 🔴 **red, one ASSET tick** · 🟡 **yellow while pending** | ✔ 🔴 **red, one asset tick** *(no pending — no edits)* |
 | dialog scope | whole properties object | value only | ⛔ **no dialog** |
 | **byte-budget indicator** | ⭐ **shown** | ⛔ **hidden** | hidden |
 
@@ -173,7 +198,7 @@ the Value column already uses covers it**, and it retires the old objection that
 | | |
 |---|---|
 | ⭐⭐ **three columns** | a test asserting the table exposes **exactly** `Name`, `Type`, `Value` — ⛔ **a fourth column fails it** |
-| ⭐⭐ **change highlight** | ⭐ **headless**: drive `(lastValueBytes, lastChangedTick)` and assert the predicate — **changed ⇒ true for one tick, false on the next** · **unchanged ⇒ never** · ⛔ **planning ⇒ never** · ⭐ **byte-equal-but-format-equal must still be FALSE, and format-equal-but-byte-different must be TRUE** *(the float-7th-digit case)* |
+| ⭐⭐ **change highlight** | ⭐ **headless**: drive `(lastValueBytes, lastChangedAssetTick)` and assert the predicate — **changed ⇒ true for one ASSET tick, false on the next** · **unchanged ⇒ never** · ⛔ **planning ⇒ never** · ⭐ **format-equal but byte-different must be TRUE** *(the float-7th-digit case)* · ⭐⭐ **frozen: N world frames with NO asset tick ⇒ STILL TRUE** *(the ruling's whole point)* · ⭐ **pending and changed must be DISTINGUISHABLE states, not one flag** |
 | ⭐⭐ **one dialog** | a reflection test: exactly **one** call site constructs the variable edit session |
 | ⭐ **one commit path per mode** | planning writes JSON only; running stages only. ⛔ **No path writes both** |
 | ⭐ **kind-driven fields** | a test per declaration kind asserting the dialog exposes **exactly** its storable set — ⛔ **a field with no backing member fails the test** |

@@ -78,7 +78,7 @@
   <rect x="498" y="384" width="466" height="94" class="box"/>
   <rect x="498" y="384" width="466" height="18" fill="#57606a" rx="5"/>
   <text x="506" y="397" class="h2">COMMIT — running ⇒ staged, display optimistic</text>
-  <text x="508" y="422" class="t">1. paint the new value in the cell NOW</text>
+  <text x="508" y="422" class="t">1. paint the new value NOW, in <tspan fill="#bf8700" font-weight="600">yellow</tspan> = pending</text>
   <text x="508" y="440" class="t">2. stage it — lands at the tick N+1 boundary</text>
   <text x="508" y="462" class="s">recorder stays linear; needs the surgical field write</text>
 
@@ -86,7 +86,9 @@
   <text x="26" y="512" class="tb">Editability = run state ∧ row kind.</text>
   <text x="222" y="512" class="t">Read-only-passthrough (🔒) and node-owned rows never get a writable dialog, in either mode.</text>
   <text x="26" y="532" class="tb">Non-planning only:</text>
-  <text x="158" y="532" class="t">a value that changed since the previous TICK is drawn</text>
-  <text x="474" y="532" class="tb" fill="#c0392b">red for one step</text>
-  <text x="584" y="532" class="t">(bytes compared, not text). Budget indicator: planning only.</text>
+  <text x="158" y="532" class="t">changed since the previous NON-FROZEN ASSET TICK ⇒</text>
+  <text x="472" y="532" class="tb" fill="#c0392b">red</text>
+  <text x="500" y="532" class="t">· pending edit ⇒</text>
+  <text x="606" y="532" class="tb" fill="#bf8700">yellow</text>
+  <text x="654" y="532" class="t">· bytes compared, not text.</text>
 </svg>
