@@ -116,6 +116,57 @@ identically. ⇒ **two concurrently-active regions running the same action write
 
 ---
 
+## 5b. Instance dispatch — what it is, and why `BP1031` is not a wall
+
+⛔ **Not a debug feature.** Three attach paths, two of them production: `BlueprintMaterializationSystem`
+(`Hrot.SimHost`, `SystemPhase.Input`) resolves `InitialBlueprintsIntent` from scenario state and
+pre-provisions the tier; `BlueprintEventIngressSystem` attaches/switches by event; the editor's
+`RunBlueprintOnEntityCommand` is authoring convenience. Ticked by `BlueprintTickSystem`.
+
+| | **Instance blueprint** | **BTree/HSM behavior** |
+|---|---|---|
+| verb | **attached** | **assigned** |
+| how many per entity | ⭐ **several** — 4 slots (1024) … 16 (16384) | ⭐ **one active** |
+| comes from | scenario state, at load | a command / tactical intent |
+| state home | its own partition slot, keyed `blueprintId + StructureHash` | the shared 1024 / 100 B regions |
+| boots to | `InitDefault` | zero-init, after the resolver writes inputs |
+
+⇒ An Instance is **a script component bolted onto an entity**; a behavior is **what the entity is
+currently doing.** That is why one stacks and the other is exclusive.
+
+### ⭐⭐ The supply slot exists — deferred, not absent
+
+```csharp
+/// <summary>Per-variable overrides. Null/empty in MVP (see Design §6).</summary>
+public Dictionary<string, object>? Overrides { get; init; }
+```
+
+📄 **`.dev/blueprint-scenario/BLUEPRINT-SCENARIO-DESIGN.md` §6** — *"Variable overrides (MVP:
+assignment-only; door left open) … The format is forward-compatible so overrides drop in without a
+change."* ⭐⭐⭐ **And the stated blocker:** *"**Deferred because** the authoring UX ('where is a
+per-instance override edited?') is unsettled."*
+
+⇒ ⭐⭐ **That is the UX Track C is designing right now.** The variable Details panel *is* the answer
+to that question.
+
+⭐ **Note what the design chose:** per-variable **overrides on ordinary `Variable`s** — *not* a
+`Parameter` tier. So:
+
+| host | supply seam | when |
+|---|---|---|
+| behavior | JSON → resolver → `Role=Input` bytes | at **activation** |
+| Instance blueprint | `Overrides` → after `InitDefault`, by descriptor lookup | at **attach** |
+
+⇒ ⭐⭐⭐ **Both reduce to *"a variable with an externally supplied initial value."*** Neither host
+needs a `Parameter` tier to get it. **`BP1031` therefore reads as *"Instances express inputs as
+overridable variables, not as a Parameters list"*** — the cleaner side of the one-cell model, not a wall.
+
+⚠ **Open, and genuinely the architect's:** whether an Instance blueprint should also be installable
+**via tactical intent with params**, merging the two lifecycles. The shipped design keeps them apart —
+intent assigns behaviors, scenario attaches blueprints. No code settles this.
+
+---
+
 ## 6. What this means for `W8` / `D2`
 
 | | |
