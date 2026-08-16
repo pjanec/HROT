@@ -10,8 +10,9 @@
 >
 > ⭐⭐ **User: no architect is available to answer this — *"we need to resolve that ourselves, together."***
 > ⇒ ⛔ **This document is NOT a relay.** It is the agenda for a joint working session.
-> ⚠ **`.claude/CLAUDE.md`'s architect-questioning rule is unchanged pending the user's word on whether
-> the architect is generally unavailable or only for this question.**
+> ⭐ **`2026-08-16`: the NotebookLM architect is GENERALLY unavailable** — `.claude/CLAUDE.md` updated.
+> ⭐⭐ **These documents keep being written**, because forcing a question into decision-shaped options
+> is what **isolates the truly architectural issues with large blast radius** from the merely fiddly.
 >
 > ⭐ **User: finish the PARAMETER story first.** ⇒ **parked behind it**, with two carve-outs:
 >

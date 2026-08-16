@@ -216,6 +216,27 @@ carries what these leave open. ⭐ **Two measured facts drive it:**
 ⇒ ⭐ **BTree and blueprints both provision per-scope / per-slot storage. HSM alone does not.**
 ⚠ **Whether these are phased or abandoned is `Q33-E` — a grep cannot answer it.**
 
+### ⭐⭐ "HSM-over-BTree behaviours exist" — measured `2026-08-16`
+
+⛔ **Not within one entity.** Every curated registration in `CgfCuratedBehaviorRegistrar` sets **one**
+tier: `BrainTierBTree` **with** a `BTreeInterpreter`, or `BrainTierHsm` **with** an `HsmDefinition` —
+⛔ **never both.** The assault behaviours (`PlatoonHillAttack2`, `HillAssault2I_Smoke`) are **BTree**.
+
+✅ **But it EXISTS across entities, and that is probably the memory.** A commander brain does not nest a
+sub-brain — it **assigns a behaviour to a different entity**:
+
+```
+Commander BTree → MissionAdapterState / TacticalIntentResolutionSystem
+                → AssignBehaviorEvent { Entity, BehaviorName, JsonParams }  → the SUBORDINATE
+```
+
+⭐ `AssignBehaviorEvent` is raised **only** from that CGF mission pipeline — nothing assigns a
+behaviour to *itself* as a sub-behaviour.
+
+⇒ ⭐⭐⭐ **"Strategic on top, tactical below" ships as a COMMAND HIERARCHY across entities, not as a
+nested brain within one.** The nested form is **the desired target state, not yet implemented** — which
+is what `#33` is about.
+
 ### ⚠ Open, and genuinely the architect's
 
 | | |
