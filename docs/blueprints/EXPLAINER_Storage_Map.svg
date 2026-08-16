@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 620" width="1000" height="620" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <style>
+    .h1 { font-size:15px; fill:#1b1f24; font-weight:700; }
+    .h2 { font-size:11.5px; fill:#ffffff; font-weight:700; letter-spacing:.3px; }
+    .t  { font-size:11.5px; fill:#1b1f24; }
+    .tb { font-size:11.5px; fill:#1b1f24; font-weight:600; }
+    .s  { font-size:10px; fill:#57606a; }
+    .m  { font-size:10.5px; fill:#0a3069; font-family:ui-monospace, Consolas, monospace; }
+    .in  { fill:#eef4fb; stroke:#2f6fbf; stroke-width:1.4; rx:4; }
+    .st  { fill:#e9f5e9; stroke:#4a8a3c; stroke-width:1.4; rx:4; }
+    .hd  { fill:#f0eaf7; stroke:#8250df; stroke-width:1.3; rx:3; }
+    .no  { fill:#fdecea; stroke:#c0392b; stroke-width:1.3; rx:3; }
+    .box { fill:#ffffff; stroke:#8c959f; stroke-width:1.1; rx:4; }
+  </style>
+  <rect width="1000" height="620" fill="#ffffff"/>
+
+  <text x="16" y="24" class="h1">Where every parameter and state byte actually lives</text>
+  <text x="16" y="42" class="s">Blue = INPUT (Role=Input) · Green = STATE (Role=State) · every component below is [DataPolicy(NoSave)] — none of it is serialised; inputs are re-supplied at each activation.</text>
+
+  <!-- ROW 1 : INPUT -->
+  <rect x="16" y="58" width="470" height="176" class="in"/>
+  <rect x="16" y="58" width="470" height="18" fill="#2f6fbf" rx="4"/>
+  <text x="24" y="71" class="h2">BrainBlackboard — 128 B — THE ONLY HOME FOR INPUTS</text>
+
+  <rect x="28" y="86" width="330" height="34" class="box"/>
+  <text x="36" y="100" class="tb">BehaviorParameters[100] @ 0</text>
+  <text x="36" y="114" class="s">every behavior's params DTO projects here — light AND heavy tier alike</text>
+
+  <rect x="366" y="86" width="108" height="34" class="no"/>
+  <text x="374" y="100" class="tb">tail 28 B</text>
+  <text x="374" y="114" class="s">threat + interrupts</text>
+
+  <text x="28" y="140" class="tb">Cap 100 B, enforced 3×</text>
+  <text x="176" y="140" class="s">BehaviorParameterSizeAnalyzer · BTreeBuilder · BehaviorRegistry.Register (throws)</text>
+  <text x="28" y="160" class="tb">Shared by ALL actions</text>
+  <text x="176" y="160" class="s">on the entity — not 100 B per node; one region carved into disjoint offsets</text>
+  <text x="28" y="180" class="tb">Written once</text>
+  <text x="176" y="180" class="s">at activation, by BehaviorIngressSystem — see the supply diagram</text>
+
+  <rect x="28" y="192" width="446" height="32" class="box"/>
+  <text x="36" y="205" class="m">ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)offset)</text>
+  <text x="36" y="218" class="s">the offset is baked at compile time — and for hand-written actions it is also IN the registry key</text>
+
+  <!-- ROW 1 right : who lays it out -->
+  <rect x="500" y="58" width="484" height="176" class="box"/>
+  <rect x="500" y="58" width="484" height="18" fill="#57606a" rx="4"/>
+  <text x="508" y="71" class="h2">ONE REGION, TWO LAYOUT AUTHORITIES — this is the whole difference</text>
+
+  <rect x="512" y="86" width="228" height="94" class="box"/>
+  <text x="520" y="100" class="tb">COMPILER-OWNED</text>
+  <text x="520" y="116" class="s">blueprint-as-AiPrimitive, and any</text>
+  <text x="520" y="130" class="s">JSON-authored BTree/HSM behavior</text>
+  <text x="520" y="148" class="m">EmitParamsStruct(asset.Parameters)</text>
+  <text x="520" y="164" class="s">multi-field · generated struct</text>
+  <text x="520" y="176" class="s">versioned by StructureHash</text>
+
+  <rect x="748" y="86" width="224" height="94" class="box"/>
+  <text x="756" y="100" class="tb">HUMAN-OWNED</text>
+  <text x="756" y="116" class="s">hand-written BTree/HSM actions</text>
+  <text x="756" y="130" class="m">[SharedAiAction(typeof(Dto),"F")]</text>
+  <text x="756" y="148" class="s">one field per action, in a shared</text>
+  <text x="756" y="162" class="s">DTO the human lays out by hand</text>
+  <text x="756" y="176" class="s">key = Method@byteOffset</text>
+
+  <text x="512" y="200" class="tb">⇒ The storage is ALREADY unified.</text>
+  <text x="694" y="200" class="t">Only layout authority differs.</text>
+  <text x="512" y="220" class="s">Moving a field is a versioned recompile on the left, and a silent break of every saved binding on the right.</text>
+
+  <!-- ROW 2 : STATE -->
+  <text x="16" y="264" class="h1">STATE — three different homes, chosen by dispatch kind</text>
+
+  <rect x="16" y="276" width="310" height="192" class="st"/>
+  <rect x="16" y="276" width="310" height="18" fill="#4a8a3c" rx="4"/>
+  <text x="24" y="289" class="h2">Blackboard1024 — 1024 B</text>
+  <text x="26" y="312" class="tb">AiPrimitives + shared AI actions</text>
+  <rect x="26" y="320" width="290" height="26" class="hd"/>
+  <text x="34" y="337" class="m">@0  StructureHash (8 B)</text>
+  <rect x="26" y="350" width="290" height="26" class="box"/>
+  <text x="34" y="367" class="m">@8  WorkingState struct</text>
+  <text x="26" y="392" class="s">⭐ ONE struct since Batch 56 — Variables and</text>
+  <text x="26" y="406" class="s">WorkingState are one layout run, one base.</text>
+  <text x="26" y="426" class="tb">Hash mismatch ⇒ zero all 1024 B</text>
+  <text x="26" y="440" class="s">then re-init defaults. That is the reset trigger</text>
+  <text x="26" y="454" class="s">inputs would inherit if they moved here.</text>
+
+  <rect x="340" y="276" width="330" height="192" class="st"/>
+  <rect x="340" y="276" width="330" height="18" fill="#4a8a3c" rx="4"/>
+  <text x="348" y="289" class="h2">BlueprintBlackboard — THE ALLOCATABLE ONE</text>
+  <text x="350" y="312" class="tb">Instance blueprints · 3 tiers</text>
+  <rect x="350" y="320" width="310" height="26" class="hd"/>
+  <text x="358" y="337" class="m">header 32 B + slot table 4×16 B = 96</text>
+  <rect x="350" y="350" width="310" height="26" class="box"/>
+  <text x="358" y="367" class="m">payload 928 / 3936 / 16368 B</text>
+  <text x="350" y="392" class="s">ChooseTier(def.StateSize) picks the smallest fit.</text>
+  <text x="350" y="410" class="tb">A real allocator:</text>
+  <text x="440" y="410" class="s">TryAttach reserves a slot keyed</text>
+  <text x="350" y="424" class="s">by blueprintId + StructureHash, returns a payload</text>
+  <text x="350" y="438" class="s">offset. Up to 4 blueprints share one entity's tier.</text>
+  <text x="350" y="458" class="s">⛔ Instances have NO inputs at all (BP1031).</text>
+
+  <rect x="684" y="276" width="300" height="192" class="st"/>
+  <rect x="684" y="276" width="300" height="18" fill="#4a8a3c" rx="4"/>
+  <text x="692" y="289" class="h2">Managed heavy component</text>
+  <text x="694" y="312" class="tb">[SharedAiHeavyAction] managed arm</text>
+  <rect x="694" y="320" width="280" height="26" class="box"/>
+  <text x="702" y="337" class="m">World.GetComponent&lt;T&gt;(self)</text>
+  <text x="694" y="364" class="s">A class instance — unbounded size, heap</text>
+  <text x="694" y="378" class="s">allocated, no byte layout to agree on.</text>
+  <text x="694" y="400" class="tb">Still state-only.</text>
+  <text x="694" y="418" class="s">The heavy adapter emits BOTH: params from</text>
+  <text x="694" y="432" class="s">bb.BehaviorParameters, heavy state from the</text>
+  <text x="694" y="446" class="s">component. Going heavy never moves inputs.</text>
+
+  <!-- FOOTER -->
+  <rect x="16" y="484" width="968" height="120" class="box"/>
+  <rect x="16" y="484" width="968" height="18" fill="#8250df" rx="4"/>
+  <text x="24" y="497" class="h2">THE THREE DATA SHAPES — from Behavior_Parameter_Resolver_Detailed_Design §3.2</text>
+
+  <rect x="28" y="512" width="304" height="80" class="box"/>
+  <text x="36" y="528" class="tb">1 · Authored DTO</text>
+  <text x="36" y="544" class="s">editor fields + JSON schema</text>
+  <text x="36" y="558" class="s">a transient parse buffer</text>
+  <text x="36" y="576" class="s">lifetime: parse-time only</text>
+
+  <rect x="348" y="512" width="304" height="80" class="in"/>
+  <text x="356" y="528" class="tb">2 · Usable params — Role=Input</text>
+  <text x="356" y="544" class="s">what the tree/HSM actually reads</text>
+  <text x="356" y="558" class="s">written by the resolver, once</text>
+  <text x="356" y="576" class="s">lifetime: resolved once at activation</text>
+
+  <rect x="668" y="512" width="304" height="80" class="st"/>
+  <text x="676" y="528" class="tb">3 · Working state — Role=State</text>
+  <text x="676" y="544" class="s">hot-path scratch, zero-init</text>
+  <text x="676" y="558" class="s">Scope = Node / Behavior / Entity</text>
+  <text x="676" y="576" class="s">lifetime: reset at every activation</text>
+</svg>
