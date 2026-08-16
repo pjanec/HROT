@@ -174,6 +174,11 @@ internal static class Stage4_TypeResolve
             //    96-byte struct claiming a reliable 4 would have laid the NEXT field on top of it.
             if (IsTrustedProjectTypeId(id) && !type.IsArray && type.Capacity == 0)
                 resolved = WithOracleSize(ctx, id!, resolved);
+            // ⭐ S4 — the same guess, one level in: the list branch sizes its wrapper from the ELEMENT,
+            //   and a "global::" element comes back at the AN2 4 bytes. Correct it here too, or the
+            //   wrapper under-counts against the tier budget by (real - 4) × Capacity bytes.
+            else if (IsTrustedProjectTypeId(id) && type.Capacity > 0)
+                resolved = WithOracleSizedElement(ctx, id!, resolved);
             return true;
         }
 
@@ -181,12 +186,28 @@ internal static class Stage4_TypeResolve
             && !id.StartsWith("global::", StringComparison.Ordinal)
             && id.IndexOf('.') >= 0)   // looks like a project FQN (netstandard2.0: no string.Contains(char))
         {
+            // ⭐⭐ S4 — the retry MUST carry Capacity/InitialLength.
+            //
+            // 🔴 It did not. A fixed list is discriminated by Capacity (review F7), and its element is
+            //    resolved through this same table — so `List<Hrot.AI.Behaviors.Foo>[8]`, spelled with
+            //    the dotted element the editor writes for a project type, failed the registry's list
+            //    branch (unknown element), fell through to here, and was retried WITHOUT Capacity.
+            //    ⛔ It then resolved as ONE Foo: the declaration silently stopped being a list, with no
+            //    diagnostic, and BP1504's bounds check upstream had already passed.
             if (ctx.TypeRegistry.TryResolve(
-                    new BlueprintTypeRef { TypeId = "global::" + id, IsArray = type.IsArray }, out resolved))
+                    new BlueprintTypeRef
+                    {
+                        TypeId        = "global::" + id,
+                        IsArray       = type.IsArray,
+                        Capacity      = type.Capacity,
+                        InitialLength = type.InitialLength,
+                    }, out resolved))
             {
                 // The AN2 path guesses a 4-byte size; for a real project struct that's a placeholder —
                 // ask the oracle, and only fall back to "unreliable" when nothing answers.
-                if (!type.IsArray && type.Capacity == 0)
+                if (type.Capacity > 0)
+                    resolved = WithOracleSizedElement(ctx, "global::" + id, resolved);
+                else if (!type.IsArray)
                     resolved = WithOracleSize(ctx, "global::" + id, resolved);
                 else
                     resolved = resolved with { SizeReliable = false };
@@ -232,6 +253,32 @@ internal static class Stage4_TypeResolve
         return size is > 0
             ? placeholder with { SizeBytes = size.Value, SizeReliable = true }
             : placeholder with { SizeReliable = false };
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>S4</c> — a fixed list whose ELEMENT is a trusted project type: correct the element's
+    /// guessed size and recompute the wrapper from it.
+    ///
+    /// <para>
+    /// ⛔ <b>The wrapper stays <c>SizeReliable = false</c> regardless.</b> That flag is not about the
+    /// element size — review <c>F3</c> set it because <c>FieldLayout</c>'s alignment heuristic
+    /// over-pads a composite type, so a list field's OFFSET must come from the runtime
+    /// <c>Marshal.OffsetOf</c> path whatever its size. ⇒ an exact size buys a correct <b>tier
+    /// budget</b>, not baked offsets.
+    /// </para>
+    /// </summary>
+    private static IrTypeRef WithOracleSizedElement(ValidationContext ctx, string elementTypeId, IrTypeRef list)
+    {
+        if (list.ElementType is null || list.Capacity <= 0) return list;
+
+        int? size = ctx.StructSizeOracle?.Invoke(elementTypeId);
+        if (size is not > 0) return list;
+
+        return list with
+        {
+            ElementType = list.ElementType with { SizeBytes = size.Value, SizeReliable = true },
+            SizeBytes   = Catalogs.StaticTypeRegistry.ListWrapperSize(list.Capacity, size.Value),
+        };
     }
 
     /// <summary>

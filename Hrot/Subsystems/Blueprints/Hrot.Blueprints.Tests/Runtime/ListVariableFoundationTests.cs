@@ -3,6 +3,7 @@ using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Core.Compiler.Diagnostics;
+using Hrot.Blueprints.Core.Compiler.Ir;
 using Hrot.Blueprints.Core.Compiler.Stages;
 using Hrot.Blueprints.Tests.Builders;
 
@@ -54,6 +55,78 @@ public sealed class ListVariableFoundationTests
     {
         Assert.False(StaticTypeRegistry.Instance.TryResolve(
             new BlueprintTypeRef { TypeId = "System.String", Capacity = 4 }, out _));
+    }
+
+    // ---- S4: the fallback must not drop Capacity ----------------------------
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>S4</c> — a fixed list of a PROJECT type stays a list.</b>
+    ///
+    /// <para>
+    /// 🔴🔴 <b>It did not.</b> The list branch resolves its element through the same table, so a
+    /// dotted project FQN — the spelling the editor writes — failed it, fell through to Stage 4's AN2
+    /// <i>"trust the dot"</i> retry, and that retry rebuilt the type ref from <c>TypeId</c> and
+    /// <c>IsArray</c> alone. ⛔ <c>Capacity</c> and <c>InitialLength</c> were dropped on the floor, so
+    /// <c>List&lt;Foo&gt;[4]</c> resolved as a single <c>Foo</c>: <b>one element where four were
+    /// declared</b>, with no diagnostic — <c>BP1504</c> had already passed, and every later stage saw a
+    /// well-formed scalar.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <c>Hrot.AI.Behaviors.StructDemoData</c> is deliberately a type the registry does NOT carry —
+    /// a curated one (<c>MemberSlotList</c>) resolves at the first table hit and never reaches the arm
+    /// under test.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void FixedListOfAProjectStruct_KeepsItsCapacity_ThroughTheAn2Fallback()
+    {
+        var typed = ResolveOneListField("Hrot.AI.Behaviors.StructDemoData", capacity: 4, oracle: null);
+
+        Assert.Equal(4, typed.Capacity);
+        Assert.Equal(2, typed.InitialLength);
+        Assert.Equal("__List_Hrot_AI_Behaviors_StructDemoData_4", typed.FullName);
+        Assert.False(typed.SizeReliable);                      // F3 holds regardless
+        Assert.Equal("Hrot.AI.Behaviors.StructDemoData", typed.ElementType!.FullName);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>S4</c> + <c>S2</c> — the wrapper is sized from the element's REAL size.</b> Without an
+    /// oracle the element is the AN2 4-byte guess, so a 4×12-byte list declares itself
+    /// <c>4 + 4×4 = 20</c> bytes and <b>under-counts the tier budget by 32</b>. ⚠ The list's own
+    /// <c>SizeReliable</c> stays <c>false</c> either way — an exact size buys a correct budget, not
+    /// baked offsets (review <c>F3</c>).
+    /// </summary>
+    [Fact]
+    public void FixedListOfAProjectStruct_IsSizedFromTheOraclesElementSize()
+    {
+        const int RealElem = 12;   // StructDemoData = 3 × int
+
+        var guessed = ResolveOneListField("Hrot.AI.Behaviors.StructDemoData", 4, oracle: null);
+        var exact   = ResolveOneListField("Hrot.AI.Behaviors.StructDemoData", 4,
+                          oracle: fqn => fqn.EndsWith("StructDemoData", StringComparison.Ordinal)
+                              ? RealElem : (int?)null);
+
+        Assert.Equal(StaticTypeRegistry.ListWrapperSize(4, 4),        guessed.SizeBytes);
+        Assert.Equal(StaticTypeRegistry.ListWrapperSize(4, RealElem), exact.SizeBytes);
+        Assert.Equal(RealElem, exact.ElementType!.SizeBytes);
+        Assert.False(exact.SizeReliable);
+    }
+
+    /// <summary>Declares one fixed-list variable, runs Stage 4, and hands back its resolved IR type.</summary>
+    private static IrTypeRef ResolveOneListField(string elementTypeId, int capacity, Func<string, int?>? oracle)
+    {
+        var asset = BlueprintAssetBuilder.Instance("L").WithVariable("Xs", typeof(int), "0").Build();
+        asset.Variables[0].Type.TypeId        = elementTypeId;
+        asset.Variables[0].Type.Capacity      = capacity;
+        asset.Variables[0].Type.InitialLength = 2;
+
+        var sink = new DiagnosticSink();
+        var typed = Stage4_TypeResolve.Run(
+            asset, new ValidationContext(sink, Options() with { StructSizeOracle = oracle }));
+
+        Assert.DoesNotContain(sink.All, d => d.Severity == DiagnosticSeverity.Error);
+        return typed.FieldTypes[asset.Variables[0].Id];
     }
 
     // ---- BP1504 declaration guard ------------------------------------------

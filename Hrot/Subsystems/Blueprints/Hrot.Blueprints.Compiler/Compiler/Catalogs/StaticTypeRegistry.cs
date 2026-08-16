@@ -229,16 +229,13 @@ public sealed class StaticTypeRegistry : ITypeRegistry
                 return false;
             }
 
-            int n         = typeRef.Capacity;
-            int elemAlign = elem.SizeBytes switch { 1 => 1, 2 => 2, <= 4 => 4, _ => 8 };
-            int header    = AlignUp(4, elemAlign);                    // int Count + pad to element
-            int size      = AlignUp(header + n * elem.SizeBytes, Math.Max(4, elemAlign));
+            int n = typeRef.Capacity;
 
             irType = new IrTypeRef
             {
                 FullName      = $"__List_{Sanitize(elem.FullName)}_{n}",
                 IsUnmanaged   = true,
-                SizeBytes     = size,
+                SizeBytes     = ListWrapperSize(n, elem.SizeBytes),
                 SizeReliable  = false,   // F3: runtime Marshal.OffsetOf layout, never baked offsets
                 Capacity      = n,
                 InitialLength = typeRef.InitialLength,
@@ -316,6 +313,25 @@ public sealed class StaticTypeRegistry : ITypeRegistry
         IsUnmanaged = true,
         SizeBytes   = sizeBytes,
     };
+
+    /// <summary>
+    /// FC-2/LV-1 — the size of the generated <c>__List_{Elem}_{N}</c> wrapper:
+    /// <c>alignUp(alignUp(4, align(elem)) + N*sizeof(elem), max(4, align(elem)))</c>
+    /// (an <c>int Count</c> padded to the element's alignment, then <c>N</c> elements).
+    ///
+    /// <para>
+    /// ⭐ <c>S4</c> made this <c>public</c>: <c>Stage4_TypeResolve</c> recomputes it when the
+    /// struct-size oracle (<c>S2</c>) corrects an element whose size the registry could only guess.
+    /// ⛔ <b>Recomputing means calling THIS</b> — the formula existing twice is how the wrapper's
+    /// declared size and its real size come to disagree.
+    /// </para>
+    /// </summary>
+    public static int ListWrapperSize(int capacity, int elementSizeBytes)
+    {
+        int elemAlign = elementSizeBytes switch { 1 => 1, 2 => 2, <= 4 => 4, _ => 8 };
+        int header    = AlignUp(4, elemAlign);                     // int Count + pad to element
+        return AlignUp(header + capacity * elementSizeBytes, Math.Max(4, elemAlign));
+    }
 
     /// <summary>FC-2/LV-1: element FQN → wrapper-name segment ('.'/'+' → '_', e.g. "System.Int32" → "System_Int32").</summary>
     private static string Sanitize(string fullName)
