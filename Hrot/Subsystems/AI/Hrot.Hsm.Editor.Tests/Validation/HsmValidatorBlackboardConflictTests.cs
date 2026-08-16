@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Fhsm.Kernel.Data;
 using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Hsm.Editor.Model;
@@ -21,7 +22,8 @@ public sealed class HsmValidatorBlackboardConflictTests
     private static HsmAsset MakeAsset(
         StateNode rootState,
         List<StateNode> allStates,
-        List<RegionNode>? allRegions = null)
+        List<RegionNode>? allRegions = null,
+        List<TransitionNode>? allTransitions = null)
     {
         return new HsmAsset(
             Guid.NewGuid(), "TestAsset", "", false, "",
@@ -29,7 +31,7 @@ public sealed class HsmValidatorBlackboardConflictTests
             new MachineMetadata(),
             rootState,
             allStates,
-            new List<TransitionNode>(),
+            allTransitions ?? new List<TransitionNode>(),
             new List<GlobalTransitionNode>(),
             allRegions ?? new List<RegionNode>(),
             new List<EventDefinition>());
@@ -304,6 +306,148 @@ public sealed class HsmValidatorBlackboardConflictTests
         var diagnostics = validator.Validate(asset, bb);
 
         Assert.DoesNotContain(diagnostics, d => d.Code == HsmDiagnosticCode.CrossRegionBlackboardConflict);
+    }
+    // ────────────────────────────────────────────────────────────────────────
+    // ⭐⭐⭐ W7c — the LOCALLY-BOUND writer style, which rule 9 could not see
+    // ────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 🔴🔴 <b>RED before <c>W7c</c>.</b> Two transitions, one in each region of the same parallel
+    /// composite, both writing the variable <b>directly</b> via <c>ExpressionTargetField</c> — the
+    /// locally-bound style. ⛔ <b>Neither records an alias</b>, so the rule saw <b>nothing</b> and the
+    /// panel reported the machine as clean.
+    ///
+    /// <para>
+    /// ⭐ §9.2 says the writer set is <i>"every action method that mutates this variable"</i> — not
+    /// "every alias". ⚠ <c>BP-240</c>'s shape a third time: a rule that is green because of what it
+    /// happens to look at.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Validate_TwoRegionsWriteViaExpressionTargetField_ProducesConflict()
+    {
+        var (asset, parallel) = MakeParallelAssetWithTransitions(
+            ("speed", 0), ("speed", 1));
+
+        var bb = new StubBlackboardAsset();
+        bb.AddVariable("speed", typeof(float));
+
+        var diagnostics = new HsmValidator().Validate(asset, bb);
+
+        var conflict = Assert.Single(
+            diagnostics, d => d.Code == HsmDiagnosticCode.CrossRegionBlackboardConflict);
+        Assert.Equal(HsmDiagnosticSeverity.Warning, conflict.Severity);
+        Assert.Contains(parallel.StableId, conflict.TargetStableIds);
+    }
+
+    /// <summary>
+    /// ⭐ <b>The union really is a union:</b> one writer of each style, in different regions, still
+    /// conflicts. ⚠ Without this, an implementation that swapped one enumeration for the other rather
+    /// than combining them would pass both single-style tests.
+    /// </summary>
+    [Fact]
+    public void Validate_OneAliasWriterAndOneExpressionTargetWriter_ProducesConflict()
+    {
+        var (asset, parallel, child0, _) = MakeParallelAsset();
+
+        // A transition out of the region-1 child, locally bound to "speed".
+        var child1 = asset.AllStates.Single(s => s.Name == "C1");
+        var t = new TransitionNode
+        {
+            VisualId              = Guid.NewGuid(),
+            Source                = child1,
+            Target                = child1,
+            ActionFunction        = "Some.Action",
+            ExpressionTargetField = "speed",
+        };
+        var withTransition = MakeAsset(
+            RootOf(parallel), new List<StateNode> { parallel, child0, child1 },
+            new List<RegionNode>(parallel.RegionNodes),
+            new List<TransitionNode> { t });
+
+        var bb = new StubBlackboardAsset();
+        bb.AddVariable("speed", typeof(float));
+        bb.AddAlias("speed", MakeBinding(Guid.NewGuid(), child0.StableId));   // region 0, alias style
+
+        var diagnostics = new HsmValidator().Validate(withTransition, bb);
+
+        Assert.Single(diagnostics, d => d.Code == HsmDiagnosticCode.CrossRegionBlackboardConflict);
+    }
+
+    /// <summary>
+    /// ⭐ <b>Same region ⇒ no conflict</b>, whichever style. ⚠ The rule is about CONCURRENCY, not about
+    /// two writers — an implementation that fired on any two writers would pass the tests above.
+    /// </summary>
+    [Fact]
+    public void Validate_TwoExpressionTargetWritersInTheSameRegion_ProducesNoConflict()
+    {
+        var (asset, _) = MakeParallelAssetWithTransitions(("speed", 0), ("speed", 0));
+
+        var bb = new StubBlackboardAsset();
+        bb.AddVariable("speed", typeof(float));
+
+        Assert.DoesNotContain(new HsmValidator().Validate(asset, bb),
+            d => d.Code == HsmDiagnosticCode.CrossRegionBlackboardConflict);
+    }
+
+    /// <summary>
+    /// ⭐ <b>A different variable is a different conflict.</b> ⚠ Guards against matching on
+    /// "has an ExpressionTargetField" rather than on the variable's own name.
+    /// </summary>
+    [Fact]
+    public void Validate_ExpressionTargetWritersOfDifferentVariables_ProduceNoConflict()
+    {
+        var (asset, _) = MakeParallelAssetWithTransitions(("speed", 0), ("heading", 1));
+
+        var bb = new StubBlackboardAsset();
+        bb.AddVariable("speed", typeof(float));
+        bb.AddVariable("heading", typeof(float));
+
+        Assert.DoesNotContain(new HsmValidator().Validate(asset, bb),
+            d => d.Code == HsmDiagnosticCode.CrossRegionBlackboardConflict);
+    }
+
+    // ---- helpers for the W7c cases -----------------------------------------
+
+    private static StateNode RootOf(StateNode parallel) => parallel.Parent!;
+
+    /// <summary>
+    /// A parallel composite with one child per region, plus one self-transition per
+    /// <c>(variableName, regionIndex)</c> pair, each locally bound via <c>ExpressionTargetField</c>.
+    /// </summary>
+    private static (HsmAsset Asset, StateNode Parallel) MakeParallelAssetWithTransitions(
+        params (string Variable, int Region)[] writers)
+    {
+        var root     = new StateNode("__root__");
+        var parallel = new StateNode("Parallel") { IsParallel = true, Parent = root };
+        root.Children.Add(parallel);
+
+        var regions = new List<RegionNode>();
+        var states  = new List<StateNode> { parallel };
+        var byRegion = new Dictionary<int, StateNode>();
+
+        foreach (int region in writers.Select(w => w.Region).Distinct().OrderBy(r => r))
+        {
+            var rn = new RegionNode($"R{region}") { RegionIndex = (byte)region };
+            parallel.RegionNodes.Add(rn);
+            regions.Add(rn);
+
+            var child = new StateNode($"C{region}") { RegionIndex = region, Parent = parallel };
+            parallel.Children.Add(child);
+            states.Add(child);
+            byRegion[region] = child;
+        }
+
+        var transitions = writers.Select(w => new TransitionNode
+        {
+            VisualId              = Guid.NewGuid(),
+            Source                = byRegion[w.Region],
+            Target                = byRegion[w.Region],
+            ActionFunction        = "Some.Action",   // ⚠ unknown FQN ⇒ conservatively a writer (§9.6)
+            ExpressionTargetField = w.Variable,
+        }).ToList();
+
+        return (MakeAsset(root, states, regions, transitions), parallel);
     }
 }
 
