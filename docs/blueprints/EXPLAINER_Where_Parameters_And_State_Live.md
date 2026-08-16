@@ -188,6 +188,34 @@ problem **at the identity layer**, and two different problems at the storage lay
 and compared against `BlueprintLatentCursor.InstanceVersion` to invalidate stale latent resumes — the
 blueprint twin of `BehaviorState.InstanceId`.
 
+### ⭐⭐⭐ USER RULINGS `2026-08-16` — blueprint as a behaviour
+
+| | ruling |
+|---|---|
+| **blueprint IS a brain tier** | *"exactly to inherit behavior lifecycle"* |
+| **latent ≠ ended** | a delay node does **not** end the behaviour ⇒ ⛔ **no brain death from a latent call.** Brain death comes only from the blueprint **exiting itself** or **external cancellation** |
+| ⭐ **tiers are NOT mutually exclusive** | *"strategical HSM on top with tactical BTree or blueprint under it (running as part of an HSM state)"* ⇒ **composition is an axis, not an alternative** |
+
+⇒ 📄 **[`Architect_Question_33_Blueprint_Brain_Tier.md`](Architect_Question_33_Blueprint_Brain_Tier.md)**
+carries what these leave open. ⭐ **Two measured facts drive it:**
+
+| | |
+|---|---|
+| ⭐⭐ **`BrainTier` is the ROOT interpreter** | composition is **subtree hosting** (`HsmStateDto.SubtreeAssetId`), a separate axis ⇒ *"blueprint as a tier"* and *"blueprint under an HSM state"* are **two mechanisms**, both needed |
+| 🔴 **latent REQUIRES Instance dispatch** | `StateStructBase` is **8** for AiPrimitive, **16** for Instance — and the 16 **is** the `BlueprintLatentCursor` ⇒ ⛔ **a blueprint hosted as an action node cannot suspend.** A latent blueprint under an HSM state needs the **Instance** path hosted as a sub-behaviour, **which exists in no host** |
+
+### ⚠ HSM's authoring model is ahead of its runtime — four places, one finding
+
+| | measured |
+|---|---|
+| `SubtreeAssetId` | read **only** by `HsmValidator`; FastHSM kernel **0**, HSM emitters **0**, shipped assets **0** |
+| `Role` / `Scope` | persisted, **0** references in either HSM emitter *(`BTreeBridgeEmitCore`: 45)* |
+| validator rules 8 / 8b | never fire — default no-op resolvers at both production call sites |
+| parallel regions | kernel runs them; the storage key has **no region in it** |
+
+⇒ ⭐ **BTree and blueprints both provision per-scope / per-slot storage. HSM alone does not.**
+⚠ **Whether these are phased or abandoned is `Q33-E` — a grep cannot answer it.**
+
 ### ⚠ Open, and genuinely the architect's
 
 | | |
