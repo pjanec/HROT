@@ -101,7 +101,7 @@ by construction** instead of true by convention.
 
 📌 **Three findings this programme derived the hard way were already written down:** the standalone
 `BTreeTick` hosting path (`SLICE1-DESIGN.md:82`) · the netstandard2.0/net8.0 wall duplicating whole
-algorithms (**`DEBT-AIB-012`**, filed `2026-06`) · the `MarshalFromBytes` struct arm being *designed in
+algorithms (**`BATCH-03-REPORT.md:100`**, `2026-06` — ⚠ **described as **`DEBT-AIB-012` (suggested)** and NEVER FILED**; that id belongs to a different, RESOLVED row. **Cite the report line**) · the `MarshalFromBytes` struct arm being *designed in
 and never built* (`_DONE/blueprints-1/TASK-DETAIL.md:1840`).
 
 ## ⛔⛔ WHO DESIGNS — **the coordinator, never the implementation session** *(user ruling, `2026-08-15`)*

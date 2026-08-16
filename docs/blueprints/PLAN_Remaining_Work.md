@@ -1,6 +1,11 @@
-# PLAN — what is left *(revision 7, `2026-08-16`)*
+# PLAN — what is left *(revision 8, `2026-08-16`)*
 
-> ⭐⭐⭐ **REVISION 7 (`2026-08-16`).** ✅ **Track E RAILS added** — 8 rows, *previously undefined*.
+> ⭐⭐⭐ **REVISION 8 (`2026-08-16`).** ✅ **Batch 65 MERGED at `8c09d5004`** — `S2`·`S4`·`S3`·`S5`, **Track B
+> complete**, `BP-01` closed, all eight gates coordinator-re-run and matching.
+> ⛔ **`DEBT-AIB-012` corrected everywhere** — the triplication was *described and never filed*; that id
+> belongs to a different, RESOLVED row. ⚠ **I propagated the wrong citation; the impl session caught it.**
+>
+> **REVISION 7 (`2026-08-16`).** ✅ **Track E RAILS added** — 8 rows, *previously undefined*.
 > 🔴 **Golden coverage MEASURED: `persistence-shape.txt` is 43 assets, ALL `.bp.json`, ZERO HSM/BTree**
 > ⇒ `E1`/`E3`/`E6` change emitted output with **no golden gate watching** — `BP-240`'s shape inverted.
 > ✅ **`E7a`'s host context RULED** — one interface argument, 📄 `DESIGN_Parameter_Model.md` §3.4.
@@ -41,18 +46,25 @@
 
 ---
 
-## 1. ✅ Done — merged through `9edf13fdf`
+## 1. ✅ Done — merged through `8c09d5004`
 
-Batches **56 · 58 · 57 · 59 · 60 · 61(1–2) · 63**. Phase A correctness is complete except `W6`/`W7`,
-which the sweep has now **re-specified** (§4).
+Batches **56 · 58 · 57 · 59 · 60 · 61(1–2) · 63 · 64(1) · ⭐ 65 (Track B, all four)**.
+Phase A correctness is complete except `W6`/`W7`, which the sweep has now **re-specified** (§4).
+⭐⭐ **Merged through `8c09d5004`** — all eight gates coordinator-re-run and matching (§1a).
 
 ---
 
-## 2. ⏭ Track B — struct support ⭐ **all three now have design records. Ready to build.**
+## 2. ✅ Track B — struct support ⭐⭐ **DONE, Batch 65 (`8c09d5004`), coordinator-verified.**
+
+⭐ **All four shipped: `S2` · `S4` · `S3` · `S5`.** ⛔ **`BP-01` CLOSED.** Tracker **open 61 / done 129**.
+📄 [`REPORT_Batch65_Track_B.md`](REPORT_Batch65_Track_B.md) — ⭐ **and it corrected a mis-citation I had
+propagated four times** *(`DEBT-AIB-012`, below)*.
+
+### The design records each was built to
 
 | | design record | what changed |
 |---|---|---|
-| **`S2`** struct size resolution | `.dev/btree-ai-action-binding/reports/BATCH-03-REPORT.md:34` — ⭐⭐ **a stated mandate**: *"`StructSizeResolver` lives in Generators and is **injected via `Func<string,int?>`**; Persistence stays netstandard2.0 / Roslyn-free"*, from a **user decision `2026-06-15`** (`TASK-DETAIL.md:58`) | ✅ **my lean CONFIRMED, with a shipped precedent** (`BTreeBlackboardPackHelper.Pack(vars, Func<string,int?>, out total)`) ⚠ **but `:100` files `DEBT-AIB-012`: the resolver is ALREADY a third copy of `ComputeStructSize`** ⇒ **a naïve `S2` makes a fourth** |
+| **`S2`** struct size resolution | `.dev/btree-ai-action-binding/reports/BATCH-03-REPORT.md:34` — ⭐⭐ **a stated mandate**: *"`StructSizeResolver` lives in Generators and is **injected via `Func<string,int?>`**; Persistence stays netstandard2.0 / Roslyn-free"*, from a **user decision `2026-06-15`** (`TASK-DETAIL.md:58`) | ✅ **my lean CONFIRMED, with a shipped precedent** (`BTreeBlackboardPackHelper.Pack(vars, Func<string,int?>, out total)`) ⚠ **but `:100` records the resolver as ALREADY a third copy of `ComputeStructSize`** ⇒ a naïve `S2` makes a fourth. ⛔ **CORRECTED `2026-08-16` (Batch 65 §5): that line says *`DEBT-AIB-012` (suggested)* and the id was ALREADY TAKEN by a resolved row** ⇒ **the debt has a description and NO ROW — cite `BATCH-03-REPORT.md:100`** |
 | **`S3`** `MarshalFromBytes` struct arm | `_DONE/blueprints-1/TASK-DETAIL.md:1840` — *"reflection-based for structs (UI decode only, not on the probe path)"*; `blueprint-dbg-1:193` — *"primitives/**small** structs only"* | ✅ **CONFIRMS** — ⭐ designed in from the start, **never built**. The record also **bounds** it |
 | **`S4`** fixed-list `Capacity` | ⭐ **outside `.dev/`** — `docs/blueprints/Blueprint_List_Variables_Design.md` §3:63–72 **specifies the exact missing branch**: *"`StaticTypeRegistry.TryResolve`: new branch — when `Capacity > 0` and the element resolves unmanaged, return the list `IrTypeRef` (unmanaged, real size)"* | 🔴 **REFINES** — a **designed-but-unbuilt branch**, not a bug. ⚠ Must honour `SizeReliable = false` and the `__List_{Elem}_{N}` wrapper name |
 | **`S5`** one picker | `blueprint-finalize/BF-BATCH-FIXEDSTRING-INSTRUCTIONS.md:33` treats **`SelectableTypeIds`** as *the* picker list; `EditorOfferableTypeIds` is never mentioned | ⭐ **CONFIRMS the defect is real and undocumented** — the second list grew later on the compiler side |
@@ -335,8 +347,7 @@ missing, not the analysis.** 📌 **Filed, not numbered** (rule 3).
 
 ## 7. ⭐ Order *(revised `2026-08-16`)*
 
-**Track B now** *(Batch 65, dispatched)* → **`S5`** *(the dialog's Type picker needs ONE offerable list)* →
-**`G4`** *(cheapest item on the page — a silent-overwrite guard, `W1`'s sibling)* →
+⭐⭐ **Track B and `S5` are DONE (Batch 65).** ⇒ next: **`G4`** *(cheapest item on the page — a silent-overwrite guard, `W1`'s sibling)* →
 **the surgical field write** →
 ⭐ **Track C**, now leading with **`C-sections`** *(split Variables per kind — §4g's ruling)*, then
 table → dialog → Watch → **`C-outline`** *(BTree/HSM supply their own section list)* →
