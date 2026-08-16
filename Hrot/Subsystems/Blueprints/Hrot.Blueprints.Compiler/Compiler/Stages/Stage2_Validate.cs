@@ -2,6 +2,7 @@ using System.Text.Json.Nodes;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Core.Compiler.Diagnostics;
+using Hrot.Blueprints.Core.Compiler.Transform;
 
 namespace Hrot.Blueprints.Core.Compiler.Stages;
 
@@ -156,6 +157,8 @@ internal sealed class V_DispatchKindCompatibility : IValidator
                 if (asset.Graphs.Any(g => g.Kind == GraphKind.Event))
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1025,
                         "AiPrimitive does not subscribe to engine events.", asset.AssetId));
+                // ⚠ The latency rail's Condition row is NOT here — it already ships as BP1101 in
+                // V_AiPrimitiveIntent below. See that validator for what Batch 67 widened.
                 break;
 
             case BlueprintDispatchKind.Instance:
@@ -176,6 +179,7 @@ internal sealed class V_DispatchKindCompatibility : IValidator
                 break;
         }
     }
+
 }
 
 // ---------------------------------------------------------------------------
@@ -532,6 +536,48 @@ internal sealed class V_VariablesAndState : IValidator
 // V_AiPrimitiveIntent
 // ---------------------------------------------------------------------------
 
+/// <summary>
+/// ⭐⭐ <b>The latency rail's <c>Condition</c> row — <c>BP1100</c> / <c>BP1101</c>.</b>
+///
+/// <para>
+/// 🔴 <b>What it protects.</b> <c>BTreeEvaluate</c> emits
+/// <c>return TickCore(…) == NodeStatus.Success;</c>, so <b><c>Running</c> maps to <c>false</c></b>. A
+/// latent condition reads <i>false</i> while it waits — indistinguishable from <i>"the condition does
+/// not hold"</i> — then flips true later with <c>__phase</c> left mid-sequence. ⛔ No throw, no
+/// warning; the tree simply takes the wrong branch.
+/// </para>
+///
+/// <para>
+/// ⭐⭐⭐ <b>Batch 67 WIDENED this rule rather than adding a second one.</b> The carried task described
+/// the Condition row as missing; measured, it has shipped as <c>BP1101</c> all along — but matching on
+/// its <b>own</b> inline list of three node types.
+/// </para>
+///
+/// <para>
+/// ⚠ <b>The kind that list did not name: a <c>ChannelCommandNode</c> carrying an <c>ActionFqn</c></b> —
+/// an inline action, which <c>WaitLowering</c> gives the same suspend/resume block split as a
+/// <c>Delay</c>. It is a fourth SHAPE of an already-listed type rather than a fourth type, which is
+/// why a type-match missed it. <c>MacroLatency</c>'s own doc records this kind as <i>"missing for six
+/// batches"</i> from the copy it replaced; ⭐ <b>this inline list was the last surviving copy</b>, and
+/// that doc says plainly <i>"do not write a second latent-detection rule"</i>. ⇒ the validator now
+/// calls the shared predicate.
+/// </para>
+///
+/// <para>
+/// 📌 <b>Latency behind a macro call needs no separate arm</b>, and one was written and then removed:
+/// the loop below scans <b>every</b> graph, macro bodies included, so a latent node in a called macro
+/// is already reported — against the macro that contains it. ⛔ A second, call-following arm produced
+/// only a duplicate diagnostic for one defect.
+/// </para>
+///
+/// <para>
+/// 📌 <b>Only the Condition row ships.</b> The rule is <i>"latency is legal iff the hosting can
+/// RE-ENTER"</i>. <c>BTreeCondition</c>/<c>HsmGuard</c> never can, which makes this row fully
+/// specified today. ⛔ The Action rows (HSM <c>Entry</c>/<c>Exit</c>/<c>Timer</c> cannot re-enter
+/// either) stay unimplemented deliberately — they are speculative until <c>E5</c> defines HSM activity
+/// hosting, and guessing them would refuse assets the design has not ruled on.
+/// </para>
+/// </summary>
 internal sealed class V_AiPrimitiveIntent : IValidator
 {
     public void Validate(BlueprintAsset asset, ValidationContext ctx)
@@ -543,24 +589,17 @@ internal sealed class V_AiPrimitiveIntent : IValidator
         {
             foreach (var node in graph.Nodes)
             {
-                switch (node)
-                {
-                    case ReturnNode rn when rn.Status == NodeStatus.Running:
-                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1100,
-                            "Condition intent: Return Running is forbidden. "
-                            + "Conditions must be instantaneous.",
-                            asset.AssetId, graph.Id, node.Id));
-                        break;
+                if (node is ReturnNode { Status: NodeStatus.Running })
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1100,
+                        "Condition intent: Return Running is forbidden. "
+                        + "Conditions must be instantaneous.",
+                        asset.AssetId, graph.Id, node.Id));
 
-                    case LatentDelayNode:
-                    case WaitForChannelNode:
-                    case WaitForEventNode:
-                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1101,
-                            "Condition intent: latent nodes are forbidden. "
-                            + "Condition graphs must be synchronous.",
-                            asset.AssetId, graph.Id, node.Id));
-                        break;
-                }
+                if (!MacroLatency.IsLatent(node)) continue;
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1101,
+                    "Condition intent: latent nodes are forbidden. "
+                    + "Condition graphs must be synchronous.",
+                    asset.AssetId, graph.Id, node.Id));
             }
         }
     }
