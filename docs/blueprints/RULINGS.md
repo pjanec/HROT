@@ -31,11 +31,11 @@
 |---|---|---|
 | **R-01** | ⭐⭐⭐ **`Variable` ≡ `WorkingState`. Two names, ONE concept.** Identical `(Role=State, Scope=Asset)`; only `Dispatch` differs, and the tag carries no information `Dispatch` did not already carry | `Variable_Model_Unification.md` §2 |
 | **R-02** | ⭐⭐ **User's own words:** *"as the global vars and working state vars are the same stuff, it makes no sense to emit them differently"* ⇒ `Q32-E`: **UNIFY** | `Architect_Question_32_…_ANSWERS.md` |
-| **R-03** | ⛔⛔ **The unification is UNFINISHED INFRASTRUCTURE, not a UI question.** Stages **A** ✅ and **C** ✅ shipped; ⛔ **`B` and `D` did NOT** | `Variable_Model_Unification.md` |
+| **R-03** | ⛔⛔ **The unification is UNFINISHED INFRASTRUCTURE, not a UI question.** ⚠⚠ **CORRECTED `2026-08-17`: the LIVE order is `0 → C → A → B → B′ → D1 → D2 → D3 → D4`** *(§4)*. ⛔⛔ **The `A→B→C→D` table BELOW THAT LINE IS SUPERSEDED — I quoted it in `Q39` and was wrong.** ⭐ **`C` ✅ and `A` ✅ shipped; `B` onward did not** | `Variable_Model_Unification.md` §4 |
 | **R-04** | ⭐⭐⭐ **`U-9` was built INVERSE of the plan — the tagged type is the VIEW, the three lists are still the STORAGE.** ⇒ **that is WHY every storage-reading surface still sees three concepts** | `BOOTSTRAP_Cross_Host_Variable_Model.md` |
-| **R-05** | ⭐⭐ **Stage `B`: `Variables` does NOT flow through `IVariablesSchemaSource`** — it has a separate path via `BlueprintMyBlueprintModel`. ⭐ **"the parallel implementation to remove"** | `Variable_Model_Unification.md` |
+| **R-05** | ⚠⚠ **CORRECTED.** ⛔ **Stage `B` is NOT "Variables becomes a schema source"** *(that is `A`, done)*. ⭐⭐ **LIVE `B` = "Details hosts the table; My Blueprint routes selection into it" — i.e. `U-6` / `Q32` batch 57.** ⭐ The parallel `BlueprintMyBlueprintModel` path is what it removes | `Variable_Model_Unification.md` §4 |
 | **R-06** | ⭐ **`Role` IS cross-host** — `BlackboardVariableRole { Input, State }` already ships and is the unified model. ⇒ **BTree/HSM working state ≡ blueprint working state** | `Variable_Model_Unification.md` |
-| **R-07** | ⛔⛔ **`Scope` is NOT cross-host** — blueprint `{Asset, Graph}` = **visibility**; AI `{Node, Behavior, Entity}` = **blackboard slot sharing**. `Q-b`: *"No. `Asset` and `Graph`, and stop there"* | `Variable_Model_Unification.md` |
+| ⚠ **R-07** | ⚠⚠ **UNRECONCILED — `DESIGN_Parameter_Model.md` (marked AUTHORITATIVE, `2026-08-16`) gives ONE three-valued `Scope` `{Node,Behavior,Entity}`, contradicting this.** ⛔ **Reconcile before acting.** As ruled by `Q-b` *(`2026-08-13`)*: **`Scope` is NOT cross-host** — blueprint `{Asset, Graph}` = **visibility**; AI `{Node, Behavior, Entity}` = **blackboard slot sharing**. `Q-b`: *"No. `Asset` and `Graph`, and stop there"* | `Variable_Model_Unification.md` |
 | **R-08** | ⚠ **`Inputs`/`Parameter` IS genuinely different** — `ParameterDecl` is a different shape, written once at behavior assignment, and the IR union has **no `Parameters` arm** | `BlueprintDeclaration.cs`, `VariableRef.cs` |
 | **R-09** | ⚠⚠ **Stage `D` hazards:** synthesized fields (`__phase`, `__waitUntilTime`) are `(State, Asset)` but **never declared** ⇒ **they surface in the authoring UI without a marker**; **shared state** has **61 refs / 8 assets** declared nowhere | `Variable_Model_Unification.md` |
 
@@ -97,6 +97,18 @@
 | `Q12-C`'s architect answer | ⚠ **superseded by the user** — check before relying on it |
 | ⚠ **stale STATUS docs** | ⛔ **`Blueprint_Editor_Issue_List.md` is SUPERSEDED — do not use for status.** ⚠ `RESUME_START_HERE.md` and `CHECKLIST_…`'s headline lag `PLAN` rev 26 |
 
+## 1e. 🔴🔴 FORGOTTEN & ROTTED — **found by the supersession sweep, `2026-08-17`**
+
+| id | ⚠ | source |
+|---|---|---|
+| 🔴🔴 **R-52** | ⛔⛔ **A LIVE DATA-CORRUPTION DEFECT ON NO WORK LIST:** the staged write takes a **whole component** and writes it with `SetComponentRaw` (no offset) ⇒ ⭐⭐ **editing ONE blueprint variable REVERTS A TICK of BTree and HSM state** on the shared `Blackboard1024`. ⚠⚠ **Batches 79/80 just made that editing reachable.** ⭐ Needs `SetComponentFieldRaw` | `PLAN…:1398` · `DESIGN_Variable_Details_And_Editing.md:353` |
+| ⚠ **R-53** | ⛔ **"Do NOT ship `WorkingState` LISTS"** before the `AttachSlotsToMemory`/`InlineActionLowering` fix — **garbage-`Count` OOB hazard.** ⚠ **Working State is now a first-class authoring section with its own `[+]`** | `Blueprint_Fixed_Collections_TASK_TRACKER.md:190` |
+| ⚠ **R-54** | ⭐ **`U-16` is gated: retire `BlueprintVariablesWindow` ONLY AFTER Details is proven** — *"or there is no editing surface at all."* ⛔ **Nothing is scheduled to satisfy ruling 9** | `Q32_…_ANSWERS.md:503` |
+| ⚠ **R-55** | ⭐ **`Q32` ruling 12's GATE was never carried into any acceptance list:** *"with the sim frozen on a breakpoint, a value change is visible in BOTH panels within one frame."* ⛔ **Measure it, do not assume** | `Q32_…_ANSWERS.md:95` |
+| ⚠ **R-56** | ⛔ **`Q34` freeze is LIVE:** Track C row identity gains a 4th component — ⭐ **"do not build for it until this lands"**, and row identity is being actively extended | `Architect_Question_34_…:75` |
+| ⛔ **R-57** | ⚠⚠ **`BP1031` is RETIRED — but FOUR design docs still describe it as live**, including `DESIGN_Parameter_Model.md`, the one this ledger sends you to | `Blueprint_Issues_Tracker.md` BP-278 |
+| ⛔ **R-58** | ⚠ **`DESIGN_Variable_Details_And_Editing.md:351` still orders STATIC PARAMETERS retired — that was WITHDRAWN** *(the premise was inverted; it is the only LIVE surface)* | `HANDOFF_Batch74…:117` · BP-295 |
+
 ## 2. ⭐⭐ SURFACES AND DUPLICATION
 
 | id | ⭐ the ruling | source |
@@ -113,7 +125,7 @@
 | **R-14** | ⭐⭐ **A variable's classification is WHERE IT WAS CREATED.** ⛔ **NO `Role`/`Scope` dropdown anywhere — the SECTION is the control** | `DESIGN_Variable_Details_And_Editing.md` §1c |
 | **R-15** | ⭐ **An empty section STAYS PRESENT** — *"a section that appears and disappears reads as a broken feature"* | `BlueprintMyBlueprintModel.cs` |
 | **R-16** | ⭐ **`Q26-B2`: a refusable `[+]` STAYS and refuses out loud, naming the reason** — ⛔ it does not vanish. ⭐⭐ **`2026-08-17` user refinement: GREY it with a tooltip — greying is not vanishing, and it removes the false expectation** | `BlueprintMyBlueprintModel.cs` + user |
-| **R-17** | ⛔⛔ **OVERRULED `2026-08-17`:** the *"quick-add, not a modal"* choice for Inputs/Working State. ⭐ **User: every section's `[+]` opens the SAME dialog** | user, `2026-08-17` |
+| **R-17** | ⭐ **The *"quick-add, not a modal"* choice was OVERRULED by the user** — every section's `[+]` should open the SAME dialog. ⛔⛔ **BUT DO NOT BUILD IT YET:** `Q39` pulls it, because a create-dialog **per section** hardens a split stage `D` collapses. ⚠⚠ **This row previously read as a build order and contradicted `Q39` — my error, `2026-08-17`** | user + `Q39` |
 | **R-18** | ⭐ **Rename lives in the OUTLINE, not the table row menu** — a row is an observation with no asset handle | `Q32` / plan §4C |
 | **R-19** | ⭐ **Details is authoring+runtime; Watch is runtime-only.** ⛔ **Do NOT "fix" that into consistency** — ruling 9 forbids two implementations of one concept, not two behaviours of two concepts | `Architect_Question_32_…_ANSWERS.md` |
 | **R-20** | ⭐ **Run state governs WRITABILITY, not WHICH surface is shown** | `DESIGN_Variable_Details_And_Editing.md` §5 |
@@ -152,6 +164,10 @@ wearing a design document's name.
 
 <!-- MACHINE-CHECKABLE PROBES — id | file | verbatim substring that MUST exist in that file -->
 ```probes
+R-52 | docs/blueprints/DESIGN_Variable_Details_And_Editing.md | prerequisite, either way
+R-57 | docs/blueprints/Blueprint_Issues_Tracker.md | is RETIRED, and the batch that needed it had not been told
+R-03 | docs/blueprints/Variable_Model_Unification.md | order below the line is SUPERSEDED
+R-05 | docs/blueprints/Variable_Model_Unification.md | Details hosts the table; My Blueprint routes selection into it
 R-21 | docs/blueprints/Architect_Question_32_Variable_Details_And_Values_ANSWERS.md | AND A SEQUENCING RULING: NO VISUAL CHECKS
 R-22 | docs/blueprints/Architect_Question_32_Variable_Details_And_Values_ANSWERS.md | the emitter + access-path unification
 R-23 | docs/blueprints/Variable_Model_Unification.md | consumers moved off the old views, in dependency order
