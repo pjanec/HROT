@@ -83,42 +83,84 @@ invalidate this reasoning, and ⭐ **it is a design question, not an implementat
 
 ---
 
-## 3. ⭐⭐ Item 2 — **the quick-add's OWN JUSTIFICATION depends on item 1**
+## 3. ⛔⛔ Item 2 — **the quick-add is OVERRULED: every section's `[+]` opens the SAME dialog**
 
-> ⭐ **User, A6:** *"Clicking [+] in Working State section adds immediately 'NewState' in that section,
-> **no dialog** for selecting data type etc."*
+> ⭐⭐⭐ **USER RULING, `2026-08-17`, verbatim:** *"working state `[+]` opening no dialog is **wrong,
+> inconsistent**. **Must open new variable dialog same as any other variable section.**"*
 
-⛔ **This is NOT a defect — it is documented, deliberate, and the design note says so:**
+⚠ **I initially filed this as *not a defect*, because the design note calls it a deliberate choice:**
 
-> 📌 **`BlueprintDocumentFactory.cs:1693-1698`, verbatim:** *"⭐ **Quick-add, not a modal** — deliberately
-> unlike `editor.create-variable`… ⚠ Stated so it reads as a choice rather than an omission: **the
-> created declaration is renamable and retypable in place**, exactly like `AddVariable`'s `NewVar`."*
+> 📌 **`BlueprintDocumentFactory.cs:1693-1698`:** *"⭐ Quick-add, not a modal — deliberately unlike
+> `editor.create-variable`… the created declaration is **renamable and retypable in place**."*
 
-⇒ ⭐⭐⭐ **The choice was sound and its PREMISE IS FALSE.** ⛔ **"Renamable in place" is precisely what
-§1 proves does not work** — so the quick-add currently produces a declaration named `NewState` that the
-designer **cannot rename, cannot retype and cannot delete.**
+⇒ ⛔⛔ **The user has overruled it, and the record supports them twice over:**
 
-| ⇒ | |
+| | |
 |---|---|
-| ⭐⭐ **Fixing §1 restores the premise** — ⛔ **do not add a modal**; that would discard a deliberate design choice to work around a bug | |
-| ⚠ **BUT verify the OTHER half: "retypable in place."** ⭐ **If there is no type editor on those rows either, the premise is still false after §1** — ⛔ **and then it IS a finding.** 📌 **Report it; do not silently build a type picker** | |
+| ⭐⭐ **its premise is FALSE** | *"renamable in place"* is exactly what §1 proves does not work |
+| ⭐⭐⭐ **and CONSISTENCY outranks the saving** | ⛔ **the note weighed "a second modal" against nothing.** ⭐ **The real cost it skipped is a designer learning TWO different meanings for one button** |
+
+⇒ ⭐ **`editor.create-parameter` and `editor.create-working-state` open the SAME modal
+`editor.create-variable` does**, taking a **name and a TYPE**, and create a declaration of **that
+section's kind**. ⛔ **Not a third modal — the same one, parameterised by kind.**
+
+⚠ **Update the design note in place.** ⛔ **Do not leave a comment asserting a choice that was
+reversed** — *"a doc asserting an unbuilt feature is worse than the gap"* *(plan §4C)*, and this is the
+same failure pointed the other way.
+
+📌 **`AddDeclaration` stays** — it is the one path that knows the kind→concrete-type mapping. ⭐ **The
+modal supplies name and type; `AddDeclaration` still builds the declaration.**
 
 ---
 
-## 4. ⚠ Item 3 — **the Macro refusal fires too late**
+## 4. ⭐⭐⭐ Item 3 — **DISABLE the `[+]`, do not let it be clicked and then refuse**
 
-> ⭐ **User, A7:** *"Clicking on Local variable section's [+] **showed New variable dialog** and **only
-> once confirmed** is shown the refusal indicator."*
+> ⭐⭐⭐ **USER RULING, `2026-08-17`, verbatim:** *"**Disabling/graying a `[+]`** on variable section but
+> **showing explanatory tooltip** (same as the info window now) **would be better than allowing user to
+> click the button and then saying that it is not possible** — same information value, **no false
+> expectations**."*
 
-⭐ **Refusing OUT LOUD is correct and is a ruling** — 📌 `Q26-B2`, restated at
-`BlueprintMyBlueprintModel.cs:116`: *"the '+' stays and REFUSES OUT LOUD, naming the reason, rather than
-vanishing and teaching nothing."*
+### ⭐⭐ This does NOT contradict `Q26-B2` — read the ruling carefully
 
-⛔ **What is wrong is the ORDER.** ⚠ **Making a designer name and type a variable before telling them it
-cannot exist is worse than a disabled button** — it teaches the reason *after* wasting the work.
+📌 **`Q26-B2`, restated at `BlueprintMyBlueprintModel.cs:116`:** *"the '+' **stays** and REFUSES OUT
+LOUD, naming the reason, rather than **vanishing** and teaching nothing."*
 
-⇒ ⭐ **Refuse BEFORE the modal opens.** ⛔ **Do not make the "+" vanish** — that is the thing the ruling
-forbids. ⭐ **Keep the indicator; move it earlier.**
+⇒ ⭐⭐⭐ **The ruling forbids VANISHING. Greying is not vanishing.**
+
+| | `Q26-B2` demands | ⭐ greyed + tooltip |
+|---|---|---|
+| the `[+]` stays visible | ✅ | ✅ |
+| the reason is taught | ✅ | ✅ **in the tooltip, BEFORE the work** |
+| ⭐ **no wasted authoring** | ⛔ **not addressed — the ruling never considered the order** | ✅ |
+
+⇒ ⭐ **This is a REFINEMENT of `Q26-B2`, not a reversal.** ⛔ **Record it as such** in the design note,
+citing the user and the date.
+
+### ⚠⚠ The cost — **measured, and it crosses the NodeEdit boundary**
+
+📐 **`MyBlueprintSectionDescriptor` lives in `NodeEditor.Core`** *(`FDP/ExtDeps/NodeEdit/src/NodeEditor.Core/Interfaces/IMyBlueprintModel.cs:24`)*:
+
+```csharp
+public sealed record MyBlueprintSectionDescriptor(
+    …, bool CanCreateItems, …, string? CreateCommandId);   // ⛔ no reason, no disabled state
+```
+
+| ⚠ what this needs | where |
+|---|---|
+| a **reason** field *(e.g. `string? CreateDisabledReason`)* | ⛔ **`NodeEditor.Core`** |
+| the panel drawing it **greyed with a tooltip** | ⛔ **`NodeEditor.UI`** |
+| ⭐⭐ **descriptors that vary PER GRAPH** | ⚠ **`BlueprintMyBlueprintModel._sections` is `static readonly` — ONE instance for every asset and every graph.** 📌 **That is the stated reason `CanCreateItems` could not vary**, and it is now the thing that must change |
+
+⛔⛔ **Both NodeEdit assemblies are OUT OF SOLUTION ⇒ their gates take NO `--no-build`.** ⭐ **This is
+the "two NodeEdit gates" cost the existing comments cite twice — pay it deliberately, and say in your
+report that you did.**
+
+⭐ **Make it GENERAL, not macro-specific** *(round-out preference)*: any section that cannot currently
+create says **why**. ⛔ **Do not special-case the macro-locals arm** — the same mechanism should serve
+every future refusal.
+
+⚠ **If the per-graph descriptor change turns out to be large, STOP and report** — ⭐ **splitting item 3
+into its own batch is a legitimate outcome; items 1 and 2 stand alone.**
 
 ---
 

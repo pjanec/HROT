@@ -1,6 +1,11 @@
 # HANDOFF — Batch 81: **the surfaces reach the user**
 
-> 📌 **Dispatched at `8f145e40e`** *(coordinator head; branch from it — rule 7)*.
+> 📌 **AMENDED and RE-STAMPED — dispatched at `e13220a98`** *(rule 1a; the original stamp was
+> `8f145e40e`)*. ⚠ **Checked first:** `git merge-base --is-ancestor 8f145e40e origin/…-j1jvin` ⇒ **NO**,
+> and **no `started batch 81` marker exists** — their remote head is still Batch 80's report.
+> ⛔⛔ **Rule 1b: that is CORROBORATION, NOT PROOF.** ⭐ **If you had already merged the dispatch and
+> begun work locally, SAY SO and I will re-issue §2's change as its own batch instead.**
+> ⭐ **What changed: §2 only** — the user has ruled on *how* to resolve the title collision.
 > ⭐⭐ **Source: the user's FIRST VISUAL CHECK**, run `2026-08-17` against Batch 80. 📄 [`GUIDE_Track_C_Visual_Check.md`](GUIDE_Track_C_Visual_Check.md)
 > ⛔ **Rule 3: allocate your own ids.** Every `BP-`/`DEBT-` number below is a placeholder.
 > ⭐ **Rule 1b: push the `chore: started batch 81 at <sha>` marker before writing any code.**
@@ -95,10 +100,23 @@ user simply could not reach it.
 now."* ⇒ ⭐ **duplicate SURFACE, and the merge is `Q38`.** ⛔ **Coexistence is deliberate; the
 INDISTINGUISHABILITY is the defect.**
 
-⇒ ⭐ **Retitle so a designer can name what they are looking at.** ⚠ **Your call which** — the constraint
-is that after this batch **the user can open the Track C table on Blueprint on purpose.** ⭐ **A rail on
-title distinctness per perspective** is the durable half *(the existing distinctness rails cover window
-IDs, ⛔ not titles — that is the hole)*.
+### ⭐⭐⭐ The user has ruled on the resolution — ⛔ **RENAME, and not only these three**
+
+> ⭐⭐⭐ **USER RULING, `2026-08-17`, verbatim:** *"**If many different windows and title 'Variables',
+> rename them to unique names pls.**"*
+
+⇒ ⛔ **Not "your call which" any more** *(that was the original stamp)*. ⭐ **Give each a name that says
+what it IS**, so a designer can ask for one by name.
+
+| ⭐ | |
+|---|---|
+| ⭐⭐ **SWEEP, do not spot-fix** | ⛔ **The user said *"many different windows"* — ⚠ I measured only the `"Variables"` collision.** ⭐⭐ **Find every duplicate title across the three perspectives and report the full list**, then rename. 📐 **There are 50 `ManagedWindow` subclasses** *(`Q38` §1)* |
+| ⭐⭐ **name by ROLE, not by assembly** | ⛔ **"AiVariablesWindow" is an implementation name.** ⭐ A designer distinguishes *what it shows*, not which DLL it came from |
+| ⚠ **titles are USER-FACING strings** | ⭐ **They are also what layout persistence and the dock may key on — CHECK before renaming**, and say in your report whether any saved layout is affected |
+| ⭐ **the durable half** | ⭐⭐ **a rail on TITLE distinctness per perspective.** ⛔ **The existing distinctness rails cover window IDs, not titles — that is the hole this fell through** |
+
+⛔ **Still not a removal** — all three surfaces keep drawing. ⭐ **Renaming is what makes the deliberate
+coexistence usable until `Q38` decides the merge.**
 
 ---
 
