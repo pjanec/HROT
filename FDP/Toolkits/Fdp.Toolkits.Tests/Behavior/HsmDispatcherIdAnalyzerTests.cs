@@ -102,23 +102,39 @@ namespace Generated.Bridge
     }}
 }}";
 
-        /// <summary>One <c>[HsmAction]</c> whose registered NAME (and therefore id) the caller picks.</summary>
+        /// <summary>
+        /// One <c>[HsmAction]</c> whose id the caller picks.
+        ///
+        /// <para>
+        /// ⭐⭐ <b>Batch 72 / <c>E6</c> ruling (A): the caller now picks the METHOD NAME, not a
+        /// <c>Name =</c> override.</b> The id is <c>FNV(fully-qualified name)</c>, so a display-name
+        /// override no longer moves it — see <c>HsmActionKey.ForActionName</c>. ⛔ The fixture had to
+        /// move with the ruling: it used to vary <c>Name =</c> while every method was
+        /// <c>Method{i}</c>, which under (A) makes every fixture the SAME id.
+        /// </para>
+        /// </summary>
         private static string ActionSource(params string[] actionNames)
         {
-            var body = string.Join("\n", actionNames.Select((n, i) => $@"
-        [Fhsm.Kernel.Attributes.HsmAction(Name = ""{n}"")]
-        public static unsafe void Method{i}(void* inst, void* ctx, Fhsm.Kernel.Data.HsmCommandWriter* w) {{ }}"));
+            var body = string.Join("\n", actionNames.Select(n => $@"
+        [Fhsm.Kernel.Attributes.HsmAction]
+        public static unsafe void {n}(void* inst, void* ctx, Fhsm.Kernel.Data.HsmCommandWriter* w) {{ }}"));
 
             return "namespace Fixture\n{\n    public static class Nodes\n    {" + body + "\n    }\n}";
         }
+
+        /// <summary>The container the action fixtures live in — half of the id under ruling (A).</summary>
+        private const string ActionContainer = "Fixture.Nodes";
+
+        /// <summary>The container the guard fixtures live in.</summary>
+        private const string GuardContainer = "Fixture.Guards";
 
         private static string GuardSource(string guardName) => $@"
 namespace Fixture
 {{
     public static class Guards
     {{
-        [Fhsm.Kernel.Attributes.HsmGuard(Name = ""{guardName}"")]
-        public static unsafe bool Gate(void* inst, void* ctx, ushort ev) => true;
+        [Fhsm.Kernel.Attributes.HsmGuard]
+        public static unsafe bool {guardName}(void* inst, void* ctx, ushort ev) => true;
     }}
 }}";
 
@@ -176,17 +192,33 @@ namespace Fixture
             return (ushort)(hash & 0xFFFF);
         }
 
-        /// <summary>A name whose FNV-1a-16 hash is <paramref name="target"/>. ⚠ Fails loudly rather than silently returning null.</summary>
-        private static string NameHashingTo(ushort target, string prefix = "Act")
+        /// <summary>
+        /// A METHOD name whose fully-qualified form hashes to <paramref name="target"/>.
+        /// ⚠ Fails loudly rather than silently returning null.
+        ///
+        /// <para>
+        /// ⭐⭐ <b>Batch 72 / ruling (A): the search runs over <c>{container}.{candidate}</c>, not over
+        /// the bare name.</b> That is what the generator hashes now, and a fixture searching the bare
+        /// name would hit a target the generator never produces — a fixture testing itself.
+        /// </para>
+        /// </summary>
+        private static string NameHashingTo(ushort target, string prefix = "Act",
+                                            string container = ActionContainer)
         {
             for (int i = 0; i < 5_000_000; i++)
             {
                 var candidate = prefix + i;
-                if (Fnv1a16(candidate) == target) return candidate;
+                if (Fnv1a16(container + "." + candidate) == target) return candidate;
             }
             throw new InvalidOperationException(
-                $"no {prefix}* name found hashing to 0x{target:X4} — widen the search");
+                $"no {container}.{prefix}* name found hashing to 0x{target:X4} — widen the search");
         }
+
+        /// <summary>The id the generator gives an action fixture named <paramref name="method"/>.</summary>
+        private static ushort ActionId(string method) => Fnv1a16(ActionContainer + "." + method);
+
+        /// <summary>The id the generator gives a guard fixture named <paramref name="method"/>.</summary>
+        private static ushort GuardId(string method) => Fnv1a16(GuardContainer + "." + method);
 
         private static int CountOf(ImmutableArray<Diagnostic> diags, string id)
             => diags.Count(d => d.Id == id);
@@ -218,7 +250,10 @@ namespace Fixture
             Assert.Equal(2, CountOf(diags, "BHU_020"));   // reported on BOTH participants
             Assert.Contains(diags, d => d.Id == "BHU_020" && d.GetMessage().Contains("__hsActionStub"));
             // ⭐ And it names BOTH sides, so the author can see what the stub displaced.
-            Assert.Contains(diags, d => d.Id == "BHU_020" && d.GetMessage().Contains("Method0"));
+            // ⚠ Batch 72 / ruling (A): the diagnostic names the FULLY QUALIFIED method, because that is
+            //   now what the id is computed from. It used to name the `Name =` override.
+            Assert.Contains(diags, d => d.Id == "BHU_020"
+                                     && d.GetMessage().Contains($"{ActionContainer}.{name}"));
         }
 
         /// <summary>
@@ -229,7 +264,7 @@ namespace Fixture
         [Fact]
         public async Task TheGuardStubWindowCollision_IsCaught()
         {
-            var name = NameHashingTo(200, "Grd");
+            var name = NameHashingTo(200, "Grd", GuardContainer);
             var (diags, registrar) = await RunAsync(GuardSource(name), BridgeStubRegistrar());
 
             Assert.Contains("RegisterGuard(200,", registrar);
@@ -249,7 +284,7 @@ namespace Fixture
         public async Task TwoActionNamesWithTheSameHash_AreRefused()
         {
             const string first = "AlphaAction";
-            var target = Fnv1a16(first);
+            var target = ActionId(first);            // ⭐ the FQN's hash -- what the generator emits
             var second = NameHashingTo(target, "Coll");
 
             Assert.NotEqual(first, second);
@@ -294,7 +329,7 @@ namespace Fixture
         [Fact]
         public async Task AGuardNameHashingToZero_IsRefused_AndSaysTheGateOpens()
         {
-            var (diags, _) = await RunAsync(GuardSource(NameHashingTo(0, "Grd")));
+            var (diags, _) = await RunAsync(GuardSource(NameHashingTo(0, "Grd", GuardContainer)));
             var d = Assert.Single(diags.Where(x => x.Id == "BHU_021"));
             Assert.Contains("unconditionally true", d.GetMessage());
         }
@@ -313,8 +348,8 @@ namespace Fixture
         public async Task AnActionAndAGuardSharingAnId_AreNotACollision()
         {
             const string actionName = "SharedIdAction";
-            var target = Fnv1a16(actionName);
-            var guardName = NameHashingTo(target, "Grd");
+            var target = ActionId(actionName);       // ⭐ the FQN's hash
+            var guardName = NameHashingTo(target, "Grd", GuardContainer);
 
             var (diags, _) = await RunAsync(ActionSource(actionName), GuardSource(guardName));
 
