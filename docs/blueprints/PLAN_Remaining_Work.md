@@ -1,6 +1,12 @@
-# PLAN — what is left *(revision 10, `2026-08-16`)*
+# PLAN — what is left *(revision 11, `2026-08-16`)*
 
-> ⭐⭐⭐ **REVISION 10 (`2026-08-16`).** ✅ **Batch 66 MERGED at `3ed92905a`** — `G4` · **the surgical
+> ⭐⭐⭐ **REVISION 11 (`2026-08-16`).** ✅ **Batch 67 MERGED at `f52b1af15`** — `W7c` · `W7a` · `G3` ·
+> **`E1`+`E2`** · the owed rail · **the twice-carried latency rail** (§4A2).
+> ⛔ **`G3` was ALREADY SHIPPED** — I corrected a bad citation and wrongly discarded the right conclusion.
+> 🔴 **`E4` is FILED as `DEBT-AIB-028` with an activation recipe**, and **`E5` gains a prerequisite:
+> `StateNode.SubtreeAssetId` is not persisted.** ⭐ **New `E0`: the HSM golden harness, its own batch.**
+>
+> **REVISION 10 (`2026-08-16`).** ✅ **Batch 66 MERGED at `3ed92905a`** — `G4` · **the surgical
 > write (the last live defect)** · `G1` · `C-sections`. ⭐⭐ **`G4` grew correctly** — the name guard was
 > necessary but not sufficient; **two distinct names can hash to one id** (§4A).
 > ✅ **Ruling: the throwing default on `IEntityCommandBuffer` is accepted**, with a reflection rail owed.
@@ -57,12 +63,12 @@
 
 ---
 
-## 1. ✅ Done — merged through `3ed92905a`
+## 1. ✅ Done — merged through `f52b1af15`
 
 Batches **56 · 58 · 57 · 59 · 60 · 61(1–2) · 63 · 64(1) · 65 (Track B, all four) · ⭐ 66 (`G4` · the
-surgical write · `G1` · `C-sections`)**.
+surgical write · `G1` · `C-sections`) · ⭐ 67 (`W7c` · `W7a` · `G3` · `E1`+`E2` · 2 rails)**.
 Phase A correctness is complete except `W6`/`W7`, which the sweep has now **re-specified** (§4).
-⭐⭐ **Merged through `3ed92905a`** — gates coordinator-re-run each time. Tracker **open 61 / done 133**.
+⭐⭐ **Merged through `f52b1af15`** — gates coordinator-re-run each time. Tracker **open 61 / done 139**.
 
 ---
 
@@ -320,6 +326,54 @@ full run stand as evidence either**, for the same reason.
 
 ---
 
+## 4A2. ✅ Batch 67 — verified, merged, and ⛔ **it corrected me twice more**
+
+📄 [`REPORT_Batch67_Conflicts_Singletons_HsmState.md`](REPORT_Batch67_Conflicts_Singletons_HsmState.md).
+⭐ **`W7c` · `W7a` · `G3` · `E1`+`E2` · the owed reflection rail · ⭐ the twice-carried latency rail.**
+⭐⭐ **They added an `Hsm.Editor` gate themselves** — *"not a standing gate — the diff reaches it."*
+
+### ⛔⛔ `G3` was ALREADY SHIPPED — my premise was wrong
+
+`IGeographicTransform` carries **`[ComponentId(GlobalComponentIds.IGeographicTransform)]`** and is
+published with **`SetSingletonManaged` at THREE production sites** (`CgfSubsystem:249`,
+`SimHostApp:488`, `EditorSubsystem:624`) — ⭐ **the identical mechanism `NetworkEntityMap` uses.**
+⇒ **only the RAIL was missing.**
+
+⚠ **My *"constructor-injected ⇒ unreachable from the world"* named a second CONSUMER, not a second
+mechanism** — `GeographicModule`/`CoordinateTransformSystem` exist **before the world does**.
+
+🔴🔴 **The lesson, and it is a new shape:** rev-3 said *"world-singleton is shipped ⇒ adopt, do not
+coin."* I found its **citation** wrong (`RegisterWorldSingleton` registers a blueprint to tick) and
+⛔ **discarded the CONCLUSION along with it** — which was right all along, via a third mechanism I had
+not found. ⇒ ⭐⭐ **Correcting a bad citation is not grounds for reversing the claim it was attached to.**
+
+📌 **They also caught their own test passing VACUOUSLY** — `PickableGeoPoint` serialises as a
+**`[lat, lon]` array**, so an object-shaped fixture deserialised to zeros and `0 != 14` satisfied a weak
+assertion. ⭐ **Fixture corrected to pin the real converted value.**
+
+### ✅ The corpus decision — **(b), accepted, with the follow-up promoted**
+
+⭐⭐ **Their reframing is right and I had it too small:** ⛔ **(a) is not *"add some HSM assets"* — there
+is NO HSM golden harness at all**: no corpus, no shape file, no structure-hash gate.
+⇒ ⭐ **Building one is a batch of its own — and it is the same batch that gives `E3`–`E7` their
+regression floor.** 📌 **Promoted to a Track E prerequisite (§4B).**
+
+### ⭐⭐⭐ `W7c`'s boundary uncovered a FILED row that is Track E's own
+
+⛔ **§9.5's Sync-Out half is out of scope because `StateNode.SubtreeAssetId` is NOT PERSISTED** — and
+that is **`DEBT-AIB-028`**, which already contains **my `E4` verbatim** plus an activation recipe:
+
+> *"(a) `StateNode.SubtreeAssetId` is a NEW field, **not persisted to JSON**… (b) `_isStatefulSubtree`
+> defaults to `_ => false` and **production never supplies a real resolver**; (c) the production
+> `HsmAssetValidator` entry point **isn't threaded** to pass the resolver. Activation needs: persist the
+> HSM subtree reference, a `BehaviorTreeAsset.HasAnyStatefulNode()` + HSM equivalent, wire
+> `id => catalog.TryFind(id,out a) && a.HasAnyStatefulNode()` through the production validator ctor."*
+
+⇒ ⭐⭐ **Fourth time the `.dev/` corpus already held the answer.** 📌 **`DEBT-AIB-029`** adds: the check
+walks **DIRECT children only** — a stateful subtree nested deeper is undetected.
+
+---
+
 ## 4B. ⏭ Track E — ⭐⭐⭐ **HSM catch-up** *(the gaps, collected)*
 
 > ⛔⛔ **USER RULING `2026-08-16`:** *"the HSM integration is in bad shape now, for long time not updated
@@ -334,19 +388,27 @@ throughout — adopt, do not invent.**
 
 | | item | measured gap | depends on |
 |---|---|---|---|
-| **`E1`** | ⭐ **emitter consumes `Role`/`Scope`** | `HsmEmitCore` + `HsmBridgeEmitCore`: **0** refs; `BTreeBridgeEmitCore`: **45**. `HsmBlackboardVariableDto` persists both faithfully ⇒ **HSM has NO authored variables at runtime at all** | — ⭐ **the entry point; everything else assumes it** |
-| **`E2`** | **slot provisioning, BTree-style** | adopt `ComputeStatefulSlotKey` + `BlueprintBlackboardPartitions` — ⭐ **the same allocator Instances and the BTree bridge already share** | `E1` |
+| ~~`E1`~~ | ✅ **DONE (Batch 67)** — emitter consumes `Role`/`Scope` | `HsmEmitCore` + `HsmBridgeEmitCore`: **0** refs; `BTreeBridgeEmitCore`: **45**. `HsmBlackboardVariableDto` persists both faithfully ⇒ **HSM has NO authored variables at runtime at all** | — ⭐ **the entry point; everything else assumes it** |
+| ~~`E2`~~ | ✅ **DONE (Batch 67)** — slot provisioning, BTree-style | adopt `ComputeStatefulSlotKey` + `BlueprintBlackboardPartitions` — ⭐ **the same allocator Instances and the BTree bridge already share** | `E1` |
 | **`E3`** | ⭐⭐ **occurrence in the action key** | `hash(method @ fieldOffset)` has **no region/state in it** ⇒ concurrent regions running one action **write the same bytes**. ⭐ **`r` and `current` are ALREADY IN SCOPE at the `ExecuteAction` call site** ⇒ a signature widening, not a redesign. ⭐ **the params-base change (§4h) folds into this same seam** | `E2` ⚠ **`FastHSM` `ExtDeps` change** |
-| **`E4`** | ⚠ **wire `HsmValidator` rules 8 / 8b** | correct errors, but injected resolvers default to `_ => false` / `_ => Empty` and **both production call sites use the default ctor** ⇒ never fire. XML doc says *"Production should wire this"* | ⭐ **do BEFORE `E5`** — the guard should be honest before the runtime makes the hazard real |
-| **`E5`** | ⭐⭐ **subtree hosting runtime** | `SubtreeAssetId` is read **only** by `HsmValidator`; FastHSM kernel **0**, HSM emitters **0**, shipped assets **0**. ⇒ ⭐⭐⭐ **serves TWO rulings at once** — HSM-over-BTree composition **and** the latent sub-behaviour decision *(`#33` §1.5.4: `C`, subtree not action)* | `E3`, `E4` |
+| **`E4`** | ⚠ **wire `HsmValidator` rules 8 / 8b** — ⭐⭐⭐ **FILED as `DEBT-AIB-028`, WITH AN ACTIVATION RECIPE** *(found Batch 67)*: *"(b) `_isStatefulSubtree` defaults to `_ => false` and production never supplies a real resolver; (c) the production `HsmAssetValidator` entry point isn't threaded… wire `id => catalog.TryFind(id,out a) && a.HasAnyStatefulNode()` through the production validator ctor."* ⇒ ⛔ **do not re-derive it** | correct errors, but injected resolvers default to `_ => false` / `_ => Empty` and **both production call sites use the default ctor** ⇒ never fire. XML doc says *"Production should wire this"* | ⭐ **do BEFORE `E5`** — the guard should be honest before the runtime makes the hazard real |
+| **`E5`** | ⭐⭐ **subtree hosting runtime** — 🔴 **NEW PREREQUISITE (Batch 67): `StateNode.SubtreeAssetId` is NOT PERSISTED.** `DEBT-AIB-028`(a): *"a NEW field, not persisted to JSON, and no real HSM asset sets it."* ⇒ **persist it FIRST.** 📌 `DEBT-AIB-029`: the check walks **DIRECT children only** — deeper nesting undetected | `SubtreeAssetId` is read **only** by `HsmValidator`; FastHSM kernel **0**, HSM emitters **0**, shipped assets **0**. ⇒ ⭐⭐⭐ **serves TWO rulings at once** — HSM-over-BTree composition **and** the latent sub-behaviour decision *(`#33` §1.5.4: `C`, subtree not action)* | `E3`, `E4` |
 | **`E6`** | **`W9`** — simple-name hash | `HsmActionGenerator:517/630` — `ComputeHash(action.Name)`; `MethodInfo` carries `FullName` too. ⚠ **TWO re-bake sites**, reconciled *"in lockstep via shared `ResolveStatefulSlotKey`"* | independent |
 | **`E7a`** | ⭐ **wired params — host context on the resolver** | ⛔ **RE-SCOPED `2026-08-16`; no longer needs a design call.** ⭐⭐ **Neither host has input wiring** — a BTree node binds a **field of the behaviour's params struct**, whose value **the resolver wrote at activation** ⇒ *"resolver fills, nodes read"* is already universal. **A resolver already has `world` + `self` and can reach any component; what is missing is ADDRESSING** — it cannot name *"my parent's `TargetPos`"*. ⇒ **pass a host context (variable accessor) alongside `world, self`**, ⚠ **by NAME, never raw offset** (`StructureHash`-versioned). ⛔ **Not a second supply mechanism** *(ruling 9)* | `E5` |
 | **`E7b`** | **the OUTPUT binding** | ⛔ **`ExpressionTargetField` is an OUTPUT binding** — *"blackboard field that receives the expression **result** of `ActionFunction`"* — and **both hosts already have it** (BTree per node, HSM per transition). `FIX-01-REPORT:43`'s *"no per-node"* meant **per-node**. ⇒ wire it at runtime + fix `CountNodesReferencingVariable` returning `0` ⇒ ⚠ **references through it are UNCOUNTED today** | independent |
 | ~~`E7`~~ | ⛔ **the old "HSM binding model" item is DISSOLVED** | ⭐ **`VE-DEBT-001`'s *"needs an architect design call"* is DISCHARGED** — it was the **four-slot / one-DTO** question, and **the subtree ruling removed it: a subtree is HOSTED, not slotted.** 📌 Still true and unrelated: **`VE-DEBT-004`** — no production `[HsmGuard]` exists; **`HSM-016`** is an unresolvable id, zero hits anywhere | — |
 
+### 🔴 `E0` — **the HSM golden harness is a PREREQUISITE, and a batch of its own** *(Batch 67 ruling)*
+
+⛔ **The corpus decision was (b): unit-test-only cover, accepted.** ⭐⭐ **Their reframing, which I had
+too small:** *(a) is not "add some HSM assets" — there is **no HSM golden harness at all**: no corpus,
+no shape file, no structure-hash gate.* ⇒ ⭐ **Build it as its own batch, and it gives `E3`–`E7` their
+regression floor.** 📌 **Backfill `E1`/`E2` into it when it lands** — they shipped under unit tests only,
+and this line is where that is written down.
+
 ### ⭐ Sequence within Track E
 
-**`E1`** → **`E2`** → **`E4`** *(guards honest first)* → **`E3`** → **`E5`** → **`E7a`** *(wired params —
+✅ ~~`E1`~~ → ✅ ~~`E2`~~ → ⭐ **`E0`** *(the harness)* → **`E4`** *(recipe filed)* → **`E3`** → **`E5`** *(persist `SubtreeAssetId` first)* → **`E7a`** *(wired params —
 needs `E5`'s host)* → **`E6`** · **`E7b`** *(both independent, any time)*.
 
 ⚠ **`E1` is already in the main order** (after `G3`) because the parameter story needs it. **The rest of
@@ -436,7 +498,8 @@ missing, not the analysis.** 📌 **Filed, not numbered** (rule 3).
 
 ## 7. ⭐ Order *(revised `2026-08-16`)*
 
-⭐⭐ **DONE: Track B + `S5` (65) · `G4` · the surgical write · `G1` · `C-sections` (66).** ⇒ next:
+⭐⭐ **DONE: Track B + `S5` (65) · `G4` · surgical write · `G1` · `C-sections` (66) · `W7c` · `W7a` · `G3` · `E1`+`E2` · latency rail (67).**
+⇒ next: ⭐ **Track C's table/dialog/Watch** · **`W7b`** · **`E0`** *(the HSM harness)* ·
 ⭐ **Track C**, now leading with **`C-sections`** *(split Variables per kind — §4g's ruling)*, then
 table → dialog → Watch → **`C-outline`** *(BTree/HSM supply their own section list)* →
 **`G1`** *(the split — ⭐ now load-bearing for blueprints too)* → **`G3`** *(service singletons)* →
