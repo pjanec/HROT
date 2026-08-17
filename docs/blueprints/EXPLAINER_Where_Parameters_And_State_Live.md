@@ -33,7 +33,7 @@ each activation**, which is why the tier question is about *addressing*, not per
 
 | | |
 |---|---|
-| ⛔ *"blueprints keep inputs in allocated space"* | **No.** `asset.Parameters` has **one emitter in the entire compiler** — `AiPrimitiveEmitter.EmitParamsStruct`. `InstanceEmitter` never emits them, and `BP1031` refuses them outright. ⇒ **a blueprint has inputs only when it IS a BTree/HSM action**, and they land in the same 100 bytes |
+| ⛔ *"blueprints keep inputs in allocated space"* | **No.** `asset.Parameters` has **one emitter in the entire compiler** — `AiPrimitiveEmitter.EmitParamsStruct`. `InstanceEmitter` never emits them *(⚠ `BP1031` used to refuse them outright; ⛔ **it is RETIRED** — Batch 70, `Stage2_Validate.cs:168`, tracker `BP-278`)*. ⇒ **a blueprint has inputs only when it IS a BTree/HSM action**, and they land in the same 100 bytes |
 | ⛔ *"going heavy moves the params"* | **No.** `EmitHeavySharedAiAdapter` emits **both**: params from `bb.BehaviorParameters`, heavy state from the component. ⭐ **The heavy tier extends STATE, never INPUT** |
 | ⛔ *"the 100 bytes are carved up per action"* | **No — corrected `2026-08-16`.** It holds **ONE params struct belonging to the behaviour** (`BehaviorDefinition.ParamsDtoType`, singular). ⭐ `[SharedAiAction(typeof(Dto),"Field")]` makes an action **bind a FIELD of that struct** — actions reference the behaviour's params, they do not each own an allocation. Per-action scratch lives in the **state** area, not here. The cap is on that one struct, enforced three times, the last a runtime `throw` |
 
@@ -43,7 +43,11 @@ each activation**, which is why the tier question is about *addressing*, not per
 
 ![supply path](EXPLAINER_Supply_Path.svg)
 
-⭐⭐ **`BP1031`'s *"nothing supplies them at spawn"* is true only of the `Instance` dispatch** — which
+> ⭐⭐⭐ **RESOLVED `2026-08-17`.** ⛔ **`BP1031` IS RETIRED** *(Batch 70, `Stage2_Validate.cs:168`;
+> tracker `BP-278`)*. ⭐ The reasoning below is why, and it stands as the RECORD of the argument —
+> ⛔ **it is no longer a description of a live rail.** ⚠ Read §5b's heading the same way.
+
+⭐⭐ **`BP1031`'s *"nothing supplies them at spawn"* was true only of the `Instance` dispatch** — which
 is attached via `BlueprintInstanceService`, not installed through behavior ingress. Everything
 reached by `AssignBehaviorEvent` **is** supplied, and has been since before this programme started.
 
@@ -120,7 +124,7 @@ identically. ⇒ **two concurrently-active regions running the same action write
 
 ---
 
-## 5b. Instance dispatch — what it is, and why `BP1031` is not a wall
+## 5b. Instance dispatch — what it is, and why `BP1031` was not a wall *(and is now gone)*
 
 ⛔ **Not a debug feature.** Three attach paths, two of them production: `BlueprintMaterializationSystem`
 (`Hrot.SimHost`, `SystemPhase.Input`) resolves `InitialBlueprintsIntent` from scenario state and

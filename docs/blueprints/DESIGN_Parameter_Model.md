@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-16
+updated: 2026-08-17
 current-answer: the whole document; it is authoritative for parameters and storage
-known-rot: describes BP1031 as live; BP1031 was RETIRED (Blueprint_Issues_Tracker, BP-278)
+known-rot: (none) - the BP1031-as-live rot was REPAIRED 2026-08-17, Batch 82
 known-conflict: gives Scope three values; Q-b in Variable_Model_Unification rules two. UNRECONCILED.
 -->
 # DESIGN — the parameter model *(AUTHORITATIVE, `2026-08-16`)*
@@ -30,7 +30,7 @@ known-conflict: gives Scope three values; Q-b in Variable_Model_Unification rule
 | *"the 100-byte region is carved up per action"* | ⭐ **ONE params struct per BEHAVIOUR.** An action **binds a FIELD** of it | `BehaviorDefinition.ParamsDtoType` is singular; `[SharedAiAction(typeof(Dto),"Field")]` |
 | *"blueprints keep inputs in allocated space"* | ⛔ **A blueprint has params only when `Dispatch == AiPrimitive`**, and they land in the same 100 bytes | `asset.Parameters` has ONE emitter: `AiPrimitiveEmitter.EmitParamsStruct`. `InstanceEmitter` never emits them |
 | *"the heavy tier moves params"* | ⛔ **heavy extends STATE, never INPUT** | `EmitHeavySharedAiAdapter` emits **both**: params from `bb.BehaviorParameters`, heavy from the component |
-| *"`BP1031` means nothing supplies params"* | ⚠ **true of `Instance` dispatch ONLY** — behaviours are supplied at activation | `Stage2_Validate` (`BP1031`) vs `BehaviorIngressSystem` |
+| *"`BP1031` means nothing supplies params"* | ⛔⛔ **RETIRED — the rail is GONE.** *(Batch 70, `Stage2_Validate.cs:168`; tracker `BP-278`)*. ⚠ It was true of `Instance` dispatch only, and that is why it went | `Stage2_Validate.cs:168` · `BP-278` |
 | *"`Q-k` means blueprint variables differ"* | ⛔ **It describes a MISSING MOVE IMPLEMENTATION**, not a semantic difference | §5.2 |
 | *"copy the whole `BrainBlackboard` per occurrence"* | ⛔ **params area only** — interrupts/soft-advice are entity facts | §4.3 |
 | *"`RegisterWorldSingleton` is a service locator"* | ⛔ **it registers a BLUEPRINT to tick as a singleton** | `BlueprintRegistry.RegisterWorldSingleton(blueprintId, tier)` |

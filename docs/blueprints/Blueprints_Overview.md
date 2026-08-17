@@ -26,7 +26,13 @@ and who ticks it.
 | **Library** | A stateless helper | Called synchronously by other code | *none* | Reusable pure logic; each Function graph → a static method |
 
 Variables vs WorkingState is not cosmetic: **Variables** = Instance persistent state; **WorkingState**
-= AiPrimitive scratch/latent state. Using the wrong one is a compile error (BP1031).
+= AiPrimitive scratch/latent state.
+
+> ⚠⚠ **CORRECTED `2026-08-17`.** This used to read *"using the wrong one is a compile error
+> (BP1031)."* ⛔ **`BP1031` IS RETIRED** *(Batch 70, `Stage2_Validate.cs:168`; tracker `BP-278`)*, and
+> `U-12` had already legalised a `WorkingState` declaration on an `Instance`. ⭐ The two remain
+> **different storage**, and `Q39` rules they are **one concept** whose merge is stage `D` — ⛔ but
+> mixing them is no longer a diagnostic.
 
 > ⚠ **"host-provisioned" WorkingState means different things per host — and only one of them works
 > for multiple AiPrimitives on an entity.** (BP-48; failure mode is **BP-30**.)

@@ -42,13 +42,16 @@ public sealed class SectionVariableRowSource : IVariableRowSource
     private readonly Entity                   _entity;
     private readonly string                   _section;
     private readonly IVariablesSchemaSource   _schema;
-    private readonly Func<string, byte[]>     _readRaw;
+    private readonly Func<string, byte[]>?    _readRaw;
     private readonly ReadAssetTick?           _assetTick;
 
     public SectionVariableRowSource(
         Guid assetId, string assetName, Entity entity, string section,
         IVariablesSchemaSource schema,
-        Func<string, byte[]> readRaw,
+        // ⭐ U-6: OPTIONAL. At authoring time there is no entity and therefore no bytes; a host that
+        //   HAS a reader still passes it (the 2026-08-16 rule), and one that does not says so instead
+        //   of handing over a lambda that fabricates emptiness.
+        Func<string, byte[]>? readRaw = null,
         ReadAssetTick? assetTick = null)
     {
         _assetId   = assetId;
@@ -56,7 +59,7 @@ public sealed class SectionVariableRowSource : IVariableRowSource
         _entity    = entity;
         _section   = section;
         _schema    = schema ?? throw new ArgumentNullException(nameof(schema));
-        _readRaw   = readRaw ?? throw new ArgumentNullException(nameof(readRaw));
+        _readRaw   = readRaw;
         _assetTick = assetTick;
     }
 
@@ -70,16 +73,20 @@ public sealed class SectionVariableRowSource : IVariableRowSource
         var kind = VariableRow.KindOf(v.IsAutoManaged, v.IsReadOnly);
 
         byte[] cached = Array.Empty<byte>();
+        var reader = _readRaw;
         return new VariableRow(
             Origin:    new VariableRowOrigin(_assetId, _entity, _section, v.Name, _assetName),
             ShortName: v.Name,
             TypeText:  v.TypeName,
             ClrType:   v.FieldType,
-            ReadValue: () => (cached = _readRaw(v.Name)),
+            ReadValue: reader == null ? () => Array.Empty<byte>() : () => (cached = reader(v.Name)),
             AssetTick: _assetTick,
             RowKind:   kind,
             IsStale:   false,
-            HasEverBeenWritten: true);
+            // ⚠ NOT an unconditional true. With no reader there is nothing to have been written, and
+            //   the cell must read "(pending)" — ⛔ NOT "<unreadable>", which would send a designer
+            //   hunting a decode bug that did not happen. Same rule as BlackboardSectionRowSource.
+            HasEverBeenWritten: reader != null);
     }
 }
 

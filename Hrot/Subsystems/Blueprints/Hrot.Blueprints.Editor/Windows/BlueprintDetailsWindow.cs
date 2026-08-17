@@ -3,6 +3,7 @@ using Fdp.Presentation.WindowManager;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.NodeDrawers;
 using Hrot.Editor.AiShared.Selection;
+using Hrot.Editor.AiShared.Variables;
 using AiSelectionStore = Hrot.Editor.AiShared.Selection.EditorSelectionStore;
 
 namespace Hrot.Blueprints.Editor.Windows;
@@ -23,10 +24,20 @@ namespace Hrot.Blueprints.Editor.Windows;
 /// logic (selection → session) can be exercised in headless unit tests.
 /// </para>
 /// </summary>
-public sealed class BlueprintDetailsWindow : ManagedWindow
+public sealed class BlueprintDetailsWindow : ManagedWindow, IVariableDetailsHost
 {
     private readonly AiSelectionStore _selectionStore;
     private readonly BlueprintNodeDrawerRegistry _drawerRegistry;
+
+    // ⭐⭐⭐ U-6 — the SHARED variables list, hosted here rather than re-implemented.
+    //    📌 Q32 ruling 1: "Details hosts the list of vars, as designed."
+    //    📌 ruling 9 (the acceptance criterion): "no keeping two implementations for the same
+    //       concept" ⇒ this is Track C's VariableTableControl, not a blueprint copy of it.
+    private readonly VariableDetailsSection _variables;
+
+    // The sub-selection the node arm last saw. ⭐ Used to decide when a NODE click should take the
+    // panel back from a variable list — see ShowVariables.
+    private object? _lastSubSelection;
 
     // Cached session — rebuilt when selection changes.
     private INodeEditSession? _session;
@@ -65,6 +76,45 @@ public sealed class BlueprintDetailsWindow : ManagedWindow
     {
         _selectionStore = selectionStore ?? throw new ArgumentNullException(nameof(selectionStore));
         _drawerRegistry = drawerRegistry ?? throw new ArgumentNullException(nameof(drawerRegistry));
+
+        // ⭐ The formatter is built here rather than required, because a Details panel with no way to
+        //   render a value is not a Details panel. ⚠ The value's RUN-STATE meaning is sequencing row
+        //   58's — at authoring time a source with no byte reader renders "(pending)", which is true.
+        _variables = new VariableDetailsSection(
+            new VariableValueFormatter(
+                RawValueDecoder.Instance));
+    }
+
+    /// <summary>
+    /// ⭐ The hosted variables list. Exposed so a rail can assert on the CONSTRUCTED object rather
+    /// than on whatever wired it (the 2026-08-16 control).
+    /// </summary>
+    public VariableDetailsSection Variables => _variables;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐⭐ <b><c>Q32</c> ruling 2 — "selection routes".</b> An outline click decides what this panel
+    /// shows: a global list, a graph-scoped locals list, or *(for a graph or function row)* nothing,
+    /// in which case the panel falls back to the node arm.
+    ///
+    /// <para>⭐ <b>The routing is installed by the registrar, not by the composition root</b> —
+    /// <c>PerspectiveWorkspaceRegistrar.RegisterExtraWindow</c> connects any
+    /// <c>IVariableOutlineSelectionSource</c> it is handed to any <c>IVariableDetailsHost</c>.
+    /// ⛔ Batches 79/80/81 each lost a surface to a "someone must remember to wire it" seam.</para>
+    /// </remarks>
+    public void ShowVariables(VariableOutlineSelection selection)
+    {
+        if (selection.HasRows)
+        {
+            _variables.Show(selection.Heading!, selection.Source!);
+            // ⭐ Remember what the node arm was showing, so a LATER node click wins. ⛔ Without this
+            //   the variable list would sit over an unrelated node selection forever.
+            _lastSubSelection = _selectionStore.ActiveSubSelection;
+        }
+        else
+        {
+            _variables.Clear();
+        }
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -118,8 +168,33 @@ public sealed class BlueprintDetailsWindow : ManagedWindow
 
     // ── ManagedWindow ─────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// ⭐⭐ Which arm the panel is showing. ⛔ Extracted from the draw path so the PRECEDENCE is
+    /// checkable — drawing needs an ImGui context and no headless test can drive it.
+    ///
+    /// <para>⭐ <b>Last selection wins, in both directions.</b> Picking a variable in the outline
+    /// takes the panel; picking a NEW node takes it back. ⚠ Comparing against the sub-selection
+    /// captured when the list was shown is what makes the second half true — ⛔ merely asking
+    /// "is a node selected?" would let a stale node selection outrank a fresh variable click.</para>
+    /// </summary>
+    internal bool ShowingVariables
+    {
+        get
+        {
+            if (!_variables.HasContent) return false;
+            // A node selection that arrived AFTER the variable list wins it back.
+            return Equals(_selectionStore.ActiveSubSelection, _lastSubSelection);
+        }
+    }
+
     protected override void DrawClientArea()
     {
+        if (ShowingVariables)
+        {
+            _variables.Draw("bp_details_variables");
+            return;
+        }
+
         var session = ResolveSession();
         if (session != null)
         {

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-17
-known-rot: still orders InspectorWindow's STATIC PARAMETERS retired; that was WITHDRAWN (BP-295, premise inverted)
+known-rot: (none) - the InspectorWindow retirement order was REPAIRED 2026-08-17, Batch 82
 -->
 # DESIGN — variable details & editing, consistent across every asset type
 
@@ -353,7 +353,7 @@ the Value column already uses covers it**, and it retires the old objection that
 
 | | |
 |---|---|
-| **planning** | ⭐⭐ **already ships** — `DefaultValueAuthoring.Hydrate` / `OpenSession` / `CommitAndSerialize` → `IBlackboardManagedAsset.UpdateVariableDefaultValueJson(name, json)`. **Re-host it; do not rebuild it**, and retire the `InspectorWindow` "STATIC PARAMETERS" section it currently lives in so there is one home |
+| **planning** | ⭐⭐ **already ships** — `DefaultValueAuthoring.Hydrate` / `OpenSession` / `CommitAndSerialize` → `IBlackboardManagedAsset.UpdateVariableDefaultValueJson(name, json)`. **Re-host it; do not rebuild it.** ⛔⛔ **The instruction to retire `InspectorWindow`'s "STATIC PARAMETERS" section is WITHDRAWN** *(`BP-295`, `2026-08-17`)* — 📐 **the premise was inverted: measured, it is the only LIVE surface for a bound variable's `DefaultValueJson`**, and retiring it would have deleted the editing capability rather than de-duplicating it. ⭐ One home is still the goal; ⛔ **this is not the half that goes** |
 | **running / paused** | ⭐⭐⭐ **OPTIMISTIC DISPLAY** *(user ruling)* — **paint the new value in the cell immediately**, then **stage** through the existing `StageMutation` path, which lands at the tick **N+1** boundary. ⛔ **Do NOT write `_liveRepo` during a pause** — `Blackboard1024` is `[DataPolicy(NoSave)]`, i.e. **snapshotted and recorded**, so a non-simulation write breaks Flight Recorder linearity |
 | 🔴 **prerequisite, either way** | **the surgical field write** — `SetComponentFieldRaw(entity, typeId, byteOffset, src, size)` in `Fdp.Core`. ⛔ **Today's staged write is whole-component and lands AFTER the restore, so every other field reverts a tick** — on the shared blackboard that reverts BTree and HSM state |
 
@@ -406,7 +406,9 @@ per kind; per-section create commands)* → **`C-table`** *(Details hosts the se
 **`C-dialog`** *(one dialog, two scopes, kind-driven)* → **`C-watch`** *(share the renderer; fix the
 compile mode)* → ⭐ **`C-outline`** *(BTree/HSM supply their own `IMyBlueprintModel` + section list)*.
 
-⚠ **Still open, not blocked by this design:** the `InspectorWindow` retirement order, and whether
+⚠ **Still open, not blocked by this design:** ⛔ ~~the `InspectorWindow` retirement order~~ — **CLOSED
+as WITHDRAWN** *(`BP-295`: the premise was measured inverted; it is the only live default-value
+surface)* — and whether
 `W7`'s suppressible-warning design changes what the table shows for a conflicted variable.
 
 ⚠ **One carry-forward from the parameter work:** row identity is `(AssetId, Entity, VariablePath)`.

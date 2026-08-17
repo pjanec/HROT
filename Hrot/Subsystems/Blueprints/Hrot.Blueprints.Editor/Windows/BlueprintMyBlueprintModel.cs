@@ -132,6 +132,13 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
     // ── State ─────────────────────────────────────────────────────────────────
 
     private BlueprintAsset? _asset;
+
+    /// <summary>
+    /// ⭐ The asset this outline projects, or null. Exposed read-only for <c>U-6</c>'s selection
+    /// routing, which must build a row source over the SAME asset the outline is showing —
+    /// ⛔ a second accessor threaded through the window would be a second answer to one question.
+    /// </summary>
+    public BlueprintAsset? Asset => _asset;
     private IEditableAsset? _editableAsset;
 
     /// <summary>

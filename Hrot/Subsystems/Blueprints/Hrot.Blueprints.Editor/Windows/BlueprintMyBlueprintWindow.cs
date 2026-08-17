@@ -1,7 +1,12 @@
 using Fdp.Presentation.WindowManager;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.Host;
+using System;
+using System.Linq;
+using Hrot.Blueprints.Core.Compiler.Ir;   // VariableKind — one vocabulary for the three lists
+using Hrot.Blueprints.Editor.Variables;
 using Hrot.Editor.AiShared;
+using Hrot.Editor.AiShared.Variables;
 using NodeEditor.Core.Action;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.UI.Action;
@@ -18,7 +23,7 @@ namespace Hrot.Blueprints.Editor.Windows;
 /// (via <see cref="Retarget"/>) whenever the active document changes.
 /// </para>
 /// </summary>
-public sealed class BlueprintMyBlueprintWindow : ManagedWindow
+public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutlineSelectionSource
 {
     private readonly BlueprintMyBlueprintModel _model = new();
 
@@ -290,6 +295,80 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
             Name: name, FieldType: clrType, Comment: null));
     }
 
+    /// <inheritdoc/>
+    public event Action<VariableOutlineSelection>? VariableSelectionChanged;
+
+    /// <summary>
+    /// ⭐⭐ Publishes an outline selection to whatever is listening. ⛔ The panel's own click path goes
+    /// through ImGui, which no headless test can drive — this is the same call it makes, and it is the
+    /// ONE place that resolves and raises so a panel rebuild cannot double-fire.
+    /// </summary>
+    public void PublishSelection(NodeEditor.Core.Interfaces.MyBlueprintItem? item)
+        => VariableSelectionChanged?.Invoke(ResolveVariableSelection(item));
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>Q32</c> ruling 2, resolved.</b> 📌 verbatim: <i>"Selection routes: click a
+    /// <b>global</b> in My Blueprint ⇒ the list of <b>globals / working state</b>. Click a
+    /// <b>local</b> ⇒ the locals of the <b>currently selected graph</b>."</i>
+    ///
+    /// <para>⭐ <b>Keyed on the SECTION, which is what the designer actually picked.</b> Track C's
+    /// routing is section-keyed too ⇒ ⛔ <b>one routing mechanism, not two</b> (ruling 9).</para>
+    ///
+    /// <para>⚠ <b>One stated deviation from ruling 2's wording, and why.</b> The ruling says a global
+    /// click yields <i>"globals / working state"</i> — one merged list. ⛔ <b>Not merged here:</b>
+    /// 📌 <c>Q39</c> settles that <c>Variable</c> ≡ <c>WorkingState</c> and rules that the merge is
+    /// <b>stage <c>D</c></b>, <i>"the only risky stage"</i>, with its own batch and a JSON migration.
+    /// ⇒ ⭐ merging them in the ROUTER would do stage <c>D</c>'s job in the UI layer and would have to
+    /// be undone; routing per section collapses <b>by construction</b> the day the sections do.</para>
+    ///
+    /// <para>⛔ A graph, function, macro or custom-event row resolves to
+    /// <see cref="VariableOutlineSelection.None"/> — the Details panel then falls back to its node
+    /// arm rather than leaving a stale list beside an unrelated selection.</para>
+    /// </summary>
+    internal VariableOutlineSelection ResolveVariableSelection(
+        NodeEditor.Core.Interfaces.MyBlueprintItem? item)
+    {
+        var asset = _model.Asset;
+        if (item is null || asset is null) return VariableOutlineSelection.None;
+
+        // ⭐ The locals arm is GRAPH-SCOPED, and the source already follows the canvas by delegate —
+        //   a captured Graph would go stale on the first BP-24 graph switch.
+        if (item.SectionId == BlueprintMyBlueprintModel.SectionLocalVariables)
+        {
+            if (_locals is null) return VariableOutlineSelection.None;
+            var graph = _model.CurrentGraph;
+            return new VariableOutlineSelection(
+                graph is null ? "Local Variables" : $"Local Variables — {graph.Name}",
+                new SectionVariableRowSource(
+                    assetId:   asset.AssetId,
+                    assetName: asset.Name,
+                    entity:    default,
+                    section:   BlueprintMyBlueprintModel.SectionLocalVariables,
+                    schema:    _locals));
+        }
+
+        var kind = item.SectionId switch
+        {
+            BlueprintMyBlueprintModel.SectionVariables    => VariableKind.Variable,
+            BlueprintMyBlueprintModel.SectionParameters   => VariableKind.Parameter,
+            BlueprintMyBlueprintModel.SectionWorkingState => VariableKind.WorkingState,
+            _                                             => VariableKind.Unresolved,
+        };
+        if (kind == VariableKind.Unresolved) return VariableOutlineSelection.None;
+
+        var heading = _model.Sections.FirstOrDefault(s => s.Id == item.SectionId)?.DisplayName
+                      ?? item.SectionId;
+
+        return new VariableOutlineSelection(
+            heading,
+            new SectionVariableRowSource(
+                assetId:   asset.AssetId,
+                assetName: asset.Name,
+                entity:    default,
+                section:   item.SectionId,
+                schema:    new BlueprintVariableSchemaSource(asset, kind, onChanged: () => { })));
+    }
+
     /// <summary>
     /// BP-223/Q26-B2 — a refusal reaches the designer as a toast. ⛔ Never a silent return: BP-76 and
     /// BP-77 were both filed because a gesture did nothing and explained nothing.
@@ -366,6 +445,15 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
                         NavigateToGraphOf(itemId);
                     }
                 });
+
+            // ⭐⭐⭐ U-6 / Q32 ruling 2 — "Selection routes." A SINGLE click publishes what the
+            //    Details panel should show. 🔴 BP-315 measured that MyBlueprintPanel.SelectionChanged
+            //    had ZERO subscribers anywhere in the repo — the hook existed and fed nothing, which
+            //    is why "Details keeps showing 'No node selected'" was a missing capability rather
+            //    than a broken wire. ⭐ This is that capability.
+            // ⚠ The panel is REBUILT whenever host services change, so subscribing here without a
+            //   guard would double-fire after the first rebuild. ⭐ PublishSelection is the one home.
+            _panel.SelectionChanged += PublishSelection;
         }
 
         // BP-57/BP-72: notice a canvas graph switch and fire Changed. ⚠ The panel itself re-reads

@@ -404,7 +404,43 @@ public class PerspectiveWorkspaceRegistrar
         {
             MyBlueprint.SetCanvasContextResolver(() => canvas.ActiveContext);
         }
+
+        // ⭐⭐⭐ U-6 — the outline→Details routing is DERIVED, not remembered.
+        //    Q32 ruling 2 is "selection routes": an outline click decides what the Details panel
+        //    shows. Both halves already arrive HERE — the composition root registers this
+        //    perspective's outline and its details window through this very method — so connecting
+        //    them is the registrar's job, not another line EditorSubsystem must not forget.
+        //    ⛔ Batches 79/80/81 each lost a surface to a seam of exactly this shape.
+        // ⭐ Stated over the INTERFACES so a BTree/HSM details host wires itself the day it exists
+        //   (ruling 6: "the same Details panel is REUSED for every asset type").
+        if (window is IVariableOutlineSelectionSource outline) _outlineSelection ??= outline;
+        if (window is IVariableDetailsHost      detailsHost)   _detailsHost      ??= detailsHost;
+        ConnectOutlineToDetails();
     }
+
+    private IVariableOutlineSelectionSource? _outlineSelection;
+    private IVariableDetailsHost?            _detailsHost;
+    private bool                             _outlineConnected;
+
+    /// <summary>
+    /// ⭐ Connects the pair once both have been registered — ⛔ in either order, because
+    /// <c>RegisterExtraWindow</c>'s call order is the composition root's business and depending on it
+    /// would be a second thing to remember.
+    /// </summary>
+    private void ConnectOutlineToDetails()
+    {
+        if (_outlineConnected || _outlineSelection == null || _detailsHost == null) return;
+        _outlineConnected = true;
+
+        var host = _detailsHost;
+        _outlineSelection.VariableSelectionChanged += selection => host.ShowVariables(selection);
+    }
+
+    /// <summary>
+    /// True once an outline and a details host on this perspective have been wired to each other.
+    /// ⭐ A rail surface — asserted on the CONSTRUCTED registrar, not on the composition root's source.
+    /// </summary>
+    public bool OutlineIsRoutedToDetails => _outlineConnected;
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
