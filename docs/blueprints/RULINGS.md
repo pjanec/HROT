@@ -47,7 +47,9 @@
 | ⭐⭐⭐ **R-22** | ⭐⭐ **`Q32` §4 IS THE MASTER SEQUENCING TABLE (56→61).** ⛔ **A finding with a planned batch is NOT a new finding.** Still NOT done: **`U-16`** *(60, retire the duplicate Variables windows)* · **`59b`** *(Watch populate/edit)* | `Q32_…_ANSWERS.md` |
 | ⭐⭐⭐ **R-23** | ⛔⛔ **Stage `D` is FOUR stages `D1`–`D4`, not one.** ⭐ **Only `D1` reverts cheaply**; once `D2` writes v2 files the reverted reader cannot load them ⇒ **the DOWN-MIGRATOR is the revert** | `Variable_Model_Unification.md` |
 | 🔴🔴 **R-24** | ⛔⛔ **`D2` MUST preserve field order within each group — or every deployed blackboard is WIPED.** 📐 order → `FieldLayout` offsets → `StructureHash` → the emitted tick wipes on mismatch | `Variable_Model_Unification.md` |
-| **R-25** | ⚠ **Stage `B′` is BLOCKED on `BP-228`** *(struct type id is unvalidated pass-through)* | `Variable_Model_Unification.md` |
+| ✅ **R-25** | ⚠⚠ **CORRECTED `2026-08-17` — `B′` is NOT blocked and is DONE.** `BP-228` closed **Batch 47** *(`U-7`)*, *"stage `B′` unblocked with it (`U-8`)"*; `S5` built the union **Batch 65** *(`BP-255`)*. ⛔ **Three of my own documents still said BLOCKED** — that is why this row exists | `Blueprint_Issues_Tracker.md` BP-228 |
+| ⭐⭐⭐ **R-61** | ⛔⛔ **STAGE `D` IS THE ONLY UNIFICATION WORK LEFT.** ⭐ `0` `C` `A` `B` `B′` are **all done**. ⚠ **Ruling 8's emitter unification SHIPPED in Batch 56** — `IrAsset.StateDeclarations` = `WorkingState ∪ Variables`, walked by both struct emitters, `CSharpEmitter` and `FieldLayout` *(ONE run, one base)*. ⛔ **Do NOT say "the emitters still emit them separately"** — I did, on `2026-08-17`, and it was false | `IrAsset.cs:90` · `BP-244` |
+| ⭐⭐ **R-62** | ⭐⭐⭐ **`R-21`'s SUSPENSION CONDITION IS NOW MET FOR BLUEPRINT** — *"Details panel implemented"* ✅ *(Batch 82)* **AND** *"emitters and all access infrastructure unified"* ✅ *(Batch 56 = ruling 8, stage `C` = access path)*. ⛔ **NOT met for BTree/HSM** — `R-60`: they have no Details window at all | `Q32_…_ANSWERS.md` · `BP-244` |
 | **R-26** | ⛔ **IMPLEMENTATION FREEZE — ONE session builds for ALL hosts.** Others may design; ⛔ **not code** | `Q32_…_ANSWERS.md` |
 | **R-27** | ⛔ **`Q38` must NOT be built until Track C is wired AND visually checked**; it absorbs `BP-128` | `Architect_Question_38_One_Details_Panel.md` |
 | **R-28** | ⭐ **`Q34` is RESOLVED, its BUILD deferred** — ⛔ **reopening the build must NOT reopen the decision** | `Architect_Question_34_…md` |
@@ -169,7 +171,10 @@ wearing a design document's name.
 ```probes
 R-52 | docs/blueprints/DESIGN_Variable_Details_And_Editing.md | prerequisite, either way
 R-57 | docs/blueprints/Blueprint_Issues_Tracker.md | is RETIRED, and the batch that needed it had not been told
+R-25 | docs/blueprints/Blueprint_Issues_Tracker.md | stage B′ unblocked with it
 R-59 | docs/blueprints/Architect_Question_39_Merge_Variables_And_Working_State.md | the only risky stage
+R-61 | Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Ir/IrAsset.cs | public IReadOnlyList<IrField> StateDeclarations
+R-62 | docs/blueprints/Architect_Question_32_Variable_Details_And_Values_ANSWERS.md | AND A SEQUENCING RULING: NO VISUAL CHECKS
 R-60 | docs/blueprints/REPORT_Batch82_U6_Details_Hosts_The_Table.md | two of the three have no Details panel
 R-03 | docs/blueprints/Variable_Model_Unification.md | order below the line is SUPERSEDED
 R-05 | docs/blueprints/Variable_Model_Unification.md | Details hosts the table; My Blueprint routes selection into it
