@@ -1147,6 +1147,13 @@ discovers.
 | ⚠ **7** | **`DEBT-AIB-030`** — the `Fdp.Toolkits.Tests` race | ⭐ **seven distinct tests, and the identity ROTATES between runs** *(strongest evidence yet that it is xUnit scheduling over process-global registry state)*. ⛔ **Not signal; mitigation unchanged** |
 | ⚠ **8** | **the 12 quarantined scenario tests** | ⛔ **out of programme** — damage/event pipeline ×5, DDS ghost promotion ×7, each with a measured cause |
 
+### ⭐⭐ OPEN POINTS — **recorded, not scheduled** *(user, `2026-08-17`)*
+
+| | |
+|---|---|
+| ⭐⭐⭐ **`Q38` — ONE mode-switching Details panel** | 📄 **[`Architect_Question_38`](Architect_Question_38_One_Details_Panel.md)**. ⭐ **User:** *"we have too many specialized windows like Detail, Inspector, VariablePanelControl, Runtime Inspectors - i think they all should somehow merge into a single Detail panel which could switch its mode."* 📐 **Measured: 50 `ManagedWindow` subclasses; at least SIX answer "tell me about the thing I selected."** ⭐⭐ **It ABSORBS `BP-128`** *(fold `Graph Signature` into a context-sensitive Details)* — ⛔ **do not resolve `BP-128` alone.** ⚠ **Prerequisite: Track C wired AND visually checked** — ⛔ *"do not merge surfaces nobody has seen"* |
+| ⭐ **`VariablesPanelControl` — KEEP for now** | ⭐ **User:** *"keep for now, but we need to rethink it later - find a way how to integrate it."* ⇒ ⛔⛔ **Batch 79 is PURELY ADDITIVE**: the BTree/HSM outline joins the perspective, **nothing retires** |
+
 ### ⛔ PARKED — reopen deliberately, ⭐ **all the design work is banked**
 
 | | where |
