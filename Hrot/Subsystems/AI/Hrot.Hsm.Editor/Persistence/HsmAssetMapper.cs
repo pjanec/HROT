@@ -96,6 +96,11 @@ public static class HsmAssetMapper
                 Name                = r.Name,
                 Priority            = r.Priority,
                 InitialChildStableId = r.InitialChild?.StableId,
+                // BP-299: ownership is written explicitly now. The owner is the state whose
+                // RegionNodes contains this region -- the model already knows it; only the JSON did not.
+                OwnerStableId        = OwnerOf(asset, r)?.StableId,
+                // BP-299: ownership is written explicitly now. The owner is the state whose
+                // RegionNodes contains this region -- the model already knows it; only the JSON did not.
                 Comment             = r.Comment,
                 ColorOverride       = r.ColorOverride,
             });
@@ -266,13 +271,21 @@ public static class HsmAssetMapper
             stableIdToRegion[rDto.StableId] = region;
         }
 
-        // Attach each region to the parent state of its initial child so parallel states
-        // expose IContainerNodeModel.Regions (→ NodeEditor draws region dividers). The flat
-        // JSON region list carries no parent ref; InitialChild.Parent is the unambiguous owner.
-        // (RHS-05)
+        // Attach each region to its owning parallel state so those states expose
+        // IContainerNodeModel.Regions (→ NodeEditor draws region dividers).
+        //
+        // ⭐⭐ BP-299: the OwnerStableId written by ToDto is authoritative; InitialChild.Parent is the
+        //    FALLBACK for assets saved before that field existed (RHS-05's original derivation).
+        // ⛔ The fallback is not merely legacy support: it is why a region with no initial child used
+        //    to be orphaned, taking rules 8/8b down with it silently.
         foreach (var region in regionNodes)
         {
-            var owner = region.InitialChild?.Parent;
+            StateNode? owner = null;
+            var rDto = dto.Regions.FirstOrDefault(x => x.StableId == region.StableId);
+            if (rDto?.OwnerStableId is Guid ownerId)
+                stableIdToState.TryGetValue(ownerId, out owner);
+            owner ??= region.InitialChild?.Parent;
+
             if (owner != null && !owner.RegionNodes.Contains(region))
                 owner.RegionNodes.Add(region);
         }
@@ -409,6 +422,18 @@ public static class HsmAssetMapper
     }
 
     // ── Blackboard mapping (§5.4) ─────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ <c>BP-299</c>: the state that owns <paramref name="region"/> — the one whose
+    /// <c>RegionNodes</c> contains it. ⚠ Asked of the MODEL rather than derived from the region's
+    /// initial child, because the initial child is exactly what may be missing.
+    /// </summary>
+    private static StateNode? OwnerOf(HsmAsset asset, RegionNode region)
+    {
+        foreach (var s in asset.AllStates)
+            if (s.RegionNodes.Contains(region)) return s;
+        return null;
+    }
 
     private static HsmBlackboardBlockDto BlackboardToDto(HsmAsset asset)
     {

@@ -210,26 +210,23 @@ public sealed class HsmSubtreeAssetIdPersistenceTests
     }
 
     /// <summary>
-    /// ⚠⚠ <b>An adjacent finding, surfaced by this item: a region with NO initial child loses its
-    /// OWNER on load, which silently disables rules 8 and 8b for that composite.</b>
+    /// ⭐⭐⭐ <b><c>BP-299</c> — INVERTED in Batch 76. A region with no <c>InitialChild</c> KEEPS its
+    /// owner, so rules 8 and 8b reach the composite.</b>
     ///
     /// <para>
-    /// 📐 <b>Measured.</b> The JSON region list carries no parent reference, so
-    /// <c>HsmAssetMapper</c> re-derives ownership from <c>region.InitialChild?.Parent</c> (RHS-05).
-    /// ⇒ ⛔ <c>InitialChild == null</c> means <c>owner == null</c> means the region attaches to
-    /// nothing, and <c>composite.RegionNodes.Count &lt; 2</c> makes both rules skip the composite
-    /// entirely — <b>no diagnostic, no warning, the asset simply validates clean.</b>
+    /// 🔴 <b>What this used to assert.</b> The flat JSON region list carried no parent reference, so
+    /// <c>HsmAssetMapper</c> re-derived ownership from <c>region.InitialChild?.Parent</c> (RHS-05)
+    /// ⇒ ⛔ no initial child ⇒ no owner ⇒ the composite came back with zero regions ⇒ both rules
+    /// skipped it <b>silently</b>: no diagnostic, asset validates clean.
     /// </para>
     ///
     /// <para>
-    /// ⭐ <b>Same class of defect as <c>-028</c>(a) itself</b> — a rule that cannot reach its input —
-    /// and it was invisible while <c>SubtreeAssetId</c> did not persist, because nothing got that far.
-    /// ⛔ Out of scope here: the fix is a parent reference on <c>RegionNodeDto</c> (a persistence-shape
-    /// change), not a test. ⭐ <b>Asserted as the gap it is; INVERT when ownership is persisted.</b>
+    /// 🛠 <c>RegionNodeDto.OwnerStableId</c> now carries it. ⚠ The old derivation stays as the
+    /// FALLBACK — see <see cref="APreFieldAsset_StillLoads_ViaTheInitialChildFallback"/>.
     /// </para>
     /// </summary>
     [Fact]
-    public void ARegionWithNoInitialChild_IsOrphanedOnLoad_Yet()
+    public void ARegionWithNoInitialChild_KeepsItsOwner_AndTheRuleFires()
     {
         var subtreeId = new Guid("28d00000-0000-0000-0000-00000000028d");
 
@@ -250,15 +247,43 @@ public sealed class HsmSubtreeAssetIdPersistenceTests
             new List<StateNode> { parallel, child0, child1 },
             new List<RegionNode> { parallel.RegionNodes[0], parallel.RegionNodes[1] }));
 
-        // ⭐ The hosting field survived — so the miss is ownership, not persistence.
-        Assert.Equal(2, restored.AllStates.Count(s => s.SubtreeAssetId == subtreeId));
-
-        // ⛔ …and the composite came back with no regions attached, so rule 8 never looks.
+        // ⭐ The composite comes back OWNING both regions...
         var reloadedParallel = restored.AllStates.Single(s => s.Name == "Parallel");
-        Assert.Empty(reloadedParallel.RegionNodes);
+        Assert.Equal(2, reloadedParallel.RegionNodes.Count);
 
-        Assert.DoesNotContain(
+        // ⭐⭐ ...so the rule reaches it. THAT is the claim; the count above is only how it gets there.
+        Assert.Single(
             new HsmValidator(isStatefulSubtree: id => id == subtreeId).Validate(restored, blackboard: null),
             d => d.Code == HsmDiagnosticCode.ConcurrentStatefulSubtree);
     }
+
+    /// <summary>
+    /// ⚠⚠ <b>Back-compat: an asset saved BEFORE <c>OwnerStableId</c> existed still loads, and its
+    /// regions still find their owner.</b>
+    ///
+    /// <para>
+    /// ⭐ Simulated by stripping the field from the serialised JSON — the honest way to represent an
+    /// old file, rather than by constructing a DTO the current mapper would never emit. ⛔ The
+    /// fallback is not dead code kept for tidiness: without it every shipped asset loses its region
+    /// dividers on the first load after this change.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void APreFieldAsset_StillLoads_ViaTheInitialChildFallback()
+    {
+        var subtreeId = new Guid("29900000-0000-0000-0000-000000000299");
+
+        string json = HsmJsonServices.Serialize(HsmAssetMapper.ToDto(MakeParallelHostingAsset(subtreeId)));
+        Assert.Contains("OwnerStableId", json);          // ⭐ the new field IS written...
+
+        // ...and an older file simply does not have it.
+        string legacy = System.Text.RegularExpressions.Regex.Replace(
+            json, "\\s*\"OwnerStableId\": \"[^\"]*\",?", "");
+
+        var restored = HsmAssetMapper.FromDto(HsmJsonServices.Deserialize(legacy)!);
+
+        var reloadedParallel = restored.AllStates.Single(s => s.Name == "Parallel");
+        Assert.Equal(2, reloadedParallel.RegionNodes.Count);   // ⭐ the fallback carried it
+    }
+
 }

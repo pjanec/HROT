@@ -95,6 +95,26 @@ public sealed class RegionNodeDto
     public byte Priority { get; set; }
     /// <summary>StableId of the initial child state in this region; null when none.</summary>
     public Guid? InitialChildStableId { get; set; }
+
+    /// <summary>
+    /// ⭐⭐ <c>BP-299</c>: the StableId of the parallel composite that OWNS this region.
+    ///
+    /// <para>
+    /// 🔴 <b>Why it exists.</b> Ownership used to be re-derived on load from
+    /// <c>InitialChild.Parent</c> (RHS-05) — the flat JSON region list carried no parent reference.
+    /// ⛔ A region with <b>no</b> initial child therefore had no owner, its composite came back with
+    /// zero regions, and validator rules 8 and 8b <b>skipped that composite silently</b>: no
+    /// diagnostic, asset validates clean.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>Nullable, and the derivation stays as the FALLBACK</b> — an asset saved before this field
+    /// existed must still load. ⛔ Making it required would break every shipped asset to fix a case
+    /// none of them hit.
+    /// </para>
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Guid? OwnerStableId { get; set; }
     public string? Comment { get; set; }
     public string? ColorOverride { get; set; }
 }
