@@ -1,6 +1,15 @@
-# PLAN — what is left *(revision 20, `2026-08-17`)*
+# PLAN — what is left *(revision 21, `2026-08-17`)*
 
-> ⭐⭐⭐ **REVISION 20 (`2026-08-17`).** ✅ **Batch 76 MERGED at `a8b3106ba`** — ⭐⭐ **orthogonal regions
+> ⭐⭐⭐ **REVISION 21 (`2026-08-17`).** ✅ **Batch 77 MERGED at `05317ff17`** — the **`E3` tripwire** ·
+> **`BP-304` FIXED** *(`Fhsm.Tests` **300 / 300**)* · ⛔⛔ **`E5` STOPPED, escalated as
+> 📄 [`Architect_Question_36`](Architect_Question_36_Subtree_Hosting_Runtime.md)** (§4A12).
+> 🔴🔴 **`E5`'s blockers are UPSTREAM of the STOP I named:** ⭐⭐ **there is ONE brain per entity and
+> nowhere to run a hosted child**, and ⛔ **resolve has no input for a BTree child.**
+> ⛔⛔ **AND THE `E3` CENSUS WAS WRONG** — `Fdp.Toolkits` **does** run `HsmActionGenerator`; **four**
+> thunks are in its dll. ⭐ **The right claim is "zero REGISTERED", not "zero EMITTED"** — the hazard is
+> still latent, but for a **different reason than I recorded**.
+>
+> **REVISION 20 (`2026-08-17`).** ✅ **Batch 76 MERGED at `a8b3106ba`** — ⭐⭐ **orthogonal regions
 > work now.** The region-0 hard-code had **FOUR instances**, not one · **`BP-299`** · **`-029`** (§4A11).
 > ⭐⭐⭐ **NEW GATE: `Fhsm.Tests`, and it must NOT take `--no-build`** — 📐 **the project is not in the
 > solution**, so a `--no-build` run tests a **stale bin**. ⚠ **That is HOW it stayed outside the gate
@@ -1012,6 +1021,71 @@ which already ships *(`ComputeStatefulSlotKey` + `BlueprintBlackboardPartitions`
 ⚠ **Third batch running where an expected-golden-movement prediction of mine did not hold** — ⭐ **the
 `hsm-persistence-shape` golden hashes the checked-in `.hsm.json` files, so a new DTO field appears only
 when an asset is next SAVED**, not at build time. 📌 **Fold that into how I write the expectation.**
+
+---
+
+## 4A12. ✅ Batch 77 — ⭐⭐⭐ **`E5` stopped upstream of my STOP, and my census was wrong**
+
+📄 [`REPORT_Batch77_Subtree_Hosting.md`](REPORT_Batch77_Subtree_Hosting.md).
+⭐ Rule 1b honoured *(marker `49efe83`)*. Gates re-run by me — ⭐ **FastHSM 300 / 300, Generators 268**;
+tracker **65 / 178**. Rows `BP-305`–`BP-308` · **`Q36`**.
+
+### ⛔⛔ `E5` STOPPED — 📄 **[`Architect_Question_36`](Architect_Question_36_Subtree_Hosting_Runtime.md)**
+
+⭐ **My ground-truth table was right on everything it covered** — ⛔ **and it did not cover the two steps
+`E5` takes FIRST:**
+
+| | measured |
+|---|---|
+| ⛔⛔ ① **ONE BRAIN PER ENTITY** | `BehaviorState { int ActiveBehaviorHash; uint InstanceId; byte BrainTier; }` — **one** hash, **one** tier, and `BTreeTickSystem:83` / `HsmTickSystem:158` both key off it ⇒ ⭐⭐ **a hosting state has nowhere to RUN the child.** `Q34` §7 answers **storage**, ⛔ **not which brain ticks it** |
+| ⛔ ② **resolve has no input for a BTree child** | HSM registers under `DeterministicIdFromGuid(assetId)`, BTree under `BehaviorHash.FromName(name)`, and `BehaviorRegistry` has **no asset-id index at all** ⇒ ⭐ **an HSM child resolves from a Guid by accident; a BTree child cannot resolve** — **and HSM + BTree on one entity is the case `E5` exists for** |
+| ⭐⭐⭐ ⑤ **the shipped route is by NAME** | `BehaviorTreeBlob.SubtreeAssetIds` is a **`string[]` of NAMES** *(the field name misleads)*; `BTreeEmitCore:836` emits `p.SubtreeName` |
+| ⚠ ⑥ **and Batch 75 persisted only half that pair** | `BTreeSubtreePayload` carries **Guid + Name + IsResolved**; `StateNode` carries **the Guid alone.** ⭐ **Mine** — at the time nothing read it, so nothing said which half resolves |
+
+⭐⭐ **Their leans, which I endorse:** `Q36-A` = **B, the HOST ticks the child inline** *(the only option
+that keeps one brain per entity; ⛔ `C`, swapping `ActiveBehaviorHash`, is ruled out by `Q33` §1.5.4 —
+a hosted subtree does not block its state's transitions)* · `Q36-B` = **A, mirror the BTree pair** —
+add `SubtreeName` beside the Guid, **one mechanism with the shipped BTree subtree path**.
+📐 **I verified `B` is feasible cross-host:** `def.BTreeInterpreter.Tick(ref blackboard, ref state, ref
+context)` is a plain call the host can make, with the child's state living in its partition slot.
+
+### ⛔⛔ The `E3` census was WRONG — ⭐ **and the conclusion survives for a different reason**
+
+📐 **`Fdp.Toolkits.csproj:57-59` references the analyzer with `OutputItemType="Analyzer"`** ⇒ the
+generator **does** run there, and a fresh rebuild puts **four** thunks in `Fdp.Toolkits.dll`.
+
+| | |
+|---|---|
+| ⭐⭐ **the right claim** | *"zero **REGISTERED**"*, ⛔ **not** *"zero **EMITTED**"* |
+| ⭐ **why they are inert — TWO reasons, both recorded** | nothing calls `Fdp.Toolkits.Generated.HsmActionRegistrar.RegisterAll()`, **and all four sit at offset `0`.** ⚠ **They carry the attribute for the BTREE host** — the HSM thunk is incidental, because both generators key on the same attribute |
+| ⭐ **so the hazard is still latent** | ⛔ **but *"manufacture no subject"* was moot: a subject exists, simply unregistered** |
+
+⭐⭐ **The tripwire shipped anyway, and better than specified:** the project set is **DERIVED** from the
+analyzer `ProjectReference` *(nine found ⇒ a new project is covered the day it is created)* · **Roslyn,
+not grep** · a **named baseline with per-entry exemption reasons**, not a count · ⭐ **BOTH directions**
+*(an addition reddens, a disappearance reddens)* · ⭐⭐ **a set-non-empty guard** *(⛔ a scan over an
+empty set passes forever)* · and ⭐ **shown to fail on REAL code**, with a message that points at `Q35`
+and reads *"not a ban"*.
+
+### ⭐⭐ `BP-304` — **both reds had ONE cause, including the one I called unexplained**
+
+⭐⭐⭐ **`SetTraceBuffer` was removed in `behav-diag-1`** ⇒ **nothing writes an `HsmTraceBuffer`**, so
+every assertion whose observable is a trace record is unreachable. 📌 **`InfiniteLoop_Detected_And_Stops`
+failed at `Assert.True(traceData.Length > 0)` — one assertion BEFORE it could say anything about the
+fail-safe.** ⭐ **The RTC fail-safe itself works and always did** ⇒ ⛔ **Batch 76 was never implicated.**
+⛔⛔ **And a third test was passing VACUOUSLY** — `OutputLane_NoConflict_Passes` asserted *no* conflict
+record against a buffer nothing writes to. ⭐ **Seventh instance of that shape, and it was never red, so
+nobody looked.**
+⭐ **Fixed as named gaps, not skips** — each ends `Assert.Empty(traceBuffer…)`, so it **reddens the day
+the `HsmTraceContext` rewrite lands.** ⚠ **The "(DEBT)" the in-file comment pointed at was NEVER FILED**;
+`BP-304` is now that record.
+
+### ⚠ Two findings filed, not adopted
+
+| | |
+|---|---|
+| **`BP-306`** | ⛔ **`BTreeActionGenerator` emits NON-COMPILING code the moment `Hrot.AI.Behaviors` gains its first `[SharedAiAction]`** *(`CS1666`)* — and `Fdp.Toolkits` compiles the same shape fine ⇒ **assembly-dependent.** ⭐⭐ **It means the one generator-bearing assembly this programme owns cannot host a shared AI action today** |
+| **`BP-307`** | ⛔ **`Fhsm.Tests.csproj:25` points an analyzer `ProjectReference` at `Fhsm.SourceGen`, which DOES NOT EXIST** — MSBuild skips it and succeeds ⇒ ⭐⭐ **the suite's `SourceGen/*` tests exercise a HAND-WRITTEN stub, not generator output.** ⚠ **Same family as `BP-304`** |
 
 ---
 
