@@ -125,7 +125,7 @@
 | **R-14** | ⭐⭐ **A variable's classification is WHERE IT WAS CREATED.** ⛔ **NO `Role`/`Scope` dropdown anywhere — the SECTION is the control** | `DESIGN_Variable_Details_And_Editing.md` §1c |
 | **R-15** | ⭐ **An empty section STAYS PRESENT** — *"a section that appears and disappears reads as a broken feature"* | `BlueprintMyBlueprintModel.cs` |
 | **R-16** | ⭐ **`Q26-B2`: a refusable `[+]` STAYS and refuses out loud, naming the reason** — ⛔ it does not vanish. ⭐⭐ **`2026-08-17` user refinement: GREY it with a tooltip — greying is not vanishing, and it removes the false expectation** | `BlueprintMyBlueprintModel.cs` + user |
-| **R-17** | ⭐ **The *"quick-add, not a modal"* choice was OVERRULED by the user** — every section's `[+]` should open the SAME dialog. ⛔⛔ **BUT DO NOT BUILD IT YET:** `Q39` pulls it, because a create-dialog **per section** hardens a split stage `D` collapses. ⚠⚠ **This row previously read as a build order and contradicted `Q39` — my error, `2026-08-17`** | user + `Q39` |
+| **R-17** | ⭐ **Every section's `[+]` opens the SAME dialog** *(user, `2026-08-17`)*. ✅ **BUILT in Batch 81 and KEPT.** ⚠⚠ **`Q39` said "PULL IT"; the implementation session MEASURED both premises FALSE and said so instead of complying** — 📐 it is **ONE modal CLASS** per section *(not a dialog per section)*, and it **removed** a parallel create path ⇒ **two create implementations became ONE**, which SERVES ruling 9 and makes stage `D` cheaper. ⭐⭐ **`Q39` §5's pull is WITHDRAWN** | user · `REPORT_Batch81` §1a |
 | **R-18** | ⭐ **Rename lives in the OUTLINE, not the table row menu** — a row is an observation with no asset handle | `Q32` / plan §4C |
 | **R-19** | ⭐ **Details is authoring+runtime; Watch is runtime-only.** ⛔ **Do NOT "fix" that into consistency** — ruling 9 forbids two implementations of one concept, not two behaviours of two concepts | `Architect_Question_32_…_ANSWERS.md` |
 | **R-20** | ⭐ **Run state governs WRITABILITY, not WHICH surface is shown** | `DESIGN_Variable_Details_And_Editing.md` §5 |
@@ -157,6 +157,7 @@ wearing a design document's name.
 | *"Working State `[+]` opening no dialog is not a defect — it is deliberate"* | ⛔ **overruled.** Its premise *("renamable in place")* was false, and consistency outranks the saving |
 | *"the BTree/HSM `Working State` name is a COINCIDENCE"* | ⛔ **wrong. `Role` is genuinely shared** — only `Scope` differs |
 | *"`Q39` is: should the outline merge two sections?"* | ⛔ **wrong framing** — it is **infrastructure**, stages `B`+`D` |
+| ⭐⭐⭐ *"pull Batch 81 §3b — it hardens the split"* | ⛔⛔ **WRONG, and it is the MIRROR of my usual error.** ⚠ I had just spent a day learning *"do not reason from code without the design"* — ⭐⭐ **and then reasoned from the design without measuring the code.** 📐 **Both premises were false.** ⇒ ⭐ **A design-based objection to an IMPLEMENTATION must be measured too** |
 | *"rename the three `Variables` windows"* | ⚠ **incomplete** — the design says **retire** *(`U-16`)*; the rename is an **interim** the user authorised |
 | *"`E3` is a signature widening" / "the dangerous case" / "`E5`'s dependency is stale"* | ⛔ **wrong 4×** — the **params BASE** is what collides |
 

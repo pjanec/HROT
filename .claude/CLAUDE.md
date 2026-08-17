@@ -480,3 +480,35 @@ known-conflict: <another document that disagrees, and that this has not reconcil
 
 ⚠ **Retro-fit lazily, not in a sweep** — ⭐ **add a STATUS block to any design document you TOUCH**, and
 to any the ledger cites. ⛔ **Do not spend a batch on the back catalogue.**
+
+## ⛔⛔ SCOPE IS FROZEN AT THE DISPATCH SHA *(user, `2026-08-17` — cost: 20 minutes)*
+
+> ⭐⭐ **User:** *"i stopped it because it found your new ruling and tried to adapt to it and it took
+> another 20 minutes."*
+
+📌 **What happened.** Rule 1 forbids amending a **dispatched handoff**. ⛔ **Nothing protected the
+CORPUS AROUND IT.** The coordinator rewrote `RULINGS.md`, `Q39` and the plan **while Batch 81 ran**, and
+⭐ **rule 4 tells the implementation session to pull and read changed design files** — so it did, found a
+ruling contradicting its own handoff, and spent 20 minutes adapting.
+
+⇒ ⭐⭐⭐ **Rule 4 worked exactly as written. The rule was incomplete.**
+
+| ⭐ the fix | owner |
+|---|---|
+| ⭐⭐⭐ **Every handoff states: *"Your scope is FROZEN at `<dispatch-sha>`. Documents that change after it are FYI ONLY."*** | coordinator |
+| ⭐⭐ **A later document that INVALIDATES an item ⇒ STOP and REPORT IT. ⛔ Do NOT adapt, do NOT revert** | implementation |
+| ⭐ **While a batch is in flight, prefer the NEXT handoff over rewriting canon** — ⚠ if canon must move, say **"does not affect batch N"** in the commit | coordinator |
+
+⭐⭐ **Batch 81 got the SPIRIT right without the rule:** it measured `Q39`'s premises, found them false,
+**did not comply and did not silently keep** — it reported and offered the revert. ⭐ **That is the
+behaviour; this rule just makes it cheap instead of costing 20 minutes.**
+
+## ⭐⭐⭐ THE MIRROR ERROR — **design-reasoning without measurement** *(`2026-08-17`)*
+
+⛔ **I spent a day building rules against *"reasoning from code without the design."*** ⚠⚠ **Then I
+ordered Batch 81 §3b pulled on two premises I never measured** — *"a dialog per section"* **(false: one
+modal class)** and *"hardens the split"* **(false: it removed a parallel create path)**.
+
+⇒ ⭐⭐ **A design ruling tells you what SHOULD exist. ⛔ It cannot tell you what a diff ACTUALLY DID.**
+⭐⭐⭐ **Before ordering a built thing reverted, MEASURE WHAT IT BUILT.** ⚠ Both directions need
+checking — *the design for intent, the code for fact.*
