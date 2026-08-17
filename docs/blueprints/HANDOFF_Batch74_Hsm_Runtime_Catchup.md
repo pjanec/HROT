@@ -2,7 +2,7 @@
 
 > ⛔⛔ **AMENDED TWICE `2026-08-17` under rule 1a** — ⭐ **ancestry re-checked before each**: neither
 > `6c49dc9db` nor `8f3de52b8` was in the implementation branch's history, so no run was ever in
-> progress. 📌 **RE-DISPATCHED at `<this commit>`.**
+> progress. 📌 **RE-DISPATCHED at `594f7d1b9`.**
 > ⭐ **Amendment 1:** the original item 1 (**`BP-281`**) is **REMOVED** — §0b.
 > ⭐ **Amendment 2:** item 3 (**the `InspectorWindow` retirement**) is **WITHDRAWN as a removal** —
 > ⭐⭐ **user ruling: *"no rush removals."*** §3.
