@@ -181,7 +181,20 @@ public static class HsmBridgeEmitCore
         var variables = dto.Blackboard?.Variables;
         if (variables == null || variables.Count == 0) return;
 
-        var slotsByKey = new Dictionary<int, (int SlotKey, string TypeId, string Label, int Role, int Scope)>();
+        // ⭐⭐ Batch 73 — ORDER BY CONSTRUCTION, not by implementation detail.
+        //
+        // ⛔ This used to accumulate into a Dictionary<int, …> and emit `slotsByKey.Values`. An
+        //    insert-only Dictionary<int,V> does enumerate in insertion order IN PRACTICE, but that is a
+        //    convention of the current BCL implementation rather than a documented guarantee, and a
+        //    single Remove would break it. ⚠ A golden baseline over output ordered by convention can
+        //    move for a reason nobody changed — which trains everyone to regenerate, and a gate that is
+        //    routinely regenerated is not a gate.
+        //
+        // ⭐ The emitted ORDER is deliberately unchanged: declaration order, which is what shipped. The
+        //    list carries it explicitly and the set does the dedup, so the two jobs the dictionary was
+        //    doing at once are now separate and neither is implicit.
+        var seenKeys = new HashSet<int>();
+        var slots    = new List<(int SlotKey, string TypeId, string Label, int Role, int Scope)>();
         foreach (var v in variables)
         {
             if (v.Role != BlackboardVariableRole.State) continue;
@@ -192,16 +205,16 @@ public static class HsmBridgeEmitCore
 
             int slotKey = BTreeBridgeEmitCore.ComputeStatefulSlotKey(
                 dto.AssetId, v.Scope, Guid.Empty, v.Name);
-            if (slotsByKey.ContainsKey(slotKey)) continue;   // co-scoped duplicates share one slot
+            if (!seenKeys.Add(slotKey)) continue;   // co-scoped duplicates share one slot
 
-            slotsByKey[slotKey] = (slotKey, typeId, v.Name, (int)v.Role, (int)v.Scope);
+            slots.Add((slotKey, typeId, v.Name, (int)v.Role, (int)v.Scope));
         }
 
-        if (slotsByKey.Count == 0) return;
+        if (slots.Count == 0) return;
 
         sb.AppendLine($"{pad}StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]");
         sb.AppendLine($"{pad}{{");
-        foreach (var (slotKey, typeId, label, role, scope) in slotsByKey.Values)
+        foreach (var (slotKey, typeId, label, role, scope) in slots)
         {
             string typeFqn = BTreeBridgeEmitCore.DtoTypeToGlobal(typeId);
             // DEBT-AIB-027: the structure hash folds in Marshal.SizeOf<T>() at REGISTRATION time so it
