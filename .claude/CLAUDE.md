@@ -90,6 +90,23 @@ by construction** instead of true by convention.
    collapses the duplicate mechanism (ruling 9). Deletion is only right when the design record says the
    thing is dead, or nothing claims it.
 
+### ⭐⭐ `2026-08-17` extension — **"no rush removals"** *(user ruling)*
+
+⭐ **The rule above covers the UNREFERENCED.** ⛔ **This covers the SUPERSEDED**: a thing whose job a
+newer surface now does is **still not a rush removal.**
+
+📌 **The case:** the coordinator carried *"retire `InspectorWindow`'s STATIC PARAMETERS"* for five
+batches **on a label it had never measured.** 📐 Measured: it is the **default-value editor for the
+`ExpressionTargetField` variable**, its duplicate-CODE half was already resolved (`BP-267`), and what
+looked like duplication is a **node-scoped affordance the asset-scoped table does not have.**
+⚠ **And the binding it authors is one whose runtime `E7b` is only now building** ⇒ removing it would
+have raced its own fix.
+
+⇒ ⭐ **Before proposing a removal, state which of the three it is:** **duplicate CODE** *(route it)* ·
+**duplicate SURFACE** *(usually keep — surfaces differ by context)* · **genuinely dead** *(and the
+design record agrees)*. ⛔ **"Ruling 9 says one implementation" is about IMPLEMENTATIONS, not about
+every place a user can reach one.**
+
 ### ⭐⭐ Where to look, in order *(derived by sweeping the corpus, `2026-08-15`)*
 
 | # | look here | it tells you |

@@ -1,8 +1,11 @@
-# HANDOFF — Batch 74: **only what the runtime already supports** — `E7b` · BTree emit · `InspectorWindow` · park the picker
+# HANDOFF — Batch 74: **only what the runtime already supports** — `E7b` · BTree emit · record, do not remove · park the picker
 
-> ⛔⛔ **AMENDED AND RE-STAMPED `2026-08-17` under rule 1a** — ⭐ **ancestry checked: the original
-> dispatch sha `6c49dc9db` was NOT in the implementation branch's history**, so no run was in progress.
-> 📌 **RE-DISPATCHED at `8f3de52b8`.** ⭐ **The original item 1 (`BP-281`) is REMOVED — see §0b.**
+> ⛔⛔ **AMENDED TWICE `2026-08-17` under rule 1a** — ⭐ **ancestry re-checked before each**: neither
+> `6c49dc9db` nor `8f3de52b8` was in the implementation branch's history, so no run was ever in
+> progress. 📌 **RE-DISPATCHED at `<this commit>`.**
+> ⭐ **Amendment 1:** the original item 1 (**`BP-281`**) is **REMOVED** — §0b.
+> ⭐ **Amendment 2:** item 3 (**the `InspectorWindow` retirement**) is **WITHDRAWN as a removal** —
+> ⭐⭐ **user ruling: *"no rush removals."*** §3.
 >
 > ✅ **Batch 73 MERGED at `0808253e4`** — gates re-run by me, blueprint golden set untouched,
 > Examples.Scenarios now in the gate set at **56 / 68, 12 named quarantines**.
@@ -111,17 +114,36 @@ and baseline the fallback** — that is worse than no tier.
 
 ---
 
-## 3. ⭐ Retire `InspectorWindow`'s "STATIC PARAMETERS"
+## 3. ⛔⛔ ~~Retire `InspectorWindow`'s "STATIC PARAMETERS"~~ — **WITHDRAWN. Record it, do not remove it**
 
-⭐ **Carried since Batch 69 and never scheduled.** 📄 The parameter model rules that **sections are the
-classification** *(`DESIGN_Parameter_Model.md` §5.1)* and Track C built that panel ⇒ ⛔ **a separate
-"STATIC PARAMETERS" block in the inspector is the second surface for one concept** *(ruling 9)*.
+> ⭐⭐⭐ **USER RULING `2026-08-17`: *"no rush removals."*** ⛔ **This item is CANCELLED as a removal.**
+> ⚠ **It was MY item, carried since Batch 69 on a label I had never measured.** 📐 **I measured it when
+> the user asked what it was, and it is not what I had been calling it.**
 
-⚠ **`2026-08-15`'s rule applies before you delete anything:** ⭐⭐ **search `.dev/` for a design record
-first.** ⛔ **If a record says it is a designed-but-unbuilt capability, ROUTE it rather than delete it,
-and say so** — that is exactly the `BTreeTick` case.
+### 📐 What it actually is
 
----
+⛔ **Nothing to do with parameters.** When the selected BTree/HSM node's facet carries an
+**`ExpressionTargetField`** — ⭐ the **OUTPUT** binding, the blackboard variable that receives the
+action's expression result — this section edits **that variable's DEFAULT VALUE** inline via StructEdit,
+persisting through `UpdateVariableDefaultValueJson`. ⇒ ⭐⭐ **contextual default-value authoring for the
+variable the selected node writes.** The label is misleading; that is all it ever was.
+
+### ⭐ Why it is NOT a duplicate to remove
+
+| | measured |
+|---|---|
+| ⭐ **the duplicate CODE is already gone** | Batch 68's `C-dialog` routed it through `DefaultValueAuthoring.OpenSession` — 📄 **`BP-267`**. ⇒ what remains is a duplicate **SURFACE**, not a second implementation |
+| ⭐⭐ **and the surface earns itself** | it is scoped to the **selected node** — you see the default of the variable *that node writes*. ⛔ **Track C's table is asset-scoped**; you would have to go find that variable. ⇒ ⭐ **a real affordance, so `2026-08-15`'s rule says ROUTE-or-KEEP, not delete** |
+| ⭐⭐ **the `.dev/` record, and it is instructive** | **`blueprint-finalize/reviews/BATCH-BB1B-REVIEW.md:21`** — the panel *"never renders (accessor null)"* in the running editor. ⭐ **The silent-default pattern, found before we named it.** ⚠ **It IS wired now** — `EditorSubsystem.cs:2135/2153` pass `ResolveExpressionTargetField`, with a forwarding test |
+| ⛔⛔ **and the irony that settles it** | ⭐⭐⭐ **this section authors a default for a binding `E7b` exists because the runtime NEVER READS.** ⇒ **retiring the surface in the same batch that makes its binding real would be backwards** |
+
+### ⭐ What to do instead — **one commit, no behaviour change**
+
+| | |
+|---|---|
+| ⭐ **record the finding where the code is** | an XML-doc line on the section: **what it is** *(the default-value editor for the `ExpressionTargetField` variable)*, ⭐ **that its duplicate-code half was resolved by `BP-267`**, and that it is **kept for the node-scoped affordance** |
+| ⚠ **rename the LABEL, if it is free** | *"STATIC PARAMETERS"* names nothing true. ⭐ Something like *"DEFAULT VALUE — `{var}`"*. ⛔ **If it costs a test churn or a visual-check dependency, leave it and say so** — the label is not worth a fight |
+| ⛔ **remove nothing** | ⭐ **that is the ruling** |
 
 ## 4. ⭐⭐⭐ Park the producer picker — **assert it inert, do not delete it**
 
