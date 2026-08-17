@@ -1,4 +1,22 @@
-# PLAN — what is left *(revision 26, `2026-08-17`)*
+# PLAN — what is left *(revision 27, `2026-08-17`)*
+
+> ✅ **REVISION 27 — BATCH 81 MERGED at `3ae96f53d`; BATCH 82 DISPATCHED at `0973760ca`.**
+> ⭐ **All six of 81's items shipped** — including the drop item; **both NodeEdit gates paid and moved**
+> *(Core 211, UI 135)*. **+47 tests, zero golden movement.**
+> ⛔⛔ **They REFUSED my `Q39` §3b pull and were RIGHT** — 📐 **both my premises measured false**: it is
+> **ONE modal class** *(not a dialog per section)* and it **removed** a parallel create path ⇒ **two
+> create implementations became one.** ⭐ **`Q39` §5's pull is WITHDRAWN.**
+> ⚠⚠ **That is the MIRROR of the error I spent the day fixing** — ⭐ having learned not to reason from
+> code without the design, **I reasoned from the design without measuring the code.**
+> ⛔ **And rewriting canon mid-flight cost them 20 minutes** *(rule 4 pulled it, as designed)* ⇒
+> ⭐⭐ **new rule: SCOPE IS FROZEN AT THE DISPATCH SHA.**
+>
+> ⭐⭐⭐ **BATCH 82 = `U-6` = stage `B` = `Q32` batch 57** — **Details hosts the shared table + ruling
+> 2's selection routing.** ⭐ **Two independent roadmaps converge on it**, and 📌 it is **half the
+> unblock condition** for the standing *"NO VISUAL CHECKS"* suspension *(`R-21`)*.
+> 📄 **[`HANDOFF_Batch82_U6_Details_Hosts_The_Table.md`](HANDOFF_Batch82_U6_Details_Hosts_The_Table.md)**
+> 📄 **[`REPORT_Batch81_Surfaces_Reach_The_User.md`](REPORT_Batch81_Surfaces_Reach_The_User.md)**
+
 
 > 🔴🔴 **REVISION 26 (`2026-08-17`) — THE FIRST VISUAL CHECK RAN, AND IT PAID.** ⭐⭐⭐ **Eight findings
 > from one session at the keyboard, none of which any gate could have produced.**
