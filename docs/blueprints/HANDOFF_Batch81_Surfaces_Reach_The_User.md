@@ -1,14 +1,43 @@
-# HANDOFF — Batch 81: **the surfaces reach the user**
+# HANDOFF — Batch 81: **visual check round 1 — every finding**
 
-> 📌 **AMENDED and RE-STAMPED — dispatched at `e13220a98`** *(rule 1a; the original stamp was
-> `8f145e40e`)*. ⚠ **Checked first:** `git merge-base --is-ancestor 8f145e40e origin/…-j1jvin` ⇒ **NO**,
-> and **no `started batch 81` marker exists** — their remote head is still Batch 80's report.
-> ⛔⛔ **Rule 1b: that is CORROBORATION, NOT PROOF.** ⭐ **If you had already merged the dispatch and
-> begun work locally, SAY SO and I will re-issue §2's change as its own batch instead.**
-> ⭐ **What changed: §2 only** — the user has ruled on *how* to resolve the title collision.
-> ⭐⭐ **Source: the user's FIRST VISUAL CHECK**, run `2026-08-17` against Batch 80. 📄 [`GUIDE_Track_C_Visual_Check.md`](GUIDE_Track_C_Visual_Check.md)
+> 📌 **RE-STAMPED — dispatched at `438143ee7`.** ⭐ **User confirmed `2026-08-17`: *"last executed is
+> 80"*** ⇒ ⛔ **no run was in progress; rule 1b's blind window is closed by the user's own statement**,
+> not by my ancestry check.
+>
+> ⭐⭐⭐ **THIS BATCH NOW ABSORBS BATCH 82** *(user: "can i run batch 81+82 together?")*.
+> 📄 [`HANDOFF_Batch82`](HANDOFF_Batch82_The_Row_Commands_Work.md) is a **pointer stub** — ⛔ **do not
+> work from it.** ⭐ **Its three items are §§3a–3c below, unchanged.**
+>
+> ⭐⭐ **Source: the user's FIRST VISUAL CHECK**, run `2026-08-17` against Batch 80.
+> 📄 [`GUIDE_Track_C_Visual_Check.md`](GUIDE_Track_C_Visual_Check.md)
 > ⛔ **Rule 3: allocate your own ids.** Every `BP-`/`DEBT-` number below is a placeholder.
-> ⭐ **Rule 1b: push the `chore: started batch 81 at <sha>` marker before writing any code.**
+> ⭐ **Rule 1b: push `chore: started batch 81 at <sha>` before writing any code.**
+
+---
+
+## ⭐⭐⭐ ORDER OF WORK — **and the ONE item you may drop**
+
+⛔⛔ **Land these in order.** ⭐ **Item 1 is BLOCKING** — the user cannot re-run guide parts **C, D or
+F** until it works, so ⛔ **nothing else in this batch is worth delaying it for.**
+
+| # | item | weight | |
+|---|---|---|---|
+| **1** | ⭐⭐⭐ **feed the outline its host services** *(§1)* | **design** | 🔴 **BLOCKING — do this first** |
+| **2** | **rename the duplicate window titles** *(§2)* | small–medium | ⭐ a sweep |
+| **3a** | ⭐⭐ **the row commands: rename / delete / duplicate** *(§3a)* | **one-line root cause** | ⭐ highest value per line in the batch |
+| **3b** | **every section's `[+]` opens the same dialog** *(§3b)* | small | ⭐ depends on **3a** being right |
+| **3c** | ⚠ **grey the `[+]` with a reason** *(§3c)* | ⛔ **UNBOUNDED — crosses into `NodeEditor.Core` + `NodeEditor.UI`** | ⭐⭐⭐ **THE DROP ITEM** |
+| **4** | **measure the Details panel** *(§4)* | measurement | ⭐ a report is an acceptable outcome |
+
+### ⛔⛔ The split rule — **stated so you do not have to ask**
+
+> ⭐⭐⭐ **If §3c grows beyond a contained change, STOP IT AND SHIP THE REST.** ⛔ **Do not hold items
+> 1–3b hostage to the NodeEdit descriptor work.** ⭐ **Say in your report that you split it, and it
+> becomes Batch 82 for real.**
+
+⚠ **Everything else here is independent** — ⭐ **items 1/2 touch `AiShared` + `EditorSubsystem`, items
+3a/3b touch `BlueprintDocumentFactory` + `BlueprintMyBlueprintModel`.** ⛔ **Near-disjoint; conflicts
+should be rare.**
 
 ---
 
@@ -120,7 +149,166 @@ coexistence usable until `Q38` decides the merge.**
 
 ---
 
-## 3. ⚠ **Item 3 — the Details panel never responds to an outline click**
+## 3a. 🔴🔴 **Item 3a — Rename and Delete are SILENT NO-OPS on Inputs and Working State rows**
+
+> ⭐⭐ **User, verbatim:** *"variable record in Working State shows just **'Delete' (does nothing)** and
+> **'Rename' (shows rename dialog but does not cause name to change)** items in the context menu (while
+> in Variables section there are many more items)."*
+
+### ⭐⭐⭐ Root cause — measured, and it is **one line**
+
+📐 **`BuildDeclarationItems` emits the SAME `var:` prefix for all THREE declaration kinds:**
+
+```csharp
+// BlueprintMyBlueprintModel.cs:383 — called for Variable, Parameter AND WorkingState
+ItemId: $"var:{v.Id}",
+```
+
+📐 **…but the lookup every row command goes through is KIND-SCOPED to `Variable`:**
+
+```csharp
+// BlueprintDocumentFactory.cs:1030-1033
+private static VariableDecl? FindVariable(BlueprintAsset asset, string itemId)
+    => TryItemGuid(itemId, "var:", out var id)
+        ? asset.Declarations.Of(DeclarationKind.Variable).FirstOrDefault(d => d.Id == id)?.AsVariableDecl
+        : null;                    // ⛔⛔ ONLY DeclarationKind.Variable
+```
+
+⇒ ⭐⭐ **For an Input or Working-State row the id parses, the lookup returns `null`, and every command
+falls through to `return false`:**
+
+| gesture | what happens | ⭐ matches the user exactly |
+|---|---|---|
+| **Rename** | `ItemDisplayName` → `null` ⇒ the dialog opens **with an empty current name**, `RenameItem` returns `false` | ✅ *"shows rename dialog but does not cause name to change"* |
+| **Delete** | `DeleteItem` finds no variable, no custom event ⇒ `return false` | ✅ *"does nothing"* |
+| ⚠ **Duplicate** | ⛔ **same fall-through — the user did not test it, and it is broken too** | — |
+
+⛔⛔ **And `DeleteItem` would still be wrong even if the lookup found it:**
+
+```csharp
+// BlueprintDocumentFactory.cs:965 — hard-codes the kind when building the removal key
+return asset.Declarations.Remove(BlueprintDeclaration.For(DeclarationKind.Variable, variable));
+```
+
+### ⭐⭐ The rule that already existed, and that the C-sections broke
+
+> 📌 **`BuildLocalVariableItems`' own doc comment, verbatim:** *"the `local:{id}` id form is what
+> `editor.rename-item` / `editor.delete-item` **dispatch on**… the declarations live in different lists
+> and have different delete rules, so **one prefix per kind is what keeps them apart**."*
+
+⇒ ⭐ **The locals section obeyed it. The C-sections did not.**
+
+---
+
+### ⭐ The fix — **kind-agnostic lookup, NOT a third prefix** *(and here is why)*
+
+⚠ **The stated rule says "one prefix per kind".** ⛔ **Do not apply it here** — read *why* it exists:
+*"the declarations live in **different lists** and have **different delete rules**."*
+
+📐 **That premise is TRUE for locals** *(they live on `graph.LocalVariables`)* and ⛔ **FALSE for these
+three** — `Variable`, `Parameter` and `WorkingState` all live in **one list, `asset.Declarations`**, with
+**one delete rule**, and their ids are already unique GUIDs.
+
+⇒ ⭐⭐ **Resolve across all declarations and carry the FOUND declaration's own kind into the mutation.**
+⛔ **A third and fourth prefix would be ceremony that buys nothing and adds two more places that know
+the mapping** — the exact objection `AddDeclaration`'s own comment raises about `BlueprintDeclaration.Create`.
+
+⚠ **If you find a delete rule that genuinely differs by kind, STOP and report it** — that would
+invalidate this reasoning, and ⭐ **it is a design question, not an implementation detail.**
+
+### ⭐ Rails
+| | |
+|---|---|
+| ⭐⭐ **one per kind × per gesture** — rename · delete · duplicate, on **Parameter** and **WorkingState** | ⛔ **not one test with a loop that could pass on `Variable` alone** |
+| ⭐ **assert the OBSERVABLE outcome** *(the declaration's name changed / it is gone from `asset.Declarations`)* | ⛔ **not that the command was registered** — the whole defect is a registered command that returns `false` |
+| ⭐ **`ItemDisplayName` returns the real name** for all three kinds | ⚠ that is what made the dialog open empty |
+
+---
+
+## 3b. ⛔⛔ **Item 3b** — **the quick-add is OVERRULED: every section's `[+]` opens the SAME dialog**
+
+> ⭐⭐⭐ **USER RULING, `2026-08-17`, verbatim:** *"working state `[+]` opening no dialog is **wrong,
+> inconsistent**. **Must open new variable dialog same as any other variable section.**"*
+
+⚠ **I initially filed this as *not a defect*, because the design note calls it a deliberate choice:**
+
+> 📌 **`BlueprintDocumentFactory.cs:1693-1698`:** *"⭐ Quick-add, not a modal — deliberately unlike
+> `editor.create-variable`… the created declaration is **renamable and retypable in place**."*
+
+⇒ ⛔⛔ **The user has overruled it, and the record supports them twice over:**
+
+| | |
+|---|---|
+| ⭐⭐ **its premise is FALSE** | *"renamable in place"* is exactly what §3a proves does not work |
+| ⭐⭐⭐ **and CONSISTENCY outranks the saving** | ⛔ **the note weighed "a second modal" against nothing.** ⭐ **The real cost it skipped is a designer learning TWO different meanings for one button** |
+
+⇒ ⭐ **`editor.create-parameter` and `editor.create-working-state` open the SAME modal
+`editor.create-variable` does**, taking a **name and a TYPE**, and create a declaration of **that
+section's kind**. ⛔ **Not a third modal — the same one, parameterised by kind.**
+
+⚠ **Update the design note in place.** ⛔ **Do not leave a comment asserting a choice that was
+reversed** — *"a doc asserting an unbuilt feature is worse than the gap"* *(plan §4C)*, and this is the
+same failure pointed the other way.
+
+📌 **`AddDeclaration` stays** — it is the one path that knows the kind→concrete-type mapping. ⭐ **The
+modal supplies name and type; `AddDeclaration` still builds the declaration.**
+
+---
+
+## 3c. ⭐⭐⭐ **Item 3c — THE DROP ITEM** — **DISABLE the `[+]`, do not let it be clicked and then refuse**
+
+> ⭐⭐⭐ **USER RULING, `2026-08-17`, verbatim:** *"**Disabling/graying a `[+]`** on variable section but
+> **showing explanatory tooltip** (same as the info window now) **would be better than allowing user to
+> click the button and then saying that it is not possible** — same information value, **no false
+> expectations**."*
+
+### ⭐⭐ This does NOT contradict `Q26-B2` — read the ruling carefully
+
+📌 **`Q26-B2`, restated at `BlueprintMyBlueprintModel.cs:116`:** *"the '+' **stays** and REFUSES OUT
+LOUD, naming the reason, rather than **vanishing** and teaching nothing."*
+
+⇒ ⭐⭐⭐ **The ruling forbids VANISHING. Greying is not vanishing.**
+
+| | `Q26-B2` demands | ⭐ greyed + tooltip |
+|---|---|---|
+| the `[+]` stays visible | ✅ | ✅ |
+| the reason is taught | ✅ | ✅ **in the tooltip, BEFORE the work** |
+| ⭐ **no wasted authoring** | ⛔ **not addressed — the ruling never considered the order** | ✅ |
+
+⇒ ⭐ **This is a REFINEMENT of `Q26-B2`, not a reversal.** ⛔ **Record it as such** in the design note,
+citing the user and the date.
+
+### ⚠⚠ The cost — **measured, and it crosses the NodeEdit boundary**
+
+📐 **`MyBlueprintSectionDescriptor` lives in `NodeEditor.Core`** *(`FDP/ExtDeps/NodeEdit/src/NodeEditor.Core/Interfaces/IMyBlueprintModel.cs:24`)*:
+
+```csharp
+public sealed record MyBlueprintSectionDescriptor(
+    …, bool CanCreateItems, …, string? CreateCommandId);   // ⛔ no reason, no disabled state
+```
+
+| ⚠ what this needs | where |
+|---|---|
+| a **reason** field *(e.g. `string? CreateDisabledReason`)* | ⛔ **`NodeEditor.Core`** |
+| the panel drawing it **greyed with a tooltip** | ⛔ **`NodeEditor.UI`** |
+| ⭐⭐ **descriptors that vary PER GRAPH** | ⚠ **`BlueprintMyBlueprintModel._sections` is `static readonly` — ONE instance for every asset and every graph.** 📌 **That is the stated reason `CanCreateItems` could not vary**, and it is now the thing that must change |
+
+⛔⛔ **Both NodeEdit assemblies are OUT OF SOLUTION ⇒ their gates take NO `--no-build`.** ⭐ **This is
+the "two NodeEdit gates" cost the existing comments cite twice — pay it deliberately, and say in your
+report that you did.**
+
+⭐ **Make it GENERAL, not macro-specific** *(round-out preference)*: any section that cannot currently
+create says **why**. ⛔ **Do not special-case the macro-locals arm** — the same mechanism should serve
+every future refusal.
+
+⚠ **If the per-graph descriptor change turns out to be large, STOP and report** — ⭐ **splitting item 3
+into its own batch is a legitimate outcome; items 1–3b stand alone.**
+
+---
+
+---
+
+## 4. ⚠ **Item 4 — the Details panel never responds to an outline click**
 
 > 🔴 **User, verbatim:** *"Details panel keep showing **'No node selected'** no matter if i click
 > variable record in My Blueprint."*
@@ -135,7 +323,7 @@ more than a guess that builds.**
 
 ---
 
-## 4. ⭐ Two QUESTIONS the user asked — **already answered from code, no work needed**
+## 5. ⭐ Two QUESTIONS the user asked — **already answered from code, no work needed**
 
 > ⭐ **Recorded here so the answers are not re-derived.** ⛔ **Neither is a defect to fix in this batch.**
 
@@ -164,7 +352,7 @@ belongs with `BP-128`/`Q38`. 📌 **Filed as an open point.**
 
 ---
 
-## 5. ⭐ Gates — **the rule 8 contract, all seven rows** *(unchanged from Batch 80)*
+## 6. ⭐ Gates — **the rule 8 contract, all seven rows** *(unchanged from Batch 80)*
 
 ⭐⭐ **Your report substitutes for my run.** ⛔ **A missing row is the one thing that sends me to the
 terminal.**
@@ -190,10 +378,9 @@ fix** — that is an acceptable outcome, **stated**.
 
 ---
 
-## 6. 📌 Queued behind this batch — ⛔ **do NOT build here**
+## 7. 📌 Queued behind this batch — ⛔ **do NOT build here**
 
 | batch | scope |
 |---|---|
-| ⭐ **82** | the **C-sections' row commands** — 📄 §4 of [`PLAN_Remaining_Work.md`](PLAN_Remaining_Work.md) rev 26. ⛔ **Rename and Delete are silent no-ops on Inputs/Working State rows**, root cause measured |
 | ⭐ **83** | **the Watch has no entry points** *(nothing pins a variable, nothing adds a breakpoint)* · ⭐ **author an asset with an `ExpressionTargetField`** so guide part **B** becomes testable |
 | ⛔ **open points** | the AiPrimitive-only sections showing on every blueprint *(§4a)* · the always-empty **Graphs** section *(§4b)* — ⭐ **both belong with `Q38`** |

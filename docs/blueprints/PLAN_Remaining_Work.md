@@ -28,8 +28,16 @@
 > 32 shipped assets are `(Parameter, WorkingState)`)* · **the always-empty Graphs section** is
 > non-creatable by design, every blueprint graph being a Function. ⚠ **Both produced an OPEN POINT.**
 >
-> 📄 **[`HANDOFF_Batch81_Surfaces_Reach_The_User.md`](HANDOFF_Batch81_Surfaces_Reach_The_User.md)** — ⭐ **DISPATCHED**
-> 📄 **[`HANDOFF_Batch82_The_Row_Commands_Work.md`](HANDOFF_Batch82_The_Row_Commands_Work.md)** — ⛔ **queued, not dispatched**
+> ⭐⭐ **81 AND 82 ARE NOW ONE BATCH** *(user: "can i run batch 81+82 together?")*. ⭐ **Confirmed safe —
+> user: *"last executed is 80"*** ⇒ rule 1b's blind window closed by their own statement.
+> ⭐ **Why combined:** the code is near-disjoint *(`AiShared`+`EditorSubsystem` vs
+> `BlueprintDocumentFactory`+`BlueprintMyBlueprintModel`)*, and ⛔⛔ **splitting would cost the USER a
+> second visual re-check that re-finds every defect the other half fixes.**
+> ⭐⭐⭐ **With ONE drop item:** §3c *(greying the `[+]`)* crosses into **`NodeEditor.Core` +
+> `NodeEditor.UI`** and needs **per-graph descriptors** ⇒ ⛔ **if it grows it is split back out and the
+> rest ships** — the blocking fix is never held hostage.
+> 📄 **[`HANDOFF_Batch81_Surfaces_Reach_The_User.md`](HANDOFF_Batch81_Surfaces_Reach_The_User.md)** — ⭐ **DISPATCHED, absorbs 82**
+> 📄 **[`HANDOFF_Batch82_The_Row_Commands_Work.md`](HANDOFF_Batch82_The_Row_Commands_Work.md)** — ⛔ **pointer stub**
 >
 > ✅✅ **REVISION 25 (`2026-08-17`) — BATCH 80 MERGED at `4911cf50d`. ⭐⭐⭐ TRACK C IS REACHABLE IN THE
 > RUNNING EDITOR, AND THE VISUAL CHECK IS UNBLOCKED END TO END.**
