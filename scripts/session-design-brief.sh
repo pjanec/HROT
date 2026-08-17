@@ -27,8 +27,12 @@ python3 scripts/rulings-check.py 2>/dev/null | tail -10
 # on 2026-08-17 (four times, each with the ruling sitting unread in the corpus).
 echo
 echo "=============================================================="
-echo " REQUIRED: your FIRST reply this session must open with this block"
+echo " REQUIRED: your FIRST reply this session is this block AND NOTHING ELSE"
 echo "=============================================================="
+echo "Do not answer the user's question in the same message. Post the brief alone,"
+echo "then answer in your SECOND reply. A brief mixed into an answer cannot be"
+echo "checked -- the user has to hunt for it, and a thin one hides inside the prose."
+echo
 cat <<'FMT'
 DESIGN BRIEF (post-compaction)
   ledger      : <N rulings, N/N probes verifying, staleness warnings on <files or none>>

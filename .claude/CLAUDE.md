@@ -522,7 +522,11 @@ checking — *the design for intent, the code for fact.*
 ⚠ **On `2026-08-17` I had READ documents and still missed their supersession banners four times** —
 ⭐ **reading is necessary and not sufficient; the step that fails is JOINING the canon to the work.**
 
-⇒ ⭐⭐⭐ **The FIRST reply of every session, and the first after every compaction, OPENS with:**
+⇒ ⭐⭐⭐ **The FIRST reply of every session, and the first after every compaction, IS this block and
+⛔ NOTHING ELSE** *(user, `2026-08-17`)* — ⭐ **the answer to whatever was asked comes in the SECOND
+reply.** ⚠ **`/compact` creates no assistant turn**, so the brief lands on the next thing you type;
+⛔ **mixed into an answer it cannot be checked** — the user must hunt for it, and a thin one hides in
+the prose.
 
 ```
 DESIGN BRIEF (post-compaction)
