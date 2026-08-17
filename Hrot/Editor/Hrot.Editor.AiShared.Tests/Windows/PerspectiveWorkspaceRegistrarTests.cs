@@ -143,10 +143,11 @@ public class PerspectiveWorkspaceRegistrarTests : IDisposable
             .ToList();
 
         // 3 perspectives × 6 windows = 18 distinct ids.
-        // ⚠ 18 → 21: three perspectives × the Variables table Batch 79 added to the core set.
+        // ⚠ 18 → 21 (Batch 79: the Variables table) → 23 (Batch 80: the derived outline, on BTree and
+        //    HSM only — +2, not +3, because Blueprint keeps BlueprintMyBlueprintWindow).
         //    ⭐ The property under test is distinctness, and it still holds.
-        Assert.Equal(21, allIds.Count);
-        Assert.Equal(21, allIds.Distinct().Count());
+        Assert.Equal(23, allIds.Count);
+        Assert.Equal(23, allIds.Distinct().Count());
     }
 
     /// <summary>

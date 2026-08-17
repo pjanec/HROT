@@ -87,4 +87,17 @@ public sealed record VariableRow(
     /// <summary>§5 — <i>"editability = run state ∧ row kind"</i>. ⛔ 🔒 and node-owned rows never get a
     /// writable dialog, in either mode; a stale row gets no dialog at all.</summary>
     public bool CanEverBeWritten => RowKind == VariableRowKind.Normal && !IsStale;
+
+    /// <summary>
+    /// ⭐⭐ <b>THE row-kind rule, in one place.</b> Row kind is MEASURED, never passed in:
+    /// <c>IsAutoManaged</c> is the editor-owned (node-owned) marker and <c>IsReadOnly</c> the
+    /// passthrough one, and neither is a property the designer sets.
+    ///
+    /// <para>⛔ Every source that builds rows calls this. Two sources spelling the precedence
+    /// themselves is how the same rule drifts — the shape <c>BP-306</c> was.</para>
+    /// </summary>
+    public static VariableRowKind KindOf(bool isAutoManaged, bool isReadOnly)
+        => isAutoManaged ? VariableRowKind.NodeOwned
+         : isReadOnly    ? VariableRowKind.ReadOnlyPassthrough
+         :                 VariableRowKind.Normal;
 }

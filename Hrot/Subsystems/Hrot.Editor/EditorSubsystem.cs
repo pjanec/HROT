@@ -2133,7 +2133,13 @@ namespace Hrot.Editor
                 schemaExporter:                sharedSchemaExporter,
                 facetEditService:              facetEditService,
                 expressionTargetFieldAccessor: ResolveExpressionTargetField,
-                liveValueProvider:             btreeLiveValueProvider);
+                liveValueProvider:             btreeLiveValueProvider,
+                // ⭐⭐⭐ Batch 80: WITHOUT THIS the Track C outline is never constructed and the
+                //    Variables window is never routed -- in the running editor, not in the tests.
+                //    Batch 79 added the parameter and wired only the test caller; the 2026-08-16 rule
+                //    names exactly that: "a production caller that HAS a dependency must PASS it",
+                //    and this file has it -- it names the "BTree" and "HSM" registrars two lines apart.
+                hostKind:                      Hrot.Editor.AiShared.Variables.BlackboardHostKind.BTree);
             _hsmRegistrar      = new PerspectiveWorkspaceRegistrar(
                 "HSM", _hsmSelectionStore, catalog, refactorService, debugRegistry,
                 validators: new Hrot.Editor.AiShared.Validation.IAssetValidator[]
@@ -2151,7 +2157,8 @@ namespace Hrot.Editor
                 schemaExporter:                sharedSchemaExporter,
                 facetEditService:              facetEditService,
                 expressionTargetFieldAccessor: ResolveExpressionTargetField,
-                liveValueProvider:             hsmLiveValueProvider);
+                liveValueProvider:             hsmLiveValueProvider,
+                hostKind:                      Hrot.Editor.AiShared.Variables.BlackboardHostKind.Hsm);
             _blueprintRegistrar = new PerspectiveWorkspaceRegistrar(
                 "Blueprint", _blueprintSelectionStore, catalog, refactorService, debugRegistry,
                 breakpointManager:    _bpManager,

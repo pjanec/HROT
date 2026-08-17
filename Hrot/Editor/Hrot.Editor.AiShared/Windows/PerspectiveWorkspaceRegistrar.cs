@@ -256,18 +256,36 @@ public class PerspectiveWorkspaceRegistrar
             owningPerspective: perspectiveName,
             formatter:         ValueFormatter);
 
+        // ⭐⭐⭐ Batch 80 — DERIVED, not required. The registrar already knows its perspective, so the
+        //    host kind is not information a caller can supply better; leaving it to be passed is what
+        //    let EditorSubsystem forget it for both AI perspectives while the tests passed.
+        //    ⛔ The parameter survives as an OVERRIDE, so an unusual perspective name can still say so.
+        var effectiveHost = hostKind ?? HostKindOf(perspectiveName);
+
         // ⛔ The Blueprint perspective already has BlueprintMyBlueprintWindow; a second outline there
         //    would be two panels for one concept. BTree and HSM had none at all -- that is the gap.
-        if (hostKind != null)
+        if (effectiveHost != null)
         {
             MyBlueprint = new AiMyBlueprintWindow(
                 id:                $"ai_my_blueprint_{suffix}",
                 owningPerspective: perspectiveName,
-                host:              hostKind.Value);
+                host:              effectiveHost.Value,
+                // ⭐⭐ The store is PASSED, so the outline follows the active document by itself.
+                //    ⛔ Batch 79 left that to the host and the host never did it (Batch 80's finding).
+                store:             selectionStore);
 
             // ⭐ design §1c: selection yields a SECTION, and the section is the routing key. Wired
             //   here rather than left to the host, because "built but nothing connects it" is the
             //   defect this whole batch exists to fix.
+            // ⭐⭐⭐ A DEFAULT resolver over the same selection store, so routing works out of the box.
+            //    ⛔ Batch 79 made this depend on the host calling SetSectionSourceResolver, and no
+            //    production caller did — "inert unless someone remembers" is the very shape this
+            //    programme keeps finding. A host may still override it for a live (asset, entity).
+            _sectionSource ??= section => new BlackboardSectionRowSource(
+                asset:   () => selectionStore.ActiveAsset as IBlackboardManagedAsset,
+                assetId: selectionStore.ActiveAsset?.AssetId ?? Guid.Empty,
+                section: section);
+
             MyBlueprint.SectionSelected += section =>
             {
                 var source = _sectionSource?.Invoke(section);
@@ -299,6 +317,19 @@ public class PerspectiveWorkspaceRegistrar
     /// contents — ⛔ the routing is inert, not broken, and <see cref="AiMyBlueprintWindow.SelectedSection"/>
     /// still records the choice.
     /// </summary>
+    /// <summary>
+    /// ⭐⭐ Which AI host a perspective name denotes — <c>"BTree"</c> and <c>"HSM"</c>, and
+    /// <c>null</c> for everything else *(Blueprint included: it has its own outline)*.
+    ///
+    /// <para>⛔ <b>Case-insensitive on purpose.</b> The perspective name is a string chosen at the
+    /// composition root; matching it exactly would turn a harmless casing difference into a silently
+    /// missing panel, which is the failure this method exists to remove.</para>
+    /// </summary>
+    public static BlackboardHostKind? HostKindOf(string perspectiveName)
+        => string.Equals(perspectiveName, "BTree", StringComparison.OrdinalIgnoreCase) ? BlackboardHostKind.BTree
+         : string.Equals(perspectiveName, "HSM",   StringComparison.OrdinalIgnoreCase) ? BlackboardHostKind.Hsm
+         : null;
+
     public void SetSectionSourceResolver(Func<string, IVariableRowSource?> resolver)
         => _sectionSource = resolver ?? throw new ArgumentNullException(nameof(resolver));
 

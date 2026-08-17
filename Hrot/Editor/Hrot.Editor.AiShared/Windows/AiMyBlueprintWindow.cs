@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Blackboard;
+using Hrot.Editor.AiShared.Selection;
 using Hrot.Editor.AiShared.Variables;
 using NodeEditor.Core.Action;
 using NodeEditor.Core.Interfaces;
@@ -31,7 +32,9 @@ namespace Hrot.Editor.AiShared.Windows;
 /// </summary>
 public sealed class AiMyBlueprintWindow : ManagedWindow
 {
-    private readonly BlackboardHostKind _host;
+    private readonly BlackboardHostKind    _host;
+    private readonly EditorSelectionStore? _store;
+    private object?                        _lastAsset;
 
     private BlackboardMyBlueprintModel? _model;
     private MyBlueprintPanel?           _panel;
@@ -41,11 +44,39 @@ public sealed class AiMyBlueprintWindow : ManagedWindow
     /// <param name="id">Unique ImGui window id.</param>
     /// <param name="owningPerspective">Perspective key (e.g. <c>"BTree"</c>).</param>
     /// <param name="host">Which AI host this outline describes.</param>
-    public AiMyBlueprintWindow(string id, string owningPerspective, BlackboardHostKind host)
+    /// <param name="store">
+    /// ⭐⭐ The selection store, so the outline FOLLOWS the active document by itself.
+    ///
+    /// <para>⛔ <b>This is the durable half of the Batch-80 fix.</b> Batch 79 left retargeting to the
+    /// host, and the host never did it — the same failure mode as the five unhosted surfaces, one
+    /// level up. <c>BlackboardAuthoringWindow</c> has always read <c>store.ActiveAsset</c> every
+    /// frame; so does this now, and there is nothing left for a caller to forget.</para>
+    /// </param>
+    public AiMyBlueprintWindow(
+        string id, string owningPerspective, BlackboardHostKind host,
+        EditorSelectionStore? store = null)
         : base(id, "My Blueprint", owningPerspective, WindowScope.PerspectiveBound)
     {
         _host  = host;
+        _store = store;
         IsOpen = false;
+    }
+
+    /// <summary>
+    /// ⭐ Re-reads the active asset and rebuilds the model when it changed. Called every frame from
+    /// <see cref="DrawClientArea"/>, and directly by rails — ⛔ the draw path goes through ImGui,
+    /// which no headless test can drive.
+    /// </summary>
+    public void SyncToSelection()
+    {
+        if (_store == null) return;
+
+        var asset = _store.ActiveAsset as IBlackboardManagedAsset;
+        if (ReferenceEquals(asset, _lastAsset)) return;
+        _lastAsset = asset;
+
+        if (asset == null) { _model = null; _panel = null; return; }
+        Retarget(() => asset.BlackboardVariables, _hostServices, _commands);
     }
 
     /// <summary>Which host kind this outline is built for. ⭐ Read by the section rails.</summary>
@@ -121,6 +152,8 @@ public sealed class AiMyBlueprintWindow : ManagedWindow
 
     protected override void DrawClientArea()
     {
+        SyncToSelection();
+
         if (_panel == null)
         {
             ImGuiNET.ImGui.TextDisabled(_model == null

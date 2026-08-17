@@ -65,12 +65,9 @@ public sealed class SectionVariableRowSource : IVariableRowSource
 
     private VariableRow ToRow(VariableViewModel v)
     {
-        // ⭐ Row kind is measured off the view model, not passed in: `IsAutoManaged` is the editor-owned
-        //   (node-owned) marker and `IsReadOnly` the passthrough one -- §5's "editability = run state ∧
-        //   row kind" needs both, and neither is a property the designer sets.
-        var kind = v.IsAutoManaged ? VariableRowKind.NodeOwned
-                 : v.IsReadOnly    ? VariableRowKind.ReadOnlyPassthrough
-                 :                   VariableRowKind.Normal;
+        // ⭐ Row kind is measured off the view model, not passed in -- and the precedence lives in
+        //   ONE place so a second source cannot spell it differently.
+        var kind = VariableRow.KindOf(v.IsAutoManaged, v.IsReadOnly);
 
         byte[] cached = Array.Empty<byte>();
         return new VariableRow(
