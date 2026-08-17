@@ -349,20 +349,17 @@ public sealed class InspectorWindow : ManagedWindow
                     if (_defaultValueSession is null || _defaultValueSessionVarName != boundVarName)
                     {
                         DisposeAndClearDefaultValueSession();
-                        // Hydrate an instance from the stored JSON (or use a fresh default).
-                        object instance;
-                        try
-                        {
-                            instance = (!string.IsNullOrEmpty(varEntry.DefaultValueJson))
-                                ? JsonSerializer.Deserialize(varEntry.DefaultValueJson, varEntry.FieldType, DefaultValueAuthoring.JsonOptions)
-                                    ?? Activator.CreateInstance(varEntry.FieldType)!
-                                : Activator.CreateInstance(varEntry.FieldType)!;
-                        }
-                        catch
-                        {
-                            instance = Activator.CreateInstance(varEntry.FieldType)!;
-                        }
-                        _defaultValueSession        = _facetEditService.Open(instance, varEntry.FieldType);
+                        // ⭐⭐ C-dialog (Batch 68): this used to inline its OWN copy of
+                        // DefaultValueAuthoring.Hydrate -- the same deserialize-or-Activator try/catch --
+                        // and then call Open itself, so a variable default-value session had TWO
+                        // implementations. ⛔ §9's rail is that exactly ONE call site opens one; it
+                        // failed here. Routed, not rebuilt.
+                        // ⭐⭐ C-dialog (Batch 68): this used to inline its OWN copy of
+                        // DefaultValueAuthoring.Hydrate -- the same deserialize-or-Activator try/catch --
+                        // and then call Open itself, so a variable default-value session had TWO
+                        // implementations. ⛔ §9's rail is that exactly ONE call site opens one; it
+                        // failed here. Routed, not rebuilt.
+                        _defaultValueSession        = DefaultValueAuthoring.OpenSession(_facetEditService, varEntry);
                         _defaultValueSessionVarName = boundVarName;
                     }
 
