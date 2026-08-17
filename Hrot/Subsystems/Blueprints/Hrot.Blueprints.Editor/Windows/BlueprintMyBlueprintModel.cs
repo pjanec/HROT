@@ -110,11 +110,15 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
             new(SectionMacros,       "Macros",           2, null, true,  true,  "editor.create-macro"),
             new(SectionCustomEvents, "Custom Events",    3, null, true,  true,  "editor.create-custom-event"),
             new(SectionVariables,    "Variables",        4, null, true,  true,  "editor.create-variable"),
-            // BP-57. ⭐ CanCreateItems stays TRUE even for a Macro graph — the "+" must not VANISH
-            // (Q26-B2). ⚠⚠ What this comment used to add — "the descriptor list is static, so the
-            // flag cannot vary per graph" — is NO LONGER TRUE of the REASON: the Sections property
-            // projects CreateDisabledReason per read (2026-08-17 user ruling), so the button greys
-            // with an explanation on a macro instead of inviting work it will refuse.
+            // BP-57 / Q26-B2. ⭐ CanCreateItems stays TRUE even for a Macro graph, which cannot own a
+            // local: the "+" STAYS and REFUSES OUT LOUD, naming the reason, rather than vanishing and
+            // teaching nothing.
+            // ⭐⭐ 2026-08-17 user REFINEMENT of that ruling — it now refuses BEFORE the work rather
+            // than after: the Sections property projects CreateDisabledReason per read, so on a macro
+            // the button greys with the reason in its tooltip. ⛔ Greying is not vanishing.
+            // ⚠⚠ What this comment used to add — "the descriptor list is static, so the flag cannot
+            // vary per graph" — is NO LONGER TRUE of the REASON, which is what made the refinement
+            // buildable.
             new(SectionLocalVariables, "Local Variables", 5, null, true, true, CommandCreateLocalVariable),
             // ⭐⭐ C-sections. ⚠ APPENDED at 6/7 rather than slotted in above "Variables", for the
             //    same reason BP-57 appended the locals: renumbering would move every existing

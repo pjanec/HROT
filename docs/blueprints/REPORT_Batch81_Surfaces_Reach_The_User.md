@@ -144,6 +144,42 @@ the properties dialog"*, which is the **Track C table's** row dialog, a differen
 
 ---
 
+## 1a. 🔴🔴 **A CONFLICT I did not resolve unilaterally — `Q39` / `R-17` say "PULL §3b"**
+
+⚠ **Rule 4 found it.** `Q39` and `RULINGS.md` `R-17` landed on the coordinator branch **during this run**,
+after the dispatch, and both say of §3b: ⛔ **"DO NOT BUILD IT YET."**
+
+> 📌 **`Q39` §5, verbatim:** *"⛔⛔ **Batch 81 §3b** … ⭐⭐ **PULL IT.** It builds a create-dialog **per
+> section** for sections that stage `D` collapses — ⚠ **hardening the split**."*
+
+### 📐 The premise, measured against what was actually built
+
+| the premise | ⭐ what §3b builds |
+|---|---|
+| *"a create-dialog **per section**"* | ⛔ **No.** **ONE** modal CLASS (`VariableCreateModal`) instantiated per section with a different `noun` — ⭐ **exactly what the `Variables` and `Local Variables` sections already do**, and what `ModalPopupIdTests` already covers generally |
+| *"hardening the split"* | ⛔ **The opposite, measurably.** §3b **removed** a parallel create path: `CreateVariable` is now a thin call into **one** kind-parameterised `CreateDeclaration`, and the production wiring no longer uses the separate `AddDeclaration` quick-add at all ⇒ **two create implementations became one** |
+| the cost to stage `D` | ⭐ **Lower, not higher.** Collapsing the sections deletes **two modal instantiations and two command registrations** *(~15 lines)*. ⛔ **The kind-parameterised create path stage `D` needs is the one this batch just built** |
+
+⇒ ⭐⭐ **I did not revert it, and I am not claiming the call.** Reverting on a premise I measured to be false
+would be worse than keeping; ⛔ **silently keeping it without saying so would be worse still.**
+
+### ⭐ What I would want decided
+
+| | |
+|---|---|
+| ⭐ **my reading** | **KEEP.** ⭐ It implements a direct user ruling *("must open new variable dialog same as any other variable section")*, it **reduces** implementations from two to one, and it makes stage `D` cheaper |
+| ⚠ **the counter I can see** | ⛔ **stage `D` may land before anyone uses this**, in which case the two extra registrations are churn — ⭐ **but they are 15 lines and reversible in one edit** |
+| ⭐ **the revert, if you want it** | swap `RegisterCreateDeclarationCommands(cmdImpl, _createParameterModal.Open, _createWorkingStateModal.Open)` back to the `(cmdImpl, blueprintAsset, markDirty)` overload — **which still exists** — and drop the two modal fields. ⛔ **`BP-312`'s fix and `CreateDeclaration` stay either way** |
+
+⚠ **`R-17` also notes it *"previously read as a build order and contradicted `Q39` — my error, `2026-08-17`"***
+⇒ ⭐ **the handoff I was dispatched on carried the build order**, and the correction landed mid-run. ⛔ **Not a
+process failure on either side — rule 1's exact scenario, caught by rule 4 as designed.**
+
+⭐ **`R-16` also went red on the new `rulings-check.py`** — my §3c comment rewrite dropped the ruling's own
+phrase. ⛔ **Not deleted: restored in its new home**, with the refinement recorded beside it. **35 / 35.**
+
+---
+
 ## 2. 🔴 Revert-goes-red — **per item, never delegated**
 
 | probe | red |
@@ -180,6 +216,7 @@ the properties dialog"*, which is the **Track C table's** row dialog, a differen
 | ⭐ **NodeEditor.UI** | `dotnet test …/NodeEditor.UI.Tests.csproj` | ⛔ **NO** | ✅ **135** | **+4** |
 | ⭐ **Fhsm.Tests** | `dotnet test …/Fhsm.Tests.csproj` | ⛔ **NO** | ✅ **300, 0 skipped** | = |
 | tracker | `python3 scripts/tracker-counts.py --check` | — | ✅ **open 65 / done 185 (+1 refuted)** | +1 / +5 |
+| ⭐ **rulings** *(new, yours)* | `python3 scripts/rulings-check.py` | — | ✅ **35 / 35** | 🔴 **R-16 red first** — see §1a |
 
 ⭐⭐ **The two NodeEdit gates are the cost §3c said to pay deliberately — paid, and both moved.**
 
