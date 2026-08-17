@@ -512,3 +512,39 @@ modal class)** and *"hardens the split"* **(false: it removed a parallel create 
 ⇒ ⭐⭐ **A design ruling tells you what SHOULD exist. ⛔ It cannot tell you what a diff ACTUALLY DID.**
 ⭐⭐⭐ **Before ordering a built thing reverted, MEASURE WHAT IT BUILT.** ⚠ Both directions need
 checking — *the design for intent, the code for fact.*
+
+## ⭐⭐⭐ THE DESIGN BRIEF — **how the user VERIFIES the re-learn happened** *(user, `2026-08-17`)*
+
+> ⭐⭐ **User:** *"how do i find out that after compaction you re-learned the design intents? can you
+> report it automatically… which forces you to read those first?"*
+
+⛔⛔ **The hook injecting the canon proves it ARRIVED. It does not prove it was ENGAGED WITH.**
+⚠ **On `2026-08-17` I had READ documents and still missed their supersession banners four times** —
+⭐ **reading is necessary and not sufficient; the step that fails is JOINING the canon to the work.**
+
+⇒ ⭐⭐⭐ **The FIRST reply of every session, and the first after every compaction, OPENS with:**
+
+```
+DESIGN BRIEF (post-compaction)
+  ledger      : N rulings, N/N probes verifying, staleness warnings on <files|none>
+  in flight   : <batch + the sha its scope is frozen at, or "nothing">
+  constrains  : <ruling ids that BIND what I am about to do>
+  moved lately: <any doc from the digest that changes it, with its date>
+  spot-check  : <the three ids the hook drew, in my own words, joined to the work>
+  would have got wrong: <one concrete thing, or "nothing identified">
+```
+
+| ⭐ line | why it is there |
+|---|---|
+| ⭐⭐ **`spot-check`** | ⛔ **three ruling ids drawn AT RANDOM by the hook** ⇒ **a canned answer cannot fit.** ⚠ **Reciting is not the test — JOINING them to the work is** |
+| ⭐⭐⭐ **`would have got wrong`** | ⛔ **the money line.** 📌 Every `2026-08-17` failure was me proceeding **confidently**. ⚠ **If this is vacuous or generic, the brief was theatre — ⭐ the user should push back on that line alone** |
+| ⭐ **`constrains`** | ⛔ forces the join between canon and the task **in hand**, not in general |
+
+⛔ **If a line cannot be filled, SAY SO.** ⭐ **An empty line is a FINDING about the ledger** — ⛔ never
+something to paper over.
+
+### ⚠ What this does NOT prove — **stated so nobody over-trusts it**
+
+⭐ It proves the canon was read and applied **at that moment**. ⛔ **It cannot prove I will still apply
+it three hours later** — ⭐ **that is what the per-item citation rule covers**: no handoff item or design
+answer without a cited basis, which leaves a checkable artefact every time, not just at session start.
