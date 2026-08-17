@@ -94,3 +94,58 @@ public sealed class FixedVariableRowSource : IVariableRowSource
     public FixedVariableRowSource(IReadOnlyList<VariableRow> rows) => _rows = rows;
     public IReadOnlyList<VariableRow> GetRows() => _rows;
 }
+
+/// <summary>
+/// ⭐⭐⭐ <b><c>PinnedSource</c> — the Watch source (§1a).</b> Rows from <b>ARBITRARY assets and
+/// entities, mixed</b>.
+///
+/// <para>
+/// ⭐⭐ <b>This is the case <c>C-table</c>'s heterogeneous rail was written for</b>, which is why this
+/// type is thin: the control already qualifies names the grouping has not hoisted, already keys the
+/// highlight cache by <c>(AssetId, Entity, VariablePath)</c>, and already renders a stale row while
+/// refusing its dialog. ⛔ Nothing here teaches it about Watch.
+/// </para>
+///
+/// <para>
+/// 🔴 <b>It does NOT go through <c>Watch._valueBuffer</c>.</b> That buffer is <c>new byte[64]</c> and
+/// <c>WriteValue</c> <b>throws</b> above it, so <c>MemberSlotList</c> (96), <c>WaveState</c> (104) and
+/// <c>HillAttackSharedState</c> (136) cannot pass through it at all. ⇒ ⭐ a pinned row reads its bytes
+/// through the same <see cref="ReadRawValue"/> every other row uses, and the 64-byte limit stays a
+/// property of that one carrier.
+/// </para>
+/// </summary>
+public sealed class PinnedVariableRowSource : IVariableRowSource
+{
+    private readonly List<VariableRow> _pinned = new();
+
+    /// <summary>Pins a row. ⚠ Re-pinning the same identity replaces it rather than duplicating.</summary>
+    public void Pin(VariableRow row)
+    {
+        int existing = _pinned.FindIndex(r => r.Origin.Key.Equals(row.Origin.Key));
+        if (existing >= 0) _pinned[existing] = row;
+        else               _pinned.Add(row);
+    }
+
+    public bool Unpin(VariableRowOrigin origin)
+    {
+        int i = _pinned.FindIndex(r => r.Origin.Key.Equals(origin.Key));
+        if (i < 0) return false;
+        _pinned.RemoveAt(i);
+        return true;
+    }
+
+    /// <summary>
+    /// ⭐ Marks a row stale — its asset or entity is gone. ⛔ <b>Stale rows are KEPT, not removed</b>
+    /// (§1a): a Watch row outliving its asset shows its last value greyed and refuses its dialog.
+    /// Dropping it would make the list silently shrink under the designer.
+    /// </summary>
+    public bool MarkStale(VariableRowOrigin origin)
+    {
+        int i = _pinned.FindIndex(r => r.Origin.Key.Equals(origin.Key));
+        if (i < 0) return false;
+        _pinned[i] = _pinned[i] with { IsStale = true };
+        return true;
+    }
+
+    public IReadOnlyList<VariableRow> GetRows() => _pinned;
+}

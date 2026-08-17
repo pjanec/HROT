@@ -572,10 +572,22 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
 
     public WatchId AddWatch(Guid assetId, Guid graphId, Guid pinId, string displayName, Type expectedType)
     {
-        // Auto-instrumentation: if no DebugMap yet for this asset, request a Trace compile.
-        // Trace mode includes watch probes + breakpoints. If the asset is already Debug-compiled
-        // the instrumentation service handles upgrading without recompiling if possible.
-        if (!_debugMaps.ContainsKey(assetId) && _onInstrumentationRequested != null)
+        // ⭐⭐⭐ Auto-instrumentation: request a Trace compile when this PIN cannot yet report values.
+        //
+        // 🔴 C-watch (Batch 69) -- the old guard was `!_debugMaps.ContainsKey(assetId)`, i.e. "only
+        //    when the asset has NO map at all". ⛔ That skipped the case the comment claimed to
+        //    handle: set a BREAKPOINT first (which compiles in Debug) and the asset HAS a map, so
+        //    adding a watch requested nothing -- and `DebugProbeInsertion:149` emits
+        //    `PinValueChanged` only under `CompilerMode.Trace`. ⇒ the watch sat there receiving
+        //    nothing, with `(pending)` in the cell forever and no way for the designer to tell that
+        //    from "the value has not changed".
+        //
+        // ⭐ The right question is not "is there a map" but "does the map know this pin" -- which is
+        //   exactly what a Trace compile adds. A Debug map resolves no pins, so this fires; a Trace
+        //   map already has it, so it does not.
+        if (_onInstrumentationRequested != null
+            && (!_debugMaps.TryGetValue(assetId, out var existingMap)
+                || existingMap.TryGetPinById(pinId) is null))
         {
             _ = _onInstrumentationRequested.Invoke(assetId, BPCompilerMode.Trace);
         }
