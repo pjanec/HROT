@@ -1,6 +1,16 @@
-# PLAN — what is left *(revision 18, `2026-08-17`)*
+# PLAN — what is left *(revision 19, `2026-08-17`)*
 
-> ⭐⭐⭐ **REVISION 18 (`2026-08-17`).** ✅ **Batch 74 MERGED at `5b0c9563e`** — **`BP-281`** *(HSM has a
+> ⭐⭐⭐ **REVISION 19 (`2026-08-17`).** ✅ **Batch 75 MERGED at `6a6bdc6cb`** — Track C's dialog **wired**
+> · **`-028`(a)** persisted · ⛔⛔ **`E3` STOPPED A THIRD TIME, and this time on neither `Q35` half**
+> (§4A10).
+> 🔴🔴 **`E3` HAS NO SUBJECT: there are ZERO DTO-bound HSM thunks in any binary** ⇒ its pre-written rail
+> **cannot fail before the change**. ⚠ **My "the dangerous case that silently corrupts" framing is true
+> in principle and has NO INSTANCES today** — ⭐ **it is LATENT, not live.**
+> ⭐⭐⭐ **What IS live, and they found it while measuring:** `HsmKernelCore:733` **hard-codes
+> `activeLeafIds[0]`** ⇒ ⛔ **a transition selected in region 1 writes region 0's active leaf.**
+> 📐 **Coordinator-verified.** ⇒ **Batch 76 leads with it.**
+>
+> **REVISION 18 (`2026-08-17`).** ✅ **Batch 74 MERGED at `5b0c9563e`** — **`BP-281`** *(HSM has a
 > `ParseParams` at last)* · **`E7b`** · **BTree's emit tier** · the picker **PARKED** · the
 > `InspectorWindow` panel **kept and relabelled** (§4A9).
 > 🔴🔴 **`E7b` uncovered that `E6`(A)'s ruling never reached the COMPOUND key** — HSM spelled it
@@ -858,6 +868,82 @@ isolation, for its class, and for all 187 `Gizmos` tests. ⛔ **Not signal.**
 
 ---
 
+## 4A10. ✅ Batch 75 — ⭐⭐⭐ **`E3` has no subject, and the live defect is elsewhere**
+
+📄 [`REPORT_Batch75_E3_Occurrence_Storage.md`](REPORT_Batch75_E3_Occurrence_Storage.md).
+⭐ **Rule 1b honoured on its first outing** — started-marker `4ab9483`, pushed before any code.
+Gates re-run by me; **goldens untouched, blueprint and HSM alike**; tracker **63 / 172**.
+Rows `BP-297`–`BP-300`.
+
+### ⛔⛔ `E3` STOPPED — ⭐ **and neither `Q35` ruling is the problem**
+
+📐 **Exhaustive measurement:**
+
+| | |
+|---|---|
+| ⭐ **the only DTO-bound HSM shape** | `[SharedAiAction]`/`[SharedAiCondition]`. ⛔ **A plain `[HsmAction]` takes `(void*, void*, HsmCommandWriter*)` and resolves NO DTO at all** |
+| 🔴 **the four production `[SharedAi*]` methods live in `Fdp.Toolkits`** | ⛔ **which does NOT run `HsmActionGenerator`** |
+| 🔴 **the ONLY assembly that runs it** — `Hrot.AI.Behaviors` | its sole HSM action is **`CgfHsmNodes.StubIdle`**, DTO-free, body empty |
+
+⇒ ⛔⛔ **ZERO DTO-bound HSM thunks exist in any binary.** ⭐⭐ **The pre-written rail cannot fail before
+the change** — `HsmOrthogonalRegions`' two regions both run `StubIdle`, so **there are no bytes to
+collide.**
+
+⭐⭐⭐ **And they refused to land the kernel half alone** — *"a delivery mechanism with no consumer, and
+with the baked-offset path still in place, TWO mechanisms"* ⇒ ⛔ **exactly what `Q35-C` forbids and what
+the `2026-08-17` user ruling forbids.** ⭐ **Correct on both counts.**
+
+⚠ **My framing needs correcting for the third time.** `E3` was *"a signature widening"* (wrong, Batch
+72), then *"the dangerous case that silently corrupts"* — ⭐ **true in principle, but it has NO
+INSTANCES.** ⇒ **`E3` is LATENT. Priced as latent, it is not the top of the queue.**
+
+⭐ **And the blocker is one I had already written down without connecting it:** Batch 74's named boundary
+*(“no shipped assembly generates a compound-key thunk — it must be generated where the method lives”)*
+**is the same blocker.** ⇒ ⭐⭐ **`E3` and `E7b`'s bytes wait on ONE decision** *(below)*.
+
+### ⭐⭐⭐ What IS live — **`ExecuteTransition` hard-codes region 0.** 📐 **I verified it**
+
+```csharp
+// HsmKernelCore:513 — SelectTransition scans ALL regions and returns one
+ExecuteTransition(definition, instancePtr, instanceSize, selectedTransition.Value,
+                  activeLeafIds, regionCount, contextPtr, ref cmdWriter, traceCtx);
+// HsmKernelCore:733 — and then, unconditionally:
+activeLeafIds[0] = finalLeafId;
+```
+
+⇒ ⛔⛔ **a transition selected in region 1 writes region 0's active leaf.** ⭐ `ExecuteTransition`
+receives `regionCount` but **no region index**. ⚠ **Harmless at `regionCount == 1`, which is why nothing
+caught it** — ⛔ **and it means the orthogonal-region model is broken UNDER `E3`, not by it.**
+📌 **Unfiled before this batch.** ⇒ ⭐⭐ **Batch 76 leads with it.**
+
+### ⭐⭐ Item 2 — the wiring found that **the value dialog would have opened EMPTY**
+
+📐 `ScopeFor` built its path in **variable space** (`"Health"`) while `FilterNode` matches
+**`node.JsonPath`** (`"$.Health"`) ⇒ ⛔ **nothing matched, `ApplyScope` fell through to an empty `"$"`
+SelectionRoot.** ⭐⭐ **Invisible because nothing ever CONSTRUCTED the launcher** — ⭐ **that is the
+argument for wiring a finished-looking pair even when both halves have tests.**
+
+⚠ **A SIXTH vacuous rail, and the subtlest yet:** `IncludedPaths[0] == "Health"` **read its expectation
+out of the argument it had just passed in**, and stayed green because ⭐ **a scope that selects NOTHING
+still has exactly one included path.** 📌 **They tried child-count first and both cases were 0** — a
+field-scoped document's root IS the field; an empty scope's root is `"$"`. ⭐ **Two different documents,
+identical counts.**
+
+### ⭐ Item 3 — `-028`(a), and `E4`'s missing half arrived
+
+✅ **Rules 8/8b now fire on a DISK-LOADED asset** — ⭐ but the rail failed first, and the cause was not
+the field: 🔴 **a region with no `InitialChild` is ORPHANED on load.** 📐 The JSON region list carries
+**no parent reference**, so ownership is re-derived from `region.InitialChild?.Parent` ⇒ **no initial
+child ⇒ no owner ⇒ `RegionNodes.Count < 2` ⇒ both rules skip the composite, silently.**
+🛠 **Filed `BP-299`** — ⭐ the fix is a **persistence-shape** change, not a test.
+⚠ **And `DEBT-AIB-029` is promoted from theoretical to REAL**: with the field round-tripping, **a
+designer can author a nested host and SAVE it**, and rule 8's direct-children-only walk stays silent.
+
+⭐ **`DEBT-AIB-030`: the identity of the red ROTATES between runs** *(`SC_GZ004_2` here, `SC_GZ022_2`
+last batch)* ⇒ ⭐⭐ **the strongest evidence yet that it is scheduling, not code.** Seven distinct tests.
+
+---
+
 ## 4B. ⏭ Track E — ⭐⭐⭐ **HSM catch-up** *(the gaps, collected)*
 
 > ⛔⛔ **USER RULING `2026-08-16`:** *"the HSM integration is in bad shape now, for long time not updated
@@ -990,10 +1076,11 @@ Track E, plus one item waiting on the user:**
 
 | ⭐ next | what | why now |
 |---|---|---|
-| ⭐⭐⭐ **`E3`** — ✅ **UNBLOCKED**, the storage move | 📄 **[`Architect_Question_35`](Architect_Question_35_Hsm_Occurrence_Delivery.md) RESOLVED** + 📄 **[`DESIGN_Hsm_Storage_Model.md`](DESIGN_Hsm_Storage_Model.md) §3** | ⭐⭐ **the only occurrence case that silently corrupts**; `HsmOrthogonalRegions` is in the corpus for it |
-| ⭐⭐ **wire Track C's `VariableEditLauncher`** | the table's `⋮` menu / value-cell double-click — 📄 `DESIGN_Variable_Details_And_Editing.md` §3 | 🔴 **constructed by NOTHING today** ⇒ the panel is the only live surface. ⭐ **Inverts the Batch-74 gap rail** |
-| ⭐ **`DEBT-AIB-028`(a)** — persist `StateNode.SubtreeAssetId` | small, independent | ⭐ **`E5`'s only remaining prerequisite** |
-| ⏭ **then** `E5` *(by KEY — `Q34` §7, riding `E3`'s mechanism)* → `E7a` → **the compound-key thunk's bytes** *(needs the thunk generated where the method lives)* | | |
+| 🔴🔴 **`ExecuteTransition` hard-codes region 0** | `HsmKernelCore:733` — `activeLeafIds[0] = finalLeafId` with no region index threaded in | ⭐⭐⭐ **LIVE corruption of orthogonal regions**, coordinator-verified. ⛔ **`E3` is downstream of a region model that does not work** |
+| ⭐⭐ **`BP-299`** — persist a region's parent | a region with no `InitialChild` is **orphaned on load** ⇒ rules 8/8b skip the composite **silently** | ⭐ a **persistence-shape** change; ⚠ it makes `E4`'s guarantee real rather than conditional |
+| ⭐ **`DEBT-AIB-029`** — rule 8's deep walk | direct children only | ⚠ **promoted to a REAL defect** by `-028`(a): a nested host can now be **saved** |
+| ⏭ 🔴 **`E3` — LATENT, and blocked on a DECISION** | ⛔ **zero DTO-bound HSM thunks exist in any binary** ⇒ the rail cannot fail first. ⭐ **Needs a `[SharedAiAction]` in a generator-bearing assembly** — move one into `Hrot.AI.Behaviors`, or run the analyzer over `Fdp.Toolkits`. ⭐⭐ **`Q35` stays resolved; nothing about the rulings changed** | ⚠ **the SAME blocker as `E7b`'s bytes** — one decision unblocks both |
+| ⏭ **then** `E5` *(rides `E3`)* → `E7a` | | |
 | ⛔⛔ **DEFERRED by the user** | **blueprint multi-occurrence** — 📄 [`Architect_Question_34`](Architect_Question_34_Blueprint_Occurrence_Identity.md) | ⭐ answers stand, build deferred. §4A7 holds the measured edit surface |
 | ⛔ **PARKED, asserted inert** | the **producer picker** — its runtime (`R1`/`R2`/`R4`) does not exist | ⭐ **`2026-08-17` user ruling**: no authoring surface without its consumer |
 | ⚠ **the Track C VISUAL CHECK** | cumulative across batches 68–70 | ⛔ **no headless test can do it** — it needs a human at the editor. §4A3/§4A4 hold the list |
