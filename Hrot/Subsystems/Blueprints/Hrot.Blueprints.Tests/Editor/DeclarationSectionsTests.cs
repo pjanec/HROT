@@ -190,6 +190,74 @@ public sealed class DeclarationSectionsTests
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <b>The production "+" OPENS A DIALOG — it does not quick-add.</b>
+    ///
+    /// <para>📌 <b>User ruling, <c>2026-08-17</c>, verbatim:</b> <i>"working state [+] opening no
+    /// dialog is <b>wrong, inconsistent</b>. Must open new variable dialog same as any other variable
+    /// section."</i></para>
+    ///
+    /// <para>⛔ <b>Note what this asserts and what
+    /// <see cref="TheCreateCommandsAreRegisteredByTheProductionRetarget"/> cannot.</b> That rail only
+    /// asks whether the invoke SUCCEEDS, which both wirings do. ⭐ The observable difference is the
+    /// asset: the quick-add appends a declaration on the spot, the dialog appends nothing until the
+    /// designer confirms a name and a type.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(BlueprintMyBlueprintModel.CommandCreateParameter,    DeclarationKind.Parameter)]
+    [InlineData(BlueprintMyBlueprintModel.CommandCreateWorkingState, DeclarationKind.WorkingState)]
+    public void TheProductionCreateCommand_OpensADialog_RatherThanQuickAdding(
+        string commandId, DeclarationKind kind)
+    {
+        var asset    = Builders.BlueprintAssetBuilder.Instance("DialogHost").Build();
+        var window   = new BlueprintMyBlueprintWindow();
+        var commands = new EditorCommandsImpl();
+        window.Retarget(null, asset, null, commands, null, () => Guid.Empty);
+
+        int before = asset.Declarations.CountIn(kind);
+        Assert.True(commands.Invoke(commandId).Success);
+
+        Assert.Equal(before, asset.Declarations.CountIn(kind));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>And the dialog's confirm path creates the right KIND, with the type it was given.</b>
+    /// ⚠ The modal itself cannot be driven headlessly (it is ImGui), so this exercises the create
+    /// path the modal is wired to — the same split every other create modal's tests use.
+    /// </summary>
+    [Theory]
+    [InlineData(DeclarationKind.Parameter)]
+    [InlineData(DeclarationKind.WorkingState)]
+    public void TheDialogsCreatePath_TakesANameAndAType(DeclarationKind kind)
+    {
+        var asset = Builders.BlueprintAssetBuilder.Instance("ConfirmHost").Build();
+
+        var decl = BlueprintDocumentFactory.CreateDeclaration(asset, kind, "Speed", "System.Single");
+
+        Assert.NotNull(decl);
+        Assert.Equal(kind,            decl!.Kind);
+        Assert.Equal("Speed",         decl.Name);
+        Assert.Equal("System.Single", decl.Type.TypeId);
+        Assert.Equal(1, asset.Declarations.CountIn(kind));
+    }
+
+    /// <summary>
+    /// ⭐ The rejection rules are the variable modal's, unchanged and shared — ⛔ not a second
+    /// half-copy that drifts. A blank name and a name already taken by ANY kind both refuse.
+    /// </summary>
+    [Theory]
+    [InlineData(DeclarationKind.Parameter)]
+    [InlineData(DeclarationKind.WorkingState)]
+    public void TheDialogsCreatePath_RefusesBlankAndDuplicateNames(DeclarationKind kind)
+    {
+        var asset = Builders.BlueprintAssetBuilder.Instance("RefuseHost").Build();
+        BlueprintDocumentFactory.CreateVariable(asset, "Health", "System.Int32");
+
+        Assert.Null(BlueprintDocumentFactory.CreateDeclaration(asset, kind, "   ",    "System.Int32"));
+        Assert.Null(BlueprintDocumentFactory.CreateDeclaration(asset, kind, "Health", "System.Int32"));
+        Assert.Equal(0, asset.Declarations.CountIn(kind));
+    }
+
+    /// <summary>
     /// ⚠ <b>Repeated clicks must not collide</b>, and the uniqueness search is across ALL kinds
     /// (<c>U-14</c>/<c>BP-232</c>): a <c>Parameter</c> and a <c>Variable</c> sharing a name would let
     /// <c>Stage5</c>'s name fallback decide by list order which one a reference reached.

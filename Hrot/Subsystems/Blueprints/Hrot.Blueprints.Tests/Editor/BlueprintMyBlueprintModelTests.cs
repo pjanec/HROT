@@ -248,21 +248,49 @@ public sealed class BlueprintMyBlueprintModelTests
 
     // ── Section count does not change after Retarget ──────────────────────────
 
+    /// <summary>
+    /// ⭐⭐ <b>A section is scoped in its CONTENTS, not in its existence.</b> A retarget changes what
+    /// the sections HOLD; it must never change which sections there ARE — ⛔ a section that appears
+    /// and disappears reads as a broken feature.
+    ///
+    /// <para>⚠ <b>Batch 81 — this was <c>Assert.Same</c> on the returned list.</b> That was the cheap
+    /// proxy for the invariant while the list was <c>static readonly</c>. The list is now PROJECTED
+    /// per read so a section's "+" can carry a <c>CreateDisabledReason</c> that follows the canvas
+    /// (2026-08-17 user ruling) — ⇒ ⛔ <b>same-container-instance pins the implementation, not the
+    /// property.</b> ⭐ The property is stated directly instead, which is strictly more than
+    /// <c>Assert.Same</c> said: identical ids, in identical order, at an identical count.</para>
+    /// </summary>
     [Fact]
-    public void MyBlueprintModel_Sections_SameInstanceAlways()
+    public void MyBlueprintModel_Sections_AreTheSameSetAcrossARetarget()
     {
         var model = new BlueprintMyBlueprintModel();
 
-        var sectionsA = model.Sections;
-        model.Retarget(new FakeEditableAsset(Guid.NewGuid(), "X"), MakeAsset());
-        var sectionsB = model.Sections;
+        var before = model.Sections;
+        var idsBefore = before.Select(s => s.Id).ToArray();
+        var orderBefore = before.Select(s => s.SortOrder).ToArray();
 
-        Assert.Same(sectionsA, sectionsB);
-        // BP-57: six → C-sections: eight. ⚠ Still ONE static list — a section is scoped in its
-        // CONTENTS, not in its existence. ⭐ That is exactly why an Instance asset still shows an
-        // EMPTY "Working State": the descriptor list cannot vary per asset, and a section that
-        // appears and disappears reads as a broken feature.
-        Assert.Equal(8, sectionsB.Count);
+        model.Retarget(new FakeEditableAsset(Guid.NewGuid(), "X"), MakeAsset());
+        var after = model.Sections;
+
+        Assert.Equal(idsBefore,   after.Select(s => s.Id));
+        Assert.Equal(orderBefore, after.Select(s => s.SortOrder));
+        // BP-57: six → C-sections: eight. ⭐ That is exactly why an Instance asset still shows an
+        // EMPTY "Working State".
+        Assert.Equal(8, after.Count);
+    }
+
+    /// <summary>
+    /// ⭐ The allocation guarantee <c>Assert.Same</c> used to give, kept where it is still true:
+    /// two reads with nothing changed in between return the same list. ⛔ The panel reads
+    /// <c>Sections</c> every frame, so rebuilding it per read would allocate for nothing.
+    /// </summary>
+    [Fact]
+    public void MyBlueprintModel_Sections_AreNotRebuiltWhenNothingChanged()
+    {
+        var model = new BlueprintMyBlueprintModel();
+        model.Retarget(new FakeEditableAsset(Guid.NewGuid(), "X"), MakeAsset());
+
+        Assert.Same(model.Sections, model.Sections);
     }
 
     // ── Inner fake ────────────────────────────────────────────────────────────

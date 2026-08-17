@@ -375,7 +375,7 @@ public sealed class BlueprintVariablesWindow : BlueprintEditorWindowBase
         _refactorService = refactorService;
     }
 
-    public override string Title => "Variables";
+    public override string Title => "Blueprint Variables";
 
     public override void DrawUI()
     {

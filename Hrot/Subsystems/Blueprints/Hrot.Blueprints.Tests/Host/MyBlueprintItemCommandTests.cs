@@ -138,6 +138,137 @@ public sealed class MyBlueprintItemCommandTests
         Assert.Equal($"var:{decl.Id:D}", node.VariableId);
     }
 
+    // ══ Inputs and Working State — the C-sections (Batch 81) ═════════════════
+    //
+    // 🔴 <b>What the user's first visual check found</b>, verbatim: <i>"variable record in Working
+    // State shows just 'Delete' (does nothing) and 'Rename' (shows rename dialog but does not cause
+    // name to change) items in the context menu."</i>
+    //
+    // 📐 BuildDeclarationItems emits the same "var:" prefix for all THREE kinds, while FindVariable
+    // resolved only DeclarationKind.Variable — so the id parsed, the lookup returned null, and every
+    // command fell through to `return false`. ⛔ Duplicate was broken the same way and untested.
+    //
+    // ⭐ One test per KIND per GESTURE, not one loop: a loop that happened to run Variable first
+    //   would have passed on the kind that already worked.
+
+    private static string DeclId(BlueprintDeclaration decl) => $"var:{decl.Id:D}";
+
+    private static BlueprintDeclaration Declare(
+        BlueprintAsset asset, DeclarationKind kind, string name)
+        => BlueprintDocumentFactory.CreateDeclaration(asset, kind, name, "System.Int32")!;
+
+    /// <summary>🔴 RED before Batch 81 — the rename dialog opened and changed nothing.</summary>
+    [Theory]
+    [InlineData(DeclarationKind.Parameter)]
+    [InlineData(DeclarationKind.WorkingState)]
+    public void ADeclarationOfAnyKind_CanBeRenamed(DeclarationKind kind)
+    {
+        var sut  = MakeSut();
+        var decl = Declare(sut.Asset, kind, "Health");
+
+        sut.Commands.Invoke("editor.rename-item", Ctx(DeclId(decl), "Hitpoints"));
+
+        Assert.Equal("Hitpoints", sut.Asset.Declarations.Single(d => d.Kind == kind).Name);
+    }
+
+    /// <summary>
+    /// ⚠ The dialog opened EMPTY because ItemDisplayName resolved to null — which is what made the
+    /// rename look like it had "no current name" before it silently failed.
+    /// </summary>
+    [Theory]
+    [InlineData(DeclarationKind.Parameter)]
+    [InlineData(DeclarationKind.WorkingState)]
+    public void ADeclarationOfAnyKind_ReportsItsDisplayName(DeclarationKind kind)
+    {
+        var asset = MakeSut().Asset;
+        var decl  = Declare(asset, kind, "Health");
+
+        Assert.Equal("Health", BlueprintDocumentFactory.ItemDisplayName(asset, DeclId(decl)));
+    }
+
+    /// <summary>🔴 RED before Batch 81 — "Delete (does nothing)", verbatim.</summary>
+    [Theory]
+    [InlineData(DeclarationKind.Parameter)]
+    [InlineData(DeclarationKind.WorkingState)]
+    public void ADeclarationOfAnyKind_CanBeDeleted(DeclarationKind kind)
+    {
+        var sut  = MakeSut();
+        var decl = Declare(sut.Asset, kind, "Health");
+        Assert.Equal(1, sut.Asset.Declarations.CountIn(kind));
+
+        sut.Commands.Invoke("editor.delete-item", Ctx(DeclId(decl)));
+
+        Assert.Equal(0, sut.Asset.Declarations.CountIn(kind));
+    }
+
+    /// <summary>
+    /// 🔴 RED before Batch 81, and ⚠ <b>the user never tested this one</b> — it was broken by the
+    /// same fall-through. ⭐ The copy must land in the SAME kind's list, not in Variables.
+    /// </summary>
+    [Theory]
+    [InlineData(DeclarationKind.Parameter)]
+    [InlineData(DeclarationKind.WorkingState)]
+    public void ADeclarationOfAnyKind_CanBeDuplicated_IntoItsOwnList(DeclarationKind kind)
+    {
+        var sut  = MakeSut();
+        var decl = Declare(sut.Asset, kind, "Health");
+
+        sut.Commands.Invoke("editor.duplicate-item", Ctx(DeclId(decl)));
+
+        Assert.Equal(2, sut.Asset.Declarations.CountIn(kind));
+        Assert.Equal(0, sut.Asset.Declarations.CountIn(DeclarationKind.Variable));
+        var copy = sut.Asset.Declarations.Of(kind).Last();
+        Assert.Equal("Health1",      copy.Name);
+        Assert.Equal("System.Int32", copy.Type.TypeId);
+        Assert.NotEqual(decl.Id,     copy.Id);
+    }
+
+    /// <summary>
+    /// ⭐ A Parameter is backed by <c>ParameterDecl</c>, which carries no Category / IsEditable /
+    /// IsExposedOnSpawn. ⛔ Duplicating one must ASK the capability rather than write and throw.
+    /// </summary>
+    [Fact]
+    public void DuplicatingAParameter_DoesNotAttemptTheMembersItDoesNotCarry()
+    {
+        var sut  = MakeSut();
+        var decl = Declare(sut.Asset, DeclarationKind.Parameter, "Health");
+        Assert.False(decl.CarriesEditorPresentation);
+
+        sut.Commands.Invoke("editor.duplicate-item", Ctx(DeclId(decl)));   // ⛔ must not throw
+
+        Assert.Equal(2, sut.Asset.Declarations.CountIn(DeclarationKind.Parameter));
+    }
+
+    /// <summary>⭐ And a WorkingState DOES carry them, so the copy keeps its category.</summary>
+    [Fact]
+    public void DuplicatingAWorkingStateVariable_CarriesItsPresentation()
+    {
+        var sut  = MakeSut();
+        var decl = Declare(sut.Asset, DeclarationKind.WorkingState, "Cursor");
+        decl.Category = "Runtime";
+
+        sut.Commands.Invoke("editor.duplicate-item", Ctx(DeclId(decl)));
+
+        Assert.Equal("Runtime",
+            sut.Asset.Declarations.Of(DeclarationKind.WorkingState).Last().Category);
+    }
+
+    /// <summary>
+    /// ⭐⭐ The uniqueness rule spans all kinds (U-14), so a rename may not collide with a Variable
+    /// either — ⛔ Stage5's name fallback would otherwise let list order pick the target.
+    /// </summary>
+    [Fact]
+    public void RenamingAWorkingStateVariable_CannotCollideWithAVariable()
+    {
+        var sut  = MakeSut();
+        BlueprintDocumentFactory.CreateVariable(sut.Asset, "Health", "System.Int32");
+        var state = Declare(sut.Asset, DeclarationKind.WorkingState, "Cursor");
+
+        sut.Commands.Invoke("editor.rename-item", Ctx(DeclId(state), "Health"));
+
+        Assert.Equal("Cursor", state.Name);
+    }
+
     // ── Custom events ─────────────────────────────────────────────────────────
 
     [Fact]

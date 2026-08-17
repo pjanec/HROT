@@ -47,6 +47,11 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
     // like two different features.
     private VariableCreateModal? _createLocalVariableModal;
 
+    // ⭐ C-sections' two "+" dialogs (2026-08-17 user ruling). Same class as the variable modal,
+    //   distinguished by their nouns — which drive the title, the default name and the popup id.
+    private VariableCreateModal? _createParameterModal;
+    private VariableCreateModal? _createWorkingStateModal;
+
     // BP-57: the locals schema source for the active document. Rebuilt per asset like the modals,
     // and for the same reason — it closes over the asset and the document's undo recorder.
     private Variables.BlueprintLocalVariableSchemaSource? _locals;
@@ -209,8 +214,28 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
             // ⭐⭐ C-sections — the Inputs / Working State sections' "+".
             // ⛔ BP-12c: registered HERE, beside the sections that declare the ids, so the button
             //    cannot ship inert the way Custom Events' and Macros' did.
+            // ⭐⭐⭐ 2026-08-17 (user): each "+" now opens the SAME name+type dialog every other
+            //    variable section opens — the quick-add was overruled as inconsistent, and its own
+            //    premise ("renamable in place") was false until this batch fixed the row commands.
+            // ⚠ The noun is LOAD-BEARING, not a label: VariableCreateModal derives its ImGui POPUP
+            //    ID from it, and two modals sharing one popup id is the exact bug the locals modal
+            //    hit (both field sets drawn in one window, the wrong Create button firing).
+            _createParameterModal = new VariableCreateModal(
+                (name, typeId, capacity, initialLength) => BlueprintDocumentFactory.CreateDeclaration(
+                    blueprintAsset, DeclarationKind.Parameter, name, typeId, markDirty,
+                    capacity, initialLength),
+                blueprintAsset,
+                noun: "Input");
+
+            _createWorkingStateModal = new VariableCreateModal(
+                (name, typeId, capacity, initialLength) => BlueprintDocumentFactory.CreateDeclaration(
+                    blueprintAsset, DeclarationKind.WorkingState, name, typeId, markDirty,
+                    capacity, initialLength),
+                blueprintAsset,
+                noun: "Working-State Variable");
+
             BlueprintDocumentFactory.RegisterCreateDeclarationCommands(
-                cmdImpl, blueprintAsset, markDirty);
+                cmdImpl, _createParameterModal.Open, _createWorkingStateModal.Open);
 
             // BP-12b: rename / delete / duplicate. The context menu has always invoked these three
             // and nothing ever handled them, so a variable could be created but never renamed or
@@ -354,6 +379,10 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
         // Draw the create modals (opened by the section "+" commands). No-op when closed.
         _createVariableModal?.Draw();
         _createLocalVariableModal?.Draw();
+        // ⛔ A modal that is opened but never drawn is a "+" that does nothing — the same inert-button
+        //    shape BP-12c names, one level down.
+        _createParameterModal?.Draw();
+        _createWorkingStateModal?.Draw();
         _createCustomEventModal?.Draw();
         _createFunctionModal?.Draw();
         _createMacroModal?.Draw();

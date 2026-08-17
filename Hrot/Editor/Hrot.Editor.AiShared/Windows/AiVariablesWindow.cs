@@ -41,7 +41,7 @@ public sealed class AiVariablesWindow : ManagedWindow
         string owningPerspective,
         VariableValueFormatter formatter,
         VariableTableColumns? columns = null)
-        : base(id, "Variables", owningPerspective, WindowScope.PerspectiveBound)
+        : base(id, "Variable Values", owningPerspective, WindowScope.PerspectiveBound)
     {
         if (formatter is null) throw new ArgumentNullException(nameof(formatter));
 

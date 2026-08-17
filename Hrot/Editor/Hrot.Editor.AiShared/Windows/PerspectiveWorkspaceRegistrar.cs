@@ -252,7 +252,15 @@ public class PerspectiveWorkspaceRegistrar
         ValueFormatter = new VariableValueFormatter(valueDecoder ?? RawValueDecoder.Instance);
 
         Variables = new AiVariablesWindow(
-            id:                $"ai_variables_{suffix}",
+            // ⭐⭐⭐ Batch 81 — "ai_variables_{suffix}" COLLIDED with BlueprintVariablesManagedWindow's
+            //    own "ai_variables_blueprint" on the Blueprint perspective. WindowManager.RegisterWindow
+            //    is `_windows[id] = window`, and the legacy window is registered LATER (as an extra), so
+            //    the Track C table was silently EVICTED from the registry there. ⛔ That, not a title
+            //    ambiguity, is why the user saw "the old version" on Blueprint.
+            //    ⭐ The NEW window changes id, not the legacy one: ImGui keys dock identity on the
+            //    "###Id" suffix, so moving an id costs a saved dock slot -- and this window has no slot
+            //    to lose on Blueprint precisely because it was never registered there.
+            id:                $"ai_variable_values_{suffix}",
             owningPerspective: perspectiveName,
             formatter:         ValueFormatter);
 
@@ -312,12 +320,6 @@ public class PerspectiveWorkspaceRegistrar
     }
 
     /// <summary>
-    /// ⭐ Supplies the row source for a section id, so an outline click can re-filter the table.
-    /// ⚠ Optional: without it the outline still selects and the table simply keeps its current
-    /// contents — ⛔ the routing is inert, not broken, and <see cref="AiMyBlueprintWindow.SelectedSection"/>
-    /// still records the choice.
-    /// </summary>
-    /// <summary>
     /// ⭐⭐ Which AI host a perspective name denotes — <c>"BTree"</c> and <c>"HSM"</c>, and
     /// <c>null</c> for everything else *(Blueprint included: it has its own outline)*.
     ///
@@ -330,6 +332,12 @@ public class PerspectiveWorkspaceRegistrar
          : string.Equals(perspectiveName, "HSM",   StringComparison.OrdinalIgnoreCase) ? BlackboardHostKind.Hsm
          : null;
 
+    /// <summary>
+    /// ⭐ Overrides the row source for a section id, so an outline click re-filters the table against
+    /// a LIVE <c>(asset, entity)</c> pair rather than the authored default the constructor installs.
+    /// ⛔ Not required for routing to work — Batch 80 made the default unconditional precisely because
+    /// no production caller ever invoked this.
+    /// </summary>
     public void SetSectionSourceResolver(Func<string, IVariableRowSource?> resolver)
         => _sectionSource = resolver ?? throw new ArgumentNullException(nameof(resolver));
 
@@ -383,12 +391,39 @@ public class PerspectiveWorkspaceRegistrar
         if (window        is null) throw new ArgumentNullException(nameof(window));
 
         RegisterCore(windowManager, window);
+
+        // ⭐⭐⭐ Batch 81 — DERIVED, not passed, exactly as the host kind was in Batch 80.
+        //    MyBlueprintPanel needs IEditorHostServices + IEditorCommands, which are built PER
+        //    DOCUMENT and so cannot be constructor arguments. But the composition root already hands
+        //    THIS registrar THIS perspective's canvas window, and AiGraphCanvasWindow.ActiveContext
+        //    already resolves the active document's context (filtered to its own asset kind).
+        //    ⇒ ⛔ there is nothing new for EditorSubsystem to pass, and therefore nothing to forget.
+        if (window is AiGraphCanvasWindow canvas
+            && MyBlueprint != null
+            && !MyBlueprint.HasCanvasContextResolver)
+        {
+            MyBlueprint.SetCanvasContextResolver(() => canvas.ActiveContext);
+        }
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private void RegisterCore(WindowManager wm, ManagedWindow window)
     {
+        // ⭐⭐⭐ Batch 81 — the durable half. WindowManager.RegisterWindow is `_windows[id] = window`,
+        //    so two windows claiming one id is a SILENT eviction: the later registration wins and the
+        //    earlier window vanishes from the Window menu, the dock and every lookup, with nothing
+        //    logged. ⛔ That is how the Track C table disappeared from the Blueprint perspective while
+        //    its own rails stayed green — they asked the registrar, and the registrar had built it.
+        //    ⇒ ⭐ ask the ARTEFACT: refuse at startup rather than lose a window at runtime.
+        if (wm.TryGetWindow(window.Id, out var existing) && !ReferenceEquals(existing, window))
+        {
+            throw new InvalidOperationException(
+                $"Window id '{window.Id}' is already registered by {existing!.GetType().Name} " +
+                $"(title '{existing.Title}'); {window.GetType().Name} (title '{window.Title}') would " +
+                "silently replace it. Give one of them a distinct id.");
+        }
+
         wm.RegisterWindow(window);
         _registered.Add(window);
     }

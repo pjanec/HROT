@@ -110,10 +110,11 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
             new(SectionMacros,       "Macros",           2, null, true,  true,  "editor.create-macro"),
             new(SectionCustomEvents, "Custom Events",    3, null, true,  true,  "editor.create-custom-event"),
             new(SectionVariables,    "Variables",        4, null, true,  true,  "editor.create-variable"),
-            // BP-57. ⭐ CanCreateItems is TRUE even for a Macro graph, which cannot own a local: the
-            // descriptor list is static (one instance for every asset and every graph), so the flag
-            // cannot vary per graph, and Q26-B2 rules that direction anyway — the "+" stays and
-            // REFUSES OUT LOUD, naming the reason, rather than vanishing and teaching nothing.
+            // BP-57. ⭐ CanCreateItems stays TRUE even for a Macro graph — the "+" must not VANISH
+            // (Q26-B2). ⚠⚠ What this comment used to add — "the descriptor list is static, so the
+            // flag cannot vary per graph" — is NO LONGER TRUE of the REASON: the Sections property
+            // projects CreateDisabledReason per read (2026-08-17 user ruling), so the button greys
+            // with an explanation on a macro instead of inviting work it will refuse.
             new(SectionLocalVariables, "Local Variables", 5, null, true, true, CommandCreateLocalVariable),
             // ⭐⭐ C-sections. ⚠ APPENDED at 6/7 rather than slotted in above "Variables", for the
             //    same reason BP-57 appended the locals: renumbering would move every existing
@@ -143,7 +144,60 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
     // ── IMyBlueprintModel ─────────────────────────────────────────────────────
 
     /// <inheritdoc/>
-    public IReadOnlyList<MyBlueprintSectionDescriptor> Sections => _sections;
+    /// <remarks>
+    /// ⭐⭐⭐ <b>The static list is the TEMPLATE; the reason is projected per read.</b> A section's "+"
+    /// can be unusable for reasons that vary with the CURRENT GRAPH, which a
+    /// <c>static readonly</c> list cannot express — ⚠ and that staticness is exactly what
+    /// <c>SectionLocalVariables</c>'s own comment cites as the reason <c>CanCreateItems</c> could not
+    /// vary. ⇒ ⭐ projecting rather than mutating keeps the order and identity fixed (the D.6.2 order
+    /// is asserted position-by-position) while letting the REASON follow the canvas.
+    /// <para>⛔ Cached on the reason itself, not rebuilt per frame: the panel reads this every frame,
+    /// and a fresh list of records each time would allocate for nothing while the canvas sits still.</para>
+    /// </remarks>
+    public IReadOnlyList<MyBlueprintSectionDescriptor> Sections
+    {
+        get
+        {
+            var reason = LocalVariablesCreateDisabledReason();
+            if (_projectedSections is null || !string.Equals(_projectedReason, reason, StringComparison.Ordinal))
+            {
+                _projectedReason   = reason;
+                _projectedSections = _sections
+                    .Select(d => d.Id == SectionLocalVariables
+                        ? d with { CreateDisabledReason = reason }
+                        : d)
+                    .ToList();
+            }
+            return _projectedSections;
+        }
+    }
+
+    private IReadOnlyList<MyBlueprintSectionDescriptor>? _projectedSections;
+    private string? _projectedReason;
+
+    /// <summary>
+    /// ⭐⭐ Why the Local Variables "+" cannot be used right now, or <c>null</c> when it can.
+    ///
+    /// <para>📌 <b>User ruling, <c>2026-08-17</c>:</b> greying with an explanatory tooltip beats
+    /// letting the click happen and then refusing — <i>"same information value, no false
+    /// expectations."</i> ⭐ A <b>refinement</b> of <c>Q26-B2</c> (which forbids the "+" vanishing),
+    /// not a reversal: the button stays, and the reason is still taught.</para>
+    ///
+    /// <para>⛔ The refusal path is NOT removed. A designer can still reach the command by other
+    /// routes, and <c>BlueprintLocalVariableSchemaSource</c> remains the authority — this only stops
+    /// the button from inviting work that will be refused.</para>
+    /// </summary>
+    private string? LocalVariablesCreateDisabledReason()
+    {
+        if (_asset is null) return "Open a blueprint to declare a local variable.";
+        var graph = CurrentGraph;
+        if (graph is null) return "Open a graph to declare a local variable.";
+        // BP1664: a macro is spliced into its caller, so it has no frame of its own to hold a local.
+        if (graph.Kind == GraphKind.Macro)
+            return $"'{graph.Name}' is a macro — macros are spliced into the caller, so they cannot "
+                 + "own local variables. Declare it in the calling graph instead.";
+        return null;
+    }
 
     /// <inheritdoc/>
     public event System.Action? Changed;
