@@ -1,6 +1,14 @@
-# PLAN — what is left *(revision 19, `2026-08-17`)*
+# PLAN — what is left *(revision 20, `2026-08-17`)*
 
-> ⭐⭐⭐ **REVISION 19 (`2026-08-17`).** ✅ **Batch 75 MERGED at `6a6bdc6cb`** — Track C's dialog **wired**
+> ⭐⭐⭐ **REVISION 20 (`2026-08-17`).** ✅ **Batch 76 MERGED at `a8b3106ba`** — ⭐⭐ **orthogonal regions
+> work now.** The region-0 hard-code had **FOUR instances**, not one · **`BP-299`** · **`-029`** (§4A11).
+> ⭐⭐⭐ **NEW GATE: `Fhsm.Tests`, and it must NOT take `--no-build`** — 📐 **the project is not in the
+> solution**, so a `--no-build` run tests a **stale bin**. ⚠ **That is HOW it stayed outside the gate
+> set.** Same category as the two NodeEdit gates.
+> 📐 **Coordinator-verified in a worktree: its two reds are PRE-EXISTING** *(`BP-304`)*.
+> ⭐⭐ **`E5` is UNBLOCKED** — its `depends on: E3` was stale *(§4A11)*.
+>
+> **REVISION 19 (`2026-08-17`).** ✅ **Batch 75 MERGED at `6a6bdc6cb`** — Track C's dialog **wired**
 > · **`-028`(a)** persisted · ⛔⛔ **`E3` STOPPED A THIRD TIME, and this time on neither `Q35` half**
 > (§4A10).
 > 🔴🔴 **`E3` HAS NO SUBJECT: there are ZERO DTO-bound HSM thunks in any binary** ⇒ its pre-written rail
@@ -944,6 +952,69 @@ last batch)* ⇒ ⭐⭐ **the strongest evidence yet that it is scheduling, not 
 
 ---
 
+## 4A11. ✅ Batch 76 — ⭐⭐⭐ **one defect, four instances; and a gate that was lying**
+
+📄 [`REPORT_Batch76_Orthogonal_Regions.md`](REPORT_Batch76_Orthogonal_Regions.md).
+⭐ Rule 1b honoured *(marker `60791f3`)*. Gates re-run by me; **goldens untouched**; tracker **63 / 176**.
+Rows `BP-301`–`BP-304`.
+
+### ⭐⭐⭐ The region-0 hard-code had **FOUR** instances
+
+> I asked about **two** neighbours *(history restore, the terminal check)*. ⭐ **The answer was worse
+> than either.**
+
+| site | verdict |
+|---|---|
+| `ExecuteTransition` → `activeLeafIds[0]` | ⛔ the one I found |
+| ⛔ **`SaveHistory(…, activeLeafIds[0])`** | **SAME SHAPE** — recorded a **bystander region's** leaf as the exiting state's history |
+| ⛔ **`RestoreHistory` → `SetActiveLeafId(…, 0, …)`** | **SAME SHAPE at ALL THREE exits** *(deep · shallow-found · shallow-fallback)* |
+| ⛔ **`RestoreDeepHistory`** | propagated the hard-coded `0` into every nested restore |
+| ✅ **the terminal-state check** | ⭐ **does NOT have it** — it reads a local, not a slot |
+
+⭐⭐ **The index was already known and simply dropped** — `SelectTransition`'s loop is
+`for (r = 0; r < regionCount; r++)` and the winner is chosen inside it. ⭐ Now returned via
+`out int regionIndex`, **assigned at the same statement as `bestTransition`**, so the two cannot
+disagree. ⛔ **Not re-derived at the call site** *(a second home for a fact the selector already holds)*.
+⭐ **Global transitions keep region 0**, matching their existing convention.
+
+⭐ **The rail discovers the owning slot rather than hard-coding it, and asserts BOTH halves** — the mover
+moved **and** every bystander is untouched. ⛔ *"Either alone passes a wrong fix."*
+⭐ **No shipped behaviour changes**: at `regionCount == 1` the selecting region **is** slot 0.
+
+### ⭐⭐⭐ NEW GATE — **`Fhsm.Tests`, and `--no-build` makes it LIE**
+
+📐 `grep -c "Fhsm.Tests" IOS-IG-SimHost.sln` → **0**. ⇒ ⛔⛔ **`dotnet build <sln> -t:Rebuild` never
+builds it, so `--no-build` runs whatever was left in `bin` from an earlier session.** ⭐ **Their first
+run reported a false regression against a stale `Fhsm.Kernel.dll`.**
+⇒ ⭐⭐ **Same category as the two NodeEdit gates, for the same reason: out of solution ⇒ the gate must
+build.** ⚠ **And it is HOW the suite stayed outside the gate set at all.**
+
+📐 **I verified the two reds in a worktree at `6a6bdc6`: identical, 296/298 before vs 298/300 after** ⇒
+⭐ **pre-existing, correctly NOT adopted** *(`BP-304`)*. One carries its own in-file explanation
+*(`SetTraceBuffer` removed in `behav-diag-1`)*; the other is unexplained.
+
+### ⭐⭐ `E5` is UNBLOCKED — **its dependency on `E3` was stale**
+
+📐 **Measured:** `SubtreeAssetId` is still read by **nothing** in the kernel or the emitters, and
+`E4`, `-028`(a) and `-029` are all now done. ⭐⭐ **E5 provisions at STATE ENTRY, where region and state
+are in scope** ⇒ ⛔ **it does not need `E3`'s delivery mechanism at all**; it needs the **storage route**,
+which already ships *(`ComputeStatefulSlotKey` + `BlueprintBlackboardPartitions`)*.
+⚠ **Honest limit to assert:** a hosted subtree's **own actions** still resolve DTOs at baked offsets ⇒
+**the `E3` hazard is inherited** — ⭐ **and it has zero instances, exactly as `E3` does.**
+
+### ⭐ Two smaller things
+
+| | |
+|---|---|
+| **`BP-299`** | 🛠 `RegionNodeDto.OwnerStableId`, asked of the **model** rather than derived from the initial child. ⭐ **The old derivation stays as FALLBACK and is not dead code** — without it *"every asset saved before this field loses its region dividers on the first load."* ⭐ The back-compat rail **strips the field from serialised JSON** rather than hand-building a DTO the mapper would never emit |
+| **`-029`** | ⭐⭐⭐ **the region index still comes from the DIRECT CHILD and is carried down** — ⛔ reading `RegionIndex` off a deep descendant is **the wrong space**: inside a nested parallel composite it means the INNER composite's region. ⭐ **The cycle question splits**: the state-tree walk cannot cycle *(a visited set guards a malformed model, not depth)*; ⛔ **the real one — asset `A` hosts `B` hosts `A` — is a walk over ASSETS and belongs to whoever builds hosting for real.** Named, not half-handled |
+
+⚠ **Third batch running where an expected-golden-movement prediction of mine did not hold** — ⭐ **the
+`hsm-persistence-shape` golden hashes the checked-in `.hsm.json` files, so a new DTO field appears only
+when an asset is next SAVED**, not at build time. 📌 **Fold that into how I write the expectation.**
+
+---
+
 ## 4B. ⏭ Track E — ⭐⭐⭐ **HSM catch-up** *(the gaps, collected)*
 
 > ⛔⛔ **USER RULING `2026-08-16`:** *"the HSM integration is in bad shape now, for long time not updated
@@ -1076,13 +1147,13 @@ Track E, plus one item waiting on the user:**
 
 | ⭐ next | what | why now |
 |---|---|---|
-| 🔴🔴 **`ExecuteTransition` hard-codes region 0** | `HsmKernelCore:733` — `activeLeafIds[0] = finalLeafId` with no region index threaded in | ⭐⭐⭐ **LIVE corruption of orthogonal regions**, coordinator-verified. ⛔ **`E3` is downstream of a region model that does not work** |
-| ⭐⭐ **`BP-299`** — persist a region's parent | a region with no `InitialChild` is **orphaned on load** ⇒ rules 8/8b skip the composite **silently** | ⭐ a **persistence-shape** change; ⚠ it makes `E4`'s guarantee real rather than conditional |
-| ⭐ **`DEBT-AIB-029`** — rule 8's deep walk | direct children only | ⚠ **promoted to a REAL defect** by `-028`(a): a nested host can now be **saved** |
-| ⏭ 🔴 **`E3` — LATENT, and blocked on a DECISION** | ⛔ **zero DTO-bound HSM thunks exist in any binary** ⇒ the rail cannot fail first. ⭐ **Needs a `[SharedAiAction]` in a generator-bearing assembly** — move one into `Hrot.AI.Behaviors`, or run the analyzer over `Fdp.Toolkits`. ⭐⭐ **`Q35` stays resolved; nothing about the rulings changed** | ⚠ **the SAME blocker as `E7b`'s bytes** — one decision unblocks both |
-| ⏭ **then** `E5` *(rides `E3`)* → `E7a` | | |
-| ⛔⛔ **DEFERRED by the user** | **blueprint multi-occurrence** — 📄 [`Architect_Question_34`](Architect_Question_34_Blueprint_Occurrence_Identity.md) | ⭐ answers stand, build deferred. §4A7 holds the measured edit surface |
-| ⛔ **PARKED, asserted inert** | the **producer picker** — its runtime (`R1`/`R2`/`R4`) does not exist | ⭐ **`2026-08-17` user ruling**: no authoring surface without its consumer |
+| ⭐⭐⭐ **`E5`** — subtree hosting runtime | ✅ **UNBLOCKED** *(§4A11: the `E3` dependency was stale)* — `SubtreeAssetId` persists, `E4`/`-028`(a)/`-029` are done, and hosting provisions at **state entry** where the key's inputs are in scope | ⭐⭐ **the item that serves the user's stated goal** — HSM + BTree/blueprint on one entity. 📄 `Q33` §1.5.4 · `Q34` §7 *(provision by KEY, never via `AttachToEntity`)* |
+| ⭐⭐ **an `E3` TRIPWIRE** | ⛔ **do not manufacture a subject for `E3`** — ⭐ **assert that no DTO-bound HSM action exists in a generator-bearing assembly while `E3` is unbuilt** | ⭐⭐⭐ **turns a latent hazard nobody can see into a build failure the day it becomes real** — the pattern this programme has converged on |
+| ⭐ **`BP-304`** — the two `Fhsm.Tests` reds | one explains itself *(`SetTraceBuffer` removed in `behav-diag-1`)*; ⚠ **the other is unexplained** | ⭐ now inside the gate set, so it must be diagnosed or quarantined **with a named cause** |
+| ⏭ **then** `E7a` *(needs `E5`'s host)* | | |
+| ⏭ 🔴 **`E3` — LATENT, demand-driven** | ⛔ **zero DTO-bound HSM thunks exist** ⇒ ⭐ **it waits for a real one to be authored.** `Q35` stays resolved; the rulings are ready the day it becomes live | ⚠ **the same blocker as `E7b`'s bytes** |
+| ⛔⛔ **DEFERRED by the user** | **blueprint multi-occurrence** — 📄 [`Architect_Question_34`](Architect_Question_34_Blueprint_Occurrence_Identity.md) | ⭐ answers stand, build deferred |
+| ⛔ **PARKED, asserted inert** | the **producer picker** | ⭐ no authoring surface without its consumer |
 | ⚠ **the Track C VISUAL CHECK** | cumulative across batches 68–70 | ⛔ **no headless test can do it** — it needs a human at the editor. §4A3/§4A4 hold the list |
 
 ✅ **DONE this round:** the parameter seam · **`G7`+`W10`** *(the last `G`-row)* · **`E0`** the golden
