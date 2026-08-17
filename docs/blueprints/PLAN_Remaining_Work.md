@@ -1,6 +1,16 @@
-# PLAN — what is left *(revision 17, `2026-08-17`)*
+# PLAN — what is left *(revision 18, `2026-08-17`)*
 
-> ⭐⭐⭐ **REVISION 17 (`2026-08-17`).** ✅ **Batch 73 MERGED at `0808253e4`** — the 12 red scenario tests
+> ⭐⭐⭐ **REVISION 18 (`2026-08-17`).** ✅ **Batch 74 MERGED at `5b0c9563e`** — **`BP-281`** *(HSM has a
+> `ParseParams` at last)* · **`E7b`** · **BTree's emit tier** · the picker **PARKED** · the
+> `InspectorWindow` panel **kept and relabelled** (§4A9).
+> 🔴🔴 **`E7b` uncovered that `E6`(A)'s ruling never reached the COMPOUND key** — HSM spelled it
+> `sym.Name` where BTree spells the FQN ⇒ **every `[SharedAiAction]` binding was addressable by nobody.**
+> ⛔⛔ **And my "the panel is superseded" premise was inverted twice over: Track C's `VariableEditLauncher`
+> is CONSTRUCTED BY NOTHING** ⇒ retiring the panel would have deleted **the only live surface**.
+> ⛔⛔ **PROTOCOL: rule 1a's ancestry check has a BLIND WINDOW** — I amended a handoff twice while a run
+> WAS in progress. ⭐ **Fixed as rule 1b in `.claude/CLAUDE.md`.**
+>
+> **REVISION 17 (`2026-08-17`).** ✅ **Batch 73 MERGED at `0808253e4`** — the 12 red scenario tests
 > **diagnosed and quarantined with named causes** · ⭐⭐ **`E0` gained a GENERATED-CODE tier** whose
 > acceptance test proves it reaches thunk ids · the HSM slot order is now by construction (§4A8).
 > ⛔ **`E3` escalated a SECOND time, with the census: 55 attributed methods / 25 directories / 5
@@ -780,6 +790,74 @@ stateId)` there with no signature change anywhere.** ⚠ **Guards are unserved �
 
 ---
 
+## 4A9. ✅ Batch 74 — ⭐⭐ **HSM's runtime caught up, and two of my premises inverted**
+
+📄 [`REPORT_Batch74_Hsm_Runtime_Catchup.md`](REPORT_Batch74_Hsm_Runtime_Catchup.md).
+⭐ **All four items plus both amendments.** Gates re-run by me; **blueprint golden set untouched**;
+tracker **61 / 170**. Rows `BP-292`–`BP-296`.
+
+### ⛔⛔ PROTOCOL — **rule 1a's ancestry check has a blind window.** ⭐ Fixed as **rule 1b**
+
+📐 They ff-merged the dispatch and **built three items locally with nothing pushed**, so
+`origin/<impl-branch>` still pointed at the previous batch and my check said *"not started"* — **twice,
+while a run was in progress.** ⚠ **No damage, but that was LUCK**: the same commit's design doc
+un-pulled `BP-281`, and they had reached the other amendment independently.
+⇒ ⭐⭐ **Both fixes adopted** — the implementation session pushes a `started at <sha>` marker before
+writing code; ⛔ **and the ancestry check is CORROBORATION, not proof — I ask.**
+
+### 🔴🔴 The finding — **`E6`(A) never reached the COMPOUND key**
+
+| generator | compound key |
+|---|---|
+| ⭐ `BTreeActionGenerator` *(`:334`/`:385`/`:444`)* | `ContainingType + "." + Name + "@" + offset` — **the FQN** |
+| ⛔ `HsmActionGenerator` *(`:261`/`:308`/`:365`)* | **`sym.Name`** — the SIMPLE name |
+
+⇒ ⛔⛔ **An HSM asset stores its action as an FQN, so a simple-name compound key could never be
+addressed** — ⭐ **the same silent `TryGetValue` miss as `E6`, one layer down**, and **nothing on the
+asset side had ever produced a compound key at all.** 📌 **Batch 72 fixed the plain key and did not
+sweep the compound one; this was that sweep.** ⭐ One home now: `HsmActionKey.CompoundKeyName`.
+
+⚠ **No byte assertion, and the boundary is named:** 📐 **no shipped assembly generates a compound-key
+thunk** — the four production `[SharedAiAction]` methods live in `Fdp.Toolkits`, which does not run
+`HsmActionGenerator`. ⇒ **the binding is addressable; the bytes wait on the thunk being generated where
+the method lives.**
+
+### ⛔⛔ Item 4 — **my premise was inverted, and worse than I thought**
+
+| | measured |
+|---|---|
+| ⭐⭐ **`.dev/` answered first** | `BATCH-BB1B-REPORT.md:103` **designs** the panel as the authoring surface for a bound variable's `DefaultValueJson`; `BATCH-BB1B-REVIEW.md:21` files the unwired accessor as a **defect** — ⭐ **since fixed**, so the panel runs |
+| 🔴🔴 **and its "replacement" does NOT** | **Track C's `VariableEditLauncher` is constructed by NOTHING** — the table's `⋮` menu is unwired ⇒ ⛔ **retiring the panel would have deleted the ONLY LIVE surface and left the replacement unreachable** |
+| ⭐⭐ **ruling 9 was already satisfied** | Batch 68 routed the panel through `DefaultValueAuthoring.OpenSession` ⇒ **one implementation, two entry points**, pinned by `ExactlyOneCallSite_OpensAVariableEditSession` |
+| ⭐ **what shipped instead** | the XML-doc line · the label is now **`DEFAULT VALUE — {var}`** *(measured free — no test asserted the string)* · **a gap rail asserting both halves**, to invert when the menu lands |
+
+### ⭐⭐⭐ Three surfaces with no caller — **that is a pattern, not three accidents**
+
+| surface | built | state |
+|---|---|---|
+| `ProducerPicker` / `ProducerCatalog` | Batch 70 *(mine)* | ⭐ **PARKED** — `ThePickerIsInert_UntilTheResolverRuntimeExists` **fails the moment anyone constructs one** ⇒ wiring becomes the reminder to build the consumer |
+| `VariableEditLauncher` | Batch 68 | 🔴 **OPEN — Batch 75 wires it** |
+| the `ExpressionTargetField` runtime | *inherited* | ✅ **fixed this batch (`E7b`)** |
+
+### ⭐ `BP-281`, and the answer to the guards question
+
+⭐⭐ **They did NOT reproduce `-021`'s defects (b)/(c) — and avoiding them needed a different fix than
+the obvious one.** 📐 *"They were TWO conditions that disagreed"* ⇒ ⛔ **copying the BTree bridge's
+guards — even the FIXED ones — would have reproduced the SPLIT on a second host, because the split is
+structural, not textual.** ⭐ **The packed field list is computed ONCE and consumed by all three
+emissions.**
+⭐ **And the destination confirmed §2 of the storage design:** `BehaviorParameters` sits at
+`[FieldOffset(0)]`, so `memory + packedOffset` **is** `bb.BehaviorParameters[0] + offset` — the region
+the HSM thunks already read. ⛔ **Nothing waited on `E3`.**
+
+⚠ **A fifth vacuous rail**, found by probe: `Contains("__paramJsonOpts")` was satisfied by the emitted
+**body** even with the field **declaration** gone. ⭐ Now asserts the declaration **and** the compile
+harness takes the options field from the emitter.
+⚠ **`DEBT-AIB-030`: sixth distinct test, and red in BOTH samples for the first time** — still green in
+isolation, for its class, and for all 187 `Gizmos` tests. ⛔ **Not signal.**
+
+---
+
 ## 4B. ⏭ Track E — ⭐⭐⭐ **HSM catch-up** *(the gaps, collected)*
 
 > ⛔⛔ **USER RULING `2026-08-16`:** *"the HSM integration is in bad shape now, for long time not updated
@@ -912,13 +990,12 @@ Track E, plus one item waiting on the user:**
 
 | ⭐ next | what | why now |
 |---|---|---|
-| ⭐⭐⭐ **`BP-281`** — HSM has no `ParseParams` counterpart | an HSM `Role=Input` variable reaches **NO emitted output** | ⭐⭐ **NOT BLOCKED — 📄 [`DESIGN_Hsm_Storage_Model.md`](DESIGN_Hsm_Storage_Model.md) §2.** ⚠ **I pulled it from Batch 74 saying its destination was undecided; measured, it is decided by symmetry with BTree** — `BehaviorParameters` at packed offsets. ⛔ Only the **hosted/multi-occurrence** case waits on `E3` |
-| ⭐⭐ **`E7b`'s runtime half** | 📐 **`ExpressionTargetField` is emitted NOWHERE** — 0 refs in either HSM emitter ⇒ it never reaches the blob | ⭐ the authoring half round-trips and the validator already reads it ⇒ **a producer with no consumer** |
-| ⭐ **BTree's emit tier**, over the **REAL solution compilation** | a synthesized one emits **fallback output — a baseline of what production never produces** | closes the last golden hole |
-| ⛔⛔ ~~the `InspectorWindow` "STATIC PARAMETERS" retirement~~ | ⭐⭐ **WITHDRAWN `2026-08-17` — user: *"no rush removals."*** 📐 **Measured when the user asked what it was:** it is the **default-value editor for the `ExpressionTargetField` variable**, not parameters; its duplicate-CODE half was resolved by `BP-267` (Batch 68); what remains is a **node-scoped affordance the asset-scoped table lacks** — ⛔ **and it authors a binding whose runtime `E7b` is only now building** | ⚠ **I carried this for five batches on a LABEL I had never measured.** ⭐ Rule recorded in `.claude/CLAUDE.md` |
-| ⭐⭐⭐ **`E3` — ✅ UNBLOCKED `2026-08-17`** | 📄 **[`Architect_Question_35`](Architect_Question_35_Hsm_Occurrence_Delivery.md) RESOLVED**: the pair `(regionSlotIndex, stateId)` rides **`HsmCommandWriter`** ⇒ ⛔ **NO delegate change** · **ONE path** onto the allocator · ⭐ the kernel supplies identity, **the thunk does the lookup** | ⭐⭐ **THE dangerous occurrence case** *(`Q34` §7)* — the only one that silently corrupts. ⭐ `HsmOrthogonalRegions` is already in the corpus · ⚠ **guards unserved, and that limit must be ASSERTED** |
-| ⏭ **then** `E5` *(by KEY — `Q34` §7)* → `E7a` | | |
-| ⛔⛔ **DEFERRED by the user** | **blueprint multi-occurrence** — 📄 [`Architect_Question_34`](Architect_Question_34_Blueprint_Occurrence_Identity.md) | ⭐ **answers stand, build deferred** *("once really needed")*. §4A7 holds the measured edit surface |
+| ⭐⭐⭐ **`E3`** — ✅ **UNBLOCKED**, the storage move | 📄 **[`Architect_Question_35`](Architect_Question_35_Hsm_Occurrence_Delivery.md) RESOLVED** + 📄 **[`DESIGN_Hsm_Storage_Model.md`](DESIGN_Hsm_Storage_Model.md) §3** | ⭐⭐ **the only occurrence case that silently corrupts**; `HsmOrthogonalRegions` is in the corpus for it |
+| ⭐⭐ **wire Track C's `VariableEditLauncher`** | the table's `⋮` menu / value-cell double-click — 📄 `DESIGN_Variable_Details_And_Editing.md` §3 | 🔴 **constructed by NOTHING today** ⇒ the panel is the only live surface. ⭐ **Inverts the Batch-74 gap rail** |
+| ⭐ **`DEBT-AIB-028`(a)** — persist `StateNode.SubtreeAssetId` | small, independent | ⭐ **`E5`'s only remaining prerequisite** |
+| ⏭ **then** `E5` *(by KEY — `Q34` §7, riding `E3`'s mechanism)* → `E7a` → **the compound-key thunk's bytes** *(needs the thunk generated where the method lives)* | | |
+| ⛔⛔ **DEFERRED by the user** | **blueprint multi-occurrence** — 📄 [`Architect_Question_34`](Architect_Question_34_Blueprint_Occurrence_Identity.md) | ⭐ answers stand, build deferred. §4A7 holds the measured edit surface |
+| ⛔ **PARKED, asserted inert** | the **producer picker** — its runtime (`R1`/`R2`/`R4`) does not exist | ⭐ **`2026-08-17` user ruling**: no authoring surface without its consumer |
 | ⚠ **the Track C VISUAL CHECK** | cumulative across batches 68–70 | ⛔ **no headless test can do it** — it needs a human at the editor. §4A3/§4A4 hold the list |
 
 ✅ **DONE this round:** the parameter seam · **`G7`+`W10`** *(the last `G`-row)* · **`E0`** the golden

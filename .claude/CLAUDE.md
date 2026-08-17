@@ -257,6 +257,27 @@ git merge-base --is-ancestor <dispatch-sha> origin/<impl-branch>   # NO ⇒ safe
 
 ⚠ **If they had already started, the earlier stamp binds** — say so and re-issue as a new batch.
 
+### ⛔⛔ Rule 1b — **rule 1a's ancestry check has a BLIND WINDOW** *(found by the implementation session, `2026-08-17`)*
+
+📌 **What happened.** The coordinator amended a dispatched handoff **twice** under rule 1a, each time
+checking `git merge-base --is-ancestor <dispatch-sha> origin/<impl-branch>` and concluding *"no run was
+ever in progress."* ⛔ **Correct about the remote, wrong about reality:** the implementation session had
+ff-merged the dispatch and **built three items locally**, with **nothing pushed yet**, so the remote
+still pointed at the previous batch.
+
+⇒ ⭐⭐ **The guard is blind from the moment the implementation session merges the dispatch to the moment
+it first pushes.** ⚠ **No damage that time** *(the same commit's design doc un-pulled the item, and they
+had reached the other amendment independently)* — ⛔ **that was luck, not the control working.**
+
+| ⭐ **the fix — BOTH, they are cheap** | owner |
+|---|---|
+| ⭐⭐ **push an empty `chore: started batch N at <sha>` commit IMMEDIATELY after the rule-7 merge**, before writing any code | **implementation** |
+| ⭐ **ASK before re-dispatching** rather than inferring from the remote — ⛔ **the ancestry check is now CORROBORATION, not proof** | **coordinator** |
+
+⚠ **If the started-marker is absent and the user is not there to ask, assume a run IS in progress** —
+⭐ **the cost of a needless new batch is one batch; the cost of amending under a live run is a
+collision.**
+
 ### ⭐ Rule 3a — **architect-question numbers are ids too** *(added `2026-08-14`)*
 
 > **Any session creating `Architect_Question_N_*.md` must first `git fetch` every active branch and
