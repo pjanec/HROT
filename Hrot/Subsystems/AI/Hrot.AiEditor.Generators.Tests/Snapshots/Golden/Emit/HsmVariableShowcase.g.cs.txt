@@ -1,0 +1,36 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: e0710001-0000-0000-0000-000000000001
+
+using System;
+
+using Fhsm.Compiler;
+using Fhsm.Kernel.Attributes;
+using Fhsm.Kernel.Data;
+using Hrot.AI.Behaviors;
+
+namespace Hrot.AI.Behaviors.Machines;
+
+public static class HsmVariableShowcase
+{
+    public static HsmBuilder CreateBuilder()
+    {
+        var builder = new HsmBuilder("HsmVariableShowcase");
+
+        builder.Event("Begin", 1, 0, false, false);
+        builder.Event("Finish", 2, 0, false, false);
+
+        builder.RegisterAction("Hrot.AI.Behaviors.CgfHsmNodes.StubIdle");
+
+        var waiting = builder.State("Waiting", stableId: new Guid("e0710001-1000-0000-0000-000000000002"))
+            .Initial();
+        var working = builder.State("Working", stableId: new Guid("e0710001-1000-0000-0000-000000000003"))
+            .OnEntry("Hrot.AI.Behaviors.CgfHsmNodes.StubIdle");
+        waiting.On("Begin").GoTo("Working", visualId: new Guid("e0710001-3000-0000-0000-000000000001"));
+        working.On("Finish").GoTo("Waiting", visualId: new Guid("e0710001-3000-0000-0000-000000000002"));
+
+        return builder;
+    }
+
+    [HsmDefinition("HsmVariableShowcase", AssetId = "e0710001-0000-0000-0000-000000000001")]
+    public static HsmDefinitionBlob Compile() => CreateBuilder().Build().Compile();
+}

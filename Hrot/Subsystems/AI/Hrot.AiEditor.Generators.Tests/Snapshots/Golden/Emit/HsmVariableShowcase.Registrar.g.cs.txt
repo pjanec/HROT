@@ -1,0 +1,38 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: e0710001-0000-0000-0000-000000000001
+
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Blueprints;
+using Fdp.Toolkit.Blueprints.Attributes;
+using Fhsm.Kernel;
+using Fhsm.Kernel.Data;
+
+namespace Hrot.AI.Behaviors.Machines;
+
+[BlueprintRegistrar]
+public static class HsmVariableShowcaseRegistrar
+{
+    /// <summary>
+    /// Coordinator-injectable registrar (§3 D14, PU-203).
+    /// Registers the JSON-owned HSM definition and action/guard thunks.
+    /// HsmActionDispatcher is a static class and is called STATICALLY (§14 item 4).
+    /// </summary>
+    public static void Register(BehaviorRegistry beh, BlueprintRegistryStaging staging)
+    {
+        // Compile the blob from the topology-core thunk.
+        var blob = HsmVariableShowcase.Compile();
+
+        // Register the JSON-owned HSM definition.
+        beh.Register(444402202, "HsmVariableShowcase", new BehaviorDefinition
+        {
+            Name          = "HsmVariableShowcase",
+            BrainTier     = BehaviorConstants.BrainTierHsm,
+            HsmDefinition = blob,
+            StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
+            {
+                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(577338280, global::System.Runtime.InteropServices.Marshal.SizeOf<int>(), unchecked(4180476474u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<int>()), typeof(int), "Cursor", (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior),
+                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(740138773, global::System.Runtime.InteropServices.Marshal.SizeOf<int>(), unchecked(4180476474u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<int>()), typeof(int), "Ticks", (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Entity),
+            },
+        });
+    }
+}
