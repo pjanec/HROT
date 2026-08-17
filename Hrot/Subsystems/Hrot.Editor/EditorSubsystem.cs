@@ -2140,7 +2140,8 @@ namespace Hrot.Editor
                 {
                     new Hrot.Hsm.Editor.Validation.HsmAssetValidator(
                         sharedSchemaExporter,
-                        isStatefulSubtree: IsStatefulSubtreeAsset),
+                        isStatefulSubtree: IsStatefulSubtreeAsset,
+                        sharedScopeKeys:   SharedScopeKeysOfAsset),
                 },
                 breakpointManager:             _bpManager,
                 sanitizerRegistry:             sanitizerRegistry,
@@ -4116,6 +4117,25 @@ namespace Hrot.Editor
                 Hrot.BTree.Editor.Model.BehaviorTreeAsset bt => bt.HasAnyStatefulNode(),
                 Hrot.Hsm.Editor.Model.HsmAsset h             => h.HasAnyStatefulNode(),
                 _                                            => false,
+            };
+
+        /// <summary>
+        /// ⭐⭐ <b><c>E4</c>'s SECOND resolver, supplied in Batch 69.</b> Rule 8b compares the shared
+        /// (<c>Behavior</c>/<c>Entity</c>) scope keys of sub-trees running in different parallel
+        /// regions; ⛔ left at its <c>_ =&gt; Array.Empty&lt;int&gt;()</c> default it could never fire.
+        ///
+        /// <para>
+        /// ⭐ <b>Same shape, same place, same reason as <see cref="IsStatefulSubtreeAsset"/></b> — one
+        /// definition, at the only layer that sees both asset types. ⚠ Batch 68 threaded the parameter
+        /// and flagged that it was still defaulted; this fills it.
+        /// </para>
+        /// </summary>
+        private IReadOnlyCollection<int> SharedScopeKeysOfAsset(Guid assetId)
+            => _aiCatalogBuilder?.Catalog?.FindByAssetId(assetId) switch
+            {
+                Hrot.BTree.Editor.Model.BehaviorTreeAsset bt => bt.GetSharedScopeKeys(),
+                Hrot.Hsm.Editor.Model.HsmAsset h             => h.GetSharedScopeKeys(),
+                _                                            => System.Array.Empty<int>(),
             };
 
         private static string? ResolveExpressionTargetField(object? facet) => facet switch

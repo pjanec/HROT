@@ -154,4 +154,68 @@ public sealed class HsmProductionResolverWiringTests
     [Fact]
     public void AnHsmWithNoVariables_IsNotStateful()
         => Assert.False(MakeParallelAsset().Asset.HasAnyStatefulNode());
+
+    // ── E4 completion (Batch 69): sharedScopeKeys ───────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐ <b>Rule 8b fires through the PRODUCTION adapter once <c>sharedScopeKeys</c> is supplied.</b>
+    /// ⚠ Batch 68 threaded the parameter and flagged that it was still defaulted to
+    /// <c>_ =&gt; Array.Empty&lt;int&gt;()</c>, so the rule could not fire; this is the other half.
+    /// </summary>
+    [Fact]
+    public void TheProductionValidator_FiresRule8b_WhenGivenSharedScopeKeys()
+    {
+        var (asset, _, c0, c1) = MakeParallelAsset();
+        var subtreeA = Guid.NewGuid();
+        var subtreeB = Guid.NewGuid();
+        c0.SubtreeAssetId = subtreeA;
+        c1.SubtreeAssetId = subtreeB;      // ⛔ DIFFERENT subtrees -- so rule 8 does NOT apply...
+
+        // ...but both resolve to the SAME shared scope key, which is what 8b is for.
+        var shared = new[] { 0x1234 };
+        var validator = new HsmAssetValidator(
+            schema: null,
+            isStatefulSubtree: _ => true,
+            sharedScopeKeys:   _ => shared);
+
+        Assert.Contains(validator.Validate(asset),
+            d => d.Code == HsmDiagnosticCode.ConcurrentSharedScopeKey.ToString());
+    }
+
+    /// <summary>⛔ And is silent on the shipped default — the state Batch 68 left it in.</summary>
+    [Fact]
+    public void TheProductionValidator_IsSilentOnRule8b_WithTheDefaultResolver()
+    {
+        var (asset, _, c0, c1) = MakeParallelAsset();
+        c0.SubtreeAssetId = Guid.NewGuid();
+        c1.SubtreeAssetId = Guid.NewGuid();
+
+        Assert.DoesNotContain(new HsmAssetValidator(schema: null, isStatefulSubtree: _ => true).Validate(asset),
+            d => d.Code == HsmDiagnosticCode.ConcurrentSharedScopeKey.ToString());
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The shared-scope-key set is ONE definition, and this pins it to the emitter's.</b>
+    /// <c>HsmAsset.GetSharedScopeKeys()</c> calls <c>BTreeBridgeEmitCore.ComputeStatefulSlotKey</c> —
+    /// the same algorithm <c>E1</c>'s emission uses — so the validator's idea of "these two regions
+    /// touch one shared slot" cannot drift from the allocator's. ⚠ The expected value is COMPUTED, not
+    /// pasted: a literal would still pass if both sides moved together.
+    /// </summary>
+    [Fact]
+    public void SharedScopeKeys_UseTheEmittersOwnKeyAlgorithm()
+    {
+        var (asset, _, _, _) = MakeParallelAsset();
+        asset.SetBlackboardVariables(new[]
+        {
+            new BlackboardVariableEntry("Cursor", typeof(int), null, false, null,
+                BlackboardVariableRole.State, WorkingStateScope.Behavior),
+        });
+
+        int expected = Hrot.AiEditor.Persistence.Emit.BTreeBridgeEmitCore.ComputeStatefulSlotKey(
+            asset.AssetId, WorkingStateScope.Behavior, Guid.Empty, "Cursor");
+
+        Assert.Equal(new[] { expected }, asset.GetSharedScopeKeys());
+        // ⭐ And HasAnyStatefulNode is now literally "is that set non-empty" -- one filter, not two.
+        Assert.True(asset.HasAnyStatefulNode());
+    }
 }

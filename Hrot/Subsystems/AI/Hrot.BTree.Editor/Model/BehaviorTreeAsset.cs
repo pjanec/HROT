@@ -464,6 +464,32 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
         return false;
     }
 
+    /// <summary>
+    /// ⭐ <b><c>E4</c> completion (Batch 69) — the SHARED (<c>Behavior</c>/<c>Entity</c>) scope keys
+    /// this asset's stateful variables resolve to.</b> The BTree twin of
+    /// <c>HsmAsset.GetSharedScopeKeys()</c>, using the SAME key algorithm.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>Distinct from <see cref="HasAnyStatefulNode"/> here, unlike on HSM.</b> A BTree can be
+    /// stateful through a node's DELEGATE SHAPE while declaring no shared blackboard variable at all —
+    /// the two questions genuinely differ on this host, and collapsing them would answer the wrong one.
+    /// </remarks>
+    public IReadOnlyCollection<int> GetSharedScopeKeys()
+    {
+        HashSet<int>? keys = null;
+        foreach (var v in _blackboardVariables)
+        {
+            if (v.Role != Hrot.AiEditor.Persistence.BlackboardVariableRole.State) continue;
+            if (v.Scope != Hrot.AiEditor.Persistence.WorkingStateScope.Behavior
+             && v.Scope != Hrot.AiEditor.Persistence.WorkingStateScope.Entity) continue;
+
+            (keys ??= new HashSet<int>()).Add(
+                Hrot.AiEditor.Persistence.Emit.BTreeBridgeEmitCore.ComputeStatefulSlotKey(
+                    AssetId, v.Scope, Guid.Empty, v.Name));
+        }
+        return (IReadOnlyCollection<int>?)keys ?? Array.Empty<int>();
+    }
+
     public IReadOnlyList<BlackboardAliasBinding> GetAliasesFor(string variableName) =>
         _aliases.TryGetValue(variableName, out var list)
             ? list.AsReadOnly()

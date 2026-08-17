@@ -107,14 +107,42 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
     /// nothing to supply.
     /// </para>
     /// </summary>
-    public bool HasAnyStatefulNode()
+    public bool HasAnyStatefulNode() => GetSharedScopeKeys().Count > 0;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E4</c> completion (Batch 69) — the SHARED (<c>Behavior</c>/<c>Entity</c>) scope keys
+    /// this asset's stateful variables resolve to,</b> which is what rule 8b compares across parallel
+    /// regions.
+    ///
+    /// <para>
+    /// ⭐⭐ <b>ONE definition of "the shared state set", and three callers now share it:</b> this
+    /// method, <see cref="HasAnyStatefulNode"/> above (which is now literally "is that set non-empty"),
+    /// and <c>HsmBridgeEmitCore</c>'s slot emission, which filters identically. ⛔ Three copies of a
+    /// filter that decides which variables own a partition slot is exactly the drift the slot-key
+    /// discipline exists to prevent.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>The key is <c>BTreeBridgeEmitCore.ComputeStatefulSlotKey</c>, CALLED — not
+    /// reimplemented.</b> A second key algorithm would make the validator's idea of "these two regions
+    /// touch the same shared slot" disagree with the allocator's, which is the one thing rule 8b must
+    /// not get wrong.
+    /// </para>
+    /// </summary>
+    public IReadOnlyCollection<int> GetSharedScopeKeys()
     {
+        HashSet<int>? keys = null;
         foreach (var v in _blackboardVariables)
-            if (v.Role == Hrot.AiEditor.Persistence.BlackboardVariableRole.State
-             && (v.Scope == Hrot.AiEditor.Persistence.WorkingStateScope.Behavior
-              || v.Scope == Hrot.AiEditor.Persistence.WorkingStateScope.Entity))
-                return true;
-        return false;
+        {
+            if (v.Role != Hrot.AiEditor.Persistence.BlackboardVariableRole.State) continue;
+            if (v.Scope != Hrot.AiEditor.Persistence.WorkingStateScope.Behavior
+             && v.Scope != Hrot.AiEditor.Persistence.WorkingStateScope.Entity) continue;
+
+            (keys ??= new HashSet<int>()).Add(
+                Hrot.AiEditor.Persistence.Emit.BTreeBridgeEmitCore.ComputeStatefulSlotKey(
+                    AssetId, v.Scope, System.Guid.Empty, v.Name));
+        }
+        return (IReadOnlyCollection<int>?)keys ?? System.Array.Empty<int>();
     }
 
     public void SetBlackboardVariables(IEnumerable<BlackboardVariableEntry> vars)
