@@ -514,7 +514,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             sb.AppendLine("        {");
             foreach (var action in actions)
             {
-                ushort id = ComputeHash(action.Name);
+                ushort id = HsmActionKey.ForActionName(action.Name);
                 sb.AppendLine("            { " + id + ", (IntPtr)(delegate* <void*, void*, HsmCommandWriter*, void>)&" + action.FullName + " },");
             }
             sb.AppendLine("        };");
@@ -525,7 +525,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             sb.AppendLine("        {");
             foreach (var guard in guards)
             {
-                ushort id = ComputeHash(guard.Name);
+                ushort id = HsmActionKey.ForActionName(guard.Name);
                 sb.AppendLine("            { " + id + ", (IntPtr)(delegate* <void*, void*, ushort, bool>)&" + guard.FullName + " },");
             }
             sb.AppendLine("        };");
@@ -627,19 +627,19 @@ namespace Fdp.Toolkit.Behavior.Analyzers
 
             foreach (var action in actions)
             {
-                ushort id = ComputeHash(action.Name);
+                ushort id = HsmActionKey.ForActionName(action.Name);
                 sb.AppendLine("            HsmActionDispatcher.RegisterAction(" + id + ", (IntPtr)(delegate* <void*, void*, HsmCommandWriter*, void>)&" + action.FullName + ");");
             }
 
             foreach (var guard in guards)
             {
-                ushort id = ComputeHash(guard.Name);
+                ushort id = HsmActionKey.ForActionName(guard.Name);
                 sb.AppendLine("            HsmActionDispatcher.RegisterGuard(" + id + ", (IntPtr)(delegate* <void*, void*, ushort, bool>)&" + guard.FullName + ");");
             }
 
             foreach (var entry in sharedAiEntries)
             {
-                ushort id = ComputeHash(entry.CompoundKey);
+                ushort id = HsmActionKey.ForCompoundKey(entry.CompoundKey);
                 string thunkName = entry.IsCondition
                     ? "Guard_" + entry.MethodName + "_At" + entry.Offset
                     : "Action_" + entry.MethodName + "_At" + entry.Offset;
@@ -652,12 +652,12 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             // Register ExitCleanup actions
             foreach (var m in exitCleanupMethods)
             {
-                ushort id = ComputeHash("ExitCleanup_" + m.Name);
+                ushort id = HsmActionKey.ForExitCleanup(m.Name);
                 sb.AppendLine("            HsmActionDispatcher.RegisterAction(" + id + ", (IntPtr)(delegate* <void*, void*, HsmCommandWriter*, void>)&ExitCleanup_" + m.Name + ");");
             }
             foreach (var entry in sharedAiExitCleanups)
             {
-                ushort id = ComputeHash("ExitCleanup_" + entry.MethodName);
+                ushort id = HsmActionKey.ForExitCleanup(entry.MethodName);
                 sb.AppendLine("            HsmActionDispatcher.RegisterAction(" + id + ", (IntPtr)(delegate* <void*, void*, HsmCommandWriter*, void>)&ExitCleanup_" + entry.MethodName + ");");
             }
 
@@ -799,12 +799,8 @@ namespace Fdp.Toolkit.Behavior.Analyzers
 
         // ---- FNV-1a hash (identical to BTreeActionGenerator) -------------------
 
-        private static ushort ComputeHash(string name)
-        {
-            uint hash = 2166136261;
-            foreach (char c in name) { hash ^= c; hash *= 16777619; }
-            return (ushort)(hash & 0xFFFF);
-        }
+        // ⛔ The private ComputeHash is GONE. The algorithm -- and the key-string choice with it --
+        //    lives in HsmActionKey, so the seven sites that used to each spell it out cannot drift.
 
         // ---- Data types --------------------------------------------------------
 
