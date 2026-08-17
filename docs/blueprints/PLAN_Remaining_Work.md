@@ -1,5 +1,36 @@
-# PLAN — what is left *(revision 25, `2026-08-17`)*
+# PLAN — what is left *(revision 26, `2026-08-17`)*
 
+> 🔴🔴 **REVISION 26 (`2026-08-17`) — THE FIRST VISUAL CHECK RAN, AND IT PAID.** ⭐⭐⭐ **Eight findings
+> from one session at the keyboard, none of which any gate could have produced.**
+>
+> ⭐⭐ **The headline: the pattern has a TENTH instance, one level below Batch 80.** ⛔ **80 fixed
+> *"nobody CONSTRUCTS the outline."* The visual check found *"nobody FEEDS it"* — both AI perspectives
+> draw **"Editor host services not available for this perspective yet."**
+> 📐 **Measured: a closed loop.** `SyncToSelection` passes `_hostServices`/`_commands` into `Retarget`,
+> and ⛔ **`Retarget` is their only setter** ⇒ the window can never be fed from outside.
+> ⭐ **Both pieces already exist and are reachable** — **`GraphView.Host` is public** and
+> `AiCanvasContext.Commands` is already set by the document factories; the active context is
+> `doc.ViewState as AiCanvasContext`, **the idiom `EditorSubsystem` already uses ~10 times.**
+>
+> | ⭐ finding | verdict |
+> |---|---|
+> | **C/D** — both AI outlines show the placeholder | 🔴 **Batch 81 item 1** — unblocks C, D **and** F |
+> | **D** — Blueprint shows the OLD variables panel | ⭐⭐ **NOT a missing registration — a TITLE COLLISION.** 📐 **THREE windows are titled `"Variables"`**; the new table *is* registered on all three perspectives. ⛔ **Coexistence is the user's ruling; INDISTINGUISHABILITY is the defect** |
+> | **A6** — Rename/Delete do nothing on Inputs & Working State rows | ⭐⭐⭐ **Root cause measured in ONE line:** all three `DeclarationKind`s emit `var:{id}`, but `FindVariable` is scoped to `DeclarationKind.Variable` ⇒ every row command falls through to `false`. ⚠ **Duplicate is broken too — untested by the user** |
+> | **A6** — Working State `[+]` opens no dialog | ⛔ **NOT a defect — documented, deliberate quick-add.** ⭐⭐ **But its stated justification is *"renamable and retypable in place"*, which is exactly what the line above breaks** ⇒ **fix the rename, do not add a modal** |
+> | **A7** — the Macro refusal fires only after the dialog is confirmed | ⚠ **the refusal is a RULING (`Q26-B2`); the ORDER is the bug** |
+> | **E** — no way to pin a variable or add a breakpoint | 🔴 **eleventh instance** — the surfaces are wired, **the actions that populate them are not** |
+> | **B** | ⛔ **untestable — no asset with an `ExpressionTargetField` exists.** ⭐ **Batch 83 authors one** |
+> | **F/G** | ⛔ **not reachable until item 1** |
+>
+> ⭐ **Two user QUESTIONS answered from code, no work needed** — §4 of the Batch 81 handoff:
+> **Variables vs Working State** = `DeclarationKind.Variable` vs `WorkingState` *(the AiPrimitive kinds;
+> 32 shipped assets are `(Parameter, WorkingState)`)* · **the always-empty Graphs section** is
+> non-creatable by design, every blueprint graph being a Function. ⚠ **Both produced an OPEN POINT.**
+>
+> 📄 **[`HANDOFF_Batch81_Surfaces_Reach_The_User.md`](HANDOFF_Batch81_Surfaces_Reach_The_User.md)** — ⭐ **DISPATCHED**
+> 📄 **[`HANDOFF_Batch82_The_Row_Commands_Work.md`](HANDOFF_Batch82_The_Row_Commands_Work.md)** — ⛔ **queued, not dispatched**
+>
 > ✅✅ **REVISION 25 (`2026-08-17`) — BATCH 80 MERGED at `4911cf50d`. ⭐⭐⭐ TRACK C IS REACHABLE IN THE
 > RUNNING EDITOR, AND THE VISUAL CHECK IS UNBLOCKED END TO END.**
 >
@@ -1223,7 +1254,17 @@ discovers.
 | ⚠ **b1** | 📐 **A displaced doc comment.** `HostKindOf` was inserted **between `SetSectionSourceResolver`'s `<summary>` and the method itself** ⇒ `HostKindOf` now carries **TWO summary blocks** *(the first describing the resolver)*, and **`SetSectionSourceResolver` has none.** `PerspectiveWorkspaceRegistrar.cs:314–331` | ⭐ **one-line move.** ⛔ IntelliSense shows the wrong doc on both members |
 | ⚠ **b2** | ⭐ **The rail asserts the DEFAULT PATH, not literally `EditorSubsystem`.** Nothing pins that production still *names* its perspectives `"BTree"` / `"HSM"` — a rename would null the derivation silently | ⚠ **Low risk, double-covered**: both call sites *also* pass `hostKind` explicitly. ⛔ **Not worth a batch alone** — fold into the next one that touches the file |
 
+### ⏭ Batch 83 — **queued, not written**: *the Watch can be populated, and part B becomes testable*
+
+| | |
+|---|---|
+| 🔴 **the eleventh instance** | 📐 `AiWatchWindow.Pinned` is a `PinnedVariableRowSource` exposed as a property, and ⛔ **no production caller adds to it.** ⭐ **User:** *"'No watch entries', 'No pinned variables'. **No way to add breakpoint or pin a variable**."* ⇒ **the surfaces are wired; the ACTIONS that populate them are not** |
+| ⭐ **author a test asset** | ⛔ **Guide part B is untestable** — ⭐ **User:** *"no idea what node has `ExpressionTargetField`… if you need me to test it, you need to author an asset which has it."* ⚠ **Fair — do not send the user hunting.** ⭐ Ship a small asset whose node carries one |
+
 ### ⭐⭐ OPEN POINTS — **recorded, not scheduled** *(user, `2026-08-17`)*
+
+| ⚠ **the AiPrimitive-only sections show on EVERY blueprint** | 📐 **Inputs** *(`Parameter`)* and **Working State** *(`WorkingState`)* render on blueprints that are not AiPrimitives — ⭐ **which is exactly why the user asked how they differ from "Variables."** ⛔ **Not a bug**: they exist because 32 shipped assets declared them invisibly. ⚠ **A classification-visibility question ⇒ `Q38`** |
+| ⚠ **the "Graphs" section is structurally always empty** | 📐 `new(SectionGraphs, "Graphs", 0, null, false, false, null)` — non-creatable, and every blueprint graph is classified a **Function**. ⛔ **"No rush removals"** — ⭐ **duplicate SURFACE, belongs with `BP-128`/`Q38`** |
 
 | | |
 |---|---|
