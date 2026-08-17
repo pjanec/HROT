@@ -362,7 +362,7 @@ the Value column already uses covers it**, and it retires the old objection that
 | `DefaultValueAuthoring` + `UpdateVariableDefaultValueJson` | the whole planning-mode commit path |
 | StructEdit — `IComponentEditService` / `IEditSession` / `EditScope` | the dialog engine and its two modes |
 | Watch `"(pending)"` | *"nothing before the run"* is **already designed and built** via `!HasEverBeenWritten` |
-| ⚠ **the Watch refresh gap is NOT an empty handler** | it needs **Trace** compile mode — ⛔ **Debug emits no `PinValueChanged` at all**, and `QuickReloadService:64` hardcodes `CompilerMode.Debug`. 📐 **Fix the mode, then the handler** |
+| ⛔⛔ ~~the Watch refresh gap~~ | 🔴 **CORRECTED `2026-08-16` (Batch 69) — I was stale TWICE and the real defect was underneath.** ⛔ *"`QuickReloadService:64` hardcodes `CompilerMode.Debug`"* is **FALSE** — it reads `asset.EditorMetadata.CompilerMode`. ✅ *"Debug emits no `PinValueChanged`"* is true (`DebugProbeInsertion:149` gates on `Trace`) **and `AddWatch` already requested `Trace`.** ⭐⭐ **The actual defect:** the request was guarded on `!_debugMaps.ContainsKey(assetId)` ⇒ **set a breakpoint first and the asset HAS a map**, so adding a watch requested **nothing** — the watch showed `(pending)` **forever**, ⛔ **indistinguishable from *"it has not changed"***. **Fixed: the guard now asks whether the map knows THIS PIN** |
 
 ---
 

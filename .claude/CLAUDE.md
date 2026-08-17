@@ -104,6 +104,29 @@ by construction** instead of true by convention.
 algorithms (**`BATCH-03-REPORT.md:100`**, `2026-06` — ⚠ **described as **`DEBT-AIB-012` (suggested)** and NEVER FILED**; that id belongs to a different, RESOLVED row. **Cite the report line**) · the `MarshalFromBytes` struct arm being *designed in
 and never built* (`_DONE/blueprints-1/TASK-DETAIL.md:1840`).
 
+## ⛔ THE SILENT-DEFAULT PATTERN — **a production caller that HAS a dependency must PASS it** *(`2026-08-16`)*
+
+📌 **Found three times in three consecutive batches**, each time as a capability that looked built and
+did nothing:
+
+| instance | how it presented |
+|---|---|
+| `HsmValidator._isStatefulSubtree` / `_sharedScopeKeys` | `_ => false` / `_ => empty` ⇒ **rules 8/8b inert** |
+| `BlackboardAuthoringWindow._actionSchemaExporter` | `null` ⇒ the DTO reflection **contributes nothing** |
+
+⛔ **The fix is NOT "ban optional dependencies"** — they exist so tests and lightweight hosts need not
+supply everything, and every one of these was **deliberately** optional.
+⛔ **Nor a generic detector** — a sweep over every optional parameter flags dozens of correctly-defaulted
+ones and gets switched off within a batch. *(One was tried and thrown away, `2026-08-16`.)*
+
+⭐⭐⭐ **What distinguishes the three from the harmless majority is NOT the default — it is that the
+CALLER HELD THE VALUE AND DID NOT PASS IT.** `PerspectiveWorkspaceRegistrar` handed the exporter to the
+validator **two lines above** the window it did not hand it to.
+
+⇒ ⭐⭐ **The checkable rule: a production caller that HAS a dependency must pass it.**
+⇒ ⭐ **The control: a forwarding rail PER DEPENDENCY, asserted on the CONSTRUCTED OBJECT** — not on the
+registrar's source. ⚠ **A silent default is only a defect when the caller could have done better.**
+
 ## ⛔⛔ WHO DESIGNS — **the coordinator, never the implementation session** *(user ruling, `2026-08-15`)*
 
 > ⭐⭐⭐ **User, verbatim:** *"you are doing the designs, not them. if you need info, do your own subagent
