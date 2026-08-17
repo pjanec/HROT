@@ -1,6 +1,11 @@
-# PLAN — what is left *(revision 11, `2026-08-16`)*
+# PLAN — what is left *(revision 12, `2026-08-16`)*
 
-> ⭐⭐⭐ **REVISION 11 (`2026-08-16`).** ✅ **Batch 67 MERGED at `f52b1af15`** — `W7c` · `W7a` · `G3` ·
+> ⭐⭐⭐ **REVISION 12 (`2026-08-16`).** ✅ **Batch 68 MERGED at `79f23be63`** — `C-table` · `C-dialog` ·
+> `W7b` · `E4` (§4A3). 🔴 **The tick unit is WORLD and no per-asset tick exists** ⇒ new item **`C-tick`**;
+> the highlight is **inert until it lands**. 🔴🔴 **`DEBT-AIB-021` contradicts `DESIGN_Parameter_Model`
+> §3.2** — the overlay is NOT implemented on the generated managed-asset path; **corrected there**.
+>
+> **REVISION 11 (`2026-08-16`).** ✅ **Batch 67 MERGED at `f52b1af15`** — `W7c` · `W7a` · `G3` ·
 > **`E1`+`E2`** · the owed rail · **the twice-carried latency rail** (§4A2).
 > ⛔ **`G3` was ALREADY SHIPPED** — I corrected a bad citation and wrongly discarded the right conclusion.
 > 🔴 **`E4` is FILED as `DEBT-AIB-028` with an activation recipe**, and **`E5` gains a prerequisite:
@@ -63,12 +68,12 @@
 
 ---
 
-## 1. ✅ Done — merged through `f52b1af15`
+## 1. ✅ Done — merged through `79f23be63`
 
 Batches **56 · 58 · 57 · 59 · 60 · 61(1–2) · 63 · 64(1) · 65 (Track B, all four) · ⭐ 66 (`G4` · the
-surgical write · `G1` · `C-sections`) · ⭐ 67 (`W7c` · `W7a` · `G3` · `E1`+`E2` · 2 rails)**.
+surgical write · `G1` · `C-sections`) · 67 (`W7c` · `W7a` · `G3` · `E1`+`E2` · 2 rails) · ⭐ 68 (`C-table` · `C-dialog` · `W7b` · `E4`)**.
 Phase A correctness is complete except `W6`/`W7`, which the sweep has now **re-specified** (§4).
-⭐⭐ **Merged through `f52b1af15`** — gates coordinator-re-run each time. Tracker **open 61 / done 139**.
+⭐⭐ **Merged through `79f23be63`** — gates coordinator-re-run each time. Tracker **open 61 / done 143**.
 
 ---
 
@@ -374,6 +379,53 @@ walks **DIRECT children only** — a stateful subtree nested deeper is undetecte
 
 ---
 
+## 4A3. ✅ Batch 68 — ⭐⭐ **and it found a contradiction in MY authoritative design**
+
+📄 [`REPORT_Batch68_Track_C_Table_And_Dialog.md`](REPORT_Batch68_Track_C_Table_And_Dialog.md).
+⭐ **`C-table` · `C-dialog` · `W7b` · `E4`.** Gates re-run, snapshots unchanged, tracker **61 / 143**.
+
+### 🔴🔴 The tick unit is **WORLD**, and there is **no per-asset tick anywhere**
+
+📐 Measured chain: `BlueprintDebugSession:1543` → `_view.Tick` → `ISimulationView.Tick`
+*("current simulation tick (frame number)")* → `EntityRepository.SimulationTick`. ⇒ **per WORLD.**
+🔴 **And nothing stamps a per-instance counter** — `BlueprintTickSystem` calls `def.Tick(...)` and
+stamps none. ⇒ **the ruling's unit does not exist.**
+
+⭐⭐ **They refused to wire the world tick, and were right:** under it red would clear whenever any frame
+advanced — **including while paused**, the exact case the ruling exists for. **Instead `AssetTick` is a
+per-row NULLABLE delegate**; `null` ⇒ **no highlight, not even recorded** — ⭐ **inert, never wrong**, and
+asserted so it reads as a decision. ⭐ **The predicate is complete and tested** *(100 repaints, 100 world
+frames, zero asset ticks ⇒ still red)*.
+
+⇒ 🔴 **NEW ITEM — `C-tick`: a per-`(asset, entity)` tick counter.** ⛔ **The change highlight is INERT
+until it exists.** ⭐ **When it does, it is passed to `SectionSource` and nothing else changes.**
+
+### 🔴🔴 `DEBT-AIB-021` **contradicts `DESIGN_Parameter_Model.md` §3.2** — corrected there
+
+> *"The generated `ParseParams` writes only baked defaults… **it ignores the incoming `json` argument**."*
+
+⇒ ⭐⭐ **"scenario JSON overlays, runtime wins" is TRUE of the curated path and FALSE of the GENERATED
+managed-asset path.** ⛔ **My design stated it as universally shipped.** ⚠ **`G1`'s split does not fix
+it** — the deserializer must dispatch per-variable by name.
+
+### ⭐ Track C's ground truth, and a count correction
+
+| | |
+|---|---|
+| 🔴 **`DEBT-AIB-009`** | the render path takes `_actionSchemaExporter` and **neither production constructor supplies it** ⇒ ⭐⭐ **the same shape as `E4`: a value column over a schema nothing supplies.** ⛔ **Read before `C-watch`** |
+| ⚠ **count** | **18 open `DEBT-AIB`, not my ~22** *(30 ids, 12 resolved; `-007` is explicitly not ours)* |
+| ⭐ **`E4` is PARTLY done** | `-028`(b)+(c) shipped. ⛔ **`sharedScopeKeys` is threaded but left at its default** ⇒ **rule 8b still cannot fire.** `-028`(a) — persisting `SubtreeAssetId` — remains `E5`'s prerequisite |
+
+⭐ **Four `DEBT-AIB` rows have now paid for themselves**: `-012`, `-030`, `-028`, `-021`.
+
+### ⚠ What the suspended visual check leaves unverified
+
+**The table DRAWING** *(header order, an empty group as a header not a gap, elision at real widths, the
+red/yellow tints)* · **the gestures** *(value-cell vs name-cell double-click, the `⋮` menu, F2)* ·
+**the budget indicator**. ⛔ **Written and headlessly reasoned; nothing has seen them drawn.**
+
+---
+
 ## 4B. ⏭ Track E — ⭐⭐⭐ **HSM catch-up** *(the gaps, collected)*
 
 > ⛔⛔ **USER RULING `2026-08-16`:** *"the HSM integration is in bad shape now, for long time not updated
@@ -499,7 +551,8 @@ missing, not the analysis.** 📌 **Filed, not numbered** (rule 3).
 ## 7. ⭐ Order *(revised `2026-08-16`)*
 
 ⭐⭐ **DONE: Track B + `S5` (65) · `G4` · surgical write · `G1` · `C-sections` (66) · `W7c` · `W7a` · `G3` · `E1`+`E2` · latency rail (67).**
-⇒ next: ⭐ **Track C's table/dialog/Watch** · **`W7b`** · **`E0`** *(the HSM harness)* ·
+⭐⭐ **68: `C-table` · `C-dialog` · `W7b` · `E4`.**
+⇒ next: 🔴 **`C-tick`** *(the highlight is inert without it)* · ⭐ **`DEBT-AIB-009`** *(Track C's ground truth)* · **`C-watch`** · **`C-outline`** · **`E0`** *(the HSM harness)* ·
 ⭐ **Track C**, now leading with **`C-sections`** *(split Variables per kind — §4g's ruling)*, then
 table → dialog → Watch → **`C-outline`** *(BTree/HSM supply their own section list)* →
 **`G1`** *(the split — ⭐ now load-bearing for blueprints too)* → **`G3`** *(service singletons)* →

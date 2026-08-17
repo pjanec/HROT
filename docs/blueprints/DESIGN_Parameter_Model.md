@@ -94,6 +94,23 @@ Commander → AssignTacticalIntentEvent{Entity, IntentId, JsonParams}
 ⭐ **Parse before commit** — a failed parse leaves the entity **100% on its old behaviour**.
 ⭐ Defaults are baked, **scenario JSON overlays them, runtime wins** *(architect-approved `2026-06-06`)*.
 
+> ### 🔴🔴 CORRECTION `2026-08-16` — **the overlay is NOT implemented on every path**
+>
+> ⛔ **This document stated the overlay as universally shipped. It is not.**
+> 📄 **`DEBT-AIB-021` (P3)**, found by the Batch 68 triage: *"The generated `ParseParams` writes only
+> baked defaults from `DefaultValueJson` — **it ignores the incoming `json` argument** at entity
+> assignment time."*
+>
+> | path | overlay |
+> |---|---|
+> | **curated / hand-written `ParseParams`** *(e.g. `ParseMoveToParams`)* | ✅ **works** — this is what the architect approved and what ships |
+> | 🔴 **GENERATED, managed BTree assets** *(`BTreeBridgeEmitCore.EmitParseParamsIfDefaults`)* | ⛔ **defaults only; the incoming JSON is DISCARDED** |
+>
+> ⇒ ⭐⭐ **"runtime wins" is the DESIGN and is true of the curated path; it is FALSE of the generated
+> managed-asset path.** ⚠ **`G1`'s split does not fix this by itself** — the deserializer must dispatch
+> per-variable by name. 📌 `DEBT-AIB-021` names the implementation: *"deserializing a wrapper JSON object
+> keyed by variable name and dispatching to each variable's deserializer."*
+
 ### 3.3 ⭐⭐⭐ Instances use the SAME pipeline *(user ruling, `2026-08-16`)*
 
 > *"Instances could and should reuse the param parsing and resolving."* ⇒ ⛔ **`Overrides` is NOT the
@@ -260,7 +277,7 @@ discovered structs. ⇒ **a variable can be struct-typed; a parameter cannot.**
 |---|---|
 | `Role`/`Scope` model, persisted + round-trip tested | ✅ |
 | behaviour supply: intent → ingress → `ParseParams` → commit → provision | ✅ |
-| defaults + scenario overlay (runtime wins) | ✅ |
+| defaults + scenario overlay (runtime wins) | ⚠ **CURATED path only** — 🔴 **the GENERATED managed-asset `ParseParams` ignores the incoming JSON** (`DEBT-AIB-021`, §3.2 correction) |
 | **`G2`** Library blueprint functions runtime-invocable ⇒ **a blueprint-authored resolver's seam** | ✅ |
 | **`G5`** name-derived `ActiveBehaviorHash` · **`G6`** `AiBehaviorFactory` retired | ✅ |
 | authored multi-field inputs — **BTree** (`BTreeBridgeEmitCore`, 45 `Role`/`Scope` refs) | ✅ |
