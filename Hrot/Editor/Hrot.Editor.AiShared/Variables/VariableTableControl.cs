@@ -42,6 +42,16 @@ public sealed class VariableTableControl
     /// <summary>Raised when a row's NAME cell is double-clicked ⇒ <c>EditScope.WholeComponent</c> (§4).</summary>
     public event Action<VariableRow>? PropertiesRequested;
 
+    /// <summary>
+    /// ⭐⭐ Raises "Edit value…" for a row. ⛔ The ⋮ menu's own path goes through ImGui, which no
+    /// headless test can drive — this is the same call it makes, and it is what lets a rail prove the
+    /// gesture is ATTACHED rather than merely constructed.
+    /// </summary>
+    public void RaiseEditValueRequested(VariableRow row) => EditValueRequested?.Invoke(row);
+
+    /// <summary>⭐ Raises "Properties…" for a row. Same reason as above.</summary>
+    public void RaisePropertiesRequested(VariableRow row) => PropertiesRequested?.Invoke(row);
+
     public VariableTableControl(VariableValueFormatter formatter)
         => _formatter = formatter ?? throw new ArgumentNullException(nameof(formatter));
 

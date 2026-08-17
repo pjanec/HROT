@@ -270,6 +270,23 @@ public class PerspectiveWorkspaceRegistrar
         //    ⛔ Batch 79 shipped a settable RunState that NOTHING in production ever set.
         Variables.SetRunStateSource(_runState);
 
+        // ⭐⭐⭐ Row 59 — the StructEdit dialog reaches the designer.
+        // 🔴 THE ELEVENTH INSTANCE: VariableEditLauncher and VariableEditGestureBinder shipped in
+        //    Batch 75, complete and tested, and were constructed ONLY IN TESTS — zero production
+        //    call sites, measured. The dialog, the two scopes and the run-state policy all existed
+        //    and no designer could reach any of them.
+        // ⭐ Derived, not passed: the edit service is already a constructor argument (the Inspector
+        //   needs it), the run state was just derived, and the entry resolver reads the same
+        //   selection store every other surface reads.
+        if (facetEditService != null)
+        {
+            EditGestures = new VariableEditGestureBinder(
+                new VariableEditLauncher(facetEditService),
+                entryResolver: row => ResolveEntry(selectionStore, row),
+                runState:      _runState);
+            EditGestures.Attach(Variables.Control);
+        }
+
         // ⭐⭐⭐ Batch 80 — DERIVED, not required. The registrar already knows its perspective, so the
         //    host kind is not information a caller can supply better; leaving it to be passed is what
         //    let EditorSubsystem forget it for both AI perspectives while the tests passed.
@@ -453,6 +470,25 @@ public class PerspectiveWorkspaceRegistrar
     /// ⭐ A rail surface — asserted on the CONSTRUCTED registrar, not on the composition root's source.
     /// </summary>
     public bool OutlineIsRoutedToDetails => _outlineConnected;
+
+    /// <summary>
+    /// ⭐⭐ Row 59 — the two row gestures ("Edit value…" / "Properties…"), bound to the shared
+    /// StructEdit dialog. ⛔ Null only when no <c>IComponentEditService</c> was supplied, which is a
+    /// headless host, not a production one.
+    /// </summary>
+    public VariableEditGestureBinder? EditGestures { get; }
+
+    /// <summary>
+    /// ⭐ Finds the authored entry a row stands for, on the ACTIVE asset. ⛔ Fails closed — a row whose
+    /// variable is gone opens no dialog rather than opening one over a guess.
+    /// </summary>
+    private static BlackboardVariableEntry? ResolveEntry(EditorSelectionStore store, VariableRow row)
+    {
+        if (store.ActiveAsset is not IBlackboardManagedAsset asset) return null;
+        foreach (var v in asset.BlackboardVariables)
+            if (string.Equals(v.Name, row.Origin.VariablePath, StringComparison.Ordinal)) return v;
+        return null;
+    }
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
