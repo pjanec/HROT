@@ -1,6 +1,18 @@
-# PLAN — what is left *(revision 22, `2026-08-17`)*
+# PLAN — what is left *(revision 23, `2026-08-17`)*
 
-> ⭐⭐⭐ **REVISION 22 (`2026-08-17`) — ⛔⛔ USER RULING: MULTI-LEVEL IS PARKED.**
+> ⭐⭐⭐ **REVISION 23 (`2026-08-17`).** ✅ **Batch 79 MERGED at `91b712f8d` — ⭐⭐ TRACK C IS REACHABLE.**
+> All five unhosted surfaces are wired: the **outline on BTree and HSM** *(`AiMyBlueprintWindow`)*, the
+> **table** *(`AiVariablesWindow`, one per perspective)*, the **dialog launcher**, the **tick highlight**
+> and the **variable watch** — ⛔ **purely additive; `VariablesPanelControl` still draws.**
+> ⛔⛔ **A SIXTH unwired thing nobody had listed:** 📐 **every `VariableValueFormatter` construction in
+> the repo lived in a TEST** ⇒ hosting the table with a null decoder would have rendered
+> **`<unreadable>` in every cell**. ⭐ **Coordinator-verified.** Fixed by `RawValueDecoder`.
+> ⭐⭐⭐ **Item 3's STOP paid: the watch is THREE concepts, not one** — measured in the persistence layer.
+> ⚠ **Two of the four "verify" items are NOT BUILT** *(§4C)*.
+> ⭐ **First batch under the rewritten rule 8** — ⛔ **I re-ran nothing**; I read the diff and
+> spot-verified two claims.
+>
+> **REVISION 22 (`2026-08-17`) — ⛔⛔ USER RULING: MULTI-LEVEL IS PARKED.**
 > ⭐ *"i would defer this idea for now and return to single level behaviors for a while in order to
 > finish the planned work with variable unification and related ui changes. but i would certainly keep
 > this open and return to it a bit later."*
@@ -1146,6 +1158,22 @@ discovers.
 | 📌 **6** | **compiler-side singles, long-standing** | **`BP-233`** *(a fourth "can this suspend?" copy, incomplete)* · **`BP-234`** *(editing a suspending graph's locals silently re-initialises its blackboard)* · **`BP-200`** · **`BP-128`** *(fold `Graph Signature` into a context-sensitive `Details` — ⭐ UI, and adjacent to the variable panel)* |
 | ⚠ **7** | **`DEBT-AIB-030`** — the `Fdp.Toolkits.Tests` race | ⭐ **seven distinct tests, and the identity ROTATES between runs** *(strongest evidence yet that it is xUnit scheduling over process-global registry state)*. ⛔ **Not signal; mitigation unchanged** |
 | ⚠ **8** | **the 12 quarantined scenario tests** | ⛔ **out of programme** — damage/event pipeline ×5, DDS ghost promotion ×7, each with a measured cause |
+
+### ✅ Batch 79 — **Track C is reachable**, and three things it surfaced
+
+| | |
+|---|---|
+| ⭐⭐⭐ **the sixth unwired thing** | 📐 **zero production constructions of `VariableValueFormatter`** — every one was a test's inline lambda. ⇒ ⛔⛔ **wiring the table without noticing would have shipped a panel that draws `<unreadable>` in every cell** — *the exact shape the batch existed to remove, reintroduced by the fix.* ⭐ **`RawValueDecoder`**: primitives · **enums by NAME** · blittable structs · ⚠ **undersized input FAILS rather than partially reads** · ⭐ **`bool` special-cased** *(`Marshal.SizeOf(bool)` is 4; the blackboard packs 1 via the emitter's `[MarshalAs(I1)]`)* |
+| ⭐⭐⭐ **the watch is THREE concepts** | ⛔ **my hint that `Watch.IsStale` implied one entity was an inference and did not survive.** 📐 **The persistence layer already keeps them apart:** `DebugSessionPersistence.Save(nodeBreakpoints, watches, dbmBreakpoints, path)` — a **breakpoint watch** *(a condition that FIRES)* · a **blueprint PIN watch** *(`WatchEntry{AssetId, GraphId, PinId, …}`)* · a **pinned variable** *(an OBSERVED IDENTITY that cannot fire)*. ⇒ ⭐ **the window gained a second labelled section; the breakpoint list is untouched.** ⛔ **Unifying them is a design question, not wiring** |
+| ⭐⭐ **the join lives in the REGISTRAR** | ⛔ **not left to the host** — *"a surface the host must remember to attach is exactly how five of these became unreachable."* ⭐ **And the negative arm is a rail**: the Blueprint perspective gets **no** second outline, so a registrar handing one to everybody fails |
+
+### 🔴 Two of the four "verify" items are **NOT BUILT** — ⭐ *settled from code, so the visual check confirms rather than discovers*
+
+| # | verdict |
+|---|---|
+| 🔴 **2.7** — `GroupBy`/fold/`Type` **persistence** | ⛔ **NOT BUILT.** `GroupBy` is a plain settable property · fold is ImGui's own `imgui.ini` state, **not** the editor layout · `ShowType` is **ctor-time with no toggle UI at all**. ⚠⚠ **And its own doc comment CLAIMS *"Persisted per panel in the editor layout"*** — ⭐ **coordinator-verified at `VariableTableModel.cs:78`.** ⛔ **A doc asserting an unbuilt feature is worse than the gap**, because it reads as done |
+| 🔴 **2.40 / 2.41** — the **budget indicator** | ⭐ values-editable-in-planning and live-values-when-running are **BUILT**; ⛔ **the budget indicator is NOT.** 📐 **Zero occurrences of `RunState`/`IsRunning` in that window** ⇒ **the old `BlackboardAuthoringWindow` budget draws MID-RUN too** |
+| ⭐ **2.26** — the `⋮` menu | **BUILT, minus Rename** — ⭐ **and absent BY DESIGN**: a `VariableRow` is an observation with no asset handle, schema source or undo recorder. **Rename belongs to the OUTLINE**, which holds the asset |
 
 ### ⭐⭐ OPEN POINTS — **recorded, not scheduled** *(user, `2026-08-17`)*
 
