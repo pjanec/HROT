@@ -1,3 +1,82 @@
+# ⭐⭐⭐ STATE AS OF `2026-08-17` — **READ THIS BLOCK FIRST**
+
+> ⛔⛔ **EVERYTHING BELOW THIS BLOCK PREDATES IT.** Treat the older sections as backstory only —
+> ⛔ **their baselines, "next steps" and open lists are STALE.**
+> ⭐ **This block is self-contained.** 📄 The live plan is
+> **[`PLAN_Remaining_Work.md`](PLAN_Remaining_Work.md) — revision 24**.
+
+## 0. Where things stand
+
+| | |
+|---|---|
+| **coordinator branch** | `claude/blueprint-authoring-status-gm0akp`, head **`09b95b588`** |
+| **implementation branch** | `claude/hrot-implementation-j1jvin` |
+| ⏭ **IN FLIGHT** | **Batch 80** — started marker **`618303043`** on `09b95b5`. ⚠ **No handoff file was written**; it works from revision 24's finding *(§2 below)* |
+| **last merged** | **Batch 79** at `91b712f8d` — *Track C is reachable* |
+| **gates baseline** | build **0/69** · FastHSM **300/300** · Blueprints **3691/3681/0/10** · AiShared **1303** · BTree.Editor **615** · Hsm.Editor **551** · Generators **270** · Breakpoints **134** · Persistence **136** · Examples.Scenarios **56/68 (12 skipped)** · UrbanCombat **29** · Toolkits **1964** · NodeEdit **208/131** · tracker **open 64 / done 180** |
+
+## 1. ⭐⭐⭐ Rulings from this session — **binding**
+
+| ruling | where |
+|---|---|
+| ⭐⭐⭐ **RULE 8 REWRITTEN — the coordinator does NOT re-run the gates.** The report substitutes, under a **seven-item contract** *(`--no-build` column · golden movement as a DIFF SHAPE · every red confirmed pre-existing vs a named base sha · clean tree · quarantine counts · tracker · ids)* | `.claude/CLAUDE.md` |
+| ⭐⭐ **RULE 1b** — rule 1a's ancestry check has a **blind window**; the impl session pushes a `started at <sha>` marker before any code, and the coordinator **asks** rather than infers | `.claude/CLAUDE.md` |
+| ⭐⭐ **"NO RUSH REMOVALS"** — before proposing a removal say which it is: **duplicate CODE** *(route)* · **duplicate SURFACE** *(usually keep)* · **genuinely dead** | `.claude/CLAUDE.md` |
+| ⭐ **always give GitHub links to documents** *(user is on mobile)* | `.claude/CLAUDE.md` |
+| ⛔⛔ **MULTI-LEVEL IS PARKED** — return to single-level behaviours and finish the variable unification + UI | plan header rev 22 |
+| ⛔ **blueprint multi-occurrence DEFERRED** *("too many files affected")*; `Q34`'s **answers stand** | `Q34` §8 |
+| ⭐ **`VariablesPanelControl` KEEPS drawing**; the panel merge is a separate design task | `Q38` |
+
+## 2. 🔴 THE LIVE FINDING — **the pattern, now SIX times**
+
+> ⭐⭐⭐ **Components shipped complete and tested, with NO CALLER.**
+
+| # | surface | state |
+|---|---|---|
+| 1 | producer picker *(Batch 70)* | ⛔ **parked, asserted inert** |
+| 2 | `VariableEditLauncher` *(68)* | ✅ wired in 77 |
+| 3–7 | **the whole Track C table stack** *(68–69)* | ✅ wired in 79 |
+| 8 | ⭐ **`VariableValueFormatter`** — every construction lived in a TEST | ✅ fixed in 79 *(`RawValueDecoder`)* |
+| 🔴 **9** | ⭐⭐ **`EditorSubsystem` passes `hostKind` to NONE of its three registrars** ⇒ the BTree/HSM outline is **still never constructed**, and the outline→table routing never runs | ⏭ **Batch 80** |
+
+⭐ **`2026-08-16`'s rule names #9 exactly:** *"a production caller that HAS a dependency must PASS it."*
+⇒ ⭐⭐ **Batch 80 = two call sites + a rail on the PRODUCTION composition root** *(⛔ not on a
+hand-constructed registrar — that is the rail Batch 79 wrote, and it is why this survived)*.
+
+## 3. ⏭ What remains — **single level only**
+
+| | |
+|---|---|
+| 🔴 **1** | **Batch 80's fix**, then ⭐ **the USER runs the visual check** — 📄 [`GUIDE_Track_C_Visual_Check.md`](GUIDE_Track_C_Visual_Check.md) *(40 steps; parts **A/B/E** already runnable, **C/D/F** blocked on 80)* |
+| **2** | **`BP-309`** — two FastHSM projects do not build *(not in the solution)* |
+| **3** | **the producer picker's RUNTIME** — `R1`/`R2`/`R4`, the Library-function resolver seam |
+| **4** | **6 STILL-REAL `DEBT-AIB` rows** — `002` `003` `008` `011` `023` `031` · 📄 `DEBT_AIB_Pricing_Sweep_2026_08_17.md`. ⚠ **`023` is factually WRONG** *(calls a live method dead)* |
+| **5** | **NOT BUILT, found in 79** — `GroupBy`/fold/`Type` persistence *(and its doc comment claims otherwise)* · the budget indicator has **no run-state input** |
+| **6** | compiler singles: `BP-233` · `BP-234` · `BP-200` · `BP-128` *(absorbed by `Q38`)* |
+| ⚠ **standing** | `DEBT-AIB-030` *(Toolkits race — 7 tests, identity rotates; **not signal**)* · 12 quarantined scenario tests *(out of programme)* |
+
+## 4. ⛔ PARKED — **design banked, do not re-derive**
+
+| | |
+|---|---|
+| **`Q37`** unify all params on the allocator | 📄 [`Architect_Question_37`](Architect_Question_37_Unify_On_The_Allocator.md) — ⭐ **reopen BEFORE `E3`/`E5`** |
+| **`Q36`** what runs a hosted subtree | 📄 [`Architect_Question_36`](Architect_Question_36_Subtree_Hosting_Runtime.md) — ⭐ `Q36-A`=**B** *(host ticks inline)* + a **third `BrainTier`** value **already approved** |
+| **`Q38`** one mode-switching Details panel | 📄 [`Architect_Question_38`](Architect_Question_38_One_Details_Panel.md) — ⭐ absorbs `BP-128`; **after** the visual check |
+| **`E3` · `E5` · `E7a`** | `Q35` **resolved**; 📄 [`DESIGN_Hsm_Storage_Model.md`](DESIGN_Hsm_Storage_Model.md); the **`E3` tripwire** is live so the latent hazard announces itself |
+| **blueprint multi-occurrence** | 📄 [`Architect_Question_34`](Architect_Question_34_Blueprint_Occurrence_Identity.md) — edit surface measured in plan §4A7 |
+
+## 5. ⭐ Corrections I made this session — **do not re-litigate**
+
+⚠ **`E3` was mis-framed FOUR times** *(a signature widening → "the dangerous case" with **zero
+instances** → `E5`'s dependency called stale → and finally: `E5` depends on `E3` after all, because the
+**params base**, not the state storage, is what collides)*. ⭐ **The user found the last one.**
+⚠ **`E5` blocked on `Q36`, not on my STOP.** ⚠ **The `E3` census was wrong** — *"zero REGISTERED, not
+zero EMITTED"*. ⚠ **The STATIC PARAMETERS retirement was withdrawn** — it is the **only live** surface;
+its replacement was unwired. ⚠ **Golden-movement predictions were wrong 3× for one structural reason**:
+the HSM golden hashes **checked-in assets**, so a new DTO field appears only when an asset is re-saved.
+
+---
+
 # ⭐ START HERE — coordinator session, blueprint gaps & QoL programme
 
 ## ⭐⭐⭐ STATE AT COMPACTION — `2026-08-15`. **Read this block, then §1–§4. The rest is history.**
