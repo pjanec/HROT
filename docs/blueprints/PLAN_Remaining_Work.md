@@ -1,6 +1,21 @@
-# PLAN — what is left *(revision 21, `2026-08-17`)*
+# PLAN — what is left *(revision 22, `2026-08-17`)*
 
-> ⭐⭐⭐ **REVISION 21 (`2026-08-17`).** ✅ **Batch 77 MERGED at `05317ff17`** — the **`E3` tripwire** ·
+> ⭐⭐⭐ **REVISION 22 (`2026-08-17`) — ⛔⛔ USER RULING: MULTI-LEVEL IS PARKED.**
+> ⭐ *"i would defer this idea for now and return to single level behaviors for a while in order to
+> finish the planned work with variable unification and related ui changes. but i would certainly keep
+> this open and return to it a bit later."*
+>
+> 🔴🔴 **What forced it — the user's own question, and it is a real defect:** with an HSM host ticking a
+> BTree child, **both pack from offset `0` into the same 100-byte `BehaviorParameters`** and nothing
+> keeps them apart. ⇒ 📄 **[`Architect_Question_37`](Architect_Question_37_Unify_On_The_Allocator.md) — PARKED WITH THE MEASUREMENTS BANKED.**
+> ⚠ **And it corrected me a FOURTH time on `E3`:** rev 20 said *"`E5` is unblocked, its `E3` dependency
+> was stale."* ⛔ **Wrong** — I reasoned about the child's STATE storage and missed the PARAMS BASE.
+> ⭐ **`E5` depends on `E3` after all, and `E3` is downstream of `Q37`.**
+>
+> ⇒ ⭐⭐⭐ **PARKED TOGETHER: `E3` · `E5` · `E7a` · `Q36` · `Q37` · blueprint multi-occurrence.**
+> ⭐ **§4C is the single-level queue that proceeds.**
+>
+> **REVISION 21 (`2026-08-17`).** ✅ **Batch 77 MERGED at `05317ff17`** — the **`E3` tripwire** ·
 > **`BP-304` FIXED** *(`Fhsm.Tests` **300 / 300**)* · ⛔⛔ **`E5` STOPPED, escalated as
 > 📄 [`Architect_Question_36`](Architect_Question_36_Subtree_Hosting_Runtime.md)** (§4A12).
 > 🔴🔴 **`E5`'s blockers are UPSTREAM of the STOP I named:** ⭐⭐ **there is ONE brain per entity and
@@ -1086,6 +1101,44 @@ the `HsmTraceContext` rewrite lands.** ⚠ **The "(DEBT)" the in-file comment po
 |---|---|
 | **`BP-306`** | ⛔ **`BTreeActionGenerator` emits NON-COMPILING code the moment `Hrot.AI.Behaviors` gains its first `[SharedAiAction]`** *(`CS1666`)* — and `Fdp.Toolkits` compiles the same shape fine ⇒ **assembly-dependent.** ⭐⭐ **It means the one generator-bearing assembly this programme owns cannot host a shared AI action today** |
 | **`BP-307`** | ⛔ **`Fhsm.Tests.csproj:25` points an analyzer `ProjectReference` at `Fhsm.SourceGen`, which DOES NOT EXIST** — MSBuild skips it and succeeds ⇒ ⭐⭐ **the suite's `SourceGen/*` tests exercise a HAND-WRITTEN stub, not generator output.** ⚠ **Same family as `BP-304`** |
+
+---
+
+## 4C. ⭐⭐⭐ **THE SINGLE-LEVEL QUEUE** — what actually remains *(user ruling, `2026-08-17`)*
+
+⛔⛔ **Everything multi-level is PARKED** *(header)*. ⭐ **This section is the whole of what proceeds.**
+
+### ✅ What is FINISHED
+
+| track | |
+|---|---|
+| **Track B** — struct support | ✅ `S2` · `S3` · `S4` · `S5`; `BP-01` closed |
+| **Track D** — the `G`-list and the `W` items | ✅ **ALL CLOSED.** `G1`–`G7` · `W7a`/`W7b`/`W7c` · `W9`(=`E6`) · `W10`(+`G7`) · `W13`; `W6`/`W8`/`W12` dropped as duplicates or superseded; `W11` re-scoped into `E7a`/`E7b` |
+| **the parameter model** | ✅ the Instance params seam · `DEBT-AIB-021` · **`BP-281`** *(HSM finally has a `ParseParams`)* · `BP1031` retired |
+| **Track C** — the panels | ✅ **BUILT end to end**: `C-sections` · `C-table` · `C-dialog` · `C-tick` · `C-watch` · `C-outline`, and Batch 77 **wired the launcher** |
+| **Track E, the single-level half** | ✅ `E1` · `E2` · `E4` · `E6`(A) · `E7b`'s count + emission · `E0`'s three golden tiers · the orthogonal-region fix · `BP-299` · `-028`(a) · `-029` |
+
+### ⏭ What REMAINS at single level
+
+| | item | note |
+|---|---|---|
+| 🔴🔴 **1** | **the Track C VISUAL CHECK** | ⛔⛔ **the single largest unverified surface in the programme** — cumulative across batches **68–70 and 77**: the table drawing · the gestures *(value-cell vs name-cell, the `⋮` menu, F2)* · the budget indicator · Watch **greying** and pin/unpin · the `Type` column hidden on screen · the outline drawing and its per-section `[+]` · the relabelled `DEFAULT VALUE — {var}` panel. ⭐ **No headless test can do it; it needs a human at the editor** |
+| ⭐⭐ **2** | **`BP-306`** — `BTreeActionGenerator` emits **non-compiling** code | 📐 `CS1666` the moment `Hrot.AI.Behaviors` gains its first `[SharedAiAction]`; `Fdp.Toolkits` compiles the same shape fine ⇒ **assembly-dependent.** ⭐⭐ **It means the one generator-bearing assembly this programme owns cannot host a shared AI action today** |
+| ⭐ **3** | **`BP-307`** — a gate testing a hand-written stub | `Fhsm.Tests.csproj:25` points an analyzer `ProjectReference` at **`Fhsm.SourceGen`, which does not exist**; MSBuild skips it and succeeds ⇒ the `SourceGen/*` tests exercise `Helpers/GeneratedRegistrarStub.cs`. ⚠ **Same family as `BP-304`** |
+| ⭐ **4** | **the producer picker's RUNTIME** | ⛔ the picker is **parked as inert** because `R1`/`R2`/`R4` *(the Library-function resolver seam — resolver design §8.1)* **do not exist.** ⭐ **Building them is single-level parameter work**, and it is what makes `G7`+`W10` real rather than shelved |
+| ⚠ **5** | **the `DEBT-AIB` partition tail** | ⭐ **closed since the partition was drawn: `009` · `021` · `028` · `029`.** ⚠ **~14 rows remain unpriced** — `001` `002` `008` `011` *(parameter seam)* · `003` `004` `005` `025` *(parameter model)* · `022` `031` *(Track E)* · `010` `023` `024` `030` *(neither)*. 📌 **A pricing sweep is its own small item** |
+| 📌 **6** | **compiler-side singles, long-standing** | **`BP-233`** *(a fourth "can this suspend?" copy, incomplete)* · **`BP-234`** *(editing a suspending graph's locals silently re-initialises its blackboard)* · **`BP-200`** · **`BP-128`** *(fold `Graph Signature` into a context-sensitive `Details` — ⭐ UI, and adjacent to the variable panel)* |
+| ⚠ **7** | **`DEBT-AIB-030`** — the `Fdp.Toolkits.Tests` race | ⭐ **seven distinct tests, and the identity ROTATES between runs** *(strongest evidence yet that it is xUnit scheduling over process-global registry state)*. ⛔ **Not signal; mitigation unchanged** |
+| ⚠ **8** | **the 12 quarantined scenario tests** | ⛔ **out of programme** — damage/event pipeline ×5, DDS ghost promotion ×7, each with a measured cause |
+
+### ⛔ PARKED — reopen deliberately, ⭐ **all the design work is banked**
+
+| | where |
+|---|---|
+| **`Q37`** — unify all params on the allocator | 📄 [`Architect_Question_37`](Architect_Question_37_Unify_On_The_Allocator.md) — ⭐ **measurements banked; reopen BEFORE `E3`/`E5`** |
+| **`Q36`** — what runs a hosted subtree | 📄 [`Architect_Question_36`](Architect_Question_36_Subtree_Hosting_Runtime.md) — ⭐ `Q36-A` = **B** and the third brain-tier value are **already approved**; `Q36-B` = **A** *(mirror the BTree pair)* |
+| **`E3` · `E5` · `E7a`** | ⭐ `Q35` **resolved**; `DESIGN_Hsm_Storage_Model.md` written; the `E3` **tripwire** is live so the latent hazard announces itself |
+| **blueprint multi-occurrence** | 📄 [`Architect_Question_34`](Architect_Question_34_Blueprint_Occurrence_Identity.md) — answers stand, edit surface measured *(§4A7)* |
 
 ---
 
