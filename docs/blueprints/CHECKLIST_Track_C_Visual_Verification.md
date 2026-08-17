@@ -69,7 +69,7 @@ parked)*, `VariableEditLauncher` *(Batch 68, wired in 77)*, and now **the whole 
 | 2.4 | ⭐ **a UNIFORM facet emits no header** — watching one asset shows no asset header | ✅ |
 | 2.5 | **folding** via `CollapsingHeader` | ✅ |
 | 2.6 | ⭐⭐ **a COLLAPSED header inherits its children's red/yellow** | ✅ |
-| 2.7 | `GroupBy`, fold state and the `Type` toggle **persist per panel** | ⚠ **verify** |
+| 2.7 | `GroupBy`, fold state and the `Type` toggle **persist per panel** | 🔴 **NOT BUILT** *(Batch 79, from code)* — `VariableTableModel.GroupBy` is a plain settable property *(`VariableTableModel.cs:79`)*; ⚠⚠ **its own doc comment CLAIMS *"Persisted per panel in the editor layout"* and nothing implements that.** Fold is ImGui's `CollapsingHeader` *(`VariableTableControl.cs:66`)*, so ImGui persists it in `imgui.ini` by window+label — ⛔ not by the editor layout. `ShowType` is a **ctor-time** `VariableTableColumns` with **no toggle UI anywhere**. ⇒ ⛔ **do not look for this in the visual check** |
 | 2.8 | **heterogeneous rows** — several assets and entities in one table | ✅ |
 | 2.9 | selection yields a **SECTION**, not a variable — Details re-filters, row highlighted | ✅ |
 
@@ -103,7 +103,7 @@ parked)*, `VariableEditLauncher` *(Batch 68, wired in 77)*, and now **the whole 
 |---|---|---|
 | 2.24 | **double-click the VALUE cell** ⇒ value dialog *(`ForField`)* | ✅ |
 | 2.25 | **double-click the NAME cell** ⇒ full properties *(`WholeComponent`)* | ✅ |
-| 2.26 | **`⋮` menu** carries both, plus **Rename** | ⚠ **verify the menu** |
+| 2.26 | **`⋮` menu** carries both, plus **Rename** | ⭐ **BUILT in Batch 79 — minus Rename.** Right-click the **name cell**: *Edit value…* and *Properties…*, both disabled on a stale or node-owned row. ⛔ **Rename is absent BY DESIGN, not missing:** a `VariableRow` is an OBSERVATION *(`(AssetId, Entity, Section, VariablePath)` + a byte reader)* with no asset handle, schema source or undo recorder — nothing there could rename a declaration. ⭐ **Rename belongs to the OUTLINE**, which holds the asset; the blueprint side does exactly that via `BlueprintDocumentFactory.RegisterMyBlueprintItemCommands` |
 | 2.27 | **F2** renames inline, and the refactor service still runs | ✅ |
 | 2.28 | ⭐ **run state decides WRITABILITY, not which dialog opens** | ✅ |
 | 2.29 | ⭐⭐ the value dialog opens **scoped to that field** — ⚠ **it opened EMPTY until Batch 77 fixed the path space** | ✅ |
@@ -132,8 +132,8 @@ parked)*, `VariableEditLauncher` *(Batch 68, wired in 77)*, and now **the whole 
 
 | # | planned | built |
 |---|---|---|
-| 2.40 | **planning mode**: values editable, the **budget indicator** visible | ⚠ **verify** |
-| 2.41 | **running mode**: the Value column switches to live, the budget indicator hides | ⚠ **verify** |
+| 2.40 | **planning mode**: values editable, the **budget indicator** visible | ⭐ **values editable: BUILT** — `VariableEditing.cs:151`, `(_, Planning) ⇒ Editable`. 🔴 **budget indicator: NOT BUILT in Track C** — the only budget UI in the codebase is the OLD `BlackboardAuthoringWindow`'s *(`InlineBudget`/`HeavyBudget`, `:485`)*, which the new table does not carry |
+| 2.41 | **running mode**: the Value column switches to live, the budget indicator hides | ⭐ **live values: BUILT** — rows re-read every frame and `VariableChangeMonitor.Observe` returns `None` in Planning *(`:87`)*, so the highlight only appears once running. 🔴 **budget hides: NOT BUILT** — ⛔ **there is no run-state input to the budget display at all**: `BlackboardAuthoringWindow` has zero occurrences of `RunState`/`IsRunning`, so its budget is drawn unconditionally, including mid-run |
 | 2.42 | ⛔ **no `_liveRepo` write while paused** *(Flight Recorder linearity)* | ✅ |
 | 2.43 | ⭐ **optimistic display** — the new value paints immediately, then stages through the normal path | ✅ |
 

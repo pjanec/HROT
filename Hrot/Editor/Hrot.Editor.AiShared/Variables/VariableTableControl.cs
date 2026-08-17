@@ -132,6 +132,7 @@ public sealed class VariableTableControl
                     if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left) && row.CanEverBeWritten)
                         PropertiesRequested?.Invoke(row);
                 }
+                DrawRowMenu(row);
                 break;
 
             case VariableColumn.Type:
@@ -150,5 +151,35 @@ public sealed class VariableTableControl
         }
 
         if (row.IsStale) ImGui.PopStyleColor();
+    }
+
+    /// <summary>
+    /// ⭐⭐ The row menu (checklist 2.26). Right-click on the NAME cell — the same cell whose
+    /// double-click opens Properties, so the two gestures share one target.
+    ///
+    /// <para>⛔ <b>Rename is deliberately ABSENT, and that is a finding, not an omission.</b> A
+    /// <c>VariableRow</c> is an OBSERVATION — <c>(AssetId, Entity, Section, VariablePath)</c> plus a
+    /// byte reader. It carries no asset handle, no schema source and no undo recorder, so there is
+    /// nothing here that could rename a declaration. The blueprint side renames through
+    /// <c>BlueprintDocumentFactory.RegisterMyBlueprintItemCommands</c>, off the My Blueprint OUTLINE,
+    /// which does hold the asset. ⇒ ⭐ rename belongs to the outline, and offering a greyed entry here
+    /// would restate the same "built but inert" shape this batch exists to remove.</para>
+    ///
+    /// <para>⚠ Both live entries respect <c>CanEverBeWritten</c>, so a stale or node-owned row shows
+    /// them disabled rather than firing a dialog that would refuse.</para>
+    /// </summary>
+    private void DrawRowMenu(VariableRow row)
+    {
+        if (!ImGui.BeginPopupContextItem()) return;
+
+        bool writable = row.CanEverBeWritten;
+
+        if (ImGui.MenuItem("Edit value…", null, false, writable))
+            EditValueRequested?.Invoke(row);
+
+        if (ImGui.MenuItem("Properties…", null, false, writable))
+            PropertiesRequested?.Invoke(row);
+
+        ImGui.EndPopup();
     }
 }
