@@ -4,38 +4,40 @@
 > ⭐ **Every step ends in a PASS/FAIL you can write down.** ⛔ **Nothing here asks you to judge whether a
 > feature "seems right"** — each expectation is a ruling from the design, cited.
 >
-> 🔴🔴 **READ §0 FIRST — one surface is still not constructed in production**, so part **C** is blocked
-> until a two-line fix lands. ⭐ **Everything else is ready now.**
+> ✅✅ **ALL PARTS ARE RUNNABLE — Batch 80 landed `2026-08-17`.** ⭐ **Run A → F in order.**
 
 ---
 
-## 0. 🔴 Status before you start — **measured `2026-08-17`, after Batch 79**
+## 0. ✅ Status before you start — **measured `2026-08-17`, after Batch 80**
 
 | part | surface | ready? |
 |---|---|---|
 | **A** | **My Blueprint sections** *(Blueprint perspective)* | ✅ **yes** |
 | **B** | **Inspector → `DEFAULT VALUE — {var}`** | ✅ **yes** |
-| **C** | 🔴 **My Blueprint outline on BTree / HSM** | ⛔⛔ **BLOCKED** — §0a |
-| **D** | **Variables table** | ⚠ **window exists; its section routing is wired inside the same blocked branch** — §0a |
+| **C** | **My Blueprint outline on BTree / HSM** | ✅ **yes** — ⭐ **unblocked by Batch 80** |
+| **D** | **Variables table** | ✅ **yes** — ⭐ **routing works with no host setup** |
 | **E** | **Watch → Pinned variables** | ✅ **yes** |
-| **F** | **change highlighting** *(red / yellow)* | ⚠ **after D** |
+| **F** | **change highlighting** *(red / yellow)* | ✅ **yes** |
 
-### 0a. ⛔⛔ Why C and D are blocked — **the fifth instance of one pattern**
+### 0a. ⭐ What Batch 80 changed — **read this, it moves two expectations**
 
-📐 **`PerspectiveWorkspaceRegistrar` takes `BlackboardHostKind? hostKind = null`, and builds the outline
-— and the outline→table routing — only `if (hostKind != null)`.**
-🔴 **`EditorSubsystem` constructs all three registrars and passes `hostKind` to none of them.** ⭐ The
-only caller that passes it is `TrackCWiringTests`.
+⛔ **Before:** `PerspectiveWorkspaceRegistrar` built the outline only `if (hostKind != null)`, and
+**`EditorSubsystem` passed `hostKind` to none of its three registrars** ⇒ in the running editor the
+outline was never constructed and the table never routed. ⚠ **Every Batch-79 rail was green throughout**
+— each built its own registrar and passed the argument production did not.
 
-⇒ ⛔ **In the running editor `MyBlueprint` is `null`, so the outline is never registered and the
-Variables window is never routed.** ⚠ **The registrar is ready; the composition root does not activate
-it.**
+| ⭐ the fix, in three parts | what it means for YOU |
+|---|---|
+| ① the two call sites now pass `hostKind` | — |
+| ⭐⭐ ② **the host kind is DERIVED from the perspective name** *(`"BTree"` / `"HSM"`, case-insensitive)*; the parameter survives as an override | ⛔ **there is no argument left to forget** |
+| ⭐⭐ ③ the outline **follows the selection store**, and a **default section-source resolver** is installed | ⭐ **`C4` and `D3` need no setup** — switching assets and clicking a section just work |
 
-⭐⭐ **This is exactly the `2026-08-16` rule in `.claude/CLAUDE.md`** — *"a production caller that HAS a
-dependency must PASS it"* — ⚠ **and `EditorSubsystem` has it: it is constructing the registrars named
-`"BTree"` and `"HSM"` two lines apart.**
-⇒ **Fix = pass `hostKind` at the two call sites, plus a rail asserting the PRODUCTION composition root.**
-📌 **That is Batch 80, and it is small.**
+⚠⚠ **And one thing Batch 80 caught that would have made `D3` look right and be wrong:**
+📐 **`SectionVariableRowSource` does not filter** — it takes `_schema.Variables` **wholesale** and uses
+the section only as a **label**. ⇒ ⛔ **routing through it would have shown the WHOLE blackboard under
+EVERY heading.** ⭐ **`BlackboardSectionRowSource` is new for exactly this**, and it shares
+`BlackboardMyBlueprintModel.SectionOf` with the outline ⇒ ⭐⭐ **`D3` is now a real check: a variable
+cannot sit under one heading in the tree and another in the table.**
 
 ---
 
@@ -71,9 +73,9 @@ dependency must PASS it"* — ⚠ **and `EditorSubsystem` has it: it is construc
 
 ---
 
-## C. 🔴 BTree / HSM outline — ⛔ **BLOCKED, do not run yet**
+## C. BTree / HSM outline ✅
 
-> 📄 Checklist **2.36–2.39** · §0a above
+> 📄 Checklist **2.36–2.39** · ⭐ **unblocked by Batch 80** — §0a
 
 | # | do | expect | ✔ |
 |---|---|---|---|
@@ -86,15 +88,20 @@ dependency must PASS it"* — ⚠ **and `EditorSubsystem` has it: it is construc
 
 ---
 
-## D. The Variables table ⚠ *(window exists; routing blocked with C)*
+## D. The Variables table ✅
 
 > 📄 Checklist **2.1–2.9**, **2.10–2.17**, **2.24–2.30**
+>
+> ⚠⚠ **`D4`–`D8` need the SIM RUNNING.** ⭐ **At authoring time there is no entity**, so every row
+> correctly reads **`(pending)`** — ⛔ **that is not a failure**, and deliberately **not**
+> `<unreadable>`: *"a decode failure that never happened would send a designer hunting a bug in their
+> type"* *(Batch 80)*. ⇒ **Do `D1`–`D3` and `D9`–`D14` cold; start the sim for `D4`–`D8`.**
 
 | # | do | expect | ✔ |
 |---|---|---|---|
 | **D1** | Find the **Variables** window in the perspective's dock | present on **all three** perspectives | ☐ |
 | **D2** | Count the columns | ⭐⭐ **`Name` · `Value` · `Type`** — ⛔ **`Bytes`, `Role`, `Scope` are GONE** *(seven → three)* | ☐ |
-| **D3** | Click a section row in the outline | ⭐ the table **re-filters to that section**, row highlighted *(⚠ blocked with C)* | ☐ |
+| **D3** | Click a section row in the outline | ⭐⭐ the table **re-filters to that section** — ⛔ **check it shows ONLY that section's variables**, not the whole blackboard *(§0a)* | ☐ |
 | **D4** | Look at a **primitive** row | inline and formatted — `80`, `12.5`, `true` | ☐ |
 | **D5** | Look at a **struct** row | ⭐ one-line elided summary `{X=1.0, Y=2.0, …}` — ⛔ **never raw hex** | ☐ |
 | **D6** | Hover that struct cell | ⭐ **pretty-printed tooltip, one field per line** | ☐ |
@@ -126,7 +133,7 @@ dependency must PASS it"* — ⚠ **and `EditorSubsystem` has it: it is construc
 
 ---
 
-## F. Change highlighting ⚠ *(after D)*
+## F. Change highlighting ✅ *(run after D)*
 
 > 📄 Checklist **2.18–2.23** · design §4a — ⭐⭐ **the unit is a non-frozen ASSET tick, not a frame**
 

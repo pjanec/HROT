@@ -3,17 +3,17 @@
 > ⛔⛔ **EVERYTHING BELOW THIS BLOCK PREDATES IT.** Treat the older sections as backstory only —
 > ⛔ **their baselines, "next steps" and open lists are STALE.**
 > ⭐ **This block is self-contained.** 📄 The live plan is
-> **[`PLAN_Remaining_Work.md`](PLAN_Remaining_Work.md) — revision 24**.
+> **[`PLAN_Remaining_Work.md`](PLAN_Remaining_Work.md) — revision 25**.
 
 ## 0. Where things stand
 
 | | |
 |---|---|
-| **coordinator branch** | `claude/blueprint-authoring-status-gm0akp`, head **`09b95b588`** |
-| **implementation branch** | `claude/hrot-implementation-j1jvin` |
-| ⏭ **IN FLIGHT** | **Batch 80** — started marker **`618303043`** on `09b95b5`. ⚠ **No handoff file was written**; it works from revision 24's finding *(§2 below)* |
-| **last merged** | **Batch 79** at `91b712f8d` — *Track C is reachable* |
-| **gates baseline** | build **0/69** · FastHSM **300/300** · Blueprints **3691/3681/0/10** · AiShared **1303** · BTree.Editor **615** · Hsm.Editor **551** · Generators **270** · Breakpoints **134** · Persistence **136** · Examples.Scenarios **56/68 (12 skipped)** · UrbanCombat **29** · Toolkits **1964** · NodeEdit **208/131** · tracker **open 64 / done 180** |
+| **coordinator branch** | `claude/blueprint-authoring-status-gm0akp`, head **`4911cf50d`** |
+| **implementation branch** | `claude/hrot-implementation-j1jvin` — ⭐ **level with the coordinator** |
+| ⏭ **IN FLIGHT** | ⛔ **NOTHING.** ⭐⭐ **The ball is with the USER: run the visual check** — 📄 [`GUIDE_Track_C_Visual_Check.md`](GUIDE_Track_C_Visual_Check.md), **all parts A–F runnable** |
+| **last merged** | **Batch 80** at `4911cf50d` — *Track C reaches the running editor* |
+| **gates baseline** | build **0/69** · FastHSM **300/300** · Blueprints **3691/3681/0/10** · AiShared ⭐ **1318** · BTree.Editor **615** · Hsm.Editor **551** · Generators **270** · Breakpoints **134** · Persistence **136** · Examples.Scenarios **56/68 (12 skipped)** · UrbanCombat **29** · Toolkits **1964** · NodeEdit **208/131** · tracker **open 64 / done 180** |
 
 ## 1. ⭐⭐⭐ Rulings from this session — **binding**
 
@@ -27,9 +27,11 @@
 | ⛔ **blueprint multi-occurrence DEFERRED** *("too many files affected")*; `Q34`'s **answers stand** | `Q34` §8 |
 | ⭐ **`VariablesPanelControl` KEEPS drawing**; the panel merge is a separate design task | `Q38` |
 
-## 2. 🔴 THE LIVE FINDING — **the pattern, now SIX times**
+## 2. ✅ THE PATTERN — **nine instances, all resolved or deliberately parked**
 
-> ⭐⭐⭐ **Components shipped complete and tested, with NO CALLER.**
+> ⭐⭐⭐ **Components shipped complete and tested, with NO CALLER.** ⚠ **The ninth was found INSIDE the
+> batch that existed to fix the pattern**, and its rails were green throughout — ⭐ **because each built
+> its own registrar and passed the argument production did not.**
 
 | # | surface | state |
 |---|---|---|
@@ -37,21 +39,28 @@
 | 2 | `VariableEditLauncher` *(68)* | ✅ wired in 77 |
 | 3–7 | **the whole Track C table stack** *(68–69)* | ✅ wired in 79 |
 | 8 | ⭐ **`VariableValueFormatter`** — every construction lived in a TEST | ✅ fixed in 79 *(`RawValueDecoder`)* |
-| 🔴 **9** | ⭐⭐ **`EditorSubsystem` passes `hostKind` to NONE of its three registrars** ⇒ the BTree/HSM outline is **still never constructed**, and the outline→table routing never runs | ⏭ **Batch 80** |
+| 9 | ⭐⭐ **`EditorSubsystem` passed `hostKind` to NONE of its three registrars** | ✅ **fixed in 80 — and the CLASS removed**: the host kind is **derived** from the perspective name, so ⛔ **there is no argument left to forget** |
+
+⭐⭐ **The durable lesson, in one line:** *a rail that supplies the argument production forgets proves
+nothing.* ⇒ **assert the DEFAULT path** — built exactly as the composition root builds it.
 
 ⭐ **`2026-08-16`'s rule names #9 exactly:** *"a production caller that HAS a dependency must PASS it."*
-⇒ ⭐⭐ **Batch 80 = two call sites + a rail on the PRODUCTION composition root** *(⛔ not on a
-hand-constructed registrar — that is the rail Batch 79 wrote, and it is why this survived)*.
+
+⚠⚠ **And one measurement from Batch 80 that would have made the visual check pass while being wrong:**
+📐 **`SectionVariableRowSource` does NOT filter** — `GetRows() => _schema.Variables.Select(ToRow)`, the
+section used only as a **label**. ⇒ ⛔ **the whole blackboard under every heading.**
+⭐ **`BlackboardSectionRowSource` is new for this**, sharing `SectionOf` with the outline.
 
 ## 3. ⏭ What remains — **single level only**
 
 | | |
 |---|---|
-| 🔴 **1** | **Batch 80's fix**, then ⭐ **the USER runs the visual check** — 📄 [`GUIDE_Track_C_Visual_Check.md`](GUIDE_Track_C_Visual_Check.md) *(40 steps; parts **A/B/E** already runnable, **C/D/F** blocked on 80)* |
+| ⭐⭐ **1** | ⭐⭐⭐ **THE USER RUNS THE VISUAL CHECK — this is the next action, and it is theirs** — 📄 [`GUIDE_Track_C_Visual_Check.md`](GUIDE_Track_C_Visual_Check.md) *(40 steps, **all parts A–F runnable**)*. ⛔ **Nothing is in flight.** ⭐ **Triage the failures into a batch when they come back** |
 | **2** | **`BP-309`** — two FastHSM projects do not build *(not in the solution)* |
 | **3** | **the producer picker's RUNTIME** — `R1`/`R2`/`R4`, the Library-function resolver seam |
 | **4** | **6 STILL-REAL `DEBT-AIB` rows** — `002` `003` `008` `011` `023` `031` · 📄 `DEBT_AIB_Pricing_Sweep_2026_08_17.md`. ⚠ **`023` is factually WRONG** *(calls a live method dead)* |
 | **5** | **NOT BUILT, found in 79** — `GroupBy`/fold/`Type` persistence *(and its doc comment claims otherwise)* · the budget indicator has **no run-state input** |
+| ⚠ **5b** | ⭐ **Two small findings from Batch 80's diff** *(plan §4C-b)*: a **displaced doc comment** — `HostKindOf` carries `SetSectionSourceResolver`'s `<summary>` and the resolver has none · and nothing pins that production still **names** its perspectives `"BTree"`/`"HSM"`. ⛔ **Neither is worth a batch alone** — fold into the next one touching the file |
 | **6** | compiler singles: `BP-233` · `BP-234` · `BP-200` · `BP-128` *(absorbed by `Q38`)* |
 | ⚠ **standing** | `DEBT-AIB-030` *(Toolkits race — 7 tests, identity rotates; **not signal**)* · 12 quarantined scenario tests *(out of programme)* |
 

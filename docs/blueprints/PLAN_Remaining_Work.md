@@ -1,6 +1,27 @@
-# PLAN — what is left *(revision 24, `2026-08-17`)*
+# PLAN — what is left *(revision 25, `2026-08-17`)*
 
-> 🔴🔴 **REVISION 24 (`2026-08-17`) — FIFTH INSTANCE, AND IT IS INSIDE THE BATCH THAT EXISTED TO FIX
+> ✅✅ **REVISION 25 (`2026-08-17`) — BATCH 80 MERGED at `4911cf50d`. ⭐⭐⭐ TRACK C IS REACHABLE IN THE
+> RUNNING EDITOR, AND THE VISUAL CHECK IS UNBLOCKED END TO END.**
+>
+> ⭐⭐ **They did better than the plan asked.** Revision 24 asked for **two call sites**; they passed
+> them **and removed the class of defect**: the host kind is now **DERIVED from the perspective name**
+> *(case-insensitive, parameter survives as an override)* ⇒ ⛔ **there is no argument left for a caller
+> to forget.** ⭐ Plus the two remaining *"someone must remember"* seams: the outline **follows the
+> selection store**, and a **default section-source resolver** is installed by the registrar.
+>
+> ⚠⚠ **And one measurement that would have made the visual check pass while being wrong:**
+> 📐 **`SectionVariableRowSource` does NOT filter** — `GetRows() => _schema.Variables.Select(ToRow)`,
+> with the section used only as a **label on the origin**. ⇒ ⛔ **routing through it would have shown
+> the WHOLE blackboard under EVERY heading.** ⭐ **Coordinator-verified against `618303043`.**
+> `BlackboardSectionRowSource` is new for this and shares `SectionOf` with the outline ⇒ **one
+> classification, not two.**
+>
+> ⭐ **Second batch under rule 8 — I re-ran no gates.** I read the diff and spot-verified **two** claims
+> *(the no-filter finding; the derivation's perspective names)*. **Two findings carried:** §4C-b.
+> 📄 **[`GUIDE_Track_C_Visual_Check.md`](GUIDE_Track_C_Visual_Check.md) — ⭐ ALL PARTS A–F RUNNABLE.**
+> 📄 **[`REPORT_Batch80_Track_C_Reaches_The_Editor.md`](REPORT_Batch80_Track_C_Reaches_The_Editor.md)**
+>
+> **REVISION 24 (`2026-08-17`) — FIFTH INSTANCE, AND IT IS INSIDE THE BATCH THAT EXISTED TO FIX
 > THE PATTERN.** 📐 **Found while writing the step-by-step guide:** `PerspectiveWorkspaceRegistrar`
 > builds the BTree/HSM outline — **and the outline→table routing** — only `if (hostKind != null)`, and
 > ⛔⛔ **`EditorSubsystem` passes `hostKind` to NONE of its three registrars.** ⭐ **The only caller that
@@ -1185,6 +1206,22 @@ discovers.
 | 🔴 **2.7** — `GroupBy`/fold/`Type` **persistence** | ⛔ **NOT BUILT.** `GroupBy` is a plain settable property · fold is ImGui's own `imgui.ini` state, **not** the editor layout · `ShowType` is **ctor-time with no toggle UI at all**. ⚠⚠ **And its own doc comment CLAIMS *"Persisted per panel in the editor layout"*** — ⭐ **coordinator-verified at `VariableTableModel.cs:78`.** ⛔ **A doc asserting an unbuilt feature is worse than the gap**, because it reads as done |
 | 🔴 **2.40 / 2.41** — the **budget indicator** | ⭐ values-editable-in-planning and live-values-when-running are **BUILT**; ⛔ **the budget indicator is NOT.** 📐 **Zero occurrences of `RunState`/`IsRunning` in that window** ⇒ **the old `BlackboardAuthoringWindow` budget draws MID-RUN too** |
 | ⭐ **2.26** — the `⋮` menu | **BUILT, minus Rename** — ⭐ **and absent BY DESIGN**: a `VariableRow` is an observation with no asset handle, schema source or undo recorder. **Rename belongs to the OUTLINE**, which holds the asset |
+
+### ✅ Batch 80 — **Track C reaches the RUNNING editor** *(merged `4911cf50d`)*
+
+| | |
+|---|---|
+| ⭐⭐⭐ **the class of defect removed, not just the instance** | ⛔ the plan asked for **two call sites**; they also made the host kind **DERIVED** from the perspective name ⇒ **no argument left to forget.** ⚠ **The rails now assert the DEFAULT path** — a registrar built exactly as the composition root builds one: **no `hostKind`, no resolver, no `Retarget`** |
+| ⭐⭐ **two more "someone must remember" seams closed** | the outline **follows the selection store** *(as `BlackboardAuthoringWindow` always has)* · the registrar installs a **default section-source resolver**. ⛔ Batch 79 left both to a host that never did them |
+| ⚠⚠ **the no-filter finding** | 📐 **`SectionVariableRowSource.GetRows()` returns `_schema.Variables` WHOLESALE**, section used only as a label ⇒ **the whole blackboard under every heading.** ⭐ **Coordinator-verified.** `BlackboardSectionRowSource` shares `SectionOf` with the outline ⇒ **one classification** |
+| ⭐ **`(pending)`, not `<unreadable>`** | authoring time has no entity ⇒ `HasEverBeenWritten = false`. ⛔ **A decode failure that never happened would send a designer hunting a bug in their type.** ⚠ **The guide's `D4`–`D8` now say: start the sim** |
+
+#### §4C-b — ⭐ **two findings carried from Batch 80's diff** *(both small, neither blocking)*
+
+| # | finding | ⭐ what it costs |
+|---|---|---|
+| ⚠ **b1** | 📐 **A displaced doc comment.** `HostKindOf` was inserted **between `SetSectionSourceResolver`'s `<summary>` and the method itself** ⇒ `HostKindOf` now carries **TWO summary blocks** *(the first describing the resolver)*, and **`SetSectionSourceResolver` has none.** `PerspectiveWorkspaceRegistrar.cs:314–331` | ⭐ **one-line move.** ⛔ IntelliSense shows the wrong doc on both members |
+| ⚠ **b2** | ⭐ **The rail asserts the DEFAULT PATH, not literally `EditorSubsystem`.** Nothing pins that production still *names* its perspectives `"BTree"` / `"HSM"` — a rename would null the derivation silently | ⚠ **Low risk, double-covered**: both call sites *also* pass `hostKind` explicitly. ⛔ **Not worth a batch alone** — fold into the next one that touches the file |
 
 ### ⭐⭐ OPEN POINTS — **recorded, not scheduled** *(user, `2026-08-17`)*
 
