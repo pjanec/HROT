@@ -1,6 +1,17 @@
-# PLAN — what is left *(revision 23, `2026-08-17`)*
+# PLAN — what is left *(revision 24, `2026-08-17`)*
 
-> ⭐⭐⭐ **REVISION 23 (`2026-08-17`).** ✅ **Batch 79 MERGED at `91b712f8d` — ⭐⭐ TRACK C IS REACHABLE.**
+> 🔴🔴 **REVISION 24 (`2026-08-17`) — FIFTH INSTANCE, AND IT IS INSIDE THE BATCH THAT EXISTED TO FIX
+> THE PATTERN.** 📐 **Found while writing the step-by-step guide:** `PerspectiveWorkspaceRegistrar`
+> builds the BTree/HSM outline — **and the outline→table routing** — only `if (hostKind != null)`, and
+> ⛔⛔ **`EditorSubsystem` passes `hostKind` to NONE of its three registrars.** ⭐ **The only caller that
+> passes it is `TrackCWiringTests`.**
+> ⇒ ⛔ **In the running editor the outline is still never constructed, and the Variables window is never
+> routed.** ⚠ **`2026-08-16`'s rule names it exactly** — *"a production caller that HAS a dependency must
+> PASS it"* — **and `EditorSubsystem` has it: it names the `"BTree"` and `"HSM"` registrars two lines
+> apart.** ⇒ ⭐ **Batch 80 is two call sites plus a rail on the PRODUCTION composition root.**
+> 📄 **[`GUIDE_Track_C_Visual_Check.md`](GUIDE_Track_C_Visual_Check.md) — written, with parts C and D marked BLOCKED.**
+>
+> **REVISION 23 (`2026-08-17`).** ✅ **Batch 79 MERGED at `91b712f8d` — ⭐⭐ TRACK C IS REACHABLE.**
 > All five unhosted surfaces are wired: the **outline on BTree and HSM** *(`AiMyBlueprintWindow`)*, the
 > **table** *(`AiVariablesWindow`, one per perspective)*, the **dialog launcher**, the **tick highlight**
 > and the **variable watch** — ⛔ **purely additive; `VariablesPanelControl` still draws.**
