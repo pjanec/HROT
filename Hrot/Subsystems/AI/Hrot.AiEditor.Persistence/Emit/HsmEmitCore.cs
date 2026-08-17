@@ -577,7 +577,7 @@ public static class HsmEmitCore
         // ⭐ W7b (§9.4) -- per-VARIABLE "allow concurrent writes". Sorted like its neighbours so the
         //   emitted layout method stays deterministic; omitted entirely when empty, so every existing
         //   asset emits byte-identically.
-        foreach (var allowed in dto.Suppressions.ConcurrentWritesAllowed.OrderBy(s => s))
+        foreach (var allowed in (dto.Suppressions.ConcurrentWritesAllowed ?? new()).OrderBy(s => s))
         {
             sb.AppendLine($"{Indent}{Indent}.AllowConcurrentWrites(\"{allowed}\")");
         }

@@ -220,7 +220,15 @@ public sealed class HsmSuppressionsDto
     /// exist yet. ⇒ <b>two mechanisms, deliberately, and collapsing them would silently widen one of
     /// them.</b>
     /// </summary>
-    public List<string> ConcurrentWritesAllowed { get; set; } = new();
+    /// ⚠⚠ <b>NULLABLE and omitted when empty, UNLIKE its two neighbours</b> — and that asymmetry is
+    /// deliberate. <c>Conflict</c> and <c>Unused</c> have always serialised as <c>[]</c>, so their
+    /// presence is baked into every stored document. ⛔ A new ALWAYS-EMITTED list changes the bytes of
+    /// every asset that has no allowance at all — caught by <c>MigrationEquivalenceTests</c>, which
+    /// round-trips stored JSON and compares it verbatim. ⇒ <c>WhenWritingNull</c> keeps the existing
+    /// corpus byte-identical while still persisting the flag for anyone who sets it.
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? ConcurrentWritesAllowed { get; set; }
 }
 
 // ── Root DTO ──────────────────────────────────────────────────────────────────

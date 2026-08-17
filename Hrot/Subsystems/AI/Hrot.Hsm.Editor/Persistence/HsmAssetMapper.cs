@@ -158,7 +158,7 @@ public static class HsmAssetMapper
         foreach (var varName in asset.GetUnusedSuppressions())
             dto.Suppressions.Unused.Add(varName);
         foreach (var varName in asset.GetConcurrentWritesAllowed())
-            dto.Suppressions.ConcurrentWritesAllowed.Add(varName);
+            (dto.Suppressions.ConcurrentWritesAllowed ??= new()).Add(varName);
 
         // Blackboard (§5.4)
         dto.Blackboard = BlackboardToDto(asset);
@@ -390,7 +390,7 @@ public static class HsmAssetMapper
             asset.SetConflictSuppressed(s.VariableName, s.WriterPairKey, true);
         foreach (var varName in dto.Suppressions.Unused)
             asset.SetUnusedWarningSuppressed(varName, true);
-        foreach (var varName in dto.Suppressions.ConcurrentWritesAllowed)
+        foreach (var varName in dto.Suppressions.ConcurrentWritesAllowed ?? new())
             asset.SetConcurrentWritesAllowed(varName, true);
 
         // Blackboard variables
