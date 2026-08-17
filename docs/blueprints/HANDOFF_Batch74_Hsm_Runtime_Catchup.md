@@ -2,7 +2,7 @@
 
 > ⛔⛔ **AMENDED AND RE-STAMPED `2026-08-17` under rule 1a** — ⭐ **ancestry checked: the original
 > dispatch sha `6c49dc9db` was NOT in the implementation branch's history**, so no run was in progress.
-> 📌 **RE-DISPATCHED at `<this commit>`.** ⭐ **The original item 1 (`BP-281`) is REMOVED — see §0b.**
+> 📌 **RE-DISPATCHED at `8f3de52b8`.** ⭐ **The original item 1 (`BP-281`) is REMOVED — see §0b.**
 >
 > ✅ **Batch 73 MERGED at `0808253e4`** — gates re-run by me, blueprint golden set untouched,
 > Examples.Scenarios now in the gate set at **56 / 68, 12 named quarantines**.
