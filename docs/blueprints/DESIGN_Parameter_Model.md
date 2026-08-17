@@ -1,3 +1,10 @@
+<!--STATUS
+state: LIVE
+updated: 2026-08-16
+current-answer: the whole document; it is authoritative for parameters and storage
+known-rot: describes BP1031 as live; BP1031 was RETIRED (Blueprint_Issues_Tracker, BP-278)
+known-conflict: gives Scope three values; Q-b in Variable_Model_Unification rules two. UNRECONCILED.
+-->
 # DESIGN — the parameter model *(AUTHORITATIVE, `2026-08-16`)*
 
 > ⭐⭐⭐ **THIS IS THE PARAMETER STORY. Read this before touching parameters, inputs, variables or

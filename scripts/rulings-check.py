@@ -58,9 +58,27 @@ def main():
         if needle not in target.read_text(encoding="utf-8", errors="replace"):
             bad.append(f"{rid}: quote no longer in {rel} — {needle!r}")
 
+    # Staleness: a cited source that changed AFTER the ledger did means the row was
+    # written against older text. The quote may still match while the RULING moved --
+    # which is exactly how R-03/R-05 came to cite a superseded table.
+    import subprocess
+    def mtime(rel):
+        out = subprocess.run(["git", "log", "-1", "--format=%ct", "--", rel],
+                             cwd=ROOT, capture_output=True, text=True).stdout.strip()
+        return int(out) if out.isdigit() else 0
+
+    ledger_t = mtime("docs/blueprints/RULINGS.md")
+    stale = sorted({rel for _, rel, _ in rows
+                    if mtime(rel) > ledger_t and rel != "docs/blueprints/RULINGS.md"})
+
     for line in bad:
         print("FAIL " + line)
     print(f"{len(rows) - len(bad)}/{len(rows)} rulings verified against their sources")
+    if stale:
+        print(f"\nWARN {len(stale)} cited source(s) changed after the ledger was last updated.")
+        print("The quote still matches, but the surrounding ruling may have moved. Re-read:")
+        for rel in stale:
+            print("  " + rel)
     if bad:
         print("\nA failing probe means the design record MOVED, not that the ruling died.")
         print("Find the new home and update the row — do NOT delete the ruling.")

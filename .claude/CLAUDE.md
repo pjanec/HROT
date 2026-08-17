@@ -422,3 +422,61 @@ new home, NEVER delete the ruling.**
 
 ⛔ **It is an INDEX, not a replacement for the corpus.** ⭐ **A question with no row is a question that
 needs a SEARCH** *(`RULINGS.md` §4 gives the order)* — ⛔ **not a question you may answer from code.**
+
+## ⭐⭐⭐ RULE ZERO, PART 2 — **RE-LEARN WHAT MOVED** *(user, `2026-08-17`)*
+
+> ⭐⭐ **User:** *"how to make it a permanent habit that after every compaction you re-learn the most
+> recent (few days) design intents?"*
+
+⛔ **`RULINGS.md` indexes what is SETTLED. It cannot tell you what MOVED LAST WEEK** — and after a
+compaction the recent documents are ⭐⭐ **exactly what a session has lost and cannot know it has lost.**
+
+### ⭐ The habit — **two commands, always, before anything else**
+
+```bash
+python3 scripts/design-digest.py            # what changed in the last 7 days, with its ruling lines
+python3 scripts/rulings-check.py            # the canon still matches its sources
+```
+
+⭐⭐⭐ **Run BOTH at session start and immediately after every compaction**, alongside reading
+[`RULINGS.md`](../docs/blueprints/RULINGS.md). ⛔ **The digest is a SCRIPT, not a document, on purpose:**
+⚠ **a hand-maintained "recent changes" file rots the moment someone forgets it — which is the disease.**
+⭐ Generated from git, **it cannot lie about what changed.**
+
+⭐⭐ **`rulings-check.py` now also WARNS when a cited source changed after the ledger did** — ⛔ **the
+quote can still match while the ruling around it has moved.** ⚠ **That is exactly how `R-03`/`R-05` came
+to cite a table its own document marks SUPERSEDED.**
+
+## ⭐⭐ DESIGN DOCUMENT FORMAT — **so a document can be followed after compaction**
+
+> ⭐⭐ **User:** *"how to formalize the creation of design docs so they are easy to follow after
+> compaction?"*
+
+📌 **The failure this fixes, three times in one day:** ⛔⛔ **I read a document and not its supersession
+banner.** ⚠ **`Variable_Model_Unification.md` keeps a SUPERSEDED stage table BELOW the live one, and I
+quoted the dead half** — twice, and wrote it into the canon.
+
+### ⭐ Every design document under `docs/` starts with a STATUS block
+
+```
+<!--STATUS
+state: LIVE | SUPERSEDED | WITHDRAWN | HISTORICAL
+updated: YYYY-MM-DD
+current-answer: <which section holds the CURRENT answer>
+stale-below: <what in this file is history and must NOT be quoted>
+superseded-by: <path>            (when state is not LIVE)
+known-rot: <statements in here that a newer document has overturned>
+known-conflict: <another document that disagrees, and that this has not reconciled>
+-->
+```
+
+| ⭐ rule | why |
+|---|---|
+| ⭐⭐⭐ **`current-answer` names the live section** | ⛔ **a reader must never have to infer which of two tables is current** |
+| ⭐⭐ **`stale-below` names the history** | ⭐ the cheapest possible fix for the failure above |
+| ⭐⭐ **`known-rot` / `known-conflict` are FEATURES, not shame** | ⛔ **a document that admits it is partly overtaken is safer than one that reads uniformly authoritative.** ⚠ **`DESIGN_Parameter_Model.md` is marked authoritative AND describes a retired `BP1031`** |
+| ⭐ **superseded content moves to the BOTTOM** under a `## ⛔ HISTORY` heading, or is deleted | ⛔ **never left inline above live content** |
+| ⭐ **`python3 scripts/design-digest.py --check`** audits it | ⛔ a convention nothing checks is a convention that decays |
+
+⚠ **Retro-fit lazily, not in a sweep** — ⭐ **add a STATUS block to any design document you TOUCH**, and
+to any the ledger cites. ⛔ **Do not spend a batch on the back catalogue.**

@@ -1,3 +1,9 @@
+<!--STATUS
+state: LIVE
+updated: 2026-08-15
+current-answer: section 0 is the ruling spec; section 4 is the MASTER SEQUENCING TABLE (56-61)
+note: carries the standing NO VISUAL CHECKS suspension until the Details panel and access infrastructure are unified
+-->
 # Architect Question #32 — **ANSWERS**: the variable Details panel
 
 > ⭐⭐ **User ruling, `2026-08-14`, verbatim in substance.** ⛔ **This supersedes every lean in the

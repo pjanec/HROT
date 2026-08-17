@@ -1,3 +1,8 @@
+<!--STATUS
+state: LIVE
+updated: 2026-08-17
+known-rot: still orders InspectorWindow's STATIC PARAMETERS retired; that was WITHDRAWN (BP-295, premise inverted)
+-->
 # DESIGN — variable details & editing, consistent across every asset type
 
 > **Track C design. `2026-08-15`.** ⭐ **This is what gets built.**
