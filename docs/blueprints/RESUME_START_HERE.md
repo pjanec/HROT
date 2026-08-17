@@ -1,19 +1,36 @@
+<!--STATUS
+state: LIVE
+updated: 2026-08-17
+current-answer: this top block only
+stale-below: everything under "START HERE — coordinator session" is HISTORY (2026-08-15 baselines). Do not quote it.
+-->
+
 # ⭐⭐⭐ STATE AS OF `2026-08-17` — **READ THIS BLOCK FIRST**
 
-> ⛔⛔ **EVERYTHING BELOW THIS BLOCK PREDATES IT.** Treat the older sections as backstory only —
-> ⛔ **their baselines, "next steps" and open lists are STALE.**
-> ⭐ **This block is self-contained.** 📄 The live plan is
-> **[`PLAN_Remaining_Work.md`](PLAN_Remaining_Work.md) — revision 25**.
+> ⛔⛔ **FIRST: the SessionStart hook has already printed the canon.** ⭐ **If you did not see it, run
+> `bash scripts/session-design-brief.sh` NOW** — 📄 [`RULINGS.md`](RULINGS.md) is the authority, this
+> file is only the current state.
+> ⭐ **Your first reply must open with the DESIGN BRIEF block** *(`.claude/CLAUDE.md`)*.
+> ⛔ **EVERYTHING BELOW THIS BLOCK PREDATES IT** — stale baselines, stale "next steps".
+> 📄 The live plan is **[`PLAN_Remaining_Work.md`](PLAN_Remaining_Work.md) — revision 27**.
 
 ## 0. Where things stand
 
 | | |
 |---|---|
-| **coordinator branch** | `claude/blueprint-authoring-status-gm0akp`, head **`4911cf50d`** |
-| **implementation branch** | `claude/hrot-implementation-j1jvin` — ⭐ **level with the coordinator** |
-| ⏭ **IN FLIGHT** | ⛔ **NOTHING.** ⭐⭐ **The ball is with the USER: run the visual check** — 📄 [`GUIDE_Track_C_Visual_Check.md`](GUIDE_Track_C_Visual_Check.md), **all parts A–F runnable** |
-| **last merged** | **Batch 80** at `4911cf50d` — *Track C reaches the running editor* |
-| **gates baseline** | build **0/69** · FastHSM **300/300** · Blueprints **3691/3681/0/10** · AiShared ⭐ **1318** · BTree.Editor **615** · Hsm.Editor **551** · Generators **270** · Breakpoints **134** · Persistence **136** · Examples.Scenarios **56/68 (12 skipped)** · UrbanCombat **29** · Toolkits **1964** · NodeEdit **208/131** · tracker **open 64 / done 180** |
+| **coordinator branch** | `claude/blueprint-authoring-status-gm0akp` |
+| **implementation branch** | `claude/hrot-implementation-j1jvin` |
+| ⏭ **IN FLIGHT** | ⭐⭐ **BATCH 82 — `U-6`: Details hosts the shared table + ruling 2's selection routing.** 📌 **Scope FROZEN at `0973760ca`** ⇒ ⛔ **documents changed after it are FYI ONLY for that batch.** 📄 [`HANDOFF_Batch82_U6_Details_Hosts_The_Table.md`](HANDOFF_Batch82_U6_Details_Hosts_The_Table.md) |
+| **last merged** | **Batch 81** at `3ae96f53d` — *the surfaces reach the user*. All six items; both NodeEdit gates paid |
+| ⛔⛔ **NOT NEXT** | **the visual check** — 📌 **`R-21`: SUSPENDED by user ruling `2026-08-14`** until the Details panel and access infrastructure are unified. ⭐ **Batch 82 is HALF that condition** |
+| **gates baseline** | build **0/69** · AiShared **1330** · Blueprints **3719/3709/10** · BTree.Editor **615** · Hsm.Editor **551** · Generators **270** · Breakpoints **134** · Persistence **136** · Scenarios **56/68 (12 skipped)** · UrbanCombat **29** · Toolkits **1964** · NodeEditor.Core **211** · NodeEditor.UI **135** · FastHSM **300** · tracker **open 65 / done 185** · rulings **35/35** |
+
+## 0a. ⭐⭐ The sequence — **do not re-derive it**
+
+⭐ **Two roadmaps converge:** `Variable_Model_Unification` §4 *(live)* `0 → C ✅ → A ✅ → **B** → B′(blocked) → D1–D4`
+· `Q32` §4 *(master)* `56 ✅ → **57 = U-6** → 58 → 59 → 59b → 59c → 60 = U-16 → 61`.
+⇒ ⭐⭐⭐ **`B` and `57` are the SAME item, and it is Batch 82.**
+🔴🔴 **`D2` can WIPE every deployed blackboard** if field order changes — `R-24`. Own batch, red-first.
 
 ## 1. ⭐⭐⭐ Rulings from this session — **binding**
 
