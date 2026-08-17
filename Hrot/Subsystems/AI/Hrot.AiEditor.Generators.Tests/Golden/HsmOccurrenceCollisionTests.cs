@@ -90,8 +90,20 @@ public sealed class HsmOccurrenceCollisionTests
         var generator = System.IO.File.ReadAllText(FindUp(System.IO.Path.Combine(
             "FDP", "Toolkits", "Fdp.Toolkits.Analyzers", "HsmActionGenerator.cs")));
 
-        // The emitted body: ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (IntPtr)<offset>)
-        Assert.Contains("ref bb.BehaviorParameters[0], (IntPtr)\" + entry.Offset", generator);
+        // ⚠ BP-306 (Batch 78) moved this expression out of the four emitters that each spelled it
+        //   themselves and into ONE home, because one of the four spellings was wrong. The claim is
+        //   unchanged — a baked, build-time constant offset — so the rail follows the expression to
+        //   where it now lives rather than being deleted.
+        var expression = System.IO.File.ReadAllText(FindUp(System.IO.Path.Combine(
+            "FDP", "Toolkits", "Fdp.Toolkits.Analyzers", "Shared", "BlackboardParamsExpression.cs")));
+
+        // The emitted body: ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)<offset>)
+        Assert.Contains(".BehaviorParameters[0]", expression);
+        Assert.Contains("(nint)\" + byteOffset", expression);
+
+        // ⭐ And the generator still reaches it through that one home — if it stopped, the offset
+        //   could drift back to a second spelling without this rail noticing.
+        Assert.Contains("BlackboardParamsExpression.At(\"bb\", entry.Offset)", generator);
 
         // ⛔ And nothing in the thunk consults the partition allocator, which is where per-occurrence
         //    bytes would have to come from.

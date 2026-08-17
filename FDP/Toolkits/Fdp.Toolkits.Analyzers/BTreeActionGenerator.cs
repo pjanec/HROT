@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
+using Fdp.Toolkit.Behavior.Shared;
 
 namespace Fdp.Toolkit.Behavior.Analyzers
 {
@@ -615,7 +616,13 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             sb.AppendLine("namespace " + namespaceName);
             sb.AppendLine("{");
             sb.AppendLine("    [global::Fbt.FbtRegistrar]");
-            sb.AppendLine("    public static class FbtActionRegistrar");
+            // BP-306: a SharedAi adapter projects a DTO out of BrainBlackboard's `fixed byte[]`,
+            // which needs an unsafe context. HsmActionRegistrar is unconditionally `unsafe` for the
+            // same reason; here it is conditional so an assembly with no SharedAi entry keeps
+            // byte-identical output. (BTreeBridgeEmitCore reaches the same place with a per-lambda
+            // `unsafe { }` block — it has no class of its own to mark.)
+            bool needsUnsafe = groups.Any(g => g.SharedAiEntries.Count > 0);
+            sb.AppendLine("    public static " + (needsUnsafe ? "unsafe " : "") + "class FbtActionRegistrar");
             sb.AppendLine("    {");
             sb.AppendLine("        // 4-param NodeLogicDelegate methods are registered directly.");
             sb.AppendLine("        // 3-param ReusableDelegate methods are registered as bridge closures");
@@ -690,7 +697,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 sb.AppendLine("                static (ref " + tb + " bb, ref global::Fbt.BehaviorTreeState _, ref " + tc + " ctx, int _) =>");
                 sb.AppendLine("                {");
                 sb.AppendLine("                    ref var field = ref Unsafe.As<byte, " + entry.FieldTypeFqn + ">(");
-                sb.AppendLine("                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters, (nint)" + entry.Offset + "));");
+                sb.AppendLine("                        " + BlackboardParamsExpression.At("bb", entry.Offset) + ");");
                 if (entry.IsCondition)
                     sb.AppendLine("                    return global::" + entry.FullQualifiedMethodName + "(ref field, ctx.Self, ctx.World) ? global::Fbt.NodeStatus.Success : global::Fbt.NodeStatus.Failure;");
                 else
@@ -703,7 +710,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 sb.AppendLine("                static (ref " + tb + " bb, ref global::Fbt.BehaviorTreeState st, ref " + tc + " ctx, int pi) =>");
                 sb.AppendLine("                {");
                 sb.AppendLine("                    ref var field = ref Unsafe.As<byte, " + entry.FieldTypeFqn + ">(");
-                sb.AppendLine("                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters, (nint)" + entry.Offset + "));");
+                sb.AppendLine("                        " + BlackboardParamsExpression.At("bb", entry.Offset) + ");");
                 sb.AppendLine("                    var status = global::" + entry.FullQualifiedMethodName + "(ref field, ctx.Self, ctx.World);");
                 EmitChannelClear(sb, entry.WritesChannels, "                    ");
                 sb.AppendLine("                    return status;");
@@ -720,7 +727,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             sb.AppendLine("                static (ref " + tb + " bb, ref global::Fbt.BehaviorTreeState st, ref " + tc + " ctx, int pi) =>");
             sb.AppendLine("                {");
             sb.AppendLine("                    ref var field = ref Unsafe.As<byte, " + entry.FieldTypeFqn + ">(");
-            sb.AppendLine("                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters, (nint)" + entry.Offset + "));");
+            sb.AppendLine("                        " + BlackboardParamsExpression.At("bb", entry.Offset) + ");");
             if (entry.IsHeavyManaged)
             {
                 // Managed component: fetch via GetComponent<T> (returns the class instance)
