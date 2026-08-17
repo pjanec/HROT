@@ -1,0 +1,602 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: 1a200000-0000-0000-0000-0000000000dd
+
+#nullable enable
+
+using System.Runtime.CompilerServices;
+using System.Text.Json;
+
+using Fbt;
+using Fbt.Runtime;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Blueprints;
+using Fdp.Toolkit.Blueprints.Attributes;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+[BlueprintRegistrar]
+public static class PlatoonHillAttack2Registrar
+{
+    // JSON options for ParseParams — the platform-canonical options (IncludeFields,
+    // vector/FixedString/strict-enum converters, and FC-3b fixed-list support) so
+    // Params defaults share ONE wire format with scenario save/load.
+    private static readonly global::System.Text.Json.JsonSerializerOptions __paramJsonOpts =
+        global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+
+    /// <summary>
+    /// Coordinator-injectable registrar (§3 D14, PU-203).
+    /// Registers the JSON-owned BTree definition and action/condition thunks.
+    /// Called by <see cref="AiHotReloadCoordinator"/> during hot reload.
+    /// </summary>
+    public static void Register(BehaviorRegistry beh, BlueprintRegistryStaging staging, ActionRegistry<BrainBlackboard, BTreeContext> actionRegistry)
+    {
+        // 1. Build the blob from the topology-core thunk.
+        var blob = PlatoonHillAttack2.Build();
+
+        // 2. Register baked-offset action/condition thunks before Interpreter construction.
+
+        // I2/I3: blueprint AiPrimitive action thunks — Params at baked offset + WorkingState from
+        // partition slot, dispatched to the blueprint's generated TickCore. Key = {MethodFqn}@{offset}@{slotKey}.
+        if (global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.Params>() != 20)
+            throw new global::System.InvalidOperationException(
+                "Composed blueprint Params layout drift: global::Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.Params compiled size (" +
+                global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.Params>() +
+                ") != predicted 20 bytes baked at offset 0. " +
+                "Rebuild the behavior blackboard layout so predicted and reflected sizes agree.");
+        actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.TickCore@0@719287041",
+            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                unsafe
+                {
+                    // Project Params from BrainBlackboard (Slice-1 pattern).
+                    ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.Params>(
+                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
+                    // Dispatch across tiers (16384 → 4096 → 1024) to locate the entity's active partition.
+                    const int __slotKey = 719287041;
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 719287041 missing from BlueprintBlackboard16384");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.WorkingState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
+                        }
+                    }
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 719287041 missing from BlueprintBlackboard4096");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.WorkingState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
+                        }
+                    }
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 719287041 missing from BlueprintBlackboard1024");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.WorkingState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
+                        }
+                    }
+                    // No tier component found — fail loud.
+                    global::System.Diagnostics.Debug.Assert(false, "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 719287041");
+                    return Fbt.NodeStatus.Failure;
+                }
+            });
+        if (global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchAllToBaseline_64F11A6D_Bp.Params>() != 16)
+            throw new global::System.InvalidOperationException(
+                "Composed blueprint Params layout drift: global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchAllToBaseline_64F11A6D_Bp.Params compiled size (" +
+                global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchAllToBaseline_64F11A6D_Bp.Params>() +
+                ") != predicted 16 bytes baked at offset 24. " +
+                "Rebuild the behavior blackboard layout so predicted and reflected sizes agree.");
+        actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2IDispatchAllToBaseline_64F11A6D_Bp.TickCore@24@668954184",
+            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                unsafe
+                {
+                    // Project Params from BrainBlackboard (Slice-1 pattern).
+                    ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchAllToBaseline_64F11A6D_Bp.Params>(
+                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)24));
+                    // Dispatch across tiers (16384 → 4096 → 1024) to locate the entity's active partition.
+                    const int __slotKey = 668954184;
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 668954184 missing from BlueprintBlackboard16384");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchAllToBaseline_64F11A6D_Bp.WorkingState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchAllToBaseline_64F11A6D_Bp.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
+                        }
+                    }
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 668954184 missing from BlueprintBlackboard4096");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchAllToBaseline_64F11A6D_Bp.WorkingState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchAllToBaseline_64F11A6D_Bp.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
+                        }
+                    }
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 668954184 missing from BlueprintBlackboard1024");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchAllToBaseline_64F11A6D_Bp.WorkingState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchAllToBaseline_64F11A6D_Bp.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
+                        }
+                    }
+                    // No tier component found — fail loud.
+                    global::System.Diagnostics.Debug.Assert(false, "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 668954184");
+                    return Fbt.NodeStatus.Failure;
+                }
+            });
+        if (global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.HillAssault2IRequestAreaQuery_61F115B4_Bp.Params>() != 8)
+            throw new global::System.InvalidOperationException(
+                "Composed blueprint Params layout drift: global::Hrot.AI.Behaviors.Generated.HillAssault2IRequestAreaQuery_61F115B4_Bp.Params compiled size (" +
+                global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.HillAssault2IRequestAreaQuery_61F115B4_Bp.Params>() +
+                ") != predicted 8 bytes baked at offset 40. " +
+                "Rebuild the behavior blackboard layout so predicted and reflected sizes agree.");
+        actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2IRequestAreaQuery_61F115B4_Bp.TickCore@40@450845137",
+            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                unsafe
+                {
+                    // Project Params from BrainBlackboard (Slice-1 pattern).
+                    ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Generated.HillAssault2IRequestAreaQuery_61F115B4_Bp.Params>(
+                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)40));
+                    // Dispatch across tiers (16384 → 4096 → 1024) to locate the entity's active partition.
+                    const int __slotKey = 450845137;
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 450845137 missing from BlueprintBlackboard16384");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Generated.HillAssault2IRequestAreaQuery_61F115B4_Bp.WorkingState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Generated.HillAssault2IRequestAreaQuery_61F115B4_Bp.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
+                        }
+                    }
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 450845137 missing from BlueprintBlackboard4096");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Generated.HillAssault2IRequestAreaQuery_61F115B4_Bp.WorkingState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Generated.HillAssault2IRequestAreaQuery_61F115B4_Bp.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
+                        }
+                    }
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 450845137 missing from BlueprintBlackboard1024");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Generated.HillAssault2IRequestAreaQuery_61F115B4_Bp.WorkingState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Generated.HillAssault2IRequestAreaQuery_61F115B4_Bp.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
+                        }
+                    }
+                    // No tier component found — fail loud.
+                    global::System.Diagnostics.Debug.Assert(false, "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 450845137");
+                    return Fbt.NodeStatus.Failure;
+                }
+            });
+        actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2IIsAreaQueryResolved_62F11747_Bp.TickCore@48@400512280",
+            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                unsafe
+                {
+                    // Project Params from BrainBlackboard (Slice-1 pattern).
+                    ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Generated.HillAssault2IIsAreaQueryResolved_62F11747_Bp.Params>(
+                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)48));
+                    // Dispatch across tiers (16384 → 4096 → 1024) to locate the entity's active partition.
+                    const int __slotKey = 400512280;
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 400512280 missing from BlueprintBlackboard16384");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Generated.HillAssault2IIsAreaQueryResolved_62F11747_Bp.WorkingState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Generated.HillAssault2IIsAreaQueryResolved_62F11747_Bp.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
+                        }
+                    }
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 400512280 missing from BlueprintBlackboard4096");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Generated.HillAssault2IIsAreaQueryResolved_62F11747_Bp.WorkingState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Generated.HillAssault2IIsAreaQueryResolved_62F11747_Bp.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
+                        }
+                    }
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 400512280 missing from BlueprintBlackboard1024");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Generated.HillAssault2IIsAreaQueryResolved_62F11747_Bp.WorkingState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Generated.HillAssault2IIsAreaQueryResolved_62F11747_Bp.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
+                        }
+                    }
+                    // No tier component found — fail loud.
+                    global::System.Diagnostics.Debug.Assert(false, "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 400512280");
+                    return Fbt.NodeStatus.Failure;
+                }
+            });
+        if (global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchWaveWithTargets_60F11421_Bp.Params>() != 40)
+            throw new global::System.InvalidOperationException(
+                "Composed blueprint Params layout drift: global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchWaveWithTargets_60F11421_Bp.Params compiled size (" +
+                global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchWaveWithTargets_60F11421_Bp.Params>() +
+                ") != predicted 40 bytes baked at offset 48. " +
+                "Rebuild the behavior blackboard layout so predicted and reflected sizes agree.");
+        actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2IDispatchWaveWithTargets_60F11421_Bp.TickCore@48@417289899",
+            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                unsafe
+                {
+                    // Project Params from BrainBlackboard (Slice-1 pattern).
+                    ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchWaveWithTargets_60F11421_Bp.Params>(
+                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)48));
+                    // Dispatch across tiers (16384 → 4096 → 1024) to locate the entity's active partition.
+                    const int __slotKey = 417289899;
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 417289899 missing from BlueprintBlackboard16384");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchWaveWithTargets_60F11421_Bp.WorkingState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchWaveWithTargets_60F11421_Bp.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
+                        }
+                    }
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 417289899 missing from BlueprintBlackboard4096");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchWaveWithTargets_60F11421_Bp.WorkingState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchWaveWithTargets_60F11421_Bp.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
+                        }
+                    }
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 417289899 missing from BlueprintBlackboard1024");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchWaveWithTargets_60F11421_Bp.WorkingState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchWaveWithTargets_60F11421_Bp.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
+                        }
+                    }
+                    // No tier component found — fail loud.
+                    global::System.Diagnostics.Debug.Assert(false, "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 417289899");
+                    return Fbt.NodeStatus.Failure;
+                }
+            });
+        actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_CDAC491D_Bp.TickCore@88@501177994",
+            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                unsafe
+                {
+                    // Project Params from BrainBlackboard (Slice-1 pattern).
+                    ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_CDAC491D_Bp.Params>(
+                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)88));
+                    // Dispatch across tiers (16384 → 4096 → 1024) to locate the entity's active partition.
+                    const int __slotKey = 501177994;
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 501177994 missing from BlueprintBlackboard16384");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_CDAC491D_Bp.WorkingState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_CDAC491D_Bp.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
+                        }
+                    }
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 501177994 missing from BlueprintBlackboard4096");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_CDAC491D_Bp.WorkingState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_CDAC491D_Bp.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
+                        }
+                    }
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "S2-1: stateful slot 501177994 missing from BlueprintBlackboard1024");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_CDAC491D_Bp.WorkingState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_CDAC491D_Bp.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
+                        }
+                    }
+                    // No tier component found — fail loud.
+                    global::System.Diagnostics.Debug.Assert(false, "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 501177994");
+                    return Fbt.NodeStatus.Failure;
+                }
+            });
+
+        // E2: blueprint AiPrimitive condition thunks — Params at baked offset + WorkingState from
+        // partition slot, dispatched to the blueprint's generated TickCore. Key = {MethodFqn}@{offset}@{slotKey}.
+        actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Generated.HillAssault2AreAllAtBaseline_4CDE3A29_Bp.TickCore@40@685731803",
+            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                unsafe
+                {
+                    // Project Params from BrainBlackboard (Slice-1 pattern).
+                    ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Generated.HillAssault2AreAllAtBaseline_4CDE3A29_Bp.Params>(
+                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)40));
+                    // Dispatch across tiers (16384 → 4096 → 1024) to locate the entity's active partition.
+                    const int __slotKey = 685731803;
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "E2: stateful condition slot 685731803 missing from BlueprintBlackboard16384");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Generated.HillAssault2AreAllAtBaseline_4CDE3A29_Bp.WorkingState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Generated.HillAssault2AreAllAtBaseline_4CDE3A29_Bp.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime) == Fbt.NodeStatus.Success ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;
+                        }
+                    }
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "E2: stateful condition slot 685731803 missing from BlueprintBlackboard4096");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Generated.HillAssault2AreAllAtBaseline_4CDE3A29_Bp.WorkingState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Generated.HillAssault2AreAllAtBaseline_4CDE3A29_Bp.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime) == Fbt.NodeStatus.Success ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;
+                        }
+                    }
+                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self))
+                    {
+                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self);
+                        fixed (byte* mem = tier.Memory)
+                        {
+                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
+                            {
+                                global::System.Diagnostics.Debug.Assert(false, "E2: stateful condition slot 685731803 missing from BlueprintBlackboard1024");
+                                return Fbt.NodeStatus.Failure;
+                            }
+                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Generated.HillAssault2AreAllAtBaseline_4CDE3A29_Bp.WorkingState>(mem + wsOff);
+                            return global::Hrot.AI.Behaviors.Generated.HillAssault2AreAllAtBaseline_4CDE3A29_Bp.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime) == Fbt.NodeStatus.Success ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;
+                        }
+                    }
+                    // No tier component found — fail loud.
+                    global::System.Diagnostics.Debug.Assert(false, "E2: entity has no BlueprintBlackboard* tier component for stateful condition slot 685731803");
+                    return Fbt.NodeStatus.Failure;
+                }
+            });
+
+        // 3. Construct the Interpreter — BindActions runs here; registry must be populated above.
+        var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionRegistry);
+
+        // 4a. Managed parameter supply: bake defaults, then overlay from json (DEBT-AIB-021).
+        // ParseParamsDelegate uses byte* — must be captured in an unsafe block.
+        global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams;
+        unsafe
+        {
+            __parseParams = static (string json, byte* memory, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>
+            {
+                // Step 1 — baked defaults. DESIGN_Parameter_Model.md §3.2: the ORDER is the ruling.
+                {
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.Params>("{\"StartX\":0,\"StartY\":0,\"EndX\":100,\"EndY\":0,\"TankSpacing\":10}", __paramJsonOpts);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 0, __v);
+                }
+                {
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchAllToBaseline_64F11A6D_Bp.Params>("{\"BaselineStartX\":0,\"BaselineStartY\":-20,\"BaselineEndX\":100,\"BaselineEndY\":-20}", __paramJsonOpts);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 24, __v);
+                }
+                {
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Generated.HillAssault2AreAllAtBaseline_4CDE3A29_Bp.Params>("{}", __paramJsonOpts);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 40, __v);
+                }
+                {
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Generated.HillAssault2IRequestAreaQuery_61F115B4_Bp.Params>("{}", __paramJsonOpts);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 40, __v);
+                }
+                {
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Generated.HillAssault2IIsAreaQueryResolved_62F11747_Bp.Params>("{}", __paramJsonOpts);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 48, __v);
+                }
+                {
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchWaveWithTargets_60F11421_Bp.Params>("{\"StartX\":0,\"StartY\":0,\"EndX\":100,\"EndY\":0,\"BaselineStartX\":0,\"BaselineStartY\":-20,\"BaselineEndX\":100,\"BaselineEndY\":-20,\"AttackDirX\":0,\"AttackDirY\":1}", __paramJsonOpts);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 48, __v);
+                }
+                {
+                    var __v = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_CDAC491D_Bp.Params>("{}", __paramJsonOpts);
+                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 88, __v);
+                }
+
+                // Step 2 — overlay. A wrapper object keyed by VARIABLE NAME, dispatched to each
+                // variable's deserializer (DEBT-AIB-021 names this shape).
+                // ⛔ Malformed json THROWS on purpose: the ingress parses into a stack shadow and
+                //    commits only on success, so a throw leaves the entity on its old behaviour.
+                if (!string.IsNullOrWhiteSpace(json))
+                {
+                    using var __doc = global::System.Text.Json.JsonDocument.Parse(json);
+                    if (__doc.RootElement.ValueKind == global::System.Text.Json.JsonValueKind.Object)
+                    {
+                        foreach (var __prop in __doc.RootElement.EnumerateObject())
+                        {
+                            switch (__prop.Name)
+                            {
+                                case "bpParamsCalculateSegments":
+                                {
+                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.Params>(__prop.Value.GetRawText(), __paramJsonOpts);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 0, __o);
+                                    break;
+                                }
+                                case "bpParamsDispatchAllToBaseline":
+                                {
+                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchAllToBaseline_64F11A6D_Bp.Params>(__prop.Value.GetRawText(), __paramJsonOpts);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 24, __o);
+                                    break;
+                                }
+                                case "bpParamsAreAllAtBaseline":
+                                {
+                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Generated.HillAssault2AreAllAtBaseline_4CDE3A29_Bp.Params>(__prop.Value.GetRawText(), __paramJsonOpts);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 40, __o);
+                                    break;
+                                }
+                                case "bpParamsRequestAreaQuery":
+                                {
+                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Generated.HillAssault2IRequestAreaQuery_61F115B4_Bp.Params>(__prop.Value.GetRawText(), __paramJsonOpts);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 40, __o);
+                                    break;
+                                }
+                                case "bpParamsIsAreaQueryResolved":
+                                {
+                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Generated.HillAssault2IIsAreaQueryResolved_62F11747_Bp.Params>(__prop.Value.GetRawText(), __paramJsonOpts);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 48, __o);
+                                    break;
+                                }
+                                case "bpParamsDispatchWaveWithTargets":
+                                {
+                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchWaveWithTargets_60F11421_Bp.Params>(__prop.Value.GetRawText(), __paramJsonOpts);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 48, __o);
+                                    break;
+                                }
+                                case "bpParamsIsWaveCompleted":
+                                {
+                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_CDAC491D_Bp.Params>(__prop.Value.GetRawText(), __paramJsonOpts);
+                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 88, __o);
+                                    break;
+                                }
+                                // ⭐ Unknown key: IGNORED, matching the curated path's own behaviour.
+                                default: break;
+                            }
+                        }
+                    }
+                }
+            };
+        }
+
+        // 4b. Register the JSON-owned definition (FbtTreeCatalog cannot see in-memory defs).
+        beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("PlatoonHillAttack2"), "PlatoonHillAttack2", new BehaviorDefinition
+        {
+            Name         = "PlatoonHillAttack2",
+            BrainTier    = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter = interpreter,
+            ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
+            {
+                new("bpParamsCalculateSegments", typeof(global::Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.Params), 0),
+                new("bpParamsDispatchAllToBaseline", typeof(global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchAllToBaseline_64F11A6D_Bp.Params), 24),
+                new("bpParamsAreAllAtBaseline", typeof(global::Hrot.AI.Behaviors.Generated.HillAssault2AreAllAtBaseline_4CDE3A29_Bp.Params), 40),
+                new("bpParamsRequestAreaQuery", typeof(global::Hrot.AI.Behaviors.Generated.HillAssault2IRequestAreaQuery_61F115B4_Bp.Params), 40),
+                new("bpParamsIsAreaQueryResolved", typeof(global::Hrot.AI.Behaviors.Generated.HillAssault2IIsAreaQueryResolved_62F11747_Bp.Params), 48),
+                new("bpParamsDispatchWaveWithTargets", typeof(global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchWaveWithTargets_60F11421_Bp.Params), 48),
+                new("bpParamsIsWaveCompleted", typeof(global::Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_CDAC491D_Bp.Params), 88),
+            },
+            ParseParams  = __parseParams,
+            StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
+            {
+                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(719287041, global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.WorkingState>(), unchecked(951275415u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.WorkingState>()), typeof(global::Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.WorkingState), "CalculateSegments (integrated)"),
+                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(668954184, global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchAllToBaseline_64F11A6D_Bp.WorkingState>(), unchecked(1626448456u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchAllToBaseline_64F11A6D_Bp.WorkingState>()), typeof(global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchAllToBaseline_64F11A6D_Bp.WorkingState), "DispatchAllToBaseline (integrated)"),
+                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(685731803, global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.HillAssault2AreAllAtBaseline_4CDE3A29_Bp.WorkingState>(), unchecked(3635895867u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.HillAssault2AreAllAtBaseline_4CDE3A29_Bp.WorkingState>()), typeof(global::Hrot.AI.Behaviors.Generated.HillAssault2AreAllAtBaseline_4CDE3A29_Bp.WorkingState), "AreAllAtBaseline (twin, unchanged)"),
+                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(450845137, global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.HillAssault2IRequestAreaQuery_61F115B4_Bp.WorkingState>(), unchecked(1423744196u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.HillAssault2IRequestAreaQuery_61F115B4_Bp.WorkingState>()), typeof(global::Hrot.AI.Behaviors.Generated.HillAssault2IRequestAreaQuery_61F115B4_Bp.WorkingState), "RequestAreaQuery (integrated)"),
+                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(400512280, global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.HillAssault2IIsAreaQueryResolved_62F11747_Bp.WorkingState>(), unchecked(2514577811u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.HillAssault2IIsAreaQueryResolved_62F11747_Bp.WorkingState>()), typeof(global::Hrot.AI.Behaviors.Generated.HillAssault2IIsAreaQueryResolved_62F11747_Bp.WorkingState), "IsAreaQueryResolved (integrated)"),
+                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(417289899, global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchWaveWithTargets_60F11421_Bp.WorkingState>(), unchecked(2291579356u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchWaveWithTargets_60F11421_Bp.WorkingState>()), typeof(global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchWaveWithTargets_60F11421_Bp.WorkingState), "DispatchWaveWithTargets (integrated)"),
+                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(501177994, global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_CDAC491D_Bp.WorkingState>(), unchecked(169514269u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_CDAC491D_Bp.WorkingState>()), typeof(global::Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_CDAC491D_Bp.WorkingState), "IsWaveCompleted (integrated)"),
+                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(2016490230, global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.HillAttackSharedState>(), unchecked(2900020945u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.HillAttackSharedState>()), typeof(global::Hrot.AI.Behaviors.Brains.HillAttackSharedState), "state", (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Entity),
+            },
+        });
+    }
+}

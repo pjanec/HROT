@@ -1,0 +1,18 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: 1a200000-0000-0000-0000-0000000000dd
+
+using System.Runtime.InteropServices;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+[StructLayout(LayoutKind.Sequential)]
+public struct PlatoonHillAttack2_FdpToolkitBehaviorComponentsBrainBlackboard
+{
+    public global::Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.Params bpParamsCalculateSegments;
+    public global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchAllToBaseline_64F11A6D_Bp.Params bpParamsDispatchAllToBaseline;
+    public global::Hrot.AI.Behaviors.Generated.HillAssault2AreAllAtBaseline_4CDE3A29_Bp.Params bpParamsAreAllAtBaseline;
+    public global::Hrot.AI.Behaviors.Generated.HillAssault2IRequestAreaQuery_61F115B4_Bp.Params bpParamsRequestAreaQuery;
+    public global::Hrot.AI.Behaviors.Generated.HillAssault2IIsAreaQueryResolved_62F11747_Bp.Params bpParamsIsAreaQueryResolved;
+    public global::Hrot.AI.Behaviors.Generated.HillAssault2IDispatchWaveWithTargets_60F11421_Bp.Params bpParamsDispatchWaveWithTargets;
+    public global::Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_CDAC491D_Bp.Params bpParamsIsWaveCompleted;
+}

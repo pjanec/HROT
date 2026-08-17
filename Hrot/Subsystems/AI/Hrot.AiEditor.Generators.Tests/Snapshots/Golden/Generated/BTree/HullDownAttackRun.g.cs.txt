@@ -1,0 +1,43 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: 2b000000-0000-0000-0000-0000000000dd
+
+using System;
+using System.Numerics;
+
+using Fbt;
+using Fbt.Compiler;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Hrot.AI.Behaviors.Brains;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+public static class HullDownAttackRun
+{
+    public static BTreeBuilder<BrainBlackboard, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<BrainBlackboard, BTreeContext>()
+            .Sequence(seq =>
+            {
+                seq.Selector(sel =>
+                {
+                    sel.Sequence(seq =>
+                    {
+                        seq.Action("Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_CreepToAndBeyondSlot@0",
+                            visualId: new Guid("2b000000-0000-0000-0000-0000000000a1"));
+                        seq.Action("Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_AimAndFireSpecific@0",
+                            visualId: new Guid("2b000000-0000-0000-0000-0000000000a2"));
+                    },
+                        visualId: new Guid("2b000000-0000-0000-0000-000000000004"));
+                    sel.Action("Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_AbortEngagement@0",
+                        visualId: new Guid("2b000000-0000-0000-0000-0000000000a3"));
+                },
+                    visualId: new Guid("2b000000-0000-0000-0000-000000000003"));
+                seq.Action("Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_ReverseToBaseline@0",
+                    visualId: new Guid("2b000000-0000-0000-0000-0000000000a4"));
+            },
+                visualId: new Guid("2b000000-0000-0000-0000-000000000002"));
+
+    [BTreeDefinition("HullDownAttackRun", AssetId = "2b000000-0000-0000-0000-0000000000dd")]
+    public static BehaviorTreeBlob Build() =>
+        CreateBuilder().Compile("HullDownAttackRun");
+}
