@@ -1,6 +1,13 @@
-# PLAN — what is left *(revision 12, `2026-08-16`)*
+# PLAN — what is left *(revision 13, `2026-08-17`)*
 
-> ⭐⭐⭐ **REVISION 12 (`2026-08-16`).** ✅ **Batch 68 MERGED at `79f23be63`** — `C-table` · `C-dialog` ·
+> ⭐⭐⭐ **REVISION 13 (`2026-08-17`).** ✅ **Batch 69 MERGED at `72f24d326`** — `C-tick` · `DEBT-AIB-009` ·
+> `C-watch` · `C-outline` · **`E4` finished** (§4A4). ⭐⭐ **Track C is LIVE** — the highlight has a real
+> per-`(asset, entity)` tick, held in a **side table owned by `Fdp.Toolkits`**, so it costs the sim
+> nothing and cannot move `StructureHash`. 🔴 **My `C-watch` §7 claim was stale twice and the real defect
+> was underneath** — corrected in the design. ⭐⭐⭐ **The silent-default pattern is now a repo rule**
+> *(`.claude/CLAUDE.md`)*: **a production caller that HAS a dependency must PASS it.**
+>
+> **REVISION 12 (`2026-08-16`).** ✅ **Batch 68 MERGED at `79f23be63`** — `C-table` · `C-dialog` ·
 > `W7b` · `E4` (§4A3). 🔴 **The tick unit is WORLD and no per-asset tick exists** ⇒ new item **`C-tick`**;
 > the highlight is **inert until it lands**. 🔴🔴 **`DEBT-AIB-021` contradicts `DESIGN_Parameter_Model`
 > §3.2** — the overlay is NOT implemented on the generated managed-asset path; **corrected there**.
@@ -68,12 +75,12 @@
 
 ---
 
-## 1. ✅ Done — merged through `79f23be63`
+## 1. ✅ Done — merged through `72f24d326`
 
 Batches **56 · 58 · 57 · 59 · 60 · 61(1–2) · 63 · 64(1) · 65 (Track B, all four) · ⭐ 66 (`G4` · the
-surgical write · `G1` · `C-sections`) · 67 (`W7c` · `W7a` · `G3` · `E1`+`E2` · 2 rails) · ⭐ 68 (`C-table` · `C-dialog` · `W7b` · `E4`)**.
+surgical write · `G1` · `C-sections`) · 67 (`W7c` · `W7a` · `G3` · `E1`+`E2` · 2 rails) · ⭐ 68 (`C-table` · `C-dialog` · `W7b` · `E4` partial) · ⭐⭐ 69 (`C-tick` · `DEBT-AIB-009` · `C-watch` · `C-outline` · `E4` finished)**.
 Phase A correctness is complete except `W6`/`W7`, which the sweep has now **re-specified** (§4).
-⭐⭐ **Merged through `79f23be63`** — gates coordinator-re-run each time. Tracker **open 61 / done 143**.
+⭐⭐ **Merged through `72f24d326`** — gates coordinator-re-run each time. Tracker **open 61 / done 148**.
 
 ---
 
@@ -94,7 +101,11 @@ propagated four times** *(`DEBT-AIB-012`, below)*.
 
 ---
 
-## 3. ✅ Track C — the panels. ⭐⭐ **DESIGNED. The three decisions are all ruled.**
+## 3. ✅ Track C — the panels. ⭐⭐⭐ **BUILT through Batch 69. Only the VISUAL CHECK remains.**
+
+> ⭐ **`C-sections` (66) · `C-table` + `C-dialog` (68) · `C-tick` + `C-watch` + `C-outline` (69).**
+> ⛔ **Nothing in Track C is designed-but-unbuilt any more.** ⚠ **What is unverified is DRAWING** — see
+> §4A3 and §4A4 tails; that list is now the whole of Track C's remaining risk.
 
 📄 **[`DESIGN_Variable_Details_And_Editing.md`](DESIGN_Variable_Details_And_Editing.md)** *(+ SVG)* —
 ⭐ **that is what gets built.** ⛔ **It supersedes this section and `DESIGN_Variable_Details_And_Live_Values.md` §8.**
@@ -426,6 +437,64 @@ red/yellow tints)* · **the gestures** *(value-cell vs name-cell double-click, t
 
 ---
 
+## 4A4. ✅ Batch 69 — ⭐⭐ **the table is LIVE, and a rail I wrote was VACUOUS**
+
+📄 [`REPORT_Batch69_Tick_Schema_Watch_Outline.md`](REPORT_Batch69_Tick_Schema_Watch_Outline.md).
+⭐ **`C-tick` · `DEBT-AIB-009` · `C-watch` · `C-outline` · `E4` finished.** Gates re-run by me,
+snapshots unchanged, tracker **61 / 148**. Rows `BP-270`–`BP-274`.
+
+### ⭐⭐ `C-tick` — **a SIDE TABLE, not a field**
+
+| the three placements rejected | why |
+|---|---|
+| `BlueprintSlotEntry.InstanceVersion` | it is the **latent-cursor staleness token**. ⛔ **Two meanings on one field is the trap this programme keeps finding** |
+| a NEW field on `BlueprintSlotEntry` | the entry is **exactly 16 bytes with a documented budget** ⇒ growing it shrinks payload in **every** tier, **and** enters the recorded frame — for a counter **no simulation code reads** |
+| `BlueprintBlackboardHeader.Reserved` | **wrong granularity** — per entity-tier, but one entity hosts many slots |
+
+⇒ ⭐⭐ **editor telemetry belongs outside the simulation layout.** 📌 **That choice is what makes
+"`StructureHash` unchanged" STRUCTURAL rather than lucky** — the item adds no byte to any persisted or
+snapshotted shape. ⚠ **Opt-in, default OFF, refcounted** so closing one panel does not disable another;
+allocation-free on the steady path, asserted.
+
+⭐ **Frozen comes free and there is no fifth definition of it:** all four stamps sit inside
+`BlueprintTickSystem.Execute`, which opens `if (deltaTime <= 0f) return;`.
+🔴 **The frozen rail could not even be WRITTEN before this item** — `AssetTick` was `null` on every row.
+⚠ **BTree/HSM rows stay `null` (inert)** — the allowed partial; those hosts need their own stamp point.
+
+### 🔴🔴 My `C-watch` design claim was stale TWICE — and the real defect was underneath
+
+| I wrote | measured |
+|---|---|
+| *"`QuickReloadService:64` hardcodes `CompilerMode.Debug`"* | ⛔ **false** — it reads `asset.EditorMetadata.CompilerMode` |
+| *"Debug emits no `PinValueChanged`"* | ✅ true — **and `AddWatch` already requested `Trace`** |
+| 🔴 **the actual defect** | the request was guarded on `!_debugMaps.ContainsKey(assetId)` ⇒ **set a breakpoint first and the asset HAS a map**, so adding a watch requested **nothing**: `(pending)` forever, ⛔ **indistinguishable from "it has not changed"** |
+
+⇒ ⭐ **Corrected in `DESIGN_Variable_Details_And_Editing.md` §7.** 📌 **Same shape as `G3` (§4A2): my
+citation was wrong AND the thing behind it was worse than I described** — twice now, in the opposite
+direction from Batch 63's lesson.
+
+### ⭐⭐⭐ The silent-default pattern — **now a repo rule**
+
+> **Their verdict, adopted verbatim:** *"what distinguishes the three from the harmless majority is not
+> the default — it is that the caller HELD the value and did not pass it."*
+
+⛔ **Not "ban optional dependencies"** *(every one was deliberately optional)* · ⛔ **not a generic
+detector** *(one was written and thrown away — it flags dozens of correct defaults)*.
+⇒ ⭐ **The control is a forwarding rail PER DEPENDENCY, asserted on the CONSTRUCTED OBJECT.**
+📌 **The first `DEBT-AIB-009` rail was VACUOUS** — it scanned the caller's IL for the type, which the
+registrar mentions **in its own signature** whether or not it forwards. ⭐ **Ask the object, not the
+call site** — Batch 68's `C-dialog` probe taught the same thing one level down.
+📄 **Filed in `.claude/CLAUDE.md`.**
+
+### ⚠ Still unverified — the visual check, now cumulative
+
+**Batch 68's list** *(table drawing, gestures, budget indicator)* **plus:** the **greying** of a stale
+Watch row · pin/unpin gestures · the `Type` column hidden **on screen** · the outline **drawing**,
+its header order and per-section **"+"**. ⭐ **The MEANING is asserted throughout** — which rows exist,
+which section each lands in, what is highlighted, what refuses a dialog.
+
+---
+
 ## 4B. ⏭ Track E — ⭐⭐⭐ **HSM catch-up** *(the gaps, collected)*
 
 > ⛔⛔ **USER RULING `2026-08-16`:** *"the HSM integration is in bad shape now, for long time not updated
@@ -443,7 +512,7 @@ throughout — adopt, do not invent.**
 | ~~`E1`~~ | ✅ **DONE (Batch 67)** — emitter consumes `Role`/`Scope` | `HsmEmitCore` + `HsmBridgeEmitCore`: **0** refs; `BTreeBridgeEmitCore`: **45**. `HsmBlackboardVariableDto` persists both faithfully ⇒ **HSM has NO authored variables at runtime at all** | — ⭐ **the entry point; everything else assumes it** |
 | ~~`E2`~~ | ✅ **DONE (Batch 67)** — slot provisioning, BTree-style | adopt `ComputeStatefulSlotKey` + `BlueprintBlackboardPartitions` — ⭐ **the same allocator Instances and the BTree bridge already share** | `E1` |
 | **`E3`** | ⭐⭐ **occurrence in the action key** | `hash(method @ fieldOffset)` has **no region/state in it** ⇒ concurrent regions running one action **write the same bytes**. ⭐ **`r` and `current` are ALREADY IN SCOPE at the `ExecuteAction` call site** ⇒ a signature widening, not a redesign. ⭐ **the params-base change (§4h) folds into this same seam** | `E2` ⚠ **`FastHSM` `ExtDeps` change** |
-| **`E4`** | ⚠ **wire `HsmValidator` rules 8 / 8b** — ⭐⭐⭐ **FILED as `DEBT-AIB-028`, WITH AN ACTIVATION RECIPE** *(found Batch 67)*: *"(b) `_isStatefulSubtree` defaults to `_ => false` and production never supplies a real resolver; (c) the production `HsmAssetValidator` entry point isn't threaded… wire `id => catalog.TryFind(id,out a) && a.HasAnyStatefulNode()` through the production validator ctor."* ⇒ ⛔ **do not re-derive it** | correct errors, but injected resolvers default to `_ => false` / `_ => Empty` and **both production call sites use the default ctor** ⇒ never fire. XML doc says *"Production should wire this"* | ⭐ **do BEFORE `E5`** — the guard should be honest before the runtime makes the hazard real |
+| ~~`E4`~~ | ✅ **DONE — (b)+(c) Batch 68, `sharedScopeKeys` Batch 69.** ⚠ **Rules 8/8b still will not fire on assets LOADED FROM DISK** until `-028`(a) persists `StateNode.SubtreeAssetId` — ⭐ **expected, and it is `E5`'s prerequisite, not an `E4` gap.** *(original entry:)* ⚠ **wire `HsmValidator` rules 8 / 8b** — ⭐⭐⭐ **FILED as `DEBT-AIB-028`, WITH AN ACTIVATION RECIPE** *(found Batch 67)*: *"(b) `_isStatefulSubtree` defaults to `_ => false` and production never supplies a real resolver; (c) the production `HsmAssetValidator` entry point isn't threaded… wire `id => catalog.TryFind(id,out a) && a.HasAnyStatefulNode()` through the production validator ctor."* ⇒ ⛔ **do not re-derive it** | correct errors, but injected resolvers default to `_ => false` / `_ => Empty` and **both production call sites use the default ctor** ⇒ never fire. XML doc says *"Production should wire this"* | ⭐ **do BEFORE `E5`** — the guard should be honest before the runtime makes the hazard real |
 | **`E5`** | ⭐⭐ **subtree hosting runtime** — 🔴 **NEW PREREQUISITE (Batch 67): `StateNode.SubtreeAssetId` is NOT PERSISTED.** `DEBT-AIB-028`(a): *"a NEW field, not persisted to JSON, and no real HSM asset sets it."* ⇒ **persist it FIRST.** 📌 `DEBT-AIB-029`: the check walks **DIRECT children only** — deeper nesting undetected | `SubtreeAssetId` is read **only** by `HsmValidator`; FastHSM kernel **0**, HSM emitters **0**, shipped assets **0**. ⇒ ⭐⭐⭐ **serves TWO rulings at once** — HSM-over-BTree composition **and** the latent sub-behaviour decision *(`#33` §1.5.4: `C`, subtree not action)* | `E3`, `E4` |
 | **`E6`** | **`W9`** — simple-name hash | `HsmActionGenerator:517/630` — `ComputeHash(action.Name)`; `MethodInfo` carries `FullName` too. ⚠ **TWO re-bake sites**, reconciled *"in lockstep via shared `ResolveStatefulSlotKey`"* | independent |
 | **`E7a`** | ⭐ **wired params — host context on the resolver** | ⛔ **RE-SCOPED `2026-08-16`; no longer needs a design call.** ⭐⭐ **Neither host has input wiring** — a BTree node binds a **field of the behaviour's params struct**, whose value **the resolver wrote at activation** ⇒ *"resolver fills, nodes read"* is already universal. **A resolver already has `world` + `self` and can reach any component; what is missing is ADDRESSING** — it cannot name *"my parent's `TargetPos`"*. ⇒ **pass a host context (variable accessor) alongside `world, self`**, ⚠ **by NAME, never raw offset** (`StructureHash`-versioned). ⛔ **Not a second supply mechanism** *(ruling 9)* | `E5` |
@@ -550,26 +619,26 @@ missing, not the analysis.** 📌 **Filed, not numbered** (rule 3).
 
 ## 7. ⭐ Order *(revised `2026-08-16`)*
 
-⭐⭐ **DONE: Track B + `S5` (65) · `G4` · surgical write · `G1` · `C-sections` (66) · `W7c` · `W7a` · `G3` · `E1`+`E2` · latency rail (67).**
-⭐⭐ **68: `C-table` · `C-dialog` · `W7b` · `E4`.**
-⇒ next: 🔴 **`C-tick`** *(the highlight is inert without it)* · ⭐ **`DEBT-AIB-009`** *(Track C's ground truth)* · **`C-watch`** · **`C-outline`** · **`E0`** *(the HSM harness)* ·
-⭐ **Track C**, now leading with **`C-sections`** *(split Variables per kind — §4g's ruling)*, then
-table → dialog → Watch → **`C-outline`** *(BTree/HSM supply their own section list)* →
-**`G1`** *(the split — ⭐ now load-bearing for blueprints too)* → **`G3`** *(service singletons)* →
-⭐ **the Instance params seam** *(§4g: params in the slot · attach carries a payload · resolve-before-commit)* →
-⭐ **blueprint multi-occurrence** *(§4h: `(blueprintId, instanceKey)` — `D2`, now in scope)* →
-⭐ **`E1` — the HSM emitter slice** *(`Role`/`Scope`, without which HSM has no authored inputs at all)* →
-⭐ **`W7c` → `W7a` → `W7b`** *(re-derived §4i; **`W6` DROPPED**)* → **`G7`+`W10` as ONE picker** →
-⭐⭐ **Track E, the HSM catch-up (§4B)**: `E2` → `E4` → `E3` → `E5` → `E7a` → `E6` · `E7b`
-*(`W9` is `E6`; ⭐ **`W11` re-scoped into `E7a` + `E7b` — no design call needed**)*.
+⭐⭐ **DONE: Track B + `S5` (65) · `G4` · surgical write · `G1` · `C-sections` (66) · `W7c` · `W7a` ·
+`G3` · `E1`+`E2` · latency rail (67) · `C-table` · `C-dialog` · `W7b` (68) · `C-tick` · `DEBT-AIB-009` ·
+`C-watch` · `C-outline` · `E4` (69).**
+⛔⛔ **TRACK B, TRACK C AND TRACK D's `G`-list ARE ALL CLOSED except `G7`+`W10`.** ⇒ **what is left is
+exactly three things**, and they are independent of one another:
+
+| ⭐ next | what | why now |
+|---|---|---|
+| ⭐⭐⭐ **the PARAMETER SEAM** | **`DEBT-AIB-021`** *(the generated `ParseParams` ignores incoming JSON)* → **the Instance params seam** *(§4g: params in the slot · attach carries a payload · resolve-before-commit)* → ⭐ **blueprint multi-occurrence** *(§4h: `(blueprintId, instanceKey)` — `D2`, now in scope)* | ⭐ **the whole reason the parameter model was designed.** `-021` is its precondition — an overlay that never applies makes the seam untestable |
+| **`G7`+`W10` as ONE picker** | the last surviving `G`-row | small, independent, and it removes the second list `S5` half-fixed |
+| ⭐⭐ **Track E (§4B)** | **`E0` FIRST** *(the HSM golden harness — its own batch, ruled)* → `E3` → `E5` → `E7a` → `E6` · `E7b` | ⛔ **`E3`/`E6` change emitted output with NO golden gate watching** ⇒ `E0` is a prerequisite, not a nicety |
+
+📌 **`W9` is `E6`; `W11` re-scoped into `E7a` + `E7b`; `W6` DROPPED; `W8`/`W12` were duplicates.**
 
 📌 **The latency rail (§4B tail) is independent** — compiler-side, and it guards a **silent wrong
 answer**, so it can land any time after Track B.
 
-⭐⭐ **`2026-08-16` — the HSM emitter slice enters the queue.** `HsmEmitCore`/`HsmBridgeEmitCore` read
-**0** `Role`/`Scope`; `BTreeBridgeEmitCore` reads **45** ⇒ *"multi-field editor-authored inputs for
-BTree **and HSM**"* — the stated goal — **cannot work on HSM until this lands.** It needs nothing from
-the parked brain-tier work. ⇒ **inserted after `G3`.**
+✅ **The HSM emitter slice (`E1`) SHIPPED in Batch 67** — kept here for the reasoning that queued it:
+`HsmEmitCore`/`HsmBridgeEmitCore` read **0** `Role`/`Scope` against `BTreeBridgeEmitCore`'s **45**, so
+*"multi-field editor-authored inputs for BTree **and HSM**"* could not work on HSM at all.
 
 📌 Still filed, not fixed: **`BP-241`** · **`BP-242`** · the **`Fdp.Toolkits.Tests` race**.
 
