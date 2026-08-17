@@ -149,8 +149,12 @@ public static class BTreeBridgeEmitCore
         // System.Text.Json ignores public fields by default (only serializes public properties).
         // The options object is emitted as a private static readonly field so it is allocated once
         // per bridge class (not per ParseParams invocation) and can be captured by the static lambda.
+        // ⭐ DEBT-AIB-021: the condition is "does this asset emit a ParseParams", and since Batch 70
+        //   that is "managed with ≥1 packed variable" -- NOT "≥1 default". ⛔ Keying it on defaults was
+        //   the same mistake as defect (b) one level up: an asset with variables but no defaults now
+        //   emits an overlay that needs these options.
         bool needsJsonOpts = dto.Blackboard.Managed
-                             && dto.Blackboard.Variables.Any(v => v.DefaultValueJson != null);
+                             && dto.Blackboard.Variables.Count > 0;
         if (needsJsonOpts)
         {
             sb.AppendLine($"{Indent}// JSON options for ParseParams — the platform-canonical options (IncludeFields,");
@@ -1181,19 +1185,47 @@ public static class BTreeBridgeEmitCore
     }
 
     /// <summary>
-    /// Emits a local variable <c>__parseParams</c> of type <c>ParseParamsDelegate?</c>
-    /// capturing the baked-default writes for all variables that carry a non-null <c>DefaultValueJson</c>.
+    /// ⭐⭐⭐ <b><c>DEBT-AIB-021</c> — the generated <c>ParseParams</c> honours the incoming JSON.</b>
     ///
-    /// The local is emitted inside an <c>unsafe { ... }</c> block so the <c>byte*</c>
-    /// parameter in the lambda is legal even in projects that don't set
-    /// <c>&lt;AllowUnsafeBlocks&gt;true&lt;/AllowUnsafeBlocks&gt;</c> globally — the existing
-    /// action thunks use <c>unsafe { ... }</c> scopes for the same reason.
+    /// <para>
+    /// 📄 <c>DESIGN_Parameter_Model.md</c> §3.2: <i>"defaults are baked, scenario JSON overlays them,
+    /// runtime wins."</i> ⭐ <b>The SEQUENCE is the ruling</b>, and it is the order emitted below.
+    /// ⚠ That sentence was true of the CURATED path and false of this one — which is what the debt row
+    /// records.
+    /// </para>
     ///
-    /// Returns <c>true</c> when the local was emitted (≥1 variable had a default); the caller
-    /// then adds <c>ParseParams = __parseParams,</c> to the <c>BehaviorDefinition</c> initializer.
+    /// <h3>🔴 The TWO defects this closes</h3>
+    /// <list type="number">
+    ///   <item><description><b>The lambda ignored <c>json</c> entirely.</b> Its own comment said so.
+    ///   ⇒ a per-assignment override was silently discarded.</description></item>
+    ///   <item><description>⭐⭐ <b>The EMIT GUARD was <c>defaults.Count == 0</c></b>, and
+    ///   <c>defaults</c> counted only variables with a non-null <c>DefaultValueJson</c>. ⇒ ⛔⛔ <b>an
+    ///   asset whose variables have NO defaults emitted NO <c>ParseParams</c> at all</b>, so fixing the
+    ///   first defect alone would have left those assets exactly as broken. The guard is now
+    ///   <b>≥1 packed managed variable</b>.</description></item>
+    /// </list>
     ///
-    /// Guard: only emits when <paramref name="dto"/>.Blackboard.Managed AND ≥1 variable
-    /// has a non-null DefaultValueJson, so non-managed or all-null-default assets are unchanged.
+    /// <h3>⭐ The decided behaviours</h3>
+    /// <list type="table">
+    ///   <item><term>absent key</term><description>the baked default stands — that is what "overlay"
+    ///   means</description></item>
+    ///   <item><term>⭐⭐ unknown key</term><description><b>IGNORED, not an error</b> — ⛔ because the
+    ///   CURATED path already ignores them: <c>JsonSerializer.Deserialize&lt;TDto&gt;</c> drops unmapped
+    ///   members unless <c>UnmappedMemberHandling</c> says otherwise. <b>Ruling 9: one mechanism, one
+    ///   behaviour.</b> ⚠ Pinned by a DECISION test so a later batch does not "fix" it</description></item>
+    ///   <item><term>empty / null <c>json</c></term><description>defaults only — the shipped behaviour,
+    ///   byte-identical</description></item>
+    ///   <item><term>⛔ malformed <c>json</c></term><description><b>throws, deliberately.</b>
+    ///   <c>BehaviorIngressSystem</c> parses into a stack shadow and commits only on success, so a
+    ///   throw is exactly what leaves the entity on its old behaviour. ⚠ Swallowing would look tidier
+    ///   and hand it a successful-looking all-zero params region — the same reasoning as
+    ///   <c>BehaviorParams.FromJson</c> (<c>G1</c>)</description></item>
+    /// </list>
+    ///
+    /// <para>
+    /// The local is emitted inside an <c>unsafe { … }</c> block so the <c>byte*</c> parameter is legal
+    /// even where <c>AllowUnsafeBlocks</c> is not set globally — the action thunks do the same.
+    /// </para>
     /// </summary>
     private static bool EmitParseParamsLocal(
         StringBuilder sb,
@@ -1206,7 +1238,7 @@ public static class BTreeBridgeEmitCore
         foreach (var f in packedFields)
             offsetMap[f.Name] = f;
 
-        // Collect variables that have a non-null DefaultValueJson AND appear in the packed fields.
+        // Baked defaults: variables carrying a non-null DefaultValueJson that are also packed.
         var defaults = new List<(BTreeBlackboardPackHelper.PackedField Field, string DefaultJson)>();
         foreach (var v in dto.Blackboard.Variables)
         {
@@ -1215,24 +1247,26 @@ public static class BTreeBridgeEmitCore
             defaults.Add((field, v.DefaultValueJson));
         }
 
-        if (defaults.Count == 0) return false;
+        // ⭐⭐ DEFECT (b): the guard used to be `defaults.Count == 0`, so an asset whose variables had
+        //    no defaults emitted NO ParseParams at all and could never be overridden. The overlay is
+        //    useful for EVERY packed managed variable, default or not.
+        if (packedFields.Count == 0) return false;
 
-        // Emit the ParseParams lambda in an unsafe block so the byte* parameter is legal.
-        // The lambda body ignores the incoming json arg (runtime override is DEBT-AIB-021).
-        // Each default DTO is deserialized and written at its packed byte offset via Unsafe.Write.
         string pad3 = pad2 + Indent;       // inside the unsafe { }
         string pad4 = pad3 + Indent;       // inside the lambda body
         string pad5 = pad4 + Indent;       // inside each { } block per variable
+        string pad6 = pad5 + Indent;       // inside a switch case
 
-        sb.AppendLine($"{pad2}// 4a. Baked parameter defaults for managed blackboard variables (DEBT-AIB-013 fix).");
+        sb.AppendLine($"{pad2}// 4a. Managed parameter supply: bake defaults, then overlay from json (DEBT-AIB-021).");
         sb.AppendLine($"{pad2}// ParseParamsDelegate uses byte* — must be captured in an unsafe block.");
         sb.AppendLine($"{pad2}global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams;");
         sb.AppendLine($"{pad2}unsafe");
         sb.AppendLine($"{pad2}{{");
         sb.AppendLine($"{pad3}__parseParams = static (string json, byte* memory, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>");
         sb.AppendLine($"{pad3}{{");
-        sb.AppendLine($"{pad4}// NOTE: runtime per-assignment JSON override of individual managed variables");
-        sb.AppendLine($"{pad4}// is not yet supported — only baked defaults are written. DEBT-AIB-021.");
+
+        // ── step 1: bake the defaults ────────────────────────────────────────────
+        sb.AppendLine($"{pad4}// Step 1 — baked defaults. DESIGN_Parameter_Model.md §3.2: the ORDER is the ruling.");
         foreach (var (field, defaultJson) in defaults)
         {
             string dtoTypeFqn = DtoTypeToGlobal(field.TypeId);
@@ -1242,6 +1276,39 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad5}global::System.Runtime.CompilerServices.Unsafe.Write(memory + {field.ByteOffset}, __v);");
             sb.AppendLine($"{pad4}}}");
         }
+
+        // ── step 2: overlay from the incoming json ───────────────────────────────
+        sb.AppendLine();
+        sb.AppendLine($"{pad4}// Step 2 — overlay. A wrapper object keyed by VARIABLE NAME, dispatched to each");
+        sb.AppendLine($"{pad4}// variable's deserializer (DEBT-AIB-021 names this shape).");
+        sb.AppendLine($"{pad4}// ⛔ Malformed json THROWS on purpose: the ingress parses into a stack shadow and");
+        sb.AppendLine($"{pad4}//    commits only on success, so a throw leaves the entity on its old behaviour.");
+        sb.AppendLine($"{pad4}if (!string.IsNullOrWhiteSpace(json))");
+        sb.AppendLine($"{pad4}{{");
+        sb.AppendLine($"{pad5}using var __doc = global::System.Text.Json.JsonDocument.Parse(json);");
+        sb.AppendLine($"{pad5}if (__doc.RootElement.ValueKind == global::System.Text.Json.JsonValueKind.Object)");
+        sb.AppendLine($"{pad5}{{");
+        sb.AppendLine($"{pad5}{Indent}foreach (var __prop in __doc.RootElement.EnumerateObject())");
+        sb.AppendLine($"{pad5}{Indent}{{");
+        sb.AppendLine($"{pad5}{Indent}{Indent}switch (__prop.Name)");
+        sb.AppendLine($"{pad5}{Indent}{Indent}{{");
+        foreach (var f in packedFields)
+        {
+            string dtoTypeFqn = DtoTypeToGlobal(f.TypeId);
+            sb.AppendLine($"{pad5}{Indent}{Indent}{Indent}case \"{EscapeCSharpStringLiteral(f.Name)}\":");
+            sb.AppendLine($"{pad5}{Indent}{Indent}{Indent}{{");
+            sb.AppendLine($"{pad5}{Indent}{Indent}{Indent}{Indent}var __o = global::System.Text.Json.JsonSerializer.Deserialize<{dtoTypeFqn}>(__prop.Value.GetRawText(), __paramJsonOpts);");
+            sb.AppendLine($"{pad5}{Indent}{Indent}{Indent}{Indent}global::System.Runtime.CompilerServices.Unsafe.Write(memory + {f.ByteOffset}, __o);");
+            sb.AppendLine($"{pad5}{Indent}{Indent}{Indent}{Indent}break;");
+            sb.AppendLine($"{pad5}{Indent}{Indent}{Indent}}}");
+        }
+        sb.AppendLine($"{pad5}{Indent}{Indent}{Indent}// ⭐ Unknown key: IGNORED, matching the curated path's own behaviour.");
+        sb.AppendLine($"{pad5}{Indent}{Indent}{Indent}default: break;");
+        sb.AppendLine($"{pad5}{Indent}{Indent}}}");
+        sb.AppendLine($"{pad5}{Indent}}}");
+        sb.AppendLine($"{pad5}}}");
+        sb.AppendLine($"{pad4}}}");
+
         sb.AppendLine($"{pad3}}};");
         sb.AppendLine($"{pad2}}}");
         sb.AppendLine();
