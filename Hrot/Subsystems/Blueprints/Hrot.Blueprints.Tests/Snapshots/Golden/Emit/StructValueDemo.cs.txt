@@ -41,6 +41,9 @@ public static class StructValueDemo_D97FEF92_Bp
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<State>();
     
+    public const int ParamsOffset = 16;
+    public static int ParamsSize => 0;
+    
     public static void InitDefault(global::System.Span<byte> stateBytes)
     {
         ref var s = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, State>(
@@ -110,6 +113,8 @@ public static class BlueprintRegistrar_StructValueDemo_D97FEF92_Bp
             StateClrType = typeof(StructValueDemo_D97FEF92_Bp.State),
             InitDefault = StructValueDemo_D97FEF92_Bp.InitDefault,
             Tick = StructValueDemo_D97FEF92_Bp.TickThunk,
+            ParamsOffset = StructValueDemo_D97FEF92_Bp.ParamsOffset,
+            ParamsSize = StructValueDemo_D97FEF92_Bp.ParamsSize,
             StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
             {
                 ["OutHealth"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("OutHealth", typeof(int), 16, 4, ""),

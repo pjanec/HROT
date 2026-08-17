@@ -35,6 +35,9 @@ public static class Count4_F44891A7_Bp
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<State>();
     
+    public const int ParamsOffset = 16;
+    public static int ParamsSize => 0;
+    
     public static void InitDefault(global::System.Span<byte> stateBytes)
     {
         ref var s = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, State>(
@@ -135,6 +138,8 @@ public static class BlueprintRegistrar_Count4_F44891A7_Bp
             StateClrType = typeof(Count4_F44891A7_Bp.State),
             InitDefault = Count4_F44891A7_Bp.InitDefault,
             Tick = Count4_F44891A7_Bp.TickThunk,
+            ParamsOffset = Count4_F44891A7_Bp.ParamsOffset,
+            ParamsSize = Count4_F44891A7_Bp.ParamsSize,
             StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
             {
                 ["Count"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("Count", typeof(int), 16, 4, ""),

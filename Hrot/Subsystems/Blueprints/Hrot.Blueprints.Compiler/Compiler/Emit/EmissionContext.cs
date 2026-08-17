@@ -113,7 +113,26 @@ internal sealed class EmissionContext
     /// <c>GetVariable</c> emitted <c>{state}.…</c> even when it resolved a name.
     /// </summary>
     public string ContainerVarFor(VariableKind kind)
-        => kind == VariableKind.Parameter ? "p" : StateVar;
+        => kind == VariableKind.Parameter ? ParamsVar : StateVar;
+
+    /// <summary>
+    /// ⭐⭐⭐ Batch 70 / <c>DESIGN_Parameter_Model.md</c> §3.3 — <b>the expression that names the params
+    /// region, per dispatch kind.</b>
+    ///
+    /// <para>
+    /// An AiPrimitive's params are their own struct, handed to the thunk as <c>p</c>. ⭐ An
+    /// <b>Instance</b> has no such parameter: its payload is ONE struct, and the params live inside it
+    /// between the cursor and the state (<c>[Cursor 16][Params N][State M]</c>) ⇒ <c>s.Params</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ Before this, an Instance emitted a bare <c>p</c> for a parameter read — an identifier nothing
+    /// declares — so an Instance with a parameter produced <b>CS0103 in generated code</b>. Unreachable
+    /// only because no shipped Instance carries one.
+    /// </para>
+    /// </summary>
+    public string ParamsVar =>
+        Asset.Dispatch == AssetDispatch.AiPrimitive ? "p" : $"{StateVar}.Params";
 
 
     /// <summary>

@@ -38,6 +38,9 @@ public static class HealthRegen_9EC49CD9_Bp
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<State>();
     
+    public const int ParamsOffset = 16;
+    public static int ParamsSize => 0;
+    
     public static void InitDefault(global::System.Span<byte> stateBytes)
     {
         ref var s = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, State>(
@@ -89,6 +92,8 @@ public static class BlueprintRegistrar_HealthRegen_9EC49CD9_Bp
             StateClrType = typeof(HealthRegen_9EC49CD9_Bp.State),
             InitDefault = HealthRegen_9EC49CD9_Bp.InitDefault,
             Tick = HealthRegen_9EC49CD9_Bp.TickThunk,
+            ParamsOffset = HealthRegen_9EC49CD9_Bp.ParamsOffset,
+            ParamsSize = HealthRegen_9EC49CD9_Bp.ParamsSize,
             StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
             {
                 ["CurrentHealth"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("CurrentHealth", typeof(float), 16, 4, ""),

@@ -41,6 +41,9 @@ public static class SmokePatrol_81DFFF32_Bp
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<State>();
     
+    public const int ParamsOffset = 16;
+    public static int ParamsSize => 0;
+    
     public static void InitDefault(global::System.Span<byte> stateBytes)
     {
         ref var s = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, State>(
@@ -115,6 +118,8 @@ public static class BlueprintRegistrar_SmokePatrol_81DFFF32_Bp
             StateClrType = typeof(SmokePatrol_81DFFF32_Bp.State),
             InitDefault = SmokePatrol_81DFFF32_Bp.InitDefault,
             Tick = SmokePatrol_81DFFF32_Bp.TickThunk,
+            ParamsOffset = SmokePatrol_81DFFF32_Bp.ParamsOffset,
+            ParamsSize = SmokePatrol_81DFFF32_Bp.ParamsSize,
             StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
             {
                 ["PatrolSpeed"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("PatrolSpeed", typeof(int), 16, 4, ""),

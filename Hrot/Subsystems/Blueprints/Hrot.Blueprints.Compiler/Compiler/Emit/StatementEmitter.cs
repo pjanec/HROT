@@ -52,7 +52,10 @@ internal static class StatementEmitter
                 break;
 
             case IrOp_ReadParam op:
-                if (idx >= 0) e.WriteLine($"var __t{idx} = p.{ctx.ParamFieldName(op.ParamIndex)};");
+                // ⭐ Batch 70 — the params region is named per dispatch kind (`p` for an AiPrimitive,
+                //   `s.Params` for an Instance). It used to be a hardcoded `p`, which no Instance
+                //   declares. See EmissionContext.ParamsVar.
+                if (idx >= 0) e.WriteLine($"var __t{idx} = {ctx.ParamsVar}.{ctx.ParamFieldName(op.ParamIndex)};");
                 break;
 
             case IrOp_ReadVariable op:

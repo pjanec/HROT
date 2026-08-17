@@ -35,6 +35,9 @@ public static class DoorActor_FFB212F0_Bp
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<State>();
     
+    public const int ParamsOffset = 16;
+    public static int ParamsSize => 0;
+    
     public static void InitDefault(global::System.Span<byte> stateBytes)
     {
         ref var s = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, State>(
@@ -85,6 +88,8 @@ public static class BlueprintRegistrar_DoorActor_FFB212F0_Bp
             StateClrType = typeof(DoorActor_FFB212F0_Bp.State),
             InitDefault = DoorActor_FFB212F0_Bp.InitDefault,
             Tick = DoorActor_FFB212F0_Bp.TickThunk,
+            ParamsOffset = DoorActor_FFB212F0_Bp.ParamsOffset,
+            ParamsSize = DoorActor_FFB212F0_Bp.ParamsSize,
             StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
             {
                 ["IsOpen"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("IsOpen", typeof(bool), 16, 1, ""),

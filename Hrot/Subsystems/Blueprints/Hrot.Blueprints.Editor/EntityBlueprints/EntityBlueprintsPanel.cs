@@ -209,7 +209,10 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
         else
         {
             foreach (var evt in plan.RemoveEvents) _world.Bus.Publish(evt);
-            foreach (var evt in plan.AttachEvents) _world.Bus.Publish(evt);
+            // ⭐ Batch 70 — the attach event is managed now (it carries params JSON), so it rides the
+            //   managed bus. The plan built in the editor is the OTHER producer of this event; it
+            //   supplies no params, so the blueprint's declared defaults stand.
+            foreach (var evt in plan.AttachEvents) _world.Bus.PublishManaged(evt);
         }
     }
 

@@ -32,6 +32,9 @@ public static class InlineEd1_ACE07905_Bp
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<State>();
     
+    public const int ParamsOffset = 16;
+    public static int ParamsSize => 0;
+    
     public static void InitDefault(global::System.Span<byte> stateBytes)
     {
         ref var s = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, State>(
@@ -83,6 +86,8 @@ public static class BlueprintRegistrar_InlineEd1_ACE07905_Bp
             StateClrType = typeof(InlineEd1_ACE07905_Bp.State),
             InitDefault = InlineEd1_ACE07905_Bp.InitDefault,
             Tick = InlineEd1_ACE07905_Bp.TickThunk,
+            ParamsOffset = InlineEd1_ACE07905_Bp.ParamsOffset,
+            ParamsSize = InlineEd1_ACE07905_Bp.ParamsSize,
         });
     }
 }

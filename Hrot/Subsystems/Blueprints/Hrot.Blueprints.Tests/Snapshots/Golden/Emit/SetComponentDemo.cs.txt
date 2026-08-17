@@ -35,6 +35,9 @@ public static class SetComponentDemo_D04431AF_Bp
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<State>();
     
+    public const int ParamsOffset = 16;
+    public static int ParamsSize => 0;
+    
     public static void InitDefault(global::System.Span<byte> stateBytes)
     {
         ref var s = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, State>(
@@ -96,6 +99,8 @@ public static class BlueprintRegistrar_SetComponentDemo_D04431AF_Bp
             StateClrType = typeof(SetComponentDemo_D04431AF_Bp.State),
             InitDefault = SetComponentDemo_D04431AF_Bp.InitDefault,
             Tick = SetComponentDemo_D04431AF_Bp.TickThunk,
+            ParamsOffset = SetComponentDemo_D04431AF_Bp.ParamsOffset,
+            ParamsSize = SetComponentDemo_D04431AF_Bp.ParamsSize,
             StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
             {
                 ["OutWritten"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("OutWritten", typeof(bool), 16, 1, ""),

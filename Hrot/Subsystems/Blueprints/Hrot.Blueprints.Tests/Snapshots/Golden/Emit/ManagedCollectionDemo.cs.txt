@@ -50,6 +50,9 @@ public static class ManagedCollectionDemo_23325F21_Bp
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<State>();
     
+    public const int ParamsOffset = 16;
+    public static int ParamsSize => 0;
+    
     public static void InitDefault(global::System.Span<byte> stateBytes)
     {
         ref var s = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, State>(
@@ -153,6 +156,8 @@ public static class BlueprintRegistrar_ManagedCollectionDemo_23325F21_Bp
             StateClrType = typeof(ManagedCollectionDemo_23325F21_Bp.State),
             InitDefault = ManagedCollectionDemo_23325F21_Bp.InitDefault,
             Tick = ManagedCollectionDemo_23325F21_Bp.TickThunk,
+            ParamsOffset = ManagedCollectionDemo_23325F21_Bp.ParamsOffset,
+            ParamsSize = ManagedCollectionDemo_23325F21_Bp.ParamsSize,
             StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
             {
                 ["LoopLastItem"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("LoopLastItem", typeof(int), 16, 4, ""),

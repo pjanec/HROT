@@ -165,17 +165,24 @@ internal sealed class V_DispatchKindCompatibility : IValidator
                 if (asset.Primitive is not null)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1030,
                         "Instance asset must not have a 'primitive' block.", asset.AssetId));
-                // U-12 — SPLIT: the `WorkingState` half is gone, the `Parameter` half survives.
-                // ⭐ The two halves were never the same rule. `WorkingState` and `Variable` are one
-                // cell, (State, Asset), so refusing an Instance's WorkingState was a spelling rule
-                // exactly like BP1024. `Parameter` is (Input, Asset) — a genuinely different thing,
-                // a spawn-time input the Instance dispatch has no way to supply — so that half is a
-                // real rail and keeps the code.
-                // ⚠ Measured: 0 of the 23 shipped Instance assets carry either.
-                if (asset.Declarations.CountIn(DeclarationKind.Parameter) > 0)
-                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1031,
-                        "Instance asset must not declare parameters; nothing supplies them at spawn.",
-                        asset.AssetId));
+                // ⛔⛔ BP1031 RETIRED here (Batch 70, the Instance params seam). U-12 had already
+                // dropped its `WorkingState` half as a spelling rule; what survived was the
+                // `Parameter` half, and its message stated its own reason verbatim: "nothing
+                // supplies them at spawn."
+                //
+                // ⭐⭐ That reason is no longer true. DESIGN_Parameter_Model.md §3.3 rules that
+                // "Instances could and should reuse the param parsing and resolving", and the seam
+                // that implements it supplies exactly that: AttachInstanceBlueprintEvent carries the
+                // params JSON, BlueprintDefinition.ParseParams resolves it (the SAME delegate the
+                // behaviour path uses), and BlueprintInstanceService.AttachToEntity parses before it
+                // commits. The payload is [BlueprintLatentCursor 16][Params N][State M].
+                //
+                // ⚠ Leaving the rule standing would have made the whole seam UNREACHABLE — a
+                // producer with no consumer, which is the "inert rule" shape this programme keeps
+                // filing (DEBT-AIB-028, trap #5) rather than shipping.
+                //
+                // ⭐ Kept defined so the number is not reused; listed in the coverage ratchet as
+                // RETIRED, on BP1024's precedent.
                 break;
         }
     }

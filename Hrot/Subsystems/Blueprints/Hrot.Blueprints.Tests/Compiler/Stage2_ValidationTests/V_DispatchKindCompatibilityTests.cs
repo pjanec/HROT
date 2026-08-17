@@ -258,21 +258,35 @@ public sealed class V_DispatchKindCompatibilityTests
     }
 
     /// <summary>
-    /// ⭐ <b><c>U-12</c> Pass 2 — the surviving half.</b> A <c>Parameter</c> is <c>(Input, Asset)</c>:
-    /// a spawn-time input the Instance dispatch has no way to supply. That is a real rail.
+    /// ⭐⭐⭐ <b>Batch 70 — <c>BP1031</c> is RETIRED, and this assertion is INVERTED.</b>
+    ///
+    /// <para>
+    /// <c>U-12</c> kept the <c>Parameter</c> half on the reasoning <i>"a spawn-time input the Instance
+    /// dispatch has no way to supply"</i> — the rule's own message said so. 🔴 <b>The Instance params
+    /// seam supplies it</b> (<c>DESIGN_Parameter_Model.md</c> §3.3): the attach event carries the JSON,
+    /// <c>BlueprintDefinition.ParseParams</c> resolves it through the SAME delegate a behaviour uses,
+    /// and the payload reserves <c>[Cursor 16][Params N][State M]</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ Leaving it standing would have made the seam unreachable — the "inert rule" shape this
+    /// programme keeps filing rather than shipping. ⭐ Inverted rather than deleted, so the retirement
+    /// is asserted rather than merely uncommented.
+    /// </para>
     /// </summary>
     [Fact]
-    [CoversDiagnosticCode("BP1031")]
-    public void Instance_WithParams_EmitsBP1031()
+    public void Instance_WithParams_NoLongerEmitsBP1031()
     {
         var asset = BlueprintAssetBuilder
             .Instance("I")
             .WithParameter("p", typeof(int))
+            .WithGraph("Tick", g => g.Entry().Return())
             .Build();
 
         var diags = Validate(asset);
 
-        Assert.Contains(diags, d => d.Code == DiagnosticCodes.BP1031);
+        Assert.DoesNotContain(diags, d => d.Code == DiagnosticCodes.BP1031);
+        Assert.DoesNotContain(diags, d => d.Severity == DiagnosticSeverity.Error);
     }
 
     /// <summary>

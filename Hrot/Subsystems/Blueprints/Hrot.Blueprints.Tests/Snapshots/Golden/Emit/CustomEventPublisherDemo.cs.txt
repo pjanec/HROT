@@ -32,6 +32,9 @@ public static class CustomEventPublisherDemo_50DE5698_Bp
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<State>();
     
+    public const int ParamsOffset = 16;
+    public static int ParamsSize => 0;
+    
     public static void InitDefault(global::System.Span<byte> stateBytes)
     {
         ref var s = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, State>(
@@ -92,6 +95,8 @@ public static class BlueprintRegistrar_CustomEventPublisherDemo_50DE5698_Bp
             StateClrType = typeof(CustomEventPublisherDemo_50DE5698_Bp.State),
             InitDefault = CustomEventPublisherDemo_50DE5698_Bp.InitDefault,
             Tick = CustomEventPublisherDemo_50DE5698_Bp.TickThunk,
+            ParamsOffset = CustomEventPublisherDemo_50DE5698_Bp.ParamsOffset,
+            ParamsSize = CustomEventPublisherDemo_50DE5698_Bp.ParamsSize,
         });
     }
 }

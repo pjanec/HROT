@@ -227,7 +227,7 @@ public sealed class BlueprintScenarioIntegrationTests : IDisposable
         Assert.Equal(1, ReadCount(_repo, entity, bpIdA));
 
         // Publish replace event + swap buffers so Read<T> sees it
-        _repo.Bus.Publish(new ReplaceInstanceBlueprintEvent
+        _repo.Bus.PublishManaged(new ReplaceInstanceBlueprintEvent
         {
             Entity = entity,
             OldBlueprintId = bpIdA,

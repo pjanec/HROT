@@ -44,6 +44,9 @@ public static class GetComponentTargetDemo_C263C82C_Bp
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<State>();
     
+    public const int ParamsOffset = 16;
+    public static int ParamsSize => 0;
+    
     public static void InitDefault(global::System.Span<byte> stateBytes)
     {
         ref var s = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, State>(
@@ -104,6 +107,8 @@ public static class BlueprintRegistrar_GetComponentTargetDemo_C263C82C_Bp
             StateClrType = typeof(GetComponentTargetDemo_C263C82C_Bp.State),
             InitDefault = GetComponentTargetDemo_C263C82C_Bp.InitDefault,
             Tick = GetComponentTargetDemo_C263C82C_Bp.TickThunk,
+            ParamsOffset = GetComponentTargetDemo_C263C82C_Bp.ParamsOffset,
+            ParamsSize = GetComponentTargetDemo_C263C82C_Bp.ParamsSize,
             StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
             {
                 ["TargetEntity"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("TargetEntity", typeof(global::Fdp.Core.Entity), 16, 8, ""),

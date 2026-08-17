@@ -560,6 +560,13 @@ internal sealed class CSharpEmitter
         WriteLine($"StateClrType = typeof({className}.State),");
         WriteLine($"InitDefault = {className}.InitDefault,");
         WriteLine($"Tick = {className}.TickThunk,");
+        // ⭐⭐ Batch 70 / §3.3 — where the params region sits inside the payload, and how big it is.
+        //    ⛔ Emitted rather than re-derived: `16` has one home (FieldLayout), and a runtime call
+        //    site recomputing it is exactly the drift this seam exists to prevent.
+        WriteLine($"ParamsOffset = {className}.ParamsOffset,");
+        WriteLine($"ParamsSize = {className}.ParamsSize,");
+        if (asset.Parameters.Count > 0)
+            WriteLine($"ParseParams = {className}.ParseParams,");
         EmitStateFieldsBlock(className, asset, "State");
         if (eventHandlers.Count > 0)
         {
