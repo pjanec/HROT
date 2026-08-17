@@ -1118,6 +1118,21 @@ the `HsmTraceContext` rewrite lands.** ⚠ **The "(DEBT)" the in-file comment po
 | **Track C** — the panels | ✅ **BUILT end to end**: `C-sections` · `C-table` · `C-dialog` · `C-tick` · `C-watch` · `C-outline`, and Batch 77 **wired the launcher** |
 | **Track E, the single-level half** | ✅ `E1` · `E2` · `E4` · `E6`(A) · `E7b`'s count + emission · `E0`'s three golden tiers · the orthogonal-region fix · `BP-299` · `-028`(a) · `-029` |
 
+### ⭐⭐⭐ SEQUENCE — **ruled by the user, `2026-08-17`**
+
+> ⭐ **Verbatim:** *"wiring as batch 79 once the 78 finishes, visual check once all is wired."*
+
+| # | | |
+|---|---|---|
+| **78** | ⏭ **RUNNING** *(started at `b068b089a`)* | `BP-306` · `BP-307` · the `DEBT-AIB` pricing sweep |
+| **79** | ⭐⭐ **THE WIRING BATCH** | host the five unreachable Track C surfaces. 📄 **[`CHECKLIST_Track_C_Visual_Verification.md`](CHECKLIST_Track_C_Visual_Verification.md) §2 IS its acceptance list** — ⛔ **do not re-derive the feature set** |
+| **then** | ⭐ **the VISUAL CHECK** | ⛔ **only once everything is wired** — 📄 checklist §1 + §2, and the **step-by-step guide** is written then, not before |
+
+⚠ **Four items in the checklist are marked "verify" rather than claimed** — `GroupBy`/fold/`Type`-toggle
+persistence · the `⋮` menu contents · the budget indicator in planning mode · its disappearance when
+running. ⭐ **Batch 79 should resolve them from code**, so the visual session confirms rather than
+discovers.
+
 ### ⏭ What REMAINS at single level
 
 | | item | note |
