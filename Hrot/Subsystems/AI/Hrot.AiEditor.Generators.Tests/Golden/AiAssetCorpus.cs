@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Hrot.AiEditor.Persistence.Emit;
+using Hrot.AiEditor.Persistence.BTree;
 using Hrot.AiEditor.Persistence.Hsm;
 
 namespace Hrot.AiEditor.Generators.Tests.Golden;
@@ -71,6 +72,36 @@ public sealed record AiAssetKind(
                 ("Registrar.g.cs", HsmBridgeEmitCore.EmitBridge(dto)),
             };
         });
+
+    /// <summary>
+    /// ⭐ <b>BTree — the SHAPE tier only, and that limit is deliberate.</b>
+    ///
+    /// <para>
+    /// ⚠⚠ <b>This corrects my own Batch 71 claim.</b> I measured <i>"three delegates ⇒ BTree is a
+    /// registration, not a rewrite"</i>, and the coordinator made it a line item on that word. 📐
+    /// Re-measured: the <b>canonicalize</b> half is genuinely pure and registers exactly as promised,
+    /// but the <b>emit</b> half is not. <c>BTreeJsonGenerator</c> passes a
+    /// <c>structSizeResolver</c> built from a Roslyn <c>Compilation</c> and a
+    /// <c>BTreeDeactivatorScanner.Scan(compilation, …)</c> result into every emit call; the
+    /// resolver-less overloads exist, but their output is <b>not what ships</b>.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ Baselining the resolver-less form would repeat the mistake <c>GoldenCorpus.Options()</c>'s own
+    /// doc comment records — recording output that production never produces. ⇒ ⭐ the emit tier waits
+    /// for a <c>CSharpGeneratorDriver</c> harness, and
+    /// <c>BTreeGoldenCorpusTests.TheBTreeEmitTierNeedsARoslynCompilation</c> pins the reason so it is a
+    /// measurement rather than an omission.
+    /// </para>
+    /// </summary>
+    public static readonly AiAssetKind BTree = new(
+        Name:               "btree",
+        CorpusSubdirectory: "BTrees",
+        FileSuffix:         ".btree.json",
+        Canonicalize:       json => BTreeJsonServices.Serialize(
+                                BTreeJsonServices.Deserialize(json)
+                                ?? throw new InvalidDataException("Deserialized null.")),
+        Emit:               _ => Array.Empty<(string, string)>());
 }
 
 /// <summary>The corpus itself: where it lives, what is in it, and how it is ordered.</summary>
