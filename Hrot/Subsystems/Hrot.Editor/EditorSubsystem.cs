@@ -2138,7 +2138,9 @@ namespace Hrot.Editor
                 "HSM", _hsmSelectionStore, catalog, refactorService, debugRegistry,
                 validators: new Hrot.Editor.AiShared.Validation.IAssetValidator[]
                 {
-                    new Hrot.Hsm.Editor.Validation.HsmAssetValidator(sharedSchemaExporter),
+                    new Hrot.Hsm.Editor.Validation.HsmAssetValidator(
+                        sharedSchemaExporter,
+                        isStatefulSubtree: IsStatefulSubtreeAsset),
                 },
                 breakpointManager:             _bpManager,
                 sanitizerRegistry:             sanitizerRegistry,
@@ -4091,6 +4093,31 @@ namespace Hrot.Editor
         // Shared between both BTree and HSM perspective registrars so the
         // "Static Parameters" panel in InspectorWindow knows which blackboard variable
         // is currently bound.
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>E4</c> — THE resolver <c>DEBT-AIB-028</c>'s activation recipe asks for:</b>
+        /// <c>id =&gt; catalog.TryFind(id, out a) &amp;&amp; a.HasAnyStatefulNode()</c>.
+        ///
+        /// <para>
+        /// ⭐ <b>It lives HERE and nowhere else</b>, because this is the only place that can see both
+        /// <c>BehaviorTreeAsset</c> and <c>HsmAsset</c>. ⛔ Two copies — one per validator entry point —
+        /// would let the node badges and the Diagnostics window disagree about which sub-trees are
+        /// stateful, which is the same class of split the slot-key discipline exists to prevent.
+        /// </para>
+        ///
+        /// <para>
+        /// ⚠ <b>Rules 8/8b may still not fire on real assets</b>: <c>StateNode.SubtreeAssetId</c> is not
+        /// persisted (<c>DEBT-AIB-028</c>(a)), so nothing sets the field yet — that is <c>E5</c>'s
+        /// prerequisite. ⭐ This makes the WIRING honest; <c>E5</c> makes the rule reachable.
+        /// </para>
+        /// </summary>
+        private bool IsStatefulSubtreeAsset(Guid assetId)
+            => _aiCatalogBuilder?.Catalog?.FindByAssetId(assetId) switch
+            {
+                Hrot.BTree.Editor.Model.BehaviorTreeAsset bt => bt.HasAnyStatefulNode(),
+                Hrot.Hsm.Editor.Model.HsmAsset h             => h.HasAnyStatefulNode(),
+                _                                            => false,
+            };
+
         private static string? ResolveExpressionTargetField(object? facet) => facet switch
         {
             BTreeActionFacet af          => af.ExpressionTargetField,

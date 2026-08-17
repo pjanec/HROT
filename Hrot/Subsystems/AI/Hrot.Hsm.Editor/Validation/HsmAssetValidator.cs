@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Validation;
@@ -13,9 +15,36 @@ public sealed class HsmAssetValidator : IAssetValidator
 {
     private readonly HsmValidator _inner;
 
-    public HsmAssetValidator(IActionSchemaExporter? schema = null)
+    /// <remarks>
+    /// ⭐⭐⭐ <b><c>E4</c> — the resolvers are THREADED, not left at their defaults.</b>
+    ///
+    /// <para>
+    /// 📄 <c>DEBT-AIB-028</c>(b)/(c): <i>"<c>_isStatefulSubtree</c> defaults to <c>_ =&gt; false</c> and
+    /// production never supplies a real resolver … the production <c>HsmAssetValidator</c> entry point
+    /// isn't threaded to pass the resolver."</i> ⇒ rules 8/8b were <b>dormant in production</b> — they
+    /// existed, were tested, and could never fire against a real asset. ⛔ That is trap #5 in its
+    /// purest form: a rule that is present, green, and inert.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>The resolver is built by the COMPOSITION ROOT, not here.</b> It has to answer for both
+    /// <c>BehaviorTreeAsset</c> and <c>HsmAsset</c>, and this assembly can see only one of them. ⇒ the
+    /// argument, not the lookup.
+    /// </para>
+    ///
+    /// <para>
+    /// 📌 <b>Rules 8/8b may still not fire on real assets, and that is expected.</b>
+    /// <c>StateNode.SubtreeAssetId</c> is <b>not persisted</b> (<c>DEBT-AIB-028</c>(a)) so nothing sets
+    /// the field yet — that is <c>E5</c>'s prerequisite. ⭐ This item makes the wiring honest; <c>E5</c>
+    /// makes it reachable.
+    /// </para>
+    /// </remarks>
+    public HsmAssetValidator(
+        IActionSchemaExporter? schema = null,
+        Func<Guid, bool>? isStatefulSubtree = null,
+        Func<Guid, IReadOnlyCollection<int>>? sharedScopeKeys = null)
     {
-        _inner = new HsmValidator(schema);
+        _inner = new HsmValidator(schema, isStatefulSubtree, sharedScopeKeys);
     }
 
     public AssetKind SupportedKind => AssetKind.Hsm;

@@ -424,6 +424,46 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
     }
 
     /// <summary>Returns all alias bindings recorded against the named variable. Empty list if none.</summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E4</c> — "does this asset maintain per-instance working state?"</b>
+    ///
+    /// <para>
+    /// 📄 <c>DEBT-AIB-028</c>'s activation recipe names this method by name: <i>"a
+    /// <c>BehaviorTreeAsset.HasAnyStatefulNode()</c> (any <c>ThreeParamReusableStateful</c> action) +
+    /// HSM equivalent, wire <c>id => catalog.TryFind(id, out a) &amp;&amp; a.HasAnyStatefulNode()</c>
+    /// through the production validator ctor."</i> ⛔ Not re-derived here — the recipe was already
+    /// filed, and Batch 67's <c>W7c</c> boundary is what found it.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>TWO shapes count, not one.</b> The recipe names <c>ThreeParamReusableStateful</c>, but
+    /// <c>AiPrimitiveTickCore</c> also carries a WorkingState — <c>BTreeBridgeEmitCore</c> emits a
+    /// partition slot for <b>both</b> (<i>"both ride the partition-slot rail"</i>, I2/I3/E2). ⇒
+    /// checking only the named one would call a composed blueprint action stateless and let two of
+    /// them run concurrently unreported, which is the defect this predicate exists to prevent.
+    /// </para>
+    ///
+    /// <para>
+    /// 📌 <b><c>ThreeParamReusableStateful</c> has no NAMED member on the editor enum</b> — the DTO
+    /// enum pins it to <c>2</c> and the editor casts numerically (see the note at the top of this
+    /// file). Hence the explicit cast rather than a member reference: an invented member would be a
+    /// second spelling of a value that already round-trips.
+    /// </para>
+    /// </summary>
+    public bool HasAnyStatefulNode()
+    {
+        const BTreeActionDelegateShape ThreeParamReusableStateful = (BTreeActionDelegateShape)2;
+
+        foreach (var node in _nodes)
+        {
+            var shape = node.Action?.DelegateShape ?? node.Condition?.DelegateShape;
+            if (shape is null) continue;
+            if (shape == ThreeParamReusableStateful
+             || shape == BTreeActionDelegateShape.AiPrimitiveTickCore) return true;
+        }
+        return false;
+    }
+
     public IReadOnlyList<BlackboardAliasBinding> GetAliasesFor(string variableName) =>
         _aliases.TryGetValue(variableName, out var list)
             ? list.AsReadOnly()

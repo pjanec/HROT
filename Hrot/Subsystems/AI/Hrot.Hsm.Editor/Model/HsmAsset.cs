@@ -87,6 +87,36 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
     /// Replaces the current variable list and fires Changed.
     /// Call this when the editor commits an updated set of variables.
     /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E4</c> — the HSM equivalent of <c>BehaviorTreeAsset.HasAnyStatefulNode()</c>,</b>
+    /// which <c>DEBT-AIB-028</c>'s activation recipe asks for by name.
+    ///
+    /// <para>
+    /// ⚠ <b>An HSM has no per-node delegate SHAPE to inspect</b> — there is no
+    /// <c>ThreeParamReusableStateful</c> on a state. ⇒ the honest equivalent is the one Batch 67's
+    /// <c>E1</c> already established: an HSM asset maintains per-instance working state exactly when it
+    /// declares a <c>Role = State</c> variable scoped <c>Behavior</c> or <c>Entity</c>, because that is
+    /// precisely the set <c>HsmBridgeEmitCore</c> emits <c>StatefulSlotInfo</c> entries for.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>Same predicate, one definition.</b> ⛔ Inventing a different notion of "stateful" here
+    /// would let the validator and the emitter disagree about which assets own a partition slot —
+    /// which is the disagreement the whole slot-key discipline exists to prevent. ⚠ <c>Node</c> scope
+    /// is excluded for the same reason it is skipped at emission: it keys off a node id the HSM has
+    /// nothing to supply.
+    /// </para>
+    /// </summary>
+    public bool HasAnyStatefulNode()
+    {
+        foreach (var v in _blackboardVariables)
+            if (v.Role == Hrot.AiEditor.Persistence.BlackboardVariableRole.State
+             && (v.Scope == Hrot.AiEditor.Persistence.WorkingStateScope.Behavior
+              || v.Scope == Hrot.AiEditor.Persistence.WorkingStateScope.Entity))
+                return true;
+        return false;
+    }
+
     public void SetBlackboardVariables(IEnumerable<BlackboardVariableEntry> vars)
     {
         _blackboardVariables.Clear();
