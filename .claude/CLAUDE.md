@@ -383,3 +383,42 @@ relay does not exist.
 ⇒ ⭐ **Every architect question carries a RECOMMENDED ANSWER PER SUB-QUESTION**, with the reasoning and
 the blast radius, ⭐⭐ **written so the user can reply "approved" or name the one they want changed.**
 ⛔ **Options without a recommendation are work handed back to the user.**
+
+## ⛔⛔⛔ RULE ZERO — **READ `docs/blueprints/RULINGS.md` BEFORE ANYTHING ELSE** *(user, `2026-08-17`)*
+
+> ⭐⭐⭐ **User, verbatim:** *"We start over and over after compaction, **you forget all the design
+> decisions and then steer the development on wrong base and act as if you never seen any of that.**
+> We can not work like that, you need to put to your rules something that fixes this."*
+
+⭐⭐ **The diagnosis, stated once:** ⛔ **CODE ANSWERS *"HOW IT IS." IT CAN NEVER ANSWER "HOW IT WAS
+MEANT TO BE."*** ⇒ **every wrong turn this programme has taken came from reasoning off code when the
+question was a design question.** ⚠ **Four in one day** *(`2026-08-17`)*: the quick-add ruled
+not-a-defect · corrective batches triaged with no design sweep · `Q39` framed as UI when it is
+infrastructure · *"the cross-host name is a coincidence"* when `Role` is genuinely shared.
+
+⚠⚠ **The earlier rules did NOT prevent any of them, and the reason matters:** ⛔ **they asked me to
+DECIDE to search.** ⭐ **A rule that depends on remembering to be diligent decays across compaction —
+that is exactly the failure being fixed.**
+
+### ⭐⭐⭐ The rule — **three obligations, all cheap, all checkable**
+
+| # | obligation | ⭐ why it survives compaction |
+|---|---|---|
+| **0** | ⭐⭐⭐ **FIRST ACTION of every session, and immediately after every compaction: READ [`docs/blueprints/RULINGS.md`](../docs/blueprints/RULINGS.md) IN FULL.** ⛔ **Before answering anything, before any tool call about the work** | ⭐ **`CLAUDE.md` is auto-loaded; it is the ONLY reliable channel.** ⭐⭐ **The ledger is deliberately SHORT so this is always affordable** |
+| **1** | ⭐⭐ **NO design answer, handoff item or architect-question row without a CITED design basis** — ⛔ **or the explicit sentence *"searched `<where>`, no design record found."*** ⚠ **An uncited design claim is a defect, however well measured the code was** | ⭐ **it produces a VISIBLE artefact the user can check** — if the citation is missing, the sweep was not done |
+| **2** | ⭐⭐ **Every ruling discovered in the corpus gets a ROW IN THE LEDGER IMMEDIATELY**, with a machine-checkable probe | ⛔ **otherwise the next session pays the same cost again** — ⭐ **that is the whole disease** |
+
+### ⭐ The ledger cannot rot — **it is gated**
+
+```bash
+python3 scripts/rulings-check.py      # every quote must still exist verbatim in its cited source
+```
+
+⭐⭐ **Run it whenever the ledger or a cited document changes**, and ⭐ **report it in the gate table
+alongside `tracker-counts.py --check`.** ⚠ **A failing probe means the design record MOVED — ⛔ find the
+new home, NEVER delete the ruling.**
+
+### ⛔ What this does NOT license
+
+⛔ **It is an INDEX, not a replacement for the corpus.** ⭐ **A question with no row is a question that
+needs a SEARCH** *(`RULINGS.md` §4 gives the order)* — ⛔ **not a question you may answer from code.**
