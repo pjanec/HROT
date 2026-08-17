@@ -12,10 +12,10 @@ architect decision first).
 | Complexity | Open | Done |
 |---|---:|---:|
 | `WIRING` | 5 | 68 |
-| `RW-L` | 29 | 52 |
+| `RW-L` | 28 | 53 |
 | `RW-M` | 26 | 47 |
 | `RW-H` | 3 | 9 |
-| **Total** | **63** | **176** |
+| **Total** | **62** | **177** |
 | *(refuted on verification)* | | *1* |
 
 > ⚠ **`RW-L` done was 43 and the Total 88 — an off-by-one that predates Batch 29** (present at
@@ -626,7 +626,13 @@ architect decision first).
 
 - [x] **BP-303** · `RW-M` 🔴 — ⭐⭐ **`DEBT-AIB-029` closed: rules 8 and 8b walk DESCENDANTS.** 📐 They walked `composite.Children` only, so a host nested **one level deeper escaped entirely** — ⚠ theoretical until `BP-298` persisted `SubtreeAssetId`, after which **a designer could author the escape and SAVE it**. ⭐⭐⭐ **The REGION INDEX still comes from the DIRECT CHILD** and is carried down: ⛔ **reading `RegionIndex` off a deep descendant is the WRONG SPACE** — inside a nested parallel composite that field means the **INNER** composite's region, so a descendant could report region 0 while living in region 1. ⭐⭐ **The cycle question, NAMED not half-handled** *(the STOP asked for it)*: the walk is over the **state tree**, which is a tree ⇒ ⛔ **cannot cycle by construction, and no depth cap is wanted**; the visited set guards a **malformed model** instead *(a validator that hangs on bad input is worse than one that misses a case)*. ⛔⛔ **The REAL cycle question is different and this rule does not answer it** — **asset `A` hosts `B` hosts `A`** is a walk over ASSETS, needs a resolver this validator does not have. ⭐ Gap test **INVERTED**, plus a negative arm: **two nested hosts in the SAME region stay legal** — ⛔ without it a walk that merely reported every host would pass the inverted test while erroring on sequential use *— fixed Batch 76*
 
-- [ ] **BP-304** · `RW-L` ⚠ — 📐 **`Fhsm.Tests` has TWO PRE-EXISTING REDS, measured at `6a6bdc6` before any Batch-76 change:** `OrthogonalRegionTests.OutputLane_Conflict_Detected` and `FailSafeTests.InfiniteLoop_Detected_And_Stops` *(298 / 300 pass)*. ⭐ **The first carries its own explanation in-file** — *"SetTraceBuffer removed in behav-diag-1; trace tests now need `HsmTraceContext` rewrite (DEBT)"* ⇒ it asserts on a trace buffer nothing writes to any more. ⚠ **The second is unexplained.** 📌 **The suite was outside the gate set until this batch** *(coordinator: "it is not in my baseline and that is my omission")* — ⭐ **the same shape as `BP-288`'s scenario suite**, and the same lesson: **a suite outside the gates is how failures live for an unknown number of batches** *— filed Batch 76, NOT adopted*
+- [x] **BP-304** · `RW-L` ⚠ — ✅ **BOTH REDS HAVE ONE CAUSE, and it is neither test's own logic.** 📐 **`SetTraceBuffer` was removed in `behav-diag-1`** ⇒ ⛔ **nothing writes to an `HsmTraceBuffer` any more, anywhere** *(0 hits in `Fhsm.Kernel`)*, so every assertion whose observable is a trace record is unreachable. ⭐⭐ **The coordinator called `FailSafeTests` "unexplained" — it has the SAME explanation:** it failed at `Assert.True(traceData.Length > 0, "Trace buffer is empty")`, **one assertion before** it could say anything about the fail-safe. ⭐⭐⭐ **The RTC fail-safe ITSELF works and always did** — safe state `0xFFFF` and phase reset to `Idle` both pass; **only the observability half was dead**, so this was never a kernel regression and ⛔ **Batch 76's region-loop change is not implicated**. 🛠 **Converted to NAMED GAPS, not skips** — each ends `Assert.Empty(traceBuffer.GetTraceData().ToArray())`, which is **executable**, keeps the machine construction alive, and ⭐ **reddens the day the `HsmTraceContext` rewrite lands** ⇒ **invert then, do not delete**. ⛔⛔ **`OutputLane_Conflict_Detected` had NO behavioural half** *(the trace record was its only observable)* — what survives is the setup plus the statement that `ArbitrateOutputLanes` is currently **unobservable**. ⛔⛔ **And `OutputLane_NoConflict_Passes` was PASSING VACUOUSLY** — asserting *no* conflict record against a buffer nothing writes to ⇒ **green while proving nothing** *(the seventh instance of this shape)*; it was never red, so nobody looked. ⚠ **The "(DEBT)" the in-file comment points at was NEVER FILED**: `.dev/_DONE/behav-diag-1/DEBT-TRACKER.md` holds only `DEBT-NOTE-1`, about `DebugState` placement — ⭐ **this row is now that record**. ⭐ **`Fhsm.Tests` 300 / 300, 0 skipped** ⇒ the quarantine count stays **12** *(scenario only)* *— fixed Batch 77*
+
+<details><summary>original filing (Batch 76)</summary>
+
+📐 **`Fhsm.Tests` has TWO PRE-EXISTING REDS, measured at `6a6bdc6` before any Batch-76 change:** `OrthogonalRegionTests.OutputLane_Conflict_Detected` and `FailSafeTests.InfiniteLoop_Detected_And_Stops` *(298 / 300 pass)*. ⭐ **The first carries its own explanation in-file** — *"SetTraceBuffer removed in behav-diag-1; trace tests now need `HsmTraceContext` rewrite (DEBT)"* ⇒ it asserts on a trace buffer nothing writes to any more. ⚠ **The second is unexplained.** 📌 **The suite was outside the gate set until this batch** *(coordinator: "it is not in my baseline and that is my omission")* — ⭐ **the same shape as `BP-288`'s scenario suite**, and the same lesson: **a suite outside the gates is how failures live for an unknown number of batches** *— filed Batch 76, NOT adopted*
+
+</details>
 
 
 
