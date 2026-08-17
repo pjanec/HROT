@@ -183,11 +183,32 @@ public sealed class VariableEditLauncher
     public VariableEditLauncher(IComponentEditService editService)
         => _editService = editService ?? throw new ArgumentNullException(nameof(editService));
 
-    /// <summary>⭐ The scope for an action — the ONLY thing that differs between the two menu items.</summary>
+    /// <summary>
+    /// ⭐ The scope for an action — the ONLY thing that differs between the two menu items.
+    ///
+    /// <para>
+    /// ⛔⛔ <b>Batch 75: the path was built in the WRONG SPACE and the value dialog would have opened
+    /// EMPTY.</b> 📐 <c>ReflectionEditDocumentBuilder.FilterNode</c> matches an included path against
+    /// <c>node.JsonPath</c>, which for a top-level field is <c>"$.Name"</c> — so a bare
+    /// <c>"Name"</c> matched nothing, every node was filtered out, and <c>ApplyScope</c> fell through
+    /// to an empty <c>"$"</c> SelectionRoot.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>It was invisible because nothing ever constructed the launcher</b> — the defect needed the
+    /// seam to exist before it could be seen. ⭐ <c>VariableRow.Origin.VariablePath</c> is authored in
+    /// variable space, so rooting it is this method's job, not the caller's.
+    /// </para>
+    /// </summary>
     public static EditScope ScopeFor(VariableEditAction action, string variablePath)
         => action == VariableEditAction.Properties
             ? EditScope.WholeComponent
-            : EditScope.ForField(EditPath.Parse(variablePath));
+            : EditScope.ForField(EditPath.Parse(ToJsonPath(variablePath)));
+
+    /// <summary>⭐ Variable space → StructEdit's JSON-path space. Already-rooted paths pass through, so
+    /// a caller that knows the document shape is not second-guessed.</summary>
+    internal static string ToJsonPath(string variablePath)
+        => variablePath.StartsWith("$", StringComparison.Ordinal) ? variablePath : "$." + variablePath;
 
     /// <summary>
     /// Opens the dialog for <paramref name="row"/>, or returns <c>null</c> when §5 denies it.

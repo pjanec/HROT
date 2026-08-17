@@ -37,6 +37,21 @@ public sealed class VariableDialogRailsTests
 
     /// <summary>
     /// ⭐ <b>The scope is the ONLY difference between the two menu items.</b>
+    ///
+    /// <para>
+    /// ⛔⛔ <b>UPDATED Batch 75 — this rail pinned the WRONG SPACE.</b> It asserted the included path
+    /// was <c>"Health"</c>, i.e. it read the expectation straight out of the argument it passed in.
+    /// 📐 <c>ReflectionEditDocumentBuilder.FilterNode</c> matches against <c>node.JsonPath</c>, which
+    /// for a top-level field is <c>"$.Health"</c> ⇒ the bare name matched nothing and the value
+    /// dialog opened <b>empty</b>. ⭐ The rail was green throughout, because a scope that selects
+    /// nothing still has exactly one included path.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>It could only surface once something CONSTRUCTED the launcher</b> —
+    /// <c>VariableEditGestureBinderTests</c> asserts the resulting document's root, which is the
+    /// observable that tells "the field" apart from "nothing".
+    /// </para>
     /// </summary>
     [Fact]
     public void TheTwoActions_DifferOnlyByTheEditScope()
@@ -46,7 +61,17 @@ public sealed class VariableDialogRailsTests
 
         Assert.Same(EditScope.WholeComponent, properties);          // all fields
         Assert.Single(value.IncludedPaths);                          // exactly the one field
-        Assert.Equal("Health", value.IncludedPaths[0].ToString());
+        Assert.Equal("$.Health", value.IncludedPaths[0].ToString()); // ⭐ JSON-path space, not variable space
+    }
+
+    /// <summary>⭐ An already-rooted path passes through untouched — a caller that knows the document
+    /// shape is not second-guessed, and rooting is idempotent.</summary>
+    [Fact]
+    public void AnAlreadyRootedPath_IsNotRootedTwice()
+    {
+        var value = VariableEditLauncher.ScopeFor(VariableEditAction.EditValue, "$.Nested.Field");
+
+        Assert.Equal("$.Nested.Field", value.IncludedPaths[0].ToString());
     }
 
     /// <summary>
@@ -162,7 +187,7 @@ public sealed class VariableDialogRailsTests
     /// </para>
     /// </summary>
     [Fact]
-    public void TrackCsVariableDialog_HasNoEntryPointYet_SoTheInspectorPanelIsTheLiveOne()
+    public void TrackCsVariableDialog_NowHasAnEntryPoint_AndTheInspectorPanelStays()
     {
         var assembly = typeof(DefaultValueAuthoring).Assembly;
 
@@ -174,9 +199,12 @@ public sealed class VariableDialogRailsTests
             FindCallSites(assembly, openSession),
             m => m.DeclaringType!.Name == "InspectorWindow");
 
-        // ⛔ …and Track C's launcher is constructed by nobody. Asserted over the assembly that
-        //    DECLARES it and would host the menu, so a wiring in that assembly reddens this.
-        Assert.Empty(FindConstructionSites(assembly, typeof(VariableEditLauncher)));
+        // ⭐⭐ INVERTED in Batch 75: the launcher is now CONSTRUCTED — VariableEditGestureBinder binds
+        //    the table's two gestures to it, so the asset-scoped dialog has an entry point at last.
+        //    ⛔ The half above still holds: the node-scoped panel stays, and the two share one
+        //    implementation (ExactlyOneCallSite_OpensAVariableEditSession, unchanged).
+        Assert.NotEmpty(FindCallSites(assembly, typeof(VariableEditLauncher)
+            .GetMethod(nameof(VariableEditLauncher.Open))!));
     }
 
     /// <summary>⭐ <c>newobj</c> sites for <paramref name="target"/> — the constructor twin of
