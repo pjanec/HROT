@@ -345,4 +345,57 @@ public class PerspectiveWorkspaceRegistrarTests : IDisposable
         wm.SwitchPerspective("BTree"); // already "BTree", so no-op
         Assert.Equal(0, fires);
     }
+
+    // ── DEBT-AIB-009 (Batch 69) — the schema exporter's forwarding ──────────────
+
+    private sealed class StubSchemaExporter : Hrot.Editor.AiShared.Blackboard.IActionSchemaExporter
+    {
+        public IReadOnlyDictionary<string, Hrot.Editor.AiShared.Blackboard.ActionSchemaEntry> All { get; }
+            = new Dictionary<string, Hrot.Editor.AiShared.Blackboard.ActionSchemaEntry>();
+        public Hrot.Editor.AiShared.Blackboard.ActionSchemaEntry? Lookup(string fqn) => null;
+        public void Rebuild() { }
+        public event Action? Changed { add { } remove { } }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>DEBT-AIB-009</c>: an exporter handed to the registrar must reach the authoring
+    /// window.</b>
+    ///
+    /// <para>
+    /// 📄 The debt, verbatim: <i>"hardcoded-DTO reflection <b>not wired in production DI</b>"</i>.
+    /// 📐 Measured on <c>HEAD</c> and true — this registrar <b>held</b> the exporter and handed it to
+    /// the validator two lines above the window it did not hand it to. ⇒ ⛔ <b>a value column over a
+    /// schema nothing supplies.</b>
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>Deliberately placed beside <c>PerspectiveRegistrar_ForwardsFacetEditService_ToInspector</c></b>
+    /// — the same question about the same registrar, and the precedent that shows the right way to ask
+    /// it. 🔴 <b>An earlier draft scanned the caller's IL and was VACUOUS</b>: it checked whether the
+    /// caller's SIGNATURE mentioned the type, which this registrar satisfies whether or not it passes
+    /// the argument on, so the revert probe did not redden. ⭐ Asking the OBJECT cannot be fooled that
+    /// way.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void PerspectiveRegistrar_ForwardsSchemaExporter_ToBlackboardAuthoring()
+    {
+        var reg = new PerspectiveWorkspaceRegistrar(
+            perspectiveName: "BTree",
+            selectionStore:  new EditorSelectionStore(),
+            catalog:         new AssetCatalog(),
+            refactorService: StubRefactor(),
+            debugRegistry:   new DebugSessionRegistry(),
+            schemaExporter:  new StubSchemaExporter());
+
+        Assert.True(reg.BlackboardAuthoring.HasSchemaExporter,
+            "the schemaExporter passed to the registrar must reach BlackboardAuthoringWindow, "
+            + "or its hardcoded-DTO reflection contributes nothing in production");
+    }
+
+    /// <summary>⭐ Negative control, mirroring the facet-edit-service pair: without one the window has
+    /// none. ⛔ Without it the test above would also pass against a window that fabricates its own.</summary>
+    [Fact]
+    public void PerspectiveRegistrar_WithoutSchemaExporter_AuthoringWindowHasNone()
+        => Assert.False(MakeRegistrar("BTree").BlackboardAuthoring.HasSchemaExporter);
 }

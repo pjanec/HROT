@@ -210,7 +210,13 @@ public class PerspectiveWorkspaceRegistrar
             aggregatorService:  aggregatorService,
             idOverride:         $"ai_blackboard_variables_{suffix}",
             owningPerspective:  perspectiveName,
-            liveValueProvider:  liveValueProvider);
+            liveValueProvider:  liveValueProvider,
+            // ⭐⭐ DEBT-AIB-009 (Batch 69): this argument was MISSING, so the hardcoded-DTO reflection
+            //    path -- the one that contributes [BlackboardDtoStruct] field rows and the
+            //    schema-derived type choices -- ran against a null exporter in production and silently
+            //    contributed nothing. ⛔ The registrar already HELD the exporter; it handed it to the
+            //    validator two lines up and not to this window.
+            actionSchemaExporter: schemaExporter);
 
         Diagnostics = new DiagnosticsWindow(
             catalog:           catalog,

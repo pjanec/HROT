@@ -78,6 +78,15 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
     private readonly ComparisonSessionRegistry? _sessionRegistry;
     private readonly BlackboardAggregatorService? _aggregatorService;
     private IActionSchemaExporter? _actionSchemaExporter;
+
+    /// <summary>
+    /// ⭐⭐ <c>DEBT-AIB-009</c> — whether this window actually received a schema exporter.
+    /// ⛔ <b>Exists so the rail can ask the OBJECT instead of guessing from the call site's IL.</b>
+    /// 🔴 An earlier version of that rail inspected the caller's SIGNATURE, which
+    /// <c>PerspectiveWorkspaceRegistrar</c> satisfies whether or not it passes the argument on —
+    /// so the probe did not redden and the rail was vacuous.
+    /// </summary>
+    internal bool HasSchemaExporter => _actionSchemaExporter is not null;
     private readonly ILiveBlackboardValueProvider? _liveValueProvider;
 
     // Inline rename state
