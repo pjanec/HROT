@@ -254,8 +254,55 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
         MarkDirty();
     }
 
-    /// <summary>Returns 0; HSM does not use ExpressionTargetField in this phase.</summary>
-    public int CountNodesReferencingVariable(string name) => 0;
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E7b</c> — a REAL count over <c>ExpressionTargetField</c> bindings.</b>
+    ///
+    /// <para>
+    /// 🔴 <b>It returned a hardcoded <c>0</c>, with the comment <i>"HSM does not use
+    /// ExpressionTargetField in this phase"</i> — and that was false when it was written.</b>
+    /// <c>ExpressionTargetField</c> is an <b>OUTPUT binding</b> (<i>"blackboard field that receives
+    /// the expression result of <c>ActionFunction</c>"</i>): <c>HsmAssetMapper</c> round-trips it,
+    /// <c>HsmCommandSink</c> maintains it, and <c>HsmValidator</c> already reads it as a writer style.
+    /// ⚠ <c>FIX-01-REPORT:43</c>'s <i>"no per-node"</i> meant per-<b>NODE</b>, not <i>absent</i>.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ <b>The consequence, and it is trap #5 again:</b>
+    /// <c>BlueprintLocalVariableSchemaSource</c> computes <c>IsUnused: Count… == 0</c>, so a variable
+    /// written through <c>ExpressionTargetField</c> read as <b>UNUSED</b> — offered for deletion with
+    /// a clean conscience. A member reporting success while doing nothing.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <b>Both transition kinds count.</b> A global transition is excluded from the validator's
+    /// cross-region conflict rule because it belongs to no region — ⛔ but it is still a <b>writer</b>,
+    /// so excluding it here would resurrect the same wrong answer for a narrower case.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ Comparison is <see cref="StringComparison.OrdinalIgnoreCase"/> via
+    /// <see cref="IsExpressionTargetOf"/> — ⭐ ONE predicate, shared with <c>HsmValidator</c>, so the
+    /// count and the conflict rule cannot disagree about what "bound to this variable" means.
+    /// </para>
+    /// </summary>
+    public int CountNodesReferencingVariable(string name)
+    {
+        int count = 0;
+        foreach (var t in AllTransitions)
+            if (IsExpressionTargetOf(t.ExpressionTargetField, name)) count++;
+        foreach (var g in AllGlobalTransitions)
+            if (IsExpressionTargetOf(g.ExpressionTargetField, name)) count++;
+        return count;
+    }
+
+    /// <summary>
+    /// ⭐ <b>The ONE definition of "this <c>ExpressionTargetField</c> names that variable".</b>
+    /// <c>HsmValidator.IsLocallyBoundTo</c> delegates here rather than repeating the comparison —
+    /// two spellings of one predicate is how the count and the conflict rule drift apart.
+    /// </summary>
+    public static bool IsExpressionTargetOf(string? expressionTargetField, string variableName)
+        => !string.IsNullOrEmpty(expressionTargetField)
+        && string.Equals(expressionTargetField, variableName, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Returns all alias bindings recorded against the named variable. Empty list if none.</summary>
     public IReadOnlyList<BlackboardAliasBinding> GetAliasesFor(string variableName) =>

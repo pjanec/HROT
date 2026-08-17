@@ -475,9 +475,11 @@ public sealed class HsmValidator
     /// variable's own name, and a case difference between the two would silently mean "not a writer"
     /// — the failure mode this whole rule exists to remove.
     /// </summary>
+    // ⭐ E7b — ONE definition, on the model. This rule and HsmAsset.CountNodesReferencingVariable ask
+    //   the same question ("is this ExpressionTargetField bound to that variable"), and two spellings
+    //   of one predicate is how a conflict rule and a usage count drift apart.
     private static bool IsLocallyBoundTo(string? expressionTargetField, string variableName)
-        => !string.IsNullOrEmpty(expressionTargetField)
-        && string.Equals(expressionTargetField, variableName, StringComparison.OrdinalIgnoreCase);
+        => Model.HsmAsset.IsExpressionTargetOf(expressionTargetField, variableName);
 
     // ---- Helpers -----------------------------------------------
 
