@@ -1,6 +1,6 @@
 # HANDOFF — Batch 79: **WIRE TRACK C** — five built surfaces that no window hosts
 
-> 📌 **Dispatched at `<this commit>`.** Frozen per rule 1.
+> 📌 **Dispatched at `4d153709f`.** Frozen per rule 1.
 > ⭐⭐ **Rule 1b: push `chore: started batch 79 at <sha>` before writing any code.**
 > ✅ **Batch 78 MERGED at `e8c2c1535`.**
 > ⭐ **Rule 7 / Rule 4.** ⛔ **Rule 3: the coordinator allocates no ids.**
