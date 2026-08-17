@@ -1118,11 +1118,27 @@ the `HsmTraceContext` rewrite lands.** ⚠ **The "(DEBT)" the in-file comment po
 | **Track C** — the panels | ✅ **BUILT end to end**: `C-sections` · `C-table` · `C-dialog` · `C-tick` · `C-watch` · `C-outline`, and Batch 77 **wired the launcher** |
 | **Track E, the single-level half** | ✅ `E1` · `E2` · `E4` · `E6`(A) · `E7b`'s count + emission · `E0`'s three golden tiers · the orthogonal-region fix · `BP-299` · `-028`(a) · `-029` |
 
+### ⭐⭐⭐ SEQUENCE — **ruled by the user, `2026-08-17`**
+
+> ⭐ **Verbatim:** *"wiring as batch 79 once the 78 finishes, visual check once all is wired."*
+
+| # | | |
+|---|---|---|
+| **78** | ⏭ **RUNNING** *(started at `b068b089a`)* | `BP-306` · `BP-307` · the `DEBT-AIB` pricing sweep |
+| **79** | ⭐⭐ **THE WIRING BATCH** | host the five unreachable Track C surfaces. 📄 **[`CHECKLIST_Track_C_Visual_Verification.md`](CHECKLIST_Track_C_Visual_Verification.md) §2 IS its acceptance list** — ⛔ **do not re-derive the feature set** |
+| **then** | ⭐ **the VISUAL CHECK** | ⛔ **only once everything is wired** — 📄 checklist §1 + §2, and the **step-by-step guide** is written then, not before |
+
+⚠ **Four items in the checklist are marked "verify" rather than claimed** — `GroupBy`/fold/`Type`-toggle
+persistence · the `⋮` menu contents · the budget indicator in planning mode · its disappearance when
+running. ⭐ **Batch 79 should resolve them from code**, so the visual session confirms rather than
+discovers.
+
 ### ⏭ What REMAINS at single level
 
 | | item | note |
 |---|---|---|
-| 🔴🔴 **1** | **the Track C VISUAL CHECK** | ⛔⛔ **the single largest unverified surface in the programme** — cumulative across batches **68–70 and 77**: the table drawing · the gestures *(value-cell vs name-cell, the `⋮` menu, F2)* · the budget indicator · Watch **greying** and pin/unpin · the `Type` column hidden on screen · the outline drawing and its per-section `[+]` · the relabelled `DEFAULT VALUE — {var}` panel. ⭐ **No headless test can do it; it needs a human at the editor** |
+| 🔴🔴 **0** | ⭐⭐⭐ **WIRE TRACK C INTO THE EDITOR — the finding of `2026-08-17`** | 📐 **Coordinator-measured while preparing the checklist: FIVE of seven Track C deliverables are built, tested and HOSTED BY NOTHING.** `VariableTableControl` is referenced only inside its own folder · `BlackboardMyBlueprintModel` is **constructed by nothing** · `AiWatchWindow` draws its **own** `Name/Enabled/Hits` table and uses neither `PinnedSource` nor the row renderer. ⛔⛔ **A visual check today would show the OLD `VariablesPanelControl`.** ⭐ 📄 **[`CHECKLIST_Track_C_Visual_Verification.md`](CHECKLIST_Track_C_Visual_Verification.md) §2 is the acceptance list** |
+| 🔴 **1** | **the Track C VISUAL CHECK** — ⚠ **AFTER item 0** | ⛔⛔ **the single largest unverified surface in the programme** — cumulative across batches **68–70 and 77**: the table drawing · the gestures *(value-cell vs name-cell, the `⋮` menu, F2)* · the budget indicator · Watch **greying** and pin/unpin · the `Type` column hidden on screen · the outline drawing and its per-section `[+]` · the relabelled `DEFAULT VALUE — {var}` panel. ⭐ **No headless test can do it; it needs a human at the editor** |
 | ⭐⭐ **2** | **`BP-306`** — `BTreeActionGenerator` emits **non-compiling** code | 📐 `CS1666` the moment `Hrot.AI.Behaviors` gains its first `[SharedAiAction]`; `Fdp.Toolkits` compiles the same shape fine ⇒ **assembly-dependent.** ⭐⭐ **It means the one generator-bearing assembly this programme owns cannot host a shared AI action today** |
 | ⭐ **3** | **`BP-307`** — a gate testing a hand-written stub | `Fhsm.Tests.csproj:25` points an analyzer `ProjectReference` at **`Fhsm.SourceGen`, which does not exist**; MSBuild skips it and succeeds ⇒ the `SourceGen/*` tests exercise `Helpers/GeneratedRegistrarStub.cs`. ⚠ **Same family as `BP-304`** |
 | ⭐ **4** | **the producer picker's RUNTIME** | ⛔ the picker is **parked as inert** because `R1`/`R2`/`R4` *(the Library-function resolver seam — resolver design §8.1)* **do not exist.** ⭐ **Building them is single-level parameter work**, and it is what makes `G7`+`W10` real rather than shelved |
