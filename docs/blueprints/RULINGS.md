@@ -106,8 +106,10 @@
 | ⚠ **R-54** | ⭐ **`U-16` is gated: retire `BlueprintVariablesWindow` ONLY AFTER Details is proven** — *"or there is no editing surface at all."* ⛔ **Nothing is scheduled to satisfy ruling 9** | `Q32_…_ANSWERS.md:503` |
 | ⚠ **R-55** | ⭐ **`Q32` ruling 12's GATE was never carried into any acceptance list:** *"with the sim frozen on a breakpoint, a value change is visible in BOTH panels within one frame."* ⛔ **Measure it, do not assume** | `Q32_…_ANSWERS.md:95` |
 | ⚠ **R-56** | ⛔ **`Q34` freeze is LIVE:** Track C row identity gains a 4th component — ⭐ **"do not build for it until this lands"**, and row identity is being actively extended | `Architect_Question_34_…:75` |
-| ⛔ **R-57** | ⚠⚠ **`BP1031` is RETIRED — but FOUR design docs still describe it as live**, including `DESIGN_Parameter_Model.md`, the one this ledger sends you to | `Blueprint_Issues_Tracker.md` BP-278 |
-| ⛔ **R-58** | ⚠ **`DESIGN_Variable_Details_And_Editing.md:351` still orders STATIC PARAMETERS retired — that was WITHDRAWN** *(the premise was inverted; it is the only LIVE surface)* | `HANDOFF_Batch74…:117` · BP-295 |
+| ✅ **R-57** | ⭐ **`BP1031` is RETIRED** *(`Stage2_Validate.cs:168`, Batch 70)* — no production code raises it. ⚠ **The three docs that described it as live were REPAIRED in Batch 82** *(`BP-318`)*; the reasoning is kept as the record of why it went | `Blueprint_Issues_Tracker.md` BP-278 |
+| ✅ **R-58** | ⭐⭐ **The `InspectorWindow` STATIC PARAMETERS retirement is WITHDRAWN** *(premise measured inverted — it is the only LIVE default-value surface)*. ⚠ **The stale order in `DESIGN_Variable_Details_And_Editing.md` was REMOVED in Batch 82** ⇒ ⛔ **do not re-derive the retirement from an old copy** | `HANDOFF_Batch74…:117` · BP-295 |
+| ⭐⭐ **R-59** | ⛔⛔ **`U-6`'s router does NOT merge globals with working state** — one list per SECTION. 📌 **The merge is stage `D`** *("the only risky stage", its own batch + JSON migration)* ⇒ ⭐ **merging in the UI would do `D`'s job and be undone.** Routing per section **collapses by construction** the day the sections do | `Q39:49` · `Q39-C` · Batch 82 report §2 |
+| 🔴 **R-60** | ⛔⛔ **Ruling 6 wants ONE Details panel across three perspectives — and TWO OF THREE HAVE NO DETAILS WINDOW AT ALL.** 📐 `BlueprintDetailsWindow` is the only one in the repo; BTree/HSM have `InspectorWindow`. ⭐ **`NodeEditor.UI.Panels.DetailsPanel` is a generic host nobody constructs** *(one demo call site)* ⇒ ⛔ **not dead — it belongs to sequencing row 61** | `BP-317` · Batch 82 report §0 |
 
 ## 2. ⭐⭐ SURFACES AND DUPLICATION
 
@@ -167,6 +169,8 @@ wearing a design document's name.
 ```probes
 R-52 | docs/blueprints/DESIGN_Variable_Details_And_Editing.md | prerequisite, either way
 R-57 | docs/blueprints/Blueprint_Issues_Tracker.md | is RETIRED, and the batch that needed it had not been told
+R-59 | docs/blueprints/Architect_Question_39_Merge_Variables_And_Working_State.md | the only risky stage
+R-60 | docs/blueprints/REPORT_Batch82_U6_Details_Hosts_The_Table.md | two of the three have no Details panel
 R-03 | docs/blueprints/Variable_Model_Unification.md | order below the line is SUPERSEDED
 R-05 | docs/blueprints/Variable_Model_Unification.md | Details hosts the table; My Blueprint routes selection into it
 R-21 | docs/blueprints/Architect_Question_32_Variable_Details_And_Values_ANSWERS.md | AND A SEQUENCING RULING: NO VISUAL CHECKS

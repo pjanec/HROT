@@ -1,4 +1,30 @@
-# PLAN — what is left *(revision 27, `2026-08-17`)*
+# PLAN — what is left *(revision 28, `2026-08-17`)*
+
+> ✅ **REVISION 28 — BATCH 82 MERGED at `c42483f22`.** ⭐⭐ **`U-6` = stage `B` = `Q32` row 57 is DONE.**
+> ⭐ **All three items + both document repairs shipped.** **+18 tests** *(Blueprints 3727)*,
+> ⭐⭐ **ZERO golden movement — no emitter, DTO, asset or compiler file is in the diff at all.**
+> ⭐ **IDs: `BP-316` `BP-317` `BP-318`.** ⭐ **Ruling 9 has a real rail**: the hosted control is asserted
+> to *be* `VariableTableControl` **and** to come from `Hrot.Editor.AiShared` ⇒ a blueprint copy fails.
+> ⭐⭐ **The wiring is DERIVED, not remembered** — the registrar pairs outline↔details by **interface**,
+> in either order, with `OutlineIsRoutedToDetails` asserted on the **constructed** object. 📌 **Batches
+> 79, 80 and 81 each lost a surface to a seam of exactly this shape; this one cannot be forgotten.**
+>
+> ⚠ **Two findings that change the roadmap — both are new ledger rows:**
+> ⭐ **`R-59`** — ⛔ **the router does NOT merge globals with working state.** One list per SECTION,
+> because 📌 **the merge is stage `D`** *("the only risky stage", own batch + JSON migration)*.
+> **Merging in the UI would do `D`'s job and be undone.** ⭐ **Correct call, and they stated the basis.**
+> 🔴 **`R-60`** — ⛔⛔ **ruling 6 wants one Details panel across three perspectives, and TWO OF THREE
+> HAVE NO DETAILS WINDOW AT ALL.** ⚠ **Not "wrong assembly" — it does not exist.** ⭐ `U-6` therefore
+> landed on **Blueprint only**, per my split rule, but the shared half **is** shared
+> *(`Hrot.Editor.AiShared`)*, so a BTree/HSM host wires itself by implementing `IVariableDetailsHost`.
+> 📌 **Filed `BP-317`, pointed at sequencing row 61.**
+>
+> ⛔ **The visual-check suspension STILL STANDS** — `U-6` is **half** the unblock condition
+> *(`R-21`)*; the other half is the emitter/access unification.
+> 📌 **Next: `58`** *(the Value column and its run-state meaning switch)*, **then `59`** *(the StructEdit
+> dialog — where `Type` becomes editable)*.
+> 📄 **[`REPORT_Batch82_U6_Details_Hosts_The_Table.md`](REPORT_Batch82_U6_Details_Hosts_The_Table.md)**
+
 
 > ✅ **REVISION 27 — BATCH 81 MERGED at `3ae96f53d`; BATCH 82 DISPATCHED at `0973760ca`.**
 > ⭐ **All six of 81's items shipped** — including the drop item; **both NodeEdit gates paid and moved**
