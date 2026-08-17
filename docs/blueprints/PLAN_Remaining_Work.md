@@ -1,6 +1,16 @@
-# PLAN — what is left *(revision 14, `2026-08-17`)*
+# PLAN — what is left *(revision 15, `2026-08-17`)*
 
-> ⭐⭐⭐ **REVISION 14 (`2026-08-17`).** ✅ **Batch 70 MERGED at `0b2b55380`** — `DEBT-AIB-021` · **the
+> ⭐⭐⭐ **REVISION 15 (`2026-08-17`).** ✅ **Batch 71 MERGED at `bdd05a0dc`** — **`E0` the HSM golden
+> harness** *(two tiers, and it is asserted that it CAN fail)* · `E1`/`E2` backfilled · `E7b`'s count
+> half · `E6` **PARTIAL by escalation** (§4A6).
+> 🔴🔴 **The floor found a live defect the moment it existed: HSM actions addressed by FQN in the blob
+> and by simple-name hash in the registrar ⇒ `HsmShowcase`'s entry and activity actions SILENTLY DO
+> NOTHING.** ⭐⭐ **RULED (A): FQN everywhere.**
+> ✅ **`Q34` RESOLVED with the user — and BUILD IT NOW.** ⭐⭐⭐ **Plus the refinement their question
+> forced: three occurrence cases, TWO mechanisms — the dangerous one is `E3`'s and does NOT need
+> `Q34`'s bytes.** ⭐ **And a ruling `E5` inherits: it provisions by KEY, not by attach.**
+>
+> **REVISION 14 (`2026-08-17`).** ✅ **Batch 70 MERGED at `0b2b55380`** — `DEBT-AIB-021` · **the
 > Instance params seam** · `G7`+`W10` (§4A5). ⭐⭐ **The parameter model now RUNS**: an Instance's params
 > live in its own slot at `[Cursor 16][Params N][State M]`, the attach event carries the JSON, and the
 > **same `ParseParamsDelegate`** a behaviour uses resolves it before commit. ⭐⭐⭐ **`BP1031` RETIRED —
@@ -574,6 +584,60 @@ specifically.** 📌 **Record it on the row; the mitigation is unchanged.**
 
 ---
 
+## 4A6. ✅ Batch 71 — ⭐⭐⭐ **the floor exists, and it found a live defect within one commit**
+
+📄 [`REPORT_Batch71_Hsm_Golden_Harness.md`](REPORT_Batch71_Hsm_Golden_Harness.md).
+⭐ **`E0` · `E1`/`E2` backfill · `E7b` (count half) · `E6` PARTIAL.** Gates re-run by me; ⭐ **the
+BLUEPRINT golden set is untouched — no file under `Hrot.Blueprints.Tests` moved at all.** Tracker
+**61 / 157**. Rows `BP-280`–`BP-283`.
+
+### 🔴🔴 THE FINDING — **`E6` is not the defect the plan describes.** ⭐⭐ RULED **(A): FQN everywhere**
+
+📐 **Three sites, not two.** `HsmActionGenerator` hashes the **simple** name at both its sites; ⭐ but
+**`Fhsm.Compiler.HsmFlattener` hashes whatever string the ASSET stored** — and `HsmEmitCore` stores the
+**FQN** (`.OnEntry("Hrot.AI.Behaviors.CgfHsmNodes.StubIdle")`).
+
+> ⇒ ⛔⛔ **the blob addresses `16038` while the registrar registers `32291`, so
+> `HsmActionDispatcher.ExecuteAction` is a `TryGetValue` MISS.** ⭐⭐ **`HsmShowcase`'s entry and
+> activity actions silently do nothing — today, with no collision anywhere.** ⚠ **`W3`'s
+> allocated-but-bound-by-nothing shape, in the live path.**
+
+| option | fixes the miss | kills the collision | breaks |
+|---|---|---|---|
+| ⭐⭐ **(A) FQN everywhere** | ✅ | ✅ | **4 call sites** in `FDP/Examples` *(coordinator-verified: `ApcHsmSetup.cs:66,70` · `UrbanCombatNewScenario.cs:631,635`)* |
+| ⛔ **(B) simple name everywhere** | ✅ | ⛔ **no** | nothing |
+
+⭐⭐⭐ **RULING `2026-08-17` (coordinator): (A).** ⛔ **(B) leaves `W9`/`E6` unfixed AND would make the
+persisted asset store a simple name** — reintroducing the exact collision `W9` named, in the file
+format. ⚠ **Four call sites in EXAMPLE projects is the cheapest breakage on the page**, and it is
+visible at compile time. 📌 **Escalating rather than deciding was correct** — the key string reaches
+outside Track E, which is plan-level by definition.
+
+⭐ **What landed regardless, and is the precondition for either choice:** **`HsmActionKey` — one home
+for the id.** Seven sites that each spelled out the FNV-1a now call it; the private duplicate is gone.
+⭐⭐ **Plus `HsmActionIdAgreementTests`, which encodes the whole measurement** ⇒ **the decision is made
+against a measurement, not a memory.** ⚠ **Invert those tests when (A) lands.**
+
+### ⭐⭐ `E0` — what makes it a real gate
+
+| | |
+|---|---|
+| ⭐⭐⭐ **it is asserted that it CAN fail** | `BothTiersRedden_WhenAnAssetChanges` mutates a corpus asset in memory. ⛔ **A new green gate proves nothing** — this was the STOP and it held |
+| ⭐ **two tiers, and the asymmetry is the argument** | the shape file says *an asset changed*; only stored text says **which line**. ⛔ **An id change — `E6`'s whole subject — is not in the asset at all**, so the shape tier could never see it |
+| 🔴 **the shipped corpus is TWO assets and NEITHER has a managed blackboard** | ⇒ `E1`/`E2` had **nothing to be backfilled into**. ⭐ **Seeded `HsmVariableShowcase`** *(Input + State@Behavior + State@Entity)* **and `HsmOrthogonalRegions`** *(`E3`'s subject — ⭐ the gate exists BEFORE the fix)* |
+| ⭐ **corpus, not fixtures** | the production generator compiles them ⇒ **the solution build is a second gate on their validity** |
+| ⭐⭐ **generalising over asset kind cost NOTHING** | `AiAssetKind` = three delegates ⇒ **BTree's 26 ungated assets are a REGISTRATION, not a rewrite** — ⭐ **a line item now, not a leftover** |
+| ⚠ **one ordering is deterministic by accident** | `HsmBridgeEmitCore` iterates `Dictionary<int,…>.Values`; insert-only dictionaries enumerate in insertion order **in practice, not by guarantee**. 📌 **Flagged, not changed** — fixing it inside item 1 would have moved the baseline it was creating |
+
+### ⭐ Two more things the floor exposed
+
+| | |
+|---|---|
+| 🔴 **an HSM `Role=Input` variable reaches NO emitted output** | ⛔ **there is no HSM counterpart to the BTree bridge's `ParseParams`** ⇒ `DEBT-AIB-021`'s fix has nothing to fix on this host. ⭐ **Asserted as a GAP and named as one** *(Batch 70's rule: invert it, do not delete it)*. Filed **`BP-281`** |
+| ⚠ **`E7b`'s runtime half is blocked, and NOT on `E3`** | 📐 **`ExpressionTargetField` is emitted NOWHERE** — 0 occurrences in either HSM emitter ⇒ **it never reaches the blob, so there are no bytes to assert.** ⭐ **My `E3` guess was wrong**; the block is "the field is not emitted at all", which is a bigger piece |
+
+---
+
 ## 4B. ⏭ Track E — ⭐⭐⭐ **HSM catch-up** *(the gaps, collected)*
 
 > ⛔⛔ **USER RULING `2026-08-16`:** *"the HSM integration is in bad shape now, for long time not updated
@@ -706,12 +770,15 @@ Track E, plus one item waiting on the user:**
 
 | ⭐ next | what | why now |
 |---|---|---|
-| ⭐⭐⭐ **Track E (§4B)** | **`E0` FIRST** *(the HSM golden harness)* → then, **under it**, `E6`/`W9` and `E3` → `E5` → `E7a`; ⭐ **`E7b` is independent and can ride along** | ⛔ **`E3`/`E6` change emitted output with NO golden gate watching** ⇒ `E0` is a prerequisite, not a nicety. ⭐ **Backfill `E1`/`E2` into it the moment it exists** |
-| 🔴 **blueprint multi-occurrence** | §4h — `(blueprintId, instanceKey)`, `D2` | ⛔⛔ **BLOCKED on 📄 [`Architect_Question_34`](Architect_Question_34_Blueprint_Occurrence_Identity.md)** — `BlueprintSlotEntry` is exactly 16 bytes with no spare, so the discriminator needs a decision **with the user** |
+| 🔴🔴 **finish `E6` under ruling (A)** | FQN everywhere; **4 `FDP/Examples` call sites**; invert `HsmActionIdAgreementTests` | ⛔⛔ **it is a LIVE defect, not a latent one** — shipped HSM actions do nothing today. ⭐ **The floor now watches it** |
+| ⭐⭐ **`E3`** — occurrence in the HSM action key | `hash(method @ fieldOffset)` gains region + state | ⭐⭐⭐ **THE dangerous occurrence case** *(`Q34` §7)* — two regions running one action write the same bytes **silently**. ⭐ `HsmOrthogonalRegions` is already in the corpus for it |
+| ⭐ **blueprint multi-occurrence** | ✅ **UNBLOCKED — 📄 [`Architect_Question_34`](Architect_Question_34_Blueprint_Occurrence_Identity.md) RESOLVED, and the user said BUILD IT NOW.** Widen the entry 16 → 20 B · caller-supplied `InstanceKey` · 3-arg lookup keeps meaning key `0` | ⚠ **This buys a CAPABILITY, not a correctness fix** — attaching twice is *refused* today, not corrupted |
+| ⭐ **register BTree's 26 assets** into `E0`'s harness | measured as *"a registration, not a rewrite"* | closes the golden hole **completely** |
+| ⏭ **then** `E5` *(by KEY — `Q34` §7)* → `E7a` → `E7b`'s runtime half *(needs `ExpressionTargetField` emitted at all)* | | |
 | ⚠ **the Track C VISUAL CHECK** | cumulative across batches 68–70 | ⛔ **no headless test can do it** — it needs a human at the editor. §4A3/§4A4 hold the list |
 
-✅ **DONE this round:** the parameter seam *(`DEBT-AIB-021` + Instance params + `BP1031`'s retirement)*
-and **`G7`+`W10` as one picker** — the last `G`-row.
+✅ **DONE this round:** the parameter seam · **`G7`+`W10`** *(the last `G`-row)* · **`E0`** the golden
+floor · `E1`/`E2` backfilled · `E7b`'s count half.
 
 📌 **`W9` is `E6`; `W11` re-scoped into `E7a` + `E7b`; `W6` DROPPED; `W8`/`W12` were duplicates.**
 

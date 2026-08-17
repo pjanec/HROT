@@ -76,10 +76,72 @@ runtime event has no node id.**
 
 ---
 
-## 6. Status
+## 6. ✅ RESOLVED — `2026-08-17`, with the user
+
+> ⭐⭐⭐ **User: "approved"** on all three leans, then — asked whether the cost is *"just a few bytes"* —
+> ⭐⭐ **"lets do it now."**
+
+| | answer |
+|---|---|
+| **`Q34-A`** | ✅ **A — widen `BlueprintSlotEntry` to 20 B** with `uint OccurrenceKey` *(`0` = default)* |
+| **`Q34-B`** | ✅ **A — caller-supplied `InstanceKey` on the attach event** |
+| **`Q34-C`** | ✅ **A — the 3-arg `TryGetSlotOffset` keeps meaning "key `0`"**; a 4-arg overload takes the key |
+| **when** | ⭐ **NOW** — scheduled, no longer "later" |
+
+---
+
+## 7. ⭐⭐⭐ The refinement the user's question forced — **three cases, TWO mechanisms**
+
+> ⭐ **User: *"couldn't blueprint multi-occurrence happen if two HSM regions run in parallel? or two
+> blueprint nodes?"*** ⇒ 📐 **I measured, and the demand is real but it does NOT all land here.**
+
+### 🔴 The measurement that reframes it — **the slot table's `BlueprintId` field is ALREADY polymorphic**
+
+⛔ **It is not always a blueprint id.** `BlueprintSharedState` and `StatefulBTreeActionBinder` put
+`ComputeStatefulSlotKey(assetId, scope, nodeVisualId, variableId)` in **that same field**:
+
+| scope | key |
+|---|---|
+| ⭐⭐ **`Node`** | `FNV(assetId ++ nodeVisualId)` — ⭐ **the occurrence is ALREADY in the key** |
+| `Behavior` | `FNV(assetId ++ variableId)` |
+| `Entity` | `FNV(variableId)` |
+
+⇒ ⭐⭐ **"compose the discriminator into the existing field" is not hypothetical — it is SHIPPED**, for
+the slots that need it. ⚠ **§2's rejection of option `B` stands only for the ATTACH path**, which must
+recover the real id to reach `registry.TryGetById`. **Both uses coexist in one table, correctly.**
+
+### ⭐ The three cases
+
+| case | today | owner |
+|---|---|---|
+| **two BTree nodes hosting one blueprint** | ✅ **already fine, twice over** — the host owns layout *("BTree owns layout, blueprint provides `TickCore`")*, and stateful slots key at `Scope.Node` | ⛔ nothing to do |
+| 🔴 **two HSM regions running one action** | ⛔⛔ **COLLAPSES SILENTLY** — `hash(method @ fieldOffset)` has no region or state in it ⇒ both write the same bytes | ⭐ **`E3`** — ⛔ **not this question**; it is a KEY change, not a slot-table change |
+| ⚠ **one Instance attached twice** | ⭐ **REFUSED, not collapsed** — `AttachToEntity` finds the slot and returns `AlreadyAttached` *(idempotent no-op)* | ⭐⭐ **THIS question** |
+
+⇒ ⭐⭐⭐ **The dangerous case is `E3`'s, and it does not need these four bytes.** `Q34` buys the
+**capability** *("attach the same asset twice deliberately")*, not a correctness fix — ⚠ **say that
+plainly, because "multi-occurrence" names both and only one of them is a live defect.**
+
+### ⭐⭐ A constraint this puts on `E5` — **written down here because nowhere else has it**
+
+⛔ **`E5` (a state hosting a sub-blueprint via `SubtreeAssetId`) is unbuilt, and where a hosted
+subtree's storage comes from has never been decided.** Two regions hosting the same asset is exactly
+the user's scenario.
+
+| route `E5` could take | consequence |
+|---|---|
+| ⭐⭐ **provision through `ComputeStatefulSlotKey` with the region/state in the key** *(BTree's pattern)* | ✅ **solved by construction** — reuses a shipped key algorithm; the hosted occurrence is not visible to the registry, and has no reason to be |
+| ⛔ provision through `AttachToEntity` | inherits this whole question, plus the registry lookup it does not need |
+
+⇒ ⭐ **RULED: `E5` takes the key route.** ⚠ **If a batch finds that it cannot, that is a STOP** — it
+would mean a hosted subtree needs registry identity, which nothing has argued for.
+
+---
+
+## 8. Status
 
 | | |
 |---|---|
 | **raised** | `2026-08-17`, coordinator, from the Batch-70 scoping measurement |
-| **state** | 🔴 **OPEN — agenda for a working session with the user.** ⛔ **Blueprint multi-occurrence does not start until `Q34-A` is answered** |
-| **not blocked by it** | ⭐ **the Instance params seam** *(design §3.3)* — it changes the **payload**, not the **slot entry** ⇒ Batch 70 proceeds |
+| **state** | ✅ **RESOLVED and SCHEDULED** — Batch 72 |
+| **did not block** | ⭐ the Instance params seam *(Batch 70)* — it changes the **payload**, not the **slot entry** |
