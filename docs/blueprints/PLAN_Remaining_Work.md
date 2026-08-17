@@ -1,6 +1,15 @@
-# PLAN — what is left *(revision 16, `2026-08-17`)*
+# PLAN — what is left *(revision 17, `2026-08-17`)*
 
-> ⭐⭐⭐ **REVISION 16 (`2026-08-17`).** ✅ **Batch 72 MERGED at `14f8b0ea4`** — **`E6`(A) shipped** ·
+> ⭐⭐⭐ **REVISION 17 (`2026-08-17`).** ✅ **Batch 73 MERGED at `0808253e4`** — the 12 red scenario tests
+> **diagnosed and quarantined with named causes** · ⭐⭐ **`E0` gained a GENERATED-CODE tier** whose
+> acceptance test proves it reaches thunk ids · the HSM slot order is now by construction (§4A8).
+> ⛔ **`E3` escalated a SECOND time, with the census: 55 attributed methods / 25 directories / 5
+> emitters / 13 kernel sites.** ⇒ 🔴 **NEW: 📄 [`Architect_Question_35`](Architect_Question_35_Hsm_Occurrence_Delivery.md)** — ⭐⭐ **the delegate need NOT widen; the
+> occurrence can ride `HsmCommandWriter`, a kernel-owned struct already passed to every action.**
+> ⛔⛔ **My "the HSM did not clear locomotion" reading was WRONG** — that test is a **casualty of a
+> phase-2 failure**, not HSM evidence.
+>
+> **REVISION 16 (`2026-08-17`).** ✅ **Batch 72 MERGED at `14f8b0ea4`** — **`E6`(A) shipped** ·
 > BTree corpus **shape tier** · ⛔ **`E3` ESCALATED** · ⛔ **multi-occurrence NOT STARTED** (§4A7).
 > ⛔⛔ **USER RULING: blueprint multi-occurrence is DEFERRED** — *"too many files affected, we can skip
 > it, could be done sometime later once really needed."* ⭐ **`Q34`'s ANSWERS stand; only the build is
@@ -713,6 +722,64 @@ gate set either way.
 
 ---
 
+## 4A8. ✅ Batch 73 — ⭐⭐ **the floor learned to see generated code; my scenario hypothesis was wrong**
+
+📄 [`REPORT_Batch73_Red_Suite_And_Generated_Floor.md`](REPORT_Batch73_Red_Suite_And_Generated_Floor.md).
+⭐ **Items 1, 2, 4 landed; `E3` escalated a second time — as §3 of the handoff pre-authorised.**
+Gates re-run by me; blueprint golden set untouched. Tracker **61 / 165**. Rows `BP-288`–`BP-291`.
+
+### ⛔⛔ My hypothesis about the red suite was WRONG — ⭐ **and the harness could not have told me**
+
+> I read `ComponentDamage_Phase4_LocomotionCleared_ByHSM` as *"the HSM did not clear locomotion"* ⇒
+> `E6`'s symptom. 🔴 **It is not.**
+
+📐 **The scenario throws at PHASE 2 (tick 21) and `ExitWith(1)` ends the run** ⇒ **tick 25 never
+happens and phase 4 is never evaluated.** ⇒ ⭐⭐ **the test is a CASUALTY of phase 2, not evidence of an
+HSM defect** — and it was so before `E6` too.
+
+⚠ **First: the harness could not say WHY.** `ScenarioSubsystem` caught the failure and called
+**`ExitWith(1)` — the same code for every phase** ⇒ a red could only report *"exit 1"*.
+⛔⛔ **A red that names no cause trains everyone to ignore the gate.** ⭐ **They fixed the harness first**
+*(`LastFailure` retained and surfaced)*, which produced both diagnoses in **one run each**.
+
+| cluster | measured message | attributed |
+|---|---|---|
+| `ComponentDamageScenarioTests` **× 5** | *"Phase 2 FAILED tick=21: health=100 still at max=100 after hit at tick 20"* | **damage / event pipeline** |
+| `DistributedTankScenarioPhaseATests` **× 7** | *"Phase B3 FAILED tick=25: ghost not promoted in time"* | **DDS replication / ghost promotion** |
+
+⇒ ⭐ **0 fixed, 12 quarantined — correctly**, per the STOP: both causes are outside this programme.
+⭐⭐ **Each skip carries the phase, the measured message, the attributed subsystem and the note that
+they are identical on `5d01a5c`.** ⇒ **the suite is in the gate set at `56 / 68, 12 skipped`.**
+
+📌 **The lesson for me:** ⛔ **I attributed a failure from its NAME.** ⭐ The name said `_ByHSM`; the
+mechanism said phase 2. ⚠ **Same shape as reading "is it used?" for "is it wanted?"** — a label is not
+a measurement.
+
+### ⭐⭐⭐ The generated-code tier — **the acceptance test passes**
+
+| | |
+|---|---|
+| ⭐⭐ **it reddens when `E6` is reverted** | `TheGeneratedRegistrarIsUnchanged` fails at **line 18**, the `RegisterAction` id line: baseline **`16038`** (FQN), simple-name key would emit **`32291`**. ⭐ **A second test derives that id independently of the generated text**, so the two sides cannot agree by construction |
+| ⭐ **determinism across two processes** | not just in one |
+| ⛔ **BTree's emit tier still NOT reached, and the reason is named** | `BTreeJsonGenerator` builds `structSizeResolver` from the **semantic model** and runs `BTreeDeactivatorScanner.Scan` over **real method bodies** ⇒ a synthesized compilation emits **fallback output — a baseline of what production never produces.** ⭐⭐ **It needs the REAL solution compilation** |
+
+### 🔴🔴 `E3` — escalated again, **with the census, and it changes the question**
+
+| surface | count |
+|---|---|
+| `[HsmAction]`/`[HsmGuard]` methods | **55**, across **25 directories** — incl. **FastHSM's own demos/tests** and **both `FDP/Examples` projects** |
+| kernel `ExecuteAction`/`EvaluateGuard` call sites | **13** |
+| ⭐⭐ emitters producing the fixed `delegate*` shape | **FIVE** — incl. ⚠ **`CSharpEmitter`: the BLUEPRINT side registers HSM thunks too** |
+
+⇒ 🔴 **widening the delegate is an ABI break reaching every one of those.**
+⭐⭐⭐ **But it need not widen — 📄 [`Architect_Question_35`](Architect_Question_35_Hsm_Occurrence_Delivery.md), raised `2026-08-17`.** 📐 **Measured: `contextPtr` is
+OUR `HsmKernelBridge` (not `ExtDeps`) but the kernel sees it as an opaque `void*`; `HsmCommandWriter`
+is a KERNEL struct already passed to every action** ⇒ ⭐⭐ **the kernel can put `(regionSlotIndex,
+stateId)` there with no signature change anywhere.** ⚠ **Guards are unserved — and measurably free:
+`VE-DEBT-004`, no production `[HsmGuard]` exists.**
+
+---
+
 ## 4B. ⏭ Track E — ⭐⭐⭐ **HSM catch-up** *(the gaps, collected)*
 
 > ⛔⛔ **USER RULING `2026-08-16`:** *"the HSM integration is in bad shape now, for long time not updated
@@ -845,11 +912,12 @@ Track E, plus one item waiting on the user:**
 
 | ⭐ next | what | why now |
 |---|---|---|
-| 🔴🔴 **diagnose `Fdp.Examples.Scenarios.Tests`** | 12 red, **pre-existing**, and one of them is HSM-shaped | ⛔⛔ **an entire suite outside the gate set** — ⭐ **cheapest high-value item on the page**, and it may be Track E evidence |
-| ⭐⭐ **a GENERATOR-DRIVER emit tier for `E0`** | `CSharpGeneratorDriver` harness ⇒ the emit tier covers **generated** output: BTree's 26 **and the HSM analyzer's registrar/thunks** | ⭐⭐⭐ **this is the coverage limit that made `E6` invisible** — the ids live in analyzer output, which `E0` does not see. ⛔ **And it is what would watch `E3`** |
-| ⭐⭐⭐ **`E3` — now a STORAGE MOVE** | per-occurrence bytes from the partition allocator under `ComputeStatefulSlotKey(…, Scope.Node, …)` **plus** the delegate widening; spans `ExtDeps` | ⭐⭐ **THE dangerous occurrence case** *(`Q34` §7)*. ⭐ **One mechanism serves `E5` too** · `HsmOrthogonalRegions` is already in the corpus |
-| ⭐ **the HSM `Dictionary.Values` ordering** | deterministic by implementation detail, not by construction | one line + a deliberate baseline move |
-| ⏭ **then** `E5` *(by KEY — `Q34` §7, and it rides `E3`'s mechanism)* → `E7a` → `E7b`'s runtime half *(⛔ `ExpressionTargetField` is emitted NOWHERE — a bigger piece)* → **`BP-281`** *(HSM has no `ParseParams` counterpart)* | | |
+| ⭐⭐⭐ **`BP-281`** — HSM has no `ParseParams` counterpart | an HSM `Role=Input` variable reaches **NO emitted output** | ⛔⛔ **HSM's authoring model is ahead of its runtime in the most visible way there is**: you can author an input and nothing supplies it. ⭐ **Independent of `Q35`** |
+| ⭐⭐ **`E7b`'s runtime half** | 📐 **`ExpressionTargetField` is emitted NOWHERE** — 0 refs in either HSM emitter ⇒ it never reaches the blob | ⭐ the authoring half round-trips and the validator already reads it ⇒ **a producer with no consumer** |
+| ⭐ **BTree's emit tier**, over the **REAL solution compilation** | a synthesized one emits **fallback output — a baseline of what production never produces** | closes the last golden hole |
+| ⭐ **the `InspectorWindow` "STATIC PARAMETERS" retirement** | small, editor-only | carried since Batch 69 |
+| 🔴 **`E3` — BLOCKED on 📄 [`Architect_Question_35`](Architect_Question_35_Hsm_Occurrence_Delivery.md)** | storage move **+ delivery**; ⭐ **the lean is that the delegate need NOT widen** | ⭐⭐ **THE dangerous occurrence case** *(`Q34` §7)*. ⭐ **`E5` rides the same mechanism** · `HsmOrthogonalRegions` is already in the corpus |
+| ⏭ **then** `E5` *(by KEY — `Q34` §7)* → `E7a` | | |
 | ⛔⛔ **DEFERRED by the user** | **blueprint multi-occurrence** — 📄 [`Architect_Question_34`](Architect_Question_34_Blueprint_Occurrence_Identity.md) | ⭐ **answers stand, build deferred** *("once really needed")*. §4A7 holds the measured edit surface |
 | ⚠ **the Track C VISUAL CHECK** | cumulative across batches 68–70 | ⛔ **no headless test can do it** — it needs a human at the editor. §4A3/§4A4 hold the list |
 
