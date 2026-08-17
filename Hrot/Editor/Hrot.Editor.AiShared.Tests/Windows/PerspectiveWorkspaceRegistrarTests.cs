@@ -143,8 +143,10 @@ public class PerspectiveWorkspaceRegistrarTests : IDisposable
             .ToList();
 
         // 3 perspectives × 6 windows = 18 distinct ids.
-        Assert.Equal(18, allIds.Count);
-        Assert.Equal(18, allIds.Distinct().Count());
+        // ⚠ 18 → 21: three perspectives × the Variables table Batch 79 added to the core set.
+        //    ⭐ The property under test is distinctness, and it still holds.
+        Assert.Equal(21, allIds.Count);
+        Assert.Equal(21, allIds.Distinct().Count());
     }
 
     /// <summary>

@@ -174,11 +174,14 @@ public sealed class AiWatchBreakpointsWindowTests : IDisposable
         Assert.Null(reg.Watch);
         Assert.Null(reg.Breakpoints);
 
-        // Six core windows registered.
-        Assert.Equal(6, reg.RegisteredWindows.Count);
+        // ⚠ Batch 79 (Track C wiring): the Variables table is now a CORE window, registered by the
+        //    registrar rather than left to the host — the whole point of that batch is that a surface
+        //    the host must remember to attach is how five of them became unreachable. This registrar
+        //    is built with no hostKind, so it gets no My Blueprint outline.
+        Assert.Equal(7, reg.RegisteredWindows.Count);
     }
 
-    // ── AIE-034 SC4: With manager, 8 windows per perspective ─────────────────
+    // ── AIE-034 SC4: With manager, 8 windows per perspective (+1 in Batch 79) ─
 
     [Fact]
     public void Perspective_WithManager_RegistersEightWindows()
@@ -188,7 +191,9 @@ public sealed class AiWatchBreakpointsWindowTests : IDisposable
         var reg     = MakeRegistrar("BTree", manager);
         reg.RegisterWindows(wm);
 
-        Assert.Equal(8, reg.RegisteredWindows.Count);
+        // ⚠ 8 → 9: Batch 79 added the Variables table to the core set. ⭐ The name of this test is
+        //    kept so the AIE-034 scenario stays traceable; the count is what moved, deliberately.
+        Assert.Equal(9, reg.RegisteredWindows.Count);
     }
 
     // ── AIE-034 SC5: All ids are distinct across three perspectives ───────────
@@ -214,8 +219,11 @@ public sealed class AiWatchBreakpointsWindowTests : IDisposable
             .ToList();
 
         // 3 × 8 = 24 distinct ids.
-        Assert.Equal(24, allIds.Count);
-        Assert.Equal(24, allIds.Distinct().Count());
+        // ⚠ 24 → 27: three perspectives × the Variables table Batch 79 added. ⭐ What this test is
+        //    ABOUT is unchanged — every id is still distinct across perspectives, which is the
+        //    property that would break if a new window forgot its perspective suffix.
+        Assert.Equal(27, allIds.Count);
+        Assert.Equal(27, allIds.Distinct().Count());
     }
 
     // ── AIE-034 SC6: Diagnostics window carries the correct id suffix ─────────

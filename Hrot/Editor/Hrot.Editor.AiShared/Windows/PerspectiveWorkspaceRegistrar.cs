@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Fdp.Presentation.Editing;
 using Fdp.Presentation.WindowManager;
+using Hrot.Editor.AiShared.Variables;
 using Hrot.Diagnostics.Breakpoints;
 using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Catalog;
@@ -67,6 +68,24 @@ public class PerspectiveWorkspaceRegistrar
     /// supplied at construction). Registered by <see cref="RegisterWindows"/>.
     /// </summary>
     public AiWatchWindow? Watch { get; }
+
+    /// <summary>
+    /// ⭐⭐ <c>C-outline</c> — the My Blueprint outline for this perspective. ⛔ Null on the Blueprint
+    /// perspective, which has its own <c>BlueprintMyBlueprintWindow</c>; non-null on BTree and HSM.
+    /// </summary>
+    public AiMyBlueprintWindow? MyBlueprint { get; }
+
+    /// <summary>
+    /// ⭐⭐ <c>C-table</c> — the variables table for this perspective. ⛔ NOT folded into the node
+    /// inspector; that fold is <c>Architect_Question_38</c>'s merge and is deferred.
+    /// </summary>
+    public AiVariablesWindow Variables { get; }
+
+    /// <summary>
+    /// ⭐ The one value formatter, shared by <see cref="Variables"/> and <see cref="Watch"/>.
+    /// ⛔ Two formatters would be two places to fix a rendering rule.
+    /// </summary>
+    public VariableValueFormatter ValueFormatter { get; }
 
     /// <summary>
     /// All windows registered by this registrar (including any added via
@@ -160,7 +179,9 @@ public class PerspectiveWorkspaceRegistrar
         IComponentEditService? facetEditService = null,
         IReadOnlyDictionary<Type, IImGuiFieldDrawer>? facetCustomDrawers = null,
         Func<object?, string?>? expressionTargetFieldAccessor = null,
-        ILiveBlackboardValueProvider? liveValueProvider = null)
+        ILiveBlackboardValueProvider? liveValueProvider = null,
+        BlackboardHostKind? hostKind = null,
+        DecodeRawValue? valueDecoder = null)
     {
         if (string.IsNullOrWhiteSpace(perspectiveName))
             throw new ArgumentException("perspectiveName must not be null or whitespace.", nameof(perspectiveName));
@@ -224,6 +245,36 @@ public class PerspectiveWorkspaceRegistrar
             idOverride:        $"ai_diagnostics_{suffix}",
             owningPerspective: perspectiveName);
 
+        // ⭐⭐ Track C, WIRED (Batch 79). Everything below was built, tested and hosted by NOTHING
+        //    until this batch -- the table, its dialog launcher, the tick highlight and the outline.
+        //    ⛔ Purely additive: BlackboardAuthoring above is untouched and still registered, per the
+        //    user's ruling that the two variable surfaces coexist until Q38 decides the merge.
+        ValueFormatter = new VariableValueFormatter(valueDecoder ?? RawValueDecoder.Instance);
+
+        Variables = new AiVariablesWindow(
+            id:                $"ai_variables_{suffix}",
+            owningPerspective: perspectiveName,
+            formatter:         ValueFormatter);
+
+        // ⛔ The Blueprint perspective already has BlueprintMyBlueprintWindow; a second outline there
+        //    would be two panels for one concept. BTree and HSM had none at all -- that is the gap.
+        if (hostKind != null)
+        {
+            MyBlueprint = new AiMyBlueprintWindow(
+                id:                $"ai_my_blueprint_{suffix}",
+                owningPerspective: perspectiveName,
+                host:              hostKind.Value);
+
+            // ⭐ design §1c: selection yields a SECTION, and the section is the routing key. Wired
+            //   here rather than left to the host, because "built but nothing connects it" is the
+            //   defect this whole batch exists to fix.
+            MyBlueprint.SectionSelected += section =>
+            {
+                var source = _sectionSource?.Invoke(section);
+                if (source != null) Variables.ShowSection(section, source);
+            };
+        }
+
         // AIE-034: per-perspective Watch + Breakpoints windows (optional).
         if (breakpointManager != null)
         {
@@ -232,12 +283,26 @@ public class PerspectiveWorkspaceRegistrar
                 owningPerspective: perspectiveName,
                 manager:           breakpointManager);
 
+            // ⭐⭐ The formatter is PASSED, not defaulted away. The registrar holds it two lines up;
+            //    a production caller that HAS a dependency must pass it (2026-08-16 rule).
             Watch = new AiWatchWindow(
                 id:                $"ai_watch_{suffix}",
                 owningPerspective: perspectiveName,
-                manager:           breakpointManager);
+                manager:           breakpointManager,
+                formatter:         ValueFormatter);
         }
     }
+
+    /// <summary>
+    /// ⭐ Supplies the row source for a section id, so an outline click can re-filter the table.
+    /// ⚠ Optional: without it the outline still selects and the table simply keeps its current
+    /// contents — ⛔ the routing is inert, not broken, and <see cref="AiMyBlueprintWindow.SelectedSection"/>
+    /// still records the choice.
+    /// </summary>
+    public void SetSectionSourceResolver(Func<string, IVariableRowSource?> resolver)
+        => _sectionSource = resolver ?? throw new ArgumentNullException(nameof(resolver));
+
+    private Func<string, IVariableRowSource?>? _sectionSource;
 
     // ── Registration ─────────────────────────────────────────────────────────
 
@@ -261,6 +326,11 @@ public class PerspectiveWorkspaceRegistrar
         // DataBreakpointManager was supplied; null means "not wired yet").
         if (Breakpoints != null) RegisterCore(windowManager, Breakpoints);
         if (Watch      != null) RegisterCore(windowManager, Watch);
+
+        // ⭐⭐ Track C (Batch 79). ⛔ Registered here, not left to RegisterExtraWindow: a surface the
+        //    host must remember to attach is how these five came to be unreachable in the first place.
+        RegisterCore(windowManager, Variables);
+        if (MyBlueprint != null) RegisterCore(windowManager, MyBlueprint);
     }
 
     // ── Extension seam ────────────────────────────────────────────────────────
