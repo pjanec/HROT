@@ -367,6 +367,16 @@ public sealed class HsmValidator
 
         foreach (var variable in blackboard.BlackboardVariables)
         {
+            // ⭐⭐⭐ W7b (§9.4) — the designer has said the race on THIS VARIABLE is intended:
+            //     "they go to the variable's ⋮ menu → 'Allow concurrent writes' → checkbox."
+            // ⛔⛔ This is PER VARIABLE and is checked BEFORE the writer set is even built, which is
+            //     precisely what distinguishes it from W7a's per-PAIR suppression below. §9.3: a per-pair
+            //     suppression is deliberately narrow, so "a new aliasing relationship on the same
+            //     variable would surface a fresh diagnostic"; W7b is the wide one, and covers pairs that
+            //     do not exist yet. ⇒ two mechanisms, on purpose. Collapsing them would either silence
+            //     future writers nobody reviewed, or make "allow" need re-clicking per new alias.
+            if (blackboard.IsConcurrentWritesAllowed(variable.Name)) continue;
+
             // ⭐ W7c: the union. A "writer site" is anything that mutates this variable and sits in a
             //   region of a parallel composite, whichever binding style put it there.
             var writers = new List<WriterSite>();

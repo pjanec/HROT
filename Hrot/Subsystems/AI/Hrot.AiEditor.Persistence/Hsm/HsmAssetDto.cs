@@ -210,6 +210,17 @@ public sealed class HsmSuppressionsDto
 {
     public List<HsmConflictSuppressionDto> Conflict { get; set; } = new();
     public List<string> Unused { get; set; } = new();
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>W7b</c> (§9.4) — variables whose CROSS-REGION CONCURRENT WRITES the designer has
+    /// explicitly allowed. ⛔⛔ <b>NOT the same thing as <see cref="Conflict"/>.</b> A conflict
+    /// suppression is per <b>(variable, writer-PAIR)</b> — §9.3: <i>"a new aliasing relationship on the
+    /// same variable would surface a fresh diagnostic"</i>. ⭐ This is per <b>VARIABLE</b>: the designer
+    /// has said the race on it is intended, so every pair on it is allowed, including pairs that do not
+    /// exist yet. ⇒ <b>two mechanisms, deliberately, and collapsing them would silently widen one of
+    /// them.</b>
+    /// </summary>
+    public List<string> ConcurrentWritesAllowed { get; set; } = new();
 }
 
 // ── Root DTO ──────────────────────────────────────────────────────────────────

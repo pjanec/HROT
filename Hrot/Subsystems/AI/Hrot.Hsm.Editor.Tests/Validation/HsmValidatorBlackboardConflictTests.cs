@@ -528,6 +528,104 @@ public sealed class HsmValidatorBlackboardConflictTests
 
         return (MakeAsset(root, states, regions, transitions), parallel);
     }
+
+    // ── W7b (§9.4) — "Allow concurrent writes", PER VARIABLE ────────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>W7b</c>: the explicit-enable path for a designer who WANTS the race.</b> §9.4 —
+    /// <i>"they go to the variable's ⋮ menu → 'Allow concurrent writes' → checkbox."</i>
+    /// </summary>
+    [Fact]
+    public void Validate_ConcurrentWritesAllowedOnTheVariable_ProducesNoConflict()
+    {
+        var (asset, _, child0, child1) = MakeParallelAsset();
+
+        var bb = new StubBlackboardAsset();
+        bb.AddVariable("speed", typeof(float));
+        bb.AddAlias("speed", MakeBinding(Guid.NewGuid(), child0.StableId));
+        bb.AddAlias("speed", MakeBinding(Guid.NewGuid(), child1.StableId));
+
+        // 🔴 Red without the flag -- the conflict is real, so the green below means something.
+        Assert.Contains(new HsmValidator().Validate(asset, bb),
+            d => d.Code == HsmDiagnosticCode.CrossRegionBlackboardConflict);
+
+        bb.SetConcurrentWritesAllowed("speed", true);
+
+        Assert.DoesNotContain(new HsmValidator().Validate(asset, bb),
+            d => d.Code == HsmDiagnosticCode.CrossRegionBlackboardConflict);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The distinction that must not be collapsed — this is <c>W7b</c>'s reason to exist.</b>
+    ///
+    /// <para>
+    /// ⛔⛔ A per-PAIR suppression (§9.3, <c>W7a</c>) is deliberately narrow: <i>"a new aliasing
+    /// relationship on the same variable would surface a fresh diagnostic."</i> ⭐ <c>W7b</c> is the
+    /// WIDE one and covers pairs that <b>do not exist yet</b>. ⇒ a THIRD writer added after the
+    /// designer allowed concurrent writes must stay silent, whereas after a pair suppression it must
+    /// speak up. 🔴 <b>Collapsing the two into one flag makes exactly one of those behaviours
+    /// impossible</b>, and nothing else in the suite would notice.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Validate_AllowingTheVariable_AlsoCoversAWriterAddedLater()
+    {
+        var (asset, _, child0, child1) = MakeParallelAsset();
+
+        var bb = new StubBlackboardAsset();
+        bb.AddVariable("speed", typeof(float));
+        bb.AddAlias("speed", MakeBinding(Guid.NewGuid(), child0.StableId));
+        bb.AddAlias("speed", MakeBinding(Guid.NewGuid(), child1.StableId));
+
+        // ⭐ The WIDE allowance, granted while only two writers existed.
+        bb.SetConcurrentWritesAllowed("speed", true);
+
+        // A third writer appears afterwards, in region 1, through the locally-bound style --
+        // exactly the shape W7a's per-pair suppression deliberately does NOT cover.
+        var t = new TransitionNode
+        {
+            VisualId              = Guid.NewGuid(),
+            Source                = child1,
+            Target                = child1,
+            ActionFunction        = "Some.Action",
+            ExpressionTargetField = "speed",
+        };
+        var withThird = MakeAsset(
+            child0.Parent!.Parent!, new List<StateNode> { child0.Parent!, child0, child1 },
+            new List<RegionNode>(child0.Parent!.RegionNodes),
+            new List<TransitionNode> { t });
+
+        // ⛔ Still silent -- the designer said the race on this VARIABLE is intended.
+        Assert.DoesNotContain(new HsmValidator().Validate(withThird, bb),
+            d => d.Code == HsmDiagnosticCode.CrossRegionBlackboardConflict);
+    }
+
+    /// <summary>
+    /// ⭐ <b>The allowance is per variable, not global.</b> Another variable in the same composite is
+    /// still reported — otherwise the checkbox would be a rule-wide off switch.
+    /// </summary>
+    [Fact]
+    public void Validate_AllowingOneVariable_LeavesAnotherReported()
+    {
+        var (asset, _, child0, child1) = MakeParallelAsset();
+
+        var bb = new StubBlackboardAsset();
+        foreach (var name in new[] { "speed", "ammo" })
+        {
+            bb.AddVariable(name, typeof(float));
+            bb.AddAlias(name, MakeBinding(Guid.NewGuid(), child0.StableId));
+            bb.AddAlias(name, MakeBinding(Guid.NewGuid(), child1.StableId));
+        }
+
+        bb.SetConcurrentWritesAllowed("speed", true);
+
+        var diags = new HsmValidator().Validate(asset, bb)
+            .Where(d => d.Code == HsmDiagnosticCode.CrossRegionBlackboardConflict)
+            .ToList();
+
+        Assert.Single(diags);
+        Assert.Contains("ammo", diags[0].Message);
+    }
 }
 
 // ---- Stubs ------------------------------------------
@@ -604,4 +702,17 @@ file sealed class StubBlackboardAsset : IBlackboardManagedAsset
     public int CountNodesReferencingVariable(string name) => 0;
     public void RemoveAlias(string variableName, Guid requiringAssetId, Guid requiringElementId) { }
     public void RemoveVariables(IReadOnlyList<string> names) { }
+
+    // ---- W7b: per-VARIABLE "allow concurrent writes" -----------------------
+    // ⛔⛔ A SEPARATE SET from _suppressed, deliberately. One stub field for both would make the
+    //     tests unable to tell the two mechanisms apart, which is the whole point of W7b.
+    private readonly HashSet<string> _concurrentAllowed = new();
+
+    public bool IsConcurrentWritesAllowed(string variableName) => _concurrentAllowed.Contains(variableName);
+
+    public void SetConcurrentWritesAllowed(string variableName, bool allowed)
+    {
+        if (allowed) _concurrentAllowed.Add(variableName);
+        else         _concurrentAllowed.Remove(variableName);
+    }
 }

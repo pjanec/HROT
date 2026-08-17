@@ -504,6 +504,28 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
     public bool IsUnusedWarningSuppressed(string variableName) =>
         _unusedSuppressions.Contains(variableName);
 
+    // ── W7b (§9.4) — "Allow concurrent writes", PER VARIABLE ────────────────────
+    //
+    // ⛔⛔ A SEPARATE SET from _conflictSuppressions on purpose. §9.3's suppression is per
+    // (variable, writer-PAIR) so that "a new aliasing relationship on the same variable would
+    // surface a fresh diagnostic"; §9.4's allowance is per VARIABLE, so it covers pairs that do
+    // not exist yet. ⇒ merging the two would silence future writers the designer never reviewed.
+    private readonly HashSet<string> _concurrentWritesAllowed = new();
+
+    public bool IsConcurrentWritesAllowed(string variableName) =>
+        _concurrentWritesAllowed.Contains(variableName);
+
+    public IEnumerable<string> GetConcurrentWritesAllowed() => _concurrentWritesAllowed;
+
+    public void SetConcurrentWritesAllowed(string variableName, bool allowed)
+    {
+        bool was = _concurrentWritesAllowed.Contains(variableName);
+        if (was == allowed) return;
+        if (allowed) _concurrentWritesAllowed.Add(variableName);
+        else         _concurrentWritesAllowed.Remove(variableName);
+        MarkDirty();
+    }
+
     public IEnumerable<(string VariableName, string WriterPairKey)> GetConflictSuppressions() => _conflictSuppressions;
     public IEnumerable<string> GetUnusedSuppressions() => _unusedSuppressions;
 
