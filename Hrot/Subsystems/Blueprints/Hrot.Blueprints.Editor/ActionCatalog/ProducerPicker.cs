@@ -69,6 +69,31 @@ public sealed record ProducerOption(string Label, ProducerEntry? Entry)
 /// <i>None / Pick</i> control and the catalog behind it.
 /// </para>
 /// </summary>
+/// <para>
+/// ⛔⛔ <b>PARKED (Batch 74). Nothing on either side calls this, and that is DELIBERATE — do not
+/// delete it, and do not wire it.</b>
+/// </para>
+///
+/// <para>
+/// 📐 <b>Measured <c>2026-08-17</c>:</b> no panel constructs the picker, no registrar supplies the
+/// catalog, no asset field stores what <c>Persist()</c> returns, ⛔ <b>and the runtime it would feed
+/// does not exist</b> — the blueprint-authored resolver (<c>R1</c>/<c>R2</c>/<c>R4</c>, resolver
+/// design §8.1) is unbuilt.
+/// </para>
+///
+/// <para>
+/// ⭐ <b>Not deleted</b> because unreferenced is not unintentional (<c>2026-08-15</c> ruling): this is
+/// built to a design (plan §4c, architect <c>AQ2</c>) whose answers are ruled — deleting removes a
+/// capability, not a mistake. ⭐ <b>Not wired</b> because that is the very thing the
+/// <c>2026-08-17</c> user ruling forbids: an authoring surface whose consumer does not exist.
+/// </para>
+///
+/// <para>
+/// ⭐⭐ <b>The state is ASSERTED, not just described</b> —
+/// <c>ProducerPickerTests.ThePickerIsInert_UntilTheResolverRuntimeExists</c> fails the moment someone
+/// constructs it, so wiring becomes the reminder to build the consumer too. <b>Invert it when
+/// <c>R1</c>/<c>R2</c>/<c>R4</c> land.</b>
+/// </para>
 public sealed class ProducerPicker
 {
     /// <summary>The label of the first row. ⭐ Always present, always first.</summary>

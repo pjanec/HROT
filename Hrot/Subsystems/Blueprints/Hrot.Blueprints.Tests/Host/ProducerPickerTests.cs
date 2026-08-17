@@ -295,4 +295,76 @@ public sealed class ProducerPickerTests
         Assert.Equal(first, catalog.GetProducers().Select(p => p.Fqn));
         Assert.Equal(first.OrderBy(f => f, StringComparer.Ordinal), first);
     }
+
+    // ══ PARKED — Batch 74, amended item 4 ════════════════════════════════════
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The picker is INERT, and that is asserted rather than merely described.</b>
+    ///
+    /// <para>
+    /// 🔴 <b>The finding (Batch 74 §0b), and it is ours.</b> <c>ProducerPicker</c> and
+    /// <c>ProducerCatalog</c> are complete and tested, and <b>nothing on either side calls them</b>:
+    /// no panel constructs the picker, no registrar supplies the catalog, no asset field stores what
+    /// <c>Persist()</c> returns — ⛔ <b>and the runtime it would feed does not exist</b>
+    /// (<c>R1</c>/<c>R2</c>/<c>R4</c>, resolver design §8.1). ⭐ <b>A complete component with no
+    /// caller on EITHER side</b> — the <i>producer with no consumer</i> shape this programme keeps
+    /// filing, created by us.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ <b>Deleting it is wrong</b> (unreferenced ≠ unintentional, <c>2026-08-15</c>: it is built to
+    /// a ruled design). ⛔ <b>Wiring it is wrong too</b> — that repeats the mistake at a larger size,
+    /// which is exactly what the <c>2026-08-17</c> user ruling forbids.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>So the state is PINNED: this FAILS the moment someone constructs a picker</b>, which
+    /// makes wiring it the reminder to build the consumer as well. ⛔ A test that merely says "the
+    /// type exists" would be decoration. ⭐ <b>INVERT this when the resolver runtime lands</b>, naming
+    /// it as the consumer it waited for.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void ThePickerIsInert_UntilTheResolverRuntimeExists()
+    {
+        var editorAssembly = typeof(ProducerPicker).Assembly;
+
+        Assert.Empty(ConstructionSitesOf(editorAssembly, typeof(ProducerPicker)));
+        Assert.Empty(ConstructionSitesOf(editorAssembly, typeof(ProducerCatalog)));
+    }
+
+    /// <summary>
+    /// ⭐ <c>newobj</c> sites for <paramref name="target"/>, by IL token resolution. ⚠ The bound: a
+    /// false positive would make the assertion STRICTER, never looser, so it cannot hide a caller.
+    /// </summary>
+    private static IReadOnlyList<MethodBase> ConstructionSitesOf(Assembly assembly, Type target)
+    {
+        var module = assembly.ManifestModule;
+        var result = new List<MethodBase>();
+
+        foreach (var type in assembly.GetTypes())
+        foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic
+                                             | BindingFlags.Instance | BindingFlags.Static
+                                             | BindingFlags.DeclaredOnly)
+                                   .Cast<MethodBase>()
+                                   .Concat(type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic
+                                                              | BindingFlags.Instance | BindingFlags.Static)))
+        {
+            byte[]? il;
+            try { il = method.GetMethodBody()?.GetILAsByteArray(); } catch { continue; }
+            if (il is null) continue;
+
+            for (int i = 0; i + 4 < il.Length; i++)
+            {
+                if (il[i] != 0x73) continue;                        // newobj
+                int token = BitConverter.ToInt32(il, i + 1);
+                MethodBase? resolved;
+                try { resolved = module.ResolveMethod(token, type.GetGenericArguments(), null); }
+                catch { continue; }
+                if (resolved is ConstructorInfo ci && ci.DeclaringType == target)
+                    result.Add(method);
+            }
+        }
+        return result;
+    }
 }

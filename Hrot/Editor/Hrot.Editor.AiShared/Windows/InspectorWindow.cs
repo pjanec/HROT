@@ -323,7 +323,27 @@ public sealed class InspectorWindow : ManagedWindow
             }
         }
 
-        // ---- B-3: Default-value StructEdit panel ("Static Parameters") ----
+        // ---- B-3: the DEFAULT-VALUE editor for the selected node's ExpressionTargetField ----
+        //
+        // ⭐⭐ WHAT THIS IS (recorded Batch 74; it was carried as "retire STATIC PARAMETERS" since
+        //    Batch 69 on a label nobody had measured). ⛔ It has nothing to do with parameters. When
+        //    the selected BTree/HSM node's facet carries an ExpressionTargetField -- the OUTPUT
+        //    binding, i.e. the blackboard variable that receives the action's expression result --
+        //    this section edits THAT VARIABLE'S DEFAULT VALUE inline via StructEdit, persisting
+        //    through UpdateVariableDefaultValueJson. Contextual default-value authoring for the
+        //    variable the selected node writes. The old label named none of that.
+        //
+        // ⭐ WHY IT IS KEPT, not retired (user ruling 2026-08-17: "no rush removals"):
+        //   - the duplicate CODE half is already gone -- Batch 68 (BP-267) routed this through
+        //     DefaultValueAuthoring.OpenSession, so what remains is a duplicate SURFACE, not a
+        //     second implementation, and ExactlyOneCallSite_OpensAVariableEditSession pins that;
+        //   - the surface earns itself: it is NODE-scoped (you see the default of the variable this
+        //     node writes) where Track C's table is ASSET-scoped;
+        //   - Track C's replacement (VariableEditLauncher) is constructed by nothing yet, so
+        //     retiring this would delete the only live surface -- see
+        //     TrackCsVariableDialog_HasNoEntryPointYet_SoTheInspectorPanelIsTheLiveOne, which
+        //     INVERTS when the Track C menu lands.
+        //
         // Shown when: an expressionTargetFieldAccessor is wired, the current facet carries a
         // non-null ExpressionTargetField, the active asset implements IBlackboardManagedAsset,
         // and an edit service is available.
@@ -367,8 +387,10 @@ public sealed class InspectorWindow : ManagedWindow
                         _defaultValueSession.RebuildDocument();
 
                     ImGuiNET.ImGui.Separator();
-                    ImGuiNET.ImGui.Text("STATIC PARAMETERS");
-                    ImGuiNET.ImGui.TextDisabled($"Default values for: {boundVarName}");
+                    // ⭐ Batch 74: the label now names what the section does. Free to change --
+                    //   no test asserted the old string.
+                    ImGuiNET.ImGui.Text($"DEFAULT VALUE — {boundVarName}");
+                    ImGuiNET.ImGui.TextDisabled("the variable this node writes (ExpressionTargetField)");
 
                     var drawers2 = _facetCustomDrawers ?? new Dictionary<Type, IImGuiFieldDrawer>();
                     var drawer2  = new ComponentEditDrawer(_defaultValueSession, pickerCtx: null, drawers2);
