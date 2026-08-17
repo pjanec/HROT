@@ -62,13 +62,23 @@
 
 ## 4. ⭐⭐ WHERE TO LOOK when there is no row
 
+> ⭐⭐⭐ **USER CORRECTION, `2026-08-17`, verbatim:** *"most designs are in the **docs** folder. in the
+> `.dev` those named like 'design' or 'detailed design' describe **what was implemented**."*
+> ⇒ ⛔⛔ **`.dev/` is AS-BUILT, not INTENT.** ⚠ **I previously listed `.dev/*-DESIGN.md` as an intent
+> source — that was WRONG**, and it is the same error as reading code: it tells you *how it is*.
+
 | # | look | it tells you |
 |---|---|---|
-| ① | ⭐⭐⭐ **`docs/blueprints/Architect_Question_*_ANSWERS.md`** | ⭐ **THE RULINGS.** ⛔ the non-`ANSWERS` files carry only options |
+| ① | ⭐⭐⭐ **`docs/**` — `Architect_Question_*_ANSWERS.md`** | ⭐ **THE RULINGS.** ⛔ the non-`ANSWERS` files carry only options |
 | ② | ⭐⭐ **their §"Sequencing" tables** | ⛔ **a finding with a planned batch is NOT a new finding** |
-| ③ | `docs/blueprints/DESIGN_*.md`, `*_Unification.md`, `BOOTSTRAP_*.md` | the model |
-| ④ | `.dev/<programme>/*-DESIGN.md` → `reports/*-REPORT.md` → `TASK-DETAIL.md` | intent → debt → the authorising user decision |
+| ③ | ⭐⭐ **`docs/` — `DESIGN_*.md`, `*_Unification.md`, `BOOTSTRAP_*.md`, `PLAN_*.md`** | ⭐ **THE INTENT — the model as it is MEANT to be** |
+| ④ | ⚠ **`.dev/<programme>/*-DESIGN.md`, `*_Detailed_Design.md`** | ⛔⛔ **AS-BUILT — what WAS IMPLEMENTED.** ⭐ Useful for *"why is it like this"*, ⛔ **never for *"what should it be"*** |
+| ⑤ | `.dev/**/reports/*-REPORT.md` tails · `TASK-DETAIL.md` | **the DEBT** *(`DEBT-*` ids are filed here and nowhere else)* · the authorising user decision |
 | ⛔ | `batches/*-INSTRUCTIONS.md`, `reviews/*` | **least useful — they restate the design** |
+
+⚠⚠ **The trap this correction closes:** ⛔ **an as-built document AGREES WITH THE CODE by
+construction.** ⭐ **Citing one to justify a design position proves nothing** — it is code-reasoning
+wearing a design document's name.
 
 ## 5. ⛔ MY OWN CORRECTIONS — **do not repeat these**
 
