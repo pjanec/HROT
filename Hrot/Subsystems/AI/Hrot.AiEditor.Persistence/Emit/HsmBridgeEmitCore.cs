@@ -323,6 +323,13 @@ public static class HsmBridgeEmitCore
     /// variables, only <c>State</c>-role variables, or a type no resolver can size. ⭐ One return
     /// shape means the caller has one condition to test, which is the whole point of hoisting this.
     /// </summary>
+    /// <summary>⭐ <c>E7b</c>: the same packing, for <c>HsmEmitCore</c>'s expression-target binding.
+    /// ⛔ One packer call, so the offset a transition bakes and the offset <c>ParseParams</c> writes
+    /// are the same number by construction rather than by agreement.</summary>
+    internal static IReadOnlyList<BTreeBlackboardPackHelper.PackedField> PackParamsFor(
+        HsmAssetDto dto, Func<string, int?>? sizeResolver)
+        => PackParams(dto, sizeResolver);
+
     private static IReadOnlyList<BTreeBlackboardPackHelper.PackedField> PackParams(
         HsmAssetDto dto, Func<string, int?>? sizeResolver)
     {

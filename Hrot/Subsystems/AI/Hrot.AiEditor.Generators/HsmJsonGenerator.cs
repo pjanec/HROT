@@ -74,11 +74,21 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
             return;
         }
 
+        // BP-281 / E7b: the Roslyn-backed struct-size resolver, built once and used by BOTH
+        // emitters — the topology core bakes expression-target offsets into action keys and the
+        // bridge writes ParseParams at the same offsets, so they must resolve sizes identically.
+        // Only built when there is a managed blackboard to size; otherwise null, and the emitted
+        // output is byte-identical to before.
+        System.Func<string, int?>? sizeResolver =
+            dto.Blackboard != null && dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0
+                ? StructSizeResolver.MakeDelegate(compilation)
+                : null;
+
         // Emit topology core (CreateBuilder + [HsmDefinition] thunk, NO [HsmLayout]).
         string source;
         try
         {
-            source = HsmEmitCore.EmitTopologyCore(dto);
+            source = HsmEmitCore.EmitTopologyCore(dto, sizeResolver);
         }
         catch (Exception ex)
         {
@@ -97,13 +107,6 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
         string bridge;
         try
         {
-            // BP-281: only build the Roslyn-backed resolver when there is a managed blackboard to
-            // size — an asset without one gets a null resolver and emits byte-identically.
-            System.Func<string, int?>? sizeResolver =
-                dto.Blackboard != null && dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0
-                    ? StructSizeResolver.MakeDelegate(compilation)
-                    : null;
-
             bridge = HsmBridgeEmitCore.EmitBridge(dto, sizeResolver);
         }
         catch (Exception ex)
