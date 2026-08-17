@@ -337,3 +337,49 @@ git merge-base --is-ancestor <my-commit> <that-parent>
 
 Report *"not in the commit they built from (run starting `<sha>`)"*. The same document is routinely
 absent for one run and present for the next — both statements true, about different runs.
+
+## ⛔⛔ SWEEP THE DESIGN CORPUS **BEFORE TRIAGING FINDINGS INTO BATCHES** *(user ruling, `2026-08-17`)*
+
+> ⭐⭐⭐ **User, verbatim:** *"so that means you are issuing corrective batches without having read the
+> design intent behind the failures reported — this is not good."*
+
+📌 **The case.** Eight findings came back from the first visual check. The coordinator measured **code**
+for every one of them — root causes, line numbers, call paths — and **never read the design roadmap.**
+⛔ **`Architect_Question_32_…_ANSWERS.md` §4 is a SEQUENCING TABLE that already specified at least four
+of the eight**, and §2.2 had already counted the duplicate surfaces.
+
+| what was issued | ⛔ what the design already said |
+|---|---|
+| *"rename the three `Variables` windows to unique names"* | ⭐⭐ **`U-16` / ruling 9: RETIRE them** — *"no keeping two implementations for the same concept… `U-16` is **not optional cleanup; it is the acceptance criterion**."* ⚠ **And bigger than assumed: THREE variable surfaces + `InspectorWindow` in two assemblies** |
+| *"every section's `[+]` opens the same dialog"* | ⛔⛔ **`Q32` ruling 8 already merged `Variable` ≡ `WorkingState`** ⇒ **the batch was hardening a section the design collapses** |
+| *"MEASURE the Details panel, I did not"* | ⭐ **ruling 2's selection routing**, sequenced as `U-6` |
+| *"Batch 83: the Watch has no entry points"* | ⭐ **already specified**: *"make `HandlePinValueChanged` real · EDITING through the same dialog · show NOTHING before the run"* |
+
+⇒ ⭐⭐⭐ **A measured root cause tells you WHY IT BROKE. It cannot tell you WHETHER THE THING SHOULD
+EXIST.** ⛔ **Fixing a surface the design retires is worse than not fixing it** — it spends a batch and
+cements the duplicate.
+
+### ⭐ The rule
+
+1. ⭐⭐ **Before triaging ANY finding into a batch, sweep for its design intent** — ⛔ **not after, not
+   "if it looks non-obvious."** ⚠ **The failures above all looked obvious.**
+2. ⭐⭐⭐ **Read the SEQUENCING TABLES first.** 📌 `Q32` §4 is the model: a batch-by-batch roadmap with
+   *why here*. ⛔ **A finding that already has a planned batch is NOT a new finding.**
+3. ⭐ **Order of lookup is the `2026-08-15` table** *(`*-DESIGN.md` → `reports/*-REPORT.md` → `TASK-DETAIL.md`)*,
+   ⭐ **plus `docs/blueprints/Architect_Question_*_ANSWERS.md`** — ⚠ **the ANSWERS files carry the
+   rulings; the question files carry only the options.**
+4. ⛔ **State the design basis IN the handoff, per item.** ⭐ *"design says X, this batch does Y"* — if
+   that sentence cannot be written, **the sweep was not done.**
+
+## ⭐⭐⭐ ARCHITECT QUESTIONS — **I analyse and SUGGEST, the user APPROVES** *(user, `2026-08-17`)*
+
+> ⭐⭐ **User, verbatim:** *"remember no architect will answer the architect question, you and me need to
+> resolve those, so you analyze and suggest, i approve."*
+
+⛔⛔ **Do NOT leave an architect question in an OPEN, option-shaped state waiting for someone.**
+⚠ **`Q39` was written as "`Q39-A`–`E`, open, not scheduled" — that is the old relay habit**, and the
+relay does not exist.
+
+⇒ ⭐ **Every architect question carries a RECOMMENDED ANSWER PER SUB-QUESTION**, with the reasoning and
+the blast radius, ⭐⭐ **written so the user can reply "approved" or name the one they want changed.**
+⛔ **Options without a recommendation are work handed back to the user.**
