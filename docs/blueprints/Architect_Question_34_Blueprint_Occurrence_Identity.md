@@ -86,7 +86,7 @@ runtime event has no node id.**
 | **`Q34-A`** | ✅ **A — widen `BlueprintSlotEntry` to 20 B** with `uint OccurrenceKey` *(`0` = default)* |
 | **`Q34-B`** | ✅ **A — caller-supplied `InstanceKey` on the attach event** |
 | **`Q34-C`** | ✅ **A — the 3-arg `TryGetSlotOffset` keeps meaning "key `0`"**; a 4-arg overload takes the key |
-| **when** | ⭐ **NOW** — scheduled, no longer "later" |
+| **when** | ⚠ **REVISED `2026-08-17` (same day, after Batch 72 measured the edit surface): DEFERRED** — *"too many files affected… could be done sometime later once really needed."* ⭐⭐ **The three answers above are UNAFFECTED** — see §8 |
 
 ---
 
