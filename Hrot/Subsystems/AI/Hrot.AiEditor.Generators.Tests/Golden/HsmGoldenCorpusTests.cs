@@ -229,36 +229,39 @@ public sealed class HsmGoldenCorpusTests
     }
 
     /// <summary>
-    /// 🔴🔴 <b>A finding, pinned the moment the floor existed: an HSM <c>Role=Input</c> variable
-    /// reaches NOTHING in emitted output.</b>
+    /// ⭐⭐⭐ <b><c>BP-281</c> — INVERTED in Batch 74. An HSM <c>Role=Input</c> variable now reaches
+    /// emitted output.</b>
     ///
     /// <para>
-    /// 📐 <b>Measured</b> — <c>Threshold</c> (a <c>Role=Input</c> variable with a
-    /// <c>DefaultValueJson</c>) appears in <b>neither</b> emitted part: not the topology core, not the
-    /// registrar. <c>HsmBridgeEmitCore</c> emits a stateful-slot manifest and <b>no params handling of
-    /// any kind</b> — ⛔ there is no HSM equivalent of the BTree bridge's <c>ParseParams</c>, so
-    /// <c>DEBT-AIB-021</c>'s fix has no HSM counterpart to fix.
+    /// 🔴 <b>What this used to assert, and why it existed.</b> Batch 71 measured that <c>Threshold</c>
+    /// (a <c>Role=Input</c> variable with a <c>DefaultValueJson</c>) appeared in <b>neither</b> emitted
+    /// part — <c>HsmBridgeEmitCore</c> emitted a stateful-slot manifest and <b>no params handling of
+    /// any kind</b>. ⇒ <c>DEBT-AIB-021</c>'s fix had no HSM counterpart to fix. The test asserted that
+    /// gap deliberately, named for what it was, with the standing instruction to <b>invert it, not
+    /// delete it</b>, when the path was built. 📌 This is that inversion.
     /// </para>
     ///
     /// <para>
-    /// ⚠ <b>This asserts the GAP, deliberately, and it is the shape Batch 70 warned about</b> — <i>"a
-    /// test asserting the absence of a feature is indistinguishable from a test asserting a bug"</i>.
-    /// ⭐ So it is named for what it is: when the HSM params path is built, <b>this test must be
-    /// inverted, not deleted</b>, and the baseline will move to prove it.
-    /// </para>
-    ///
-    /// <para>
-    /// ⭐ It was invisible before <c>E0</c> for exactly the reason <c>E0</c> exists: no corpus asset
-    /// carried a <c>Role=Input</c> variable.
+    /// ⚠ <b>It asserts the variable is NAMED in the registrar</b> — the overlay arm is keyed by
+    /// variable name, so the name appearing is the observable difference between "authored" and
+    /// "reachable". ⭐ The bytes themselves are held by
+    /// <c>HsmParseParamsEmissionTests</c>, which compiles and runs what this emits.
     /// </para>
     /// </summary>
     [Fact]
-    public void AnHsmRoleInputVariable_ReachesNoEmittedOutput_Yet()
+    public void AnHsmRoleInputVariable_ReachesTheEmittedRegistrar()
     {
         var parts = Kind.Emit(AiAssetCorpus.ReadAsset(Kind, "HsmVariableShowcase"));
 
-        Assert.All(parts, p => Assert.DoesNotContain("Threshold", p.Source));
-        Assert.All(parts, p => Assert.DoesNotContain("ParseParams", p.Source));
+        string registrar = parts.Single(p => p.HintName.Contains("Registrar", StringComparison.Ordinal)).Source;
+
+        Assert.Contains("ParseParams   = __parseParams,", registrar);
+        Assert.Contains("case \"Threshold\":", registrar);   // the overlay arm, keyed by variable name
+        Assert.Contains("\"1.5\"", registrar);               // the authored default, baked
+
+        // ⛔ The topology core stays out of it: params are the bridge's job, not the blob's.
+        string core = parts.Single(p => !p.HintName.Contains("Registrar", StringComparison.Ordinal)).Source;
+        Assert.DoesNotContain("Threshold", core);
     }
 
     /// <summary>

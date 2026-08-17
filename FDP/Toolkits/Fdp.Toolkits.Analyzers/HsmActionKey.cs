@@ -65,8 +65,36 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         /// </summary>
         public static ushort ForActionName(string fullyQualifiedName) => Compute(fullyQualifiedName);
 
-        /// <summary>The key for a <c>[SharedAiAction]</c>/<c>[SharedAiCondition]</c> entry.</summary>
+        /// <summary>
+        /// ⭐⭐ The key for a <c>[SharedAiAction]</c>/<c>[SharedAiCondition]</c> entry:
+        /// <c>{MethodFqn}@{byteOffset}</c> — the method's FULLY QUALIFIED name, then the byte offset
+        /// of the blackboard field it is bound to.
+        ///
+        /// <para>
+        /// ⛔⛔ <b>Batch 74 (<c>E7b</c>): this used to be the SIMPLE name, and <c>E6</c>(A) had not
+        /// reached it.</b> 📐 Measured: the sibling <c>BTreeActionGenerator</c> already built the
+        /// identical key as <c>ContainingType + "." + Name + "@" + offset</c> at all three of its
+        /// sites, while <c>HsmActionGenerator</c> used <c>sym.Name</c> at all three of its own. ⇒ two
+        /// generators, one convention, two spellings.
+        /// </para>
+        ///
+        /// <para>
+        /// 🔴 <b>What that cost:</b> an HSM asset stores its action as an FQN (<c>HsmEmitCore</c>), so
+        /// a compound key spelled with the simple name was <b>unreachable from any asset</b> — the
+        /// same silent <c>TryGetValue</c> miss <c>E6</c> was, one layer down. ⭐ Nothing consumed the
+        /// old spelling, so making it agree is additive rather than breaking.
+        /// </para>
+        /// </summary>
         public static ushort ForCompoundKey(string compoundKey) => Compute(compoundKey);
+
+        /// <summary>
+        /// ⭐ Builds the compound key from its two parts, so the <c>{fqn}@{offset}</c> SPELLING has one
+        /// home rather than being re-concatenated at every site that needs it. ⚠ The emitter that
+        /// bakes the key into an HSM blob and the generator that registers the thunk must produce the
+        /// same string, and the only reliable way to guarantee that is for both to call this.
+        /// </summary>
+        public static string CompoundKeyName(string fullyQualifiedName, int byteOffset)
+            => fullyQualifiedName + "@" + byteOffset;
 
         /// <summary>The key for the generated exit-cleanup peer of a channel-writing action.</summary>
         public static ushort ForExitCleanup(string registeredName) => Compute(ExitCleanupName(registeredName));

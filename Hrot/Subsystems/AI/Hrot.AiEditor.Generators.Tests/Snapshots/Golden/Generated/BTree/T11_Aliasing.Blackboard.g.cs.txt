@@ -1,0 +1,12 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: bb000011-0000-0000-0000-000000000000
+
+using System.Runtime.InteropServices;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+[StructLayout(LayoutKind.Sequential)]
+public struct T11_Aliasing_Blackboard
+{
+    public global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams counter;
+}

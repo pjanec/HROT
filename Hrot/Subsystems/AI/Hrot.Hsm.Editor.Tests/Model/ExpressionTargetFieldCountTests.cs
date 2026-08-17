@@ -147,30 +147,31 @@ public sealed class ExpressionTargetFieldCountTests
         => Assert.Equal(expected, HsmAsset.IsExpressionTargetOf(bound, variable));
 
     /// <summary>
-    /// ⚠⚠ <b>The runtime half does not exist, and this says so as a measurement.</b>
-    /// <c>ExpressionTargetField</c> appears <b>zero times</b> in either HSM emit core, so it never
-    /// reaches the blob: there is no write whose bytes could be asserted. ⛔ Not blocked on <c>E3</c>
-    /// — blocked on the field being emitted at all.
+    /// ⭐⭐⭐ <b>INVERTED in Batch 74 (<c>E7b</c>): the runtime half EXISTS.</b>
     ///
     /// <para>
-    /// ⭐ <b>Invert this when the emitter carries it</b>, do not delete it — Batch 70's rule about
-    /// tests that assert an absence.
+    /// 🔴 <b>What this used to assert.</b> <c>ExpressionTargetField</c> appeared <b>zero times</b> in
+    /// either HSM emit core, so it never reached the blob and there was no write whose bytes could be
+    /// asserted — a producer with no consumer. The test stated that absence deliberately, with the
+    /// standing instruction to <b>invert it, not delete it</b> (Batch 70's rule). 📌 This is that
+    /// inversion.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ It asserts the EMITTER READS THE FIELD, which is the property that was missing; the shape of
+    /// what it emits — the <c>{ActionFqn}@{offset}</c> compound key, its agreement with the
+    /// registrar's id, and the fallback for an unbound target — belongs to
+    /// <c>HsmExpressionTargetTests</c>, where both sides of that agreement are in scope.
     /// </para>
     /// </summary>
     [Fact]
-    public void TheRuntimeHalfDoesNotExistYet()
+    public void TheRuntimeHalfExists_TheEmitterReadsTheField()
     {
-        foreach (var relative in new[]
-                 {
-                     System.IO.Path.Combine("Hrot", "Subsystems", "AI", "Hrot.AiEditor.Persistence",
-                                            "Emit", "HsmEmitCore.cs"),
-                     System.IO.Path.Combine("Hrot", "Subsystems", "AI", "Hrot.AiEditor.Persistence",
-                                            "Emit", "HsmBridgeEmitCore.cs"),
-                 })
-        {
-            var source = System.IO.File.ReadAllText(FindUp(relative));
-            Assert.DoesNotContain("ExpressionTargetField", source);
-        }
+        var core = System.IO.File.ReadAllText(FindUp(System.IO.Path.Combine(
+            "Hrot", "Subsystems", "AI", "Hrot.AiEditor.Persistence", "Emit", "HsmEmitCore.cs")));
+
+        Assert.Contains("ExpressionTargetField", core);
+        Assert.Contains("EffectiveActionName", core);
     }
 
     private static string FindUp(string relative)

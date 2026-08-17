@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using Hrot.AiEditor.Persistence.BTree;
 using Hrot.AiEditor.Persistence.Hsm;
 
 namespace Hrot.AiEditor.Persistence.Emit;
@@ -33,11 +34,45 @@ public static class HsmBridgeEmitCore
     /// Emits the [BlueprintRegistrar] bridge class source for the given HSM DTO.
     /// </summary>
     public static string EmitBridge(HsmAssetDto dto)
+        => EmitBridge(dto, sizeResolver: null);
+
+    /// <summary>
+    /// Emits the [BlueprintRegistrar] bridge class source for the given HSM DTO, using an optional
+    /// size resolver for struct-DTO types — the BTree bridge's own seam
+    /// (<see cref="BTreeBridgeEmitCore.EmitBridge(BTree.BehaviorTreeAssetDto, System.Func{string, int?})"/>),
+    /// so a managed HSM blackboard can carry the same struct-typed variables a managed BTree one can.
+    /// </summary>
+    public static string EmitBridge(HsmAssetDto dto, Func<string, int?>? sizeResolver)
     {
         var sb = new StringBuilder();
 
+        // ⭐⭐⭐ BP-281 — the params supply is decided ONCE, here, and the decision is the PACKED
+        //   FIELD LIST itself, not a predicate re-derived at each use site.
+        //
+        // ⚠ Defects (b) and (c) of DEBT-AIB-021 were not "the wrong condition" — they were TWO
+        //   conditions that disagreed: the options field and the ParseParams body each decided for
+        //   themselves whether params existed, and one of them said "≥1 default". ⛔ Copying the BTree
+        //   bridge's guards would have reproduced that split on a second host.
+        //
+        // ⭐ So the three emissions below (the `#nullable enable` pragma, the options field, the
+        //   ParseParams local) all read ONE value, and it is the same value the body consumes. An
+        //   asset whose variables are all Role=State packs to nothing and emits none of the three —
+        //   which is right, because State lives in the partition tier, not the inline param region.
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields = PackParams(dto, sizeResolver);
+        bool emitsParseParams = packedFields.Count > 0;
+
         // Header
         sb.AppendLine(AiEmitCoreBase.BuildHeader(dto.AssetId));
+
+        // The emitted ParseParams lambda annotates `IHostVariableAccess? host`, which is a
+        // nullable-reference annotation and needs an in-file pragma in generator output (CS8632/CS8669
+        // otherwise — the project-level <Nullable>enable</Nullable> does not propagate). ⭐ Emitted
+        // ONLY for assets that emit a ParseParams, so every other asset's bridge stays byte-identical.
+        if (emitsParseParams)
+        {
+            sb.AppendLine("#nullable enable");
+            sb.AppendLine();
+        }
 
         // Usings
         var usings = CollectBridgeUsings(dto);
@@ -64,7 +99,20 @@ public static class HsmBridgeEmitCore
         sb.AppendLine($"public static class {bridgeClass}");
         sb.AppendLine("{");
 
-        EmitHsmRegisterMethod(sb, dto, coreClass);
+        // ⭐⭐ BP-281 — the JSON options field, guarded by the SAME value as everything else.
+        //    ⚠ DEFECT (c) of DEBT-AIB-021 was keying this on "≥1 default": the overlay needs the
+        //    options whether or not anything was defaulted.
+        if (emitsParseParams)
+        {
+            sb.AppendLine($"{Indent}// JSON options for ParseParams — the platform-canonical options (IncludeFields,");
+            sb.AppendLine($"{Indent}// vector/FixedString/strict-enum converters, and FC-3b fixed-list support) so");
+            sb.AppendLine($"{Indent}// Params defaults share ONE wire format with scenario save/load.");
+            sb.AppendLine($"{Indent}private static readonly global::System.Text.Json.JsonSerializerOptions __paramJsonOpts =");
+            sb.AppendLine($"{Indent}{Indent}global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;");
+            sb.AppendLine();
+        }
+
+        EmitHsmRegisterMethod(sb, dto, coreClass, packedFields);
 
         sb.AppendLine("}");
 
@@ -74,7 +122,8 @@ public static class HsmBridgeEmitCore
     // ── Register method ─────────────────────────────────────────────────────────
 
     private static void EmitHsmRegisterMethod(
-        StringBuilder sb, HsmAssetDto dto, string coreClass)
+        StringBuilder sb, HsmAssetDto dto, string coreClass,
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields)
     {
         string pad  = Indent;
         string pad2 = Indent + Indent;
@@ -95,6 +144,9 @@ public static class HsmBridgeEmitCore
         sb.AppendLine($"{pad2}var blob = {coreClass}.Compile();");
         sb.AppendLine();
 
+        // ⭐⭐⭐ BP-281 — the params supply, emitted BEFORE the definition that carries it.
+        bool hasParseParams = EmitParseParamsLocal(sb, dto, packedFields, pad2);
+
         // Register definition
         sb.AppendLine($"{pad2}// Register the JSON-owned HSM definition.");
         sb.AppendLine($"{pad2}beh.Register({behaviorId}, \"{name}\", new BehaviorDefinition");
@@ -102,6 +154,8 @@ public static class HsmBridgeEmitCore
         sb.AppendLine($"{pad2}{Indent}Name          = \"{name}\",");
         sb.AppendLine($"{pad2}{Indent}BrainTier     = BehaviorConstants.BrainTierHsm,");
         sb.AppendLine($"{pad2}{Indent}HsmDefinition = blob,");
+        if (hasParseParams)
+            sb.AppendLine($"{pad2}{Indent}ParseParams   = __parseParams,");
         EmitStatefulWorkingSlotsArray(sb, dto, pad2 + Indent);
         sb.AppendLine($"{pad2}}});");
 
@@ -135,6 +189,216 @@ public static class HsmBridgeEmitCore
         //   the build instead of silently winning.
 
         sb.AppendLine($"{pad}}}");
+    }
+
+    // ── BP-281: the params supply ──────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>BP-281</c> — HSM's <c>ParseParams</c> counterpart.</b> Before this, an HSM asset
+    /// could declare a <c>Role = Input</c> variable, round-trip it, and see it in the editor's own
+    /// section — and <b>nothing wrote it at runtime</b>. 📄 <c>DESIGN_Parameter_Model.md</c> §3:
+    /// one pipeline for every host.
+    ///
+    /// <para>
+    /// ⭐⭐ <b>Mirrored from <c>BTreeBridgeEmitCore.EmitParseParamsLocal</c> AS IT STANDS AFTER
+    /// <c>DEBT-AIB-021</c></b>, not from the pre-021 shape:
+    /// <list type="number">
+    ///   <item><description>Step 1 — bake the authored defaults, in declaration order.</description></item>
+    ///   <item><description>Step 2 — overlay the incoming JSON, keyed by VARIABLE NAME. An unknown key
+    ///   is <b>ignored</b>; a variable the JSON does not mention keeps its default.</description></item>
+    ///   <item><description>⛔ Malformed JSON <b>throws, deliberately</b> — <c>BehaviorIngressSystem</c>
+    ///   parses into a stack shadow and commits only on success, so a throw is exactly what leaves the
+    ///   entity on its old behaviour.</description></item>
+    /// </list>
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>The DESTINATION POINTER.</b> <c>memory</c> is the base of the entity's
+    /// <c>BrainBlackboard</c> — <c>BehaviorIngressSystem:100</c> passes a shadow of the whole
+    /// component — and <c>BehaviorParameters</c> sits at <c>[FieldOffset(0)]</c> of it. ⇒ writing at
+    /// <c>memory + packedOffset</c> is the SAME region the analyzer's HSM thunks read at
+    /// <c>bb.BehaviorParameters[0] + offset</c>. ⭐ <b>A root HSM behaviour has exactly one params
+    /// area, so this needs nothing from <c>E3</c></b> (per-occurrence storage) — see the batch report.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>The PACKER is BTree's, called — not copied</b> (ruling 9, and the same choice
+    /// <c>E1</c> made for the slot key). <c>State</c>-role variables are excluded by
+    /// <c>Pack</c> itself: they live in the partition tier, not the inline param region.
+    /// </para>
+    /// </summary>
+    /// <returns>true when a <c>__parseParams</c> local was emitted.</returns>
+    private static bool EmitParseParamsLocal(
+        StringBuilder sb, HsmAssetDto dto,
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields, string pad2)
+    {
+        // ⭐⭐ DEFECT (b) of DEBT-AIB-021: the BTree guard used to be "≥1 DEFAULT", so an asset whose
+        //    variables had no defaults emitted no ParseParams and could never be overridden at all.
+        //    ⛔ The overlay is useful for EVERY packed variable, default or not — so the condition is
+        //    "≥1 PACKED variable", and it is the SAME list the caller already computed.
+        if (packedFields.Count == 0) return false;
+
+        var variables = dto.Blackboard!.Variables;
+
+        // Baked defaults: variables carrying a non-null DefaultValueJson that are also packed.
+        var offsetMap = new Dictionary<string, BTreeBlackboardPackHelper.PackedField>(StringComparer.Ordinal);
+        foreach (var f in packedFields)
+            offsetMap[f.Name] = f;
+
+        var defaults = new List<(BTreeBlackboardPackHelper.PackedField Field, string DefaultJson)>();
+        foreach (var v in variables)
+        {
+            if (v.DefaultValueJson == null) continue;
+            if (!offsetMap.TryGetValue(v.Name, out var field)) continue;
+            defaults.Add((field, v.DefaultValueJson));
+        }
+
+        string pad3 = pad2 + Indent;       // inside the unsafe { }
+        string pad4 = pad3 + Indent;       // inside the lambda body
+        string pad5 = pad4 + Indent;       // inside each { } block per variable
+
+        sb.AppendLine($"{pad2}// BP-281: managed parameter supply — bake defaults, then overlay from json.");
+        sb.AppendLine($"{pad2}// The SAME ParseParamsDelegate the BTree bridge emits (DESIGN_Parameter_Model.md §3).");
+        sb.AppendLine($"{pad2}// ParseParamsDelegate uses byte* — must be captured in an unsafe block.");
+        sb.AppendLine($"{pad2}global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams;");
+        sb.AppendLine($"{pad2}unsafe");
+        sb.AppendLine($"{pad2}{{");
+        sb.AppendLine($"{pad3}__parseParams = static (string json, byte* memory, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>");
+        sb.AppendLine($"{pad3}{{");
+
+        // ── step 1: bake the defaults ────────────────────────────────────────────
+        sb.AppendLine($"{pad4}// Step 1 — baked defaults. DESIGN_Parameter_Model.md §3.2: the ORDER is the ruling.");
+        foreach (var (field, defaultJson) in defaults)
+        {
+            string dtoTypeFqn = BTreeBridgeEmitCore.DtoTypeToGlobal(field.TypeId);
+            string escaped    = EscapeCSharpStringLiteral(defaultJson);
+            sb.AppendLine($"{pad4}{{");
+            sb.AppendLine($"{pad5}var __v = global::System.Text.Json.JsonSerializer.Deserialize<{dtoTypeFqn}>(\"{escaped}\", __paramJsonOpts);");
+            sb.AppendLine($"{pad5}global::System.Runtime.CompilerServices.Unsafe.Write(memory + {field.ByteOffset}, __v);");
+            sb.AppendLine($"{pad4}}}");
+        }
+
+        // ── step 2: overlay from the incoming json ───────────────────────────────
+        sb.AppendLine();
+        sb.AppendLine($"{pad4}// Step 2 — overlay. A wrapper object keyed by VARIABLE NAME, dispatched to each");
+        sb.AppendLine($"{pad4}// variable's deserializer (DEBT-AIB-021 names this shape).");
+        sb.AppendLine($"{pad4}// ⛔ Malformed json THROWS on purpose: the ingress parses into a stack shadow and");
+        sb.AppendLine($"{pad4}//    commits only on success, so a throw leaves the entity on its old behaviour.");
+        sb.AppendLine($"{pad4}if (!string.IsNullOrWhiteSpace(json))");
+        sb.AppendLine($"{pad4}{{");
+        sb.AppendLine($"{pad5}using var __doc = global::System.Text.Json.JsonDocument.Parse(json);");
+        sb.AppendLine($"{pad5}if (__doc.RootElement.ValueKind == global::System.Text.Json.JsonValueKind.Object)");
+        sb.AppendLine($"{pad5}{{");
+        sb.AppendLine($"{pad5}{Indent}foreach (var __prop in __doc.RootElement.EnumerateObject())");
+        sb.AppendLine($"{pad5}{Indent}{{");
+        sb.AppendLine($"{pad5}{Indent}{Indent}switch (__prop.Name)");
+        sb.AppendLine($"{pad5}{Indent}{Indent}{{");
+        foreach (var f in packedFields)
+        {
+            string dtoTypeFqn = BTreeBridgeEmitCore.DtoTypeToGlobal(f.TypeId);
+            sb.AppendLine($"{pad5}{Indent}{Indent}{Indent}case \"{EscapeCSharpStringLiteral(f.Name)}\":");
+            sb.AppendLine($"{pad5}{Indent}{Indent}{Indent}{{");
+            sb.AppendLine($"{pad5}{Indent}{Indent}{Indent}{Indent}var __o = global::System.Text.Json.JsonSerializer.Deserialize<{dtoTypeFqn}>(__prop.Value.GetRawText(), __paramJsonOpts);");
+            sb.AppendLine($"{pad5}{Indent}{Indent}{Indent}{Indent}global::System.Runtime.CompilerServices.Unsafe.Write(memory + {f.ByteOffset}, __o);");
+            sb.AppendLine($"{pad5}{Indent}{Indent}{Indent}{Indent}break;");
+            sb.AppendLine($"{pad5}{Indent}{Indent}{Indent}}}");
+        }
+        sb.AppendLine($"{pad5}{Indent}{Indent}{Indent}// ⭐ Unknown key: IGNORED, matching the curated path's own behaviour.");
+        sb.AppendLine($"{pad5}{Indent}{Indent}{Indent}default: break;");
+        sb.AppendLine($"{pad5}{Indent}{Indent}}}");
+        sb.AppendLine($"{pad5}{Indent}}}");
+        sb.AppendLine($"{pad5}}}");
+        sb.AppendLine($"{pad4}}}");
+
+        sb.AppendLine($"{pad3}}};");
+        sb.AppendLine($"{pad2}}}");
+        sb.AppendLine();
+
+        return true;
+    }
+
+    /// <summary>
+    /// ⭐⭐ Packs an HSM asset's managed blackboard into inline param offsets. ⛔ Returns an EMPTY
+    /// list — never null — for every case that has no inline params: a non-managed blackboard, no
+    /// variables, only <c>State</c>-role variables, or a type no resolver can size. ⭐ One return
+    /// shape means the caller has one condition to test, which is the whole point of hoisting this.
+    /// </summary>
+    /// <summary>⭐ <c>E7b</c>: the same packing, for <c>HsmEmitCore</c>'s expression-target binding.
+    /// ⛔ One packer call, so the offset a transition bakes and the offset <c>ParseParams</c> writes
+    /// are the same number by construction rather than by agreement.</summary>
+    internal static IReadOnlyList<BTreeBlackboardPackHelper.PackedField> PackParamsFor(
+        HsmAssetDto dto, Func<string, int?>? sizeResolver)
+        => PackParams(dto, sizeResolver);
+
+    private static IReadOnlyList<BTreeBlackboardPackHelper.PackedField> PackParams(
+        HsmAssetDto dto, Func<string, int?>? sizeResolver)
+    {
+        var variables = dto.Blackboard?.Variables;
+        if (dto.Blackboard == null || !dto.Blackboard.Managed || variables == null || variables.Count == 0)
+            return Array.Empty<BTreeBlackboardPackHelper.PackedField>();
+
+        try
+        {
+            return BTreeBlackboardPackHelper.Pack(ToPackable(variables), sizeResolver, out _);
+        }
+        catch
+        {
+            // ⚠ An unsizeable type means the layout is not knowable. ⛔ Emit nothing rather than a
+            //   ParseParams writing at offsets that are a guess — the BTree bridge makes the same
+            //   choice around its own Pack call.
+            return Array.Empty<BTreeBlackboardPackHelper.PackedField>();
+        }
+    }
+
+    /// <summary>
+    /// ⭐ Projects HSM blackboard variables onto the shape <see cref="BTreeBlackboardPackHelper.Pack"/>
+    /// consumes. ⚠ <c>HsmBlackboardVariableDto</c> and <c>BlackboardVariableDto</c> are
+    /// field-for-field twins in two namespaces — a duplication that predates this item and is
+    /// <b>not</b> resolved here. ⭐ What matters for ruling 9 is that the PACKING ALGORITHM has one
+    /// home: this projection exists so the algorithm can be called rather than copied.
+    /// </summary>
+    private static IReadOnlyList<BlackboardVariableDto> ToPackable(
+        IReadOnlyList<HsmBlackboardVariableDto> variables)
+    {
+        var result = new List<BlackboardVariableDto>(variables.Count);
+        foreach (var v in variables)
+        {
+            result.Add(new BlackboardVariableDto
+            {
+                Name             = v.Name,
+                Type             = new BlackboardTypeRefDto
+                {
+                    TypeId      = v.Type?.TypeId ?? string.Empty,
+                    IsArray     = v.Type?.IsArray ?? false,
+                    FixedLength = v.Type?.FixedLength,
+                },
+                DefaultValueJson = v.DefaultValueJson,
+                Comment          = v.Comment,
+                IsAutoManaged    = v.IsAutoManaged,
+                Role             = v.Role,
+                Scope            = v.Scope,
+            });
+        }
+        return result;
+    }
+
+    /// <summary>Escapes a string for use inside a C# double-quoted string literal.</summary>
+    private static string EscapeCSharpStringLiteral(string s)
+    {
+        var sb = new StringBuilder(s.Length + 8);
+        foreach (char c in s)
+        {
+            switch (c)
+            {
+                case '\\': sb.Append(@"\\"); break;
+                case '"':  sb.Append("\\\""); break;
+                case '\n': sb.Append(@"\n");  break;
+                case '\r': sb.Append(@"\r");  break;
+                case '\t': sb.Append(@"\t");  break;
+                default:   sb.Append(c);      break;
+            }
+        }
+        return sb.ToString();
     }
 
     // ── Usings ─────────────────────────────────────────────────────────────────

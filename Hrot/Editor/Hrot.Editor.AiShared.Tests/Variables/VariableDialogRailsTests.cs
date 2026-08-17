@@ -135,6 +135,84 @@ public sealed class VariableDialogRailsTests
         return result;
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 74 item 4 — measured instead of retired, and the measurement inverts the ask.</b>
+    ///
+    /// <para>
+    /// 📌 <b>The batch asked to retire <c>InspectorWindow</c>'s "STATIC PARAMETERS" block</b> as a
+    /// second surface for one concept, on the grounds that Track C's dialog had replaced it.
+    /// 📐 <b>Measured: the opposite is true.</b> <c>VariableEditLauncher</c> — Track C's dialog entry
+    /// point (📄 <c>DESIGN_Variable_Details_And_Editing.md</c> §3, reached from the <c>⋮</c> menu and a
+    /// value-cell double-click) — is <b>constructed by nothing</b>, because the table's context menu is
+    /// not wired yet. ⛔ Retiring the panel would have deleted the ONLY LIVE authoring surface for a
+    /// bound variable's default value and left the replacement unreachable.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>And ruling 9 is already satisfied</b>, which is what the ask was really about: Batch 68
+    /// routed the panel through <see cref="DefaultValueAuthoring.OpenSession"/>, so the two are ONE
+    /// implementation with two entry points — pinned by
+    /// <see cref="ExactlyOneCallSite_OpensAVariableEditSession"/> above, not by this test.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>This asserts a GAP, deliberately, and is named for it</b> (Batch 70's rule): when the
+    /// Track C menu lands, <b>INVERT this, do not delete it</b> — at which point retiring the panel
+    /// becomes a real question rather than an assumed one.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void TrackCsVariableDialog_HasNoEntryPointYet_SoTheInspectorPanelIsTheLiveOne()
+    {
+        var assembly = typeof(DefaultValueAuthoring).Assembly;
+
+        // ⭐ The panel really is wired: InspectorWindow opens a variable session through the ONE opener.
+        var openSession = typeof(DefaultValueAuthoring)
+            .GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .First(m => m.Name == nameof(DefaultValueAuthoring.OpenSession));
+        Assert.Contains(
+            FindCallSites(assembly, openSession),
+            m => m.DeclaringType!.Name == "InspectorWindow");
+
+        // ⛔ …and Track C's launcher is constructed by nobody. Asserted over the assembly that
+        //    DECLARES it and would host the menu, so a wiring in that assembly reddens this.
+        Assert.Empty(FindConstructionSites(assembly, typeof(VariableEditLauncher)));
+    }
+
+    /// <summary>⭐ <c>newobj</c> sites for <paramref name="target"/> — the constructor twin of
+    /// <see cref="FindCallSites"/>, using the same token-resolution technique and the same bound
+    /// (a false positive makes the rail stricter, never looser).</summary>
+    private static IReadOnlyList<MethodBase> FindConstructionSites(Assembly assembly, Type target)
+    {
+        var module = assembly.ManifestModule;
+        var result = new List<MethodBase>();
+
+        foreach (var type in assembly.GetTypes())
+        foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic
+                                             | BindingFlags.Instance | BindingFlags.Static
+                                             | BindingFlags.DeclaredOnly)
+                                   .Cast<MethodBase>()
+                                   .Concat(type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic
+                                                              | BindingFlags.Instance | BindingFlags.Static)))
+        {
+            byte[]? il;
+            try { il = method.GetMethodBody()?.GetILAsByteArray(); } catch { continue; }
+            if (il is null) continue;
+
+            for (int i = 0; i + 4 < il.Length; i++)
+            {
+                if (il[i] != 0x73) continue;                       // newobj
+                int token = BitConverter.ToInt32(il, i + 1);
+                MethodBase? resolved;
+                try { resolved = module.ResolveMethod(token, type.GetGenericArguments(), null); }
+                catch { continue; }
+                if (resolved is ConstructorInfo ci && ci.DeclaringType == target)
+                    result.Add(method);
+            }
+        }
+        return result;
+    }
+
     // ── §9 · kind-driven fields ─────────────────────────────────────────────────
 
     /// <summary>
