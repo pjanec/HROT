@@ -33,14 +33,26 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
                     return (at.Path, text);
                 });
 
+        // ⭐ BP-281: combine with the full compilation so the bridge can resolve struct-DTO sizes for a
+        //   managed blackboard — the SAME seam BTreeJsonGenerator uses (StructSizeResolver).
+        //   ⛔ Without it a struct-typed HSM input variable would be unsizeable and the params supply
+        //   would silently not be emitted: exactly the "caller HAS the dependency and does not pass it"
+        //   shape this codebase files as a defect.
+        //   Incrementality note: as on the BTree side, this makes GenerateOneAsset re-run on ANY
+        //   compilation change. Acceptable for the small *.hsm.json asset set (VE-DEBT-003).
+        IncrementalValuesProvider<(string Path, string Text, Compilation Compilation)> combined =
+            rawFiles.Combine(context.CompilationProvider)
+                    .Select(static (pair, _) => (pair.Left.Path, pair.Left.Text, pair.Right));
+
         // Per-asset: deserialize → emit topology core → register source output
-        context.RegisterSourceOutput(rawFiles, static (spc, item) =>
+        context.RegisterSourceOutput(combined, static (spc, item) =>
         {
-            GenerateOneAsset(spc, item.Path, item.Text);
+            GenerateOneAsset(spc, item.Path, item.Text, item.Compilation);
         });
     }
 
-    private static void GenerateOneAsset(SourceProductionContext spc, string path, string text)
+    private static void GenerateOneAsset(
+        SourceProductionContext spc, string path, string text, Compilation compilation)
     {
         // Deserialize — failure becomes a diagnostic, never throws, never fails siblings.
         HsmAssetDto? dto;
@@ -85,7 +97,14 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
         string bridge;
         try
         {
-            bridge = HsmBridgeEmitCore.EmitBridge(dto);
+            // BP-281: only build the Roslyn-backed resolver when there is a managed blackboard to
+            // size — an asset without one gets a null resolver and emits byte-identically.
+            System.Func<string, int?>? sizeResolver =
+                dto.Blackboard != null && dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0
+                    ? StructSizeResolver.MakeDelegate(compilation)
+                    : null;
+
+            bridge = HsmBridgeEmitCore.EmitBridge(dto, sizeResolver);
         }
         catch (Exception ex)
         {
