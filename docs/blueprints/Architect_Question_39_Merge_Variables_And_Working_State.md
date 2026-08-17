@@ -55,7 +55,31 @@ LIFECYCLE.** ⛔ **And the IR union already excludes it** — *"no `Parameters` 
 
 ---
 
-## 4. ⭐ The sub-questions
+## 4. ⭐⭐⭐ RECOMMENDED ANSWERS — **for approval, not for relay**
+
+> ⭐⭐ **User, `2026-08-17`:** *"no architect will answer… you analyze and suggest, i approve."*
+> ⇒ ⛔ **These are recommendations with reasoning, not options.** ⭐ **Reply "approved", or name the one
+> you want changed.**
+
+| | question | ⭐⭐⭐ **RECOMMENDATION** | why |
+|---|---|---|---|
+| **`Q39-A`** | one section for `Variable` + `WorkingState`? | ⭐⭐ **YES — merge** | ⛔ **the compiler already treats them as one** *(`IrAsset.cs:95`, shipped)*. ⚠ **Showing two teaches a distinction that no longer exists** — and it has now cost a real designer real confusion |
+| **`Q39-B`** | which kind does the merged `[+]` create? | ⭐⭐⭐ **Derive from the asset's DISPATCH KIND** — AiPrimitive ⇒ `WorkingState`, Instance ⇒ `Variable`. ⭐⭐ **PLUS a rail pinning `0 assets with both`** | ⛔⛔ **This is the one that can break something.** Ruling 8's safety rests on that invariant, the union is order-sensitive, and ⚠ **nothing asserts it today** |
+| **`Q39-C`** | what is it called? | ⭐ **`Variables`** | ⛔ *"Working State"* is an implementation word. ⭐ The ABI struct names are untouched either way *(ruling 8's bound)* |
+| **`Q39-D`** | does it reach BTree/HSM? | ⛔⛔ **NO** | 📐 **the AI sections are `Role`+`Scope`, not `DeclarationKind`.** ⚠⚠ **The shared label "Working State" across the two is a COINCIDENCE — ⛔ do not let a future batch "unify" them by name** |
+| **`Q39-E`** | migrate stored kinds? | ⛔ **NO — presentation only** | ⭐ a migration moves `StructureHash` and the golden corpus, for zero user-visible gain |
+
+### ⚠ What approving this COSTS — stated plainly
+
+| | |
+|---|---|
+| ⭐ **it CHANGES a live batch** | ⛔ **Batch 81 §3b** *(every section's `[+]` opens the same dialog)* **is building a dialog for a section this merges away**, and its create-kind question **IS `Q39-B`** ⇒ ⭐⭐ **pull §3b** |
+| ⭐ **`Q39-B`'s rail is the durable half** | ⚠ **not the merge itself** — the invariant is load-bearing and unguarded **today**, merge or no merge |
+| ⛔ **it does NOT resolve `Q38`** | ⭐ one section list ≠ one window. **Independent** |
+
+---
+
+## 4a. ⭐ The sub-questions *(reasoning behind the table above)*
 
 | | question | ⭐ Claude's lean | ⚠ what makes it hard |
 |---|---|---|---|
