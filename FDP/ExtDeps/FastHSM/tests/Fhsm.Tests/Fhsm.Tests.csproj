@@ -22,9 +22,18 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Fhsm.Kernel\Fhsm.Kernel.csproj" Aliases="global,KernelLib" />
     <ProjectReference Include="..\..\src\Fhsm.Compiler\Fhsm.Compiler.csproj" />
-    <ProjectReference Include="..\..\src\Fhsm.SourceGen\Fhsm.SourceGen.csproj"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false" />
+    <!-- BP-307: there is deliberately NO source generator reference here.
+         `Fhsm.SourceGen` existed (FastHSM's own BATCH-11 created src/Fhsm.SourceGen/) and was
+         later removed; its successor is Fdp.Toolkits.Analyzers/HsmActionGenerator.cs, the only
+         `class HsmActionGenerator` left in the repo. A ProjectReference to the vanished project
+         survived here until Batch 78 — MSBuild prints "Skipping project ... because it was not
+         found" and succeeds, so the suite looked generator-backed and was not.
+         What the SourceGen/* tests actually exercise is Helpers/GeneratedRegistrarStub.cs, a
+         hand-written stand-in — a recorded decision, see
+         .dev/_DONE/blueprints-2/reports/BATCH-01-REPORT.md:70.
+         Referencing the successor analyzer here would NOT restore the old behaviour: it keys
+         actions on the FULLY QUALIFIED name (E6(A), Batch 72) while the stub and
+         ActionDispatchTests key on the short name. See the stub's header. -->
   </ItemGroup>
 
 </Project>
