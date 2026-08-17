@@ -89,11 +89,40 @@ actions.** ⭐ **That is why `B` is sufficient and `A` is overkill.**
 
 ---
 
-## 7. Status
+## 7. ✅ RESOLVED — `2026-08-17`, with the user
+
+> ⭐⭐⭐ **User, verbatim:** *"putting to HsmCommandWriter is ok. pair rather than hash. one path."*
+
+| | answer |
+|---|---|
+| **`Q35-A`** | ✅ **B — carry it on `HsmCommandWriter`.** The kernel stamps it before each dispatch; ⛔ **no delegate signature changes anywhere** |
+| **`Q35-B`** | ✅ **A — the PAIR `(regionSlotIndex, stateId)`**, ⛔ **not a pre-hashed key.** ⭐ **The key algorithm stays in ONE home** — `ComputeStatefulSlotKey`, outside `ExtDeps` |
+| **`Q35-C`** | ✅ **ONE PATH** — the plain single-region case moves to the allocator too. ⛔ **No baked-offset route kept "for the simple case"** *(ruling 9; and that divergence is what made the bug invisible)* |
+
+### ⭐⭐ The division of labour this fixes in place
+
+> ⭐ **The kernel supplies IDENTITY. The thunk does the LOOKUP.**
+
+⛔ **The kernel knows nothing about the partition allocator and must not learn** — that is why the pair
+beats a hash, and why `B` is sufficient where `A` looked necessary. ⭐ **The thunk already contains the
+code shape it needs** *(the tier probe + `TryGetSlotOffset` that stateful BTree actions have used since
+`S2`)*; what it lacked was four bytes of *"who am I"*.
+
+### ⚠ The accepted limit — **guards are unserved**
+
+📐 `EvaluateGuard` is `delegate*<void*, void*, ushort, bool>` — the third argument is `eventId`, **so
+there is no writer to carry the pair.** ⭐ **Measurably free today: `VE-DEBT-004` — zero production
+`[HsmGuard]` exists.** ⛔ **But it is a real limit, not a nothing:** ⚠ **if a stateful guard is ever
+authored it needs option `A` or a route of its own.** ⇒ **assert the limit** so it surfaces as a
+decision rather than as a silent wrong answer.
+
+---
+
+## 8. Status
 
 | | |
 |---|---|
 | **raised** | `2026-08-17`, coordinator, from Batch 73's consumer census |
-| **state** | 🔴 **OPEN — agenda for a working session with the user.** ⛔ **`E3` does not start until `Q35-A` is answered** |
-| ⭐ **not blocked by it** | **`BP-281`** *(HSM has no `ParseParams` counterpart)* · **`E7b`'s runtime half** · **BTree's emit tier** · the `InspectorWindow` retirement ⇒ **Batch 74 proceeds** |
-| ⚠ **what a "no" costs** | if none of `B`/`C`/`D` is acceptable and `A` is too expensive, ⛔ **`E3` is deferred and orthogonal regions keep sharing bytes** — ⭐ **that is a legitimate answer**, but it must be a decision, not a drift |
+| **state** | ✅ **RESOLVED `2026-08-17`.** ⭐ **`E3` is UNBLOCKED** |
+| ⭐ **what it unblocks** | **`E3`** → then **`E5`** *(one more occurrence key)* and **`E7a`** *(look one up)* — 📄 [`DESIGN_Hsm_Storage_Model.md`](DESIGN_Hsm_Storage_Model.md) §4 |
+| ⭐ **and what it did not block** | **`BP-281`** — 📄 same design §2: **not blocked, and never was** |
