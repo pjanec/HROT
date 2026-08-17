@@ -39,6 +39,64 @@
 | **R-08** | ⚠ **`Inputs`/`Parameter` IS genuinely different** — `ParameterDecl` is a different shape, written once at behavior assignment, and the IR union has **no `Parameters` arm** | `BlueprintDeclaration.cs`, `VariableRef.cs` |
 | **R-09** | ⚠⚠ **Stage `D` hazards:** synthesized fields (`__phase`, `__waitUntilTime`) are `(State, Asset)` but **never declared** ⇒ **they surface in the authoring UI without a marker**; **shared state** has **61 refs / 8 assets** declared nowhere | `Variable_Model_Unification.md` |
 
+## 1a. ⛔⛔ SEQUENCING & STANDING CONSTRAINTS — **the section I did not read**
+
+| id | ⭐ the ruling | source |
+|---|---|---|
+| ⭐⭐⭐ **R-21** | ⛔⛔ **NO VISUAL CHECKS until the Details panel is implemented AND the emitters and all access infrastructure are unified.** ⭐ **`VISUAL_CHECK_Guide.md` is SUSPENDED, not cancelled** *(user, `2026-08-14`)*. ⚠⚠ **I ran one anyway on `2026-08-17` — the user re-derived this ruling unaided** | `Q32_…_ANSWERS.md` |
+| ⭐⭐⭐ **R-22** | ⭐⭐ **`Q32` §4 IS THE MASTER SEQUENCING TABLE (56→61).** ⛔ **A finding with a planned batch is NOT a new finding.** Still NOT done: **`U-16`** *(60, retire the duplicate Variables windows)* · **`59b`** *(Watch populate/edit)* | `Q32_…_ANSWERS.md` |
+| ⭐⭐⭐ **R-23** | ⛔⛔ **Stage `D` is FOUR stages `D1`–`D4`, not one.** ⭐ **Only `D1` reverts cheaply**; once `D2` writes v2 files the reverted reader cannot load them ⇒ **the DOWN-MIGRATOR is the revert** | `Variable_Model_Unification.md` |
+| 🔴🔴 **R-24** | ⛔⛔ **`D2` MUST preserve field order within each group — or every deployed blackboard is WIPED.** 📐 order → `FieldLayout` offsets → `StructureHash` → the emitted tick wipes on mismatch | `Variable_Model_Unification.md` |
+| **R-25** | ⚠ **Stage `B′` is BLOCKED on `BP-228`** *(struct type id is unvalidated pass-through)* | `Variable_Model_Unification.md` |
+| **R-26** | ⛔ **IMPLEMENTATION FREEZE — ONE session builds for ALL hosts.** Others may design; ⛔ **not code** | `Q32_…_ANSWERS.md` |
+| **R-27** | ⛔ **`Q38` must NOT be built until Track C is wired AND visually checked**; it absorbs `BP-128` | `Architect_Question_38_One_Details_Panel.md` |
+| **R-28** | ⭐ **`Q34` is RESOLVED, its BUILD deferred** — ⛔ **reopening the build must NOT reopen the decision** | `Architect_Question_34_…md` |
+| **R-29** | ⭐ **`Q37` is PARKED with measurements BANKED — do NOT re-measure.** Reopen **before** `E3`/`E5` | `Architect_Question_37_…md` |
+| **R-30** | ⛔ **`W6` is DROPPED — do not implement.** ⚠ **`W12` is unbudgeted** — no start without a scope pass | `PLAN_Cross_Host_Sequencing.md` |
+
+## 1b. ⭐⭐ THE PARAMETER MODEL — *(swept `2026-08-17`, previously unindexed)*
+
+| id | ⭐ the ruling | source |
+|---|---|---|
+| **R-31** | ⭐⭐ **Params belong to the OCCURRENCE, not the entity** — N concurrent occurrences need N regions, keyed by occurrence | `DESIGN_Parameter_Model.md` |
+| **R-32** | ⭐⭐ **ONE params struct per BEHAVIOUR** — the 100 bytes are **not** carved per action; per-action scratch belongs in the state area | `DESIGN_Parameter_Model.md` |
+| **R-33** | ⛔ **There is NO "Param" role.** The enum is exactly `{Input, State}` | `DESIGN_Parameter_Model.md` |
+| **R-34** | ⭐ **A blueprint has params ONLY when `Dispatch == AiPrimitive`** | `DESIGN_Parameter_Model.md` |
+| **R-35** | ⭐⭐ **Membership rule: a declaration is in the variable model IFF it has a byte offset in a struct THIS ASSET emits.** ⇒ puts `Graph.Inputs` and shared state OUT, synthesized fields IN | `Variable_Model_Unification.md` |
+| **R-36** | ⭐ **Instance slot layout is `[Cursor 16][Params N][State M]`** — ⛔ **params must NOT be at offset 0** | `DESIGN_Parameter_Model.md` |
+| **R-37** | ⭐⭐ **No LIVE parameter binding** — resolvers fill params **once** at activation/state entry. `E7a` adds a host **context** *(name-keyed, never a raw offset, fails closed)*, ⛔ **not a second supply mechanism** | `Q33` · `DESIGN_Parameter_Model.md` |
+| **R-38** | ⭐ **Shared state is a DELIBERATE EXCLUSION — declared in a DIFFERENT document** *(the manifest owns the slot)*. The blueprint is a **consumer**, read-only | `Variable_Model_Unification.md` |
+
+## 1c. ⭐⭐⭐ HARD LIMITS & PERSISTENCE PROMISES — **break these and it fails silently**
+
+| id | ⭐ the constraint | source |
+|---|---|---|
+| 🔴 **R-39** | ⚠⚠ **UNRECONCILED: `BrainBlackboard` param region is documented as 60 bytes and ENFORCED as 100 by analyzer `FDP_001`.** ⛔ **Do NOT size a param DTO from memory — reconcile first** | `AI_DEV_GUIDE.md` vs `Fdp.Toolkits.Analyzers.md` |
+| **R-40** | ⛔ **Blueprint field-layout bases are FIXED:** `Parameters` @ 0, `WorkingState` @ 8, `Variables` @ 16 | `Hrot.Blueprints.Core.md` |
+| **R-41** | ⛔ **Bytes 126/127 of every `BrainBlackboard` are reserved interrupt registers** | `AI_DEV_GUIDE.md` |
+| **R-42** | ⛔ **Behavior integer IDs are PERMANENT** — they appear in replays and saved scenarios. **Deprecate, never recycle** | `AI-Behavior-Authoring.md` |
+| **R-43** | ⛔ **Pins are NEVER serialized** — `"Pins": []` is a persistence invariant; they are rebuilt from schema + link GUIDs | `Hrot.Blueprints.Editor.md` |
+| **R-44** | ⛔ **`MAX_COMPONENT_TYPES = 256`**, globally unique, partitioned — required for multi-process determinism | `Fdp.Core.md` |
+| **R-45** | ⚠ **`0xFFFF` is the reserved HSM sentinel** across ParentIndex / ActiveLeafIds / History / Timer / InitialChild | `Fhsm.Kernel.md` |
+| **R-46** | ⚠ **BTree `Parallel` hard-caps at 16 children** *(32-bit status bitfield; silently truncates)*; HSM state depth **16**, BTree static depth **8** | `Fbt.Kernel.md` · `Fhsm.Kernel.md` |
+| **R-47** | ⛔ **`NodeEditor.Core` must stay ImGui-free**; all rendering lives in `NodeEditor.UI`. ⭐ **Model is READ-ONLY — every mutation goes through the command sink**, or undo breaks | `NodeEditor.Core.md` · `Blueprint-Scripting-System.md` |
+| **R-48** | ⛔ **NodeEdit / FastBTree / FastHSM have NO stable ABI** — vendored as source, co-evolved, CLR-identical structs | `SOLUTION-OVERVIEW.md` |
+| ⭐⭐ **R-49** | ⛔⛔ **GENERATE THE DATA; HAND-WRITE ONE GENERIC ACCESSOR; NEVER GENERATE PER-VARIABLE CODE.** ⚠ **There is none today — the first one must not be introduced** | `DESIGN_Variable_Details_And_Live_Values.md` |
+| **R-50** | ⛔ **Emitted behavior source is MACHINE-OWNED** — regenerated whole on save. ⚠ **Deleting the emitted `Layout()` destroys all canvas arrangement** | `Hrot.BTree.Editor.md` · `Hrot.Hsm.Editor.md` |
+| **R-51** | ⭐ **Diagnostic codes (`BP####`) are stable API** — compare on `Code`, never message text | `Hrot.Blueprints.Core.md` |
+
+## 1d. ⭐ SUPERSESSIONS — **newer overrules older**
+
+| ⛔ old | ✅ new |
+|---|---|
+| `Q25-D3` — a macro has exactly ONE exec-in | ⭐ **`Q26-A3`: N exec-ins, Unreal parity** *(`2026-08-11`)* |
+| `Q27-A1` — locals are C# stack locals + a refusal rail | ⭐ **`A3`: blackboard-allocated, reset in the ENTRY block. ⛔ Build NO refusal** *(`2026-08-13`)* |
+| `Q32` ruling 7 — running ⇒ writes the live blackboard | ⭐ **narrowed: writes ONLY while paused or deterministic-stepping**; ⛔ none during replay |
+| `Q36-A` marked OPEN in its own file | ⭐ **DECIDED — `Q36-A = B`, the host ticks the child inline** *(stated as fact in `Q37`)* |
+| `Q33` — "latent requires Instance dispatch" · "a latent condition is a compile error" | ⛔ **both FALSE** — AiPrimitives suspend via `__phase`; a latent condition compiles and **silently reads false** |
+| `Q12-C`'s architect answer | ⚠ **superseded by the user** — check before relying on it |
+| ⚠ **stale STATUS docs** | ⛔ **`Blueprint_Editor_Issue_List.md` is SUPERSEDED — do not use for status.** ⚠ `RESUME_START_HERE.md` and `CHECKLIST_…`'s headline lag `PLAN` rev 26 |
+
 ## 2. ⭐⭐ SURFACES AND DUPLICATION
 
 | id | ⭐ the ruling | source |
@@ -94,6 +152,23 @@ wearing a design document's name.
 
 <!-- MACHINE-CHECKABLE PROBES — id | file | verbatim substring that MUST exist in that file -->
 ```probes
+R-21 | docs/blueprints/Architect_Question_32_Variable_Details_And_Values_ANSWERS.md | AND A SEQUENCING RULING: NO VISUAL CHECKS
+R-22 | docs/blueprints/Architect_Question_32_Variable_Details_And_Values_ANSWERS.md | the emitter + access-path unification
+R-23 | docs/blueprints/Variable_Model_Unification.md | consumers moved off the old views, in dependency order
+R-24 | docs/blueprints/Variable_Model_Unification.md | If it does not, every deployed blackboard is wiped.
+R-31 | docs/blueprints/DESIGN_Parameter_Model.md | concurrent occurrences need N regions, keyed by occurrence
+R-33 | docs/blueprints/DESIGN_Parameter_Model.md | There is NO "Param" role.
+R-34 | docs/blueprints/DESIGN_Parameter_Model.md | A blueprint has params only when
+R-35 | docs/blueprints/Variable_Model_Unification.md | iff it has a byte offset in a struct THIS ASSET emits
+R-36 | docs/blueprints/DESIGN_Parameter_Model.md | params must NOT be at 0
+R-38 | docs/blueprints/Variable_Model_Unification.md | it is declared in a DIFFERENT DOCUMENT
+R-39 | docs/projects/FDP/Toolkits/Fdp.Toolkits.Analyzers.md | DTO size <= 100 bytes in BrainBlackboard
+R-40 | docs/projects/Hrot/Blueprints/Hrot.Blueprints.Core.md | at offset 0
+R-42 | docs/projects/relationships/AI-Behavior-Authoring.md | Behavior integer IDs are permanent
+R-44 | docs/projects/FDP/Core/Fdp.Core.md | MAX_COMPONENT_TYPES = 256
+R-47 | docs/projects/FDP/ExtDeps/NodeEdit/NodeEditor.Core.md | Never write through IGraphModel
+R-48 | docs/projects/SOLUTION-OVERVIEW.md | no stable ABI boundary
+R-49 | docs/blueprints/DESIGN_Variable_Details_And_Live_Values.md | NEVER GENERATE PER-VARIABLE CODE
 R-01 | docs/blueprints/Variable_Model_Unification.md | occupy the SAME cell
 R-01b | docs/blueprints/Variable_Model_Unification.md | names, one concept
 R-02 | docs/blueprints/Architect_Question_32_Variable_Details_And_Values_ANSWERS.md | it makes no sense to emit them differently
