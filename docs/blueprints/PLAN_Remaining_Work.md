@@ -644,7 +644,7 @@ because the corpus does not contain the thing*, not because the code is right.
 |---|---|---|
 | `E1` · `E3` · `E6` | ⭐ **HSM emitted output CHANGES** *(new manifests / new keys / new ids)* | ⛔ **unit tests only** |
 | `E5` | ⭐ **byte-identical for the corpus** — **0 shipped `.hsm.json` set `SubtreeAssetId`** ⇒ purely additive | additive |
-| **Instance params seam** (§4g) | ⭐ **byte-identical until an asset uses it** — `BP1031` means **0 Instances declare Parameters** today | 📄 **`DESIGN_Parameter_Model.md` §8 rails** |
+| ~~**Instance params seam**~~ (§4g) | ✅ **SHIPPED Batch 70, and byte-identical as predicted** — 296 Instance assets, **0** with parameters. ⚠ **`BP1031` is now RETIRED**, so *"0 declare parameters"* is a fact about the corpus, ⛔ **no longer a rule keeping it so** | 📄 **`DESIGN_Parameter_Model.md` §8 rails** |
 | `E7a` · `E7b` | signature / editor only — **no emitted-output change** | unit tests |
 
 ⇒ ⚠ **A decision the first Track-E batch must state, not assume:** *extend the corpus to HSM/BTree
