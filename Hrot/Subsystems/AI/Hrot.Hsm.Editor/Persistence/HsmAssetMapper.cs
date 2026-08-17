@@ -58,6 +58,7 @@ public static class HsmAssetMapper
                 ActivityAction = s.ActivityAction,
                 TimerAction    = s.TimerAction,
                 RegionIndex    = s.RegionIndex,
+                SubtreeAssetId = s.SubtreeAssetId,   // DEBT-AIB-028(a)
                 X              = s.Position.X,
                 Y              = s.Position.Y,
                 Comment        = s.Comment,
@@ -209,6 +210,7 @@ public static class HsmAssetMapper
                 ActivityAction = sDto.ActivityAction,
                 TimerAction   = sDto.TimerAction,
                 RegionIndex   = sDto.RegionIndex,
+                SubtreeAssetId = sDto.SubtreeAssetId,   // DEBT-AIB-028(a)
                 Position      = new Vector2(sDto.X, sDto.Y),
                 Comment       = sDto.Comment,
                 IsCollapsed   = sDto.IsCollapsed,

@@ -59,6 +59,19 @@ public sealed class StateNodeDto
     // Region membership
     public int RegionIndex { get; set; }
 
+    /// <summary>
+    /// ⭐⭐ <c>DEBT-AIB-028</c>(a): when non-empty, this state HOSTS an external behaviour asset
+    /// (BTree or nested HSM). ⛔ Until Batch 75 the model carried this field and the persistence layer
+    /// did not, so <b>no asset loaded from disk could ever set it</b> — and the two validator rules
+    /// that read it (rule 8 cross-region stateful subtree, rule 8b shared scope) were dormant in
+    /// production regardless of what a designer authored.
+    /// </summary>
+    /// <remarks>
+    /// ⭐ Omitted from JSON when empty, so every existing asset stays byte-identical.
+    /// </remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Guid SubtreeAssetId { get; set; }
+
     // Deferred events (by name; emit core resolves to IDs using DTO event order)
     public List<string> DeferredEventNames { get; set; } = new();
 
