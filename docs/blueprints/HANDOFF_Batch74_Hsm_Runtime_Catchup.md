@@ -1,17 +1,55 @@
-# HANDOFF — Batch 74: **HSM's runtime catches up with its authoring** — `BP-281` · `E7b` · BTree emit · `InspectorWindow`
+# HANDOFF — Batch 74: **only what the runtime already supports** — `E7b` · BTree emit · `InspectorWindow` · park the picker
 
-> 📌 **Dispatched at `6c49dc9db`.** Frozen per rule 1 *(rule 1a: re-dispatch only while this sha is NOT
-> in your history)*. ✅ **Batch 73 MERGED at `0808253e4`** — gates re-run by me, blueprint golden set
-> untouched, Examples.Scenarios now in the gate set at **56 / 68, 12 named quarantines**.
+> ⛔⛔ **AMENDED AND RE-STAMPED `2026-08-17` under rule 1a** — ⭐ **ancestry checked: the original
+> dispatch sha `6c49dc9db` was NOT in the implementation branch's history**, so no run was in progress.
+> 📌 **RE-DISPATCHED at `<this commit>`.** ⭐ **The original item 1 (`BP-281`) is REMOVED — see §0b.**
+>
+> ✅ **Batch 73 MERGED at `0808253e4`** — gates re-run by me, blueprint golden set untouched,
+> Examples.Scenarios now in the gate set at **56 / 68, 12 named quarantines**.
 > ⭐ **Rule 7 / Rule 4.** ⛔ **Rule 3: the coordinator allocates no ids.**
 > ⭐ **One commit per item · per-item STOP conditions.**
 >
-> ⛔⛔ **`E3` IS OUT — it is now blocked on 📄 [`Architect_Question_35`](Architect_Question_35_Hsm_Occurrence_Delivery.md)**, which your census forced me to
+> ⛔⛔ **`E3` IS OUT — blocked on 📄 [`Architect_Question_35`](Architect_Question_35_Hsm_Occurrence_Delivery.md)**, which your census forced me to
 > write. ⭐⭐ **Your census changed the answer**: measured against it, **the delegate need not widen at
 > all.** ⛔ **Do not start `E3`.**
->
-> ⭐⭐⭐ **This batch is one theme:** *HSM's authoring model is ahead of its runtime.* **Three of the four
-> items are a feature you can AUTHOR today that reaches nothing at runtime.**
+
+---
+
+## 0b. ⛔⛔ USER RULING `2026-08-17` — **build only what the runtime already supports**
+
+> ⭐⭐⭐ **User, verbatim:** *"lets amend the batch to just with what we already support, we can design
+> the missing hsm stuff while that batch is being implemented."*
+
+📌 **What prompted it — and it is a finding about MY scoping, not yours.** The user asked whether this
+programme is *"building authoring for a not-yet-ready runtime."* 📐 **I measured, and one case is ours:**
+
+| | measured `2026-08-17` |
+|---|---|
+| 🔴🔴 **`G7`+`W10`'s producer picker (Batch 70)** | `ProducerPicker.Persist()` is documented *"what to write to the asset"* ⇒ ⛔ **nothing calls it.** **0** references to `ProducerPicker`/`ProducerCatalog` outside their own folder · **0** asset fields storing a producer FQN · ⛔ **and the runtime it would feed — the blueprint-authored resolver (`R1`/`R2`/`R4`, resolver design §8.1) — is not built either** |
+
+⇒ ⭐⭐ **A complete, well-tested component with NO CALLER ON EITHER SIDE** — the *producer with no
+consumer* shape this programme keeps filing, **created by us, and I scoped the batch that did it.**
+⚠ **The batch report told me it was scoped to "the picker and its catalog" and I read that as a healthy
+narrowing rather than as shipping half a seam.**
+
+### ⇒ ⛔ `BP-281` is PULLED from this batch
+
+⭐ **Not because it is wrong — because its DESTINATION is undecided.** 📐 **There is no HSM params
+storage story at all**, so *"where does `ParseParams` write?"* is the **same question `Q35`/`E3` has
+open**. ⚠ **My own STOP in the original handoff half-admitted this** *("if HSM's answer depends on
+`E3`'s storage move, say so and build the ROOT case only")* — ⭐ **the user's ruling makes it explicit
+rather than leaving it as a stop you would have had to hit.**
+
+⭐⭐⭐ **The coordinator is designing that while you build this batch** — `BP-281` · `E3` · `E5` · `E7a`
+are **one question** *(where do an HSM occurrence's bytes live?)*, and they will come back as one
+designed piece rather than four items that each re-derive it.
+
+### ⭐ The rule this batch adopts
+
+> ⭐⭐ **No authoring surface ships without its consumer — or it ships EXPLICITLY ASSERTED AS INERT.**
+
+⭐ **You already do the second half instinctively** *(`BP-281`'s gap test, `E3`'s three gap tests)*.
+⛔ **The picker got no such marker, and that is the whole difference.** ⇒ **item 4.**
 
 ---
 
@@ -27,42 +65,7 @@
 
 ---
 
-## 1. 🔴🔴 `BP-281` — **HSM has no `ParseParams` counterpart.** ⭐ *Author an input; nothing supplies it*
-
-> ⭐ **Your own finding, Batch 71:** *"An HSM `Role=Input` variable reaches NO emitted output. Not the
-> topology core, not the registrar. `HsmBridgeEmitCore` emits a slot manifest and **no params handling
-> of any kind**."* ⇒ ⛔ **`DEBT-AIB-021`'s fix had nothing to fix on this host.**
-
-⭐⭐ **This is Track E's thesis in its purest form** — 📄 plan §4B: *"HSM's authoring model is ahead of
-its runtime."* You can declare `Role=Input`, it round-trips, the editor shows it in its section — **and
-at runtime it is never written.**
-
-### ⭐ The shape is already decided — **do not re-derive it**
-
-📄 **`DESIGN_Parameter_Model.md` §3** — one pipeline for every host.
-
-| | |
-|---|---|
-| ⭐⭐ **the delegate is `ParseParamsDelegate`, unchanged** | `(string json, byte* memory, EntityRepository world, Entity self, IHostVariableAccess? host)` ⛔ **no second delegate type** *(ruling 9)* |
-| ⭐⭐⭐ **mirror the BTree bridge, do not invent** | `BTreeBridgeEmitCore.EmitParseParamsLocal` **as it now stands after `DEBT-AIB-021`** — ⭐ **baked defaults first, then the incoming JSON overlays per variable by name**, unknown keys **ignored** *(the decision test exists; match it)* |
-| ⚠ **emit whenever there is ≥1 packed managed variable** | ⛔ **not "≥1 default"** — ⭐ **that was defect (b) of `-021`, and copying the old guard would reproduce it on a second host** |
-| ⭐ **and the `JsonSerializerOptions` field's guard too** | 📌 **defect (c)** — the same key, one level up |
-
-🔴 **STOP conditions**
-
-| | |
-|---|---|
-| ⭐⭐ **where does the destination pointer come from?** | 📐 **`-021`'s BTree path writes into the behaviour's params area.** ⚠ **If HSM's answer depends on `E3`'s storage move, say so and build the ROOT case only** — a root HSM behaviour has one params area, and that is not blocked |
-| ⭐ **invert the gap test, do not delete it** | you asserted this absence deliberately in Batch 71. ⛔ **Invert it** — Batch 70's rule |
-| ⚠ **the HSM emit baseline WILL move** | ⭐ expected; **show the diff is only the new params emission** |
-
-**rails:** ⭐ an HSM asset with a `Role=Input` variable and a default gets that default **at activation**
-· ⭐⭐ **an incoming JSON overlay wins over the default, per variable, others untouched** · ⭐ **an asset
-whose inputs have NO defaults still gets a working `ParseParams`** *(the `-021`(b) rail, on this host)*.
-
----
-
-## 2. ⭐⭐ `E7b`'s runtime half — **`ExpressionTargetField` is emitted NOWHERE**
+## 1. ⭐⭐ `E7b`'s runtime half — **`ExpressionTargetField` is emitted NOWHERE**
 
 > 📐 **Your measurement:** 0 occurrences in `HsmEmitCore` **and** `HsmBridgeEmitCore` ⇒ ⛔ **it never
 > reaches the blob, so there are no bytes to assert.** ⭐ **And my `E3` guess was wrong** — it is not
@@ -77,6 +80,7 @@ the shape this programme keeps filing.
 |---|---|
 | ⭐ **what it means** | *"the blackboard field that receives the expression **result** of `ActionFunction`"* — ⛔ **an OUTPUT binding**, not input wiring |
 | ⭐⭐ **both hosts have it** | BTree **per node**, HSM **per transition** ⇒ ⭐ **BTree is the template again — check what the BTree side emits and mirror it** |
+| ⭐⭐⭐ **why this one SURVIVES the ruling** | ⭐ **its destination already exists**: the target is a **named blackboard variable**, and `E1`/`E2` shipped HSM variable slots + provisioning. ⛔ **Unlike `BP-281`, nothing here waits on the occurrence-storage decision** |
 
 **rail:** ⭐⭐ **the named variable actually receives the expression result — assert the BYTES**, not the
 binding. ⭐ Plus: the validator's writer-style walk *(`W7c`'s subject)* and the runtime now agree about
@@ -87,7 +91,7 @@ what writes that variable.
 
 ---
 
-## 3. ⭐ BTree's emit tier — **over the REAL solution compilation**
+## 2. ⭐ BTree's emit tier — **over the REAL solution compilation**
 
 > ⭐ **Your measurement, and it is the whole specification:** `BTreeJsonGenerator` builds
 > `structSizeResolver` from the **semantic model** and runs `BTreeDeactivatorScanner.Scan` over **real
@@ -107,7 +111,7 @@ and baseline the fallback** — that is worse than no tier.
 
 ---
 
-## 4. ⭐ Retire `InspectorWindow`'s "STATIC PARAMETERS"
+## 3. ⭐ Retire `InspectorWindow`'s "STATIC PARAMETERS"
 
 ⭐ **Carried since Batch 69 and never scheduled.** 📄 The parameter model rules that **sections are the
 classification** *(`DESIGN_Parameter_Model.md` §5.1)* and Track C built that panel ⇒ ⛔ **a separate
@@ -119,9 +123,32 @@ and say so** — that is exactly the `BTreeTick` case.
 
 ---
 
+## 4. ⭐⭐⭐ Park the producer picker — **assert it inert, do not delete it**
+
+> 🔴 **The finding from §0b, and it is ours.** `ProducerPicker` + `ProducerCatalog` are complete and
+> tested, and **nothing on either side calls them**: no panel constructs the picker, no registrar
+> supplies the catalog, no asset field stores what `Persist()` returns, ⛔ **and the runtime it would
+> feed does not exist** *(`R1`/`R2`/`R4`, resolver design §8.1)*.
+
+⛔⛔ **DO NOT DELETE IT, and do not wire it either.**
+
+| | why |
+|---|---|
+| ⛔ **not delete** | ⭐⭐ **`2026-08-15`'s rule**: unreferenced ≠ unintentional. It is built to a design *(plan §4c, architect `AQ2`)* and its answers are ruled. ⚠ **Deleting removes a capability, not a mistake** |
+| ⛔ **not wire** | ⭐ **that is the very thing the user's ruling forbids** — an authoring surface whose consumer does not exist. **Wiring it now repeats the mistake at a larger size** |
+| ⭐⭐ **assert it INERT** | ⭐ **exactly what you did for `BP-281` and `E3`'s gaps** — a test that states *"nothing constructs this / nothing persists a producer FQN"*, ⭐⭐ **naming the consumer it waits for**, so it **inverts** when the resolver runtime lands |
+
+⭐ **And an XML-doc line on both types** saying the same in one sentence, with the pointer — ⛔ **so the
+next session that greps for callers finds the answer instead of a deletion candidate.**
+
+**rail:** ⭐⭐ **the inert assertion FAILS the moment someone wires it** *(that is the point — it becomes
+the reminder to also build the consumer)*. ⛔ **A test that merely says "it exists" is not this.**
+
+---
+
 ## 5. ⛔ NOT in this batch
 
-⛔⛔ **`E3`** *(blocked on `Q35`)* · ⛔⛔ **blueprint multi-occurrence** *(deferred by the user)* ·
+⛔⛔ **`BP-281`** *(PULLED — §0b; the coordinator is designing its destination)* · ⛔⛔ **`E3`** *(blocked on `Q35`)* · ⛔⛔ **blueprint multi-occurrence** *(deferred by the user)* · ⛔ **wiring the producer picker** *(item 4 parks it; ⚠ **building its runtime is a decision the user has not taken**)* ·
 **`E5`** *(rides `E3`'s mechanism, and needs `-028`(a))* · **`E7a`** *(`IHostVariableAccess` stays
 declared-only)* · the 12 quarantined scenario tests *(⛔ **out of programme — do not adopt them**)* ·
 the Track C **visual check**.
@@ -138,7 +165,7 @@ Toolkits **1964** · NodeEdit **208 / 131** · tracker **open 61 / done 165**.
 | | |
 |---|---|
 | 🔴🔴 **the BLUEPRINT golden set MUST NOT MOVE** | `persistence-shape` · the 43 `Emit/*.cs.txt` · `StructureHash` |
-| ⭐ **expected movement** | **item 1 moves the HSM emit baseline** *(new params emission)* · item 2 may · ⭐ **item 3 CREATES a BTree emit baseline.** ⛔ **Say which files moved in which commit** |
+| ⭐ **expected movement** | **item 1 may move the HSM emit baseline** *(`ExpressionTargetField` emission)* · ⭐ **item 2 CREATES a BTree emit baseline** · items 3–4 should move **nothing**. ⛔ **Say which files moved in which commit** |
 | ⚠ **the quarantine count must not grow** | ⭐ **12 skipped is a number I will check.** ⛔ **A new skip is a finding, not a fix** |
 | ⭐⭐ **`Fdp.Toolkits.Tests`** | ⛔ neither red nor green is evidence — `DEBT-AIB-030` |
 | **per-item revert-goes-red** · `tracker-counts.py --check` · ⚠ **the two NodeEdit gates take NO `--no-build`** | |
@@ -150,12 +177,13 @@ Toolkits **1964** · NodeEdit **208 / 131** · tracker **open 61 / done 165**.
 ⭐⭐ **The gate table — one row per gate, verbatim command, result.**
 
 **Per item:**
-⭐⭐⭐ **item 1** — ⭐ **did you reproduce `-021`'s defects (b) and (c) by copying the BTree guard, or
-avoid them?** *(either answer is fine; I want to know)* · **where the destination pointer comes from**,
-and whether the root case was enough · the inverted gap test.
-⭐⭐ **item 2** — **the bytes assertion** · whether emission needed anything `E3`-shaped.
-⭐ **item 3** — **the acceptance test: a mutation reddens it** · or the named boundary if you stopped.
-⭐ **item 4** — ⭐⭐ **what `.dev/` says**, before what you did.
+⭐⭐ **item 1** — **the bytes assertion** · ⭐ **whether emission needed anything `E3`-shaped** *(if it
+does, STOP — that is the design thread I am on)*.
+⭐ **item 2** — **the acceptance test: a mutation reddens it** · or the named boundary if you stopped.
+⭐ **item 3** — ⭐⭐ **what `.dev/` says**, before what you did.
+⭐⭐⭐ **item 4** — ⭐ **does the inert assertion fail if you wire the picker?** *(show it)* · and
+⛔ **anything ELSE you notice with the same shape** — an authoring surface whose consumer does not
+exist. ⭐⭐ **That sweep is worth more than the item**, and you are better placed to do it than I am.
 **Always:** ⭐ **every id you allocated** · **which `DEBT-AIB` rows this batch touched** ·
 **the quarantine count**.
 
