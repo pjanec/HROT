@@ -55,9 +55,34 @@ public sealed class VariableValueFormatter
     public VariableValueFormatter(DecodeRawValue decode)
         => _decode = decode ?? throw new ArgumentNullException(nameof(decode));
 
-    /// <summary>⭐ The one-line cell text.</summary>
+    /// <summary>
+    /// ⭐ The one-line cell text, for the CURRENT arm. ⚠ Kept so ~every existing caller is unchanged;
+    /// ⭐ the mode-aware overload below is what row 58 added.
+    /// </summary>
     public string Cell(VariableRow row, int width = DefaultCellWidth)
+        => Cell(row, VariableValueMode.Current, width);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The ONE Value column, read through the arm <paramref name="mode"/> names.</b>
+    ///
+    /// <para>📌 <b><c>Q32</c> ruling 3:</b> <i>"ONE Value column, meaning switched by run state"</i>
+    /// ⇒ ⛔ <b>not two columns, and not two formatters</b> — the same elision, the same decode, the
+    /// same tooltip contract; only the SOURCE of the bytes differs.</para>
+    ///
+    /// <para>⭐ <b>Three outcomes stay distinct, and they mean different things:</b>
+    /// <c>(pending)</c> = <i>the run has not written this yet</i> · <c>&lt;unreadable&gt;</c> =
+    /// <i>the bytes did not decode</i> · and in the INITIAL arm, a declaration with no default is
+    /// <b>zero-initialised</b> and renders as that zero — 📌 <c>BP-247</c>'s uniform rule
+    /// (<i>"`0` means leave it zero-initialised, for EVERY type"</i>), ⛔ not a fourth string.</para>
+    /// </summary>
+    public string Cell(VariableRow row, VariableValueMode mode, int width = DefaultCellWidth)
     {
+        if (mode == VariableValueMode.Initial)
+        {
+            var initial = InitialText(row);
+            return initial is null ? Unreadable : Elide(initial, width);
+        }
+
         // ✅ Already designed and shipped on the Watch side via !HasEverBeenWritten -- "nothing before
         //    the run" is a state, not an empty value.
         if (!row.HasEverBeenWritten) return PendingFirstWrite;
@@ -70,8 +95,19 @@ public sealed class VariableValueFormatter
 
     /// <summary>⭐⭐ The tooltip — pretty-printed, multi-line, one field per line for a struct.
     /// ⛔ Same decode, same value; only the LAYOUT differs.</summary>
-    public string Tooltip(VariableRow row)
+    public string Tooltip(VariableRow row) => Tooltip(row, VariableValueMode.Current);
+
+    /// <summary>⭐ The tooltip for the arm <paramref name="mode"/> names. ⛔ Same value, richer layout.</summary>
+    public string Tooltip(VariableRow row, VariableValueMode mode)
     {
+        if (mode == VariableValueMode.Initial)
+        {
+            var initial = InitialText(row, multiLine: true);
+            return initial is null
+                ? $"{Unreadable}\nThe declared type could not be resolved."
+                : "Initial value\n" + initial;
+        }
+
         if (!row.HasEverBeenWritten) return PendingFirstWrite;
 
         var decoded = Decode(row);
@@ -80,6 +116,56 @@ public sealed class VariableValueFormatter
 
         string body = MultiLine(decoded);
         return row.IsStale ? body + "\nasset/entity no longer present" : body;
+    }
+
+    // ── the INITIAL arm (row 58) ────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐ The declared starting value as text, or <c>null</c> when the type cannot be resolved.
+    ///
+    /// <para>⭐ <b>Two sources, in order.</b> ① the persisted <c>DefaultValueJson</c>, rendered as it
+    /// is stored — ⛔ <b>no second converter</b>: the JSON <i>is</i> the authored value, and
+    /// type-directed conversion here would be a parallel implementation of
+    /// <c>DefaultLiteral</c>'s job *(which produces C# source for the compiler, not display text, and
+    /// is `internal` to `Hrot.Blueprints.Compiler` in any case)*. ② no default declared ⇒
+    /// <b>zero-initialised</b>, rendered from the CLR type through the SAME layout the current arm
+    /// uses — 📌 <c>BP-247</c>: <i>"`0` means leave it zero-initialised, for EVERY type."</i></para>
+    /// </summary>
+    private static string? InitialText(VariableRow row, bool multiLine = false)
+    {
+        var json = row.ReadInitialJson?.Invoke();
+        if (!string.IsNullOrWhiteSpace(json)) return CompactJson(json!, multiLine);
+
+        if (row.ClrType is null) return null;
+
+        object? zero;
+        try { zero = row.ClrType.IsValueType ? Activator.CreateInstance(row.ClrType) : null; }
+        catch { return null; }        // ⭐ a monitor must never take the window down
+
+        if (zero is null) return "null";
+        return multiLine ? MultiLine(zero) : OneLine(zero);
+    }
+
+    /// <summary>
+    /// ⭐ Normalises stored JSON for display. ⛔ Does NOT interpret it against the type — that is the
+    /// compiler's job and it already has an owner.
+    /// </summary>
+    private static string CompactJson(string json, bool multiLine)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            return System.Text.Json.JsonSerializer.Serialize(
+                doc.RootElement,
+                new System.Text.Json.JsonSerializerOptions { WriteIndented = multiLine });
+        }
+        catch
+        {
+            // ⚠ Hand-edited or malformed JSON: show it verbatim rather than claiming it is unreadable.
+            //   ⛔ The value IS what is stored; the compiler's BP1674 is the authority on whether it
+            //   converts, and this cell must not pre-empt that verdict.
+            return json.Trim();
+        }
     }
 
     // ── decode ──────────────────────────────────────────────────────────────────

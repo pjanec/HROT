@@ -27,7 +27,10 @@ public sealed record VariableViewModel(
     bool   IsAutoManaged         = false,
     bool   IsReadOnly            = false,
     BlackboardVariableRole Role  = BlackboardVariableRole.Input,
-    WorkingStateScope Scope      = WorkingStateScope.Node)
+    WorkingStateScope Scope      = WorkingStateScope.Node,
+    // ⭐ Row 58 — the declaration's persisted default, so the Value column's INITIAL arm has a
+    //   source. ⚠ Trailing and optional: every existing construction site is unchanged.
+    string? DefaultValueJson     = null)
 {
     /// <summary>True when the Scope selector should be shown (i.e. Role == State).</summary>
     public bool ShowScopeSelector => Role == BlackboardVariableRole.State;
@@ -311,7 +314,9 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
                 IsAutoManaged: v.IsAutoManaged,
                 IsReadOnly:    false,
                 Role:          v.Role,
-                Scope:         v.Scope));
+                Scope:         v.Scope,
+                // ⭐ Row 58 — the INITIAL arm's source for the AI hosts.
+                DefaultValueJson: v.DefaultValueJson));
         }
 
         return new BlackboardWindowViewModel(

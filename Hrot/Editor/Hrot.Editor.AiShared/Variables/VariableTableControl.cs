@@ -140,10 +140,10 @@ public sealed class VariableTableControl
                 break;
 
             case VariableColumn.Value:
-                ImGui.TextUnformatted(_formatter.Cell(row));
+                ImGui.TextUnformatted(_formatter.Cell(row, view.ValueMode));
                 if (ImGui.IsItemHovered())
                 {
-                    ImGui.SetTooltip(_formatter.Tooltip(row));
+                    ImGui.SetTooltip(_formatter.Tooltip(row, view.ValueMode));
                     if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left) && row.CanEverBeWritten)
                         EditValueRequested?.Invoke(row);
                 }

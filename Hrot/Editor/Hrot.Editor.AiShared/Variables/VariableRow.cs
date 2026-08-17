@@ -82,7 +82,14 @@ public sealed record VariableRow(
     ReadAssetTick?    AssetTick    = null,
     VariableRowKind   RowKind      = VariableRowKind.Normal,
     bool              IsStale      = false,
-    bool              HasEverBeenWritten = true)
+    bool              HasEverBeenWritten = true,
+    // ⭐⭐ Row 58 — the INITIAL arm of the ONE Value column (Q32 ruling 3: "initial when not
+    //    running, current when running or paused"). The declaration's persisted default, as JSON.
+    // ⛔ NOT a second Value column — ruling 3 overrules that explicitly. It is the same column
+    //    read through the other arm, and VariableValue.ModeFor picks which.
+    // ⚠ Null means "this source cannot say what the initial value is", which is NOT the same as
+    //   "there is no default" (a null JSON string with a known ClrType ⇒ zero-initialised, BP-247).
+    Func<string?>?    ReadInitialJson = null)
 {
     /// <summary>§5 — <i>"editability = run state ∧ row kind"</i>. ⛔ 🔒 and node-owned rows never get a
     /// writable dialog, in either mode; a stale row gets no dialog at all.</summary>

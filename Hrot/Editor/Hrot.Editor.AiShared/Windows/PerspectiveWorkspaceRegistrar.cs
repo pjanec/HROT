@@ -191,6 +191,8 @@ public class PerspectiveWorkspaceRegistrar
         if (debugRegistry is null) throw new ArgumentNullException(nameof(debugRegistry));
 
         _perspectiveName = perspectiveName;
+        // ⭐ Row 58 — DERIVED from the registry this registrar was already given (RunStateSource).
+        _runState = RunStateSource.For(debugRegistry);
         var suffix = perspectiveName.ToLowerInvariant();
         var vl     = validators ?? Array.Empty<IAssetValidator>();
 
@@ -263,6 +265,10 @@ public class PerspectiveWorkspaceRegistrar
             id:                $"ai_variable_values_{suffix}",
             owningPerspective: perspectiveName,
             formatter:         ValueFormatter);
+
+        // ⭐⭐ Row 58 — the table's ONE Value column switches meaning by run state, derived here.
+        //    ⛔ Batch 79 shipped a settable RunState that NOTHING in production ever set.
+        Variables.SetRunStateSource(_runState);
 
         // ⭐⭐⭐ Batch 80 — DERIVED, not required. The registrar already knows its perspective, so the
         //    host kind is not information a caller can supply better; leaving it to be passed is what
@@ -418,6 +424,8 @@ public class PerspectiveWorkspaceRegistrar
         ConnectOutlineToDetails();
     }
 
+    private readonly Func<VariableRunState> _runState;
+
     private IVariableOutlineSelectionSource? _outlineSelection;
     private IVariableDetailsHost?            _detailsHost;
     private bool                             _outlineConnected;
@@ -434,6 +442,10 @@ public class PerspectiveWorkspaceRegistrar
 
         var host = _detailsHost;
         _outlineSelection.VariableSelectionChanged += selection => host.ShowVariables(selection);
+
+        // ⭐⭐⭐ Row 58 — the run state is DERIVED from the debug-session registry this registrar was
+        //    already given. ⛔ Not a new argument at the composition root, therefore nothing to forget.
+        host.SetRunStateSource(_runState);
     }
 
     /// <summary>

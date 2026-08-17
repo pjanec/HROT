@@ -46,6 +46,28 @@ public sealed class VariableDetailsSection
     /// <summary>⭐ The constructed model — a rail asserts on THIS, not on whatever built it.</summary>
     public VariableTableModel Model => _model;
 
+    private Func<VariableRunState>? _runState;
+
+    /// <summary>
+    /// ⭐⭐ Supplies the run state, so the ONE Value column switches meaning *(row 58, ruling 3)*.
+    /// ⛔ Installed by the registrar from the debug-session registry it already holds — <b>not</b>
+    /// another argument for the composition root to remember.
+    /// </summary>
+    public void SetRunStateSource(Func<VariableRunState> runState)
+        => _runState = runState ?? throw new ArgumentNullException(nameof(runState));
+
+    /// <summary>True once a run-state source is installed. ⭐ A rail surface.</summary>
+    public bool HasRunStateSource => _runState != null;
+
+    /// <summary>
+    /// ⭐ Re-reads the run state onto the model. Called every frame from <see cref="Draw"/>, and
+    /// directly by rails — ⛔ the draw path goes through ImGui, which no headless test can drive.
+    /// </summary>
+    public void SyncRunState()
+    {
+        if (_runState != null) _model.RunState = _runState();
+    }
+
     /// <summary>⭐ The constructed control, so a host can bind its two gestures (rows 59 / 59c).</summary>
     public VariableTableControl Control => _control;
 
@@ -84,6 +106,8 @@ public sealed class VariableDetailsSection
     /// </summary>
     public void Draw(string id)
     {
+        SyncRunState();
+
         if (!HasContent) return;
         if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return;
 

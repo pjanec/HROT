@@ -133,7 +133,9 @@ public sealed class BlueprintLocalVariableSchemaSource : IVariablesSchemaSource
                     // passes `false` unconditionally; this one can afford the truth because it already
                     // has the reference walk below.
                     IsUnused:   CountNodesReferencingVariable(v.Name) == 0,
-                    IsReadOnly: IsReadOnly));
+                    IsReadOnly: IsReadOnly,
+                    // ⭐ Row 58 — the INITIAL arm's source for a graph local.
+                    DefaultValueJson: v.DefaultValueJson));
             }
             return result;
         }

@@ -83,6 +83,9 @@ public sealed class BlackboardSectionRowSource : IVariableRowSource
             //   second argument is false by construction rather than by omission.
             RowKind:   VariableRow.KindOf(v.IsAutoManaged, isReadOnly: false),
             IsStale:   false,
-            HasEverBeenWritten: reader != null);
+            HasEverBeenWritten: reader != null,
+            // ⭐ Row 58 — the INITIAL arm. The authored entry already carries its default, so the
+            //   planning cell shows what the variable will START as rather than "(pending)".
+            ReadInitialJson: () => v.DefaultValueJson);
     }
 }

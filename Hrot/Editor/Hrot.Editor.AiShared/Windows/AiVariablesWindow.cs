@@ -81,6 +81,26 @@ public sealed class AiVariablesWindow : ManagedWindow
     }
 
     /// <summary>Planning / Running / Replay. ⭐ Drives both the highlight and the edit availability.</summary>
+    private Func<VariableRunState>? _runStateSource;
+
+    /// <summary>
+    /// ⭐⭐ Row 58 — supplies the run state, so the ONE Value column switches meaning
+    /// *(<c>Q32</c> ruling 3)*. ⛔ Installed by the registrar from the debug-session registry it
+    /// already holds; ⚠ the settable <see cref="RunState"/> below survives for tests and for a host
+    /// that genuinely knows better (replay).
+    /// </summary>
+    public void SetRunStateSource(Func<VariableRunState> runState)
+        => _runStateSource = runState ?? throw new ArgumentNullException(nameof(runState));
+
+    /// <summary>True once a run-state source is installed. ⭐ A rail surface.</summary>
+    public bool HasRunStateSource => _runStateSource != null;
+
+    /// <summary>⭐ Re-reads the run state onto the model — driven every frame, and by rails.</summary>
+    public void SyncRunState()
+    {
+        if (_runStateSource != null) _model.RunState = _runStateSource();
+    }
+
     public VariableRunState RunState
     {
         get => _model.RunState;
@@ -96,6 +116,8 @@ public sealed class AiVariablesWindow : ManagedWindow
 
     protected override void DrawClientArea()
     {
+        SyncRunState();
+
         var view = _model.Build();
         if (view.AllRows.Count == 0)
         {

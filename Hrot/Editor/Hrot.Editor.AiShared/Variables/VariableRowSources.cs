@@ -86,7 +86,9 @@ public sealed class SectionVariableRowSource : IVariableRowSource
             // ⚠ NOT an unconditional true. With no reader there is nothing to have been written, and
             //   the cell must read "(pending)" — ⛔ NOT "<unreadable>", which would send a designer
             //   hunting a decode bug that did not happen. Same rule as BlackboardSectionRowSource.
-            HasEverBeenWritten: reader != null);
+            HasEverBeenWritten: reader != null,
+            // ⭐ Row 58 — the INITIAL arm, from whatever the schema source knows.
+            ReadInitialJson: () => v.DefaultValueJson);
     }
 }
 

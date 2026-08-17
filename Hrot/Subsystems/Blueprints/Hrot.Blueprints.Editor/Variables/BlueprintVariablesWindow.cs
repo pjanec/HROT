@@ -168,7 +168,9 @@ public sealed class BlueprintVariableSchemaSource : IVariablesSchemaSource
                     e.FieldType,
                     e.Comment,
                     Array.Empty<(string, Guid, Guid)>(),
-                    false // Not dynamically tracking unused in Blueprint right now
+                    false, // Not dynamically tracking unused in Blueprint right now
+                    // ⭐ Row 58 — the INITIAL arm's source for blueprint declarations.
+                    DefaultValueJson: e.DefaultValueJson
                 ));
             }
             return list;

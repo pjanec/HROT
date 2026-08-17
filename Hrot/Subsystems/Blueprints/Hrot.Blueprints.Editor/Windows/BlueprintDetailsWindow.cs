@@ -102,6 +102,11 @@ public sealed class BlueprintDetailsWindow : ManagedWindow, IVariableDetailsHost
     /// <c>IVariableOutlineSelectionSource</c> it is handed to any <c>IVariableDetailsHost</c>.
     /// ⛔ Batches 79/80/81 each lost a surface to a "someone must remember to wire it" seam.</para>
     /// </remarks>
+    /// <inheritdoc/>
+    /// <remarks>⭐ Row 58 — forwarded to the hosted list, which is what actually renders the column.</remarks>
+    public void SetRunStateSource(Func<VariableRunState> runState)
+        => _variables.SetRunStateSource(runState);
+
     public void ShowVariables(VariableOutlineSelection selection)
     {
         if (selection.HasRows)

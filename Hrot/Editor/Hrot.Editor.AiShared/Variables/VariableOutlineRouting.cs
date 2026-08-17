@@ -45,4 +45,14 @@ public interface IVariableDetailsHost
 {
     /// <summary>Show (or, for <see cref="VariableOutlineSelection.None"/>, stop showing) a list.</summary>
     void ShowVariables(VariableOutlineSelection selection);
+
+    /// <summary>
+    /// ⭐⭐ Supplies the run state, so the hosted list's ONE Value column switches meaning
+    /// *(row 58, <c>Q32</c> ruling 3: "initial when not running, current when running or paused")*.
+    ///
+    /// <para>⭐ <b>On the contract, not on a constructor</b>, because the registrar is what HOLDS the
+    /// debug-session registry and the details host is what NEEDS it — ⛔ threading it through the
+    /// composition root would be the seam batches 79–82 each lost a surface to.</para>
+    /// </summary>
+    void SetRunStateSource(System.Func<VariableRunState> runState);
 }

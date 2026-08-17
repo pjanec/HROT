@@ -21,7 +21,8 @@ public sealed class VariableTableView
         IReadOnlyList<VariableRow> ungroupedRows,
         VariableTableColumns columns,
         Dictionary<(Guid, Fdp.Core.Entity, string), RowHighlight> highlights,
-        Dictionary<(Guid, Fdp.Core.Entity, string), string> names)
+        Dictionary<(Guid, Fdp.Core.Entity, string), string> names,
+        VariableValueMode mode)
     {
         AllRows       = allRows;
         Groups        = groups;
@@ -29,6 +30,7 @@ public sealed class VariableTableView
         Columns       = columns;
         _highlights   = highlights;
         _names        = names;
+        ValueMode     = mode;
     }
 
     public IReadOnlyList<VariableRow>      AllRows       { get; }
@@ -36,6 +38,13 @@ public sealed class VariableTableView
     /// <summary>Rows outside every group — the whole list when every grouped facet was uniform.</summary>
     public IReadOnlyList<VariableRow>      UngroupedRows { get; }
     public VariableTableColumns            Columns       { get; }
+
+    /// <summary>
+    /// ⭐⭐ Which arm the ONE Value column is showing this frame *(row 58, <c>Q32</c> ruling 3)*.
+    /// ⛔ Resolved ONCE in <see cref="VariableTableModel.Build"/> through
+    /// <see cref="VariableValue.ModeFor"/>, so every cell and tooltip in a frame agrees.
+    /// </summary>
+    public VariableValueMode ValueMode { get; }
 
     public RowHighlight HighlightOf(VariableRow row)
         => _highlights.TryGetValue(row.Origin.Key, out var h) ? h : RowHighlight.None;
@@ -96,6 +105,9 @@ public sealed class VariableTableModel
         var groups    = VariableRowGrouping.Group(rows, GroupBy);
         var ungrouped = groups.Count == 0 ? rows : VariableRowGrouping.Ungrouped(rows, GroupBy);
 
-        return new VariableTableView(rows, groups, ungrouped, Columns, highlights, names);
+        // ⭐ ONE resolution per frame — ⛔ not per cell, which is how a table ends up half in one
+        //   mode and half in the other while the sim starts mid-draw.
+        return new VariableTableView(
+            rows, groups, ungrouped, Columns, highlights, names, VariableValue.ModeFor(RunState));
     }
 }
