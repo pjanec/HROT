@@ -41,6 +41,23 @@ cannot sit under one heading in the tree and another in the table.**
 
 ---
 
+## ⚠⚠ PROVISIONAL — **two things will change; do NOT record them as pass criteria**
+
+> ⭐⭐⭐ **User, `2026-08-17`:** *"i do not want to visually check something that will need to change."*
+> ⭐ **Checked item by item.** ⛔ **The criterion is NOT "will the code change" — it is "will what you
+> SEE change."** ⭐⭐ **Almost nothing does. The two that do:**
+
+| ⚠ | what changes | ⭐ so check this instead |
+|---|---|---|
+| ⛔⛔ **`A2` / `A6` — the SECTION LIST** | 📌 **`R-01`/`R-03`: `Variable` ≡ `WorkingState`, and stage `D` collapses them into ONE section.** ⇒ **the count and names WILL change** | ⭐ **check the MECHANISM** — that sections split by kind at all, that `[+]` creates the right kind, that empty ones stay. ⛔ **Do not record *"four sections"* as a pass** |
+| ⚠ **the SET of `Variables` windows** | 📌 **`R-10`/`R-11`: `U-16` RETIRES some of them** — the renames are an **interim you authorised**, not the end state | ⭐ **check they are DISTINGUISHABLE**, ⛔ **do not memorise which exist** |
+
+⭐⭐ **Everything else is END-STATE and worth checking properly** — ⭐ **including `3a`'s row commands:
+stage `B` moves that code onto `IVariablesSchemaSource`, ⛔ but rename/delete/duplicate must work on
+those rows either way, so what you SEE is final.**
+
+---
+
 ## A. My Blueprint — sections *(Blueprint perspective)* ✅
 
 > 📄 Checklist **1.1–1.7** · design §1c *(sections are the classification)*

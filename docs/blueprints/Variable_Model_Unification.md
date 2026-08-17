@@ -1,3 +1,10 @@
+<!--STATUS
+state: LIVE
+updated: 2026-08-13
+current-answer: section 4 "How to do it safely - RE-ORDERED by the review"
+stale-below: the A/B/C/D table under section 4's SUPERSEDED banner is HISTORY. Do not quote it.
+note: the live stage order is 0 -> C -> A -> B -> B' -> D1 -> D2 -> D3 -> D4
+-->
 # Variable model unification — the vision, and how it maps to today
 
 > **Coordinator, 2026-08-13**, at the user's request. ⭐ **The question is not *whether* to unify —

@@ -337,3 +337,146 @@ git merge-base --is-ancestor <my-commit> <that-parent>
 
 Report *"not in the commit they built from (run starting `<sha>`)"*. The same document is routinely
 absent for one run and present for the next — both statements true, about different runs.
+
+## ⛔⛔ SWEEP THE DESIGN CORPUS **BEFORE TRIAGING FINDINGS INTO BATCHES** *(user ruling, `2026-08-17`)*
+
+> ⭐⭐⭐ **User, verbatim:** *"so that means you are issuing corrective batches without having read the
+> design intent behind the failures reported — this is not good."*
+
+📌 **The case.** Eight findings came back from the first visual check. The coordinator measured **code**
+for every one of them — root causes, line numbers, call paths — and **never read the design roadmap.**
+⛔ **`Architect_Question_32_…_ANSWERS.md` §4 is a SEQUENCING TABLE that already specified at least four
+of the eight**, and §2.2 had already counted the duplicate surfaces.
+
+| what was issued | ⛔ what the design already said |
+|---|---|
+| *"rename the three `Variables` windows to unique names"* | ⭐⭐ **`U-16` / ruling 9: RETIRE them** — *"no keeping two implementations for the same concept… `U-16` is **not optional cleanup; it is the acceptance criterion**."* ⚠ **And bigger than assumed: THREE variable surfaces + `InspectorWindow` in two assemblies** |
+| *"every section's `[+]` opens the same dialog"* | ⛔⛔ **`Q32` ruling 8 already merged `Variable` ≡ `WorkingState`** ⇒ **the batch was hardening a section the design collapses** |
+| *"MEASURE the Details panel, I did not"* | ⭐ **ruling 2's selection routing**, sequenced as `U-6` |
+| *"Batch 83: the Watch has no entry points"* | ⭐ **already specified**: *"make `HandlePinValueChanged` real · EDITING through the same dialog · show NOTHING before the run"* |
+
+⇒ ⭐⭐⭐ **A measured root cause tells you WHY IT BROKE. It cannot tell you WHETHER THE THING SHOULD
+EXIST.** ⛔ **Fixing a surface the design retires is worse than not fixing it** — it spends a batch and
+cements the duplicate.
+
+### ⭐ The rule
+
+1. ⭐⭐ **Before triaging ANY finding into a batch, sweep for its design intent** — ⛔ **not after, not
+   "if it looks non-obvious."** ⚠ **The failures above all looked obvious.**
+2. ⭐⭐⭐ **Read the SEQUENCING TABLES first.** 📌 `Q32` §4 is the model: a batch-by-batch roadmap with
+   *why here*. ⛔ **A finding that already has a planned batch is NOT a new finding.**
+3. ⭐ **Order of lookup is the `2026-08-15` table** *(`*-DESIGN.md` → `reports/*-REPORT.md` → `TASK-DETAIL.md`)*,
+   ⭐ **plus `docs/blueprints/Architect_Question_*_ANSWERS.md`** — ⚠ **the ANSWERS files carry the
+   rulings; the question files carry only the options.**
+4. ⛔ **State the design basis IN the handoff, per item.** ⭐ *"design says X, this batch does Y"* — if
+   that sentence cannot be written, **the sweep was not done.**
+
+## ⭐⭐⭐ ARCHITECT QUESTIONS — **I analyse and SUGGEST, the user APPROVES** *(user, `2026-08-17`)*
+
+> ⭐⭐ **User, verbatim:** *"remember no architect will answer the architect question, you and me need to
+> resolve those, so you analyze and suggest, i approve."*
+
+⛔⛔ **Do NOT leave an architect question in an OPEN, option-shaped state waiting for someone.**
+⚠ **`Q39` was written as "`Q39-A`–`E`, open, not scheduled" — that is the old relay habit**, and the
+relay does not exist.
+
+⇒ ⭐ **Every architect question carries a RECOMMENDED ANSWER PER SUB-QUESTION**, with the reasoning and
+the blast radius, ⭐⭐ **written so the user can reply "approved" or name the one they want changed.**
+⛔ **Options without a recommendation are work handed back to the user.**
+
+## ⛔⛔⛔ RULE ZERO — **READ `docs/blueprints/RULINGS.md` BEFORE ANYTHING ELSE** *(user, `2026-08-17`)*
+
+> ⭐⭐⭐ **User, verbatim:** *"We start over and over after compaction, **you forget all the design
+> decisions and then steer the development on wrong base and act as if you never seen any of that.**
+> We can not work like that, you need to put to your rules something that fixes this."*
+
+⭐⭐ **The diagnosis, stated once:** ⛔ **CODE ANSWERS *"HOW IT IS." IT CAN NEVER ANSWER "HOW IT WAS
+MEANT TO BE."*** ⇒ **every wrong turn this programme has taken came from reasoning off code when the
+question was a design question.** ⚠ **Four in one day** *(`2026-08-17`)*: the quick-add ruled
+not-a-defect · corrective batches triaged with no design sweep · `Q39` framed as UI when it is
+infrastructure · *"the cross-host name is a coincidence"* when `Role` is genuinely shared.
+
+⚠⚠ **The earlier rules did NOT prevent any of them, and the reason matters:** ⛔ **they asked me to
+DECIDE to search.** ⭐ **A rule that depends on remembering to be diligent decays across compaction —
+that is exactly the failure being fixed.**
+
+### ⭐⭐⭐ The rule — **three obligations, all cheap, all checkable**
+
+| # | obligation | ⭐ why it survives compaction |
+|---|---|---|
+| **0** | ⭐⭐⭐ **FIRST ACTION of every session, and immediately after every compaction: READ [`docs/blueprints/RULINGS.md`](../docs/blueprints/RULINGS.md) IN FULL.** ⛔ **Before answering anything, before any tool call about the work** | ⭐ **`CLAUDE.md` is auto-loaded; it is the ONLY reliable channel.** ⭐⭐ **The ledger is deliberately SHORT so this is always affordable** |
+| **1** | ⭐⭐ **NO design answer, handoff item or architect-question row without a CITED design basis** — ⛔ **or the explicit sentence *"searched `<where>`, no design record found."*** ⚠ **An uncited design claim is a defect, however well measured the code was** | ⭐ **it produces a VISIBLE artefact the user can check** — if the citation is missing, the sweep was not done |
+| **2** | ⭐⭐ **Every ruling discovered in the corpus gets a ROW IN THE LEDGER IMMEDIATELY**, with a machine-checkable probe | ⛔ **otherwise the next session pays the same cost again** — ⭐ **that is the whole disease** |
+
+### ⭐ The ledger cannot rot — **it is gated**
+
+```bash
+python3 scripts/rulings-check.py      # every quote must still exist verbatim in its cited source
+```
+
+⭐⭐ **Run it whenever the ledger or a cited document changes**, and ⭐ **report it in the gate table
+alongside `tracker-counts.py --check`.** ⚠ **A failing probe means the design record MOVED — ⛔ find the
+new home, NEVER delete the ruling.**
+
+### ⛔ What this does NOT license
+
+⛔ **It is an INDEX, not a replacement for the corpus.** ⭐ **A question with no row is a question that
+needs a SEARCH** *(`RULINGS.md` §4 gives the order)* — ⛔ **not a question you may answer from code.**
+
+## ⭐⭐⭐ RULE ZERO, PART 2 — **RE-LEARN WHAT MOVED** *(user, `2026-08-17`)*
+
+> ⭐⭐ **User:** *"how to make it a permanent habit that after every compaction you re-learn the most
+> recent (few days) design intents?"*
+
+⛔ **`RULINGS.md` indexes what is SETTLED. It cannot tell you what MOVED LAST WEEK** — and after a
+compaction the recent documents are ⭐⭐ **exactly what a session has lost and cannot know it has lost.**
+
+### ⭐ The habit — **two commands, always, before anything else**
+
+```bash
+python3 scripts/design-digest.py            # what changed in the last 7 days, with its ruling lines
+python3 scripts/rulings-check.py            # the canon still matches its sources
+```
+
+⭐⭐⭐ **Run BOTH at session start and immediately after every compaction**, alongside reading
+[`RULINGS.md`](../docs/blueprints/RULINGS.md). ⛔ **The digest is a SCRIPT, not a document, on purpose:**
+⚠ **a hand-maintained "recent changes" file rots the moment someone forgets it — which is the disease.**
+⭐ Generated from git, **it cannot lie about what changed.**
+
+⭐⭐ **`rulings-check.py` now also WARNS when a cited source changed after the ledger did** — ⛔ **the
+quote can still match while the ruling around it has moved.** ⚠ **That is exactly how `R-03`/`R-05` came
+to cite a table its own document marks SUPERSEDED.**
+
+## ⭐⭐ DESIGN DOCUMENT FORMAT — **so a document can be followed after compaction**
+
+> ⭐⭐ **User:** *"how to formalize the creation of design docs so they are easy to follow after
+> compaction?"*
+
+📌 **The failure this fixes, three times in one day:** ⛔⛔ **I read a document and not its supersession
+banner.** ⚠ **`Variable_Model_Unification.md` keeps a SUPERSEDED stage table BELOW the live one, and I
+quoted the dead half** — twice, and wrote it into the canon.
+
+### ⭐ Every design document under `docs/` starts with a STATUS block
+
+```
+<!--STATUS
+state: LIVE | SUPERSEDED | WITHDRAWN | HISTORICAL
+updated: YYYY-MM-DD
+current-answer: <which section holds the CURRENT answer>
+stale-below: <what in this file is history and must NOT be quoted>
+superseded-by: <path>            (when state is not LIVE)
+known-rot: <statements in here that a newer document has overturned>
+known-conflict: <another document that disagrees, and that this has not reconciled>
+-->
+```
+
+| ⭐ rule | why |
+|---|---|
+| ⭐⭐⭐ **`current-answer` names the live section** | ⛔ **a reader must never have to infer which of two tables is current** |
+| ⭐⭐ **`stale-below` names the history** | ⭐ the cheapest possible fix for the failure above |
+| ⭐⭐ **`known-rot` / `known-conflict` are FEATURES, not shame** | ⛔ **a document that admits it is partly overtaken is safer than one that reads uniformly authoritative.** ⚠ **`DESIGN_Parameter_Model.md` is marked authoritative AND describes a retired `BP1031`** |
+| ⭐ **superseded content moves to the BOTTOM** under a `## ⛔ HISTORY` heading, or is deleted | ⛔ **never left inline above live content** |
+| ⭐ **`python3 scripts/design-digest.py --check`** audits it | ⛔ a convention nothing checks is a convention that decays |
+
+⚠ **Retro-fit lazily, not in a sweep** — ⭐ **add a STATUS block to any design document you TOUCH**, and
+to any the ledger cites. ⛔ **Do not spend a batch on the back catalogue.**
