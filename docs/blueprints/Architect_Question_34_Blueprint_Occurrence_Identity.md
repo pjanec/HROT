@@ -143,5 +143,6 @@ would mean a hosted subtree needs registry identity, which nothing has argued fo
 | | |
 |---|---|
 | **raised** | `2026-08-17`, coordinator, from the Batch-70 scoping measurement |
-| **state** | ✅ **RESOLVED and SCHEDULED** — Batch 72 |
+| **state** | ✅ **RESOLVED** · ⛔⛔ **BUILD DEFERRED by the user, `2026-08-17`** — *"too many files affected, we can skip it, could be done sometime later once really needed."* ⭐⭐ **The ANSWERS above STAND; a future session re-opens the BUILD, never the DECISION.** ⭐ The measured edit surface is in `PLAN_Remaining_Work.md` §4A7, so re-dispatch costs no re-measurement |
+| ⭐ **why deferring is coherent** | §7: this case is **REFUSED today (`AlreadyAttached`), not corrupted** ⇒ it buys a **capability**. ⛔ **The dangerous occurrence case is `E3`'s and is unaffected** |
 | **did not block** | ⭐ the Instance params seam *(Batch 70)* — it changes the **payload**, not the **slot entry** |

@@ -1,6 +1,16 @@
-# PLAN — what is left *(revision 15, `2026-08-17`)*
+# PLAN — what is left *(revision 16, `2026-08-17`)*
 
-> ⭐⭐⭐ **REVISION 15 (`2026-08-17`).** ✅ **Batch 71 MERGED at `bdd05a0dc`** — **`E0` the HSM golden
+> ⭐⭐⭐ **REVISION 16 (`2026-08-17`).** ✅ **Batch 72 MERGED at `14f8b0ea4`** — **`E6`(A) shipped** ·
+> BTree corpus **shape tier** · ⛔ **`E3` ESCALATED** · ⛔ **multi-occurrence NOT STARTED** (§4A7).
+> ⛔⛔ **USER RULING: blueprint multi-occurrence is DEFERRED** — *"too many files affected, we can skip
+> it, could be done sometime later once really needed."* ⭐ **`Q34`'s ANSWERS stand; only the build is
+> deferred.**
+> 🔴🔴 **`E3` is NOT a signature widening — it is a STORAGE MOVE.** Two occurrences have **one home by
+> construction**: the thunk resolves its DTO at `bb.BehaviorParameters[0] + <baked offset>`.
+> 🔴🔴 **And I found a red suite nobody was gating: `Fdp.Examples.Scenarios.Tests` — 12 failures,
+> PRE-EXISTING** *(identical on the pre-batch tree, so ⛔ not a regression)*.
+>
+> **REVISION 15 (`2026-08-17`).** ✅ **Batch 71 MERGED at `bdd05a0dc`** — **`E0` the HSM golden
 > harness** *(two tiers, and it is asserted that it CAN fail)* · `E1`/`E2` backfilled · `E7b`'s count
 > half · `E6` **PARTIAL by escalation** (§4A6).
 > 🔴🔴 **The floor found a live defect the moment it existed: HSM actions addressed by FQN in the blob
@@ -638,6 +648,71 @@ against a measurement, not a memory.** ⚠ **Invert those tests when (A) lands.*
 
 ---
 
+## 4A7. ✅ Batch 72 — ⭐ **`E6` shipped; `E3` turned out to be a different, larger thing**
+
+📄 [`REPORT_Batch72_Occurrence_Identity.md`](REPORT_Batch72_Occurrence_Identity.md).
+Gates re-run by me. ⭐ **Blueprint golden set untouched.** Tracker **61 / 161**. Rows `BP-284`–`BP-287`.
+
+### ⛔⛔ USER RULING `2026-08-17` — **blueprint multi-occurrence is DEFERRED**
+
+> ⭐⭐ **Verbatim:** *"the layout changing multi instance blueprint change not done, too many files
+> affected, we can skip it - could be done sometime later once really needed."*
+
+| | |
+|---|---|
+| ⭐⭐⭐ **`Q34`'s ANSWERS STAND** | `A` widen to 20 B · `A` caller-supplied `InstanceKey` · `A` 3-arg lookup = key `0`. ⛔ **A future session re-opens the BUILD, never the DECISION** |
+| ⭐⭐ **and the deferral is COHERENT with what `Q34` §7 established** | this case is **REFUSED today (`AlreadyAttached`), not corrupted** ⇒ ⭐ **it buys a capability, not a correctness fix.** ⛔ **The dangerous occurrence case is `E3`'s, and it is unaffected by this deferral** |
+| ⭐ **the edit surface is MEASURED, so re-dispatch costs nothing** | **187 `TryGetSlotOffset` call sites all stay correct** *(⭐ `Q34-C` doing its job)*; the real surface is ~10 files — `BlueprintSlotEntry` + `SlotEntrySize` · three tier `const`s + doc comments · `Initialize`/`Migrate`/`TryAttach` · the events · **`TryFindExistingTier` and `DetachFromEntity` PER KEY** · every payload-size assertion *(928/3936/16368 → 912/3904/16032)* |
+| ⭐ **carry forward as the headline** | ⛔ **`AlreadyAttached`-per-key is not a detail** — leave it and the whole capability passes vacuously |
+
+### 🔴🔴 `E3` ESCALATED — **my "signature widening" was wrong, twice over**
+
+| my premise | measured |
+|---|---|
+| ⭐ *"`r` and `current` are already in scope"* | ✅ **true** — `slotIndex`, `stateId` in `HsmKernelCore` |
+| ⛔⛔ *"a signature widening, not a data-flow redesign"* | 🔴 **false** |
+
+1. 🔴 **The thunk cannot RECEIVE the occurrence** — `HsmActionDispatcher` dispatches through
+   `delegate*<void*,void*,HsmCommandWriter*,void>`, and every registered id is a **static function
+   pointer chosen at build time**. ⛔ **Regions are a runtime notion.**
+2. 🔴🔴 **And there is nowhere for a second occurrence's bytes to live** — the generated thunk resolves
+   its DTO at **`bb.BehaviorParameters[0] + <baked offset>`**, a fixed offset into the entity's
+   **single 100-byte `BrainBlackboard`**. ⇒ ⭐⭐ **two occurrences have ONE HOME BY CONSTRUCTION.**
+
+⇒ ⭐⭐⭐ **`E3` = a STORAGE MOVE + the delegate widening.** Per-occurrence bytes must come from the
+partition allocator under `ComputeStatefulSlotKey(assetId, Scope.Node, occurrence, variableId)` —
+⭐ **exactly the route `Q34` §7 rules for `E5`**, which means **one mechanism serves both**. ⚠ Spans
+`Fhsm.Kernel`, the analyzer's thunk emission and the allocator ⇒ **`ExtDeps`**.
+📌 **The design ANTICIPATED the `ExtDeps` change** *(§4.4, user-accepted)*; ⛔ **what it got wrong — and
+I repeated — was the SIZE.**
+
+⭐ **Landed instead:** three tests asserting the gap **with the mechanism named**, one reading the
+analyzer's source rather than restating the rule. ⚠ **Invert them when `E3` lands.**
+
+### 🔴🔴 A red suite nobody was gating — **`Fdp.Examples.Scenarios.Tests`, 12 failures, PRE-EXISTING**
+
+📐 **Measured by me, both sides:** 12 failures on `HEAD` and ⭐ **the identical 12 on the pre-batch tree
+`5d01a5c2a`** ⇒ ⛔ **NOT a Batch-72 regression.** ⚠ **They ran `Fdp.Examples.UrbanCombat.Tests` (29/29)
+and not this one** — a reasonable pick, and the hole is mine for never listing it.
+
+⭐⭐ **Why it is Track E evidence, not noise:** `ComponentDamage_Phase4_LocomotionCleared_ByHSM` —
+*"the HSM did not clear locomotion"* — is **exactly the symptom of an HSM action silently not firing**,
+which is the defect `E6` just fixed. ⛔ **And it is STILL red after `E6`** ⇒ either a second cause or
+the fix does not reach these scenarios. 📌 **Diagnosis is Batch 73's item 1**, and the suite joins the
+gate set either way.
+
+### ⭐ Item 1 and item 4, briefly
+
+| | |
+|---|---|
+| ⭐ **`E6`(A) shipped** | registrar ids and blob ids **agree for every corpus asset**, asserted against the **real compiled blob** on one side and the **running generated registrar** on the other · 4 example call sites moved · ⭐ **STOP swept clean** |
+| ⛔ **premise: "the HSM emit baseline moves"** | **false** — the emitted `.g.cs` carries action **STRINGS**; the **ids** are computed at runtime by `HsmFlattener` and by the **analyzer's** registrar, ⭐⭐ **neither of which `E0`'s emit tier covers.** ⇒ 🔴 **a real coverage limit of `E0`, and it is why `E6` was invisible** |
+| 🔴 **a rail of mine was vacuous — fourth time in five batches** | the first draft derived the registrar side as `FNV(FullName)`, **its own rule**, so reverting the analyzer left it green. ⭐ **Now it runs the generated registrar and reads `HsmActionDispatcher`'s tables.** 📌 68 counted methods · 69 scanned a signature · 70 read an expectation out of the field under test · **72 recomputed the rule under test** |
+| ⚠ **and item 1 caused a real regression, caught by the gate** | a fixture varied `[HsmAction(Name=…)]` while every method stayed `Method{i}` ⇒ under (A) **every fixture collapsed to ONE id**, so the collision tests would have been testing the fixture. ⭐ **Their miss, stated plainly; the sweep looked for consumers that ADDRESS by name, not tests that ASSERT the old key** |
+| ⚠ **item 4 is HALF, and they corrected their own claim** | *"three delegates ⇒ a registration, not a rewrite"* holds for **canonicalize** *(26 assets baselined)* ⛔ **not for emit**: `BTreeJsonGenerator` needs a Roslyn `Compilation` for `structSizeResolver` **and** `BTreeDeactivatorScanner.Scan` ⇒ **the emit tier needs a `CSharpGeneratorDriver` harness.** ⭐ **The reason is asserted, with HSM as the contrast** |
+
+---
+
 ## 4B. ⏭ Track E — ⭐⭐⭐ **HSM catch-up** *(the gaps, collected)*
 
 > ⛔⛔ **USER RULING `2026-08-16`:** *"the HSM integration is in bad shape now, for long time not updated
@@ -654,7 +729,7 @@ throughout — adopt, do not invent.**
 |---|---|---|---|
 | ~~`E1`~~ | ✅ **DONE (Batch 67)** — emitter consumes `Role`/`Scope` | `HsmEmitCore` + `HsmBridgeEmitCore`: **0** refs; `BTreeBridgeEmitCore`: **45**. `HsmBlackboardVariableDto` persists both faithfully ⇒ **HSM has NO authored variables at runtime at all** | — ⭐ **the entry point; everything else assumes it** |
 | ~~`E2`~~ | ✅ **DONE (Batch 67)** — slot provisioning, BTree-style | adopt `ComputeStatefulSlotKey` + `BlueprintBlackboardPartitions` — ⭐ **the same allocator Instances and the BTree bridge already share** | `E1` |
-| **`E3`** | ⭐⭐ **occurrence in the action key** | `hash(method @ fieldOffset)` has **no region/state in it** ⇒ concurrent regions running one action **write the same bytes**. ⭐ **`r` and `current` are ALREADY IN SCOPE at the `ExecuteAction` call site** ⇒ a signature widening, not a redesign. ⭐ **the params-base change (§4h) folds into this same seam** | `E2` ⚠ **`FastHSM` `ExtDeps` change** |
+| **`E3`** | ⭐⭐ **occurrence in the action key** — 🔴🔴 **RE-MEASURED Batch 72: this is a STORAGE MOVE, not a signature widening.** The thunk dispatches through a `delegate*` whose id is a **static function pointer chosen at build time**, and it resolves its DTO at `bb.BehaviorParameters[0] + <baked offset>` in the entity's **single 100-byte `BrainBlackboard`** ⇒ ⛔ **two occurrences have one home by construction.** ⭐ Per-occurrence bytes must come from the partition allocator under `ComputeStatefulSlotKey(…, Scope.Node, …)` — ⭐⭐ **the same route `Q34` §7 rules for `E5`.** *(original entry:)* | `hash(method @ fieldOffset)` has **no region/state in it** ⇒ concurrent regions running one action **write the same bytes**. ⭐ **`r` and `current` are ALREADY IN SCOPE at the `ExecuteAction` call site** ⇒ a signature widening, not a redesign. ⭐ **the params-base change (§4h) folds into this same seam** | `E2` ⚠ **`FastHSM` `ExtDeps` change** |
 | ~~`E4`~~ | ✅ **DONE — (b)+(c) Batch 68, `sharedScopeKeys` Batch 69.** ⚠ **Rules 8/8b still will not fire on assets LOADED FROM DISK** until `-028`(a) persists `StateNode.SubtreeAssetId` — ⭐ **expected, and it is `E5`'s prerequisite, not an `E4` gap.** *(original entry:)* ⚠ **wire `HsmValidator` rules 8 / 8b** — ⭐⭐⭐ **FILED as `DEBT-AIB-028`, WITH AN ACTIVATION RECIPE** *(found Batch 67)*: *"(b) `_isStatefulSubtree` defaults to `_ => false` and production never supplies a real resolver; (c) the production `HsmAssetValidator` entry point isn't threaded… wire `id => catalog.TryFind(id,out a) && a.HasAnyStatefulNode()` through the production validator ctor."* ⇒ ⛔ **do not re-derive it** | correct errors, but injected resolvers default to `_ => false` / `_ => Empty` and **both production call sites use the default ctor** ⇒ never fire. XML doc says *"Production should wire this"* | ⭐ **do BEFORE `E5`** — the guard should be honest before the runtime makes the hazard real |
 | **`E5`** | ⭐⭐ **subtree hosting runtime** — 🔴 **NEW PREREQUISITE (Batch 67): `StateNode.SubtreeAssetId` is NOT PERSISTED.** `DEBT-AIB-028`(a): *"a NEW field, not persisted to JSON, and no real HSM asset sets it."* ⇒ **persist it FIRST.** 📌 `DEBT-AIB-029`: the check walks **DIRECT children only** — deeper nesting undetected | `SubtreeAssetId` is read **only** by `HsmValidator`; FastHSM kernel **0**, HSM emitters **0**, shipped assets **0**. ⇒ ⭐⭐⭐ **serves TWO rulings at once** — HSM-over-BTree composition **and** the latent sub-behaviour decision *(`#33` §1.5.4: `C`, subtree not action)* | `E3`, `E4` |
 | **`E6`** | **`W9`** — simple-name hash | `HsmActionGenerator:517/630` — `ComputeHash(action.Name)`; `MethodInfo` carries `FullName` too. ⚠ **TWO re-bake sites**, reconciled *"in lockstep via shared `ResolveStatefulSlotKey`"* | independent |
@@ -770,15 +845,16 @@ Track E, plus one item waiting on the user:**
 
 | ⭐ next | what | why now |
 |---|---|---|
-| 🔴🔴 **finish `E6` under ruling (A)** | FQN everywhere; **4 `FDP/Examples` call sites**; invert `HsmActionIdAgreementTests` | ⛔⛔ **it is a LIVE defect, not a latent one** — shipped HSM actions do nothing today. ⭐ **The floor now watches it** |
-| ⭐⭐ **`E3`** — occurrence in the HSM action key | `hash(method @ fieldOffset)` gains region + state | ⭐⭐⭐ **THE dangerous occurrence case** *(`Q34` §7)* — two regions running one action write the same bytes **silently**. ⭐ `HsmOrthogonalRegions` is already in the corpus for it |
-| ⭐ **blueprint multi-occurrence** | ✅ **UNBLOCKED — 📄 [`Architect_Question_34`](Architect_Question_34_Blueprint_Occurrence_Identity.md) RESOLVED, and the user said BUILD IT NOW.** Widen the entry 16 → 20 B · caller-supplied `InstanceKey` · 3-arg lookup keeps meaning key `0` | ⚠ **This buys a CAPABILITY, not a correctness fix** — attaching twice is *refused* today, not corrupted |
-| ⭐ **register BTree's 26 assets** into `E0`'s harness | measured as *"a registration, not a rewrite"* | closes the golden hole **completely** |
-| ⏭ **then** `E5` *(by KEY — `Q34` §7)* → `E7a` → `E7b`'s runtime half *(needs `ExpressionTargetField` emitted at all)* | | |
+| 🔴🔴 **diagnose `Fdp.Examples.Scenarios.Tests`** | 12 red, **pre-existing**, and one of them is HSM-shaped | ⛔⛔ **an entire suite outside the gate set** — ⭐ **cheapest high-value item on the page**, and it may be Track E evidence |
+| ⭐⭐ **a GENERATOR-DRIVER emit tier for `E0`** | `CSharpGeneratorDriver` harness ⇒ the emit tier covers **generated** output: BTree's 26 **and the HSM analyzer's registrar/thunks** | ⭐⭐⭐ **this is the coverage limit that made `E6` invisible** — the ids live in analyzer output, which `E0` does not see. ⛔ **And it is what would watch `E3`** |
+| ⭐⭐⭐ **`E3` — now a STORAGE MOVE** | per-occurrence bytes from the partition allocator under `ComputeStatefulSlotKey(…, Scope.Node, …)` **plus** the delegate widening; spans `ExtDeps` | ⭐⭐ **THE dangerous occurrence case** *(`Q34` §7)*. ⭐ **One mechanism serves `E5` too** · `HsmOrthogonalRegions` is already in the corpus |
+| ⭐ **the HSM `Dictionary.Values` ordering** | deterministic by implementation detail, not by construction | one line + a deliberate baseline move |
+| ⏭ **then** `E5` *(by KEY — `Q34` §7, and it rides `E3`'s mechanism)* → `E7a` → `E7b`'s runtime half *(⛔ `ExpressionTargetField` is emitted NOWHERE — a bigger piece)* → **`BP-281`** *(HSM has no `ParseParams` counterpart)* | | |
+| ⛔⛔ **DEFERRED by the user** | **blueprint multi-occurrence** — 📄 [`Architect_Question_34`](Architect_Question_34_Blueprint_Occurrence_Identity.md) | ⭐ **answers stand, build deferred** *("once really needed")*. §4A7 holds the measured edit surface |
 | ⚠ **the Track C VISUAL CHECK** | cumulative across batches 68–70 | ⛔ **no headless test can do it** — it needs a human at the editor. §4A3/§4A4 hold the list |
 
 ✅ **DONE this round:** the parameter seam · **`G7`+`W10`** *(the last `G`-row)* · **`E0`** the golden
-floor · `E1`/`E2` backfilled · `E7b`'s count half.
+floor · `E1`/`E2` backfilled · `E7b`'s count half · **`E6`(A)**, a live defect · BTree's shape tier.
 
 📌 **`W9` is `E6`; `W11` re-scoped into `E7a` + `E7b`; `W6` DROPPED; `W8`/`W12` were duplicates.**
 
