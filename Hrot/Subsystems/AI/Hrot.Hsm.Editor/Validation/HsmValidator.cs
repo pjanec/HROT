@@ -243,19 +243,28 @@ public sealed class HsmValidator
         {
             if (!composite.IsParallel || composite.RegionNodes.Count < 2) continue;
 
-            // Collect (subtreeAssetId → HashSet<regionIndex>) for all states under this
-            // composite that carry a non-empty SubtreeAssetId.
-            // We walk only DIRECT children of the composite so the region index is meaningful.
+            // Collect (subtreeAssetId → HashSet<regionIndex>) for every state ANYWHERE under this
+            // composite that carries a non-empty SubtreeAssetId.
+            //
+            // ⭐⭐ DEBT-AIB-029 (Batch 76): this used to walk DIRECT CHILDREN ONLY, so a host nested
+            //    one level deeper escaped the rule entirely. ⚠ Theoretical until Batch 75 persisted
+            //    SubtreeAssetId — after which a designer could author the escape and SAVE it.
             var subtreeRegions = new Dictionary<Guid, HashSet<int>>();
             foreach (var child in composite.Children)
             {
-                if (child.SubtreeAssetId == Guid.Empty) continue;
-                if (!subtreeRegions.TryGetValue(child.SubtreeAssetId, out var regionSet))
+                // ⭐⭐⭐ The REGION INDEX comes from the DIRECT CHILD and is carried down.
+                // ⛔ Reading RegionIndex off a deep descendant would be the wrong space: inside a
+                //    NESTED parallel composite that field means the INNER composite's region, so a
+                //    descendant could report region 0 while living in this composite's region 1.
+                foreach (var host in SubtreeHostsUnder(child))
                 {
-                    regionSet = new HashSet<int>();
-                    subtreeRegions[child.SubtreeAssetId] = regionSet;
+                    if (!subtreeRegions.TryGetValue(host, out var regionSet))
+                    {
+                        regionSet = new HashSet<int>();
+                        subtreeRegions[host] = regionSet;
+                    }
+                    regionSet.Add(child.RegionIndex);
                 }
-                regionSet.Add(child.RegionIndex);
             }
 
             // Emit a hard error for every stateful subtree that spans ≥2 distinct regions.
@@ -278,6 +287,41 @@ public sealed class HsmValidator
         }
     }
 
+    /// <summary>
+    /// ⭐⭐ Every non-empty <c>SubtreeAssetId</c> on <paramref name="root"/> or any of its descendants.
+    ///
+    /// <para>
+    /// ⚠ <b>On the CYCLE question the handoff asked to have named.</b> This walk is over the STATE
+    /// TREE, which is a tree — so it cannot cycle by construction, and no depth cap is wanted. ⭐ The
+    /// visited set is here for a different reason: a <b>malformed</b> model (a hand-edited or
+    /// corrupted file whose parent/child wiring disagrees) would otherwise hang the editor, and a
+    /// validator that hangs on bad input is worse than one that misses a case.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ <b>The REAL cycle question is a different one and this rule does not answer it:</b> asset
+    /// <c>A</c> hosting <c>B</c> which hosts <c>A</c>. That is a walk over ASSETS, needs a resolver
+    /// this validator does not have, and belongs to whoever builds subtree hosting for real — ⭐ it is
+    /// named here rather than half-handled.
+    /// </para>
+    /// </summary>
+    private static IEnumerable<Guid> SubtreeHostsUnder(StateNode root)
+    {
+        var seen  = new HashSet<Guid>();
+        var stack = new Stack<StateNode>();
+        stack.Push(root);
+
+        while (stack.Count > 0)
+        {
+            var node = stack.Pop();
+            if (!seen.Add(node.StableId)) continue;   // malformed graph guard, not a depth cap
+
+            if (node.SubtreeAssetId != Guid.Empty) yield return node.SubtreeAssetId;
+
+            foreach (var child in node.Children) stack.Push(child);
+        }
+    }
+
     // Rule 8b (S3-6): ConcurrentSharedScopeKey — the shared-slot analogue of Rule 8.
     // Rule 8 catches the SAME subtree asset in ≥2 regions (its per-node Node-scope keys collide).
     // This rule catches DIFFERENT subtree assets (or nodes) that resolve to the SAME Behavior/
@@ -293,10 +337,12 @@ public sealed class HsmValidator
 
             // scopeKey → set of distinct region indices whose direct-child subtree writes it.
             var keyRegions = new Dictionary<int, HashSet<int>>();
+            // ⭐ DEBT-AIB-029: the same deep walk as rule 8, with the same region-index rule —
+            //   the direct child fixes the region, the descendants contribute the hosts.
             foreach (var child in composite.Children)
             {
-                if (child.SubtreeAssetId == Guid.Empty) continue;
-                foreach (var scopeKey in _sharedScopeKeys(child.SubtreeAssetId))
+                foreach (var host in SubtreeHostsUnder(child))
+                foreach (var scopeKey in _sharedScopeKeys(host))
                 {
                     if (!keyRegions.TryGetValue(scopeKey, out var regionSet))
                     {

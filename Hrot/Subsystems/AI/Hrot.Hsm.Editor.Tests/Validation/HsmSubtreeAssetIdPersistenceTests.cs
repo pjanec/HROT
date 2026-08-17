@@ -159,30 +159,30 @@ public sealed class HsmSubtreeAssetIdPersistenceTests
     }
 
     /// <summary>
-    /// ⚠⚠ <b><c>DEBT-AIB-029</c> becomes OBSERVABLE, and it is now a real defect rather than a
-    /// theoretical one.</b>
+    /// ⭐⭐⭐ <b><c>DEBT-AIB-029</c> — INVERTED in Batch 76: a NESTED subtree host is caught.</b>
     ///
     /// <para>
-    /// 📐 Rule 8 walks <c>composite.Children</c> — <b>DIRECT children only</b>. ⭐ While the field was
-    /// unpersisted this could not be hit from a saved asset; ⛔ <b>with the field round-tripping, a
-    /// designer can now author the escape and save it.</b> A host nested one level below the region's
-    /// direct child is missed, and the rule stays silent on exactly the corruption it exists to
-    /// prevent.
+    /// 🔴 <b>What this used to assert.</b> Rule 8 walked <c>composite.Children</c> — direct children
+    /// only — so a host one level deeper escaped it entirely. ⚠ Theoretical until Batch 75 persisted
+    /// <c>SubtreeAssetId</c>, after which a designer could author the escape and <b>save</b> it, and
+    /// the rule stayed silent on exactly the corruption it exists to prevent.
     /// </para>
     ///
     /// <para>
-    /// ⭐ <b>Asserted as the gap it is, named for it — INVERT when <c>-029</c> is fixed</b> (Batch 70's
-    /// rule). ⛔ Out of scope for this item, per the handoff.
+    /// ⭐⭐ <b>The region index still comes from the DIRECT CHILD</b>, carried down the walk. ⛔ Reading
+    /// it off the descendant would be the wrong space: inside a nested parallel composite that field
+    /// means the INNER composite's region.
     /// </para>
     /// </summary>
     [Fact]
-    public void ANestedSubtreeHost_EscapesRuleEight_Yet()
+    public void ANestedSubtreeHost_IsCaughtByRuleEight()
     {
         var subtreeId = new Guid("29000000-0000-0000-0000-000000000290");
 
         var root     = new StateNode("__root__");
         var parallel = new StateNode("Parallel") { IsParallel = true, Parent = root };
         root.Children.Add(parallel);
+
         // Direct children host NOTHING; their children do — one per region.
         var c0 = new StateNode("C0") { IsInitial = true, RegionIndex = 0, Parent = parallel };
         var c1 = new StateNode("C1") { RegionIndex = 1, Parent = parallel };
@@ -200,13 +200,48 @@ public sealed class HsmSubtreeAssetIdPersistenceTests
             new List<StateNode> { parallel, c0, c1, n0, n1 },
             new List<RegionNode> { parallel.RegionNodes[0], parallel.RegionNodes[1] }));
 
-        // ⭐ The field DOES survive at depth — so the miss is the walk, not the persistence.
         Assert.Equal(2, restored.AllStates.Count(s => s.SubtreeAssetId == subtreeId));
 
-        var diagnostics = new HsmValidator(isStatefulSubtree: id => id == subtreeId)
-            .Validate(restored, blackboard: null);
+        var diag = Assert.Single(
+            new HsmValidator(isStatefulSubtree: id => id == subtreeId).Validate(restored, blackboard: null),
+            d => d.Code == HsmDiagnosticCode.ConcurrentStatefulSubtree);
+        Assert.Equal(HsmDiagnosticSeverity.Error, diag.Severity);
+    }
 
-        Assert.DoesNotContain(diagnostics, d => d.Code == HsmDiagnosticCode.ConcurrentStatefulSubtree);
+    /// <summary>
+    /// ⭐ <b>The same nesting in ONE region is still legal</b> — the rule fires on CONCURRENCY, not on
+    /// depth. ⛔ Without this, a deep walk that simply reported every host would pass the test above
+    /// while erroring on sequential use.
+    /// </summary>
+    [Fact]
+    public void TwoNestedHostsInTheSameRegion_StayLegal()
+    {
+        var subtreeId = new Guid("29100000-0000-0000-0000-000000000291");
+
+        var root     = new StateNode("__root__");
+        var parallel = new StateNode("Parallel") { IsParallel = true, Parent = root };
+        root.Children.Add(parallel);
+
+        var c0 = new StateNode("C0") { IsInitial = true, RegionIndex = 0, Parent = parallel };
+        var c1 = new StateNode("C1") { RegionIndex = 1, Parent = parallel };
+        parallel.Children.Add(c0);
+        parallel.Children.Add(c1);
+        parallel.RegionNodes.Add(new RegionNode("R0") { RegionIndex = 0, InitialChild = c0 });
+        parallel.RegionNodes.Add(new RegionNode("R1") { RegionIndex = 1, InitialChild = c1 });
+
+        // BOTH hosts nest under region 0's child — sequential, never concurrent.
+        var n0 = new StateNode("N0") { IsInitial = true, RegionIndex = 0, Parent = c0, SubtreeAssetId = subtreeId };
+        var n1 = new StateNode("N1") { RegionIndex = 0, Parent = c0, SubtreeAssetId = subtreeId };
+        c0.Children.Add(n0);
+        c0.Children.Add(n1);
+
+        var restored = ThroughDisk(MakeAsset(root,
+            new List<StateNode> { parallel, c0, c1, n0, n1 },
+            new List<RegionNode> { parallel.RegionNodes[0], parallel.RegionNodes[1] }));
+
+        Assert.DoesNotContain(
+            new HsmValidator(isStatefulSubtree: id => id == subtreeId).Validate(restored, blackboard: null),
+            d => d.Code == HsmDiagnosticCode.ConcurrentStatefulSubtree);
     }
 
     /// <summary>
