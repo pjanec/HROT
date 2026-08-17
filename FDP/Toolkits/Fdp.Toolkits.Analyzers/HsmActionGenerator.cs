@@ -514,7 +514,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             sb.AppendLine("        {");
             foreach (var action in actions)
             {
-                ushort id = HsmActionKey.ForActionName(action.Name);
+                ushort id = HsmActionKey.ForActionName(action.FullName);
                 sb.AppendLine("            { " + id + ", (IntPtr)(delegate* <void*, void*, HsmCommandWriter*, void>)&" + action.FullName + " },");
             }
             sb.AppendLine("        };");
@@ -525,7 +525,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             sb.AppendLine("        {");
             foreach (var guard in guards)
             {
-                ushort id = HsmActionKey.ForActionName(guard.Name);
+                ushort id = HsmActionKey.ForActionName(guard.FullName);
                 sb.AppendLine("            { " + id + ", (IntPtr)(delegate* <void*, void*, ushort, bool>)&" + guard.FullName + " },");
             }
             sb.AppendLine("        };");
@@ -627,13 +627,13 @@ namespace Fdp.Toolkit.Behavior.Analyzers
 
             foreach (var action in actions)
             {
-                ushort id = HsmActionKey.ForActionName(action.Name);
+                ushort id = HsmActionKey.ForActionName(action.FullName);
                 sb.AppendLine("            HsmActionDispatcher.RegisterAction(" + id + ", (IntPtr)(delegate* <void*, void*, HsmCommandWriter*, void>)&" + action.FullName + ");");
             }
 
             foreach (var guard in guards)
             {
-                ushort id = HsmActionKey.ForActionName(guard.Name);
+                ushort id = HsmActionKey.ForActionName(guard.FullName);
                 sb.AppendLine("            HsmActionDispatcher.RegisterGuard(" + id + ", (IntPtr)(delegate* <void*, void*, ushort, bool>)&" + guard.FullName + ");");
             }
 

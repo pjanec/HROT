@@ -39,30 +39,31 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         }
 
         /// <summary>
-        /// ⭐ The key string for a plain <c>[HsmAction]</c> / <c>[HsmGuard]</c> method.
+        /// ⭐⭐⭐ The key for a plain <c>[HsmAction]</c> / <c>[HsmGuard]</c> method: its
+        /// <b>FULLY QUALIFIED name</b>, <c>{ContainingType.FullName}.{MethodName}</c>.
         ///
         /// <para>
-        /// 🔴🔴 <b>It is the SIMPLE name today, and that is measured to be wrong for one of the two
-        /// shipped consumers.</b> An asset addresses an action by whatever string it stores, and the
-        /// two shipped consumers store different forms:
-        /// <list type="bullet">
-        ///   <item><c>FDP/Examples</c> build their machines by hand and store the <b>simple name</b>
-        ///   (<c>.Activity("Activity_Cruise")</c>) ⇒ agrees with this key.</item>
-        ///   <item>🔴 <c>Hrot.AI.Behaviors</c>' <c>.hsm.json</c> assets store the <b>FQN</b>
-        ///   (<c>Hrot.AI.Behaviors.CgfHsmNodes.StubIdle</c>, emitted verbatim by <c>HsmEmitCore</c>)
-        ///   ⇒ the blob addresses <c>Compute(fqn)</c> while this registers <c>Compute(name)</c>, and
-        ///   the two differ.</item>
-        /// </list>
+        /// ⭐⭐ <b>COORDINATOR RULING <c>2026-08-17</c> — option (A), FQN everywhere</b> (plan §4A6).
+        /// Batch 71 measured that the id disagreed across three sites: the analyzer hashed the SIMPLE
+        /// name at both of its sites, while <c>Fhsm.Compiler.HsmFlattener</c> hashes whatever string
+        /// the ASSET stored — and <c>HsmEmitCore</c> stores the FQN. 🔴 The shipped HSM entry actions
+        /// therefore never dispatched: <c>ExecuteAction</c> was a <c>TryGetValue</c> miss, silently.
         /// </para>
         ///
         /// <para>
-        /// ⛔ <b>Switching this to the FULL name is NOT a local fix</b> — it would invert the breakage
-        /// onto the hand-built consumers. ⇒ the string is a <b>plan-level decision</b>, escalated
-        /// rather than taken here; <c>HsmActionIdAgreementTests</c> pins the current answer so the
-        /// decision is made against a measurement instead of a memory.
+        /// ⛔ <b>(B) — making the asset store the simple name — was rejected</b>, because it leaves
+        /// <c>W9</c>/<c>E6</c> unfixed <b>and</b> puts the collision into the FILE FORMAT. ⭐ (A)'s
+        /// breakage is four call sites in example projects, and they fail at COMPILE time.
+        /// </para>
+        ///
+        /// <para>
+        /// ⚠ <b><c>[HsmAction(Name = "…")]</c> no longer changes the id.</b> The identity is the
+        /// method, and the FQN names the method; a display-name override renaming an identity is the
+        /// ambiguity this ruling removes. ⛔ Two methods with the same simple name in different types
+        /// now get <b>distinct</b> ids, which is <c>E6</c>'s whole point.
         /// </para>
         /// </summary>
-        public static ushort ForActionName(string registeredName) => Compute(registeredName);
+        public static ushort ForActionName(string fullyQualifiedName) => Compute(fullyQualifiedName);
 
         /// <summary>The key for a <c>[SharedAiAction]</c>/<c>[SharedAiCondition]</c> entry.</summary>
         public static ushort ForCompoundKey(string compoundKey) => Compute(compoundKey);
