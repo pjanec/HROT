@@ -1,6 +1,14 @@
-# PLAN — what is left *(revision 13, `2026-08-17`)*
+# PLAN — what is left *(revision 14, `2026-08-17`)*
 
-> ⭐⭐⭐ **REVISION 13 (`2026-08-17`).** ✅ **Batch 69 MERGED at `72f24d326`** — `C-tick` · `DEBT-AIB-009` ·
+> ⭐⭐⭐ **REVISION 14 (`2026-08-17`).** ✅ **Batch 70 MERGED at `0b2b55380`** — `DEBT-AIB-021` · **the
+> Instance params seam** · `G7`+`W10` (§4A5). ⭐⭐ **The parameter model now RUNS**: an Instance's params
+> live in its own slot at `[Cursor 16][Params N][State M]`, the attach event carries the JSON, and the
+> **same `ParseParamsDelegate`** a behaviour uses resolves it before commit. ⭐⭐⭐ **`BP1031` RETIRED —
+> coordinator-reviewed and ACCEPTED**: its own message named its reason (*"nothing supplies them at
+> spawn"*) and this batch makes that reason false. ⚠ **`DEBT-AIB-030` widens** — a **fourth** distinct
+> test, and the first outside the AI registries.
+>
+> **REVISION 13 (`2026-08-17`).** ✅ **Batch 69 MERGED at `72f24d326`** — `C-tick` · `DEBT-AIB-009` ·
 > `C-watch` · `C-outline` · **`E4` finished** (§4A4). ⭐⭐ **Track C is LIVE** — the highlight has a real
 > per-`(asset, entity)` tick, held in a **side table owned by `Fdp.Toolkits`**, so it costs the sim
 > nothing and cannot move `StructureHash`. 🔴 **My `C-watch` §7 claim was stale twice and the real defect
@@ -75,12 +83,12 @@
 
 ---
 
-## 1. ✅ Done — merged through `72f24d326`
+## 1. ✅ Done — merged through `0b2b55380`
 
 Batches **56 · 58 · 57 · 59 · 60 · 61(1–2) · 63 · 64(1) · 65 (Track B, all four) · ⭐ 66 (`G4` · the
-surgical write · `G1` · `C-sections`) · 67 (`W7c` · `W7a` · `G3` · `E1`+`E2` · 2 rails) · ⭐ 68 (`C-table` · `C-dialog` · `W7b` · `E4` partial) · ⭐⭐ 69 (`C-tick` · `DEBT-AIB-009` · `C-watch` · `C-outline` · `E4` finished)**.
+surgical write · `G1` · `C-sections`) · 67 (`W7c` · `W7a` · `G3` · `E1`+`E2` · 2 rails) · ⭐ 68 (`C-table` · `C-dialog` · `W7b` · `E4` partial) · ⭐⭐ 69 (`C-tick` · `DEBT-AIB-009` · `C-watch` · `C-outline` · `E4` finished) · ⭐⭐⭐ 70 (`DEBT-AIB-021` · **the Instance params seam** · `G7`+`W10`)**.
 Phase A correctness is complete except `W6`/`W7`, which the sweep has now **re-specified** (§4).
-⭐⭐ **Merged through `72f24d326`** — gates coordinator-re-run each time. Tracker **open 61 / done 148**.
+⭐⭐ **Merged through `0b2b55380`** — gates coordinator-re-run each time. Tracker **open 61 / done 153**.
 
 ---
 
@@ -495,6 +503,77 @@ which section each lands in, what is highlighted, what refuses a dialog.
 
 ---
 
+## 4A5. ✅ Batch 70 — ⭐⭐⭐ **the parameter model RUNS, and a rule had to be retired to let it**
+
+📄 [`REPORT_Batch70_Parameter_Seam.md`](REPORT_Batch70_Parameter_Seam.md).
+⭐ **`DEBT-AIB-021` · the Instance params seam · `G7`+`W10`.** Gates re-run by me, `StructureHash` and
+`persistence-shape` **unchanged**, tracker **61 / 153**. Rows `BP-275`–`BP-279`.
+
+### ⭐⭐⭐ `BP1031` RETIRED — **I reviewed the diff and I ACCEPT it**
+
+> The rule refused an Instance that declared parameters, **fatally**, and its own message carried its
+> reason: *"nothing supplies them at spawn."*
+
+⭐⭐ **This batch makes that reason false** — the attach event carries the JSON,
+`BlueprintDefinition.ParseParams` resolves it through the **same delegate the behaviour path uses**, and
+the payload reserves the bytes. ⛔ **Leaving it standing would have shipped the seam UNREACHABLE** — a
+producer with no consumer, the *"inert rule"* shape this programme keeps filing.
+
+| ⭐ what makes the retirement sound, not convenient | |
+|---|---|
+| **kept DEFINED** | on `BP1024`'s precedent, so the number is never reused |
+| ⭐ **listed `RETIRED` in the coverage ratchet** | it cannot silently fall out of the diagnostic set |
+| ⭐⭐ **the positive test INVERTED, not deleted** | `Instance_WithParams_NoLongerEmitsBP1031`, and it asserts **no error of any code** — stronger than the row it replaces, because it proves the asset actually compiles |
+
+⚠ **It was not in my handoff.** ⭐ **They reported it as a blocking premise AND decided it, which is the
+right call when the decision is inside the item** — the alternative was not *"seam without retirement"*
+but *"no seam"*. 📌 **Two documents already knew `BP1031` was load-bearing and NEITHER said to retire
+it** — my design's §0 list and this plan's §7 tail both mention it in passing.
+
+### ⭐⭐ `DEBT-AIB-021` was **two** defects and a third guard
+
+| | |
+|---|---|
+| **(a)** | the emitted lambda discarded the incoming `json` — **the defect the row describes** |
+| ⭐⭐ **(b)** | the **emit guard** `defaults.Count == 0 ⇒ return false` ⇒ **an asset with no defaults emitted NO resolver at all**. ⛔ **Fixing (a) alone would have left those assets exactly as broken** |
+| ⭐ **(c), found by building it** | the `JsonSerializerOptions` field had **the same guard one level up** ⇒ fixing (b) broke the whole generated corpus with `CS0103`. **Same defect, different scope** |
+
+⭐⭐⭐ **And a test had written defect (b) down as INTENT** — `ManagedAsset_NoVariableHasDefault_*`
+asserted `ParseParams` is **absent**. ⇒ 📌 **a test asserting the absence of a feature is
+indistinguishable from a test asserting a bug; only the design record separates them.** ⚠ **This is
+the `2026-08-15` `.dev/` lesson arriving from the opposite direction** — there the record rescued a
+thing that looked dead; here it condemned a thing that looked deliberate.
+
+### 🔴🔴 Two rails were weak — ⭐ **"ask the artefact, not the thing that produced it", third time**
+
+| the rail | why it could not fail |
+|---|---|
+| the emitter held **its own `=> 16`** | reverting the layout base to `0` left the emitted `ParamsOffset` at **16** — declaration and layout describing **different memory**, rail still green. ⇒ it now asks `FieldLayout.ParamsStructBase` |
+| the cursor rail called `ParseParams` **by hand at `def.ParamsOffset`** | ⛔ **it read its expected value out of the field under test.** ⇒ it now drives the **real attach path**, against a stamped cursor pattern *(a plain `Clear()` would leave both cases indistinguishable — zeroes either way)* |
+
+📌 **The series:** Batch 68 counted methods instead of call sites · Batch 69 scanned a signature instead
+of the constructed object · Batch 70 read an expectation out of the field under test. ⭐ **One rule.**
+
+### ⭐ The rest, briefly
+
+| | |
+|---|---|
+| ⭐⭐ **`G7`+`W10`: ONE catalog, and it is ASSERTED** | *"a resolver and an initializer differ in what CONSUMES the value, never in what produces it."* `OneCatalogServesBothCallers` compares the two offer lists **and requires the offer to be non-empty** ⇒ ⛔ **it cannot pass by two empty lists agreeing** |
+| ⭐ **identity pinned twice** | the stored string is the **generated FQN** *(architect `AQ2`)*, and a second rail **computes** it from `LibraryEmitter`'s formula rather than pasting it |
+| ⭐ **a dangling producer is KEPT and reported** | ⛔ not silently cleared — *"resetting turns a broken reference into a plausible-looking deliberate choice"* |
+| ⚠ **17 generated-source snapshots moved** | 📐 **I verified the diff: purely additive, ZERO removed lines** — two constants per Instance (`ParamsOffset = 16`, `ParamsSize => 0`). ⛔ **No offset moved, no field entered `State`** |
+| ⭐ **`ReadManaged` is non-consuming within a frame** | the STOP did not fire — `Read()` returns `_front`, cleared only by `Swap()` ⇒ Replace's drain-twice survives. **Attach + Replace became classes; Remove stayed a struct** |
+
+### ⚠ `DEBT-AIB-030` widens — **a fourth test, and the first OUTSIDE the AI registries**
+
+📐 **My run: `StatelessGizmoRegistryTests.SC_GZ022_2_Register_UnregisteredType_Throws` failed in the
+full unfiltered suite, passed in isolation and under `--filter`.** Counts varied **2 → 1 → 1** across
+three runs of an unchanged tree. ⛔ **Nothing in this batch touches gizmos.**
+⇒ ⭐⭐ **the cause is process-global registry state generally, not the behaviour/blueprint registries
+specifically.** 📌 **Record it on the row; the mitigation is unchanged.**
+
+---
+
 ## 4B. ⏭ Track E — ⭐⭐⭐ **HSM catch-up** *(the gaps, collected)*
 
 > ⛔⛔ **USER RULING `2026-08-16`:** *"the HSM integration is in bad shape now, for long time not updated
@@ -622,14 +701,17 @@ missing, not the analysis.** 📌 **Filed, not numbered** (rule 3).
 ⭐⭐ **DONE: Track B + `S5` (65) · `G4` · surgical write · `G1` · `C-sections` (66) · `W7c` · `W7a` ·
 `G3` · `E1`+`E2` · latency rail (67) · `C-table` · `C-dialog` · `W7b` (68) · `C-tick` · `DEBT-AIB-009` ·
 `C-watch` · `C-outline` · `E4` (69).**
-⛔⛔ **TRACK B, TRACK C AND TRACK D's `G`-list ARE ALL CLOSED except `G7`+`W10`.** ⇒ **what is left is
-exactly three things**, and they are independent of one another:
+⛔⛔ **TRACKS B, C AND D ARE ALL CLOSED** — the `G`-list included. ⇒ ⭐⭐ **everything remaining is
+Track E, plus one item waiting on the user:**
 
 | ⭐ next | what | why now |
 |---|---|---|
-| ⭐⭐⭐ **the PARAMETER SEAM** | **`DEBT-AIB-021`** *(the generated `ParseParams` ignores incoming JSON)* → **the Instance params seam** *(§4g: params in the slot · attach carries a payload · resolve-before-commit)* → ⭐ **blueprint multi-occurrence** *(§4h: `(blueprintId, instanceKey)` — `D2`, now in scope)* | ⭐ **the whole reason the parameter model was designed.** `-021` is its precondition — an overlay that never applies makes the seam untestable |
-| **`G7`+`W10` as ONE picker** | the last surviving `G`-row | small, independent, and it removes the second list `S5` half-fixed |
-| ⭐⭐ **Track E (§4B)** | **`E0` FIRST** *(the HSM golden harness — its own batch, ruled)* → `E3` → `E5` → `E7a` → `E6` · `E7b` | ⛔ **`E3`/`E6` change emitted output with NO golden gate watching** ⇒ `E0` is a prerequisite, not a nicety |
+| ⭐⭐⭐ **Track E (§4B)** | **`E0` FIRST** *(the HSM golden harness)* → then, **under it**, `E6`/`W9` and `E3` → `E5` → `E7a`; ⭐ **`E7b` is independent and can ride along** | ⛔ **`E3`/`E6` change emitted output with NO golden gate watching** ⇒ `E0` is a prerequisite, not a nicety. ⭐ **Backfill `E1`/`E2` into it the moment it exists** |
+| 🔴 **blueprint multi-occurrence** | §4h — `(blueprintId, instanceKey)`, `D2` | ⛔⛔ **BLOCKED on 📄 [`Architect_Question_34`](Architect_Question_34_Blueprint_Occurrence_Identity.md)** — `BlueprintSlotEntry` is exactly 16 bytes with no spare, so the discriminator needs a decision **with the user** |
+| ⚠ **the Track C VISUAL CHECK** | cumulative across batches 68–70 | ⛔ **no headless test can do it** — it needs a human at the editor. §4A3/§4A4 hold the list |
+
+✅ **DONE this round:** the parameter seam *(`DEBT-AIB-021` + Instance params + `BP1031`'s retirement)*
+and **`G7`+`W10` as one picker** — the last `G`-row.
 
 📌 **`W9` is `E6`; `W11` re-scoped into `E7a` + `E7b`; `W6` DROPPED; `W8`/`W12` were duplicates.**
 
