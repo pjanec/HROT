@@ -239,7 +239,47 @@ admits them** ⇒ ⛔ **no second mechanism is needed for the user's *"including
 ⇒ ⭐ **`R-60` blocks the DETAILS panel on BTree/HSM. It does NOT block the watch gesture** — the shared
 variables table is already there.
 
-### 🔴🔴 The hard dependency — **the AI debug sessions are built and never constructed**
+### ⭐⭐⭐ 6a. **THE USER WAS RIGHT — and I over-scoped this** *(`2026-08-18`)*
+
+> ⭐⭐ **User:** *"variables share all the implementation so why would that be different, when available
+> for blueprints it must work more or less for free for hsm and btrees."*
+
+📐 **Measured, and the answer is YES — most of it is already shared, including the store:**
+
+| ✅ already shared | evidence |
+|---|---|
+| ⭐⭐⭐ **the pinned-variable STORE** | **`AiWatchWindow._pinned` is a `PinnedVariableRowSource`**, with a public `Pinned` accessor — ⭐ **the store exists** |
+| ⭐⭐ **the window itself** | **`AiWatchWindow` lives in `Hrot.Editor.AiShared`** and is built by the **shared** `PerspectiveWorkspaceRegistrar:337` ⇒ **all three perspectives** |
+| ⭐⭐ **its CONTENT across perspectives** | fed by **`_bpManager`, passed to all three registrars** *(`:2128` `:2152` `:2164`)* ⇒ 📌 **the user's *"shared no matter what perspective"* is ALREADY TRUE** |
+| ⭐ **breakpoints** | `AiBreakpointsWindow`, same registrar, same shared manager |
+| ⭐⭐ **the READ is not session-bound** | `BlueprintDebugSession:1301-1320` needs an **`ISimulationView`**, the **shared `Blackboard1024`**, a `StructureHash` guard and a field layout — ⛔ **nothing blueprint-specific except the BASE OFFSET and where the layout comes from.** ⭐ **Both are DATA, not machinery** |
+
+⇒ ⭐⭐ **What is actually missing is small:** **(a)** the gesture that calls `Pinned.Add(...)`, **(b)** the
+per-tick poll that gives those rows a value, **(c)** the per-host base offset.
+⛔ **`R-70` blocks BREAKPOINTS / pause / step on BTree/HSM — it does NOT block the watch poll.**
+⚠ **My §6 slicing said otherwise and was wrong.**
+
+### 🔴🔴 6b. **AND THERE ARE TWO WATCH WINDOWS** — ⭐ ruling 9's target
+
+| window | assembly | registered by | fed by |
+|---|---|---|---|
+| ⭐ **`AiWatchWindow`** | **`Hrot.Editor.AiShared`** | the **shared** registrar — **all three perspectives** | `_bpManager` + `PinnedVariableRowSource` |
+| ⚠ **`WatchPanelWindow`** | ⛔ **`Hrot.Blueprints.Editor`** | `BlueprintWindowRegistrar:53` — **blueprint only** | `_session` |
+
+⚠⚠ **`AiWatchWindow`'s own empty-state text already promises the missing gesture:**
+> *"No pinned variables. **Pin one from the Variables table.**"* · *"No watch entries. **Right-click a
+> breakpoint → Mark as Watch.**"*
+
+📌 **That is what the user reported seeing** *(`2026-08-17`: "Watch window shows two sections, but 'No
+watch entries', 'No pinned variables'")* ⇒ ⭐⭐ **the user has been looking at `AiWatchWindow`.**
+⚠⚠ **Batch 83's `BP-01` fix landed on `WatchPanelWindow`** — ⭐ a real fix to a real defect, ⛔ **but not
+necessarily the window in front of the user.**
+
+⇒ 📌 **`R-13` — name which it is:** ⭐⭐ **duplicate SURFACE *and* duplicate CODE** *(both render watch
+rows)* ⇒ **ruling 9 applies.** ⛔ **Not a rush removal**: ⭐ **the gesture targets `AiWatchWindow`**, and
+`WatchPanelWindow`'s retirement is a question for row **60 / `U-16`**, with its own evidence.
+
+### 🔴 6c. The dependency that IS real — **the AI debug sessions** *(narrower than I said)*
 
 📐 **Measured `2026-08-18`:**
 
@@ -256,8 +296,9 @@ watch on BTree/HSM has nothing to observe until those sessions are wired.**
 
 | slice | what | why |
 |---|---|---|
-| ⭐ **1** | **the mechanism, host-neutral** — poll list keyed by `Origin`, driven by `AssetTick`, gesture on the shared table row. **Proven on Blueprint**, whose session and tick source ship | ⛔ **no blueprint-specific code in `AiShared`** — that is the acceptance criterion, not "it works on blueprint" |
-| ⭐ **2** | **wire `HsmDebugSession` / `BTreeDebugSession`**, and give each host its **tick source** and **blackboard base offset** | ⭐ **BTree/HSM light up with NO change to slice 1** — that is how you know slice 1 was host-neutral |
+| ⭐ **1** | **the mechanism, in `AiShared`** — the gesture calls **`AiWatchWindow.Pinned.Add`**, the poll is driven per row by `AssetTick`, the base offset is **host DATA**. **Proven on Blueprint**, whose tick source and layout ship | ⛔ **the acceptance criterion is NO blueprint-specific code in `AiShared`** — ⭐ **not "it works on blueprint"** |
+| ⭐ **2** | **each host supplies its tick source + base offset** *(data, not machinery)* | ⭐⭐ **this is the *"more or less for free"* the user expects — and if it is NOT nearly free, slice 1 leaked host knowledge** |
+| ⚠ **3** *(separate)* | **wire `HsmDebugSession` / `BTreeDebugSession`** | ⛔ **needed for BREAKPOINTS / pause / step on BTree/HSM, and for `Q40-H`'s entity discovery** — ⭐ **not for the watch poll itself** |
 
 ⚠⚠ **The per-host BASE OFFSET is the subtle half.** 📌 `R-65`: `Blackboard1024` is **ONE component
 shared by BTree, HSM and Blueprint at DISJOINT offsets**, and the blueprint read path hard-codes
@@ -265,6 +306,28 @@ shared by BTree, HSM and Blueprint at DISJOINT offsets**, and the blueprint read
 — 📌 **the same *"whoever computes the offset must own that `+8` in ONE place, not two"* that Batch 84
 item 2 is already being held to.** ⭐ **Solve it once, for both.**
 
-### ⛔ Still not decided
-⚠ **Watching variables from DIFFERENT ASSETS in one panel** — the key supports it, but the poll would
-span sessions. ⭐ **Out of slice 1; ask again when slice 2 lands.**
+---
+
+## 7. 🆕 `Q40-H` — **what does a pin made while PLANNING bind to?** *(NEW, needs your nod)*
+
+⚠ **This falls out of approving *"add a watch while planning"*, and I did not see it before.**
+📌 **`Q40-E` captures the entity at pin time** — ⛔ **but while planning there IS no entity.**
+
+| | option | |
+|---|---|---|
+| **H1** | pin `(AssetId, VariablePath)` only; at run start, **expand to one row per live entity** | ⭐ matches *"watch this variable"* as a designer means it · ⚠ N rows appear from one gesture |
+| **H2** | pin with entity = **the session's entity filter**, resolved at run start | ⭐ one row · ⛔ **silently arbitrary** when several entities run the asset |
+| **H3** | forbid pinning while planning | ⛔⛔ **contradicts the approved `Q40-F`** |
+
+> ⚖️ **RECOMMEND `H1`.** ⭐ **A designer pinning `Health` before a run means "show me Health", not "show
+> me Health on some entity I cannot name yet."** ⭐ **`Q40-A`'s key already carries `Entity`, so the
+> expansion produces ordinary rows** — ⛔ nothing new downstream.
+> ⚠ **`H1` needs `GetActiveEntities(assetId)`** — 📌 **which is on the SHARED `IAiTraceObserver`**, not a
+> blueprint interface. ⭐ **But its implementers are the debug sessions** ⇒ **on BTree/HSM this is where
+> `R-70` actually bites** *(slice 3)*, ⛔ **not the poll.**
+> ⚠ **If you prefer one row over N, say so** — `H2` is cheaper and I can defend it; it is only the
+> *silence* about which entity I object to, and that could be fixed with a visible label instead.
+
+## 8. ⛔ Still not decided
+⚠ **Watching variables from DIFFERENT ASSETS in one panel** — ⭐ the key supports it and the store is
+already shared, ⚠ **but the poll would span debug sessions.** ⭐ **Out of slice 1.**
