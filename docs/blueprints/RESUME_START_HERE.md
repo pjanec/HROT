@@ -1,24 +1,19 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-17
-current-answer: this top block only
-stale-below: everything under "START HERE — coordinator session" is HISTORY (2026-08-15 baselines). Do not quote it.
+updated: 2026-08-18
+current-answer: this top block only (sections 0, 0a, 0b, 0c)
+stale-below: everything from "## 1." down is HISTORY from earlier sessions. Do not quote it
+  for status, baselines or next steps.
 -->
 
-# ⭐⭐⭐ STATE AS OF `2026-08-17` — **READ THIS BLOCK FIRST**
+# ⭐⭐⭐ STATE AS OF `2026-08-18` — **READ THIS BLOCK FIRST**
 
 > ## ⭐⭐⭐ `RELEARN`
 > ⛔ **Ground yourself in the design canon before acting on anything in this file.**
 > ⭐ Run `bash scripts/session-design-brief.sh` *(or `/relearn`)*, then **open your reply with the
-> `DESIGN BRIEF` block** and answer the user in the same reply.
+> `DESIGN BRIEF` block and answer the user in the SAME reply** — ⛔ never instead of answering them.
 > ⭐ **The user can type `RELEARN` anywhere, any time, to demand the same pass.**
-
-> ⛔⛔ **FIRST: the SessionStart hook has already printed the canon.** ⭐ **If you did not see it, run
-> `bash scripts/session-design-brief.sh` NOW** — 📄 [`RULINGS.md`](RULINGS.md) is the authority, this
-> file is only the current state.
-> ⭐ **Your first reply must open with the DESIGN BRIEF block** *(`.claude/CLAUDE.md`)*.
-> ⛔ **EVERYTHING BELOW THIS BLOCK PREDATES IT** — stale baselines, stale "next steps".
-> 📄 The live plan is **[`PLAN_Remaining_Work.md`](PLAN_Remaining_Work.md) — revision 29**.
+> ⚠ **Implementation lane: this is a no-op.** Your first move is rule 7, then rule 1b's started-marker.
 
 ## 0. Where things stand
 
@@ -26,31 +21,45 @@ stale-below: everything under "START HERE — coordinator session" is HISTORY (2
 |---|---|
 | **coordinator branch** | `claude/blueprint-authoring-status-gm0akp` |
 | **implementation branch** | `claude/hrot-implementation-j1jvin` |
-| ⏭ **IN FLIGHT** | ⛔ **NOTHING.** ⭐ **Next is `59c`** *(the ECB surgical field write + the RUNNING write)* — ⚠ **`Fdp.Core`, its own red-first batch** |
-| **last merged** | ⭐⭐ **Batch 83** at `2d808ba10` — *rows `58` · `59` · `59b`, all three, unattended*. **+49 tests, zero golden movement.** `BP-319` `BP-320` `BP-321`, ⭐⭐⭐ **and `BP-01` CLOSED** |
-| ⭐⭐⭐ **THE VISUAL CHECK IS UNBLOCKED — for Blueprint** | 📌 **`R-62`:** `R-21`'s condition was *"Details panel implemented AND emitters/access unified"* ⇒ ✅ **Batch 82** + ✅ **Batch 56 + stage `C`**. ⛔ **NOT for BTree/HSM** — `R-60`: they have no Details window at all |
-| **gates baseline** | build **0/69** · AiShared **1369** · Blueprints **3737/3747/10** · BTree.Editor **615** · Hsm.Editor **551** · Generators **270** · Breakpoints **134** · Persistence **136** · Hrot.Editor **194** · Scenarios **56/68 (12 skipped)** · UrbanCombat **29** · Toolkits **1964** · NodeEditor.Core **211** · NodeEditor.UI **135** · FastHSM **300** · tracker **open 65 / done 191** · rulings **40/40** |
+| ⏭ **IN FLIGHT** | ⛔ **NOTHING.** Batches 84, 85 *(stopped, correctly)* and 86 are all merged |
+| **last merged** | ⭐⭐⭐ **Batch 86** at `5a0019e60` — **one state kind** |
+| **live plan** | 📄 [`PLAN_Remaining_Work.md`](PLAN_Remaining_Work.md) — **revision 30** |
+| **gates baseline** | build **0 err** · AiShared **1397** · Blueprints **3767/3777/10** · BTree.Editor **615** · Hsm.Editor **551** · Generators **270** · Breakpoints **143** · Persistence **136** · Hrot.Editor **194** · Scenarios **56/68 (12 skipped)** · UrbanCombat **29** · Toolkits **1964** · NodeEditor.Core **211** · NodeEditor.UI **135** · FastHSM **300** · tracker **open 68 / done 199** · rulings **44/44** |
 
-## 0b. ⏳ QUEUED — **do the moment Batch 84 lands** *(user-approved `2026-08-18`)*
+## 0a. ⭐⭐⭐ THE HEADLINE — **the variable model is UNIFIED**
 
-| | |
+⭐⭐ **`DeclarationKind` is `{ Parameter, Variable }`.** `WorkingState` is gone as a kind and survives
+only as a **readable on-disk tag** mapping to `Variable` *(so every v1 file keeps its revert)*.
+📌 **`R-01` is now true in the MODEL, not just in the design.**
+⭐ `StructureHash` byte-identical for all 43 compiled assets ⇒ **`R-24`'s hard reset was never
+reachable** — layout had been kind-agnostic since Batch 56.
+
+⛔ **DO NOT reopen stages `D1`/`D2`** — 📌 **`§M` M-1/M-2: both shipped long ago.** ⚠ **My own ledger row
+`R-04` said otherwise and sent me to build something that existed.**
+
+## 0b. ⛔⛔ THE METHODOLOGY CHANGED ON `2026-08-18` — **read this before trusting anything**
+
+> ⭐⭐⭐ **User:** *"i don't know where i can believe your conclusions… I would rather spend more tokens
+> of well-investigated design/batch than keep issuing some wrong ones."*
+
+| ⭐ rule | |
 |---|---|
-| ⭐ **clear the STATUS-header debt** | `python3 scripts/design-digest.py --check` is red on ~4 back-catalogue docs. ⛔ **Deliberately NOT done while 84 is in flight** *(rewriting canon mid-run cost Batch 81 twenty minutes)* |
-| ⭐ **`Q40-H` still open** | what a watch pinned during PLANNING binds to when the run starts — 📄 [`Architect_Question_40`](Architect_Question_40_Watch_Variable_Pinning.md) §7 |
+| ⛔⛔ **the ledger may NOT assert what the code IS** | `rulings-check.py` verifies a **quote in a document**; ⛔ it cannot see that a claim about CODE went false. ⚠ **Twice that day a row was GREEN AND FALSE.** ⇒ **state claims live in `RULINGS.md` §M as a QUESTION + the command that answers it.** ⛔ **Never quote §M — run the command** |
+| ⛔⛔ **investigation phase before ANY batch or design** | ① enumerate the code surface with **codebase-memory `search_graph`** *(grep cannot enumerate)* · ② read the **non-superseded** design markdowns. **Both recorded with the queries run.** ⭐ Gated: `design-digest.py --check` demands an `INVENTORY` block |
+| ⛔⛔⛔ **never claim *"X is not built"*** | …without running the enumeration that would find X. ⭐ **Almost every wrong turn that day was a false negative of that exact shape** |
+| ⚠ **what none of it fixes** | **semantic inference** — reading *"shared"* and assuming cross-entity, *"already remaps"* and assuming preserves. ⇒ ⭐ **when a claim rests on what a symbol MEANS, read its BODY** |
 
-## 0a. ⭐⭐ The sequence — **do not re-derive it**
+## 0c. ⭐ Open, and what I would do next
 
-⭐ **`Variable_Model_Unification` §4** *(live)*: `0 ✅ → C ✅ → A ✅ → B ✅ → B′ ✅ → **D1 → D2 → D3 → D4**`
-⇒ ⭐⭐⭐ **`R-61`: STAGE `D` IS THE ONLY UNIFICATION WORK LEFT.** ⚠ **`B′` was marked BLOCKED in three
-documents and was neither blocked nor unbuilt** — `BP-228` closed Batch 47, `S5` built the union Batch 65.
-⛔⛔ **Ruling 8's emitter unification SHIPPED in Batch 56** — ⭐ `IrAsset.StateDeclarations` =
-`WorkingState ∪ Variables`. **Do NOT say the emitters still emit them separately.**
-
-⭐ **`Q32` §4** *(master)*: `56 ✅ → 57 ✅ → 58 ✅ → 59 ✅ → 59b ✅ → **59c** → 60 = U-16 → 61`.
-⚠ **`R-60`: rows 60 and 61 are bigger than assumed** — **two of three perspectives have no Details
-window at all**, so `U-16` cannot retire the Variables window on BTree/HSM until `BP-317`.
-🔴🔴 **`R-24`: `D2` must preserve field order or EVERY DEPLOYED BLACKBOARD IS WIPED.** Own batch, red-first.
-🔴🔴 **`D2` can WIPE every deployed blackboard** if field order changes — `R-24`. Own batch, red-first.
+| 🔴 | |
+|---|---|
+| **`BP-327`** | ⭐⭐ **the edit dialog has NO OK BUTTON.** The whole write path is built and **reachable only from code** — `VariableEditLauncher.Open` returns a session **no surface draws**. ⇒ **`InspectorWindow`'s node-scoped default-value panel is still the ONLY surface a designer can complete an edit in.** ⚠ Needs a batch allowed to do visual work |
+| **`BP-330`** | the **shared** `AiWatchWindow` keeps its table control private ⇒ BTree/HSM cannot edit |
+| **`BP-325`** | the emitter's **8** `memory + 8` sites are generated source ⇒ **needs a batch that EXPECTS golden movement** |
+| ⚠ **`D4`** | deleting the `WorkingState` **property** — ⛔ *"no rush removals"*: it is a live alias the READ path needs |
+| ⭐ **watch pinning** | 📄 **[`DESIGN_Variable_Watch_Pinning.md`](DESIGN_Variable_Watch_Pinning.md)** — design-complete, sliced. ⚠ **Two costs unsized**: publishing `oldToNewMap` *(CGF path)* and unifying the three `FindEntityByNetworkId` |
+| **rows `60` / `61`** | `U-16` retire the duplicate Variables windows · the shared cross-host outline |
+| ✅ **the visual check** | ⭐ **unblocked for Blueprint** *(`R-62`)*, ⛔ **not BTree/HSM** *(`R-60`: no Details window)*. 📄 [`GUIDE_Blueprint_Visual_Check.md`](GUIDE_Blueprint_Visual_Check.md) — ⚠ **update it first: part D will fail on `BP-327`, and the two sections are now ONE** |
 
 ## 1. ⭐⭐⭐ Rulings from this session — **binding**
 

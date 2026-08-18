@@ -1,13 +1,13 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-18
-current-answer: this whole file
-note: covers the surfaces Batches 82 and 83 built. The older GUIDE_Track_C_Visual_Check.md
+current-answer: this whole file (refreshed 2026-08-18 for Batches 84-86)
+note: covers the surfaces Batches 82-86 built. The older GUIDE_Track_C_Visual_Check.md
   parts B (Inspector default value) and F (change highlighting) still stand and are not
   repeated here; its parts C/D/E are superseded by parts B-F below.
 -->
 
-# GUIDE — **Blueprint visual check**, post-Batch-83
+# GUIDE — **Blueprint visual check**, post-Batch-86
 
 > ⭐⭐⭐ **THE SUSPENSION IS LIFTED — for Blueprint.** 📌 **`R-21`** *(user, `2026-08-14`)* held every
 > visual check until *"the Details panel is implemented and the emitters and all access infrastructure
@@ -25,14 +25,16 @@ note: covers the surfaces Batches 82 and 83 built. The older GUIDE_Track_C_Visua
 
 | ⚠ | what will change | ⭐ check this instead |
 |---|---|---|
-| ⛔⛔ **the SECTION LIST** *(`Variables` vs `Working State`)* | 📌 **`R-61`: stage `D` collapses them into ONE.** They are **the same thing** — identical `(Role, Scope)`; only `Dispatch` differs | ⭐ **check the MECHANISM**: that sections exist, that `[+]` creates the right kind, that empty ones stay. ⛔ **Never record *"four sections"* as a pass** |
+| ✅ **the SECTION LIST — RESOLVED `2026-08-18`, Batch 86** | ⭐⭐ **There is now ONE state section.** `DeclarationKind` is `{ Parameter, Variable }` and the **Working State section is RETIRED.** ⇒ ⛔ **seeing two is now a FINDING, not expected** | ⭐ Check `[+]` still creates the right kind and that no section is empty-but-present |
 | ⚠ **the SET of `Variables` windows** | 📌 **`R-10`/`R-11`: `U-16` retires some** *(row 60)*. The current names are an interim | ⭐ **check they are DISTINGUISHABLE.** ⛔ **Do not memorise which exist** |
 
 ## 0a. ⛔ NOT BUILT YET — **a failure here is expected, not a finding**
 
 | ⛔ | owner |
 |---|---|
-| **editing a value while the sim is RUNNING or PAUSED** | **row `59c`** — Batch 84. ⭐ **It must REFUSE, visibly** *(part G)* |
+| 🔴🔴 **ANY edit completing at all — part D will FAIL** | 📌 **`BP-327`: the dialog has NO OK BUTTON.** The write path is built and **reachable only from code**; `VariableEditLauncher.Open` returns a session **no surface draws**. ⇒ ⭐ **the menu items now FIRE (Batch 84) but no dialog appears.** ⛔ **Not a new finding — do not re-report it** |
+| ⭐ **where a default value CAN be edited today** | **`InspectorWindow`'s node-scoped panel** *(labelled `DEFAULT VALUE — {var}`)* — ⭐ it draws and commits inline, and shares the ONE write path |
+| **editing a value while the sim is RUNNING or PAUSED** | ✅ **built in Batch 84** — Planning ⇒ JSON · Paused ⇒ live blackboard · Running/Replay ⇒ refuses. ⚠ **but see `BP-327`** |
 | **a Details panel on BTree / HSM** | **`BP-317`**, row 61 |
 | **`GroupBy` / fold persistence, the `Type` toggle persisting** | 🔴 **`2.7`** — not built *(settled Batch 79)* |
 
@@ -43,7 +45,7 @@ note: covers the surfaces Batches 82 and 83 built. The older GUIDE_Track_C_Visua
 | # | do | expect | ✔ |
 |---|---|---|---|
 | **A1** | Blueprint perspective, open any blueprint asset | the **My Blueprint** panel is present, populated | ☐ |
-| **A2** | Read the section list | sections are split **by kind** — ⛔ not one undifferentiated list | ☐ |
+| **A2** | Read the section list | ⭐⭐ **ONE state section** *(Batch 86)* — ⛔⛔ **a `Working State` section is now a FINDING**; `Inputs`/`Parameters` stay separate *(`R-08`)* | ☐ |
 | **A3** | Find **`Local Variables`** | present, and the **only graph-scoped** section | ☐ |
 | **A4** | Switch graph on the canvas | ⭐ **`Local Variables` follows the canvas** — contents change | ☐ |
 | **A5** | Find a section with no declarations | ⭐⭐ **renders EMPTY with its header — ⛔ does not vanish** | ☐ |
@@ -101,7 +103,11 @@ note: covers the surfaces Batches 82 and 83 built. The older GUIDE_Track_C_Visua
 
 ---
 
-## D. ⭐⭐ The edit dialog ✅ *(Batch 83 — row 59)*
+## D. ⚠⚠ The edit dialog — **EXPECT D1 TO PASS AND D2 ONWARD TO FAIL** *(📌 `BP-327`)*
+
+> ⭐ **The menu items exist and fire** *(Batch 84 wired them)*, ⛔ **but no surface draws the session**,
+> so no dialog appears. ⭐⭐ **Run D1 to confirm the menu; record D2-D11 as blocked on `BP-327`, not as
+> new findings.** ⚠ **The one live editor is `InspectorWindow`'s `DEFAULT VALUE — {var}` panel.**
 
 > 📌 **ruling 5:** a three-dot button *"opens a StructEdit-based editing window, OK / Cancel,
 > initialised to the variable's current value."* · 📌 **design §3–§4:** ⭐ **ONE dialog, TWO scopes, and
