@@ -8,8 +8,10 @@ known-conflict: none.
 -->
 # FINDINGS — Blueprint visual check, `2026-08-18` *(post-Batch-86)*
 
-> ⭐⭐⭐ **Headline: FOUR of the reported failures are MY GUIDE promising surfaces that were never
-> built. ONE is a PASS I mislabelled. ONE is a genuinely new defect, and it is NOT `BP-327`.**
+> ⭐⭐⭐ **Headline, FINAL: THREE real defects · FOUR guide errors of mine · ONE pass I mislabelled.**
+> ⭐ **Real:** the Details table has **no gesture binder** *(`D`)* · the selection is **computed and
+> never drawn** *(`B3`)* · *"arrived after"* is implemented as **"is different from"** *(`B8`)*.
+> ⛔ **None of the three is `BP-327`** — ⚠ **`BP-327` was masking two of them.**
 > ⛔ **Ids are NOT allocated here** *(rule 3)* — the implementation session numbers them.
 >
 > 📌 **Swept before triage** *(`2026-08-18` rule)*: `Q32` §4 rows 56–61 · `DESIGN_Variable_Details_And_Editing.md` §5/§6 ·
@@ -64,9 +66,9 @@ because the dialog lacks an OK button.** ⚠⚠ **Two defects were being read as
 section deliberately** *(handoff item 4c)*.
 
 ⇒ ⭐⭐ ***"No Working State in My Blueprint" IS THE INTENDED STATE.***
-⚠⚠ **ONE THING STILL TO CONFIRM WITH THE USER:** ⭐ **do the declarations that used to sit under
-*Working State* now appear under *Variables*?** ⛔ **If they vanished entirely, THAT is a finding** —
-and it is the only way this row could still be a defect.
+✅✅ **CONFIRMED `2026-08-18`** — re-run against the named asset: **5 Inputs, 9 Variables, exactly as
+predicted.** ⭐ The first run had a **near-identically-named** asset open *(the corpus is full of
+`HillAssault2_*`)*.
 
 ---
 
@@ -89,11 +91,37 @@ constructs and routes it, and the last consumer does not read it.**
 ⇒ ⭐ **the check has to be *"the control's rendered row state reflects `IsSelected`"***, i.e. ask the
 **artefact**, not the model — 📌 the same lesson Batch 83 learned about `CellText`.
 
-### ⏳ `B8` — still not diagnosed
+### 🔴🔴 `B8` — **MEASURED. "Arrived AFTER" is implemented as "is DIFFERENT FROM", and they are not the same question**
 
-`BlueprintDetailsWindow:40` holds **`_lastSubSelection`** *("used to decide when a NODE click should
-take the…")* ⇒ **the arm-switching logic exists.** ⛔ **Why it does not re-take on the second click is
-UNMEASURED** — ⭐ stated as open rather than guessed.
+📐 **`BlueprintDetailsWindow`, the two halves:**
+
+```csharp
+// ShowVariables(selection)  — when the variable list takes the panel
+_variables.Show(selection);
+_lastSubSelection = _selectionStore.ActiveSubSelection;      // ⚠ a SNAPSHOT
+
+// ShowingVariables — whether it KEEPS the panel
+if (!_variables.HasContent) return false;
+return Equals(_selectionStore.ActiveSubSelection, _lastSubSelection);
+```
+
+📌 **The comment states the intent as a TIME claim:** *"A node selection that arrived **AFTER** the
+variable list wins it back."* ⛔⛔ **The code tests VALUE INEQUALITY instead.**
+
+📐 **Two measurements make that fatal:**
+
+| | |
+|---|---|
+| ⭐⭐ **A variable click never moves `ActiveSubSelection`** | 📐 `BlueprintMyBlueprintWindow` has **ZERO** references to it ⇒ ⛔ **the snapshot records THE NODE THAT WAS ALREADY SELECTED**, not the variable |
+| ⭐⭐ **`BlueprintNodeSelection` is a `sealed record (Guid GraphId, Guid NodeId)`** | ⇒ **VALUE equality** ⇒ re-clicking **the same node** yields an object that is `Equals` to the snapshot |
+
+⇒ ⭐⭐⭐ **Re-clicking the SAME node can NEVER take the panel back** — `Equals` is true, so
+`ShowingVariables` stays true and the table sits there. ⭐ **Clicking a DIFFERENT node works**, which is
+why this survived every test: ⛔ **the failing case is the one the designer actually performs.**
+⚠ **`B8`'s wording — *"then the node again"* — names exactly that case.**
+
+⭐⭐ **Fix shape:** last-writer-wins needs a **shared ordering token** — a counter both arms bump —
+⛔ **not an equality test on a field only ONE arm ever writes.**
 
 ---
 
@@ -132,11 +160,12 @@ blueprint asset")*. ⭐⭐ **Measured, layer by layer, rather than asked about:*
 | **the live binding** | ✅ `EditorSubsystem:2296` calls `Retarget(blueprintAsset: ctx?.AssetRef as BlueprintAsset)`, and ✅ `BlueprintDocumentFactory:379` sets **`AssetRef = bpAsset`** |
 | **the null path** | ⚠ `GetItems` returns **empty for EVERY section** when `_asset == null`, headers intact — ⭐ **that would ALSO have emptied Graphs / Functions / Events**, which was not reported |
 
-⇒ ⭐⭐⭐ **NO DEFECT IS SUPPORTED BY THE MEASUREMENT.** ⛔ **The one variable left is WHICH ASSET WAS
-OPEN** — ⭐ **an asset with only `Parameter` declarations correctly shows `Variables (0)`**, and the
-reported *"Inputs"* section says this one has inputs.
-⇒ ⚠ **Re-run `A2` against `HillAssault2_CalculateSegments` specifically.** ⛔ **This is not a deferral —
-every layer reachable without the running editor has been eliminated.**
+⇒ ⭐⭐⭐ **NO DEFECT WAS SUPPORTED BY THE MEASUREMENT — and the re-run CONFIRMED it.**
+✅ **User, `2026-08-18`:** *"i must have opened another asset with almost identical name, the one you
+specified has 5 inputs vars and 9 variables exactly as you say."*
+⇒ ⭐⭐ **`A2` PASSES.** ⚠ **Keep the lesson, not the row:** ⛔ *"open any asset"* is not a check —
+📌 **a guide row that depends on the asset's CONTENT must NAME the asset**, and the corpus has
+near-identical names *(`HillAssault2_*`)* that make this failure mode easy.
 
 ---
 
