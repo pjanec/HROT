@@ -346,6 +346,64 @@ public sealed class DetailsHostsTheVariablesTests
         return (window, asset);
     }
 
+    // ══ BATCH 84 item 4 — the selection stays LIVE, and names the clicked row ══
+
+    /// <summary>
+    /// 🔴🔴 <b>RED before Batch 84, and the rail above could NOT have caught it.</b>
+    ///
+    /// <para>⚠⚠ <c>SwitchingGraph_ChangesWhichLocalsTheClickResolvesTo</c> switches the graph
+    /// <b>before</b> the click, so it proves the resolver is live <i>at click time</i> — ⛔ it says
+    /// nothing about whether the PUBLISHED selection stays live afterwards. 📐 It did not: the rows
+    /// followed the canvas (the schema source reads the graph through a delegate) while
+    /// <c>$"Local Variables — {graph.Name}"</c> was frozen at click time ⇒ ⭐ <b>the panel
+    /// contradicted itself</b>, showing one graph's rows under another graph's name.</para>
+    /// </summary>
+    [Fact]
+    public void SwitchingGraphAFTERTheClick_MovesTheHeadingToo()
+    {
+        var tick  = new Graph { Id = Guid.NewGuid(), Name = "Tick",  Kind = GraphKind.Function };
+        var other = new Graph { Id = Guid.NewGuid(), Name = "Other", Kind = GraphKind.Function };
+        tick.LocalVariables.Add(Decl("Scratch"));
+        other.LocalVariables.Add(Decl("Elsewhere"));
+
+        var current = tick.Id;
+        var (window, _) = MakeOutline(g => { g.Graphs.Add(tick); g.Graphs.Add(other); }, () => current);
+
+        var selection = window.ResolveVariableSelection(
+            Item(BlueprintMyBlueprintModel.SectionLocalVariables));
+        Assert.Equal("Local Variables — Tick", selection.CurrentHeading);
+
+        current = other.Id;          // …the designer switches graph AFTER clicking
+
+        // ⭐ Both halves move together — ⛔ before, only the rows did.
+        Assert.Equal("Local Variables — Other", selection.CurrentHeading);
+        Assert.Equal(new[] { "Elsewhere" }, selection.Source!.GetRows().Select(r => r.ShortName));
+    }
+
+    /// <summary>
+    /// 🔴 <b>RED before Batch 84</b> — the type could not carry it. 📌 §1: <i>"…routes Details to the
+    /// locals-of-this-graph table <b>with that row highlighted</b>."</i>
+    /// </summary>
+    [Theory]
+    [InlineData(BlueprintMyBlueprintModel.SectionVariables)]
+    [InlineData(BlueprintMyBlueprintModel.SectionLocalVariables)]
+    public void TheResolvedSelection_NamesTheClickedRow(string sectionId)
+    {
+        var tick = new Graph { Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function };
+        tick.LocalVariables.Add(Decl("Scratch"));
+
+        var (window, asset) = MakeOutline(g => g.Graphs.Add(tick), () => tick.Id);
+        BlueprintDocumentFactory.CreateDeclaration(
+            asset, KindOf(BlueprintMyBlueprintModel.SectionVariables), "Health", "System.Int32");
+
+        var selection = window.ResolveVariableSelection(Item(sectionId, named: "Scratch"));
+
+        Assert.Equal("Scratch", selection.SelectedVariablePath);
+    }
+
+    private static MyBlueprintItem Item(string sectionId, string named)
+        => Item(sectionId) with { DisplayName = named };
+
     private static MyBlueprintItem Item(string sectionId)
         => new(ItemId: $"var:{Guid.NewGuid():D}", SectionId: sectionId, DisplayName: "x",
                CategoryPath: null, IconKey: null, BadgeText: null, AccentColor: null,

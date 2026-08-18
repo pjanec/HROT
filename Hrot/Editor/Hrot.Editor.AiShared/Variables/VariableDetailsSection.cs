@@ -76,10 +76,20 @@ public sealed class VariableDetailsSection
     /// ⭐ Null when nothing is shown. ⛔ The heading is not decoration: ruling 2 routes between a
     /// GLOBAL list and a GRAPH-SCOPED one, and they are otherwise identical tables.
     /// </summary>
-    public string? Heading { get; private set; }
+    public string? Heading => _headingAtReadTime?.Invoke() ?? _heading;
+
+    private string?       _heading;
+    private Func<string?>? _headingAtReadTime;
 
     /// <summary>True once a source has been supplied. ⭐ A rail surface, and the host's draw gate.</summary>
-    public bool HasContent => Heading != null;
+    public bool HasContent => _heading != null;
+
+    /// <summary>
+    /// ⭐⭐ <b>Batch 84 item <c>4a</c> — which row the outline selected.</b> 📌 §1: <i>"the routing key
+    /// is <c>(asset, section)</c> <b>+ a highlight</b>."</i> ⛔ A SEPARATE state from the change
+    /// highlight — see <see cref="VariableTableView.IsSelected"/>.
+    /// </summary>
+    public string? SelectedVariablePath => _model.SelectedVariablePath;
 
     /// <summary>
     /// ⭐⭐ Points the list at a source. 📌 <b><c>Q32</c> ruling 2</b>, the panel's whole navigation
@@ -87,17 +97,37 @@ public sealed class VariableDetailsSection
     /// state. Click a local ⇒ the locals of the currently selected graph."</i>
     /// </summary>
     public void Show(string heading, IVariableRowSource source)
+        => Show(new VariableOutlineSelection(heading, source));
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 84 — the whole selection, so the heading can follow the canvas and the clicked
+    /// row can be highlighted.</b>
+    ///
+    /// <para>📐 <b>Why the heading needed this and the rows did not:</b> the graph-scoped source
+    /// already resolves the graph at READ time, so its ROWS follow the canvas — ⛔ but
+    /// <c>$"Local Variables — {graph.Name}"</c> was computed once, at click time. ⚠ The result was
+    /// worse than staleness: the rows updated while the label kept naming the OLD graph.</para>
+    /// </summary>
+    public void Show(VariableOutlineSelection selection)
     {
-        if (string.IsNullOrEmpty(heading)) throw new ArgumentException("heading is required", nameof(heading));
-        _model.Source = source ?? throw new ArgumentNullException(nameof(source));
-        Heading       = heading;
+        if (selection.Source is null)
+            throw new ArgumentException("selection has no source", nameof(selection));
+        if (string.IsNullOrEmpty(selection.Heading))
+            throw new ArgumentException("heading is required", nameof(selection));
+
+        _model.Source               = selection.Source;
+        _model.SelectedVariablePath = selection.SelectedVariablePath;
+        _heading                    = selection.Heading;
+        _headingAtReadTime          = selection.HeadingAtReadTime;
     }
 
     /// <summary>⭐ Lets go, so a stale list cannot outlive the selection that produced it.</summary>
     public void Clear()
     {
-        Heading      = null;
-        _model.Source = new FixedVariableRowSource(Array.Empty<VariableRow>());
+        _heading                    = null;
+        _headingAtReadTime          = null;
+        _model.SelectedVariablePath = null;
+        _model.Source               = new FixedVariableRowSource(Array.Empty<VariableRow>());
     }
 
     /// <summary>

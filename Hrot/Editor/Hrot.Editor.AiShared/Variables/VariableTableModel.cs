@@ -22,16 +22,41 @@ public sealed class VariableTableView
         VariableTableColumns columns,
         Dictionary<(Guid, Fdp.Core.Entity, string), RowHighlight> highlights,
         Dictionary<(Guid, Fdp.Core.Entity, string), string> names,
-        VariableValueMode mode)
+        VariableValueMode mode,
+        string? selectedVariablePath = null)
     {
-        AllRows       = allRows;
-        Groups        = groups;
-        UngroupedRows = ungroupedRows;
-        Columns       = columns;
-        _highlights   = highlights;
-        _names        = names;
-        ValueMode     = mode;
+        AllRows              = allRows;
+        Groups               = groups;
+        UngroupedRows        = ungroupedRows;
+        Columns              = columns;
+        _highlights          = highlights;
+        _names               = names;
+        ValueMode            = mode;
+        SelectedVariablePath = selectedVariablePath;
     }
+
+    /// <summary>
+    /// ⭐⭐ <b>Which row the OUTLINE selected</b>, or <c>null</c>. 📌
+    /// <c>DESIGN_Variable_Details_And_Editing.md</c> §1: <i>"Clicking any row in Local Variables routes
+    /// Details to the locals-of-this-graph table <b>with that row highlighted</b>"</i> ⇒ <i>"the
+    /// routing key is <c>(asset, section)</c> <b>+ a highlight</b>."</i>
+    /// </summary>
+    public string? SelectedVariablePath { get; }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Whether <paramref name="row"/> is the SELECTED one — a state SEPARATE from
+    /// <see cref="HighlightOf(VariableRow)"/>.</b>
+    ///
+    /// <para>⛔⛔ <b>Do NOT express selection through the change highlight.</b> 📌 §1b makes a collapsed
+    /// header inherit <b>red if any child changed this tick, yellow if any is pending</b> — those are
+    /// statements about the SIMULATION. ⚠ Mixing a selection colour into that aggregate would make the
+    /// monitor <b>lie</b>: a header would read "something changed" because the designer clicked.</para>
+    ///
+    /// <para>⭐ Two orthogonal states, so a selected row that also changed this tick can show both,
+    /// and neither can be mistaken for the other.</para>
+    /// </summary>
+    public bool IsSelected(VariableRow row)
+        => SelectedVariablePath != null && row.Origin.VariablePath == SelectedVariablePath;
 
     public IReadOnlyList<VariableRow>      AllRows       { get; }
     public IReadOnlyList<VariableRowGroup> Groups        { get; }
@@ -88,6 +113,13 @@ public sealed class VariableTableModel
     public IReadOnlyList<VariableFacet>  GroupBy  { get; set; }
     public VariableRunState              RunState { get; set; } = VariableRunState.Planning;
 
+    /// <summary>
+    /// ⭐⭐ The outline's selected row, or <c>null</c>. 📌 §1: <i>"the routing key is
+    /// <c>(asset, section)</c> <b>+ a highlight</b>."</i> ⛔ Kept OFF the change monitor — see
+    /// <see cref="VariableTableView.IsSelected"/> for why that separation is load-bearing.
+    /// </summary>
+    public string? SelectedVariablePath { get; set; }
+
     public VariableChangeMonitor Monitor => _monitor;
 
     public VariableTableView Build()
@@ -108,6 +140,7 @@ public sealed class VariableTableModel
         // ⭐ ONE resolution per frame — ⛔ not per cell, which is how a table ends up half in one
         //   mode and half in the other while the sim starts mid-draw.
         return new VariableTableView(
-            rows, groups, ungrouped, Columns, highlights, names, VariableValue.ModeFor(RunState));
+            rows, groups, ungrouped, Columns, highlights, names, VariableValue.ModeFor(RunState),
+            SelectedVariablePath);
     }
 }

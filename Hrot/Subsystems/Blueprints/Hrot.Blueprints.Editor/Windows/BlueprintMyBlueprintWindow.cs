@@ -336,15 +336,32 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
         if (item.SectionId == BlueprintMyBlueprintModel.SectionLocalVariables)
         {
             if (_locals is null) return VariableOutlineSelection.None;
-            var graph = _model.CurrentGraph;
+
+            // ⭐⭐⭐ BATCH 84 item 4b — the heading resolves WHEN DRAWN, not when clicked.
+            // 📐 Measured: the ROWS already followed the canvas (BlueprintLocalVariableSchemaSource
+            //    reads the graph through a Func<Graph?>). ⛔ The HEADING did not — it was
+            //    $"Local Variables — {graph.Name}" computed once, here. ⇒ ⚠ switching graph updated
+            //    the rows while the label kept naming the OLD graph, so the panel contradicted itself.
+            // ⭐ A delegate, not a stored Guid — the same shape the row source already uses, so there
+            //   is ONE way this arm follows the canvas rather than two.
+            string? LocalsHeading()
+            {
+                var g = _model.CurrentGraph;
+                return g is null ? "Local Variables" : $"Local Variables — {g.Name}";
+            }
+
             return new VariableOutlineSelection(
-                graph is null ? "Local Variables" : $"Local Variables — {graph.Name}",
+                LocalsHeading(),
                 new SectionVariableRowSource(
                     assetId:   asset.AssetId,
                     assetName: asset.Name,
                     entity:    default,
                     section:   BlueprintMyBlueprintModel.SectionLocalVariables,
-                    schema:    _locals));
+                    schema:    _locals),
+                // ⭐ item 4a — WHICH row was clicked. VariablePath is the variable's name
+                //   (SectionVariableRowSource builds its origin from v.Name).
+                SelectedVariablePath: item.DisplayName,
+                HeadingAtReadTime:    LocalsHeading);
         }
 
         var kind = item.SectionId switch
@@ -359,6 +376,9 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
         var heading = _model.Sections.FirstOrDefault(s => s.Id == item.SectionId)?.DisplayName
                       ?? item.SectionId;
 
+        // ⭐ The asset-scoped arms need NO live heading: a section's name does not depend on the
+        //   canvas, so the click-time string is still true when drawn (item 4b applies to the
+        //   graph-scoped arm only).
         return new VariableOutlineSelection(
             heading,
             new SectionVariableRowSource(
@@ -366,7 +386,8 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
                 assetName: asset.Name,
                 entity:    default,
                 section:   item.SectionId,
-                schema:    new BlueprintVariableSchemaSource(asset, kind, onChanged: () => { })));
+                schema:    new BlueprintVariableSchemaSource(asset, kind, onChanged: () => { })),
+            SelectedVariablePath: item.DisplayName);
     }
 
     /// <summary>

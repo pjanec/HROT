@@ -111,7 +111,10 @@ public sealed class BlueprintDetailsWindow : ManagedWindow, IVariableDetailsHost
     {
         if (selection.HasRows)
         {
-            _variables.Show(selection.Heading!, selection.Source!);
+            // ⭐ BATCH 84 (4a/4b) — the WHOLE selection, so the clicked row is highlighted and the
+            //   graph-scoped heading follows the canvas instead of naming the graph that was open
+            //   when the designer clicked.
+            _variables.Show(selection);
             // ⭐ Remember what the node arm was showing, so a LATER node click wins. ⛔ Without this
             //   the variable list would sit over an unrelated node selection forever.
             _lastSubSelection = _selectionStore.ActiveSubSelection;

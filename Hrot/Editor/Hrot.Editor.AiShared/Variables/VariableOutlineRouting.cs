@@ -14,13 +14,43 @@ namespace Hrot.Editor.AiShared.Variables;
 /// graph, a function, a node — ⇒ the details host lets go of its list rather than leaving a stale one
 /// beside an unrelated selection.</para>
 /// </summary>
-public readonly record struct VariableOutlineSelection(string? Heading, IVariableRowSource? Source)
+/// <param name="SelectedVariablePath">
+/// ⭐⭐ <b>Batch 84 item <c>4a</c> — WHICH ROW was clicked.</b> 📌
+/// <c>DESIGN_Variable_Details_And_Editing.md</c> §1: <i>"Clicking any row in Local Variables routes
+/// Details to the locals-of-this-graph table <b>with that row highlighted</b>"</i> ⇒ <i>"the routing
+/// key is <c>(asset, section)</c> <b>+ a highlight</b>."</i>
+/// <para>🔴 <b>Before this, the TYPE could not express it</b> — the record carried a heading and a
+/// source and nothing else, so no row could ever be highlighted however the panel drew.</para>
+/// </param>
+/// <param name="HeadingAtReadTime">
+/// ⭐⭐⭐ <b>Batch 84 item <c>4b</c> — a heading resolved WHEN DRAWN, not when clicked.</b>
+/// <para>📐 <b>Measured before building, and the handoff's premise was half right:</b> the graph-scoped
+/// arm's ROWS already follow the canvas — <c>BlueprintLocalVariableSchemaSource</c> reads the graph
+/// through a <c>Func&lt;Graph?&gt;</c> and resolves it at call time. ⛔ <b>The HEADING did not:</b>
+/// <c>$"Local Variables — {graph.Name}"</c> was computed once, at click time. ⇒ ⚠⚠ <b>the failure is
+/// worse than "stale": switch graph and the rows update while the label keeps naming the OLD graph</b>,
+/// so the panel contradicts itself.</para>
+/// <para>⭐ A delegate rather than a stored <c>Guid</c> — the same shape the row source already uses,
+/// so there is ONE way the graph-scoped arm follows the canvas, not two.</para>
+/// </param>
+public readonly record struct VariableOutlineSelection(
+    string?             Heading,
+    IVariableRowSource? Source,
+    string?             SelectedVariablePath = null,
+    Func<string?>?      HeadingAtReadTime    = null)
 {
     /// <summary>⭐ The "not a variable" selection, named rather than spelled out at each call site.</summary>
     public static VariableOutlineSelection None => new(null, null);
 
     /// <summary>True when this selection carries a list to show.</summary>
     public bool HasRows => Heading != null && Source != null;
+
+    /// <summary>
+    /// ⭐⭐ <b>What a panel must render.</b> ⛔ Never <see cref="Heading"/> directly: that is the
+    /// click-time snapshot and is the fallback only for arms that genuinely cannot change
+    /// (the asset-scoped sections, whose name does not depend on the canvas).
+    /// </summary>
+    public string? CurrentHeading => HeadingAtReadTime?.Invoke() ?? Heading;
 }
 
 /// <summary>
