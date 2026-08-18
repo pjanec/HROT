@@ -19,10 +19,10 @@ architect decision first).
 | Complexity | Open | Done |
 |---|---:|---:|
 | `WIRING` | 4 | 71 |
-| `RW-L` | 32 | 61 |
-| `RW-M` | 29 | 56 |
+| `RW-L` | 33 | 61 |
+| `RW-M` | 30 | 56 |
 | `RW-H` | 3 | 9 |
-| **Total** | **68** | **197** |
+| **Total** | **70** | **197** |
 | *(refuted on verification)* | | *1* |
 
 > ⚠ **`RW-L` done was 43 and the Total 88 — an off-by-one that predates Batch 29** (present at
@@ -697,6 +697,11 @@ architect decision first).
 
 
 - [ ] **BP-330** · `RW-L` — ⚠⚠ **`AiWatchWindow`'s table has NO bindable gestures — the OTHER watch window did not get row 59b's dialog.** 📌 **The coordinator's `R-72` (POST-DISPATCH, `2026-08-18`) names the duplication:** *"THERE ARE TWO WATCH WINDOWS"* — **`AiWatchWindow`** *(`Hrot.Editor.AiShared`, built by the SHARED registrar ⇒ **all three perspectives**, and it already holds a `PinnedVariableRowSource`)* and **`WatchPanelWindow`** *(`Hrot.Blueprints.Editor`, blueprint-only)*. 📐 **Measured Batch 84:** `AiWatchWindow._control` is **private with no accessor** ⇒ ⛔ **nothing can `Attach` a `VariableEditGestureBinder` to it.** ⇒ ⭐ Batch 84 item 3 satisfied **ruling 11** for `WatchPanelWindow` *(it exposes `Table` and `BindEditGestures`)*, ⛔ **and the shared window — the one BTree and HSM actually see — still cannot edit.** ⛔⛔ **NOT FIXED IN BATCH 84 BY DESIGN:** `R-72` landed **after** the dispatch sha, and 📌 *"your scope is FROZEN at this sha; documents that change after it are FYI ONLY"* ⇒ ⭐ **reported, not adapted.** ⚠ **The fix is small** *(expose the control, bind the same binder)* — ⭐ **but it should be sequenced with the two-windows decision `Q40` is making, not ahead of it**, or it hardens a duplicate that may be about to collapse *— filed Batch 84, item 3 follow-up (rule-4 re-pull)*
+
+
+- [ ] **BP-331** · `RW-M` — 🔴🔴 **Collapsing `DeclarationKind.WorkingState` breaks PERSISTENCE round-trip: two kinds cannot write three tags.** 📌 Batch 85's handoff §3 ruled the on-disk tag an **ALIAS**: *"Accept `"Kind": "WorkingState"` on READ, forever… do NOT rewrite the 37 affected assets in this batch."* ⭐ **Reading is fine.** ⛔ **Writing is not:** with the kind retired there is **no information left** to choose `"WorkingState"` at serialization, so every previously-working-state declaration re-spells as `"Variable"`. 📐 **Measured with the full collapse applied:** **15 × `ByteStability_EveryFixture_SerializesToOriginalBytes`** *(`InstanceCounter`, `MoveToAndFire`, …)* + **`TheCanonicalJsonOfEveryCorpusAssetIsUnchanged`** + **3 × `Parse_AllDispatchKinds_RoundTrip`** RED. ⚠⚠ **The handoff's own sentence — *"assets adopt the new spelling naturally when next saved"* — IS the rewrite**, deferred to save time; ⛔ and this repo GATES byte-stability, so the deferral costs 19 red rails rather than nothing. ⭐⭐⭐ **Recommended fix — rewrite the 37 assets IN the batch:** 📐 **37 SOURCE files, one word per declaration, and ZERO hash + ZERO emit-golden movement** *(the tag is not in `StructureHash`)*. ⚠ **The handoff rejected this fearing "458 files of golden movement" — measured, it is 37 and none is a golden.** ⛔ **Rejected alternatives:** remembering each declaration's arrival tag *(that is keeping the kind under another name)* · weakening byte-stability to an equivalence *(it is the gate that protects the persistence shape)* *— filed Batch 85, STOPPED*
+
+- [ ] **BP-332** · `RW-L` — ⚠⚠ **Batch 85's scope split is not achievable: the outline's Working State section CANNOT survive the kind's retirement.** 📌 The handoff put the UI out of scope — *"that follows from the kind, and it is a SEPARATE batch: this one must be provably behaviour-neutral."* 📐 **Measured:** `BlueprintMyBlueprintModel:330` builds the section with `BuildDeclarationItems(DeclarationKind.WorkingState, …)`, and with the member gone the section has three fates, **none neutral** — ⛔ point it at `Variable` ⇒ **it shows the SAME rows as Variables** *(duplicated rows)* · ⛔ leave it sourceless ⇒ a permanently empty section whose `[+]` adds to a **different** section · ⭐ **retire it** ⇒ the designed end state *(`R-01`)*, **and visible**, reddening ~37 model/section rails. ⭐ I took the third and it compiled cleanly — ⚠ **which is exactly why the batch cannot be "provably behaviour-neutral".** ⇒ ⭐⭐ **The next handoff must take the UI change in scope or say what the section becomes.** ⚠ **Related, and needs a RULING not a fix:** `TheV2TagsAreExactlyDeclarationKindsMembersInOrder` asserts the enum's names equal the on-disk tags **in order** — ⛔ an equality the alias rule is designed to break; it must become *"every tag maps to a kind"* *— filed Batch 85, STOPPED*
 
 
 
