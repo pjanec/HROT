@@ -115,8 +115,9 @@ def main():
         st = status_of(text)
         if st is None and created(path) >= STATUS_RULE_DATE:
             missing.append(path)
-        if pathlib.Path(path).name.startswith("Architect_Question_") \
-                and (st or {}).get("updated", "") >= INVENTORY_RULE_DATE \
+        name = pathlib.Path(path).name
+        if (name.startswith("Architect_Question_") or name.startswith("DESIGN_")) \
+                and created(path) >= INVENTORY_RULE_DATE \
                 and not INVENTORY_RE.search(text):
             no_inventory.append(path)
         state = (st or {}).get("state", "?")
@@ -145,7 +146,7 @@ def main():
             print("\nAdd one (see .claude/CLAUDE.md, 'Design document format').")
         if no_inventory:
             bad = True
-            print(f"\n{len(no_inventory)} architect question(s) with no INVENTORY block:")
+            print(f"\n{len(no_inventory)} design document(s) with no INVENTORY block:")
             for p in no_inventory:
                 print("  " + p)
             print("\nA design that names WHERE something should live must first enumerate")
@@ -156,7 +157,7 @@ def main():
         if bad:
             return 1
         print(f"All {len(rows)} recently-changed design documents carry a STATUS header,")
-        print("and every recently-changed architect question carries an INVENTORY block.")
+        print("and every design document written under the rule carries an INVENTORY block.")
         return 0
 
     print(f"DESIGN DIGEST — {len(rows)} document(s) changed in the last {args.days} days")

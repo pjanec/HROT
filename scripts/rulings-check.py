@@ -71,6 +71,21 @@ def main():
     stale = sorted({rel for _, rel, _ in rows
                     if mtime(rel) > ledger_t and rel != "docs/blueprints/RULINGS.md"})
 
+    # §M rows are MEASUREMENTS, not canon. A quote-probe cannot police them: the
+    # cited document does not change when the code does, which is exactly how R-04
+    # and R-25 stayed green while being false. All this can do is say how old the
+    # measurement is -- and an old measurement is a rumour.
+    import datetime
+    today = datetime.date.today()
+    old = []
+    for mid, when in re.findall(r"\|\s*\*\*(M-\d+)\*\*\s*\|.*?\|.*?\|\s*(?:⚠\s*\*\*)?`(\d{4}-\d{2}-\d{2})`", text):
+        try:
+            age = (today - datetime.date.fromisoformat(when)).days
+        except ValueError:
+            continue
+        if age > 14:
+            old.append((mid, when, age))
+
     for line in bad:
         print("FAIL " + line)
     print(f"{len(rows) - len(bad)}/{len(rows)} rulings verified against their sources")
@@ -79,6 +94,11 @@ def main():
         print("The quote still matches, but the surrounding ruling may have moved. Re-read:")
         for rel in stale:
             print("  " + rel)
+    if old:
+        print(f"\nWARN {len(old)} §M measurement(s) older than 14 days — treat as rumour, re-run:")
+        for mid, when, age in old:
+            print(f"  {mid}  measured {when} ({age} days ago)")
+
     if bad:
         print("\nA failing probe means the design record MOVED, not that the ruling died.")
         print("Find the new home and update the row — do NOT delete the ruling.")

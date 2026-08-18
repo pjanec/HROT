@@ -371,6 +371,50 @@ cements the duplicate.
 4. ⛔ **State the design basis IN the handoff, per item.** ⭐ *"design says X, this batch does Y"* — if
    that sentence cannot be written, **the sweep was not done.**
 
+## ⛔⛔⛔ THE LEDGER MAY NOT ASSERT WHAT THE CODE IS *(user ruling, `2026-08-18`)*
+
+> ⭐⭐⭐ **User:** *"i don't know where i can believe your conclusions. how comes it could have happened
+> again… is the ledger a good idea? I would rather spend more tokens of well-investigated design/batch
+> than keep issuing some wrong ones."*
+
+📌 **The mechanism, stated exactly.** `rulings-check.py` verifies that **a quote still exists in a
+document.** ⛔⛔ **It cannot detect that a claim about CODE became false — the document did not change,
+the CODE did.** ⚠⚠ **Twice on `2026-08-18` a row was GREEN AND FALSE** — `R-04` *("the tagged type is
+the VIEW")* and `R-25` *("`B′` is blocked")* — ⭐ **and both sent me to build things that already
+existed.** ⇒ ⛔ **The gate manufactured confidence and I spent it.**
+
+| kind of row | ⭐ verdict |
+|---|---|
+| ⭐ **DECISION** *(settled by a person: "no two implementations", "no visual checks until X")* | ✅ **canon. Does not decay** |
+| ⛔ **STATE CLAIM** *("X is not built", "X is blocked", "there are two Y")* | ⛔⛔ **NOT canon — it rots silently.** ⭐ **It belongs in `RULINGS.md` §M as a QUESTION plus the command that answers it** |
+
+⇒ ⭐⭐⭐ **§M — MEASURE, DON'T MEMORISE. ⛔ Never quote an answer from §M; RUN THE COMMAND.**
+⭐ A measurement older than **14 days is a rumour** — `rulings-check.py` warns.
+
+## ⛔⛔⛔ THE INVESTIGATION PHASE — **before any batch or design, not "if it looks non-obvious"**
+
+⭐⭐ **Two parts, BOTH recorded in the artefact with the queries actually run:**
+
+| ⭐ | |
+|---|---|
+| **①** | ⭐⭐ **Enumerate the code surface with codebase-memory** *(`search_graph`)* — ⛔ **`grep` can only CONFIRM a guess; it cannot enumerate** |
+| **②** | ⭐⭐ **Read the NON-SUPERSEDED design markdowns** for the area — ⛔ check each `STATUS` header before quoting it |
+
+### ⭐⭐⭐ And the one rule that would have caught almost every failure of `2026-08-18`
+
+> ⛔⛔⛔ **NEVER claim *"X is not built"* without running the enumeration that would find X.**
+
+📌 **Every wrong turn that day except the two semantic ones was a FALSE NEGATIVE of exactly that
+shape** — *"`D1` is not done"*, *"`B′` is blocked"*, *"the emitters still emit separately"*, *"there is
+no way to pin"*, *"there are two watch windows"* *(four)*. ⭐ **Cheap, and checkable in the artefact.**
+
+### ⚠ What NONE of this fixes — **stated so nobody over-trusts it**
+
+⛔ **Semantic inference.** Reading `BlueprintSharedState` and taking *"shared"* to mean **cross-entity**;
+reading *"already remaps"* and taking it to mean **preserves**. ⭐⭐ **No enumeration catches these.**
+⇒ ⭐ **When a claim depends on what a symbol MEANS, read its BODY** — ⛔ **not its name, not its
+comment, not its doc header.**
+
 ## ⛔⛔⛔ INVENTORY BEFORE DESIGN — **grep cannot enumerate** *(user, `2026-08-18`)*
 
 > ⭐⭐⭐ **User:** *"again you were designing something you did not investigated deep enough. how to
