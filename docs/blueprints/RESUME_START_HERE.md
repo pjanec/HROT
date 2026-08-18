@@ -12,7 +12,7 @@ stale-below: everything under "START HERE — coordinator session" is HISTORY (2
 > file is only the current state.
 > ⭐ **Your first reply must open with the DESIGN BRIEF block** *(`.claude/CLAUDE.md`)*.
 > ⛔ **EVERYTHING BELOW THIS BLOCK PREDATES IT** — stale baselines, stale "next steps".
-> 📄 The live plan is **[`PLAN_Remaining_Work.md`](PLAN_Remaining_Work.md) — revision 28**.
+> 📄 The live plan is **[`PLAN_Remaining_Work.md`](PLAN_Remaining_Work.md) — revision 29**.
 
 ## 0. Where things stand
 
@@ -20,18 +20,23 @@ stale-below: everything under "START HERE — coordinator session" is HISTORY (2
 |---|---|
 | **coordinator branch** | `claude/blueprint-authoring-status-gm0akp` |
 | **implementation branch** | `claude/hrot-implementation-j1jvin` |
-| ⏭ **IN FLIGHT** | ⛔ **NOTHING.** ⭐ **Batch 83 is not written yet** — the next item is **`58`** *(the Value column + its run-state meaning switch)* |
-| **last merged** | ⭐⭐ **Batch 82** at `c42483f22` — *`U-6`: Details hosts the shared table, and selection routes*. All three items + both document repairs. **+18 tests, zero golden movement.** `BP-316` `BP-317` `BP-318` |
-| ⛔⛔ **NOT NEXT** | **the visual check** — 📌 **`R-21`: SUSPENDED by user ruling `2026-08-14`** until the Details panel and access infrastructure are unified. ⭐ **`U-6` was HALF that condition; the emitter/access unification is the other half** |
-| **gates baseline** | build **0/69** · AiShared **1330** · Blueprints **3727/3737/10** · BTree.Editor **615** · Hsm.Editor **551** · Generators **270** · Breakpoints **134** · Persistence **136** · Scenarios **56/68 (12 skipped)** · UrbanCombat **29** · Toolkits **1964** · NodeEditor.Core **211** · NodeEditor.UI **135** · FastHSM **300** · tracker **open 66 / done 187** · rulings **37/37** |
+| ⏭ **IN FLIGHT** | ⛔ **NOTHING.** ⭐ **Next is `59c`** *(the ECB surgical field write + the RUNNING write)* — ⚠ **`Fdp.Core`, its own red-first batch** |
+| **last merged** | ⭐⭐ **Batch 83** at `2d808ba10` — *rows `58` · `59` · `59b`, all three, unattended*. **+49 tests, zero golden movement.** `BP-319` `BP-320` `BP-321`, ⭐⭐⭐ **and `BP-01` CLOSED** |
+| ⭐⭐⭐ **THE VISUAL CHECK IS UNBLOCKED — for Blueprint** | 📌 **`R-62`:** `R-21`'s condition was *"Details panel implemented AND emitters/access unified"* ⇒ ✅ **Batch 82** + ✅ **Batch 56 + stage `C`**. ⛔ **NOT for BTree/HSM** — `R-60`: they have no Details window at all |
+| **gates baseline** | build **0/69** · AiShared **1369** · Blueprints **3737/3747/10** · BTree.Editor **615** · Hsm.Editor **551** · Generators **270** · Breakpoints **134** · Persistence **136** · Hrot.Editor **194** · Scenarios **56/68 (12 skipped)** · UrbanCombat **29** · Toolkits **1964** · NodeEditor.Core **211** · NodeEditor.UI **135** · FastHSM **300** · tracker **open 65 / done 191** · rulings **40/40** |
 
 ## 0a. ⭐⭐ The sequence — **do not re-derive it**
 
-⭐ **Two roadmaps converge:** `Variable_Model_Unification` §4 *(live)* `0 → C ✅ → A ✅ → **B ✅** → B′(blocked) → D1–D4`
-· `Q32` §4 *(master)* `56 ✅ → **57 = U-6 ✅** → 58 → 59 → 59b → 59c → 60 = U-16 → 61`.
-⇒ ⭐⭐⭐ **`B` and `57` were the SAME item, and Batch 82 did it.** ⭐ **Next is `58`.**
+⭐ **`Variable_Model_Unification` §4** *(live)*: `0 ✅ → C ✅ → A ✅ → B ✅ → B′ ✅ → **D1 → D2 → D3 → D4**`
+⇒ ⭐⭐⭐ **`R-61`: STAGE `D` IS THE ONLY UNIFICATION WORK LEFT.** ⚠ **`B′` was marked BLOCKED in three
+documents and was neither blocked nor unbuilt** — `BP-228` closed Batch 47, `S5` built the union Batch 65.
+⛔⛔ **Ruling 8's emitter unification SHIPPED in Batch 56** — ⭐ `IrAsset.StateDeclarations` =
+`WorkingState ∪ Variables`. **Do NOT say the emitters still emit them separately.**
+
+⭐ **`Q32` §4** *(master)*: `56 ✅ → 57 ✅ → 58 ✅ → 59 ✅ → 59b ✅ → **59c** → 60 = U-16 → 61`.
 ⚠ **`R-60`: rows 60 and 61 are bigger than assumed** — **two of three perspectives have no Details
 window at all**, so `U-16` cannot retire the Variables window on BTree/HSM until `BP-317`.
+🔴🔴 **`R-24`: `D2` must preserve field order or EVERY DEPLOYED BLACKBOARD IS WIPED.** Own batch, red-first.
 🔴🔴 **`D2` can WIPE every deployed blackboard** if field order changes — `R-24`. Own batch, red-first.
 
 ## 1. ⭐⭐⭐ Rulings from this session — **binding**

@@ -1,3 +1,37 @@
+# PLAN — what is left *(revision 29, `2026-08-18`)*
+
+> ✅✅ **REVISION 29 — BATCH 83 MERGED at `2d808ba10`. ⭐⭐ ALL THREE ROWS LANDED** — `58` *(the Value
+> column)* · `59` *(the StructEdit dialog)* · `59b` *(the Watch panel)*, **one commit and a full gate
+> pass each**, unattended overnight. ⭐ **Nothing was left unreached.**
+> ⭐ **IDs: `BP-319` `BP-320` `BP-321`** — and ⭐⭐⭐ **`BP-01` IS CLOSED**, the oldest row in the tracker:
+> the Watch panel no longer renders `Convert.ToHexString`.
+> **+49 tests** *(AiShared 1369, Blueprints 3737)*, ⭐⭐ **zero golden movement in all three items.**
+>
+> ⭐⭐⭐ **THE THROUGH-LINE: every item was WIRING, not construction.** All three MEASURE-FIRSTs found the
+> component already built, complete and tested, with **nothing in production calling it** —
+> ⛔ **`VariableEditLauncher` shipped in Batch 75 and had ZERO production call sites** *(the **eleventh**
+> instance of the pattern)*. ⇒ **three of them closed in one run.**
+>
+> ⚠ **They deviated from my handoff on one point and were RIGHT:** I told them to reuse `DefaultLiteral`
+> for JSON→display. 📐 It is **`internal` to `Hrot.Blueprints.Compiler`** and emits **C# source, not
+> display text** ⇒ ⛔ **unreachable from `AiShared`, which sits below it.** ⭐ They wrote no converter at
+> all and rendered the stored JSON. **My instruction named a tool that could not be used.**
+>
+> ⭐⭐ **And they caught a vacuous rail in their OWN work mid-batch** — reverting the panel's decoder to
+> hex left every test green, because each built its own formatter and asked *that*. ⇒ the panel now
+> reports **what IT would render** (`CellText`). 📌 ***Ask the ARTEFACT, not something that resembles
+> it*** — the **eighth** instance.
+>
+> 🟡 **ONE FINDING FROM MY REVIEW — cosmetic, real, next batch:** ⛔ **a struct renders in TWO NOTATIONS
+> depending on run state.** The initial arm re-serialises JSON ⇒ **`{"X":1.0,"Y":2.0}`**; the current
+> arm uses §4b's form ⇒ **`{X=1.0, Y=2.0, …}`**. 📌 **Ruling 3 switches the column's MEANING, not its
+> NOTATION** — and §4b's cell format is stated without an initial/current split. ⇒ **fold into the next
+> batch; do not reopen 83.**
+> 📄 **[`REPORT_Batch83_Values_And_The_Dialog.md`](REPORT_Batch83_Values_And_The_Dialog.md)**
+
+
+# ⛔ HISTORY — revisions 28 and earlier
+
 # PLAN — what is left *(revision 28, `2026-08-17`)*
 
 > ✅ **REVISION 28 — BATCH 82 MERGED at `c42483f22`.** ⭐⭐ **`U-6` = stage `B` = `Q32` row 57 is DONE.**
