@@ -1,8 +1,10 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-17
+updated: 2026-08-18
 current-answer: the whole document; it is authoritative for parameters and storage
-known-rot: (none) - the BP1031-as-live rot was REPAIRED 2026-08-17, Batch 82
+known-rot: (none) - the BP1031-as-live rot was REPAIRED 2026-08-17, Batch 82; the
+  section 3.2 "overlay is NOT implemented on every path" correction was REPAIRED
+  2026-08-18 (it had gone false at Batch 70/74) and now sits under a HISTORY fold
 known-conflict: gives Scope three values; Q-b in Variable_Model_Unification rules two. UNRECONCILED.
 -->
 # DESIGN — the parameter model *(AUTHORITATIVE, `2026-08-16`)*
@@ -101,22 +103,37 @@ Commander → AssignTacticalIntentEvent{Entity, IntentId, JsonParams}
 ⭐ **Parse before commit** — a failed parse leaves the entity **100% on its old behaviour**.
 ⭐ Defaults are baked, **scenario JSON overlays them, runtime wins** *(architect-approved `2026-06-06`)*.
 
-> ### 🔴🔴 CORRECTION `2026-08-16` — **the overlay is NOT implemented on every path**
+> ### ✅ RESOLVED `2026-08-18` — **the overlay now ships on EVERY path**
 >
-> ⛔ **This document stated the overlay as universally shipped. It is not.**
-> 📄 **`DEBT-AIB-021` (P3)**, found by the Batch 68 triage: *"The generated `ParseParams` writes only
-> baked defaults from `DefaultValueJson` — **it ignores the incoming `json` argument** at entity
-> assignment time."*
+> ⚠⚠ **The `2026-08-16` correction below is HISTORY. ⛔ Do not quote it as current** — it says the
+> generated path discards the incoming JSON, and **that has been false since Batch 70/74.**
+> 📐 **Measured `2026-08-18`:** `BTreeBridgeEmitCore.EmitParseParamsLocal:1231` emits
+> **step 1 — baked defaults**, then **step 2 — overlay**, a `switch` on `__prop.Name` over **every
+> packed field** *(⛔ not only the ones carrying a default)*. `HsmBridgeEmitCore:231` mirrors it.
+> ⭐ **Both tracker rows are closed:** `BP-275` *(BTree, Batch 70)* · `BP-292` *(HSM, Batch 74)*.
+> ⭐ **`EmitParseParamsIfDefaults` no longer exists** — the name in the table below is itself the tell.
 >
-> | path | overlay |
-> |---|---|
-> | **curated / hand-written `ParseParams`** *(e.g. `ParseMoveToParams`)* | ✅ **works** — this is what the architect approved and what ships |
-> | 🔴 **GENERATED, managed BTree assets** *(`BTreeBridgeEmitCore.EmitParseParamsIfDefaults`)* | ⛔ **defaults only; the incoming JSON is DISCARDED** |
+> ⇒ ⭐⭐ **"defaults baked, JSON overlays them, runtime wins" is now TRUE of the curated path AND the
+> generated managed-asset path**, on both hosts.
 >
-> ⇒ ⭐⭐ **"runtime wins" is the DESIGN and is true of the curated path; it is FALSE of the generated
-> managed-asset path.** ⚠ **`G1`'s split does not fix this by itself** — the deserializer must dispatch
-> per-variable by name. 📌 `DEBT-AIB-021` names the implementation: *"deserializing a wrapper JSON object
-> keyed by variable name and dispatching to each variable's deserializer."*
+> <details><summary>⛔ HISTORY — the `2026-08-16` correction, superseded</summary>
+>
+> > ⛔ **This document stated the overlay as universally shipped. It is not.**
+> > 📄 **`DEBT-AIB-021` (P3)**, found by the Batch 68 triage: *"The generated `ParseParams` writes only
+> > baked defaults from `DefaultValueJson` — **it ignores the incoming `json` argument** at entity
+> > assignment time."*
+> >
+> > | path | overlay |
+> > |---|---|
+> > | **curated / hand-written `ParseParams`** *(e.g. `ParseMoveToParams`)* | ✅ **works** |
+> > | 🔴 **GENERATED, managed BTree assets** *(`BTreeBridgeEmitCore.EmitParseParamsIfDefaults`)* | ⛔ **defaults only; the incoming JSON is DISCARDED** |
+> >
+> > ⇒ ⭐⭐ **"runtime wins" is the DESIGN and is true of the curated path; it is FALSE of the generated
+> > managed-asset path.** ⚠ **`G1`'s split does not fix this by itself** — the deserializer must dispatch
+> > per-variable by name. 📌 `DEBT-AIB-021` names the implementation: *"deserializing a wrapper JSON object
+> > keyed by variable name and dispatching to each variable's deserializer."*
+>
+> </details>
 
 ### 3.3 ⭐⭐⭐ Instances use the SAME pipeline *(user ruling, `2026-08-16`)*
 
@@ -284,7 +301,7 @@ discovered structs. ⇒ **a variable can be struct-typed; a parameter cannot.**
 |---|---|
 | `Role`/`Scope` model, persisted + round-trip tested | ✅ |
 | behaviour supply: intent → ingress → `ParseParams` → commit → provision | ✅ |
-| defaults + scenario overlay (runtime wins) | ⚠ **CURATED path only** — 🔴 **the GENERATED managed-asset `ParseParams` ignores the incoming JSON** (`DEBT-AIB-021`, §3.2 correction) |
+| defaults + scenario overlay (runtime wins) | ✅ **EVERY path** — curated **and** generated, BTree **and** HSM. ⚠ *(was CURATED-only until `BP-275`/`BP-292`; §3.2's correction is now folded as HISTORY)* |
 | **`G2`** Library blueprint functions runtime-invocable ⇒ **a blueprint-authored resolver's seam** | ✅ |
 | **`G5`** name-derived `ActiveBehaviorHash` · **`G6`** `AiBehaviorFactory` retired | ✅ |
 | authored multi-field inputs — **BTree** (`BTreeBridgeEmitCore`, 45 `Role`/`Scope` refs) | ✅ |

@@ -83,6 +83,8 @@ note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quo
 | **R-36** | ⭐ **Instance slot layout is `[Cursor 16][Params N][State M]`** — ⛔ **params must NOT be at offset 0** | `DESIGN_Parameter_Model.md` |
 | **R-37** | ⭐⭐ **No LIVE parameter binding** — resolvers fill params **once** at activation/state entry. `E7a` adds a host **context** *(name-keyed, never a raw offset, fails closed)*, ⛔ **not a second supply mechanism** | `Q33` · `DESIGN_Parameter_Model.md` |
 | **R-38** | ⭐ **Shared state is a DELIBERATE EXCLUSION — declared in a DIFFERENT document** *(the manifest owns the slot)*. The blueprint is a **consumer**, read-only | `Variable_Model_Unification.md` |
+| ⭐⭐ **R-80** | ⛔⛔ **"STATIC PARAMETERS" IS NOT A PARAMETER EDITOR, AND THE INSTRUCTION TO RETIRE IT IS WITHDRAWN** *(`BP-295`, `2026-08-17`)*. ⭐ Measured, it is **the default-value editor for the variable the selected node WRITES** *(its `ExpressionTargetField`)*, and **the only LIVE surface for a bound variable's `DefaultValueJson`**. ⭐ Batch 74 relabelled it `DEFAULT VALUE — {var}`; ⚠ **the old name survives only in comments, a tooltip and this row.** ⛔ **Retiring it deletes a capability, not a duplicate** — the duplicate CODE half went in Batch 68 | `DESIGN_Variable_Details_And_Editing.md` |
+| ⭐⭐ **R-81** | ⭐⭐⭐ **PARAMETER SUPPLY ORDER: bake the authored defaults, THEN overlay the incoming JSON keyed by VARIABLE NAME — runtime wins.** ⭐ **Applied ONCE at assignment/attach, never per tick** *(that is the whole meaning of "static")*. ⭐ **True on EVERY path since Batch 70/74** — curated and generated, BTree and HSM. ⚠⚠ **§3.2's `2026-08-16` CORRECTION saying the generated path discards the JSON went FALSE at `BP-275`/`BP-292` and is now folded as HISTORY** — ⛔ **do not quote it** | `DESIGN_Parameter_Model.md` §3.2 |
 
 ## 1c. ⭐⭐⭐ HARD LIMITS & PERSISTENCE PROMISES — **break these and it fails silently**
 
@@ -243,6 +245,8 @@ R-44 | docs/projects/FDP/Core/Fdp.Core.md | MAX_COMPONENT_TYPES = 256
 R-47 | docs/projects/FDP/ExtDeps/NodeEdit/NodeEditor.Core.md | Never write through IGraphModel
 R-48 | docs/projects/SOLUTION-OVERVIEW.md | no stable ABI boundary
 R-49 | docs/blueprints/DESIGN_Variable_Details_And_Live_Values.md | NEVER GENERATE PER-VARIABLE CODE
+R-80 | docs/blueprints/DESIGN_Variable_Details_And_Editing.md | the only LIVE surface for a bound variable's
+R-81 | docs/blueprints/DESIGN_Parameter_Model.md | the overlay now ships on EVERY path
 R-01 | docs/blueprints/Variable_Model_Unification.md | occupy the SAME cell
 R-01b | docs/blueprints/Variable_Model_Unification.md | names, one concept
 R-02 | docs/blueprints/Architect_Question_32_Variable_Details_And_Values_ANSWERS.md | it makes no sense to emit them differently
