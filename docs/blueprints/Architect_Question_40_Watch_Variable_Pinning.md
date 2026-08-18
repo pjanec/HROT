@@ -362,6 +362,73 @@ item 2 is already being held to.** ⭐ **Solve it once, for both.**
 > ⚠ **If you prefer one row over N, say so** — `H2` is cheaper and I can defend it; it is only the
 > *silence* about which entity I object to, and that could be fixed with a visible label instead.
 
+## 9. ⭐⭐⭐ `Q40-H` REPLACED — **entity binding, restart survival, and the chameleon** *(user, `2026-08-18`)*
+
+> ⭐⭐ **User, verbatim:** *"there are entities also in planning (ECS repo is filled) … it might need
+> translation from entity id used while in planning into the runtime entity id used when running …
+> i would like the watches to survive the scenario restart. one row per each entity is unbearable as
+> there might be thousands of entities. the entity id should be part of the watch row id and we should
+> be able to select what concrete entities to monitor, including an id representing currently selected
+> entity (chameleon) — this one needs to change not on brain tick, but on every selection change."*
+
+⛔⛔ **`Q40-H`'s recommendation (`H1`, expand to one row per live entity) is WITHDRAWN — the user is
+right that it does not scale.** ⭐ **What replaces it is better and mostly exists.**
+
+### ⭐⭐ INVENTORY *(second pass — this section's own)*
+
+```
+search_graph(query="persistent stable entity id across restart mapping")   → total 751, top hits below
+search_graph(name_pattern=".*(EntityHandle|EntityRef|PersistentId|StableId|EntityKey|NetworkId).*") → total 372
+```
+
+| 📐 found | |
+|---|---|
+| ⭐⭐⭐ **`NetworkIdentity { long Value }`** | `Fdp.Toolkits/Replication/Components/` — *"Global ID (GUID-like or sequential unique ID)"*. ⭐ **The stable identity, and scenario load ALREADY REMAPS IT** *(`RemapNetworkIdAttribute`, `StagingEntityExtractor`, `C013_PreAllocatedNetworkId`)* |
+| ⚠ **`FindEntityByNetworkId`** | ⛔ **TWICE** — `ReplayBrowserSubsystem:933` **and** `EditorMissionService:54`. 📌 **ruling 9 flag, filed not fixed** |
+| ⭐⭐ **`EditorSelectionStore.SelectedEntity`** | `Hrot.Editor.AiShared/Selection/` — ⭐ **already SHARED**, updated by `IGSelectionBridge` / `CallbackSelectionBridge` ⇒ **the chameleon's source exists** |
+| ⚠⚠ **existing watch persistence is NOT entity-keyed** | `SaveWatches`/`LoadWatches` persist **breakpoints marked `IsWatch`**, keyed by `PropertyMatchDto` *(component + property + predicate)*. ⭐ **That is why they survive restart today — there is no entity in the key.** ⇒ **variable watches add a new persisted shape; extend this file, ⛔ do not invent a second one** |
+
+### ⭐⭐⭐ 9a. The entity slot of a watch row — **three kinds, not one**
+
+| kind | stored as | resolves to |
+|---|---|---|
+| ⭐ **a concrete entity** | ⭐⭐ **`NetworkIdentity.Value` (long)** — ⛔ **NEVER the raw `Entity` handle** | `FindEntityByNetworkId` at read time |
+| ⭐⭐⭐ **the CHAMELEON** | a **sentinel** *(e.g. `NetworkId = 0` / an explicit discriminator)* | `EditorSelectionStore.SelectedEntity`, **re-resolved on SELECTION CHANGE** |
+| ⭐ **entity-less** | none | for a variable whose value is asset-scoped and not per-entity |
+
+> ⭐⭐⭐ **WHY `NetworkIdentity` AND NOT `Entity`:** ⛔ **`Entity` is a slot/generation handle — recycled
+> on restart.** ⭐ **`NetworkIdentity` is the replication identity, and the *"translation from planning
+> id to runtime id"* the user suspected is needed ALREADY EXISTS as the scenario-load NetworkId remap.**
+> ⇒ ⭐⭐ **store the NetworkId and the watch survives a restart by construction** — ⛔ **no new mapping
+> table.**
+
+### ⭐⭐ 9b. TWO CLOCKS — ⛔ **the thing that must not be conflated**
+
+> ⭐⭐⭐ **The user separated these and it is the sharpest point in the whole design:**
+
+| clock | drives | cadence |
+|---|---|---|
+| ⭐ **the VALUE clock** | *"what does this field hold?"* | ⭐ **every brain tick**, for **every** row incl. the chameleon |
+| ⭐⭐ **the BINDING clock** | *"which entity is this row about?"* | ⛔ **NOT the tick** — ⭐ **only when the selection changes**, and only for the chameleon |
+
+⛔⛔ **Re-resolving the binding per tick would be both wasteful and WRONG** — ⭐ the row's identity would
+churn under the user's cursor. ⭐⭐ **A concrete-entity row's binding NEVER changes.**
+
+### ⭐ 9c. Selecting which entities to monitor
+
+⛔ **No auto-expansion.** ⭐ **The designer picks**, and there is already a picker precedent —
+`MapPickableEntityAttribute` — ⚠ **whose reuse I have NOT measured; treat as a lead, not a decision.**
+⭐ **The chameleon is the answer to *"I do not want to pick"***: one row that follows the selection.
+
+### ⚠ 9d. THE ONE THING TO MEASURE BEFORE BUILDING
+
+⛔⛔ **Does a PLANNING-time entity carry a `NetworkIdentity`, and is its value preserved into the run?**
+⭐ **`C013_PreAllocatedNetworkId_BypassesAllocator` suggests ids CAN be pre-allocated** — ⛔ **that is
+not the same as *"every staged entity has one and it survives the load."***
+⇒ ⭐⭐ **If it does NOT hold, restart survival needs the remap table after all, and 9a's *"by
+construction"* becomes *"by translation."*** ⚠ **Measure first; the rest of the design is unaffected
+either way.**
+
 ## 8. ⛔ Still not decided
 ⚠ **Watching variables from DIFFERENT ASSETS in one panel** — ⭐ the key supports it and the store is
 already shared, ⚠ **but the poll would span debug sessions.** ⭐ **Out of slice 1.**
