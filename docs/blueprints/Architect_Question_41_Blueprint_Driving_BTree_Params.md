@@ -1,7 +1,9 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-18
-current-answer: section 5 - the recommended answers. Nothing here is built.
+current-answer: section 5. A, B and D APPROVED by the user 2026-08-18. C was sent
+  back for clarification and is REVISED - C1 is WITHDRAWN, replaced by C1'/C2'/C3'.
+  Nothing here is built.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none known. Section 3 records where DESIGN_Parameter_Model.md's
@@ -10,6 +12,10 @@ known-conflict: none known. Section 3 records where DESIGN_Parameter_Model.md's
 -->
 # ⭐ Architect Question 41 — **can a blueprint drive a BTree node's parameters?**
 
+> # ✅ `A` · `B` · `D` APPROVED — user, `2026-08-18`: *"only the C needs clarification, others accepted."*
+> ⚠⚠ **`C` REVISED in place.** ⛔ **`C1` is WITHDRAWN** — the user's question exposed that I mistook an
+> `if` for a design ruling. ⭐ **`C1′` / `C2′` / `C3′` replace it and await approval.**
+>
 > ⛔⛔ **NOT RELAYED.** The architect is generally unavailable (`2026-08-16` user ruling).
 > ⭐⭐ **Resolved JOINTLY with the user: I analyse and RECOMMEND, the user APPROVES.**
 > ⭐ **Every sub-question below carries a recommended answer.** Reply *"approved"*, or name the one
@@ -126,17 +132,70 @@ turns *"a programmer per case"* into *"a node you drop."* ⚠ **It is one node, 
 `Unsafe.Write`) or **one field**? ⭐ **Lean: whole**, mirroring `R-82`; the field variant only if a
 concrete case needs it.
 
-### `Q41-C` — Should resolvers become editor-assignable?
+### `Q41-C` — Should resolvers become editor-assignable? ⭐⭐ **REVISED `2026-08-18`**
+
+> ⛔⛔ **MY FIRST ANSWER WAS WRONG, and the user's question is what found it.**
+> 📌 **User:** *"Why resolver should not be editor selectable? Could the action resolver be blueprint
+> authorable?"*
+>
+> ⚠ **I reasoned from `ApplyResolverOverlay`'s `if (def.ParseParams == null)` and called the collision
+> a law.** ⛔ **It is an `if`, not a design.** 📐 **And the design already has the composition point:**
+>
+> ```csharp
+> // BehaviorParams.FromJson<TDto> — "G1: deserialize and resolve, split apart and composed back"
+> TDto dto = json → deserialize;
+> resolve?.Invoke(ref dto, world, self, host);   // ⭐ THE HOOK, already specified
+> Unsafe.Write(memory, dto);
+> ```
+>
+> ⇒ ⭐⭐⭐ **The generated `EmitParseParamsLocal` implements 2 of those 3 stages — bake, overlay,
+> write — and has NO resolve step.** ⛔ **`RegisterResolver` collides with the generated path because
+> the generated path cannot EXPRESS the middle stage**, not because the two are incompatible.
+> ⇒ ⭐⭐ **The fix is to emit the hook, not to harden the collision.**
 
 | | option | verdict |
 |---|---|---|
-| **C1** | ⭐ **Leave resolvers as code, and FIX THE SILENT EXCLUSION** — make a `RegisterResolver` against an asset that emits its own `ParseParams` **fail loudly**, or say so in a diagnostic | ⭐⭐⭐ **RECOMMENDED** |
-| **C2** | a dropdown in the asset editor over `_resolversByName` | ⛔ **Reject for now** — §3 says it would be **inert** on exactly the assets that have an editor. ⚠ Revisit only if `C1` changes the precedence |
-| **C3** | per-action-node resolvers | ⛔⛔ **Reject** — resolvers are per-BEHAVIOUR by construction; per-node is a new supply mechanism *(ruling 9)* |
+| ⛔ **C1** *(withdrawn)* | leave resolvers as code, make the collision fail loudly | ⛔⛔ **WITHDRAWN** — it hardens a symptom and **cements** the exclusion |
+| ⭐⭐⭐ **C1′** | ⭐ **Emit the resolve hook in the generated `ParseParams`: bake → overlay → `resolve(ref dto, world, self, host)` → write** — the same order `FromJson` already specifies | ⭐⭐⭐ **RECOMMENDED — the enabling change.** ⛔ Nothing else in `C` is reachable without it |
+| ⭐⭐ **C2′** | ⭐ **Editor-selectable resolver, PER VARIABLE**, from the registry, **type-filtered by the variable's DTO type** — the same shape as the existing parameter picker | ⭐⭐ **RECOMMENDED**, after `C1′`. ⚠ It is a dropdown, not a mechanism |
+| ⭐⭐ **C3′** | ⭐⭐⭐ **A resolver authored AS A BLUEPRINT** — a graph of shape `Resolve(ref Params, Entity self, EntityRepository world, IHostVariableAccess? host)` | ⭐⭐ **RECOMMENDED IN PRINCIPLE, own design pass** — see below |
 
-⭐ **Why C1:** the defect is not *"no UI"*, it is **a mechanism that silently does nothing**. ⚠ That
-is the `2026-08-16` silent-default pattern with a different shape — ⛔ **a caller that registered a
-resolver believes it has one.** ⭐ **Cheapest honest fix: make the collision visible.**
+#### ⚠ And this REVERSES my `C3` rejection — **"per-behaviour" was never the mechanism**
+
+⛔ I wrote *"resolvers are per-BEHAVIOUR by construction; per-node is a new supply mechanism."*
+📐 **Measured, that is an artefact of the curated path having ONE params DTO** — where *per-behaviour*
+and *per-DTO* coincide. ⭐⭐ **A managed asset has N variables, each a DTO at an offset** ⇒ the faithful
+analogue is **PER-VARIABLE**, which is the same mechanism at the granularity this model actually has.
+⭐ **Per-VARIABLE, not per-NODE** — a variable may be bound by several nodes *(Approach A aliasing)*, and
+the resolver belongs to **the thing being filled**, not to one of its readers.
+
+#### ⭐⭐⭐ `C3′` — can a blueprint author it? **Yes, and it is the right long-term shape**
+
+⭐ **It fits, because the emitter already produces functions of this family:**
+
+| | composed AiPrimitive *(ships)* | a resolver blueprint *(proposed)* |
+|---|---|---|
+| **signature** | `TickCore(ref Params, ref WorkingState, self, world, time)` | ⭐ `Resolve(ref Params, self, world, host)` |
+| **when** | every tick | ⭐ **once, at assignment** |
+| **state** | a partition slot | ⛔ **NONE** |
+
+| ⭐ why it is consistent | |
+|---|---|
+| **`R-37`** | *"resolvers fill params ONCE at activation"* — ⭐ a resolver blueprint is exactly that |
+| **`R-84`** | live host↔child binding stays out — ⭐ this reads the world at activation, not continuously |
+| **ruling 9** | ⭐⭐ **ONE mechanism, two authoring routes** — the same `ParseParamsDelegate` slot, filled by generated code instead of hand-written. ⛔ **Not a second supply path** |
+| **`E7a`** | ⭐ it gets `IHostVariableAccess?` **for free** — the host-context use case lands here naturally |
+
+| ⚠ the constraints, stated so the design pass starts from them | |
+|---|---|
+| ⛔⛔ **NO working state** | a resolver is one-shot; a per-entity slot has no lifecycle here ⇒ **declare none, and check it at compile** |
+| ⛔ **NO side effects** | it runs **inside `BehaviorIngressSystem`'s shadow parse**. ⭐ Writing only `ref dto` keeps *parse-before-commit* intact — ⭐⭐ **and a throw already leaves the entity on its old behaviour, so the guarantee extends for free** |
+| ⚠ **an entry-point shape is needed** | a `Dispatch` kind *(e.g. `ParamResolver`)* or a convention — ⛔ **this is the part that needs its own design pass, not a batch** |
+
+⭐⭐ **How it relates to `Q41-B` (approved):** ⛔ **they are different TIERS, not alternatives.**
+⭐ **resolver = computed ONCE at assignment** · ⭐ **`B`'s reader node = per tick**. 📌 `R-37` makes
+once-at-assignment the intended default ⇒ ⭐⭐ **a resolver blueprint is the CHEAPER answer whenever the
+value does not have to keep changing**, and `B` covers when it does.
 
 ### `Q41-D` — If a cross-memory read ships, keyed how?
 

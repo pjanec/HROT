@@ -1,8 +1,13 @@
 # PLAN — what is left *(revision 31, `2026-08-18`)*
 
 > ✅✅✅ **REVISION 31 — NOTHING IN FLIGHT. TWO ARCHITECT QUESTIONS WRITTEN, ONE APPROVED IN FULL.**
-> ⭐⭐ **`Q42` is ruled** *(user: "ok, all accepted")* — 📄 **[`Architect_Question_42_Declaration_Identity_Guid_Vs_Name.md`](Architect_Question_42_Declaration_Identity_Guid_Vs_Name.md)**.
-> ⭐ **`Q41` is written and open** — 📄 **[`Architect_Question_41_Blueprint_Driving_BTree_Params.md`](Architect_Question_41_Blueprint_Driving_BTree_Params.md)**.
+> ⭐⭐ **`Q42` is ruled IN FULL** *(user: "ok, all accepted")* — 📄 **[`Architect_Question_42_Declaration_Identity_Guid_Vs_Name.md`](Architect_Question_42_Declaration_Identity_Guid_Vs_Name.md)**.
+> ⭐⭐ **`Q41` `A`/`B`/`D` ruled; `C` REVISED and awaiting approval** — 📄 **[`Architect_Question_41_Blueprint_Driving_BTree_Params.md`](Architect_Question_41_Blueprint_Driving_BTree_Params.md)**.
+>
+> ⚠⚠ **`Q41-C1` was WITHDRAWN — I mistook an `if` for a design ruling.** 📌 The user asked *"why should
+> a resolver not be editor selectable?"* and the answer is that **it should be**: `BehaviorParams.FromJson`
+> already specifies `deserialize → resolve → write`, and the generated emitter simply never emitted the
+> middle stage *(`R-91`)*. ⭐ **The collision was a missing hook, not a law.**
 >
 > ⭐⭐⭐ **The through-line of this revision: the parameter-mapping feature (promotion → bound variable)
 > and the unified variable surfaces were designed independently and DO NOT MEET.** ⛔ **Three separate
@@ -47,12 +52,26 @@
 | ⭐ **B6** | ⚠ **`Promote`'s identity check re-derives `_auto_{VisualId}`** and returns early if that name exists ⇒ after a rename it misses and creates a **SECOND** variable for the same node | ⭐ **Check the node's BINDING, not the derived name.** ⚠ **`B2` makes this trivial** — ⛔ but it is still a distinct edit |
 | ⏸ **B7** | ⭐ **Does `StructureHash` stop including `f.Name`?** *(`Q42-E`)* | ⛔⛔ **DEFERRED, deliberately.** 📐 The name is in the hash because the **access path is name-keyed** (`StateFields: name → offset`) ⇒ **a live-state-compatibility change, not a rename convenience.** ⭐ **Needs its own measurement** |
 
-### ⚠ What these two groups do NOT include
+---
+
+## ⭐⭐ TASK GROUP C — **blueprint → BTree params** *(`Q41`; `A`/`B`/`D` approved, `C` revised)*
+
+📄 **Design basis:** `Q41` §5 · `R-90` `R-91` · `R-37` `R-84` `R-88`.
+
+| | | |
+|---|---|---|
+| ⭐⭐ **C1** | ⭐ **ONE generic reader node** — *"read named shared slot `X` → write host variable `Y`"*, authored in the editor *(`Q41-B2`, approved)* | ⭐ **Built ON the `FourParamFull` shape, not instead of it.** ⛔ **No write channel from blueprint into the host blackboard** *(`Q41-A1`)* — publish/subscribe only. ⭐ **By NAME** *(`Q41-D`)*. ⚠ **Open sub-choice: whole-variable write, or one field.** ⭐ **Lean: whole** |
+| ⭐⭐⭐ **C2** | ⭐⭐ **Emit the RESOLVE HOOK in the generated `ParseParams`** — `bake → overlay → resolve(ref dto, world, self, host) → write`, the order `BehaviorParams.FromJson` **already specifies** *(`R-91`, `Q41-C1′`)* | ⛔⛔ **The enabling change — nothing else in `C` is reachable without it.** ⚠ **PER-VARIABLE**, not per-behaviour and ⛔ **not per-node** *(a variable may be bound by several nodes)*. ⭐ **After this, `RegisterResolver` COMPOSES with a managed asset instead of colliding** |
+| ⭐ **C3** | ⭐ **Editor-selectable resolver per variable**, from the registry, **type-filtered by the variable's DTO type** *(`Q41-C2′`)* | ⭐ **Small — a dropdown, the same shape as the parameter picker.** ⛔ **Needs `C2` first** |
+| ⏸ **C4** | ⭐⭐⭐ **A resolver authored AS A BLUEPRINT** — `Resolve(ref Params, self, world, host)` *(`Q41-C3′`)* | ⚠⚠ **OWN DESIGN PASS, not a batch.** ⭐ Consistent with `R-37`/`R-84`/ruling 9 and it gets `IHostVariableAccess` for free; ⛔ **needs an entry-point shape (a `Dispatch` kind) and the NO-WORKING-STATE / NO-SIDE-EFFECTS constraints made checkable** |
+
+⚠ **`C1` and `C2` are different TIERS, not alternatives** — ⭐ **resolver = once at assignment** *(`R-37`'s
+intended default)* · ⭐ **reader node = per tick.** ⛔ Do not let one be built "instead of" the other.
+
+### ⚠ What these three groups do NOT include
 
 | ⛔ | |
 |---|---|
-| **`Q41`** *(blueprint driving BTree params)* | ⭐ **still OPEN** — recommendations written, not approved |
-| **the resolver silent-exclusion** *(`Q41-C1`)* | ⭐ `RegisterResolver` cannot apply to a managed asset and **fails silently** — filed with `Q41`, not here |
 | **row 60** *(retire `BlueprintVariablesWindow`)* · **row 61** *(the unified outline)* | 📌 `Q32` §4 owns their order — ⛔ **not mine to rearrange** *(`R-22`)* |
 | **`D4`** | unchanged, still open |
 
