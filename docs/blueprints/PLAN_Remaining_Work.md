@@ -1,9 +1,42 @@
-<!--STATUS
-state: LIVE
-updated: 2026-08-18
-current-answer: the newest revision block at the top
-stale-below: every revision block below the newest is HISTORY. Do not quote it for status.
--->
+# PLAN — what is left *(revision 30, `2026-08-18`)*
+
+> ✅✅✅ **REVISION 30 — BATCH 86 MERGED at `5a0019e60`. ⭐⭐⭐ THE VARIABLE MODEL IS UNIFIED.**
+> ⭐⭐ **`DeclarationKind` is `{ Parameter, Variable }`** — `WorkingState` is gone as a kind and survives
+> only as a **readable on-disk tag** mapping to `Variable`. 📌 **`R-01` is now true in the model, not
+> just in the design.**
+>
+> 🔴🔴 **The hazard did not fire: `StructureHash` byte-identical for all 43 compiled assets** ⇒ `R-24`'s
+> hard reset was never reachable. ⭐ Layout had been kind-agnostic since Batch 56.
+>
+> ⭐⭐ **Batch 85 STOPPED and that is why 86 worked.** It proved hash-neutrality, found the persistence
+> blocker *(two kinds cannot write three tags)*, measured that my UI-out-of-scope split was impossible,
+> and left the tree clean. ⭐ **86 carried its two mechanisms forward** — `ConcatOrder` and
+> `ReplaceSegment` — **instead of re-deriving them.**
+>
+> ⭐⭐⭐ **86 shipped a defect and caught it with its own probe:** the alias made both getters return the
+> whole run, so **every state declaration serialized TWICE** — the same shape as 85's double-hash, one
+> layer down in persistence. ⛔ It would have doubled every asset's declaration list on the next save.
+> ⭐ Fixed in **one line** at the only place that knows the alias is an alias.
+>
+> ⭐ **Gate 10: ZERO test methods deleted.** 4 renamed, 1 added, 50 assertions restated in place,
+> **6 `[InlineData]` rows removed with a justification each** — and ⭐⭐ **two SEMANTIC restatements
+> flagged rather than buried** *(`Phase` is now legitimately offered in the local picker; the
+> "empty not absent" rule moved to `Inputs` rather than dying with the retired section)*.
+>
+> ⚠⚠ **MY HANDOFF WAS SELF-CONTRADICTORY.** I authorised the 16-asset rewrite **and** listed
+> *"any `persistence-shape.txt` movement"* as a STOP — ⛔ **the rewrite necessarily moves it.** 📐 Verified
+> every delta is a multiple of 4 *(`"WorkingState"` → `"Variable"`)*; Tier-1 is a pure label move with
+> **offsets and `StructureHash` identical**; **zero** `Emit/*.cs.txt` moved. ⭐ **They proceeded and
+> reported the shape, which was right.**
+>
+> 📌 **Still open, deliberately:** `D4` *(deleting the `WorkingState` PROPERTY — a live alias the read
+> path needs)* · the on-disk tag *(stays readable forever, or every v1 file loses its revert)* ·
+> ⚠ **the panel is asserted on the MODEL, not on pixels** *(`R-21`/`R-62`)*.
+> 📄 **[`REPORT_Batch86_One_State_Kind.md`](REPORT_Batch86_One_State_Kind.md)**
+
+
+# ⛔ HISTORY — revisions 29 and earlier
+
 # PLAN — what is left *(revision 29, `2026-08-18`)*
 
 > ✅✅ **REVISION 29 — BATCH 83 MERGED at `2d808ba10`. ⭐⭐ ALL THREE ROWS LANDED** — `58` *(the Value
