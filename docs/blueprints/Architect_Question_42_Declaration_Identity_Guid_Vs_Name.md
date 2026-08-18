@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-18
-current-answer: section 5 - the recommended answers. Nothing here is built.
+current-answer: section 5 - APPROVED IN FULL by the user 2026-08-18, all six
+  sub-questions as recommended. Nothing here is built yet.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none. Section 3's carve-outs are the same split R-88 records; this
@@ -9,6 +10,10 @@ known-conflict: none. Section 3's carve-outs are the same split R-88 records; th
 -->
 # ⭐ Architect Question 42 — **declaration identity: `Guid` inside, free name outside?**
 
+> # ✅✅✅ APPROVED IN FULL — user, `2026-08-18`: *"ok, all accepted."*
+> ⭐⭐⭐ **All six sub-questions `A`–`F` are ruled as recommended.** ⛔ **This is now canon, not a
+> proposal** — see `R-89`. ⚠ **Nothing is built; §6's migration shape is the cost.**
+>
 > ⛔⛔ **NOT RELAYED.** The architect is generally unavailable *(`2026-08-16` user ruling)*.
 > ⭐⭐ **Resolved JOINTLY with the user: I analyse and RECOMMEND, the user APPROVES.**
 >

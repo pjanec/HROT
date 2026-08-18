@@ -1,3 +1,66 @@
+# PLAN — what is left *(revision 31, `2026-08-18`)*
+
+> ✅✅✅ **REVISION 31 — NOTHING IN FLIGHT. TWO ARCHITECT QUESTIONS WRITTEN, ONE APPROVED IN FULL.**
+> ⭐⭐ **`Q42` is ruled** *(user: "ok, all accepted")* — 📄 **[`Architect_Question_42_Declaration_Identity_Guid_Vs_Name.md`](Architect_Question_42_Declaration_Identity_Guid_Vs_Name.md)**.
+> ⭐ **`Q41` is written and open** — 📄 **[`Architect_Question_41_Blueprint_Driving_BTree_Params.md`](Architect_Question_41_Blueprint_Driving_BTree_Params.md)**.
+>
+> ⭐⭐⭐ **The through-line of this revision: the parameter-mapping feature (promotion → bound variable)
+> and the unified variable surfaces were designed independently and DO NOT MEET.** ⛔ **Three separate
+> blockers, each measured, none of them "just wiring".**
+>
+> ⛔ **IDS: NONE ALLOCATED — rule 3.** ⭐ **The implementation session numbers every row below when it
+> creates them, and states the ids in its report.**
+
+---
+
+## ⭐⭐⭐ TASK GROUP A — **promotion ⇄ the unified MyBlueprint / Details**
+
+📄 **Design basis:** `DESIGN_Variable_Details_And_Editing.md` §5 *(RULED `2026-08-18`)* ·
+`Blackboard_Authoring_Addendum_v3_ActionParamAuthoring.md` §3 · `Q32` §4 rows **58 / 59 / 61** ·
+`R-86` `R-87`.
+
+| | the gap — **measured, not assumed** | what closes it |
+|---|---|---|
+| ⭐⭐⭐ **A1** | 🔴 **The unified table REFUSES the rows the feature is for.** `VariableRow.CanEverBeWritten => RowKind == Normal`, and `KindOf(isAutoManaged) ⇒ NodeOwned` ⇒ **every promoted parameter variable is excluded from the dialog, in BOTH modes** — while §6 names its `DefaultValueJson` as *the* planning write path. ⛔ Rows 58/59 would ship a dialog that refuses its own subject | ⭐ **Apply the `R-86` ruling in code:** node-owned ⇒ **renamable + planning-default editable**, ⛔ **still not deletable**, ⛔ **no running-mode write**. ⚠ 🔒 passthrough unchanged |
+| ⭐⭐ **A2** | ⚠ **Two surfaces present node-owned variables OPPOSITELY** *(`R-87`)*. `BlackboardMyBlueprintModel` **lists** them under `Inputs`, `IsHostDefined: true`; `VariablesPanelControl` **segregates** them into a dimmed *"Node-Owned Allocations"* table. ⛔ **Neither is wrong today — but they cannot both be the rule** | ⭐ **Pick one and state it.** ⚠ **Sequencing row 61 owns the unified outline** ⇒ ⛔ do not settle it in a Details batch |
+| ⭐⭐ **A3** | ⛔ **The outline shows the RAW NAME** — `DisplayName: v.Name` ⇒ N copies of one action give N opaque rows *(`_auto_7f3c9e2a…`)*. 📌 The addendum §3.1 already says node-owned vars are *"presented as belonging to its owning node"* — **that intent is unimplemented** | ⭐ `MyBlueprintItem` already carries `DisplayName` · `BadgeText` · `Tooltip` · **`CategoryPath`** ⇒ **render by owner, group by owning node, keep the real name in the tooltip.** ⚠ **Display only** — ⛔ not a rename |
+| ⭐ **A4** | ⛔ **BTree/HSM have no Details WINDOW** to host the panel *(`R-60`/`R-62`)* — ⭐ but `VariableDetailsSection` **is already in `AiShared` and deliberately window-less** *("the host draws it; it does not own a window")* | ⭐ **Placement + selection routing only.** ⛔ **Never a second copy of the table** *(ruling 9)*. ⚠ **Gated by `R-21`** — no visual check for these hosts yet |
+| ⚠ **A5** | ⛔ **A dead menu item**: `VariablesPanelControl:272` offers *"Promote to new variable"* on an **unbound subtree requirement** and the handler is empty — `{ } // deferred 1.5d` | ⭐ **Implement or remove.** ⛔ **A gesture that silently does nothing is the silent-default pattern in UI form** |
+
+---
+
+## ⭐⭐⭐ TASK GROUP B — **rename, and declaration identity** *(`Q42`, APPROVED)*
+
+📄 **Design basis:** `Q42` §5 `A`–`F` *(approved in full, `2026-08-18`)* · `R-86` `R-88` `R-89` ·
+`M-15` `M-16`.
+
+> ⭐⭐ **Order matters and is not negotiable:** ⛔ **`B4` (flip `IsRenamable`) must come LAST** — flipping
+> it before `B2` ships the silent break to every designer at once.
+
+| | | what closes it |
+|---|---|---|
+| 🔴🔴 **B1** | ⛔⛔ **`RenameVariable` rewrites NO bindings, for ANY variable** *(`M-15`)*. Both hosts rename the entry + `_aliases` and leave `ExpressionTargetField` / `WorkingStateTargetField` dangling ⇒ `BTreeJsonGenerator` skips **the whole asset** with a `BTREE0002` warning. ⭐ **This is a live defect independent of everything else** | ⭐ **Either fix the fixup, or go straight to `B2`** — ⚠ **`Q42-A` chose `B2`**, so `B1` exists here only as the *statement of the defect* that `B2` closes |
+| ⭐⭐⭐ **B2** | ⭐ **`BlackboardVariableEntry` gains `Guid Id`; the node bindings become id-keyed** *(`Q42-A`/`B`)* — converging on the blueprint model, which already persists `Id` and resolves `VariableId` by guid at **both** the editor and compiler stages *(`M-16`)* | ⚠ **Migration:** file-version bump + up/down migrator *(`R-23`)*; ⭐⭐ **names do NOT change** ⇒ **zero `StructureHash` movement, zero emit-golden movement**. 📐 **`BlackboardVariableEntry` in-degree = 114** — ⛔ **enumerate the compare-by-name sites, do not grep them**. ⭐ **Rail: a binding that still names a variable FAILS the migration loudly** — ⛔ never a silent name fallback |
+| ⭐⭐ **B3** | ⭐ **Confirm-with-reason on the three name CONTRACTS** *(`Q42-C`, `R-88`)*: `Scope=Entity` shared slots · scenario `JsonParams` keys · *(blueprint)* `StructureHash`. ⛔ **Never a silent rename there** | ⭐ **`R-88`'s table IS the message text.** ⭐⭐ **The promoted-params case gets NO prompt** — nothing outside the asset is watching it |
+| ⭐ **B4** | ⭐ **Flip `IsRenamable` to `true` for node-owned rows** *(`Q42-F`)* | ⛔⛔ **ONLY after `B2`** |
+| ⭐⭐ **B5** | ⛔ **The auto-name is unacceptable** *(user, `2026-08-18`)*. `_auto_{VisualId:N}` and `bpParams_2` are both opaque | ⭐ **Seed a READABLE name** — sanitized + uniquified from the owning node *(`MoveTo_Advance_params`)*. ⭐ `SanitizeIdentifier` already exists. ⚠ **Independent of `B2`** and the cheapest of the group — ⭐ **it means the common case never needs renaming at all** |
+| ⭐ **B6** | ⚠ **`Promote`'s identity check re-derives `_auto_{VisualId}`** and returns early if that name exists ⇒ after a rename it misses and creates a **SECOND** variable for the same node | ⭐ **Check the node's BINDING, not the derived name.** ⚠ **`B2` makes this trivial** — ⛔ but it is still a distinct edit |
+| ⏸ **B7** | ⭐ **Does `StructureHash` stop including `f.Name`?** *(`Q42-E`)* | ⛔⛔ **DEFERRED, deliberately.** 📐 The name is in the hash because the **access path is name-keyed** (`StateFields: name → offset`) ⇒ **a live-state-compatibility change, not a rename convenience.** ⭐ **Needs its own measurement** |
+
+### ⚠ What these two groups do NOT include
+
+| ⛔ | |
+|---|---|
+| **`Q41`** *(blueprint driving BTree params)* | ⭐ **still OPEN** — recommendations written, not approved |
+| **the resolver silent-exclusion** *(`Q41-C1`)* | ⭐ `RegisterResolver` cannot apply to a managed asset and **fails silently** — filed with `Q41`, not here |
+| **row 60** *(retire `BlueprintVariablesWindow`)* · **row 61** *(the unified outline)* | 📌 `Q32` §4 owns their order — ⛔ **not mine to rearrange** *(`R-22`)* |
+| **`D4`** | unchanged, still open |
+
+⚠⚠ **`R-26` — the implementation FREEZE still holds.** ⭐ **One session builds all of this, across all
+hosts.** ⛔ **Group A and Group B are not parallelisable across sessions.**
+
+---
+
 # PLAN — what is left *(revision 30, `2026-08-18`)*
 
 > ✅✅✅ **REVISION 30 — BATCH 86 MERGED at `5a0019e60`. ⭐⭐⭐ THE VARIABLE MODEL IS UNIFIED.**
@@ -35,7 +98,7 @@
 > 📄 **[`REPORT_Batch86_One_State_Kind.md`](REPORT_Batch86_One_State_Kind.md)**
 
 
-# ⛔ HISTORY — revisions 29 and earlier
+# ⛔ HISTORY — revisions 30 and earlier
 
 # PLAN — what is left *(revision 29, `2026-08-18`)*
 
