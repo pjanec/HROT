@@ -70,12 +70,54 @@ and it is the only way this row could still be a defect.
 
 ---
 
-## 4. ⏳ NOT YET DIAGNOSED — **stated as open, not guessed**
+## 4. 🔴🔴 `B3` — **MEASURED. The selection is COMPUTED and NEVER DRAWN**
 
-| row | what is known | what is NOT |
-|---|---|---|
-| **`B3`** *no row highlight* | `VariableTableControl:90/127` calls **`view.HighlightOf(...)`** ⇒ **a highlight mechanism exists.** 📌 §5: the **CHANGE** highlight is *"planning ⇒ none"* **by design**, and the check ran in planning | ⛔ **Whether a SELECTION highlight was ever built is UNMEASURED.** ⚠ **I asserted `B3` without checking** — it may be a guide error too |
-| **`B8`** *second node click does not switch back* | `BlueprintDetailsWindow:40` holds **`_lastSubSelection`** — *"used to decide when a NODE click should take the…"* ⇒ **the arm-switching logic EXISTS** | ⛔ **Why it does not re-take on the second click is UNMEASURED** |
+> ⚠ **User, `2026-08-18`:** *"Ad B3 - why dont you measure it?"* ⭐ **Fair — it was one grep.**
+
+📐 **The whole chain is wired, and it ends one call short:**
+
+| ✅ | `BlueprintMyBlueprintWindow:357/383` sets **`SelectedVariablePath: item.DisplayName`** |
+|---|---|
+| ✅ | `VariableDetailsSection:119` applies it — **`_model.SelectedVariablePath = selection.SelectedVariablePath`** |
+| ✅ | `VariableTableView.IsSelected(row)` computes it, ⭐ **deliberately kept ORTHOGONAL to the change highlight** *(*"do NOT express selection through the change highlight… a header would read 'something changed' because the designer clicked"*)* |
+| 🔴🔴 | ⛔⛔ **`VariableTableControl` NEVER CALLS `IsSelected` — zero references.** ⭐ **The renderer never asks.** |
+
+⇒ ⭐⭐ **`B3` is a REAL defect, and a one-line-shaped one.** ⚠⚠ **The THIRTEENTH instance of the
+pattern — and an INVERTED one:** ⛔ usually nothing constructs the thing; ⭐ **here everything
+constructs and routes it, and the last consumer does not read it.**
+📌 **So the existing rail shape does not catch it** — *"assert on the constructed object"* passes here.
+⇒ ⭐ **the check has to be *"the control's rendered row state reflects `IsSelected`"***, i.e. ask the
+**artefact**, not the model — 📌 the same lesson Batch 83 learned about `CellText`.
+
+### ⏳ `B8` — still not diagnosed
+
+`BlueprintDetailsWindow:40` holds **`_lastSubSelection`** *("used to decide when a NODE click should
+take the…")* ⇒ **the arm-switching logic exists.** ⛔ **Why it does not re-take on the second click is
+UNMEASURED** — ⭐ stated as open rather than guessed.
+
+---
+
+## 4a. ✅ `A2` — **the exact check, because my first question was unanswerable**
+
+> ⚠⚠ **User, `2026-08-18`:** *"as there is no more Working State section, i have no idea what variables
+> come from what section, they are all in variables. You need to be more exact what to look for."*
+> ⭐⭐⭐ **Correct — I asked a question the UI cannot answer.** ⛔ **The tag is gone from the UI ON
+> PURPOSE; the only place the old split survives is GIT.**
+
+📐 **Batch 86 retagged 12 assets / 34 declarations.** ⭐ **Use ONE asset with a clean split:**
+
+**`Hrot/Subsystems/Hrot.AI.Behaviors/Assets/Blueprints/HillAssault2_CalculateSegments.bp.json`**
+— **14 declarations, and the split is unambiguous:**
+
+| section | expect **exactly** these |
+|---|---|
+| ⭐ **Parameters** *(5)* | `StartX` · `StartY` · `EndX` · `EndY` · `TankSpacing` |
+| ⭐⭐ **Variables** *(9 — ALL formerly `WorkingState`)* | `TotalSlots` · `BurnedSlotsMask` · `WaveUsedSlotsMask` · `BaselineReservedMask` · `ActiveAttackerCount` · `CurrentWave` · `CachedEqsRequestId` · `CachedTargetGroupHandle` · `EqsRequestTime` |
+
+| verdict | |
+|---|---|
+| ✅ **PASS** | all **9** appear under **Variables**, all **5** under **Parameters**, ⛔ **no third section** |
+| 🔴 **FINDING** | **any of the 9 missing** ⇒ the collapse dropped declarations. ⚠ **That would contradict Batch 86's gate 8** *(43/43 `StructureHash` byte-identical)*, so it is worth reporting loudly |
 
 ---
 
