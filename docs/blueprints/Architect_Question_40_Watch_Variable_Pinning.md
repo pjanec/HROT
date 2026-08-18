@@ -20,6 +20,40 @@ note: user-requested design, 2026-08-18. Not relayed to any architect; resolved 
 
 ---
 
+## ⭐⭐⭐ INVENTORY — **what already exists, enumerated before deciding anything**
+
+> ⛔⛔ **This section was ADDED LATE, and its absence is why §3 and §6 both had to be corrected.**
+> 📌 **`R-74`: a design that says WHERE something should live must first enumerate what is already
+> there.** ⭐ **grep answers *"does X exist?"* — only the graph answers *"what are ALL the X?"***
+
+```
+search_graph(project="home-user-HROT", label="Class",
+             name_pattern=".*Watch.*(Window|Panel|Source|Store).*")   → total 7
+search_graph(project="home-user-HROT", label="Class",
+             name_pattern=".*(RowSource|DebugSession)$")              → total 17
+```
+
+### ⭐ Watch surfaces — **FOUR, not the two I first reported**
+
+| surface | assembly | ⭐ relevance |
+|---|---|---|
+| ⭐⭐ **`AiWatchWindow`** | `Hrot.Editor.AiShared` | **the target** — shared, all three perspectives, already owns `PinnedVariableRowSource` |
+| ⚠ **`WatchPanelWindow`** | `Hrot.Blueprints.Editor` | blueprint-only, session-fed. **Batch 83 fixed THIS one** |
+| ⚠ **`EntityWatchPanel`** | `FDP/Engine/Fdp.Presentation` | ⭐ **an ENTITY-component watch — a different concept.** ⛔ **Named here so nobody "unifies" it by mistake** |
+| ⚠ **`FdpEntityWatchWindow`** | `Hrot/Engine/Hrot.Presentation` | the window hosting the above |
+
+### ⭐ Row sources — **FOUR, and the design names only two**
+
+`BlackboardSectionRowSource` · `SectionVariableRowSource` · ⭐ **`PinnedVariableRowSource`** *(the
+watch store — it already exists)* · `FixedVariableRowSource`.
+
+### ⭐ Debug sessions — **three production, and the asymmetry is visible**
+
+`BlueprintDebugSession` *(in-degree 34)* · `BTreeDebugSession` *(9)* · `HsmDebugSession` *(1)* —
+📌 **`R-70`: the latter two are never constructed in production.**
+
+---
+
 ## 0. ✅✅ RESOLVED — **user, `2026-08-18`** *(this section AMENDS §3; read it first)*
 
 > ⭐⭐ **Verbatim:** *"pull for variables - every brain tick. not sure how pin based watches work -

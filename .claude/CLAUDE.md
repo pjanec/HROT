@@ -371,6 +371,34 @@ cements the duplicate.
 4. ⛔ **State the design basis IN the handoff, per item.** ⭐ *"design says X, this batch does Y"* — if
    that sentence cannot be written, **the sweep was not done.**
 
+## ⛔⛔⛔ INVENTORY BEFORE DESIGN — **grep cannot enumerate** *(user, `2026-08-18`)*
+
+> ⭐⭐⭐ **User:** *"again you were designing something you did not investigated deep enough. how to
+> prevent this? are you using codebase memory before every design?"* ⛔ **Honest answer at the time:
+> NO — not once that session, while the graph sat indexed at 171k nodes.**
+
+📌 **The failure is precise, and it is NOT laziness about reading code — I read plenty.**
+⭐⭐ **`grep` answers *"does X exist?"* — it can only CONFIRM something I already suspected.**
+⛔⛔ **A design decides WHERE something lives, which requires the FULL SET of things it could live
+beside. Only the graph enumerates.**
+
+| 📌 three times, same shape | |
+|---|---|
+| **`R-11`** | ruling 9's target was **three** variable surfaces, not one |
+| **`R-72`** | **two** watch windows… |
+| ⭐ **then FOUR** | one `search_graph` call found `EntityWatchPanel` and `FdpEntityWatchWindow` too |
+
+### ⭐ The rule — **and it produces a checkable artefact, like every other rule that stuck**
+
+1. ⭐⭐⭐ **Before ANY design document or architect question, run `search_graph` and ENUMERATE.**
+   ⛔ **Not after. Not "if it looks non-obvious."** ⚠ **All three misses above looked obvious.**
+2. ⭐⭐ **Put the result in an `INVENTORY` section: the query you ran, its `total`, and the list.**
+   ⭐ **A count of 1 is a fine answer** — ⛔ **an ABSENT section means the enumeration did not happen.**
+3. ⭐ **Gated:** `python3 scripts/design-digest.py --check` **fails** when a recently-changed
+   `Architect_Question_*.md` has no `INVENTORY` block. ⭐ Report it with the other gates.
+4. ⚠ **The graph may be unindexed in a fresh cloud session** — ⭐ `list_projects`, then
+   `index_repository` if empty *(tens of seconds)*. ⛔ **Not a reason to skip the step.**
+
 ## ⭐⭐⭐ ARCHITECT QUESTIONS — **I analyse and SUGGEST, the user APPROVES** *(user, `2026-08-17`)*
 
 > ⭐⭐ **User, verbatim:** *"remember no architect will answer the architect question, you and me need to
