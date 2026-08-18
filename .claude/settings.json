@@ -24,16 +24,6 @@
         ]
       },
       {
-        "matcher": "resume",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash scripts/session-design-brief.sh",
-            "timeout": 30
-          }
-        ]
-      },
-      {
         "matcher": "compact",
         "hooks": [
           {
