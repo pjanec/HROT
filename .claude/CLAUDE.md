@@ -586,6 +586,28 @@ DESIGN BRIEF (post-compaction)
 ⛔ **If a line cannot be filled, SAY SO.** ⭐ **An empty line is a FINDING about the ledger** — ⛔ never
 something to paper over.
 
+### ⭐⭐⭐ `RELEARN` — **the magic phrase, usable ANYWHERE** *(user, `2026-08-18`)*
+
+> ⭐⭐ **User:** *"maybe we could add some 'magic phrase' that i will use whenever i want the session to
+> relearn the design decisions? to be used as part of resumption documents, and available everywhere
+> else."*
+
+⭐ **The token is `RELEARN`** — ⛔ **all caps, standing alone**, so ordinary prose about relearning does
+not trip it.
+
+| ⭐ where it works | what I do |
+|---|---|
+| ⭐⭐ **typed by the user**, in any message | **stop, run the re-learn, open the reply with the `DESIGN BRIEF`**, then answer what they asked |
+| ⭐⭐ **embedded in a repo document** *(resumption docs, handoffs, design files)* | **the same, when I read that document for the task in hand** — ⭐ it is the user's own canon telling me to ground myself before acting on that file |
+| ⭐ **`/relearn`** | the same, as a slash command — 📄 `.claude/commands/relearn.md` |
+
+⭐⭐ **What it runs:** `bash scripts/session-design-brief.sh` *(ledger · 7-day digest · probe verdict ·
+three RANDOM ruling ids)*, plus a fresh look at both branches and the in-flight batch.
+⛔ **It is NOT a promise to re-read everything** — ⭐ it is the same grounding pass the post-compaction
+hook forces, on demand.
+
+⚠ **On the implementation branch it is a no-op by design** — the brief is a coordinator obligation.
+
 ### ⚠ What this does NOT prove — **stated so nobody over-trusts it**
 
 ⭐ It proves the canon was read and applied **at that moment**. ⛔ **It cannot prove I will still apply

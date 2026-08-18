@@ -7,6 +7,12 @@ stale-below: everything under "START HERE — coordinator session" is HISTORY (2
 
 # ⭐⭐⭐ STATE AS OF `2026-08-17` — **READ THIS BLOCK FIRST**
 
+> ## ⭐⭐⭐ `RELEARN`
+> ⛔ **Ground yourself in the design canon before acting on anything in this file.**
+> ⭐ Run `bash scripts/session-design-brief.sh` *(or `/relearn`)*, then **open your reply with the
+> `DESIGN BRIEF` block** and answer the user in the same reply.
+> ⭐ **The user can type `RELEARN` anywhere, any time, to demand the same pass.**
+
 > ⛔⛔ **FIRST: the SessionStart hook has already printed the canon.** ⭐ **If you did not see it, run
 > `bash scripts/session-design-brief.sh` NOW** — 📄 [`RULINGS.md`](RULINGS.md) is the authority, this
 > file is only the current state.
