@@ -1,7 +1,9 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-18
-current-answer: section 5 - the recommended answers. Nothing here is built.
+current-answer: section 5 - APPROVED IN FULL by the user 2026-08-18. A2' (the
+  Construction slot, replacing the withdrawn A2) plus B-F as recommended.
+  Nothing here is built.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none. This is Q41-C3' promoted to its own question, as Q41 said it
@@ -9,6 +11,11 @@ known-conflict: none. This is Q41-C3' promoted to its own question, as Q41 said 
 -->
 # ⭐ Architect Question 43 — **a parameter resolver authored AS A BLUEPRINT**
 
+> # ✅✅✅ APPROVED IN FULL — user, `2026-08-18`
+> ⭐⭐⭐ **`A2′`** *(the reserved `GraphKind.Construction` slot — ⛔ `A2`'s new dispatch kind is
+> **WITHDRAWN**, the user's question found it)* · **`B2`** · **`C1`** · **`D`** · **`E`** · **`F`**,
+> all as recommended. ⛔ **Canon, not a proposal** — see `R-94`. ⚠ **Nothing is built.**
+>
 > ⛔⛔ **NOT RELAYED.** The architect is generally unavailable *(`2026-08-16` user ruling)*.
 > ⭐⭐ **I analyse and RECOMMEND, the user APPROVES.**
 >
