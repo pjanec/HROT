@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-18
-current-answer: section 5. A, B and D APPROVED by the user 2026-08-18. C was sent
-  back for clarification and is REVISED - C1 is WITHDRAWN, replaced by C1'/C2'/C3'.
-  Nothing here is built.
+current-answer: section 5 - APPROVED IN FULL by the user 2026-08-18. A, B and D as
+  written; C1 WITHDRAWN and replaced by C1'/C2'/C3', also approved. C3' is detailed
+  in Architect_Question_43_Blueprint_Authored_Param_Resolver.md. Nothing is built.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none known. Section 3 records where DESIGN_Parameter_Model.md's
@@ -12,9 +12,9 @@ known-conflict: none known. Section 3 records where DESIGN_Parameter_Model.md's
 -->
 # ⭐ Architect Question 41 — **can a blueprint drive a BTree node's parameters?**
 
-> # ✅ `A` · `B` · `D` APPROVED — user, `2026-08-18`: *"only the C needs clarification, others accepted."*
-> ⚠⚠ **`C` REVISED in place.** ⛔ **`C1` is WITHDRAWN** — the user's question exposed that I mistook an
-> `if` for a design ruling. ⭐ **`C1′` / `C2′` / `C3′` replace it and await approval.**
+> # ✅✅✅ APPROVED IN FULL — `A`·`B`·`D` *(user, `2026-08-18`)*, then `C1′`·`C2′`·`C3′` *("approved")*
+> ⚠⚠ **`C1` is WITHDRAWN** — the user's question exposed that I mistook an `if` for a design ruling.
+> ⭐ **`C3′` is promoted to its own question** — 📄 **[`Architect_Question_43_Blueprint_Authored_Param_Resolver.md`](Architect_Question_43_Blueprint_Authored_Param_Resolver.md)**.
 >
 > ⛔⛔ **NOT RELAYED.** The architect is generally unavailable (`2026-08-16` user ruling).
 > ⭐⭐ **Resolved JOINTLY with the user: I analyse and RECOMMEND, the user APPROVES.**
