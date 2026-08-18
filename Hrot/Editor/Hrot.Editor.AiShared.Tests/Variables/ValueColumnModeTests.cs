@@ -51,53 +51,71 @@ public sealed class ValueColumnModeTests
     // ══ the run state itself — derived, not invented ═════════════════════════
 
     /// <summary>
-    /// ⭐⭐ <b>No session ⇒ Planning.</b> ⛔ A surface with no way to observe the sim must not claim the
+    /// ⭐⭐ <b>Sim down ⇒ Planning.</b> ⛔ A surface with no way to observe the sim must not claim the
     /// sim is up.
+    ///
+    /// <para>⚠⚠ <b>Batch 84 / <c>R-66</c> — this assertion's SUBJECT changed, deliberately.</b> Batch 83
+    /// asked <c>IDebugSessionRegistry</c>, on the premise <i>"a live session is what running means to
+    /// this editor."</i> 📐 Measured FALSE: <c>ActiveSession</c> is set from the ACTIVE DOCUMENT's kind,
+    /// so it says <i>"a blueprint is open."</i> ⭐ The rail now asks a CLOCK, because that is the
+    /// question.</para>
     /// </summary>
     [Fact]
-    public void WithNoDebugSession_TheRunStateIsPlanning()
+    public void WithTheSimDown_TheRunStateIsPlanning()
     {
-        Assert.Equal(VariableRunState.Planning, RunStateSource.Resolve(new DebugSessionRegistry()));
+        Assert.Equal(VariableRunState.Planning, RunStateSource.Resolve(() => false));
         Assert.Equal(VariableRunState.Planning, RunStateSource.Resolve(null));
     }
 
-    /// <summary>⭐ A live session ⇒ Running; the debugger holding time ⇒ Paused.</summary>
+    /// <summary>⭐ Sim up ⇒ Running; the debugger holding time ⇒ Paused.</summary>
     [Theory]
     [InlineData(false, VariableRunState.Running)]
     [InlineData(true,  VariableRunState.Paused)]
-    public void WithADebugSession_TheRunStateFollowsThePauseFlag(bool paused, VariableRunState expected)
-    {
-        var registry = new DebugSessionRegistry();
-        registry.SetActiveSession(new StubSession());
-
-        Assert.Equal(expected, RunStateSource.Resolve(registry, () => paused));
-    }
+    public void WithTheSimUp_TheRunStateFollowsTheFreezeFlag(bool frozen, VariableRunState expected)
+        => Assert.Equal(expected, RunStateSource.Resolve(() => true, () => frozen));
 
     /// <summary>
-    /// ⭐⭐⭐ <b>The registrar DERIVES it from the registry it already holds</b> — ⛔ not a new argument
-    /// for the composition root. Batches 79–82 each lost a surface to a seam of exactly that shape.
+    /// ⭐⭐⭐ <b>THE trap <c>R-66</c> leaves behind, pinned.</b> 📐 The editor BOOTS in
+    /// <c>TimeMode.Deterministic</c> and stays there until preview starts, so
+    /// <c>IsPausedByDebugger</c> is TRUE while nothing is running at all.
+    /// ⛔ Deriving the run state from the freeze flag alone would report <c>Paused</c> on a dead editor
+    /// — and <c>Paused</c> is the state row <c>59c</c> lets a designer WRITE THE LIVE WORLD in.
+    /// ⭐ Frozen is only meaningful once the sim is up, which is the order <c>Resolve</c> evaluates in.
+    /// </summary>
+    [Fact]
+    public void FrozenWithTheSimDown_IsStillPlanning_NotPaused()
+        => Assert.Equal(VariableRunState.Planning, RunStateSource.Resolve(() => false, () => true));
+
+    /// <summary>
+    /// ⭐⭐ <b>A registrar with no clock reads <c>Planning</c>, and says so.</b> ⛔ Not a bug: a host that
+    /// cannot observe the sim must not claim it is up. ⚠ 📌 <c>R-66</c> is precisely what happens when
+    /// the safe default is attached to a signal that is always present.
     /// </summary>
     [Fact]
     public void TheRegistrarInstallsTheRunStateSource_OnTheDefaultPath()
     {
         var reg = Registrar();
         Assert.True(reg.Variables.HasRunStateSource);
+
+        reg.Variables.SyncRunState();
+        Assert.Equal(VariableRunState.Planning, reg.Variables.RunState);
     }
 
     /// <summary>
     /// 🔴 <b>RED before row 58.</b> Batch 79 shipped a settable <c>RunState</c> that nothing in
-    /// production set, so the table was permanently in <c>Planning</c>. ⭐ Now it follows the sim.
+    /// production set, so the table was permanently in <c>Planning</c>. ⭐ Now it follows the sim —
+    /// ⚠ and after Batch 84 it follows the SIM, not the open document.
     /// </summary>
     [Fact]
-    public void TheTablesRunState_FollowsTheDebugSession()
+    public void TheTablesRunState_FollowsTheSim()
     {
-        var registry = new DebugSessionRegistry();
-        var reg      = Registrar(registry);
+        var simUp = false;
+        var reg   = Registrar(isSimUp: () => simUp);
 
         reg.Variables.SyncRunState();
         Assert.Equal(VariableRunState.Planning, reg.Variables.RunState);
 
-        registry.SetActiveSession(new StubSession());
+        simUp = true;
         reg.Variables.SyncRunState();
         Assert.Equal(VariableRunState.Running, reg.Variables.RunState);
     }
@@ -225,13 +243,17 @@ public sealed class ValueColumnModeTests
             ReadInitialJson: initialJson is null ? null : () => initialJson);
 
     private static Hrot.Editor.AiShared.Windows.PerspectiveWorkspaceRegistrar Registrar(
-        DebugSessionRegistry? registry = null)
+        DebugSessionRegistry? registry = null,
+        Func<bool>?           isSimUp  = null,
+        Func<bool>?           isFrozen = null)
         => new(
             perspectiveName: "BTree",
             selectionStore:  new Hrot.Editor.AiShared.Selection.EditorSelectionStore(),
             catalog:         new Hrot.Editor.AiShared.Catalog.AssetCatalog(),
             refactorService: new StubRefactor(),
-            debugRegistry:   registry ?? new DebugSessionRegistry());
+            debugRegistry:   registry ?? new DebugSessionRegistry(),
+            isSimUp:         isSimUp,
+            isFrozen:        isFrozen);
 
     /// <summary>⭐ The proven shape from <c>DebugSessionRegistryTests</c> — a session that is simply
     /// attached. ⛔ Nothing here needs breakpoints; only ActiveSession's presence is under test.</summary>

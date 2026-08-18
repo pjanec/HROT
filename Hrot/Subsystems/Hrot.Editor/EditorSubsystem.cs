@@ -184,6 +184,10 @@ namespace Hrot.Editor
         private EntityRepository?       _world;
         private ModuleHostKernel?       _kernel;
         private MasterSyncController?   _timeController;
+        /// <summary>⭐ BATCH 84 / R-66 — the frozen-time signal for the variable surfaces (ruling 15).</summary>
+        private MasterSyncTimeControllerAdapter? _bpTimeAdapter;
+        /// <summary>⭐ BATCH 84 — the AI debug-session registry built in RegisterWindows; see the test accessor.</summary>
+        private Hrot.Editor.AiShared.Debug.DebugSessionRegistry? _aiDebugRegistry;
         private PhysicsToolkitModule?   _physicsModule;
         private IEditorLogic?           _editorLogic;
         private EditorApplication?      _editorApp;
@@ -489,6 +493,13 @@ namespace Hrot.Editor
         /// <summary>Internal test hook: direct access to the editor logic facade.</summary>
         internal IEditorLogic EditorLogic =>
             _editorLogic ?? throw new InvalidOperationException("EditorSubsystem is not initialized.");
+
+        /// <summary>
+        /// ⭐⭐ Internal test hook: the AI debug-session registry, so a rail can reproduce <c>R-66</c>'s
+        /// exact state — <b>a document open while the sim is DOWN</b> — and assert what the variable
+        /// surfaces read then. ⛔ Null until <see cref="RegisterWindows"/> has run.
+        /// </summary>
+        internal Hrot.Editor.AiShared.Debug.DebugSessionRegistry? AiDebugRegistry => _aiDebugRegistry;
 
         /// <summary>Internal test hook: direct access to the time controller.</summary>
         internal MasterSyncController TimeController =>
@@ -989,7 +1000,10 @@ namespace Hrot.Editor
             _bpPreTickSnapshot.RegisterComponent<VisualEffectState>();
             _bpPreTickSnapshot.RegisterComponent<TracerTarget>();
 
-            var bpTimeAdapter           = new MasterSyncTimeControllerAdapter(_timeController!);
+            // ⭐ BATCH 84 / R-66: kept as a FIELD so RunStateSource's "is time frozen?" signal reads
+            //   through this adapter -- the same one the breakpoint manager drives time with. ⛔ A
+            //   second reading of _timeController.GetMode() here would be a duplicate rule.
+            var bpTimeAdapter           = _bpTimeAdapter = new MasterSyncTimeControllerAdapter(_timeController!);
             var bpEditSvc               = new ComponentEditServiceBuilder().Build();
             // _blueprintRegistry is required for BlueprintVariablePredicateDto -- the predicate that
             // "Add Conditional Data Breakpoint..." synthesizes. Omitting it makes
@@ -2074,7 +2088,11 @@ namespace Hrot.Editor
             aggregatorService.Register(new HsmBlackboardAggregatorStrategy(aggregatorService));
             // ─────────────────────────────────────────────────────────────────────────────────────
 
-            var debugRegistry   = new DebugSessionRegistry();
+            // ⭐ BATCH 84 — kept on the instance so a rail can put the editor into the exact state
+            //   R-66 describes (a document open, the sim DOWN) and check what the variable surfaces
+            //   then read. ⛔ Without this the anti-vacuity probe for R-66 is not expressible, and a
+            //   rail that cannot be reddened is not a rail.
+            var debugRegistry   = _aiDebugRegistry = new DebugSessionRegistry();
             var liveProvider    = new LiveSessionRegistry();
 
             // ── AIE-030: Register BTree/HSM debug session factories ─────────────────────────────
@@ -2118,30 +2136,48 @@ namespace Hrot.Editor
             // fields fall through to plain text inputs (acceptable). The edit service alone is
             // the core win.
             var facetEditService = new ComponentEditServiceBuilder().Build();
-            _btreeRegistrar    = new PerspectiveWorkspaceRegistrar(
-                "BTree", _btreeSelectionStore, catalog, refactorService, debugRegistry,
+
+            // ⭐⭐⭐ BATCH 84 / R-67 — ONE shared-service bundle instead of three hand-written argument
+            //    lists. 🔴🔴 The lists had diverged: facetEditService went to BTree and HSM and NOT to
+            //    Blueprint, so "Edit value…" and "Properties…" did nothing on the Blueprint
+            //    perspective; expressionTargetFieldAccessor, aggregatorService and liveValueProvider
+            //    were dropped there too. ⛔ That is the FOURTH instance of "a production caller that
+            //    HAS a dependency must PASS it", and passing one more argument does not compose --
+            //    the next shared service is one more thing three call sites must remember.
+            // ⭐ PerspectiveWorkspaceServices REQUIRES facetEditService and both clock signals, so the
+            //   omission is no longer expressible. What stays below is what genuinely differs per
+            //   perspective.
+            var perspectiveServices = new Hrot.Editor.AiShared.Windows.PerspectiveWorkspaceServices(
+                catalog, refactorService, debugRegistry, facetEditService,
+                // ⭐⭐ R-66 — the run state comes from the CLOCK, not from "is a document open".
+                //    IPreviewController.IsInPreviewMode is what "the sim is up" means in this editor:
+                //    EnterPreviewMode switches the clock to continuous, ExitPreviewMode switches it
+                //    back to deterministic.
+                isSimUp:  () => _previewController?.IsInPreviewMode ?? false,
+                // ⭐ Ruling 15's two arms: a breakpoint pause OR deterministic stepping. ⛔ Read
+                //   through the SAME adapter the Blueprint debugger uses -- not a second rule.
+                isFrozen: () => (_bpManager?.IsPaused ?? false)
+                             || (_bpTimeAdapter?.IsPausedByDebugger ?? false))
+            {
+                BreakpointManager             = _bpManager,
+                SanitizerRegistry             = sanitizerRegistry,
+                ExportBuilder                 = comparisonExportBuilder,
+                SessionRegistry               = comparisonSessionRegistry,
+                AggregatorService             = aggregatorService,
+                SchemaExporter                = sharedSchemaExporter,
+                ExpressionTargetFieldAccessor = ResolveExpressionTargetField,
+            };
+
+            _btreeRegistrar    = perspectiveServices.CreateRegistrar(
+                "BTree", _btreeSelectionStore,
                 validators: new Hrot.Editor.AiShared.Validation.IAssetValidator[]
                 {
                     new Hrot.BTree.Editor.Validation.BTreeAssetValidator(
                         new Hrot.BTree.Editor.Validation.BTreeValidator()),
                 },
-                breakpointManager:             _bpManager,
-                sanitizerRegistry:             sanitizerRegistry,
-                exportBuilder:                 comparisonExportBuilder,
-                sessionRegistry:               comparisonSessionRegistry,
-                aggregatorService:             aggregatorService,
-                schemaExporter:                sharedSchemaExporter,
-                facetEditService:              facetEditService,
-                expressionTargetFieldAccessor: ResolveExpressionTargetField,
-                liveValueProvider:             btreeLiveValueProvider,
-                // ⭐⭐⭐ Batch 80: WITHOUT THIS the Track C outline is never constructed and the
-                //    Variables window is never routed -- in the running editor, not in the tests.
-                //    Batch 79 added the parameter and wired only the test caller; the 2026-08-16 rule
-                //    names exactly that: "a production caller that HAS a dependency must PASS it",
-                //    and this file has it -- it names the "BTree" and "HSM" registrars two lines apart.
-                hostKind:                      Hrot.Editor.AiShared.Variables.BlackboardHostKind.BTree);
-            _hsmRegistrar      = new PerspectiveWorkspaceRegistrar(
-                "HSM", _hsmSelectionStore, catalog, refactorService, debugRegistry,
+                liveValueProvider: btreeLiveValueProvider);
+            _hsmRegistrar      = perspectiveServices.CreateRegistrar(
+                "HSM", _hsmSelectionStore,
                 validators: new Hrot.Editor.AiShared.Validation.IAssetValidator[]
                 {
                     new Hrot.Hsm.Editor.Validation.HsmAssetValidator(
@@ -2149,23 +2185,13 @@ namespace Hrot.Editor
                         isStatefulSubtree: IsStatefulSubtreeAsset,
                         sharedScopeKeys:   SharedScopeKeysOfAsset),
                 },
-                breakpointManager:             _bpManager,
-                sanitizerRegistry:             sanitizerRegistry,
-                exportBuilder:                 comparisonExportBuilder,
-                sessionRegistry:               comparisonSessionRegistry,
-                aggregatorService:             aggregatorService,
-                schemaExporter:                sharedSchemaExporter,
-                facetEditService:              facetEditService,
-                expressionTargetFieldAccessor: ResolveExpressionTargetField,
-                liveValueProvider:             hsmLiveValueProvider,
-                hostKind:                      Hrot.Editor.AiShared.Variables.BlackboardHostKind.Hsm);
-            _blueprintRegistrar = new PerspectiveWorkspaceRegistrar(
-                "Blueprint", _blueprintSelectionStore, catalog, refactorService, debugRegistry,
-                breakpointManager:    _bpManager,
-                sanitizerRegistry:    sanitizerRegistry,
-                exportBuilder:        comparisonExportBuilder,
-                sessionRegistry:      comparisonSessionRegistry,
-                schemaExporter:       sharedSchemaExporter);
+                liveValueProvider: hsmLiveValueProvider);
+            // ⭐ Blueprint has no host-specific validator and no live-value provider yet -- and now it
+            //   SAYS so, rather than expressing that by omitting a whole argument list's worth of
+            //   shared services. 📌 R-67: "I forgot" and "there are none" used to look identical.
+            _blueprintRegistrar = perspectiveServices.CreateRegistrar(
+                "Blueprint", _blueprintSelectionStore,
+                validators: Array.Empty<Hrot.Editor.AiShared.Validation.IAssetValidator>());
 
             // Document manager — activated doc drives perspective switch.
             _aiDocumentManager = new AiDocumentManager(_perspectiveSwitcher);

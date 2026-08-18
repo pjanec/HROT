@@ -52,6 +52,24 @@ public sealed class VariableTableControl
     /// <summary>⭐ Raises "Properties…" for a row. Same reason as above.</summary>
     public void RaisePropertiesRequested(VariableRow row) => PropertiesRequested?.Invoke(row);
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Whether a <c>VariableEditGestureBinder</c> is actually attached to this table.</b>
+    ///
+    /// <para>📌 <b><c>R-67</c>, the fourth instance:</b> <i>"a rail that builds its own composition root
+    /// cannot see a composition-root defect."</i> ⛔ Batch 83's dialog rails were GREEN while the
+    /// production dialog did nothing, because every rail constructed its own registrar and passed
+    /// <c>facetEditService</c> itself.</para>
+    ///
+    /// <para>⭐ An event's subscriber list is invisible from outside the declaring class, so a rail that
+    /// fishes a window out of the real <see cref="Fdp.Presentation.WindowManager.WindowManager"/> had no
+    /// way to ask <i>"are your gestures wired?"</i> — it could only re-do the wiring and assert on that.
+    /// ⇒ ⛔ vacuous by construction. This property is how the ARTEFACT answers for itself.</para>
+    ///
+    /// <para>⚠ <b>Both, not either.</b> <c>Attach</c> subscribes the value gesture and the properties
+    /// gesture together; a table with one of the two is a defect, not a variant.</para>
+    /// </summary>
+    public bool HasEditGestures => EditValueRequested != null && PropertiesRequested != null;
+
     public VariableTableControl(VariableValueFormatter formatter)
         => _formatter = formatter ?? throw new ArgumentNullException(nameof(formatter));
 

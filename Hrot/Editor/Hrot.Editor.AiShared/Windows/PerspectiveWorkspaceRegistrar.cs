@@ -163,6 +163,17 @@ public class PerspectiveWorkspaceRegistrar
     ///   Optional live-value provider (BATCH-11). When non-null, the Blackboard Authoring
     ///   window shows a "Value" column with the selected entity's live values.
     /// </param>
+    /// <param name="isSimUp">
+    ///   ⭐⭐ Whether the SIMULATION is running (<c>IPreviewController.IsInPreviewMode</c>).
+    ///   ⛔ Null ⇒ every variable surface reads <c>Planning</c>, which is the safe answer for a host
+    ///   that cannot observe the sim. 📌 <c>R-66</c>: this replaced <c>IDebugSessionRegistry</c>, whose
+    ///   <c>ActiveSession</c> means <i>"a document is open"</i> and made <c>Planning</c> unreachable.
+    /// </param>
+    /// <param name="isFrozen">
+    ///   ⭐ Whether the debugger holds time — <c>IDataBreakpointManager.IsPaused</c> OR
+    ///   <c>IEngineDebugTimeController.IsPausedByDebugger</c> (📌 ruling 15 names both arms).
+    ///   ⛔ Only consulted once <paramref name="isSimUp"/> holds: the editor boots frozen.
+    /// </param>
     public PerspectiveWorkspaceRegistrar(
         string perspectiveName,
         EditorSelectionStore selectionStore,
@@ -181,7 +192,9 @@ public class PerspectiveWorkspaceRegistrar
         Func<object?, string?>? expressionTargetFieldAccessor = null,
         ILiveBlackboardValueProvider? liveValueProvider = null,
         BlackboardHostKind? hostKind = null,
-        DecodeRawValue? valueDecoder = null)
+        DecodeRawValue? valueDecoder = null,
+        Func<bool>? isSimUp = null,
+        Func<bool>? isFrozen = null)
     {
         if (string.IsNullOrWhiteSpace(perspectiveName))
             throw new ArgumentException("perspectiveName must not be null or whitespace.", nameof(perspectiveName));
@@ -191,8 +204,14 @@ public class PerspectiveWorkspaceRegistrar
         if (debugRegistry is null) throw new ArgumentNullException(nameof(debugRegistry));
 
         _perspectiveName = perspectiveName;
-        // ⭐ Row 58 — DERIVED from the registry this registrar was already given (RunStateSource).
-        _runState = RunStateSource.For(debugRegistry);
+        // ⭐ Row 58 — the run state, from signals that are ABOUT TIME.
+        // 🔴🔴 Batch 84 / R-66: this used to be RunStateSource.For(debugRegistry), on the premise that
+        //    "a live session is what running means to this editor". MEASURED FALSE — ActiveSession is
+        //    set from the ACTIVE DOCUMENT's kind, so opening any blueprint read as Running and the
+        //    INITIAL arm of the Value column was unreachable in production.
+        // ⛔ The registry is still a constructor argument, and still right for what it is: which
+        //    document's session is active. It is simply not a clock.
+        _runState = RunStateSource.For(isSimUp, isFrozen);
         var suffix = perspectiveName.ToLowerInvariant();
         var vl     = validators ?? Array.Empty<IAssetValidator>();
 

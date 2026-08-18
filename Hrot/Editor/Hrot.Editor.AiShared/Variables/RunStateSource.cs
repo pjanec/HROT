@@ -1,10 +1,9 @@
 using System;
-using Hrot.Editor.AiShared.Debug;
 
 namespace Hrot.Editor.AiShared.Variables;
 
 /// <summary>
-/// ⭐⭐⭐ <b>THE one place that answers <i>"is the sim up, and is it paused?"</i></b> for the variable
+/// ⭐⭐⭐ <b>THE one place that answers <i>"is the sim up, and is it frozen?"</i></b> for the variable
 /// surfaces.
 ///
 /// <para>📌 <b><c>Q32</c> ruling 3</b> switches the Value column's meaning on run state, and
@@ -12,11 +11,34 @@ namespace Hrot.Editor.AiShared.Variables;
 /// notion of "running" would let the highlight and the value disagree about whether the sim is up</b>
 /// — which is the one thing a monitor must not do.</para>
 ///
-/// <para>⭐ <b>Derived from what the registrar ALREADY holds.</b> Every perspective's registrar takes
-/// an <see cref="IDebugSessionRegistry"/>; a live session is what <i>running</i> means to this editor,
-/// and <c>IEngineDebugTimeController.IsPausedByDebugger</c> is what <i>paused</i> means. ⛔ Neither is
-/// a new argument for the composition root to remember — 📌 batches 79–82 each lost a surface to a seam
-/// of exactly that shape.</para>
+/// <para>🔴🔴 <b><c>R-66</c> — the premise this type shipped with was FALSE.</b> Batch 83 derived run
+/// state from <c>IDebugSessionRegistry.ActiveSession</c>, on the reasoning that <i>"a live session is
+/// what running means to this editor."</i> 📐 <b>Measured <c>2026-08-18</c>:</b>
+/// <c>EditorSubsystem.SyncActiveDebugSession</c> sets that session from
+/// <c>_aiDocumentManager.Active.Kind</c> ⇒ ⛔ <b>it means "a blueprint DOCUMENT IS OPEN", not "the sim
+/// is up."</b> ⇒ opening any blueprint made every surface read <c>Running</c>, so <c>ModeFor</c> chose
+/// <c>Current</c> and every row the run had not written rendered <c>(pending)</c> forever:
+/// ⛔⛔ <b>the INITIAL arm was unreachable in production.</b></para>
+///
+/// <para>⭐⭐ <b>The fix is an input that means what it says, not a different registry.</b>
+/// ⛔ <c>SetActiveSession</c> was NOT made conditional — other consumers legitimately ask <i>"which
+/// document's session is active?"</i>, and that is a different question. ⇒ two delegates, both about
+/// TIME:
+/// <list type="bullet">
+///   <item>⭐ <paramref name="isSimUp"/> — the editor's preview/run mode
+///   (<c>IPreviewController.IsInPreviewMode</c>). ⛔ Nothing is live before it.</item>
+///   <item>⭐ <paramref name="isFrozen"/> — <c>IDataBreakpointManager.IsPaused</c> <b>or</b>
+///   <c>IEngineDebugTimeController.IsPausedByDebugger</c>. 📌 Ruling 15 names both arms:
+///   <i>"paused on breakpoint <b>or</b> deterministic time step."</i></item>
+/// </list>
+/// ⚠ <b>Delegates rather than references</b> because both signals live in assemblies ABOVE this one —
+/// the same reason the value DECODER is injected.</para>
+///
+/// <para>⛔⛔ <b>Do not re-derive the frozen arm from <c>IsPausedByDebugger</c> ALONE.</b> 📐 The editor
+/// boots in <c>TimeMode.Deterministic</c> and stays there until preview starts
+/// (<c>EditorSubsystem:614</c>, <c>EditorPreviewController.EnterPreviewMode</c>) ⇒ <b>"frozen" is true
+/// while planning too.</b> ⭐ It is only meaningful once <paramref name="isSimUp"/> holds — which is
+/// exactly the order this method evaluates them in.</para>
 ///
 /// <para>⚠ <b><c>Replay</c> is not resolvable from these two</b> and is therefore never returned here.
 /// ⭐ Stated rather than guessed: a host that knows it is replaying supplies its own resolver, and
@@ -27,25 +49,26 @@ namespace Hrot.Editor.AiShared.Variables;
 public static class RunStateSource
 {
     /// <summary>
-    /// ⭐ <b>No session ⇒ <c>Planning</c>; a session ⇒ <c>Paused</c> when the debugger holds time,
-    /// else <c>Running</c>.</b>
+    /// ⭐ <b>Sim down ⇒ <c>Planning</c>; sim up ⇒ <c>Paused</c> when the debugger holds time, else
+    /// <c>Running</c>.</b>
     /// </summary>
-    /// <param name="sessions">
-    /// The shared debug-session registry. ⛔ Null ⇒ <c>Planning</c>, because a surface with no way to
-    /// observe the sim must not claim the sim is up.
+    /// <param name="isSimUp">
+    /// ⭐ Whether the simulation is running at all. ⛔ <b>Null ⇒ <c>Planning</c></b>, because a surface
+    /// with no way to observe the sim must not claim the sim is up. ⚠ That default is what makes an
+    /// un-wired host SAFE rather than wrong — 📌 it is also why <c>R-66</c> was invisible: the old
+    /// default fired on a signal that was always present.
     /// </param>
-    /// <param name="isPaused">
-    /// Reads <c>IEngineDebugTimeController.IsPausedByDebugger</c>. ⚠ Optional: the interface lives in
-    /// <c>Hrot.Blueprints.Core</c>, <b>above</b> this assembly, so it arrives as a delegate rather than
-    /// as a reference — the same reason the value DECODER is injected.
+    /// <param name="isFrozen">
+    /// ⭐ Whether time is held by the debugger — a breakpoint pause or deterministic stepping.
+    /// ⛔ Only consulted once <paramref name="isSimUp"/> holds; see the type remarks.
     /// </param>
-    public static VariableRunState Resolve(IDebugSessionRegistry? sessions, Func<bool>? isPaused = null)
+    public static VariableRunState Resolve(Func<bool>? isSimUp, Func<bool>? isFrozen = null)
     {
-        if (sessions?.ActiveSession is null) return VariableRunState.Planning;
-        return isPaused != null && isPaused() ? VariableRunState.Paused : VariableRunState.Running;
+        if (isSimUp is null || !isSimUp()) return VariableRunState.Planning;
+        return isFrozen != null && isFrozen() ? VariableRunState.Paused : VariableRunState.Running;
     }
 
     /// <summary>⭐ The same rule as a delegate, for surfaces that re-read it every frame.</summary>
-    public static Func<VariableRunState> For(IDebugSessionRegistry? sessions, Func<bool>? isPaused = null)
-        => () => Resolve(sessions, isPaused);
+    public static Func<VariableRunState> For(Func<bool>? isSimUp, Func<bool>? isFrozen = null)
+        => () => Resolve(isSimUp, isFrozen);
 }

@@ -59,6 +59,14 @@ public sealed class AiVariablesWindow : ManagedWindow
     /// <summary>⭐ The constructed control, so a host can bind its two gestures.</summary>
     public VariableTableControl Control => _control;
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Whether this window's row gestures are ATTACHED</b> — 📌 <c>R-67</c>. A rail that pulls
+    /// this window out of the real <see cref="Fdp.Presentation.WindowManager.WindowManager"/> can now
+    /// ask the artefact itself; ⛔ before, the only way to "check" was to re-do the wiring and assert on
+    /// the copy, which is exactly why Batch 83's dialog shipped green and dead.
+    /// </summary>
+    public bool HasEditGestures => _control.HasEditGestures;
+
     /// <summary>The section this table is currently filtered to, or null. ⭐ Set by the outline.</summary>
     public string? Section { get; private set; }
 
