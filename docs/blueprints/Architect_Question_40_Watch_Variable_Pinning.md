@@ -420,7 +420,46 @@ churn under the user's cursor. ⭐⭐ **A concrete-entity row's binding NEVER ch
 `MapPickableEntityAttribute` — ⚠ **whose reuse I have NOT measured; treat as a lead, not a decision.**
 ⭐ **The chameleon is the answer to *"I do not want to pick"***: one row that follows the selection.
 
-### ⚠ 9d. THE ONE THING TO MEASURE BEFORE BUILDING
+### ⛔⛔ 9e. **TWO CORRECTIONS — both of mine, both found by the user's challenge** *(`2026-08-18`)*
+
+#### ⛔ 9e-1 — **there is NO "entity-less" variable. Remove that row from 9a.**
+
+> ⭐⭐ **User:** *"I thought these are just the initial values (no sense to watch those - constant) and
+> all others are entity bound. What am i missing?"* ⇒ ⭐⭐⭐ **Nothing. The user is right.**
+
+📐 **Measured:** even **shared state** is entity-bound — `BlueprintSharedState` is documented as
+*"by-value, fail-safe accessor for an **ENTITY-scoped** shared working-state slot"*, taking `self` and
+reading `BlueprintBlackboard*` **on that entity**. ⭐ *"Shared"* means **across blueprints on one
+entity**, ⛔ **not across entities.**
+
+⇒ ⛔⛔ **I conflated `Scope=Asset` (VISIBILITY) with storage location** — 📌 **my own `R-07` says
+blueprint `{Asset, Graph}` is visibility.** ⭐ **All blackboard storage is a component on an entity.**
+⇒ ⭐ **The only entity-less value is `DefaultValueJson` — authoring data, constant, ⛔ pointless to
+watch, exactly as the user said.**
+⭐⭐ **So the entity slot has TWO kinds, not three: a concrete entity, or the chameleon.**
+
+#### ⛔⛔ 9e-2 — **restart survival is BY TRANSLATION, not "by construction". I was wrong.**
+
+📐 **Measured — `StagingEntityExtractor` Pass 1** *(`:200-218`)*:
+
+| | |
+|---|---|
+| ✅ **planning entities DO carry `NetworkIdentity`** | the staging DOM has it; the extractor reads `stagingRepo.GetComponent<NetworkIdentity>(e).Value` as `oldId` |
+| ⛔⛔ **but the id is NOT preserved** | ⭐ *"**Pass 1 – ID allocation:** pre-allocate **new** network IDs for every entity that carries a `NetworkIdentity`… Records the **old-to-new mapping**"* ⇒ `long newId = idAllocator.AllocateId()` |
+| ⛔⛔ **and the map does NOT escape** | `oldToNewMap` is a **local** `Dictionary<long,long>`, used only to patch `BehaviorParams` JSON and pre-allocated ids **within the same call**. ⭐ **Nothing publishes it** |
+
+⇒ ⭐⭐⭐ **A watch keyed on the RUNTIME NetworkId breaks on EVERY scenario restart** — ⛔ new ids are
+allocated each load. ⚠ **My `9a` claim *"store the NetworkId and it survives by construction"* was
+FALSE.**
+
+> ⭐⭐⭐ **CORRECTED RECOMMENDATION: key the watch on the STAGING (authoring) NetworkId**, and resolve
+> through the old→new map **at bind time**. ⭐ **The staging DOM is the stable authoring artefact — it is
+> what the designer was looking at when they pinned.**
+> ⇒ ⛔ **This requires PUBLISHING `oldToNewMap`**, which today dies inside the extractor.
+> ⚠⚠ **That is a real, if small, addition to the CGF orchestration path — ⛔ NOT editor-local**, and it
+> is the one piece of this design that reaches outside the editor. ⭐ **Size it before committing to it.**
+
+### ⚠ 9d. ~~THE ONE THING TO MEASURE BEFORE BUILDING~~ — ✅ **MEASURED, see 9e-2**
 
 ⛔⛔ **Does a PLANNING-time entity carry a `NetworkIdentity`, and is its value preserved into the run?**
 ⭐ **`C013_PreAllocatedNetworkId_BypassesAllocator` suggests ids CAN be pre-allocated** — ⛔ **that is
