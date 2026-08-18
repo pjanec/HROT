@@ -1,7 +1,17 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-17
+updated: 2026-08-18
+current-answer: the whole document; section 5 governs editability, section 6 the write path.
 known-rot: (none) - the InspectorWindow retirement order was REPAIRED 2026-08-17, Batch 82
+known-conflict: SECTION 5 vs SECTION 6, INTERNAL, found 2026-08-18. Section 5 rules that
+  node-owned (IsAutoManaged) rows "never get a writable dialog, in either mode" - and
+  "either mode" includes PLANNING, i.e. the DEFAULT value. Section 6 names the planning
+  write path as UpdateVariableDefaultValueJson and records that InspectorWindow's panel is
+  the only live surface for it. But the variables that panel edits ARE node-owned: promotion
+  creates them with IsAutoManaged=true. Taken together the unified Details table can never
+  edit the values section 6 is about, so sequencing rows 58/59 would ship a dialog that
+  refuses exactly the parameter variables, and the Inspector panel becomes PERMANENT rather
+  than transitional - against ruling 9. NOT YET RULED. See the note under section 5.
 -->
 # DESIGN — variable details & editing, consistent across every asset type
 
@@ -346,6 +356,29 @@ the Value column already uses covers it**, and it retires the old objection that
 
 ⭐ **Editability = run state ∧ row kind.** ⛔ **Read-only-passthrough (🔒) and node-owned
 (`IsAutoManaged`) rows never get a writable dialog, in either mode.**
+
+> ### ⚠⚠ UNRULED CONFLICT `2026-08-18` — **does "either mode" really cover the DEFAULT value?**
+>
+> 📐 **Measured:** `VariableRow.CanEverBeWritten => RowKind == Normal && !IsStale`, and
+> `KindOf(isAutoManaged, …) ⇒ NodeOwned`. ⇒ **a promoted parameter variable is `NodeOwned`**, because
+> promotion sets `IsAutoManaged = true` *(`Blackboard_Authoring_Addendum_v3` §3.2)*.
+>
+> ⛔⛔ **But §6's planning write path — `UpdateVariableDefaultValueJson` — is EXACTLY the default of a
+> node-owned variable**, and §6 records that `InspectorWindow`'s panel is *"the only LIVE surface"* for
+> it. ⇒ **as written, sequencing rows 58/59 would ship a dialog that refuses the very rows the
+> feature is for**, and the Inspector panel becomes **permanent**, not transitional — ⛔ against
+> ruling 9.
+>
+> ⭐⭐ **The likely resolution — the rule conflates two different ownerships:**
+> ⭐ *the editor owns the variable's IDENTITY* (name, lifetime, existence — the designer must not
+> rename or delete it, and `BlackboardMyBlueprintModel` already encodes exactly that with
+> `IsRenamable: !IsAutoManaged`) · ⛔ **but the designer owns its VALUE** — authoring the default is
+> the whole point of promoting it.
+>
+> ⇒ ⭐⭐⭐ **RECOMMENDED (awaiting the user's ruling): narrow §5 to
+> *"node-owned rows are not RENAMABLE or DELETABLE, and get no RUNNING-mode write; their PLANNING
+> default IS editable."*** ⚠ **Read-only-passthrough (🔒) stays excluded in both modes** — it is a
+> genuine passthrough, not an ownership question.
 
 ---
 
