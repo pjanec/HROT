@@ -25,6 +25,13 @@ stale-below: everything under "START HERE — coordinator session" is HISTORY (2
 | ⭐⭐⭐ **THE VISUAL CHECK IS UNBLOCKED — for Blueprint** | 📌 **`R-62`:** `R-21`'s condition was *"Details panel implemented AND emitters/access unified"* ⇒ ✅ **Batch 82** + ✅ **Batch 56 + stage `C`**. ⛔ **NOT for BTree/HSM** — `R-60`: they have no Details window at all |
 | **gates baseline** | build **0/69** · AiShared **1369** · Blueprints **3737/3747/10** · BTree.Editor **615** · Hsm.Editor **551** · Generators **270** · Breakpoints **134** · Persistence **136** · Hrot.Editor **194** · Scenarios **56/68 (12 skipped)** · UrbanCombat **29** · Toolkits **1964** · NodeEditor.Core **211** · NodeEditor.UI **135** · FastHSM **300** · tracker **open 65 / done 191** · rulings **40/40** |
 
+## 0b. ⏳ QUEUED — **do the moment Batch 84 lands** *(user-approved `2026-08-18`)*
+
+| | |
+|---|---|
+| ⭐ **clear the STATUS-header debt** | `python3 scripts/design-digest.py --check` is red on ~4 back-catalogue docs. ⛔ **Deliberately NOT done while 84 is in flight** *(rewriting canon mid-run cost Batch 81 twenty minutes)* |
+| ⭐ **`Q40-H` still open** | what a watch pinned during PLANNING binds to when the run starts — 📄 [`Architect_Question_40`](Architect_Question_40_Watch_Variable_Pinning.md) §7 |
+
 ## 0a. ⭐⭐ The sequence — **do not re-derive it**
 
 ⭐ **`Variable_Model_Unification` §4** *(live)*: `0 ✅ → C ✅ → A ✅ → B ✅ → B′ ✅ → **D1 → D2 → D3 → D4**`
