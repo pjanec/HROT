@@ -12,10 +12,10 @@ architect decision first).
 | Complexity | Open | Done |
 |---|---:|---:|
 | `WIRING` | 4 | 71 |
-| `RW-L` | 31 | 61 |
+| `RW-L` | 32 | 61 |
 | `RW-M` | 29 | 56 |
 | `RW-H` | 3 | 9 |
-| **Total** | **67** | **197** |
+| **Total** | **68** | **197** |
 | *(refuted on verification)* | | *1* |
 
 > ⚠ **`RW-L` done was 43 and the Total 88 — an off-by-one that predates Batch 29** (present at
@@ -687,6 +687,9 @@ architect decision first).
 - [x] **BP-328** · `RW-L` — ✅ **Item `4a` — no row was highlighted, because the TYPE could not say which one was clicked.** 📌 **`DESIGN_Variable_Details_And_Editing.md` §1, verbatim:** *"Clicking any row in *Local Variables* routes Details to the locals-of-this-graph table **with that row highlighted**"* ⇒ *"the routing key is `(asset, section)` **+ a highlight**."* 📐 **Root cause:** `VariableOutlineSelection` was `(Heading, Source)` — ⛔ **no clicked-row identity**, so no panel could highlight anything however it drew. 🛠 `SelectedVariablePath` on the selection, the model and the view, plus `VariableTableView.IsSelected(row)`. ⛔⛔ **NOT overloaded onto the change highlight** — 📌 §1b makes a collapsed header inherit **red if any child changed this tick, yellow if any is pending**, which are statements about the SIMULATION; ⚠ mixing a selection colour in would make the monitor **lie** *(a header reading "something changed" because the designer clicked)*. ⭐ **Two orthogonal states**, railed: selecting a row leaves its change highlight **byte-identical**. 🔴 **Revert-goes-red 2** *— filed and built Batch 84, item 4*
 
 - [x] **BP-329** · `RW-L` — ✅ **Item `4b` — Details did not follow the graph, and the real symptom was WORSE than that.** ⚠⚠ **MEASURE-FIRST: the handoff's premise was HALF right.** It said the selection is *"a SNAPSHOT — resolves the local source once, at click time, and publishes the resolved object."* 📐 **Measured: the ROWS already followed the canvas** — `BlueprintLocalVariableSchemaSource` reads the graph through a `Func<Graph?>` and resolves it at **call** time *(its own comment says so)*. ⛔ **What was frozen is the HEADING:** `$"Local Variables — {graph.Name}"` computed once, in `ResolveVariableSelection`. ⇒ ⭐⭐ **so switching graph updated the ROWS and not the LABEL — the panel CONTRADICTED ITSELF**, showing one graph's locals under another graph's name. 🛠 `HeadingAtReadTime` — ⭐ a **delegate, not a stored `Guid`** *(the handoff's own lean, and the same shape the row source already uses ⇒ ONE way this arm follows the canvas, not two)*. ⭐ **The asset-scoped arms get NO delegate**: a section's name does not depend on the canvas, so making it live would be machinery with nothing to follow. ⛔ **`IVariableRowSource` was NOT reshaped** — the handoff said STOP AND REPORT if it needed to be; ⭐ it did not, because the rows were never the broken half. ⚠⚠ **The existing rail could not have caught this:** `SwitchingGraph_ChangesWhichLocalsTheClickResolvesTo` switches the graph **BEFORE** the click ⇒ it proves the resolver is live *at click time* and says nothing about the published selection. ⭐ The new rail switches **AFTER**. 🔴 **Revert-goes-red 3** *— filed and built Batch 84, item 4*
+
+
+- [ ] **BP-330** · `RW-L` — ⚠⚠ **`AiWatchWindow`'s table has NO bindable gestures — the OTHER watch window did not get row 59b's dialog.** 📌 **The coordinator's `R-72` (POST-DISPATCH, `2026-08-18`) names the duplication:** *"THERE ARE TWO WATCH WINDOWS"* — **`AiWatchWindow`** *(`Hrot.Editor.AiShared`, built by the SHARED registrar ⇒ **all three perspectives**, and it already holds a `PinnedVariableRowSource`)* and **`WatchPanelWindow`** *(`Hrot.Blueprints.Editor`, blueprint-only)*. 📐 **Measured Batch 84:** `AiWatchWindow._control` is **private with no accessor** ⇒ ⛔ **nothing can `Attach` a `VariableEditGestureBinder` to it.** ⇒ ⭐ Batch 84 item 3 satisfied **ruling 11** for `WatchPanelWindow` *(it exposes `Table` and `BindEditGestures`)*, ⛔ **and the shared window — the one BTree and HSM actually see — still cannot edit.** ⛔⛔ **NOT FIXED IN BATCH 84 BY DESIGN:** `R-72` landed **after** the dispatch sha, and 📌 *"your scope is FROZEN at this sha; documents that change after it are FYI ONLY"* ⇒ ⭐ **reported, not adapted.** ⚠ **The fix is small** *(expose the control, bind the same binder)* — ⭐ **but it should be sequenced with the two-windows decision `Q40` is making, not ahead of it**, or it hardens a duplicate that may be about to collapse *— filed Batch 84, item 3 follow-up (rule-4 re-pull)*
 
 
 
