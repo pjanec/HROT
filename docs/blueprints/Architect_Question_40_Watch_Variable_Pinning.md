@@ -456,8 +456,30 @@ FALSE.**
 > through the old→new map **at bind time**. ⭐ **The staging DOM is the stable authoring artefact — it is
 > what the designer was looking at when they pinned.**
 > ⇒ ⛔ **This requires PUBLISHING `oldToNewMap`**, which today dies inside the extractor.
-> ⚠⚠ **That is a real, if small, addition to the CGF orchestration path — ⛔ NOT editor-local**, and it
-> is the one piece of this design that reaches outside the editor. ⭐ **Size it before committing to it.**
+
+#### ⭐⭐⭐ 9e-3 — *"is there any difference? can be unified? we should share this code"* **(user)**
+
+📐 **Measured — `ClusterRunner/Program.cs:211-220`:** subsystems are selected **per node** from
+`config.RequestedSubsystems`, each handed an **isolated network factory**.
+⇒ ⭐⭐ **`EditorSubsystem` and `CgfSubsystem` are SEPARATELY DEPLOYABLE.** ⚠ **They MAY share a process
+— and must not be assumed to.**
+
+⭐⭐⭐ **So the answer splits in two, and both halves matter:**
+
+| | ⭐ answer |
+|---|---|
+| **the CODE that remaps** *(`StagingEntityExtractor` Pass 1)* | ⛔⛔ **DO NOT move or duplicate it.** It belongs to the load pipeline, and an editor-side copy would be **a second implementation of the id remap** — ⭐ **ruling 9's prohibition, on the most safety-critical mapping in the system** |
+| ⭐ **the RESULT (the map)** | ⭐⭐⭐ **SHARE IT — publish it on the orchestration bus**, the channel `EditorApplication:78` **already reads** for `ClusterStateUpdateEvent`. ⭐ **Works whether or not the two are co-hosted**, ⛔ which an in-process shared object would not |
+
+⇒ ⭐⭐ **"Share this code" resolves to: DON'T move the code, PUBLISH THE OUTPUT.** ⭐ The bus is the
+existing shared mechanism and needs no new concept.
+
+#### ⭐ And the user's instinct IS right about duplication — just one layer over
+
+📌 **`R-77`: `FindEntityByNetworkId` exists TWICE** — `ReplayBrowserSubsystem:933` **and**
+`EditorMissionService:54`, both doing a linear `Query().With<NetworkIdentity>()` scan.
+⇒ ⭐⭐ **THAT is the code to share**, and this design needs a third caller ⇒ ⛔ **do not add a fourth
+copy.** ⭐ **One resolver, in the shared layer, used by all three.**
 
 ### ⚠ 9d. ~~THE ONE THING TO MEASURE BEFORE BUILDING~~ — ✅ **MEASURED, see 9e-2**
 
