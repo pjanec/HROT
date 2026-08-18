@@ -119,6 +119,25 @@ UNMEASURED** — ⭐ stated as open rather than guessed.
 | ✅ **PASS** | all **9** appear under **Variables**, all **5** under **Parameters**, ⛔ **no third section** |
 | 🔴 **FINDING** | **any of the 9 missing** ⇒ the collapse dropped declarations. ⚠ **That would contradict Batch 86's gate 8** *(43/43 `StructureHash` byte-identical)*, so it is worth reporting loudly |
 
+### 📐 `Variables (0)` — **the whole chain MEASURED, `2026-08-18`, and every layer is GREEN**
+
+⭐ **Reported:** *"Variables (0) - no variables shown there"* — on **an unnamed asset** *(`A1` says "any
+blueprint asset")*. ⭐⭐ **Measured, layer by layer, rather than asked about:**
+
+| layer | verdict |
+|---|---|
+| **the outline model** | ✅ `BlueprintMyBlueprintModelTests` — **11/11 pass** |
+| **persistence + the real corpus** | ✅ `CorpusCanonicalisationTests` + `GoldenCorpusTests` — **140/140 pass** ⇒ the on-disk `Kind: "Variable"` declarations DO reach the store |
+| **the section wiring** | ✅ descriptor `("variables", "Variables", …)` and the `GetItems` switch **agree**; `SectionParameters`' display name is **`"Inputs"`** ⇒ ⭐ **the user's *"Parameters shown as Input"* is EXPECTED** |
+| **the live binding** | ✅ `EditorSubsystem:2296` calls `Retarget(blueprintAsset: ctx?.AssetRef as BlueprintAsset)`, and ✅ `BlueprintDocumentFactory:379` sets **`AssetRef = bpAsset`** |
+| **the null path** | ⚠ `GetItems` returns **empty for EVERY section** when `_asset == null`, headers intact — ⭐ **that would ALSO have emptied Graphs / Functions / Events**, which was not reported |
+
+⇒ ⭐⭐⭐ **NO DEFECT IS SUPPORTED BY THE MEASUREMENT.** ⛔ **The one variable left is WHICH ASSET WAS
+OPEN** — ⭐ **an asset with only `Parameter` declarations correctly shows `Variables (0)`**, and the
+reported *"Inputs"* section says this one has inputs.
+⇒ ⚠ **Re-run `A2` against `HillAssault2_CalculateSegments` specifically.** ⛔ **This is not a deferral —
+every layer reachable without the running editor has been eliminated.**
+
 ---
 
 ## 5. ⭐ What this says about the PROCESS — **not about the code**
