@@ -35,6 +35,7 @@ note: covers the surfaces Batches 82-86 built. The older GUIDE_Track_C_Visual_Ch
 | 🔴🔴 **ANY edit completing at all — part D will FAIL** | 📌 **`BP-327`: the dialog has NO OK BUTTON.** The write path is built and **reachable only from code**; `VariableEditLauncher.Open` returns a session **no surface draws**. ⇒ ⭐ **the menu items now FIRE (Batch 84) but no dialog appears.** ⛔ **Not a new finding — do not re-report it** |
 | ⭐ **where a default value CAN be edited today** | **`InspectorWindow`'s node-scoped panel** *(labelled `DEFAULT VALUE — {var}`)* — ⭐ it draws and commits inline, and shares the ONE write path |
 | **editing a value while the sim is RUNNING or PAUSED** | ✅ **built in Batch 84** — Planning ⇒ JSON · Paused ⇒ live blackboard · Running/Replay ⇒ refuses. ⚠ **but see `BP-327`** |
+| ⚠⚠ **`E6` — editing from a Watch row: it depends WHICH watch window you are looking at** | 📌 **`BP-330`**: there are **two**. **`WatchPanelWindow`** *(blueprint-only)* **HAS** the gestures — ⭐ **`E6` should pass there.** ⛔ **`AiWatchWindow`** *(shared, all three perspectives)* has **`_control` private with no accessor**, so nothing can attach the gesture binder ⇒ **`E6` FAILS there, and that is known.** ⇒ ⭐⭐ **Record WHICH window you used** — that is the whole value of the row |
 | **a Details panel on BTree / HSM** | **`BP-317`**, row 61 |
 | **`GroupBy` / fold persistence, the `Type` toggle persisting** | 🔴 **`2.7`** — not built *(settled Batch 79)* |
 
@@ -140,7 +141,7 @@ note: covers the surfaces Batches 82-86 built. The older GUIDE_Track_C_Visual_Ch
 | **E3** | Compare that row against the same variable in **Details** | ⭐⭐ **same value, same formatting** — ⛔ they read one formatter now | ☐ |
 | **E4** | Look for raw hex | ⛔⛔ **`BP-01`. None** | ☐ |
 | **E5** | Pin variables from **two different assets** | ⭐ both appear, mixed, each with its own identity | ☐ |
-| **E6** | Use `⋮` / double-click on a Watch row | ⭐⭐ **the SAME dialog as Details** *(ruling 11 — "SHARE it")* | ☐ |
+| **E6** | Use `⋮` / double-click on a Watch row — ⚠ **and NOTE which watch window you are in** | ⭐⭐ **the SAME dialog as Details** *(ruling 11 — "SHARE it")*. ⚠ **See §0a — `BP-330`: only one of the two watch windows has the gestures.** ⛔ Record the window, not just PASS/FAIL | ☐ |
 | **E7** | Close an asset that has a pinned row | ⭐ the row goes **stale**: last value, **greyed** | ☐ |
 
 ---
