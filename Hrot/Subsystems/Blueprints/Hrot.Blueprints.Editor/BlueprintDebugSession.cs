@@ -1307,7 +1307,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
             System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
 
-        if (bytes.Length < 8) return;
+        if (bytes.Length < WorkingStateLayout.HeaderBytes) return;
 
         ulong storedHash = System.Runtime.InteropServices.MemoryMarshal.Read<ulong>(bytes);
         if (storedHash != def.StructureHash) return;
@@ -1317,7 +1317,10 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         {
             foreach (var field in layoutFields)
             {
-                int start = 8 + field.OffsetBytes;
+                // ⭐ BATCH 84 — the +8 through its ONE owner (Q32 §2.1). ⛔ The write path computes the
+                //   same offset the same way; a read and a write that disagree by 8 bytes do not show
+                //   a wrong number, they scribble on the neighbouring field.
+                int start = WorkingStateLayout.ComponentOffsetOf(field.OffsetBytes);
                 if (start + field.SizeBytes > bytes.Length) continue;
                 var fieldType = ResolveType(field.Type);
                 if (fieldType is null) continue;
@@ -1329,7 +1332,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         {
             foreach (var (name, descriptor) in def.StateFields)
             {
-                int start = 8 + descriptor.OffsetBytes;
+                int start = WorkingStateLayout.ComponentOffsetOf(descriptor.OffsetBytes);
                 if (start + descriptor.SizeBytes > bytes.Length) continue;
                 var raw = MarshalFromBytes(bytes.Slice(start, descriptor.SizeBytes).ToArray(), descriptor.ClrType);
                 if (raw != null) outFields[name] = raw;

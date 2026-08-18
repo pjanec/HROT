@@ -12,10 +12,16 @@ namespace Hrot.Editor.AiShared.Variables;
 /// the <b>live blackboard</b>; not running ⇒ writes the <b>initial value in JSON</b>."</i></para>
 ///
 /// <para>⛔⛔ <b>The RUNNING arm is NOT here and must not be added here.</b> 📌 It is sequencing row
-/// <c>59c</c>, and it needs the <b>ECB surgical field write</b> first *(ruling 14)*: <i>"the
-/// whole-component route is not merely unsafe, it <b>exceeds <c>MaxComponentSize</c></b> and cannot
-/// work."</i> ⇒ ⭐ a running write attempted through this path would be the unsafe route wearing the
-/// safe one's name.</para>
+/// <c>59c</c>, and it needs the <b>ECB surgical field write</b> first *(ruling 14)*. ⇒ ⭐ a running
+/// write attempted through this path would be the unsafe route wearing the safe one's name.</para>
+///
+/// <para>⚠⚠ <b>Correction, Batch 84 — <c>R-65</c>.</b> This comment used to justify the refusal with
+/// <i>"the whole-component route <b>exceeds <c>MaxComponentSize</c></b> and cannot work."</i>
+/// 📐 <b>That is FALSE:</b> <c>EntityCommandBuffer</c>'s guard is <c>componentSize &gt; MaxComponentSize</c>
+/// and <c>Blackboard1024.ByteSize == 1024</c> — <b>it fits, exactly.</b> ⭐ <b>The true argument is
+/// stronger:</b> <c>Blackboard1024</c> is <b>ONE component SHARED by BTree, HSM and Blueprint at
+/// disjoint offsets</b>, so a whole-component write <b>clobbers other subsystems' state</b>.
+/// ⇒ ⛔ <b>cite the sharing, never the size.</b></para>
 ///
 /// <para>⭐ <b>One serializer, not a second one.</b> <c>DefaultValueAuthoring.CommitAndSerialize</c>
 /// already owns commit→JSON *(and <c>Hydrate</c> owns the way back)*; this type only decides WHERE the

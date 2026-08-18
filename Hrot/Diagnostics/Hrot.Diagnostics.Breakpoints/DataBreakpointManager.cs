@@ -582,6 +582,40 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
         _ = runs;
     }
 
+    /// <inheritdoc/>
+    public void StageFieldMutation(Entity entity, Type componentType, int byteOffset, ReadOnlySpan<byte> bytes)
+    {
+        if (componentType == null) throw new ArgumentNullException(nameof(componentType));
+
+        // ⛔ A managed component has no byte layout to patch. ⭐ Loud, not a fallback: forwarding to
+        //    the whole-component path is R-65's clobber wearing the surgical path's name.
+        if (!componentType.IsValueType)
+            throw new ArgumentException(
+                $"{componentType.Name} is a managed component and has no byte layout to patch. "
+                + "Replace the object through StageMutation instead.", nameof(componentType));
+
+        // 🔴🔴 Q32 §2.1: "an out-of-range offset/size is MEMORY CORRUPTION, not a wrong value. Bounds-
+        //    check against the registered component size and fail LOUDLY."
+        // ⚠ The engine DOES check, in ComponentTable.SetRawAt — but that runs at PLAYBACK, one
+        //   step/continue later and on the sim thread, where nothing remains to attribute it to.
+        //   ⭐ Checking here fails at the designer's OK button, naming the component and the range.
+        int componentSize = GetEcsComponentSize(componentType);
+        if (byteOffset < 0 || bytes.Length <= 0 || byteOffset + bytes.Length > componentSize)
+            throw new ArgumentOutOfRangeException(nameof(byteOffset),
+                $"Field write [{byteOffset}, {byteOffset + bytes.Length}) is outside "
+                + $"{componentType.Name}, which is {componentSize} bytes.");
+
+        // ⭐ COPIED, not aliased: the caller's span is very often a stack buffer or a slice of a
+        //   rented array, and the queue outlives this call by at least one step.
+        _pendingMutations.Enqueue(new PendingDebugMutation(
+            entity,
+            ComponentTypeRegistry.GetId(componentType),
+            isManaged:  false,
+            payload:    bytes.ToArray(),
+            sizeBytes:  bytes.Length,
+            byteOffset: byteOffset));
+    }
+
     /// <summary>
     /// ⭐ The managed byte image of a boxed unmanaged component — the same layout the ECS stores, so a
     /// diff over it names real component offsets. ⚠ <c>Marshal.StructureToPtr</c> is deliberately not
