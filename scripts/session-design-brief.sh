@@ -7,6 +7,15 @@
 # proves it arrived, not that it was engaged with.
 cd "$(dirname "$0")/.." || exit 0
 
+# ── Which lane is this? ───────────────────────────────────────────────────────
+# The canon helps BOTH sessions. The written BRIEF is a coordinator obligation:
+# it exists so the user can check that the coordinator re-learned the design
+# after a compaction. An implementation session's first move is the rule-1b
+# started-marker, not a brief -- and on 2026-08-18 one of them dutifully wrote a
+# brief instead of starting Batch 84, because this hook did not distinguish.
+COORDINATOR_BRANCH="claude/blueprint-authoring-status-gm0akp"
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+
 echo "=============================================================="
 echo " DESIGN CANON -- re-read before answering any design question."
 echo " Code answers 'how it IS'. It can never answer 'how it was MEANT to be'."
@@ -26,12 +35,32 @@ python3 scripts/rulings-check.py 2>/dev/null | tail -10
 # test is JOINING these to the work in hand, which is the exact step that failed
 # on 2026-08-17 (four times, each with the ruling sitting unread in the corpus).
 echo
+if [ "$CURRENT_BRANCH" != "$COORDINATOR_BRANCH" ]; then
+  echo "=============================================================="
+  echo " IMPLEMENTATION LANE -- do NOT write a design brief"
+  echo "=============================================================="
+  echo "Branch: $CURRENT_BRANCH (the coordinator lane is $COORDINATOR_BRANCH)."
+  echo
+  echo "The canon above is context, not an assignment. The written DESIGN BRIEF"
+  echo "is a COORDINATOR obligation -- it exists so the user can verify the"
+  echo "coordinator re-learned the design after a compaction. It is not yours."
+  echo
+  echo "Your first move is your handoff's: rule 7 (merge the coordinator branch),"
+  echo "then rule 1b (push 'chore: started batch N at <sha>'), then build."
+  echo "If a document above contradicts your handoff: STOP AND REPORT. Do not"
+  echo "adapt and do not revert -- your scope is frozen at the dispatch sha."
+  exit 0
+fi
 echo "=============================================================="
-echo " REQUIRED: your FIRST reply this session is this block AND NOTHING ELSE"
+echo " REQUIRED: your FIRST reply this session OPENS with this block"
 echo "=============================================================="
-echo "Do not answer the user's question in the same message. Post the brief alone,"
-echo "then answer in your SECOND reply. A brief mixed into an answer cannot be"
-echo "checked -- the user has to hunt for it, and a thin one hides inside the prose."
+echo "Then answer whatever the user asked, IN THE SAME REPLY, below the block."
+echo
+echo "/compact ends without an assistant turn, so this brief can only land on the"
+echo "next thing the user types. Do NOT make them wait a round for their answer:"
+echo "the brief is a header on your reply, never a replacement for it."
+echo "(2026-08-18: an earlier version said 'and nothing else' and deferred the"
+echo "user's question to a second reply. The user rejected that -- rightly.)"
 echo
 cat <<'FMT'
 DESIGN BRIEF (post-compaction)

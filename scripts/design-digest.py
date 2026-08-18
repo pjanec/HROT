@@ -33,6 +33,19 @@ RULING_HINTS = re.compile(
 )
 STATUS_RE = re.compile(r"<!--\s*STATUS(.*?)-->", re.S)
 
+# An architect question decides WHERE something lives. That is only sound if the
+# alternatives were enumerated first -- and grep cannot enumerate, it can only
+# confirm a guess. Three designs in this programme were written against a partial
+# inventory (R-11: three variable surfaces, not one; R-72: two watch windows, then
+# four). The block is the evidence the enumeration happened.
+INVENTORY_RE = re.compile(r"\bINVENTORY\b")
+
+# The rule binds designs written UNDER it. Demanding the back catalogue retro-fit
+# would make the gate red on arrival, and a gate nobody can turn green is a gate
+# somebody switches off -- the same way the optional-parameter detector died.
+# A document opts in by carrying a STATUS 'updated:' on or after this date.
+INVENTORY_RULE_DATE = "2026-08-18"
+
 
 def git(*args):
     return subprocess.run(
@@ -82,12 +95,16 @@ def main():
         print(f"No design documents changed in the last {args.days} days.")
         return 0
 
-    missing, out = [], []
+    missing, no_inventory, out = [], [], []
     for date, path in rows:
         text = (ROOT / path).read_text(encoding="utf-8", errors="replace")
         st = status_of(text)
         if st is None:
             missing.append(path)
+        if pathlib.Path(path).name.startswith("Architect_Question_") \
+                and (st or {}).get("updated", "") >= INVENTORY_RULE_DATE \
+                and not INVENTORY_RE.search(text):
+            no_inventory.append(path)
         state = (st or {}).get("state", "?")
         superseded_by = (st or {}).get("superseded-by", "")
 
@@ -105,13 +122,27 @@ def main():
         out.extend("\n      " + h[:150] for h in hits)
 
     if args.check:
+        bad = False
         if missing:
+            bad = True
             print(f"{len(missing)} design document(s) with no STATUS header:")
             for p in missing:
                 print("  " + p)
             print("\nAdd one (see .claude/CLAUDE.md, 'Design document format').")
+        if no_inventory:
+            bad = True
+            print(f"\n{len(no_inventory)} architect question(s) with no INVENTORY block:")
+            for p in no_inventory:
+                print("  " + p)
+            print("\nA design that names WHERE something should live must first enumerate")
+            print("what already exists. grep answers 'does X exist?'; only the codebase-memory")
+            print("graph answers 'what are ALL the X?'. Add a section containing the literal")
+            print("word INVENTORY, the search_graph call you ran, and its total count.")
+            print("See .claude/CLAUDE.md, 'Inventory before design'.")
+        if bad:
             return 1
-        print(f"All {len(rows)} recently-changed design documents carry a STATUS header.")
+        print(f"All {len(rows)} recently-changed design documents carry a STATUS header,")
+        print("and every recently-changed architect question carries an INVENTORY block.")
         return 0
 
     print(f"DESIGN DIGEST — {len(rows)} document(s) changed in the last {args.days} days")

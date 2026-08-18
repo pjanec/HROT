@@ -371,6 +371,34 @@ cements the duplicate.
 4. ⛔ **State the design basis IN the handoff, per item.** ⭐ *"design says X, this batch does Y"* — if
    that sentence cannot be written, **the sweep was not done.**
 
+## ⛔⛔⛔ INVENTORY BEFORE DESIGN — **grep cannot enumerate** *(user, `2026-08-18`)*
+
+> ⭐⭐⭐ **User:** *"again you were designing something you did not investigated deep enough. how to
+> prevent this? are you using codebase memory before every design?"* ⛔ **Honest answer at the time:
+> NO — not once that session, while the graph sat indexed at 171k nodes.**
+
+📌 **The failure is precise, and it is NOT laziness about reading code — I read plenty.**
+⭐⭐ **`grep` answers *"does X exist?"* — it can only CONFIRM something I already suspected.**
+⛔⛔ **A design decides WHERE something lives, which requires the FULL SET of things it could live
+beside. Only the graph enumerates.**
+
+| 📌 three times, same shape | |
+|---|---|
+| **`R-11`** | ruling 9's target was **three** variable surfaces, not one |
+| **`R-72`** | **two** watch windows… |
+| ⭐ **then FOUR** | one `search_graph` call found `EntityWatchPanel` and `FdpEntityWatchWindow` too |
+
+### ⭐ The rule — **and it produces a checkable artefact, like every other rule that stuck**
+
+1. ⭐⭐⭐ **Before ANY design document or architect question, run `search_graph` and ENUMERATE.**
+   ⛔ **Not after. Not "if it looks non-obvious."** ⚠ **All three misses above looked obvious.**
+2. ⭐⭐ **Put the result in an `INVENTORY` section: the query you ran, its `total`, and the list.**
+   ⭐ **A count of 1 is a fine answer** — ⛔ **an ABSENT section means the enumeration did not happen.**
+3. ⭐ **Gated:** `python3 scripts/design-digest.py --check` **fails** when a recently-changed
+   `Architect_Question_*.md` has no `INVENTORY` block. ⭐ Report it with the other gates.
+4. ⚠ **The graph may be unindexed in a fresh cloud session** — ⭐ `list_projects`, then
+   `index_repository` if empty *(tens of seconds)*. ⛔ **Not a reason to skip the step.**
+
 ## ⭐⭐⭐ ARCHITECT QUESTIONS — **I analyse and SUGGEST, the user APPROVES** *(user, `2026-08-17`)*
 
 > ⭐⭐ **User, verbatim:** *"remember no architect will answer the architect question, you and me need to
@@ -522,11 +550,22 @@ checking — *the design for intent, the code for fact.*
 ⚠ **On `2026-08-17` I had READ documents and still missed their supersession banners four times** —
 ⭐ **reading is necessary and not sufficient; the step that fails is JOINING the canon to the work.**
 
-⇒ ⭐⭐⭐ **The FIRST reply of every session, and the first after every compaction, IS this block and
-⛔ NOTHING ELSE** *(user, `2026-08-17`)* — ⭐ **the answer to whatever was asked comes in the SECOND
-reply.** ⚠ **`/compact` creates no assistant turn**, so the brief lands on the next thing you type;
-⛔ **mixed into an answer it cannot be checked** — the user must hunt for it, and a thin one hides in
-the prose.
+⛔⛔ **THE BRIEF IS A COORDINATOR OBLIGATION ONLY** *(`2026-08-18`)*. ⚠ **On `2026-08-18` an
+implementation session wrote a brief instead of starting Batch 84** — ⭐ **correctly following a rule
+written for the other lane.** ⇒ ⭐ **the hook now detects the branch and tells the implementation lane
+to skip it**; ⛔ **if you are not on `claude/blueprint-authoring-status-gm0akp`, your first move is rule
+7 then rule 1b's started-marker, NOT a brief.**
+
+⇒ ⭐⭐⭐ **The FIRST reply of every COORDINATOR session, and the first after every compaction, OPENS with
+this block — ⭐ and then ANSWERS THE USER'S QUESTION IN THE SAME REPLY.**
+
+⚠⚠ **`/compact` ends with NO assistant turn**, so a genuinely automatic post-compaction brief is **not
+achievable** — it can only land on the next thing the user types. ⛔⛔ **Therefore it must NEVER displace
+what they typed.** 📌 **User, `2026-08-18`:** *"it needs to be the automatic reply after compaction, not
+ignoring what the user wrote in his first prompt after compaction."*
+⚠ **An earlier version said *"and nothing else"* and deferred the answer to a second reply** — ⭐ **that
+was rejected, rightly: it made the user pay a round-trip for a check that is my obligation, not theirs.**
+⇒ ⭐ **The brief is a HEADER on the reply, ⛔ never a replacement for it.**
 
 ```
 DESIGN BRIEF (post-compaction)
@@ -546,6 +585,28 @@ DESIGN BRIEF (post-compaction)
 
 ⛔ **If a line cannot be filled, SAY SO.** ⭐ **An empty line is a FINDING about the ledger** — ⛔ never
 something to paper over.
+
+### ⭐⭐⭐ `RELEARN` — **the magic phrase, usable ANYWHERE** *(user, `2026-08-18`)*
+
+> ⭐⭐ **User:** *"maybe we could add some 'magic phrase' that i will use whenever i want the session to
+> relearn the design decisions? to be used as part of resumption documents, and available everywhere
+> else."*
+
+⭐ **The token is `RELEARN`** — ⛔ **all caps, standing alone**, so ordinary prose about relearning does
+not trip it.
+
+| ⭐ where it works | what I do |
+|---|---|
+| ⭐⭐ **typed by the user**, in any message | **stop, run the re-learn, open the reply with the `DESIGN BRIEF`**, then answer what they asked |
+| ⭐⭐ **embedded in a repo document** *(resumption docs, handoffs, design files)* | **the same, when I read that document for the task in hand** — ⭐ it is the user's own canon telling me to ground myself before acting on that file |
+| ⭐ **`/relearn`** | the same, as a slash command — 📄 `.claude/commands/relearn.md` |
+
+⭐⭐ **What it runs:** `bash scripts/session-design-brief.sh` *(ledger · 7-day digest · probe verdict ·
+three RANDOM ruling ids)*, plus a fresh look at both branches and the in-flight batch.
+⛔ **It is NOT a promise to re-read everything** — ⭐ it is the same grounding pass the post-compaction
+hook forces, on demand.
+
+⚠ **On the implementation branch it is a no-op by design** — the brief is a coordinator obligation.
 
 ### ⚠ What this does NOT prove — **stated so nobody over-trusts it**
 
