@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-18
-current-answer: section 3 (the recommendations), as amended by section 0 - RESOLVED 2026-08-18
+current-answer: NONE - this is the DECISION TRAIL only. The buildable design is
+  DESIGN_Variable_Watch_Pinning.md. Do not implement from this file.
 stale-below: in section 3, read Q40-B/C/F through section 0's amendments; section 5's
   "BTree/HSM out of scope" is OVERTURNED by section 6.
 note: user-requested design, 2026-08-18. Not relayed to any architect; resolved jointly
@@ -9,6 +10,12 @@ note: user-requested design, 2026-08-18. Not relayed to any architect; resolved 
 -->
 
 # ARCHITECT QUESTION 40 — **pinning a VARIABLE to the Watch panel**
+
+> ⛔⛔⛔ **RESOLVED `2026-08-18`. BUILD FROM
+> [`DESIGN_Variable_Watch_Pinning.md`](DESIGN_Variable_Watch_Pinning.md), NOT FROM THIS FILE.**
+> ⚠⚠ **This document states a recommendation in §3, amends it in §0, REPLACES it in §9 and corrects
+> itself again in §9e** — ⭐ it is the decision trail *(four rounds, all four corrections from the
+> user)*, ⛔ **not a spec.** ⭐ **Read it to learn WHY; read the design to learn WHAT.**
 
 > ⭐⭐ **User request, `2026-08-18`, verbatim:** *"lets pls design the watch var pinning. a simple new
 > entry in mybleprint context menu on variable record is fine. must work for any variable type
