@@ -357,6 +357,58 @@ the Value column already uses covers it**, and it retires the old objection that
 ⭐ **Editability = run state ∧ row kind.** ⛔ **Read-only-passthrough (🔒) and node-owned
 (`IsAutoManaged`) rows never get a writable dialog, in either mode.**
 
+> ### ✅ RULED `2026-08-18` *(user)* — **RENAMING IS MANDATORY; the auto-name is not acceptable**
+>
+> ⭐⭐⭐ **User, verbatim:** *"current auto naming is inacceptable. Owner name derived name helps, but
+> just as temporary until the designer finally renames it to somathing he understands. so possibility
+> to rename is mandatory."*
+>
+> ⇒ ⭐⭐ **§5 is NARROWED. `IsAutoManaged` describes a LIFECYCLE (the editor created it and will delete
+> it with its node), ⛔ NOT an ownership of identity or value.**
+>
+> | | node-owned row |
+> |---|---|
+> | ⭐ **rename** | ✅ **ALLOWED** *(user ruling above)* |
+> | ⭐ **planning default edit** | ✅ **ALLOWED** — §6's write path is exactly this |
+> | ⛔ **delete** | ⛔ **still blocked** — the owning node would lose its binding with no way back but re-promoting. ⭐ **Deleting the NODE is how you delete it** |
+> | ⛔ **running-mode write** | ⛔ **still blocked** — unchanged |
+> | 🔒 **read-only passthrough** | ⛔ **excluded in BOTH modes, unchanged** — a genuine passthrough, not an ownership question |
+>
+> #### 🔴 What must be built first — **rename is BROKEN TODAY, for every variable**
+>
+> 📐 **`M-15`, measured:** `BehaviorTreeAsset.RenameVariable` / `HsmAsset.RenameVariable` rename the
+> entry and fix `_aliases`, and ⛔ **never touch `ExpressionTargetField` / `WorkingStateTargetField`**
+> ⇒ renaming **any** bound variable dangles its binding; `BTreeJsonGenerator` then skips the **whole
+> asset** with a `BTREE0002` warning. ⚠ **`IsRenamable: false` was a guard around this, not a policy.**
+>
+> #### ⭐⭐⭐ Is the NAME load-bearing beyond the editor? — **measured, and it decides everything**
+>
+> | variable | name load-bearing at runtime? |
+> |---|---|
+> | ⭐⭐ **BTree/HSM `Role=Input` — THE PROMOTED PARAMS CASE** | ⛔ **NO.** Offsets come from the packer, the thunk key is `MethodFqn@offset`, the stateful hash is `ComputeTypeNameHash(wsTypeId) ^ SizeOf` — **the WorkingState TYPE name, never the variable's.** ⇒ ⭐ **editor-only; rename needs the binding fixup and nothing else** |
+> | **`Role=State`, `Scope=Node`** | ⛔ **NO** — slot key is `(assetId, nodeVisualId)` |
+> | ⚠ **`Role=State`, `Scope=Behavior`** | ⚠ **YES** — slot key = `FNV(assetId ++ variableId)` ⇒ **rename moves the slot** |
+> | 🔴 **`Role=State`, `Scope=Entity`** | 🔴🔴 **YES, AND CROSS-ASSET** — slot key = `FNV(variableId)` alone, and `BlueprintSharedState.TryGet/TrySetShared` name it **from other assets** |
+> | 🔴 **any variable a scenario overrides** | ⚠ **YES** — `ParseParams` step 2 switches on `case "{variable name}"`, so the **`JsonParams` key is the name** |
+> | 🔴 **blueprint declarations** | 🔴 **YES** — `StructureHashComputation` appends `f.Name` ⇒ rename **moves `StructureHash`** ⇒ 📌 **`R-24` hard reset of live entity state** |
+>
+> ⇒ ⭐⭐⭐ **The case the user actually hit is the SAFE one.** ⛔ **Rename is not one feature** — it is
+> *"fix the binding"* for params, and *"you are changing a contract"* for the shared scopes, the
+> scenario key and the blueprint hash.
+>
+> #### ⭐ The four pieces, in order
+>
+> | # | | |
+> |---|---|---|
+> | **1** | ⭐⭐⭐ **`RenameVariable` rewrites the bindings** — `ExpressionTargetField` + `WorkingStateTargetField`, BTree Action/Condition and HSM Transition/GlobalTransition | ⛔ **in the asset model, ONE implementation** *(ruling 9)*. ⚠ **This is a DEFECT FIX, not node-owned-specific** |
+> | **2** | ⭐ **Confirm-with-reason on the load-bearing rows** — shared `Behavior`/`Entity` scope, and a blueprint declaration. ⛔ **Never a silent rename there** | ⭐ the table above IS the message text |
+> | **3** | ⭐⭐ **Fix `Promote`'s identity check** — it re-derives `_auto_{VisualId}` and returns early *if that name exists*; after a rename the check misses and it creates a SECOND variable for the same node ⇒ ⭐ **check the node's BINDING, not the derived name** | ⛔ the only place the derived name is used as identity |
+> | **4** | ⭐⭐ **Seed a READABLE name**, sanitized + uniquified from the owning node *(e.g. `MoveTo_Advance_params`)* — ⛔ **not `_auto_{guid}`, not `bpParams_2`** | ⭐ **makes the common case need no rename at all**, which is the cheapest way to honour the ruling. ⚠ `SanitizeIdentifier` already exists |
+>
+> ⭐ **`IsRenamable` flips to `true` only after piece 1.** ⛔ **Flipping it first ships the silent break.**
+>
+> <details><summary>⛔ HISTORY — the conflict as first recorded, before the user ruled</summary>
+>
 > ### ⚠⚠ UNRULED CONFLICT `2026-08-18` — **does "either mode" really cover the DEFAULT value?**
 >
 > 📐 **Measured:** `VariableRow.CanEverBeWritten => RowKind == Normal && !IsStale`, and
@@ -379,6 +431,11 @@ the Value column already uses covers it**, and it retires the old objection that
 > *"node-owned rows are not RENAMABLE or DELETABLE, and get no RUNNING-mode write; their PLANNING
 > default IS editable."*** ⚠ **Read-only-passthrough (🔒) stays excluded in both modes** — it is a
 > genuine passthrough, not an ownership question.
+>
+> ⚠ **The user ruled MORE than this on `2026-08-18`: rename is mandatory too.** ⭐ See the RULED block
+> above — this recommendation was half right and is kept only to show what moved.
+>
+> </details>
 
 ---
 
