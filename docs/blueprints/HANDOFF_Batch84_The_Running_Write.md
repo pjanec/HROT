@@ -1,16 +1,22 @@
-# HANDOFF — Batch 84: **row `59c` — the running write**
+# HANDOFF — Batch 84: **the wiring defects, then row `59c`**
 
-> 📌 **Dispatched at `451d76962`.** ⭐ **Branch from it** *(rule 7)*.
+> ⚠⚠ **RE-DISPATCHED `2026-08-18` under rule 1a — this REPLACES the `451d76962` version.**
+> 📐 **Checked both halves:** the dispatch sha is **not an ancestor** of your branch, **and the user
+> confirmed no run had started.** ⭐ **Item 0 is NEW and comes FIRST**; the old items 1 and 2 are
+> unchanged but renumbered **2** and **3**. ⭐ **Item 4 is new and droppable.**
+>
+> 📌 **Dispatched at `d1e8a0373`.** ⭐ **Branch from it** *(rule 7)*.
 > ⛔⛔ **YOUR SCOPE IS FROZEN AT THIS SHA.** ⭐ **Documents that change after it are FYI ONLY.**
 > ⚠ **If a later document INVALIDATES an item — STOP AND REPORT. ⛔ Do NOT adapt, do NOT revert.**
 > ⭐ **Rule 3: allocate your own ids.** ⭐ **Rule 1b: push `chore: started batch 84 at <sha>` FIRST.**
 >
-> ⭐⭐ **Shorter than 83 on purpose.** ⛔ **This one touches `Fdp.Core` and the debugger.** ⚠ **If you
-> can only land item 1, that is a GOOD outcome** — item 1 is the safety property, item 2 is the feature.
+> ⭐⭐ **Order is deliberate: `0 → 2 → 3 → 4`.** ⛔ **Item 0 is a PREREQUISITE for item 3** — you cannot
+> demonstrate *"editing while paused works"* on a surface whose gestures never attach and whose run
+> state is always wrong. ⚠ **If you land only items 0 and 2, that is a GOOD outcome.**
 
 ---
 
-## 0. ⭐⭐⭐ Read this first — **the design's open question is ANSWERED, by measurement**
+## 1. ⭐⭐⭐ Read this first — **the design's open question is ANSWERED, by measurement**
 
 📌 **`Q32_…_ANSWERS.md` §2.2 said the write design could not be settled until one thing was measured**,
 and marked it *"the coordinator has NOT run this."* ⭐ **I ran it on `2026-08-18`.**
@@ -59,7 +65,67 @@ Blueprint at disjoint offsets** ⇒ a whole-component write **clobbers other sub
 
 ---
 
-## 1. 🔴 ITEM 1 — **the staging entry point + the `+8` owned once**
+## ⭐⭐⭐ ITEM 0 — **the two wiring defects the visual check found** *(NEW, `2026-08-18`)*
+
+📌 **Source: the user's visual check against `GUIDE_Blueprint_Visual_Check.md`, `2026-08-18`.**
+⭐ **Both are ONE-LINE causes with a rail problem behind them** — ⛔ **the rail is the real work.**
+
+### 🔴🔴 0a — `facetEditService` is not passed to the Blueprint registrar *(`R-67`)*
+
+```
+EditorSubsystem.cs:2120   var facetEditService = new ComponentEditServiceBuilder().Build();
+              :2134       _btreeRegistrar     = new …( facetEditService: facetEditService, …)   ✅
+              :2158       _hsmRegistrar       = new …( facetEditService: facetEditService, …)   ✅
+              :2162       _blueprintRegistrar = new …( …, schemaExporter: sharedSchemaExporter) ⛔ OMITTED
+```
+
+⇒ `PerspectiveWorkspaceRegistrar:281`'s `if (facetEditService != null)` is **false** ⇒ `EditGestures`
+is **null** ⇒ ⛔ **"Edit value…" and "Properties…" do nothing.** *(The user's finding C/D.)*
+
+📌 **This is `CLAUDE.md`'s SILENT-DEFAULT PATTERN verbatim:** *"a production caller that HAS a dependency
+must PASS it."* ⚠ **Built 42 lines above the call that omits it, and passed to two of three siblings.**
+
+### 🔴🔴 0b — `ActiveSession` means *"a document is open"*, not *"the sim is up"* *(`R-66`)*
+
+```csharp
+// EditorSubsystem.cs:2180-2186 — SyncActiveDebugSession()
+session = _aiDocumentManager?.Active?.Kind switch { AssetKind.Blueprint => _blueprintDebugSession, _ => null };
+debugRegistry.SetActiveSession(session);
+```
+
+⇒ `RunStateSource.Resolve` returns `Planning` **only when `ActiveSession is null`** ⇒ opening any
+blueprint makes it **`Running`** ⇒ `ModeFor` ⇒ **`Current`** ⇒ every row the run has not written renders
+**`(pending)`**, forever. ⛔⛔ **The INITIAL arm is unreachable in production.** *(The user's finding C.)*
+
+⚠⚠ **`RunStateSource`'s own doc comment asserts the false premise** — *"a live session is what running
+means to this editor."* ⭐ **Fix the premise, and fix the comment with it.**
+
+> ⭐⭐⭐ **THIS IS ALSO A SAFETY PREREQUISITE FOR ITEM 3.** 📌 **Ruling 15: the write surface stays
+> DISABLED unless paused or stepping.** ⛔ **That gate reads the same run state.** ⇒ **shipping item 3
+> on top of `0b` would permit a runtime write whenever a document is open.** ⚠ **Do item 0 first.**
+
+### 🛠 What to build
+
+1. ⭐ **Pass it.** ⛔ **But do NOT stop there** — 📌 **`R-67`: this is the FOURTH time** *(Batch 80's
+   `hostKind`, 82 named it, 83 shipped this one)*.
+2. ⭐⭐ **Give run state a signal that means what it says.** ⭐ **`IEngineDebugTimeController` and the
+   breakpoint manager already know whether the sim is up** — ⛔ **do not coin a third notion**, and
+   ⛔ **do not "fix" it by making `SetActiveSession` conditional**: other consumers rely on
+   *"which document's session is active"*, which is a **different, legitimate** question.
+   ⇒ ⭐ **`RunStateSource` needs an *is-the-sim-up* input, not a different session registry.**
+3. ⭐⭐⭐ **THE RAIL IS THE DELIVERABLE.**
+   ⛔⛔ **A rail that constructs its own registrar CANNOT see either defect** — that is exactly why
+   Batch 83 shipped green. ⭐ **Two acceptable shapes, in preference order:**
+   | ⭐ | shape |
+   |---|---|
+   | ⭐⭐ **preferred** | **ONE construction site instead of three** — a helper that builds all three perspectives' registrars from one shared-service bundle ⇒ **divergence becomes impossible by construction**, and it is ruling 9's move *(one implementation, not three call sites that must agree)* |
+   | ⭐ **fallback** | **a forwarding rail PER DEPENDENCY asserted on the PRODUCTION-CONSTRUCTED object** — 📌 `CLAUDE.md`: *"asserted on the CONSTRUCTED object, not on the registrar's source"* |
+   ⚠ **If neither is reachable without a large refactor — STOP AND REPORT with the measurement.**
+   ⛔ **Do not ship a one-line fix with a test that would have passed before it.**
+
+---
+
+## 2. 🔴 ITEM 2 — **the staging entry point + the `+8` owned once**
 
 ### ⭐ Design basis
 📌 **Ruling 14** *(user)*: *"the command buffer might need a special 'change concrete variable in a
@@ -94,7 +160,7 @@ tick must **survive** the drain, while the field the **designer** edited lands.
 
 ---
 
-## 2. 🔴 ITEM 2 — **the editor path: Details and Watch can write while paused**
+## 3. 🔴 ITEM 3 — **the editor path: Details and Watch can write while paused**
 
 ### ⭐ Design basis
 
@@ -130,7 +196,46 @@ playback keep running"* ⇒ the staged write plays back on the next tick, **i.e.
 
 ---
 
-## 3. ⛔ OUT OF SCOPE
+## 4. 🟡 ITEM 4 — **the two routing defects** *(NEW, `2026-08-18`)* — ⭐ **DROPPABLE**
+
+> ⭐⭐ **Take this ONLY if items 0, 2 and 3 are landed and gated.** ⛔ **Do not start it otherwise** —
+> ⭐ **items 0 and 2 are worth more than a complete batch that is red.**
+
+### 🔴 4a — **no row is highlighted** *(the user's finding `B2`; my guide's `B3`)*
+
+📌 **Design basis, `DESIGN_Variable_Details_And_Editing.md` §1, verbatim:**
+> ⭐ *"Clicking any row in *Local Variables* routes Details to the locals-of-this-graph table **with
+> that row highlighted**"* ⇒ ⭐⭐ *"the routing key is `(asset, section)` **+ a highlight**."*
+
+📐 **Root cause — the TYPE cannot express it:**
+```csharp
+public readonly record struct VariableOutlineSelection(string? Heading, IVariableRowSource? Source)
+```
+⛔ **No clicked-row identity.** ⚠ **`HighlightOf` exists but is a DIFFERENT concept** — the per-tick
+CHANGE highlight *(red/yellow)*, keyed by `VariableChangeMonitor`.
+⇒ ⛔⛔ **Do NOT overload the change highlight for selection** — 📌 §1b makes a collapsed header inherit
+**red if any child changed this tick, yellow if any is pending**; a selection colour mixed into that
+makes the monitor lie. ⭐ **Selection is a separate visual state.**
+
+### 🔴 4b — **Details does not follow the graph** *(the user's finding `B4`; my guide's `B6`)*
+
+📐 **Root cause — the selection is a SNAPSHOT.** `BlueprintMyBlueprintWindow:336-346` resolves the local
+source **once, at click time**, and publishes the resolved object. ⛔ **Nothing re-publishes when the
+canvas changes.** ⭐ **The OUTLINE follows correctly** *(the user confirms)* because it re-reads
+`currentGraphId` every frame — ⚠ **the details host was handed a frozen source.**
+
+⭐⭐ **The fix is to make the selection LIVE, not to add a second event.** 📌 Batch 82 built the routing
+*"over the interfaces so a BTree/HSM details host wires itself"* — ⛔ **a canvas-change subscription in
+`BlueprintDetailsWindow` would be blueprint-specific and would not survive row 61.**
+⚖️ **Lean: the graph-scoped arm publishes a source that resolves the graph at READ time** *(the same
+delegate shape the outline already uses)*, ⛔ **not a stored `Guid`.**
+
+⚠ **If that turns out to require re-shaping `IVariableRowSource` — STOP AND REPORT.** ⭐ **`4a` alone is
+still worth landing.**
+
+---
+
+## 5. ⛔ OUT OF SCOPE
 
 | ⛔ not here | owner |
 |---|---|
@@ -138,11 +243,13 @@ playback keep running"* ⇒ the staged write plays back on the next tick, **i.e.
 | **retiring any Variables window** | **`60` = `U-16`** — ⚠ `R-60`: BTree/HSM have no Details window |
 | **the shared cross-host outline** · **a BTree/HSM Details host** | **`61`** · **`BP-317`** |
 | **stage `D1`–`D4`** | ⛔ own batch. 🔴🔴 **`R-24`: `D2` must preserve field order or every deployed blackboard is wiped** |
-| 🟡 **the struct notation split** *(`{"X":1.0}` initial vs `{X=1.0, …}` current)* | ⭐ **take it ONLY if item 2 lands early and it stays cosmetic** — it is a formatter change in `VariableValueFormatter.InitialText`. ⛔ **Drop it if it grows** |
+| 🟡 **the struct notation split** *(`{"X":1.0}` initial vs `{X=1.0, …}` current)* | ⭐ **take it ONLY if everything else lands and it stays cosmetic** — a formatter change in `VariableValueFormatter.InitialText`. ⛔ **Drop it if it grows** |
+| ⛔⛔ **a way to PIN A VARIABLE** | 📌 **`R-68`: it does not exist and was never specified.** The only entry point is `ToggleWatch(PinId)` on a **canvas node pin**. ⭐⭐ **This needs a RULING before it needs a batch** — ⛔ **do not invent a gesture** |
+| ⛔ **merging the `Variables` / `Working State` sections** | 📌 **`R-61`: stage `D`.** ⚠ The user saw both sections and both `[+]` dialogs — ⭐ **that is `R-17` WORKING and stage `D` not yet run**, ⛔ **not a defect** |
 
 ---
 
-## 4. ⭐ Gates — **the rule 8 contract, all seven rows, PER ITEM**
+## 6. ⭐ Gates — **the rule 8 contract, all seven rows, PER ITEM**
 
 | # | report |
 |---|---|
@@ -171,7 +278,25 @@ done 191** · rulings **43/43**.
 
 ---
 
-## 5. ⭐ FYI — **the user is visually checking Blueprint against this**
+## 6a. ⭐⭐⭐ ONE EXTRA GATE, FOR ITEM 0 ONLY — **the anti-vacuity check**
+
+⛔⛔ **Batch 83's dialog rails were GREEN while the production dialog did nothing**, because every rail
+built its own registrar and passed `facetEditService` itself. ⚠ **That is `R-67`, and it is the FOURTH
+time.**
+
+⇒ ⭐⭐ **For item 0, report the REVERT PROBE EXPLICITLY, per defect:**
+
+| probe | must |
+|---|---|
+| un-pass `facetEditService` at the Blueprint call site | ⭐ **redden** |
+| make `ActiveSession` non-null with the sim down | ⭐ **redden** |
+
+⛔ **If either probe leaves the suite green, the rail is vacuous and item 0 is NOT done** — ⭐ **say so
+and stop**, exactly as Batch 83 did when it caught its own hex-decoder rail.
+
+---
+
+## 7. ⭐ FYI — **the user is visually checking Blueprint against this**
 
 📄 **[`GUIDE_Blueprint_Visual_Check.md`](GUIDE_Blueprint_Visual_Check.md)** ships with this batch.
 ⭐ **Its part `F2` records that editing while paused REFUSES, and names Batch 84 as the owner** ⇒ ⭐⭐ **your
