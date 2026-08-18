@@ -556,11 +556,16 @@ written for the other lane.** ⇒ ⭐ **the hook now detects the branch and tell
 to skip it**; ⛔ **if you are not on `claude/blueprint-authoring-status-gm0akp`, your first move is rule
 7 then rule 1b's started-marker, NOT a brief.**
 
-⇒ ⭐⭐⭐ **The FIRST reply of every COORDINATOR session, and the first after every compaction, IS this
-block and ⛔ NOTHING ELSE** *(user, `2026-08-17`)* — ⭐ **the answer to whatever was asked comes in the
-SECOND reply.** ⚠ **`/compact` creates no assistant turn**, so the brief lands on the next thing you type;
-⛔ **mixed into an answer it cannot be checked** — the user must hunt for it, and a thin one hides in
-the prose.
+⇒ ⭐⭐⭐ **The FIRST reply of every COORDINATOR session, and the first after every compaction, OPENS with
+this block — ⭐ and then ANSWERS THE USER'S QUESTION IN THE SAME REPLY.**
+
+⚠⚠ **`/compact` ends with NO assistant turn**, so a genuinely automatic post-compaction brief is **not
+achievable** — it can only land on the next thing the user types. ⛔⛔ **Therefore it must NEVER displace
+what they typed.** 📌 **User, `2026-08-18`:** *"it needs to be the automatic reply after compaction, not
+ignoring what the user wrote in his first prompt after compaction."*
+⚠ **An earlier version said *"and nothing else"* and deferred the answer to a second reply** — ⭐ **that
+was rejected, rightly: it made the user pay a round-trip for a check that is my obligation, not theirs.**
+⇒ ⭐ **The brief is a HEADER on the reply, ⛔ never a replacement for it.**
 
 ```
 DESIGN BRIEF (post-compaction)
