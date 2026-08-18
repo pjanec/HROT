@@ -5,9 +5,14 @@
 > ⚠ **If a later document INVALIDATES an item — STOP AND REPORT. ⛔ Do NOT adapt, do NOT revert.**
 > ⭐ **Rule 3: allocate your own ids.** ⭐ **Rule 1b: push `chore: started batch 85 at <sha>` FIRST.**
 >
-> 🔴🔴 **THIS IS THE MOST DANGEROUS BATCH THIS PROGRAMME HAS RUN.** ⛔ **It can wipe every deployed
-> blackboard** *(`R-24`)*. ⭐⭐ **ONE item. Red-first. A moved `StructureHash` is a STOP, not a
-> regeneration.** ⚠ **Landing NOTHING and reporting why is a better outcome than landing it wrong.**
+> 🔴 **The hazard, stated precisely** *(📌 `R-24`, measured at `BlueprintTickSystem.cs:92`)*: if a
+> field offset moves, the next tick sees `slot.StructureHash != def.StructureHash`, calls
+> **`ResetSlot` + `InitDefault`**, and ⛔ **every live entity's accumulated blueprint state is replaced
+> by declared defaults** *(logged via `OnHardReset` — ⭐ loud, not silent)*.
+> ⭐⭐ **§2's census shows the corpus cannot trigger this. The CODE still must not be able to.**
+>
+> ⭐⭐ **ONE item. Red-first. A moved `StructureHash` is a STOP, not a regeneration.**
+> ⚠ **Landing NOTHING and reporting why beats landing it wrong.**
 
 ---
 
@@ -49,7 +54,7 @@ IR, which is REBUILT.** ⭐ **Nothing persisted carries a kind-relative index.**
 | 🔴 | |
 |---|---|
 | **`KindOrder` feeds the layout** | `DeclarationList.KindOrder` = `Parameter, WorkingState, Variable` — ⭐ **and `R-61`: that is also `StructureHashComputation`'s append order** ⇒ **reorder = moved offsets = `R-24`'s wipe** |
-| **458 persisted assets say `"Kind": "WorkingState"`** | a read-compat or migration question |
+| **37 persisted assets say `"Kind": "WorkingState"`** *(32 + 5, per §2)* | a read-compat question — ⭐ **§3 rules it an ALIAS, not a migration** |
 | **`R-09` hazards** | synthesized fields *(`__phase`, `__waitUntilTime`)* are `(State, Asset)` and **never declared**; **shared state** has **61 refs / 8 assets** declared nowhere |
 
 ### ⭐⭐ The design record — non-superseded, checked
@@ -64,27 +69,31 @@ IR, which is REBUILT.** ⭐ **Nothing persisted carries a kind-relative index.**
 
 ---
 
-## 2. 🔴🔴 ITEM 1 — **MEASURE FIRST, and the measurement may STOP the batch**
+## 2. ✅ THE CENSUS — **ALREADY RUN BY THE COORDINATOR. Do not re-run it as item one.**
 
-### `M-12` — **does ANY asset declare BOTH kinds?**
+📌 **`M-12`, run `2026-08-18` over the whole corpus:**
 
-📌 **Batch 56 (`BP-244`) measured over all 458 shipped `.bp.json`:**
-**193** `(Variable)` · **32** `(Parameter, WorkingState)` · **7** `(Parameter)` · **5** `(WorkingState)` ·
-**221** none · ⭐⭐⭐ **0 with BOTH.**
+```
+541 .bp.json scanned (0 unreadable)
+  303  (no declarations)
+  194  ('Variable',)
+   32  ('Parameter', 'WorkingState')
+    7  ('Parameter',)
+    5  ('WorkingState',)
 
-> ⭐⭐ **RE-MEASURE IT. Do not trust the number.** ⛔ **It is two batches old, and this whole programme's
-> worst failures came from trusting a recorded measurement.**
+ASSETS DECLARING BOTH WorkingState AND Variable: 0
+```
 
-| outcome | ⭐ what it means |
-|---|---|
-| ✅ **still 0 with both** | ⭐⭐ **no shipped asset can have its field order changed by the merge** — the group is homogeneous, so concatenating cannot reorder anything. **Proceed** |
-| 🔴 **any asset has both** | ⛔⛔ **STOP AND REPORT.** ⭐ The merge order for that asset decides whether its blackboard survives, and **that is a decision for the user, not this batch** |
+⇒ ⭐⭐⭐ **NO ASSET IN THE CORPUS DECLARES BOTH KINDS.** ⇒ **within any real asset the state group is
+homogeneous**, so ⭐⭐ **concatenating `WorkingState` then `Variable` cannot reorder a single field, and
+no `StructureHash` can move.** ⭐ **The order-preservation risk is structurally absent for the corpus.**
 
-⛔ **Report the census either way, with the command.**
+⚠ **What that does NOT license:** ⛔ **the CODE must still be correct for an asset that has both** —
+a designer can author one tomorrow. ⭐ **Write the merge order-preserving anyway**, and ⭐ **rail it with
+a constructed asset that HAS both** *(the corpus cannot exercise that path — 📌 exactly the blind spot
+`BP-244` hit: "the union is a no-op on the entire corpus")*.
 
----
-
-## 3. 🛠 ITEM 1 — **the collapse** *(only if `M-12` is ✅)*
+## 3. 🛠 ITEM 1 — **the collapse**
 
 ### ⭐ The target
 
@@ -93,7 +102,7 @@ IR, which is REBUILT.** ⭐ **Nothing persisted carries a kind-relative index.**
 
 ### ⭐⭐⭐ The invariant that must hold, and how to prove it
 
-> 🔴🔴 **`StructureHash` MUST NOT MOVE FOR ANY OF THE 458 ASSETS.**
+> 🔴🔴 **`StructureHash` MUST NOT MOVE FOR ANY OF THE 541 ASSETS.**
 
 ⭐⭐ **Order preservation is the whole job:** where `KindOrder` walked `WorkingState` **then** `Variable`,
 the merged kind must yield **exactly that sequence**. ⭐ **The `WorkingStateOrder` / `VariableOrder`
@@ -105,7 +114,7 @@ lists already persist per-group order** — ⛔ **use them; do not sort, do not 
 ### ⭐ Read compatibility
 
 ⭐⭐ **Accept `"Kind": "WorkingState"` on READ, forever** — ⛔ **it is not a migration, it is an alias.**
-⇒ ⛔ **do NOT rewrite the 458 assets in this batch**: that is 458 files of golden movement for zero
+⇒ ⛔ **do NOT rewrite the 37 affected assets in this batch**: that is 458 files of golden movement for zero
 behavioural gain, and it destroys the *"zero golden movement"* signal that makes this batch auditable.
 ⭐ Assets adopt the new spelling naturally when next saved.
 
@@ -139,7 +148,7 @@ SEPARATE batch**: this one must be provably behaviour-neutral.
 | **6** | both quarantine counts — ⛔ a new skip is a finding |
 | **7** | `tracker-counts.py --check` · `rulings-check.py` · every id allocated |
 | ⭐⭐ **8** | 🔴🔴 **`StructureHash` computed BEFORE and AFTER for all 458 assets — byte-identical, stated as a count** |
-| ⭐⭐ **9** | **the `M-12` census, re-run, with its command** |
+| ⭐⭐ **9** | **the both-kinds rail**: a constructed asset declaring BOTH, proving order is preserved — ⛔ the corpus cannot exercise this |
 
 ⭐ **Baseline** *(Batch 84)*: build **0 err** · AiShared **1397** · Blueprints **3772/3782/10** ·
 BTree.Editor **615** · Hsm.Editor **551** · Generators **270** · Breakpoints **143** · Persistence
