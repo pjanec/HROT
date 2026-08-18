@@ -32,9 +32,12 @@ known-conflict: none. This is Q41-C3' promoted to its own question, as Q41 said 
 | ③ | `AiPrimitiveHosting` / `AiPrimitiveIntent` | **5 / 2** | `BTreeAction` · `BTreeCondition` · `HsmAction` · `HsmGuard` · `BlueprintCall` — ⭐⭐ **every member is "a slot that TICKS"** · intents are `Action`/`Condition` only |
 | ④ | struct-building IR ops | **2, BUILT** | ⭐⭐⭐ **`IrOp_MakeStruct`** *(construct from per-field values)* and **`IrOp_SetMembers`** *(copy-with-changes)* — **Q#14 Option B**, with live arms in `StatementEmitter:238/258` |
 | ⑤ | the target signature | **1** | `ResolveParams<TDto>(ref TDto dto, EntityRepository world, Entity self, IHostVariableAccess? host)` — 📌 `BehaviorParams.cs:18` |
+| ⭐⭐⭐ ⑥ | `GraphKind` members, **and who consumes each** | **4 / 3** | `Function` · `Event` · **`Construction`** · `Macro`. 📐 **`Construction` maps `GraphKind → IrGraphKind` at `Stage5_Schedule:4837` and is named in `Stage2_Validate:422`** — ⛔⛔ **and NO emitter selects it**: `AiPrimitiveEmitter`, `InstanceEmitter`, `LibraryEmitter`, `CSharpEmitter` filter on `Function`/`Event`/`AiPrimitiveMain`; **zero** hits in `Fdp.Toolkits/Blueprints` or `Hrot.Blueprints.Core` |
+| ⑦ | design intent for ⑥ *(`.dev/` + `docs/` sweep)* | **9 files** | ⭐⭐ **`Q23` states it deliberately:** *"Construction graphs are not offered in the create menu — nothing in the runtime consumes `GraphKind.Construction` yet."* ⇒ ⭐ **a RESERVED SLOT, not a vestige** |
 
-⇒ ⭐⭐ **Two of the three hard parts already exist:** the **hook** *(`R-91`)* and the **struct-writing
-vocabulary** *(④)*. ⛔ **What is missing is the ENTRY-POINT SHAPE**, which is what this question decides.
+⇒ ⭐⭐⭐ **THREE of the four hard parts already exist:** the **hook** *(`R-91`)*, the **struct-writing
+vocabulary** *(④)*, and ⭐⭐ **the ENTRY-POINT KIND itself** *(⑥ — reserved, unconsumed, and named for
+exactly this)*. ⛔ **What is missing is one EMITTER ARM and a picker filter.**
 
 ---
 
@@ -77,20 +80,50 @@ survives a failed parse**, which breaks the one property the whole path is built
 
 ## 5. ⭐⭐⭐ THE SUB-QUESTIONS — **each with a recommended answer**
 
-### `Q43-A` — What IS a resolver blueprint: a new hosting, or a new dispatch?
+### `Q43-A` — What IS a resolver blueprint? ⭐⭐ **REVISED `2026-08-18` — the slot already exists**
+
+> ⛔⛔ **MY FIRST ANSWER WAS WRONG, and the user's question found it — for the second time in two
+> questions.** 📌 **User:** *"do we really need a new dispatch kind? for blueprints we were using some
+> graph that runs on creation, isn't that similar?"*
+>
+> 📐 **Measured:** ⭐⭐⭐ **`GraphKind { Function, Event, Construction, Macro }` — `Construction` ALREADY
+> EXISTS**, maps through `Stage5_Schedule:4837` into **`IrGraphKind.Construction`**, and is named in
+> `Stage2_Validate:422`'s entry rule.
+> ⛔ **And NO emitter selects it** — `AiPrimitiveEmitter`, `InstanceEmitter`, `LibraryEmitter`,
+> `CSharpEmitter` all filter on `Function` / `Event` / `AiPrimitiveMain`; **zero** occurrences in
+> `Fdp.Toolkits/Blueprints` or `Hrot.Blueprints.Core`.
+>
+> ⭐⭐ **And the design record already SAYS SO, deliberately** — 📄 **`Q23`:** *"Construction graphs are
+> not offered in the create menu — **nothing in the runtime consumes `GraphKind.Construction` yet**."*
+> ⇒ ⭐⭐⭐ **It is a RESERVED SLOT waiting for a consumer, not a vestige** *(`CLAUDE.md`: unreferenced is
+> not unintentional — the `.dev/`+docs sweep is what found this)*.
+>
+> ⇒ ⛔ **A resolver does not need a new dispatch kind. It needs the consumer `Construction` was
+> reserved for.**
 
 | | option | verdict |
 |---|---|---|
-| **A1** | a new **`AiPrimitiveHosting`** member *(`ParamResolver`)* | ⛔ **Reject.** 📐 **All five existing members are "a slot that TICKS."** A resolver is **called during ingress**, hosted nowhere ⇒ ⛔ it would make `Hostings` mean two different things |
-| ⭐⭐⭐ **A2** | a new **`BlueprintDispatchKind.ParamResolver`** | ⭐⭐⭐ **RECOMMENDED** |
-| **A3** | reuse `Library` + a convention | ⛔ **Reject** — a convention nothing checks is the shape this programme keeps filing |
+| ⛔ **A1** | a new **`AiPrimitiveHosting`** member | ⛔ **Reject** — all five members are *"a slot that TICKS"* |
+| ⛔ **A2** *(withdrawn)* | a new **`BlueprintDispatchKind.ParamResolver`** | ⛔⛔ **WITHDRAWN** — ⚠ it would add a member to an enum with **in-degree 75**, **mirrored twice** *(`DEBT-013`)*, **inside `StructureHash`** — ⭐ **to express something the model already expresses** |
+| ⭐⭐⭐ **A2′** | ⭐⭐ **The resolver IS a `GraphKind.Construction` graph** — *"the graph that runs at setup"* — with a signature of `(current DTO) → (DTO)` | ⭐⭐⭐ **RECOMMENDED** |
+| ⛔ **A3** | `Library` + an unchecked convention | ⛔ **Reject** — a convention nothing checks is the shape this programme keeps filing |
 
-⭐ **Why A2:** the emit shape **genuinely differs** — ⛔ no `WorkingState`, ⛔ no tick, ⭐ a `ref TDto`
-in/out — and **`V_DispatchKindCompatibility` is already the place that says which shapes are legal
-where**, so this is an arm on an existing validator rather than a new concept.
-⚠ **Cost, stated:** `BlueprintDispatchKind` has **in-degree 75**, exists in **two mirrored copies**
-*(`DEBT-013`)*, and **dispatch is in `StructureHash`** — ⛔ **a new member must be appended, never
-inserted.**
+| ⭐ why `A2′` wins on every axis | |
+|---|---|
+| **cost** | ⛔ **ZERO enum changes.** ⭐ No `StructureHash` impact, no mirrored-enum problem, no 75 call sites |
+| **semantics** | ⭐⭐ *"runs once at setup, before the thing ticks"* — ⭐ **that is what a resolver IS**, and what `Construction` was named for |
+| **safety** | ⭐⭐ every emitter already filters to `Function`/`Event`/`AiPrimitiveMain` ⇒ ⭐ **a new Construction emitter CANNOT change any existing asset** |
+| **signature** | ⭐ graph `Inputs`/`Outputs` already exist and their CRUD is wired *(`Q23`)* ⇒ ⭐⭐ **`Q43-D`'s "take the DTO in, give it back" IS the graph signature** — no new concept |
+| ⚠ **what it still needs** | ⭐ **an emitter arm for `IrGraphKind.Construction`**, and ⭐ the picker filter. ⛔ **That is the whole delta** |
+
+#### ⚠ The one thing `A2′` must not do — **squat on the slot**
+
+`Construction` is plausibly *also* wanted for its original sense: **an Instance asset's construction
+script**. ⛔ **Do not define `Construction` as "the resolver graph".**
+⇒ ⭐⭐ **Define it as "runs once at setup"**, and let **`Dispatch × GraphKind`** say what that means —
+📌 **`V_DispatchKindCompatibility` is already exactly that validator.** ⭐ A `Construction` graph on a
+resolver asset resolves params; on an `Instance` asset it would configure the instance. ⭐ **Same emit
+shape, different call site** — ⛔ **not two features.**
 
 ### `Q43-B` — What does it WRITE: its own generated struct, or a foreign DTO?
 
