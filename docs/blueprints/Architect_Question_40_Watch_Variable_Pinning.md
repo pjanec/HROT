@@ -1,7 +1,9 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-18
-current-answer: section 3 (the recommendations) - awaiting user approval
+current-answer: section 3 (the recommendations), as amended by section 0 - RESOLVED 2026-08-18
+stale-below: in section 3, read Q40-B/C/F through section 0's amendments; section 5's
+  "BTree/HSM out of scope" is OVERTURNED by section 6.
 note: user-requested design, 2026-08-18. Not relayed to any architect; resolved jointly
   with the user per the 2026-08-17 ruling.
 -->
@@ -15,6 +17,71 @@ note: user-requested design, 2026-08-18. Not relayed to any architect; resolved 
 > ⛔ **No architect will answer this** *(`2026-08-16` ruling)*. ⭐⭐ **I analyse and recommend; the user
 > approves.** ⭐ **Every sub-question below carries a RECOMMENDED ANSWER** — reply *"approved"*, or name
 > the one you want changed.
+
+---
+
+## 0. ✅✅ RESOLVED — **user, `2026-08-18`** *(this section AMENDS §3; read it first)*
+
+> ⭐⭐ **Verbatim:** *"pull for variables - every brain tick. not sure how pin based watches work -
+> maybe they need push (pin is not a variable to be polled). non running graph locals - stale grayed.
+> adding/removing variable watch must be possible whenever sim in planning or running but paused. of
+> course watch must work for also for hsm and btrees. otherwise ok"*
+
+| | outcome |
+|---|---|
+| **`Q40-A`** identity | ✅ **approved as recommended** |
+| **`Q40-B`** feed | ✅ **poll for variables** — ⭐⭐ **AMENDED: pins KEEP their push** *(below)* |
+| **`Q40-C`** where | ⚠⚠ **CHANGED — my recommendation was wrong for cross-host** *(below)* |
+| **`Q40-D`** stale locals | ✅ **stale, greyed** — ⭐ the user picked the marked option, not raw |
+| **`Q40-E`** entity | ✅ **approved as recommended** |
+| **`Q40-F`** gesture | ⚠ **NARROWED — `Planning` and `Paused` only** *(below)* |
+| **`Q40-G`** canvas stub | ✅ **approved as recommended** |
+| **cross-host** | ⛔⛔ **§5's *"BTree/HSM out of scope"* is OVERTURNED** — see §6 |
+
+### ⭐⭐⭐ 0a. `Q40-B` amended — **TWO FEEDS, ONE ROW TYPE**
+
+> ⭐⭐ **User:** *"pin is not a variable to be polled."* ⭐ **Correct, and it is the sharper statement.**
+
+| feed | for | why |
+|---|---|---|
+| ⭐ **PUSH** — `OnPinValueChanged` *(ships)* | **pins** | ⛔ **a pin is a TRANSIENT value at an edge, not a stored field.** There is no address to poll — the value exists only as it flows |
+| ⭐ **POLL, every brain tick** | **variables** *(incl. locals)* | ⭐ **a variable IS a stored field with a byte offset** ⇒ polling is the natural read, and `R-49` forbids emitting a push per variable |
+
+⛔⛔ **This is NOT a ruling-9 violation, and the design already has the precedent:** 📌 §1a gives the
+table **`SectionSource`** *(one asset)* and **`PinnedSource`** *(arbitrary assets)* — ⭐ **two SOURCES
+feeding one control.** ⇒ **push and poll are two sources of `VariableRow`, not two implementations of
+one concept.** ⭐ **They converge at the row, and everything downstream is already shared** *(Batch 83)*.
+
+### ⚠⚠ 0b. `Q40-C` CHANGED — **the poll must NOT live in `BlueprintDebugSession`**
+
+⛔ **My §3 recommendation `C2` put the poll in `BlueprintDebugSession`'s tick hook.** ⚠ **The user's
+cross-host requirement makes that wrong** — it would make the shared Watch panel depend on the
+blueprint session, which is exactly the split `U-6` spent a batch removing.
+
+⭐⭐⭐ **And the right seam ALREADY EXISTS, cut deliberately for this:**
+📌 **`BlueprintAssetTickSource.cs:12-21`, verbatim:** *"Batch 68 cut the seam and left it open on
+purpose: `VariableRow.AssetTick` is a per-row [delegate] … (BTree, HSM and blueprint rows).
+⛔ **Teaching it about `BlueprintAssetTick` would make the [shared layer] blueprint-specific.**"*
+
+⇒ ⭐⭐ **`C2′` — the poll is driven PER ROW by the row's own `AssetTick`**, in `Hrot.Editor.AiShared`.
+⭐ **Each host supplies its tick source and its byte reader; blueprint's already ships.**
+⭐ **This also honours §1a's *"in Watch, rows tick at different rates ⇒ no panel-wide tick."***
+
+### ⚠ 0c. `Q40-F` NARROWED — **the watch set is mutable only when nothing is racing it**
+
+> ⭐⭐ **User:** *"adding/removing variable watch must be possible whenever sim in planning or running
+> but paused."*
+
+| sim state | add / remove a watch |
+|---|---|
+| **Planning** *(cluster `Idle` / `*Edit`)* | ✅ **allowed** — pinning ahead of a run is the normal workflow |
+| **Paused / stepping** | ✅ **allowed** |
+| ⛔ **free-running** | ⛔⛔ **FORBIDDEN** — ⭐ the poll list is read by the tick; mutating it while the sim runs is a race |
+| **Replay** | ⛔ **forbidden** *(same reason; state it rather than leaving it to fall out)* |
+
+⭐⭐ **And it is GREYED WITH A TOOLTIP, never a click that dead-ends** — 📌 the user's `2026-08-17`
+ruling: *"same information value, no false expectations."*
+⭐ **The state comes from `R-69`'s cluster state** — ⛔ **not a fourth notion of "running."**
 
 ---
 
@@ -151,5 +218,53 @@ admits them** ⇒ ⛔ **no second mechanism is needed for the user's *"including
 | ⛔ | |
 |---|---|
 | **watching across ASSETS in one panel** | ⭐ the design already requires it *(`"the watch window must allow for selected variables from different assets"`)* and `Q40-A`'s key supports it — ⚠ **but the poll would then span sessions.** 📌 **Out of the first slice; state it as the next question** |
-| **BTree / HSM** | ⛔ **`R-60`: no Details window there yet.** ⭐ The same `Origin` key will serve when row 61 lands |
+| ⛔ ~~**BTree / HSM**~~ | ⛔⛔ **OVERTURNED by the user, `2026-08-18`** — see **§6** |
 | **editing from the Watch row** | ✅ already built *(Batch 83, ruling 11)* — ⛔ nothing to decide |
+
+---
+
+## 6. ⭐⭐⭐ CROSS-HOST — **required, and it has ONE hard dependency**
+
+> ⭐⭐ **User:** *"of course watch must work for also for hsm and btrees."*
+
+### ⭐ What is ALREADY host-neutral — **more than expected**
+
+| ✅ | |
+|---|---|
+| the **row identity** | `VariableRow.Origin` carries `AssetId` — ⛔ nothing blueprint-specific |
+| the **tick seam** | ⭐⭐ `VariableRow.AssetTick`, **cut open for this in Batch 68** *(§0b)* |
+| the **table + formatter + dialog** | `Hrot.Editor.AiShared` *(Batches 82–83)* |
+| ⭐⭐ **the SURFACE to hang the gesture on** | **`AiVariablesWindow` is registered on ALL THREE perspectives** — ⛔ **so the gesture does NOT wait for row 61's Details host** |
+
+⇒ ⭐ **`R-60` blocks the DETAILS panel on BTree/HSM. It does NOT block the watch gesture** — the shared
+variables table is already there.
+
+### 🔴🔴 The hard dependency — **the AI debug sessions are built and never constructed**
+
+📐 **Measured `2026-08-18`:**
+
+| | |
+|---|---|
+| `HsmDebugSession` · `BTreeDebugSession` | ⭐ **exist**, complete, both `: AiDebugSessionBase` |
+| production construction sites | ⛔⛔ **ZERO — tests only** |
+| the composition root's own words | 📌 `EditorSubsystem:2183`: *"BTree/HSM debug sessions are **not yet attached/working** — intentionally null until wired."* |
+
+⇒ ⛔⛔ **THE THIRTEENTH INSTANCE of the pattern**, and it is the whole cross-host gap: ⭐ **a variable
+watch on BTree/HSM has nothing to observe until those sessions are wired.**
+
+### ⚖️ Recommended slicing — ⭐ **build host-neutral from day one, light up in two steps**
+
+| slice | what | why |
+|---|---|---|
+| ⭐ **1** | **the mechanism, host-neutral** — poll list keyed by `Origin`, driven by `AssetTick`, gesture on the shared table row. **Proven on Blueprint**, whose session and tick source ship | ⛔ **no blueprint-specific code in `AiShared`** — that is the acceptance criterion, not "it works on blueprint" |
+| ⭐ **2** | **wire `HsmDebugSession` / `BTreeDebugSession`**, and give each host its **tick source** and **blackboard base offset** | ⭐ **BTree/HSM light up with NO change to slice 1** — that is how you know slice 1 was host-neutral |
+
+⚠⚠ **The per-host BASE OFFSET is the subtle half.** 📌 `R-65`: `Blackboard1024` is **ONE component
+shared by BTree, HSM and Blueprint at DISJOINT offsets**, and the blueprint read path hard-codes
+`8 + field.OffsetBytes`. ⇒ ⭐⭐ **the base belongs to the HOST, and must be owned in exactly one place**
+— 📌 **the same *"whoever computes the offset must own that `+8` in ONE place, not two"* that Batch 84
+item 2 is already being held to.** ⭐ **Solve it once, for both.**
+
+### ⛔ Still not decided
+⚠ **Watching variables from DIFFERENT ASSETS in one panel** — the key supports it, but the poll would
+span sessions. ⭐ **Out of slice 1; ask again when slice 2 lands.**
