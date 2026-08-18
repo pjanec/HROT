@@ -40,7 +40,9 @@ note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quo
 | **R-01** | ⭐⭐⭐ **`Variable` ≡ `WorkingState`. Two names, ONE concept.** Identical `(Role=State, Scope=Asset)`; only `Dispatch` differs, and the tag carries no information `Dispatch` did not already carry | `Variable_Model_Unification.md` §2 |
 | **R-02** | ⭐⭐ **User's own words:** *"as the global vars and working state vars are the same stuff, it makes no sense to emit them differently"* ⇒ `Q32-E`: **UNIFY** | `Architect_Question_32_…_ANSWERS.md` |
 | **R-03** | ⛔⛔ **The unification is UNFINISHED INFRASTRUCTURE, not a UI question.** ⚠⚠ **CORRECTED `2026-08-17`: the LIVE order is `0 → C → A → B → B′ → D1 → D2 → D3 → D4`** *(§4)*. ⛔⛔ **The `A→B→C→D` table BELOW THAT LINE IS SUPERSEDED — I quoted it in `Q39` and was wrong.** ⭐ **`C` ✅ and `A` ✅ shipped; `B` onward did not** | `Variable_Model_Unification.md` §4 |
-| **R-04** | ⭐⭐⭐ **`U-9` was built INVERSE of the plan — the tagged type is the VIEW, the three lists are still the STORAGE.** ⇒ **that is WHY every storage-reading surface still sees three concepts** | `BOOTSTRAP_Cross_Host_Variable_Model.md` |
+| ⚠⚠ **R-04** | ⛔⛔ **STALE — CORRECTED `2026-08-18`.** It said *"`U-9` was built INVERSE — the tagged type is the VIEW, the three lists are still the STORAGE."* 📐 **`U-12` fixed that afterwards and the ledger never caught up:** `BlueprintAsset.cs:16` — *"**U-12 / D4 — THE STORE.** One list of tagged declarations. `Parameters`, `WorkingState` and `Variables` below are **windows onto it**, not storage"*, and all three are `DeclarationView<T>` ⇒ **live projections** | `BlueprintAsset.cs:16` |
+| ⛔⛔⛔ **R-80** | ⭐⭐⭐ **STAGE `D1` AND `D2` ARE ALREADY SHIPPED — do NOT write a batch for them** *(measured `2026-08-18`, after the coordinator was asked to)*. **`D1`**: the tagged list IS the storage *(`R-04`)*. **`D2`**: the persisted assets already carry ONE tagged `Declarations` array plus `ParameterOrder`/`WorkingStateOrder`/`VariableOrder` — ⭐ **`R-24`'s order preservation, already built.** ⇒ ⛔ **`R-61`'s *"stage `D` is the only unification work left"* is TRUE but MISLEADING — most of `D` is done** | `BlueprintAsset.cs:16` · any `*.bp.json` |
+| ⭐⭐⭐ **R-81** | ⭐⭐ **WHAT ACTUALLY REMAINS OF THE UNIFICATION: collapsing `DeclarationKind.WorkingState` and `.Variable` INTO ONE KIND.** 📐 **22 non-test sites still name `WorkingState` separately — and MOST of them immediately `.Concat` it with `Variables`** *(`Stage0:441`, `Stage2:2107`, `Stage5:4164/4181`)* ⇒ ⭐ **the code already treats them as one set, verbosely.** 🔴🔴 **But the collapse moves `KindOrder`, which feeds `FieldLayout` → `StructureHash`** ⇒ ⛔ **`R-24`'s wipe hazard applies: own batch, red-first, order preserved within the merged group** | `DeclarationList.cs:47` |
 | **R-05** | ⚠⚠ **CORRECTED.** ⛔ **Stage `B` is NOT "Variables becomes a schema source"** *(that is `A`, done)*. ⭐⭐ **LIVE `B` = "Details hosts the table; My Blueprint routes selection into it" — i.e. `U-6` / `Q32` batch 57.** ⭐ The parallel `BlueprintMyBlueprintModel` path is what it removes | `Variable_Model_Unification.md` §4 |
 | **R-06** | ⭐ **`Role` IS cross-host** — `BlackboardVariableRole { Input, State }` already ships and is the unified model. ⇒ **BTree/HSM working state ≡ blueprint working state** | `Variable_Model_Unification.md` |
 | ⚠ **R-07** | ⚠⚠ **UNRECONCILED — `DESIGN_Parameter_Model.md` (marked AUTHORITATIVE, `2026-08-16`) gives ONE three-valued `Scope` `{Node,Behavior,Entity}`, contradicting this.** ⛔ **Reconcile before acting.** As ruled by `Q-b` *(`2026-08-13`)*: **`Scope` is NOT cross-host** — blueprint `{Asset, Graph}` = **visibility**; AI `{Node, Behavior, Entity}` = **blackboard slot sharing**. `Q-b`: *"No. `Asset` and `Graph`, and stop there"* | `Variable_Model_Unification.md` |
@@ -219,6 +221,8 @@ R-65 | docs/blueprints/Architect_Question_32_Variable_Details_And_Values_ANSWERS
 R-62 | docs/blueprints/Architect_Question_32_Variable_Details_And_Values_ANSWERS.md | AND A SEQUENCING RULING: NO VISUAL CHECKS
 R-60 | docs/blueprints/REPORT_Batch82_U6_Details_Hosts_The_Table.md | two of the three have no Details panel
 R-03 | docs/blueprints/Variable_Model_Unification.md | order below the line is SUPERSEDED
+R-80 | Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Assets/BlueprintAsset.cs | U-12 / D4 — THE STORE
+R-81 | Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Assets/DeclarationList.cs | DeclarationKind.Parameter, DeclarationKind.WorkingState, DeclarationKind.Variable,
 R-05 | docs/blueprints/Variable_Model_Unification.md | Details hosts the table; My Blueprint routes selection into it
 R-21 | docs/blueprints/Architect_Question_32_Variable_Details_And_Values_ANSWERS.md | AND A SEQUENCING RULING: NO VISUAL CHECKS
 R-22 | docs/blueprints/Architect_Question_32_Variable_Details_And_Values_ANSWERS.md | the emitter + access-path unification
@@ -240,7 +244,7 @@ R-49 | docs/blueprints/DESIGN_Variable_Details_And_Live_Values.md | NEVER GENERA
 R-01 | docs/blueprints/Variable_Model_Unification.md | occupy the SAME cell
 R-01b | docs/blueprints/Variable_Model_Unification.md | names, one concept
 R-02 | docs/blueprints/Architect_Question_32_Variable_Details_And_Values_ANSWERS.md | it makes no sense to emit them differently
-R-04 | docs/blueprints/BOOTSTRAP_Cross_Host_Variable_Model.md | the tagged type is the VIEW, the three lists are still the STORAGE
+R-04 | Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Assets/BlueprintAsset.cs | windows onto it
 R-05 | docs/blueprints/Variable_Model_Unification.md | That is the parallel implementation to remove
 R-06 | docs/blueprints/Variable_Model_Unification.md | BlackboardVariableRole
 R-07 | docs/blueprints/Variable_Model_Unification.md | and stop there
