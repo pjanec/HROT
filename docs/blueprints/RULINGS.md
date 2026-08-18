@@ -1,3 +1,11 @@
+<!--STATUS
+state: LIVE
+updated: 2026-08-18
+current-answer: the whole file - it is an INDEX over the design corpus, not the truth
+stale-below: nothing. Rows marked CORRECTED carry their correction inline.
+note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quote
+  fails the gate, so this file cannot silently drift.
+-->
 # ⭐⭐⭐ RULINGS — **the canon. READ THIS FIRST, EVERY SESSION.**
 
 > ⛔⛔ **This file exists because the coordinator kept re-deriving settled decisions from CODE after

@@ -1,3 +1,10 @@
+<!--STATUS
+state: SUPERSEDED
+updated: 2026-08-18
+superseded-by: GUIDE_Blueprint_Visual_Check.md
+current-answer: parts B (Inspector default value) and F (change highlighting) only
+stale-below: parts C, D and E describe surfaces Batches 82-84 replaced. Do not run them.
+-->
 # GUIDE — Track C visual check, **step by step**
 
 > ⭐ **Companion to [`CHECKLIST_Track_C_Visual_Verification.md`](CHECKLIST_Track_C_Visual_Verification.md)** — the checklist is *what*, this is *how*.

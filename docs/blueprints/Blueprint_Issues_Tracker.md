@@ -1,3 +1,10 @@
+<!--STATUS
+state: LIVE
+updated: 2026-08-18
+current-answer: the row itself - each BP row carries its own status marker
+stale-below: nothing; closed rows are marked [x] and keep their history deliberately
+note: counts are gated by scripts/tracker-counts.py --check
+-->
 # Blueprint Subsystem — Issue Tracker
 
 > Checklist view. Full detail for every ID: **[Blueprint_Issues_Detail.md](Blueprint_Issues_Detail.md)**

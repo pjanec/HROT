@@ -1,3 +1,10 @@
+<!--STATUS
+state: LIVE
+updated: 2026-08-18
+current-answer: the whole file
+note: section 2 CORRECTS the coordinator - BP-281 is NOT blocked. Read it before
+  scheduling anything that assumes it is.
+-->
 # DESIGN — the HSM storage model *(`2026-08-17`)*
 
 > ⭐⭐⭐ **`BP-281` · `E3` · `E5` · `E7a` are ONE question:** *where do an HSM occurrence's bytes live?*

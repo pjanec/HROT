@@ -1,3 +1,10 @@
+<!--STATUS
+state: LIVE
+updated: 2026-08-18
+current-answer: the per-row verdict table
+note: a sweep record, not a design. Rows marked STILL REAL are open debt; rows marked
+  ALREADY FIXED or SUPERSEDED are closed and kept as the record of why.
+-->
 # `DEBT-AIB` pricing sweep — 13 rows, one verdict each
 
 > 📌 **Batch 78, item 3.** ⛔ **Nothing was fixed** — the deliverable is this table, and a fix hidden

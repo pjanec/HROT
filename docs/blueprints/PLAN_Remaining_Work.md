@@ -1,3 +1,9 @@
+<!--STATUS
+state: LIVE
+updated: 2026-08-18
+current-answer: the newest revision block at the top
+stale-below: every revision block below the newest is HISTORY. Do not quote it for status.
+-->
 # PLAN — what is left *(revision 29, `2026-08-18`)*
 
 > ✅✅ **REVISION 29 — BATCH 83 MERGED at `2d808ba10`. ⭐⭐ ALL THREE ROWS LANDED** — `58` *(the Value

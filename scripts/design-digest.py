@@ -46,6 +46,14 @@ INVENTORY_RE = re.compile(r"\bINVENTORY\b")
 # A document opts in by carrying a STATUS 'updated:' on or after this date.
 INVENTORY_RULE_DATE = "2026-08-18"
 
+# Same reasoning for STATUS headers themselves. CLAUDE.md says "retro-fit lazily --
+# add a STATUS block to any design document you TOUCH; do not spend a batch on the
+# back catalogue." A blanket sweep would be worse than the debt it clears: a
+# current-answer nobody actually determined is a lie with a checkbox. So the check
+# binds documents CREATED on or after this date; the back catalogue is repaired as
+# it is touched, which is what the rule asks for.
+STATUS_RULE_DATE = "2026-08-18"
+
 
 def git(*args):
     return subprocess.run(
@@ -68,6 +76,12 @@ def changed(days, include_all):
             continue
         if (ROOT / path).exists():
             yield date, path
+
+
+def created(path):
+    """First-commit date of a file, 'YYYY-MM-DD'. Empty when git cannot say."""
+    out = git("log", "--diff-filter=A", "--format=%ad", "--date=short", "--", path)
+    return out.strip().splitlines()[-1] if out.strip() else ""
 
 
 def status_of(text):
@@ -99,7 +113,7 @@ def main():
     for date, path in rows:
         text = (ROOT / path).read_text(encoding="utf-8", errors="replace")
         st = status_of(text)
-        if st is None:
+        if st is None and created(path) >= STATUS_RULE_DATE:
             missing.append(path)
         if pathlib.Path(path).name.startswith("Architect_Question_") \
                 and (st or {}).get("updated", "") >= INVENTORY_RULE_DATE \

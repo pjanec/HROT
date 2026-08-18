@@ -1,3 +1,9 @@
+<!--STATUS
+state: LIVE
+updated: 2026-08-18
+current-answer: the whole file
+known-rot: none as of 2026-08-18; the BP1031 claims were repaired in Batch 82 (BP-318)
+-->
 # Where parameters and state actually live — all hosts, one picture
 
 > ## ⭐ This is the MEASUREMENT RECORD + the diagrams.
