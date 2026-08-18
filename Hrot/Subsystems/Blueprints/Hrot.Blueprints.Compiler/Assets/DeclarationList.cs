@@ -42,9 +42,15 @@ public sealed class DeclarationList : IList<BlueprintDeclaration>
     internal DeclarationList(BlueprintAsset asset) => _asset = asset;
 
     /// <summary>Storage order — and the struct layout order (Params @0, working @8, State @16).</summary>
+    /// <remarks>
+    /// ⭐⭐ <b>Batch 86 — two kinds, not three</b> *(<c>R-01</c>)*. ⚠ <b>Order preservation is by
+    /// CONSTRUCTION:</b> the store is populated in the on-disk list order and the two state groups now
+    /// map to ONE kind, so a merged run is still <i>old-working-state-first, then old-variable</i>.
+    /// ⛔ Nothing re-derives or re-sorts it.
+    /// </remarks>
     public static IReadOnlyList<DeclarationKind> KindOrder { get; } = new[]
     {
-        DeclarationKind.Parameter, DeclarationKind.WorkingState, DeclarationKind.Variable,
+        DeclarationKind.Parameter, DeclarationKind.Variable,
     };
 
     /// <summary>
@@ -173,11 +179,10 @@ public sealed class DeclarationList : IList<BlueprintDeclaration>
     /// </summary>
     public static IReadOnlyList<DeclarationKind> ResolutionOrder { get; } = new[]
     {
-        DeclarationKind.Variable, DeclarationKind.WorkingState, DeclarationKind.Parameter,
+        DeclarationKind.Variable, DeclarationKind.Parameter,
     };
 
     public int Count => CountOf(DeclarationKind.Parameter)
-                      + CountOf(DeclarationKind.WorkingState)
                       + CountOf(DeclarationKind.Variable);
 
     public bool IsReadOnly => false;
@@ -246,15 +251,22 @@ public sealed class DeclarationList : IList<BlueprintDeclaration>
     {
         var id = AtLocal(kind, local).Id;
         _asset.DeclarationStore.RemoveAt(StartOf(kind) + local);
-        OrderOf(kind)?.Remove(id);
+        ForgetOrder(kind, id);
     }
 
-    private List<Guid>? OrderOf(DeclarationKind kind) => kind switch
+    /// <summary>
+    /// ⭐⭐ <b>Batch 86 — the state kind has TWO order lists, and both are still storage.</b>
+    /// 📌 The handoff: <i>"keep BOTH order lists"</i> — they are the order evidence <c>R-24</c> depends
+    /// on, and <c>Stage5.ConcatOrder</c> reads them in sequence. ⇒ a removal drops the id from
+    /// whichever list holds it, ⛔ not from a guessed one: a stale id is invisible until the panel next
+    /// sorts and quietly drops a row.
+    /// </summary>
+    private void ForgetOrder(DeclarationKind kind, Guid id)
     {
-        DeclarationKind.Parameter    => _asset.ParameterOrder,
-        DeclarationKind.WorkingState => _asset.WorkingStateOrder,
-        _                            => _asset.VariableOrder,
-    };
+        if (kind == DeclarationKind.Parameter) { _asset.ParameterOrder?.Remove(id); return; }
+        _asset.WorkingStateOrder?.Remove(id);
+        _asset.VariableOrder?.Remove(id);
+    }
 
     /// <summary>
     /// <b>U-11 — replace ONE kind's list wholesale.</b> The operation an undo snapshot restore needs:

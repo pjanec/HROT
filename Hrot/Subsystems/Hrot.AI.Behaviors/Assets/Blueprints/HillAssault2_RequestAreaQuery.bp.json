@@ -30,7 +30,7 @@
       "Comment": null
     },
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "3fa5d964-4adf-54cc-9e9b-be8bf76c6320",
       "Name": "CachedEqsRequestId",
       "Type": {
@@ -46,7 +46,7 @@
       "Comment": null
     },
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "68f68618-a063-5c37-83e6-b450af9f9227",
       "Name": "EqsRequestTime",
       "Type": {

@@ -48,8 +48,9 @@ public sealed class CrossKindUniquenessTests
     /// <c>Variable</c> row was red; the other two compiled clean.
     /// </summary>
     [Theory]
+    // ⭐ Batch 86 — RESTATED, not narrowed: the theory still covers EVERY member of
+    //   DeclarationKind. There are two now (R-01), and the retired row was a duplicate of Variable.
     [InlineData(DeclarationKind.Parameter)]
-    [InlineData(DeclarationKind.WorkingState)]
     [InlineData(DeclarationKind.Variable)]
     public void ANameTakenByAnyKindIsRefused(DeclarationKind kind)
     {
@@ -63,8 +64,8 @@ public sealed class CrossKindUniquenessTests
 
     /// <summary>The create path refuses rather than producing a second <c>Health</c>.</summary>
     [Theory]
+    // ⭐ Batch 86 — "another kind" than Variable is now exactly Parameter (R-01).
     [InlineData(DeclarationKind.Parameter)]
-    [InlineData(DeclarationKind.WorkingState)]
     public void CreateVariableIsRefusedWhenAnotherKindHasTheName(DeclarationKind kind)
     {
         var asset  = AssetWith(kind, "Health");

@@ -116,17 +116,18 @@ public sealed class BlueprintVariableSchemaSource : IVariablesSchemaSource
     {
         get => _kind switch
         {
-            VariableKind.Parameter    => _asset.ParameterOrder,
-            VariableKind.WorkingState => _asset.WorkingStateOrder,
-            _                         => _asset.VariableOrder,
+            VariableKind.Parameter => _asset.ParameterOrder,
+            // ⭐ Batch 86 — ONE state kind (R-01). ⚠ WorkingStateOrder remains STORAGE and is still
+            //   honoured by the compiler (Stage5.ConcatOrder); this panel edits the Variable order
+            //   list, which is where a newly created state variable's id now goes.
+            _                      => _asset.VariableOrder,
         };
         set
         {
             switch (_kind)
             {
-                case VariableKind.Parameter:    _asset.ParameterOrder    = value; break;
-                case VariableKind.WorkingState: _asset.WorkingStateOrder = value; break;
-                default:                        _asset.VariableOrder     = value; break;
+                case VariableKind.Parameter: _asset.ParameterOrder = value; break;
+                default:                     _asset.VariableOrder  = value; break;
             }
         }
     }
@@ -400,7 +401,7 @@ public sealed class BlueprintVariablesWindow : BlueprintEditorWindowBase
         }
 
         var paramsSchema = new BlueprintVariableSchemaSource(asset, VariableKind.Parameter, () => _dirtyTracker.MarkDirty(asset.AssetId));
-        var stateSchema = new BlueprintVariableSchemaSource(asset, VariableKind.WorkingState, () => _dirtyTracker.MarkDirty(asset.AssetId));
+        var stateSchema = new BlueprintVariableSchemaSource(asset, VariableKind.Variable, () => _dirtyTracker.MarkDirty(asset.AssetId));
 
         var paramsVars = paramsSchema.Variables;
         int paramsInline = paramsVars.Sum(v => v.ByteSize);

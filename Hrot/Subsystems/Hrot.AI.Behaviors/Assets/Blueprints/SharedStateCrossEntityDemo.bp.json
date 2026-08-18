@@ -17,7 +17,7 @@
   },
   "Declarations": [
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "e2b00002-0000-0000-0000-000000000001",
       "Name": "Commander",
       "Type": {
@@ -33,7 +33,7 @@
       "Comment": null
     },
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "e2b00002-0000-0000-0000-000000000002",
       "Name": "RallyCountMirror",
       "Type": {
@@ -49,7 +49,7 @@
       "Comment": null
     },
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "e2b00002-0000-0000-0000-000000000003",
       "Name": "FoundMirror",
       "Type": {

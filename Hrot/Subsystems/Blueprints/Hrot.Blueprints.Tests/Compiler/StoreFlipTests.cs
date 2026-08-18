@@ -51,16 +51,23 @@ public sealed class StoreFlipTests
         asset.Parameters   = new List<ParameterDecl> { Param("P0"), Param("P1") };
 
         Assert.Equal(new[] { "P0", "P1" }, asset.Parameters.Select(p => p.Name));
-        Assert.Equal(new[] { "W0" },       asset.WorkingState.Select(w => w.Name));
-        Assert.Equal(new[] { "V0", "V1" }, asset.Variables.Select(v => v.Name));
+
+        // ⭐⭐⭐ Batch 86 — RESTATED, and this is now the BOTH-GROUPS rail (gate 9). The two state
+        //   properties are one run under two names (R-01), so each returns the WHOLE run. ⛔ What the
+        //   assertion still pins — and the only thing that ever mattered here — is that "what arrived
+        //   under WorkingState" precedes "what arrived under Variables" EVEN THOUGH the setters ran in
+        //   the opposite order. 🔴 That is R-24: get this wrong and every live state slot hard-resets.
+        Assert.Equal(new[] { "W0", "V0", "V1" }, asset.WorkingState.Select(w => w.Name));
+        Assert.Equal(new[] { "W0", "V0", "V1" }, asset.Variables.Select(v => v.Name));
 
         // ⭐ And the union enumerates in storage order — which is the struct layout order.
+        //   ⚠ The NAME sequence is byte-for-byte what it was before the collapse; only the kinds moved.
         Assert.Equal(new[] { "P0", "P1", "W0", "V0", "V1" },
                      asset.Declarations.Select(d => d.Name));
         Assert.Equal(
             new[]
             {
-                DeclarationKind.Parameter, DeclarationKind.Parameter, DeclarationKind.WorkingState,
+                DeclarationKind.Parameter, DeclarationKind.Parameter, DeclarationKind.Variable,
                 DeclarationKind.Variable,  DeclarationKind.Variable,
             },
             asset.Declarations.Select(d => d.Kind));
@@ -73,15 +80,18 @@ public sealed class StoreFlipTests
     {
         var asset = new BlueprintAsset { Name = "Interleaved" };
 
-        asset.Declarations.Add(BlueprintDeclaration.Create(DeclarationKind.Variable,     Guid.NewGuid(), "V0"));
-        asset.Declarations.Add(BlueprintDeclaration.Create(DeclarationKind.Parameter,    Guid.NewGuid(), "P0"));
-        asset.Declarations.Add(BlueprintDeclaration.Create(DeclarationKind.Variable,     Guid.NewGuid(), "V1"));
-        asset.Declarations.Add(BlueprintDeclaration.Create(DeclarationKind.WorkingState, Guid.NewGuid(), "W0"));
-        asset.Declarations.Add(BlueprintDeclaration.Create(DeclarationKind.Parameter,    Guid.NewGuid(), "P1"));
+        asset.Declarations.Add(BlueprintDeclaration.Create(DeclarationKind.Variable,  Guid.NewGuid(), "V0"));
+        asset.Declarations.Add(BlueprintDeclaration.Create(DeclarationKind.Parameter, Guid.NewGuid(), "P0"));
+        asset.Declarations.Add(BlueprintDeclaration.Create(DeclarationKind.Variable,  Guid.NewGuid(), "V1"));
+        asset.Declarations.Add(BlueprintDeclaration.Create(DeclarationKind.Variable,  Guid.NewGuid(), "W0"));
+        asset.Declarations.Add(BlueprintDeclaration.Create(DeclarationKind.Parameter, Guid.NewGuid(), "P1"));
 
-        Assert.Equal(new[] { "P0", "P1", "W0", "V0", "V1" }, asset.Declarations.Select(d => d.Name));
-        Assert.Equal(new[] { "P0", "P1" }, asset.Parameters.Select(p => p.Name));
-        Assert.Equal(new[] { "V0", "V1" }, asset.Variables.Select(v => v.Name));
+        // ⭐ Batch 86 — RESTATED. "W0" is created as a Variable now (R-01), so it appends to the END of
+        //   the state run instead of forming a run of its own between the parameters and the variables.
+        //   ⛔ The CLAIM is unchanged: interleaved Adds still leave TWO contiguous runs, parameters first.
+        Assert.Equal(new[] { "P0", "P1", "V0", "V1", "W0" }, asset.Declarations.Select(d => d.Name));
+        Assert.Equal(new[] { "P0", "P1" },             asset.Parameters.Select(p => p.Name));
+        Assert.Equal(new[] { "V0", "V1", "W0" },       asset.Variables.Select(v => v.Name));
     }
 
     /// <summary>

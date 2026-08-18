@@ -68,12 +68,19 @@ public sealed class V_DispatchKindCompatibilityTests
 
     /// <summary>
     /// ⭐ <b><c>U-12</c> — <c>BP1011</c> restated to <i>any</i> asset-scope declaration.</b> A Library
-    /// carrying a <c>Parameter</c> or a <c>WorkingState</c> entry was quietly legal before, for no
-    /// stated reason: the rule named <c>Variables</c> only because the three were separate lists.
+    /// carrying a <c>Parameter</c> or a working-state entry was quietly legal before, for no stated
+    /// reason: the rule named <c>Variables</c> only because the lists were separate.
+    ///
+    /// <para>⭐⭐ <b>Batch 86 — RESTATED, not deleted.</b> The second row said <c>WorkingState</c>;
+    /// <c>R-01</c> makes that <c>Variable</c>. ⚠ <b>The AUTHORING path is deliberately unchanged</b> —
+    /// it still builds through <c>WithWorkingStateField</c>, which is now the retired alias onto the
+    /// leading part of the one state run. ⇒ the row still covers the entry point a v1-shaped asset
+    /// arrives through, which is the only reason this row differs from
+    /// <c>Library_WithVariable_EmitsBP1011</c> above.</para>
     /// </summary>
     [Theory]
     [InlineData(DeclarationKind.Parameter)]
-    [InlineData(DeclarationKind.WorkingState)]
+    [InlineData(DeclarationKind.Variable)]
     [CoversDiagnosticCode("BP1011")]
     public void Library_WithAnyAssetScopeDeclaration_EmitsBP1011(DeclarationKind kind)
     {

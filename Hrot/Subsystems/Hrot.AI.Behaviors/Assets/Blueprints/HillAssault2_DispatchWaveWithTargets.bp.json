@@ -147,7 +147,7 @@
       "Comment": null
     },
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "4714d3a5-207e-4d00-9291-32f7c8c014b6",
       "Name": "Runners",
       "Type": {
@@ -163,7 +163,7 @@
       "Comment": null
     },
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "a43bc0d6-d0a1-4897-9bcc-ab88afcb9e00",
       "Name": "WaveUsedSlotsMask",
       "Type": {
@@ -179,7 +179,7 @@
       "Comment": null
     },
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "cf1b2ce6-9e64-48db-9a7f-8c916b82f90c",
       "Name": "BaselineReservedMask",
       "Type": {
@@ -195,7 +195,7 @@
       "Comment": null
     },
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "d081fbb7-66fc-48b1-a2a4-51b5ad96bd48",
       "Name": "BurnedSlotsMask",
       "Type": {
@@ -211,7 +211,7 @@
       "Comment": null
     },
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "249ee38b-bb0b-4c38-af5a-ed217d6324ae",
       "Name": "CurrentWave",
       "Type": {
@@ -227,7 +227,7 @@
       "Comment": null
     },
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "df6226ae-2fc9-4ebe-8525-862c978b2010",
       "Name": "TotalSlots",
       "Type": {
@@ -243,7 +243,7 @@
       "Comment": null
     },
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "2fd73ea0-a877-4381-804c-80c83a219eeb",
       "Name": "CachedTargetGroupHandle",
       "Type": {
@@ -259,7 +259,7 @@
       "Comment": null
     },
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "8cca9085-3c85-4c2e-be29-520b22d68e01",
       "Name": "CachedEqsRequestId",
       "Type": {
@@ -275,7 +275,7 @@
       "Comment": null
     },
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "52ef6d8d-2519-48d7-b857-234a0e621981",
       "Name": "EqsRequestTime",
       "Type": {

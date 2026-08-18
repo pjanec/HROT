@@ -25,10 +25,11 @@ internal static class Stage4_TypeResolve
 
         // Check unmanaged constraint on state fields
         // ⚠ Variables and WorkingState only — Parameters are deliberately NOT state-struct fields.
+        // ⭐ Batch 86 — ONE state run for both dispatch kinds (R-01). ⚠ The label is generic because
+        //   the same declarations ARE the AiPrimitive working-state struct and the Instance State
+        //   struct; which one they land in follows Dispatch, not the declaration.
         CheckUnmanagedConstraint(
-            asset.Declarations.Of(DeclarationKind.Variable),     ctx, asset.AssetId, "Instance state");
-        CheckUnmanagedConstraint(
-            asset.Declarations.Of(DeclarationKind.WorkingState), ctx, asset.AssetId, "AiPrimitive WorkingState");
+            asset.Declarations.Of(DeclarationKind.Variable), ctx, asset.AssetId, "asset state");
 
         // Two-pass wildcard resolution
         for (int pass = 0; pass < 2; pass++)

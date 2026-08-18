@@ -71,10 +71,15 @@ public sealed class DetailsHostsTheVariablesTests
     /// that merge is <b>stage <c>D</c></b> with its own batch and a JSON migration. ⛔ Merging in the
     /// router would do stage <c>D</c>'s job in the UI and have to be undone.
     /// </summary>
+    /// <remarks>
+    /// ⭐ <b>Batch 86 — RESTATED.</b> The Working State row is gone because <c>R-01</c> retires that
+    /// section — ⛔ not because the routing claim weakened. ⚠ The <c>Q39</c> deviation the summary
+    /// above records is now MOOT for these two: the merge it deferred to stage <c>D</c> is what this
+    /// batch performed, so "globals / working state" IS one list, reached through Variables.
+    /// </remarks>
     [Theory]
-    [InlineData(BlueprintMyBlueprintModel.SectionVariables,    "Variables")]
-    [InlineData(BlueprintMyBlueprintModel.SectionParameters,   "Inputs")]
-    [InlineData(BlueprintMyBlueprintModel.SectionWorkingState, "Working State")]
+    [InlineData(BlueprintMyBlueprintModel.SectionVariables,  "Variables")]
+    [InlineData(BlueprintMyBlueprintModel.SectionParameters, "Inputs")]
     public void ClickingAGlobal_ResolvesToThatSectionsList(string sectionId, string heading)
     {
         var (window, asset) = MakeOutline();
@@ -415,11 +420,10 @@ public sealed class DetailsHostsTheVariablesTests
         Id = Guid.NewGuid(), Name = name, Type = new BlueprintTypeRef { TypeId = "System.Int32" },
     };
 
+    // ⭐ Batch 86 — RESTATED: two kinds, so the WorkingState arm goes with the section that carried it.
     private static Hrot.Blueprints.Core.Assets.DeclarationKind KindOf(string sectionId)
         => sectionId == BlueprintMyBlueprintModel.SectionParameters
                ? Hrot.Blueprints.Core.Assets.DeclarationKind.Parameter
-         : sectionId == BlueprintMyBlueprintModel.SectionWorkingState
-               ? Hrot.Blueprints.Core.Assets.DeclarationKind.WorkingState
                : Hrot.Blueprints.Core.Assets.DeclarationKind.Variable;
 
     private sealed class StubRefactor : Hrot.Editor.AiShared.Refactor.IRefactorService

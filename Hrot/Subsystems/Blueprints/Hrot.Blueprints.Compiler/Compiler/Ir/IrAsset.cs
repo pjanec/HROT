@@ -46,6 +46,11 @@ public sealed record IrAsset
     public AiPrimitiveIntent? Intent { get; init; }
     public IReadOnlyList<AiPrimitiveHosting> Hostings { get; init; } = Array.Empty<AiPrimitiveHosting>();
     public IReadOnlyList<IrField> Parameters { get; init; } = Array.Empty<IrField>();
+    /// <summary>
+    /// ⚠⚠ <b>RETIRED in Batch 86 — always EMPTY.</b> 📌 <c>R-01</c>: the state tier is ONE list and
+    /// <see cref="Variables"/> carries it, on both dispatch kinds. ⭐ <b>Kept, not deleted</b> —
+    /// deleting the property is stage <c>D4</c>'s.
+    /// </summary>
     public IReadOnlyList<IrField> WorkingState { get; init; } = Array.Empty<IrField>();
 
     // For Instance only

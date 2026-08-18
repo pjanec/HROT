@@ -127,6 +127,40 @@ public sealed class DeclarationView<T> : IList<T> where T : class
         Store.InsertRange(start, items.Select(Wrap));
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 86 — replace ONE SEGMENT of this window, leaving the rest of the run alone.</b>
+    ///
+    /// <para>🔴 <b>Why this exists.</b> <c>WorkingState</c> and <c>Variables</c> are the SAME kind and
+    /// therefore the SAME run *(<c>R-01</c>)*, but they are still <b>two property setters</b>, and the
+    /// deserializer drives both: v2 JSON is migrated <b>down</b> to the v1 three-list shape and bound to
+    /// the properties. ⛔ With plain <see cref="ReplaceWith"/> the second setter would wipe what the
+    /// first wrote — silently, and only for an asset carrying both groups.</para>
+    ///
+    /// <para>⭐⭐ <b>Order is preserved for ANY setter order:</b> the leading segment is what arrived
+    /// under the <c>WorkingState</c> name and the trailing segment is what arrived under
+    /// <c>Variables</c> — the old <c>KindOrder</c> sequence, which is also
+    /// <c>StructureHashComputation</c>'s append order. ⇒ 📌 <c>R-24</c> holds by construction rather
+    /// than by the corpus happening to have no mixed asset.</para>
+    /// </summary>
+    /// <returns>How many entries the segment occupies afterwards.</returns>
+    internal int ReplaceSegment(int localStart, int localCount, IEnumerable<T>? source)
+    {
+        var items = source?.ToList() ?? new List<T>();
+        if (!IsBound) { _detached!.Clear(); _detached.AddRange(items); return items.Count; }
+
+        var runStart = Start;
+        var runCount = CountKind(_kind);
+
+        // ⚠ Clamped rather than trusted: the caller's remembered split can be stale after a direct
+        //   Declarations mutation, and a wrong index would corrupt the run rather than misorder it.
+        localStart = Math.Max(0, Math.Min(localStart, runCount));
+        localCount = Math.Max(0, Math.Min(localCount, runCount - localStart));
+
+        Store.RemoveRange(runStart + localStart, localCount);
+        Store.InsertRange(runStart + localStart, items.Select(Wrap));
+        return items.Count;
+    }
+
     // ── IList<T> ────────────────────────────────────────────────────────────
 
     public int Count => IsBound ? CountKind(_kind) : _detached!.Count;

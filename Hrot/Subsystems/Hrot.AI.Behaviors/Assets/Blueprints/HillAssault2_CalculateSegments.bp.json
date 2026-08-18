@@ -82,7 +82,7 @@
       "Comment": null
     },
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "b2000000-0000-0000-0000-000000000001",
       "Name": "TotalSlots",
       "Type": {
@@ -98,7 +98,7 @@
       "Comment": null
     },
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "b2000000-0000-0000-0000-000000000002",
       "Name": "BurnedSlotsMask",
       "Type": {
@@ -114,7 +114,7 @@
       "Comment": null
     },
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "b2000000-0000-0000-0000-000000000003",
       "Name": "WaveUsedSlotsMask",
       "Type": {
@@ -130,7 +130,7 @@
       "Comment": null
     },
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "b2000000-0000-0000-0000-000000000004",
       "Name": "BaselineReservedMask",
       "Type": {
@@ -146,7 +146,7 @@
       "Comment": null
     },
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "b2000000-0000-0000-0000-000000000005",
       "Name": "ActiveAttackerCount",
       "Type": {
@@ -162,7 +162,7 @@
       "Comment": null
     },
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "b2000000-0000-0000-0000-000000000006",
       "Name": "CurrentWave",
       "Type": {
@@ -178,7 +178,7 @@
       "Comment": null
     },
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "b2000000-0000-0000-0000-000000000007",
       "Name": "CachedEqsRequestId",
       "Type": {
@@ -194,7 +194,7 @@
       "Comment": null
     },
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "b2000000-0000-0000-0000-000000000008",
       "Name": "CachedTargetGroupHandle",
       "Type": {
@@ -210,7 +210,7 @@
       "Comment": null
     },
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "b2000000-0000-0000-0000-000000000009",
       "Name": "EqsRequestTime",
       "Type": {

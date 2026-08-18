@@ -88,8 +88,9 @@ public sealed class Stage6Tests
         Assert.Contains(channelCheckBlock.Statements,
             s => s.Operation is IrOp_FieldRead fr && fr.FieldName == "Status");
 
-        // WorkingState contains the synthesized __phase field.
-        Assert.Contains(lowered.WorkingState, f => f.Name == "__phase");
+        // The state tier contains the synthesized __phase field.
+        // ⭐ Batch 86 — RESTATED from `lowered.WorkingState`, which R-01 retires to always-empty.
+        Assert.Contains(lowered.StateDeclarations, f => f.Name == "__phase");
     }
 
     // ------------------------------------------------------------------

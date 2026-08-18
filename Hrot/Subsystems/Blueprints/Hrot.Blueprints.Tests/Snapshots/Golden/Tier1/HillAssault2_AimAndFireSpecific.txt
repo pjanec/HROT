@@ -3,11 +3,11 @@ Parameters:
   TargetNetworkId : System.Int64 @0 size=8
   MaxRounds : System.Int32 @8 size=4
 WorkingState:
+  (empty)
+Variables:
   RoundsFired : System.Int32 @8 size=4
   LastObservedAmmo : System.Int32 @12 size=4
   __phase : System.Byte @16 size=1
-Variables:
-  (empty)
 GraphLocalSlots:
   (empty)
 Diagnostics:

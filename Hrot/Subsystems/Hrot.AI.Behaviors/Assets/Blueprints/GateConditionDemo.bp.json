@@ -30,7 +30,7 @@
       "Comment": null
     },
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "d1010002-0002-0002-0002-000000000002",
       "Name": "LastEvaluated",
       "Type": {

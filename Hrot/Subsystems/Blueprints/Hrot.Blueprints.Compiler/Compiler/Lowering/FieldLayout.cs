@@ -59,8 +59,9 @@ internal static class FieldLayout
 
         // Split the one run back into the two windows VariableRef addresses (kind + list-relative index).
         // ⚠ The order here must stay DeclarationList.KindOrder — see IrAsset.StateDeclarations.
-        var workingState = Slice(laid, 0, asset.WorkingState.Count);
-        var variables    = Slice(laid, asset.WorkingState.Count, asset.Variables.Count);
+        // ⭐ Batch 86 — ONE window now. IrAsset.WorkingState is retired (always empty) and the whole
+        //   laid-out run is Variables, which is the shape VariableRef addresses after the collapse.
+        var variables = laid;
 
         // BP-57 / Q27-A3 — the blackboard slots backing suspending graphs' locals are emitted as
         // fields on the SAME struct as the asset's own storage, immediately after it, so their offsets
@@ -69,7 +70,6 @@ internal static class FieldLayout
         return asset with
         {
             Parameters      = parameters,
-            WorkingState    = workingState,
             Variables       = variables,
             GraphLocalSlots = LayoutFields(asset.GraphLocalSlots, afterState, out _),
         };

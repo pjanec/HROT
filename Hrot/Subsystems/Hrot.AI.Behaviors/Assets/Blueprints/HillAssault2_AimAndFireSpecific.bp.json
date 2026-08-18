@@ -43,7 +43,7 @@
       "Comment": null
     },
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "dee92abe-a3f1-4cea-b16a-5e069166bb03",
       "Name": "RoundsFired",
       "Type": {
@@ -59,7 +59,7 @@
       "Comment": null
     },
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "57d91566-da07-4058-b997-1c16aef8aa3d",
       "Name": "LastObservedAmmo",
       "Type": {

@@ -49,9 +49,16 @@ public sealed class TaggedDeclarationTests
     /// added is covered without anyone remembering to add a case.
     /// </para>
     /// </summary>
+    /// <remarks>
+    /// ⭐⭐ <b>Batch 86 — RESTATED.</b> This was a <c>[Theory]</c> over <c>(Variable, WorkingState)</c>.
+    /// <c>R-01</c> collapses the two into one kind, so the second row became a <b>literal duplicate of
+    /// the first</b> — the same enum member, run twice. ⛔ The CLAIM is untouched: "every member of a
+    /// variable-backed declaration is carried both ways", asserted over every variable-backed kind
+    /// there is. ⭐ It stays a <c>[Theory]</c> so a third kind arrives as one more row, not as a
+    /// rewrite.
+    /// </remarks>
     [Theory]
     [InlineData(DeclarationKind.Variable)]
-    [InlineData(DeclarationKind.WorkingState)]
     public void EveryMemberIsCarriedBothWays_ForAVariableBackedDeclaration(DeclarationKind kind)
     {
         var backing = new VariableDecl();
@@ -165,7 +172,15 @@ public sealed class TaggedDeclarationTests
     // The view
     // ────────────────────────────────────────────────────────────────────────
 
-    private static BlueprintAsset ThreeKinds()
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 86 — RESTATED, and it is now the BOTH-GROUPS fixture.</b> It was called
+    /// <c>ThreeKinds</c> and populated three lists; after <c>R-01</c> it populates <b>two kinds</b> but
+    /// still writes through <b>both state property names</b> — which is the shape no shipped asset has
+    /// *(Batch 85 measured: 0 of 43 carry both)* and therefore the one the corpus cannot check.
+    /// ⛔ Emptying the <c>WorkingState</c> line would have deleted the only in-tree exercise of
+    /// <see cref="DeclarationView{T}.ReplaceSegment"/>'s two-writer path.
+    /// </summary>
+    private static BlueprintAsset BothKinds()
     {
         var asset = new BlueprintAsset { AssetId = Guid.NewGuid(), Name = "ViewHost" };
         asset.Parameters.Add(new ParameterDecl { Id = Guid.NewGuid(), Name = "P0" });
@@ -176,23 +191,28 @@ public sealed class TaggedDeclarationTests
         return asset;
     }
 
-    /// <summary>Storage order, and the whole union — Parameter, WorkingState, Variable.</summary>
+    /// <summary>
+    /// Storage order, and the whole union — Parameter, then the one state run.
+    /// ⭐ Batch 86 — RESTATED: the NAME order is unchanged *(that is <c>R-24</c>)</c>; only the third
+    /// entry's KIND moved, from <c>WorkingState</c> to <c>Variable</c>.
+    /// </summary>
     [Fact]
     public void TheViewEnumeratesInStorageOrder()
     {
-        var asset = ThreeKinds();
+        var asset = BothKinds();
 
         Assert.Equal(5, asset.Declarations.Count);
         Assert.Equal(new[] { "P0", "P1", "W0", "V0", "V1" }, asset.Declarations.Select(d => d.Name));
         Assert.Equal(
             new[]
             {
-                DeclarationKind.Parameter, DeclarationKind.Parameter, DeclarationKind.WorkingState,
+                DeclarationKind.Parameter, DeclarationKind.Parameter, DeclarationKind.Variable,
                 DeclarationKind.Variable, DeclarationKind.Variable,
             },
             asset.Declarations.Select(d => d.Kind));
 
-        Assert.Equal(new[] { "V0", "V1" }, asset.Declarations.Of(DeclarationKind.Variable).Select(d => d.Name));
+        Assert.Equal(new[] { "W0", "V0", "V1" },
+            asset.Declarations.Of(DeclarationKind.Variable).Select(d => d.Name));
     }
 
     /// <summary>
@@ -202,31 +222,37 @@ public sealed class TaggedDeclarationTests
     [Fact]
     public void EditingThroughTheViewMutatesTheStoredDeclaration()
     {
-        var asset = ThreeKinds();
+        var asset = BothKinds();
 
+        // ⭐ Batch 86 — RESTATED: the state run leads with W0, so V0 is at index 1 of `Variables` now.
+        //   ⛔ The claim — an edit through the union lands in the stored decl — is unchanged.
         asset.Declarations.First(d => d.Name == "V0").Name = "Renamed";
-        Assert.Equal("Renamed", asset.Variables[0].Name);
+        Assert.Equal("Renamed", asset.Variables[1].Name);
 
         asset.Declarations.First(d => d.Name == "P0").Tooltip = "hint";
         Assert.Equal("hint", asset.Parameters[0].Tooltip);
 
         // And the reverse: a change to the stored list is visible through the view immediately.
+        // ⭐ Batch 86 — RESTATED. `WorkingState` is now an ALIAS onto the leading part of the one state
+        //   run, so this also proves the alias and the union address the SAME stored object.
         asset.WorkingState[0].Name = "W0'";
-        Assert.Equal("W0'", asset.Declarations.Of(DeclarationKind.WorkingState).Single().Name);
+        Assert.Equal("W0'", asset.Declarations.Of(DeclarationKind.Variable).First().Name);
     }
 
     /// <summary>Add / Insert / Remove all land in the right underlying list.</summary>
     [Fact]
     public void AddInsertAndRemoveWriteThroughToTheRightList()
     {
-        var asset = ThreeKinds();
+        var asset = BothKinds();
 
+        // ⭐ Batch 86 — RESTATED: `Variables` is the whole state run now, so W0 is part of the expected
+        //   sequence. ⛔ The claim — an Add lands at the END of its own kind's run — is unchanged.
         asset.Declarations.Add(BlueprintDeclaration.Create(DeclarationKind.Variable, Guid.NewGuid(), "V2"));
-        Assert.Equal(new[] { "V0", "V1", "V2" }, asset.Variables.Select(v => v.Name));
+        Assert.Equal(new[] { "W0", "V0", "V1", "V2" }, asset.Variables.Select(v => v.Name));
 
         // ⚠ A union index inside another kind's range clamps into this one rather than changing kind.
         asset.Declarations.Insert(0, BlueprintDeclaration.Create(DeclarationKind.Variable, Guid.NewGuid(), "Vfirst"));
-        Assert.Equal(new[] { "Vfirst", "V0", "V1", "V2" }, asset.Variables.Select(v => v.Name));
+        Assert.Equal(new[] { "Vfirst", "W0", "V0", "V1", "V2" }, asset.Variables.Select(v => v.Name));
         Assert.Equal(2, asset.Parameters.Count);
 
         var removed = asset.Declarations.First(d => d.Name == "P1");
@@ -260,7 +286,7 @@ public sealed class TaggedDeclarationTests
     [Fact]
     public void AFreshFacadeOverAStoredDeclarationEqualsTheStoredOne()
     {
-        var asset = ThreeKinds();
+        var asset = BothKinds();
 
         var stored = asset.Declarations[3];
         // Exactly BlueprintDocumentFactory's shape: wrap a decl the caller is already holding.
@@ -284,14 +310,16 @@ public sealed class TaggedDeclarationTests
     [Fact]
     public void RemovingAlsoDropsTheIdFromTheDisplayOrder()
     {
-        var asset = ThreeKinds();
+        var asset = BothKinds();
         asset.VariableOrder = asset.Variables.Select(v => v.Id).ToList();
 
-        var doomed = asset.Variables[1].Id;
+        // ⭐ Batch 86 — RESTATED: the run is three long now (W0, V0, V1), so "the last one" is indexed
+        //   from the end rather than hard-coded at 1. ⛔ The claim is unchanged.
+        var doomed = asset.Variables[asset.Variables.Count - 1].Id;
         asset.Declarations.RemoveAt(asset.Declarations.Count - 1);
 
         Assert.DoesNotContain(doomed, asset.VariableOrder);
-        Assert.Single(asset.VariableOrder);
+        Assert.Equal(2, asset.VariableOrder!.Count);
     }
 
     /// <summary>
@@ -302,7 +330,7 @@ public sealed class TaggedDeclarationTests
     [Fact]
     public void AssigningADeclarationOfAnotherKindIsRefused()
     {
-        var asset = ThreeKinds();
+        var asset = BothKinds();
         var newVariable = BlueprintDeclaration.Create(DeclarationKind.Variable, Guid.NewGuid(), "V");
 
         var ex = Assert.Throws<ArgumentException>(() => asset.Declarations[0] = newVariable);
@@ -321,37 +349,43 @@ public sealed class TaggedDeclarationTests
     [Fact]
     public void AtAndCountInAddressTheListRelativePosition()
     {
-        var asset = ThreeKinds();
+        var asset = BothKinds();
 
         Assert.Equal(2, asset.Declarations.CountIn(DeclarationKind.Parameter));
-        Assert.Equal(1, asset.Declarations.CountIn(DeclarationKind.WorkingState));
-        Assert.Equal(2, asset.Declarations.CountIn(DeclarationKind.Variable));
+        // ⭐ Batch 86 — RESTATED: the two state counts (1 + 2) become ONE count of 3, and the two
+        //   list-relative probes become three into the same run — including W0 @0, which is the entry
+        //   that used to be addressed as `At(WorkingState, 0)`.
+        Assert.Equal(3, asset.Declarations.CountIn(DeclarationKind.Variable));
 
         Assert.Equal("P1", asset.Declarations.At(DeclarationKind.Parameter, 1).Name);
-        Assert.Equal("W0", asset.Declarations.At(DeclarationKind.WorkingState, 0).Name);
-        Assert.Equal("V1", asset.Declarations.At(DeclarationKind.Variable, 1).Name);
+        Assert.Equal("W0", asset.Declarations.At(DeclarationKind.Variable, 0).Name);
+        Assert.Equal("V0", asset.Declarations.At(DeclarationKind.Variable, 1).Name);
+        Assert.Equal("V1", asset.Declarations.At(DeclarationKind.Variable, 2).Name);
 
         // ⛔ Out of range throws rather than reaching into the next kind's list — which is precisely
         //    the confusion BP-226 was.
-        Assert.Throws<ArgumentOutOfRangeException>(() => asset.Declarations.At(DeclarationKind.WorkingState, 1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => asset.Declarations.At(DeclarationKind.Parameter, 2));
+        Assert.Throws<ArgumentOutOfRangeException>(() => asset.Declarations.At(DeclarationKind.Variable, 3));
         Assert.Throws<ArgumentOutOfRangeException>(() => asset.Declarations.At(DeclarationKind.Variable, -1));
     }
 
     /// <summary>
     /// ⚠⚠ <b><c>ById</c> uses RESOLUTION order, not storage order</b> — <c>Variable</c> →
-    /// <c>WorkingState</c> → <c>Parameter</c>, mirroring <c>Stage5.FindVariableRef</c>. ⛔ The two
+    /// <c>Parameter</c>, mirroring <c>Stage5.FindVariableRef</c>. ⛔ The two
     /// orders answer different questions, and <c>BP-226</c> is what happened when one integer answered
     /// both.
     /// </summary>
     [Fact]
     public void ByIdFollowsResolutionOrderNotStorageOrder()
     {
+        // ⭐ Batch 86 — RESTATED: WorkingState is gone from the middle of the priority; Variable still
+        //   wins over Parameter, which is the whole content of the claim.
         Assert.Equal(
-            new[] { DeclarationKind.Variable, DeclarationKind.WorkingState, DeclarationKind.Parameter },
+            new[] { DeclarationKind.Variable, DeclarationKind.Parameter },
             DeclarationList.ResolutionOrder);
         Assert.NotEqual(DeclarationList.KindOrder, DeclarationList.ResolutionOrder);
 
-        var asset = ThreeKinds();
+        var asset = BothKinds();
         var v1 = asset.Variables[1];
         Assert.Equal(v1.Name, asset.Declarations.ById(v1.Id)!.Name);
         Assert.Null(asset.Declarations.ById(Guid.NewGuid()));
@@ -362,11 +396,12 @@ public sealed class TaggedDeclarationTests
         Assert.Equal(DeclarationKind.Variable, asset.Declarations.ById(shared)!.Kind);
     }
 
-    /// <summary>Clear empties all three lists and all three display orders.</summary>
+    /// <summary>Clear empties every kind's list and every display order. ⭐ Batch 86 — the WorkingState
+    /// assertion is KEPT: it now proves the retired ALIAS is emptied too, not a third list.</summary>
     [Fact]
     public void ClearEmptiesEveryList()
     {
-        var asset = ThreeKinds();
+        var asset = BothKinds();
         asset.VariableOrder = asset.Variables.Select(v => v.Id).ToList();
 
         asset.Declarations.Clear();
@@ -391,14 +426,18 @@ public sealed class TaggedDeclarationTests
     [Fact]
     public void RefOfReturnsTheListRelativeIndex()
     {
-        var asset = ThreeKinds();
+        var asset = BothKinds();
 
         var v1 = asset.Declarations.First(d => d.Name == "V1");
         Assert.Equal(4, asset.Declarations.IndexOf(v1));       // union position
 
         var reference = asset.RefOf(v1);
         Assert.Equal(VariableKind.Variable, reference.Kind);
-        Assert.Equal(1, reference.Index);                       // list-relative position
+        // ⭐ Batch 86 — RESTATED: 1 → 2. ⭐⭐ And the assertion got STRONGER, not weaker: with one state
+        //   run the union position (4) and the list-relative position (2) now differ by the parameter
+        //   count, so "the ref carries the LOCAL index" is still visibly distinct from the union index —
+        //   which is exactly what BP-226 was.
+        Assert.Equal(2, reference.Index);                       // list-relative position
 
         Assert.Equal(v1, asset.Resolve(reference));
     }
@@ -407,7 +446,7 @@ public sealed class TaggedDeclarationTests
     [Fact]
     public void RefOfAForeignDeclarationIsUnresolved()
     {
-        var asset = ThreeKinds();
+        var asset = BothKinds();
         var alien = BlueprintDeclaration.Create(DeclarationKind.Variable, Guid.NewGuid(), "Alien");
 
         Assert.False(asset.RefOf(alien).IsResolved);
@@ -438,14 +477,14 @@ public sealed class TaggedDeclarationTests
 
     /// <summary>
     /// ⭐⭐ <b>The bridge agrees with the compiler's own resolution</b> — asserted against
-    /// <c>Stage5.FindVariableRef</c>'s rule rather than assumed, for all three kinds at once.
-    /// ⚠ Resolution PRIORITY (Variables → WorkingState → Parameters) is not the same thing as storage
-    /// order, and conflating them is what <c>BP-226</c> was.
+    /// <c>Stage5.FindVariableRef</c>'s rule rather than assumed, for every kind at once.
+    /// ⚠ Resolution PRIORITY (Variables → Parameters) is not the same thing as storage order, and
+    /// conflating them is what <c>BP-226</c> was.
     /// </summary>
     [Fact]
     public void EveryDeclarationRoundTripsThroughItsRef()
     {
-        var asset = ThreeKinds();
+        var asset = BothKinds();
 
         foreach (var decl in asset.Declarations)
         {
@@ -453,11 +492,13 @@ public sealed class TaggedDeclarationTests
             Assert.True(reference.IsResolved);
             Assert.Equal(decl, asset.Resolve(reference));
 
+            // ⭐ Batch 86 — RESTATED: the WorkingState arm is gone because `asset.WorkingState` is now
+            //   an ALIAS onto the leading part of the same run `asset.Variables` returns whole — the two
+            //   arms would have indexed the same list from different starts and disagreed.
             var expected = decl.Kind switch
             {
-                DeclarationKind.Parameter    => asset.Parameters.Select(p => (object)p).ToList(),
-                DeclarationKind.WorkingState => asset.WorkingState.Select(v => (object)v).ToList(),
-                _                            => asset.Variables.Select(v => (object)v).ToList(),
+                DeclarationKind.Parameter => asset.Parameters.Select(p => (object)p).ToList(),
+                _                         => asset.Variables.Select(v => (object)v).ToList(),
             };
             Assert.Same(expected[reference.Index], decl.Backing);
         }

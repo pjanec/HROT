@@ -160,16 +160,26 @@ public sealed class PersistenceShapeTests
         // ⭐ The tag is written — once, as the v2 array — and the three v1 lists are gone.
         Assert.True(BlueprintSchemaV2.IsV2(dom));
         var declarations = dom[BlueprintSchemaV2.DeclarationsProperty]!.AsArray();
+
+        // ⛔⛔ Batch 86 — RESTATED, and this row is now the gate on THE DOUBLE-WRITE. R-01 makes
+        //    WorkingState and Variables one run under two names, so a DOM built straight from the model
+        //    carries every state declaration in BOTH lists. 🔴 MEASURED before the fix: 4 declarations
+        //    here, not 3 — every state field written twice, tagged once each way, and the reader would
+        //    have loaded each of them twice on the next open.
+        //    ⭐ BlueprintJsonServices.Serialize empties the retired list before lifting, so the count is
+        //    3 and the state pair is spelled "Variable" ONCE. ⚠ Assert the count FIRST: a wrong count
+        //    with a right prefix is what a sequence comparison reports as a confusing tail diff.
         Assert.Equal(3, declarations.Count);
-        Assert.Equal(new[] { "Parameter", "WorkingState", "Variable" },
+        Assert.Equal(new[] { "Parameter", "Variable", "Variable" },
             declarations.Select(d => d![BlueprintSchemaV2.KindProperty]!.GetValue<string>()));
         foreach (var list in new[] { "Parameters", "WorkingState", "Variables" })
             Assert.False(dom.ContainsKey(list));
 
-        // ⭐ And it still round-trips into the same three kinds — the tag is the shape, not a loss.
+        // ⭐ And it still round-trips without loss — the tag is the shape, not a loss. ⚠ The two state
+        //   declarations come back in ONE run, in the order they were written (R-24).
         var back = BlueprintJsonServices.Deserialize(json)!;
         Assert.Single(back.Parameters);
-        Assert.Single(back.WorkingState);
-        Assert.Single(back.Variables);
+        Assert.Equal(new[] { "W", "V" }, back.Variables.Select(v => v.Name));
+        Assert.Equal(new[] { "W", "V" }, back.WorkingState.Select(v => v.Name));
     }
 }

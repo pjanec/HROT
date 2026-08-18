@@ -440,9 +440,8 @@ internal sealed class BlueprintNodeModel : INodeModel
             // slots in WorkingState). Without the WorkingState fallback the title showed the raw GUID.
             // ⚠ U-11: Variables ∪ WorkingState only — NOT Declarations.ById(), which also searches
             //   Parameters. The comment above says why those two: both are VariableDecl lists.
-            var decl = (asset.Declarations.Of(DeclarationKind.Variable)
-                             .Concat(asset.Declarations.Of(DeclarationKind.WorkingState))
-                             .FirstOrDefault(d => d.Id == guid))?.AsVariableDecl
+            var decl = asset.Declarations.Of(DeclarationKind.Variable)
+                            .FirstOrDefault(d => d.Id == guid)?.AsVariableDecl
                     // BP-57 — and a graph LOCAL, which had the same symptom for the same reason: a
                     // local-targeting node showed its raw GUID, because this resolver knew only the
                     // two asset-level lists.

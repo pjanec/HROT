@@ -55,6 +55,20 @@ public static class BlueprintSchemaV2
     public const string KindProperty = "Kind";
 
     /// <summary>
+    /// ⭐⭐ <b>Batch 86 — the v1 list name the model no longer FILLS, though v1 still HAS it.</b>
+    ///
+    /// <para>📌 <c>R-01</c> makes <c>WorkingState</c> and <c>Variables</c> one run under two names, so
+    /// a DOM built from the model carries every state declaration in <b>both</b> lists. ⛔ Measured:
+    /// 2× every state field, in every asset. ⭐ <c>BlueprintJsonServices.Serialize</c> empties this one
+    /// before lifting, so each declaration is written ONCE and tagged <c>"Variable"</c>.</para>
+    ///
+    /// <para>⚠ <b>The v1 SHAPE is unchanged</b> — three lists, as it has always been, so <see cref="Up"/>
+    /// and <see cref="Down"/> stay each other's inverse and legacy files keep loading. ⛔ What changed
+    /// is which list the MODEL fills.</para>
+    /// </summary>
+    public const string LegacyWorkingStateList = "WorkingState";
+
+    /// <summary>
     /// ⭐⭐ <b>The v2 declaration tags — and since Q31-A this assembly is their AUTHORITY.</b>
     ///
     /// <para>

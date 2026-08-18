@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using Hrot.Blueprints.Core;
+using Hrot.Blueprints.Core.Assets;
 
 namespace Hrot.Blueprints.Tests.Golden;
 
@@ -77,11 +78,20 @@ public sealed class V2ReaderTests
             BlueprintSchemaV2.Up(v1).ToJsonString())!;
 
         Assert.Equal(new[] { "P" }, asset.Parameters.Select(p => p.Name));
-        Assert.Equal(new[] { "W" }, asset.WorkingState.Select(w => w.Name));
-        Assert.Equal(new[] { "V" }, asset.Variables.Select(v => v.Name));
+
+        // ⭐⭐⭐ Batch 86 — RESTATED, and this is now a LOAD-ORDER rail for the retired tag. R-01 makes
+        //   WorkingState and Variables one run, so both properties project the whole of it — ⛔ the
+        //   claim is no longer "each into its own list" for the state pair, it is that the two v1
+        //   groups CONCATENATE in on-disk order, W before V. 🔴 That is R-24: swap them and every
+        //   following field's offset moves, hard-resetting live state.
+        Assert.Equal(new[] { "W", "V" }, asset.WorkingState.Select(w => w.Name));
+        Assert.Equal(new[] { "W", "V" }, asset.Variables.Select(v => v.Name));
 
         // ⭐ And into the store in KindOrder — the struct layout order, via U-12's grouping invariant.
         Assert.Equal(new[] { "P", "W", "V" }, asset.Declarations.Select(d => d.Name));
+        Assert.Equal(
+            new[] { DeclarationKind.Parameter, DeclarationKind.Variable, DeclarationKind.Variable },
+            asset.Declarations.Select(d => d.Kind));
     }
 
     /// <summary>

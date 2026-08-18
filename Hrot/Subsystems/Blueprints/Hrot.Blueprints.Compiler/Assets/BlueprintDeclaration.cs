@@ -30,10 +30,26 @@ public enum DeclarationKind
     /// <summary><see cref="BlueprintAsset.Parameters"/> — the <c>Params</c> struct (offset 0).</summary>
     Parameter,
 
-    /// <summary><see cref="BlueprintAsset.WorkingState"/> — the AiPrimitive working-state struct (offset 8).</summary>
-    WorkingState,
-
-    /// <summary><see cref="BlueprintAsset.Variables"/> — the <c>State</c> struct (offset 16).</summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b>The ONE state kind</b> — the cell <c>(Role=State, Scope=Asset)</c>.
+    ///
+    /// <para>📌 <b><c>R-01</c>:</b> <i>"`Variable` ≡ `WorkingState`. Two names, ONE concept."</i> ·
+    /// 📌 <b><c>R-02</c>, the user's own words:</b> <i>"as the global vars and working state vars are
+    /// the same stuff, it makes no sense to emit them differently."</i></para>
+    ///
+    /// <para>⭐ <b>Layout was already kind-agnostic before this.</b> 📐 Batch 56 made
+    /// <c>FieldLayout</c> lay out <c>IrAsset.StateDeclarations</c> in ONE run from one struct base —
+    /// the <c>@8</c> vs <c>@16</c> difference is <c>StateStructBase</c>, which follows
+    /// <c>Dispatch</c> *(AiPrimitive vs Instance)*, ⛔ never the kind. ⇒ ⭐⭐ <b>Batch 85 MEASURED the
+    /// collapse hash-neutral for all 43 compiled assets</b>, so 📌 <c>R-24</c>'s hard reset cannot
+    /// fire.</para>
+    ///
+    /// <para>⚠ <b><c>WorkingState</c> is retired as a KIND and as an on-disk TAG.</b> ⭐ Batch 86
+    /// rewrote the 16 source assets that carried it *(one word per declaration)* — 📌 the tag is not in
+    /// <c>StructureHash</c>, so that rewrite moved no hash and no emit golden. ⛔ Keeping it readable
+    /// but unwritable was measured impossible: with two kinds there is no information left to CHOOSE
+    /// the old tag at save, so every such declaration re-spelled anyway and broke byte-stability.</para>
+    /// </summary>
     Variable,
 
 }

@@ -365,4 +365,89 @@ public sealed class StateTierUnificationTests
 
         Assert.Contains(sink.All, d => d.Code == DiagnosticCodes.BP1673);
     }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // ⭐⭐⭐ Batch 86, GATE 9 — the BOTH-GROUPS asset. No shipped file is this shape.
+    // ────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>An asset carrying BOTH v1 state groups lays out working-state-first, and NOTHING in
+    /// the corpus can prove it.</b>
+    ///
+    /// <para>📐 <b>Measured (Batch 85, restated at the head of this file):</b> of 458 shipped
+    /// <c>.bp.json</c>, <b>0 carry both</b> — 193 are <c>(Variable)</c>, 32 are
+    /// <c>(Parameter, WorkingState)</c>. ⇒ ⛔ <b>every gate in this repository is green on the collapse
+    /// for a reason that has nothing to do with the collapse being right</b>: the union is a no-op on
+    /// every file. That is <c>BP-240</c>'s shape exactly, so the asset has to be CONSTRUCTED.</para>
+    ///
+    /// <para>🔴 <b>What it protects.</b> <c>R-01</c> merges the two groups into one run, and two things
+    /// have to agree about the order they merge in:
+    /// <list type="number">
+    ///   <item><see cref="DeclarationView{T}.ReplaceSegment"/> — the MODEL half. Both property setters
+    ///   write the same run, and a plain replace would have let the second wipe the first. ⚠ Asserted
+    ///   for BOTH setter orders, because <c>Build()</c> fixes one and the deserializer the other.</item>
+    ///   <item><c>Stage5.ConcatOrder</c> — the COMPILER half. The two display-order lists survive as
+    ///   storage and are read in sequence, so a working-state id must still sort ahead of a variable
+    ///   id.</item>
+    /// </list>
+    /// ⛔ Get either wrong and every field after the first moves — 📌 <c>R-24</c>: a moved offset makes
+    /// <c>BlueprintTickSystem</c> see a changed <c>StructureHash</c> and HARD-RESET every live slot.
+    /// ⚠ Silent at compile time, which is why this asserts <b>offsets</b> and not merely presence.</para>
+    /// </summary>
+    [Fact]
+    public void AnAssetDeclaringBothStateGroups_LaysThemOutWorkingStateFirst()
+    {
+        var asset = BlueprintAssetBuilder.Instance("BothStateGroups")
+            .WithWorkingStateField("W0", typeof(int))
+            .WithWorkingStateField("W1", typeof(int))
+            .WithVariable("V0", typeof(int))
+            .WithVariable("V1", typeof(int))
+            .Build();
+
+        // ① the MODEL half — one run, in on-disk group order, through both property names.
+        Assert.Equal(new[] { "W0", "W1", "V0", "V1" }, asset.Variables.Select(v => v.Name));
+        Assert.Equal(new[] { "W0", "W1", "V0", "V1" }, asset.WorkingState.Select(v => v.Name));
+        Assert.Equal(4, asset.Declarations.CountIn(DeclarationKind.Variable));
+
+        // ② the REVERSE setter order — what the deserializer does when Variables arrives first.
+        //    ⛔ Without ReplaceSegment this is where the second setter wipes the first.
+        var reversed = new BlueprintAsset { AssetId = Guid.NewGuid(), Name = "ReverseOrder" };
+        reversed.Variables    = asset.Variables.Where(v => v.Name.StartsWith("V", StringComparison.Ordinal))
+                                    .Select(Copy).ToList();
+        reversed.WorkingState = asset.Variables.Where(v => v.Name.StartsWith("W", StringComparison.Ordinal))
+                                    .Select(Copy).ToList();
+        Assert.Equal(new[] { "W0", "W1", "V0", "V1" }, reversed.Variables.Select(v => v.Name));
+
+        // ③ the COMPILER half — ConcatOrder reads WorkingStateOrder then VariableOrder, so an id in
+        //    the first must still precede one in the second even when each list is internally reversed.
+        asset.WorkingStateOrder = asset.Variables.Where(v => v.Name[0] == 'W')
+                                       .Reverse().Select(v => v.Id).ToList();
+        asset.VariableOrder     = asset.Variables.Where(v => v.Name[0] == 'V')
+                                       .Reverse().Select(v => v.Id).ToList();
+
+        AddReadWriteGraph(asset,
+            readTarget:  asset.Variables.Single(f => f.Name == "W0").Id,
+            writeTarget: asset.Variables.Single(f => f.Name == "V1").Id);
+
+        using var fixture = new BlueprintTestFixture(
+            new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        var asm = fixture.CompileAndLoad(asset);
+
+        var state = GeneratedClass(asm, "State").GetNestedType("State")!;
+
+        // ⭐ OFFSETS, not presence: presence would pass on any permutation, and a permutation is
+        //   precisely the failure R-24 describes.
+        var offsets = new[] { "W1", "W0", "V1", "V0" }
+            .Select(n => (Name: n, Offset: (int)Marshal.OffsetOf(state, n)))
+            .ToArray();
+
+        Assert.Equal(
+            new[] { "W1", "W0", "V1", "V0" },
+            offsets.OrderBy(o => o.Offset).Select(o => o.Name).ToArray());
+    }
+
+    /// <summary>A detached copy, so the reverse-order asset does not share the first one's decls.</summary>
+    private static VariableDecl Copy(VariableDecl d)
+        => new() { Id = d.Id, Name = d.Name, Type = d.Type };
+
 }

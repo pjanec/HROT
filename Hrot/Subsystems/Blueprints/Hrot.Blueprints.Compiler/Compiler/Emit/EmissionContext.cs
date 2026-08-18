@@ -86,9 +86,9 @@ internal sealed class EmissionContext
 
         int count = target.Kind switch
         {
-            VariableKind.Variable     => Asset.Variables.Count,
-            VariableKind.WorkingState => Asset.WorkingState.Count,
-            _                         => Asset.Parameters.Count,
+            // ⭐ Batch 86 — ONE state kind (R-01); Asset.Variables IS the whole state run.
+            VariableKind.Variable => Asset.Variables.Count,
+            _                     => Asset.Parameters.Count,
         };
 
         // ⚠ An out-of-range index is now a THROW rather than the old `__var_{index}` fall-through.
@@ -101,9 +101,8 @@ internal sealed class EmissionContext
 
         return target.Kind switch
         {
-            VariableKind.Variable     => Asset.Variables[target.Index].Name,
-            VariableKind.WorkingState => Asset.WorkingState[target.Index].Name,
-            _                         => Asset.Parameters[target.Index].Name,
+            VariableKind.Variable => Asset.Variables[target.Index].Name,
+            _                     => Asset.Parameters[target.Index].Name,
         };
     }
 

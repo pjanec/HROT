@@ -55,7 +55,6 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
     // ⭐ C-sections' two "+" dialogs (2026-08-17 user ruling). Same class as the variable modal,
     //   distinguished by their nouns — which drive the title, the default name and the popup id.
     private VariableCreateModal? _createParameterModal;
-    private VariableCreateModal? _createWorkingStateModal;
 
     // BP-57: the locals schema source for the active document. Rebuilt per asset like the modals,
     // and for the same reason — it closes over the asset and the document's undo recorder.
@@ -232,15 +231,10 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
                 blueprintAsset,
                 noun: "Input");
 
-            _createWorkingStateModal = new VariableCreateModal(
-                (name, typeId, capacity, initialLength) => BlueprintDocumentFactory.CreateDeclaration(
-                    blueprintAsset, DeclarationKind.WorkingState, name, typeId, markDirty,
-                    capacity, initialLength),
-                blueprintAsset,
-                noun: "Working-State Variable");
-
             BlueprintDocumentFactory.RegisterCreateDeclarationCommands(
-                cmdImpl, _createParameterModal.Open, _createWorkingStateModal.Open);
+                // ⭐ Batch 86 — the Working State section is retired (R-01: one concept, one section),
+                //   so its create modal is the VARIABLE one: there is only one state kind to create.
+                cmdImpl, _createParameterModal.Open);
 
             // BP-12b: rename / delete / duplicate. The context menu has always invoked these three
             // and nothing ever handled them, so a variable could be created but never renamed or
@@ -368,7 +362,6 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
         {
             BlueprintMyBlueprintModel.SectionVariables    => VariableKind.Variable,
             BlueprintMyBlueprintModel.SectionParameters   => VariableKind.Parameter,
-            BlueprintMyBlueprintModel.SectionWorkingState => VariableKind.WorkingState,
             _                                             => VariableKind.Unresolved,
         };
         if (kind == VariableKind.Unresolved) return VariableOutlineSelection.None;
@@ -491,7 +484,6 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
         // ⛔ A modal that is opened but never drawn is a "+" that does nothing — the same inert-button
         //    shape BP-12c names, one level down.
         _createParameterModal?.Draw();
-        _createWorkingStateModal?.Draw();
         _createCustomEventModal?.Draw();
         _createFunctionModal?.Draw();
         _createMacroModal?.Draw();

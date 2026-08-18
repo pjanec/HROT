@@ -54,8 +54,11 @@ public sealed class DeclarationSectionsTests
         asset.Declarations.Add(BlueprintDeclaration.Create(
             DeclarationKind.Variable, Guid.NewGuid(), "Health",
             new BlueprintTypeRef { TypeId = "System.Int32" }));
+        // ⭐ Batch 86 — RESTATED. "Phase" was a WorkingState; R-01 makes it a second Variable. ⛔ It is
+        //   KEPT rather than dropped: it is what makes "and in NO other section" a real claim — with
+        //   one declaration per section a mis-routed projection would still look right.
         asset.Declarations.Add(BlueprintDeclaration.Create(
-            DeclarationKind.WorkingState, Guid.NewGuid(), "Phase",
+            DeclarationKind.Variable, Guid.NewGuid(), "Phase",
             new BlueprintTypeRef { TypeId = "System.Byte" }));
         return asset;
     }
@@ -71,9 +74,14 @@ public sealed class DeclarationSectionsTests
 
     /// <summary>
     /// ⭐⭐ <b>Each kind lands in its own section, and in NO other.</b> ⚠ The "and no other" half is
-    /// the one that matters: the failure this replaces was not a missing section but three kinds
+    /// the one that matters: the failure this replaces was not a missing section but every kind
     /// collapsed onto one projection, so a test that only checked presence would have passed while
     /// every declaration appeared under "Variables".
+    ///
+    /// <para>⭐⭐ <b>Batch 86 — RESTATED.</b> "Phase" is a <c>Variable</c> now *(<c>R-01</c>)</c>, so it
+    /// belongs in Variables <b>with</b> Health, and the retired Working State section must hold nothing
+    /// at all. ⛔ The "no other" half is asserted MORE strongly than before: the parameter must not
+    /// leak into the state section, and the state declarations must not leak into Inputs.</para>
     /// </summary>
     [Fact]
     public void EachDeclarationKind_AppearsInItsOwnSection_AndNoOther()
@@ -82,49 +90,60 @@ public sealed class DeclarationSectionsTests
 
         var inputs    = model.GetItems(BlueprintMyBlueprintModel.SectionParameters);
         var variables = model.GetItems(BlueprintMyBlueprintModel.SectionVariables);
-        var state     = model.GetItems(BlueprintMyBlueprintModel.SectionWorkingState);
 
-        Assert.Equal("Speed",  Assert.Single(inputs).DisplayName);
-        Assert.Equal("Health", Assert.Single(variables).DisplayName);
-        Assert.Equal("Phase",  Assert.Single(state).DisplayName);
+        Assert.Equal("Speed", Assert.Single(inputs).DisplayName);
+        Assert.Equal(new[] { "Health", "Phase" }, variables.Select(i => i.DisplayName));
 
-        Assert.Equal(BlueprintMyBlueprintModel.SectionParameters,   inputs[0].SectionId);
-        Assert.Equal(BlueprintMyBlueprintModel.SectionWorkingState, state[0].SectionId);
+        Assert.Equal(BlueprintMyBlueprintModel.SectionParameters, inputs[0].SectionId);
+        Assert.All(variables, i => Assert.Equal(BlueprintMyBlueprintModel.SectionVariables, i.SectionId));
+
+        // ⛔ And the retired section projects NOTHING — R-01/U-16: one concept, one surface.
+        Assert.Empty(model.GetItems(BlueprintMyBlueprintModel.SectionWorkingState));
+        Assert.DoesNotContain(model.Sections, s => s.Id == BlueprintMyBlueprintModel.SectionWorkingState);
     }
 
     /// <summary>
     /// ⚠ <b>Empty rather than absent</b> — the subtlety <c>SectionLocalVariables</c> already records:
-    /// <i>"a section that appears and disappears reads as a broken feature."</i> ⭐ An Instance asset
-    /// declares no working state, and the section must still be there, holding nothing.
+    /// <i>"a section that appears and disappears reads as a broken feature."</i>
+    ///
+    /// <para>⭐⭐ <b>Batch 86 — RESTATED onto a LIVE section.</b> It used to assert this of Working
+    /// State, which <c>R-01</c> retires — and a retired section is <b>absent on purpose</b>, which is
+    /// the opposite claim. ⛔ Deleting the test would have taken the rule down with the section, so it
+    /// moves to <c>Inputs</c>: an Instance asset declaring no parameters must still show the section.
+    /// </para>
     /// </summary>
     [Fact]
     public void ASectionWithNoDeclarations_IsEmptyNotAbsent()
     {
-        var asset = Builders.BlueprintAssetBuilder.Instance("NoWorkingState").Build();
+        var asset = Builders.BlueprintAssetBuilder.Instance("NoParameters").Build();
         asset.Declarations.Add(BlueprintDeclaration.Create(
             DeclarationKind.Variable, Guid.NewGuid(), "OnlyThis", new BlueprintTypeRef { TypeId = "int" }));
 
         var model = MakeModel(asset);
 
-        Assert.Contains(model.Sections, s => s.Id == BlueprintMyBlueprintModel.SectionWorkingState);
-        Assert.Empty(model.GetItems(BlueprintMyBlueprintModel.SectionWorkingState));
+        Assert.Contains(model.Sections, s => s.Id == BlueprintMyBlueprintModel.SectionParameters);
+        Assert.Empty(model.GetItems(BlueprintMyBlueprintModel.SectionParameters));
     }
 
     /// <summary>⭐ Every new section declares a create command — the ruling's "each with its own
     /// create command". ⛔ Whether that id is HANDLED is the next test; a descriptor alone is
-    /// <c>BP-12c</c>'s inert button.</summary>
+    /// <c>BP-12c</c>'s inert button.
+    ///
+    /// <para>⭐ <b>Batch 86 — RESTATED</b>: the Working State half becomes the Variables section, which
+    /// is where <c>R-01</c> puts the state kind's "+".</para>
+    /// </summary>
     [Fact]
     public void TheNewSectionsDeclareTheirOwnCreateCommands()
     {
         var model = MakeModel(AssetWithOneOfEachKind());
 
         var inputs = model.Sections.Single(s => s.Id == BlueprintMyBlueprintModel.SectionParameters);
-        var state  = model.Sections.Single(s => s.Id == BlueprintMyBlueprintModel.SectionWorkingState);
+        var state  = model.Sections.Single(s => s.Id == BlueprintMyBlueprintModel.SectionVariables);
 
         Assert.True(inputs.CanCreateItems);
         Assert.True(state.CanCreateItems);
-        Assert.Equal(BlueprintMyBlueprintModel.CommandCreateParameter,   inputs.CreateCommandId);
-        Assert.Equal(BlueprintMyBlueprintModel.CommandCreateWorkingState, state.CreateCommandId);
+        Assert.Equal(BlueprintMyBlueprintModel.CommandCreateParameter, inputs.CreateCommandId);
+        Assert.Equal("editor.create-variable",                         state.CreateCommandId);
     }
 
     // ── the wiring — BP-12c ──────────────────────────────────────────────────
@@ -139,9 +158,18 @@ public sealed class DeclarationSectionsTests
     /// descriptor would have passed both times.
     /// </para>
     /// </summary>
+    /// <remarks>
+    /// ⭐⭐ <b>Batch 86 — RESTATED to ONE case, and the reason is a design fact rather than a
+    /// convenience.</b> The theory ran (Inputs, Working State) over the quick-add registrar. <c>R-01</c>
+    /// retires the Working State section, and its surviving counterpart — the Variables "+" — is
+    /// <b>not</b> registered by this method: <c>editor.create-variable</c> has its own owner
+    /// (<c>RegisterCreateVariableCommand</c>), and registering it here too would be the duplicate
+    /// implementation ruling 9 forbids. ⇒ ⭐ the second half of the claim did not vanish, it moved:
+    /// <c>TheCreateCommandsAreRegisteredByTheProductionRetarget</c> below covers that id end-to-end,
+    /// which is the STRONGER of the two gates anyway.
+    /// </remarks>
     [Theory]
-    [InlineData(BlueprintMyBlueprintModel.CommandCreateParameter,    DeclarationKind.Parameter)]
-    [InlineData(BlueprintMyBlueprintModel.CommandCreateWorkingState, DeclarationKind.WorkingState)]
+    [InlineData(BlueprintMyBlueprintModel.CommandCreateParameter, DeclarationKind.Parameter)]
     public void InvokingASectionsCreateCommand_AddsADeclarationOfThatKind(string commandId, DeclarationKind kind)
     {
         var asset = Builders.BlueprintAssetBuilder.Instance("CreateHost").Build();
@@ -173,8 +201,11 @@ public sealed class DeclarationSectionsTests
     /// </para>
     /// </summary>
     [Theory]
+    // ⭐ Batch 86 — RESTATED: the Working State "+" is retired (R-01), and the row it leaves behind is
+    //   the state kind's surviving "+". ⛔ Kept as a SECOND row rather than dropped — one row would
+    //   stop proving that Retarget wires more than a single command.
     [InlineData(BlueprintMyBlueprintModel.CommandCreateParameter)]
-    [InlineData(BlueprintMyBlueprintModel.CommandCreateWorkingState)]
+    [InlineData(NodeEditor.Core.CommandCatalog.CreateVariable)]
     public void TheCreateCommandsAreRegisteredByTheProductionRetarget(string commandId)
     {
         var asset    = Builders.BlueprintAssetBuilder.Instance("RetargetHost").Build();
@@ -203,8 +234,9 @@ public sealed class DeclarationSectionsTests
     /// designer confirms a name and a type.</para>
     /// </summary>
     [Theory]
-    [InlineData(BlueprintMyBlueprintModel.CommandCreateParameter,    DeclarationKind.Parameter)]
-    [InlineData(BlueprintMyBlueprintModel.CommandCreateWorkingState, DeclarationKind.WorkingState)]
+    // ⭐ Batch 86 — RESTATED onto the surviving state section (see above).
+    [InlineData(BlueprintMyBlueprintModel.CommandCreateParameter, DeclarationKind.Parameter)]
+    [InlineData("editor.create-variable",                         DeclarationKind.Variable)]
     public void TheProductionCreateCommand_OpensADialog_RatherThanQuickAdding(
         string commandId, DeclarationKind kind)
     {
@@ -225,8 +257,9 @@ public sealed class DeclarationSectionsTests
     /// path the modal is wired to — the same split every other create modal's tests use.
     /// </summary>
     [Theory]
+    // ⭐ Batch 86 — RESTATED: both surviving kinds.
     [InlineData(DeclarationKind.Parameter)]
-    [InlineData(DeclarationKind.WorkingState)]
+    [InlineData(DeclarationKind.Variable)]
     public void TheDialogsCreatePath_TakesANameAndAType(DeclarationKind kind)
     {
         var asset = Builders.BlueprintAssetBuilder.Instance("ConfirmHost").Build();
@@ -245,16 +278,22 @@ public sealed class DeclarationSectionsTests
     /// half-copy that drifts. A blank name and a name already taken by ANY kind both refuse.
     /// </summary>
     [Theory]
+    // ⭐ Batch 86 — RESTATED: both surviving kinds.
     [InlineData(DeclarationKind.Parameter)]
-    [InlineData(DeclarationKind.WorkingState)]
+    [InlineData(DeclarationKind.Variable)]
     public void TheDialogsCreatePath_RefusesBlankAndDuplicateNames(DeclarationKind kind)
     {
         var asset = Builders.BlueprintAssetBuilder.Instance("RefuseHost").Build();
         BlueprintDocumentFactory.CreateVariable(asset, "Health", "System.Int32");
 
+        // ⭐ Batch 86 — RESTATED: the "Health" the setup creates is itself a Variable now, so the
+        //   count is measured as a DELTA rather than pinned at 0. ⛔ Same claim, and it no longer
+        //   depends on which kind the fixture's own declaration happens to be.
+        int before = asset.Declarations.CountIn(kind);
+
         Assert.Null(BlueprintDocumentFactory.CreateDeclaration(asset, kind, "   ",    "System.Int32"));
         Assert.Null(BlueprintDocumentFactory.CreateDeclaration(asset, kind, "Health", "System.Int32"));
-        Assert.Equal(0, asset.Declarations.CountIn(kind));
+        Assert.Equal(before, asset.Declarations.CountIn(kind));
     }
 
     /// <summary>
@@ -267,9 +306,12 @@ public sealed class DeclarationSectionsTests
     {
         var asset = Builders.BlueprintAssetBuilder.Instance("UniqueHost").Build();
 
-        var a = BlueprintDocumentFactory.AddDeclaration(asset, DeclarationKind.Parameter,    "Thing");
-        var b = BlueprintDocumentFactory.AddDeclaration(asset, DeclarationKind.WorkingState, "Thing");
-        var c = BlueprintDocumentFactory.AddDeclaration(asset, DeclarationKind.Variable,     "Thing");
+        // ⭐ Batch 86 — RESTATED. The middle create was a WorkingState; R-01 makes it a second
+        //   Variable. ⛔ THREE creates are KEPT, not two: the point is that repeats collide neither
+        //   ACROSS kinds (a vs b) nor WITHIN one (b vs c), and dropping to two would test only one.
+        var a = BlueprintDocumentFactory.AddDeclaration(asset, DeclarationKind.Parameter, "Thing");
+        var b = BlueprintDocumentFactory.AddDeclaration(asset, DeclarationKind.Variable,  "Thing");
+        var c = BlueprintDocumentFactory.AddDeclaration(asset, DeclarationKind.Variable,  "Thing");
 
         Assert.Equal(3, new[] { a.Name, b.Name, c.Name }.Distinct(StringComparer.OrdinalIgnoreCase).Count());
     }

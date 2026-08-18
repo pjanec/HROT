@@ -22,17 +22,15 @@ public static class DeclarationRefs
 {
     public static VariableKind ToVariableKind(this DeclarationKind kind) => kind switch
     {
-        DeclarationKind.Parameter    => VariableKind.Parameter,
-        DeclarationKind.WorkingState => VariableKind.WorkingState,
-        DeclarationKind.Variable     => VariableKind.Variable,
+        DeclarationKind.Parameter => VariableKind.Parameter,
+        DeclarationKind.Variable  => VariableKind.Variable,
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unmapped declaration kind."),
     };
 
     public static DeclarationKind ToDeclarationKind(this VariableKind kind) => kind switch
     {
-        VariableKind.Parameter    => DeclarationKind.Parameter,
-        VariableKind.WorkingState => DeclarationKind.WorkingState,
-        VariableKind.Variable     => DeclarationKind.Variable,
+        VariableKind.Parameter => DeclarationKind.Parameter,
+        VariableKind.Variable  => DeclarationKind.Variable,
         VariableKind.Unresolved   => throw new ArgumentOutOfRangeException(
             nameof(kind), kind,
             "Unresolved names no declaration list — it is the 'nobody set this' sentinel, and mapping "

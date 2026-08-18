@@ -16,11 +16,14 @@ public enum VariableKind
     /// <summary>Stage 5 resolved nothing. Reaching Emit with this is a bug in the Stage 2 rails.</summary>
     Unresolved = 0,
 
-    /// <summary><c>BlueprintAsset.Variables</c> — the <c>State</c> struct (offset 16).</summary>
+    /// <summary>
+    /// ⭐⭐ <b>The ONE state kind</b> — <c>BlueprintAsset.Variables</c>, which is the AiPrimitive
+    /// working-state struct on an AiPrimitive and the <c>State</c> struct on an Instance.
+    /// ⚠ <b>Batch 86 retired <c>WorkingState</c> here too</b> *(<c>R-01</c>)*; ⛔ <c>Unresolved = 0</c>
+    /// STAYS, because had <c>Variable</c> been <c>0</c> a forgotten assignment would silently mean
+    /// <c>Variables[0]</c>.
+    /// </summary>
     Variable,
-
-    /// <summary><c>BlueprintAsset.WorkingState</c> — the AiPrimitive working-state struct (offset 8).</summary>
-    WorkingState,
 
     /// <summary><c>BlueprintAsset.Parameters</c> — the <c>Params</c> struct (offset 0).</summary>
     Parameter,

@@ -437,9 +437,9 @@ internal static class Stage0_Rehydrate
         if (!Guid.TryParse(vid, out var id)) return null;
         // ⚠ U-11: Variables and WorkingState only — NOT Declarations.ById(), which also searches
         //   Parameters. Widening the set would resolve a parameter id where this never did.
-        return (asset.Declarations.Of(DeclarationKind.Variable)
-                     .Concat(asset.Declarations.Of(DeclarationKind.WorkingState))
-                     .FirstOrDefault(d => d.Id == id))?.AsVariableDecl;
+        // ⭐ Batch 86 — ONE state kind (R-01), so the concat is gone rather than rewritten.
+        return asset.Declarations.Of(DeclarationKind.Variable)
+                    .FirstOrDefault(d => d.Id == id)?.AsVariableDecl;
     }
 
     private static void EnrichSetVariablePins(
@@ -1414,10 +1414,8 @@ internal static class Stage0_Rehydrate
             if (varDecl != null && varDecl.Type != null && !string.IsNullOrEmpty(varDecl.Type.TypeId))
                 return varDecl.Type.TypeId;
 
-            // Check working-state variables (AiPrimitive).
-            var wsDecl = asset.Declarations.Of(DeclarationKind.WorkingState).FirstOrDefault(d => d.Id == guid);
-            if (wsDecl != null && wsDecl.Type != null && !string.IsNullOrEmpty(wsDecl.Type.TypeId))
-                return wsDecl.Type.TypeId;
+            // ⭐ Batch 86 — the working-state lookup searched the SAME set as the line above
+            //   (R-01: one state kind), so the second pass is removed rather than duplicated.
         }
 
         return "System.Object";

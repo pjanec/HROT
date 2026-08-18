@@ -164,10 +164,21 @@ public sealed class BlueprintSchemaV2Tests
             new[] { "P", "W", "V" },
             declarations.Select(d => d!.AsObject()["Name"]!.GetValue<string>()));
 
-        // And it matches the in-memory view's order rather than restating it.
-        Assert.Equal(
-            DeclarationList.KindOrder.Select(k => k.ToString()),
-            declarations.Select(d => d!.AsObject()[BlueprintSchemaV2.KindProperty]!.GetValue<string>()));
+        // ⭐⭐ Batch 86 — RESTATED. R-01 retires WorkingState as a KIND but NOT as an on-disk TAG: a v1
+        //   document still has three lists, and Up must keep tagging all three or the middle one is a
+        //   variable lost on load. ⇒ the two sequences can no longer be equal, so the claim becomes
+        //   "the tags AGREE with KindOrder on the kinds both carry, in order" — which is the half that
+        //   decides which struct a declaration is laid out in.
+        var tagged = declarations
+            .Select(d => d!.AsObject()[BlueprintSchemaV2.KindProperty]!.GetValue<string>())
+            .ToArray();
+        var kindOrder = DeclarationList.KindOrder.Select(k => k.ToString()).ToArray();
+        Assert.Equal(kindOrder, tagged.Where(kindOrder.Contains).ToArray());
+
+        // ⛔ And the retired tag leads the run it was absorbed into — R-24: reordering it moves every
+        //    following field's offset.
+        Assert.True(Array.IndexOf(tagged, "WorkingState")
+                  < Array.IndexOf(tagged, nameof(DeclarationKind.Variable)));
     }
 
     /// <summary>

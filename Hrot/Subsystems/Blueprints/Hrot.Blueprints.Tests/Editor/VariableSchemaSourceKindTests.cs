@@ -47,21 +47,26 @@ public sealed class VariableSchemaSourceKindTests
         => g.Nodes.Add(new GetVariableNode { Id = Guid.NewGuid(), VariableId = variableId });
 
     // ────────────────────────────────────────────────────────────────────────
-    // 🔴 U-4 — three kinds, three lists
+    // 🔴 U-4 — one kind per list
     // ────────────────────────────────────────────────────────────────────────
 
     /// <summary>
     /// ⭐⭐ <b>Each kind projects its own list</b> — and the <c>Variables</c> row is the one the
     /// <c>bool</c> could not express at all.
+    ///
+    /// <para>⭐⭐ <b>Batch 86 — RESTATED, and the expectation is now a SEQUENCE.</b> The three rows
+    /// each expected exactly one name. <c>R-01</c> merges the <c>WorkingState</c> and <c>Variable</c>
+    /// rows into one, whose projection is <b>both</b> declarations — so the assertion changes from
+    /// <c>Single</c> to the ordered pair. ⭐ That is strictly stronger: it now also pins that the
+    /// merged run projects <b>W0 before V0</b>, which is <c>R-24</c>.</para>
     /// </summary>
     [Theory]
-    [InlineData(VariableKind.Parameter,    "P0")]
-    [InlineData(VariableKind.WorkingState, "W0")]
-    [InlineData(VariableKind.Variable,     "V0")]
-    public void EachKindProjectsItsOwnList(VariableKind kind, string expected)
+    [InlineData(VariableKind.Parameter, new[] { "P0" })]
+    [InlineData(VariableKind.Variable,  new[] { "W0", "V0" })]
+    public void EachKindProjectsItsOwnList(VariableKind kind, string[] expected)
     {
         var projected = Source(Asset(), kind).Variables;
-        Assert.Equal(expected, Assert.Single(projected).Name);
+        Assert.Equal(expected, projected.Select(v => v.Name).ToArray());
     }
 
     /// <summary>
@@ -74,7 +79,12 @@ public sealed class VariableSchemaSourceKindTests
         => Assert.Throws<ArgumentOutOfRangeException>(
             () => new BlueprintVariableSchemaSource(Asset(), VariableKind.Unresolved, () => { }));
 
-    /// <summary>Add/remove land in the projected list and nowhere else.</summary>
+    /// <summary>
+    /// Add/remove land in the projected list and nowhere else.
+    /// ⭐ <b>Batch 86 — RESTATED.</b> The state run is <c>W0, V0</c> now, so the add appends after both;
+    /// ⛔ the <c>WorkingState</c> line is KEPT rather than dropped — it is what proves the retired alias
+    /// still addresses the same run rather than a second list quietly surviving the collapse.
+    /// </summary>
     [Fact]
     public void MutationsTouchOnlyTheProjectedList()
     {
@@ -82,8 +92,8 @@ public sealed class VariableSchemaSourceKindTests
         Source(a, VariableKind.Variable)
             .AddVariable(new BlackboardVariableEntry("Added", typeof(int), null));
 
-        Assert.Equal(new[] { "V0", "Added" }, a.Variables.Select(v => v.Name).ToArray());
-        Assert.Single(a.WorkingState);
+        Assert.Equal(new[] { "W0", "V0", "Added" }, a.Variables.Select(v => v.Name).ToArray());
+        Assert.Equal(a.Variables.Count, a.WorkingState.Count);
         Assert.Single(a.Parameters);
     }
 
@@ -101,7 +111,9 @@ public sealed class VariableSchemaSourceKindTests
     public void TheReferenceCountIsRealAcrossGraphs()
     {
         var a = Asset();
-        var v0 = a.Variables[0];
+        // ⭐ Batch 86 — RESTATED: the state run leads with W0 now, so V0 is found BY NAME rather than
+        //   at index 0. ⛔ The claim is unchanged.
+        var v0 = a.Variables.Single(v => v.Name == "V0");
         a.Variables.Add(new VariableDecl { Id = Guid.NewGuid(), Name = "Unused", Type = Int() });
 
         var g1 = new Graph { Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function };
@@ -156,7 +168,13 @@ public sealed class VariableSchemaSourceKindTests
         Assert.Equal(0, Source(a, VariableKind.Variable).CountNodesReferencingVariable("V0"));
     }
 
-    /// <summary>Each kind counts only references that resolve to ITS list.</summary>
+    /// <summary>
+    /// Each kind counts only references that resolve to ITS list.
+    /// ⭐ <b>Batch 86 — RESTATED.</b> The reference is to W0, which is now a <c>Variable</c>; the count
+    /// is therefore asked of the <c>Variable</c> source for <c>W0</c> and must still be <b>0</b> for
+    /// <c>V0</c> — ⛔ the scoping claim is per-NAME as well as per-kind, and that half is what survives
+    /// the merge. The <c>Parameter</c> source is asserted too, replacing the kind the merge removed.
+    /// </summary>
     [Fact]
     public void TheCountIsScopedToTheSourcesOwnKind()
     {
@@ -165,8 +183,9 @@ public sealed class VariableSchemaSourceKindTests
         a.Graphs.Add(g);
         AddGet(g, a.WorkingState[0].Id.ToString());
 
-        Assert.Equal(1, Source(a, VariableKind.WorkingState).CountNodesReferencingVariable("W0"));
+        Assert.Equal(1, Source(a, VariableKind.Variable).CountNodesReferencingVariable("W0"));
         Assert.Equal(0, Source(a, VariableKind.Variable).CountNodesReferencingVariable("V0"));
+        Assert.Equal(0, Source(a, VariableKind.Parameter).CountNodesReferencingVariable("P0"));
     }
 
     // ────────────────────────────────────────────────────────────────────────
@@ -185,13 +204,16 @@ public sealed class VariableSchemaSourceKindTests
         var src = Source(a, VariableKind.Variable);
         src.AddVariable(new BlackboardVariableEntry("Second", typeof(int), null));
 
-        Assert.Equal(2, a.VariableOrder!.Count);
-        var survivorId = a.Variables.Single(v => v.Name == "V0").Id;
+        // ⭐ Batch 86 — RESTATED: the run is W0 + V0 + Second = 3, and TWO survive the removal. ⛔ The
+        //   claim — the removed id leaves the order list and the others do not — is unchanged, and the
+        //   survivor list is now derived rather than hard-coded to one entry.
+        Assert.Equal(3, a.VariableOrder!.Count);
+        var survivors = a.Variables.Where(v => v.Name != "Second").Select(v => v.Id).ToArray();
 
         src.RemoveVariable("Second");
 
-        Assert.Equal(new[] { survivorId }, a.VariableOrder!.ToArray());
-        Assert.Single(a.Variables);
+        Assert.Equal(survivors, a.VariableOrder!.ToArray());
+        Assert.Equal(2, a.Variables.Count);
     }
 
     /// <summary>
@@ -220,11 +242,13 @@ public sealed class VariableSchemaSourceKindTests
         var src = Source(a, VariableKind.Variable);
         src.AddVariable(new BlackboardVariableEntry("A", typeof(int), null));
         src.AddVariable(new BlackboardVariableEntry("B", typeof(int), null));
-        var keep = a.Variables.Single(v => v.Name == "V0").Id;
+        // ⭐ Batch 86 — RESTATED: W0 survives alongside V0 (R-01 merges the two groups), so "keep" is
+        //   the whole surviving set rather than one id.
+        var keep = a.Variables.Where(v => v.Name is not ("A" or "B")).Select(v => v.Id).ToArray();
 
         src.RemoveVariables(new[] { "A", "B" });
 
-        Assert.Equal(new[] { keep }, a.VariableOrder!.ToArray());
+        Assert.Equal(keep, a.VariableOrder!.ToArray());
     }
 
     // ────────────────────────────────────────────────────────────────────────

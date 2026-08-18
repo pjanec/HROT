@@ -5,9 +5,9 @@ Parameters:
   BaselineEndX : System.Single @8 size=4
   BaselineEndY : System.Single @12 size=4
 WorkingState:
-  BaselineReservedMask : System.UInt16 @8 size=2
-Variables:
   (empty)
+Variables:
+  BaselineReservedMask : System.UInt16 @8 size=2
 GraphLocalSlots:
   (empty)
 Diagnostics:

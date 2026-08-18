@@ -1729,7 +1729,7 @@ public static class BlueprintDocumentFactory
     /// ⚠⚠ <b><c>2026-08-17</c> — the "quick-add, not a modal" choice recorded here was OVERRULED by
     /// the user</b>: <i>"working state [+] opening no dialog is wrong, inconsistent. Must open new
     /// variable dialog same as any other variable section."</i> ⇒ ⭐ <b>the production overload is
-    /// <see cref="RegisterCreateDeclarationCommands(EditorCommandsImpl, Action, Action)"/></b>, which
+    /// <see cref="RegisterCreateDeclarationCommands(EditorCommandsImpl, Action)"/></b>, which
     /// opens the same name+type dialog every other variable section opens.
     /// ⛔ This quick-add overload is retained for HEADLESS TESTS of the create path only — the same
     /// split <see cref="RegisterCreateVariableCommand(EditorCommandsImpl, BlueprintAsset, Action)"/>
@@ -1750,17 +1750,12 @@ public static class BlueprintDocumentFactory
             "Create Input", "Add",
             _ => AddDeclaration(asset, DeclarationKind.Parameter, "NewInput", markDirty),
             description: "Add an input parameter to this blueprint.");
-        reg.Add(
-            Windows.BlueprintMyBlueprintModel.CommandCreateWorkingState,
-            "Create Working-State Variable", "Add",
-            _ => AddDeclaration(asset, DeclarationKind.WorkingState, "NewState", markDirty),
-            description: "Add a working-state variable to this AiPrimitive.");
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <b>The production wiring for the Inputs / Working State "+"</b>: each opens a
-    /// name-and-type dialog, the same gesture <c>editor.create-variable</c> and
-    /// <c>editor.create-local-variable</c> already offer.
+    /// ⭐⭐⭐ <b>The production wiring for the Inputs "+"</b>: it opens a name-and-type dialog, the
+    /// same gesture <c>editor.create-variable</c> and <c>editor.create-local-variable</c> already
+    /// offer.
     ///
     /// <para>📌 <b>User ruling, <c>2026-08-17</c></b> — see <see cref="CreateDeclaration"/> for the
     /// reversal it records and why the superseded note's premise was false.</para>
@@ -1770,15 +1765,20 @@ public static class BlueprintDocumentFactory
     /// checking that the descriptor carries an id.</para>
     /// </summary>
     /// <param name="openParameterModal">Opens the Input create dialog.</param>
-    /// <param name="openWorkingStateModal">Opens the Working-State create dialog.</param>
+    /// <remarks>
+    /// ⭐⭐ <b>Batch 86 — the <c>openWorkingStateModal</c> parameter is GONE, not merely unused.</b>
+    /// <c>R-01</c> retires that section, so the second delegate had nothing left to register — and an
+    /// argument a method silently drops is the SILENT-DEFAULT shape this programme has filed three
+    /// times. ⛔ <c>editor.create-variable</c> is <b>not</b> registered here: it has its own owner in
+    /// <see cref="RegisterCreateVariableCommand"/>, and registering it twice would be two
+    /// implementations of one concept — ruling 9, the thing this batch exists to remove.
+    /// </remarks>
     public static void RegisterCreateDeclarationCommands(
         EditorCommandsImpl commands,
-        Action             openParameterModal,
-        Action             openWorkingStateModal)
+        Action             openParameterModal)
     {
         ArgumentNullException.ThrowIfNull(commands);
         ArgumentNullException.ThrowIfNull(openParameterModal);
-        ArgumentNullException.ThrowIfNull(openWorkingStateModal);
 
         var reg = new CommandRegistration(commands);
         reg.Add(
@@ -1786,11 +1786,6 @@ public static class BlueprintDocumentFactory
             "Create Input", "Add",
             _ => openParameterModal(),
             description: "Add an input parameter to this blueprint.");
-        reg.Add(
-            Windows.BlueprintMyBlueprintModel.CommandCreateWorkingState,
-            "Create Working-State Variable", "Add",
-            _ => openWorkingStateModal(),
-            description: "Add a working-state variable to this AiPrimitive.");
     }
 
     /// <summary>

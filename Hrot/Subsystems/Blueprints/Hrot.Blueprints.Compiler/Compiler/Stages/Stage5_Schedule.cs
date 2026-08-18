@@ -78,8 +78,15 @@ internal static class Stage5_Schedule
             Intent        = asset.Primitive?.Intent,
             Hostings      = (IReadOnlyList<AiPrimitiveHosting>?)asset.Primitive?.Hostings ?? Array.Empty<AiPrimitiveHosting>(),
             Parameters    = BuildIrFields(asset.Declarations.Of(DeclarationKind.Parameter),    typedAsset, asset.ParameterOrder,     ctx),
-            WorkingState  = BuildIrFields(asset.Declarations.Of(DeclarationKind.WorkingState), typedAsset, asset.WorkingStateOrder, ctx),
-            Variables     = BuildIrFields(asset.Declarations.Of(DeclarationKind.Variable),     typedAsset, asset.VariableOrder,      ctx),
+            // ⭐⭐⭐ Batch 86 — ONE state run (R-01). IrAsset.WorkingState is retired and stays empty;
+            //    Variables carries the whole tier, so StructureHashComputation's append is unchanged.
+            // 🔴🔴 R-24 — the ORDER is the whole risk, and BOTH order lists are applied, concatenated
+            //    WorkingStateOrder-then-VariableOrder: exactly DeclarationList.KindOrder's old
+            //    sequence. ⛔ Do NOT feed one list, and do NOT sort — an id missing from the list it
+            //    belongs to falls to GetOrdered's by-Id tail, which is a DIFFERENT position.
+            Variables     = BuildIrFields(
+                                asset.Declarations.Of(DeclarationKind.Variable), typedAsset,
+                                ConcatOrder(asset.WorkingStateOrder, asset.VariableOrder), ctx),
             CustomEvents  = BuildCustomEvents(asset.CustomEvents, typedAsset, ctx),
             CallablePeerBlueprintIds = BuildPeerIds(asset.CallablePeers),
             IsWorldSingleton = asset.IsWorldSingleton,
@@ -163,6 +170,24 @@ internal static class Stage5_Schedule
             });
         }
         return result;
+    }
+
+    /// <summary>
+    /// ⭐⭐ Batch 86 — the two state order lists, as one, in <c>DeclarationList.KindOrder</c> sequence.
+    /// ⛔ Null when both are empty, so <see cref="GetOrdered"/> keeps its "no order ⇒ storage order"
+    /// arm rather than being handed an empty list that means the same thing by accident.
+    /// </summary>
+    private static List<Guid>? ConcatOrder(List<Guid>? first, List<Guid>? second)
+    {
+        bool a = first?.Count > 0;
+        bool b = second?.Count > 0;
+        if (!a && !b) return null;
+        if (!b) return first;
+        if (!a) return second;
+        var all = new List<Guid>(first!.Count + second!.Count);
+        all.AddRange(first);
+        all.AddRange(second);
+        return all;
     }
 
     private static IReadOnlyList<IrField> GetOrdered(List<IrField> items, List<Guid>? order)
@@ -4160,9 +4185,8 @@ internal sealed class GraphScheduler
         if (!Guid.TryParse(vid, out var id)) return null;
         // ⚠ U-11: Variables and WorkingState only — NOT Declarations.ById(), which also searches
         //   Parameters. The two-kind set is what this site has always read.
-        var decl = (_typed.Asset.Declarations.Of(DeclarationKind.Variable)
-                        .Concat(_typed.Asset.Declarations.Of(DeclarationKind.WorkingState))
-                        .FirstOrDefault(d => d.Id == id))?.AsVariableDecl;
+        var decl = _typed.Asset.Declarations.Of(DeclarationKind.Variable)
+                       .FirstOrDefault(d => d.Id == id)?.AsVariableDecl;
         return decl is { Type.Capacity: > 0 } ? decl : null;
     }
 
@@ -4177,9 +4201,8 @@ internal sealed class GraphScheduler
         if (!Guid.TryParse(vid, out var id)) return null;
         // ⚠ U-11: Variables and WorkingState only — NOT Declarations.ById(), which also searches
         //   Parameters. The two-kind set is what this site has always read.
-        var decl = (_typed.Asset.Declarations.Of(DeclarationKind.Variable)
-                        .Concat(_typed.Asset.Declarations.Of(DeclarationKind.WorkingState))
-                        .FirstOrDefault(d => d.Id == id))?.AsVariableDecl;
+        var decl = _typed.Asset.Declarations.Of(DeclarationKind.Variable)
+                       .FirstOrDefault(d => d.Id == id)?.AsVariableDecl;
         return decl is { Type.Capacity: > 0 } ? decl : null;
     }
 
@@ -4614,8 +4637,9 @@ internal sealed class GraphScheduler
         // U-11: the same three sequences, now one collection projected three ways. ⚠ The SEARCH
         // ORDER below is resolution priority (Variables -> WorkingState -> Parameters) and is
         // deliberately NOT DeclarationList.KindOrder — see DeclarationList.ResolutionOrder.
+        // ⭐ Batch 86 — the first two sequences are ONE now (R-01); the priority that remains is
+        //   state-before-parameters, which is what BP-226 was about.
         var variables  = _typed.Asset.Declarations.Of(DeclarationKind.Variable).ToList();
-        var workState  = _typed.Asset.Declarations.Of(DeclarationKind.WorkingState).ToList();
         var parameters = _typed.Asset.Declarations.Of(DeclarationKind.Parameter).ToList();
 
         // VariableId may be in the form "var:<Guid>" — strip the prefix before parsing.
@@ -4627,12 +4651,10 @@ internal sealed class GraphScheduler
         if (Guid.TryParse(idStr, out var guid))
         {
             for (int i = 0; i < variables.Count;  i++) if (variables[i].Id  == guid) return new(VariableKind.Variable, i);
-            for (int i = 0; i < workState.Count;  i++) if (workState[i].Id  == guid) return new(VariableKind.WorkingState, i);
             for (int i = 0; i < parameters.Count; i++) if (parameters[i].Id == guid) return new(VariableKind.Parameter, i);
         }
         // Name fallback
         for (int i = 0; i < variables.Count;  i++) if (variables[i].Name  == idStr) return new(VariableKind.Variable, i);
-        for (int i = 0; i < workState.Count;  i++) if (workState[i].Name  == idStr) return new(VariableKind.WorkingState, i);
         for (int i = 0; i < parameters.Count; i++) if (parameters[i].Name == idStr) return new(VariableKind.Parameter, i);
         return VariableRef.Unresolved;
     }

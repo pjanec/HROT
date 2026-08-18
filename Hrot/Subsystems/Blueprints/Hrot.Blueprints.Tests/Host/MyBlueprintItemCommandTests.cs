@@ -138,20 +138,29 @@ public sealed class MyBlueprintItemCommandTests
         Assert.Equal($"var:{decl.Id:D}", node.VariableId);
     }
 
-    // ══ Inputs and Working State — the C-sections (Batch 81) ═════════════════
+    // ══ Inputs and Variables — the C-sections (Batch 81) ═════════════════════
     //
     // 🔴 <b>What the user's first visual check found</b>, verbatim: <i>"variable record in Working
     // State shows just 'Delete' (does nothing) and 'Rename' (shows rename dialog but does not cause
     // name to change) items in the context menu."</i>
     //
-    // 📐 BuildDeclarationItems emits the same "var:" prefix for all THREE kinds, while FindVariable
+    // 📐 BuildDeclarationItems emitted the same "var:" prefix for EVERY kind, while FindVariable
     // resolved only DeclarationKind.Variable — so the id parsed, the lookup returned null, and every
     // command fell through to `return false`. ⛔ Duplicate was broken the same way and untested.
     //
     // ⭐ One test per KIND per GESTURE, not one loop: a loop that happened to run Variable first
     //   would have passed on the kind that already worked.
+    //
+    // ⭐⭐ <b>Batch 86 — RESTATED, not deleted.</b> The theories asserted (Parameter, WorkingState);
+    //   R-01 collapses WorkingState into Variable, so they now assert (Parameter, Variable) — which is
+    //   still EVERY kind, which is what "OfAnyKind" has always meant. ⛔ Dropping the second InlineData
+    //   would have shrunk the gate to one kind and hidden exactly the fall-through it was written for.
 
     private static string DeclId(BlueprintDeclaration decl) => $"var:{decl.Id:D}";
+
+    /// <summary>⭐ The kind this one is NOT — so "lands in its OWN list" stays checkable with two kinds.</summary>
+    private static DeclarationKind OtherKind(DeclarationKind kind)
+        => kind == DeclarationKind.Parameter ? DeclarationKind.Variable : DeclarationKind.Parameter;
 
     private static BlueprintDeclaration Declare(
         BlueprintAsset asset, DeclarationKind kind, string name)
@@ -160,7 +169,7 @@ public sealed class MyBlueprintItemCommandTests
     /// <summary>🔴 RED before Batch 81 — the rename dialog opened and changed nothing.</summary>
     [Theory]
     [InlineData(DeclarationKind.Parameter)]
-    [InlineData(DeclarationKind.WorkingState)]
+    [InlineData(DeclarationKind.Variable)]   // Batch 86 — RESTATED (was WorkingState; R-01)
     public void ADeclarationOfAnyKind_CanBeRenamed(DeclarationKind kind)
     {
         var sut  = MakeSut();
@@ -177,7 +186,7 @@ public sealed class MyBlueprintItemCommandTests
     /// </summary>
     [Theory]
     [InlineData(DeclarationKind.Parameter)]
-    [InlineData(DeclarationKind.WorkingState)]
+    [InlineData(DeclarationKind.Variable)]   // Batch 86 — RESTATED (was WorkingState; R-01)
     public void ADeclarationOfAnyKind_ReportsItsDisplayName(DeclarationKind kind)
     {
         var asset = MakeSut().Asset;
@@ -189,7 +198,7 @@ public sealed class MyBlueprintItemCommandTests
     /// <summary>🔴 RED before Batch 81 — "Delete (does nothing)", verbatim.</summary>
     [Theory]
     [InlineData(DeclarationKind.Parameter)]
-    [InlineData(DeclarationKind.WorkingState)]
+    [InlineData(DeclarationKind.Variable)]   // Batch 86 — RESTATED (was WorkingState; R-01)
     public void ADeclarationOfAnyKind_CanBeDeleted(DeclarationKind kind)
     {
         var sut  = MakeSut();
@@ -207,7 +216,7 @@ public sealed class MyBlueprintItemCommandTests
     /// </summary>
     [Theory]
     [InlineData(DeclarationKind.Parameter)]
-    [InlineData(DeclarationKind.WorkingState)]
+    [InlineData(DeclarationKind.Variable)]   // Batch 86 — RESTATED (was WorkingState; R-01)
     public void ADeclarationOfAnyKind_CanBeDuplicated_IntoItsOwnList(DeclarationKind kind)
     {
         var sut  = MakeSut();
@@ -216,7 +225,10 @@ public sealed class MyBlueprintItemCommandTests
         sut.Commands.Invoke("editor.duplicate-item", Ctx(DeclId(decl)));
 
         Assert.Equal(2, sut.Asset.Declarations.CountIn(kind));
-        Assert.Equal(0, sut.Asset.Declarations.CountIn(DeclarationKind.Variable));
+        // ⭐ Batch 86 — RESTATED. This asserted `CountIn(Variable) == 0`, which read as "did not leak
+        //   into Variables". With R-01's two kinds, Variable IS one of the cases, so the claim becomes
+        //   the OTHER kind's count — same assertion, now true for every case rather than for one.
+        Assert.Equal(0, sut.Asset.Declarations.CountIn(OtherKind(kind)));
         var copy = sut.Asset.Declarations.Of(kind).Last();
         Assert.Equal("Health1",      copy.Name);
         Assert.Equal("System.Int32", copy.Type.TypeId);
@@ -239,30 +251,41 @@ public sealed class MyBlueprintItemCommandTests
         Assert.Equal(2, sut.Asset.Declarations.CountIn(DeclarationKind.Parameter));
     }
 
-    /// <summary>⭐ And a WorkingState DOES carry them, so the copy keeps its category.</summary>
+    /// <summary>
+    /// ⭐ And a state declaration DOES carry them, so the copy keeps its category.
+    /// ⭐ <b>Batch 86 — RESTATED</b> from <c>WorkingState</c> to <c>Variable</c> *(<c>R-01</c>)*; the
+    /// claim — "the kind that carries editor presentation carries it through a duplicate" — is the
+    /// paired opposite of the Parameter fact above and is untouched.
+    /// </summary>
     [Fact]
-    public void DuplicatingAWorkingStateVariable_CarriesItsPresentation()
+    public void DuplicatingAStateVariable_CarriesItsPresentation()
     {
         var sut  = MakeSut();
-        var decl = Declare(sut.Asset, DeclarationKind.WorkingState, "Cursor");
+        var decl = Declare(sut.Asset, DeclarationKind.Variable, "Cursor");
         decl.Category = "Runtime";
 
         sut.Commands.Invoke("editor.duplicate-item", Ctx(DeclId(decl)));
 
         Assert.Equal("Runtime",
-            sut.Asset.Declarations.Of(DeclarationKind.WorkingState).Last().Category);
+            sut.Asset.Declarations.Of(DeclarationKind.Variable).Last().Category);
     }
 
     /// <summary>
-    /// ⭐⭐ The uniqueness rule spans all kinds (U-14), so a rename may not collide with a Variable
-    /// either — ⛔ Stage5's name fallback would otherwise let list order pick the target.
+    /// ⭐⭐ The uniqueness rule spans all kinds (U-14), so a rename may not collide with another
+    /// declaration — ⛔ Stage5's name fallback would otherwise let list order pick the target.
+    ///
+    /// <para>⚠ <b>Batch 86 — RESTATED, and the COLLIDING PARTNER had to move.</b> This renamed a
+    /// <c>WorkingState</c> onto a <c>Variable</c> — two kinds. With one state kind that would be a
+    /// within-kind collision, which <c>CrossKindUniquenessTests</c> already owns. ⭐ So the partner is
+    /// now a <b>Parameter</b>: the claim is still "a rename may not take a name another KIND holds",
+    /// asserted over the only cross-kind pair that exists.</para>
     /// </summary>
     [Fact]
-    public void RenamingAWorkingStateVariable_CannotCollideWithAVariable()
+    public void RenamingAStateVariable_CannotCollideWithAParameter()
     {
         var sut  = MakeSut();
-        BlueprintDocumentFactory.CreateVariable(sut.Asset, "Health", "System.Int32");
-        var state = Declare(sut.Asset, DeclarationKind.WorkingState, "Cursor");
+        Declare(sut.Asset, DeclarationKind.Parameter, "Health");
+        var state = Declare(sut.Asset, DeclarationKind.Variable, "Cursor");
 
         sut.Commands.Invoke("editor.rename-item", Ctx(DeclId(state), "Health"));
 

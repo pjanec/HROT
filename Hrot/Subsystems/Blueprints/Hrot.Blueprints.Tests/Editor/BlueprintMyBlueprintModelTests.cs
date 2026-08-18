@@ -46,10 +46,13 @@ public sealed class BlueprintMyBlueprintModelTests
         //    a section split must not silently reorder the ones that were already there.
         //    ⚠ Reading order would prefer Inputs FIRST. That is a presentation change worth making
         //    deliberately, with this test rewritten to match — not as a side effect of the split.
-        Assert.Equal(8, sections.Count);
+        // ⭐⭐⭐ Batch 86 — RESTATED to SEVEN. R-01 retires the Working State section (one concept, one
+        //    surface), and it was the LAST descriptor, so ⛔ nothing above it moved: positions 0–6 and
+        //    every SortOrder are byte-for-byte what they were. ⚠ That is exactly what this test exists
+        //    to prove, and it is a stronger statement about the retirement than a deletion would be.
+        Assert.Equal(7, sections.Count);
 
-        // Fixed order: Graphs, Functions, Macros, Custom Events, Variables, Local Variables,
-        //              Inputs, Working State.
+        // Fixed order: Graphs, Functions, Macros, Custom Events, Variables, Local Variables, Inputs.
         Assert.Equal(BlueprintMyBlueprintModel.SectionGraphs,         sections[0].Id);
         Assert.Equal(BlueprintMyBlueprintModel.SectionFunctions,      sections[1].Id);
         Assert.Equal(BlueprintMyBlueprintModel.SectionMacros,         sections[2].Id);
@@ -57,7 +60,7 @@ public sealed class BlueprintMyBlueprintModelTests
         Assert.Equal(BlueprintMyBlueprintModel.SectionVariables,      sections[4].Id);
         Assert.Equal(BlueprintMyBlueprintModel.SectionLocalVariables, sections[5].Id);
         Assert.Equal(BlueprintMyBlueprintModel.SectionParameters,     sections[6].Id);
-        Assert.Equal(BlueprintMyBlueprintModel.SectionWorkingState,   sections[7].Id);
+        Assert.DoesNotContain(sections, s => s.Id == BlueprintMyBlueprintModel.SectionWorkingState);
         Assert.DoesNotContain(sections, s => s.Id == "dispatchers");
 
         // SortOrder must match position.
@@ -274,9 +277,10 @@ public sealed class BlueprintMyBlueprintModelTests
 
         Assert.Equal(idsBefore,   after.Select(s => s.Id));
         Assert.Equal(orderBefore, after.Select(s => s.SortOrder));
-        // BP-57: six → C-sections: eight. ⭐ That is exactly why an Instance asset still shows an
-        // EMPTY "Working State".
-        Assert.Equal(8, after.Count);
+        // BP-57: six → C-sections: eight. ⭐ Batch 86 — SEVEN: R-01 retires the Working State section,
+        // and the point of this test is that a RETARGET changes nothing, which it still asserts above
+        // by comparing the id and sort-order sequences before and after.
+        Assert.Equal(7, after.Count);
     }
 
     /// <summary>

@@ -33,14 +33,12 @@ public sealed class BlueprintAsset
     internal List<BlueprintDeclaration> DeclarationStore { get; } = new();
 
     private readonly DeclarationView<ParameterDecl> _parameters;
-    private readonly DeclarationView<VariableDecl>  _workingState;
     private readonly DeclarationView<VariableDecl>  _variables;
 
     public BlueprintAsset()
     {
-        _parameters   = new DeclarationView<ParameterDecl>(this, DeclarationKind.Parameter);
-        _workingState = new DeclarationView<VariableDecl>(this, DeclarationKind.WorkingState);
-        _variables    = new DeclarationView<VariableDecl>(this, DeclarationKind.Variable);
+        _parameters = new DeclarationView<ParameterDecl>(this, DeclarationKind.Parameter);
+        _variables  = new DeclarationView<VariableDecl>(this, DeclarationKind.Variable);
     }
 
     /// <summary>
@@ -58,12 +56,30 @@ public sealed class BlueprintAsset
 
     public List<Guid>? ParameterOrder { get; set; }
 
-    /// <summary>A live window onto the store's <c>WorkingState</c> run — the working-state struct, offset 8.</summary>
+    /// <summary>
+    /// ⚠⚠ <b>Batch 86 — an ALIAS for <see cref="Variables"/>, and the SAME object.</b>
+    ///
+    /// <para>📌 <c>R-01</c>: one state run, two names for it. ⭐ <b>Kept, not deleted</b> — deleting the
+    /// property is stage <c>D4</c>'s, and the <i>"no rush removals"</i> ruling applies.</para>
+    ///
+    /// <para>⛔⛔ <b>NEVER write <c>WorkingState.Concat(Variables)</c> — it yields every declaration
+    /// TWICE.</b> ⭐ Batch 86 swept every such site to a single <c>Declarations.Of(Variable)</c>.</para>
+    ///
+    /// <para>⭐⭐ <b>The SETTER owns the run's LEADING segment</b>, because the deserializer drives both
+    /// property setters *(v2 migrates DOWN to the three-list shape)* and a plain replace would let the
+    /// second wipe the first — see <see cref="DeclarationView{T}.ReplaceSegment"/>.</para>
+    /// </summary>
     public DeclarationView<VariableDecl> WorkingState
     {
-        get => _workingState;
-        set => _workingState.ReplaceWith(value);
+        get => _variables;
+        set => _leadingStateCount = _variables.ReplaceSegment(0, _leadingStateCount, value);
     }
+
+    /// <summary>
+    /// ⭐ How many of the state run's entries arrived under the <c>WorkingState</c> name. ⚠ Bookkeeping
+    /// for the two setters ONLY — ⛔ it is not a kind, and nothing downstream may branch on it.
+    /// </summary>
+    private int _leadingStateCount;
 
     public List<Guid>? WorkingStateOrder { get; set; }
 
@@ -73,7 +89,9 @@ public sealed class BlueprintAsset
     public DeclarationView<VariableDecl> Variables
     {
         get => _variables;
-        set => _variables.ReplaceWith(value);
+        // ⭐ The TRAILING segment — everything after what came in under the WorkingState name.
+        set => _variables.ReplaceSegment(
+                   _leadingStateCount, Math.Max(0, _variables.Count - _leadingStateCount), value);
     }
 
     public List<Guid>? VariableOrder { get; set; }

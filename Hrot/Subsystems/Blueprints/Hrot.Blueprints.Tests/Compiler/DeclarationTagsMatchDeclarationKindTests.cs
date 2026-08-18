@@ -34,15 +34,55 @@ public sealed class DeclarationTagsMatchDeclarationKindTests
     /// ⭐ <b>Proved to bite (Batch 55):</b> appending a fourth member to <see cref="DeclarationKind"/>
     /// in a scratch run reddens this naming the member, and swapping two members reddens it naming the
     /// positions. ⛔ A reflection test that has never failed is not a test.
+    ///
+    /// <para>⭐⭐⭐ <b>Batch 86 — RESTATED from an EQUALITY to a TOTAL MAPPING</b>, which is the
+    /// handoff's ruling (c). 📌 <c>R-01</c> retires <c>WorkingState</c> as a <b>kind</b>; it does NOT
+    /// retire it as an <b>on-disk tag</b> — every shipped v1 file has a <c>WorkingState</c> list and
+    /// <c>Down</c> must keep reproducing it, so the tag stays readable forever. ⇒ ⛔ the two sets can
+    /// no longer be equal, and demanding equality would have forced a file-format break to satisfy a
+    /// test. ⭐ What is still checkable, and is the property that actually matters:
+    /// <list type="number">
+    ///   <item>every KIND has a tag — a kind with no tag cannot be written at all;</item>
+    ///   <item>every TAG maps to a kind — a tag with no kind is a variable lost on load, which is a
+    ///   field missing from the emitted struct;</item>
+    ///   <item>the tag order still agrees with <see cref="DeclarationList.KindOrder"/> on the kinds
+    ///   they share — ⛔ that is the half that moves declarations between structs.</item>
+    /// </list></para>
     /// </summary>
     [Fact]
-    public void TheV2TagsAreExactlyDeclarationKindsMembersInOrder()
+    public void EveryV2TagMapsToADeclarationKind_AndEveryKindHasATag()
     {
         var kinds = Enum.GetNames(typeof(DeclarationKind));
         var tags  = BlueprintSchemaV2.DeclarationTags;
 
-        Assert.Equal(kinds.Length, tags.Count);
-        Assert.Equal(kinds, tags.ToArray());
+        // ① every kind is writable.
+        foreach (var kind in kinds)
+            Assert.True(tags.Contains(kind),
+                $"DeclarationKind.{kind} has no v2 tag in BlueprintSchemaV2.DeclarationTags — a kind "
+                + "with no tag cannot be written to disk at all.");
+
+        // ② every tag is readable. ⚠ A RETIRED tag maps to the kind that absorbed it, not to nothing.
+        var retired = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            // R-01 — "Variable ≡ WorkingState. Two names, ONE concept."
+            ["WorkingState"] = nameof(DeclarationKind.Variable),
+        };
+        foreach (var tag in tags)
+            Assert.True(kinds.Contains(tag) || retired.ContainsKey(tag),
+                $"BlueprintSchemaV2 writes the tag '{tag}', which names no DeclarationKind and is not "
+                + "listed as a retired tag. A tag with no kind is a declaration silently dropped on "
+                + "load — a field missing from the emitted struct.");
+
+        // ③ order agrees on the kinds both sides carry. 🔴 This is the struct-layout half.
+        var kindOrder = DeclarationList.KindOrder.Select(k => k.ToString()).ToArray();
+        Assert.Equal(kindOrder, tags.Where(kindOrder.Contains).ToArray());
+
+        // ④ and a retired tag sits where the kind that absorbed it sits, so a v1 file's working-state
+        //    entries still concatenate BEFORE that kind's own entries (R-24).
+        foreach (var (tag, absorber) in retired.Select(kv => (kv.Key, kv.Value)))
+            Assert.True(tags.ToList().IndexOf(tag) <= tags.ToList().IndexOf(absorber),
+                $"The retired tag '{tag}' must not sort after '{absorber}' — its declarations lead the "
+                + "run, and reordering them changes every following field's offset.");
     }
 
     /// <summary>

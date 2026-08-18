@@ -75,6 +75,22 @@ public static class BlueprintJsonServices
         // declaration carrying its own `Kind`). A DOM straight from the serializer is canonical by
         // construction, which is why this is safe here and refuses elsewhere.
         var v1  = JsonSerializer.SerializeToNode(asset, _options)!.AsObject();
+
+        // ⛔⛔ Batch 86 — THE ALIAS WRITES TWICE, and this is the one place that can know it.
+        //
+        // 📌 R-01 collapses WorkingState and Variables into ONE run; the model keeps both property
+        // names, and both getters return that whole run. ⇒ the STJ DOM above carries every state
+        // declaration in BOTH lists, and Up would tag each of them twice — once "WorkingState", once
+        // "Variable". ⚠ MEASURED before this line: 2× every state field, in every asset.
+        //
+        // ⭐ Emptying the retired name writes each declaration exactly once, under "Variable" — which
+        // is the tag the corpus was rewritten to in this same batch. ⛔ NOT done by [JsonIgnore]-ing
+        // the property: the READ path needs it, because Down still emits all three v1 lists and a
+        // legacy file's WorkingState entries must reach the model's setter to keep their ORDER (R-24).
+        //
+        // ⚠ The v1 SHAPE is untouched — three lists, so Up/Down stay each other's inverse.
+        v1[BlueprintSchemaV2.LegacyWorkingStateList] = new System.Text.Json.Nodes.JsonArray();
+
         var dom = BlueprintSchemaV2.Up(v1);
 
 #if NET8_0_OR_GREATER

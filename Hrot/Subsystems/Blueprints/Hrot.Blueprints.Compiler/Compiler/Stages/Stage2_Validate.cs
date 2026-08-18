@@ -486,8 +486,9 @@ internal sealed class V_VariablesAndState : IValidator
                         $"AiPrimitive Parameters total {paramsSize} bytes; max is 100.",
                         asset.AssetId));
 
+                // ⭐ Batch 86 — the AiPrimitive working-state struct is the one state run (R-01).
                 int workingSize = ComputeStructSize(
-                    asset.Declarations.Of(DeclarationKind.WorkingState).Select(d => d.Type), ctx);
+                    asset.Declarations.Of(DeclarationKind.Variable).Select(d => d.Type), ctx);
                 if (workingSize > 1024 - 8)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1201,
                         $"AiPrimitive WorkingState total {workingSize} bytes; max is {1024 - 8}.",
@@ -2103,9 +2104,9 @@ internal sealed class V_ListVariableRules : IValidator
         // ⚠⚠ U-11: Variables and WorkingState ONLY, deliberately — NOT Declarations.ById(), which
         //    also searches Parameters. Widening the set here would make a parameter id resolve where
         //    it never did, which is the silent behaviour change a projection makes easy.
-        return (asset.Declarations.Of(DeclarationKind.Variable)
-                     .Concat(asset.Declarations.Of(DeclarationKind.WorkingState))
-                     .FirstOrDefault(d => d.Id == id))?.AsVariableDecl;
+        // ⭐ Batch 86 — ONE state kind (R-01).
+        return asset.Declarations.Of(DeclarationKind.Variable)
+                    .FirstOrDefault(d => d.Id == id)?.AsVariableDecl;
     }
 
     private static void CheckListWriteTarget(

@@ -126,7 +126,6 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
             //    order would prefer Inputs FIRST; that is a presentation change worth making on
             //    purpose, with the order test rewritten, and not as a side effect of this item.
             new(SectionParameters,   "Inputs",           6, null, true, true, CommandCreateParameter),
-            new(SectionWorkingState, "Working State",    7, null, true, true, CommandCreateWorkingState),
         };
 
     // ── State ─────────────────────────────────────────────────────────────────
@@ -327,7 +326,6 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
             SectionCustomEvents => BuildCustomEventItems(),
             SectionVariables    => BuildDeclarationItems(DeclarationKind.Variable,     SectionVariables),
             SectionParameters   => BuildDeclarationItems(DeclarationKind.Parameter,    SectionParameters),
-            SectionWorkingState => BuildDeclarationItems(DeclarationKind.WorkingState, SectionWorkingState),
             // BP-57: the one GRAPH-scoped section. ⭐ Empty rather than absent when the canvas has no
             // graph or the graph has no locals — a section that appears and disappears reads as a
             // broken feature, and BP1664's macro case is a refusal, not a vanishing.

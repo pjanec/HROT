@@ -876,9 +876,9 @@ internal static class NodePinSchema
         if (!Guid.TryParse(vid, out var id)) return null;
         // ⚠ U-11: Variables ∪ WorkingState only — NOT Declarations.ById(), which also searches
         //   Parameters and would resolve a parameter id where this site never did.
-        return (asset.Declarations.Of(DeclarationKind.Variable)
-                     .Concat(asset.Declarations.Of(DeclarationKind.WorkingState))
-                     .FirstOrDefault(d => d.Id == id))?.AsVariableDecl;
+        // ⭐ Batch 86 — ONE state kind (R-01); the concat is gone, not rewritten.
+        return asset.Declarations.Of(DeclarationKind.Variable)
+                    .FirstOrDefault(d => d.Id == id)?.AsVariableDecl;
     }
 
     /// <summary>

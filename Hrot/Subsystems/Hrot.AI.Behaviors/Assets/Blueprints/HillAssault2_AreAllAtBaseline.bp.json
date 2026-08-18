@@ -17,7 +17,7 @@
   },
   "Declarations": [
     {
-      "Kind": "WorkingState",
+      "Kind": "Variable",
       "Id": "a1100000-0000-0000-0000-000000000001",
       "Name": "AllAtBaseline",
       "Type": {

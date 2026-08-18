@@ -2,9 +2,9 @@ StructureHash: 0xA5C2BB1D09E5410A
 Parameters:
   Threshold : System.Single @0 size=4
 WorkingState:
-  LastEvaluated : System.Boolean @8 size=1
-Variables:
   (empty)
+Variables:
+  LastEvaluated : System.Boolean @8 size=1
 GraphLocalSlots:
   (empty)
 Diagnostics:
