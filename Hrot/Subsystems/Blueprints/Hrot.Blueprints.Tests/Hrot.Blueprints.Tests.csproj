@@ -36,6 +36,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Serializes this suite, matching the 9 other test projects in the repo. Without it xUnit
+         defaults to parallel collections, which produced ~1 varying failure per full run. -->
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="TestAssets\**\*" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Snapshots\**\*" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Comparison\Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />

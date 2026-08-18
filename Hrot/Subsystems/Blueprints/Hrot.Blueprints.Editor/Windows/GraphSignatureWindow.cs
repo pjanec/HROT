@@ -1,5 +1,6 @@
 using Fdp.Presentation.WindowManager;
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Editor.NodeDrawers;
 using Hrot.Blueprints.Editor.Variables;
 using Hrot.Editor.AiShared.Blackboard;
 
@@ -43,6 +44,17 @@ public sealed class GraphSignatureWindow : ManagedWindow
     // ── cached asset ─────────────────────────────────────────────────────────
     private BlueprintAsset? _asset;
 
+    // ── BP-72: the graph the canvas is showing ───────────────────────────────
+    // Supplied by the composition root from AiCanvasContext.CurrentGraphId (which reads the
+    // BlueprintGraphSwitcher). Null for callers that have no canvas (headless tests, or before a
+    // document is open), in which case the window behaves exactly as it did pre-BP-72.
+    private Func<Guid>? _currentCanvasGraphId;
+
+    // Last canvas graph we snapped the picker to. The rule: follow the canvas whenever it MOVES,
+    // but let an explicit pick in the combo stick until it moves again. Without this the combo
+    // would fight the user every frame.
+    private Guid _lastSnappedCanvasGraphId;
+
     // ── ctor ─────────────────────────────────────────────────────────────────
 
     /// <param name="selectionStore">
@@ -75,13 +87,25 @@ public sealed class GraphSignatureWindow : ManagedWindow
 
     /// <summary>
     /// Retarget to a new active Blueprint asset (e.g. when the document changes).
-    /// Resets the graph picker so the next frame re-selects the first Function graph.
+    /// Resets the graph picker so the next frame re-selects the canvas graph (BP-72), falling back
+    /// to the first editable graph.
     /// </summary>
-    public void Retarget(BlueprintAsset? asset)
+    /// <param name="asset">The newly active blueprint, or <c>null</c> when switching away.</param>
+    /// <param name="currentCanvasGraphId">
+    ///   BP-72: provider for the graph the canvas is showing — pass
+    ///   <c>AiCanvasContext.CurrentGraphId</c>. When null the window keeps its pre-BP-72 behaviour
+    ///   (first editable graph, combo-only navigation).
+    /// </param>
+    public void Retarget(BlueprintAsset? asset, Func<Guid>? currentCanvasGraphId = null)
     {
+        // The provider is per-document, so it must be refreshed even when the asset instance is
+        // unchanged (e.g. the same asset reopened into a new document).
+        _currentCanvasGraphId = currentCanvasGraphId;
+
         if (_asset == asset) return;
-        _asset           = asset;
-        _selectedGraphId = Guid.Empty;
+        _asset                    = asset;
+        _selectedGraphId          = Guid.Empty;
+        _lastSnappedCanvasGraphId = Guid.Empty;
     }
 
     /// <summary>
@@ -115,27 +139,24 @@ public sealed class GraphSignatureWindow : ManagedWindow
             return;
         }
 
-        var functionGraphs = asset.Graphs
-            .Where(g => g.Kind == GraphKind.Function)
-            .ToList();
+        var graphs = EditableGraphs(asset);
 
-        if (functionGraphs.Count == 0)
+        if (graphs.Count == 0)
         {
-            ImGuiNET.ImGui.TextDisabled("No Function graphs in this blueprint.");
+            ImGuiNET.ImGui.TextDisabled("No Function or Event graphs in this blueprint.");
             return;
         }
 
-        // ── Graph-picker combo ────────────────────────────────────────────────
-        var selectedGraph = functionGraphs.FirstOrDefault(g => g.Id == _selectedGraphId)
-                            ?? functionGraphs[0];
+        // ── Graph-picker combo (BP-72: seeded from the canvas graph) ──────────
+        var selectedGraph = ResolveSelectedGraph(asset)!;
         _selectedGraphId = selectedGraph.Id;
 
-        if (ImGuiNET.ImGui.BeginCombo("##graph_picker", selectedGraph.Name))
+        if (ImGuiNET.ImGui.BeginCombo("##graph_picker", GraphLabel(selectedGraph)))
         {
-            foreach (var g in functionGraphs)
+            foreach (var g in graphs)
             {
                 bool isSelected = g.Id == _selectedGraphId;
-                if (ImGuiNET.ImGui.Selectable(g.Name, isSelected))
+                if (ImGuiNET.ImGui.Selectable(GraphLabel(g), isSelected))
                 {
                     _selectedGraphId = g.Id;
                     selectedGraph    = g;
@@ -151,36 +172,135 @@ public sealed class GraphSignatureWindow : ManagedWindow
         // ── Build edit models for selected graph ──────────────────────────────
         var (inputsModel, outputsModel) = BuildEditModels(selectedGraph, asset);
 
+        bool isEventGraph = selectedGraph.Kind == GraphKind.Event;
+
         // ── Inputs section ────────────────────────────────────────────────────
-        ImGuiNET.ImGui.TextUnformatted("Inputs");
+        // For a custom-event body the inputs ARE the event's parameters — say so, because the
+        // designer declared them in the create modal and needs to know this is the same list.
+        ImGuiNET.ImGui.TextUnformatted(isEventGraph ? "Parameters" : "Inputs");
         DrawParameterRows("##inputs", selectedGraph.Inputs, inputsModel);
 
         ImGuiNET.ImGui.Spacing();
 
         // ── Outputs section ───────────────────────────────────────────────────
+        // BP-72: an Event graph has no return value — the compiler emits Event_{Name} as void and
+        // never reads Graph.Outputs for Kind.Event. Offering an editable Outputs list here would be
+        // a fresh silent-discard of exactly the kind BP-71 just removed, so state the reason
+        // instead of showing a control that does nothing.
+        if (isEventGraph)
+        {
+            ImGuiNET.ImGui.TextDisabled("Outputs: n/a — a custom event does not return a value.");
+            return;
+        }
+
         ImGuiNET.ImGui.TextUnformatted("Outputs");
         DrawParameterRows("##outputs", selectedGraph.Outputs, outputsModel);
+
+        // BP-73 gate: the compiler reads only Outputs[0]; more than one is a Stage 2 error
+        // (BP1656) until proper N-output ships. Warn at the point of authoring rather than
+        // letting the designer discover it at compile time.
+        if (selectedGraph.Outputs.Count > 1)
+        {
+            ImGuiNET.ImGui.TextColored(EditorColors.Warning,
+                $"Only the first output compiles today ({selectedGraph.Outputs.Count} declared).");
+            ImGuiNET.ImGui.TextDisabled("Multiple return values: not supported yet — see BP-73.");
+        }
     }
+
+    /// <summary>
+    /// Combo label. Event graphs are tagged so a custom-event body is not mistaken for a function —
+    /// they live in one flat list and only the Kind distinguishes them.
+    /// </summary>
+    private static string GraphLabel(Graph g)
+        => g.Kind == GraphKind.Event ? $"{g.Name}  (event)" : g.Name;
 
     // ── Private ───────────────────────────────────────────────────────────────
 
-    private Graph? ResolveSelectedGraph(BlueprintAsset asset)
-    {
-        var functionGraphs = asset.Graphs
-            .Where(g => g.Kind == GraphKind.Function)
+    /// <summary>
+    /// BP-72: the graphs whose signature is editable here — Function graphs (Inputs + Outputs) and
+    /// <b>Event</b> graphs (Inputs only).
+    /// <para>
+    /// Event graphs were excluded before, which meant a custom event's body graph — auto-created by
+    /// BP-24 — had its <c>Inputs</c> editable <em>nowhere</em>: the create modal sets the parameters
+    /// once and BP-12b only covers rename, so adding one afterwards meant hand-editing JSON.
+    /// </para>
+    /// Construction graphs stay out: nothing in the runtime consumes them yet (Q23 scope guard).
+    /// </summary>
+    private static List<Graph> EditableGraphs(BlueprintAsset asset)
+        => asset.Graphs
+            .Where(g => g.Kind == GraphKind.Function || g.Kind == GraphKind.Event)
             .ToList();
 
-        if (functionGraphs.Count == 0) return null;
+    /// <summary>
+    /// BP-72: picks the graph to edit — the canvas graph when the canvas has moved since we last
+    /// snapped, otherwise the designer's explicit combo choice, otherwise the first editable graph.
+    /// </summary>
+    private Graph? ResolveSelectedGraph(BlueprintAsset asset)
+    {
+        var graphs = EditableGraphs(asset);
+        if (graphs.Count == 0) return null;
 
-        return functionGraphs.FirstOrDefault(g => g.Id == _selectedGraphId)
-               ?? functionGraphs[0];
+        // Follow the canvas when it moves. An explicit pick then sticks until it moves again.
+        var canvasId = _currentCanvasGraphId?.Invoke() ?? Guid.Empty;
+        if (canvasId != Guid.Empty && canvasId != _lastSnappedCanvasGraphId
+            && graphs.Any(g => g.Id == canvasId))
+        {
+            _lastSnappedCanvasGraphId = canvasId;
+            _selectedGraphId          = canvasId;
+        }
+
+        return graphs.FirstOrDefault(g => g.Id == _selectedGraphId)
+               ?? graphs[0];
+    }
+
+    /// <summary>
+    /// BP-72: an Event graph's <c>Inputs</c> ARE the paired custom event's <c>Parameters</c> — the
+    /// compiler emits <c>Event_{Name}</c> from the graph and <c>Stage2.V_CustomEventHandlers</c>
+    /// (BP1408) requires the two counts to agree. Editing one side without the other turns a
+    /// parameter edit into a compile error, so mirror graph→declaration after every mutation.
+    /// <para>
+    /// Parameter <b>ids are preserved by name</b> where they still match, so an edit that renames or
+    /// reorders does not silently re-mint ids that something else might key on.
+    /// </para>
+    /// No-op for Function graphs and for Event graphs with no matching declaration (a hand-authored
+    /// Event graph that is not a custom-event body).
+    /// </summary>
+    internal static void MirrorEventGraphInputsToDecl(BlueprintAsset asset, Graph graph)
+    {
+        if (asset == null || graph == null) return;
+        if (graph.Kind != GraphKind.Event) return;
+
+        var decl = asset.CustomEvents.FirstOrDefault(
+            e => string.Equals(e.Name, graph.Name, StringComparison.Ordinal));
+        if (decl == null) return;
+
+        var byName = decl.Parameters.ToDictionary(p => p.Name, p => p.Id);
+
+        decl.Parameters = graph.Inputs
+            .Select(src => new ParameterDecl
+            {
+                Id   = byName.TryGetValue(src.Name, out var keptId) ? keptId : Guid.NewGuid(),
+                Name = src.Name,
+                Type = new BlueprintTypeRef { TypeId = src.Type?.TypeId ?? "" },
+            })
+            .ToList();
     }
 
     private (GraphSignatureEditModel Inputs, GraphSignatureEditModel Outputs)
         BuildEditModels(Graph graph, BlueprintAsset asset)
     {
         var assetId = asset.AssetId;
-        var inputs  = new GraphSignatureEditModel(graph, false, () => _dirtyTracker.MarkDirty(assetId));
+
+        // BP-72: every Inputs mutation on an Event graph re-syncs the paired custom-event
+        // declaration before marking dirty, so the decl and the handler graph can never drift into
+        // a BP1408. Function graphs pay nothing — the mirror early-returns on Kind.
+        void OnInputsChanged()
+        {
+            MirrorEventGraphInputsToDecl(asset, graph);
+            _dirtyTracker.MarkDirty(assetId);
+        }
+
+        var inputs  = new GraphSignatureEditModel(graph, false, OnInputsChanged);
         var outputs = new GraphSignatureEditModel(graph, true,  () => _dirtyTracker.MarkDirty(assetId));
         return (inputs, outputs);
     }

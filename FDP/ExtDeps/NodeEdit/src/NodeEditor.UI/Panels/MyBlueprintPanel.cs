@@ -85,11 +85,13 @@ public sealed class MyBlueprintPanel
 
         if (ImGui.BeginPopup("##mybp_add"))
         {
-            if (ImGui.MenuItem("+ Variable"))  InvokeCreate("editor.create-variable");
-            if (ImGui.MenuItem("+ Function"))  InvokeCreate("editor.create-function");
-            if (ImGui.MenuItem("+ Macro"))     InvokeCreate("editor.create-macro");
-            if (ImGui.MenuItem("+ Custom Event")) InvokeCreate("editor.create-custom-event");
-            if (ImGui.MenuItem("+ Event Dispatcher")) InvokeCreate("editor.create-event-dispatcher");
+            // Items whose command has no handler are greyed out rather than rendered as live
+            // buttons that silently do nothing (BP-12e).
+            DrawCreateMenuItem("+ Variable",         "editor.create-variable");
+            DrawCreateMenuItem("+ Function",         "editor.create-function");
+            DrawCreateMenuItem("+ Macro",            "editor.create-macro");
+            DrawCreateMenuItem("+ Custom Event",     "editor.create-custom-event");
+            DrawCreateMenuItem("+ Event Dispatcher", "editor.create-event-dispatcher");
             ImGui.EndPopup();
         }
     }
@@ -179,9 +181,17 @@ public sealed class MyBlueprintPanel
         if (section.CanCreateItems && section.CreateCommandId is not null)
         {
             ImGui.SameLine(ImGui.GetContentRegionAvail().X - 16f);
+            bool sectionCmdAvailable = IsCommandAvailable(section.CreateCommandId);
+            if (!sectionCmdAvailable) ImGui.BeginDisabled();
             ImGui.SmallButton("+##sec_add_" + section.Id);
             if (ImGui.IsItemClicked())
                 InvokeCreate(section.CreateCommandId);
+            if (!sectionCmdAvailable)
+            {
+                ImGui.EndDisabled();
+                if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+                    ImGui.SetTooltip($"Not implemented ({section.CreateCommandId})");
+            }
         }
 
         if (isOpen)
@@ -285,6 +295,51 @@ private void DrawItemsGrouped(string sectionId, IReadOnlyList<MyBlueprintItem> i
 
     // â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+    /// <summary>
+    /// True when <paramref name="commandId"/> is actually registered. Used to grey out menu items
+    /// for commands that have no handler, so the panel stops advertising actions that cannot run
+    /// (BP-12e). Of the 14 commands this panel invokes, only <c>editor.create-variable</c> is
+    /// registered today.
+    /// </summary>
+    private bool IsCommandAvailable(string commandId)
+        => _commands.Get(commandId) is not null;
+
+    /// <summary>
+    /// Renders one "+ …" menu item, disabled when its command has no registered handler, with a
+    /// tooltip saying so. See <see cref="IsCommandAvailable"/> (BP-12e).
+    /// </summary>
+    private void DrawCreateMenuItem(string label, string commandId)
+    {
+        bool available = IsCommandAvailable(commandId);
+
+        if (!available) ImGui.BeginDisabled();
+        if (ImGui.MenuItem(label)) InvokeCreate(commandId);
+        if (!available)
+        {
+            ImGui.EndDisabled();
+            if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+                ImGui.SetTooltip($"Not implemented ({commandId})");
+        }
+    }
+
+    /// <summary>
+    /// Invokes a create-command and <b>surfaces failure</b>.
+    ///
+    /// <para>
+    /// This previously discarded the <see cref="EditorCommandResult"/>. Since
+    /// <c>EditorCommandsImpl.Invoke</c> returns <c>(false, "Unknown command: …")</c> rather than
+    /// throwing, every unregistered command rendered a button that clicked and did nothing — no
+    /// error, no toast, no log. That silence was the root cause of the whole BP-12 family's
+    /// user experience.
+    /// </para>
+    /// </summary>
     private void InvokeCreate(string commandId)
-        => _commands.Invoke(commandId);
+    {
+        var result = _commands.Invoke(commandId);
+        if (result.Success) return;
+
+        _host.Diagnostics?.Log(
+            DiagnosticSeverity.Warning,
+            $"My Blueprint: command '{commandId}' failed: {result.Message ?? "(no message)"}");
+    }
 }

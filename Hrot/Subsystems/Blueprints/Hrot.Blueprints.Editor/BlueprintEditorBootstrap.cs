@@ -36,7 +36,8 @@ public static class BlueprintEditorBootstrap
         Func<string?>? currentClassProvider = null,
         ISharedStructTypeProvider? sharedStructTypeProvider = null,
         IComponentTypeProvider? componentTypeProvider = null,
-        IComponentTypeProvider? writableComponentTypeProvider = null)
+        IComponentTypeProvider? writableComponentTypeProvider = null,
+        IBlueprintPeerProvider? peerProvider = null)
     {
         sharedStructTypeProvider     ??= new ReflectionSharedStructTypeProvider();
         componentTypeProvider        ??= new ReflectionComponentTypeProvider();
@@ -73,6 +74,14 @@ public static class BlueprintEditorBootstrap
         // CA-04: SetComponentNode -- same picker mechanism as GetComponentNode, but over the
         // WRITABLE-only provider ([BlueprintWritable]-gated), see ComponentNodeDrawers.cs.
         registry.Register(typeof(SetComponentNode), new SetComponentNodeDrawer(editService, writableComponentTypeProvider));
+
+        // BP-05…BP-08: four node kinds that compiled and ran but had no Details-panel editor at all,
+        // so whatever the palette baked at creation was permanent. Each reuses a catalog that was
+        // already in the editor; none needed new discovery machinery.
+        registry.Register(typeof(ReadRankedResultNode), new ReadRankedResultNodeDrawer(editService));
+        registry.Register(typeof(WaitForChannelNode),   new WaitForChannelNodeDrawer(channelCatalog, editService));
+        registry.Register(typeof(CallCustomEventNode),  new CallCustomEventNodeDrawer(editService));
+        registry.Register(typeof(CallPeerBlueprintNode), new CallPeerBlueprintNodeDrawer(editService, peerProvider));
 
         // ANC-P5-08a: Register PlayMontageChainNode drawer (if animation queries available)
         if (animationQueries != null && currentClassProvider != null)
@@ -164,6 +173,17 @@ public static class BlueprintEditorBootstrap
         // ItemCount). No type provider needed -- these nodes have no picker of their own; their
         // ComponentTypeFqn/accessor FQNs are baked on WIRE by BlueprintCommandSink, not at creation.
         foreach (var descriptor in ComponentPaletteEntries.ConsumerEntries())
+            registry.Register(descriptor);
+
+        // FC-1 (Q#20): register the six static collection WRITE entries (Add/SetAt/InsertAt/
+        // RemoveAt/Clear/Resize). Same no-picker wire-bake shape as the consumers; the two
+        // writability gates act at wire time in BlueprintCommandSink.
+        foreach (var descriptor in ComponentPaletteEntries.CollectionWriteEntries())
+            registry.Register(descriptor);
+
+        // FC-2/LV-3: register the six fixed-list VARIABLE write entries (same six verbs, bound
+        // to a declared list variable via VariableId instead of a wired component collection).
+        foreach (var descriptor in ComponentPaletteEntries.ListWriteEntries())
             registry.Register(descriptor);
 
         return registry;

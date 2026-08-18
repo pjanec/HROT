@@ -42,6 +42,17 @@ public static class DiagnosticCodes
     public const string BP1400 = "BP1400";
     public const string BP1401 = "BP1401";
     public const string BP1402 = "BP1402";
+    public const string BP1403 = "BP1403";  // BP-15: CallCustomEventNode.EventId references an unknown event
+    public const string BP1404 = "BP1404";  // BP-15: ScoreDecisionNode.AssetId missing or not a well-formed GUID
+    public const string BP1405 = "BP1405";  // BP-15: ReadRankedResultNode.Rank is negative (rank is 0-based)
+    public const string BP1406 = "BP1406";  // BP-15: CastNode.TargetTypeId is empty or unresolvable
+    public const string BP1407 = "BP1407";  // BP-12c: CallCustomEvent targets a declared event with no Event graph to handle it
+    public const string BP1408 = "BP1408";  // BP-12c: the handling Event graph's inputs do not match the custom event's parameters
+
+    // Stage 2 -- Validate (node kinds with no Stage5 lowering)
+    // BP-16: these compile clean today and yield a silent wrong value at runtime. Erroring in Stage 2
+    // converts silent data corruption into a build failure. See V_UnloweredNodeKinds.
+    public const string BP1420 = "BP1420";  // Node kind has no Stage5 lowering -- would emit default(T) with no diagnostic
 
     // Stage 2 -- Validate (exec-out connectivity)
     public const string BP1411 = "BP1411";  // ExecOutFanOut: exec-out pin drives more than one successor
@@ -55,6 +66,10 @@ public static class DiagnosticCodes
     public const string BP1501 = "BP1501";
     public const string BP1502 = "BP1502";  // UnresolvableWildcard
     public const string BP1503 = "BP1503";  // ManagedTypeInState
+    public const string BP1504 = "BP1504";  // FC-2/LV-1: fixed-list variable with InitialLength outside [0, Capacity]
+    public const string BP1505 = "BP1505";  // FC-2/LV-3: ListWriteNode target is not a declared fixed-list variable
+    public const string BP1506 = "BP1506";  // FC-2/LV-3: fixed-list variable wired to a pin that cannot accept a list (whole-list clone via SetVariable is the one exception)
+    public const string BP1507 = "BP1507";  // FC-3 (R5): fixed-list type on a Parameter declaration -- lists live on Variables/WorkingState/action DTOs, never Parameters/Shared (v1)
 
     // Stage 2 -- Validate (graph structure)
     public const string BP1600 = "BP1600";  // OrphanedNode (Stage 2 graph-structure)
@@ -67,6 +82,8 @@ public static class DiagnosticCodes
     public const string BP1652 = "BP1652";  // FunctionCallNode argument count mismatch (caller data-IN pin count ≠ target graph Inputs.Count)
     public const string BP1653 = "BP1653";  // FunctionCallNode argument type mismatch (positional: caller data-IN pin type incompatible with target Input type)
     public const string BP1654 = "BP1654";  // Function-graph call cycle detected (direct or transitive recursion)
+    public const string BP1655 = "BP1655";  // BP-71: Function graph declares an output but its Return node has no value wired
+    public const string BP1656 = "BP1656";  // BP-71/BP-73: Function graph declares more than one output -- not supported yet
 
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch
@@ -117,6 +134,13 @@ public static class DiagnosticCodes
 
     // Stage 2 -- Validate (component-collection consumer rules -- CA-07b)
     public const string BP2066 = "BP2066";  // ComponentForEach/ComponentItemGet/ComponentItemCount: "Collection" is wired but baked accessor FQNs are empty
+
+    // Stage 2 -- Validate (component-collection WRITE rules -- FC-1, Q#20)
+    public const string BP2067 = "BP2067";  // CollectionWriteNode: "Collection" is wired but ComponentTypeFqn/WriteAccessorFqn are empty or malformed (not baked at wire time)
+    public const string BP2068 = "BP2068";  // CollectionWriteNode bound to a ManagedMember collection -- managed collections are not element-writable (Q#20-C, snapshot aliasing)
+    public const string BP2069 = "BP2069";  // CollectionWriteNode carries a "Target" pin -- writes are self-only (Q#16/Q#20)
+    public const string BP2070 = "BP2070";  // CollectionWriteNode's producer GetComponent has "Target" wired -- cross-entity collection write is not permitted (G4)
+    public const string BP2071 = "BP2071";  // WARNING: CollectionWriteNode mutates the collection a surrounding ComponentForEach is iterating (G3 -- wire-dependent semantics)
 
     // Stage 3 -- Normalize
     public const string BP3010 = "BP3010";

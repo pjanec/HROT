@@ -73,6 +73,10 @@ namespace Fdp.Core.Serialization
             relaxed.Converters.Add(new Vector4ArrayConverter());
             relaxed.Converters.Add(new QuaternionArrayConverter());
             relaxed.Converters.Add(new StrictStringEnumConverter());
+            // FC-3b (Q#21-C3/C1): fixed-list wrapper structs author as plain arrays; the
+            // factory recurses per-element through THESE options, so element support tracks
+            // the converter list above automatically.
+            relaxed.Converters.Add(new FixedListJsonConverterFactory());
             // TypeInfoResolver must be set before MakeReadOnly() in .NET 8+.
             relaxed.TypeInfoResolver = new DefaultJsonTypeInfoResolver();
             relaxed.MakeReadOnly();

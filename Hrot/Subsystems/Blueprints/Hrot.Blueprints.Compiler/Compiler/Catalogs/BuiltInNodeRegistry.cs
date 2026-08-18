@@ -171,6 +171,14 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
             Data("Count",      "Out", "System.Int32"),
         },
 
+        // CollectionWrite (FC-1, Q#20): exec node -- static skeleton is exec In/Out only;
+        // Stage0_Rehydrate.EnrichCollectionWritePins rebuilds the per-Op operand pins + "Ok"
+        // whenever the node is stored pin-less (mirrors SetComponentNode).
+        CollectionWriteNode       => new[] { ExecIn(), ExecOut() },
+
+        // ListWrite (FC-2/LV-3, Q#19-C): exec node -- same skeleton/enricher split.
+        ListWriteNode             => new[] { ExecIn(), ExecOut() },
+
         ArrayMakeNode am          => ArrayMakePins(am),
         ArrayGetNode              => ArrayGetPins(),
 

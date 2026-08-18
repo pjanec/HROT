@@ -136,6 +136,25 @@ public sealed class NodeMetadata
     public float X { get; set; }
     public float Y { get; set; }
     public string? Comment { get; set; }
+
+    /// <summary>
+    /// BP-17 -- author-supplied node header text, overriding the title generated from the node's
+    /// kind and configuration. Null (and omitted from JSON) means "use the generated title", so
+    /// existing assets round-trip byte-identically and a node whose configuration later changes
+    /// still re-titles itself.
+    /// <para>
+    /// Purely presentational: nothing in the compiler reads it.
+    /// </para>
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? CustomTitle { get; set; }
+
+    /// <summary>
+    /// BP-18 -- whether the node draws with its body collapsed to the header. Editor-only view
+    /// state; false (default, omitted from JSON) is the normal expanded node.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Collapsed { get; set; }
 }
 
 public sealed class Header

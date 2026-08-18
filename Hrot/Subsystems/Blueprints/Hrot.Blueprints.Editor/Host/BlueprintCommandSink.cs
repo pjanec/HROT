@@ -31,7 +31,10 @@ namespace Hrot.Blueprints.Editor.Host;
 public sealed class BlueprintCommandSink : IGraphCommandSink
 {
     private readonly BlueprintAsset      _asset;
-    private readonly Graph               _graph;
+    // BP-24: not readonly — Retarget points the sink at another graph of the same asset when the
+    // canvas switches, so the GraphView's fixed Commands reference keeps working. All 20+ uses
+    // are reads; nothing caches _graph-derived state across calls.
+    private Graph                        _graph;
     private readonly BlueprintGraphModel _model;
     private readonly BlueprintNodeCatalog _catalog;
     private readonly BlueprintLinkValidator _validator;
@@ -101,6 +104,17 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         _behaviorActions = behaviorActions;
     }
 
+    /// <summary>BP-24 — the graph this sink currently mutates.</summary>
+    public Graph CurrentGraph => _graph;
+
+    /// <summary>
+    /// BP-24 — retargets the sink at a different graph <b>of the same asset</b>. Must be kept in
+    /// lock-step with <see cref="BlueprintGraphModel.Retarget"/> (the switcher does both), or
+    /// commands would mutate one graph while the canvas renders another.
+    /// </summary>
+    public void Retarget(Graph graph)
+        => _graph = graph ?? throw new ArgumentNullException(nameof(graph));
+
     // ── IGraphCommandSink ────────────────────────────────────────────────────
 
     /// <inheritdoc/>
@@ -129,6 +143,11 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             case GraphCommand.SetNodeProperty prop:
                 return ApplySetNodeProperty(prop);
 
+            // BP-18: editor-only view state on NodeMetadata. Without this case it hit the
+            // default: arm below and collapsed nothing, while reporting success.
+            case GraphCommand.SetNodeCollapsed collapse:
+                return ApplySetNodeCollapsed(collapse);
+
             case GraphCommand.SetPinDefault setPinDefault:
                 return ApplySetPinDefault(setPinDefault);
 
@@ -153,6 +172,11 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             case GraphCommand.RemoveComment removeComment:
                 return ApplyRemoveComment(removeComment);
 
+            // BP-11: the Blueprint-owned transport that carries drawer/inspector edits onto the
+            // single UndoStack. MUST stay above the default: arm — see BlueprintEditCommand.
+            case BlueprintEditCommand edit:
+                return ApplyBlueprintEdit(edit);
+
             default:
                 // Unknown commands are silently accepted (forward-compat).
                 return new GraphCommandResult(true, null);
@@ -164,7 +188,11 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
     private GraphCommandResult ApplyAddNode(GraphCommand.AddNode add)
     {
         // Create the asset-level node. Unknown kinds fall back to FunctionCallNode.
-        var assetNode = CreateAssetNode(add.Kind, add.Position, add.InitialProperties);
+        // BP-65: the node MUST take the caller's AssignedId. CommandBuilder.AddNode pairs the
+        // forward with `RemoveNodes([thatId])`, so minting a fresh Guid here made every inverse
+        // reference a node that does not exist — placement was silently non-undoable. The BTree and
+        // HSM sinks already honour AssignedId; only this one did not.
+        var assetNode = CreateAssetNode(add.AssignedId, add.Kind, add.Position, add.InitialProperties);
         if (assetNode == null)
             return new GraphCommandResult(false, $"Could not create node for kind: {add.Kind.Id}");
 
@@ -178,6 +206,7 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
     }
 
     private Node? CreateAssetNode(
+        NodeId assignedId,
         NodeKindKey kind,
         Vector2 position,
         IReadOnlyDictionary<string, object?>? props)
@@ -189,9 +218,20 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         // GetVariableNode / SetVariableNode so NodePinSchema projects the correct pins:
         // Get = PURE (single data-out "Value"), Set = exec in/out + typed data "Value".
         if (IsGetVariableKind(kind.Id))
-            return FinishVariableNode(new GetVariableNode(), position, props);
+            return FinishNode(new GetVariableNode(), assignedId, position, props);
         if (IsSetVariableKind(kind.Id))
-            return FinishVariableNode(new SetVariableNode(), position, props);
+            return FinishNode(new SetVariableNode(), assignedId, position, props);
+
+        // BP-68: asset-scoped dynamic kinds. Three create-paths mint kind ids the
+        // NodeKindRegistry cannot know about — the My Blueprint drag-to-canvas drop
+        // ("Event.CallCustom"), and BlueprintNodeCatalog's per-asset palette entries
+        // ("CustomEvent.{Name}", "CallPeer.{guid}"). They used to fall through to the generic
+        // FunctionCallNode below, so dragging a custom event onto the canvas produced a node
+        // that was not a CallCustomEventNode at all: no drawer could edit it and the BP-07
+        // picker never saw it. The sink is the only place that holds the asset, so it is the
+        // only place that can bind them.
+        if (CreateDynamicNode(kind.Id) is { } dynamicNode)
+            return FinishNode(dynamicNode, assignedId, position, props);
 
         // Map the NodeKindKey back to the appropriate asset Node subtype.
         // The NodeKindRegistry descriptor has a CreateInstance factory; use it
@@ -207,11 +247,11 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         }
         else
         {
-            // Dynamic kind (custom event, callable peer) — create a generic FunctionCallNode.
+            // Still-unknown kind — a generic FunctionCallNode, as before.
             assetNode = new FunctionCallNode { MethodName = kind.Id };
         }
 
-        assetNode.Id = Guid.NewGuid();
+        assetNode.Id = ResolveNodeId(assignedId);
         assetNode.EditorMetadata = new NodeMetadata { X = position.X, Y = position.Y };
 
         // Apply initial properties if provided.
@@ -290,6 +330,15 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
     /// True when <paramref name="kindId"/> denotes a "get variable" node create request
     /// (the My-Blueprint drag-to-canvas / context-menu "Get" path).
     /// </summary>
+    /// <summary>
+    /// BP-65: the id a newly created node takes. Callers that route through
+    /// <c>CommandBuilder.AddNode</c> / <c>GraphView.Execute</c> always supply one, and the paired
+    /// inverse <c>RemoveNodes</c> names it — so honouring it is what makes placement undoable. An
+    /// empty id (a caller that constructed <c>AddNode</c> by hand) still gets a fresh Guid.
+    /// </summary>
+    private static Guid ResolveNodeId(NodeId assignedId)
+        => assignedId.Value == Guid.Empty ? Guid.NewGuid() : assignedId.Value;
+
     private static bool IsGetVariableKind(string kindId) =>
         kindId is "Util.GetVar" or "Variable.Get" or "Blueprint.GetVariable" or "GetVariable";
 
@@ -301,16 +350,18 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         kindId is "Util.SetVar" or "Variable.Set" or "Blueprint.SetVariable" or "SetVariable";
 
     /// <summary>
-    /// Stamps id, position and the <c>VariableId</c> property onto a freshly created
-    /// <see cref="GetVariableNode"/>/<see cref="SetVariableNode"/> so
-    /// <see cref="NodePinSchema"/> can type the Value pin from the declared variable.
+    /// Stamps id, position, initial properties and caller-supplied pin GUIDs onto a freshly
+    /// created node. Used by the create-paths that build the node themselves rather than through
+    /// the registry — Get/Set variable and (BP-68) the asset-scoped dynamic kinds — so that, for
+    /// example, <see cref="NodePinSchema"/> can type a Get's Value pin from the declared variable.
     /// </summary>
-    private Node FinishVariableNode(
+    private Node FinishNode(
         Node node,
+        NodeId assignedId,
         Vector2 position,
         IReadOnlyDictionary<string, object?>? props)
     {
-        node.Id = Guid.NewGuid();
+        node.Id = ResolveNodeId(assignedId);
         node.EditorMetadata = new NodeMetadata { X = position.X, Y = position.Y };
         if (props != null)
             ApplyInitialProperties(node, props);
@@ -319,7 +370,91 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         return node;
     }
 
-    private static void ApplyInitialProperties(Node node, IReadOnlyDictionary<string, object?> props)
+    // ── Asset-scoped dynamic kinds (BP-68) ───────────────────────────────────
+
+    /// <summary>Prefix of the per-asset palette entry minted by <c>BlueprintNodeCatalog</c>.</summary>
+    private const string CustomEventKindPrefix = "CustomEvent.";
+
+    /// <summary>Prefix of the per-asset callable-peer palette entry.</summary>
+    private const string CallPeerKindPrefix = "CallPeer.";
+
+    /// <summary>
+    /// BP-68 — builds the real node for a kind id the <c>NodeKindRegistry</c> cannot contain because
+    /// it is derived from <i>this asset's</i> declarations. Returns <see langword="null"/> for
+    /// anything else, leaving the generic <c>FunctionCallNode</c> fallback in place.
+    ///
+    /// <para>
+    /// Only the identity carried by the kind id is seeded here; <see cref="ApplyInitialProperties"/>
+    /// then overrides it from the command's properties when the create-path supplied them (the
+    /// drag-to-canvas drop does, the palette does not).
+    /// </para>
+    /// </summary>
+    private Node? CreateDynamicNode(string kindId)
+    {
+        // My Blueprint → drag a custom event onto the canvas. CanvasRenderer's drop handler emits
+        // this kind; the event identity travels in the properties.
+        if (kindId == "Event.CallCustom")
+            return new CallCustomEventNode();
+
+        if (kindId.StartsWith(CustomEventKindPrefix, StringComparison.Ordinal))
+            return new CallCustomEventNode
+            {
+                EventId = ResolveCustomEventId(kindId.Substring(CustomEventKindPrefix.Length)),
+            };
+
+        if (kindId.StartsWith(CallPeerKindPrefix, StringComparison.Ordinal))
+            return new CallPeerBlueprintNode
+            {
+                PeerBlueprintId = NormalizePeerId(kindId.Substring(CallPeerKindPrefix.Length)),
+            };
+
+        return null;
+    }
+
+    /// <summary>
+    /// Normalises whatever a create-path knows about a custom event into the canonical form the
+    /// BP-07 picker writes and <c>NodePinSchema.CallCustomEventPins</c> parses: the declaration's
+    /// GUID in "D" form.
+    ///
+    /// <para>
+    /// Accepts the My Blueprint item id (<c>evt:{guid}</c>), a bare GUID, or the event's name — the
+    /// palette entry carries only a name, and Stage5's <c>FindCustomEventIndex</c> accepts one too.
+    /// An input that matches no declaration is passed through unchanged rather than blanked: the
+    /// drawer surfaces it as "unresolved", which is recoverable, whereas an empty EventId looks like
+    /// a node the designer never configured.
+    /// </para>
+    /// </summary>
+    private string ResolveCustomEventId(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return "";
+
+        var value = raw!.Trim();
+        if (value.StartsWith("evt:", StringComparison.Ordinal))
+            value = value.Substring(4);
+
+        if (Guid.TryParse(value, out var byGuid))
+        {
+            var known = _asset.CustomEvents.FirstOrDefault(e => e.Id == byGuid);
+            return known?.Id.ToString("D") ?? value;
+        }
+
+        var byName = _asset.CustomEvents.FirstOrDefault(
+            e => string.Equals(e.Name, value, StringComparison.Ordinal));
+        return byName?.Id.ToString("D") ?? value;
+    }
+
+    /// <summary>
+    /// The callable-peer palette entry spells its GUID in "N" form. <c>Guid.TryParse</c> accepts
+    /// both, but the pickers write "D", so normalise rather than leave two spellings in assets.
+    /// </summary>
+    private static string NormalizePeerId(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return "";
+        var value = raw!.Trim();
+        return Guid.TryParse(value, out var id) ? id.ToString("D") : value;
+    }
+
+    private void ApplyInitialProperties(Node node, IReadOnlyDictionary<string, object?> props)
     {
         // Apply well-known properties that map directly to asset fields.
         if (props.TryGetValue("Comment", out var comment) && comment is string s)
@@ -346,6 +481,22 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         else if (node is EventEntryNode ee)
         {
             if (props.TryGetValue("EventTypeId", out var eid) && eid is string es) ee.EventTypeId = es;
+        }
+        // BP-68: the My Blueprint drop ships the panel's item id ("evt:{guid}") and the display
+        // name; either resolves to the declaration's GUID.
+        else if (node is CallCustomEventNode cce)
+        {
+            if (props.TryGetValue("EventId", out var ceid) && ceid is string ces)
+                cce.EventId = ResolveCustomEventId(ces);
+            else if (props.TryGetValue("EventName", out var cen) && cen is string cns)
+                cce.EventId = ResolveCustomEventId(cns);
+        }
+        else if (node is CallPeerBlueprintNode cpb)
+        {
+            if (props.TryGetValue("PeerBlueprintId", out var pid) && pid is string pids)
+                cpb.PeerBlueprintId = NormalizePeerId(pids);
+            if (props.TryGetValue("FunctionRef", out var fr) && fr is string frs)
+                cpb.FunctionRef = frs;
         }
         else if (node is ChannelCommandNode cc)
         {
@@ -506,10 +657,56 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             return;
 
         var consumerNode = _graph.Nodes.FirstOrDefault(n => n.Id == toPin.OwnerNodeId.Value);
-        if (consumerNode is not (ComponentForEachNode or ComponentItemGetNode or ComponentItemCountNode or ComponentContainsNode or ComponentFindNode))
+        if (consumerNode is not (ComponentForEachNode or ComponentItemGetNode or ComponentItemCountNode or ComponentContainsNode or ComponentFindNode or CollectionWriteNode))
             return;
 
         var sourceNode = _graph.Nodes.FirstOrDefault(n => n.Id == fromPin.OwnerNodeId.Value);
+
+        // FC-2/LV-2 (Q#19-A): the source may be a GetVariable over a FIXED-LIST variable -- bake
+        // Kind=BlackboardFixedList + the VARIABLE name into CollectionFieldName (ComponentTypeFqn
+        // and accessor FQNs stay empty; Stage5 resolves the decl through the wire). The WRITE node
+        // is list-writable only via the LV-3 List* nodes -- a CollectionWriteNode wired to a list
+        // variable stays unbaked (component-write ops don't apply to blackboard fields).
+        if (sourceNode is GetVariableNode gvSrc)
+        {
+            var listDecl = NodePinSchema.FindVariableDecl(gvSrc.VariableId, _asset);
+            if (listDecl is not { Type.Capacity: > 0 }) return;
+            switch (consumerNode)
+            {
+                case ComponentForEachNode cfeL:
+                    cfeL.CollectionKind = CollectionKind.BlackboardFixedList;
+                    cfeL.CollectionFieldName = listDecl.Name;
+                    cfeL.ElementTypeFqn = listDecl.Type.TypeId;
+                    cfeL.ComponentTypeFqn = ""; cfeL.CountAccessorFqn = ""; cfeL.ItemAccessorFqn = "";
+                    break;
+                case ComponentItemGetNode cigL:
+                    cigL.CollectionKind = CollectionKind.BlackboardFixedList;
+                    cigL.CollectionFieldName = listDecl.Name;
+                    cigL.ElementTypeFqn = listDecl.Type.TypeId;
+                    cigL.ComponentTypeFqn = ""; cigL.ItemAccessorFqn = "";
+                    break;
+                case ComponentItemCountNode cicL:
+                    cicL.CollectionKind = CollectionKind.BlackboardFixedList;
+                    cicL.CollectionFieldName = listDecl.Name;
+                    cicL.ElementTypeFqn = listDecl.Type.TypeId;
+                    cicL.ComponentTypeFqn = ""; cicL.CountAccessorFqn = "";
+                    break;
+                case ComponentContainsNode ccnL:
+                    ccnL.CollectionKind = CollectionKind.BlackboardFixedList;
+                    ccnL.CollectionFieldName = listDecl.Name;
+                    ccnL.ElementTypeFqn = listDecl.Type.TypeId;
+                    ccnL.ComponentTypeFqn = ""; ccnL.CountAccessorFqn = ""; ccnL.ItemAccessorFqn = "";
+                    break;
+                case ComponentFindNode cfnL:
+                    cfnL.CollectionKind = CollectionKind.BlackboardFixedList;
+                    cfnL.CollectionFieldName = listDecl.Name;
+                    cfnL.ElementTypeFqn = listDecl.Type.TypeId;
+                    cfnL.ComponentTypeFqn = ""; cfnL.CountAccessorFqn = ""; cfnL.ItemAccessorFqn = "";
+                    break;
+            }
+            return;
+        }
+
         if (sourceNode is not GetComponentNode gcn)
             return;
 
@@ -558,6 +755,35 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
                 cfn.ElementTypeFqn      = decl.ElementTypeId    ?? "";
                 cfn.CollectionKind      = decl.CollectionKind;
                 cfn.CollectionFieldName = decl.CollectionFieldName;
+                break;
+
+            // FC-1 (Q#20): the WRITE node bakes only when BOTH writability gates pass -- otherwise
+            // it deliberately stays unbaked (canvas bake-incomplete error + Stage2 BP2067 flag it;
+            // the "do nothing, other validation handles it" rule this method already follows for a
+            // mismatched wire). Gates: (0) ManagedMember decls are NEVER element-writable (Q#20-C /
+            // BP2068 -- do not bake a shape Stage2 exists to reject); (1) the component carries
+            // [BlueprintWritable] (the same opt-in the SetComponent picker enforces, CA-04);
+            // (2) the op's [BlueprintCollectionWrite] accessor exists for this (component,
+            // collection) -- accessor PRESENCE is the per-field/per-op opt-in (Q#20-A amendment).
+            case CollectionWriteNode cwn:
+                if (decl.CollectionKind == CollectionKind.ManagedMember) return;
+
+                // BP-62: distinguish "resolved, not writable" (a real decision -- leave unbaked so
+                // Stage2 BP2068 reports it) from "could not resolve at all" (no information). The
+                // two used to collapse into one `false`, so an unloaded component assembly looked
+                // identical to a deliberate non-writable one and the bake silently no-opped.
+                // EditorTypeResolutionScope now force-loads referenced assemblies, so Unresolved
+                // here means a genuinely broken reference -- a typo, or a deleted/renamed component
+                // -- which the stale-reference guard reports on its own.
+                var writability = NodeDrawers.ComponentFieldReflector.GetWritability(gcn.ComponentTypeFqn);
+                if (writability != NodeDrawers.ComponentWritability.Writable) return;
+                var writeOps = NodeDrawers.ComponentFieldReflector.TryReflectWriteAccessors(
+                    gcn.ComponentTypeFqn, decl.Name);
+                if (!writeOps.TryGetValue(cwn.Op, out var writeFqn)) return;
+                cwn.ComponentTypeFqn = gcn.ComponentTypeFqn;
+                cwn.WriteAccessorFqn = writeFqn;
+                cwn.ElementTypeFqn   = decl.ElementTypeId ?? "";
+                cwn.CollectionKind   = CollectionKind.CuratedStatic;
                 break;
         }
     }
@@ -647,7 +873,49 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         return new GraphCommandResult(true, null);
     }
 
+    // ── BlueprintEditCommand (BP-11 transport) ───────────────────────────────
+
+    /// <summary>
+    /// Runs a Blueprint drawer/inspector edit that arrived via the single
+    /// <see cref="NodeEditor.Core.Commands.UndoStack"/>. Undo is <em>not</em> recorded here: the
+    /// stack recorded the forward/inverse pair before handing us this one, so recording again would
+    /// push a second entry for the same gesture (see the class docs on <see cref="BlueprintEditCommand"/>).
+    /// </summary>
+    private GraphCommandResult ApplyBlueprintEdit(BlueprintEditCommand edit)
+    {
+        edit.Mutate();
+        _markDirty(_asset);
+        // Drawer edits routinely change a node's projected pin set (component field bakes, struct
+        // expansion), so re-project unconditionally — the same refresh NotifyStructureChanged drives.
+        _model.RebuildAndNotify();
+        return new GraphCommandResult(true, null);
+    }
+
     // ── SetNodeProperty ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Applies a Details-panel property write.
+    ///
+    /// <para>
+    /// BP-11: this <b>applies only</b> — it does not record undo. A sink is the applier; the
+    /// <see cref="NodeEditor.Core.Commands.UndoStack"/> is the recorder, and it already pushed this
+    /// command's inverse before calling us. Recording here as well would double-push, and on undo the
+    /// inverse would land back in this method and push a third entry. Callers snapshot the previous
+    /// value and issue the pair through <c>GraphView.Execute</c>.
+    /// </para>
+    /// </summary>
+    /// <summary>BP-18 — toggles a node's collapsed view state.</summary>
+    private GraphCommandResult ApplySetNodeCollapsed(GraphCommand.SetNodeCollapsed collapse)
+    {
+        var assetNode = _graph.Nodes.FirstOrDefault(n => n.Id == collapse.Node.Value);
+        if (assetNode == null)
+            return new GraphCommandResult(false, $"Node {collapse.Node} not found.");
+
+        assetNode.EditorMetadata.Collapsed = collapse.Collapsed;
+        _markDirty(_asset);
+        _model.RebuildAndNotify();
+        return new GraphCommandResult(true, null);
+    }
 
     private GraphCommandResult ApplySetNodeProperty(GraphCommand.SetNodeProperty prop)
     {
@@ -655,23 +923,23 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         if (assetNode == null)
             return new GraphCommandResult(false, $"Node {prop.Node} not found.");
 
-        // Route through the EditService for undo/redo.
-        object? previousValue = GetNodeProperty(assetNode, prop.Key);
-        object? newValue      = prop.Value;
-
-        _editService.RecordPropertyEdit(
-            _asset,
-            $"Set {prop.Key} on {assetNode.Id}",
-            apply: () => SetNodeProperty(assetNode, prop.Key, newValue),
-            undo:  () => SetNodeProperty(assetNode, prop.Key, previousValue));
+        SetNodeProperty(assetNode, prop.Key, prop.Value);
+        _markDirty(_asset);
 
         _model.RebuildAndNotify();
         return new GraphCommandResult(true, null);
     }
 
-    private static object? GetNodeProperty(Node node, string key) => key switch
+    /// <summary>
+    /// Reads the current value of a <see cref="GraphCommand.SetNodeProperty"/> key. BP-11: exposed
+    /// because the <em>caller</em> now snapshots the previous value to build the inverse command —
+    /// the sink no longer does it (see <see cref="ApplySetNodeProperty"/>).
+    /// </summary>
+    internal static object? GetNodeProperty(Node node, string key) => key switch
     {
         "Comment"      => node.EditorMetadata.Comment,
+        // BP-17: the author-supplied header text. Null means "use the generated title".
+        "Title"        => node.EditorMetadata.CustomTitle,
         "TargetTypeId" => (node as FunctionCallNode)?.TargetTypeId,
         "MethodName"   => (node as FunctionCallNode)?.MethodName,
         // Slice 2a-3: GetSharedNode/SetSharedNode share the "VariableId" key with
@@ -694,6 +962,13 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         {
             case "Comment":
                 node.EditorMetadata.Comment = value as string;
+                break;
+            // BP-17: blank clears the override rather than storing an empty header, so a node can
+            // always be restored to the title its configuration implies.
+            case "Title":
+                var title = value as string;
+                node.EditorMetadata.CustomTitle =
+                    string.IsNullOrWhiteSpace(title) ? null : title!.Trim();
                 break;
             case "TargetTypeId" when node is FunctionCallNode fc1:
                 fc1.TargetTypeId = value as string ?? "";
@@ -757,13 +1032,8 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         // map, so the designer types a bare value and never sees the C# syntax.
         if (assetNode is LiteralNode literal)
         {
-            var newJson = LiteralValueJson.ToValueJson(literal.TypeId, cmd.NewValue);
-            var oldJson = literal.ValueJson;
-            _editService.RecordPropertyEdit(
-                _asset,
-                "Set literal value",
-                apply: () => literal.ValueJson = newJson,
-                undo:  () => literal.ValueJson = oldJson);
+            literal.ValueJson = LiteralValueJson.ToValueJson(literal.TypeId, cmd.NewValue);
+            _markDirty(_asset);
             _model.RebuildAndNotify();
             return new GraphCommandResult(true, null);
         }
@@ -782,14 +1052,8 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             newStr = BlueprintPinDefaultValue.FormatValue(cmd.NewValue);
         }
 
-        // Capture old value for undo.
-        string? oldStr  = assetNode.PinDefaults?.TryGetValue(pinName, out var o) == true ? o : null;
-
-        _editService.RecordPropertyEdit(
-            _asset,
-            $"Set pin default '{pinName}'",
-            apply: () => SetPinDefaultOnNode(assetNode, pinName, newStr),
-            undo:  () => SetPinDefaultOnNode(assetNode, pinName, oldStr));
+        SetPinDefaultOnNode(assetNode, pinName, newStr);
+        _markDirty(_asset);
 
         _model.RebuildAndNotify();
         return new GraphCommandResult(true, null);
@@ -884,11 +1148,8 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             MoveWithContents = cmd.MoveWithContents,
         };
 
-        _editService.RecordPropertyEdit(
-            _asset,
-            "Add Comment",
-            apply: () => _graph.Comments.Add(comment),
-            undo:  () => _graph.Comments.RemoveAll(c => c.Id == comment.Id));
+        _graph.Comments.Add(comment);
+        _markDirty(_asset);
 
         _model.RebuildAndNotify();
         return new GraphCommandResult(true, null);
@@ -906,18 +1167,8 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         if (comment == null)
             return new GraphCommandResult(true, null);   // unknown id — safe no-op
 
-        string?  oldText   = cmd.Text             is not null ? comment.Text             : null;
-        Vector2? oldPos    = cmd.Position          is not null ? new Vector2(comment.X, comment.Y) : null;
-        Vector2? oldSize   = cmd.Size              is not null ? new Vector2(comment.W, comment.H) : null;
-        Vector4? oldColor  = cmd.Color             is not null ? new Vector4(comment.ColorR, comment.ColorG, comment.ColorB, comment.ColorA) : null;
-        int?     oldZOrder = cmd.ZOrder            is not null ? comment.ZOrder            : null;
-        bool?    oldMwc    = cmd.MoveWithContents  is not null ? comment.MoveWithContents  : null;
-
-        _editService.RecordPropertyEdit(
-            _asset,
-            "Update Comment",
-            apply: () => ApplyCommentFields(comment, cmd.Text, cmd.Position, cmd.Size, cmd.Color, cmd.ZOrder, cmd.MoveWithContents),
-            undo:  () => ApplyCommentFields(comment, oldText, oldPos, oldSize, oldColor, oldZOrder, oldMwc));
+        ApplyCommentFields(comment, cmd.Text, cmd.Position, cmd.Size, cmd.Color, cmd.ZOrder, cmd.MoveWithContents);
+        _markDirty(_asset);
 
         _model.RebuildAndNotify();
         return new GraphCommandResult(true, null);
@@ -948,11 +1199,8 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         if (comment == null)
             return new GraphCommandResult(true, null);   // unknown id — safe no-op
 
-        _editService.RecordPropertyEdit(
-            _asset,
-            "Remove Comment",
-            apply: () => _graph.Comments.RemoveAll(c => c.Id == comment.Id),
-            undo:  () => _graph.Comments.Add(comment));
+        _graph.Comments.RemoveAll(c => c.Id == comment.Id);
+        _markDirty(_asset);
 
         _model.RebuildAndNotify();
         return new GraphCommandResult(true, null);

@@ -83,6 +83,18 @@ internal static class Stage4_TypeResolve
     {
         foreach (var f in fields)
         {
+            // FC-2/LV-1 (BP1504): a fixed-list declaration's InitialLength must stay within
+            // [0, Capacity] -- checked BEFORE resolve so a bad declaration is reported as itself,
+            // not as a confusing unresolvable-type BP1500.
+            if (f.Type.Capacity > 0
+                && (f.Type.InitialLength < 0 || f.Type.InitialLength > f.Type.Capacity))
+            {
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1504,
+                    $"Fixed-list variable '{f.Name}': InitialLength {f.Type.InitialLength} is outside "
+                    + $"[0, Capacity={f.Type.Capacity}].", assetId));
+                continue;
+            }
+
             if (TryResolveFieldType(ctx, f.Type, out var resolved))
                 result[f.Id] = resolved;
             else

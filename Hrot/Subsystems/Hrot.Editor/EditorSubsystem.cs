@@ -884,9 +884,14 @@ namespace Hrot.Editor
             var bpTick = Hrot.Blueprints.Editor.Runtime.BlueprintRuntimeWiring.WireBlueprintRuntime(
                 _kernel, _world!, _blueprintRegistry);
 
+            // FC-1·G2: splice bpTick BEFORE the action dispatchers (its [UpdateBefore] targets)
+            // instead of appending it -- module-group order is array position, so an appended tick
+            // ran AFTER the dispatchers and intent writes were only dispatched next tick, silently
+            // violating the Q#16-B same-tick contract. See BlueprintRuntimeWiring.SpliceIntoSimulation.
             var toggleSim = new TogglableSimulationGroup(
                 "EditorSim",
-                cgfLogicPackInst.SimulationSystems.Concat(simHostCorePack.SimulationSystems).Append(bpTick).ToArray());
+                Hrot.Blueprints.Editor.Runtime.BlueprintRuntimeWiring.SpliceIntoSimulation(
+                    cgfLogicPackInst.SimulationSystems.Concat(simHostCorePack.SimulationSystems), bpTick).ToArray());
 
             var togglePostSim = new TogglablePostSimulationGroup(
                 "EditorPostSim",
@@ -986,7 +991,11 @@ namespace Hrot.Editor
 
             var bpTimeAdapter           = new MasterSyncTimeControllerAdapter(_timeController!);
             var bpEditSvc               = new ComponentEditServiceBuilder().Build();
-            var bpPredicateCompiler     = new PredicateCompiler(bpEditSvc, _behaviorRegistry);
+            // _blueprintRegistry is required for BlueprintVariablePredicateDto -- the predicate that
+            // "Add Conditional Data Breakpoint..." synthesizes. Omitting it makes
+            // CompileBlueprintVariablePredicate return a constant-false delegate, so blueprint
+            // conditional breakpoints silently never fire (BP-29).
+            var bpPredicateCompiler     = new PredicateCompiler(bpEditSvc, _behaviorRegistry, _blueprintRegistry);
             var bpEventScannerCompiler  = new EventScannerCompiler(bpEditSvc);
             _bpSnapshotProvider         = new DebugSnapshotProvider(_bpPreTickSnapshot);
             _bpManager                  = new DataBreakpointManager(
@@ -1030,8 +1039,21 @@ namespace Hrot.Editor
 
             // Note: These registries are created but not yet wired to UI components.
             // Final wiring happens in the canvas/UI initialization below (section 10+).
+            // BP-08 / BP-66: the CallPeerBlueprint drawer's peer list, scanned from the SAME root
+            // (_bpRootDir, resolved at §715 via AssetRoots.AssetsRelative) that every other blueprint
+            // consumer uses. NOT "{BaseDirectory}/blueprints" — that directory does not exist; see
+            // BP-66, where the long-standing pin-projection catalog had the same wrong path and so
+            // never resolved a peer either. Leaving the provider null would ship a picker that always
+            // reports "no peer Blueprints discovered" — the inert-default failure this programme
+            // keeps finding (BP-29, BP-61).
+            var blueprintPeerProvider = new Hrot.Blueprints.Editor.NodeDrawers.BlueprintPeerSourceProvider(
+                new Hrot.Blueprints.Editor.BlueprintPeerSource(
+                    _bpRootDir ?? Hrot.Editor.AiShared.AssetRoots.AssetsFor(
+                        Hrot.Editor.AiShared.AssetKind.Blueprint)));
+
             _blueprintNodeDrawers = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreateNodeDrawerRegistry(
-                channelCatalog, engineEventCatalog, blueprintEditService, bpPredicateCompiler, eqsTemplates);
+                channelCatalog, engineEventCatalog, blueprintEditService, bpPredicateCompiler, eqsTemplates,
+                peerProvider: blueprintPeerProvider);
             // Blueprint palette is built below (after the BehaviorActionCatalog is constructed) with BOTH
             // the channel-command catalog (AN4: per-channel-action entries) AND the unified behavior-action
             // catalog (AN7: non-channel "Action:{FQN}" entries). _blueprintPaletteEntries is only consumed
@@ -2240,7 +2262,9 @@ namespace Hrot.Editor
                         editableAsset:  active.Asset,
                         blueprintAsset: bpAsset,
                         hostServices:   ctx?.View.Host,
-                        commands:       ctx?.Commands ?? new NodeEditor.Core.Action.EditorCommandsImpl());
+                        commands:       ctx?.Commands ?? new NodeEditor.Core.Action.EditorCommandsImpl(),
+                        // BP-12b: item rename/delete/duplicate record onto this document's undo stack.
+                        view:           ctx?.View);
 
                     // Retarget Details window (just needs the BlueprintAsset).
                     _blueprintDetailsWindow?.Retarget(bpAsset);
@@ -2249,7 +2273,11 @@ namespace Hrot.Editor
                     _blueprintLegacySelectionStore.SelectAsset(bpAsset);
 
                     // BATCH-03D2: Retarget Graph Signature window.
-                    _blueprintSignatureWindow?.Retarget(bpAsset);
+                    // BP-72: also hand it the canvas's current-graph provider. Unlike the three
+                    // windows above (all asset-scoped) this one is GRAPH-scoped, so after a BP-24
+                    // graph switch it would otherwise sit on functionGraphs[0] and edit the
+                    // signature of a graph the designer is not looking at.
+                    _blueprintSignatureWindow?.Retarget(bpAsset, ctx?.CurrentGraphId);
                 }
                 else
                 {
@@ -2948,8 +2976,15 @@ namespace Hrot.Editor
             // BATCH-03C2: blueprint asset catalog used by BlueprintDocumentFactory to build the
             // peer-signature lookup so CallPeerBlueprintNodes project typed argument pins from the
             // peer blueprint's exported function signature (read on demand from disk).
+            //
+            // BP-66: this scanned "{BaseDirectory}/blueprints" — a directory that does not exist.
+            // Every other blueprint consumer uses Assets/Blueprints (AssetRoots.AssetsRelative), so
+            // EnumerateAll() returned nothing and the lookup silently fell back to the untyped
+            // exec+Return pin shape for every CallPeerBlueprint node. It matched the other path in
+            // this same file at §715 and §3099.
             var blueprintPeerCatalog = new Hrot.Blueprints.Editor.BlueprintPeerSource(
-                System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blueprints"));
+                _bpRootDir ?? Hrot.Editor.AiShared.AssetRoots.AssetsFor(
+                    Hrot.Editor.AiShared.AssetKind.Blueprint));
 
             // Wire AiDocumentManager.Open so that opening a BTree/HSM/Blueprint asset populates
             // ViewState via the matching document factory.

@@ -84,6 +84,9 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     private ReplaySearchPanel? _searchPanel;
     private ScenarioSerializer _scenarioSerializer = null!;
     private BehaviorRegistry _behaviorRegistry = new();
+    // Required by PredicateCompiler for BlueprintVariablePredicateDto; without it, blueprint
+    // conditional breakpoints compile to a constant-false delegate (BP-29). Mirrors CgfSubsystem.
+    private Fdp.Toolkit.Blueprints.BlueprintRegistry _blueprintRegistry = new();
     // ── Continuous Diff Tracking ──────────────────────────────────────────
     private int _lastDiffFrame = -1;
     private Entity? _lastDiffEntity = null;
@@ -135,7 +138,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
             var behaviorRegistry = new BehaviorRegistry();
             _behaviorRegistry = behaviorRegistry;
-            CgfBehaviorSetup.LoadFromAiAssembly(behaviorRegistry);
+            CgfBehaviorSetup.LoadFromAiAssembly(behaviorRegistry, _blueprintRegistry);
             _scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(behaviorRegistry);
             Hrot.Presentation.Renderers.BrainBlackboardRenderer.BehaviorRegistryAccessor = behaviorRegistry;
             Hrot.Presentation.Renderers.Blackboard1024Renderer.BehaviorRegistryAccessor = behaviorRegistry;
@@ -638,7 +641,8 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             .RegisterFieldEditor<BoundingBox2D>(new Fdp.Presentation.Editing.BoundingBoxFieldEditor())
             .RegisterFieldEditor<SearchPredicateDto>(new Fdp.Presentation.Editing.PredicateValueFieldEditor())
             .Build();
-        var predicateCompiler = new PredicateCompiler(editSvc, _behaviorRegistry);
+        // See BP-29: the registry is what makes BlueprintVariablePredicateDto evaluable.
+        var predicateCompiler = new PredicateCompiler(editSvc, _behaviorRegistry, _blueprintRegistry);
         var eventScannerCompiler = new EventScannerCompiler(editSvc);
         var searchSvc = new RecordingSearchService(predicateCompiler, eventScannerCompiler);
         Func<Entity?> getSelectedEntity = () => _inspectorState?.SelectedEntity;

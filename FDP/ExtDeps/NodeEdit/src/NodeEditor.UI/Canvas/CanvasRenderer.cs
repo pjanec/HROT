@@ -38,6 +38,11 @@ public sealed class CanvasRenderer
     private readonly ContainerRenderer       _containers     = new();
     private readonly AttachmentRenderer      _attachments    = new();
     private readonly CanvasRenderContextImpl _renderCtx      = new();
+    // BP-19: the overview minimap. Off by default; toggled by editor.toggle-minimap.
+    private readonly MinimapRenderer         _minimap        = new();
+
+    /// <summary>BP-19 — the overview minimap overlay. Visibility is toggled via the view commands.</summary>
+    public MinimapRenderer Minimap => _minimap;
 
     // Per-renderer perf accumulators (keyed by renderer Id).
     private readonly Dictionary<string, MutablePerfRecord> _perfRecords = new();
@@ -51,6 +56,9 @@ public sealed class CanvasRenderer
     private string? _pendingVariableDropId;
     private string? _pendingVariableDropName;
     private Vector2 _pendingVariableDropPos;
+    private NodeId? _pendingRenameNodeId;
+    private string  _nodeRenameText = "";
+    private bool    _showNodeRenameModal;
     private PinId? _pendingPromotePinId;
     private bool _pendingPromoteIsLocal;
     private bool _showPromoteVariableModal;
@@ -166,7 +174,14 @@ public sealed class CanvasRenderer
                     var dropPos = view.Viewport.ScreenToGraph(ImGui.GetMousePos());
 
                     var kind = new NodeKindKey("Event.CallCustom");
-                    var props = new Dictionary<string, object?> { ["EventName"] = evtName };
+                    // The item id is the authoritative identity (the host resolves it to the
+                    // declaration); the display name is a fallback for hosts that key by name.
+                    // Shipping only the name left the host with nothing precise to bind to.
+                    var props = new Dictionary<string, object?>
+                    {
+                        ["EventId"]   = evtId,
+                        ["EventName"] = evtName,
+                    };
                     var cb = new CommandBuilder(view.Model);
                     var (fwd, inv) = cb.AddNode(kind, dropPos, props);
                     view.Execute(fwd, inv, "Call Custom Event");
@@ -384,7 +399,12 @@ public sealed class CanvasRenderer
             _pendingVariableDropName = null;
         }
 
+        // BP-19: drawn last so it sits above the graph, and before the modals so a popup is not
+        // covered by it.
+        _minimap.Draw(view, dl);
+
         DrawPromoteVariableModal(view);
+        DrawNodeRenameModal(view);
         ImGui.PopStyleVar();
     }
 
@@ -567,7 +587,13 @@ public sealed class CanvasRenderer
                 }
 
                 ImGui.Separator();
-                ImGui.MenuItem("Paste", "Ctrl+V", false, false);
+                // BP-23a: Paste was hard-disabled (the trailing `false, false` = unselected,
+                // DISABLED) because no host implemented it. It is live whenever a host registers
+                // editor.paste, and pastes at the cursor rather than at the copy's origin.
+                bool canPaste = IsCommandEnabled(CommandCatalog.Paste);
+                if (ImGui.MenuItem("Paste", "Ctrl+V", false, canPaste))
+                    _editorCommands?.Invoke(CommandCatalog.Paste, new EditorCommandContext(
+                        ScreenPos: null, CanvasPos: _contextMenuGraphPos, Args: null));
                 ImGui.Separator();
 
                 if (ImGui.MenuItem("Frame All", "Home"))
@@ -587,6 +613,11 @@ public sealed class CanvasRenderer
                         view.Viewport.FrameRect(new RectF(new Vector2(minX, minY), new Vector2(maxX - minX, maxY - minY)));
                     }
                 }
+
+                // BP-19: discoverability — the toggle is also on editor.toggle-minimap, but nothing
+                // in the UI pointed at it.
+                if (ImGui.MenuItem("Show Minimap", null, view.Viewport.ShowMinimap))
+                    view.Viewport.ShowMinimap = !view.Viewport.ShowMinimap;
 
                 if (ImGui.MenuItem("Reset Zoom", "Ctrl+0"))
                 {
@@ -635,7 +666,15 @@ public sealed class CanvasRenderer
                 ImGui.EndDisabled();
 
                 if (ImGui.MenuItem("Reset to Default"))
-                    view.Commands.Apply(new Core.Commands.GraphCommand.SetPinDefault(pinId, null));
+                {
+                    // BP-02: snapshot the current value first so the reset is reversible; this
+                    // previously discarded the old value with no way back.
+                    var oldDefault = view.Model.FindPin(pinId)?.Default?.Value;
+                    view.Execute(
+                        new Core.Commands.GraphCommand.SetPinDefault(pinId, null),
+                        new Core.Commands.GraphCommand.SetPinDefault(pinId, oldDefault),
+                        "Reset Pin to Default");
+                }
 
                 ImGui.BeginDisabled();
                 ImGui.MenuItem("Convert to Reroute Node");
@@ -752,10 +791,80 @@ public sealed class CanvasRenderer
 
                 ImGui.Separator();
 
+                // BP-17: a custom header. The generated title becomes the subtitle, so renaming a
+                // node never costs the only indication of what it actually is.
+                if (ImGui.MenuItem("Rename\u2026", "F2"))
+                {
+                    if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
+                    OpenNodeRenameModal(target.Node, node?.Title ?? "");
+                }
+
+                // BP-18: IsCollapsed was hardcoded false, so the flag NodeRenderer already honours
+                // could never be set.
+                bool isCollapsed = node?.IsCollapsed == true;
+                if (ImGui.MenuItem(isCollapsed ? "Expand Node" : "Collapse Node"))
+                {
+                    foreach (var id in targetNodes)
+                        view.Execute(
+                            new Core.Commands.GraphCommand.SetNodeCollapsed(id, !isCollapsed),
+                            new Core.Commands.GraphCommand.SetNodeCollapsed(id, isCollapsed),
+                            isCollapsed ? "Expand Node" : "Collapse Node");
+                }
+
+                ImGui.Separator();
+
+                // BP-13: nine alignment commands that CommandCatalog declared and nothing
+                // implemented. Grouped in a submenu so the node menu does not grow by nine rows.
+                if (ImGui.BeginMenu("Align"))
+                {
+                    DrawAlignItem("Left",                CommandCatalog.AlignLeft);
+                    DrawAlignItem("Right",               CommandCatalog.AlignRight);
+                    DrawAlignItem("Top",                 CommandCatalog.AlignTop);
+                    DrawAlignItem("Bottom",              CommandCatalog.AlignBottom);
+                    ImGui.Separator();
+                    DrawAlignItem("Center Horizontally", CommandCatalog.AlignCenterH);
+                    DrawAlignItem("Center Vertically",   CommandCatalog.AlignCenterV);
+                    ImGui.Separator();
+                    DrawAlignItem("Distribute Horizontally", CommandCatalog.DistributeH);
+                    DrawAlignItem("Distribute Vertically",   CommandCatalog.DistributeV);
+                    ImGui.Separator();
+                    DrawAlignItem("Straighten Connection",   CommandCatalog.StraightenConn);
+                    ImGui.EndMenu();
+                }
+
+                ImGui.Separator();
+
+                // BP-23a: the three clipboard actions a designer reaches for first. Right-clicking
+                // an unselected node targets just that node, matching Delete below.
+                bool hasClipboardHost = IsCommandEnabled(CommandCatalog.Copy);
+                if (ImGui.MenuItem("Copy", "Ctrl+C", false, hasClipboardHost))
+                {
+                    if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
+                    _editorCommands?.Invoke(CommandCatalog.Copy);
+                }
+
+                if (ImGui.MenuItem("Cut", "Ctrl+X", false, hasClipboardHost))
+                {
+                    if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
+                    _editorCommands?.Invoke(CommandCatalog.Cut);
+                }
+
+                if (ImGui.MenuItem("Duplicate", "Ctrl+D", false, hasClipboardHost))
+                {
+                    if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
+                    _editorCommands?.Invoke(CommandCatalog.Duplicate);
+                }
+
+                ImGui.Separator();
+
                 if (ImGui.MenuItem(targetNodes.Count > 1 ? $"Delete {targetNodes.Count} Nodes" : "Delete Node", "Del"))
                 {
                     if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
-                    view.Commands.Apply(new Core.Commands.GraphCommand.RemoveNodes(targetNodes));
+                    // Route through the same undoable path as the Del key (BP-59). A raw
+                    // Commands.Apply(RemoveNodes) records no inverse, so the nodes were
+                    // unrecoverable; DeleteSelectedUndoable also removes the implicitly
+                    // orphaned links, which the raw command left dangling.
+                    EditCommands.DeleteSelectedUndoable(view);
                 }
 
                 ImGui.Separator();
@@ -802,17 +911,36 @@ public sealed class CanvasRenderer
                     view.Interaction.RenamingComment = commentId;
                 }
 
+                // BP-02: every comment mutation below goes through view.Execute with an explicit
+                // inverse snapshotted from the CURRENT model state, so Ctrl+Z reverses it. These
+                // previously called view.Commands.Apply directly and were silently un-undoable.
+                var oldColor = comment.Color;
+                var oldZ     = comment.ZOrder;
+                var oldMwc   = comment.MoveWithContents;
+
+                // Inverse restoring only the colour channel.
+                Core.Commands.GraphCommand ColorInverse() =>
+                    new Core.Commands.GraphCommand.UpdateComment(
+                        commentId, null, null, null, oldColor, null, null);
+
+                void SetColor(Vector4 c) =>
+                    view.Execute(
+                        new Core.Commands.GraphCommand.UpdateComment(
+                            commentId, null, null, null, c, null, null),
+                        ColorInverse(),
+                        "Set Comment Color");
+
                 ImGui.Separator();
                 if (ImGui.BeginMenu("Color"))
                 {
-                    if (ImGui.MenuItem("Blue"))   view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.29f, 0.56f, 0.88f, 1f), null, null));
-                    if (ImGui.MenuItem("Green"))  view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.49f, 0.82f, 0.13f, 1f), null, null));
-                    if (ImGui.MenuItem("Yellow")) view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.97f, 0.90f, 0.11f, 1f), null, null));
-                    if (ImGui.MenuItem("Orange")) view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.96f, 0.65f, 0.14f, 1f), null, null));
-                    if (ImGui.MenuItem("Red"))    view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.81f, 0.01f, 0.11f, 1f), null, null));
-                    if (ImGui.MenuItem("Purple")) view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.56f, 0.07f, 0.99f, 1f), null, null));
-                    if (ImGui.MenuItem("Cyan"))   view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.31f, 0.89f, 0.76f, 1f), null, null));
-                    if (ImGui.MenuItem("Brown"))  view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.54f, 0.34f, 0.16f, 1f), null, null));
+                    if (ImGui.MenuItem("Blue"))   SetColor(new Vector4(0.29f, 0.56f, 0.88f, 1f));
+                    if (ImGui.MenuItem("Green"))  SetColor(new Vector4(0.49f, 0.82f, 0.13f, 1f));
+                    if (ImGui.MenuItem("Yellow")) SetColor(new Vector4(0.97f, 0.90f, 0.11f, 1f));
+                    if (ImGui.MenuItem("Orange")) SetColor(new Vector4(0.96f, 0.65f, 0.14f, 1f));
+                    if (ImGui.MenuItem("Red"))    SetColor(new Vector4(0.81f, 0.01f, 0.11f, 1f));
+                    if (ImGui.MenuItem("Purple")) SetColor(new Vector4(0.56f, 0.07f, 0.99f, 1f));
+                    if (ImGui.MenuItem("Cyan"))   SetColor(new Vector4(0.31f, 0.89f, 0.76f, 1f));
+                    if (ImGui.MenuItem("Brown"))  SetColor(new Vector4(0.54f, 0.34f, 0.16f, 1f));
                     ImGui.EndMenu();
                 }
 
@@ -820,12 +948,18 @@ public sealed class CanvasRenderer
                 if (ImGui.MenuItem("Bring to Front"))
                 {
                     int maxZ = view.Model.Comments.Count > 0 ? view.Model.Comments.Max(c => c.ZOrder) : 0;
-                    view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, maxZ + 1, null));
+                    view.Execute(
+                        new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, maxZ + 1, null),
+                        new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, oldZ, null),
+                        "Bring Comment to Front");
                 }
                 if (ImGui.MenuItem("Send to Back"))
                 {
                     int minZ = view.Model.Comments.Count > 0 ? view.Model.Comments.Min(c => c.ZOrder) : 0;
-                    view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, minZ - 1, null));
+                    view.Execute(
+                        new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, minZ - 1, null),
+                        new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, oldZ, null),
+                        "Send Comment to Back");
                 }
 
                 ImGui.Separator();
@@ -833,16 +967,25 @@ public sealed class CanvasRenderer
                 ImGui.MenuItem("Resize to Fit Contents");
                 ImGui.EndDisabled();
 
-                bool mwc = comment.MoveWithContents;
+                bool mwc = oldMwc;
                 if (ImGui.MenuItem("Move with Contents", null, ref mwc))
                 {
-                    view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, null, mwc));
+                    view.Execute(
+                        new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, null, mwc),
+                        new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, null, oldMwc),
+                        "Toggle Move with Contents");
                 }
 
                 ImGui.Separator();
                 if (ImGui.MenuItem("Delete", "Del"))
                 {
-                    view.Commands.Apply(new Core.Commands.GraphCommand.RemoveComment(commentId));
+                    // Inverse re-adds the comment with its original id and every property, so undo
+                    // restores it intact rather than leaving a hole.
+                    view.Execute(
+                        new Core.Commands.GraphCommand.RemoveComment(commentId),
+                        new Core.Commands.GraphCommand.AddComment(
+                            commentId, comment.Text, comment.Position, comment.Size, oldColor, oldMwc),
+                        "Delete Comment");
                 }
                 break;
             }
@@ -928,6 +1071,98 @@ public sealed class CanvasRenderer
         }
     }
 
+    /// <summary>
+    /// One row of the Align submenu. Greyed out (rather than hidden) when the selection is too
+    /// small, so the menu shape is stable and the requirement is discoverable.
+    /// </summary>
+    private void DrawAlignItem(string label, string commandId)
+    {
+        bool enabled = IsCommandEnabled(commandId);
+        if (ImGui.MenuItem(label, null, false, enabled))
+            _editorCommands?.Invoke(commandId);
+        if (!enabled && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+            ImGui.SetTooltip(commandId.Contains("distribute")
+                ? "Select at least three nodes"
+                : "Select at least two nodes");
+    }
+
+    /// <summary>
+    /// True when a host has registered <paramref name="commandId"/> and it is currently enabled.
+    /// Menu items for host-owned actions (BP-23a's clipboard set) grey out rather than disappear,
+    /// so the canvas menu keeps a stable shape whichever host it is embedded in.
+    /// </summary>
+    private bool IsCommandEnabled(string commandId)
+        => _editorCommands?.Get(commandId)?.IsEnabled() == true;
+
+    private void OpenNodeRenameModal(NodeId nodeId, string currentTitle)
+    {
+        _pendingRenameNodeId = nodeId;
+        _nodeRenameText      = currentTitle;
+        _showNodeRenameModal = true;
+    }
+
+    /// <summary>
+    /// BP-17 — the node-title prompt. Clearing the field restores the generated title rather than
+    /// storing an empty header, so a rename is always reversible without undo.
+    /// </summary>
+    private void DrawNodeRenameModal(GraphView view)
+    {
+        if (_showNodeRenameModal)
+        {
+            ImGui.OpenPopup("##canvas_rename_node");
+            _showNodeRenameModal = false;
+        }
+
+        bool open = true;
+        if (!ImGui.BeginPopupModal("##canvas_rename_node", ref open, ImGuiWindowFlags.AlwaysAutoResize))
+            return;
+
+        if (_pendingRenameNodeId is null)
+        {
+            ImGui.CloseCurrentPopup();
+            ImGui.EndPopup();
+            return;
+        }
+
+        if (ImGui.IsWindowAppearing()) ImGui.SetKeyboardFocusHere();
+
+        ImGui.TextDisabled("Node title");
+        ImGui.SetNextItemWidth(240f);
+        bool entered = ImGui.InputText("##node_title", ref _nodeRenameText, 128,
+            ImGuiInputTextFlags.AutoSelectAll | ImGuiInputTextFlags.EnterReturnsTrue);
+        ImGui.TextDisabled("Leave blank to restore the generated title.");
+
+        ImGui.Separator();
+
+        if (ImGui.Button("Rename", new Vector2(110, 0)) || entered)
+        {
+            var nodeId = _pendingRenameNodeId.Value;
+            // The inverse needs the value the node had before this edit — the sink no longer
+            // snapshots for the caller (BP-11).
+            var previous = view.Model.FindNode(nodeId) is { } current && current.Subtitle is not null
+                ? current.Title          // already renamed: the custom title is what shows
+                : null;                  // generated title: the override was unset
+
+            var next = string.IsNullOrWhiteSpace(_nodeRenameText) ? null : _nodeRenameText.Trim();
+            view.Execute(
+                new Core.Commands.GraphCommand.SetNodeProperty(nodeId, "Title", next),
+                new Core.Commands.GraphCommand.SetNodeProperty(nodeId, "Title", previous),
+                "Rename Node");
+
+            _pendingRenameNodeId = null;
+            ImGui.CloseCurrentPopup();
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("Cancel", new Vector2(110, 0)))
+        {
+            _pendingRenameNodeId = null;
+            ImGui.CloseCurrentPopup();
+        }
+
+        ImGui.EndPopup();
+    }
+
     private void OpenPromoteToVariableModal(PinId pinId, bool isLocal)
     {
         _pendingPromotePinId = pinId;
@@ -967,11 +1202,38 @@ public sealed class CanvasRenderer
         if (ImGui.Button("Promote", new Vector2(120, 0)) || ((inputEnter || globalEnter) && canPromote))
         {
             string? categoryPath = string.IsNullOrWhiteSpace(_promoteVariableCategoryPath) ? null : _promoteVariableCategoryPath.Trim();
-            view.Commands.Apply(new Core.Commands.GraphCommand.PromoteToVariable(
-                _pendingPromotePinId.Value,
-                _promoteVariableName.Trim(),
-                _pendingPromoteIsLocal,
-                categoryPath));
+
+            // BP-60: prefer a host handler for editor.promote-to-variable when one is registered.
+            //
+            // Promotion is not a single primitive — it declares a variable, places a node and links
+            // it — and GraphCommand.PromoteToVariable hides all three behind one opaque command
+            // whose new-node id the sink allocates internally. That is why this site could not build
+            // an inverse and was left on Commands.Apply by BP-02, and why in the Blueprint editor it
+            // reached a sink with no case for it: the `default:` arm, which returns success and does
+            // nothing. A host that composes the gesture from primitives owns every id in it and can
+            // record one proper undo entry.
+            //
+            // The single-command path remains for hosts whose sink implements it directly
+            // (NodeEditor.Demo's FakeCommandSink).
+            var promoted = _editorCommands?.Invoke(
+                CommandCatalog.PromoteToVariable,
+                new EditorCommandContext(
+                    ScreenPos: null,
+                    CanvasPos: null,
+                    Args: new Dictionary<string, object?>
+                    {
+                        ["pinId"]        = _pendingPromotePinId.Value,
+                        ["name"]         = _promoteVariableName.Trim(),
+                        ["isLocal"]      = _pendingPromoteIsLocal,
+                        ["categoryPath"] = categoryPath,
+                    }));
+
+            if (promoted is not { Success: true })
+                view.Commands.Apply(new Core.Commands.GraphCommand.PromoteToVariable(
+                    _pendingPromotePinId.Value,
+                    _promoteVariableName.Trim(),
+                    _pendingPromoteIsLocal,
+                    categoryPath));
             _pendingPromotePinId = null;
             ImGui.CloseCurrentPopup();
         }

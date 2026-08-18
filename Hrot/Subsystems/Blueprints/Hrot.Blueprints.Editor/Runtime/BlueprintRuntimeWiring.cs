@@ -1,6 +1,10 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using Fdp.Core;
 using Fdp.ModuleHost;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Blueprints;
 using Fdp.Toolkit.Blueprints.Components;
 using Fdp.Toolkit.Blueprints.Systems;
@@ -68,6 +72,45 @@ public static class BlueprintRuntimeWiring
         kernel.RegisterGlobalSystem(maintenance);
 
         return new BlueprintTickSystem(registry);
+    }
+
+    /// <summary>
+    /// FC-1·G2 (Q#20 review G2) -- inserts <paramref name="bpTick"/> into
+    /// <paramref name="simulationSystems"/> at the position its own <c>[UpdateBefore]</c>
+    /// declarations require: immediately BEFORE the first system whose type is named by one of
+    /// <see cref="BlueprintTickSystem"/>'s <c>[UpdateBefore]</c> attributes (the Locomotion/Weapon/
+    /// Interaction dispatchers). Module-group execution order is ARRAY POSITION -- the kernel does
+    /// not re-apply ordering attributes inside a module's system list (see
+    /// <c>ChannelArbitrationSystem</c>'s comments and the Q#20 review's G2 finding: both real
+    /// compositions used to APPEND the tick after the dispatchers, silently downgrading the
+    /// architect-approved Q#16-B "intent is read the same tick" contract to write-visible-next-tick).
+    /// This helper makes the declared contract hold BY CONSTRUCTION and is the single splice both
+    /// hosts (<c>EditorSubsystem</c>, <c>EditorHarness</c>) use.
+    /// <para>
+    /// The targets are read off the attributes (not hardcoded) so a future <c>[UpdateBefore]</c>
+    /// addition on <see cref="BlueprintTickSystem"/> re-positions the splice automatically. A list
+    /// containing NO target system (degenerate/test compositions without dispatchers) appends the
+    /// tick at the end -- exactly the old behavior, where no ordering contract exists to honor.
+    /// </para>
+    /// </summary>
+    public static List<IEcsModuleSystem> SpliceIntoSimulation(
+        IEnumerable<IEcsModuleSystem> simulationSystems, BlueprintTickSystem bpTick)
+    {
+        if (simulationSystems is null) throw new ArgumentNullException(nameof(simulationSystems));
+        if (bpTick is null)            throw new ArgumentNullException(nameof(bpTick));
+
+        var targets = typeof(BlueprintTickSystem)
+            .GetCustomAttributes<UpdateBeforeAttribute>()
+            .Select(a => a.Target)
+            .ToArray();
+
+        var result = new List<IEcsModuleSystem>(simulationSystems);
+        int firstTarget = result.FindIndex(s => targets.Contains(s.GetType()));
+        if (firstTarget >= 0)
+            result.Insert(firstTarget, bpTick);
+        else
+            result.Add(bpTick);
+        return result;
     }
 
     /// <summary>

@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="360" viewBox="0 0 760 360" font-family="Segoe UI, Arial, sans-serif">
+  <style>
+    .lbl  { font-size: 12px; fill: #333; }
+    .cap  { font-size: 13px; font-weight: 600; fill: #111; }
+    .tiny { font-size: 11px; fill: #666; }
+    .bad  { fill: #c62828; font-size: 12px; font-weight: 600; }
+    .good { fill: #2e7d32; font-size: 12px; font-weight: 600; }
+    .panel { fill: #dfe6ee; stroke: #9aa7b4; stroke-width: 1; }
+    .chrome{ fill: #cfd8e3; stroke: #9aa7b4; stroke-width: 1; }
+    .map   { fill: #eef6ea; stroke: #9aa7b4; stroke-width: 1; }
+    .win   { fill: none; stroke: #444; stroke-width: 2; }
+  </style>
+
+  <!-- ── LEFT: today ─────────────────────────────────────────── -->
+  <text x="20" y="20" class="cap">Today — every camera centres on the whole window</text>
+
+  <rect x="20" y="34" width="330" height="230" class="map"/>
+  <rect x="20" y="34" width="330" height="18" class="chrome"/>
+  <rect x="20" y="246" width="330" height="18" class="chrome"/>
+  <rect x="20" y="52" width="86" height="194" class="panel"/>
+  <rect x="266" y="52" width="84" height="194" class="panel"/>
+  <rect x="20" y="34" width="330" height="230" class="win"/>
+
+  <text x="26" y="46" class="tiny">main menu bar</text>
+  <text x="26" y="258" class="tiny">status bar</text>
+  <text x="30" y="150" class="tiny" transform="rotate(-90 30 150)">docked panel</text>
+  <text x="276" y="150" class="tiny" transform="rotate(-90 276 150)">docked panel</text>
+
+  <!-- window centre marker -->
+  <circle cx="185" cy="149" r="5" fill="none" stroke="#c62828" stroke-width="2"/>
+  <line x1="178" y1="142" x2="192" y2="156" stroke="#c62828" stroke-width="2"/>
+  <line x1="192" y1="142" x2="178" y2="156" stroke="#c62828" stroke-width="2"/>
+  <text x="150" y="182" class="bad">window centre</text>
+
+  <!-- top-left marker (Editor / ReplayBrowser) -->
+  <circle cx="20" cy="34" r="6" fill="none" stroke="#c62828" stroke-width="2"/>
+  <line x1="14" y1="28" x2="26" y2="40" stroke="#c62828" stroke-width="2"/>
+  <line x1="26" y1="28" x2="14" y2="40" stroke="#c62828" stroke-width="2"/>
+
+  <text x="20" y="288" class="lbl">Offset = (w/2, h/2) — CGF, SimHost (hardcoded 1280×720), IG</text>
+  <text x="20" y="306" class="lbl">Offset = (0, 0) — Editor, ReplayBrowser: the top-left pixel ✗</text>
+  <text x="20" y="324" class="lbl">Cull rect = ScreenToWorld(0,0) → ScreenToWorld(w,h)</text>
+  <text x="20" y="342" class="lbl">Set once at construction — never on resize</text>
+
+  <!-- ── ARROW ───────────────────────────────────────────────── -->
+  <line x1="368" y1="149" x2="398" y2="149" stroke="#444" stroke-width="2"/>
+  <polygon points="398,143 410,149 398,155" fill="#444"/>
+
+  <!-- ── RIGHT: designed ─────────────────────────────────────── -->
+  <text x="424" y="20" class="cap">Designed — one MapViewport, centre follows the visible rect</text>
+
+  <rect x="424" y="34" width="316" height="230" class="map"/>
+  <rect x="424" y="34" width="316" height="18" class="chrome"/>
+  <rect x="424" y="246" width="316" height="18" class="chrome"/>
+  <rect x="424" y="52" width="82" height="194" class="panel"/>
+  <rect x="660" y="52" width="80" height="194" class="panel"/>
+  <rect x="424" y="34" width="316" height="230" class="win"/>
+
+  <!-- visible rect -->
+  <rect x="506" y="52" width="154" height="194" fill="none" stroke="#2e7d32" stroke-width="2" stroke-dasharray="5 3"/>
+  <circle cx="583" cy="149" r="5" fill="#2e7d32"/>
+  <line x1="576" y1="149" x2="590" y2="149" stroke="#2e7d32" stroke-width="2"/>
+  <line x1="583" y1="142" x2="583" y2="156" stroke="#2e7d32" stroke-width="2"/>
+  <text x="516" y="182" class="good">visible centre</text>
+  <text x="513" y="70" class="tiny">MapViewport.PosPx / SizePx</text>
+
+  <text x="424" y="288" class="lbl">Offset = Viewport.CenterPx — derived, one place, all five hosts</text>
+  <text x="424" y="306" class="lbl">Cull rect = the dashed rect, not the window</text>
+  <text x="424" y="324" class="lbl">Updated every frame ⇒ resize and panel drags both follow</text>
+  <text x="424" y="342" class="lbl">Nothing about rendering changes — the map still fills the window</text>
+</svg>

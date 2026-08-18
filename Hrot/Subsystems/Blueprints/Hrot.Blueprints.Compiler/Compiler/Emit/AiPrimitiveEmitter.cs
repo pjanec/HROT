@@ -55,6 +55,10 @@ internal static class AiPrimitiveEmitter
 
     private static void EmitWorkingStateStruct(CSharpEmitter e, IrAsset asset)
     {
+        // FC-2/LV-1b (Q#19-E): a WorkingState field may be a fixed-capacity list -- emit the same
+        // per-class nested wrapper structs the Instance State path uses (additive: assets without
+        // list fields emit byte-identical output).
+        InstanceEmitter.EmitListWrappers(e, asset.WorkingState);
         e.WriteLine("[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
         e.WriteLine("public struct WorkingState");
         e.WriteLine("{");
@@ -110,6 +114,14 @@ internal static class AiPrimitiveEmitter
             f.DefaultValueCSharp != "default"))
         {
             e.WriteLine($"dst->{f.Name} = {f.DefaultValueCSharp};");
+        }
+        // FC-2/LV-1b (Q#19-B): declared initial length seeds Count over the zeroed slots -- the
+        // partial init the whole-field DefaultValueCSharp path cannot express (review F2). Runs on
+        // every hash-mismatch (re)init inside the generated thunks; the BlueprintCall host's inline
+        // zero path leaves Count=0 (safe empty list; documented LV-1b limitation).
+        foreach (var f in asset.WorkingState.Where(f => f.Type.Capacity > 0 && f.Type.InitialLength > 0))
+        {
+            e.WriteLine($"dst->{f.Name}.Count = {f.Type.InitialLength};");
         }
         e.Outdent();
         e.WriteLine("}");

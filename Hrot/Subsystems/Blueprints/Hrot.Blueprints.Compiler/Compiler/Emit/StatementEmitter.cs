@@ -63,6 +63,109 @@ internal static class StatementEmitter
                 e.WriteLine($"{sv}.{ctx.VarFieldName(op.VariableIndex)} = __t{op.Value.Index};");
                 break;
 
+            case IrOp_StateFieldRef op:
+                // FC-2/LV-2 -- writable ref-bind onto the state field (see the op's doc comment).
+                if (idx >= 0) e.WriteLine($"ref var __t{idx} = ref {sv}.{op.FieldName};");
+                break;
+
+            case IrOp_ListWrite op:
+            {
+                // FC-2/LV-3 (Q#19-C/D amended emit) -- scoped in-place mutation of the state-field
+                // list. All element access through the Span cast (R3), F2 clamp on the working
+                // count, G6 zeroing on shrink/remove/clear, false-on-overflow driving the Ok result
+                // (idx < 0 for Clear -- no Ok pin). Probe gating mirrors the component write.
+                string elemCs = TypeRefToCSharp(new IrTypeRef { FullName = op.ElementTypeFqn });
+                bool probes = e.Ctx.Mode != Hrot.Blueprints.Core.Compiler.CompilerMode.Release
+                              && e.Ctx.HasSelfInScope;
+                string field = $"{sv}.{op.FieldName}";
+                int cap = op.Capacity;
+                string n = e.Ctx.NextLocalCounter("lw");
+                string spanV = $"__lws{n}";
+                string cntV  = $"__lwc{n}";
+
+                if (idx >= 0) e.WriteLine($"var __t{idx} = false;");
+                e.WriteLine("{");
+                e.Indent();
+                e.WriteLine($"var {spanV} = (global::System.Span<{elemCs}>){field}.Items;");
+                e.WriteLine($"int {cntV} = global::System.Math.Min({field}.Count, {cap});");
+                string ok = idx >= 0 ? $"__t{idx}" : "";
+                void Probe(string reason)
+                {
+                    if (probes)
+                        e.WriteLine($"else global::Hrot.Blueprints.Core.Debug.DebugProbe.CollectionWriteFailed(self, \"{op.NodeId:D}\", \"{op.Verb}\", \"{reason}\");");
+                }
+                switch (op.Verb)
+                {
+                    case "Add":
+                        e.WriteLine($"if ({cntV} < {cap})");
+                        e.WriteLine("{");
+                        e.Indent();
+                        e.WriteLine($"{spanV}[{cntV}] = __t{op.Value!.Value.Index};");
+                        e.WriteLine($"{field}.Count = {cntV} + 1;");
+                        if (idx >= 0) e.WriteLine($"{ok} = true;");
+                        e.Outdent();
+                        e.WriteLine("}");
+                        Probe("op-rejected");
+                        break;
+                    case "SetAt":
+                        e.WriteLine($"if ((uint)__t{op.IntArg!.Value.Index} < (uint){cntV})");
+                        e.WriteLine("{");
+                        e.Indent();
+                        e.WriteLine($"{spanV}[__t{op.IntArg!.Value.Index}] = __t{op.Value!.Value.Index};");
+                        if (idx >= 0) e.WriteLine($"{ok} = true;");
+                        e.Outdent();
+                        e.WriteLine("}");
+                        Probe("op-rejected");
+                        break;
+                    case "InsertAt":
+                        e.WriteLine($"if ({cntV} < {cap} && (uint)__t{op.IntArg!.Value.Index} <= (uint){cntV})");
+                        e.WriteLine("{");
+                        e.Indent();
+                        e.WriteLine($"{spanV}[__t{op.IntArg!.Value.Index}..{cntV}].CopyTo({spanV}[(__t{op.IntArg!.Value.Index} + 1)..]);");
+                        e.WriteLine($"{spanV}[__t{op.IntArg!.Value.Index}] = __t{op.Value!.Value.Index};");
+                        e.WriteLine($"{field}.Count = {cntV} + 1;");
+                        if (idx >= 0) e.WriteLine($"{ok} = true;");
+                        e.Outdent();
+                        e.WriteLine("}");
+                        Probe("op-rejected");
+                        break;
+                    case "RemoveAt":
+                        e.WriteLine($"if ((uint)__t{op.IntArg!.Value.Index} < (uint){cntV})");
+                        e.WriteLine("{");
+                        e.Indent();
+                        e.WriteLine($"{spanV}[(__t{op.IntArg!.Value.Index} + 1)..{cntV}].CopyTo({spanV}[__t{op.IntArg!.Value.Index}..]);");
+                        e.WriteLine($"{spanV}[{cntV} - 1] = default;   // G6: vacated slot re-zeroed");
+                        e.WriteLine($"{field}.Count = {cntV} - 1;");
+                        if (idx >= 0) e.WriteLine($"{ok} = true;");
+                        e.Outdent();
+                        e.WriteLine("}");
+                        Probe("op-rejected");
+                        break;
+                    case "Clear":
+                        e.WriteLine($"{spanV}[..{cntV}].Clear();   // G6");
+                        e.WriteLine($"{field}.Count = 0;");
+                        if (idx >= 0) e.WriteLine($"{ok} = true;");
+                        break;
+                    case "Resize":
+                        e.WriteLine($"if ((uint)__t{op.IntArg!.Value.Index} <= (uint){cap})");
+                        e.WriteLine("{");
+                        e.Indent();
+                        e.WriteLine($"if (__t{op.IntArg!.Value.Index} < {cntV})");
+                        e.Indent();
+                        e.WriteLine($"{spanV}[__t{op.IntArg!.Value.Index}..{cntV}].Clear();   // G6: dropped tail re-zeroed");
+                        e.Outdent();
+                        e.WriteLine($"{field}.Count = __t{op.IntArg!.Value.Index};");
+                        if (idx >= 0) e.WriteLine($"{ok} = true;");
+                        e.Outdent();
+                        e.WriteLine("}");
+                        Probe("op-rejected");
+                        break;
+                }
+                e.Outdent();
+                e.WriteLine("}");
+                break;
+            }
+
             // ------------------------------------------------------------------
             // GetShared / SetShared (Slice 2a-2 + Slice 2b): entity-scoped shared working-state,
             // compiled to calls into the Slice 2a-1 accessor.
@@ -413,6 +516,62 @@ internal static class StatementEmitter
             }
 
             // ------------------------------------------------------------------
+            // Component-collection element write (curated accessor, self-only) -- FC-1, Q#20
+            // ------------------------------------------------------------------
+
+            case IrOp_CollectionWrite op:
+            {
+                // FC-1 (Q#20 "G1 resolution"). Same guarded write-if-present shape as
+                // IrOp_WriteComponentFields (idx is always >= 0 -- Stage5 always allocates the "Ok"
+                // ResultValue), but the mutation is a CURATED ACCESSOR CALL on the guarded ref --
+                // raw buffer/element access never appears here (Q#5-C: the Span<T> pattern lives
+                // inside the accessor). For bool ops the guard local is REASSIGNED to the accessor
+                // result (Ok = present AND applied); Clear (void) keeps the guard bool. The
+                // DebugProbe.CollectionWriteFailed calls are gated EXACTLY like the other probe ops
+                // (non-Release + self in scope -- Library dispatch has no `self`): the never-silent
+                // contract is a debug/trace diagnostic, and DebugProbe.Sink is a null no-op even
+                // then.
+                string entity = $"__t{op.Entity.Index}";
+                bool probes = e.Ctx.Mode != Hrot.Blueprints.Core.Compiler.CompilerMode.Release
+                              && e.Ctx.HasSelfInScope;
+
+                string args = $"ref __wc{idx}";
+                if (op.IntArg is { } intArg) args += $", __t{intArg.Index}";
+                if (op.Value  is { } val)    args += $", __t{val.Index}";
+
+                e.WriteLine($"var __t{idx} = {wv}.HasComponent<global::{op.ComponentTypeFqn}>({entity});");
+                e.WriteLine($"if (__t{idx})");
+                e.WriteLine("{");
+                e.Indent();
+                e.WriteLine($"ref var __wc{idx} = ref {wv}.GetComponentRW<global::{op.ComponentTypeFqn}>({entity});");
+                if (op.ReturnsBool)
+                {
+                    e.WriteLine($"__t{idx} = global::{op.WriteAccessorFqn}({args});");
+                    if (probes)
+                    {
+                        e.WriteLine($"if (!__t{idx})");
+                        e.Indent();
+                        e.WriteLine($"global::Hrot.Blueprints.Core.Debug.DebugProbe.CollectionWriteFailed(self, \"{op.NodeId:D}\", \"{op.Verb}\", \"op-rejected\");");
+                        e.Outdent();
+                    }
+                }
+                else
+                {
+                    e.WriteLine($"global::{op.WriteAccessorFqn}({args});");
+                }
+                e.Outdent();
+                e.WriteLine("}");
+                if (probes)
+                {
+                    e.WriteLine("else");
+                    e.Indent();
+                    e.WriteLine($"global::Hrot.Blueprints.Core.Debug.DebugProbe.CollectionWriteFailed(self, \"{op.NodeId:D}\", \"{op.Verb}\", \"component-absent\");");
+                    e.Outdent();
+                }
+                break;
+            }
+
+            // ------------------------------------------------------------------
             // ECS writes via ECB
             // ------------------------------------------------------------------
 
@@ -457,7 +616,7 @@ internal static class StatementEmitter
                 // mlKey = RosterValue.Index (unique per component re-read in this block).
                 var (countExpr, itemExpr) = RenderCollectionAccessors(
                     e, op.Kind, roster, op.ManagedFieldName, op.ItemVar.Type.FullName,
-                    op.CountAccessorFqn, op.ItemAccessorFqn, op.RosterValue.Index);
+                    op.CountAccessorFqn, op.ItemAccessorFqn, op.RosterValue.Index, op.Capacity);
                 // "Count" out-pin (op.CountVar): hoist the element count into an OUTER-scope local and
                 // reuse it as the loop bound (evaluated once). Otherwise re-evaluate inline each pass
                 // (the original P1a shape -- keeps existing goldens byte-identical).
@@ -466,6 +625,15 @@ internal static class StatementEmitter
                 {
                     e.WriteLine($"var __t{op.CountVar.Value.Index} = {countExpr};");
                     bound = $"__t{op.CountVar.Value.Index}";
+                }
+                else if (op.Kind == CollectionKind.BlackboardFixedList)
+                {
+                    // FC-2/LV-2 (decided read binding): the list loop bound is ALWAYS snapshotted at
+                    // entry (ref-bind sees same-tick writes; a mid-loop resize may skip/repeat a
+                    // slot -- documented contract -- but the bound itself never moves). __feb{n} is
+                    // unique per loop via the item var's SSA index.
+                    e.WriteLine($"var __feb{op.ItemVar.Index} = {countExpr};");
+                    bound = $"__feb{op.ItemVar.Index}";
                 }
                 else
                 {
@@ -662,6 +830,24 @@ internal static class StatementEmitter
                             e.WriteLine($"var __t{idx} = ({ml}?.Count ?? 0);");
                         }
                     }
+                    else if (op.Kind == CollectionKind.BlackboardFixedList)
+                    {
+                        // FC-2/LV-2 -- `comp` is the writable ref local bound onto the state field
+                        // (IrOp_StateFieldRef). Same clamped never-throw contract as
+                        // RenderCollectionAccessors' list branch: Count clamps to min(Count, N)
+                        // (F2 defensive clamp), an out-of-range Item index yields default.
+                        string clampedCount = $"global::System.Math.Min({comp}.Count, {op.Capacity})";
+                        if (op.Index is not null)
+                        {
+                            string i = $"__t{op.Index.Value.Index}";
+                            string elemCs = TypeRefToCSharp(new IrTypeRef { FullName = op.ElementTypeFqn });
+                            e.WriteLine($"var __t{idx} = ((uint){i} < (uint){clampedCount} ? {comp}.Items[{i}] : default({elemCs}));");
+                        }
+                        else
+                        {
+                            e.WriteLine($"var __t{idx} = {clampedCount};");
+                        }
+                    }
                     else
                     {
                         // Curated -- Component binds to the accessor's `in T` parameter implicitly (the
@@ -688,7 +874,7 @@ internal static class StatementEmitter
                 // compare + first-match short-circuit are identical either way.
                 var (countExpr, itemExpr) = RenderCollectionAccessors(
                     e, op.Kind, comp, op.ManagedFieldName, op.ElementTypeFqn,
-                    op.CountAccessorFqn, op.ItemAccessorFqn, op.Component.Index);
+                    op.CountAccessorFqn, op.ItemAccessorFqn, op.Component.Index, op.Capacity);
 
                 if (op.ContainsResult is not null) e.WriteLine($"var __t{op.ContainsResult.Value.Index} = false;");
                 if (op.FindIndex is not null)      e.WriteLine($"var __t{op.FindIndex.Value.Index} = -1;");
@@ -1198,13 +1384,28 @@ internal static class StatementEmitter
     /// </summary>
     private static (string Count, System.Func<string, string> Item) RenderCollectionAccessors(
         CSharpEmitter e, CollectionKind kind, string comp, string managedFieldName,
-        string elementTypeFqn, string countAccessorFqn, string itemAccessorFqn, int mlKey)
+        string elementTypeFqn, string countAccessorFqn, string itemAccessorFqn, int mlKey,
+        int capacity = 0)
     {
         if (kind == CollectionKind.ManagedMember)
         {
             string ml = $"__ml{mlKey}";
             e.WriteLine($"global::System.Collections.Generic.IReadOnlyList<global::{elementTypeFqn}> {ml} = {comp}?.{managedFieldName};");
             return ($"({ml}?.Count ?? 0)", i => $"{ml}![{i}]");
+        }
+        if (kind == CollectionKind.BlackboardFixedList)
+        {
+            // FC-2/LV-2 (Q#19-A + the decided read binding): `comp` is a writable ref local bound
+            // onto the state field (IrOp_StateFieldRef). Count is the F2 defensive clamp
+            // min(Count, N) -- a garbage/stale Count can never drive an out-of-capacity index --
+            // and the item read is guarded never-throw for arbitrary indices (ItemGet): in-range
+            // reads the live slot, out-of-range yields default (the same safe-default contract the
+            // component consumers use). Loop consumers bound i by the clamped count, so their
+            // guard folds to always-true.
+            string elemCs = TypeRefToCSharp(new IrTypeRef { FullName = elementTypeFqn });
+            return (
+                $"global::System.Math.Min({comp}.Count, {capacity})",
+                i => $"((uint){i} < (uint)global::System.Math.Min({comp}.Count, {capacity}) ? {comp}.Items[{i}] : default({elemCs}))");
         }
         return ($"global::{countAccessorFqn}({comp})", i => $"global::{itemAccessorFqn}({comp}, {i})");
     }

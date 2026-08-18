@@ -45,6 +45,8 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(ComponentItemCountNode), "ComponentItemCount")]
 [JsonDerivedType(typeof(ComponentContainsNode),  "ComponentContains")]
 [JsonDerivedType(typeof(ComponentFindNode),      "ComponentFind")]
+[JsonDerivedType(typeof(CollectionWriteNode),    "CollectionWrite")]
+[JsonDerivedType(typeof(ListWriteNode),          "ListWrite")]
 [JsonDerivedType(typeof(CompareNode),            "Compare")]
 [JsonDerivedType(typeof(BinaryOpNode),           "BinaryOp")]
 [JsonDerivedType(typeof(BooleanOpNode),          "BooleanOp")]
@@ -628,6 +630,8 @@ public enum CollectionKind
     CuratedStatic = 0,
     /// <summary>Native managed member (<c>List&lt;T&gt;</c>/<c>IReadOnlyList&lt;T&gt;</c>/<c>T[]</c>) on a class component -- no curated accessors.</summary>
     ManagedMember = 1,
+    /// <summary>FC-2/LV-2 (Q#19-A): a fixed-capacity LIST VARIABLE in the blueprint's State/WorkingState -- the consumer's "Collection" resolves to a `ref` onto the state field (no entity, no component re-read); <c>CollectionFieldName</c> carries the VARIABLE name; accessor FQNs are empty. Emit renders <c>__ref.Count</c>/<c>__ref.Items[i]</c> with the F2 min(Count, N) clamp.</summary>
+    BlackboardFixedList = 2,
 }
 
 public sealed class ComponentFieldDecl
@@ -1082,6 +1086,94 @@ public sealed class ComponentContainsNode : Node
     /// <summary>CA-07d-2: for <see cref="CollectionKind.ManagedMember"/>, the managed collection field name; accessor FQNs are empty. Null (omitted) for curated.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? CollectionFieldName { get; set; }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// CollectionWrite (FC-1, Q#20 -- component collection element WRITE, CuratedStatic + self only)
+//
+// The write-side sibling of the CA-07 consumers above. Same author-time "Collection" in-pin binding
+// (wired FROM a GetComponent collection out-pin -- G4 kept the Unreal pin-composability for writes
+// too), but the ENTITY IS NEVER TAKEN FROM THE WIRE: writes are self-only (Q#16/Q#20 inherited
+// ruling), so Stage5 binds GetComponentRW to the resolved `self` unconditionally, and Stage2's
+// V_ComponentAccessRules rejects a producer GetComponent whose "Target" is wired (BP2070) as well
+// as any "Target" pin on this node itself (BP2069). Mutation goes through a curated
+// [BlueprintCollectionWrite] static accessor baked as WriteAccessorFqn (Q#5-C: raw buffer access
+// stays off-graph; the Span<T> write pattern lives INSIDE the accessor), called on the guarded
+// GetComponentRW ref: `__t = Has<T>(self); if (__t) { ref var __wc = ref GetComponentRW<T>(self);
+// __t = global::{WriteAccessorFqn}(ref __wc, ...); }`. ManagedMember collections are NOT
+// element-writable (Q#20-C, snapshot aliasing) -- BP2068.
+// ──────────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// FC-1 -- the mutation verb a <see cref="CollectionWriteNode"/> performs. Mirrors
+/// <c>Fdp.Core.BlueprintCollectionOp</c> (the compiler cannot reference game assemblies -- the
+/// editor bakes the discovered accessor's op into this asset-side enum at wire time).
+/// </summary>
+public enum CollectionWriteOp
+{
+    /// <summary><c>bool Add(ref C, Elem)</c> -- append; false on full.</summary>
+    Add = 0,
+    /// <summary><c>bool SetAt(ref C, int, Elem)</c> -- overwrite within [0, Count); never grows Count.</summary>
+    SetAt = 1,
+    /// <summary><c>bool InsertAt(ref C, int, Elem)</c> -- shift up; false on full or i &gt; Count.</summary>
+    InsertAt = 2,
+    /// <summary><c>bool RemoveAt(ref C, int)</c> -- shift down, vacated slot zeroed.</summary>
+    RemoveAt = 3,
+    /// <summary><c>void Clear(ref C)</c> -- zero used slots, Count = 0. Cannot fail.</summary>
+    Clear = 4,
+    /// <summary><c>bool Resize(ref C, int)</c> -- set logical length; shrink zeroes dropped tail.</summary>
+    Resize = 5,
+}
+
+/// <summary>
+/// FC-1 (Q#20) -- mutates one element / the length of a fixed-capacity component collection on
+/// <c>self</c> via a baked curated write accessor (see the section doc comment above). Exec node:
+/// exec-in "In", exec-out "Out", data-in "Collection" (<c>IsArray</c>, element-typed -- wired FROM a
+/// GetComponent collection out-pin; used for author-time binding + validation ONLY, never as the
+/// write entity), per-<see cref="Op"/> operand data-ins ("Index"/"Length" <c>System.Int32</c>,
+/// "Value" element-typed), and data-out "Ok" (<c>System.Boolean</c>: component present AND the op
+/// applied). Write-if-present -- absent component ⇒ Ok=false, never an implicit add; a refused op
+/// (full / out-of-range) ⇒ Ok=false + a <c>DebugProbe.CollectionWriteFailed</c> diagnostic in
+/// non-Release mode (never silent). See <c>Stage5_Schedule</c>'s <c>CollectionWriteNode</c> case and
+/// <c>StatementEmitter</c>'s <c>IrOp_CollectionWrite</c> case.
+/// </summary>
+public sealed class CollectionWriteNode : Node
+{
+    /// <summary>FQN of the ECS component carrying the collection (write target on self). Baked string -- no reflection.</summary>
+    public string ComponentTypeFqn { get; set; } = "";
+
+    /// <summary>The mutation verb -- drives the operand pin set (Stage0) and the accessor call arity (Stage5/emit).</summary>
+    public CollectionWriteOp Op { get; set; }
+
+    /// <summary>FQN of the <c>[BlueprintCollectionWrite]</c> static accessor for <see cref="Op"/> (e.g. "Hrot.AI.Behaviors.Brains.BpFixedListDemoOps.SetAt"), baked at wire time. Emitted as <c>global::{Fqn}(ref __wc, ...)</c>.</summary>
+    public string WriteAccessorFqn { get; set; } = "";
+
+    /// <summary>FQN of the collection's element type -- types the "Collection"/"Value" pins. Empty until baked (pins fall back to System.Object).</summary>
+    public string ElementTypeFqn { get; set; } = "";
+
+    /// <summary>Must stay <c>CuratedStatic</c> -- a <c>ManagedMember</c> collection is not element-writable (Q#20-C; Stage2 BP2068). Present so a hand-authored/legacy managed bake is REJECTED rather than silently mis-emitted. Omitted from JSON when default.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public CollectionKind CollectionKind { get; set; }
+}
+
+/// <summary>
+/// FC-2/LV-3 (Q#19-C/D) -- mutates a FIXED-LIST VARIABLE in place, bound BY VARIABLE ID (the
+/// SetVariable lvalue pattern -- the list is NEVER routed through a by-value data pin; Q#19-D hard
+/// requirement: writing one element must not copy the array). Exec node: exec In/Out, per-<see
+/// cref="Op"/> operand data-ins ("Index"/"Length" int, "Value" element-typed), and -- for the
+/// fallible ops -- a data-out "Ok" (<c>System.Boolean</c>; the settled overflow contract: false +
+/// a Debug-mode <c>DebugProbe.CollectionWriteFailed</c> diagnostic on full/out-of-range, never
+/// silent, never throw). Clear cannot fail and has no "Ok". Emit is the amended Span form (the
+/// naive <c>s.f.Items[i]=</c> is the R3 write-loss shape) with the F2 clamp and the G6
+/// tail-always-default invariant -- see <c>StatementEmitter</c>'s <c>IrOp_ListWrite</c> case.
+/// </summary>
+public sealed class ListWriteNode : Node
+{
+    /// <summary>The target fixed-list variable's id (GUID string, "var:"-prefix tolerated) -- Variables or WorkingState.</summary>
+    public string VariableId { get; set; } = "";
+
+    /// <summary>The mutation verb -- drives the operand pin set and emit arity (shares the component write's vocabulary, Q#19-C).</summary>
+    public CollectionWriteOp Op { get; set; }
 }
 
 /// <summary>

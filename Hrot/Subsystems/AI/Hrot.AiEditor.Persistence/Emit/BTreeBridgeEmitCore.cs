@@ -153,9 +153,11 @@ public static class BTreeBridgeEmitCore
                              && dto.Blackboard.Variables.Any(v => v.DefaultValueJson != null);
         if (needsJsonOpts)
         {
-            sb.AppendLine($"{Indent}// JSON options for ParseParams — IncludeFields required for blittable struct DTOs.");
+            sb.AppendLine($"{Indent}// JSON options for ParseParams — the platform-canonical options (IncludeFields,");
+            sb.AppendLine($"{Indent}// vector/FixedString/strict-enum converters, and FC-3b fixed-list support) so");
+            sb.AppendLine($"{Indent}// Params defaults share ONE wire format with scenario save/load.");
             sb.AppendLine($"{Indent}private static readonly global::System.Text.Json.JsonSerializerOptions __paramJsonOpts =");
-            sb.AppendLine($"{Indent}{Indent}new global::System.Text.Json.JsonSerializerOptions {{ IncludeFields = true }};");
+            sb.AppendLine($"{Indent}{Indent}global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;");
             sb.AppendLine();
         }
 

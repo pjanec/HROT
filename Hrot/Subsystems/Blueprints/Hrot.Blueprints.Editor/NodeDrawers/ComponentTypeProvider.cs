@@ -72,7 +72,9 @@ internal static class ComponentTypeScan
     {
         var result = new List<string>();
 
-        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        // BP-62: EditorTypeResolutionScope force-loads referenced-but-not-yet-loaded assemblies
+        // first, so a component whose assembly nothing has touched yet still appears in the picker.
+        foreach (var assembly in EditorTypeResolutionScope.Assemblies())
         {
             Type[] types;
             try

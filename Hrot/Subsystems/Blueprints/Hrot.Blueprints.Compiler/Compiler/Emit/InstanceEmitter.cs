@@ -101,6 +101,7 @@ internal static class InstanceEmitter
 
     private static void EmitStateStruct(CSharpEmitter e, IrAsset asset)
     {
+        EmitListWrappers(e, asset.Variables);
         e.WriteLine("[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
         e.WriteLine("public struct State");
         e.WriteLine("{");
@@ -110,6 +111,45 @@ internal static class InstanceEmitter
             e.WriteLine($"public {CSharpType(f.Type)} {f.Name};");
         e.Outdent();
         e.WriteLine("}");
+    }
+
+    /// <summary>
+    /// FC-2/LV-1 (Q#19-B, review F4) -- emits the PER-CLASS nested fixed-list wrapper structs for
+    /// every list-typed field, deduped per (element, capacity): an `[InlineArray(N)]` buffer +
+    /// a `{ int Count; Buffer Items; }` wrapper whose name matches the IrTypeRef's synthesized
+    /// `__List_{Elem}_{N}` FullName (TypeRefToCSharp emits `_`-prefixed names bare, so the State
+    /// field resolves to THIS nested type). Nested-per-class -- never a top-level shared type --
+    /// because the generator emits per `.bp.json` and two blueprints sharing (Elem,N) would
+    /// otherwise collide with CS0101 (review F4; the future shared-type migration is a cross-file
+    /// Collect() pass that needs no asset changes -- assets never name the wrapper).
+    /// </summary>
+    internal static void EmitListWrappers(CSharpEmitter e, IReadOnlyList<IrField> fields)
+    {
+        var emitted = new HashSet<string>();
+        foreach (var f in fields)
+        {
+            var t = f.Type;
+            if (t.Capacity <= 0 || t.ElementType is null) continue;
+            if (!emitted.Add(t.FullName)) continue;
+
+            string elemCs  = StatementEmitter.TypeRefToCSharp(t.ElementType);
+            string bufName = "__Buf" + t.FullName.Substring("__List".Length);
+            e.WriteLine($"[global::System.Runtime.CompilerServices.InlineArray({t.Capacity})]");
+            e.WriteLine($"public struct {bufName}");
+            e.WriteLine("{");
+            e.Indent();
+            e.WriteLine($"private {elemCs} _e0;");
+            e.Outdent();
+            e.WriteLine("}");
+            e.WriteLine("[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
+            e.WriteLine($"public struct {t.FullName}");
+            e.WriteLine("{");
+            e.Indent();
+            e.WriteLine("public int Count;");
+            e.WriteLine($"public {bufName} Items;");
+            e.Outdent();
+            e.WriteLine("}");
+        }
     }
 
     private static void EmitVarIds(CSharpEmitter e, IrAsset asset)
@@ -137,6 +177,13 @@ internal static class InstanceEmitter
             f.DefaultValueCSharp != "default"))
         {
             e.WriteLine($"s.{v.Name} = {v.DefaultValueCSharp};");
+        }
+        // FC-2/LV-1 (Q#19-B): declared initial length seeds Count over the already-zeroed slots
+        // (preallocation is free for blittable elements -- default(T) is all-zero bytes). This is
+        // the PARTIAL init the whole-field DefaultValueCSharp path cannot express (review F2).
+        foreach (var v in asset.Variables.Where(f => f.Type.Capacity > 0 && f.Type.InitialLength > 0))
+        {
+            e.WriteLine($"s.{v.Name}.Count = {v.Type.InitialLength};");
         }
         e.Outdent();
         e.WriteLine("}");

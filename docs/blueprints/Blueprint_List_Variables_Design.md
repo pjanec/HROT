@@ -49,8 +49,11 @@ struct __List_{Elem}_{N} { public int Count; public __Buf_{Elem}_{N} Items; }
 - **Size:** `sizeof(__List) = alignUp(4, align(Elem)) + N*sizeof(Elem)`, struct-aligned to `align(Elem)`.
   `FieldLayout` must compute this so tier-budget accounting (`PackWarning`) and `Unsafe.SizeOf<State>()` agree.
 - **Default-fill is free:** the blackboard blob is zero-initialized and `default(blittableElem)` is all-zero
-  bytes, so a preallocated list = `Count = InitialLength` over already-zeroed `Items`. Only a **grow-after-shrink**
-  (`Resize`/`Add` after `RemoveAt`/`Clear`) must re-zero the reclaimed `[oldCount, newCount)` range.
+  bytes, so a preallocated list = `Count = InitialLength` over already-zeroed `Items`.
+  **AMENDED 2026-08-04 (Q#20 review G6, all homes):** the canonical rule is the **tail-always-default
+  invariant** — `RemoveAt`/`Clear`/`Resize`-shrink zero the vacated slots at mutation time, so grow (including
+  the old "grow-after-shrink") **never** fills. Supersedes the lazy re-zero-on-grow rule previously recorded
+  here and in Q#19. Rationale + evidence: `Blueprint_Fixed_Collections_Design.md` §"Decisions folded".
 - **Snapshot/record/playback:** unchanged — the field is part of the `State` blob, copied by the existing
   byte-copy path. No special handling.
 
@@ -59,7 +62,9 @@ struct __List_{Elem}_{N} { public int Count; public __Buf_{Elem}_{N} Items; }
 - **`BlueprintTypeRef`** (asset) gains a list shape. Proposal: reuse `IsArray=true` + `GenericArgs=[elementType]`
   and a **new `Capacity` int** (0/absent ⇒ not a fixed list). `TypeId` names the element or a synthetic list id.
 - **`IrTypeRef`** (IR) gains `Capacity` (and keeps `ElementType`). A fixed-list resolves
-  `IsUnmanaged = elementIsUnmanaged`, `SizeBytes = §2 formula`, `SizeReliable = true`.
+  `IsUnmanaged = elementIsUnmanaged`, `SizeBytes = §2 formula`, ~~`SizeReliable = true`~~
+  **`SizeReliable = false` — SUPERSEDED by Review §F3** (the alignment heuristic over-pads composite types;
+  `false` forces the runtime `Marshal.OffsetOf` layout path, which is the safety net).
 - **`StaticTypeRegistry.TryResolve`**: new branch — when `Capacity > 0` and the element resolves unmanaged,
   return the list `IrTypeRef` (unmanaged, real size). This is what lets it **pass BP1503** (unlike a plain `T[]`,
   which stays `IsUnmanaged=false, SizeBytes=0`). Element must itself be unmanaged, else BP1503 fires on the element.
@@ -92,14 +97,19 @@ level; the compiler grows:
 New nodes, each **exec** and bound to the target list **by variable id** (the `SetVariableNode` lvalue pattern —
 they do NOT take the list through a by-value data pin):
 
-| Node | Signature | Emit (in place on `s.{f}`) |
+> **Emit form AMENDED 2026-08-04 (Q#20 review R3/G6):** `s` is a `ref` local over the blackboard bytes, so the
+> naïve `s.f.Items[i] = item` is exactly the `[InlineArray]` ldobj silent-write-loss shape — every element
+> access below goes through the **`Span<T>` cast** (`var __sp = (Span<Elem>)s.f.Items;`). And zeroing follows
+> the **tail-always-default invariant** (vacated slots zeroed at mutation time; grow never fills).
+
+| Node | Signature | Emit (in place on `s.{f}`, via `__sp = (Span<Elem>)s.f.Items`) |
 |---|---|---|
-| `ListAdd` | `(var, item) → bool` | `if (s.f.Count < N) { s.f.Items[s.f.Count++] = item; ok } else { diag; false }` |
-| `ListInsertAt` | `(var, index, item) → bool` | bounds+full check; shift `[i,Count)` up one; assign; `Count++` |
-| `ListSet` | `(var, index, item) → bool` | `if ((uint)i < (uint)Count) s.f.Items[i]=item; else diag+false` |
-| `ListRemoveAt` | `(var, index) → bool` | bounds check; shift `[i+1,Count)` down one; `Count--` |
-| `ListClear` | `(var)` | `s.f.Count = 0` (no zero-fill; grow re-zeros lazily) |
-| `ListResize` | `(var, length) → bool` | `length ≤ N` ? set `Count`, zero-fill grown range : diag+false |
+| `ListAdd` | `(var, item) → bool` | `if (s.f.Count < N) { __sp[s.f.Count++] = item; ok } else { diag; false }` |
+| `ListInsertAt` | `(var, index, item) → bool` | bounds+full check; shift `[i,Count)` up one (span copy); assign; `Count++` |
+| `ListSet` | `(var, index, item) → bool` | `if ((uint)i < (uint)Count) __sp[i]=item; else diag+false` |
+| `ListRemoveAt` | `(var, index) → bool` | bounds check; shift `[i+1,Count)` down one; `__sp[--Count] = default` (G6) |
+| `ListClear` | `(var)` | `__sp[..Count].Clear(); s.f.Count = 0` (G6 — no lazy re-zero anywhere) |
+| `ListResize` | `(var, length) → bool` | `length ≤ N` ? (shrink: `__sp[length..Count].Clear()`) set `Count` : diag+false — grow needs NO fill |
 
 - **IR:** a new `IrOp_ListWrite` family (one op per verb, or one op keyed by an enum). Carries the variable index
   + operands. Emit reuses the `EmissionContext.VarFieldName` + state-local convention from `IrOp_WriteVariable`.

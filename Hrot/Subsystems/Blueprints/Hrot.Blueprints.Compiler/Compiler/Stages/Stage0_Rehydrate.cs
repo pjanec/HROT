@@ -171,6 +171,14 @@ internal static class Stage0_Rehydrate
                 EnrichComponentFindPins(pins, cfn);
                 break;
 
+            case CollectionWriteNode cwn:
+                EnrichCollectionWritePins(pins, cwn);
+                break;
+
+            case ListWriteNode lwn:
+                EnrichListWritePins(pins, lwn, asset);
+                break;
+
             case MakeStructNode msn:
                 EnrichMakeStructPins(pins, msn);
                 break;
@@ -269,14 +277,24 @@ internal static class Stage0_Rehydrate
         List<Pin> pins, Graph graph, IReadOnlyList<PinSchema> staticShapes)
     {
         // Static skeleton: exec-In "In" already added from registry.
-        // Enrich: add data-Out from Graph.Outputs[0] for Function graphs.
+        // Enrich: add data-In from Graph.Outputs[0] for Function graphs.
+        //
+        // BP-71 / Q24-A1: this pin used to be "Out". BuildReturnTerminator has always resolved it
+        // as an INPUT (ResolveDataPin follows a link arriving AT the Return node), but the editor
+        // maps Direction straight onto the canvas and rejects same-direction links — so an "Out"
+        // pin could never be wired and a Function graph could not return a value at all. "In" is
+        // now the one convention on both sides, matching ResolveAllDataInputs everywhere else.
+        // BuildReturnTerminator still accepts either direction (Q24-B1) so hand-authored JSON
+        // carrying the legacy "Out" form keeps working.
+        //
+        // Single output only (Outputs[0]); proper N-output is the scheduled BP-73.
         if (graph.Kind != GraphKind.Function || graph.Outputs.Count == 0)
             return;
 
         var output = graph.Outputs[0];
         var typeId = GetTypeId(output.Type);
         // Data pin already not in static (static is exec-In only) — just add it.
-        pins.Add(MakePin(output.Name, "Out", isExec: false, typeId: typeId));
+        pins.Add(MakePin(output.Name, "In", isExec: false, typeId: typeId));
     }
 
     private static void EnrichGetVariablePins(
@@ -285,9 +303,28 @@ internal static class Stage0_Rehydrate
     {
         // Static: empty (registry returns empty for GetVariable).
         // Build: data-Out "Value" typed from the variable.
-        var typeId = ResolveVariableTypeId(gv.VariableId, asset);
+        // FC-2/LV-2 (Q#19-A): a FIXED-LIST variable projects a COLLECTION out-pin instead --
+        // IsArray + element-typed (mirrors GetComponent's collection-decl out-pin), consumed by the
+        // same ForEach/ItemGet/ItemCount/Contains/Find nodes.
         pins.Clear();
+        var decl = FindVariableDecl(gv.VariableId, asset);
+        if (decl is { Type.Capacity: > 0 })
+        {
+            pins.Add(MakePin("Value", "Out", isExec: false, typeId: decl.Type.TypeId, isArray: true));
+            return;
+        }
+        var typeId = ResolveVariableTypeId(gv.VariableId, asset);
         pins.Add(MakePin("Value", "Out", isExec: false, typeId: typeId));
+    }
+
+    /// <summary>FC-2/LV-2: the full VariableDecl behind a Get/SetVariable id ("var:"-prefix tolerated), from Variables or WorkingState; null when absent.</summary>
+    private static VariableDecl? FindVariableDecl(string variableId, BlueprintAsset asset)
+    {
+        var vid = variableId ?? "";
+        if (vid.StartsWith("var:", StringComparison.Ordinal)) vid = vid.Substring(4);
+        if (!Guid.TryParse(vid, out var id)) return null;
+        return asset.Variables.FirstOrDefault(v => v.Id == id)
+            ?? asset.WorkingState.FirstOrDefault(v => v.Id == id);
     }
 
     private static void EnrichSetVariablePins(
@@ -515,6 +552,81 @@ internal static class Stage0_Rehydrate
         pins.Add(MakePin("Collection", "In",  isExec: false, typeId: elemType, isArray: true));
         pins.Add(MakePin("Item",       "In",  isExec: false, typeId: elemType));
         pins.Add(MakePin("Result",     "Out", isExec: false, typeId: "System.Boolean"));
+    }
+
+    /// <summary>
+    /// CollectionWriteNode (FC-1, Q#20): exec node. "Collection" (IsArray, element-typed by the
+    /// node's baked <see cref="CollectionWriteNode.ElementTypeFqn"/>, System.Object fallback --
+    /// mirrors <see cref="EnrichComponentItemGetPins"/>) is the author-time binding pin ONLY (the
+    /// write entity is always <c>self</c>); operand data-ins vary per <see
+    /// cref="CollectionWriteNode.Op"/> (Add: Value · SetAt/InsertAt: Index+Value · RemoveAt: Index ·
+    /// Clear: none · Resize: Length); "Ok" (Boolean) is the write-if-present AND-op-applied result
+    /// (mirrors SetComponent's unconditional "Written").
+    /// </summary>
+    private static void EnrichCollectionWritePins(List<Pin> pins, CollectionWriteNode cwn)
+    {
+        var elemType = string.IsNullOrEmpty(cwn.ElementTypeFqn) ? "System.Object" : cwn.ElementTypeFqn;
+        pins.Clear();
+        pins.Add(MakePin("In",  "In",  isExec: true, typeId: ""));
+        pins.Add(MakePin("Out", "Out", isExec: true, typeId: ""));
+        pins.Add(MakePin("Collection", "In", isExec: false, typeId: elemType, isArray: true));
+        switch (cwn.Op)
+        {
+            case CollectionWriteOp.Add:
+                pins.Add(MakePin("Value", "In", isExec: false, typeId: elemType));
+                break;
+            case CollectionWriteOp.SetAt:
+            case CollectionWriteOp.InsertAt:
+                pins.Add(MakePin("Index", "In", isExec: false, typeId: "System.Int32"));
+                pins.Add(MakePin("Value", "In", isExec: false, typeId: elemType));
+                break;
+            case CollectionWriteOp.RemoveAt:
+                pins.Add(MakePin("Index", "In", isExec: false, typeId: "System.Int32"));
+                break;
+            case CollectionWriteOp.Clear:
+                break;
+            case CollectionWriteOp.Resize:
+                pins.Add(MakePin("Length", "In", isExec: false, typeId: "System.Int32"));
+                break;
+        }
+        pins.Add(MakePin("Ok", "Out", isExec: false, typeId: "System.Boolean"));
+    }
+
+    /// <summary>
+    /// ListWriteNode (FC-2/LV-3, Q#19-C): exec node bound BY VARIABLE ID (no Collection pin -- the
+    /// SetVariable lvalue pattern). Operand data-ins per <see cref="ListWriteNode.Op"/> (Add: Value ·
+    /// SetAt/InsertAt: Index+Value · RemoveAt: Index · Clear: none · Resize: Length), element-typed
+    /// from the referenced variable's declared element; "Ok" (Boolean) on every fallible op (all but
+    /// Clear).
+    /// </summary>
+    private static void EnrichListWritePins(List<Pin> pins, ListWriteNode lwn, BlueprintAsset asset)
+    {
+        var decl = FindVariableDecl(lwn.VariableId, asset);
+        var elemType = decl is { Type.Capacity: > 0 } ? decl.Type.TypeId : "System.Object";
+        pins.Clear();
+        pins.Add(MakePin("In",  "In",  isExec: true, typeId: ""));
+        pins.Add(MakePin("Out", "Out", isExec: true, typeId: ""));
+        switch (lwn.Op)
+        {
+            case CollectionWriteOp.Add:
+                pins.Add(MakePin("Value", "In", isExec: false, typeId: elemType));
+                break;
+            case CollectionWriteOp.SetAt:
+            case CollectionWriteOp.InsertAt:
+                pins.Add(MakePin("Index", "In", isExec: false, typeId: "System.Int32"));
+                pins.Add(MakePin("Value", "In", isExec: false, typeId: elemType));
+                break;
+            case CollectionWriteOp.RemoveAt:
+                pins.Add(MakePin("Index", "In", isExec: false, typeId: "System.Int32"));
+                break;
+            case CollectionWriteOp.Clear:
+                break;
+            case CollectionWriteOp.Resize:
+                pins.Add(MakePin("Length", "In", isExec: false, typeId: "System.Int32"));
+                break;
+        }
+        if (lwn.Op != CollectionWriteOp.Clear)
+            pins.Add(MakePin("Ok", "Out", isExec: false, typeId: "System.Boolean"));
     }
 
     /// <summary>
@@ -976,9 +1088,17 @@ internal static class Stage0_Rehydrate
     {
         // Static: exec In/Out from registry.
         // Enrich: add data-In per custom-event parameter.
+        //
+        // BP-69: EventId accepts TWO forms — the declaration's GUID (what the editor's picker
+        // writes) and a bare Name (hand-authored JSON, and the shape the test builders use).
+        // This used to `return` on !Guid.TryParse, so a name-referenced call to an event WITH
+        // parameters got no argument pins at all, and the emitter produced
+        // Event_X(ref s, view, ecb, self, time) against a handler that declares some ⇒ CS7036 with
+        // no BP diagnostic. BP1408 cannot catch it: it compares the declaration's Parameters
+        // against the handler graph's Inputs, and those two agree — the mismatch is at the CALL
+        // NODE's pins, a third list nothing compared.
         if (asset == null) return;
-        if (!Guid.TryParse(cce.EventId, out var eventGuid)) return;
-        var decl = asset.CustomEvents.FirstOrDefault(e => e.Id == eventGuid);
+        var decl = ResolveCustomEventDecl(asset, cce.EventId);
         if (decl == null || decl.Parameters.Count == 0) return;
 
         foreach (var param in decl.Parameters)
@@ -986,6 +1106,27 @@ internal static class Stage0_Rehydrate
             var typeId = GetTypeId(param.Type);
             pins.Add(MakePin(param.Name, "In", isExec: false, typeId: typeId));
         }
+    }
+
+    /// <summary>
+    /// BP-69 — resolves a <see cref="CallCustomEventNode.EventId"/> in <b>either</b> accepted form.
+    /// Mirrors <c>Stage5_Schedule.FindCustomEventIndex</c> exactly, which is the authority on the
+    /// two forms: GUID first, then an ordinal <see cref="CustomEventDecl.Name"/> match. Stage 2's
+    /// <c>V_ValueNodeReferences</c> and <c>V_CustomEventHandlers</c> and BP-12b's rename path all
+    /// honour both, so a projection that honours only one is the odd one out.
+    /// </summary>
+    private static CustomEventDecl? ResolveCustomEventDecl(BlueprintAsset asset, string eventId)
+    {
+        if (string.IsNullOrWhiteSpace(eventId)) return null;
+
+        if (Guid.TryParse(eventId, out var guid))
+        {
+            var byId = asset.CustomEvents.FirstOrDefault(e => e.Id == guid);
+            if (byId != null) return byId;
+        }
+
+        return asset.CustomEvents.FirstOrDefault(
+            e => string.Equals(e.Name, eventId, StringComparison.Ordinal));
     }
 
     private static void EnrichCallPeerBlueprintPins(

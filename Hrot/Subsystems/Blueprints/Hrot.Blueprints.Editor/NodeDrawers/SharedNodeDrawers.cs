@@ -207,18 +207,19 @@ internal sealed class GetSharedNodeSession : INodeEditSession
     private void ApplyVariableId(string variableId)
     {
         if (variableId == _node.VariableId) return;
-        _node.VariableId = variableId;
-        MarkChanged();
+        RecordChange($"Set Shared Slot '{variableId}'", () => _node.VariableId = variableId);
     }
 
     private void ApplySharedTypeId(string sharedTypeId)
     {
         if (sharedTypeId == _node.SharedTypeId) return;
-        _node.SharedTypeId = sharedTypeId;
-        // Q#14: if the node is in multi-pin (expanded) mode, re-bake the field decls for the new type.
-        if (_node.Fields is { Count: > 0 })
-            _node.Fields = SharedStructFieldReflector.TryReflect(sharedTypeId);
-        MarkChanged();
+        RecordChange($"Set Shared Type '{sharedTypeId}'", () =>
+        {
+            _node.SharedTypeId = sharedTypeId;
+            // Q#14: if the node is in multi-pin (expanded) mode, re-bake the field decls for the new type.
+            if (_node.Fields is { Count: > 0 })
+                _node.Fields = SharedStructFieldReflector.TryReflect(sharedTypeId);
+        });
     }
 
     /// <summary>
@@ -232,20 +233,45 @@ internal sealed class GetSharedNodeSession : INodeEditSession
         bool wasExpanded = _node.Fields is { Count: > 0 };
         bool nowExpanded = newFields is { Count: > 0 };
         if (wasExpanded == nowExpanded && !nowExpanded) return;
-        _node.Fields = newFields;
-        MarkChanged();
+        RecordChange(expand ? "Expand Struct Pins" : "Collapse Struct Pins",
+            () => _node.Fields = newFields);
     }
 
-    private void MarkChanged()
+    /// <summary>
+    /// BP-11: the node's undo-relevant state. Snapshotted whole rather than per-field because
+    /// changing the shared type also re-bakes <c>Fields</c> — one gesture, two writes, which is why
+    /// <c>GraphCommand.SetNodeProperty</c> (one key, one value) cannot carry it. <c>Fields</c> is
+    /// captured by reference, sound because every mutation here <em>replaces</em> the list.
+    /// </summary>
+    private readonly record struct NodeState(string VariableId, string SharedTypeId, List<SharedFieldDecl>? Fields);
+
+    private NodeState Capture() => new(_node.VariableId, _node.SharedTypeId, _node.Fields);
+
+    private void Restore(NodeState s)
+    {
+        _node.VariableId   = s.VariableId;
+        _node.SharedTypeId = s.SharedTypeId;
+        _node.Fields       = s.Fields;
+    }
+
+    /// <summary>BP-11: runs <paramref name="mutate"/> as an undoable edit on the shared undo stack.</summary>
+    private void RecordChange(string label, Action mutate)
+    {
+        var before = Capture();
+        _editService.RecordPropertyEdit(
+            _parent, label,
+            apply: () => { mutate();        AfterChange(); },
+            undo:  () => { Restore(before); AfterChange(); });
+    }
+
+    private void AfterChange()
     {
         IsDirty = true;
-        _editService.MarkDirty(_parent);
         // Every shared-node edit (slot-name label, shared type, field expansion) changes the node's
         // projected pins, so signal a STRUCTURAL change: the canvas graph model re-projects itself.
         // Data-driven — this drawer never references the canvas; the composition root wires the refresh
-        // (see BlueprintDocumentFactory). NotifyStructureChanged is the concrete EditService's extended
-        // API (like RecordPropertyEdit); test-double IEditServices simply skip it.
-        (_editService as EditService)?.NotifyStructureChanged(_parent);
+        // (see BlueprintDocumentFactory).
+        _editService.NotifyStructureChanged(_parent);
     }
 
     // ── INodeEditSession ─────────────────────────────────────────────────────────
@@ -373,18 +399,19 @@ internal sealed class SetSharedNodeSession : INodeEditSession
     private void ApplyVariableId(string variableId)
     {
         if (variableId == _node.VariableId) return;
-        _node.VariableId = variableId;
-        MarkChanged();
+        RecordChange($"Set Shared Slot '{variableId}'", () => _node.VariableId = variableId);
     }
 
     private void ApplySharedTypeId(string sharedTypeId)
     {
         if (sharedTypeId == _node.SharedTypeId) return;
-        _node.SharedTypeId = sharedTypeId;
-        // Q#14: if the node is in multi-pin (expanded) mode, re-bake the field decls for the new type.
-        if (_node.Fields is { Count: > 0 })
-            _node.Fields = SharedStructFieldReflector.TryReflect(sharedTypeId);
-        MarkChanged();
+        RecordChange($"Set Shared Type '{sharedTypeId}'", () =>
+        {
+            _node.SharedTypeId = sharedTypeId;
+            // Q#14: if the node is in multi-pin (expanded) mode, re-bake the field decls for the new type.
+            if (_node.Fields is { Count: > 0 })
+                _node.Fields = SharedStructFieldReflector.TryReflect(sharedTypeId);
+        });
     }
 
     /// <summary>
@@ -398,20 +425,45 @@ internal sealed class SetSharedNodeSession : INodeEditSession
         bool wasExpanded = _node.Fields is { Count: > 0 };
         bool nowExpanded = newFields is { Count: > 0 };
         if (wasExpanded == nowExpanded && !nowExpanded) return;
-        _node.Fields = newFields;
-        MarkChanged();
+        RecordChange(expand ? "Expand Struct Pins" : "Collapse Struct Pins",
+            () => _node.Fields = newFields);
     }
 
-    private void MarkChanged()
+    /// <summary>
+    /// BP-11: the node's undo-relevant state. Snapshotted whole rather than per-field because
+    /// changing the shared type also re-bakes <c>Fields</c> — one gesture, two writes, which is why
+    /// <c>GraphCommand.SetNodeProperty</c> (one key, one value) cannot carry it. <c>Fields</c> is
+    /// captured by reference, sound because every mutation here <em>replaces</em> the list.
+    /// </summary>
+    private readonly record struct NodeState(string VariableId, string SharedTypeId, List<SharedFieldDecl>? Fields);
+
+    private NodeState Capture() => new(_node.VariableId, _node.SharedTypeId, _node.Fields);
+
+    private void Restore(NodeState s)
+    {
+        _node.VariableId   = s.VariableId;
+        _node.SharedTypeId = s.SharedTypeId;
+        _node.Fields       = s.Fields;
+    }
+
+    /// <summary>BP-11: runs <paramref name="mutate"/> as an undoable edit on the shared undo stack.</summary>
+    private void RecordChange(string label, Action mutate)
+    {
+        var before = Capture();
+        _editService.RecordPropertyEdit(
+            _parent, label,
+            apply: () => { mutate();        AfterChange(); },
+            undo:  () => { Restore(before); AfterChange(); });
+    }
+
+    private void AfterChange()
     {
         IsDirty = true;
-        _editService.MarkDirty(_parent);
         // Every shared-node edit (slot-name label, shared type, field expansion) changes the node's
         // projected pins, so signal a STRUCTURAL change: the canvas graph model re-projects itself.
         // Data-driven — this drawer never references the canvas; the composition root wires the refresh
-        // (see BlueprintDocumentFactory). NotifyStructureChanged is the concrete EditService's extended
-        // API (like RecordPropertyEdit); test-double IEditServices simply skip it.
-        (_editService as EditService)?.NotifyStructureChanged(_parent);
+        // (see BlueprintDocumentFactory).
+        _editService.NotifyStructureChanged(_parent);
     }
 
     // ── INodeEditSession ─────────────────────────────────────────────────────────

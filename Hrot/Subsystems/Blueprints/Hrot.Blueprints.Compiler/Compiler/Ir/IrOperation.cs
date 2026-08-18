@@ -170,6 +170,83 @@ public sealed record IrOp_SetManagedComponent(
     IrValue? Value
 ) : IrOperation;
 
+/// <summary>
+/// FC-1 (Q#20) -- component-collection element write through a curated
+/// <c>[BlueprintCollectionWrite]</c> static accessor. Same guarded write-if-present shape as
+/// <see cref="IrOp_WriteComponentFields"/> (the <c>HasComponent&lt;T&gt;</c> bool drives BOTH the
+/// guard and this op's ResultValue), but the ResultValue is then REASSIGNED to the accessor's own
+/// bool inside the guard, so it carries "component present AND op applied" -- the emitting
+/// <see cref="Assets.CollectionWriteNode"/>'s "Ok" data-out (Stage5 ALWAYS allocates it):
+/// <code>
+/// var __tN = wv.HasComponent&lt;global::{ComponentTypeFqn}&gt;(self);
+/// if (__tN)
+/// {
+///     ref var __wcN = ref wv.GetComponentRW&lt;global::{ComponentTypeFqn}&gt;(self);
+///     __tN = global::{WriteAccessorFqn}(ref __wcN[, intArg][, value]);   // Clear: plain call, __tN stays true
+/// }
+/// </code>
+/// Raw buffer mutation NEVER appears in generated code (Q#5-C / Q#20 G1) -- the accessor owns the
+/// <c>Span&lt;T&gt;</c> pattern, Count maintenance, and the tail-always-default invariant. In
+/// non-Release mode with <c>self</c> in scope, a refused op / absent component additionally emits
+/// <c>DebugProbe.CollectionWriteFailed(self, nodeId, verb, reason)</c> (the never-silent
+/// false-on-overflow contract; reasons: "op-rejected" / "component-absent").
+/// </summary>
+/// <param name="ComponentTypeFqn">FQN of the component carrying the collection. Baked string -- no reflection.</param>
+/// <param name="Entity">ALWAYS the resolved <c>self</c> (an <see cref="IrOp_Self"/> value) -- the "Collection" wire is author-time binding only, never the write entity (Q#16/Q#20 self-only; Stage2 BP2069/BP2070 enforce).</param>
+/// <param name="WriteAccessorFqn">Baked FQN of the curated write-accessor static for <paramref name="Verb"/>.</param>
+/// <param name="Verb">The op name ("Add"/"SetAt"/"InsertAt"/"RemoveAt"/"Clear"/"Resize") -- probe argument only; arity is driven by <paramref name="IntArg"/>/<paramref name="Value"/>/<paramref name="ReturnsBool"/>.</param>
+/// <param name="NodeId">The authoring node's id -- probe argument (mirrors <c>IrOp_DebugProbe_NodeEnter</c>'s "D" format).</param>
+/// <param name="IntArg">The int operand (Index for SetAt/InsertAt/RemoveAt, Length for Resize), or null (Add/Clear). Passed AFTER the ref receiver, BEFORE <paramref name="Value"/>.</param>
+/// <param name="Value">The element operand (Add/SetAt/InsertAt), or null.</param>
+/// <param name="ReturnsBool">False only for Clear (a void accessor -- the ResultValue keeps the guard bool).</param>
+public sealed record IrOp_CollectionWrite(
+    string ComponentTypeFqn,
+    IrValue Entity,
+    string WriteAccessorFqn,
+    string Verb,
+    Guid NodeId,
+    IrValue? IntArg,
+    IrValue? Value,
+    bool ReturnsBool
+) : IrOperation;
+
+/// <summary>
+/// FC-2/LV-2 (Q#19-A/F1) -- binds a WRITABLE `ref` local to a State/WorkingState FIELD:
+/// <c>ref var __tN = ref {s|ws}.{FieldName};</c>. The list-variable analog of the component path's
+/// <c>IrOp_GetComponentRO</c> roster read: the collection consumers' RosterValue/Component argument
+/// references this local and <c>RenderCollectionAccessors</c>' BlackboardFixedList branch renders
+/// <c>__tN.Count</c>/<c>__tN.Items[i]</c> off it -- ref-bind (zero-copy, sees same-tick writes),
+/// per the decided read-binding contract. A writable ref (not `ref readonly`) so element reads use
+/// the inline array's direct element access, never the readonly defensive-copy path.
+/// </summary>
+public sealed record IrOp_StateFieldRef(string FieldName, IrTypeRef Type) : IrOperation;
+
+/// <summary>
+/// FC-2/LV-3 (Q#19-C/D) -- in-place fixed-list VARIABLE mutation, the blackboard sibling of
+/// <see cref="IrOp_CollectionWrite"/> (they share the verb vocabulary, NOT machinery -- review R1).
+/// Emits a scoped block that ref-binds the state field, applies the F2 clamp, mutates through the
+/// <c>Span&lt;T&gt;</c> cast (never the naive inline-array indexer -- the amended Q#19-D emit), keeps
+/// the G6 tail-always-default invariant (RemoveAt/Clear/Resize-shrink zero vacated slots; grow never
+/// fills), and drives the "Ok" ResultValue per the false-on-overflow contract (+ a Debug-mode
+/// <c>DebugProbe.CollectionWriteFailed</c> on refusal). Clear has no ResultValue semantics beyond
+/// completing (its node has no "Ok" pin).
+/// </summary>
+/// <param name="FieldName">The state field (variable name) -- rendered off the s/ws local.</param>
+/// <param name="ElementTypeFqn">Element type for the Span cast / default().</param>
+/// <param name="Capacity">Declared capacity N (bounds + clamp).</param>
+/// <param name="Verb">"Add"/"SetAt"/"InsertAt"/"RemoveAt"/"Clear"/"Resize" -- probe arg + emit dispatch.</param>
+/// <param name="NodeId">Authoring node id -- probe arg.</param>
+/// <param name="IntArg">Index (SetAt/InsertAt/RemoveAt) or Length (Resize); null for Add/Clear.</param>
+/// <param name="Value">Element operand (Add/SetAt/InsertAt); null otherwise.</param>
+public sealed record IrOp_ListWrite(
+    string FieldName,
+    string ElementTypeFqn,
+    int Capacity,
+    string Verb,
+    Guid NodeId,
+    IrValue? IntArg,
+    IrValue? Value) : IrOperation;
+
 // ECS write via ECB (impure)
 public sealed record IrOp_AddComponent(string ComponentTypeFqn, IrValue Entity, IrValue Value) : IrOperation;
 public sealed record IrOp_RemoveComponent(string ComponentTypeFqn, IrValue Entity) : IrOperation;
@@ -232,7 +309,8 @@ public sealed record IrOp_ForEach(
     IrValue? CountVar = null,
     IrValue? IndexVar = null,
     Hrot.Blueprints.Core.Assets.CollectionKind Kind = Hrot.Blueprints.Core.Assets.CollectionKind.CuratedStatic,
-    string ManagedFieldName = "") : IrOperation;
+    string ManagedFieldName = "",
+    int Capacity = 0) : IrOperation;
 
 /// <summary>
 /// P1b (GAP-1) -- structured, inline <c>if</c>/<c>else</c>. Emitted ONLY by Stage5 for a
@@ -358,7 +436,8 @@ public sealed record IrOp_FieldRead(IrValue Source, string FieldName, IrTypeRef 
 public sealed record IrOp_ComponentAccessorCall(
     string AccessorFqn, IrValue Component, IrValue? Index, IrTypeRef ResultType,
     Hrot.Blueprints.Core.Assets.CollectionKind Kind = Hrot.Blueprints.Core.Assets.CollectionKind.CuratedStatic,
-    string ManagedFieldName = "", string ElementTypeFqn = "") : IrOperation;
+    string ManagedFieldName = "", string ElementTypeFqn = "",
+    int Capacity = 0) : IrOperation;
 
 /// <summary>
 /// CA-07d-1 -- bounded linear search over a component collection, sharing the SAME curated
@@ -387,7 +466,8 @@ public sealed record IrOp_ComponentCollectionSearch(
     IrValue? FindIndex = null,
     IrValue? FindFound = null,
     Hrot.Blueprints.Core.Assets.CollectionKind Kind = Hrot.Blueprints.Core.Assets.CollectionKind.CuratedStatic,
-    string ManagedFieldName = "") : IrOperation;
+    string ManagedFieldName = "",
+    int Capacity = 0) : IrOperation;
 
 /// <summary>
 /// GAP-12 -- native <c>CompareNode</c> lowering. Emits a single infix C# comparison expression:

@@ -16,7 +16,6 @@ namespace Hrot.Blueprints.Editor.Windows;
 ///   <item>Graphs — from <see cref="BlueprintAsset.Graphs"/></item>
 ///   <item>Custom Events — from <see cref="BlueprintAsset.CustomEvents"/></item>
 ///   <item>Variables — from <see cref="BlueprintAsset.Variables"/> (name/type/category/accent)</item>
-///   <item>Event Dispatchers — from <see cref="BlueprintAsset.EventDispatchers"/></item>
 /// </list>
 ///
 /// <para><b>Faked/empty sections</b> (no data model yet in v1):</para>
@@ -25,8 +24,16 @@ namespace Hrot.Blueprints.Editor.Windows;
 ///   <item>Macros — always empty list; section header still present in fixed order</item>
 /// </list>
 ///
-/// Fixed section order per D.6.2 spec: Graphs, Functions, Macros, Custom Events, Variables,
-/// Event Dispatchers.
+/// <para>
+/// <b>BP-12c — no Event Dispatchers section.</b> BP-09 established that dispatchers are superseded
+/// by <c>PublishEvent</c>/<c>EventEntry</c> and deleted the six dispatcher/squad node kinds from the
+/// palette; nothing in the editor or the compiler consumes
+/// <see cref="BlueprintAsset.EventDispatchers"/>, and no shipped asset declares one. Rather than
+/// wire a create path for an abandoned concept, the section is gone. The field stays on the asset so
+/// hand-authored JSON still round-trips.
+/// </para>
+///
+/// Fixed section order per D.6.2 spec: Graphs, Functions, Macros, Custom Events, Variables.
 ///
 /// Fire <see cref="Changed"/> when the model should be refreshed (e.g. after
 /// <see cref="Retarget"/> is called with a new asset, or when the subscribed
@@ -41,7 +48,6 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
     public const string SectionMacros      = "macros";
     public const string SectionCustomEvents = "customevents";
     public const string SectionVariables   = "variables";
-    public const string SectionDispatchers = "dispatchers";
 
     // ── Fixed section descriptors (D.6.2 order) ────────────────────────────
 
@@ -53,7 +59,6 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
             new(SectionMacros,       "Macros",           2, null, true,  true,  "editor.create-macro"),
             new(SectionCustomEvents, "Custom Events",    3, null, true,  true,  "editor.create-custom-event"),
             new(SectionVariables,    "Variables",        4, null, true,  true,  "editor.create-variable"),
-            new(SectionDispatchers,  "Event Dispatchers",5, null, true,  true,  "editor.create-event-dispatcher"),
         };
 
     // ── State ─────────────────────────────────────────────────────────────────
@@ -104,26 +109,33 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
 
         return sectionId switch
         {
-            SectionGraphs       => BuildGraphItems(),
-            SectionFunctions    => Array.Empty<MyBlueprintItem>(),   // faked/empty v1
+            SectionGraphs       => BuildGraphItems(SectionGraphs,    functionGraphs: false),
+            // BP-24: real — lists the asset's Function graphs (was faked/empty while nothing
+            // could create one and the canvas could not switch to one anyway).
+            SectionFunctions    => BuildGraphItems(SectionFunctions, functionGraphs: true),
             SectionMacros       => Array.Empty<MyBlueprintItem>(),   // faked/empty v1
             SectionCustomEvents => BuildCustomEventItems(),
             SectionVariables    => BuildVariableItems(),
-            SectionDispatchers  => BuildDispatcherItems(),
             _                   => Array.Empty<MyBlueprintItem>(),
         };
     }
 
     // ── Private builders ──────────────────────────────────────────────────────
 
-    private IReadOnlyList<MyBlueprintItem> BuildGraphItems()
+    /// <summary>
+    /// Graph rows, split Unreal-style: the Functions section carries the Function graphs, the
+    /// Graphs section everything else (Event bodies, Construction). Both row kinds share the
+    /// <c>graph:{id}</c> item-id form, which <c>editor.go-to-graph</c> resolves on double-click.
+    /// </summary>
+    private IReadOnlyList<MyBlueprintItem> BuildGraphItems(string sectionId, bool functionGraphs)
     {
         var result = new List<MyBlueprintItem>(_asset!.Graphs.Count);
         foreach (var g in _asset.Graphs)
         {
+            if ((g.Kind == GraphKind.Function) != functionGraphs) continue;
             result.Add(new MyBlueprintItem(
                 ItemId:       $"graph:{g.Id}",
-                SectionId:    SectionGraphs,
+                SectionId:    sectionId,
                 DisplayName:  g.Name,
                 CategoryPath: null,
                 IconKey:      null,
@@ -166,41 +178,22 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
         foreach (var v in _asset.Variables)
         {
             var accent = GetVariableAccentColor(v.Type?.TypeId ?? "");
+            // FC-2/LV-4: a fixed-list variable shows its capacity as a "[N]" badge so lists are
+            // recognizable at a glance in the My Blueprint tree.
+            var badge = v.Type is { Capacity: > 0 } ? $"[{v.Type.Capacity}]" : null;
             result.Add(new MyBlueprintItem(
                 ItemId:       $"var:{v.Id}",
                 SectionId:    SectionVariables,
                 DisplayName:  v.Name,
                 CategoryPath: v.Category,
                 IconKey:      null,
-                BadgeText:    null,
+                BadgeText:    badge,
                 AccentColor:  accent,
                 Children:     null,
                 IsRenamable:  true,
                 IsDeletable:  true,
                 IsHostDefined: false,
                 Tooltip:      v.Tooltip));
-        }
-        return result;
-    }
-
-    private IReadOnlyList<MyBlueprintItem> BuildDispatcherItems()
-    {
-        var result = new List<MyBlueprintItem>(_asset!.EventDispatchers.Count);
-        foreach (var d in _asset.EventDispatchers)
-        {
-            result.Add(new MyBlueprintItem(
-                ItemId:       $"disp:{d.Id}",
-                SectionId:    SectionDispatchers,
-                DisplayName:  d.Name,
-                CategoryPath: null,
-                IconKey:      null,
-                BadgeText:    null,
-                AccentColor:  null,
-                Children:     null,
-                IsRenamable:  true,
-                IsDeletable:  true,
-                IsHostDefined: false,
-                Tooltip:      null));
         }
         return result;
     }

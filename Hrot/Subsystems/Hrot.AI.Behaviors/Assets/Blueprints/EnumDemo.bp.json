@@ -89,17 +89,6 @@
           }
         },
         {
-          "kind": "CallCustomEvent",
-          "EventId": "",
-          "Id": "5c875375-2647-447b-abbd-df11787b8f57",
-          "Pins": [],
-          "EditorMetadata": {
-            "X": 188,
-            "Y": 376,
-            "Comment": null
-          }
-        },
-        {
           "kind": "ChannelCommand",
           "ChannelType": "LocomotionChannel",
           "ActionId": "DemoEnumAction",

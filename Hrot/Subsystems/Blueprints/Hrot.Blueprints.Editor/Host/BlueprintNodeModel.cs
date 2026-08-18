@@ -20,8 +20,25 @@ internal sealed class BlueprintNodeModel : INodeModel
 
     public NodeId      Id               { get; }
     public NodeKindKey Kind             { get; }
-    public string      Title            { get; }
-    public string?     Subtitle         => null;
+
+    /// <summary>
+    /// BP-17: an author-supplied title wins over the generated one. Read live from
+    /// <c>EditorMetadata</c> so a rename shows up on the next frame without rebuilding the model.
+    /// </summary>
+    public string      Title            => string.IsNullOrWhiteSpace(_node.EditorMetadata.CustomTitle)
+        ? GeneratedTitle
+        : _node.EditorMetadata.CustomTitle!;
+
+    /// <summary>
+    /// BP-17: when a node carries a custom title, the generated one becomes the subtitle — a
+    /// renamed node must not lose the only indication of what it actually is.
+    /// </summary>
+    public string?     Subtitle         => string.IsNullOrWhiteSpace(_node.EditorMetadata.CustomTitle)
+        ? null
+        : GeneratedTitle;
+
+    /// <summary>The title derived from the node's kind and configuration (BP-17's fallback).</summary>
+    internal string    GeneratedTitle   { get; }
     public NodeCategory Category        { get; }
     /// <summary>
     /// Reads live from the asset's <see cref="Hrot.Blueprints.Core.Assets.NodeMetadata"/>
@@ -41,7 +58,8 @@ internal sealed class BlueprintNodeModel : INodeModel
     /// null for every other node kind.
     /// </summary>
     public string?     StatusTooltip    { get; }
-    public bool        IsCollapsed      => false;
+    /// <summary>BP-18: editor-only view state, read live so the collapse glyph responds at once.</summary>
+    public bool        IsCollapsed      => _node.EditorMetadata.Collapsed;
     public bool        ShowAdvancedPins => false;
     public NodeId?     ParentContainerId => null;
     /// <summary>
@@ -85,7 +103,7 @@ internal sealed class BlueprintNodeModel : INodeModel
         _node     = node;
         Id        = new NodeId(node.Id);
         Kind      = new NodeKindKey(node.GetType().Name);
-        Title     = BuildTitle(node, asset);
+        GeneratedTitle = BuildTitle(node, asset);
         Category  = BuildCategory(node);
         _pins     = new List<IPinModel>(resolvedPins);
         StatusTooltip = node is Hrot.Blueprints.Core.Assets.FunctionCallNode fc
@@ -126,7 +144,8 @@ internal sealed class BlueprintNodeModel : INodeModel
                        or Hrot.Blueprints.Core.Assets.ComponentItemGetNode
                        or Hrot.Blueprints.Core.Assets.ComponentItemCountNode
                        or Hrot.Blueprints.Core.Assets.ComponentContainsNode
-                       or Hrot.Blueprints.Core.Assets.ComponentFindNode)
+                       or Hrot.Blueprints.Core.Assets.ComponentFindNode
+                       or Hrot.Blueprints.Core.Assets.CollectionWriteNode)
                  && IsUnresolvedComponent(CollectionConsumerComponentTypeFqn(node)))
         {
             State = NodeState.Error;
@@ -160,6 +179,7 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.ComponentItemCountNode cic => cic.ComponentTypeFqn,
         Hrot.Blueprints.Core.Assets.ComponentContainsNode ccn  => ccn.ComponentTypeFqn,
         Hrot.Blueprints.Core.Assets.ComponentFindNode cfn      => cfn.ComponentTypeFqn,
+        Hrot.Blueprints.Core.Assets.CollectionWriteNode cwn    => cwn.ComponentTypeFqn,
         _ => "",
     };
 
@@ -174,6 +194,18 @@ internal sealed class BlueprintNodeModel : INodeModel
     /// </summary>
     private static bool IsCollectionConsumerBakeIncomplete(Hrot.Blueprints.Core.Assets.Node node) => node switch
     {
+        // FC-2/LV-2: a BlackboardFixedList consumer bakes only the variable name (component FQN /
+        // accessor FQNs legitimately empty) -- checked FIRST, before the per-kind curated patterns.
+        Hrot.Blueprints.Core.Assets.ComponentForEachNode { CollectionKind: Hrot.Blueprints.Core.Assets.CollectionKind.BlackboardFixedList } lf =>
+            string.IsNullOrEmpty(lf.CollectionFieldName),
+        Hrot.Blueprints.Core.Assets.ComponentItemGetNode { CollectionKind: Hrot.Blueprints.Core.Assets.CollectionKind.BlackboardFixedList } lg =>
+            string.IsNullOrEmpty(lg.CollectionFieldName),
+        Hrot.Blueprints.Core.Assets.ComponentItemCountNode { CollectionKind: Hrot.Blueprints.Core.Assets.CollectionKind.BlackboardFixedList } lc =>
+            string.IsNullOrEmpty(lc.CollectionFieldName),
+        Hrot.Blueprints.Core.Assets.ComponentContainsNode { CollectionKind: Hrot.Blueprints.Core.Assets.CollectionKind.BlackboardFixedList } lcn =>
+            string.IsNullOrEmpty(lcn.CollectionFieldName),
+        Hrot.Blueprints.Core.Assets.ComponentFindNode { CollectionKind: Hrot.Blueprints.Core.Assets.CollectionKind.BlackboardFixedList } lfn =>
+            string.IsNullOrEmpty(lfn.CollectionFieldName),
         Hrot.Blueprints.Core.Assets.ComponentForEachNode cfe =>
             string.IsNullOrEmpty(cfe.ComponentTypeFqn) || string.IsNullOrEmpty(cfe.CountAccessorFqn) || string.IsNullOrEmpty(cfe.ItemAccessorFqn),
         Hrot.Blueprints.Core.Assets.ComponentItemGetNode cig =>
@@ -184,7 +216,24 @@ internal sealed class BlueprintNodeModel : INodeModel
             string.IsNullOrEmpty(ccn.ComponentTypeFqn) || string.IsNullOrEmpty(ccn.CountAccessorFqn) || string.IsNullOrEmpty(ccn.ItemAccessorFqn),
         Hrot.Blueprints.Core.Assets.ComponentFindNode cfn =>
             string.IsNullOrEmpty(cfn.ComponentTypeFqn) || string.IsNullOrEmpty(cfn.CountAccessorFqn) || string.IsNullOrEmpty(cfn.ItemAccessorFqn),
+        // FC-1 (Q#20): the WRITE node needs ComponentTypeFqn + its op's WriteAccessorFqn. Also the
+        // canvas-visible signal when the wire-bake REFUSED a non-writable/managed/accessor-less
+        // target (TryBakeCollectionConsumer's two gates) -- the wire exists, the bake doesn't.
+        Hrot.Blueprints.Core.Assets.CollectionWriteNode cwn =>
+            string.IsNullOrEmpty(cwn.ComponentTypeFqn) || string.IsNullOrEmpty(cwn.WriteAccessorFqn),
         _ => false,
+    };
+
+    /// <summary>FC-1 (Q#20): the designer-facing verb for a collection write op (title use).</summary>
+    private static string CollectionWriteVerb(Hrot.Blueprints.Core.Assets.CollectionWriteOp op) => op switch
+    {
+        Hrot.Blueprints.Core.Assets.CollectionWriteOp.Add      => "Add",
+        Hrot.Blueprints.Core.Assets.CollectionWriteOp.SetAt    => "Set At",
+        Hrot.Blueprints.Core.Assets.CollectionWriteOp.InsertAt => "Insert At",
+        Hrot.Blueprints.Core.Assets.CollectionWriteOp.RemoveAt => "Remove At",
+        Hrot.Blueprints.Core.Assets.CollectionWriteOp.Clear    => "Clear",
+        Hrot.Blueprints.Core.Assets.CollectionWriteOp.Resize   => "Resize",
+        _ => "Collection Write",
     };
 
     /// <summary>
@@ -267,6 +316,16 @@ internal sealed class BlueprintNodeModel : INodeModel
         // CONSUMER nodes above.
         Hrot.Blueprints.Core.Assets.ComponentContainsNode ccn   => string.IsNullOrEmpty(ccn.ComponentTypeFqn) ? "Contains"                 : $"Contains [{ShortTypeName(ccn.ComponentTypeFqn)}]",
         Hrot.Blueprints.Core.Assets.ComponentFindNode cfn       => string.IsNullOrEmpty(cfn.ComponentTypeFqn) ? "Find"                     : $"Find [{ShortTypeName(cfn.ComponentTypeFqn)}]",
+        // FC-1 (Q#20): same wire-baked "generic verb until wired" convention -- the op is the verb,
+        // the component identity lands in brackets once the wire bakes it.
+        Hrot.Blueprints.Core.Assets.CollectionWriteNode cwn     => string.IsNullOrEmpty(cwn.ComponentTypeFqn)
+            ? $"{CollectionWriteVerb(cwn.Op)} (Collection)"
+            : $"{CollectionWriteVerb(cwn.Op)} [{ShortTypeName(cwn.ComponentTypeFqn)}]",
+        // FC-2/LV-3: same verb convention, the bound LIST VARIABLE's name in brackets (mirrors
+        // Get/SetVariable's "[name]" identifier convention rather than a component type).
+        Hrot.Blueprints.Core.Assets.ListWriteNode lwn           => string.IsNullOrEmpty(lwn.VariableId)
+            ? $"{CollectionWriteVerb(lwn.Op)} (List)"
+            : $"{CollectionWriteVerb(lwn.Op)} [{ResolveVariableName(lwn.VariableId, asset)}]",
         // Punch-list #1/#5/#8: show the node's own DATA in the body instead of the generic "Value"
         // pin label — the literal's value, the parameter's name, the compare/arith/bool operator.
         // Punch-list: the parameter NAME is shown on the output pin (render-only display label in
@@ -283,8 +342,15 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.BooleanOpNode boo     => $"Logic {OperatorSymbol(boo.Operator)}",
         Hrot.Blueprints.Core.Assets.NotNode               => "Not (!)",
         Hrot.Blueprints.Core.Assets.EventEntryNode ee     => string.IsNullOrEmpty(ee.EventTypeId) ? "Event" : $"Event: {ShortEventName(ee.EventTypeId)}",
-        Hrot.Blueprints.Core.Assets.CallPeerBlueprintNode cp => $"Call Peer: {cp.FunctionRef}",
-        Hrot.Blueprints.Core.Assets.CallCustomEventNode ce   => $"Call {ce.EventId}",
+        Hrot.Blueprints.Core.Assets.CallPeerBlueprintNode cp => string.IsNullOrEmpty(cp.FunctionRef)
+            ? "Call Peer"
+            : $"Call Peer: {cp.FunctionRef}",
+        // BP-68: EventId is the declaration's GUID (what the picker and pin projection use), so the
+        // raw field made the header read "Call 3f2a…". Resolve it to the declared name, exactly as
+        // Get/SetVariable resolve theirs.
+        Hrot.Blueprints.Core.Assets.CallCustomEventNode ce   => string.IsNullOrEmpty(ce.EventId)
+            ? "Call Custom Event"
+            : $"Call {ResolveCustomEventName(ce.EventId, asset)}",
         Hrot.Blueprints.Core.Assets.ChannelCommandNode cc    => $"Command: {cc.ActionId}",
         Hrot.Blueprints.Core.Assets.WhenNode                 => "When",
         Hrot.Blueprints.Core.Assets.ReturnNode               => "Return",
@@ -328,6 +394,10 @@ internal sealed class BlueprintNodeModel : INodeModel
         // CA-07d-1: Contains/Find are pure-data search reads, same category as ItemGet/ItemCount.
         Hrot.Blueprints.Core.Assets.ComponentContainsNode    => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.ComponentFindNode        => NodeCategory.Pure,
+        // FC-1 (Q#20): CollectionWrite is an exec write node, the collection analog of SetComponent.
+        Hrot.Blueprints.Core.Assets.CollectionWriteNode      => NodeCategory.VariableSet,
+        // FC-2/LV-3: ListWrite is the exec write node for fixed-list VARIABLES (SetVariable analog).
+        Hrot.Blueprints.Core.Assets.ListWriteNode            => NodeCategory.VariableSet,
         Hrot.Blueprints.Core.Assets.LiteralNode              => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.GetParameterNode         => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.GetAllParametersNode     => NodeCategory.Pure,
@@ -374,6 +444,37 @@ internal sealed class BlueprintNodeModel : INodeModel
         }
 
         return variableId;
+    }
+
+    /// <summary>
+    /// BP-68 — the declared name behind a <c>CallCustomEvent.EventId</c>.
+    /// <para>
+    /// Accepts both forms the rest of the pipeline accepts: the declaration's GUID (what the BP-07
+    /// picker writes and <c>NodePinSchema</c> parses) and a bare name (hand-authored assets, which
+    /// Stage5's <c>FindCustomEventIndex</c> resolves too). An id that matches no declaration is
+    /// returned as-is so a dangling reference stays visible on the node rather than reading as a
+    /// valid event.
+    /// </para>
+    /// </summary>
+    private static string ResolveCustomEventName(
+        string eventId,
+        Hrot.Blueprints.Core.Assets.BlueprintAsset? asset)
+    {
+        if (asset == null || string.IsNullOrEmpty(eventId))
+            return eventId;
+
+        var idStr = eventId.StartsWith("evt:", StringComparison.OrdinalIgnoreCase)
+            ? eventId[4..]
+            : eventId;
+
+        if (Guid.TryParse(idStr, out var guid))
+        {
+            var decl = asset.CustomEvents.FirstOrDefault(e => e.Id == guid);
+            if (decl != null && !string.IsNullOrEmpty(decl.Name))
+                return decl.Name;
+        }
+
+        return eventId;
     }
 
     /// <summary>

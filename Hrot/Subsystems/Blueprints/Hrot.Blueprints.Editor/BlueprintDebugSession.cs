@@ -1742,8 +1742,27 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         if (type == typeof(uint))   return System.Runtime.InteropServices.MemoryMarshal.Read<uint>(bytes);
         if (type == typeof(long))   return System.Runtime.InteropServices.MemoryMarshal.Read<long>(bytes);
         if (type == typeof(double)) return System.Runtime.InteropServices.MemoryMarshal.Read<double>(bytes);
+        // FC-2/LV-5: narrow primitives, so fixed-list ELEMENTS of these types render as values.
+        if (type == typeof(byte))   return bytes[0];
+        if (type == typeof(sbyte))  return unchecked((sbyte)bytes[0]);
+        if (type == typeof(short))  return System.Runtime.InteropServices.MemoryMarshal.Read<short>(bytes);
+        if (type == typeof(ushort)) return System.Runtime.InteropServices.MemoryMarshal.Read<ushort>(bytes);
+        if (type == typeof(ulong))  return System.Runtime.InteropServices.MemoryMarshal.Read<ulong>(bytes);
+        if (TryFormatFixedList(bytes, type, out var formatted)) return formatted;
         return bytes;
     }
+
+    /// <summary>
+    /// FC-2/LV-5 → FC-3c: thin delegate to <see cref="Fdp.Core.FixedListFormatter"/> — THE
+    /// single definition of the list summary string, shared with the StructEdit
+    /// <c>FixedListBufferViewProvider</c>'s collapsed row. This watch stays a transient
+    /// bytes→string call by design: the wrapper types live in COLLECTIBLE ALCs and nothing
+    /// here may retain them (see Q#21 D addendum). Recognition is structural
+    /// (<see cref="Fdp.Core.FixedListShape"/>) — generated <c>__List_…</c> wrappers and
+    /// hand-authored A1 wrappers both render.
+    /// </summary>
+    internal static bool TryFormatFixedList(byte[] bytes, Type type, out string formatted)
+        => Fdp.Core.FixedListFormatter.TryFormat(bytes, type, out formatted);
 
     // ── IAiDebugSession bridge (toolbar/registry surface; UBP toolbar debug icons) ───────────────
     // BlueprintDebugSession also implements IAiDebugSession so it can be the registry's ActiveSession,

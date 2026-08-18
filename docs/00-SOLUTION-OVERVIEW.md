@@ -79,7 +79,7 @@ on top of FDP. Key concerns exclusive to HROT:
   Trees and Hierarchical State Machines with hot-reload, live debug overlays, and
   breakpoint support.
 - A **Blueprint scripting** system: a visual dataflow editor that compiles `.bp.json`
-  graph assets through an 8-stage compiler and Roslyn into hot-loadable C# assemblies.
+  graph assets through a 9-stage compiler and Roslyn into hot-loadable C# assemblies.
 - A **distributed cluster orchestrator** that drives a cluster state machine over
   two-phase commit, manages recording and replay, controls synchronized wall-clock
   advancement, and acts as a storage gateway for scenario assets.

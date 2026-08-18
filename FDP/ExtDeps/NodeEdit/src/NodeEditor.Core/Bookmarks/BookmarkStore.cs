@@ -46,6 +46,20 @@ public sealed class BookmarkStore
             _slotToId[slot] = bookmark.BookmarkId;
     }
 
+    /// <summary>
+    /// Change a bookmark's label, keeping its id, slot and viewport. Returns false when the id is
+    /// unknown or the label is blank — a bookmark with no label is unclickable in the panel, so an
+    /// empty rename is rejected rather than accepted and rendered as a gap.
+    /// </summary>
+    public bool Rename(string bookmarkId, string newLabel)
+    {
+        if (string.IsNullOrWhiteSpace(newLabel)) return false;
+        if (!_all.TryGetValue(bookmarkId, out var b)) return false;
+
+        _all[bookmarkId] = b with { Label = newLabel };
+        return true;
+    }
+
     /// <summary>Remove a bookmark by id. Returns true if it existed.</summary>
     public bool Remove(string bookmarkId)
     {
