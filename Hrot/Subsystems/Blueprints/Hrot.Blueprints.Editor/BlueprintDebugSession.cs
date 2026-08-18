@@ -894,6 +894,40 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
             ? set.ToList().AsReadOnly()
             : Array.Empty<Entity>().AsReadOnly();
 
+    // ---- IBlueprintDebugSession -- live write (Batch 84, row 59c) -----------
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The live write, STAGED.</b> 📌 <c>R-63</c> — measured <c>2026-08-18</c>: while paused
+    /// <c>ActiveView</c> IS the pre-tick snapshot, and <c>RequestStep</c>/<c>RequestContinue</c>
+    /// restore the live repo from the POST-tick snapshot and drain AFTERWARDS. ⇒ ⛔ a direct write to
+    /// the view is overwritten on resume; ⭐ a staged write lands on top of the restored state.
+    ///
+    /// <para>⭐ <b>The manager is DERIVED, not a new argument</b> — <see cref="SetDataBreakpointManager"/>
+    /// already hands it to this session for breakpoints.</para>
+    ///
+    /// <para>⛔ <b>Refuses unless FROZEN</b> (📌 ruling 15). ⚠ Both arms of "frozen" are this session's
+    /// own <see cref="IsPaused"/>, which the breakpoint hit sets — the editor-side freeze signal
+    /// (<c>IEngineDebugTimeController.IsPausedByDebugger</c>) is what the UI greys on, and the two must
+    /// both hold for a write to reach here.</para>
+    /// </summary>
+    public bool TryWriteWorkingStateField(
+        Entity entity, Type componentType, int fieldOffsetBytes, ReadOnlySpan<byte> bytes)
+    {
+        if (componentType is null) throw new ArgumentNullException(nameof(componentType));
+
+        // ⛔ Ruling 15: not frozen ⇒ no live write. ⭐ false, not an exception — the caller greys a
+        //    control on this answer.
+        if (!_isPaused) return false;
+        if (_dataBreakpointManager is null) return false;
+
+        // ⭐ The +8 through its ONE owner, so this write addresses exactly the byte the read path
+        //   showed the designer. ⛔ A bad offset THROWS from here (Q32 §2.1) — it is corruption, not
+        //   a refusal.
+        int componentOffset = WorkingStateLayout.ComponentOffsetOf(fieldOffsetBytes);
+        _dataBreakpointManager.StageFieldMutation(entity, componentType, componentOffset, bytes);
+        return true;
+    }
+
     // ---- IBlueprintDebugSession -- pause state ------------------------------
 
     public bool IsPaused => _isPaused;

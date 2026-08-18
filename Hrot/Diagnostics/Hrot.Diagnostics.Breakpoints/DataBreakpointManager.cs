@@ -621,18 +621,12 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
     /// diff over it names real component offsets. ⚠ <c>Marshal.StructureToPtr</c> is deliberately not
     /// used: it writes the MARSHALLED layout, which differs from the managed one on <c>bool</c>.
     /// </summary>
-    private static unsafe byte[] ToBytes(object boxed, int sizeBytes)
-    {
-        var bytes  = new byte[sizeBytes];
-        var handle = GCHandle.Alloc(boxed, GCHandleType.Pinned);
-        try
-        {
-            fixed (byte* dest = bytes)
-                Buffer.MemoryCopy((void*)handle.AddrOfPinnedObject(), dest, sizeBytes, sizeBytes);
-        }
-        finally { handle.Free(); }
-        return bytes;
-    }
+    /// <remarks>
+    /// ⭐ BATCH 84 — the body moved to <see cref="ComponentBytes.Of"/> so the editor's live write and
+    /// this diff produce the SAME image. ⛔ Two copies would be two answers to "what are this value's
+    /// bytes?", and the wrong one is wrong only for <c>bool</c>.
+    /// </remarks>
+    private static byte[] ToBytes(object boxed, int sizeBytes) => ComponentBytes.Of(boxed, sizeBytes);
 
     /// <summary>
     /// Plays back all staged mutations into the repository via its command buffer.

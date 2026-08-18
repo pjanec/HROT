@@ -126,9 +126,17 @@ public sealed class TheEditDialogReachesTheDesignerTests
     }
 
     /// <summary>
-    /// ⛔⛔ <b>Running / paused ⇒ REFUSED, not written.</b> 📌 The live target is row <c>59c</c>'s and
-    /// needs the ECB surgical field write first *(ruling 14: the whole-component route "exceeds
-    /// <c>MaxComponentSize</c> and cannot work")*. ⭐ Refusing is the honest answer until it exists.
+    /// ⛔⛔ <b><c>CommitInitialValue</c> writes the INITIAL arm and nothing else</b> — running, paused
+    /// and replay all refuse it. ⭐ Batch 84 added the LIVE arm as a SEPARATE target
+    /// (<c>VariableEditCommit.Commit</c> + <c>TargetFor</c>); ⛔ this entry point deliberately did not
+    /// grow one, so a caller that means "the declaration's default" cannot accidentally write the world.
+    ///
+    /// <para>⚠⚠ <b>Correction, Batch 84 — <c>R-65</c>.</b> This comment used to justify the refusal with
+    /// ruling 14's <i>"the whole-component route exceeds <c>MaxComponentSize</c>"</i>. 📐 <b>FALSE:</b>
+    /// <c>Blackboard1024</c> is exactly 1024 and the guard is <c>&gt;</c> — it fits. ⭐ The true reason is
+    /// that the blackboard is <b>SHARED by BTree, HSM and Blueprint at disjoint offsets</b>, so a
+    /// whole-component write clobbers them.
+    /// </para>
     /// </summary>
     [Theory]
     [InlineData(VariableRunState.Running)]
@@ -246,11 +254,15 @@ public sealed class TheEditDialogReachesTheDesignerTests
             debugRegistry:   new DebugSessionRegistry(),
             facetEditService: withEditService ? new ComponentEditServiceBuilder().Build() : null);
 
-    private sealed class FakeAsset : Hrot.Editor.AiShared.IEditableAsset, IBlackboardManagedAsset
+    /// <summary>
+    /// ⭐ BATCH 84 — <b>internal</b>, so item 3's rails reuse this asset rather than writing a second
+    /// one. ⛔ Two fakes of one interface drift, and the drift shows up as a test that "passes".
+    /// </summary>
+    internal sealed class FakeAsset : Hrot.Editor.AiShared.IEditableAsset, IBlackboardManagedAsset
     {
         private readonly List<BlackboardVariableEntry> _vars;
         private FakeAsset(IEnumerable<BlackboardVariableEntry> vars) => _vars = vars.ToList();
-        public static FakeAsset With(params BlackboardVariableEntry[] vars) => new(vars);
+        internal static FakeAsset With(params BlackboardVariableEntry[] vars) => new(vars);
 
         /// <summary>⭐ What actually landed — the observable outcome, not "the method was called".</summary>
         public Dictionary<string, string?> WrittenJson { get; } = new(StringComparer.Ordinal);

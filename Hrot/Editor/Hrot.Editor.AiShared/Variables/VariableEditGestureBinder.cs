@@ -62,14 +62,81 @@ public sealed class VariableEditGestureBinder
     ///   The CURRENT run state, read per gesture. ⚠ Not captured once: writability changes when the sim
     ///   starts or pauses, and a stale snapshot would offer an editable dialog mid-replay.
     /// </param>
+    /// <param name="assetOf">
+    ///   ⭐ Batch 84 — resolves a row to the asset whose declaration an INITIAL-value edit updates.
+    ///   ⛔ Optional: a host with no authored asset behind the row (the Watch's pinned pins) still gets
+    ///   the LIVE arm, which needs no asset.
+    /// </param>
+    /// <param name="writeLive">
+    ///   ⭐ Batch 84 — the LIVE writer, used only while frozen (📌 ruling 15). ⛔ Optional for the same
+    ///   reason, and its absence is reported as <c>LiveWriteUnavailable</c> rather than silently
+    ///   becoming a refusal.
+    /// </param>
     public VariableEditGestureBinder(
         VariableEditLauncher launcher,
         Func<VariableRow, BlackboardVariableEntry?> entryResolver,
-        Func<VariableRunState> runState)
+        Func<VariableRunState> runState,
+        Func<VariableRow, IBlackboardManagedAsset?>? assetOf = null,
+        WriteLiveValue? writeLive = null)
     {
         _launcher      = launcher      ?? throw new ArgumentNullException(nameof(launcher));
         _entryResolver = entryResolver ?? throw new ArgumentNullException(nameof(entryResolver));
         _runState      = runState      ?? throw new ArgumentNullException(nameof(runState));
+        _assetOf       = assetOf;
+        _writeLive     = writeLive;
+    }
+
+    private readonly Func<VariableRow, IBlackboardManagedAsset?>? _assetOf;
+    private readonly WriteLiveValue? _writeLive;
+
+    /// <summary>⭐ The row the open session belongs to, or <c>null</c> when no session is open.</summary>
+    public VariableRow? ActiveRow { get; private set; }
+
+    /// <summary>⭐ What the last <see cref="Accept"/> did. <c>null</c> before any.</summary>
+    public VariableEditCommit.Outcome? LastOutcome { get; private set; }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 84 — the OK path, which DID NOT EXIST.</b>
+    ///
+    /// <para>🔴🔴 <b>Measured before building:</b> <c>VariableEditCommit</c> shipped complete and tested
+    /// in Batch 83 with <b>ZERO production call sites</b> — the binder opened a session and nothing
+    /// ever committed it. ⇒ ⛔ even the NOT-RUNNING write Batch 83 reported as landed could not land:
+    /// the dialog opened, the designer typed, and the value went nowhere. ⚠ <b>The twelfth instance of
+    /// this programme's recurring shape, and it was mine.</b></para>
+    ///
+    /// <para>⭐ One call closes the session and routes it to the ONE commit, which picks the arm from
+    /// the run state (📌 ruling 15). ⛔ The Watch does not get a second one — 📌 ruling 11.</para>
+    /// </summary>
+    public VariableEditCommit.Outcome Accept()
+    {
+        if (ActiveSession is null || ActiveRow is not { } row)
+        { LastOutcome = VariableEditCommit.Outcome.RefusedReadOnly; return LastOutcome.Value; }
+
+        var fieldType = row.ClrType;
+        if (fieldType is null)
+        { LastOutcome = VariableEditCommit.Outcome.RefusedReadOnly; return LastOutcome.Value; }
+
+        var outcome = VariableEditCommit.Commit(
+            ActiveSession, _assetOf?.Invoke(row), row, fieldType, _runState(), _writeLive);
+
+        // ⛔ The session is spent either way — a refused commit already left it uncommitted, and
+        //    keeping it open would let a second Accept re-apply a stale edit.
+        Close();
+        LastOutcome = outcome;
+        return outcome;
+    }
+
+    /// <summary>⭐ The Cancel path — discards without committing, so nothing lands.</summary>
+    public void Cancel()
+    {
+        ActiveSession?.Cancel();
+        Close();
+    }
+
+    private void Close()
+    {
+        ActiveSession = null;
+        ActiveRow     = null;
     }
 
     /// <summary>
@@ -102,6 +169,7 @@ public sealed class VariableEditGestureBinder
     {
         LastAction    = action;
         ActiveSession = null;
+        ActiveRow     = null;
 
         var entry = _entryResolver(row);
         if (entry is null) return;   // ⛔ the row's variable is gone — fail closed, never guess
@@ -109,5 +177,8 @@ public sealed class VariableEditGestureBinder
         // ⭐ The policy decides; this class does not re-implement it. ⚠ A second copy of the
         //   run-state matrix here is exactly how the two would drift.
         ActiveSession = _launcher.Open(row, action, _runState(), entry);
+        // ⭐ Only remembered when a session actually opened — Accept must never see a row whose
+        //   dialog §5 denied.
+        if (ActiveSession != null) ActiveRow = row;
     }
 }

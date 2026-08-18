@@ -1,9 +1,18 @@
 using System;
+using Hrot.Diagnostics.Breakpoints;
 using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Inspector;
 using StructEdit.Core;
 
 namespace Hrot.Editor.AiShared.Variables;
+
+/// <summary>
+/// ⭐⭐ Writes <paramref name="bytes"/> as <paramref name="row"/>'s LIVE value, returning whether it
+/// landed. 📌 Ruling 15 — a host that is not frozen must answer <c>false</c>, ⛔ never throw: the UI
+/// asks this to decide whether to grey a control (📌 the visual-check guide's <c>F3</c>:
+/// <i>"every refusal GREYED WITH A TOOLTIP, not a click that dead-ends"</i>).
+/// </summary>
+public delegate bool WriteLiveValue(VariableRow row, ReadOnlySpan<byte> bytes);
 
 /// <summary>
 /// ⭐⭐⭐ <b>Row 59 — where an edit LANDS, and only the NOT-RUNNING half.</b>
@@ -43,7 +52,46 @@ public static class VariableEditCommit
 
         /// <summary>⛔ The row cannot be written at all — node-owned, passthrough, or stale.</summary>
         RefusedReadOnly,
+
+        /// <summary>
+        /// ⛔ The write target was the LIVE blackboard and no live writer was supplied, or it refused.
+        /// ⭐ Distinct from <see cref="RefusedRunning"/>: the run state ALLOWED the write and the
+        /// mechanism did not arrive — 📌 exactly the silent-default shape, so it gets its own word.
+        /// </summary>
+        LiveWriteUnavailable,
     }
+
+    /// <summary>⭐⭐ Where an edit would land, given the run state.</summary>
+    public enum Target
+    {
+        /// <summary>⭐ Not running ⇒ the declaration's initial value, as JSON.</summary>
+        InitialValue,
+
+        /// <summary>⭐ Frozen on a breakpoint or stepping ⇒ the live blackboard, surgically.</summary>
+        LiveBlackboard,
+
+        /// <summary>⛔ Free-running or replaying ⇒ nowhere. 📌 Ruling 15.</summary>
+        Nowhere,
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE write-target decision, in one place.</b>
+    ///
+    /// <para>📌 <b>Ruling 15</b> <i>(user, and it NARROWS ruling 7)</i>: <i>"the change of runtime var
+    /// makes sense <b>ONLY if sim is paused on breakpoint or deterministic time step</b>. at that time
+    /// nothing else changes the blackboard."</i> ⇒ ⛔ <b>free-running REFUSES</b>, and that is a
+    /// decision, not a later batch.</para>
+    ///
+    /// <para>⭐⭐ <b>Derived from <see cref="VariableValue.ModeFor"/>, not written beside it.</b> The
+    /// displayed value and the write target must never disagree about which arm is live: if the cell
+    /// shows the INITIAL value, the edit writes the initial value. ⚠ The paused/free-running split is
+    /// the one thing <c>ModeFor</c> does NOT answer — it asks <i>"which value?"</i>, this asks
+    /// <i>"may I, and where?"</i> — so it is layered ON TOP rather than duplicated.</para>
+    /// </summary>
+    public static Target TargetFor(VariableRunState runState)
+        => VariableValue.ModeFor(runState) == VariableValueMode.Initial ? Target.InitialValue
+         : runState == VariableRunState.Paused                          ? Target.LiveBlackboard
+         :                                                                Target.Nowhere;
 
     /// <summary>
     /// ⭐⭐ Commits <paramref name="session"/> and writes the result as the declaration's INITIAL
@@ -71,12 +119,64 @@ public static class VariableEditCommit
         if (!row.CanEverBeWritten) return Outcome.RefusedReadOnly;
 
         // ⭐ ONE question, asked in one place: is the initial value what this edit means?
-        if (VariableValue.ModeFor(runState) != VariableValueMode.Initial) return Outcome.RefusedRunning;
+        if (TargetFor(runState) != Target.InitialValue) return Outcome.RefusedRunning;
 
         if (asset is null) return Outcome.RefusedReadOnly;
 
         var json = DefaultValueAuthoring.CommitAndSerialize(session, fieldType);
         asset.UpdateVariableDefaultValueJson(row.Origin.VariablePath, json);
         return Outcome.Ok;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 84 item 3 — the ONE commit, which arm it takes decided by
+    /// <see cref="TargetFor"/>.</b>
+    ///
+    /// <para>📌 <b>Ruling 12:</b> <i>"it must work when the sim is FROZEN on a breakpoint or in
+    /// deterministic stepping mode."</i> · 📌 <b>Ruling 11:</b> the Watch panel shares this mechanism —
+    /// ⛔ it does not get its own.</para>
+    ///
+    /// <para>⛔ <b>The session is committed only when the write will land</b>, for the same reason as
+    /// the initial arm: committing and discarding leaves the designer's edit applied to a boxed copy
+    /// nobody keeps, so it looks accepted and vanishes.</para>
+    /// </summary>
+    /// <param name="writeLive">
+    /// ⭐ The live writer, host-supplied. ⛔ A delegate rather than a session reference because
+    /// <c>IBlueprintDebugSession</c> lives ABOVE this assembly — the same reason the value DECODER is
+    /// injected. ⚠ <b>Null is NOT silently treated as "refuse"</b>: it returns
+    /// <see cref="Outcome.LiveWriteUnavailable"/>, because the run state SAID yes and the mechanism did
+    /// not arrive — 📌 that is the silent-default shape and it earns its own word.
+    /// </param>
+    public static Outcome Commit(
+        IEditSession             session,
+        IBlackboardManagedAsset? asset,
+        VariableRow              row,
+        Type                     fieldType,
+        VariableRunState         runState,
+        WriteLiveValue?          writeLive = null)
+    {
+        if (session is null)   throw new ArgumentNullException(nameof(session));
+        if (fieldType is null) throw new ArgumentNullException(nameof(fieldType));
+
+        if (!row.CanEverBeWritten) return Outcome.RefusedReadOnly;
+
+        switch (TargetFor(runState))
+        {
+            case Target.InitialValue:
+                return CommitInitialValue(session, asset, row, fieldType, runState);
+
+            case Target.LiveBlackboard:
+                if (writeLive is null) return Outcome.LiveWriteUnavailable;
+
+                // ⭐ Committed FIRST so the boxed result exists, but only inside the arm that will
+                //   land it — see the remarks.
+                var value = session.Commit();
+                var bytes = ComponentBytes.Of(value, ComponentBytes.SizeOf(fieldType));
+                return writeLive(row, bytes) ? Outcome.Ok : Outcome.LiveWriteUnavailable;
+
+            default:
+                // ⛔ Free-running or replaying. 📌 Ruling 15 — a decision, not a gap.
+                return Outcome.RefusedRunning;
+        }
     }
 }

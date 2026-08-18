@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using Hrot.Blueprints.Core.Debug;
 using Hrot.Blueprints.Editor;
 using Hrot.Blueprints.Editor.Debug;
@@ -200,6 +202,86 @@ public sealed class TheWatchPanelIsRealTests
 
         // ⭐ The row still reports what it observed — it did not follow the reused buffer.
         Assert.Equal(1, BitConverter.ToInt32(row.ReadValue()));
+    }
+
+    // ══ Batch 84 — ruling 11 / ruling 12: ONE mechanism, BOTH panels ═════════
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The Watch writes through the SAME binder as Details</b> — 📌 ruling 11: <i>"the runtime
+    /// value change is the same mechanism the Watch panel should provide — <b>SHARE it</b>."</i>
+    ///
+    /// <para>⭐ Batch 84 gave the binder its <c>Accept</c>; ⛔ the Watch did NOT get a second one, so a
+    /// gesture raised on the Watch's table commits through exactly the path a Details gesture does.</para>
+    /// </summary>
+    [Fact]
+    public void AWatchEdit_CommitsThroughTheSharedBinder()
+    {
+        var session = new MockDebugSession();
+        session.AddWatchWithValue<int>("Health", 1, tick: 1);
+        var window = new WatchPanelWindow(session, Decode);
+        window.Refresh();
+
+        var live   = new List<byte[]>();
+        var binder = new VariableEditGestureBinder(
+            new VariableEditLauncher(new ComponentEditServiceBuilder().Build()),
+            entryResolver: row => new Hrot.Editor.AiShared.Blackboard.BlackboardVariableEntry(
+                                      row.ShortName, typeof(int), null),
+            runState:      () => VariableRunState.Paused,
+            writeLive:     (_, bytes) => { live.Add(bytes.ToArray()); return true; });
+        window.BindEditGestures(binder);
+
+        window.Table.RaiseEditValueRequested(window.LastView.AllRows[0]);
+        var outcome = binder.Accept();
+
+        Assert.Equal(VariableEditCommit.Outcome.Ok, outcome);
+        Assert.Single(live);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>R-55</c> — ruling 12's gate, carried into an acceptance list at last.</b>
+    ///
+    /// <para>📌 <b>Verbatim:</b> <i>"with the sim frozen on a breakpoint, a value change is visible in
+    /// <b>BOTH panels within one frame</b> — ⛔ not on the next step or on resume."</i>
+    /// ⚠ 📌 <c>R-55</c> records that this <b>was never carried into any acceptance list</b>.</para>
+    ///
+    /// <para>⭐ <b>What is asserted:</b> one underlying byte source feeds a Watch row and a Details row;
+    /// the value moves; <b>both</b> surfaces render the new value on their next build, with <b>no step
+    /// and no resume</b>. ⛔ <b>What is NOT asserted, stated plainly:</b> the literal <i>"within one
+    /// frame"</i> is the host loop's tick, which no headless rail can run — ⭐ what makes it true is
+    /// that both panels read through the SAME control and the SAME formatter, so there is no second
+    /// cache to go stale.</para>
+    /// </summary>
+    [Fact]
+    public void AFrozenValueChange_IsVisibleInBothSurfaces_WithoutAStepOrResume()
+    {
+        var bytes   = BitConverter.GetBytes(1);
+        var session = new MockDebugSession();
+        var watch   = session.AddWatchWithValue<int>("Health", 1, tick: 1);
+
+        var window = new WatchPanelWindow(session, Decode);
+        window.Refresh();
+
+        // ⭐ The DETAILS surface, over a row backed by the same bytes the Watch observes.
+        var formatter = new VariableValueFormatter(Decode);
+        var details   = new VariableTableModel(
+            new FixedVariableRowSource(new[]
+            {
+                WatchRowBridge.ToRow(watch) with { ReadValue = () => bytes },
+            }),
+            VariableTableColumns.Details)
+        { RunState = VariableRunState.Paused };
+
+        Assert.Equal("1", window.CellText(RowOf(window, "Health")));
+        Assert.Equal("1", formatter.Cell(details.Build().AllRows[0], details.Build().ValueMode));
+
+        // …the frozen sim's value moves.
+        watch.WriteValue(42, default, 2);
+        bytes = BitConverter.GetBytes(42);
+
+        window.Refresh();   // ⛔ no Step, no Continue — just the next draw
+
+        Assert.Equal("42", window.CellText(RowOf(window, "Health")));
+        Assert.Equal("42", formatter.Cell(details.Build().AllRows[0], details.Build().ValueMode));
     }
 
     // ── helpers ─────────────────────────────────────────────────────────────

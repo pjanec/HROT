@@ -167,6 +167,32 @@ public interface IBlueprintDebugSession : IBlueprintProbeSink
     // -- Active entity tracking --
     IReadOnlyList<Entity> GetActiveEntities(Guid assetId);
 
+    // -- Live write (Batch 84, row 59c) --
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Writes one working-state field of a LIVE entity, while frozen.</b>
+    ///
+    /// <para>📌 <b>Ruling 15</b> <i>(user)</i>: <i>"the change of runtime var makes sense <b>ONLY if
+    /// sim is paused on breakpoint or deterministic time step</b>. at that time nothing else changes
+    /// the blackboard."</i> ⇒ ⛔ <b>a free-running session MUST return <c>false</c>.</b></para>
+    ///
+    /// <para>📌 <b><c>R-63</c>:</b> the write is <b>STAGED through the command buffer</b>, ⛔ never
+    /// applied to <c>ActiveView</c> — while paused that view IS the pre-tick snapshot, and resume
+    /// restores the live repo from the POST-tick one, so a direct write is <b>silently lost</b>.
+    /// ⭐ The staged write drains AFTER that restore, which is exactly why it survives.</para>
+    ///
+    /// <para>⚠ <b><paramref name="fieldOffsetBytes"/> is the offset WITHIN THE WORKING-STATE BLOCK</b>,
+    /// as the layout reports it. ⛔ Do not add the 8-byte header — the implementation owns that
+    /// (<c>WorkingStateLayout</c>), so the read path and the write path cannot disagree by 8 bytes.</para>
+    ///
+    /// <para>⭐ <b>Returns <c>false</c> rather than throwing</b> when it cannot write: the UI asks this
+    /// to decide whether to GREY a control, and a refusal is an expected answer, not a fault.
+    /// ⛔ A bad OFFSET is a different thing and still throws — 📌 <c>Q32</c> §2.1: <i>"an out-of-range
+    /// offset/size is MEMORY CORRUPTION, not a wrong value."</i></para>
+    /// </summary>
+    bool TryWriteWorkingStateField(
+        Entity entity, Type componentType, int fieldOffsetBytes, ReadOnlySpan<byte> bytes) => false;
+
     // -- Pause state --
     bool IsPaused { get; }
     Breakpoint? PausedAt { get; }
