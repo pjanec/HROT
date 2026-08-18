@@ -32,7 +32,8 @@ namespace Hrot.Blueprints.Editor.Debug;
 /// makes true is that both panels now read the same rows through the same formatter, so when 59c's
 /// write lands there is nothing further to share.</para>
 /// </summary>
-public sealed class WatchPanelWindow : BlueprintEditorWindowBase
+public sealed class WatchPanelWindow : BlueprintEditorWindowBase,
+                                       Hrot.Editor.AiShared.Variables.IVariableTableHost
 {
     private readonly IBlueprintDebugSession _session;
     private readonly VariableTableControl   _table;
@@ -91,6 +92,16 @@ public sealed class WatchPanelWindow : BlueprintEditorWindowBase
 
     /// <summary>⭐ The constructed control, so a host can bind gestures or a rail can raise them.</summary>
     public VariableTableControl Table => _table;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐⭐⭐ <b>Batch 87 — the FOURTH table host, and the handoff did not know it existed.</b> Gate 8's
+    /// <c>search_graph</c> enumeration over everything that constructs a
+    /// <see cref="VariableTableControl"/> returned four; the handoff named three and said <i>"if the
+    /// graph finds a fourth, that is a finding."</i> ⇒ 📌 <c>R-74</c> again — <b>only the graph
+    /// enumerates</b>; a grep for the two known ones would have confirmed the guess and missed this.
+    /// </remarks>
+    public VariableTableControl? VariableTable => _table;
 
     /// <summary>
     /// ⭐⭐⭐ <b>What THIS PANEL would render for a row</b>, through its own formatter.

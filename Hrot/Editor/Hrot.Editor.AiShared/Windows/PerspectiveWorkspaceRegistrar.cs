@@ -303,7 +303,17 @@ public class PerspectiveWorkspaceRegistrar
                 new VariableEditLauncher(facetEditService),
                 entryResolver: row => ResolveEntry(selectionStore, row),
                 runState:      _runState);
-            EditGestures.Attach(Variables.Control);
+
+            // ⭐⭐⭐ Batch 87 — ONE attach point, reached through IVariableTableHost.
+            // 🔴🔴 THE TWELFTH INSTANCE, and it was the line right here: this said
+            //    `EditGestures.Attach(Variables.Control)` — the standalone window's table and NOTHING
+            //    ELSE. ⛔ The Details panel and both Watch surfaces drew rows with no menu and no
+            //    double-click, and the visual check read that as "the dialog has no OK button".
+            // ⭐ The fix is structural, not another Attach line: every host declares
+            //   IVariableTableHost and goes through AttachEditGestures, so a FIFTH host cannot be
+            //   forgotten by someone not remembering a fourth call.
+            EditModal = new VariableEditModal(EditGestures, _runState);
+            AttachEditGestures(Variables);
         }
 
         // ⭐⭐⭐ Batch 80 — DERIVED, not required. The registrar already knows its perspective, so the
@@ -358,6 +368,11 @@ public class PerspectiveWorkspaceRegistrar
                 owningPerspective: perspectiveName,
                 manager:           breakpointManager,
                 formatter:         ValueFormatter);
+
+            // ⭐⭐ Batch 87 — the Watch is built AFTER the binder, so it gets its own attach call here
+            //    rather than a re-ordering of the constructor. ⛔ BP-330: its table was private with no
+            //    accessor, so this could not have been written before IVariableTableHost existed.
+            AttachEditGestures(Watch);
         }
     }
 
@@ -458,6 +473,11 @@ public class PerspectiveWorkspaceRegistrar
         if (window is IVariableOutlineSelectionSource outline) _outlineSelection ??= outline;
         if (window is IVariableDetailsHost      detailsHost)   _detailsHost      ??= detailsHost;
         ConnectOutlineToDetails();
+
+        // ⭐⭐⭐ Batch 87 — the Details panel and the Blueprint Watch arrive HERE, as extras, which is
+        //    precisely why the constructor's single Attach could never have reached them. ⛔ Stated
+        //    over the INTERFACE so a host added later binds itself with no new line anywhere.
+        if (window is IVariableTableHost tableHost) AttachEditGestures(tableHost);
     }
 
     private readonly Func<VariableRunState> _runState;
@@ -496,6 +516,49 @@ public class PerspectiveWorkspaceRegistrar
     /// headless host, not a production one.
     /// </summary>
     public VariableEditGestureBinder? EditGestures { get; }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>BP-327</c> — the DIALOG the gestures open.</b> Null exactly when
+    /// <see cref="EditGestures"/> is: no edit service ⇒ no session ⇒ nothing to draw.
+    /// ⛔ Batch 84 built the whole commit path and <b>no surface drew the session it returned</b>.
+    /// </summary>
+    public VariableEditModal? EditModal { get; private set; }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Every table this registrar actually bound the row gestures to.</b>
+    ///
+    /// <para>📌 <b><c>R-67</c>:</b> <i>"a rail that builds its own composition root cannot see a
+    /// composition-root defect."</i> ⇒ ⛔ a rail over this class's SOURCE cannot catch a missing
+    /// <c>Attach</c>; ⭐ it must ask the CONSTRUCTED objects, and this is the list of them.</para>
+    ///
+    /// <para>⚠ <b>It records what was ATTACHED, not what was OFFERED</b> — a host whose
+    /// <see cref="IVariableTableHost.VariableTable"/> is null contributes nothing, so a rail asserting
+    /// <c>All(t =&gt; t.HasEditGestures)</c> cannot pass vacuously on a host that simply has no
+    /// table.</para>
+    /// </summary>
+    public IReadOnlyList<VariableTableControl> BoundTables => _boundTables;
+
+    private readonly List<VariableTableControl> _boundTables = new();
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE one place row gestures are attached.</b> 🔴 Batch 87's defect was a single call site
+    /// naming a single window; every host now arrives here instead.
+    ///
+    /// <para>⭐ Idempotent by identity — <c>RegisterExtraWindow</c> can be called more than once for the
+    /// same window, and a second <c>Attach</c> would subscribe the two gestures TWICE, opening two
+    /// sessions per double-click and leaking the first.</para>
+    ///
+    /// <para>⚠ A null <paramref name="host"/> or a null table is a NO-OP, not a throw: a Watch with no
+    /// variable panel is a legitimate shape.</para>
+    /// </summary>
+    private void AttachEditGestures(IVariableTableHost? host)
+    {
+        if (EditGestures is null || host?.VariableTable is not { } table) return;
+        if (_boundTables.Contains(table)) return;
+
+        EditGestures.Attach(table);
+        _boundTables.Add(table);
+    }
 
     /// <summary>
     /// ⭐ Finds the authored entry a row stands for, on the ACTIVE asset. ⛔ Fails closed — a row whose

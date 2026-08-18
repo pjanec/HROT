@@ -6,6 +6,16 @@ using ImGuiNET;
 namespace Hrot.Editor.AiShared.Variables;
 
 /// <summary>
+/// ⭐⭐⭐ <b>What <see cref="VariableTableControl"/> will draw for one row.</b>
+///
+/// <para>⭐ Four INDEPENDENT booleans, not a priority enum: <c>Selected</c> and <c>Changed</c> are
+/// answers to different questions *(the designer vs the simulation)* and must be able to be true at
+/// once. ⛔ Collapsing them into one "row style" is exactly the mistake
+/// <see cref="VariableTableView.IsSelected"/>'s own doc forbids.</para>
+/// </summary>
+public readonly record struct RowVisualState(bool Selected, bool Changed, bool Pending, bool Stale);
+
+/// <summary>
 /// ⭐⭐ <b>The Details/Watch variable table — the DRAWING half of <c>C-table</c>.</b>
 ///
 /// <para>
@@ -73,6 +83,41 @@ public sealed class VariableTableControl
     public VariableTableControl(VariableValueFormatter formatter)
         => _formatter = formatter ?? throw new ArgumentNullException(nameof(formatter));
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Exactly what this control will draw for one row — the ARTEFACT's own answer.</b>
+    ///
+    /// <para>🔴🔴 <b><c>B3</c>, and why the rail has to live here.</b> 📐 Measured: the selection chain
+    /// was wired end to end — the outline set <c>SelectedVariablePath</c>, the section applied it,
+    /// <see cref="VariableTableView.IsSelected"/> computed it — ⛔ <b>and this control never called
+    /// <c>IsSelected</c>. Zero references.</b> ⇒ ⚠ <b>an INVERTED instance of the recurring pattern</b>:
+    /// usually nothing constructs the thing; here everything constructs and routes it and the last
+    /// consumer never asks.</para>
+    ///
+    /// <para>⛔⛔ <b>So a rail on <c>IsSelected</c> proves NOTHING</b> — it returned <c>true</c>
+    /// throughout the defect. 📌 The <c>CellText</c> lesson from Batch 83: <b>ask what the CONTROL
+    /// would draw.</b> ⭐ <see cref="DrawRows"/> and <see cref="DrawCell"/> read this and nothing else,
+    /// so a rail here is as close to the pixels as a headless test can stand.</para>
+    ///
+    /// <para>⚠ <b>What it still cannot prove</b>, stated rather than implied: that ImGui renders the
+    /// state. It proves the control ASKS and CARRIES it — the defect was the asking.</para>
+    ///
+    /// <para>⭐⭐ <b>Selection and change stay ORTHOGONAL</b> *(the view's own ruling)*: they travel in
+    /// separate fields and are drawn by separate ImGui mechanisms — selection through
+    /// <c>Selectable</c>'s selected flag, change/pending through the row background. ⇒ 📌 a row that is
+    /// selected AND changed this tick shows <b>both</b>, and a collapsed header can never read
+    /// "something changed" because the designer clicked.</para>
+    /// </summary>
+    public RowVisualState VisualStateOf(VariableTableView view, VariableRow row)
+    {
+        if (view is null) throw new ArgumentNullException(nameof(view));
+        var highlight = view.HighlightOf(row);
+        return new RowVisualState(
+            Selected: view.IsSelected(row),
+            Changed:  highlight.Changed,
+            Pending:  highlight.Pending,
+            Stale:    row.IsStale);
+    }
+
     public void Draw(string id, VariableTableView view)
     {
         if (view.Groups.Count == 0)
@@ -123,35 +168,43 @@ public sealed class VariableTableControl
 
         for (int i = 0; i < rows.Count; i++)
         {
-            var row = rows[i];
-            var highlight = view.HighlightOf(row);
+            var row   = rows[i];
+            // ⭐⭐ Batch 87 — ONE read of the row's visual state, and it is the same call a rail makes.
+            //    ⛔ A second, independent read here is how B3 happened: the view could answer and the
+            //    renderer never asked.
+            var state = VisualStateOf(view, row);
 
             ImGui.TableNextRow();
-            // ⭐ Pending wins the row tint when both apply: "my edit has not landed" is the actionable
+            // ⭐ Pending wins the row TINT when both apply: "my edit has not landed" is the actionable
             //   one, and §4a's requirement is that the two remain DISTINCT states -- which they do,
             //   because both booleans survive on the view for anything that needs them.
-            if (highlight.Pending)
+            // ⚠ SELECTION is deliberately NOT in this channel — see VisualStateOf.
+            if (state.Pending)
                 ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, ImGui.GetColorU32(PendingTint));
-            else if (highlight.Changed)
+            else if (state.Changed)
                 ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, ImGui.GetColorU32(ChangedTint));
 
             ImGui.PushID(i);
-            foreach (var c in columns) DrawCell(c, view, row);
+            foreach (var c in columns) DrawCell(c, view, row, state);
             ImGui.PopID();
         }
 
         ImGui.EndTable();
     }
 
-    private void DrawCell(VariableColumn column, VariableTableView view, VariableRow row)
+    private void DrawCell(VariableColumn column, VariableTableView view, VariableRow row,
+                          RowVisualState state)
     {
         ImGui.TableNextColumn();
-        if (row.IsStale) ImGui.PushStyleColor(ImGuiCol.Text, StaleText);
+        if (state.Stale) ImGui.PushStyleColor(ImGuiCol.Text, StaleText);
 
         switch (column)
         {
             case VariableColumn.Name:
-                ImGui.Selectable(view.DisplayNameOf(row));
+                // ⭐⭐⭐ Batch 87 (B3) — THE call that was missing. The selected flag draws ImGui's own
+                //    header highlight on the NAME cell, which is a channel the row background does not
+                //    use ⇒ selection and "changed this tick" are visible AT THE SAME TIME.
+                ImGui.Selectable(view.DisplayNameOf(row), state.Selected);
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.SetTooltip(VariableRowGrouping.FullPathTooltip(row));   // ⭐ full path, always
@@ -178,7 +231,7 @@ public sealed class VariableTableControl
                 break;
         }
 
-        if (row.IsStale) ImGui.PopStyleColor();
+        if (state.Stale) ImGui.PopStyleColor();
     }
 
     /// <summary>

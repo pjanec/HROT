@@ -24,7 +24,8 @@ namespace Hrot.Blueprints.Editor.Windows;
 /// logic (selection → session) can be exercised in headless unit tests.
 /// </para>
 /// </summary>
-public sealed class BlueprintDetailsWindow : ManagedWindow, IVariableDetailsHost
+public sealed class BlueprintDetailsWindow : ManagedWindow, IVariableDetailsHost,
+                                             Hrot.Editor.AiShared.Variables.IVariableTableHost
 {
     private readonly AiSelectionStore _selectionStore;
     private readonly BlueprintNodeDrawerRegistry _drawerRegistry;
@@ -90,6 +91,15 @@ public sealed class BlueprintDetailsWindow : ManagedWindow, IVariableDetailsHost
     /// than on whatever wired it (the 2026-08-16 control).
     /// </summary>
     public VariableDetailsSection Variables => _variables;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐⭐ <b>Batch 87 — forwarded from the hosted section</b>, so the registrar's attach loop reaches
+    /// the Details table without knowing that a Details WINDOW hosts a Details SECTION. ⛔ The window
+    /// does not own a second table; this is the same object <see cref="Variables"/> exposes.
+    /// </remarks>
+    public Hrot.Editor.AiShared.Variables.VariableTableControl? VariableTable
+        => ((Hrot.Editor.AiShared.Variables.IVariableTableHost)_variables).VariableTable;
 
     /// <inheritdoc/>
     /// <remarks>

@@ -24,7 +24,7 @@ namespace Hrot.Editor.AiShared.Variables;
 /// a byte reader renders <c>(pending)</c> — ⛔ not <c>&lt;unreadable&gt;</c>, which would claim a decode
 /// failure that never happened.</para>
 /// </summary>
-public sealed class VariableDetailsSection
+public sealed class VariableDetailsSection : IVariableTableHost
 {
     private readonly VariableTableControl _control;
     private readonly VariableTableModel   _model;
@@ -70,6 +70,15 @@ public sealed class VariableDetailsSection
 
     /// <summary>⭐ The constructed control, so a host can bind its two gestures (rows 59 / 59c).</summary>
     public VariableTableControl Control => _control;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// 🔴🔴 <b>Batch 87 — this section is the host NOTHING was attached to.</b> The property existed and
+    /// the registrar bound only the standalone window's table, so the Details panel drew rows with no
+    /// menu and no double-click. ⭐ Declaring the interface is what puts it in the registrar's ONE
+    /// attach loop instead of in a second line someone must remember.
+    /// </remarks>
+    VariableTableControl? IVariableTableHost.VariableTable => _control;
 
     /// <summary>
     /// What the current list is — e.g. <c>"Variables"</c> or <c>"Local Variables — Tick"</c>.

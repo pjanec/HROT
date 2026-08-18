@@ -24,7 +24,7 @@ namespace Hrot.Editor.AiShared.Windows;
 /// <c>BlackboardAuthoringWindow</c> are untouched and still drawn — the user's ruling for this
 /// batch.</para>
 /// </summary>
-public sealed class AiVariablesWindow : ManagedWindow
+public sealed class AiVariablesWindow : ManagedWindow, Variables.IVariableTableHost
 {
     private readonly VariableTableControl _control;
     private readonly VariableTableModel   _model;
@@ -58,6 +58,11 @@ public sealed class AiVariablesWindow : ManagedWindow
 
     /// <summary>⭐ The constructed control, so a host can bind its two gestures.</summary>
     public VariableTableControl Control => _control;
+
+    /// <inheritdoc/>
+    /// <remarks>⭐ Batch 87 — the same object <see cref="Control"/> returns. ⛔ NOT a second accessor:
+    /// the interface is how the registrar reaches EVERY host without knowing their concrete types.</remarks>
+    VariableTableControl? Variables.IVariableTableHost.VariableTable => _control;
 
     /// <summary>
     /// ⭐⭐⭐ <b>Whether this window's row gestures are ATTACHED</b> — 📌 <c>R-67</c>. A rail that pulls

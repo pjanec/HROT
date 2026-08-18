@@ -37,7 +37,7 @@ namespace Hrot.Editor.AiShared.Windows;
 /// <c>Type</c> is hidden here by default (<see cref="VariableTableColumns.Watch"/>): monitoring is not
 /// authoring.</para>
 /// </summary>
-public sealed class AiWatchWindow : ManagedWindow
+public sealed class AiWatchWindow : ManagedWindow, Variables.IVariableTableHost
 {
     private readonly IDataBreakpointManager   _manager;
     private readonly PinnedVariableRowSource  _pinned = new();
@@ -82,6 +82,15 @@ public sealed class AiWatchWindow : ManagedWindow
 
     /// <summary>True when the variables half is wired. ⭐ A rail asserts on this, not on the registrar.</summary>
     public bool HasVariableWatch => _variables != null;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐⭐ <b>Batch 87 — <c>BP-330</c> closed.</b> <c>_control</c> was <b>private with no accessor</b>,
+    /// so nothing outside this class could bind the row gestures to the Watch's table — the same
+    /// no-caller shape as the Details panel, one window over. ⚠ <b>Null when the Watch has no variable
+    /// panel</b> *(no formatter/source was supplied)*, which is a shape, not a defect.
+    /// </remarks>
+    public VariableTableControl? VariableTable => _control;
 
     protected override void DrawClientArea()
     {
