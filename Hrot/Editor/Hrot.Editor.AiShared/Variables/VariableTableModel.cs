@@ -99,6 +99,14 @@ public sealed class VariableTableModel
 {
     private readonly VariableChangeMonitor _monitor = new();
 
+    /// <summary>
+    /// ⭐⭐⭐ Batch 94 (<c>94c</c>) — this panel's sampler. ⛔ <b>Per MODEL, i.e. per panel</b>, which is
+    /// the user's ruling: <i>"watch panel rows are not identical instances to details panel rows…
+    /// completely independent on each other."</i> ⭐ Same ownership as <see cref="Monitor"/>, for the
+    /// same reason: a view is one frame, the panel is the memory.
+    /// </summary>
+    private readonly VariableRowSampler _sampler = new();
+
     public VariableTableModel(IVariableRowSource source, VariableTableColumns columns,
                               IReadOnlyList<VariableFacet>? groupBy = null)
     {
@@ -122,9 +130,17 @@ public sealed class VariableTableModel
 
     public VariableChangeMonitor Monitor => _monitor;
 
+    /// <summary>⭐ This panel's sampler. ⛔ Exposed for rails only — nothing outside drives it.</summary>
+    internal VariableRowSampler Sampler => _sampler;
+
     public VariableTableView Build()
     {
-        var rows = Source.GetRows();
+        // ⭐⭐⭐ Batch 94 (94c) — ONE sample per row per behaviour frame, then everything below draws
+        //    from that sample: the cell, the tooltip and the change comparison all see the SAME bytes.
+        //    📄 Q46 §2 rule 3: "rendered every UI frame from the cache, without calling the accessor."
+        // ⛔ Before this, the arms were invoked once per repaint (60×/s) whether or not the world had
+        //    moved — and the monitor invoked them AGAIN, so a cell and its highlight could disagree.
+        var rows = _sampler.Sample(Source.GetRows(), RunState);
 
         var highlights = new Dictionary<(Guid, Fdp.Core.Entity, string), RowHighlight>();
         var names      = new Dictionary<(Guid, Fdp.Core.Entity, string), string>();

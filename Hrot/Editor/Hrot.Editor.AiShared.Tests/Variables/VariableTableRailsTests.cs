@@ -142,7 +142,14 @@ public sealed class VariableTableRailsTests
         Assert.Equal(4, new[] { a1, a2, b1, stale }.Select(r => r.Origin.Key).Distinct().Count());
 
         // ⭐ The stale row still renders...
-        Assert.Contains(stale, view.AllRows);
+        // ⚠⚠ Batch 94 (94c): asserted by IDENTITY, not by record equality. The model now hands the
+        //    view rows REWRITTEN to read this pulse's cached value, so `view.AllRows` no longer
+        //    contains the same record instances the source produced. ⭐ That is the documented
+        //    identity rule — VariableRowOrigin.Key — not a weakening: "every lookup key in this
+        //    namespace is built from AssetId/Entity/VariablePath only" (VariableRow's own doc).
+        // ⛔ Record equality would also compare the delegates, which were never identity.
+        Assert.Contains(view.AllRows, r => r.Origin.Key.Equals(stale.Origin.Key));
+        Assert.True(view.AllRows.Single(r => r.Origin.Key.Equals(stale.Origin.Key)).IsStale);
         // ...and refuses its dialog.
         Assert.False(stale.CanEverBeWritten);
     }

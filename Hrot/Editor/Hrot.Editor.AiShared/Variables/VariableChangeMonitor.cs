@@ -73,6 +73,13 @@ public sealed class VariableChangeMonitor
     private readonly Dictionary<(Guid, Entity, string), Entry> _byRow = new();
 
     /// <summary>
+    /// ⭐⭐⭐ Batch 94 (<c>94d</c>) — the managed-value byte bridge. ⛔ One per monitor, i.e. one per
+    /// panel, because it owns a pooled buffer and is therefore not thread-safe *(and does not need to
+    /// be: a panel samples on its own UI thread)*.
+    /// </summary>
+    private readonly ManagedValueBytes _managed = new();
+
+    /// <summary>
     /// ⭐ <b>Observe one row and return its highlight.</b> Call once per row per repaint; the cache is
     /// keyed by identity, so the answer does not depend on scroll position or row order.
     ///
@@ -97,7 +104,18 @@ public sealed class VariableChangeMonitor
 
         // ⭐⭐ Compare RAW BYTES, not the formatted string: a float moving in its 7th digit renders
         //     identically, and hiding that is exactly what a value monitor must not do.
-        var current = row.ReadValue();
+        // ⭐⭐⭐ Batch 94 (94d) — BOTH ARMS feed the same comparison.
+        //    🔴 This used to read only row.ReadValue(), the BYTE arm ⇒ Blueprint's values, which
+        //    arrive already-decoded through the OBJECT arm, could never highlight at all.
+        //    📄 R-103 (the user): "it produces bytes. we compare these bytes. No way comparing
+        //    rendered text!" ⇒ a managed value is serialised by FdpAutoSerializer and the BYTES are
+        //    compared — ⛔ never its ToString().
+        // ⚠ A type the serializer cannot handle yields null, which means "this row never
+        //   highlights" — ⛔ NOT "unchanged", so it must not be folded into the empty-array case.
+        byte[]? currentOrNull = ValueBytesOf(row);
+        if (currentOrNull is null) return new RowHighlight(false, entry.Pending);
+
+        ReadOnlySpan<byte> current = currentOrNull;
         if (!entry.Seen)
         {
             // ⭐ First sighting: remember the value, but do NOT call it a change -- there is nothing
@@ -116,6 +134,33 @@ public sealed class VariableChangeMonitor
         //   equals the tick on which it last changed. Frozen (no asset tick) ⇒ still equal ⇒ still red.
         bool changed = entry.HasEverChanged && tick.Value == entry.LastChangedAssetTick;
         return new RowHighlight(changed, entry.Pending);
+    }
+
+    /// <summary>
+    /// ⭐⭐ The row's value as bytes, from whichever arm it carries.
+    /// ⛔ Returns <c>null</c> when the value cannot be turned into bytes at all — the caller reports
+    /// no highlight, which is the honest answer for a value nothing can compare.
+    /// </summary>
+    /// <remarks>
+    /// ⭐ <b>The byte arm wins when it has content.</b> A row that carries real bytes is a struct/
+    /// unmanaged value and its bytes ARE the value — 📌 <c>Q46</c> rule 7: any size, no limit.
+    /// ⚠ The object arm is consulted only when the byte arm is empty, which is exactly the shape
+    /// <c>SectionVariableRowSource</c> builds for a decoded live value.
+    /// </remarks>
+    private byte[]? ValueBytesOf(VariableRow row)
+    {
+        byte[] raw;
+        try { raw = row.ReadValue().ToArray(); }
+        catch { raw = Array.Empty<byte>(); }
+
+        if (raw.Length > 0) return raw;
+        if (row.ReadValueObject is not { } readObject) return raw;
+
+        object? value;
+        try { value = readObject(); }
+        catch { return null; }
+
+        return _managed.TryGetBytes(value);
     }
 
     /// <summary>§6 — optimistic display: the edit is painted immediately and staged; this marks the row
