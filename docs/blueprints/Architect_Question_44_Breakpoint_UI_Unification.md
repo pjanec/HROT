@@ -1,8 +1,9 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-18
-current-answer: section 4 - the recommended answers. A and B are already RULED by
-  the user 2026-08-18; C-F await approval. Nothing here is built.
+current-answer: section 4 - APPROVED IN FULL by the user 2026-08-18 ("Q44 approved
+  using your recommendations"). A and B were ruled by the user; C-F approved as
+  recommended. Nothing here is built.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none. Q38 owns the DETAILS/variable family; this owns the
@@ -10,6 +11,9 @@ known-conflict: none. Q38 owns the DETAILS/variable family; this owns the
 -->
 # ⭐ Architect Question 44 — **breakpoint UI unification**
 
+> # ✅✅✅ APPROVED IN FULL — user, `2026-08-18`: *"Q44 approved using your recommendations."*
+> ⭐ `A` and `B` were the user's own rulings; ⭐ **`C`–`F` approved as recommended.** ⛔ **Canon now** — `R-97`.
+>
 > ⛔⛔ **NOT RELAYED.** The architect is generally unavailable *(`2026-08-16` user ruling)*.
 > ⭐⭐ **I analyse and RECOMMEND, the user APPROVES.**
 >
@@ -20,7 +24,7 @@ known-conflict: none. Q38 owns the DETAILS/variable family; this owns the
 > listing all types (maybe with some filtering if useful). the breakpoint UI unification is a new area,
 > new architect question."*
 >
-> ⭐⭐ **`A` and `B` below are therefore RULED, not proposed.** ⛔ `C`–`F` await approval.
+> ⭐⭐ **`A` and `B` below were RULED by the user, not proposed.** ✅ **`C`–`F` are now APPROVED too** *(`R-97`)*.
 
 ---
 

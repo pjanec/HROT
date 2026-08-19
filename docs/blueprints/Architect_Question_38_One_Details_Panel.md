@@ -1,13 +1,16 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-18
-current-answer: the RECOMMENDED ANSWERS A-F section at the very bottom, plus the
-  REVISION 2026-08-18 above it. The revision supersedes the 2026-08-17 inventory
+current-answer: the RULED 2026-08-18 section and the INTEGRATION TABLE at the very
+  bottom. They supersede the RECOMMENDED ANSWERS above where they differ - notably
+  Q38-A, whose recommendation was OVERRULED. Plus the REVISION 2026-08-18. The revision supersedes the 2026-08-17 inventory
   (8 surfaces; the graph finds 25) and corrects section 4's claim that the shell
   is missing. A-F now carry recommendations awaiting the user's approval.
 stale-below: nothing, but section 1's inventory table and section 4's last line
   are SUPERSEDED by R1 and R2. Do not quote them.
-known-rot: section 4 says "what is missing is the SHELL" - measured false,
+known-rot: my Q38-A recommendation ("contextual is the ONLY switch, the toolbar is
+  a pin") was OVERRULED 2026-08-18 - the toolbar IS a panel switch. Do not quote it.
+  Also: section 4 says "what is missing is the SHELL" - measured false,
   RuntimeInspectorWindow is that shell with three panes registered.
 -->
 # Architect Question #38 — **should the inspect/detail windows merge into ONE mode-switching Details panel?**
@@ -449,3 +452,121 @@ does not keep.**
 ⭐⭐ **Net effect on `Q38`:** ⛔ **the watch family is not "two windows to make one"** — ⭐ it is
 **THREE row types across THREE windows**, and the right first move is to **send the breakpoint rows
 home**, which leaves a genuinely single-typed Watch to merge.
+
+---
+
+# ✅✅✅ RULED `2026-08-18` — **the toolbar IS a panel switch. My `A` was wrong**
+
+> ⭐⭐⭐ **User, verbatim:** *"the toolbar in the detail window should switch different panels that are
+> related to the selected/focused stuff. for variables the default is the variable table, but using
+> toolbar (radio-button like toggles) it should be possible to switch it into another already existing
+> panels like param-to-working state mapper or inspector or runtime inspector or other variable related
+> existing panels; whether to merge these toggleable panels into something more generic is a question
+> for later once i see what is all available, the first goal is to get rid of too many separate
+> contextual windows and integrate them into one single contextual (and toolbar switchable) details
+> panel."*
+
+⚠⚠ **My `Q38-A` recommendation — *"contextual is the ONLY switch; the toolbar is a PIN"* — is
+OVERRULED.** ⭐ **And the original `Q38-A` text already anticipated the right answer:** *"possibly
+both: context picks the default, the toolbar overrides it."* ⛔ **I narrowed it and lost that.**
+
+## ✅ `Q38-A` — **RULED: TWO STAGES, and they do not compete**
+
+| stage | who decides |
+|---|---|
+| ⭐⭐ **① which panels are OFFERED, and which is DEFAULT** | ⭐ **the CONTEXT** *(focus + selection — `R-95`)* |
+| ⭐⭐ **② which of them is SHOWN** | ⭐ **the USER**, via radio-style toggles |
+
+⭐⭐⭐ **Why this does NOT reintroduce the `B8` two-authorities bug:** ⛔ the toolbar never changes
+**what the panel is about** — ⭐ **only which VIEW of the same context is drawn.** ⇒ **one authority
+over the CONTEXT; a user choice over the VIEW.**
+⚠ **Rule to keep:** ⭐ **a context change re-offers the set; a toggle within it STICKS** *(per context
+kind, so returning to a variable returns to the view you chose for variables)*.
+
+## ✅ `Q38-F` — **RULED, and sharper than my version**
+
+⭐⭐⭐ **Pinning opens a new window of the SAME PANEL TYPE that was active when the pin button was
+pressed, pinned to the context at that moment.**
+⇒ ⭐ **the pin captures TWO things — the context tuple AND the selected view.** ⛔ Not just the context.
+
+## ✅ The Watch window — **RULED**
+
+⭐⭐ **Variables only** *(after `Q44-B` sends the breakpoint rows home)*, and ⭐⭐⭐ **it MUST remain
+persistable to a file and reloadable.** ⚠ **That is a constraint on the merge:** ⛔ collapsing the two
+watch windows must not lose `DebugSessionPersistence`'s watch list — 📌 it already persists
+`WatchEntry { AssetId, GraphId, PinId }` beside the breakpoints.
+
+## ✅ `Q38-B`, `Q38-D` — **as recommended.** ✅ `LiveBlackboardPanel` — **formatter arm FIRST, then retire**
+
+---
+
+# ⭐⭐⭐ THE INTEGRATION TABLE — **what becomes a Details toggle, and what does not**
+
+> ⭐ **Goal, in the user's words:** *"the first goal is to get rid of too many separate contextual
+> windows."* ⇒ ⛔⛔ **This step does NOT merge the panels' CONTENT.** ⭐ **They keep their current
+> implementations and become TOGGLES inside one window.** 📌 *"whether to merge these toggleable panels
+> into something more generic is a question for later."*
+
+## ⭐ A. Toggles offered when the context is a **VARIABLE / a variable SECTION**
+
+| toggle | today's surface | notes |
+|---|---|---|
+| ⭐⭐ **Variables** *(DEFAULT)* | `VariableDetailsSection` | ⭐ already the Details content |
+| **Layout / byte budget** | `BlackboardAuthoringWindow`'s bin-pack view | ⚠ **answers *"will it fit?"*** — ⭐ as a TOGGLE it is reachable without being a window |
+| **Live values** | ⛔ **none — retire `LiveBlackboardPanel`** | 📌 superseded once the formatter gains the fixed-list arm |
+
+## ⭐ B. Toggles offered when the context is a **NODE**
+
+| toggle | today's surface |
+|---|---|
+| ⭐⭐ **Properties** *(DEFAULT)* | `InspectorWindow`'s **facet editor** |
+| **Default value** | `InspectorWindow`'s **`DEFAULT VALUE — {var}`** — ⭐ the node-scoped default of the variable this node writes |
+| ⚠ **Parameter sync** | `InspectorWindow`'s **`PARAMETER SYNCHRONIZATION`** *(`DrawSyncBindingsTable`)* — **subtree nodes only** |
+| **Utility** | `InspectorWindow`'s **`UTILITY CONSIDERATION`** — utility nodes only |
+| ⭐ **Runtime** | the per-host **`RuntimeInspectorPane`** *(BTree · HSM · Blueprint)* |
+
+> ⚠⚠ **ONE TERM I COULD NOT MAP — please confirm.** ⭐ You said *"param-to-working state mapper"*.
+> 📐 **The two measured candidates are DIFFERENT things:**
+> ⭐ **`PARAMETER SYNCHRONIZATION`** — subtree param ⇄ sub-asset field copy-in/copy-out *(Approach B)*
+> ⭐ **the node's two BINDINGS** — `ExpressionTargetField` *(params)* and `WorkingStateTargetField`
+> *(working state)*, the pair `ComposeAiPrimitiveAction` creates
+> ⛔ **I am not guessing which you meant** — the second is closer to the words, the first is closer to
+> the word *"mapper"*.
+
+## ⭐ C. Toggles offered when the context is the **ASSET** or a **GRAPH**
+
+| toggle | today's surface |
+|---|---|
+| **Asset settings** | `BlackboardAuthoringWindow`'s **`Use editor-managed blackboard`** — ⛔ genuinely mis-homed today |
+| **Graph signature** | `GraphSignatureWindow` — 📌 **`BP-128`**, which `Q38` absorbs |
+| **Diagnostics** | **sub-tree allocations** + **unbound requirements** |
+
+## ⛔ D. NOT Details content — **and why each**
+
+| surface | why it stays out |
+|---|---|
+| ⭐⭐ **Watch** | ⛔ **by definition NOT focus-following** — folding it destroys its job. ⭐ **Own window, variables only, persistable** |
+| ⭐⭐ **Breakpoints** | 📄 **`Q44`** — its own family, its own window |
+| **the gutter + context menus** | *"set a breakpoint here"* is a **canvas gesture** |
+| **`DataBreakpointManagerPanel`** | `Q44-A`'s base |
+| **engine / sim inspectors** *(`EntityInspectorPanel` ×2, `DerEntityInspectorPanel`, `FdpEntity*`, ExCon `InspectorPanel`, the `Fake*` windows)* | ⛔ **different lifecycle, not the AI editor** |
+| **`DetailsPanel`** *(`NodeEditor.UI`)* | ⭐ the **primitive** the shell is built from, not a feed |
+
+## ⭐⭐ E. RETIRED by this work — **not toggles, duplicates**
+
+| surface | replaced by |
+|---|---|
+| `BlueprintVariablesWindow` · `BlueprintVariablesManagedWindow` | the Variables toggle *(`U-16`, row 60)* |
+| **one of the two `InspectorWindow`s** | the Properties toggle |
+| `AiVariablesWindow` | the Variables toggle ⚠ *(unless it is wanted as a PINNED instance)* |
+| `LiveBlackboardPanel` | the Variables toggle's Value column *(after the formatter arm)* |
+| `WatchPanelWindow` | the one Watch window |
+| `AiBreakpointsWindow`'s banner | `Q44-A` |
+
+## ⭐ F. The count
+
+| | |
+|---|---|
+| **windows today** *(editor family)* | ⭐ **16** |
+| **after** | ⭐⭐ **Details · Watch · Breakpoints · My Blueprint · Canvas** + ⭐ **N pinned instances** |
+| ⚠ **and nothing is DELETED that is not replaced** | 📌 *"no rush removals"* — ⭐ every row in `E` names its replacement |
