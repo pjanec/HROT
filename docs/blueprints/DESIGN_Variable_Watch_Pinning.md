@@ -23,7 +23,8 @@ known-rot: section 4's cost model predates Batch 90. It assumes the VALUE clock 
 > PIN menu, not a variable row.**
 >
 > ⭐ **Slices 1–2 are unblocked and now cheaper than §8 assumes** *(see `known-rot`)*.
-> ⚠ **Slice 3 still carries the two costs this document flags as unmeasured.**
+> ✅✅ **Slice 3's two costs are now MEASURED — §8. BOTH SMALL.** ⭐ One open decision: how the map
+> leaves the extractor *(recommended: an optional callback sink, wired to the bus by the subsystem)*.
 
 # DESIGN — **pinning a variable to the Watch panel**
 
@@ -159,11 +160,44 @@ that `+8` in one place, not two"* the running write is held to. ⭐ **Solve once
 | ⚠ **3** | publish `oldToNewMap`; unify `FindEntityByNetworkId` | ⭐ restart survival + the third caller |
 | ⚠ **4** *(separate)* | wire `HsmDebugSession`/`BTreeDebugSession` | for breakpoints/step, not the poll |
 
-> ⚠⚠ **MEASURE BEFORE COMMITTING — two costs, neither yet sized:**
-> ① **publishing `oldToNewMap`** reaches into the **CGF orchestration path**, outside the editor.
-> ② **unifying `FindEntityByNetworkId`** touches ReplayBrowser and the editor mission service.
-> ⭐ **Both are small in principle. Neither has been measured.** ⛔ **Do not assume — that assumption is
-> what produced four corrections to this design.**
+### ✅✅ THE TWO COSTS — **MEASURED `2026-08-19` (coordinator).** ⭐ **Both are SMALL**
+
+> ⚠ The previous text said *"both are small in principle; neither has been measured."* ⭐ **Measured now.**
+
+#### ⭐ ① publishing `oldToNewMap` — **small–medium, and the feared hazard is absent**
+
+| 📐 measured | |
+|---|---|
+| ✅ **the bus accepts the payload AS-IS** | `FdpEventBus.PublishManaged<T>` carries **no `unmanaged` constraint** — its own comment: *"No class constraint — allows managed structs"* ⇒ ⭐ **a `Dictionary<long,long>` travels whole.** ⛔ **No flattening to arrays** |
+| ✅ **the pattern is established** | `RegisterManaged<T>()` at bootstrap *(`OrchestrationEventRegistry:17`)* → `PublishManaged` → `ReadManaged`. ⭐ **`EditorApplication` already holds the bus and both READS (`:78`) and PUBLISHES (`:94`)** |
+| ⚠ **the map is a LOCAL** | `StagingEntityExtractor:204`, and `Extract` returns only `IReadOnlyList<EntityCreationRequest>` |
+| ⚠ **the reach** | `Extract` has **3 production call sites** — `CgfEpisodeLoadHandler:127` · `CgfScenarioLoadHandler:152` · `HrotScenarioLoadHandler` — plus the interface and its explicit impl |
+| ⛔ **the handlers hold NO bus** | measured on `CgfScenarioLoadHandler`'s field list ⇒ *"the handler publishes it"* is **not** free |
+
+| ⭐ **RECOMMENDED shape** | |
+|---|---|
+| ⭐⭐⭐ **an optional `Action<IReadOnlyDictionary<long,long>>` sink on the extractor**, wired to the bus **by the subsystem** | ⭐ **zero new assembly dependencies** — `Hrot.CGF` never learns about the bus; ⭐ **`R-79` intact** *(separately deployable)*; ⭐ the same `Func<>`/callback seam `LiveBlackboardValueProvider` already uses |
+| ⛔ **not**: the extractor takes a bus | it stops being a pure transform, and `Hrot.CGF` gains a dependency for one line |
+| ⛔ **not**: widen `Extract`'s return | ⚠ **3 call sites + an interface + an explicit impl**, for a value only one caller wants |
+
+⛔ **The remap CODE still does not move or get copied** *(ruling 9)* — ⭐ **only the map is published.**
+
+#### ⭐⭐ ② unifying `FindEntityByNetworkId` — **SMALL. Ten lines, twice**
+
+| | `ReplayBrowserSubsystem:933` | `EditorMissionService:54` |
+|---|---|---|
+| query | ⛔ `Query().Build()` — **everything**, then `HasComponent` per entity | ⭐ `Query().With<NetworkIdentity>()` — **filtered** |
+| read | ⭐ `GetComponentRO` | ⛔ `GetComponent` *(copy)* |
+| null repo | ⭐ guarded | ⛔ unguarded |
+
+⇒ ⭐⭐ **Neither is the one to keep — take the best of each:** **the filtered query** + **`GetComponentRO`** + **the null guard**. ⭐ **Home: `FDP/Toolkits/Fdp.Toolkits/Replication/`**, which already has `Extensions/` and `Utilities/` and owns `NetworkIdentity` itself.
+
+⚠⚠ **Both are LINEAR SCANS**, and a watch panel resolving per tick would be **O(rows × entities) per frame**. ⭐⭐⭐ **§4's TWO CLOCKS rule already forbids that** — a binding resolves **only on selection change / load**, never on the tick. ⇒ ⛔ **no index, no cache; do not "optimise" it.** ⭐ **The two-clocks rule is what makes the linear scan correct.**
+
+#### ⭐ VERDICT
+
+⭐⭐ **Slice 3 is SMALL, and the CGF reach the old text feared is not there.** ⛔ **The one real decision
+is how the map LEAVES the extractor** — ⭐ **recommended above, awaiting a nod.**
 
 ## 9. ⛔ What must NOT be built
 
