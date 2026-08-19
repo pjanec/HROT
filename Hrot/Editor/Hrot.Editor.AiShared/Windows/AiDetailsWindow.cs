@@ -37,10 +37,18 @@ namespace Hrot.Editor.AiShared.Windows;
 /// rule: <i>"the Watch, the Inspector and Details itself must not claim, or a window that does not
 /// drive the panel would steal it."</i></para>
 ///
-/// <para>⭐ <b>The Value column comes free.</b> BTree and HSM already have live-value providers
-/// *(<c>EditorSubsystem:2178</c>/<c>:2190</c>)* and the run-state source is installed by the registrar
-/// through <see cref="IVariableDetailsHost.SetRunStateSource"/>, not by a composition-root line
-/// somebody must remember.</para>
+/// <para>⭐ <b>The run-state source is installed by the registrar</b> through
+/// <see cref="IVariableDetailsHost.SetRunStateSource"/>, not by a composition-root line somebody must
+/// remember.</para>
+///
+/// <para>⛔⛔ <b>The Value column does NOT come free — measured, and this sentence used to claim it
+/// did.</b> 📌 <b><c>BP-334</c></b>: BTree and HSM do have <c>ILiveBlackboardValueProvider</c>s
+/// *(<c>EditorSubsystem:2178</c>/<c>:2190</c>)*, ⚠ <b>but that interface has exactly ONE consumer —
+/// <c>BlackboardAuthoringWindow:514</c></b>, and it hands out name → <b>STRING</b>. The table below is
+/// on a different seam: <c>BlackboardSectionRowSource.readRaw</c>, name → <b>BYTES</b>, which every
+/// production construction site passes as <c>null</c>. ⇒ ⭐ <b>the Value column renders
+/// <c>(pending)</c> on all three hosts</b> until <c>BP-334</c> settles which seam survives — ⛔ a
+/// ruling-9 decision, not a wiring fix.</para>
 /// </summary>
 public sealed class AiDetailsWindow : ManagedWindow, IVariableDetailsHost, Variables.IVariableTableHost
 {

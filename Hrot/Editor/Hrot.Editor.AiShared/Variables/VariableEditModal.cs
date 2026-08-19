@@ -51,14 +51,41 @@ public sealed class VariableEditModal
 
     private bool _open;
 
-    public VariableEditModal(VariableEditGestureBinder binder, Func<VariableRunState> runState)
+    /// <param name="idScope">
+    /// ⭐⭐ Distinguishes this instance's popup from every other one — in production the registrar's
+    /// perspective suffix, the same way every window takes an <c>idOverride</c>. ⛔ Null or empty means
+    /// "the only modal", which is what a headless harness with one instance wants.
+    /// </param>
+    public VariableEditModal(
+        VariableEditGestureBinder binder, Func<VariableRunState> runState, string? idScope = null)
     {
         _binder   = binder   ?? throw new ArgumentNullException(nameof(binder));
         _runState = runState ?? throw new ArgumentNullException(nameof(runState));
+        PopupId   = string.IsNullOrEmpty(idScope) ? Title : $"{Title}##{idScope}";
     }
 
     /// <summary>⭐ The ImGui popup title — a rail surface, and what the designer reads.</summary>
     public const string Title = "Edit variable";
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 89 (<c>89b</c>) — the ImGui id, which is NOT the title.</b>
+    ///
+    /// <para>🔴 Once the modal joins the frame, <b>three registrars draw three modals every frame</b>
+    /// — and <see cref="Title"/> was used for BOTH <c>OpenPopup</c> and <c>BeginPopupModal</c>, so all
+    /// three shared ONE ImGui id. ⚠ That is correct today only because <c>if (!IsOpen) return</c> fires
+    /// first for the other two: ⛔ <b>an undocumented guard standing between two popups with the same
+    /// id.</b></para>
+    ///
+    /// <para>📌 <b>This repo has already paid for popup-id confusion once</b> —
+    /// <c>AssetPickerModal:185-189</c> carries the diagnosis: <i>"the popup opens under one id while
+    /// <c>BeginPopupModal</c> waits on another, so it never renders."</i></para>
+    ///
+    /// <para>⭐ Everything before <c>##</c> is what ImGui DISPLAYS; the whole string is the id. ⇒ the
+    /// designer still reads <c>"Edit variable"</c> on every host, and the three ids are distinct.
+    /// ⛔ <see cref="Title"/> stays a <c>const</c> — it is referenced by rails and it is genuinely the
+    /// display title; ⭐ what became instance-scoped is the ID.</para>
+    /// </summary>
+    public string PopupId { get; }
 
     // ── the headless half — every decision this dialog makes, without ImGui ──
     //
@@ -156,11 +183,11 @@ public sealed class VariableEditModal
 
         if (!_open)
         {
-            ImGui.OpenPopup(Title);
+            ImGui.OpenPopup(PopupId);
             _open = true;
         }
 
-        if (!ImGui.BeginPopupModal(Title, ref _open, ImGuiWindowFlags.AlwaysAutoResize)) return;
+        if (!ImGui.BeginPopupModal(PopupId, ref _open, ImGuiWindowFlags.AlwaysAutoResize)) return;
 
         var session = _binder.ActiveSession;
 

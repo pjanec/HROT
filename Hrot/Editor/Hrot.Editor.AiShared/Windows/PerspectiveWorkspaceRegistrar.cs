@@ -325,7 +325,11 @@ public class PerspectiveWorkspaceRegistrar
             // ⭐ The fix is structural, not another Attach line: every host declares
             //   IVariableTableHost and goes through AttachEditGestures, so a FIFTH host cannot be
             //   forgotten by someone not remembering a fourth call.
-            EditModal = new VariableEditModal(EditGestures, _runState);
+            // ⭐⭐ Batch 89 (89b) — the popup id is PER PERSPECTIVE, the same way every window takes an
+            //    idOverride. 🔴 Once 89a puts the modal in the frame, all three registrars draw one
+            //    every frame; sharing one ImGui id was correct only because `if (!IsOpen) return` fires
+            //    first for the other two — an undocumented guard between two popups with one id.
+            EditModal = new VariableEditModal(EditGestures, _runState, idScope: suffix);
             AttachEditGestures(Variables);
         }
 
@@ -486,6 +490,20 @@ public class PerspectiveWorkspaceRegistrar
         //    ROUTING is already live from the constructor, so a host that forgets to register it loses
         //    the window but never leaves a half-wired panel.
         if (AiDetails != null) RegisterCore(windowManager, AiDetails);
+
+        // ⭐⭐⭐ Batch 89 (BP-327, REOPENED) — THE MODAL JOINS THE FRAME.
+        //    🔴🔴 Batch 87 built VariableEditModal complete — drawer body, OK, Cancel, a greyed OK with
+        //    the reason on hover — and constructed it in all three perspectives. ⛔ `Draw()` had ZERO
+        //    callers, production and test: the gesture opened a session, the modal held it, and no
+        //    frame rendered it. ⇒ the write was complete and UNREACHABLE BY A DESIGNER, which is
+        //    BP-327's own sentence, still true word for word.
+        //    ⛔ NOT drawn from a window's client area: ManagedWindow.Render returns early when the
+        //    window is closed or belongs to another perspective, so the dialog would vanish exactly
+        //    like it does today. ⛔ NOT a line in EditorSubsystem: three registrars are three lines to
+        //    forget, and R-67 is the whole reason AiDetails, MyBlueprint and Variables are registered
+        //    HERE. ⭐ The overlay slot is the one documented for "the modal overlays all other windows".
+        //    ⭐ A METHOD GROUP, not a lambda, so a rail can assert this modal's Draw is in the path.
+        if (EditModal != null) windowManager.RegisterFrameOverlay(EditModal.Draw);
     }
 
     // ── Extension seam ────────────────────────────────────────────────────────

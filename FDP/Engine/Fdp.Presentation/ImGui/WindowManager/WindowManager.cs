@@ -36,6 +36,42 @@ public class WindowManager
     private bool _openSettingsModal;
     private IFileDialogService? _fileDialogService;
 
+    private readonly List<Action> _frameOverlays = new();
+
+    /// <summary>
+    /// Everything registered to draw in the final per-frame slot, in registration order.
+    /// <para>
+    /// Exposed so a test can assert on the CONSTRUCTED manager — that a given object's draw
+    /// really is in the per-frame path — rather than on the source of whoever registered it.
+    /// That distinction is the whole reason this hook exists: <c>VariableEditModal</c> shipped
+    /// complete, constructed in all three perspectives, with zero callers of its <c>Draw</c>,
+    /// and every test of it was green because each one constructed the modal itself.
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<Action> FrameOverlays => _frameOverlays;
+
+    /// <summary>
+    /// Registers a delegate drawn each frame AFTER all windows and the status bar, in the same
+    /// final slot as the file dialog — so a modal it opens overlays every other window.
+    /// <para>
+    /// This is the slot a MODAL needs and a window cannot provide: <see cref="ManagedWindow.Render"/>
+    /// returns early when the window is closed or belongs to another perspective, so a modal drawn
+    /// inside a window's client area vanishes with that window. A modal that survives a perspective
+    /// switch is correct; its own open-state is what gates it.
+    /// </para>
+    /// <para>
+    /// Registration is idempotent by delegate equality, so a caller that registers the same method
+    /// group on the same target twice does not draw twice.
+    /// </para>
+    /// </summary>
+    /// <param name="draw">The per-frame draw call. Must not be null.</param>
+    public void RegisterFrameOverlay(Action draw)
+    {
+        if (draw is null) throw new ArgumentNullException(nameof(draw));
+        if (_frameOverlays.Contains(draw)) return;
+        _frameOverlays.Add(draw);
+    }
+
     /// <summary>
     /// Editor font pipeline, injected by the presentation shell. When set, the Settings
     /// window's UI-scale slider drives live rescaling; null in headless / test hosts.
@@ -550,6 +586,16 @@ public class WindowManager
 
         // Draw file dialog service last so the modal overlays all other windows.
         (_fileDialogService as ImGuiFileDialogService)?.Draw();
+
+        // Registered frame overlays share that same final slot, for the same reason. Iterate a copy
+        // so an overlay that registers another one (or unregisters itself) cannot invalidate this
+        // enumeration mid-frame.
+        //
+        // NOTE: the file dialog above is deliberately NOT moved onto this list. It is a behaviour
+        // change in another subsystem — its draw is conditional on a service cast — and nothing in
+        // this batch needs it. Folding it in is a follow-up, not a side effect.
+        foreach (var overlay in _frameOverlays.ToList())
+            overlay();
     }
 
     /// <summary>
