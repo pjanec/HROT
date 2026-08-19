@@ -387,3 +387,58 @@ onto a surface that is itself still duplicated.**
 ⚠⚠ **So "integrate `BlackboardAuthoringWindow`" is the WRONG UNIT OF WORK.** ⭐ **Split it by question
 first; then only row 4 remains, and it is small enough to keep or to make a feed.**
 ⛔ **A single move would drag an asset-level toggle and a validation list into a variable panel.**
+
+## W2. ⭐⭐⭐ "BREAKPOINT WATCHES" — **measured `2026-08-18`**
+
+> ⭐ **User:** *"what are breakpoint watches? how does it relate to the breakpoints? does it make sense
+> to integrate it to the breakpoint window?"*
+
+### ⭐⭐ What one IS — **a Breakpoint with a FLAG. Not a sibling concept**
+
+📐 `BreakpointTypes.cs:93` — **`IsWatch` is a `bool` on the `Breakpoint` record itself:**
+*"True when this breakpoint is a 'watch' entry — persisted to `watches.json` and shown in the Watch
+panel."* ⭐ Same record, same `DataBreakpointManager` store, same `Guid`, same
+`Condition` · `Enabled` · `HitCount` · `IsBroken`.
+
+📐 **And it is set POST-HOC**, never at creation — `DataBreakpointManager:393`:
+*"Mark as watch (`AddBreakpoint` doesn't set `IsWatch`)"* ⇒ `AddBreakpoint(...)` then
+`bp with { IsWatch = true }`.
+
+⇒ ⭐⭐⭐ **A "breakpoint watch" is a TAGGED SUBSET of the breakpoints, not a kind of variable.**
+📌 Which is exactly why `AiWatchWindow`'s doc insists it and a pinned variable *"are not the same
+entity"* — ⭐ **a watch entry has a CONDITION THAT FIRES; a pinned row cannot fire.**
+
+### 🔴🔴 THE FINDING — **`IsWatch` is a PRESENTATION flag, and NOTHING in the fire path reads it**
+
+📐 **Every non-test use of `IsWatch`, enumerated:** the record declaration · `WatchPersistence` *(save
+filter)* · `DataBreakpointManager` `:351/:386/:395` *(set)* · `DebugSessionPersistence` `:43/:130`
+*(DTO)* · `EditorSubsystem:4099` *(restore)* · `AiWatchWindow` *(read)*.
+⛔⛔ **NOT ONE of them is in an evaluation or hit path.**
+
+⇒ ⚠⚠ **A "watch" still BREAKS.** ⭐ It is a breakpoint that is *also listed in the Watch panel* —
+⛔ **not a non-breaking observer**, which is what the word "watch" promises in every debugger a
+designer has used. ⭐⭐ **Flag this before any merge: the NAME is making a behavioural promise the flag
+does not keep.**
+
+### ⭐⭐ Where the breakpoint LIST actually lives today — **inverted**
+
+| surface | what it renders |
+|---|---|
+| **`DataBreakpointManagerWindow`** *(`Hrot.Presentation`, "Data Breakpoints")* | ⭐ **full management** |
+| 🔴 **`AiBreakpointsWindow`** *(`AiShared`, per-perspective, "Breakpoints")* | ⛔⛔ **A COUNT BANNER.** 📐 `DrawClientArea` renders one line — *"N active breakpoint(s). Open the global Data Breakpoints window for full management."* ⭐ Its own comment: *"A future iteration can render a full breakpoint grid"* |
+| **`AiWatchWindow`** | ⭐⭐ **an actual LIST of the `IsWatch` entries** |
+
+⇒ ⭐⭐⭐ **The breakpoint LIST is in the WATCH window, and the BREAKPOINT window is a signpost.**
+
+### ⇒ ⭐⭐⭐ VERDICT: **YES, integrate — and it makes the watch merge CLEANER, not harder**
+
+| ⭐⭐⭐ **RECOMMENDED** | |
+|---|---|
+| **1** | ⭐⭐ **Move the `IsWatch` list to the breakpoint surface** — ⭐ it is breakpoint vocabulary *(condition · enabled · hit count · broken)*, and that window has **no list at all** today |
+| **2** | ⭐⭐⭐ **The Watch window then holds ONE ROW TYPE — variables only** *(pinned variables + blueprint pin watches, ⭐ both already `VariableRow`s)* ⇒ **`W`'s three-feed merge becomes a TWO-feed merge, homogeneous** |
+| **3** | ⚠ **Decide what `IsWatch` MEANS** — ⭐ *"a breakpoint I am also monitoring"* **or** ⛔ *"a non-breaking observer"*. 📌 **Today it is the first and reads as the second** |
+| ⛔ **do NOT** | resolve the **`AiBreakpointsWindow` vs `DataBreakpointManagerWindow`** duplication in the same step — ⚠ **that is a THIRD surface pair**, and 📌 `Q38-E` step 1 exists precisely so one merge does not drag in another |
+
+⭐⭐ **Net effect on `Q38`:** ⛔ **the watch family is not "two windows to make one"** — ⭐ it is
+**THREE row types across THREE windows**, and the right first move is to **send the breakpoint rows
+home**, which leaves a genuinely single-typed Watch to merge.
