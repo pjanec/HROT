@@ -166,6 +166,31 @@ public static class HsmAssetMapper
         foreach (var varName in asset.GetConcurrentWritesAllowed())
             (dto.Suppressions.ConcurrentWritesAllowed ??= new()).Add(varName);
 
+        // ⭐⭐⭐ Batch 91 (91b) — Approach-A ALIASES (persistence design :132).
+        //    🔴 These never persisted: the only writers to _aliases were rename, AddAlias and prune,
+        //    and NOTHING on the load path touched them ⇒ every alias a designer authored was gone on
+        //    reopen, with the badge, the type match and the cross-region refusal that guarded it.
+        //    ⛔ Emitted ONLY when non-empty (the DTO field is nullable, WhenWritingNull) — no shipped
+        //    asset can contain an alias, so the whole corpus stays byte-identical.
+        foreach (var kv in asset.GetAllAliases())
+        {
+            if (kv.Value.Count == 0) continue;
+            var list = new List<Hrot.AiEditor.Persistence.BlackboardAliasBindingDto>();
+            foreach (var a in kv.Value)
+            {
+                list.Add(new Hrot.AiEditor.Persistence.BlackboardAliasBindingDto
+                {
+                    RequiringAssetId   = a.RequiringAssetId,
+                    RequiringElementId = a.RequiringElementId,
+                    RequiringAssetName = a.RequiringAssetName,
+                    RequiredByPath     = a.RequiredByPath,
+                    // ⭐ FullName, the same spelling every other persisted type id uses.
+                    DtoTypeId          = a.DtoType?.FullName ?? string.Empty,
+                });
+            }
+            (dto.Aliases ??= new())[kv.Key] = list;
+        }
+
         // Blackboard (§5.4)
         dto.Blackboard = BlackboardToDto(asset);
 
@@ -403,6 +428,30 @@ public static class HsmAssetMapper
         // Suppressions
         foreach (var s in dto.Suppressions.Conflict)
             asset.SetConflictSuppressed(s.VariableName, s.WriterPairKey, true);
+
+        // ⭐⭐⭐ Batch 91 (91b) — rehydrate the aliases. ⭐ ResolveClrType is the EXISTING resolver that
+        //    already probes loaded assemblies for DTO structs living in behavior assemblies — ⛔ not a
+        //    second one. ⚠ An unresolvable type yields typeof(object) rather than throwing: a behavior
+        //    assembly can legitimately be absent, and the alias is still a real authored relationship.
+        if (dto.Aliases is { Count: > 0 })
+        {
+            var aliases = new Dictionary<string, IReadOnlyList<Hrot.Editor.AiShared.Blackboard.BlackboardAliasBinding>>();
+            foreach (var kv in dto.Aliases)
+            {
+                var list = new List<Hrot.Editor.AiShared.Blackboard.BlackboardAliasBinding>();
+                foreach (var a in kv.Value)
+                {
+                    list.Add(new Hrot.Editor.AiShared.Blackboard.BlackboardAliasBinding(
+                        a.RequiringAssetId,
+                        a.RequiringElementId,
+                        a.RequiringAssetName,
+                        a.RequiredByPath,
+                        ResolveClrType(a.DtoTypeId)));
+                }
+                aliases[kv.Key] = list.AsReadOnly();
+            }
+            asset.LoadAliases(aliases);
+        }
         foreach (var varName in dto.Suppressions.Unused)
             asset.SetUnusedWarningSuppressed(varName, true);
         foreach (var varName in dto.Suppressions.ConcurrentWritesAllowed ?? new())

@@ -356,6 +356,26 @@ public sealed class BehaviorTreeAssetDto
     // ── Suppressions (§5.2) ───────────────────────────────────────────────────
     public SuppressionsDto Suppressions { get; set; } = new();
 
+    // ── Approach-A alias bindings (§7; persistence design :132) ─────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 91 (<c>91b</c>) — alias relationships, keyed by VARIABLE NAME.</b>
+    /// 📄 <c>…Persistence_Detailed_Design.md:132</c> lists these beside the sync bindings and the
+    /// suppressions; 🔴 they were the one item of the three never built, so every authored alias was
+    /// lost on reload.
+    ///
+    /// <para>⚠⚠ <b>NULLABLE and omitted when empty — and the reason is the GOLDEN.</b> 📌 The same
+    /// rule <c>ConcurrentWritesAllowed</c> states above: <i>"a new ALWAYS-EMITTED list changes the
+    /// bytes of every asset"</i>, and <c>MigrationEquivalenceTests</c> round-trips stored JSON
+    /// verbatim. ⭐ <b>No shipped asset can contain an alias</b> *(they never persisted)*, so with
+    /// <c>WhenWritingNull</c> the field is absent everywhere and the whole corpus stays
+    /// byte-identical.</para>
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, List<Hrot.AiEditor.Persistence.BlackboardAliasBindingDto>>? Aliases { get; set; }
+
+
     // ── Blackboard (§5.4) ─────────────────────────────────────────────────────
     public BlackboardBlockDto Blackboard { get; set; } = new();
 }

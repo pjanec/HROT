@@ -1,3 +1,4 @@
+using Fdp.Presentation.Tests.Vis2D;
 // SC-GZ025: DebugGizmoLayer starts an interaction on pickable primitive hit.
 using System.Numerics;
 using Fdp.Core;
@@ -16,7 +17,9 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
         // Build a RenderContext with identity camera so HitTest uses world coords directly.
         private static RenderContext MakeCtx(float zoom = 1f)
         {
-            return new RenderContext { Zoom = zoom, VisibleLayersMask = 0xFFFF_FFFFu };
+            return new RenderContext { Zoom = zoom, VisibleLayersMask = 0xFFFF_FFFFu,
+                                       // 91d: production ALWAYS supplies a provider (MapCanvas:119).
+                                       Resources = HeadlessResourceProvider.Instance };
         }
 
         // Build a buffer with a single sphere at the origin that has a valid PickToken.

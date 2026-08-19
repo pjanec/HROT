@@ -310,6 +310,32 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
             ? list.AsReadOnly()
             : Array.Empty<BlackboardAliasBinding>();
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 91 (<c>91b</c>) — the whole alias map, for the MAPPER.</b> ⛔ Deliberately shaped
+    /// like <c>GetAllSyncBindings</c> above: 📌 the persistence design lists aliases and sync bindings
+    /// in the same breath, and a different shape here would be a third mechanism for one idea.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<BlackboardAliasBinding>> GetAllAliases() =>
+        _aliases.ToDictionary(
+            kv => kv.Key,
+            kv => (IReadOnlyList<BlackboardAliasBinding>)kv.Value.AsReadOnly());
+
+    /// <summary>
+    /// ⭐⭐ <b>Rehydrates the alias map on LOAD — the call that never existed.</b>
+    /// 🔴 Measured Batch 91: the only writers to <c>_aliases</c> were rename, <c>AddAlias</c> and
+    /// prune ⇒ <b>nothing on the load path touched them</b>, so every authored alias died with the
+    /// editor session. ⚠ The DTO header even filed <c>_aliases</c> under <i>"runtime hydration"</i> —
+    /// ⭐ a hydration that was never written.
+    /// </summary>
+    public void LoadAliases(IReadOnlyDictionary<string, IReadOnlyList<BlackboardAliasBinding>>? aliases)
+    {
+        _aliases.Clear();
+        if (aliases is null) return;
+        foreach (var kv in aliases)
+            _aliases[kv.Key] = new List<BlackboardAliasBinding>(kv.Value);
+    }
+
+
     /// <summary>Binds an unbound sub-tree requirement to a defined variable. Fires Changed.</summary>
     public void AddAlias(string variableName, BlackboardAliasBinding binding)
     {
