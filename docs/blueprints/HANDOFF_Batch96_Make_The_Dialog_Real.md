@@ -38,58 +38,83 @@ proof.**
 
 ---
 
-## 2. 🔴🔴 **`96a` — "Properties…" CRASHES THE EDITOR.** ⭐ FIRST, and its acceptance is a REPRO
+## 2. 🛠 **`96a` — the modal never opens the table the drawer requires.** ⭐ ONE cause, TWO failures
 
-⭐ `"Properties…"` differs from `"Edit value…"` in exactly one respect:
-**`EditScope.WholeComponent`** vs `EditScope.ForField` *(`VariableEditing:205`)*.
-⚠ **`WholeComponent` is the arm nothing has ever drawn.**
+> ⛔⛔ **The earlier version of this handoff asked for a REPRO and a runtime dump. Both were wrong and
+> the user said so:** *"you will never see the native imgui crash, it leaves no traces"* ·
+> *"can't you see the sources yourself what they do?"* ⭐⭐⭐ **It was readable. It has been read.**
+
+### 📐 The measurement
+
+```csharp
+// ComponentEditDrawer.cs:41 — the contract, in its own doc-comment
+/// Must be called inside a two-column BeginTable/EndTable block.
+// …:241 DrawLeafNode, first statement:   ImGuiApi.TableNextRow();
+
+// VariableEditModal.Draw:197-202 — the entire body
+ImGui.Separator();
+drawer.DrawEditNode(session.Document.Root);   // ⛔ no BeginTable — grep "Table" in that file: NOTHING
+ImGui.Separator();
+```
+
+| gesture | why it behaves as it does |
+|---|---|
+| **"Edit value…"** | its scope filters the document to an **EMPTY `SelectionRoot`** *(§3)* ⇒ zero children ⇒ **`TableNextRow` never reached** ⇒ ⭐ **nothing drawn, no crash** — 📌 *"two separators and nothing between them"* |
+| **"Properties…"** | keeps the real node ⇒ ⛔⛔ **first `TableNextRow()` with no table open ⇒ NATIVE ABORT** |
+
+⇒ ⭐⭐⭐ **The modal has never successfully drawn anything, for any variable, on any host** — ⛔ and
+**Properties would crash on a DTO variable too.**
+
+### ⭐ Build
 
 | ⭐ | |
 |---|---|
-| **①** | ⭐⭐⭐ **REPRODUCE IT FIRST.** ⛔ **Do not fix a native crash you have not seen.** ⚠ A native ImGui abort is usually an **id/stack imbalance** — a `Begin` without its `End`, a popup id mismatch, a table column outside its table — ⭐ **all of which are in the DRAW path, not in the scope enum** |
-| **②** | ⭐ **If you cannot reproduce headlessly, say so and rail the decision** — ⛔ but then the item is NOT done, and say that too |
-| **③** | ⛔⛔ **A crash is never fixed by disabling the entry.** ⭐ If the honest outcome is *"Properties is not supported for this row shape"*, that is a **greyed entry with a reason at the GESTURE**, plus the crash still fixed |
-
-⭐ **`R-27` does not gate this** — a crash is not a design question.
+| **①** | ⭐⭐ **wrap the `DrawEditNode` call in the two-column `BeginTable`/`EndTable` the drawer documents.** ⛔ **Do not change the drawer** — it is `Fdp.Presentation` infrastructure with its own callers and its own rails; ⭐ **find an existing caller that does it correctly and MIRROR it** *(`ComponentEditWindow` is the obvious candidate — read it first)* |
+| **②** | ⛔ **`EndTable` must be reached on every path**, including the early `RebuildRequired` return inside `DrawEditNode` |
+| ⭐⭐ **the rail** | ⛔ **You cannot drive ImGui headlessly** *(`R-21`/`R-62`)*. ⭐ **So rail what CAN be asserted and SAY the gap**: e.g. that the modal's draw path is the same table-wrapping shape as the reference caller. ⚠ **State plainly in the report that the DRAW itself is unrailed** — 📌 `M-29`, and that honesty is worth more than a rail that pretends |
 
 ---
 
-## 3. 🛠 **`96b` — the dialog opens with NOTHING TO EDIT** *(finding ①/②)*
+## 3. 🛠 **`96b` — a variable's NAME is not a path inside its own VALUE**
 
-### ⭐⭐⭐ MEASURE BEFORE YOU BUILD — **this may not be a bug at all**
+### 📐 The measurement
 
 ```csharp
-// VariableEditModal.Draw:201  — the whole body is one call
-new ComponentEditDrawer(session, pickerCtx: null).DrawEditNode(session.Document.Root);
+// VariableEditing.ScopeFor:206
+EditScope.ForField(EditPath.Parse(ToJsonPath(variablePath)))     // ⇒ "$.Count"
 ```
 
-⚠⚠ **The user's `Count` is a plain `int`. Every existing test of this path uses a DTO**
-*(`DefaultValueAuthoringTests` → `DavTestActionParams` with `Speed`/`Direction`/`Count`)*.
+⭐ The session is opened over **the variable's value** — `Open(instance, typeof(int), scope)` — so the
+document root **IS** the value, at `$`. ⛔⛔ **`$.Count` asks for a field named `Count` INSIDE the
+`int`.** ⭐ There is none, and for a DTO it would mean *"a field called `Count` inside the DTO"*, which
+is a different thing from *"the variable `Count`"*.
 
-⭐⭐ **Open a real session over `typeof(int)` and DUMP THE DOCUMENT.** Then answer, in the report:
+⇒ ⭐⭐ **Wrong for every variable, on every host.** ⭐ **"Edit value…" of a whole variable IS the whole
+document.**
 
-| ⭐ question | |
-|---|---|
-| **①** | what `EditNodeKind` is the root, and **how many children**? |
-| **②** | does `DrawEditNode` have a path that renders a **scalar ROOT**, or only scalar **leaves under a container**? |
-| **③** | ⛔ **is editing a SCALAR variable a capability that was never built?** |
+### ⭐ Build
 
-⇒ ⭐⭐⭐ **If ③ is yes, STOP AND REPORT.** ⛔ **Do not invent a scalar editor inside the modal** — that
-is a design call, it is mine to make with the user, and 📌 the AI hosts' variables are DTOs while
-blueprint variables are scalars, so it decides whether one dialog serves both *(ruling 9)*.
-⭐ **If instead the document is fine and the DRAW drops it, fix the draw.**
+⭐⭐ **`ScopeFor` stops synthesising a field path from the variable name.** ⚠ **What `ForField` is FOR
+is a real sub-path** — a field *inside* a DTO variable, which is a gesture that does not exist yet.
+⇒ ⛔ **Do not delete the `ForField` arm; stop feeding it the variable name.**
 
-### ⚠ And the second half — **the dialog must not open and then refuse**
+⚠ **`ToJsonPath` has exactly one other consideration**: it passes an already-`$`-rooted path through.
+⭐ **Check whether anything relies on that** before changing it.
 
-📐 The Details menu gates on `row.CanEverBeWritten` *(`VariableTableControl:283`)* and the commit
-refuses on **the same expression** *(`VariableEditCommit:119`)* ⇒ ⛔ **they cannot disagree for one
-row.** 📌 **The user opened it from the MY BLUEPRINT panel, not the Details table.**
+---
 
-| ⭐ | |
-|---|---|
-| **①** | **measure which gesture the outline click runs**, and whether it gates on `CanEverBeWritten` **at all** |
-| **②** | ⭐⭐ **then ask the real question: is a hand-authored blueprint `int` genuinely `RowKind != Normal` or `IsStale`?** ⛔ **If it classifies as node-owned, the CLASSIFIER is the defect, not the gate** — and that is a bigger finding than the dialog |
-| **③** | ⭐ **refuse at the GESTURE, greyed, with the reason** — 📌 *"same information value, no false expectations"*. ⛔ **Never a dialog that opens and then says no** |
+## 3b. ⚠ **the dialog opens and then refuses on OK**
+
+⭐ Independent of the two above, and still wrong. ⚠ **But it is DELIBERATE** —
+`VariableEditing.Open`'s doc-comment: *"`ReadOnly` still OPENS — the design says properties are
+read-only mid-run, not absent; refusing to open would hide the values a designer wants to read."*
+
+⇒ ⭐⭐ **The decision is defensible; the PRESENTATION is not.** ⭐ **Open it shaped as a read-only view
+— no OK button** — ⛔ never an editor whose OK says no.
+
+⚠ **And measure the other half:** is the user's `Count` genuinely `RowKind != Normal` or `IsStale`?
+⭐⭐ **If a hand-authored blueprint `int` classifies as node-owned, the CLASSIFIER is the defect** and
+that is a bigger finding than the dialog — ⛔ **report it rather than working around it.**
 
 ---
 
@@ -158,8 +183,8 @@ and 📐 **nothing registers that command** *(the only other mention is a test a
 
 | ⛔ | why |
 |---|---|
-| **a scalar editor invented inside the modal** | `96b` — a design call, mine with the user |
-| **disabling "Properties…" to stop the crash** | `96a` — a crash is not fixed by hiding its trigger |
+| **changing `ComponentEditDrawer`** | `96a` — it is `Fdp.Presentation` infrastructure with other callers; ⭐ **the modal is the broken caller** |
+| **disabling "Properties…" to stop the crash** | `96a` — ⭐ the crash is a missing `BeginTable`, not a bad gesture |
 | **a new live-write interface** | `96d` — follow `liveValueProvider`'s route |
 | **a generic "value arrives" framework** | 📌 one was tried and thrown away `2026-08-16`. ⭐ Per item, explicit |
 | **reverting Batch 95** | ⭐ both its items hold; this batch is above them |
@@ -183,6 +208,6 @@ it reds, say which run.
 | ⭐ | |
 |---|---|
 | ⭐⭐⭐ **per rail: which object the input came from** | 📌 §1. ⛔ **"a row" is not an answer — say WHOSE row** |
-| ⭐ **`96a`** | the repro, or the explicit statement that it could not be reproduced **and the item is not done** |
-| ⭐ **`96b`** | the dumped document for `typeof(int)`: root kind + child count |
+| ⭐ **`96a`** | which existing caller you mirrored for the table wrapping, and ⛔ **the explicit statement that the DRAW itself is unrailed** |
+| ⭐ **`96b`** | what `ScopeFor` now returns for a whole-variable edit, and what still uses the `ForField` arm |
 | ⭐ **`96c`** | which option, and what the inverted rail now asserts |

@@ -51,14 +51,14 @@ reads as proof. 📌 **`M-29`.**
 
 | | |
 |---|---|
-| 🔴🔴 | **"Properties…" CRASHES the editor** *(native)* — ⛔ unmeasured, top item |
-| ⚠ | **the edit dialog opens EMPTY** — ⭐ hypothesis: the edit service is a **DTO/component** editor and `Count` is a plain `int` *(`M-30`)*. ⛔ **May be a capability that was never built — a design call** |
-| ⚠ | **it opens and THEN refuses on OK** — ⛔ never acceptable; refuse at the gesture |
+| ✅✅ | **the empty dialog AND the "Properties…" crash are ONE cause:** ⭐⭐ `ComponentEditDrawer` documents *"Must be called inside a two-column `BeginTable`/`EndTable` block"* and **`VariableEditModal` never opens one.** *"Edit value…"* survives only because its scope filters to an **empty `SelectionRoot`** ⇒ `TableNextRow` never reached. ⇒ ⛔ **the modal has NEVER drawn anything, on any host** |
+| ✅ | **`ScopeFor` synthesises `"$.<variableName>"`** — ⛔ **a variable's NAME is not a path inside its own VALUE**; the document root IS the value. Wrong for every variable |
+| ⚠ | **it opens and THEN refuses on OK** — ⭐ the *decision* is deliberate *(read-only still opens)*; ⛔ the **presentation** is not |
 | ✅ | **no live writer** — `writeLive` is never passed to the binder *(`R-67`, **sixth**)* |
 | ✅ | **the pin froze AGAIN** — ⭐⭐ **`94a` fixed the arms and `94c` re-froze them**: the Watch pins a **sampled** row whose arms close over that frame's locals. ⚠ **Batch 94's rail pins a SOURCE row, so it is green** |
 
 🛠 **BATCH 96 DISPATCHED at `a2f93954c`** — 📄 **[`HANDOFF_Batch96_Make_The_Dialog_Real.md`](HANDOFF_Batch96_Make_The_Dialog_Real.md)**:
-`96a` the crash *(acceptance is a REPRO)* · `96b` the empty dialog *(**measure first**, may STOP)* ·
+`96a` wrap the draw in the table the drawer requires *(fixes the empty dialog AND the crash)* · `96b` stop synthesising a field path from the variable name ·
 `96c` unfreeze the pin *(**reverses part of `94c`**)* · `96d` the live writer · `96e` the dead outline
 entry, droppable.
 

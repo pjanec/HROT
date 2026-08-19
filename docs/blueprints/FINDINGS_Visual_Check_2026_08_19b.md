@@ -38,70 +38,95 @@ mechanism work?"* is not *"does the mechanism the UI actually calls work?"***
 
 | # | reported | status |
 |---|---|---|
-| **①** | the edit dialog opens with **nothing to edit** — name, two separators, OK/Cancel | ⚠ **hypothesis, §3 — MEASURE FIRST** |
-| **②** | OK says *"this row cannot be written — node-owned, passthrough or stale"* **after** opening | ⚠ **§4 — two predicates disagree** |
-| **③** | **"Properties…" CRASHES the editor** *(native)* | 🔴🔴 **§5 — unmeasured, highest severity** |
+| **①** | the edit dialog opens with **nothing to edit** — name, two separators, OK/Cancel | ✅✅ **ROOT-CAUSED, §3 — the modal never opens the table the drawer requires** |
+| **②** | OK says *"this row cannot be written…"* **after** opening | ⚠ **§4 — deliberate *(read-only still opens)*, but shaped as an editor** |
+| **③** | **"Properties…" CRASHES the editor** *(native)* | ✅✅ **ROOT-CAUSED, §3 — SAME cause: `TableNextRow()` with no table open** |
 | **④** | *"no live writer is installed for this host"* | ✅✅ **ROOT-CAUSED, §6a — one missing argument** |
 | **⑤** | the **Watch row stays 0** while Details goes live | ✅✅ **ROOT-CAUSED, §6b — Batch 94 re-froze its own fix** |
 
 ---
 
-## 3. ⚠ ① — the dialog is EMPTY. **Hypothesis, and it is a DESIGN question**
+## 3. ✅✅✅ ① **and** ③ — **ONE CAUSE, ONE CALL SITE.** ⛔ No design question, no runtime dump
 
-📐 The body is one call:
+> ⭐⭐ **User:** *"isn't it the most basic user input operation? why do you need a `typeof(int)` run,
+> can't you see the sources yourself what they do?"* ⭐⭐⭐ **Right on both counts. Read, not measured:**
+
+### ⭐⭐⭐ `3a` — **the drawer requires a table the modal never opens**
 
 ```csharp
-// VariableEditModal.Draw:201
-var drawer = new ComponentEditDrawer(session, pickerCtx: null);
-drawer.DrawEditNode(session.Document.Root);
+// ComponentEditDrawer.cs:41  — the contract, in its own doc-comment
+/// Must be called inside a two-column BeginTable/EndTable block.
+
+// …:241  DrawLeafNode, first statement
+ImGuiApi.TableNextRow();
 ```
 
-⭐ The document comes from `DefaultValueAuthoring.OpenSession` ⇒ `editService.Open(instance,
-varEntry.FieldType, scope)`.
+```csharp
+// VariableEditModal.Draw — the ENTIRE body, lines 197-202
+ImGui.Separator();
+drawer.DrawEditNode(session.Document.Root);     // ⛔ no BeginTable, anywhere in the file
+ImGui.Separator();
+```
 
-⚠⚠ **`Count` is a plain `int`.** ⭐ **Every existing test of this path uses a DTO** — `DavTestActionParams`
-with `Speed`/`Direction`/`Count` fields *(`DefaultValueAuthoringTests`)*. ⇒ ⛔ **the suspicion is that
-the StructEdit service is a COMPONENT editor: it enumerates a type's FIELDS, and `System.Int32` has
-none**, so the document has a container root with **zero children** and the drawer draws nothing.
+⇒ ⭐⭐⭐ **`grep -n "Table" VariableEditModal.cs` returns NOTHING.** The modal draws a separator, calls
+a drawer that must be inside a table, and draws another separator.
 
-⇒ ⭐⭐⭐ **If that is right, this is not a bug in the modal — it is a capability that was never built:
-editing a SCALAR variable.** ⛔ **Do not patch the drawer until this is measured.**
+📌 **That is exactly what the user saw** — *"just 'count' and two horizontal separator lines"*. ⭐ **The
+two lines are 197 and 202, with nothing between them.**
+
+### ⭐⭐⭐ `3b` — **why "Edit value…" is empty and "Properties…" CRASHES — the same fact**
+
+| gesture | scope | what the document becomes | result |
+|---|---|---|---|
+| **"Edit value…"** | `ForField("$.Count")` | ⛔ **nothing matches** ⇒ `ApplyScope` returns an **EMPTY `SelectionRoot`** | ⭐ the `SelectionRoot` case iterates **zero children** ⇒ **no `TableNextRow` is ever reached** ⇒ **nothing drawn, no crash** |
+| **"Properties…"** | `WholeComponent` | ⭐ the real node is kept | ⛔⛔ **first `TableNextRow()` with no table open ⇒ NATIVE ABORT** |
+
+⇒ ⭐⭐⭐ **The modal has NEVER successfully drawn anything, for any variable, on any host.** ⛔ **And
+"Properties…" would crash on a DTO variable too** — any non-empty document crashes.
+
+⚠⚠ **`R-21`/`R-62` are why no test saw it:** ⭐ **the tests assert the DOCUMENT, never the DRAW.**
+
+### ⭐⭐ `3c` — **the second, independent bug: a variable's NAME is not a path inside its own VALUE**
+
+```csharp
+// VariableEditing.ScopeFor:206
+EditScope.ForField(EditPath.Parse(ToJsonPath(variablePath)))   // ⇒ "$.Count"
+```
+
+📐 The session is opened over the **variable's value** — `Open(instance, typeof(int), scope)` — so the
+document root **IS** the `int`, at `$`. ⛔⛔ **`$.Count` asks for a FIELD NAMED `Count` INSIDE the
+int.** ⭐ There is none, and there never could be.
+
+⇒ ⭐⭐ **Wrong for EVERY variable, DTO or scalar** — for a DTO it would mean *"a field called `Count`
+inside the DTO"*, which is a different thing from *"the variable `Count`"*.
+⇒ ⭐ **"Edit value…" of a whole variable IS the whole document.**
+
+### ⛔ WHAT I GOT WRONG, stated plainly
+
+⭐ I filed this as *"editing a scalar may be a capability that was never built"* and asked for a runtime
+dump. ⛔⛔ **Both were wrong.** 📐 `DetermineKind(typeof(int))` returns **`EditNodeKind.Scalar`**, which
+`DrawEditNode` routes to `DrawLeafNode`, which draws a real input — ⭐ **the machinery handles scalars
+fine.** ⚠ **It was readable in the sources and I escalated it to a design question instead of reading
+them.** 📌 **`M-30` is WITHDRAWN.**
 
 ---
 
-## 4. ⚠ ② — **two writability predicates, and they disagree**
+## 4. ⚠ ② — the dialog opens and THEN refuses on OK
 
-| where | predicate |
-|---|---|
-| the Details menu enables the entry | `row.CanEverBeWritten` *(`VariableTableControl:283`)* |
-| the commit refuses | `if (!row.CanEverBeWritten) return Outcome.RefusedReadOnly;` *(`VariableEditCommit:119`/`:161`)* |
+⭐ Independent of §3, and still a defect: 📌 the user's own rule is *"same information value, no false
+expectations"* ⇒ ⛔⛔ **a dialog must never open and then refuse.**
 
-⭐ **Same expression** ⇒ ⛔ **they cannot disagree for one row… unless the dialog was opened from a
-surface that does not consult it.** 📌 **The user opened it from the MY BLUEPRINT panel, not the
-Details table.**
+⚠ **But note what `VariableEditing.Open`'s own doc-comment says:**
+> *"`ReadOnly` still OPENS — the design says properties are read-only mid-run, not absent; refusing to
+> open would hide the values a designer wants to read."*
 
-⇒ ⭐⭐ **Measure which gesture that outline click runs, and whether it gates on `CanEverBeWritten` at
-all.** ⚠ **And then the real question:** is `Count` genuinely `RowKind != Normal` or `IsStale`? ⛔ **If a
-hand-authored blueprint variable classifies as node-owned, the CLASSIFIER is the defect** — not the
-gate.
+⇒ ⭐⭐ **That is a deliberate design decision and it is DEFENSIBLE — for a READ-ONLY VIEW.** ⛔ **What is
+not defensible is presenting it as an editor with an OK button that then says no.** ⇒ ⭐ **open it
+titled and shaped as read-only, with no OK**, ⛔ **or refuse at the gesture.**
 
-⭐ **Either way the UX is wrong:** ⛔⛔ **a dialog must not open and then refuse on OK.** 📌 The user's own
-rule — *"same information value, no false expectations"* — ⭐ **refuse at the gesture, greyed, with the
-reason.**
-
----
-
-## 5. 🔴🔴 ③ — **"Properties…" crashes the editor.** ⛔ UNMEASURED, and it is the top item
-
-⭐ `"Properties…"` differs from `"Edit value…"` in **one** way: `EditScope.WholeComponent` instead of
-`EditScope.ForField` *(`VariableEditing:205`)*.
-
-⛔⛔ **I have NOT reproduced it and will not guess at a native crash.** ⭐ **It needs a real repro**
-— ⚠ a native ImGui crash is usually an **id/stack imbalance** *(a `Begin` without its `End`, a popup id
-mismatch, or a table column drawn outside its table)*, and `WholeComponent` is the arm nothing has
-ever drawn.
-
-⇒ ⭐⭐ **First item of the next batch, and the only one whose acceptance is a REPRO, not a rail.**
+⚠ **Still to measure:** whether the user's `Count` is genuinely `RowKind != Normal` / `IsStale` — ⭐ **if
+a hand-authored blueprint `int` classifies as node-owned, the CLASSIFIER is the defect** and that is
+bigger than the dialog.
 
 ---
 
