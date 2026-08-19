@@ -14,6 +14,7 @@ public sealed class VariableTableView
 {
     private readonly Dictionary<(Guid, Fdp.Core.Entity, string), RowHighlight> _highlights;
     private readonly Dictionary<(Guid, Fdp.Core.Entity, string), string>       _names;
+    private readonly Dictionary<(Guid, Fdp.Core.Entity, string), VariableRow>? _sources;
 
     internal VariableTableView(
         IReadOnlyList<VariableRow> allRows,
@@ -23,7 +24,8 @@ public sealed class VariableTableView
         Dictionary<(Guid, Fdp.Core.Entity, string), RowHighlight> highlights,
         Dictionary<(Guid, Fdp.Core.Entity, string), string> names,
         VariableValueMode mode,
-        string? selectedVariablePath = null)
+        string? selectedVariablePath = null,
+        Dictionary<(Guid, Fdp.Core.Entity, string), VariableRow>? sources = null)
     {
         AllRows              = allRows;
         Groups               = groups;
@@ -33,7 +35,27 @@ public sealed class VariableTableView
         _names               = names;
         ValueMode            = mode;
         SelectedVariablePath = selectedVariablePath;
+        _sources             = sources;
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 96 (<c>96c</c>) — the row THIS PANEL'S SOURCE produced, before sampling.</b>
+    ///
+    /// <para>🔴🔴 <b>Why it has to exist.</b> <c>VariableRowSampler</c> rewrites every row so its arms
+    /// read <b>locals captured at that call</b> — correct for Details, which rebuilds and re-samples
+    /// every frame. ⛔ <b>But the Watch PINS what the table SHOWS</b>, and a pinned rewritten row is a
+    /// <b>SNAPSHOT</b>: its arms keep returning the pulse it was pinned on, for ever. ⇒ that is exactly
+    /// the defect <c>94a</c> removed, re-introduced by <c>94c</c> one layer up.</para>
+    ///
+    /// <para>⚠⚠ <b>Batch 94's rail was green because it pinned a row from the SOURCE</b>, and the UI
+    /// pins from the sampled VIEW — 📌 the handoff's rule: <i>a rail must take its input from the SAME
+    /// OBJECT the UI takes it from</i>. ⭐ <b>This is the seam that makes both take the same one.</b></para>
+    ///
+    /// <para>⭐ <b>Fails OPEN</b>: a row this view never sampled *(a hand-built one, or a source that
+    /// predates the seam)* returns itself, so pinning still works and only loses the un-sampling.</para>
+    /// </summary>
+    public VariableRow SourceOf(VariableRow row)
+        => _sources != null && _sources.TryGetValue(row.Origin.Key, out var src) ? src : row;
 
     /// <summary>
     /// ⭐⭐ <b>Which row the OUTLINE selected</b>, or <c>null</c>. 📌
@@ -140,7 +162,14 @@ public sealed class VariableTableModel
         //    📄 Q46 §2 rule 3: "rendered every UI frame from the cache, without calling the accessor."
         // ⛔ Before this, the arms were invoked once per repaint (60×/s) whether or not the world had
         //    moved — and the monitor invoked them AGAIN, so a cell and its highlight could disagree.
-        var rows = _sampler.Sample(Source.GetRows(), RunState);
+        // ⭐⭐⭐ Batch 96 (96c) — the SOURCE rows are kept beside the sampled ones. The Watch must pin
+        //    the camera, ⛔ never the photograph: a sampled row's arms close over that pulse's locals,
+        //    so pinning one freezes it at the pin. See VariableTableView.SourceOf.
+        var sourceRows = Source.GetRows();
+        var rows       = _sampler.Sample(sourceRows, RunState);
+
+        var sources = new Dictionary<(Guid, Fdp.Core.Entity, string), VariableRow>();
+        foreach (var row in sourceRows) sources[row.Origin.Key] = row;
 
         var highlights = new Dictionary<(Guid, Fdp.Core.Entity, string), RowHighlight>();
         var names      = new Dictionary<(Guid, Fdp.Core.Entity, string), string>();
@@ -157,6 +186,6 @@ public sealed class VariableTableModel
         //   mode and half in the other while the sim starts mid-draw.
         return new VariableTableView(
             rows, groups, ungrouped, Columns, highlights, names, VariableValue.ModeFor(RunState),
-            SelectedVariablePath);
+            SelectedVariablePath, sources);
     }
 }

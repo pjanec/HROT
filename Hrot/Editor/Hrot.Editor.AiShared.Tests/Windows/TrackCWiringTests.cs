@@ -333,12 +333,17 @@ public sealed class TrackCWiringTests : IDisposable
         Assert.NotNull(isWatched);
         Assert.False(isWatched!(row), "nothing is pinned yet");
 
-        table.RaiseWatchToggleForTest(row);
+        // ⭐ Batch 96 (96c) — the seam takes the VIEW, exactly as the row menu does. ⚠ This row is
+        //   hand-built and so is not in the view; SourceOf fails open and returns it unchanged, which
+        //   leaves this rail's subject (does the toggle reach the store?) untouched.
+        var view = reg.Variables.Model.Build();
+
+        table.RaiseWatchToggleForTest(view, row);
         Assert.True(isWatched!(row));
         Assert.Single(reg.Watch!.Pinned.GetRows());
 
         // ⭐ …and toggling again UNPINS, rather than pinning a second copy.
-        table.RaiseWatchToggleForTest(row);
+        table.RaiseWatchToggleForTest(view, row);
         Assert.False(isWatched!(row));
         Assert.Empty(reg.Watch!.Pinned.GetRows());
     }

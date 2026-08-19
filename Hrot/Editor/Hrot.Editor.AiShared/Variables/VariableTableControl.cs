@@ -213,7 +213,7 @@ public sealed class VariableTableControl
                     if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left) && row.CanEverBeWritten)
                         PropertiesRequested?.Invoke(row);
                 }
-                DrawRowMenu(row);
+                DrawRowMenu(view, row);
                 break;
 
             case VariableColumn.Type:
@@ -266,7 +266,14 @@ public sealed class VariableTableControl
     /// ⭐ 📌 <c>R-21</c>/<c>R-62</c>: the menu itself cannot be driven headlessly, so the rail exercises
     /// the WIRING and <c>VariableWatchGesture</c> covers the rule the menu renders.
     /// </summary>
-    internal void RaiseWatchToggleForTest(VariableRow row) => WatchToggleRequested?.Invoke(row);
+    /// <remarks>
+    /// ⭐⭐⭐ <b>Batch 96 (<c>96c</c>) — it takes the VIEW, exactly as <c>DrawRowMenu</c> does.</b>
+    /// 📌 The handoff's rule: <i>a rail must take its input from the SAME OBJECT the UI takes it
+    /// from</i>. 🔴 The old signature took a bare row, so a rail could hand it a source row the UI
+    /// never has — and that is precisely why Batch 94's pin rail stayed green while the product froze.
+    /// </remarks>
+    internal void RaiseWatchToggleForTest(VariableTableView view, VariableRow row)
+        => WatchToggleRequested?.Invoke(view.SourceOf(row));
 
     /// <summary>
     /// ⭐ The run state, for the watch gesture's refusal rule. ⛔ Set by the host beside its model's
@@ -276,7 +283,7 @@ public sealed class VariableTableControl
     /// </summary>
     public VariableRunState RunState { get; set; } = VariableRunState.Planning;
 
-    private void DrawRowMenu(VariableRow row)
+    private void DrawRowMenu(VariableTableView view, VariableRow row)
     {
         if (!ImGui.BeginPopupContextItem()) return;
 
@@ -296,7 +303,11 @@ public sealed class VariableTableControl
         ImGui.Separator();
         var watch = VariableWatchGesture.Decide(row, RunState, IsWatched?.Invoke(row) ?? false);
         if (ImGui.MenuItem(watch.Label, null, false, watch.Enabled) && watch.Enabled)
-            WatchToggleRequested?.Invoke(row);
+            // ⭐⭐⭐ Batch 96 (96c) — THE SOURCE ROW, not the one this table drew. 🔴 `row` came out of
+            //    VariableRowSampler, whose arms close over the pulse it was sampled on ⇒ pinning it
+            //    freezes the Watch at that pulse for ever, which is the defect 94a removed.
+            //    ⭐ The Watch has its OWN sampler and re-samples the camera it is handed.
+            WatchToggleRequested?.Invoke(view.SourceOf(row));
         // ⭐⭐ Refused by GREYING WITH A REASON — ⛔ never a click that dead-ends.
         if (!watch.Enabled && watch.DisabledReason is { } why && ImGui.IsItemHovered(
                 ImGuiHoveredFlags.AllowWhenDisabled))

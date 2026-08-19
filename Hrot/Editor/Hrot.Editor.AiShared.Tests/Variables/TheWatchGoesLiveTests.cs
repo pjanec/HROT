@@ -45,10 +45,25 @@ public sealed class TheWatchGoesLiveTests
             schema:  new IntSchema("Health"),
             liveObjects: () => live);
 
-        // ⭐ The designer pins the row the Details table drew.
+        // ⭐⭐⭐ INVERTED, Batch 96 (96c) — THE DESIGNER PINS THE ROW THE TABLE VIEW HOLDS.
+        // 🔴🔴 This used to pin `details.GetRows()[0]`, a row straight from the SOURCE — and the
+        //    product pins the row the sampled VIEW drew, whose arms close over that pulse's locals.
+        //    ⇒ the rail exercised a path the UI does not use, stayed GREEN, and the Watch froze at
+        //    the pin for the second time. 📌 The handoff's rule: a rail must take its input from the
+        //    SAME OBJECT the UI takes it from.
+        // ⭐ So: build the Details view, take the row IT holds, and pin through the control's own
+        //   toggle seam — which is where VariableTableView.SourceOf un-samples it.
+        var detailsModel = new VariableTableModel(details, VariableTableColumns.Details)
+        { RunState = VariableRunState.Paused };
+        var detailsView  = detailsModel.Build();
+        var drawnRow     = detailsView.AllRows.Single();
+
         var pinnedStore = new PinnedVariableRowSource();
-        var pinnedRow   = details.GetRows()[0];
-        pinnedStore.Pin(pinnedRow);
+        var control     = new VariableTableControl(new VariableValueFormatter(RawValueDecoder.Instance));
+        control.WatchToggleRequested += r => pinnedStore.Pin(r);
+        control.RaiseWatchToggleForTest(detailsView, drawnRow);
+
+        var pinnedRow = drawnRow;   // ⭐ identity for the cell lookups below — Origin.Key is preserved
 
         // ⭐ The Watch panel — its OWN model, and therefore its own sampler and monitor.
         var watch = new VariableTableModel(pinnedStore, VariableTableColumns.Details)
