@@ -145,9 +145,12 @@ public class PerspectiveWorkspaceRegistrarTests : IDisposable
         // 3 perspectives × 6 windows = 18 distinct ids.
         // ⚠ 18 → 21 (Batch 79: the Variables table) → 23 (Batch 80: the derived outline, on BTree and
         //    HSM only — +2, not +3, because Blueprint keeps BlueprintMyBlueprintWindow).
+        // ⚠ 23 → 25 (Batch 88b: the AI Details panel, again BTree and HSM only — +2, not +3, because
+        //    Blueprint keeps BlueprintDetailsWindow. ⭐ A second Details there would be two panels for
+        //    one concept AND an id collision, which RegisterCore now refuses at startup).
         //    ⭐ The property under test is distinctness, and it still holds.
-        Assert.Equal(23, allIds.Count);
-        Assert.Equal(23, allIds.Distinct().Count());
+        Assert.Equal(25, allIds.Count);
+        Assert.Equal(25, allIds.Distinct().Count());
     }
 
     /// <summary>
@@ -401,4 +404,49 @@ public class PerspectiveWorkspaceRegistrarTests : IDisposable
     [Fact]
     public void PerspectiveRegistrar_WithoutSchemaExporter_AuthoringWindowHasNone()
         => Assert.False(MakeRegistrar("BTree").BlackboardAuthoring.HasSchemaExporter);
+
+    // ── 88a — the live-value provider's forwarding ──────────────────────────────
+
+    private sealed class StubLiveValues : Hrot.Editor.AiShared.Blackboard.ILiveBlackboardValueProvider
+    {
+        public IReadOnlyDictionary<string, string> GetLiveVariableValues(IEditableAsset asset)
+            => new Dictionary<string, string>();
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>88a</c>: a live-value provider handed to the registrar must reach the window that
+    /// CONSUMES it.</b>
+    ///
+    /// <para>📐 <b>Measured, and it is the whole point of this rail:</b>
+    /// <see cref="Hrot.Editor.AiShared.Blackboard.ILiveBlackboardValueProvider"/> has ⭐ <b>exactly one
+    /// consumer</b> — <c>BlackboardAuthoringWindow</c> (<c>:514</c>, <c>GetLiveVariableValues</c> once
+    /// per frame). ⇒ if the registrar drops it here, the argument the composition root passes goes
+    /// nowhere and every Value cell shows <c>—</c>.</para>
+    ///
+    /// <para>⭐⭐ <b>Placed beside the schema-exporter pair deliberately</b> — 📌 <c>R-67</c> is the same
+    /// ruling and <b>this registrar is the one that has forgotten a service four times</b>. ⛔ Asking
+    /// the OBJECT, never the call site's signature: that mistake is recorded two rails above.</para>
+    /// </summary>
+    [Fact]
+    public void PerspectiveRegistrar_ForwardsLiveValueProvider_ToBlackboardAuthoring()
+    {
+        var reg = new PerspectiveWorkspaceRegistrar(
+            perspectiveName:   "Blueprint",
+            selectionStore:    new EditorSelectionStore(),
+            catalog:           new AssetCatalog(),
+            refactorService:   StubRefactor(),
+            debugRegistry:     new DebugSessionRegistry(),
+            liveValueProvider: new StubLiveValues());
+
+        Assert.True(reg.BlackboardAuthoring.HasLiveValueProvider,
+            "the liveValueProvider passed to the registrar must reach BlackboardAuthoringWindow, "
+            + "or the Value column has no source and renders '—' for every row");
+    }
+
+    /// <summary>⛔ Negative control. ⚠ <b>This is the state Blueprint actually shipped in</b> — not a
+    /// hypothetical: <c>EditorSubsystem</c> passed a provider for BTree and HSM and none for Blueprint,
+    /// so the column was sourceless on exactly one host.</summary>
+    [Fact]
+    public void PerspectiveRegistrar_WithoutLiveValueProvider_AuthoringWindowHasNone()
+        => Assert.False(MakeRegistrar("Blueprint").BlackboardAuthoring.HasLiveValueProvider);
 }
