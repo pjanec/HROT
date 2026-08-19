@@ -18,7 +18,13 @@ stale-below: everything from "## 1." down is HISTORY from earlier sessions. Do n
 
 ## 0. ⭐⭐⭐ THE ONE THING TO DO FIRST
 
-⭐⭐⭐ **RUN THE VISUAL CHECK.** ⭐ **Nothing is in flight. The guide is current. Every blocker is gone.**
+🔴🔴 **BATCH 91 IS IN FLIGHT — dispatched at `3868c29e5`.** 📄 [`HANDOFF_Batch91_The_Sub_Asset_Sharing_Model_Finished.md`](HANDOFF_Batch91_The_Sub_Asset_Sharing_Model_Finished.md)
+⭐ **Five items** — the sub-asset sharing model *(alias persistence + the orchestrator emitters +
+`subAssetResolver`)* plus `BP-337` and `B5`. ⛔ **Rule 1: do NOT amend it.** ⚠ **Rule 1b: check for
+their `chore: started batch 91` marker before assuming no run is in progress.**
+
+⭐⭐⭐ **AND: RUN THE VISUAL CHECK** — ⭐ **it does not depend on Batch 91.** The guide is current, every
+blocker is gone, and the user was simply unable to run it when 91 was dispatched.
 
 📄 **[`GUIDE_Blueprint_Visual_Check.md`](GUIDE_Blueprint_Visual_Check.md)** — ~45 min, PASS/FAIL rows.
 

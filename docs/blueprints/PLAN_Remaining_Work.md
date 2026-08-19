@@ -30,6 +30,20 @@
 > `C7c` *(a zero where `(pending)` belongs is the `BP-338` regression)* and `C10`/`H10`
 > *(Blueprint's highlight is inert; BTree/HSM's lights)*.
 
+> ⏭ **BATCH 91 DISPATCHED at `3868c29e5`** — 📄 [`HANDOFF_Batch91_The_Sub_Asset_Sharing_Model_Finished.md`](HANDOFF_Batch91_The_Sub_Asset_Sharing_Model_Finished.md).
+> ⭐⭐⭐ **Five items, one spine: the master ⇄ sub-asset sharing model is HALF-BUILT IN BOTH HALVES, in
+> opposite ways.** ⭐ **Approach A authors and FORGETS** *(`M-20`: aliases never persist)*; ⭐ **Approach
+> B remembers and DOES NOTHING** *(the orchestrator emitters have no callers — `R-99`)*.
+> ⭐⭐ **`M-20` is now CONCLUSIVE and it is a DEFECT**, not the lead I filed: the only writes to
+> `_aliases` are rename · `AddAlias` · prune, and **nothing on the LOAD path touches them.**
+> ⭐⭐⭐ **And the design says it should persist** — `…Persistence_Detailed_Design.md:132` lists
+> *"subtree sync bindings, **alias relationships**, conflict/unused suppressions"* in one breath;
+> ⚠ **the other two were built and aliases were skipped.**
+> ⭐ Riders: **`BP-337`** *(coordinator-sized: 18 tests, ONE cause — `ctx.Resources` is null at
+> `DebugPrimitiveRenderer2D.cs:28`)* and **`B5`** *(a readable auto-name)*.
+> ⛔ **Deliberately NOT in it:** the **watch** and **breakpoint** families *(`R-27` — the visual check
+> has not run)* and **group `C`** *(the front of a four-item chain; it deserves its own batch)*.
+
 # ⛔ HISTORY — revision 35 and earlier
 
 # PLAN — what is left *(revision 35, `2026-08-19`)*
