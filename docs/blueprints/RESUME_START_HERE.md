@@ -41,22 +41,26 @@ byte comparison for managed values *(`ManagedValueBytes`)* · the live `(pending
 ⭐⭐ **`R-104` came out of it:** ⛔ **a depth/size cap CANNOT fence a reference cycle in .NET** — the fence
 had to become STATIC. Tracker **open 73 / done 211** · rulings **69/69**.
 
-✅✅ **BATCH 95 MERGED** *(ff-only, `9a0c9701f`)* — ⭐ **both visual-check failures FIXED IN CODE.**
-📄 [`REPORT_Batch95_The_Feed_And_The_Resolver.md`](REPORT_Batch95_The_Feed_And_The_Resolver.md) ·
-📄 [`FINDINGS_Visual_Check_2026_08_19.md`](FINDINGS_Visual_Check_2026_08_19.md) *(what they fixed)*
+✅ **BATCH 95 MERGED** *(ff-only)* — the declaration travels with the row · one `SharedEntitySelection`
+for all four stores *(`R-105`)*. ⭐ Tracker **open 74 / done 213** · rulings **70/70**.
+
+🛑🛑🛑 **THE SECOND VISUAL CHECK FOUND FIVE MORE** — 📄 **[`FINDINGS_Visual_Check_2026_08_19b.md`](FINDINGS_Visual_Check_2026_08_19b.md)**.
+⭐⭐⭐ **READ ITS §1 BEFORE ANYTHING ELSE — it is the pattern, not a list:** `R-21`/`R-62` are TRUE, so
+**the surface layer is unrailed BY CONSTRUCTION**, and every rail stops one call short of it and then
+reads as proof. 📌 **`M-29`.**
 
 | | |
 |---|---|
-| ⭐ **`95a`** | the **declaration travels WITH THE ROW** — ⛔ **not** `BlueprintAsset : IBlackboardManagedAsset` *(rejected, pinned by a rail)*. 📐 Decided by measuring that `DefaultValueAuthoring.OpenSession` reads **only `FieldType` + `DefaultValueJson`** |
-| ⭐ **`95b`** | **one `SharedEntitySelection` cell given to all four stores** — ⛔ **not** three more `Connect` calls. ⭐ **`R-105`**: the design always said the entity is global; only `ActiveAsset` is per-perspective |
-| ⛔ **`95c`** | not started — sanctioned; ⭐ it now has two worked examples to generalise from |
+| 🔴🔴 | **"Properties…" CRASHES the editor** *(native)* — ⛔ unmeasured, top item |
+| ⚠ | **the edit dialog opens EMPTY** — ⭐ hypothesis: the edit service is a **DTO/component** editor and `Count` is a plain `int` *(`M-30`)*. ⛔ **May be a capability that was never built — a design call** |
+| ⚠ | **it opens and THEN refuses on OK** — ⛔ never acceptable; refuse at the gesture |
+| ✅ | **no live writer** — `writeLive` is never passed to the binder *(`R-67`, **sixth**)* |
+| ✅ | **the pin froze AGAIN** — ⭐⭐ **`94a` fixed the arms and `94c` re-froze them**: the Watch pins a **sampled** row whose arms close over that frame's locals. ⚠ **Batch 94's rail pins a SOURCE row, so it is green** |
 
-⛔⛔⛔ **NOT CONFIRMED VISUALLY. ⭐ THE NEXT ACTION IS THE USER RE-RUNNING THE VISUAL CHECK.**
-⚠ **Three things are EXPECTED during it, not findings:** **`BP-352`** — a selection change shows the
-previous sample until the next pulse, and **two entities share one cache** *(every row source is built
-`entity: default`)* · **`94g`** — a pin does not survive a scenario reload · the watch gesture is
-**refused while free-running** *(pause first)*.
-⭐ Tracker **open 74 / done 213** · rulings **70/70**.
+🛠 **BATCH 96 DISPATCHED at `a2f93954c`** — 📄 **[`HANDOFF_Batch96_Make_The_Dialog_Real.md`](HANDOFF_Batch96_Make_The_Dialog_Real.md)**:
+`96a` the crash *(acceptance is a REPRO)* · `96b` the empty dialog *(**measure first**, may STOP)* ·
+`96c` unfreeze the pin *(**reverses part of `94c`**)* · `96d` the live writer · `96e` the dead outline
+entry, droppable.
 
 | | |
 |---|---|
