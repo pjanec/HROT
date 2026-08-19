@@ -141,6 +141,13 @@ public sealed class BlueprintMyBlueprintModel : IMyBlueprintModel
     private IEditableAsset? _editableAsset;
 
     /// <summary>
+    /// ⭐⭐ Batch 90 (<c>90b</c>) — the SAME asset as <see cref="Asset"/>, seen through the interface the
+    /// live-value providers take. ⛔ Exposed rather than re-resolved by the window: the outline already
+    /// owns "which asset am I showing", and a second lookup could answer it differently mid-switch.
+    /// </summary>
+    public IEditableAsset? EditableAsset => _editableAsset;
+
+    /// <summary>
     /// BP-57/BP-72 — the id of the graph the canvas is showing. ⭐ A <b>provider</b>, not a captured
     /// <c>Graph</c>: the locals section must follow the canvas, and a captured graph goes stale on the
     /// first BP-24 switch. Same type and same source as

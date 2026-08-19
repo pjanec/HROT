@@ -24,8 +24,36 @@ namespace Hrot.Blueprints.Editor.Windows;
 /// </para>
 /// </summary>
 public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutlineSelectionSource,
-                                                 Hrot.Editor.AiShared.Selection.IDetailsSurfaceClaimant
+                                                 Hrot.Editor.AiShared.Selection.IDetailsSurfaceClaimant,
+                                                 ILiveVariableProjectionHost
 {
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 90 (<c>90b</c>) — the live projection, installed by the registrar.</b>
+    /// 📌 <c>R-67</c>: the registrar already HOLDS the provider, so this arrives in its one
+    /// <c>RegisterExtraWindow</c> pass and ⛔ <b>the composition root gains nothing to forget.</b>
+    /// ⚠ Null in headless tests and before registration, which is exactly the <c>(pending)</c> case.
+    /// </summary>
+    private Hrot.Editor.AiShared.Blackboard.ILiveVariableProjection? _liveProjection;
+
+    /// <inheritdoc/>
+    public void SetLiveProjection(Hrot.Editor.AiShared.Blackboard.ILiveVariableProjection? projection)
+        => _liveProjection = projection;
+
+    /// <summary>True once a live projection has been installed. ⭐ A rail surface — asserted on the
+    /// CONSTRUCTED window, ⛔ never on the registrar's source.</summary>
+    public bool HasLiveProjection => _liveProjection != null;
+
+    /// <summary>
+    /// ⭐⭐ This frame's decoded live values for the active asset, or <c>null</c>.
+    /// ⛔ Resolved per CALL — the row source invokes it once per <c>GetRows()</c>, i.e. once per frame,
+    /// and the active asset changes under it.
+    /// </summary>
+    private System.Collections.Generic.IReadOnlyDictionary<string, object>? LiveObjects()
+    {
+        var asset = _model.EditableAsset;
+        return asset is null ? null : _liveProjection?.GetLiveObjects(asset);
+    }
+
     private readonly BlueprintMyBlueprintModel _model = new();
 
     // Panel is lazy — requires host services, which may be null at boot if no canvas context exists.
@@ -352,7 +380,12 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
                     assetName: asset.Name,
                     entity:    default,
                     section:   BlueprintMyBlueprintModel.SectionLocalVariables,
-                    schema:    _locals),
+                    schema:    _locals,
+                    // ⭐⭐⭐ Batch 90 (90b) — THE LIVE VALUES. 🔴 This source has never had a reader,
+                    //    which is why every Details cell read "(pending)". ⭐ OBJECTS and not bytes:
+                    //    BlueprintStateSnapshot.FieldValues is already decoded, and re-encoding it so
+                    //    the byte arm could decode it again is REPORT_Batch88 §2.2's rejected (a).
+                    liveObjects: LiveObjects),
                 // ⭐ item 4a — WHICH row was clicked. VariablePath is the variable's name
                 //   (SectionVariableRowSource builds its origin from v.Name).
                 SelectedVariablePath: item.DisplayName,
@@ -380,7 +413,11 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
                 assetName: asset.Name,
                 entity:    default,
                 section:   item.SectionId,
-                schema:    new BlueprintVariableSchemaSource(asset, kind, onChanged: () => { })),
+                schema:    new BlueprintVariableSchemaSource(asset, kind, onChanged: () => { }),
+                // ⭐⭐⭐ Batch 90 (90b) — the asset-scoped arm gets the same live map. ⛔ BOTH sites, or
+                //    the designer would see live values on locals and "(pending)" on globals, which
+                //    reads as a broken feature rather than as two seams.
+                liveObjects: LiveObjects),
             SelectedVariablePath: item.DisplayName);
     }
 

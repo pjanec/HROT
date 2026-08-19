@@ -46,7 +46,7 @@ public delegate BlueprintStateSnapshot? ReadBlueprintState(Entity self, Guid ass
 /// EMPTY map, which the table renders as <c>(pending)</c>. ⛔ <b>Never a zero that looks like a
 /// value</b> — 📌 that distinction is the whole reason <c>(pending)</c> exists.</para>
 /// </summary>
-public sealed class BlueprintLiveValueProvider : ILiveBlackboardValueProvider
+public sealed class BlueprintLiveValueProvider : ILiveBlackboardValueProvider, ILiveVariableProjection
 {
     private static readonly IReadOnlyDictionary<string, string> Empty = new Dictionary<string, string>();
 
@@ -71,6 +71,59 @@ public sealed class BlueprintLiveValueProvider : ILiveBlackboardValueProvider
     {
         _readerFactory = readerFactory ?? throw new ArgumentNullException(nameof(readerFactory));
         _store         = store         ?? throw new ArgumentNullException(nameof(store));
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐⭐⭐ <b>Batch 90 (<c>90b</c>) — the OBJECT arm, and the one the Details table reads.</b>
+    ///
+    /// <para>📐 The snapshot's <c>FieldValues</c> is <c>IReadOnlyDictionary&lt;string, object&gt;</c> —
+    /// ⭐ <b>the debug session already decoded these</b>. ⇒ this arm hands them over UNTOUCHED and lets
+    /// <c>VariableValueFormatter</c> do the one job it owns. ⛔ <see cref="GetLiveVariableValues"/>
+    /// above formats them to strings, which is right for <c>BlackboardAuthoringWindow</c> *(its only
+    /// consumer)* and ⛔ WRONG for the table, because it would move notation out of the formatter —
+    /// 📌 <c>BP-01</c>/<c>C8</c>.</para>
+    ///
+    /// <para>⚠ <b><c>null</c> vs an EMPTY map is a real distinction here.</b> <c>null</c> = <i>"I
+    /// cannot project this asset"</i> *(no entity, no reader, no snapshot)*; an empty map would say
+    /// <i>"I can, and nothing is live"</i>. ⭐ This provider returns <c>null</c> for all three
+    /// not-running cases, so every row falls back to <c>(pending)</c> rather than to a wrong claim
+    /// about the run.</para>
+    ///
+    /// <para>⛔ <b>No padding.</b> Only names the snapshot actually carries become keys — 📌 that is
+    /// what makes guide row <c>C9</c> *(declared but never written ⇒ <c>(pending)</c>)* true by
+    /// construction rather than by care.</para>
+    /// </remarks>
+    public IReadOnlyDictionary<string, object>? GetLiveObjects(IEditableAsset asset)
+    {
+        try
+        {
+            if (asset is null) return null;
+
+            var entity = _store.SelectedEntity;
+            if (entity is null) return null;
+
+            var read = _readerFactory();
+            if (read is null) return null;
+
+            var snapshot = read(entity.Value, asset.AssetId);
+            if (snapshot is null) return null;
+
+            var result = new Dictionary<string, object>(snapshot.FieldValues.Count);
+            foreach (var field in snapshot.FieldValues)
+            {
+                // ⚠ A null field value is OMITTED rather than stored. ⛔ Storing null would make the
+                //   name PRESENT — i.e. "the run wrote this" — while the formatter had nothing to
+                //   render, producing <unreadable> where (pending) is the truth.
+                if (field.Value is not null) result[field.Key] = field.Value;
+            }
+            return result;
+        }
+        catch
+        {
+            // ⛔ Never throw into the UI — the same contract the string arm keeps.
+            return null;
+        }
     }
 
     /// <inheritdoc/>

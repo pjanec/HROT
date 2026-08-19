@@ -172,6 +172,27 @@ public sealed class VariableValueFormatter
 
     private object? Decode(VariableRow row)
     {
+        // ⭐⭐⭐ Batch 90 (90a) — the OBJECT arm, preferred when present.
+        //
+        //    ⭐ It enters the pipeline exactly ONE STEP IN: everything after this point — notation,
+        //      elision, the struct tooltip, <unreadable> — is unchanged and shared, because Cell and
+        //      Tooltip both funnel through here. ⛔ That is why this is the only place the arm is
+        //      read: a second entry point would be ruling 9 in miniature, and a Value cell that is
+        //      live while its tooltip says (pending) is worse than neither being live.
+        //
+        //    ⚠ No ClrType check: an object carries its own type. The byte path below needs one to
+        //      decode; this one does not, which also makes a blueprint row whose declared type could
+        //      not be resolved render its live value rather than <unreadable>.
+        if (row.ReadValueObject is { } readObject)
+        {
+            object? live;
+            try { live = readObject(); } catch { return null; }   // ⭐ a monitor never takes the window down
+
+            // ⛔ Same mapping as the byte path: a raw byte[] IS the decoder's "I could not" signal, and
+            //    rendering it is the BP-01 hex bug. It is <unreadable>, never formatted.
+            return live is byte[] ? null : live;
+        }
+
         if (row.ClrType is null) return null;
 
         var bytes = row.ReadValue().ToArray();

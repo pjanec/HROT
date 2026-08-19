@@ -11,6 +11,36 @@ namespace Hrot.Editor.AiShared.Variables;
 public delegate ReadOnlySpan<byte> ReadRawValue();
 
 /// <summary>
+/// ⭐⭐⭐ <b>Batch 90 (<c>90a</c>) — reads a row's value as an ALREADY-DECODED CLR object.</b>
+///
+/// <para>📐 <b>Why an arm at all.</b> The Details table's live seam is <see cref="ReadRawValue"/>, and
+/// <b>no production site supplied one</b> ⇒ every Value cell read <c>(pending)</c>. ⚠ Blueprint cannot
+/// fill it: its live source is <c>BlueprintStateSnapshot.FieldValues</c>, an
+/// <c>IReadOnlyDictionary&lt;string, object&gt;</c> of values the debug session <b>already decoded</b>.
+/// ⛔ Re-encoding them to bytes so the byte arm can decode them again is the absurdity
+/// <c>REPORT_Batch88</c> §2.2 rejected as option <c>(a)</c>.</para>
+///
+/// <para>⭐⭐ <b>Why <c>object</c> and not <c>string</c>.</b> The pipeline is
+/// <b>bytes → decoder → object → <see cref="VariableValueFormatter"/> → text</b>. An object arm enters
+/// it exactly one step in, so the formatter keeps ownership of <b>notation · elision ·
+/// <c>&lt;unreadable&gt;</c> · the struct tooltip</b>. ⛔⛔ A <b>string</b> arm would hand notation to
+/// the provider ⇒ <b>two notations for one value</b> — 📌 precisely the class of defect
+/// <c>BP-01</c>/<c>C8</c> closed *(raw hex where a value belongs)*.</para>
+///
+/// <para>⚠ <b>The honest cost, stated rather than hidden:</b> §4a's change highlight diffs BYTES, so a
+/// row fed through this arm has an <b>INERT</b> highlight. ⭐ That is the safe direction and this
+/// codebase already chose it once — see <see cref="ReadAssetTick"/>: <i>"a row with no tick source has
+/// an INERT highlight (never lights) rather than a WRONG one."</i> ⛔ <b>Do not fake bytes to light
+/// it.</b></para>
+///
+/// <para>⭐ Returning <c>null</c> means <i>"no value this frame"</i>, which the formatter renders as
+/// <c>&lt;unreadable&gt;</c> — ⛔ NOT as <c>(pending)</c>. <b><c>(pending)</c> is decided earlier</b>,
+/// by <see cref="VariableRow.HasEverBeenWritten"/>, because <i>"the run has not written this"</i> and
+/// <i>"the value would not decode"</i> are different facts.</para>
+/// </summary>
+public delegate object? ReadObjectValue();
+
+/// <summary>
 /// ⭐⭐⭐ Reads <b>THIS row's</b> asset tick (§4a).
 ///
 /// <para>
@@ -89,7 +119,13 @@ public sealed record VariableRow(
     //    read through the other arm, and VariableValue.ModeFor picks which.
     // ⚠ Null means "this source cannot say what the initial value is", which is NOT the same as
     //   "there is no default" (a null JSON string with a known ClrType ⇒ zero-initialised, BP-247).
-    Func<string?>?    ReadInitialJson = null)
+    Func<string?>?    ReadInitialJson = null,
+    // ⭐⭐⭐ Batch 90 (90a) — the OBJECT arm of the CURRENT value. null by default, so every existing
+    //    construction site is unchanged and every existing row still reads its bytes.
+    // ⭐ Preferred over ReadValue when present (VariableValueFormatter.Decode), because a host that
+    //   already HAS the decoded value must not be made to re-encode it — REPORT_Batch88 §2.2, option (a).
+    // ⚠ It does NOT need ClrType: an object carries its own type. The byte arm does, to decode.
+    ReadObjectValue?  ReadValueObject = null)
 {
     /// <summary>§5 — <i>"editability = run state ∧ row kind"</i>. ⛔ 🔒 and node-owned rows never get a
     /// writable dialog, in either mode; a stale row gets no dialog at all.</summary>

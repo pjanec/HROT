@@ -71,19 +71,34 @@ public sealed class BlackboardSectionRowSource : IVariableRowSource
 
     private VariableRow ToRow(BlackboardVariableEntry v, string assetName)
     {
+        // ⭐⭐⭐ Batch 90 (90c) — PRESENCE IS MEASURED, not inferred from "a reader exists".
+        //    🔴 This used to be `HasEverBeenWritten: reader != null`, i.e. "the moment anyone supplies
+        //    a reader, EVERY row claims to have been written". ⛔ That would have turned the whole
+        //    point of this batch into a regression: a variable the run never wrote would render its
+        //    decoded zero instead of "(pending)" — 📌 guide row C9 asserts the opposite.
+        //    ⭐ The provider omits names it could not project, so an empty read IS the absence signal.
         var reader = _readRaw;
+        byte[] bytes;
+        if (reader == null) bytes = Array.Empty<byte>();
+        else
+        {
+            try { bytes = reader(v.Name) ?? Array.Empty<byte>(); }
+            catch { bytes = Array.Empty<byte>(); }   // ⭐ a monitor never takes the window down
+        }
+
         return new VariableRow(
             Origin:    new VariableRowOrigin(_assetId, _entity, _section, v.Name, assetName),
             ShortName: v.Name,
             TypeText:  v.FieldType.Name,
             ClrType:   v.FieldType,
-            ReadValue: reader == null ? () => Array.Empty<byte>() : () => reader(v.Name),
+            ReadValue: () => bytes,
             AssetTick: null,
             // ⭐ ONE home for the precedence. An authored entry has no passthrough flag, so the
             //   second argument is false by construction rather than by omission.
             RowKind:   VariableRow.KindOf(v.IsAutoManaged, isReadOnly: false),
             IsStale:   false,
-            HasEverBeenWritten: reader != null,
+            // ⭐⭐ Batch 90 — PRESENCE, per name, per frame. See the comment above ToRow's read.
+            HasEverBeenWritten: bytes.Length > 0,
             // ⭐ Row 58 — the INITIAL arm. The authored entry already carries its default, so the
             //   planning cell shows what the variable will START as rather than "(pending)".
             ReadInitialJson: () => v.DefaultValueJson);

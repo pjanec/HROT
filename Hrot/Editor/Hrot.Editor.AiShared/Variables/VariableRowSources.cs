@@ -45,6 +45,14 @@ public sealed class SectionVariableRowSource : IVariableRowSource
     private readonly Func<string, byte[]>?    _readRaw;
     private readonly ReadAssetTick?           _assetTick;
 
+    /// <summary>
+    /// ⭐⭐⭐ Batch 90 (<c>90b</c>) — this frame's already-decoded live values, or <c>null</c>.
+    /// ⛔ A map GETTER, not a per-name reader, because 📌 <b>absence from the map is what makes
+    /// <c>(pending)</c> honest</b> — a per-name reader could not distinguish "not written" from
+    /// "wrote null".
+    /// </summary>
+    private readonly Func<IReadOnlyDictionary<string, object>?>? _liveObjects;
+
     public SectionVariableRowSource(
         Guid assetId, string assetName, Entity entity, string section,
         IVariablesSchemaSource schema,
@@ -52,44 +60,85 @@ public sealed class SectionVariableRowSource : IVariableRowSource
         //   HAS a reader still passes it (the 2026-08-16 rule), and one that does not says so instead
         //   of handing over a lambda that fabricates emptiness.
         Func<string, byte[]>? readRaw = null,
-        ReadAssetTick? assetTick = null)
+        ReadAssetTick? assetTick = null,
+        // ⭐⭐⭐ Batch 90 — the OBJECT arm. Blueprint's live source hands back DECODED values, so it
+        //    fills this rather than readRaw. ⛔ Never both: whichever is supplied is what the row reads.
+        Func<IReadOnlyDictionary<string, object>?>? liveObjects = null)
     {
-        _assetId   = assetId;
-        _assetName = assetName;
-        _entity    = entity;
-        _section   = section;
-        _schema    = schema ?? throw new ArgumentNullException(nameof(schema));
-        _readRaw   = readRaw;
-        _assetTick = assetTick;
+        _assetId     = assetId;
+        _assetName   = assetName;
+        _entity      = entity;
+        _section     = section;
+        _schema      = schema ?? throw new ArgumentNullException(nameof(schema));
+        _readRaw     = readRaw;
+        _assetTick   = assetTick;
+        _liveObjects = liveObjects;
     }
 
+    /// <summary>
+    /// ⭐ Rebuilt every frame by <c>VariableTableModel.Build()</c>, which is what makes the live map
+    /// resolved HERE a per-frame snapshot rather than a stale capture.
+    /// </summary>
     public IReadOnlyList<VariableRow> GetRows()
-        => _schema.Variables.Select(ToRow).ToList();
+    {
+        var live = _liveObjects?.Invoke();
+        return _schema.Variables.Select(v => ToRow(v, live)).ToList();
+    }
 
-    private VariableRow ToRow(VariableViewModel v)
+    private VariableRow ToRow(VariableViewModel v, IReadOnlyDictionary<string, object>? live)
     {
         // ⭐ Row kind is measured off the view model, not passed in -- and the precedence lives in
         //   ONE place so a second source cannot spell it differently.
         var kind = VariableRow.KindOf(v.IsAutoManaged, v.IsReadOnly);
 
-        byte[] cached = Array.Empty<byte>();
+        // ⭐⭐⭐ Batch 90 — the OBJECT arm wins when this frame's map HAS this name.
+        //    ⛔⛔ THE HONESTY RULE, and guide row C9 depends on it: presence in the map ⇒ written;
+        //    ABSENCE ⇒ (pending). A provider that could not project a variable simply omits it, so
+        //    absence is free and meaningful. ⚠ A live map that exists but lacks this name is NOT
+        //    "written with a zero" — that would be the regression, not the fix.
+        bool hasLiveObject = live != null && live.ContainsKey(v.Name);
+        if (hasLiveObject)
+        {
+            var value = live![v.Name];
+            return NewRow(v, kind,
+                readValue:   () => Array.Empty<byte>(),
+                readObject:  () => value,
+                written:     true);
+        }
+
+        // ⭐ The byte arm, unchanged in shape. ⚠ Presence is now MEASURED — a reader that returns no
+        //   bytes for this name has not written it, which is the same rule the object arm follows.
         var reader = _readRaw;
-        return new VariableRow(
+        if (reader == null)
+            return NewRow(v, kind, () => Array.Empty<byte>(), readObject: null, written: false);
+
+        byte[] cached;
+        try { cached = reader(v.Name) ?? Array.Empty<byte>(); }
+        catch { cached = Array.Empty<byte>(); }   // ⭐ a monitor never takes the window down
+
+        var bytes = cached;
+        return NewRow(v, kind, () => bytes, readObject: null, written: bytes.Length > 0);
+    }
+
+    private VariableRow NewRow(
+        VariableViewModel v, VariableRowKind kind,
+        ReadRawValue readValue, ReadObjectValue? readObject, bool written)
+        => new(
             Origin:    new VariableRowOrigin(_assetId, _entity, _section, v.Name, _assetName),
             ShortName: v.Name,
             TypeText:  v.TypeName,
             ClrType:   v.FieldType,
-            ReadValue: reader == null ? () => Array.Empty<byte>() : () => (cached = reader(v.Name)),
+            ReadValue: readValue,
             AssetTick: _assetTick,
             RowKind:   kind,
             IsStale:   false,
-            // ⚠ NOT an unconditional true. With no reader there is nothing to have been written, and
-            //   the cell must read "(pending)" — ⛔ NOT "<unreadable>", which would send a designer
-            //   hunting a decode bug that did not happen. Same rule as BlackboardSectionRowSource.
-            HasEverBeenWritten: reader != null,
+            // ⚠ NOT an unconditional true, and never has been. With nothing written the cell must read
+            //   "(pending)" — ⛔ NOT "<unreadable>", which would send a designer hunting a decode bug
+            //   that did not happen. Same rule as BlackboardSectionRowSource.
+            HasEverBeenWritten: written,
             // ⭐ Row 58 — the INITIAL arm, from whatever the schema source knows.
-            ReadInitialJson: () => v.DefaultValueJson);
-    }
+            ReadInitialJson: () => v.DefaultValueJson,
+            ReadValueObject: readObject);
 }
 
 /// <summary>A source over a fixed row list. ⭐ Used by §9's heterogeneous rail, and by any host that

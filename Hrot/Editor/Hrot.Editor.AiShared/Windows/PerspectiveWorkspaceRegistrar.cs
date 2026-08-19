@@ -212,6 +212,11 @@ public class PerspectiveWorkspaceRegistrar
         // ⭐ Batch 87 — kept, because the focus claims are wired in RegisterExtraWindow, long after
         //   the constructor has returned.
         _selectionStore = selectionStore;
+
+        // ⭐⭐⭐ Batch 90 — the SAME object the composition root already passes, asked whether it can
+        //    project. ⛔ Not a second service: BlueprintLiveValueProvider and LiveBlackboardValueProvider
+        //    each implement ILiveVariableProjection alongside the string interface they already had.
+        LiveProjection = liveValueProvider as ILiveVariableProjection;
         if (catalog       is null) throw new ArgumentNullException(nameof(catalog));
         if (refactorService is null) throw new ArgumentNullException(nameof(refactorService));
         if (debugRegistry is null) throw new ArgumentNullException(nameof(debugRegistry));
@@ -363,7 +368,25 @@ public class PerspectiveWorkspaceRegistrar
             _sectionSource ??= section => new BlackboardSectionRowSource(
                 asset:   () => selectionStore.ActiveAsset as IBlackboardManagedAsset,
                 assetId: selectionStore.ActiveAsset?.AssetId ?? Guid.Empty,
-                section: section);
+                section: section,
+                // ⭐⭐⭐ Batch 90 (90c) — THE BYTES. 🔴 This argument has been null since the source was
+                //    built, which is why every BTree/HSM Details cell read "(pending)".
+                //    ⭐ BYTES and not objects, deliberately: LiveBlackboardValueProvider already walks
+                //    (BrainBlackboard, Type, ByteOffset) and only formats at the end, so it HAS them —
+                //    and bytes keep §4a's change highlight LIVE, which the object arm cannot.
+                //    ⛔ Resolved per CALL, not captured: the map is a per-frame snapshot and the active
+                //    asset changes under it.
+                readRaw: name =>
+                {
+                    var asset = selectionStore.ActiveAsset;
+                    if (asset is null) return Array.Empty<byte>();
+                    var live = LiveProjection?.GetLiveBytes(asset);
+                    // ⚠ ABSENCE IS THE SIGNAL — a name the run never wrote is simply not a key, and the
+                    //   row reads "(pending)". ⛔ Never a zero-filled buffer (guide row C9).
+                    return live is not null && live.TryGetValue(name, out var bytes)
+                        ? bytes
+                        : Array.Empty<byte>();
+                });
 
             MyBlueprint.SectionSelected += section =>
             {
@@ -457,6 +480,15 @@ public class PerspectiveWorkspaceRegistrar
         => _sectionSource = resolver ?? throw new ArgumentNullException(nameof(resolver));
 
     private Func<string, IVariableRowSource?>? _sectionSource;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 90 — the live projection, when the provider this registrar was handed can serve
+    /// one.</b> 📌 <c>BP-334</c>: <c>ILiveBlackboardValueProvider</c> hands out STRINGS and feeds only
+    /// <c>BlackboardAuthoringWindow</c>; the TABLE needs bytes or objects. ⭐ Both providers implement
+    /// <see cref="ILiveVariableProjection"/>, so this is a type-test on what the composition root
+    /// already passes — ⛔ <b>not a new argument to forget</b> *(<c>R-67</c>)*.
+    /// </summary>
+    public ILiveVariableProjection? LiveProjection { get; }
 
     // ── Registration ─────────────────────────────────────────────────────────
 
@@ -555,6 +587,15 @@ public class PerspectiveWorkspaceRegistrar
         //    precisely why the constructor's single Attach could never have reached them. ⛔ Stated
         //    over the INTERFACE so a host added later binds itself with no new line anywhere.
         if (window is IVariableTableHost tableHost) AttachEditGestures(tableHost);
+
+        // ⭐⭐⭐ Batch 90 (90b) — a window that BUILDS ROW SOURCES gets the live projection HERE.
+        //    📌 R-67, and the Blueprint registrar is the one that has forgotten a service four times:
+        //    this registrar already HOLDS the provider (it forwards it to BlackboardAuthoring), so the
+        //    outline is handed it in the same pass ⇒ ⛔ EditorSubsystem gains nothing to forget.
+        //    ⚠ Installed even when null, so a host can tell "asked, and there is none" from "never
+        //      asked" — the second is the bug this line exists to make impossible.
+        if (window is ILiveVariableProjectionHost projectionHost)
+            projectionHost.SetLiveProjection(LiveProjection);
 
         // ⭐⭐⭐ Batch 87 — WHICH SURFACE owns the Details panel (user ruling, 2026-08-18).
         //    🔴 B8: the panel decided by comparing NODE IDENTITY, so re-clicking the same node could
