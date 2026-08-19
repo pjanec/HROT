@@ -1,18 +1,26 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-18
+updated: 2026-08-19
 current-answer: this whole file - it is the consolidated design, written to be built from
 stale-below: nothing. History and the decision trail live in Architect_Question_40, which
   accumulated four rounds of correction and must NOT be read as a spec.
 supersedes-for-implementation: Architect_Question_40_Watch_Variable_Pinning.md
-known-rot: section 4's cost model predates Batch 90. It assumes the VALUE clock needs
-  new per-tick polling machinery. Batch 90 built the live-value arms (GetLiveObjects /
-  GetLiveBytes plus the readRaw seam), read per frame, and a pinned row carries its arm
-  with it - so slice 1 is materially cheaper than this document assumes. The TWO CLOCKS
-  rule itself (value vs binding) is unaffected and still binds.
+known-rot: CORRECTED 2026-08-19 by Batch 93. An earlier note here claimed Batch 90's
+  live arms made slice 1 nearly free because a pinned row carries its arm. MEASURED FALSE:
+  the arms a row SOURCE builds close over that frame's VALUE, not over the provider, so
+  liveness in Details comes from REBUILDING the row each frame - and PinnedVariableRowSource
+  returns its stored records untouched. A pinned row is a SNAPSHOT. See Q46; section 4's
+  VALUE clock is a real problem after all. The TWO CLOCKS rule itself still binds.
 -->
 
-> ⚠⚠ **STATUS `2026-08-19` — NOT BLOCKED, NOT STARTED.** ⛔ `R-27` gates `Q38`/`Q44`; **this is
+> 🛑🛑 **STATUS `2026-08-19` — BATCH 93 ATTEMPTED IT AND STOPPED.** ⛔ **A pinned row is a SNAPSHOT**:
+> the arms a row SOURCE builds close over **that frame's value**, and `PinnedVariableRowSource` returns
+> its stored records untouched ⇒ **the pin freezes, and `(pending)` freezes with it.**
+> ⭐⭐ **The store, the window and the table are FINE** — a hand-built row with a live arm stays live.
+> ⇒ 📄 **[`Architect_Question_46`](Architect_Question_46_What_A_VariableRow_Means.md)** must be answered
+> before this design can be built. ⛔ **Do not start from §4 until it is.**
+>
+> ⚠ **STATUS `2026-08-19` (earlier) — NOT BLOCKED, NOT STARTED.** ⛔ `R-27` gates `Q38`/`Q44`; **this is
 > neither**, and it targets `AiWatchWindow`, the window `Q38-E` already picks as the survivor ⇒
 > ⭐ **building it is aligned with that merge, not in conflict.**
 >
@@ -209,7 +217,7 @@ callback sink on the extractor, wired to the bus by the subsystem.**
 | a second watch window, or work on `WatchPanelWindow` | ⭐ target `AiWatchWindow`; retirement is row **60** |
 | a per-variable emitted push | 📌 **`R-49`** |
 | an editor-side copy of the id remap | 📌 **`R-79`** — ruling 9 |
-| a fourth `FindEntityByNetworkId` | 📌 **`R-77`** |
+| ⚠ **a FIFTH `FindEntityByNetworkId`** | 📌 **`R-77`, COUNT CORRECTED `2026-08-19`: there are FOUR, not two** — `M-26`. ⭐ The intent stands |
 | one row per live entity | ⛔ **user: *"unbearable — thousands of entities"*** |
 | a panel-wide tick | 📌 *"rows tick at different rates"* |
 | touching `EntityWatchPanel` / `FdpEntityWatchWindow` | ⭐ **different concept** — entity components |

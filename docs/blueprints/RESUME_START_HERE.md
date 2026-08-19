@@ -24,9 +24,10 @@ stale-below: everything from "## 1." down is HISTORY from earlier sessions. Do n
 ⭐⭐⭐ **AND: RUN THE VISUAL CHECK** — ⭐ **independent of Batch 92, and it gates the whole `Q38`/`Q44`
 family** *(`R-27`)*.
 
-🔴🔴 **BATCH 93 IS IN FLIGHT — dispatched at `ad9f1cd93`.** 📄 [`HANDOFF_Batch93_Watch_Pinning.md`](HANDOFF_Batch93_Watch_Pinning.md)
-⭐ **Watch pinning, all three slices.** ⛔ **Rule 1: do NOT amend it.** ⚠ **Rule 1b: check for their
-`chore: started batch 93` marker.** ⭐ **It closes `E2`–`E7`, the last "skip" in the visual check.**
+🛑 **BATCH 93 STOPPED — correctly.** ⛔ **A pinned row is a SNAPSHOT**; my value-feed premise was false.
+⇒ 📄 **[`Architect_Question_46`](Architect_Question_46_What_A_VariableRow_Means.md)** — ⭐ **`A`–`E` carry
+recommendations and NEED THE USER'S APPROVAL.** ⭐ Approving it makes `93a`/`93b` buildable as written.
+⛔ **`E2`–`E7` stay SKIP.** Tracker **72 / 209** · plan **revision 39**.
 
 | | |
 |---|---|

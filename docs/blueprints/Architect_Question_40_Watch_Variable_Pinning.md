@@ -483,6 +483,13 @@ existing shared mechanism and needs no new concept.
 
 #### ⭐ And the user's instinct IS right about duplication — just one layer over
 
+> ⛔⛔ **`R-77` CORRECTED `2026-08-19` — THE COUNT IS FOUR, NOT TWO.** 📐 Enumerated with `search_graph`
+> *(⛔ not grep — 📌 `R-74`)* by Batch 93: also **`EditorSubsystem:3869`** and
+> **`MapPickServiceBridge:121`**. ⚠ **And neither of the two named below is the shape to keep** —
+> ⭐ `MapPickServiceBridge` **caches its `_networkQuery`**, reads `GetComponentRO` and guards its repo.
+> ⇒ ⭐⭐ **a pinning caller would be the FIFTH.** ⛔ **The INTENT stands; only the count was wrong.**
+> ⭐ **Live count: `M-26`** — ⛔ **do not quote the number from here.**
+
 📌 **`R-77`: `FindEntityByNetworkId` exists TWICE** — `ReplayBrowserSubsystem:933` **and**
 `EditorMissionService:54`, both doing a linear `Query().With<NetworkIdentity>()` scan.
 ⇒ ⭐⭐ **THAT is the code to share**, and this design needs a third caller ⇒ ⛔ **do not add a fourth

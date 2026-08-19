@@ -120,6 +120,39 @@
 > poller spec §4 describes** — ⭐ **Batch 90's arms already carry the value, and a pinned row carries
 > its arm with it.** ⭐ **It closes `E2`–`E7`, the last SKIP in the visual check.**
 
+# PLAN — what is left *(revision 39, `2026-08-19`)*
+
+> 🛑🛑 **REVISION 39 — BATCH 93 STOPPED, and it was RIGHT.** Tracker **72 / 209**; ids `BP-344` ·
+> `BP-345` · `BP-346`. ⭐ **What landed is the MEASUREMENT, as five permanent rails.**
+>
+> ⛔⛔ **MY VALUE-FEED PREMISE WAS FALSE.** I wrote *"a pinned row carries its arm with it ⇒ live with
+> no new polling code."* 📐 **The arms ARE invoked every frame — but the arm a row SOURCE builds closes
+> over THAT FRAME'S VALUE, not over the provider.** ⇒ ⭐⭐ **liveness in Details comes from REBUILDING
+> the row each frame**, and `PinnedVariableRowSource` returns its records untouched ⇒ **a pinned row is
+> a SNAPSHOT.** ⚠ **And `(pending)` freezes with it** — `HasEverBeenWritten` is a `bool` on the record.
+> ⭐⭐⭐ **The useful half:** a **hand-built** row with a live arm **does** stay live ⇒ **the store, the
+> window, the table and the row TYPE are fine** — ⛔ the gap is in the two row SOURCES, **nothing
+> `93a`/`93b` was asked to build.** ⇒ 📄 **[`Architect_Question_46`](Architect_Question_46_What_A_VariableRow_Means.md)**.
+>
+> ⭐⭐ **They SIZED the fix rather than guessing** — two probes: ~4 lines per arm, **1489 of 1490 rails
+> green**. ⛔ **And did not build it**, because the `(pending)` half needs a decision neither probe fixes.
+>
+> ⚠⚠ **`R-77`'s COUNT HAS ROTTED — FOUR, not two** *(`BP-345`, `M-26`)*: also `EditorSubsystem:3869`
+> and `MapPickServiceBridge:121`. ⭐⭐ **And neither of `R-77`'s two is the keeper** — `MapPickServiceBridge`
+> **caches its query**. ⛔⛔ **My own `M-25` compared two implementations without ENUMERATING** — 📌 the
+> `R-74` failure, committed by me while citing `R-74` at them. **`M-25` corrected; `Q40:486` carries a
+> CORRECTED banner.** ⚠ **`R-77` passes `rulings-check.py` while being wrong** — 📌 a STATE CLAIM in a
+> design doc rots exactly as `§M` warns.
+>
+> ⚠ **`CommandCatalog.ToggleWatch` EXISTS** *(`BP-346`)* — `NodeEditor.Core/CommandCatalog.cs:75`,
+> **PIN-scoped**. ⛔ **My handoff said it did not; I had grepped `Hrot/` only and never `FDP/ExtDeps/`.**
+> ⭐ **The conclusion held** — the *variable* gesture is genuinely unbuilt — ⚠ **but the trap is real:**
+> the next implementer binds the variable gesture to the pin-watch command. ⭐ **`Q46-E`: a distinct id.**
+>
+> ⛔ **`E2`–`E7` stay SKIP** — no pin gesture exists. ⭐ **The guide was not edited** *(correctly — mine)*.
+
+# ⛔ HISTORY — revision 38 and earlier
+
 # ⛔ HISTORY — revision 37 and earlier
 
 # ⛔ HISTORY — revision 36 and earlier
