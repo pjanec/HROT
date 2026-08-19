@@ -1,8 +1,9 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-18
-current-answer: the RULED 2026-08-18 section and the INTEGRATION TABLE at the very
-  bottom. They supersede the RECOMMENDED ANSWERS above where they differ - notably
+updated: 2026-08-19
+current-answer: the RULED 2026-08-18 section - INCLUDING its 2026-08-19 EXTENSION on
+  pinning (one window instance per pin, titled by its context) - and the INTEGRATION
+  TABLE at the very bottom. They supersede the RECOMMENDED ANSWERS above where they differ - notably
   Q38-A, whose recommendation was OVERRULED. Plus the REVISION 2026-08-18. The revision supersedes the 2026-08-17 inventory
   (8 surfaces; the graph finds 25) and corrects section 4's claim that the shell
   is missing. A-F now carry recommendations awaiting the user's approval.
@@ -488,6 +489,47 @@ kind, so returning to a variable returns to the view you chose for variables)*.
 ⭐⭐⭐ **Pinning opens a new window of the SAME PANEL TYPE that was active when the pin button was
 pressed, pinned to the context at that moment.**
 ⇒ ⭐ **the pin captures TWO things — the context tuple AND the selected view.** ⛔ Not just the context.
+
+### ⭐⭐⭐ EXTENDED `2026-08-19` *(user)* — **one window INSTANCE per pin, titled by its context**
+
+> ⭐⭐ **User, verbatim:** *"each pin operation is supposed to open a new window instance, with its
+> title describing the pinned context"*
+
+⭐ **Two things this settles that the `2026-08-18` ruling left open:** ⛔ **a pin is NOT a toggle** that
+re-points one reusable pinned window — ⭐ **it SPAWNS**; and ⭐⭐ **the title is the identifier the user
+navigates by**, ⛔ **not a generic *"Details (pinned)"*** — with N pinned windows docked as tabs, a
+repeated title makes the whole feature unusable.
+
+#### ⭐⭐ INVENTORY — **the spawn mechanism ALREADY EXISTS** *(`R-74`, `2026-08-19`)*
+
+```
+grep -rn "IsVolatile" --include=*.cs .   → 7 hits, 2 of them producers
+```
+
+| 📐 measured | |
+|---|---|
+| ⭐⭐⭐ **`ManagedWindow.IsVolatile`** | ⭐ `WindowManager:538` — *"Iterate a copy to allow safe removal of closed volatile windows"* ⇒ **a volatile window is REMOVED from the registry when closed.** ⛔ **Exactly the lifecycle a pin needs, and it ships** |
+| ⭐⭐⭐ **`ComponentEditWindow` is the working PRECEDENT** | **spawned at runtime**, `IsVolatile = true` · `ShowInMenu = false` · `IsOpen = true`, registered from `ComponentReflector:366` |
+| ⭐⭐ **and it already does BOTH halves of this ruling** | **content-keyed id** `cedit_{e.Index}_{e.Generation}_{type.FullName}` · **context-describing title** `$"Edit {type.Name} [{e.Index}]"` |
+| ⚠ **`RegisterWindow` OVERWRITES on a duplicate id** | `_windows[window.Id] = window` ⇒ ⛔ **N instances REQUIRE N distinct ids** — the id scheme is not cosmetic, it is what makes the feature work |
+| ⚠ **volatile ⇒ NOT persisted, NOT in the window menu** | `:323` skips them for the menu, `:376` skips them in `SaveSettings` |
+
+⇒ ⭐⭐⭐ **This is ROUTING, not construction** *(ruling 9)*. ⛔ **Do not build a second spawned-window
+mechanism** — ⭐ mirror `ComponentEditWindow`.
+
+#### ⚠ Two sub-choices the ruling does not settle — **RECOMMENDED, awaiting approval**
+
+| | ⭐ recommendation |
+|---|---|
+| ⚠ **pinning the SAME (context, view) twice** | ⭐⭐ **Key the id on `(view, asset, selection)` and FOCUS the existing window** — the `ComponentEditWindow` precedent exactly. ⭐ **Every pin that differs in context OR view still spawns**, so the user's rule holds everywhere it is observable; only a literal duplicate collapses. ⛔ **A monotonic `pin_7` counter is the alternative** and it does obey the letter — ⚠ **but two byte-identical windows are noise, and the user cannot tell them apart because their TITLES are identical too** |
+| ⚠ **do pins survive a restart?** | ⭐ **NO — volatile, as the precedent is.** ⛔ **Do NOT confuse this with the Watch**, which is ruled **persistable** — ⭐ a watch is a curated list the user built; a pin is a scratch view. ⚠ **If pins should persist, `IsVolatile` is the wrong base** and that is a bigger change |
+
+#### ⭐ The title — **compose it from the pinned tuple, do not invent a scheme**
+
+⭐⭐ `{view} · {asset} · {selection}` — e.g. **`Details · OrcGuard_BT · MoveTo_Advance`**,
+**`Sync · OrcGuard_BT · Shoot_BT`**, **`Runtime · Guard_01`**.
+⚠ **`ManagedWindow` takes `id` and `title` SEPARATELY** *(`Title` is `protected set`)* ⇒ ⭐ **a title
+collision is harmless; an ID collision destroys a window.** ⛔ **Never derive one from the other.**
 
 ## ✅ The Watch window — **RULED**
 

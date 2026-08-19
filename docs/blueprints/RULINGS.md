@@ -188,6 +188,7 @@ because only you know whether you are relying on it.**
 | id | ⭐ the ruling | source |
 |---|---|---|
 | **R-10** | ⭐⭐⭐ **Ruling 9 — the standing constraint over everything:** *"no keeping two implementations for the same concept."* ⭐ **`U-16` is not optional cleanup; it is the acceptance criterion** | `Architect_Question_32_…_ANSWERS.md` |
+| ⭐⭐⭐ **R-100** | ✅ **RULED `2026-08-19` (user): *"one window INSTANCE per pin, titled by its context"*.** ⭐⭐ **A pin SPAWNS — it is ⛔ NOT a toggle that re-points one reusable pinned window** *(that reading of the `2026-08-18` ruling is wrong)*; and ⭐⭐ **the TITLE is what the user navigates by** — ⛔ **never a generic *"Details (pinned)"***, because N pins dock as tabs and repeated titles make the feature unusable. ⭐ **Composed from the pinned tuple:** `{view} · {asset} · {selection}`. ⭐⭐⭐ **This is ROUTING, not construction** — `ManagedWindow.IsVolatile` + the `ComponentEditWindow` spawn precedent already do **both halves** *(content-keyed id, context-describing title)*; ⛔ **do not build a second spawned-window mechanism** *(ruling 9)*. ⚠ **`RegisterWindow` OVERWRITES on a duplicate id** ⇒ ⭐ **N instances REQUIRE N distinct ids — the id scheme is load-bearing, not cosmetic.** ⚠ **Two sub-choices carry RECOMMENDATIONS, not rulings** *(same-context re-pin ⇒ focus; pins do NOT persist)* — ⛔ **do not treat them as settled** | `Architect_Question_38_One_Details_Panel.md` *(`Q38-F` extension)* |
 | **R-13** | ⛔ **"No rush removals"** — say which it is: **duplicate CODE** *(route)* · **duplicate SURFACE** *(usually keep)* · **genuinely dead** *(design record agrees)* | `.claude/CLAUDE.md` |
 
 ## 3. ⭐ AUTHORING UI BEHAVIOUR
@@ -288,6 +289,7 @@ R-97 | docs/blueprints/Architect_Question_44_Breakpoint_UI_Unification.md | APPR
 R-98 | docs/blueprints/Architect_Question_38_One_Details_Panel.md | the toolbar in the detail window should switch different panels
 R-95 | docs/blueprints/REPORT_Batch87_The_Panel_Obeys_The_Surface.md | not the selection what changes but actually
 R-99 | docs/blueprints/PLAN_Remaining_Work.md | WIRE the orchestrator emitters
+R-100 | docs/blueprints/Architect_Question_38_One_Details_Panel.md | one window INSTANCE per pin, titled by its context
 R-87 | Hrot/Editor/Hrot.Editor.AiShared/Variables/BlackboardMyBlueprintModel.cs | IsHostDefined: v.IsAutoManaged
 R-01 | docs/blueprints/Variable_Model_Unification.md | occupy the SAME cell
 R-01b | docs/blueprints/Variable_Model_Unification.md | names, one concept
