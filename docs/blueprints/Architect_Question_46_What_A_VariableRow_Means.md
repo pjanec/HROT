@@ -18,6 +18,35 @@ known-conflict: none. It answers what DESIGN_Variable_Watch_Pinning.md cannot be
 
 ---
 
+## 0. ⭐⭐ INVENTORY *(`R-74` — the graph, `2026-08-19`)*
+
+```
+search_graph(name_pattern=".*(VariableRow|RowSource|ReadValueObject|ReadRawValue|HasEverBeenWritten).*",
+             file_pattern="Hrot/**")                                          → total 27
+grep -rn "HasEverBeenWritten" --include=*.cs (excl obj/bin/.dev)              → total 31
+grep -rn "new VariableRow(" --include=*.cs Hrot/ | grep -v Tests              → total 2 files
+```
+
+### ⭐ The FOUR row sources — **only two are affected**
+
+| # | source | affected? |
+|---|---|---|
+| ⭐ **1** | **`SectionVariableRowSource`** *(Details, blueprint)* — the **object** arm at `:105`, the **byte** arm at `:118` | ⛔ **YES** |
+| ⭐ **2** | **`BlackboardSectionRowSource`** *(Details, AI)* — the same shape at `:81` | ⛔ **YES** |
+| **3** | `FixedVariableRowSource` | ⭐ **no** — the caller supplies finished rows |
+| **4** | `PinnedVariableRowSource` *(Watch)* | ⭐ **no** — it stores what it is given; ⭐⭐ **that it does so is CORRECT** |
+
+### ⭐⭐ Who sets `HasEverBeenWritten` — **the cost of `Q46-B`, enumerated**
+
+| | count | where |
+|---|---:|---|
+| ⭐ **production construction sites** | **3** | `WatchRowBridge:58` · `BlackboardSectionRowSource:101` · `VariableRowSources:138` *(the shared `NewRow`)* |
+| **the record's own default** | 1 | `VariableRow.cs:115` |
+| **readers** | 2 | `VariableValueFormatter:88`, `:111` |
+| ⚠ **test mentions** | ~28 | ⭐ **the reason `Q46-B` recommends an OPTIONAL arm over a type change** |
+
+---
+
 ## 1. ⭐⭐ THE MEASUREMENT *(Batch 93, five permanent rails)*
 
 ```
