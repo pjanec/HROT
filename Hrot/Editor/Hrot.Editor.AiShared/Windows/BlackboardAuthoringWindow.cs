@@ -92,6 +92,15 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
     internal bool HasSchemaExporter => _actionSchemaExporter is not null;
     private readonly ILiveBlackboardValueProvider? _liveValueProvider;
 
+    /// <summary>
+    /// ⭐⭐ <c>88a</c> — whether this window actually received a live-value provider.
+    /// ⛔ <b>Same shape and same reason as <see cref="HasSchemaExporter"/> above</b>: 📌 <c>R-67</c>,
+    /// the omission IS the defect, and it is invisible from the call site's signature. 🔴 Blueprint
+    /// shipped with <c>null</c> here while BTree and HSM did not, and the Value column's
+    /// <c>(pending)</c> — the DESIGNED output for a source with no reader — made that look intended.
+    /// </summary>
+    internal bool HasLiveValueProvider => _liveValueProvider is not null;
+
     // Inline rename state
     
     

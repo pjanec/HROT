@@ -143,6 +143,8 @@ using Hrot.Hsm.Editor.Blackboard;
 using Hrot.Hsm.Editor.Comparison;
 using Hrot.Blueprints.Editor.Comparison;
 
+using Hrot.Blueprints.Core.Debug;
+
 namespace Hrot.Editor
 {
     /// <summary>
@@ -2186,12 +2188,31 @@ namespace Hrot.Editor
                         sharedScopeKeys:   SharedScopeKeysOfAsset),
                 },
                 liveValueProvider: hsmLiveValueProvider);
-            // ⭐ Blueprint has no host-specific validator and no live-value provider yet -- and now it
-            //   SAYS so, rather than expressing that by omitting a whole argument list's worth of
-            //   shared services. 📌 R-67: "I forgot" and "there are none" used to look identical.
+            // ⭐⭐⭐ Batch 88a — Blueprint's live-value provider, row 58's unbuilt half.
+            //    🔴 This call used to say "no live-value provider yet" and pass none, so the Details
+            //    Value column rendered (pending) forever — the DESIGNED output for a source with no
+            //    reader, which is exactly why nothing looked broken and the row was merged half-built.
+            //    ⭐ Same INTERFACE as BTree/HSM, different SOURCE: theirs reads BrainBlackboard through
+            //    BehaviorRegistry; this one reads the blueprint debug session's state snapshot.
+            //    📌 R-67 — the Blueprint registrar is the one that has forgotten a service four times,
+            //    so the argument is passed here rather than defaulted somewhere downstream.
+            //    ⭐⭐ The composition root resolves the blueprint session and hands the READ — so the
+            //    provider never type-tests the shared registry, and BlueprintRuntimeInspectorPane keeps
+            //    sole ownership of the paused-pointer-vs-live rule.
+            var blueprintLiveValueProvider = new BlueprintLiveValueProvider(
+                readerFactory: () => debugRegistry.ActiveSession is IBlueprintDebugSession bp
+                    ? (self, assetId) =>
+                          Hrot.Blueprints.Editor.Inspector.BlueprintRuntimeInspectorPane
+                              .ResolveInspectorSnapshot(bp, self, assetId)
+                    : null,
+                store: _blueprintSelectionStore);
+
+            // ⭐ Blueprint still has no host-specific validator -- and it SAYS so, rather than
+            //   expressing that by omitting a whole argument list's worth of shared services.
             _blueprintRegistrar = perspectiveServices.CreateRegistrar(
                 "Blueprint", _blueprintSelectionStore,
-                validators: Array.Empty<Hrot.Editor.AiShared.Validation.IAssetValidator>());
+                validators: Array.Empty<Hrot.Editor.AiShared.Validation.IAssetValidator>(),
+                liveValueProvider: blueprintLiveValueProvider);
 
             // Document manager — activated doc drives perspective switch.
             _aiDocumentManager = new AiDocumentManager(_perspectiveSwitcher);
