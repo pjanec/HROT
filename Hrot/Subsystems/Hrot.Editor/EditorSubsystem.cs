@@ -266,7 +266,22 @@ namespace Hrot.Editor
         private DefaultSelectionState? _selectionState;
         private Hrot.ScenarioEditor.Gizmos.RubberBandState? _rubberBandState;
         private Hrot.ScenarioEditor.Systems.SelectionInteractionSystem? _selectionSystem;
-        private Hrot.Editor.AiShared.Selection.EditorSelectionStore _aiEditorSelectionStore = new();
+        // ⭐⭐⭐ Batch 95 (95b) — THE SELECTED ENTITY, ONCE, for every store this subsystem holds.
+        // 🔴🔴 Measured: this editor builds FOUR EditorSelectionStores and calls
+        //    CallbackSelectionBridge.Connect exactly ONCE, on _aiEditorSelectionStore below. ⇒
+        //    SelectedEntity was null on all three PERSPECTIVE stores, always ⇒ every live-value
+        //    provider returned null on its second line ⇒ every Details/Watch row on every host read
+        //    "(pending)" for ever. ⚠ The comment beside the two AI providers further down asserted the
+        //    opposite ("Both selection stores share the same entity selection (global)") — it was
+        //    false, and that is why the gap survived four batches of fixes on the same two paths.
+        // 📄 AI_Editor_Shared_Infrastructure.md:450 — "SelectedEntity stays global because entities
+        //    exist independently of which asset is being edited"; :45 — the store is "the single
+        //    selection bus all three editors subscribe to". ⇒ this restores the design, it does not
+        //    invent a policy.
+        // ⛔ NOT three more Connect() calls: that is the shape PerspectiveWorkspaceServices exists to
+        //    abolish. ⭐ One fact, read by every store; the bridge still connects exactly one.
+        private readonly Hrot.Editor.AiShared.Selection.SharedEntitySelection _sharedEntitySelection = new();
+        private readonly Hrot.Editor.AiShared.Selection.EditorSelectionStore _aiEditorSelectionStore;
         private Hrot.Editor.AiShared.Selection.CallbackSelectionBridge? _selectionBridge;
         // ?? Behavior registry (promoted for tooltip rendering) ?????????????????
 
@@ -317,9 +332,12 @@ namespace Hrot.Editor
         // TODO: wire from BlueprintEditorPreferences.AutoReloadOnSave when the prefs instance is
         //       reachable here (the prefs window lives in a different composition scope).
         private bool _blueprintAutoReloadOnEdit = false;
-        private EditorSelectionStore           _btreeSelectionStore  = new();
-        private EditorSelectionStore           _hsmSelectionStore    = new();
-        private EditorSelectionStore           _blueprintSelectionStore = new();
+        // ⭐⭐ Batch 95 (95b) — all three join _sharedEntitySelection, assigned in the constructor.
+        //    ⛔ Not a field initializer: C# forbids one instance field initializer reading another,
+        //    and the whole point is that these four stores read ONE cell.
+        private readonly EditorSelectionStore  _btreeSelectionStore;
+        private readonly EditorSelectionStore  _hsmSelectionStore;
+        private readonly EditorSelectionStore  _blueprintSelectionStore;
         private PerspectiveWorkspaceRegistrar? _btreeRegistrar;
         private PerspectiveWorkspaceRegistrar? _hsmRegistrar;
         private PerspectiveWorkspaceRegistrar? _blueprintRegistrar;
@@ -504,6 +522,19 @@ namespace Hrot.Editor
         internal Hrot.Editor.AiShared.Debug.DebugSessionRegistry? AiDebugRegistry => _aiDebugRegistry;
 
         /// <summary>
+        /// ⭐⭐⭐ Batch 95 (<c>95b</c>) — internal test hook: <b>the ONE store the selection bridge
+        /// writes to.</b>
+        ///
+        /// <para>⭐ <c>CallbackSelectionBridge.Connect</c>'s entire action is
+        /// <c>store.SelectedEntity = entity</c> on this store, so writing here IS how production
+        /// selects an entity. ⛔ A rail that instead wrote to a PERSPECTIVE store would assert the
+        /// defect away rather than expose it — the whole finding is that the perspective stores are
+        /// not the ones production writes.</para>
+        /// </summary>
+        internal Hrot.Editor.AiShared.Selection.EditorSelectionStore AiEditorSelectionStore
+            => _aiEditorSelectionStore;
+
+        /// <summary>
         /// ⭐⭐⭐ Batch 95 (<c>95a</c>) — internal test hook: the registrar a perspective actually got.
         ///
         /// <para>📌 <c>R-67</c>, verbatim: <i>"a rail that builds its own composition root cannot see a
@@ -581,11 +612,25 @@ namespace Hrot.Editor
         // ctor for unit tests
         public EditorSubsystem()
         {
+            // ⭐⭐⭐ Batch 95 (95b) — EVERY selection store this editor holds reads ONE entity cell.
+            // 🔴🔴 The bridge connects exactly one store (_aiEditorSelectionStore), and the three
+            //    PERSPECTIVE stores were connected to nothing ⇒ their SelectedEntity was null for
+            //    ever ⇒ every live-value provider bailed on its second line and every Details/Watch
+            //    row on every host rendered "(pending)".
+            // ⛔ NOT three more Connect() calls — that is the shape PerspectiveWorkspaceServices
+            //    exists to abolish. ⭐ The selected entity is ONE FACT ABOUT THE WORLD, held once.
+            // 📄 AI_Editor_Shared_Infrastructure.md:450 already specified it global; this restores it.
+            // ⚠ In the constructor and not a helper: the fields are readonly, which is what stops a
+            //   later edit from quietly giving one store a cell of its own.
+            _aiEditorSelectionStore  = new Hrot.Editor.AiShared.Selection.EditorSelectionStore(_sharedEntitySelection);
+            _btreeSelectionStore     = new EditorSelectionStore(_sharedEntitySelection);
+            _hsmSelectionStore       = new EditorSelectionStore(_sharedEntitySelection);
+            _blueprintSelectionStore = new EditorSelectionStore(_sharedEntitySelection);
         }
 
 
         // ctor for ClusterRunner
-        public EditorSubsystem( INetworkFactory _ )
+        public EditorSubsystem( INetworkFactory _ ) : this()
         {
             // we do not use the injected network factory in the offline editor,
             // but we accept it in the constructor to satisfy the dependency graph and allow for future online features.
@@ -2131,8 +2176,13 @@ namespace Hrot.Editor
             // BATCH-11: Build the live-value provider for the Blackboard Authoring window's Value column.
             // Captures _fdpRepoAdapter (set in Initialize, null until simulation runs) and _behaviorRegistry
             // via lambdas so both perspectives share the same live-world source.
-            // Both selection stores share the same entity selection (global), so we use one provider
-            // instance per perspective; both read the same entity via their respective store.
+            // ⭐⭐⭐ Batch 95 (95b) — this sentence is now TRUE BY CONSTRUCTION, and it was FALSE when
+            //    it was written: the four stores each held a private entity field and only
+            //    _aiEditorSelectionStore was ever written, so "both read the same entity via their
+            //    respective store" described an intention, not the code. ⇒ every provider below
+            //    returned null on its entity gate and every row read "(pending)" for ever.
+            // ⭐ All four stores now share one SharedEntitySelection (see the constructor), so one
+            //    provider instance per perspective is again the right shape.
             var btreeLiveValueProvider = new LiveBlackboardValueProvider(
                 sessionFactory:  () => _fdpRepoAdapter,
                 registryFactory: () => _behaviorRegistry,

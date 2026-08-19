@@ -13,10 +13,36 @@ public sealed class EditorSelectionStore
     // Set of assets with at least one window currently open.
     private readonly HashSet<Guid> _openAssets = new();
 
-    // Global entity selection -- independent of which asset is active.
-    private Entity? _selectedEntity;
+    // ⭐⭐⭐ Batch 95 (95b) — global entity selection, independent of which asset is active AND of
+    //    which store you ask. 🔴 It used to be a private field per store, and the editor holds FOUR
+    //    stores while exactly ONE of them was ever connected to the selection bridge ⇒ the other
+    //    three answered null for ever and every live-value provider bailed on its second line.
+    // 📄 AI_Editor_Shared_Infrastructure.md:450 — "SelectedEntity stays global because entities exist
+    //    independently of which asset is being edited". ⇒ the fix restores what the design said.
+    private readonly SharedEntitySelection _entity;
 
     public event Action? OnSelectionChanged;
+
+    /// <param name="sharedEntity">
+    ///   ⭐⭐ The entity cell this store reads and writes. ⛔ <b>Optional, and a store given none gets
+    ///   its OWN</b>, so every standalone and test construction is unchanged. ⚠ A production host with
+    ///   more than one store must pass the SAME cell to all of them — 📌 the rail that proves it did is
+    ///   on the constructed composition root, not on this signature.
+    /// </param>
+    public EditorSelectionStore(SharedEntitySelection? sharedEntity = null)
+    {
+        _entity = sharedEntity ?? new SharedEntitySelection();
+        // ⭐ A change made through ANY store reaches every store's subscribers. ⛔ Without this the
+        //   cell would be shared and the Details panel would still repaint on its own schedule.
+        _entity.Changed += () => OnSelectionChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// ⭐ The entity cell this store shares. ⚠ Exposed so a rail can assert two stores are on the SAME
+    /// bus — 📌 <c>M-22</c>: an argument having been passed is not the claim; one fact reaching both
+    /// readers is.
+    /// </summary>
+    public SharedEntitySelection SharedEntity => _entity;
 
     /// <summary>The asset whose editor canvas has focus. Set by window-focus handlers.</summary>
     public IEditableAsset? ActiveAsset
@@ -57,16 +83,16 @@ public sealed class EditorSelectionStore
         OnSelectionChanged?.Invoke();
     }
 
-    /// <summary>Globally-selected entity for runtime debug overlay.</summary>
+    /// <summary>
+    /// Globally-selected entity for runtime debug overlay.
+    /// ⭐⭐ Batch 95 (<c>95b</c>) — routed through <see cref="SharedEntity"/>, so a selection made on
+    /// ANY store is visible from every store. ⛔ The change notification is raised by the cell, not
+    /// here, or a store that did not make the change would not repaint.
+    /// </summary>
     public Entity? SelectedEntity
     {
-        get => _selectedEntity;
-        set
-        {
-            if (_selectedEntity == value) return;
-            _selectedEntity = value;
-            OnSelectionChanged?.Invoke();
-        }
+        get => _entity.Selected;
+        set => _entity.Selected = value;
     }
 
     // ── WHICH SURFACE the designer is working in (user ruling, 2026-08-18) ──
