@@ -134,11 +134,19 @@ public sealed class HsmGoldenCorpusTests
     // ── the harness is honest about what it measures ────────────────────────
 
     /// <summary>
-    /// ⭐⭐ <b>The harness emits the SAME parts the production generator does.</b>
+    /// ⭐⭐ <b>The harness knows every part the production generator can emit.</b>
     /// ⚠ The parts list is a denormalised copy of <c>HsmJsonGenerator.GenerateOneAsset</c> — the shape
     /// this programme keeps filing defects about — so it is <b>pinned rather than trusted</b>: if the
     /// generator gains or loses an <c>AddSource</c>, this reddens instead of the baseline quietly
     /// measuring the wrong thing.
+    ///
+    /// <para>⭐⭐⭐ <b>Batch 92 widened this from "the parts it DID emit" to "the parts it CAN emit."</b>
+    /// ⛔ The old form compared the scraped <c>AddSource</c> list against <c>SampleGuard</c>'s emitted
+    /// parts, which silently assumed <b>every part is unconditional</b>. 🔴 The orchestrator arm
+    /// (<c>92b</c>) is emitted only for an asset with an alias — no corpus asset has one — so the old
+    /// assertion reddened on a correctly-omitted file. ⇒ ⭐ the drift guard now runs against
+    /// <see cref="AiAssetKind.AllHintNames"/> at full strength, and the harness is separately held to
+    /// emitting only parts from that list.</para>
     /// </summary>
     [Fact]
     public void TheHarnessEmitsTheSamePartsTheGeneratorDoes()
@@ -149,10 +157,20 @@ public sealed class HsmGoldenCorpusTests
             .Select(m => m.Groups[1].Value)
             .ToList();
 
+        Assert.Equal(addSourceHints, Kind.AllHintNames);
+    }
+
+    /// <summary>
+    /// ⭐⭐ The other half: ⛔ the harness may not INVENT a part, and may not reorder them.
+    /// ⚠ <c>SampleGuard</c> has no alias, so its emitted set is a strict subset — that is the point.
+    /// </summary>
+    [Fact]
+    public void TheHarnessEmitsOnlyPartsTheGeneratorCanEmitInOrder()
+    {
         var harnessHints = Kind.Emit(
             AiAssetCorpus.ReadAsset(Kind, "SampleGuard")).Select(p => p.HintName).ToList();
 
-        Assert.Equal(addSourceHints, harnessHints);
+        Assert.Equal(harnessHints, Kind.AllHintNames.Where(harnessHints.Contains).ToList());
     }
 
     /// <summary>

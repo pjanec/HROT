@@ -48,7 +48,22 @@ public sealed record AiAssetKind(
     /// calls the production generator makes, in the same order — that is what makes the baseline a
     /// baseline of what ships rather than of a test's idea of it.
     /// </summary>
-    Func<string, IReadOnlyList<(string HintName, string Source)>> Emit)
+    Func<string, IReadOnlyList<(string HintName, string Source)>> Emit,
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 92 — EVERY hint the production generator can emit, in <c>AddSource</c> order.</b>
+    ///
+    /// <para>⚠ <b>Why this is separate from what <see cref="Emit"/> returns.</b> Not every part is
+    /// unconditional: <c>{Name}.Orchestrators.g.cs</c> is emitted only when the asset has an alias or a
+    /// sync group, and BTree's <c>{Name}.Blackboard.g.cs</c> only for a managed blackboard with
+    /// variables. ⇒ ⛔ comparing the generator's <c>AddSource</c> list against ONE asset's emitted
+    /// parts would redden for a conditional part the corpus does not exercise — which is exactly what
+    /// happened when the orchestrator arm landed.</para>
+    ///
+    /// <para>⭐ So the drift guard compares the scraped <c>AddSource</c> list against THIS, at full
+    /// strength, and separately requires the harness's emitted parts to be an ordered subset of it.
+    /// ⛔ The harness can then neither miss a part the generator gained nor invent one.</para>
+    /// </summary>
+    IReadOnlyList<string> AllHintNames)
 {
     /// <summary>
     /// ⭐ <b>HSM.</b> The emitted parts are exactly <c>HsmJsonGenerator.GenerateOneAsset</c>'s two
@@ -66,12 +81,19 @@ public sealed record AiAssetKind(
         {
             var dto = HsmJsonServices.Deserialize(json)
                       ?? throw new InvalidDataException("Deserialized null.");
-            return new (string, string)[]
+            var parts = new List<(string, string)>
             {
                 ("g.cs",           HsmEmitCore.EmitTopologyCore(dto)),
                 ("Registrar.g.cs", HsmBridgeEmitCore.EmitBridge(dto)),
             };
-        });
+            // ⭐ Batch 92 (92b): mirrors the generator exactly — the orchestrator part exists only when
+            //   the core has something to emit. ⛔ No corpus asset has an alias, so this adds nothing
+            //   today; that is precisely why the golden cannot move.
+            var orchestrators = HsmOrchestratorEmitCore.Emit(dto);
+            if (orchestrators != null) parts.Add(("Orchestrators.g.cs", orchestrators));
+            return parts;
+        },
+        AllHintNames:       new[] { "g.cs", "Registrar.g.cs", "Orchestrators.g.cs" });
 
     /// <summary>
     /// ⭐ <b>BTree — the SHAPE tier only, and that limit is deliberate.</b>
@@ -101,7 +123,11 @@ public sealed record AiAssetKind(
         Canonicalize:       json => BTreeJsonServices.Serialize(
                                 BTreeJsonServices.Deserialize(json)
                                 ?? throw new InvalidDataException("Deserialized null.")),
-        Emit:               _ => Array.Empty<(string, string)>());
+        Emit:               _ => Array.Empty<(string, string)>(),
+        AllHintNames:       new[]
+                            {
+                                "g.cs", "Blackboard.g.cs", "Registrar.g.cs", "Orchestrators.g.cs",
+                            });
 }
 
 /// <summary>The corpus itself: where it lives, what is in it, and how it is ordered.</summary>
