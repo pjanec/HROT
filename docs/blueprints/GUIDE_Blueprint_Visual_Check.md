@@ -1,148 +1,149 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-18
-current-answer: this whole file (refreshed 2026-08-18 for Batches 84-86)
-note: covers the surfaces Batches 82-86 built. The older GUIDE_Track_C_Visual_Check.md
-  parts B (Inspector default value) and F (change highlighting) still stand and are not
-  repeated here; its parts C/D/E are superseded by parts B-F below.
+updated: 2026-08-19
+current-answer: this whole file - rewritten for Batches 87 and 88, and to correct
+  FIVE rows the 2026-08-18 run proved wrong.
+stale-below: nothing. The previous revision's part-D framing ("BP-327: no OK button")
+  and its "BTree/HSM out of scope" fence are BOTH gone - do not quote them.
+known-rot: none known. Every "not built" claim below names the command that measured it
+  on 2026-08-19; re-measure rather than trusting the sentence.
+note: GUIDE_Track_C_Visual_Check.md parts B (Inspector default value) and F (change
+  highlighting) still stand and are not repeated here.
 -->
 
-# GUIDE — **Blueprint visual check**, post-Batch-86
+# GUIDE — **the visual check**, post-Batch-88
 
-> ⭐⭐⭐ **THE SUSPENSION IS LIFTED — for Blueprint.** 📌 **`R-21`** *(user, `2026-08-14`)* held every
-> visual check until *"the Details panel is implemented and the emitters and all access infrastructure
-> are unified."* ⇒ ✅ **Details panel — Batch 82** · ✅ **emitters + access — Batch 56 and stage `C`.**
-> ⛔⛔ **STILL SUSPENDED for BTree and HSM** — 📌 **`R-60`: they have no Details window at all**
-> *(`BP-317`, sequencing row 61)*. ⚠ **Do not check them and do not record failures there.**
+> ⭐⭐⭐ **THE SUSPENSION IS LIFTED ON ALL THREE HOSTS.** 📌 **`R-21`** held every visual check until
+> *"the Details panel is implemented and the emitters and all access infrastructure are unified."*
+> ⇒ ✅ **Blueprint** *(Batch 82)* · ✅⭐ **BTree and HSM** — **Batch 88b built `AiDetailsWindow`**.
+> ⛔⛔ **The previous revision's fence — *"do not check BTree/HSM"* — IS GONE.** 📌 **`M-21`.**
 >
-> ⭐ **Every row below ends in a PASS/FAIL you can write down.** ⛔ **Nothing asks you to judge whether
+> ⭐ **Every row ends in a PASS/FAIL you can write down.** ⛔ **Nothing asks you to judge whether
 > something "seems right"** — each expectation cites the ruling it comes from.
-> ⏱ **Budget: ~30 minutes.** ⭐ **Do the parts in order** — each uses what the previous one opened.
+> ⏱ **Budget: ~40 minutes** *(was 30; part H is new)*. ⭐ **Do the parts in order.**
 
 ---
 
-## 0. ⛔⛔ TWO THINGS THAT WILL CHANGE — **do NOT record them as pass criteria**
+## 0. ⛔⛔⛔ READ THIS FIRST — **five rows of the last edition were WRONG**
 
-| ⚠ | what will change | ⭐ check this instead |
-|---|---|---|
-| ✅ **the SECTION LIST — RESOLVED `2026-08-18`, Batch 86** | ⭐⭐ **There is now ONE state section.** `DeclarationKind` is `{ Parameter, Variable }` and the **Working State section is RETIRED.** ⇒ ⛔ **seeing two is now a FINDING, not expected** | ⭐ Check `[+]` still creates the right kind and that no section is empty-but-present |
-| ⚠ **the SET of `Variables` windows** | 📌 **`R-10`/`R-11`: `U-16` retires some** *(row 60)*. The current names are an interim | ⭐ **check they are DISTINGUISHABLE.** ⛔ **Do not memorise which exist** |
+⚠ **The `2026-08-18` run reported eight failures. FOUR were errors in the guide, not in the product**
+*(📄 [`FINDINGS_VisualCheck_PostBatch86.md`](FINDINGS_VisualCheck_PostBatch86.md) §2)*, ⭐ **and a fifth
+is new.** ⛔ **All five are corrected below. Do not re-report them from the old edition.**
 
-## 0a. ⛔ NOT BUILT YET — **a failure here is expected, not a finding**
-
-| ⛔ | owner |
+| was | ⭐ now |
 |---|---|
-| 🔴🔴 **ANY edit completing at all — part D will FAIL** | 📌 **`BP-327`: the dialog has NO OK BUTTON.** The write path is built and **reachable only from code**; `VariableEditLauncher.Open` returns a session **no surface draws**. ⇒ ⭐ **the menu items now FIRE (Batch 84) but no dialog appears.** ⛔ **Not a new finding — do not re-report it** |
-| ⭐ **where a default value CAN be edited today** | **`InspectorWindow`'s node-scoped panel** *(labelled `DEFAULT VALUE — {var}`)* — ⭐ it draws and commits inline, and shares the ONE write path |
-| **editing a value while the sim is RUNNING or PAUSED** | ✅ **built in Batch 84** — Planning ⇒ JSON · Paused ⇒ live blackboard · Running/Replay ⇒ refuses. ⚠ **but see `BP-327`** |
-| ⚠⚠ **`E6` — editing from a Watch row: it depends WHICH watch window you are looking at** | 📌 **`BP-330`**: there are **two**. **`WatchPanelWindow`** *(blueprint-only)* **HAS** the gestures — ⭐ **`E6` should pass there.** ⛔ **`AiWatchWindow`** *(shared, all three perspectives)* has **`_control` private with no accessor**, so nothing can attach the gesture binder ⇒ **`E6` FAILS there, and that is known.** ⇒ ⭐⭐ **Record WHICH window you used** — that is the whole value of the row |
-| **a Details panel on BTree / HSM** | **`BP-317`**, row 61 |
-| **`GroupBy` / fold persistence, the `Type` toggle persisting** | 🔴 **`2.7`** — not built *(settled Batch 79)* |
+| **`D1`** *"click the `⋮`"* | ⛔ **there is no `⋮` button** — ⭐ **it is a RIGHT-CLICK menu.** ⚠ Ruling 5 wants *"a three-dot button AND double-click"*; **the button half was never built** |
+| **`C7`** *"live values while running"* | ⚠ **`88a` made the *Blackboard Variables* window live** — ⛔ **Details is still `(pending)` on ALL THREE hosts** *(`BP-334`)* |
+| **`E2`–`E7`** *"pin a variable…"* | ⛔ **watch PINNING is still not built.** ⭐ **Only `E1` is runnable** |
+| **`C2`** *"read a declared default"* | ⚠ **depends on part D**, which is still blocked — ⭐ **now has its own route, see `C2`** |
+| 🔴 **part D** *"`BP-327`: the dialog has no OK button"* | ⛔⛔ **THAT DIAGNOSIS IS DEAD.** Batch 87 built the modal — ⭐ **but nothing DRAWS it.** See `0a` |
+
+## 0a. ⛔ NOT BUILT — **a failure here is EXPECTED. Record it, do not diagnose it**
+
+| ⛔ | 📐 measured `2026-08-19` |
+|---|---|
+| 🔴🔴 **THE EDIT DIALOG STILL DOES NOT APPEAR — part D will fail, for a NEW reason** | ⭐⭐ **`VariableEditModal` is built and exposed** *(`PerspectiveWorkspaceRegistrar:328`/`:602`)*, and **its `Draw()` has ZERO callers — production or test.** `grep -rn "EditModal" --include=*.cs` ⇒ **construction · the property · two test asserts. No frame ever calls it.** ⚠⚠ **This is one level up from `BP-327`**: Batch 84 built the write path nothing drew, Batch 87 built the dialog **nothing calls**. ⛔ **Report part D as blocked; do NOT re-diagnose it** |
+| ⛔ **watch PINNING** | `PinnedVariableRowSource` exists and `AiWatchWindow.Pinned` exposes it — ⭐ **nothing in production ADDS to it.** ⇒ `E2`–`E7` unrunnable |
+| ⛔ **the `⋮` three-dot button** | `VariableTableControl.DrawRowMenu` opens on **`BeginPopupContextItem()`** — right-click only |
+| ⚠ **the Value column in DETAILS** | **`BP-334`** — `ILiveBlackboardValueProvider` has **exactly ONE consumer** *(`BlackboardAuthoringWindow:524`)*; the Details table's live arm is `readRaw`, which **no production caller passes** ⇒ ⭐⭐ **`(pending)` in Details is a KNOWN gap on every host** |
+| ⚠ **`GroupBy` / fold persistence / the `Type` toggle persisting** | not built *(settled Batch 79)* |
+
+## 0b. ⭐⭐ WHAT BATCH 87 FIXED — **these are now the REGRESSION rows**
+
+⭐ **`B3`, `B8`, `E6` and the row menus were the last run's REAL defects.** ⇒ ⛔ **a failure in any of
+them is a REGRESSION, and the single most valuable thing this run can find.**
 
 ---
 
-## A. My Blueprint — the outline ✅ *(Batch 80/82)*
+## A. My Blueprint — the outline *(Blueprint)*
 
 | # | do | expect | ✔ |
 |---|---|---|---|
 | **A1** | Blueprint perspective, open any blueprint asset | the **My Blueprint** panel is present, populated | ☐ |
-| **A2** | Read the section list | ⭐⭐ **ONE state section** *(Batch 86)* — ⛔⛔ **a `Working State` section is now a FINDING**; `Inputs`/`Parameters` stay separate *(`R-08`)* | ☐ |
+| **A2** | Read the section list | ⭐⭐ **ONE state section** *(Batch 86)* — ⛔⛔ **a `Working State` section HERE is a FINDING.** ⚠ **On BTree/HSM it is CORRECT — see part H** | ☐ |
 | **A3** | Find **`Local Variables`** | present, and the **only graph-scoped** section | ☐ |
-| **A4** | Switch graph on the canvas | ⭐ **`Local Variables` follows the canvas** — contents change | ☐ |
+| **A4** | Switch graph on the canvas | ⭐ **`Local Variables` follows the canvas** | ☐ |
 | **A5** | Find a section with no declarations | ⭐⭐ **renders EMPTY with its header — ⛔ does not vanish** | ☐ |
-| **A6** | Click any section's **`[+]`** | ⭐ **the same new-variable dialog opens for EVERY section** — 📌 **`R-17`** *(user, `2026-08-17`: "must open new variable dialog same as any other variable section")* | ☐ |
+| **A6** | Click any section's **`[+]`** | ⭐ **the same new-variable dialog for EVERY section** *(`R-17`)* | ☐ |
 | **A7** | Open a **Macro** graph, click `[+]` on `Local Variables` | ⭐ **refuses OUT LOUD** — ⛔ not a silent no-op | ☐ |
-| **A8** | Look for a **Role** or **Scope** dropdown, anywhere | ⛔⛔ **there is none.** 📌 The SECTION is the classification *(`2026-08-16` ruling)* | ☐ |
+| **A8** | Look for a **Role** or **Scope** dropdown, anywhere | ⛔⛔ **there is none.** The SECTION is the classification | ☐ |
 
 ---
 
-## B. ⭐⭐ Details hosts the TABLE ✅ *(Batch 82 — `U-6`)*
+## B. ⭐⭐ Details hosts the TABLE
 
-> 📌 **`Q32` ruling 1:** *"Details hosts the list of vars."* · 📌 **design §1:** ⛔ *"The table is never
-> replaced by a single-variable form."*
+> 📌 **`Q32` ruling 1:** *"Details hosts the list of vars."* · ⛔ *"The table is never replaced by a
+> single-variable form."*
 
 | # | do | expect | ✔ |
 |---|---|---|---|
-| **B1** | Click a variable row in **My Blueprint** | ⭐⭐⭐ **the Details panel shows a TABLE of variables** — ⛔⛔ **NOT a property form for the one you clicked** | ☐ |
-| **B2** | Look at which rows are in it | ⭐ **every variable of that row's SECTION** — 📌 *"selection yields a SECTION, not a variable"* | ☐ |
-| **B3** | Find the row you clicked | ⭐ it is **highlighted** inside the table | ☐ |
-| **B4** | Read the column headers | ⭐ **`Name` · `Value` · `Type`** — ⛔⛔ **no `Bytes`, no `Role`, no `Scope`** *(design §1: "Bytes, Role and Scope go")* | ☐ |
-| **B5** | Click a **`Local Variables`** row | ⭐ the table shows **the CURRENT graph's locals**, and the heading **names the graph** | ☐ |
-| **B6** | Switch graph on the canvas while showing locals | ⭐ the table **follows** | ☐ |
-| **B7** | Click a **Graph** / **Function** / **Macro** node in the outline | ⭐⭐ **the table LETS GO** — ⛔ **it must not leave a stale variable list beside an unrelated selection** | ☐ |
-| **B8** | Click a **node on the canvas**, then a variable, then the node again | ⭐ **last selection wins BOTH ways** — the panel switches arms each time | ☐ |
+| **B1** | Click a variable row in **My Blueprint** | ⭐⭐⭐ **a TABLE of variables** — ⛔⛔ **NOT a property form** | ☐ |
+| **B2** | Look at which rows are in it | ⭐ **every variable of that row's SECTION** | ☐ |
+| **B3** | ⭐⭐ **REGRESSION ROW** — find the row you clicked | ⭐ it is **highlighted** inside the table. 📌 **Batch 87 fixed this** *(computed, never drawn)* ⇒ ⛔ **a failure is a REGRESSION** | ☐ |
+| **B4** | Read the column headers | ⭐ **`Name` · `Value` · `Type`** — ⛔⛔ **no `Bytes`, `Role` or `Scope`** | ☐ |
+| **B5** | Click a **`Local Variables`** row | the **CURRENT graph's** locals; the heading **names the graph** | ☐ |
+| **B6** | Switch graph while showing locals | the table **follows** | ☐ |
+| **B7** | Click a **Graph** / **Function** / **Macro** node in the outline | ⭐⭐ **the table LETS GO** — ⛔ no stale list beside an unrelated selection | ☐ |
+| **B8** | ⭐⭐ **REGRESSION ROW** — click a **canvas node**, then a variable, then **the node again** | ⭐ **the panel switches arms EVERY time, both directions.** 📌 **Batch 87 fixed this** *(`R-95` — the panel obeys the focused SURFACE, not the selected payload)* ⇒ ⛔ **a failure is a REGRESSION** | ☐ |
 
 ---
 
-## C. ⭐⭐ The Value column ✅ *(Batch 83 — row 58)*
+## C. ⭐⭐ The Value column
 
-> 📌 **ruling 3:** *"ONE Value column, meaning switched by run state — **initial** when not running,
-> **current** when running or paused."* · 📌 **ruling 4:** *"Value is READ-ONLY in the cell."*
-
-**With the sim NOT running:**
-
-| # | do | expect | ✔ |
-|---|---|---|---|
-| **C1** | Count the value columns | ⭐⭐ **exactly ONE** — ⛔ not an *Initial* column beside a *Current* one | ☐ |
-| **C2** | Read a variable that has a declared default | its **initial value** | ☐ |
-| **C3** | Read one with **no** declared default | ⭐ the type's **zero value** *(`0`, `false`, …)* — ⛔ **not blank, not `--`** | ☐ |
-| **C4** | Try to type into a value cell | ⛔ **you cannot.** The cell is read-only *(ruling 4)* | ☐ |
-| **C5** | Hover a **struct** value | ⭐⭐ tooltip is **pretty-printed, multi-line, one field per line** | ☐ |
-| **C6** | Look at any row's value width | ⭐ **one line, never wrapping, never growing the row** *(design §4b)* | ☐ |
-
-**With the sim RUNNING** *(load a scenario, let it tick)*:
-
-| # | do | expect | ✔ |
-|---|---|---|---|
-| **C7** | Watch the same variable | ⭐⭐ **the SAME column now shows the CURRENT value**, and it changes as the sim runs | ☐ |
-| **C8** | Look for raw hex, anywhere | ⛔⛔ **NEVER raw hex** — 📌 **`BP-01`, closed Batch 83**. A hex string is a **regression**, report it loudly | ☐ |
-| **C9** | Find a variable declared but never written by the run | ⭐ **`(pending)`** — ⛔ **not `<unreadable>`**, which claims a decode failure that did not happen | ☐ |
-
-> 🟡 **KNOWN, already filed — do not re-report.** A **struct** renders in two notations: `{"X":1.0,"Y":2.0}`
-> when not running, `{X=1.0, Y=2.0, …}` when running. ⭐ **Ruling 3 switches the column's MEANING, not
-> its NOTATION.** ⚠ **Cosmetic; queued for the next batch.**
-
----
-
-## D. ⚠⚠ The edit dialog — **EXPECT D1 TO PASS AND D2 ONWARD TO FAIL** *(📌 `BP-327`)*
-
-> ⭐ **The menu items exist and fire** *(Batch 84 wired them)*, ⛔ **but no surface draws the session**,
-> so no dialog appears. ⭐⭐ **Run D1 to confirm the menu; record D2-D11 as blocked on `BP-327`, not as
-> new findings.** ⚠ **The one live editor is `InspectorWindow`'s `DEFAULT VALUE — {var}` panel.**
-
-> 📌 **ruling 5:** a three-dot button *"opens a StructEdit-based editing window, OK / Cancel,
-> initialised to the variable's current value."* · 📌 **design §3–§4:** ⭐ **ONE dialog, TWO scopes, and
-> the USER picks which.**
+> 📌 **ruling 3:** *"ONE Value column, meaning switched by run state."* · **ruling 4:** *"Value is
+> READ-ONLY in the cell."*
 
 **Sim NOT running:**
 
 | # | do | expect | ✔ |
 |---|---|---|---|
-| **D1** | Click the **`⋮`** right of a value | a menu with ⭐ **"Edit value…"** and ⭐ **"Properties…"** | ☐ |
-| **D2** | **Double-click the VALUE cell** | the **value** dialog — ⭐ same as "Edit value…" | ☐ |
-| **D3** | **Double-click the NAME cell** | the **Properties** dialog — ⭐ the full attribute set | ☐ |
-| **D4** | In Properties, find **Type** | ⭐⭐ **a type PICKER**, and it offers **structs** as well as primitives *(`S5` made it one list)* | ☐ |
-| **D5** | Change a **Type**, press OK, reopen | ⭐ **it stuck** | ☐ |
-| **D6** | Change a **value**, press OK, reopen | ⭐ **it stuck** — this wrote `DefaultValueJson` | ☐ |
-| **D7** | Change something, press **Cancel**, reopen | ⛔ **nothing changed** | ☐ |
-| **D8** | Look in Properties for **Role** / **Scope** | ⛔⛔ **absent.** Not a property on any host | ☐ |
-| **D9** | Press **F2** on a row | ⭐ inline rename, and ⭐ **the rename propagates** *(the refactor service ran)* | ☐ |
-| **D10** | Rename via **Properties → Name** instead | ⭐ **same result** — ⛔ two routes, one mechanism | ☐ |
-| **D11** | Do **D1–D3** from a **My Blueprint** row instead of a table row | ⭐⭐ **identical gestures, identical dialogs** *(design §4: "identical on every surface")* | ☐ |
+| **C1** | Count the value columns | ⭐⭐ **exactly ONE** | ☐ |
+| **C2** | ⭐ **CORRECTED ROUTE.** Select a node with a bound parameter variable, and read its default in **`InspectorWindow`'s `DEFAULT VALUE — {var}` panel**; then find that same variable in the Details table | ⭐ **the same initial value in both.** ⚠ **The Inspector panel is the ONLY live default editor today** — ⛔ **do not go looking for one in the table**, part D is blocked | ☐ |
+| **C3** | Read one with **no** declared default | the type's **zero value** — ⛔ not blank, not `--` | ☐ |
+| **C4** | Try to type into a value cell | ⛔ **you cannot** *(ruling 4)* | ☐ |
+| **C5** | Hover a **struct** value | ⭐⭐ tooltip **pretty-printed, multi-line, one field per line** | ☐ |
+| **C6** | Look at any row's value width | ⭐ **one line, never wrapping** | ☐ |
 
----
-
-## E. ⭐⭐ The Watch panel ✅ *(Batch 83 — row 59b, `BP-01` closed)*
+**Sim RUNNING** *(load a scenario, let it tick)*:
 
 | # | do | expect | ✔ |
 |---|---|---|---|
-| **E1** | Open **Watch** with the sim **NOT running** | ⭐⭐ **it shows NOTHING** *(row 59b: "show nothing before the run")* — ⛔ not stale rows, not `--` | ☐ |
-| **E2** | Start the sim, pin a variable | the row appears with a **decoded value** | ☐ |
-| **E3** | Compare that row against the same variable in **Details** | ⭐⭐ **same value, same formatting** — ⛔ they read one formatter now | ☐ |
-| **E4** | Look for raw hex | ⛔⛔ **`BP-01`. None** | ☐ |
-| **E5** | Pin variables from **two different assets** | ⭐ both appear, mixed, each with its own identity | ☐ |
-| **E6** | Use `⋮` / double-click on a Watch row — ⚠ **and NOTE which watch window you are in** | ⭐⭐ **the SAME dialog as Details** *(ruling 11 — "SHARE it")*. ⚠ **See §0a — `BP-330`: only one of the two watch windows has the gestures.** ⛔ Record the window, not just PASS/FAIL | ☐ |
-| **E7** | Close an asset that has a pinned row | ⭐ the row goes **stale**: last value, **greyed** | ☐ |
+| ⚠ **C7** | ⛔⛔ **CORRECTED — do NOT expect live values in Details.** Watch a variable in the **Details** table while the sim runs | ⭐⭐ **`(pending)`, and that is the KNOWN state — 📌 `BP-334`.** ⛔ **Record it as PASS-as-expected.** ⚠ **A live value here would be a surprise worth reporting** | ☐ |
+| ⭐ **C7b** | ⭐ **NEW — this is what `88a` actually delivered.** Open the **Blackboard Variables** window *(not Details)* on a **Blueprint** asset while the sim runs | ⭐⭐ **the Value column shows LIVE values and they change.** ⛔ **A `(pending)` here IS a finding** — that is `88a`'s deliverable | ☐ |
+| **C8** | Look for raw hex, anywhere | ⛔⛔ **NEVER raw hex** *(`BP-01`, closed Batch 83)* — a hex string is a **regression** | ☐ |
+| **C9** | Find a variable declared but never written | ⭐ **`(pending)`** — ⛔ not `<unreadable>` | ☐ |
+
+> 🟡 **KNOWN, do not re-report.** A struct renders `{"X":1.0,"Y":2.0}` when not running and
+> `{X=1.0, Y=2.0}` when running. ⭐ Ruling 3 switches the column's MEANING, not its NOTATION. Cosmetic.
+
+---
+
+## D. ⚠⚠ The edit dialog — **EXPECT D1 TO PASS AND D2 ONWARD TO FAIL**
+
+> ⛔⛔ **The reason CHANGED.** The old edition blamed `BP-327` *("no OK button")*. ⭐ **Batch 87 built
+> the modal — and `VariableEditModal.Draw()` has no caller** *(§0a)*, so no dialog can appear.
+> ⭐⭐ **Run `D1` and `D1b` to confirm the MENU; record `D2`–`D11` as blocked, not as new findings.**
+
+| # | do | expect | ✔ |
+|---|---|---|---|
+| ⭐ **D1** | ⛔ **CORRECTED — there is no `⋮`.** **RIGHT-CLICK** a table row | a menu with **"Edit value…"** and **"Properties…"** | ☐ |
+| ⭐ **D1b** | ⭐⭐ **REGRESSION ROW — right-click a row in EACH of: Details · the standalone Variables window · the Watch** | ⭐⭐⭐ **the menu appears in ALL of them.** 📌 **Batch 87's fix** *(one attach point, `BoundTables`)* — ⛔ **a table with no menu is a REGRESSION** | ☐ |
+| **D2** | **Double-click the VALUE cell** | *(blocked — expect nothing)* | ☐ |
+| **D3** | **Double-click the NAME cell** | *(blocked)* | ☐ |
+| **D4**–**D8** | ⛔ **skip — all require an open dialog** | *(blocked)* | ☐ |
+| **D9** | Press **F2** on a row | ⭐ inline rename — ⚠ **this does NOT go through the modal**, so it may work. **Record which** | ☐ |
+| **D10** | Rename via **Properties → Name** | *(blocked)* | ☐ |
+| **D11** | Right-click a **My Blueprint** row | ⭐⭐ **the same menu as a table row** *(design §4: "identical on every surface")* | ☐ |
+
+---
+
+## E. ⭐⭐ The Watch panel
+
+| # | do | expect | ✔ |
+|---|---|---|---|
+| **E1** | Open **Watch** with the sim **NOT running** | ⭐⭐ **it shows NOTHING** — ⛔ not stale rows, not `--` | ☐ |
+| ⛔ **E2**–**E7** | ⛔⛔ **SKIP — watch pinning is not built** *(§0a)*. ⭐ **Do not record failures here** | — | — |
+| ⭐ **E6b** | ⭐ **the runnable remnant of `E6`:** right-click a row in **each** watch window | ⭐⭐ **both offer the menu** *(`BP-330` closed, Batch 87)*. ⛔ The dialog still will not open — that is `D`, not `E` | ☐ |
 
 ---
 
@@ -150,26 +151,49 @@ note: covers the surfaces Batches 82-86 built. The older GUIDE_Track_C_Visual_Ch
 
 > 📌 **User ruling, `2026-08-17`, verbatim:** *"disabling/graying a `[+]` … but showing explanatory
 > tooltip would be better than allowing user to click the button and then saying that it is not
-> possible — **same information value, no false expectations**."*
+> possible — same information value, no false expectations."*
 
 | # | do | expect | ✔ |
 |---|---|---|---|
-| **F1** | With the sim **RUNNING or PAUSED**, open **Properties…** | ⭐ **read-only** — ⛔ you cannot retype a variable mid-run | ☐ |
-| **F2** | With the sim **RUNNING or PAUSED**, try **Edit value…** | ⛔ **it REFUSES** — ⭐ **that is row `59c`, Batch 84, not a defect.** ⚠ **Record HOW it refuses** | ☐ |
-| **F3** | For every refusal above | ⭐⭐ **greyed + a tooltip that says WHY** — ⛔⛔ **a click that dead-ends is a FINDING** | ☐ |
+| **F1** | Sim **RUNNING/PAUSED**, open **Properties…** | *(blocked by D — record as blocked)* | ☐ |
+| **F2** | Sim **RUNNING/PAUSED**, try **Edit value…** | ⭐ **the menu item is GREYED or it refuses.** ⚠ **Record HOW** — ⛔ the refusal is reachable even though the dialog is not | ☐ |
+| **F3** | For every refusal | ⭐⭐ **greyed + a tooltip saying WHY** — ⛔⛔ **a click that dead-ends is a FINDING** | ☐ |
 | **F4** | In **replay** | ⛔ everything read-only | ☐ |
+
+---
+
+## H. ⭐⭐⭐ NEW — **the Details panel on BTree and HSM** *(Batch 88b, `BP-317`)*
+
+> ⭐ **This part has never been run.** ⛔ **The old edition forbade it.** 📌 `M-21`.
+> ⭐⭐ **The window is `AiDetailsWindow`**, titled **`Details`**, ids `ai_details_btree` /
+> `ai_details_hsm`, **one per perspective**.
+
+| # | do | expect | ✔ |
+|---|---|---|---|
+| **H1** | Switch to the **BTree** perspective, open a `.btree` asset | ⭐⭐ **a window titled `Details` exists** — ⛔ its absence is the whole batch failing | ☐ |
+| **H2** | Repeat on **HSM** | ⭐ **the same** | ☐ |
+| **H3** | Read the **My Blueprint** section list here | ⭐⭐ **`Inputs` · `Working State` · `Asset Globals`.** ⛔⛔ **A `Working State` section here is CORRECT** — ⚠ **the opposite of `A2`**, because `R-01`'s collapse is a *blueprint* declaration-kind ruling, not a blackboard-role one | ☐ |
+| **H4** | Click a variable row in the outline | ⭐⭐ **Details shows the TABLE of that section** — ⛔ not a form, exactly as `B1` | ☐ |
+| **H5** | Find the row you clicked | ⭐ **highlighted** *(same mechanism as `B3`)* | ☐ |
+| **H6** | Click a section, then something with no variables | ⭐ **the panel CLEARS** — ⛔ no stale list *(`B7`)* | ☐ |
+| **H7** | With nothing selected | ⭐ **`"No variable selected."`** — ⛔ **not a blank window** | ☐ |
+| **H8** | Right-click a row | ⭐ **the menu appears** *(the AI hosts go through the same one attach point)* | ☐ |
+| ⚠ **H9** | Sim running — read the Value column | ⭐ **`(pending)` — EXPECTED**, 📌 `BP-334`, same as `C7` | ☐ |
+| ⛔ **H10** | Click a **canvas node** here | ⚠ **Details does NOT switch to a node view** — ⭐ **by design**: this window has **one arm**; the AI node surface is `InspectorWindow`, which stays. ⛔ **Not a finding** | ☐ |
 
 ---
 
 ## G. ⭐ How to report
 
 ⭐ **Per row: the id, PASS or FAIL, and — if FAIL — what you saw.** ⛔ **Do not diagnose**; a screenshot
-or one sentence is enough.
+or one sentence is enough. ⭐⭐ **"PASS-as-expected" is a valid result** for the known-gap rows.
 
 | ⭐ especially worth writing down | why |
 |---|---|
-| ⭐⭐⭐ **anything that renders as HEX** | `BP-01` was closed in Batch 83 — a hex string is a **regression**, not an old bug |
-| ⭐⭐ **any click that dead-ends** without saying why | `F3` — the user ruling above |
-| ⭐⭐ **the Details panel showing a FORM instead of a TABLE** | ⛔ that inverts `U-6`'s whole design |
-| ⭐ **a stale list left beside an unrelated selection** | `B7` |
-| ⛔ **BTree / HSM anything** | ⭐ **out of scope — `R-60`.** Not a finding |
+| ⭐⭐⭐ **`B3` · `B8` · `D1b` · `E6b` failing** | **Batch 87 fixed all four** ⇒ a failure is a **REGRESSION**, the highest-value finding available |
+| ⭐⭐⭐ **anything rendering as HEX** | `BP-01` was closed in Batch 83 |
+| ⭐⭐ **any click that dead-ends** without saying why | `F3` |
+| ⭐⭐ **Details showing a FORM instead of a TABLE** | inverts `U-6`'s whole design |
+| ⭐⭐ **part H failing at `H1`/`H2`** | Batch 88b's entire deliverable |
+| ⭐ **a LIVE value in Details** *(`C7`/`H9`)* | ⚠ **the opposite of a defect** — it would mean `BP-334` is wrong |
+| ⛔ **`D2`–`D8`, `E2`–`E7`** | ⭐ **known-blocked. Record once, do not investigate** |

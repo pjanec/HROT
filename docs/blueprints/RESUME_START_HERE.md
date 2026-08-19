@@ -24,8 +24,8 @@ stale-below: everything from "## 1." down is HISTORY from earlier sessions. Do n
 |---|---|
 | ✅ **Batch 88 is MERGED** | `BP-317` closed · `BP-333`/`BP-334`/`BP-335` allocated · tracker **66 / 204** · plan **revision 34** |
 | ⭐⭐⭐ **what it unlocked** | **BTree and HSM now HAVE a Details window** *(`AiDetailsWindow`)* ⇒ **`R-21`/`R-62`'s blocker is lifted on ALL THREE hosts** — 📌 **`M-21`** |
-| ⛔⛔ **fix the guide before running it** | **five** rows are wrong: four were MY errors *(`D1`'s `⋮`, `C7`, `E2`–`E7`, `C2`)*, and the fifth is new — ⭐ **`BP-334`: the Value column reads `(pending)` on Details for EVERY host.** ⚠ **Name it in the guide** or the checker reports a known gap as a new defect |
-| ⚠ **also extend it** | the guide is Blueprint-only; ⭐ **BTree and HSM now have a Details panel to check** |
+| ✅ **the guide is FIXED** *(`2026-08-19`)* | five wrong rows corrected · the BTree/HSM fence removed · ⭐ **part `H`** added for `AiDetailsWindow` · ⭐⭐ **`B3`/`B8`/`D1b`/`E6b` marked as REGRESSION rows** *(Batch 87 fixed all four)* · **`BP-334`** named so `(pending)` reads as a known gap |
+| 🔴🔴 **and fixing it found a defect** | **`VariableEditModal.Draw()` has ZERO callers** ⇒ ⭐ **the edit dialog STILL cannot appear** — 📄 plan group `A`, row **`A6`**. ⚠ **Part D of the check is blocked for a NEW reason; `BP-327` is not the cause any more** |
 | ⛔ **do NOT schedule `Q38`** | `R-27` — ⭐ **and `Q38`'s own `R5` agrees.** The visual check comes first |
 
 ## 0a. ⭐⭐ Where things stand
