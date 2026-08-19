@@ -61,16 +61,25 @@ public sealed class VariableEditGestureBinderTests
     // ══ §3 — which gesture opens which scope ═════════════════════════════════
 
     /// <summary>
-    /// ⭐⭐⭐ <b>The VALUE cell opens the VALUE scope; the NAME cell opens the WHOLE object.</b>
+    /// ⭐⭐⭐ <b>INVERTED, Batch 96 (<c>96b</c>) — BOTH gestures open the WHOLE VALUE.</b>
     ///
-    /// <para>
-    /// ⚠ Asserted on the SESSION's scope, not on the action the binder recorded: the action is what
-    /// this class chose, the scope is what the user gets. ⛔ Checking the former would let the binder
-    /// agree with itself while the launcher mapped it the other way round.
-    /// </para>
+    /// <para>⛔⛔⛔ <b>THIS RAIL IS WHY THE DEFECT SURVIVED, and the reason is worth keeping.</b> It was
+    /// the ONLY test that asserted the resulting DOCUMENT rather than the scope object — 📌 exactly
+    /// what the findings said was missing — ⚠ <b>and its fixture is the one shape in which the bug is
+    /// INVISIBLE</b>: a variable named <c>Count</c> whose type is <c>DemoVar { int Count; float Speed;
+    /// }</c>. ⇒ the old <c>ForField("$.Count")</c> DID match a node — <b>the DTO's own <c>Count</c>
+    /// member</b> — so the rail saw <i>"the field"</i> and called it correct.</para>
+    ///
+    /// <para>🔴 <b>It was the wrong node.</b> The session is opened over the variable's VALUE, so
+    /// <c>$</c> IS the value; <c>$.Count</c> is <i>a member inside it</i>. For every variable NOT named
+    /// after one of its own fields — including the user's plain <c>int</c> — it matched nothing and the
+    /// dialog drew an empty body.</para>
+    ///
+    /// <para>⭐ Asserted on the SESSION's document, not on the action the binder recorded: the action is
+    /// what this class chose, the document is what the designer gets.</para>
     /// </summary>
     [Fact]
-    public void TheValueCellOpensTheFieldScope_AndTheNameCellTheWholeObject()
+    public void BothGesturesOpenTheWholeValueDocument()
     {
         var (binder, _) = Make(VariableRunState.Planning);
 
@@ -82,20 +91,15 @@ public sealed class VariableEditGestureBinderTests
         Assert.NotNull(binder.ActiveSession);
         var wholeRoot = binder.ActiveSession!.Document.Root;
 
-        // ⭐⭐ The VALUE gesture scopes to the field: the builder retains exactly that node and
-        //    ApplyScope returns it AS THE ROOT, so the document IS the one field.
-        Assert.Equal("$.Count", fieldRoot.JsonPath);
+        // ⭐⭐⭐ Batch 96 — BOTH are the whole value, with both of DemoVar's fields.
+        // 🔴 The first line used to read Assert.Equal("$.Count", fieldRoot.JsonPath) — see the summary:
+        //    that node is the DTO's own Count member, matched only because this fixture's variable
+        //    happens to be named after one of its own fields.
+        Assert.Equal("$", fieldRoot.JsonPath);
+        Assert.Equal(2, fieldRoot.Children.Count);
 
-        // ⭐ The NAME gesture keeps the whole component — both of DemoVar's fields.
         Assert.Equal("$", wholeRoot.JsonPath);
         Assert.Equal(2, wholeRoot.Children.Count);
-
-        // ⛔⛔ THE DEFECT THIS WIRING FOUND. Before Batch 75, ScopeFor passed the bare variable name
-        //    while FilterNode matches node.JsonPath ("$.Count") ⇒ nothing matched, ApplyScope fell
-        //    through to an EMPTY "$" SelectionRoot, and the value dialog opened blank. ⚠ Both cases
-        //    have zero CHILDREN, which is why a child-count assertion could not tell them apart —
-        //    the JsonPath is what distinguishes "the field" from "nothing".
-        Assert.NotEqual(fieldRoot.JsonPath, wholeRoot.JsonPath);
     }
 
     /// <summary>
