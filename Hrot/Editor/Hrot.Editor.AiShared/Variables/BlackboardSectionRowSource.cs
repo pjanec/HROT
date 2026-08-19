@@ -112,6 +112,12 @@ public sealed class BlackboardSectionRowSource : IVariableRowSource
             HasEverBeenWritten: bytes.Length > 0,
             // ⭐ Row 58 — the INITIAL arm. The authored entry already carries its default, so the
             //   planning cell shows what the variable will START as rather than "(pending)".
-            ReadInitialJson: () => v.DefaultValueJson);
+            ReadInitialJson: () => v.DefaultValueJson,
+            // ⭐⭐⭐ Batch 94 (94e) — the LIVE (pending) arm, so a PINNED row stops reporting its
+            //    pin-time answer. Same rule as HasEverBeenWritten above, asked again on each read.
+            ReadWritten: reader == null
+                             ? null
+                             : () => { try { return (reader(readName)?.Length ?? 0) > 0; }
+                                       catch { return false; } });
     }
 }

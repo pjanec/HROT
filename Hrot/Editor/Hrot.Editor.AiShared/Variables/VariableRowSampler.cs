@@ -47,6 +47,7 @@ public sealed class VariableRowSampler
         public bool    Taken;
         public byte[]  Bytes = Array.Empty<byte>();
         public object? Object;
+        public bool    Written;
     }
 
     private readonly Dictionary<(Guid, Entity, string), Cell> _byRow = new();
@@ -102,8 +103,16 @@ public sealed class VariableRowSampler
                 catch { obj = null; }
             }
 
+            // ⭐⭐ Batch 94 (94e) — (pending) is sampled on the SAME pulse as the value. ⛔ Reading
+            //    it per repaint would break rule 3 as surely as reading the value would, and a cell
+            //    whose text and whose "(pending)" disagreed would be worse than either.
+            bool written;
+            try { written = row.WrittenNow; }
+            catch { written = row.HasEverBeenWritten; }
+
             sample.Bytes   = bytes;
             sample.Object  = obj;
+            sample.Written = written;
             sample.AtPulse = pulse;
             sample.Taken   = true;
         }
@@ -113,10 +122,13 @@ public sealed class VariableRowSampler
         byte[]  cachedBytes  = sample.Bytes;
         object? cachedObject = sample.Object;
 
+        bool cachedWritten = sample.Written;
+
         return row with
         {
             ReadValue       = () => cachedBytes,
             ReadValueObject = row.ReadValueObject is null ? null : () => cachedObject,
+            ReadWritten     = () => cachedWritten,
         };
     }
 }

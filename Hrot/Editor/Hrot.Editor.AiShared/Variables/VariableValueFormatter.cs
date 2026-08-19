@@ -85,7 +85,9 @@ public sealed class VariableValueFormatter
 
         // ✅ Already designed and shipped on the Watch side via !HasEverBeenWritten -- "nothing before
         //    the run" is a state, not an empty value.
-        if (!row.HasEverBeenWritten) return PendingFirstWrite;
+        // ⭐ Batch 94 (94e): WrittenNow, ⛔ never the raw field — a pinned row would otherwise
+        //   keep reporting its pin-time answer for ever.
+        if (!row.WrittenNow) return PendingFirstWrite;
 
         var decoded = Decode(row);
         if (decoded is null) return Unreadable;
@@ -108,7 +110,9 @@ public sealed class VariableValueFormatter
                 : "Initial value\n" + initial;
         }
 
-        if (!row.HasEverBeenWritten) return PendingFirstWrite;
+        // ⭐ Batch 94 (94e): WrittenNow, ⛔ never the raw field — a pinned row would otherwise
+        //   keep reporting its pin-time answer for ever.
+        if (!row.WrittenNow) return PendingFirstWrite;
 
         var decoded = Decode(row);
         if (decoded is null)

@@ -305,6 +305,56 @@ public sealed class TrackCWiringTests : IDisposable
             HasEverBeenWritten: true);
 
     /// <summary>
+    // ══ Batch 94 (94f) — the watch gesture reaches the store ═════════════════
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 94 (<c>94f</c>) — a table's watch toggle reaches THIS perspective's Watch store.</b>
+    ///
+    /// <para>⭐⭐ Asserted on the CONSTRUCTED registrar — 📌 <c>R-67</c>. The gesture is wired through
+    /// <c>IVariableTableHost</c>, i.e. the SAME one place the edit gestures go, so a fifth table host
+    /// added later cannot miss it.</para>
+    ///
+    /// <para>⭐ It is a TOGGLE resolved against the STORE, ⛔ not a remembered flag — two panels can pin
+    /// the same variable and only the store knows what is pinned.</para>
+    /// </summary>
+    [Fact]
+    public void TheWatchToggleReachesThePinnedStore()
+    {
+        var reg = MakeRegistrar(breakpoints: new StubBreakpointManager());
+        var table = ((Hrot.Editor.AiShared.Variables.IVariableTableHost)reg.Variables).VariableTable;
+        Assert.NotNull(table);
+
+        var row = new VariableRow(
+            Origin:    new VariableRowOrigin(Guid.NewGuid(), default, "s", "Health", "Alpha"),
+            ShortName: "Health", TypeText: "int", ClrType: typeof(int),
+            ReadValue: () => Array.Empty<byte>());
+
+        var isWatched = table!.IsWatched;
+        Assert.NotNull(isWatched);
+        Assert.False(isWatched!(row), "nothing is pinned yet");
+
+        table.RaiseWatchToggleForTest(row);
+        Assert.True(isWatched!(row));
+        Assert.Single(reg.Watch!.Pinned.GetRows());
+
+        // ⭐ …and toggling again UNPINS, rather than pinning a second copy.
+        table.RaiseWatchToggleForTest(row);
+        Assert.False(isWatched!(row));
+        Assert.Empty(reg.Watch!.Pinned.GetRows());
+    }
+
+    /// <summary>
+    /// ⚠ A perspective built with NO breakpoint manager has no Watch window ⇒ nothing is wired, and
+    /// the entry honestly reports "not pinned". ⛔ Not a crash, and not a silent pin into nowhere.
+    /// </summary>
+    [Fact]
+    public void WithNoWatchWindowTheToggleIsSimplyNotWired()
+    {
+        var reg = MakeRegistrar();                      // no breakpoint manager
+        Assert.Null(reg.Watch);
+        Assert.Null(((Hrot.Editor.AiShared.Variables.IVariableTableHost)reg.Variables).VariableTable!.IsWatched);
+    }
+
     /// Minimal stub for IDataBreakpointManager providing only what the windows
     /// use (AllBreakpoints for drawing, identity for equality checks).
     /// </summary>

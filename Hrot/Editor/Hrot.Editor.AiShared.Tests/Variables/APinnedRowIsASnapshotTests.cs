@@ -98,26 +98,31 @@ public sealed class APinnedRowIsASnapshotTests
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <b><c>(pending)</c> freezes with the value, and that is the SECOND half of the design
-    /// question.</b> 📌 <c>BP-338</c> made <c>HasEverBeenWritten</c> a per-name, per-frame MEASUREMENT
-    /// — but it is a <c>bool</c> on the record, decided when the row is built. ⇒ ⛔ <b>a variable the
-    /// run writes AFTER it was pinned reads <c>(pending)</c> in the Watch forever</b>, while Details
-    /// shows its value. ⚠ Guide row <c>C9</c> is about the opposite error; this is its mirror.
+    /// ⭐⭐⭐ <b><c>(pending)</c> UNPENDS, INVERTED.</b> 🔴 Batch 93 asserted that a variable the run
+    /// starts writing AFTER the pin says <c>(pending)</c> for ever. ✅ Batch 94 (<c>94e</c>) added the
+    /// optional <c>ReadWritten</c> arm, so the answer is asked again rather than remembered.
+    ///
+    /// <para>⚠ <b>The raw field is deliberately still frozen</b> — it is the pin-time answer and the
+    /// record is immutable. ⭐ What changed is that every reader asks <see cref="VariableRow.WrittenNow"/>
+    /// instead, which prefers the arm. ⛔ The <c>bool</c> was NOT widened *(<c>Q46</c> §4e)*.</para>
     /// </summary>
     [Fact]
-    public void PendingFreezesToo_SoAVariableWrittenAfterPinningNeverUnpends()
+    public void PendingUnpendsWhenTheRunStartsWritingAfterThePin()
     {
         var map     = new Dictionary<string, object>();          // nothing written yet
         var section = ObjectArmSource(() => map, "Health");
 
         var pinned = new PinnedVariableRowSource();
         pinned.Pin(section.GetRows()[0]);
-        Assert.False(pinned.GetRows()[0].HasEverBeenWritten, "nothing was written at pin time");
+        Assert.False(pinned.GetRows()[0].WrittenNow, "nothing was written at pin time");
 
         map["Health"] = 42;                                      // the run writes it
 
-        Assert.True(section.GetRows()[0].HasEverBeenWritten,  "Details notices the write");
-        Assert.False(pinned.GetRows()[0].HasEverBeenWritten, "⛔ the Watch never will — invert on the fix");
+        Assert.True(section.GetRows()[0].WrittenNow, "Details notices the write");
+        Assert.True(pinned.GetRows()[0].WrittenNow,  "✅ Batch 94; 🔴 Batch 93 asserted false");
+
+        // ⚠ …and the pin-time FIELD is still what it was, which is why readers must ask WrittenNow.
+        Assert.False(pinned.GetRows()[0].HasEverBeenWritten);
     }
 
     // ══ what is NOT broken ════════════════════════════════════════════════════

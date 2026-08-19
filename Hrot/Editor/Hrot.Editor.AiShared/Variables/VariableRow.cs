@@ -41,6 +41,19 @@ public delegate ReadOnlySpan<byte> ReadRawValue();
 public delegate object? ReadObjectValue();
 
 /// <summary>
+/// ⭐⭐⭐ <b>Batch 94 (<c>94e</c>) — reads whether the run has written this variable, <b>as of now</b>.</b>
+///
+/// <para>📌 <c>BP-338</c> made <see cref="VariableRow.HasEverBeenWritten"/> a per-name, per-frame
+/// MEASUREMENT — ⚠ but it is a <c>bool</c> on an immutable record, decided when the row is built.
+/// Details rebuilds every frame so it stays honest; ⛔ a PINNED row never rebuilds, so a variable the
+/// run starts writing AFTER the pin reads <c>(pending)</c> for ever.</para>
+///
+/// <para>⭐ Supplying this arm makes the answer live, on exactly the same terms as
+/// <see cref="ReadObjectValue"/>: optional, trailing, and preferred when present.</para>
+/// </summary>
+public delegate bool ReadHasEverBeenWritten();
+
+/// <summary>
 /// ⭐⭐⭐ Reads <b>THIS row's</b> asset tick (§4a).
 ///
 /// <para>
@@ -125,8 +138,25 @@ public sealed record VariableRow(
     // ⭐ Preferred over ReadValue when present (VariableValueFormatter.Decode), because a host that
     //   already HAS the decoded value must not be made to re-encode it — REPORT_Batch88 §2.2, option (a).
     // ⚠ It does NOT need ClrType: an object carries its own type. The byte arm does, to decode.
-    ReadObjectValue?  ReadValueObject = null)
+    ReadObjectValue?  ReadValueObject = null,
+    // ⭐⭐⭐ Batch 94 (94e) — the LIVE arm of HasEverBeenWritten. null by default and PREFERRED when
+    //    present: the exact shape Batch 90 established for ReadValueObject just above.
+    // 🔴 Why: HasEverBeenWritten is a bool decided when the row is BUILT. Details rebuilds every
+    //    frame so it stays true; a PINNED row never rebuilds ⇒ a variable the run starts writing
+    //    AFTER you pinned it read "(pending)" for ever, while Details showed its value.
+    //    📄 Q46 §1 "the same bug, second face"; ⚠ guide row C9 is about the opposite error.
+    // ⛔ The bool was NOT widened into a delegate — 3 production and ~28 test sites name it, and an
+    //   optional arm changes ZERO of them (Q46 §4e, ruling 9: one precedent, not a new idiom).
+    ReadHasEverBeenWritten? ReadWritten = null)
 {
+    /// <summary>
+    /// ⭐⭐ <b>Has this variable ever been written, as of NOW.</b> ⭐ Prefers <see cref="ReadWritten"/>
+    /// when the source supplied one, and falls back to the value decided at build time.
+    /// ⛔ Every reader must ask THIS, never the raw <see cref="HasEverBeenWritten"/> field — otherwise
+    /// a pinned row keeps reporting its pin-time answer.
+    /// </summary>
+    public bool WrittenNow => ReadWritten?.Invoke() ?? HasEverBeenWritten;
+
     /// <summary>§5 — <i>"editability = run state ∧ row kind"</i>. ⛔ 🔒 and node-owned rows never get a
     /// writable dialog, in either mode; a stale row gets no dialog at all.</summary>
     public bool CanEverBeWritten => RowKind == VariableRowKind.Normal && !IsStale;

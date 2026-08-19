@@ -249,6 +249,33 @@ public sealed class VariableTableControl
     /// <para>⚠ Both live entries respect <c>CanEverBeWritten</c>, so a stale or node-owned row shows
     /// them disabled rather than firing a dialog that would refuse.</para>
     /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ Batch 94 (<c>94f</c>) — raised when the designer toggles this row's watch pin.
+    /// ⛔ The control does not own the store; the host wires this to <c>PinnedVariableRowSource</c>.
+    /// </summary>
+    public event Action<VariableRow>? WatchToggleRequested;
+
+    /// <summary>
+    /// ⭐ Asks the host whether this row is currently pinned, so the entry can be a real TOGGLE.
+    /// ⛔ Null ⇒ "not pinned", which is the right answer for a host with no Watch panel.
+    /// </summary>
+    public Func<VariableRow, bool>? IsWatched { get; set; }
+
+    /// <summary>
+    /// ⛔ Rails only — raises <see cref="WatchToggleRequested"/> without an ImGui context.
+    /// ⭐ 📌 <c>R-21</c>/<c>R-62</c>: the menu itself cannot be driven headlessly, so the rail exercises
+    /// the WIRING and <c>VariableWatchGesture</c> covers the rule the menu renders.
+    /// </summary>
+    internal void RaiseWatchToggleForTest(VariableRow row) => WatchToggleRequested?.Invoke(row);
+
+    /// <summary>
+    /// ⭐ The run state, for the watch gesture's refusal rule. ⛔ Set by the host beside its model's
+    /// own <c>RunState</c>; the view carries a <c>VariableValueMode</c>, which is a narrower thing.
+    /// ⚠ Defaults to <c>Planning</c>, where the gesture is ALLOWED — a host that forgets to set it
+    /// gets the permissive state, and pinning while planning is explicitly legal *(spec §7)*.
+    /// </summary>
+    public VariableRunState RunState { get; set; } = VariableRunState.Planning;
+
     private void DrawRowMenu(VariableRow row)
     {
         if (!ImGui.BeginPopupContextItem()) return;
@@ -260,6 +287,20 @@ public sealed class VariableTableControl
 
         if (ImGui.MenuItem("Properties…", null, false, writable))
             PropertiesRequested?.Invoke(row);
+
+        // ⭐⭐⭐ Batch 94 (94f) — ENTRY POINT 2 of the watch gesture (the other is the My Blueprint
+        //    row menu). ⛔ One command, two surfaces: a one-surface gesture re-creates the split U-6
+        //    removed.
+        // ⭐ The RULE is VariableWatchGesture.Decide, not this draw path — 📌 R-21/R-62: no headless
+        //   rail can drive ImGui, so the decision is asserted there and only the rendering is here.
+        ImGui.Separator();
+        var watch = VariableWatchGesture.Decide(row, RunState, IsWatched?.Invoke(row) ?? false);
+        if (ImGui.MenuItem(watch.Label, null, false, watch.Enabled) && watch.Enabled)
+            WatchToggleRequested?.Invoke(row);
+        // ⭐⭐ Refused by GREYING WITH A REASON — ⛔ never a click that dead-ends.
+        if (!watch.Enabled && watch.DisabledReason is { } why && ImGui.IsItemHovered(
+                ImGuiHoveredFlags.AllowWhenDisabled))
+            ImGui.SetTooltip(why);
 
         ImGui.EndPopup();
     }

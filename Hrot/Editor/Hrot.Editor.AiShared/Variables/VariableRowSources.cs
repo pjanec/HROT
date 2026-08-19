@@ -103,8 +103,13 @@ public sealed class SectionVariableRowSource : IVariableRowSource
         //    ABSENCE ⇒ (pending). A provider that could not project a variable simply omits it, so
         //    absence is free and meaningful. ⚠ A live map that exists but lacks this name is NOT
         //    "written with a zero" — that would be the regression, not the fix.
-        bool hasLiveObject = live != null && live.ContainsKey(v.Name);
-        if (hasLiveObject)
+        // ⭐⭐⭐ Batch 94 (94e) — the OBJECT ARM IS CHOSEN BY THE PROVIDER, NOT BY THIS FRAME'S MAP.
+        //    🔴 It used to be `live != null && live.ContainsKey(v.Name)`, i.e. a row for a variable the
+        //    run had not yet written took the BYTE arm and got no live arms at all ⇒ once pinned it
+        //    could never unpend — which is precisely the case "(pending)" exists for.
+        // ⭐ A host that has a live-object provider gets an object-arm row unconditionally; whether
+        //   the variable is written yet is then asked per read, not baked in.
+        if (_liveObjects != null)
         {
             // ⭐⭐⭐ Batch 94 (94a) — A CAMERA, NOT A PHOTOGRAPH.
             //    🔴 This used to be `var value = live![v.Name]; … () => value` — a closure over THIS
@@ -122,13 +127,20 @@ public sealed class SectionVariableRowSource : IVariableRowSource
                 readObject:  () => _liveObjects?.Invoke() is { } m && m.TryGetValue(name, out var cur)
                                        ? cur
                                        : null,
-                written:     true);
+                // ⭐⭐ THE HONESTY RULE, and guide row C9 depends on it: presence in the map ⇒ written;
+                //    ABSENCE ⇒ (pending). A provider that could not project a variable simply omits
+                //    it, so absence is free and meaningful. ⚠ A live map that exists but lacks this
+                //    name is NOT "written with a zero" — that would be the regression, not the fix.
+                written:     live != null && live.ContainsKey(name),
+                writtenNow:  () => _liveObjects?.Invoke()?.ContainsKey(name) == true);
         }
 
         // ⭐ The byte arm, unchanged in shape. ⚠ Presence is now MEASURED — a reader that returns no
         //   bytes for this name has not written it, which is the same rule the object arm follows.
         var reader = _readRaw;
         if (reader == null)
+            // ⛔ No arm here: with no reader at all nothing can ever say the variable was written,
+            //   so a live arm would only re-answer `false` at a cost.
             return NewRow(v, kind, () => Array.Empty<byte>(), readObject: null, written: false);
 
         byte[] cached;
@@ -145,12 +157,15 @@ public sealed class SectionVariableRowSource : IVariableRowSource
             () => { try { return reader(readName) ?? Array.Empty<byte>(); }
                     catch { return Array.Empty<byte>(); } },
             readObject: null,
-            written:    cached.Length > 0);
+            written:    cached.Length > 0,
+            writtenNow: () => { try { return (reader(readName)?.Length ?? 0) > 0; }
+                                catch { return false; } });
     }
 
     private VariableRow NewRow(
         VariableViewModel v, VariableRowKind kind,
-        ReadRawValue readValue, ReadObjectValue? readObject, bool written)
+        ReadRawValue readValue, ReadObjectValue? readObject, bool written,
+        ReadHasEverBeenWritten? writtenNow = null)
         => new(
             Origin:    new VariableRowOrigin(_assetId, _entity, _section, v.Name, _assetName),
             ShortName: v.Name,
@@ -166,7 +181,11 @@ public sealed class SectionVariableRowSource : IVariableRowSource
             HasEverBeenWritten: written,
             // ⭐ Row 58 — the INITIAL arm, from whatever the schema source knows.
             ReadInitialJson: () => v.DefaultValueJson,
-            ReadValueObject: readObject);
+            ReadValueObject: readObject,
+            // ⭐⭐⭐ Batch 94 (94e) — the LIVE (pending) arm. 📌 Same rule as `written` above, asked
+            //    again each time it is read: presence in this frame's live map, or non-empty bytes.
+            //    ⇒ a variable the run starts writing after the row was PINNED stops saying (pending).
+            ReadWritten: writtenNow);
 }
 
 /// <summary>A source over a fixed row list. ⭐ Used by §9's heterogeneous rail, and by any host that

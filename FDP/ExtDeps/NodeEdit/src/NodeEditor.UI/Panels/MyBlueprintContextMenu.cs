@@ -27,6 +27,25 @@ internal static class MyBlueprintContextMenu
         ImGui.EndPopup();
     }
 
+    /// <summary>⭐ The variable-watch command id. ⛔ NOT <c>CommandCatalog.ToggleWatch</c>, which is
+    /// pin-scoped — 📌 <c>BP-346</c>. Kept as a literal so this panel gains no dependency on the
+    /// editor's variable assembly.</summary>
+    internal const string ToggleVariableWatchCommandId = "editor.toggle-variable-watch";
+
+    /// <summary>
+    /// ⭐ Renders the watch toggle, greyed with a reason when no host has registered the command.
+    /// </summary>
+    internal static void DrawWatchMenuItem(MyBlueprintItem item, IEditorCommands commands)
+    {
+        bool available = commands.Get(ToggleVariableWatchCommandId) is not null;
+
+        if (ImGui.MenuItem("Watch this variable", null, false, available))
+            Invoke(commands, ToggleVariableWatchCommandId, item.ItemId);
+
+        if (!available && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+            ImGui.SetTooltip($"Not implemented ({ToggleVariableWatchCommandId})");
+    }
+
     // ── per-kind menus ────────────────────────────────────────────────────────
 
     private static void DrawForSectionId(
@@ -76,6 +95,16 @@ internal static class MyBlueprintContextMenu
             Invoke(commands, "editor.create-variable-get", item.ItemId);
         if (ImGui.MenuItem("Set"))
             Invoke(commands, "editor.create-variable-set", item.ItemId);
+        ImGui.Separator();
+        // ⭐⭐⭐ Batch 94 (94f) — ENTRY POINT 1 of the watch gesture; the other is the Details table
+        //    row menu. ⛔ ONE command, TWO surfaces — a one-surface gesture re-creates the split U-6
+        //    removed.
+        // ⭐⭐ The id is DISTINCT from CommandCatalog.ToggleWatch, which exists and is PIN-scoped
+        //    (IDebugSession.ToggleWatch(PinId)) — 📌 BP-346. Reusing it would silently bind the
+        //    variable gesture to the canvas pin-watch command.
+        // ⚠ Greyed WITH A REASON when no host registered it, exactly as the "+" items are (BP-12e):
+        //    ⛔ never a click that dead-ends.
+        DrawWatchMenuItem(item, commands);
         ImGui.Separator();
         if (ImGui.MenuItem("Find References", "Ctrl+Shift+F"))
             Invoke(commands, "editor.find-references", item.ItemId);

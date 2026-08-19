@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using Fdp.Presentation.Editing;
 using Fdp.Presentation.WindowManager;
@@ -344,8 +345,9 @@ public class PerspectiveWorkspaceRegistrar
             //    every frame; sharing one ImGui id was correct only because `if (!IsOpen) return` fires
             //    first for the other two — an undocumented guard between two popups with one id.
             EditModal = new VariableEditModal(EditGestures, _runState, idScope: suffix);
-            AttachEditGestures(Variables);
         }
+
+
 
         // ⭐⭐⭐ Batch 80 — DERIVED, not required. The registrar already knows its perspective, so the
         //    host kind is not information a caller can supply better; leaving it to be passed is what
@@ -464,6 +466,19 @@ public class PerspectiveWorkspaceRegistrar
             //    accessor, so this could not have been written before IVariableTableHost existed.
             AttachEditGestures(Watch);
         }
+
+        // ⭐⭐⭐ Batch 94 (94f) — the standalone Variables table, attached HERE and not earlier, for
+        //    TWO reasons that both bit during this batch:
+        // 🔴 ① It used to sit INSIDE `if (facetEditService != null)`, so a perspective built without
+        //    an edit service got no table gestures at all. ⛔ The watch toggle has nothing to do with
+        //    StructEdit; hiding it behind that service is the "one capability smuggled behind
+        //    another's precondition" shape this programme keeps filing.
+        // 🔴 ② The Watch window is constructed further down, so attaching before this point wired a
+        //    watch gesture against a Watch that did not exist yet — silently, and only the
+        //    constructed-object rail could see it.
+        // ⭐ AttachEditGestures is idempotent per table, so the later RegisterExtraWindow path is
+        //   unaffected.
+        AttachEditGestures(Variables);
     }
 
     /// <summary>
@@ -703,13 +718,49 @@ public class PerspectiveWorkspaceRegistrar
     /// </summary>
     internal void BindTableHostForTest(IVariableTableHost host) => AttachEditGestures(host);
 
+    /// <summary>
+    /// ⭐ Binds every gesture one table needs. ⚠⚠ <b>The two gestures are guarded SEPARATELY</b> —
+    /// 🔴 Batch 94 first nested the watch wiring inside the edit-service guard, so a perspective built
+    /// without a <c>facetEditService</c> silently got no watch toggle either. ⛔ Two capabilities, two
+    /// preconditions; ⭐ neither may hide behind the other.
+    /// </summary>
     private void AttachEditGestures(IVariableTableHost? host)
     {
-        if (EditGestures is null || host?.VariableTable is not { } table) return;
-        if (_boundTables.Contains(table)) return;
+        if (host?.VariableTable is not { } table) return;
 
-        EditGestures.Attach(table);
-        _boundTables.Add(table);
+        if (EditGestures is not null && !_boundTables.Contains(table))
+        {
+            EditGestures.Attach(table);
+            _boundTables.Add(table);
+        }
+
+        AttachWatchGesture(table);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ Batch 94 (<c>94f</c>) — wires one table's watch toggle to THIS perspective's Watch store.
+    ///
+    /// <para>⭐⭐ Attached through <see cref="IVariableTableHost"/>, i.e. the SAME one place the edit
+    /// gestures go — ⛔ not per host. 📌 That interface exists precisely because <i>"a fifth host added
+    /// later must not depend on someone remembering a fourth Attach line."</i></para>
+    ///
+    /// <para>⚠ <b>No Watch window ⇒ nothing is wired, and the entry then reports "not pinned" and does
+    /// nothing.</b> ⭐ That is honest for a perspective built without a breakpoint manager — ⛔ and it
+    /// is why <c>IsWatched</c> is a delegate rather than a bool the control caches.</para>
+    /// </summary>
+    private void AttachWatchGesture(VariableTableControl table)
+    {
+        if (Watch is not { } watch || table.IsWatched is not null) return;
+
+        table.IsWatched = row => watch.Pinned.GetRows()
+            .Any(r => r.Origin.Key.Equals(row.Origin.Key));
+
+        table.WatchToggleRequested += row =>
+        {
+            // ⭐ A toggle, resolved against the store rather than a remembered flag — ⛔ two panels
+            //   can pin the same variable and the store is the only truth about what is pinned.
+            if (!watch.Pinned.Unpin(row.Origin)) watch.Pinned.Pin(row);
+        };
     }
 
     /// <summary>
