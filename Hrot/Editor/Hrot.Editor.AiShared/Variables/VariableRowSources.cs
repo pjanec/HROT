@@ -185,7 +185,31 @@ public sealed class SectionVariableRowSource : IVariableRowSource
             // ⭐⭐⭐ Batch 94 (94e) — the LIVE (pending) arm. 📌 Same rule as `written` above, asked
             //    again each time it is read: presence in this frame's live map, or non-empty bytes.
             //    ⇒ a variable the run starts writing after the row was PINNED stops saying (pending).
-            ReadWritten: writtenNow);
+            ReadWritten: writtenNow,
+            // ⭐⭐⭐ Batch 95 (95a) — THE DECLARATION TRAVELS WITH THE ROW.
+            // 🔴 Before this, the gesture binder resolved a row by type-testing store.ActiveAsset
+            //    against IBlackboardManagedAsset — implemented by HsmAsset and BehaviorTreeAsset and
+            //    by NOTHING else — so "Edit value…"/"Properties…" could never open on Blueprint,
+            //    whose rows come through THIS source for all three of its sections.
+            // ⭐ Nothing is invented here: VariableViewModel already carries every member
+            //   DefaultValueAuthoring.OpenSession reads (FieldType, DefaultValueJson) plus the three
+            //   the entry needs to be well-formed. ⛔ Same capture idiom as ReadInitialJson above.
+            ReadDeclaration: () => DeclarationOf(v));
+
+    /// <summary>
+    /// ⭐⭐ The schema's view model, expressed as the <see cref="BlackboardVariableEntry"/> the one
+    /// dialog opener takes. ⛔ <b>Not a conversion between two models</b> — the view model IS the
+    /// schema's projection of the declaration, and this names the members that survive the trip.
+    /// </summary>
+    private static BlackboardVariableEntry DeclarationOf(VariableViewModel v)
+        => new(
+            Name:             v.Name,
+            FieldType:        v.FieldType,
+            Comment:          v.Comment,
+            IsAutoManaged:    v.IsAutoManaged,
+            DefaultValueJson: v.DefaultValueJson,
+            Role:             v.Role,
+            Scope:            v.Scope);
 }
 
 /// <summary>A source over a fixed row list. ⭐ Used by §9's heterogeneous rail, and by any host that

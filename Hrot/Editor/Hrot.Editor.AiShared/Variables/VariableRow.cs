@@ -1,5 +1,6 @@
 using System;
 using Fdp.Core;
+using Hrot.Editor.AiShared.Blackboard;
 
 namespace Hrot.Editor.AiShared.Variables;
 
@@ -64,6 +65,35 @@ public delegate bool ReadHasEverBeenWritten();
 /// </para>
 /// </remarks>
 public delegate uint? ReadAssetTick();
+
+/// <summary>
+/// ⭐⭐⭐ <b>Batch 95 (<c>95a</c>) — reads the AUTHORED DECLARATION this row stands for.</b>
+///
+/// <para>🔴🔴 <b>Why it exists.</b> The edit gestures resolved a row to its declaration by asking the
+/// selection store: <c>if (store.ActiveAsset is not IBlackboardManagedAsset asset) return null;</c>.
+/// 📐 <b>Measured:</b> <c>IBlackboardManagedAsset</c> is implemented by <c>HsmAsset</c> and
+/// <c>BehaviorTreeAsset</c> and by <b>nothing else</b> — <c>BlueprintAsset</c> implements none of it —
+/// ⇒ <b>"Edit value…" and "Properties…" could never open on the Blueprint perspective</b>, on any of
+/// its three sections.</para>
+///
+/// <para>⭐⭐ <b>Why the ROW carries it and not the composition root.</b> 📐 Measured: Blueprint's rows
+/// are built by <c>BlueprintMyBlueprintWindow</c>, which resolves <c>Local Variables</c> against
+/// <c>_currentGraph()</c> <b>at call time</b> and is registered as an EXTRA window, long after
+/// <c>PerspectiveWorkspaceServices.CreateRegistrar</c> has returned. ⇒ a resolver supplied at the
+/// composition root could answer the two asset-scoped sections and <b>not</b> the graph-scoped one.
+/// ⭐ The source that built the row already holds the schema that declares it, so nothing new reaches
+/// a call site that could forget it (📌 <c>R-67</c>).</para>
+///
+/// <para>📐 <b>What the consumer actually needs, measured before choosing:</b>
+/// <c>VariableEditLauncher.Open</c> → <c>DefaultValueAuthoring.OpenSession</c> reads exactly
+/// <c>FieldType</c> and <c>DefaultValueJson</c> — <b>nothing else</b>. ⇒ a synthesised entry is fully
+/// substitutable for an authored one, which is what made this shape available at all.</para>
+///
+/// <para>⚠ <c>null</c> means <i>"this source cannot say"</i>, and the resolver then falls back to the
+/// active-asset lookup. ⛔ It is NOT <i>"the variable is gone"</i> — that is still the fallback's
+/// fail-closed <c>null</c>.</para>
+/// </summary>
+public delegate BlackboardVariableEntry? ReadVariableDeclaration();
 
 /// <summary>
 /// ⭐⭐ Row identity (§1a). <b><see cref="Entity"/> is PART of it</b> — the same asset on two entities
@@ -147,7 +177,14 @@ public sealed record VariableRow(
     //    📄 Q46 §1 "the same bug, second face"; ⚠ guide row C9 is about the opposite error.
     // ⛔ The bool was NOT widened into a delegate — 3 production and ~28 test sites name it, and an
     //   optional arm changes ZERO of them (Q46 §4e, ruling 9: one precedent, not a new idiom).
-    ReadHasEverBeenWritten? ReadWritten = null)
+    ReadHasEverBeenWritten? ReadWritten = null,
+    // ⭐⭐⭐ Batch 95 (95a) — the row's own AUTHORED DECLARATION. null by default and preferred when
+    //    present: the exact shape Batch 90 established for ReadValueObject and Batch 94 for
+    //    ReadWritten (📌 ruling 9 — one precedent, not a new idiom).
+    // 🔴 Why: the edit gestures resolved a row by type-testing store.ActiveAsset against
+    //    IBlackboardManagedAsset, which BlueprintAsset does not implement ⇒ the dialog could never
+    //    open on Blueprint. See ReadVariableDeclaration for the full measurement.
+    ReadVariableDeclaration? ReadDeclaration = null)
 {
     /// <summary>
     /// ⭐⭐ <b>Has this variable ever been written, as of NOW.</b> ⭐ Prefers <see cref="ReadWritten"/>

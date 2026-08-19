@@ -503,6 +503,24 @@ namespace Hrot.Editor
         /// </summary>
         internal Hrot.Editor.AiShared.Debug.DebugSessionRegistry? AiDebugRegistry => _aiDebugRegistry;
 
+        /// <summary>
+        /// ⭐⭐⭐ Batch 95 (<c>95a</c>) — internal test hook: the registrar a perspective actually got.
+        ///
+        /// <para>📌 <c>R-67</c>, verbatim: <i>"a rail that builds its own composition root cannot see a
+        /// composition-root defect."</i> ⛔ The edit-gesture binder is reachable only through its
+        /// registrar, so a rail that must assert <b>a session opened</b> has to be given the REAL one.
+        /// ⭐ Same shape as <see cref="AiDebugRegistry"/> above, and null until
+        /// <c>RegisterWindows</c> has run.</para>
+        /// </summary>
+        internal Hrot.Editor.AiShared.Windows.PerspectiveWorkspaceRegistrar? RegistrarFor(string perspective)
+            => perspective?.ToLowerInvariant() switch
+            {
+                "btree"     => _btreeRegistrar,
+                "hsm"       => _hsmRegistrar,
+                "blueprint" => _blueprintRegistrar,
+                _           => null,
+            };
+
         /// <summary>Internal test hook: direct access to the time controller.</summary>
         internal MasterSyncController TimeController =>
             _timeController ?? throw new InvalidOperationException("EditorSubsystem is not initialized.");

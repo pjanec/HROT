@@ -118,6 +118,11 @@ public sealed class BlackboardSectionRowSource : IVariableRowSource
             ReadWritten: reader == null
                              ? null
                              : () => { try { return (reader(readName)?.Length ?? 0) > 0; }
-                                       catch { return false; } });
+                                       catch { return false; } },
+            // ⭐⭐⭐ Batch 95 (95a) — the AI half of "the declaration travels with the row". ⛔ BOTH
+            //    sources, never one: the Blueprint failure is what forced this, but leaving the AI
+            //    hosts on the store lookup would keep two rules for one question (ruling 9).
+            // ⭐ Here it is the authored entry ITSELF — no projection at all.
+            ReadDeclaration: () => v);
     }
 }

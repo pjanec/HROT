@@ -642,6 +642,15 @@ public class PerspectiveWorkspaceRegistrar
     private readonly Func<VariableRunState> _runState;
     private readonly EditorSelectionStore  _selectionStore;
 
+    /// <summary>
+    /// ⭐ The perspective's selection store — the one this registrar was handed, not a copy.
+    /// ⚠ Exposed so a rail can put the composition root into the state production is in
+    /// (an ACTIVE ASSET, a SELECTED ENTITY) instead of building a second registrar to do it
+    /// — 📌 <c>R-67</c>: <i>"a rail that builds its own composition root cannot see a
+    /// composition-root defect."</i>
+    /// </summary>
+    public EditorSelectionStore SelectionStore => _selectionStore;
+
     private IVariableOutlineSelectionSource? _outlineSelection;
     private IVariableDetailsHost?            _detailsHost;
     private bool                             _outlineConnected;
@@ -764,11 +773,25 @@ public class PerspectiveWorkspaceRegistrar
     }
 
     /// <summary>
-    /// ⭐ Finds the authored entry a row stands for, on the ACTIVE asset. ⛔ Fails closed — a row whose
-    /// variable is gone opens no dialog rather than opening one over a guess.
+    /// ⭐ Finds the authored entry a row stands for. ⛔ Fails closed — a row whose variable is gone
+    /// opens no dialog rather than opening one over a guess.
+    ///
+    /// <para>⭐⭐⭐ <b>Batch 95 (<c>95a</c>) — THE ROW IS ASKED FIRST.</b> 🔴🔴 This method used to begin
+    /// at the second line below, and 📐 <c>IBlackboardManagedAsset</c> is implemented by
+    /// <c>HsmAsset</c> and <c>BehaviorTreeAsset</c> and by <b>nothing else</b> ⇒ on the Blueprint
+    /// perspective it returned <c>null</c> ALWAYS, so <c>VariableEditGestureBinder.Open</c> bailed on
+    /// its <c>if (entry is null) return;</c> and <b>neither "Edit value…" nor "Properties…" could ever
+    /// open a dialog there</b> — which is also why the visual check's <c>C</c> and <c>D</c> could not
+    /// be run at all.</para>
+    ///
+    /// <para>⭐ The store lookup STAYS as the fallback: a row from a source that predates the arm (or a
+    /// hand-built one) still resolves exactly as before. ⛔ It is no longer the only answer.</para>
     /// </summary>
     private static BlackboardVariableEntry? ResolveEntry(EditorSelectionStore store, VariableRow row)
     {
+        // ⭐⭐ The source that built the row already held the schema that declares it.
+        if (row.ReadDeclaration?.Invoke() is { } carried) return carried;
+
         if (store.ActiveAsset is not IBlackboardManagedAsset asset) return null;
         foreach (var v in asset.BlackboardVariables)
             if (string.Equals(v.Name, row.Origin.VariablePath, StringComparison.Ordinal)) return v;
