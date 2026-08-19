@@ -1,3 +1,31 @@
+# PLAN — what is left *(revision 32, `2026-08-18`)*
+
+> ✅✅✅ **REVISION 32 — BATCH 87 MERGED at `48307442b`. THE THREE VISUAL-CHECK DEFECTS ARE FIXED.**
+> ⭐ **`BP-327` and `BP-330` CLOSED.** Tracker **open 66 / done 201**; AiShared **1424** *(+27 rails)*;
+> every other suite **0 delta**; ⛔ **no golden moved**, no new skip.
+>
+> ⭐⭐⭐ **`2d` was REDESIGNED, and my handoff's fix was MEASURABLY IMPOSSIBLE.** 📐 `CanvasInput:194/244`
+> makes re-clicking an already-selected node a **deliberate no-op** *(so a multi-selection drag does not
+> collapse)* ⇒ **there is no edge for an "ordering token" to bump on.** ⭐ **They STOPPED and reported
+> instead of inventing one**, and the user supplied the right frame — 📌 **`R-95`: the Details panel is
+> owned by the FOCUSED SURFACE, not by the selected payload.**
+>
+> ⭐⭐ **Gate 8 found a FOURTH table host** *(`WatchPanelWindow`)* that my handoff's *"known: three"* had
+> missed — 📌 **`R-74` again: only the graph enumerates.** ⭐ **The fix is structural** —
+> `IVariableTableHost` + ONE `AttachEditGestures` + `BoundTables` ⇒ **a fifth host cannot be lost.**
+>
+> ⚠⚠ **A revert probe found `R-67` INSIDE the rail written to catch `R-67`** — the first
+> `AHostRegisteredAsAnExtraIsBound` called the internal helper directly and stayed green with the
+> production line commented out. ⭐ **The probe is the only reason that was caught.**
+>
+> ⏸ **`2e` NOT STARTED** *(Blueprint's live-value provider — row 58's unbuilt half)*. ⭐ Marked last and
+> stoppable; **nothing half-built.** ⇒ **it is the next batch's item.**
+> 📄 **[`REPORT_Batch87_The_Panel_Obeys_The_Surface.md`](REPORT_Batch87_The_Panel_Obeys_The_Surface.md)**
+
+---
+
+# ⛔ HISTORY — revision 31 and earlier
+
 # PLAN — what is left *(revision 31, `2026-08-18`)*
 
 > ✅✅✅ **REVISION 31 — NOTHING IN FLIGHT. TWO ARCHITECT QUESTIONS WRITTEN, ONE APPROVED IN FULL.**
