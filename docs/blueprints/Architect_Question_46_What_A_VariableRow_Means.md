@@ -49,6 +49,7 @@ for ever, while Details shows its value.
 |---|---|
 | **1** | ⭐ **One row = one accessor.** Rows are **independent instances of one row class**, filled from the same or different sources. ⛔ **A Watch row and a Details row know nothing about each other** — they are not shared objects |
 | **2** | ⭐⭐ **The accessor is called once per brain frame** — *"only when not in planning mode and only when the frame's `dt > 0`"*. ⭐ All rows are evaluated **at the same time**, on that one pulse. ⛔ **Not while the simulation is paused** — only when time actually stepped |
+| **2b** | ⭐⭐⭐ **ONE tick source for every host** — *"the brain (cgf) does not tick ANY behavior when `dt=0`, so the tick source is not dependent on behavior type."* 📐 **Measured true**: `BlueprintTickSystem:51`, `BTreeTickSystem:55` and `HsmTickSystem:103` all open `if (deltaTime <= 0f) return;` ⇒ ⛔ **no per-host and no per-`(asset, entity)` clock** |
 | **3** | ⭐⭐ **The value is CACHED on the row** and rendered **every UI frame from the cache, without calling the accessor** |
 | **4a** | ⭐ **Pin while RUNNING-but-PAUSED ⇒ call the accessor immediately**, so the value is known from the very start |
 | **4b** | ⭐ **Pin while PLANNING ⇒ do not call it.** The cell shows `(pending)` because the cache has not been filled yet — ⛔ **not because "nobody writes this variable"** |
@@ -135,17 +136,44 @@ the split `U-6` removed.
 ⭐ Add the **value cache and the sample pulse** to the row's owner: sample when the row's `AssetTick`
 advances, render from cache otherwise.
 
-### ⭐⭐⭐ `4b` — **turn the clock on** *(the whole monitor depends on it)*
+### ⭐⭐⭐ `4b` — the clock is **ONE counter for all three hosts** *(user, `2026-08-19`)*
+
+> ⭐⭐⭐ **User:** *"i believe the brain (cgf) does not tick ANY behavior when dt=0 so the tick source is
+> not dependent on behavior type."*
+
+📐 **Measured — exactly right.** All three behaviour systems open with the same line:
+
+| | |
+|---|---|
+| `BlueprintTickSystem:51` · `BTreeTickSystem:55` · `HsmTickSystem:103` | ⭐ **`if (deltaTime <= 0f) return;`** |
+
+⇒ ⭐⭐ **"a non-frozen CGF behaviour frame" is ONE event, not three.** ⛔ The per-`(asset, entity)`
+counter is finer than anything the monitor can use: an entity the tick loop skips *(BTree line 80/90/98
+— behaviour not registered)* has an **unchanged value**, so sampling it yields **no change and no
+highlight**. ⭐ The extra precision buys nothing.
+
+#### ⛔⛔ But the WORLD tick is still NOT the behaviour frame
+
+📐 `ModuleHostKernel.UpdateInternal:483` calls **`_liveWorld.Tick()` UNCONDITIONALLY**, before any `dt`
+check ⇒ ⭐ **`SimulationTick` advances while paused.** ⛔ Sampling on it would clear the red highlight
+under a breakpoint — the thing Batch 68 correctly refused. ⇒ **the counter must sit INSIDE the
+`dt`-gated region.**
+
+#### ⭐ The shape
 
 | ⭐ | |
 |---|---|
-| **①** | **`Attach()`/`Detach()` on panel open/close** — Details and Watch both |
-| **②** | **pass `BlueprintAssetTickSource.For(assetId, entity)` as `AssetTick`** from the two row sources |
-| **③** | ⭐⭐ **rail the CONSTRUCTED row**, not the registrar's source *(`R-67`)* — assert `row.AssetTick is not null` on a row built by the production path |
+| **①** | ⭐⭐ **one global `BehaviorFrame` counter**, bumped by a tiny system ordered **last in the behaviour phase**, gated on `dt <= 0f`. ⛔ **AFTER the behaviours run** — the counter means *"a tick HAS RUN"*, and the monitor diffs what that tick produced |
+| **②** | ⭐ **every host's rows read that one source** through the existing `VariableRow.AssetTick` seam — ⛔ the seam stays, only its feed changes. **BTree and HSM rows stop being inert** |
+| **③** | ⭐⭐ **rail the CONSTRUCTED row** *(`R-67`)* — assert `AssetTick is not null` on a row built by the production path, ⛔ not on the registrar's source |
 
-⚠ **BTree/HSM have no equivalent source yet.** ⭐ Their rows stay `AssetTick: null` ⇒ **inert, never
-wrong** — the row contract already says so. ⛔ **Do not invent a second clock for them in this batch;**
-file it.
+⭐⭐⭐ **And it is a simplification, not a swap.** One `uint++` per frame costs nothing ⇒ ⛔ **no
+`Enabled` flag, no `Attach`/`Detach` refcount, no per-instance dictionary write.** The whole
+`BlueprintAssetTickSource` opt-in apparatus **disappears** rather than getting wired.
+
+⚠ **`BlueprintAssetTick` then has no consumer.** ⭐ Per `R-13` this is **duplicate CODE ⇒ ROUTE**: move
+its rails onto the new counter and drop the per-`(asset, entity)` table. ⛔ **Not a silent deletion —
+call it out in the batch report.**
 
 ### ⭐⭐⭐ `4c` — change detection *(rules 6–9)*
 
