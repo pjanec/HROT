@@ -315,3 +315,75 @@ is a ONE-ARM GAP in the shared formatter.** 📐 `FixedListFormatter` is **alrea
 ⚠⚠ **The order is the whole point.** 📌 *"No rush removals"* — ⛔ **retiring it first would silently
 lose a rendering the design deliberately built**, which is exactly the mistake `BP-295` was.
 ⭐ **The capability transfers, THEN the surface goes.**
+
+---
+
+# ⭐⭐ TWO SURFACES MEASURED IN DETAIL — `2026-08-18`
+
+## W. ⭐⭐⭐ `AiWatchWindow` vs `WatchPanelWindow` — **NOT duplicates. Different FEEDS, duplicated WINDOW**
+
+> ⭐ **User:** *"what is the difference… Better to have just one."*
+
+| | `AiWatchWindow` *(`AiShared`, all 3 perspectives)* | `WatchPanelWindow` *(`Blueprints.Editor`, blueprint only)* |
+|---|---|---|
+| **feeds** | ⭐⭐ **TWO** — ① **breakpoint watches** *(`IDataBreakpointManager`, `IsWatch`)* ② **pinned variables** *(`PinnedVariableRowSource`)* | ⭐ **ONE** — **blueprint PIN watches** *(`IBlueprintDebugSession` → `WatchRowBridge`)* |
+| **what a row IS** | ① a **CONDITION** — predicate · `Enabled` · `HitCount` · identity `Guid` ② an **OBSERVED IDENTITY** — `(AssetId, Entity, Section, VariablePath)` | a **PIN** — `WatchEntry { AssetId, GraphId, PinId }` |
+| **renders through** | ✅ shared `VariableTableControl` | ✅ shared `VariableTableControl` *(row 59b killed its hand-rolled `BeginTable` — "the fourth variable table")* |
+| **`IVariableTableHost`** | ✅ *(Batch 87)* | ✅ |
+
+📌 **`AiWatchWindow`'s own doc names the count:** *"There are in fact **three** watch-shaped things in
+the codebase, not two — the blueprint PIN watch is the third."* ⇒ ⭐⭐ **`WatchPanelWindow` IS that
+third**, and it is **not** a copy of the other two.
+
+### ⇒ ⭐⭐⭐ VERDICT: **yes, ONE window — but it must host THREE FEEDS**
+
+⛔⛔ **The duplication is the WINDOW, not the content.** ⚠ **Merging by deleting one would DELETE A
+FEED** — the same mistake shape as `BP-295`.
+
+⭐⭐ **And the merge is unusually cheap, because the normalisation already happened:** `WatchRowBridge`
+already converts pin watches into **`VariableRow`s** ⇒ ⭐ **the third feed is just another row source
+beside `PinnedVariableRowSource`.**
+
+| ⭐⭐⭐ **RECOMMENDED** | |
+|---|---|
+| **1** | ⭐ **Move the pin feed into `AiWatchWindow` as a third section** *(row source, not a new table)* |
+| **2** | ⭐⭐ **THEN retire `WatchPanelWindow`** |
+| ⛔ **do NOT** | merge the **breakpoint** list into the variable lists — 📌 `AiWatchWindow` measured that they are different entities, *"and merging them silently would have been wrong"*; **persistence already stores them as two lists** |
+
+⭐ **This is `Q38-E` step 1**, and it is the smallest step for a reason: ⛔ **nothing should be folded
+onto a surface that is itself still duplicated.**
+
+## B. ⭐⭐ `BlackboardAuthoringWindow` — **what it adds on top of the variable list**
+
+> ⭐ **User:** *"what the blackboard authoring window is doing on top of the variable list window…
+> maybe via the toolbar option in Details, maybe it could be made part of the Properties."*
+> 📌 **The prior discussion is `Q38-C` + the user's `2026-08-17` companion ruling:** *"ad
+> `VariablesPanelControl` — **keep for now**, but we need to rethink it later — find a way how to
+> integrate it."*
+
+📐 **Measured — SEVEN things, and they answer FOUR DIFFERENT QUESTIONS:**
+
+| # | what it adds | ⭐ which question |
+|---|---|---|
+| 1 | **byte size** per variable | *"tell me about this variable"* |
+| 2 | **`AliasedBy`** — which assets/elements alias it | *"tell me about this variable"* |
+| 3 | **unused** diagnostic | *"tell me about this variable"* |
+| 4 | ⭐⭐ **the byte BUDGET / bin-pack picture** | ⛔ *"will this layout FIT?"* |
+| 5 | **`SUB-TREE ALLOCATIONS (auto-managed)`**, incl. *"(size unknown until build)"* | *"what is allocated that I did not author?"* |
+| 6 | **unbound sub-tree DTO requirements** ⚠ *(with the dead "Promote" item — visual check `A5`)* | *"what is missing?"* — **a validation question** |
+| 7 | **`Use editor-managed blackboard`** toggle · **lossy-save guard** | ⛔ **asset-level SETTINGS, not variables at all** |
+
+### ⇒ ⭐⭐⭐ VERDICT: **it is not ONE surface to move — it is FOUR, and they go to FOUR places**
+
+⭐ **Applying `Q38-C`'s criterion** *(standalone only if it answers a different QUESTION)*:
+
+| rows | ⭐⭐⭐ **RECOMMENDED destination** | why |
+|---|---|---|
+| **1 · 2 · 3** | ⭐⭐ **the PROPERTIES dialog** *(the user's second guess — correct)* | ⛔⛔ **NOT table columns** — 📌 `Q32`: *"Bytes, Role and Scope go"*; putting them back as columns reverses a shipped ruling |
+| **4** | ⭐⭐ **STAYS STANDALONE** *(or becomes a toolbar-selectable FEED)* | 📌 `Q38-C`: a layout question, not a selection question. ⭐ **This is the half that justifies the window's continued existence** |
+| **5 · 6** | ⭐ **a DIAGNOSTICS feed** *(beside the validation surfaces)* | ⚠ *"what is missing"* is not *"tell me about the selection"* |
+| **7** | ⭐⭐ **ASSET settings** — ⭐ a legitimate Details feed **when the ASSET is the selection** | ⛔ it is not a variable at all, and it is the one row that is genuinely mis-homed today |
+
+⚠⚠ **So "integrate `BlackboardAuthoringWindow`" is the WRONG UNIT OF WORK.** ⭐ **Split it by question
+first; then only row 4 remains, and it is small enough to keep or to make a feed.**
+⛔ **A single move would drag an asset-level toggle and a validation list into a variable panel.**
