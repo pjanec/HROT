@@ -23,8 +23,9 @@ known-rot: section 4's cost model predates Batch 90. It assumes the VALUE clock 
 > PIN menu, not a variable row.**
 >
 > ⭐ **Slices 1–2 are unblocked and now cheaper than §8 assumes** *(see `known-rot`)*.
-> ✅✅ **Slice 3's two costs are now MEASURED — §8. BOTH SMALL.** ⭐ One open decision: how the map
-> leaves the extractor *(recommended: an optional callback sink, wired to the bus by the subsystem)*.
+> ✅✅ **Slice 3's two costs are MEASURED — §8. BOTH SMALL**, and its one decision is **RULED**:
+> ⭐ **a callback sink on the extractor, wired to the bus by the subsystem** *(user, `2026-08-19`)*.
+> ⇒ ⭐⭐ **slices 1–3 are ONE batch**; ⛔ nothing about this design is open any more.
 
 # DESIGN — **pinning a variable to the Watch panel**
 
@@ -174,7 +175,7 @@ that `+8` in one place, not two"* the running write is held to. ⭐ **Solve once
 | ⚠ **the reach** | `Extract` has **3 production call sites** — `CgfEpisodeLoadHandler:127` · `CgfScenarioLoadHandler:152` · `HrotScenarioLoadHandler` — plus the interface and its explicit impl |
 | ⛔ **the handlers hold NO bus** | measured on `CgfScenarioLoadHandler`'s field list ⇒ *"the handler publishes it"* is **not** free |
 
-| ⭐ **RECOMMENDED shape** | |
+| ✅✅ **RULED `2026-08-19` (user): the CALLBACK SINK** | |
 |---|---|
 | ⭐⭐⭐ **an optional `Action<IReadOnlyDictionary<long,long>>` sink on the extractor**, wired to the bus **by the subsystem** | ⭐ **zero new assembly dependencies** — `Hrot.CGF` never learns about the bus; ⭐ **`R-79` intact** *(separately deployable)*; ⭐ the same `Func<>`/callback seam `LiveBlackboardValueProvider` already uses |
 | ⛔ **not**: the extractor takes a bus | it stops being a pure transform, and `Hrot.CGF` gains a dependency for one line |
@@ -196,8 +197,10 @@ that `+8` in one place, not two"* the running write is held to. ⭐ **Solve once
 
 #### ⭐ VERDICT
 
-⭐⭐ **Slice 3 is SMALL, and the CGF reach the old text feared is not there.** ⛔ **The one real decision
-is how the map LEAVES the extractor** — ⭐ **recommended above, awaiting a nod.**
+⭐⭐ **Slice 3 is SMALL, and the CGF reach the old text feared is not there.**
+✅✅ **The one real decision is RULED** *(user, `2026-08-19`: "callback sink")* — ⭐ **an optional
+callback sink on the extractor, wired to the bus by the subsystem.**
+⇒ ⭐⭐⭐ **Slices 1–3 are now ONE batch.** ⛔ Splitting was only worth it while slice 3 was unsized.
 
 ## 9. ⛔ What must NOT be built
 

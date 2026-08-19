@@ -25,6 +25,11 @@ stale-below: everything from "## 1." down is HISTORY from earlier sessions. Do n
 ⭐⭐⭐ **AND: RUN THE VISUAL CHECK** — ⭐ **independent of Batch 92, and it gates the whole `Q38`/`Q44`
 family** *(`R-27`)*.
 
+⏭ **QUEUED, ready to dispatch the moment 92 merges: WATCH PINNING, all three slices in one batch.**
+📄 [`DESIGN_Variable_Watch_Pinning.md`](DESIGN_Variable_Watch_Pinning.md) — ⭐ **nothing open**:
+costs measured *(`M-25`)*, the map-publishing decision ruled *(`R-102`, callback sink)*, and
+⛔ **`R-27` does not gate it**. ⭐ **It closes `E2`–`E7`, the last "skip" in the visual check.**
+
 | | |
 |---|---|
 | ⭐⭐⭐ **① RUN THE VISUAL CHECK** | 📄 [`GUIDE_Blueprint_Visual_Check.md`](GUIDE_Blueprint_Visual_Check.md) — ~45 min. ⭐ **It is `R-27`'s gate**, so the whole `Q38`/`Q44` family waits on it |
