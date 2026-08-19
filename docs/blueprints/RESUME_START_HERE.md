@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-18
-current-answer: this top block only (sections 0, 0a, 0b, 0c)
+current-answer: this top block only (sections 0, 0a-0e). Section 0 is the FIRST
+  action: Batch 88 is complete on the implementation branch and not yet merged.
 stale-below: everything from "## 1." down is HISTORY from earlier sessions. Do not quote it
   for status, baselines or next steps.
 -->
@@ -10,127 +11,81 @@ stale-below: everything from "## 1." down is HISTORY from earlier sessions. Do n
 
 > ## ⭐⭐⭐ `RELEARN`
 > ⛔ **Ground yourself in the design canon before acting on anything in this file.**
-> ⭐ Run `bash scripts/session-design-brief.sh` *(or `/relearn`)*, then **open your reply with the
-> `DESIGN BRIEF` block and answer the user in the SAME reply** — ⛔ never instead of answering them.
-> ⭐ **The user can type `RELEARN` anywhere, any time, to demand the same pass.**
-> ⚠ **Implementation lane: this is a no-op.** Your first move is rule 7, then rule 1b's started-marker.
+> ⭐ Read [`RULINGS.md`](RULINGS.md) in full · run `bash scripts/session-design-brief.sh` ·
+> `python3 scripts/rulings-check.py` · `python3 scripts/design-digest.py`.
+> ⭐⭐ **A coordinator session OPENS its first reply with the `DESIGN BRIEF`**, then answers what was
+> asked, in the same reply.
 
-## 0. Where things stand
+## 0. ⭐⭐⭐ THE ONE THING TO DO FIRST
 
-| | |
-|---|---|
-| **coordinator branch** | `claude/blueprint-authoring-status-gm0akp` |
-| **implementation branch** | `claude/hrot-implementation-j1jvin` |
-| ⏭ **IN FLIGHT** | ⛔ **NOTHING.** Batches 84, 85 *(stopped, correctly)* and 86 are all merged |
-| **last merged** | ⭐⭐⭐ **Batch 86** at `5a0019e60` — **one state kind** |
-| **live plan** | 📄 [`PLAN_Remaining_Work.md`](PLAN_Remaining_Work.md) — **revision 30** |
-| **gates baseline** | build **0 err** · AiShared **1397** · Blueprints **3767/3777/10** · BTree.Editor **615** · Hsm.Editor **551** · Generators **270** · Breakpoints **143** · Persistence **136** · Hrot.Editor **194** · Scenarios **56/68 (12 skipped)** · UrbanCombat **29** · Toolkits **1964** · NodeEditor.Core **211** · NodeEditor.UI **135** · FastHSM **300** · tracker **open 68 / done 199** · rulings **44/44** |
-
-## 0a. ⭐⭐⭐ THE HEADLINE — **the variable model is UNIFIED**
-
-⭐⭐ **`DeclarationKind` is `{ Parameter, Variable }`.** `WorkingState` is gone as a kind and survives
-only as a **readable on-disk tag** mapping to `Variable` *(so every v1 file keeps its revert)*.
-📌 **`R-01` is now true in the MODEL, not just in the design.**
-⭐ `StructureHash` byte-identical for all 43 compiled assets ⇒ **`R-24`'s hard reset was never
-reachable** — layout had been kind-agnostic since Batch 56.
-
-⛔ **DO NOT reopen stages `D1`/`D2`** — 📌 **`§M` M-1/M-2: both shipped long ago.** ⚠ **My own ledger row
-`R-04` said otherwise and sent me to build something that existed.**
-
-## 0b. ⛔⛔ THE METHODOLOGY CHANGED ON `2026-08-18` — **read this before trusting anything**
-
-> ⭐⭐⭐ **User:** *"i don't know where i can believe your conclusions… I would rather spend more tokens
-> of well-investigated design/batch than keep issuing some wrong ones."*
-
-| ⭐ rule | |
-|---|---|
-| ⛔⛔ **the ledger may NOT assert what the code IS** | `rulings-check.py` verifies a **quote in a document**; ⛔ it cannot see that a claim about CODE went false. ⚠ **Twice that day a row was GREEN AND FALSE.** ⇒ **state claims live in `RULINGS.md` §M as a QUESTION + the command that answers it.** ⛔ **Never quote §M — run the command** |
-| ⛔⛔ **investigation phase before ANY batch or design** | ① enumerate the code surface with **codebase-memory `search_graph`** *(grep cannot enumerate)* · ② read the **non-superseded** design markdowns. **Both recorded with the queries run.** ⭐ Gated: `design-digest.py --check` demands an `INVENTORY` block |
-| ⛔⛔⛔ **never claim *"X is not built"*** | …without running the enumeration that would find X. ⭐ **Almost every wrong turn that day was a false negative of that exact shape** |
-| ⚠ **what none of it fixes** | **semantic inference** — reading *"shared"* and assuming cross-entity, *"already remaps"* and assuming preserves. ⇒ ⭐ **when a claim rests on what a symbol MEANS, read its BODY** |
-
-## 0c. ⭐ Open, and what I would do next
-
-| 🔴 | |
-|---|---|
-| **`BP-327`** | ⭐⭐ **the edit dialog has NO OK BUTTON.** The whole write path is built and **reachable only from code** — `VariableEditLauncher.Open` returns a session **no surface draws**. ⇒ **`InspectorWindow`'s node-scoped default-value panel is still the ONLY surface a designer can complete an edit in.** ⚠ Needs a batch allowed to do visual work |
-| **`BP-330`** | the **shared** `AiWatchWindow` keeps its table control private ⇒ BTree/HSM cannot edit |
-| **`BP-325`** | the emitter's **8** `memory + 8` sites are generated source ⇒ **needs a batch that EXPECTS golden movement** |
-| ⚠ **`D4`** | deleting the `WorkingState` **property** — ⛔ *"no rush removals"*: it is a live alias the READ path needs |
-| ⭐ **watch pinning** | 📄 **[`DESIGN_Variable_Watch_Pinning.md`](DESIGN_Variable_Watch_Pinning.md)** — design-complete, sliced. ⚠ **Two costs unsized**: publishing `oldToNewMap` *(CGF path)* and unifying the three `FindEntityByNetworkId` |
-| **rows `60` / `61`** | `U-16` retire the duplicate Variables windows · the shared cross-host outline |
-| ✅ **the visual check** | ⭐ **unblocked for Blueprint** *(`R-62`)*, ⛔ **not BTree/HSM** *(`R-60`: no Details window)*. 📄 [`GUIDE_Blueprint_Visual_Check.md`](GUIDE_Blueprint_Visual_Check.md) — ⚠ **update it first: part D will fail on `BP-327`, and the two sections are now ONE** |
-
-## 1. ⭐⭐⭐ Rulings from this session — **binding**
-
-| ruling | where |
-|---|---|
-| ⭐⭐⭐ **RULE 8 REWRITTEN — the coordinator does NOT re-run the gates.** The report substitutes, under a **seven-item contract** *(`--no-build` column · golden movement as a DIFF SHAPE · every red confirmed pre-existing vs a named base sha · clean tree · quarantine counts · tracker · ids)* | `.claude/CLAUDE.md` |
-| ⭐⭐ **RULE 1b** — rule 1a's ancestry check has a **blind window**; the impl session pushes a `started at <sha>` marker before any code, and the coordinator **asks** rather than infers | `.claude/CLAUDE.md` |
-| ⭐⭐ **"NO RUSH REMOVALS"** — before proposing a removal say which it is: **duplicate CODE** *(route)* · **duplicate SURFACE** *(usually keep)* · **genuinely dead** | `.claude/CLAUDE.md` |
-| ⭐ **always give GitHub links to documents** *(user is on mobile)* | `.claude/CLAUDE.md` |
-| ⛔⛔ **MULTI-LEVEL IS PARKED** — return to single-level behaviours and finish the variable unification + UI | plan header rev 22 |
-| ⛔ **blueprint multi-occurrence DEFERRED** *("too many files affected")*; `Q34`'s **answers stand** | `Q34` §8 |
-| ⭐ **`VariablesPanelControl` KEEPS drawing**; the panel merge is a separate design task | `Q38` |
-
-## 2. ✅ THE PATTERN — **nine instances, all resolved or deliberately parked**
-
-> ⭐⭐⭐ **Components shipped complete and tested, with NO CALLER.** ⚠ **The ninth was found INSIDE the
-> batch that existed to fix the pattern**, and its rails were green throughout — ⭐ **because each built
-> its own registrar and passed the argument production did not.**
-
-| # | surface | state |
-|---|---|---|
-| 1 | producer picker *(Batch 70)* | ⛔ **parked, asserted inert** |
-| 2 | `VariableEditLauncher` *(68)* | ✅ wired in 77 |
-| 3–7 | **the whole Track C table stack** *(68–69)* | ✅ wired in 79 |
-| 8 | ⭐ **`VariableValueFormatter`** — every construction lived in a TEST | ✅ fixed in 79 *(`RawValueDecoder`)* |
-| 9 | ⭐⭐ **`EditorSubsystem` passed `hostKind` to NONE of its three registrars** | ✅ **fixed in 80 — and the CLASS removed**: the host kind is **derived** from the perspective name, so ⛔ **there is no argument left to forget** |
-
-⭐⭐ **The durable lesson, in one line:** *a rail that supplies the argument production forgets proves
-nothing.* ⇒ **assert the DEFAULT path** — built exactly as the composition root builds it.
-
-⭐ **`2026-08-16`'s rule names #9 exactly:** *"a production caller that HAS a dependency must PASS it."*
-
-⚠⚠ **And one measurement from Batch 80 that would have made the visual check pass while being wrong:**
-📐 **`SectionVariableRowSource` does NOT filter** — `GetRows() => _schema.Variables.Select(ToRow)`, the
-section used only as a **label**. ⇒ ⛔ **the whole blackboard under every heading.**
-⭐ **`BlackboardSectionRowSource` is new for this**, sharing `SectionOf` with the outline.
-
-## 3. ⏭ What remains — **single level only**
+🔴🔴 **BATCH 88 IS COMPLETE ON THE IMPLEMENTATION BRANCH AND NOT YET MERGED OR VERIFIED.**
 
 | | |
 |---|---|
-| ⭐⭐ **1** | ⭐⭐⭐ **THE USER RUNS THE VISUAL CHECK — this is the next action, and it is theirs** — 📄 [`GUIDE_Track_C_Visual_Check.md`](GUIDE_Track_C_Visual_Check.md) *(40 steps, **all parts A–F runnable**)*. ⛔ **Nothing is in flight.** ⭐ **Triage the failures into a batch when they come back** |
-| **2** | **`BP-309`** — two FastHSM projects do not build *(not in the solution)* |
-| **3** | **the producer picker's RUNTIME** — `R1`/`R2`/`R4`, the Library-function resolver seam |
-| **4** | **6 STILL-REAL `DEBT-AIB` rows** — `002` `003` `008` `011` `023` `031` · 📄 `DEBT_AIB_Pricing_Sweep_2026_08_17.md`. ⚠ **`023` is factually WRONG** *(calls a live method dead)* |
-| **5** | **NOT BUILT, found in 79** — `GroupBy`/fold/`Type` persistence *(and its doc comment claims otherwise)* · the budget indicator has **no run-state input** |
-| ⚠ **5b** | ⭐ **Two small findings from Batch 80's diff** *(plan §4C-b)*: a **displaced doc comment** — `HostKindOf` carries `SetSectionSourceResolver`'s `<summary>` and the resolver has none · and nothing pins that production still **names** its perspectives `"BTree"`/`"HSM"`. ⛔ **Neither is worth a batch alone** — fold into the next one touching the file |
-| **6** | compiler singles: `BP-233` · `BP-234` · `BP-200` · `BP-128` *(absorbed by `Q38`)* |
-| ⚠ **standing** | `DEBT-AIB-030` *(Toolkits race — 7 tests, identity rotates; **not signal**)* · 12 quarantined scenario tests *(out of programme)* |
+| **their head** | `b539afaff` *(`feat(88b)`)* · `7d39a729d` *(`feat(88a)`)* — ⭐ **both items + tracker + report** |
+| **my head** | `1d661f803` · ⭐ **clean, nothing unpushed** |
+| **dispatched at** | `f7f57e79b` — 📄 [`HANDOFF_Batch88_Live_Values_And_The_Ai_Details_Host.md`](HANDOFF_Batch88_Live_Values_And_The_Ai_Details_Host.md) |
+| ⭐⭐ **what to do** | **read their REPORT**, ⛔ **do NOT re-run the gates** *(rule 8 — the report substitutes)*, ⭐ **spot-verify a surprising claim**, ⭐ **read the diff**, then `git merge --ff-only` |
+| ⚠ **then** | **update `PLAN_Remaining_Work.md` to revision 33** and **re-run the visual check** |
 
-## 4. ⛔ PARKED — **design banked, do not re-derive**
+⚠ **I wrote canon AFTER dispatching 88** *(`R-95`…`R-98`, `Q38`, `Q44`)*. 📌 The handoff says those are
+**FYI only** and their scope is frozen at `f7f57e79b`. ⭐ **I checked: none of it invalidates `88a`/`88b`**
+— `R-98`'s toolbar is additive to `88b`'s host, and `R-27` gates the `Q38` build anyway.
+
+## 0a. ⭐⭐ Where things stand
 
 | | |
 |---|---|
-| **`Q37`** unify all params on the allocator | 📄 [`Architect_Question_37`](Architect_Question_37_Unify_On_The_Allocator.md) — ⭐ **reopen BEFORE `E3`/`E5`** |
-| **`Q36`** what runs a hosted subtree | 📄 [`Architect_Question_36`](Architect_Question_36_Subtree_Hosting_Runtime.md) — ⭐ `Q36-A`=**B** *(host ticks inline)* + a **third `BrainTier`** value **already approved** |
-| **`Q38`** one mode-switching Details panel | 📄 [`Architect_Question_38`](Architect_Question_38_One_Details_Panel.md) — ⭐ absorbs `BP-128`; **after** the visual check |
-| **`E3` · `E5` · `E7a`** | `Q35` **resolved**; 📄 [`DESIGN_Hsm_Storage_Model.md`](DESIGN_Hsm_Storage_Model.md); the **`E3` tripwire** is live so the latent hazard announces itself |
-| **blueprint multi-occurrence** | 📄 [`Architect_Question_34`](Architect_Question_34_Blueprint_Occurrence_Identity.md) — edit surface measured in plan §4A7 |
+| **last MERGED** | **Batch 87** at `48307442b` — plan **revision 32** |
+| **Batch 87 fixed** | `BP-327` *(the modal draws)* · `BP-330` · **B3** *(selection rendered)* · **B8** *(the panel obeys the focused SURFACE — `R-95`)* |
+| **gate baseline** | AiShared **1424** · Blueprints **3767/3777/10** · BTree.Editor **615** · Hsm.Editor **551** · Hrot.Editor **194** · Breakpoints **143** · tracker **open 66 / done 201** · rulings **63/63** |
+| **lanes** | coordinator `claude/blueprint-authoring-status-gm0akp` · implementation `claude/hrot-implementation-j1jvin` |
 
-## 5. ⭐ Corrections I made this session — **do not re-litigate**
+## 0b. ⭐⭐⭐ THE DESIGN WORK THIS SESSION — **five questions, four of them CLOSED**
 
-⚠ **`E3` was mis-framed FOUR times** *(a signature widening → "the dangerous case" with **zero
-instances** → `E5`'s dependency called stale → and finally: `E5` depends on `E3` after all, because the
-**params base**, not the state storage, is what collides)*. ⭐ **The user found the last one.**
-⚠ **`E5` blocked on `Q36`, not on my STOP.** ⚠ **The `E3` census was wrong** — *"zero REGISTERED, not
-zero EMITTED"*. ⚠ **The STATIC PARAMETERS retirement was withdrawn** — it is the **only live** surface;
-its replacement was unwired. ⚠ **Golden-movement predictions were wrong 3× for one structural reason**:
-the HSM golden hashes **checked-in assets**, so a new DTO field appears only when an asset is re-saved.
+| | state |
+|---|---|
+| ⭐ **`Q41`** blueprint → BTree params | ✅ **APPROVED IN FULL** *(`R-90`, `R-92`)* — publish/subscribe, one generic reader node, **emit the resolve hook** |
+| ⭐ **`Q42`** declaration identity | ✅ **APPROVED IN FULL** *(`R-89`)* — **`Guid` inside, `Name` outside**; AI hosts converge on the blueprint model |
+| ⭐ **`Q43`** blueprint-authored param resolver | ✅ **APPROVED IN FULL** *(`R-94`)* — it is a **`GraphKind.Construction`** graph *(`R-93`: a reserved, unconsumed slot)*, ⛔ **no new dispatch kind** |
+| ⭐ **`Q44`** breakpoint UI unification | ✅ **APPROVED IN FULL** *(`R-97`)* — ONE breakpoint window, all kinds; **`IsWatch` retires into a hit-count column** |
+| ⚠ **`Q38`** one Details panel | ⭐⭐ **mostly ruled** *(`R-98`)* — see `0c` |
 
----
+⛔⛔ **NOTHING FROM `Q38`–`Q44` IS BUILT.** ⭐ **`R-27` gates them all on the post-Batch-88 visual check.**
+
+## 0c. ⭐⭐ `Q38` — what is ruled, and the ONE open question
+
+✅ **Ruled:** the Details **toolbar IS a panel switch** — ⭐ **the CONTEXT offers the set and the
+default; the USER picks with radio toggles** *(`R-98`, **OVERRULING my recommendation**)* · **pinning
+captures the context AND the active view** · the **Watch** stays **variables-only and persistable** ·
+`Q38-B`/`Q38-D` as recommended · **`LiveBlackboardPanel`: give `VariableValueFormatter` the fixed-list
+arm FIRST, then retire.**
+⭐ **The INTEGRATION TABLE is written** — which panels become toggles *(by context: variable · node ·
+asset/graph)*, what stays out, what retires. ⭐ **16 editor windows → 5 + N pinned.**
+
+> ⚠⚠ **OPEN — ASK THE USER:** ⭐ they said *"param-to-working state mapper"* and **two measured
+> candidates fit**: **`PARAMETER SYNCHRONIZATION`** *(subtree param ⇄ sub-asset copy-in/out)* or **the
+> node's `ExpressionTargetField` / `WorkingStateTargetField` binding pair**. ⛔ **Do not guess.**
+
+## 0d. ⭐⭐ The methodology that produced all of this — **keep using it**
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **MEASURE before answering; never report "unmeasured" when a grep would settle it** | 📌 the user pushed back on exactly that, twice |
+| ⭐⭐⭐ **`R-74`: only the GRAPH enumerates** | ⚠ **three times this session my "known: N" was wrong** — table hosts *(3→4)*, watch surfaces, `Q38`'s inventory *(8→25)* |
+| ⭐⭐ **Sweep the design corpus BEFORE triaging** | 📌 `R-93` — `GraphKind.Construction` looked dead; the corpus said **reserved** |
+| ⭐⭐ **The ledger may not assert what the CODE is** | ⭐ state claims live in `§M` as a question + the command |
+| ⚠ **What none of it catches: SEMANTIC inference** | ⛔ read the BODY, not the name — 📌 `B8` was *"arrived after"* implemented as *"is different from"* |
+
+## 0e. ⭐ Open work, after Batch 88 merges
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **the visual check RE-RUN** | 📄 [`GUIDE_Blueprint_Visual_Check.md`](GUIDE_Blueprint_Visual_Check.md) — ⚠ **FIX THE GUIDE FIRST**: four rows were MY errors *(`D1`'s `⋮`, `C7`, `E2`–`E7`, `C2`)* — 📄 [`FINDINGS_VisualCheck_PostBatch86.md`](FINDINGS_VisualCheck_PostBatch86.md) |
+| ⭐⭐ **task groups `A` / `B` / `C`** | 📄 `PLAN_Remaining_Work.md` rev 31/32 — **no ids allocated** *(rule 3)*. ⭐ Suggested first: **`B5`** *(readable seed name)* + **`A3`** *(render node-owned rows by owner)* |
+| ⭐ **`Q44-B` before `Q38-E` step 1** | ⛔ otherwise the watch merge merges a heterogeneous surface |
+| ⭐ **the `⋮` three-dot button** | ⚠ ruling 5 says *"three-dot button AND double-click"*; only right-click exists |
+| ⭐ **`BP-325`** · **`D4`** · watch **pinning** | unchanged |
 
 # ⭐ START HERE — coordinator session, blueprint gaps & QoL programme
 
