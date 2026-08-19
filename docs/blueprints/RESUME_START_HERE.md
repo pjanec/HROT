@@ -18,20 +18,15 @@ stale-below: everything from "## 1." down is HISTORY from earlier sessions. Do n
 
 ## 0. ⭐⭐⭐ THE ONE THING TO DO FIRST
 
-🔴🔴 **BATCH 89 IS IN FLIGHT — dispatched at `7c2279851`.** 📄 [`HANDOFF_Batch89_The_Edit_Dialog_Reaches_The_Designer.md`](HANDOFF_Batch89_The_Edit_Dialog_Reaches_The_Designer.md)
-⭐ **It unblocks part `D` of the visual check** *(9 rows)* and **reopens `BP-327`**, whose row is closed
-on the wrong criterion. ⛔ **Rule 1: do NOT amend that handoff.** ⚠ **Rule 1b: check for their
-`chore: started batch 89` marker before assuming no run is in progress.**
-
-⭐⭐⭐ **THEN: RE-RUN THE VISUAL CHECK.** ⭐ **The guide is already fixed** — see below.
+⭐⭐⭐ **RE-RUN THE VISUAL CHECK.** ⭐ **The guide is fixed, part `D` is unblocked, nothing is in flight.**
 
 | | |
 |---|---|
-| ✅ **Batch 88 is MERGED** | `BP-317` closed · `BP-333`/`BP-334`/`BP-335` allocated · tracker **66 / 204** · plan **revision 34** |
-| ⭐⭐⭐ **what it unlocked** | **BTree and HSM now HAVE a Details window** *(`AiDetailsWindow`)* ⇒ **`R-21`/`R-62`'s blocker is lifted on ALL THREE hosts** — 📌 **`M-21`** |
-| ✅ **the guide is FIXED** *(`2026-08-19`)* | five wrong rows corrected · the BTree/HSM fence removed · ⭐ **part `H`** added for `AiDetailsWindow` · ⭐⭐ **`B3`/`B8`/`D1b`/`E6b` marked as REGRESSION rows** *(Batch 87 fixed all four)* · **`BP-334`** named so `(pending)` reads as a known gap |
-| 🔴🔴 **and fixing it found a defect** | **`VariableEditModal.Draw()` has ZERO callers** ⇒ ⭐ **the edit dialog STILL cannot appear** — 📄 plan group `A`, row **`A6`**. ⚠ **Part D of the check is blocked for a NEW reason; `BP-327` is not the cause any more** |
-| ⛔ **do NOT schedule `Q38`** | `R-27` — ⭐ **and `Q38`'s own `R5` agrees.** The visual check comes first |
+| ✅ **Batch 89 MERGED** *(ff-only)* | `BP-327` closed against its ORIGINAL criterion · `BP-336` done · **`BP-337`** opened · tracker **67 / 205** · plan **revision 35** |
+| ⭐⭐⭐ **the dialog now reaches the designer** | `WindowManager.RegisterFrameOverlay`, registered by the registrar ⇒ **9 guide rows unblocked** — part `D` + `F1` |
+| 📄 **the guide** | [`GUIDE_Blueprint_Visual_Check.md`](GUIDE_Blueprint_Visual_Check.md) — ⚠ **part `D`'s "expect failure" framing is now STALE**; ⭐ **update it before running** |
+| 🔴🔴 **still `(pending)`** | ⛔⛔ **`BP-334` — the Details Value column is NOT live on ANY host.** ⭐ **This is the user's headline ask.** 📐 Re-measured after 89: **no production caller passes `readRaw`**, at any of the three construction sites |
+| ⛔ **do NOT schedule `Q38`** | `R-27` |
 
 ## 0a. ⭐⭐ Where things stand
 

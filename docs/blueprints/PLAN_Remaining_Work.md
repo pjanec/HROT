@@ -1,3 +1,31 @@
+# PLAN — what is left *(revision 35, `2026-08-19`)*
+
+> ✅✅✅ **REVISION 35 — BATCH 89 MERGED `--ff-only`. ⭐⭐⭐ THE EDIT DIALOG REACHES THE DESIGNER.**
+> `BP-327` reopened and closed **against its ORIGINAL criterion**; `BP-336` done; **`BP-337` opened**.
+> Tracker **67 / 205**. ⭐ **9 guide rows unblocked** — part `D` plus `F1`.
+>
+> ⭐⭐ **`WindowManager.RegisterFrameOverlay`** — and their gate-8 enumeration answered the question I
+> asked honestly: ⚠ **two hard-wired modals already sit in that slot** *(About, Settings)* and the file
+> dialog is a **single-slot special case of exactly what the new hook generalises** ⇒ ⭐ *"the hook is
+> not new ground, it is the general form of `SetFileDialogService`."*
+>
+> ⭐⭐⭐ **Probe `P1` answered the other question by MEASUREMENT:** un-applying the one registration line
+> reddens **only the 4 new rails** — **all 1453 others stay green**, `TheEditDialogIsDrawnTests`
+> included. ⇒ **`R-67`'s blindness is now a number, not a claim.**
+>
+> 🔴🔴 **`BP-337` — `Fdp.Presentation.Tests` CRASHES ITS HOST**, confirmed pre-existing in a clean
+> worktree at `7c2279851` *(a Vis2D `NullReferenceException`)*. ⇒ ⛔ **the suite has been silently
+> ungated all along**, and ⚠ **half of `89a`'s rail lives in it** ⇒ **observable only under a filter.**
+> ⭐ **Coordinator spot-check: the 10 `FrameOverlay` rails PASS filtered.**
+>
+> ⚠⚠ **SECOND CONSECUTIVE BATCH whose `tracker-counts.py --check` row is FALSE.** Reported OK at
+> **67 / 205**; the file's summary table still said **66 / 204** while its rows said 67/205. ⭐ The ROWS
+> were right — ⛔ **only the derived table was stale, again.** 📌 **Fifth instance of the mechanic, and
+> the second in two batches** ⇒ ⭐⭐ **the gate is being reported without being re-run after the final
+> tracker edit.** ⛔ **Next handoff must say: run it LAST.**
+
+# ⛔ HISTORY — revision 34 and earlier
+
 # PLAN — what is left *(revision 34, `2026-08-19`)*
 
 > ✅✅✅ **REVISION 34 — BATCH 88 MERGED.** ⭐⭐⭐ **`BP-317` CLOSED — BTree and HSM HAVE A DETAILS
