@@ -34,6 +34,14 @@ production callers** *(`R-67` verbatim — the monitor is dead on its first line
 real but has **three teeth** *(generic-only · get-only properties skipped · **no cycle guard**)*.
 ⛔ **`E2`–`E7` stay SKIP** until the watch-pinning batch ships. Tracker **72 / 209** · plan **revision 39**.
 
+🛠 **BATCH 94 DISPATCHED at `58bf7df4e`** — 📄 **[`HANDOFF_Batch94_The_Watch_Row_Becomes_A_Camera.md`](HANDOFF_Batch94_The_Watch_Row_Becomes_A_Camera.md)**.
+⭐ **Seven items**: the arms become cameras · **one tick source for all three hosts** *(and the
+`BlueprintAssetTickSource` opt-in apparatus is ROUTED away, not wired)* · sample-on-pulse with a
+**per-panel** cache · byte comparison for managed values via `FdpAutoSerializer` **behind a cycle
+fence** · `(pending)` as an optional arm · the gesture *(distinct command id — `BP-346`)* ·
+restart survival **conditional on the rest being green**.
+⛔ **Batch 93's §§2–4 are SUPERSEDED** — its own measurement is what produced `Q46`.
+
 | | |
 |---|---|
 | ⭐⭐⭐ **① RUN THE VISUAL CHECK** | 📄 [`GUIDE_Blueprint_Visual_Check.md`](GUIDE_Blueprint_Visual_Check.md) — ~45 min. ⭐ **It is `R-27`'s gate**, so the whole `Q38`/`Q44` family waits on it |
