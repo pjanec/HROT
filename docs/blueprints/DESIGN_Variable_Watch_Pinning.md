@@ -5,7 +5,25 @@ current-answer: this whole file - it is the consolidated design, written to be b
 stale-below: nothing. History and the decision trail live in Architect_Question_40, which
   accumulated four rounds of correction and must NOT be read as a spec.
 supersedes-for-implementation: Architect_Question_40_Watch_Variable_Pinning.md
+known-rot: section 4's cost model predates Batch 90. It assumes the VALUE clock needs
+  new per-tick polling machinery. Batch 90 built the live-value arms (GetLiveObjects /
+  GetLiveBytes plus the readRaw seam), read per frame, and a pinned row carries its arm
+  with it - so slice 1 is materially cheaper than this document assumes. The TWO CLOCKS
+  rule itself (value vs binding) is unaffected and still binds.
 -->
+
+> ⚠⚠ **STATUS `2026-08-19` — NOT BLOCKED, NOT STARTED.** ⛔ `R-27` gates `Q38`/`Q44`; **this is
+> neither**, and it targets `AiWatchWindow`, the window `Q38-E` already picks as the survivor ⇒
+> ⭐ **building it is aligned with that merge, not in conflict.**
+>
+> 📐 **Measured `2026-08-19`:** the **store** exists *(`PinnedVariableRowSource.Pin`, only caller is
+> `TrackCWiringTests:235`)* · the **surface** exists · the **render** is shared. ⛔ **The GESTURE does
+> not exist:** `CommandCatalog.ToggleWatch` is absent, and `CanvasRenderer:684`'s
+> `MenuItem("Watch this Value")` sits **inside `BeginDisabled()`** with no handler — ⚠ **and it is a
+> PIN menu, not a variable row.**
+>
+> ⭐ **Slices 1–2 are unblocked and now cheaper than §8 assumes** *(see `known-rot`)*.
+> ⚠ **Slice 3 still carries the two costs this document flags as unmeasured.**
 
 # DESIGN — **pinning a variable to the Watch panel**
 
