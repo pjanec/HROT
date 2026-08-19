@@ -12,7 +12,15 @@ using Xunit;
 namespace Hrot.Editor.AiShared.Tests.Variables;
 
 /// <summary>
-/// ⭐⭐⭐ <b>Batch 93 — THE MEASUREMENT THAT STOPPED THE BATCH (<c>BP-344</c>).</b>
+/// ⭐⭐⭐ <b>Batch 93 measured the defect here; Batch 94 (<c>94a</c>) FIXED it, and these rails were
+/// INVERTED rather than deleted — they are the acceptance test.</b> 📌 <c>Q46</c> §4f:
+/// <i>"deleting it would remove the only proof the fix works."</i>
+///
+/// <para>⭐ <b>The class name is kept deliberately.</b> A pinned row IS still a snapshot of its
+/// <b>identity and accessors</b> — ⭐ what changed is that the accessor is now a <b>camera</b>
+/// *(closes over the provider)* rather than a <b>photograph</b> *(closed over one frame's value)*.</para>
+///
+/// <para>⭐⭐⭐ <b>Batch 93 — THE MEASUREMENT THAT STOPPED THE BATCH (<c>BP-344</c>).</b>
 ///
 /// <para>📄 <b>The handoff's premise, verbatim (§2):</b> <i>"Batch 90's live arms are read PER FRAME,
 /// and a pinned row carries its arm with it ⇒ a row pinned from a live Details row is live in the Watch
@@ -26,10 +34,9 @@ namespace Hrot.Editor.AiShared.Tests.Variables;
 /// <c>PinnedVariableRowSource.GetRows()</c> returns its stored records untouched ⇒ ⭐ <b>a pinned row
 /// is a SNAPSHOT taken at pin time.</b></para>
 ///
-/// <para>⭐⭐ <b>These rails record the CURRENT semantics, and one of them is meant to be INVERTED</b>
-/// when the design answers. ⚠ They are written so the inversion is obvious and local:
-/// <see cref="ARowPinnedFromTheDetailsSourceFreezesAtPinTime"/> is the one that flips.
-/// ⛔ <b>Do not "fix" it by deleting it.</b></para>
+/// <para>✅ <b>FIXED, Batch 94.</b> Both arms of both row sources now close over the provider, so a
+/// pinned row tracks the run. ⭐ Each rail below names what it asserted BEFORE and what it asserts
+/// NOW.</para>
 ///
 /// <para>⭐ <b>What is NOT broken, and this matters for the fix:</b>
 /// <see cref="AHandBuiltRowWithALiveArmStaysLiveWhenPinned"/> proves the <b>row type and the store are
@@ -44,15 +51,14 @@ public sealed class APinnedRowIsASnapshotTests
     // ══ the object arm — Blueprint's feed ═════════════════════════════════════
 
     /// <summary>
-    /// ⭐⭐⭐ <b>THE measurement.</b> One live map, two surfaces, one frame apart:
-    /// ⭐ <b>Details reads 99</b> *(the new value)* · ⛔ <b>Watch reads 10</b> *(the pinned one)*.
+    /// ⭐⭐⭐ <b>THE headline claim, INVERTED.</b> One live map, two surfaces, one frame apart —
+    /// ⭐ <b>both now read 99</b>.
     ///
-    /// <para>⚠ <b>This rail asserts the CURRENT, DEFECTIVE behaviour on purpose</b>, so the defect is a
-    /// measured fact rather than a claim. ⭐ When the design rules on the value feed, <b>invert the
-    /// second assertion</b> — it is the acceptance test for that fix.</para>
+    /// <para>🔴 <b>Batch 93 asserted the opposite here</b> *(Details 99, Watch 10)* and said so; this is
+    /// that assertion flipped, ⛔ not a new test. 📌 <c>Q46</c> §2 rule 1.</para>
     /// </summary>
     [Fact]
-    public void ARowPinnedFromTheDetailsSourceFreezesAtPinTime()
+    public void ARowPinnedFromTheDetailsSourceTracksTheRun()
     {
         var map     = new Dictionary<string, object> { ["Health"] = 10 };
         var section = ObjectArmSource(() => map, "Health");
@@ -67,17 +73,17 @@ public sealed class APinnedRowIsASnapshotTests
         // FRAME 2 — both surfaces rebuild.
         Assert.Equal(99, section.GetRows()[0].ReadValueObject!.Invoke());
 
-        // ⛔⛔ THE DEFECT, measured. ⭐ INVERT THIS when the value feed is ruled on.
-        Assert.Equal(10, pinned.GetRows()[0].ReadValueObject!.Invoke());
+        // ✅ Batch 94: the pin is a CAMERA. 🔴 Batch 93 asserted 10 here.
+        Assert.Equal(99, pinned.GetRows()[0].ReadValueObject!.Invoke());
     }
 
     /// <summary>
-    /// ⭐⭐ <b>The byte arm freezes too</b> — ⛔ so this is not a Blueprint-only or object-arm-only
-    /// property. <c>SectionVariableRowSource</c> captures <c>bytes</c> exactly as it captures
-    /// <c>value</c>, and <c>BlackboardSectionRowSource</c> does the same at its own <c>ToRow</c>.
+    /// ⭐⭐ <b>The byte arm tracks too — and this one is load-bearing.</b> ⛔⛔ Fixing only the object
+    /// arm would make pinning work on Blueprint and <b>silently freeze on BTree/HSM</b>, which is
+    /// exactly the split <c>U-6</c> removed *(<c>Q46</c> §4a)*. 🔴 Batch 93 asserted the freeze.
     /// </summary>
     [Fact]
-    public void TheByteArmFreezesOnTheSameRule()
+    public void TheByteArmTracksOnTheSameRule()
     {
         int live    = 10;
         var section = ByteArmSource(_ => I32(live), "Health");
@@ -88,7 +94,7 @@ public sealed class APinnedRowIsASnapshotTests
         live = 99;
 
         Assert.Equal(99, ReadI32(section.GetRows()[0]));
-        Assert.Equal(10, ReadI32(pinned.GetRows()[0]));   // ⛔ frozen — invert with the rail above
+        Assert.Equal(99, ReadI32(pinned.GetRows()[0]));   // ✅ Batch 94; 🔴 Batch 93 asserted 10
     }
 
     /// <summary>
@@ -143,6 +149,59 @@ public sealed class APinnedRowIsASnapshotTests
         live = 99;
 
         Assert.Equal(99, pinned.GetRows()[0].ReadValueObject!.Invoke());
+    }
+
+    // ══ 94b — the pulse reaches the CONSTRUCTED row ═══════════════════════════
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 94 (<c>94b</c>) — every production row now carries a tick source.</b>
+    ///
+    /// <para>🔴🔴 <b>Before this, every production row passed <c>AssetTick: null</c></b>
+    /// *(<c>BlackboardSectionRowSource:95</c> literally, and <c>SectionVariableRowSource</c> because no
+    /// caller supplied one)* ⇒ <c>VariableChangeMonitor</c> returned <c>None</c> on its first line, in
+    /// production, always. ⇒ ⛔ <b>no host has ever shown a change highlight.</b> 📌 <c>R-67</c>: it was
+    /// not a missing capability, it was a missing wire.</para>
+    ///
+    /// <para>⭐⭐ <b>Asked of the CONSTRUCTED ROW</b> — ⛔ never of the source's constructor arguments,
+    /// which is the shape that cannot see a wiring defect.</para>
+    /// </summary>
+    [Fact]
+    public void AProductionRowCarriesTheBehaviourFramePulse()
+    {
+        var row = ObjectArmSource(() => new Dictionary<string, object> { ["Health"] = 1 }, "Health")
+                  .GetRows()[0];
+
+        Assert.NotNull(row.AssetTick);
+        Assert.Equal(BehaviorFrame.Current, row.AssetTick!.Invoke());
+    }
+
+    /// <summary>⭐ …and the row's pulse MOVES with the sim — ⛔ it is not a captured constant either.</summary>
+    [Fact]
+    public void TheRowsPulseMovesWhenTheBehaviourFrameAdvances()
+    {
+        var row = ObjectArmSource(() => new Dictionary<string, object> { ["Health"] = 1 }, "Health")
+                  .GetRows()[0];
+
+        uint before = row.AssetTick!.Invoke()!.Value;
+        BehaviorFrame.Advance();
+
+        Assert.NotEqual(before, row.AssetTick!.Invoke()!.Value);
+    }
+
+    /// <summary>
+    /// ⚠ <b>An explicitly supplied tick source still WINS</b> — ⭐ the pulse is a default, ⛔ not an
+    /// override, so a host with a finer clock is not silently replaced.
+    /// </summary>
+    [Fact]
+    public void AnExplicitAssetTickIsNotOverriddenByThePulse()
+    {
+        var source = new SectionVariableRowSource(
+            assetId: AssetId, assetName: "Alpha", entity: default, section: "s",
+            schema:  new StubSchema(new[] { "Health" }),
+            readRaw: null,
+            assetTick: () => 4242u);
+
+        Assert.Equal(4242u, source.GetRows()[0].AssetTick!.Invoke());
     }
 
     /// <summary>⚠ …and the store hands back the very record it was given — ⛔ it neither rebuilds nor

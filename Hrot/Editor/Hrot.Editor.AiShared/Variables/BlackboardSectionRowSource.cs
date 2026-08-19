@@ -86,13 +86,24 @@ public sealed class BlackboardSectionRowSource : IVariableRowSource
             catch { bytes = Array.Empty<byte>(); }   // ⭐ a monitor never takes the window down
         }
 
+        // ⭐⭐⭐ Batch 94 (94a) — A CAMERA, NOT A PHOTOGRAPH. See SectionVariableRowSource.ToRow for
+        //    the full diagnosis; this is the AI-host half of the same fix, and shipping only the
+        //    other one would freeze BTree/HSM while Blueprint worked (Q46 §4a).
+        // ⚠ `bytes` stays read eagerly because `HasEverBeenWritten` is decided NOW (BP-338); the
+        //    ARM is what the row reads later.
+        var readName = v.Name;
         return new VariableRow(
             Origin:    new VariableRowOrigin(_assetId, _entity, _section, v.Name, assetName),
             ShortName: v.Name,
             TypeText:  v.FieldType.Name,
             ClrType:   v.FieldType,
-            ReadValue: () => bytes,
-            AssetTick: null,
+            ReadValue: reader == null
+                           ? () => Array.Empty<byte>()
+                           : () => { try { return reader(readName) ?? Array.Empty<byte>(); }
+                                     catch { return Array.Empty<byte>(); } },
+            // ⭐⭐⭐ Batch 94 (94b) — was `null`, which made the change highlight INERT on every AI
+            //    host since the seam was built. 📄 Q46 §2 rule 2b: ONE pulse, all hosts.
+            AssetTick: () => BehaviorFrame.Current,
             // ⭐ ONE home for the precedence. An authored entry has no passthrough flag, so the
             //   second argument is false by construction rather than by omission.
             RowKind:   VariableRow.KindOf(v.IsAutoManaged, isReadOnly: false),

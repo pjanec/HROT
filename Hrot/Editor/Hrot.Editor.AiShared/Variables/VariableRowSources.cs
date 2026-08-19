@@ -71,7 +71,14 @@ public sealed class SectionVariableRowSource : IVariableRowSource
         _section     = section;
         _schema      = schema ?? throw new ArgumentNullException(nameof(schema));
         _readRaw     = readRaw;
-        _assetTick   = assetTick;
+        // ⭐⭐⭐ Batch 94 (94b) — ONE tick source for every host, through the EXISTING seam.
+        //    📄 Q46 §2 rule 2b (the user's specification): "the brain (cgf) does not tick ANY behavior
+        //    when dt=0 so the tick source is not dependent on behavior type."
+        // 🔴 Before this, EVERY production row passed AssetTick: null ⇒ VariableChangeMonitor returned
+        //    None on its first line, always — R-67's silent default, and the reason no host has ever
+        //    shown a change highlight. ⛔ It was not a missing capability; it was a missing wire.
+        // ⭐ An explicit assetTick still wins, so a host with a finer clock is not overridden.
+        _assetTick   = assetTick ?? (() => BehaviorFrame.Current);
         _liveObjects = liveObjects;
     }
 
@@ -99,10 +106,22 @@ public sealed class SectionVariableRowSource : IVariableRowSource
         bool hasLiveObject = live != null && live.ContainsKey(v.Name);
         if (hasLiveObject)
         {
-            var value = live![v.Name];
+            // ⭐⭐⭐ Batch 94 (94a) — A CAMERA, NOT A PHOTOGRAPH.
+            //    🔴 This used to be `var value = live![v.Name]; … () => value` — a closure over THIS
+            //    FRAME'S value. The arm was still invoked every frame, so Details looked live; what
+            //    was actually live was the ROW REBUILD (VariableTableModel.Build() → GetRows()).
+            //    ⛔ PinnedVariableRowSource never rebuilds ⇒ a pinned row froze at pin time for ever
+            //    — measured in Batch 93, railed in APinnedRowIsASnapshotTests.
+            // ⭐ Closing over the PROVIDER instead makes the row an accessor, which is what Q46 §2
+            //    rule 1 specifies: "one row = one accessor".
+            // ⚠ The NAME is hoisted deliberately: `v` is the loop's view model and capturing it
+            //    would keep the whole schema entry alive per row.
+            var name = v.Name;
             return NewRow(v, kind,
                 readValue:   () => Array.Empty<byte>(),
-                readObject:  () => value,
+                readObject:  () => _liveObjects?.Invoke() is { } m && m.TryGetValue(name, out var cur)
+                                       ? cur
+                                       : null,
                 written:     true);
         }
 
@@ -116,8 +135,17 @@ public sealed class SectionVariableRowSource : IVariableRowSource
         try { cached = reader(v.Name) ?? Array.Empty<byte>(); }
         catch { cached = Array.Empty<byte>(); }   // ⭐ a monitor never takes the window down
 
-        var bytes = cached;
-        return NewRow(v, kind, () => bytes, readObject: null, written: bytes.Length > 0);
+        // ⭐⭐⭐ Batch 94 (94a) — the byte arm becomes a camera too. ⛔⛔ BOTH ARMS, NEVER ONE:
+        //    📌 Q46 §4a — fixing only the object arm would make pinning work on Blueprint and
+        //    silently freeze on BTree/HSM, which is exactly the split U-6 removed.
+        // ⚠ `cached` is still read EAGERLY, and that is not redundant: `written` is decided now,
+        //    per name, per frame (BP-338), while the ARM is what the row reads later.
+        var readName = v.Name;
+        return NewRow(v, kind,
+            () => { try { return reader(readName) ?? Array.Empty<byte>(); }
+                    catch { return Array.Empty<byte>(); } },
+            readObject: null,
+            written:    cached.Length > 0);
     }
 
     private VariableRow NewRow(

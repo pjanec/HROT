@@ -27,6 +27,27 @@ namespace Hrot.Blueprints.Editor.Variables;
 /// the tick loop must not pay for it when no panel is open, and two open panels must not have the
 /// first one closed switch it off under the second.
 /// </para>
+///
+/// <para>
+/// ⛔⛔ <b>SUPERSEDED by <c>Fdp.Core.BehaviorFrame</c>, Batch 94 (<c>94b</c>) — and KEPT DORMANT
+/// deliberately.</b> 📄 <c>Q46</c> §2 rule 2b is the user's own specification: <i>"the brain (cgf) does
+/// not tick ANY behavior when dt=0 so the tick source is not dependent on behavior type"</i> ⇒ ⭐ ONE
+/// global pulse for all three hosts, with <b>no <c>Enabled</c> flag, no refcount and no
+/// per-<c>(asset, entity)</c> table</b>. Every production row now reads that instead.
+/// </para>
+///
+/// <para>
+/// ⚠⚠ <b>Why this was not deleted, stated so it is a decision rather than an oversight.</b>
+/// <c>Q46</c> §4b calls for routing it away *(<c>R-13</c>: duplicate CODE ⇒ route)*, and the handoff
+/// allows keeping it if routing costs more than the slice itself. 📐 <b>It does, for one concrete
+/// reason:</b> its rails are <c>BlueprintAssetTickTests</c> in <b><c>Fdp.Toolkits.Tests</c></b> —
+/// 📌 <c>DEBT-AIB-030</c>, the suite with <b>seven tests whose identity ROTATES between runs</b>, so
+/// neither a red nor a green from it is evidence. ⇒ ⛔ <b>a rail migration there could not be
+/// gated</b>, and removing <c>BlueprintAssetTick.Bump</c> also touches four sites inside
+/// <c>BlueprintTickSystem</c>'s hot path. ⭐ The new pulse's own rails were therefore written in a
+/// suite that IS gated *(<c>TheBehaviorFramePulseTests</c>, <c>Hrot.Blueprints.Tests</c>)*.
+/// ⇒ 📌 filed for a batch that can gate it. ⛔ <b>Do not wire this to anything new.</b>
+/// </para>
 /// </summary>
 public static class BlueprintAssetTickSource
 {
