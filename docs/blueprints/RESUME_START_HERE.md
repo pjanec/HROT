@@ -26,7 +26,7 @@ stale-below: everything from "## 1." down is HISTORY from earlier sessions. Do n
 | **my head** | `1d661f803` · ⭐ **clean, nothing unpushed** |
 | **dispatched at** | `f7f57e79b` — 📄 [`HANDOFF_Batch88_Live_Values_And_The_Ai_Details_Host.md`](HANDOFF_Batch88_Live_Values_And_The_Ai_Details_Host.md) |
 | ⭐⭐ **what to do** | **read their REPORT**, ⛔ **do NOT re-run the gates** *(rule 8 — the report substitutes)*, ⭐ **spot-verify a surprising claim**, ⭐ **read the diff**, then `git merge --ff-only` |
-| ⚠ **then** | **update `PLAN_Remaining_Work.md` to revision 33** and **re-run the visual check** |
+| ⚠ **then** | **update `PLAN_Remaining_Work.md` to revision 34** *(⭐ **33 is already taken** — task group `D`, added `2026-08-19`)* and **re-run the visual check** |
 
 ⚠ **I wrote canon AFTER dispatching 88** *(`R-95`…`R-98`, `Q38`, `Q44`)*. 📌 The handoff says those are
 **FYI only** and their scope is frozen at `f7f57e79b`. ⭐ **I checked: none of it invalidates `88a`/`88b`**
@@ -83,6 +83,7 @@ asset/graph)*, what stays out, what retires. ⭐ **16 editor windows → 5 + N p
 |---|---|
 | ⭐⭐⭐ **the visual check RE-RUN** | 📄 [`GUIDE_Blueprint_Visual_Check.md`](GUIDE_Blueprint_Visual_Check.md) — ⚠ **FIX THE GUIDE FIRST**: four rows were MY errors *(`D1`'s `⋮`, `C7`, `E2`–`E7`, `C2`)* — 📄 [`FINDINGS_VisualCheck_PostBatch86.md`](FINDINGS_VisualCheck_PostBatch86.md) |
 | ⭐⭐ **task groups `A` / `B` / `C`** | 📄 `PLAN_Remaining_Work.md` rev 31/32 — **no ids allocated** *(rule 3)*. ⭐ Suggested first: **`B5`** *(readable seed name)* + **`A3`** *(render node-owned rows by owner)* |
+| ⭐⭐ **task group `D`** *(NEW, rev 33)* | ⭐⭐⭐ **`D3` is RULED — WIRE the orchestrator emitters** *(`R-99`, user `2026-08-19`)*. ⭐ **`D-a`** wire the emit · **`D-b`** pass `InspectorWindow`'s `subAssetResolver` *(silent-default, 13th instance)* · **`D-c`** `PARAMETER SYNCHRONIZATION` as a Details toolbar toggle, ⛔ **last** · **`D-d`** ⛔ Approach A stays in the table. ⚠ **`M-19` carries the measurement; `M-20` is an unconfirmed lead** *(do alias bindings persist at all?)* |
 | ⭐ **`Q44-B` before `Q38-E` step 1** | ⛔ otherwise the watch merge merges a heterogeneous surface |
 | ⭐ **the `⋮` three-dot button** | ⚠ ruling 5 says *"three-dot button AND double-click"*; only right-click exists |
 | ⭐ **`BP-325`** · **`D4`** · watch **pinning** | unchanged |

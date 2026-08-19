@@ -1,4 +1,18 @@
-# PLAN — what is left *(revision 32, `2026-08-18`)*
+# PLAN — what is left *(revision 33, `2026-08-19`)*
+
+> ⭐⭐⭐ **REVISION 33 — TASK GROUP `D` ADDED. ⛔ Batch 88 is STILL UNMERGED** *(`b539afaff` ·
+> `7d39a729d` on the implementation branch)* — ⭐ **its merge is revision 34, not this one.**
+>
+> ⭐⭐ **User ruling `2026-08-19`: WIRE the orchestrator emitters.** 📌 `D3` had settled the FACT
+> *(production-dead)* and left the **disposition** open; it is now closed as **wire, not delete**.
+> ⇒ 📄 **TASK GROUP D** below — the wiring, the missing `subAssetResolver`, and the
+> `PARAMETER SYNCHRONIZATION` toolbar toggle. ⭐ **`M-19`/`M-20` carry the measurements**, ⛔ **the
+> rows above do not assert them.**
+>
+> ⛔⛔ **Nothing in group `D` starts before the post-Batch-88 visual check** *(`R-27`)*, and ⛔ **`D-c`
+> is a `Q38` build** — ⭐ `D-a` and `D-b` are not, and either is a clean stop on its own.
+
+---
 
 > ✅✅✅ **REVISION 32 — BATCH 87 MERGED at `48307442b`. THE THREE VISUAL-CHECK DEFECTS ARE FIXED.**
 > ⭐ **`BP-327` and `BP-330` CLOSED.** Tracker **open 66 / done 201**; AiShared **1424** *(+27 rails)*;
@@ -96,7 +110,31 @@
 ⚠ **`C1` and `C2` are different TIERS, not alternatives** — ⭐ **resolver = once at assignment** *(`R-37`'s
 intended default)* · ⭐ **reader node = per tick.** ⛔ Do not let one be built "instead of" the other.
 
-### ⚠ What these three groups do NOT include
+## ⭐⭐⭐ TASK GROUP D — **master ⇄ sub-asset parameter sync** *(`D3` RULED `2026-08-19`)*
+
+📄 **Design basis:** `Blackboard_Authoring_Detailed_Design.md` **§7** *(Approach A — whole-DTO
+aliasing)* · **§8** *(Approach B — field-level sync)* · **§8.2** *(the `PARAMETER SYNCHRONIZATION`
+table lives in the Inspector, on a Subtree node)* · **§8.3** *(the orchestrator emit)* · `R-83`
+*(field-level sync is **Subtree-only**; the action path is Approach A)* · `R-98` *(the Details toolbar
+is a panel switch)* · 📄 [`PLAN_Cross_Host_Sequencing.md`](PLAN_Cross_Host_Sequencing.md) **`D3`**.
+
+> ⭐⭐⭐ **USER RULING `2026-08-19` — WIRE the orchestrator emitters; the `D3` disposition is settled.**
+> 📌 `D3` recorded the FACT *("DEAD in production, confirmed")* and left the **disposition** to the
+> user. ⛔ **Not deleted** — ⭐ the authoring surface, the JSON persistence, the layout round-trip and
+> both test suites already exist; the emitter is the **one unbuilt link in an otherwise complete
+> chain**. 📌 *"Unreferenced is not unintentional"* applies squarely: **dormant, not vestigial.**
+
+| | the gap — **measured `2026-08-19`, cite the measurement not this row** | what closes it |
+|---|---|---|
+| ⭐⭐⭐ **D-a** | 🔴🔴 **Approach B authors data that nothing executes.** `BTreeOrchestratorEmitter` *(193 lines)* and `HsmOrchestratorEmitter` *(137)* have **zero non-test callers** repo-wide; `WriteOrchestratorFile` has **none at all**. ⚠ **Yet `CompanionFileDiscovery:194` already hunts `*.Orchestrators.g.cs`** — ⛔ **the consumer exists and the producer is never called** | ⭐ **Call the emitter from the asset save/emit path** so the sidecar is written. ⭐⭐ **Rail — ask the ARTEFACT:** assert the **emitted text** for a subtree with one `☑↓` and one `☑↑`, in §8.3's exact order *(copy · tick · copy)*; ⛔ **not that the emitter returns a string.** ⭐ **Second rail: a subtree with ZERO active bindings emits NO orchestrator** *(§8.3)* ⇒ **golden must not move for any asset that has no sync bindings** |
+| ⭐⭐ **D-b** | 🔴 **The Approach B panel cannot draw in production.** `InspectorWindow._subAssetResolver` is **`readonly`, constructor-only, has no setter**, and `PerspectiveWorkspaceRegistrar:226` — the **only** production construction — does not pass it ⇒ the section renders its header and then **`"Sub-asset resolver not configured."`**, on every host | ⭐ **Pass it.** 📌 **This is the silent-default pattern, 13th instance** — the checkable rule is *"a production caller that HAS a dependency must PASS it"*. ⭐⭐ **The control is a forwarding rail PER DEPENDENCY, asserted on the CONSTRUCTED object**, ⛔ never on the registrar's source |
+| ⭐⭐ **D-c** | ⭐ **`PARAMETER SYNCHRONIZATION` becomes a Details toolbar TOGGLE** in the **node** context, offered **only** when the selection is a **resolved Subtree node** *(`R-98`: the context offers the set and the default; the variable table stays the default)* | ⛔⛔ **SEQUENCED LAST — after `D-a` and `D-b`.** ⚠ **Promoting an inert panel is worse than leaving it buried**, and ⭐ **`R-27` gates every `Q38` build on the post-Batch-88 visual check anyway** |
+| ⛔ **D-d** | ⭐⭐ **Approach A is NOT a toolbar panel and must not become one.** It is a **drag gesture onto a variable row** plus an `↳ aliased by:` **badge on that row** *(§7.2)* ⇒ it belongs **inside the variable table**, which is already the default view. ⛔ **Separating the gesture from its drop target would break it** | ⭐ **No task — this row exists so nobody proposes it.** ⚠ **But see `M-20`:** a `2026-08-19` sweep found **no alias field in the persistence assembly** and the DTO header lists `_aliases` under *"Runtime-only fields EXCLUDED"*. ⛔ **CONFIRM before acting** — if aliases really do not survive a reload, that is a **defect of its own**, not part of this group |
+
+⚠ **`D-a` and `D-b` are INDEPENDENT and either is a clean stop.** ⭐ `D-b` is roughly one argument plus
+a rail; `D-a` is a batch. ⛔ **`D-c` needs both.**
+
+### ⚠ What these four groups do NOT include
 
 | ⛔ | |
 |---|---|
