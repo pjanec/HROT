@@ -439,6 +439,13 @@ does not keep.**
 | **3** | ⚠ **Decide what `IsWatch` MEANS** — ⭐ *"a breakpoint I am also monitoring"* **or** ⛔ *"a non-breaking observer"*. 📌 **Today it is the first and reads as the second** |
 | ⛔ **do NOT** | resolve the **`AiBreakpointsWindow` vs `DataBreakpointManagerWindow`** duplication in the same step — ⚠ **that is a THIRD surface pair**, and 📌 `Q38-E` step 1 exists precisely so one merge does not drag in another |
 
+> ✅✅ **SUPERSEDED IN PART, `2026-08-18` — the breakpoint half moved to its own question.**
+> 📌 **User:** *"the breakpoint UI unification is a new area, new architect question."*
+> ⇒ 📄 **[`Architect_Question_44_Breakpoint_UI_Unification.md`](Architect_Question_44_Breakpoint_UI_Unification.md)** *(`R-96`)*.
+> ⭐⭐ **And it REORDERS `Q38-E`:** `Q44-B` *(send the breakpoint rows home)* now runs **BEFORE**
+> `Q38-E` step 1 — ⛔ otherwise step 1 merges a **heterogeneous** surface. ⭐ After `Q44-B` the Watch
+> window is **variables only**, and the merge is trivial.
+
 ⭐⭐ **Net effect on `Q38`:** ⛔ **the watch family is not "two windows to make one"** — ⭐ it is
 **THREE row types across THREE windows**, and the right first move is to **send the breakpoint rows
 home**, which leaves a genuinely single-typed Watch to merge.
