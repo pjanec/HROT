@@ -1,3 +1,37 @@
+# PLAN — what is left *(revision 36, `2026-08-19`)*
+
+> ✅✅✅ **REVISION 36 — BATCH 90 MERGED `--ff-only`. ⭐⭐⭐ THE DETAILS VALUE COLUMN IS LIVE ON ALL THREE
+> HOSTS.** `BP-334` **CLOSED**; `BP-338` found and fixed. Tracker **66 / 207**.
+> ⭐ **Coordinator-verified by re-running `M-22`'s own command on the merged tree** — the seam is filled
+> at all three construction sites.
+>
+> ⭐⭐ **The `R-101` shape held under contact:** the object arm enters the pipeline one step in, and
+> `Decode` is **the single read site both `Cell` overloads and both `Tooltip` overloads funnel
+> through** ⇒ ⛔ a live cell can never have a `(pending)` tooltip. ⭐ **BTree/HSM needed no arm**, as
+> predicted — they filled the `readRaw` seam that had been `null` since it was built.
+>
+> 🔴🔴 **`BP-338` — the regression that would have SHIPPED WITH the feature.** Both row sources set
+> `HasEverBeenWritten: reader != null` — *"does a reader EXIST"*, not *"was THIS NAME written"*.
+> ⚠⚠ **Harmless only while no production site passed a reader**, and this batch passes one at all
+> three ⇒ **every declared variable would have claimed to be written, rendering a decoded ZERO where
+> `(pending)` belongs.** 📌 **Guide row `C9` asserts the opposite verbatim** ⇒ ⭐⭐⭐ **the fix and the
+> feature had to land together, or the feature was a defect.** ⭐ Probe `P5` reddens **5**, ⚠ **two of
+> them the NO-PROVIDER cases.**
+>
+> ⭐⭐⭐ **AND THE `tracker-counts` MYSTERY IS SOLVED — by them, on themselves.** 📌 Their §7b: in
+> Batches 88 and 89 they piped `--check` through `tail -2`/`tail -3`, which **discarded the failure
+> banner AND the exit code**, leaving only the corrected table the script prints *to help you fix it* —
+> ⛔ *"I was reading the script's REMEDY and reporting it as its VERDICT."* ⭐ **Every gate this batch
+> was run unfiltered with `EXIT=$?` shown**, and ✅ **`--check` passes on the merged tree — the first
+> clean one in three batches.** ⚠ **My "run it LAST" instruction was not the fix; the `tail` was.**
+>
+> ⭐ **The visual-check guide is REWRITTEN AGAIN** — `C7`/`H9` **inverted** *(a live value is now the
+> PASS condition)*, part `D` **fully runnable**, and new rows for the two designed consequences:
+> `C7c` *(a zero where `(pending)` belongs is the `BP-338` regression)* and `C10`/`H10`
+> *(Blueprint's highlight is inert; BTree/HSM's lights)*.
+
+# ⛔ HISTORY — revision 35 and earlier
+
 # PLAN — what is left *(revision 35, `2026-08-19`)*
 
 > ✅✅✅ **REVISION 35 — BATCH 89 MERGED `--ff-only`. ⭐⭐⭐ THE EDIT DIALOG REACHES THE DESIGNER.**

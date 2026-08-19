@@ -18,28 +18,27 @@ stale-below: everything from "## 1." down is HISTORY from earlier sessions. Do n
 
 ## 0. ⭐⭐⭐ THE ONE THING TO DO FIRST
 
-🔴🔴 **BATCH 90 IS IN FLIGHT — dispatched at `67a6376e4`.** 📄 [`HANDOFF_Batch90_The_Details_Value_Column_Goes_Live.md`](HANDOFF_Batch90_The_Details_Value_Column_Goes_Live.md)
-⭐⭐⭐ **`BP-334` — the Details Value column goes live.** ⛔ **Rule 1: do NOT amend that handoff.**
-⚠ **Rule 1b: check for their `chore: started batch 90` marker before assuming no run is in progress.**
+⭐⭐⭐ **RUN THE VISUAL CHECK.** ⭐ **Nothing is in flight. The guide is current. Every blocker is gone.**
 
-⭐⭐ **THEN: RE-RUN THE VISUAL CHECK.** ⚠ **Guide rows `C7` and `H9` INVERT when 90 lands** — they
-currently say *"expect `(pending)`"*; ⭐ **after it, a live value is the PASS condition.**
+📄 **[`GUIDE_Blueprint_Visual_Check.md`](GUIDE_Blueprint_Visual_Check.md)** — ~45 min, PASS/FAIL rows.
 
 | | |
 |---|---|
-| ✅ **Batch 89 MERGED** *(ff-only)* | `BP-327` closed against its ORIGINAL criterion · `BP-336` done · **`BP-337`** opened · tracker **67 / 205** · plan **revision 35** |
-| ⭐⭐⭐ **the dialog now reaches the designer** | `WindowManager.RegisterFrameOverlay`, registered by the registrar ⇒ **9 guide rows unblocked** — part `D` + `F1` |
-| 📄 **the guide** | [`GUIDE_Blueprint_Visual_Check.md`](GUIDE_Blueprint_Visual_Check.md) — ⚠ **part `D`'s "expect failure" framing is now STALE**; ⭐ **update it before running** |
-| 🔴🔴 **still `(pending)`** | ⛔⛔ **`BP-334` — the Details Value column is NOT live on ANY host.** ⭐ **This is the user's headline ask.** 📐 Re-measured after 89: **no production caller passes `readRaw`**, at any of the three construction sites |
-| ⛔ **do NOT schedule `Q38`** | `R-27` |
+| ✅ **Batch 90 MERGED** *(ff-only)* | **`BP-334` CLOSED** · `BP-338` found+fixed · tracker **66 / 207** · plan **revision 36** |
+| ⭐⭐⭐ **the Details Value column is LIVE on all three hosts** | Blueprint via the **object** arm, BTree/HSM via **bytes** — 📌 **`M-22`**, coordinator-verified on the merged tree |
+| ✅ **Batch 89** | the **edit dialog reaches the designer** ⇒ part `D` fully runnable |
+| ✅ **Batch 88** | BTree/HSM have a **Details window** ⇒ part `H`, and `R-21`'s suspension lifted on all three |
+| ⭐⭐ **what the check must NOT report as defects** | `(pending)` with no entity / no session / sim stopped / **a variable the run has not written** · **Blueprint's inert change highlight** · `E2`–`E7` *(pinning unbuilt)* · the missing `⋮` |
+| ⭐⭐⭐ **what is worth the most if it fails** | **`B3` · `B8` · `D1b` · `E6b`** *(Batch 87's fixes, never seen by a human)* · **`C7`/`H9`** *(Batch 90)* · **`C7c`** *(a ZERO where `(pending)` belongs — `BP-338`)* |
+| ⛔ **do NOT schedule `Q38`** | `R-27` — ⭐ **the check is its gate, and this is that check** |
 
 ## 0a. ⭐⭐ Where things stand
 
 | | |
 |---|---|
-| **last MERGED** | ⭐ **Batch 88** *(merge commit; their heads `b539afaff` / `7d39a729d`)* — plan **revision 34** |
+| **last MERGED** | ⭐ **Batch 90** at `a81950ff7` *(ff-only)* — plan **revision 36** |
 | **Batch 87 fixed** | `BP-327` *(the modal draws)* · `BP-330` · **B3** *(selection rendered)* · **B8** *(the panel obeys the focused SURFACE — `R-95`)* |
-| **gate baseline** *(Batch 88, their run)* | AiShared **1446** · Blueprints **3767/3777/10** · BTree.Editor **615** · Hsm.Editor **551** · Hrot.Editor **201** · Breakpoints **143** · NodeEditor.Core **211** · NodeEditor.UI **135** · Fhsm **300** · tracker **66 / 204** · rulings **65/65** |
+| **gate baseline** *(Batch 90, their run)* | AiShared **1479** · Blueprints **3773/3783/10** · BTree.Editor **615** · Hsm.Editor **551** · Hrot.Editor **201** · Breakpoints **143** · NodeEditor.Core **211** · NodeEditor.UI **135** · Fhsm **300** · Fdp.Presentation **146 FILTERED** *(⛔ `BP-337`)* · tracker **66 / 207** · rulings **66/66** |
 | **lanes** | coordinator `claude/blueprint-authoring-status-gm0akp` · implementation `claude/hrot-implementation-j1jvin` |
 
 ## 0b. ⭐⭐⭐ THE DESIGN WORK THIS SESSION — **five questions, four of them CLOSED**
