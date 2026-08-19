@@ -7,14 +7,23 @@ using StructEdit.Core;
 namespace Hrot.Editor.AiShared.Variables;
 
 /// <summary>
-/// ⭐⭐ <b>The two menu items ARE the two <see cref="EditScope"/>s (§3).</b> ⭐ The USER picks the act;
-/// run state only decides availability.
+/// ⭐⭐ <b>The two menu items.</b> ⭐ The USER picks the act; run state only decides availability.
+///
+/// <para>⚠⚠ <b>Batch 96 (<c>96b</c>) — the old sentence here was <i>"the two menu items ARE the two
+/// <see cref="EditScope"/>s (§3)"</i>, and 📐 it is FALSE for a whole-variable edit:</b> both open the
+/// whole value document, because the session's root IS the value. ⛔ Kept as a note rather than
+/// deleted — the design said it, and what it should have distinguished *(value vs DECLARATION)* is a
+/// gap this batch filed rather than built.</para>
 /// </summary>
 public enum VariableEditAction
 {
-    /// <summary>⭐ <i>"Edit value…"</i> · double-click the VALUE cell ⇒ <see cref="EditScope.ForField"/>.</summary>
+    /// <summary>⭐ <i>"Edit value…"</i> · double-click the VALUE cell.
+    /// ⚠ <b>Batch 96 (<c>96b</c>):</b> this used to say <i>"⇒ <c>EditScope.ForField</c>"</i>. 📐 Measured
+    /// false — the session is opened over the variable's VALUE, so a whole-variable edit IS the whole
+    /// document. See <see cref="VariableEditLauncher.ScopeFor"/>.</summary>
     EditValue,
-    /// <summary>⭐ <i>"Properties…"</i> · double-click the NAME cell ⇒ <see cref="EditScope.WholeComponent"/>.</summary>
+    /// <summary>⭐ <i>"Properties…"</i> · double-click the NAME cell ⇒ <see cref="EditScope.WholeComponent"/>.
+    /// ⚠ It opens the VALUE document, not the DECLARATION — a gap filed by Batch 96, not built.</summary>
     Properties,
 }
 
@@ -184,29 +193,66 @@ public sealed class VariableEditLauncher
         => _editService = editService ?? throw new ArgumentNullException(nameof(editService));
 
     /// <summary>
-    /// ⭐ The scope for an action — the ONLY thing that differs between the two menu items.
+    /// ⭐ The scope the dialog opens with.
     ///
     /// <para>
-    /// ⛔⛔ <b>Batch 75: the path was built in the WRONG SPACE and the value dialog would have opened
-    /// EMPTY.</b> 📐 <c>ReflectionEditDocumentBuilder.FilterNode</c> matches an included path against
-    /// <c>node.JsonPath</c>, which for a top-level field is <c>"$.Name"</c> — so a bare
-    /// <c>"Name"</c> matched nothing, every node was filtered out, and <c>ApplyScope</c> fell through
-    /// to an empty <c>"$"</c> SelectionRoot.
+    /// ⛔⛔⛔ <b>Batch 96 (<c>96b</c>) — A VARIABLE'S NAME IS NOT A PATH INSIDE ITS OWN VALUE.</b>
+    /// 📐 This used to be <c>EditScope.ForField(EditPath.Parse(ToJsonPath(variablePath)))</c>, i.e.
+    /// <c>"$.Count"</c> for a variable named <c>Count</c>. ⚠ But
+    /// <see cref="DefaultValueAuthoring.OpenSession"/> opens the session over <b>THE VARIABLE'S
+    /// VALUE</b> — <c>Open(instance, varEntry.FieldType, scope)</c> — so <b>the document root IS the
+    /// value, at <c>$</c></b>. ⇒ ⛔ <c>"$.Count"</c> asked for a field named <c>Count</c> INSIDE the
+    /// <c>int</c>; there is none, <c>FilterNode</c> matched nothing, and <c>ApplyScope</c> fell through
+    /// to an <b>EMPTY <c>SelectionRoot</c></b>.
     /// </para>
     ///
     /// <para>
-    /// ⚠ <b>It was invisible because nothing ever constructed the launcher</b> — the defect needed the
-    /// seam to exist before it could be seen. ⭐ <c>VariableRow.Origin.VariablePath</c> is authored in
-    /// variable space, so rooting it is this method's job, not the caller's.
+    /// ⇒ ⭐⭐⭐ <b>wrong for EVERY variable on EVERY host, scalar or DTO</b> — for a DTO it meant
+    /// <i>"a field called <c>Count</c> inside the DTO"</i>, which is a different thing from
+    /// <i>"the variable <c>Count</c>"</i>. ⭐ <b>"Edit value…" of a whole variable IS the whole
+    /// document.</b>
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠⚠ <b>Batch 75 fixed the SPACE and not the PREMISE.</b> Its note *(kept below, because it is
+    /// still true about <see cref="ToJsonPath"/>)* diagnosed <c>"Name"</c> vs <c>"$.Name"</c> and
+    /// rooted the path — ⛔ **the rooted path was just as empty**, and the rail that covered it asserted
+    /// the scope's shape rather than the resulting DOCUMENT. 📌 That is why it stayed green for four
+    /// batches.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>The <see cref="EditScope.ForField"/> arm is KEPT, not deleted</b> — 📌 the handoff is
+    /// explicit: <i>"what <c>ForField</c> is FOR is a real sub-path"</i>, a field INSIDE a DTO variable.
+    /// ⚠ <b>That gesture does not exist yet</b>, so no production caller passes
+    /// <paramref name="fieldSubPath"/> today — ⛔ and the fix is to stop feeding it the variable name,
+    /// not to remove the capability.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>Consequence, stated rather than hidden:</b> for a whole-variable edit both actions now
+    /// return <see cref="EditScope.WholeComponent"/>, so <b>they no longer differ by scope</b>. ⛔ The
+    /// design's <i>"two menu items = the two <c>EditScope</c>s"</i> was written before this was
+    /// measured; what actually distinguishes <i>"Properties…"</i> is that it should edit the
+    /// DECLARATION, and it does not — see the report's finding on that, which is a capability question
+    /// and not this method's to answer.
     /// </para>
     /// </summary>
-    public static EditScope ScopeFor(VariableEditAction action, string variablePath)
-        => action == VariableEditAction.Properties
+    /// <param name="fieldSubPath">
+    /// ⭐ A path to a field <b>INSIDE</b> the variable's value, in variable or JSON-path space.
+    /// ⛔ <b>NEVER the variable's own name</b> — that is the defect above. <c>null</c> or empty means
+    /// <i>"the whole value"</i>, which is what every production caller means today.
+    /// </param>
+    public static EditScope ScopeFor(VariableEditAction action, string? fieldSubPath = null)
+        => action == VariableEditAction.Properties || string.IsNullOrEmpty(fieldSubPath)
             ? EditScope.WholeComponent
-            : EditScope.ForField(EditPath.Parse(ToJsonPath(variablePath)));
+            : EditScope.ForField(EditPath.Parse(ToJsonPath(fieldSubPath)));
 
     /// <summary>⭐ Variable space → StructEdit's JSON-path space. Already-rooted paths pass through, so
-    /// a caller that knows the document shape is not second-guessed.</summary>
+    /// a caller that knows the document shape is not second-guessed.
+    /// ⚠ <b>Batch 96:</b> its one remaining caller is <see cref="ScopeFor"/>'s sub-path arm — 📐 the
+    /// passthrough exists so a caller that already speaks JSON-path space is not rooted twice, and
+    /// nothing else in the repo calls it.</summary>
     internal static string ToJsonPath(string variablePath)
         => variablePath.StartsWith("$", StringComparison.Ordinal) ? variablePath : "$." + variablePath;
 
@@ -222,7 +268,10 @@ public sealed class VariableEditLauncher
         var availability = VariableEditPolicy.Resolve(action, runState, row);
         if (availability == VariableEditAvailability.Denied) return null;
 
+        // ⭐⭐⭐ Batch 96 (96b) — NO sub-path. 🔴 This used to pass row.Origin.VariablePath, which named
+        //    the VARIABLE and was then read as a field path INSIDE the variable's own value ⇒ the
+        //    document filtered to nothing and the dialog drew an empty body. See ScopeFor.
         return DefaultValueAuthoring.OpenSession(
-            _editService, entry, ScopeFor(action, row.Origin.VariablePath));
+            _editService, entry, ScopeFor(action));
     }
 }

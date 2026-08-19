@@ -53,18 +53,22 @@ public sealed class TheEditDialogReachesTheDesignerTests
     }
 
     /// <summary>
-    /// ⭐⭐ <b>ONE dialog, TWO scopes, differing only by the <c>EditScope</c> argument</b> *(ruling 9)*.
-    /// 📌 §3–§4: <i>"Edit value…" ⇒ <c>ForField</c> · "Properties…" ⇒ <c>WholeComponent</c></i>.
+    /// ⭐⭐⭐ <b>INVERTED, Batch 96 (<c>96b</c>).</b> 📌 The design said <i>"Edit value…" ⇒
+    /// <c>ForField</c> · "Properties…" ⇒ <c>WholeComponent</c></i>, and 📐 measurement overrules it for
+    /// a WHOLE-variable edit: the session is opened over the variable's VALUE, so the document root IS
+    /// the value and <c>ForField("$.Health")</c> selects nothing.
+    ///
+    /// <para>⚠ <b>What genuinely distinguishes "Properties…" is NOT the scope</b> — it should edit the
+    /// DECLARATION *(name, type, tooltip, comment, …)*, and it opens the value instead. ⛔ That is a
+    /// capability question, filed rather than built here.</para>
     /// </summary>
     [Fact]
-    public void TheTwoMenuItemsAreTheTwoScopes()
+    public void TheTwoMenuItemsOpenTheWholeValueDocument()
     {
         Assert.Same(EditScope.WholeComponent,
-                    VariableEditLauncher.ScopeFor(VariableEditAction.Properties, "Health"));
-
-        var value = VariableEditLauncher.ScopeFor(VariableEditAction.EditValue, "Health");
-        Assert.NotSame(EditScope.WholeComponent, value);
-        Assert.Single(value.IncludedPaths);
+                    VariableEditLauncher.ScopeFor(VariableEditAction.Properties));
+        Assert.Same(EditScope.WholeComponent,
+                    VariableEditLauncher.ScopeFor(VariableEditAction.EditValue));
     }
 
     // ══ the wiring — the eleventh instance, closed ═══════════════════════════

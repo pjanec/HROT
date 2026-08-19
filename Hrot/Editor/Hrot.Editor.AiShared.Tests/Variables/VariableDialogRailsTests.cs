@@ -53,19 +53,46 @@ public sealed class VariableDialogRailsTests
     /// observable that tells "the field" apart from "nothing".
     /// </para>
     /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b>INVERTED, Batch 96 (<c>96b</c>) — a whole-variable edit is the WHOLE DOCUMENT.</b>
+    ///
+    /// <para>⛔⛔ <b>This rail used to assert the defect.</b> It pinned
+    /// <c>value.IncludedPaths[0] == "$.Health"</c> — 📐 but the session is opened over THE VARIABLE'S
+    /// VALUE, so the document root IS the value at <c>$</c>, and <c>"$.Health"</c> asked for a field
+    /// named <c>Health</c> INSIDE the <c>int</c>. ⇒ <c>FilterNode</c> matched nothing and the dialog
+    /// drew an empty body — exactly what the user reported.</para>
+    ///
+    /// <para>⚠ <b>Batch 75 already "fixed" this rail once</b>, from <c>"Health"</c> to
+    /// <c>"$.Health"</c> — ⭐ it corrected the SPACE and kept the PREMISE, and stayed green for four
+    /// more batches. 📌 <b>Inverted rather than deleted</b>, so the old expectation cannot come back
+    /// quietly.</para>
+    /// </summary>
     [Fact]
-    public void TheTwoActions_DifferOnlyByTheEditScope()
+    public void TheTwoActions_BothOpenTheWholeDocumentForAWholeVariable()
     {
-        var properties = VariableEditLauncher.ScopeFor(VariableEditAction.Properties, "Health");
-        var value      = VariableEditLauncher.ScopeFor(VariableEditAction.EditValue,  "Health");
+        var properties = VariableEditLauncher.ScopeFor(VariableEditAction.Properties);
+        var value      = VariableEditLauncher.ScopeFor(VariableEditAction.EditValue);
 
-        Assert.Same(EditScope.WholeComponent, properties);          // all fields
-        Assert.Single(value.IncludedPaths);                          // exactly the one field
-        Assert.Equal("$.Health", value.IncludedPaths[0].ToString()); // ⭐ JSON-path space, not variable space
+        Assert.Same(EditScope.WholeComponent, properties);
+        Assert.Same(EditScope.WholeComponent, value);
     }
 
-    /// <summary>⭐ An already-rooted path passes through untouched — a caller that knows the document
-    /// shape is not second-guessed, and rooting is idempotent.</summary>
+    /// <summary>
+    /// ⭐⭐ <b>The <c>ForField</c> arm is ALIVE, for what it is actually for</b> — a path to a field
+    /// INSIDE a DTO variable. ⛔ No production caller passes one yet *(that gesture does not exist)*,
+    /// and 📌 the handoff is explicit that the arm stays: <i>"stop feeding it the variable name"</i>.
+    /// </summary>
+    [Fact]
+    public void ARealSubPathStillNarrowsTheScope()
+    {
+        var value = VariableEditLauncher.ScopeFor(VariableEditAction.EditValue, "Speed");
+
+        Assert.NotSame(EditScope.WholeComponent, value);
+        Assert.Equal("$.Speed", Assert.Single(value.IncludedPaths).ToString());
+    }
+
+    /// <summary>⭐ An already-rooted sub-path passes through untouched — a caller that knows the
+    /// document shape is not second-guessed, and rooting is idempotent.</summary>
     [Fact]
     public void AnAlreadyRootedPath_IsNotRootedTwice()
     {

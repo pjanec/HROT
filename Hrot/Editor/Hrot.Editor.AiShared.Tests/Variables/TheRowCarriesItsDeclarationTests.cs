@@ -68,8 +68,8 @@ public sealed class TheRowCarriesItsDeclarationTests
     [Fact]
     public void TheOpenerReadsOnlyFieldTypeAndDefaultValueJson()
     {
-        var src = System.IO.File.ReadAllText(FindRepoFile(
-            "Hrot/Editor/Hrot.Editor.AiShared/Inspector/DefaultValueAuthoring.cs"));
+        var src = RepoFiles.Read(
+            "Hrot/Editor/Hrot.Editor.AiShared/Inspector/DefaultValueAuthoring.cs");
 
         int at = src.IndexOf("public static IEditSession OpenSession", StringComparison.Ordinal);
         Assert.True(at >= 0, "DefaultValueAuthoring.OpenSession moved — re-measure before trusting 95a.");
@@ -135,18 +135,6 @@ public sealed class TheRowCarriesItsDeclarationTests
     }
 
     // ── fixtures ─────────────────────────────────────────────────────────────
-
-    private static string FindRepoFile(string relative)
-    {
-        var dir = AppContext.BaseDirectory;
-        for (int i = 0; i < 12 && dir != null; i++)
-        {
-            var candidate = System.IO.Path.Combine(dir, relative);
-            if (System.IO.File.Exists(candidate)) return candidate;
-            dir = System.IO.Directory.GetParent(dir)?.FullName;
-        }
-        throw new System.IO.FileNotFoundException($"Could not locate '{relative}' above the test host.");
-    }
 
     private sealed class FakeAsset : IEditableAsset, IBlackboardManagedAsset
     {

@@ -1,6 +1,7 @@
 using System;
 using Fdp.Presentation.Editing;
 using ImGuiNET;
+using StructEdit.Core;
 
 namespace Hrot.Editor.AiShared.Variables;
 
@@ -62,6 +63,7 @@ public sealed class VariableEditModal
         _binder   = binder   ?? throw new ArgumentNullException(nameof(binder));
         _runState = runState ?? throw new ArgumentNullException(nameof(runState));
         PopupId   = string.IsNullOrEmpty(idScope) ? Title : $"{Title}##{idScope}";
+        TableId   = string.IsNullOrEmpty(idScope) ? "##vedit" : $"##vedit_{idScope}";
     }
 
     /// <summary>⭐ The ImGui popup title — a rail surface, and what the designer reads.</summary>
@@ -86,6 +88,29 @@ public sealed class VariableEditModal
     /// display title; ⭐ what became instance-scoped is the ID.</para>
     /// </summary>
     public string PopupId { get; }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 96 (<c>96a</c>) — the id of the two-column table the drawer REQUIRES.</b>
+    ///
+    /// <para>🔴🔴 <b>What was wrong.</b> <see cref="ComponentEditDrawer"/>'s own doc-comment says
+    /// <i>"Must be called inside a two-column <c>BeginTable</c>/<c>EndTable</c> block"</i>, and its
+    /// <c>DrawLeafNode</c> opens with <c>TableNextRow()</c>. ⛔ <c>Draw</c> called it between two
+    /// <c>Separator</c>s with <b>no table anywhere in this file</b> ⇒
+    /// <list type="bullet">
+    ///   <item><i>"Edit value…"</i> — its scope filtered the document to an EMPTY <c>SelectionRoot</c>
+    ///   *(<c>96b</c>)* ⇒ zero children ⇒ <c>TableNextRow</c> never reached ⇒ ⭐ <b>the designer saw a
+    ///   name and two separator lines with nothing between them</b> — lines 197 and 202.</item>
+    ///   <item><i>"Properties…"</i> — kept the real node ⇒ ⛔⛔ the first <c>TableNextRow()</c> with no
+    ///   table open <b>aborted the editor natively</b>.</item>
+    /// </list>
+    /// ⇒ ⭐⭐⭐ <b>this modal had never successfully drawn anything, for any variable, on any host.</b></para>
+    ///
+    /// <para>⚠ <b>Instance-scoped for the same reason <see cref="PopupId"/> is</b> — three registrars
+    /// draw three modals. ⭐ Table ids are window-scoped in ImGui so a shared one would be harmless
+    /// today, ⛔ but this repo has already paid for id confusion once *(see <see cref="PopupId"/>)* and
+    /// the cost of being explicit is one string.</para>
+    /// </summary>
+    public string TableId { get; }
 
     // ── the headless half — every decision this dialog makes, without ImGui ──
     //
@@ -196,8 +221,36 @@ public sealed class VariableEditModal
             ImGui.TextUnformatted(_binder.ActiveRow?.ShortName ?? "");
             ImGui.Separator();
 
-            var drawer = new ComponentEditDrawer(session, pickerCtx: null);
-            drawer.DrawEditNode(session.Document.Root);
+            // ⭐⭐⭐ Batch 96 (96a) — MIRRORS ComponentEditWindow.DrawClientArea steps 2–5, which is
+            //    the reference caller the handoff named. 📐 Measured: SIX production call sites reach
+            //    ComponentEditDrawer.DrawEditNode, and FIVE of them open a table
+            //    (ComponentEditWindow:152 · ComponentReflector:406 · ReplaySearchPanel:155 ·
+            //    InspectorWindow:303 · InspectorWindow:404). ⛔ This one did not, and that single fact
+            //    produced BOTH reported failures — see TableId for the diagnosis.
+            // ⛔ The DRAWER is not touched: it is Fdp.Presentation infrastructure with five other
+            //    callers and its own rails. ⭐ The modal was the broken caller.
+
+            // ⭐ Step 2 — rebuild BEFORE the table, exactly as the reference caller does. ⛔ Not inside
+            //   it: DrawEditNode returns immediately while RebuildRequired holds, so a modal that never
+            //   rebuilt would draw an empty table for ever once a rebuild was asked for.
+            if (session.RebuildState == EditRebuildState.RebuildRequired)
+                session.RebuildDocument();
+
+            // ⭐ Steps 3–5. EndTable is inside the `if`, so it is reached on every path that opened the
+            //   table — including DrawEditNode's own early RebuildRequired return, which returns into
+            //   this block rather than out of it.
+            if (ImGui.BeginTable(TableId, 2,
+                    ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
+                    ImGuiTableFlags.Resizable | ImGuiTableFlags.SizingFixedFit))
+            {
+                ImGui.TableSetupColumn("Property", ImGuiTableColumnFlags.WidthFixed, 180f);
+                ImGui.TableSetupColumn("Value",    ImGuiTableColumnFlags.WidthStretch);
+
+                var drawer = new ComponentEditDrawer(session, pickerCtx: null);
+                drawer.DrawEditNode(session.Document.Root);
+
+                ImGui.EndTable();
+            }
 
             ImGui.Separator();
 
