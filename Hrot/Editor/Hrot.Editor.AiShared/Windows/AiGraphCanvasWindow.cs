@@ -204,6 +204,17 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
     /// </summary>
     public Action<AiCanvasContext>? AfterDraw { get; set; }
 
+    /// <summary>
+    /// ⭐⭐ <b>Invoked every frame this window holds focus</b>, so the selection store can record that
+    /// the designer is working in the CANVAS *(<c>SelectionOrigin.GraphCanvas</c>)*.
+    ///
+    /// <para>⭐ A callback rather than a store reference, matching <see cref="AfterDraw"/>: this window
+    /// is shared by Blueprint, BTree and HSM and must not grow a dependency on any one perspective's
+    /// selection store. ⛔ The registrar owns the wiring, so there is nothing for a composition root to
+    /// forget.</para>
+    /// </summary>
+    public Action? NotifyFocusClaim { get; set; }
+
     // BCP-BATCH-02-FIX Task 2: the document whose name is currently reflected in Title,
     // so we only rebuild the title string when the active document actually changes.
     private AiDocument? _titleDoc;
@@ -311,7 +322,17 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         var doc = ActiveDocument;
 
         if (ImGuiAvailable())
+        {
+            // ⭐⭐⭐ Batch 87 — claim the Details panel for the CANVAS while this window holds focus
+            //    (user ruling, 2026-08-18). ⛔ A LEVEL, not an edge: HandleFocusActivation below is
+            //    edge-triggered (`doc == _lastActivatedDoc` returns early), and an edge is exactly what
+            //    B8 could not observe — re-entering the canvas with an unchanged selection IS the
+            //    failing gesture. ⭐ The store de-duplicates, so a per-frame call costs a comparison.
+            if (ImGuiNET.ImGui.IsWindowFocused(ImGuiNET.ImGuiFocusedFlags.ChildWindows))
+                NotifyFocusClaim?.Invoke();
+
             HandleFocusActivation(doc);
+        }
 
         // BCP-BATCH-02-FIX Task 2: reflect the active asset name in the window title,
         // keeping the stable "###id" so docking identity is preserved. Empty-state title

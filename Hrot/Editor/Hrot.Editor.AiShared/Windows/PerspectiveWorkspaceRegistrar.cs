@@ -199,6 +199,9 @@ public class PerspectiveWorkspaceRegistrar
         if (string.IsNullOrWhiteSpace(perspectiveName))
             throw new ArgumentException("perspectiveName must not be null or whitespace.", nameof(perspectiveName));
         if (selectionStore is null) throw new ArgumentNullException(nameof(selectionStore));
+        // ⭐ Batch 87 — kept, because the focus claims are wired in RegisterExtraWindow, long after
+        //   the constructor has returned.
+        _selectionStore = selectionStore;
         if (catalog       is null) throw new ArgumentNullException(nameof(catalog));
         if (refactorService is null) throw new ArgumentNullException(nameof(refactorService));
         if (debugRegistry is null) throw new ArgumentNullException(nameof(debugRegistry));
@@ -326,6 +329,8 @@ public class PerspectiveWorkspaceRegistrar
         //    would be two panels for one concept. BTree and HSM had none at all -- that is the gap.
         if (effectiveHost != null)
         {
+            // ⭐⭐ Batch 87 — the outline claims the Details panel while focused. Wired below, right
+            //    after construction, so the claim cannot be lost to a forgotten composition-root line.
             MyBlueprint = new AiMyBlueprintWindow(
                 id:                $"ai_my_blueprint_{suffix}",
                 owningPerspective: perspectiveName,
@@ -478,9 +483,27 @@ public class PerspectiveWorkspaceRegistrar
         //    precisely why the constructor's single Attach could never have reached them. ⛔ Stated
         //    over the INTERFACE so a host added later binds itself with no new line anywhere.
         if (window is IVariableTableHost tableHost) AttachEditGestures(tableHost);
+
+        // ⭐⭐⭐ Batch 87 — WHICH SURFACE owns the Details panel (user ruling, 2026-08-18).
+        //    🔴 B8: the panel decided by comparing NODE IDENTITY, so re-clicking the same node could
+        //    never win it back. ⛔ Measured: a re-click produces no signal at any layer — CanvasInput
+        //    guards its assignment with !Selection.Contains(node), SelectionState has no event, the
+        //    bridge assigns every frame and the store short-circuits on Equals.
+        //    ⭐ FOCUS is observable every frame, so each contributing surface claims the panel while it
+        //    holds focus and the store latches the last claim.
+        //    ⚠ Only CONTRIBUTORS are wired here — the Watch, the Inspector and Details itself must not
+        //    claim, or a window that does not drive the panel would steal it.
+        if (window is AiGraphCanvasWindow focusCanvas)
+            focusCanvas.NotifyFocusClaim =
+                () => _selectionStore.NotifySurfaceFocused(SelectionOrigin.GraphCanvas);
+
+        if (window is IDetailsSurfaceClaimant claimant)
+            claimant.NotifyFocusClaim =
+                () => _selectionStore.NotifySurfaceFocused(claimant.DetailsOrigin);
     }
 
     private readonly Func<VariableRunState> _runState;
+    private readonly EditorSelectionStore  _selectionStore;
 
     private IVariableOutlineSelectionSource? _outlineSelection;
     private IVariableDetailsHost?            _detailsHost;

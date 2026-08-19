@@ -38,7 +38,7 @@ namespace Hrot.Editor.AiShared.Windows;
 /// the user's ruling is that the two variable surfaces coexist until
 /// <c>Architect_Question_38</c> decides the merge.</para>
 /// </summary>
-public sealed class AiMyBlueprintWindow : ManagedWindow
+public sealed class AiMyBlueprintWindow : ManagedWindow, Selection.IDetailsSurfaceClaimant
 {
     private readonly BlackboardHostKind    _host;
     private readonly EditorSelectionStore? _store;
@@ -236,8 +236,26 @@ public sealed class AiMyBlueprintWindow : ManagedWindow
     /// <summary>Tells the outline its asset's blackboard changed.</summary>
     public void RaiseChanged() => _model?.RaiseChanged();
 
+
+    /// <summary>
+    /// ⭐⭐ <b>Invoked every frame this window holds focus</b>, so the selection store can record that
+    /// the designer is working in the OUTLINE *(<c>SelectionOrigin.VariableOutline</c>)*.
+    /// ⭐ A callback rather than a store reference — the registrar owns the wiring, so there is nothing
+    /// for a composition root to forget.
+    /// </summary>
+    public Action? NotifyFocusClaim { get; set; }
+
+    /// <inheritdoc/>
+    public Hrot.Editor.AiShared.Selection.SelectionOrigin DetailsOrigin
+        => Hrot.Editor.AiShared.Selection.SelectionOrigin.VariableOutline;
+
     protected override void DrawClientArea()
     {
+        // ⭐⭐⭐ Batch 87 — claim the Details panel for the OUTLINE while this window holds focus
+        //    (user ruling, 2026-08-18). ⛔ A LEVEL, not an edge — see AiGraphCanvasWindow.
+        if (ImGuiNET.ImGui.IsWindowFocused(ImGuiNET.ImGuiFocusedFlags.ChildWindows))
+            NotifyFocusClaim?.Invoke();
+
         SyncToSelection();
 
         if (_panel == null)

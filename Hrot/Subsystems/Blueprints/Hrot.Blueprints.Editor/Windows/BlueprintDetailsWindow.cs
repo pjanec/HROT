@@ -190,17 +190,33 @@ public sealed class BlueprintDetailsWindow : ManagedWindow, IVariableDetailsHost
     /// ⭐⭐ Which arm the panel is showing. ⛔ Extracted from the draw path so the PRECEDENCE is
     /// checkable — drawing needs an ImGui context and no headless test can drive it.
     ///
-    /// <para>⭐ <b>Last selection wins, in both directions.</b> Picking a variable in the outline
-    /// takes the panel; picking a NEW node takes it back. ⚠ Comparing against the sub-selection
-    /// captured when the list was shown is what makes the second half true — ⛔ merely asking
-    /// "is a node selected?" would let a stale node selection outrank a fresh variable click.</para>
+    /// <para>⭐⭐⭐ <b>Batch 87 — the question is WHICH SURFACE, not WHICH NODE</b> *(user ruling,
+    /// <c>2026-08-18</c>: <i>"it's not the selection what changes but actually the focus to different
+    /// part of the UI"</i>)*. ⭐ Moving focus to the canvas hands the panel back, whether or not the
+    /// selection changed — ⛔ which is precisely the case the old value test could not see.</para>
+    ///
+    /// <para>⭐ <b>Last CLAIM wins, in both directions.</b> Picking a variable in the outline takes the
+    /// panel; returning to the canvas takes it back. ⚠ The sub-selection comparison survives as a
+    /// SECONDARY path — see the body.</para>
     /// </summary>
     internal bool ShowingVariables
     {
         get
         {
             if (!_variables.HasContent) return false;
-            // A node selection that arrived AFTER the variable list wins it back.
+
+            // ⭐⭐⭐ Batch 87 — PRIMARY: which SURFACE is the designer working in (user ruling,
+            //    2026-08-18). 🔴 The line below used to be the ONLY test, and it is a VALUE test
+            //    standing in for the TIME claim in the comment: re-clicking the SAME node is Equals to
+            //    the snapshot, so it could never win the panel back. ⛔ Only a DIFFERENT node could —
+            //    which is why every test passed and the designer's real gesture failed.
+            //    ⭐ Focus answers it where a click cannot: measured, a re-click is a deliberate no-op
+            //    at CanvasInput and produces no signal at any of the four layers below it.
+            if (_selectionStore.FocusedSurface == SelectionOrigin.GraphCanvas) return false;
+
+            // ⭐ SECONDARY, and kept deliberately: a selection can move WITHOUT focus moving (a hotkey,
+            //   anything programmatic), and the node arm should still win then. ⛔ Replacing this
+            //   rather than layering would trade one blind spot for another.
             return Equals(_selectionStore.ActiveSubSelection, _lastSubSelection);
         }
     }
