@@ -18,7 +18,12 @@ stale-below: everything from "## 1." down is HISTORY from earlier sessions. Do n
 
 ## 0. ⭐⭐⭐ THE ONE THING TO DO FIRST
 
-⭐⭐⭐ **RE-RUN THE VISUAL CHECK.** ⭐ **The guide is fixed, part `D` is unblocked, nothing is in flight.**
+🔴🔴 **BATCH 90 IS IN FLIGHT — dispatched at `67a6376e4`.** 📄 [`HANDOFF_Batch90_The_Details_Value_Column_Goes_Live.md`](HANDOFF_Batch90_The_Details_Value_Column_Goes_Live.md)
+⭐⭐⭐ **`BP-334` — the Details Value column goes live.** ⛔ **Rule 1: do NOT amend that handoff.**
+⚠ **Rule 1b: check for their `chore: started batch 90` marker before assuming no run is in progress.**
+
+⭐⭐ **THEN: RE-RUN THE VISUAL CHECK.** ⚠ **Guide rows `C7` and `H9` INVERT when 90 lands** — they
+currently say *"expect `(pending)`"*; ⭐ **after it, a live value is the PASS condition.**
 
 | | |
 |---|---|

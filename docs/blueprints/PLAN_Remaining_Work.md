@@ -24,6 +24,12 @@
 > the second in two batches** ⇒ ⭐⭐ **the gate is being reported without being re-run after the final
 > tracker edit.** ⛔ **Next handoff must say: run it LAST.**
 
+> ⏭ **BATCH 90 DISPATCHED at `67a6376e4`** — 📄 [`HANDOFF_Batch90_The_Details_Value_Column_Goes_Live.md`](HANDOFF_Batch90_The_Details_Value_Column_Goes_Live.md).
+> ⭐⭐⭐ **`BP-334` — the Details Value column goes live.** 📌 **The user's headline ask**, and `M-22`
+> measures it. ⭐ **`R-101` rules the shape: an OBJECT arm, ⛔ not a formatted-string arm** — Blueprint's
+> snapshot is already `IReadOnlyDictionary<string, object>`, and BTree/HSM need **no arm at all**
+> because their provider already holds the bytes.
+
 # ⛔ HISTORY — revision 34 and earlier
 
 # PLAN — what is left *(revision 34, `2026-08-19`)*
