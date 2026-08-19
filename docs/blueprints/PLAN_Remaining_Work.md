@@ -1,7 +1,32 @@
-# PLAN — what is left *(revision 33, `2026-08-19`)*
+# PLAN — what is left *(revision 34, `2026-08-19`)*
 
-> ⭐⭐⭐ **REVISION 33 — TASK GROUP `D` ADDED. ⛔ Batch 88 is STILL UNMERGED** *(`b539afaff` ·
-> `7d39a729d` on the implementation branch)* — ⭐ **its merge is revision 34, not this one.**
+> ✅✅✅ **REVISION 34 — BATCH 88 MERGED.** ⭐⭐⭐ **`BP-317` CLOSED — BTree and HSM HAVE A DETAILS
+> WINDOW** *(`AiDetailsWindow`, constructed and registered by the registrar, ⛔ not by a
+> composition-root line the host must remember)*. ⭐ **`88a`** wired Blueprint's live-value provider.
+> ⭐ Ids they allocated: **`BP-333`** · **`BP-334`** *(open)* · **`BP-335`**. Tracker **66 / 204**.
+>
+> ⭐⭐⭐ **`R-21`/`R-62`'s BLOCKER IS LIFTED ON ALL THREE HOSTS** — 📌 **`M-21`**. ⚠ **`R-62`'s row had
+> ROTTED** *("BTree/HSM have no Details window at all")* and is corrected; ⭐ **the per-host status now
+> lives in `§M`, not in the canon.**
+>
+> ⛔⛔ **THEY FOUND A HOLE IN MY HANDOFF AND REPORTED IT INSTEAD OF WORKING AROUND IT.** My
+> *"the Value column comes free"* is **false for Details on every host** — 📐 **spot-verified:**
+> `ILiveBlackboardValueProvider` has **exactly ONE consumer** *(`BlackboardAuthoringWindow:524`)*, and
+> the Details table's live arm is `readRaw`, which **no production caller passes.** ⇒ ⭐ **`88a` makes
+> the *Blackboard Variables* window live — ⛔ it does NOT close `C7`.** Filed as **`BP-334`** with a
+> ruling-9 lean *(give `IVariableRowSource` a formatted-value arm)*. ⚠ **The visual-check guide MUST
+> name `BP-334`**, or `(pending)` reads as a new defect.
+>
+> ⚠ **One gate row in their report was WRONG** — `tracker-counts.py --check` was reported OK at
+> **66 / 204**, but the file's summary table still said **201** while its rows said **204**. ⭐ Re-run by
+> the coordinator *(rule 8: a malformed row is what I re-run)* and **corrected here.** 📌 **Fourth
+> instance of the same mechanic** — hand-maintaining two representations of one fact.
+>
+> ⚠ **One documentation defect, not blocking:** `AiDetailsWindow`'s class doc still carries my
+> handoff's *"The Value column comes free"* sentence, which their own §3.4 disproves. ⭐ **Fix it in the
+> next batch that touches the file.**
+>
+> ⭐ **TASK GROUP `D` was added in revision 33** *(`D3` ruled: wire the orchestrator emitters)*.
 >
 > ⭐⭐ **User ruling `2026-08-19`: WIRE the orchestrator emitters.** 📌 `D3` had settled the FACT
 > *(production-dead)* and left the **disposition** open; it is now closed as **wire, not delete**.

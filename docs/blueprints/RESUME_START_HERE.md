@@ -18,27 +18,23 @@ stale-below: everything from "## 1." down is HISTORY from earlier sessions. Do n
 
 ## 0. ⭐⭐⭐ THE ONE THING TO DO FIRST
 
-🔴🔴 **BATCH 88 IS COMPLETE ON THE IMPLEMENTATION BRANCH AND NOT YET MERGED OR VERIFIED.**
+⭐⭐⭐ **RE-RUN THE BLUEPRINT VISUAL CHECK — and FIX THE GUIDE FIRST.**
 
 | | |
 |---|---|
-| **their head** | `b539afaff` *(`feat(88b)`)* · `7d39a729d` *(`feat(88a)`)* — ⭐ **both items + tracker + report** |
-| **my head** | `1d661f803` · ⭐ **clean, nothing unpushed** |
-| **dispatched at** | `f7f57e79b` — 📄 [`HANDOFF_Batch88_Live_Values_And_The_Ai_Details_Host.md`](HANDOFF_Batch88_Live_Values_And_The_Ai_Details_Host.md) |
-| ⭐⭐ **what to do** | **read their REPORT**, ⛔ **do NOT re-run the gates** *(rule 8 — the report substitutes)*, ⭐ **spot-verify a surprising claim**, ⭐ **read the diff**, then `git merge --ff-only` |
-| ⚠ **then** | **update `PLAN_Remaining_Work.md` to revision 34** *(⭐ **33 is already taken** — task group `D`, added `2026-08-19`)* and **re-run the visual check** |
-
-⚠ **I wrote canon AFTER dispatching 88** *(`R-95`…`R-98`, `Q38`, `Q44`)*. 📌 The handoff says those are
-**FYI only** and their scope is frozen at `f7f57e79b`. ⭐ **I checked: none of it invalidates `88a`/`88b`**
-— `R-98`'s toolbar is additive to `88b`'s host, and `R-27` gates the `Q38` build anyway.
+| ✅ **Batch 88 is MERGED** | `BP-317` closed · `BP-333`/`BP-334`/`BP-335` allocated · tracker **66 / 204** · plan **revision 34** |
+| ⭐⭐⭐ **what it unlocked** | **BTree and HSM now HAVE a Details window** *(`AiDetailsWindow`)* ⇒ **`R-21`/`R-62`'s blocker is lifted on ALL THREE hosts** — 📌 **`M-21`** |
+| ⛔⛔ **fix the guide before running it** | **five** rows are wrong: four were MY errors *(`D1`'s `⋮`, `C7`, `E2`–`E7`, `C2`)*, and the fifth is new — ⭐ **`BP-334`: the Value column reads `(pending)` on Details for EVERY host.** ⚠ **Name it in the guide** or the checker reports a known gap as a new defect |
+| ⚠ **also extend it** | the guide is Blueprint-only; ⭐ **BTree and HSM now have a Details panel to check** |
+| ⛔ **do NOT schedule `Q38`** | `R-27` — ⭐ **and `Q38`'s own `R5` agrees.** The visual check comes first |
 
 ## 0a. ⭐⭐ Where things stand
 
 | | |
 |---|---|
-| **last MERGED** | **Batch 87** at `48307442b` — plan **revision 32** |
+| **last MERGED** | ⭐ **Batch 88** *(merge commit; their heads `b539afaff` / `7d39a729d`)* — plan **revision 34** |
 | **Batch 87 fixed** | `BP-327` *(the modal draws)* · `BP-330` · **B3** *(selection rendered)* · **B8** *(the panel obeys the focused SURFACE — `R-95`)* |
-| **gate baseline** | AiShared **1424** · Blueprints **3767/3777/10** · BTree.Editor **615** · Hsm.Editor **551** · Hrot.Editor **194** · Breakpoints **143** · tracker **open 66 / done 201** · rulings **63/63** |
+| **gate baseline** *(Batch 88, their run)* | AiShared **1446** · Blueprints **3767/3777/10** · BTree.Editor **615** · Hsm.Editor **551** · Hrot.Editor **201** · Breakpoints **143** · NodeEditor.Core **211** · NodeEditor.UI **135** · Fhsm **300** · tracker **66 / 204** · rulings **65/65** |
 | **lanes** | coordinator `claude/blueprint-authoring-status-gm0akp` · implementation `claude/hrot-implementation-j1jvin` |
 
 ## 0b. ⭐⭐⭐ THE DESIGN WORK THIS SESSION — **five questions, four of them CLOSED**
@@ -49,7 +45,7 @@ stale-below: everything from "## 1." down is HISTORY from earlier sessions. Do n
 | ⭐ **`Q42`** declaration identity | ✅ **APPROVED IN FULL** *(`R-89`)* — **`Guid` inside, `Name` outside**; AI hosts converge on the blueprint model |
 | ⭐ **`Q43`** blueprint-authored param resolver | ✅ **APPROVED IN FULL** *(`R-94`)* — it is a **`GraphKind.Construction`** graph *(`R-93`: a reserved, unconsumed slot)*, ⛔ **no new dispatch kind** |
 | ⭐ **`Q44`** breakpoint UI unification | ✅ **APPROVED IN FULL** *(`R-97`)* — ONE breakpoint window, all kinds; **`IsWatch` retires into a hit-count column** |
-| ⚠ **`Q38`** one Details panel | ⭐⭐ **mostly ruled** *(`R-98`)* — see `0c` |
+| ⚠ **`Q38`** one Details panel | ✅ **RULED, including pinning** *(`R-98`, `R-100`)* — ⭐ **one window INSTANCE per pin, titled by its context**; both sub-choices approved `2026-08-19`. ⛔ **`R-27` still gates the BUILD** |
 
 ⛔⛔ **NOTHING FROM `Q38`–`Q44` IS BUILT.** ⭐ **`R-27` gates them all on the post-Batch-88 visual check.**
 

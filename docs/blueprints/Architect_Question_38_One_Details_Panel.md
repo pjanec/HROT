@@ -517,12 +517,12 @@ grep -rn "IsVolatile" --include=*.cs .   → 7 hits, 2 of them producers
 ⇒ ⭐⭐⭐ **This is ROUTING, not construction** *(ruling 9)*. ⛔ **Do not build a second spawned-window
 mechanism** — ⭐ mirror `ComponentEditWindow`.
 
-#### ⚠ Two sub-choices the ruling does not settle — **RECOMMENDED, awaiting approval**
+#### ✅✅ Two sub-choices — **BOTH APPROVED `2026-08-19`** *(user: "both recommendations approved")*
 
-| | ⭐ recommendation |
+| | ✅ **RULED as recommended** |
 |---|---|
-| ⚠ **pinning the SAME (context, view) twice** | ⭐⭐ **Key the id on `(view, asset, selection)` and FOCUS the existing window** — the `ComponentEditWindow` precedent exactly. ⭐ **Every pin that differs in context OR view still spawns**, so the user's rule holds everywhere it is observable; only a literal duplicate collapses. ⛔ **A monotonic `pin_7` counter is the alternative** and it does obey the letter — ⚠ **but two byte-identical windows are noise, and the user cannot tell them apart because their TITLES are identical too** |
-| ⚠ **do pins survive a restart?** | ⭐ **NO — volatile, as the precedent is.** ⛔ **Do NOT confuse this with the Watch**, which is ruled **persistable** — ⭐ a watch is a curated list the user built; a pin is a scratch view. ⚠ **If pins should persist, `IsVolatile` is the wrong base** and that is a bigger change |
+| ✅ **pinning the SAME (context, view) twice** | ⭐⭐ **Key the id on `(view, asset, selection)` and FOCUS the existing window** — the `ComponentEditWindow` precedent exactly. ⭐ **Every pin that differs in context OR view still spawns**, so the user's rule holds everywhere it is observable; only a literal duplicate collapses. ⛔ **A monotonic `pin_7` counter is the alternative** and it does obey the letter — ⚠ **but two byte-identical windows are noise, and the user cannot tell them apart because their TITLES are identical too** |
+| ✅ **do pins survive a restart?** | ⭐ **NO — volatile, as the precedent is.** ⛔ **Do NOT confuse this with the Watch**, which is ruled **persistable** — ⭐ a watch is a curated list the user built; a pin is a scratch view. ⚠ **If pins should persist, `IsVolatile` is the wrong base** and that is a bigger change |
 
 #### ⭐ The title — **compose it from the pinned tuple, do not invent a scheme**
 
