@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-19
-current-answer: this whole file - rewritten for Batches 89 and 90.
+current-answer: this whole file - rewritten for Batches 89 and 90, plus row A9 (Batch 91).
 stale-below: nothing. The 2026-08-18 edition's "part D is blocked" framing and its
   "expect (pending)" rows are BOTH GONE - do not quote them.
 known-rot: none known. Every "not built" claim names the command that measured it on
@@ -10,7 +10,7 @@ note: GUIDE_Track_C_Visual_Check.md parts B (Inspector default value) and F (cha
   highlighting) still stand and are not repeated here.
 -->
 
-# GUIDE — **the visual check**, post-Batch-90
+# GUIDE — **the visual check**, post-Batch-91
 
 > ⭐⭐⭐ **THE TWO THINGS THAT BLOCKED THE LAST EDITION ARE FIXED.**
 > ✅ **The edit dialog reaches the designer** *(Batch 89 — part `D` is fully runnable)*.
@@ -75,6 +75,13 @@ the highlight diffs **bytes** ⇒ **inert by design**, not a bug. ⭐ **BTree an
 | **A6** | Click any section's **`[+]`** | ⭐ **the same new-variable dialog for EVERY section** *(`R-17`)* | ☐ |
 | **A7** | Open a **Macro** graph, click `[+]` on `Local Variables` | ⭐ **refuses OUT LOUD** — ⛔ not a silent no-op | ☐ |
 | **A8** | Look for a **Role** or **Scope** dropdown, anywhere | ⛔⛔ **there is none.** The SECTION is the classification | ☐ |
+
+### ⭐⭐ A9 — **NEW, Batch 91.** The one designer-visible surface of the alias fix
+
+| # | do | expect | ✔ |
+|---|---|---|---|
+| ⭐⭐⭐ **A9** | On a **BTree** or **HSM** asset with a sub-tree: drag an **Unbound Sub-Tree Requirement** onto a matching **Defined Variable** → the `↳ aliased by:` badge appears. **SAVE · CLOSE the asset · REOPEN it** | ⭐⭐⭐ **the alias and its badge are STILL THERE.** ⛔⛔ **Before Batch 91 they were always gone** — 📌 `BP-339`, and the loss was **silent** | ☐ |
+| ⭐ **A9b** | Delete the sub-asset the alias points at, then reopen | ⭐ the alias **prunes** — ⛔ no dangling badge | ☐ |
 
 ---
 

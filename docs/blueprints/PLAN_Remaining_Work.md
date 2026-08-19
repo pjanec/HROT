@@ -1,3 +1,41 @@
+# PLAN — what is left *(revision 37, `2026-08-19`)*
+
+> ✅ **REVISION 37 — BATCH 91 MERGED `--ff-only`. ⭐⭐ TWO ITEMS LANDED, THREE STOPPED ON MEASUREMENTS.**
+> Tracker **68 / 208** *(✅ clean on their first paste this time)*. Ids: `BP-339` · `BP-340` · `BP-341`.
+>
+> ✅ **`91b` — ALIASES PERSIST**, both hosts, rails through **real JSON text into a FRESH model**
+> *(⛔ never the in-process `AddAlias`-then-read that let the defect live)*. ⭐ Nullable +
+> `JsonIgnore(WhenWritingNull)` ⇒ **zero golden movement, railed three ways**, `MigrationEquivalence`
+> 270/270. 📌 **`M-20` is CLOSED.**
+>
+> 🛑 **`91a` STOPPED, and it was RIGHT — my handoff's premise was wrong.** 📐 **Spot-verified:**
+> `AiAssetEmitService` **is** constructed at `EditorSubsystem:3136` and immediately
+> `_ = emitService; // suppress unused-variable lint`, under a **PU-D11 / PU-402** note that the save
+> path *"now writes JSON … instead of C#"*. ⇒ ⛔ **`R-99` settled THAT they are wired, not WHERE**, and
+> the seam I named carries a spec decision against it. ⭐⭐ **`91c` was held with it, on my own words.**
+> ⇒ 📄 **[`Architect_Question_45`](Architect_Question_45_Who_Emits_The_Orchestrator.md)** — ⭐ **and I
+> was the one misled**: `CompanionFileDiscovery` hunts the sidecar **beside a hand-authored `_BT.cs`**,
+> i.e. **Category 1** — ⛔ **not proof of a consumer on the JSON path.**
+>
+> ⭐⭐ **`91d` — the question answered decisively, by three measurements**, and the FIXTURE was wrong:
+> `RenderContext.Resources` is **non-nullable**, set unconditionally at the **one** production site, and
+> deref'd unguarded by **three** readers — one line above a field that IS nullable and documented
+> *"May be null in headless test contexts."* ⇒ **34 → 83 passing.** ⛔ **A second, NATIVE crash remains**
+> — the NRE was masking it. ⭐ **They did not guard it**, per the handoff's own rule.
+>
+> 🛑 **`91e` BUILT THEN REVERTED — the best finding of the batch.** A readable auto-name breaks
+> `Promote`'s idempotence, ⭐⭐ **because that idempotence comes FROM the GUID**: the name *is* the
+> node's id, so a second `Promote` finds it. With a stem + uniquifier the second call mints a **second
+> variable for one node**. ⇒ ⭐ **`BP-341` belongs with `B2`** *(Guid declaration identity)* — the same
+> question one level up. ⚠ **Reverted clean, zero residue.**
+> ⭐⭐ **And probe `P3` earned its keep**: their unit rails stayed green when the CALL SITE was reverted,
+> so they added a call-site rail — **that** rail is what exposed the conflict at all.
+>
+> ⭐ **Guide row `A9`/`A9b` added** — the alias reload is `91b`'s only designer-visible surface, and the
+> failure it replaces was **silent**.
+
+# ⛔ HISTORY — revision 36 and earlier
+
 # PLAN — what is left *(revision 36, `2026-08-19`)*
 
 > ✅✅✅ **REVISION 36 — BATCH 90 MERGED `--ff-only`. ⭐⭐⭐ THE DETAILS VALUE COLUMN IS LIVE ON ALL THREE

@@ -18,33 +18,29 @@ stale-below: everything from "## 1." down is HISTORY from earlier sessions. Do n
 
 ## 0. ⭐⭐⭐ THE ONE THING TO DO FIRST
 
-🔴🔴 **BATCH 91 IS IN FLIGHT — dispatched at `3868c29e5`.** 📄 [`HANDOFF_Batch91_The_Sub_Asset_Sharing_Model_Finished.md`](HANDOFF_Batch91_The_Sub_Asset_Sharing_Model_Finished.md)
-⭐ **Five items** — the sub-asset sharing model *(alias persistence + the orchestrator emitters +
-`subAssetResolver`)* plus `BP-337` and `B5`. ⛔ **Rule 1: do NOT amend it.** ⚠ **Rule 1b: check for
-their `chore: started batch 91` marker before assuming no run is in progress.**
-
-⭐⭐⭐ **AND: RUN THE VISUAL CHECK** — ⭐ **it does not depend on Batch 91.** The guide is current, every
-blocker is gone, and the user was simply unable to run it when 91 was dispatched.
-
-📄 **[`GUIDE_Blueprint_Visual_Check.md`](GUIDE_Blueprint_Visual_Check.md)** — ~45 min, PASS/FAIL rows.
+⭐⭐⭐ **TWO THINGS, and neither is blocked.** ⭐ **Nothing is in flight.**
 
 | | |
 |---|---|
-| ✅ **Batch 90 MERGED** *(ff-only)* | **`BP-334` CLOSED** · `BP-338` found+fixed · tracker **66 / 207** · plan **revision 36** |
-| ⭐⭐⭐ **the Details Value column is LIVE on all three hosts** | Blueprint via the **object** arm, BTree/HSM via **bytes** — 📌 **`M-22`**, coordinator-verified on the merged tree |
-| ✅ **Batch 89** | the **edit dialog reaches the designer** ⇒ part `D` fully runnable |
-| ✅ **Batch 88** | BTree/HSM have a **Details window** ⇒ part `H`, and `R-21`'s suspension lifted on all three |
-| ⭐⭐ **what the check must NOT report as defects** | `(pending)` with no entity / no session / sim stopped / **a variable the run has not written** · **Blueprint's inert change highlight** · `E2`–`E7` *(pinning unbuilt)* · the missing `⋮` |
-| ⭐⭐⭐ **what is worth the most if it fails** | **`B3` · `B8` · `D1b` · `E6b`** *(Batch 87's fixes, never seen by a human)* · **`C7`/`H9`** *(Batch 90)* · **`C7c`** *(a ZERO where `(pending)` belongs — `BP-338`)* |
-| ⛔ **do NOT schedule `Q38`** | `R-27` — ⭐ **the check is its gate, and this is that check** |
+| ⭐⭐⭐ **① RUN THE VISUAL CHECK** | 📄 [`GUIDE_Blueprint_Visual_Check.md`](GUIDE_Blueprint_Visual_Check.md) — ~45 min. ⭐ **It is `R-27`'s gate**, so the whole `Q38`/`Q44` family waits on it |
+| ⭐⭐ **② `Q45` needs the user's approval** | 📄 [`Architect_Question_45_Who_Emits_The_Orchestrator.md`](Architect_Question_45_Who_Emits_The_Orchestrator.md) — **`A`–`F` all carry recommendations.** ⭐ Approving it unblocks **`BP-340`** *(`91a`+`91c`)*, the last piece of the sub-asset sharing model |
+
+| | |
+|---|---|
+| ✅ **Batch 91 MERGED** | `BP-339` done · **`BP-340`** / **`BP-341`** open · tracker **68 / 208** · plan **revision 37** |
+| ⭐⭐ **what landed** | **aliases PERSIST** *(`M-20` closed)* · `BP-337` half-fixed *(34 → 83 passing; a NATIVE crash remains)* |
+| 🛑 **what STOPPED, correctly** | **`91a`/`91c`** — ⇒ `Q45` · **`91e`** — a readable auto-name breaks `Promote`'s idempotence, which **comes from the GUID** ⇒ **`BP-341` belongs with `B2`** |
+| ⭐ **new guide row** | **`A9`/`A9b`** — author an alias, save, reopen. ⭐ **The only designer-visible surface of `91b`**, and its old failure was silent |
+
+⚠ **`M-23`** measures the orchestrator gap; **`M-22`** the live Value column *(✅ live on all three)*.
 
 ## 0a. ⭐⭐ Where things stand
 
 | | |
 |---|---|
-| **last MERGED** | ⭐ **Batch 90** at `a81950ff7` *(ff-only)* — plan **revision 36** |
+| **last MERGED** | ⭐ **Batch 91** at `fd59e9c36` *(ff-only)* — plan **revision 37** |
 | **Batch 87 fixed** | `BP-327` *(the modal draws)* · `BP-330` · **B3** *(selection rendered)* · **B8** *(the panel obeys the focused SURFACE — `R-95`)* |
-| **gate baseline** *(Batch 90, their run)* | AiShared **1479** · Blueprints **3773/3783/10** · BTree.Editor **615** · Hsm.Editor **551** · Hrot.Editor **201** · Breakpoints **143** · NodeEditor.Core **211** · NodeEditor.UI **135** · Fhsm **300** · Fdp.Presentation **146 FILTERED** *(⛔ `BP-337`)* · tracker **66 / 207** · rulings **66/66** |
+| **gate baseline** *(Batch 90, their run)* | AiShared **1479** · Blueprints **3773/3783/10** · BTree.Editor **615** · Hsm.Editor **551** · Hrot.Editor **201** · Breakpoints **143** · NodeEditor.Core **211** · NodeEditor.UI **135** · Fhsm **300** · Fdp.Presentation **146 FILTERED** *(⛔ `BP-337`)* · AiEditor.Generators **270** · tracker **68 / 208** · rulings **66/66** |
 | **lanes** | coordinator `claude/blueprint-authoring-status-gm0akp` · implementation `claude/hrot-implementation-j1jvin` |
 
 ## 0b. ⭐⭐⭐ THE DESIGN WORK THIS SESSION — **five questions, four of them CLOSED**
