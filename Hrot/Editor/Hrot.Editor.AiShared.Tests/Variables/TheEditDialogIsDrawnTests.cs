@@ -54,6 +54,70 @@ public sealed class TheEditDialogIsDrawnTests
         return (new VariableEditModal(binder, () => runState), binder);
     }
 
+    /// <summary>⭐ A row whose KIND can never be written — the read-only-view arm's input.</summary>
+    private static VariableRow ReadOnlyRow(VariableRowKind kind)
+        => Row() with { RowKind = kind };
+
+    // ══ Batch 96 §3b — a VIEW is shaped as a VIEW ════════════════════════════
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>A node-owned or passthrough row opens a READ-ONLY VIEW, with no OK.</b>
+    ///
+    /// <para>🔴 <b>The user's report:</b> the dialog opened, they clicked OK, and it said <i>"this row
+    /// cannot be written"</i>. ⚠ <b>Opening is deliberate</b> — <c>VariableEditLauncher.Open</c>'s own
+    /// comment says a read-only row still opens so the values can be READ. ⛔ Offering an OK button
+    /// that then refuses is the false expectation, and 📌 the user's rule is <i>"same information
+    /// value, no false expectations."</i></para>
+    /// </summary>
+    [Theory]
+    [InlineData(VariableRowKind.NodeOwned)]
+    [InlineData(VariableRowKind.ReadOnlyPassthrough)]
+    public void ARowThatCanNeverBeWrittenOpensAsAView(VariableRowKind kind)
+    {
+        var (modal, binder) = Make(VariableRunState.Planning);
+
+        binder.OnEditValue(ReadOnlyRow(kind));
+
+        Assert.True(modal.IsOpen);
+        Assert.True(modal.IsReadOnlyView);
+        Assert.False(modal.CanCommit);                       // ⛔ no OK is drawn at all
+        Assert.False(string.IsNullOrWhiteSpace(modal.ReadOnlyReason));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The OTHER refusal keeps its greyed OK and its tooltip</b> — 📌 the <c>2026-08-17</c>
+    /// ruling. ⚠ <b>The two are different and must stay different:</b> a free-running refusal is
+    /// ACTIONABLE *(pause and it works)*, so the button belongs; a row that can never be written has
+    /// nothing to act on, so it does not.
+    /// </summary>
+    [Fact]
+    public void AFreeRunningRefusalStillGreysOkRatherThanHidingIt()
+    {
+        var (modal, binder) = Make(VariableRunState.Running);
+
+        binder.OnEditValue(Row());
+
+        Assert.True(modal.IsOpen);
+        Assert.False(modal.IsReadOnlyView);                  // ⭐ an editor, not a view
+        Assert.False(modal.CanCommit);                       // ⭐ …with OK greyed
+        Assert.False(string.IsNullOrWhiteSpace(modal.CommitRefusalReason));
+        Assert.Null(modal.ReadOnlyReason);
+    }
+
+    /// <summary>⭐ An ordinary planning-state row is a plain editor — ⛔ the read-only shaping must not
+    /// swallow the case the dialog exists for.</summary>
+    [Fact]
+    public void AnOrdinaryRowIsStillAnEditor()
+    {
+        var (modal, binder) = Make(VariableRunState.Planning);
+
+        binder.OnEditValue(Row());
+
+        Assert.False(modal.IsReadOnlyView);
+        Assert.True(modal.CanCommit);
+        Assert.Null(modal.ReadOnlyReason);
+    }
+
     // ══ the dialog follows the session ══════════════════════════════════════
 
     /// <summary>⛔ Nothing open ⇒ nothing drawn. ⚠ The guard <c>Draw</c> returns on.</summary>

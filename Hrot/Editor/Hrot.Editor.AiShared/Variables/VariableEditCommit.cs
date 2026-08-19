@@ -54,6 +54,28 @@ public static class VariableEditCommit
         RefusedReadOnly,
 
         /// <summary>
+        /// ⭐⭐⭐ <b>Batch 96 — the declaration's OWNER could not be resolved, so there is nowhere to
+        /// write the initial value.</b>
+        ///
+        /// <para>🔴🔴 <b>Why this had to become its own word.</b> 📐 Measured: the production binder is
+        /// constructed with <c>assetOf: null</c> *(<c>PerspectiveWorkspaceRegistrar</c>, and
+        /// <c>assetOf</c> had <b>ZERO production call sites</b> — only two tests passed one)* ⇒
+        /// <c>CommitInitialValue</c> hit <c>if (asset is null) return Outcome.RefusedReadOnly;</c> on
+        /// <b>every OK, on every host, for every row, in the normal authoring state.</b></para>
+        ///
+        /// <para>⛔⛔ <b>And it then told the designer <i>"This row cannot be written — it is
+        /// node-owned, a passthrough, or stale"</i>, which was a LIE about a perfectly ordinary
+        /// variable.</b> 📌 The user's rule is <i>"same information value, no false expectations"</i> —
+        /// ⭐ a refusal that misnames its own cause is worse than a silent one, because it sends the
+        /// designer to fix the wrong thing.</para>
+        ///
+        /// <para>⚠ <b>It is still reachable on Blueprint after the wire</b>: <c>asset</c> is an
+        /// <c>IBlackboardManagedAsset</c> and <c>BlueprintAsset</c> is not one — 📌 the same vocabulary
+        /// mismatch <c>95a</c> fixed for READING, unfixed for WRITING. ⭐ Filed, and now it says so.</para>
+        /// </summary>
+        RefusedNoDeclarationOwner,
+
+        /// <summary>
         /// ⛔ The write target was the LIVE blackboard and no live writer was supplied, or it refused.
         /// ⭐ Distinct from <see cref="RefusedRunning"/>: the run state ALLOWED the write and the
         /// mechanism did not arrive — 📌 exactly the silent-default shape, so it gets its own word.
@@ -121,7 +143,10 @@ public static class VariableEditCommit
         // ⭐ ONE question, asked in one place: is the initial value what this edit means?
         if (TargetFor(runState) != Target.InitialValue) return Outcome.RefusedRunning;
 
-        if (asset is null) return Outcome.RefusedReadOnly;
+        // ⭐⭐⭐ Batch 96 — its OWN outcome. 🔴 This used to return RefusedReadOnly, whose message names
+        //    the row kind ("node-owned, a passthrough, or stale") — and the row is usually none of
+        //    those. See RefusedNoDeclarationOwner for the measurement.
+        if (asset is null) return Outcome.RefusedNoDeclarationOwner;
 
         var json = DefaultValueAuthoring.CommitAndSerialize(session, fieldType);
         asset.UpdateVariableDefaultValueJson(row.Origin.VariablePath, json);

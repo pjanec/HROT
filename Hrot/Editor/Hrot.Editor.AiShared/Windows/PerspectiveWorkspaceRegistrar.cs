@@ -330,7 +330,16 @@ public class PerspectiveWorkspaceRegistrar
             EditGestures = new VariableEditGestureBinder(
                 new VariableEditLauncher(facetEditService),
                 entryResolver: row => ResolveEntry(selectionStore, row),
-                runState:      _runState);
+                runState:      _runState,
+                // ⭐⭐⭐ Batch 96 — THE SEVENTH INSTANCE, and it was two lines from the sixth.
+                // 🔴🔴 Measured: `assetOf` had ZERO production call sites — only two tests ever passed
+                //    one — so `_assetOf?.Invoke(row)` was null on every OK, `CommitInitialValue` hit
+                //    `if (asset is null)`, and the designer was told "This row cannot be written — it
+                //    is node-owned, a passthrough, or stale" about an ordinary variable. ⇒ the write
+                //    the whole dialog exists for has never landed in production, on any host.
+                // ⭐ Derived from the store this registrar already holds — ⛔ nothing new for the
+                //   composition root to forget (R-67).
+                assetOf:       row => DeclarationOwnerOf(selectionStore, row));
 
             // ⭐⭐⭐ Batch 87 — ONE attach point, reached through IVariableTableHost.
             // 🔴🔴 THE TWELFTH INSTANCE, and it was the line right here: this said
@@ -787,6 +796,27 @@ public class PerspectiveWorkspaceRegistrar
     /// <para>⭐ The store lookup STAYS as the fallback: a row from a source that predates the arm (or a
     /// hand-built one) still resolves exactly as before. ⛔ It is no longer the only answer.</para>
     /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 96 — the asset whose DECLARATION an initial-value edit updates.</b>
+    ///
+    /// <para>⚠⚠ <b>Keyed on the ROW's asset id, not simply "the active asset".</b> The Watch mixes rows
+    /// from arbitrary assets *(<c>VariableRow</c>'s own doc: <i>"in Watch there is no single one"</i>)*,
+    /// so writing blindly to whatever document happens to be open would land a designer's edit
+    /// <b>in the wrong asset</b> — ⛔ silently, and with an Ok outcome saying it worked.</para>
+    ///
+    /// <para>⚠ <b>Blueprint still resolves to <c>null</c> here, and that is now HONEST rather than
+    /// silent</b>: the write target is typed <c>IBlackboardManagedAsset</c>, which
+    /// <c>BlueprintAsset</c> does not implement — 📌 the same vocabulary mismatch <c>95a</c> fixed for
+    /// READING, still open for WRITING. ⭐ The refusal it produces is
+    /// <c>RefusedNoDeclarationOwner</c>, which says so, ⛔ instead of blaming the row's kind.</para>
+    /// </summary>
+    private static IBlackboardManagedAsset? DeclarationOwnerOf(
+        EditorSelectionStore store, VariableRow row)
+        => store.ActiveAsset is IBlackboardManagedAsset asset
+        && store.ActiveAsset.AssetId == row.Origin.AssetId
+            ? asset
+            : null;
+
     private static BlackboardVariableEntry? ResolveEntry(EditorSelectionStore store, VariableRow row)
     {
         // ⭐⭐ The source that built the row already held the schema that declares it.

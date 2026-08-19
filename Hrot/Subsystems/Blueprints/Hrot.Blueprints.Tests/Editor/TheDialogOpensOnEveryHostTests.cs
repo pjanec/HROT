@@ -104,7 +104,8 @@ public sealed class TheDialogOpensOnEveryHostTests
         //    hides is "do the two real AI assets still implement IBlackboardManagedAsset" — which
         //    the golden corpus pins elsewhere, and which 95a does not touch.
         //    ⭐⭐ The ROW SOURCE is the real shared one, and the REGISTRAR is production's.
-        IEditableAsset asset = new StandInManagedAsset(
+        //    ⭐ TestManagedAsset carries the full note.
+        IEditableAsset asset = new TestManagedAsset(
             perspective == "btree" ? AssetKind.BTree : AssetKind.Hsm, entry);
 
         return (new BlackboardSectionRowSource(
@@ -112,38 +113,6 @@ public sealed class TheDialogOpensOnEveryHostTests
                     assetId: asset.AssetId,
                     section: BlackboardMyBlueprintModel.SectionOf(entry)),
                 asset);
-    }
-
-    /// <summary>⚠ The BTree/HSM stand-in — see <see cref="AiRows"/> for exactly what it hides.</summary>
-    private sealed class StandInManagedAsset : IEditableAsset, IBlackboardManagedAsset
-    {
-        private readonly List<BlackboardVariableEntry> _vars;
-        public StandInManagedAsset(AssetKind kind, params BlackboardVariableEntry[] vars)
-        { Kind = kind; _vars = vars.ToList(); }
-
-        public Guid AssetId { get; } = Guid.NewGuid();
-        public string Name => "DialogHost";
-        public AssetKind Kind { get; }
-        public string SourceFilePath => "/dialog-host.json";
-        public bool IsDirty => false;
-        public bool IsEditorOwned => true;
-        public event Action? Changed { add { } remove { } }
-
-        public bool IsBlackboardEditorManaged => true;
-        public void SetBlackboardEditorManaged(bool managed) { }
-        public IReadOnlyList<BlackboardVariableEntry> BlackboardVariables => _vars;
-        public void AddVariable(BlackboardVariableEntry entry) => _vars.Add(entry);
-        public void RemoveVariable(string name) => _vars.RemoveAll(v => v.Name == name);
-        public void RemoveVariables(IReadOnlyList<string> names) { }
-        public void UpdateVariableComment(string name, string? comment) { }
-        public void UpdateVariableDefaultValueJson(string name, string? json) { }
-        public void MoveVariable(int sourceIndex, int destIndex) { }
-        public void RenameVariable(string oldName, string newName) { }
-        public int CountNodesReferencingVariable(string name) => 0;
-        public IReadOnlyList<BlackboardAliasBinding> GetAliasesFor(string variableName)
-            => Array.Empty<BlackboardAliasBinding>();
-        public void AddAlias(string variableName, BlackboardAliasBinding binding) { }
-        public void RemoveAlias(string variableName, Guid requiringAssetId, Guid requiringElementId) { }
     }
 
     private static (IVariableRowSource Source, object Asset) RowsFor(string perspective)

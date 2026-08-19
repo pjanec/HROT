@@ -128,7 +128,58 @@ public sealed class VariableEditModal
     /// </summary>
     public bool CanCommit
         => _binder.ActiveSession != null
+        && !IsReadOnlyView
         && VariableEditCommit.TargetFor(_runState()) != VariableEditCommit.Target.Nowhere;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 96 — this dialog is a VIEW, not an editor, and it must be SHAPED as one.</b>
+    ///
+    /// <para>📌 The user's second visual check: <i>the dialog opens and THEN says "this row cannot be
+    /// written"</i>. ⚠ <b>Opening is deliberate</b> — <c>VariableEditLauncher.Open</c>'s own comment:
+    /// <i>"<c>ReadOnly</c> still OPENS — the design says properties are read-only mid-run, not absent;
+    /// refusing to open would hide the values a designer wants to read."</i> ⭐ <b>That decision is
+    /// defensible; presenting it as an editor with an OK button that then says no is not.</b>
+    /// 📌 The user's own rule: <i>"same information value, no false expectations."</i></para>
+    ///
+    /// <para>⭐⭐ <b>The two refusals are DIFFERENT and are shown differently</b>, which is the whole
+    /// point:
+    /// <list type="bullet">
+    ///   <item>⭐ <b>the ROW can never be written</b> *(node-owned · passthrough · stale)* ⇒ <b>no OK at
+    ///   all</b> — nothing the designer does here could ever land, so offering the button is the false
+    ///   expectation.</item>
+    ///   <item>⭐ <b>the RUN STATE forbids it right now</b> *(free-running)* ⇒ <b>OK greyed with the
+    ///   reason on hover</b> — 📌 the <c>2026-08-17</c> ruling, and it is actionable: pause and it
+    ///   works.</item>
+    /// </list></para>
+    ///
+    /// <para>⛔ It asks <see cref="VariableEditPolicy"/> rather than re-deriving the rule — a second
+    /// copy of that matrix here is exactly how the two would drift.</para>
+    /// </summary>
+    public bool IsReadOnlyView
+        => _binder.ActiveSession != null
+        && _binder.ActiveRow is { } row
+        && VariableEditPolicy.Resolve(
+               _binder.LastAction ?? VariableEditAction.EditValue, _runState(), row)
+           == VariableEditAvailability.ReadOnly;
+
+    /// <summary>
+    /// ⭐⭐ <b>Why this dialog is read-only</b>, or <c>null</c> when it is an editor. ⛔ Never a bare
+    /// greyed control: the designer must be able to read the reason without clicking anything.
+    /// </summary>
+    public string? ReadOnlyReason => IsReadOnlyView
+        ? _binder.ActiveRow!.RowKind switch
+        {
+            VariableRowKind.NodeOwned =>
+                "Read-only: this variable is owned by the editor (auto-managed), so its value is not "
+                + "authored here.",
+            VariableRowKind.ReadOnlyPassthrough =>
+                "Read-only: this variable is a passthrough — it is declared elsewhere and only "
+                + "surfaced here.",
+            _ =>
+                "Read-only: a variable cannot be retyped while the simulation is up. Its current "
+                + "values are shown for reference.",
+        }
+        : null;
 
     /// <summary>
     /// ⭐⭐⭐ <b>The tooltip a greyed OK carries, or <c>null</c> when OK is live.</b> 📌 The user's
@@ -153,6 +204,10 @@ public sealed class VariableEditModal
     /// </summary>
     public string? RefusalMessage => _refusal switch
     {
+        // ⭐⭐⭐ Batch 96 — the cause the designer actually hit, and it is NOT the row kind.
+        VariableEditCommit.Outcome.RefusedNoDeclarationOwner =>
+            "The edit could not be saved: the variable's declaration owner could not be resolved for "
+            + "this row, so there is nowhere to write the initial value. Nothing was changed.",
         VariableEditCommit.Outcome.LiveWriteUnavailable =>
             "The edit could not be written to the live blackboard: no live writer is installed for "
             + "this host, or it refused the write. Nothing was changed.",
@@ -254,19 +309,32 @@ public sealed class VariableEditModal
 
             ImGui.Separator();
 
-            // ⭐ GREYED, with the reason on hover — never a click that dead-ends.
-            bool canCommit = CanCommit;
-            if (!canCommit) ImGui.BeginDisabled();
-            if (ImGui.Button("OK")) Ok();
-            if (!canCommit)
+            // ⭐⭐⭐ Batch 96 — A VIEW IS SHAPED AS A VIEW. 🔴 The designer met an OK button that then
+            //    said "this row cannot be written"; the open is deliberate (see IsReadOnlyView) but
+            //    the editor shape was the false expectation.
+            if (IsReadOnlyView)
             {
-                ImGui.EndDisabled();
-                if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
-                    ImGui.SetTooltip(CommitRefusalReason ?? "");
+                ImGui.TextWrapped(ReadOnlyReason ?? "");
+                ImGui.Separator();
+                if (ImGui.Button("Close")) Cancel();
             }
+            else
+            {
+                // ⭐ GREYED, with the reason on hover — never a click that dead-ends. ⚠ This arm is
+                //   for a refusal the RUN STATE makes and the designer can undo by pausing.
+                bool canCommit = CanCommit;
+                if (!canCommit) ImGui.BeginDisabled();
+                if (ImGui.Button("OK")) Ok();
+                if (!canCommit)
+                {
+                    ImGui.EndDisabled();
+                    if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+                        ImGui.SetTooltip(CommitRefusalReason ?? "");
+                }
 
-            ImGui.SameLine();
-            if (ImGui.Button("Cancel")) Cancel();
+                ImGui.SameLine();
+                if (ImGui.Button("Cancel")) Cancel();
+            }
         }
         else if (RefusalMessage is { } message)
         {
