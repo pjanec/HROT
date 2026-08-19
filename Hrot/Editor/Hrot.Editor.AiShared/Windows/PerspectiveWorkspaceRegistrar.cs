@@ -574,6 +574,13 @@ public class PerspectiveWorkspaceRegistrar
     /// <para>⚠ A null <paramref name="host"/> or a null table is a NO-OP, not a throw: a Watch with no
     /// variable panel is a legitimate shape.</para>
     /// </summary>
+    /// <summary>
+    /// ⭐ The same binding <c>RegisterExtraWindow</c> performs, reachable without a
+    /// <c>WindowManager</c>. ⛔ NOT a second implementation — it calls the one path, so a rail that
+    /// uses it cannot pass while production binding is broken *(<c>R-67</c>)*.
+    /// </summary>
+    internal void BindTableHostForTest(IVariableTableHost host) => AttachEditGestures(host);
+
     private void AttachEditGestures(IVariableTableHost? host)
     {
         if (EditGestures is null || host?.VariableTable is not { } table) return;
