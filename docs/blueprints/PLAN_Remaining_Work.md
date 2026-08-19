@@ -113,6 +113,13 @@
 > ⭐⭐ **They reported two `§M` rows as stale rather than editing them** — 📌 §M is the coordinator's.
 > **`M-19`** and **`M-23`** updated here.
 
+> ⏭ **BATCH 93 DISPATCHED at `ad9f1cd93`** — 📄 [`HANDOFF_Batch93_Watch_Pinning.md`](HANDOFF_Batch93_Watch_Pinning.md).
+> ⭐⭐ **Watch pinning, all three slices in one batch** — the split stopped being worth it once `M-25`
+> sized slice 3 and `R-102` ruled its one decision. ⭐ **What is missing is the GESTURE, not the
+> machinery** *(the 14th instance)*, and ⚠ **the handoff explicitly warns against building the per-tick
+> poller spec §4 describes** — ⭐ **Batch 90's arms already carry the value, and a pinned row carries
+> its arm with it.** ⭐ **It closes `E2`–`E7`, the last SKIP in the visual check.**
+
 # ⛔ HISTORY — revision 37 and earlier
 
 # ⛔ HISTORY — revision 36 and earlier
