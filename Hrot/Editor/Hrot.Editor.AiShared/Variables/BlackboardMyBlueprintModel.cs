@@ -99,6 +99,20 @@ public sealed class BlackboardMyBlueprintModel : IMyBlueprintModel
         };
     }
 
+    /// <summary>
+    /// ⭐⭐ <b>The heading a section shows.</b> ⛔ Static because a Details panel must resolve it BEFORE
+    /// an asset is selected — the model is null until then, and a routing path that needs a model would
+    /// silently produce a raw id like <c>"bb.inputs"</c> as the heading.
+    ///
+    /// <para>⭐ Reads the same descriptor list <see cref="Sections"/> is built from, so the outline tree
+    /// and the Details heading cannot disagree. ⚠ The two hosts' display names are identical; only
+    /// their create-command ids are host-qualified, which is why this takes no host.</para>
+    /// </summary>
+    public static string DisplayNameOf(string sectionId)
+        => BuildSections(BlackboardHostKind.BTree)
+               .FirstOrDefault(s => s.Id == sectionId)?.DisplayName
+           ?? sectionId;
+
     /// <summary>⭐ Which section a variable belongs to — §1c's table, in one place.</summary>
     public static string SectionOf(BlackboardVariableEntry v)
         => v.Role != BlackboardVariableRole.State ? SectionInputs

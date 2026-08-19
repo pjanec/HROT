@@ -145,9 +145,12 @@ public class PerspectiveWorkspaceRegistrarTests : IDisposable
         // 3 perspectives × 6 windows = 18 distinct ids.
         // ⚠ 18 → 21 (Batch 79: the Variables table) → 23 (Batch 80: the derived outline, on BTree and
         //    HSM only — +2, not +3, because Blueprint keeps BlueprintMyBlueprintWindow).
+        // ⚠ 23 → 25 (Batch 88b: the AI Details panel, again BTree and HSM only — +2, not +3, because
+        //    Blueprint keeps BlueprintDetailsWindow. ⭐ A second Details there would be two panels for
+        //    one concept AND an id collision, which RegisterCore now refuses at startup).
         //    ⭐ The property under test is distinctness, and it still holds.
-        Assert.Equal(23, allIds.Count);
-        Assert.Equal(23, allIds.Distinct().Count());
+        Assert.Equal(25, allIds.Count);
+        Assert.Equal(25, allIds.Distinct().Count());
     }
 
     /// <summary>

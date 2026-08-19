@@ -38,7 +38,8 @@ namespace Hrot.Editor.AiShared.Windows;
 /// the user's ruling is that the two variable surfaces coexist until
 /// <c>Architect_Question_38</c> decides the merge.</para>
 /// </summary>
-public sealed class AiMyBlueprintWindow : ManagedWindow, Selection.IDetailsSurfaceClaimant
+public sealed class AiMyBlueprintWindow : ManagedWindow, Selection.IDetailsSurfaceClaimant,
+                                          IVariableOutlineSelectionSource
 {
     private readonly BlackboardHostKind    _host;
     private readonly EditorSelectionStore? _store;
@@ -215,23 +216,76 @@ public sealed class AiMyBlueprintWindow : ManagedWindow, Selection.IDetailsSurfa
             ? new MyBlueprintPanel(
                 _model, host, cmds,
                 navigateToGraph: _ => { },                      // AI hosts have one graph per asset
-                navigateToItem:  (sectionId, _) => SelectSection(sectionId))
+                // ⭐ 88b — the ITEM id is carried through now; it used to be discarded here, which is
+                //   why no AI row could be highlighted however the table drew.
+                navigateToItem:  (sectionId, itemId) => SelectItem(sectionId, itemId))
             : null;
     }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐⭐⭐ <b><c>88b</c> — the outline publishes a full <see cref="VariableOutlineSelection"/>, so a
+    /// DETAILS host can listen.</b> 📌 <c>Q32</c> ruling 6: <i>"the same Details panel is REUSED for
+    /// every asset type"</i> ⇒ the AI outline speaks the SAME contract the blueprint outline speaks,
+    /// ⛔ rather than a second routing path for the AI hosts.
+    ///
+    /// <para>⚠ <b>It does not replace <see cref="SectionSelected"/>.</b> That one still re-filters the
+    /// standalone <c>AiVariablesWindow</c>; this one drives Details. ⭐ Two LISTENERS of one gesture —
+    /// ⛔ not two mechanisms: both are raised from <see cref="SelectItem"/>, once.</para>
+    /// </remarks>
+    public event Action<VariableOutlineSelection>? VariableSelectionChanged;
+
+    private Func<string, VariableOutlineSelection>? _selectionResolver;
+
+    /// <summary>
+    /// ⭐⭐ Supplies how a section id becomes a list. ⛔ <b>Installed by the REGISTRAR</b>, which already
+    /// holds the row-source resolver and the run state — 📌 so there is no new argument at the
+    /// composition root and therefore nothing to forget *(<c>R-67</c>; batches 79/80/81 each lost a
+    /// surface to a seam of exactly this shape)*.
+    /// </summary>
+    public void SetSelectionResolver(Func<string, VariableOutlineSelection> resolver)
+        => _selectionResolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
+
+    /// <summary>True once a selection resolver is installed. ⭐ A rail surface.</summary>
+    public bool HasSelectionResolver => _selectionResolver != null;
 
     /// <summary>
     /// ⭐ The routing entry point, callable headlessly. ⛔ The panel's own click path goes through
     /// ImGui, which no test can drive — this is the same call it makes.
     /// </summary>
-    public void SelectSection(string sectionId)
+    public void SelectSection(string sectionId) => SelectItem(sectionId, itemId: null);
+
+    /// <summary>
+    /// ⭐⭐ <b><c>88b</c> — the clicked ROW, not just its section.</b> 📌 <c>DESIGN_Variable_Details_And_Editing.md</c>
+    /// §1: <i>"the routing key is <c>(asset, section)</c> <b>+ a highlight</b>."</i>
+    ///
+    /// <para>🔴 <c>MyBlueprintPanel</c> has always handed <c>(sectionId, itemId)</c> to its navigate
+    /// callback and this window <b>discarded the item id</b>, so no AI row could ever be highlighted
+    /// however the table drew. ⭐ Blueprint's outline already passes it through as
+    /// <c>SelectedVariablePath</c>; this is the same, on the same contract.</para>
+    /// </summary>
+    public void SelectItem(string sectionId, string? itemId)
     {
         if (string.IsNullOrEmpty(sectionId)) return;
         SelectedSection = sectionId;
+        SelectedItem    = itemId;
+
         SectionSelected?.Invoke(sectionId);
+
+        // ⭐ ONE resolve+raise, so a panel rebuild cannot double-fire — the same rule
+        //   BlueprintMyBlueprintWindow.PublishSelection states.
+        var selection = _selectionResolver?.Invoke(sectionId) ?? VariableOutlineSelection.None;
+        if (itemId != null && selection.HasRows)
+            selection = selection with { SelectedVariablePath = itemId };
+        VariableSelectionChanged?.Invoke(selection);
     }
 
     /// <summary>The section last selected, or null. ⭐ The routing key's first half.</summary>
     public string? SelectedSection { get; private set; }
+
+    /// <summary>The row last selected, or null when the gesture named only a section. ⭐ The
+    /// highlight half of the routing key.</summary>
+    public string? SelectedItem { get; private set; }
 
     /// <summary>Tells the outline its asset's blackboard changed.</summary>
     public void RaiseChanged() => _model?.RaiseChanged();

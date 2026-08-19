@@ -82,6 +82,16 @@ public class PerspectiveWorkspaceRegistrar
     public AiVariablesWindow Variables { get; }
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>88b</c> / <c>BP-317</c> — the Details panel for this perspective.</b> ⛔ Null on
+    /// Blueprint, which has its own <c>BlueprintDetailsWindow</c> *(a second one there would be two
+    /// panels for one concept)*; non-null on BTree and HSM, which had none at all.
+    ///
+    /// <para>⭐ 📌 <c>Q32</c> ruling 6 — <i>"the same Details panel is REUSED for every asset type"</i>:
+    /// what is reused is <c>VariableDetailsSection</c>, which both windows host.</para>
+    /// </summary>
+    public AiDetailsWindow? AiDetails { get; }
+
+    /// <summary>
     /// ⭐ The one value formatter, shared by <see cref="Variables"/> and <see cref="Watch"/>.
     /// ⛔ Two formatters would be two places to fix a rendering rule.
     /// </summary>
@@ -356,6 +366,45 @@ public class PerspectiveWorkspaceRegistrar
                 var source = _sectionSource?.Invoke(section);
                 if (source != null) Variables.ShowSection(section, source);
             };
+
+            // ⭐⭐⭐ 88b / BP-317 — the DETAILS panel for BTree and HSM.
+            //    📌 Q32 ruling 6: "The same Details panel is REUSED for every asset type — HSM, BTree,
+            //       Blueprint ⇒ this is a cross-host deliverable, not a blueprint one."
+            //    📐 Measured (gate 8): exactly ONE production window was titled "Details" and exactly
+            //       ONE type hosted a VariableDetailsSection — BlueprintDetailsWindow, on Blueprint
+            //       only. ⛔ The AI perspectives had NO Details panel at all (R-60), which is what
+            //       R-62 cites for keeping visual checks suspended on those two hosts.
+            //    ⭐⭐ Built HERE and not by the composition root, for the same reason MyBlueprint and
+            //       Variables are: a surface the host must remember to attach is how five surfaces
+            //       came to be unreachable. ⇒ EditorSubsystem gains NOTHING to forget.
+            AiDetails = new AiDetailsWindow(
+                id:                $"ai_details_{suffix}",
+                owningPerspective: perspectiveName,
+                // ⭐ The ONE formatter, shared with the standalone table and the Watch.
+                formatter:         ValueFormatter);
+
+            // ⭐⭐ How a section id becomes a LIST. The registrar already holds the row-source resolver,
+            //    so the outline is handed the resolution rather than the sources — ⛔ one row-source
+            //    rule, used by both the standalone table and Details.
+            MyBlueprint.SetSelectionResolver(section =>
+            {
+                var source = _sectionSource?.Invoke(section);
+                return source == null
+                    ? VariableOutlineSelection.None
+                    : new VariableOutlineSelection(
+                        BlackboardMyBlueprintModel.DisplayNameOf(section), source);
+            });
+
+            // ⭐⭐⭐ Wired through the SAME pair RegisterExtraWindow uses for Blueprint, so the routing
+            //    and the run-state install have ONE implementation across all three hosts (ruling 9).
+            //    ⛔ Not re-implemented here — ConnectOutlineToDetails is the one path.
+            _outlineSelection ??= MyBlueprint;
+            _detailsHost      ??= AiDetails;
+            ConnectOutlineToDetails();
+
+            // ⭐⭐ Batch 87's ONE attach point. ⛔ Details is a table host like any other; a second
+            //    Attach line here is precisely what the twelfth instance was.
+            AttachEditGestures(AiDetails);
         }
 
         // AIE-034: per-perspective Watch + Breakpoints windows (optional).
@@ -432,6 +481,11 @@ public class PerspectiveWorkspaceRegistrar
         //    host must remember to attach is how these five came to be unreachable in the first place.
         RegisterCore(windowManager, Variables);
         if (MyBlueprint != null) RegisterCore(windowManager, MyBlueprint);
+
+        // ⭐⭐ 88b — same reasoning as the two above: registered HERE, not left to the host. ⛔ Its
+        //    ROUTING is already live from the constructor, so a host that forgets to register it loses
+        //    the window but never leaves a half-wired panel.
+        if (AiDetails != null) RegisterCore(windowManager, AiDetails);
     }
 
     // ── Extension seam ────────────────────────────────────────────────────────
