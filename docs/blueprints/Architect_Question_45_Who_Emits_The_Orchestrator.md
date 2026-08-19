@@ -1,7 +1,9 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-19
-current-answer: section 4 - RECOMMENDED ANSWERS, awaiting the user's approval.
+current-answer: section 4. A-E APPROVED by the user 2026-08-19 ("q45 recommendations
+  seems ok"). F was re-done with a real measurement at their request and now carries
+  its own recommendation - NO, and why.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none. It RESOLVES what R-99 left open - R-99 settled THAT the
@@ -9,6 +11,9 @@ known-conflict: none. It RESOLVES what R-99 left open - R-99 settled THAT the
 -->
 # ⭐ Architect Question 45 — **who emits the orchestrator?** *(`BP-340`)*
 
+> # ✅ `A`-`E` APPROVED — user, `2026-08-19`: *"q45 recommendations seems ok"*. ⭐ **`F` re-measured at
+> their request and now RECOMMENDS NO** *(section 4)*.
+>
 > ⛔⛔ **NOT RELAYED.** The architect is generally unavailable *(`2026-08-16` user ruling)*.
 > ⭐⭐ **I analyse and RECOMMEND, the user APPROVES.**
 >
@@ -145,16 +150,56 @@ category it serves**, so the next reader does not take it as proof the JSON path
 📌 My own Batch 91 §9: *"`91c` alone opens a panel that authors dead data."* ⭐ Once `A2` lands, the data
 is live ⇒ **the pair is coherent again.** ⛔ **Still do not land `91c` alone.**
 
-### ⚠ `Q45-F` — `SubtreeSyncBindings` persists on **BTree only**
+### ✅ `Q45-F` — `SubtreeSyncBindings` persists on **BTree only** — ⭐⭐ **NOW MEASURED**
 
-| ⭐⭐⭐ **RECOMMENDED: MEASURE before deciding — do NOT add it to HSM on symmetry alone.** |
-|---|
+> ⭐⭐ **User, `2026-08-19`:** *"q45f is not measured, pls do and recommend based on that"* — ⭐ **fair;
+> the first draft said *"measure before deciding"* and handed the work back.** ⛔ **That is the
+> coordinator's job.** 📐 **Measured `2026-08-19`, coordinator, on the merged tree.**
 
-📐 **Batch 91's gate 9 found it:** `HsmAssetMapper` mentions `SubtreeSyncBinding` **zero** times.
-⚠ **HSM may legitimately have no subtree-sync concept** — 📌 §8.2 says the panel appears for
-*"a Subtree node (BTree) or an HSM state with an embedded sub-tree action"*, ⭐ **which suggests it
-SHOULD** — ⛔ but that is a design sentence, not a measurement of what HSM assets can express.
-⇒ ⭐ **its own small investigation, not a rider.**
+#### 📐 THE CHAIN — **five links, and the missing one is not persistence**
+
+| # | link | state |
+|---|---|---|
+| ① | `StateNodeDto.SubtreeAssetId` — *does a reloaded HSM state know its sub-tree?* | ✅ **YES** — `HsmAssetDto.cs:73`. ⚠⚠ **`DEBT-AIB-028(a)` RESOLVED at Batch 75** — *"the field persists"* |
+| ② | `HsmAsset : IBTreeSyncableAsset` | ⛔ **NO** — it is `IEditableAsset, IBlackboardManagedAsset, IStitchableAsset`. ⭐ **Only `BehaviorTreeAsset` implements it** |
+| ③ | the Inspector's panel gate | ⛔ **`is BTreeNodeSelection && is IBTreeSyncableAsset`** — ⚠ **HSM emits `HsmStateSelection(Guid StableId)`**, never `BTreeNodeSelection` ⇒ **doubly closed** |
+| ④ | `HsmAssetMapper` sync bindings | ⛔ **zero mentions** — the thing `Q45-F` asked about |
+| ⑤ | `HsmValidator`'s §9.5 Sync-Out arm | ⛔ **documented BLOCKED** |
+
+#### ⭐⭐⭐ RECOMMENDED: **NO — do not add it to `HsmAssetMapper` now.**
+
+⛔⛔ **Persisting bindings for an asset that cannot PRODUCE them ships a field that looks built and does
+nothing** — 📌 **this programme's signature failure**, and the exact shape of `M-20` *(a "hydration" that
+was never written)* and of `R-99`'s emitters.
+⇒ ⭐⭐ **`Q45-F` is NOT a persistence omission. It is the LAST link of a chain whose middle links are
+missing** — ⛔ and link ④ is worthless without ② and ③.
+
+⭐ **The design DOES want it** — 📄 DD **§8.2**: the panel is for *"a Subtree node (BTree) **or an HSM
+state with an embedded sub-tree action**."* ⇒ ⭐ **a real gap, correctly sequenced — not a non-feature.**
+
+| ⭐ the order, when it is scheduled | |
+|---|---|
+| **①** | ✅ **already done** — the asset id persists, so ② is now *possible*; it was not at Batch 67 |
+| **②** | `HsmAsset` implements `IBTreeSyncableAsset` — ⭐ `GetSubtreeNodeInfo` over states that carry a `SubtreeAssetId` |
+| **③** | widen the Inspector gate to accept **`HsmStateSelection`** — ⛔ **not by casting**; ⭐ **by asking the ASSET for the node info**, which is what `IBTreeSyncableAsset` is for |
+| **④** | persist the bindings, mirroring BTree exactly *(ruling 9)* |
+| **⑤** | `HsmValidator`'s §9.5 arm unblocks **for free** |
+
+#### ⚠⚠ AND A ROTTED CLAIM, FOUND WHILE MEASURING — **`M-24`**
+
+📐 `HsmValidator:395`'s own doc says the §9.5 arm is blocked because *"`StateNode.SubtreeAssetId` … has
+**no counterpart on `StateNodeDto`**, so a reloaded asset does not know which sub-tree a state hosts."*
+⛔⛔ **That is FALSE as of Batch 75** — the field is at `HsmAssetDto.cs:73` and `REPORT_Batch75` records
+`DEBT-AIB-028(a)` as **resolved**.
+⇒ ⭐⭐ **A state claim in a CODE COMMENT rotted, and I nearly quoted it as the answer.** 📌 Exactly what
+`§M` exists for — ⛔ **`rulings-check.py` cannot see a comment.** ⭐ **Correct the comment in the batch
+that does ②.**
+
+#### ⚠ One consequence for `Q45-A`'s batch — **say it in the handoff**
+
+⇒ ⭐ **`Q45-A`'s orchestrator emission is BTree-only in practice.** ⛔ The HSM arm would emit nothing,
+because HSM cannot produce a sync group at all. ⭐ **Build the generator seam symmetrically if it is
+free; ⛔ do NOT claim HSM sync works.**
 
 ---
 
