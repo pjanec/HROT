@@ -18,9 +18,8 @@ stale-below: everything from "## 1." down is HISTORY from earlier sessions. Do n
 
 ## 0. ⭐⭐⭐ THE ONE THING TO DO FIRST
 
-🔴🔴 **BATCH 92 IS IN FLIGHT — dispatched at `27c83f5e0`.** 📄 [`HANDOFF_Batch92_The_Orchestrator_Is_Generated.md`](HANDOFF_Batch92_The_Orchestrator_Is_Generated.md)
-⭐ **`Q45` built** — the orchestrator becomes a fourth `AddSource`. ⛔ **Rule 1: do NOT amend it.**
-⚠ **Rule 1b: check for their `chore: started batch 92` marker.**
+✅ **BATCH 92 MERGED.** `BP-340` closed · **`BP-342`** *(Approach B was never buildable — two gaps)* and
+**`BP-343`** opened · tracker **69 / 209** · plan **revision 38**.
 
 ⭐⭐⭐ **AND: RUN THE VISUAL CHECK** — ⭐ **independent of Batch 92, and it gates the whole `Q38`/`Q44`
 family** *(`R-27`)*.

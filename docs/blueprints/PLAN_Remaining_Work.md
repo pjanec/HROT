@@ -79,6 +79,42 @@
 > ⚠ **Both resolvers are linear scans** — ⭐ **the two-clocks rule is what makes that correct**;
 > ⛔ **do not index.**
 
+# PLAN — what is left *(revision 38, `2026-08-19`)*
+
+> ✅ **REVISION 38 — BATCH 92 MERGED `--ff-only`.** Tracker **69 / 209**. `BP-340` closed;
+> **`BP-342`** and **`BP-343`** opened. ⭐ **`92b`–`92e` all landed**; ⛔ **`92a`'s Approach-B arm
+> STOPPED.**
+>
+> ✅ **What now works:** an Approach-A **alias reaches GENERATED C#** on both hosts *(persisted by
+> `91b`, emitted by `92b`)* · ⭐ **an HSM state can host a sub-tree AT ALL, for the first time** ·
+> ⭐ **the `PARAMETER SYNCHRONIZATION` panel draws** *(`92d` — the registrar HELD `IAssetCatalog` and
+> did not pass it; **the 13th silent default, in textbook form**)*.
+>
+> ⛔⛔ **AND THE STOP IS THE FINDING: APPROACH B WAS NEVER BUILDABLE — not merely unwired.**
+> 📌 **My handoff's premise was false** *("the DTOs carry both inputs")*. ⭐ **Coordinator-verified, two
+> independent gaps:**
+> ① **the sub-tree IDENTITY is session-local** — `_syncNodeMeta`'s only production writer is
+> `RecordSubtreeNodeMeta` ← **`InspectorWindow:609`, inside the panel's DRAW** ⇒ ⚠ **even in the editor
+> it is empty after a reload until a designer re-opens that panel per node**;
+> ② **the destination FIELD does not exist** — `master.{Subtree}_{DtoType}` comes from
+> `GetAutoAllocatedVariables()`, whose **only** consumer is `BlackboardAuthoringWindow:529`, which
+> **displays it greyed** ⇒ ⛔ **no blackboard emitter declares it.**
+> ⇒ ⭐⭐ **Widening the DTO would not have been enough** — they did not widen it, did not invent a
+> catalog, and made the groups an **explicit non-optional parameter** so the generator must state at
+> the call site why it provably has none. 📄 **`BP-342`** carries the open question: *does the master
+> blackboard DECLARE the auto-allocated slice, and who sizes it?*
+>
+> ⭐ **`BP-343` — the gate found a defect in ITSELF.** `TheHarnessEmitsTheSamePartsTheGeneratorDoes`
+> compared a scrape of every `AddSource` to **one asset's** emitted parts ⇒ it silently assumed **every
+> part is unconditional**, and reddened the moment a conditional one existed. ⚠ **BTree's
+> `.Blackboard.g.cs` has been conditional since S1-2**, so the guard was only accidentally right.
+> ⭐ Split into `AllHintNames` *(full strength)* + an **ordered-subset** rail.
+>
+> ⭐⭐ **They reported two `§M` rows as stale rather than editing them** — 📌 §M is the coordinator's.
+> **`M-19`** and **`M-23`** updated here.
+
+# ⛔ HISTORY — revision 37 and earlier
+
 # ⛔ HISTORY — revision 36 and earlier
 
 # PLAN — what is left *(revision 36, `2026-08-19`)*
