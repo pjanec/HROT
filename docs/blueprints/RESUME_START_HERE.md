@@ -25,9 +25,14 @@ stale-below: everything from "## 1." down is HISTORY from earlier sessions. Do n
 family** *(`R-27`)*.
 
 🛑 **BATCH 93 STOPPED — correctly.** ⛔ **A pinned row is a SNAPSHOT**; my value-feed premise was false.
-⇒ 📄 **[`Architect_Question_46`](Architect_Question_46_What_A_VariableRow_Means.md)** — ⭐ **`A`–`E` carry
-recommendations and NEED THE USER'S APPROVAL.** ⭐ Approving it makes `93a`/`93b` buildable as written.
-⛔ **`E2`–`E7` stay SKIP.** Tracker **72 / 209** · plan **revision 39**.
+⇒ 📄 **[`Architect_Question_46`](Architect_Question_46_What_A_VariableRow_Means.md)** —
+✅✅ **ANSWERED `2026-08-19` BY THE USER THEMSELVES** *(`R-103`)*, after the first draft was unreadable:
+⭐ **one row = one accessor · sampled once per brain tick · cached and drawn from cache · compare BYTES
+from `FdpAutoSerializer`, ⛔ never rendered text.** ⭐ §4 is mine — *how* to build it.
+⚠ **Two things measured with it (`M-27`):** ⛔⛔ **`BlueprintAssetTickSource` EXISTS and has ZERO
+production callers** *(`R-67` verbatim — the monitor is dead on its first line)*, and ⭐ the serializer is
+real but has **three teeth** *(generic-only · get-only properties skipped · **no cycle guard**)*.
+⛔ **`E2`–`E7` stay SKIP** until the watch-pinning batch ships. Tracker **72 / 209** · plan **revision 39**.
 
 | | |
 |---|---|
