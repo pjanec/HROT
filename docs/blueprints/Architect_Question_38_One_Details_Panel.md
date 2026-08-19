@@ -283,9 +283,35 @@ seam)* and **fold the SPECIFIC one** *(`BlueprintDetailsWindow`, `sealed`, bluep
 **Blast radius: LOW** — ⭐ **the payload already exists**; this is a capture, a window id, and a
 "do not update" flag.
 
-## ⭐ One thing I am NOT recommending, and why
+## ⭐⭐⭐ `LiveBlackboardPanel` — **MEASURED against the variable table, `2026-08-18`**
 
-⛔ **I am not proposing to retire `LiveBlackboardPanel` here.** 📐 In-degree **0**, and 📌 built
-deliberately *(`.dev/_DONE/blueprints-2`)*. ⭐⭐ **It is very likely superseded by the Details Value
-column** — ⚠ **but `CLAUDE.md`'s rule is that a design record decides that, and I have not found one
-that says its job is done.** ⇒ ⭐ **flag it in step 4 and decide it explicitly then.**
+> ⭐ **User:** *"check if live blackboard panel is feature wise superseded by the variable table."*
+
+| feature | `LiveBlackboardPanel` | the variable table |
+|---|---|---|
+| **three columns, Field/Type/Value** | ✅ | ✅ *(`Type` is the one toggle — Details on, Watch off)* |
+| **live read from `BrainBlackboard`** | ✅ direct pointer at `FieldOffset` | ✅ via `ILiveBlackboardValueProvider` |
+| **14 primitives + `Vector2/3/4`** | ✅ **a hand-rolled `typeof` switch** | ✅ **GENERIC `Marshal.PtrToStructure`** — ⭐ strictly wider |
+| 🔴 **enums** | ⛔⛔ **falls through to `"?"`** | ✅ decoded **and printed by NAME** *(`RawValueDecoder:58`)* |
+| 🔴 **any other blittable struct** | ⛔ `"?"` | ✅ generic |
+| **`bool` 1-byte packing** | ✅ by pointer cast | ✅ **explicitly, with the reason recorded** *(`Marshal.SizeOf(bool)` is 4)* |
+| **INITIAL value when not running** | ⛔⛔ **none — live only** | ✅ the `Initial` arm *(row 58)* |
+| **states** | `offline` · `--` | ⭐⭐ **`(pending)` · `<unreadable>` · stale-greyed** — three DISTINCT meanings |
+| **multi-line struct tooltip** · **change highlight** · **selection highlight** · **edit gestures** · **grouping / multi-asset** | ⛔ none | ✅ all |
+| ⚠ **fixed-list summary** — `List<T>[N] Count=k {…}` | ✅ **`FixedListFormatter`** *(`FC-3c` / `Q#21-D3`: "instead of the composite-blind `?`")* | 🔴 **NO — falls to generic struct rendering** |
+
+### ⇒ ⭐⭐⭐ VERDICT: **superseded on every axis BUT ONE**
+
+⛔ **The one exception is the FIXED-LIST SUMMARY**, and ⭐⭐ **it is not a reason to keep the panel — it
+is a ONE-ARM GAP in the shared formatter.** 📐 `FixedListFormatter` is **already referenced from
+`AiShared`** *(`FixedListBufferViewProvider:108`)*, so ⛔ **no new dependency** — the table's
+`OneLine`/`MultiLine` simply never tries it before falling back to generic struct rendering.
+
+| ⭐⭐⭐ **RECOMMENDED** | |
+|---|---|
+| **1** | ⭐ **Give `VariableValueFormatter` the fixed-list arm** — try `FixedListFormatter` first, generic struct after |
+| **2** | ⭐⭐ **THEN retire `LiveBlackboardPanel`** |
+
+⚠⚠ **The order is the whole point.** 📌 *"No rush removals"* — ⛔ **retiring it first would silently
+lose a rendering the design deliberately built**, which is exactly the mistake `BP-295` was.
+⭐ **The capability transfers, THEN the surface goes.**
