@@ -34,6 +34,29 @@
 > ⭐ **Guide row `A9`/`A9b` added** — the alias reload is `91b`'s only designer-visible surface, and the
 > failure it replaces was **silent**.
 
+> ⏭ **BATCH 92 DISPATCHED at `27c83f5e0`** — 📄 [`HANDOFF_Batch92_The_Orchestrator_Is_Generated.md`](HANDOFF_Batch92_The_Orchestrator_Is_Generated.md).
+> ⭐⭐⭐ **`Q45` BUILT**: the orchestrator becomes a **fourth `AddSource`** in the JSON→C# generators,
+> its body moves to `Hrot.AiEditor.Persistence/Emit/`, the editor emitters are routed onto it, and
+> `subAssetResolver` finally gets passed.
+>
+> ⭐⭐ **A CORRECTION I OWE, carried into the handoff:** `Q45-F` said *"the HSM arm would emit nothing."*
+> ⛔ **Wrong.** 📐 `HsmOrchestratorEmitter` is driven **entirely by Approach A ALIASES**, which
+> **Batch 91 just made persistent** — ⭐ before `91b` it would have returned `null` for every asset on
+> disk. ⇒ **`91b` is what makes the HSM arm meaningful.**
+>
+> ⭐⭐⭐ **AND THE HSM-vs-BTree ASYMMETRY IS EXPLAINED** *(user: "feels weird")*: **BTree hosts a
+> sub-asset with a NATIVE Subtree NODE** *(payload + resolver + blackboard aggregator)* ⇒ its
+> orchestrator is **optional**, adding field-sync around a tick the kernel already does. ⛔ **HSM has no
+> node kind at all** — a state invokes an `[HsmAction]`, and 📐 `HsmOrchestratorEmitter:104` **emits
+> that action** ⇒ ⭐⭐⭐ **on HSM the orchestrator IS the hosting mechanism.** ⚠ **That part is
+> architectural and correct**; ⛔ **what is accidental is that HSM's half was never finished** — no
+> authoring gesture sets `StateNode.SubtreeAssetId`, and there is no aggregation. **Batch 92 fixes only
+> the third of those three, and says so.**
+>
+> ⚠⚠ **And a corpus finding that shapes the batch:** 📐 **ZERO source assets populate `Aliases` or
+> `SubtreeSyncBindings`** ⇒ ✅ **golden cannot move**, ⛔ **and nothing would exercise the feature** —
+> so the handoff requires a **FIXTURE** asset per arm, asserting the **emitted text**.
+
 # ⛔ HISTORY — revision 36 and earlier
 
 # PLAN — what is left *(revision 36, `2026-08-19`)*
