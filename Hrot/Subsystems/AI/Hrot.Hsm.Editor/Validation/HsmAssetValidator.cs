@@ -33,10 +33,21 @@ public sealed class HsmAssetValidator : IAssetValidator
     /// </para>
     ///
     /// <para>
-    /// 📌 <b>Rules 8/8b may still not fire on real assets, and that is expected.</b>
-    /// <c>StateNode.SubtreeAssetId</c> is <b>not persisted</b> (<c>DEBT-AIB-028</c>(a)) so nothing sets
-    /// the field yet — that is <c>E5</c>'s prerequisite. ⭐ This item makes the wiring honest; <c>E5</c>
-    /// makes it reachable.
+    /// 📌 <b>Rules 8/8b may still not fire on real assets, and that is expected — but Batch 92
+    /// (<c>92e</c>) SPLIT the two halves this note used to run together.</b>
+    /// </para>
+    ///
+    /// <para>
+    /// ✅ <b>Persistence: FIXED.</b> <c>StateNode.SubtreeAssetId</c> round-trips —
+    /// <c>HsmAssetDto.cs:73</c>, <c>DEBT-AIB-028(a)</c> resolved in Batch 75. ⛔ The old wording
+    /// <i>"is not persisted"</i> was rotted.
+    /// </para>
+    ///
+    /// <para>
+    /// ⛔ <b>"Nothing sets it": still TRUE.</b> There is no authoring gesture on HSM that assigns a
+    /// sub-tree to a state, so no real asset carries a non-empty value. ⇒ ⭐ that — not persistence —
+    /// is what <c>E5</c> still needs. ⭐ This item makes the wiring honest; <c>E5</c> makes it
+    /// reachable.
     /// </para>
     /// </remarks>
     public HsmAssetValidator(

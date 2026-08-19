@@ -247,7 +247,16 @@ public class PerspectiveWorkspaceRegistrar
             schemaExporter:                schemaExporter,
             facetEditService:              facetEditService,
             facetCustomDrawers:            facetCustomDrawers,
-            expressionTargetFieldAccessor: expressionTargetFieldAccessor);
+            expressionTargetFieldAccessor: expressionTargetFieldAccessor,
+            // ⭐⭐⭐ Batch 92 (92d) — THE SILENT-DEFAULT PATTERN, textbook shape.
+            // 🔴 This is the ONLY production construction of InspectorWindow, and it omitted the
+            //    resolver while HOLDING the catalog that answers it two lines up ⇒ the PARAMETER
+            //    SYNCHRONIZATION panel rendered "Sub-asset resolver not configured." everywhere
+            //    (InspectorWindow:449), so no designer could author a sync binding at all.
+            // ⭐ The rule: "a production caller that HAS a dependency must PASS it." The catalog is
+            //    a constructor argument; nothing new is introduced here.
+            // ⚠ Coherent only now: 92b makes the bindings this panel authors actually execute.
+            subAssetResolver:              id => catalog.FindByAssetId(id) as IBlackboardManagedAsset);
 
         RuntimeInspector = new RuntimeInspectorWindow(
             store:             selectionStore,

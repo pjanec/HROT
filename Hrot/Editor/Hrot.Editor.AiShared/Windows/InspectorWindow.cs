@@ -506,6 +506,25 @@ public sealed class InspectorWindow : ManagedWindow
     internal bool HasExpressionTargetFieldAccessor => _expressionTargetFieldAccessor is not null;
 
     /// <summary>
+    /// ⭐⭐⭐ Batch 92 (<c>92d</c>) — true when a sub-asset resolver has been wired.
+    ///
+    /// <para>⛔ Asserted on the CONSTRUCTED object, never on the registrar's source — 📌 <c>R-67</c>:
+    /// <i>"a rail that builds its own composition root cannot see a composition-root defect."</i>
+    /// 🔴 Without it, <c>DrawSyncBindingsTable</c>'s caller (<c>:449</c>) renders
+    /// <i>"Sub-asset resolver not configured."</i> and the PARAMETER SYNCHRONIZATION panel is
+    /// unusable.</para>
+    /// </summary>
+    internal bool HasSubAssetResolver => _subAssetResolver is not null;
+
+    /// <summary>
+    /// ⭐⭐ Runs the wired resolver. ⛔ <b>Non-null is not the property that matters</b> — a resolver
+    /// that answers <c>null</c> for every id would satisfy <see cref="HasSubAssetResolver"/> and still
+    /// leave the panel empty. ⇒ the rail asks this instead, so it reddens on a stubbed forward too.
+    /// </summary>
+    internal IBlackboardManagedAsset? ResolveSubAssetForRail(Guid assetId)
+        => _subAssetResolver?.Invoke(assetId);
+
+    /// <summary>
     /// Returns the bound variable name for the current facet (if any) using the wired
     /// <c>expressionTargetFieldAccessor</c>. Returns null when no accessor is wired or the
     /// current facet does not carry an ExpressionTargetField. Safe to call from headless

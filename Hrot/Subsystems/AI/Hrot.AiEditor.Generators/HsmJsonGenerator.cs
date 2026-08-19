@@ -117,6 +117,30 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
         }
 
         spc.AddSource(baseName + ".Registrar.g.cs", bridge);
+
+        // ⭐⭐⭐ Batch 92 (92b): orchestrators — {Name}.Orchestrators.g.cs
+        //
+        // ⛔ OMITTED ENTIRELY when the core returns null, which is every asset in today's corpus
+        // (none carries an alias) ⇒ the generated output stays byte-identical.
+        //
+        // ⭐⭐ This is the arm 91b made meaningful: HSM hosts a sub-tree ONLY through an Approach-A
+        // alias, and until aliases persisted, nothing an HSM loaded from disk could ever emit.
+        // ⛔ It is not "HSM sub-tree hosting is complete" — there is still no authoring gesture that
+        // creates the alias, and no blackboard aggregation behind it.
+        string? orchestrators;
+        try
+        {
+            orchestrators = HsmOrchestratorEmitCore.Emit(dto);
+        }
+        catch (Exception ex)
+        {
+            spc.ReportDiagnostic(MakeParseErrorDiagnostic(path,
+                "Exception during orchestrator code generation: " + ex.Message));
+            return;
+        }
+
+        if (orchestrators != null)
+            spc.AddSource(baseName + ".Orchestrators.g.cs", orchestrators);
     }
 
     /// <summary>Creates a Roslyn diagnostic for an HSM JSON parse/emit error.</summary>

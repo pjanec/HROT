@@ -394,13 +394,22 @@ public sealed class HsmValidator
     /// ⛔⛔ <b>The §9.5 Approach-B Sync-Out arm is NOT here, and it is BLOCKED — not skipped.</b>
     /// 📐 Measured: <c>SubtreeSyncBinding</c> hangs off <c>IBTreeSyncableAsset</c>, which only
     /// <c>BehaviorTreeAsset</c> implements, and this validator is handed the <c>HsmAsset</c> plus its
-    /// own blackboard — it cannot reach a hosted sub-tree's bindings. ⚠ <b>And it could not resolve
-    /// one if it could:</b> <c>StateNode.SubtreeAssetId</c> exists in the model but has <b>no
-    /// counterpart on <c>StateNodeDto</c></b>, so a reloaded asset does not know which sub-tree a
-    /// state hosts. ⇒ 📌 <b>that is <c>DEBT-AIB-028</c>'s scope</b> (<i>"the S2-4 cross-region
-    /// validator is dormant in production… <c>SubtreeAssetId</c> is a NEW field, not persisted"</i>),
-    /// and the file's own pre-existing TODO says the same. ⭐ Persisting a field and wiring an
-    /// inter-asset catalog is a different item from widening an enumeration.
+    /// own blackboard — it cannot reach a hosted sub-tree's bindings.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠⚠ <b>Batch 92 (<c>92e</c>) — the SECOND half of this note had ROTTED and is corrected here.</b>
+    /// It used to add <i>"and it could not resolve one if it could: <c>StateNode.SubtreeAssetId</c>
+    /// has no counterpart on <c>StateNodeDto</c>"</i>. ⛔ <b>That is false.</b> 📐 The field exists at
+    /// <c>HsmAssetDto.cs:73</c> and <c>DEBT-AIB-028(a)</c> was <b>resolved in Batch 75</b> — a reloaded
+    /// asset DOES know which sub-tree a state hosts.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐⭐ <b>The real blocker is the FIRST half alone, and it has a name: <c>M-24</c></b> —
+    /// <c>HsmAsset</c> does not implement <c>IBTreeSyncableAsset</c>, so there is no API on an HSM
+    /// through which a sub-tree's sync bindings could be reached at all. ⇒ ⭐ widening this arm is a
+    /// question about that interface, ⛔ not about persistence.
     /// </para>
     /// </summary>
     private void CheckBlackboardRegionConflicts(
