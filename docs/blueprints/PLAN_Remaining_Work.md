@@ -57,6 +57,28 @@
 > `SubtreeSyncBindings`** ⇒ ✅ **golden cannot move**, ⛔ **and nothing would exercise the feature** —
 > so the handoff requires a **FIXTURE** asset per arm, asserting the **emitted text**.
 
+> ⭐⭐⭐ **NEXT AFTER BATCH 92 — WATCH PINNING, ALL THREE SLICES IN ONE BATCH.**
+> 📄 [`DESIGN_Variable_Watch_Pinning.md`](DESIGN_Variable_Watch_Pinning.md) — ⭐ **nothing about it is
+> open any more.** ⛔ **`R-27` does NOT gate it** *(that gates `Q38`/`Q44`)*, and it targets
+> `AiWatchWindow`, the window `Q38-E` already picks as the survivor ⇒ **aligned with that merge.**
+>
+> 📐 **What is missing is the GESTURE, not the machinery** *(`2026-08-19`)*: the store exists
+> *(`PinnedVariableRowSource.Pin`, only caller a test)*, the surface exists, the render is shared —
+> ⛔ **`CommandCatalog.ToggleWatch` does not exist**, and `CanvasRenderer:684`'s
+> `MenuItem("Watch this Value")` sits **inside `BeginDisabled()`** with no handler, ⚠ on a **pin**
+> menu rather than a variable row. ⭐ **The fourteenth instance of store-built / way-in-missing.**
+>
+> ⭐⭐ **And Batch 90 made slice 1 cheaper than the design assumed** — §4's cost model predates the
+> live-value arms, which are read **per frame**, and a pinned row **carries its arm with it**.
+> ⚠ **The design now carries that as `known-rot`.** ⭐ **The two-clocks rule is unaffected.**
+>
+> ✅✅ **`M-25` — slice 3's two costs MEASURED, both SMALL:** `PublishManaged` has **no `unmanaged`
+> constraint** so the map travels whole, and the two `FindEntityByNetworkId` are **10 lines each**
+> *(⭐ neither is the keeper — filtered query + `GetComponentRO` + a null guard)*.
+> ✅ **`R-102` rules the one decision: the CALLBACK SINK** *(user)*.
+> ⚠ **Both resolvers are linear scans** — ⭐ **the two-clocks rule is what makes that correct**;
+> ⛔ **do not index.**
+
 # ⛔ HISTORY — revision 36 and earlier
 
 # PLAN — what is left *(revision 36, `2026-08-19`)*
