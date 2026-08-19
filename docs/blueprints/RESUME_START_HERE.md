@@ -18,7 +18,12 @@ stale-below: everything from "## 1." down is HISTORY from earlier sessions. Do n
 
 ## 0. ⭐⭐⭐ THE ONE THING TO DO FIRST
 
-⭐⭐⭐ **RE-RUN THE BLUEPRINT VISUAL CHECK — and FIX THE GUIDE FIRST.**
+🔴🔴 **BATCH 89 IS IN FLIGHT — dispatched at `7c2279851`.** 📄 [`HANDOFF_Batch89_The_Edit_Dialog_Reaches_The_Designer.md`](HANDOFF_Batch89_The_Edit_Dialog_Reaches_The_Designer.md)
+⭐ **It unblocks part `D` of the visual check** *(9 rows)* and **reopens `BP-327`**, whose row is closed
+on the wrong criterion. ⛔ **Rule 1: do NOT amend that handoff.** ⚠ **Rule 1b: check for their
+`chore: started batch 89` marker before assuming no run is in progress.**
+
+⭐⭐⭐ **THEN: RE-RUN THE VISUAL CHECK.** ⭐ **The guide is already fixed** — see below.
 
 | | |
 |---|---|

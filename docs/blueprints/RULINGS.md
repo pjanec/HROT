@@ -3,6 +3,9 @@ state: LIVE
 updated: 2026-08-18
 current-answer: the whole file - it is an INDEX over the design corpus, not the truth
 stale-below: nothing. Rows marked CORRECTED carry their correction inline.
+re-read: 2026-08-19 - PLAN_Remaining_Work.md changed (revision 33/34 + task group D
+  + row A6 dispatched). R-99's quote and its surrounding group-D ruling are UNMOVED;
+  R-62 was corrected in the same pass because its state claim had rotted.
 note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quote
   fails the gate, so this file cannot silently drift.
 -->
