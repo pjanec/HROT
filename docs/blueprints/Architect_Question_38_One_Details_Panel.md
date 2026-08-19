@@ -1,9 +1,10 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-18
-current-answer: the REVISION 2026-08-18 section at the bottom - it supersedes the
-  2026-08-17 inventory (8 surfaces; the graph finds 25) and corrects section 4's
-  claim that the shell is missing. The sub-questions A-E stand; F is new.
+current-answer: the RECOMMENDED ANSWERS A-F section at the very bottom, plus the
+  REVISION 2026-08-18 above it. The revision supersedes the 2026-08-17 inventory
+  (8 surfaces; the graph finds 25) and corrects section 4's claim that the shell
+  is missing. A-F now carry recommendations awaiting the user's approval.
 stale-below: nothing, but section 1's inventory table and section 4's last line
   are SUPERSEDED by R1 and R2. Do not quote them.
 known-rot: section 4 says "what is missing is the SHELL" - measured false,
@@ -195,3 +196,96 @@ that never updates it.** ⛔ **No new context model** — ⭐ the frozen window 
 ⇒ ⭐⭐⭐ **RECOMMENDED: do NOT schedule `Q38` until the post-`88` visual check passes.** ⭐ **Answer it
 now, build it after.** ⚠ **The `2026-08-17` warning stands and has now been PAID FOR ONCE:**
 ⛔ *"merging surfaces before anyone has SEEN them is how the wiring gap happened."*
+
+---
+
+# ⭐⭐⭐ RECOMMENDED ANSWERS `A`–`F` — *(`2026-08-18`; I analyse and SUGGEST, the user APPROVES)*
+
+> ⛔ **Nothing here is scheduled.** 📌 **`R-27` still gates the BUILD** — see `R5`.
+> ⭐ **Reply *"approved"*, or name the one you want changed.**
+
+### ⭐⭐⭐ `Q38-A` — contextual, or a mode toolbar?
+
+| ⭐⭐⭐ **RECOMMENDED: CONTEXTUAL is the ONLY switch. The toolbar button is a PIN, not a mode.** |
+|---|
+
+📌 **`R-95` already made FOCUS the authority** *(`FocusedSurface`, a latch, cross-host)*.
+⛔⛔ **A mode toolbar competing with focus re-creates TWO AUTHORITIES over one panel — which is
+precisely the `B8` defect** *(a snapshot and a live read disagreeing about who owns the panel)*.
+⭐⭐ **The user's "local toolbar" instinct is real and is SERVED BY `F`**: the button freezes the
+context instead of overriding it. ⇒ ⭐ **one authority, plus an explicit escape hatch.**
+**Blast radius: NONE new** — the mechanism shipped in Batch 87.
+
+### ⭐⭐ `Q38-B` — one panel across perspectives, or one per perspective?
+
+| ⭐⭐⭐ **RECOMMENDED: ONE window CLASS · ONE INSTANCE PER PERSPECTIVE · FEEDS REGISTERED PER HOST.** |
+|---|
+
+📐 **That is already how this editor works** — every window is built by `PerspectiveWorkspaceRegistrar`
+with an `owningPerspective` and a suffixed id *(`ai_my_blueprint_{suffix}`)*.
+⛔ **A single global instance would fight the docking layout** and make "which perspective am I in"
+invisible. ⭐ **And the FEED registry already exists** — `RuntimeInspectorWindow.RegisterPane`.
+**Blast radius: MEDIUM** — ⚠ `BlueprintDetailsWindow` stops being a window and becomes a feed.
+
+### ⭐⭐ `Q38-C` — what about views that are not "properties"?
+
+| ⭐⭐⭐ **RECOMMENDED: a surface stays STANDALONE only if it answers a DIFFERENT QUESTION — never merely a different ASSET TYPE.** |
+|---|
+
+⭐ **The test, in one line:** *does it answer **"tell me about the thing I selected"**?*
+⭐⭐ **Byte-budget / bin-packing answers *"will this layout FIT?"*** — ⛔ a question about the layout
+being authored, not about a selection ⇒ **`BlackboardAuthoringWindow`'s layout view STAYS.**
+⚠ **Everything split by asset TYPE folds** — that split is the defect, not a feature.
+📌 Consistent with the existing ruling *("bin-packing… is a genuinely different job")* and with
+*"no rush removals"*. **Blast radius: LOW** — ⭐ it is a criterion, so it needs no list to be right.
+
+### ⭐⭐⭐ `Q38-D` — runtime vs authoring: one panel or two?
+
+| ⭐⭐⭐ **RECOMMENDED: ONE. And the SHELL that survives is `RuntimeInspectorWindow`'s, not `BlueprintDetailsWindow`.** |
+|---|
+
+📐 **Measured (`R2`):** the runtime family is **already** shell + per-host feeds. 📌 And Track C ruled
+run state governs **WRITABILITY, not WHICH SURFACE** *(`DESIGN_Variable_Details_And_Editing.md` §5)*.
+⛔⛔ **Two panels would force the designer to know which window to look at based on whether the sim is
+running** — ⚠ the same *"two doors to one room"* the designer quickstart already apologises for.
+⭐⭐⭐ **Which half survives matters:** ⭐ **keep the GENERAL one** *(the shell with the registration
+seam)* and **fold the SPECIFIC one** *(`BlueprintDetailsWindow`, `sealed`, blueprint-shaped)*.
+⛔ **Ruling 9 applied the other way round would delete the seam and keep the special case.**
+**Blast radius: MEDIUM-HIGH** — ⚠ the shell needs a name that is no longer "Runtime".
+
+### ⭐⭐ `Q38-E` — sequencing
+
+| ⭐⭐⭐ **RECOMMENDED: ANSWER NOW, BUILD AFTER the post-Batch-88 visual check passes** *(`R-27`)*. |
+|---|
+
+⭐ **Then in this order, each step independently revertible:**
+
+| # | step | why here |
+|---|---|---|
+| **1** | **collapse the TWO watch windows into one** *(`R-72`, `BP-330`)* | ⭐ smallest, and it removes a duplicate **before** anything is folded onto it |
+| **2** | **generalise the shell** — feeds keyed by asset kind **and** by question | ⛔ no feed moves yet |
+| **3** | **move feeds ONE AT A TIME**, re-checking visually after each | 📌 *"do not merge surfaces nobody has seen"* — ⚠ **already paid for once** |
+| **4** | **retire the duplicates LAST** *(`U-16`/row 60, the second `InspectorWindow`)* | ⛔ **never before its replacement is proven** — 📌 row 60's own rule |
+
+### ⭐⭐ `Q38-F` — the pin *(NEW)*
+
+| ⭐⭐⭐ **RECOMMENDED: a pinned inspector is the SAME CLASS with a FROZEN context source. Not a new window type.** |
+|---|
+
+| ⭐ | |
+|---|---|
+| **what is pinned** | ⭐⭐ the Batch-87 tuple — `SelectionOrigin` · `FocusedSurface` · `ActiveSubSelectionOrigin` · the selection · the active asset. ⛔ **No new context model** |
+| **what a pinned instance does** | ⭐ reads the **same feeds**, ⛔ **never updates its context.** ⚠ **Live VALUES still tick** — 📌 frozen **context**, not frozen **data** |
+| **how many** | ⭐ **N, unlimited.** ids suffixed like every other multi-instance window |
+| **when the target dies** | ⭐⭐ **the window STAYS and says so** — ⛔ **never silently blank.** 📌 `F3`'s rule: *"same information value, no false expectations"* |
+| ⚠ **what it is NOT** | ⛔ **not a second selection authority** — a pinned window **cannot** drive the live panel, or `A` collapses |
+
+**Blast radius: LOW** — ⭐ **the payload already exists**; this is a capture, a window id, and a
+"do not update" flag.
+
+## ⭐ One thing I am NOT recommending, and why
+
+⛔ **I am not proposing to retire `LiveBlackboardPanel` here.** 📐 In-degree **0**, and 📌 built
+deliberately *(`.dev/_DONE/blueprints-2`)*. ⭐⭐ **It is very likely superseded by the Details Value
+column** — ⚠ **but `CLAUDE.md`'s rule is that a design record decides that, and I have not found one
+that says its job is done.** ⇒ ⭐ **flag it in step 4 and decide it explicitly then.**
