@@ -244,8 +244,12 @@ the kind, not by one fixed form.**
 validation, differing only by the `EditScope` argument. ⛔ **Ruling 9 holds.**
 
 ⚠ **The one genuinely new UI work:** `Type` needs a **picker** editor and `Category` a combo.
-StructEdit supports custom editors; they must be registered. ⛔ **`S5` lands first** — the picker needs
-**one** offerable list, and today there are two (`SelectableTypeIds` vs `EditorOfferableTypeIds`).
+StructEdit supports custom editors; they must be registered. ⛔ ~~**`S5` lands first** — the picker needs
+**one** offerable list, and today there are two (`SelectableTypeIds` vs `EditorOfferableTypeIds`).~~
+⭐⭐ **STALE `2026-08-19` — `S5` SHIPPED IN BATCH 65** *(`BP-255`)*: `BuildSelectableTypeIds` is seeded
+from `EditorOfferableTypeIds` ∪ `Entity` ∪ discovered structs and `BlueprintTypeChoices.TypeIds` is
+**that same list**, `Assert.Same`-locked. ⇒ ⭐ **there is ONE offerable set; the picker is NOT
+blocked.** 📌 `R-108`.
 
 ---
 
