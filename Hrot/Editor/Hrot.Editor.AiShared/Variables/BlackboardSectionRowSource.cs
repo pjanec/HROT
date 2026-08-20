@@ -132,7 +132,17 @@ public sealed class BlackboardSectionRowSource : IVariableRowSource
             WriteDefault: json =>
             {
                 var target = _asset();
-                if (target is null) return false;
+                // ⛔⛔ THE ASSET MUST STILL BE THIS ROW'S OWN. 📌 Batch 96 put this guard in
+                //    PerspectiveWorkspaceRegistrar.DeclarationOwnerOf and it is load-bearing: this
+                //    source resolves its asset PER CALL *(the active document changes under it)*, which
+                //    is right for BUILDING rows and ⛔ wrong for writing one back.
+                // ⚠ The Watch mixes rows from arbitrary assets — 📌 VariableRow's own doc: "in Watch
+                //   there is no single one". ⇒ a row pinned from asset A, edited after the designer
+                //   switched to document B, would otherwise write A's variable name INTO B, silently,
+                //   with an Ok saying it worked.
+                // 📐 Measured: without this line, TheEditActuallyLandsTests'
+                //   ARowFromAnotherAssetDoesNotWriteIntoTheOpenOne goes red — the rail caught it.
+                if (target is null || (target as IEditableAsset)?.AssetId != _assetId) return false;
                 target.UpdateVariableDefaultValueJson(v.Name, json);
                 return true;
             });
