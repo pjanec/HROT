@@ -1,20 +1,66 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-19
-current-answer: the RULED 2026-08-18 section - INCLUDING its 2026-08-19 EXTENSION on
-  pinning (one window instance per pin, titled by its context) - and the INTEGRATION
-  TABLE at the very bottom. They supersede the RECOMMENDED ANSWERS above where they differ - notably
-  Q38-A, whose recommendation was OVERRULED. Plus the REVISION 2026-08-18. The revision supersedes the 2026-08-17 inventory
-  (8 surfaces; the graph finds 25) and corrects section 4's claim that the shell
-  is missing. A-F now carry recommendations awaiting the user's approval.
-stale-below: nothing, but section 1's inventory table and section 4's last line
-  are SUPERSEDED by R1 and R2. Do not quote them.
-known-rot: my Q38-A recommendation ("contextual is the ONLY switch, the toolbar is
-  a pin") was OVERRULED 2026-08-18 - the toolbar IS a panel switch. Do not quote it.
-  Also: section 4 says "what is missing is the SHELL" - measured false,
-  RuntimeInspectorWindow is that shell with three panes registered.
+updated: 2026-08-20
+current-answer: THE LIVE ANSWER, the block immediately below the title. Everything under
+  "WORKING HISTORY" is the record of how it was reached and must NOT be quoted as the answer.
+  The INTEGRATION TABLE at the very bottom is also LIVE - it is the build-level detail.
+stale-below: every RECOMMENDED ANSWER that carries a struck-through line, the 2026-08-17
+  inventory in section 1 (8 surfaces; the graph finds 25), and section 4's claim that the
+  shell is missing. All superseded and marked in place.
+known-rot: none as of 2026-08-20 - the six sub-questions are all ruled and each carries
+  its ruling id.
+known-conflict: none. R-112 corrects my own Q38-C test; R-113/R-114 settle the two
+  surfaces that were left to decide.
 -->
 # Architect Question #38 — **should the inspect/detail windows merge into ONE mode-switching Details panel?**
+
+# ✅✅✅ THE LIVE ANSWER — **all six sub-questions RULED** *(`2026-08-20`)*
+
+> ⭐⭐ **Read only this block and the INTEGRATION TABLE at the bottom.** ⛔ Everything between them is
+> **WORKING HISTORY** — how the answer was reached, including recommendations that were overruled.
+
+## ⭐ The six
+
+| | question | ⭐ the ruling | id |
+|---|---|---|---|
+| **A** | contextual, or a mode toolbar? | ⭐⭐ **The toolbar is a PANEL SWITCH, two stages.** The **context** decides which views are OFFERED and which is DEFAULT; the **user** picks among them with radio-style toggles. ⛔ It never changes what the panel is ABOUT, only which VIEW of one context is drawn. ⭐ **First goal is FEWER WINDOWS, not merged content** | **`R-98`** |
+| **B** | one panel across perspectives, or one per? | ⭐ **In ALL perspectives, content PLUGGABLE.** The offer set is a function of **`(selection, perspective)`**. ⛔ **One shared instance is NOT required** — read-only views may be instanced freely; ⭐ **sharing is preferred for EDITING views**. Feeds registered at the composition root | **`R-110`** |
+| **C** | what about views that are not "properties"? | ⭐⭐⭐ **The test is: IS IT ABOUT THE CURRENT SELECTION?** ⭐ **YES ⇒ a VIEW inside Details** on a toolbar toggle — ⛔ a different question earns its own **view**, not its own **window**. ⭐ **NO — a curated list kept open ACROSS selections ⇒ STANDALONE** *(Watch · Breakpoints)*. ⛔ A different **asset type** is a FEED difference and never justifies a surface | **`R-112`** |
+| **D** | runtime vs authoring: one panel or two? | ⭐⭐ **The MODE is part of the CONTEXT** — it joins `(selection, perspective)` in deciding the offer set. ⭐⭐⭐ **A view is implemented ONCE, supporting multiple modes** — ⛔ never an authoring view plus a runtime twin | **`R-111`** |
+| **E** | sequencing | ⭐ **ANSWER NOW, BUILD AFTER the visual check passes** — 📌 `R-27`, and *"merging surfaces before anyone has SEEN them is how the wiring gap happened"* | ✅ approved |
+| **F** | the pin | ⭐⭐ **ONE WINDOW INSTANCE PER PIN, titled by its context.** Id keyed on `(view, asset, selection)`; an exact duplicate **focuses** rather than spawning; ⭐ **pins are VOLATILE.** Mechanically: the same class with a **frozen context source** | **`R-100`** |
+
+## ⭐⭐ The shell — **it already exists**
+
+📐 **`RuntimeInspectorWindow`** renders entity-lifecycle status, mode controls and a scrub bar, then
+**delegates to the registered `IRuntimeInspectorPane` for the active asset kind.**
+⇒ ⭐⭐⭐ **It IS the shell, and the pane registry the toolbar needs is already there.** ⛔ **Do not write
+a third shell, and do not keep it as a second window beside Details.**
+⚠ Its runtime chrome becomes **mode-conditional content** *(`R-111`)*.
+
+## ⭐ Per surface — **the disposition**
+
+| verdict | surfaces |
+|---|---|
+| ⭐⭐ **BECOME VIEWS** *(toolbar toggles in the right context)* | `InspectorWindow` *(AiShared — facets · default value · param sync · utility)* · the three **`RuntimeInspectorPane`s** *(one view, three feeds)* · `BlueprintDetailsWindow` · `AiVariablesWindow` *(the default view)* · **`BlackboardAuthoringWindow`'s byte-budget / bin-pack** *(`R-112` — ⛔ no longer standalone)* · `GraphSignatureWindow` *(`BP-128`)* |
+| ⭐ **STAY STANDALONE** | ⭐⭐ **Watch** — `AiWatchWindow` survives *(`R-113`)*, variables-only, **persistable** · ⭐⭐ **Breakpoints** *(`Q44`)* · `DetailsPanel` *(NodeEditor.UI — the **primitive**, not a surface)* |
+| ⛔ **RETIRE** | `InspectorWindow` *(Blueprints — the second class of that name)* · `BlueprintVariablesWindow` · `BlueprintVariablesManagedWindow` · **`WatchPanelWindow`** *(`R-113`)* · **`LiveBlackboardPanel`** *(`R-114` — ⭐ no feature the variable table lacks)* |
+
+⚠⚠ **ONE CONSEQUENCE OF `R-98` + `R-113` MEETING:** `AiWatchWindow` draws **two** lists today —
+breakpoint watches **and** pinned variables. ⭐ `R-98` says the Watch stays **variables-only** ⇒
+⛔ **the breakpoint-watch list moves to the BREAKPOINTS window.**
+
+## ⛔ What is NOT settled
+
+| | |
+|---|---|
+| ⚠ **`R-27` still gates the BUILD** | the visual check must pass first — ⭐ **this is the only thing standing between here and a batch** |
+| ⚠ **the `PARAMETER SYNCHRONIZATION` toggle** | ⭐ ruled a Details toggle in the NODE context *(`R-98`/`R-99`)*, ⛔ **sequenced AFTER the orchestrator wiring** — *"promoting an inert panel is worse than leaving it buried"* |
+
+---
+
+# ⛔ WORKING HISTORY — **how the answer was reached. Do NOT quote as the answer**
+
 
 > ⛔ **OPEN POINT — recorded `2026-08-17`, NOT scheduled.** ⭐ **A separate design task by user
 > instruction**, banked so the idea is not lost and the next session does not re-derive the inventory.
@@ -620,7 +666,12 @@ watch windows must not lose `DebugSessionPersistence`'s watch list — 📌 it a
 | **Utility** | `InspectorWindow`'s **`UTILITY CONSIDERATION`** — utility nodes only |
 | ⭐ **Runtime** | the per-host **`RuntimeInspectorPane`** *(BTree · HSM · Blueprint)* |
 
-> ⚠⚠ **ONE TERM I COULD NOT MAP — please confirm.** ⭐ You said *"param-to-working state mapper"*.
+> ✅ **RESOLVED `2026-08-19`** — the user asked for BOTH to be explained and then ruled *"approved,
+> should be wired, add both to the plan"* *(`R-99`)*. ⭐ **Approach A (whole-DTO aliasing) and Approach B
+> (field-level sync) are two mechanisms, and the toggle shows Approach B's table.** ⚠ The original
+> ambiguity is kept below for the record.
+>
+> ⚠⚠ ~~ONE TERM I COULD NOT MAP — please confirm.~~ ⭐ You said *"param-to-working state mapper"*.
 > 📐 **The two measured candidates are DIFFERENT things:**
 > ⭐ **`PARAMETER SYNCHRONIZATION`** — subtree param ⇄ sub-asset field copy-in/copy-out *(Approach B)*
 > ⭐ **the node's two BINDINGS** — `ExpressionTargetField` *(params)* and `WorkingStateTargetField`
@@ -654,8 +705,8 @@ watch windows must not lose `DebugSessionPersistence`'s watch list — 📌 it a
 | `BlueprintVariablesWindow` · `BlueprintVariablesManagedWindow` | the Variables toggle *(`U-16`, row 60)* |
 | **one of the two `InspectorWindow`s** | the Properties toggle |
 | `AiVariablesWindow` | the Variables toggle ⚠ *(unless it is wanted as a PINNED instance)* |
-| `LiveBlackboardPanel` | the Variables toggle's Value column *(after the formatter arm)* |
-| `WatchPanelWindow` | the one Watch window |
+| `LiveBlackboardPanel` | ⭐ the Variables toggle's Value column — ✅ **RETIRE ruled `2026-08-20` (`R-114`)**, ⛔ no longer conditional on the formatter arm |
+| `WatchPanelWindow` | ⭐ **`AiWatchWindow`**, the survivor *(`R-113`)* |
 | `AiBreakpointsWindow`'s banner | `Q44-A` |
 
 ## ⭐ F. The count
