@@ -333,7 +333,7 @@ R-120 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | a view owns no 
 R-121 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | Same mechanism, different contents
 R-122 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | entity selection is on the entity
 R-123 | .claude/CLAUDE.md | NO IMPLEMENTATION WITHOUT UML
-R-124 | tools/ui-probe/README.md | THE IMGUI LAYER IS RAILABLE
+R-124 | tools/ui-probe/README.md | the ImGui layer IS railable
 M-32 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | The generic half is trapped inside the specific one
 M-33 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | Blueprint:57` · `BTree:61` · `Hsm:79
 M-34 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | the volatile-window pin
