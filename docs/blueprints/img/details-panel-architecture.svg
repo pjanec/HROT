@@ -48,10 +48,10 @@
   <text x="42" y="351" class="t">Mode (run state)</text>
   <text x="42" y="368" class="s">VariableRunState ← IDebugSessionRegistry</text>
 
-  <rect class="part" x="30" y="388" width="230" height="60"/>
-  <text x="42" y="407" class="t">Entity selection</text>
-  <text x="42" y="423" class="s">SharedEntitySelection — ONE entity;</text>
-  <text x="42" y="438" class="s">the multi-set is private to EntityInspectorPanel</text>
+  <rect class="exist" x="30" y="388" width="230" height="60"/>
+  <text x="42" y="407" class="t">Entity selection = the ENTITY</text>
+  <text x="42" y="423" class="s">ECS SelectionState { IsSelected,</text>
+  <text x="42" y="438" class="s">IsPrimarySelection } — global, already built</text>
 
   <!-- ─────────── column 2: the context record ─────────── -->
   <rect class="gap" x="330" y="150" width="200" height="200"/>
@@ -142,12 +142,13 @@
   <text x="600" y="600" class="s">⇒ a VIEW is a DESCRIPTOR + FACTORY, never a singleton: each host owns the instance it created.</text>
 
   <!-- ─────────── the scenario gap ─────────── -->
-  <rect class="gap" x="30" y="470" width="500" height="120"/>
-  <text x="44" y="496" class="hdr" font-size="13">⑥ THE SCENARIO PERSPECTIVE HAS NONE OF THIS</text>
-  <text x="44" y="519" class="s">Measured: THREE registrars and THREE selection stores — Blueprint · BTree · HSM.</text>
-  <text x="44" y="536" class="s">The "Editor" (Scenario) perspective has no registrar and no EditorSelectionStore.</text>
-  <text x="44" y="558" class="s">⇒ Q47's entity context is not "add a predicate"; the shell must reach that perspective first.</text>
-  <text x="44" y="578" class="s">R-110 says Details is in ALL perspectives ⇒ 3 of 4 have the infrastructure.</text>
+  <rect class="gap" x="30" y="470" width="500" height="130"/>
+  <text x="44" y="496" class="hdr" font-size="13">⑥ SCENARIO IS INCONSISTENT — same mechanism, different contents</text>
+  <text x="44" y="519" class="s">Measured: THREE registrars, THREE selection stores — Blueprint · BTree · HSM. The "Editor"</text>
+  <text x="44" y="536" class="s">(Scenario) perspective has neither and takes a bespoke "scenario branch". Its KEY is inconsistent too.</text>
+  <text x="44" y="558" class="s">The registrar fuses a GENERIC wiring hub (the claim chain) with an AI-authoring SERVICE BAG (21 params);</text>
+  <text x="44" y="575" class="s">the generic half is trapped inside the specific one. ⇒ extract PerspectiveWorkspace; all four get one.</text>
+  <text x="44" y="594" class="s">Renaming the key needs a layout migration — OwningPerspective is persisted.</text>
 
   <text x="20" y="628" class="s">Sources: EditorSelectionStore.cs · SelectionOrigin.cs · PerspectiveWorkspaceRegistrar.cs:600-685 · WindowManager.cs:112/571 ·</text>
   <text x="20" y="645" class="s">{Blueprint,BTree,Hsm}SelectionBridgeHelper.MapSelection · EntityInspectorPanel.cs:32 · EditorSubsystem.cs:626-628, 2241/2249/2292</text>

@@ -1,12 +1,16 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-20
-current-answer: this whole file — it is the IMPLEMENTATION design for the rulings already
-  made in Architect_Question_38 and Architect_Question_47, plus R-118 and R-119 which the
-  user ruled while reviewing it (section 2b and section 5 L0.2). Where a decision is still
-  open, section 7 lists the question with a lean instead of answering it silently.
-stale-below: nothing.
-known-rot: none.
+current-answer: this whole file — the IMPLEMENTATION design for the rulings made in
+  Architect_Question_38 and Architect_Question_47, plus R-118..R-122 which the user ruled
+  while reviewing it (sections 2b, 2c, 2d, 4b and 5 L0.2). Where a decision is still open,
+  section 7 lists the question with a lean instead of answering it silently.
+stale-below: nothing. Section 7's Q-i and Q-iv are struck through in place: both were
+  ANSWERED by the user on 2026-08-20 and neither may be quoted as an open question.
+known-rot: none. Two of my own leans were WITHDRAWN by the user on 2026-08-20 and are
+  marked as withdrawn where they stood: the "Instanceable / shown in its own window"
+  re-host rule (superseded by R-120) and "give Scenario the lighter registrar"
+  (superseded by R-121). Do not resurrect either from an older reading.
 known-conflict: Q38's live answer says "RuntimeInspectorWindow IS the shell". Section 4
   MEASURES three shell candidates and keeps that ruling only in part — the WINDOW is a
   fine shell, its PANE REGISTRY is keyed on asset kind, which R-112 rules is a feed
@@ -55,10 +59,10 @@ grep -n  "CreateRegistrar("           EditorSubsystem.cs                        
 | # | gap | 📐 measured |
 |---|---|---|
 | **G1** | ⛔⛔ **there is no SELECTION SET** | `ActiveSubSelection` is ONE `IAssetSubSelection?`. **All three** bridges write it **every frame**; Blueprint and BTree return `null` on `Count != 1`; ⚠ **HSM is a third variant** — it refuses only `Count == 0` and then re-refuses on a second node. ⇒ ⛔ **a pan can clear the selection** and ⛔ **a multi-pick is indistinguishable from nothing** |
-| **G2** | ⛔ **the ENTITY set is private** | `EntityInspectorPanel:32` holds its own `HashSet<Entity>` and publishes to the shared bus **only when `Count == 1`** *(`:183`)* ⇒ **the same defect as G1, on the other axis** |
+| **G2** | ⛔⛔ **the ENTITY selection is COPIED, twice** | ⭐⭐⭐ **The world already owns it** — `SelectionState { IsSelected, IsPrimarySelection }`, a globally-registered ECS component *(§2d)*. ⛔ `EntityInspectorPanel:32` keeps a private `HashSet<Entity>` and publishes to the editor bus **only when `Count == 1`** *(`:183`)*; `SharedEntitySelection` keeps a **single** `Entity?`. ⇒ ⭐ **the fix is DELETION, not widening** |
 | **G3** | ⛔ **no view registry, and the nearest one keys on the wrong thing** | `RuntimeInspectorWindow:59` picks `_panes.Find(p => p.TargetKind == activeAsset.Kind)`. 📌 **`R-112`: a different ASSET TYPE is a FEED difference and never justifies a surface** ⇒ ⛔ **asset kind is not a view key** |
 | **G4** | ⛔ **no context record** | focus, selection, asset, perspective and mode are read from five places by whoever needs them |
-| **G5** | ⛔⛔ **the SCENARIO perspective has no infrastructure AT ALL** | **3** `EditorSelectionStore`s and **3** `CreateRegistrar` calls — `Blueprint`, `BTree`, `HSM`. The `"Editor"` *(Scenario)* perspective has **neither**, and `EditorSubsystem:4312` says so in as many words. ⇒ ⭐⭐ **`Q47` is not "add a predicate" — its host does not exist yet** |
+| **G5** | ⛔⛔ **the SCENARIO perspective is INCONSISTENT with the other three** | **3** `EditorSelectionStore`s and **3** `CreateRegistrar` calls — `Blueprint`, `BTree`, `HSM`. The `"Editor"` *(Scenario)* perspective has **neither** and is *"handled by the scenario branch"* *(`EditorSubsystem:4312`)*. ⚠ **And its very NAME is inconsistent** — the key is `"Editor"`, relabelled `"Scenario"` for display *(`:3612`)*. ⇒ ⭐⭐ **`Q47` is not "add a predicate"; it is "make the fourth perspective like the other three"** — §4b |
 | **G6** | ⛔ **no empty-state contract** | `AiDetailsWindow:128` says *"No variable selected."*; `RuntimeInspectorWindow:54`/`:67` say *"No active session."* — ⭐ both honest, ⛔ neither is `R-117`'s **"intentionally empty for the current selection"** |
 
 ---
@@ -80,9 +84,9 @@ public sealed record DetailsViewDescriptor(
     string Id,                                   // stable — every host id and layout key is built from it
     string Title,                                // the toolbar toggle's label
     int    Rank,                                 // highest applicable Rank is the DEFAULT (R-98)
-    bool   Instanceable,                         // ⭐⭐ may a second live instance exist? (R-110)
     Func<DetailsContext, bool>       AppliesTo,  // ⭐⭐ R-117 — the whole context, SET included
     Func<IDetailsViewInstance>       Create);    // ⭐ one instance per HOST, not one per registry
+    // ⛔ NO "Instanceable" flag — §2c: a view owns no shared state, so every view instances freely.
 
 public interface IDetailsViewInstance : IDisposable
 {
@@ -94,6 +98,10 @@ public interface IDetailsViewInstance : IDisposable
 ```
 
 ### ⛔⛔ WHY A FACTORY — **measured, and it is not a style preference** *(`2026-08-20`)*
+
+⭐ **Not because instances must be limited** — 📌 **§2c: they must not be.** ⭐⭐ Because a view legitimately
+holds a **cache or an edit buffer**, and two hosts sharing one of those would share a scroll position, a
+cached session and a half-typed edit. ⇒ ⭐ **each host calls `Create()` and owns what it made.**
 
 📐 **Every candidate view carries per-instance MUTABLE state:**
 
@@ -134,7 +142,7 @@ source"* — ⇒ ⭐ **one window class, one parameter**, and the pin stops bein
 |---|---|
 | ⭐⭐⭐ **RETIREMENT BECOMES LOSSLESS** | 📌 `L5` retires `GraphSignatureWindow`, the byte-budget view, the diagnostics list — ⚠ **every one of which a designer may today keep floating beside the canvas.** ⛔ Folding them into a toolbar would have TAKEN that away. ⭐ **With a contextual float it is preserved**, and `R-13`'s *"no rush removals"* is satisfied by construction rather than by argument |
 | ⭐⭐ **`R-117`'s grey line has TWO sites, one mechanism** | the shell with an **empty offer set**, and a contextual float whose **own predicate** says no. ⭐ Same string, same rule: ⛔ **a blank panel is a defect, not a state** |
-| ⚠ **`Instanceable` is what keeps an editing view honest** | 📌 `R-110`: *"read-only views may be instanced freely; sharing is preferred for EDITING views."* ⇒ ⭐ a view holding an **uncommitted edit** *(`GraphSignatureWindow`)* declares `Instanceable: false`, and floating it **RE-HOSTS the single instance** rather than duplicating it — the shell then shows *"shown in its own window"* in place of that toggle. ⛔ **Two divergent half-typed signature edits is the failure this prevents** — §7 `Q-iv` |
+| ⭐⭐⭐ **EVERY view is freely instanceable** | ⛔⛔ **`Instanceable` and *"shown in its own window"* are WITHDRAWN** *(user, `2026-08-20`)*. ⭐ **They solved the wrong problem** — see §2c: a view that owns no shared state can be instanced without limit, so there is nothing to arbitrate |
 
 ### ⭐ Three decisions this shape encodes — **each traced to a ruling**
 
@@ -149,6 +157,94 @@ source"* — ⇒ ⭐ **one window class, one parameter**, and the pin stops bein
 ⛔ **It does not make a view an `IRuntimeInspectorPane`, and it does not key anything on `AssetKind`.**
 📌 `R-112`. ⭐ A host-specific view expresses its host **in its predicate** — `ctx.Asset?.Kind == BTree` —
 which is a **feed** statement made by the view, ⛔ not a surface distinction made by the shell.
+
+---
+
+## 2c. ⭐⭐⭐ WHO OWNS THE STATE — **the view owns none of it** *(user, `2026-08-20`)*
+
+> ⭐⭐⭐ **User, verbatim:** *"Better if the view does not need to own its state; the state the view is
+> viewing should rather be stored elsewhere outside of a concrete view instance, shareable and watchable
+> by any number of views; only a local and temporary editing/caching context can be local to the view.
+> The shell that should owns the shareable state should exist independently on whether any view is shown
+> at all and before any UI is instantiated."*
+
+⛔⛔ **This WITHDRAWS `Instanceable` and the re-host rule**, and it is a better answer than either.
+⭐⭐ **`R-110`'s *"sharing is preferred for editing views"* was a WARNING ABOUT A SYMPTOM.** ⇒ ⭐⭐⭐ **remove
+the cause and the warning has nothing left to warn about.**
+
+### ⭐ Three tiers, and the line between them is sharp
+
+| tier | ⭐ owned by | lives | example |
+|---|---|---|---|
+| ⭐⭐⭐ **SHARED, WATCHABLE STATE** | ⭐⭐ **a store built at the COMPOSITION ROOT, before any window exists**, and outliving every view instance | the whole session | the asset · the selection · the entity world · the run state |
+| ⭐ **LOCAL EDITING / CACHING CONTEXT** | the view instance — ⭐ **legitimately** | as long as that instance | an uncommitted edit buffer · a scroll position · a memoised lookup |
+| ⛔ **anything else** | ⛔ **nobody** — ⭐ **a view holds no fact another view would need** | — | — |
+
+⭐⭐ **The pattern is already established, not invented here:** 📐 `EditorSelectionStore` is constructed at
+`EditorSubsystem:626`–`:628` — **before any window**, with no UI dependency, and windows subscribe to
+`OnSelectionChanged`. ⇒ ⭐ **this design GENERALISES that object rather than adding a new idea.**
+
+### 📐 Re-measured against the three views — **and the picture is better than §2 first suggested**
+
+| view state | ⭐ which tier | ⇒ |
+|---|---|---|
+| `BlueprintDetailsWindow._session` *(cached `INodeEditSession` + its node/graph ids)* | ⭐ **a CACHE** | ✅ **stays local** — ⚠ it must be **keyed on the context and re-derived when the context changes**, ⛔ never trusted across a change |
+| `GraphSignatureWindow`'s `GraphSignatureEditModel` Inputs/Outputs | ⭐ **an uncommitted EDIT BUFFER**; ⭐⭐ **the committed signature already lives in `BlueprintAsset`** — shared | ✅ **stays local.** ⛔ Two instances holding two buffers is **the same as two text editors on one file** — the user's own doing, not an architecture defect; ⭐ **the shared asset raises the change and each buffer re-reads** |
+| `VariableDetailsSection._heading` / `_headingAtReadTime` | ⚠ **DERIVED from the context** | ⛔ **stops being stored** — the context already says what the panel is about |
+| ⛔⛔ **`EntityInspectorPanel._selectedEntities`** | ⛔⛔ **SHARED STATE HELD PRIVATELY** | ⭐⭐⭐ **the one genuine violation** — and §2d shows the world already owns it |
+
+### ⭐⭐ The checkable rule this produces
+
+> ⛔ **A view may not hold a fact that another view, a rail, or a headless caller would have to ask it
+> for.** ⭐ If something wants to ask a view a question, the answer belongs in the store.
+
+⭐ **And that is also what makes the views RAILABLE** — 📌 `R-21`/`R-62`: the draw cannot be exercised, so
+**every assertion in this design is on a store or a returned model.** ⛔ A view that owned state would be
+a view whose state no rail could reach.
+
+---
+
+## 2d. ⛔⛔⛔ THE ENTITY SELECTION IS A PROPERTY OF THE ENTITY — **and it is ALREADY BUILT**
+
+> ⭐⭐ **User, verbatim:** *"The entity selection on the map or anywhere else we show the selectable
+> entity list is something that is editor global and should not be a local property of any concrete
+> perspective… Not even entity inspector should be the owner of the entity selection set… likely the
+> entity selection is a property of the entity itself (stored in ECS repo which is global) so it should
+> not need any hash in entity inspector."*
+
+📐 **MEASURED — the guess is exactly right, and the component exists today:**
+
+```csharp
+// Hrot.Core/Components/Map/SelectionState.cs — namespace Hrot.IG.Components
+[ComponentId(GlobalComponentIds.SelectionState)] [DataPolicy(DataPolicy.NoSave)]
+public struct SelectionState { public bool IsSelected; public bool IsPrimarySelection; }
+```
+
+| | 📐 |
+|---|---|
+| **registered globally** | `PresentationComponentRegistry:18` · `IgRoleComponentRegistry:26` |
+| **written by** | `SelectionInteractionSystem` — click, **box-select**, and `ClearAllSelections()` |
+| **read by** | `SelectionRenderSystem` · `MissionPresentationGizmo` · `SelectionHighlightGizmo` |
+| ⭐⭐ **and it already carries the PRIMARY** | `IsPrimarySelection` — *"only one entity holds it at a time"* |
+
+⇒ ⭐⭐⭐ **`EntityInspectorPanel._selectedEntities` and `SharedEntitySelection.Selected` are TWO MORE
+COPIES of a fact the world already holds** — ⛔ **and one of them is a SET flattened to a single entity.**
+
+### ⚠⚠ This does NOT overturn Batch 95 — **say so plainly**
+
+📌 **`R-105`** ruled *"`SelectedEntity` is GLOBAL"* and `95b` built `SharedEntitySelection` to fix a real
+defect *(four stores, one connected ⇒ every live value `(pending)`)*. ⭐⭐ **The intent is UPHELD and the
+mechanism is superseded by a strictly more global one**: ⛔ a cell shared by four stores is still an
+editor-side copy; **the world is the thing all four were trying to agree about.**
+
+### ⭐ What this changes in the plan
+
+| ⭐ | |
+|---|---|
+| **`G2` shrinks** | ⛔ **not** *"widen the shared cell to a set"* ⇒ ⭐ **"delete two copies and query the world"** |
+| **`L0.4` becomes a RETIREMENT** | `EntityInspectorPanel` publishes nothing and keeps no `HashSet`; it **queries** `With<SelectionState>()` like every other reader |
+| ⚠ **one implementation note** | ⭐ the context builder must return **the same list instance when the selection has not changed** — ⛔ otherwise `DetailsContext` compares unequal every frame and every view rebuilds. 📌 the same rule `L0.2` needs for the pan |
+| ⚠ **and one limit** | `[DataPolicy(NoSave)]` ⇒ ⛔ **the selection does not survive a scenario reload** — ⭐ consistent with `94g`, and correct |
 
 ---
 
@@ -185,6 +281,49 @@ shell."*
 
 ---
 
+## 4b. ⭐⭐⭐ WHAT THE "REGISTRY" IS, AND WHY SCENARIO MUST HAVE ONE *(user, `2026-08-20`)*
+
+> ⭐⭐ **User:** *"you mentioned that editor perspective (it should be rather called scenario perspective)
+> is missing some kind of registry the other perspective have; this is not consistent; what kind of
+> registry is it? scenario perspective should be consistent with others."*
+
+### ⭐ What it actually is — **TWO things fused into one class**
+
+📐 `PerspectiveWorkspaceRegistrar` takes **21 constructor parameters**, and they split cleanly:
+
+| half | what it is | ⭐ perspective-generic? |
+|---|---|---|
+| ⭐⭐⭐ **the WIRING HUB** — `RegisterExtraWindow` | ⭐ a **claim chain**: `if (window is IX) …` ×9 today *(outline↔details · edit gestures · live projection · watch toggle · properties host · focus claims)*. ⛔ **Windows self-wire; the composition root passes nothing extra** *(`R-67`)* | ✅ **entirely generic** — nothing in it is about AI authoring |
+| ⚠ **the SERVICE BAG** — the constructor | validators · breakpoints · sanitizers · comparison export · blackboard aggregator · action-schema exporter · facet drawers · live value provider · live writer | ⛔ **AI-authoring specific** |
+
+⇒ ⭐⭐⭐ **The inconsistency is real, and it is that the GENERIC half is trapped inside the SPECIFIC one.**
+⛔ Scenario was given a bespoke *"scenario branch"* because taking the hub meant taking the bag.
+
+### ✅ The answer — **same mechanism, contents differ** *(this is what consistency MEANS here)*
+
+| ⭐ | |
+|---|---|
+| **①** | ⭐⭐ **Extract the wiring hub** — a `PerspectiveWorkspace` that owns the perspective's **selection store**, the **view registry** and the **claim chain**. ⛔ **No services** |
+| **②** | ⭐ `PerspectiveWorkspaceRegistrar` **keeps its name and its bag** and becomes the AI hosts' workspace **plus** those services |
+| **③** | ⭐⭐⭐ **Scenario gets a workspace too — the SAME class**, carrying **scenario** services *(entity world access · TKB registry · mission service)* instead of blackboard ones |
+| **④** | ⇒ ⭐⭐ **all four perspectives are built the same way**, and `R-110`'s *"Details in ALL perspectives"* becomes true by construction rather than by a fourth special case |
+
+⛔⛔ **This SUPERSEDES my earlier lean** *(old `Q-i`: *"give Scenario only the lighter one"*)* — ⚠ **that
+would have kept the asymmetry and merely renamed it.** ⭐ **The user's rule is better: one mechanism,
+different contents.**
+
+### ⚠ And the NAME is inconsistent too — **worth fixing in the same pass**
+
+📐 The perspective **key** is `"Editor"`; `EditorSubsystem:3612` calls
+`RegisterPerspectiveLabel("Editor", "Scenario")` so the menu reads *"Scenario"*.
+⇒ ⭐ **rename the key to `"Scenario"`** and drop the relabel.
+⚠⚠ **One consequence, and it is checkable:** the key is **persisted** — `WindowManager.SaveSettings`
+stores `CurrentPerspective`, and `OwningPerspective` strings key every window's saved state.
+⇒ ⛔ **a bare rename silently resets a user's layout** — ⭐ **it needs a one-line migration on load**
+*(`"Editor"` → `"Scenario"`)*, ⛔ not a find-and-replace.
+
+---
+
 ## 5. ⭐⭐⭐ THE LAYERS — **each is independently shippable and independently railable**
 
 > ⭐ **Layer N does not need layer N+1 to be useful.** ⛔ No layer leaves the editor in a worse state
@@ -198,7 +337,7 @@ shell."*
 | **`L0.1`** | ⭐⭐⭐ **a SELECTION SET on the store** — `ActiveSubSelections` *(list)* with `ActiveSubSelection` kept as **the derived single** *(`Count == 1 ? [0] : null`)* | ⭐ **every existing reader is unchanged** — the same optional-and-preferred shape the row seams used seven times |
 | **`L0.2`** | ⛔⛔⛔ **THE BRIDGE REPORTS; IT NEVER FILTERS** — `MapSelection` returns **every** selected node mapped, and an **empty list** only when nothing is selected. ⭐ **A PAN that reports the same set writes the same set** ⇒ no clear | 📌 **all three measured**: `Blueprint:57` · `BTree:61` · `Hsm:79` — ⚠ **three different refusals of the same shape** ⇒ ⭐ **deleted, not unified** — see the box below |
 | **`L0.3`** | ⭐ the **`DetailsContext`** record + a builder that reads the store, the window manager and the run state | ⭐ all five sources measured and present |
-| **`L0.4`** | ⭐ the **ENTITY set** — `SharedEntitySelection` gains the list; `EntityInspectorPanel` publishes its `HashSet` instead of keeping it | 📐 `EntityInspectorPanel:32`/`:183` — ⚠ **its multi-select is real and already tested** *(`EntityInspectorPanelMultiSelectTests`)*, it is only unpublished |
+| **`L0.4`** | ⛔⛔ **the ENTITY set is a DELETION, not a widening** *(§2d)* — the context reads **`SelectionState` from the world**; ⭐ `EntityInspectorPanel`'s private `HashSet` and `SharedEntitySelection`'s single cell both **go** | 📐 `SelectionState` is globally registered and already written by `SelectionInteractionSystem` *(click · box-select · `ClearAllSelections`)* and read by three renderers. ⚠ **`R-105`'s INTENT is upheld** — the world is strictly more global than the cell `95b` built |
 | ⭐ **rail** | **a marquee of two nodes yields a 2-item context; a pan yields the SAME context object as the frame before** — ⛔ not *"the bridge was called"* | 📌 `M-22` |
 
 > ### ⭐⭐⭐ `L0.2` — **the same predicate concept, one layer down** *(user, `2026-08-20`)*
@@ -269,7 +408,7 @@ one is *"wrap an existing panel, write its predicate, register it."*
 | **`L4.2`** | ⭐⭐⭐ **CONTEXTUAL float** — `contextSource = LIVE`, ⛔ **`IsVolatile = false`** *(it survives the layout save — it is a durable placement, not a captured moment)*, id `= details_view_{viewId}_{perspective}` | `WindowManager.SaveSettings` keys on the window id ⇒ a stable id is all persistence needs |
 | **`L4.3`** | ⭐ **PINNED float** — `contextSource = FROZEN snapshot`, `IsVolatile = true` *(`R-100`)*, id `= (viewId, assetId, selectionKey)`, title carries the captured context | `ManagedWindow.Title` has a `protected set`; volatile windows are skipped by `SerializeToIniSection` **and** `SaveSettings` |
 | **`L4.4`** | ⭐ **the entry points** — a small *"open in own window"* affordance on the toolbar toggle *(contextual)* beside the existing pin gesture *(frozen)*; ⭐ **and the contextual float appears in the View menu** | `ManagedWindow.ShowInMenu` exists — ⭐ ⇒ ⛔ **a float is discoverable without the Details panel being open at all**, which is the point of it |
-| **`L4.5`** | ⚠ **`Instanceable: false` ⇒ RE-HOST, do not duplicate** — the shell shows *"shown in its own window"* in that toggle's place | §7 `Q-iv` |
+| ⛔ ~~`L4.5`~~ | ⛔⛔ **WITHDRAWN — there is no re-host and no `Instanceable`** | 📌 **§2c**: ⭐ a view owns no shared state ⇒ **every view floats freely, docked or not** |
 | ⚠ **known limits** | ⛔ a **pin** does not survive a scenario reload *(the open `94g`)*, ⭐ and `IsVolatile` means it does not survive a layout save **by ruling**. ⭐ **A contextual float survives both** — ⚠ **and must therefore tolerate being restored into a context its predicate rejects**, which is exactly the grey line |
 
 ### ⭐ `L5` — **retire** — ⛔ **only after the view that replaces each one is live**
@@ -295,9 +434,9 @@ one is *"wrap an existing panel, write its predicate, register it."*
 
 | task | ⭐ what |
 |---|---|
-| **`L6.1`** | ⭐⭐ **give the Scenario perspective a selection store and a registrar** — ⚠ **the design question in §7, because the scenario branch is deliberately separate today** |
-| **`L6.2`** | the **entity** arm of `DetailsContext` becomes real *(`L0.4` supplies the set)* |
-| **`L6.3`** | **Components** view — wrap `EntityInspectorPanel` *(570 lines, already multi-select-capable)*; predicate: ≥1 entity |
+| **`L6.1`** | ⭐⭐⭐ **extract `PerspectiveWorkspace` and give SCENARIO one, the same as the other three** — 📌 **§4b**; ⭐ **and rename the perspective key `"Editor"` → `"Scenario"` with a layout migration** |
+| **`L6.2`** | the **entity** arm of `DetailsContext` becomes real — ⭐ `L0.4` already supplies it **from the world**, so this is registration, not plumbing |
+| **`L6.3`** | **Components** view — wrap `EntityInspectorPanel` *(570 lines, already multi-select-capable)*; predicate: ≥1 entity. ⭐⭐ **Its `_selectedEntities` field is deleted here** *(§2d)* — ⚠ `EntityInspectorPanelMultiSelectTests` must be re-pointed at the world, ⛔ not at the panel |
 | **`L6.4`** | **Mission plan** view — wrap `MissionPanel` *(792 lines, in-degree 14)*; ⭐ predicate: **brain-equipped entities only** — 📌 `R-116` |
 | **`L6.5`** | ⭐⭐ **the TKB/component predicate helper** — `TkbDescriptorRegistry` keyed by `TkbEntityTypes` ⇒ *"this entity has component X / TKB record Y"*, ⭐ **so every entity-type view writes a one-line predicate** |
 | ⛔ **out of scope** | `DerEntityInspectorPanel` — **IOS/ExCon only** *(`R-116`)* |
@@ -329,10 +468,10 @@ L0.4 ─────────────────────────
 
 | # | question | ⭐ my lean, for approval |
 |---|---|---|
-| **Q-i** | ⭐⭐ **Does the Scenario perspective get a full `PerspectiveWorkspaceRegistrar`, or only a selection store + the view registry?** | ⭐ **the lighter one.** The registrar carries validators, breakpoints, blackboard hosts and schema exporters — ⛔ **all AI-authoring concerns a scenario has no use for.** ⇒ extract the **claim chain** into something both can host, and give Scenario only the store + registry |
+| ~~**Q-i**~~ | ~~Does Scenario get a full registrar, or only a store + registry?~~ | ✅✅ **ANSWERED `2026-08-20` by the user — §4b.** ⭐⭐ **Same mechanism for all four perspectives; the CONTENTS differ.** ⛔ **My *"give Scenario the lighter one"* lean is WITHDRAWN** — ⚠ it would have kept the asymmetry and merely renamed it |
 | **Q-ii** | ⚠ **Does `L0.2` publish a multi-selection that no view yet consumes?** | ⭐ **Yes — and `L2.3`'s grey line is exactly what makes that safe.** ⛔ The alternative *(keep collapsing until a view exists)* means the context lies for three more layers |
 | **Q-iii** | ⚠ **Does `RuntimeInspectorWindow` survive as a window, or dissolve entirely into views?** | ⭐ **Dissolve.** Its chrome is `R-111` mode-conditional content and its registry is on the wrong axis ⇒ ⛔ keeping it is keeping a second shell. ⚠ **`R-13`: this is duplicate CODE, so it is ROUTED then removed — not deleted first.** ⭐ **And `L4.2` means nothing is lost** — anyone who kept it floating keeps a floating Runtime view |
-| ⭐⭐ **Q-iv** | ⛔⛔ **What happens when a view that holds an UNCOMMITTED EDIT is floated while also docked?** 📐 `GraphSignatureWindow` holds `GraphSignatureEditModel` Inputs/Outputs; `BlueprintDetailsWindow` caches an `INodeEditSession` | ⭐ **The descriptor declares `Instanceable`, and a `false` one RE-HOSTS rather than duplicates** — the single instance moves into the float and the shell shows *"shown in its own window"*. 📌 `R-110` verbatim: *"read-only views may be instanced freely; sharing is preferred for EDITING views"* ⇒ this is that ruling made mechanical. ⛔ **The alternative — two live instances — means two divergent half-typed signature edits over one graph**, and neither would know about the other |
+| ~~**Q-iv**~~ | ~~What happens when a view holding an uncommitted edit is floated while also docked?~~ | ✅✅ **DISSOLVED `2026-08-20` by the user — §2c.** ⭐⭐⭐ **The question only existed because a view owned state it should not own.** ⛔ `Instanceable` and *"shown in its own window"* are **withdrawn**; ⭐ an edit BUFFER is legitimately view-local and the committed state was always in the asset |
 
 ---
 
