@@ -287,13 +287,15 @@ public sealed class VariableTableControl
     {
         if (!ImGui.BeginPopupContextItem()) return;
 
-        bool writable = row.CanEverBeWritten;
-
-        if (ImGui.MenuItem("Edit value…", null, false, writable))
-            EditValueRequested?.Invoke(row);
-
-        if (ImGui.MenuItem("Properties…", null, false, writable))
-            PropertiesRequested?.Invoke(row);
+        // ⭐⭐⭐ Batch 97 (97b) — THE POLICY DECIDES, not the row kind alone.
+        // 🔴 This used to read the ROW KIND alone, for BOTH entries, and nothing else. ⛔ VariableEditPolicy also knows Replay ⇒ Denied, so the entry was live
+        //    in a state where clicking it opens NOTHING, with no explanation.
+        // ⭐ The rule is VariableEditGesture.Decide, which CALLS the policy (ruling 9) — ⛔ a second
+        //   spelling here is how the menu and the dialog would come to disagree.
+        DrawEditItem(VariableEditGesture.EditValueLabel,  VariableEditAction.EditValue,  row,
+                     () => EditValueRequested?.Invoke(row));
+        DrawEditItem(VariableEditGesture.PropertiesLabel, VariableEditAction.Properties, row,
+                     () => PropertiesRequested?.Invoke(row));
 
         // ⭐⭐⭐ Batch 94 (94f) — ENTRY POINT 2 of the watch gesture (the other is the My Blueprint
         //    row menu). ⛔ One command, two surfaces: a one-surface gesture re-creates the split U-6
@@ -314,5 +316,28 @@ public sealed class VariableTableControl
             ImGui.SetTooltip(why);
 
         ImGui.EndPopup();
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Batch 97 (<c>97b</c>) — one edit menu entry, greyed with a reason when the policy denies
+    /// it.</b> ⭐ Shaped exactly like the watch entry above it, deliberately — 📌 two spellings of "draw
+    /// a refusable menu item" is how the two would come to look different to the designer.
+    ///
+    /// <para>⚠ <b>A <c>ReadOnly</c> entry stays ENABLED</b> and opens shaped as a view *(Batch 96)*.
+    /// ⛔ Greying it would hide values the designer asked to read — 📌 <c>VariableEditLauncher.Open</c>'s
+    /// own doc-comment.</para>
+    /// </summary>
+    private void DrawEditItem(
+        string label, VariableEditAction action, VariableRow row, Action raise)
+    {
+        var gesture = VariableEditGesture.Decide(row, action, RunState);
+
+        if (ImGui.MenuItem(label, null, false, gesture.Enabled) && gesture.Enabled)
+            raise();
+
+        // ⭐⭐ Refused by GREYING WITH A REASON — ⛔ never a click that dead-ends.
+        if (!gesture.Enabled && gesture.DisabledReason is { } why && ImGui.IsItemHovered(
+                ImGuiHoveredFlags.AllowWhenDisabled))
+            ImGui.SetTooltip(why);
     }
 }
