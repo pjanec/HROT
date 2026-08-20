@@ -54,6 +54,14 @@ public sealed class SharedEntitySelection
         {
             if (_selected == value) return;
             _selected = value;
+
+            // ⭐⭐⭐ Batch 97 (97d) — THE BINDING CLOCK. 📌 R-76's second clock: a chameleon row is
+            //    bound to "whoever is selected", so a selection change is the ONLY thing that can
+            //    move its binding — ⛔ and the brain pulse cannot say so, least of all while time is
+            //    stopped. ⭐ Bumped BEFORE the subscribers run, so a panel that repaints inside
+            //    Changed already sees the new generation.
+            Variables.EntityBindingFrame.Advance();
+
             Changed?.Invoke();
         }
     }

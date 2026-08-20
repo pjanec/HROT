@@ -928,6 +928,54 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         return true;
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 97 (<c>97c</c>) — the NAME → <c>(component, RAW offset, size)</c> lookup the write
+    /// path was missing.</b>
+    ///
+    /// <para>⭐ <b>Same two tables the READ consults</b> — <c>mapIndex.StateLayout.Fields</c> with a
+    /// fallback to <c>def.StateFields</c>, in that order, exactly as
+    /// <see cref="CaptureAiPrimitiveState"/> does. ⚠ <b>The LOOP is not shared and could not be</b>: the
+    /// read iterates every field to produce values, this looks one up by name. ⇒ 📌 the agreement is
+    /// asserted by a rail rather than bought by restructuring a hot read path.</para>
+    ///
+    /// <para>⛔⛔ <b>RAW offsets.</b> The read computes
+    /// <c>WorkingStateLayout.ComponentOffsetOf(field.OffsetBytes)</c> before slicing; ⭐ this returns
+    /// <c>field.OffsetBytes</c> UNCONVERTED, because
+    /// <see cref="TryWriteWorkingStateField"/> applies the header itself.</para>
+    ///
+    /// <para>⛔ <b><c>AiPrimitive</c> only.</b> An <c>Instance</c> blueprint's fields are offset within
+    /// a per-instance payload *(<c>payloadOffset + field.OffsetBytes</c>)* — a different space — and
+    /// the writer applies the <c>AiPrimitive</c> convention. ⚠ Answering for one would not mis-report a
+    /// value, it would <b>corrupt memory</b>.</para>
+    /// </summary>
+    public WorkingStateFieldRef? ResolveWorkingStateField(Entity entity, Guid assetId, string fieldName)
+    {
+        if (string.IsNullOrEmpty(fieldName)) return null;
+
+        _debugMaps.TryGetValue(assetId, out var mapIndex);
+        _registry.TryGetById(BlueprintIdHash.Compute(assetId), out var def);
+        if (def is null) return null;
+
+        // ⛔ See the remarks — never guess for a dispatch kind laid out another way.
+        if (def.Kind != BlueprintDispatchKind.AiPrimitive) return null;
+
+        var layoutFields = mapIndex?.StateLayout.Fields;
+        if (layoutFields != null)
+        {
+            foreach (var field in layoutFields)
+                if (string.Equals(field.Name, fieldName, StringComparison.Ordinal))
+                    return new WorkingStateFieldRef(
+                        typeof(Blackboard1024), field.OffsetBytes, field.SizeBytes);
+        }
+
+        if (def.StateFields != null
+            && def.StateFields.TryGetValue(fieldName, out var descriptor))
+            return new WorkingStateFieldRef(
+                typeof(Blackboard1024), descriptor.OffsetBytes, descriptor.SizeBytes);
+
+        return null;
+    }
+
     // ---- IBlueprintDebugSession -- pause state ------------------------------
 
     public bool IsPaused => _isPaused;

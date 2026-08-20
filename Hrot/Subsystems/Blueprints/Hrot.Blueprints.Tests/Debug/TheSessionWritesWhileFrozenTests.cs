@@ -144,7 +144,12 @@ public sealed class TheSessionWritesWhileFrozenTests
     }
 
     /// <summary>⭐ Records what the session staged — the collaborator, not a second implementation.</summary>
-    private sealed class RecordingManager : IDataBreakpointManager
+    /// <summary>
+    /// ⭐ <c>internal</c> since Batch 97 (<c>97c</c>) so <c>TheBlueprintLiveWriteLandsTests</c> can
+    /// stage through the SAME recorder — ⛔ a second one would be two implementations of one concept
+    /// (ruling 9), and the two would drift on exactly the assertion that matters: the byte offset.
+    /// </summary>
+    internal sealed class RecordingManager : IDataBreakpointManager
     {
         public List<(Type ComponentType, int ByteOffset, byte[] Bytes)> Staged { get; } = new();
 

@@ -124,6 +124,24 @@ public sealed class Watch
     }
 }
 
+/// <summary>
+/// ⭐⭐ <b>Batch 97 (<c>97c</c>) — where one working-state field lives, as the WRITER wants it.</b>
+/// </summary>
+/// <param name="ComponentType">
+/// ⭐ The ECS <b>COMPONENT</b> the working state is stored in — ⛔ <b>not the field's own type.</b>
+/// ⚠ Confusing the two is a size mismatch at best and a write into the wrong component at worst.
+/// </param>
+/// <param name="RawOffsetBytes">
+/// ⛔⛔ <b>RAW — within the working-state block, exactly as the layout reports it.</b> ⚠ The 8-byte
+/// header is applied by <c>IBlueprintDebugSession.TryWriteWorkingStateField</c>; ⛔ adding it here
+/// double-applies it.
+/// </param>
+/// <param name="SizeBytes">
+/// ⭐ The layout's own width. ⚠ <b>A caller must refuse a payload of a different length</b> rather than
+/// truncate or overrun — 📌 <c>Q32</c> §2.1.
+/// </param>
+public sealed record WorkingStateFieldRef(Type ComponentType, int RawOffsetBytes, int SizeBytes);
+
 public sealed record BlueprintStateSnapshot(
     Entity Self,
     Guid AssetId,
@@ -192,6 +210,31 @@ public interface IBlueprintDebugSession : IBlueprintProbeSink
     /// </summary>
     bool TryWriteWorkingStateField(
         Entity entity, Type componentType, int fieldOffsetBytes, ReadOnlySpan<byte> bytes) => false;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 97 (<c>97c</c>) — where a working-state field LIVES, by NAME.</b>
+    ///
+    /// <para>🔴🔴 <b>The missing half.</b> <see cref="TryWriteWorkingStateField"/> has existed since
+    /// Batch 84 and had <b>zero production callers</b> — 📐 measured by Batch 96 — because the editor
+    /// knows a variable by its <b>NAME</b> and that method wants a <c>(componentType, offset)</c>. The
+    /// walk that maps one to the other was <b>private</b> to the implementation, used only by the READ
+    /// path. ⇒ ⭐ this exposes the same two tables the read consults, as a lookup.</para>
+    ///
+    /// <para>⛔⛔ <b>The offset returned is RAW — the offset WITHIN THE WORKING-STATE BLOCK</b>, exactly
+    /// as the layout reports it, so it can be handed straight to
+    /// <see cref="TryWriteWorkingStateField"/>, <b>which applies the 8-byte header itself</b>.
+    /// ⚠ The READ path converts before slicing *(<c>WorkingStateLayout.ComponentOffsetOf</c>)*, so
+    /// ⛔ <b>copying the read's <c>start</c> here would DOUBLE-APPLY the header and scribble on the
+    /// neighbouring field</b> — 📌 <c>Q32</c> §2.1: <i>"an out-of-range offset is MEMORY CORRUPTION,
+    /// not a wrong value."</i></para>
+    ///
+    /// <para>⭐ <b>Returns <c>null</c> when it cannot say</b> — no debug map, no definition, an unknown
+    /// name, or ⚠ <b>a dispatch kind whose state is not laid out this way</b>. ⛔ It must never GUESS:
+    /// an <c>Instance</c> blueprint's fields are offset within a per-instance payload, a different
+    /// space entirely, and answering for one would corrupt memory rather than mis-report a value.</para>
+    /// </summary>
+    WorkingStateFieldRef? ResolveWorkingStateField(Entity entity, Guid assetId, string fieldName)
+        => null;
 
     // -- Pause state --
     bool IsPaused { get; }

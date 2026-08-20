@@ -2275,12 +2275,29 @@ namespace Hrot.Editor
                     : null,
                 store: _blueprintSelectionStore);
 
+            // ⭐⭐⭐ Batch 97 (97c) — THE WRITE SIDE, and the reason a paused edit never landed.
+            //    🔴🔴 Measured by Batch 96: TryWriteWorkingStateField (Batch 84) and the WriteLiveValue
+            //    delegate both shipped with ZERO production call sites, so VariableEditCommit.Commit
+            //    answered LiveWriteUnavailable for every paused edit on every host. ⛔ R-67's seventh
+            //    instance -- and it hid for six batches because a refusal is a LEGITIMATE outcome, so a
+            //    refusing editor is indistinguishable from a correctly-gated one.
+            //    ⭐ Same store as the READ above, deliberately: the write must target whatever the read
+            //      displayed. See BlueprintLiveValueWriter's remarks (R-78's chameleon sentinel).
+            var blueprintLiveValueWriter = new BlueprintLiveValueWriter(
+                sessionFactory: () => debugRegistry.ActiveSession as IBlueprintDebugSession,
+                store:          _blueprintSelectionStore);
+
             // ⭐ Blueprint still has no host-specific validator -- and it SAYS so, rather than
             //   expressing that by omitting a whole argument list's worth of shared services.
             _blueprintRegistrar = perspectiveServices.CreateRegistrar(
                 "Blueprint", _blueprintSelectionStore,
                 validators: Array.Empty<Hrot.Editor.AiShared.Validation.IAssetValidator>(),
-                liveValueProvider: blueprintLiveValueProvider);
+                liveValueProvider: blueprintLiveValueProvider,
+                // ⛔⛔ BTree and HSM pass NONE, above, and that is not an omission: neither host has a
+                //    staged surgical write, so their paused edits keep answering LiveWriteUnavailable.
+                //    ⭐ Faking one would be "the unsafe route wearing the safe one's name"
+                //    (VariableEditCommit's own remark). ⚠ When they grow one, it is passed HERE.
+                writeLive: blueprintLiveValueWriter.Write);
 
             // Document manager — activated doc drives perspective switch.
             _aiDocumentManager = new AiDocumentManager(_perspectiveSwitcher);

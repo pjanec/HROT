@@ -156,37 +156,55 @@ public sealed class TheEditActuallyLandsTests
     }
 
     /// <summary>
-    /// ⛔⛔⛔ <b>ASSERTED ON PURPOSE — a SCALAR variable's edit goes NOWHERE, and this batch does not
-    /// fix it.</b>
+    /// ⭐⭐⭐ <b>FLIPPED, Batch 97 (<c>97a</c>) — A SCALAR VARIABLE'S EDIT NOW LANDS.</b>
     ///
-    /// <para>📐 <b>Measured:</b> <c>ReflectionEditDocumentBuilder.CreateLeafBinding</c> opens with
-    /// <c>if (fi == null &amp;&amp; pi == null) return null;</c> — a binding needs a MEMBER — and the
-    /// ROOT of a document has none. ⇒ for a DTO variable the root is a <c>Struct</c> whose CHILDREN are
-    /// bound *(so editing works)*, ⛔ but for a scalar the root <b>IS</b> the leaf, its
-    /// <c>Binding</c> is <c>null</c>, and <c>ComponentEditDrawer.DrawLeafNode</c> ends
-    /// <c>if (changed) node.Binding?.SetBoxed(value);</c> — <b>a null-conditional that silently
-    /// discards the designer's typing.</b></para>
+    /// <para>🔴🔴 <b>What this rail asserted before</b> *(Batch 96, on purpose)*: a scalar's document
+    /// root had <c>Binding == null</c> — 📐 <c>ReflectionEditDocumentBuilder.CreateLeafBinding</c>
+    /// opens <c>if (fi == null &amp;&amp; pi == null) return null;</c>, a binding needs a MEMBER, and a
+    /// ROOT has none — so <c>DrawLeafNode</c>'s <c>node.Binding?.SetBoxed(value)</c> silently discarded
+    /// the typing and <c>Commit()</c> could only return the seed. ⚠ <b>That was the user's exact
+    /// case</b> — <c>Count</c>, a plain <c>int</c>.</para>
     ///
-    /// <para>⚠⚠ <b>This is the user's exact case</b> — <c>Count</c>, a plain <c>int</c>. ⇒ after
-    /// <c>96a</c> and <c>96b</c> the dialog now DRAWS an input for it, and committing still returns the
-    /// seeded value. ⛔ <b>Not fixed here:</b> the fix is a ROOT binding in <c>StructEdit</c>
-    /// *(<c>FDP/ExtDeps</c>, with its own suite)*, and its blast radius is every scalar-rooted edit
-    /// session in the editor — 📌 a capability question, not a wire.</para>
+    /// <para>⭐⭐ <b>Now:</b> <c>DefaultValueAuthoring.OpenSession</c> opens a leaf-kind variable over
+    /// <c>ScalarEditBox&lt;T&gt;</c>, whose public FIELD gives the root a BOUND CHILD. ⛔ <c>StructEdit</c>
+    /// is untouched. ⭐ The assertion is now <b>the designer's sentence</b>: open, type, OK, and the
+    /// declaration changes.</para>
     ///
-    /// <para>⭐ <b>Inverted when it is fixed</b> — this rail goes RED, which is the correct signal.</para>
+    /// <para>⛔ <b>Whose object:</b> the registrar, binder, launcher and selection store are the real
+    /// <see cref="EditorSubsystem"/>'s; the row comes from the production
+    /// <see cref="BlackboardSectionRowSource"/>; ⚠ the asset is <see cref="TestManagedAsset"/>.</para>
     /// </summary>
-    [Fact]
-    public void AScalarVariablesEditGoesNowhere()
+    [Theory]
+    [InlineData("btree")]
+    [InlineData("hsm")]
+    public void AScalarVariablesEditLands(string perspective)
     {
-        var svc = new StructEdit.Reflection.ComponentEditServiceBuilder().Build();
-        using var session = svc.Open(7, typeof(int), StructEdit.Core.EditScope.WholeComponent);
+        var entry = new BlackboardVariableEntry("Health", typeof(int), Comment: null, DefaultValueJson: "1");
+        var asset = new TestManagedAsset(
+            perspective == "btree" ? AssetKind.BTree : AssetKind.Hsm, entry);
 
-        var root = session.Document.Root;
+        var reg = RegistrarOf(perspective);
+        reg.SelectionStore.ActiveAsset = asset;
 
-        Assert.Equal(StructEdit.Core.EditNodeKind.Scalar, root.Kind);
-        Assert.Empty(root.Children);
-        Assert.Null(root.Binding);          // 🔴 nothing for DrawLeafNode to write through
-        Assert.Equal(7, session.Commit());  // 🔴 …so a commit can only ever return the seed
+        var source = new BlackboardSectionRowSource(
+            asset:   () => asset,
+            assetId: asset.AssetId,
+            section: BlackboardMyBlueprintModel.SectionOf(entry));
+        reg.Variables.ShowSection("s", source);
+
+        reg.Variables.Control.RaiseEditValueRequested(source.GetRows().Single());
+        Assert.NotNull(reg.EditGestures!.ActiveSession);
+
+        // ⭐ The designer types — through the node's binding, which is what DrawLeafNode writes to.
+        //   🔴 Before 97a this node did not exist: the root WAS the leaf and carried no binding.
+        FieldNode(reg.EditGestures.ActiveSession!, nameof(Hrot.Editor.AiShared.Inspector.ScalarEditBox<int>.Value))
+            .Binding!.SetBoxed(99);
+
+        Assert.Equal(VariableEditCommit.Outcome.Ok, reg.EditGestures.Accept());
+
+        // ⭐⭐⭐ THE SCALAR, not the wrapper. ⛔ `{"Value":99}` here would mean the box escaped into the
+        //    asset, and every later reader of that declaration would fail to hydrate it.
+        Assert.Equal("99", Assert.Single(asset.BlackboardVariables).DefaultValueJson);
     }
 
     /// <summary>⭐ The one field node the DTO rails drive — the same node <c>DrawLeafNode</c> would
