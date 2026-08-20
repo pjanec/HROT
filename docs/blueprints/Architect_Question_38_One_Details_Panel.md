@@ -210,7 +210,11 @@ now, build it after.** ⚠ **The `2026-08-17` warning stands and has now been PA
 
 ### ⭐⭐⭐ `Q38-A` — contextual, or a mode toolbar?
 
-| ⭐⭐⭐ **RECOMMENDED: CONTEXTUAL is the ONLY switch. The toolbar button is a PIN, not a mode.** |
+| ✅✅ **RULED `2026-08-18` BY THE USER — `R-98`, and it OVERRULES the recommendation below.** |
+|---|
+| ⭐⭐⭐ **THE DETAILS TOOLBAR IS A PANEL SWITCH — TWO STAGES.** ⭐ **The CONTEXT decides which panels are OFFERED and which is DEFAULT; the USER picks among them with radio-style toggles.** 📌 *"for variables the default is the variable table, but using toolbar (radio-button like toggles) it should be possible to switch it into another already existing panels"*. ⛔ **Not the `B8` two-authorities bug** — the toolbar never changes what the panel is ABOUT, only which VIEW of one context is drawn. ⭐⭐ **First goal is FEWER WINDOWS, not merged content.** ⭐ **Pinning captures the context AND the active view.** ⭐ **The Watch stays variables-only and MUST remain persistable/reloadable** |
+
+| ⛔ ~~RECOMMENDED *(SUPERSEDED — do NOT quote)*: CONTEXTUAL is the ONLY switch. The toolbar button is a PIN, not a mode.~~ |
 |---|
 
 📌 **`R-95` already made FOCUS the authority** *(`FocusedSurface`, a latch, cross-host)*.
@@ -273,7 +277,11 @@ seam)* and **fold the SPECIFIC one** *(`BlueprintDetailsWindow`, `sealed`, bluep
 
 ### ⭐⭐ `Q38-F` — the pin *(NEW)*
 
-| ⭐⭐⭐ **RECOMMENDED: a pinned inspector is the SAME CLASS with a FROZEN context source. Not a new window type.** |
+| ✅ **RULED `2026-08-19` BY THE USER — `R-100`, which EXTENDS this.** |
+|---|
+| ⭐⭐ **ONE WINDOW INSTANCE PER PIN, TITLED BY ITS CONTEXT** — ⛔ **not a toggle that re-points one reusable pinned window.** ⭐ Id keyed on `(view, asset, selection)`, an exact duplicate FOCUSES rather than spawning; ⭐ **pins are VOLATILE — they do not survive a restart** *(⛔ unlike the Watch, which is persistable)* |
+
+| ⭐ **The recommendation below still holds as the MECHANISM**: a pinned inspector is the SAME CLASS with a FROZEN context source. Not a new window type. |
 |---|
 
 | ⭐ | |
