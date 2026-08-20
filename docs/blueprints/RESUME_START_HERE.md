@@ -65,8 +65,16 @@ binding and `DrawLeafNode`'s `node.Binding?.SetBoxed(value)` **silently discards
 ⭐ `97a` the **one-field wrapper** *(their own suggestion — and the cheaper option Batch 96 costed;* ⛔ **not**
 a root binding in `StructEdit`*)* · `97b` **grey "Edit…" when genuinely `Denied`** *(call
 `VariableEditPolicy.Resolve`, mirror `VariableWatchGesture.Decide`;* ⛔ `ReadOnly` still opens*)* ·
-`97c` **make the blueprint writer a public seam and wire it** *(Blueprint only;* ⛔ **no BTree/HSM
-writer — guessing the offset is memory corruption**).
+`97c` **wire the blueprint writer** *(Blueprint only)*.
+✅✅ **ALL THREE VERIFIED FEASIBLE BEFORE DISPATCH** *(user: "you need to verify that the stuff is
+possible at all")*: ⭐ `RuntimeTypeOpsFactory.Get` works for **any** unmanaged struct via
+`MakeGenericType` — ⛔ **no registration, no codegen** — and `ScalarBox<string>` takes the
+`BoxedStructEditBuffer` door instead · ⭐ `VariableEditPolicy.Resolve` is a public static pure
+function and the control already holds `RunState` · ⭐⭐ **`TryWriteWorkingStateField` is ALREADY
+public on the interface** ⇒ `97c` shrank to **one name→(componentType, offset) resolver** built
+from the read's own walk. 🔴🔴 **And one memory-corruption trap found: the writer applies the +8
+itself, so the resolver must return the RAW `field.OffsetBytes`, ⛔ never the read walk's
+already-converted `start`.**
 
 | | |
 |---|---|

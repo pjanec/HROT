@@ -13,8 +13,9 @@ known-conflict: none. It finishes what Batch 96 measured and stopped on: BP-356 
 > ⛔⛔ **YOUR SCOPE IS FROZEN AT THIS SHA.** ⚠ **If a later document INVALIDATES an item — STOP AND
 > REPORT.** ⭐ **Rule 3: allocate your own ids.** ⭐ **Rule 1b: push
 > `chore: started batch 97 at d5f18e2b2` FIRST.**
-> ⭐⭐ **The STATUS block above IS the dispatch stamp** — 📌 Batch 96 correctly caught that the previous
-> handoff was amended without re-stamping. ⛔ **This one will not be amended.**
+> ⭐⭐ **RE-STAMPED after a FEASIBILITY PASS** *(rule 1a — checked first: your remote head was
+> `d5f18e2b2` with **no `started batch 97` marker**, so no run was in progress)*. ⭐ **Batch 96 was right
+> to flag the un-re-stamped amendment; this is the correct form.** ⛔ **It will not be amended again.**
 
 > ## ⭐⭐⭐ THE USER SPECIFIED THIS BATCH
 > ⭐⭐ **User, verbatim:** *"i need a batch that finally allows me to edit plain scalar non-struct fields
@@ -24,6 +25,11 @@ known-conflict: none. It finishes what Batch 96 measured and stopped on: BP-356 
 > ⇒ ⭐ **Three items. All three were MEASURED by Batch 96** *(`BP-356`, `BP-358`)*, so ⛔ **there is no
 > design question left in this batch** — and the user's own suggestion is the option Batch 96
 > independently costed as the cheaper one.
+>
+> ## ⭐⭐⭐ FEASIBILITY — **verified by the coordinator BEFORE dispatch**
+> ⭐⭐ **User:** *"you need to verify that the stuff is possible at all. otherwise they will return back
+> with empty hands again."* ⇒ ⭐ **All three verified against the sources. §2.1, §3.1 and §4.1 carry the
+> proof, and §4 got SMALLER because of it.**
 
 ---
 
@@ -67,6 +73,25 @@ the typing**, and `Commit()` can only return the seed.
 touches **every** scalar-rooted edit session in the editor. ⚠ **If the wrapper turns out not to work,
 STOP AND REPORT** — ⛔ do not fall back to editing `StructEdit` without saying so first.
 
+### ✅✅ 2.1 FEASIBILITY — **verified, and it needs NO registration**
+
+📐 **The whole chain, read `2026-08-19`:**
+
+| step | `ScalarBox<int>` | ⭐ verdict |
+|---|---|---|
+| `DefaultComponentMemoryClassifier.Classify` | value type · blittable | ⇒ `UnmanagedBlittableStruct` |
+| `ComponentEditService.CreateBuffer` | ⇒ `NativeStructEditBuffer(type, component, RuntimeTypeOpsFactory.Get(type))` | ✅ |
+| ⭐⭐⭐ **`RuntimeTypeOpsFactory.Get`** | `_cache.GetOrAdd(type, …)` ⇒ **`typeof(RuntimeTypeOps<>).MakeGenericType(type)`** + a static field read | ✅✅ **works for ANY unmanaged struct — ⛔ NO registration, NO codegen, NO component table** |
+| `ReflectionEditDocumentBuilder.DetermineKind` | `IsValueType` ⇒ **`Struct`** | ✅ a container, not a leaf |
+| its children | the **public field `Value`** ⇒ `CreateLeafBinding` with **`fi != null`** | ✅✅ **BOUND — which is the whole point** |
+
+⭐ **`ScalarBox<string>` also works, by a different door:** a string field makes it **non**-blittable ⇒
+`Classify` returns `NonBlittableStruct` ⇒ `BoxedStructEditBuffer` ⇒ ⛔ **`RuntimeTypeOps` is never
+reached**, so its `where T : unmanaged` constraint cannot bite.
+
+⚠ **The one trap:** `MakeGenericType` **throws** if that constraint is violated. ⭐ `Classify` is what
+keeps it away — ⛔ **do not call `RuntimeTypeOpsFactory.Get` yourself**; let `CreateBuffer` choose.
+
 ### ⭐⭐ Which types take the wrapper — ⛔ **decide by MEASUREMENT, not by a list**
 
 ⭐ `DetermineKind` already classifies: `Boolean` · `String` · `Guid` · `DateTime` · `Enum` · `Scalar`
@@ -98,6 +123,12 @@ if (ImGui.MenuItem("Properties…",  null, false, writable)) …
 runState, row)`, which also knows **Replay ⇒ Denied** and **not-writable ⇒ ReadOnly** — ⇒ ⛔ **the entry
 is enabled in states the dialog will only ever show read-only, or deny.**
 
+### ✅ 3.1 FEASIBILITY — **trivial**
+
+📐 `VariableEditPolicy.Resolve(action, runState, row)` is a **public static pure function** already in
+the same assembly, and 📐 `VariableTableControl` **already holds `RunState`** *(it feeds
+`VariableWatchGesture.Decide` two lines below)*. ⇒ ⭐ **nothing to plumb.**
+
 ### ⭐⭐⭐ The shape is ALREADY IN THIS METHOD, two lines below
 
 ⭐ `VariableWatchGesture.Decide(row, runState, isPinned)` returns `(Enabled, Label, DisabledReason)` and
@@ -123,14 +154,47 @@ RENDERING of it is unrailed** *(`R-21`/`R-62`, `M-29`)*.
 | | |
 |---|---|
 | ⭐⭐ **the writer EXISTS** | **`IBlueprintDebugSession.TryWriteWorkingStateField`** — real production code *(Batch 84 `59c`)*, stages via `IDataBreakpointManager.StageFieldMutation`, **refuses unless frozen**. ⛔ **ZERO production callers** |
-| ⛔ **why `writeLive` could not be built** | **the name → offset walk is PRIVATE inside `BlueprintDebugSession`** *(`layoutFields` / `def.StateFields`)*, and it is the walk the READ already does |
 | ⛔⛔ **BTree / HSM** | **no live write path exists at all**, and the component-relative offset is not a seam. ⚠ `TryResolve`'s offset is **within `BehaviorParameters`**, ⛔ **not within the component** |
+
+### ✅✅ 4.1 FEASIBILITY — **verified, and the item is SMALLER than the handoff first said**
+
+📐 **The seam is ALREADY PUBLIC and already on the interface:**
+
+```csharp
+// IBlueprintDebugSession.cs:193 — with a `=> false` default, implemented at BlueprintDebugSession:913
+bool TryWriteWorkingStateField(Entity entity, Type componentType, int fieldOffsetBytes,
+                               ReadOnlySpan<byte> bytes);
+```
+
+⇒ ⛔ **"make it public" is NOT the work.** ⭐⭐ **The one missing piece is `name → (componentType,
+fieldOffsetBytes)`**, and the walk that has it is `CaptureInstanceStateFromDefinition:1348` —
+`mapIndex.StateLayout.Fields` of **`StateLayoutField(Name, Type, OffsetBytes, SizeBytes)`**, with a
+fallback to `def.StateFields` when the layout is absent. ⭐ **Both arms are right there and both are
+keyed by NAME.**
+
+### 🔴🔴 4.2 THE ONE THING THAT CAN CORRUPT MEMORY — **read this twice**
+
+⭐⭐⭐ **The writer applies the +8 ITSELF.** Its own doc-comment: *"pass the offset as the layout reports
+it. ⛔ Do not add the 8-byte header — the implementation owns that (`WorkingStateLayout`), so the read
+path and the write path cannot disagree by 8 bytes."*
+
+📐 And `TryWriteWorkingStateField:927` does exactly that: `WorkingStateLayout.ComponentOffsetOf(fieldOffsetBytes)`.
+📐 ⚠ **But the READ walk you are copying from ALREADY converted** — `int start = WorkingStateLayout.ComponentOffsetOf(field.OffsetBytes);`
+
+⇒ ⛔⛔⛔ **Your resolver must return the RAW `field.OffsetBytes`, NOT `start`.** ⚠ **Passing `start`
+double-applies the header and scribbles on the neighbouring field** — 📌 `Q32` §2.1: *"an out-of-range
+offset is MEMORY CORRUPTION, not a wrong value."* ⭐⭐ **Rail this specific mistake**, not just the
+happy path.
+
+⚠ **Second detail:** `componentType` is the **COMPONENT** the working state lives in — ⛔ **not the
+field's type.** ⭐ Take it from the same walk; if the walk does not name it, **STOP AND REPORT** rather
+than guessing.
 
 ### ⭐ Build — **Blueprint, and say so**
 
 | ⭐ | |
 |---|---|
-| **①** | ⭐⭐ **a public seam on `IBlueprintDebugSession`** taking `(entity, assetId, fieldName, bytes)`, ⭐ **implemented with the walk the READ already does** — ⛔ **do not duplicate the walk**; if the read's walk is not reusable as-is, say so |
+| **①** | ⭐⭐ **a name → `(componentType, rawOffsetBytes, sizeBytes)` resolver on `IBlueprintDebugSession`**, ⭐ **built from the walk the READ already does** *(`StateLayout.Fields`, `def.StateFields` fallback)* — ⛔ **do not duplicate the walk**; if it is not reusable as-is, say so |
 | **②** | ⭐ **wire `writeLive` at the composition root**, the same route `liveValueProvider` takes *(`EditorSubsystem`)* — ⛔ **not a new interface**, and ⛔ **not a default inside the binder** |
 | **③** | ⛔⛔ **BTree/HSM keep returning `LiveWriteUnavailable`, and that stays HONEST** — ⭐ its message already says *"no live writer is installed for this host."* ⚠ **Do not fake one.** 📌 `Q32` §2.1: *"an out-of-range offset is MEMORY CORRUPTION, not a wrong value"* |
 | **④** | ⭐ the writer **refuses unless frozen** — ⭐⭐ **that is correct and must stay.** ⇒ `97b`'s tooltip must say *"pause the simulation to edit a live value"* rather than letting OK fail |
