@@ -65,14 +65,18 @@ binding and `DrawLeafNode`'s `node.Binding?.SetBoxed(value)` **silently discards
 ⭐ `97a` the **one-field wrapper** *(their own suggestion — and the cheaper option Batch 96 costed;* ⛔ **not**
 a root binding in `StructEdit`*)* · `97b` **grey "Edit…" when genuinely `Denied`** *(call
 `VariableEditPolicy.Resolve`, mirror `VariableWatchGesture.Decide`;* ⛔ `ReadOnly` still opens*)* ·
-`97c` **wire the blueprint writer** *(Blueprint only)* · ⭐ **`97d` FOLDED IN by the user — `BP-352`,
-both faces**: the row origin carries the **live entity** *(every source passes `entity: default`
-today, so `Origin.Key` is identical across entities and two entities share one cache and one
-highlight baseline)* + the sampler invalidates on the shared entity cell's change.
-⛔⛔ **AND A NEW STOP POLICY — `R-106`, user:** *"don't let them stop on first issue, then need to
-do everything else what is not blocked."* ⇒ ⭐⭐⭐ **a blocked item stops THAT ITEM, never the
-batch**; only a genuine dependency may cascade and the report must name it; ⭐ **four verdicts per
-item** *(✅ / 🛑 / ⚠ / ⛔)*. ⛔ **STOP-AND-REPORT itself is unchanged — only its blast radius.**
+`97c` **wire the blueprint writer** *(Blueprint only)* · ⭐ **`97d` FOLDED IN by the user — `BP-352`.**
+⛔⛔ **BUT NOT AS FILED:** ⭐⭐⭐ **`R-107` — `entity: default` is the CHAMELEON SENTINEL** *(`R-78`: the
+binding has two kinds, concrete and chameleon; there is no entity-less third)* ⇒ **two chameleon rows
+for one variable SHOULD share a cache slot.** ⛔ **`BP-352`'s face ② is MY error — do not build it.**
+⭐⭐ **The real gap: `R-76`'s SECOND CLOCK was never built** — the sampler has only the `BehaviorFrame`
+pulse, so a **selection change re-evaluates nothing**, and while time is stopped it never will.
+⇒ ⭐ **fire the BINDING clock on selection change regardless of run state, and reset the highlight
+baseline when the binding moves**; ⛔ **never per tick.**
+⛔⛔ **AND A NEW STOP POLICY — `R-106`, user:** *"don't let them stop on first issue, then need to do
+everything else what is not blocked."* ⇒ ⭐⭐⭐ **a blocked item stops THAT ITEM, never the batch**; only
+a genuine dependency may cascade and the report must name it; ⭐ **four verdicts per item** *(✅ / 🛑 /
+⚠ / ⛔)*. ⛔ **STOP-AND-REPORT itself is unchanged — only its blast radius.**
 ✅✅ **ALL THREE VERIFIED FEASIBLE BEFORE DISPATCH** *(user: "you need to verify that the stuff is
 possible at all")*: ⭐ `RuntimeTypeOpsFactory.Get` works for **any** unmanaged struct via
 `MakeGenericType` — ⛔ **no registration, no codegen** — and `ScalarBox<string>` takes the

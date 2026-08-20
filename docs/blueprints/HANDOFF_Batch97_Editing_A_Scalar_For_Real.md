@@ -69,8 +69,8 @@ to end the run.**
 ⚠ **Batch 96 got the dialog to open, draw and not crash. ⛔ It still cannot change a scalar** — this
 batch is the remaining half, and it is the whole reason the feature exists.
 
-⭐ **And `97d` is folded in at the user's request**, so the value the dialog writes is the value the
-panels show — ⛔ **for the RIGHT ENTITY.**
+⭐ **And `97d` is folded in at the user's request** — ⭐⭐ **the BINDING clock**, so selecting another
+entity updates the row **even while time is stopped** *(`R-76`'s second clock, never built)*.
 
 ---
 
@@ -238,31 +238,61 @@ than guessing.
 
 ---
 
-## 4b. 🛠 **`97d` — the row must carry its ENTITY** *(`BP-352`, folded in by the user)*
+## 4b. 🛠 **`97d` — the BINDING CLOCK was never built** *(`BP-352`, folded in by the user)*
 
-> ⭐⭐ **User:** *"fold `BP-352` into 97 now."*
+> ⭐⭐⭐ **User, `2026-08-19`:** *"ad 'identical across entities' — that was the design intent, wasn't
+> it? in such a case the watch should show the variable for currently selected entity. And when entity
+> selection changes, the watch row must update (accessor evaluated) even if time currently stopped.
+> this was for sure part of the original design, nothing new."*
+>
+> ⭐⭐⭐ **CORRECT ON EVERY POINT, and the design record says so verbatim. ⛔⛔ `BP-352`'s "face ②" AS
+> FILED IS WRONG — do NOT build it.** ⭐ **Build what is below instead.**
 
-⭐ **Batch 95 railed this on purpose** *(`TheSelectionIsNotVisibleUntilTheNextPulse`)* rather than
-papering over it. ⚠ **Flip that rail — ⛔ do not delete it.**
+### ⛔⛔ 4b.0 THE CORRECTION — **read this before the tracker row**
 
-### 📐 Two faces, one gap — ⭐ **fix BOTH, they are one change**
+📄 **`DESIGN_Variable_Watch_Pinning.md` §3 (`R-78`) — the entity binding has TWO kinds:**
 
-| face | measured |
-|---|---|
-| ⛔⛔ **② the worse one, and NOT time-limited** | **every production row source is constructed with `entity: default`** — `BlueprintMyBlueprintWindow` for all three Blueprint sections, the registrar's `_sectionSource` for BTree/HSM — while the **VALUE** comes from `store.SelectedEntity`. 📐 `VariableRowOrigin.Key` is `(AssetId, Entity, VariablePath)` ⇒ ⭐ **identical across entities** ⇒ the sampler's cache **and** `VariableChangeMonitor`'s baseline are **shared between two different entities' values** ⇒ a switch produces a **spurious change highlight** and a stale cell |
-| ⚠ **① the transient** | `VariableRowSampler` samples once per `BehaviorFrame` pulse and draws from cache in between — 📌 `R-103`, which grants an immediate sample for **pin-while-paused** and says nothing about a **selection** change, because the sampler has no notion of one. ⇒ while the debugger holds time, picking a different entity shows the **previous** sample until the run continues |
+| kind | stored | resolved |
+|---|---|---|
+| ⭐ **concrete** | the staging `NetworkIdentity.Value` | staging id → runtime id, then `FindEntityByNetworkId` |
+| ⭐⭐ **chameleon** | ⭐⭐⭐ **a SENTINEL** | **`EditorSelectionStore.SelectedEntity`, ON SELECTION CHANGE** |
 
-### ⭐ Build
+⇒ ⭐⭐⭐ **`entity: default` IS THE CHAMELEON SENTINEL. It is the DESIGN, not a defect.**
+⭐ Two chameleon rows for one variable **SHOULD** share a cache slot — ⛔ **they mean the same thing**:
+*"this variable, on whoever is selected."*
+⇒ ⛔⛔ **Do NOT put a concrete entity into `VariableRowOrigin` for Details rows.** ⚠ **That would break
+the chameleon**, and a concrete identity is what a **pinned** row stores *(§3, and that pin-time choice
+is not built yet)*.
+
+📄 **And §4 (`R-76`) names the actual gap — the SECOND clock:**
+
+| clock | answers | fires |
+|---|---|---|
+| ⭐ **VALUE** | *what does this field hold?* | **every brain tick** — all rows, chameleon included |
+| ⭐⭐⭐ **BINDING** | *which entity is this row about?* | ⛔ **not the tick** — ⭐ **only on selection change**, and only for the chameleon |
+
+⇒ ⭐⭐⭐ **The BINDING clock does not exist in code.** `VariableRowSampler` has **one** clock — the
+`BehaviorFrame` pulse — so ⛔ **a selection change re-evaluates nothing**, and **while time is stopped
+it never will.** 📌 **That is the whole bug**, and it is exactly what the user described.
+
+### ⭐ Build — **the second clock, and nothing else**
 
 | ⭐ | |
 |---|---|
-| **①** | ⭐⭐ **put the LIVE entity into `VariableRowOrigin` at the SOURCE**, so the key separates entities — ⛔ **not `default`**. ⚠ **The row sources already receive an `entity` argument and are being handed `default`**; find where the live one lives *(the same `store.SelectedEntity` the VALUE comes from)* and pass it |
-| **②** | ⭐ **invalidate the sampler when the shared entity cell changes** — ⭐ `SharedEntitySelection` already raises a change event *(Batch 95)*, so ⛔ **do not invent a second signal** |
-| ⚠ **③** | ⭐ **`R-103`'s clock is NOT being weakened**: the VALUE still samples once per pulse. ⛔ A selection change is not a tick — it is a **cache invalidation**, which is a different thing and must be spelled as one |
+| **①** | ⭐⭐⭐ **re-resolve and RE-SAMPLE a chameleon row when the selection changes** — ⛔⛔ **regardless of run state**: *"even if time currently stopped."* ⚠ **This is NOT a weakening of `R-103`** — ⭐ `R-76` has always been TWO clocks, and this is the second one finally firing |
+| **②** | ⭐ **the signal already exists** — `SharedEntitySelection` raises a change event *(Batch 95)*. ⛔ **Do not invent a second one** |
+| **③** | ⭐⭐ **reset the change-highlight BASELINE when the binding moves.** ⛔ Otherwise the new entity's value reads as *"the sim changed it"* — 📌 a false 🔴, which is the one thing a monitor must not do |
+| ⛔ **④** | ⛔⛔ **Do NOT re-resolve the binding per tick** — 📌 `R-76`: *"re-resolving the binding per tick would churn the row's identity under the cursor."* ⭐ **Only on selection change** |
 
-⭐⭐ **The rail:** two entities, same asset, same variable, different values — ⛔ **assert they do not
-share a cell or a highlight baseline.** ⚠ **Take the rows from the object the UI takes them from**
-*(📌 `M-29`, and `96c` earned it)*.
+⭐ **Batch 95 railed the gap on purpose** *(`TheSelectionIsNotVisibleUntilTheNextPulse`)* — ⚠ **flip it,
+⛔ do not delete it.**
+
+### ⭐⭐ The rail
+
+⭐ **Two entities, same asset, same variable, different values, TIME STOPPED**: select A, assert the
+cell shows A's value; select B **without advancing the pulse**, assert the cell shows **B's** value and
+⛔ **does NOT light up as changed.**
+⚠ **Take the rows from the object the UI takes them from** — 📌 `M-29`, and `96c` earned it.
 
 ---
 
@@ -277,7 +307,8 @@ share a cell or a highlight baseline.** ⚠ **Take the rows from the object the 
 | **any BTree/HSM live writer** | `97c` — ⛔ the offset seam does not exist; guessing it corrupts memory |
 | **`96e`** *(the dead outline watch entry)* | ⭐ still droppable — ⛔ not in this batch |
 | **a second selection signal** | `97d` — ⭐ `SharedEntitySelection` already raises one |
-| **weakening `R-103`'s pulse** | `97d` — ⭐ a selection change is a **cache invalidation**, ⛔ not a tick |
+| ⛔⛔ **a concrete entity in a Details row's origin** | `97d` — ⭐ **`entity: default` is the CHAMELEON SENTINEL** *(`R-78`)*; ⛔ **`BP-352`'s face ② as filed is wrong** |
+| **re-resolving the binding per tick** | `97d` — 📌 `R-76`: it *"would churn the row's identity under the cursor"* |
 
 ---
 
