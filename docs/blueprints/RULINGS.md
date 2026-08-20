@@ -323,14 +323,14 @@ R-89 | docs/blueprints/Architect_Question_42_Declaration_Identity_Guid_Vs_Name.m
 R-90 | docs/blueprints/Architect_Question_41_Blueprint_Driving_BTree_Params.md | publish/subscribe
 R-91 | docs/blueprints/Architect_Question_41_Blueprint_Driving_BTree_Params.md | The fix is to emit the hook, not to harden the collision
 R-92 | docs/blueprints/Architect_Question_41_Blueprint_Driving_BTree_Params.md | APPROVED IN FULL
-R-118 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | THE BRIDGE REPORTS; IT NEVER FILTERS
-R-119 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | THREE HOSTING MODES
-R-120 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | WHO OWNS THE STATE
-R-121 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | same mechanism, contents differ
-R-122 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | THE ENTITY SELECTION IS A PROPERTY OF THE ENTITY
-M-32 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | the SCENARIO perspective is INCONSISTENT with the other three
-M-33 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | three different refusals of the same shape
-M-34 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | verified: no new machinery
+R-118 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | the bridge REPORTS, never filters
+R-119 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | The three hosting modes
+R-120 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | a view owns no shared state
+R-121 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | Same mechanism, different contents
+R-122 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | entity selection is on the entity
+M-32 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | The generic half is trapped inside the specific one
+M-33 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | Blueprint:57` · `BTree:61` · `Hsm:79
+M-34 | docs/blueprints/DESIGN_Details_Panel_View_Switching.md | the volatile-window pin
 R-93 | docs/blueprints/Architect_Question_23_Graph_Create_And_Switching.md | nothing in the runtime consumes
 R-94 | docs/blueprints/Architect_Question_43_Blueprint_Authored_Param_Resolver.md | APPROVED IN FULL
 R-96 | docs/blueprints/Architect_Question_44_Breakpoint_UI_Unification.md | still just a breakpoint so it belongs to one single breakpoint window
