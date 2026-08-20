@@ -13,9 +13,12 @@ known-conflict: none. It finishes what Batch 96 measured and stopped on: BP-356 
 > ⛔⛔ **YOUR SCOPE IS FROZEN AT THIS SHA.** ⚠ **If a later document INVALIDATES an item — STOP AND
 > REPORT.** ⭐ **Rule 3: allocate your own ids.** ⭐ **Rule 1b: push
 > `chore: started batch 97 at d5f18e2b2` FIRST.**
-> ⭐⭐ **RE-STAMPED after a FEASIBILITY PASS** *(rule 1a — checked first: your remote head was
-> `d5f18e2b2` with **no `started batch 97` marker**, so no run was in progress)*. ⭐ **Batch 96 was right
-> to flag the un-re-stamped amendment; this is the correct form.** ⛔ **It will not be amended again.**
+> ⭐⭐ **RE-STAMPED TWICE, both under rule 1a** *(checked each time: your remote head was `d5f18e2b2`
+> with **no `started batch 97` marker**, so no run was in progress)* — ① a **feasibility pass**, ② the
+> user folded **`97d`** in and **changed the stop policy**. ⭐ Batch 96 was right to flag the earlier
+> un-re-stamped amendment; this is the correct form. ⛔ **It will not be amended again.**
+>
+> ## ⛔⛔⛔ NEW STOP POLICY — **read §0, it OVERRIDES the habit of the last four batches**
 
 > ## ⭐⭐⭐ THE USER SPECIFIED THIS BATCH
 > ⭐⭐ **User, verbatim:** *"i need a batch that finally allows me to edit plain scalar non-struct fields
@@ -33,6 +36,31 @@ known-conflict: none. It finishes what Batch 96 measured and stopped on: BP-356 
 
 ---
 
+## 0. ⛔⛔⛔ **A BLOCKED ITEM STOPS THAT ITEM — ⛔ NEVER THE BATCH** *(user ruling, `2026-08-19`)*
+
+> ⭐⭐⭐ **User, verbatim:** *"don't let them stop on first issue, then need to do everything else what
+> is not blocked."*
+
+⚠ **This CHANGES what the last four handoffs told you.** ⭐ Batches 93 and 96 stopped **correctly** on
+premises that turned out false — ⛔ **but each time the whole batch stopped, and the unblocked items
+went unbuilt.** 📌 `96e` was never started because `96d` stopped; ⭐ **`96e` did not depend on `96d` at
+all.**
+
+| ⭐ the rule | |
+|---|---|
+| **①** | ⭐⭐⭐ **When an item is blocked, STOP THAT ITEM, report it in full, and MOVE TO THE NEXT ONE.** ⛔ Do not end the run |
+| **②** | ⭐⭐ **Only a genuine DEPENDENCY may cascade** — and ⛔ **you must SAY which item blocked which, and why.** ⚠ *"the batch is already large"* is **not** a dependency |
+| **③** | ⭐ **Order is yours.** If an item looks blocked, ⭐ **do the others first** and come back to it |
+| **④** | ⭐⭐ **Report every item with one of four verdicts** — ✅ **done** · 🛑 **blocked** *(and by what)* · ⚠ **partial** *(and what is missing)* · ⛔ **not started** *(and why)*. ⛔ **A missing verdict is a finding** |
+| **⑤** | ⛔⛔ **The STOP-AND-REPORT discipline itself is UNCHANGED and still right** — ⭐ do not adapt a design, do not invent a capability, do not guess an offset. ⚠ **What changed is only its BLAST RADIUS: one item, not the run** |
+
+⭐ **In THIS batch the four items are INDEPENDENT** — ⛔ **none of them blocks another**, and I have
+checked that: `97a` is the document/commit path · `97b` is a pure decision + a menu · `97c` is a
+resolver + a wire · `97d` is the row origin + the sampler. ⇒ ⭐⭐ **there is no legitimate reason for one
+to end the run.**
+
+---
+
 ## 1. ⭐⭐⭐ THE ACCEPTANCE, IN THE USER'S WORDS
 
 > ⭐⭐ **Open `Count4`, right-click `Count`, "Edit value…", type a number, press OK, and the value
@@ -40,6 +68,9 @@ known-conflict: none. It finishes what Batch 96 measured and stopped on: BP-356 
 
 ⚠ **Batch 96 got the dialog to open, draw and not crash. ⛔ It still cannot change a scalar** — this
 batch is the remaining half, and it is the whole reason the feature exists.
+
+⭐ **And `97d` is folded in at the user's request**, so the value the dialog writes is the value the
+panels show — ⛔ **for the RIGHT ENTITY.**
 
 ---
 
@@ -207,6 +238,34 @@ than guessing.
 
 ---
 
+## 4b. 🛠 **`97d` — the row must carry its ENTITY** *(`BP-352`, folded in by the user)*
+
+> ⭐⭐ **User:** *"fold `BP-352` into 97 now."*
+
+⭐ **Batch 95 railed this on purpose** *(`TheSelectionIsNotVisibleUntilTheNextPulse`)* rather than
+papering over it. ⚠ **Flip that rail — ⛔ do not delete it.**
+
+### 📐 Two faces, one gap — ⭐ **fix BOTH, they are one change**
+
+| face | measured |
+|---|---|
+| ⛔⛔ **② the worse one, and NOT time-limited** | **every production row source is constructed with `entity: default`** — `BlueprintMyBlueprintWindow` for all three Blueprint sections, the registrar's `_sectionSource` for BTree/HSM — while the **VALUE** comes from `store.SelectedEntity`. 📐 `VariableRowOrigin.Key` is `(AssetId, Entity, VariablePath)` ⇒ ⭐ **identical across entities** ⇒ the sampler's cache **and** `VariableChangeMonitor`'s baseline are **shared between two different entities' values** ⇒ a switch produces a **spurious change highlight** and a stale cell |
+| ⚠ **① the transient** | `VariableRowSampler` samples once per `BehaviorFrame` pulse and draws from cache in between — 📌 `R-103`, which grants an immediate sample for **pin-while-paused** and says nothing about a **selection** change, because the sampler has no notion of one. ⇒ while the debugger holds time, picking a different entity shows the **previous** sample until the run continues |
+
+### ⭐ Build
+
+| ⭐ | |
+|---|---|
+| **①** | ⭐⭐ **put the LIVE entity into `VariableRowOrigin` at the SOURCE**, so the key separates entities — ⛔ **not `default`**. ⚠ **The row sources already receive an `entity` argument and are being handed `default`**; find where the live one lives *(the same `store.SelectedEntity` the VALUE comes from)* and pass it |
+| **②** | ⭐ **invalidate the sampler when the shared entity cell changes** — ⭐ `SharedEntitySelection` already raises a change event *(Batch 95)*, so ⛔ **do not invent a second signal** |
+| ⚠ **③** | ⭐ **`R-103`'s clock is NOT being weakened**: the VALUE still samples once per pulse. ⛔ A selection change is not a tick — it is a **cache invalidation**, which is a different thing and must be spelled as one |
+
+⭐⭐ **The rail:** two entities, same asset, same variable, different values — ⛔ **assert they do not
+share a cell or a highlight baseline.** ⚠ **Take the rows from the object the UI takes them from**
+*(📌 `M-29`, and `96c` earned it)*.
+
+---
+
 ## 5. ⛔ WHAT MUST NOT BE BUILT
 
 | ⛔ | why |
@@ -216,7 +275,9 @@ than guessing.
 | **a second copy of the editability matrix** | `97b` — ⭐ call `VariableEditPolicy.Resolve` |
 | **greying `ReadOnly`** | `97b` — ⭐ read-only still opens, by design; ⛔ grey only `Denied` |
 | **any BTree/HSM live writer** | `97c` — ⛔ the offset seam does not exist; guessing it corrupts memory |
-| **`96e`** *(the dead outline watch entry)* | ⭐ still last and still droppable — ⛔ not in this batch |
+| **`96e`** *(the dead outline watch entry)* | ⭐ still droppable — ⛔ not in this batch |
+| **a second selection signal** | `97d` — ⭐ `SharedEntitySelection` already raises one |
+| **weakening `R-103`'s pulse** | `97d` — ⭐ a selection change is a **cache invalidation**, ⛔ not a tick |
 
 ---
 
@@ -236,6 +297,7 @@ rulings **70/70**.
 | ⭐⭐ **whose object** | per rail, name the object the input came from — 📌 `M-29` |
 | ⭐ **`97c`** | whether the read's walk was reusable, and **which layer the write rail fakes** |
 | ⭐ **the unrailed draw** | ⛔ **say it plainly again.** ⭐ Batch 96's honesty about this was right |
+| ⭐⭐⭐ **§0's four verdicts** | ⛔ **one per item, all four items** — ✅ / 🛑 / ⚠ / ⛔, and **what blocked what** |
 
 ---
 
@@ -244,5 +306,6 @@ rulings **70/70**.
 ⭐ **They re-run the visual check** and expect: open `Count4` → right-click `Count` → **"Edit value…"**
 → **type** → **OK** → ⭐⭐ **the value changes.**
 ⚠ **Still expected, not findings:** a pin does not survive a scenario reload *(`94g`)* · the outline's
-watch entry is greyed *(`96e`)* · two entities share one sample cache *(`BP-352`)* · **BTree/HSM refuse
-a LIVE edit and say why** *(`97c`③)*.
+watch entry is greyed *(`96e`/`BP-360`)* · **BTree/HSM refuse a LIVE edit and say why** *(`97c`③)* ·
+*"Properties…" opens the VALUE document, not the declaration's properties* *(`BP-359`)*.
+⭐ **`BP-352` is no longer on that list — it is `97d`.**

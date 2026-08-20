@@ -157,7 +157,7 @@ implementation session builds; it does not source the design it builds from.**
 |---|---|
 | sweeps `.dev/`, reads the design corpus, **runs its own subagent scans** | writes code, tests, gates |
 | decides what the design IS, and revises the plan | reports what the code MEASURES |
-| takes contradictions to the user | ⭐ **STOPs and reports** when a premise fails |
+| takes contradictions to the user | ⭐ **STOPs and reports** when a premise fails — ⛔⛔ **but STOPS THAT ITEM, NEVER THE BATCH** *(`R-106`, user `2026-08-19`)*: ⭐ **do every item that is not blocked**, and ⛔ **only a genuine DEPENDENCY may cascade, named in the report** |
 
 ⭐ **Subagents are the coordinator's instrument for this** — parallel read-only `Explore` agents over
 `.dev/`, one per topic, each asked for *record → confirms/refines/contradicts → what it did not cover*.
