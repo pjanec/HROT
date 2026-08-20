@@ -104,6 +104,20 @@ public sealed class WatchPanelWindow : BlueprintEditorWindowBase,
     public VariableTableControl? VariableTable => _table;
 
     /// <summary>
+    /// ⭐⭐ <b>Batch 100 (<c>100f</c>) — the row gestures this surface offers.</b>
+    /// ⛔⛔ MONITORING, so NO "Properties…" — the same answer <c>AiWatchWindow</c> gives.
+    ///
+    /// <para>⭐⭐⭐ <b>THIS is why the gesture set is DECLARED rather than type-tested.</b> The handoff
+    /// named ONE watch surface; ⚠ <b>there are TWO</b>, and an <c>if (host is AiWatchWindow)</c> in the
+    /// registrar would have silently left this one with the authoring menu — the same
+    /// enumerate-don't-assume miss 📌 <c>R-74</c> keeps filing.</para>
+    ///
+    /// <para>⛔ Answered explicitly because <c>IVariableTableHost.Gestures</c> has <b>no default
+    /// body</b> — 📌 <c>U-5</c>/<c>BP-230</c>.</para>
+    /// </summary>
+    public VariableTableGestures Gestures => VariableTableGestures.Watch;
+
+    /// <summary>
     /// ⭐⭐⭐ <b>What THIS PANEL would render for a row</b>, through its own formatter.
     ///
     /// <para>⚠ <b>Why this exists rather than a test building its own formatter:</b> a revert probe

@@ -150,6 +150,11 @@ public sealed class EveryTableHostIsGestureBoundTests : IDisposable
 
         VariableTableControl? IVariableTableHost.VariableTable => Table;
 
+        /// <summary>⭐ Batch 100 (<c>100f</c>) — an authoring surface, so the full menu. ⛔ Answered
+        /// because the interface has no default body (<c>U-5</c>) — ⭐ and a double that had to be
+        /// touched is the cost that rule deliberately charges.</summary>
+        public VariableTableGestures Gestures => VariableTableGestures.Default;
+
         protected override void DrawClientArea() { }
     }
 
@@ -192,6 +197,10 @@ public sealed class EveryTableHostIsGestureBoundTests : IDisposable
     private sealed class TablelessHost : IVariableTableHost
     {
         public VariableTableControl? VariableTable => null;
+
+        /// <summary>⭐ Batch 100 (<c>100f</c>) — irrelevant here (there is no table to put a menu on),
+        /// ⛔ but still answered rather than defaulted away.</summary>
+        public VariableTableGestures Gestures => VariableTableGestures.Default;
     }
 
     private sealed class StubRefactorService : IRefactorService

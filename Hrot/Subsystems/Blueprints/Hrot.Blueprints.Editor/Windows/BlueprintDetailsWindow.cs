@@ -147,6 +147,16 @@ public sealed class BlueprintDetailsWindow : ManagedWindow, IVariableDetailsHost
     public Hrot.Editor.AiShared.Variables.VariableTableControl? VariableTable
         => ((Hrot.Editor.AiShared.Variables.IVariableTableHost)_variables).VariableTable;
 
+    /// <summary>
+    /// ⭐⭐ <b>Batch 100 (<c>100f</c>) — the row gestures this surface offers.</b>
+    /// ⭐ An AUTHORING surface: this panel is where a designer edits a declaration, and it hosts the
+    /// Properties form itself.
+    /// <para>⛔ Answered explicitly because <c>IVariableTableHost.Gestures</c> has <b>no default
+    /// body</b> — 📌 <c>U-5</c>/<c>BP-230</c>.</para>
+    /// </summary>
+    public Hrot.Editor.AiShared.Variables.VariableTableGestures Gestures
+        => Hrot.Editor.AiShared.Variables.VariableTableGestures.Default;
+
     /// <inheritdoc/>
     /// <remarks>
     /// ⭐⭐ <b><c>Q32</c> ruling 2 — "selection routes".</b> An outline click decides what this panel

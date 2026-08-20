@@ -483,6 +483,20 @@ public class PerspectiveWorkspaceRegistrar
                 manager:           breakpointManager,
                 formatter:         ValueFormatter);
 
+            // ⭐⭐⭐ Batch 100 (100e) — THE NINTH INSTANCE OF THE SILENT DEFAULT, and it was ours.
+            //
+            // 🔴🔴 Measured: every SetRunStateSource call site was a DETAILS host. The Watch built its
+            //    VariableTableModel and was never given one ⇒ it sat at Planning ⇒
+            //    VariableValue.ModeFor(Planning) picks the INITIAL arm (Q32 ruling 3) ⇒ the pinned row
+            //    rendered DefaultValueJson — 0 — for ever, WHILE THE ROW ITSELF WAS A LIVE CAMERA.
+            //    ⛔ The feature looked built from every angle except the designer's.
+            //
+            // 📌 "A production caller that HAS a dependency must PASS it." This registrar holds
+            //    _runState, hands it to the details host at ConnectOutlineToDetails, and holds this
+            //    window. ⭐ Passed HERE, in the pass that already builds it — nothing new for
+            //    EditorSubsystem to forget (R-67).
+            Watch.SetRunStateSource(_runState);
+
             // ⭐⭐ Batch 87 — the Watch is built AFTER the binder, so it gets its own attach call here
             //    rather than a re-ordering of the constructor. ⛔ BP-330: its table was private with no
             //    accessor, so this could not have been written before IVariableTableHost existed.
@@ -785,6 +799,13 @@ public class PerspectiveWorkspaceRegistrar
     private void AttachEditGestures(IVariableTableHost? host)
     {
         if (host?.VariableTable is not { } table) return;
+
+        // ⭐⭐⭐ Batch 100 (100f) — THE HOST'S OWN ANSWER, carried to its table.
+        // 🔴 This method used to give EVERY table host EVERY gesture, because it had nothing to ask.
+        //    ⛔ Not an `if (host is AiWatchWindow)`: that puts the Watch's editorial decision in a file
+        //    that knows nothing about watching, and — measured — there are TWO watch surfaces, so the
+        //    type test would already have missed one (Blueprints' WatchPanelWindow).
+        table.Gestures = host.Gestures;
 
         if (EditGestures is not null && !_boundTables.Contains(table))
         {
