@@ -156,6 +156,7 @@ public sealed class EditorHarness : IDisposable
         _timeController = (MasterSyncController)TimeControllerFactory.Create(Bus, timeConfig);
         Kernel.SetTimeController(_timeController);
         _timeController.SwitchToDeterministic(new HashSet<int>());
+        CrossTheDeterministicBarrier();
 
         EntityMap = new NetworkEntityMap();
 
@@ -261,6 +262,53 @@ public sealed class EditorHarness : IDisposable
     }
 
     // ── Pump API ──────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 102 (<c>102c</c>) — THE HARNESS ENTERS STEPPING BEFORE A TEST PUMPS.</b>
+    /// <c>BP-379</c>.
+    ///
+    /// <para>🔴🔴 <b>The mechanism, traced end to end.</b> <c>SwitchToDeterministic</c> does NOT enter
+    /// <c>Stepping</c> — it arms a FUTURE BARRIER and sets <c>MasterMode.BarrierPending</c>
+    /// *(<c>MasterSyncController:253</c>)*. ⇒ on the first pumped frame:
+    /// <list type="number">
+    ///   <item>⛔ <c>Step(0.005f)</c> hits <c>if (_mode != MasterMode.Stepping) return
+    ///   GetCurrentState();</c> — <b>a SILENT no-op</b>: nothing accumulates into
+    ///   <c>_pendingStepDelta</c>.</item>
+    ///   <item>⛔ <c>Kernel.Update()</c> lands in <c>UpdateBarrierPending</c>, which crosses the barrier
+    ///   *(<c>LookaheadWallTicks = 0</c>)*, switches to <c>Stepping</c> — and returns
+    ///   <c>BuildGlobalTime(0.0f, 0.0f)</c>, <b>an explicit zero</b>.</item>
+    /// </list>
+    /// ⇒ ⭐⭐⭐ <b>the harness's first pumped frame was ALWAYS <c>dt = 0</c></b>, and
+    /// <c>BlueprintTickSystem:51</c> opens with <c>if (deltaTime &lt;= 0f) return;</c> — so every
+    /// behaviour tick lost exactly one frame at startup.</para>
+    ///
+    /// <para>⭐⭐ <b>Why the HARNESS is the right place</b> *(📌 Batch 101's instruction: do NOT edit the
+    /// eight expectations)*. Crossing the barrier is a TIME-CONTROLLER state transition, ⛔ not a
+    /// simulation frame — ⚠ so it is driven through the controller alone and <b>no system runs with a
+    /// zero <c>dt</c></b>. ⭐ In production the barrier is crossed by ordinary frames while the editor
+    /// sits paused; a test that pumps N frames and asserts N ticks is asserting the steady state, and
+    /// this makes the harness start there.</para>
+    ///
+    /// <para>⛔ <b>It THROWS rather than returning</b> if the barrier never falls. ⚠ A harness that
+    /// silently stayed in <c>BarrierPending</c> is precisely the failure this closes, and it cost a
+    /// batch to find once already.</para>
+    /// </summary>
+    private void CrossTheDeterministicBarrier()
+    {
+        // ⭐ LookaheadWallTicks = 0 ⇒ the barrier is "now", so one Update crosses it. ⚠ The loop is a
+        //   bound, not an expectation: the check reads the PHYSICAL clock, so a coarse timer could in
+        //   principle need a second look.
+        for (int i = 0; i < 64; i++)
+        {
+            if (_timeController!.GetMode() == Fdp.ModuleHost.Time.TimeMode.Deterministic) return;
+            _timeController.Update();
+        }
+
+        throw new InvalidOperationException(
+            "EditorHarness never entered deterministic Stepping: the time controller is still "
+          + "BarrierPending, so PumpFrames' first Step() would be a silent no-op and the first "
+          + "frame would arrive with dt = 0 (BP-379).");
+    }
 
     /// <summary>Advances <paramref name="frames"/> simulation frames.</summary>
     public void PumpFrames(int frames)
