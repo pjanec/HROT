@@ -3109,7 +3109,12 @@ namespace Hrot.Editor
             // ── AIE-048: Blueprint Details + Variables windows ────────────────────────────────
             _blueprintDetailsWindow = new Hrot.Blueprints.Editor.Windows.BlueprintDetailsWindow(
                 selectionStore:  _blueprintSelectionStore,
-                drawerRegistry:  _blueprintNodeDrawers ?? new Hrot.Blueprints.Editor.NodeDrawers.BlueprintNodeDrawerRegistry());
+                drawerRegistry:  _blueprintNodeDrawers ?? new Hrot.Blueprints.Editor.NodeDrawers.BlueprintNodeDrawerRegistry(),
+                // ⭐⭐ Batch 99 (99a) — the Properties form's RENAME runs this. 📌 The silent-default
+                //    ruling: "a production caller that HAS a dependency must PASS it" — this method
+                //    hands the SAME service to BlueprintVariablesManagedWindow seven lines below, and
+                //    the first draft of 99a left this one defaulted to null.
+                refactorService: refactorService);
             _blueprintRegistrar!.RegisterExtraWindow(windowManager, _blueprintDetailsWindow);
 
             // BlueprintVariablesWindow (wrapped in a ManagedWindow adapter) uses the legacy

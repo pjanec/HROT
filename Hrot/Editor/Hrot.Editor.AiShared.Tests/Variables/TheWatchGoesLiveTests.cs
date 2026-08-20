@@ -172,6 +172,16 @@ public sealed class TheWatchGoesLiveTests
         public System.Collections.Generic.List<(string Name, string? Json)> DefaultWrites { get; } = new();
         public void UpdateVariableDefaultValueJson(string name, string? defaultValueJson)
             => DefaultWrites.Add((name, defaultValueJson));
+        // ⭐ 99a — the interface has NO default body on purpose (U-5/BP-230: "a default body is
+        //   the interface volunteering to lie on an implementer's behalf"), so every double answers.
+        //   ⚠ These doubles do not exercise the Properties form, so they RECORD rather than no-op —
+        //   a silent { } here is the very shape the rule exists to stop.
+        public System.Collections.Generic.List<(string Name, Hrot.Editor.AiShared.Variables.VariablePropertyValues Values)> PropertyWrites { get; } = new();
+        public void UpdateVariableProperties(
+            string name, Hrot.Editor.AiShared.Variables.VariablePropertyValues values)
+            => PropertyWrites.Add((name, values));
+        public Hrot.Editor.AiShared.Variables.DeclarationPropertySnapshot? ReadVariableProperties(string name)
+            => null;
         public void MoveVariable(int sourceIndex, int destIndex) { }
         public int CountNodesReferencingVariable(string name) => 0;
         public IReadOnlyList<Hrot.Editor.AiShared.Windows.UnboundRequirementViewModel> UnboundRequirements

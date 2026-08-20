@@ -654,6 +654,18 @@ public class PerspectiveWorkspaceRegistrar
         if (window is IVariableWatchToggleHost watchHost)
             watchHost.SetWatchToggle(Watch is null ? null : ToggleWatch);
 
+        // ⭐⭐⭐ Batch 99 (99a) — R-109: "Properties…" is a CUSTOM form, so the binder cannot open one
+        //    and the host that HAS one must. ⭐ Same pass, same reason as the two above (R-67).
+        // ⚠ Subscribed ONCE per host: RegisterExtraWindow can be called again for the same window, and
+        //   a second subscription would open the form twice on one gesture.
+        if (window is IVariablePropertiesFormHost formHost
+            && EditGestures is not null
+            && _propertiesHosts.Add(formHost))
+        {
+            EditGestures.PropertiesRequestedForRow +=
+                (row, editable) => formHost.OpenVariableProperties(row, editable);
+        }
+
         // ⭐⭐⭐ Batch 87 — WHICH SURFACE owns the Details panel (user ruling, 2026-08-18).
         //    🔴 B8: the panel decided by comparing NODE IDENTITY, so re-clicking the same node could
         //    never win it back. ⛔ Measured: a re-click produces no signal at any layer — CanvasInput
@@ -766,6 +778,10 @@ public class PerspectiveWorkspaceRegistrar
     /// without a <c>facetEditService</c> silently got no watch toggle either. ⛔ Two capabilities, two
     /// preconditions; ⭐ neither may hide behind the other.
     /// </summary>
+    /// <summary>⭐ Hosts already subscribed to the Properties gesture — ⛔ so a re-registered window
+    /// does not open the form twice on one click.</summary>
+    private readonly HashSet<IVariablePropertiesFormHost> _propertiesHosts = new();
+
     private void AttachEditGestures(IVariableTableHost? host)
     {
         if (host?.VariableTable is not { } table) return;

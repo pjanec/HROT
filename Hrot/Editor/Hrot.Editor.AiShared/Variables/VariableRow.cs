@@ -127,6 +127,26 @@ public delegate BlackboardVariableEntry? ReadVariableDeclaration();
 public delegate bool WriteVariableDefault(string? defaultValueJson);
 
 /// <summary>
+/// ⭐⭐⭐ <b>Batch 99 (<c>99a</c>) — WRITES this row's DECLARATION PROPERTIES back.</b>
+/// 📌 <c>R-108</c>/<c>R-109</c>: <i>"'Properties…' must open the DECLARATION, not the value"</i>, as a
+/// CUSTOM form. ⇒ the commit needs its own target, by the same route and for the same reason as
+/// <see cref="WriteVariableDefault"/>: Blueprint's schema sources are built per outline selection,
+/// inside the window, long after the composition root has finished.
+/// ⚠ <c>false</c> means <i>"this source cannot write"</i> — ⛔ not <i>"the write failed"</i>.
+/// </summary>
+public delegate bool WriteVariableProperties(VariablePropertyValues values);
+
+/// <summary>
+/// ⭐⭐⭐ <b>Batch 99 (<c>99a</c>) — reads the declaration's KIND and its non-value members.</b>
+/// ⚠ <b>Not just <see cref="ReadVariableDeclaration"/>:</b> 📐 <c>BlackboardVariableEntry</c> carries
+/// Name · FieldType · Comment · DefaultValueJson · Role · Scope — ⛔ <b>and none of Tooltip, Category,
+/// IsEditable, IsExposedOnSpawn</b>, which are exactly what <c>VariablePropertySchema</c> says a
+/// <c>VariableDecl</c>'s form must show. ⭐ <c>null</c> ⇒ the form offers the smallest set rather than
+/// inventing values it cannot store.
+/// </summary>
+public delegate DeclarationPropertySnapshot? ReadVariableProperties();
+
+/// <summary>
 /// ⭐⭐ Row identity (§1a). <b><see cref="Entity"/> is PART of it</b> — the same asset on two entities
 /// has two different values, so the key is <c>(AssetId, Entity, VariablePath)</c>, ⛔ never
 /// <c>(asset, variable)</c>.
@@ -219,7 +239,11 @@ public sealed record VariableRow(
     // ⭐⭐⭐ Batch 98 (98a) — the WRITE half of ReadDeclaration, and the reason OK refused on every
     //    Blueprint variable while PLANNING. Same optional-and-preferred shape as every arm above
     //    (📌 ruling 9 — one precedent, not a new idiom). See WriteVariableDefault for the measurement.
-    WriteVariableDefault? WriteDefault = null)
+    WriteVariableDefault? WriteDefault = null,
+    // ⭐⭐⭐ Batch 99 (99a) — R-108/R-109's "Properties… opens the DECLARATION" needs its own read and
+    //    write targets, by the same route and for the same reason as WriteDefault above.
+    WriteVariableProperties? WriteProperties = null,
+    ReadVariableProperties? ReadProperties = null)
 {
     /// <summary>
     /// ⭐⭐ <b>Has this variable ever been written, as of NOW.</b> ⭐ Prefers <see cref="ReadWritten"/>

@@ -1,3 +1,4 @@
+using System.Linq;
 using Fdp.Presentation.Icons;
 using Fdp.Presentation.WindowManager;
 using Hrot.Blueprints.Core.Assets;
@@ -121,17 +122,33 @@ public sealed class TheDialogOpensOnEveryHostTests
     // ══ THE RAIL ═════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// ⭐⭐⭐ <b>The one that matters: a designer picks "Properties…" and a dialog opens.</b>
+    /// ⭐⭐⭐ <b>The one that matters: a designer picks "Properties…" and the gesture LANDS.</b>
     ///
-    /// <para>🔴 <b>RED before this batch on <c>blueprint</c></b> — and green on the other two, which is
+    /// <para>🔴 <b>RED before Batch 95 on <c>blueprint</c></b> — and green on the other two, which is
     /// stated rather than hidden: the AI hosts DID work, because their assets satisfy the type test the
     /// old resolver made. ⭐ The point of railing all three is that the fix must not cost them that.</para>
+    ///
+    /// <para>⭐⭐⭐ <b>RE-EVIDENCED, Batch 99 (<c>99a</c>) — <c>ActiveSession</c> is no longer the
+    /// evidence, because there is no session.</b> 📌 <c>R-109</c>: <i>"Properties CANNOT be a StructEdit
+    /// document"</i> — <c>Name</c> is a RENAME and <c>Type</c> is a RETYPE MIGRATION. ⇒ ⛔ the old
+    /// assertion asserted <c>BP-359</c>.</para>
+    ///
+    /// <para>⚠⚠ <b>And the defect this file was BUILT for can no longer reach this arm at all</b>,
+    /// which is worth saying plainly rather than leaving the rail looking equally strong: <c>95a</c>'s
+    /// defect was <c>ResolveEntry</c> answering <c>null</c> on Blueprint, and the Properties arm now
+    /// returns <b>before</b> the resolver is consulted. ⇒ ⭐ <b>that half of the coverage now lives
+    /// entirely in <see cref="EditValueOpensASession_OnEveryPerspective"/></b>, which still runs the
+    /// resolver on all three hosts. ⛔ Do not delete that rail thinking this one covers it.</para>
+    ///
+    /// <para>⭐ <b>What THIS rail still proves, non-vacuously:</b> the table → binder wiring exists per
+    /// perspective *(an unattached table raises nothing, and <c>LastAction</c> would stay null)*, and
+    /// the R-109 fence holds on every host.</para>
     /// </summary>
     [Theory]
     [InlineData("btree")]
     [InlineData("hsm")]
     [InlineData("blueprint")]
-    public void PropertiesOpensASession_OnEveryPerspective(string perspective)
+    public void PropertiesLandsButOpensNoSession_OnEveryPerspective(string perspective)
     {
         var reg = RegistrarOf(perspective);
         var (source, asset) = RowsFor(perspective);
@@ -145,8 +162,57 @@ public sealed class TheDialogOpensOnEveryHostTests
         reg.Variables.Control.RaisePropertiesRequested(row);
 
         Assert.NotNull(reg.EditGestures);
-        Assert.NotNull(reg.EditGestures!.ActiveSession);
-        Assert.Equal(VariableEditAction.Properties, reg.EditGestures.LastAction);
+        Assert.Equal(VariableEditAction.Properties, reg.EditGestures!.LastAction);   // ⭐ it landed
+        Assert.Null(reg.EditGestures.ActiveSession);                                 // ⛔ R-109
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 99 (<c>99a</c>) — WHO answers "Properties…", asked of the REAL composition root.</b>
+    ///
+    /// <para>📌 <c>R-67</c>: <i>"a rail that builds its own composition root cannot see a
+    /// composition-root defect."</i> ⇒ this asks the registrar production built, after production's own
+    /// <c>RegisterWindows</c> pass — ⛔ it does not call <c>RegisterExtraWindow</c> itself.</para>
+    ///
+    /// <para>⭐⭐ <b>The asymmetry is the FINDING, not an omission:</b> only <c>BlueprintDetailsWindow</c>
+    /// implements <c>IVariablePropertiesFormHost</c>, so BTree and HSM raise the gesture and
+    /// <b>nothing opens</b> — 📌 <c>BP-317</c>, <b>filed, not faked</b>. ⚠ Pinning it here means the day
+    /// an AI host grows a form, THIS rail is what says so.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("btree",     false)]
+    [InlineData("hsm",       false)]
+    [InlineData("blueprint", true)]
+    public void OnlyBlueprintHasAPropertiesFormHost(string perspective, bool expected)
+        => Assert.Equal(expected, RegistrarOf(perspective).EditGestures!.HasPropertiesHost);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Batch 99 (<c>99a</c>) — THE FORWARDING RAIL, and it caught its own author.</b>
+    ///
+    /// <para>📌 The silent-default ruling: <i>"a production caller that HAS a dependency must PASS
+    /// it"</i>, with the control being <i>"a forwarding rail PER DEPENDENCY, asserted on the CONSTRUCTED
+    /// OBJECT — not on the registrar's source."</i></para>
+    ///
+    /// <para>🔴🔴 <b>RED as first written.</b> <c>BlueprintDetailsWindow</c> built its form with
+    /// <c>new VariablePropertiesModal()</c>, justified in its own doc comment as <i>"this window has
+    /// none to give"</i> — ⛔ <b>true of the window, false of its CALLER</b>: <c>EditorSubsystem</c>
+    /// holds a <c>refactorService</c> and hands it to <c>BlueprintVariablesManagedWindow</c> seven lines
+    /// below. ⚠ <b>The eighth instance of that shape in this programme, and the first that was mine.</b></para>
+    ///
+    /// <para>⭐ Asked of the window PRODUCTION built, reached through the registrar's own registered
+    /// list — ⛔ <c>new BlueprintDetailsWindow(...)</c> here would assert the default, not the wiring
+    /// *(📌 <c>R-67</c>)*.</para>
+    /// </summary>
+    [Fact]
+    public void TheProductionDetailsWindowIsHandedTheRefactorService()
+    {
+        var details = RegistrarOf("blueprint").RegisteredWindows
+                          .OfType<Hrot.Blueprints.Editor.Windows.BlueprintDetailsWindow>()
+                          .SingleOrDefault();
+
+        Assert.NotNull(details);
+        Assert.True(details!.PropertiesForm.HasRefactorService,
+            "EditorSubsystem holds a RefactorService and must hand it to the Details window's " +
+            "Properties form — a rename that skips it dangles the binding on BTree/HSM (M-15).");
     }
 
     /// <summary>
@@ -196,6 +262,16 @@ public sealed class TheDialogOpensOnEveryHostTests
     /// ⭐⭐ <b>And a row whose variable is GONE still opens nothing.</b> ⛔ Fail-closed is the property
     /// the old resolver had for the right reason, and 95a must not trade it away: the fix widens WHICH
     /// rows can answer, never WHETHER an unanswerable row opens a dialog over a guess.
+    ///
+    /// <para>⚠⚠ <b>RE-POINTED, Batch 99 (<c>99a</c>) — this rail had gone VACUOUS and would have stayed
+    /// green forever.</b> 📌 It drove the <b>Properties</b> gesture, and <c>R-109</c> made that arm
+    /// return before the resolver runs ⇒ <c>ActiveSession</c> is <c>null</c> for an orphan row, a
+    /// healthy row and every row in between. 🔴 <b>A rail that cannot go red is not a rail</b>, and
+    /// nothing would have announced it: it was passing before this batch and passing after.</para>
+    ///
+    /// <para>⭐ Re-pointed at <b>"Edit value…"</b>, which is the gesture that still consults
+    /// <c>_entryResolver</c> — so the fail-closed property is asserted where it is still capable of
+    /// failing. ⭐ Confirmed by probe: making <c>Open</c> fall through a null entry reddens this.</para>
     /// </summary>
     [Fact]
     public void ARowThatCanNameNoDeclarationStillOpensNothing()
@@ -209,8 +285,9 @@ public sealed class TheDialogOpensOnEveryHostTests
             ReadValue: () => Array.Empty<byte>());
 
         reg.Variables.ShowSection("s", new FixedVariableRowSource(new[] { orphan }));
-        reg.Variables.Control.RaisePropertiesRequested(orphan);
+        reg.Variables.Control.RaiseEditValueRequested(orphan);
 
         Assert.Null(reg.EditGestures!.ActiveSession);
+        Assert.Equal(VariableEditAction.EditValue, reg.EditGestures.LastAction);   // ⛔ not vacuous
     }
 }
