@@ -84,7 +84,7 @@ MODE** *(`R-111`)* and by **perspective** *(`R-110`)* — the two right-hand col
 
 | # | context *(what you clicked)* | views offered | ⭐ perspective | ⚠ mode |
 |---|---|---|---|---|
-| **1** | ⭐⭐ **FOCUS on a surface with NO sub-selection** *(a fresh document, or after a deselect)* — 📌 **`R-115`: focus and selection are TWO axes** | ⭐ **the FOCUSED SURFACE'S DEFAULT view** — for the canvas/asset that is **Asset views** *(row 7)* | all | — |
+| **1** | ⭐⭐ **FOCUS on a surface with NO sub-selection** *(a fresh document, or after an empty-canvas click — ✅ which CLEARS, `R-115`)* — 📌 **`R-115`: focus and selection are TWO axes** | ⭐ **the FOCUSED SURFACE'S DEFAULT view** — for the canvas/asset that is **Asset views** *(row 7)* | all | — |
 | **1b** | ⚠ **a MULTI-selection** *(marquee, two or more nodes)* — ⭐ **a REAL selection** *(`R-115`)*, ⛔ **not "nothing"** | ⚠ **no multi-node view exists** ⇒ ⭐ the interim is *"N nodes selected"* + the focus default — ⛔ **never a silent empty** | all | — |
 | **2** | ⭐⭐ **a VARIABLE or a variable SECTION** *(`VariableOutlineSelection`)* | ⭐ **Variables `(DEFAULT)`** · **Layout / byte budget** *(the bin-pack view — `R-112`)* | all three | ⭐ the table itself switches **initial ⇄ live** arm by mode *(`Q32` ruling 3)* — ⛔ not a different view |
 | **3** | ⭐⭐ **a NODE** — `BlueprintNodeSelection` · `BTreeNodeSelection` · `HsmStateSelection` | ⭐ **Properties `(DEFAULT)`** *(the facet editor, and it CARRIES the node's two bindings — `ExpressionTargetField` / `WorkingStateTargetField`)* · **Default value** *(`DEFAULT VALUE — {var}`, the node-scoped default of the variable this node WRITES)* · **Runtime** | all three *(different feed per host)* | **Runtime** view offered **only** when a debug session is attached |
@@ -143,12 +143,24 @@ supports this: `_subSelectionsByAsset` is keyed **by `AssetId`**, so each asset 
 interim is *"N nodes selected"* with the **asset/focus default** views offered, ⛔ never a silent
 "nothing".
 
-### ⚠ The one residual — **stated, not assumed**
+### ✅ The residual — **RULED `2026-08-20`**
 
-⭐ Whether a **click on empty canvas** should also **CLEAR** the selection *(the usual convention)* or
-merely move focus is ⛔ **not stated by the ruling.** ⭐ **My lean: it clears** — it is a click *into* the
-canvas surface, and the conventional deselect. ⚠ **But that is a lean, and the ruling only guarantees
-that PAN and document/perspective switches do not.**
+⭐⭐ **User: *"yes, empty canvas click clears the selection."*** ⇒ ⛔ **an empty-canvas click BOTH clears
+the sub-selection AND moves focus to that surface** — ⭐ the panel then shows that surface's default
+view. ⚠ **A PAN still does neither** *(`R-115`)*; the distinction is **click vs drag**, ⛔ not
+empty-vs-node.
+
+## ⭐⭐ THE ENTITY CONTEXT — **`Q47`, a deliberate SCOPE EXTENSION**
+
+⚠ **This table covers the three AI perspectives.** ⭐⭐ **The user has extended the panel to the
+SCENARIO perspective, where clicking an ENTITY is a context** — 📄
+**[`Architect_Question_47_The_Entity_Context.md`](Architect_Question_47_The_Entity_Context.md)**.
+⛔ **`Q38`'s fence on the engine/sim inspectors is NOT deleted** — ⭐ it still holds for the three AI
+perspectives, where an entity is a **value source**; ⭐⭐ in the scenario perspective the entity is **the
+authored thing**.
+⚠⚠ **One item from `Q47` belongs in THIS design from the start:** ⭐⭐⭐ **the view registry should take a
+PREDICATE, not an asset kind** — an entity has no single kind, it has components. ⛔ Retrofitting that
+later means touching every context.
 
 ## ⛔ NOT in this table — **and why**
 
