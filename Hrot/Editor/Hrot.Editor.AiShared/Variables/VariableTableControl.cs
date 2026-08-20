@@ -98,6 +98,23 @@ public sealed class VariableTableControl
     /// </summary>
     public VariableTableGestures Gestures { get; set; } = VariableTableGestures.Default;
 
+    /// <summary>
+    /// ⭐⭐ <b>What a double-click on the NAME cell raises</b> — extracted so it can be railed, because
+    /// 📌 <c>R-21</c>/<c>R-62</c>: the draw itself cannot be driven by an ordinary test.
+    /// ⭐ Returns the gesture raised, so a rail asserts the DECISION rather than a side effect.
+    /// </summary>
+    internal VariableEditAction RaiseNameCellDoubleClick(VariableRow row)
+    {
+        if (Gestures.OffersProperties)
+        {
+            PropertiesRequested?.Invoke(row);
+            return VariableEditAction.Properties;
+        }
+
+        EditValueRequested?.Invoke(row);
+        return VariableEditAction.EditValue;
+    }
+
     public VariableTableControl(VariableValueFormatter formatter)
         => _formatter = formatter ?? throw new ArgumentNullException(nameof(formatter));
 
@@ -228,8 +245,16 @@ public sealed class VariableTableControl
                     ImGui.SetTooltip(VariableRowGrouping.FullPathTooltip(row));   // ⭐ full path, always
                     // ⭐ Double-click disambiguates BY CELL -- extending the existing convention, not
                     //   overriding it: the NAME cell opens the whole properties object.
+                    // ⭐⭐⭐ ...but ONLY where the host offers that gesture. 🔴 Batch 100 (100f) made the
+                    //    gesture set host-declared and gated the MENU at :321 — ⛔ this second entry
+                    //    point was not gated, so a Watch row still opened Properties on double-click
+                    //    *(user, 2026-08-20)*. ⚠ Two entry points, one of them gated, is exactly the
+                    //    half-wired shape BP-360 had.
+                    // ⭐ A host that does not offer Properties falls back to "Edit value…" rather than
+                    //   doing nothing: the user asked for it, and a dead double-click on a live row
+                    //   reads as a broken feature.
                     if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left) && row.CanEverBeWritten)
-                        PropertiesRequested?.Invoke(row);
+                        RaiseNameCellDoubleClick(row);
                 }
                 DrawRowMenu(view, row);
                 break;
