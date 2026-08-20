@@ -21,7 +21,53 @@ known-conflict: Q38's live answer says "RuntimeInspectorWindow IS the shell". Se
 
 ## 1. ⭐⭐⭐ WHERE IT LIVES — **the placement spec**
 
-![placement](img/details-panel-placement.svg)
+```mermaid
+graph TD
+    subgraph ROOT["Hrot.Editor — composition root"]
+        ES["EditorSubsystem<br/>builds 4 workspaces"]
+        SA["Scenario/ adapters<br/>Components · Mission plan"]
+    end
+    subgraph AI["Hrot.Editor.AiShared"]
+        SH["Shell/ — NEW<br/>DetailsContext · Descriptor<br/>Registry · Workspace · Windows"]
+        SS["EditorSelectionStore"]
+        VS["VariableDetailsSection"]
+    end
+    subgraph PRES["Hrot.Presentation"]
+        MP["MissionPanel"]
+        SIS["SelectionInteractionSystem"]
+        SRS["SelectionRenderSystem<br/>+ 2 gizmos"]
+    end
+    subgraph FDP["Fdp.Presentation"]
+        WM["WindowManager<br/>ManagedWindow"]
+        EIP["EntityInspectorPanel"]
+    end
+    subgraph CORE["Hrot.Core / Fdp.Core"]
+        WORLD["ECS World"]
+        SST["SelectionState<br/>IsSelected · IsPrimary"]
+    end
+
+    ES --> SH
+    ES --> SS
+    SA --> SH
+    SA --> MP
+    SA --> EIP
+    SH --> WM
+    SH --> SS
+    VS --> SH
+    MP --> WM
+    EIP --> WM
+    SIS -- writes --> SST
+    SRS -- reads --> SST
+    SH -- reads --> SST
+    WORLD --- SST
+
+    style SH fill:#fdeaea,stroke:#c0392b
+    style SA fill:#fdeaea,stroke:#c0392b
+    style SST fill:#e8f4ea,stroke:#2e7d4f
+```
+
+⛔ **`Hrot.Presentation` and `AiShared` do NOT reference each other** — ⭐ that is why the scenario
+adapters live in `Hrot.Editor`, the only assembly that already sees both. ⇒ **zero new projects.**
 
 ### ⭐⭐ Every type, its home, its owner, its lifetime
 
@@ -65,39 +111,253 @@ known-conflict: Q38's live answer says "RuntimeInspectorWindow IS the shell". Se
 
 ---
 
-## 2. ⭐⭐ THE TYPES
+## 2. ⭐⭐ THE TYPES — **class diagram**
 
-```csharp
-// CONTEXT — immutable; focus and selection are TWO axes (R-115).
-public sealed record DetailsContext(
-    SelectionOrigin                   Focus,
-    IReadOnlyList<IAssetSubSelection> Selection,    // a SET, never one-or-null
-    IReadOnlyList<Entity>             Entities,     // read from the World, not from a panel
-    IEditableAsset?                   Asset,
-    string                            Perspective,
-    VariableRunState                  Mode);
+```mermaid
+classDiagram
+    direction LR
 
-// VIEW — a DESCRIPTOR + FACTORY. The predicate ships with the view (R-116).
-public sealed record DetailsViewDescriptor(
-    string Id, string Title, int Rank,
-    Func<DetailsContext, bool> AppliesTo,           // over the whole context (R-117)
-    Func<IDetailsViewInstance> Create);             // one instance per HOST
+    class DetailsContext {
+        <<record>>
+        +SelectionOrigin Focus
+        +IReadOnlyList~IAssetSubSelection~ Selection
+        +IReadOnlyList~Entity~ Entities
+        +IEditableAsset Asset
+        +string Perspective
+        +VariableRunState Mode
+    }
+    class DetailsViewDescriptor {
+        <<record>>
+        +string Id
+        +string Title
+        +int Rank
+        +AppliesTo(DetailsContext) bool
+        +Create() IDetailsViewInstance
+    }
+    class IDetailsViewInstance {
+        <<interface>>
+        +Draw(DetailsContext, string) void
+        +Dispose() void
+    }
+    class DetailsViewRegistry {
+        +Add(DetailsViewDescriptor) void
+        +OfferSet(DetailsContext) IReadOnlyList~DetailsViewDescriptor~
+        +Default(DetailsContext) DetailsViewDescriptor
+    }
+    class IDetailsContextSource {
+        <<interface>>
+        +Current() DetailsContext
+    }
+    class LiveContextSource {
+        +Current() DetailsContext
+    }
+    class FrozenContextSource {
+        -DetailsContext snapshot
+        +Current() DetailsContext
+    }
+    class PerspectiveWorkspace {
+        +string Perspective
+        +Register(ManagedWindow) void
+        +BuildContext() DetailsContext
+    }
+    class EditorSelectionStore {
+        +IEditableAsset ActiveAsset
+        +IReadOnlyList~IAssetSubSelection~ ActiveSubSelections
+        +SelectionOrigin FocusedSurface
+        +OnSelectionChanged
+    }
+    class World {
+        <<ECS>>
+        +Query~SelectionState~() IEnumerable~Entity~
+    }
+    class SelectionState {
+        <<component>>
+        +bool IsSelected
+        +bool IsPrimarySelection
+    }
+    class ManagedWindow {
+        <<abstract>>
+        +bool IsVolatile
+        +DrawClientArea() void
+    }
+    class DetailsWindow {
+        <<docked shell>>
+        +DrawClientArea() void
+    }
+    class DetailsViewWindow {
+        <<float or pin>>
+        +DrawClientArea() void
+    }
 
-public interface IDetailsViewInstance : IDisposable { void Draw(DetailsContext ctx, string imGuiId); }
+    ManagedWindow <|-- DetailsWindow
+    ManagedWindow <|-- DetailsViewWindow
+    IDetailsContextSource <|.. LiveContextSource
+    IDetailsContextSource <|.. FrozenContextSource
 
-// REGISTRY  — offer set = descriptors whose predicate passes, ordered by Rank; default = highest.
-// WORKSPACE — per perspective: the store, the registry, the claim chain. No services.
-// HOSTS     — DetailsWindow (docked) · DetailsViewWindow (float | pin). They differ ONLY in
-//             where the context comes from.
+    PerspectiveWorkspace *-- DetailsViewRegistry
+    PerspectiveWorkspace o-- EditorSelectionStore
+    PerspectiveWorkspace ..> World : reads entity selection
+    PerspectiveWorkspace ..> DetailsContext : builds
+    World o-- "0..*" SelectionState
+
+    DetailsViewRegistry o-- "0..*" DetailsViewDescriptor
+    DetailsViewDescriptor ..> IDetailsViewInstance : creates
+    LiveContextSource o-- PerspectiveWorkspace
+
+    DetailsWindow o-- DetailsViewRegistry
+    DetailsWindow o-- IDetailsContextSource
+    DetailsWindow *-- "0..1" IDetailsViewInstance
+    DetailsViewWindow o-- DetailsViewDescriptor
+    DetailsViewWindow o-- IDetailsContextSource
+    DetailsViewWindow *-- "1" IDetailsViewInstance
 ```
+
+| ⭐ what the diagram asserts | |
+|---|---|
+| ⭐⭐⭐ **the two window classes differ ONLY in `IDetailsContextSource`** | `Live` ⇒ docked or contextual float · `Frozen` ⇒ pin *(`R-119`)* |
+| ⭐⭐ **the registry holds DESCRIPTORS; each window COMPOSES its own instance** | ⛔ no view instance is shared ⇒ ⛔ no arbitration *(`R-120`)* |
+| ⭐⭐ **`SelectionState` hangs off `World`, not off any window** | *(`R-122`)* |
+| ⭐ **only the workspace builds a context** | ⛔ no window reads the store directly |
 
 ### ⭐ The three hosting modes
 
-| mode | context | window | predicate false ⇒ | layout save |
+| mode | context source | window | predicate false ⇒ | layout save |
 |---|---|---|---|---|
-| **DOCKED** | live | the shell, one view at a time | falls back by `Rank` | ✅ |
-| ⭐⭐ **FLOAT — contextual** | **live** | its own window, anywhere | ⭐⭐ **stays open, grey line** | ✅ **persists** |
-| **FLOAT — pinned** *(`R-100`)* | **frozen** at pin time | its own window, titled | n/a | ⛔ `IsVolatile` |
+| **DOCKED** | `Live` | the shell, one view at a time | falls back by `Rank` | ✅ |
+| ⭐⭐ **FLOAT — contextual** | `Live` | its own window, anywhere | ⭐⭐ **stays open, grey line** | ✅ **persists** |
+| **FLOAT — pinned** *(`R-100`)* | `Frozen` | its own window, titled | n/a | ⛔ `IsVolatile` |
+
+---
+
+## 2b. ⭐⭐⭐ BEHAVIOUR — **sequence diagrams**
+
+### ⭐ A marquee selection reaches the panel — **and finds no view** *(`R-117`, `R-118`)*
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Designer
+    participant C as Canvas
+    participant B as SelectionBridge
+    participant S as EditorSelectionStore
+    participant W as PerspectiveWorkspace
+    participant R as DetailsViewRegistry
+    participant D as DetailsWindow
+
+    U->>C: marquee over 2 nodes
+    C->>B: AfterDraw(selection)
+    Note over B: maps ALL nodes.<br/>No Count filter (R-118)
+    B->>S: ActiveSubSelections = [n1, n2]
+    S-->>W: OnSelectionChanged
+    D->>W: BuildContext()
+    W->>S: read focus + selection
+    W-->>D: ctx (2 items)
+    D->>R: OfferSet(ctx)
+    loop each descriptor
+        R->>R: AppliesTo(ctx)
+    end
+    R-->>D: [] empty
+    D->>D: draw grey line
+    Note over D: "intentionally empty<br/>for the current selection"
+```
+
+### ⛔ A PAN must change nothing — **the defect `L0.2` fixes**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Designer
+    participant B as SelectionBridge
+    participant S as EditorSelectionStore
+    participant D as DetailsWindow
+
+    U->>B: pan (selection unchanged)
+    rect rgb(253, 234, 234)
+        Note over B,S: TODAY — Count != 1 returns null
+        B->>S: ActiveSubSelection = null
+        S-->>D: OnSelectionChanged
+        D->>D: node LOST
+    end
+    rect rgb(232, 244, 234)
+        Note over B,S: AFTER L0.2 — the same set is written
+        B->>S: ActiveSubSelections = [n1]
+        S->>S: Equals(current) - no event
+        Note over D: unchanged, no repaint
+    end
+```
+
+### ⭐⭐ Opening a CONTEXTUAL float, and a later context that rejects it *(`R-119`)*
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Designer
+    participant D as DetailsWindow
+    participant F as DetailsViewWindow
+    participant WM as WindowManager
+    participant W as PerspectiveWorkspace
+
+    U->>D: "open in own window"
+    D->>F: new(descriptor, LiveContextSource)
+    Note over F: IsVolatile = false<br/>persisted in the layout
+    F->>F: instance = descriptor.Create()
+    D->>WM: RegisterWindow(F)
+
+    loop every frame
+        F->>W: BuildContext()
+        W-->>F: ctx
+        alt descriptor.AppliesTo(ctx)
+            F->>F: instance.Draw(ctx)
+        else predicate false
+            F->>F: draw grey line
+        end
+    end
+```
+
+### ⭐ PINNING — **frozen context, and a duplicate FOCUSES** *(`R-100`)*
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Designer
+    participant D as DetailsWindow
+    participant WM as WindowManager
+    participant P as DetailsViewWindow
+
+    U->>D: pin
+    D->>D: snapshot = current ctx
+    D->>D: id = viewId + assetId + selectionKey
+    D->>WM: TryGetWindow(id)
+    alt already pinned
+        WM-->>D: found
+        D->>WM: FocusWindow(id)
+    else new pin
+        D->>P: new(descriptor, Frozen(snapshot))
+        Note over P: IsVolatile = true<br/>excluded from the layout save
+        D->>WM: RegisterWindow(P)
+    end
+```
+
+### ⭐ The toolbar's remembered pick — **state**
+
+```mermaid
+stateDiagram-v2
+    [*] --> RankDefault
+    RankDefault --> UserPick : designer clicks a toggle
+    UserPick --> UserPick : context changes, pick still applies
+    UserPick --> RankDefault : pick no longer applies
+    RankDefault --> EmptyOffer : offer set is empty
+    EmptyOffer --> RankDefault : a view applies again
+
+    note right of RankDefault
+        highest Rank that applies
+    end note
+    note right of EmptyOffer
+        grey line - never blank (R-117)
+    end note
+```
+
+⭐ The pick is remembered per **`(Perspective, AssetId, selection SHAPE)`** — see below.
 
 ### ⭐ The context key — what "remember my pick" is keyed on
 
