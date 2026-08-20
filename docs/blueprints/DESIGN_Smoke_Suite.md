@@ -5,7 +5,9 @@ updated: 2026-08-20
 current-answer: this whole file — what exists for user-level smoke testing, what is
   missing, and the three-tier design. Section 5 is the task breakdown.
 stale-below: nothing.
-known-rot: none.
+known-rot: S1 as originally written ("add it to the gate table") is IMPOSSIBLE and is
+  struck through in section 5 — Batch 101 measured that the 174-test suite aborts every
+  run. Superseded by S1' (a separate small project) and S1" (revive the 174).
 known-conflict: none.
 -->
 # ⭐⭐⭐ DESIGN — **the SMOKE SUITE: one entity, one behaviour, "is it obviously broken?"**
@@ -17,6 +19,11 @@ known-conflict: none.
 > the user sees."*
 
 ⭐⭐⭐ **The headline: most of this ALREADY EXISTS, it is RED, and it is NOT GATED.**
+
+> ⛔⛔⛔ **UPDATED `2026-08-20`, after Batch 101 measured it: IT CANNOT BE GATED — the 174-test suite
+> does not FINISH.** ⇒ ⭐⭐ **the smoke suite gets its OWN SMALL PROJECT** *(`S1′`)*, and reviving the 174
+> becomes a separate task *(`S1″`)*. ⭐ **Sections 2–4 are unaffected** — the three tiers and the fixture
+> shape are what they were; only WHERE they live changed. 📌 §5's box has the measurement.
 
 ---
 
@@ -181,12 +188,36 @@ conclusion `FINDINGS_VisualCheck_PostBatch99.md` §6 reached from the other dire
 
 | # | task | ⭐ why here |
 |---|---|---|
-| ⭐⭐⭐ **`S1`** | **GATE `Hrot.ClusterRunner.Integration.Tests`** — add it to the batch gate table with its **pass/fail/skip counts**, exactly like every other suite | ⛔ **nothing else is safe while 174 tests run in no batch.** ⚠ **Expect it RED** — ⭐ that is the point |
+| ⛔⛔ ~~**`S1`**~~ | ~~gate the integration suite~~ — **IMPOSSIBLE AS WRITTEN. Measured by Batch 101 (`BP-378`)** — see the box below | ⭐ **superseded by `S1′`** |
+| ⭐⭐⭐ **`S1′`** | **A SEPARATE, SMALL smoke project** — its own `.csproj`, a handful of scenarios, **gated from day one** because it is small enough to finish | ⭐ this is the deliverable the user asked for, and `BP-378` says it cannot be a corner of the existing project |
+| ⭐⭐ **`S1″`** | **Make the 174 RUNNABLE — per-class or per-chunk with a fresh host**, and gate *that* | ⚠ the real fix is the `EntityRepository` accumulation *(`MAX_ENTITIES = 1_000_000` per harness)*; ⛔ a chunked runner is the workaround, not the cure |
 | ⭐⭐ **`S2`** | **TRIAGE the reds.** ⛔ **Do not adjust expectations.** ⭐ For the off-by-one, establish the DIRECTION *(is the counter wrong, or the expectation?)* — bisect, or read the splice order at `EditorHarness:226` | ⚠ it may be a real regression that landed unseen |
 | ⭐⭐⭐ **`S3`** | **CLOSE `G-c`: give `EditorHarness` the PANEL GRAPH** — the registrar + the windows + their `VariableTableModel`s, ⭐ **built through the same composition path production uses** *(`R-67`)*, ⛔ not a hand-assembled copy | ⭐ **this is what unlocks T2**, the highest-value tier |
 | ⭐⭐ **`S4`** | **The first smoke test: `Count4`** — T1 + T2, with the row texts printed on failure | ⭐ the user's sentence, executable |
 | ⭐ **`S5`** | **T3**, once Batch 100's `100a` lands — the same fixture, one rendered frame | ⛔ blocked on Batch 100 |
 | ⭐ **`S6`** | **A `--mode smoke`** in the ClusterRunner that runs the suite and exits non-zero | ⭐ `--mode ci` already proves the shape; ⛔ **last — the xUnit suite is the deliverable, this is packaging** |
+
+> ### ⛔⛔⛔ `S1` DIED ON CONTACT — **the suite cannot COMPLETE, let alone be gated** *(Batch 101, `BP-378`)*
+>
+> 📐 **Three full unfiltered runs, same commit, same machine:** reached **89 / 75 / 117** of 174 and
+> **aborted every time** — twice on `CycloneDDS … dds_take failed: -3`, once on
+> `Module 'CognitiveSpatial' timed out`. ⭐⭐ **Three runs, three truncation points, two causes** — 📌 the
+> `BP-337`/`DEBT-AIB-030` signature: ⛔ **neither a red nor a green from the whole suite is evidence.**
+>
+> ⭐⭐⭐ **Underneath both aborts: 59–118 `OutOfMemoryException`s** at
+> `EntityRepository..ctor` → `EntityIndex..ctor`. 📐 `FdpConfig.MAX_ENTITIES = 1_000_000` and **every
+> harness builds a full repository**; ⚠⚠ **serialising made it WORSE (75 < 89)** ⇒ ⛔ **parallelism is
+> not the cause — memory is not released between tests.**
+>
+> ⇒ ⭐⭐ **THIS IS WHY IT SAT OUTSIDE EVERY GATE TABLE FOR ~40 BATCHES.** ⛔ Not neglect: **it could not
+> have been added, only ignored.** ⭐ **A class in isolation is clean and fast** — `BlueprintKernelRunTests`
+> **5/5 in 918 ms.**
+>
+> ### ⭐⭐⭐ AND IT REDIRECTS THE WHOLE DESIGN — **the smoke suite must NOT live in that project**
+>
+> ⭐ The user's shape — *one entity, one simple behaviour, a handful of scenarios* — is **exactly the
+> shape that does not hit this**: few harnesses, a fresh host, seconds. ⛔ **Building it inside a
+> 174-test project that exhausts memory would inherit the disease on day one.**
 
 ### ⚠ Limits — **stated up front**
 
